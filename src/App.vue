@@ -1,65 +1,81 @@
-<script setup lang="ts">
-import { ref } from "vue";
-import { invoke } from "@tauri-apps/api/core";
+<template>
+  <div class="container" :style="{ backgroundImage: `url(${backgroundImage})` }">
+    <el-input
+      v-model="searchText"
+      placeholder="请输入搜索内容"
+      class="search-input"
+    >
+      <template #prefix>
+        <el-icon><Search /></el-icon>
+      </template>
+    </el-input>
+    
+    <el-menu
+      :default-active="activeIndex"
+      class="menu-list"
+      @select="handleSelect"
+    >
+      <el-menu-item v-for="(item, index) in menuItems" :key="index" :index="String(index)" class="menu-item">
+        <div class="common-layout">
+          <el-container>
+            <el-aside width="50">
+              <el-image style="width: 50px; height: 50px" :src="url" :fit="cover" />
+            </el-aside>
+            <el-main>{{ item }}</el-main>
+          </el-container>
+        </div>
+      </el-menu-item>
+    </el-menu>
+  </div>
+</template>
+
+<script setup>
+import { ref } from 'vue'
 import { Search } from '@element-plus/icons-vue'
 
-const greetMsg = ref("");
-const name = ref("");
-const input3 = ref('');
-const select = ref('');
-
-
-async function greet() {
-  // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-  greetMsg.value = await invoke("greet", { name: name.value });
+const backgroundImage = ref('https://example.com/default-background.jpg')
+const searchText = ref('')
+const activeIndex = ref('0')
+const menuItems = ref(['hello world', 'hello world', 'hello world', 'hello world'])
+const url =
+  'https://fuss10.elemecdn.com/e/5d/4a731a90594a4af544c0c25941171jpeg.jpeg'
+const handleSelect = (index) => {
+  activeIndex.value = index
 }
 </script>
 
-<template>
-  <main>
-    <h1>Welcome to Tauri + Vue</h1>
-    <div>
-    <el-input
-      v-model="input3"
-      style="max-width: 600px"
-      placeholder="Please input"
-      class="input-with-select"
-    >
-      <template #prepend>
-        <el-select v-model="select" placeholder="Select" style="width: 115px">
-          <el-option label="Restaurant" value="1" />
-          <el-option label="Order No." value="2" />
-          <el-option label="Tel" value="3" />
-        </el-select>
-      </template>
-      <template #append>
-        <el-button :icon="Search" />
-      </template>
-    </el-input>
-    </div>
-  </main>
-
-</template>
-
 <style scoped>
-.logo.vite:hover {
-  filter: drop-shadow(0 0 2em #747bff);
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100vh;
+  padding: 20px;
+  background-size: cover;
+  background-position: center;
 }
 
-.logo.vue:hover {
-  filter: drop-shadow(0 0 2em #249b73);
+.search-input {
+  width: 300px;
+  height: 50px;
+  margin-bottom: 20px;
 }
 
-</style>
-<style>
-
-h1 {
-  text-align: center;
+.menu-list {
+  width: 300px;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid var(--el-border-color);
 }
 
-
-.input-with-select .el-input-group__prepend {
-  background-color: var(--el-fill-color-blank);
+.menu-item {
+  border-radius: 4px;
+  /* border: 1px solid var(--el-border-color); */
+  overflow: hidden;
 }
 
+:deep(.el-menu-item.is-active) {
+  color: #fff;
+  background-color: #f56c6c !important;
+}
 </style>

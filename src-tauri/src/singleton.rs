@@ -1,14 +1,16 @@
+use std::any::Any;
+use std::sync::Arc;
 use std::sync::{Mutex, Once};
 use std::thread;
 
 /// 创建一个单列模式
-trait Singleton: Any + Send + Sync {
+pub trait Singleton: Any + Send + Sync {
     fn instance() -> Arc<Mutex<Self>>
     where
         Self: Sized;
 }
-
 /// 实现一个宏来简化 Singleton 的实现
+#[macro_export]
 macro_rules! impl_singleton {
     ($t:ty) => {
         impl Singleton for $t {

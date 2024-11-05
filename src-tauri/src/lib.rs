@@ -12,7 +12,7 @@ use rdev::{listen, Event, EventType, Key};
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 use tauri::async_runtime::spawn;
-use tauri::{webview::WebviewWindow, Manager, PhysicalPosition, PhysicalSize};
+use tauri::{webview::WebviewWindow, Emitter, Manager, PhysicalPosition, PhysicalSize};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -70,8 +70,9 @@ pub fn run() {
 
 fn handle_pressed(app_handle: tauri::AppHandle) {
     let main_window = Arc::new(app_handle.get_webview_window("main").unwrap());
-    main_window.show();
-    main_window.set_focus();
+    main_window.show().unwrap();
+    main_window.set_focus().unwrap();
+    main_window.emit("show_window", ()).unwrap();
 }
 
 fn start_key_listener(app_handle: tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {

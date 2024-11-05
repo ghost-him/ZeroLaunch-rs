@@ -9,6 +9,7 @@
     }"
   >
     <el-input
+      ref="searchInputRef"
       v-model="searchText"
       :placeholder="placeholder"
       class="search-input"
@@ -22,7 +23,7 @@
       }"
     >
       <template #prefix>
-        <el-icon><Search /></el-icon>
+        <el-icon style="padding-left: 20px;"><Search /></el-icon>
       </template>
     </el-input>
 
@@ -72,6 +73,7 @@
 import { ref, onMounted, computed, onUnmounted } from 'vue';
 import { Search } from '@element-plus/icons-vue';
 import { invoke } from "@tauri-apps/api/core";
+import { listen, UnlistenFn } from '@tauri-apps/api/event';
 
 const backgroundImage = ref('https://example.com/default-background.jpg');
 const searchText = ref('');
@@ -85,6 +87,8 @@ const fontFamily = ref('Arial, sans-serif');
 const fontSize = ref<number>(0);
 const fontColor = ref('#333333');
 const placeholder = ref('请输入搜索内容');
+const searchInputRef = ref<HTMLInputElement | null>(null);
+let unlisten: UnlistenFn | null = null;
 
 // 更新字体的样式
 const updateInputStyle = (newFont: string, newSize: number, newColor: string) => {
@@ -179,6 +183,12 @@ const selectNextItem = () => {
   activeIndex.value = newIndex.toString();
 };
 
+const focusSearchInput = () => {
+  if (searchInputRef.value) {
+    searchInputRef.value.focus();
+  }
+}
+
 const pressedESC = () => {
   activeIndex.value = '0';
   if (searchText.value === '') {
@@ -190,16 +200,23 @@ const pressedESC = () => {
 }
 
 // 在组件挂载时添加事件监听器
-onMounted(() => {
+onMounted(async () => {
   getScaleFactor();
   getWindowSize();
   getItemSize();
   window.addEventListener('keydown', handleKeyDown);
+
+  unlisten = await listen('show_window', () => {
+    focusSearchInput();
+  });
 });
 
 // 在组件卸载时移除事件监听器
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyDown);
+  if (unlisten) {
+    unlisten();
+  }
 });
 </script>
 
@@ -245,12 +262,15 @@ onUnmounted(() => {
 /* 添加自定义样式来覆盖 Element Plus 默认样式 */
 :deep(.el-input__wrapper) {
   /* box-shadow: none !important; */
+  padding: 0 !important;
 }
 
 :deep(.el-input__inner) {
   font-family: v-bind(fontFamily);
   font-size: v-bind(scaledFontSize) + 'px';
   color: v-bind(fontColor);
+  
+  height: 100%;
 }
 
 :deep(.el-input__inner::placeholder) {

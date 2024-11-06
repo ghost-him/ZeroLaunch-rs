@@ -1,4 +1,5 @@
 use crate::impl_singleton;
+use crate::program_manager::config::ProgramManagerConfig;
 use crate::singleton::Singleton;
 use crate::utils::read_or_create;
 use lazy_static::lazy_static;
@@ -20,9 +21,7 @@ lazy_static! {
 
 /// 与程序设置有关的，比如是不是要开机自动启动等
 #[derive(Serialize, Deserialize, Debug, Clone)]
-struct AppConfig {
-    show_item_count: u32,
-}
+struct AppConfig {}
 /// 与程序页面设置有关的，比如窗口的大小，显示的界面等
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct UiConfig {
@@ -31,6 +30,8 @@ struct UiConfig {
     item_width_scale_factor: f64,
     /// 窗口的宽度的比例
     item_height_scale_factor: f64,
+    /// 展示的个数
+    show_item_count: u32,
 }
 /// 综合
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -38,11 +39,12 @@ struct Config {
     pub version: u32,
     pub app_config: AppConfig,
     pub ui_config: UiConfig,
+    pub program_manager_config: ProgramManagerConfig,
 }
 
 impl AppConfig {
     pub fn default() -> Self {
-        AppConfig { show_item_count: 4 }
+        AppConfig {}
     }
 }
 
@@ -51,6 +53,7 @@ impl UiConfig {
         UiConfig {
             item_width_scale_factor: 0.5,
             item_height_scale_factor: 0.0555,
+            show_item_count: 4,
         }
     }
 
@@ -72,6 +75,7 @@ impl Config {
             version: 1,
             app_config: AppConfig::default(),
             ui_config: UiConfig::default(),
+            program_manager_config: ProgramManagerConfig::default(),
         }
     }
 }
@@ -132,7 +136,7 @@ impl RuntimeConfig {
             .config
             .ui_config
             .get_item_size(self.sys_window_width, self.sys_window_height);
-        let show_item_count = self.config.app_config.show_item_count;
+        let show_item_count = self.config.ui_config.show_item_count;
         (item_size.0, item_size.1 * (show_item_count as usize + 2))
     }
 
@@ -147,6 +151,10 @@ impl RuntimeConfig {
     }
     pub fn get_window_scale_factor(&self) -> f64 {
         self.sys_window_scale_factor
+    }
+
+    pub fn get_program_manager_config(&self) -> &ProgramManagerConfig {
+        &self.config.program_manager_config
     }
 }
 

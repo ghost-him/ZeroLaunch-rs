@@ -26,6 +26,11 @@ pub fn read_or_create(path: &str, content: Option<String>) -> Result<String, Str
     }
 }
 
+pub fn is_path_valid(path: &str) -> bool {
+    let temp = Path::new(path);
+    temp.exists()
+}
+
 #[tauri::command]
 pub fn get_item_size() -> Vec<usize> {
     let (item_width, item_height) = RuntimeConfig::instance().lock().unwrap().get_item_size();

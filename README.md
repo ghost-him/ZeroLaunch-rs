@@ -19,9 +19,9 @@ ZeroLaunch-rs 是一个使用 Rust + Tauri + Vite + Vue.js + TypeScript 构建�
 ## todo
 
 - [ ] 构建使用界面，设置界面
-- [ ] 使用 `Alt+Space` 唤出搜索栏
-- [ ] 使用 `Ctrl+j/k` 进行选项的上下移动
-- [ ] 使用 `Up/Down` 进行选项的上下移动
+- [x] 使用 `Alt+Space` 唤出搜索栏
+- [x] 使用 `Ctrl+j/k` 进行选项的上下移动
+- [x] 使用 `Up/Down` 进行选项的上下移动
 - [ ] 使用 `Alt+数字键` 进行搜索内容的切换
 - [ ] 使用 `ESC` 完成清屏，隐藏搜索栏
 - [ ] 根据输入的字符串进行程序的匹配
@@ -30,3 +30,4 @@ ZeroLaunch-rs 是一个使用 Rust + Tauri + Vite + Vue.js + TypeScript 构建�
 ### 优化方向
 
 1. 优化前端与后端的数据传输：使用 protocol 代替默认的数据传输
+2. 使用ac自动机优化搜索算法（待讨论）

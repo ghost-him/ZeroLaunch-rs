@@ -25,5 +25,7 @@ impl ProgramLauncher {
     /// 通过全局唯一标识符启动程序
     pub fn launch_program(program_guid: u64) {}
     /// 获取当前程序的动态启动次数
-    pub fn program_launch_time(program_guid: u64) -> u64 {}
+    pub fn program_launch_time(program_guid: u64) -> u64 {
+        0 as u64
+    }
 }

@@ -1,17 +1,19 @@
 pub mod config;
+mod pinyin_mapper;
 /// 这个模块用于对数据进行储存，加工与处理
 ///
 mod program_launcher;
 mod program_loader;
 mod search_model;
-
 use config::ProgramManagerConfig;
+use lazy_static::lazy_static;
 use program_launcher::ProgramLauncher;
 use program_loader::ProgramLoader;
-use search_model::{SearchModel, StandardSearchModel};
+use search_model::{SearchModelFn, StandardSearchFn};
+use std::sync::Mutex;
 use std::{borrow::Borrow, sync::Arc};
-
 /// 应用程序的启动方式
+#[derive(Debug)]
 enum LaunchMethod {
     /// 通过文件路径来启动
     Path(String),
@@ -34,6 +36,7 @@ impl LaunchMethod {
 }
 
 /// 表示一个数据
+#[derive(Debug)]
 struct Program {
     /// 全局唯一标识符，用于快速索引，用于内存中存储
     pub program_guid: u64,
@@ -48,7 +51,8 @@ struct Program {
 }
 
 /// 数据处理中心
-struct ProgramManager {
+
+pub struct ProgramManager {
     /// 当前已经注册的程序
     program_registry: Vec<Arc<Program>>,
     /// 程序加载器
@@ -56,7 +60,7 @@ struct ProgramManager {
     /// 程序启动器
     program_launcher: ProgramLauncher,
     /// 当前程序的搜索模型（目前写死，后期变成可用户自定义）
-    search_model: Box<dyn SearchModel>,
+    search_fn: SearchModelFn,
 }
 
 impl ProgramManager {
@@ -66,7 +70,7 @@ impl ProgramManager {
             program_registry: Vec::new(),
             program_loader: ProgramLoader::new(),
             program_launcher: ProgramLauncher::new(),
-            search_model: Box::new(StandardSearchModel::new()),
+            search_fn: StandardSearchFn,
         }
     }
     /// 使用配置信息初始化自身与子模块
@@ -87,7 +91,7 @@ impl ProgramManager {
     pub fn update(&self, user_input: &String, result_count: u32) -> Vec<(u64, String)> {
         let mut match_scores: Vec<(f64, u64)> = Vec::new(); // (匹配值，唯一标识符)
         for program in self.program_registry.iter() {
-            let score = self.search_model.calculator(program.clone(), &user_input);
+            let score = (self.search_fn)(program.clone(), &user_input);
             match_scores.push((score, program.program_guid));
         }
 
@@ -103,7 +107,11 @@ impl ProgramManager {
     }
 
     /// 加载搜索模型
-    pub fn load_search_model(&mut self, model: Box<dyn SearchModel>) {
-        self.search_model = model;
+    pub fn load_search_fn(&mut self, model: SearchModelFn) {
+        self.search_fn = model;
     }
+}
+
+lazy_static! {
+    pub static ref PROGRAM_MANAGER: Mutex<ProgramManager> = { Mutex::new(ProgramManager::new()) };
 }

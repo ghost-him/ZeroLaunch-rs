@@ -5,6 +5,7 @@ pub mod ui_controller;
 pub mod utils;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
+use crate::program_manager::PROGRAM_MANAGER;
 use crate::singleton::Singleton;
 use crate::ui_controller::handle_focus_lost;
 use crate::utils::{get_item_size, get_window_scale_factor, get_window_size};
@@ -63,6 +64,8 @@ pub fn run() {
                 ))
                 .unwrap();
 
+            let mut program_manager = PROGRAM_MANAGER.lock().unwrap();
+            program_manager.load_from_config(config.get_program_manager_config());
             Ok(())
         })
         .run(tauri::generate_context!())

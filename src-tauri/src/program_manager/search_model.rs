@@ -90,3 +90,10 @@ pub fn get_upper_case_latter(input_text: &str) -> String {
 
     result
 }
+
+/// 获取字符串中的首字母
+pub fn get_first_letters(s: &str) -> String {
+    s.split_whitespace()
+        .filter_map(|word| word.chars().next())
+        .collect()
+}

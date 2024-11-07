@@ -143,21 +143,20 @@ impl ProgramLoader {
             // 小写名字
             let lower_name = filtered_name.to_lowercase();
 
-            // 无空格的名字
-            let no_space_name = remove_string_space(&lower_name);
+            // 分隔开的名字
+            let mut split_name = self.pinyin_mapper.convert(&lower_name);
 
-            // 拼音字母
-            let pinyin_name = self.pinyin_mapper.convert(&lower_name);
+            if split_name.is_empty() {
+                split_name = lower_name.clone();
+            }
+
+            let first_latter_name = get_first_letters(&split_name);
+            let pinyin_name = remove_string_space(&split_name);
 
             let guid = self.guid_generator.get_guid();
 
-            let alias: Vec<String> = vec![
-                filtered_name,
-                uppercase_name,
-                lower_name,
-                no_space_name,
-                pinyin_name,
-            ];
+            let alias: Vec<String> =
+                vec![lower_name, pinyin_name, first_latter_name, uppercase_name];
             let stable_bias = self.get_program_bias(&unique_name);
             let program = Arc::new(Program {
                 program_guid: guid,

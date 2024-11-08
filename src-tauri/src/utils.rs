@@ -1,6 +1,8 @@
 use crate::config::RuntimeConfig;
 use crate::singleton::Singleton;
 
+use crate::program_manager::PROGRAM_MANAGER;
+use serde::Serialize;
 use std::ffi::OsString;
 use std::fs;
 use std::io::{self, Write};
@@ -106,4 +108,23 @@ pub fn get_window_scale_factor() -> f64 {
         .get_window_scale_factor();
     println!("scale factor: {}", result);
     result
+}
+
+#[derive(Serialize, Debug)]
+pub struct SearchResult(u64, String);
+
+/// 处理前端发来的消息
+#[tauri::command]
+pub fn handle_search_text(search_text: String) -> Vec<SearchResult> {
+    // 处理消息
+    let manager = PROGRAM_MANAGER.lock().unwrap();
+    let results = manager.update(&search_text, 4);
+    // 解锁
+    drop(manager);
+    let mut ret = Vec::new();
+    for item in results {
+        ret.push(SearchResult(item.0, item.1));
+    }
+    println!("{:?}", ret);
+    ret
 }

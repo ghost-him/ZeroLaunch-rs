@@ -8,7 +8,7 @@ pub mod utils;
 use crate::program_manager::PROGRAM_MANAGER;
 use crate::singleton::Singleton;
 use crate::ui_controller::handle_focus_lost;
-use crate::utils::{get_item_size, get_window_scale_factor, get_window_size};
+use crate::utils::{get_item_size, get_window_scale_factor, get_window_size, handle_search_text};
 use config::{Height, RuntimeConfig, Width};
 use rdev::{listen, Event, EventType, Key};
 use std::collections::HashSet;
@@ -23,6 +23,7 @@ pub fn run() {
             get_window_size,
             get_item_size,
             get_window_scale_factor,
+            handle_search_text,
         ])
         .setup(|app| {
             let windows: Arc<Vec<WebviewWindow>> =
@@ -90,7 +91,7 @@ fn start_key_listener(app_handle: tauri::AppHandle) -> Result<(), Box<dyn std::e
             EventType::KeyPress(key) => {
                 keys.insert(key.clone());
 
-                if (keys.contains(&Key::Alt) && keys.contains(&Key::Space)) {
+                if keys.contains(&Key::Alt) && keys.contains(&Key::Space) {
                     handle_pressed(app_handle.clone());
                     keys.clear();
                 }

@@ -70,7 +70,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, onUnmounted } from 'vue';
+import { ref, onMounted, computed, onUnmounted, watch } from 'vue';
 import { Search } from '@element-plus/icons-vue';
 import { invoke } from "@tauri-apps/api/core";
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
@@ -79,6 +79,7 @@ const backgroundImage = ref('https://example.com/default-background.jpg');
 const searchText = ref('');
 const activeIndex = ref('0');
 const menuItems = ref(['hello world', 'hello world', 'hello world', 'hello world']);
+const searchResults = ref<Array<[number, string]>>([]);
 const windowSize = ref<[number, number]>([0, 0]);
 const itemSize = ref<[number, number]>([0, 0]);
 const scaleFactor = ref<number>(1.0);
@@ -133,6 +134,16 @@ const getScaleFactor = async () => {
   }
 };
 
+const sendSearchText = async (text: string) => {
+  try {
+    const results: Array<[number, string]> = await invoke('handle_search_text', { searchText: text });
+    searchResults.value = results;
+    menuItems.value = results.slice(0, 4).map(([_, item]) => item);
+  } catch (error) {
+    console.error('Error sending search text to Rust: ', error);
+  }
+}
+
 // 使用计算属性动态计算缩放后的尺寸
 const scaledWindowSize = computed(() => {
   const factor = scaleFactor.value || 1;
@@ -157,6 +168,9 @@ const handleSelectMouse = (index: string) => {
   activeIndex.value = index;
 }
 
+watch(searchText, (newValue) => {
+  sendSearchText(newValue);
+});
 
 const handleKeyDown = (event: KeyboardEvent) => {
   if (event.key === 'ArrowUp' || (event.ctrlKey && event.key === 'k')) {

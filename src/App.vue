@@ -207,6 +207,7 @@ const pressedESC = () => {
   activeIndex.value = '0';
   if (searchText.value === '') {
     // 隐藏窗口
+    invoke('hide_window');
   } else {
     // 清空文字
     searchText.value = '';

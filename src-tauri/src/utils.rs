@@ -8,6 +8,8 @@ use std::fs;
 use std::io::{self, Write};
 use std::os::windows::ffi::OsStringExt;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use tauri::{Manager, Runtime};
 use windows::core::PWSTR;
 use windows::Win32::Foundation::HWND;
 use windows::Win32::UI::Shell::SHGetFolderPathW;
@@ -127,4 +129,12 @@ pub fn handle_search_text(search_text: String) -> Vec<SearchResult> {
     }
     println!("{:?}", ret);
     ret
+}
+
+/// 隐藏窗口
+#[tauri::command]
+pub fn hide_window<R: Runtime>(app: tauri::AppHandle<R>) -> Result<(), String> {
+    let main_window = Arc::new(app.get_webview_window("main").unwrap());
+    main_window.hide().unwrap();
+    Ok(())
 }

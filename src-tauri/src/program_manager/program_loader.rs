@@ -21,7 +21,7 @@ struct GuidGenerator {
 
 impl GuidGenerator {
     pub fn new() -> Self {
-        GuidGenerator { next_id: 1 }
+        GuidGenerator { next_id: 0 }
     }
     pub fn get_guid(&mut self) -> u64 {
         let ret = self.next_id;

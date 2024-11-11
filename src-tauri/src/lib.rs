@@ -8,7 +8,9 @@ pub mod utils;
 use crate::program_manager::PROGRAM_MANAGER;
 use crate::singleton::Singleton;
 use crate::ui_controller::handle_focus_lost;
-use crate::utils::{get_item_size, get_window_scale_factor, get_window_size, handle_search_text};
+use crate::utils::{
+    get_item_size, get_window_scale_factor, get_window_size, handle_search_text, hide_window,
+};
 use config::{Height, RuntimeConfig, Width};
 use rdev::{listen, Event, EventType, Key};
 use std::collections::HashSet;
@@ -24,6 +26,7 @@ pub fn run() {
             get_item_size,
             get_window_scale_factor,
             handle_search_text,
+            hide_window,
         ])
         .setup(|app| {
             let windows: Arc<Vec<WebviewWindow>> =

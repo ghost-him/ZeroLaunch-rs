@@ -14,6 +14,7 @@
       :placeholder="placeholder"
       class="search-input"
       autosize
+      @contextmenu.prevent="showContextMenu"
       :style="{
         width: `${scaledItemSize[0]}px`,
         height: `${scaledItemSize[1]}px`,
@@ -26,6 +27,22 @@
         <el-icon style="padding-left: 20px;"><Search /></el-icon>
       </template>
     </el-input>
+
+    <div
+      v-if="isContextMenuVisible"
+      class="custom-context-menu"
+      :style="{
+        top: `${contextMenuPosition.y}px`,
+        left: `${contextMenuPosition.x}px`
+      }"
+      @click.stop
+    >
+      <el-menu @select="handleContextMenuSelect" class="context-menu">
+        <el-menu-item index="openSettings">打开设置窗口</el-menu-item>
+        <!-- 可以在这里添加更多的菜单项 -->
+      </el-menu>
+    </div>
+
 
     <el-menu
       :default-active="activeIndex"
@@ -90,6 +107,10 @@ const fontColor = ref('#333333');
 const placeholder = ref('请输入搜索内容');
 const searchInputRef = ref<HTMLInputElement | null>(null);
 let unlisten: UnlistenFn | null = null;
+
+// 新增的状态用于自定义右键菜单
+const isContextMenuVisible = ref(false);
+const contextMenuPosition = ref({ x: 0, y: 0 });
 
 // 更新字体的样式
 const updateInputStyle = (newFont: string, newSize: number, newColor: string) => {
@@ -214,13 +235,49 @@ const pressedESC = () => {
   }
 }
 
+
+// 新增的方法：显示自定义右键菜单
+const showContextMenu = (event: MouseEvent) => {
+  event.preventDefault();
+  isContextMenuVisible.value = true;
+  contextMenuPosition.value = { x: event.clientX, y: event.clientY };
+};
+
+// 处理自定义菜单项选择
+const handleContextMenuSelect = (index: string) => {
+  if (index === 'openSettings') {
+    openSettingsWindow();
+  }
+  isContextMenuVisible.value = false;
+};
+
+// 打开设置窗口的方法
+const openSettingsWindow = () => {
+  // 调用后端或其他逻辑来打开设置窗口
+  invoke('open_settings_window')
+    .then(() => {
+      console.log('Settings window opened.');
+    })
+    .catch((error) => {
+      console.error('Failed to open settings window:', error);
+    });
+};
+
+// 点击页面其他地方时隐藏自定义菜单
+const handleClickOutside = () => {
+  if (isContextMenuVisible.value) {
+    isContextMenuVisible.value = false;
+  }
+}
+
+
 // 在组件挂载时添加事件监听器
 onMounted(async () => {
   getScaleFactor();
   getWindowSize();
   getItemSize();
   window.addEventListener('keydown', handleKeyDown);
-
+  window.addEventListener('click', handleClickOutside);
   unlisten = await listen('show_window', () => {
     focusSearchInput();
   });
@@ -229,6 +286,7 @@ onMounted(async () => {
 // 在组件卸载时移除事件监听器
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyDown);
+  window.removeEventListener('click', handleClickOutside);
   if (unlisten) {
     unlisten();
   }
@@ -236,6 +294,21 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+
+/* 自定义右键菜单样式 */
+.custom-context-menu {
+  position: fixed;
+  z-index: 1000;
+  background-color: #fff;
+  border: 1px solid #dcdfe6;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+}
+
+.context-menu {
+  min-width: 150px;
+}
+
 .round-border {
   border-radius: 10px;
 }

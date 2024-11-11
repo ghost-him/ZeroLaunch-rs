@@ -35,8 +35,9 @@ pub fn run() {
             let windows_clone = Arc::clone(&windows);
             let main_window = Arc::new(app.get_webview_window("main").unwrap());
             let app_handle = app.handle().clone();
+            init_setting_window(app_handle.clone());
             tauri::async_runtime::spawn(async move {
-                start_key_listener(app_handle).expect("Failed to start key listener");
+                start_key_listener(app_handle.clone()).expect("Failed to start key listener");
             });
             main_window.on_window_event(move |event| match event {
                 tauri::WindowEvent::Focused(focused) => {
@@ -111,4 +112,28 @@ fn start_key_listener(app_handle: tauri::AppHandle) -> Result<(), Box<dyn std::e
     }
 
     Ok(())
+}
+
+fn init_setting_window(app: tauri::AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        let setting_window = Arc::new(
+            tauri::WebviewWindowBuilder::new(
+                &app,
+                "setting_window",
+                tauri::WebviewUrl::App("SettingWindow.vue".into()),
+            )
+            .visible(false)
+            .build()
+            .unwrap(),
+        );
+        let window_clone = Arc::clone(&setting_window);
+        setting_window.on_window_event(move |event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                // 阻止窗口关闭
+                api.prevent_close();
+                // 隐藏窗口
+                window_clone.hide().unwrap();
+            }
+        });
+    });
 }

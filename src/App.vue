@@ -254,7 +254,7 @@ const handleContextMenuSelect = (index: string) => {
 // 打开设置窗口的方法
 const openSettingsWindow = () => {
   // 调用后端或其他逻辑来打开设置窗口
-  invoke('open_settings_window')
+  invoke('show_setting_window')
     .then(() => {
       console.log('Settings window opened.');
     })

@@ -10,6 +10,7 @@ use crate::singleton::Singleton;
 use crate::ui_controller::handle_focus_lost;
 use crate::utils::{
     get_item_size, get_window_scale_factor, get_window_size, handle_search_text, hide_window,
+    show_setting_window,
 };
 use config::{Height, RuntimeConfig, Width};
 use rdev::{listen, Event, EventType, Key};
@@ -27,6 +28,7 @@ pub fn run() {
             get_window_scale_factor,
             handle_search_text,
             hide_window,
+            show_setting_window,
         ])
         .setup(|app| {
             let windows: Arc<Vec<WebviewWindow>> =
@@ -120,8 +122,9 @@ fn init_setting_window(app: tauri::AppHandle) {
             tauri::WebviewWindowBuilder::new(
                 &app,
                 "setting_window",
-                tauri::WebviewUrl::App("SettingWindow.vue".into()),
+                tauri::WebviewUrl::App("http://localhost:1420/setting_window".into()),
             )
+            .title("设置")
             .visible(false)
             .build()
             .unwrap(),
@@ -133,6 +136,7 @@ fn init_setting_window(app: tauri::AppHandle) {
                 api.prevent_close();
                 // 隐藏窗口
                 window_clone.hide().unwrap();
+                println!("隐藏设置窗口");
             }
         });
     });

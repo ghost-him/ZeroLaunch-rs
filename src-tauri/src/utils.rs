@@ -138,3 +138,12 @@ pub fn hide_window<R: Runtime>(app: tauri::AppHandle<R>) -> Result<(), String> {
     main_window.hide().unwrap();
     Ok(())
 }
+
+/// 展示设置窗口
+#[tauri::command]
+pub fn show_setting_window<R: Runtime>(app: tauri::AppHandle<R>) -> Result<(), String> {
+    let setting_window = app.get_webview_window("setting_window").unwrap();
+    setting_window.show().unwrap();
+    hide_window(app).unwrap();
+    Ok(())
+}

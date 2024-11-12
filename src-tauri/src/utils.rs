@@ -1,6 +1,7 @@
 use crate::config::RuntimeConfig;
 use crate::singleton::Singleton;
 
+use crate::config::AppConfig;
 use crate::program_manager::PROGRAM_MANAGER;
 use serde::Serialize;
 use std::ffi::OsString;
@@ -9,7 +10,7 @@ use std::io::{self, Write};
 use std::os::windows::ffi::OsStringExt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use tauri::{Manager, Runtime};
+use tauri::{App, Manager, Runtime};
 use windows::core::PWSTR;
 use windows::Win32::Foundation::HWND;
 use windows::Win32::UI::Shell::SHGetFolderPathW;
@@ -145,5 +146,24 @@ pub fn show_setting_window<R: Runtime>(app: tauri::AppHandle<R>) -> Result<(), S
     let setting_window = app.get_webview_window("setting_window").unwrap();
     setting_window.show().unwrap();
     hide_window(app).unwrap();
+    Ok(())
+}
+
+/// 获得程序的设置界面
+#[tauri::command]
+pub fn get_app_config() -> Result<AppConfig, String> {
+    let instance = RuntimeConfig::instance();
+    let config = instance.lock().unwrap();
+    let app_config = config.get_app_config();
+    Ok(app_config.clone())
+}
+
+/// 保存程序的设置
+#[tauri::command]
+pub async fn save_app_config(app_config: AppConfig) -> Result<(), String> {
+    let instance = RuntimeConfig::instance();
+    let mut config: std::sync::MutexGuard<'_, RuntimeConfig> = instance.lock().unwrap();
+    println!("收到配置");
+    config.save_app_config(app_config);
     Ok(())
 }

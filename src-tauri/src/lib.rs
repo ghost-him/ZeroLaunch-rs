@@ -9,8 +9,8 @@ use crate::program_manager::PROGRAM_MANAGER;
 use crate::singleton::Singleton;
 use crate::ui_controller::handle_focus_lost;
 use crate::utils::{
-    get_item_size, get_window_scale_factor, get_window_size, handle_search_text, hide_window,
-    show_setting_window,
+    get_app_config, get_item_size, get_window_scale_factor, get_window_size, handle_search_text,
+    hide_window, save_app_config, show_setting_window,
 };
 use config::{Height, RuntimeConfig, Width};
 use rdev::{listen, Event, EventType, Key};
@@ -29,6 +29,8 @@ pub fn run() {
             handle_search_text,
             hide_window,
             show_setting_window,
+            get_app_config,
+            save_app_config,
         ])
         .setup(|app| {
             let windows: Arc<Vec<WebviewWindow>> =

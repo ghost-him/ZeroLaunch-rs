@@ -102,12 +102,12 @@ const itemSize = ref<[number, number]>([0, 0]);
 const scaleFactor = ref<number>(1.0);
 
 const fontFamily = ref('Arial, sans-serif');
-const fontSize = ref<number>(0);
+const fontSize = ref<number>(0); 
 const fontColor = ref('#333333');
-const placeholder = ref('请输入搜索内容');
+let placeholder = ref('请输入搜索内容');
 const searchInputRef = ref<HTMLInputElement | null>(null);
-let unlisten: UnlistenFn | null = null;
-
+let unlisten1: UnlistenFn | null = null;
+let unlisten2: UnlistenFn | null = null;
 // 新增的状态用于自定义右键菜单
 const isContextMenuVisible = ref(false);
 const contextMenuPosition = ref({ x: 0, y: 0 });
@@ -117,42 +117,6 @@ const updateInputStyle = (newFont: string, newSize: number, newColor: string) =>
   fontFamily.value = newFont;
   fontSize.value = newSize;
   fontColor.value = newColor;
-};
-
-// 更新占位符文本的方法
-const updatePlaceholder = (newPlaceholder: string) => {
-  placeholder.value = newPlaceholder;
-};
-
-// 获取窗口大小
-const getWindowSize = async () => {
-  try {
-    windowSize.value = await invoke('get_window_size');
-    console.log('Window size:', windowSize.value);
-  } catch (error) {
-    console.error('Error getting window size:', error);
-  }
-};
-
-// 获取项大小
-const getItemSize = async () => {
-  try {
-    itemSize.value = await invoke('get_item_size');
-    fontSize.value = itemSize.value[1] / 2;
-    console.log('Item size:', itemSize.value);
-  } catch (error) {
-    console.error('Error getting item size:', error);
-  }
-};
-
-// 获取缩放因子
-const getScaleFactor = async () => {
-  try {
-    scaleFactor.value = await invoke('get_window_scale_factor');
-    console.log('Scale factor:', scaleFactor.value);
-  } catch (error) {
-    console.error('Error getting window scale factor:', error);
-  }
 };
 
 const sendSearchText = async (text: string) => {
@@ -270,25 +234,56 @@ const handleClickOutside = () => {
   }
 }
 
+interface SearchBarInit {
+  window_size: [number, number];
+  item_size: [number, number];
+  window_scale_factor: number;
+}
+
+interface SearchBarUpdate {
+  search_bar_placeholder: string;
+}
+
+// 用于程序在一开始初始化
+const initWindow = async () => {
+  const initValue = await invoke<SearchBarInit>('init_search_bar_window');
+
+  windowSize.value = initValue.window_size;
+  itemSize.value = initValue.item_size;
+  fontSize.value = itemSize.value[1] / 2;
+  scaleFactor.value = initValue.window_scale_factor
+  console.log(initValue);
+}
+
+// 用于程序在更新相应内容
+const updateWindow = async () => {
+  const data = await invoke<SearchBarUpdate>('update_search_bar_window');
+  placeholder.value = data.search_bar_placeholder;
+}
 
 // 在组件挂载时添加事件监听器
 onMounted(async () => {
-  getScaleFactor();
-  getWindowSize();
-  getItemSize();
+  initWindow();
+  updateWindow();
   window.addEventListener('keydown', handleKeyDown);
   window.addEventListener('click', handleClickOutside);
-  unlisten = await listen('show_window', () => {
+  unlisten1 = await listen('show_window', () => {
     focusSearchInput();
   });
+  unlisten2 = await listen('update_search_bar_window', () => {
+    updateWindow();
+  })
 });
 
 // 在组件卸载时移除事件监听器
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyDown);
   window.removeEventListener('click', handleClickOutside);
-  if (unlisten) {
-    unlisten();
+  if (unlisten1) {
+    unlisten1();
+  }
+  if (unlisten2) {
+    unlisten2();
   }
 });
 </script>
@@ -363,6 +358,6 @@ onUnmounted(() => {
 
 :deep(.el-input__inner::placeholder) {
   color: v-bind(fontColor);
-  opacity: 0;
+  opacity: 0.4;
 }
 </style>

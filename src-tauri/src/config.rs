@@ -24,17 +24,17 @@ lazy_static! {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AppConfig {
     /// 自定义搜索栏的提示文本
-    search_bar_placeholder: String,
+    pub search_bar_placeholder: String,
     /// 自定义搜索无结果时的文本
-    search_bar_no_result: String,
+    pub search_bar_no_result: String,
     /// 是不是要开机自启动
-    is_auto_start: bool,
+    pub is_auto_start: bool,
     /// 是不是要资源预加载
-    is_preload_resource: bool,
+    pub is_preload_resource: bool,
     /// 搜索结果的数量
-    search_result_count: u32,
+    pub search_result_count: u32,
     /// 自动刷新数据库的时间
-    auto_refresh_time: u32,
+    pub auto_refresh_time: u32,
 }
 /// 与程序页面设置有关的，比如窗口的大小，显示的界面等
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -183,6 +183,7 @@ impl RuntimeConfig {
         self.config.app_config = app_config.clone();
         self.save_config();
     }
+
     /// 保存当前的程序配置
     fn save_config(&self) {
         let config_content = serde_json::to_string(&self.config).unwrap();

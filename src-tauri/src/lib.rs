@@ -1,36 +1,36 @@
 pub mod config;
+pub mod interface;
 pub mod program_manager;
 pub mod singleton;
 pub mod ui_controller;
 pub mod utils;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
+use crate::interface::{
+    get_app_config, handle_search_text, hide_window, init_search_bar_window, save_app_config,
+    show_setting_window, update_search_bar_window,
+};
 use crate::program_manager::PROGRAM_MANAGER;
 use crate::singleton::Singleton;
 use crate::ui_controller::handle_focus_lost;
-use crate::utils::{
-    get_app_config, get_item_size, get_window_scale_factor, get_window_size, handle_search_text,
-    hide_window, save_app_config, show_setting_window,
-};
 use config::{Height, RuntimeConfig, Width};
 use rdev::{listen, Event, EventType, Key};
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 use tauri::async_runtime::spawn;
+use tauri::Size;
 use tauri::{webview::WebviewWindow, Emitter, Manager, PhysicalPosition, PhysicalSize};
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
-            get_window_size,
-            get_item_size,
-            get_window_scale_factor,
+            init_search_bar_window,
             handle_search_text,
             hide_window,
             show_setting_window,
             get_app_config,
             save_app_config,
+            update_search_bar_window,
         ])
         .setup(|app| {
             let windows: Arc<Vec<WebviewWindow>> =

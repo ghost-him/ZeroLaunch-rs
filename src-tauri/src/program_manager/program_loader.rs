@@ -38,7 +38,7 @@ pub struct ProgramLoader {
     /// 禁止的程序关键字（当程序的名字中有与其完全一致的子字符串时，不注册）
     forbidden_program_key: Vec<String>,
     /// 设置程序的固定权重偏移（当程序的名字中有与其完全一致的子字符串时，才会添加）
-    program_bias: HashMap<String, f64>,
+    program_bias: HashMap<String, (f64, String)>,
     /// guid生成器
     guid_generator: GuidGenerator,
     /// 判断一个程序有没有被添加
@@ -92,15 +92,15 @@ impl ProgramLoader {
         self.forbidden_program_key.push(key);
     }
     /// 设置程序的固定权重偏移
-    pub fn add_program_bias(&mut self, key: &str, value: f64) {
-        self.program_bias.insert(key.to_string(), value);
+    pub fn add_program_bias(&mut self, key: &str, value: f64, note: String) {
+        self.program_bias.insert(key.to_string(), (value, note));
     }
     /// 获得程序的固定权重偏移
     pub fn get_program_bias(&self, key: &str) -> f64 {
         let mut result: f64 = 0.0;
         for item in &self.program_bias {
             if key.contains(item.0) {
-                result += item.1;
+                result += item.1 .0;
             }
         }
         result

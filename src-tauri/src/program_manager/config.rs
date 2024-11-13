@@ -25,8 +25,8 @@ pub struct ProgramLoaderConfig {
     pub forbidden_paths: Vec<String>,
     /// 禁止的程序关键字
     pub forbidden_program_key: Vec<String>,
-    /// 设置程序的固定权重偏移
-    pub program_bias: HashMap<String, f64>,
+    /// 设置程序的固定权重偏移 (key) => (bias, note)
+    pub program_bias: HashMap<String, (f64, String)>,
 }
 
 impl ProgramManagerConfig {

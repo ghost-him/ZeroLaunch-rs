@@ -7,7 +7,8 @@ pub mod utils;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 use crate::interface::{
-    get_app_config, handle_search_text, hide_window, init_search_bar_window, save_app_config,
+    get_app_config, get_key_filter_data, get_path_config, get_program_info, handle_search_text,
+    hide_window, init_search_bar_window, save_app_config, save_key_filter_data, save_path_config,
     show_setting_window, update_search_bar_window,
 };
 use crate::program_manager::PROGRAM_MANAGER;
@@ -31,6 +32,11 @@ pub fn run() {
             get_app_config,
             save_app_config,
             update_search_bar_window,
+            save_path_config,
+            get_path_config,
+            get_key_filter_data,
+            get_program_info,
+            save_key_filter_data
         ])
         .setup(|app| {
             let windows: Arc<Vec<WebviewWindow>> =

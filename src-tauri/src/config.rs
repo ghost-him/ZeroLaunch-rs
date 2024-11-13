@@ -1,15 +1,15 @@
 use crate::impl_singleton;
+use crate::interface::{KeyFilterData, SettingWindowPathData};
 use crate::program_manager::config::ProgramManagerConfig;
 use crate::singleton::Singleton;
 use crate::utils::read_or_create;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use serde_json::from_str;
-use windows::Win32::UI::Accessibility::AutomationIdentifierType;
-
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::Once;
+use windows::Win32::System::WindowsProgramming::KEY_UNKNOWN;
 pub type Width = usize;
 pub type Height = usize;
 
@@ -175,12 +175,35 @@ impl RuntimeConfig {
         &self.config.program_manager_config
     }
 
+    pub fn get_mut_program_manager_config(&mut self) -> &mut ProgramManagerConfig {
+        &mut self.config.program_manager_config
+    }
+
     pub fn get_app_config(&self) -> &AppConfig {
         &self.config.app_config
     }
 
     pub fn save_app_config(&mut self, app_config: AppConfig) {
         self.config.app_config = app_config.clone();
+        self.save_config();
+    }
+
+    pub fn save_path_config(&mut self, path_data: SettingWindowPathData) {
+        let mut path_config = &mut self.config.program_manager_config.loader;
+        path_config.forbidden_paths = path_data.forbidden_paths;
+        path_config.forbidden_program_key = path_data.forbidden_key;
+        path_config.target_paths = path_data.target_paths;
+        self.save_config();
+    }
+
+    pub fn save_key_filter_config(&mut self, key_filter_data: Vec<KeyFilterData>) {
+        let mut path_config = &mut self.config.program_manager_config.loader;
+        path_config.forbidden_program_key.clear();
+        for item in &key_filter_data {
+            path_config
+                .program_bias
+                .insert(item.key.clone(), (item.bias, item.note.clone()));
+        }
         self.save_config();
     }
 

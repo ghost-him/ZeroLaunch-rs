@@ -5,6 +5,7 @@ use crate::program_manager::PROGRAM_MANAGER;
 ///
 use crate::RuntimeConfig;
 use crate::Singleton;
+use rdev::Key;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tauri::Emitter;
@@ -22,6 +23,27 @@ pub struct SearchBarUpdate {
     search_bar_placeholder: String,
 }
 
+/// 用于传输路径相关的信息
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct SettingWindowPathData {
+    pub target_paths: Vec<String>,
+    pub forbidden_paths: Vec<String>,
+    pub forbidden_key: Vec<String>,
+}
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct KeyFilterData {
+    pub key: String,
+    pub bias: f64,
+    pub note: String,
+}
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ProgramInfo {
+    pub name: String,
+    pub is_uwp: bool,
+    pub bias: f64,
+    pub path: String,
+}
+
 #[tauri::command]
 pub fn init_search_bar_window() -> SearchBarInit {
     let instance = RuntimeConfig::instance();
@@ -37,6 +59,7 @@ pub fn init_search_bar_window() -> SearchBarInit {
     }
 }
 
+/// 更新搜索窗口
 #[tauri::command]
 pub fn update_search_bar_window() -> SearchBarUpdate {
     let instance = RuntimeConfig::instance();
@@ -101,4 +124,69 @@ pub async fn save_app_config(app: tauri::AppHandle, app_config: AppConfig) -> Re
     config.save_app_config(app_config);
     app.emit("update_search_bar_window", "").unwrap();
     Ok(())
+}
+
+/// 获得程序的设置界面中路径的设置标签页的内容
+#[tauri::command]
+pub fn get_path_config() -> Result<SettingWindowPathData, String> {
+    let instance = RuntimeConfig::instance();
+    let config = instance.lock().unwrap();
+    let program_config = config.get_program_manager_config();
+    Ok(SettingWindowPathData {
+        target_paths: program_config.loader.target_paths.clone(),
+        forbidden_paths: program_config.loader.forbidden_paths.clone(),
+        forbidden_key: program_config.loader.forbidden_program_key.clone(),
+    })
+}
+
+/// 更新程序管理器的路径配置
+#[tauri::command]
+pub fn save_path_config(path_data: SettingWindowPathData) -> Result<(), String> {
+    let instance = RuntimeConfig::instance();
+    let mut config = instance.lock().unwrap();
+    config.save_path_config(path_data);
+    // todo：重新更新当前索引的程序
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_key_filter_data() -> Vec<KeyFilterData> {
+    let instance = RuntimeConfig::instance();
+    let config = instance.lock().unwrap();
+    let program_config = config.get_program_manager_config();
+    let mut result: Vec<KeyFilterData> = Vec::new();
+    for item in &program_config.loader.program_bias {
+        result.push(KeyFilterData {
+            key: item.0.clone(),
+            bias: item.1 .0,
+            note: item.1 .1.clone(),
+        });
+    }
+    result
+}
+
+#[tauri::command]
+pub fn save_key_filter_data(key_filter_data: Vec<KeyFilterData>) -> Result<(), String> {
+    let instance = RuntimeConfig::instance();
+    let mut config = instance.lock().unwrap();
+    config.save_key_filter_config(key_filter_data);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_program_info() -> Vec<ProgramInfo> {
+    let manager = PROGRAM_MANAGER.lock().unwrap();
+    let data = manager.get_program_infos();
+    println!("{:?}", data);
+    drop(manager);
+    let mut program_infos = Vec::new();
+    for item in data {
+        program_infos.push(ProgramInfo {
+            name: item.0,
+            is_uwp: item.1,
+            bias: item.2,
+            path: item.3,
+        })
+    }
+    program_infos
 }

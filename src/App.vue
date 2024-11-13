@@ -1,42 +1,28 @@
 <template>
-  <div
-    v-if="scaledWindowSize[0] && scaledWindowSize[1]"
-    class="container"
-    :style="{
-      backgroundImage: `url(${backgroundImage})`,
-      width: `${scaledWindowSize[0]}px`,
-      height: `${scaledWindowSize[1]}px`
-    }"
-  >
-    <el-input
-      ref="searchInputRef"
-      v-model="searchText"
-      :placeholder="placeholder"
-      class="search-input"
-      autosize
-      @contextmenu.prevent="showContextMenu"
-      :style="{
+  <div v-if="scaledWindowSize[0] && scaledWindowSize[1]" class="container" :style="{
+    backgroundImage: `url(${backgroundImage})`,
+    width: `${scaledWindowSize[0]}px`,
+    height: `${scaledWindowSize[1]}px`
+  }">
+    <el-input ref="searchInputRef" v-model="searchText" :placeholder="placeholder" class="search-input" autosize
+      @contextmenu.prevent="showContextMenu" :style="{
         width: `${scaledItemSize[0]}px`,
         height: `${scaledItemSize[1]}px`,
         fontSize: `${scaledFontSize}px`,
         fontColor: `${fontColor}`,
         fontFamily: `${fontFamily}`
-      }"
-    >
+      }">
       <template #prefix>
-        <el-icon style="padding-left: 20px;"><Search /></el-icon>
+        <el-icon style="padding-left: 20px;">
+          <Search />
+        </el-icon>
       </template>
     </el-input>
 
-    <div
-      v-if="isContextMenuVisible"
-      class="custom-context-menu"
-      :style="{
-        top: `${contextMenuPosition.y}px`,
-        left: `${contextMenuPosition.x}px`
-      }"
-      @click.stop
-    >
+    <div v-if="isContextMenuVisible" class="custom-context-menu" :style="{
+      top: `${contextMenuPosition.y}px`,
+      left: `${contextMenuPosition.x}px`
+    }" @click.stop>
       <el-menu @select="handleContextMenuSelect" class="context-menu">
         <el-menu-item index="openSettings">打开设置窗口</el-menu-item>
         <!-- 可以在这里添加更多的菜单项 -->
@@ -44,36 +30,22 @@
     </div>
 
 
-    <el-menu
-      :default-active="activeIndex"
-      class="menu-list round-border"
-      @select="handleSelectMouse"
-      :style="{
-        width: `${scaledItemSize[0]}px`,
-        height: `${scaledItemSize[1] * 4}px`
-      }"
-    >
-      <el-menu-item
-        v-for="(item, index) in menuItems"
-        :key="index"
-        :index="String(index)"
-        class="menu-item round-border"
-        :style="{
+    <el-menu :default-active="activeIndex" class="menu-list round-border" @select="handleSelectMouse" :style="{
+      width: `${scaledItemSize[0]}px`,
+      height: `${scaledItemSize[1] * 4}px`
+    }">
+      <el-menu-item v-for="(item, index) in menuItems" :key="index" :index="String(index)"
+        class="menu-item round-border" :style="{
           width: `${scaledItemSize[0]}px`,
           height: `${scaledItemSize[1]}px`
-        }"
-      >
+        }">
         <div class="common-layout">
           <el-container>
             <el-aside width="50">
-              <el-image
-                :style="{
-                  width: `${scaledItemSize[1]}px`,
-                  height: `${scaledItemSize[1]}px`
-                }"
-                :src="url"
-                fit="cover"
-              />
+              <el-image :style="{
+                width: `${scaledItemSize[1]}px`,
+                height: `${scaledItemSize[1]}px`
+              }" :src="url" fit="cover" />
             </el-aside>
             <el-main>{{ item }}</el-main>
           </el-container>
@@ -102,7 +74,7 @@ const itemSize = ref<[number, number]>([0, 0]);
 const scaleFactor = ref<number>(1.0);
 
 const fontFamily = ref('Arial, sans-serif');
-const fontSize = ref<number>(0); 
+const fontSize = ref<number>(0);
 const fontColor = ref('#333333');
 let placeholder = ref('请输入搜索内容');
 const searchInputRef = ref<HTMLInputElement | null>(null);
@@ -289,7 +261,6 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-
 /* 自定义右键菜单样式 */
 .custom-context-menu {
   position: fixed;
@@ -308,7 +279,7 @@ onUnmounted(() => {
   border-radius: 10px;
 }
 
- .container {
+.container {
   padding: 0;
   display: flex;
   flex-direction: column;
@@ -323,7 +294,7 @@ onUnmounted(() => {
   border: 1px solid var(--el-border-color);
   padding: 0 !important;
   min-height: 0 !important;
-} 
+}
 
 .menu-item {
   /* border: 1px solid var(--el-border-color); */
@@ -352,7 +323,7 @@ onUnmounted(() => {
   font-family: v-bind(fontFamily);
   font-size: v-bind(scaledFontSize) + 'px';
   color: v-bind(fontColor);
-  
+
   height: 100%;
 }
 

@@ -33,6 +33,17 @@ impl LaunchMethod {
             }
         }
     }
+
+    pub fn is_uwp(&self) -> bool {
+        match &self {
+            LaunchMethod::Path(_) => {
+                return false;
+            }
+            LaunchMethod::PackageFamilyName(_) => {
+                return true;
+            }
+        }
+    }
 }
 
 /// 表示一个数据
@@ -109,6 +120,19 @@ impl ProgramManager {
     /// 加载搜索模型
     pub fn load_search_fn(&mut self, model: SearchModelFn) {
         self.search_fn = model;
+    }
+    /// 获取当前程序维护的东西
+    pub fn get_program_infos(&self) -> Vec<(String, bool, f64, String)> {
+        let mut result = Vec::new();
+        for item in &self.program_registry {
+            result.push((
+                item.show_name.clone(),
+                item.launch_method.is_uwp(),
+                item.stable_bias,
+                item.launch_method.get_text(),
+            ));
+        }
+        result
     }
 }
 

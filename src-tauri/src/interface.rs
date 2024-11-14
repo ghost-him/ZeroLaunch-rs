@@ -1,3 +1,4 @@
+use super::update_app_setting;
 use crate::config::AppConfig;
 use crate::program_manager::PROGRAM_MANAGER;
 /// 用于后端向前端传输数据，或者是前端向后端数据
@@ -123,6 +124,8 @@ pub async fn save_app_config(app: tauri::AppHandle, app_config: AppConfig) -> Re
     println!("收到配置");
     config.save_app_config(app_config);
     app.emit("update_search_bar_window", "").unwrap();
+    drop(config);
+    update_app_setting();
     Ok(())
 }
 
@@ -145,7 +148,8 @@ pub fn save_path_config(path_data: SettingWindowPathData) -> Result<(), String> 
     let instance = RuntimeConfig::instance();
     let mut config = instance.lock().unwrap();
     config.save_path_config(path_data);
-    // todo：重新更新当前索引的程序
+    drop(config);
+    update_app_setting();
     Ok(())
 }
 
@@ -170,6 +174,8 @@ pub fn save_key_filter_data(key_filter_data: Vec<KeyFilterData>) -> Result<(), S
     let instance = RuntimeConfig::instance();
     let mut config = instance.lock().unwrap();
     config.save_key_filter_config(key_filter_data);
+    drop(config);
+    update_app_setting();
     Ok(())
 }
 

@@ -18,6 +18,9 @@ lazy_static! {
     static ref CONFIG_PATH: String = "./config.json".to_string();
     /// 配置文件的默认内容
     static ref CONFIG_DEFAULT: String = serde_json::to_string(&Config::default()).unwrap();
+    /// 全局app_handle
+    pub static ref GLOBAL_APP_HANDLE: Mutex<Option<tauri::AppHandle>> = Mutex::new(None);
+
 }
 
 /// 与程序设置有关的，比如是不是要开机自动启动等
@@ -29,6 +32,8 @@ pub struct AppConfig {
     pub search_bar_no_result: String,
     /// 是不是要开机自启动
     pub is_auto_start: bool,
+    /// 是否静默启动
+    pub is_silent_start: bool,
     /// 是不是要资源预加载
     pub is_preload_resource: bool,
     /// 搜索结果的数量
@@ -60,6 +65,7 @@ impl AppConfig {
             search_bar_placeholder: "Hello, ZeroLaunch!".to_string(),
             search_bar_no_result: "当前搜索无结果".to_string(),
             is_auto_start: false,
+            is_silent_start: false,
             is_preload_resource: false,
             search_result_count: 4,
             auto_refresh_time: 30,

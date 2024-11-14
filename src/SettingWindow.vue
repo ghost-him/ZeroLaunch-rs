@@ -15,6 +15,10 @@
                     <el-switch v-model="config.is_auto_start" />
                 </el-form-item>
 
+                <el-form-item label="设置静默启动">
+                    <el-switch v-model="config.is_silent_start" />
+                </el-form-item>
+
                 <el-form-item label="设置资源预加载">
                     <el-switch v-model="config.is_preload_resource" />
                 </el-form-item>
@@ -162,7 +166,6 @@
 import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import type { TabsPaneContext } from 'element-plus'
 import { invoke } from '@tauri-apps/api/core'
-import { NumberLiteralType, StringLiteral } from 'typescript';
 
 const activeName = ref('first')
 const handleClick = (tab: TabsPaneContext, event: Event) => {
@@ -174,6 +177,7 @@ const config = reactive({
     search_bar_placeholder: '',
     search_bar_no_result: '',
     is_auto_start: false,
+    is_silent_start: false,
     is_preload_resource: false,
     search_result_count: 4,
     auto_refresh_time: 30,
@@ -206,7 +210,6 @@ interface ProgramInfo {
 
 const key_data = ref<Array<KeyFilterData>>([])
 const program_info = ref<Array<ProgramInfo>>([])
-
 
 const get_app_config = async () => {
     const loadedConfig = await invoke('get_app_config')
@@ -283,7 +286,6 @@ onMounted(async () => {
     await get_path_config();
     await get_program_info();
     await get_key_filter_data();
-
 });
 
 onUnmounted(() => {

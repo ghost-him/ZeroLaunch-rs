@@ -33,6 +33,17 @@ impl LaunchMethod {
             }
         }
     }
+
+    pub fn is_uwp(&self) -> bool {
+        match &self {
+            LaunchMethod::Path(_) => {
+                return false;
+            }
+            LaunchMethod::PackageFamilyName(_) => {
+                return true;
+            }
+        }
+    }
 }
 
 /// 表示一个数据
@@ -48,6 +59,8 @@ struct Program {
     pub alias: Vec<String>,
     /// 权重固定偏移量
     pub stable_bias: f64,
+    /// 应用程序应该展示的图片的地址
+    pub icon_path: String,
 }
 
 /// 数据处理中心
@@ -82,6 +95,7 @@ impl ProgramManager {
         self.program_launcher
             .load_from_config(&program_launcher_config);
         // 从loader中加载程序
+        self.program_registry.clear();
         self.program_registry = self.program_loader.load_program();
     }
     /// 使用搜索算法搜索，并给出指定长度的序列
@@ -109,6 +123,19 @@ impl ProgramManager {
     /// 加载搜索模型
     pub fn load_search_fn(&mut self, model: SearchModelFn) {
         self.search_fn = model;
+    }
+    /// 获取当前程序维护的东西
+    pub fn get_program_infos(&self) -> Vec<(String, bool, f64, String)> {
+        let mut result = Vec::new();
+        for item in &self.program_registry {
+            result.push((
+                item.show_name.clone(),
+                item.launch_method.is_uwp(),
+                item.stable_bias,
+                item.launch_method.get_text(),
+            ));
+        }
+        result
     }
 }
 

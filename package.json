@@ -11,10 +11,15 @@
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-autostart": "~2",
     "@tauri-apps/plugin-shell": "^2",
     "element-plus": "^2.8.6",
     "vue": "^3.3.4",
+<<<<<<< HEAD
     "yarn": "^1.22.22"
+=======
+    "vue-router": "4"
+>>>>>>> 4b7b6a2445797b8dc2faa87e464a0b8dcfa4d702
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",

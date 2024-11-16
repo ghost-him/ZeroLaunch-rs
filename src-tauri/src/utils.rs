@@ -1,14 +1,6 @@
-use crate::config::RuntimeConfig;
-use crate::singleton::Singleton;
-
-use crate::program_manager::PROGRAM_MANAGER;
-use serde::Serialize;
-use std::ffi::OsString;
 use std::fs;
-use std::io::{self, Write};
-use std::os::windows::ffi::OsStringExt;
+use std::io;
 use std::path::{Path, PathBuf};
-use windows::core::PWSTR;
 use windows::Win32::Foundation::HWND;
 use windows::Win32::UI::Shell::SHGetFolderPathW;
 use windows::Win32::UI::Shell::CSIDL_COMMON_STARTMENU;
@@ -84,47 +76,4 @@ pub fn get_start_menu_paths() -> Result<(String, String), String> {
 
         Ok((common_path, user_path))
     }
-}
-
-#[tauri::command]
-pub fn get_item_size() -> Vec<usize> {
-    let (item_width, item_height) = RuntimeConfig::instance().lock().unwrap().get_item_size();
-    println!("item {} {}", item_width, item_height);
-    vec![item_width, item_height]
-}
-
-#[tauri::command]
-pub fn get_window_size() -> Vec<usize> {
-    let (window_width, window_height) = RuntimeConfig::instance().lock().unwrap().get_window_size();
-    println!("window {} {}", window_width, window_height);
-    vec![window_width, window_height]
-}
-
-#[tauri::command]
-pub fn get_window_scale_factor() -> f64 {
-    let result = RuntimeConfig::instance()
-        .lock()
-        .unwrap()
-        .get_window_scale_factor();
-    println!("scale factor: {}", result);
-    result
-}
-
-#[derive(Serialize, Debug)]
-pub struct SearchResult(u64, String);
-
-/// 处理前端发来的消息
-#[tauri::command]
-pub fn handle_search_text(search_text: String) -> Vec<SearchResult> {
-    // 处理消息
-    let manager = PROGRAM_MANAGER.lock().unwrap();
-    let results = manager.update(&search_text, 4);
-    // 解锁
-    drop(manager);
-    let mut ret = Vec::new();
-    for item in results {
-        ret.push(SearchResult(item.0, item.1));
-    }
-    println!("{:?}", ret);
-    ret
 }

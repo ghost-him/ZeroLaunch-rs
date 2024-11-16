@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# 以下文件为程序运行过程中的配置文件，对项目本身无作用
+config.json

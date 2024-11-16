@@ -5,11 +5,14 @@ use super::{
     config::{ProgramLauncherConfig, ProgramLoaderConfig},
     Program,
 };
+use crate::defer::defer;
 /// 这个类用于加载电脑上程序，通过扫描路径或使用系统调用接口
 ///
 use std::collections::{HashMap, HashSet};
 use std::ffi::OsStr;
 use std::fs;
+
+use crate::utils::get_u16_vec;
 use std::hash::Hash;
 use std::io;
 use std::os::windows::ffi::OsStrExt;
@@ -220,13 +223,6 @@ impl ProgramLoader {
         result
     }
 
-    fn get_u16_vec(&self, s: &str) -> Vec<u16> {
-        OsStr::new(s)
-            .encode_wide()
-            .chain(std::iter::once(0))
-            .collect()
-    }
-
     fn prop_variant_to_string(&self, pv: &PROPVARIANT) -> String {
         pv.to_string()
     }
@@ -240,9 +236,12 @@ impl ProgramLoader {
                 eprintln!("Failed to initialize COM library");
                 return ret;
             }
+            defer(|| {
+                CoUninitialize();
+            });
 
             // Create Shell item for AppsFolder
-            let tmp = self.get_u16_vec("shell:AppsFolder");
+            let tmp = get_u16_vec("shell:AppsFolder");
             println!("{}", PCWSTR::from_raw(tmp.as_ptr()).to_string().unwrap());
             let app_folder: IShellItem =
                 match SHCreateItemFromParsingName(PCWSTR::from_raw(tmp.as_ptr()), None) {
@@ -264,7 +263,7 @@ impl ProgramLoader {
                 };
 
             // Define PROPERTYKEYs
-            let tmp = self.get_u16_vec("System.Launcher.AppState");
+            let tmp = get_u16_vec("System.Launcher.AppState");
             let mut pk_launcher_app_state = PROPERTYKEY::default();
             match PSGetPropertyKeyFromName(
                 PCWSTR::from_raw(tmp.as_ptr()),
@@ -279,7 +278,7 @@ impl ProgramLoader {
                     return ret;
                 }
             };
-            let tmp = self.get_u16_vec("System.Tile.SmallLogoPath");
+            let tmp = get_u16_vec("System.Tile.SmallLogoPath");
             let mut pk_small_logo_path = PROPERTYKEY::default();
             match PSGetPropertyKeyFromName(PCWSTR::from_raw(tmp.as_ptr()), &mut pk_small_logo_path)
             {
@@ -292,7 +291,7 @@ impl ProgramLoader {
                     return ret;
                 }
             };
-            let tmp = self.get_u16_vec("System.AppUserModel.ID");
+            let tmp = get_u16_vec("System.AppUserModel.ID");
             let mut pk_app_user_model_id = PROPERTYKEY::default();
             match PSGetPropertyKeyFromName(
                 PCWSTR::from_raw(tmp.as_ptr()),
@@ -304,7 +303,7 @@ impl ProgramLoader {
                     return ret;
                 }
             };
-            let tmp = self.get_u16_vec("System.AppUserModel.PackageInstallPath");
+            let tmp = get_u16_vec("System.AppUserModel.PackageInstallPath");
             let mut pk_install_path = PROPERTYKEY::default();
             match PSGetPropertyKeyFromName(PCWSTR::from_raw(tmp.as_ptr()), &mut pk_install_path) {
                 Ok(pk) => pk,
@@ -415,7 +414,6 @@ impl ProgramLoader {
                     println!("error: {}", e);
                 }
             }
-            CoUninitialize();
         }
         ret
     }

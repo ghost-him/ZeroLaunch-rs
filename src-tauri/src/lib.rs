@@ -1,4 +1,5 @@
 pub mod config;
+pub mod defer;
 pub mod interface;
 pub mod program_manager;
 pub mod singleton;
@@ -9,8 +10,8 @@ pub mod utils;
 use crate::config::GLOBAL_APP_HANDLE;
 use crate::interface::{
     get_app_config, get_key_filter_data, get_path_config, get_program_info, handle_search_text,
-    hide_window, init_search_bar_window, save_app_config, save_key_filter_data, save_path_config,
-    show_setting_window, update_search_bar_window,
+    hide_window, init_search_bar_window, launch_program, save_app_config, save_key_filter_data,
+    save_path_config, show_setting_window, update_search_bar_window,
 };
 use crate::program_manager::PROGRAM_MANAGER;
 use crate::singleton::Singleton;
@@ -85,7 +86,8 @@ pub fn run() {
             get_path_config,
             get_key_filter_data,
             get_program_info,
-            save_key_filter_data
+            save_key_filter_data,
+            launch_program,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

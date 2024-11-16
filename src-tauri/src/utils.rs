@@ -1,11 +1,12 @@
+use std::ffi::OsStr;
 use std::fs;
 use std::io;
+use std::os::windows::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 use windows::Win32::Foundation::HWND;
 use windows::Win32::UI::Shell::SHGetFolderPathW;
 use windows::Win32::UI::Shell::CSIDL_COMMON_STARTMENU;
 use windows::Win32::UI::Shell::CSIDL_STARTMENU;
-
 pub fn read_or_create(path: &str, content: Option<String>) -> Result<String, String> {
     match fs::read_to_string(path) {
         Ok(data) => Ok(data),
@@ -76,4 +77,13 @@ pub fn get_start_menu_paths() -> Result<(String, String), String> {
 
         Ok((common_path, user_path))
     }
+}
+
+/// 将一个字符串转成windows的宽字符
+pub fn get_u16_vec<P: AsRef<Path>>(path: P) -> Vec<u16> {
+    path.as_ref()
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect()
 }

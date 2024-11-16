@@ -198,3 +198,15 @@ pub fn get_program_info() -> Vec<ProgramInfo> {
     }
     program_infos
 }
+
+#[tauri::command]
+pub async fn launch_program<R: Runtime>(
+    app: tauri::AppHandle<R>,
+    window: tauri::Window<R>,
+    program_guid: u64,
+    is_admin_required: bool,
+) -> Result<(), String> {
+    let manager = PROGRAM_MANAGER.lock().unwrap();
+    manager.launch_program(program_guid, is_admin_required);
+    Ok(())
+}

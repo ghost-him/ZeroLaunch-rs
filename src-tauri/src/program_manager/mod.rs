@@ -13,7 +13,7 @@ use search_model::{SearchModelFn, StandardSearchFn};
 use std::sync::Mutex;
 use std::{borrow::Borrow, sync::Arc};
 /// 应用程序的启动方式
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum LaunchMethod {
     /// 通过文件路径来启动
     Path(String),
@@ -97,6 +97,12 @@ impl ProgramManager {
         // 从loader中加载程序
         self.program_registry.clear();
         self.program_registry = self.program_loader.load_program();
+        // 更新launcher
+        self.program_launcher.clear_program_launch_info();
+        self.program_registry.iter().for_each(|program| {
+            self.program_launcher
+                .register_program(program.program_guid, program.launch_method.clone());
+        });
     }
     /// 使用搜索算法搜索，并给出指定长度的序列
     /// user_input: 用户输入的字符串
@@ -136,6 +142,11 @@ impl ProgramManager {
             ));
         }
         result
+    }
+    /// 启动一个程序
+    pub fn launch_program(&self, program_guid: u64, is_admin_required: bool) {
+        self.program_launcher
+            .launch_program(program_guid, is_admin_required);
     }
 }
 

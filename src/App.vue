@@ -5,7 +5,7 @@
     height: `${scaledWindowSize[1]}px`
   }">
     <el-input ref="searchInputRef" v-model="searchText" :placeholder="placeholder" class="search-input" autosize
-      @contextmenu.prevent="showContextMenu" :style="{
+      @keyup.enter="handleEnterPress" @contextmenu.prevent="showContextMenu" :style="{
         width: `${scaledItemSize[0]}px`,
         height: `${scaledItemSize[1]}px`,
         fontSize: `${scaledFontSize}px`,
@@ -38,7 +38,7 @@
         class="menu-item round-border" :style="{
           width: `${scaledItemSize[0]}px`,
           height: `${scaledItemSize[1]}px`
-        }">
+        }" @click="launch_program(index)">
         <div class="common-layout">
           <el-container>
             <el-aside width="50">
@@ -84,12 +84,16 @@ let unlisten2: UnlistenFn | null = null;
 const isContextMenuVisible = ref(false);
 const contextMenuPosition = ref({ x: 0, y: 0 });
 
+const isCtrlPressed = ref(false);
+
+/*
 // 更新字体的样式
 const updateInputStyle = (newFont: string, newSize: number, newColor: string) => {
   fontFamily.value = newFont;
   fontSize.value = newSize;
   fontColor.value = newColor;
 };
+*/
 
 const sendSearchText = async (text: string) => {
   try {
@@ -130,6 +134,10 @@ watch(searchText, (newValue) => {
 });
 
 const handleKeyDown = (event: KeyboardEvent) => {
+  if (event.key === 'Control') {
+    isCtrlPressed.value = true;
+  }
+
   if (event.key === 'ArrowUp' || (event.ctrlKey && event.key === 'k')) {
     event.preventDefault();
     selectPreviousItem();
@@ -139,6 +147,12 @@ const handleKeyDown = (event: KeyboardEvent) => {
   } else if (event.key === 'Escape') {
     event.preventDefault();
     pressedESC();
+  }
+};
+
+const handleKeyUp = (event: KeyboardEvent) => {
+  if (event.key === 'Control') {
+    isCtrlPressed.value = false;
   }
 };
 
@@ -233,11 +247,34 @@ const updateWindow = async () => {
   placeholder.value = data.search_bar_placeholder;
 }
 
+const handleEnterPress = () => {
+  launch_program(parseInt(activeIndex.value))
+}
+
+
+const launch_program = (index: number) => {
+  const ctrlPressed = isCtrlPressed.value;
+  console.log(`Launching program for item ${index}, Ctrl key pressed: ${ctrlPressed}`);
+  invoke('launch_program', { programGuid: index, isAdminRequired: ctrlPressed });
+  /*
+    // Example: Invoke a Tauri command with the index and ctrlPressed
+    invoke('launch_program', { index, isCtrlPressed: ctrlPressed })
+      .then((response) => {
+        console.log('Program launched successfully:', response);
+      })
+      .catch((error) => {
+        console.error('Failed to launch program:', error);
+      });
+      */
+};
+
+
 // 在组件挂载时添加事件监听器
 onMounted(async () => {
   initWindow();
   updateWindow();
   window.addEventListener('keydown', handleKeyDown);
+  window.addEventListener('keyup', handleKeyUp);
   window.addEventListener('click', handleClickOutside);
   unlisten1 = await listen('show_window', () => {
     focusSearchInput();
@@ -250,6 +287,7 @@ onMounted(async () => {
 // 在组件卸载时移除事件监听器
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyDown);
+  window.removeEventListener('keyup', handleKeyUp);
   window.removeEventListener('click', handleClickOutside);
   if (unlisten1) {
     unlisten1();

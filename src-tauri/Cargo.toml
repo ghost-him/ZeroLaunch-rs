@@ -18,16 +18,14 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
-tauri-plugin-shell = "2"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
 windows = { version = "0.58.0", features = [
     "Win32_UI_WindowsAndMessaging",
     "Win32_Foundation",
     "Win32_Graphics_Gdi",
     "Management_Deployment",
+    "Win32_System_Threading",
     "Foundation",
+    "Win32_Security",
     "Foundation_Collections",
     "System",
     "Win32_System_Com",
@@ -36,7 +34,13 @@ windows = { version = "0.58.0", features = [
     "Storage_Streams",
     "Win32_UI_Shell_PropertiesSystem",
     "Win32_System_Variant",
+    "Win32_System_Registry",
 ] }
+
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 lazy_static = "1.5.0"
 rdev = "0.5.3"
 widestring = "1.1.0"

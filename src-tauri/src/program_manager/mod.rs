@@ -59,6 +59,8 @@ struct Program {
     pub alias: Vec<String>,
     /// 权重固定偏移量
     pub stable_bias: f64,
+    /// 应用程序应该展示的图片的地址
+    pub icon_path: String,
 }
 
 /// 数据处理中心
@@ -93,6 +95,7 @@ impl ProgramManager {
         self.program_launcher
             .load_from_config(&program_launcher_config);
         // 从loader中加载程序
+        self.program_registry.clear();
         self.program_registry = self.program_loader.load_program();
     }
     /// 使用搜索算法搜索，并给出指定长度的序列

@@ -99,7 +99,11 @@
                         Add Item
                     </el-button>
                 </el-tab-pane>
-                <el-tab-pane label="Task">Task</el-tab-pane>
+                <el-tab-pane label="额外设置">
+                    <el-form-item label="扫描UWP应用">
+                        <el-switch v-model="path_data.is_scan_uwp_program" />
+                    </el-form-item>
+                </el-tab-pane>
             </el-tabs>
             <el-button type="primary" @click="save_path_config">提交</el-button>
 
@@ -136,6 +140,9 @@
             <el-button type="primary" @click="save_key_filter_data">提交</el-button>
         </el-tab-pane>
         <el-tab-pane label="查看当前索引的所有的程序" name="fourth">
+            <el-button class="mt-4" style="width: 100%" @click="get_program_info">
+                刷新列表
+            </el-button>
             <el-table :data="program_info" stripe style="width: 100%; height: 100%">
                 <el-table-column label="程序名" show-overflow-tooltip>
                     <template #default="scope">
@@ -166,6 +173,7 @@
 import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import type { TabsPaneContext } from 'element-plus'
 import { invoke } from '@tauri-apps/api/core'
+import { ElMessage } from 'element-plus'
 
 const activeName = ref('first')
 const handleClick = (tab: TabsPaneContext, event: Event) => {
@@ -187,12 +195,14 @@ interface PathData {
     target_paths: Array<string>;
     forbidden_paths: Array<string>;
     forbidden_key: Array<string>;
+    is_scan_uwp_program: false,
 }
 
 const path_data = ref<PathData>({
     target_paths: [],
     forbidden_paths: [],
     forbidden_key: [],
+    is_scan_uwp_program: false,
 });
 
 interface KeyFilterData {
@@ -219,6 +229,10 @@ const get_app_config = async () => {
 
 const save_app_config = async () => {
     await invoke('save_app_config', { appConfig: config })
+    ElMessage({
+        message: '配置文件已保存',
+        type: 'success',
+    })
 }
 
 const get_path_config = async () => {
@@ -227,6 +241,7 @@ const get_path_config = async () => {
     path_data.value.target_paths = data.target_paths;
     path_data.value.forbidden_key = data.forbidden_key;
     path_data.value.forbidden_paths = data.forbidden_paths;
+    path_data.value.is_scan_uwp_program = data.is_scan_uwp_program;
 }
 
 const get_program_info = async () => {
@@ -237,6 +252,10 @@ const get_program_info = async () => {
 
 const save_path_config = async () => {
     await invoke('save_path_config', { pathData: path_data.value });
+    ElMessage({
+        message: '配置文件已保存',
+        type: 'success',
+    })
 }
 
 const get_key_filter_data = async () => {
@@ -246,6 +265,10 @@ const get_key_filter_data = async () => {
 
 const save_key_filter_data = async () => {
     await invoke('save_key_filter_data', { keyFilterData: key_data.value })
+    ElMessage({
+        message: '配置文件已保存',
+        type: 'success',
+    })
 }
 
 const deleteTargetPathRow = (index: number) => {

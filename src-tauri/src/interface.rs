@@ -30,6 +30,7 @@ pub struct SettingWindowPathData {
     pub target_paths: Vec<String>,
     pub forbidden_paths: Vec<String>,
     pub forbidden_key: Vec<String>,
+    pub is_scan_uwp_program: bool,
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct KeyFilterData {
@@ -139,6 +140,7 @@ pub fn get_path_config() -> Result<SettingWindowPathData, String> {
         target_paths: program_config.loader.target_paths.clone(),
         forbidden_paths: program_config.loader.forbidden_paths.clone(),
         forbidden_key: program_config.loader.forbidden_program_key.clone(),
+        is_scan_uwp_program: program_config.loader.is_scan_uwp_programs,
     })
 }
 

@@ -26,10 +26,21 @@ windows = { version = "0.58.0", features = [
     "Win32_UI_WindowsAndMessaging",
     "Win32_Foundation",
     "Win32_Graphics_Gdi",
+    "Management_Deployment",
+    "Foundation",
+    "Foundation_Collections",
+    "System",
+    "Win32_System_Com",
+    "Win32_System_Com_StructuredStorage",
+    "Win32_UI_Shell",
+    "Storage_Streams",
+    "Win32_UI_Shell_PropertiesSystem",
+    "Win32_System_Variant",
 ] }
 lazy_static = "1.5.0"
 rdev = "0.5.3"
 widestring = "1.1.0"
+windows-core = "0.58.0"
 
 [features]
 default = ["custom-protocol"]

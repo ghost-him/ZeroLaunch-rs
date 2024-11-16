@@ -4500,4 +4500,5 @@ dependencies = [
  "tauri-plugin-shell",
  "widestring",
  "windows",
+ "windows-core 0.58.0",
 ]

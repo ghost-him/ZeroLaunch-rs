@@ -199,6 +199,7 @@ impl RuntimeConfig {
         path_config.forbidden_paths = path_data.forbidden_paths;
         path_config.forbidden_program_key = path_data.forbidden_key;
         path_config.target_paths = path_data.target_paths;
+        path_config.is_scan_uwp_programs = path_data.is_scan_uwp_program;
         self.save_config();
     }
 

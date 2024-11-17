@@ -49,26 +49,33 @@ pub fn adjust_score_log2(origin_score : f64) -> f64{
 pub fn shortest_edit_dis(compare_name: &str,input_name: &str) -> f64{
     let input_length = input_name.len();
     let compare_length = compare_name.len();
-    let mut dp = vec![vec![256;compare_length + 1];input_length + 1];
-    for i in 0..=input_length {
-        dp[i][0] = i;
-    }
+    let mut dp = vec![vec![256;input_length + 1];compare_length + 1];
     for i in 0..=compare_length {
+        dp[i][0] = 0;
+    }
+    for i in 1..=input_length {
         dp[0][i] = i;
     }
-    for i in 1..=input_length{
-        for j in 1..=compare_length{
-            dp[i][j] = std::cmp::min(dp[i-1][j]+1, dp[i][j-1]+1);
+    for i in 1..=compare_length{
+        for j in 1..=input_length{
             if compare_name.chars().nth(i-1) == input_name.chars().nth(j-1){
                 dp[i][j] = std::cmp::min(dp[i][j], dp[i-1][j-1]);
             }
             else{
-                dp[i][j] = std::cmp::min(dp[i][j], dp[i-1][j-1]+1);
+                dp[i][j] = std::cmp::min(dp[i-1][j-1]+1, dp[i-1][j]+1);
             }
         }
     }
-    let min_operations = dp[input_length][compare_length];
-    let value : f64 = (1 - min_operations/input_length) as f64;
+    let mut  min_operations = dp[compare_length][input_length];
+    if input_length < compare_length{
+        for i in input_length..=compare_length{
+            min_operations = std::cmp::min(min_operations, dp[i][input_length]);
+        }
+    }
+    let mut value : f64= 0.0;
+    if input_length != 0{
+        value = (1 - min_operations/input_length) as f64;
+    }
     score_adjust(input_length as f64, adjust_score_log2) * f64::exp(3.0 * value - 2.0)
 }
 
@@ -89,12 +96,13 @@ pub fn KMP(compare_name: &str,input_name: &str) -> f64{
     end_pos
 }
 
-pub fn standard_search_fn(program: Arc<Program>, user_input: &str) -> f64 {
+pub fn StandardSearchFn(program: Arc<Program>, user_input: &str) -> f64 {
     // todo: 完成这个实现，如果使用到了什么子算法，用上面的模块实现出来再完成这个就可以了
     // program中的字符串与user_input都已经是预处理过了，不再需要预处理了
     let mut score : f64 = calculate_weight(&program.show_name,user_input,shortest_edit_dis);
     score = score * score_adjust((user_input.len() as f64)/(program.show_name.len() as f64), adjust_score_log2);
-    score = score + calculate_weight(&program.show_name,user_input, KMP)
+    score = score + calculate_weight(&program.show_name,user_input, KMP);
+    score
 }
 
 /// 去除一个程序名中的版本号

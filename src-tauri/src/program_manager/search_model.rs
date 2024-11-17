@@ -30,23 +30,23 @@ pub type SearchModelFn = fn(Arc<Program>, &str) -> f64;
 
 /// 调用函数指针利用不同公式进行权重计算
 /// operation：目标权重公式
-pub fn calculate_weight(program_name: &str, input_name: &str, operation: SearchAlgorithmFn) -> f64{
-    operation(program_name,input_name)
+pub fn calculate_weight(program_name: &str, input_name: &str, operation: SearchAlgorithmFn) -> f64 {
+    operation(program_name, input_name)
 }
 
 /// 调用函数调整权重得分
 /// operation: 权重调整公式
-pub fn score_adjust(score: f64, operation: ScoreAdjusterFn) -> f64{
+pub fn score_adjust(score: f64, operation: ScoreAdjusterFn) -> f64 {
     operation(score)
 }
 
 /// 得分权重调整公式log2
-pub fn adjust_score_log2(origin_score : f64) -> f64{
+pub fn adjust_score_log2(origin_score: f64) -> f64 {
     3.0 * (origin_score + 1.0).log2()
 }
 
 /// 权重计算最短编辑距离
-pub fn shortest_edit_dis(compare_name: &str,input_name: &str) -> f64{
+pub fn shortest_edit_dis(compare_name: &str, input_name: &str) -> f64 {
     let input_length = input_name.len();
     let compare_length = compare_name.len();
     let mut dp = vec![vec![256;input_length + 1];compare_length + 1];
@@ -59,7 +59,7 @@ pub fn shortest_edit_dis(compare_name: &str,input_name: &str) -> f64{
     for i in 1..=compare_length{
         for j in 1..=input_length{
             if compare_name.chars().nth(i-1) == input_name.chars().nth(j-1){
-                dp[i][j] = std::cmp::min(dp[i][j], dp[i-1][j-1]);
+                dp[i][j] =  dp[i-1][j-1];
             }
             else{
                 dp[i][j] = std::cmp::min(dp[i-1][j-1]+1, dp[i-1][j]+1);
@@ -80,19 +80,19 @@ pub fn shortest_edit_dis(compare_name: &str,input_name: &str) -> f64{
 }
 
 /// 权重计算KMP
-pub fn KMP(compare_name: &str,input_name: &str) -> f64{
-    let mut end_pos : f64 = 0.0;
-    for i in 0..std::cmp::min(compare_name.len(), input_name.len()){
-        if compare_name.chars().nth(i) == input_name.chars().nth(i){
-            end_pos +=1.0;
-        }else{
+pub fn KMP(compare_name: &str, input_name: &str) -> f64 {
+    let mut end_pos: f64 = 0.0;
+    for i in 0..std::cmp::min(compare_name.len(), input_name.len()) {
+        if compare_name.chars().nth(i) == input_name.chars().nth(i) {
+            end_pos += 1.0;
+        } else {
             break;
         }
     }
     if let Some(pos) = compare_name.find(input_name) {
         end_pos = end_pos + pos as f64;
-    } 
-    else{}
+    } else {
+    }
     end_pos
 }
 

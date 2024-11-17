@@ -1,19 +1,12 @@
-use crate::config::RuntimeConfig;
-use crate::singleton::Singleton;
-
-use crate::program_manager::PROGRAM_MANAGER;
-use serde::Serialize;
-use std::ffi::OsString;
+use std::ffi::OsStr;
 use std::fs;
-use std::io::{self, Write};
-use std::os::windows::ffi::OsStringExt;
+use std::io;
+use std::os::windows::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
-use windows::core::PWSTR;
 use windows::Win32::Foundation::HWND;
 use windows::Win32::UI::Shell::SHGetFolderPathW;
 use windows::Win32::UI::Shell::CSIDL_COMMON_STARTMENU;
 use windows::Win32::UI::Shell::CSIDL_STARTMENU;
-
 pub fn read_or_create(path: &str, content: Option<String>) -> Result<String, String> {
     match fs::read_to_string(path) {
         Ok(data) => Ok(data),
@@ -86,45 +79,11 @@ pub fn get_start_menu_paths() -> Result<(String, String), String> {
     }
 }
 
-#[tauri::command]
-pub fn get_item_size() -> Vec<usize> {
-    let (item_width, item_height) = RuntimeConfig::instance().lock().unwrap().get_item_size();
-    println!("item {} {}", item_width, item_height);
-    vec![item_width, item_height]
-}
-
-#[tauri::command]
-pub fn get_window_size() -> Vec<usize> {
-    let (window_width, window_height) = RuntimeConfig::instance().lock().unwrap().get_window_size();
-    println!("window {} {}", window_width, window_height);
-    vec![window_width, window_height]
-}
-
-#[tauri::command]
-pub fn get_window_scale_factor() -> f64 {
-    let result = RuntimeConfig::instance()
-        .lock()
-        .unwrap()
-        .get_window_scale_factor();
-    println!("scale factor: {}", result);
-    result
-}
-
-#[derive(Serialize, Debug)]
-pub struct SearchResult(u64, String);
-
-/// 处理前端发来的消息
-#[tauri::command]
-pub fn handle_search_text(search_text: String) -> Vec<SearchResult> {
-    // 处理消息
-    let manager = PROGRAM_MANAGER.lock().unwrap();
-    let results = manager.update(&search_text, 4);
-    // 解锁
-    drop(manager);
-    let mut ret = Vec::new();
-    for item in results {
-        ret.push(SearchResult(item.0, item.1));
-    }
-    println!("{:?}", ret);
-    ret
+/// 将一个字符串转成windows的宽字符
+pub fn get_u16_vec<P: AsRef<Path>>(path: P) -> Vec<u16> {
+    path.as_ref()
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect()
 }

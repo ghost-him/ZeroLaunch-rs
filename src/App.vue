@@ -1,62 +1,51 @@
 <template>
-  <div
-    v-if="scaledWindowSize[0] && scaledWindowSize[1]"
-    class="container"
-    :style="{
-      backgroundImage: `url(${backgroundImage})`,
-      width: `${scaledWindowSize[0]}px`,
-      height: `${scaledWindowSize[1]}px`
-    }"
-  >
-    <el-input
-      ref="searchInputRef"
-      v-model="searchText"
-      :placeholder="placeholder"
-      class="search-input"
-      autosize
-      :style="{
+  <div v-if="scaledWindowSize[0] && scaledWindowSize[1]" class="container" :style="{
+    backgroundImage: `url(${backgroundImage})`,
+    width: `${scaledWindowSize[0]}px`,
+    height: `${scaledWindowSize[1]}px`
+  }">
+    <el-input ref="searchInputRef" v-model="searchText" :placeholder="placeholder" class="search-input" autosize
+      @keyup.enter="handleEnterPress" @contextmenu.prevent="showContextMenu" :style="{
         width: `${scaledItemSize[0]}px`,
         height: `${scaledItemSize[1]}px`,
         fontSize: `${scaledFontSize}px`,
         fontColor: `${fontColor}`,
         fontFamily: `${fontFamily}`
-      }"
-    >
+      }">
       <template #prefix>
-        <el-icon style="padding-left: 20px;"><Search /></el-icon>
+        <el-icon style="padding-left: 20px;">
+          <Search />
+        </el-icon>
       </template>
     </el-input>
 
-    <el-menu
-      :default-active="activeIndex"
-      class="menu-list round-border"
-      @select="handleSelectMouse"
-      :style="{
-        width: `${scaledItemSize[0]}px`,
-        height: `${scaledItemSize[1] * 4}px`
-      }"
-    >
-      <el-menu-item
-        v-for="(item, index) in menuItems"
-        :key="index"
-        :index="String(index)"
-        class="menu-item round-border"
-        :style="{
+    <div v-if="isContextMenuVisible" class="custom-context-menu" :style="{
+      top: `${contextMenuPosition.y}px`,
+      left: `${contextMenuPosition.x}px`
+    }" @click.stop>
+      <el-menu @select="handleContextMenuSelect" class="context-menu">
+        <el-menu-item index="openSettings">打开设置窗口</el-menu-item>
+        <!-- 可以在这里添加更多的菜单项 -->
+      </el-menu>
+    </div>
+
+
+    <el-menu :default-active="activeIndex" class="menu-list round-border" @select="handleSelectMouse" :style="{
+      width: `${scaledItemSize[0]}px`,
+      height: `${scaledItemSize[1] * 4}px`
+    }">
+      <el-menu-item v-for="(item, index) in menuItems" :key="index" :index="String(index)"
+        class="menu-item round-border" :style="{
           width: `${scaledItemSize[0]}px`,
           height: `${scaledItemSize[1]}px`
-        }"
-      >
+        }" @click="launch_program(index)">
         <div class="common-layout">
           <el-container>
             <el-aside width="50">
-              <el-image
-                :style="{
-                  width: `${scaledItemSize[1]}px`,
-                  height: `${scaledItemSize[1]}px`
-                }"
-                :src="url"
-                fit="cover"
-              />
+              <el-image :style="{
+                width: `${scaledItemSize[1]}px`,
+                height: `${scaledItemSize[1]}px`
+              }" :src="url" fit="cover" />
             </el-aside>
             <el-main>{{ item }}</el-main>
           </el-container>
@@ -87,52 +76,24 @@ const scaleFactor = ref<number>(1.0);
 const fontFamily = ref('Arial, sans-serif');
 const fontSize = ref<number>(0);
 const fontColor = ref('#333333');
-const placeholder = ref('请输入搜索内容');
+let placeholder = ref('请输入搜索内容');
 const searchInputRef = ref<HTMLInputElement | null>(null);
-let unlisten: UnlistenFn | null = null;
+let unlisten1: UnlistenFn | null = null;
+let unlisten2: UnlistenFn | null = null;
+// 新增的状态用于自定义右键菜单
+const isContextMenuVisible = ref(false);
+const contextMenuPosition = ref({ x: 0, y: 0 });
 
+const isCtrlPressed = ref(false);
+
+/*
 // 更新字体的样式
 const updateInputStyle = (newFont: string, newSize: number, newColor: string) => {
   fontFamily.value = newFont;
   fontSize.value = newSize;
   fontColor.value = newColor;
 };
-
-// 更新占位符文本的方法
-const updatePlaceholder = (newPlaceholder: string) => {
-  placeholder.value = newPlaceholder;
-};
-
-// 获取窗口大小
-const getWindowSize = async () => {
-  try {
-    windowSize.value = await invoke('get_window_size');
-    console.log('Window size:', windowSize.value);
-  } catch (error) {
-    console.error('Error getting window size:', error);
-  }
-};
-
-// 获取项大小
-const getItemSize = async () => {
-  try {
-    itemSize.value = await invoke('get_item_size');
-    fontSize.value = itemSize.value[1] / 2;
-    console.log('Item size:', itemSize.value);
-  } catch (error) {
-    console.error('Error getting item size:', error);
-  }
-};
-
-// 获取缩放因子
-const getScaleFactor = async () => {
-  try {
-    scaleFactor.value = await invoke('get_window_scale_factor');
-    console.log('Scale factor:', scaleFactor.value);
-  } catch (error) {
-    console.error('Error getting window scale factor:', error);
-  }
-};
+*/
 
 const sendSearchText = async (text: string) => {
   try {
@@ -173,6 +134,10 @@ watch(searchText, (newValue) => {
 });
 
 const handleKeyDown = (event: KeyboardEvent) => {
+  if (event.key === 'Control') {
+    isCtrlPressed.value = true;
+  }
+
   if (event.key === 'ArrowUp' || (event.ctrlKey && event.key === 'k')) {
     event.preventDefault();
     selectPreviousItem();
@@ -182,6 +147,12 @@ const handleKeyDown = (event: KeyboardEvent) => {
   } else if (event.key === 'Escape') {
     event.preventDefault();
     pressedESC();
+  }
+};
+
+const handleKeyUp = (event: KeyboardEvent) => {
+  if (event.key === 'Control') {
+    isCtrlPressed.value = false;
   }
 };
 
@@ -207,39 +178,146 @@ const pressedESC = () => {
   activeIndex.value = '0';
   if (searchText.value === '') {
     // 隐藏窗口
+    invoke('hide_window');
   } else {
     // 清空文字
     searchText.value = '';
   }
 }
 
+
+// 新增的方法：显示自定义右键菜单
+const showContextMenu = (event: MouseEvent) => {
+  event.preventDefault();
+  isContextMenuVisible.value = true;
+  contextMenuPosition.value = { x: event.clientX, y: event.clientY };
+};
+
+// 处理自定义菜单项选择
+const handleContextMenuSelect = (index: string) => {
+  if (index === 'openSettings') {
+    openSettingsWindow();
+  }
+  isContextMenuVisible.value = false;
+};
+
+// 打开设置窗口的方法
+const openSettingsWindow = () => {
+  // 调用后端或其他逻辑来打开设置窗口
+  invoke('show_setting_window')
+    .then(() => {
+      console.log('Settings window opened.');
+    })
+    .catch((error) => {
+      console.error('Failed to open settings window:', error);
+    });
+};
+
+// 点击页面其他地方时隐藏自定义菜单
+const handleClickOutside = () => {
+  if (isContextMenuVisible.value) {
+    isContextMenuVisible.value = false;
+  }
+}
+
+interface SearchBarInit {
+  window_size: [number, number];
+  item_size: [number, number];
+  window_scale_factor: number;
+}
+
+interface SearchBarUpdate {
+  search_bar_placeholder: string;
+}
+
+// 用于程序在一开始初始化
+const initWindow = async () => {
+  const initValue = await invoke<SearchBarInit>('init_search_bar_window');
+
+  windowSize.value = initValue.window_size;
+  itemSize.value = initValue.item_size;
+  fontSize.value = itemSize.value[1] / 2;
+  scaleFactor.value = initValue.window_scale_factor
+  console.log(initValue);
+}
+
+// 用于程序在更新相应内容
+const updateWindow = async () => {
+  const data = await invoke<SearchBarUpdate>('update_search_bar_window');
+  placeholder.value = data.search_bar_placeholder;
+}
+
+const handleEnterPress = () => {
+  launch_program(parseInt(activeIndex.value))
+}
+
+
+const launch_program = (index: number) => {
+  const ctrlPressed = isCtrlPressed.value;
+  console.log(`Launching program for item ${index}, Ctrl key pressed: ${ctrlPressed}`);
+  invoke('launch_program', { programGuid: index, isAdminRequired: ctrlPressed });
+  /*
+    // Example: Invoke a Tauri command with the index and ctrlPressed
+    invoke('launch_program', { index, isCtrlPressed: ctrlPressed })
+      .then((response) => {
+        console.log('Program launched successfully:', response);
+      })
+      .catch((error) => {
+        console.error('Failed to launch program:', error);
+      });
+      */
+};
+
+
 // 在组件挂载时添加事件监听器
 onMounted(async () => {
-  getScaleFactor();
-  getWindowSize();
-  getItemSize();
+  initWindow();
+  updateWindow();
   window.addEventListener('keydown', handleKeyDown);
-
-  unlisten = await listen('show_window', () => {
+  window.addEventListener('keyup', handleKeyUp);
+  window.addEventListener('click', handleClickOutside);
+  unlisten1 = await listen('show_window', () => {
     focusSearchInput();
   });
+  unlisten2 = await listen('update_search_bar_window', () => {
+    updateWindow();
+  })
 });
 
 // 在组件卸载时移除事件监听器
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyDown);
-  if (unlisten) {
-    unlisten();
+  window.removeEventListener('keyup', handleKeyUp);
+  window.removeEventListener('click', handleClickOutside);
+  if (unlisten1) {
+    unlisten1();
+  }
+  if (unlisten2) {
+    unlisten2();
   }
 });
 </script>
 
 <style scoped>
+/* 自定义右键菜单样式 */
+.custom-context-menu {
+  position: fixed;
+  z-index: 1000;
+  background-color: #fff;
+  border: 1px solid #dcdfe6;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+}
+
+.context-menu {
+  min-width: 150px;
+}
+
 .round-border {
   border-radius: 10px;
 }
 
- .container {
+.container {
   padding: 0;
   display: flex;
   flex-direction: column;
@@ -254,7 +332,7 @@ onUnmounted(() => {
   border: 1px solid var(--el-border-color);
   padding: 0 !important;
   min-height: 0 !important;
-} 
+}
 
 .menu-item {
   /* border: 1px solid var(--el-border-color); */
@@ -283,12 +361,12 @@ onUnmounted(() => {
   font-family: v-bind(fontFamily);
   font-size: v-bind(scaledFontSize) + 'px';
   color: v-bind(fontColor);
-  
+
   height: 100%;
 }
 
 :deep(.el-input__inner::placeholder) {
   color: v-bind(fontColor);
-  opacity: 0;
+  opacity: 0.4;
 }
 </style>

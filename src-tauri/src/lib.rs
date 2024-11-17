@@ -1,39 +1,45 @@
 pub mod config;
+pub mod defer;
+pub mod interface;
 pub mod program_manager;
 pub mod singleton;
 pub mod ui_controller;
 pub mod utils;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
+use crate::config::GLOBAL_APP_HANDLE;
+use crate::interface::{
+    get_app_config, get_key_filter_data, get_path_config, get_program_info, handle_search_text,
+    hide_window, init_search_bar_window, launch_program, save_app_config, save_key_filter_data,
+    save_path_config, show_setting_window, update_search_bar_window,
+};
 use crate::program_manager::PROGRAM_MANAGER;
 use crate::singleton::Singleton;
 use crate::ui_controller::handle_focus_lost;
-use crate::utils::{get_item_size, get_window_scale_factor, get_window_size, handle_search_text};
 use config::{Height, RuntimeConfig, Width};
 use rdev::{listen, Event, EventType, Key};
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 use tauri::async_runtime::spawn;
+use tauri::Size;
 use tauri::{webview::WebviewWindow, Emitter, Manager, PhysicalPosition, PhysicalSize};
+use tauri_plugin_autostart::{AutoLaunchManager, MacosLauncher};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![
-            get_window_size,
-            get_item_size,
-            get_window_scale_factor,
-            handle_search_text,
-        ])
         .setup(|app| {
             let windows: Arc<Vec<WebviewWindow>> =
                 Arc::new(app.webview_windows().values().cloned().collect());
 
             let windows_clone = Arc::clone(&windows);
             let main_window = Arc::new(app.get_webview_window("main").unwrap());
-            let app_handle = app.handle().clone();
+            let app_handle = app.app_handle().clone();
+            *GLOBAL_APP_HANDLE.lock().unwrap() = Some(app_handle.clone());
+            init_setting_window(app_handle.clone());
+            handle_auto_start();
             tauri::async_runtime::spawn(async move {
-                start_key_listener(app_handle).expect("Failed to start key listener");
+                start_key_listener(app_handle.clone()).expect("Failed to start key listener");
             });
             main_window.on_window_event(move |event| match event {
                 tauri::WindowEvent::Focused(focused) => {
@@ -64,11 +70,25 @@ pub fn run() {
                     window_size.1 as u32 + (20 as f64 * scale_factor) as u32,
                 ))
                 .unwrap();
-
-            let mut program_manager = PROGRAM_MANAGER.lock().unwrap();
-            program_manager.load_from_config(config.get_program_manager_config());
+            drop(config);
+            update_app_setting();
             Ok(())
         })
+        .invoke_handler(tauri::generate_handler![
+            init_search_bar_window,
+            handle_search_text,
+            hide_window,
+            show_setting_window,
+            get_app_config,
+            save_app_config,
+            update_search_bar_window,
+            save_path_config,
+            get_path_config,
+            get_key_filter_data,
+            get_program_info,
+            save_key_filter_data,
+            launch_program,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
@@ -108,4 +128,89 @@ fn start_key_listener(app_handle: tauri::AppHandle) -> Result<(), Box<dyn std::e
     }
 
     Ok(())
+}
+
+fn init_setting_window(app: tauri::AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        let setting_window = Arc::new(
+            tauri::WebviewWindowBuilder::new(
+                &app,
+                "setting_window",
+                tauri::WebviewUrl::App("http://localhost:1420/setting_window".into()),
+            )
+            .title("设置")
+            .visible(false)
+            .build()
+            .unwrap(),
+        );
+        let window_clone = Arc::clone(&setting_window);
+        setting_window.on_window_event(move |event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                // 阻止窗口关闭
+                api.prevent_close();
+                // 隐藏窗口
+                window_clone.hide().unwrap();
+                println!("隐藏设置窗口");
+            }
+        });
+    });
+}
+
+/// 更新程序的状态
+pub fn update_app_setting() {
+    // 1. 重新更新程序索引的路径
+    update_program_path();
+    // 2. 判断要不要开机自启动
+    handle_auto_start();
+    // 3.判断要不要静默启动
+    handle_silent_start();
+}
+/// 重新索引程序
+pub fn update_program_path() {
+    let instance = RuntimeConfig::instance();
+    let runtime_config = instance.lock().unwrap();
+    let mut program_manager = PROGRAM_MANAGER.lock().unwrap();
+    program_manager.load_from_config(runtime_config.get_program_manager_config());
+}
+
+/// 处理自动开机的逻辑
+pub fn handle_auto_start() {
+    let mut instance = GLOBAL_APP_HANDLE.lock().unwrap();
+    let app = instance.as_mut().unwrap();
+    use tauri_plugin_autostart::MacosLauncher;
+    use tauri_plugin_autostart::ManagerExt;
+
+    app.plugin(tauri_plugin_autostart::init(
+        MacosLauncher::LaunchAgent,
+        None,
+    ));
+
+    // Get the autostart manager
+    let autostart_manager = app.autolaunch();
+
+    let instance = RuntimeConfig::instance();
+    let runtime_config = instance.lock().unwrap();
+    let is_auto_start = runtime_config.get_app_config().is_auto_start;
+    if is_auto_start && !autostart_manager.is_enabled().unwrap() {
+        autostart_manager.enable();
+    }
+    if !is_auto_start && autostart_manager.is_enabled().unwrap() {
+        autostart_manager.disable();
+    }
+}
+
+/// 处理静默启动
+pub fn handle_silent_start() {
+    let mut instance = GLOBAL_APP_HANDLE.lock().unwrap();
+    let app = instance.as_mut().unwrap();
+    let main_window = app.get_webview_window("main").unwrap();
+
+    let instance = RuntimeConfig::instance();
+    let runtime_config = instance.lock().unwrap();
+    let app_config = runtime_config.get_app_config();
+    if app_config.is_silent_start {
+        main_window.hide();
+    } else {
+        main_window.show();
+    }
 }

@@ -25,8 +25,10 @@ pub struct ProgramLoaderConfig {
     pub forbidden_paths: Vec<String>,
     /// 禁止的程序关键字
     pub forbidden_program_key: Vec<String>,
-    /// 设置程序的固定权重偏移
-    pub program_bias: HashMap<String, f64>,
+    /// 设置程序的固定权重偏移 (key) => (bias, note)
+    pub program_bias: HashMap<String, (f64, String)>,
+    /// 是不是要遍历uwp应用
+    pub is_scan_uwp_programs: bool,
 }
 
 impl ProgramManagerConfig {
@@ -52,6 +54,7 @@ impl ProgramLoaderConfig {
             forbidden_paths: Vec::new(),
             forbidden_program_key: Vec::new(),
             program_bias: HashMap::new(),
+            is_scan_uwp_programs: true,
         }
     }
 }

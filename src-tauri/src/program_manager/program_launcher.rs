@@ -1,32 +1,20 @@
 /// 这个类用于启动应用程序，同时还会维护启动次数
-use super::{config::ProgramLauncherConfig, LaunchMethod, Program};
+use super::{config::ProgramLauncherConfig, LaunchMethod};
 use crate::defer::defer;
 use crate::utils::get_u16_vec;
-use std::ffi::OsStr;
-use std::os::windows::ffi::OsStrExt;
 use std::path::Path;
-use std::{alloc::Layout, collections::HashMap};
+use std::collections::HashMap;
 use windows::Win32::Foundation::{
-    CloseHandle, GetLastError, BOOL, ERROR_CANCELLED, ERROR_ELEVATION_REQUIRED, HWND,
+    GetLastError, ERROR_CANCELLED, ERROR_ELEVATION_REQUIRED,
 };
 use windows::Win32::System::Com::{
-    CoCreateInstance, CoInitialize, CoInitializeEx, CoUninitialize,
-    StructuredStorage::PropVariantClear, CLSCTX_ALL, COINIT_APARTMENTTHREADED,
-};
-use windows::Win32::System::Threading::{
-    CreateProcessW, CREATE_NEW_CONSOLE, CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW,
-    DETACHED_PROCESS, PROCESS_INFORMATION, STARTUPINFOW,
-};
-use windows::Win32::UI::Shell::PropertiesSystem::{
-    IPropertyStore, PSGetPropertyKeyFromName, PROPERTYKEY,
+    CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_ALL, COINIT_APARTMENTTHREADED,
 };
 use windows::Win32::UI::Shell::{
-    ApplicationActivationManager, BHID_EnumItems, IApplicationActivationManager, IEnumShellItems,
-    IShellItem, SHCreateItemFromParsingName, ShellExecuteExW, ShellExecuteW, AO_NONE,
-    SEE_MASK_NOCLOSEPROCESS, SEE_MASK_NO_CONSOLE, SHELLEXECUTEINFOW, SIGDN_NORMALDISPLAY,
+    ApplicationActivationManager, IApplicationActivationManager, ShellExecuteExW, AO_NONE, SHELLEXECUTEINFOW,
 };
-use windows::Win32::UI::WindowsAndMessaging::{SW_SHOW, SW_SHOWNORMAL};
-use windows_core::{PCWSTR, PROPVARIANT, PWSTR};
+use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+use windows_core::PCWSTR;
 pub struct ProgramLauncher {
     /// 用于存储目标程序的启动方式
     launch_store: HashMap<u64, LaunchMethod>,
@@ -72,7 +60,7 @@ impl ProgramLauncher {
     }
     /// 获取当前程序的动态启动次数
     pub fn program_launch_time(&self, program_guid: u64) -> u64 {
-        0 as u64
+        0_u64
     }
 
     /// 启动uwp应用
@@ -89,7 +77,7 @@ impl ProgramLauncher {
             let manager: IApplicationActivationManager =
                 CoCreateInstance(&ApplicationActivationManager, None, CLSCTX_ALL).unwrap();
 
-            let app_id_wide: Vec<u16> = get_u16_vec(&package_family_name);
+            let app_id_wide: Vec<u16> = get_u16_vec(package_family_name);
             let pid = match manager.ActivateApplication(
                 PCWSTR::from_raw(app_id_wide.as_ptr()),
                 None,

@@ -5,11 +5,9 @@ use crate::singleton::Singleton;
 use crate::utils::read_or_create;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use serde_json::from_str;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::Once;
-use windows::Win32::System::WindowsProgramming::KEY_UNKNOWN;
 pub type Width = usize;
 pub type Height = usize;
 
@@ -119,7 +117,7 @@ pub struct RuntimeConfig {
 impl RuntimeConfig {
     fn new() -> RuntimeConfig {
         // 读取配置文件
-        let config_content = read_or_create(&*CONFIG_PATH, Some((*CONFIG_DEFAULT).clone()))
+        let config_content = read_or_create(&CONFIG_PATH, Some((*CONFIG_DEFAULT).clone()))
             .expect("无法读取配置文件");
         let final_config: Config;
         match serde_json::from_str::<Config>(&config_content) {
@@ -195,7 +193,7 @@ impl RuntimeConfig {
     }
 
     pub fn save_path_config(&mut self, path_data: SettingWindowPathData) {
-        let mut path_config = &mut self.config.program_manager_config.loader;
+        let path_config = &mut self.config.program_manager_config.loader;
         path_config.forbidden_paths = path_data.forbidden_paths;
         path_config.forbidden_program_key = path_data.forbidden_key;
         path_config.target_paths = path_data.target_paths;
@@ -204,7 +202,7 @@ impl RuntimeConfig {
     }
 
     pub fn save_key_filter_config(&mut self, key_filter_data: Vec<KeyFilterData>) {
-        let mut path_config = &mut self.config.program_manager_config.loader;
+        let path_config = &mut self.config.program_manager_config.loader;
         path_config.forbidden_program_key.clear();
         for item in &key_filter_data {
             path_config

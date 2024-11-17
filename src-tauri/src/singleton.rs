@@ -1,7 +1,6 @@
 use std::any::Any;
 use std::sync::Arc;
-use std::sync::{Mutex, Once};
-use std::thread;
+use std::sync::Mutex;
 
 /// 创建一个单列模式
 pub trait Singleton: Any + Send + Sync {

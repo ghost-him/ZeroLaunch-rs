@@ -1,8 +1,7 @@
-use std::ffi::OsStr;
 use std::fs;
 use std::io;
 use std::os::windows::ffi::OsStrExt;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use windows::Win32::Foundation::HWND;
 use windows::Win32::UI::Shell::SHGetFolderPathW;
 use windows::Win32::UI::Shell::CSIDL_COMMON_STARTMENU;

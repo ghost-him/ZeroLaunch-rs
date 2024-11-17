@@ -9,9 +9,10 @@ use config::ProgramManagerConfig;
 use lazy_static::lazy_static;
 use program_launcher::ProgramLauncher;
 use program_loader::ProgramLoader;
+use search_model::remove_repeated_space;
 use search_model::{SearchModelFn, StandardSearchFn};
+use std::sync::Arc;
 use std::sync::Mutex;
-use std::{borrow::Borrow, sync::Arc};
 /// 应用程序的启动方式
 #[derive(Debug, Clone)]
 enum LaunchMethod {
@@ -25,23 +26,15 @@ impl LaunchMethod {
     /// 这个是用于在文件中存储的全局唯一标识符
     pub fn get_text(&self) -> String {
         match &self {
-            LaunchMethod::Path(path) => {
-                return path.clone();
-            }
-            LaunchMethod::PackageFamilyName(name) => {
-                return name.clone();
-            }
+            LaunchMethod::Path(path) => path.clone(),
+            LaunchMethod::PackageFamilyName(name) => name.clone(),
         }
     }
 
     pub fn is_uwp(&self) -> bool {
         match &self {
-            LaunchMethod::Path(_) => {
-                return false;
-            }
-            LaunchMethod::PackageFamilyName(_) => {
-                return true;
-            }
+            LaunchMethod::Path(_) => false,
+            LaunchMethod::PackageFamilyName(_) => true,
         }
     }
 }
@@ -76,6 +69,12 @@ pub struct ProgramManager {
     search_fn: SearchModelFn,
 }
 
+impl Default for ProgramManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ProgramManager {
     /// 初始化，空
     pub fn new() -> Self {
@@ -91,9 +90,9 @@ impl ProgramManager {
         let program_loader_config = &config.loader;
         let program_launcher_config = &config.launcher;
         // 初始化子模块
-        self.program_loader.load_from_config(&program_loader_config);
+        self.program_loader.load_from_config(program_loader_config);
         self.program_launcher
-            .load_from_config(&program_launcher_config);
+            .load_from_config(program_launcher_config);
         // 从loader中加载程序
         self.program_registry.clear();
         self.program_registry = self.program_loader.load_program();
@@ -110,6 +109,8 @@ impl ProgramManager {
     /// 返回值：Vec(应用唯一标识符，展示给用户的名字)
     pub fn update(&self, user_input: &str, result_count: u32) -> Vec<(u64, String)> {
         let mut match_scores: Vec<(f64, u64)> = Vec::new(); // (匹配值，唯一标识符)
+        let user_input = user_input.to_lowercase();
+        let user_input = remove_repeated_space(&user_input);
         for program in self.program_registry.iter() {
             let score = (self.search_fn)(program.clone(), &user_input);
             match_scores.push((score, program.program_guid));
@@ -129,7 +130,7 @@ impl ProgramManager {
     pub fn test_search_algorithm(&self, user_input: &str) {
         let mut match_scores: Vec<(f64, u64)> = Vec::new(); // (匹配值，唯一标识符)
         for program in self.program_registry.iter() {
-            let score = (self.search_fn)(program.clone(), &user_input);
+            let score = (self.search_fn)(program.clone(), user_input);
             match_scores.push((score, program.program_guid));
         }
 
@@ -169,5 +170,5 @@ impl ProgramManager {
 }
 
 lazy_static! {
-    pub static ref PROGRAM_MANAGER: Mutex<ProgramManager> = { Mutex::new(ProgramManager::new()) };
+    pub static ref PROGRAM_MANAGER: Mutex<ProgramManager> = Mutex::new(ProgramManager::new());
 }

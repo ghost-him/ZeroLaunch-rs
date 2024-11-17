@@ -2,7 +2,7 @@ use super::pinyin_mapper::PinyinMapper;
 use super::search_model::*;
 use super::LaunchMethod;
 use super::{
-    config::{ProgramLauncherConfig, ProgramLoaderConfig},
+    config::ProgramLoaderConfig,
     Program,
 };
 use crate::defer::defer;
@@ -13,22 +13,20 @@ use std::ffi::OsStr;
 use std::fs;
 
 use crate::utils::get_u16_vec;
-use std::hash::Hash;
 use std::io;
-use std::os::windows::ffi::OsStrExt;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 use windows::Win32::System::Com::{
-    CoCreateInstance, CoInitialize, CoInitializeEx, CoUninitialize,
-    StructuredStorage::PropVariantClear, CLSCTX_ALL, COINIT_APARTMENTTHREADED,
+    CoInitialize, CoUninitialize,
+    StructuredStorage::PropVariantClear,
 };
 use windows::Win32::UI::Shell::PropertiesSystem::{
     IPropertyStore, PSGetPropertyKeyFromName, PROPERTYKEY,
 };
 use windows::Win32::UI::Shell::{
-    ApplicationActivationManager, BHID_EnumItems, IApplicationActivationManager, IEnumShellItems,
-    IShellItem, SHCreateItemFromParsingName, AO_NONE, SIGDN_NORMALDISPLAY,
+    BHID_EnumItems, IEnumShellItems,
+    IShellItem, SHCreateItemFromParsingName, SIGDN_NORMALDISPLAY,
 };
 use windows_core::{PCWSTR, PROPVARIANT};
 
@@ -129,7 +127,7 @@ impl ProgramLoader {
     }
     /// 预处理名字（完整的名字），返回处理过的别名
     fn convert_full_name(&self, full_name: &str) -> Vec<String> {
-        let removed_version_name = remove_version_number(&full_name);
+        let removed_version_name = remove_version_number(full_name);
         // 经过过滤的名字
         let filtered_name = remove_repeated_space(&removed_version_name);
 
@@ -159,7 +157,7 @@ impl ProgramLoader {
             return true;
         }
         self.program_name_hash.insert(unique_name.to_string());
-        return false;
+        false
     }
 
     /// 获取当前电脑上所有的程序
@@ -210,10 +208,10 @@ impl ProgramLoader {
             let stable_bias = self.get_program_bias(&unique_name);
             let program = Arc::new(Program {
                 program_guid: guid,
-                show_name: show_name,
+                show_name,
                 launch_method: LaunchMethod::Path(path_str.clone()),
-                alias: alias,
-                stable_bias: stable_bias,
+                alias,
+                stable_bias,
                 icon_path: path_str,
             });
             println!("{:?}", program.as_ref());
@@ -405,8 +403,8 @@ impl ProgramLoader {
                             show_name: short_name,
                             launch_method: LaunchMethod::PackageFamilyName(app_id),
                             alias: alias_name,
-                            stable_bias: stable_bias,
-                            icon_path: icon_path,
+                            stable_bias,
+                            icon_path,
                         }));
                     }
                 }

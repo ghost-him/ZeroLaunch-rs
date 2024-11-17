@@ -112,12 +112,11 @@ pub fn StandardSearchFn(program: Arc<Program>, user_input: &str) -> f64 {
             continue;
         }
         let mut score: f64 = calculate_weight(names, user_input, shortest_edit_dis);
-        score = score
-            * score_adjust(
+        score *= score_adjust(
                 (user_input.chars().count() as f64) / (names.chars().count() as f64),
                 adjust_score_log2,
             );
-        score = score + calculate_weight(names, user_input, KMP);
+        score += calculate_weight(names, user_input, KMP);
         ret = f64::max(ret, score);
     }
     ret
@@ -149,7 +148,7 @@ pub fn remove_version_number(input_text: &str) -> String {
                 // 检查前一个字符是否是空格（以正确识别版本号）
                 if i > 0 && chars[i - 1] == ' ' {
                     // 跳过整个版本号
-                    while i < chars.len() && (chars[i].is_digit(10) || chars[i] == '.') {
+                    while i < chars.len() && (chars[i].is_ascii_digit() || chars[i] == '.') {
                         i += 1;
                     }
                     // 跳过任何后续的空格
@@ -157,9 +156,7 @@ pub fn remove_version_number(input_text: &str) -> String {
                         i += 1;
                     }
                     // 减少 i 以抵消下一次迭代的增加
-                    if i > 0 {
-                        i -= 1;
-                    }
+                    i = i.saturating_sub(1);
                     i += 1;
                     continue;
                 }

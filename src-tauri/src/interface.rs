@@ -6,7 +6,6 @@ use crate::program_manager::PROGRAM_MANAGER;
 ///
 use crate::RuntimeConfig;
 use crate::Singleton;
-use rdev::Key;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tauri::Emitter;

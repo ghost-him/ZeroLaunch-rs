@@ -20,14 +20,11 @@ use config::{Height, RuntimeConfig, Width};
 use rdev::{listen, Event, EventType, Key};
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
-use tauri::async_runtime::spawn;
 use tauri::image::Image;
-use tauri::menu::{IconMenuItem, MenuBuilder, MenuEvent, MenuItem};
-use tauri::tray::{TrayIcon, TrayIconBuilder};
+use tauri::menu::{MenuBuilder, MenuItem};
+use tauri::tray::TrayIconBuilder;
 use tauri::App;
-use tauri::Size;
 use tauri::{webview::WebviewWindow, Emitter, Manager, PhysicalPosition, PhysicalSize};
-use tauri_plugin_autostart::{AutoLaunchManager, MacosLauncher};
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -44,13 +41,10 @@ pub fn run() {
             tauri::async_runtime::spawn(async move {
                 start_key_listener(app_handle.clone()).expect("Failed to start key listener");
             });
-            main_window.on_window_event(move |event| match event {
-                tauri::WindowEvent::Focused(focused) => {
-                    if !focused {
-                        handle_focus_lost(&windows_clone);
-                    }
+            main_window.on_window_event(move |event| if let tauri::WindowEvent::Focused(focused) = event {
+                if !focused {
+                    handle_focus_lost(&windows_clone);
                 }
-                _ => {}
             });
 
             let monitor = main_window.current_monitor().unwrap().unwrap();
@@ -69,8 +63,8 @@ pub fn run() {
             let window_size = config.get_window_size();
             main_window
                 .set_size(PhysicalSize::new(
-                    window_size.0 as u32 + (20 as f64 * scale_factor) as u32,
-                    window_size.1 as u32 + (20 as f64 * scale_factor) as u32,
+                    window_size.0 as u32 + (20_f64 * scale_factor) as u32,
+                    window_size.1 as u32 + (20_f64 * scale_factor) as u32,
                 ))
                 .unwrap();
             drop(config);
@@ -113,7 +107,7 @@ fn start_key_listener(app_handle: tauri::AppHandle) -> Result<(), Box<dyn std::e
 
         match event.event_type {
             EventType::KeyPress(key) => {
-                keys.insert(key.clone());
+                keys.insert(key);
 
                 if keys.contains(&Key::Alt) && keys.contains(&Key::Space) {
                     handle_pressed(app_handle.clone());
@@ -200,11 +194,11 @@ fn init_system_tray(app: &mut App) {
         .menu(&menu)
         .icon(
             Image::from_path(
-                "C:\\Users\\Public\\ZeroLaunch-rs\\src-tauri\\icons\\32x32.png".to_string(),
+                "C:\\Users\\Public\\ZeroLaunch-rs\\src-tauri\\icons\\32x32.png",
             )
             .unwrap(),
         )
-        .tooltip("ZeroLaunch-rs v0.1.0".to_string())
+        .tooltip("ZeroLaunch-rs v0.1.0")
         .build(handle)
         .unwrap();
     tray_icon.on_menu_event(|app_handle, event| {

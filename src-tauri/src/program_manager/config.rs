@@ -1,9 +1,7 @@
 use super::super::utils::get_start_menu_paths;
-use super::Program;
 /// 这个配置信息用于配置该模块与子模块的配置信息
 /// 同时，还用于应用启动计数信息的存储
 use serde::{Deserialize, Serialize};
-use serde_json::from_str;
 use std::collections::HashMap;
 
 pub const PINYIN_CONTENT_JS: &str = include_str!("./pinyin.json");

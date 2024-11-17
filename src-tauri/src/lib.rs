@@ -21,17 +21,20 @@ use rdev::{listen, Event, EventType, Key};
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 use tauri::async_runtime::spawn;
+use tauri::image::Image;
+use tauri::menu::{IconMenuItem, MenuBuilder, MenuEvent, MenuItem};
+use tauri::tray::{TrayIcon, TrayIconBuilder};
+use tauri::App;
 use tauri::Size;
 use tauri::{webview::WebviewWindow, Emitter, Manager, PhysicalPosition, PhysicalSize};
 use tauri_plugin_autostart::{AutoLaunchManager, MacosLauncher};
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
             let windows: Arc<Vec<WebviewWindow>> =
                 Arc::new(app.webview_windows().values().cloned().collect());
-
+            init_system_tray(app);
             let windows_clone = Arc::clone(&windows);
             let main_window = Arc::new(app.get_webview_window("main").unwrap());
             let app_handle = app.app_handle().clone();
@@ -102,7 +105,7 @@ fn handle_pressed(app_handle: tauri::AppHandle) {
 
 fn start_key_listener(app_handle: tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let pressed_keys = Arc::new(Mutex::new(HashSet::new()));
-    let pressed_keys_clone = Arc::clone(&pressed_keys);
+    let pressed_keys_clone: Arc<Mutex<HashSet<Key>>> = Arc::clone(&pressed_keys);
 
     let callback = move |event: Event| {
         let mut keys = pressed_keys_clone.lock().unwrap();
@@ -156,6 +159,75 @@ fn init_setting_window(app: tauri::AppHandle) {
     });
 }
 
+enum MenuEventId {
+    ShowSettingWindow,
+    ExitProgram,
+    UpdateAppSetting,
+    Unknown(String),
+}
+
+// 从事件 ID 转换为枚举
+impl From<&str> for MenuEventId {
+    fn from(id: &str) -> Self {
+        match id {
+            "show_setting_window" => MenuEventId::ShowSettingWindow,
+            "exit_program" => MenuEventId::ExitProgram,
+            "update_app_setting" => MenuEventId::UpdateAppSetting,
+            _ => MenuEventId::Unknown(id.to_string()),
+        }
+    }
+}
+
+/// 创建一个右键菜单
+fn init_system_tray(app: &mut App) {
+    let handle = app.handle();
+    let menu = MenuBuilder::new(app)
+        .item(
+            &MenuItem::with_id(
+                handle,
+                "show_setting_window",
+                "打开设置界面",
+                true,
+                None::<&str>,
+            )
+            .unwrap(),
+        )
+        .item(&MenuItem::with_id(handle, "exit_program", "退出程序", true, None::<&str>).unwrap())
+        .build()
+        .unwrap();
+    let tray_icon = TrayIconBuilder::new()
+        .menu(&menu)
+        .icon(
+            Image::from_path(
+                "C:\\Users\\Public\\ZeroLaunch-rs\\src-tauri\\icons\\32x32.png".to_string(),
+            )
+            .unwrap(),
+        )
+        .tooltip("ZeroLaunch-rs v0.1.0".to_string())
+        .build(handle)
+        .unwrap();
+    tray_icon.on_menu_event(|app_handle, event| {
+        let event_id = MenuEventId::from(event.id().as_ref());
+        match event_id {
+            MenuEventId::ShowSettingWindow => {
+                if let Err(e) = show_setting_window(app_handle.clone()) {
+                    eprintln!("Failed to show setting window: {:?}", e);
+                }
+            }
+            MenuEventId::ExitProgram => {
+                app_handle.exit(0);
+            }
+            MenuEventId::UpdateAppSetting => {
+                update_app_setting();
+            }
+            MenuEventId::Unknown(id) => {
+                eprintln!("Unknown menu event: {}", id);
+            }
+        }
+        println!("Menu ID: {}", event.id().0);
+    });
+}
+
 /// 更新程序的状态
 pub fn update_app_setting() {
     // 1. 重新更新程序索引的路径
@@ -183,7 +255,8 @@ pub fn handle_auto_start() {
     app.plugin(tauri_plugin_autostart::init(
         MacosLauncher::LaunchAgent,
         None,
-    ));
+    ))
+    .unwrap();
 
     // Get the autostart manager
     let autostart_manager = app.autolaunch();

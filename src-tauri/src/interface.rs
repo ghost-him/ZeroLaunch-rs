@@ -12,6 +12,7 @@ use std::sync::Arc;
 use tauri::Emitter;
 use tauri::Manager;
 use tauri::Runtime;
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SearchBarInit {
     window_size: Vec<usize>,
@@ -208,5 +209,14 @@ pub async fn launch_program<R: Runtime>(
 ) -> Result<(), String> {
     let manager = PROGRAM_MANAGER.lock().unwrap();
     manager.launch_program(program_guid, is_admin_required);
+    Ok(())
+}
+
+#[tauri::command]
+async fn refresh_program<R: Runtime>(
+    app: tauri::AppHandle<R>,
+    window: tauri::Window<R>,
+) -> Result<(), String> {
+    super::update_app_setting();
     Ok(())
 }

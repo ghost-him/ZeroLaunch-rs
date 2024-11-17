@@ -29,14 +29,24 @@ impl PinyinMapper {
 
     pub fn convert(&self, word: &str) -> String {
         let mut result = String::new();
+        let mut prev_is_han = false; // 用于跟踪前一个字符是否为 ASCII
+
         for c in word.chars() {
             if let Some(pinyin) = self.pinyin.get(&c.to_string()) {
+                // 如果前一个字符是 ASCII，且结果字符串不为空，插入一个空格
+                if !prev_is_han && !result.is_empty() {
+                    result.push(' ');
+                }
                 result.push_str(pinyin);
                 result.push(' ');
-            } else if c.is_ascii() {
+                prev_is_han = true; // 当前字符是中文，设置标志位为 false
+            } else {
+                // 如果当前字符是 ASCII，直接添加
                 result.push(c);
+                prev_is_han = false; // 设置标志位为 true
             }
         }
+
         result.trim_end().to_string()
     }
 }

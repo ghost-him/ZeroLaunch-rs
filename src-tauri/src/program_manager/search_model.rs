@@ -1,4 +1,5 @@
 use super::Program;
+use core::f64;
 /// SearchModel 表示一个综合的搜索模型
 ///
 /// Preprocessor 表示一个预处理函数，会在加载程序，和预处理用户输入时使用。
@@ -42,76 +43,141 @@ pub fn score_adjust(score: f64, operation: ScoreAdjusterFn) -> f64 {
 
 /// 得分权重调整公式log2
 pub fn adjust_score_log2(origin_score: f64) -> f64 {
-    3.0 * (origin_score + 1.0).log2()
+    3.0 * ((origin_score + 1.0).log2())
 }
 
 /// 权重计算最短编辑距离
 pub fn shortest_edit_dis(compare_name: &str, input_name: &str) -> f64 {
-    let input_length = input_name.len();
-    let compare_length = compare_name.len();
-    let mut dp = vec![vec![256;input_length + 1];compare_length + 1];
-    for i in 0..=compare_length {
+    let m = compare_name.chars().count();
+    let n = input_name.chars().count();
+
+    // 初始化dp数组
+    let mut dp = vec![vec![0; n + 1]; m + 1];
+
+    for i in 0..=m {
         dp[i][0] = 0;
     }
-    for i in 1..=input_length {
-        dp[0][i] = i;
+    for j in 1..=n {
+        dp[0][j] = j as i32;
     }
-    for i in 1..=compare_length{
-        for j in 1..=input_length{
-            if compare_name.chars().nth(i-1) == input_name.chars().nth(j-1){
-                dp[i][j] =  dp[i-1][j-1];
-            }
-            else{
-                dp[i][j] = std::cmp::min(dp[i-1][j-1]+1, dp[i-1][j]+1);
+
+    // 填充dp数组
+    for i in 1..=m {
+        for j in 1..=n {
+            if compare_name.chars().nth(i - 1) == input_name.chars().nth(j - 1) {
+                dp[i][j] = dp[i - 1][j - 1];
+            } else {
+                dp[i][j] = std::cmp::min(dp[i - 1][j - 1] + 1, dp[i - 1][j] + 1);
             }
         }
     }
-    let mut  min_operations = dp[compare_length][input_length];
-    if input_length < compare_length{
-        for i in input_length..=compare_length{
-            min_operations = std::cmp::min(min_operations, dp[i][input_length]);
-        }
+
+    // 计算最小操作数
+    let mut min_operations = dp[m][n] as f64;
+    for i in n..=m {
+        min_operations = f64::min(min_operations, dp[i][n] as f64);
     }
-    let mut value : f64= 0.0;
-    if input_length != 0{
-        value = (1 - min_operations/input_length) as f64;
-    }
-    score_adjust(input_length as f64, adjust_score_log2) * f64::exp(3.0 * value - 2.0)
+
+    let value = 1.0 - (min_operations / (input_name.chars().count() as f64));
+    score_adjust(input_name.chars().count() as f64, adjust_score_log2) * (3.0 * value - 2.0).exp()
 }
 
 /// 权重计算KMP
 pub fn KMP(compare_name: &str, input_name: &str) -> f64 {
-    let mut end_pos: f64 = 0.0;
-    for i in 0..std::cmp::min(compare_name.len(), input_name.len()) {
-        if compare_name.chars().nth(i) == input_name.chars().nth(i) {
-            end_pos += 1.0;
+    let mut ret: f64 = 0.0;
+
+    // 首字符串匹配
+    for (c1, c2) in compare_name.chars().zip(input_name.chars()) {
+        if c1 == c2 {
+            ret += 1.0;
         } else {
             break;
         }
     }
-    if let Some(pos) = compare_name.find(input_name) {
-        end_pos = end_pos + pos as f64;
-    } else {
+
+    // 子字符串匹配
+    if compare_name.contains(input_name) {
+        ret += input_name.chars().count() as f64;
     }
-    end_pos
+
+    ret
 }
 
 pub fn StandardSearchFn(program: Arc<Program>, user_input: &str) -> f64 {
     // todo: 完成这个实现，如果使用到了什么子算法，用上面的模块实现出来再完成这个就可以了
     // program中的字符串与user_input都已经是预处理过了，不再需要预处理了
-    let mut score : f64 = calculate_weight(&program.show_name,user_input,shortest_edit_dis);
-    score = score * score_adjust((user_input.len() as f64)/(program.show_name.len() as f64), adjust_score_log2);
-    score = score + calculate_weight(&program.show_name,user_input, KMP);
-    score
+    let mut ret: f64 = -10000.0;
+    for names in &program.alias {
+        if names.chars().count() < user_input.chars().count() {
+            continue;
+        }
+        let mut score: f64 = calculate_weight(names, user_input, shortest_edit_dis);
+        score = score
+            * score_adjust(
+                (user_input.chars().count() as f64) / (names.chars().count() as f64),
+                adjust_score_log2,
+            );
+        score = score + calculate_weight(names, user_input, KMP);
+        ret = f64::max(ret, score);
+    }
+    ret
 }
 
 /// 去除一个程序名中的版本号
 pub fn remove_version_number(input_text: &str) -> String {
-    input_text
-        .split_whitespace()
-        .next()
-        .unwrap_or(input_text)
-        .to_string()
+    let mut ret = String::new();
+    let mut s = 0;
+    let mut in_version = false;
+    let chars: Vec<char> = input_text.chars().collect();
+    let mut i = 0;
+
+    while i < chars.len() {
+        let ch = chars[i];
+
+        // 处理括号
+        if ch == '(' {
+            s += 1;
+            in_version = true; // 假设版本信息在 '(' 之后开始
+        } else if ch == ')' {
+            if s > 0 {
+                s -= 1;
+            }
+            in_version = false; // 假设版本信息在 ')' 结束
+        } else if s == 0 && !in_version {
+            // 检查当前字符是否是版本号的一部分
+            if ch.is_ascii_digit() || ch == '.' {
+                // 检查前一个字符是否是空格（以正确识别版本号）
+                if i > 0 && chars[i - 1] == ' ' {
+                    // 跳过整个版本号
+                    while i < chars.len() && (chars[i].is_digit(10) || chars[i] == '.') {
+                        i += 1;
+                    }
+                    // 跳过任何后续的空格
+                    while i < chars.len() && chars[i] == ' ' {
+                        i += 1;
+                    }
+                    // 减少 i 以抵消下一次迭代的增加
+                    if i > 0 {
+                        i -= 1;
+                    }
+                    i += 1;
+                    continue;
+                }
+            }
+            ret.push(ch);
+        } else {
+            // 如果在版本信息中或括号内，不做任何处理
+        }
+
+        i += 1;
+    }
+
+    // 去除结尾的空格
+    while ret.ends_with(' ') {
+        ret.pop();
+    }
+
+    ret
 }
 
 /// 去除一个字符串中多余的空格

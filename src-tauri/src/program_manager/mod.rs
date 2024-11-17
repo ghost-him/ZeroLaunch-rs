@@ -108,7 +108,7 @@ impl ProgramManager {
     /// user_input: 用户输入的字符串
     /// result_count: 返回的结果，这个值与 `config.show_item_count` 的值保持一致
     /// 返回值：Vec(应用唯一标识符，展示给用户的名字)
-    pub fn update(&self, user_input: &String, result_count: u32) -> Vec<(u64, String)> {
+    pub fn update(&self, user_input: &str, result_count: u32) -> Vec<(u64, String)> {
         let mut match_scores: Vec<(f64, u64)> = Vec::new(); // (匹配值，唯一标识符)
         for program in self.program_registry.iter() {
             let score = (self.search_fn)(program.clone(), &user_input);
@@ -124,6 +124,24 @@ impl ProgramManager {
             result.push((program.program_guid, program.show_name.clone()));
         }
         result
+    }
+
+    pub fn test_search_algorithm(&self, user_input: &str) {
+        let mut match_scores: Vec<(f64, u64)> = Vec::new(); // (匹配值，唯一标识符)
+        for program in self.program_registry.iter() {
+            let score = (self.search_fn)(program.clone(), &user_input);
+            match_scores.push((score, program.program_guid));
+        }
+
+        match_scores.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+
+        let mut result: Vec<(f64, String)> = Vec::new();
+
+        for (score, guid) in match_scores {
+            let program = &self.program_registry[guid as usize];
+            result.push((score, program.show_name.clone()));
+        }
+        println!("{:?}", result);
     }
 
     /// 加载搜索模型

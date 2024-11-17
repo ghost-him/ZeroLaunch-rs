@@ -185,7 +185,7 @@ impl ProgramLoader {
         let mut program_path: Vec<String> = Vec::new();
         for path_str in &self.target_paths {
             let path = Path::new(&path_str);
-            program_path.extend(self.recursive_visit_dir(path, 3).unwrap());
+            program_path.extend(self.recursive_visit_dir(path, 4).unwrap());
         }
         let mut result: Vec<Arc<Program>> = Vec::new();
 

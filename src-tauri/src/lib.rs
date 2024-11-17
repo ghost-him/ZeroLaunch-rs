@@ -75,6 +75,7 @@ pub fn run() {
                 .unwrap();
             drop(config);
             update_app_setting();
+            PROGRAM_MANAGER.lock().unwrap().test_search_algorithm("qq");
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

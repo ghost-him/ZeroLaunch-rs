@@ -18,7 +18,6 @@ lazy_static! {
     static ref CONFIG_DEFAULT: String = serde_json::to_string(&Config::default()).unwrap();
     /// 全局app_handle
     pub static ref GLOBAL_APP_HANDLE: Mutex<Option<tauri::AppHandle>> = Mutex::new(None);
-
 }
 
 /// 与程序设置有关的，比如是不是要开机自动启动等

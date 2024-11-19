@@ -41,9 +41,11 @@ pub fn run() {
             tauri::async_runtime::spawn(async move {
                 start_key_listener(app_handle.clone()).expect("Failed to start key listener");
             });
-            main_window.on_window_event(move |event| if let tauri::WindowEvent::Focused(focused) = event {
-                if !focused {
-                    handle_focus_lost(&windows_clone);
+            main_window.on_window_event(move |event| {
+                if let tauri::WindowEvent::Focused(focused) = event {
+                    if !focused {
+                        handle_focus_lost(&windows_clone);
+                    }
                 }
             });
 
@@ -193,10 +195,8 @@ fn init_system_tray(app: &mut App) {
     let tray_icon = TrayIconBuilder::new()
         .menu(&menu)
         .icon(
-            Image::from_path(
-                "C:\\Users\\Public\\ZeroLaunch-rs\\src-tauri\\icons\\32x32.png",
-            )
-            .unwrap(),
+            Image::from_path("C:\\Users\\Public\\ZeroLaunch-rs\\src-tauri\\icons\\32x32.png")
+                .unwrap(),
         )
         .tooltip("ZeroLaunch-rs v0.1.0")
         .build(handle)

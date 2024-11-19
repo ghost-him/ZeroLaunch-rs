@@ -25,6 +25,7 @@
     }" @click.stop>
       <el-menu @select="handleContextMenuSelect" class="context-menu">
         <el-menu-item index="openSettings">打开设置窗口</el-menu-item>
+        <el-menu-item index="refreshDataset">刷新程序数据</el-menu-item>
         <!-- 可以在这里添加更多的菜单项 -->
       </el-menu>
     </div>
@@ -80,6 +81,7 @@ let placeholder = ref('请输入搜索内容');
 const searchInputRef = ref<HTMLInputElement | null>(null);
 let unlisten1: UnlistenFn | null = null;
 let unlisten2: UnlistenFn | null = null;
+let unlisten3: UnlistenFn | null = null;
 // 新增的状态用于自定义右键菜单
 const isContextMenuVisible = ref(false);
 const contextMenuPosition = ref({ x: 0, y: 0 });
@@ -193,10 +195,17 @@ const showContextMenu = (event: MouseEvent) => {
   contextMenuPosition.value = { x: event.clientX, y: event.clientY };
 };
 
+// 刷新程序库
+const refreshDataset = () => {
+  invoke('refresh_program');
+}
+
 // 处理自定义菜单项选择
 const handleContextMenuSelect = (index: string) => {
   if (index === 'openSettings') {
     openSettingsWindow();
+  } else if (index === 'refreshDataset') {
+    refreshDataset();
   }
   isContextMenuVisible.value = false;
 };
@@ -246,6 +255,11 @@ const updateWindow = async () => {
   const data = await invoke<SearchBarUpdate>('update_search_bar_window');
   placeholder.value = data.search_bar_placeholder;
 }
+// 用于初始化搜索栏和快捷键的状态(当成功启动一个程序时，或者搜索栏被隐藏时被触发)
+const initSearchBar = () => {
+  isCtrlPressed.value = false;
+  searchText.value = '';
+}
 
 const handleEnterPress = () => {
   launch_program(parseInt(activeIndex.value))
@@ -254,8 +268,10 @@ const handleEnterPress = () => {
 
 const launch_program = (index: number) => {
   const ctrlPressed = isCtrlPressed.value;
-  console.log(`Launching program for item ${index}, Ctrl key pressed: ${ctrlPressed}`);
-  invoke('launch_program', { programGuid: index, isAdminRequired: ctrlPressed });
+  console.log(`Launching program for item ${searchResults.value[index][0]}, Ctrl key pressed: ${ctrlPressed}`);
+
+  invoke('launch_program', { programGuid: searchResults.value[index][0], isAdminRequired: ctrlPressed });
+  initSearchBar()
   /*
     // Example: Invoke a Tauri command with the index and ctrlPressed
     invoke('launch_program', { index, isCtrlPressed: ctrlPressed })
@@ -282,6 +298,10 @@ onMounted(async () => {
   unlisten2 = await listen('update_search_bar_window', () => {
     updateWindow();
   })
+  unlisten3 = await listen('handle_focus_lost', () => {
+    initSearchBar();
+  })
+
 });
 
 // 在组件卸载时移除事件监听器
@@ -294,6 +314,9 @@ onUnmounted(() => {
   }
   if (unlisten2) {
     unlisten2();
+  }
+  if (unlisten3) {
+    unlisten3();
   }
 });
 </script>

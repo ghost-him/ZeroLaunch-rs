@@ -48,38 +48,51 @@ pub fn adjust_score_log2(origin_score: f64) -> f64 {
 
 /// 权重计算最短编辑距离
 pub fn shortest_edit_dis(compare_name: &str, input_name: &str) -> f64 {
-    let m = compare_name.chars().count();
-    let n = input_name.chars().count();
+    let compare_chars: Vec<char> = compare_name.chars().collect();
+    let input_chars: Vec<char> = input_name.chars().collect();
+    let m = compare_chars.len();
+    let n = input_chars.len();
 
-    // 初始化dp数组
-    let mut dp = vec![vec![0; n + 1]; m + 1];
-
-    for i in 0..=m {
-        dp[i][0] = 0;
-    }
-    for j in 1..=n {
-        dp[0][j] = j as i32;
+    if n == 0 {
+        return 1.0;
     }
 
-    // 填充dp数组
+    let mut prev = vec![0i32; n + 1];
+    let mut current = vec![0i32; n + 1];
+    let mut min_operations = i32::MAX;
+
+    // 初始化prev数组（对应i=0）
+    for j in 0..=n {
+        prev[j] = j as i32;
+    }
+
     for i in 1..=m {
+        current[0] = 0; // dp[i][0] = 0
         for j in 1..=n {
-            if compare_name.chars().nth(i - 1) == input_name.chars().nth(j - 1) {
-                dp[i][j] = dp[i - 1][j - 1];
+            if compare_chars[i - 1] == input_chars[j - 1] {
+                current[j] = prev[j - 1];
             } else {
-                dp[i][j] = std::cmp::min(dp[i - 1][j - 1] + 1, dp[i - 1][j] + 1);
+                current[j] = std::cmp::min(prev[j - 1] + 1, prev[j] + 1);
             }
         }
+        // 记录dp[i][n]
+        if i >= n {
+            if current[n] < min_operations {
+                min_operations = current[n];
+            }
+        }
+        // 交换prev和current
+        std::mem::swap(&mut prev, &mut current);
     }
 
-    // 计算最小操作数
-    let mut min_operations = dp[m][n] as f64;
-    for i in n..=m {
-        min_operations = f64::min(min_operations, dp[i][n] as f64);
+    // 确保min_operations包含dp[m][n]
+    if m >= n && prev[n] < min_operations {
+        min_operations = prev[n];
     }
 
-    let value = 1.0 - (min_operations / (input_name.chars().count() as f64));
-    score_adjust(input_name.chars().count() as f64, adjust_score_log2) * (3.0 * value - 2.0).exp()
+    // 计算最终得分
+    let value = 1.0 - (min_operations as f64 / n as f64);
+    score_adjust(n as f64, adjust_score_log2) * (3.0 * value - 2.0).exp()
 }
 
 /// 权重计算KMP
@@ -113,9 +126,9 @@ pub fn StandardSearchFn(program: Arc<Program>, user_input: &str) -> f64 {
         }
         let mut score: f64 = calculate_weight(names, user_input, shortest_edit_dis);
         score *= score_adjust(
-                (user_input.chars().count() as f64) / (names.chars().count() as f64),
-                adjust_score_log2,
-            );
+            (user_input.chars().count() as f64) / (names.chars().count() as f64),
+            adjust_score_log2,
+        );
         score += calculate_weight(names, user_input, KMP);
         ret = f64::max(ret, score);
     }

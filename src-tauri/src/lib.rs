@@ -18,6 +18,7 @@ use crate::singleton::Singleton;
 use crate::ui_controller::handle_focus_lost;
 use config::{Height, RuntimeConfig, Width};
 use rdev::{listen, Event, EventType, Key};
+use single_instance::SingleInstance;
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -31,6 +32,11 @@ use tauri::WebviewUrl;
 use tauri::{webview::WebviewWindow, Emitter, Manager, PhysicalPosition, PhysicalSize};
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let instance = SingleInstance::new("ZeroLaunch-rs").unwrap();
+    if !instance.is_single() {
+        eprintln!("另一个实例已经在运行中");
+        std::process::exit(1);
+    }
     tauri::Builder::default()
         .setup(|app| {
             let windows: Arc<Vec<WebviewWindow>> =

@@ -19,10 +19,13 @@ use crate::ui_controller::handle_focus_lost;
 use config::{Height, RuntimeConfig, Width};
 use rdev::{listen, Event, EventType, Key};
 use std::collections::HashSet;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tauri::image::Image;
 use tauri::menu::{MenuBuilder, MenuItem};
+use tauri::path::PathResolver;
 use tauri::tray::TrayIconBuilder;
+use tauri::utils::platform::resource_dir;
 use tauri::App;
 use tauri::WebviewUrl;
 use tauri::{webview::WebviewWindow, Emitter, Manager, PhysicalPosition, PhysicalSize};
@@ -193,12 +196,12 @@ fn init_system_tray(app: &mut App) {
         .item(&MenuItem::with_id(handle, "exit_program", "退出程序", true, None::<&str>).unwrap())
         .build()
         .unwrap();
+    let path_resolver = app.path();
+    let resource = path_resolver.resource_dir().expect("无法获取资源目录");
+    let icon_path: PathBuf = resource.join("icons").join("32x32.png");
     let tray_icon = TrayIconBuilder::new()
         .menu(&menu)
-        .icon(
-            Image::from_path("C:\\Users\\Public\\ZeroLaunch-rs\\src-tauri\\icons\\32x32.png")
-                .unwrap(),
-        )
+        .icon(Image::from_path(icon_path).unwrap())
         .tooltip("ZeroLaunch-rs v0.1.0")
         .build(handle)
         .unwrap();

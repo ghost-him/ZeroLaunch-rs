@@ -24,6 +24,7 @@ use tauri::image::Image;
 use tauri::menu::{MenuBuilder, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::App;
+use tauri::WebviewUrl;
 use tauri::{webview::WebviewWindow, Emitter, Manager, PhysicalPosition, PhysicalSize};
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -136,7 +137,7 @@ fn init_setting_window(app: tauri::AppHandle) {
             tauri::WebviewWindowBuilder::new(
                 &app,
                 "setting_window",
-                tauri::WebviewUrl::App("http://localhost:1420/setting_window".into()),
+                WebviewUrl::App("/setting_window".into()),
             )
             .title("设置")
             .visible(false)

@@ -259,6 +259,7 @@ const updateWindow = async () => {
 const initSearchBar = () => {
   isCtrlPressed.value = false;
   searchText.value = '';
+  activeIndex.value = '0';
 }
 
 const handleEnterPress = () => {

@@ -74,6 +74,7 @@ pub fn get_start_menu_paths() -> Result<(String, String), String> {
             .to_string()
             .map_err(|e| format!("Failed to convert user path to string: {:?}", e))?;
 
+        println!("自动生成路径： {common_path}, {user_path}");
         Ok((common_path, user_path))
     }
 }

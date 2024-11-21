@@ -6,12 +6,13 @@ use crate::program_manager::PROGRAM_MANAGER;
 ///
 use crate::RuntimeConfig;
 use crate::Singleton;
+use rayon::iter::IntoParallelRefIterator;
+use rayon::iter::ParallelIterator;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tauri::Emitter;
 use tauri::Manager;
 use tauri::Runtime;
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SearchBarInit {
     window_size: Vec<usize>,
@@ -219,4 +220,16 @@ async fn refresh_program<R: Runtime>(
 ) -> Result<(), String> {
     super::update_app_setting();
     Ok(())
+}
+
+#[tauri::command]
+pub async fn load_program_icon<R: Runtime>(
+    app: tauri::AppHandle<R>,
+    window: tauri::Window<R>,
+    program_guid: Vec<u64>,
+) -> Result<Vec<String>, String> {
+    let manager = PROGRAM_MANAGER.lock().unwrap();
+    let result = program_guid.iter().map(|x| manager.get_icon(x)).collect();
+
+    Ok(result)
 }

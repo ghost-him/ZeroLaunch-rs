@@ -46,7 +46,7 @@
               <el-image :style="{
                 width: `${scaledItemSize[1]}px`,
                 height: `${scaledItemSize[1]}px`
-              }" :src="url" fit="cover" />
+              }" :src="`data:image/png;base64,${menuIcons[index]}`" fit="cover" />
             </el-aside>
             <el-main>{{ item }}</el-main>
           </el-container>
@@ -69,6 +69,7 @@ const backgroundImage = ref('https://example.com/default-background.jpg');
 const searchText = ref('');
 const activeIndex = ref('0');
 const menuItems = ref(['hello world', 'hello world', 'hello world', 'hello world']);
+const menuIcons = ref<Array<string>>([]);
 const searchResults = ref<Array<[number, string]>>([]);
 const windowSize = ref<[number, number]>([0, 0]);
 const itemSize = ref<[number, number]>([0, 0]);
@@ -77,6 +78,9 @@ const scaleFactor = ref<number>(1.0);
 const fontFamily = ref('Arial, sans-serif');
 const fontSize = ref<number>(0);
 const fontColor = ref('#333333');
+
+const program_icons = ref<Map<number, string>>(new Map<number, string>([]));
+
 let placeholder = ref('请输入搜索内容');
 const searchInputRef = ref<HTMLInputElement | null>(null);
 let unlisten1: UnlistenFn | null = null;
@@ -102,6 +106,8 @@ const sendSearchText = async (text: string) => {
     const results: Array<[number, string]> = await invoke('handle_search_text', { searchText: text });
     searchResults.value = results;
     menuItems.value = results.slice(0, 4).map(([_, item]) => item);
+    let keys = results.slice(0, 4).map(([key, _]) => key);
+    menuIcons.value = await getIcons(keys);
   } catch (error) {
     console.error('Error sending search text to Rust: ', error);
   }
@@ -273,18 +279,34 @@ const launch_program = (index: number) => {
 
   invoke('launch_program', { programGuid: searchResults.value[index][0], isAdminRequired: ctrlPressed });
   initSearchBar()
-  /*
-    // Example: Invoke a Tauri command with the index and ctrlPressed
-    invoke('launch_program', { index, isCtrlPressed: ctrlPressed })
-      .then((response) => {
-        console.log('Program launched successfully:', response);
-      })
-      .catch((error) => {
-        console.error('Failed to launch program:', error);
-      });
-      */
 };
 
+const getIcons = async (keys: Array<number>) => {
+  let result: Array<string> = new Array(keys.length);
+  let requireIndices: Array<[number, number]> = [];
+
+  for (let i = 0; i < keys.length; i++) {
+    let key = keys[i];
+    if (program_icons.value.has(key)) {
+      result[i] = program_icons.value.get(key) as string;
+    } else {
+      requireIndices.push([i, key]);
+      result[i] = ''; // Initialize with empty string
+    }
+  }
+
+  if (requireIndices.length > 0) {
+    let requiredKeys = requireIndices.map(index => index[1]);
+    let get_icon: Array<string> = await invoke('load_program_icon', { programGuid: requiredKeys });
+
+    for (let i = 0; i < requireIndices.length; i++) {
+      result[requireIndices[i][0]] = get_icon[i];
+      program_icons.value.set(requireIndices[i][1], get_icon[i])
+    }
+  }
+
+  return result;
+}
 
 // 在组件挂载时添加事件监听器
 onMounted(async () => {

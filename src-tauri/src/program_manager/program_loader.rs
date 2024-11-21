@@ -1,35 +1,35 @@
 use super::pinyin_mapper::PinyinMapper;
 use super::search_model::*;
 use super::LaunchMethod;
-use super::{
-    config::ProgramLoaderConfig,
-    Program,
-};
+use super::{config::ProgramLoaderConfig, Program};
 use crate::defer::defer;
+use crate::utils::get_u16_vec;
+use core::ffi::c_void;
 /// 这个类用于加载电脑上程序，通过扫描路径或使用系统调用接口
 ///
 use std::collections::{HashMap, HashSet};
 use std::ffi::OsStr;
 use std::fs;
-
-use crate::utils::get_u16_vec;
 use std::io;
+use std::os::windows::ffi::OsStringExt;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
+use windows::Win32::Foundation::S_OK;
+use windows::Win32::Storage::FileSystem::WIN32_FIND_DATAW;
 use windows::Win32::System::Com::{
-    CoInitialize, CoUninitialize,
-    StructuredStorage::PropVariantClear,
+    CoCreateInstance, CoInitialize, CoInitializeEx, CoUninitialize, IPersistFile,
+    StructuredStorage::PropVariantClear, CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED, STGM,
 };
 use windows::Win32::UI::Shell::PropertiesSystem::{
     IPropertyStore, PSGetPropertyKeyFromName, PROPERTYKEY,
 };
 use windows::Win32::UI::Shell::{
-    BHID_EnumItems, IEnumShellItems,
-    IShellItem, SHCreateItemFromParsingName, SIGDN_NORMALDISPLAY,
+    BHID_EnumItems, IEnumShellItems, IShellItem, IShellLinkW, SHCreateItemFromParsingName,
+    ShellLink, SIGDN_NORMALDISPLAY,
 };
+use windows_core::Interface;
 use windows_core::{PCWSTR, PROPVARIANT};
-
 struct GuidGenerator {
     next_id: u64,
 }
@@ -164,14 +164,13 @@ impl ProgramLoader {
     pub fn load_program(&mut self) -> Vec<Arc<Program>> {
         let mut result = Vec::new();
 
-        let program_infos = self.load_program_from_path();
-        result.extend(program_infos);
-
         if self.is_scan_uwp_programs {
             println!("添加uwp 应用");
             let uwp_infos = self.load_uwp_program();
             result.extend(uwp_infos);
         }
+        let program_infos = self.load_program_from_path();
+        result.extend(program_infos);
 
         result
     }
@@ -183,13 +182,19 @@ impl ProgramLoader {
         let mut program_path: Vec<String> = Vec::new();
         for path_str in &self.target_paths {
             let path = Path::new(&path_str);
-            program_path.extend(self.recursive_visit_dir(path, 4).unwrap());
+            program_path.extend(self.recursive_visit_dir(path, 5).unwrap());
         }
         let mut result: Vec<Arc<Program>> = Vec::new();
 
         // 添加通过地址找到的文件
         for path_str in program_path {
-            let path = Path::new(&path_str);
+            // let target_path = if path_str.ends_with(".lnk") {
+            //     self.resolve_shortcut(&path_str)
+            // } else {
+            //     path_str.to_string()
+            // };
+            let target_path = path_str;
+            let path = Path::new(&target_path);
 
             let show_name = path
                 .file_stem()
@@ -209,10 +214,10 @@ impl ProgramLoader {
             let program = Arc::new(Program {
                 program_guid: guid,
                 show_name,
-                launch_method: LaunchMethod::Path(path_str.clone()),
+                launch_method: LaunchMethod::Path(target_path.clone()),
                 alias,
                 stable_bias,
-                icon_path: path_str,
+                icon_path: target_path,
             });
             println!("{:?}", program.as_ref());
             result.push(program);
@@ -590,5 +595,57 @@ impl ProgramLoader {
         }
 
         Ok(result)
+    }
+
+    /// 将.lnk文件的路径转成.exe文件的路径
+    /// 如果转换失败了，则还是返回的.lnk文件的路径
+    fn resolve_shortcut(&self, lnk_path: &str) -> String {
+        println!("开始转换：{lnk_path}");
+        unsafe {
+            // 初始化 COM 库
+            let hr = CoInitialize(Some(std::ptr::null() as *const c_void));
+            if !hr.is_ok() && hr != S_OK {
+                return lnk_path.to_string();
+            }
+
+            // 创建 IShellLink 对象
+            let shell_link: IShellLinkW = CoCreateInstance(&ShellLink, None, CLSCTX_INPROC_SERVER)
+                .map_err(|e| format!("CoCreateInstance failed: {:?}", e))
+                .unwrap();
+
+            // 获取 IPersistFile 接口
+            let persist_file: IPersistFile = shell_link
+                .cast()
+                .map_err(|e| format!("Failed to cast to IPersistFile: {:?}", e))
+                .unwrap();
+
+            // 将 lnk_path 转换为 wide string
+            let wide: Vec<u16> = get_u16_vec(&lnk_path);
+
+            // 加载快捷方式文件
+            persist_file
+                .Load(PCWSTR(wide.as_ptr()), STGM(0))
+                .map_err(|e| format!("IPersistFile::Load failed: {:?}", e))
+                .unwrap();
+
+            // 准备接收目标路径
+            let mut target_path = [0u16; 260];
+            let mut find_data: WIN32_FIND_DATAW = std::mem::zeroed();
+            // 获取目标路径
+            let hr = shell_link.GetPath(&mut target_path, &mut find_data, 0);
+            if !hr.is_ok() {
+                return lnk_path.to_string();
+            }
+
+            // 将 wide string 转换为 Rust String
+            let len = target_path
+                .iter()
+                .position(|&c| c == 0)
+                .unwrap_or(target_path.len());
+            let path = std::ffi::OsString::from_wide(&target_path[..len])
+                .to_string_lossy()
+                .into_owned();
+            path
+        }
     }
 }

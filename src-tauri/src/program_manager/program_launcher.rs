@@ -2,16 +2,15 @@
 use super::{config::ProgramLauncherConfig, LaunchMethod};
 use crate::defer::defer;
 use crate::utils::get_u16_vec;
-use std::path::Path;
 use std::collections::HashMap;
-use windows::Win32::Foundation::{
-    GetLastError, ERROR_CANCELLED, ERROR_ELEVATION_REQUIRED,
-};
+use std::path::Path;
+use windows::Win32::Foundation::{GetLastError, ERROR_CANCELLED, ERROR_ELEVATION_REQUIRED};
 use windows::Win32::System::Com::{
     CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_ALL, COINIT_APARTMENTTHREADED,
 };
 use windows::Win32::UI::Shell::{
-    ApplicationActivationManager, IApplicationActivationManager, ShellExecuteExW, AO_NONE, SHELLEXECUTEINFOW,
+    ApplicationActivationManager, IApplicationActivationManager, ShellExecuteExW, AO_NONE,
+    SHELLEXECUTEINFOW,
 };
 use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 use windows_core::PCWSTR;

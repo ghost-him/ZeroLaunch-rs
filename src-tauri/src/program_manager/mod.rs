@@ -1,4 +1,5 @@
 pub mod config;
+mod image_loader;
 mod pinyin_mapper;
 /// 这个模块用于对数据进行储存，加工与处理
 ///
@@ -6,12 +7,15 @@ mod program_launcher;
 mod program_loader;
 mod search_model;
 use config::ProgramManagerConfig;
+use dashmap::DashMap;
+use image_loader::ImageLoader;
 use lazy_static::lazy_static;
 use program_launcher::ProgramLauncher;
 use program_loader::ProgramLoader;
 use rayon::prelude::*;
 use search_model::remove_repeated_space;
 use search_model::{SearchModelFn, StandardSearchFn};
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::Mutex;
 /// 应用程序的启动方式
@@ -68,6 +72,10 @@ pub struct ProgramManager {
     program_launcher: ProgramLauncher,
     /// 当前程序的搜索模型（目前写死，后期变成可用户自定义）
     search_fn: SearchModelFn,
+    /// 图标获取器
+    image_loader: ImageLoader,
+    /// 程序查找器(程序的guid, 在registry中的下标)
+    program_locater: DashMap<u64, usize>,
 }
 
 impl Default for ProgramManager {
@@ -84,6 +92,8 @@ impl ProgramManager {
             program_loader: ProgramLoader::new(),
             program_launcher: ProgramLauncher::new(),
             search_fn: StandardSearchFn,
+            image_loader: ImageLoader::new(),
+            program_locater: DashMap::new(),
         }
     }
     /// 使用配置信息初始化自身与子模块
@@ -99,10 +109,12 @@ impl ProgramManager {
         self.program_registry = self.program_loader.load_program();
         // 更新launcher
         self.program_launcher.clear_program_launch_info();
-        self.program_registry.iter().for_each(|program| {
+        self.program_locater.clear();
+        for (index, program) in self.program_registry.iter().enumerate() {
             self.program_launcher
                 .register_program(program.program_guid, program.launch_method.clone());
-        });
+            self.program_locater.insert(program.program_guid, index);
+        }
     }
     /// 使用搜索算法搜索，并给出指定长度的序列
     /// user_input: 用户输入的字符串
@@ -132,6 +144,7 @@ impl ProgramManager {
         result
     }
 
+    /// 测试算法
     pub fn test_search_algorithm(&self, user_input: &str) {
         let mut match_scores: Vec<(f64, u64)> = Vec::new(); // (匹配值，唯一标识符)
         for program in self.program_registry.iter() {
@@ -171,6 +184,15 @@ impl ProgramManager {
     pub fn launch_program(&self, program_guid: u64, is_admin_required: bool) {
         self.program_launcher
             .launch_program(program_guid, is_admin_required);
+    }
+    /// 获取程序的图标，返回使用base64编码的png图片
+    pub fn get_icon(&self, program_guid: &u64) -> String {
+        let index = self.program_locater.get(&program_guid).unwrap();
+        let target_program = &self.program_registry[*(index.value())];
+        let base64 = self
+            .image_loader
+            .load_image(program_guid, &target_program.icon_path);
+        base64
     }
 }
 

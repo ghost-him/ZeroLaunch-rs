@@ -42,11 +42,11 @@
         }" @click="launch_program(index)">
         <div class="common-layout">
           <el-container>
-            <el-aside width="50">
+            <el-aside class="icon-container">
               <el-image :style="{
-                width: `${scaledItemSize[1]}px`,
-                height: `${scaledItemSize[1]}px`
-              }" :src="`data:image/png;base64,${menuIcons[index]}`" fit="cover" />
+                width: `${scaledItemSize[1] * 0.8}px`,
+                height: `${scaledItemSize[1] * 0.8}px`,
+              }" :src="`data:image/png;base64,${menuIcons[index]}`" fit="contain" />
             </el-aside>
             <el-main>{{ item }}</el-main>
           </el-container>
@@ -345,6 +345,14 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
 /* 自定义右键菜单样式 */
 .custom-context-menu {
   position: fixed;
@@ -367,9 +375,15 @@ onUnmounted(() => {
   padding: 0;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  background-size: cover;
+  align-items: stretch;
+  /* 修改为 stretch 以确保子元素宽度填满容器 */
+  justify-content: flex-start;
+  /* 从顶部开始排列子元素 */
+  background-size: contain;
+  /* 使用 contain 确保图片完整显示 */
   background-position: center;
+  background-repeat: no-repeat;
+  /* 防止图片重复 */
 }
 
 .menu-list {
@@ -414,5 +428,52 @@ onUnmounted(() => {
 :deep(.el-input__inner::placeholder) {
   color: v-bind(fontColor);
   opacity: 0.4;
+}
+
+
+
+.common-layout {
+  height: 100%;
+  width: 100%;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  /* 垂直居中 */
+}
+
+.icon-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: auto !important;
+  min-width: 50px;
+  margin-right: 10px;
+}
+
+:deep(.el-main) {
+  padding: 0;
+  display: flex;
+  align-items: center;
+}
+
+.el-image {
+  margin: 0;
+  padding: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: auto !important;
+  min-width: 50px;
+  margin-right: 10px;
+}
+
+/* Adjust el-aside to have a fixed width */
+:deep(.el-aside) {
+  width: auto !important;
+}
+
+/* Ensure the container takes full height */
+:deep(.el-container) {
+  height: 100%;
 }
 </style>

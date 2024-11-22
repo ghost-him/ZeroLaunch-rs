@@ -196,7 +196,6 @@ impl ImageLoader {
 
         // 使用 Cursor 作为写入目标
         let mut cursor = Cursor::new(&mut buffer);
-
         // 尝试将RGBA图像编码为PNG格式
         match rgba_image.write_to(&mut cursor, ImageFormat::Png) {
             Ok(_) => Some(buffer),

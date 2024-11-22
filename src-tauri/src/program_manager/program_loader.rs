@@ -15,6 +15,7 @@ use std::os::windows::ffi::OsStringExt;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
+use tracing::{debug, error, info, trace, warn};
 use windows::Win32::Foundation::S_OK;
 use windows::Win32::Storage::FileSystem::WIN32_FIND_DATAW;
 use windows::Win32::System::Com::{
@@ -165,7 +166,7 @@ impl ProgramLoader {
         let mut result = Vec::new();
 
         if self.is_scan_uwp_programs {
-            println!("添加uwp 应用");
+            info!("添加uwp 应用");
             let uwp_infos = self.load_uwp_program();
             result.extend(uwp_infos);
         }
@@ -219,7 +220,7 @@ impl ProgramLoader {
                 stable_bias,
                 icon_path: target_path,
             });
-            println!("{:?}", program.as_ref());
+            debug!("{:?}", program.as_ref());
             result.push(program);
         }
         // 添加通过uwp找到的文件
@@ -236,7 +237,7 @@ impl ProgramLoader {
         unsafe {
             // Initialize COM library
             if CoInitialize(None).is_err() {
-                eprintln!("Failed to initialize COM library");
+                warn!("Failed to initialize COM library");
                 return ret;
             }
             defer(|| {
@@ -245,12 +246,11 @@ impl ProgramLoader {
 
             // Create Shell item for AppsFolder
             let tmp = get_u16_vec("shell:AppsFolder");
-            println!("{}", PCWSTR::from_raw(tmp.as_ptr()).to_string().unwrap());
             let app_folder: IShellItem =
                 match SHCreateItemFromParsingName(PCWSTR::from_raw(tmp.as_ptr()), None) {
                     Ok(item) => item,
                     Err(e) => {
-                        eprintln!("UWPApp::get_catalog, fail to open shell:AppsFolder {}", e);
+                        warn!("UWPApp::get_catalog, fail to open shell:AppsFolder {}", e);
                         return ret;
                     }
                 };
@@ -260,7 +260,7 @@ impl ProgramLoader {
                 match app_folder.BindToHandler(None, &BHID_EnumItems) {
                     Ok(enumerator) => enumerator,
                     Err(e) => {
-                        eprintln!("UWPApp::get_catalog, fail to bind to handler {}", e);
+                        warn!("UWPApp::get_catalog, fail to bind to handler {}", e);
                         return ret;
                     }
                 };
@@ -274,7 +274,7 @@ impl ProgramLoader {
             ) {
                 Ok(pk) => pk,
                 Err(e) => {
-                    eprintln!(
+                    warn!(
                         "Failed to get PROPERTYKEY for System.Launcher.AppState{}",
                         e
                     );
@@ -287,7 +287,7 @@ impl ProgramLoader {
             {
                 Ok(pk) => pk,
                 Err(e) => {
-                    eprintln!(
+                    warn!(
                         "Failed to get PROPERTYKEY for System.Tile.SmallLogoPath {}",
                         e
                     );
@@ -302,7 +302,7 @@ impl ProgramLoader {
             ) {
                 Ok(pk) => pk,
                 Err(e) => {
-                    eprintln!("Failed to get PROPERTYKEY for System.AppUserModel.ID {}", e);
+                    warn!("Failed to get PROPERTYKEY for System.AppUserModel.ID {}", e);
                     return ret;
                 }
             };
@@ -311,7 +311,7 @@ impl ProgramLoader {
             match PSGetPropertyKeyFromName(PCWSTR::from_raw(tmp.as_ptr()), &mut pk_install_path) {
                 Ok(pk) => pk,
                 Err(e) => {
-                    eprintln!(
+                    warn!(
                         "Failed to get PROPERTYKEY for System.AppUserModel.PackageInstallPath {}",
                         e
                     );
@@ -340,7 +340,7 @@ impl ProgramLoader {
                         {
                             Ok(store) => store,
                             Err(e) => {
-                                println!("error: {}", e);
+                                warn!("error: {}", e);
                                 continue;
                             }
                         };
@@ -414,7 +414,7 @@ impl ProgramLoader {
                     }
                 }
                 Err(e) => {
-                    println!("error: {}", e);
+                    warn!("error: {}", e);
                 }
             }
         }
@@ -570,7 +570,7 @@ impl ProgramLoader {
                                 if path.is_dir() {
                                     match self.recursive_visit_dir(&path, depth - 1) {
                                         Ok(sub_result) => result.extend(sub_result),
-                                        Err(e) => eprintln!(
+                                        Err(e) => warn!(
                                             "Error accessing directory {}: {}",
                                             path.display(),
                                             e
@@ -582,11 +582,11 @@ impl ProgramLoader {
                                     }
                                 }
                             }
-                            Err(e) => eprintln!("Error reading directory entry: {}", e),
+                            Err(e) => warn!("Error reading directory entry: {}", e),
                         }
                     }
                 }
-                Err(e) => eprintln!("Error reading directory {}: {}", dir.display(), e),
+                Err(e) => warn!("Error reading directory {}: {}", dir.display(), e),
             }
         } else if self.is_valid_path(dir) {
             if let Some(dir_str) = dir.to_str() {
@@ -600,7 +600,7 @@ impl ProgramLoader {
     /// 将.lnk文件的路径转成.exe文件的路径
     /// 如果转换失败了，则还是返回的.lnk文件的路径
     fn resolve_shortcut(&self, lnk_path: &str) -> String {
-        println!("开始转换：{lnk_path}");
+        debug!("开始转换：{lnk_path}");
         unsafe {
             // 初始化 COM 库
             let hr = CoInitialize(Some(std::ptr::null() as *const c_void));

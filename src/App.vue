@@ -129,9 +129,6 @@ const scaledFontSize = computed(() => {
   return fontSize.value / factor;
 })
 
-// 图片URL
-const url = 'https://fuss10.elemecdn.com/e/5d/4a731a90594a4af544c0c25941171jpeg.jpeg';
-
 // (鼠标选择)
 const handleSelectMouse = (index: string) => {
   activeIndex.value = index;

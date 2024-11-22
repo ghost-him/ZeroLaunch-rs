@@ -51,6 +51,9 @@ single-instance = "0.3.3"
 base64 = "0.22.1"
 dashmap = "6.1.0"
 image = "0.25.5"
+tracing = "0.1.40"
+tracing-subscriber = {version = "0.3.18", features= ["env-filter"] }
+tracing-appender = "0.2.3"
 
 [features]
 default = ["custom-protocol"]

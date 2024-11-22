@@ -12,6 +12,7 @@ use std::sync::Arc;
 use tauri::Emitter;
 use tauri::Manager;
 use tauri::Runtime;
+use tracing::{debug, error, info, trace, warn};
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SearchBarInit {
     window_size: Vec<usize>,
@@ -31,6 +32,7 @@ pub struct SettingWindowPathData {
     pub forbidden_paths: Vec<String>,
     pub forbidden_key: Vec<String>,
     pub is_scan_uwp_program: bool,
+    pub is_preload_resource: bool,
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct KeyFilterData {
@@ -87,7 +89,7 @@ pub fn handle_search_text(search_text: String) -> Vec<SearchResult> {
     for item in results {
         ret.push(SearchResult(item.0, item.1));
     }
-    println!("{:?}", ret);
+    debug!("{:?}", ret);
     ret
 }
 
@@ -122,7 +124,7 @@ pub fn get_app_config() -> Result<AppConfig, String> {
 pub async fn save_app_config(app: tauri::AppHandle, app_config: AppConfig) -> Result<(), String> {
     let instance = RuntimeConfig::instance();
     let mut config: std::sync::MutexGuard<'_, RuntimeConfig> = instance.lock().unwrap();
-    println!("收到配置");
+    debug!("收到配置");
     config.save_app_config(app_config);
     app.emit("update_search_bar_window", "").unwrap();
     drop(config);
@@ -141,6 +143,7 @@ pub fn get_path_config() -> Result<SettingWindowPathData, String> {
         forbidden_paths: program_config.loader.forbidden_paths.clone(),
         forbidden_key: program_config.loader.forbidden_program_key.clone(),
         is_scan_uwp_program: program_config.loader.is_scan_uwp_programs,
+        is_preload_resource: program_config.is_preload_resource,
     })
 }
 
@@ -185,7 +188,7 @@ pub fn save_key_filter_data(key_filter_data: Vec<KeyFilterData>) -> Result<(), S
 pub fn get_program_info() -> Vec<ProgramInfo> {
     let manager = PROGRAM_MANAGER.lock().unwrap();
     let data = manager.get_program_infos();
-    println!("{:?}", data);
+    debug!("{:?}", data);
     drop(manager);
     let mut program_infos = Vec::new();
     for item in data {

@@ -10,14 +10,19 @@ use std::sync::Mutex;
 use std::sync::Once;
 pub type Width = usize;
 pub type Height = usize;
+use crate::utils::get_data_dir_path;
+use std::path::Path;
+use tracing::{debug, error, info, trace, warn};
 
 lazy_static! {
     /// 配置文件存在的位置
-    static ref CONFIG_PATH: String = "./config.json".to_string();
+    static ref CONFIG_PATH: String = Path::new(&get_data_dir_path()).join("config.json").to_str().unwrap().to_string();
     /// 配置文件的默认内容
     static ref CONFIG_DEFAULT: String = serde_json::to_string(&Config::default()).unwrap();
     /// 全局app_handle
     pub static ref GLOBAL_APP_HANDLE: Mutex<Option<tauri::AppHandle>> = Mutex::new(None);
+    /// 日志文件存在的文件夹
+    pub static ref LOG_DIR: String = Path::new(&get_data_dir_path()).join("logs").to_str().unwrap().to_string();
 }
 
 /// 与程序设置有关的，比如是不是要开机自动启动等
@@ -31,8 +36,6 @@ pub struct AppConfig {
     pub is_auto_start: bool,
     /// 是否静默启动
     pub is_silent_start: bool,
-    /// 是不是要资源预加载
-    pub is_preload_resource: bool,
     /// 搜索结果的数量
     pub search_result_count: u32,
     /// 自动刷新数据库的时间
@@ -63,7 +66,6 @@ impl AppConfig {
             search_bar_no_result: "当前搜索无结果".to_string(),
             is_auto_start: false,
             is_silent_start: false,
-            is_preload_resource: false,
             search_result_count: 4,
             auto_refresh_time: 30,
         }
@@ -197,6 +199,7 @@ impl RuntimeConfig {
         path_config.forbidden_program_key = path_data.forbidden_key;
         path_config.target_paths = path_data.target_paths;
         path_config.is_scan_uwp_programs = path_data.is_scan_uwp_program;
+        self.config.program_manager_config.is_preload_resource = path_data.is_preload_resource;
         self.save_config();
     }
 
@@ -214,7 +217,7 @@ impl RuntimeConfig {
     /// 保存当前的程序配置
     fn save_config(&self) {
         let config_content = serde_json::to_string(&self.config).unwrap();
-        println!("将文件保存：{:?}", config_content);
+        debug!("将文件保存：{:?}", config_content);
         std::fs::write(&*CONFIG_PATH, config_content).unwrap();
     }
 }

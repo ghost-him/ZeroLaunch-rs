@@ -17,6 +17,7 @@ use search_model::remove_repeated_space;
 use search_model::{standard_search_fn, SearchModelFn};
 use std::sync::Arc;
 use std::sync::Mutex;
+use tracing::{debug, error, info, trace, warn};
 /// 应用程序的启动方式
 #[derive(Debug, Clone)]
 enum LaunchMethod {
@@ -114,6 +115,14 @@ impl ProgramManager {
                 .register_program(program.program_guid, program.launch_method.clone());
             self.program_locater.insert(program.program_guid, index);
         }
+        // 如果要预加载资源，则加载
+        if config.is_preload_resource {
+            debug!("资源预加载");
+            self.program_registry.iter().for_each(|program| {
+                self.image_loader
+                    .load_image(&program.program_guid, &program.icon_path);
+            });
+        }
     }
     /// 使用搜索算法搜索，并给出指定长度的序列
     /// user_input: 用户输入的字符串
@@ -159,7 +168,7 @@ impl ProgramManager {
             let program = &self.program_registry[guid as usize];
             result.push((score, program.show_name.clone()));
         }
-        println!("{:?}", result);
+        trace!("{:?}", result);
     }
 
     /// 加载搜索模型

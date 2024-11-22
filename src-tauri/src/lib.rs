@@ -5,9 +5,10 @@ pub mod program_manager;
 pub mod singleton;
 pub mod ui_controller;
 pub mod utils;
-
+use std::panic;
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 use crate::config::GLOBAL_APP_HANDLE;
+use crate::config::LOG_DIR;
 use crate::interface::{
     get_app_config, get_key_filter_data, get_path_config, get_program_info, handle_search_text,
     hide_window, init_search_bar_window, launch_program, load_program_icon, save_app_config,
@@ -17,9 +18,13 @@ use crate::program_manager::PROGRAM_MANAGER;
 use crate::singleton::Singleton;
 use crate::ui_controller::handle_focus_lost;
 use config::{Height, RuntimeConfig, Width};
+use rdev::ListenError;
 use rdev::{listen, Event, EventType, Key};
 use single_instance::SingleInstance;
 use std::collections::HashSet;
+use std::fs::File;
+use std::io::Write;
+use std::path::Path;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tauri::image::Image;
@@ -28,11 +33,60 @@ use tauri::tray::TrayIconBuilder;
 use tauri::App;
 use tauri::WebviewUrl;
 use tauri::{webview::WebviewWindow, Emitter, Manager, PhysicalPosition, PhysicalSize};
+use tracing::Level;
+use tracing::{debug, error, info, trace, warn};
+use tracing_appender::rolling::RollingFileAppender;
+use tracing_appender::rolling::Rotation;
+use tracing_subscriber::{fmt, EnvFilter};
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // 创建一个按日期滚动的日志文件，例如每天一个新文件
+    let file_appender: RollingFileAppender =
+        RollingFileAppender::new(Rotation::DAILY, LOG_DIR.clone(), "info.log");
+
+    // 创建一个非阻塞的日志写入器
+    let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
+
+    // 配置订阅者
+    let subscriber = tracing_subscriber::fmt()
+        .with_writer(non_blocking) // 设置日志输出到文件
+        .with_max_level(Level::INFO) // 设置日志级别
+        .with_ansi(false)
+        .finish();
+
+    // 设置全局默认的订阅者
+    tracing::subscriber::set_global_default(subscriber).expect("设置全局默认订阅者失败");
+
+    // 设置 panic hook
+    panic::set_hook(Box::new(|panic_info| {
+        let location = panic_info.location().unwrap();
+        let message = match panic_info.payload().downcast_ref::<&str>() {
+            Some(s) => *s,
+            None => "Unknown panic message",
+        };
+
+        let log_dir = LOG_DIR.clone();
+        let panic_file_path = Path::new(&log_dir)
+            .join("panic.log")
+            .to_str()
+            .unwrap()
+            .to_string();
+        let mut file = File::create(panic_file_path).expect("Could not create panic log file");
+        writeln!(
+            file,
+            "Panic occurred in file '{}' at line {}: {}",
+            location.file(),
+            location.line(),
+            message
+        )
+        .expect("Could not write to panic log file");
+
+        error!("Panic occurred: {}", message);
+    }));
+
     let instance = SingleInstance::new("ZeroLaunch-rs").unwrap();
     if !instance.is_single() {
-        eprintln!("另一个实例已经在运行中");
+        error!("当前已经有实例在运行了");
         std::process::exit(1);
     }
     tauri::Builder::default()
@@ -109,7 +163,7 @@ fn handle_pressed(app_handle: tauri::AppHandle) {
     main_window.emit("show_window", ()).unwrap();
 }
 
-fn start_key_listener(app_handle: tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {
+fn start_key_listener(app_handle: tauri::AppHandle) -> Result<(), ListenError> {
     let pressed_keys = Arc::new(Mutex::new(HashSet::new()));
     let pressed_keys_clone: Arc<Mutex<HashSet<Key>>> = Arc::clone(&pressed_keys);
 
@@ -133,7 +187,8 @@ fn start_key_listener(app_handle: tauri::AppHandle) -> Result<(), Box<dyn std::e
     };
 
     if let Err(error) = listen(callback) {
-        println!("监听器启动失败: {:?}", error);
+        error!("监听器启动失败: {:?}", error);
+        return Err(error);
     }
 
     Ok(())
@@ -159,7 +214,7 @@ fn init_setting_window(app: tauri::AppHandle) {
                 api.prevent_close();
                 // 隐藏窗口
                 window_clone.hide().unwrap();
-                println!("隐藏设置窗口");
+                debug!("隐藏设置窗口");
             }
         });
     });
@@ -204,6 +259,7 @@ fn init_system_tray(app: &mut App) {
     let path_resolver = app.path();
     let resource = path_resolver.resource_dir().expect("无法获取资源目录");
     let icon_path: PathBuf = resource.join("icons").join("32x32.png");
+    info!("icon path: {:?}", icon_path);
     let tray_icon = TrayIconBuilder::new()
         .menu(&menu)
         .icon(Image::from_path(icon_path).unwrap())
@@ -215,7 +271,7 @@ fn init_system_tray(app: &mut App) {
         match event_id {
             MenuEventId::ShowSettingWindow => {
                 if let Err(e) = show_setting_window(app_handle.clone()) {
-                    eprintln!("Failed to show setting window: {:?}", e);
+                    warn!("Failed to show setting window: {:?}", e);
                 }
             }
             MenuEventId::ExitProgram => {
@@ -225,10 +281,10 @@ fn init_system_tray(app: &mut App) {
                 update_app_setting();
             }
             MenuEventId::Unknown(id) => {
-                eprintln!("Unknown menu event: {}", id);
+                warn!("Unknown menu event: {}", id);
             }
         }
-        println!("Menu ID: {}", event.id().0);
+        debug!("Menu ID: {}", event.id().0);
     });
 }
 

@@ -4,6 +4,7 @@ use crate::defer::defer;
 use crate::utils::get_u16_vec;
 use std::collections::HashMap;
 use std::path::Path;
+use tracing::{debug, error, info, trace, warn};
 use windows::Win32::Foundation::{GetLastError, ERROR_CANCELLED, ERROR_ELEVATION_REQUIRED};
 use windows::Win32::System::Com::{
     CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_ALL, COINIT_APARTMENTTHREADED,
@@ -42,7 +43,7 @@ impl ProgramLauncher {
     }
     /// 注册一个程序
     pub fn register_program(&mut self, program_guid: u64, launch_method: LaunchMethod) {
-        println!("register: {} {}", program_guid, launch_method.get_text());
+        debug!("register: {} {}", program_guid, launch_method.get_text());
         self.launch_store.insert(program_guid, launch_method);
     }
     /// 通过全局唯一标识符启动程序
@@ -67,7 +68,7 @@ impl ProgramLauncher {
         unsafe {
             // Initialize COM
             if CoInitializeEx(None, COINIT_APARTMENTTHREADED).is_err() {
-                eprintln!("无法初始化COM库");
+                warn!("无法初始化COM库");
             }
             defer(|| {
                 CoUninitialize();
@@ -84,12 +85,12 @@ impl ProgramLauncher {
             ) {
                 Ok(pid) => pid,
                 Err(e) => {
-                    eprintln!("error: {}", e);
+                    warn!("error: {}", e);
                     return;
                 }
             };
 
-            println!("activated {} with pid {}", package_family_name, pid);
+            debug!("activated {} with pid {}", package_family_name, pid);
         }
     }
 
@@ -108,13 +109,13 @@ impl ProgramLauncher {
                 .launch_path_program_normal(&mut program_path_wide, &mut working_directory_wide);
             if let Err(error) = result {
                 if error == ERROR_ELEVATION_REQUIRED {
-                    println!("Normal start failed due to insufficient privileges. Trying with elevation...");
+                    warn!("Normal start failed due to insufficient privileges. Trying with elevation...");
                     self.launch_path_program_elevation(
                         &mut program_path_wide,
                         &mut working_directory_wide,
                     );
                 } else {
-                    println!("Failed to start process. Error: {}", error.to_hresult());
+                    warn!("Failed to start process. Error: {}", error.to_hresult());
                 }
             }
         }
@@ -125,7 +126,7 @@ impl ProgramLauncher {
         program_path_wide: &mut [u16],
         working_directory_wide: &mut [u16],
     ) -> Result<(), windows::Win32::Foundation::WIN32_ERROR> {
-        println!("{:?}", program_path_wide);
+        debug!("{:?}", program_path_wide);
         unsafe {
             let mut sei: SHELLEXECUTEINFOW = std::mem::zeroed();
             sei.cbSize = std::mem::size_of::<SHELLEXECUTEINFOW>() as u32;
@@ -158,9 +159,9 @@ impl ProgramLauncher {
             if ShellExecuteExW(&mut sei).is_err() {
                 let error = GetLastError();
                 if error == ERROR_CANCELLED {
-                    println!("User declined the elevation request.");
+                    warn!("User declined the elevation request.");
                 } else {
-                    println!(
+                    warn!(
                         "Failed to start process with elevation. Error: {}",
                         error.to_hresult()
                     );

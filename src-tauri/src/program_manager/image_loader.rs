@@ -8,18 +8,21 @@ use image::DynamicImage;
 use image::ImageFormat;
 use image::ImageReader;
 use image::RgbaImage;
+use image::{ImageBuffer, Rgba};
 use std::ffi::c_void;
 use std::io::Cursor;
 use std::mem;
 use std::path::Path;
+use tracing::{debug, error, info, trace, warn};
 use windows::Win32::Graphics::Gdi::BITMAP;
 use windows::Win32::Graphics::Gdi::{
     DeleteObject, GetBitmapBits, GetObjectW, BITMAPINFOHEADER, BI_RGB, HBITMAP, HGDIOBJ,
 };
 use windows::Win32::Storage::FileSystem::FILE_ATTRIBUTE_NORMAL;
+use windows::Win32::Storage::FileSystem::FILE_FLAGS_AND_ATTRIBUTES;
 use windows::Win32::UI::Shell::SHFILEINFOW;
 use windows::Win32::UI::Shell::{
-    SHGetFileInfoW, SHGFI_ICON, SHGFI_LARGEICON, SHGFI_USEFILEATTRIBUTES,
+    SHGetFileInfoW, SHGFI_EXETYPE, SHGFI_ICON, SHGFI_LARGEICON, SHGFI_USEFILEATTRIBUTES,
 };
 use windows::Win32::UI::WindowsAndMessaging::DestroyIcon;
 use windows::Win32::UI::WindowsAndMessaging::HICON;
@@ -67,11 +70,11 @@ impl ImageLoader {
             };
         }
         // 如果有内容，就编码成base64
-        if let Some(image) = img {
-            return BASE64_STANDARD.encode(image);
+        if img.is_some() {
+            return BASE64_STANDARD.encode(img.unwrap());
         }
         // 如果没有内容，就使用默认的编码
-        "".to_string()
+        return "".to_string();
     }
 
     /// 判断是不是一个程序的图标
@@ -85,7 +88,7 @@ impl ImageLoader {
         if path.ends_with(".url") {
             return true;
         }
-        false
+        return false;
     }
     /// 从文件提取hicon
     fn extract_icon_from_file(&self, file_path: &str) -> Option<HICON> {
@@ -103,13 +106,13 @@ impl ImageLoader {
         if result != 0 {
             if !sh_file_info.hIcon.is_invalid() {
                 // 检查 hIcon 是否有效
-                println!("Successfully extracted icon from: {}", file_path);
+                debug!("Successfully extracted icon from: {}", file_path);
                 return Some(sh_file_info.hIcon);
             } else {
-                println!("Failed to extract valid icon from: {}", file_path);
+                warn!("Failed to extract valid icon from: {}", file_path);
             }
         } else {
-            println!("SHGetFileInfoW failed for: {}", file_path);
+            warn!("SHGetFileInfoW failed for: {}", file_path);
         }
         None
     }
@@ -124,7 +127,7 @@ impl ImageLoader {
             hbmMask: std::mem::zeroed::<HBITMAP>() as HBITMAP,
             hbmColor: std::mem::zeroed::<HBITMAP>() as HBITMAP,
         };
-        println!("{:?} is valid: {}", icon.0, !icon.is_invalid());
+        debug!("{:?} is valid: {}", icon.0, !icon.is_invalid());
         GetIconInfo(icon, &mut info).unwrap();
         DeleteObject(HGDIOBJ(info.hbmMask.0)).unwrap();
         let mut bitmap: MaybeUninit<BITMAP> = MaybeUninit::uninit();
@@ -194,11 +197,12 @@ impl ImageLoader {
 
         // 使用 Cursor 作为写入目标
         let mut cursor = Cursor::new(&mut buffer);
+
         // 尝试将RGBA图像编码为PNG格式
         match rgba_image.write_to(&mut cursor, ImageFormat::Png) {
             Ok(_) => Some(buffer),
             Err(e) => {
-                eprintln!("PNG编码失败: {}", e);
+                warn!("PNG编码失败: {}", e);
                 None
             }
         }

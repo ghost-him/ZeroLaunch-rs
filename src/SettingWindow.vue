@@ -19,9 +19,6 @@
                     <el-switch v-model="config.is_silent_start" />
                 </el-form-item>
 
-                <el-form-item label="设置资源预加载">
-                    <el-switch v-model="config.is_preload_resource" />
-                </el-form-item>
 
                 <el-form-item label="设置搜索结果数量">
                     <el-input-number v-model="config.search_result_count" step="1" />
@@ -103,6 +100,10 @@
                     <el-form-item label="扫描UWP应用">
                         <el-switch v-model="path_data.is_scan_uwp_program" />
                     </el-form-item>
+                    <el-form-item label="设置资源预加载">
+                        <el-switch v-model="path_data.is_preload_resource" />
+                    </el-form-item>
+
                 </el-tab-pane>
             </el-tabs>
             <el-button type="primary" @click="save_path_config">提交</el-button>
@@ -186,7 +187,7 @@ const config = reactive({
     search_bar_no_result: '',
     is_auto_start: false,
     is_silent_start: false,
-    is_preload_resource: false,
+
     search_result_count: 4,
     auto_refresh_time: 30,
 })
@@ -195,7 +196,8 @@ interface PathData {
     target_paths: Array<string>;
     forbidden_paths: Array<string>;
     forbidden_key: Array<string>;
-    is_scan_uwp_program: false,
+    is_scan_uwp_program: false;
+    is_preload_resource: false;
 }
 
 const path_data = ref<PathData>({
@@ -203,6 +205,7 @@ const path_data = ref<PathData>({
     forbidden_paths: [],
     forbidden_key: [],
     is_scan_uwp_program: false,
+    is_preload_resource: false,
 });
 
 interface KeyFilterData {

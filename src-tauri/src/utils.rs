@@ -2,10 +2,15 @@ use std::fs;
 use std::io;
 use std::os::windows::ffi::OsStrExt;
 use std::path::Path;
+use tracing::{debug, error, info, trace, warn};
+use windows::core::PWSTR;
 use windows::Win32::Foundation::HWND;
+use windows::Win32::System::Com::{CoInitializeEx, COINIT_APARTMENTTHREADED};
 use windows::Win32::UI::Shell::SHGetFolderPathW;
 use windows::Win32::UI::Shell::CSIDL_COMMON_STARTMENU;
 use windows::Win32::UI::Shell::CSIDL_STARTMENU;
+use windows::Win32::UI::Shell::KF_FLAG_DEFAULT;
+use windows::Win32::UI::Shell::{FOLDERID_RoamingAppData, SHGetKnownFolderPath};
 pub fn read_or_create(path: &str, content: Option<String>) -> Result<String, String> {
     match fs::read_to_string(path) {
         Ok(data) => Ok(data),
@@ -74,8 +79,25 @@ pub fn get_start_menu_paths() -> Result<(String, String), String> {
             .to_string()
             .map_err(|e| format!("Failed to convert user path to string: {:?}", e))?;
 
-        println!("自动生成路径： {common_path}, {user_path}");
+        debug!("自动生成路径： {common_path}, {user_path}");
         Ok((common_path, user_path))
+    }
+}
+
+pub fn get_data_dir_path() -> String {
+    unsafe {
+        // 获取 AppData 目录
+        let path = SHGetKnownFolderPath(&FOLDERID_RoamingAppData, KF_FLAG_DEFAULT.into(), None);
+
+        // 将 PWSTR 转换为 Rust 字符串
+        let path_str = path.unwrap().to_string().unwrap();
+        let app_data_str = Path::new(&path_str)
+            .join("ZeroLaunch-rs")
+            .to_str()
+            .unwrap()
+            .to_string();
+        info!("AppData Directory: {}", app_data_str);
+        app_data_str
     }
 }
 

@@ -24,9 +24,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tauri::image::Image;
 use tauri::menu::{MenuBuilder, MenuItem};
-use tauri::path::PathResolver;
 use tauri::tray::TrayIconBuilder;
-use tauri::utils::platform::resource_dir;
 use tauri::App;
 use tauri::WebviewUrl;
 use tauri::{webview::WebviewWindow, Emitter, Manager, PhysicalPosition, PhysicalSize};
@@ -271,10 +269,10 @@ pub fn handle_auto_start() {
     let runtime_config = instance.lock().unwrap();
     let is_auto_start = runtime_config.get_app_config().is_auto_start;
     if is_auto_start && !autostart_manager.is_enabled().unwrap() {
-        autostart_manager.enable();
+        let _ = autostart_manager.enable();
     }
     if !is_auto_start && autostart_manager.is_enabled().unwrap() {
-        autostart_manager.disable();
+        let _ = autostart_manager.disable();
     }
 }
 
@@ -288,8 +286,8 @@ pub fn handle_silent_start() {
     let runtime_config = instance.lock().unwrap();
     let app_config = runtime_config.get_app_config();
     if app_config.is_silent_start {
-        main_window.hide();
+        let _ = main_window.hide();
     } else {
-        main_window.show();
+        let _ = main_window.show();
     }
 }

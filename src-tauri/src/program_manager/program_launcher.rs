@@ -134,8 +134,7 @@ impl ProgramLauncher {
             sei.lpDirectory = PCWSTR::from_raw(working_directory_wide.as_ptr());
             sei.nShow = SW_SHOWNORMAL.0;
 
-            if let Ok(_) = ShellExecuteExW(&mut sei) {
-            } else {
+            if ShellExecuteExW(&mut sei).is_err() {
                 return Err(GetLastError());
             }
             Ok(())
@@ -156,9 +155,8 @@ impl ProgramLauncher {
             sei.lpDirectory = PCWSTR::from_raw(working_directory_wide.as_ptr());
             sei.nShow = SW_SHOWNORMAL.0;
 
-            if let Ok(_) = ShellExecuteExW(&mut sei) {
-            } else {
-                let error = unsafe { GetLastError() };
+            if ShellExecuteExW(&mut sei).is_err() {
+                let error = GetLastError();
                 if error == ERROR_CANCELLED {
                     println!("User declined the elevation request.");
                 } else {

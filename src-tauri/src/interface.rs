@@ -6,7 +6,6 @@ use crate::program_manager::PROGRAM_MANAGER;
 ///
 use crate::RuntimeConfig;
 use crate::Singleton;
-use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::ParallelIterator;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;

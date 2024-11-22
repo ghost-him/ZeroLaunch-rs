@@ -18,8 +18,8 @@ use std::sync::Arc;
 use windows::Win32::Foundation::S_OK;
 use windows::Win32::Storage::FileSystem::WIN32_FIND_DATAW;
 use windows::Win32::System::Com::{
-    CoCreateInstance, CoInitialize, CoInitializeEx, CoUninitialize, IPersistFile,
-    StructuredStorage::PropVariantClear, CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED, STGM,
+    CoCreateInstance, CoInitialize, CoUninitialize, IPersistFile,
+    StructuredStorage::PropVariantClear, CLSCTX_INPROC_SERVER, STGM,
 };
 use windows::Win32::UI::Shell::PropertiesSystem::{
     IPropertyStore, PSGetPropertyKeyFromName, PROPERTYKEY,
@@ -620,7 +620,7 @@ impl ProgramLoader {
                 .unwrap();
 
             // 将 lnk_path 转换为 wide string
-            let wide: Vec<u16> = get_u16_vec(&lnk_path);
+            let wide: Vec<u16> = get_u16_vec(lnk_path);
 
             // 加载快捷方式文件
             persist_file
@@ -633,7 +633,7 @@ impl ProgramLoader {
             let mut find_data: WIN32_FIND_DATAW = std::mem::zeroed();
             // 获取目标路径
             let hr = shell_link.GetPath(&mut target_path, &mut find_data, 0);
-            if !hr.is_ok() {
+            if hr.is_err() {
                 return lnk_path.to_string();
             }
 

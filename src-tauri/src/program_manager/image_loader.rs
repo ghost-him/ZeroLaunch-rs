@@ -8,7 +8,6 @@ use image::DynamicImage;
 use image::ImageFormat;
 use image::ImageReader;
 use image::RgbaImage;
-use image::{ImageBuffer, Rgba};
 use std::ffi::c_void;
 use std::io::Cursor;
 use std::mem;
@@ -18,10 +17,9 @@ use windows::Win32::Graphics::Gdi::{
     DeleteObject, GetBitmapBits, GetObjectW, BITMAPINFOHEADER, BI_RGB, HBITMAP, HGDIOBJ,
 };
 use windows::Win32::Storage::FileSystem::FILE_ATTRIBUTE_NORMAL;
-use windows::Win32::Storage::FileSystem::FILE_FLAGS_AND_ATTRIBUTES;
 use windows::Win32::UI::Shell::SHFILEINFOW;
 use windows::Win32::UI::Shell::{
-    SHGetFileInfoW, SHGFI_EXETYPE, SHGFI_ICON, SHGFI_LARGEICON, SHGFI_USEFILEATTRIBUTES,
+    SHGetFileInfoW, SHGFI_ICON, SHGFI_LARGEICON, SHGFI_USEFILEATTRIBUTES,
 };
 use windows::Win32::UI::WindowsAndMessaging::DestroyIcon;
 use windows::Win32::UI::WindowsAndMessaging::HICON;
@@ -69,11 +67,11 @@ impl ImageLoader {
             };
         }
         // 如果有内容，就编码成base64
-        if img.is_some() {
-            return BASE64_STANDARD.encode(img.unwrap());
+        if let Some(image) = img {
+            return BASE64_STANDARD.encode(image);
         }
         // 如果没有内容，就使用默认的编码
-        return "".to_string();
+        "".to_string()
     }
 
     /// 判断是不是一个程序的图标
@@ -87,7 +85,7 @@ impl ImageLoader {
         if path.ends_with(".url") {
             return true;
         }
-        return false;
+        false
     }
     /// 从文件提取hicon
     fn extract_icon_from_file(&self, file_path: &str) -> Option<HICON> {

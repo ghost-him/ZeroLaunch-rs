@@ -14,8 +14,7 @@ use program_launcher::ProgramLauncher;
 use program_loader::ProgramLoader;
 use rayon::prelude::*;
 use search_model::remove_repeated_space;
-use search_model::{SearchModelFn, StandardSearchFn};
-use std::collections::HashMap;
+use search_model::{standard_search_fn, SearchModelFn};
 use std::sync::Arc;
 use std::sync::Mutex;
 /// 应用程序的启动方式
@@ -91,7 +90,7 @@ impl ProgramManager {
             program_registry: Vec::new(),
             program_loader: ProgramLoader::new(),
             program_launcher: ProgramLauncher::new(),
-            search_fn: StandardSearchFn,
+            search_fn: standard_search_fn,
             image_loader: ImageLoader::new(),
             program_locater: DashMap::new(),
         }
@@ -187,12 +186,11 @@ impl ProgramManager {
     }
     /// 获取程序的图标，返回使用base64编码的png图片
     pub fn get_icon(&self, program_guid: &u64) -> String {
-        let index = self.program_locater.get(&program_guid).unwrap();
+        let index = self.program_locater.get(program_guid).unwrap();
         let target_program = &self.program_registry[*(index.value())];
-        let base64 = self
-            .image_loader
-            .load_image(program_guid, &target_program.icon_path);
-        base64
+
+        self.image_loader
+            .load_image(program_guid, &target_program.icon_path)
     }
 }
 

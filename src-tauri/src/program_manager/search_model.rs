@@ -76,10 +76,8 @@ pub fn shortest_edit_dis(compare_name: &str, input_name: &str) -> f64 {
             }
         }
         // 记录dp[i][n]
-        if i >= n {
-            if current[n] < min_operations {
-                min_operations = current[n];
-            }
+        if i >= n && current[n] < min_operations {
+            min_operations = current[n];
         }
         // 交换prev和current
         std::mem::swap(&mut prev, &mut current);
@@ -96,7 +94,7 @@ pub fn shortest_edit_dis(compare_name: &str, input_name: &str) -> f64 {
 }
 
 /// 权重计算KMP
-pub fn KMP(compare_name: &str, input_name: &str) -> f64 {
+pub fn kmp(compare_name: &str, input_name: &str) -> f64 {
     let mut ret: f64 = 0.0;
 
     // 首字符串匹配
@@ -116,7 +114,7 @@ pub fn KMP(compare_name: &str, input_name: &str) -> f64 {
     ret
 }
 
-pub fn StandardSearchFn(program: Arc<Program>, user_input: &str) -> f64 {
+pub fn standard_search_fn(program: Arc<Program>, user_input: &str) -> f64 {
     // todo: 完成这个实现，如果使用到了什么子算法，用上面的模块实现出来再完成这个就可以了
     // program中的字符串与user_input都已经是预处理过了，不再需要预处理了
     let mut ret: f64 = -10000.0;
@@ -129,7 +127,7 @@ pub fn StandardSearchFn(program: Arc<Program>, user_input: &str) -> f64 {
             (user_input.chars().count() as f64) / (names.chars().count() as f64),
             adjust_score_log2,
         );
-        score += calculate_weight(names, user_input, KMP);
+        score += calculate_weight(names, user_input, kmp);
         ret = f64::max(ret, score);
     }
     ret

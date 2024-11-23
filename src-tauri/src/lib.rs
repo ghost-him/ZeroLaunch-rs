@@ -306,13 +306,13 @@ fn update_app_setting() {
 
 pub fn save_config_to_file(is_update_app: bool) {
     let mut manager = PROGRAM_MANAGER.lock().unwrap();
-    let config = manager.save_to_config();
+    let config = manager.get_launcher_config();
     drop(manager);
     {
         let instance = RuntimeConfig::instance();
         let mut runtime_config = instance.lock().unwrap();
-        runtime_config.save_program_manager(&config);
-        let config_content = runtime_config.save_config();
+        runtime_config.save_program_launcher_config(&config);
+        let config_content: String = runtime_config.save_config();
         std::fs::write(&*CONFIG_PATH, config_content).unwrap();
     }
     if is_update_app {

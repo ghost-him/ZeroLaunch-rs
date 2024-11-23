@@ -33,13 +33,13 @@
 
     <el-menu :default-active="activeIndex" class="menu-list round-border" @select="handleSelectMouse" :style="{
       width: `${scaledItemSize[0]}px`,
-      height: `${scaledItemSize[1] * 4}px`
+      height: `${scaledItemSize[1] * resultItemCount}px`
     }">
       <el-menu-item v-for="(item, index) in menuItems" :key="index" :index="String(index)"
         class="menu-item round-border" :style="{
           width: `${scaledItemSize[0]}px`,
           height: `${scaledItemSize[1]}px`
-        }" @click="launch_program(index)">
+        }" @click="launch_program(index)" @contextmenu.prevent>
         <div class="common-layout">
           <el-container>
             <el-aside class="icon-container">
@@ -68,7 +68,8 @@ import { listen, UnlistenFn } from '@tauri-apps/api/event';
 const backgroundImage = ref('https://example.com/default-background.jpg');
 const searchText = ref('');
 const activeIndex = ref('0');
-const menuItems = ref(['hello world', 'hello world', 'hello world', 'hello world']);
+const menuItems = ref();
+const resultItemCount = ref(4);
 const menuIcons = ref<Array<string>>([]);
 const searchResults = ref<Array<[number, string]>>([]);
 const windowSize = ref<[number, number]>([0, 0]);
@@ -105,8 +106,9 @@ const sendSearchText = async (text: string) => {
   try {
     const results: Array<[number, string]> = await invoke('handle_search_text', { searchText: text });
     searchResults.value = results;
-    menuItems.value = results.slice(0, 4).map(([_, item]) => item);
-    let keys = results.slice(0, 4).map(([key, _]) => key);
+    console.log(searchResults);
+    menuItems.value = results.map(([_, item]) => item);
+    let keys = results.map(([key, _]) => key);
     menuIcons.value = await getIcons(keys);
   } catch (error) {
     console.error('Error sending search text to Rust: ', error);
@@ -236,6 +238,7 @@ interface SearchBarInit {
   window_size: [number, number];
   item_size: [number, number];
   window_scale_factor: number;
+  result_item_count: number;
 }
 
 interface SearchBarUpdate {
@@ -245,7 +248,7 @@ interface SearchBarUpdate {
 // 用于程序在一开始初始化
 const initWindow = async () => {
   const initValue = await invoke<SearchBarInit>('init_search_bar_window');
-
+  resultItemCount.value = initValue.result_item_count;
   windowSize.value = initValue.window_size;
   itemSize.value = initValue.item_size;
   fontSize.value = itemSize.value[1] / 2;
@@ -309,6 +312,8 @@ const getIcons = async (keys: Array<number>) => {
 onMounted(async () => {
   initWindow();
   updateWindow();
+  sendSearchText('');
+  focusSearchInput();
   window.addEventListener('keydown', handleKeyDown);
   window.addEventListener('keyup', handleKeyUp);
   window.addEventListener('click', handleClickOutside);

@@ -19,7 +19,6 @@
                     <el-switch v-model="config.is_silent_start" />
                 </el-form-item>
 
-
                 <el-form-item label="设置搜索结果数量">
                     <el-input-number v-model="config.search_result_count" step="1" />
                 </el-form-item>
@@ -254,6 +253,7 @@ const get_program_info = async () => {
 }
 
 const save_path_config = async () => {
+    console.log(path_data.value);
     await invoke('save_path_config', { pathData: path_data.value });
     ElMessage({
         message: '配置文件已保存',

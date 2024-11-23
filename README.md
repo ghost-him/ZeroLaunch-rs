@@ -33,7 +33,9 @@ ZeroLaunch-rs 是一个使用 Rust + Tauri + Vite + Vue.js + TypeScript 构建�
 4. debug模式：`yarn tauri dev`；release：`yarn tauri build`。
 5. 打包好的软件会在`./src-tauri/target`目录下。
 
+## 注意事项
 
+该软件的数据与日志存放在: `[用户根目录]\AppData\Roaming\ZeroLaunch-rs` 文件夹下。
 
 ## todo
 

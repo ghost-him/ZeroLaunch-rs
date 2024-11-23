@@ -18,6 +18,7 @@ pub struct SearchBarInit {
     window_size: Vec<usize>,
     item_size: Vec<usize>,
     window_scale_factor: f64,
+    result_item_count: u32,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -60,6 +61,7 @@ pub fn init_search_bar_window() -> SearchBarInit {
         item_size: vec![item_width, item_height],
         window_size: vec![window_width, window_height],
         window_scale_factor: runtime_config.get_window_scale_factor(),
+        result_item_count: runtime_config.get_app_config().search_result_count,
     }
 }
 
@@ -80,9 +82,13 @@ pub struct SearchResult(u64, String);
 /// 处理前端发来的消息
 #[tauri::command]
 pub fn handle_search_text(search_text: String) -> Vec<SearchResult> {
+    let instance = RuntimeConfig::instance();
+    let runtime_config = instance.lock().unwrap();
+    let result_count = runtime_config.get_app_config().search_result_count;
+    drop(runtime_config);
     // 处理消息
     let manager = PROGRAM_MANAGER.lock().unwrap();
-    let results = manager.update(&search_text, 4);
+    let results = manager.update(&search_text, result_count);
     // 解锁
     drop(manager);
     let mut ret = Vec::new();
@@ -152,6 +158,7 @@ pub fn get_path_config() -> Result<SettingWindowPathData, String> {
 pub fn save_path_config(path_data: SettingWindowPathData) -> Result<(), String> {
     let instance = RuntimeConfig::instance();
     let mut config = instance.lock().unwrap();
+    debug!("{:?}", path_data);
     config.save_path_config(path_data);
     drop(config);
     save_config_to_file(true);

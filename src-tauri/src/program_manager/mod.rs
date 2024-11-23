@@ -6,7 +6,7 @@ mod pinyin_mapper;
 mod program_launcher;
 mod program_loader;
 mod search_model;
-use config::ProgramManagerConfig;
+use config::{ProgramLauncherConfig, ProgramManagerConfig};
 use dashmap::DashMap;
 use image_loader::ImageLoader;
 use lazy_static::lazy_static;
@@ -100,12 +100,8 @@ impl ProgramManager {
         }
     }
     /// 将当前的配置写到配置文件中
-    pub fn save_to_config(&mut self) -> ProgramManagerConfig {
-        ProgramManagerConfig {
-            launcher: self.program_launcher.save_to_config(),
-            loader: self.program_loader.save_to_config(),
-            is_preload_resource: self.is_preload_resource,
-        }
+    pub fn get_launcher_config(&mut self) -> ProgramLauncherConfig {
+        self.program_launcher.save_to_config()
     }
     /// 使用配置信息初始化自身与子模块
     pub fn load_from_config(&mut self, config: &ProgramManagerConfig) {

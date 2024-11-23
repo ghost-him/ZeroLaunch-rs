@@ -1,5 +1,5 @@
 use crate::interface::{KeyFilterData, SettingWindowPathData};
-use crate::program_manager::config::ProgramManagerConfig;
+use crate::program_manager::config::{ProgramLauncherConfig, ProgramManagerConfig};
 use crate::singleton::Singleton;
 use crate::utils::read_or_create;
 use crate::{impl_singleton, program_manager};
@@ -202,6 +202,10 @@ impl RuntimeConfig {
         self.config.program_manager_config.is_preload_resource = path_data.is_preload_resource;
     }
 
+    pub fn save_program_launcher_config(&mut self, launcher_data: &ProgramLauncherConfig) {
+        self.config.program_manager_config.launcher = launcher_data.clone();
+    }
+
     pub fn save_key_filter_config(&mut self, key_filter_data: Vec<KeyFilterData>) {
         let path_config = &mut self.config.program_manager_config.loader;
         path_config.forbidden_program_key.clear();
@@ -211,11 +215,6 @@ impl RuntimeConfig {
                 .insert(item.key.clone(), (item.bias, item.note.clone()));
         }
     }
-
-    pub fn save_program_manager(&mut self, program_manager_config: &ProgramManagerConfig) {
-        self.config.program_manager_config = program_manager_config.clone();
-    }
-
     /// 保存当前的程序配置
     /// 1. 更新要保存的东西（动态变化的东西）
     /// 2. 返回已经更新好的配置信息

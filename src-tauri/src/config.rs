@@ -1,13 +1,14 @@
-use crate::impl_singleton;
 use crate::interface::{KeyFilterData, SettingWindowPathData};
 use crate::program_manager::config::ProgramManagerConfig;
 use crate::singleton::Singleton;
 use crate::utils::read_or_create;
+use crate::{impl_singleton, program_manager};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::Once;
+use tauri_plugin_shell::open::Program;
 pub type Width = usize;
 pub type Height = usize;
 use crate::utils::get_data_dir_path;
@@ -16,7 +17,7 @@ use tracing::{debug, error, info, trace, warn};
 
 lazy_static! {
     /// 配置文件存在的位置
-    static ref CONFIG_PATH: String = Path::new(&get_data_dir_path()).join("config.json").to_str().unwrap().to_string();
+    pub static ref CONFIG_PATH: String = Path::new(&get_data_dir_path()).join("config.json").to_str().unwrap().to_string();
     /// 配置文件的默认内容
     static ref CONFIG_DEFAULT: String = serde_json::to_string(&Config::default()).unwrap();
     /// 全局app_handle
@@ -190,7 +191,6 @@ impl RuntimeConfig {
 
     pub fn save_app_config(&mut self, app_config: AppConfig) {
         self.config.app_config = app_config.clone();
-        self.save_config();
     }
 
     pub fn save_path_config(&mut self, path_data: SettingWindowPathData) {
@@ -200,7 +200,6 @@ impl RuntimeConfig {
         path_config.target_paths = path_data.target_paths;
         path_config.is_scan_uwp_programs = path_data.is_scan_uwp_program;
         self.config.program_manager_config.is_preload_resource = path_data.is_preload_resource;
-        self.save_config();
     }
 
     pub fn save_key_filter_config(&mut self, key_filter_data: Vec<KeyFilterData>) {
@@ -211,14 +210,17 @@ impl RuntimeConfig {
                 .program_bias
                 .insert(item.key.clone(), (item.bias, item.note.clone()));
         }
-        self.save_config();
+    }
+
+    pub fn save_program_manager(&mut self, program_manager_config: &ProgramManagerConfig) {
+        self.config.program_manager_config = program_manager_config.clone();
     }
 
     /// 保存当前的程序配置
-    fn save_config(&self) {
-        let config_content = serde_json::to_string(&self.config).unwrap();
-        debug!("将文件保存：{:?}", config_content);
-        std::fs::write(&*CONFIG_PATH, config_content).unwrap();
+    /// 1. 更新要保存的东西（动态变化的东西）
+    /// 2. 返回已经更新好的配置信息
+    pub fn save_config(&self) -> String {
+        serde_json::to_string(&self.config).unwrap()
     }
 }
 

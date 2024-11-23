@@ -7,6 +7,7 @@ pub mod ui_controller;
 pub mod utils;
 use std::panic;
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
+use crate::config::CONFIG_PATH;
 use crate::config::GLOBAL_APP_HANDLE;
 use crate::config::LOG_DIR;
 use crate::interface::{
@@ -133,7 +134,7 @@ pub fn run() {
                 .unwrap();
             drop(config);
             update_app_setting();
-            PROGRAM_MANAGER.lock().unwrap().test_search_algorithm("qq");
+            // PROGRAM_MANAGER.lock().unwrap().test_search_algorithm("");
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -275,6 +276,7 @@ fn init_system_tray(app: &mut App) {
                 }
             }
             MenuEventId::ExitProgram => {
+                save_config_to_file(false);
                 app_handle.exit(0);
             }
             MenuEventId::UpdateAppSetting => {
@@ -289,7 +291,7 @@ fn init_system_tray(app: &mut App) {
 }
 
 /// 更新程序的状态
-pub fn update_app_setting() {
+fn update_app_setting() {
     // 1. 重新更新程序索引的路径
     update_program_path();
     // 2. 判断要不要开机自启动
@@ -297,6 +299,27 @@ pub fn update_app_setting() {
     // 3.判断要不要静默启动
     handle_silent_start();
 }
+/// 保存程序的配置信息
+/// 1. 将需要保存的东西保到配置信息中
+/// 2. 保存到文件中
+/// 3. 重新读取文件并更新配置信息
+
+pub fn save_config_to_file(is_update_app: bool) {
+    let mut manager = PROGRAM_MANAGER.lock().unwrap();
+    let config = manager.save_to_config();
+    drop(manager);
+    {
+        let instance = RuntimeConfig::instance();
+        let mut runtime_config = instance.lock().unwrap();
+        runtime_config.save_program_manager(&config);
+        let config_content = runtime_config.save_config();
+        std::fs::write(&*CONFIG_PATH, config_content).unwrap();
+    }
+    if is_update_app {
+        update_app_setting();
+    }
+}
+
 /// 重新索引程序
 pub fn update_program_path() {
     let instance = RuntimeConfig::instance();

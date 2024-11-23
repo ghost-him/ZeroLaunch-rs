@@ -1,8 +1,9 @@
+use super::super::utils::{generate_current_date, is_date_current};
 /// 这个类用于启动应用程序，同时还会维护启动次数
 use super::{config::ProgramLauncherConfig, LaunchMethod};
 use crate::defer::defer;
 use crate::utils::get_u16_vec;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::path::Path;
 use tracing::{debug, error, info, trace, warn};
 use windows::Win32::Foundation::{GetLastError, ERROR_CANCELLED, ERROR_ELEVATION_REQUIRED};
@@ -19,15 +20,20 @@ pub struct ProgramLauncher {
     /// 用于存储目标程序的启动方式
     launch_store: HashMap<u64, LaunchMethod>,
     /// 用户记录当前程序的启动次数
-    launch_time: HashMap<u64, u64>,
+    launch_time: VecDeque<HashMap<String, u64>>,
+    /// 上一次更新的时间
+    last_update_data: String,
 }
 
 impl ProgramLauncher {
     /// 初始化
     pub fn new() -> ProgramLauncher {
+        let mut deque = VecDeque::new();
+        deque.push_front(HashMap::new());
         ProgramLauncher {
             launch_store: HashMap::new(),
-            launch_time: HashMap::new(),
+            launch_time: deque,
+            last_update_data: generate_current_date(),
         }
     }
     /// 重置程序信息
@@ -36,10 +42,18 @@ impl ProgramLauncher {
     }
 
     ///使用配置文件初始化
-    pub fn load_from_config(&self, config: &ProgramLauncherConfig) {}
+    pub fn load_from_config(&mut self, config: &ProgramLauncherConfig) {
+        self.launch_time = config.launch_info.clone();
+        self.last_update_data = config.last_update_data.clone();
+        self.update_launch_info();
+    }
     /// 将当前的内容保存到配置文件中
-    pub fn save_to_config(&self) -> ProgramLauncherConfig {
-        ProgramLauncherConfig {}
+    pub fn save_to_config(&mut self) -> ProgramLauncherConfig {
+        self.update_launch_info();
+        ProgramLauncherConfig {
+            launch_info: self.launch_time.clone(),
+            last_update_data: generate_current_date(),
+        }
     }
     /// 注册一个程序
     pub fn register_program(&mut self, program_guid: u64, launch_method: LaunchMethod) {
@@ -47,8 +61,11 @@ impl ProgramLauncher {
         self.launch_store.insert(program_guid, launch_method);
     }
     /// 通过全局唯一标识符启动程序
-    pub fn launch_program(&self, program_guid: u64, is_admin_required: bool) {
+    pub fn launch_program(&mut self, program_guid: u64, is_admin_required: bool) {
         let launch_method = self.launch_store.get(&program_guid).unwrap();
+        *self.launch_time[0]
+            .entry(launch_method.get_text())
+            .or_insert(0) += 1;
         match launch_method {
             LaunchMethod::Path(path) => {
                 self.launch_path_program(path, is_admin_required);
@@ -59,8 +76,17 @@ impl ProgramLauncher {
         }
     }
     /// 获取当前程序的动态启动次数
-    pub fn program_launch_time(&self, program_guid: u64) -> u64 {
-        0_u64
+    pub fn program_dynamic_value_based_launch_time(&self, program_guid: u64) -> f64 {
+        let program_string = self.launch_store.get(&program_guid).unwrap();
+        let mut result: f64 = 0.0;
+        let mut k: f64 = 1.0;
+        self.launch_time.iter().for_each(|day| {
+            if let Some(time) = day.get(&program_string.get_text()) {
+                result += (*time as f64) * k;
+            }
+            k /= 1.5
+        });
+        result
     }
 
     /// 启动uwp应用
@@ -166,6 +192,18 @@ impl ProgramLauncher {
                         error.to_hresult()
                     );
                 }
+            }
+        }
+    }
+    /// 更新一下启动次数统计
+    /// 1.在读取配置文件的时候会处理一下
+    /// 2.在记录到配置文件的时候会处理一下
+    fn update_launch_info(&mut self) {
+        if !is_date_current(&self.last_update_data) {
+            // 如果不是,则更新
+            self.launch_time.push_front(HashMap::new());
+            if self.launch_time.len() > 7 {
+                self.launch_time.pop_back();
             }
         }
     }

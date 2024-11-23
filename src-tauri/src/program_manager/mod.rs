@@ -76,6 +76,8 @@ pub struct ProgramManager {
     image_loader: ImageLoader,
     /// 程序查找器(程序的guid, 在registry中的下标)
     program_locater: DashMap<u64, usize>,
+    /// 资源预加载
+    is_preload_resource: bool,
 }
 
 impl Default for ProgramManager {
@@ -94,6 +96,15 @@ impl ProgramManager {
             search_fn: standard_search_fn,
             image_loader: ImageLoader::new(),
             program_locater: DashMap::new(),
+            is_preload_resource: false,
+        }
+    }
+    /// 将当前的配置写到配置文件中
+    pub fn save_to_config(&mut self) -> ProgramManagerConfig {
+        ProgramManagerConfig {
+            launcher: self.program_launcher.save_to_config(),
+            loader: self.program_loader.save_to_config(),
+            is_preload_resource: self.is_preload_resource,
         }
     }
     /// 使用配置信息初始化自身与子模块
@@ -115,8 +126,9 @@ impl ProgramManager {
                 .register_program(program.program_guid, program.launch_method.clone());
             self.program_locater.insert(program.program_guid, index);
         }
+        self.is_preload_resource = config.is_preload_resource;
         // 如果要预加载资源，则加载
-        if config.is_preload_resource {
+        if self.is_preload_resource {
             debug!("资源预加载");
             self.program_registry.iter().for_each(|program| {
                 self.image_loader
@@ -132,11 +144,17 @@ impl ProgramManager {
         let user_input = user_input.to_lowercase();
         let user_input = remove_repeated_space(&user_input);
         // (匹配值，唯一标识符)
+        let launcher = &self.program_launcher;
         let mut match_scores: Vec<(f64, u64)> = self
             .program_registry
             .par_iter()
             .map(|program| {
-                let score = (self.search_fn)(program.clone(), &user_input);
+                // 当前用户输入与程序的匹配度
+                let mut score = (self.search_fn)(program.clone(), &user_input);
+                // 程序的固定偏移量
+                score += program.stable_bias;
+                // 程序的动态偏移量
+                score += launcher.program_dynamic_value_based_launch_time(program.program_guid);
                 (score, program.program_guid)
             })
             .collect();
@@ -154,11 +172,23 @@ impl ProgramManager {
 
     /// 测试算法
     pub fn test_search_algorithm(&self, user_input: &str) {
-        let mut match_scores: Vec<(f64, u64)> = Vec::new(); // (匹配值，唯一标识符)
-        for program in self.program_registry.iter() {
-            let score = (self.search_fn)(program.clone(), user_input);
-            match_scores.push((score, program.program_guid));
-        }
+        let user_input = user_input.to_lowercase();
+        let user_input = remove_repeated_space(&user_input);
+        // (匹配值，唯一标识符)
+        let launcher = &self.program_launcher;
+        let mut match_scores: Vec<(f64, u64)> = self
+            .program_registry
+            .par_iter()
+            .map(|program| {
+                // 当前用户输入与程序的匹配度
+                let mut score = (self.search_fn)(program.clone(), &user_input);
+                // 程序的固定偏移量
+                score += program.stable_bias;
+                // 程序的动态偏移量
+                score += launcher.program_dynamic_value_based_launch_time(program.program_guid);
+                (score, program.program_guid)
+            })
+            .collect();
 
         match_scores.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
 
@@ -168,7 +198,7 @@ impl ProgramManager {
             let program = &self.program_registry[guid as usize];
             result.push((score, program.show_name.clone()));
         }
-        trace!("{:?}", result);
+        println!("{:?}", result);
     }
 
     /// 加载搜索模型
@@ -189,7 +219,7 @@ impl ProgramManager {
         result
     }
     /// 启动一个程序
-    pub fn launch_program(&self, program_guid: u64, is_admin_required: bool) {
+    pub fn launch_program(&mut self, program_guid: u64, is_admin_required: bool) {
         self.program_launcher
             .launch_program(program_guid, is_admin_required);
     }

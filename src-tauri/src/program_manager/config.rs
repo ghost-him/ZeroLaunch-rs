@@ -1,9 +1,9 @@
-use super::super::utils::get_start_menu_paths;
+use super::super::utils::{generate_current_date, get_start_menu_paths};
 /// 这个配置信息用于配置该模块与子模块的配置信息
 /// 同时，还用于应用启动计数信息的存储
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-
+use std::collections::VecDeque;
 pub const PINYIN_CONTENT_JS: &str = include_str!("./pinyin.json");
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -15,7 +15,12 @@ pub struct ProgramManagerConfig {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ProgramLauncherConfig {}
+pub struct ProgramLauncherConfig {
+    /// 天数,[一个地址的启动次数]
+    pub launch_info: VecDeque<HashMap<String, u64>>,
+    /// 上次的读取日期
+    pub last_update_data: String,
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ProgramLoaderConfig {
@@ -43,7 +48,12 @@ impl ProgramManagerConfig {
 
 impl ProgramLauncherConfig {
     pub fn default() -> Self {
-        ProgramLauncherConfig {}
+        let mut deque = VecDeque::new();
+        deque.push_front(HashMap::new());
+        ProgramLauncherConfig {
+            launch_info: deque,
+            last_update_data: generate_current_date(),
+        }
     }
 }
 

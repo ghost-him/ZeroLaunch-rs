@@ -176,6 +176,7 @@ const selectNextItem = () => {
 };
 
 const focusSearchInput = () => {
+  initSearchBar();
   if (searchInputRef.value) {
     searchInputRef.value.focus();
   }
@@ -278,7 +279,6 @@ const launch_program = (index: number) => {
   console.log(`Launching program for item ${searchResults.value[index][0]}, Ctrl key pressed: ${ctrlPressed}`);
 
   invoke('launch_program', { programGuid: searchResults.value[index][0], isAdminRequired: ctrlPressed });
-  initSearchBar()
 };
 
 const getIcons = async (keys: Array<number>) => {

@@ -208,7 +208,7 @@ impl ProgramManager {
             .launch_program(program_guid, is_admin_required);
     }
     /// 获取程序的图标，返回使用base64编码的png图片
-    pub fn get_icon(&self, program_guid: &u64) -> String {
+    pub fn get_icon(&self, program_guid: &u64) -> Vec<u8> {
         let index = self.program_locater.get(program_guid).unwrap();
         let target_program = &self.program_registry[*(index.value())];
 

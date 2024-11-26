@@ -1,5 +1,4 @@
 use crate::utils::get_u16_vec;
-use base64::prelude::*;
 use core::mem::MaybeUninit;
 /// 这个类主要用于加载程序的图片，支持并发查询
 use dashmap::DashMap;
@@ -29,7 +28,7 @@ use windows::Win32::UI::WindowsAndMessaging::HICON;
 use windows::Win32::UI::WindowsAndMessaging::{GetIconInfo, ICONINFO};
 use windows_core::PCWSTR;
 pub struct ImageLoader {
-    dash_map: DashMap<u64, String>,
+    dash_map: DashMap<u64, Vec<u8>>,
 }
 
 impl ImageLoader {
@@ -40,16 +39,16 @@ impl ImageLoader {
         }
     }
     /// 加载一个图片
-    pub fn load_image(&self, program_guid: &u64, icon_path: &str) -> String {
+    pub fn load_image(&self, program_guid: &u64, icon_path: &str) -> Vec<u8> {
         if let Some(cached_image) = self.dash_map.get(program_guid) {
             return cached_image.clone();
         }
-        let pic_base64 = self.load_image_from_path(icon_path);
+        let pic_base64: Vec<u8> = self.load_image_from_path(icon_path);
         self.dash_map.insert(*program_guid, pic_base64.clone());
         pic_base64
     }
     /// 使用路径加载一个图片
-    fn load_image_from_path(&self, icon_path: &str) -> String {
+    fn load_image_from_path(&self, icon_path: &str) -> Vec<u8> {
         // 读取程序图标
         let mut img: Option<Vec<u8>> = None;
         if self.is_program(icon_path) {
@@ -71,10 +70,10 @@ impl ImageLoader {
         }
         // 如果有内容，就编码成base64
         if img.is_some() {
-            return BASE64_STANDARD.encode(img.unwrap());
+            return img.unwrap();
         }
         // 如果没有内容，就使用默认的编码
-        return "".to_string();
+        return vec![];
     }
 
     /// 判断是不是一个程序的图标

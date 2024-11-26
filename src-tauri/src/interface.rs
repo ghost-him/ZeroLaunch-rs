@@ -239,7 +239,7 @@ pub async fn load_program_icon<R: Runtime>(
     app: tauri::AppHandle<R>,
     window: tauri::Window<R>,
     program_guid: u64,
-) -> Result<String, String> {
+) -> Result<Vec<u8>, String> {
     let manager = PROGRAM_MANAGER.lock().unwrap();
     let result = manager.get_icon(&program_guid);
 

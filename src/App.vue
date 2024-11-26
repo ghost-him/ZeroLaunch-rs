@@ -46,7 +46,7 @@
               <el-image :style="{
                 width: `${scaledItemSize[1] * 0.8}px`,
                 height: `${scaledItemSize[1] * 0.8}px`,
-              }" :src="`data:image/png;base64,${menuIcons[index]}`" fit="contain" />
+              }" :src="menuIcons[index]" fit="contain" />
             </el-aside>
             <el-main>{{ item }}</el-main>
           </el-container>
@@ -253,11 +253,27 @@ const initWindow = async () => {
   scaleFactor.value = initValue.window_scale_factor
 }
 
+
 const startPreloadResource = async (program_count: number) => {
-  for (var i = 0; i < program_count; i++) {
-    console.log("开始预加载：" + i);
-    let icon: string = await invoke('load_program_icon', { programGuid: i });
-    program_icons.value.set(i, icon);
+  const BATCH_SIZE = 10; // 每批加载的图标数量
+
+  // 分批次处理程序ID
+  for (let i = 0; i < program_count; i += BATCH_SIZE) {
+    const batchStart = i;
+    const batchEnd = Math.min(i + BATCH_SIZE, program_count);
+    const batch = Array.from({ length: batchEnd - batchStart }, (_, index) => batchStart + index);
+
+    // 并发加载当前批次的所有图标
+    await Promise.all(batch.map(async (programId) => {
+      try {
+        const iconData: number[] = await invoke('load_program_icon', { programGuid: programId });
+        const blob = new Blob([new Uint8Array(iconData)], { type: 'image/png' });
+        const url = URL.createObjectURL(blob);
+        program_icons.value.set(programId, url); // 确保 program_icons 已定义
+      } catch (error) {
+        console.error(`Failed to preload icon for program ${programId}:`, error);
+      }
+    }));
   }
 }
 
@@ -293,9 +309,11 @@ const getIcons = async (keys: Array<number>) => {
     if (program_icons.value.has(key)) {
       result.push(program_icons.value.get(key) as string);
     } else {
-      let icon: string = await invoke('load_program_icon', { programGuid: key });
-      program_icons.value.set(key, icon);
-      result.push(icon);
+      let iconData: number[] = await invoke('load_program_icon', { programGuid: key });
+      const blob = new Blob([new Uint8Array(iconData)], { type: 'image/png' });
+      const url = URL.createObjectURL(blob);
+      program_icons.value.set(key, url);
+      result.push(url);
     }
   }
   return result;
@@ -334,6 +352,7 @@ onUnmounted(() => {
       item();
     }
   }
+  program_icons.value.forEach((url) => URL.revokeObjectURL(url));
 });
 </script>
 

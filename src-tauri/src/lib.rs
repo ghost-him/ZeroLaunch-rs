@@ -13,7 +13,7 @@ use crate::config::LOG_DIR;
 use crate::interface::{
     get_app_config, get_key_filter_data, get_path_config, get_program_info, handle_search_text,
     hide_window, init_search_bar_window, launch_program, load_program_icon, save_app_config,
-    save_key_filter_data, save_path_config, show_setting_window, update_search_bar_window,
+    save_key_filter_data, save_path_config, show_setting_window, update_search_bar_window,get_program_count,
 };
 use crate::program_manager::PROGRAM_MANAGER;
 use crate::singleton::Singleton;
@@ -109,6 +109,7 @@ pub fn run() {
             tauri::async_runtime::spawn(async move {
                 start_key_listener(app_handle.clone()).expect("Failed to start key listener");
             });
+            let main_window_clone = main_window.clone();
             main_window.on_window_event(move |event| {
                 if let tauri::WindowEvent::Focused(focused) = event {
                     if !focused {
@@ -157,6 +158,7 @@ pub fn run() {
             save_key_filter_data,
             launch_program,
             load_program_icon,
+            get_program_count,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -365,7 +367,6 @@ pub fn handle_silent_start() {
     let mut instance = GLOBAL_APP_HANDLE.lock().unwrap();
     let app = instance.as_mut().unwrap();
     let main_window = app.get_webview_window("main").unwrap();
-
     let instance = RuntimeConfig::instance();
     let runtime_config = instance.lock().unwrap();
     let app_config = runtime_config.get_app_config();

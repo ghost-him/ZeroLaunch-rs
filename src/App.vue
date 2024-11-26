@@ -84,9 +84,7 @@ const program_icons = ref<Map<number, string>>(new Map<number, string>([]));
 
 let placeholder = ref('请输入搜索内容');
 const searchInputRef = ref<HTMLInputElement | null>(null);
-let unlisten1: UnlistenFn | null = null;
-let unlisten2: UnlistenFn | null = null;
-let unlisten3: UnlistenFn | null = null;
+let unlisten: Array<UnlistenFn | null> = [];
 // 新增的状态用于自定义右键菜单
 const isContextMenuVisible = ref(false);
 const contextMenuPosition = ref({ x: 0, y: 0 });
@@ -106,7 +104,6 @@ const sendSearchText = async (text: string) => {
   try {
     const results: Array<[number, string]> = await invoke('handle_search_text', { searchText: text });
     searchResults.value = results;
-    console.log(searchResults);
     menuItems.value = results.map(([_, item]) => item);
     let keys = results.map(([key, _]) => key);
     menuIcons.value = await getIcons(keys);
@@ -254,13 +251,22 @@ const initWindow = async () => {
   itemSize.value = initValue.item_size;
   fontSize.value = itemSize.value[1] / 2;
   scaleFactor.value = initValue.window_scale_factor
-  console.log(initValue);
+}
+
+const startPreloadResource = async (program_count: number) => {
+  for (var i = 0; i < program_count; i++) {
+    console.log("开始预加载：" + i);
+    let icon: string = await invoke('load_program_icon', { programGuid: i });
+    program_icons.value.set(i, icon);
+  }
 }
 
 // 用于程序在更新相应内容
 const updateWindow = async () => {
   const data = await invoke<SearchBarUpdate>('update_search_bar_window');
   placeholder.value = data.search_bar_placeholder;
+  const program_count = await invoke<number>('get_program_count');
+  startPreloadResource(program_count);
 }
 // 用于初始化搜索栏和快捷键的状态(当成功启动一个程序时，或者搜索栏被隐藏时被触发)
 const initSearchBar = () => {
@@ -282,31 +288,20 @@ const launch_program = (index: number) => {
 };
 
 const getIcons = async (keys: Array<number>) => {
-  let result: Array<string> = new Array(keys.length);
-  let requireIndices: Array<[number, number]> = [];
-
-  for (let i = 0; i < keys.length; i++) {
-    let key = keys[i];
+  let result: Array<string> = [];
+  for (let key of keys) {
     if (program_icons.value.has(key)) {
-      result[i] = program_icons.value.get(key) as string;
+      result.push(program_icons.value.get(key) as string);
     } else {
-      requireIndices.push([i, key]);
-      result[i] = ''; // Initialize with empty string
+      let icon: string = await invoke('load_program_icon', { programGuid: key });
+      program_icons.value.set(key, icon);
+      result.push(icon);
     }
   }
-
-  if (requireIndices.length > 0) {
-    let requiredKeys = requireIndices.map(index => index[1]);
-    let get_icon: Array<string> = await invoke('load_program_icon', { programGuid: requiredKeys });
-
-    for (let i = 0; i < requireIndices.length; i++) {
-      result[requireIndices[i][0]] = get_icon[i];
-      program_icons.value.set(requireIndices[i][1], get_icon[i])
-    }
-  }
-
   return result;
 }
+
+
 
 // 在组件挂载时添加事件监听器
 onMounted(async () => {
@@ -317,15 +312,15 @@ onMounted(async () => {
   window.addEventListener('keydown', handleKeyDown);
   window.addEventListener('keyup', handleKeyUp);
   window.addEventListener('click', handleClickOutside);
-  unlisten1 = await listen('show_window', () => {
+  unlisten.push(await listen('show_window', () => {
     focusSearchInput();
-  });
-  unlisten2 = await listen('update_search_bar_window', () => {
+  }));
+  unlisten.push(await listen('update_search_bar_window', () => {
     updateWindow();
-  })
-  unlisten3 = await listen('handle_focus_lost', () => {
+  }));
+  unlisten.push(await listen('handle_focus_lost', () => {
     initSearchBar();
-  })
+  }));
 
 });
 
@@ -334,14 +329,10 @@ onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyDown);
   window.removeEventListener('keyup', handleKeyUp);
   window.removeEventListener('click', handleClickOutside);
-  if (unlisten1) {
-    unlisten1();
-  }
-  if (unlisten2) {
-    unlisten2();
-  }
-  if (unlisten3) {
-    unlisten3();
+  for (let item of unlisten) {
+    if (item) {
+      item();
+    }
   }
 });
 </script>

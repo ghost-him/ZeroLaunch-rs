@@ -76,8 +76,6 @@ pub struct ProgramManager {
     image_loader: ImageLoader,
     /// 程序查找器(程序的guid, 在registry中的下标)
     program_locater: DashMap<u64, usize>,
-    /// 资源预加载
-    is_preload_resource: bool,
 }
 
 impl Default for ProgramManager {
@@ -96,7 +94,6 @@ impl ProgramManager {
             search_fn: standard_search_fn,
             image_loader: ImageLoader::new(),
             program_locater: DashMap::new(),
-            is_preload_resource: false,
         }
     }
     /// 将当前的配置写到配置文件中
@@ -121,15 +118,6 @@ impl ProgramManager {
             self.program_launcher
                 .register_program(program.program_guid, program.launch_method.clone());
             self.program_locater.insert(program.program_guid, index);
-        }
-        self.is_preload_resource = config.is_preload_resource;
-        // 如果要预加载资源，则加载
-        if self.is_preload_resource {
-            debug!("资源预加载");
-            self.program_registry.iter().for_each(|program| {
-                self.image_loader
-                    .load_image(&program.program_guid, &program.icon_path);
-            });
         }
     }
     /// 使用搜索算法搜索，并给出指定长度的序列
@@ -226,6 +214,10 @@ impl ProgramManager {
 
         self.image_loader
             .load_image(program_guid, &target_program.icon_path)
+    }
+    /// 获得当前已保存的程序的个数
+    pub fn get_program_count(&self) -> usize {
+        self.program_registry.len()
     }
 }
 

@@ -99,9 +99,6 @@
                     <el-form-item label="扫描UWP应用">
                         <el-switch v-model="path_data.is_scan_uwp_program" />
                     </el-form-item>
-                    <el-form-item label="设置资源预加载">
-                        <el-switch v-model="path_data.is_preload_resource" />
-                    </el-form-item>
 
                 </el-tab-pane>
             </el-tabs>
@@ -196,7 +193,6 @@ interface PathData {
     forbidden_paths: Array<string>;
     forbidden_key: Array<string>;
     is_scan_uwp_program: false;
-    is_preload_resource: false;
 }
 
 const path_data = ref<PathData>({
@@ -204,7 +200,6 @@ const path_data = ref<PathData>({
     forbidden_paths: [],
     forbidden_key: [],
     is_scan_uwp_program: false,
-    is_preload_resource: false,
 });
 
 interface KeyFilterData {

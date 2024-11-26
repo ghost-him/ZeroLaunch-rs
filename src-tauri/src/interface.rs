@@ -34,7 +34,6 @@ pub struct SettingWindowPathData {
     pub forbidden_paths: Vec<String>,
     pub forbidden_key: Vec<String>,
     pub is_scan_uwp_program: bool,
-    pub is_preload_resource: bool,
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct KeyFilterData {
@@ -150,7 +149,6 @@ pub fn get_path_config() -> Result<SettingWindowPathData, String> {
         forbidden_paths: program_config.loader.forbidden_paths.clone(),
         forbidden_key: program_config.loader.forbidden_program_key.clone(),
         is_scan_uwp_program: program_config.loader.is_scan_uwp_programs,
-        is_preload_resource: program_config.is_preload_resource,
     })
 }
 
@@ -240,10 +238,17 @@ async fn refresh_program<R: Runtime>(
 pub async fn load_program_icon<R: Runtime>(
     app: tauri::AppHandle<R>,
     window: tauri::Window<R>,
-    program_guid: Vec<u64>,
-) -> Result<Vec<String>, String> {
+    program_guid: u64,
+) -> Result<String, String> {
     let manager = PROGRAM_MANAGER.lock().unwrap();
-    let result = program_guid.iter().map(|x| manager.get_icon(x)).collect();
+    let result = manager.get_icon(&program_guid);
 
+    Ok(result)
+}
+
+#[tauri::command]
+pub fn get_program_count() -> Result<(usize), String> {
+    let manager = PROGRAM_MANAGER.lock().unwrap();
+    let result = manager.get_program_count();
     Ok(result)
 }

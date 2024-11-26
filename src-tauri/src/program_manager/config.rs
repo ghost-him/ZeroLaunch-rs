@@ -10,8 +10,6 @@ pub const PINYIN_CONTENT_JS: &str = include_str!("./pinyin.json");
 pub struct ProgramManagerConfig {
     pub launcher: ProgramLauncherConfig,
     pub loader: ProgramLoaderConfig,
-    /// 是不是要资源预加载
-    pub is_preload_resource: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -41,7 +39,6 @@ impl ProgramManagerConfig {
         ProgramManagerConfig {
             launcher: ProgramLauncherConfig::default(),
             loader: ProgramLoaderConfig::default(),
-            is_preload_resource: false,
         }
     }
 }

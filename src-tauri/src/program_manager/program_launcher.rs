@@ -5,7 +5,7 @@ use crate::defer::defer;
 use crate::utils::get_u16_vec;
 use std::collections::{HashMap, VecDeque};
 use std::path::Path;
-use tracing::{debug, error, info, trace, warn};
+use tracing::{debug, warn};
 use windows::Win32::Foundation::{GetLastError, ERROR_CANCELLED, ERROR_ELEVATION_REQUIRED};
 use windows::Win32::System::Com::{
     CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_ALL, COINIT_APARTMENTTHREADED,

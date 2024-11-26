@@ -2,18 +2,16 @@ use crate::interface::{KeyFilterData, SettingWindowPathData};
 use crate::program_manager::config::{ProgramLauncherConfig, ProgramManagerConfig};
 use crate::singleton::Singleton;
 use crate::utils::read_or_create;
-use crate::{impl_singleton, program_manager};
+use crate::impl_singleton;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::Once;
-use tauri_plugin_shell::open::Program;
 pub type Width = usize;
 pub type Height = usize;
 use crate::utils::get_data_dir_path;
 use std::path::Path;
-use tracing::{debug, error, info, trace, warn};
 
 lazy_static! {
     /// 配置文件存在的位置

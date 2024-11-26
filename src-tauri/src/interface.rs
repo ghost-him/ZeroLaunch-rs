@@ -13,7 +13,7 @@ use tauri::async_runtime::spawn_blocking;
 use tauri::Emitter;
 use tauri::Manager;
 use tauri::Runtime;
-use tracing::{debug, error, info, trace, warn};
+use tracing::debug;
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SearchBarInit {
     window_size: Vec<usize>,
@@ -247,7 +247,7 @@ pub async fn load_program_icon<R: Runtime>(
 }
 
 #[tauri::command]
-pub fn get_program_count() -> Result<(usize), String> {
+pub fn get_program_count() -> Result<usize, String> {
     let manager = PROGRAM_MANAGER.lock().unwrap();
     let result = manager.get_program_count();
     Ok(result)

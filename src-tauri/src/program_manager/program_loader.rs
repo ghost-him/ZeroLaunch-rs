@@ -15,7 +15,7 @@ use std::os::windows::ffi::OsStringExt;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tracing::{debug, error, info, trace, warn};
+use tracing::{debug, info, warn};
 use windows::Win32::Foundation::S_OK;
 use windows::Win32::Storage::FileSystem::WIN32_FIND_DATAW;
 use windows::Win32::System::Com::{

@@ -7,21 +7,19 @@ use image::DynamicImage;
 use image::ImageFormat;
 use image::ImageReader;
 use image::RgbaImage;
-use image::{ImageBuffer, Rgba};
 use std::ffi::c_void;
 use std::io::Cursor;
 use std::mem;
 use std::path::Path;
-use tracing::{debug, error, info, trace, warn};
+use tracing::{debug, warn};
 use windows::Win32::Graphics::Gdi::BITMAP;
 use windows::Win32::Graphics::Gdi::{
     DeleteObject, GetBitmapBits, GetObjectW, BITMAPINFOHEADER, BI_RGB, HBITMAP, HGDIOBJ,
 };
 use windows::Win32::Storage::FileSystem::FILE_ATTRIBUTE_NORMAL;
-use windows::Win32::Storage::FileSystem::FILE_FLAGS_AND_ATTRIBUTES;
 use windows::Win32::UI::Shell::SHFILEINFOW;
 use windows::Win32::UI::Shell::{
-    SHGetFileInfoW, SHGFI_EXETYPE, SHGFI_ICON, SHGFI_LARGEICON, SHGFI_USEFILEATTRIBUTES,
+    SHGetFileInfoW, SHGFI_ICON, SHGFI_LARGEICON, SHGFI_USEFILEATTRIBUTES,
 };
 use windows::Win32::UI::WindowsAndMessaging::DestroyIcon;
 use windows::Win32::UI::WindowsAndMessaging::HICON;

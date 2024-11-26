@@ -30,23 +30,18 @@ use std::fs::File;
 use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
-use std::sync::Once;
 use std::sync::{Arc, Mutex};
 use tauri::image::Image;
 use tauri::menu::{MenuBuilder, MenuItem};
 use tauri::tray::TrayIconBuilder;
+use tauri::tray::TrayIconEvent;
 use tauri::App;
 use tauri::WebviewUrl;
 use tauri::{webview::WebviewWindow, Emitter, Manager, PhysicalPosition, PhysicalSize};
 use tracing::Level;
-use tracing::{debug, error, info, trace, warn};
+use tracing::{debug, error, info, warn};
 use tracing_appender::rolling::RollingFileAppender;
 use tracing_appender::rolling::Rotation;
-use tracing_subscriber::{fmt, EnvFilter};
-use windows::Win32::Foundation::{BOOL, LPARAM, TRUE};
-use windows::Win32::System::Console::{
-    SetConsoleCtrlHandler, CTRL_CLOSE_EVENT, CTRL_SHUTDOWN_EVENT,
-};
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // 创建一个按日期滚动的日志文件，例如每天一个新文件
@@ -277,6 +272,7 @@ fn init_system_tray(app: &mut App) {
         .menu(&menu)
         .icon(Image::from_path(icon_path).unwrap())
         .tooltip("ZeroLaunch-rs v0.1.0")
+        .menu_on_left_click(false)
         .build(handle)
         .unwrap();
     tray_icon.on_menu_event(|app_handle, event| {
@@ -299,6 +295,13 @@ fn init_system_tray(app: &mut App) {
             }
         }
         debug!("Menu ID: {}", event.id().0);
+    });
+
+    app.on_tray_icon_event(|app_handle, event| match event {
+        TrayIconEvent::DoubleClick { .. } => {
+            handle_pressed(app_handle.clone());
+        }
+        _ => {}
     });
 }
 

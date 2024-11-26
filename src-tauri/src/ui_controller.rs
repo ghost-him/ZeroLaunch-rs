@@ -1,6 +1,6 @@
 use tauri::webview::WebviewWindow;
 use tauri::Emitter;
-use tracing::{debug, error, info, trace, warn};
+use tracing::warn;
 pub fn handle_focus_lost(windows: &[WebviewWindow]) {
     for window in windows {
         if window.is_visible().unwrap_or(false) {

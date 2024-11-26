@@ -17,7 +17,6 @@ use search_model::remove_repeated_space;
 use search_model::{standard_search_fn, SearchModelFn};
 use std::sync::Arc;
 use std::sync::Mutex;
-use tracing::{debug, error, info, trace, warn};
 /// 应用程序的启动方式
 #[derive(Debug, Clone)]
 enum LaunchMethod {

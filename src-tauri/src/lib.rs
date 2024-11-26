@@ -11,13 +11,16 @@ use crate::config::CONFIG_PATH;
 use crate::config::GLOBAL_APP_HANDLE;
 use crate::config::LOG_DIR;
 use crate::interface::{
-    get_app_config, get_key_filter_data, get_path_config, get_program_info, handle_search_text,
-    hide_window, init_search_bar_window, launch_program, load_program_icon, save_app_config,
-    save_key_filter_data, save_path_config, show_setting_window, update_search_bar_window,get_program_count,
+    get_app_config, get_key_filter_data, get_path_config, get_program_count, get_program_info,
+    handle_search_text, hide_window, init_search_bar_window, launch_program, load_program_icon,
+    save_app_config, save_key_filter_data, save_path_config, show_setting_window,
+    update_search_bar_window,
 };
 use crate::program_manager::PROGRAM_MANAGER;
 use crate::singleton::Singleton;
 use crate::ui_controller::handle_focus_lost;
+use chrono::DateTime;
+use chrono::Local;
 use config::{Height, RuntimeConfig, Width};
 use rdev::ListenError;
 use rdev::{listen, Event, EventType, Key};
@@ -95,6 +98,8 @@ pub fn run() {
         error!("当前已经有实例在运行了");
         std::process::exit(1);
     }
+    cleanup_old_logs(&LOG_DIR.to_string(), 7);
+
     tauri::Builder::default()
         .setup(|app| {
             let windows: Arc<Vec<WebviewWindow>> =
@@ -374,5 +379,46 @@ pub fn handle_silent_start() {
         let _ = main_window.hide();
     } else {
         let _ = main_window.show();
+    }
+}
+
+// 函数用于删除超过一星期的日志文件
+fn cleanup_old_logs(log_dir: &str, retention_days: i64) {
+    // 获取当前时间
+    let now: DateTime<Local> = Local::now();
+
+    // 读取日志目录中的所有文件
+    let entries = match std::fs::read_dir(log_dir) {
+        Ok(entries) => entries,
+        Err(e) => {
+            error!("无法读取日志目录 '{}': {}", log_dir, e);
+            return;
+        }
+    };
+
+    for entry in entries {
+        if let Ok(entry) = entry {
+            let path = entry.path();
+            if path.is_file() {
+                // 获取文件的元数据
+                if let Ok(metadata) = std::fs::metadata(&path) {
+                    // 获取文件的修改时间
+                    if let Ok(modified) = metadata.modified() {
+                        // 将 SystemTime 转换为 DateTime
+                        let modified_datetime: DateTime<Local> = modified.into();
+                        // 计算文件的年龄
+                        let age = now.signed_duration_since(modified_datetime);
+                        if age.num_days() > retention_days {
+                            // 删除文件
+                            if let Err(e) = std::fs::remove_file(&path) {
+                                error!("无法删除旧日志文件 '{:?}': {}", path, e);
+                            } else {
+                                info!("已删除旧日志文件: {:?}", path);
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }

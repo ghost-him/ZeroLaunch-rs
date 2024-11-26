@@ -27,6 +27,7 @@ use std::fs::File;
 use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::Once;
 use std::sync::{Arc, Mutex};
 use tauri::image::Image;
 use tauri::menu::{MenuBuilder, MenuItem};
@@ -39,6 +40,10 @@ use tracing::{debug, error, info, trace, warn};
 use tracing_appender::rolling::RollingFileAppender;
 use tracing_appender::rolling::Rotation;
 use tracing_subscriber::{fmt, EnvFilter};
+use windows::Win32::Foundation::{BOOL, LPARAM, TRUE};
+use windows::Win32::System::Console::{
+    SetConsoleCtrlHandler, CTRL_CLOSE_EVENT, CTRL_SHUTDOWN_EVENT,
+};
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // 创建一个按日期滚动的日志文件，例如每天一个新文件

@@ -9,6 +9,7 @@ use crate::Singleton;
 use rayon::iter::ParallelIterator;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use tauri::async_runtime::spawn_blocking;
 use tauri::Emitter;
 use tauri::Manager;
 use tauri::Runtime;
@@ -219,6 +220,10 @@ pub async fn launch_program<R: Runtime>(
     let mut manager = PROGRAM_MANAGER.lock().unwrap();
     hide_window(app).unwrap();
     manager.launch_program(program_guid, is_admin_required);
+    // 开一个新的线程来完成保存文件
+    spawn_blocking(|| {
+        save_config_to_file(false);
+    });
     Ok(())
 }
 

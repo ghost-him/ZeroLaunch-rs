@@ -58,7 +58,7 @@ pub fn run() {
     // 配置订阅者
     let subscriber = tracing_subscriber::fmt()
         .with_writer(non_blocking) // 设置日志输出到文件
-        .with_max_level(Level::INFO) // 设置日志级别
+        .with_max_level(Level::DEBUG) // 设置日志级别
         .with_ansi(false)
         .finish();
 

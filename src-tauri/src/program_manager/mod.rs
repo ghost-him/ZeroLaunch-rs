@@ -189,7 +189,7 @@ impl ProgramManager {
         self.search_fn = model;
     }
     /// 获取当前程序维护的东西
-    pub fn get_program_infos(&self) -> Vec<(String, bool, f64, String)> {
+    pub fn get_program_infos(&mut self) -> Vec<(String, bool, f64, String, u64)> {
         let mut result = Vec::new();
         for item in &self.program_registry {
             result.push((
@@ -197,6 +197,8 @@ impl ProgramManager {
                 item.launch_method.is_uwp(),
                 item.stable_bias,
                 item.launch_method.get_text(),
+                self.program_launcher
+                    .program_history_launch_time(item.program_guid),
             ));
         }
         result

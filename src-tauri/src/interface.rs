@@ -47,6 +47,7 @@ pub struct ProgramInfo {
     pub is_uwp: bool,
     pub bias: f64,
     pub path: String,
+    pub history_launch_time: u64,
 }
 
 #[tauri::command]
@@ -192,7 +193,7 @@ pub fn save_key_filter_data(key_filter_data: Vec<KeyFilterData>) -> Result<(), S
 
 #[tauri::command]
 pub fn get_program_info() -> Vec<ProgramInfo> {
-    let manager = PROGRAM_MANAGER.lock().unwrap();
+    let mut manager = PROGRAM_MANAGER.lock().unwrap();
     let data = manager.get_program_infos();
     debug!("{:?}", data);
     drop(manager);
@@ -203,6 +204,7 @@ pub fn get_program_info() -> Vec<ProgramInfo> {
             is_uwp: item.1,
             bias: item.2,
             path: item.3,
+            history_launch_time: item.4,
         })
     }
     program_infos

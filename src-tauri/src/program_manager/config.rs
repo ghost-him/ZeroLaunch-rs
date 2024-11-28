@@ -16,6 +16,8 @@ pub struct ProgramManagerConfig {
 pub struct ProgramLauncherConfig {
     /// 天数,[一个地址的启动次数]
     pub launch_info: VecDeque<HashMap<String, u64>>,
+    /// 历史启动次数
+    pub history_launch_time: HashMap<String, u64>,
     /// 上次的读取日期
     pub last_update_data: String,
 }
@@ -49,6 +51,7 @@ impl ProgramLauncherConfig {
         deque.push_front(HashMap::new());
         ProgramLauncherConfig {
             launch_info: deque,
+            history_launch_time: HashMap::new(),
             last_update_data: generate_current_date(),
         }
     }

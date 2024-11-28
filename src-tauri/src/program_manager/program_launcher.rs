@@ -4,6 +4,7 @@ use super::{config::ProgramLauncherConfig, LaunchMethod};
 use crate::defer::defer;
 use crate::utils::get_u16_vec;
 use std::collections::{HashMap, VecDeque};
+use std::hash::Hash;
 use std::path::Path;
 use tracing::{debug, warn};
 use windows::Win32::Foundation::{GetLastError, ERROR_CANCELLED, ERROR_ELEVATION_REQUIRED};
@@ -21,6 +22,8 @@ pub struct ProgramLauncher {
     launch_store: HashMap<u64, LaunchMethod>,
     /// 用户记录当前程序的启动次数
     launch_time: VecDeque<HashMap<String, u64>>,
+    /// 记录历史的启动次数
+    history_launch_time: HashMap<String, u64>,
     /// 上一次更新的时间
     last_update_data: String,
 }
@@ -33,6 +36,7 @@ impl ProgramLauncher {
         ProgramLauncher {
             launch_store: HashMap::new(),
             launch_time: deque,
+            history_launch_time: HashMap::new(),
             last_update_data: generate_current_date(),
         }
     }
@@ -45,6 +49,7 @@ impl ProgramLauncher {
     pub fn load_from_config(&mut self, config: &ProgramLauncherConfig) {
         self.launch_time = config.launch_info.clone();
         self.last_update_data = config.last_update_data.clone();
+        self.history_launch_time = config.history_launch_time.clone();
         self.update_launch_info();
     }
     /// 将当前的内容保存到配置文件中
@@ -52,6 +57,7 @@ impl ProgramLauncher {
         self.update_launch_info();
         ProgramLauncherConfig {
             launch_info: self.launch_time.clone(),
+            history_launch_time: self.history_launch_time.clone(),
             last_update_data: generate_current_date(),
         }
     }
@@ -64,6 +70,10 @@ impl ProgramLauncher {
     pub fn launch_program(&mut self, program_guid: u64, is_admin_required: bool) {
         let launch_method = self.launch_store.get(&program_guid).unwrap();
         *self.launch_time[0]
+            .entry(launch_method.get_text())
+            .or_insert(0) += 1;
+        *self
+            .history_launch_time
             .entry(launch_method.get_text())
             .or_insert(0) += 1;
         match launch_method {
@@ -87,6 +97,15 @@ impl ProgramLauncher {
             k /= 1.5
         });
         result
+    }
+    /// 获取当前程序的历史启动次数
+    pub fn program_history_launch_time(&mut self, program_guid: u64) -> u64 {
+        let program_string = self.launch_store.get(&program_guid).unwrap();
+        let count = self
+            .history_launch_time
+            .entry(program_string.get_text())
+            .or_insert(0);
+        count.clone()
     }
 
     /// 启动uwp应用

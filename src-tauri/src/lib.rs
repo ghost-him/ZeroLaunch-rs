@@ -100,16 +100,28 @@ pub fn run() {
             let windows: Arc<Vec<WebviewWindow>> =
                 Arc::new(app.webview_windows().values().cloned().collect());
             init_system_tray(app);
-            let windows_clone = Arc::clone(&windows);
+
             let main_window = Arc::new(app.get_webview_window("main").unwrap());
             let app_handle = app.app_handle().clone();
+            let app_handle_clone = app_handle.clone();
+            let windows_clone = Arc::clone(&windows);
+            main_window.on_window_event(move |event| {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    // 阻止窗口关闭
+                    api.prevent_close();
+                    // 隐藏窗口
+                    handle_focus_lost(&windows_clone);
+                    debug!("隐藏设置窗口");
+                }
+            });
+
             *GLOBAL_APP_HANDLE.lock().unwrap() = Some(app_handle.clone());
             init_setting_window(app_handle.clone());
             handle_auto_start();
             tauri::async_runtime::spawn(async move {
                 start_key_listener(app_handle.clone()).expect("Failed to start key listener");
             });
-            let main_window_clone = main_window.clone();
+            let windows_clone = Arc::clone(&windows);
             main_window.on_window_event(move |event| {
                 if let tauri::WindowEvent::Focused(focused) = event {
                     if !focused {

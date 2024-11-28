@@ -22,8 +22,9 @@ use crate::ui_controller::handle_focus_lost;
 use chrono::DateTime;
 use chrono::Local;
 use config::{Height, RuntimeConfig, Width};
+use rdev::GrabError;
 use rdev::ListenError;
-use rdev::{listen, Event, EventType, Key};
+use rdev::{grab, listen, Event, EventType, Key};
 use single_instance::SingleInstance;
 use std::collections::HashSet;
 use std::fs::File;
@@ -31,7 +32,9 @@ use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
+use tauri::async_runtime::spawn;
 use tauri::image::Image;
+use tauri::menu::Menu;
 use tauri::menu::{MenuBuilder, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::tray::TrayIconEvent;
@@ -42,6 +45,7 @@ use tracing::Level;
 use tracing::{debug, error, info, warn};
 use tracing_appender::rolling::RollingFileAppender;
 use tracing_appender::rolling::Rotation;
+use ui_controller::handle_pressed;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // 创建一个按日期滚动的日志文件，例如每天一个新文件
@@ -102,8 +106,10 @@ pub fn run() {
             init_system_tray(app);
 
             let main_window = Arc::new(app.get_webview_window("main").unwrap());
+
             let app_handle = app.app_handle().clone();
             let app_handle_clone = app_handle.clone();
+            start_key_listener(app);
             let windows_clone = Arc::clone(&windows);
             main_window.on_window_event(move |event| {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
@@ -118,9 +124,7 @@ pub fn run() {
             *GLOBAL_APP_HANDLE.lock().unwrap() = Some(app_handle.clone());
             init_setting_window(app_handle.clone());
             handle_auto_start();
-            tauri::async_runtime::spawn(async move {
-                start_key_listener(app_handle.clone()).expect("Failed to start key listener");
-            });
+            //start_key_listener(app_handle.clone()).expect("Failed to start key listener");
             let windows_clone = Arc::clone(&windows);
             main_window.on_window_event(move |event| {
                 if let tauri::WindowEvent::Focused(focused) = event {
@@ -174,44 +178,6 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
-}
-
-fn handle_pressed(app_handle: tauri::AppHandle) {
-    let main_window = Arc::new(app_handle.get_webview_window("main").unwrap());
-    main_window.show().unwrap();
-    main_window.set_focus().unwrap();
-    main_window.emit("show_window", ()).unwrap();
-}
-
-fn start_key_listener(app_handle: tauri::AppHandle) -> Result<(), ListenError> {
-    let pressed_keys = Arc::new(Mutex::new(HashSet::new()));
-    let pressed_keys_clone: Arc<Mutex<HashSet<Key>>> = Arc::clone(&pressed_keys);
-
-    let callback = move |event: Event| {
-        let mut keys = pressed_keys_clone.lock().unwrap();
-
-        match event.event_type {
-            EventType::KeyPress(key) => {
-                keys.insert(key);
-
-                if keys.contains(&Key::Alt) && keys.contains(&Key::Space) {
-                    handle_pressed(app_handle.clone());
-                    keys.clear();
-                }
-            }
-            EventType::KeyRelease(key) => {
-                keys.remove(&key);
-            }
-            _ => {}
-        }
-    };
-
-    if let Err(error) = listen(callback) {
-        error!("监听器启动失败: {:?}", error);
-        return Err(error);
-    }
-
-    Ok(())
 }
 
 fn init_setting_window(app: tauri::AppHandle) {
@@ -311,7 +277,7 @@ fn init_system_tray(app: &mut App) {
 
     app.on_tray_icon_event(|app_handle, event| match event {
         TrayIconEvent::DoubleClick { .. } => {
-            handle_pressed(app_handle.clone());
+            handle_pressed(&app_handle);
         }
         _ => {}
     });
@@ -436,4 +402,56 @@ fn cleanup_old_logs(log_dir: &str, retention_days: i64) {
             }
         }
     }
+}
+
+fn start_key_listener(app: &mut tauri::App) {
+    use tauri_plugin_global_shortcut::{
+        Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState,
+    };
+
+    let alt_space_shortcut = Shortcut::new(Some(Modifiers::ALT), Code::Space);
+    app.handle()
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(move |_app, shortcut, event| {
+                    if shortcut == &alt_space_shortcut {
+                        match event.state() {
+                            ShortcutState::Pressed => {}
+                            ShortcutState::Released => {}
+                        }
+                    }
+                })
+                .build(),
+        )
+        .unwrap();
+
+    app.global_shortcut().register(alt_space_shortcut).unwrap();
+    let app_handle = app.handle().clone();
+    tauri::async_runtime::spawn(async move {
+        let pressed_keys = Arc::new(Mutex::new(HashSet::new()));
+        let pressed_keys_clone: Arc<Mutex<HashSet<Key>>> = Arc::clone(&pressed_keys);
+
+        let callback = move |event: Event| {
+            let mut keys = pressed_keys_clone.lock().unwrap();
+
+            match event.event_type {
+                EventType::KeyPress(key) => {
+                    keys.insert(key);
+
+                    if keys.contains(&Key::Alt) && keys.contains(&Key::Space) {
+                        handle_pressed(&app_handle);
+                        keys.clear();
+                    }
+                }
+                EventType::KeyRelease(key) => {
+                    keys.remove(&key);
+                }
+                _ => {}
+            }
+        };
+
+        if let Err(error) = listen(callback) {
+            error!("监听器启动失败: {:?}", error);
+        }
+    });
 }

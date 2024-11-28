@@ -38,7 +38,8 @@
       <el-menu-item v-for="(item, index) in menuItems" :key="index" :index="String(index)"
         class="menu-item round-border" :style="{
           width: `${scaledItemSize[0]}px`,
-          height: `${scaledItemSize[1]}px`
+          height: `${scaledItemSize[1]}px`,
+          fontSize: `${scaledFontSize * 0.8}px`
         }" @click="launch_program(index)" @contextmenu.prevent>
         <div class="common-layout">
           <el-container>
@@ -416,6 +417,7 @@ body,
   width: 100%;
   padding: 0;
 }
+
 
 :deep(.el-menu-item.is-active) {
   color: #fff;

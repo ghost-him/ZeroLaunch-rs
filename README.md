@@ -35,7 +35,8 @@ ZeroLaunch-rs 是一个使用 Rust + Tauri + Vite + Vue.js + TypeScript 构建�
 
 ## 注意事项
 
-该软件的数据与日志存放在: `[用户根目录]\AppData\Roaming\ZeroLaunch-rs` 文件夹下。
+* 该软件的数据与日志存放在: `[用户根目录]\AppData\Roaming\ZeroLaunch-rs` 文件夹下。
+* 当用户输入的长度小于3时，搜索算法不能准确判断用户的输入。
 
 ## todo
 

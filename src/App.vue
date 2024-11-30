@@ -39,7 +39,7 @@
         class="menu-item round-border" :style="{
           width: `${scaledItemSize[0]}px`,
           height: `${scaledItemSize[1]}px`,
-          fontSize: `${scaledFontSize * 0.8}px`
+          fontSize: `${scaledFontSize * 0.7}px`
         }" @click="launch_program(index)" @contextmenu.prevent>
         <div class="common-layout">
           <el-container>
@@ -142,7 +142,6 @@ const handleKeyDown = (event: KeyboardEvent) => {
   if (event.key === 'Control') {
     isCtrlPressed.value = true;
   }
-
   if (event.key === 'ArrowUp' || (event.ctrlKey && event.key === 'k')) {
     event.preventDefault();
     selectPreviousItem();

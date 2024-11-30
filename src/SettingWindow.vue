@@ -156,6 +156,11 @@
                         {{ program_info[scope.$index].bias }}
                     </template>
                 </el-table-column>
+                <el-table-column label="启动次数" show-overflow-tooltip width="100">
+                    <template #default="scope">
+                        {{ program_info[scope.$index].history_launch_time }}
+                    </template>
+                </el-table-column>
                 <el-table-column label="路径" show-overflow-tooltip>
                     <template #default="scope">
                         {{ program_info[scope.$index].path }}
@@ -213,6 +218,7 @@ interface ProgramInfo {
     is_uwp: boolean;
     bias: number;
     path: string;
+    history_launch_time: number;
 }
 
 const key_data = ref<Array<KeyFilterData>>([])

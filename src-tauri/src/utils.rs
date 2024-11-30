@@ -1,5 +1,8 @@
 use chrono::{Local, NaiveDate};
+use dashmap::DashMap;
+use std::collections::HashMap;
 use std::fs;
+use std::hash::Hash;
 use std::io;
 use std::os::windows::ffi::OsStrExt;
 use std::path::Path;
@@ -128,4 +131,29 @@ pub fn is_date_current(date_str: &str) -> bool {
 
     // 比较两个日期
     input_date == current_date
+}
+
+// 将 DashMap 转换为 HashMap
+pub fn dashmap_to_hashmap<K, V>(dash_map: &DashMap<K, V>) -> HashMap<K, V>
+where
+    K: Hash + Eq + Clone,
+    V: Clone,
+{
+    dash_map
+        .iter()
+        .map(|r| (r.key().clone(), r.value().clone()))
+        .collect()
+}
+
+// 将 HashMap 转换为 DashMap
+pub fn hashmap_to_dashmap<K, V>(hash_map: &HashMap<K, V>) -> DashMap<K, V>
+where
+    K: Hash + Eq + Clone,
+    V: Clone,
+{
+    let dash_map = DashMap::with_capacity(hash_map.len());
+    for (key, value) in hash_map {
+        dash_map.insert(key.clone(), value.clone());
+    }
+    dash_map
 }

@@ -282,7 +282,7 @@ const updateWindow = async () => {
   const data = await invoke<SearchBarUpdate>('update_search_bar_window');
   placeholder.value = data.search_bar_placeholder;
   const program_count = await invoke<number>('get_program_count');
-  startPreloadResource(program_count);
+  await startPreloadResource(program_count);
 }
 // 用于初始化搜索栏和快捷键的状态(当成功启动一个程序时，或者搜索栏被隐藏时被触发)
 const initSearchBar = () => {

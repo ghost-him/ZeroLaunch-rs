@@ -228,7 +228,7 @@ pub async fn launch_program<R: Runtime>(
 }
 
 #[tauri::command]
-async fn refresh_program<R: Runtime>(
+pub async fn refresh_program<R: Runtime>(
     app: tauri::AppHandle<R>,
     window: tauri::Window<R>,
 ) -> Result<(), String> {

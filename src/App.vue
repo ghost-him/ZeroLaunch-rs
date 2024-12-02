@@ -200,6 +200,7 @@ const showContextMenu = (event: MouseEvent) => {
 
 // 刷新程序库
 const refreshDataset = () => {
+  console.log("开始刷新");
   invoke('refresh_program');
 }
 

@@ -199,9 +199,11 @@ const showContextMenu = (event: MouseEvent) => {
 };
 
 // 刷新程序库
-const refreshDataset = () => {
+const refreshDataset = async () => {
   console.log("开始刷新");
-  invoke('refresh_program');
+  invoke('hide_window');
+  await invoke('refresh_program');
+  updateWindow();
 }
 
 // 处理自定义菜单项选择

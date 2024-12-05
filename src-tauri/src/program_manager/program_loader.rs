@@ -196,6 +196,9 @@ impl ProgramLoader {
         let mut result = Vec::new();
         let web_pages = self.index_web_pages.clone();
         for (show_name, url) in &web_pages {
+            if url.is_empty() || show_name.is_empty() {
+                continue;
+            }
             let check_name = "[网页]".to_string() + &show_name;
             if self.check_program_is_exist(&check_name) {
                 continue;

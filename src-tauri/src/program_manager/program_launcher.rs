@@ -81,12 +81,12 @@ impl ProgramLauncher {
     /// 通过全局唯一标识符启动程序
     pub fn launch_program(&mut self, program_guid: u64, is_admin_required: bool) {
         let launch_method = self.launch_store.get(&program_guid).unwrap();
-
+        println!("{:?}", self.launch_time);
         self.launch_time[0]
             .entry(launch_method.get_text())
             .and_modify(|count| *count += 1)
             .or_insert(1);
-
+        println!("{:?}", self.launch_time);
         self.history_launch_time
             .entry(launch_method.get_text())
             .and_modify(|count| *count += 1)

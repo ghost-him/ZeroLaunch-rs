@@ -25,24 +25,16 @@ use windows::Win32::UI::WindowsAndMessaging::DestroyIcon;
 use windows::Win32::UI::WindowsAndMessaging::HICON;
 use windows::Win32::UI::WindowsAndMessaging::{GetIconInfo, ICONINFO};
 use windows_core::PCWSTR;
-pub struct ImageLoader {
-    dash_map: DashMap<u64, Vec<u8>>,
-}
+pub struct ImageLoader {}
 
 impl ImageLoader {
     /// 新建一个
     pub fn new() -> ImageLoader {
-        ImageLoader {
-            dash_map: DashMap::new(),
-        }
+        ImageLoader {}
     }
     /// 加载一个图片
     pub fn load_image(&self, program_guid: &u64, icon_path: &str) -> Vec<u8> {
-        if let Some(cached_image) = self.dash_map.get(program_guid) {
-            return cached_image.clone();
-        }
         let pic_base64: Vec<u8> = self.load_image_from_path(icon_path);
-        self.dash_map.insert(*program_guid, pic_base64.clone());
         pic_base64
     }
     /// 使用路径加载一个图片

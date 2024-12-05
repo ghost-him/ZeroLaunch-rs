@@ -133,9 +133,9 @@ pub async fn save_app_config(app: tauri::AppHandle, app_config: AppConfig) -> Re
     let mut config: std::sync::MutexGuard<'_, RuntimeConfig> = instance.lock().unwrap();
     debug!("收到配置");
     config.save_app_config(app_config);
-    app.emit("update_search_bar_window", "").unwrap();
     drop(config);
     save_config_to_file(true);
+    app.emit("update_search_bar_window", "").unwrap();
     Ok(())
 }
 
@@ -155,13 +155,17 @@ pub fn get_path_config() -> Result<SettingWindowPathData, String> {
 
 /// 更新程序管理器的路径配置
 #[tauri::command]
-pub fn save_path_config(path_data: SettingWindowPathData) -> Result<(), String> {
+pub fn save_path_config<R: Runtime>(
+    app: tauri::AppHandle<R>,
+    path_data: SettingWindowPathData,
+) -> Result<(), String> {
     let instance = RuntimeConfig::instance();
     let mut config = instance.lock().unwrap();
     debug!("{:?}", path_data);
     config.save_path_config(path_data);
     drop(config);
     save_config_to_file(true);
+    app.emit("update_search_bar_window", "").unwrap();
     Ok(())
 }
 
@@ -182,12 +186,16 @@ pub fn get_key_filter_data() -> Vec<KeyFilterData> {
 }
 
 #[tauri::command]
-pub fn save_key_filter_data(key_filter_data: Vec<KeyFilterData>) -> Result<(), String> {
+pub fn save_key_filter_data<R: Runtime>(
+    app: tauri::AppHandle<R>,
+    key_filter_data: Vec<KeyFilterData>,
+) -> Result<(), String> {
     let instance = RuntimeConfig::instance();
     let mut config = instance.lock().unwrap();
     config.save_key_filter_config(key_filter_data);
     drop(config);
     save_config_to_file(true);
+    app.emit("update_search_bar_window", "").unwrap();
     Ok(())
 }
 
@@ -290,6 +298,7 @@ pub async fn save_custom_file_path<R: Runtime>(
     config.save_index_file_info(file_paths);
     drop(config);
     save_config_to_file(true);
+    app.emit("update_search_bar_window", "").unwrap();
     Ok(())
 }
 

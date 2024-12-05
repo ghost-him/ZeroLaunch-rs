@@ -1,3 +1,4 @@
+use super::super::config::PIC_PATH;
 use super::pinyin_mapper::PinyinMapper;
 use super::search_model::*;
 use super::LaunchMethod;
@@ -63,6 +64,10 @@ pub struct ProgramLoader {
     pinyin_mapper: PinyinMapper,
     /// 是否要扫描uwp
     is_scan_uwp_programs: bool,
+    /// 索引的单体文件的地址
+    index_file_paths: Vec<String>,
+    /// 索引的网页
+    index_web_pages: Vec<(String, String)>,
 }
 
 impl ProgramLoader {
@@ -77,6 +82,8 @@ impl ProgramLoader {
             program_name_hash: HashSet::new(),
             pinyin_mapper: PinyinMapper::new(),
             is_scan_uwp_programs: true,
+            index_file_paths: Vec::new(),
+            index_web_pages: Vec::new(),
         }
     }
 
@@ -87,6 +94,8 @@ impl ProgramLoader {
             forbidden_program_key: self.forbidden_program_key.clone(),
             program_bias: self.program_bias.clone(),
             is_scan_uwp_programs: self.is_scan_uwp_programs,
+            index_file_paths: self.index_file_paths.clone(),
+            index_web_pages: self.index_web_pages.clone(),
         }
     }
 
@@ -99,6 +108,8 @@ impl ProgramLoader {
         self.is_scan_uwp_programs = config.is_scan_uwp_programs;
         self.guid_generator = GuidGenerator::new();
         self.program_name_hash = HashSet::new();
+        self.index_file_paths = config.index_file_paths.clone();
+        self.index_web_pages = config.index_web_pages.clone();
     }
     /// 添加目标路径
     pub fn add_target_path(&mut self, path: String) {
@@ -170,9 +181,77 @@ impl ProgramLoader {
             let uwp_infos = self.load_uwp_program();
             result.extend(uwp_infos);
         }
+        // 添加普通的程序
         let program_infos = self.load_program_from_path();
         result.extend(program_infos);
+        // 添加单体文件
+        let file_infos = self.load_file_from_path();
+        result.extend(file_infos);
+        let web_infos = self.load_web();
+        result.extend(web_infos);
+        result
+    }
+    /// 所有的网页
+    fn load_web(&mut self) -> Vec<Arc<Program>> {
+        let mut result = Vec::new();
+        let web_pages = self.index_web_pages.clone();
+        for (show_name, url) in &web_pages {
+            let check_name = "[网页]".to_string() + &show_name;
+            if self.check_program_is_exist(&check_name) {
+                continue;
+            }
+            let guid = self.guid_generator.get_guid();
+            let alias: Vec<String> = self.convert_full_name(&show_name);
+            let unique_name = check_name.to_lowercase();
+            let stable_bias = self.get_program_bias(&unique_name);
+            let program = Arc::new(Program {
+                program_guid: guid,
+                show_name: show_name.clone(),
+                launch_method: LaunchMethod::File(url.clone()),
+                alias,
+                stable_bias,
+                icon_path: PIC_PATH.get("web_page").unwrap().value().clone(),
+            });
+            debug!("{:?}", program.as_ref());
+            result.push(program);
+        }
+        result
+    }
 
+    /// 获取所有的单体文件
+    fn load_file_from_path(&mut self) -> Vec<Arc<Program>> {
+        let mut result = Vec::new();
+        let files = self.index_file_paths.clone();
+        for file_path in &files {
+            // 判断文件的路径是不是有效
+            let path = Path::new(&file_path);
+            if path.is_file() {
+                let show_name = path
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .map(String::from)
+                    .unwrap_or_default();
+                let check_name = "[文件]".to_string() + &show_name;
+                if self.check_program_is_exist(&check_name) {
+                    continue;
+                }
+
+                let guid = self.guid_generator.get_guid();
+                let alias: Vec<String> = self.convert_full_name(&show_name);
+                let unique_name = check_name.to_lowercase();
+                let stable_bias = self.get_program_bias(&unique_name);
+                let program = Arc::new(Program {
+                    program_guid: guid,
+                    show_name,
+                    launch_method: LaunchMethod::File(file_path.clone()),
+                    alias,
+                    stable_bias,
+                    icon_path: file_path.clone(),
+                });
+                debug!("{:?}", program.as_ref());
+                result.push(program);
+            }
+        }
         result
     }
 

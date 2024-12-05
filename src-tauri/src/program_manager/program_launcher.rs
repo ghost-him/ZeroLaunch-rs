@@ -6,7 +6,6 @@ use crate::defer::defer;
 use crate::utils::get_u16_vec;
 use dashmap::DashMap;
 use std::collections::{HashMap, VecDeque};
-use std::hash::{self, Hash};
 use std::path::Path;
 use tracing::{debug, warn};
 use windows::Win32::Foundation::{GetLastError, ERROR_CANCELLED, ERROR_ELEVATION_REQUIRED};
@@ -100,6 +99,18 @@ impl ProgramLauncher {
             LaunchMethod::PackageFamilyName(family_name) => {
                 self.launch_uwp_program(family_name);
             }
+            LaunchMethod::File(file_name) => {
+                self.launch_file(file_name);
+            }
+        }
+    }
+    /// 使用默认程序启动文件
+    pub fn launch_file(&self, file_name: &str) {
+        let result = std::process::Command::new("cmd")
+            .args(&["/C", "start", "", file_name])
+            .spawn();
+        if result.is_err() {
+            warn!("启动失败：{:?}", result);
         }
     }
     /// 获取当前程序的动态启动次数

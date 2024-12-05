@@ -254,3 +254,58 @@ pub fn get_program_count() -> Result<usize, String> {
     let result = manager.get_program_count();
     Ok(result)
 }
+
+#[tauri::command]
+pub async fn get_file_info<R: Runtime>(
+    app: tauri::AppHandle<R>,
+    window: tauri::Window<R>,
+) -> Result<Vec<String>, String> {
+    let instance = RuntimeConfig::instance();
+    let mut config = instance.lock().unwrap();
+    let files = config.get_index_files();
+    Ok(files)
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct web_page_info {
+    show_name: String,
+    url: String,
+}
+
+#[tauri::command]
+pub async fn save_custom_file_path<R: Runtime>(
+    app: tauri::AppHandle<R>,
+    window: tauri::Window<R>,
+    web_pages: Vec<web_page_info>,
+    file_paths: Vec<String>,
+) -> Result<(), String> {
+    let instance = RuntimeConfig::instance();
+    let mut config = instance.lock().unwrap();
+
+    let data = web_pages
+        .iter()
+        .map(|x| (x.show_name.clone(), x.url.clone()))
+        .collect();
+    config.save_web_pages_info(data);
+    config.save_index_file_info(file_paths);
+    drop(config);
+    save_config_to_file(true);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_web_pages_infos<R: Runtime>(
+    app: tauri::AppHandle<R>,
+    window: tauri::Window<R>,
+) -> Vec<web_page_info> {
+    let instance = RuntimeConfig::instance();
+    let mut config = instance.lock().unwrap();
+
+    let data = config.get_web_pages_info();
+    data.into_iter()
+        .map(|x| web_page_info {
+            show_name: x.0,
+            url: x.1,
+        })
+        .collect()
+}

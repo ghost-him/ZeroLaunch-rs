@@ -1,5 +1,5 @@
 <template>
-    <el-tabs v-model="activeName" class="demo-tabs" @tab-click="handleClick">
+    <el-tabs v-model="activeName" class="demo-tabs" @tab-click="handleClick" drag>
         <el-tab-pane label="程序设置" name="first">
             <el-form :model="config" label-width="auto" style="max-width: 600px">
 
@@ -136,12 +136,70 @@
             </el-button>
             <el-button type="primary" @click="save_key_filter_data">提交</el-button>
         </el-tab-pane>
-        <el-tab-pane label="查看当前索引的所有的程序" name="fourth">
+
+        <el-tab-pane label="添加自定义索引文件" name="fourth" drag>
+            <el-tabs tab-position="left" style="height: 100% " class="demo-tabs">
+                <el-tab-pane label="索引文件">
+                    <div class="mb-4">
+                        <el-button type="primary" plain @click="handleSelectFile">选择一个文件</el-button>
+                    </div>
+
+                    <el-table :data="index_file_data" stripe style="width: 100%; height: 100%">
+                        <el-table-column label="目标路径" show-overflow-tooltip>
+                            <template #default="scope">
+                                <el-input v-model="index_file_data[scope.$index]" size="small"
+                                    placeholder="请输入目标路径"></el-input>
+                            </template>
+                        </el-table-column>
+                        <el-table-column fixed="right" label="操作" width="100">
+                            <template #default="scope">
+                                <el-button link size="small" type="danger" @click="deleteIndexFileRow(scope.$index)">
+                                    删除一行
+                                </el-button>
+                            </template>
+                        </el-table-column>
+                    </el-table>
+                    <el-button class="mt-4" style="width: 100%" @click="add_index_file">
+                        Add Item
+                    </el-button>
+
+                </el-tab-pane>
+                <el-tab-pane label="索引网址">
+                    <el-table :data="index_web_pages_data" stripe style="width: 100%; height: 100%">
+                        <el-table-column label="关键字（用于搜索程序的匹配）" show-overflow-tooltip>
+                            <template #default="scope">
+                                <el-input v-model="index_web_pages_data[scope.$index].show_name" size="small"
+                                    placeholder="请输入关键字"></el-input>
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="目标网站的地址" show-overflow-tooltip>
+                            <template #default="scope">
+                                <el-input v-model="index_web_pages_data[scope.$index].url" size="small"
+                                    placeholder="请输入目标路径"></el-input>
+                            </template>
+                        </el-table-column>
+                        <el-table-column fixed="right" label="操作" width="100">
+                            <template #default="scope">
+                                <el-button link size="small" type="danger" @click="deleteIndexWebPages(scope.$index)">
+                                    删除一行
+                                </el-button>
+                            </template>
+                        </el-table-column>
+                    </el-table>
+                    <el-button class="mt-4" style="width: 100%" @click="add_index_web_page">
+                        Add Item
+                    </el-button>
+                </el-tab-pane>
+            </el-tabs>
+            <el-button type="primary" @click="save_custom_file_path">提交</el-button>
+        </el-tab-pane>
+
+        <el-tab-pane label="查看当前索引的所有的程序" name="fifth">
             <el-button class="mt-4" style="width: 100%" @click="get_program_info">
                 刷新列表
             </el-button>
             <el-table :data="program_info" stripe style="width: 100%; height: 100%">
-                <el-table-column label="程序名" show-overflow-tooltip>
+                <el-table-column label="程序名" show-over flow-tooltip>
                     <template #default="scope">
                         {{ program_info[scope.$index].name }}
                     </template>
@@ -172,14 +230,22 @@
     </el-tabs>
 </template>
 <script lang="ts" setup>
-import { ref, reactive, onMounted, onUnmounted } from 'vue'
-import type { TabsPaneContext } from 'element-plus'
-import { invoke } from '@tauri-apps/api/core'
-import { ElMessage } from 'element-plus'
+import { ref, reactive, onMounted, onUnmounted } from 'vue';
+import type { TabsPaneContext } from 'element-plus';
+import { invoke } from '@tauri-apps/api/core';
+import { ElMessage } from 'element-plus';
+import { open } from '@tauri-apps/plugin-dialog';
 
 const activeName = ref('first')
 const handleClick = (tab: TabsPaneContext, event: Event) => {
     console.log(tab, event)
+}
+
+const handleSelectFile = async () => {
+    const file_path = await open({ canCreateDirectories: false, directory: false, multiple: false, title: "选择一个文件" });
+    if (file_path) {
+        index_file_data.value.push(file_path)
+    }
 }
 
 // do not use same name with ref
@@ -221,6 +287,26 @@ interface ProgramInfo {
     history_launch_time: number;
 }
 
+const index_file_data = ref<Array<string>>([])
+
+const get_index_file_data = async () => {
+    const data = await invoke<Array<string>>('get_file_info');
+    index_file_data.value = data
+}
+
+interface WebPages {
+    show_name: string,
+    url: string
+}
+
+const index_web_pages_data = ref<Array<WebPages>>([])
+
+const get_index_web_pages = async () => {
+    const data = await invoke<Array<WebPages>>('get_web_pages_infos');
+    index_web_pages_data.value = data
+}
+
+
 const key_data = ref<Array<KeyFilterData>>([])
 const program_info = ref<Array<ProgramInfo>>([])
 
@@ -228,6 +314,11 @@ const get_app_config = async () => {
     const loadedConfig = await invoke('get_app_config')
 
     Object.assign(config, loadedConfig)
+}
+
+const save_custom_file_path = async () => {
+    await invoke('save_custom_file_path', { webPages: index_web_pages_data.value, filePaths: index_file_data.value });
+
 }
 
 const save_app_config = async () => {
@@ -275,6 +366,14 @@ const save_key_filter_data = async () => {
     })
 }
 
+const deleteIndexFileRow = (index: number) => {
+    index_file_data.value?.splice(index, 1)
+}
+
+const deleteIndexWebPages = (index: number) => {
+    index_web_pages_data.value?.splice(index, 1)
+}
+
 const deleteTargetPathRow = (index: number) => {
     path_data.value?.target_paths.splice(index, 1)
 }
@@ -307,12 +406,21 @@ const add_key_filter = () => {
     key_data.value?.push({ key: "", bias: 0, note: "" });
 }
 
+const add_index_file = () => {
+    index_file_data.value?.push("");
+}
+
+const add_index_web_page = () => {
+    index_web_pages_data.value?.push({ show_name: "", url: "" });
+}
 
 onMounted(async () => {
     await get_app_config();
     await get_path_config();
     await get_program_info();
     await get_key_filter_data();
+    await get_index_web_pages();
+    await get_index_file_data();
 });
 
 onUnmounted(() => {

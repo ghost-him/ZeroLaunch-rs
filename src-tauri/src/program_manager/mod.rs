@@ -24,6 +24,8 @@ enum LaunchMethod {
     Path(String),
     /// 通过包族名来启动
     PackageFamilyName(String),
+    /// 使用默认的启动方式来打开一个文件
+    File(String),
 }
 
 impl LaunchMethod {
@@ -32,6 +34,7 @@ impl LaunchMethod {
         match &self {
             LaunchMethod::Path(path) => path.clone(),
             LaunchMethod::PackageFamilyName(name) => name.clone(),
+            LaunchMethod::File(path) => path.clone(),
         }
     }
 
@@ -39,6 +42,7 @@ impl LaunchMethod {
         match &self {
             LaunchMethod::Path(_) => false,
             LaunchMethod::PackageFamilyName(_) => true,
+            LaunchMethod::File(_) => false,
         }
     }
 }

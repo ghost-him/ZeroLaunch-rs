@@ -34,6 +34,10 @@ pub struct ProgramLoaderConfig {
     pub program_bias: HashMap<String, (f64, String)>,
     /// 是不是要遍历uwp应用
     pub is_scan_uwp_programs: bool,
+    /// 索引的单体文件（路径）
+    pub index_file_paths: Vec<String>,
+    /// 索引的网页(关键字，网址)
+    pub index_web_pages: Vec<(String, String)>,
 }
 
 impl ProgramManagerConfig {
@@ -66,6 +70,8 @@ impl ProgramLoaderConfig {
             forbidden_program_key: Vec::new(),
             program_bias: HashMap::new(),
             is_scan_uwp_programs: true,
+            index_file_paths: Vec::new(),
+            index_web_pages: Vec::new(),
         }
     }
 }

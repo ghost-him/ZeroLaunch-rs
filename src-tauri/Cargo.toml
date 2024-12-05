@@ -58,6 +58,7 @@ tracing-appender = "0.2.3"
 chrono = "0.4.38"
 parking_lot = "0.12.3"
 tauri-plugin-global-shortcut = "2.0.1"
+tauri-plugin-dialog = {version = "2.0.3"}
 
 [features]
 default = ["custom-protocol"]

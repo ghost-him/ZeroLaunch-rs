@@ -10,11 +10,12 @@ use std::panic;
 use crate::config::CONFIG_PATH;
 use crate::config::GLOBAL_APP_HANDLE;
 use crate::config::LOG_DIR;
+use crate::config::PIC_PATH;
 use crate::interface::{
-    get_app_config, get_key_filter_data, get_path_config, get_program_count, get_program_info,
-    handle_search_text, hide_window, init_search_bar_window, launch_program, load_program_icon,
-    refresh_program, save_app_config, save_key_filter_data, save_path_config, show_setting_window,
-    update_search_bar_window,
+    get_app_config, get_file_info, get_key_filter_data, get_path_config, get_program_count,
+    get_program_info, get_web_pages_infos, handle_search_text, hide_window, init_search_bar_window,
+    launch_program, load_program_icon, refresh_program, save_app_config, save_custom_file_path,
+    save_key_filter_data, save_path_config, show_setting_window, update_search_bar_window,
 };
 use crate::program_manager::PROGRAM_MANAGER;
 use crate::singleton::Singleton;
@@ -22,9 +23,7 @@ use crate::ui_controller::handle_focus_lost;
 use chrono::DateTime;
 use chrono::Local;
 use config::{Height, RuntimeConfig, Width};
-use rdev::GrabError;
-use rdev::ListenError;
-use rdev::{grab, listen, Event, EventType, Key};
+use rdev::{listen, Event, EventType, Key};
 use single_instance::SingleInstance;
 use std::collections::HashSet;
 use std::fs::File;
@@ -32,15 +31,13 @@ use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use tauri::async_runtime::spawn;
 use tauri::image::Image;
-use tauri::menu::Menu;
 use tauri::menu::{MenuBuilder, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::tray::TrayIconEvent;
 use tauri::App;
 use tauri::WebviewUrl;
-use tauri::{webview::WebviewWindow, Emitter, Manager, PhysicalPosition, PhysicalSize};
+use tauri::{webview::WebviewWindow, Manager, PhysicalPosition, PhysicalSize};
 use tracing::Level;
 use tracing::{debug, error, info, warn};
 use tracing_appender::rolling::RollingFileAppender;
@@ -100,9 +97,11 @@ pub fn run() {
     cleanup_old_logs(&LOG_DIR.to_string(), 7);
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let windows: Arc<Vec<WebviewWindow>> =
                 Arc::new(app.webview_windows().values().cloned().collect());
+            register_icon_path(app);
             init_system_tray(app);
 
             let main_window = Arc::new(app.get_webview_window("main").unwrap());
@@ -176,9 +175,33 @@ pub fn run() {
             load_program_icon,
             get_program_count,
             refresh_program,
+            save_custom_file_path,
+            get_web_pages_infos,
+            get_file_info
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+///注册图标的路径
+fn register_icon_path(app: &mut App) {
+    let path_resolver = app.path();
+    let resource = path_resolver
+        .resource_dir()
+        .expect("无法获取资源目录")
+        .join("icons");
+
+    let icon_path: PathBuf = resource.join("32x32.png");
+    PIC_PATH.insert(
+        "tray_icon".to_string(),
+        icon_path.to_str().unwrap().to_string(),
+    );
+
+    let web_icon = resource.join("web_pages.png");
+    PIC_PATH.insert(
+        "web_page".to_string(),
+        web_icon.to_str().unwrap().to_string(),
+    );
 }
 
 fn init_setting_window(app: tauri::AppHandle) {
@@ -243,9 +266,8 @@ fn init_system_tray(app: &mut App) {
         .item(&MenuItem::with_id(handle, "exit_program", "退出程序", true, None::<&str>).unwrap())
         .build()
         .unwrap();
-    let path_resolver = app.path();
-    let resource = path_resolver.resource_dir().expect("无法获取资源目录");
-    let icon_path: PathBuf = resource.join("icons").join("32x32.png");
+    let t = PIC_PATH.get("tray_icon").unwrap();
+    let icon_path = t.value();
     info!("icon path: {:?}", icon_path);
     let tray_icon = TrayIconBuilder::new()
         .menu(&menu)

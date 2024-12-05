@@ -1,8 +1,9 @@
+use crate::impl_singleton;
 use crate::interface::{KeyFilterData, SettingWindowPathData};
 use crate::program_manager::config::{ProgramLauncherConfig, ProgramManagerConfig};
 use crate::singleton::Singleton;
 use crate::utils::read_or_create;
-use crate::impl_singleton;
+use dashmap::DashMap;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -22,6 +23,8 @@ lazy_static! {
     pub static ref GLOBAL_APP_HANDLE: Mutex<Option<tauri::AppHandle>> = Mutex::new(None);
     /// 日志文件存在的文件夹
     pub static ref LOG_DIR: String = Path::new(&get_data_dir_path()).join("logs").to_str().unwrap().to_string();
+    /// 存储所有图片的路径
+    pub static ref PIC_PATH: DashMap<String, String> = DashMap::new();
 }
 
 /// 与程序设置有关的，比如是不是要开机自动启动等
@@ -217,6 +220,26 @@ impl RuntimeConfig {
     /// 2. 返回已经更新好的配置信息
     pub fn save_config(&self) -> String {
         serde_json::to_string(&self.config).unwrap()
+    }
+
+    pub fn save_index_file_info(&mut self, index_file_infos: Vec<String>) {
+        let path_config = &mut self.config.program_manager_config.loader;
+        path_config.index_file_paths = index_file_infos.clone();
+    }
+
+    pub fn save_web_pages_info(&mut self, index_web_pages: Vec<(String, String)>) {
+        let path_config = &mut self.config.program_manager_config.loader;
+        path_config.index_web_pages = index_web_pages.clone();
+    }
+
+    pub fn get_index_files(&self) -> Vec<String> {
+        let path_config = &self.config.program_manager_config.loader;
+        path_config.index_file_paths.clone()
+    }
+
+    pub fn get_web_pages_info(&self) -> Vec<(String, String)> {
+        let path_config = &self.config.program_manager_config.loader;
+        path_config.index_web_pages.clone()
     }
 }
 

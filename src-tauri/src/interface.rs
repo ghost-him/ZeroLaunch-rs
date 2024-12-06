@@ -27,6 +27,7 @@ pub struct SearchBarInit {
 pub struct SearchBarUpdate {
     search_bar_placeholder: String,
     selected_item_color: String,
+    item_font_color: String,
 }
 
 /// 用于传输路径相关的信息
@@ -78,6 +79,7 @@ pub fn update_search_bar_window() -> SearchBarUpdate {
     SearchBarUpdate {
         search_bar_placeholder: app_config.search_bar_placeholder.clone(),
         selected_item_color: ui_config.selected_item_color.clone(),
+        item_font_color: ui_config.item_font_color.clone(),
     }
 }
 
@@ -130,6 +132,7 @@ pub struct SettingWindowAppConfig {
     pub search_result_count: u32,
     pub auto_refresh_time: u32,
     pub selected_item_color: String,
+    pub item_font_color: String,
 }
 
 /// 获得程序的设置界面
@@ -147,6 +150,7 @@ pub fn get_config() -> Result<SettingWindowAppConfig, String> {
         search_result_count: app_config.search_result_count,
         auto_refresh_time: app_config.auto_refresh_time,
         selected_item_color: ui_config.selected_item_color.clone(),
+        item_font_color: ui_config.item_font_color.clone(),
     })
 }
 
@@ -168,6 +172,7 @@ pub async fn save_app_config(
         auto_refresh_time: app_config.auto_refresh_time,
     });
     config.save_selected_item_color(app_config.selected_item_color);
+    config.save_item_font_color(app_config.item_font_color);
 
     drop(config);
     save_config_to_file(true);

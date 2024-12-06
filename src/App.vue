@@ -24,8 +24,8 @@
       left: `${contextMenuPosition.x}px`
     }" @click.stop>
       <el-menu @select="handleContextMenuSelect" class="context-menu">
-        <el-menu-item index="openSettings">打开设置窗口</el-menu-item>
-        <el-menu-item index="refreshDataset">刷新程序数据</el-menu-item>
+        <el-menu-item index="openSettings" class="context-menu">打开设置窗口</el-menu-item>
+        <el-menu-item index="refreshDataset" class="context-menu">刷新程序数据</el-menu-item>
         <!-- 可以在这里添加更多的菜单项 -->
       </el-menu>
     </div>
@@ -82,6 +82,8 @@ const fontSize = ref<number>(0);
 const fontColor = ref('#333333');
 
 const selected_item_color = ref('#d55d1d');
+const item_font_color = ref('#ffeeee');
+
 const background_picture = ref('');
 const program_icons = ref<Map<number, string>>(new Map<number, string>([]));
 
@@ -255,6 +257,7 @@ interface SearchBarInit {
 interface SearchBarUpdate {
   search_bar_placeholder: string;
   selected_item_color: string;
+  item_font_color: string,
 }
 
 // 用于程序在一开始初始化
@@ -299,6 +302,8 @@ const updateWindow = async () => {
 
   placeholder.value = data.search_bar_placeholder;
   selected_item_color.value = data.selected_item_color;
+  item_font_color.value = data.item_font_color;
+  console.log(item_font_color.value)
 
   const blob = new Blob([new Uint8Array(background_picture_data)], { type: 'image/png' });
   const url = URL.createObjectURL(blob);
@@ -400,15 +405,18 @@ body,
 
 /* 自定义右键菜单样式 */
 .custom-context-menu {
+  color: #000 !important;
   position: fixed;
   z-index: 1000;
-  background-color: #fff;
+  background-color: #fff !important;
   border: 1px solid #dcdfe6;
   box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
   border-radius: 4px;
 }
 
 .context-menu {
+  color: #000 !important;
+  background-color: #fff !important;
   min-width: 150px;
 }
 
@@ -464,8 +472,8 @@ body,
 }
 
 :deep(.el-menu-item) {
-  color: #170505;
-  background-color: rgba(0, 0, 0, 0) !important;
+  color: v-bind(item_font_color);
+  background-color: rgba(0, 0, 0, 0);
 }
 
 /* 添加自定义样式来覆盖 Element Plus 默认样式 */

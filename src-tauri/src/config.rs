@@ -55,6 +55,8 @@ pub struct UiConfig {
     item_height_scale_factor: f64,
     /// 选中项的颜色
     pub selected_item_color: String,
+    /// 选项中的字体的颜色
+    pub item_font_color: String,
 }
 /// 综合
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -84,6 +86,7 @@ impl UiConfig {
             item_width_scale_factor: 0.5,
             item_height_scale_factor: 0.0555,
             selected_item_color: "#d55d1d".to_string(),
+            item_font_color: "#000000".to_string(),
         }
     }
 
@@ -253,6 +256,9 @@ impl RuntimeConfig {
 
     pub fn save_selected_item_color(&mut self, color: String) {
         self.config.ui_config.selected_item_color = color.clone();
+    }
+    pub fn save_item_font_color(&mut self, color: String) {
+        self.config.ui_config.item_font_color = color.clone();
     }
 }
 

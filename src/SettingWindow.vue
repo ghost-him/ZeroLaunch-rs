@@ -27,8 +27,12 @@
                     <el-input-number v-model="config.auto_refresh_time" step="1" />
                 </el-form-item>
 
-                <el-form-item label="设置选中项的颜色">
+                <el-form-item label="设置选中项的背景颜色">
                     <el-color-picker v-model="config.selected_item_color" />
+                </el-form-item>
+
+                <el-form-item label="设置选中项的字体颜色">
+                    <el-color-picker v-model="config.item_font_color" />
                 </el-form-item>
 
                 <el-form-item label="选择背景图片">
@@ -285,6 +289,7 @@ interface app_config {
     search_result_count: number,
     auto_refresh_time: number,
     selected_item_color: string,
+    item_font_color: string,
 }
 
 // do not use same name with ref
@@ -297,6 +302,7 @@ const config = reactive<app_config>({
     search_result_count: 4,
     auto_refresh_time: 30,
     selected_item_color: '',
+    item_font_color: '',
 })
 
 interface PathData {

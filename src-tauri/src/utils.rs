@@ -1,11 +1,18 @@
 use chrono::{Local, NaiveDate};
 use dashmap::DashMap;
+use image::codecs::png::PngEncoder;
+use image::DynamicImage;
+use image::ImageFormat;
+use image::ImageReader;
 use std::collections::HashMap;
 use std::fs;
+use std::fs::File;
 use std::hash::Hash;
 use std::io;
+use std::io::Write;
 use std::os::windows::ffi::OsStrExt;
 use std::path::Path;
+use tracing::warn;
 use tracing::{debug, info};
 use windows::Win32::Foundation::HWND;
 use windows::Win32::UI::Shell::SHGetFolderPathW;
@@ -13,6 +20,8 @@ use windows::Win32::UI::Shell::CSIDL_COMMON_STARTMENU;
 use windows::Win32::UI::Shell::CSIDL_STARTMENU;
 use windows::Win32::UI::Shell::KF_FLAG_DEFAULT;
 use windows::Win32::UI::Shell::{FOLDERID_RoamingAppData, SHGetKnownFolderPath};
+
+use crate::config::BACKGROUND_PIC_PATH;
 pub fn read_or_create(path: &str, content: Option<String>) -> Result<String, String> {
     match fs::read_to_string(path) {
         Ok(data) => Ok(data),
@@ -156,4 +165,67 @@ where
         dash_map.insert(key.clone(), value.clone());
     }
     dash_map
+}
+
+// 将一个图片复制到指定的位置
+pub fn copy_background_picture(file: String) -> Result<(), String> {
+    let mut content: Vec<u8> = Vec::new();
+
+    if !file.is_empty() {
+        // 尝试打开图像文件
+        let img_reader = match ImageReader::open(&file) {
+            Ok(reader) => reader,
+            Err(e) => {
+                warn!("{}", e.to_string());
+                return Err(e.to_string());
+            }
+        };
+
+        // 尝试读取图像格式
+        let format = match img_reader.format() {
+            Some(fmt) => fmt,
+            None => {
+                warn!("读取图片格式失败");
+                return Err("加载图片失败".to_string());
+            }
+        };
+
+        // 尝试解码图像
+        let mut img = match img_reader.decode() {
+            Ok(image) => image,
+            Err(e) => {
+                warn!("{}", e.to_string());
+                return Err(e.to_string());
+            }
+        };
+
+        // 如果不是 PNG 格式，则转换为 RGBA8
+        if format != ImageFormat::Png {
+            img = DynamicImage::ImageRgba8(img.to_rgba8());
+        }
+
+        // 尝试使用 PNG 编码器将图像写入 Vec<u8>
+        let encoder = PngEncoder::new(&mut content);
+        if img.write_with_encoder(encoder).is_err() {
+            // 编码失败，保持 content 为空
+            content.clear();
+        }
+    }
+
+    let target_path = BACKGROUND_PIC_PATH.clone();
+
+    if let Ok(mut file) = File::create(target_path) {
+        // 将所有字节写入文件
+        let _ = file.write_all(&content);
+    }
+
+    Ok(())
+}
+
+pub fn get_background_picture() -> Result<Vec<u8>, String> {
+    let target_path = BACKGROUND_PIC_PATH.clone();
+    match fs::read(target_path) {
+        Ok(data) => Ok(data),
+        Err(e) => Err(e.to_string()),
+    }
 }

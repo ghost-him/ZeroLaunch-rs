@@ -1,6 +1,6 @@
 <template>
   <div v-if="scaledWindowSize[0] && scaledWindowSize[1]" class="container" :style="{
-    backgroundImage: `url(${backgroundImage})`,
+
     width: `${scaledWindowSize[0]}px`,
     height: `${scaledWindowSize[1]}px`
   }">
@@ -33,7 +33,7 @@
 
     <el-menu :default-active="activeIndex" class="menu-list round-border" @select="handleSelectMouse" :style="{
       width: `${scaledItemSize[0]}px`,
-      height: `${scaledItemSize[1] * resultItemCount}px`
+      height: `${scaledItemSize[1] * resultItemCount}px`, ...backgroundStyle
     }">
       <el-menu-item v-for="(item, index) in menuItems" :key="index" :index="String(index)"
         class="menu-item round-border" :style="{
@@ -65,8 +65,8 @@ import { ref, onMounted, computed, onUnmounted, watch } from 'vue';
 import { Search } from '@element-plus/icons-vue';
 import { invoke } from "@tauri-apps/api/core";
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
+import { calculateColors } from "./color"
 
-const backgroundImage = ref('https://example.com/default-background.jpg');
 const searchText = ref('');
 const activeIndex = ref('0');
 const menuItems = ref();
@@ -81,6 +81,8 @@ const fontFamily = ref('Arial, sans-serif');
 const fontSize = ref<number>(0);
 const fontColor = ref('#333333');
 
+const selected_item_color = ref('#d55d1d');
+const background_picture = ref('');
 const program_icons = ref<Map<number, string>>(new Map<number, string>([]));
 
 let placeholder = ref('请输入搜索内容');
@@ -127,6 +129,14 @@ const scaledItemSize = computed(() => {
 const scaledFontSize = computed(() => {
   const factor = scaleFactor.value || 1;
   return fontSize.value / factor;
+})
+
+const computed_selected_item_color = computed(() => {
+  return calculateColors(selected_item_color.value).selected;
+})
+
+const computed_no_selected_item_color = computed(() => {
+  return calculateColors(selected_item_color.value).nonSelected;
 })
 
 // (鼠标选择)
@@ -244,6 +254,7 @@ interface SearchBarInit {
 
 interface SearchBarUpdate {
   search_bar_placeholder: string;
+  selected_item_color: string;
 }
 
 // 用于程序在一开始初始化
@@ -282,12 +293,20 @@ const startPreloadResource = async (program_count: number) => {
 
 // 用于程序在更新相应内容
 const updateWindow = async () => {
+  const background_picture_data = await invoke<number[]>('get_background_picture');
+  const program_count = invoke<number>('get_program_count');
   const data = await invoke<SearchBarUpdate>('update_search_bar_window');
+
   placeholder.value = data.search_bar_placeholder;
-  const program_count = await invoke<number>('get_program_count');
-  console.log(program_count);
-  await startPreloadResource(program_count);
+  selected_item_color.value = data.selected_item_color;
+
+  const blob = new Blob([new Uint8Array(background_picture_data)], { type: 'image/png' });
+  const url = URL.createObjectURL(blob);
+
+  background_picture.value = url;
+  await startPreloadResource(await program_count);
 }
+
 defineExpose({ updateWindow })
 
 // 用于初始化搜索栏和快捷键的状态(当成功启动一个程序时，或者搜索栏被隐藏时被触发)
@@ -325,7 +344,14 @@ const getIcons = async (keys: Array<number>) => {
   return result;
 }
 
-
+const backgroundStyle = computed(() => ({
+  backgroundImage: `url(${background_picture.value})`,
+  backgroundSize: 'cover',
+  backgroundPosition: 'center',
+  backgroundRepeat: 'no-repeat',
+  backgroundClip: 'content-box',
+  padding: '10px',
+}));
 
 // 在组件挂载时添加事件监听器
 onMounted(async () => {
@@ -371,6 +397,7 @@ body,
   padding: 0;
 }
 
+
 /* 自定义右键菜单样式 */
 .custom-context-menu {
   position: fixed;
@@ -415,7 +442,10 @@ body,
 .menu-item {
   /* border: 1px solid var(--el-border-color); */
   overflow: hidden;
+
 }
+
+
 
 .common-layout {
   height: 100%;
@@ -426,9 +456,17 @@ body,
 
 :deep(.el-menu-item.is-active) {
   color: #fff;
-  background-color: #f56c6c !important;
+  background-color: v-bind(computed_selected_item_color) !important;
 }
 
+:deep(.el-menu-item:hover) {
+  background-color: v-bind(computed_no_selected_item_color) !important;
+}
+
+:deep(.el-menu-item) {
+  color: #170505;
+  background-color: rgba(0, 0, 0, 0) !important;
+}
 
 /* 添加自定义样式来覆盖 Element Plus 默认样式 */
 :deep(.el-input__wrapper) {

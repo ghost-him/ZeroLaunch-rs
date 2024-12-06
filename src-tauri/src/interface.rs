@@ -1,6 +1,7 @@
 use super::save_config_to_file;
 use crate::config::AppConfig;
 use crate::program_manager::PROGRAM_MANAGER;
+use crate::utils::copy_background_picture;
 /// 用于后端向前端传输数据，或者是前端向后端数据
 ///
 ///
@@ -25,6 +26,7 @@ pub struct SearchBarInit {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SearchBarUpdate {
     search_bar_placeholder: String,
+    selected_item_color: String,
 }
 
 /// 用于传输路径相关的信息
@@ -72,8 +74,10 @@ pub fn update_search_bar_window() -> SearchBarUpdate {
     let instance = RuntimeConfig::instance();
     let runtime_config = instance.lock().unwrap();
     let app_config = runtime_config.get_app_config();
+    let ui_config = runtime_config.get_ui_config();
     SearchBarUpdate {
         search_bar_placeholder: app_config.search_bar_placeholder.clone(),
+        selected_item_color: ui_config.selected_item_color.clone(),
     }
 }
 
@@ -117,22 +121,54 @@ pub fn show_setting_window<R: Runtime>(app: tauri::AppHandle<R>) -> Result<(), S
     Ok(())
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct SettingWindowAppConfig {
+    pub search_bar_placeholder: String,
+    pub search_bar_no_result: String,
+    pub is_auto_start: bool,
+    pub is_silent_start: bool,
+    pub search_result_count: u32,
+    pub auto_refresh_time: u32,
+    pub selected_item_color: String,
+}
+
 /// 获得程序的设置界面
 #[tauri::command]
-pub fn get_app_config() -> Result<AppConfig, String> {
+pub fn get_config() -> Result<SettingWindowAppConfig, String> {
     let instance = RuntimeConfig::instance();
     let config = instance.lock().unwrap();
     let app_config = config.get_app_config();
-    Ok(app_config.clone())
+    let ui_config = config.get_ui_config();
+    Ok(SettingWindowAppConfig {
+        search_bar_placeholder: app_config.search_bar_placeholder.clone(),
+        search_bar_no_result: app_config.search_bar_no_result.clone(),
+        is_auto_start: app_config.is_auto_start,
+        is_silent_start: app_config.is_silent_start,
+        search_result_count: app_config.search_result_count,
+        auto_refresh_time: app_config.auto_refresh_time,
+        selected_item_color: ui_config.selected_item_color.clone(),
+    })
 }
 
 /// 保存程序的设置
 #[tauri::command]
-pub async fn save_app_config(app: tauri::AppHandle, app_config: AppConfig) -> Result<(), String> {
+pub async fn save_app_config(
+    app: tauri::AppHandle,
+    app_config: SettingWindowAppConfig,
+) -> Result<(), String> {
     let instance = RuntimeConfig::instance();
     let mut config: std::sync::MutexGuard<'_, RuntimeConfig> = instance.lock().unwrap();
     debug!("收到配置");
-    config.save_app_config(app_config);
+    config.save_app_config(AppConfig {
+        search_bar_placeholder: app_config.search_bar_placeholder.clone(),
+        search_bar_no_result: app_config.search_bar_no_result.clone(),
+        is_auto_start: app_config.is_auto_start,
+        is_silent_start: app_config.is_silent_start,
+        search_result_count: app_config.search_result_count,
+        auto_refresh_time: app_config.auto_refresh_time,
+    });
+    config.save_selected_item_color(app_config.selected_item_color);
+
     drop(config);
     save_config_to_file(true);
     app.emit("update_search_bar_window", "").unwrap();
@@ -317,4 +353,23 @@ pub async fn get_web_pages_infos<R: Runtime>(
             url: x.1,
         })
         .collect()
+}
+
+#[tauri::command]
+pub async fn select_background_picture<R: Runtime>(
+    app: tauri::AppHandle<R>,
+    window: tauri::Window<R>,
+    path: String,
+) -> Result<(), String> {
+    let result = copy_background_picture(path);
+    app.emit("update_search_bar_window", "").unwrap();
+    result
+}
+
+#[tauri::command]
+pub async fn get_background_picture<R: Runtime>(
+    app: tauri::AppHandle<R>,
+    window: tauri::Window<R>,
+) -> Result<Vec<u8>, String> {
+    crate::utils::get_background_picture()
 }

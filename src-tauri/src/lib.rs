@@ -12,10 +12,11 @@ use crate::config::GLOBAL_APP_HANDLE;
 use crate::config::LOG_DIR;
 use crate::config::PIC_PATH;
 use crate::interface::{
-    get_app_config, get_file_info, get_key_filter_data, get_path_config, get_program_count,
-    get_program_info, get_web_pages_infos, handle_search_text, hide_window, init_search_bar_window,
-    launch_program, load_program_icon, refresh_program, save_app_config, save_custom_file_path,
-    save_key_filter_data, save_path_config, show_setting_window, update_search_bar_window,
+    get_background_picture, get_config, get_file_info, get_key_filter_data, get_path_config,
+    get_program_count, get_program_info, get_web_pages_infos, handle_search_text, hide_window,
+    init_search_bar_window, launch_program, load_program_icon, refresh_program, save_app_config,
+    save_custom_file_path, save_key_filter_data, save_path_config, select_background_picture,
+    show_setting_window, update_search_bar_window,
 };
 use crate::program_manager::PROGRAM_MANAGER;
 use crate::singleton::Singleton;
@@ -163,7 +164,7 @@ pub fn run() {
             handle_search_text,
             hide_window,
             show_setting_window,
-            get_app_config,
+            get_config,
             save_app_config,
             update_search_bar_window,
             save_path_config,
@@ -172,12 +173,14 @@ pub fn run() {
             get_program_info,
             save_key_filter_data,
             launch_program,
+            select_background_picture,
             load_program_icon,
             get_program_count,
             refresh_program,
             save_custom_file_path,
             get_web_pages_infos,
-            get_file_info
+            get_file_info,
+            get_background_picture
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

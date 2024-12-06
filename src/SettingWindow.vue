@@ -26,6 +26,15 @@
                 <el-form-item label="自动刷新数据库的时间（分钟）">
                     <el-input-number v-model="config.auto_refresh_time" step="1" />
                 </el-form-item>
+
+                <el-form-item label="设置选中项的颜色">
+                    <el-color-picker v-model="config.selected_item_color" />
+                </el-form-item>
+
+                <el-form-item label="选择背景图片">
+                    <el-button type="primary" @click="select_background_picture">选择图片</el-button>
+                    <el-button type="danger" @click="delete_background_picture">删除图片</el-button>
+                </el-form-item>
                 <el-button type="primary" @click="save_app_config">提交</el-button>
             </el-form>
         </el-tab-pane>
@@ -248,8 +257,38 @@ const handleSelectFile = async () => {
     }
 }
 
+const select_background_picture = async () => {
+    const file_path = await open({ canCreateDirectories: false, directory: false, multiple: false, title: "选择一个文件" });
+    if (file_path) {
+        console.log(file_path)
+        invoke("select_background_picture", { path: file_path });
+    }
+    ElMessage({
+        message: '图片已保存',
+        type: 'success',
+    })
+}
+
+const delete_background_picture = () => {
+    invoke("select_background_picture", { path: "" });
+    ElMessage({
+        message: '图片已删除',
+        type: 'success',
+    })
+}
+
+interface app_config {
+    search_bar_placeholder: string,
+    search_bar_no_result: string,
+    is_auto_start: boolean,
+    is_silent_start: boolean,
+    search_result_count: number,
+    auto_refresh_time: number,
+    selected_item_color: string,
+}
+
 // do not use same name with ref
-const config = reactive({
+const config = reactive<app_config>({
     search_bar_placeholder: '',
     search_bar_no_result: '',
     is_auto_start: false,
@@ -257,6 +296,7 @@ const config = reactive({
 
     search_result_count: 4,
     auto_refresh_time: 30,
+    selected_item_color: '',
 })
 
 interface PathData {
@@ -310,9 +350,10 @@ const get_index_web_pages = async () => {
 const key_data = ref<Array<KeyFilterData>>([])
 const program_info = ref<Array<ProgramInfo>>([])
 
-const get_app_config = async () => {
-    const loadedConfig = await invoke('get_app_config')
 
+
+const get_app_config = async () => {
+    const loadedConfig = await invoke<app_config>('get_config')
     Object.assign(config, loadedConfig)
 }
 

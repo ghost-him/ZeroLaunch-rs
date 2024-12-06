@@ -25,6 +25,8 @@ lazy_static! {
     pub static ref LOG_DIR: String = Path::new(&get_data_dir_path()).join("logs").to_str().unwrap().to_string();
     /// 存储所有图片的路径
     pub static ref PIC_PATH: DashMap<String, String> = DashMap::new();
+    /// 背景图片存放的地址
+    pub static ref BACKGROUND_PIC_PATH: String = Path::new(&get_data_dir_path()).join("background.png").to_str().unwrap().to_string();
 }
 
 /// 与程序设置有关的，比如是不是要开机自动启动等
@@ -51,6 +53,8 @@ pub struct UiConfig {
     item_width_scale_factor: f64,
     /// 窗口的宽度的比例
     item_height_scale_factor: f64,
+    /// 选中项的颜色
+    pub selected_item_color: String,
 }
 /// 综合
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -79,6 +83,7 @@ impl UiConfig {
         UiConfig {
             item_width_scale_factor: 0.5,
             item_height_scale_factor: 0.0555,
+            selected_item_color: "#d55d1d".to_string(),
         }
     }
 
@@ -190,6 +195,10 @@ impl RuntimeConfig {
         &self.config.app_config
     }
 
+    pub fn get_ui_config(&self) -> &UiConfig {
+        &self.config.ui_config
+    }
+
     pub fn save_app_config(&mut self, app_config: AppConfig) {
         self.config.app_config = app_config.clone();
     }
@@ -240,6 +249,10 @@ impl RuntimeConfig {
     pub fn get_web_pages_info(&self) -> Vec<(String, String)> {
         let path_config = &self.config.program_manager_config.loader;
         path_config.index_web_pages.clone()
+    }
+
+    pub fn save_selected_item_color(&mut self, color: String) {
+        self.config.ui_config.selected_item_color = color.clone();
     }
 }
 

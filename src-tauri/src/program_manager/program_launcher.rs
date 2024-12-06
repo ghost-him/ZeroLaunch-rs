@@ -48,6 +48,7 @@ impl ProgramLauncher {
 
     ///使用配置文件初始化
     pub fn load_from_config(&mut self, config: &ProgramLauncherConfig) {
+        println!("收到的配置：{:?}", config);
         self.launch_time.clear();
         config.launch_info.iter().for_each(|k| {
             let dash_map = hashmap_to_dashmap(k);
@@ -252,6 +253,7 @@ impl ProgramLauncher {
             if self.launch_time.len() > 7 {
                 self.launch_time.pop_back();
             }
+            self.last_update_data = generate_current_date();
         }
     }
 }

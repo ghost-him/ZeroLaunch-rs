@@ -202,6 +202,8 @@ fn register_icon_path(app: &mut App) {
         "web_page".to_string(),
         web_icon.to_str().unwrap().to_string(),
     );
+    let tips_icon = resource.join("tips.png");
+    PIC_PATH.insert("tips".to_string(), tips_icon.to_str().unwrap().to_string());
 }
 
 fn init_setting_window(app: tauri::AppHandle) {

@@ -22,7 +22,7 @@ use windows::Win32::UI::Shell::KF_FLAG_DEFAULT;
 use windows::Win32::UI::Shell::{FOLDERID_RoamingAppData, SHGetKnownFolderPath};
 
 use crate::config::BACKGROUND_PIC_PATH;
-pub fn read_or_create(path: &str, content: Option<String>) -> Result<String, String> {
+pub fn read_or_create_str(path: &str, content: Option<String>) -> Result<String, String> {
     match fs::read_to_string(path) {
         Ok(data) => Ok(data),
         Err(e) => {
@@ -39,6 +39,28 @@ pub fn read_or_create(path: &str, content: Option<String>) -> Result<String, Str
                 }
             } else {
                 Err(format!("无法读取： {}", e))
+            }
+        }
+    }
+}
+
+pub fn read_or_create_bytes(path: &str, content: Option<Vec<u8>>) -> Result<Vec<u8>, String> {
+    match fs::read(path) {
+        Ok(data) => Ok(data),
+        Err(e) => {
+            if e.kind() == io::ErrorKind::NotFound {
+                if let Some(parent) = Path::new(path).parent() {
+                    if let Err(e) = fs::create_dir_all(parent) {
+                        return Err(format!("无法创建文件夹: {}", e));
+                    }
+                }
+                let initial_content = content.unwrap_or_else(Vec::new);
+                match fs::write(path, &initial_content) {
+                    Ok(_) => Ok(initial_content),
+                    Err(write_err) => Err(format!("无法写入文件: {}", write_err)),
+                }
+            } else {
+                Err(format!("无法读取文件: {}", e))
             }
         }
     }
@@ -224,8 +246,6 @@ pub fn copy_background_picture(file: String) -> Result<(), String> {
 
 pub fn get_background_picture() -> Result<Vec<u8>, String> {
     let target_path = BACKGROUND_PIC_PATH.clone();
-    match fs::read(target_path) {
-        Ok(data) => Ok(data),
-        Err(e) => Err(e.to_string()),
-    }
+    println!("当前的路径：{}", target_path);
+    read_or_create_bytes(&target_path, None)
 }

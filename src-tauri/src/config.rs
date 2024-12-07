@@ -2,7 +2,7 @@ use crate::impl_singleton;
 use crate::interface::{KeyFilterData, SettingWindowPathData};
 use crate::program_manager::config::{ProgramLauncherConfig, ProgramManagerConfig};
 use crate::singleton::Singleton;
-use crate::utils::read_or_create;
+use crate::utils::read_or_create_str;
 use dashmap::DashMap;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
@@ -128,7 +128,7 @@ pub struct RuntimeConfig {
 impl RuntimeConfig {
     fn new() -> RuntimeConfig {
         // 读取配置文件
-        let config_content = read_or_create(&CONFIG_PATH, Some((*CONFIG_DEFAULT).clone()))
+        let config_content = read_or_create_str(&CONFIG_PATH, Some((*CONFIG_DEFAULT).clone()))
             .expect("无法读取配置文件");
         let final_config: Config;
         match serde_json::from_str::<Config>(&config_content) {

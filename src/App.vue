@@ -296,20 +296,22 @@ const startPreloadResource = async (program_count: number) => {
 
 // 用于程序在更新相应内容
 const updateWindow = async () => {
-  const background_picture_data = await invoke<number[]>('get_background_picture');
-  const program_count = invoke<number>('get_program_count');
-  const data = await invoke<SearchBarUpdate>('update_search_bar_window');
+  try {
+    const background_picture_data = await invoke<number[]>('get_background_picture');
+    const program_count = invoke<number>('get_program_count');
+    const data = await invoke<SearchBarUpdate>('update_search_bar_window');
+    placeholder.value = data.search_bar_placeholder;
+    selected_item_color.value = data.selected_item_color;
+    item_font_color.value = data.item_font_color;
 
-  placeholder.value = data.search_bar_placeholder;
-  selected_item_color.value = data.selected_item_color;
-  item_font_color.value = data.item_font_color;
-  console.log(item_font_color.value)
+    const blob = new Blob([new Uint8Array(background_picture_data)], { type: 'image/png' });
+    const url = URL.createObjectURL(blob);
 
-  const blob = new Blob([new Uint8Array(background_picture_data)], { type: 'image/png' });
-  const url = URL.createObjectURL(blob);
-
-  background_picture.value = url;
-  await startPreloadResource(await program_count);
+    background_picture.value = url;
+    await startPreloadResource(await program_count);
+  } catch (error) {
+    console.error('Error in updateWindow:', error);
+  }
 }
 
 defineExpose({ updateWindow })

@@ -262,7 +262,18 @@ const handleSelectFile = async () => {
 }
 
 const select_background_picture = async () => {
-    const file_path = await open({ canCreateDirectories: false, directory: false, multiple: false, title: "选择一个文件" });
+    const file_path = await open({
+        canCreateDirectories: false,  // 禁止创建目录
+        directory: false,             // 禁止选择目录
+        multiple: false,              // 只允许选择一个文件
+        title: "选择一个图片",         // 文件选择框的标题
+        filters: [
+            {
+                name: 'Images',  // 过滤器的名称
+                extensions: ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp']  // 允许的图片文件扩展名
+            }
+        ]
+    });
     if (file_path) {
         console.log(file_path)
         invoke("select_background_picture", { path: file_path });

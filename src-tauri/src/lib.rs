@@ -95,7 +95,7 @@ pub fn run() {
         error!("当前已经有实例在运行了");
         std::process::exit(1);
     }
-    cleanup_old_logs(&LOG_DIR.to_string(), 7);
+    cleanup_old_logs(&LOG_DIR.to_string(), 5);
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())

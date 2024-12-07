@@ -246,6 +246,5 @@ pub fn copy_background_picture(file: String) -> Result<(), String> {
 
 pub fn get_background_picture() -> Result<Vec<u8>, String> {
     let target_path = BACKGROUND_PIC_PATH.clone();
-    println!("当前的路径：{}", target_path);
     read_or_create_bytes(&target_path, None)
 }

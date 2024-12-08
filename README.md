@@ -19,17 +19,17 @@ ZeroLaunch-rs 是一个使用 Rust + Tauri + Vite + Vue.js + TypeScript 构建�
 
 程序运行主界面
 
-![]("./asset/主界面.png")
+![](https://raw.githubusercontent.com/ghost-him/ZeroLaunch-rs/refs/heads/main/asset/%E4%B8%BB%E7%95%8C%E9%9D%A2.png)
 
 程序搜索界面
 
-![]("./asset/精准匹配.png")
+![](https://raw.githubusercontent.com/ghost-him/ZeroLaunch-rs/refs/heads/main/asset/%E7%B2%BE%E5%87%86%E5%8C%B9%E9%85%8D.png)
 
 设置界面
 
-![]("./asset/设置界面.png")
+![](https://raw.githubusercontent.com/ghost-him/ZeroLaunch-rs/refs/heads/main/asset/%E8%AE%BE%E7%BD%AE%E7%95%8C%E9%9D%A2.png)
 
-更多内容：[点击跳转]()
+更多内容：[点击跳转](https://github.com/ghost-him/ZeroLaunch-rs/blob/main/asset/picture.md)
 
 
 ## 快速上手

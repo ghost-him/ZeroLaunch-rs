@@ -15,6 +15,23 @@ ZeroLaunch-rs 是一个使用 Rust + Tauri + Vite + Vue.js + TypeScript 构建�
 
 该软件因个人需要而开发，因此会长期维护！
 
+## 软件截图
+
+程序运行主界面
+
+![]("./asset/主界面.png")
+
+程序搜索界面
+
+![]("./asset/精准匹配.png")
+
+设置界面
+
+![]("./asset/设置界面.png")
+
+更多内容：[点击跳转]()
+
+
 ## 快速上手
 
 * 呼出软件搜索栏：`Alt + Space`

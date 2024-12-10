@@ -39,6 +39,8 @@ use tauri::tray::TrayIconEvent;
 use tauri::App;
 use tauri::WebviewUrl;
 use tauri::{webview::WebviewWindow, Manager, PhysicalPosition, PhysicalSize};
+use tauri_plugin_dialog::DialogExt;
+use tauri_plugin_dialog::MessageDialogKind;
 use tracing::Level;
 use tracing::{debug, error, info, warn};
 use tracing_appender::rolling::RollingFileAppender;
@@ -90,16 +92,24 @@ pub fn run() {
         error!("Panic occurred: {}", message);
     }));
 
-    let instance = SingleInstance::new("ZeroLaunch-rs").unwrap();
-    if !instance.is_single() {
-        error!("当前已经有实例在运行了");
-        std::process::exit(1);
-    }
     cleanup_old_logs(&LOG_DIR.to_string(), 5);
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
+            let instance = SingleInstance::new("ZeroLaunch-rs").unwrap();
+            if !instance.is_single() {
+                error!("当前已经有实例在运行了");
+                let ans = app
+                    .dialog()
+                    .message("当前的程序已经在运行了")
+                    .kind(MessageDialogKind::Error)
+                    .title("注意")
+                    .blocking_show();
+
+                std::process::exit(1);
+            }
+
             let windows: Arc<Vec<WebviewWindow>> =
                 Arc::new(app.webview_windows().values().cloned().collect());
             register_icon_path(app);
@@ -277,7 +287,7 @@ fn init_system_tray(app: &mut App) {
     let tray_icon = TrayIconBuilder::new()
         .menu(&menu)
         .icon(Image::from_path(icon_path).unwrap())
-        .tooltip("ZeroLaunch-rs v0.2.1")
+        .tooltip("ZeroLaunch-rs v0.2.2")
         .menu_on_left_click(false)
         .build(handle)
         .unwrap();

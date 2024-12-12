@@ -68,7 +68,7 @@
 
                 <el-tab-pane label="设置屏蔽路径">
                     <el-table :data="path_data.forbidden_paths" stripe style="width: 100%; height: 100%">
-                        <el-table-column label="目标路径" show-overflow-tooltip>
+                        <el-table-column label="目标��径" show-overflow-tooltip>
                             <template #default="scope">
                                 <el-input v-model="path_data.forbidden_paths[scope.$index]" size="small"
                                     placeholder="请输入目标路径"></el-input>
@@ -161,7 +161,7 @@
                         <el-table-column label="目标路径" show-overflow-tooltip>
                             <template #default="scope">
                                 <el-input v-model="index_file_data[scope.$index]" size="small"
-                                    placeholder="请输入目标路径"></el-input>
+                                    placeholder="请输���目标路径"></el-input>
                             </template>
                         </el-table-column>
                         <el-table-column fixed="right" label="操作" width="100">
@@ -376,7 +376,10 @@ const get_app_config = async () => {
 
 const save_custom_file_path = async () => {
     await invoke('save_custom_file_path', { webPages: index_web_pages_data.value, filePaths: index_file_data.value });
-
+    ElMessage({
+        message: '配置文件已保存',
+        type: 'success',
+    })
 }
 
 const save_app_config = async () => {

@@ -1,5 +1,6 @@
 pub mod config;
 pub mod defer;
+pub mod image_loader;
 pub mod interface;
 pub mod program_manager;
 pub mod singleton;

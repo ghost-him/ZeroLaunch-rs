@@ -1,8 +1,7 @@
-use super::super::config::PIC_PATH;
+use crate::config::PIC_PATH;
 use crate::utils::get_u16_vec;
 use core::mem::MaybeUninit;
 /// 这个类主要用于加载程序的图片，支持并发查询
-use dashmap::DashMap;
 use image::codecs::png::PngEncoder;
 use image::DynamicImage;
 use image::ImageFormat;
@@ -34,7 +33,7 @@ impl ImageLoader {
         ImageLoader {}
     }
     /// 加载一个图片
-    pub fn load_image(&self, program_guid: &u64, icon_path: &str) -> Vec<u8> {
+    pub fn load_image(&self, icon_path: &str) -> Vec<u8> {
         let mut pic_base64: Vec<u8> = self.load_image_from_path(icon_path);
         if pic_base64.is_empty() {
             pic_base64 = self.load_image_from_path(PIC_PATH.get("tips").unwrap().value())

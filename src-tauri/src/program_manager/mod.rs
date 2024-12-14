@@ -1,14 +1,13 @@
 pub mod config;
-mod image_loader;
 mod pinyin_mapper;
 /// 这个模块用于对数据进行储存，加工与处理
 ///
 mod program_launcher;
 mod program_loader;
 mod search_model;
+use super::image_loader::ImageLoader;
 use config::{ProgramLauncherConfig, ProgramManagerConfig};
 use dashmap::DashMap;
-use image_loader::ImageLoader;
 use lazy_static::lazy_static;
 use program_launcher::ProgramLauncher;
 use program_loader::ProgramLoader;
@@ -217,8 +216,7 @@ impl ProgramManager {
         let index = self.program_locater.get(program_guid).unwrap();
         let target_program = &self.program_registry[*(index.value())];
 
-        self.image_loader
-            .load_image(program_guid, &target_program.icon_path)
+        self.image_loader.load_image(&target_program.icon_path)
     }
     /// 获得当前已保存的程序的个数
     pub fn get_program_count(&self) -> usize {

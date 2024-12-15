@@ -235,6 +235,9 @@ fn init_setting_window(app: tauri::AppHandle) {
             .build()
             .unwrap(),
         );
+        setting_window
+            .set_size(PhysicalSize::new(1300, 800))
+            .unwrap();
         let window_clone = Arc::clone(&setting_window);
         setting_window.on_window_event(move |event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
@@ -290,7 +293,7 @@ fn init_system_tray(app: &mut App) {
     let tray_icon = TrayIconBuilder::new()
         .menu(&menu)
         .icon(Image::from_path(icon_path).unwrap())
-        .tooltip("ZeroLaunch-rs v0.2.3")
+        .tooltip("ZeroLaunch-rs v0.3.0")
         .menu_on_left_click(false)
         .build(handle)
         .unwrap();

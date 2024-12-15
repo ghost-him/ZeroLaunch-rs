@@ -245,6 +245,9 @@
             </el-table>
 
         </el-tab-pane>
+        <el-tab-pane label="关于" name="g" drag>
+            项目地址： https://github.com/ghost-him/ZeroLaunch-rs
+        </el-tab-pane>
     </el-tabs>
 </template>
 <script lang="ts" setup>

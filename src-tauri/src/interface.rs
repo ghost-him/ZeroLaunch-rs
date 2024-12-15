@@ -1,14 +1,17 @@
 use super::save_config_to_file;
-use crate::config::AppConfig;
+use crate::config::{AppConfig, LOCAL_CONFIG_PATH};
+use crate::config::{LocalConfig, REMOTE_CONFIG_DIR_PATH};
 use crate::program_manager::PROGRAM_MANAGER;
 use crate::utils::copy_background_picture;
+use crate::utils::is_writable_directory;
+use crate::Singleton;
 /// 用于后端向前端传输数据，或者是前端向后端数据
 ///
 ///
-use crate::RuntimeConfig;
-use crate::Singleton;
+use crate::{update_app_setting, RuntimeConfig};
 use rayon::iter::ParallelIterator;
 use serde::{Deserialize, Serialize};
+use std::fs::write;
 use std::sync::Arc;
 use tauri::async_runtime::spawn_blocking;
 use tauri::Emitter;
@@ -377,4 +380,45 @@ pub async fn get_background_picture<R: Runtime>(
     window: tauri::Window<R>,
 ) -> Result<Vec<u8>, String> {
     crate::utils::get_background_picture()
+}
+
+#[tauri::command]
+pub async fn change_remote_config_dir<R: Runtime>(
+    app: tauri::AppHandle<R>,
+    window: tauri::Window<R>,
+    config_dir: String,
+) -> Result<(), String> {
+    // 先判断是不是正确的文件夹
+    if !is_writable_directory(&config_dir) {
+        return Err("当前的文件夹无法创建新的文件，请更改文件夹的权限或更改目标文件夹".to_string());
+    }
+    let result = LocalConfig {
+        remote_config_path: config_dir.clone(),
+    };
+    let data = serde_json::to_string(&result).unwrap();
+
+    let path = LOCAL_CONFIG_PATH.clone();
+    std::fs::write(path, data).unwrap();
+    let mut instance = REMOTE_CONFIG_DIR_PATH.write().unwrap();
+    *instance = Some(config_dir);
+    drop(instance);
+
+    let instance = RuntimeConfig::instance();
+    let mut runtime_config = instance.lock().unwrap();
+    runtime_config.reload_runtime_config();
+    drop(runtime_config);
+    update_app_setting();
+    app.emit("update_search_bar_window", "").unwrap();
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_remote_config_dir<R: Runtime>(
+    app: tauri::AppHandle<R>,
+    window: tauri::Window<R>,
+) -> String {
+    let instance = REMOTE_CONFIG_DIR_PATH.read().unwrap();
+    let result = (*instance).clone().unwrap();
+    drop(instance);
+    result
 }

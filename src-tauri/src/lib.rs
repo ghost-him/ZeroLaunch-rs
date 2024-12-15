@@ -6,15 +6,14 @@ pub mod program_manager;
 pub mod singleton;
 pub mod ui_controller;
 pub mod utils;
-use std::panic;
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-use crate::config::CONFIG_PATH;
+use crate::config::get_remote_config_path;
 use crate::config::GLOBAL_APP_HANDLE;
 use crate::config::LOG_DIR;
 use crate::config::PIC_PATH;
 use crate::interface::{
-    get_background_picture, get_config, get_file_info, get_key_filter_data, get_path_config,
-    get_program_count, get_program_info, get_web_pages_infos, handle_search_text, hide_window,
+    change_remote_config_dir, get_background_picture, get_config, get_file_info,
+    get_key_filter_data, get_path_config, get_program_count, get_program_info,
+    get_remote_config_dir, get_web_pages_infos, handle_search_text, hide_window,
     init_search_bar_window, launch_program, load_program_icon, refresh_program, save_app_config,
     save_custom_file_path, save_key_filter_data, save_path_config, select_background_picture,
     show_setting_window, update_search_bar_window,
@@ -30,6 +29,7 @@ use single_instance::SingleInstance;
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::Write;
+use std::panic;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -191,7 +191,9 @@ pub fn run() {
             save_custom_file_path,
             get_web_pages_infos,
             get_file_info,
-            get_background_picture
+            get_background_picture,
+            change_remote_config_dir,
+            get_remote_config_dir
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -345,7 +347,9 @@ pub fn save_config_to_file(is_update_app: bool) {
         let mut runtime_config = instance.lock().unwrap();
         runtime_config.save_program_launcher_config(&config);
         let config_content: String = runtime_config.save_config();
-        std::fs::write(&*CONFIG_PATH, config_content).unwrap();
+
+        let config_path_str = get_remote_config_path();
+        std::fs::write(config_path_str, config_content).unwrap();
     }
     if is_update_app {
         update_app_setting();

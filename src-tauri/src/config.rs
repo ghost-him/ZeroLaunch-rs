@@ -13,10 +13,15 @@ pub type Width = usize;
 pub type Height = usize;
 use crate::utils::get_data_dir_path;
 use std::path::Path;
+use std::sync::RwLock;
 
 lazy_static! {
     /// 配置文件存在的位置
-    pub static ref CONFIG_PATH: String = Path::new(&get_data_dir_path()).join("config.json").to_str().unwrap().to_string();
+    pub static ref REMOTE_CONFIG_DIR_PATH: RwLock<Option<String>> = RwLock::new(None);
+    /// 配置文件的名字
+    pub static ref REMOTE_CONFIG_NAME: String = "ZeroLaunch_remote_config.json".to_string();
+    /// 本地配置文件存在的位置
+    pub static ref LOCAL_CONFIG_PATH: String = Path::new(&get_data_dir_path()).join("ZeroLaunch_local_config.json").to_str().unwrap().to_string();
     /// 配置文件的默认内容
     static ref CONFIG_DEFAULT: String = serde_json::to_string(&Config::default()).unwrap();
     /// 全局app_handle
@@ -25,8 +30,22 @@ lazy_static! {
     pub static ref LOG_DIR: String = Path::new(&get_data_dir_path()).join("logs").to_str().unwrap().to_string();
     /// 存储所有图片的路径
     pub static ref PIC_PATH: DashMap<String, String> = DashMap::new();
-    /// 背景图片存放的地址
-    pub static ref BACKGROUND_PIC_PATH: String = Path::new(&get_data_dir_path()).join("background.png").to_str().unwrap().to_string();
+}
+/// 背景图片存放的地址
+pub fn get_background_picture_path() -> String {
+    let remote_dir = REMOTE_CONFIG_DIR_PATH.read().unwrap().clone().unwrap();
+    Path::new(&remote_dir)
+        .join("background.png")
+        .to_str()
+        .unwrap()
+        .to_string()
+}
+
+/// 获取配置文件的存放地址
+pub fn get_remote_config_path() -> String {
+    let dir_path = REMOTE_CONFIG_DIR_PATH.read().unwrap().clone().unwrap();
+    let config_path = Path::new(&dir_path).join(REMOTE_CONFIG_NAME.clone());
+    config_path.to_str().unwrap().to_string()
 }
 
 /// 与程序设置有关的，比如是不是要开机自动启动等
@@ -121,36 +140,69 @@ pub struct RuntimeConfig {
     sys_window_width: Width,
     /// 显示器的长
     sys_window_height: Height,
-    /// 配置文件
+    /// 可同步的配置文件
     config: Config,
+}
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct LocalConfig {
+    pub remote_config_path: String,
+}
+
+impl LocalConfig {
+    pub fn default() -> LocalConfig {
+        LocalConfig {
+            remote_config_path: get_data_dir_path(),
+        }
+    }
+}
+
+fn load_config() -> Config {
+    let config_path_str: String = get_remote_config_path();
+    // 读取配置文件
+    let config_content = read_or_create_str(&config_path_str, Some((*CONFIG_DEFAULT).clone()))
+        .expect("无法读取配置文件");
+
+    let final_config: Config;
+    match serde_json::from_str::<Config>(&config_content) {
+        Ok(config) => {
+            // 如果已经正常的读到文件了，则判断文件是不是正常读取了
+            if config.version == Config::default().version {
+                final_config = config;
+            } else {
+                final_config = Config::default();
+            }
+        }
+        Err(_e) => {
+            final_config = Config::default();
+        }
+    }
+    final_config
 }
 
 impl RuntimeConfig {
     fn new() -> RuntimeConfig {
-        // 读取配置文件
-        let config_content = read_or_create_str(&CONFIG_PATH, Some((*CONFIG_DEFAULT).clone()))
-            .expect("无法读取配置文件");
-        let final_config: Config;
-        match serde_json::from_str::<Config>(&config_content) {
-            Ok(config) => {
-                // 如果已经正常的读到文件了，则判断文件是不是正常读取了
-                if config.version == Config::default().version {
-                    final_config = config;
-                } else {
-                    final_config = Config::default();
-                }
-            }
-            Err(_e) => {
-                final_config = Config::default();
-            }
-        }
-
+        let local_config = LocalConfig::default();
+        // 先读一下配置文件的地址
+        let local_config_data = read_or_create_str(
+            &LOCAL_CONFIG_PATH,
+            Some(serde_json::to_string(&local_config).unwrap()),
+        )
+        .expect("无法读取");
+        let local_config: LocalConfig = serde_json::from_str(&local_config_data).unwrap();
+        let mut instance = REMOTE_CONFIG_DIR_PATH.write().unwrap();
+        *instance = Some(local_config.remote_config_path);
+        drop(instance);
+        let final_config = load_config();
         RuntimeConfig {
             sys_window_scale_factor: 1.0,
             sys_window_width: 0,
             sys_window_height: 0,
             config: final_config,
         }
+    }
+
+    pub fn reload_runtime_config(&mut self) {
+        self.config = load_config();
     }
 
     pub fn set_sys_window_size(&mut self, sys_window_width: Width, sys_window_height: Height) {

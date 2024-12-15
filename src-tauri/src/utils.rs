@@ -21,7 +21,7 @@ use windows::Win32::UI::Shell::CSIDL_STARTMENU;
 use windows::Win32::UI::Shell::KF_FLAG_DEFAULT;
 use windows::Win32::UI::Shell::{FOLDERID_RoamingAppData, SHGetKnownFolderPath};
 
-use crate::config::BACKGROUND_PIC_PATH;
+use crate::config::get_background_picture_path;
 pub fn read_or_create_str(path: &str, content: Option<String>) -> Result<String, String> {
     match fs::read_to_string(path) {
         Ok(data) => Ok(data),
@@ -234,7 +234,7 @@ pub fn copy_background_picture(file: String) -> Result<(), String> {
         }
     }
 
-    let target_path = BACKGROUND_PIC_PATH.clone();
+    let target_path = get_background_picture_path();
 
     if let Ok(mut file) = File::create(target_path) {
         // 将所有字节写入文件
@@ -245,6 +245,38 @@ pub fn copy_background_picture(file: String) -> Result<(), String> {
 }
 
 pub fn get_background_picture() -> Result<Vec<u8>, String> {
-    let target_path = BACKGROUND_PIC_PATH.clone();
+    let target_path = get_background_picture_path();
     read_or_create_bytes(&target_path, None)
+}
+
+pub fn is_writable_directory(path: &str) -> bool {
+    let path = Path::new(path);
+
+    // 检查路径是否存在且是一个目录
+    if !path.is_dir() {
+        return false;
+    }
+
+    // 尝试在目录中创建一个临时文件
+    let temp_file_path = path.join("temp_test_file.txt");
+    match fs::write(&temp_file_path, "test content") {
+        Ok(_) => {
+            // 如果成功创建文件，尝试修改它
+            match fs::write(&temp_file_path, "modified content") {
+                Ok(_) => {
+                    // 清理：删除临时文件
+                    if let Err(e) = fs::remove_file(&temp_file_path) {
+                        eprintln!("警告：无法删除临时文件: {}", e);
+                    }
+                    true
+                }
+                Err(_) => {
+                    // 清理：尝试删除临时文件
+                    let _ = fs::remove_file(&temp_file_path);
+                    false
+                }
+            }
+        }
+        Err(_) => false,
+    }
 }

@@ -1,6 +1,6 @@
 <template>
     <el-tabs v-model="activeName" class="demo-tabs" @tab-click="handleClick" drag>
-        <el-tab-pane label="程序设置" name="first">
+        <el-tab-pane label="程序设置" name="a">
             <el-form :model="config" label-width="auto" style="max-width: 600px">
 
                 <el-form-item label="自定义搜索栏的提示文本">
@@ -42,7 +42,7 @@
                 <el-button type="primary" @click="save_app_config">提交</el-button>
             </el-form>
         </el-tab-pane>
-        <el-tab-pane label="自定义搜索路径" name="second">
+        <el-tab-pane label="自定义搜索路径" name="b">
             <el-tabs tab-position="left" style="height: 100% " class="demo-tabs">
                 <el-tab-pane label="设置遍历路径">
                     <el-table :data="path_data.target_paths" stripe style="width: 100%; height: 100%">
@@ -118,7 +118,7 @@
             <el-button type="primary" @click="save_path_config">提交</el-button>
 
         </el-tab-pane>
-        <el-tab-pane label="关键字过滤设置" name="third">
+        <el-tab-pane label="关键字过滤设置" name="c">
             <el-table :data="key_data" stripe style="width: 100%; height: 100%">
                 <el-table-column label="目标关键字" show-overflow-tooltip>
                     <template #default="scope">
@@ -150,7 +150,7 @@
             <el-button type="primary" @click="save_key_filter_data">提交</el-button>
         </el-tab-pane>
 
-        <el-tab-pane label="添加自定义索引文件" name="fourth" drag>
+        <el-tab-pane label="添加自定义索引文件" name="d" drag>
             <el-tabs tab-position="left" style="height: 100% " class="demo-tabs">
                 <el-tab-pane label="索引文件">
                     <div class="mb-4">
@@ -206,8 +206,13 @@
             </el-tabs>
             <el-button type="primary" @click="save_custom_file_path">提交</el-button>
         </el-tab-pane>
-
-        <el-tab-pane label="查看当前索引的所有的程序" name="fifth">
+        <el-tab-pane label="其它设置" name="e">
+            <el-form-item label="设置配置文件的保存地址">
+                <el-button type="primary" @click="change_remote_config_path_dir"> 选择目标路径</el-button>
+                <el-input v-model="remote_config_path_dir" placeholder="设置配置文件保存路径" />
+            </el-form-item>
+        </el-tab-pane>
+        <el-tab-pane label="查看当前索引的所有的程序" name="f">
             <el-button class="mt-4" style="width: 100%" @click="get_program_info">
                 刷新列表
             </el-button>
@@ -249,9 +254,32 @@ import { invoke } from '@tauri-apps/api/core';
 import { ElMessage } from 'element-plus';
 import { open } from '@tauri-apps/plugin-dialog';
 
-const activeName = ref('first')
+const activeName = ref('a')
 const handleClick = (tab: TabsPaneContext, event: Event) => {
     console.log(tab, event)
+}
+
+const remote_config_path_dir = ref('');
+
+const change_remote_config_path_dir = async () => {
+    try {
+        const selected = await open({
+            canCreateDirectories: true, directory: true, multiple: false, title: "选择目标文件夹"
+        });
+
+        if (selected) {
+            console.log('选择的文件夹路径:', selected);
+            remote_config_path_dir.value = selected;
+            // 调用后端
+            await invoke('change_remote_config_dir', { configDir: selected });
+            update_setting_window_info();
+            // 在这里处理选中的文件夹路径
+        } else {
+            console.log('没有选择文件夹');
+        }
+    } catch (err) {
+        console.error('选择文件夹时出错:', err);
+    }
 }
 
 const handleSelectFile = async () => {
@@ -475,13 +503,23 @@ const add_index_web_page = () => {
     index_web_pages_data.value?.push({ show_name: "", url: "" });
 }
 
-onMounted(async () => {
+const get_remote_config_dir_path = async () => {
+    const dir_path = await invoke<string>('get_remote_config_dir');
+    remote_config_path_dir.value = dir_path;
+}
+
+const update_setting_window_info = async () => {
     await get_app_config();
     await get_path_config();
     await get_program_info();
     await get_key_filter_data();
     await get_index_web_pages();
     await get_index_file_data();
+    await get_remote_config_dir_path();
+}
+
+onMounted(async () => {
+    update_setting_window_info();
 });
 
 onUnmounted(() => {

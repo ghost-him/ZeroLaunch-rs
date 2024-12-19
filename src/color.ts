@@ -28,6 +28,17 @@ export function rgbToRgba(rgb: RGB, alpha: number): string {
 }
 
 /**
+ * Calculate the inverse color of an RGB color
+ */
+function inverseColor(rgb: RGB): RGB {
+  return {
+    r: 255 - rgb.r,
+    g: 255 - rgb.g,
+    b: 255 - rgb.b,
+  };
+}
+
+/**
  * 调整 RGB 的亮度
  */
 export function adjustBrightness(rgb: RGB, factor: number): RGB {
@@ -41,11 +52,10 @@ export function adjustBrightness(rgb: RGB, factor: number): RGB {
 /**
  * 计算选中和非选中项的颜色
  */
-export function calculateColors(hex: string): { selected: string; nonSelected: string } {
+export function calculateColors(hex: string): { selected: string; nonSelected: string} {
   const selectedItemRgb = hexToRgb(hex);
   const selectedItemColor = rgbToRgba(selectedItemRgb, 0.8);
-
-  const nonSelectedItemRgb = adjustBrightness(selectedItemRgb, 0.3); // 调亮 20%
+  const nonSelectedItemRgb = adjustBrightness(selectedItemRgb, 0.6); // 调亮 60%
   const nonSelectedItemColor = rgbToRgba(nonSelectedItemRgb, 0.8);
 
   return { selected: selectedItemColor, nonSelected: nonSelectedItemColor };

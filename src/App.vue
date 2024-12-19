@@ -465,7 +465,7 @@ body,
 
 
 :deep(.el-menu-item.is-active) {
-  color: #fff;
+  color: v-bind(item_font_color);
   background-color: v-bind(computed_selected_item_color) !important;
 }
 

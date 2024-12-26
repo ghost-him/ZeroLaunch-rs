@@ -119,7 +119,7 @@ pub fn standard_search_fn(program: Arc<Program>, user_input: &str) -> f64 {
     // program中的字符串与user_input都已经是预处理过了，不再需要预处理了
     let mut ret: f64 = -10000.0;
     for names in &program.alias {
-        if names.chars().count() < user_input.chars().count() {
+        if names.chars().count() + 1 < user_input.chars().count() {
             continue;
         }
         let mut score: f64 = calculate_weight(names, user_input, shortest_edit_dis);

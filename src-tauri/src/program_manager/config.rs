@@ -67,7 +67,12 @@ impl ProgramLoaderConfig {
         ProgramLoaderConfig {
             target_paths: vec![common, user],
             forbidden_paths: Vec::new(),
-            forbidden_program_key: Vec::new(),
+            forbidden_program_key: vec![
+                "帮助".to_string(),
+                "help".to_string(),
+                "uninstall".to_string(),
+                "卸载".to_string(),
+            ],
             program_bias: HashMap::new(),
             is_scan_uwp_programs: true,
             index_file_paths: Vec::new(),

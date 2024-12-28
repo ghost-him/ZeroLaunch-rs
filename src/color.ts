@@ -28,17 +28,6 @@ export function rgbToRgba(rgb: RGB, alpha: number): string {
 }
 
 /**
- * Calculate the inverse color of an RGB color
- */
-function inverseColor(rgb: RGB): RGB {
-  return {
-    r: 255 - rgb.r,
-    g: 255 - rgb.g,
-    b: 255 - rgb.b,
-  };
-}
-
-/**
  * 调整 RGB 的亮度
  */
 export function adjustBrightness(rgb: RGB, factor: number): RGB {

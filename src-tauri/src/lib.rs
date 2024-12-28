@@ -24,6 +24,7 @@ use crate::ui_controller::handle_focus_lost;
 use chrono::DateTime;
 use chrono::Local;
 use config::{Height, RuntimeConfig, Width};
+use lazy_static::lazy_static;
 use rdev::{listen, Event, EventType, Key};
 use single_instance::SingleInstance;
 use std::collections::HashSet;
@@ -32,7 +33,10 @@ use std::io::Write;
 use std::panic;
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::{Duration, Instant};
 use tauri::image::Image;
 use tauri::menu::{MenuBuilder, MenuItem};
 use tauri::tray::TrayIconBuilder;
@@ -42,6 +46,8 @@ use tauri::WebviewUrl;
 use tauri::{webview::WebviewWindow, Manager, PhysicalPosition, PhysicalSize};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_dialog::MessageDialogKind;
+use timer::Guard;
+use timer::Timer;
 use tracing::Level;
 use tracing::{debug, error, info, warn};
 use tracing_appender::rolling::RollingFileAppender;
@@ -293,7 +299,7 @@ fn init_system_tray(app: &mut App) {
     let tray_icon = TrayIconBuilder::new()
         .menu(&menu)
         .icon(Image::from_path(icon_path).unwrap())
-        .tooltip("ZeroLaunch-rs v0.3.0")
+        .tooltip("ZeroLaunch-rs v0.3.1")
         .menu_on_left_click(false)
         .build(handle)
         .unwrap();
@@ -327,6 +333,11 @@ fn init_system_tray(app: &mut App) {
     });
 }
 
+lazy_static! {
+    static ref GUARD: Arc<Mutex<Option<Guard>>> = Arc::new(Mutex::new(None));
+    static ref TIMER: Timer = Timer::new();
+}
+
 /// 更新程序的状态
 fn update_app_setting() {
     // 1. 重新更新程序索引的路径
@@ -335,7 +346,25 @@ fn update_app_setting() {
     handle_auto_start();
     // 3.判断要不要静默启动
     handle_silent_start();
+
+    let instance = RuntimeConfig::instance();
+    let runtime_config = instance.lock().unwrap();
+
+    let mins = runtime_config.get_app_config().auto_refresh_time as u64;
+    drop(runtime_config);
+    // 取消当前的定时器
+    if let Some(guard) = GUARD.lock().unwrap().take() {
+        drop(guard); // 取消定时器
+    }
+
+    // 创建新的定时器，间隔为 2 秒
+    let new_interval = chrono::Duration::seconds((mins * 60) as i64);
+    let guard_value = TIMER.schedule_repeating(new_interval, move || {
+        update_app_setting();
+    });
+    *GUARD.lock().unwrap() = Some(guard_value);
 }
+
 /// 保存程序的配置信息
 /// 1. 将需要保存的东西保到配置信息中
 /// 2. 保存到文件中

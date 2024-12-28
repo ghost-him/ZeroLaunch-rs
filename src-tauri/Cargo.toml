@@ -59,6 +59,7 @@ chrono = "0.4.38"
 parking_lot = "0.12.3"
 tauri-plugin-global-shortcut = "2.0.1"
 tauri-plugin-dialog = {version = "2.0.3"}
+timer = "0.2.0"
 
 [features]
 default = ["custom-protocol"]

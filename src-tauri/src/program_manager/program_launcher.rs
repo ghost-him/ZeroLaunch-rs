@@ -104,9 +104,14 @@ impl ProgramLauncher {
     }
     /// 使用默认程序启动文件
     pub fn launch_file(&self, file_name: &str) {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+
         let result = std::process::Command::new("cmd")
             .args(&["/C", "start", "", file_name])
+            .creation_flags(CREATE_NO_WINDOW) // 隐藏命令窗口
             .spawn();
+
         if result.is_err() {
             warn!("启动失败：{:?}", result);
         }

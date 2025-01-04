@@ -7,7 +7,7 @@ use core::f64;
 /// SearchAlgorithm 定义了搜索算法所需具备的核心功能和行为
 ///
 /// ScoreAdjuster 代表一个函数 y = f(x)，通常用于调整权重或将一个值映射到另一个域
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 /// 预处理一个函数
 /// input: 要预处理的字符串
@@ -44,6 +44,29 @@ pub fn score_adjust(score: f64, operation: ScoreAdjusterFn) -> f64 {
 /// 得分权重调整公式log2
 pub fn adjust_score_log2(origin_score: f64) -> f64 {
     3.0 * ((origin_score + 1.0).log2())
+}
+
+/// 子集匹配算法
+pub fn subset_dis(compare_name: &str, input_name: &str) -> f64 {
+    let mut compare_chars = HashMap::with_capacity(compare_name.len());
+
+    // 统计 compare_name 中字符出现次数
+    for c in compare_name.chars() {
+        *compare_chars.entry(c).or_insert(0) += 1;
+    }
+
+    // 计算匹配的字符数
+    let mut result = 0;
+    for c in input_name.chars() {
+        if let Some(count) = compare_chars.get_mut(&c) {
+            if *count > 0 {
+                result += 1;
+                *count -= 1;
+            }
+        }
+    }
+
+    result as f64
 }
 
 /// 权重计算最短编辑距离
@@ -119,7 +142,7 @@ pub fn standard_search_fn(program: Arc<Program>, user_input: &str) -> f64 {
     // program中的字符串与user_input都已经是预处理过了，不再需要预处理了
     let mut ret: f64 = -10000.0;
     for names in &program.alias {
-        if names.chars().count() + 1 < user_input.chars().count() {
+        if names.chars().count() < user_input.chars().count() {
             continue;
         }
         let mut score: f64 = calculate_weight(names, user_input, shortest_edit_dis);
@@ -127,6 +150,7 @@ pub fn standard_search_fn(program: Arc<Program>, user_input: &str) -> f64 {
             (user_input.chars().count() as f64) / (names.chars().count() as f64),
             adjust_score_log2,
         );
+        score += calculate_weight(names, user_input, subset_dis);
         score += calculate_weight(names, user_input, kmp);
         ret = f64::max(ret, score);
     }

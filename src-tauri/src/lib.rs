@@ -299,7 +299,7 @@ fn init_system_tray(app: &mut App) {
     let tray_icon = TrayIconBuilder::new()
         .menu(&menu)
         .icon(Image::from_path(icon_path).unwrap())
-        .tooltip("ZeroLaunch-rs v0.3.1")
+        .tooltip("ZeroLaunch-rs v0.3.2")
         .menu_on_left_click(false)
         .build(handle)
         .unwrap();

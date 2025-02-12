@@ -273,7 +273,7 @@ const initWindow = async () => {
 
 const startPreloadResource = async (program_count: number) => {
   const BATCH_SIZE = 10; // 每批加载的图标数量
-
+  program_icons.value.clear(); // 每次加载时，都要清空原来的内容
   // 分批次处理程序ID
   for (let i = 0; i < program_count; i += BATCH_SIZE) {
     const batchStart = i;

@@ -139,3 +139,10 @@ folder_5（第 5 层）
 - [x] 自定义搜索栏选项的颜色
 - [x] 自定义搜索栏选项的图片
 
+# 使用到了开源项目
+
+* [chinese-xinhua](https://github.com/pwxcoo/chinese-xinhua)：程序使用该项目提供的字典（经过处理）来完成中文转拼音。
+
+* [Bootstrap](https://icons.bootcss.com/)：提供了免费使用的高质量图标。
+
+* [LaunchyQt](https://github.com/samsonwang/LaunchyQt)：提供了索引 UWP 应用程序的代码。

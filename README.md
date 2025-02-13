@@ -9,7 +9,7 @@ ZeroLaunch-rs 是一个使用 Rust + Tauri + Vite + Vue.js + TypeScript 构建�
 - 纯本地运行，不联网。
 - 高度自定义的界面。
 - 开源，永久免费。
-- 优秀的搜索算法，支持全称，模糊，拼音搜索。
+- 优秀的搜索算法，支持全称，模糊，拼音搜索（拼音搜索也支持模糊搜索）。
 
 该软件因个人需要而开发，因此会长期维护！
 
@@ -23,12 +23,13 @@ ZeroLaunch-rs 是一个使用 Rust + Tauri + Vite + Vue.js + TypeScript 构建�
 
 ![](https://raw.githubusercontent.com/ghost-him/ZeroLaunch-rs/refs/heads/main/asset/%E7%B2%BE%E5%87%86%E5%8C%B9%E9%85%8D.png)
 
+**背景图片可在设置界面更换**
+
 设置界面
 
 ![](https://raw.githubusercontent.com/ghost-him/ZeroLaunch-rs/refs/heads/main/asset/%E8%AE%BE%E7%BD%AE%E7%95%8C%E9%9D%A2.png)
 
-更多内容：[点击跳转](https://github.com/ghost-him/ZeroLaunch-rs/blob/main/asset/picture.md)
-
+更多详细的屏蔽内容：[点击跳转](https://github.com/ghost-him/ZeroLaunch-rs/blob/main/asset/picture.md)
 
 ## 快速上手
 

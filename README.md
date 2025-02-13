@@ -1,7 +1,5 @@
 # ZeroLaunch-rs
 
-该软件还处于早期阶段，目前已经成熟 CPP 版本的地址如下：[github](https://github.com/ghost-him/ZeroLaunch-CPP)。
-
 ## 介绍
 
 ZeroLaunch-rs 是一个使用 Rust + Tauri + Vite + Vue.js + TypeScript 构建的运行在 windows 环境下的用于快速启动应用程序的软件。
@@ -54,28 +52,45 @@ ZeroLaunch-rs 是一个使用 Rust + Tauri + Vite + Vue.js + TypeScript 构建�
 
 ### 自定义搜索的路径与不搜索的路径
 
+* b对于自定义搜索路径
 
-* 对于自定义搜索路径
+自定义搜索路径的文件夹搜索深度为 5 层：程序会递归搜索给定根目录下的所有文件，并遍历其下最多 5 层子文件夹 中的内容。具体规则如下：
 
-自定义搜索路径的文件夹搜索深度为1：会搜索给定的文件夹下的所有的文件与其下一层的子文件夹下的所有的文件，如果该子文件夹中还有文件夹，则不会再搜索。
-
-程序只会索引 `.exe` ， `.url` ，`.lnk` 三类文件。
-
-例如有以下文件夹结构
+根目录（第 0 层）及其直接子文件夹（第 1 层）会被完全索引。
+每个子文件夹的递归深度逐层递减，直到达到第 5 层后停止（共支持根目录 + 5 层子目录）。
+程序仅索引 .exe、.url、.lnk 三类文件，并自动过滤名称含屏蔽关键字的文件。
+例如以下文件夹结构：
 
 ```
-C:\users\ghost\desktop\root folder
-└─folder 1
-    └─folder 2
+C:\users\ghost\desktop\root_folder
+└─folder_1
+    └─folder_2
+        └─folder_3
+            └─folder_4
+                └─folder_5
+                    └─folder_6
+
 ```
 
-在自定义文件中写入 `C:\users\ghost\desktop\root folder` 后，文件会搜索 `root folder` 与 `folder 1` 中的所有内容，而不搜索 `folder 2`的 内容。
+若自定义路径为 C:\users\ghost\desktop\root_folder，程序会索引：
+
+root_folder（第 0 层）
+folder_1（第 1 层）
+folder_2（第 2 层）
+folder_3（第 3 层）
+folder_4（第 4 层）
+folder_5（第 5 层）
+但不会搜索 folder_6（第 6 层，超出深度限制）。
 
 * 对于不搜索路径
 
 如果不想要搜索某一文件夹，则可以将该文件夹的路径写入。不搜索路径要求：搜索路径的前缀与不搜索路径完全匹配。
 
 以上例为例：如果写入了 `C:\users\ghost\desktop`，则不会遍历该路径，而写入了 `C:\users\ghost\desktop\root folder\folder 1` 时，只会遍历 `root folder` 下的所有文件与除了 `folder 1` 之外的所有的子文件夹下的所有的文件。
+
+### 屏蔽字
+
+屏蔽字的作用为：当你有一些程序不想被索引，比如xxx程序的卸载程序，还有xxx程序的帮助文档。你可以将其共性的词，比如`卸载(uninstall)`与`帮助(help)`添加到屏蔽字中，这样程序在索引程序时，在检测到这个关键字以后就会跳过，从而减少算法的运行时间。
 
 ### 关键字过滤器
 

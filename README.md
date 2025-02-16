@@ -58,8 +58,9 @@
 
 ### 路径管理策略
 
-```plaintext
 搜索路径示例：
+
+```plaintext
 C:\Program Files\ (深度5层)
 ├── App1/              ✔️ 索引
 │   └── Subfolder/     ✔️ 索引
@@ -69,10 +70,10 @@ C:\Program Files\ (深度5层)
          └── Layer6 ❌ 忽略
 ```
 
-### 排除规则：
+#### 排除规则：
 使用前缀完全匹配机制，例如排除 `C:\Temp` 将阻止所有以该路径开头的目录索引
 
-### 权重调优公式
+#### 权重调优公式
 程序的最终权重 = 算法匹配度 + ∑(关键词权重)
 
 示例配置：
@@ -95,7 +96,7 @@ C:\Program Files\ (深度5层)
 
 ```bash
 # 克隆仓库
-git clone https://github.com/yourname/ZeroLaunch-rs.git
+git clone https://github.com/ghost-him/ZeroLaunch-rs.git
 
 # 安装依赖
 yarn install

@@ -5708,7 +5708,7 @@ dependencies = [
 
 [[package]]
 name = "zerolaunch-rs"
-version = "0.1.0"
+version = "0.3.4"
 dependencies = [
  "base64 0.22.1",
  "chrono",

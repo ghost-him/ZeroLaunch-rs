@@ -1,6 +1,6 @@
 [package]
 name = "zerolaunch-rs"
-version = "0.1.0"
+version = "0.3.4"
 description = "A Tauri App"
 authors = ["ghost-him"]
 edition = "2021"
@@ -44,7 +44,7 @@ tauri-plugin-shell = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 lazy_static = "1.5.0"
-rdev = {version = "0.5.3", features = ["unstable_grab"] }
+rdev = { version = "0.5.3", features = ["unstable_grab"] }
 widestring = "1.1.0"
 windows-core = "0.58.0"
 rayon = "1.10.0"
@@ -58,7 +58,7 @@ tracing-appender = "0.2.3"
 chrono = "0.4.38"
 parking_lot = "0.12.3"
 tauri-plugin-global-shortcut = "2.0.1"
-tauri-plugin-dialog = {version = "2.0.3"}
+tauri-plugin-dialog = { version = "2.0.3" }
 timer = "0.2.0"
 
 [features]

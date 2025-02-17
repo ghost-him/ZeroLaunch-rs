@@ -42,6 +42,8 @@ use tauri::menu::{MenuBuilder, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::tray::TrayIconEvent;
 use tauri::App;
+use tauri::AppHandle;
+use tauri::Emitter;
 use tauri::WebviewUrl;
 use tauri::{webview::WebviewWindow, Manager, PhysicalPosition, PhysicalSize};
 use tauri_plugin_dialog::DialogExt;
@@ -172,6 +174,7 @@ pub fn run() {
                 ))
                 .unwrap();
             drop(config);
+            *HANDLE.lock().unwrap() = Some(app_handle.clone());
             update_app_setting();
             // PROGRAM_MANAGER.lock().unwrap().test_search_algorithm("");
             Ok(())
@@ -336,6 +339,7 @@ fn init_system_tray(app: &mut App) {
 lazy_static! {
     static ref GUARD: Arc<Mutex<Option<Guard>>> = Arc::new(Mutex::new(None));
     static ref TIMER: Timer = Timer::new();
+    static ref HANDLE: Arc<Mutex<Option<AppHandle>>> = Arc::new(Mutex::new(None));
 }
 
 /// 更新程序的状态
@@ -357,12 +361,28 @@ fn update_app_setting() {
         drop(guard); // 取消定时器
     }
 
-    // 创建新的定时器，间隔为 2 秒
+    // 创建新定时器
+    println!("mins{}", mins);
     let new_interval = chrono::Duration::seconds((mins * 60) as i64);
     let guard_value = TIMER.schedule_repeating(new_interval, move || {
         update_app_setting();
     });
     *GUARD.lock().unwrap() = Some(guard_value);
+
+    // 修复点：分离锁的作用域
+    let handle = {
+        let mut guard = HANDLE.lock().unwrap();
+        guard.take().unwrap() // 这里会移出 handle
+    }; //
+
+    // 在无锁状态下发送事件
+    handle.emit("update_search_bar_window", "").unwrap();
+    println!("刷新数据库");
+
+    {
+        let mut guard = HANDLE.lock().unwrap();
+        *guard = Some(handle);
+    }
 }
 
 /// 保存程序的配置信息

@@ -296,6 +296,7 @@ const startPreloadResource = async (program_count: number) => {
 
 // 用于程序在更新相应内容
 const updateWindow = async () => {
+  console.log("updateWindow");
   try {
     const background_picture_data = await invoke<number[]>('get_background_picture');
     const program_count = invoke<number>('get_program_count');

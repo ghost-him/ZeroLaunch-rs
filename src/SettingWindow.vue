@@ -20,11 +20,11 @@
                 </el-form-item>
 
                 <el-form-item label="设置搜索结果数量">
-                    <el-input-number v-model="config.search_result_count" step="1" />
+                    <el-input-number v-model="config.search_result_count" :step="1" :precision="0" />
                 </el-form-item>
 
                 <el-form-item label="自动刷新数据库的时间（分钟）">
-                    <el-input-number v-model="config.auto_refresh_time" step="1" />
+                    <el-input-number v-model="config.auto_refresh_time" :step="1" :precision="0" />
                 </el-form-item>
 
                 <el-form-item label="设置选中项的背景颜色">

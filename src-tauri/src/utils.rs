@@ -76,7 +76,7 @@ pub fn get_start_menu_paths() -> Result<(String, String), String> {
     unsafe {
         // 获取公共开始菜单路径
         let hr_common = SHGetFolderPathW(
-            HWND(std::ptr::null_mut()),
+            None,
             CSIDL_COMMON_STARTMENU as i32,
             None,
             0,
@@ -91,13 +91,8 @@ pub fn get_start_menu_paths() -> Result<(String, String), String> {
         }
 
         // 获取用户开始菜单路径
-        let hr_user = SHGetFolderPathW(
-            HWND(std::ptr::null_mut()),
-            CSIDL_STARTMENU as i32,
-            None,
-            0,
-            &mut user_path_buffer,
-        );
+        let hr_user =
+            SHGetFolderPathW(None, CSIDL_STARTMENU as i32, None, 0, &mut user_path_buffer);
 
         if hr_user.is_err() {
             return Err(format!("Failed to get CSIDL_STARTMENU: {:?}", hr_user));

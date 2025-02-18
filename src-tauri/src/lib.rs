@@ -303,7 +303,7 @@ fn init_system_tray(app: &mut App) {
         .menu(&menu)
         .icon(Image::from_path(icon_path).unwrap())
         .tooltip("ZeroLaunch-rs v0.3.4")
-        .menu_on_left_click(false)
+        .show_menu_on_left_click(false)
         .build(handle)
         .unwrap();
     tray_icon.on_menu_event(|app_handle, event| {

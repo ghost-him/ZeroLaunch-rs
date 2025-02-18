@@ -143,9 +143,7 @@ impl ImageLoader {
             .unwrap();
         let mut buf: Vec<u8> = Vec::with_capacity(buf_size);
 
-        let dc: windows::Win32::Graphics::Gdi::HDC = windows::Win32::Graphics::Gdi::GetDC(
-            windows::Win32::Foundation::HWND(std::ptr::null_mut()),
-        );
+        let dc: windows::Win32::Graphics::Gdi::HDC = windows::Win32::Graphics::Gdi::GetDC(None);
         assert!(dc != windows::Win32::Graphics::Gdi::HDC(std::ptr::null_mut()));
 
         let _bitmap_info = BITMAPINFOHEADER {
@@ -169,10 +167,7 @@ impl ImageLoader {
             bmp.as_mut_ptr() as *mut c_void,
         );
         buf.set_len(bmp.capacity());
-        let result = windows::Win32::Graphics::Gdi::ReleaseDC(
-            windows::Win32::Foundation::HWND(std::ptr::null_mut()),
-            dc,
-        );
+        let result = windows::Win32::Graphics::Gdi::ReleaseDC(None, dc);
         assert!(result == 1);
         DeleteObject(HGDIOBJ(info.hbmColor.0)).unwrap();
 

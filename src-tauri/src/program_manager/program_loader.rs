@@ -17,21 +17,20 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::{debug, info, warn};
-use windows::Win32::Foundation::S_OK;
+use windows::Win32::Foundation::{PROPERTYKEY, S_OK};
 use windows::Win32::Storage::FileSystem::WIN32_FIND_DATAW;
 use windows::Win32::System::Com::{
     CoCreateInstance, CoInitialize, CoUninitialize, IPersistFile,
-    StructuredStorage::PropVariantClear, CLSCTX_INPROC_SERVER, STGM,
+    StructuredStorage::{PropVariantClear, PROPVARIANT},
+    CLSCTX_INPROC_SERVER, STGM,
 };
-use windows::Win32::UI::Shell::PropertiesSystem::{
-    IPropertyStore, PSGetPropertyKeyFromName, PROPERTYKEY,
-};
+use windows::Win32::UI::Shell::PropertiesSystem::{IPropertyStore, PSGetPropertyKeyFromName};
 use windows::Win32::UI::Shell::{
     BHID_EnumItems, IEnumShellItems, IShellItem, IShellLinkW, SHCreateItemFromParsingName,
     ShellLink, SIGDN_NORMALDISPLAY,
 };
 use windows_core::Interface;
-use windows_core::{PCWSTR, PROPVARIANT};
+use windows_core::PCWSTR;
 struct GuidGenerator {
     next_id: u64,
 }

@@ -1,7 +1,7 @@
 {
   "name": "zerolaunch-rs",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.4.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,21 +10,19 @@
     "tauri": "tauri"
   },
   "dependencies": {
+    "@element-plus/icons-vue": "^2.3.1",
     "@tauri-apps/api": "^2",
-    "@tauri-apps/plugin-autostart": "~2",
-    "@tauri-apps/plugin-dialog": "^2.0.1",
+    "@tauri-apps/plugin-dialog": "^2.2.0",
     "@tauri-apps/plugin-shell": "^2",
-    "element-plus": "^2.8.6",
+    "element-plus": "^2.9.4",
     "vue": "^3.3.4",
-    "vue-router": "4",
-    "yarn": "^1.22.22"
+    "vue-router": "^4.5.0"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2",
     "@vitejs/plugin-vue": "^5.0.5",
     "typescript": "^5.2.2",
     "vite": "^5.3.1",
-    "vue-tsc": "^2.0.22"
-  },
-  "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
+    "vue-tsc": "^2.0.22",
+    "@tauri-apps/cli": "^2"
+  }
 }

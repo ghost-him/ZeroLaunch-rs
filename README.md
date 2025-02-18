@@ -100,7 +100,7 @@ C:\Program Files\ (深度5层)
 
 * Rust
 * Node.js
-* Yarn
+* Bun
 
 ### 构建步骤
 
@@ -109,13 +109,13 @@ C:\Program Files\ (深度5层)
 git clone https://github.com/ghost-him/ZeroLaunch-rs.git
 
 # 安装依赖
-yarn install
+bun install
 
 # 开发模式
-yarn tauri dev
+bun run tauri dev
 
 # 生产构建
-yarn tauri build
+bun run tauri build
 ```
 
 构建产物路径：`./src-tauri/target/release/`

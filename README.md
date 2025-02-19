@@ -16,8 +16,8 @@
 
 ### 🔒 隐私优先设计
 
-- **完全离线运行** - 无需网络连接，数据永不外传
-- **零数据采集** - 严格遵循本地化原则
+- 完全离线运行 - 无需网络连接，数据永不外传
+- 零数据采集 - 严格遵循本地化原则
 
 ### ⚡ 智能搜索体验
 
@@ -141,3 +141,15 @@ bun run tauri build
 * [chinese-xinhua](https://github.com/pwxcoo/chinese-xinhua) - 中文转拼音核心词典
 * [Bootstrap Icons](https://icons.getbootstrap.com/) - 界面图标资源
 * [LaunchyQt](https://github.com/samsonwang/LaunchyQt) - UWP应用索引方案
+
+## 🎯 todo
+
+doing: 重构软件代码，提高软件的可维护性
+
+* 重新设计运行界面
+* 使用正则表达式来做关键字屏蔽与路径屏蔽
+* 支持自定义搜索文件夹深度
+* 主题颜色随背景图片的改动而改动
+* 添加一键恢复默认的配置文件保存地址
+* 重构软件代码，提高软件的可维护性
+* 暗色主题

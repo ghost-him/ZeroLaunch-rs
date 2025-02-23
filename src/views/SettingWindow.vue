@@ -261,8 +261,7 @@
     </el-tabs>
 </template>
 <script lang="ts" setup>
-import { ref, reactive, onMounted, onUnmounted, computed } from 'vue';
-import type { TabsPaneContext } from 'element-plus';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { ElMessage } from 'element-plus';
 import { open } from '@tauri-apps/plugin-dialog';

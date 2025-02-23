@@ -467,16 +467,22 @@ pub fn handle_auto_start() -> Result<(), Box<dyn std::error::Error>> {
 
 /// 处理静默启动
 pub fn handle_silent_start() {
-    let state: Arc<AppState> = ServiceLocator::get_state();
-    let app_handle = state.get_main_handle().unwrap();
-    let main_window = app_handle.get_webview_window("main").unwrap();
-    let runtime_config = state.get_runtime_config().unwrap();
-    let app_config = runtime_config.get_app_config();
-    if app_config.get_is_silent_start() {
-        let _ = main_window.hide();
-    } else {
-        let _ = main_window.show();
-    }
+    use std::sync::Once;
+
+    static ONCE: Once = Once::new();
+
+    ONCE.call_once(|| {
+        let state: Arc<AppState> = ServiceLocator::get_state();
+        let app_handle = state.get_main_handle().unwrap();
+        let main_window = app_handle.get_webview_window("main").unwrap();
+        let runtime_config = state.get_runtime_config().unwrap();
+        let app_config = runtime_config.get_app_config();
+        if app_config.get_is_silent_start() {
+            let _ = main_window.hide();
+        } else {
+            let _ = main_window.show();
+        }
+    });
 }
 
 // 函数用于删除超过一星期的日志文件

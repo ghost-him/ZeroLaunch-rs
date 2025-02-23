@@ -15,6 +15,8 @@
     "@tauri-apps/plugin-dialog": "^2.2.0",
     "@tauri-apps/plugin-shell": "^2",
     "element-plus": "^2.9.4",
+    "lodash-es": "^4.17.21",
+    "pinia": "^3.0.1",
     "vue": "^3.3.4",
     "vue-router": "^4.5.0"
   },

@@ -11,15 +11,9 @@ pub fn handle_pressed(app_handle: &tauri::AppHandle) {
     main_window.emit("show_window", ()).unwrap();
 }
 
-pub fn handle_focus_lost(windows: &[WebviewWindow]) {
-    for window in windows {
-        if window.is_visible().unwrap_or(false) {
-            window
-                .hide()
-                .unwrap_or_else(|e| warn!("无法隐藏窗口：{}", e));
-        }
-        if window.label() == "main" {
-            window.emit("handle_focus_lost", ()).unwrap();
-        }
-    }
+pub fn handle_focus_lost(main_window: Arc<WebviewWindow>) {
+    main_window
+        .hide()
+        .unwrap_or_else(|e| warn!("无法隐藏窗口：{}", e));
+    main_window.emit("handle_focus_lost", ()).unwrap();
 }

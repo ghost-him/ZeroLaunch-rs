@@ -1,4 +1,4 @@
-use super::config::PINYIN_CONTENT_JS;
+use crate::modules::config::default::PINYIN_CONTENT_JS;
 use serde::{Deserialize, Serialize};
 /// 这个类用于将中文名字转换成拼音名字
 use std::collections::HashMap;
@@ -8,7 +8,7 @@ struct Item {
     pinyin: String,
     word: String,
 }
-
+#[derive(Debug)]
 pub struct PinyinMapper {
     pinyin: HashMap<String, String>,
 }

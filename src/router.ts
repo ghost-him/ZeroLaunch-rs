@@ -1,7 +1,7 @@
 // src/router.ts
 import { createRouter, createWebHistory } from 'vue-router';
-import App from './App.vue';
-import SettingWindow from './SettingWindow.vue';
+import App from './views/App.vue';
+import SettingWindow from './views/SettingWindow.vue';
 
 const routes = [
   { path: '/', component: App },

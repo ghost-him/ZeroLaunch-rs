@@ -1,30 +1,32 @@
-pub mod config;
-pub mod defer;
-pub mod image_loader;
-pub mod interface;
-pub mod program_manager;
-pub mod singleton;
-pub mod ui_controller;
+pub mod commands;
+pub mod error;
+pub mod modules;
+pub mod state;
 pub mod utils;
-use crate::config::get_remote_config_path;
-use crate::config::GLOBAL_APP_HANDLE;
-use crate::config::LOG_DIR;
-use crate::config::PIC_PATH;
-use crate::interface::{
-    change_remote_config_dir, get_background_picture, get_config, get_file_info,
-    get_key_filter_data, get_path_config, get_program_count, get_program_info,
-    get_remote_config_dir, get_web_pages_infos, handle_search_text, hide_window,
-    init_search_bar_window, launch_program, load_program_icon, refresh_program, save_app_config,
-    save_custom_file_path, save_key_filter_data, save_path_config, select_background_picture,
-    show_setting_window, update_search_bar_window,
-};
-use crate::program_manager::PROGRAM_MANAGER;
-use crate::singleton::Singleton;
-use crate::ui_controller::handle_focus_lost;
+use crate::commands::file::*;
+use crate::commands::program_service::*;
+use crate::commands::ui_command::*;
+
+use crate::modules::config::default::LOCAL_CONFIG_PATH;
+use crate::modules::config::default::LOG_DIR;
+use crate::modules::config::local_config::LocalConfig;
+use crate::modules::config::{Height, Width};
+use crate::modules::storage::utils::read_or_create_str;
+use crate::modules::ui_controller::controller::get_window_render_origin;
+use crate::modules::ui_controller::controller::get_window_size;
+use crate::state::app_state::AppState;
+use crate::utils::get_remote_config_path;
+use crate::utils::ui_controller::handle_focus_lost;
+use crate::utils::ui_controller::handle_pressed;
 use chrono::DateTime;
+use chrono::Duration;
 use chrono::Local;
-use config::{Height, RuntimeConfig, Width};
-use lazy_static::lazy_static;
+use modules::config::config_manager::RuntimeConfig;
+use modules::config::default::{APP_PIC_PATH, REMOTE_CONFIG_NAME};
+use modules::config::save_remote_config;
+use modules::config::window_state::PartialWindowState;
+use modules::program_manager::{self, ProgramManager};
+use parking_lot::RwLock;
 use rdev::{listen, Event, EventType, Key};
 use single_instance::SingleInstance;
 use std::collections::HashSet;
@@ -33,19 +35,15 @@ use std::io::Write;
 use std::panic;
 use std::path::Path;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use std::thread;
-use std::time::{Duration, Instant};
 use tauri::image::Image;
 use tauri::menu::{MenuBuilder, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::tray::TrayIconEvent;
 use tauri::App;
-use tauri::AppHandle;
 use tauri::Emitter;
 use tauri::WebviewUrl;
-use tauri::{webview::WebviewWindow, Manager, PhysicalPosition, PhysicalSize};
+use tauri::{Manager, PhysicalPosition, PhysicalSize};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_dialog::MessageDialogKind;
 use timer::Guard;
@@ -54,7 +52,7 @@ use tracing::Level;
 use tracing::{debug, error, info, warn};
 use tracing_appender::rolling::RollingFileAppender;
 use tracing_appender::rolling::Rotation;
-use ui_controller::handle_pressed;
+use utils::service_locator::ServiceLocator;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // 创建一个按日期滚动的日志文件，例如每天一个新文件
@@ -105,6 +103,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .manage(Arc::new(AppState::new()))
         .setup(|app| {
             let instance = SingleInstance::new("ZeroLaunch-rs").unwrap();
             if !instance.is_single() {
@@ -118,94 +117,132 @@ pub fn run() {
 
                 std::process::exit(1);
             }
-
-            let windows: Arc<Vec<WebviewWindow>> =
-                Arc::new(app.webview_windows().values().cloned().collect());
+            println!("123");
+            // 初始化程序的图标
             register_icon_path(app);
+            println!("123");
+            // 初始化程序的配置系统
+            init_app_state(app);
+            println!("123");
+            // 初始化程序的系统托盘服务
             init_system_tray(app);
-
-            let main_window = Arc::new(app.get_webview_window("main").unwrap());
-
-            let app_handle = app.app_handle().clone();
-            let app_handle_clone = app_handle.clone();
+            println!("123");
+            // 初始化搜索栏
+            init_search_bar_window(app);
+            println!("123");
+            // 初始化设置窗口
+            init_setting_window(app.app_handle().clone());
+            println!("123");
+            // 初始化键盘监听器
             start_key_listener(app);
-            let windows_clone = Arc::clone(&windows);
-            main_window.on_window_event(move |event| {
-                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                    // 阻止窗口关闭
-                    api.prevent_close();
-                    // 隐藏窗口
-                    handle_focus_lost(&windows_clone);
-                    debug!("隐藏设置窗口");
-                }
-            });
-
-            *GLOBAL_APP_HANDLE.lock().unwrap() = Some(app_handle.clone());
-            init_setting_window(app_handle.clone());
-            handle_auto_start();
-            //start_key_listener(app_handle.clone()).expect("Failed to start key listener");
-            let windows_clone = Arc::clone(&windows);
-            main_window.on_window_event(move |event| {
-                if let tauri::WindowEvent::Focused(focused) = event {
-                    if !focused {
-                        handle_focus_lost(&windows_clone);
-                    }
-                }
-            });
-
-            let monitor = main_window.current_monitor().unwrap().unwrap();
-            let size = monitor.size();
-
-            let config_instance = RuntimeConfig::instance();
-            let mut config = config_instance.lock().unwrap();
-            config.set_sys_window_size(size.width as Width, size.height as Height);
-            let scale_factor = main_window.scale_factor().unwrap_or(1.0);
-            config.set_window_scale_factor(scale_factor);
-
-            let position = config.get_window_render_origin();
-            main_window
-                .set_position(PhysicalPosition::new(position.0 as u32, position.1 as u32))
-                .unwrap();
-            let window_size = config.get_window_size();
-            main_window
-                .set_size(PhysicalSize::new(
-                    window_size.0 as u32 + (20_f64 * scale_factor) as u32,
-                    window_size.1 as u32 + (20_f64 * scale_factor) as u32,
-                ))
-                .unwrap();
-            drop(config);
-            *HANDLE.lock().unwrap() = Some(app_handle.clone());
+            println!("123");
+            // 根据配置信息更新整个程序
             update_app_setting();
-            // PROGRAM_MANAGER.lock().unwrap().test_search_algorithm("");
+            println!("123");
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            init_search_bar_window,
-            handle_search_text,
-            hide_window,
-            show_setting_window,
-            get_config,
-            save_app_config,
-            update_search_bar_window,
-            save_path_config,
-            get_path_config,
-            get_key_filter_data,
-            get_program_info,
-            save_key_filter_data,
-            launch_program,
-            select_background_picture,
+            save_config,
             load_program_icon,
             get_program_count,
+            launch_program,
+            get_program_info,
             refresh_program,
-            save_custom_file_path,
-            get_web_pages_infos,
-            get_file_info,
+            handle_search_text,
+            initialize_search_window,
+            update_search_bar_window,
             get_background_picture,
             change_remote_config_dir,
-            get_remote_config_dir
+            select_background_picture,
+            hide_window,
+            show_setting_window,
+            load_config
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+/// 初始化的流程-> 初始化程序的状态
+fn init_app_state(app: &mut App) {
+    // 读取本地的配置文件信息，获得远程配置文件的地址
+    let local_config = LocalConfig::default();
+    // 先读一下配置文件的地址
+    let local_config_data = read_or_create_str(
+        &LOCAL_CONFIG_PATH,
+        Some(serde_json::to_string(&local_config).unwrap()),
+    )
+    .expect("无法读取");
+    let local_config: LocalConfig = serde_json::from_str(&local_config_data).unwrap();
+    let remote_config_dir_path = local_config.remote_config_path;
+    let remote_config_path = Path::new(&remote_config_dir_path)
+        .join(REMOTE_CONFIG_NAME)
+        .to_str()
+        .unwrap()
+        .to_string();
+    println!("234");
+    println!("remote_config_path: {:?}", remote_config_path);
+    let runtime_config = RuntimeConfig::new(remote_config_path.clone());
+    runtime_config.load_from_remote_config_path(None);
+    println!("234");
+    // 维护程序状态
+    let state = app.state::<Arc<AppState>>();
+    // 设置远程配置存在的位置
+    state.set_remote_config_dir_path(remote_config_dir_path);
+    // 维护程序的配置信息
+    state.set_runtime_config(Arc::new(runtime_config));
+    // 维护程序管理器
+    let program_manager = ProgramManager::new(APP_PIC_PATH.get("tips").unwrap().value().clone());
+    state.set_program_manager(Arc::new(program_manager));
+    // 维护app_handle
+    state.set_main_handle(Arc::new(app.app_handle().clone()));
+    // 使用ServiceLocator保存一份
+    ServiceLocator::init((*state).clone());
+}
+
+/// 初始化搜索界面的窗口设置
+fn init_search_bar_window(app: &mut App) {
+    let main_window = Arc::new(app.get_webview_window("main").unwrap());
+    // 设置tauri窗口的大小等参数
+    let monitor = main_window.current_monitor().unwrap().unwrap();
+    // 获得了当前窗口的物理大小
+    let size = monitor.size();
+    let scale_factor = main_window.scale_factor().unwrap_or(1.0);
+    let state = app.state::<Arc<AppState>>();
+    let mut config = state.get_runtime_config().unwrap();
+
+    config.get_window_state().update(PartialWindowState {
+        sys_window_scale_factor: Some(scale_factor),
+        sys_window_width: Some(size.width as Width),
+        sys_window_height: Some(size.height as Height),
+    });
+
+    let position = get_window_render_origin();
+    main_window
+        .set_position(PhysicalPosition::new(position.0 as u32, position.1 as u32))
+        .unwrap();
+    let window_size = get_window_size();
+    main_window
+        .set_size(PhysicalSize::new(
+            window_size.0 as u32 + (20_f64 * scale_factor) as u32,
+            window_size.1 as u32 + (20_f64 * scale_factor) as u32,
+        ))
+        .unwrap();
+    // 设置当窗口被关闭时，忽略
+    let windows_clone = main_window.clone();
+    main_window.on_window_event(move |event| {
+        if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+            // 阻止窗口关闭
+            api.prevent_close();
+            // 隐藏窗口
+            handle_focus_lost(windows_clone.clone());
+            debug!("隐藏设置窗口");
+        }
+        if let tauri::WindowEvent::Focused(focused) = event {
+            if !focused {
+                handle_focus_lost(windows_clone.clone());
+            }
+        }
+    });
 }
 
 ///注册图标的路径
@@ -217,18 +254,18 @@ fn register_icon_path(app: &mut App) {
         .join("icons");
 
     let icon_path: PathBuf = resource.join("32x32.png");
-    PIC_PATH.insert(
+    APP_PIC_PATH.insert(
         "tray_icon".to_string(),
         icon_path.to_str().unwrap().to_string(),
     );
 
     let web_icon = resource.join("web_pages.png");
-    PIC_PATH.insert(
+    APP_PIC_PATH.insert(
         "web_page".to_string(),
         web_icon.to_str().unwrap().to_string(),
     );
     let tips_icon = resource.join("tips.png");
-    PIC_PATH.insert("tips".to_string(), tips_icon.to_str().unwrap().to_string());
+    APP_PIC_PATH.insert("tips".to_string(), tips_icon.to_str().unwrap().to_string());
 }
 
 fn init_setting_window(app: tauri::AppHandle) {
@@ -296,7 +333,7 @@ fn init_system_tray(app: &mut App) {
         .item(&MenuItem::with_id(handle, "exit_program", "退出程序", true, None::<&str>).unwrap())
         .build()
         .unwrap();
-    let t = PIC_PATH.get("tray_icon").unwrap();
+    let t = APP_PIC_PATH.get("tray_icon").unwrap();
     let icon_path = t.value();
     info!("icon path: {:?}", icon_path);
     let tray_icon = TrayIconBuilder::new()
@@ -310,7 +347,7 @@ fn init_system_tray(app: &mut App) {
         let event_id = MenuEventId::from(event.id().as_ref());
         match event_id {
             MenuEventId::ShowSettingWindow => {
-                if let Err(e) = show_setting_window(app_handle.clone()) {
+                if let Err(e) = show_setting_window() {
                     warn!("Failed to show setting window: {:?}", e);
                 }
             }
@@ -336,53 +373,42 @@ fn init_system_tray(app: &mut App) {
     });
 }
 
-lazy_static! {
-    static ref GUARD: Arc<Mutex<Option<Guard>>> = Arc::new(Mutex::new(None));
-    static ref TIMER: Timer = Timer::new();
-    static ref HANDLE: Arc<Mutex<Option<AppHandle>>> = Arc::new(Mutex::new(None));
-}
-
 /// 更新程序的状态
 fn update_app_setting() {
+    let state = ServiceLocator::get_state();
+    let runtime_config = state.get_runtime_config().unwrap();
+
     // 1. 重新更新程序索引的路径
-    update_program_path();
+    let mut program_manager = state.get_program_manager().unwrap();
+    program_manager.load_from_config(runtime_config.get_program_manager_config());
+
     // 2. 判断要不要开机自启动
     handle_auto_start();
     // 3.判断要不要静默启动
     handle_silent_start();
 
-    let instance = RuntimeConfig::instance();
-    let runtime_config = instance.lock().unwrap();
+    let mins = runtime_config.get_app_config().get_auto_refresh_time() as u64;
 
-    let mins = runtime_config.get_app_config().auto_refresh_time as u64;
-    drop(runtime_config);
     // 取消当前的定时器
-    if let Some(guard) = GUARD.lock().unwrap().take() {
+    if let Some(guard) = state.take_timer_guard() {
         drop(guard); // 取消定时器
     }
 
     // 创建新定时器
-    println!("mins{}", mins);
-    let new_interval = chrono::Duration::seconds((mins * 60) as i64);
-    let guard_value = TIMER.schedule_repeating(new_interval, move || {
+    println!("mins: {}", mins);
+    let new_interval = Duration::seconds((mins * 60) as i64);
+    let timer = state.get_timer();
+    let guard_value = timer.schedule_repeating(new_interval, move || {
         update_app_setting();
     });
-    *GUARD.lock().unwrap() = Some(guard_value);
+    state.set_timer_guard(guard_value);
 
-    // 修复点：分离锁的作用域
-    let handle = {
-        let mut guard = HANDLE.lock().unwrap();
-        guard.take().unwrap() // 这里会移出 handle
-    }; //
+    // 获取主窗口句柄
+    let handle = state.get_main_handle().unwrap();
 
-    // 在无锁状态下发送事件
+    // 发送事件
     handle.emit("update_search_bar_window", "").unwrap();
     println!("刷新数据库");
-
-    {
-        let mut guard = HANDLE.lock().unwrap();
-        *guard = Some(handle);
-    }
 }
 
 /// 保存程序的配置信息
@@ -391,67 +417,62 @@ fn update_app_setting() {
 /// 3. 重新读取文件并更新配置信息
 
 pub fn save_config_to_file(is_update_app: bool) {
-    let mut manager = PROGRAM_MANAGER.lock().unwrap();
-    let config = manager.get_launcher_config();
-    drop(manager);
-    {
-        let instance = RuntimeConfig::instance();
-        let mut runtime_config = instance.lock().unwrap();
-        runtime_config.save_program_launcher_config(&config);
-        let config_content: String = runtime_config.save_config();
+    let state = ServiceLocator::get_state();
 
-        let config_path_str = get_remote_config_path();
-        std::fs::write(config_path_str, config_content).unwrap();
-    }
+    let runtime_config = state.get_runtime_config().unwrap();
+    let remote_config = runtime_config.to_partial();
+    let data_str = save_remote_config(remote_config);
+    let config_path_str = get_remote_config_path();
+    std::fs::write(config_path_str, data_str).unwrap();
+
     if is_update_app {
         update_app_setting();
     }
 }
 
-/// 重新索引程序
-pub fn update_program_path() {
-    let instance = RuntimeConfig::instance();
-    let runtime_config = instance.lock().unwrap();
-    let mut program_manager = PROGRAM_MANAGER.lock().unwrap();
-    program_manager.load_from_config(runtime_config.get_program_manager_config());
-}
-
 /// 处理自动开机的逻辑
-pub fn handle_auto_start() {
-    let mut instance = GLOBAL_APP_HANDLE.lock().unwrap();
-    let app = instance.as_mut().unwrap();
-    use tauri_plugin_autostart::MacosLauncher;
+pub fn handle_auto_start() -> Result<(), Box<dyn std::error::Error>> {
+    let state: Arc<AppState> = ServiceLocator::get_state();
+
+    // 处理主窗口句柄
+    let app_handle = state.get_main_handle().unwrap();
+
+    // 初始化自动启动插件
+    {
+        use tauri_plugin_autostart::MacosLauncher;
+        app_handle.plugin(tauri_plugin_autostart::init(
+            MacosLauncher::LaunchAgent,
+            None,
+        ))?;
+    }
     use tauri_plugin_autostart::ManagerExt;
+    // 获取自动启动管理器
+    let autostart_manager = app_handle.autolaunch();
 
-    app.plugin(tauri_plugin_autostart::init(
-        MacosLauncher::LaunchAgent,
-        None,
-    ))
-    .unwrap();
+    // 获取运行时配置
+    let is_auto_start = {
+        let config = state.get_runtime_config().unwrap();
+        config.get_app_config().get_is_auto_start()
+    };
 
-    // Get the autostart manager
-    let autostart_manager = app.autolaunch();
-
-    let instance = RuntimeConfig::instance();
-    let runtime_config = instance.lock().unwrap();
-    let is_auto_start = runtime_config.get_app_config().is_auto_start;
-    if is_auto_start && !autostart_manager.is_enabled().unwrap() {
-        let _ = autostart_manager.enable();
+    // 根据配置更新自动启动状态
+    match (is_auto_start, autostart_manager.is_enabled()?) {
+        (true, false) => autostart_manager.enable()?,
+        (false, true) => autostart_manager.disable()?,
+        _ => (),
     }
-    if !is_auto_start && autostart_manager.is_enabled().unwrap() {
-        let _ = autostart_manager.disable();
-    }
+
+    Ok(())
 }
 
 /// 处理静默启动
 pub fn handle_silent_start() {
-    let mut instance = GLOBAL_APP_HANDLE.lock().unwrap();
-    let app = instance.as_mut().unwrap();
-    let main_window = app.get_webview_window("main").unwrap();
-    let instance = RuntimeConfig::instance();
-    let runtime_config = instance.lock().unwrap();
+    let state: Arc<AppState> = ServiceLocator::get_state();
+    let app_handle = state.get_main_handle().unwrap();
+    let main_window = app_handle.get_webview_window("main").unwrap();
+    let runtime_config = state.get_runtime_config().unwrap();
     let app_config = runtime_config.get_app_config();
-    if app_config.is_silent_start {
+    if app_config.get_is_silent_start() {
         let _ = main_window.hide();
     } else {
         let _ = main_window.show();

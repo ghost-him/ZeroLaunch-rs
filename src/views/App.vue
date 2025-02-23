@@ -65,7 +65,7 @@ import { ref, onMounted, computed, onUnmounted, watch } from 'vue';
 import { Search } from '@element-plus/icons-vue';
 import { invoke } from "@tauri-apps/api/core";
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
-import { calculateColors } from "./color"
+import { calculateColors } from "../utils/color"
 
 const searchText = ref('');
 const activeIndex = ref('0');
@@ -96,14 +96,6 @@ const contextMenuPosition = ref({ x: 0, y: 0 });
 
 const isCtrlPressed = ref(false);
 
-/*
-// 更新字体的样式
-const updateInputStyle = (newFont: string, newSize: number, newColor: string) => {
-  fontFamily.value = newFont;
-  fontSize.value = newSize;
-  fontColor.value = newColor;
-};
-*/
 
 const sendSearchText = async (text: string) => {
   try {
@@ -262,7 +254,7 @@ interface SearchBarUpdate {
 
 // 用于程序在一开始初始化
 const initWindow = async () => {
-  const initValue = await invoke<SearchBarInit>('init_search_bar_window');
+  const initValue = await invoke<SearchBarInit>('initialize_search_window');
   resultItemCount.value = initValue.result_item_count;
   windowSize.value = initValue.window_size;
   itemSize.value = initValue.item_size;

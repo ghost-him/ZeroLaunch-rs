@@ -1,5 +1,4 @@
-use crate::config::PIC_PATH;
-use crate::utils::get_u16_vec;
+use super::super::super::utils::windows::get_u16_vec;
 use core::mem::MaybeUninit;
 /// 这个类主要用于加载程序的图片，支持并发查询
 use image::codecs::png::PngEncoder;
@@ -25,20 +24,25 @@ use windows::Win32::UI::WindowsAndMessaging::DestroyIcon;
 use windows::Win32::UI::WindowsAndMessaging::HICON;
 use windows::Win32::UI::WindowsAndMessaging::{GetIconInfo, ICONINFO};
 use windows_core::PCWSTR;
-pub struct ImageLoader {}
+#[derive(Debug)]
+pub struct ImageLoader {
+    default_app_icon_path: String,
+}
 
 impl ImageLoader {
     /// 新建一个
-    pub fn new() -> ImageLoader {
-        ImageLoader {}
+    pub fn new(default_icon_path: String) -> ImageLoader {
+        ImageLoader {
+            default_app_icon_path: default_icon_path,
+        }
     }
     /// 加载一个图片
     pub fn load_image(&self, icon_path: &str) -> Vec<u8> {
-        let mut pic_base64: Vec<u8> = self.load_image_from_path(icon_path);
-        if pic_base64.is_empty() {
-            pic_base64 = self.load_image_from_path(PIC_PATH.get("tips").unwrap().value())
+        let mut pic_bytes: Vec<u8> = self.load_image_from_path(icon_path);
+        if pic_bytes.is_empty() {
+            pic_bytes = self.load_image_from_path(&self.default_app_icon_path)
         }
-        pic_base64
+        pic_bytes
     }
     /// 使用路径加载一个图片
     fn load_image_from_path(&self, icon_path: &str) -> Vec<u8> {
@@ -61,7 +65,7 @@ impl ImageLoader {
                 None
             };
         }
-        // 如果有内容，就编码成base64
+        // 如果有内容，就返回
         if img.is_some() {
             return img.unwrap();
         }

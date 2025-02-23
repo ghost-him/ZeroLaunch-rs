@@ -1,111 +1,127 @@
 pub mod config;
-mod pinyin_mapper;
-/// 这个模块用于对数据进行储存，加工与处理
-///
-mod program_launcher;
-mod program_loader;
-mod search_model;
-use super::image_loader::ImageLoader;
-use config::{ProgramLauncherConfig, ProgramManagerConfig};
+pub mod image_loader;
+pub mod pinyin_mapper;
+pub mod program_launcher;
+pub mod program_loader;
+pub mod search_model;
+pub mod unit;
+use crate::modules::program_manager::image_loader::ImageLoader;
+use crate::program_manager::config::program_manager_config::ProgramManagerConfig;
+use crate::program_manager::unit::*;
+use config::program_manager_config::PartialProgramManagerConfig;
 use dashmap::DashMap;
-use lazy_static::lazy_static;
+use parking_lot::Mutex;
+use parking_lot::RwLock;
 use program_launcher::ProgramLauncher;
 use program_loader::ProgramLoader;
 use rayon::prelude::*;
 use search_model::remove_repeated_space;
 use search_model::{standard_search_fn, SearchModelFn};
 use std::sync::Arc;
-use std::sync::Mutex;
-/// 应用程序的启动方式
-#[derive(Debug, Clone)]
-enum LaunchMethod {
-    /// 通过文件路径来启动
-    Path(String),
-    /// 通过包族名来启动
-    PackageFamilyName(String),
-    /// 使用默认的启动方式来打开一个文件
-    File(String),
-}
-
-impl LaunchMethod {
-    /// 这个是用于在文件中存储的全局唯一标识符
-    pub fn get_text(&self) -> String {
-        match &self {
-            LaunchMethod::Path(path) => path.clone(),
-            LaunchMethod::PackageFamilyName(name) => name.clone(),
-            LaunchMethod::File(path) => path.clone(),
-        }
-    }
-
-    pub fn is_uwp(&self) -> bool {
-        match &self {
-            LaunchMethod::Path(_) => false,
-            LaunchMethod::PackageFamilyName(_) => true,
-            LaunchMethod::File(_) => false,
-        }
-    }
-}
-
-/// 表示一个数据
-#[derive(Debug)]
-struct Program {
-    /// 全局唯一标识符，用于快速索引，用于内存中存储
-    pub program_guid: u64,
-    /// 展示给用户看的名字
-    pub show_name: String,
-    /// 这个程序的启动方法
-    pub launch_method: LaunchMethod,
-    /// 用于计算的字符串
-    pub alias: Vec<String>,
-    /// 权重固定偏移量
-    pub stable_bias: f64,
-    /// 应用程序应该展示的图片的地址
-    pub icon_path: String,
-}
 
 /// 数据处理中心
-
-pub struct ProgramManager {
+#[derive(Debug)]
+pub struct ProgramManagerInner {
     /// 当前已经注册的程序
     program_registry: Vec<Arc<Program>>,
     /// 程序加载器
-    program_loader: ProgramLoader,
+    program_loader: Arc<ProgramLoader>,
     /// 程序启动器
-    program_launcher: ProgramLauncher,
+    program_launcher: Arc<ProgramLauncher>,
     /// 当前程序的搜索模型（目前写死，后期变成可用户自定义）
     search_fn: SearchModelFn,
     /// 图标获取器
-    image_loader: ImageLoader,
+    image_loader: Arc<ImageLoader>,
     /// 程序查找器(程序的guid, 在registry中的下标)
-    program_locater: DashMap<u64, usize>,
+    program_locater: Arc<DashMap<u64, usize>>,
 }
-
-impl Default for ProgramManager {
-    fn default() -> Self {
-        Self::new()
-    }
+#[derive(Debug)]
+pub struct ProgramManager {
+    inner: RwLock<ProgramManagerInner>,
 }
 
 impl ProgramManager {
     /// 初始化，空
-    pub fn new() -> Self {
+    pub fn new(default_icon_path: String) -> Self {
         ProgramManager {
-            program_registry: Vec::new(),
-            program_loader: ProgramLoader::new(),
-            program_launcher: ProgramLauncher::new(),
-            search_fn: standard_search_fn,
-            image_loader: ImageLoader::new(),
-            program_locater: DashMap::new(),
+            inner: RwLock::new(ProgramManagerInner::new(default_icon_path)),
         }
     }
-    /// 将当前的配置写到配置文件中
-    pub fn get_launcher_config(&mut self) -> ProgramLauncherConfig {
-        self.program_launcher.save_to_config()
+    pub fn to_partial(&self) -> PartialProgramManagerConfig {
+        let inner = self.inner.read();
+        inner.to_partial()
     }
+
     /// 使用配置信息初始化自身与子模块
-    pub fn load_from_config(&mut self, config: &ProgramManagerConfig) {
-        let program_loader_config = &config.loader;
-        let program_launcher_config = &config.launcher;
+    pub fn load_from_config(&self, config: Arc<ProgramManagerConfig>) {
+        let mut inner = self.inner.write();
+        inner.load_from_config(config);
+    }
+    /// 使用搜索算法搜索，并给出指定长度的序列
+    /// user_input: 用户输入的字符串
+    /// result_count: 返回的结果，这个值与 `config.show_item_count` 的值保持一致
+    /// 返回值：Vec(应用唯一标识符，展示给用户的名字)
+    pub fn update(&self, user_input: &str, result_count: u32) -> Vec<(u64, String)> {
+        let inner = self.inner.read();
+        inner.update(user_input, result_count)
+    }
+
+    /// 测试算法
+    pub fn test_search_algorithm(&self, user_input: &str) {
+        let inner = self.inner.read();
+        inner.test_search_algorithm(user_input);
+    }
+
+    /// 加载搜索模型
+    pub fn load_search_fn(&self, model: SearchModelFn) {
+        let mut inner = self.inner.write();
+        inner.load_search_fn(model);
+    }
+    /// 获取当前程序维护的东西
+    pub fn get_program_infos(&self) -> Vec<(String, bool, f64, String, u64)> {
+        let mut inner = self.inner.write();
+        inner.get_program_infos()
+    }
+    /// 启动一个程序
+    pub fn launch_program(&self, program_guid: u64, is_admin_required: bool) {
+        let mut inner = self.inner.write();
+        inner.launch_program(program_guid, is_admin_required);
+    }
+    /// 获取程序的图标，返回使用base64编码的png图片
+    pub fn get_icon(&self, program_guid: &u64) -> Vec<u8> {
+        let inner = self.inner.read();
+        inner.get_icon(program_guid)
+    }
+    /// 获得当前已保存的程序的个数
+    pub fn get_program_count(&self) -> usize {
+        let inner = self.inner.read();
+        inner.get_program_count()
+    }
+}
+
+impl ProgramManagerInner {
+    /// 初始化，空
+    pub fn new(default_icon_path: String) -> Self {
+        ProgramManagerInner {
+            program_registry: Vec::new(),
+            program_loader: Arc::new(ProgramLoader::new()),
+            program_launcher: Arc::new(ProgramLauncher::new()),
+            search_fn: standard_search_fn,
+            image_loader: Arc::new(ImageLoader::new(default_icon_path)),
+            program_locater: Arc::new(DashMap::new()),
+        }
+    }
+    pub fn to_partial(&self) -> PartialProgramManagerConfig {
+        PartialProgramManagerConfig {
+            launcher: Some(self.program_launcher.to_partial()),
+            loader: Some(self.program_loader.to_partial()),
+        }
+    }
+
+    /// 使用配置信息初始化自身与子模块
+    pub fn load_from_config(&mut self, config: Arc<ProgramManagerConfig>) {
+        let program_loader_config = &config.get_loader_config();
+        let program_launcher_config = &config.get_launcher_config();
         // 初始化子模块
         self.program_loader.load_from_config(program_loader_config);
         self.program_launcher
@@ -222,8 +238,4 @@ impl ProgramManager {
     pub fn get_program_count(&self) -> usize {
         self.program_registry.len()
     }
-}
-
-lazy_static! {
-    pub static ref PROGRAM_MANAGER: Mutex<ProgramManager> = Mutex::new(ProgramManager::new());
 }

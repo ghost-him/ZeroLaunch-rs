@@ -6359,6 +6359,7 @@ checksum = "ced3678a2879b30306d323f4542626697a464a97c0a07c9aebf7ebca65cd4dde"
 name = "zerolaunch-rs"
 version = "0.4.0"
 dependencies = [
+ "backtrace",
  "base64 0.22.1",
  "chrono",
  "dashmap",

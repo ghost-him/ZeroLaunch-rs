@@ -1,13 +1,16 @@
-use super::super::config::PIC_PATH;
+use crate::modules::config::default::APP_PIC_PATH;
+
 use super::pinyin_mapper::PinyinMapper;
 use super::search_model::*;
 use super::LaunchMethod;
-use super::{config::ProgramLoaderConfig, Program};
-use crate::defer::defer;
-use crate::utils::get_u16_vec;
-use core::ffi::c_void;
+use crate::program_manager::config::program_loader_config::PartialProgramLoaderConfig;
+use crate::program_manager::config::program_loader_config::ProgramLoaderConfig;
 /// 这个类用于加载电脑上程序，通过扫描路径或使用系统调用接口
-///
+use crate::program_manager::Program;
+use crate::utils::defer::defer;
+use crate::utils::windows::get_u16_vec;
+use core::ffi::c_void;
+use parking_lot::RwLock;
 use std::collections::{HashMap, HashSet};
 use std::ffi::OsStr;
 use std::fs;
@@ -31,6 +34,7 @@ use windows::Win32::UI::Shell::{
 };
 use windows_core::Interface;
 use windows_core::PCWSTR;
+#[derive(Debug)]
 struct GuidGenerator {
     next_id: u64,
 }
@@ -45,8 +49,8 @@ impl GuidGenerator {
         ret
     }
 }
-
-pub struct ProgramLoader {
+#[derive(Debug)]
+pub struct ProgramLoaderInner {
     /// 要扫描的路径
     target_paths: Vec<String>,
     /// 不扫描的路径
@@ -69,10 +73,10 @@ pub struct ProgramLoader {
     index_web_pages: Vec<(String, String)>,
 }
 
-impl ProgramLoader {
+impl ProgramLoaderInner {
     /// 创建
     pub fn new() -> Self {
-        ProgramLoader {
+        ProgramLoaderInner {
             target_paths: Vec::new(),
             forbidden_paths: Vec::new(),
             forbidden_program_key: Vec::new(),
@@ -86,29 +90,29 @@ impl ProgramLoader {
         }
     }
 
-    pub fn save_to_config(&self) -> ProgramLoaderConfig {
-        ProgramLoaderConfig {
-            target_paths: self.target_paths.clone(),
-            forbidden_paths: self.forbidden_paths.clone(),
-            forbidden_program_key: self.forbidden_program_key.clone(),
-            program_bias: self.program_bias.clone(),
-            is_scan_uwp_programs: self.is_scan_uwp_programs,
-            index_file_paths: self.index_file_paths.clone(),
-            index_web_pages: self.index_web_pages.clone(),
+    pub fn to_partial(&self) -> PartialProgramLoaderConfig {
+        PartialProgramLoaderConfig {
+            target_paths: Some(self.target_paths.clone()),
+            forbidden_paths: Some(self.forbidden_paths.clone()),
+            forbidden_program_key: Some(self.forbidden_program_key.clone()),
+            program_bias: Some(self.program_bias.clone()),
+            is_scan_uwp_programs: Some(self.is_scan_uwp_programs),
+            index_file_paths: Some(self.index_file_paths.clone()),
+            index_web_pages: Some(self.index_web_pages.clone()),
         }
     }
 
     /// 使用配置文件初始化
     pub fn load_from_config(&mut self, config: &ProgramLoaderConfig) {
-        self.target_paths = config.target_paths.clone();
-        self.forbidden_paths = config.forbidden_paths.clone();
-        self.forbidden_program_key = config.forbidden_program_key.clone();
-        self.program_bias = config.program_bias.clone();
-        self.is_scan_uwp_programs = config.is_scan_uwp_programs;
+        self.target_paths = config.get_target_paths();
+        self.forbidden_paths = config.get_forbidden_paths();
+        self.forbidden_program_key = config.get_forbidden_program_key();
+        self.program_bias = config.get_program_bias();
+        self.is_scan_uwp_programs = config.get_is_scan_uwp_programs();
         self.guid_generator = GuidGenerator::new();
         self.program_name_hash = HashSet::new();
-        self.index_file_paths = config.index_file_paths.clone();
-        self.index_web_pages = config.index_web_pages.clone();
+        self.index_file_paths = config.get_index_file_paths();
+        self.index_web_pages = config.get_index_web_pages();
     }
     /// 添加目标路径
     pub fn add_target_path(&mut self, path: String) {
@@ -212,7 +216,7 @@ impl ProgramLoader {
                 launch_method: LaunchMethod::File(url.clone()),
                 alias,
                 stable_bias,
-                icon_path: PIC_PATH.get("web_page").unwrap().value().clone(),
+                icon_path: APP_PIC_PATH.get("web_page").unwrap().value().clone(),
             });
             debug!("{:?}", program.as_ref());
             result.push(program);
@@ -728,5 +732,68 @@ impl ProgramLoader {
                 .into_owned();
             path
         }
+    }
+}
+#[derive(Debug)]
+pub struct ProgramLoader {
+    inner: RwLock<ProgramLoaderInner>,
+}
+
+impl ProgramLoader {
+    /// 创建一个新的 `ProgramLoader` 实例
+    pub fn new() -> Self {
+        ProgramLoader {
+            inner: RwLock::new(ProgramLoaderInner::new()),
+        }
+    }
+
+    /// 从配置文件中加载配置
+    pub fn load_from_config(&self, config: &ProgramLoaderConfig) {
+        self.inner.write().load_from_config(config);
+    }
+
+    /// 添加目标路径
+    pub fn add_target_path(&self, path: String) {
+        self.inner.write().add_target_path(path);
+    }
+
+    /// 添加不扫描的路径
+    pub fn add_forbidden_path(&self, path: String) {
+        self.inner.write().add_forbidden_path(path);
+    }
+
+    /// 添加禁止的程序关键字
+    pub fn add_forbidden_program_key(&self, key: String) {
+        self.inner.write().add_forbidden_program_key(key);
+    }
+
+    /// 设置程序的固定权重偏移
+    pub fn add_program_bias(&self, key: &str, value: f64, note: String) {
+        self.inner.write().add_program_bias(key, value, note);
+    }
+
+    /// 获取程序的固定权重偏移
+    pub fn get_program_bias(&self, key: &str) -> f64 {
+        self.inner.read().get_program_bias(key)
+    }
+
+    /// 获取当前电脑上所有的程序
+    pub fn load_program(&self) -> Vec<Arc<Program>> {
+        self.inner.write().load_program()
+    }
+
+    /// 递归遍历一个文件夹
+    pub fn recursive_visit_dir(&self, dir: &Path, depth: usize) -> io::Result<Vec<String>> {
+        self.inner.read().recursive_visit_dir(dir, depth)
+    }
+
+    /// 将 `.lnk` 文件的路径转成 `.exe` 文件的路径
+    pub fn resolve_shortcut(&self, lnk_path: &str) -> String {
+        self.inner.read().resolve_shortcut(lnk_path)
+    }
+
+    /// 将 `ProgramLoaderInner` 转换为 `PartialProgramLoaderConfig`
+    pub fn to_partial(&self) -> PartialProgramLoaderConfig {
+        self.inner.read().to_partial()
     }
 }

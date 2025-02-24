@@ -129,7 +129,7 @@
 
         <el-tab-pane label="关键字过滤设置" name="c">
             <el-table :data="keyFilterData" stripe style="width: 100%; height: 100%">
-                <el-table-column label="目标关键字" show-overflow-tooltip>
+                <el-table-column label="目标关键字">
                     <template #default="{ row }">
                         <el-input v-model="row.key" size="small" placeholder="请输入目标关键字"
                             @change="updateProgramBias(row)"></el-input>
@@ -343,24 +343,33 @@ const is_scan_uwp_programs = computed({
 
 
 interface KeyFilterData {
+    originalKey: string
     key: string
     bias: number
     note: string
 }
 
+
 const keyFilterData = computed(() => {
     const bias = config.value.program_manager_config.loader.program_bias;
     return Object.keys(bias).map(key => ({
+        originalKey: key,  // 初始化时保存原始键
         key,
-        bias: bias[key][0],  // 提取偏移量
-        note: bias[key][1] || ''  // 提取备注
+        bias: bias[key][0],
+        note: bias[key][1] || ''
     }));
 });
 
 
 const updateProgramBias = (row: KeyFilterData) => {
     const newProgramBias = { ...config.value.program_manager_config.loader.program_bias }
-    newProgramBias[row.key] = [row.bias, row.note]
+
+    // 检查是否存在原始键（仅当数据结构包含originalKey时）
+    if (row.originalKey !== row.key) {
+        delete newProgramBias[row.originalKey] // 删除旧键
+    }
+
+    newProgramBias[row.key] = [row.bias, row.note] // 更新或新增键
 
     configStore.updateConfig({
         program_manager_config: {
@@ -390,7 +399,7 @@ const deleteKeyFilterRow = (index: number) => {
 
 const addKeyFilter = () => {
     const newProgramBias = { ...config.value.program_manager_config.loader.program_bias }
-    const newKey = `新关键字${Object.keys(newProgramBias).length + 1}`
+    const newKey = `请输入关键字`
     newProgramBias[newKey] = [0, '']
 
     configStore.updateConfig({

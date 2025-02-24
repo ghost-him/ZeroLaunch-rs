@@ -3,7 +3,7 @@ import { AppConfig, UIConfig, ProgramManagerConfig, ProgramLauncherConfig, Progr
 import { invoke } from '@tauri-apps/api/core'
 import { merge, cloneDeep, mergeWith } from 'lodash-es'
 
-function mergeConfig(config: Config, partial: PartialConfig): Config {
+function mergeConfig(config: Config , partial: PartialConfig): Config {
     // 合并 app_config
     const app_config = partial.app_config
         ? { ...config.app_config, ...partial.app_config }
@@ -18,14 +18,14 @@ function mergeConfig(config: Config, partial: PartialConfig): Config {
     const pmPartial = partial.program_manager_config;
     const pmConfig = config.program_manager_config;
     const program_manager_config = pmPartial
-        ? {
-              launcher: pmPartial.launcher
-                  ? { ...pmConfig.launcher, ...pmPartial.launcher }
-                  : pmConfig.launcher,
-              loader: pmPartial.loader
-                  ? { ...pmConfig.loader, ...pmPartial.loader }
-                  : pmConfig.loader,
-          }
+        ?{
+                launcher: pmPartial.launcher
+                    ? { ...pmConfig.launcher, ...pmPartial.launcher }
+                    : pmConfig.launcher,
+                loader: pmPartial.loader
+                    ? { ...pmConfig.loader, ...pmPartial.loader }
+                    : pmConfig.loader,
+        }
         : pmConfig;
 
     // 返回合并后的新 Config 对象
@@ -35,6 +35,77 @@ function mergeConfig(config: Config, partial: PartialConfig): Config {
         ui_config,
         program_manager_config,
     };
+}
+
+function mergePartialConfig(
+    partial1: PartialConfig,
+    partial2: PartialConfig
+): PartialConfig {
+    // 合并 app_config
+    const mergedAppConfig =
+        partial1.app_config || partial2.app_config
+            ? {
+                  ...(partial1.app_config || {}),
+                  ...(partial2.app_config || {}),
+              }
+            : undefined;
+
+    // 合并 ui_config
+    const mergedUiConfig =
+        partial1.ui_config || partial2.ui_config
+            ? {
+                  ...(partial1.ui_config || {}),
+                  ...(partial2.ui_config || {}),
+              }
+            : undefined;
+
+    // 合并 program_manager_config
+    const mergedProgramManagerConfig = mergePartialProgramManagerConfig(
+        partial1.program_manager_config,
+        partial2.program_manager_config
+    );
+
+    // 构建最终的 PartialConfig 对象
+    const result: PartialConfig = {};
+    if (mergedAppConfig !== undefined) result.app_config = mergedAppConfig;
+    if (mergedUiConfig !== undefined) result.ui_config = mergedUiConfig;
+    if (mergedProgramManagerConfig !== undefined)
+        result.program_manager_config = mergedProgramManagerConfig;
+
+    return result;
+}
+
+// 合并 program_manager_config 的辅助函数
+function mergePartialProgramManagerConfig(
+    pm1?: PartialConfig["program_manager_config"],
+    pm2?: PartialConfig["program_manager_config"]
+): PartialConfig["program_manager_config"] | undefined {
+    if (!pm1 && !pm2) return undefined;
+
+    // 合并 launcher
+    const mergedLauncher =
+        pm1?.launcher || pm2?.launcher
+            ? {
+                  ...(pm1?.launcher || {}),
+                  ...(pm2?.launcher || {}),
+              }
+            : undefined;
+
+    // 合并 loader
+    const mergedLoader =
+        pm1?.loader || pm2?.loader
+            ? {
+                  ...(pm1?.loader || {}),
+                  ...(pm2?.loader || {}),
+              }
+            : undefined;
+
+    // 构建最终的 program_manager_config 对象
+    const mergedPm: PartialConfig["program_manager_config"] = {};
+    if (mergedLauncher !== undefined) mergedPm.launcher = mergedLauncher;
+    if (mergedLoader !== undefined) mergedPm.loader = mergedLoader;
+
+    return Object.keys(mergedPm).length > 0 ? mergedPm : undefined;
 }
 
 export const useConfigStore = defineStore('config', {
@@ -84,10 +155,11 @@ export const useConfigStore = defineStore('config', {
         // 更新配置并同步到后端
         updateConfig(partial: PartialConfig) {
             // 1. 更新本地状态（带自定义合并规则）
+            console.log("收到更新")
             this.config = mergeConfig(this.config, partial);
             console.log(this.config.program_manager_config);
             // 2. 更新 dirtyConfig（带相同合并规则）
-            this.dirtyConfig = merge({}, this.dirtyConfig, partial)
+            this.dirtyConfig = mergePartialConfig(this.dirtyConfig, partial)
         },
 
         async syncConfig() {

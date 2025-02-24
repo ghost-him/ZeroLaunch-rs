@@ -35,6 +35,15 @@ export type ProgramManagerConfig = {
     loader: ProgramLoaderConfig
 }
 
+export type Config = {
+    app_config: AppConfig
+    ui_config: UIConfig
+    program_manager_config: {
+        launcher: ProgramLauncherConfig
+        loader: ProgramLoaderConfig
+    }
+}
+
 export type PartialAppConfig = Partial<AppConfig>
 export type PartialUIConfig = Partial<UIConfig>
 export type PartialProgramLauncherConfig = Partial<ProgramLauncherConfig>

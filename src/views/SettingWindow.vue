@@ -4,42 +4,42 @@
             <el-form label-width="auto" style="max-width: 600px">
 
                 <el-form-item label="自定义搜索栏的提示文本">
-                    <el-input v-model="app_config.search_bar_placeholder" placeholder="Hello, ZeroLaunch!"
+                    <el-input v-model="config.app_config.search_bar_placeholder" placeholder="Hello, ZeroLaunch!"
                         @update:model-value="(val: string) => configStore.updateConfig({ app_config: { search_bar_placeholder: val } })" />
                 </el-form-item>
 
                 <el-form-item label="自定义搜索无结果的文本">
-                    <el-input v-model="app_config.search_bar_no_result" placeholder="当前搜索无结果"
+                    <el-input v-model="config.app_config.search_bar_no_result" placeholder="当前搜索无结果"
                         @update:model-value="(val: string) => configStore.updateConfig({ app_config: { search_bar_no_result: val } })" />
                 </el-form-item>
 
                 <el-form-item label="设置开机自启动">
-                    <el-switch v-model="app_config.is_auto_start"
+                    <el-switch v-model="config.app_config.is_auto_start"
                         @update:model-value="(val: boolean) => configStore.updateConfig({ app_config: { is_auto_start: val } })" />
                 </el-form-item>
 
                 <el-form-item label="设置静默启动">
-                    <el-switch v-model="app_config.is_silent_start"
+                    <el-switch v-model="config.app_config.is_silent_start"
                         @update:model-value="(val: boolean) => configStore.updateConfig({ app_config: { is_silent_start: val } })" />
                 </el-form-item>
 
                 <el-form-item label="设置搜索结果数量">
-                    <el-input-number v-model="app_config.search_result_count" :step="1" :precision="0"
+                    <el-input-number v-model="config.app_config.search_result_count" :step="1" :precision="0"
                         @update:model-value="(val: number) => configStore.updateConfig({ app_config: { search_result_count: val } })" />
                 </el-form-item>
 
                 <el-form-item label="自动刷新数据库的时间（分钟）">
-                    <el-input-number v-model="app_config.auto_refresh_time" :step="1" :precision="0"
+                    <el-input-number v-model="config.app_config.auto_refresh_time" :step="1" :precision="0"
                         @update:model-value="(val: number) => configStore.updateConfig({ app_config: { auto_refresh_time: val } })" />
                 </el-form-item>
 
                 <el-form-item label="设置选中项的背景颜色">
-                    <el-color-picker v-model="ui_config.selected_item_color"
+                    <el-color-picker v-model="config.ui_config.selected_item_color"
                         @update:model-value="(val: string) => configStore.updateConfig({ ui_config: { selected_item_color: val } })" />
                 </el-form-item>
 
                 <el-form-item label="设置选中项的字体颜色">
-                    <el-color-picker v-model="ui_config.item_font_color"
+                    <el-color-picker v-model="config.ui_config.item_font_color"
                         @update:model-value="(val: string) => configStore.updateConfig({ ui_config: { item_font_color: val } })" />
                 </el-form-item>
 
@@ -53,11 +53,11 @@
         <el-tab-pane label="自定义搜索路径" name="b">
             <el-tabs tab-position="left" style="height: 100% " class="demo-tabs">
                 <el-tab-pane label="设置遍历路径">
-                    <el-table :data="program_manager_config.loader.target_paths" stripe
+                    <el-table :data="config.program_manager_config.loader.target_paths" stripe
                         style="width: 100%; height: 100%">
                         <el-table-column label="目标路径" show-overflow-tooltip>
                             <template #default="scope">
-                                <el-input v-model="program_manager_config.loader.target_paths[scope.$index]"
+                                <el-input v-model="config.program_manager_config.loader.target_paths[scope.$index]"
                                     size="small" placeholder="请输入目标路径"
                                     @input="updateTargetPath(scope.$index, $event)"></el-input>
                             </template>
@@ -225,7 +225,7 @@
         </el-tab-pane>
         <el-tab-pane label="查看当前索引的所有程序" name="f">
             <el-button class="mt-4" style="width: 100%" @click="refreshProgramInfo">
-                刷新列表
+                点击刷新
             </el-button>
             <el-table :data="programInfoList" stripe style="width: 100%; height: 100%">
                 <el-table-column label="程序名" show-overflow-tooltip>
@@ -270,11 +270,11 @@ import { storeToRefs } from 'pinia';
 
 const configStore = useConfigStore()
 
-const { app_config, ui_config, program_manager_config } = storeToRefs(configStore)
+const { config } = storeToRefs(configStore)
 
 
 const updateTargetPath = (index: number, value: string) => {
-    const newTargetPaths = [...program_manager_config.value.loader.target_paths]
+    const newTargetPaths = [...config.value.program_manager_config.loader.target_paths]
     newTargetPaths[index] = value
     configStore.updateConfig({
         program_manager_config: {
@@ -286,7 +286,7 @@ const updateTargetPath = (index: number, value: string) => {
 }
 
 const deleteTargetPathRow = (index: number) => {
-    const newTargetPaths = program_manager_config.value.loader.target_paths.filter((_, i) => i !== index)
+    const newTargetPaths = config.value.program_manager_config.loader.target_paths.filter((_, i) => i !== index)
     configStore.updateConfig({
         program_manager_config: {
             loader: {
@@ -297,7 +297,7 @@ const deleteTargetPathRow = (index: number) => {
 }
 
 const addTargetPath = () => {
-    const newTargetPaths = [...program_manager_config.value.loader.target_paths, ""]
+    const newTargetPaths = [...config.value.program_manager_config.loader.target_paths, ""]
     configStore.updateConfig({
         program_manager_config: {
             loader: {
@@ -309,7 +309,7 @@ const addTargetPath = () => {
 
 
 const forbidden_paths = computed({
-    get: () => program_manager_config.value.loader.forbidden_paths,
+    get: () => config.value.program_manager_config.loader.forbidden_paths,
     set: (value) => {
         configStore.updateConfig({
             program_manager_config: {
@@ -320,7 +320,7 @@ const forbidden_paths = computed({
 })
 
 const forbidden_program_key = computed({
-    get: () => program_manager_config.value.loader.forbidden_program_key,
+    get: () => config.value.program_manager_config.loader.forbidden_program_key,
     set: (value) => {
         configStore.updateConfig({
             program_manager_config: {
@@ -331,7 +331,7 @@ const forbidden_program_key = computed({
 })
 
 const is_scan_uwp_programs = computed({
-    get: () => program_manager_config.value.loader.is_scan_uwp_programs,
+    get: () => config.value.program_manager_config.loader.is_scan_uwp_programs,
     set: (value) => {
         configStore.updateConfig({
             program_manager_config: {
@@ -348,16 +348,18 @@ interface KeyFilterData {
     note: string
 }
 
-const keyFilterData = computed<KeyFilterData[]>(() => {
-    const program_bias = program_manager_config.value.loader.program_bias
-    return Object.entries(program_bias).map(([key, [bias, note]]) => ({
+const keyFilterData = computed(() => {
+    const bias = config.value.program_manager_config.loader.program_bias;
+    return Object.keys(bias).map(key => ({
         key,
-        bias,
-        note
-    }))
-})
+        bias: bias[key][0],  // 提取偏移量
+        note: bias[key][1] || ''  // 提取备注
+    }));
+});
+
+
 const updateProgramBias = (row: KeyFilterData) => {
-    const newProgramBias = { ...program_manager_config.value.loader.program_bias }
+    const newProgramBias = { ...config.value.program_manager_config.loader.program_bias }
     newProgramBias[row.key] = [row.bias, row.note]
 
     configStore.updateConfig({
@@ -370,10 +372,13 @@ const updateProgramBias = (row: KeyFilterData) => {
 }
 
 const deleteKeyFilterRow = (index: number) => {
-    const newProgramBias = { ...program_manager_config.value.loader.program_bias }
-    const keyToDelete = keyFilterData.value[index].key
-    delete newProgramBias[keyToDelete]
+    // 深拷贝 program_bias
+    const newProgramBias = JSON.parse(JSON.stringify(config.value.program_manager_config.loader.program_bias));
+    const keyToDelete = keyFilterData.value[index].key;
+    delete newProgramBias[keyToDelete];
+    console.log("删除一行")
 
+    console.log(newProgramBias)
     configStore.updateConfig({
         program_manager_config: {
             loader: {
@@ -384,7 +389,7 @@ const deleteKeyFilterRow = (index: number) => {
 }
 
 const addKeyFilter = () => {
-    const newProgramBias = { ...program_manager_config.value.loader.program_bias }
+    const newProgramBias = { ...config.value.program_manager_config.loader.program_bias }
     const newKey = `新关键字${Object.keys(newProgramBias).length + 1}`
     newProgramBias[newKey] = [0, '']
 
@@ -398,9 +403,9 @@ const addKeyFilter = () => {
 }
 
 
-// 计算属性用于直接访问和修改 program_manager_config 中的数据
+// 计算属性用于直接访问和修改 config.program_manager_config 中的数据
 const index_file_paths = computed({
-    get: () => program_manager_config.value.loader.index_file_paths,
+    get: () => config.value.program_manager_config.loader.index_file_paths,
     set: (value) => {
         configStore.updateConfig({
             program_manager_config: {
@@ -411,7 +416,7 @@ const index_file_paths = computed({
 })
 
 const index_web_pages = computed({
-    get: () => program_manager_config.value.loader.index_web_pages,
+    get: () => config.value.program_manager_config.loader.index_web_pages,
     set: (value) => {
         configStore.updateConfig({
             program_manager_config: {

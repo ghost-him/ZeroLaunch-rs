@@ -59,7 +59,7 @@ impl ProgramLauncherInner {
         self.update_launch_info();
     }
 
-    fn to_partial(&mut self) -> PartialProgramLauncherConfig {
+    fn get_runtime_data(&mut self) -> PartialProgramLauncherConfig {
         self.update_launch_info();
 
         let mut launch_info_data: VecDeque<HashMap<String, u64>> = VecDeque::new();
@@ -274,8 +274,8 @@ impl ProgramLauncher {
         self.inner.write().unwrap().load_from_config(config);
     }
 
-    pub fn to_partial(&self) -> PartialProgramLauncherConfig {
-        self.inner.write().unwrap().to_partial()
+    pub fn get_runtime_data(&self) -> PartialProgramLauncherConfig {
+        self.inner.write().unwrap().get_runtime_data()
     }
 
     pub fn register_program(&self, program_guid: u64, launch_method: LaunchMethod) {

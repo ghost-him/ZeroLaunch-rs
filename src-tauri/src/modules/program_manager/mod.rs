@@ -47,9 +47,9 @@ impl ProgramManager {
             inner: RwLock::new(ProgramManagerInner::new(default_icon_path)),
         }
     }
-    pub fn to_partial(&self) -> PartialProgramManagerConfig {
+    pub fn get_runtime_data(&self) -> PartialProgramManagerConfig {
         let inner = self.inner.read();
-        inner.to_partial()
+        inner.get_runtime_data()
     }
 
     /// 使用配置信息初始化自身与子模块
@@ -111,10 +111,10 @@ impl ProgramManagerInner {
             program_locater: Arc::new(DashMap::new()),
         }
     }
-    pub fn to_partial(&self) -> PartialProgramManagerConfig {
+    pub fn get_runtime_data(&self) -> PartialProgramManagerConfig {
         PartialProgramManagerConfig {
-            launcher: Some(self.program_launcher.to_partial()),
-            loader: Some(self.program_loader.to_partial()),
+            launcher: Some(self.program_launcher.get_runtime_data()),
+            loader: None,
         }
     }
 

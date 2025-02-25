@@ -7,6 +7,7 @@ use crate::commands::file::*;
 use crate::commands::program_service::*;
 use crate::commands::ui_command::*;
 
+use crate::modules::config::config_manager::PartialConfig;
 use crate::modules::config::default::LOCAL_CONFIG_PATH;
 use crate::modules::config::default::LOG_DIR;
 use crate::modules::config::local_config::LocalConfig;
@@ -414,14 +415,24 @@ fn update_app_setting() {
 
 /// 保存程序的配置信息
 /// 1. 将需要保存的东西保到配置信息中
-/// 2. 保存到文件中
-/// 3. 重新读取文件并更新配置信息
+/// 2. 保存动态数据
+/// 3. 保存到文件中
+/// 4. 重新读取文件并更新配置信息
 
 pub fn save_config_to_file(is_update_app: bool) {
     let state = ServiceLocator::get_state();
 
     let runtime_config = state.get_runtime_config().unwrap();
+    let runtime_data = state.get_program_manager().unwrap().get_runtime_data();
+
+    runtime_config.update(PartialConfig {
+        app_config: None,
+        ui_config: None,
+        program_manager_config: Some(runtime_data),
+        window_state: None,
+    });
     let remote_config = runtime_config.to_partial();
+
     let data_str = save_remote_config(remote_config);
     let config_path_str = get_remote_config_path();
     std::fs::write(config_path_str, data_str).unwrap();

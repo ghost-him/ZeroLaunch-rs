@@ -59,7 +59,7 @@
                             <template #default="scope">
                                 <el-input v-model="config.program_manager_config.loader.target_paths[scope.$index]"
                                     size="small" placeholder="请输入目标路径"
-                                    @input="updateTargetPath(scope.$index, $event)"></el-input>
+                                    @change="updateTargetPath(scope.$index, $event)"></el-input>
                             </template>
                         </el-table-column>
                         <el-table-column fixed="right" label="操作" width="100">
@@ -81,7 +81,7 @@
                         <el-table-column label="目标屏蔽路径" show-overflow-tooltip>
                             <template #default="{ $index }">
                                 <el-input v-model="forbidden_paths[$index]" size="small" placeholder="请输入目标路径"
-                                    @input="updateForbiddenPaths"></el-input>
+                                    @change="updateForbiddenPaths"></el-input>
                             </template>
                         </el-table-column>
                         <el-table-column fixed="right" label="操作" width="100">
@@ -102,7 +102,7 @@
                         <el-table-column label="目标关键字" show-overflow-tooltip>
                             <template #default="{ $index }">
                                 <el-input v-model="forbidden_program_key[$index]" size="small" placeholder="请输入目标关键字"
-                                    @input="updateForbiddenProgramKey"></el-input>
+                                    @change="updateForbiddenProgramKey"></el-input>
                             </template>
                         </el-table-column>
                         <el-table-column fixed="right" label="操作" width="100">
@@ -172,7 +172,7 @@
                         <el-table-column label="目标路径" show-overflow-tooltip>
                             <template #default="scope">
                                 <el-input v-model="index_file_paths[scope.$index]" size="small" placeholder="请输入目标路径"
-                                    @input="updateIndexFilePaths"></el-input>
+                                    @change="updateIndexFilePaths"></el-input>
                             </template>
                         </el-table-column>
                         <el-table-column fixed="right" label="操作" width="100">
@@ -193,13 +193,13 @@
                         <el-table-column label="关键字（用于搜索程序的匹配）" show-overflow-tooltip>
                             <template #default="scope">
                                 <el-input v-model="index_web_pages[scope.$index][0]" size="small" placeholder="请输入关键字"
-                                    @input="updateIndexWebPages"></el-input>
+                                    @change="updateIndexWebPages"></el-input>
                             </template>
                         </el-table-column>
                         <el-table-column label="目标网站的地址" show-overflow-tooltip>
                             <template #default="scope">
                                 <el-input v-model="index_web_pages[scope.$index][1]" size="small" placeholder="请输入目标路径"
-                                    @input="updateIndexWebPages"></el-input>
+                                    @change="updateIndexWebPages"></el-input>
                             </template>
                         </el-table-column>
                         <el-table-column fixed="right" label="操作" width="100">

@@ -381,11 +381,11 @@ fn update_app_setting() {
     let runtime_config = state.get_runtime_config().unwrap();
 
     // 1. 重新更新程序索引的路径
-    let mut program_manager = state.get_program_manager().unwrap();
+    let program_manager = state.get_program_manager().unwrap();
     program_manager.load_from_config(runtime_config.get_program_manager_config());
 
     // 2. 判断要不要开机自启动
-    handle_auto_start();
+    handle_auto_start().unwrap();
     // 3.判断要不要静默启动
     handle_silent_start();
 

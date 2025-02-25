@@ -287,7 +287,10 @@ impl ProgramLoaderInner {
                 .and_then(|s| s.to_str())
                 .map(String::from)
                 .unwrap_or_default();
-
+            // 判断当前的文件是不是被禁止的
+            if self.check_program_is_forbidden(&show_name) {
+                continue;
+            }
             if self.check_program_is_exist(&show_name) {
                 continue;
             }
@@ -310,6 +313,13 @@ impl ProgramLoaderInner {
         }
         // 添加通过uwp找到的文件
         result
+    }
+
+    fn check_program_is_forbidden(&self, name: &str) -> bool {
+        let lower_case_name = name.to_lowercase();
+        self.forbidden_program_key
+            .iter()
+            .any(|key| lower_case_name.contains(key))
     }
 
     fn prop_variant_to_string(&self, pv: &PROPVARIANT) -> String {

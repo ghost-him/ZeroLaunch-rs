@@ -1,36 +1,64 @@
-# ZeroLaunch-rs 🚀
+<div align="center">
+<!--
+    <p align="center">
+         <img src="./Web/src/assets/logo.png" height="128" alt="zero-launch-logo"/> 
+    </p>
+-->
+    <h1>🚀 ZeroLaunch-rs 🚀</h1>
+</div>
 
+<div align="center"><h3>✨ 极速精准、轻量纯粹的 Windows 应用程序启动器！✨</h3></div>
+
+<div align="center">
+
+![Platform](https://img.shields.io/badge/Platform-Windows_11-0078d7?logo=windows11&logoColor=white)
 [![GPLv3 License](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-![Platform](https://img.shields.io/badge/Platform-Windows-0078d7)
-![Rust](https://img.shields.io/badge/Rust-1.72%2B-orange)
-[![GitHub](https://img.shields.io/badge/GitHub-Repository-blue?logo=github)](https://github.com/ghost-him/ZeroLaunch-rs) 
-[![Gitee](https://img.shields.io/badge/Gitee-仓库-red?logo=gitee)](https://gitee.com/ghost-him/zero-launch-rs)
-![GitHub Stars](https://img.shields.io/github/stars/ghost-him/ZeroLaunch-rs?style=social)
+[![Gitee star](https://gitee.com/ghost-him/zero-launch-rs/badge/star.svg?theme=dark)](https://gitee.com/ghost-him/zero-launch-rs/stargazers)
+[![GitHub stars](https://img.shields.io/github/stars/ghost-him/ZeroLaunch-rs.svg?style=social)](https://github.com/ghost-him/ZeroLaunch-rs/stargazers)
+[![GitCode stars](https://gitcode.com/ghost-him/ZeroLaunch-rs/star/badge.svg)](https://gitcode.com/ghost-him/ZeroLaunch-rs/stargazers)
 
-现代化的Windows快速启动工具，使用 Rust + Tauri + Vue.js 构建
+</div>
+
+<div align="center">
+
+[简体中文](README.md) | [繁體中文](readme-cn.md) | [English](readme-en.md)
+
+</div>
+
+
+<div align="center">
+    <a href="https://gitee.com/ghost-him/zero-launch-rs" target="_blank">Gitee</a> •
+    <a href="https://github.com/ghost-him/ZeroLaunch-rs" target="_blank">GitHub</a> •
+    <a href="https://gitcode.com/ghost-him/ZeroLaunch-rs" target="_blank">GitCode</a>
+</div>
+
+## 📕 一句话介绍
+
+ZeroLaunch 是一款专为 Windows 平台精心打造的应用程序启动器，致力于提供极致高效、快捷的搜索体验，让您瞬间找到并启动所需应用。
+
+> 该项目因个人需要而开发，因此该项目将持续维护与优化，确保其长期稳定运行与功能完善。
+
+## 🖥️ 软件界面
 
 [![主界面预览](asset/主界面.png)](asset/picture.md)  
 *点击图片查看完整功能截图集*
 
 ## ✨ 核心特性
 
-### 🔒 隐私优先设计
+### 🔒 隐私至上
+完全离线运行，无需网络连接，您的数据始终保留在设备中。我们坚持零数据采集原则，严格遵循本地化处理，确保您的信息安全。
 
-- 完全离线运行 - 无需网络连接，数据永不外传
-- 零数据采集 - 严格遵循本地化原则
+### ⚡ 智能搜索
+采用三重匹配技术（全称/模糊/拼音），支持中英文混合查询，配合实时动态排序算法和多线程并发处理，带来流畅高效的搜索体验。
 
-### ⚡ 智能搜索体验
+### 🌐 轻巧纯粹
+专注于应用程序搜索功能，简洁而不简单，为您提供精准、快速的结果。
 
-- 三重匹配引擎：全称/模糊/拼音
-- 中英文混合搜索支持
-- 实时动态排序算法
-- 多线程并发搜索
+## 🚩 程序下载
 
-### 🌐 跨设备同步
-
-- 配置文件云同步
-- 智能路径权重管理
-- 背景主题自定义
+* Gitee: [release](https://gitee.com/ghost-him/zero-launch-rs/releases)
+* Github: [release](https://github.com/ghost-him/ZeroLaunch-rs/releases)
+* Gitcode: [release](https://gitcode.com/ghost-him/ZeroLaunch-rs/releases)
 
 ## 🚀 快速入门
 
@@ -98,9 +126,9 @@ C:\Program Files\ (深度5层)
 
 ### 环境要求
 
-* Rust
-* Node.js
-* Bun
+* Rust v1.82.0
+* Node.js v22.11.0
+* Bun v1.2.3
 
 ### 构建步骤
 
@@ -144,7 +172,7 @@ bun run tauri build
 
 ## 🎯 todo
 
-doing: 美化readme，添加英文文档
+### 软件目标
 
 * 重新设计运行界面（界面变化，使用动态尺寸）
 * 使用正则表达式来做关键字屏蔽与路径屏蔽
@@ -157,6 +185,13 @@ doing: 美化readme，添加英文文档
 * 调试功能（比如，可以查看搜索算法运行的结果，临时添加搜索的条目，可以查看关键字生成算法的运行结果，性能评估）
 * 当用户打开了搜索栏时，不要更新数据库
 * 设计软件的图标
-* uwp应用还存在部分无法索引的问题，尚未确定原因
+* uwp 应用还存在部分无法索引的问题，尚未确定原因
 * 错误处理优化
 * 配置文件合并系统
+* 优化设置开机自启动的逻辑
+
+### 长期目标
+
+> 当以上目标都完成时才开始实现以下功能
+
+* 支持linux系统（wayland优先）

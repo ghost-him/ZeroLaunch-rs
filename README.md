@@ -21,7 +21,7 @@
 
 <div align="center">
 
-[简体中文](README.md) | [繁體中文](readme-cn.md) | [English](readme-en.md)
+[简体中文](README.md) | [繁體中文](readme-cn2.md) | [English](readme-en.md)
 
 </div>
 

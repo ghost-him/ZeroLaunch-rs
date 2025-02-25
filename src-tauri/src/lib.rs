@@ -104,6 +104,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_notification::init())
         .manage(Arc::new(AppState::new()))
         .setup(|app| {
             let instance = SingleInstance::new("ZeroLaunch-rs").unwrap();
@@ -118,28 +119,20 @@ pub fn run() {
 
                 std::process::exit(1);
             }
-            println!("123");
             // 初始化程序的图标
             register_icon_path(app);
-            println!("123");
             // 初始化程序的配置系统
             init_app_state(app);
-            println!("123");
             // 初始化程序的系统托盘服务
             init_system_tray(app);
-            println!("123");
             // 初始化搜索栏
             init_search_bar_window(app);
-            println!("123");
             // 初始化设置窗口
             init_setting_window(app.app_handle().clone());
-            println!("123");
             // 初始化键盘监听器
             start_key_listener(app);
-            println!("123");
             // 根据配置信息更新整个程序
             update_app_setting();
-            println!("123");
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -181,11 +174,8 @@ fn init_app_state(app: &mut App) {
         .to_str()
         .unwrap()
         .to_string();
-    println!("234");
-    println!("remote_config_path: {:?}", remote_config_path);
     let runtime_config = RuntimeConfig::new(remote_config_path.clone());
     runtime_config.load_from_remote_config_path(None);
-    println!("234");
     // 维护程序状态
     let state = app.state::<Arc<AppState>>();
     // 设置远程配置存在的位置
@@ -386,6 +376,7 @@ fn update_app_setting() {
 
     // 2. 判断要不要开机自启动
     handle_auto_start().unwrap();
+
     // 3.判断要不要静默启动
     handle_silent_start();
 
@@ -486,13 +477,17 @@ pub fn handle_silent_start() {
     ONCE.call_once(|| {
         let state: Arc<AppState> = ServiceLocator::get_state();
         let app_handle = state.get_main_handle().unwrap();
-        let main_window = app_handle.get_webview_window("main").unwrap();
         let runtime_config = state.get_runtime_config().unwrap();
         let app_config = runtime_config.get_app_config();
-        if app_config.get_is_silent_start() {
-            let _ = main_window.hide();
-        } else {
-            let _ = main_window.show();
+        if !app_config.get_is_silent_start() {
+            use tauri_plugin_notification::NotificationExt;
+            app_handle
+                .notification()
+                .builder()
+                .title("ZeroLaunch-rs")
+                .body("ZeroLaunch-rs已成功启动！")
+                .show()
+                .unwrap();
         }
     });
 }

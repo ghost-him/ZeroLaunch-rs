@@ -153,6 +153,7 @@ pub fn run() {
             update_search_bar_window,
             get_background_picture,
             change_remote_config_dir,
+            get_remote_config_dir,
             select_background_picture,
             hide_window,
             show_setting_window,

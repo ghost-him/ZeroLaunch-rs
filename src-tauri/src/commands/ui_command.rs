@@ -106,6 +106,15 @@ pub async fn change_remote_config_dir<R: Runtime>(
 }
 
 #[tauri::command]
+pub async fn get_remote_config_dir<R: Runtime>(
+    app: tauri::AppHandle<R>,
+    window: tauri::Window<R>,
+    state: tauri::State<'_, Arc<AppState>>,
+) -> Result<String, String> {
+    Ok(state.get_remote_config_dir_path())
+}
+
+#[tauri::command]
 pub async fn select_background_picture<R: Runtime>(
     app: tauri::AppHandle<R>,
     window: tauri::Window<R>,

@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia'
 import { AppConfig, UIConfig, ProgramManagerConfig, ProgramLauncherConfig, ProgramLoaderConfig, PartialConfig, Config } from '../api/types'
 import { invoke } from '@tauri-apps/api/core'
-import { merge, cloneDeep, mergeWith } from 'lodash-es'
 
 function mergeConfig(config: Config , partial: PartialConfig): Config {
     // 合并 app_config

@@ -590,7 +590,10 @@ const delete_background_picture = () => {
     })
 }
 
-
+const update_remote_config_dir = async () => {
+    const path = await invoke<string>("get_remote_config_dir");
+    remote_config_path_dir.value = path;
+}
 
 interface KeyFilterData {
     key: string;
@@ -617,6 +620,7 @@ const save_config = async () => {
 
 onMounted(async () => {
     await configStore.loadConfig()
+    await update_remote_config_dir()
 })
 
 

@@ -458,11 +458,15 @@ pub fn handle_auto_start() -> Result<(), Box<dyn std::error::Error>> {
         config.get_app_config().get_is_auto_start()
     };
 
-    // 根据配置更新自动启动状态
-    match (is_auto_start, autostart_manager.is_enabled()?) {
-        (true, false) => autostart_manager.enable()?,
-        (false, true) => autostart_manager.disable()?,
-        _ => (),
+    // 根据配置强制更新自动启动状态和路径
+    if is_auto_start {
+        // 无论当前是否启用，启用自动启动以确保路径正确
+        autostart_manager.enable()?;
+    } else {
+        // 如果已启用则禁用
+        if autostart_manager.is_enabled()? {
+            autostart_manager.disable()?;
+        }
     }
 
     Ok(())

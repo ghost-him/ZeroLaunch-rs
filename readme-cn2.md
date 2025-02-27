@@ -3,7 +3,7 @@
 <div align="center">
 <!--
     <p align="center">
-         <img src="./Web/src/assets/logo.png" height="128" alt="zero-launch-logo"/> 
+         <img src="./Web/src/assets/logo.png" height="128" alt="ZeroLaunch-logo"/> 
     </p>
 -->
     <h1>🚀 ZeroLaunch-rs 🚀</h1>
@@ -15,7 +15,7 @@
 
 ![Platform](https://img.shields.io/badge/Platform-Windows_11-0078d7?logo=windows11&logoColor=white)
 [![GPLv3 License](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![Gitee star](https://gitee.com/ghost-him/zero-launch-rs/badge/star.svg?theme=dark)](https://gitee.com/ghost-him/zero-launch-rs/stargazers)
+[![Gitee star](https://gitee.com/ghost-him/ZeroLaunch-rs/badge/star.svg?theme=dark)](https://gitee.com/ghost-him/ZeroLaunch-rs/stargazers)
 [![GitHub stars](https://img.shields.io/github/stars/ghost-him/ZeroLaunch-rs.svg?style=social)](https://github.com/ghost-him/ZeroLaunch-rs/stargazers)
 [![GitCode stars](https://gitcode.com/ghost-him/ZeroLaunch-rs/star/badge.svg)](https://gitcode.com/ghost-him/ZeroLaunch-rs/stargazers)
 
@@ -29,7 +29,7 @@
 
 
 <div align="center">
-    <a href="https://gitee.com/ghost-him/zero-launch-rs" target="_blank">Gitee</a> •
+    <a href="https://gitee.com/ghost-him/ZeroLaunch-rs" target="_blank">Gitee</a> •
     <a href="https://github.com/ghost-him/ZeroLaunch-rs" target="_blank">GitHub</a> •
     <a href="https://gitcode.com/ghost-him/ZeroLaunch-rs" target="_blank">GitCode</a>
 </div>
@@ -58,7 +58,7 @@ ZeroLaunch 是一款專為 Windows 平台精心打造的應用程式啟動器，
 
 ## 🚩 程式下載
 
-* Gitee: [release](https://gitee.com/ghost-him/zero-launch-rs/releases)
+* Gitee: [release](https://gitee.com/ghost-him/ZeroLaunch-rs/releases)
 * Github: [release](https://github.com/ghost-him/ZeroLaunch-rs/releases)
 * Gitcode: [release](https://gitcode.com/ghost-him/ZeroLaunch-rs/releases)
 
@@ -190,7 +190,6 @@ bun run tauri build
 * uwp 應用還存在部分無法索引的問題，尚未確定原因
 * 錯誤處理優化
 * 配置文件合併系統
-* 優化設置開機自啟動的邏輯
 
 ### 長期目標
 

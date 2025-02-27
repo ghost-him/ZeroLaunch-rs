@@ -7,8 +7,7 @@ use crate::update_app_setting;
 use crate::LocalConfig;
 use crate::LOCAL_CONFIG_PATH;
 use crate::{
-    modules::ui_controller::controller::{get_item_size, get_window_size},
-    utils::service_locator::ServiceLocator,
+    modules::ui_controller::controller::get_window_size, utils::service_locator::ServiceLocator,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -18,9 +17,6 @@ use tauri::Runtime;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SearchBarInit {
-    window_size: Vec<usize>,
-    item_size: Vec<usize>,
-    window_scale_factor: f64,
     result_item_count: u32,
 }
 
@@ -33,20 +29,10 @@ pub struct SearchBarUpdate {
 
 #[tauri::command]
 pub fn initialize_search_window() -> SearchBarInit {
-    let (item_width, item_height) = get_item_size();
-    let (window_width, window_height) = get_window_size();
-
     let state = ServiceLocator::get_state();
     let runtime_config = state.get_runtime_config().unwrap();
-
-    let window_scale_factor = runtime_config
-        .get_window_state()
-        .get_sys_window_scale_factor();
     let result_item_count = runtime_config.get_app_config().get_search_result_count();
     SearchBarInit {
-        item_size: vec![item_width, item_height],
-        window_size: vec![window_width, window_height],
-        window_scale_factor: window_scale_factor,
         result_item_count: result_item_count,
     }
 }

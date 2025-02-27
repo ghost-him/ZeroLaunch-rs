@@ -1,103 +1,91 @@
 <template>
-  <div v-if="scaledWindowSize[0] && scaledWindowSize[1]" class="container" :style="{
+  <div class="launcher-container" @keydown="handleKeyDown" tabindex="0" :style="{ ...backgroundStyle }">
+    <div class="unified-container">
+      <div class="search-input">
+        <span class="search-icon">
+          <svg viewBox="0 0 1024 1024" style="width:24px;height:24px;">
+            <path fill="#999"
+              d="M795.904 750.72l124.992 124.928a32 32 0 0 1-45.248 45.248L750.656 795.904a416 416 0 1 1 45.248-45.248zM480 832a352 352 0 1 0 0-704 352 352 0 0 0 0 704z" />
+          </svg>
+        </span>
+        <input v-model="searchText" :placeholder="placeholder" class="input-field" ref="searchBarRef"
+          @contextmenu.prevent="showContextMenu">
+      </div>
 
-    width: `${scaledWindowSize[0]}px`,
-    height: `${scaledWindowSize[1]}px`
-  }">
-    <el-input ref="searchInputRef" v-model="searchText" :placeholder="placeholder" class="search-input" autosize
-      @keyup.enter="handleEnterPress" @contextmenu.prevent="showContextMenu" :style="{
-        width: `${scaledItemSize[0]}px`,
-        height: `${scaledItemSize[1]}px`,
-        fontSize: `${scaledFontSize}px`,
-        fontColor: `${fontColor}`,
-        fontFamily: `${fontFamily}`
-      }">
-      <template #prefix>
-        <el-icon style="padding-left: 20px;">
-          <Search />
-        </el-icon>
-      </template>
-    </el-input>
+      <div v-if="isContextMenuVisible" class="custom-context-menu" :style="{
+        top: `${contextMenuPosition.y}px`,
+        left: `${contextMenuPosition.x}px`
+      }" @click.stop>
+        <div class="context-menu">
+          <div class="context-menu-item" @click="handleContextMenuSelect('openSettings')">
+            打开设置窗口
+          </div>
+          <div class="context-menu-item" @click="handleContextMenuSelect('refreshDataset')">
+            刷新程序数据
+          </div>
+        </div>
+      </div>
 
-    <div v-if="isContextMenuVisible" class="custom-context-menu" :style="{
-      top: `${contextMenuPosition.y}px`,
-      left: `${contextMenuPosition.x}px`
-    }" @click.stop>
-      <el-menu @select="handleContextMenuSelect" class="context-menu">
-        <el-menu-item index="openSettings" class="context-menu">打开设置窗口</el-menu-item>
-        <el-menu-item index="refreshDataset" class="context-menu">刷新程序数据</el-menu-item>
-        <!-- 可以在这里添加更多的菜单项 -->
-      </el-menu>
+
+      <div class="results-list">
+        <div v-for="(item, index) in menuItems" class="result-item"
+          @click="(event) => handleItemClick(index, event.ctrlKey)" :class="{ 'selected': selectedIndex === index }">
+          <div class="icon">
+            <img :src="menuIcons[index]" class="custom-image">
+          </div>
+          <div class="item-info">
+            <div class="item-name" v-html="item"></div>
+          </div>
+        </div>
+      </div>
     </div>
 
-
-    <el-menu :default-active="activeIndex" class="menu-list round-border" @select="handleSelectMouse" :style="{
-      width: `${scaledItemSize[0]}px`,
-      height: `${scaledItemSize[1] * resultItemCount}px`, ...backgroundStyle
-    }">
-      <el-menu-item v-for="(item, index) in menuItems" :key="index" :index="String(index)"
-        class="menu-item round-border" :style="{
-          width: `${scaledItemSize[0]}px`,
-          height: `${scaledItemSize[1]}px`,
-          fontSize: `${scaledFontSize * 0.7}px`
-        }" @click="launch_program(index)" @contextmenu.prevent>
-        <div class="common-layout">
-          <el-container>
-            <el-aside class="icon-container">
-              <el-image :style="{
-                width: `${scaledItemSize[1] * 0.8}px`,
-                height: `${scaledItemSize[1] * 0.8}px`,
-              }" :src="menuIcons[index]" fit="contain" />
-            </el-aside>
-            <el-main>{{ item }}</el-main>
-          </el-container>
-        </div>
-      </el-menu-item>
-    </el-menu>
-  </div>
-  <div v-else>
-    <p>加载中...</p>
+    <div class="footer">
+      <div class="footer-left">
+        <span class="status-text">{{ statusText }}</span>
+      </div>
+      <div class="footer-right">
+        <span class="open-text">{{ '打开' }}</span>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, onUnmounted, watch } from 'vue';
-import { Search } from '@element-plus/icons-vue';
-import { invoke } from "@tauri-apps/api/core";
+import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
-import { calculateColors } from "../utils/color"
+import { invoke } from '@tauri-apps/api/core'
 
-const searchText = ref('');
-const activeIndex = ref('0');
-const menuItems = ref();
-const resultItemCount = ref(4);
-const menuIcons = ref<Array<string>>([]);
+const searchText = ref('la')
+const selectedIndex = ref(0)
+const searchBarRef = ref<HTMLInputElement | null>(null)
+const statusText = ref('准备就绪')
 const searchResults = ref<Array<[number, string]>>([]);
-const windowSize = ref<[number, number]>([0, 0]);
-const itemSize = ref<[number, number]>([0, 0]);
-const scaleFactor = ref<number>(1.0);
-
-const fontFamily = ref('Arial, sans-serif');
-const fontSize = ref<number>(0);
-const fontColor = ref('#333333');
-
-const selected_item_color = ref('#d55d1d');
-const item_font_color = ref('#ffeeee');
-
-const background_picture = ref('');
+const menuItems = ref<Array<string>>([]);
+const menuIcons = ref<Array<string>>([]);
 const program_icons = ref<Map<number, string>>(new Map<number, string>([]));
-
 let placeholder = ref('请输入搜索内容');
-const searchInputRef = ref<HTMLInputElement | null>(null);
-let unlisten: Array<UnlistenFn | null> = [];
-// 新增的状态用于自定义右键菜单
 const isContextMenuVisible = ref(false);
 const contextMenuPosition = ref({ x: 0, y: 0 });
+const resultItemCount = ref<number>(1);
+const selected_item_color = ref('#d55d1d');
+const item_font_color = ref('#ffeeee');
+const background_picture = ref('');
+let unlisten: Array<UnlistenFn | null> = [];
+interface SearchBarInit {
+  result_item_count: number;
+}
+interface SearchBarUpdate {
+  search_bar_placeholder: string;
+  selected_item_color: string;
+  item_font_color: string,
+}
 
-const isCtrlPressed = ref(false);
+watch(searchText, (newVal) => {
+  sendSearchText(newVal)
+})
 
-
-const sendSearchText = async (text: string) => {
+const sendSearchText = async (text: String) => {
   try {
     const results: Array<[number, string]> = await invoke('handle_search_text', { searchText: text });
     searchResults.value = results;
@@ -109,108 +97,8 @@ const sendSearchText = async (text: string) => {
   }
 }
 
-// 使用计算属性动态计算缩放后的尺寸
-const scaledWindowSize = computed(() => {
-  const factor = scaleFactor.value || 1;
-  return windowSize.value.map(size => size / factor) as [number, number];
-});
 
-const scaledItemSize = computed(() => {
-  const factor = scaleFactor.value || 1;
-  return itemSize.value.map(size => size / factor) as [number, number];
-});
-
-const scaledFontSize = computed(() => {
-  const factor = scaleFactor.value || 1;
-  return fontSize.value / factor;
-})
-
-const computed_selected_item_color = computed(() => {
-  return calculateColors(selected_item_color.value).selected;
-})
-
-const computed_no_selected_item_color = computed(() => {
-  return calculateColors(selected_item_color.value).nonSelected;
-})
-
-// (鼠标选择)
-const handleSelectMouse = (index: string) => {
-  activeIndex.value = index;
-}
-
-watch(searchText, (newValue) => {
-  sendSearchText(newValue);
-});
-
-const handleKeyDown = (event: KeyboardEvent) => {
-  if (event.key === 'Control') {
-    isCtrlPressed.value = true;
-  }
-  if (event.key === 'ArrowUp' || (event.ctrlKey && event.key === 'k')) {
-    event.preventDefault();
-    selectPreviousItem();
-  } else if (event.key === 'ArrowDown' || (event.ctrlKey && event.key === 'j')) {
-    event.preventDefault();
-    selectNextItem();
-  } else if (event.key === 'Escape') {
-    event.preventDefault();
-    pressedESC();
-  }
-};
-
-const handleKeyUp = (event: KeyboardEvent) => {
-  if (event.key === 'Control') {
-    isCtrlPressed.value = false;
-  }
-};
-
-const selectPreviousItem = () => {
-  const currentIndex = parseInt(activeIndex.value);
-  const newIndex = (currentIndex - 1 + menuItems.value.length) % menuItems.value.length;
-  activeIndex.value = newIndex.toString();
-};
-
-const selectNextItem = () => {
-  const currentIndex = parseInt(activeIndex.value);
-  const newIndex = (currentIndex + 1) % menuItems.value.length;
-  activeIndex.value = newIndex.toString();
-};
-
-const focusSearchInput = () => {
-  initSearchBar();
-  if (searchInputRef.value) {
-    searchInputRef.value.focus();
-  }
-}
-
-const pressedESC = () => {
-  activeIndex.value = '0';
-  if (searchText.value === '') {
-    // 隐藏窗口
-    invoke('hide_window');
-  } else {
-    // 清空文字
-    searchText.value = '';
-  }
-}
-
-
-// 新增的方法：显示自定义右键菜单
-const showContextMenu = (event: MouseEvent) => {
-  event.preventDefault();
-  isContextMenuVisible.value = true;
-  contextMenuPosition.value = { x: event.clientX, y: event.clientY };
-};
-
-// 刷新程序库
-const refreshDataset = async () => {
-  console.log("开始刷新");
-  invoke('hide_window');
-  await invoke('refresh_program');
-  updateWindow();
-}
-
-// 处理自定义菜单项选择
+// 处理菜单项选择
 const handleContextMenuSelect = (index: string) => {
   if (index === 'openSettings') {
     openSettingsWindow();
@@ -218,6 +106,13 @@ const handleContextMenuSelect = (index: string) => {
     refreshDataset();
   }
   isContextMenuVisible.value = false;
+};
+
+// 显示上下文菜单
+const showContextMenu = (event: MouseEvent) => {
+  event.preventDefault();
+  isContextMenuVisible.value = true;
+  contextMenuPosition.value = { x: event.clientX, y: event.clientY };
 };
 
 // 打开设置窗口的方法
@@ -232,36 +127,34 @@ const openSettingsWindow = () => {
     });
 };
 
-// 点击页面其他地方时隐藏自定义菜单
-const handleClickOutside = () => {
-  if (isContextMenuVisible.value) {
-    isContextMenuVisible.value = false;
+// 刷新程序库
+const refreshDataset = async () => {
+  console.log("开始刷新");
+  invoke('hide_window');
+  await invoke('refresh_program');
+  updateWindow();
+}
+
+// 用于程序在更新相应内容
+const updateWindow = async () => {
+  console.log("updateWindow");
+  try {
+    const background_picture_data = await invoke<number[]>('get_background_picture');
+    const program_count = invoke<number>('get_program_count');
+    const data = await invoke<SearchBarUpdate>('update_search_bar_window');
+    placeholder.value = data.search_bar_placeholder;
+    selected_item_color.value = data.selected_item_color;
+    item_font_color.value = data.item_font_color;
+
+    const blob = new Blob([new Uint8Array(background_picture_data)], { type: 'image/png' });
+    const url = URL.createObjectURL(blob);
+
+    background_picture.value = url;
+    await startPreloadResource(await program_count);
+  } catch (error) {
+    console.error('Error in updateWindow:', error);
   }
 }
-
-interface SearchBarInit {
-  window_size: [number, number];
-  item_size: [number, number];
-  window_scale_factor: number;
-  result_item_count: number;
-}
-
-interface SearchBarUpdate {
-  search_bar_placeholder: string;
-  selected_item_color: string;
-  item_font_color: string,
-}
-
-// 用于程序在一开始初始化
-const initWindow = async () => {
-  const initValue = await invoke<SearchBarInit>('initialize_search_window');
-  resultItemCount.value = initValue.result_item_count;
-  windowSize.value = initValue.window_size;
-  itemSize.value = initValue.item_size;
-  fontSize.value = itemSize.value[1] / 2;
-  scaleFactor.value = initValue.window_scale_factor
-}
-
 
 const startPreloadResource = async (program_count: number) => {
   const BATCH_SIZE = 10; // 每批加载的图标数量
@@ -286,48 +179,6 @@ const startPreloadResource = async (program_count: number) => {
   }
 }
 
-// 用于程序在更新相应内容
-const updateWindow = async () => {
-  console.log("updateWindow");
-  try {
-    const background_picture_data = await invoke<number[]>('get_background_picture');
-    const program_count = invoke<number>('get_program_count');
-    const data = await invoke<SearchBarUpdate>('update_search_bar_window');
-    placeholder.value = data.search_bar_placeholder;
-    selected_item_color.value = data.selected_item_color;
-    item_font_color.value = data.item_font_color;
-
-    const blob = new Blob([new Uint8Array(background_picture_data)], { type: 'image/png' });
-    const url = URL.createObjectURL(blob);
-
-    background_picture.value = url;
-    await startPreloadResource(await program_count);
-  } catch (error) {
-    console.error('Error in updateWindow:', error);
-  }
-}
-
-defineExpose({ updateWindow })
-
-// 用于初始化搜索栏和快捷键的状态(当成功启动一个程序时，或者搜索栏被隐藏时被触发)
-const initSearchBar = () => {
-  isCtrlPressed.value = false;
-  searchText.value = '';
-  activeIndex.value = '0';
-}
-
-const handleEnterPress = () => {
-  launch_program(parseInt(activeIndex.value))
-}
-
-
-const launch_program = (index: number) => {
-  const ctrlPressed = isCtrlPressed.value;
-  console.log(`Launching program for item ${searchResults.value[index][0]}, Ctrl key pressed: ${ctrlPressed}`);
-
-  invoke('launch_program', { programGuid: searchResults.value[index][0], isAdminRequired: ctrlPressed });
-};
-
 const getIcons = async (keys: Array<number>) => {
   let result: Array<string> = [];
   for (let key of keys) {
@@ -344,23 +195,93 @@ const getIcons = async (keys: Array<number>) => {
   return result;
 }
 
+
+// 处理选中项目的函数，现在接收 ctrlKey 参数
+const launch_program = (itemIndex: number, ctrlKey = false) => {
+  console.log("向后端调用");
+  invoke('launch_program', { programGuid: searchResults.value[itemIndex][0], isAdminRequired: ctrlKey });
+  // 这里可以添加实际的处理逻辑
+}
+
+// 处理键盘导航
+const handleKeyDown = (event: KeyboardEvent) => {
+
+  switch (event.key) {
+    case 'ArrowDown':
+      event.preventDefault()
+      selectedIndex.value = (selectedIndex.value + 1) % resultItemCount.value
+      break
+    case 'ArrowUp':
+      event.preventDefault()
+      selectedIndex.value = (selectedIndex.value - 1 + resultItemCount.value) % resultItemCount.value
+      break
+    case 'Enter':
+      event.preventDefault()
+      // 传递 ctrlKey 状态到 handle 函数
+      launch_program(selectedIndex.value, event.ctrlKey)
+      break
+    case 'j':
+      if (event.ctrlKey) {
+        event.preventDefault()
+        selectedIndex.value = (selectedIndex.value + 1) % resultItemCount.value
+      }
+      break
+    case 'k':
+      if (event.ctrlKey) {
+        event.preventDefault()
+        selectedIndex.value = (selectedIndex.value - 1 + resultItemCount.value) % resultItemCount.value
+      }
+      break
+  }
+}
+
+// 处理点击项目，现在传递 ctrlKey 状态
+const handleItemClick = (itemIndex: number, ctrlKey = false) => {
+  // 传递 ctrlKey 状态到 handle 函数
+  launch_program(itemIndex, ctrlKey)
+}
+
+const initWindow = async () => {
+  const initValue = await invoke<SearchBarInit>('initialize_search_window');
+  resultItemCount.value = initValue.result_item_count;
+}
+
+const initSearchBar = () => {
+  searchText.value = '';
+  selectedIndex.value = 0;
+}
+
+// 点击页面其他地方时隐藏自定义菜单
+const handleClickOutside = () => {
+  if (isContextMenuVisible.value) {
+    isContextMenuVisible.value = false;
+  }
+}
+
+const focusSearchInput = () => {
+  initSearchBar();
+  if (searchBarRef.value) {
+    searchBarRef.value.focus();
+  }
+}
+
 const backgroundStyle = computed(() => ({
   backgroundImage: `url(${background_picture.value})`,
   backgroundSize: 'cover',
   backgroundPosition: 'center',
   backgroundRepeat: 'no-repeat',
   backgroundClip: 'content-box',
-  padding: '10px',
 }));
 
-// 在组件挂载时添加事件监听器
+
+// 组件挂载后自动聚焦容器以接收键盘事件
 onMounted(async () => {
-  initWindow();
-  updateWindow();
+  if (searchBarRef.value) {
+    searchBarRef.value.focus()
+  }
+  initWindow()
+  updateWindow()
   sendSearchText('');
-  focusSearchInput();
-  window.addEventListener('keydown', handleKeyDown);
-  window.addEventListener('keyup', handleKeyUp);
   window.addEventListener('click', handleClickOutside);
   unlisten.push(await listen('show_window', () => {
     focusSearchInput();
@@ -371,13 +292,9 @@ onMounted(async () => {
   unlisten.push(await listen('handle_focus_lost', () => {
     initSearchBar();
   }));
+})
 
-});
-
-// 在组件卸载时移除事件监听器
 onUnmounted(() => {
-  window.removeEventListener('keydown', handleKeyDown);
-  window.removeEventListener('keyup', handleKeyUp);
   window.removeEventListener('click', handleClickOutside);
   for (let item of unlisten) {
     if (item) {
@@ -389,151 +306,155 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-html,
-body,
-#app {
+.launcher-container {
+  border-radius: 12px;
+  border: #b2abab solid 1px;
+  background: white;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  overflow: hidden;
+  outline: none;
+  /* 移除聚焦时的轮廓 */
+}
+
+.unified-container {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.search-input {
+  display: flex;
+  align-items: center;
+  padding: 13px 16px 12px 16px;
+
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.input-field {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 2em;
+  font-weight: 600;
+  background: transparent;
+  color: #333;
+}
+
+.search-icon {
+  display: flex;
+  align-items: center;
+  color: #333;
+  margin-right: 12px;
+}
+
+.results-list {
+  max-height: 95vh;
+  overflow-y: auto;
+  background-color: rgba(255, 255, 255, 0);
+}
+
+.result-item {
+  display: flex;
+  align-items: center;
+  padding: 13px 16px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.result-item:hover {
+  background-color: rgba(232, 240, 254, 0.5);
+}
+
+.result-item.selected {
+  background-color: rgba(232, 240, 254, 0.8);
+}
+
+.icon {
+  width: 36px;
+  height: 36px;
+  margin-right: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.custom-image {
+  width: 100%;
   height: 100%;
-  margin: 0;
+  object-fit: contain;
+  border-radius: 6px;
+}
+
+.item-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.item-name {
+  font-size: 1.3rem;
+  font-weight: 500;
+  color: #333;
+}
+
+mark {
+  background-color: transparent;
+  color: inherit;
+  font-weight: 700;
   padding: 0;
 }
 
+.footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+}
 
-/* 自定义右键菜单样式 */
+.footer-left {
+  flex: 1;
+}
+
+.footer-right {
+  display: flex;
+  align-items: center;
+}
+
+.status-text {
+  color: #666;
+  font-size: 14px;
+}
+
+.open-text {
+  color: #666;
+  font-size: 14px;
+}
+
 .custom-context-menu {
-  color: #000 !important;
   position: fixed;
   z-index: 1000;
-  background-color: #fff !important;
-  border: 1px solid #dcdfe6;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
-  border-radius: 4px;
 }
 
 .context-menu {
-  color: #000 !important;
-  background-color: #fff !important;
+  background-color: white;
+  border-radius: 4px;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+  padding: 5px 0;
   min-width: 150px;
 }
 
-.round-border {
-  border-radius: 10px;
+.context-menu-item {
+  padding: 8px 20px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #606266;
+  transition: background-color 0.3s;
 }
 
-.container {
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  /* 修改为 stretch 以确保子元素宽度填满容器 */
-  justify-content: flex-start;
-  /* 从顶部开始排列子元素 */
-  background-size: contain;
-  /* 使用 contain 确保图片完整显示 */
-  background-position: center;
-  background-repeat: no-repeat;
-  /* 防止图片重复 */
-}
-
-.menu-list {
-  margin-top: 20px;
-  overflow: hidden;
-  border: 1px solid var(--el-border-color);
-  padding: 0 !important;
-  min-height: 0 !important;
-}
-
-.menu-item {
-  /* border: 1px solid var(--el-border-color); */
-  overflow: hidden;
-
-}
-
-
-
-.common-layout {
-  height: 100%;
-  width: 100%;
-  padding: 0;
-}
-
-
-:deep(.el-menu-item.is-active) {
-  color: v-bind(item_font_color);
-  background-color: v-bind(computed_selected_item_color) !important;
-}
-
-:deep(.el-menu-item:hover) {
-  background-color: v-bind(computed_no_selected_item_color) !important;
-}
-
-:deep(.el-menu-item) {
-  color: v-bind(item_font_color);
-  background-color: rgba(0, 0, 0, 0);
-}
-
-/* 添加自定义样式来覆盖 Element Plus 默认样式 */
-:deep(.el-input__wrapper) {
-  /* box-shadow: none !important; */
-  padding: 0 !important;
-}
-
-:deep(.el-input__inner) {
-  font-family: v-bind(fontFamily);
-  font-size: v-bind(scaledFontSize) + 'px';
-  color: v-bind(fontColor);
-
-  height: 100%;
-}
-
-:deep(.el-input__inner::placeholder) {
-  color: v-bind(fontColor);
-  opacity: 0.4;
-}
-
-
-
-.common-layout {
-  height: 100%;
-  width: 100%;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  /* 垂直居中 */
-}
-
-.icon-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  width: auto !important;
-  min-width: 50px;
-  margin-right: 10px;
-}
-
-:deep(.el-main) {
-  padding: 0;
-  display: flex;
-  align-items: center;
-}
-
-.el-image {
-  margin: 0;
-  padding: 0;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  width: auto !important;
-  min-width: 50px;
-  margin-right: 10px;
-}
-
-/* Adjust el-aside to have a fixed width */
-:deep(.el-aside) {
-  width: auto !important;
-}
-
-/* Ensure the container takes full height */
-:deep(.el-container) {
-  height: 100%;
+.context-menu-item:hover {
+  background-color: #f5f7fa;
+  color: #409eff;
 }
 </style>

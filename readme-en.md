@@ -164,30 +164,28 @@ Build output: `./src-tauri/target/release/`
 
 ## 🤝 Acknowledgments
 
-Built upon these outstanding OSS projects:
+This project is built upon the following outstanding open-source projects:
 
-* [chinese-xinhua](https://github.com/pwxcoo/chinese-xinhua) - Core Chinese-to-pinyin dictionary
-* [Bootstrap Icons](https://icons.getbootstrap.com/) - UI icons
-* [LaunchyQt](https://github.com/samsonwang/LaunchyQt) - UWP app indexing solution
+* [chinese-xinhua](https://github.com/pwxcoo/chinese-xinhua) - Core dictionary for Chinese-to-Pinyin conversion
+* [LaunchyQt](https://github.com/samsonwang/LaunchyQt) - UWP application indexing solution
+* [icon-icons](https://icon-icons.com/zh/) - Provided the program's icons
 
 ## 🎯 Roadmap
 
 ### Immediate Goals
 
-* Redesign dynamic UI layout
-* Regex-based exclusion rules
-* Customizable search depth
-* Adaptive theme colors
-* One-click config reset
-* Custom command shortcuts
-* Auto-update checker
-* Dark theme
-* Debugging tools
-* Prevent DB updates during active use
-* App icon design
-* Fix UWP indexing issues
-* Error handling improvements
-* Config merge system
+* Use regular expressions for keyword and path filtering
+* Support custom search folder depth
+* Dynamic theme color adaptation based on background image changes
+* Add one-click restore to default configuration file save location
+* Customizable one-click commands (key + command format, with built-in * optional commands disabled by default)
+* One-click update detection
+* Dark theme support
+* Debugging features (e.g., view search algorithm results, temporarily add * search entries, inspect keyword generation results, performance evaluation)
+* Suspend database updates when the user opens the search bar
+* Address partial UWP application indexing failures (cause pending * investigation)
+* Error handling optimization
+* Configuration file merging system
 
 ### Long-Term Vision
 

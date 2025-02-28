@@ -2,7 +2,7 @@
     <div class="settings-container">
         <div class="sidebar">
             <div class="header">
-                <img src="./assets/vue.svg" alt="Logo" class="logo">
+                <img src="../assets/icon.svg" alt="Logo" class="logo">
                 <span class="title">选项</span>
             </div>
 
@@ -295,7 +295,7 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import {
     Setting,
     Brush,
@@ -303,7 +303,6 @@ import {
     Operation,
     Search,
     List,
-    Connection,
     InfoFilled
 } from '@element-plus/icons-vue';
 import { invoke } from '@tauri-apps/api/core';
@@ -331,13 +330,6 @@ const menuItems: MenuItem[] = [
     { title: '菜单', icon: List },
     { title: '关于', icon: InfoFilled }
 ];
-
-// 添加处理函数
-const handleFooterAction = () => {
-    console.log('Footer button clicked!');
-    // 在这里添加你的处理逻辑
-};
-
 
 const select_background_picture = async () => {
     const file_path = await open({

@@ -167,14 +167,13 @@ bun run tauri build
 本项目基于以下优秀开源项目构建：
 
 * [chinese-xinhua](https://github.com/pwxcoo/chinese-xinhua) - 中文转拼音核心词典
-* [Bootstrap Icons](https://icons.getbootstrap.com/) - 界面图标资源
 * [LaunchyQt](https://github.com/samsonwang/LaunchyQt) - UWP应用索引方案
+* [icon-icons](https://icon-icons.com/zh/) - 提供了该程序的图标
 
 ## 🎯 todo
 
 ### 软件目标
 
-* 重新设计运行界面（界面变化，使用动态尺寸）
 * 使用正则表达式来做关键字屏蔽与路径屏蔽
 * 支持自定义搜索文件夹深度
 * 主题颜色随背景图片的改动而改动
@@ -184,7 +183,6 @@ bun run tauri build
 * 暗色主题
 * 调试功能（比如，可以查看搜索算法运行的结果，临时添加搜索的条目，可以查看关键字生成算法的运行结果，性能评估）
 * 当用户打开了搜索栏时，不要更新数据库
-* 设计软件的图标
 * uwp 应用还存在部分无法索引的问题，尚未确定原因
 * 错误处理优化
 * 配置文件合并系统

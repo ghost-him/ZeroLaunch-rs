@@ -24,6 +24,10 @@ Settings Interface
 
 ![设置界面](设置界面.png)
 
+Appearance Settings
+
+![外观设置](外观设置.png)
+
 Search Paths
 
 ![搜索路径](搜索路径.png)
@@ -35,6 +39,10 @@ Keyword Filtering
 Custom Index Files and URLs
 
 ![自定义索引文件与网址](自定义索引文件与网址.png)
+
+Configuration File Save Location
+
+![配置文件夹](配置文件夹.png)
 
 Application Statistics
 

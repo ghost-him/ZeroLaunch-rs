@@ -135,7 +135,7 @@ pub async fn get_dominant_color<R: Runtime>(
 ) -> String {
     let content = ImageProcessor::load_image_from_path(&path);
     let ret = ImageProcessor::get_dominant_color(content).unwrap();
-    format!("#{:02X}{:02X}{:02X}", ret.0, ret.1, ret.2)
+    format!("rgba({}, {}, {}, 0.8)", ret.0, ret.1, ret.2)
 }
 
 /// 隐藏窗口

@@ -334,7 +334,7 @@ import { ElMessage } from 'element-plus';
 import { open } from '@tauri-apps/plugin-dialog';
 import { useConfigStore } from '../stores/config';
 import { storeToRefs } from 'pinia';
-import { listen, UnlistenFn } from '@tauri-apps/api/event';
+import { UnlistenFn } from '@tauri-apps/api/event';
 import { rgbaToHex } from '../utils/color'
 
 const configStore = useConfigStore()

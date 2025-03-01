@@ -26,6 +26,11 @@ pub struct SearchBarUpdate {
     search_bar_placeholder: String,
     selected_item_color: String,
     item_font_color: String,
+    tips: String,
+    search_bar_font_color: String,
+    search_bar_background_color: String,
+    item_font_size: f64,
+    search_bar_font_size: f64,
 }
 
 #[tauri::command]
@@ -51,6 +56,11 @@ pub fn update_search_bar_window<R: Runtime>(
         search_bar_placeholder: app_config.get_search_bar_placeholder(),
         selected_item_color: ui_config.get_selected_item_color(),
         item_font_color: ui_config.get_item_font_color(),
+        tips: app_config.get_tips(),
+        search_bar_font_color: ui_config.get_search_bar_font_color(),
+        search_bar_background_color: ui_config.get_search_bar_background_color(),
+        item_font_size: ui_config.get_item_font_size(),
+        search_bar_font_size: ui_config.get_search_bar_font_size(),
     }
 }
 

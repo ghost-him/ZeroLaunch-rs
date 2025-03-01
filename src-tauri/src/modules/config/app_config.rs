@@ -4,7 +4,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PartialAppConfig {
     pub search_bar_placeholder: Option<String>,
-    pub search_bar_no_result: Option<String>,
+    pub tips: Option<String>,
     pub is_auto_start: Option<bool>,
     pub is_silent_start: Option<bool>,
     pub search_result_count: Option<u32>,
@@ -17,7 +17,7 @@ pub struct AppConfigInner {
     /// 自定义搜索栏的提示文本
     pub search_bar_placeholder: String,
     /// 自定义搜索无结果时的文本
-    pub search_bar_no_result: String,
+    pub tips: String,
     /// 是不是要开机自启动
     pub is_auto_start: bool,
     /// 是否静默启动
@@ -32,7 +32,7 @@ impl Default for AppConfigInner {
     fn default() -> Self {
         AppConfigInner {
             search_bar_placeholder: "Hello, ZeroLaunch!".to_string(),
-            search_bar_no_result: "当前搜索无结果".to_string(),
+            tips: "ZeroLaunch-rs v0.4.0".to_string(),
             is_auto_start: false,
             is_silent_start: false,
             search_result_count: 4,
@@ -46,8 +46,8 @@ impl AppConfigInner {
         if let Some(search_bar_placeholder) = partial_app_config.search_bar_placeholder {
             self.search_bar_placeholder = search_bar_placeholder;
         }
-        if let Some(search_bar_no_result) = partial_app_config.search_bar_no_result {
-            self.search_bar_no_result = search_bar_no_result;
+        if let Some(tips) = partial_app_config.tips {
+            self.tips = tips;
         }
         if let Some(is_auto_start) = partial_app_config.is_auto_start {
             self.is_auto_start = is_auto_start;
@@ -68,8 +68,8 @@ impl AppConfigInner {
         self.search_bar_placeholder.clone()
     }
 
-    pub fn get_search_bar_no_result(&self) -> String {
-        self.search_bar_no_result.clone()
+    pub fn get_tips(&self) -> String {
+        self.tips.clone()
     }
 
     pub fn get_is_auto_start(&self) -> bool {
@@ -91,7 +91,7 @@ impl AppConfigInner {
     pub fn to_partial(&self) -> PartialAppConfig {
         PartialAppConfig {
             search_bar_placeholder: Some(self.search_bar_placeholder.clone()),
-            search_bar_no_result: Some(self.search_bar_no_result.clone()),
+            tips: Some(self.tips.clone()),
             is_auto_start: Some(self.is_auto_start),
             is_silent_start: Some(self.is_silent_start),
             search_result_count: Some(self.search_result_count),
@@ -124,9 +124,9 @@ impl AppConfig {
         inner.get_search_bar_placeholder()
     }
 
-    pub fn get_search_bar_no_result(&self) -> String {
+    pub fn get_tips(&self) -> String {
         let inner = self.inner.read();
-        inner.get_search_bar_no_result()
+        inner.get_tips()
     }
 
     pub fn get_is_auto_start(&self) -> bool {

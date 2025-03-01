@@ -42,7 +42,7 @@
 
     <div class="footer">
       <div class="footer-left">
-        <span class="status-text">{{ statusText }}</span>
+        <span class="status-text">{{ tips }}</span>
       </div>
       <div class="footer-right">
         <span class="open-text">{{ '打开' }}</span>
@@ -55,12 +55,12 @@
 import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core'
-import { calculateColors } from '../utils/color';
+import { reduceOpacity } from '../utils/color';
 
 const searchText = ref('la')
 const selectedIndex = ref(0)
 const searchBarRef = ref<HTMLInputElement | null>(null)
-const statusText = ref('准备就绪')
+const tips = ref('准备就绪')
 const searchResults = ref<Array<[number, string]>>([]);
 const menuItems = ref<Array<string>>([]);
 const menuIcons = ref<Array<string>>([]);
@@ -69,7 +69,20 @@ let placeholder = ref('请输入搜索内容');
 const isContextMenuVisible = ref(false);
 const contextMenuPosition = ref({ x: 0, y: 0 });
 const resultItemCount = ref<number>(1);
-const selected_item_color = ref('#d55d1d');
+const selected_item_color = ref('#d55d1dff');
+const hover_item_color = computed(() => {
+  return reduceOpacity(selected_item_color.value, 0.8);
+})
+const search_bar_font_color = ref('#00FCF7');
+const search_bar_background_color = ref('');
+const item_font_size = ref(1.3);
+const search_bar_font_size = ref(2);
+const item_font_size_with_unit = computed(() => {
+  return item_font_size.value + 'rem';
+})
+const search_bar_font_size_with_unit = computed(() => {
+  return search_bar_font_size.value + 'rem';
+})
 const item_font_color = ref('#ffeeee');
 const background_picture = ref('');
 let unlisten: Array<UnlistenFn | null> = [];
@@ -80,13 +93,19 @@ interface SearchBarUpdate {
   search_bar_placeholder: string;
   selected_item_color: string;
   item_font_color: string,
+  search_bar_font_color: string,
+  search_bar_background_color: string,
+  item_font_size: number,
+  search_bar_font_size: number,
+  tips: string
 }
 
 watch(searchText, (newVal) => {
   sendSearchText(newVal)
 })
 
-const sendSearchText = async (text: String) => {
+const sendSearchText = async (text: string) => {
+  console.log(hover_item_color)
   try {
     const results: Array<[number, string]> = await invoke('handle_search_text', { searchText: text });
     searchResults.value = results;
@@ -143,9 +162,16 @@ const updateWindow = async () => {
     const background_picture_data = await invoke<number[]>('get_background_picture');
     const program_count = invoke<number>('get_program_count');
     const data = await invoke<SearchBarUpdate>('update_search_bar_window');
+    console.log(data)
     placeholder.value = data.search_bar_placeholder;
     selected_item_color.value = data.selected_item_color;
     item_font_color.value = data.item_font_color;
+    tips.value = data.tips;
+    console.log(search_bar_font_color.value)
+    search_bar_font_color.value = data.search_bar_font_color;
+    search_bar_background_color.value = data.search_bar_background_color;
+    item_font_size.value = data.item_font_size;
+    search_bar_font_size.value = data.search_bar_font_size;
 
     const blob = new Blob([new Uint8Array(background_picture_data)], { type: 'image/png' });
     const url = URL.createObjectURL(blob);
@@ -274,13 +300,13 @@ const backgroundStyle = computed(() => ({
   backgroundClip: 'content-box',
 }));
 
-const computed_selected_item_color = computed(() => {
-  return calculateColors(selected_item_color.value).selected;
-})
+// const computed_selected_item_color = computed(() => {
+//   return calculateColors(selected_item_color.value).selected;
+// })
 
-const computed_no_selected_item_color = computed(() => {
-  return calculateColors(selected_item_color.value).nonSelected;
-})
+// const computed_no_selected_item_color = computed(() => {
+//   return calculateColors(selected_item_color.value).nonSelected;
+// })
 
 
 // 组件挂载后自动聚焦容器以接收键盘事件
@@ -314,7 +340,7 @@ onUnmounted(() => {
 });
 </script>
 
-<style scoped>
+<style>
 .launcher-container {
   border-radius: 12px;
   border: #b2abab solid 1px;
@@ -335,8 +361,8 @@ onUnmounted(() => {
 .search-input {
   display: flex;
   align-items: center;
-  padding: 13px 16px 12px 16px;
-
+  padding: 14px 16px 12px 16px;
+  background: v-bind(search_bar_background_color);
   border-bottom: 1px solid rgba(0, 0, 0, 0.05);
 }
 
@@ -344,10 +370,11 @@ onUnmounted(() => {
   flex: 1;
   border: none;
   outline: none;
-  font-size: 2em;
+  font-size: v-bind(search_bar_font_size_with_unit);
   font-weight: 600;
   background: transparent;
-  color: #333;
+  color: v-bind(search_bar_font_color);
+
 }
 
 .search-icon {
@@ -358,7 +385,6 @@ onUnmounted(() => {
 }
 
 .results-list {
-  max-height: 95vh;
   overflow-y: auto;
   background-color: rgba(255, 255, 255, 0);
 }
@@ -372,11 +398,11 @@ onUnmounted(() => {
 }
 
 .result-item:hover {
-  background-color: v-bind(computed_no_selected_item_color);
+  background-color: v-bind(hover_item_color);
 }
 
 .result-item.selected {
-  background-color: v-bind(computed_selected_item_color);
+  background-color: v-bind(selected_item_color);
 }
 
 .icon {
@@ -402,7 +428,7 @@ onUnmounted(() => {
 }
 
 .item-name {
-  font-size: 1.3rem;
+  font-size: v-bind(item_font_size_with_unit);
   font-weight: 500;
   color: v-bind(item_font_color);
 }
@@ -417,6 +443,7 @@ mark {
 .footer {
   display: flex;
   justify-content: space-between;
+  background-color: v-bind(search_bar_background_color);
   align-items: center;
   padding: 12px 16px;
   border-top: 1px solid rgba(0, 0, 0, 0.05);

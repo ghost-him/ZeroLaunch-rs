@@ -22,7 +22,7 @@ pub fn get_window_size() -> (Width, Height) {
     let window_height =
         (item_size * show_item_count + search_bar_height + footer_height) as f64 * scale_factor;
 
-    (window_width as Width, (window_height * 1.1) as Height)
+    (window_width as Width, (window_height) as Height)
 }
 
 // 获得窗口的原始渲染大小

@@ -1,6 +1,6 @@
 export type AppConfig = {
     search_bar_placeholder: string
-    search_bar_no_result: string
+    tips: string
     is_auto_start: boolean
     is_silent_start: boolean
     search_result_count: number
@@ -8,10 +8,12 @@ export type AppConfig = {
 }
 
 export type UIConfig = {
-    item_width_scale_factor: number
-    item_height_scale_factor: number
     selected_item_color: string
     item_font_color: string
+    search_bar_font_color: string
+    search_bar_background_color: string
+    item_font_size: number
+    search_bar_font_size: number
 }
 
 export type ProgramLauncherConfig = {

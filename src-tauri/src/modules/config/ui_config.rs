@@ -5,58 +5,64 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PartialUiConfig {
-    pub item_width_scale_factor: Option<f64>,
-    pub item_height_scale_factor: Option<f64>,
     pub selected_item_color: Option<String>,
     pub item_font_color: Option<String>,
+    pub search_bar_font_color: Option<String>,
+    pub search_bar_background_color: Option<String>,
+    pub item_font_size: Option<f64>,
+    pub search_bar_font_size: Option<f64>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct UiConfigInner {
     /// 显示器的大小与窗口的大小的比例
-    /// 窗口的高的比例
-    pub item_width_scale_factor: f64,
-    /// 窗口的宽度的比例
-    pub item_height_scale_factor: f64,
     /// 选中项的颜色
     pub selected_item_color: String,
     /// 选项中的字体的颜色
     pub item_font_color: String,
+    /// 搜索栏的字体颜色
+    pub search_bar_font_color: String,
+    /// 搜索栏与状态栏的背景颜色
+    pub search_bar_background_color: String,
+    /// 结果栏的字体大小
+    pub item_font_size: f64,
+    /// 搜索栏的字体大小
+    pub search_bar_font_size: f64,
 }
 
 impl Default for UiConfigInner {
     fn default() -> Self {
         UiConfigInner {
-            item_width_scale_factor: 0.5,
-            item_height_scale_factor: 0.0555,
-            selected_item_color: "#d55d1d".to_string(),
+            selected_item_color: "#d55d1dff".to_string(),
             item_font_color: "#000000".to_string(),
+            search_bar_background_color: "#FFFFFF00".to_string(),
+            search_bar_font_color: "#333333".to_string(),
+            item_font_size: 1.3,
+            search_bar_font_size: 2.0,
         }
     }
 }
 
 impl UiConfigInner {
     pub fn update(&mut self, partial_ui_config: PartialUiConfig) {
-        if let Some(item_width_scale_factor) = partial_ui_config.item_width_scale_factor {
-            self.item_width_scale_factor = item_width_scale_factor;
-        }
-        if let Some(item_height_scale_factor) = partial_ui_config.item_height_scale_factor {
-            self.item_height_scale_factor = item_height_scale_factor;
-        }
         if let Some(selected_item_color) = partial_ui_config.selected_item_color {
             self.selected_item_color = selected_item_color;
         }
         if let Some(item_font_color) = partial_ui_config.item_font_color {
             self.item_font_color = item_font_color;
         }
-    }
-
-    pub fn get_item_width_scale_factor(&self) -> f64 {
-        self.item_width_scale_factor
-    }
-
-    pub fn get_item_height_scale_factor(&self) -> f64 {
-        self.item_height_scale_factor
+        if let Some(search_bar_font_color) = partial_ui_config.search_bar_font_color {
+            self.search_bar_font_color = search_bar_font_color;
+        }
+        if let Some(search_bar_background_color) = partial_ui_config.search_bar_background_color {
+            self.search_bar_background_color = search_bar_background_color;
+        }
+        if let Some(item_font_size) = partial_ui_config.item_font_size {
+            self.item_font_size = item_font_size;
+        }
+        if let Some(search_bar_font_size) = partial_ui_config.search_bar_font_size {
+            self.search_bar_font_size = search_bar_font_size;
+        }
     }
 
     pub fn get_selected_item_color(&self) -> String {
@@ -66,12 +72,30 @@ impl UiConfigInner {
         self.item_font_color.clone()
     }
 
+    pub fn get_search_bar_font_color(&self) -> String {
+        self.search_bar_font_color.clone()
+    }
+
+    pub fn get_search_bar_background_color(&self) -> String {
+        self.search_bar_background_color.clone()
+    }
+
+    pub fn get_item_font_size(&self) -> f64 {
+        self.item_font_size
+    }
+
+    pub fn get_search_bar_font_size(&self) -> f64 {
+        self.search_bar_font_size
+    }
+
     pub fn to_partial(&self) -> PartialUiConfig {
         PartialUiConfig {
-            item_width_scale_factor: Some(self.item_width_scale_factor),
-            item_height_scale_factor: Some(self.item_height_scale_factor),
             selected_item_color: Some(self.selected_item_color.clone()),
             item_font_color: Some(self.item_font_color.clone()),
+            search_bar_font_color: Some(self.search_bar_font_color.clone()),
+            search_bar_background_color: Some(self.search_bar_background_color.clone()),
+            item_font_size: Some(self.item_font_size),
+            search_bar_font_size: Some(self.search_bar_font_size),
         }
     }
 }
@@ -94,16 +118,6 @@ impl UiConfig {
         inner.update(partial_ui_config);
     }
 
-    pub fn get_item_width_scale_factor(&self) -> f64 {
-        let inner = self.inner.read();
-        inner.item_width_scale_factor
-    }
-
-    pub fn get_item_height_scale_factor(&self) -> f64 {
-        let inner = self.inner.read();
-        inner.item_height_scale_factor
-    }
-
     pub fn get_selected_item_color(&self) -> String {
         let inner = self.inner.read();
         inner.selected_item_color.clone()
@@ -116,6 +130,26 @@ impl UiConfig {
     pub fn to_partial(&self) -> PartialUiConfig {
         let inner = self.inner.read();
         inner.to_partial()
+    }
+
+    pub fn get_search_bar_font_color(&self) -> String {
+        let inner = self.inner.read();
+        inner.search_bar_font_color.clone()
+    }
+
+    pub fn get_search_bar_background_color(&self) -> String {
+        let inner = self.inner.read();
+        inner.search_bar_background_color.clone()
+    }
+
+    pub fn get_item_font_size(&self) -> f64 {
+        let inner = self.inner.read();
+        inner.item_font_size
+    }
+
+    pub fn get_search_bar_font_size(&self) -> f64 {
+        let inner = self.inner.read();
+        inner.search_bar_font_size
     }
 }
 

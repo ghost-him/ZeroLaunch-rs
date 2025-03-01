@@ -112,17 +112,19 @@ export const useConfigStore = defineStore('config', {
         config: {
             app_config: {
                 search_bar_placeholder: '',
-                search_bar_no_result: '',
+                tips: '',
                 is_auto_start: false,
                 is_silent_start: false,
                 search_result_count: 0,
                 auto_refresh_time: 0
             } as AppConfig,
             ui_config: {
-                item_width_scale_factor: 1,
-                item_height_scale_factor: 1,
                 selected_item_color: '',
-                item_font_color: ''
+                item_font_color: '',
+                search_bar_font_color: '',
+                search_bar_font_size: 2.0,
+                search_bar_background_color: '#FFFFFF00',
+                item_font_size: 1.3,
             } as UIConfig,
             program_manager_config: {
                 launcher: {
@@ -156,7 +158,7 @@ export const useConfigStore = defineStore('config', {
             // 1. 更新本地状态（带自定义合并规则）
             console.log("收到更新")
             this.config = mergeConfig(this.config, partial);
-            console.log(this.config.program_manager_config);
+            console.log(partial);
             // 2. 更新 dirtyConfig（带相同合并规则）
             this.dirtyConfig = mergePartialConfig(this.dirtyConfig, partial)
         },

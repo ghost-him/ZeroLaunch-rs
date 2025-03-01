@@ -202,7 +202,7 @@ fn init_search_bar_window(app: &mut App) {
     let size = monitor.size();
     let scale_factor = main_window.scale_factor().unwrap_or(1.0);
     let state = app.state::<Arc<AppState>>();
-    let mut config = state.get_runtime_config().unwrap();
+    let config = state.get_runtime_config().unwrap();
 
     config.get_window_state().update(PartialWindowState {
         sys_window_scale_factor: Some(scale_factor),

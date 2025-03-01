@@ -32,9 +32,9 @@
                             @update:model-value="(val: string) => configStore.updateConfig({ app_config: { search_bar_placeholder: val } })" />
                     </el-form-item>
 
-                    <el-form-item label="自定义搜索无结果的文本">
-                        <el-input v-model="config.app_config.search_bar_no_result" placeholder="当前搜索无结果"
-                            @update:model-value="(val: string) => configStore.updateConfig({ app_config: { search_bar_no_result: val } })" />
+                    <el-form-item label="自定义底部提示栏">
+                        <el-input v-model="config.app_config.tips" placeholder="ZeroLaunch-rs v0.4.0"
+                            @update:model-value="(val: string) => configStore.updateConfig({ app_config: { tips: val } })" />
                     </el-form-item>
 
                     <el-form-item label="设置开机自启动">
@@ -56,33 +56,53 @@
                         <el-input-number v-model="config.app_config.auto_refresh_time" :step="1" :precision="0"
                             @update:model-value="(val: number) => configStore.updateConfig({ app_config: { auto_refresh_time: val } })" />
                     </el-form-item>
-
-                    <el-form-item label="设置选中项的背景颜色">
-                        <el-color-picker v-model="config.ui_config.selected_item_color"
-                            @update:model-value="(val: string) => configStore.updateConfig({ ui_config: { selected_item_color: val } })" />
-                    </el-form-item>
-
-                    <el-form-item label="设置选中项的字体颜色">
-                        <el-color-picker v-model="config.ui_config.item_font_color"
-                            @update:model-value="(val: string) => configStore.updateConfig({ ui_config: { item_font_color: val } })" />
-                    </el-form-item>
-
-                    <el-form-item label="选择背景图片">
-                        <el-button type="primary" @click="select_background_picture">选择图片</el-button>
-                        <el-button type="danger" @click="delete_background_picture">删除图片</el-button>
-
-                    </el-form-item>
-                    <el-form-item label="计算一个图片的主题色">
-                        <el-button type="primary" @click="get_dominant_color">选择图片</el-button>
-                        <div v-if="dominant_color"> 该图片的主题色为: {{ dominant_color }} </div>
-                    </el-form-item>
-
                 </el-form>
 
             </section>
 
-            <!-- 外观设置 -->
             <section v-if="activeIndex === 1" class="page">
+
+                <el-form-item label="搜索栏与状态栏的背景颜色">
+                    <el-color-picker v-model="config.ui_config.search_bar_background_color" show-alpha
+                        @update:model-value="(val: string) => configStore.updateConfig({ ui_config: { search_bar_background_color: rgbaToHex(val) } })" />
+                </el-form-item>
+                <el-form-item label="设置结果栏的背景颜色">
+                    <el-color-picker v-model="config.ui_config.selected_item_color" show-alpha
+                        @update:model-value="(val: string) => configStore.updateConfig({ ui_config: { selected_item_color: rgbaToHex(val) } })" />
+                </el-form-item>
+
+                <el-form-item label="搜索栏字体的颜色">
+                    <el-color-picker v-model="config.ui_config.search_bar_font_color"
+                        @update:model-value="(val: string) => configStore.updateConfig({ ui_config: { search_bar_font_color: rgbaToHex(val) } })" />
+                </el-form-item>
+                <el-form-item label="设置结果栏的字体颜色">
+                    <el-color-picker v-model="config.ui_config.item_font_color"
+                        @update:model-value="(val: string) => configStore.updateConfig({ ui_config: { item_font_color: rgbaToHex(val) } })" />
+                </el-form-item>
+
+                <el-form-item label="搜索栏的字体大小(单位rem)">
+                    <el-input v-model="config.ui_config.search_bar_font_size" placeholder="2" type="number"
+                        @update:model-value="(val: string) => configStore.updateConfig({ ui_config: { search_bar_font_size: parseFloat(val) } })" />
+                </el-form-item>
+                <el-form-item label="结果栏的字体大小(单位rem)">
+                    <el-input v-model="config.ui_config.item_font_size" placeholder="1.3" type="number"
+                        @update:model-value="(val: string) => configStore.updateConfig({ ui_config: { item_font_size: parseFloat(val) } })" />
+                </el-form-item>
+
+                <el-form-item label="选择背景图片">
+                    <el-button type="primary" @click="select_background_picture">选择图片</el-button>
+                    <el-button type="danger" @click="delete_background_picture">删除图片</el-button>
+
+                </el-form-item>
+                <el-form-item label="计算一个图片的主题色">
+                    <el-button type="primary" @click="get_dominant_color">选择图片</el-button>
+                    <div v-if="dominant_color"> 该图片的主题色为: {{ dominant_color }} </div>
+                </el-form-item>
+            </section>
+
+
+            <!-- 外观设置 -->
+            <section v-if="activeIndex === 2" class="page">
                 <el-tabs style="height: 100% " class="demo-tabs">
                     <el-tab-pane label="设置遍历路径">
                         <el-table :data="config.program_manager_config.loader.target_paths" stripe
@@ -157,12 +177,10 @@
                         </el-form-item>
                     </el-tab-pane>
                 </el-tabs>
-
-
             </section>
 
             <!-- 其他页面类似... -->
-            <section v-if="activeIndex === 2" class="page">
+            <section v-if="activeIndex === 3" class="page">
                 <el-table :data="keyFilterData" stripe style="width: 100%; height: 100%">
                     <el-table-column label="目标关键字">
                         <template #default="{ row }">
@@ -195,7 +213,7 @@
                 </el-button>
             </section>
 
-            <section v-if="activeIndex === 3" class="page">
+            <section v-if="activeIndex === 4" class="page">
                 <el-tabs style="height: 100%" class="demo-tabs">
                     <el-tab-pane label="索引文件">
                         <div class="mb-4">
@@ -253,14 +271,14 @@
                 </el-tabs>
             </section>
 
-            <section v-if="activeIndex === 4" class="page">
+            <section v-if="activeIndex === 5" class="page">
                 <el-form-item label="设置配置文件的保存地址">
                     <el-button type="primary" @click="change_remote_config_path_dir"> 选择目标路径</el-button>
                     <el-input v-model="remote_config_path_dir" placeholder="设置配置文件保存路径" />
                 </el-form-item>
             </section>
 
-            <section v-if="activeIndex === 5" class="page">
+            <section v-if="activeIndex === 6" class="page">
                 <el-button class="mt-4" style="width: 100%" @click="refreshProgramInfo">
                     点击刷新
                 </el-button>
@@ -293,7 +311,7 @@
                 </el-table>
             </section>
 
-            <section v-if="activeIndex === 6" class="page">
+            <section v-if="activeIndex === 7" class="page">
                 项目地址： https://github.com/ghost-him/ZeroLaunch-rs
             </section>
         </div>
@@ -305,11 +323,11 @@ import { ref, onMounted, computed, onUnmounted } from 'vue';
 import {
     Setting,
     Brush,
-    Files,
-    Operation,
+    Remove,
     Search,
-    List,
-    InfoFilled
+    Connection,
+    InfoFilled,
+    List
 } from '@element-plus/icons-vue';
 import { invoke } from '@tauri-apps/api/core';
 import { ElMessage } from 'element-plus';
@@ -317,6 +335,7 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { useConfigStore } from '../stores/config';
 import { storeToRefs } from 'pinia';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
+import { rgbaToHex } from '../utils/color'
 
 const configStore = useConfigStore()
 const { config } = storeToRefs(configStore)
@@ -330,11 +349,12 @@ const activeIndex = ref(0);
 
 const menuItems: MenuItem[] = [
     { title: '常规设置', icon: Setting },
-    { title: '外观', icon: Brush },
-    { title: '文件搜索', icon: Files },
-    { title: '动作', icon: Operation },
-    { title: '网络搜索', icon: Search },
-    { title: '菜单', icon: List },
+    { title: '外观设置', icon: Brush },
+    { title: '搜索设置', icon: Search },
+    { title: '屏蔽程序', icon: Remove },
+    { title: '文件搜索', icon: Search },
+    { title: '远程管理', icon: Connection },
+    { title: '所有程序', icon: List },
     { title: '关于', icon: InfoFilled }
 ];
 

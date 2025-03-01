@@ -1,5 +1,3 @@
-use crate::commands::utils::get_background_picture_path;
-use crate::core::image_processor::ImageProcessor;
 use crate::modules::config::config_manager::PartialConfig;
 use crate::save_config_to_file;
 use crate::AppState;

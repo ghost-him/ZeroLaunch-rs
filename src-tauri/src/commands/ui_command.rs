@@ -1,16 +1,17 @@
-use crate::commands::file::copy_background_picture;
 use crate::commands::utils::get_background_picture_path;
+use crate::core::image_processor::ImageProcessor;
 use crate::modules::storage::utils::is_writable_directory;
 use crate::modules::storage::utils::read_or_create_bytes;
 use crate::state::app_state::AppState;
 use crate::update_app_setting;
+use crate::utils::service_locator::ServiceLocator;
 use crate::LocalConfig;
 use crate::LOCAL_CONFIG_PATH;
-use crate::{
-    modules::ui_controller::controller::get_window_size, utils::service_locator::ServiceLocator,
-};
 use serde::{Deserialize, Serialize};
+use std::fs::File;
+use std::io::Write;
 use std::sync::Arc;
+use tauri::image::Image;
 use tauri::Emitter;
 use tauri::Manager;
 use tauri::Runtime;
@@ -106,9 +107,25 @@ pub async fn select_background_picture<R: Runtime>(
     window: tauri::Window<R>,
     path: String,
 ) -> Result<(), String> {
-    let result = copy_background_picture(path);
+    let content: Vec<u8> = ImageProcessor::load_image_from_path(&path);
+    let target_path = get_background_picture_path();
+    if let Ok(mut file) = File::create(target_path) {
+        // 将所有字节写入文件
+        let _ = file.write_all(&content);
+    }
     app.emit("update_search_bar_window", "").unwrap();
-    result
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_dominant_color<R: Runtime>(
+    app: tauri::AppHandle<R>,
+    window: tauri::Window<R>,
+    path: String,
+) -> String {
+    let content = ImageProcessor::load_image_from_path(&path);
+    let ret = ImageProcessor::get_dominant_color(content).unwrap();
+    format!("#{:02X}{:02X}{:02X}", ret.0, ret.1, ret.2)
 }
 
 /// 隐藏窗口

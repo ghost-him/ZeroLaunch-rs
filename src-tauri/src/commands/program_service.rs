@@ -1,7 +1,5 @@
 use crate::commands::ui_command::hide_window;
-use crate::commands::utils::get_background_picture_path;
 use crate::modules::config::config_manager::PartialConfig;
-use crate::modules::storage::utils::read_or_create_bytes;
 use crate::save_config_to_file;
 use crate::state::app_state::AppState;
 use crate::update_app_setting;

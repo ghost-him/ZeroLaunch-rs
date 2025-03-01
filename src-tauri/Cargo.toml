@@ -55,13 +55,16 @@ image = "^0.25.5"
 tracing = "^0.1.41"
 tracing-subscriber = { version = "^0.3.19", features = ["env-filter"] }
 tracing-appender = "^0.2.3"
-chrono = "^0.4.39"
+chrono = "^0.4.40"
 parking_lot = "^0.12.3"
 tauri-plugin-global-shortcut = "^2.2.0"
 tauri-plugin-dialog = { version = "^2.2.0" }
 timer = "^0.2.0"
-backtrace = "0.3.74"
-tauri-plugin-notification = "2"
+backtrace = "^0.3.74"
+tauri-plugin-notification = "^2"
+kmeans_colors = "^0.6.0"
+palette = "^0.7.6"
+rand = "^0.9.0"
 
 [features]
 default = ["custom-protocol"]

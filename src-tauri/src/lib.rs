@@ -1,4 +1,5 @@
 pub mod commands;
+pub mod core;
 pub mod error;
 pub mod modules;
 pub mod state;
@@ -151,7 +152,8 @@ pub fn run() {
             select_background_picture,
             hide_window,
             show_setting_window,
-            load_config
+            load_config,
+            get_dominant_color
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

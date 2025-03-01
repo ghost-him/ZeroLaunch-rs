@@ -70,7 +70,13 @@
                     <el-form-item label="选择背景图片">
                         <el-button type="primary" @click="select_background_picture">选择图片</el-button>
                         <el-button type="danger" @click="delete_background_picture">删除图片</el-button>
+
                     </el-form-item>
+                    <el-form-item label="计算一个图片的主题色">
+                        <el-button type="primary" @click="get_dominant_color">选择图片</el-button>
+                        <div v-if="dominant_color"> 该图片的主题色为: {{ dominant_color }} </div>
+                    </el-form-item>
+
                 </el-form>
 
             </section>
@@ -295,7 +301,7 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, onUnmounted } from 'vue';
 import {
     Setting,
     Brush,
@@ -310,6 +316,7 @@ import { ElMessage } from 'element-plus';
 import { open } from '@tauri-apps/plugin-dialog';
 import { useConfigStore } from '../stores/config';
 import { storeToRefs } from 'pinia';
+import { listen, UnlistenFn } from '@tauri-apps/api/event';
 
 const configStore = useConfigStore()
 const { config } = storeToRefs(configStore)
@@ -331,7 +338,7 @@ const menuItems: MenuItem[] = [
     { title: '关于', icon: InfoFilled }
 ];
 
-const select_background_picture = async () => {
+const select_picture = async () => {
     const file_path = await open({
         canCreateDirectories: false,  // 禁止创建目录
         directory: false,             // 禁止选择目录
@@ -344,6 +351,11 @@ const select_background_picture = async () => {
             }
         ]
     });
+    return file_path;
+}
+
+const select_background_picture = async () => {
+    let file_path = await select_picture();
     if (file_path) {
         console.log(file_path)
         invoke("select_background_picture", { path: file_path });
@@ -654,14 +666,31 @@ const save_config = async () => {
     })
 }
 
+
+let unlisten: Array<UnlistenFn | null> = [];
+let dominant_color = ref<string | null>(null);
+
 const update_remote_config_dir = async () => {
     const path = await invoke<string>("get_remote_config_dir");
     remote_config_path_dir.value = path;
 }
 
+const get_dominant_color = async () => {
+    let file_path = await select_picture();
+    let ret = await invoke<string>('get_dominant_color', { path: file_path });
+    dominant_color.value = ret;
+}
+
 onMounted(async () => {
     await configStore.loadConfig()
     await update_remote_config_dir()
+})
+
+onUnmounted(async () => {
+    unlisten.forEach(unlistenFn => {
+        if (unlistenFn) unlistenFn();
+    });
+    unlisten = [];
 })
 
 </script>

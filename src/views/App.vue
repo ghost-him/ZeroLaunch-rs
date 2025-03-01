@@ -55,6 +55,7 @@
 import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core'
+import { calculateColors } from '../utils/color';
 
 const searchText = ref('la')
 const selectedIndex = ref(0)
@@ -273,6 +274,14 @@ const backgroundStyle = computed(() => ({
   backgroundClip: 'content-box',
 }));
 
+const computed_selected_item_color = computed(() => {
+  return calculateColors(selected_item_color.value).selected;
+})
+
+const computed_no_selected_item_color = computed(() => {
+  return calculateColors(selected_item_color.value).nonSelected;
+})
+
 
 // 组件挂载后自动聚焦容器以接收键盘事件
 onMounted(async () => {
@@ -363,11 +372,11 @@ onUnmounted(() => {
 }
 
 .result-item:hover {
-  background-color: rgba(232, 240, 254, 0.5);
+  background-color: v-bind(computed_no_selected_item_color);
 }
 
 .result-item.selected {
-  background-color: rgba(232, 240, 254, 0.8);
+  background-color: v-bind(computed_selected_item_color);
 }
 
 .icon {
@@ -395,7 +404,7 @@ onUnmounted(() => {
 .item-name {
   font-size: 1.3rem;
   font-weight: 500;
-  color: #333;
+  color: v-bind(item_font_color);
 }
 
 mark {

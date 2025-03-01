@@ -176,7 +176,6 @@ This project is built upon the following outstanding open-source projects:
 
 * Use regular expressions for keyword and path filtering
 * Support custom search folder depth
-* Dynamic theme color adaptation based on background image changes
 * Add one-click restore to default configuration file save location
 * Customizable one-click commands (key + command format, with built-in * optional commands disabled by default)
 * One-click update detection

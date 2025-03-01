@@ -11,7 +11,6 @@ use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::Write;
 use std::sync::Arc;
-use tauri::image::Image;
 use tauri::Emitter;
 use tauri::Manager;
 use tauri::Runtime;
@@ -45,8 +44,8 @@ pub fn initialize_search_window() -> SearchBarInit {
 
 #[tauri::command]
 pub fn update_search_bar_window<R: Runtime>(
-    app: tauri::AppHandle<R>,
-    window: tauri::Window<R>,
+    _app: tauri::AppHandle<R>,
+    _window: tauri::Window<R>,
     state: tauri::State<'_, Arc<AppState>>,
 ) -> SearchBarUpdate {
     let runtime_config = state.get_runtime_config().unwrap();
@@ -66,9 +65,9 @@ pub fn update_search_bar_window<R: Runtime>(
 
 #[tauri::command]
 pub async fn get_background_picture<R: Runtime>(
-    app: tauri::AppHandle<R>,
-    window: tauri::Window<R>,
-    state: tauri::State<'_, Arc<AppState>>,
+    _app: tauri::AppHandle<R>,
+    _window: tauri::Window<R>,
+    _state: tauri::State<'_, Arc<AppState>>,
 ) -> Result<Vec<u8>, String> {
     let target_path = get_background_picture_path();
     read_or_create_bytes(&target_path, None)
@@ -77,7 +76,7 @@ pub async fn get_background_picture<R: Runtime>(
 #[tauri::command]
 pub async fn change_remote_config_dir<R: Runtime>(
     app: tauri::AppHandle<R>,
-    window: tauri::Window<R>,
+    _window: tauri::Window<R>,
     state: tauri::State<'_, Arc<AppState>>,
     config_dir: String,
 ) -> Result<(), String> {
@@ -104,8 +103,8 @@ pub async fn change_remote_config_dir<R: Runtime>(
 
 #[tauri::command]
 pub async fn get_remote_config_dir<R: Runtime>(
-    app: tauri::AppHandle<R>,
-    window: tauri::Window<R>,
+    _app: tauri::AppHandle<R>,
+    _window: tauri::Window<R>,
     state: tauri::State<'_, Arc<AppState>>,
 ) -> Result<String, String> {
     Ok(state.get_remote_config_dir_path())
@@ -114,7 +113,7 @@ pub async fn get_remote_config_dir<R: Runtime>(
 #[tauri::command]
 pub async fn select_background_picture<R: Runtime>(
     app: tauri::AppHandle<R>,
-    window: tauri::Window<R>,
+    _window: tauri::Window<R>,
     path: String,
 ) -> Result<(), String> {
     let content: Vec<u8> = ImageProcessor::load_image_from_path(&path);
@@ -129,8 +128,8 @@ pub async fn select_background_picture<R: Runtime>(
 
 #[tauri::command]
 pub async fn get_dominant_color<R: Runtime>(
-    app: tauri::AppHandle<R>,
-    window: tauri::Window<R>,
+    _app: tauri::AppHandle<R>,
+    _window: tauri::Window<R>,
     path: String,
 ) -> String {
     let content = ImageProcessor::load_image_from_path(&path);

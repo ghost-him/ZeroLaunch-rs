@@ -2,8 +2,6 @@ use crate::modules::config::config_manager::PartialConfig;
 use crate::save_config_to_file;
 use crate::AppState;
 
-use std::fs::File;
-use std::io::Write;
 use std::sync::Arc;
 use tauri::Emitter;
 use tauri::Runtime;

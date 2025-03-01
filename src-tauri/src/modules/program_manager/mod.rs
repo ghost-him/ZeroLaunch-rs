@@ -10,7 +10,6 @@ use crate::program_manager::config::program_manager_config::ProgramManagerConfig
 use crate::program_manager::unit::*;
 use config::program_manager_config::PartialProgramManagerConfig;
 use dashmap::DashMap;
-use parking_lot::Mutex;
 use parking_lot::RwLock;
 use program_launcher::ProgramLauncher;
 use program_loader::ProgramLoader;

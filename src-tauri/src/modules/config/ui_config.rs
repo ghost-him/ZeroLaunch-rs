@@ -1,7 +1,5 @@
-/// 与程序页面设置有关的，比如窗口的大小，显示的界面等
-use crate::modules::config::{Height, Width};
 use parking_lot::RwLock;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PartialUiConfig {

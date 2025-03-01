@@ -24,8 +24,8 @@ pub struct SearchResult(u64, String);
 
 #[tauri::command]
 pub async fn load_program_icon<R: Runtime>(
-    app: tauri::AppHandle<R>,
-    window: tauri::Window<R>,
+    _app: tauri::AppHandle<R>,
+    _window: tauri::Window<R>,
     state: tauri::State<'_, Arc<AppState>>,
     program_guid: u64,
 ) -> Result<Vec<u8>, String> {
@@ -37,8 +37,8 @@ pub async fn load_program_icon<R: Runtime>(
 
 #[tauri::command]
 pub async fn get_program_count<R: Runtime>(
-    app: tauri::AppHandle<R>,
-    window: tauri::Window<R>,
+    _app: tauri::AppHandle<R>,
+    _window: tauri::Window<R>,
     state: tauri::State<'_, Arc<AppState>>,
 ) -> Result<usize, String> {
     let program_manager = state.get_program_manager().unwrap();
@@ -48,8 +48,8 @@ pub async fn get_program_count<R: Runtime>(
 
 #[tauri::command]
 pub async fn launch_program<R: Runtime>(
-    app: tauri::AppHandle<R>,
-    window: tauri::Window<R>,
+    _app: tauri::AppHandle<R>,
+    _window: tauri::Window<R>,
     state: tauri::State<'_, Arc<AppState>>,
     program_guid: u64,
     is_admin_required: bool,
@@ -66,8 +66,8 @@ pub async fn launch_program<R: Runtime>(
 
 #[tauri::command]
 pub fn get_program_info<R: Runtime>(
-    app: tauri::AppHandle<R>,
-    window: tauri::Window<R>,
+    _app: tauri::AppHandle<R>,
+    _window: tauri::Window<R>,
     state: tauri::State<'_, Arc<AppState>>,
 ) -> Vec<ProgramInfo> {
     let manager = state.get_program_manager().unwrap();
@@ -88,8 +88,8 @@ pub fn get_program_info<R: Runtime>(
 
 #[tauri::command]
 pub async fn refresh_program<R: Runtime>(
-    app: tauri::AppHandle<R>,
-    window: tauri::Window<R>,
+    _app: tauri::AppHandle<R>,
+    _window: tauri::Window<R>,
 ) -> Result<(), String> {
     update_app_setting();
     Ok(())
@@ -98,8 +98,8 @@ pub async fn refresh_program<R: Runtime>(
 /// 处理前端发来的消息
 #[tauri::command]
 pub fn handle_search_text<R: Runtime>(
-    app: tauri::AppHandle<R>,
-    window: tauri::Window<R>,
+    _app: tauri::AppHandle<R>,
+    _window: tauri::Window<R>,
     state: tauri::State<'_, Arc<AppState>>,
     search_text: String,
 ) -> Vec<SearchResult> {
@@ -119,8 +119,8 @@ pub fn handle_search_text<R: Runtime>(
 
 #[tauri::command]
 pub async fn load_config<R: Runtime>(
-    app: tauri::AppHandle<R>,
-    window: tauri::Window<R>,
+    _app: tauri::AppHandle<R>,
+    _window: tauri::Window<R>,
     state: tauri::State<'_, Arc<AppState>>,
 ) -> Result<PartialConfig, String> {
     let runtime_config = state.get_runtime_config().unwrap();

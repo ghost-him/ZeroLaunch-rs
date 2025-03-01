@@ -1,5 +1,5 @@
 use parking_lot::RwLock;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PartialAppConfig {

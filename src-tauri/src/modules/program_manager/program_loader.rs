@@ -446,7 +446,6 @@ impl ProgramLoaderInner {
                             pv_launcher = value.clone();
                         }
 
-                        let launcher_app_state = self.prop_variant_to_string(&pv_launcher);
                         PropVariantClear(&mut pv_launcher).unwrap();
 
                         // Get Display Name

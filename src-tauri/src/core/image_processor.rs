@@ -1,15 +1,14 @@
 use crate::utils::windows::get_u16_vec;
 use core::mem::MaybeUninit;
 use image::codecs::png::PngEncoder;
-use image::ImageError;
 use image::ImageFormat;
 use image::ImageReader;
 use image::RgbaImage;
 use rayon::prelude::*;
 use std::sync::{Arc, Mutex};
 
-use image::{DynamicImage, GenericImageView};
-use kmeans_colors::{get_kmeans, Calculate, Kmeans};
+use image::DynamicImage;
+use kmeans_colors::get_kmeans;
 use palette::{IntoColor, Lab, Srgb};
 use rand::Rng;
 

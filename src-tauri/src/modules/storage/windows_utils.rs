@@ -1,8 +1,5 @@
 use std::path::Path;
-use tracing::warn;
 use tracing::{debug, info};
-/// 存放与 windows 相关的，存储相关的工具函数
-use windows::Win32::Foundation::HWND;
 use windows::Win32::UI::Shell::SHGetFolderPathW;
 use windows::Win32::UI::Shell::CSIDL_COMMON_STARTMENU;
 use windows::Win32::UI::Shell::CSIDL_STARTMENU;

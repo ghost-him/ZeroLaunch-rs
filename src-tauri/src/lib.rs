@@ -28,7 +28,6 @@ use modules::config::default::{APP_PIC_PATH, REMOTE_CONFIG_NAME};
 use modules::config::save_remote_config;
 use modules::config::window_state::PartialWindowState;
 use modules::program_manager::{self, ProgramManager};
-use parking_lot::RwLock;
 use rdev::{listen, Event, EventType, Key};
 use single_instance::SingleInstance;
 use std::collections::HashSet;
@@ -48,8 +47,6 @@ use tauri::WebviewUrl;
 use tauri::{Manager, PhysicalPosition, PhysicalSize};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_dialog::MessageDialogKind;
-use timer::Guard;
-use timer::Timer;
 use tracing::Level;
 use tracing::{debug, error, info, warn};
 use tracing_appender::rolling::RollingFileAppender;
@@ -111,8 +108,7 @@ pub fn run() {
             let instance = SingleInstance::new("ZeroLaunch-rs").unwrap();
             if !instance.is_single() {
                 error!("当前已经有实例在运行了");
-                let ans = app
-                    .dialog()
+                app.dialog()
                     .message("当前的程序已经在运行了")
                     .kind(MessageDialogKind::Error)
                     .title("注意")

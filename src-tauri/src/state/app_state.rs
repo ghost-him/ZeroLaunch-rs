@@ -1,7 +1,6 @@
 use crate::error::AppError;
 use crate::modules::{
     config::config_manager::RuntimeConfig, program_manager::ProgramManager,
-    storage::windows_utils::get_data_dir_path,
 };
 use parking_lot::RwLock;
 use std::sync::Arc;

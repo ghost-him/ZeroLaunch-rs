@@ -9,7 +9,6 @@ use crate::modules::config::RemoteConfig;
 use crate::modules::storage::utils::read_or_create_str;
 use crate::program_manager::config::program_manager_config::PartialProgramManagerConfig;
 use crate::program_manager::config::program_manager_config::ProgramManagerConfig;
-use backtrace::Backtrace;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -34,7 +33,7 @@ pub struct RuntimeConfig {
 
 impl RuntimeConfig {
     pub fn new(remote_config_path: String) -> Self {
-        let mut result = RuntimeConfig {
+        let result = RuntimeConfig {
             app_config: Arc::new(AppConfig::default()),
             ui_config: Arc::new(UiConfig::default()),
             program_manager_config: Arc::new(ProgramManagerConfig::default()),

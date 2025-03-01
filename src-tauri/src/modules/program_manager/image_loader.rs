@@ -1,13 +1,6 @@
 use crate::core::image_processor::ImageProcessor;
 
-/// 这个类主要用于加载程序的图片，支持并发查询
-use image::codecs::png::PngEncoder;
-use image::DynamicImage;
-use image::ImageFormat;
-use image::ImageReader;
 
-use std::path::Path;
-use tracing::{debug, warn};
 
 #[derive(Debug)]
 pub struct ImageLoader {

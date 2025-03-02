@@ -43,6 +43,7 @@ impl Default for ProgramLoaderConfigInner {
                 "help".to_string(),
                 "uninstall".to_string(),
                 "卸载".to_string(),
+                "zerolaunch-rs".to_string(),
             ],
             program_bias: HashMap::new(),
             is_scan_uwp_programs: true,

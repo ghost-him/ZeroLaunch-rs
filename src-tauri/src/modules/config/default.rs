@@ -24,7 +24,9 @@ lazy_static! {
     pub static ref APP_PIC_PATH: DashMap<String, String> = DashMap::new();
     // 默认的图片
     pub static ref CONFIG_DEFAULT: String = serde_json::to_string(&RuntimeConfig::new("./".to_string()).to_partial()).unwrap();
-    // 远程配置文件的名字
+    // 当前软件的版本号
+    pub static ref APP_VERSION: String = env!("CARGO_PKG_VERSION").to_string();
+
 }
 
 pub const REMOTE_CONFIG_NAME: &str = "ZeroLaunch_remote_config.json";

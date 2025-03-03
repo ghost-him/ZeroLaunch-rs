@@ -25,6 +25,7 @@ use chrono::DateTime;
 use chrono::Duration;
 use chrono::Local;
 use modules::config::config_manager::RuntimeConfig;
+use modules::config::default::APP_VERSION;
 use modules::config::default::{APP_PIC_PATH, REMOTE_CONFIG_NAME};
 use modules::config::save_remote_config;
 use modules::config::window_state::PartialWindowState;
@@ -331,7 +332,7 @@ fn init_system_tray(app: &mut App) {
     let tray_icon = TrayIconBuilder::new()
         .menu(&menu)
         .icon(Image::from_path(icon_path).unwrap())
-        .tooltip("ZeroLaunch-rs v0.4.0")
+        .tooltip(format!("ZeroLaunch-rs v{}", APP_VERSION.clone()))
         .show_menu_on_left_click(false)
         .build(handle)
         .unwrap();

@@ -97,7 +97,7 @@
 import { ref, onMounted } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { Location, Search, Aim, Share, ElementPlus } from '@element-plus/icons-vue';
-
+import { getVersion } from '@tauri-apps/api/app';
 
 const currentVersion = ref('v0.4.0'); // 假设当前版本
 const checkingUpdate = ref(false);
@@ -135,7 +135,13 @@ const checkUpdate = async () => {
     }
 };
 
+const updateCurrentVersion = async () => {
+    currentVersion.value = 'v' + await getVersion();
+    console.log(currentVersion.value)
+}
+
 onMounted(async () => {
+    await updateCurrentVersion()
 });
 </script>
 

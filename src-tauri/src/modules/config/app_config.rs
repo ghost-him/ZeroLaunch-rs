@@ -1,6 +1,8 @@
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 
+use super::default::APP_VERSION;
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PartialAppConfig {
     pub search_bar_placeholder: Option<String>,
@@ -32,7 +34,7 @@ impl Default for AppConfigInner {
     fn default() -> Self {
         AppConfigInner {
             search_bar_placeholder: "Hello, ZeroLaunch!".to_string(),
-            tips: "ZeroLaunch-rs v0.4.0".to_string(),
+            tips: format!("ZeroLaunch-rs v{}", APP_VERSION.clone()),
             is_auto_start: false,
             is_silent_start: false,
             search_result_count: 4,

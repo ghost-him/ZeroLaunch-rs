@@ -171,6 +171,39 @@
                         </el-button>
                     </el-tab-pane>
 
+
+                    <el-tab-pane label="设置固定偏移量">
+                        <el-table :data="keyFilterData" stripe style="width: 100%; height: 100%">
+                            <el-table-column label="目标关键字">
+                                <template #default="{ row }">
+                                    <el-input v-model="row.key" size="small" placeholder="请输入目标关键字"
+                                        @change="updateProgramBias(row)"></el-input>
+                                </template>
+                            </el-table-column>
+                            <el-table-column label="偏移量" show-overflow-tooltip>
+                                <template #default="{ row }">
+                                    <el-input-number v-model="row.bias" size="small" placeholder="请输入偏移量"
+                                        @change="updateProgramBias(row)"></el-input-number>
+                                </template>
+                            </el-table-column>
+                            <el-table-column label="备注" show-overflow-tooltip>
+                                <template #default="{ row }">
+                                    <el-input v-model="row.note" size="small" placeholder="请输入备注"
+                                        @change="updateProgramBias(row)"></el-input>
+                                </template>
+                            </el-table-column>
+                            <el-table-column fixed="right" label="操作" width="100">
+                                <template #default="{ $index }">
+                                    <el-button link size="small" type="danger" @click="deleteKeyFilterRow($index)">
+                                        删除一行
+                                    </el-button>
+                                </template>
+                            </el-table-column>
+                        </el-table>
+                        <el-button class="mt-4" style="width: 100%" @click="addKeyFilter">
+                            Add Item
+                        </el-button>
+                    </el-tab-pane>
                     <el-tab-pane label="额外设置">
                         <el-form-item label="扫描UWP应用">
                             <el-switch v-model="is_scan_uwp_programs" @change="updateIsScanUwpPrograms" />
@@ -179,41 +212,7 @@
                 </el-tabs>
             </section>
 
-            <!-- 其他页面类似... -->
             <section v-if="activeIndex === 3" class="page">
-                <el-table :data="keyFilterData" stripe style="width: 100%; height: 100%">
-                    <el-table-column label="目标关键字">
-                        <template #default="{ row }">
-                            <el-input v-model="row.key" size="small" placeholder="请输入目标关键字"
-                                @change="updateProgramBias(row)"></el-input>
-                        </template>
-                    </el-table-column>
-                    <el-table-column label="偏移量" show-overflow-tooltip>
-                        <template #default="{ row }">
-                            <el-input-number v-model="row.bias" size="small" placeholder="请输入偏移量"
-                                @change="updateProgramBias(row)"></el-input-number>
-                        </template>
-                    </el-table-column>
-                    <el-table-column label="备注" show-overflow-tooltip>
-                        <template #default="{ row }">
-                            <el-input v-model="row.note" size="small" placeholder="请输入备注"
-                                @change="updateProgramBias(row)"></el-input>
-                        </template>
-                    </el-table-column>
-                    <el-table-column fixed="right" label="操作" width="100">
-                        <template #default="{ $index }">
-                            <el-button link size="small" type="danger" @click="deleteKeyFilterRow($index)">
-                                删除一行
-                            </el-button>
-                        </template>
-                    </el-table-column>
-                </el-table>
-                <el-button class="mt-4" style="width: 100%" @click="addKeyFilter">
-                    Add Item
-                </el-button>
-            </section>
-
-            <section v-if="activeIndex === 4" class="page">
                 <el-tabs style="height: 100%" class="demo-tabs">
                     <el-tab-pane label="索引文件">
                         <div class="mb-4">
@@ -271,14 +270,14 @@
                 </el-tabs>
             </section>
 
-            <section v-if="activeIndex === 5" class="page">
+            <section v-if="activeIndex === 4" class="page">
                 <el-form-item label="设置配置文件的保存地址">
                     <el-button type="primary" @click="change_remote_config_path_dir"> 选择目标路径</el-button>
                     <el-input v-model="remote_config_path_dir" placeholder="设置配置文件保存路径" />
                 </el-form-item>
             </section>
 
-            <section v-if="activeIndex === 6" class="page">
+            <section v-if="activeIndex === 5" class="page">
                 <el-button class="mt-4" style="width: 100%" @click="refreshProgramInfo">
                     点击刷新
                 </el-button>
@@ -311,7 +310,7 @@
                 </el-table>
             </section>
 
-            <section v-if="activeIndex === 7" class="page">
+            <section v-if="activeIndex === 6" class="page">
                 项目地址： https://github.com/ghost-him/ZeroLaunch-rs
             </section>
         </div>
@@ -351,7 +350,7 @@ const menuItems: MenuItem[] = [
     { title: '常规设置', icon: Setting },
     { title: '外观设置', icon: Brush },
     { title: '搜索设置', icon: Search },
-    { title: '屏蔽程序', icon: Remove },
+    //{ title: '屏蔽程序', icon: Remove },
     { title: '文件搜索', icon: Search },
     { title: '远程管理', icon: Connection },
     { title: '所有程序', icon: List },

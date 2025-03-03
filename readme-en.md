@@ -180,7 +180,6 @@ This project is built upon the following outstanding open-source projects:
 * Support custom search folder depth
 * Add one-click restore to default configuration file save location
 * Customizable one-click commands (key + command format, with built-in * optional commands disabled by default)
-* One-click update detection
 * Dark theme support
 * Debugging features (e.g., view search algorithm results, temporarily add * search entries, inspect keyword generation results, performance evaluation)
 * Suspend database updates when the user opens the search bar

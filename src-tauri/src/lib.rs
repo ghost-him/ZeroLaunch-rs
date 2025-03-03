@@ -7,6 +7,7 @@ pub mod utils;
 use crate::commands::file::*;
 use crate::commands::program_service::*;
 use crate::commands::ui_command::*;
+use crate::commands::utils::*;
 
 use crate::modules::config::config_manager::PartialConfig;
 use crate::modules::config::default::LOCAL_CONFIG_PATH;
@@ -149,7 +150,8 @@ pub fn run() {
             hide_window,
             show_setting_window,
             load_config,
-            get_dominant_color
+            get_dominant_color,
+            command_get_latest_release_version
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

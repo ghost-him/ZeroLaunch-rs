@@ -311,7 +311,7 @@
             </section>
 
             <section v-if="activeIndex === 6" class="page">
-                项目地址： https://github.com/ghost-him/ZeroLaunch-rs
+                <about></about>
             </section>
         </div>
     </div>
@@ -322,19 +322,20 @@ import { ref, onMounted, computed, onUnmounted } from 'vue';
 import {
     Setting,
     Brush,
-    Remove,
     Search,
     Connection,
     InfoFilled,
     List
 } from '@element-plus/icons-vue';
+
 import { invoke } from '@tauri-apps/api/core';
 import { ElMessage } from 'element-plus';
 import { open } from '@tauri-apps/plugin-dialog';
 import { useConfigStore } from '../stores/config';
 import { storeToRefs } from 'pinia';
 import { UnlistenFn } from '@tauri-apps/api/event';
-import { rgbaToHex } from '../utils/color'
+import { rgbaToHex } from '../utils/color';
+import about from "./about.vue";
 
 const configStore = useConfigStore()
 const { config } = storeToRefs(configStore)
@@ -350,7 +351,6 @@ const menuItems: MenuItem[] = [
     { title: '常规设置', icon: Setting },
     { title: '外观设置', icon: Brush },
     { title: '搜索设置', icon: Search },
-    //{ title: '屏蔽程序', icon: Remove },
     { title: '文件搜索', icon: Search },
     { title: '远程管理', icon: Connection },
     { title: '所有程序', icon: List },

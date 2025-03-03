@@ -11,27 +11,44 @@ pub struct PartialProgramLauncherConfig {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(default)]
 pub struct ProgramLauncherConfigInner {
     /// 天数,[一个地址的启动次数]
+    #[serde(default = "ProgramLauncherConfigInner::default_launch_info")]
     pub launch_info: VecDeque<HashMap<String, u64>>,
     /// 历史启动次数
+    #[serde(default = "ProgramLauncherConfigInner::default_history_launch_time")]
     pub history_launch_time: HashMap<String, u64>,
     /// 上次的读取日期
+    #[serde(default = "ProgramLauncherConfigInner::default_last_update_data")]
     pub last_update_data: String,
 }
 
 impl Default for ProgramLauncherConfigInner {
     fn default() -> Self {
-        let mut deque = VecDeque::new();
-        deque.push_front(HashMap::new());
-        ProgramLauncherConfigInner {
-            launch_info: deque,
-            history_launch_time: HashMap::new(),
-            last_update_data: generate_current_date(),
+        Self {
+            launch_info: Self::default_launch_info(),
+            history_launch_time: Self::default_history_launch_time(),
+            last_update_data: Self::default_last_update_data(),
         }
     }
 }
 
+impl ProgramLauncherConfigInner {
+    pub(crate) fn default_launch_info() -> VecDeque<HashMap<String, u64>> {
+        let mut deque = VecDeque::new();
+        deque.push_front(HashMap::new());
+        deque
+    }
+
+    pub(crate) fn default_history_launch_time() -> HashMap<String, u64> {
+        HashMap::new()
+    }
+
+    pub(crate) fn default_last_update_data() -> String {
+        generate_current_date()
+    }
+}
 impl ProgramLauncherConfigInner {
     pub fn to_partial(&self) -> PartialProgramLauncherConfig {
         PartialProgramLauncherConfig {

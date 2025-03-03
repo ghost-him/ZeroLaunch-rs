@@ -15,41 +15,80 @@ pub struct PartialProgramLoaderConfig {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(default)]
 pub struct ProgramLoaderConfigInner {
     /// 保存的要启动的地址
+    #[serde(default = "ProgramLoaderConfigInner::default_target_paths")]
     pub target_paths: Vec<String>,
     /// 禁止的地址
+    #[serde(default = "ProgramLoaderConfigInner::default_forbidden_paths")]
     pub forbidden_paths: Vec<String>,
     /// 禁止的程序关键字
+    #[serde(default = "ProgramLoaderConfigInner::default_forbidden_program_key")]
     pub forbidden_program_key: Vec<String>,
     /// 设置程序的固定权重偏移 (key) => (bias, note)
+    #[serde(default = "ProgramLoaderConfigInner::default_program_bias")]
     pub program_bias: HashMap<String, (f64, String)>,
     /// 是不是要遍历uwp应用
+    #[serde(default = "ProgramLoaderConfigInner::default_is_scan_uwp_programs")]
     pub is_scan_uwp_programs: bool,
     /// 索引的单体文件（路径）
+    #[serde(default = "ProgramLoaderConfigInner::default_index_file_paths")]
     pub index_file_paths: Vec<String>,
     /// 索引的网页(关键字，网址)
+    #[serde(default = "ProgramLoaderConfigInner::default_index_web_pages")]
     pub index_web_pages: Vec<(String, String)>,
 }
 
 impl Default for ProgramLoaderConfigInner {
     fn default() -> Self {
-        let (common, user) = get_start_menu_paths().unwrap();
-        ProgramLoaderConfigInner {
-            target_paths: vec![common, user],
-            forbidden_paths: Vec::new(),
-            forbidden_program_key: vec![
-                "帮助".to_string(),
-                "help".to_string(),
-                "uninstall".to_string(),
-                "卸载".to_string(),
-                "zerolaunch-rs".to_string(),
-            ],
-            program_bias: HashMap::new(),
-            is_scan_uwp_programs: true,
-            index_file_paths: Vec::new(),
-            index_web_pages: Vec::new(),
+        Self {
+            target_paths: Self::default_target_paths(),
+            forbidden_paths: Self::default_forbidden_paths(),
+            forbidden_program_key: Self::default_forbidden_program_key(),
+            program_bias: Self::default_program_bias(),
+            is_scan_uwp_programs: Self::default_is_scan_uwp_programs(),
+            index_file_paths: Self::default_index_file_paths(),
+            index_web_pages: Self::default_index_web_pages(),
         }
+    }
+}
+
+impl ProgramLoaderConfigInner {
+    pub(crate) fn default_target_paths() -> Vec<String> {
+        let (common, user) =
+            get_start_menu_paths().unwrap_or_else(|_| (String::new(), String::new()));
+        vec![common, user]
+    }
+
+    pub(crate) fn default_forbidden_paths() -> Vec<String> {
+        Vec::new()
+    }
+
+    pub(crate) fn default_forbidden_program_key() -> Vec<String> {
+        vec![
+            "帮助".to_string(),
+            "help".to_string(),
+            "uninstall".to_string(),
+            "卸载".to_string(),
+            "zerolaunch-rs".to_string(),
+        ]
+    }
+
+    pub(crate) fn default_program_bias() -> HashMap<String, (f64, String)> {
+        HashMap::new()
+    }
+
+    pub(crate) fn default_is_scan_uwp_programs() -> bool {
+        true
+    }
+
+    pub(crate) fn default_index_file_paths() -> Vec<String> {
+        Vec::new()
+    }
+
+    pub(crate) fn default_index_web_pages() -> Vec<(String, String)> {
+        Vec::new()
     }
 }
 

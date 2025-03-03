@@ -15,31 +15,64 @@ pub struct PartialAppConfig {
 
 /// 与程序设置有关的，比如是不是要开机自动启动等
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(default)]
 pub struct AppConfigInner {
     /// 自定义搜索栏的提示文本
+    #[serde(default = "AppConfigInner::default_search_bar_placeholder")]
     pub search_bar_placeholder: String,
     /// 自定义搜索无结果时的文本
+    #[serde(default = "AppConfigInner::default_tips")]
     pub tips: String,
     /// 是不是要开机自启动
+    #[serde(default = "AppConfigInner::default_is_auto_start")]
     pub is_auto_start: bool,
     /// 是否静默启动
+    #[serde(default = "AppConfigInner::default_is_silent_start")]
     pub is_silent_start: bool,
     /// 搜索结果的数量
+    #[serde(default = "AppConfigInner::default_search_result_count")]
     pub search_result_count: u32,
     /// 自动刷新数据库的时间
+    #[serde(default = "AppConfigInner::default_auto_refresh_time")]
     pub auto_refresh_time: u32,
 }
 
 impl Default for AppConfigInner {
     fn default() -> Self {
-        AppConfigInner {
-            search_bar_placeholder: "Hello, ZeroLaunch!".to_string(),
-            tips: format!("ZeroLaunch-rs v{}", APP_VERSION.clone()),
-            is_auto_start: false,
-            is_silent_start: false,
-            search_result_count: 4,
-            auto_refresh_time: 30,
+        Self {
+            search_bar_placeholder: Self::default_search_bar_placeholder(),
+            tips: Self::default_tips(),
+            is_auto_start: Self::default_is_auto_start(),
+            is_silent_start: Self::default_is_silent_start(),
+            search_result_count: Self::default_search_result_count(),
+            auto_refresh_time: Self::default_auto_refresh_time(),
         }
+    }
+}
+
+impl AppConfigInner {
+    pub(crate) fn default_search_bar_placeholder() -> String {
+        "Hello, ZeroLaunch!".to_string()
+    }
+
+    pub(crate) fn default_tips() -> String {
+        format!("ZeroLaunch-rs v{}", APP_VERSION.clone())
+    }
+
+    pub(crate) fn default_is_auto_start() -> bool {
+        false
+    }
+
+    pub(crate) fn default_is_silent_start() -> bool {
+        false
+    }
+
+    pub(crate) fn default_search_result_count() -> u32 {
+        4
+    }
+
+    pub(crate) fn default_auto_refresh_time() -> u32 {
+        30
     }
 }
 

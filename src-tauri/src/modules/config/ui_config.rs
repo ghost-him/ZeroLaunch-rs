@@ -12,32 +12,75 @@ pub struct PartialUiConfig {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(default)]
 pub struct UiConfigInner {
     /// 显示器的大小与窗口的大小的比例
     /// 选中项的颜色
+    #[serde(default = "UiConfigInner::default_selected_item_color")]
     pub selected_item_color: String,
+
     /// 选项中的字体的颜色
+    #[serde(default = "UiConfigInner::default_item_font_color")]
     pub item_font_color: String,
+
     /// 搜索栏的字体颜色
+    #[serde(default = "UiConfigInner::default_search_bar_font_color")]
     pub search_bar_font_color: String,
+
     /// 搜索栏与状态栏的背景颜色
+    #[serde(default = "UiConfigInner::default_search_bar_background_color")]
     pub search_bar_background_color: String,
+
     /// 结果栏的字体大小
+    #[serde(default = "UiConfigInner::default_item_font_size")]
     pub item_font_size: f64,
+
     /// 搜索栏的字体大小
+    #[serde(default = "UiConfigInner::default_search_bar_font_size")]
     pub search_bar_font_size: f64,
+
+    /// 测试
+    #[serde(default = "UiConfigInner::default_search_bar_font_size")]
+    pub test: f64,
 }
 
 impl Default for UiConfigInner {
     fn default() -> Self {
-        UiConfigInner {
-            selected_item_color: "#d55d1dff".to_string(),
-            item_font_color: "#000000".to_string(),
-            search_bar_background_color: "#FFFFFF00".to_string(),
-            search_bar_font_color: "#333333".to_string(),
-            item_font_size: 1.3,
-            search_bar_font_size: 2.0,
+        Self {
+            selected_item_color: Self::default_selected_item_color(),
+            item_font_color: Self::default_item_font_color(),
+            search_bar_font_color: Self::default_search_bar_font_color(),
+            search_bar_background_color: Self::default_search_bar_background_color(),
+            item_font_size: Self::default_item_font_size(),
+            search_bar_font_size: Self::default_search_bar_font_size(),
+            test: Self::default_search_bar_font_size(),
         }
+    }
+}
+
+impl UiConfigInner {
+    pub(crate) fn default_selected_item_color() -> String {
+        "#e3e3e3cc".to_string()
+    }
+
+    pub(crate) fn default_item_font_color() -> String {
+        "#000000".to_string()
+    }
+
+    pub(crate) fn default_search_bar_font_color() -> String {
+        "#333333".to_string()
+    }
+
+    pub(crate) fn default_search_bar_background_color() -> String {
+        "#FFFFFF00".to_string()
+    }
+
+    pub(crate) fn default_item_font_size() -> f64 {
+        1.3
+    }
+
+    pub(crate) fn default_search_bar_font_size() -> f64 {
+        2.0
     }
 }
 

@@ -95,7 +95,6 @@ impl RuntimeConfig {
 }
 
 fn load_config(config_path_str: &str) -> PartialConfig {
-    println!("load_config");
     // 读取配置文件
     let config_content = read_or_create_str(&config_path_str, Some(CONFIG_DEFAULT.to_string()))
         .expect("无法读取配置文件");

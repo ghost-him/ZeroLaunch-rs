@@ -370,7 +370,6 @@ fn init_system_tray(app: &mut App) {
 fn update_app_setting() {
     let state = ServiceLocator::get_state();
     let runtime_config = state.get_runtime_config().unwrap();
-
     // 1. 重新更新程序索引的路径
     let program_manager = state.get_program_manager().unwrap();
     program_manager.load_from_config(runtime_config.get_program_manager_config());
@@ -389,7 +388,6 @@ fn update_app_setting() {
     }
 
     // 创建新定时器
-    println!("mins: {}", mins);
     let new_interval = Duration::seconds((mins * 60) as i64);
     let timer = state.get_timer();
     let guard_value = timer.schedule_repeating(new_interval, move || {
@@ -402,7 +400,6 @@ fn update_app_setting() {
 
     // 发送事件
     handle.emit("update_search_bar_window", "").unwrap();
-    println!("刷新数据库");
 }
 
 /// 保存程序的配置信息

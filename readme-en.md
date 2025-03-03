@@ -185,7 +185,6 @@ This project is built upon the following outstanding open-source projects:
 * Suspend database updates when the user opens the search bar
 * Address partial UWP application indexing failures (cause pending * investigation)
 * Error handling optimization
-* Configuration file merging system
 
 ### Long-Term Vision
 

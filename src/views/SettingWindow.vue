@@ -105,13 +105,17 @@
             <section v-if="activeIndex === 2" class="page">
                 <el-tabs style="height: 100% " class="demo-tabs">
                     <el-tab-pane label="设置遍历路径">
-                        <el-table :data="config.program_manager_config.loader.target_paths" stripe
-                            style="width: 100%; height: 100%">
+                        <el-table :data="targetPath" stripe style="width: 100%; height: 100%">
                             <el-table-column label="目标路径" show-overflow-tooltip>
-                                <template #default="scope">
-                                    <el-input v-model="config.program_manager_config.loader.target_paths[scope.$index]"
-                                        size="small" placeholder="请输入目标路径"
-                                        @change="updateTargetPath(scope.$index, $event)"></el-input>
+                                <template #default="{ row, $index }">
+                                    <el-input v-model="row[0]" size="small" placeholder="请输入目标路径"
+                                        @change="updateTargetPath($index, row)"></el-input>
+                                </template>
+                            </el-table-column>
+                            <el-table-column label="遍历深度" show-overflow-tooltip>
+                                <template #default="{ row, $index }">
+                                    <el-input v-model="row[1]" size="small" placeholder="请输入遍历深度" type="number"
+                                        :precision="0" @change="updateTargetPath($index, row)"></el-input>
                                 </template>
                             </el-table-column>
                             <el-table-column fixed="right" label="操作" width="100">
@@ -393,9 +397,23 @@ const delete_background_picture = () => {
     })
 }
 
-const updateTargetPath = (index: number, value: string) => {
-    const newTargetPaths = [...config.value.program_manager_config.loader.target_paths]
-    newTargetPaths[index] = value
+const targetPath = computed({
+    get: () => config.value.program_manager_config.loader.target_paths,
+    set: (value) => {
+        console.log("调用set方法")
+        configStore.updateConfig({
+            program_manager_config: {
+                loader: { target_paths: value }
+            }
+        })
+    }
+})
+
+const updateTargetPath = (index: number, value: [string, string]) => {
+    console.log(value);
+    const newTargetPaths = [...config.value.program_manager_config.loader.target_paths] as [string, number][]
+    newTargetPaths[index] = [value[0], parseInt(value[1])]
+    console.log([value[0], parseInt(value[1])])
     configStore.updateConfig({
         program_manager_config: {
             loader: {
@@ -417,7 +435,7 @@ const deleteTargetPathRow = (index: number) => {
 }
 
 const addTargetPath = () => {
-    const newTargetPaths = [...config.value.program_manager_config.loader.target_paths, ""]
+    const newTargetPaths = [...config.value.program_manager_config.loader.target_paths, ["", 1]] as [string, number][]
     configStore.updateConfig({
         program_manager_config: {
             loader: {

@@ -5,7 +5,7 @@ use std::collections::HashMap;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PartialProgramLoaderConfig {
-    pub target_paths: Option<Vec<String>>,
+    pub target_paths: Option<Vec<(String, u32)>>,
     pub forbidden_paths: Option<Vec<String>>,
     pub forbidden_program_key: Option<Vec<String>>,
     pub program_bias: Option<HashMap<String, (f64, String)>>,
@@ -17,9 +17,9 @@ pub struct PartialProgramLoaderConfig {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct ProgramLoaderConfigInner {
-    /// 保存的要启动的地址
+    /// 保存的要启动的地址(目标路径，递归的深度)
     #[serde(default = "ProgramLoaderConfigInner::default_target_paths")]
-    pub target_paths: Vec<String>,
+    pub target_paths: Vec<(String, u32)>,
     /// 禁止的地址
     #[serde(default = "ProgramLoaderConfigInner::default_forbidden_paths")]
     pub forbidden_paths: Vec<String>,
@@ -55,10 +55,10 @@ impl Default for ProgramLoaderConfigInner {
 }
 
 impl ProgramLoaderConfigInner {
-    pub(crate) fn default_target_paths() -> Vec<String> {
+    pub(crate) fn default_target_paths() -> Vec<(String, u32)> {
         let (common, user) =
             get_start_menu_paths().unwrap_or_else(|_| (String::new(), String::new()));
-        vec![common, user]
+        vec![(common, 5), (user, 5)]
     }
 
     pub(crate) fn default_forbidden_paths() -> Vec<String> {
@@ -148,7 +148,7 @@ impl ProgramLoaderConfig {
         inner.to_partial()
     }
 
-    pub fn get_target_paths(&self) -> Vec<String> {
+    pub fn get_target_paths(&self) -> Vec<(String, u32)> {
         self.inner.read().target_paths.clone()
     }
 

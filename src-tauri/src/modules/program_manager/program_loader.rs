@@ -51,8 +51,8 @@ impl GuidGenerator {
 }
 #[derive(Debug)]
 pub struct ProgramLoaderInner {
-    /// 要扫描的路径
-    target_paths: Vec<String>,
+    /// 要扫描的路径(路径，遍历的深度)
+    target_paths: Vec<(String, u32)>,
     /// 不扫描的路径
     forbidden_paths: Vec<String>,
     /// 禁止的程序关键字（当程序的名字中有与其完全一致的子字符串时，不注册）
@@ -115,8 +115,8 @@ impl ProgramLoaderInner {
         self.index_web_pages = config.get_index_web_pages();
     }
     /// 添加目标路径
-    pub fn add_target_path(&mut self, path: String) {
-        self.target_paths.push(path);
+    pub fn add_target_path(&mut self, path: String, depth: u32) {
+        self.target_paths.push((path, depth));
     }
     /// 添加不扫描的路径
     pub fn add_forbidden_path(&mut self, path: String) {
@@ -266,9 +266,11 @@ impl ProgramLoaderInner {
         // todo完成程序的加载
         // 遍历所有的目标路径
         let mut program_path: Vec<String> = Vec::new();
-        for path_str in &self.target_paths {
-            let path = Path::new(&path_str);
-            program_path.extend(self.recursive_visit_dir(path, 5).unwrap());
+        for path_var in &self.target_paths {
+            let path_str = &path_var.0;
+            let depth = path_var.1;
+            let path = Path::new(path_str);
+            program_path.extend(self.recursive_visit_dir(path, depth as usize).unwrap());
         }
         let mut result: Vec<Arc<Program>> = Vec::new();
 
@@ -762,8 +764,8 @@ impl ProgramLoader {
     }
 
     /// 添加目标路径
-    pub fn add_target_path(&self, path: String) {
-        self.inner.write().add_target_path(path);
+    pub fn add_target_path(&self, path: String, depth: u32) {
+        self.inner.write().add_target_path(path, depth);
     }
 
     /// 添加不扫描的路径

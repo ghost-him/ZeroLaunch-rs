@@ -23,7 +23,7 @@ export type ProgramLauncherConfig = {
 }
 
 export type ProgramLoaderConfig = {
-    target_paths: string[]
+    target_paths: [string, number][]
     forbidden_paths: string[]
     forbidden_program_key: string[]
     program_bias: { [key: string]: [number, string] }

@@ -177,7 +177,6 @@ This project is built upon the following outstanding open-source projects:
 ### Immediate Goals
 
 * Use regular expressions for keyword and path filtering
-* Support custom search folder depth
 * Add one-click restore to default configuration file save location
 * Customizable one-click commands (key + command format, with built-in * optional commands disabled by default)
 * Dark theme support

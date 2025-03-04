@@ -1,7 +1,5 @@
 use crate::error::AppError;
-use crate::modules::{
-    config::config_manager::RuntimeConfig, program_manager::ProgramManager,
-};
+use crate::modules::{config::config_manager::RuntimeConfig, program_manager::ProgramManager};
 use parking_lot::RwLock;
 use std::sync::Arc;
 use tauri::AppHandle;
@@ -20,6 +18,8 @@ pub struct AppState {
     timer_guard: RwLock<Option<Guard>>,
     /// 定时器
     timer: Arc<Timer>,
+    /// 当前的窗口是否可见
+    is_search_bar_visible: RwLock<bool>,
 }
 
 impl AppState {
@@ -31,6 +31,7 @@ impl AppState {
             main_handle: RwLock::new(None),
             timer_guard: RwLock::new(None),
             timer: Arc::new(Timer::new()),
+            is_search_bar_visible: RwLock::new(false),
         }
     }
 
@@ -113,6 +114,14 @@ impl AppState {
 
     pub fn take_timer_guard(&self) -> Option<Guard> {
         self.timer_guard.write().take()
+    }
+
+    pub fn set_search_bar_visible(&self, is_visible: bool) {
+        *self.is_search_bar_visible.write() = is_visible;
+    }
+
+    pub fn get_search_bar_visible(&self) -> bool {
+        *self.is_search_bar_visible.read()
     }
 }
 

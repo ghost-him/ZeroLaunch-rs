@@ -150,7 +150,7 @@ const openSettingsWindow = () => {
 // 刷新程序库
 const refreshDataset = async () => {
   console.log("开始刷新");
-  invoke('hide_window');
+  await invoke('hide_window');
   await invoke('refresh_program');
   updateWindow();
 }

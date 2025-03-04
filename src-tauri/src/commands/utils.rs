@@ -18,7 +18,6 @@ pub fn get_background_picture_path() -> String {
 #[tauri::command]
 pub async fn command_get_latest_release_version() -> String {
     let result = VersionChecker::get_latest_release_version().await;
-    println!("{:?}", result);
     match result {
         Ok(data) => data,
         Err(e) => e.to_string(),

@@ -369,6 +369,10 @@ fn init_system_tray(app: &mut App) {
 /// 更新程序的状态
 fn update_app_setting() {
     let state = ServiceLocator::get_state();
+    // 如果当前可见，则忽略更新
+    if state.get_search_bar_visible() {
+        return;
+    }
     let runtime_config = state.get_runtime_config().unwrap();
     // 1. 重新更新程序索引的路径
     let program_manager = state.get_program_manager().unwrap();

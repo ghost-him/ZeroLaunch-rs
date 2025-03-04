@@ -231,7 +231,7 @@ const launch_program = (itemIndex: number, ctrlKey = false) => {
 }
 
 // 处理键盘导航
-const handleKeyDown = (event: KeyboardEvent) => {
+const handleKeyDown = async (event: KeyboardEvent) => {
 
   switch (event.key) {
     case 'ArrowDown':
@@ -257,6 +257,13 @@ const handleKeyDown = (event: KeyboardEvent) => {
       if (event.ctrlKey) {
         event.preventDefault()
         selectedIndex.value = (selectedIndex.value - 1 + resultItemCount.value) % resultItemCount.value
+      }
+      break
+    case 'Escape':
+      if (searchText.value.length === 0) {
+        await invoke('hide_window');
+      } else {
+        searchText.value = '';
       }
       break
   }

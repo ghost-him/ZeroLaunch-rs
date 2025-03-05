@@ -14,6 +14,14 @@
                 <span class="menu-text">{{ item.title }}</span>
             </div>
 
+            <div v-if="config.app_config.is_debug_mode" class="menu-item" :class="{ active: activeIndex === 999 }"
+                @click="activeIndex = 999">
+                <el-icon>
+                    <Monitor />
+                </el-icon>
+                <span class="menu-text">调试模式</span>
+            </div>
+
             <div class="footer-item">
                 <button class="custom-action-button" @click="save_config">
                     <span>保存配置文件</span>
@@ -55,6 +63,11 @@
                     <el-form-item label="自动刷新数据库的时间（分钟）">
                         <el-input-number v-model="config.app_config.auto_refresh_time" :step="1" :precision="0"
                             @update:model-value="(val: number) => configStore.updateConfig({ app_config: { auto_refresh_time: val } })" />
+                    </el-form-item>
+
+                    <el-form-item label="调试模式">
+                        <el-switch v-model="config.app_config.is_debug_mode"
+                            @update:model-value="(val: boolean) => configStore.updateConfig({ app_config: { is_debug_mode: val } })" />
                     </el-form-item>
                 </el-form>
 
@@ -317,6 +330,10 @@
             <section v-if="activeIndex === 6" class="page">
                 <about></about>
             </section>
+
+            <section v-if="activeIndex === 999" class="page">
+                <debug></debug>
+            </section>
         </div>
     </div>
 </template>
@@ -329,7 +346,8 @@ import {
     Search,
     Connection,
     InfoFilled,
-    List
+    List,
+    Monitor
 } from '@element-plus/icons-vue';
 
 import { invoke } from '@tauri-apps/api/core';
@@ -340,6 +358,7 @@ import { storeToRefs } from 'pinia';
 import { UnlistenFn } from '@tauri-apps/api/event';
 import { rgbaToHex } from '../utils/color';
 import about from "./about.vue";
+import debug from "./debug.vue"
 
 const configStore = useConfigStore()
 const { config } = storeToRefs(configStore)

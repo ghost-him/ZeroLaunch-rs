@@ -4,6 +4,7 @@ pub mod error;
 pub mod modules;
 pub mod state;
 pub mod utils;
+use crate::commands::debug::*;
 use crate::commands::file::*;
 use crate::commands::program_service::*;
 use crate::commands::ui_command::*;
@@ -152,7 +153,11 @@ pub fn run() {
             show_setting_window,
             load_config,
             get_dominant_color,
-            command_get_latest_release_version
+            command_get_latest_release_version,
+            test_search_algorithm,
+            test_search_algorithm_time,
+            test_index_app_time,
+            get_search_keys
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

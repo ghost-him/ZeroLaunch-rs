@@ -10,6 +10,7 @@ use crate::program_manager::Program;
 use crate::utils::defer::defer;
 use crate::utils::windows::get_u16_vec;
 use core::ffi::c_void;
+use core::time::Duration;
 use parking_lot::RwLock;
 use std::collections::{HashMap, HashSet};
 use std::ffi::OsStr;
@@ -19,6 +20,7 @@ use std::os::windows::ffi::OsStringExt;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Instant;
 use tracing::{debug, info, warn};
 use windows::Win32::Foundation::{PROPERTYKEY, S_OK};
 use windows::Win32::Storage::FileSystem::WIN32_FIND_DATAW;
@@ -71,6 +73,8 @@ pub struct ProgramLoaderInner {
     index_file_paths: Vec<String>,
     /// 索引的网页
     index_web_pages: Vec<(String, String)>,
+    /// 加载耗时
+    loading_time: Option<Duration>,
 }
 
 impl ProgramLoaderInner {
@@ -87,6 +91,7 @@ impl ProgramLoaderInner {
             is_scan_uwp_programs: true,
             index_file_paths: Vec::new(),
             index_web_pages: Vec::new(),
+            loading_time: None,
         }
     }
 
@@ -141,7 +146,7 @@ impl ProgramLoaderInner {
         result
     }
     /// 预处理名字（完整的名字），返回处理过的别名
-    fn convert_full_name(&self, full_name: &str) -> Vec<String> {
+    pub fn convert_search_keywords(&self, full_name: &str) -> Vec<String> {
         let removed_version_name = remove_version_number(full_name);
         // 经过过滤的名字
         let filtered_name = remove_repeated_space(&removed_version_name);
@@ -177,8 +182,9 @@ impl ProgramLoaderInner {
 
     /// 获取当前电脑上所有的程序
     pub fn load_program(&mut self) -> Vec<Arc<Program>> {
+        // 开始计时
+        let start = Instant::now();
         let mut result = Vec::new();
-
         if self.is_scan_uwp_programs {
             info!("添加uwp 应用");
             let uwp_infos = self.load_uwp_program();
@@ -192,8 +198,18 @@ impl ProgramLoaderInner {
         result.extend(file_infos);
         let web_infos = self.load_web();
         result.extend(web_infos);
+        // 结束计时
+        self.loading_time = Some(start.elapsed());
         result
     }
+    /// 获得加载程序的耗时
+    pub fn get_loading_time(&self) -> f64 {
+        if self.loading_time.is_some() {
+            return self.loading_time.as_ref().unwrap().as_secs_f64() * 1000.0;
+        }
+        -1.0
+    }
+
     /// 所有的网页
     fn load_web(&mut self) -> Vec<Arc<Program>> {
         let mut result = Vec::new();
@@ -207,14 +223,14 @@ impl ProgramLoaderInner {
                 continue;
             }
             let guid = self.guid_generator.get_guid();
-            let alias: Vec<String> = self.convert_full_name(&show_name);
+            let alias: Vec<String> = self.convert_search_keywords(&show_name);
             let unique_name = check_name.to_lowercase();
             let stable_bias = self.get_program_bias(&unique_name);
             let program = Arc::new(Program {
                 program_guid: guid,
                 show_name: show_name.clone(),
                 launch_method: LaunchMethod::File(url.clone()),
-                alias,
+                search_keywords: alias,
                 stable_bias,
                 icon_path: APP_PIC_PATH.get("web_page").unwrap().value().clone(),
             });
@@ -243,14 +259,14 @@ impl ProgramLoaderInner {
                 }
 
                 let guid = self.guid_generator.get_guid();
-                let alias: Vec<String> = self.convert_full_name(&show_name);
+                let alias: Vec<String> = self.convert_search_keywords(&show_name);
                 let unique_name = check_name.to_lowercase();
                 let stable_bias = self.get_program_bias(&unique_name);
                 let program = Arc::new(Program {
                     program_guid: guid,
                     show_name,
                     launch_method: LaunchMethod::File(file_path.clone()),
-                    alias,
+                    search_keywords: alias,
                     stable_bias,
                     icon_path: file_path.clone(),
                 });
@@ -299,14 +315,14 @@ impl ProgramLoaderInner {
 
             let guid = self.guid_generator.get_guid();
 
-            let alias: Vec<String> = self.convert_full_name(&show_name);
+            let alias: Vec<String> = self.convert_search_keywords(&show_name);
             let unique_name = show_name.to_lowercase();
             let stable_bias = self.get_program_bias(&unique_name);
             let program = Arc::new(Program {
                 program_guid: guid,
                 show_name,
                 launch_method: LaunchMethod::Path(target_path.clone()),
-                alias,
+                search_keywords: alias,
                 stable_bias,
                 icon_path: target_path,
             });
@@ -494,7 +510,7 @@ impl ProgramLoaderInner {
                             continue;
                         }
 
-                        let alias_name = self.convert_full_name(&short_name);
+                        let alias_name = self.convert_search_keywords(&short_name);
                         let guid = self.guid_generator.get_guid();
                         let unique_name = short_name.to_lowercase();
                         let stable_bias = self.get_program_bias(&unique_name);
@@ -503,7 +519,7 @@ impl ProgramLoaderInner {
                             program_guid: guid,
                             show_name: short_name,
                             launch_method: LaunchMethod::PackageFamilyName(app_id),
-                            alias: alias_name,
+                            search_keywords: alias_name,
                             stable_bias,
                             icon_path,
                         }));
@@ -793,6 +809,11 @@ impl ProgramLoader {
         self.inner.write().load_program()
     }
 
+    /// 获得加载时间
+    pub fn get_loading_time(&self) -> f64 {
+        self.inner.read().get_loading_time()
+    }
+
     /// 递归遍历一个文件夹
     pub fn recursive_visit_dir(&self, dir: &Path, depth: usize) -> io::Result<Vec<String>> {
         self.inner.read().recursive_visit_dir(dir, depth)
@@ -806,5 +827,10 @@ impl ProgramLoader {
     /// 将 `ProgramLoaderInner` 转换为 `PartialProgramLoaderConfig`
     pub fn to_partial(&self) -> PartialProgramLoaderConfig {
         self.inner.read().to_partial()
+    }
+
+    /// 获得一个程序的关键字
+    pub fn convert_search_keywords(&self, show_name: &str) -> Vec<String> {
+        self.inner.write().convert_search_keywords(show_name)
     }
 }

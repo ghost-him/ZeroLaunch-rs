@@ -5,6 +5,7 @@ export type AppConfig = {
     is_silent_start: boolean
     search_result_count: number
     auto_refresh_time: number
+    is_debug_mode: boolean
 }
 
 export type UIConfig = {

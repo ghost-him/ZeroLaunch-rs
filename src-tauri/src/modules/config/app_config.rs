@@ -35,6 +35,9 @@ pub struct AppConfigInner {
     /// 自动刷新数据库的时间
     #[serde(default = "AppConfigInner::default_auto_refresh_time")]
     pub auto_refresh_time: u32,
+    /// 是否是debug模式
+    #[serde(default = "AppConfigInner::default_is_debug_mode")]
+    pub is_debug_mode: bool,
 }
 
 impl Default for AppConfigInner {
@@ -46,6 +49,7 @@ impl Default for AppConfigInner {
             is_silent_start: Self::default_is_silent_start(),
             search_result_count: Self::default_search_result_count(),
             auto_refresh_time: Self::default_auto_refresh_time(),
+            is_debug_mode: Self::default_is_debug_mode(),
         }
     }
 }
@@ -73,6 +77,10 @@ impl AppConfigInner {
 
     pub(crate) fn default_auto_refresh_time() -> u32 {
         30
+    }
+
+    pub(crate) fn default_is_debug_mode() -> bool {
+        false
     }
 }
 

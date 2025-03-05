@@ -116,7 +116,8 @@ export const useConfigStore = defineStore('config', {
                 is_auto_start: false,
                 is_silent_start: false,
                 search_result_count: 0,
-                auto_refresh_time: 0
+                auto_refresh_time: 0,
+                is_debug_mode: false,
             } as AppConfig,
             ui_config: {
                 selected_item_color: '',

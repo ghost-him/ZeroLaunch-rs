@@ -17,6 +17,7 @@ use rayon::prelude::*;
 use search_model::remove_repeated_space;
 use search_model::{standard_search_fn, SearchModelFn};
 use std::sync::Arc;
+use std::time::Instant;
 
 /// 数据处理中心
 #[derive(Debug)]
@@ -37,6 +38,12 @@ pub struct ProgramManagerInner {
 #[derive(Debug)]
 pub struct ProgramManager {
     inner: RwLock<ProgramManagerInner>,
+}
+
+/// 内部搜索结果，包含分数和程序ID
+struct SearchMatchResult {
+    score: f64,
+    program_guid: u64,
 }
 
 impl ProgramManager {
@@ -66,9 +73,9 @@ impl ProgramManager {
     }
 
     /// 测试算法
-    pub fn test_search_algorithm(&self, user_input: &str) {
+    pub fn test_search_algorithm(&self, user_input: &str) -> Vec<SearchTestResult> {
         let inner = self.inner.read();
-        inner.test_search_algorithm(user_input);
+        inner.test_search_algorithm(user_input)
     }
 
     /// 加载搜索模型
@@ -95,6 +102,21 @@ impl ProgramManager {
     pub fn get_program_count(&self) -> usize {
         let inner = self.inner.read();
         inner.get_program_count()
+    }
+    /// 测试搜索算法的时间开销
+    pub fn test_search_algorithm_time(&self) -> (f64, f64, f64) {
+        let inner = self.inner.read();
+        inner.test_search_algorithm_time()
+    }
+    /// 获得加载程序的时间开销
+    pub fn get_program_loader_loading_time(&self) -> f64 {
+        let inner = self.inner.read();
+        inner.get_program_loader_loading_time()
+    }
+    /// 获得搜索关键字
+    pub fn get_search_keywords(&self, show_name: &str) -> Vec<String> {
+        let inner = self.inner.read();
+        inner.get_search_keywords(show_name)
     }
 }
 
@@ -142,64 +164,74 @@ impl ProgramManagerInner {
     /// result_count: 返回的结果，这个值与 `config.show_item_count` 的值保持一致
     /// 返回值：Vec(应用唯一标识符，展示给用户的名字)
     pub fn update(&self, user_input: &str, result_count: u32) -> Vec<(u64, String)> {
-        let user_input = user_input.to_lowercase();
-        let user_input = remove_repeated_space(&user_input);
-        // (匹配值，唯一标识符)
-        let launcher = &self.program_launcher;
-        let mut match_scores: Vec<(f64, u64)> = self
-            .program_registry
-            .par_iter()
-            .map(|program| {
-                // 当前用户输入与程序的匹配度
-                let mut score = (self.search_fn)(program.clone(), &user_input);
-                // 程序的固定偏移量
-                score += program.stable_bias;
-                // 程序的动态偏移量
-                score += launcher.program_dynamic_value_based_launch_time(program.program_guid);
-                (score, program.program_guid)
-            })
-            .collect();
-
-        match_scores.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
-
+        // 使用核心搜索算法
+        let match_results = self.perform_search(user_input, result_count);
+        // 转换为所需的输出格式
         let mut result: Vec<(u64, String)> = Vec::new();
-
-        for &(_, guid) in match_scores.iter().take(result_count as usize) {
-            let program = &self.program_registry[guid as usize];
+        for match_result in match_results {
+            let program = &self.program_registry[match_result.program_guid as usize];
             result.push((program.program_guid, program.show_name.clone()));
         }
         result
     }
 
-    /// 测试算法
-    pub fn test_search_algorithm(&self, user_input: &str) {
+    fn perform_search(&self, user_input: &str, result_count: u32) -> Vec<SearchMatchResult> {
+        // 预处理用户输入
         let user_input = user_input.to_lowercase();
         let user_input = remove_repeated_space(&user_input);
-        // (匹配值，唯一标识符)
+
         let launcher = &self.program_launcher;
-        let mut match_scores: Vec<(f64, u64)> = self
+
+        // 计算所有程序的匹配分数
+        let mut match_scores: Vec<SearchMatchResult> = self
             .program_registry
             .par_iter()
             .map(|program| {
-                // 当前用户输入与程序的匹配度
+                // 基础匹配分数
                 let mut score = (self.search_fn)(program.clone(), &user_input);
-                // 程序的固定偏移量
+                // 加上固定偏移量
                 score += program.stable_bias;
-                // 程序的动态偏移量
+                // 加上动态偏移量
                 score += launcher.program_dynamic_value_based_launch_time(program.program_guid);
-                (score, program.program_guid)
+
+                SearchMatchResult {
+                    score,
+                    program_guid: program.program_guid,
+                }
             })
             .collect();
 
-        match_scores.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+        // 按分数降序排序
+        match_scores.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
-        let mut result: Vec<(f64, String)> = Vec::new();
+        // 只保留需要的数量
+        match_scores.truncate(result_count as usize);
 
-        for (score, guid) in match_scores {
-            let program = &self.program_registry[guid as usize];
-            result.push((score, program.show_name.clone()));
+        match_scores
+    }
+
+    /// 测试算法
+    pub fn test_search_algorithm(&self, user_input: &str) -> Vec<SearchTestResult> {
+        // 使用核心搜索算法
+        let match_results = self.perform_search(user_input, self.get_program_count() as u32);
+
+        // 转换为详细的测试结果格式
+        let mut results: Vec<SearchTestResult> = Vec::new();
+        for match_result in match_results {
+            let program = &self.program_registry[match_result.program_guid as usize];
+            results.push(SearchTestResult {
+                program_name: program.show_name.clone(),
+                program_keywords: program.search_keywords.join(", "),
+                program_path: program.launch_method.get_text(),
+                score: match_result.score,
+            });
         }
-        println!("{:?}", result);
+
+        results
     }
 
     /// 加载搜索模型
@@ -236,5 +268,47 @@ impl ProgramManagerInner {
     /// 获得当前已保存的程序的个数
     pub fn get_program_count(&self) -> usize {
         self.program_registry.len()
+    }
+
+    /// 获得测试当前搜索算法的运行速度(最大值，最小值，平均值)
+    pub fn test_search_algorithm_time(&self) -> (f64, f64, f64) {
+        let mut max_time: f64 = 0.0;
+        let mut min_time: f64 = 5000.0;
+        let mut average_time: f64 = 0.0;
+        let count = self
+            .program_registry
+            .iter()
+            .flat_map(|program| program.search_keywords.iter())
+            .map(|alias| alias.len())
+            .max()
+            .unwrap_or(0);
+
+        if count == 0 {
+            return (0.0, 0.0, 0.0);
+        }
+
+        for i in 1..=count {
+            let search_text = "a".repeat(i);
+            let start = Instant::now();
+            self.update(&search_text, 5);
+            let duration = start.elapsed();
+            let duration_ms = duration.as_secs_f64() * 1000.0;
+            max_time = max_time.max(duration_ms);
+            min_time = min_time.min(duration_ms);
+            average_time += duration_ms;
+        }
+
+        average_time /= count as f64;
+        (max_time, min_time, average_time)
+    }
+
+    /// 获得加载程序的加载时间
+    pub fn get_program_loader_loading_time(&self) -> f64 {
+        self.program_loader.get_loading_time()
+    }
+
+    /// 获得搜索关键字
+    pub fn get_search_keywords(&self, show_name: &str) -> Vec<String> {
+        self.program_loader.convert_search_keywords(show_name)
     }
 }

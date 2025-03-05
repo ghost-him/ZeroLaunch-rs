@@ -1,5 +1,5 @@
 // 存放辅助型的小类型
-
+use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone)]
 pub enum LaunchMethod {
     /// 通过文件路径来启动
@@ -39,9 +39,22 @@ pub struct Program {
     /// 这个程序的启动方法
     pub launch_method: LaunchMethod,
     /// 用于计算的字符串
-    pub alias: Vec<String>,
+    pub search_keywords: Vec<String>,
     /// 权重固定偏移量
     pub stable_bias: f64,
     /// 应用程序应该展示的图片的地址
     pub icon_path: String,
+}
+
+/// 表示搜索测试的结果项
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SearchTestResult {
+    /// 程序的名称
+    pub program_name: String,
+    /// 程序的关键字
+    pub program_keywords: String,
+    /// 程序的路径
+    pub program_path: String,
+    /// 匹配的权重值
+    pub score: f64,
 }

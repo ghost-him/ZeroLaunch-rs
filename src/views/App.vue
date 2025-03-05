@@ -347,7 +347,7 @@ onUnmounted(() => {
 });
 </script>
 
-<style>
+<style scoped>
 .launcher-container {
   border-radius: 12px;
   border: #b2abab solid 1px;

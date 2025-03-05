@@ -141,7 +141,7 @@ pub fn standard_search_fn(program: Arc<Program>, user_input: &str) -> f64 {
     // todo: 完成这个实现，如果使用到了什么子算法，用上面的模块实现出来再完成这个就可以了
     // program中的字符串与user_input都已经是预处理过了，不再需要预处理了
     let mut ret: f64 = -10000.0;
-    for names in &program.alias {
+    for names in &program.search_keywords {
         if names.chars().count() < user_input.chars().count() {
             continue;
         }

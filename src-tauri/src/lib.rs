@@ -9,7 +9,6 @@ use crate::commands::file::*;
 use crate::commands::program_service::*;
 use crate::commands::ui_command::*;
 use crate::commands::utils::*;
-
 use crate::modules::config::config_manager::PartialConfig;
 use crate::modules::config::default::LOCAL_CONFIG_PATH;
 use crate::modules::config::default::LOG_DIR;
@@ -50,6 +49,7 @@ use tauri::WebviewUrl;
 use tauri::{Manager, PhysicalPosition, PhysicalSize};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_dialog::MessageDialogKind;
+use tauri_plugin_notification::NotificationExt;
 use tracing::Level;
 use tracing::{debug, error, info, warn};
 use tracing_appender::rolling::RollingFileAppender;
@@ -492,7 +492,6 @@ pub fn handle_silent_start() {
         let runtime_config = state.get_runtime_config().unwrap();
         let app_config = runtime_config.get_app_config();
         if !app_config.get_is_silent_start() {
-            use tauri_plugin_notification::NotificationExt;
             app_handle
                 .notification()
                 .builder()
@@ -565,8 +564,18 @@ fn start_key_listener(app: &mut tauri::App) {
                 .build(),
         )
         .unwrap();
-
-    app.global_shortcut().register(alt_space_shortcut).unwrap();
+    if let Err(e) = app.global_shortcut().register(alt_space_shortcut) {
+        app.handle()
+            .notification()
+            .builder()
+            .title("ZeroLaunch-rs")
+            .body("按键 Alt + Space 绑定失败，程序将退出")
+            .show()
+            .unwrap();
+        error!("按键 Alt + Space 绑定失败: {:?}", e);
+        app.cleanup_before_exit();
+        std::process::exit(1);
+    }
     let app_handle = app.handle().clone();
     tauri::async_runtime::spawn(async move {
         let pressed_keys = Arc::new(Mutex::new(HashSet::new()));

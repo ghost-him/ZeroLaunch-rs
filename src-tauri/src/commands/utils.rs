@@ -1,12 +1,9 @@
 /// 这里存放可能会使用到的函数
 ///
-use super::{super::utils::service_locator::ServiceLocator, ui_command::get_remote_config_dir};
-use crate::{
-    modules::{
-        storage::windows_utils::get_default_remote_data_dir_path,
-        version_checker::version_checker::VersionChecker,
-    },
-    utils::get_remote_config_path,
+use super::super::utils::service_locator::ServiceLocator;
+use crate::modules::{
+    storage::windows_utils::get_default_remote_data_dir_path,
+    version_checker::version_checker::VersionChecker,
 };
 use std::path::Path;
 /// 背景图片存放的地址

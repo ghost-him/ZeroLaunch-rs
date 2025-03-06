@@ -58,14 +58,12 @@ pub async fn launch_program<R: Runtime>(
     let program_manager = state.get_program_manager().unwrap();
     hide_window().unwrap();
 
-    let is_admin_required = ctrl && !shift;
-    let open_exist_window = ctrl && shift;
+    let is_admin_required = ctrl;
+    let open_exist_window = shift;
     let mut result = false;
-    // 只有当shift+ctrl同时按下时，才是唤醒程序
+    // 当shift按下时，唤醒程序
     if open_exist_window {
-        println!("开始唤醒程序");
         result = program_manager.activate_target_program(program_guid);
-        println!("结果：{}", result);
     }
     // 唤醒失败时启动新的程序
     let launch_new_on_failure = state
@@ -77,7 +75,6 @@ pub async fn launch_program<R: Runtime>(
         || !open_exist_window
         || (!result && program_manager.is_uwp_program(program_guid))
     {
-        println!("开启新的程序");
         // 启动新的程序
         program_manager.launch_program(program_guid, is_admin_required);
         // 开一个新的线程来完成保存文件

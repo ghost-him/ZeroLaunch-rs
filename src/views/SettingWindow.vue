@@ -685,7 +685,7 @@ const change_remote_config_path_dir = async () => {
             remote_config_path_dir.value = selected;
             // 调用后端
             await invoke('change_remote_config_dir', { configDir: selected });
-            configStore.loadConfig();
+            await configStore.loadConfig();
             // 在这里处理选中的文件夹路径
         } else {
             console.log('没有选择文件夹');

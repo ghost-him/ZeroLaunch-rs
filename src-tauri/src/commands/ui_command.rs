@@ -160,6 +160,7 @@ pub fn show_setting_window() -> Result<(), String> {
         .get_webview_window("setting_window")
         .unwrap();
     setting_window.show().unwrap();
+    setting_window.set_focus().unwrap();
     hide_window().unwrap();
     Ok(())
 }

@@ -11,6 +11,7 @@ pub struct PartialAppConfig {
     pub is_silent_start: Option<bool>,
     pub search_result_count: Option<u32>,
     pub auto_refresh_time: Option<u32>,
+    pub launch_new_on_failure: Option<bool>,
 }
 
 /// 与程序设置有关的，比如是不是要开机自动启动等
@@ -35,6 +36,9 @@ pub struct AppConfigInner {
     /// 自动刷新数据库的时间
     #[serde(default = "AppConfigInner::default_auto_refresh_time")]
     pub auto_refresh_time: u32,
+    /// 当唤醒失败时启动新实例
+    #[serde(default = "AppConfigInner::default_launch_new_on_failure")]
+    pub launch_new_on_failure: bool,
     /// 是否是debug模式
     #[serde(default = "AppConfigInner::default_is_debug_mode")]
     pub is_debug_mode: bool,
@@ -49,6 +53,7 @@ impl Default for AppConfigInner {
             is_silent_start: Self::default_is_silent_start(),
             search_result_count: Self::default_search_result_count(),
             auto_refresh_time: Self::default_auto_refresh_time(),
+            launch_new_on_failure: Self::default_launch_new_on_failure(),
             is_debug_mode: Self::default_is_debug_mode(),
         }
     }
@@ -79,6 +84,10 @@ impl AppConfigInner {
         30
     }
 
+    pub(crate) fn default_launch_new_on_failure() -> bool {
+        true
+    }
+
     pub(crate) fn default_is_debug_mode() -> bool {
         false
     }
@@ -100,6 +109,9 @@ impl AppConfigInner {
         }
         if let Some(search_result_count) = partial_app_config.search_result_count {
             self.search_result_count = search_result_count;
+        }
+        if let Some(launch_new) = partial_app_config.launch_new_on_failure {
+            self.launch_new_on_failure = launch_new;
         }
         if let Some(auto_refresh_time) = partial_app_config.auto_refresh_time {
             self.auto_refresh_time = auto_refresh_time;
@@ -131,6 +143,10 @@ impl AppConfigInner {
         self.auto_refresh_time
     }
 
+    pub fn get_launch_new_on_failure(&self) -> bool {
+        self.launch_new_on_failure
+    }
+
     pub fn to_partial(&self) -> PartialAppConfig {
         PartialAppConfig {
             search_bar_placeholder: Some(self.search_bar_placeholder.clone()),
@@ -138,6 +154,7 @@ impl AppConfigInner {
             is_auto_start: Some(self.is_auto_start),
             is_silent_start: Some(self.is_silent_start),
             search_result_count: Some(self.search_result_count),
+            launch_new_on_failure: Some(self.launch_new_on_failure),
             auto_refresh_time: Some(self.auto_refresh_time),
         }
     }
@@ -190,6 +207,11 @@ impl AppConfig {
     pub fn get_auto_refresh_time(&self) -> u32 {
         let inner = self.inner.read();
         inner.get_auto_refresh_time()
+    }
+
+    pub fn get_launch_new_on_failure(&self) -> bool {
+        let inner = self.inner.read();
+        inner.get_launch_new_on_failure()
     }
 
     pub fn to_partial(&self) -> PartialAppConfig {

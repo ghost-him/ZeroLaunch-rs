@@ -2,7 +2,7 @@ use std::fs;
 /// 存放通用工具函数
 use std::io;
 use std::path::Path;
-
+use tracing::warn;
 pub fn read_or_create_str(path: &str, content: Option<String>) -> Result<String, String> {
     match fs::read_to_string(path) {
         Ok(data) => Ok(data),
@@ -77,5 +77,35 @@ pub fn is_writable_directory(path: &str) -> bool {
             }
         }
         Err(_) => false,
+    }
+}
+
+/// 将lnk解析为绝对路径
+pub fn get_lnk_target_path(lnk_path: &str) -> Option<String> {
+    // 尝试打开.lnk文件
+    let shell_link = match lnk::ShellLink::open(lnk_path) {
+        Ok(link) => link,
+        Err(e) => {
+            warn!("无法打开lnk文件: {:?}", e);
+            return None;
+        }
+    };
+
+    // 获取link_info，如果不存在则返回None
+    let link_info = match shell_link.link_info() {
+        Some(info) => info,
+        None => {
+            warn!("无法获取link_info, path: {}", lnk_path);
+            return None;
+        }
+    };
+
+    // 获取本地基本路径，如果不存在则返回None
+    match link_info.local_base_path() {
+        Some(path) => Some(path.clone()),
+        None => {
+            warn!("无法获取基本路径, path: {}", lnk_path);
+            return None;
+        }
     }
 }

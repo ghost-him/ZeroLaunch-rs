@@ -226,7 +226,7 @@ const getIcons = async (keys: Array<number>) => {
 // 处理选中项目的函数，现在接收 ctrlKey 参数
 const launch_program = (itemIndex: number, ctrlKey = false, shiftKey = false) => {
   console.log("向后端调用");
-  invoke('launch_program', { programGuid: searchResults.value[itemIndex][0], isAdminRequired: ctrlKey, openExistWindow: shiftKey });
+  invoke('launch_program', { programGuid: searchResults.value[itemIndex][0], ctrl: ctrlKey, shift: shiftKey });
   // 这里可以添加实际的处理逻辑
 }
 

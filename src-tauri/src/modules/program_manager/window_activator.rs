@@ -1,17 +1,20 @@
+use crate::modules::storage::utils::get_lnk_target_path;
+
 use super::unit::LaunchMethod;
 use super::unit::Program;
 use parking_lot::RwLock;
 use std::path::Path;
 use std::sync::Arc;
+use tracing::warn;
 use windows::Win32::Foundation::CloseHandle;
 use windows::Win32::System::Diagnostics::ToolHelp::{
     CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS,
 };
 
 use windows::Win32::{
-    Foundation::{BOOL, HWND, LPARAM, TRUE},
+    Foundation::{BOOL, FALSE, HWND, LPARAM, TRUE},
     UI::WindowsAndMessaging::{
-        EnumWindows, FindWindowExW, GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId,
+        EnumWindows, GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId,
         IsWindowVisible, SetForegroundWindow, ShowWindow, SW_RESTORE,
     },
 };
@@ -30,32 +33,30 @@ impl WindowActivatorInner {
                     let program_name = target.show_name.clone();
                     return self.activate_with_title(&program_name);
                 } else {
-                    let mut exe_path = String::new();
+                    let exe_path;
                     if path.ends_with(".exe") {
                         exe_path = path.clone();
                     } else {
-                        if let Ok(exe_path_str) = lnk::ShellLink::open(path) {
-                            exe_path = exe_path_str
-                                .link_info()
-                                .as_ref()
-                                .unwrap()
-                                .local_base_path()
-                                .as_ref()
-                                .unwrap()
-                                .clone();
-                        }
+                        exe_path = match get_lnk_target_path(&path) {
+                            Some(path) => path,
+                            None => String::new(),
+                        };
                     }
                     if exe_path.is_empty() {
                         return false;
                     }
-                    println!("exe_path: {}", exe_path);
                     return self.activate_with_exe(&exe_path);
                 }
             }
-            LaunchMethod::PackageFamilyName(_family_name) => {}
-            _ => {}
+            LaunchMethod::PackageFamilyName(_family_name) => {
+                return false;
+                // uwp应用是单例启动方式，所以可以直接使用默认的启动方式
+            }
+            _ => {
+                return false;
+                // 不对文件启动做处理
+            }
         }
-        false
     }
 
     // 直接使用标题来激活窗口
@@ -71,7 +72,6 @@ impl WindowActivatorInner {
         let abs_path = Path::new(str);
         let program_name = abs_path.file_name().unwrap().to_str().unwrap().to_string();
         let program_stem = abs_path.file_stem().unwrap().to_str().unwrap().to_string();
-        println!("file_name: {} file_stem: {}", program_name, program_stem);
         let hwnd: Option<HWND> = {
             let mut result = self.get_window_by_process_name(&program_name);
             if result.is_none() {
@@ -104,34 +104,22 @@ impl WindowActivatorInner {
                         .trim_end_matches('\0')
                         .to_lowercase();
                     let process_name_lower = process_name.to_lowercase();
-                    if proc_name_lower.contains(&process_name_lower) {
+                    if proc_name_lower == process_name_lower {
                         // 找到匹配的进程，获取其主窗口
                         let process_id = entry.th32ProcessID;
-                        let mut hwnd = FindWindowExW(None, None, None, None);
 
-                        while hwnd.as_ref().unwrap().0 != std::ptr::null_mut() {
-                            let mut pid: u32 = 0;
-                            GetWindowThreadProcessId(
-                                hwnd.as_ref().unwrap().clone(),
-                                Some(&mut pid),
-                            );
+                        let mut window_data = WindowEnumData {
+                            process_id,
+                            hwnd: None,
+                        };
 
-                            if pid == process_id
-                                && IsWindowVisible(hwnd.as_ref().unwrap().clone()).as_bool()
-                            {
-                                result = Some(hwnd.as_ref().unwrap().clone());
-                                break;
-                            }
+                        let _ = EnumWindows(
+                            Some(find_process_window),
+                            LPARAM(&mut window_data as *mut _ as isize),
+                        );
 
-                            hwnd = FindWindowExW(
-                                None,
-                                Some(hwnd.as_ref().unwrap().clone()),
-                                None,
-                                None,
-                            );
-                        }
-
-                        if result.is_some() {
+                        if let Some(hwnd) = window_data.hwnd {
+                            result = Some(hwnd);
                             break;
                         }
                     }
@@ -144,7 +132,6 @@ impl WindowActivatorInner {
 
             let _ = CloseHandle(snapshot);
         }
-
         result
     }
 
@@ -172,7 +159,7 @@ impl WindowActivatorInner {
             .collect();
 
         if matching_windows.is_empty() {
-            println!("没有找到包含 '{}' 的窗口", title_part);
+            warn!("没有找到包含 '{}' 的窗口", title_part);
             return None;
         }
 
@@ -222,13 +209,36 @@ fn get_window_title(hwnd: HWND) -> String {
     }
 }
 
+// 定义用于窗口枚举的数据结构
+struct WindowEnumData {
+    process_id: u32,
+    hwnd: Option<HWND>,
+}
+
+// 窗口枚举回调函数
+unsafe extern "system" fn find_process_window(hwnd: HWND, lparam: LPARAM) -> BOOL {
+    let data = &mut *(lparam.0 as *mut WindowEnumData);
+    let mut pid: u32 = 0;
+
+    GetWindowThreadProcessId(hwnd, Some(&mut pid));
+
+    // 检查窗口是否属于目标进程，并且是顶级窗口
+    if pid == data.process_id && IsWindowVisible(hwnd).as_bool() {
+        // 获取窗口类名，确保这是一个主窗口而不是辅助窗口
+        data.hwnd = Some(hwnd);
+        return FALSE; // 找到窗口，停止枚举
+    }
+
+    TRUE // 继续枚举
+}
+
 // 枚举窗口的回调数据结构
 struct EnumWindowsCallbackData {
     windows: Vec<(HWND, String)>,
 }
 
 // 枚举窗口的回调函数
-extern "system" fn enum_windows_callback(hwnd: HWND, lparam: LPARAM) -> BOOL {
+extern "system" fn get_all_windows_enum_callback(hwnd: HWND, lparam: LPARAM) -> BOOL {
     unsafe {
         let data = &mut *(lparam.0 as *mut EnumWindowsCallbackData);
 
@@ -254,7 +264,7 @@ fn get_all_windows() -> Vec<(HWND, String)> {
 
     unsafe {
         EnumWindows(
-            Some(enum_windows_callback),
+            Some(get_all_windows_enum_callback),
             LPARAM(&mut data as *mut _ as isize),
         )
         .expect("EnumWindows failed");

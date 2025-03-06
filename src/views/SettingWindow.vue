@@ -65,6 +65,11 @@
                             @update:model-value="(val: number) => configStore.updateConfig({ app_config: { auto_refresh_time: val } })" />
                     </el-form-item>
 
+                    <el-form-item label="当唤醒程序失败时启动新实例">
+                        <el-switch v-model="config.app_config.launch_new_on_failure"
+                            @update:model-value="(val: boolean) => configStore.updateConfig({ app_config: { launch_new_on_failure: val } })" />
+                    </el-form-item>
+
                     <el-form-item label="调试模式">
                         <el-switch v-model="config.app_config.is_debug_mode"
                             @update:model-value="(val: boolean) => configStore.updateConfig({ app_config: { is_debug_mode: val } })" />

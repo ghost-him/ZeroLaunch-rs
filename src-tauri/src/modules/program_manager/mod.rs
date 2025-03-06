@@ -127,6 +127,11 @@ impl ProgramManager {
         let inner = self.inner.read();
         inner.activate_target_program(program_guid)
     }
+    /// 目标应用程序是不是uwp应用
+    pub fn is_uwp_program(&self, program_guid: u64) -> bool {
+        let inner = self.inner.read();
+        inner.is_uwp_program(program_guid)
+    }
 }
 
 impl ProgramManagerInner {
@@ -327,5 +332,11 @@ impl ProgramManagerInner {
         let target_program = self.program_registry[*(target_program_index.value())].clone();
         self.window_activator
             .activate_target_program(target_program)
+    }
+    /// 返回目标程序是不是 UWP
+    pub fn is_uwp_program(&self, program_guid: u64) -> bool {
+        let target_program_index = self.program_locater.get(&program_guid).unwrap();
+        let target_program = self.program_registry[*(target_program_index.value())].clone();
+        target_program.launch_method.is_uwp()
     }
 }

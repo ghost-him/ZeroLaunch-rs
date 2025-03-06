@@ -5,6 +5,7 @@ export type AppConfig = {
     is_silent_start: boolean
     search_result_count: number
     auto_refresh_time: number
+    launch_new_on_failure: boolean
     is_debug_mode: boolean
 }
 

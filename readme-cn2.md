@@ -76,6 +76,7 @@ ZeroLaunch 是一款專為 Windows 平台精心打造的應用程式啟動器，
 | 管理員權限啟動      | `Ctrl + Enter`   |
 | 清空搜索框          | `Esc`            |
 | 隱藏搜索界面        | 點擊外部區域      |
+| 打開已打開的視窗     | `Ctrl + Shift + Enter` |
 
 ### 三步配置同步
 

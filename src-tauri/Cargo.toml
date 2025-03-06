@@ -37,6 +37,8 @@ windows = { version = "^0.59.0", features = [
     "Win32_System_Registry",
     "Win32_Storage_FileSystem",
     "Win32_System_Console",
+    "Win32_System_Diagnostics",
+    "Win32_System_Diagnostics_ToolHelp",
 ] }
 
 tauri = { version = "^2", features = ["tray-icon", "image-ico", "image-png"] }
@@ -67,6 +69,7 @@ palette = "^0.7.6"
 rand = "^0.9.0"
 anyhow = "1.0.97"
 reqwest = { version = "0.12.12", features = ["json"] }
+lnk = "0.5.1"
 
 [features]
 default = ["custom-protocol"]

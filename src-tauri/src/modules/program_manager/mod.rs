@@ -5,6 +5,7 @@ pub mod program_launcher;
 pub mod program_loader;
 pub mod search_model;
 pub mod unit;
+pub mod window_activator;
 use crate::modules::program_manager::image_loader::ImageLoader;
 use crate::program_manager::config::program_manager_config::ProgramManagerConfig;
 use crate::program_manager::unit::*;
@@ -18,6 +19,7 @@ use search_model::remove_repeated_space;
 use search_model::{standard_search_fn, SearchModelFn};
 use std::sync::Arc;
 use std::time::Instant;
+use window_activator::WindowActivator;
 
 /// 数据处理中心
 #[derive(Debug)]
@@ -34,6 +36,8 @@ pub struct ProgramManagerInner {
     image_loader: Arc<ImageLoader>,
     /// 程序查找器(程序的guid, 在registry中的下标)
     program_locater: Arc<DashMap<u64, usize>>,
+    /// 窗口唤醒器
+    window_activator: Arc<WindowActivator>,
 }
 #[derive(Debug)]
 pub struct ProgramManager {
@@ -118,6 +122,11 @@ impl ProgramManager {
         let inner = self.inner.read();
         inner.get_search_keywords(show_name)
     }
+    /// 唤醒窗口
+    pub fn activate_target_program(&self, program_guid: u64) -> bool {
+        let inner = self.inner.read();
+        inner.activate_target_program(program_guid)
+    }
 }
 
 impl ProgramManagerInner {
@@ -130,6 +139,7 @@ impl ProgramManagerInner {
             search_fn: standard_search_fn,
             image_loader: Arc::new(ImageLoader::new(default_icon_path)),
             program_locater: Arc::new(DashMap::new()),
+            window_activator: Arc::new(WindowActivator::new()),
         }
     }
     pub fn get_runtime_data(&self) -> PartialProgramManagerConfig {
@@ -310,5 +320,12 @@ impl ProgramManagerInner {
     /// 获得搜索关键字
     pub fn get_search_keywords(&self, show_name: &str) -> Vec<String> {
         self.program_loader.convert_search_keywords(show_name)
+    }
+    /// 唤醒窗口
+    pub fn activate_target_program(&self, program_guid: u64) -> bool {
+        let target_program_index = self.program_locater.get(&program_guid).unwrap();
+        let target_program = self.program_registry[*(target_program_index.value())].clone();
+        self.window_activator
+            .activate_target_program(target_program)
     }
 }

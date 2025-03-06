@@ -75,6 +75,7 @@ Specializes in application search functionality - streamlined yet sophisticated,
 | Admin launch             | `Ctrl + Enter`   |
 | Clear search             | `Esc`            |
 | Hide interface           | Click outside    |
+| Open an already opened window | `Ctrl + Shift + Enter` |
 
 ### 3-Step Sync Setup
 

@@ -53,14 +53,24 @@ pub async fn launch_program<R: Runtime>(
     state: tauri::State<'_, Arc<AppState>>,
     program_guid: u64,
     is_admin_required: bool,
+    open_exist_window: bool,
 ) -> Result<(), String> {
     let program_manager = state.get_program_manager().unwrap();
     hide_window().unwrap();
-    program_manager.launch_program(program_guid, is_admin_required);
-    // 开一个新的线程来完成保存文件
-    spawn_blocking(|| {
-        save_config_to_file(false);
-    });
+
+    // 只有当shift+ctrl同时按下时，才是唤醒程序
+    if is_admin_required && open_exist_window {
+        println!("开始唤醒程序");
+        let result = program_manager.activate_target_program(program_guid);
+        println!("结果：{}", result);
+    } else {
+        program_manager.launch_program(program_guid, is_admin_required);
+        // 开一个新的线程来完成保存文件
+        spawn_blocking(|| {
+            save_config_to_file(false);
+        });
+    }
+
     Ok(())
 }
 

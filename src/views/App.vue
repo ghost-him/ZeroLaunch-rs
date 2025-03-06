@@ -224,9 +224,9 @@ const getIcons = async (keys: Array<number>) => {
 
 
 // 处理选中项目的函数，现在接收 ctrlKey 参数
-const launch_program = (itemIndex: number, ctrlKey = false) => {
+const launch_program = (itemIndex: number, ctrlKey = false, shiftKey = false) => {
   console.log("向后端调用");
-  invoke('launch_program', { programGuid: searchResults.value[itemIndex][0], isAdminRequired: ctrlKey });
+  invoke('launch_program', { programGuid: searchResults.value[itemIndex][0], isAdminRequired: ctrlKey, openExistWindow: shiftKey });
   // 这里可以添加实际的处理逻辑
 }
 
@@ -245,7 +245,7 @@ const handleKeyDown = async (event: KeyboardEvent) => {
     case 'Enter':
       event.preventDefault()
       // 传递 ctrlKey 状态到 handle 函数
-      launch_program(selectedIndex.value, event.ctrlKey)
+      launch_program(selectedIndex.value, event.ctrlKey, event.shiftKey)
       break
     case 'j':
       if (event.ctrlKey) {

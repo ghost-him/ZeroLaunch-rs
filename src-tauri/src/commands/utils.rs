@@ -1,7 +1,13 @@
 /// 这里存放可能会使用到的函数
 ///
-use super::super::utils::service_locator::ServiceLocator;
-use crate::modules::version_checker::version_checker::VersionChecker;
+use super::{super::utils::service_locator::ServiceLocator, ui_command::get_remote_config_dir};
+use crate::{
+    modules::{
+        storage::windows_utils::get_default_remote_data_dir_path,
+        version_checker::version_checker::VersionChecker,
+    },
+    utils::get_remote_config_path,
+};
 use std::path::Path;
 /// 背景图片存放的地址
 pub fn get_background_picture_path() -> String {
@@ -22,4 +28,10 @@ pub async fn command_get_latest_release_version() -> String {
         Ok(data) => data,
         Err(e) => e.to_string(),
     }
+}
+
+/// 获得默认的远程配置文件保存地址
+#[tauri::command]
+pub async fn command_get_default_remote_data_dir_path() -> String {
+    get_default_remote_data_dir_path()
 }

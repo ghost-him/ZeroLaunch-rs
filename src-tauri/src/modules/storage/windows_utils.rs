@@ -52,7 +52,7 @@ pub fn get_start_menu_paths() -> Result<(String, String), String> {
     }
 }
 // 获取数据目录的路径
-pub fn get_data_dir_path() -> String {
+pub fn get_default_remote_data_dir_path() -> String {
     unsafe {
         // 获取 AppData 目录
         let path = SHGetKnownFolderPath(&FOLDERID_RoamingAppData, KF_FLAG_DEFAULT.into(), None);

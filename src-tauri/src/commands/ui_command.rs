@@ -4,6 +4,7 @@ use crate::modules::storage::utils::is_writable_directory;
 use crate::modules::storage::utils::read_or_create_bytes;
 use crate::state::app_state::AppState;
 use crate::update_app_setting;
+use crate::utils::get_remote_config_path;
 use crate::utils::service_locator::ServiceLocator;
 use crate::LocalConfig;
 use crate::LOCAL_CONFIG_PATH;
@@ -88,16 +89,14 @@ pub async fn change_remote_config_dir<R: Runtime>(
         remote_config_path: config_dir.clone(),
     };
     let data = serde_json::to_string(&result).unwrap();
-
     let path = LOCAL_CONFIG_PATH.clone();
     std::fs::write(path, data).unwrap();
-
     state.set_remote_config_dir_path(config_dir.clone());
     let runtime_config = state.get_runtime_config().unwrap();
-    runtime_config.load_from_remote_config_path(Some(config_dir));
-
+    runtime_config.load_from_remote_config_path(Some(get_remote_config_path()));
     update_app_setting();
-    app.emit("update_search_bar_window", "").unwrap();
+    let main_window = app.get_webview_window("main").unwrap();
+    main_window.emit("update_search_bar_window", "").unwrap();
     Ok(())
 }
 

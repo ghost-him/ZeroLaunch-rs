@@ -157,7 +157,8 @@ pub fn run() {
             test_search_algorithm,
             test_search_algorithm_time,
             test_index_app_time,
-            get_search_keys
+            get_search_keys,
+            command_get_default_remote_data_dir_path
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -221,7 +222,7 @@ fn init_search_bar_window(app: &mut App) {
     let window_size = get_window_size();
     main_window
         .set_size(PhysicalSize::new(
-            window_size.0 as u32 + (20_f64 * scale_factor) as u32,
+            window_size.0 as u32,
             window_size.1 as u32 + (20_f64 * scale_factor) as u32,
         ))
         .unwrap();

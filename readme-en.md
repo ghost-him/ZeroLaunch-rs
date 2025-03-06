@@ -178,12 +178,10 @@ This project is built upon the following outstanding open-source projects:
 ### Immediate Goals
 
 * Use regular expressions for keyword and path filtering
-* Add one-click restore to default configuration file save location
 * Customizable one-click commands (key + command format, with built-in * optional commands disabled by default)
 * Dark theme support
 * Address partial UWP application indexing failures (cause pending * investigation)
 * Error handling optimization
-* Make the opened program the active window.
 
 ### Long-Term Vision
 

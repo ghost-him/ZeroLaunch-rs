@@ -1,4 +1,4 @@
-use crate::modules::storage::windows_utils::get_data_dir_path;
+use crate::modules::storage::windows_utils::get_default_remote_data_dir_path;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -13,7 +13,7 @@ pub struct PartialLocalConfig {
 impl LocalConfig {
     pub fn default() -> LocalConfig {
         LocalConfig {
-            remote_config_path: get_data_dir_path(),
+            remote_config_path: get_default_remote_data_dir_path(),
         }
     }
 

@@ -1,11 +1,11 @@
-use crate::modules::storage::windows_utils::get_data_dir_path;
+use crate::modules::storage::windows_utils::get_default_remote_data_dir_path;
 use crate::RuntimeConfig;
 use dashmap::DashMap;
 use lazy_static::lazy_static;
 use std::path::Path;
 // 这里存放的都是在程序初始化以后就不会再改变的变量
 lazy_static! {
-    static ref DATA_DIR_PATH: String = get_data_dir_path();
+    static ref DATA_DIR_PATH: String = get_default_remote_data_dir_path();
     pub static ref LOCAL_CONFIG_PATH: String = {
         Path::new(&*DATA_DIR_PATH)
             .join("ZeroLaunch_local_config.json")

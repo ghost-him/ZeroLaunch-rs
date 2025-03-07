@@ -178,7 +178,6 @@ This project is built upon the following outstanding open-source projects:
 ### Immediate Goals
 
 * Use regular expressions for keyword and path filtering
-* Customizable one-click commands (key + command format, with built-in * optional commands disabled by default)
 * Dark theme support
 * Address partial UWP application indexing failures (cause pending * investigation)
 * Error handling optimization

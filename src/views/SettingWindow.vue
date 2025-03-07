@@ -130,7 +130,7 @@
                                         @change="updateTargetPath($index, row)"></el-input>
                                 </template>
                             </el-table-column>
-                            <el-table-column label="遍历深度" show-overflow-tooltip>
+                            <el-table-column label="遍历深度" show-overflow-tooltip fixed="right" width="80">
                                 <template #default="{ row, $index }">
                                     <el-input v-model="row[1]" size="small" placeholder="请输入遍历深度" type="number"
                                         :precision="0" @change="updateTargetPath($index, row)"></el-input>
@@ -236,9 +236,9 @@
 
             <section v-if="activeIndex === 3" class="page">
                 <el-tabs style="height: 100%" class="demo-tabs">
-                    <el-tab-pane label="索引文件">
+                    <el-tab-pane label="自定义文件搜索">
                         <div class="mb-4">
-                            <el-button type="primary" plain @click="handleSelectFile">选择一个文件</el-button>
+                            <el-button type="primary" plain @click="handleSelectFile">选择并添加一个文件</el-button>
                         </div>
 
                         <el-table :data="index_file_paths" stripe style="width: 100%; height: 100%">
@@ -262,9 +262,9 @@
                         </el-button>
                     </el-tab-pane>
 
-                    <el-tab-pane label="索引网址">
+                    <el-tab-pane label="自定义网址搜索">
                         <el-table :data="index_web_pages" stripe style="width: 100%; height: 100%">
-                            <el-table-column label="关键字（用于搜索程序的匹配）" show-overflow-tooltip>
+                            <el-table-column label="关键字（用于搜索程序的匹配）" show-overflow-tooltip fixed="left" width="150">
                                 <template #default="scope">
                                     <el-input v-model="index_web_pages[scope.$index][0]" size="small"
                                         placeholder="请输入关键字" @change="updateIndexWebPages"></el-input>
@@ -289,9 +289,9 @@
                             Add Item
                         </el-button>
                     </el-tab-pane>
-                    <el-tab-pane label="自定义命令">
+                    <el-tab-pane label="自定义命令搜索">
                         <el-table :data="custom_command" stripe style="width: 100%; height: 100%">
-                            <el-table-column label="关键字（用于搜索程序的匹配）" show-overflow-tooltip>
+                            <el-table-column label="关键字（用于搜索程序的匹配）" show-overflow-tooltip fixed="left" width="150">
                                 <template #default="scope">
                                     <el-input v-model="custom_command[scope.$index][0]" size="small"
                                         placeholder="请输入关键字" @change="updateCustomCommand"></el-input>
@@ -324,8 +324,8 @@
                 <el-form-item label="设置配置文件的保存地址">
                     <el-button type="primary" @click="change_remote_config_path_dir">选择目标路径</el-button>
                     <el-button @click="get_default_remote_config_path">使用默认路径</el-button>
-                    <el-input v-model="remote_config_path_dir" placeholder="设置配置文件保存路径" />
                 </el-form-item>
+                <el-input v-model="remote_config_path_dir" placeholder="设置配置文件保存路径" disabled />
             </section>
 
             <section v-if="activeIndex === 5" class="page">
@@ -407,8 +407,8 @@ const activeIndex = ref(0);
 const menuItems: MenuItem[] = [
     { title: '常规设置', icon: Setting },
     { title: '外观设置', icon: Brush },
-    { title: '搜索设置', icon: Search },
-    { title: '文件搜索', icon: Search },
+    { title: '程序搜索', icon: Search },
+    { title: '其他搜索', icon: Search },
     { title: '远程管理', icon: Connection },
     { title: '所有程序', icon: List },
     { title: '关于', icon: InfoFilled }

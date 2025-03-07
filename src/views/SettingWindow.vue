@@ -435,11 +435,11 @@ const select_background_picture = async () => {
     if (file_path) {
         console.log(file_path)
         invoke("select_background_picture", { path: file_path });
+        ElMessage({
+            message: '图片已保存',
+            type: 'success',
+        })
     }
-    ElMessage({
-        message: '图片已保存',
-        type: 'success',
-    })
 }
 
 const delete_background_picture = () => {

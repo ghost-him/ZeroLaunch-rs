@@ -1,49 +1,44 @@
-Main Interface
+Main Interface  
+![Main Interface](主界面.png)  
 
-![主界面](主界面.png)
+Exact Match  
+![Exact Match](精准匹配.png)  
 
-Exact Matching
+Fuzzy Match  
+![Fuzzy Match](模糊匹配.png)  
 
-![精准匹配](精准匹配.png)
+Pinyin Match  
+![Pinyin Match](拼音匹配.png)  
 
-Fuzzy Matching
+**Pinyin Match also supports fuzzy matching**  
+Example: When intending to input `wy`, fingers accidentally press `y` and `u` simultaneously, resulting in `wyu`  
+![Pinyin Fuzzy Match](拼音模糊匹配.png)  
 
-![模糊匹配](模糊匹配.png)
+Custom Background  
+![Custom Background](自定义背景.png)  
 
-Pinyin Matching
+Image Source: [@satori_aiart](https://x.com/satori_aiart/status/1728977252946473051)  
 
-![拼音匹配](拼音匹配.png)
+Settings Interface  
+![Settings Interface](设置界面.png)  
 
-**Pinyin Matching also supports fuzzy matching**
+Appearance Settings  
+![Appearance Settings](外观设置.png)  
 
-For example, when trying to input `wy`, the finger accidentally presses both `y` and `u`, resulting in `wyu`
+Program Search  
+![Program Search](程序搜索.png)  
 
-![拼音模糊匹配](拼音模糊匹配.png)
+Other Searches (Supports adding files, webpages, commands)  
+![Other Searches](其他搜索.png)  
 
-Settings Interface
+Remote Management (For changing the save location of remote configuration files)  
+![Remote Management](远程管理.png)  
 
-![设置界面](设置界面.png)
+All Programs  
+![All Programs](所有程序.png)  
 
-Appearance Settings
+About  
+![About](自我介绍.png)  
 
-![外观设置](外观设置.png)
-
-Search Paths
-
-![搜索路径](搜索路径.png)
-
-Keyword Filtering
-
-![关键字过滤](关键字过滤.png)
-
-Custom Index Files and URLs
-
-![自定义索引文件与网址](自定义索引文件与网址.png)
-
-Configuration File Save Location
-
-![配置文件夹](配置文件夹.png)
-
-Application Statistics
-
-![应用统计](应用统计.png)
+Debug Page (Requires manually enabling debug mode)  
+![Debug](调试.png)  

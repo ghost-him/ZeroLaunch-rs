@@ -147,7 +147,7 @@
                         </el-table>
 
                         <el-button class="mt-4" style="width: 100%" @click="addTargetPath">
-                            Add Item
+                            添加项目
                         </el-button>
                     </el-tab-pane>
 
@@ -223,7 +223,7 @@
                             </el-table-column>
                         </el-table>
                         <el-button class="mt-4" style="width: 100%" @click="addKeyFilter">
-                            Add Item
+                            添加项目
                         </el-button>
                     </el-tab-pane>
                     <el-tab-pane label="额外设置">
@@ -258,7 +258,7 @@
                             </el-table-column>
                         </el-table>
                         <el-button class="mt-4" style="width: 100%" @click="addIndexFile">
-                            Add Item
+                            添加项目
                         </el-button>
                     </el-tab-pane>
 
@@ -286,7 +286,7 @@
                             </el-table-column>
                         </el-table>
                         <el-button class="mt-4" style="width: 100%" @click="addIndexWebPage">
-                            Add Item
+                            添加项目
                         </el-button>
                     </el-tab-pane>
                     <el-tab-pane label="自定义命令搜索">
@@ -313,7 +313,7 @@
                             </el-table-column>
                         </el-table>
                         <el-button class="mt-4" style="width: 100%" @click="addCustomCommand">
-                            Add Item
+                            添加项目
                         </el-button>
                     </el-tab-pane>
 

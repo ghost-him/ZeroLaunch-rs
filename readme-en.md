@@ -42,7 +42,7 @@ ZeroLaunch is an application launcher meticulously crafted for the Windows platf
 
 ## 🖥️ Interface Preview
 
-[![Main Interface Preview](asset/主界面.png)](asset/picture.md)
+[![Main Interface Preview](asset/主界面.png)](asset/picture-en.md)
 
 *Click image to view full feature screenshot collection*
 

@@ -11,12 +11,19 @@
 
 <div align="center">
 
-![Platform](https://img.shields.io/badge/Platform-Windows_11-0078d7?logo=windows11&logoColor=white)
-[![GPLv3 License](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+
 [![Gitee star](https://gitee.com/ghost-him/ZeroLaunch-rs/badge/star.svg?theme=dark)](https://gitee.com/ghost-him/ZeroLaunch-rs/stargazers)
+[![Gitee fork](https://gitee.com/ghost-him/ZeroLaunch-rs/badge/fork.svg?theme=dark)](https://gitee.com/ghost-him/ZeroLaunch-rs/members)
 [![GitHub stars](https://img.shields.io/github/stars/ghost-him/ZeroLaunch-rs.svg?style=social)](https://github.com/ghost-him/ZeroLaunch-rs/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/ghost-him/ZeroLaunch-rs.svg?style=social)](https://github.com/ghost-him/ZeroLaunch-rs/network/members)
 [![GitCode stars](https://gitcode.com/ghost-him/ZeroLaunch-rs/star/badge.svg)](https://gitcode.com/ghost-him/ZeroLaunch-rs/stargazers)
 
+</div>
+
+<div align="center">
+
+![Platform](https://img.shields.io/badge/Platform-Windows_11-0078d7?logo=windows11&logoColor=white)
+[![GPLv3 License](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 </div>
 
 <div align="center">
@@ -52,16 +59,28 @@ ZeroLaunch 是一款专为 Windows 平台精心打造的应用程序启动器，
 完全离线运行，无需网络连接，您的数据始终保留在设备中。我们坚持零数据采集原则，严格遵循本地化处理，确保您的信息安全。
 
 ### ⚡ 智能搜索
-采用三重匹配技术（全称/模糊/拼音），支持中英文混合查询，配合实时动态排序算法和多线程并发处理，带来流畅高效的搜索体验。
+采用四重匹配技术（全称/模糊/拼音/首字母），支持中英文混合查询，配合实时动态排序算法和多线程并发处理，即使是低配电脑也能带来毫秒级的响应。
 
 ### 🌐 轻巧纯粹
 专注于应用程序搜索功能，简洁而不简单，为您提供精准、快速的结果。
 
-## 🚩 程序下载
+## 🔬 软件功能
 
-* Gitee: [release](https://gitee.com/ghost-him/ZeroLaunch-rs/releases)
-* Github: [release](https://github.com/ghost-him/ZeroLaunch-rs/releases)
-* Gitcode: [release](https://gitcode.com/ghost-him/ZeroLaunch-rs/releases)
+### 主要功能
+
+* **应用程序搜索**：快速检索并启动传统应用程序及UWP应用，提供流畅的程序访问体验。
+* **应用程序唤醒**：智能识别并将已打开的窗口置前，实现便捷的多任务切换。
+* **自定义外观界面**：支持自定义背景图片，选项颜色，搜索字体颜色与大小，显示字体颜色与大小，显示候选个数等。
+
+---
+### 次要功能
+
+* 自定义搜索算法：支持对搜索算法做微调，从而满足个性化设置。
+* 自定义程序添加：支持添加屏蔽字来避免某些程序的加载，支持添加自定义安装路径的程序。
+* 自定义文件搜索：支持自定义添加文件搜索，满足少数常用文件的搜索功能。
+* 自定义网页搜索：支持自定义添加网页搜索，满足少数常用网页的搜索功能。
+* 自定义命令搜索：支持自定义添加命令，满足少数常用命令的搜索功能。
+* 自定义配置文件的保存路径：可将配置文件放至同步网盘从而实现配置信息的同步。
 
 ## 🚀 快速入门
 
@@ -77,54 +96,15 @@ ZeroLaunch 是一款专为 Windows 平台精心打造的应用程序启动器，
 | 隐藏搜索界面        | 点击外部区域      |
 | 打开已打开的窗口     | `Shift + Enter` |
 
-### 三步配置同步
+### 常见功能的实现
 
-1. **选择同步目录**
-   进入设置 → 其他设置 → 选择目标路径（推荐使用网盘同步目录）
+程序添加，文件添加，命令添加，搜索算法微调等功能实现详见以下文档：[使用指南](doc/Feature_Implementation_Guide_cn.md)
 
-2. **自动同步配置**
+## 🚩 程序下载
 
-```plaintext
-    [同步目录]
-        ├── ZeroLaunch_remote_config.json      # 程序配置
-        └── background.jpg   # 背景图片
-```
-
-3. **多设备共享**
-
-在其他设备安装后指向同一目录即可同步所有设置
-
-## ⚙️ 高级配置
-
-### 路径管理策略
-
-搜索路径示例：
-
-```plaintext
-C:\Program Files\ (深度5层)
-├── App1/              ✔️ 索引
-│   └── Subfolder/     ✔️ 索引
-└── App2/
- └── .../
-     └── Layer5/    ✔️ 索引 (第5层)
-         └── Layer6 ❌ 忽略
-```
-
-#### 排除规则：
-
-使用前缀完全匹配机制，例如排除 `C:\Temp` 将阻止所有以该路径开头的目录索引
-
-#### 权重调优公式
-
-程序的最终权重 = 算法匹配度 + ∑(关键词权重)
-
-示例配置：
-
-|关键词	|权重|	效果|
-|---|---|---|
-|卸载|-5000|完全排除卸载程序|
-|beta|+2.5|提升测试版优先级|
-|文档|-1.0|降低文档类结果排序|
+* Gitee: [release](https://gitee.com/ghost-him/ZeroLaunch-rs/releases)
+* Github: [release](https://github.com/ghost-him/ZeroLaunch-rs/releases)
+* Gitcode: [release](https://gitcode.com/ghost-him/ZeroLaunch-rs/releases)
 
 ## 🛠️ 开发者指南
 
@@ -157,7 +137,7 @@ bun run tauri build
 ```
 %APPDATA%\ZeroLaunch-rs\
 ├── logs/                               # 运行日志
-└── ZeroLaunch_local_config.json        # 配置文件的存放地址
+└── ZeroLaunch_local_config.json        # 远程配置文件的存放地址，默认为此文件夹
 ```
 
 ## 📌 已知限制
@@ -173,7 +153,7 @@ bun run tauri build
 * [chinese-xinhua](https://github.com/pwxcoo/chinese-xinhua) - 中文转拼音核心词典
 * [LaunchyQt](https://github.com/samsonwang/LaunchyQt) - UWP应用索引方案
 * [bootstrap](https://icons.bootcss.com/) - 提供了部分的程序图标
-* [icon-icons](https://icon-icons.com/zh/) - 提供了该程序的图标
+* [icon-icons](https://icon-icons.com/zh/) - 提供了部分的程序图标
 
 ## 🎯 todo
 
@@ -189,3 +169,7 @@ bun run tauri build
 > 当以上目标都完成时才开始实现以下功能
 
 * 支持linux系统（wayland优先）
+
+## ❤️ 支持作者
+
+如果这个程序对你有帮助，就给作者点一个 **star** 吧，一个 **star** 就能让作者开心一整天！

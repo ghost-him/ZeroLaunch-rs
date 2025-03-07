@@ -9,7 +9,7 @@
     <h1>🚀 ZeroLaunch-rs 🚀</h1>
 </div>
 
-<div align="center"><h3>✨ Lightning-fast, precise, and lightweight Windows application launcher! ✨</h3></div>
+<div align="center"><h3>✨ Lightning-fast precision, lightweight and pure Windows application launcher! ✨</h3></div>
 
 <div align="center">
 
@@ -27,41 +27,55 @@
 
 </div>
 
+
 <div align="center">
     <a href="https://gitee.com/ghost-him/ZeroLaunch-rs" target="_blank">Gitee</a> •
     <a href="https://github.com/ghost-him/ZeroLaunch-rs" target="_blank">GitHub</a> •
     <a href="https://gitcode.com/ghost-him/ZeroLaunch-rs" target="_blank">GitCode</a>
 </div>
 
-## 📕 Elevator Pitch
+## 📕 One-Sentence Introduction
 
-ZeroLaunch is a meticulously crafted application launcher for Windows, dedicated to delivering ultra-efficient search experiences that let you instantly locate and launch desired applications.
+ZeroLaunch is an application launcher meticulously crafted for the Windows platform, dedicated to delivering an ultra-efficient and rapid search experience, allowing you to instantly find and launch desired applications.
 
-> This project was born from personal needs and will be continuously maintained and optimized to ensure long-term stability and functional excellence.
+> This project was developed for personal needs and will be continuously maintained and optimized to ensure long-term stable operation and functional completeness.
 
 ## 🖥️ Interface Preview
 
-[![Main UI Preview](asset/主界面.png)](asset/picture-en.md)  
-*Click image to view full screenshot gallery*
+[![Main Interface Preview](asset/主界面.png)](asset/picture.md)
 
-**Background Image Can Be Customized**
+*Click image to view full feature screenshot collection*
+
+**Customizable background image**
 
 ## ✨ Core Features
 
 ### 🔒 Privacy First
-Fully offline operation with no network connectivity required. Your data stays strictly on-device. We adhere to a zero-data-collection policy and enforce localized processing to ensure information security.
+Fully offline operation, no internet connection required. Your data remains strictly on your device. We adhere to a zero-data-collection principle, ensuring all processing is localized and your information stays secure.
 
-### ⚡ Smart Search
-Utilizes triple matching techniques (full name/fuzzy/pinyin), supports Chinese-English hybrid queries, enhanced by real-time dynamic sorting algorithms and multi-threaded concurrency processing for seamless efficiency.
+### ⚡ Intelligent Search
+Utilizes quadruple matching technology (full name/fuzzy/pinyin/initial letters), supports mixed Chinese-English queries. Combined with real-time dynamic sorting algorithms and multi-threaded processing, it delivers millisecond-level responses even on low-end hardware.
 
-### 🌐 Lightweight Focus
-Specializes in application search functionality - streamlined yet sophisticated, delivering precise and rapid results.
+### 🌐 Lightweight & Focused
+Specializes in application search functionality—streamlined yet powerful, providing precise and rapid results.
 
-## 🚩 Downloads
+## 🔬 Features
 
-* Gitee: [release](https://gitee.com/ghost-him/ZeroLaunch-rs/releases)
-* Github: [release](https://github.com/ghost-him/ZeroLaunch-rs/releases)
-* Gitcode: [release](https://gitcode.com/ghost-him/ZeroLaunch-rs/releases)
+### Primary Features
+
+* **Application Search**: Quickly locate and launch traditional applications and UWP apps with seamless accessibility.
+* **Application Wake**: Intelligently identifies and brings existing application windows to the foreground for effortless task switching.
+* **Customizable UI**: Supports custom background images, option colors, search font colors/sizes, display font colors/sizes, and candidate item count adjustments.
+
+---
+### Secondary Features
+
+* **Search Algorithm Tuning**: Fine-tune search algorithms to meet personalized needs.
+* **Custom Program Management**: Add blocklists to exclude specific programs and manually register applications in custom installation paths.
+* **File Search**: Add frequently accessed files for quick retrieval.
+* **Web Search**: Create custom web search shortcuts for commonly used websites.
+* **Command Shortcuts**: Define custom commands for rapid execution.
+* **Config Sync**: Store configuration files in cloud-synced directories for seamless settings synchronization.
 
 ## 🚀 Quick Start
 
@@ -69,61 +83,23 @@ Specializes in application search functionality - streamlined yet sophisticated,
 
 | Function                | Hotkey           |
 |-------------------------|------------------|
-| Summon search bar        | `Alt + Space`    |
-| Navigate items           | `↑/↓` or `Ctrl+k/j` |
-| Launch selected          | `Enter`          |
-| Admin launch             | `Ctrl + Enter`   |
-| Clear search             | `Esc`            |
-| Hide interface           | Click outside    |
-| Open an already opened window | `Ctrl + Shift + Enter` |
+| Toggle Search Bar       | `Alt + Space`    |
+| Navigate Items          | `↑/↓` or `Ctrl+k/j` |
+| Launch Selected App     | `Enter`          |
+| Admin Launch            | `Ctrl + Enter`   |
+| Clear Search            | `Esc`            |
+| Hide Interface          | Click Outside    |
+| Focus Existing Window   | `Shift + Enter` |
 
-### 3-Step Sync Setup
+### Feature Implementation Guide
 
-1. **Choose Sync Directory**  
-   Settings → Other → Select target path (recommend cloud sync directories)
+For detailed instructions on program/file/command additions and search algorithm tuning, see: [User Guide](doc/Feature_Implementation_Guide_en.md)
 
-2. **Automatic Sync Structure**
+## 🚩 Downloads
 
-```plaintext
-    [Sync Directory]
-        ├── ZeroLaunch_remote_config.json      # Configurations
-        └── background.jpg   # Background image
-```
-
-3. **Multi-Device Sharing**  
-   Point new installations to the same directory for instant sync
-
-## ⚙️ Advanced Configuration
-
-### Path Management Strategy
-
-Search path example:
-
-```plaintext
-C:\Program Files\ (Depth 5)
-├── App1/              ✔️ Indexed
-│   └── Subfolder/     ✔️ Indexed
-└── App2/
- └── .../
-     └── Layer5/    ✔️ Indexed (5th layer)
-         └── Layer6 ❌ Ignored
-```
-
-#### Exclusion Rules:
-
-Full prefix matching. Excluding `C:\Temp` blocks all subdirectories starting with this path.
-
-#### Weight Adjustment Formula
-
-Final weight = Algorithm match score + ∑(Keyword weights)
-
-Sample configuration:
-
-|Keyword	|Weight|	Effect|
-|---|---|---|
-|Uninstall|-5000|Exclude uninstallers|
-|beta|+2.5|Prioritize beta versions|
-|Document|-1.0|Demote document-related results|
+* Gitee: [release](https://gitee.com/ghost-him/ZeroLaunch-rs/releases)
+* Github: [release](https://github.com/ghost-him/ZeroLaunch-rs/releases)
+* Gitcode: [release](https://gitcode.com/ghost-him/ZeroLaunch-rs/releases)
 
 ## 🛠️ Developer Guide
 
@@ -133,7 +109,7 @@ Sample configuration:
 * Node.js v22.11.0
 * Bun v1.2.3
 
-### Build Instructions
+### Build Steps
 
 ```bash
 # Clone repo
@@ -142,50 +118,55 @@ git clone https://github.com/ghost-him/ZeroLaunch-rs.git
 # Install dependencies
 bun install
 
-# Dev mode
+# Dev Mode
 bun run tauri dev
 
-# Production build
+# Production Build
 bun run tauri build
 ```
 
-Build output: `./src-tauri/target/release/`
+Output Path: `./src-tauri/target/release/`
 
-## 📦 Data Directory
+## 📦 Data Structure
 
 ```
 %APPDATA%\ZeroLaunch-rs\
 ├── logs/                               # Runtime logs
-└── ZeroLaunch_local_config.json        # Configuration file
+└── ZeroLaunch_local_config.json        # Remote config file location (default)
 ```
 
 ## 📌 Known Limitations
 
-### Short Keyword Search
+### Short Query Search
 
 ⚠️ Results may lack precision when input length < 3 characters
 
 ## 🤝 Acknowledgments
 
-This project is built upon the following outstanding open-source projects:
+Built upon these outstanding open-source projects:
 
-* [chinese-xinhua](https://github.com/pwxcoo/chinese-xinhua) - Core dictionary for Chinese-to-Pinyin conversion
-* [LaunchyQt](https://github.com/samsonwang/LaunchyQt) - UWP application indexing solution
-* [icon-icons](https://icon-icons.com/zh/) - Provided the program's icons
+* [chinese-xinhua](https://github.com/pwxcoo/chinese-xinhua) - Core Chinese-to-Pinyin dictionary
+* [LaunchyQt](https://github.com/samsonwang/LaunchyQt) - UWP app indexing solution
+* [bootstrap](https://icons.bootcss.com/) - Partial application icons
+* [icon-icons](https://icon-icons.com/zh/) - Partial application icons
 
 ## 🎯 Roadmap
 
-### Immediate Goals
+### Short-Term Goals
 
-* Use regular expressions for keyword and path filtering
+* Implement regex-based keyword/path filtering
 * Dark theme support
-* Address partial UWP application indexing failures (cause pending * investigation)
-* Error handling optimization
+* Fix residual UWP app indexing issues
+* Error handling optimizations
 
 ### Long-Term Vision
 
-> The implementation of the following features will only begin once all the above objectives have been completed.
+> To be addressed after completing above goals
 
-* Linux (Wayland) support
+* Linux support (Wayland first)
+
+## ❤️ Support the Developer
+
+If this tool helps you, give the project a **star**! A single **star** makes the developer's day brighter!
 
 **This content was translated by DeepSeek-R1.**

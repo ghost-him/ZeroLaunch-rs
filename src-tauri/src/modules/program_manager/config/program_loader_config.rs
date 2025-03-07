@@ -12,6 +12,7 @@ pub struct PartialProgramLoaderConfig {
     pub is_scan_uwp_programs: Option<bool>,
     pub index_file_paths: Option<Vec<String>>,
     pub index_web_pages: Option<Vec<(String, String)>>,
+    pub custom_command: Option<Vec<(String, String)>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -38,6 +39,8 @@ pub struct ProgramLoaderConfigInner {
     /// 索引的网页(关键字，网址)
     #[serde(default = "ProgramLoaderConfigInner::default_index_web_pages")]
     pub index_web_pages: Vec<(String, String)>,
+    /// 自定义添加的命令(关键字，命令)
+    pub custom_command: Vec<(String, String)>,
 }
 
 impl Default for ProgramLoaderConfigInner {
@@ -50,6 +53,7 @@ impl Default for ProgramLoaderConfigInner {
             is_scan_uwp_programs: Self::default_is_scan_uwp_programs(),
             index_file_paths: Self::default_index_file_paths(),
             index_web_pages: Self::default_index_web_pages(),
+            custom_command: Self::default_custom_command(),
         }
     }
 }
@@ -90,6 +94,10 @@ impl ProgramLoaderConfigInner {
     pub(crate) fn default_index_web_pages() -> Vec<(String, String)> {
         Vec::new()
     }
+
+    pub(crate) fn default_custom_command() -> Vec<(String, String)> {
+        Vec::new()
+    }
 }
 
 impl ProgramLoaderConfigInner {
@@ -102,6 +110,7 @@ impl ProgramLoaderConfigInner {
             is_scan_uwp_programs: Some(self.is_scan_uwp_programs),
             index_file_paths: Some(self.index_file_paths.clone()),
             index_web_pages: Some(self.index_web_pages.clone()),
+            custom_command: Some(self.custom_command.clone()),
         }
     }
 
@@ -126,6 +135,9 @@ impl ProgramLoaderConfigInner {
         }
         if let Some(partial_index_web_pages) = partial_config.index_web_pages {
             self.index_web_pages = partial_index_web_pages;
+        }
+        if let Some(partial_custom_command) = partial_config.custom_command {
+            self.custom_command = partial_custom_command;
         }
     }
 }
@@ -174,6 +186,10 @@ impl ProgramLoaderConfig {
 
     pub fn get_index_web_pages(&self) -> Vec<(String, String)> {
         self.inner.read().index_web_pages.clone()
+    }
+
+    pub fn get_custom_command(&self) -> Vec<(String, String)> {
+        self.inner.read().custom_command.clone()
     }
 
     pub fn update(&self, partial_config: PartialProgramLoaderConfig) {

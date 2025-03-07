@@ -172,6 +172,7 @@ bun run tauri build
 
 * [chinese-xinhua](https://github.com/pwxcoo/chinese-xinhua) - 中文转拼音核心词典
 * [LaunchyQt](https://github.com/samsonwang/LaunchyQt) - UWP应用索引方案
+* [bootstrap](https://icons.bootcss.com/) - 提供了部分的程序图标
 * [icon-icons](https://icon-icons.com/zh/) - 提供了该程序的图标
 
 ## 🎯 todo

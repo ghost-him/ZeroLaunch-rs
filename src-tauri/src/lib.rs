@@ -265,6 +265,11 @@ fn register_icon_path(app: &mut App) {
     );
     let tips_icon = resource.join("tips.png");
     APP_PIC_PATH.insert("tips".to_string(), tips_icon.to_str().unwrap().to_string());
+    let terminal = resource.join("terminal.png");
+    APP_PIC_PATH.insert(
+        "terminal".to_string(),
+        terminal.to_str().unwrap().to_string(),
+    );
 }
 
 fn init_setting_window(app: tauri::AppHandle) {

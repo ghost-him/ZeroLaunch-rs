@@ -289,6 +289,34 @@
                             Add Item
                         </el-button>
                     </el-tab-pane>
+                    <el-tab-pane label="自定义命令">
+                        <el-table :data="custom_command" stripe style="width: 100%; height: 100%">
+                            <el-table-column label="关键字（用于搜索程序的匹配）" show-overflow-tooltip>
+                                <template #default="scope">
+                                    <el-input v-model="custom_command[scope.$index][0]" size="small"
+                                        placeholder="请输入关键字" @change="updateCustomCommand"></el-input>
+                                </template>
+                            </el-table-column>
+                            <el-table-column label="命令内容" show-overflow-tooltip>
+                                <template #default="scope">
+                                    <el-input v-model="custom_command[scope.$index][1]" size="small"
+                                        placeholder="请输入命令内容" @change="updateCustomCommand"></el-input>
+                                </template>
+                            </el-table-column>
+                            <el-table-column fixed="right" label="操作" width="100">
+                                <template #default="scope">
+                                    <el-button link size="small" type="danger"
+                                        @click="deleteCustomCommand(scope.$index)">
+                                        删除一行
+                                    </el-button>
+                                </template>
+                            </el-table-column>
+                        </el-table>
+                        <el-button class="mt-4" style="width: 100%" @click="addCustomCommand">
+                            Add Item
+                        </el-button>
+                    </el-tab-pane>
+
                 </el-tabs>
             </section>
 
@@ -661,8 +689,6 @@ const index_web_pages = computed({
     }
 })
 
-
-
 const deleteIndexWebPages = (index: number) => {
     index_web_pages.value = index_web_pages.value.filter((_, i) => i !== index)
 }
@@ -678,6 +704,35 @@ const updateIndexWebPages = () => {
 const addIndexWebPage = () => {
     index_web_pages.value = [...index_web_pages.value, ["", ""]]
 }
+
+const custom_command = computed({
+    get: () => config.value.program_manager_config.loader.custom_command,
+    set: (value) => {
+        configStore.updateConfig({
+            program_manager_config: {
+                loader: { custom_command: value }
+            }
+        })
+    }
+})
+
+const deleteCustomCommand = (index: number) => {
+    custom_command.value = custom_command.value.filter((_, i) => i !== index)
+}
+
+const updateCustomCommand = () => {
+    configStore.updateConfig({
+        program_manager_config: {
+            loader: { custom_command: custom_command.value }
+        }
+    })
+}
+
+const addCustomCommand = () => {
+    custom_command.value = [...custom_command.value, ["", ""]]
+}
+
+
 const remote_config_path_dir = ref('');
 
 const change_remote_config_path_dir = async () => {

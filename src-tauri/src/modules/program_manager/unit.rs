@@ -8,6 +8,8 @@ pub enum LaunchMethod {
     PackageFamilyName(String),
     /// 使用默认的启动方式来打开一个文件
     File(String),
+    /// 一个自定义的命令
+    Command(String),
 }
 
 impl LaunchMethod {
@@ -17,6 +19,7 @@ impl LaunchMethod {
             LaunchMethod::Path(path) => path.clone(),
             LaunchMethod::PackageFamilyName(name) => name.clone(),
             LaunchMethod::File(path) => path.clone(),
+            LaunchMethod::Command(command) => command.clone(),
         }
     }
 
@@ -25,6 +28,7 @@ impl LaunchMethod {
             LaunchMethod::Path(_) => false,
             LaunchMethod::PackageFamilyName(_) => true,
             LaunchMethod::File(_) => false,
+            LaunchMethod::Command(_) => false,
         }
     }
 }

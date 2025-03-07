@@ -141,7 +141,8 @@ export const useConfigStore = defineStore('config', {
                     program_bias: {},
                     is_scan_uwp_programs: false,
                     index_file_paths: [],
-                    index_web_pages: []
+                    index_web_pages: [],
+                    custom_command: [],
                 } as ProgramLoaderConfig
             } as ProgramManagerConfig
         } as Config,

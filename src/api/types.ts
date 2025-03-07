@@ -32,6 +32,7 @@ export type ProgramLoaderConfig = {
     is_scan_uwp_programs: boolean
     index_file_paths: string[]
     index_web_pages: [string, string][]
+    custom_command: [string, string][]
 }
 
 export type ProgramManagerConfig = {

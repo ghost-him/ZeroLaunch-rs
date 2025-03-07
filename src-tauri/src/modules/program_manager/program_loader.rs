@@ -73,6 +73,8 @@ pub struct ProgramLoaderInner {
     index_file_paths: Vec<String>,
     /// 索引的网页
     index_web_pages: Vec<(String, String)>,
+    /// 添加的自定义命令
+    custom_command: Vec<(String, String)>,
     /// 加载耗时
     loading_time: Option<Duration>,
 }
@@ -91,6 +93,7 @@ impl ProgramLoaderInner {
             is_scan_uwp_programs: true,
             index_file_paths: Vec::new(),
             index_web_pages: Vec::new(),
+            custom_command: Vec::new(),
             loading_time: None,
         }
     }
@@ -104,6 +107,7 @@ impl ProgramLoaderInner {
             is_scan_uwp_programs: Some(self.is_scan_uwp_programs),
             index_file_paths: Some(self.index_file_paths.clone()),
             index_web_pages: Some(self.index_web_pages.clone()),
+            custom_command: Some(self.custom_command.clone()),
         }
     }
 
@@ -118,6 +122,7 @@ impl ProgramLoaderInner {
         self.program_name_hash = HashSet::new();
         self.index_file_paths = config.get_index_file_paths();
         self.index_web_pages = config.get_index_web_pages();
+        self.custom_command = config.get_custom_command();
     }
     /// 添加目标路径
     pub fn add_target_path(&mut self, path: String, depth: u32) {
@@ -198,6 +203,8 @@ impl ProgramLoaderInner {
         result.extend(file_infos);
         let web_infos = self.load_web();
         result.extend(web_infos);
+        let command_infos = self.load_custom_command();
+        result.extend(command_infos);
         // 结束计时
         self.loading_time = Some(start.elapsed());
         result
@@ -330,6 +337,41 @@ impl ProgramLoaderInner {
             result.push(program);
         }
         // 添加通过uwp找到的文件
+        result
+    }
+
+    /// 添加所有的自定义命令
+    fn load_custom_command(&mut self) -> Vec<Arc<Program>> {
+        let mut result = Vec::new();
+        let custom_command = self.custom_command.clone();
+        for (key, command) in &custom_command {
+            if key.is_empty() || command.is_empty() {
+                continue;
+            }
+
+            let show_name = key;
+            // 不判断是不是被禁止的
+            let check_name = "[命令]".to_string() + &show_name;
+            if self.check_program_is_exist(&check_name) {
+                continue;
+            }
+
+            let guid = self.guid_generator.get_guid();
+
+            let alias = self.convert_search_keywords(&show_name);
+            let unique_name = show_name.to_lowercase();
+            let stable_bias = self.get_program_bias(&unique_name);
+            let program = Arc::new(Program {
+                program_guid: guid,
+                show_name: show_name.clone(),
+                launch_method: LaunchMethod::Command(command.clone()),
+                search_keywords: alias,
+                stable_bias,
+                icon_path: APP_PIC_PATH.get("terminal").unwrap().value().clone(),
+            });
+            debug!("{:?}", program.as_ref());
+            result.push(program);
+        }
         result
     }
 

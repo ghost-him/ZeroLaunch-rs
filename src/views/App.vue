@@ -1,17 +1,22 @@
 <template>
-  <div class="launcher-container" @keydown="handleKeyDown" tabindex="0" :style="{ ...backgroundStyle }">
+  <div class="launcher-container" @keydown="handleKeyDown" tabindex="0" :style="backgroundStyle">
     <div class="unified-container">
-      <div class="search-input">
+      <!-- 搜索栏 -->
+      <div class="search-input" :style="{ background: search_bar_background_color }">
         <span class="search-icon">
-          <svg viewBox="0 0 1024 1024" style="width:24px;height:24px;">
+          <svg viewBox="0 0 1024 1024" width="24" height="24">
             <path fill="#999"
               d="M795.904 750.72l124.992 124.928a32 32 0 0 1-45.248 45.248L750.656 795.904a416 416 0 1 1 45.248-45.248zM480 832a352 352 0 1 0 0-704 352 352 0 0 0 0 704z" />
           </svg>
         </span>
         <input v-model="searchText" :placeholder="placeholder" class="input-field" ref="searchBarRef"
-          @contextmenu.prevent="showContextMenu">
+          @contextmenu.prevent="showContextMenu" :style="{
+            fontSize: search_bar_font_size_with_unit,
+            color: search_bar_font_color
+          }">
       </div>
 
+      <!-- 上下文菜单 -->
       <div v-if="isContextMenuVisible" class="custom-context-menu" :style="{
         top: `${contextMenuPosition.y}px`,
         left: `${contextMenuPosition.x}px`
@@ -26,21 +31,29 @@
         </div>
       </div>
 
-
+      <!-- 结果列表 -->
       <div class="results-list">
-        <div v-for="(item, index) in menuItems" class="result-item"
-          @click="(event) => handleItemClick(index, event.ctrlKey)" :class="{ 'selected': selectedIndex === index }">
+        <div v-for="(item, index) in menuItems" :key="index" class="result-item"
+          @click="(event) => handleItemClick(index, event.ctrlKey)" :class="{ 'selected': selectedIndex === index }"
+          :style="{
+            '--hover-color': hover_item_color,
+            '--selected-color': selected_item_color
+          }">
           <div class="icon">
-            <img :src="menuIcons[index]" class="custom-image">
+            <img :src="menuIcons[index]" class="custom-image" alt="icon">
           </div>
           <div class="item-info">
-            <div class="item-name" v-html="item"></div>
+            <div class="item-name" v-html="item" :style="{
+              fontSize: item_font_size_with_unit,
+              color: item_font_color
+            }"></div>
           </div>
         </div>
       </div>
     </div>
 
-    <div class="footer">
+    <!-- 底部状态栏 -->
+    <div class="footer" :style="{ backgroundColor: search_bar_background_color }">
       <div class="footer-left">
         <span class="status-text">{{ tips }}</span>
       </div>
@@ -350,50 +363,60 @@ onUnmounted(() => {
 <style scoped>
 .launcher-container {
   border-radius: 12px;
-  border: #b2abab solid 1px;
-  background: white;
+  border: 1px solid #b2abab;
+  background-color: white;
   padding: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   overflow: hidden;
   outline: none;
-  /* 移除聚焦时的轮廓 */
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .unified-container {
   display: flex;
   flex-direction: column;
+  flex: 1;
   overflow: hidden;
+  min-height: 0;
 }
 
 .search-input {
   display: flex;
   align-items: center;
   padding: 14px 16px 12px 16px;
-  background: v-bind(search_bar_background_color);
   border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  flex-shrink: 0;
 }
 
 .input-field {
   flex: 1;
   border: none;
   outline: none;
-  font-size: v-bind(search_bar_font_size_with_unit);
   font-weight: 600;
   background: transparent;
-  color: v-bind(search_bar_font_color);
-
+  width: 100%;
+  padding: 0;
+  margin: 0;
 }
 
 .search-icon {
   display: flex;
   align-items: center;
-  color: #333;
+  justify-content: center;
   margin-right: 12px;
+  flex-shrink: 0;
 }
 
 .results-list {
   overflow-y: auto;
-  background-color: rgba(255, 255, 255, 0);
+  flex: 1;
+  min-height: 0;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
 }
 
 .result-item {
@@ -404,13 +427,15 @@ onUnmounted(() => {
   transition: background-color 0.2s;
 }
 
+
 .result-item:hover {
-  background-color: v-bind(hover_item_color);
+  background-color: var(--hover-color);
 }
 
 .result-item.selected {
-  background-color: v-bind(selected_item_color);
+  background-color: var(--selected-color);
 }
+
 
 .icon {
   width: 36px;
@@ -419,14 +444,15 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 
 .custom-image {
-  width: 100%;
-  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
   object-fit: contain;
   border-radius: 6px;
-  image-rendering: crisp-edges;
+  image-rendering: -webkit-optimize-contrast;
   transform: translateZ(0);
 }
 
@@ -434,12 +460,15 @@ onUnmounted(() => {
   flex: 1;
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .item-name {
-  font-size: v-bind(item_font_size_with_unit);
   font-weight: 500;
-  color: v-bind(item_font_color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 mark {
@@ -452,29 +481,30 @@ mark {
 .footer {
   display: flex;
   justify-content: space-between;
-  background-color: v-bind(search_bar_background_color);
   align-items: center;
   padding: 12px 16px;
   border-top: 1px solid rgba(0, 0, 0, 0.05);
+  flex-shrink: 0;
 }
 
 .footer-left {
   flex: 1;
+  min-width: 0;
 }
 
 .footer-right {
   display: flex;
   align-items: center;
+  margin-left: 16px;
 }
 
-.status-text {
-  color: #666;
-  font-size: 14px;
-}
-
+.status-text,
 .open-text {
   color: #666;
   font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .custom-context-menu {
@@ -488,6 +518,7 @@ mark {
   box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
   padding: 5px 0;
   min-width: 150px;
+  max-width: 300px;
 }
 
 .context-menu-item {
@@ -496,6 +527,9 @@ mark {
   font-size: 14px;
   color: #606266;
   transition: background-color 0.3s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .context-menu-item:hover {

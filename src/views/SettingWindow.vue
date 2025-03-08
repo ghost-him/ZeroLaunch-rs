@@ -55,7 +55,7 @@
                             @update:model-value="(val: boolean) => configStore.updateConfig({ app_config: { is_silent_start: val } })" />
                     </el-form-item>
 
-                    <el-form-item label="设置搜索结果数量">
+                    <el-form-item label="设置搜索结果数量（需重启软件）">
                         <el-input-number v-model="config.app_config.search_result_count" :step="1" :precision="0"
                             @update:model-value="(val: number) => configStore.updateConfig({ app_config: { search_result_count: val } })" />
                     </el-form-item>

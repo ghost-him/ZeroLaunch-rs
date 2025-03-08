@@ -93,7 +93,7 @@ Specializes in application search functionality—streamlined yet powerful, prov
 
 ### Feature Implementation Guide
 
-For detailed instructions on program/file/command additions and search algorithm tuning, see: [User Guide](doc/Feature_Implementation_Guide_en.md)
+The implementation of features such as program addition, file addition, command addition, search algorithm fine-tuning, and solutions to **common issues** can be found in the following document: [User Guide](doc/Feature_Implementation_Guide_en.md)
 
 ## 🚩 Downloads
 

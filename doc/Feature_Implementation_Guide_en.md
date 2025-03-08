@@ -106,4 +106,8 @@ Initial Path: C:\Program Files\ (5-layer depth)
 ## Program Crashes  
 Logs are stored in `C:\Users\[Current User]\AppData\Roaming\ZeroLaunch-rs\logs`, containing startup logs and crash records.
 
+## Shortcut Key is Occupied
+
+Open the system tray, find the thumbnail of `ZeroLaunch-rs`, right-click to open the secondary menu bar, and click "重新注册快捷键".
+
 **This content was translated by DeepSeek-R1.**

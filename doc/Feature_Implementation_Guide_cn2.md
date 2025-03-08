@@ -81,7 +81,7 @@
 
 ## 什麼是遍歷深度？
 
-用下圖表示：以選擇 `C:\Program Files\` 為例。
+用下圖表示：以選擇 `C:\Program Files\` 為例，depth = 5。
 
 ```
 初始路徑：C:\Program Files\ (深度5層)
@@ -100,5 +100,9 @@
 ## 程式崩潰了
 
 程式的日誌儲存在`C:\Users\[目前使用者名稱]\AppData\Roaming\ZeroLaunch-rs`資料夾下，`logs`下儲存著應用的啟動日誌與崩潰記錄。
+
+## 快捷鍵被佔用了
+
+打開系統托盤，找到 `ZeroLaunch-rs` 的縮略圖，右擊打開二級選單欄，點擊“重新註冊快捷鍵”即可。
 
 **以上內容由 DeepSeek-R1 完成轉換**

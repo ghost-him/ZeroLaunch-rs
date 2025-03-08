@@ -1,6 +1,7 @@
 pub mod commands;
 pub mod core;
 pub mod error;
+pub mod keyboard_listener;
 pub mod modules;
 pub mod state;
 pub mod utils;
@@ -24,21 +25,21 @@ use crate::utils::ui_controller::handle_pressed;
 use chrono::DateTime;
 use chrono::Duration;
 use chrono::Local;
+use keyboard_listener::retry_register_shortcut;
+use keyboard_listener::start_key_listener;
 use modules::config::config_manager::RuntimeConfig;
 use modules::config::default::APP_VERSION;
 use modules::config::default::{APP_PIC_PATH, REMOTE_CONFIG_NAME};
 use modules::config::save_remote_config;
 use modules::config::window_state::PartialWindowState;
 use modules::program_manager::{self, ProgramManager};
-use rdev::{listen, Event, EventType, Key};
 use single_instance::SingleInstance;
-use std::collections::HashSet;
 use std::fs::File;
 use std::io::Write;
 use std::panic;
 use std::path::Path;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use tauri::image::Image;
 use tauri::menu::{MenuBuilder, MenuItem};
 use tauri::tray::TrayIconBuilder;
@@ -305,6 +306,7 @@ enum MenuEventId {
     ShowSettingWindow,
     ExitProgram,
     UpdateAppSetting,
+    RegisterShortcut,
     Unknown(String),
 }
 
@@ -315,6 +317,7 @@ impl From<&str> for MenuEventId {
             "show_setting_window" => MenuEventId::ShowSettingWindow,
             "exit_program" => MenuEventId::ExitProgram,
             "update_app_setting" => MenuEventId::UpdateAppSetting,
+            "retry_register_shortcut" => MenuEventId::RegisterShortcut,
             _ => MenuEventId::Unknown(id.to_string()),
         }
     }
@@ -329,6 +332,26 @@ fn init_system_tray(app: &mut App) {
                 handle,
                 "show_setting_window",
                 "打开设置界面",
+                true,
+                None::<&str>,
+            )
+            .unwrap(),
+        )
+        .item(
+            &MenuItem::with_id(
+                handle,
+                "update_app_setting",
+                "刷新数据库",
+                true,
+                None::<&str>,
+            )
+            .unwrap(),
+        )
+        .item(
+            &MenuItem::with_id(
+                handle,
+                "retry_register_shortcut",
+                "重新注册快捷键",
                 true,
                 None::<&str>,
             )
@@ -361,6 +384,9 @@ fn init_system_tray(app: &mut App) {
             }
             MenuEventId::UpdateAppSetting => {
                 update_app_setting();
+            }
+            MenuEventId::RegisterShortcut => {
+                retry_register_shortcut(app_handle);
             }
             MenuEventId::Unknown(id) => {
                 warn!("Unknown menu event: {}", id);
@@ -547,66 +573,4 @@ fn cleanup_old_logs(log_dir: &str, retention_days: i64) {
             }
         }
     }
-}
-
-fn start_key_listener(app: &mut tauri::App) {
-    use tauri_plugin_global_shortcut::{
-        Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState,
-    };
-
-    let alt_space_shortcut = Shortcut::new(Some(Modifiers::ALT), Code::Space);
-    app.handle()
-        .plugin(
-            tauri_plugin_global_shortcut::Builder::new()
-                .with_handler(move |_app, shortcut, event| {
-                    if shortcut == &alt_space_shortcut {
-                        match event.state() {
-                            ShortcutState::Pressed => {}
-                            ShortcutState::Released => {}
-                        }
-                    }
-                })
-                .build(),
-        )
-        .unwrap();
-    if let Err(e) = app.global_shortcut().register(alt_space_shortcut) {
-        app.handle()
-            .notification()
-            .builder()
-            .title("ZeroLaunch-rs")
-            .body("按键 Alt + Space 绑定失败，程序将退出")
-            .show()
-            .unwrap();
-        error!("按键 Alt + Space 绑定失败: {:?}", e);
-        app.cleanup_before_exit();
-        std::process::exit(1);
-    }
-    let app_handle = app.handle().clone();
-    tauri::async_runtime::spawn(async move {
-        let pressed_keys = Arc::new(Mutex::new(HashSet::new()));
-        let pressed_keys_clone: Arc<Mutex<HashSet<Key>>> = Arc::clone(&pressed_keys);
-
-        let callback = move |event: Event| {
-            let mut keys = pressed_keys_clone.lock().unwrap();
-
-            match event.event_type {
-                EventType::KeyPress(key) => {
-                    keys.insert(key);
-
-                    if keys.contains(&Key::Alt) && keys.contains(&Key::Space) {
-                        handle_pressed(&app_handle);
-                        keys.clear();
-                    }
-                }
-                EventType::KeyRelease(key) => {
-                    keys.remove(&key);
-                }
-                _ => {}
-            }
-        };
-
-        if let Err(error) = listen(callback) {
-            error!("监听器启动失败: {:?}", error);
-        }
-    });
 }

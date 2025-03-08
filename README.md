@@ -98,7 +98,7 @@ ZeroLaunch 是一款专为 Windows 平台精心打造的应用程序启动器，
 
 ### 常见功能的实现
 
-程序添加，文件添加，命令添加，搜索算法微调等功能实现详见以下文档：[使用指南](doc/Feature_Implementation_Guide_cn.md)
+程序添加，文件添加，命令添加，搜索算法微调等功能的实现以及**常见的问题**的解决办法详见以下文档：[使用指南](doc/Feature_Implementation_Guide_cn.md)
 
 ## 🚩 程序下载
 

@@ -11,6 +11,7 @@ use crate::utils::defer::defer;
 use crate::utils::windows::get_u16_vec;
 use core::ffi::c_void;
 use core::time::Duration;
+use image::ImageReader;
 use parking_lot::RwLock;
 use std::collections::{HashMap, HashSet};
 use std::ffi::OsStr;
@@ -241,7 +242,6 @@ impl ProgramLoaderInner {
                 stable_bias,
                 icon_path: APP_PIC_PATH.get("web_page").unwrap().value().clone(),
             });
-            debug!("{:?}", program.as_ref());
             result.push(program);
         }
         result
@@ -277,7 +277,6 @@ impl ProgramLoaderInner {
                     stable_bias,
                     icon_path: file_path.clone(),
                 });
-                debug!("{:?}", program.as_ref());
                 result.push(program);
             }
         }
@@ -333,7 +332,6 @@ impl ProgramLoaderInner {
                 stable_bias,
                 icon_path: target_path,
             });
-            debug!("{:?}", program.as_ref());
             result.push(program);
         }
         // 添加通过uwp找到的文件
@@ -369,7 +367,6 @@ impl ProgramLoaderInner {
                 stable_bias,
                 icon_path: APP_PIC_PATH.get("terminal").unwrap().value().clone(),
             });
-            debug!("{:?}", program.as_ref());
             result.push(program);
         }
         result
@@ -574,19 +571,18 @@ impl ProgramLoaderInner {
         }
         ret
     }
-
-    /// 验证一个图标的路径
+    /// 验证一个图标的路径并返回分辨率最大的图标
     fn validate_icon_path(&self, icon_path: String) -> String {
-        // 定义缩放后缀列表
+        // 定义缩放后缀列表，按照分辨率从高到低排序
         let scales = [
-            ".scale-200.",
-            ".scale-100.",
-            ".scale-300.",
             ".scale-400.",
-            ".targetsize-48.",
-            ".targetsize-16.",
-            ".targetsize-24.",
+            ".scale-300.",
             ".targetsize-256.",
+            ".scale-200.",
+            ".targetsize-48.",
+            ".scale-100.",
+            ".targetsize-24.",
+            ".targetsize-16.",
         ];
 
         let path = Path::new(&icon_path);
@@ -607,7 +603,7 @@ impl ProgramLoaderInner {
             None => return String::new(),
         };
 
-        // 检查缩放后的图标文件是否存在
+        // 首先检查缩放后的图标文件是否存在（按照预设的分辨率顺序）
         for scale in &scales {
             let new_stem = format!("{}{}.", stem, scale);
             let mut new_path = PathBuf::from(parent);
@@ -618,7 +614,7 @@ impl ProgramLoaderInner {
             }
         }
 
-        // 如果没有匹配的缩放图标，寻找最短匹配的图标文件
+        // 如果没有匹配的缩放图标，寻找所有匹配的图标文件并比较它们的实际分辨率
         let icon_prefix = stem;
 
         let entries = match fs::read_dir(parent) {
@@ -626,7 +622,8 @@ impl ProgramLoaderInner {
             Err(_) => return String::new(),
         };
 
-        let mut result: Option<PathBuf> = None;
+        // 存储所有匹配的图标及其分辨率信息
+        let mut matching_icons: Vec<(PathBuf, u64)> = Vec::new();
 
         for entry in entries {
             if let Ok(entry) = entry {
@@ -636,17 +633,9 @@ impl ProgramLoaderInner {
                         if ext.eq_ignore_ascii_case("png") {
                             if let Some(file_stem) = path.file_stem().and_then(OsStr::to_str) {
                                 if file_stem.starts_with(icon_prefix) {
-                                    match &result {
-                                        Some(r) => {
-                                            if path.file_name().unwrap().len()
-                                                < r.file_name().unwrap().len()
-                                            {
-                                                result = Some(path.clone());
-                                            }
-                                        }
-                                        None => {
-                                            result = Some(path.clone());
-                                        }
+                                    // 使用图像元数据获取分辨率
+                                    if let Some(resolution) = self.get_image_resolution(&path) {
+                                        matching_icons.push((path.clone(), resolution));
                                     }
                                 }
                             }
@@ -656,13 +645,37 @@ impl ProgramLoaderInner {
             }
         }
 
-        if let Some(r) = result {
-            return r.to_string_lossy().into_owned();
+        // 按分辨率从高到低排序
+        matching_icons.sort_by(|a, b| b.1.cmp(&a.1));
+
+        // 返回分辨率最高的图标
+        if let Some((highest_res_path, _)) = matching_icons.first() {
+            return highest_res_path.to_string_lossy().into_owned();
         }
 
         String::new()
     }
 
+    /// 获取图像的分辨率（宽 × 高）
+    fn get_image_resolution(&self, path: &Path) -> Option<u64> {
+        match ImageReader::open(path) {
+            Ok(reader) => {
+                match reader.with_guessed_format() {
+                    Ok(format_reader) => {
+                        match format_reader.into_dimensions() {
+                            Ok((width, height)) => {
+                                // 使用宽×高作为分辨率指标
+                                Some(width as u64 * height as u64)
+                            }
+                            Err(_) => None,
+                        }
+                    }
+                    Err(_) => None,
+                }
+            }
+            Err(_) => None,
+        }
+    }
     /// 判断是不是一个有效的路径
     /// 1. 路径本身有效
     /// 2. 没有被屏蔽

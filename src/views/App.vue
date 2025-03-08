@@ -426,6 +426,8 @@ onUnmounted(() => {
   height: 100%;
   object-fit: contain;
   border-radius: 6px;
+  image-rendering: crisp-edges;
+  transform: translateZ(0);
 }
 
 .item-info {

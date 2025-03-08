@@ -277,7 +277,6 @@ impl ProgramManagerInner {
     pub fn get_icon(&self, program_guid: &u64) -> Vec<u8> {
         let index = self.program_locater.get(program_guid).unwrap();
         let target_program = &self.program_registry[*(index.value())];
-
         self.image_loader.load_image(&target_program.icon_path)
     }
     /// 获得当前已保存的程序的个数

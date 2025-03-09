@@ -1,4 +1,4 @@
-use crate::modules::storage::utils::get_lnk_target_path;
+use crate::core::storage::utils::get_lnk_target_path;
 
 use super::unit::LaunchMethod;
 use super::unit::Program;

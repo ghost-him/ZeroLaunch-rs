@@ -12,6 +12,7 @@ pub struct PartialAppConfig {
     pub search_result_count: Option<u32>,
     pub auto_refresh_time: Option<u32>,
     pub launch_new_on_failure: Option<bool>,
+    pub is_debug_mode: Option<bool>,
 }
 
 /// 与程序设置有关的，比如是不是要开机自动启动等
@@ -116,9 +117,11 @@ impl AppConfigInner {
         if let Some(auto_refresh_time) = partial_app_config.auto_refresh_time {
             self.auto_refresh_time = auto_refresh_time;
         }
+        if let Some(is_debug_mode) = partial_app_config.is_debug_mode {
+            self.is_debug_mode = is_debug_mode;
+        }
     }
 
-    // 新增的get方法
     pub fn get_search_bar_placeholder(&self) -> String {
         self.search_bar_placeholder.clone()
     }
@@ -147,6 +150,10 @@ impl AppConfigInner {
         self.launch_new_on_failure
     }
 
+    pub fn get_is_debug_mode(&self) -> bool {
+        self.is_debug_mode
+    }
+
     pub fn to_partial(&self) -> PartialAppConfig {
         PartialAppConfig {
             search_bar_placeholder: Some(self.search_bar_placeholder.clone()),
@@ -156,6 +163,7 @@ impl AppConfigInner {
             search_result_count: Some(self.search_result_count),
             launch_new_on_failure: Some(self.launch_new_on_failure),
             auto_refresh_time: Some(self.auto_refresh_time),
+            is_debug_mode: Some(self.is_debug_mode),
         }
     }
 }
@@ -212,6 +220,11 @@ impl AppConfig {
     pub fn get_launch_new_on_failure(&self) -> bool {
         let inner = self.inner.read();
         inner.get_launch_new_on_failure()
+    }
+
+    pub fn get_is_debug_mode(&self) -> bool {
+        let inner = self.inner.read();
+        inner.get_is_debug_mode()
     }
 
     pub fn to_partial(&self) -> PartialAppConfig {

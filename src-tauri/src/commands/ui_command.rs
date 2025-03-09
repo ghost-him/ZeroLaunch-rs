@@ -1,13 +1,16 @@
-use crate::commands::utils::get_background_picture_path;
 use crate::core::image_processor::ImageProcessor;
-use crate::modules::storage::utils::is_writable_directory;
-use crate::modules::storage::utils::read_or_create_bytes;
+use crate::core::storage;
+use crate::core::storage::config::PartialLocalConfig;
+use crate::core::storage::config::StorageDestination;
+use crate::core::storage::local_save::PartialLocalSaveConfig;
+use crate::core::storage::utils::is_writable_directory;
+use crate::core::storage::utils::read_or_create_bytes;
 use crate::state::app_state::AppState;
 use crate::update_app_setting;
-use crate::utils::get_remote_config_path;
 use crate::utils::service_locator::ServiceLocator;
-use crate::LocalConfig;
 use crate::LOCAL_CONFIG_PATH;
+use crate::REMOTE_CONFIG_NAME;
+use backtrace::Backtrace;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::Write;
@@ -65,17 +68,18 @@ pub fn update_search_bar_window<R: Runtime>(
 }
 
 #[tauri::command]
-pub async fn get_background_picture<R: Runtime>(
+pub fn get_background_picture<R: Runtime>(
     _app: tauri::AppHandle<R>,
     _window: tauri::Window<R>,
-    _state: tauri::State<'_, Arc<AppState>>,
+    state: tauri::State<'_, Arc<AppState>>,
 ) -> Result<Vec<u8>, String> {
-    let target_path = get_background_picture_path();
-    read_or_create_bytes(&target_path, None)
+    let storage_manager = state.get_storage_manager().unwrap();
+    let result = storage_manager.download_file_bytes("background.png".to_string());
+    Ok(result)
 }
 
 #[tauri::command]
-pub async fn change_remote_config_dir<R: Runtime>(
+pub fn change_remote_config_dir<R: Runtime>(
     app: tauri::AppHandle<R>,
     _window: tauri::Window<R>,
     state: tauri::State<'_, Arc<AppState>>,
@@ -85,15 +89,25 @@ pub async fn change_remote_config_dir<R: Runtime>(
     if !is_writable_directory(&config_dir) {
         return Err("当前的文件夹无法创建新的文件，请更改文件夹的权限或更改目标文件夹".to_string());
     }
-    let result = LocalConfig {
-        remote_config_path: config_dir.clone(),
+    let result = PartialLocalConfig {
+        storage_destination: Some(StorageDestination::Local),
+        local_save_config: Some(PartialLocalSaveConfig {
+            remote_config_path: Some(config_dir),
+        }),
+        webdav_save_config: None,
+        onedrive_save_config: None,
+        save_to_local_per_update: None,
     };
-    let data = serde_json::to_string(&result).unwrap();
-    let path = LOCAL_CONFIG_PATH.clone();
-    std::fs::write(path, data).unwrap();
-    state.set_remote_config_dir_path(config_dir.clone());
+
+    let storage_manager = state.get_storage_manager().unwrap();
+    storage_manager.update(result);
+
     let runtime_config = state.get_runtime_config().unwrap();
-    runtime_config.load_from_remote_config_path(Some(get_remote_config_path()));
+
+    let remote_config_path = storage_manager.download_file_str(REMOTE_CONFIG_NAME.to_string());
+    let partial_config = serde_json::from_str(&remote_config_path).unwrap();
+
+    runtime_config.update(partial_config);
     update_app_setting();
     let main_window = app.get_webview_window("main").unwrap();
     main_window.emit("update_search_bar_window", "").unwrap();
@@ -101,32 +115,32 @@ pub async fn change_remote_config_dir<R: Runtime>(
 }
 
 #[tauri::command]
-pub async fn get_remote_config_dir<R: Runtime>(
+pub fn get_remote_config_dir<R: Runtime>(
     _app: tauri::AppHandle<R>,
     _window: tauri::Window<R>,
     state: tauri::State<'_, Arc<AppState>>,
 ) -> Result<String, String> {
-    Ok(state.get_remote_config_dir_path())
+    let storage_manager = state.get_storage_manager().unwrap();
+    let path = storage_manager.get_target_dir_path();
+    Ok(path)
 }
 
 #[tauri::command]
-pub async fn select_background_picture<R: Runtime>(
+pub fn select_background_picture<R: Runtime>(
     app: tauri::AppHandle<R>,
     _window: tauri::Window<R>,
+    state: tauri::State<'_, Arc<AppState>>,
     path: String,
 ) -> Result<(), String> {
     let content: Vec<u8> = ImageProcessor::load_image_from_path(&path);
-    let target_path = get_background_picture_path();
-    if let Ok(mut file) = File::create(target_path) {
-        // 将所有字节写入文件
-        let _ = file.write_all(&content);
-    }
+    let storage_manager = state.get_storage_manager().unwrap();
+    storage_manager.upload_file_bytes("background.png".to_string(), content);
     app.emit("update_search_bar_window", "").unwrap();
     Ok(())
 }
 
 #[tauri::command]
-pub async fn get_dominant_color<R: Runtime>(
+pub fn get_dominant_color<R: Runtime>(
     _app: tauri::AppHandle<R>,
     _window: tauri::Window<R>,
     path: String,

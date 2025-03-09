@@ -57,11 +57,3 @@ where
     }
     dash_map
 }
-
-// 获得远程配置文件的保存地址
-pub fn get_remote_config_path() -> String {
-    let state = ServiceLocator::get_state();
-    let dir_path = state.get_remote_config_dir_path();
-    let config_path = Path::new(&dir_path).join(REMOTE_CONFIG_NAME);
-    config_path.to_str().unwrap().to_string()
-}

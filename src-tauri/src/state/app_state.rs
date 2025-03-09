@@ -1,3 +1,4 @@
+use crate::core::storage::storage_manager::StorageManager;
 use crate::error::AppError;
 use crate::modules::{config::config_manager::RuntimeConfig, program_manager::ProgramManager};
 use parking_lot::RwLock;
@@ -6,8 +7,6 @@ use tauri::AppHandle;
 use timer::{Guard, Timer};
 
 pub struct AppState {
-    /// 远程配置目录路径
-    remote_config_dir_path: RwLock<String>,
     /// 运行时配置
     runtime_config: RwLock<Option<Arc<RuntimeConfig>>>,
     /// 程序管理器
@@ -20,32 +19,22 @@ pub struct AppState {
     timer: Arc<Timer>,
     /// 当前的窗口是否可见
     is_search_bar_visible: RwLock<bool>,
+    /// 文件存储器
+    storage_client: RwLock<Option<Arc<StorageManager>>>,
 }
 
 impl AppState {
     pub fn new() -> Self {
         AppState {
-            remote_config_dir_path: RwLock::new(String::new()),
             runtime_config: RwLock::new(None),
             program_manager: RwLock::new(None),
             main_handle: RwLock::new(None),
             timer_guard: RwLock::new(None),
             timer: Arc::new(Timer::new()),
             is_search_bar_visible: RwLock::new(false),
+            storage_client: RwLock::new(None),
         }
     }
-
-    // region: Remote Config Directory Path 访问方法
-    /// 获取远程配置目录路径
-    pub fn get_remote_config_dir_path(&self) -> String {
-        self.remote_config_dir_path.read().clone()
-    }
-
-    /// 设置远程配置目录路径
-    pub fn set_remote_config_dir_path(&self, path: String) {
-        *self.remote_config_dir_path.write() = path;
-    }
-    // endregion
 
     // region: Runtime Config 访问方法
     /// 获取运行时配置的克隆
@@ -123,18 +112,35 @@ impl AppState {
     pub fn get_search_bar_visible(&self) -> bool {
         *self.is_search_bar_visible.read()
     }
+
+    /// 获取存储管理器的克隆
+    pub fn get_storage_manager(&self) -> Result<Arc<StorageManager>, AppError> {
+        self.storage_client
+            .read()
+            .as_ref()
+            .cloned()
+            .ok_or(AppError::NotInitialized {
+                resource: "storage_client".to_string(),
+                context: None,
+            })
+    }
+
+    /// 更新存储管理器
+    pub fn set_storage_manager(&self, client: Arc<StorageManager>) {
+        *self.storage_client.write() = Some(client);
+    }
 }
 
 // Custom Debug implementation for AppState
 impl std::fmt::Debug for AppState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("AppState")
-            .field("remote_config_dir_path", &self.remote_config_dir_path)
             .field("runtime_config", &self.runtime_config)
             .field("program_manager", &self.program_manager)
             .field("main_handle", &self.main_handle)
             .field("timer_guard", &"<Timer Guard>")
             .field("timer", &"<Timer>")
+            .field("storage_client", &self.storage_client)
             .finish()
     }
 }

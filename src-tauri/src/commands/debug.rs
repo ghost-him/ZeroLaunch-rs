@@ -5,7 +5,7 @@ use std::sync::Arc;
 use tauri::Runtime;
 
 #[tauri::command]
-pub async fn test_search_algorithm<R: Runtime>(
+pub fn test_search_algorithm<R: Runtime>(
     _app: tauri::AppHandle<R>,
     _window: tauri::Window<R>,
     state: tauri::State<'_, Arc<AppState>>,
@@ -16,7 +16,7 @@ pub async fn test_search_algorithm<R: Runtime>(
 }
 
 #[tauri::command]
-pub async fn test_search_algorithm_time<R: Runtime>(
+pub fn test_search_algorithm_time<R: Runtime>(
     _app: tauri::AppHandle<R>,
     _window: tauri::Window<R>,
     state: tauri::State<'_, Arc<AppState>>,
@@ -26,7 +26,7 @@ pub async fn test_search_algorithm_time<R: Runtime>(
 }
 
 #[tauri::command]
-pub async fn test_index_app_time<R: Runtime>(
+pub fn test_index_app_time<R: Runtime>(
     _app: tauri::AppHandle<R>,
     _window: tauri::Window<R>,
     state: tauri::State<'_, Arc<AppState>>,
@@ -37,7 +37,7 @@ pub async fn test_index_app_time<R: Runtime>(
 }
 
 #[tauri::command]
-pub async fn get_search_keys<R: Runtime>(
+pub fn get_search_keys<R: Runtime>(
     _app: tauri::AppHandle<R>,
     _window: tauri::Window<R>,
     state: tauri::State<'_, Arc<AppState>>,

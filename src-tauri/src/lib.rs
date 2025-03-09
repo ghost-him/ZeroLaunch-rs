@@ -10,27 +10,29 @@ use crate::commands::file::*;
 use crate::commands::program_service::*;
 use crate::commands::ui_command::*;
 use crate::commands::utils::*;
+use crate::core::storage::utils::read_or_create_str;
 use crate::modules::config::config_manager::PartialConfig;
 use crate::modules::config::default::LOCAL_CONFIG_PATH;
 use crate::modules::config::default::LOG_DIR;
-use crate::modules::config::local_config::LocalConfig;
 use crate::modules::config::{Height, Width};
-use crate::modules::storage::utils::read_or_create_str;
 use crate::modules::ui_controller::controller::get_window_render_origin;
 use crate::modules::ui_controller::controller::get_window_size;
 use crate::state::app_state::AppState;
-use crate::utils::get_remote_config_path;
 use crate::utils::ui_controller::handle_focus_lost;
 use crate::utils::ui_controller::handle_pressed;
 use chrono::DateTime;
 use chrono::Duration;
 use chrono::Local;
+use core::storage;
+use core::storage::storage_manager;
+use core::storage::storage_manager::StorageManager;
 use keyboard_listener::retry_register_shortcut;
 use keyboard_listener::start_key_listener;
 use modules::config::config_manager::RuntimeConfig;
 use modules::config::default::APP_VERSION;
 use modules::config::default::{APP_PIC_PATH, REMOTE_CONFIG_NAME};
-use modules::config::save_remote_config;
+use modules::config::load_local_config;
+use modules::config::save_local_config;
 use modules::config::window_state::PartialWindowState;
 use modules::program_manager::{self, ProgramManager};
 use single_instance::SingleInstance;
@@ -167,27 +169,16 @@ pub fn run() {
 
 /// 初始化的流程-> 初始化程序的状态
 fn init_app_state(app: &mut App) {
-    // 读取本地的配置文件信息，获得远程配置文件的地址
-    let local_config = LocalConfig::default();
-    // 先读一下配置文件的地址
-    let local_config_data = read_or_create_str(
-        &LOCAL_CONFIG_PATH,
-        Some(serde_json::to_string(&local_config).unwrap()),
-    )
-    .expect("无法读取");
-    let local_config: LocalConfig = serde_json::from_str(&local_config_data).unwrap();
-    let remote_config_dir_path = local_config.remote_config_path;
-    let remote_config_path = Path::new(&remote_config_dir_path)
-        .join(REMOTE_CONFIG_NAME)
-        .to_str()
-        .unwrap()
-        .to_string();
-    let runtime_config = RuntimeConfig::new(remote_config_path.clone());
-    runtime_config.load_from_remote_config_path(None);
+    let storage_manager = StorageManager::new();
+    println!("{:?}", storage_manager);
+    let remote_config_data = storage_manager.download_file_str(REMOTE_CONFIG_NAME.to_string());
+    println!("读取到消息:{}", remote_config_data);
+    let partial_config = load_local_config(&remote_config_data);
+
+    let runtime_config = RuntimeConfig::new();
+    runtime_config.update(partial_config);
     // 维护程序状态
     let state = app.state::<Arc<AppState>>();
-    // 设置远程配置存在的位置
-    state.set_remote_config_dir_path(remote_config_dir_path);
     // 维护程序的配置信息
     state.set_runtime_config(Arc::new(runtime_config));
     // 维护程序管理器
@@ -195,6 +186,8 @@ fn init_app_state(app: &mut App) {
     state.set_program_manager(Arc::new(program_manager));
     // 维护app_handle
     state.set_main_handle(Arc::new(app.app_handle().clone()));
+    // 维护文件管理器
+    state.set_storage_manager(Arc::new(storage_manager));
     // 使用ServiceLocator保存一份
     ServiceLocator::init((*state).clone());
 }
@@ -380,6 +373,8 @@ fn init_system_tray(app: &mut App) {
             }
             MenuEventId::ExitProgram => {
                 save_config_to_file(false);
+                let storage_manager = ServiceLocator::get_state().get_storage_manager().unwrap();
+                storage_manager.upload_all_file_force();
                 app_handle.exit(0);
             }
             MenuEventId::UpdateAppSetting => {
@@ -463,9 +458,10 @@ pub fn save_config_to_file(is_update_app: bool) {
     });
     let remote_config = runtime_config.to_partial();
 
-    let data_str = save_remote_config(remote_config);
-    let config_path_str = get_remote_config_path();
-    std::fs::write(config_path_str, data_str).unwrap();
+    let data_str = save_local_config(remote_config);
+
+    let storage_manager = state.get_storage_manager().unwrap();
+    storage_manager.upload_file_str(REMOTE_CONFIG_NAME.to_string(), data_str);
 
     if is_update_app {
         update_app_setting();

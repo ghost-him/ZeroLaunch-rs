@@ -1,12 +1,12 @@
 use super::ui_config::PartialUiConfig;
+use crate::core::storage::utils::read_or_create_str;
 use crate::modules::config::app_config::AppConfig;
 use crate::modules::config::app_config::PartialAppConfig;
 use crate::modules::config::default::CONFIG_DEFAULT;
 use crate::modules::config::ui_config::UiConfig;
 use crate::modules::config::window_state::PartialWindowState;
 use crate::modules::config::window_state::WindowState;
-use crate::modules::config::RemoteConfig;
-use crate::modules::storage::utils::read_or_create_str;
+use crate::modules::config::LocalConfig;
 use crate::program_manager::config::program_manager_config::PartialProgramManagerConfig;
 use crate::program_manager::config::program_manager_config::ProgramManagerConfig;
 use parking_lot::RwLock;
@@ -27,29 +27,17 @@ pub struct RuntimeConfig {
     ui_config: Arc<UiConfig>,
     program_manager_config: Arc<ProgramManagerConfig>,
     window_state: Arc<WindowState>,
-    /// 远程配置文件的存放的地址
-    remote_config_path: RwLock<String>,
 }
 
 impl RuntimeConfig {
-    pub fn new(remote_config_path: String) -> Self {
+    pub fn new() -> Self {
         let result = RuntimeConfig {
             app_config: Arc::new(AppConfig::default()),
             ui_config: Arc::new(UiConfig::default()),
             program_manager_config: Arc::new(ProgramManagerConfig::default()),
             window_state: Arc::new(WindowState::default()),
-            remote_config_path: RwLock::new(remote_config_path),
         };
         result
-    }
-
-    pub fn load_from_remote_config_path(&self, remote_config_path: Option<String>) {
-        if let Some(remote_path) = remote_config_path {
-            let mut guard = self.remote_config_path.write();
-            *guard = remote_path;
-        }
-        let partial_config = load_config(&self.remote_config_path.read());
-        self.update(partial_config);
     }
 
     pub fn update(&self, partial_config: PartialConfig) {
@@ -92,26 +80,4 @@ impl RuntimeConfig {
             window_state: None,
         }
     }
-}
-
-fn load_config(config_path_str: &str) -> PartialConfig {
-    // 读取配置文件
-    let config_content = read_or_create_str(&config_path_str, Some(CONFIG_DEFAULT.to_string()))
-        .expect("无法读取配置文件");
-
-    let final_config: PartialConfig;
-    match serde_json::from_str::<RemoteConfig>(&config_content) {
-        Ok(config) => {
-            // 如果已经正常的读到文件了，则判断文件是不是正常读取了
-            if config.version == RemoteConfig::CURRENT_VERSION {
-                final_config = config.config_data;
-            } else {
-                final_config = RuntimeConfig::new("./".to_string()).to_partial();
-            }
-        }
-        Err(_e) => {
-            final_config = RuntimeConfig::new("./".to_string()).to_partial();
-        }
-    }
-    final_config
 }

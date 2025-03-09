@@ -23,7 +23,7 @@ pub struct ProgramInfo {
 pub struct SearchResult(u64, String);
 
 #[tauri::command]
-pub async fn load_program_icon<R: Runtime>(
+pub fn load_program_icon<R: Runtime>(
     _app: tauri::AppHandle<R>,
     _window: tauri::Window<R>,
     state: tauri::State<'_, Arc<AppState>>,
@@ -36,7 +36,7 @@ pub async fn load_program_icon<R: Runtime>(
 }
 
 #[tauri::command]
-pub async fn get_program_count<R: Runtime>(
+pub fn get_program_count<R: Runtime>(
     _app: tauri::AppHandle<R>,
     _window: tauri::Window<R>,
     state: tauri::State<'_, Arc<AppState>>,
@@ -47,7 +47,7 @@ pub async fn get_program_count<R: Runtime>(
 }
 
 #[tauri::command]
-pub async fn launch_program<R: Runtime>(
+pub fn launch_program<R: Runtime>(
     _app: tauri::AppHandle<R>,
     _window: tauri::Window<R>,
     state: tauri::State<'_, Arc<AppState>>,
@@ -109,7 +109,7 @@ pub fn get_program_info<R: Runtime>(
 }
 
 #[tauri::command]
-pub async fn refresh_program<R: Runtime>(
+pub fn refresh_program<R: Runtime>(
     _app: tauri::AppHandle<R>,
     _window: tauri::Window<R>,
 ) -> Result<(), String> {
@@ -140,7 +140,7 @@ pub fn handle_search_text<R: Runtime>(
 }
 
 #[tauri::command]
-pub async fn load_config<R: Runtime>(
+pub fn load_config<R: Runtime>(
     _app: tauri::AppHandle<R>,
     _window: tauri::Window<R>,
     state: tauri::State<'_, Arc<AppState>>,

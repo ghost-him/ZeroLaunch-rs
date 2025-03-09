@@ -1,4 +1,4 @@
-use crate::modules::storage::windows_utils::get_start_menu_paths;
+use crate::core::storage::windows_utils::get_start_menu_paths;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

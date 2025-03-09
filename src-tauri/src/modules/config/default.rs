@@ -1,4 +1,4 @@
-use crate::modules::storage::windows_utils::get_default_remote_data_dir_path;
+use crate::core::storage::windows_utils::get_default_remote_data_dir_path;
 use crate::RuntimeConfig;
 use dashmap::DashMap;
 use lazy_static::lazy_static;
@@ -22,8 +22,8 @@ lazy_static! {
     };
     // app使用到的图片的路径
     pub static ref APP_PIC_PATH: DashMap<String, String> = DashMap::new();
-    // 默认的图片
-    pub static ref CONFIG_DEFAULT: String = serde_json::to_string(&RuntimeConfig::new("./".to_string()).to_partial()).unwrap();
+    // 默认的配置信息
+    pub static ref CONFIG_DEFAULT: String = serde_json::to_string(&RuntimeConfig::new().to_partial()).unwrap();
     // 当前软件的版本号
     pub static ref APP_VERSION: String = env!("CARGO_PKG_VERSION").to_string();
 

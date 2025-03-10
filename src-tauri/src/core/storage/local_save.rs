@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use super::storage_manager::StorageClient;
 use crate::core::storage::windows_utils::get_default_remote_data_dir_path;

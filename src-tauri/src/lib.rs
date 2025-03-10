@@ -10,7 +10,6 @@ use crate::commands::debug::*;
 use crate::commands::program_service::*;
 use crate::commands::ui_command::*;
 use crate::commands::utils::*;
-use crate::core::storage::utils::read_or_create_str;
 use crate::modules::config::config_manager::PartialConfig;
 use crate::modules::config::default::LOCAL_CONFIG_PATH;
 use crate::modules::config::default::LOG_DIR;
@@ -24,7 +23,6 @@ use chrono::DateTime;
 use chrono::Duration;
 use chrono::Local;
 use core::storage;
-use core::storage::storage_manager;
 use core::storage::storage_manager::StorageManager;
 use keyboard_listener::retry_register_shortcut;
 use keyboard_listener::start_key_listener;
@@ -153,7 +151,6 @@ pub fn run() {
             initialize_search_window,
             update_search_bar_window,
             get_background_picture,
-            change_remote_config_dir,
             get_remote_config_dir,
             select_background_picture,
             hide_window,

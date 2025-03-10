@@ -10,7 +10,6 @@ use palette::{IntoColor, Lab, Srgb};
 use rand::Rng;
 use rayon::prelude::*;
 use std::sync::{Arc, Mutex};
-use tokio::fs::read;
 
 use std::ffi::c_void;
 use std::io::Cursor;

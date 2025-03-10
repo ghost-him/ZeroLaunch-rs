@@ -5,7 +5,6 @@ use crate::state::app_state::AppState;
 use crate::update_app_setting;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tauri::async_runtime::spawn_blocking;
 use tauri::Runtime;
 use tracing::debug;
 #[derive(Serialize, Deserialize, Debug, Clone)]

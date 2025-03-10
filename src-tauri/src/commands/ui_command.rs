@@ -1,21 +1,7 @@
 use crate::core::image_processor::ImageProcessor;
-use crate::core::storage;
-use crate::core::storage::config::PartialLocalConfig;
-use crate::core::storage::config::StorageDestination;
-use crate::core::storage::local_save::PartialLocalSaveConfig;
-use crate::core::storage::utils::is_writable_directory;
-use crate::core::storage::utils::read_or_create_bytes;
-use crate::PartialConfig;
-
 use crate::state::app_state::AppState;
-use crate::update_app_setting;
 use crate::utils::service_locator::ServiceLocator;
-use crate::LOCAL_CONFIG_PATH;
-use crate::REMOTE_CONFIG_NAME;
-use backtrace::Backtrace;
 use serde::{Deserialize, Serialize};
-use std::fs::File;
-use std::io::Write;
 use std::sync::Arc;
 use tauri::Emitter;
 use tauri::Manager;
@@ -80,44 +66,6 @@ pub async fn get_background_picture<R: Runtime>(
         .download_file_bytes("background.png".to_string())
         .await;
     Ok(result)
-}
-
-#[tauri::command]
-pub async fn change_remote_config_dir<R: Runtime>(
-    app: tauri::AppHandle<R>,
-    _window: tauri::Window<R>,
-    state: tauri::State<'_, Arc<AppState>>,
-    config_dir: String,
-) -> Result<(), String> {
-    // 先判断是不是正确的文件夹
-    if !is_writable_directory(&config_dir) {
-        return Err("当前的文件夹无法创建新的文件，请更改文件夹的权限或更改目标文件夹".to_string());
-    }
-    let result = PartialLocalConfig {
-        storage_destination: Some(StorageDestination::Local),
-        local_save_config: Some(PartialLocalSaveConfig {
-            remote_config_path: Some(config_dir),
-        }),
-        webdav_save_config: None,
-        onedrive_save_config: None,
-        save_to_local_per_update: None,
-    };
-
-    let storage_manager = state.get_storage_manager().unwrap();
-    storage_manager.update(result).await;
-
-    let runtime_config = state.get_runtime_config().unwrap();
-
-    let remote_config_path = storage_manager
-        .download_file_str(REMOTE_CONFIG_NAME.to_string())
-        .await;
-    let partial_config = serde_json::from_str::<PartialConfig>(&remote_config_path).unwrap();
-
-    runtime_config.update(partial_config);
-    update_app_setting().await;
-    let main_window = app.get_webview_window("main").unwrap();
-    main_window.emit("update_search_bar_window", "").unwrap();
-    Ok(())
 }
 
 #[tauri::command]

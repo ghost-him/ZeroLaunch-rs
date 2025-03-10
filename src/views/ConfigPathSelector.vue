@@ -155,6 +155,8 @@ import {
     Folder, FolderOpened, SetUp, Link, User, Lock,
     Connection, Key, InfoFilled, Check, RefreshRight
 } from '@element-plus/icons-vue'
+import { open } from '@tauri-apps/plugin-dialog'
+import { invoke } from '@tauri-apps/api/core'
 
 // 获取配置存储
 const configStore = useLocalConfigStore()
@@ -176,12 +178,28 @@ onMounted(async () => {
 
 // 选择本地配置文件路径
 const handleChangeConfigPath = async () => {
+    try {
+        const selected = await open({
+            canCreateDirectories: true,
+            directory: true,
+            multiple: false,
+            title: "选择配置文件保存位置"
+        });
+
+        if (selected) {
+            formData.local_save_config.remote_config_path = selected;
+        }
+    } catch (error) {
+        handleError('选择文件夹失败', error);
+    }
+
     console.log('打开文件选择对话框')
 }
 
 // 使用默认路径
-const handleUseDefaultPath = () => {
-    formData.local_save_config.remote_config_path = "默认路径"
+const handleUseDefaultPath = async () => {
+    const default_path = await invoke<string>('command_get_default_remote_data_dir_path');
+    formData.local_save_config.remote_config_path = default_path
     ElMessage.success('已设置为默认路径')
 }
 
@@ -202,6 +220,14 @@ const checkOneDriveStatus = async () => {
 
 // 保存配置
 const saveConfig = async () => {
+    configStore.updateConfig({
+        storage_destination: formData.storage_destination,
+        local_save_config: formData.local_save_config,
+        webdav_save_config: formData.webdav_save_config,
+        onedrive_save_config: formData.onedrive_save_config,
+        save_to_local_per_update: formData.save_to_local_per_update,
+    });
+    await configStore.syncConfig();
     ElMessage.success('配置已保存')
 }
 
@@ -210,6 +236,18 @@ const resetConfig = () => {
     Object.assign(formData, configStore.config)
     ElMessage.info('配置已重置')
 }
+
+const handleError = (message: string, error: unknown) => {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`${message}:`, error);
+
+    ElMessage({
+        message: `${message}: ${errorMessage}`,
+        type: 'error',
+        showClose: true,
+    });
+};
+
 </script>
 
 <style scoped>

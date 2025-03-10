@@ -1,10 +1,5 @@
-/// 这里存放可能会使用到的函数
-///
-use super::super::utils::service_locator::ServiceLocator;
-use crate::core::storage::storage_manager;
 use crate::core::storage::windows_utils::get_default_remote_data_dir_path;
 use crate::modules::version_checker::version_checker::VersionChecker;
-use std::path::Path;
 
 /// 获得当前程序的最新版本
 #[tauri::command]

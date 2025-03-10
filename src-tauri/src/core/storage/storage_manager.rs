@@ -100,6 +100,13 @@ impl StorageManagerInner {
         let bytes = self.download_file_bytes(file_name).await;
         String::from_utf8_lossy(&bytes).into_owned()
     }
+    /// 强制下载文件
+    /// file_name: 工作目录下的相对地址
+    pub async fn download_file_str_force(&mut self, file_name: String) -> String {
+        let bytes = self.download_file_bytes_force(file_name).await;
+        String::from_utf8_lossy(&bytes).into_owned()
+    }
+
     /// 上传文件
     /// file_name: 工作目录下的相对地址
     /// contents: 内容
@@ -166,13 +173,44 @@ impl StorageManagerInner {
         return false;
     }
 
-    /// 将当前缓存中所有的文件都上传，只能在程序结束时调用
+    /// 将当前缓存中所有的文件都上传
     pub async fn upload_all_file_force(&self) {
-        let client = self.client.as_ref().unwrap().read().await;
+        if let Some(client_arc) = &self.client {
+            let client = client_arc.read().await;
 
-        for item in self.cached_content.iter() {
-            client.upload(item.key(), &item.value().1).await;
+            // 收集所有需要上传的键值对
+            let items_to_upload: Vec<(String, Vec<u8>)> = self
+                .cached_content
+                .iter()
+                .map(|item| (item.key().clone(), item.value().1.clone()))
+                .collect();
+
+            // 上传所有文件
+            for (key, value) in items_to_upload {
+                client.upload(&key, &value).await;
+            }
+
+            // 上传完成后清空缓存
+            self.cached_content.clear();
         }
+    }
+
+    /// 强制下载文件
+    /// file_name: 工作目录下的相对地址
+    pub async fn download_file_bytes_force(&mut self, file_name: String) -> Vec<u8> {
+        println!("开始强制下载文件：{:?}", file_name);
+        match self.cached_content.entry(file_name.clone()) {
+            Entry::Occupied(entry) => {
+                // 如果有文件，则删除对应的文件
+                entry.remove();
+            }
+            Entry::Vacant(_) => {
+                // 如果没有内容，则忽略
+            }
+        }
+
+        let client = self.client.as_ref().unwrap().read().await;
+        client.download(&file_name).await.unwrap_or(Vec::new())
     }
 
     /// 下载文件
@@ -185,9 +223,6 @@ impl StorageManagerInner {
             .map(|entry| entry.value().1.clone());
 
         if let Some(content) = cached_data {
-            // 这里默认用户只会同时开一个应用，所以本机的配置一定是最新的，云端的配置一定不是最新的
-            self.upload_file_bytes_force(file_name.clone(), Some(content.clone()))
-                .await;
             return content;
         }
 
@@ -239,6 +274,12 @@ impl StorageManager {
         inner.download_file_str(file_name).await
     }
 
+    /// 下载文件内容为字符串
+    pub async fn download_file_str_force(&self, file_name: String) -> String {
+        let mut inner = self.inner.write().await;
+        inner.download_file_str_force(file_name).await
+    }
+
     /// 上传二进制内容到指定文件（带缓存策略）
     pub async fn upload_file_bytes(&self, file_name: String, contents: Vec<u8>) -> bool {
         let inner = self.inner.read().await;
@@ -249,6 +290,12 @@ impl StorageManager {
     pub async fn download_file_bytes(&self, file_name: String) -> Vec<u8> {
         let mut inner = self.inner.write().await;
         inner.download_file_bytes(file_name).await
+    }
+
+    /// 下载文件内容为二进行（强制下载）
+    pub async fn download_file_bytes_force(&self, file_name: String) -> Vec<u8> {
+        let mut inner = self.inner.write().await;
+        inner.download_file_bytes_force(file_name).await
     }
 
     /// 强制上传文件内容（绕过缓存策略）

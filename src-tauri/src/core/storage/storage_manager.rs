@@ -57,6 +57,11 @@ impl StorageManagerInner {
         inner.update(partial_local_config);
         inner
     }
+    /// 获得当前的本地配置文件的信息
+    pub fn to_partial(&self) -> PartialLocalConfig {
+        self.local_config.to_partial()
+    }
+
     // 更新
     pub fn update(&mut self, partial_local_config: PartialLocalConfig) {
         self.local_config.update(partial_local_config);
@@ -207,6 +212,12 @@ impl StorageManager {
         Self {
             inner: RwLock::new(StorageManagerInner::new()),
         }
+    }
+
+    /// 获得当前的本地配置文件的信息
+    pub async fn to_partial(&self) -> PartialLocalConfig {
+        let inner = self.inner.read().await;
+        inner.to_partial()
     }
 
     /// 更新存储管理器配置

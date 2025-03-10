@@ -140,7 +140,7 @@ pub async fn handle_search_text<R: Runtime>(
 }
 
 #[tauri::command]
-pub async fn load_config<R: Runtime>(
+pub async fn command_load_remote_config<R: Runtime>(
     _app: tauri::AppHandle<R>,
     _window: tauri::Window<R>,
     state: tauri::State<'_, Arc<AppState>>,

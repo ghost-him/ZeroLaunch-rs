@@ -5,8 +5,8 @@ pub mod keyboard_listener;
 pub mod modules;
 pub mod state;
 pub mod utils;
+use crate::commands::config_file::*;
 use crate::commands::debug::*;
-use crate::commands::file::*;
 use crate::commands::program_service::*;
 use crate::commands::ui_command::*;
 use crate::commands::utils::*;
@@ -143,7 +143,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            save_config,
+            command_save_remote_config,
             load_program_icon,
             get_program_count,
             launch_program,
@@ -158,14 +158,16 @@ pub fn run() {
             select_background_picture,
             hide_window,
             show_setting_window,
-            load_config,
+            command_load_remote_config,
             get_dominant_color,
             command_get_latest_release_version,
             test_search_algorithm,
             test_search_algorithm_time,
             test_index_app_time,
             get_search_keys,
-            command_get_default_remote_data_dir_path
+            command_get_default_remote_data_dir_path,
+            command_load_local_config,
+            command_save_local_config
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

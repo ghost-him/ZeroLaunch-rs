@@ -62,3 +62,7 @@ export type PartialConfig = {
         loader?: PartialProgramLoaderConfig
     }
 }
+
+
+
+

@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { AppConfig, UIConfig, ProgramManagerConfig, ProgramLauncherConfig, ProgramLoaderConfig, PartialConfig, Config } from '../api/types'
+import { AppConfig, UIConfig, ProgramManagerConfig, ProgramLauncherConfig, ProgramLoaderConfig, PartialConfig, Config } from '../api/remote_config_types'
 import { invoke } from '@tauri-apps/api/core'
 
 function mergeConfig(config: Config , partial: PartialConfig): Config {
@@ -107,7 +107,7 @@ function mergePartialProgramManagerConfig(
     return Object.keys(mergedPm).length > 0 ? mergedPm : undefined;
 }
 
-export const useConfigStore = defineStore('config', {
+export const useRemoteConfigStore = defineStore('config', {
     state: () => ({
         config: {
             app_config: {
@@ -152,7 +152,7 @@ export const useConfigStore = defineStore('config', {
         // 从后端加载完整配置
         async loadConfig() {
             console.log("load from backend")
-            const config = await invoke<PartialConfig>('load_config')
+            const config = await invoke<PartialConfig>('command_load_remote_config')
             console.log(typeof config.program_manager_config?.loader?.program_bias)
             this.config = mergeConfig(this.config, config);
         },
@@ -172,7 +172,7 @@ export const useConfigStore = defineStore('config', {
             try {
                 console.log("向后端传输信息")
                 console.log(this.dirtyConfig)
-                await invoke("save_config", { partialConfig: this.dirtyConfig });
+                await invoke("command_save_remote_config", { partialConfig: this.dirtyConfig });
                 this.dirtyConfig = {};
             } catch (error) {
                 console.error("同步失败:", error);

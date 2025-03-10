@@ -110,7 +110,7 @@ impl ProgramManager {
     /// 测试搜索算法的时间开销
     pub async fn test_search_algorithm_time(&self) -> (f64, f64, f64) {
         let inner = self.inner.read().await;
-        inner.test_search_algorithm_time().await
+        inner.test_search_algorithm_time()
     }
     /// 获得加载程序的时间开销
     pub async fn get_program_loader_loading_time(&self) -> f64 {
@@ -287,7 +287,7 @@ impl ProgramManagerInner {
     }
 
     /// 获得测试当前搜索算法的运行速度(最大值，最小值，平均值)
-    pub async fn test_search_algorithm_time(&self) -> (f64, f64, f64) {
+    pub fn test_search_algorithm_time(&self) -> (f64, f64, f64) {
         let mut max_time: f64 = 0.0;
         let mut min_time: f64 = 5000.0;
         let mut average_time: f64 = 0.0;

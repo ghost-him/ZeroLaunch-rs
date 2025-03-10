@@ -321,11 +321,7 @@
             </section>
 
             <section v-if="activeIndex === 4" class="page">
-                <el-form-item label="设置配置文件的保存地址">
-                    <el-button type="primary" @click="change_remote_config_path_dir">选择目标路径</el-button>
-                    <el-button @click="get_default_remote_config_path">使用默认路径</el-button>
-                </el-form-item>
-                <el-input v-model="remote_config_path_dir" placeholder="设置配置文件保存路径" disabled />
+                <ConfigPathSelector></ConfigPathSelector>
             </section>
 
             <section v-if="activeIndex === 5" class="page">
@@ -387,14 +383,15 @@ import {
 import { invoke } from '@tauri-apps/api/core';
 import { ElMessage } from 'element-plus';
 import { open } from '@tauri-apps/plugin-dialog';
-import { useConfigStore } from '../stores/config';
+import { useRemoteConfigStore } from '../stores/remote_config';
 import { storeToRefs } from 'pinia';
-import { UnlistenFn } from '@tauri-apps/api/event';
+import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { rgbaToHex } from '../utils/color';
 import about from "./about.vue";
-import debug from "./debug.vue"
+import debug from "./debug.vue";
+import ConfigPathSelector from "./ConfigPathSelector.vue";
 
-const configStore = useConfigStore()
+const configStore = useRemoteConfigStore()
 const { config } = storeToRefs(configStore)
 
 interface MenuItem {
@@ -732,57 +729,6 @@ const addCustomCommand = () => {
     custom_command.value = [...custom_command.value, ["", ""]]
 }
 
-
-const remote_config_path_dir = ref('');
-
-const change_remote_config_path_dir = async () => {
-    try {
-        const selected = await open({
-            canCreateDirectories: true, directory: true, multiple: false, title: "选择目标文件夹"
-        });
-
-        if (selected) {
-            await change_and_update_config(selected)
-        } else {
-            console.log('没有选择文件夹');
-        }
-    } catch (err) {
-
-    }
-}
-
-const get_default_remote_config_path = async () => {
-    try {
-        const default_remote_config = await invoke<string>('command_get_default_remote_data_dir_path');
-        await change_and_update_config(default_remote_config);
-    } catch (err) {
-        console.error('获取失败:', err)
-    }
-}
-
-const change_and_update_config = async (dir_path: string) => {
-    try {
-        console.log('选择的文件夹路径:', dir_path);
-        remote_config_path_dir.value = dir_path;
-        // 调用后端
-        await invoke('change_remote_config_dir', { configDir: dir_path });
-        await configStore.loadConfig();
-        // 在这里处理选中的文件夹路径
-        ElMessage({
-            message: '更换配置文件地址成功',
-            type: 'success',
-            showClose: true,
-        })
-    } catch (err) {
-        ElMessage({
-            message: '选择文件夹时出错:' + err,
-            type: 'error',
-            showClose: true,
-        })
-        console.error('选择文件夹时出错:', err);
-    }
-}
-
 interface ProgramInfo {
     name: string
     is_uwp: boolean
@@ -814,10 +760,6 @@ const save_config = async () => {
 let unlisten: Array<UnlistenFn | null> = [];
 let dominant_color = ref<string | null>(null);
 
-const update_remote_config_dir = async () => {
-    const path = await invoke<string>("get_remote_config_dir");
-    remote_config_path_dir.value = path;
-}
 
 const get_dominant_color = async () => {
     let file_path = await select_picture();
@@ -827,7 +769,9 @@ const get_dominant_color = async () => {
 
 onMounted(async () => {
     await configStore.loadConfig()
-    await update_remote_config_dir()
+    unlisten.push(await listen('emit_update_setting_window_config', async () => {
+        await configStore.loadConfig()
+    }))
 })
 
 onUnmounted(async () => {

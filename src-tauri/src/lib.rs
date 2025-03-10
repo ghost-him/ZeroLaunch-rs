@@ -122,20 +122,24 @@ pub fn run() {
 
                 std::process::exit(1);
             }
-            // 初始化程序的图标
-            register_icon_path(app);
-            // 初始化程序的配置系统
-            init_app_state(app);
-            // 初始化程序的系统托盘服务
-            init_system_tray(app);
-            // 初始化搜索栏
-            init_search_bar_window(app);
-            // 初始化设置窗口
-            init_setting_window(app.app_handle().clone());
-            // 初始化键盘监听器
-            start_key_listener(app);
-            // 根据配置信息更新整个程序
-            update_app_setting();
+
+            tauri::async_runtime::block_on(async move {
+                // 初始化程序的图标
+                register_icon_path(app);
+                // 初始化程序的配置系统
+                init_app_state(app).await;
+                // 初始化程序的系统托盘服务
+                init_system_tray(app);
+                // 初始化搜索栏
+                init_search_bar_window(app);
+                // 初始化设置窗口
+                init_setting_window(app.app_handle().clone());
+                // 初始化键盘监听器
+                start_key_listener(app);
+                // 根据配置信息更新整个程序
+                update_app_setting().await;
+            });
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -168,10 +172,12 @@ pub fn run() {
 }
 
 /// 初始化的流程-> 初始化程序的状态
-fn init_app_state(app: &mut App) {
+async fn init_app_state(app: &mut App) {
     let storage_manager = StorageManager::new();
     println!("{:?}", storage_manager);
-    let remote_config_data = storage_manager.download_file_str(REMOTE_CONFIG_NAME.to_string());
+    let remote_config_data = storage_manager
+        .download_file_str(REMOTE_CONFIG_NAME.to_string())
+        .await;
     println!("读取到消息:{}", remote_config_data);
     let partial_config = load_local_config(&remote_config_data);
 
@@ -372,14 +378,17 @@ fn init_system_tray(app: &mut App) {
                 }
             }
             MenuEventId::ExitProgram => {
-                save_config_to_file(false);
-                let storage_manager = ServiceLocator::get_state().get_storage_manager().unwrap();
-                storage_manager.upload_all_file_force();
+                tauri::async_runtime::block_on(async move {
+                    save_config_to_file(false).await;
+                    let storage_manager =
+                        ServiceLocator::get_state().get_storage_manager().unwrap();
+                    storage_manager.upload_all_file_force().await;
+                });
                 app_handle.exit(0);
             }
-            MenuEventId::UpdateAppSetting => {
-                update_app_setting();
-            }
+            MenuEventId::UpdateAppSetting => tauri::async_runtime::block_on(async {
+                update_app_setting().await;
+            }),
             MenuEventId::RegisterShortcut => {
                 retry_register_shortcut(app_handle);
             }
@@ -399,19 +408,26 @@ fn init_system_tray(app: &mut App) {
 }
 
 /// 更新程序的状态
-fn update_app_setting() {
+async fn update_app_setting() {
     let state = ServiceLocator::get_state();
     // 如果当前可见，则忽略更新
     if state.get_search_bar_visible() {
         return;
     }
+
     let runtime_config = state.get_runtime_config().unwrap();
+
     // 1. 重新更新程序索引的路径
     let program_manager = state.get_program_manager().unwrap();
-    program_manager.load_from_config(runtime_config.get_program_manager_config());
+    program_manager
+        .load_from_config(runtime_config.get_program_manager_config())
+        .await;
 
     // 2. 判断要不要开机自启动
-    handle_auto_start().unwrap();
+    if let Err(e) = handle_auto_start() {
+        // 可以添加错误处理逻辑
+        eprintln!("自启动设置失败: {:?}", e);
+    }
 
     // 3.判断要不要静默启动
     handle_silent_start();
@@ -426,16 +442,24 @@ fn update_app_setting() {
     // 创建新定时器
     let new_interval = Duration::seconds((mins * 60) as i64);
     let timer = state.get_timer();
+
+    // 使用 spawn_local 来处理异步定时任务
     let guard_value = timer.schedule_repeating(new_interval, move || {
-        update_app_setting();
+        // 创建一个新的任务来执行异步函数
+        tauri::async_runtime::block_on(async {
+            update_app_setting().await;
+        });
     });
+
     state.set_timer_guard(guard_value);
 
     // 获取主窗口句柄
-    let handle = state.get_main_handle().unwrap();
-
-    // 发送事件
-    handle.emit("update_search_bar_window", "").unwrap();
+    if let Ok(handle) = state.get_main_handle() {
+        // 发送事件
+        if let Err(e) = handle.emit("update_search_bar_window", "") {
+            eprintln!("发送窗口更新事件失败: {:?}", e);
+        }
+    }
 }
 
 /// 保存程序的配置信息
@@ -444,11 +468,15 @@ fn update_app_setting() {
 /// 3. 保存到文件中
 /// 4. 重新读取文件并更新配置信息
 
-pub fn save_config_to_file(is_update_app: bool) {
+pub async fn save_config_to_file(is_update_app: bool) {
     let state = ServiceLocator::get_state();
 
     let runtime_config = state.get_runtime_config().unwrap();
-    let runtime_data = state.get_program_manager().unwrap().get_runtime_data();
+    let runtime_data = state
+        .get_program_manager()
+        .unwrap()
+        .get_runtime_data()
+        .await;
 
     runtime_config.update(PartialConfig {
         app_config: None,
@@ -461,10 +489,12 @@ pub fn save_config_to_file(is_update_app: bool) {
     let data_str = save_local_config(remote_config);
 
     let storage_manager = state.get_storage_manager().unwrap();
-    storage_manager.upload_file_str(REMOTE_CONFIG_NAME.to_string(), data_str);
+    storage_manager
+        .upload_file_str(REMOTE_CONFIG_NAME.to_string(), data_str)
+        .await;
 
     if is_update_app {
-        update_app_setting();
+        update_app_setting().await;
     }
 }
 

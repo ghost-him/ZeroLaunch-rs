@@ -23,31 +23,31 @@ pub struct ProgramInfo {
 pub struct SearchResult(u64, String);
 
 #[tauri::command]
-pub fn load_program_icon<R: Runtime>(
+pub async fn load_program_icon<R: Runtime>(
     _app: tauri::AppHandle<R>,
     _window: tauri::Window<R>,
     state: tauri::State<'_, Arc<AppState>>,
     program_guid: u64,
 ) -> Result<Vec<u8>, String> {
     let program_manager = state.get_program_manager().unwrap();
-    let result = program_manager.get_icon(&program_guid);
+    let result = program_manager.get_icon(&program_guid).await;
 
     Ok(result)
 }
 
 #[tauri::command]
-pub fn get_program_count<R: Runtime>(
+pub async fn get_program_count<R: Runtime>(
     _app: tauri::AppHandle<R>,
     _window: tauri::Window<R>,
     state: tauri::State<'_, Arc<AppState>>,
 ) -> Result<usize, String> {
     let program_manager = state.get_program_manager().unwrap();
-    let result = program_manager.get_program_count();
+    let result = program_manager.get_program_count().await;
     Ok(result)
 }
 
 #[tauri::command]
-pub fn launch_program<R: Runtime>(
+pub async fn launch_program<R: Runtime>(
     _app: tauri::AppHandle<R>,
     _window: tauri::Window<R>,
     state: tauri::State<'_, Arc<AppState>>,
@@ -63,7 +63,7 @@ pub fn launch_program<R: Runtime>(
     let mut result = false;
     // 当shift按下时，唤醒程序
     if open_exist_window {
-        result = program_manager.activate_target_program(program_guid);
+        result = program_manager.activate_target_program(program_guid).await;
     }
     // 唤醒失败时启动新的程序
     let launch_new_on_failure = state
@@ -73,27 +73,27 @@ pub fn launch_program<R: Runtime>(
         .get_launch_new_on_failure();
     if (!result && launch_new_on_failure)
         || !open_exist_window
-        || (!result && program_manager.is_uwp_program(program_guid))
+        || (!result && program_manager.is_uwp_program(program_guid).await)
     {
         // 启动新的程序
-        program_manager.launch_program(program_guid, is_admin_required);
-        // 开一个新的线程来完成保存文件
-        spawn_blocking(|| {
-            save_config_to_file(false);
-        });
+        program_manager
+            .launch_program(program_guid, is_admin_required)
+            .await;
+        // 保存文件
+        save_config_to_file(false).await;
     }
 
     Ok(())
 }
 
 #[tauri::command]
-pub fn get_program_info<R: Runtime>(
+pub async fn get_program_info<R: Runtime>(
     _app: tauri::AppHandle<R>,
     _window: tauri::Window<R>,
     state: tauri::State<'_, Arc<AppState>>,
-) -> Vec<ProgramInfo> {
+) -> Result<Vec<ProgramInfo>, String> {
     let manager = state.get_program_manager().unwrap();
-    let data = manager.get_program_infos();
+    let data = manager.get_program_infos().await;
     debug!("{:?}", data);
     let mut program_infos = Vec::new();
     for item in data {
@@ -105,42 +105,42 @@ pub fn get_program_info<R: Runtime>(
             history_launch_time: item.4,
         })
     }
-    program_infos
+    Ok(program_infos)
 }
 
 #[tauri::command]
-pub fn refresh_program<R: Runtime>(
+pub async fn refresh_program<R: Runtime>(
     _app: tauri::AppHandle<R>,
     _window: tauri::Window<R>,
 ) -> Result<(), String> {
-    update_app_setting();
+    update_app_setting().await;
     Ok(())
 }
 
 /// 处理前端发来的消息
 #[tauri::command]
-pub fn handle_search_text<R: Runtime>(
+pub async fn handle_search_text<R: Runtime>(
     _app: tauri::AppHandle<R>,
     _window: tauri::Window<R>,
     state: tauri::State<'_, Arc<AppState>>,
     search_text: String,
-) -> Vec<SearchResult> {
+) -> Result<Vec<SearchResult>, String> {
     let runtime_config = state.get_runtime_config().unwrap();
     let result_count = runtime_config.get_app_config().get_search_result_count();
     // 处理消息
     let program_manager = state.get_program_manager().unwrap();
-    let results = program_manager.update(&search_text, result_count);
+    let results = program_manager.update(&search_text, result_count).await;
 
     let mut ret = Vec::new();
     for item in results {
         ret.push(SearchResult(item.0, item.1));
     }
     debug!("{:?}", ret);
-    ret
+    Ok(ret)
 }
 
 #[tauri::command]
-pub fn load_config<R: Runtime>(
+pub async fn load_config<R: Runtime>(
     _app: tauri::AppHandle<R>,
     _window: tauri::Window<R>,
     state: tauri::State<'_, Arc<AppState>>,

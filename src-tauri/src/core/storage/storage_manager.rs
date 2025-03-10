@@ -9,8 +9,8 @@ use crate::LOCAL_CONFIG_PATH;
 use async_trait::async_trait;
 use dashmap::DashMap;
 use dashmap::Entry;
-use parking_lot::RwLock;
 use std::sync::Arc;
+use tokio::sync::RwLock;
 /// 存储管理器的配置文件为 appdata下的目录，这个决定了远程配置文件保存的位置
 #[async_trait]
 pub trait StorageClient: Send + Sync {
@@ -84,25 +84,28 @@ impl StorageManagerInner {
     /// 上传文件
     /// file_name: 工作目录下的相对地址
     /// contents: 内容
-    pub fn upload_file_str(&self, file_name: String, contents: String) -> bool {
+    pub async fn upload_file_str(&self, file_name: String, contents: String) -> bool {
         self.upload_file_bytes(file_name, contents.into_bytes())
+            .await
     }
 
     /// 下载文件
     /// file_name: 工作目录下的相对地址
-    pub fn download_file_str(&mut self, file_name: String) -> String {
-        let bytes = self.download_file_bytes(file_name);
+    pub async fn download_file_str(&mut self, file_name: String) -> String {
+        let bytes = self.download_file_bytes(file_name).await;
         String::from_utf8_lossy(&bytes).into_owned()
     }
     /// 上传文件
     /// file_name: 工作目录下的相对地址
     /// contents: 内容
-    pub fn upload_file_bytes(&self, file_name: String, contents: Vec<u8>) -> bool {
+    pub async fn upload_file_bytes(&self, file_name: String, contents: Vec<u8>) -> bool {
         println!("收到上传文件请求：{:?}", file_name);
         let save_count = *self.local_config.get_save_to_local_per_update();
         // 若配置为0，直接上传
         if save_count == 0 {
-            return self.upload_file_bytes_force(file_name, Some(contents));
+            return self
+                .upload_file_bytes_force(file_name, Some(contents))
+                .await;
         }
 
         match self.cached_content.entry(file_name.clone()) {
@@ -113,11 +116,11 @@ impl StorageManagerInner {
 
                 if *counter == 0 {
                     // 如果减成了0，则上传文件，同时删除当前的文件
-                    tauri::async_runtime::block_on(async {
-                        let client = self.client.as_ref().unwrap().read();
-                        client.upload(&file_name, &contents).await;
-                        println!("成功上传文件：{}", file_name);
-                    });
+
+                    let client = self.client.as_ref().unwrap().read().await;
+                    client.upload(&file_name, &contents).await;
+                    println!("成功上传文件：{}", file_name);
+
                     entry.remove();
                 }
             }
@@ -131,7 +134,7 @@ impl StorageManagerInner {
 
     /// 强制上传文件, 忽略之前的文件
     /// 如果contents有内容，则直接发送该内容，否则，直接发送缓存的内容
-    pub fn upload_file_bytes_force(
+    pub async fn upload_file_bytes_force(
         &self,
         file_name: String,
         mut contents: Option<Vec<u8>>,
@@ -149,29 +152,27 @@ impl StorageManagerInner {
             }
         }
         if contents.is_some() {
-            tauri::async_runtime::block_on(async {
-                let client = self.client.as_ref().unwrap().read();
-                client.upload(&file_name, &contents.unwrap()).await;
-                println!("成功强制上传文件：{}", file_name);
-            });
+            let client = self.client.as_ref().unwrap().read().await;
+            client.upload(&file_name, &contents.unwrap()).await;
+            println!("成功强制上传文件：{}", file_name);
+
             return true;
         }
         return false;
     }
 
     /// 将当前缓存中所有的文件都上传，只能在程序结束时调用
-    pub fn upload_all_file_force(&self) {
-        self.cached_content.iter().for_each(|item| {
-            tauri::async_runtime::block_on(async {
-                let client = self.client.as_ref().unwrap().read();
-                client.upload(item.key(), &item.value().1).await;
-            })
-        });
+    pub async fn upload_all_file_force(&self) {
+        let client = self.client.as_ref().unwrap().read().await;
+
+        for item in self.cached_content.iter() {
+            client.upload(item.key(), &item.value().1).await;
+        }
     }
 
     /// 下载文件
     /// file_name: 工作目录下的相对地址
-    pub fn download_file_bytes(&mut self, file_name: String) -> Vec<u8> {
+    pub async fn download_file_bytes(&mut self, file_name: String) -> Vec<u8> {
         println!("开始下载文件：{:?}", file_name);
         let cached_data = self
             .cached_content
@@ -180,23 +181,19 @@ impl StorageManagerInner {
 
         if let Some(content) = cached_data {
             // 这里默认用户只会同时开一个应用，所以本机的配置一定是最新的，云端的配置一定不是最新的
-            self.upload_file_bytes_force(file_name.clone(), Some(content.clone()));
+            self.upload_file_bytes_force(file_name.clone(), Some(content.clone()))
+                .await;
             return content;
         }
-        let result = tauri::async_runtime::block_on(async {
-            let client = self.client.as_ref().unwrap().read();
-            client.download(&file_name).await
-        });
-        result.unwrap_or_else(|_| Vec::new())
+
+        let client = self.client.as_ref().unwrap().read().await;
+        client.download(&file_name).await.unwrap_or(Vec::new())
     }
 
     /// 获得目标文件夹的地址
-    pub fn get_target_dir_path(&self) -> String {
-        let result = tauri::async_runtime::block_on(async {
-            let client = self.client.as_ref().unwrap().read();
-            client.get_target_dir_path().await
-        });
-        result
+    pub async fn get_target_dir_path(&self) -> String {
+        let client = self.client.as_ref().unwrap().read().await;
+        client.get_target_dir_path().await
     }
 }
 #[derive(Debug)]
@@ -213,52 +210,56 @@ impl StorageManager {
     }
 
     /// 更新存储管理器配置
-    pub fn update(&self, partial_local_config: PartialLocalConfig) {
+    pub async fn update(&self, partial_local_config: PartialLocalConfig) {
         println!("{:?}", partial_local_config);
-        let mut inner = self.inner.write();
+        let mut inner = self.inner.write().await;
         inner.update(partial_local_config);
     }
 
     /// 上传字符串内容到指定文件（带缓存策略）
-    pub fn upload_file_str(&self, file_name: String, contents: String) -> bool {
-        let inner = self.inner.read();
-        inner.upload_file_str(file_name, contents)
+    pub async fn upload_file_str(&self, file_name: String, contents: String) -> bool {
+        let inner = self.inner.read().await;
+        inner.upload_file_str(file_name, contents).await
     }
 
     /// 下载文件内容为字符串（优先使用缓存）
-    pub fn download_file_str(&self, file_name: String) -> String {
-        let mut inner = self.inner.write();
-        inner.download_file_str(file_name)
+    pub async fn download_file_str(&self, file_name: String) -> String {
+        let mut inner = self.inner.write().await;
+        inner.download_file_str(file_name).await
     }
 
     /// 上传二进制内容到指定文件（带缓存策略）
-    pub fn upload_file_bytes(&self, file_name: String, contents: Vec<u8>) -> bool {
-        let inner = self.inner.read();
-        inner.upload_file_bytes(file_name, contents)
+    pub async fn upload_file_bytes(&self, file_name: String, contents: Vec<u8>) -> bool {
+        let inner = self.inner.read().await;
+        inner.upload_file_bytes(file_name, contents).await
     }
 
     /// 下载文件内容为二进制（优先使用缓存）
-    pub fn download_file_bytes(&self, file_name: String) -> Vec<u8> {
-        let mut inner = self.inner.write();
-        inner.download_file_bytes(file_name)
+    pub async fn download_file_bytes(&self, file_name: String) -> Vec<u8> {
+        let mut inner = self.inner.write().await;
+        inner.download_file_bytes(file_name).await
     }
 
     /// 强制上传文件内容（绕过缓存策略）
-    pub fn upload_file_bytes_force(&self, file_name: String, contents: Option<Vec<u8>>) -> bool {
-        let inner = self.inner.read();
-        inner.upload_file_bytes_force(file_name, contents)
+    pub async fn upload_file_bytes_force(
+        &self,
+        file_name: String,
+        contents: Option<Vec<u8>>,
+    ) -> bool {
+        let inner = self.inner.read().await;
+        inner.upload_file_bytes_force(file_name, contents).await
     }
 
     /// 强制上传所有缓存中的内容
-    pub fn upload_all_file_force(&self) {
-        let inner = self.inner.read();
-        inner.upload_all_file_force();
+    pub async fn upload_all_file_force(&self) {
+        let inner = self.inner.read().await;
+        inner.upload_all_file_force().await;
     }
 
     /// 获得目标文件夹的路径
-    pub fn get_target_dir_path(&self) -> String {
-        let inner = self.inner.read();
-        inner.get_target_dir_path()
+    pub async fn get_target_dir_path(&self) -> String {
+        let inner = self.inner.read().await;
+        inner.get_target_dir_path().await
     }
 }
 

@@ -285,8 +285,6 @@ impl ProgramLoaderInner {
 
     /// 获取所有的程序
     fn load_program_from_path(&mut self) -> Vec<Arc<Program>> {
-        // todo完成程序的加载
-        // 遍历所有的目标路径
         let mut program_path: Vec<String> = Vec::new();
         for path_var in &self.target_paths {
             let path_str = &path_var.0;

@@ -11,7 +11,6 @@ use crate::program_manager::config::program_manager_config::ProgramManagerConfig
 use crate::program_manager::unit::*;
 use config::program_manager_config::PartialProgramManagerConfig;
 use dashmap::DashMap;
-use parking_lot::RwLock;
 use program_launcher::ProgramLauncher;
 use program_loader::ProgramLoader;
 use rayon::prelude::*;
@@ -19,6 +18,7 @@ use search_model::remove_repeated_space;
 use search_model::{standard_search_fn, SearchModelFn};
 use std::sync::Arc;
 use std::time::Instant;
+use tokio::sync::RwLock;
 use window_activator::WindowActivator;
 
 /// 数据处理中心
@@ -57,79 +57,79 @@ impl ProgramManager {
             inner: RwLock::new(ProgramManagerInner::new(default_icon_path)),
         }
     }
-    pub fn get_runtime_data(&self) -> PartialProgramManagerConfig {
-        let inner = self.inner.read();
+    pub async fn get_runtime_data(&self) -> PartialProgramManagerConfig {
+        let inner = self.inner.read().await;
         inner.get_runtime_data()
     }
 
     /// 使用配置信息初始化自身与子模块
-    pub fn load_from_config(&self, config: Arc<ProgramManagerConfig>) {
-        let mut inner = self.inner.write();
+    pub async fn load_from_config(&self, config: Arc<ProgramManagerConfig>) {
+        let mut inner = self.inner.write().await;
         inner.load_from_config(config);
     }
     /// 使用搜索算法搜索，并给出指定长度的序列
     /// user_input: 用户输入的字符串
     /// result_count: 返回的结果，这个值与 `config.show_item_count` 的值保持一致
     /// 返回值：Vec(应用唯一标识符，展示给用户的名字)
-    pub fn update(&self, user_input: &str, result_count: u32) -> Vec<(u64, String)> {
-        let inner = self.inner.read();
+    pub async fn update(&self, user_input: &str, result_count: u32) -> Vec<(u64, String)> {
+        let inner = self.inner.read().await;
         inner.update(user_input, result_count)
     }
 
     /// 测试算法
-    pub fn test_search_algorithm(&self, user_input: &str) -> Vec<SearchTestResult> {
-        let inner = self.inner.read();
+    pub async fn test_search_algorithm(&self, user_input: &str) -> Vec<SearchTestResult> {
+        let inner = self.inner.read().await;
         inner.test_search_algorithm(user_input)
     }
 
     /// 加载搜索模型
-    pub fn load_search_fn(&self, model: SearchModelFn) {
-        let mut inner = self.inner.write();
+    pub async fn load_search_fn(&self, model: SearchModelFn) {
+        let mut inner = self.inner.write().await;
         inner.load_search_fn(model);
     }
     /// 获取当前程序维护的东西
-    pub fn get_program_infos(&self) -> Vec<(String, bool, f64, String, u64)> {
-        let mut inner = self.inner.write();
+    pub async fn get_program_infos(&self) -> Vec<(String, bool, f64, String, u64)> {
+        let mut inner = self.inner.write().await;
         inner.get_program_infos()
     }
     /// 启动一个程序
-    pub fn launch_program(&self, program_guid: u64, is_admin_required: bool) {
-        let mut inner = self.inner.write();
+    pub async fn launch_program(&self, program_guid: u64, is_admin_required: bool) {
+        let mut inner = self.inner.write().await;
         inner.launch_program(program_guid, is_admin_required);
     }
     /// 获取程序的图标，返回使用base64编码的png图片
-    pub fn get_icon(&self, program_guid: &u64) -> Vec<u8> {
-        let inner = self.inner.read();
-        inner.get_icon(program_guid)
+    pub async fn get_icon(&self, program_guid: &u64) -> Vec<u8> {
+        let inner = self.inner.read().await;
+        inner.get_icon(program_guid).await
     }
     /// 获得当前已保存的程序的个数
-    pub fn get_program_count(&self) -> usize {
-        let inner = self.inner.read();
+    pub async fn get_program_count(&self) -> usize {
+        let inner = self.inner.read().await;
         inner.get_program_count()
     }
     /// 测试搜索算法的时间开销
-    pub fn test_search_algorithm_time(&self) -> (f64, f64, f64) {
-        let inner = self.inner.read();
-        inner.test_search_algorithm_time()
+    pub async fn test_search_algorithm_time(&self) -> (f64, f64, f64) {
+        let inner = self.inner.read().await;
+        inner.test_search_algorithm_time().await
     }
     /// 获得加载程序的时间开销
-    pub fn get_program_loader_loading_time(&self) -> f64 {
-        let inner = self.inner.read();
+    pub async fn get_program_loader_loading_time(&self) -> f64 {
+        let inner = self.inner.read().await;
         inner.get_program_loader_loading_time()
     }
     /// 获得搜索关键字
-    pub fn get_search_keywords(&self, show_name: &str) -> Vec<String> {
-        let inner = self.inner.read();
+    pub async fn get_search_keywords(&self, show_name: &str) -> Vec<String> {
+        let inner = self.inner.read().await;
         inner.get_search_keywords(show_name)
     }
     /// 唤醒窗口
-    pub fn activate_target_program(&self, program_guid: u64) -> bool {
-        let inner = self.inner.read();
+    pub async fn activate_target_program(&self, program_guid: u64) -> bool {
+        let inner = self.inner.read().await;
         inner.activate_target_program(program_guid)
     }
     /// 目标应用程序是不是uwp应用
-    pub fn is_uwp_program(&self, program_guid: u64) -> bool {
-        let inner = self.inner.read();
+    pub async fn is_uwp_program(&self, program_guid: u64) -> bool {
+        let inner = self.inner.read().await;
         inner.is_uwp_program(program_guid)
     }
 }
@@ -274,10 +274,12 @@ impl ProgramManagerInner {
             .launch_program(program_guid, is_admin_required);
     }
     /// 获取程序的图标，返回使用base64编码的png图片
-    pub fn get_icon(&self, program_guid: &u64) -> Vec<u8> {
+    pub async fn get_icon(&self, program_guid: &u64) -> Vec<u8> {
         let index = self.program_locater.get(program_guid).unwrap();
         let target_program = &self.program_registry[*(index.value())];
-        self.image_loader.load_image(&target_program.icon_path)
+        self.image_loader
+            .load_image(&target_program.icon_path)
+            .await
     }
     /// 获得当前已保存的程序的个数
     pub fn get_program_count(&self) -> usize {
@@ -285,7 +287,7 @@ impl ProgramManagerInner {
     }
 
     /// 获得测试当前搜索算法的运行速度(最大值，最小值，平均值)
-    pub fn test_search_algorithm_time(&self) -> (f64, f64, f64) {
+    pub async fn test_search_algorithm_time(&self) -> (f64, f64, f64) {
         let mut max_time: f64 = 0.0;
         let mut min_time: f64 = 5000.0;
         let mut average_time: f64 = 0.0;

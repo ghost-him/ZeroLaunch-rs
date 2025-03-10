@@ -1,16 +1,16 @@
 use crate::utils::windows::get_u16_vec;
 use core::mem::MaybeUninit;
 use image::codecs::png::PngEncoder;
+use image::DynamicImage;
 use image::ImageFormat;
 use image::ImageReader;
 use image::RgbaImage;
-use rayon::prelude::*;
-use std::sync::{Arc, Mutex};
-
-use image::DynamicImage;
 use kmeans_colors::get_kmeans;
 use palette::{IntoColor, Lab, Srgb};
 use rand::Rng;
+use rayon::prelude::*;
+use std::sync::{Arc, Mutex};
+use tokio::fs::read;
 
 use std::ffi::c_void;
 use std::io::Cursor;
@@ -34,21 +34,17 @@ use windows_core::PCWSTR;
 pub struct ImageProcessor;
 
 impl ImageProcessor {
-    pub fn load_image_from_path(icon_path: &str) -> Vec<u8> {
+    pub async fn load_image_from_path(icon_path: String) -> Vec<u8> {
         // 读取程序图标
         let mut img: Option<Vec<u8>> = None;
-        if Self::is_program(icon_path) {
+        if Self::is_program(&icon_path) {
             //使用windows 系统调用读
-            let hicon = Self::extract_icon_from_file(icon_path);
-            if hicon.is_some() {
-                // 将其变成png图片
-                let raba = unsafe { Self::convert_icon_to_image(hicon.unwrap()) };
-                unsafe { DestroyIcon(hicon.unwrap()).unwrap() };
+            if let Some(raba) = Self::extract_icon_from_file(icon_path).await {
                 img = Self::rgba_image_to_png(&raba);
             }
         } else {
             // 直接使用库来读
-            img = if let Ok(result) = Self::load_and_convert_to_png(icon_path) {
+            img = if let Ok(result) = Self::load_and_convert_to_png(icon_path).await {
                 Some(result)
             } else {
                 None
@@ -63,28 +59,34 @@ impl ImageProcessor {
     }
 
     // 读取本地图片，并将其转化为png图片
-    fn load_and_convert_to_png<P: AsRef<Path>>(
+    async fn load_and_convert_to_png<P: AsRef<Path>>(
         file_path: P,
-    ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-        // 打开图像文件
-        let img_reader = ImageReader::open(file_path.as_ref())?;
+    ) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
+        // 异步读取文件内容
+        let file_content = tokio::fs::read(file_path.as_ref()).await?;
 
-        // 读取图像格式
-        let format = img_reader.format().ok_or("无法检测格式")?;
-        let mut img = img_reader.decode()?;
+        // 在阻塞线程中处理图像
+        tauri::async_runtime::spawn_blocking(move || {
+            // 创建带有格式猜测的图像读取器
+            let img_reader = ImageReader::new(Cursor::new(file_content)).with_guessed_format()?;
 
-        let mut png_data = Vec::new();
+            // 读取图像格式
+            let format = img_reader.format().ok_or("无法检测格式")?;
+            let mut img = img_reader.decode()?;
 
-        // 如果不是 PNG 格式，则转换
-        if format != ImageFormat::Png {
-            img = DynamicImage::ImageRgba8(img.to_rgba8());
-        }
+            // 如果不是 PNG 格式，则转换
+            if format != ImageFormat::Png {
+                img = DynamicImage::ImageRgba8(img.to_rgba8());
+            }
 
-        // 使用 PNG 编码器将图像写入 Vec<u8>
-        let encoder = PngEncoder::new(&mut png_data);
-        img.write_with_encoder(encoder).unwrap();
+            // 使用 PNG 编码器将图像写入 Vec<u8>
+            let mut png_data = Vec::new();
+            let encoder = PngEncoder::new(&mut png_data);
+            img.write_with_encoder(encoder)?;
 
-        Ok(png_data)
+            Ok(png_data)
+        })
+        .await?
     }
 
     /// 判断是不是一个程序的图标
@@ -102,30 +104,40 @@ impl ImageProcessor {
     }
 
     /// 从文件提取hicon
-    fn extract_icon_from_file(file_path: &str) -> Option<HICON> {
-        let wide_file_path = get_u16_vec(file_path);
-        let mut sh_file_info: SHFILEINFOW = unsafe { std::mem::zeroed() };
-        let result = unsafe {
-            SHGetFileInfoW(
-                PCWSTR::from_raw(wide_file_path.as_ptr()),
-                FILE_ATTRIBUTE_NORMAL,
-                Some(&mut sh_file_info),
-                std::mem::size_of::<SHFILEINFOW>() as u32,
-                SHGFI_ICON | SHGFI_LARGEICON | SHGFI_USEFILEATTRIBUTES,
-            )
-        };
-        if result != 0 {
-            if !sh_file_info.hIcon.is_invalid() {
-                // 检查 hIcon 是否有效
-                debug!("Successfully extracted icon from: {}", file_path);
-                return Some(sh_file_info.hIcon);
-            } else {
-                warn!("Failed to extract valid icon from: {}", file_path);
+    async fn extract_icon_from_file(file_path: String) -> Option<RgbaImage> {
+        tauri::async_runtime::spawn_blocking(move || {
+            let wide_file_path = get_u16_vec(file_path.clone());
+            let mut sh_file_info: SHFILEINFOW = unsafe { std::mem::zeroed() };
+            let result = unsafe {
+                SHGetFileInfoW(
+                    PCWSTR::from_raw(wide_file_path.as_ptr()),
+                    FILE_ATTRIBUTE_NORMAL,
+                    Some(&mut sh_file_info),
+                    std::mem::size_of::<SHFILEINFOW>() as u32,
+                    SHGFI_ICON | SHGFI_LARGEICON | SHGFI_USEFILEATTRIBUTES,
+                )
+            };
+            // 提前返回 None 如果无法获取图标
+            if result == 0 || sh_file_info.hIcon.is_invalid() {
+                if result == 0 {
+                    warn!("SHGetFileInfoW failed for: {}", file_path.clone());
+                } else {
+                    warn!("Failed to extract valid icon from: {}", file_path.clone());
+                }
+                return None;
             }
-        } else {
-            warn!("SHGetFileInfoW failed for: {}", file_path);
-        }
-        None
+            let hicon = sh_file_info.hIcon;
+
+            let result = unsafe {
+                // 将 HICON 传递给转换函数，并确保在转换完成后才销毁
+                let image = Self::convert_icon_to_image(hicon);
+                DestroyIcon(hicon).unwrap(); // 显式销毁
+                image
+            };
+            Some(result)
+        })
+        .await
+        .unwrap()
     }
     /// 将icon图像变成raga图像
     unsafe fn convert_icon_to_image(icon: HICON) -> RgbaImage {
@@ -214,88 +226,92 @@ impl ImageProcessor {
         }
     }
 
-    pub fn get_dominant_color(
+    pub async fn get_dominant_color(
         image_data: Vec<u8>,
-    ) -> Result<(u8, u8, u8), Box<dyn std::error::Error>> {
-        // 加载并解码PNG图片
-        let img = image::load_from_memory(&image_data)?;
-        let rgba_img = img.to_rgba8();
+    ) -> Result<(u8, u8, u8), Box<dyn std::error::Error + Send + Sync>> {
+        // 使用 spawn_blocking 将 CPU 密集型任务移到单独的线程
+        tauri::async_runtime::spawn_blocking(move || {
+            // 加载并解码PNG图片
+            let img = image::load_from_memory(&image_data)?;
+            let rgba_img = img.to_rgba8();
 
-        // 提取非透明像素的RGB值 - 使用并行迭代器收集
-        let pixels: Vec<[u8; 3]> = rgba_img
-            .pixels()
-            .par_bridge() // 并行迭代
-            .filter_map(|pixel| {
-                if pixel[3] != 0 {
-                    // 过滤透明像素
-                    Some([pixel[0], pixel[1], pixel[2]])
-                } else {
-                    None
-                }
-            })
-            .collect();
+            // 提取非透明像素的RGB值 - 使用并行迭代器收集
+            let pixels: Vec<[u8; 3]> = rgba_img
+                .pixels()
+                .par_bridge() // 并行迭代
+                .filter_map(|pixel| {
+                    if pixel[3] != 0 {
+                        // 过滤透明像素
+                        Some([pixel[0], pixel[1], pixel[2]])
+                    } else {
+                        None
+                    }
+                })
+                .collect();
 
-        if pixels.is_empty() {
-            return Err("No visible pixels in image".into());
-        }
+            if pixels.is_empty() {
+                return Err("No visible pixels in image".into());
+            }
 
-        // 转换为Lab颜色空间 - 并行处理
-        let lab_samples: Vec<Lab> = pixels
-            .par_iter() // 并行迭代
-            .map(|&rgb| Srgb::from(rgb).into_format::<f32>().into_color())
-            .collect();
+            // 转换为Lab颜色空间 - 并行处理
+            let lab_samples: Vec<Lab> = pixels
+                .par_iter() // 并行迭代
+                .map(|&rgb| Srgb::from(rgb).into_format::<f32>().into_color())
+                .collect();
 
-        // 参数配置
-        let cluster_count = 5; // 颜色簇数量
-        let max_iterations = 20; // 最大迭代次数
-        let tolerance = 1.0; // 收敛阈值
-        let runs = 3; // 多次运行取最佳结果
-        let verbose = false; // 不输出迭代信息
+            // 参数配置
+            let cluster_count = 5; // 颜色簇数量
+            let max_iterations = 20; // 最大迭代次数
+            let tolerance = 1.0; // 收敛阈值
+            let runs = 3; // 多次运行取最佳结果
+            let verbose = false; // 不输出迭代信息
 
-        // 多次运行取最佳结果 - 并行运行
-        let lab_samples_arc = Arc::new(lab_samples);
-        let best_result = (0..runs)
-            .into_par_iter() // 并行迭代
-            .map(|_| {
-                let seed = rand::rng().random::<u64>(); // 使用线程安全的随机数生成器
-                let samples = Arc::clone(&lab_samples_arc);
-                get_kmeans(
-                    cluster_count,
-                    max_iterations,
-                    tolerance,
-                    verbose,
-                    &samples,
-                    seed,
-                )
-            })
-            .min_by(|a, b| a.score.partial_cmp(&b.score).unwrap())
-            .unwrap();
+            // 多次运行取最佳结果 - 并行运行
+            let lab_samples_arc = Arc::new(lab_samples);
+            let best_result = (0..runs)
+                .into_par_iter() // 并行迭代
+                .map(|_| {
+                    let seed = rand::rng().random::<u64>(); // 使用线程安全的随机数生成器
+                    let samples = Arc::clone(&lab_samples_arc);
+                    get_kmeans(
+                        cluster_count,
+                        max_iterations,
+                        tolerance,
+                        verbose,
+                        &samples,
+                        seed,
+                    )
+                })
+                .min_by(|a, b| a.score.partial_cmp(&b.score).unwrap())
+                .unwrap();
 
-        // 统计簇分布 - 并行计数
-        let cluster_counts = {
-            let counts = vec![0; cluster_count];
-            let counts_mutex = Arc::new(Mutex::new(counts));
+            // 统计簇分布 - 并行计数
+            let cluster_counts = {
+                let counts = vec![0; cluster_count];
+                let counts_mutex = Arc::new(Mutex::new(counts));
 
-            best_result.indices.par_iter().for_each(|&i| {
-                let mut counts = counts_mutex.lock().unwrap();
-                counts[i as usize] += 1;
-            });
+                best_result.indices.par_iter().for_each(|&i| {
+                    let mut counts = counts_mutex.lock().unwrap();
+                    counts[i as usize] += 1;
+                });
 
-            Arc::try_unwrap(counts_mutex).unwrap().into_inner().unwrap()
-        };
+                Arc::try_unwrap(counts_mutex).unwrap().into_inner().unwrap()
+            };
 
-        // 获取最大簇的质心
-        let (dominant_idx, _) = cluster_counts
-            .iter()
-            .enumerate()
-            .max_by_key(|&(_, count)| count)
-            .unwrap();
+            // 获取最大簇的质心
+            let (dominant_idx, _) = cluster_counts
+                .iter()
+                .enumerate()
+                .max_by_key(|&(_, count)| count)
+                .unwrap();
 
-        // 转换回RGB
-        let dominant_lab = best_result.centroids[dominant_idx];
-        let srgb: Srgb = dominant_lab.into_color();
-        let rgb = srgb.into_format::<u8>();
+            // 转换回RGB
+            let dominant_lab = best_result.centroids[dominant_idx];
+            let srgb: Srgb = dominant_lab.into_color();
+            let rgb = srgb.into_format::<u8>();
 
-        Ok(rgb.into_components())
+            Ok(rgb.into_components())
+        })
+        .await?
     }
 }

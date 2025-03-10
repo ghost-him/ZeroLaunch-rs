@@ -5,6 +5,8 @@ use crate::core::storage::config::StorageDestination;
 use crate::core::storage::local_save::PartialLocalSaveConfig;
 use crate::core::storage::utils::is_writable_directory;
 use crate::core::storage::utils::read_or_create_bytes;
+use crate::PartialConfig;
+
 use crate::state::app_state::AppState;
 use crate::update_app_setting;
 use crate::utils::service_locator::ServiceLocator;
@@ -37,7 +39,7 @@ pub struct SearchBarUpdate {
 }
 
 #[tauri::command]
-pub fn initialize_search_window() -> SearchBarInit {
+pub async fn initialize_search_window() -> SearchBarInit {
     let state = ServiceLocator::get_state();
     let runtime_config = state.get_runtime_config().unwrap();
     let result_item_count = runtime_config.get_app_config().get_search_result_count();
@@ -47,15 +49,15 @@ pub fn initialize_search_window() -> SearchBarInit {
 }
 
 #[tauri::command]
-pub fn update_search_bar_window<R: Runtime>(
+pub async fn update_search_bar_window<R: Runtime>(
     _app: tauri::AppHandle<R>,
     _window: tauri::Window<R>,
     state: tauri::State<'_, Arc<AppState>>,
-) -> SearchBarUpdate {
+) -> Result<SearchBarUpdate, String> {
     let runtime_config = state.get_runtime_config().unwrap();
     let app_config = runtime_config.get_app_config();
     let ui_config = runtime_config.get_ui_config();
-    SearchBarUpdate {
+    Ok(SearchBarUpdate {
         search_bar_placeholder: app_config.get_search_bar_placeholder(),
         selected_item_color: ui_config.get_selected_item_color(),
         item_font_color: ui_config.get_item_font_color(),
@@ -64,22 +66,24 @@ pub fn update_search_bar_window<R: Runtime>(
         search_bar_background_color: ui_config.get_search_bar_background_color(),
         item_font_size: ui_config.get_item_font_size(),
         search_bar_font_size: ui_config.get_search_bar_font_size(),
-    }
+    })
 }
 
 #[tauri::command]
-pub fn get_background_picture<R: Runtime>(
+pub async fn get_background_picture<R: Runtime>(
     _app: tauri::AppHandle<R>,
     _window: tauri::Window<R>,
     state: tauri::State<'_, Arc<AppState>>,
 ) -> Result<Vec<u8>, String> {
     let storage_manager = state.get_storage_manager().unwrap();
-    let result = storage_manager.download_file_bytes("background.png".to_string());
+    let result = storage_manager
+        .download_file_bytes("background.png".to_string())
+        .await;
     Ok(result)
 }
 
 #[tauri::command]
-pub fn change_remote_config_dir<R: Runtime>(
+pub async fn change_remote_config_dir<R: Runtime>(
     app: tauri::AppHandle<R>,
     _window: tauri::Window<R>,
     state: tauri::State<'_, Arc<AppState>>,
@@ -100,54 +104,58 @@ pub fn change_remote_config_dir<R: Runtime>(
     };
 
     let storage_manager = state.get_storage_manager().unwrap();
-    storage_manager.update(result);
+    storage_manager.update(result).await;
 
     let runtime_config = state.get_runtime_config().unwrap();
 
-    let remote_config_path = storage_manager.download_file_str(REMOTE_CONFIG_NAME.to_string());
-    let partial_config = serde_json::from_str(&remote_config_path).unwrap();
+    let remote_config_path = storage_manager
+        .download_file_str(REMOTE_CONFIG_NAME.to_string())
+        .await;
+    let partial_config = serde_json::from_str::<PartialConfig>(&remote_config_path).unwrap();
 
     runtime_config.update(partial_config);
-    update_app_setting();
+    update_app_setting().await;
     let main_window = app.get_webview_window("main").unwrap();
     main_window.emit("update_search_bar_window", "").unwrap();
     Ok(())
 }
 
 #[tauri::command]
-pub fn get_remote_config_dir<R: Runtime>(
+pub async fn get_remote_config_dir<R: Runtime>(
     _app: tauri::AppHandle<R>,
     _window: tauri::Window<R>,
     state: tauri::State<'_, Arc<AppState>>,
 ) -> Result<String, String> {
     let storage_manager = state.get_storage_manager().unwrap();
-    let path = storage_manager.get_target_dir_path();
+    let path = storage_manager.get_target_dir_path().await;
     Ok(path)
 }
 
 #[tauri::command]
-pub fn select_background_picture<R: Runtime>(
+pub async fn select_background_picture<R: Runtime>(
     app: tauri::AppHandle<R>,
     _window: tauri::Window<R>,
     state: tauri::State<'_, Arc<AppState>>,
     path: String,
 ) -> Result<(), String> {
-    let content: Vec<u8> = ImageProcessor::load_image_from_path(&path);
+    let content: Vec<u8> = ImageProcessor::load_image_from_path(path).await;
     let storage_manager = state.get_storage_manager().unwrap();
-    storage_manager.upload_file_bytes("background.png".to_string(), content);
+    storage_manager
+        .upload_file_bytes("background.png".to_string(), content)
+        .await;
     app.emit("update_search_bar_window", "").unwrap();
     Ok(())
 }
 
 #[tauri::command]
-pub fn get_dominant_color<R: Runtime>(
+pub async fn get_dominant_color<R: Runtime>(
     _app: tauri::AppHandle<R>,
     _window: tauri::Window<R>,
     path: String,
-) -> String {
-    let content = ImageProcessor::load_image_from_path(&path);
-    let ret = ImageProcessor::get_dominant_color(content).unwrap();
-    format!("rgba({}, {}, {}, 0.8)", ret.0, ret.1, ret.2)
+) -> Result<String, String> {
+    let content = ImageProcessor::load_image_from_path(path).await;
+    let ret = ImageProcessor::get_dominant_color(content).await.unwrap();
+    Ok(format!("rgba({}, {}, {}, 0.8)", ret.0, ret.1, ret.2))
 }
 
 /// 隐藏窗口

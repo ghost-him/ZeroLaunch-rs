@@ -8,8 +8,8 @@ use std::path::Path;
 
 /// 获得当前程序的最新版本
 #[tauri::command]
-pub fn command_get_latest_release_version() -> String {
-    let result = VersionChecker::get_latest_release_version();
+pub async fn command_get_latest_release_version() -> String {
+    let result = VersionChecker::get_latest_release_version().await;
     match result {
         Ok(data) => data,
         Err(e) => e.to_string(),

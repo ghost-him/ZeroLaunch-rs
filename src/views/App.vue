@@ -121,6 +121,7 @@ const sendSearchText = async (text: string) => {
   console.log(hover_item_color)
   try {
     const results: Array<[number, string]> = await invoke('handle_search_text', { searchText: text });
+    console.log(results)
     searchResults.value = results;
     menuItems.value = results.map(([_, item]) => item);
     let keys = results.map(([key, _]) => key);
@@ -197,26 +198,23 @@ const updateWindow = async () => {
 }
 
 const startPreloadResource = async (program_count: number) => {
-  const BATCH_SIZE = 10; // 每批加载的图标数量
-  program_icons.value.clear(); // 每次加载时，都要清空原来的内容
-  // 分批次处理程序ID
-  for (let i = 0; i < program_count; i += BATCH_SIZE) {
-    const batchStart = i;
-    const batchEnd = Math.min(i + BATCH_SIZE, program_count);
-    const batch = Array.from({ length: batchEnd - batchStart }, (_, index) => batchStart + index);
+  // 清空原来的内容
+  program_icons.value.clear();
 
-    // 并发加载当前批次的所有图标
-    await Promise.all(batch.map(async (programId) => {
-      try {
-        const iconData: number[] = await invoke('load_program_icon', { programGuid: programId });
-        const blob = new Blob([new Uint8Array(iconData)], { type: 'image/png' });
-        const url = URL.createObjectURL(blob);
-        program_icons.value.set(programId, url); // 确保 program_icons 已定义
-      } catch (error) {
-        console.error(`Failed to preload icon for program ${programId}:`, error);
-      }
-    }));
-  }
+  // 创建所有程序ID的数组
+  const allProgramIds = Array.from({ length: program_count }, (_, index) => index);
+
+  // 一次性并发加载所有图标
+  await Promise.all(allProgramIds.map(async (programId) => {
+    try {
+      const iconData: number[] = await invoke('load_program_icon', { programGuid: programId });
+      const blob = new Blob([new Uint8Array(iconData)], { type: 'image/png' });
+      const url = URL.createObjectURL(blob);
+      program_icons.value.set(programId, url);
+    } catch (error) {
+      console.error(`Failed to preload icon for program ${programId}:`, error);
+    }
+  }));
 }
 
 const getIcons = async (keys: Array<number>) => {

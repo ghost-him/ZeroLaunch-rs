@@ -9,7 +9,7 @@ use tracing::debug;
 
 /// 更新程序管理器的路径配置
 #[tauri::command]
-pub fn save_config<R: Runtime>(
+pub async fn save_config<R: Runtime>(
     app: tauri::AppHandle<R>,
     state: tauri::State<'_, Arc<AppState>>,
     partial_config: PartialConfig,
@@ -17,7 +17,7 @@ pub fn save_config<R: Runtime>(
     let runtime_config = state.get_runtime_config().unwrap();
     debug!("{:?}", partial_config);
     runtime_config.update(partial_config);
-    save_config_to_file(true);
+    save_config_to_file(true).await;
     app.emit("update_search_bar_window", "").unwrap();
     Ok(())
 }

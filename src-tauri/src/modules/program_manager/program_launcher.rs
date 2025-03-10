@@ -8,10 +8,10 @@ use crate::utils::hashmap_to_dashmap;
 use crate::utils::is_date_current;
 use crate::utils::windows::get_u16_vec;
 use dashmap::DashMap;
+use parking_lot::RwLock;
 use std::collections::{HashMap, VecDeque};
 use std::os::windows::process::CommandExt;
 use std::path::Path;
-use std::sync::RwLock;
 use tracing::{debug, warn};
 use windows::Win32::Foundation::{GetLastError, ERROR_CANCELLED, ERROR_ELEVATION_REQUIRED};
 use windows::Win32::System::Com::{
@@ -293,42 +293,36 @@ impl ProgramLauncher {
     }
 
     pub fn clear_program_launch_info(&self) {
-        self.inner.write().unwrap().clear_program_launch_info();
+        self.inner.write().clear_program_launch_info();
     }
 
     pub fn load_from_config(&self, config: &ProgramLauncherConfig) {
-        self.inner.write().unwrap().load_from_config(config);
+        self.inner.write().load_from_config(config);
     }
 
     pub fn get_runtime_data(&self) -> PartialProgramLauncherConfig {
-        self.inner.write().unwrap().get_runtime_data()
+        self.inner.write().get_runtime_data()
     }
 
     pub fn register_program(&self, program_guid: u64, launch_method: LaunchMethod) {
         self.inner
             .write()
-            .unwrap()
             .register_program(program_guid, launch_method);
     }
 
     pub fn launch_program(&self, program_guid: u64, is_admin_required: bool) {
         self.inner
             .write()
-            .unwrap()
             .launch_program(program_guid, is_admin_required);
     }
 
     pub fn program_dynamic_value_based_launch_time(&self, program_guid: u64) -> f64 {
         self.inner
             .read()
-            .unwrap()
             .program_dynamic_value_based_launch_time(program_guid)
     }
 
     pub fn program_history_launch_time(&self, program_guid: u64) -> u64 {
-        self.inner
-            .write()
-            .unwrap()
-            .program_history_launch_time(program_guid)
+        self.inner.write().program_history_launch_time(program_guid)
     }
 }

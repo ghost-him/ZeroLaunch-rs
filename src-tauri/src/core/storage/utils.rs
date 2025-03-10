@@ -47,39 +47,6 @@ pub fn read_or_create_bytes(path: &str, content: Option<Vec<u8>>) -> Result<Vec<
     }
 }
 
-/// 判断目标路径是不是一个可写路径
-pub fn is_writable_directory(path: &str) -> bool {
-    let path = Path::new(path);
-
-    // 检查路径是否存在且是一个目录
-    if !path.is_dir() {
-        return false;
-    }
-
-    // 尝试在目录中创建一个临时文件
-    let temp_file_path = path.join("temp_test_file.txt");
-    match fs::write(&temp_file_path, "test content") {
-        Ok(_) => {
-            // 如果成功创建文件，尝试修改它
-            match fs::write(&temp_file_path, "modified content") {
-                Ok(_) => {
-                    // 清理：删除临时文件
-                    if let Err(e) = fs::remove_file(&temp_file_path) {
-                        eprintln!("警告：无法删除临时文件: {}", e);
-                    }
-                    true
-                }
-                Err(_) => {
-                    // 清理：尝试删除临时文件
-                    let _ = fs::remove_file(&temp_file_path);
-                    false
-                }
-            }
-        }
-        Err(_) => false,
-    }
-}
-
 /// 将lnk解析为绝对路径
 pub fn get_lnk_target_path(lnk_path: &str) -> Option<String> {
     // 尝试打开.lnk文件

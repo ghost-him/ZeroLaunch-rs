@@ -72,6 +72,7 @@ reqwest = { version = "0.12.12", features = ["json"] }
 lnk = "0.5.1"
 async-trait = "0.1.87"
 tokio = { version = "1.44.0", features = ["full"] }
+reqwest_dav = "0.1.14"
 
 [features]
 default = ["custom-protocol"]

@@ -164,7 +164,8 @@ pub fn run() {
             get_search_keys,
             command_get_default_remote_data_dir_path,
             command_load_local_config,
-            command_save_local_config
+            command_save_local_config,
+            command_check_validation
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

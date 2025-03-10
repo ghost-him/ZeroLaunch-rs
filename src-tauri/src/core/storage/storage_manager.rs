@@ -3,6 +3,7 @@ use std::fmt::Debug;
 use super::config::PartialLocalConfig;
 use super::config::StorageDestination;
 use super::utils::read_or_create_str;
+use super::webdav::WebDAVStorage;
 use crate::core::storage::config::LocalConfig;
 use crate::core::storage::local_save::LocalStorage;
 use crate::LOCAL_CONFIG_PATH;
@@ -11,15 +12,20 @@ use dashmap::DashMap;
 use dashmap::Entry;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+
+pub const TEST_CONFIG_FILE_NAME: &str = "zerolaunch-test-link.txt";
+pub const TEST_CONFIG_FILE_DATA: &str = "当前文件仅用于测试连通性，可以手动删除";
 /// 存储管理器的配置文件为 appdata下的目录，这个决定了远程配置文件保存的位置
 #[async_trait]
 pub trait StorageClient: Send + Sync {
     // 要可以上传文件
-    async fn upload(&self, file_path: &str, data: &[u8]) -> Result<(), String>;
+    async fn upload(&self, file_name: String, data: Vec<u8>) -> Result<(), String>;
     // 要可以下载文件
-    async fn download(&self, file_path: &str) -> Result<Vec<u8>, String>;
+    async fn download(&self, file_name: String) -> Result<Vec<u8>, String>;
     // 要可以获得当前文件的目标路径
     async fn get_target_dir_path(&self) -> String;
+    // 判断是否有效(true: 有效，false: 无效)
+    async fn validate_config(&self) -> bool;
 }
 
 pub struct StorageManagerInner {
@@ -72,12 +78,18 @@ impl StorageManagerInner {
                 self.client = Some(Arc::new(RwLock::new(LocalStorage::new(
                     self.local_config.get_local_save_config(),
                 ))));
-                println!("已成功赋值");
+                println!("已成功赋值local");
             }
-            StorageDestination::WebDAV => {}
+            StorageDestination::WebDAV => {
+                self.client = Some(Arc::new(RwLock::new(WebDAVStorage::new(
+                    self.local_config.get_webdav_save_config(),
+                ))));
+                println!("已成功赋值webdav");
+            }
             _ => {}
         }
     }
+
     // 将自己的信息保存到本地
     fn save_to_local_disk(&self) {
         let partial_local_config = self.local_config.to_partial();
@@ -128,9 +140,7 @@ impl StorageManagerInner {
 
                 if *counter == 0 {
                     // 如果减成了0，则上传文件，同时删除当前的文件
-
-                    let client = self.client.as_ref().unwrap().read().await;
-                    client.upload(&file_name, &contents).await;
+                    self.upload(file_name.clone(), contents).await;
                     println!("成功上传文件：{}", file_name);
 
                     entry.remove();
@@ -164,10 +174,8 @@ impl StorageManagerInner {
             }
         }
         if contents.is_some() {
-            let client = self.client.as_ref().unwrap().read().await;
-            client.upload(&file_name, &contents.unwrap()).await;
             println!("成功强制上传文件：{}", file_name);
-
+            self.upload(file_name, contents.unwrap());
             return true;
         }
         return false;
@@ -187,7 +195,7 @@ impl StorageManagerInner {
 
             // 上传所有文件
             for (key, value) in items_to_upload {
-                client.upload(&key, &value).await;
+                client.upload(key, value).await;
             }
 
             // 上传完成后清空缓存
@@ -209,8 +217,7 @@ impl StorageManagerInner {
             }
         }
 
-        let client = self.client.as_ref().unwrap().read().await;
-        client.download(&file_name).await.unwrap_or(Vec::new())
+        self.download(file_name).await
     }
 
     /// 下载文件
@@ -225,15 +232,25 @@ impl StorageManagerInner {
         if let Some(content) = cached_data {
             return content;
         }
-
-        let client = self.client.as_ref().unwrap().read().await;
-        client.download(&file_name).await.unwrap_or(Vec::new())
+        self.download(file_name).await
     }
 
     /// 获得目标文件夹的地址
     pub async fn get_target_dir_path(&self) -> String {
         let client = self.client.as_ref().unwrap().read().await;
         client.get_target_dir_path().await
+    }
+
+    /// 下载文件(写在这里，方便以后做错误处理)
+    async fn download(&self, file_name: String) -> Vec<u8> {
+        let client = self.client.as_ref().unwrap().read().await;
+        client.download(file_name).await.unwrap_or(Vec::new())
+    }
+
+    /// 上传文件(写在这里，方便以后做错误处理)
+    async fn upload(&self, file_name: String, contents: Vec<u8>) {
+        let client = self.client.as_ref().unwrap().read().await;
+        client.upload(file_name.clone(), contents).await;
     }
 }
 #[derive(Debug)]
@@ -321,9 +338,32 @@ impl StorageManager {
     }
 }
 
-/// 为 StorageManager 实现默认构造
-impl Default for StorageManager {
-    fn default() -> Self {
-        Self::new()
+// 检测配置是不是有效的
+pub async fn check_validation(partial_local_config: PartialLocalConfig) -> bool {
+    let mut config = LocalConfig::default();
+    config.update(partial_local_config);
+    let client: Option<Arc<RwLock<dyn StorageClient>>> = match *config.get_storage_destination() {
+        StorageDestination::Local => {
+            let client = Arc::new(RwLock::new(LocalStorage::new(
+                config.get_local_save_config(),
+            )));
+            println!("已成功赋值local");
+            Some(client)
+        }
+        StorageDestination::WebDAV => {
+            let client = Arc::new(RwLock::new(WebDAVStorage::new(
+                config.get_webdav_save_config(),
+            )));
+            println!("已成功赋值webdav");
+            Some(client)
+        }
+        _ => None,
+    };
+
+    if let Some(client) = client {
+        let guard = client.write().await;
+        return guard.validate_config().await;
+    } else {
+        return false;
     }
 }

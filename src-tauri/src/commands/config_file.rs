@@ -1,3 +1,4 @@
+use crate::core::storage::storage_manager::check_validation;
 use crate::modules::config::config_manager::PartialConfig;
 use crate::save_config_to_file;
 use crate::storage::config::PartialLocalConfig;
@@ -60,4 +61,13 @@ pub async fn command_save_local_config<R: Runtime>(
         error!("向 setting_window 发送信号失败: {:?}", e);
     }
     Ok(())
+}
+
+#[tauri::command]
+pub async fn command_check_validation<R: Runtime>(
+    app: tauri::AppHandle<R>,
+    window: tauri::Window<R>,
+    partial_config: PartialLocalConfig,
+) -> Result<bool, String> {
+    Ok(check_validation(partial_config).await)
 }

@@ -1,6 +1,12 @@
-use parking_lot::RwLock;
-use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
+use crate::storage::storage_manager::StorageClient;
+use crate::storage::storage_manager::{TEST_CONFIG_FILE_DATA, TEST_CONFIG_FILE_NAME};
+use async_trait::async_trait;
+use parking_lot::RwLock;
+use reqwest_dav::{Client, ClientBuilder};
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PartialWebDAVConfig {
     pub host_url: Option<String>,
@@ -119,13 +125,11 @@ impl WebDAVConfig {
         inner.to_partial()
     }
 
-    // 新增的访问方法
     pub fn get_destination_dir(&self) -> String {
         let inner = self.inner.read();
         inner.destination_dir.clone()
     }
 
-    // 保留原有访问方法
     pub fn get_host_url(&self) -> String {
         let inner = self.inner.read();
         inner.host_url.clone()
@@ -139,5 +143,131 @@ impl WebDAVConfig {
     pub fn get_password(&self) -> String {
         let inner = self.inner.read();
         inner.password.clone()
+    }
+}
+
+pub struct WebDAVStorageInner {
+    pub remote_config_dir: PathBuf,
+    pub host_url: String,
+    pub account: String,
+    pub password: String,
+    pub client: Option<Client>,
+}
+
+impl WebDAVStorageInner {
+    pub fn new(webdav_config: Arc<WebDAVConfig>) -> Self {
+        let mut inner = WebDAVStorageInner {
+            remote_config_dir: webdav_config.get_destination_dir().clone().into(),
+            host_url: webdav_config.get_host_url(),
+            account: webdav_config.get_account(),
+            password: webdav_config.get_password(),
+            client: None,
+        };
+        inner.client = {
+            if let Ok(client) = ClientBuilder::new()
+                .set_host(inner.host_url.clone())
+                .set_auth(reqwest_dav::Auth::Basic(
+                    inner.account.clone(),
+                    inner.password.clone(),
+                ))
+                .build()
+            {
+                Some(client)
+            } else {
+                None
+            }
+        };
+        inner
+    }
+}
+
+#[async_trait]
+impl StorageClient for WebDAVStorageInner {
+    // 要可以上传文件
+    async fn upload(&self, file_name: String, data: Vec<u8>) -> Result<(), String> {
+        let target_path = self.remote_config_dir.join(file_name);
+        let target_path = target_path.to_str().unwrap().to_string();
+        if let Some(client) = self.client.as_ref() {
+            if let Err(e) = client.put(&target_path, data).await {
+                return Err(e.to_string());
+            }
+        } else {
+            return Err("当前无客户端连接".to_string());
+        }
+        Ok(())
+    }
+    // 要可以下载文件
+    async fn download(&self, file_name: String) -> Result<Vec<u8>, String> {
+        let target_path = self.remote_config_dir.join(file_name);
+        let target_path = target_path.to_str().unwrap().to_string();
+        if let Some(client) = self.client.as_ref() {
+            match client.get(&target_path).await {
+                Ok(response) => match response.bytes().await {
+                    Ok(data) => return Ok(data.to_vec()),
+                    Err(e) => return Err(e.to_string()),
+                },
+                Err(e) => return Err(e.to_string()),
+            }
+        } else {
+            return Err("当前无客户端连接".to_string());
+        }
+    }
+    // 要可以获得当前文件的目标路径
+    async fn get_target_dir_path(&self) -> String {
+        self.remote_config_dir.to_str().unwrap().to_string()
+    }
+
+    async fn validate_config(&self) -> bool {
+        if let Err(_) = self
+            .upload(
+                TEST_CONFIG_FILE_NAME.to_string(),
+                TEST_CONFIG_FILE_DATA.to_string().as_bytes().to_vec(),
+            )
+            .await
+        {
+            return false;
+        }
+
+        if let Err(_) = self.download(TEST_CONFIG_FILE_NAME.to_string()).await {
+            return false;
+        }
+
+        true
+    }
+}
+
+pub struct WebDAVStorage {
+    pub inner: tokio::sync::RwLock<WebDAVStorageInner>,
+}
+
+impl WebDAVStorage {
+    /// 创建一个新的 LocalStorage 实例
+    pub fn new(local_save_config: Arc<WebDAVConfig>) -> Self {
+        WebDAVStorage {
+            inner: tokio::sync::RwLock::new(WebDAVStorageInner::new(local_save_config)),
+        }
+    }
+}
+
+#[async_trait]
+impl StorageClient for WebDAVStorage {
+    async fn download(&self, file_path: String) -> Result<Vec<u8>, String> {
+        let inner = self.inner.read().await;
+        inner.download(file_path).await
+    }
+
+    async fn upload(&self, file_path: String, data: Vec<u8>) -> Result<(), String> {
+        let inner = self.inner.read().await;
+        inner.upload(file_path, data).await
+    }
+
+    async fn get_target_dir_path(&self) -> String {
+        let inner = self.inner.read().await;
+        inner.get_target_dir_path().await
+    }
+
+    async fn validate_config(&self) -> bool {
+        let inner = self.inner.read().await;
+        inner.validate_config().await
     }
 }

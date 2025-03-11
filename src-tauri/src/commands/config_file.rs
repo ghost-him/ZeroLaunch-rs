@@ -1,5 +1,7 @@
 use crate::core::storage::storage_manager::check_validation;
 use crate::modules::config::config_manager::PartialConfig;
+use crate::modules::config::load_local_config;
+use crate::modules::config::LocalConfig;
 use crate::save_config_to_file;
 use crate::storage::config::PartialLocalConfig;
 use crate::update_app_setting;
@@ -23,7 +25,6 @@ pub async fn command_save_remote_config<R: Runtime>(
     debug!("{:?}", partial_config);
     runtime_config.update(partial_config);
     save_config_to_file(true).await;
-    app.emit("update_search_bar_window", "").unwrap();
     Ok(())
 }
 
@@ -53,7 +54,7 @@ pub async fn command_save_local_config<R: Runtime>(
     let remote_config_data = storage_manager
         .download_file_str_force(REMOTE_CONFIG_NAME.to_string())
         .await;
-    let partial_config = serde_json::from_str::<PartialConfig>(&remote_config_data).unwrap();
+    let partial_config = load_local_config(&remote_config_data);
     runtime_config.update(partial_config);
     update_app_setting().await;
     let setting_window = app.get_webview_window("setting_window").unwrap();

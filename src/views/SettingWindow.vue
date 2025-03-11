@@ -393,7 +393,6 @@ import ConfigPathSelector from "./ConfigPathSelector.vue";
 
 const configStore = useRemoteConfigStore()
 const { config } = storeToRefs(configStore)
-
 interface MenuItem {
     title: string;
     icon: any;
@@ -770,6 +769,7 @@ const get_dominant_color = async () => {
 onMounted(async () => {
     await configStore.loadConfig()
     unlisten.push(await listen('emit_update_setting_window_config', async () => {
+        console.log("收到")
         await configStore.loadConfig()
     }))
 })

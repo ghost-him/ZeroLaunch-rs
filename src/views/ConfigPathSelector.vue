@@ -81,13 +81,6 @@
                             </template>
                         </el-input>
                     </el-form-item>
-                    <el-form-item>
-                        <el-button type="primary" @click="testWebDAVConnection">
-                            <el-icon>
-                                <Connection />
-                            </el-icon> 测试连接
-                        </el-button>
-                    </el-form-item>
                 </div>
 
                 <!-- OneDrive 配置 -->
@@ -112,11 +105,6 @@
                                 <Key />
                             </el-icon> 授权 OneDrive
                         </el-button>
-                        <el-button @click="checkOneDriveStatus">
-                            <el-icon>
-                                <InfoFilled />
-                            </el-icon> 检查连接状态
-                        </el-button>
                     </el-form-item>
                 </div>
             </div>
@@ -132,12 +120,17 @@
             </div>
 
             <div class="action-buttons">
-                <el-button type="primary" size="large" @click="saveConfig">
+                <el-button type="primary" @click="testConfigValidation">
                     <el-icon>
-                        <Check />
+                        <Connection />
+                    </el-icon> 测试连接
+                </el-button>
+                <el-button type="primary" @click="saveConfig" :disabled="!allowSave">
+                    <el-icon>
+                        <Collection />
                     </el-icon> 保存配置
                 </el-button>
-                <el-button size="large" @click="resetConfig">
+                <el-button @click="resetConfig">
                     <el-icon>
                         <RefreshRight />
                     </el-icon> 重置
@@ -148,15 +141,16 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { useLocalConfigStore } from '../stores/local_config'
 import { ElMessage } from 'element-plus'
 import {
     Folder, FolderOpened, SetUp, Link, User, Lock,
-    Connection, Key, InfoFilled, Check, RefreshRight
+    Connection, Key, Collection, Check, RefreshRight
 } from '@element-plus/icons-vue'
 import { open } from '@tauri-apps/plugin-dialog'
 import { invoke } from '@tauri-apps/api/core'
+const allowSave = ref(false)
 
 // 获取配置存储
 const configStore = useLocalConfigStore()
@@ -169,6 +163,14 @@ const formData = reactive({
     onedrive_save_config: { ...configStore.config.onedrive_save_config },
     save_to_local_per_update: configStore.config.save_to_local_per_update
 })
+
+watch(
+    () => formData,
+    () => {
+        allowSave.value = false
+    },
+    { deep: true }
+)
 
 // 初始化
 onMounted(async () => {
@@ -204,8 +206,21 @@ const handleUseDefaultPath = async () => {
 }
 
 // 测试 WebDAV 连接
-const testWebDAVConnection = async () => {
-    ElMessage.success('连接成功')
+const testConfigValidation = async () => {
+    try {
+        const validation = await invoke<boolean>('command_check_validation', { partialConfig: formData });
+        if (validation) {
+            ElMessage.success('连接成功')
+            allowSave.value = true // 测试成功后允许保存
+        } else {
+            ElMessage.error('连接失败')
+            allowSave.value = false
+        }
+
+    } catch (error) {
+        ElMessage.error('连接失败')
+        allowSave.value = false
+    }
 }
 
 // 授权 OneDrive
@@ -213,10 +228,6 @@ const authorizeOneDrive = async () => {
     console.log('启动 OneDrive 授权流程')
 }
 
-// 检查 OneDrive 状态
-const checkOneDriveStatus = async () => {
-    console.log('检查 OneDrive 连接状态')
-}
 
 // 保存配置
 const saveConfig = async () => {

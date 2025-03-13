@@ -178,7 +178,7 @@ pub fn run() {
             command_load_local_config,
             command_save_local_config,
             command_check_validation,
-            command_get_onedrive_refresh_token
+            //command_get_onedrive_refresh_token
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

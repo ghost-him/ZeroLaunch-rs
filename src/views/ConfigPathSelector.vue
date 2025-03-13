@@ -7,7 +7,7 @@
                 <el-radio-group v-model="formData.storage_destination" size="large">
                     <el-radio-button value="Local">本地存储</el-radio-button>
                     <el-radio-button value="WebDAV">WebDAV</el-radio-button>
-                    <el-radio-button value="OneDrive">OneDrive</el-radio-button>
+                    <!--<el-radio-button value="OneDrive">OneDrive</el-radio-button> -->
                 </el-radio-group>
             </el-form-item>
 
@@ -40,55 +40,56 @@
                         </div>
                     </el-form-item>
                 </div>
+            </div>
 
-                <!-- WebDAV 配置 -->
-                <div v-if="formData.storage_destination === 'WebDAV'" class="storage-section">
-                    <h3 class="section-title">WebDAV 设置</h3>
-                    <el-form-item label="服务器地址">
-                        <el-input v-model="formData.webdav_save_config.host_url" placeholder="请输入 WebDAV 服务器地址">
-                            <template #prefix>
-                                <el-icon>
-                                    <Link />
-                                </el-icon>
-                            </template>
-                        </el-input>
-                    </el-form-item>
-                    <el-form-item label="账号">
-                        <el-input v-model="formData.webdav_save_config.account" placeholder="请输入账号">
-                            <template #prefix>
-                                <el-icon>
-                                    <User />
-                                </el-icon>
-                            </template>
-                        </el-input>
-                    </el-form-item>
-                    <el-form-item label="密码">
-                        <el-input v-model="formData.webdav_save_config.password" type="password" placeholder="请输入密码"
-                            show-password>
-                            <template #prefix>
-                                <el-icon>
-                                    <Lock />
-                                </el-icon>
-                            </template>
-                        </el-input>
-                    </el-form-item>
-                    <el-form-item label="目标目录">
-                        <el-input v-model="formData.webdav_save_config.destination_dir" placeholder="请输入目标目录">
-                            <template #prefix>
-                                <el-icon>
-                                    <FolderOpened />
-                                </el-icon>
-                            </template>
-                        </el-input>
-                    </el-form-item>
-                </div>
+            <!-- WebDAV 配置 -->
+            <div v-if="formData.storage_destination === 'WebDAV'" class="storage-section">
+                <h3 class="section-title">WebDAV 设置</h3>
+                <el-form-item label="服务器地址">
+                    <el-input v-model="formData.webdav_save_config.host_url" placeholder="请输入 WebDAV 服务器地址">
+                        <template #prefix>
+                            <el-icon>
+                                <Link />
+                            </el-icon>
+                        </template>
+                    </el-input>
+                </el-form-item>
+                <el-form-item label="账号">
+                    <el-input v-model="formData.webdav_save_config.account" placeholder="请输入账号">
+                        <template #prefix>
+                            <el-icon>
+                                <User />
+                            </el-icon>
+                        </template>
+                    </el-input>
+                </el-form-item>
+                <el-form-item label="密码">
+                    <el-input v-model="formData.webdav_save_config.password" type="password" placeholder="请输入密码"
+                        show-password>
+                        <template #prefix>
+                            <el-icon>
+                                <Lock />
+                            </el-icon>
+                        </template>
+                    </el-input>
+                </el-form-item>
+                <el-form-item label="目标目录">
+                    <el-input v-model="formData.webdav_save_config.destination_dir" placeholder="请输入目标目录">
+                        <template #prefix>
+                            <el-icon>
+                                <FolderOpened />
+                            </el-icon>
+                        </template>
+                    </el-input>
+                </el-form-item>
+            </div>
 
-                <!-- OneDrive 配置 -->
+            <!-- OneDrive 配置 -->
+            <!--
                 <div v-if="formData.storage_destination === 'OneDrive'" class="storage-section">
                     <h3 class="section-title">
                         OneDrive 设置
                     </h3>
-                    <!-- 授权状态显示 -->
                     <el-alert v-if="formData.onedrive_save_config.refresh_token" type="success" show-icon
                         :closable="false" class="auth-status-alert">
                         <span>OneDrive 已授权</span>
@@ -117,7 +118,6 @@
                         </el-button>
                     </el-form-item>
 
-                    <!-- 授权链接区域 -->
                     <el-form-item v-if="auth_link" class="auth-link-container">
                         <el-card shadow="hover" class="auth-card">
                             <template #header>
@@ -153,6 +153,7 @@
                     </el-form-item>
                 </div>
             </div>
+            -->
 
             <!-- 通用设置区块 -->
             <div class="config-section">
@@ -275,37 +276,37 @@ const testConfigValidation = async () => {
     }
 }
 
-// 授权 OneDrive
-const authorizeOneDrive = async () => {
-    try {
-        const refresh_token = await invoke<string>('command_get_onedrive_refresh_token')
-        formData.onedrive_save_config.refresh_token = refresh_token;
-        ElMessage.success('OneDrive 授权成功')
-        auth_link.value = ''
-    } catch (error) {
-        handleError('获取授权链接失败', error)
-    }
-}
+// // 授权 OneDrive
+// const authorizeOneDrive = async () => {
+//     try {
+//         const refresh_token = await invoke<string>('command_get_onedrive_refresh_token')
+//         formData.onedrive_save_config.refresh_token = refresh_token;
+//         ElMessage.success('OneDrive 授权成功')
+//         auth_link.value = ''
+//     } catch (error) {
+//         handleError('获取授权链接失败', error)
+//     }
+// }
 
-// 在浏览器中打开授权链接
-const openAuthLink = async () => {
-    if (auth_link.value) {
-        try {
-            await openUrl(auth_link.value)
-        } catch (error) {
-            handleError('打开浏览器失败', error)
-        }
-    }
-}
+// // 在浏览器中打开授权链接
+// const openAuthLink = async () => {
+//     if (auth_link.value) {
+//         try {
+//             await openUrl(auth_link.value)
+//         } catch (error) {
+//             handleError('打开浏览器失败', error)
+//         }
+//     }
+// }
 
-// 复制授权链接
-const copyAuthLink = () => {
-    if (auth_link.value) {
-        navigator.clipboard.writeText(auth_link.value)
-            .then(() => ElMessage.success('链接已复制到剪贴板'))
-            .catch(() => ElMessage.error('复制失败'))
-    }
-}
+// // 复制授权链接
+// const copyAuthLink = () => {
+//     if (auth_link.value) {
+//         navigator.clipboard.writeText(auth_link.value)
+//             .then(() => ElMessage.success('链接已复制到剪贴板'))
+//             .catch(() => ElMessage.error('复制失败'))
+//     }
+// }
 
 
 // 保存配置
@@ -369,59 +370,6 @@ const handleError = (message: string, error: unknown) => {
     margin-bottom: 20px;
     color: var(--el-text-color-primary);
     font-weight: 500;
-}
-
-.auth-status-alert {
-    margin-bottom: 20px;
-}
-
-.auth-icon {
-    margin-right: 8px;
-}
-
-.auth-button {
-    width: 140px;
-}
-
-.auth-link-container {
-    margin-top: 16px;
-}
-
-.auth-card {
-    width: 100%;
-    margin-bottom: 16px;
-}
-
-.auth-card-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-weight: 500;
-}
-
-.auth-link-content {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-}
-
-.open-link-button {
-    align-self: flex-start;
-}
-
-.auth-link-text {
-    margin-top: 8px;
-}
-
-.auth-link-input {
-    margin-top: 8px;
-}
-
-.auth-note {
-    font-size: 14px;
-    color: var(--el-text-color-secondary);
-    font-style: italic;
-    margin-top: 8px;
 }
 
 .input-description {

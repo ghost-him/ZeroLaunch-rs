@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use super::config::PartialLocalConfig;
 use super::config::StorageDestination;
-use super::onedrive::OneDriveStorage;
+// use super::onedrive::OneDriveStorage;
 use super::utils::read_or_create_str;
 use super::webdav::WebDAVStorage;
 use crate::core::storage::config::LocalConfig;
@@ -86,11 +86,11 @@ impl StorageManagerInner {
                 ))));
                 println!("已成功赋值webdav");
             }
-            StorageDestination::OneDrive => {
-                self.client = Some(Arc::new(RwLock::new(
-                    OneDriveStorage::new(self.local_config.get_onedrive_save_config()).await,
-                )))
-            }
+            // StorageDestination::OneDrive => {
+            //     self.client = Some(Arc::new(RwLock::new(
+            //         OneDriveStorage::new(self.local_config.get_onedrive_save_config()).await,
+            //     )))
+            // }
             _ => {}
         }
         // 由于后端可能因安全需要而更改配置（比如onedrive），所以要生成以后再保存配置文件
@@ -362,15 +362,15 @@ pub async fn check_validation(
             println!("已成功赋值webdav");
             Some(client)
         }
-        StorageDestination::OneDrive => {
-            println!(
-                "当前onedrive的配置: {:?}",
-                config.get_onedrive_save_config()
-            );
-            let client = Arc::new(OneDriveStorage::new(config.get_onedrive_save_config()).await);
-            println!("已成功赋值onedrive");
-            Some(client)
-        }
+        // StorageDestination::OneDrive => {
+        //     println!(
+        //         "当前onedrive的配置: {:?}",
+        //         config.get_onedrive_save_config()
+        //     );
+        //     let client = Arc::new(OneDriveStorage::new(config.get_onedrive_save_config()).await);
+        //     println!("已成功赋值onedrive");
+        //     Some(client)
+        // }
         _ => None,
     };
 

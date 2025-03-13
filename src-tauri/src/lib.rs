@@ -4,6 +4,7 @@ pub mod error;
 pub mod keyboard_listener;
 pub mod modules;
 pub mod state;
+pub mod tray;
 pub mod utils;
 use crate::commands::config_file::*;
 use crate::commands::debug::*;
@@ -17,6 +18,7 @@ use crate::modules::config::{Height, Width};
 use crate::modules::ui_controller::controller::get_window_render_origin;
 use crate::modules::ui_controller::controller::get_window_size;
 use crate::state::app_state::AppState;
+use crate::tray::init_system_tray;
 use crate::utils::ui_controller::handle_focus_lost;
 use crate::utils::ui_controller::handle_pressed;
 use backtrace::Backtrace;
@@ -28,7 +30,6 @@ use core::storage::storage_manager::StorageManager;
 use keyboard_listener::retry_register_shortcut;
 use keyboard_listener::start_key_listener;
 use modules::config::config_manager::RuntimeConfig;
-use modules::config::default::APP_VERSION;
 use modules::config::default::{APP_PIC_PATH, REMOTE_CONFIG_NAME};
 use modules::config::load_local_config;
 use modules::config::save_local_config;
@@ -40,10 +41,6 @@ use std::panic;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tauri::image::Image;
-use tauri::menu::{MenuBuilder, MenuItem};
-use tauri::tray::TrayIconBuilder;
-use tauri::tray::TrayIconEvent;
 use tauri::App;
 use tauri::Emitter;
 use tauri::WebviewUrl;
@@ -177,7 +174,7 @@ pub fn run() {
             command_load_local_config,
             command_save_local_config,
             command_check_validation,
-            //command_get_onedrive_refresh_token
+            command_change_tray_icon //command_get_onedrive_refresh_token
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -270,6 +267,11 @@ fn register_icon_path(app: &mut App) {
         icon_path.to_str().unwrap().to_string(),
     );
 
+    let white_icon_path: PathBuf = resource.join("32x32-white.png");
+    APP_PIC_PATH.insert(
+        "tray_icon_white".to_string(),
+        white_icon_path.to_str().unwrap().to_string(),
+    );
     let web_icon = resource.join("web_pages.png");
     APP_PIC_PATH.insert(
         "web_page".to_string(),
@@ -310,112 +312,6 @@ fn init_setting_window(app: tauri::AppHandle) {
                 debug!("隐藏设置窗口");
             }
         });
-    });
-}
-
-enum MenuEventId {
-    ShowSettingWindow,
-    ExitProgram,
-    UpdateAppSetting,
-    RegisterShortcut,
-    Unknown(String),
-}
-
-// 从事件 ID 转换为枚举
-impl From<&str> for MenuEventId {
-    fn from(id: &str) -> Self {
-        match id {
-            "show_setting_window" => MenuEventId::ShowSettingWindow,
-            "exit_program" => MenuEventId::ExitProgram,
-            "update_app_setting" => MenuEventId::UpdateAppSetting,
-            "retry_register_shortcut" => MenuEventId::RegisterShortcut,
-            _ => MenuEventId::Unknown(id.to_string()),
-        }
-    }
-}
-
-/// 创建一个右键菜单
-fn init_system_tray(app: &mut App) {
-    let handle = app.handle();
-    let menu = MenuBuilder::new(app)
-        .item(
-            &MenuItem::with_id(
-                handle,
-                "show_setting_window",
-                "打开设置界面",
-                true,
-                None::<&str>,
-            )
-            .unwrap(),
-        )
-        .item(
-            &MenuItem::with_id(
-                handle,
-                "update_app_setting",
-                "刷新数据库",
-                true,
-                None::<&str>,
-            )
-            .unwrap(),
-        )
-        .item(
-            &MenuItem::with_id(
-                handle,
-                "retry_register_shortcut",
-                "重新注册快捷键",
-                true,
-                None::<&str>,
-            )
-            .unwrap(),
-        )
-        .item(&MenuItem::with_id(handle, "exit_program", "退出程序", true, None::<&str>).unwrap())
-        .build()
-        .unwrap();
-    let t = APP_PIC_PATH.get("tray_icon").unwrap();
-    let icon_path = t.value();
-    info!("icon path: {:?}", icon_path);
-    let tray_icon = TrayIconBuilder::new()
-        .menu(&menu)
-        .icon(Image::from_path(icon_path).unwrap())
-        .tooltip(format!("ZeroLaunch-rs v{}", APP_VERSION.clone()))
-        .show_menu_on_left_click(false)
-        .build(handle)
-        .unwrap();
-    tray_icon.on_menu_event(|app_handle, event| {
-        let event_id = MenuEventId::from(event.id().as_ref());
-        match event_id {
-            MenuEventId::ShowSettingWindow => {
-                if let Err(e) = show_setting_window() {
-                    warn!("Failed to show setting window: {:?}", e);
-                }
-            }
-            MenuEventId::ExitProgram => {
-                tauri::async_runtime::block_on(async move {
-                    save_config_to_file(false).await;
-                    let storage_manager =
-                        ServiceLocator::get_state().get_storage_manager().unwrap();
-                    storage_manager.upload_all_file_force().await;
-                });
-                app_handle.exit(0);
-            }
-            MenuEventId::UpdateAppSetting => tauri::async_runtime::block_on(async {
-                update_app_setting().await;
-            }),
-            MenuEventId::RegisterShortcut => {
-                retry_register_shortcut(app_handle);
-            }
-            MenuEventId::Unknown(id) => {
-                warn!("Unknown menu event: {}", id);
-            }
-        }
-        debug!("Menu ID: {}", event.id().0);
-    });
-
-    app.on_tray_icon_event(|app_handle, event| match event {
-        TrayIconEvent::DoubleClick { .. } => {
-            handle_pressed(&app_handle);
-        }
-        _ => {}
     });
 }
 
@@ -557,7 +453,6 @@ pub fn handle_silent_start() {
 
     ONCE.call_once(|| {
         let state: Arc<AppState> = ServiceLocator::get_state();
-        let app_handle = state.get_main_handle().unwrap();
         let runtime_config = state.get_runtime_config().unwrap();
         let app_config = runtime_config.get_app_config();
         if !app_config.get_is_silent_start() {

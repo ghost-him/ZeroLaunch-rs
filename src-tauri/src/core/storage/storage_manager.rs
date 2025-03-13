@@ -99,7 +99,7 @@ impl StorageManagerInner {
             _ => {}
         }
         // 由于后端可能因安全需要而更改配置（比如onedrive），所以要生成以后再保存配置文件
-        self.save_to_local_disk();
+        self.save_to_local_disk().await;
     }
 
     // 将自己的信息保存到本地

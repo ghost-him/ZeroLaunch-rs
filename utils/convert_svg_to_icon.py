@@ -4,6 +4,7 @@ from PIL import Image
 import subprocess
 import platform
 import sys
+import re
 
 def ensure_directory(directory):
     """确保目录存在，如果不存在则创建"""
@@ -84,6 +85,32 @@ def create_icns(svg_path, output_path):
         os.remove(os.path.join(temp_iconset, file))
     os.rmdir(temp_iconset)
 
+def create_white_icon(svg_path, output_path, width, height, original_color, new_color="#ffffff"):
+    """创建白色版本的图标"""
+    # 读取SVG文件
+    with open(svg_path, 'r') as file:
+        svg_content = file.read()
+    
+    # 替换颜色
+    white_svg_content = svg_content.replace(original_color, new_color)
+    
+    # 创建临时SVG文件
+    temp_svg_path = "temp_white_icon.svg"
+    with open(temp_svg_path, 'w') as file:
+        file.write(white_svg_content)
+    
+    # 转换为PNG
+    cairosvg.svg2png(url=temp_svg_path, write_to=output_path, output_width=width, output_height=height)
+    
+    # 使用PIL设置DPI为72
+    img = Image.open(output_path)
+    img.save(output_path, dpi=(72, 72))
+    
+    # 删除临时SVG文件
+    os.remove(temp_svg_path)
+    
+    print(f"已创建白色图标: {output_path} (72 DPI)")
+
 def main():
     # 输入 SVG 文件
     svg_file = "icon.svg"
@@ -133,7 +160,12 @@ def main():
     icns_path = os.path.join(output_dir, "icon.icns")
     create_icns(svg_file, icns_path)
 
+    white_icon_path = os.path.join(output_dir, "32x32-white.png")
+    create_white_icon(svg_file, white_icon_path, 32, 32, original_color="#231f20")
+
     print("所有图标已成功创建，分辨率均为 72 DPI！")
+
+
 
 if __name__ == "__main__":
     main()

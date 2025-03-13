@@ -1,8 +1,10 @@
 use crate::core::image_processor::ImageProcessor;
+use crate::modules::config::default::APP_PIC_PATH;
 use crate::state::app_state::AppState;
 use crate::utils::service_locator::ServiceLocator;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use tauri::image::Image;
 use tauri::Emitter;
 use tauri::Manager;
 use tauri::Runtime;
@@ -131,5 +133,30 @@ pub fn show_setting_window() -> Result<(), String> {
     setting_window.show().unwrap();
     setting_window.set_focus().unwrap();
     hide_window().unwrap();
+    Ok(())
+}
+
+/// 用于更改系统托盘图标的颜色
+
+#[tauri::command]
+pub async fn command_change_tray_icon<R: Runtime>(
+    _app: tauri::AppHandle<R>,
+    _window: tauri::Window<R>,
+    state: tauri::State<'_, Arc<AppState>>,
+    is_dark: bool,
+) -> Result<(), String> {
+    let key = {
+        if is_dark {
+            "tray_icon_white"
+        } else {
+            "tray_icon"
+        }
+    };
+
+    let icon_path = APP_PIC_PATH.get(key).unwrap();
+    let tray_icon = state.get_tray_icon().unwrap();
+    if let Err(e) = tray_icon.set_icon(Some(Image::from_path(icon_path.value()).unwrap())) {
+        return Err(format!("error: {:?}", e));
+    }
     Ok(())
 }

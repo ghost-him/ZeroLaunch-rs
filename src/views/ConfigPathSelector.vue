@@ -187,18 +187,17 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, reactive, onMounted, watch, onUnmounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { useLocalConfigStore } from '../stores/local_config'
 import { ElMessage } from 'element-plus'
 import {
     Folder, FolderOpened, SetUp, Link, User, Lock,
-    Connection, Key, Collection, Check, RefreshRight
+    Connection, Collection, RefreshRight
 } from '@element-plus/icons-vue'
 import { open } from '@tauri-apps/plugin-dialog'
 import { invoke } from '@tauri-apps/api/core'
 import { PartialLocalConfig } from '../api/local_config_types'
 import { listen, UnlistenFn } from '@tauri-apps/api/event'
-import { open as openUrl } from '@tauri-apps/plugin-shell'
 const auth_link = ref('')
 const allowSave = ref(false)
 // 获取配置存储

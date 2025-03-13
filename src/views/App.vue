@@ -98,6 +98,10 @@ const search_bar_font_size_with_unit = computed(() => {
 })
 const item_font_color = ref('#ffeeee');
 const background_picture = ref('');
+
+// 新增主题相关逻辑
+const darkModeMediaQuery = ref<MediaQueryList | null>(null);
+
 let unlisten: Array<UnlistenFn | null> = [];
 interface SearchBarInit {
   result_item_count: number;
@@ -318,17 +322,25 @@ const backgroundStyle = computed(() => ({
   backgroundClip: 'content-box',
 }));
 
-// const computed_selected_item_color = computed(() => {
-//   return calculateColors(selected_item_color.value).selected;
-// })
+const applyTheme = async (isDark: boolean) => {
+  // 这里可以根据实际主题需求设置颜色变量
+  console.log(`主题变更为: ${isDark ? '深色' : '浅色'}`);
+  await invoke('command_change_tray_icon', { isDark: isDark })
+}
 
-// const computed_no_selected_item_color = computed(() => {
-//   return calculateColors(selected_item_color.value).nonSelected;
-// })
-
+// 主题变化处理函数
+function handleThemeChange(e: MediaQueryListEvent) {
+  applyTheme(e.matches);
+}
 
 // 组件挂载后自动聚焦容器以接收键盘事件
 onMounted(async () => {
+  // 初始化主题
+  darkModeMediaQuery.value = window.matchMedia('(prefers-color-scheme: dark)');
+  applyTheme(darkModeMediaQuery.value.matches);
+  // 添加主题变化监听
+  darkModeMediaQuery.value.addEventListener('change', handleThemeChange);
+
   if (searchBarRef.value) {
     searchBarRef.value.focus()
   }
@@ -356,6 +368,7 @@ onUnmounted(() => {
   }
   program_icons.value.forEach((url) => URL.revokeObjectURL(url));
 });
+
 </script>
 
 <style scoped>

@@ -4,6 +4,7 @@ use crate::modules::{config::config_manager::RuntimeConfig, program_manager::Pro
 use crate::utils::waiting_hashmap::AsyncWaitingHashMap;
 use parking_lot::RwLock;
 use std::sync::Arc;
+use tauri::tray::TrayIcon;
 use tauri::AppHandle;
 use timer::{Guard, Timer};
 
@@ -22,8 +23,10 @@ pub struct AppState {
     is_search_bar_visible: RwLock<bool>,
     /// 文件存储器
     storage_client: RwLock<Option<Arc<StorageManager>>>,
-    /// 消息队列
+    /// 消息队列(目前没用，本来用于onedrive的验证码传递)
     waiting_hashmap: Arc<AsyncWaitingHashMap<String, Vec<(String, String)>>>,
+    /// 系统托盘
+    tray_icon: RwLock<Option<Arc<TrayIcon>>>,
 }
 
 impl AppState {
@@ -37,6 +40,7 @@ impl AppState {
             is_search_bar_visible: RwLock::new(false),
             storage_client: RwLock::new(None),
             waiting_hashmap: Arc::new(AsyncWaitingHashMap::new()),
+            tray_icon: RwLock::new(None),
         }
     }
 
@@ -136,6 +140,21 @@ impl AppState {
 
     pub fn get_waiting_hashmap(&self) -> Arc<AsyncWaitingHashMap<String, Vec<(String, String)>>> {
         self.waiting_hashmap.clone()
+    }
+
+    pub fn set_tray_icon(&self, client: Arc<TrayIcon>) {
+        *self.tray_icon.write() = Some(client);
+    }
+
+    pub fn get_tray_icon(&self) -> Result<Arc<TrayIcon>, AppError> {
+        self.tray_icon
+            .read()
+            .as_ref()
+            .cloned()
+            .ok_or(AppError::NotInitialized {
+                resource: "tray_icon".to_string(),
+                context: None,
+            })
     }
 }
 

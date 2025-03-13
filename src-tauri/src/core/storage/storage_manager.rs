@@ -74,29 +74,31 @@ impl StorageManagerInner {
 
     // 更新配置并刷新后端
     pub async fn update_and_refresh(&self, partial_local_config: PartialLocalConfig) {
-        let mut local_config = self.local_config.write().await;
-        local_config.update(partial_local_config);
-        // 根据配置信息选择合理的后端
-        let mut client = self.client.write().await;
-        match *local_config.get_storage_destination() {
-            StorageDestination::Local => {
-                *client = Some(Arc::new(LocalStorage::new(
-                    local_config.get_local_save_config(),
-                )));
-                println!("已成功赋值local");
+        {
+            let mut local_config = self.local_config.write().await;
+            local_config.update(partial_local_config);
+            // 根据配置信息选择合理的后端
+            let mut client = self.client.write().await;
+            match *local_config.get_storage_destination() {
+                StorageDestination::Local => {
+                    *client = Some(Arc::new(LocalStorage::new(
+                        local_config.get_local_save_config(),
+                    )));
+                    println!("已成功赋值local");
+                }
+                StorageDestination::WebDAV => {
+                    *client = Some(Arc::new(WebDAVStorage::new(
+                        local_config.get_webdav_save_config(),
+                    )));
+                    println!("已成功赋值webdav");
+                }
+                // StorageDestination::OneDrive => {
+                //     self.client = Some(Arc::new(RwLock::new(
+                //         OneDriveStorage::new(self.local_config.get_onedrive_save_config()).await,
+                //     )))
+                // }
+                _ => {}
             }
-            StorageDestination::WebDAV => {
-                *client = Some(Arc::new(WebDAVStorage::new(
-                    local_config.get_webdav_save_config(),
-                )));
-                println!("已成功赋值webdav");
-            }
-            // StorageDestination::OneDrive => {
-            //     self.client = Some(Arc::new(RwLock::new(
-            //         OneDriveStorage::new(self.local_config.get_onedrive_save_config()).await,
-            //     )))
-            // }
-            _ => {}
         }
         // 由于后端可能因安全需要而更改配置（比如onedrive），所以要生成以后再保存配置文件
         self.save_to_local_disk().await;

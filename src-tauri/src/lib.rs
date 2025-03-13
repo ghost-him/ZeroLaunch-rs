@@ -131,7 +131,6 @@ pub fn run() {
                 app.deep_link().register_all().unwrap();
                 app.deep_link().on_open_url(|event| {
                     tauri::async_runtime::spawn(async move {
-                        println!("收到消息");
                         let state = ServiceLocator::get_state();
                         let waiting_hashmap = state.get_waiting_hashmap();
                         for url in event.urls() {
@@ -182,11 +181,9 @@ pub fn run() {
 /// 初始化的流程-> 初始化程序的状态
 async fn init_app_state(app: &mut App) {
     let storage_manager = StorageManager::new().await;
-    println!("{:?}", storage_manager);
     let remote_config_data = storage_manager
         .download_file_str(REMOTE_CONFIG_NAME.to_string())
         .await;
-    println!("读取到消息:{}", remote_config_data);
     let partial_config = load_local_config(&remote_config_data);
 
     let runtime_config = RuntimeConfig::new();

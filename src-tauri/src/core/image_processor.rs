@@ -1,3 +1,4 @@
+use crate::utils::defer::defer;
 use crate::utils::windows::get_u16_vec;
 use core::mem::MaybeUninit;
 use image::codecs::png::PngEncoder;
@@ -10,6 +11,7 @@ use palette::{IntoColor, Lab, Srgb};
 use rand::Rng;
 use rayon::prelude::*;
 use std::sync::{Arc, Mutex};
+use windows::Win32::Foundation::GetLastError;
 
 use std::ffi::c_void;
 use std::io::Cursor;
@@ -105,6 +107,15 @@ impl ImageProcessor {
     /// 从文件提取hicon
     async fn extract_icon_from_file(file_path: String) -> Option<RgbaImage> {
         tauri::async_runtime::spawn_blocking(move || {
+            let _com_init = unsafe {
+                windows::Win32::System::Com::CoInitializeEx(
+                    None,
+                    windows::Win32::System::Com::COINIT_APARTMENTTHREADED,
+                )
+            };
+            defer(|| unsafe {
+                windows::Win32::System::Com::CoUninitialize();
+            });
             let wide_file_path = get_u16_vec(file_path.clone());
             let mut sh_file_info: SHFILEINFOW = unsafe { std::mem::zeroed() };
             let result = unsafe {
@@ -118,10 +129,11 @@ impl ImageProcessor {
             };
             // 提前返回 None 如果无法获取图标
             if result == 0 || sh_file_info.hIcon.is_invalid() {
+                let last_error = unsafe { GetLastError() };
                 if result == 0 {
-                    warn!("SHGetFileInfoW failed for: {}", file_path.clone());
+                    warn!("SHGetFileInfoW failed for: {:?}", last_error);
                 } else {
-                    warn!("Failed to extract valid icon from: {}", file_path.clone());
+                    warn!("Failed to extract valid icon from: {:?}", last_error);
                 }
                 return None;
             }

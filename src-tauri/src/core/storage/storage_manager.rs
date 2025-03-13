@@ -7,12 +7,14 @@ use super::utils::read_or_create_str;
 use super::webdav::WebDAVStorage;
 use crate::core::storage::config::LocalConfig;
 use crate::core::storage::local_save::LocalStorage;
+use crate::utils::notify::notify;
 use crate::LOCAL_CONFIG_PATH;
 use async_trait::async_trait;
 use dashmap::DashMap;
 use dashmap::Entry;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+use tracing::error;
 
 pub const TEST_CONFIG_FILE_NAME: &str = "zerolaunch-test-link.txt";
 pub const TEST_CONFIG_FILE_DATA: &str = "当前文件仅用于测试连通性，可以手动删除";
@@ -31,11 +33,11 @@ pub trait StorageClient: Send + Sync {
 
 pub struct StorageManagerInner {
     /// 当前的存储信息
-    pub local_config: LocalConfig,
+    pub local_config: RwLock<LocalConfig>,
     /// 缓存的数据(文件名, (剩余更新次数, 要上传的内容))
     pub cached_content: DashMap<String, (u32, Vec<u8>)>,
     /// 上传文件与下载文件的对象
-    pub client: Option<Arc<RwLock<dyn StorageClient>>>,
+    pub client: RwLock<Option<Arc<dyn StorageClient>>>,
 }
 
 impl std::fmt::Debug for StorageManagerInner {
@@ -51,12 +53,13 @@ impl StorageManagerInner {
     // 创建一个存储管理器
     pub async fn new() -> StorageManagerInner {
         let mut inner = StorageManagerInner {
-            local_config: LocalConfig::default(),
+            local_config: RwLock::new(LocalConfig::default()),
             cached_content: DashMap::new(),
-            client: None,
+            client: RwLock::new(None),
         };
         // 从本地读取配置信息
-        let default_content = serde_json::to_string(&inner.local_config.to_partial()).unwrap();
+        let default_content =
+            serde_json::to_string(&inner.local_config.read().await.to_partial()).unwrap();
         let local_config_data =
             read_or_create_str(&LOCAL_CONFIG_PATH, Some(default_content)).unwrap();
         let partial_local_config: PartialLocalConfig =
@@ -65,25 +68,27 @@ impl StorageManagerInner {
         inner
     }
     /// 获得当前的本地配置文件的信息
-    pub fn to_partial(&self) -> PartialLocalConfig {
-        self.local_config.to_partial()
+    pub async fn to_partial(&self) -> PartialLocalConfig {
+        self.local_config.read().await.to_partial()
     }
 
     // 更新配置并刷新后端
-    pub async fn update_and_refresh(&mut self, partial_local_config: PartialLocalConfig) {
-        self.local_config.update(partial_local_config);
+    pub async fn update_and_refresh(&self, partial_local_config: PartialLocalConfig) {
+        let mut local_config = self.local_config.write().await;
+        local_config.update(partial_local_config);
         // 根据配置信息选择合理的后端
-        match *self.local_config.get_storage_destination() {
+        let mut client = self.client.write().await;
+        match *local_config.get_storage_destination() {
             StorageDestination::Local => {
-                self.client = Some(Arc::new(RwLock::new(LocalStorage::new(
-                    self.local_config.get_local_save_config(),
-                ))));
+                *client = Some(Arc::new(LocalStorage::new(
+                    local_config.get_local_save_config(),
+                )));
                 println!("已成功赋值local");
             }
             StorageDestination::WebDAV => {
-                self.client = Some(Arc::new(RwLock::new(WebDAVStorage::new(
-                    self.local_config.get_webdav_save_config(),
-                ))));
+                *client = Some(Arc::new(WebDAVStorage::new(
+                    local_config.get_webdav_save_config(),
+                )));
                 println!("已成功赋值webdav");
             }
             // StorageDestination::OneDrive => {
@@ -98,11 +103,11 @@ impl StorageManagerInner {
     }
 
     // 将自己的信息保存到本地
-    fn save_to_local_disk(&self) {
-        let partial_local_config = self.local_config.to_partial();
+    async fn save_to_local_disk(&self) {
+        let partial_local_config = self.local_config.read().await.to_partial();
         let contents = serde_json::to_string(&partial_local_config).unwrap();
         let path = LOCAL_CONFIG_PATH.clone();
-        std::fs::write(path, contents).unwrap();
+        tokio::fs::write(path, contents).await;
     }
 
     /// 上传文件
@@ -115,7 +120,7 @@ impl StorageManagerInner {
 
     /// 下载文件
     /// file_name: 工作目录下的相对地址
-    pub async fn download_file_str(&mut self, file_name: String) -> String {
+    pub async fn download_file_str(&self, file_name: String) -> String {
         let bytes = self.download_file_bytes(file_name).await;
         String::from_utf8_lossy(&bytes).into_owned()
     }
@@ -131,7 +136,11 @@ impl StorageManagerInner {
     /// contents: 内容
     pub async fn upload_file_bytes(&self, file_name: String, contents: Vec<u8>) -> bool {
         println!("收到上传文件请求：{:?}", file_name);
-        let save_count = *self.local_config.get_save_to_local_per_update();
+        let save_count = *self
+            .local_config
+            .read()
+            .await
+            .get_save_to_local_per_update();
         // 若配置为0，直接上传
         if save_count == 0 {
             return self
@@ -154,7 +163,7 @@ impl StorageManagerInner {
                 }
             }
             Entry::Vacant(entry) => {
-                let save_count = *self.local_config.get_save_to_local_per_update();
+                let save_count = save_count;
                 entry.insert((save_count, contents));
             }
         }
@@ -190,24 +199,20 @@ impl StorageManagerInner {
 
     /// 将当前缓存中所有的文件都上传
     pub async fn upload_all_file_force(&self) {
-        if let Some(client_arc) = self.client.as_ref() {
-            let client = client_arc.read().await;
+        // 收集所有需要上传的键值对
+        let items_to_upload: Vec<(String, Vec<u8>)> = self
+            .cached_content
+            .iter()
+            .map(|item| (item.key().clone(), item.value().1.clone()))
+            .collect();
 
-            // 收集所有需要上传的键值对
-            let items_to_upload: Vec<(String, Vec<u8>)> = self
-                .cached_content
-                .iter()
-                .map(|item| (item.key().clone(), item.value().1.clone()))
-                .collect();
-
-            // 上传所有文件
-            for (key, value) in items_to_upload {
-                client.upload(key, value).await;
-            }
-
-            // 上传完成后清空缓存
-            self.cached_content.clear();
+        // 上传所有文件
+        for (key, value) in items_to_upload {
+            self.upload(key, value).await;
         }
+
+        // 上传完成后清空缓存
+        self.cached_content.clear();
     }
 
     /// 强制下载文件
@@ -229,7 +234,7 @@ impl StorageManagerInner {
 
     /// 下载文件
     /// file_name: 工作目录下的相对地址
-    pub async fn download_file_bytes(&mut self, file_name: String) -> Vec<u8> {
+    pub async fn download_file_bytes(&self, file_name: String) -> Vec<u8> {
         println!("开始下载文件：{:?}", file_name);
         let cached_data = self
             .cached_content
@@ -244,20 +249,93 @@ impl StorageManagerInner {
 
     /// 获得目标文件夹的地址
     pub async fn get_target_dir_path(&self) -> String {
-        let client = self.client.as_ref().unwrap().read().await;
-        client.get_target_dir_path().await
+        let client_lock = self.client.read().await;
+        match client_lock.as_ref() {
+            Some(client) => client.get_target_dir_path().await,
+            None => {
+                error!("存储客户端未初始化，无法获取目标文件夹路径");
+                String::new() // 或者返回一个默认路径
+            }
+        }
     }
 
     /// 下载文件(写在这里，方便以后做错误处理)
     async fn download(&self, file_name: String) -> Vec<u8> {
-        let client = self.client.as_ref().unwrap().read().await;
-        client.download(file_name).await.unwrap_or(Vec::new())
+        let result = {
+            let client_lock = self.client.read().await;
+            match client_lock.as_ref() {
+                Some(client) => client.download(file_name.clone()).await,
+                None => {
+                    error!("存储客户端未初始化，无法下载文件：{}", file_name);
+                    notify(
+                        "zerolaunch-rs",
+                        &format!(
+                            "下载文件：{} 失败，客户端未成功初始化，已切换回默认配置",
+                            file_name,
+                        ),
+                    );
+                    Err("存储客户端未初始化，无法下载文件".to_string()) // 返回报错
+                }
+            }
+        };
+
+        match result {
+            Ok(data) => data,
+            Err(e) => {
+                error!(
+                    "下载文件：{} 失败，已使用默认配置信息，错误信息：{}",
+                    file_name,
+                    e.to_string()
+                );
+                notify(
+                    "zerolaunch-rs",
+                    &format!(
+                        "下载文件：{} 失败，错误：{:?}，已切换回默认配置",
+                        file_name, e
+                    ),
+                );
+                let local_config = LocalConfig::default();
+                self.update_and_refresh(local_config.to_partial()).await;
+
+                // 递归调用自身重试下载
+                Box::pin(self.download(file_name)).await
+            }
+        }
     }
 
     /// 上传文件(写在这里，方便以后做错误处理)
     async fn upload(&self, file_name: String, contents: Vec<u8>) {
-        let client = self.client.as_ref().unwrap().read().await;
-        client.upload(file_name.clone(), contents).await;
+        let result = {
+            let client_lock = self.client.read().await;
+            match client_lock.as_ref() {
+                Some(client) => client.upload(file_name.clone(), contents.clone()).await,
+                None => {
+                    error!("存储客户端未初始化，无法上传文件：{}", file_name);
+                    notify(
+                        "zerolaunch-rs",
+                        &format!("存储客户端未初始化，无法上传文件：{}", file_name),
+                    );
+                    Err("存储客户端未初始化，无法下载文件".to_string()) // 返回报错
+                }
+            }
+        };
+
+        match result {
+            Ok(_) => (),
+            Err(e) => {
+                error!("上传文件：{} 失败，错误：{:?}", file_name, e);
+                notify(
+                    "zerolaunch-rs",
+                    &format!(
+                        "上传文件：{} 失败，错误：{:?}，已切换回默认配置",
+                        file_name, e
+                    ),
+                );
+                let local_config = LocalConfig::default();
+                self.update_and_refresh(local_config.to_partial()).await;
+                Box::pin(self.upload(file_name, contents)).await
+            }
+        }
     }
 }
 #[derive(Debug)]
@@ -276,7 +354,7 @@ impl StorageManager {
     /// 获得当前的本地配置文件的信息
     pub async fn to_partial(&self) -> PartialLocalConfig {
         let inner = self.inner.read().await;
-        inner.to_partial()
+        inner.to_partial().await
     }
 
     /// 更新存储管理器配置

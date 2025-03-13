@@ -22,19 +22,6 @@ pub struct PartialLocalConfig {
     pub save_to_local_per_update: Option<u32>,
 }
 
-impl Default for PartialLocalConfig {
-    /// 默认为全空
-    fn default() -> Self {
-        PartialLocalConfig {
-            storage_destination: None,
-            local_save_config: None,
-            webdav_save_config: None,
-            //onedrive_save_config: None,
-            save_to_local_per_update: None,
-        }
-    }
-}
-
 #[derive(Debug)]
 pub struct LocalConfig {
     storage_destination: Arc<StorageDestination>,

@@ -209,7 +209,7 @@ const formData = reactive({
     storage_destination: configStore.config.storage_destination,
     local_save_config: { ...configStore.config.local_save_config },
     webdav_save_config: { ...configStore.config.webdav_save_config },
-    onedrive_save_config: { ...configStore.config.onedrive_save_config },
+    // onedrive_save_config: { ...configStore.config.onedrive_save_config },
     save_to_local_per_update: configStore.config.save_to_local_per_update
 })
 
@@ -326,7 +326,7 @@ const resetConfig = () => {
         storage_destination: configStore.config.storage_destination,
         local_save_config: { ...configStore.config.local_save_config },
         webdav_save_config: { ...configStore.config.webdav_save_config },
-        onedrive_save_config: { ...configStore.config.onedrive_save_config },
+        // onedrive_save_config: { ...configStore.config.onedrive_save_config },
         save_to_local_per_update: configStore.config.save_to_local_per_update
     })
     auth_link.value = ''

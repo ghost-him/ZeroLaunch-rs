@@ -3,7 +3,7 @@ import {
     LocalConfig,
     LocalSaveConfig,
     WebDAVConfig,
-    OneDriveConfig,
+    // OneDriveConfig,
     PartialLocalConfig,
     StorageDestination
 } from '../api/local_config_types'
@@ -27,9 +27,9 @@ function mergeConfig(config: LocalConfig, partial: PartialLocalConfig): LocalCon
             ? { ...config.webdav_save_config, ...partial.webdav_save_config }
             : config.webdav_save_config,
 
-        onedrive_save_config: partial.onedrive_save_config !== undefined
-            ? { ...config.onedrive_save_config, ...partial.onedrive_save_config }
-            : config.onedrive_save_config,
+        // onedrive_save_config: partial.onedrive_save_config !== undefined
+        //     ? { ...config.onedrive_save_config, ...partial.onedrive_save_config }
+        //     : config.onedrive_save_config,
     };
 }
 
@@ -65,12 +65,12 @@ function mergePartialConfig(
         };
     }
     
-    if (newPartial.onedrive_save_config !== undefined) {
-        result.onedrive_save_config = {
-            ...(oldPartial.onedrive_save_config || {}),
-            ...newPartial.onedrive_save_config
-        };
-    }
+    // if (newPartial.onedrive_save_config !== undefined) {
+    //     result.onedrive_save_config = {
+    //         ...(oldPartial.onedrive_save_config || {}),
+    //         ...newPartial.onedrive_save_config
+    //     };
+    // }
     
     return result;
 }
@@ -88,10 +88,10 @@ export const useLocalConfigStore = defineStore('localConfig', {
                 password: "",
                 destination_dir: ""
             } as WebDAVConfig,
-            onedrive_save_config: {
-                refresh_token: "",
-                destination_dir: ""
-            } as OneDriveConfig,
+            // onedrive_save_config: {
+            //     refresh_token: "",
+            //     destination_dir: ""
+            // } as OneDriveConfig,
             save_to_local_per_update: 0
         } as LocalConfig,
         dirtyConfig: {} as PartialLocalConfig
@@ -131,18 +131,4 @@ export const useLocalConfigStore = defineStore('localConfig', {
             }
         }
     },
-
-    getters: {
-        // 示例 getter，获取当前存储配置
-        currentStorageConfig: (state): WebDAVConfig | OneDriveConfig | LocalSaveConfig => {
-            switch (state.config.storage_destination) {
-                case "WebDAV":
-                    return state.config.webdav_save_config
-                case "OneDrive":
-                    return state.config.onedrive_save_config
-                default:
-                    return state.config.local_save_config
-            }
-        }
-    }
 })

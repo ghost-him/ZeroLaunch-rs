@@ -156,7 +156,6 @@ Built upon these outstanding open-source projects:
 
 * Implement regex-based keyword/path filtering
 * Dark theme support
-* Fix residual UWP app indexing issues
 * Error handling optimizations
 
 ### Long-Term Vision

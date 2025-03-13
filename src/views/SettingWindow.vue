@@ -23,9 +23,9 @@
             </div>
 
             <div class="footer-item">
-                <button class="custom-action-button" @click="save_config">
+                <el-button type="primary" @click="save_config" :disabled="activeIndex >= 4">
                     <span>保存配置文件</span>
-                </button>
+                </el-button>
             </div>
         </div>
 
@@ -858,23 +858,6 @@ body {
     padding: 16px;
     margin-top: auto;
     border-top: 1px solid #e6e6e6;
-}
-
-.custom-action-button {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 90%;
-    padding: 10px 16px;
-    border: none;
-    border-radius: 6px;
-    background-color: #409EFF;
-    color: white;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    box-shadow: 0 2px 6px rgba(64, 158, 255, 0.3);
 }
 
 .custom-action-button:hover {

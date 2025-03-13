@@ -1,11 +1,10 @@
-use crate::utils::ui_controller::handle_pressed;
+use crate::utils::{notify::notify, ui_controller::handle_pressed};
 use parking_lot::Mutex;
 use rdev::{listen, Event, EventType, Key};
 use std::collections::HashSet;
 use std::sync::Arc;
 use tauri::Manager;
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
-use tauri_plugin_notification::NotificationExt;
 use tracing::error;
 // 初始化全局快捷键监听器
 fn init_key_listener(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
@@ -66,16 +65,10 @@ fn start_keyboard_listener(app: &tauri::AppHandle) {
 
             if let Err(error) = listen(callback) {
                 error!("监听器启动失败: {:?}", error);
-                app_handle_clone
-                    .notification()
-                    .builder()
-                    .title("ZeroLaunch-rs")
-                    .body(format!(
-                        "初始化监听器失败，需要重启程序，错误原因：{:?}",
-                        error
-                    ))
-                    .show()
-                    .unwrap_or_default();
+                notify(
+                    "ZeroLaunch-rs",
+                    &format!("初始化监听器失败，需要重启程序，错误原因：{:?}", error),
+                );
                 std::process::exit(1);
             }
         });
@@ -86,27 +79,23 @@ fn start_keyboard_listener(app: &tauri::AppHandle) {
 pub fn start_key_listener(app: &mut tauri::App) {
     // 初始化监听器
     if let Err(e) = init_key_listener(app) {
-        app.notification()
-            .builder()
-            .title("ZeroLaunch-rs")
-            .body(format!("初始化监听器失败，需要重启程序，错误原因：{:?}", e))
-            .show()
-            .unwrap_or_default();
+        notify(
+            "ZeroLaunch-rs",
+            &format!("初始化监听器失败，需要重启程序，错误原因：{:?}", e),
+        );
         error!("初始化快捷键监听器失败: {:?}", e);
         std::process::exit(1);
     }
 
     // 注册快捷键
     if let Err(e) = register_shortcut(app.app_handle()) {
-        app.notification()
-            .builder()
-            .title("ZeroLaunch-rs")
-            .body(format!(
+        notify(
+            "ZeroLaunch-rs",
+            &format!(
                 "按键 Alt + Space 绑定失败，请尝试重新注册，错误原因：{:?}",
                 e
-            ))
-            .show()
-            .unwrap_or_default();
+            ),
+        );
         error!("按键 Alt + Space 绑定失败: {:?}", e);
         return;
     }
@@ -122,24 +111,17 @@ pub fn retry_register_shortcut(app: &tauri::AppHandle) -> bool {
     let _ = app.global_shortcut().unregister(alt_space_shortcut);
     // 重新注册
     if let Err(error) = register_shortcut(app) {
-        let _ = app
-            .notification()
-            .builder()
-            .title("ZeroLaunch-rs")
-            .body(format!(
+        notify(
+            "ZeroLaunch-rs",
+            &format!(
                 "按键 Alt + Space 绑定失败，请尝试重新注册，错误原因：{:?}",
                 error
-            ))
-            .show();
+            ),
+        );
     } else {
         start_keyboard_listener(app);
         // 显示成功通知
-        let _ = app
-            .notification()
-            .builder()
-            .title("ZeroLaunch-rs")
-            .body("按键 Alt + Space 重新绑定成功")
-            .show();
+        notify("ZeroLaunch-rs", "按键 Alt + Space 重新绑定成功");
         return true;
     }
     return false;

@@ -49,13 +49,12 @@ use tauri::Emitter;
 use tauri::WebviewUrl;
 use tauri::{Manager, PhysicalPosition, PhysicalSize};
 use tauri_plugin_deep_link::DeepLinkExt;
-use tauri_plugin_dialog::DialogExt;
-use tauri_plugin_dialog::MessageDialogKind;
 use tauri_plugin_notification::NotificationExt;
 use tracing::Level;
 use tracing::{debug, error, info, warn};
 use tracing_appender::rolling::RollingFileAppender;
 use tracing_appender::rolling::Rotation;
+use utils::notify::notify;
 use utils::service_locator::ServiceLocator;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -562,13 +561,7 @@ pub fn handle_silent_start() {
         let runtime_config = state.get_runtime_config().unwrap();
         let app_config = runtime_config.get_app_config();
         if !app_config.get_is_silent_start() {
-            app_handle
-                .notification()
-                .builder()
-                .title("ZeroLaunch-rs")
-                .body("ZeroLaunch-rs已成功启动！")
-                .show()
-                .unwrap();
+            notify("ZeroLaunch-rs", "ZeroLaunch-rs已成功启动！");
         }
     });
 }

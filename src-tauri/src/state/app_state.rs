@@ -1,6 +1,7 @@
 use crate::core::storage::storage_manager::StorageManager;
 use crate::error::AppError;
 use crate::modules::{config::config_manager::RuntimeConfig, program_manager::ProgramManager};
+use crate::utils::waiting_hashmap::AsyncWaitingHashMap;
 use parking_lot::RwLock;
 use std::sync::Arc;
 use tauri::AppHandle;
@@ -21,6 +22,8 @@ pub struct AppState {
     is_search_bar_visible: RwLock<bool>,
     /// 文件存储器
     storage_client: RwLock<Option<Arc<StorageManager>>>,
+    /// 消息队列
+    waiting_hashmap: Arc<AsyncWaitingHashMap<String, Vec<(String, String)>>>,
 }
 
 impl AppState {
@@ -33,6 +36,7 @@ impl AppState {
             timer: Arc::new(Timer::new()),
             is_search_bar_visible: RwLock::new(false),
             storage_client: RwLock::new(None),
+            waiting_hashmap: Arc::new(AsyncWaitingHashMap::new()),
         }
     }
 
@@ -129,6 +133,10 @@ impl AppState {
     pub fn set_storage_manager(&self, client: Arc<StorageManager>) {
         *self.storage_client.write() = Some(client);
     }
+
+    pub fn get_waiting_hashmap(&self) -> Arc<AsyncWaitingHashMap<String, Vec<(String, String)>>> {
+        self.waiting_hashmap.clone()
+    }
 }
 
 // Custom Debug implementation for AppState
@@ -141,6 +149,7 @@ impl std::fmt::Debug for AppState {
             .field("timer_guard", &"<Timer Guard>")
             .field("timer", &"<Timer>")
             .field("storage_client", &self.storage_client)
+            .field("waiting_hashmap", &self.waiting_hashmap)
             .finish()
     }
 }

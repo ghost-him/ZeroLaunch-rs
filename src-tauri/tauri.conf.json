@@ -41,5 +41,12 @@
       "icons/tips.png",
       "icons/terminal.png"
     ]
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["zerolaunch-rs"]
+      }
+    }
   }
 }

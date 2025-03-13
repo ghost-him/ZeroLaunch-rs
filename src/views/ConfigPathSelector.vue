@@ -17,8 +17,8 @@
                     <h3 class="section-title">本地存储设置</h3>
                     <el-form-item label="配置文件保存路径">
                         <div class="path-input-container">
-                            <el-input v-model="formData.local_save_config.remote_config_path" placeholder="配置文件保存路径"
-                                readonly class="path-display" :title="formData.local_save_config.remote_config_path">
+                            <el-input v-model="formData.local_save_config.destination_dir" placeholder="配置文件保存路径"
+                                readonly class="path-display" :title="formData.local_save_config.destination_dir">
                                 <template #prefix>
                                     <el-icon>
                                         <Folder />
@@ -85,9 +85,20 @@
 
                 <!-- OneDrive 配置 -->
                 <div v-if="formData.storage_destination === 'OneDrive'" class="storage-section">
-                    <h3 class="section-title">OneDrive 设置</h3>
+                    <h3 class="section-title">
+                        OneDrive 设置
+                    </h3>
+                    <!-- 授权状态显示 -->
+                    <el-alert v-if="formData.onedrive_save_config.refresh_token" type="success" show-icon
+                        :closable="false" class="auth-status-alert">
+                        <span>OneDrive 已授权</span>
+                    </el-alert>
+                    <el-alert v-else type="info" show-icon :closable="false" class="auth-status-alert">
+                        <span>请完成 OneDrive 授权</span>
+                    </el-alert>
                     <el-form-item label="文件夹路径">
-                        <el-input v-model="formData.onedrive_save_config.folder_path" placeholder="请输入 OneDrive 文件夹路径">
+                        <el-input v-model="formData.onedrive_save_config.destination_dir"
+                            placeholder="请输入 OneDrive 文件夹路径">
                             <template #prefix>
                                 <el-icon>
                                     <FolderOpened />
@@ -95,16 +106,50 @@
                             </template>
                         </el-input>
                     </el-form-item>
-                    <el-form-item label="自动同步">
-                        <el-switch v-model="formData.onedrive_save_config.sync_enabled" active-text="开启"
-                            inactive-text="关闭" />
-                    </el-form-item>
+
                     <el-form-item>
-                        <el-button type="primary" @click="authorizeOneDrive">
+                        <el-button type="primary" @click="authorizeOneDrive" :disabled="!!auth_link"
+                            class="auth-button">
                             <el-icon>
                                 <Key />
-                            </el-icon> 授权 OneDrive
+                            </el-icon>
+                            {{ formData.onedrive_save_config.refresh_token ? '重新授权' : '授权 OneDrive' }}
                         </el-button>
+                    </el-form-item>
+
+                    <!-- 授权链接区域 -->
+                    <el-form-item v-if="auth_link" class="auth-link-container">
+                        <el-card shadow="hover" class="auth-card">
+                            <template #header>
+                                <div class="auth-card-header">
+                                    <el-icon>
+                                        <Link />
+                                    </el-icon>
+                                    <span>请在浏览器中完成授权</span>
+                                </div>
+                            </template>
+                            <div class="auth-link-content">
+                                <p>点击下方按钮在浏览器中打开授权页面：</p>
+                                <el-button type="primary" @click="openAuthLink" class="open-link-button">
+                                    <el-icon>
+                                        <Link />
+                                    </el-icon> 打开授权页面
+                                </el-button>
+                                <div class="auth-link-text">
+                                    <p>或复制以下链接到浏览器打开：</p>
+                                    <el-input v-model="auth_link" readonly class="auth-link-input">
+                                        <template #append>
+                                            <el-button @click="copyAuthLink">
+                                                <el-icon>
+                                                    <Document />
+                                                </el-icon> 复制
+                                            </el-button>
+                                        </template>
+                                    </el-input>
+                                </div>
+                                <p class="auth-note">完成授权后请返回应用继续操作</p>
+                            </div>
+                        </el-card>
                     </el-form-item>
                 </div>
             </div>
@@ -141,7 +186,7 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, reactive, onMounted, watch } from 'vue'
+import { ref, reactive, onMounted, watch, onUnmounted } from 'vue'
 import { useLocalConfigStore } from '../stores/local_config'
 import { ElMessage } from 'element-plus'
 import {
@@ -150,8 +195,11 @@ import {
 } from '@element-plus/icons-vue'
 import { open } from '@tauri-apps/plugin-dialog'
 import { invoke } from '@tauri-apps/api/core'
+import { PartialLocalConfig } from '../api/local_config_types'
+import { listen, UnlistenFn } from '@tauri-apps/api/event'
+import { open as openUrl } from '@tauri-apps/plugin-shell'
+const auth_link = ref('')
 const allowSave = ref(false)
-
 // 获取配置存储
 const configStore = useLocalConfigStore()
 
@@ -171,11 +219,14 @@ watch(
     },
     { deep: true }
 )
-
+let unlisten: Array<UnlistenFn | null> = [];
 // 初始化
 onMounted(async () => {
     await configStore.loadConfig();
     Object.assign(formData, configStore.config);
+    unlisten.push(await listen('emit_update_auth_link', async (event) => {
+        auth_link.value = event.payload as string;
+    }))
 })
 
 // 选择本地配置文件路径
@@ -189,7 +240,7 @@ const handleChangeConfigPath = async () => {
         });
 
         if (selected) {
-            formData.local_save_config.remote_config_path = selected;
+            formData.local_save_config.destination_dir = selected;
         }
     } catch (error) {
         handleError('选择文件夹失败', error);
@@ -201,17 +252,18 @@ const handleChangeConfigPath = async () => {
 // 使用默认路径
 const handleUseDefaultPath = async () => {
     const default_path = await invoke<string>('command_get_default_remote_data_dir_path');
-    formData.local_save_config.remote_config_path = default_path
+    formData.local_save_config.destination_dir = default_path
     ElMessage.success('已设置为默认路径')
 }
 
-// 测试 WebDAV 连接
 const testConfigValidation = async () => {
     try {
-        const validation = await invoke<boolean>('command_check_validation', { partialConfig: formData });
+        const validation = await invoke<PartialLocalConfig>('command_check_validation', { partialConfig: formData });
+        console.log(validation);
         if (validation) {
             ElMessage.success('连接成功')
             allowSave.value = true // 测试成功后允许保存
+            configStore.updateConfig(validation)
         } else {
             ElMessage.error('连接失败')
             allowSave.value = false
@@ -225,57 +277,171 @@ const testConfigValidation = async () => {
 
 // 授权 OneDrive
 const authorizeOneDrive = async () => {
-    console.log('启动 OneDrive 授权流程')
+    try {
+        const refresh_token = await invoke<string>('command_get_onedrive_refresh_token')
+        formData.onedrive_save_config.refresh_token = refresh_token;
+        ElMessage.success('OneDrive 授权成功')
+        auth_link.value = ''
+    } catch (error) {
+        handleError('获取授权链接失败', error)
+    }
+}
+
+// 在浏览器中打开授权链接
+const openAuthLink = async () => {
+    if (auth_link.value) {
+        try {
+            await openUrl(auth_link.value)
+        } catch (error) {
+            handleError('打开浏览器失败', error)
+        }
+    }
+}
+
+// 复制授权链接
+const copyAuthLink = () => {
+    if (auth_link.value) {
+        navigator.clipboard.writeText(auth_link.value)
+            .then(() => ElMessage.success('链接已复制到剪贴板'))
+            .catch(() => ElMessage.error('复制失败'))
+    }
 }
 
 
 // 保存配置
 const saveConfig = async () => {
-    configStore.updateConfig({
-        storage_destination: formData.storage_destination,
-        local_save_config: formData.local_save_config,
-        webdav_save_config: formData.webdav_save_config,
-        onedrive_save_config: formData.onedrive_save_config,
-        save_to_local_per_update: formData.save_to_local_per_update,
-    });
-    await configStore.syncConfig();
-    ElMessage.success('配置已保存')
+    try {
+        await configStore.updateConfig(formData)
+        configStore.syncConfig();
+        ElMessage.success('配置已保存')
+    } catch (error) {
+        handleError('保存配置失败', error)
+    }
 }
 
 // 重置配置
 const resetConfig = () => {
-    Object.assign(formData, configStore.config)
+    Object.assign(formData, {
+        storage_destination: configStore.config.storage_destination,
+        local_save_config: { ...configStore.config.local_save_config },
+        webdav_save_config: { ...configStore.config.webdav_save_config },
+        onedrive_save_config: { ...configStore.config.onedrive_save_config },
+        save_to_local_per_update: configStore.config.save_to_local_per_update
+    })
+    auth_link.value = ''
     ElMessage.info('配置已重置')
 }
 
 const handleError = (message: string, error: unknown) => {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error(`${message}:`, error);
-
-    ElMessage({
-        message: `${message}: ${errorMessage}`,
-        type: 'error',
-        showClose: true,
-    });
+    console.error(message, error)
+    ElMessage.error(message)
 };
 
 </script>
 
 <style scoped>
 .storage-config-container {
-    max-width: 900px;
-    margin: 20px auto;
     padding: 20px;
-    background: #fff;
-    border-radius: 8px;
+    max-width: 800px;
+    margin: 0 auto;
 }
 
 .page-title {
-    color: #303133;
-    font-size: 24px;
-    margin-bottom: 30px;
-    text-align: center;
+    margin-bottom: 24px;
+    color: var(--el-text-color-primary);
+    font-weight: 600;
+    border-bottom: 1px solid var(--el-border-color-light);
+    padding-bottom: 12px;
+}
+
+.storage-section {
+    background-color: var(--el-fill-color-light);
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 24px;
+    box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
+}
+
+.section-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 20px;
+    color: var(--el-text-color-primary);
     font-weight: 500;
+}
+
+.auth-status-alert {
+    margin-bottom: 20px;
+}
+
+.auth-icon {
+    margin-right: 8px;
+}
+
+.auth-button {
+    width: 140px;
+}
+
+.auth-link-container {
+    margin-top: 16px;
+}
+
+.auth-card {
+    width: 100%;
+    margin-bottom: 16px;
+}
+
+.auth-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 500;
+}
+
+.auth-link-content {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.open-link-button {
+    align-self: flex-start;
+}
+
+.auth-link-text {
+    margin-top: 8px;
+}
+
+.auth-link-input {
+    margin-top: 8px;
+}
+
+.auth-note {
+    font-size: 14px;
+    color: var(--el-text-color-secondary);
+    font-style: italic;
+    margin-top: 8px;
+}
+
+.input-description {
+    margin-left: 12px;
+    color: var(--el-text-color-secondary);
+    font-size: 14px;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 12px;
+    margin-top: 24px;
+    justify-content: flex-start;
+}
+
+
+.config-section {
+    margin-top: 24px;
+    padding-top: 24px;
+    border-top: 1px solid var(--el-border-color-light);
 }
 
 .storage-config-form {
@@ -286,23 +452,6 @@ const handleError = (message: string, error: unknown) => {
     margin-bottom: 25px;
     display: flex;
     justify-content: center;
-}
-
-.config-section {
-    margin-bottom: 25px;
-    padding: 20px;
-    border: 1px solid #EBEEF5;
-    border-radius: 4px;
-}
-
-.section-title {
-    color: #409EFF;
-    font-size: 18px;
-    margin-top: 0;
-    margin-bottom: 20px;
-    font-weight: 500;
-    border-bottom: 1px solid #EBEEF5;
-    padding-bottom: 10px;
 }
 
 /* 保持其他原有样式不变 */

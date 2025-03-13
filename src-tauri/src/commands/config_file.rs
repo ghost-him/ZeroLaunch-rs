@@ -1,3 +1,4 @@
+use crate::core::storage::onedrive::get_onedrive_refresh_token;
 use crate::core::storage::storage_manager::check_validation;
 use crate::modules::config::config_manager::PartialConfig;
 use crate::modules::config::load_local_config;
@@ -69,6 +70,14 @@ pub async fn command_check_validation<R: Runtime>(
     app: tauri::AppHandle<R>,
     window: tauri::Window<R>,
     partial_config: PartialLocalConfig,
-) -> Result<bool, String> {
+) -> Result<Option<PartialLocalConfig>, String> {
     Ok(check_validation(partial_config).await)
+}
+
+#[tauri::command]
+pub async fn command_get_onedrive_refresh_token<R: Runtime>(
+    app: tauri::AppHandle<R>,
+    window: tauri::Window<R>,
+) -> Result<String, String> {
+    get_onedrive_refresh_token(window).await
 }

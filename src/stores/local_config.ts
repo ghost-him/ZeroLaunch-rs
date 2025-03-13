@@ -80,7 +80,7 @@ export const useLocalConfigStore = defineStore('localConfig', {
         config: {
             storage_destination: "Local" as StorageDestination,
             local_save_config: {
-                remote_config_path: ""
+                destination_dir: ""
             } as LocalSaveConfig,
             webdav_save_config: {
                 host_url: "",
@@ -89,8 +89,8 @@ export const useLocalConfigStore = defineStore('localConfig', {
                 destination_dir: ""
             } as WebDAVConfig,
             onedrive_save_config: {
-                folder_path: "",
-                sync_enabled: false
+                refresh_token: "",
+                destination_dir: ""
             } as OneDriveConfig,
             save_to_local_per_update: 0
         } as LocalConfig,
@@ -110,6 +110,7 @@ export const useLocalConfigStore = defineStore('localConfig', {
 
         // 更新配置
         updateConfig(partial: PartialLocalConfig) {
+            console.log("收到消息：", partial)
             // 更新合并后的配置
             this.config = mergeConfig(this.config, partial)
             // 合并脏数据配置
@@ -123,6 +124,7 @@ export const useLocalConfigStore = defineStore('localConfig', {
             try {
                 await invoke("command_save_local_config", { partialConfig: this.dirtyConfig })
                 this.dirtyConfig = {}
+                await this.loadConfig()
             } catch (error) {
                 console.error("同步配置失败:", error)
                 throw error // 抛出错误以便 UI 处理

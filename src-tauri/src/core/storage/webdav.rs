@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use crate::storage::config::PartialLocalConfig;
 use crate::storage::storage_manager::StorageClient;
 use crate::storage::storage_manager::{TEST_CONFIG_FILE_DATA, TEST_CONFIG_FILE_NAME};
 use async_trait::async_trait;
@@ -54,7 +55,7 @@ impl WebDAVConfigInner {
     }
 
     pub(crate) fn default_destination_dir() -> String {
-        "/default/upload/path".into() // 可根据需求修改默认路径
+        "".into() // 可根据需求修改默认路径
     }
 
     // 更新方法
@@ -147,7 +148,7 @@ impl WebDAVConfig {
 }
 
 pub struct WebDAVStorageInner {
-    pub remote_config_dir: PathBuf,
+    pub destination_dir: PathBuf,
     pub host_url: String,
     pub account: String,
     pub password: String,
@@ -157,7 +158,7 @@ pub struct WebDAVStorageInner {
 impl WebDAVStorageInner {
     pub fn new(webdav_config: Arc<WebDAVConfig>) -> Self {
         let mut inner = WebDAVStorageInner {
-            remote_config_dir: webdav_config.get_destination_dir().clone().into(),
+            destination_dir: webdav_config.get_destination_dir().clone().into(),
             host_url: webdav_config.get_host_url(),
             account: webdav_config.get_account(),
             password: webdav_config.get_password(),
@@ -185,7 +186,7 @@ impl WebDAVStorageInner {
 impl StorageClient for WebDAVStorageInner {
     // 要可以上传文件
     async fn upload(&self, file_name: String, data: Vec<u8>) -> Result<(), String> {
-        let target_path = self.remote_config_dir.join(file_name);
+        let target_path = self.destination_dir.join(file_name);
         let target_path = target_path.to_str().unwrap().to_string();
         if let Some(client) = self.client.as_ref() {
             if let Err(e) = client.put(&target_path, data).await {
@@ -198,7 +199,7 @@ impl StorageClient for WebDAVStorageInner {
     }
     // 要可以下载文件
     async fn download(&self, file_name: String) -> Result<Vec<u8>, String> {
-        let target_path = self.remote_config_dir.join(file_name);
+        let target_path = self.destination_dir.join(file_name);
         let target_path = target_path.to_str().unwrap().to_string();
         if let Some(client) = self.client.as_ref() {
             match client.get(&target_path).await {
@@ -214,7 +215,7 @@ impl StorageClient for WebDAVStorageInner {
     }
     // 要可以获得当前文件的目标路径
     async fn get_target_dir_path(&self) -> String {
-        self.remote_config_dir.to_str().unwrap().to_string()
+        self.destination_dir.to_str().unwrap().to_string()
     }
 
     async fn validate_config(&self) -> bool {

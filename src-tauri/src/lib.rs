@@ -19,6 +19,7 @@ use crate::modules::ui_controller::controller::get_window_size;
 use crate::state::app_state::AppState;
 use crate::utils::ui_controller::handle_focus_lost;
 use crate::utils::ui_controller::handle_pressed;
+use backtrace::Backtrace;
 use chrono::DateTime;
 use chrono::Duration;
 use chrono::Local;
@@ -33,7 +34,6 @@ use modules::config::load_local_config;
 use modules::config::save_local_config;
 use modules::config::window_state::PartialWindowState;
 use modules::program_manager::{self, ProgramManager};
-use single_instance::SingleInstance;
 use std::fs::File;
 use std::io::Write;
 use std::panic;
@@ -48,6 +48,7 @@ use tauri::App;
 use tauri::Emitter;
 use tauri::WebviewUrl;
 use tauri::{Manager, PhysicalPosition, PhysicalSize};
+use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_dialog::MessageDialogKind;
 use tauri_plugin_notification::NotificationExt;
@@ -99,28 +100,23 @@ pub fn run() {
         )
         .expect("Could not write to panic log file");
 
+        let backtrace = Backtrace::new();
+
+        writeln!(file, "backtracing: {:?}", backtrace).expect("Could not write to panic log file");
+
         error!("Panic occurred: {}", message);
     }));
 
     cleanup_old_logs(&LOG_DIR.to_string(), 5);
 
-    tauri::Builder::default()
+    let builder = tauri::Builder::default().plugin(tauri_plugin_shell::init());
+    builder
+        .plugin(tauri_plugin_single_instance::init(|_app, argv, _cwd| {}))
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .manage(Arc::new(AppState::new()))
         .setup(|app| {
-            let instance = SingleInstance::new("ZeroLaunch-rs").unwrap();
-            if !instance.is_single() {
-                error!("当前已经有实例在运行了");
-                app.dialog()
-                    .message("当前的程序已经在运行了")
-                    .kind(MessageDialogKind::Error)
-                    .title("注意")
-                    .blocking_show();
-
-                std::process::exit(1);
-            }
-
             tauri::async_runtime::block_on(async move {
                 // 初始化程序的图标
                 register_icon_path(app);
@@ -136,8 +132,24 @@ pub fn run() {
                 start_key_listener(app);
                 // 根据配置信息更新整个程序
                 update_app_setting().await;
-            });
 
+                app.deep_link().register_all().unwrap();
+                app.deep_link().on_open_url(|event| {
+                    tauri::async_runtime::spawn(async move {
+                        println!("收到消息");
+                        let state = ServiceLocator::get_state();
+                        let waiting_hashmap = state.get_waiting_hashmap();
+                        for url in event.urls() {
+                            let domain = url.domain().unwrap().to_string();
+                            let mut pairs = Vec::new();
+                            url.query_pairs().into_iter().for_each(|(key, value)| {
+                                pairs.push((key.to_string(), value.to_string()));
+                            });
+                            waiting_hashmap.insert(domain, pairs).await;
+                        }
+                    });
+                });
+            });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -165,7 +177,8 @@ pub fn run() {
             command_get_default_remote_data_dir_path,
             command_load_local_config,
             command_save_local_config,
-            command_check_validation
+            command_check_validation,
+            command_get_onedrive_refresh_token
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -173,7 +186,7 @@ pub fn run() {
 
 /// 初始化的流程-> 初始化程序的状态
 async fn init_app_state(app: &mut App) {
-    let storage_manager = StorageManager::new();
+    let storage_manager = StorageManager::new().await;
     println!("{:?}", storage_manager);
     let remote_config_data = storage_manager
         .download_file_str(REMOTE_CONFIG_NAME.to_string())

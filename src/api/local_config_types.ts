@@ -10,7 +10,7 @@ export type LocalConfig = {
 }
 
 export type LocalSaveConfig = {
-    remote_config_path: string;
+    destination_dir: string;
 }
 
 export type WebDAVConfig = {
@@ -21,8 +21,8 @@ export type WebDAVConfig = {
 }
 
 export type OneDriveConfig = {
-    folder_path: string;
-    sync_enabled: boolean;
+    refresh_token: string;
+    destination_dir: string;
 }
 
 export type LocalStorageInner = {

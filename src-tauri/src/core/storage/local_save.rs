@@ -1,6 +1,9 @@
 use std::path::PathBuf;
 
-use super::storage_manager::{StorageClient, TEST_CONFIG_FILE_DATA, TEST_CONFIG_FILE_NAME};
+use super::{
+    config::PartialLocalConfig,
+    storage_manager::{StorageClient, TEST_CONFIG_FILE_DATA, TEST_CONFIG_FILE_NAME},
+};
 use crate::core::storage::windows_utils::get_default_remote_data_dir_path;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -8,43 +11,43 @@ use std::sync::Arc;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PartialLocalSaveConfig {
-    pub remote_config_path: Option<String>,
+    pub destination_dir: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct LocalSaveConfigInner {
-    #[serde(default = "LocalSaveConfigInner::default_remote_config_path")]
-    pub remote_config_path: String,
+    #[serde(default = "LocalSaveConfigInner::default_destination_dir")]
+    pub destination_dir: String,
 }
 
 impl Default for LocalSaveConfigInner {
     fn default() -> Self {
         Self {
-            remote_config_path: Self::default_remote_config_path(),
+            destination_dir: Self::default_destination_dir(),
         }
     }
 }
 
 impl LocalSaveConfigInner {
-    pub(crate) fn default_remote_config_path() -> String {
+    pub(crate) fn default_destination_dir() -> String {
         get_default_remote_data_dir_path()
     }
 
     pub fn update(&mut self, partial_local_config: PartialLocalSaveConfig) {
-        if let Some(remote_config_path) = partial_local_config.remote_config_path {
-            self.remote_config_path = remote_config_path;
+        if let Some(destination_dir) = partial_local_config.destination_dir {
+            self.destination_dir = destination_dir;
         }
     }
 
     pub fn to_partial(&self) -> PartialLocalSaveConfig {
         PartialLocalSaveConfig {
-            remote_config_path: Some(self.remote_config_path.clone()),
+            destination_dir: Some(self.destination_dir.clone()),
         }
     }
 
-    pub fn get_remote_config_path(&self) -> String {
-        self.remote_config_path.clone()
+    pub fn get_destination_dir(&self) -> String {
+        self.destination_dir.clone()
     }
 }
 
@@ -69,7 +72,7 @@ impl LocalSaveConfig {
 
     pub fn get_remote_config_path(&self) -> String {
         let inner = self.inner.read();
-        inner.get_remote_config_path()
+        inner.get_destination_dir()
     }
 
     pub fn to_partial(&self) -> PartialLocalSaveConfig {

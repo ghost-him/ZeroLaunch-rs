@@ -2,6 +2,7 @@ use std::fmt::Debug;
 
 use super::config::PartialLocalConfig;
 use super::config::StorageDestination;
+use super::onedrive::OneDriveStorage;
 use super::utils::read_or_create_str;
 use super::webdav::WebDAVStorage;
 use crate::core::storage::config::LocalConfig;
@@ -48,7 +49,7 @@ impl std::fmt::Debug for StorageManagerInner {
 
 impl StorageManagerInner {
     // 创建一个存储管理器
-    pub fn new() -> StorageManagerInner {
+    pub async fn new() -> StorageManagerInner {
         let mut inner = StorageManagerInner {
             local_config: LocalConfig::default(),
             cached_content: DashMap::new(),
@@ -60,7 +61,7 @@ impl StorageManagerInner {
             read_or_create_str(&LOCAL_CONFIG_PATH, Some(default_content)).unwrap();
         let partial_local_config: PartialLocalConfig =
             serde_json::from_str(&local_config_data).unwrap();
-        inner.update(partial_local_config);
+        inner.update_and_refresh(partial_local_config).await;
         inner
     }
     /// 获得当前的本地配置文件的信息
@@ -68,10 +69,9 @@ impl StorageManagerInner {
         self.local_config.to_partial()
     }
 
-    // 更新
-    pub fn update(&mut self, partial_local_config: PartialLocalConfig) {
+    // 更新配置并刷新后端
+    pub async fn update_and_refresh(&mut self, partial_local_config: PartialLocalConfig) {
         self.local_config.update(partial_local_config);
-        self.save_to_local_disk();
         // 根据配置信息选择合理的后端
         match *self.local_config.get_storage_destination() {
             StorageDestination::Local => {
@@ -86,8 +86,15 @@ impl StorageManagerInner {
                 ))));
                 println!("已成功赋值webdav");
             }
+            StorageDestination::OneDrive => {
+                self.client = Some(Arc::new(RwLock::new(
+                    OneDriveStorage::new(self.local_config.get_onedrive_save_config()).await,
+                )))
+            }
             _ => {}
         }
+        // 由于后端可能因安全需要而更改配置（比如onedrive），所以要生成以后再保存配置文件
+        self.save_to_local_disk();
     }
 
     // 将自己的信息保存到本地
@@ -175,7 +182,7 @@ impl StorageManagerInner {
         }
         if contents.is_some() {
             println!("成功强制上传文件：{}", file_name);
-            self.upload(file_name, contents.unwrap());
+            self.upload(file_name, contents.unwrap()).await;
             return true;
         }
         return false;
@@ -183,7 +190,7 @@ impl StorageManagerInner {
 
     /// 将当前缓存中所有的文件都上传
     pub async fn upload_all_file_force(&self) {
-        if let Some(client_arc) = &self.client {
+        if let Some(client_arc) = self.client.as_ref() {
             let client = client_arc.read().await;
 
             // 收集所有需要上传的键值对
@@ -260,9 +267,9 @@ pub struct StorageManager {
 
 impl StorageManager {
     /// 创建一个新的 StorageManager 实例
-    pub fn new() -> Self {
+    pub async fn new() -> Self {
         Self {
-            inner: RwLock::new(StorageManagerInner::new()),
+            inner: RwLock::new(StorageManagerInner::new().await),
         }
     }
 
@@ -276,7 +283,7 @@ impl StorageManager {
     pub async fn update(&self, partial_local_config: PartialLocalConfig) {
         println!("{:?}", partial_local_config);
         let mut inner = self.inner.write().await;
-        inner.update(partial_local_config);
+        inner.update_and_refresh(partial_local_config).await
     }
 
     /// 上传字符串内容到指定文件（带缓存策略）
@@ -339,31 +346,43 @@ impl StorageManager {
 }
 
 // 检测配置是不是有效的
-pub async fn check_validation(partial_local_config: PartialLocalConfig) -> bool {
+pub async fn check_validation(
+    partial_local_config: PartialLocalConfig,
+) -> Option<PartialLocalConfig> {
     let mut config = LocalConfig::default();
     config.update(partial_local_config);
-    let client: Option<Arc<RwLock<dyn StorageClient>>> = match *config.get_storage_destination() {
+    let client: Option<Arc<dyn StorageClient>> = match *config.get_storage_destination() {
         StorageDestination::Local => {
-            let client = Arc::new(RwLock::new(LocalStorage::new(
-                config.get_local_save_config(),
-            )));
+            let client = Arc::new(LocalStorage::new(config.get_local_save_config()));
             println!("已成功赋值local");
             Some(client)
         }
         StorageDestination::WebDAV => {
-            let client = Arc::new(RwLock::new(WebDAVStorage::new(
-                config.get_webdav_save_config(),
-            )));
+            let client = Arc::new(WebDAVStorage::new(config.get_webdav_save_config()));
             println!("已成功赋值webdav");
+            Some(client)
+        }
+        StorageDestination::OneDrive => {
+            println!(
+                "当前onedrive的配置: {:?}",
+                config.get_onedrive_save_config()
+            );
+            let client = Arc::new(OneDriveStorage::new(config.get_onedrive_save_config()).await);
+            println!("已成功赋值onedrive");
             Some(client)
         }
         _ => None,
     };
 
-    if let Some(client) = client {
-        let guard = client.write().await;
-        return guard.validate_config().await;
+    if let Some(client) = client.as_ref() {
+        println!("开始验证");
+        if client.validate_config().await {
+            // 如果有效，则返回经过修改的PartialLocalConfig
+            return Some(config.to_partial());
+        } else {
+            return None;
+        }
     } else {
-        return false;
+        return None;
     }
 }

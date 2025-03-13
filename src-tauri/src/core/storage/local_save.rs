@@ -1,9 +1,6 @@
 use std::path::PathBuf;
 
-use super::{
-    config::PartialLocalConfig,
-    storage_manager::{StorageClient, TEST_CONFIG_FILE_DATA, TEST_CONFIG_FILE_NAME},
-};
+use super::storage_manager::{StorageClient, TEST_CONFIG_FILE_DATA, TEST_CONFIG_FILE_NAME};
 use crate::core::storage::windows_utils::get_default_remote_data_dir_path;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -97,10 +94,6 @@ impl LocalStorageInner {
 impl StorageClient for LocalStorageInner {
     async fn download(&self, file_path: String) -> Result<Vec<u8>, String> {
         let target_path = self.remote_config_dir.join(file_path);
-        println!(
-            "client: 开始下载：{}",
-            target_path.to_str().unwrap().to_string()
-        );
         tokio::fs::read(&target_path)
             .await
             .map_err(|e| format!("下载失败 {}: {}", target_path.display(), e))
@@ -112,10 +105,6 @@ impl StorageClient for LocalStorageInner {
         tokio::fs::create_dir_all(target_path.parent().unwrap())
             .await
             .map_err(|e| format!("创建目录失败: {}", e))?;
-        println!(
-            "client: 上传成功{}",
-            target_path.to_str().unwrap().to_string()
-        );
         tokio::fs::write(&target_path, data)
             .await
             .map_err(|e| format!("上传失败 {}: {}", target_path.display(), e))

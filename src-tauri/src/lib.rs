@@ -46,9 +46,8 @@ use tauri::Emitter;
 use tauri::WebviewUrl;
 use tauri::{Manager, PhysicalPosition, PhysicalSize};
 use tauri_plugin_deep_link::DeepLinkExt;
-use tauri_plugin_notification::NotificationExt;
 use tracing::Level;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
 use tracing_appender::rolling::RollingFileAppender;
 use tracing_appender::rolling::Rotation;
 use utils::notify::notify;
@@ -107,7 +106,7 @@ pub fn run() {
 
     let builder = tauri::Builder::default().plugin(tauri_plugin_shell::init());
     builder
-        .plugin(tauri_plugin_single_instance::init(|_app, argv, _cwd| {}))
+        .plugin(tauri_plugin_single_instance::init(|_app, _argv, _cwd| {}))
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())

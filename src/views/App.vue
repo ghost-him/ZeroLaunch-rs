@@ -312,6 +312,7 @@ const focusSearchInput = () => {
   if (searchBarRef.value) {
     searchBarRef.value.focus();
   }
+  isContextMenuVisible.value = false;
 }
 
 const backgroundStyle = computed(() => ({

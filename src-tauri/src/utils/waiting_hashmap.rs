@@ -2,7 +2,6 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::sync::Arc;
-use std::time::Duration;
 use tokio::sync::{Mutex, Notify};
 
 /// 一个支持异步等待的 HashMap
@@ -31,7 +30,7 @@ where
         let result = data.insert(key.clone(), value);
 
         // 通知所有等待这个键的任务
-        let mut notifiers = self.notifiers.lock().await;
+        let notifiers = self.notifiers.lock().await;
         if let Some(notifier) = notifiers.get(&key) {
             notifier.notify_waiters();
         }

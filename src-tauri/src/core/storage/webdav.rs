@@ -1,6 +1,5 @@
 use std::path::PathBuf;
 
-use crate::storage::config::PartialLocalConfig;
 use crate::storage::storage_manager::StorageClient;
 use crate::storage::storage_manager::{TEST_CONFIG_FILE_DATA, TEST_CONFIG_FILE_NAME};
 use async_trait::async_trait;

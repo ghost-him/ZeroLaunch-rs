@@ -52,7 +52,7 @@ impl std::fmt::Debug for StorageManagerInner {
 impl StorageManagerInner {
     // 创建一个存储管理器
     pub async fn new() -> StorageManagerInner {
-        let mut inner = StorageManagerInner {
+        let inner = StorageManagerInner {
             local_config: RwLock::new(LocalConfig::default()),
             cached_content: DashMap::new(),
             client: RwLock::new(None),
@@ -84,13 +84,11 @@ impl StorageManagerInner {
                     *client = Some(Arc::new(LocalStorage::new(
                         local_config.get_local_save_config(),
                     )));
-                    println!("已成功赋值local");
                 }
                 StorageDestination::WebDAV => {
                     *client = Some(Arc::new(WebDAVStorage::new(
                         local_config.get_webdav_save_config(),
                     )));
-                    println!("已成功赋值webdav");
                 }
                 // StorageDestination::OneDrive => {
                 //     self.client = Some(Arc::new(RwLock::new(
@@ -137,7 +135,6 @@ impl StorageManagerInner {
     /// file_name: 工作目录下的相对地址
     /// contents: 内容
     pub async fn upload_file_bytes(&self, file_name: String, contents: Vec<u8>) -> bool {
-        println!("收到上传文件请求：{:?}", file_name);
         let save_count = *self
             .local_config
             .read()
@@ -159,7 +156,6 @@ impl StorageManagerInner {
                 if *counter == 0 {
                     // 如果减成了0，则上传文件，同时删除当前的文件
                     self.upload(file_name.clone(), contents).await;
-                    println!("成功上传文件：{}", file_name);
 
                     entry.remove();
                 }
@@ -192,7 +188,6 @@ impl StorageManagerInner {
             }
         }
         if contents.is_some() {
-            println!("成功强制上传文件：{}", file_name);
             self.upload(file_name, contents.unwrap()).await;
             return true;
         }
@@ -220,7 +215,6 @@ impl StorageManagerInner {
     /// 强制下载文件
     /// file_name: 工作目录下的相对地址
     pub async fn download_file_bytes_force(&mut self, file_name: String) -> Vec<u8> {
-        println!("开始强制下载文件：{:?}", file_name);
         match self.cached_content.entry(file_name.clone()) {
             Entry::Occupied(entry) => {
                 // 如果有文件，则删除对应的文件
@@ -237,7 +231,6 @@ impl StorageManagerInner {
     /// 下载文件
     /// file_name: 工作目录下的相对地址
     pub async fn download_file_bytes(&self, file_name: String) -> Vec<u8> {
-        println!("开始下载文件：{:?}", file_name);
         let cached_data = self
             .cached_content
             .get(&file_name)
@@ -361,8 +354,7 @@ impl StorageManager {
 
     /// 更新存储管理器配置
     pub async fn update(&self, partial_local_config: PartialLocalConfig) {
-        println!("{:?}", partial_local_config);
-        let mut inner = self.inner.write().await;
+        let inner = self.inner.write().await;
         inner.update_and_refresh(partial_local_config).await
     }
 
@@ -374,7 +366,7 @@ impl StorageManager {
 
     /// 下载文件内容为字符串（优先使用缓存）
     pub async fn download_file_str(&self, file_name: String) -> String {
-        let mut inner = self.inner.write().await;
+        let inner = self.inner.write().await;
         inner.download_file_str(file_name).await
     }
 
@@ -392,7 +384,7 @@ impl StorageManager {
 
     /// 下载文件内容为二进制（优先使用缓存）
     pub async fn download_file_bytes(&self, file_name: String) -> Vec<u8> {
-        let mut inner = self.inner.write().await;
+        let inner = self.inner.write().await;
         inner.download_file_bytes(file_name).await
     }
 
@@ -434,12 +426,10 @@ pub async fn check_validation(
     let client: Option<Arc<dyn StorageClient>> = match *config.get_storage_destination() {
         StorageDestination::Local => {
             let client = Arc::new(LocalStorage::new(config.get_local_save_config()));
-            println!("已成功赋值local");
             Some(client)
         }
         StorageDestination::WebDAV => {
             let client = Arc::new(WebDAVStorage::new(config.get_webdav_save_config()));
-            println!("已成功赋值webdav");
             Some(client)
         }
         // StorageDestination::OneDrive => {
@@ -455,7 +445,6 @@ pub async fn check_validation(
     };
 
     if let Some(client) = client.as_ref() {
-        println!("开始验证");
         if client.validate_config().await {
             // 如果有效，则返回经过修改的PartialLocalConfig
             return Some(config.to_partial());

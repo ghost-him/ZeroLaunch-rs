@@ -1,4 +1,3 @@
-use std::time::Duration;
 
 use crate::handle_pressed;
 use crate::modules::config::default::APP_VERSION;

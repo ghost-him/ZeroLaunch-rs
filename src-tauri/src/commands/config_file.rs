@@ -2,7 +2,6 @@
 use crate::core::storage::storage_manager::check_validation;
 use crate::modules::config::config_manager::PartialConfig;
 use crate::modules::config::load_local_config;
-use crate::modules::config::LocalConfig;
 use crate::save_config_to_file;
 use crate::storage::config::PartialLocalConfig;
 use crate::update_app_setting;
@@ -18,7 +17,7 @@ use tracing::error;
 /// 更新程序管理器的路径配置
 #[tauri::command]
 pub async fn command_save_remote_config<R: Runtime>(
-    app: tauri::AppHandle<R>,
+    _app: tauri::AppHandle<R>,
     state: tauri::State<'_, Arc<AppState>>,
     partial_config: PartialConfig,
 ) -> Result<(), String> {
@@ -67,8 +66,8 @@ pub async fn command_save_local_config<R: Runtime>(
 
 #[tauri::command]
 pub async fn command_check_validation<R: Runtime>(
-    app: tauri::AppHandle<R>,
-    window: tauri::Window<R>,
+    _app: tauri::AppHandle<R>,
+    _window: tauri::Window<R>,
     partial_config: PartialLocalConfig,
 ) -> Result<Option<PartialLocalConfig>, String> {
     Ok(check_validation(partial_config).await)

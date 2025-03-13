@@ -43,7 +43,6 @@ fn start_keyboard_listener(app: &tauri::AppHandle) {
         tauri::async_runtime::spawn(async move {
             let pressed_keys = Arc::new(Mutex::new(HashSet::new()));
             let pressed_keys_clone: Arc<Mutex<HashSet<Key>>> = Arc::clone(&pressed_keys);
-            let app_handle_clone = app_handle.clone();
             let callback = move |event: Event| {
                 let mut keys = pressed_keys_clone.lock();
 

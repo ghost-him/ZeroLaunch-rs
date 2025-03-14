@@ -14,7 +14,7 @@ pub fn get_window_size() -> (Width, Height) {
         .get_window_state()
         .get_sys_window_scale_factor();
     // 搜索栏的高度，先写死，后期可调
-    let search_bar_height: u32 = 57;
+    let search_bar_height: u32 = 65;
     // 下栏的高度，先写死，后期可调
     let footer_height: u32 = 42;
 

@@ -4,7 +4,7 @@
       <!-- 搜索栏 -->
       <div class="search-input" :style="{ background: search_bar_background_color }">
         <span class="search-icon">
-          <svg viewBox="0 0 1024 1024" width="24" height="24">
+          <svg viewBox="0 0 1024 1024" width="26" height="26">
             <path fill="#999"
               d="M795.904 750.72l124.992 124.928a32 32 0 0 1-45.248 45.248L750.656 795.904a416 416 0 1 1 45.248-45.248zM480 832a352 352 0 1 0 0-704 352 352 0 0 0 0 704z" />
           </svg>
@@ -397,9 +397,9 @@ onUnmounted(() => {
 .search-input {
   display: flex;
   align-items: center;
-  padding: 14px 16px 12px 16px;
   border-bottom: 1px solid rgba(0, 0, 0, 0.05);
   flex-shrink: 0;
+  height: 65px;
 }
 
 .input-field {
@@ -411,13 +411,16 @@ onUnmounted(() => {
   width: 100%;
   padding: 0;
   margin: 0;
+  height: 100%;
+  line-height: normal;
 }
 
 .search-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-right: 12px;
+  margin-left: 20px;
+  margin-right: 20px;
   flex-shrink: 0;
 }
 
@@ -432,9 +435,9 @@ onUnmounted(() => {
 .result-item {
   display: flex;
   align-items: center;
-  padding: 13px 16px;
   cursor: pointer;
   transition: background-color 0.2s;
+  height: 62px;
 }
 
 
@@ -450,7 +453,8 @@ onUnmounted(() => {
 .icon {
   width: 36px;
   height: 36px;
-  margin-right: 12px;
+  margin-left: 18px;
+  margin-right: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -472,6 +476,8 @@ onUnmounted(() => {
   flex-direction: column;
   min-width: 0;
   overflow: hidden;
+  justify-content: center;
+  height: 100%;
 }
 
 .item-name {
@@ -479,6 +485,8 @@ onUnmounted(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  justify-content: center;
+  line-height: normal;
 }
 
 mark {
@@ -492,12 +500,13 @@ mark {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 16px;
   border-top: 1px solid rgba(0, 0, 0, 0.05);
   flex-shrink: 0;
+  height: 48px;
 }
 
 .footer-left {
+  margin-left: 16px;
   flex: 1;
   min-width: 0;
 }
@@ -505,7 +514,7 @@ mark {
 .footer-right {
   display: flex;
   align-items: center;
-  margin-left: 16px;
+  margin-right: 16px;
 }
 
 .status-text,

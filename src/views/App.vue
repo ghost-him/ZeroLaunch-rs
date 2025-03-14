@@ -2,17 +2,18 @@
   <div class="launcher-container" @keydown="handleKeyDown" tabindex="0" :style="backgroundStyle">
     <div class="unified-container">
       <!-- 搜索栏 -->
-      <div class="search-input" :style="{ background: search_bar_background_color }">
+      <div class="search-input"
+        :style="{ background: search_bar_data.search_bar_background_color, height: search_bar_data.search_bar_height + 'px' }">
         <span class="search-icon">
           <svg viewBox="0 0 1024 1024" width="26" height="26">
             <path fill="#999"
               d="M795.904 750.72l124.992 124.928a32 32 0 0 1-45.248 45.248L750.656 795.904a416 416 0 1 1 45.248-45.248zM480 832a352 352 0 1 0 0-704 352 352 0 0 0 0 704z" />
           </svg>
         </span>
-        <input v-model="searchText" :placeholder="placeholder" class="input-field" ref="searchBarRef"
-          @contextmenu.prevent="showContextMenu" :style="{
-            fontSize: search_bar_font_size_with_unit,
-            color: search_bar_font_color
+        <input v-model="searchText" :placeholder="search_bar_data.search_bar_placeholder" class="input-field"
+          ref="searchBarRef" @contextmenu.prevent="showContextMenu" :style="{
+            fontSize: search_bar_data.search_bar_font_size + 'rem',
+            color: search_bar_data.search_bar_font_color
           }">
       </div>
 
@@ -37,15 +38,16 @@
           @click="(event) => handleItemClick(index, event.ctrlKey)" :class="{ 'selected': selectedIndex === index }"
           :style="{
             '--hover-color': hover_item_color,
-            '--selected-color': selected_item_color
+            '--selected-color': search_bar_data.selected_item_color,
+            height: search_bar_data.result_item_height + 'px',
           }">
           <div class="icon">
             <img :src="menuIcons[index]" class="custom-image" alt="icon">
           </div>
           <div class="item-info">
             <div class="item-name" v-html="item" :style="{
-              fontSize: item_font_size_with_unit,
-              color: item_font_color
+              fontSize: search_bar_data.item_font_size + 'rem',
+              color: search_bar_data.item_font_color
             }"></div>
           </div>
         </div>
@@ -53,9 +55,10 @@
     </div>
 
     <!-- 底部状态栏 -->
-    <div class="footer" :style="{ backgroundColor: search_bar_background_color }">
+    <div v-if="search_bar_data.footer_height > 0" class="footer"
+      :style="{ backgroundColor: search_bar_data.search_bar_background_color, height: search_bar_data.footer_height + 'px' }">
       <div class="footer-left">
-        <span class="status-text">{{ tips }}</span>
+        <span class="status-text">{{ search_bar_data.tips }}</span>
       </div>
       <div class="footer-right">
         <span class="open-text">{{ '打开' }}</span>
@@ -70,42 +73,6 @@ import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core'
 import { reduceOpacity } from '../utils/color';
 
-const searchText = ref('la')
-const selectedIndex = ref(0)
-const searchBarRef = ref<HTMLInputElement | null>(null)
-const tips = ref('准备就绪')
-const searchResults = ref<Array<[number, string]>>([]);
-const menuItems = ref<Array<string>>([]);
-const menuIcons = ref<Array<string>>([]);
-const program_icons = ref<Map<number, string>>(new Map<number, string>([]));
-let placeholder = ref('请输入搜索内容');
-const isContextMenuVisible = ref(false);
-const contextMenuPosition = ref({ x: 0, y: 0 });
-const resultItemCount = ref<number>(1);
-const selected_item_color = ref('#d55d1dff');
-const hover_item_color = computed(() => {
-  return reduceOpacity(selected_item_color.value, 0.8);
-})
-const search_bar_font_color = ref('#00FCF7');
-const search_bar_background_color = ref('');
-const item_font_size = ref(1.3);
-const search_bar_font_size = ref(2);
-const item_font_size_with_unit = computed(() => {
-  return item_font_size.value + 'rem';
-})
-const search_bar_font_size_with_unit = computed(() => {
-  return search_bar_font_size.value + 'rem';
-})
-const item_font_color = ref('#ffeeee');
-const background_picture = ref('');
-
-// 新增主题相关逻辑
-const darkModeMediaQuery = ref<MediaQueryList | null>(null);
-
-let unlisten: Array<UnlistenFn | null> = [];
-interface SearchBarInit {
-  result_item_count: number;
-}
 interface SearchBarUpdate {
   search_bar_placeholder: string;
   selected_item_color: string;
@@ -115,6 +82,49 @@ interface SearchBarUpdate {
   item_font_size: number,
   search_bar_font_size: number,
   tips: string
+  search_bar_height: number,
+  result_item_height: number,
+  footer_height: number,
+  resultItemCount: number,
+}
+
+const search_bar_data = ref<SearchBarUpdate>(
+  {
+    search_bar_placeholder: 'Hello, ZeroLaunch!',
+    selected_item_color: '#e3e3e3cc',
+    item_font_color: '#000000',
+    search_bar_font_color: '#333333',
+    search_bar_background_color: '#FFFFFF00',
+    item_font_size: 1.3,
+    search_bar_font_size: 2.0,
+    tips: 'ZeroLaunch-rs',
+    search_bar_height: 65,
+    result_item_height: 62,
+    footer_height: 42,
+    resultItemCount: 4
+  }
+);
+
+const searchText = ref('la')
+const selectedIndex = ref(0)
+const searchBarRef = ref<HTMLInputElement | null>(null)
+const searchResults = ref<Array<[number, string]>>([]);
+const menuItems = ref<Array<string>>([]);
+const menuIcons = ref<Array<string>>([]);
+const program_icons = ref<Map<number, string>>(new Map<number, string>([]));
+const isContextMenuVisible = ref(false);
+const contextMenuPosition = ref({ x: 0, y: 0 });
+const hover_item_color = computed(() => {
+  return reduceOpacity(search_bar_data.value.selected_item_color, 0.8);
+})
+const background_picture = ref('');
+
+// 用于检测当前系统是深色模式还是浅色模式
+const darkModeMediaQuery = ref<MediaQueryList | null>(null);
+
+let unlisten: Array<UnlistenFn | null> = [];
+interface SearchBarInit {
+  result_item_count: number;
 }
 
 watch(searchText, (newVal) => {
@@ -181,14 +191,7 @@ const updateWindow = async () => {
     const background_picture_data = await invoke<number[]>('get_background_picture');
     const program_count = invoke<number>('get_program_count');
     const data = await invoke<SearchBarUpdate>('update_search_bar_window');
-    placeholder.value = data.search_bar_placeholder;
-    selected_item_color.value = data.selected_item_color;
-    item_font_color.value = data.item_font_color;
-    tips.value = data.tips;
-    search_bar_font_color.value = data.search_bar_font_color;
-    search_bar_background_color.value = data.search_bar_background_color;
-    item_font_size.value = data.item_font_size;
-    search_bar_font_size.value = data.search_bar_font_size;
+    search_bar_data.value = data;
 
     const blob = new Blob([new Uint8Array(background_picture_data)], { type: 'image/png' });
     const url = URL.createObjectURL(blob);
@@ -250,11 +253,11 @@ const handleKeyDown = async (event: KeyboardEvent) => {
   switch (event.key) {
     case 'ArrowDown':
       event.preventDefault()
-      selectedIndex.value = (selectedIndex.value + 1) % resultItemCount.value
+      selectedIndex.value = (selectedIndex.value + 1) % search_bar_data.value.resultItemCount
       break
     case 'ArrowUp':
       event.preventDefault()
-      selectedIndex.value = (selectedIndex.value - 1 + resultItemCount.value) % resultItemCount.value
+      selectedIndex.value = (selectedIndex.value - 1 + search_bar_data.value.resultItemCount) % search_bar_data.value.resultItemCount
       break
     case 'Enter':
       event.preventDefault()
@@ -264,13 +267,13 @@ const handleKeyDown = async (event: KeyboardEvent) => {
     case 'j':
       if (event.ctrlKey) {
         event.preventDefault()
-        selectedIndex.value = (selectedIndex.value + 1) % resultItemCount.value
+        selectedIndex.value = (selectedIndex.value + 1) % search_bar_data.value.resultItemCount
       }
       break
     case 'k':
       if (event.ctrlKey) {
         event.preventDefault()
-        selectedIndex.value = (selectedIndex.value - 1 + resultItemCount.value) % resultItemCount.value
+        selectedIndex.value = (selectedIndex.value - 1 + search_bar_data.value.resultItemCount) % search_bar_data.value.resultItemCount
       }
       break
     case 'Escape':
@@ -287,11 +290,6 @@ const handleKeyDown = async (event: KeyboardEvent) => {
 const handleItemClick = (itemIndex: number, ctrlKey = false) => {
   // 传递 ctrlKey 状态到 handle 函数
   launch_program(itemIndex, ctrlKey)
-}
-
-const initWindow = async () => {
-  const initValue = await invoke<SearchBarInit>('initialize_search_window');
-  resultItemCount.value = initValue.result_item_count;
 }
 
 const initSearchBar = () => {
@@ -344,7 +342,6 @@ onMounted(async () => {
   if (searchBarRef.value) {
     searchBarRef.value.focus()
   }
-  initWindow()
   updateWindow()
   window.addEventListener('click', handleClickOutside);
   unlisten.push(await listen('show_window', () => {
@@ -399,7 +396,6 @@ onUnmounted(() => {
   align-items: center;
   border-bottom: 1px solid rgba(0, 0, 0, 0.05);
   flex-shrink: 0;
-  height: 65px;
 }
 
 .input-field {
@@ -437,7 +433,6 @@ onUnmounted(() => {
   align-items: center;
   cursor: pointer;
   transition: background-color 0.2s;
-  height: 62px;
 }
 
 
@@ -502,7 +497,6 @@ mark {
   align-items: center;
   border-top: 1px solid rgba(0, 0, 0, 0.05);
   flex-shrink: 0;
-  height: 48px;
 }
 
 .footer-left {

@@ -128,6 +128,9 @@ export const useRemoteConfigStore = defineStore('config', {
                 search_bar_background_color: '#FFFFFF00',
                 item_font_size: 1.3,
                 vertical_position_ratio: 0.4,
+                search_bar_height: 65,
+                result_item_height: 62,
+                footer_height: 42,
             } as UIConfig,
             program_manager_config: {
                 launcher: {
@@ -160,9 +163,7 @@ export const useRemoteConfigStore = defineStore('config', {
         // 更新配置并同步到后端
         updateConfig(partial: PartialConfig) {
             // 1. 更新本地状态（带自定义合并规则）
-            console.log("收到更新")
             this.config = mergeConfig(this.config, partial);
-            console.log(partial);
             // 2. 更新 dirtyConfig（带相同合并规则）
             this.dirtyConfig = mergePartialConfig(this.dirtyConfig, partial)
         },
@@ -171,8 +172,6 @@ export const useRemoteConfigStore = defineStore('config', {
             if (Object.keys(this.dirtyConfig).length === 0) return;
 
             try {
-                console.log("向后端传输信息")
-                console.log(this.dirtyConfig)
                 await invoke("command_save_remote_config", { partialConfig: this.dirtyConfig });
                 this.dirtyConfig = {};
             } catch (error) {

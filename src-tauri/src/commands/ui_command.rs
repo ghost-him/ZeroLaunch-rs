@@ -8,12 +8,6 @@ use tauri::image::Image;
 use tauri::Emitter;
 use tauri::Manager;
 use tauri::Runtime;
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct SearchBarInit {
-    result_item_count: u32,
-}
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SearchBarUpdate {
     search_bar_placeholder: String,
@@ -24,16 +18,10 @@ pub struct SearchBarUpdate {
     search_bar_background_color: String,
     item_font_size: f64,
     search_bar_font_size: f64,
-}
-
-#[tauri::command]
-pub async fn initialize_search_window() -> SearchBarInit {
-    let state = ServiceLocator::get_state();
-    let runtime_config = state.get_runtime_config().unwrap();
-    let result_item_count = runtime_config.get_app_config().get_search_result_count();
-    SearchBarInit {
-        result_item_count: result_item_count,
-    }
+    search_bar_height: u32,
+    result_item_height: u32,
+    footer_height: u32,
+    result_item_count: u32,
 }
 
 #[tauri::command]
@@ -54,6 +42,10 @@ pub async fn update_search_bar_window<R: Runtime>(
         search_bar_background_color: ui_config.get_search_bar_background_color(),
         item_font_size: ui_config.get_item_font_size(),
         search_bar_font_size: ui_config.get_search_bar_font_size(),
+        search_bar_height: ui_config.get_search_bar_height(),
+        result_item_height: ui_config.get_result_item_height(),
+        footer_height: ui_config.get_footer_height(),
+        result_item_count: app_config.get_search_result_count(),
     })
 }
 

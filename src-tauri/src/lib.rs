@@ -154,7 +154,6 @@ pub fn run() {
             get_program_info,
             refresh_program,
             handle_search_text,
-            initialize_search_window,
             update_search_bar_window,
             get_background_picture,
             get_remote_config_dir,
@@ -224,7 +223,7 @@ fn update_window_size_and_position() {
     main_window
         .set_size(PhysicalSize::new(
             window_size.0 as u32,
-            window_size.1 as u32 + (20_f64 * scale_factor) as u32,
+            window_size.1 as u32 + (10_f64 * scale_factor) as u32,
         ))
         .unwrap();
 }

@@ -88,7 +88,6 @@
                     <el-color-picker v-model="config.ui_config.selected_item_color" show-alpha
                         @update:model-value="(val: string) => configStore.updateConfig({ ui_config: { selected_item_color: rgbaToHex(val) } })" />
                 </el-form-item>
-
                 <el-form-item label="搜索栏字体的颜色">
                     <el-color-picker v-model="config.ui_config.search_bar_font_color"
                         @update:model-value="(val: string) => configStore.updateConfig({ ui_config: { search_bar_font_color: rgbaToHex(val) } })" />
@@ -97,7 +96,6 @@
                     <el-color-picker v-model="config.ui_config.item_font_color"
                         @update:model-value="(val: string) => configStore.updateConfig({ ui_config: { item_font_color: rgbaToHex(val) } })" />
                 </el-form-item>
-
                 <el-form-item label="搜索栏的字体大小(单位rem)">
                     <el-input-number v-model="config.ui_config.search_bar_font_size" placeholder="2" :min="0"
                         :step="0.1"
@@ -107,8 +105,6 @@
                     <el-input-number v-model="config.ui_config.item_font_size" placeholder="1.3" :min="0" :step="0.1"
                         @update:model-value="(val: number) => configStore.updateConfig({ ui_config: { item_font_size: val } })" />
                 </el-form-item>
-
-
                 <el-form-item label="窗口垂直方向偏移比例因子">
                     <el-tooltip class="box-item" effect="dark" content="0表示在屏幕顶部，1表示在屏幕底部，0.5表示在屏幕正中间"
                         placement="right-start">
@@ -116,6 +112,24 @@
                             :step="0.05" :max="1"
                             @update:model-value="(val: number) => configStore.updateConfig({ ui_config: { vertical_position_ratio: val } })" />
                     </el-tooltip>
+                </el-form-item>
+
+                <el-form-item label="搜索栏的高度(单位px)">
+                    <el-input-number v-model="config.ui_config.search_bar_height" placeholder="65" :min="1" :step="1"
+                        :precision="0"
+                        @update:model-value="(val: number) => configStore.updateConfig({ ui_config: { search_bar_height: val } })" />
+                </el-form-item>
+
+                <el-form-item label="结果栏中一项的高度(单位px)">
+                    <el-input-number v-model="config.ui_config.result_item_height" placeholder="62" :min="1" :step="1"
+                        :precision="0"
+                        @update:model-value="(val: number) => configStore.updateConfig({ ui_config: { result_item_height: val } })" />
+                </el-form-item>
+
+                <el-form-item label="底栏的高度(单位px)">
+                    <el-input-number v-model="config.ui_config.footer_height" placeholder="42" :min="0" :step="1"
+                        :precision="0"
+                        @update:model-value="(val: number) => configStore.updateConfig({ ui_config: { footer_height: val } })" />
                 </el-form-item>
 
                 <el-form-item label="选择背景图片">

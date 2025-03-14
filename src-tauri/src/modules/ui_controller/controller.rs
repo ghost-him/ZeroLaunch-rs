@@ -4,19 +4,21 @@ use crate::ServiceLocator;
 
 // 获得窗口的大小
 pub fn get_window_size() -> (Width, Height) {
-    let item_size: u32 = 62; // 一个选项高度
     let state = ServiceLocator::get_state();
     let runtime_config = state.get_runtime_config().unwrap();
 
     let app_config = runtime_config.get_app_config();
+    let ui_config = runtime_config.get_ui_config();
     let show_item_count = app_config.get_search_result_count();
     let scale_factor = runtime_config
         .get_window_state()
         .get_sys_window_scale_factor();
-    // 搜索栏的高度，先写死，后期可调
-    let search_bar_height: u32 = 65;
-    // 下栏的高度，先写死，后期可调
-    let footer_height: u32 = 42;
+    // 结果栏一项的高度
+    let item_size = ui_config.get_result_item_height();
+    // 搜索栏的高度
+    let search_bar_height = ui_config.get_search_bar_height();
+    // 下栏的高度
+    let footer_height: u32 = ui_config.get_footer_height();
 
     let window_width = 1000 as f64 * scale_factor;
     let window_height =

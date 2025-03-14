@@ -10,6 +10,9 @@ pub struct PartialUiConfig {
     pub item_font_size: Option<f64>,
     pub search_bar_font_size: Option<f64>,
     pub vertical_position_ratio: Option<f64>,
+    pub search_bar_height: Option<u32>,
+    pub result_item_height: Option<u32>,
+    pub footer_height: Option<u32>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -40,9 +43,18 @@ pub struct UiConfigInner {
     #[serde(default = "UiConfigInner::default_search_bar_font_size")]
     pub search_bar_font_size: f64,
 
-    /// 测试
+    /// 垂直方向偏移比例因子
     #[serde(default = "UiConfigInner::default_vertical_position_ratio")]
     pub vertical_position_ratio: f64,
+
+    /// 搜索栏的高度
+    pub search_bar_height: u32,
+
+    /// 结果栏中一项的高度
+    pub result_item_height: u32,
+
+    /// 底栏的高度（为0时则隐藏）
+    pub footer_height: u32,
 }
 
 impl Default for UiConfigInner {
@@ -55,6 +67,9 @@ impl Default for UiConfigInner {
             item_font_size: Self::default_item_font_size(),
             search_bar_font_size: Self::default_search_bar_font_size(),
             vertical_position_ratio: Self::default_vertical_position_ratio(),
+            search_bar_height: Self::default_search_bar_height(),
+            result_item_height: Self::default_result_item_height(),
+            footer_height: Self::default_footer_height(),
         }
     }
 }
@@ -87,6 +102,18 @@ impl UiConfigInner {
     pub(crate) fn default_vertical_position_ratio() -> f64 {
         0.4
     }
+
+    pub(crate) fn default_search_bar_height() -> u32 {
+        65
+    }
+
+    pub(crate) fn default_result_item_height() -> u32 {
+        62
+    }
+
+    pub(crate) fn default_footer_height() -> u32 {
+        42
+    }
 }
 
 impl UiConfigInner {
@@ -111,6 +138,15 @@ impl UiConfigInner {
         }
         if let Some(vertical_position_ratio) = partial_ui_config.vertical_position_ratio {
             self.vertical_position_ratio = vertical_position_ratio;
+        }
+        if let Some(search_bar_height) = partial_ui_config.search_bar_height {
+            self.search_bar_height = search_bar_height;
+        }
+        if let Some(result_item_height) = partial_ui_config.result_item_height {
+            self.result_item_height = result_item_height;
+        }
+        if let Some(footer_height) = partial_ui_config.footer_height {
+            self.footer_height = footer_height;
         }
     }
 
@@ -137,6 +173,18 @@ impl UiConfigInner {
         self.search_bar_font_size
     }
 
+    pub fn get_search_bar_height(&self) -> u32 {
+        self.search_bar_height
+    }
+
+    pub fn get_result_item_height(&self) -> u32 {
+        self.result_item_height
+    }
+
+    pub fn get_footer_height(&self) -> u32 {
+        self.footer_height
+    }
+
     pub fn to_partial(&self) -> PartialUiConfig {
         PartialUiConfig {
             selected_item_color: Some(self.selected_item_color.clone()),
@@ -146,6 +194,9 @@ impl UiConfigInner {
             item_font_size: Some(self.item_font_size),
             search_bar_font_size: Some(self.search_bar_font_size),
             vertical_position_ratio: Some(self.vertical_position_ratio),
+            search_bar_height: Some(self.search_bar_height),
+            result_item_height: Some(self.result_item_height),
+            footer_height: Some(self.footer_height),
         }
     }
 }
@@ -205,6 +256,21 @@ impl UiConfig {
     pub fn get_vertical_position_ratio(&self) -> f64 {
         let inner = self.inner.read();
         inner.vertical_position_ratio
+    }
+
+    pub fn get_search_bar_height(&self) -> u32 {
+        let inner = self.inner.read();
+        inner.search_bar_height
+    }
+
+    pub fn get_result_item_height(&self) -> u32 {
+        let inner = self.inner.read();
+        inner.result_item_height
+    }
+
+    pub fn get_footer_height(&self) -> u32 {
+        let inner = self.inner.read();
+        inner.footer_height
     }
 }
 

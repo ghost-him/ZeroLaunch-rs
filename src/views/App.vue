@@ -123,9 +123,6 @@ const background_picture = ref('');
 const darkModeMediaQuery = ref<MediaQueryList | null>(null);
 
 let unlisten: Array<UnlistenFn | null> = [];
-interface SearchBarInit {
-  result_item_count: number;
-}
 
 watch(searchText, (newVal) => {
   sendSearchText(newVal)
@@ -144,7 +141,6 @@ const sendSearchText = async (text: string) => {
     console.error('Error sending search text to Rust: ', error);
   }
 }
-
 
 // 处理菜单项选择
 const handleContextMenuSelect = (index: string) => {

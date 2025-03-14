@@ -132,6 +132,12 @@
                         @update:model-value="(val: number) => configStore.updateConfig({ ui_config: { footer_height: val } })" />
                 </el-form-item>
 
+                <el-form-item label="程序的宽度(单位px)">
+                    <el-input-number v-model="config.ui_config.window_width" placeholder="1000" :min="400" :step="1"
+                        :precision="0"
+                        @update:model-value="(val: number) => configStore.updateConfig({ ui_config: { window_width: val } })" />
+                </el-form-item>
+
                 <el-form-item label="选择背景图片">
                     <el-button type="primary" @click="select_background_picture">选择图片</el-button>
                     <el-button type="danger" @click="delete_background_picture">删除图片</el-button>
@@ -415,7 +421,6 @@ import { rgbaToHex } from '../utils/color';
 import about from "./about.vue";
 import debug from "./debug.vue";
 import ConfigPathSelector from "./ConfigPathSelector.vue";
-import { min } from 'lodash-es';
 
 const configStore = useRemoteConfigStore()
 const { config } = storeToRefs(configStore)

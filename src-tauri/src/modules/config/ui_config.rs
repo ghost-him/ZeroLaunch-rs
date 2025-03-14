@@ -13,6 +13,7 @@ pub struct PartialUiConfig {
     pub search_bar_height: Option<u32>,
     pub result_item_height: Option<u32>,
     pub footer_height: Option<u32>,
+    pub window_width: Option<u32>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -48,13 +49,20 @@ pub struct UiConfigInner {
     pub vertical_position_ratio: f64,
 
     /// 搜索栏的高度
+    #[serde(default = "UiConfigInner::default_search_bar_height")]
     pub search_bar_height: u32,
 
     /// 结果栏中一项的高度
+    #[serde(default = "UiConfigInner::default_result_item_height")]
     pub result_item_height: u32,
 
     /// 底栏的高度（为0时则隐藏）
+    #[serde(default = "UiConfigInner::default_footer_height")]
     pub footer_height: u32,
+
+    /// 程序的宽度
+    #[serde(default = "UiConfigInner::default_window_width")]
+    pub window_width: u32,
 }
 
 impl Default for UiConfigInner {
@@ -70,6 +78,7 @@ impl Default for UiConfigInner {
             search_bar_height: Self::default_search_bar_height(),
             result_item_height: Self::default_result_item_height(),
             footer_height: Self::default_footer_height(),
+            window_width: Self::default_window_width(),
         }
     }
 }
@@ -114,6 +123,10 @@ impl UiConfigInner {
     pub(crate) fn default_footer_height() -> u32 {
         42
     }
+
+    pub(crate) fn default_window_width() -> u32 {
+        1000
+    }
 }
 
 impl UiConfigInner {
@@ -147,6 +160,9 @@ impl UiConfigInner {
         }
         if let Some(footer_height) = partial_ui_config.footer_height {
             self.footer_height = footer_height;
+        }
+        if let Some(window_width) = partial_ui_config.window_width {
+            self.window_width = window_width;
         }
     }
 
@@ -197,6 +213,7 @@ impl UiConfigInner {
             search_bar_height: Some(self.search_bar_height),
             result_item_height: Some(self.result_item_height),
             footer_height: Some(self.footer_height),
+            window_width: Some(self.window_width),
         }
     }
 }
@@ -272,42 +289,8 @@ impl UiConfig {
         let inner = self.inner.read();
         inner.footer_height
     }
+    pub fn get_window_width(&self) -> u32 {
+        let inner = self.inner.read();
+        inner.window_width
+    }
 }
-
-// // 手动实现序列化
-// impl Serialize for UiConfig {
-//     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-//     where
-//         S: Serializer,
-//     {
-//         // 获取读锁后序列化内部数据
-//         let inner = self.inner.read();
-//         inner.serialize(serializer)
-//     }
-// }
-
-// // 手动实现反序列化
-// impl<'de> Deserialize<'de> for UiConfig {
-//     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-//     where
-//         D: Deserializer<'de>,
-//     {
-//         // 先反序列化出内部数据
-//         let inner = UiConfigInner::deserialize(deserializer)?;
-//         // 用 RwLock 包装后返回
-//         Ok(UiConfig {
-//             inner: RwLock::new(inner),
-//         })
-//     }
-// }
-
-// // 手动实现 Clone
-// impl Clone for UiConfig {
-//     fn clone(&self) -> Self {
-//         // 获取读锁后克隆内部数据
-//         let inner_data = self.inner.read().clone();
-//         UiConfig {
-//             inner: RwLock::new(inner_data),
-//         }
-//     }
-// }

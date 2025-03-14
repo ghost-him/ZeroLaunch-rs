@@ -20,6 +20,7 @@ export type UIConfig = {
     search_bar_height: number,
     result_item_height: number,
     footer_height: number,
+    window_width: number,
 }
 
 export type ProgramLauncherConfig = {

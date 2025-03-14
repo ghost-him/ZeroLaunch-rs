@@ -19,8 +19,8 @@ pub fn get_window_size() -> (Width, Height) {
     let search_bar_height = ui_config.get_search_bar_height();
     // 下栏的高度
     let footer_height: u32 = ui_config.get_footer_height();
-
-    let window_width = 1000 as f64 * scale_factor;
+    // 窗口的宽度
+    let window_width: f64 = ui_config.get_window_width() as f64 * scale_factor;
     let window_height =
         (item_size * show_item_count + search_bar_height + footer_height) as f64 * scale_factor;
 

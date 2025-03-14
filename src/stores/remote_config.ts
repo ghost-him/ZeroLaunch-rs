@@ -131,6 +131,7 @@ export const useRemoteConfigStore = defineStore('config', {
                 search_bar_height: 65,
                 result_item_height: 62,
                 footer_height: 42,
+                window_width: 1000,
             } as UIConfig,
             program_manager_config: {
                 launcher: {

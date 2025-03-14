@@ -55,7 +55,7 @@
                             @update:model-value="(val: boolean) => configStore.updateConfig({ app_config: { is_silent_start: val } })" />
                     </el-form-item>
 
-                    <el-form-item label="设置搜索结果数量（需重启软件）">
+                    <el-form-item label="设置搜索结果数量">
                         <el-input-number v-model="config.app_config.search_result_count" :step="1" :precision="0"
                             @update:model-value="(val: number) => configStore.updateConfig({ app_config: { search_result_count: val } })" />
                     </el-form-item>
@@ -99,12 +99,23 @@
                 </el-form-item>
 
                 <el-form-item label="搜索栏的字体大小(单位rem)">
-                    <el-input v-model="config.ui_config.search_bar_font_size" placeholder="2" type="number"
-                        @update:model-value="(val: string) => configStore.updateConfig({ ui_config: { search_bar_font_size: parseFloat(val) } })" />
+                    <el-input-number v-model="config.ui_config.search_bar_font_size" placeholder="2" :min="0"
+                        :step="0.1"
+                        @update:model-value="(val: number) => configStore.updateConfig({ ui_config: { search_bar_font_size: val } })" />
                 </el-form-item>
                 <el-form-item label="结果栏的字体大小(单位rem)">
-                    <el-input v-model="config.ui_config.item_font_size" placeholder="1.3" type="number"
-                        @update:model-value="(val: string) => configStore.updateConfig({ ui_config: { item_font_size: parseFloat(val) } })" />
+                    <el-input-number v-model="config.ui_config.item_font_size" placeholder="1.3" :min="0" :step="0.1"
+                        @update:model-value="(val: number) => configStore.updateConfig({ ui_config: { item_font_size: val } })" />
+                </el-form-item>
+
+
+                <el-form-item label="窗口垂直方向偏移比例因子">
+                    <el-tooltip class="box-item" effect="dark" content="0表示在屏幕顶部，1表示在屏幕底部，0.5表示在屏幕正中间"
+                        placement="right-start">
+                        <el-input-number v-model="config.ui_config.vertical_position_ratio" placeholder="0.4" :min="0"
+                            :step="0.05" :max="1"
+                            @update:model-value="(val: number) => configStore.updateConfig({ ui_config: { vertical_position_ratio: val } })" />
+                    </el-tooltip>
                 </el-form-item>
 
                 <el-form-item label="选择背景图片">
@@ -132,8 +143,8 @@
                             </el-table-column>
                             <el-table-column label="遍历深度" show-overflow-tooltip fixed="right" width="80">
                                 <template #default="{ row, $index }">
-                                    <el-input v-model="row[1]" size="small" placeholder="请输入遍历深度" type="number"
-                                        :precision="0" @change="updateTargetPath($index, row)"></el-input>
+                                    <el-input-number v-model="row[1]" size="small" placeholder="请输入遍历深度" :precision="0"
+                                        :min="1" @change="updateTargetPath($index, row)"></el-input-number>
                                 </template>
                             </el-table-column>
                             <el-table-column fixed="right" label="操作" width="100">
@@ -390,6 +401,7 @@ import { rgbaToHex } from '../utils/color';
 import about from "./about.vue";
 import debug from "./debug.vue";
 import ConfigPathSelector from "./ConfigPathSelector.vue";
+import { min } from 'lodash-es';
 
 const configStore = useRemoteConfigStore()
 const { config } = storeToRefs(configStore)

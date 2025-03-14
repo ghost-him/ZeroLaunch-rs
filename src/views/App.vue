@@ -177,15 +177,14 @@ const refreshDataset = async () => {
 const updateWindow = async () => {
   console.log("updateWindow");
   try {
+    sendSearchText('');
     const background_picture_data = await invoke<number[]>('get_background_picture');
     const program_count = invoke<number>('get_program_count');
     const data = await invoke<SearchBarUpdate>('update_search_bar_window');
-    console.log(data)
     placeholder.value = data.search_bar_placeholder;
     selected_item_color.value = data.selected_item_color;
     item_font_color.value = data.item_font_color;
     tips.value = data.tips;
-    console.log(search_bar_font_color.value)
     search_bar_font_color.value = data.search_bar_font_color;
     search_bar_background_color.value = data.search_bar_background_color;
     item_font_size.value = data.item_font_size;
@@ -347,7 +346,6 @@ onMounted(async () => {
   }
   initWindow()
   updateWindow()
-  sendSearchText('');
   window.addEventListener('click', handleClickOutside);
   unlisten.push(await listen('show_window', () => {
     focusSearchInput();

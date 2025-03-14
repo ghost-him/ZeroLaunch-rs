@@ -16,6 +16,7 @@ export type UIConfig = {
     search_bar_background_color: string
     item_font_size: number
     search_bar_font_size: number
+    vertical_position_ratio: number
 }
 
 export type ProgramLauncherConfig = {

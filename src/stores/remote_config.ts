@@ -127,6 +127,7 @@ export const useRemoteConfigStore = defineStore('config', {
                 search_bar_font_size: 2.0,
                 search_bar_background_color: '#FFFFFF00',
                 item_font_size: 1.3,
+                vertical_position_ratio: 0.4,
             } as UIConfig,
             program_manager_config: {
                 launcher: {

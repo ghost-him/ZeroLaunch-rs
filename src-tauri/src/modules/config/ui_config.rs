@@ -9,6 +9,7 @@ pub struct PartialUiConfig {
     pub search_bar_background_color: Option<String>,
     pub item_font_size: Option<f64>,
     pub search_bar_font_size: Option<f64>,
+    pub vertical_position_ratio: Option<f64>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -40,8 +41,8 @@ pub struct UiConfigInner {
     pub search_bar_font_size: f64,
 
     /// 测试
-    #[serde(default = "UiConfigInner::default_search_bar_font_size")]
-    pub test: f64,
+    #[serde(default = "UiConfigInner::default_vertical_position_ratio")]
+    pub vertical_position_ratio: f64,
 }
 
 impl Default for UiConfigInner {
@@ -53,7 +54,7 @@ impl Default for UiConfigInner {
             search_bar_background_color: Self::default_search_bar_background_color(),
             item_font_size: Self::default_item_font_size(),
             search_bar_font_size: Self::default_search_bar_font_size(),
-            test: Self::default_search_bar_font_size(),
+            vertical_position_ratio: Self::default_vertical_position_ratio(),
         }
     }
 }
@@ -82,6 +83,10 @@ impl UiConfigInner {
     pub(crate) fn default_search_bar_font_size() -> f64 {
         2.0
     }
+
+    pub(crate) fn default_vertical_position_ratio() -> f64 {
+        0.4
+    }
 }
 
 impl UiConfigInner {
@@ -103,6 +108,9 @@ impl UiConfigInner {
         }
         if let Some(search_bar_font_size) = partial_ui_config.search_bar_font_size {
             self.search_bar_font_size = search_bar_font_size;
+        }
+        if let Some(vertical_position_ratio) = partial_ui_config.vertical_position_ratio {
+            self.vertical_position_ratio = vertical_position_ratio;
         }
     }
 
@@ -137,6 +145,7 @@ impl UiConfigInner {
             search_bar_background_color: Some(self.search_bar_background_color.clone()),
             item_font_size: Some(self.item_font_size),
             search_bar_font_size: Some(self.search_bar_font_size),
+            vertical_position_ratio: Some(self.vertical_position_ratio),
         }
     }
 }
@@ -191,6 +200,11 @@ impl UiConfig {
     pub fn get_search_bar_font_size(&self) -> f64 {
         let inner = self.inner.read();
         inner.search_bar_font_size
+    }
+
+    pub fn get_vertical_position_ratio(&self) -> f64 {
+        let inner = self.inner.read();
+        inner.vertical_position_ratio
     }
 }
 

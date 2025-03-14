@@ -26,7 +26,11 @@ pub fn get_window_size() -> (Width, Height) {
 }
 
 // 获得窗口的原始渲染大小
-pub fn get_window_render_origin() -> (Width, Height) {
+// 参数：vertical_position_ratio
+// 垂直方向向上偏移，使用比例因子0.4（可以根据需要调整）
+// 这个比例表示窗口顶部到屏幕顶部的距离占总可用空间的比例
+// 比例因子，小于0.5会使窗口偏向上方
+pub fn get_window_render_origin(vertical_position_ratio: f64) -> (Width, Height) {
     let state = ServiceLocator::get_state();
     let runtime_config = state.get_runtime_config().unwrap();
     let window_state = runtime_config.get_window_state();
@@ -38,9 +42,6 @@ pub fn get_window_render_origin() -> (Width, Height) {
     // 水平方向保持居中
     let window_width_margin = ((sys_window_width - window_width) / 2) as Width;
 
-    // 垂直方向向上偏移，使用比例因子0.4（可以根据需要调整）
-    // 这个比例表示窗口顶部到屏幕顶部的距离占总可用空间的比例
-    let vertical_position_ratio = 0.4; // 比例因子，小于0.5会使窗口偏向上方
     let window_height_margin =
         ((sys_window_height - window_height) as f64 * vertical_position_ratio) as Height;
 

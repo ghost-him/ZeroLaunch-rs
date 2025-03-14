@@ -203,6 +203,32 @@ async fn init_app_state(app: &mut App) {
     ServiceLocator::init((*state).clone());
 }
 
+/// 更新当前窗口的大小与位置
+fn update_window_size_and_position() {
+    let state = ServiceLocator::get_state();
+    let main_window = state
+        .get_main_handle()
+        .unwrap()
+        .get_webview_window("main")
+        .unwrap();
+    let config = state.get_runtime_config().unwrap();
+    let scale_factor = config.get_window_state().get_sys_window_scale_factor();
+
+    let ui_config = config.get_ui_config();
+    let vertical_position_ratio = ui_config.get_vertical_position_ratio();
+    let position = get_window_render_origin(vertical_position_ratio);
+    main_window
+        .set_position(PhysicalPosition::new(position.0 as u32, position.1 as u32))
+        .unwrap();
+    let window_size = get_window_size();
+    main_window
+        .set_size(PhysicalSize::new(
+            window_size.0 as u32,
+            window_size.1 as u32 + (20_f64 * scale_factor) as u32,
+        ))
+        .unwrap();
+}
+
 /// 初始化搜索界面的窗口设置
 fn init_search_bar_window(app: &mut App) {
     let main_window = Arc::new(app.get_webview_window("main").unwrap());
@@ -220,17 +246,7 @@ fn init_search_bar_window(app: &mut App) {
         sys_window_height: Some(size.height as Height),
     });
 
-    let position = get_window_render_origin();
-    main_window
-        .set_position(PhysicalPosition::new(position.0 as u32, position.1 as u32))
-        .unwrap();
-    let window_size = get_window_size();
-    main_window
-        .set_size(PhysicalSize::new(
-            window_size.0 as u32,
-            window_size.1 as u32 + (20_f64 * scale_factor) as u32,
-        ))
-        .unwrap();
+    update_window_size_and_position();
     // 设置当窗口被关闭时，忽略
     let windows_clone = main_window.clone();
     main_window.on_window_event(move |event| {
@@ -335,6 +351,9 @@ async fn update_app_setting() {
 
     // 3.判断要不要静默启动
     handle_silent_start();
+
+    // 4.判断要不要更新当前的窗口大小
+    update_window_size_and_position();
 
     let mins = runtime_config.get_app_config().get_auto_refresh_time() as u64;
 

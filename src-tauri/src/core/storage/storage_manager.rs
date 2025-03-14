@@ -107,7 +107,7 @@ impl StorageManagerInner {
         let partial_local_config = self.local_config.read().await.to_partial();
         let contents = serde_json::to_string(&partial_local_config).unwrap();
         let path = LOCAL_CONFIG_PATH.clone();
-        tokio::fs::write(path, contents).await;
+        let _ = tokio::fs::write(path, contents).await;
     }
 
     /// 上传文件

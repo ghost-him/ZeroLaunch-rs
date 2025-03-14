@@ -200,24 +200,56 @@ const updateWindow = async () => {
 }
 
 const startPreloadResource = async (program_count: number) => {
-  // 清空原来的内容
+  const BATCH_SIZE = 10; // 增大批次大小以提升效率
+
+  // 释放旧资源
+  program_icons.value.forEach(url => URL.revokeObjectURL(url));
   program_icons.value.clear();
 
-  // 创建所有程序ID的数组
-  const allProgramIds = Array.from({ length: program_count }, (_, index) => index);
+  // 创建所有programId的数组（0到program_count-1）
+  const allIds = Array.from({ length: program_count }, (_, i) => i);
 
-  // 一次性并发加载所有图标
-  await Promise.all(allProgramIds.map(async (programId) => {
-    try {
-      const iconData: number[] = await invoke('load_program_icon', { programGuid: programId });
-      const blob = new Blob([new Uint8Array(iconData)], { type: 'image/png' });
-      const url = URL.createObjectURL(blob);
-      program_icons.value.set(programId, url);
-    } catch (error) {
-      console.error(`Failed to preload icon for program ${programId}:`, error);
-    }
-  }));
+  // 分批并发加载
+  for (let i = 0; i < allIds.length; i += BATCH_SIZE) {
+    const batchIds = allIds.slice(i, i + BATCH_SIZE);
+
+    await Promise.all(batchIds.map(async (programId) => {
+      try {
+
+        const iconData: number[] = await invoke('load_program_icon', {
+          programGuid: programId
+        });
+
+        const blob = new Blob([new Uint8Array(iconData)], { type: 'image/png' });
+        const url = URL.createObjectURL(blob);
+        program_icons.value.set(programId, url);
+      } catch (error) {
+        console.error(`预加载图标失败: ${programId}`, error);
+      }
+    }));
+  }
 }
+
+
+// const startPreloadResource = async (program_count: number) => {
+//   // 清空原来的内容 
+//   program_icons.value.clear();
+
+//   // 创建所有程序ID的数组
+//   const allProgramIds = Array.from({ length: program_count }, (_, index) => index);
+
+//   // 一次性并发加载所有图标
+//   await Promise.all(allProgramIds.map(async (programId) => {
+//     try {
+//       const iconData: number[] = await invoke('load_program_icon', { programGuid: programId });
+//       const blob = new Blob([new Uint8Array(iconData)], { type: 'image/png' });
+//       const url = URL.createObjectURL(blob);
+//       program_icons.value.set(programId, url);
+//     } catch (error) {
+//       console.error(`Failed to preload icon for program ${programId}:`, error);
+//     }
+//   }));
+// }
 
 const getIcons = async (keys: Array<number>) => {
   let result: Array<string> = [];

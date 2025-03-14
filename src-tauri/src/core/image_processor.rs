@@ -110,7 +110,8 @@ impl ImageProcessor {
             let _com_init = unsafe {
                 windows::Win32::System::Com::CoInitializeEx(
                     None,
-                    windows::Win32::System::Com::COINIT_APARTMENTTHREADED,
+                    windows::Win32::System::Com::COINIT_APARTMENTTHREADED
+                        | windows::Win32::System::Com::COINIT_DISABLE_OLE1DDE,
                 )
             };
             defer(|| unsafe {

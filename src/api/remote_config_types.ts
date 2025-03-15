@@ -9,6 +9,13 @@ export type AppConfig = {
     is_debug_mode: boolean
 }
 
+export enum BlurStyle {
+    None = "None",
+    Blur = "Blur",
+    Acrylic = "Acrylic",
+    Mica = "Mica"
+}
+
 export type UIConfig = {
     selected_item_color: string
     item_font_color: string
@@ -24,6 +31,8 @@ export type UIConfig = {
     background_size: string,
     background_position: string,
     background_repeat: string,
+    background_opacity: number,
+    blur_style: BlurStyle,
 }
 
 export type ProgramLauncherConfig = {

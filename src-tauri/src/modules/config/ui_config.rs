@@ -2,6 +2,14 @@ use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum BlurStyle {
+    None,
+    Blur,
+    Acrylic,
+    Mica,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PartialUiConfig {
     pub selected_item_color: Option<String>,
     pub item_font_color: Option<String>,
@@ -17,6 +25,8 @@ pub struct PartialUiConfig {
     pub background_size: Option<String>,
     pub background_position: Option<String>,
     pub background_repeat: Option<String>,
+    pub background_opacity: Option<f64>,
+    pub blur_style: Option<BlurStyle>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -68,11 +78,24 @@ pub struct UiConfigInner {
     pub window_width: u32,
 
     /// 背景图片的大小
+    #[serde(default = "UiConfigInner::default_background_size")]
     pub background_size: String,
+
     /// 背景图片的位置
+    #[serde(default = "UiConfigInner::default_background_position")]
     pub background_position: String,
+
     /// 背景图片的重复
+    #[serde(default = "UiConfigInner::default_background_repeat")]
     pub background_repeat: String,
+
+    /// 图片的透明度
+    #[serde(default = "UiConfigInner::default_background_opacity")]
+    pub background_opacity: f64,
+
+    /// 毛玻璃效果
+    #[serde(default = "UiConfigInner::default_blur_style")]
+    pub blur_style: BlurStyle,
 }
 
 impl Default for UiConfigInner {
@@ -92,6 +115,8 @@ impl Default for UiConfigInner {
             background_size: Self::default_background_size(),
             background_position: Self::default_background_position(),
             background_repeat: Self::default_background_repeat(),
+            background_opacity: Self::default_background_opacity(),
+            blur_style: Self::default_blur_style(),
         }
     }
 }
@@ -152,6 +177,13 @@ impl UiConfigInner {
     pub(crate) fn default_background_repeat() -> String {
         "no-repeat".to_string()
     }
+    pub(crate) fn default_background_opacity() -> f64 {
+        1.0
+    }
+
+    pub(crate) fn default_blur_style() -> BlurStyle {
+        BlurStyle::None
+    }
 }
 
 impl UiConfigInner {
@@ -197,6 +229,12 @@ impl UiConfigInner {
         }
         if let Some(background_repeat) = partial_ui_config.background_repeat {
             self.background_repeat = background_repeat;
+        }
+        if let Some(background_opacity) = partial_ui_config.background_opacity {
+            self.background_opacity = background_opacity;
+        }
+        if let Some(blur_style) = partial_ui_config.blur_style {
+            self.blur_style = blur_style;
         }
     }
 
@@ -251,6 +289,8 @@ impl UiConfigInner {
             background_size: Some(self.background_size.clone()),
             background_position: Some(self.background_position.clone()),
             background_repeat: Some(self.background_repeat.clone()),
+            background_opacity: Some(self.background_opacity),
+            blur_style: Some(self.blur_style.clone()),
         }
     }
 }
@@ -344,5 +384,15 @@ impl UiConfig {
     pub fn get_background_repeat(&self) -> String {
         let inner = self.inner.read();
         inner.background_repeat.clone()
+    }
+
+    pub fn get_background_opacity(&self) -> f64 {
+        let inner = self.inner.read();
+        inner.background_opacity
+    }
+
+    pub fn get_blur_style(&self) -> BlurStyle {
+        let inner = self.inner.read();
+        inner.blur_style.clone()
     }
 }

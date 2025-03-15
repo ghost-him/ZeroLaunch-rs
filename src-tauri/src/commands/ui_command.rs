@@ -1,5 +1,6 @@
 use crate::core::image_processor::ImageProcessor;
 use crate::modules::config::default::APP_PIC_PATH;
+use crate::modules::config::ui_config::BlurStyle;
 use crate::state::app_state::AppState;
 use crate::utils::service_locator::ServiceLocator;
 use serde::{Deserialize, Serialize};
@@ -25,6 +26,8 @@ pub struct SearchBarUpdate {
     background_size: String,
     background_position: String,
     background_repeat: String,
+    background_opacity: f64,
+    blur_style: BlurStyle,
 }
 
 #[tauri::command]
@@ -52,6 +55,8 @@ pub async fn update_search_bar_window<R: Runtime>(
         background_size: ui_config.get_background_size(),
         background_position: ui_config.get_background_position(),
         background_repeat: ui_config.get_background_repeat(),
+        background_opacity: ui_config.get_background_opacity(),
+        blur_style: ui_config.get_blur_style(),
     };
     Ok(result)
 }

@@ -72,6 +72,7 @@ import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core'
 import { reduceOpacity } from '../utils/color';
+import { BlurStyle } from '../api/remote_config_types';
 
 interface SearchBarUpdate {
   search_bar_placeholder: string;
@@ -89,6 +90,8 @@ interface SearchBarUpdate {
   background_size: string,
   background_position: string,
   background_repeat: string,
+  background_opacity: number,
+  blur_style: BlurStyle,
 }
 
 const search_bar_data = ref<SearchBarUpdate>(
@@ -108,6 +111,8 @@ const search_bar_data = ref<SearchBarUpdate>(
     background_size: 'cover',
     background_position: 'center',
     background_repeat: 'no-repeat',
+    background_opacity: 1,
+    blur_style: BlurStyle.None,
   }
 );
 
@@ -326,7 +331,10 @@ const focusSearchInput = () => {
 }
 
 const backgroundStyle = computed(() => ({
-  backgroundImage: `linear-gradient(rgba(255, 255, 255, 0), rgba(255, 255, 255, 0)), url(${background_picture.value})`,
+  backgroundColor: search_bar_data.value.blur_style !== BlurStyle.None
+    ? 'transparent'
+    : 'white',
+  backgroundImage: `linear-gradient(rgba(255, 255, 255, ${1 - search_bar_data.value.background_opacity}), rgba(255, 255, 255, ${1 - search_bar_data.value.background_opacity})), url(${background_picture.value})`,
   backgroundSize: `${search_bar_data.value.background_size}`,
   backgroundPosition: `${search_bar_data.value.background_position}`,
   backgroundRepeat: `${search_bar_data.value.background_repeat}`,
@@ -384,7 +392,6 @@ onUnmounted(() => {
 .launcher-container {
   border-radius: 12px;
   border: 1px solid #b2abab;
-  background-color: white;
   padding: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   overflow: hidden;

@@ -17,13 +17,33 @@
                 <el-color-picker v-model="config.ui_config.item_font_color"
                     @change="(val: string) => configStore.updateConfig({ ui_config: { item_font_color: rgbaToHex(val) } })" />
             </el-form-item>
-            <el-form-item label="搜索栏的字体大小(单位rem)">
+            <el-form-item label="搜索栏的字体大小">
                 <el-input-number v-model="config.ui_config.search_bar_font_size" placeholder="2" :min="0" :step="0.1"
-                    @change="(val: number) => configStore.updateConfig({ ui_config: { search_bar_font_size: val } })" />
+                    @change="(val: number) => configStore.updateConfig({ ui_config: { search_bar_font_size: val } })">
+                    <template #suffix>
+                        <span>rem</span>
+                    </template>
+                </el-input-number>
+                <el-tooltip class="box-item" effect="dark" placement="right-start"
+                    content="单位rem：1rem表示1倍字体的高度，1.3rem表示1.3倍字体的高度">
+                    <el-icon class="el-question-icon">
+                        <QuestionFilled />
+                    </el-icon>
+                </el-tooltip>
             </el-form-item>
-            <el-form-item label="结果栏的字体大小(单位rem)">
+            <el-form-item label="结果栏的字体大小">
                 <el-input-number v-model="config.ui_config.item_font_size" placeholder="1.3" :min="0" :step="0.1"
-                    @change="(val: number) => configStore.updateConfig({ ui_config: { item_font_size: val } })" />
+                    @change="(val: number) => configStore.updateConfig({ ui_config: { item_font_size: val } })">
+                    <template #suffix>
+                        <span>rem</span>
+                    </template>
+                </el-input-number>
+                <el-tooltip class="box-item" effect="dark" placement="right-start"
+                    content="单位rem：1rem表示1倍字体的高度，1.3rem表示1.3倍字体的高度">
+                    <el-icon class="el-question-icon">
+                        <QuestionFilled />
+                    </el-icon>
+                </el-tooltip>
             </el-form-item>
         </el-tab-pane>
 
@@ -79,6 +99,12 @@
                 <el-input-number v-model="config.ui_config.background_opacity" placeholder="65" :min="0" :max="1"
                     :step="0.1"
                     @change="(val: number) => configStore.updateConfig({ ui_config: { background_opacity: val } })" />
+                <el-tooltip class="box-item" effect="dark" placement="right-start"
+                    content="取值范围：[0, 1]。1表示完全不透明，0表示完全透明">
+                    <el-icon class="el-question-icon">
+                        <QuestionFilled />
+                    </el-icon>
+                </el-tooltip>
             </el-form-item>
 
             <el-form-item label="选择背景图片">
@@ -88,6 +114,12 @@
             </el-form-item>
             <el-form-item label="计算一个图片的主题色">
                 <el-button type="primary" @click="get_dominant_color">选择图片</el-button>
+                <el-tooltip class="box-item" effect="dark" placement="right-start"
+                    content="如果不会选择结果栏的选中项颜色，可以使用该功能计算背景图片的主题色">
+                    <el-icon class="el-question-icon">
+                        <QuestionFilled />
+                    </el-icon>
+                </el-tooltip>
                 <div v-if="dominant_color"> 该图片的主题色为: {{ dominant_color }} </div>
             </el-form-item>
         </el-tab-pane>
@@ -105,28 +137,49 @@
                 </el-tooltip>
             </el-form-item>
 
-            <el-form-item label="搜索栏的高度(单位px)">
+            <el-form-item label="搜索栏的高度">
                 <el-input-number v-model="config.ui_config.search_bar_height" placeholder="65" :min="1" :step="1"
                     :precision="0"
-                    @change="(val: number) => configStore.updateConfig({ ui_config: { search_bar_height: val } })" />
+                    @change="(val: number) => configStore.updateConfig({ ui_config: { search_bar_height: val } })">
+                    <template #suffix>
+                        <span>px</span>
+                    </template>
+                </el-input-number>
+                <el-tooltip class="box-item" effect="dark" placement="right-start" content="单位px：是数字图像的最小单位，是屏幕显示的基本点">
+                    <el-icon class="el-question-icon">
+                        <QuestionFilled />
+                    </el-icon>
+                </el-tooltip>
             </el-form-item>
 
-            <el-form-item label="结果栏中一项的高度(单位px)">
+            <el-form-item label="结果栏中一项的高度">
                 <el-input-number v-model="config.ui_config.result_item_height" placeholder="62" :min="1" :step="1"
                     :precision="0"
-                    @change="(val: number) => configStore.updateConfig({ ui_config: { result_item_height: val } })" />
+                    @change="(val: number) => configStore.updateConfig({ ui_config: { result_item_height: val } })">
+                    <template #suffix>
+                        <span>px</span>
+                    </template>
+                </el-input-number>
             </el-form-item>
 
-            <el-form-item label="底栏的高度(单位px)">
+            <el-form-item label="底栏的高度">
                 <el-input-number v-model="config.ui_config.footer_height" placeholder="42" :min="0" :step="1"
                     :precision="0"
-                    @change="(val: number) => configStore.updateConfig({ ui_config: { footer_height: val } })" />
+                    @change="(val: number) => configStore.updateConfig({ ui_config: { footer_height: val } })">
+                    <template #suffix>
+                        <span>px</span>
+                    </template>
+                </el-input-number>
             </el-form-item>
 
-            <el-form-item label="程序的宽度(单位px)">
+            <el-form-item label="程序的宽度">
                 <el-input-number v-model="config.ui_config.window_width" placeholder="1000" :min="400" :step="1"
                     :precision="0"
-                    @change="(val: number) => configStore.updateConfig({ ui_config: { window_width: val } })" />
+                    @change="(val: number) => configStore.updateConfig({ ui_config: { window_width: val } })">
+                    <template #suffix>
+                        <span>px</span>
+                    </template>
+                </el-input-number>
             </el-form-item>
         </el-tab-pane>
 

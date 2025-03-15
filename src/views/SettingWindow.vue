@@ -61,9 +61,13 @@
                             @change="(val: number) => configStore.updateConfig({ app_config: { search_result_count: val } })" />
                     </el-form-item>
 
-                    <el-form-item label="自动刷新数据库的时间（分钟）">
+                    <el-form-item label="自动刷新数据库的时间">
                         <el-input-number v-model="config.app_config.auto_refresh_time" :step="1" :precision="0" :min="1"
-                            @change="(val: number) => configStore.updateConfig({ app_config: { auto_refresh_time: val } })" />
+                            @change="(val: number) => configStore.updateConfig({ app_config: { auto_refresh_time: val } })">
+                            <template #suffix>
+                                <span>分钟</span>
+                            </template>
+                        </el-input-number>
                     </el-form-item>
 
                     <el-form-item label="当唤醒程序失败时启动新实例">

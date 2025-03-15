@@ -57,11 +57,12 @@
 
                     <el-form-item label="设置搜索结果数量">
                         <el-input-number v-model="config.app_config.search_result_count" :step="1" :precision="0"
+                            :min="1"
                             @update:model-value="(val: number) => configStore.updateConfig({ app_config: { search_result_count: val } })" />
                     </el-form-item>
 
                     <el-form-item label="自动刷新数据库的时间（分钟）">
-                        <el-input-number v-model="config.app_config.auto_refresh_time" :step="1" :precision="0"
+                        <el-input-number v-model="config.app_config.auto_refresh_time" :step="1" :precision="0" :min="1"
                             @update:model-value="(val: number) => configStore.updateConfig({ app_config: { auto_refresh_time: val } })" />
                     </el-form-item>
 
@@ -421,6 +422,7 @@ import { rgbaToHex } from '../utils/color';
 import about from "./about.vue";
 import debug from "./debug.vue";
 import ConfigPathSelector from "./ConfigPathSelector.vue";
+import { min } from 'lodash-es';
 
 const configStore = useRemoteConfigStore()
 const { config } = storeToRefs(configStore)

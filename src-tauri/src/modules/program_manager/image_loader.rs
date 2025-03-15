@@ -1,11 +1,8 @@
 use super::unit::Program;
 use crate::core::image_processor::ImageProcessor;
-use crate::core::storage::utils::get_lnk_target_path;
 use dashmap::DashMap;
 use dashmap::Entry::{Occupied, Vacant};
 use std::sync::Arc;
-use tokio::fs::File;
-use tokio::io::AsyncWriteExt;
 use winreg::enums::{HKEY_LOCAL_MACHINE, KEY_READ};
 use winreg::RegKey;
 #[derive(Debug)]
@@ -22,7 +19,6 @@ impl ImageLoader {
             icon_path_cache: DashMap::new(),
         };
         result.icon_path_cache = result.get_installed_programs();
-        println!("{:?}", result.icon_path_cache);
         result
     }
     /// 加载一个图片
@@ -39,7 +35,6 @@ impl ImageLoader {
             };
         }
         let show_name = program.show_name.clone();
-        println!("文件: {}, 路径{}", show_name, &icon_path);
         let mut pic_bytes: Vec<u8> = self.load_image_from_path(&icon_path).await;
         if pic_bytes.is_empty() {
             pic_bytes = self.load_image_from_path(&self.default_app_icon_path).await;

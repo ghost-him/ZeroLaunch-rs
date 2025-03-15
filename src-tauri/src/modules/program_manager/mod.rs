@@ -20,8 +20,6 @@ use search_model::remove_repeated_space;
 use search_model::{standard_search_fn, SearchModelFn};
 use std::sync::Arc;
 use std::time::Instant;
-use tokio::fs::File;
-use tokio::io::AsyncWriteExt;
 use tokio::sync::RwLock;
 use window_activator::WindowActivator;
 /// 数据处理中心

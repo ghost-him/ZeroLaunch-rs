@@ -85,7 +85,7 @@ interface SearchBarUpdate {
   search_bar_height: number,
   result_item_height: number,
   footer_height: number,
-  resultItemCount: number,
+  result_item_count: number,
 }
 
 const search_bar_data = ref<SearchBarUpdate>(
@@ -101,12 +101,12 @@ const search_bar_data = ref<SearchBarUpdate>(
     search_bar_height: 65,
     result_item_height: 62,
     footer_height: 42,
-    resultItemCount: 4
+    result_item_count: 4
   }
 );
 
 const searchText = ref('la')
-const selectedIndex = ref(0)
+const selectedIndex = ref<number>(0)
 const searchBarRef = ref<HTMLInputElement | null>(null)
 const searchResults = ref<Array<[number, string]>>([]);
 const menuItems = ref<Array<string>>([]);
@@ -132,7 +132,6 @@ const sendSearchText = async (text: string) => {
   console.log(hover_item_color)
   try {
     const results: Array<[number, string]> = await invoke('handle_search_text', { searchText: text });
-    console.log(results)
     searchResults.value = results;
     menuItems.value = results.map(([_, item]) => item);
     let keys = results.map(([key, _]) => key);
@@ -188,8 +187,6 @@ const updateWindow = async () => {
     const program_count = invoke<number>('get_program_count');
     const data = await invoke<SearchBarUpdate>('update_search_bar_window');
     search_bar_data.value = data;
-    console.log('消息');
-    console.log(search_bar_data.value)
 
     const blob = new Blob([new Uint8Array(background_picture_data)], { type: 'image/png' });
     const url = URL.createObjectURL(blob);
@@ -232,27 +229,6 @@ const startPreloadResource = async (program_count: number) => {
   }
 }
 
-
-// const startPreloadResource = async (program_count: number) => {
-//   // 清空原来的内容 
-//   program_icons.value.clear();
-
-//   // 创建所有程序ID的数组
-//   const allProgramIds = Array.from({ length: program_count }, (_, index) => index);
-
-//   // 一次性并发加载所有图标
-//   await Promise.all(allProgramIds.map(async (programId) => {
-//     try {
-//       const iconData: number[] = await invoke('load_program_icon', { programGuid: programId });
-//       const blob = new Blob([new Uint8Array(iconData)], { type: 'image/png' });
-//       const url = URL.createObjectURL(blob);
-//       program_icons.value.set(programId, url);
-//     } catch (error) {
-//       console.error(`Failed to preload icon for program ${programId}:`, error);
-//     }
-//   }));
-// }
-
 const getIcons = async (keys: Array<number>) => {
   let result: Array<string> = [];
   for (let key of keys) {
@@ -283,11 +259,11 @@ const handleKeyDown = async (event: KeyboardEvent) => {
   switch (event.key) {
     case 'ArrowDown':
       event.preventDefault()
-      selectedIndex.value = (selectedIndex.value + 1) % search_bar_data.value.resultItemCount
+      selectedIndex.value = (selectedIndex.value + 1) % search_bar_data.value.result_item_count
       break
     case 'ArrowUp':
       event.preventDefault()
-      selectedIndex.value = (selectedIndex.value - 1 + search_bar_data.value.resultItemCount) % search_bar_data.value.resultItemCount
+      selectedIndex.value = (selectedIndex.value - 1 + search_bar_data.value.result_item_count) % search_bar_data.value.result_item_count
       break
     case 'Enter':
       event.preventDefault()
@@ -297,13 +273,13 @@ const handleKeyDown = async (event: KeyboardEvent) => {
     case 'j':
       if (event.ctrlKey) {
         event.preventDefault()
-        selectedIndex.value = (selectedIndex.value + 1) % search_bar_data.value.resultItemCount
+        selectedIndex.value = (selectedIndex.value + 1) % search_bar_data.value.result_item_count
       }
       break
     case 'k':
       if (event.ctrlKey) {
         event.preventDefault()
-        selectedIndex.value = (selectedIndex.value - 1 + search_bar_data.value.resultItemCount) % search_bar_data.value.resultItemCount
+        selectedIndex.value = (selectedIndex.value - 1 + search_bar_data.value.result_item_count) % search_bar_data.value.result_item_count
       }
       break
     case 'Escape':

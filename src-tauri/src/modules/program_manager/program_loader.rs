@@ -472,7 +472,7 @@ impl ProgramLoaderInner {
             // Enumerate Shell Items
 
             let mut items: Vec<Option<IShellItem>> = Vec::new();
-            items.resize(200, None);
+            items.resize(300, None);
 
             // 定义一个变量来存储实际检索到的项目数量
             let mut fetched: u32 = 0;
@@ -506,7 +506,10 @@ impl ProgramLoaderInner {
                         // Get Display Name
                         let short_name = match shell_item.GetDisplayName(SIGDN_NORMALDISPLAY) {
                             Ok(name) => name.to_string().unwrap(),
-                            Err(_) => String::new(),
+                            Err(e) => {
+                                warn!("error: {}", e);
+                                String::new()
+                            }
                         };
 
                         // Get AppUserModel.ID

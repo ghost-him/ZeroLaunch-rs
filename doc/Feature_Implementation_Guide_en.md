@@ -79,7 +79,34 @@ The method to modify its value is as follows:
 3. Click "选择目标路径"
 4. Choose the desired folder – configurations will auto-save to the new location
 
----
+
+
+## Changing the Configuration File Save Location
+
+### Changing the Local Save Path
+1. Open the settings interface
+2. Click "Remote Management"
+3. Click "Local Storage"
+4. Click the "Select Path" button
+5. Choose your target folder. The configuration will auto-save upon successful selection
+6. Click "Test Connection"
+7. Click "Save Configuration"
+
+A test file will be created in the target folder during connection testing, which can be manually deleted.
+
+### Connecting to Cloud Storage via WebDAV Protocol
+Demonstration using Jianguoyun (Nutstore):
+1. Open the settings interface
+2. Click "Remote Management"
+3. Click "WebDAV"
+4. Visit Jianguoyun official website: `https://www.jianguoyun.com/#/safety`
+5. Click "Add Application" to obtain an application password
+
+![Jianguoyun](../asset/坚果云.png)
+
+6. Enter the corresponding credentials
+7. Click "Test Connection"
+8. Click "Save Configuration"
 
 # FAQs
 

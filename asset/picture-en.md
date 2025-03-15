@@ -19,6 +19,12 @@ Custom Background
 
 Image Source: [@satori_aiart](https://x.com/satori_aiart/status/1728977252946473051)  
 
+Images support custom positioning and sizing
+
+![Custom Background 2](自定义图片位置.png)
+
+Image source: [@shalldie](https://github.com/shalldie/vscode-background/issues/106)
+
 Settings Interface  
 ![Settings Interface](设置界面.png)  
 

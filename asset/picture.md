@@ -26,6 +26,12 @@
 
 图片来源：[@satori_aiart](https://x.com/satori_aiart/status/1728977252946473051)
 
+图片支持自定义位置与大小
+
+![自定义背景2](自定义图片位置.png)
+
+图片来源：[@shalldie](https://github.com/shalldie/vscode-background/issues/106)
+
 设置界面
 
 ![设置界面](设置界面.png)

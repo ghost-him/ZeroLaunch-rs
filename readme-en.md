@@ -65,7 +65,7 @@ Specializes in application search functionality—streamlined yet powerful, prov
 
 * **Application Search**: Quickly locate and launch traditional applications and UWP apps with seamless accessibility.
 * **Application Wake**: Intelligently identifies and brings existing application windows to the foreground for effortless task switching.
-* **Customizable UI**: Supports custom background images, option colors, search font colors/sizes, display font colors/sizes, and candidate item count adjustments.
+* **Customizable Appearance Interface**: Highly customizable, supporting features such as custom background images, option colors, search font color and size, display font color and size, number of displayed candidates, and more.
 
 ---
 ### Secondary Features
@@ -75,7 +75,7 @@ Specializes in application search functionality—streamlined yet powerful, prov
 * **File Search**: Add frequently accessed files for quick retrieval.
 * **Web Search**: Create custom web search shortcuts for commonly used websites.
 * **Command Shortcuts**: Define custom commands for rapid execution.
-* **Config Sync**: Store configuration files in cloud-synced directories for seamless settings synchronization.
+* **Custom Configuration File Save Path**: Supports custom local storage and WebDAV for network storage.
 
 ## 🚀 Quick Start
 
@@ -157,6 +157,7 @@ Built upon these outstanding open-source projects:
 * Implement regex-based keyword/path filtering
 * Dark theme support
 * Error handling optimizations
+* Supports frosted glass effect
 
 ### Long-Term Vision
 

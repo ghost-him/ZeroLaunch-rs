@@ -11,7 +11,6 @@ use std::sync::Arc;
 use tauri::Emitter;
 use tauri::Manager;
 use tauri::Runtime;
-use tracing::debug;
 use tracing::error;
 
 /// 更新程序管理器的路径配置

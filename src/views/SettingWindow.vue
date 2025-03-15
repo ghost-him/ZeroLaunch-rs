@@ -37,43 +37,43 @@
 
                     <el-form-item label="自定义搜索栏的提示文本">
                         <el-input v-model="config.app_config.search_bar_placeholder" placeholder="Hello, ZeroLaunch!"
-                            @update:model-value="(val: string) => configStore.updateConfig({ app_config: { search_bar_placeholder: val } })" />
+                            @change="(val: string) => configStore.updateConfig({ app_config: { search_bar_placeholder: val } })" />
                     </el-form-item>
 
                     <el-form-item label="自定义底部提示栏">
                         <el-input v-model="config.app_config.tips" placeholder="ZeroLaunch-rs v0.4.0"
-                            @update:model-value="(val: string) => configStore.updateConfig({ app_config: { tips: val } })" />
+                            @change="(val: string) => configStore.updateConfig({ app_config: { tips: val } })" />
                     </el-form-item>
 
                     <el-form-item label="设置开机自启动">
                         <el-switch v-model="config.app_config.is_auto_start"
-                            @update:model-value="(val: boolean) => configStore.updateConfig({ app_config: { is_auto_start: val } })" />
+                            @change="(val: boolean) => configStore.updateConfig({ app_config: { is_auto_start: val } })" />
                     </el-form-item>
 
                     <el-form-item label="设置静默启动">
                         <el-switch v-model="config.app_config.is_silent_start"
-                            @update:model-value="(val: boolean) => configStore.updateConfig({ app_config: { is_silent_start: val } })" />
+                            @change="(val: boolean) => configStore.updateConfig({ app_config: { is_silent_start: val } })" />
                     </el-form-item>
 
                     <el-form-item label="设置搜索结果数量">
                         <el-input-number v-model="config.app_config.search_result_count" :step="1" :precision="0"
                             :min="1"
-                            @update:model-value="(val: number) => configStore.updateConfig({ app_config: { search_result_count: val } })" />
+                            @change="(val: number) => configStore.updateConfig({ app_config: { search_result_count: val } })" />
                     </el-form-item>
 
                     <el-form-item label="自动刷新数据库的时间（分钟）">
                         <el-input-number v-model="config.app_config.auto_refresh_time" :step="1" :precision="0" :min="1"
-                            @update:model-value="(val: number) => configStore.updateConfig({ app_config: { auto_refresh_time: val } })" />
+                            @change="(val: number) => configStore.updateConfig({ app_config: { auto_refresh_time: val } })" />
                     </el-form-item>
 
                     <el-form-item label="当唤醒程序失败时启动新实例">
                         <el-switch v-model="config.app_config.launch_new_on_failure"
-                            @update:model-value="(val: boolean) => configStore.updateConfig({ app_config: { launch_new_on_failure: val } })" />
+                            @change="(val: boolean) => configStore.updateConfig({ app_config: { launch_new_on_failure: val } })" />
                     </el-form-item>
 
                     <el-form-item label="调试模式">
                         <el-switch v-model="config.app_config.is_debug_mode"
-                            @update:model-value="(val: boolean) => configStore.updateConfig({ app_config: { is_debug_mode: val } })" />
+                            @change="(val: boolean) => configStore.updateConfig({ app_config: { is_debug_mode: val } })" />
                     </el-form-item>
                 </el-form>
 
@@ -83,60 +83,100 @@
 
                 <el-form-item label="搜索栏与状态栏的背景颜色">
                     <el-color-picker v-model="config.ui_config.search_bar_background_color" show-alpha
-                        @update:model-value="(val: string) => configStore.updateConfig({ ui_config: { search_bar_background_color: rgbaToHex(val) } })" />
+                        @change="(val: string) => configStore.updateConfig({ ui_config: { search_bar_background_color: rgbaToHex(val) } })" />
                 </el-form-item>
                 <el-form-item label="设置结果栏的背景颜色">
                     <el-color-picker v-model="config.ui_config.selected_item_color" show-alpha
-                        @update:model-value="(val: string) => configStore.updateConfig({ ui_config: { selected_item_color: rgbaToHex(val) } })" />
+                        @change="(val: string) => configStore.updateConfig({ ui_config: { selected_item_color: rgbaToHex(val) } })" />
                 </el-form-item>
                 <el-form-item label="搜索栏字体的颜色">
                     <el-color-picker v-model="config.ui_config.search_bar_font_color"
-                        @update:model-value="(val: string) => configStore.updateConfig({ ui_config: { search_bar_font_color: rgbaToHex(val) } })" />
+                        @change="(val: string) => configStore.updateConfig({ ui_config: { search_bar_font_color: rgbaToHex(val) } })" />
                 </el-form-item>
                 <el-form-item label="设置结果栏的字体颜色">
                     <el-color-picker v-model="config.ui_config.item_font_color"
-                        @update:model-value="(val: string) => configStore.updateConfig({ ui_config: { item_font_color: rgbaToHex(val) } })" />
+                        @change="(val: string) => configStore.updateConfig({ ui_config: { item_font_color: rgbaToHex(val) } })" />
                 </el-form-item>
                 <el-form-item label="搜索栏的字体大小(单位rem)">
                     <el-input-number v-model="config.ui_config.search_bar_font_size" placeholder="2" :min="0"
                         :step="0.1"
-                        @update:model-value="(val: number) => configStore.updateConfig({ ui_config: { search_bar_font_size: val } })" />
+                        @change="(val: number) => configStore.updateConfig({ ui_config: { search_bar_font_size: val } })" />
                 </el-form-item>
                 <el-form-item label="结果栏的字体大小(单位rem)">
                     <el-input-number v-model="config.ui_config.item_font_size" placeholder="1.3" :min="0" :step="0.1"
-                        @update:model-value="(val: number) => configStore.updateConfig({ ui_config: { item_font_size: val } })" />
+                        @change="(val: number) => configStore.updateConfig({ ui_config: { item_font_size: val } })" />
                 </el-form-item>
                 <el-form-item label="窗口垂直方向偏移比例因子">
-                    <el-tooltip class="box-item" effect="dark" content="0表示在屏幕顶部，1表示在屏幕底部，0.5表示在屏幕正中间"
-                        placement="right-start">
-                        <el-input-number v-model="config.ui_config.vertical_position_ratio" placeholder="0.4" :min="0"
-                            :step="0.05" :max="1"
-                            @update:model-value="(val: number) => configStore.updateConfig({ ui_config: { vertical_position_ratio: val } })" />
+                    <el-input-number v-model="config.ui_config.vertical_position_ratio" placeholder="0.4" :min="0"
+                        :step="0.05" :max="1"
+                        @change="(val: number) => configStore.updateConfig({ ui_config: { vertical_position_ratio: val } })" />
+                    <el-tooltip class="box-item" effect="dark" placement="right-start"
+                        content="0表示在屏幕顶部，1表示在屏幕底部，0.5表示在屏幕正中间">
+                        <el-icon class="el-question-icon">
+                            <QuestionFilled />
+                        </el-icon>
                     </el-tooltip>
                 </el-form-item>
 
                 <el-form-item label="搜索栏的高度(单位px)">
                     <el-input-number v-model="config.ui_config.search_bar_height" placeholder="65" :min="1" :step="1"
                         :precision="0"
-                        @update:model-value="(val: number) => configStore.updateConfig({ ui_config: { search_bar_height: val } })" />
+                        @change="(val: number) => configStore.updateConfig({ ui_config: { search_bar_height: val } })" />
                 </el-form-item>
 
                 <el-form-item label="结果栏中一项的高度(单位px)">
                     <el-input-number v-model="config.ui_config.result_item_height" placeholder="62" :min="1" :step="1"
                         :precision="0"
-                        @update:model-value="(val: number) => configStore.updateConfig({ ui_config: { result_item_height: val } })" />
+                        @change="(val: number) => configStore.updateConfig({ ui_config: { result_item_height: val } })" />
                 </el-form-item>
 
                 <el-form-item label="底栏的高度(单位px)">
                     <el-input-number v-model="config.ui_config.footer_height" placeholder="42" :min="0" :step="1"
                         :precision="0"
-                        @update:model-value="(val: number) => configStore.updateConfig({ ui_config: { footer_height: val } })" />
+                        @change="(val: number) => configStore.updateConfig({ ui_config: { footer_height: val } })" />
                 </el-form-item>
 
                 <el-form-item label="程序的宽度(单位px)">
                     <el-input-number v-model="config.ui_config.window_width" placeholder="1000" :min="400" :step="1"
                         :precision="0"
-                        @update:model-value="(val: number) => configStore.updateConfig({ ui_config: { window_width: val } })" />
+                        @change="(val: number) => configStore.updateConfig({ ui_config: { window_width: val } })" />
+                </el-form-item>
+
+                <el-form-item label="背景图片的大小">
+                    <el-input v-model="config.ui_config.background_size" style="max-width: 120px;" placeholder="cover"
+                        @change="(val: string) => configStore.updateConfig({ ui_config: { background_size: val } })" />
+                    <el-tooltip class="box-item" effect="dark" placement="right-start"
+                        content="'cover': 缩放图片以完全覆盖元素区域，保持比例；'contain:' 缩放图片以完全显示在元素内，保持比例；'auto':使用图片原始尺寸">
+                        <el-icon class="el-question-icon">
+                            <QuestionFilled />
+                        </el-icon>
+                    </el-tooltip>
+
+                </el-form-item>
+
+                <el-form-item label="背景图片的位置">
+                    <el-input v-model="config.ui_config.background_position" style="max-width: 120px;"
+                        placeholder="center"
+                        @change="(val: string) => configStore.updateConfig({ ui_config: { background_position: val } })" />
+                    <el-tooltip class="box-item" effect="dark" placement="right-start"
+                        content="图片的对齐位置，可选：'center', 'top', 'right', 'bottom', 'left'及其结合，例如: 'right bottom'">
+                        <el-icon class="el-question-icon">
+                            <QuestionFilled />
+                        </el-icon>
+                    </el-tooltip>
+
+                </el-form-item>
+
+                <el-form-item label="背景图片是否重复显示">
+                    <el-input v-model="config.ui_config.background_repeat" style="max-width: 120px;"
+                        placeholder="no-repeat"
+                        @change="(val: string) => configStore.updateConfig({ ui_config: { background_repeat: val } })" />
+                    <el-tooltip class="box-item" effect="dark" placement="right-start"
+                        content="'no-repeat': 不重复；'repeat': 水平和垂直方向都重复；'repeat-x': 仅水平方向重复；'repeat-y': 仅垂直方向重复">
+                        <el-icon class="el-question-icon">
+                            <QuestionFilled />
+                        </el-icon>
+                    </el-tooltip>
                 </el-form-item>
 
                 <el-form-item label="选择背景图片">
@@ -409,7 +449,7 @@ import {
     Connection,
     InfoFilled,
     List,
-    Monitor
+    Monitor, QuestionFilled
 } from '@element-plus/icons-vue';
 
 import { invoke } from '@tauri-apps/api/core';
@@ -920,5 +960,9 @@ body {
 .el-icon {
     font-size: 18px;
     color: #606266;
+}
+
+.el-question-icon {
+    margin-left: 8px;
 }
 </style>

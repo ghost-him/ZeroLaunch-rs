@@ -21,6 +21,9 @@ export type UIConfig = {
     result_item_height: number,
     footer_height: number,
     window_width: number,
+    background_size: string,
+    background_position: string,
+    background_repeat: string,
 }
 
 export type ProgramLauncherConfig = {

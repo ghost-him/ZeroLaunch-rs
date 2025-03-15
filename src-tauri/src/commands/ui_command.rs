@@ -22,6 +22,9 @@ pub struct SearchBarUpdate {
     result_item_height: u32,
     footer_height: u32,
     result_item_count: u32,
+    background_size: String,
+    background_position: String,
+    background_repeat: String,
 }
 
 #[tauri::command]
@@ -33,7 +36,7 @@ pub async fn update_search_bar_window<R: Runtime>(
     let runtime_config = state.get_runtime_config().unwrap();
     let app_config = runtime_config.get_app_config();
     let ui_config = runtime_config.get_ui_config();
-    Ok(SearchBarUpdate {
+    let result = SearchBarUpdate {
         search_bar_placeholder: app_config.get_search_bar_placeholder(),
         selected_item_color: ui_config.get_selected_item_color(),
         item_font_color: ui_config.get_item_font_color(),
@@ -46,7 +49,11 @@ pub async fn update_search_bar_window<R: Runtime>(
         result_item_height: ui_config.get_result_item_height(),
         footer_height: ui_config.get_footer_height(),
         result_item_count: app_config.get_search_result_count(),
-    })
+        background_size: ui_config.get_background_size(),
+        background_position: ui_config.get_background_position(),
+        background_repeat: ui_config.get_background_repeat(),
+    };
+    Ok(result)
 }
 
 #[tauri::command]

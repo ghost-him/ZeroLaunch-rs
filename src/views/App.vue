@@ -86,6 +86,9 @@ interface SearchBarUpdate {
   result_item_height: number,
   footer_height: number,
   result_item_count: number,
+  background_size: string,
+  background_position: string,
+  background_repeat: string,
 }
 
 const search_bar_data = ref<SearchBarUpdate>(
@@ -101,7 +104,10 @@ const search_bar_data = ref<SearchBarUpdate>(
     search_bar_height: 65,
     result_item_height: 62,
     footer_height: 42,
-    result_item_count: 4
+    result_item_count: 4,
+    background_size: 'cover',
+    background_position: 'center',
+    background_repeat: 'no-repeat',
   }
 );
 
@@ -187,6 +193,7 @@ const updateWindow = async () => {
     const program_count = invoke<number>('get_program_count');
     const data = await invoke<SearchBarUpdate>('update_search_bar_window');
     search_bar_data.value = data;
+    console.log(search_bar_data.value)
 
     const blob = new Blob([new Uint8Array(background_picture_data)], { type: 'image/png' });
     const url = URL.createObjectURL(blob);
@@ -319,10 +326,10 @@ const focusSearchInput = () => {
 }
 
 const backgroundStyle = computed(() => ({
-  backgroundImage: `url(${background_picture.value})`,
-  backgroundSize: 'cover',
-  backgroundPosition: 'center',
-  backgroundRepeat: 'no-repeat',
+  backgroundImage: `linear-gradient(rgba(255, 255, 255, 0), rgba(255, 255, 255, 0)), url(${background_picture.value})`,
+  backgroundSize: `${search_bar_data.value.background_size}`,
+  backgroundPosition: `${search_bar_data.value.background_position}`,
+  backgroundRepeat: `${search_bar_data.value.background_repeat}`,
   backgroundClip: 'content-box',
 }));
 

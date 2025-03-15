@@ -22,7 +22,6 @@ pub async fn command_save_remote_config<R: Runtime>(
     partial_config: PartialConfig,
 ) -> Result<(), String> {
     let runtime_config = state.get_runtime_config().unwrap();
-    debug!("{:?}", partial_config);
     runtime_config.update(partial_config);
     save_config_to_file(true).await;
     Ok(())

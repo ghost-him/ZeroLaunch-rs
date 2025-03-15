@@ -115,8 +115,8 @@ export const useRemoteConfigStore = defineStore('config', {
                 tips: '',
                 is_auto_start: false,
                 is_silent_start: false,
-                search_result_count: 0,
-                auto_refresh_time: 0,
+                search_result_count: 4,
+                auto_refresh_time: 30,
                 launch_new_on_failure: false,
                 is_debug_mode: false,
             } as AppConfig,
@@ -132,6 +132,9 @@ export const useRemoteConfigStore = defineStore('config', {
                 result_item_height: 62,
                 footer_height: 42,
                 window_width: 1000,
+                background_size: 'cover',
+                background_position: 'center',
+                background_repeat: 'no-repeat',
             } as UIConfig,
             program_manager_config: {
                 launcher: {
@@ -163,6 +166,7 @@ export const useRemoteConfigStore = defineStore('config', {
         },
         // 更新配置并同步到后端
         updateConfig(partial: PartialConfig) {
+            console.log('更新消息');
             // 1. 更新本地状态（带自定义合并规则）
             this.config = mergeConfig(this.config, partial);
             // 2. 更新 dirtyConfig（带相同合并规则）

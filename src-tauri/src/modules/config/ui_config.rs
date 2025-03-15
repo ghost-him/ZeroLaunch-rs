@@ -14,6 +14,9 @@ pub struct PartialUiConfig {
     pub result_item_height: Option<u32>,
     pub footer_height: Option<u32>,
     pub window_width: Option<u32>,
+    pub background_size: Option<String>,
+    pub background_position: Option<String>,
+    pub background_repeat: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -63,6 +66,13 @@ pub struct UiConfigInner {
     /// 程序的宽度
     #[serde(default = "UiConfigInner::default_window_width")]
     pub window_width: u32,
+
+    /// 背景图片的大小
+    pub background_size: String,
+    /// 背景图片的位置
+    pub background_position: String,
+    /// 背景图片的重复
+    pub background_repeat: String,
 }
 
 impl Default for UiConfigInner {
@@ -79,6 +89,9 @@ impl Default for UiConfigInner {
             result_item_height: Self::default_result_item_height(),
             footer_height: Self::default_footer_height(),
             window_width: Self::default_window_width(),
+            background_size: Self::default_background_size(),
+            background_position: Self::default_background_position(),
+            background_repeat: Self::default_background_repeat(),
         }
     }
 }
@@ -127,6 +140,18 @@ impl UiConfigInner {
     pub(crate) fn default_window_width() -> u32 {
         1000
     }
+
+    pub(crate) fn default_background_size() -> String {
+        "cover".to_string()
+    }
+
+    pub(crate) fn default_background_position() -> String {
+        "center".to_string()
+    }
+
+    pub(crate) fn default_background_repeat() -> String {
+        "no-repeat".to_string()
+    }
 }
 
 impl UiConfigInner {
@@ -163,6 +188,15 @@ impl UiConfigInner {
         }
         if let Some(window_width) = partial_ui_config.window_width {
             self.window_width = window_width;
+        }
+        if let Some(background_size) = partial_ui_config.background_size {
+            self.background_size = background_size;
+        }
+        if let Some(background_position) = partial_ui_config.background_position {
+            self.background_position = background_position;
+        }
+        if let Some(background_repeat) = partial_ui_config.background_repeat {
+            self.background_repeat = background_repeat;
         }
     }
 
@@ -214,6 +248,9 @@ impl UiConfigInner {
             result_item_height: Some(self.result_item_height),
             footer_height: Some(self.footer_height),
             window_width: Some(self.window_width),
+            background_size: Some(self.background_size.clone()),
+            background_position: Some(self.background_position.clone()),
+            background_repeat: Some(self.background_repeat.clone()),
         }
     }
 }
@@ -292,5 +329,20 @@ impl UiConfig {
     pub fn get_window_width(&self) -> u32 {
         let inner = self.inner.read();
         inner.window_width
+    }
+
+    pub fn get_background_size(&self) -> String {
+        let inner = self.inner.read();
+        inner.background_size.clone()
+    }
+
+    pub fn get_background_position(&self) -> String {
+        let inner = self.inner.read();
+        inner.background_position.clone()
+    }
+
+    pub fn get_background_repeat(&self) -> String {
+        let inner = self.inner.read();
+        inner.background_repeat.clone()
     }
 }

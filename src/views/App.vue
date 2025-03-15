@@ -188,6 +188,8 @@ const updateWindow = async () => {
     const program_count = invoke<number>('get_program_count');
     const data = await invoke<SearchBarUpdate>('update_search_bar_window');
     search_bar_data.value = data;
+    console.log('消息');
+    console.log(search_bar_data.value)
 
     const blob = new Blob([new Uint8Array(background_picture_data)], { type: 'image/png' });
     const url = URL.createObjectURL(blob);

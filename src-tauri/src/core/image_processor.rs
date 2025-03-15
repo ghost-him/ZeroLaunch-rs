@@ -3,8 +3,12 @@ use crate::utils::windows::get_u16_vec;
 use core::mem::MaybeUninit;
 use image::codecs::png::PngEncoder;
 use image::DynamicImage;
+use image::GenericImageView;
+use image::ImageBuffer;
+use image::ImageEncoder;
 use image::ImageFormat;
 use image::ImageReader;
+use image::Rgba;
 use image::RgbaImage;
 use kmeans_colors::get_kmeans;
 use palette::{IntoColor, Lab, Srgb};
@@ -32,7 +36,7 @@ use windows::Win32::UI::WindowsAndMessaging::DestroyIcon;
 use windows::Win32::UI::WindowsAndMessaging::HICON;
 use windows::Win32::UI::WindowsAndMessaging::{GetIconInfo, ICONINFO};
 use windows_core::PCWSTR;
-pub struct ImageProcessor;
+pub struct ImageProcessor {}
 
 impl ImageProcessor {
     pub async fn load_image_from_path(icon_path: String) -> Vec<u8> {
@@ -220,6 +224,101 @@ impl ImageProcessor {
         }
         RgbaImage::from_vec(width_u32, height_u32, bmp).unwrap()
     }
+
+    /// 从 PNG 图像数据中裁剪掉外围的白色或透明像素
+    pub fn trim_transparent_white_border(png_data: Vec<u8>) -> Result<Vec<u8>, String> {
+        // 解析 PNG 数据
+        let img = image::load_from_memory(&png_data).map_err(|e| format!("无法加载图像: {}", e))?;
+
+        let width = img.width();
+        let height = img.height();
+
+        // 确保图像是正方形
+        if width != height {
+            return Err("输入图像不是正方形".to_string());
+        }
+
+        let mut border_width = 0;
+        let size = width;
+
+        // 从外到内一圈一圈检查
+        'outer: for layer in 0..size / 2 {
+            // 检查当前圈的四条边
+
+            // 上边
+            for x in layer..size - layer {
+                let pixel = img.get_pixel(x, layer);
+                if !Self::is_white_or_transparent(pixel) {
+                    break 'outer;
+                }
+            }
+
+            // 右边
+            for y in layer..size - layer {
+                let pixel = img.get_pixel(size - 1 - layer, y);
+                if !Self::is_white_or_transparent(pixel) {
+                    break 'outer;
+                }
+            }
+
+            // 下边
+            for x in layer..size - layer {
+                let pixel = img.get_pixel(x, size - 1 - layer);
+                if !Self::is_white_or_transparent(pixel) {
+                    break 'outer;
+                }
+            }
+
+            // 左边
+            for y in layer..size - layer {
+                let pixel = img.get_pixel(layer, y);
+                if !Self::is_white_or_transparent(pixel) {
+                    break 'outer;
+                }
+            }
+
+            // 如果整个圈都是白色或透明的，增加边界宽度
+            border_width = layer + 1;
+        }
+
+        // 如果整个图像都是白色或透明的，返回原图
+        if border_width >= size / 2 {
+            return Ok(png_data);
+        }
+
+        // 裁剪图像
+        let new_size = size - 2 * border_width;
+        let mut new_img = ImageBuffer::new(new_size, new_size);
+
+        for y in 0..new_size {
+            for x in 0..new_size {
+                let pixel = img.get_pixel(x + border_width, y + border_width);
+                new_img.put_pixel(x, y, pixel);
+            }
+        }
+
+        // 将新图像编码为 PNG
+        let mut output = Vec::new();
+        let mut encoder = image::codecs::png::PngEncoder::new(&mut output);
+        encoder
+            .write_image(
+                &new_img.into_raw(),
+                new_size,
+                new_size,
+                image::ColorType::Rgba8.into(),
+            )
+            .map_err(|e| format!("无法编码图像: {}", e))?;
+
+        Ok(output)
+    }
+
+    /// 判断像素是否为白色或透明
+    fn is_white_or_transparent(pixel: Rgba<u8>) -> bool {
+        // 透明: alpha 通道接近 0
+        // 白色: RGB 都接近 255 且 alpha 不透明
+        pixel[3] < 10 || (pixel[0] > 245 && pixel[1] > 245 && pixel[2] > 245)
+    }
+
     /// 将RGBA转换为PNG图像数据
     fn rgba_image_to_png(rgba_image: &RgbaImage) -> Option<Vec<u8>> {
         // 创建一个缓冲区来存储PNG数据

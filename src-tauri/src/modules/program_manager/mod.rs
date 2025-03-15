@@ -3,9 +3,11 @@ pub mod image_loader;
 pub mod pinyin_mapper;
 pub mod program_launcher;
 pub mod program_loader;
+
 pub mod search_model;
 pub mod unit;
 pub mod window_activator;
+use crate::core::image_processor::ImageProcessor;
 use crate::modules::program_manager::image_loader::ImageLoader;
 use crate::program_manager::config::program_manager_config::ProgramManagerConfig;
 use crate::program_manager::unit::*;
@@ -18,9 +20,10 @@ use search_model::remove_repeated_space;
 use search_model::{standard_search_fn, SearchModelFn};
 use std::sync::Arc;
 use std::time::Instant;
+use tokio::fs::File;
+use tokio::io::AsyncWriteExt;
 use tokio::sync::RwLock;
 use window_activator::WindowActivator;
-
 /// 数据处理中心
 #[derive(Debug)]
 pub struct ProgramManagerInner {
@@ -277,9 +280,11 @@ impl ProgramManagerInner {
     pub async fn get_icon(&self, program_guid: &u64) -> Vec<u8> {
         let index = self.program_locater.get(program_guid).unwrap();
         let target_program = &self.program_registry[*(index.value())];
-        self.image_loader
-            .load_image(&target_program.icon_path)
-            .await
+        let mut result = self.image_loader.load_image(target_program.clone()).await;
+        if let Ok(output) = ImageProcessor::trim_transparent_white_border(result.clone()) {
+            result = output;
+        }
+        result
     }
     /// 获得当前已保存的程序的个数
     pub fn get_program_count(&self) -> usize {

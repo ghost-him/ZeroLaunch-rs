@@ -97,7 +97,7 @@
                                         @change="updateTargetPath($index, row)"></el-input>
                                 </template>
                             </el-table-column>
-                            <el-table-column label="遍历深度" show-overflow-tooltip fixed="right" width="80">
+                            <el-table-column label="遍历深度" show-overflow-tooltip fixed="right" width="150">
                                 <template #default="{ row, $index }">
                                     <el-input-number v-model="row[1]" size="small" placeholder="请输入遍历深度" :precision="0"
                                         :min="1" @change="updateTargetPath($index, row)"></el-input-number>

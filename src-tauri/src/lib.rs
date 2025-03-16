@@ -248,8 +248,6 @@ fn init_search_bar_window(app: &mut App) {
         sys_window_height: Some(size.height as Height),
     });
 
-    update_rounded_corners_and_border(false);
-
     update_window_size_and_position();
     // 设置当窗口被关闭时，忽略
     let windows_clone = main_window.clone();

@@ -50,7 +50,7 @@ pub async fn command_save_local_config<R: Runtime>(
     let runtime_config = state.get_runtime_config().unwrap();
 
     let remote_config_data = storage_manager
-        .download_file_str_force(REMOTE_CONFIG_NAME.to_string())
+        .download_file_str(REMOTE_CONFIG_NAME.to_string())
         .await;
     let partial_config = load_local_config(&remote_config_data);
     runtime_config.update(partial_config);

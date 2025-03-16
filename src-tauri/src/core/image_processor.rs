@@ -299,7 +299,7 @@ impl ImageProcessor {
 
         // 将新图像编码为 PNG
         let mut output = Vec::new();
-        let mut encoder = image::codecs::png::PngEncoder::new(&mut output);
+        let encoder = image::codecs::png::PngEncoder::new(&mut output);
         encoder
             .write_image(
                 &new_img.into_raw(),

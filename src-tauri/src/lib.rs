@@ -54,7 +54,6 @@ use tracing_appender::rolling::Rotation;
 use utils::notify::notify;
 use utils::service_locator::ServiceLocator;
 use window_effect::enable_window_effect;
-use window_effect::update_rounded_corners_and_border;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // 创建一个按日期滚动的日志文件，例如每天一个新文件

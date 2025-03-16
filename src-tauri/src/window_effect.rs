@@ -1,8 +1,5 @@
-use tauri::utils::config::WindowEffectsConfig;
 use tauri::window::EffectsBuilder;
-use tauri::{Manager, WebviewAttributes};
-use tauri_utils::TitleBarStyle;
-use tokio::runtime;
+use tauri::Manager;
 
 use crate::modules::config::ui_config::BlurStyle;
 use crate::utils::service_locator::ServiceLocator;
@@ -13,10 +10,8 @@ use windows::{
         DWMWA_WINDOW_CORNER_PREFERENCE, DWMWINDOWATTRIBUTE,
     },
     Win32::UI::Controls::MARGINS,
-    Win32::UI::WindowsAndMessaging::*,
 };
 
-use windows::Win32::Foundation::HWND;
 
 pub fn enable_window_effect() {
     let state = ServiceLocator::get_state();

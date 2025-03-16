@@ -9,7 +9,6 @@ use crate::program_manager::config::program_loader_config::ProgramLoaderConfig;
 use crate::program_manager::Program;
 use crate::utils::defer::defer;
 use crate::utils::windows::get_u16_vec;
-use core::ffi::c_void;
 use core::time::Duration;
 use image::ImageReader;
 use parking_lot::RwLock;
@@ -17,23 +16,19 @@ use std::collections::{HashMap, HashSet};
 use std::ffi::OsStr;
 use std::fs;
 use std::io;
-use std::os::windows::ffi::OsStringExt;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
-use tracing::{debug, info, warn};
-use windows::Win32::Foundation::{PROPERTYKEY, S_OK};
-use windows::Win32::Storage::FileSystem::WIN32_FIND_DATAW;
+use tracing::{info, warn};
+use windows::Win32::Foundation::PROPERTYKEY;
 use windows::Win32::System::Com::{
-    CoCreateInstance, CoInitialize, CoUninitialize, IPersistFile,
+    CoInitialize, CoUninitialize,
     StructuredStorage::{PropVariantClear, PROPVARIANT},
-    CLSCTX_INPROC_SERVER, STGM,
 };
 use windows::Win32::UI::Shell::PropertiesSystem::{IPropertyStore, PSGetPropertyKeyFromName};
 use windows::Win32::UI::Shell::{
-    BHID_EnumItems, IEnumShellItems, IShellItem, IShellLinkW, SHCreateItemFromParsingName,
-    ShellLink, SIGDN_NORMALDISPLAY,
+    BHID_EnumItems, IEnumShellItems, IShellItem, SHCreateItemFromParsingName, SIGDN_NORMALDISPLAY,
 };
 use windows_core::Interface;
 use windows_core::PCWSTR;

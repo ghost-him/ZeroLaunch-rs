@@ -69,10 +69,17 @@ pub async fn get_background_picture<R: Runtime>(
     state: tauri::State<'_, Arc<AppState>>,
 ) -> Result<Vec<u8>, String> {
     let storage_manager = state.get_storage_manager().unwrap();
-    let result = storage_manager
+    if let Some(data) = storage_manager
         .download_file_bytes("background.png".to_string())
-        .await;
-    Ok(result)
+        .await
+    {
+        return Ok(data);
+    } else {
+        storage_manager
+            .upload_file_bytes("background.png".to_string(), Vec::new())
+            .await;
+    }
+    Ok(Vec::new())
 }
 
 #[tauri::command]

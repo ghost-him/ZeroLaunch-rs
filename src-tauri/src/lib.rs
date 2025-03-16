@@ -15,6 +15,7 @@ use crate::commands::utils::*;
 use crate::modules::config::config_manager::PartialConfig;
 use crate::modules::config::default::LOCAL_CONFIG_PATH;
 use crate::modules::config::default::LOG_DIR;
+use crate::modules::config::default::REMOTE_CONFIG_DEFAULT;
 use crate::modules::config::{Height, Width};
 use crate::modules::ui_controller::controller::get_window_render_origin;
 use crate::modules::ui_controller::controller::get_window_size;
@@ -181,27 +182,45 @@ pub fn run() {
 
 /// 初始化的流程-> 初始化程序的状态
 async fn init_app_state(app: &mut App) {
+    // 维护程序状态
+    let state = app.state::<Arc<AppState>>();
+    ServiceLocator::init((*state).clone());
+    let state = ServiceLocator::get_state();
+    // 维护app_handle
+    state.set_main_handle(Arc::new(app.app_handle().clone()));
+
     let storage_manager = StorageManager::new().await;
-    let remote_config_data = storage_manager
-        .download_file_str(REMOTE_CONFIG_NAME.to_string())
-        .await;
+    let remote_config_data = {
+        if let Some(data) = storage_manager
+            .download_file_str(REMOTE_CONFIG_NAME.to_string())
+            .await
+        {
+            data
+        } else {
+            storage_manager
+                .upload_file_str(
+                    REMOTE_CONFIG_NAME.to_string(),
+                    REMOTE_CONFIG_DEFAULT.clone(),
+                )
+                .await;
+            REMOTE_CONFIG_DEFAULT.clone()
+        }
+    };
+
     let partial_config = load_local_config(&remote_config_data);
 
     let runtime_config = RuntimeConfig::new();
     runtime_config.update(partial_config);
-    // 维护程序状态
-    let state = app.state::<Arc<AppState>>();
+
     // 维护程序的配置信息
     state.set_runtime_config(Arc::new(runtime_config));
     // 维护程序管理器
     let program_manager = ProgramManager::new(APP_PIC_PATH.get("tips").unwrap().value().clone());
     state.set_program_manager(Arc::new(program_manager));
-    // 维护app_handle
-    state.set_main_handle(Arc::new(app.app_handle().clone()));
+
     // 维护文件管理器
     state.set_storage_manager(Arc::new(storage_manager));
     // 使用ServiceLocator保存一份
-    ServiceLocator::init((*state).clone());
 }
 
 /// 更新当前窗口的大小与位置

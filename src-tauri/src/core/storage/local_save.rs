@@ -4,6 +4,7 @@ use super::storage_manager::{StorageClient, TEST_CONFIG_FILE_DATA, TEST_CONFIG_F
 use crate::core::storage::windows_utils::get_default_remote_data_dir_path;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+use std::path::Path;
 use std::sync::Arc;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -92,11 +93,18 @@ impl LocalStorageInner {
 
 #[async_trait]
 impl StorageClient for LocalStorageInner {
-    async fn download(&self, file_path: String) -> Result<Vec<u8>, String> {
+    async fn download(&self, file_path: String) -> Result<Option<Vec<u8>>, String> {
         let target_path = self.remote_config_dir.join(file_path);
-        tokio::fs::read(&target_path)
-            .await
-            .map_err(|e| format!("下载失败 {}: {}", target_path.display(), e))
+        // 如果没有，则直接返回空
+        let path = Path::new(&target_path);
+        if !path.exists() {
+            return Ok(None);
+        }
+
+        match tokio::fs::read(&target_path).await {
+            Ok(data) => Ok(Some(data)),
+            Err(e) => Err(format!("{}", e)),
+        }
     }
 
     async fn upload(&self, file_path: String, data: Vec<u8>) -> Result<(), String> {
@@ -148,7 +156,7 @@ impl LocalStorage {
 
 #[async_trait]
 impl StorageClient for LocalStorage {
-    async fn download(&self, file_path: String) -> Result<Vec<u8>, String> {
+    async fn download(&self, file_path: String) -> Result<Option<Vec<u8>>, String> {
         let inner = self.inner.read().await;
         inner.download(file_path).await
     }

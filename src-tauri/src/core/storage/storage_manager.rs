@@ -15,6 +15,7 @@ use dashmap::Entry;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::error;
+use tracing::warn;
 
 pub const TEST_CONFIG_FILE_NAME: &str = "zerolaunch-test-link.txt";
 pub const TEST_CONFIG_FILE_DATA: &str = "当前文件仅用于测试连通性，可以手动删除";
@@ -24,7 +25,7 @@ pub trait StorageClient: Send + Sync {
     // 要可以上传文件
     async fn upload(&self, file_name: String, data: Vec<u8>) -> Result<(), String>;
     // 要可以下载文件
-    async fn download(&self, file_name: String) -> Result<Vec<u8>, String>;
+    async fn download(&self, file_name: String) -> Result<Option<Vec<u8>>, String>;
     // 要可以获得当前文件的目标路径
     async fn get_target_dir_path(&self) -> String;
     // 判断是否有效(true: 有效，false: 无效)
@@ -120,15 +121,21 @@ impl StorageManagerInner {
 
     /// 下载文件
     /// file_name: 工作目录下的相对地址
-    pub async fn download_file_str(&self, file_name: String) -> String {
+    pub async fn download_file_str(&self, file_name: String) -> Option<String> {
         let bytes = self.download_file_bytes(file_name).await;
-        String::from_utf8_lossy(&bytes).into_owned()
+        if bytes.is_none() {
+            return None;
+        }
+        Some(String::from_utf8_lossy(&bytes.unwrap()).into_owned())
     }
     /// 强制下载文件
     /// file_name: 工作目录下的相对地址
-    pub async fn download_file_str_force(&mut self, file_name: String) -> String {
+    pub async fn download_file_str_force(&mut self, file_name: String) -> Option<String> {
         let bytes = self.download_file_bytes_force(file_name).await;
-        String::from_utf8_lossy(&bytes).into_owned()
+        if bytes.is_none() {
+            return None;
+        }
+        Some(String::from_utf8_lossy(&bytes.unwrap()).into_owned())
     }
 
     /// 上传文件
@@ -214,7 +221,7 @@ impl StorageManagerInner {
 
     /// 强制下载文件
     /// file_name: 工作目录下的相对地址
-    pub async fn download_file_bytes_force(&mut self, file_name: String) -> Vec<u8> {
+    pub async fn download_file_bytes_force(&mut self, file_name: String) -> Option<Vec<u8>> {
         match self.cached_content.entry(file_name.clone()) {
             Entry::Occupied(entry) => {
                 // 如果有文件，则删除对应的文件
@@ -230,14 +237,14 @@ impl StorageManagerInner {
 
     /// 下载文件
     /// file_name: 工作目录下的相对地址
-    pub async fn download_file_bytes(&self, file_name: String) -> Vec<u8> {
+    pub async fn download_file_bytes(&self, file_name: String) -> Option<Vec<u8>> {
         let cached_data = self
             .cached_content
             .get(&file_name)
             .map(|entry| entry.value().1.clone());
 
         if let Some(content) = cached_data {
-            return content;
+            return Some(content);
         }
         self.download(file_name).await
     }
@@ -255,13 +262,13 @@ impl StorageManagerInner {
     }
 
     /// 下载文件(写在这里，方便以后做错误处理)
-    async fn download(&self, file_name: String) -> Vec<u8> {
+    async fn download(&self, file_name: String) -> Option<Vec<u8>> {
         let result = {
             let client_lock = self.client.read().await;
             match client_lock.as_ref() {
                 Some(client) => client.download(file_name.clone()).await,
                 None => {
-                    error!("存储客户端未初始化，无法下载文件：{}", file_name);
+                    warn!("存储客户端未初始化，无法下载文件：{}", file_name);
                     notify(
                         "zerolaunch-rs",
                         &format!(
@@ -277,7 +284,7 @@ impl StorageManagerInner {
         match result {
             Ok(data) => data,
             Err(e) => {
-                error!(
+                warn!(
                     "下载文件：{} 失败，已使用默认配置信息，错误信息：{}",
                     file_name,
                     e.to_string()
@@ -305,7 +312,7 @@ impl StorageManagerInner {
             match client_lock.as_ref() {
                 Some(client) => client.upload(file_name.clone(), contents.clone()).await,
                 None => {
-                    error!("存储客户端未初始化，无法上传文件：{}", file_name);
+                    warn!("存储客户端未初始化，无法上传文件：{}", file_name);
                     notify(
                         "zerolaunch-rs",
                         &format!("存储客户端未初始化，无法上传文件：{}", file_name),
@@ -318,7 +325,7 @@ impl StorageManagerInner {
         match result {
             Ok(_) => (),
             Err(e) => {
-                error!("上传文件：{} 失败，错误：{:?}", file_name, e);
+                warn!("上传文件：{} 失败，错误：{:?}", file_name, e);
                 notify(
                     "zerolaunch-rs",
                     &format!(
@@ -365,13 +372,13 @@ impl StorageManager {
     }
 
     /// 下载文件内容为字符串（优先使用缓存）
-    pub async fn download_file_str(&self, file_name: String) -> String {
+    pub async fn download_file_str(&self, file_name: String) -> Option<String> {
         let inner = self.inner.write().await;
         inner.download_file_str(file_name).await
     }
 
     /// 下载文件内容为字符串
-    pub async fn download_file_str_force(&self, file_name: String) -> String {
+    pub async fn download_file_str_force(&self, file_name: String) -> Option<String> {
         let mut inner = self.inner.write().await;
         inner.download_file_str_force(file_name).await
     }
@@ -383,13 +390,13 @@ impl StorageManager {
     }
 
     /// 下载文件内容为二进制（优先使用缓存）
-    pub async fn download_file_bytes(&self, file_name: String) -> Vec<u8> {
+    pub async fn download_file_bytes(&self, file_name: String) -> Option<Vec<u8>> {
         let inner = self.inner.write().await;
         inner.download_file_bytes(file_name).await
     }
 
     /// 下载文件内容为二进行（强制下载）
-    pub async fn download_file_bytes_force(&self, file_name: String) -> Vec<u8> {
+    pub async fn download_file_bytes_force(&self, file_name: String) -> Option<Vec<u8>> {
         let mut inner = self.inner.write().await;
         inner.download_file_bytes_force(file_name).await
     }

@@ -1,6 +1,7 @@
 //use crate::core::storage::onedrive::get_onedrive_refresh_token;
 use crate::core::storage::storage_manager::check_validation;
 use crate::modules::config::config_manager::PartialConfig;
+use crate::modules::config::default::REMOTE_CONFIG_DEFAULT;
 use crate::modules::config::load_local_config;
 use crate::save_config_to_file;
 use crate::storage::config::PartialLocalConfig;
@@ -49,9 +50,23 @@ pub async fn command_save_local_config<R: Runtime>(
 
     let runtime_config = state.get_runtime_config().unwrap();
 
-    let remote_config_data = storage_manager
-        .download_file_str(REMOTE_CONFIG_NAME.to_string())
-        .await;
+    let remote_config_data = {
+        if let Some(data) = storage_manager
+            .download_file_str(REMOTE_CONFIG_NAME.to_string())
+            .await
+        {
+            data
+        } else {
+            storage_manager
+                .upload_file_str(
+                    REMOTE_CONFIG_NAME.to_string(),
+                    REMOTE_CONFIG_DEFAULT.clone(),
+                )
+                .await;
+            REMOTE_CONFIG_DEFAULT.clone()
+        }
+    };
+
     let partial_config = load_local_config(&remote_config_data);
     runtime_config.update(partial_config);
     update_app_setting().await;

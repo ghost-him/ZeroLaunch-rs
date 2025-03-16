@@ -4,7 +4,7 @@ use crate::storage::storage_manager::StorageClient;
 use crate::storage::storage_manager::{TEST_CONFIG_FILE_DATA, TEST_CONFIG_FILE_NAME};
 use async_trait::async_trait;
 use parking_lot::RwLock;
-use reqwest_dav::{Client, ClientBuilder};
+use reqwest_dav::{Client, ClientBuilder, DecodeError};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -197,16 +197,34 @@ impl StorageClient for WebDAVStorageInner {
         Ok(())
     }
     // 要可以下载文件
-    async fn download(&self, file_name: String) -> Result<Vec<u8>, String> {
+    async fn download(&self, file_name: String) -> Result<Option<Vec<u8>>, String> {
         let target_path = self.destination_dir.join(file_name);
         let target_path = target_path.to_str().unwrap().to_string();
         if let Some(client) = self.client.as_ref() {
+            // 直接尝试下载文件
             match client.get(&target_path).await {
-                Ok(response) => match response.bytes().await {
-                    Ok(data) => return Ok(data.to_vec()),
-                    Err(e) => return Err(e.to_string()),
-                },
-                Err(e) => return Err(e.to_string()),
+                Ok(response) => response
+                    .bytes()
+                    .await
+                    .map(|bytes| Some(bytes.to_vec()))
+                    .map_err(|e| format!("读取文件流失败: {}", e)),
+
+                Err(e) => {
+                    if let reqwest_dav::Error::Decode(decode_error) = e {
+                        if let reqwest_dav::DecodeError::Server(server_error) = decode_error {
+                            if server_error.response_code == 404 {
+                                println!("收到404");
+                                return Ok(None);
+                            } else {
+                                return Err(format!("{:?}", server_error));
+                            }
+                        } else {
+                            return Err(format!("{:?}", decode_error));
+                        }
+                    } else {
+                        return Err(format!("{:?}", e));
+                    }
+                }
             }
         } else {
             return Err("当前无客户端连接".to_string());
@@ -251,7 +269,7 @@ impl WebDAVStorage {
 
 #[async_trait]
 impl StorageClient for WebDAVStorage {
-    async fn download(&self, file_path: String) -> Result<Vec<u8>, String> {
+    async fn download(&self, file_path: String) -> Result<Option<Vec<u8>>, String> {
         let inner = self.inner.read().await;
         inner.download(file_path).await
     }

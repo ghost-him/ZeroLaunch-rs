@@ -6,6 +6,7 @@ pub mod modules;
 pub mod state;
 pub mod tray;
 pub mod utils;
+pub mod window_effect;
 use crate::commands::config_file::*;
 use crate::commands::debug::*;
 use crate::commands::program_service::*;
@@ -52,6 +53,8 @@ use tracing_appender::rolling::RollingFileAppender;
 use tracing_appender::rolling::Rotation;
 use utils::notify::notify;
 use utils::service_locator::ServiceLocator;
+use window_effect::enable_window_effect;
+use window_effect::update_rounded_corners_and_border;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // 创建一个按日期滚动的日志文件，例如每天一个新文件
@@ -223,7 +226,7 @@ fn update_window_size_and_position() {
     main_window
         .set_size(PhysicalSize::new(
             window_size.0 as u32,
-            window_size.1 as u32 + (10_f64 * scale_factor) as u32,
+            window_size.1 as u32,
         ))
         .unwrap();
 }
@@ -244,6 +247,8 @@ fn init_search_bar_window(app: &mut App) {
         sys_window_width: Some(size.width as Width),
         sys_window_height: Some(size.height as Height),
     });
+
+    update_rounded_corners_and_border(false);
 
     update_window_size_and_position();
     // 设置当窗口被关闭时，忽略
@@ -353,6 +358,9 @@ async fn update_app_setting() {
 
     // 4.判断要不要更新当前的窗口大小
     update_window_size_and_position();
+
+    // 5.更新当前的窗口效果
+    enable_window_effect();
 
     let mins = runtime_config.get_app_config().get_auto_refresh_time() as u64;
 

@@ -14,15 +14,14 @@ use kmeans_colors::get_kmeans;
 use palette::{IntoColor, Lab, Srgb};
 use rand::Rng;
 use rayon::prelude::*;
-use std::sync::{Arc, Mutex};
-use windows::Win32::Foundation::GetLastError;
-
 use std::ffi::c_void;
 use std::io::Cursor;
 use std::mem;
 use std::path::Path;
+use std::sync::{Arc, Mutex};
 use tracing::debug;
 use tracing::warn;
+use windows::Win32::Foundation::GetLastError;
 use windows::Win32::Graphics::Gdi::BITMAP;
 use windows::Win32::Graphics::Gdi::{
     DeleteObject, GetBitmapBits, GetObjectW, BITMAPINFOHEADER, BI_RGB, HBITMAP, HGDIOBJ,
@@ -35,6 +34,7 @@ use windows::Win32::UI::Shell::{
 use windows::Win32::UI::WindowsAndMessaging::DestroyIcon;
 use windows::Win32::UI::WindowsAndMessaging::HICON;
 use windows::Win32::UI::WindowsAndMessaging::{GetIconInfo, ICONINFO};
+use windows_core::BOOL;
 use windows_core::PCWSTR;
 pub struct ImageProcessor {}
 
@@ -160,7 +160,7 @@ impl ImageProcessor {
         let bitmap_size_i32 = i32::try_from(mem::size_of::<BITMAP>()).unwrap();
         let biheader_size_u32 = u32::try_from(mem::size_of::<BITMAPINFOHEADER>()).unwrap();
         let mut info = ICONINFO {
-            fIcon: windows::Win32::Foundation::BOOL(0),
+            fIcon: BOOL(0),
             xHotspot: 0,
             yHotspot: 0,
             hbmMask: std::mem::zeroed::<HBITMAP>() as HBITMAP,

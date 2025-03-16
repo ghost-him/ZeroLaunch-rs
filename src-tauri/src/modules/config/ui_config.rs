@@ -4,9 +4,9 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum BlurStyle {
     None,
-    Blur,
     Acrylic,
     Mica,
+    Tabbed,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

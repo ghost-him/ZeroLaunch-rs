@@ -163,7 +163,6 @@ bun run tauri build
 * 暗色主题
 * 错误处理优化
 * 使用object_store库支持S3协议的存储服务
-* 支持毛玻璃特效
 
 ### 长期目标
 

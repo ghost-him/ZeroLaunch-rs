@@ -10,14 +10,14 @@ use windows::Win32::Foundation::CloseHandle;
 use windows::Win32::System::Diagnostics::ToolHelp::{
     CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS,
 };
-
 use windows::Win32::{
-    Foundation::{BOOL, FALSE, HWND, LPARAM, TRUE},
+    Foundation::{FALSE, HWND, LPARAM, TRUE},
     UI::WindowsAndMessaging::{
         EnumWindows, GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId,
         IsWindowVisible, SetForegroundWindow, ShowWindow, SW_RESTORE,
     },
 };
+use windows_core::BOOL;
 #[derive(Debug)]
 pub struct WindowActivatorInner {}
 

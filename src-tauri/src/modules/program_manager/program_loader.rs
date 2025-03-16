@@ -296,11 +296,6 @@ impl ProgramLoaderInner {
 
         // 添加通过地址找到的文件
         for path_str in program_path {
-            // let target_path = if path_str.ends_with(".lnk") {
-            //     self.resolve_shortcut(&path_str)
-            // } else {
-            //     path_str.to_string()
-            // };
             let target_path = path_str;
             let path = Path::new(&target_path);
 
@@ -764,58 +759,6 @@ impl ProgramLoaderInner {
 
         Ok(result)
     }
-
-    /// 将.lnk文件的路径转成.exe文件的路径
-    /// 如果转换失败了，则还是返回的.lnk文件的路径
-    fn resolve_shortcut(&self, lnk_path: &str) -> String {
-        debug!("开始转换：{lnk_path}");
-        unsafe {
-            // 初始化 COM 库
-            let hr = CoInitialize(Some(std::ptr::null() as *const c_void));
-            if !hr.is_ok() && hr != S_OK {
-                return lnk_path.to_string();
-            }
-
-            // 创建 IShellLink 对象
-            let shell_link: IShellLinkW = CoCreateInstance(&ShellLink, None, CLSCTX_INPROC_SERVER)
-                .map_err(|e| format!("CoCreateInstance failed: {:?}", e))
-                .unwrap();
-
-            // 获取 IPersistFile 接口
-            let persist_file: IPersistFile = shell_link
-                .cast()
-                .map_err(|e| format!("Failed to cast to IPersistFile: {:?}", e))
-                .unwrap();
-
-            // 将 lnk_path 转换为 wide string
-            let wide: Vec<u16> = get_u16_vec(lnk_path);
-
-            // 加载快捷方式文件
-            persist_file
-                .Load(PCWSTR(wide.as_ptr()), STGM(0))
-                .map_err(|e| format!("IPersistFile::Load failed: {:?}", e))
-                .unwrap();
-
-            // 准备接收目标路径
-            let mut target_path = [0u16; 260];
-            let mut find_data: WIN32_FIND_DATAW = std::mem::zeroed();
-            // 获取目标路径
-            let hr = shell_link.GetPath(&mut target_path, &mut find_data, 0);
-            if hr.is_err() {
-                return lnk_path.to_string();
-            }
-
-            // 将 wide string 转换为 Rust String
-            let len = target_path
-                .iter()
-                .position(|&c| c == 0)
-                .unwrap_or(target_path.len());
-            let path = std::ffi::OsString::from_wide(&target_path[..len])
-                .to_string_lossy()
-                .into_owned();
-            path
-        }
-    }
 }
 #[derive(Debug)]
 pub struct ProgramLoader {
@@ -873,11 +816,6 @@ impl ProgramLoader {
     /// 递归遍历一个文件夹
     pub fn recursive_visit_dir(&self, dir: &Path, depth: usize) -> io::Result<Vec<String>> {
         self.inner.read().recursive_visit_dir(dir, depth)
-    }
-
-    /// 将 `.lnk` 文件的路径转成 `.exe` 文件的路径
-    pub fn resolve_shortcut(&self, lnk_path: &str) -> String {
-        self.inner.read().resolve_shortcut(lnk_path)
     }
 
     /// 将 `ProgramLoaderInner` 转换为 `PartialProgramLoaderConfig`

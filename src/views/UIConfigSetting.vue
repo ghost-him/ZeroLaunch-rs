@@ -51,10 +51,10 @@
             <el-form-item label="毛玻璃效果">
                 <el-select v-model="blur_style_value" placeholder="Select" style="width: 240px">
                     <el-option v-for="item in blur_style_option" :key="item.value" :label="item.label"
-                        :disabled="item.disabled" :value="item.value" />
+                        :value="item.value" />
                 </el-select>
                 <el-tooltip class="box-item" effect="dark" placement="right-start"
-                    content="目前tauri框架有bug，无法实现毛玻璃效果，需要等待更新">
+                    content="该效果仅在 windows 11 上有效，windows 10 不保证有效">
                     <el-icon class="el-question-icon">
                         <QuestionFilled />
                     </el-icon>
@@ -210,23 +210,19 @@ const blur_style_option = [
     {
         value: 'None',
         label: '无效果',
-        disabled: true,
     },
-    // {
-    //     value: 'Blur',
-    //     label: '毛玻璃效果',
-    //     disabled: true,
-    // },
-    // {
-    //     value: 'Acrylic',
-    //     label: '亚克力效果',
-    //     disabled: true,
-    // },
-    // {
-    //     value: 'Mica',
-    //     label: '云母效果',
-    //     disabled: true,
-    // },
+    {
+        value: 'Acrylic',
+        label: '亚克力效果(Acrylic)',
+    },
+    {
+        value: 'Mica',
+        label: '云母效果(Mica)',
+    },
+    {
+        value: 'Tabbed',
+        label: '标签式效果(Tabbed)'
+    }
 ]
 
 

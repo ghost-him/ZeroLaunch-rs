@@ -157,7 +157,6 @@ Built upon these outstanding open-source projects:
 * Implement regex-based keyword/path filtering
 * Dark theme support
 * Error handling optimizations
-* Supports frosted glass effect
 
 ### Long-Term Vision
 

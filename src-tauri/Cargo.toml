@@ -18,7 +18,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "^2", features = [] }
 
 [dependencies]
-windows = { version = "^0.59.0", features = [
+windows = { version = "0.60.0", features = [
     "Win32_UI_WindowsAndMessaging",
     "Win32_Foundation",
     "Win32_Graphics_Gdi",
@@ -39,6 +39,8 @@ windows = { version = "^0.59.0", features = [
     "Win32_System_Console",
     "Win32_System_Diagnostics",
     "Win32_System_Diagnostics_ToolHelp",
+    "Win32_Graphics_Dwm",
+    "Win32_UI_Controls",
 ] }
 
 tauri = { version = "^2", features = ["tray-icon", "image-ico", "image-png"] }
@@ -47,7 +49,7 @@ serde = { version = "^1", features = ["derive"] }
 serde_json = "^1"
 lazy_static = "^1.5.0"
 rdev = { version = "^0.5.3", features = ["unstable_grab"] }
-widestring = "^1.1.0"
+widestring = "^1.2.0"
 windows-core = "^0.59.0"
 rayon = "^1.10.0"
 base64 = "^0.22.1"
@@ -67,14 +69,15 @@ kmeans_colors = "^0.6.0"
 palette = "^0.7.6"
 rand = "^0.9.0"
 anyhow = "1.0.97"
-reqwest = { version = "0.12.12", features = ["json"] }
+reqwest = { version = "0.12.14", features = ["json"] }
 lnk = "0.5.1"
-async-trait = "0.1.87"
-tokio = { version = "1.44.0", features = ["full"] }
+async-trait = "0.1.88"
+tokio = { version = "1.44.1", features = ["full"] }
 reqwest_dav = "0.1.14"
 onedrive-api = "0.10.2"
 tauri-plugin-deep-link = "2"
 winreg = "0.55.0"
+tauri-utils = { version = "2.2.0", features = ["schema"] }
 
 [features]
 default = ["custom-protocol"]

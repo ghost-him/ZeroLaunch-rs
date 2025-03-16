@@ -11,9 +11,9 @@ export type AppConfig = {
 
 export enum BlurStyle {
     None = "None",
-    Blur = "Blur",
     Acrylic = "Acrylic",
-    Mica = "Mica"
+    Mica = "Mica",
+    Tabbed = "Tabbed"
 }
 
 export type UIConfig = {

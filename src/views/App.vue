@@ -56,7 +56,7 @@
 
     <!-- 底部状态栏 -->
     <div v-if="search_bar_data.footer_height > 0" class="footer"
-      :style="{ backgroundColor: search_bar_data.search_bar_background_color, height: search_bar_data.footer_height + 'px' }">
+      :style="{ backgroundColor: search_bar_data.search_bar_background_color }">
       <div class="footer-left">
         <span class="status-text">{{ search_bar_data.tips }}</span>
       </div>
@@ -388,27 +388,38 @@ onUnmounted(() => {
 
 </script>
 
+<style>
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+#app {
+  height: 100%;
+  width: 100%;
+}
+</style>
+
 <style scoped>
 .launcher-container {
-  border-radius: 12px;
-  border: 1px solid #b2abab;
+  display: flex;
   padding: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   overflow: hidden;
   outline: none;
-  display: flex;
   flex-direction: column;
-  height: 100%;
+  height: 100vh;
   width: 100%;
   box-sizing: border-box;
 }
 
 .unified-container {
-  display: flex;
   flex-direction: column;
-  flex: 1;
   overflow: hidden;
   min-height: 0;
+  flex-shrink: 0;
 }
 
 .search-input {
@@ -419,7 +430,6 @@ onUnmounted(() => {
 }
 
 .input-field {
-  flex: 1;
   border: none;
   outline: none;
   font-weight: 600;
@@ -442,7 +452,6 @@ onUnmounted(() => {
 
 .results-list {
   overflow-y: auto;
-  flex: 1;
   min-height: 0;
   scrollbar-width: thin;
   scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
@@ -453,6 +462,7 @@ onUnmounted(() => {
   align-items: center;
   cursor: pointer;
   transition: background-color 0.2s;
+  flex-shrink: 0;
 }
 
 
@@ -486,7 +496,6 @@ onUnmounted(() => {
 }
 
 .item-info {
-  flex: 1;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -512,22 +521,20 @@ mark {
 }
 
 .footer {
+  flex: 1;
   display: flex;
   justify-content: space-between;
   align-items: center;
   border-top: 1px solid rgba(0, 0, 0, 0.05);
-  flex-shrink: 0;
+  height: 100%;
 }
 
 .footer-left {
   margin-left: 16px;
-  flex: 1;
   min-width: 0;
 }
 
 .footer-right {
-  display: flex;
-  align-items: center;
   margin-right: 16px;
 }
 

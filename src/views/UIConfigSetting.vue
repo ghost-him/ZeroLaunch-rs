@@ -182,8 +182,9 @@
                 </el-input-number>
             </el-form-item>
         </el-tab-pane>
-
     </el-tabs>
+
+
 </template>
 
 <script lang="ts" setup>
@@ -196,6 +197,7 @@ import { ref, watch } from 'vue';
 import { useRemoteConfigStore } from '../stores/remote_config';
 import { storeToRefs } from 'pinia';
 import { BlurStyle } from '../api/remote_config_types';
+
 
 const configStore = useRemoteConfigStore()
 const { config } = storeToRefs(configStore)

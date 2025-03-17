@@ -1,7 +1,6 @@
-
 use crate::handle_pressed;
 use crate::modules::config::default::APP_VERSION;
-use crate::retry_register_shortcut;
+//use crate::retry_register_shortcut;
 use crate::save_config_to_file;
 use crate::show_setting_window;
 use crate::update_app_setting;
@@ -106,7 +105,7 @@ pub fn init_system_tray(app: &mut App) {
                 update_app_setting().await;
             }),
             MenuEventId::RegisterShortcut => {
-                retry_register_shortcut(app_handle);
+                //retry_register_shortcut(app_handle);
             }
             MenuEventId::Unknown(id) => {
                 warn!("Unknown menu event: {}", id);

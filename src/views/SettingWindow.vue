@@ -325,6 +325,10 @@
             </section>
 
             <section v-if="activeIndex === 6" class="page">
+                <ShortcutSetting></ShortcutSetting>
+            </section>
+
+            <section v-if="activeIndex === 7" class="page">
                 <about></about>
             </section>
 
@@ -357,7 +361,7 @@ import UIConfigSetting from './UIConfigSetting.vue'
 import about from "./about.vue";
 import debug from "./debug.vue";
 import ConfigPathSelector from "./ConfigPathSelector.vue";
-
+import ShortcutSetting from './ShortcutSetting.vue';
 const configStore = useRemoteConfigStore()
 const { config } = storeToRefs(configStore)
 interface MenuItem {
@@ -374,6 +378,7 @@ const menuItems: MenuItem[] = [
     { title: '其他搜索', icon: Search },
     { title: '远程管理', icon: Connection },
     { title: '所有程序', icon: List },
+    { title: '快捷键设置', icon: Search },
     { title: '关于', icon: InfoFilled }
 ];
 

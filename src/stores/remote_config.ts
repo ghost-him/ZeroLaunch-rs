@@ -119,6 +119,13 @@ export const useRemoteConfigStore = defineStore('config', {
                 auto_refresh_time: 30,
                 launch_new_on_failure: false,
                 is_debug_mode: false,
+                shortcut: {
+                    key: 'Space',
+                    ctrl: false,
+                    alt: true,
+                    shift: false,
+                    meta: false,
+                }
             } as AppConfig,
             ui_config: {
                 selected_item_color: '',

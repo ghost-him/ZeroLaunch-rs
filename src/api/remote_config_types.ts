@@ -1,3 +1,12 @@
+
+export type Shortcut = {
+    key: string,
+    ctrl: boolean,
+    alt: boolean,
+    shift: boolean,
+    meta: boolean,
+}
+
 export type AppConfig = {
     search_bar_placeholder: string
     tips: string
@@ -7,7 +16,9 @@ export type AppConfig = {
     auto_refresh_time: number
     launch_new_on_failure: boolean
     is_debug_mode: boolean
+    shortcut: Shortcut
 }
+
 
 export enum BlurStyle {
     None = "None",

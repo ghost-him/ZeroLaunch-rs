@@ -1,3 +1,4 @@
+use crate::core::keyboard_listener::ShortcutManager;
 use crate::core::storage::storage_manager::StorageManager;
 use crate::error::AppError;
 use crate::modules::{config::config_manager::RuntimeConfig, program_manager::ProgramManager};
@@ -27,6 +28,8 @@ pub struct AppState {
     waiting_hashmap: Arc<AsyncWaitingHashMap<String, Vec<(String, String)>>>,
     /// 系统托盘
     tray_icon: RwLock<Option<Arc<TrayIcon>>>,
+    /// 快捷键管理器
+    shortcut_manager: RwLock<Option<Arc<ShortcutManager>>>,
 }
 
 impl AppState {
@@ -41,6 +44,7 @@ impl AppState {
             storage_client: RwLock::new(None),
             waiting_hashmap: Arc::new(AsyncWaitingHashMap::new()),
             tray_icon: RwLock::new(None),
+            shortcut_manager: RwLock::new(None),
         }
     }
 
@@ -155,6 +159,21 @@ impl AppState {
                 resource: "tray_icon".to_string(),
                 context: None,
             })
+    }
+
+    pub fn get_shortcut_manager(&self) -> Result<Arc<ShortcutManager>, AppError> {
+        self.shortcut_manager
+            .read()
+            .as_ref()
+            .cloned()
+            .ok_or(AppError::NotInitialized {
+                resource: "shortcut_manager".to_string(),
+                context: None,
+            })
+    }
+
+    pub fn set_shortcut_manager(&self, manager: Arc<ShortcutManager>) {
+        *self.shortcut_manager.write() = Some(manager);
     }
 }
 

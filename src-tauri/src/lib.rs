@@ -1,7 +1,6 @@
 pub mod commands;
 pub mod core;
 pub mod error;
-pub mod keyboard_listener;
 pub mod modules;
 pub mod state;
 pub mod tray;
@@ -10,8 +9,10 @@ pub mod window_effect;
 use crate::commands::config_file::*;
 use crate::commands::debug::*;
 use crate::commands::program_service::*;
+use crate::commands::shortcut::*;
 use crate::commands::ui_command::*;
 use crate::commands::utils::*;
+use crate::core::keyboard_listener::start_key_listener;
 use crate::modules::config::config_manager::PartialConfig;
 use crate::modules::config::default::LOCAL_CONFIG_PATH;
 use crate::modules::config::default::LOG_DIR;
@@ -29,8 +30,6 @@ use chrono::Duration;
 use chrono::Local;
 use core::storage;
 use core::storage::storage_manager::StorageManager;
-use keyboard_listener::retry_register_shortcut;
-use keyboard_listener::start_key_listener;
 use modules::config::config_manager::RuntimeConfig;
 use modules::config::default::{APP_PIC_PATH, REMOTE_CONFIG_NAME};
 use modules::config::load_local_config;
@@ -172,6 +171,9 @@ pub fn run() {
             get_search_keys,
             command_get_default_remote_data_dir_path,
             command_load_local_config,
+            get_all_shortcut,
+            delete_shortcut,
+            register_shortcut,
             command_save_local_config,
             command_check_validation,
             command_change_tray_icon //command_get_onedrive_refresh_token
@@ -232,7 +234,6 @@ fn update_window_size_and_position() {
         .get_webview_window("main")
         .unwrap();
     let config = state.get_runtime_config().unwrap();
-    let scale_factor = config.get_window_state().get_sys_window_scale_factor();
 
     let ui_config = config.get_ui_config();
     let vertical_position_ratio = ui_config.get_vertical_position_ratio();

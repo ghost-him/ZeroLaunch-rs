@@ -1,3 +1,4 @@
+use crate::core::keyboard_listener::Shortcut;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 
@@ -13,6 +14,7 @@ pub struct PartialAppConfig {
     pub auto_refresh_time: Option<u32>,
     pub launch_new_on_failure: Option<bool>,
     pub is_debug_mode: Option<bool>,
+    pub shortcut: Option<Shortcut>,
 }
 
 /// 与程序设置有关的，比如是不是要开机自动启动等
@@ -43,6 +45,9 @@ pub struct AppConfigInner {
     /// 是否是debug模式
     #[serde(default = "AppConfigInner::default_is_debug_mode")]
     pub is_debug_mode: bool,
+    /// 唤醒按钮
+    #[serde(default = "AppConfigInner::default_shortcut")]
+    pub shortcut: Shortcut,
 }
 
 impl Default for AppConfigInner {
@@ -56,6 +61,7 @@ impl Default for AppConfigInner {
             auto_refresh_time: Self::default_auto_refresh_time(),
             launch_new_on_failure: Self::default_launch_new_on_failure(),
             is_debug_mode: Self::default_is_debug_mode(),
+            shortcut: Self::default_shortcut(),
         }
     }
 }
@@ -92,6 +98,10 @@ impl AppConfigInner {
     pub(crate) fn default_is_debug_mode() -> bool {
         false
     }
+
+    pub(crate) fn default_shortcut() -> Shortcut {
+        Shortcut::default()
+    }
 }
 
 impl AppConfigInner {
@@ -119,6 +129,9 @@ impl AppConfigInner {
         }
         if let Some(is_debug_mode) = partial_app_config.is_debug_mode {
             self.is_debug_mode = is_debug_mode;
+        }
+        if let Some(shortcut) = partial_app_config.shortcut {
+            self.shortcut = shortcut;
         }
     }
 
@@ -154,6 +167,10 @@ impl AppConfigInner {
         self.is_debug_mode
     }
 
+    pub fn get_shortcut(&self) -> &Shortcut {
+        &self.shortcut
+    }
+
     pub fn to_partial(&self) -> PartialAppConfig {
         PartialAppConfig {
             search_bar_placeholder: Some(self.search_bar_placeholder.clone()),
@@ -164,6 +181,7 @@ impl AppConfigInner {
             launch_new_on_failure: Some(self.launch_new_on_failure),
             auto_refresh_time: Some(self.auto_refresh_time),
             is_debug_mode: Some(self.is_debug_mode),
+            shortcut: Some(self.shortcut.clone()),
         }
     }
 }
@@ -186,7 +204,11 @@ impl AppConfig {
         inner.update(partial_app_config);
     }
 
-    // 修正为使用读锁并添加所有get方法
+    pub fn get_shortcut(&self) -> Shortcut {
+        let inner = self.inner.read();
+        inner.shortcut.clone()
+    }
+
     pub fn get_search_bar_placeholder(&self) -> String {
         let inner = self.inner.read();
         inner.get_search_bar_placeholder()

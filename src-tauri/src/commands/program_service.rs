@@ -1,8 +1,9 @@
-use crate::commands::ui_command::hide_window;
 use crate::modules::config::config_manager::PartialConfig;
 use crate::save_config_to_file;
 use crate::state::app_state::AppState;
 use crate::update_app_setting;
+use crate::utils::ui_controller::handle_pressed;
+use crate::{commands::ui_command::hide_window, core::keyboard_listener::Shortcut};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tauri::Runtime;

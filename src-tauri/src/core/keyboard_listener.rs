@@ -1,3 +1,7 @@
+use crate::notify;
+use crate::utils::notify;
+use crate::utils::service_locator::ServiceLocator;
+use crate::utils::ui_controller::handle_pressed;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -7,10 +11,7 @@ use tauri_plugin_global_shortcut::{
     Code, GlobalShortcutExt, Modifiers, Shortcut as TauriShortcut, ShortcutState,
 };
 use tracing::error;
-
-use crate::utils::service_locator::ServiceLocator;
-use crate::utils::ui_controller::handle_pressed;
-
+use tracing::warn;
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Shortcut {
     key: String,
@@ -57,68 +58,82 @@ impl ShortcutManagerInner {
 
     // 将自定义Shortcut转换为Tauri的Shortcut
     fn convert_shortcut(&self, shortcut: &Shortcut) -> Result<TauriShortcut, String> {
-        let first_char = shortcut
-            .key
-            .chars()
-            .next()
-            .ok_or_else(|| "快捷键不能为空".to_string())?;
-
-        let code = match first_char {
-            'a'..='z' | 'A'..='Z' => {
-                // 统一转换为大写字母，然后计算偏移量
-                let uppercase = first_char.to_uppercase().next().unwrap();
-                let offset = uppercase as u8 - b'A';
-                match offset {
-                    0 => Some(Code::KeyA),
-                    1 => Some(Code::KeyB),
-                    2 => Some(Code::KeyC),
-                    3 => Some(Code::KeyD),
-                    4 => Some(Code::KeyE),
-                    5 => Some(Code::KeyF),
-                    6 => Some(Code::KeyG),
-                    7 => Some(Code::KeyH),
-                    8 => Some(Code::KeyI),
-                    9 => Some(Code::KeyJ),
-                    10 => Some(Code::KeyK),
-                    11 => Some(Code::KeyL),
-                    12 => Some(Code::KeyM),
-                    13 => Some(Code::KeyN),
-                    14 => Some(Code::KeyO),
-                    15 => Some(Code::KeyP),
-                    16 => Some(Code::KeyQ),
-                    17 => Some(Code::KeyR),
-                    18 => Some(Code::KeyS),
-                    19 => Some(Code::KeyT),
-                    20 => Some(Code::KeyU),
-                    21 => Some(Code::KeyV),
-                    22 => Some(Code::KeyW),
-                    23 => Some(Code::KeyX),
-                    24 => Some(Code::KeyY),
-                    25 => Some(Code::KeyZ),
+        let code = {
+            // 如果是单个字符，则使用单个字符的方式处理
+            if shortcut.key.len() == 1 {
+                let first_char = shortcut.key.chars().next().unwrap();
+                match first_char {
+                    'a'..='z' | 'A'..='Z' => {
+                        // 统一转换为大写字母，然后计算偏移量
+                        let uppercase = first_char.to_uppercase().next().unwrap();
+                        let offset = uppercase as u8 - b'A';
+                        match offset {
+                            0 => Some(Code::KeyA),
+                            1 => Some(Code::KeyB),
+                            2 => Some(Code::KeyC),
+                            3 => Some(Code::KeyD),
+                            4 => Some(Code::KeyE),
+                            5 => Some(Code::KeyF),
+                            6 => Some(Code::KeyG),
+                            7 => Some(Code::KeyH),
+                            8 => Some(Code::KeyI),
+                            9 => Some(Code::KeyJ),
+                            10 => Some(Code::KeyK),
+                            11 => Some(Code::KeyL),
+                            12 => Some(Code::KeyM),
+                            13 => Some(Code::KeyN),
+                            14 => Some(Code::KeyO),
+                            15 => Some(Code::KeyP),
+                            16 => Some(Code::KeyQ),
+                            17 => Some(Code::KeyR),
+                            18 => Some(Code::KeyS),
+                            19 => Some(Code::KeyT),
+                            20 => Some(Code::KeyU),
+                            21 => Some(Code::KeyV),
+                            22 => Some(Code::KeyW),
+                            23 => Some(Code::KeyX),
+                            24 => Some(Code::KeyY),
+                            25 => Some(Code::KeyZ),
+                            _ => None,
+                        }
+                    }
+                    '0'..='9' => {
+                        let offset = first_char as u8 - b'0';
+                        match offset {
+                            0 => Some(Code::Digit0),
+                            1 => Some(Code::Digit1),
+                            2 => Some(Code::Digit2),
+                            3 => Some(Code::Digit3),
+                            4 => Some(Code::Digit4),
+                            5 => Some(Code::Digit5),
+                            6 => Some(Code::Digit6),
+                            7 => Some(Code::Digit7),
+                            8 => Some(Code::Digit8),
+                            9 => Some(Code::Digit9),
+                            _ => None,
+                        }
+                    }
+                    _ => None,
+                }
+            } else {
+                // 如果是多个字符，则额外处理
+                match shortcut.key.as_str() {
+                    "Space" => Some(Code::Space),
+                    "Tab" => Some(Code::Tab),
+                    "CapsLock" => Some(Code::CapsLock),
                     _ => None,
                 }
             }
-            '0'..='9' => {
-                let offset = first_char as u8 - b'0';
-                match offset {
-                    0 => Some(Code::Digit0),
-                    1 => Some(Code::Digit1),
-                    2 => Some(Code::Digit2),
-                    3 => Some(Code::Digit3),
-                    4 => Some(Code::Digit4),
-                    5 => Some(Code::Digit5),
-                    6 => Some(Code::Digit6),
-                    7 => Some(Code::Digit7),
-                    8 => Some(Code::Digit8),
-                    9 => Some(Code::Digit9),
-                    _ => None,
-                }
-            }
-            _ => None,
         };
 
         // 检查是否找到了有效的键码
-        let code = code.ok_or_else(|| format!("不支持的键: {}", shortcut.key))?;
+        let code = {
+            if code.is_none() {
+                return Err(format!("无效的按键: {:?}", shortcut.key));
+            } else {
+                code.unwrap()
+            }
+        };
 
         let mut modifiers = None;
         if shortcut.ctrl || shortcut.alt || shortcut.shift || shortcut.meta {
@@ -237,7 +252,6 @@ impl ShortcutManagerInner {
         // 从快捷键回调映射中移除
         let mut shortcuts = self.shortcuts.lock();
         shortcuts.remove(&tauri_shortcut);
-        println!("成功取消注册");
         Ok(())
     }
 
@@ -365,14 +379,16 @@ pub fn start_key_listener(app: &mut tauri::App) {
     let app_handle = app.handle();
     let shortcut_manager = ShortcutManager::new(Arc::new(app_handle.clone()));
     if let Err(e) = shortcut_manager.init_shortcut_listener() {
-        println!("初始化失败:{:?}", e);
+        warn!("初始化失败:{:?}", e);
+        notify("ZeroLaunch-rs", &format!("键盘监听器初始化失败：{:?}", e));
     }
     if let Err(e) =
         shortcut_manager.register_shortcut("show_search_bar".to_string(), shortcut, move |handle| {
             handle_pressed(handle);
         })
     {
-        println!("注册快捷键失败 {:?}", e);
+        warn!("注册快捷键失败 {:?}", e);
+        notify("ZeroLaunch-rs", &format!("注册快捷键失败 {:?}", e));
     }
 
     state.set_shortcut_manager(Arc::new(shortcut_manager));

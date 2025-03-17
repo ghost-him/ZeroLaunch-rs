@@ -1,19 +1,19 @@
 <template>
     <div class="shortcut-input">
-        <label>{{ label }}</label>
+        <label class="shortcut-label">{{ label }}</label>
         <div class="key-display" :class="{ 'listening': isListening }" @click="startListening" tabindex="0">
+            <i class="el-icon-keyboard" v-if="!displayValue"></i>
             {{ displayValue || '点击设置快捷键' }}
         </div>
-        <el-button v-if="shortcut" @click="resetShortcut" class="reset-btn">重置</el-button>
     </div>
 </template>
 
+
 <script lang="ts" setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { ElButton } from 'element-plus';
 import { Shortcut } from '../api/remote_config_types'
 import { PropType } from 'vue';
-
+import { watch } from 'vue';
 
 const props = defineProps({
     label: {
@@ -34,6 +34,11 @@ const emit = defineEmits(['update:modelValue', 'before-change', 'after-change'])
 
 const shortcut = ref(props.modelValue);
 const isListening = ref(false);
+
+watch(() => props.modelValue, (newVal) => {
+    shortcut.value = newVal;
+});
+
 
 // 显示的快捷键文本
 const displayValue = computed(() => {
@@ -88,16 +93,12 @@ function startListening() {
 
 // 停止监听
 function stopListening() {
-    isListening.value = false;
     document.removeEventListener('keydown', handleDocumentKeyDown);
     document.removeEventListener('keyup', handleDocumentKeyUp);
-    emit('after-change');
-}
-
-// 重置快捷键
-function resetShortcut() {
-    shortcut.value = props.defaultValue;
-    emit('update:modelValue', props.defaultValue);
+    if (isListening.value) {
+        emit('after-change');
+    }
+    isListening.value = false;
 }
 
 // 点击外部区域停止监听
@@ -116,43 +117,62 @@ onUnmounted(() => {
     stopListening(); // 确保卸载时清理监听器
 });
 </script>
-
 <style scoped>
-/* 原有样式保持不变 */
 .shortcut-input {
     display: flex;
     align-items: center;
-    gap: 10px;
-    margin-bottom: 10px;
+    gap: 16px;
+    margin-bottom: 16px;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.shortcut-label {
+    font-size: 14px;
+    font-weight: 500;
+    color: #2c3e50;
+    min-width: 80px;
 }
 
 .key-display {
-    padding: 5px 10px;
-    border: 1px solid #dcdfe6;
-    border-radius: 4px;
-    min-width: 150px;
+    padding: 8px 14px;
+    border: 1px solid #e0e3e9;
+    border-radius: 6px;
+    min-width: 180px;
     text-align: center;
     cursor: pointer;
     user-select: none;
-    background-color: #ffffff;
-    transition: border-color 0.2s, box-shadow 0.2s;
+    background-color: #f9fafc;
+    transition: all 0.25s ease;
+    font-size: 14px;
+    color: #606266;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
 }
 
-.key-display.listening {
+.key-display:hover {
+    background-color: #f0f2f5;
+    border-color: #c0c4cc;
+}
+
+.key-display:focus {
+    outline: none;
     border-color: #409eff;
     box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.2);
 }
 
-.reset-btn {
-    padding: 2px 8px;
-    font-size: 12px;
-    background-color: transparent;
-    border: none;
-    cursor: pointer;
-    color: #606266;
+.key-display.listening {
+    border-color: #409eff;
+    background-color: #ecf5ff;
+    box-shadow: 0 0 0 3px rgba(64, 158, 255, 0.25);
+    color: #409eff;
+    font-weight: 500;
 }
 
-.reset-btn:hover {
-    color: #409eff;
+.el-icon-keyboard {
+    font-size: 16px;
+    opacity: 0.7;
 }
 </style>

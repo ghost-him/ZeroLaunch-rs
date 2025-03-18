@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { AppConfig, UIConfig, ProgramManagerConfig, ProgramLauncherConfig, ProgramLoaderConfig, PartialConfig, Config, BlurStyle } from '../api/remote_config_types'
+import { AppConfig, UIConfig, default_ui_config,default_app_config, ProgramManagerConfig, ProgramLauncherConfig, ProgramLoaderConfig, PartialConfig, Config } from '../api/remote_config_types'
 import { invoke } from '@tauri-apps/api/core'
 
 function mergeConfig(config: Config , partial: PartialConfig): Config {
@@ -110,42 +110,8 @@ function mergePartialProgramManagerConfig(
 export const useRemoteConfigStore = defineStore('config', {
     state: () => ({
         config: {
-            app_config: {
-                search_bar_placeholder: '',
-                tips: '',
-                is_auto_start: false,
-                is_silent_start: false,
-                search_result_count: 4,
-                auto_refresh_time: 30,
-                launch_new_on_failure: false,
-                is_debug_mode: false,
-                shortcut: {
-                    key: 'Space',
-                    ctrl: false,
-                    alt: true,
-                    shift: false,
-                    meta: false,
-                }
-            } as AppConfig,
-            ui_config: {
-                selected_item_color: '',
-                item_font_color: '',
-                search_bar_font_color: '',
-                search_bar_font_size: 2.0,
-                search_bar_background_color: '#FFFFFF00',
-                item_font_size: 1.3,
-                vertical_position_ratio: 0.4,
-                search_bar_height: 65,
-                result_item_height: 62,
-                footer_height: 42,
-                window_width: 1000,
-                background_size: 'cover',
-                background_position: 'center',
-                background_repeat: 'no-repeat',
-                background_opacity: 1,
-                blur_style: BlurStyle.None,
-                search_bar_placeholder_font_color: '#757575',
-            } as UIConfig,
+            app_config: default_app_config(),
+            ui_config: default_ui_config(),
             program_manager_config: {
                 launcher: {
                     launch_info: {},

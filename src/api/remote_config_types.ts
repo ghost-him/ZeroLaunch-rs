@@ -19,12 +19,24 @@ export type AppConfig = {
     shortcut: Shortcut
 }
 
-
-export enum BlurStyle {
-    None = "None",
-    Acrylic = "Acrylic",
-    Mica = "Mica",
-    Tabbed = "Tabbed"
+export function default_app_config(): AppConfig {
+    return {
+        search_bar_placeholder: '',
+        tips: '',
+        is_auto_start: false,
+        is_silent_start: false,
+        search_result_count: 4,
+        auto_refresh_time: 30,
+        launch_new_on_failure: false,
+        is_debug_mode: false,
+        shortcut: {
+            key: 'Space',
+            ctrl: false,
+            alt: true,
+            shift: false,
+            meta: false,
+        }
+    } as AppConfig;
 }
 
 export type UIConfig = {
@@ -43,8 +55,34 @@ export type UIConfig = {
     background_position: string,
     background_repeat: string,
     background_opacity: number,
-    blur_style: BlurStyle,
+    blur_style: String,
     search_bar_placeholder_font_color: string,
+    window_corner_radius: number,
+    use_windows_sys_control_radius: boolean,
+}
+
+export function default_ui_config(): UIConfig {
+    return {
+        selected_item_color: '',
+        item_font_color: '',
+        search_bar_font_color: '',
+        search_bar_font_size: 2.0,
+        search_bar_background_color: '#FFFFFF00',
+        item_font_size: 1.3,
+        vertical_position_ratio: 0.4,
+        search_bar_height: 65,
+        result_item_height: 62,
+        footer_height: 42,
+        window_width: 1000,
+        background_size: 'cover',
+        background_position: 'center',
+        background_repeat: 'no-repeat',
+        background_opacity: 1,
+        blur_style: 'None',
+        search_bar_placeholder_font_color: '#757575',
+        window_corner_radius: 8,
+        use_windows_sys_control_radius: false,
+    } as UIConfig;
 }
 
 export type ProgramLauncherConfig = {

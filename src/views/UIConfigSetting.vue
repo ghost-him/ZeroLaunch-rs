@@ -53,12 +53,12 @@
 
         <el-tab-pane label="背景图片设置">
             <el-form-item label="毛玻璃效果">
-                <el-select v-model="blur_style_value" placeholder="Select" style="width: 240px">
+                <el-select v-model="blur_style_value" placeholder="Select" style="width: 240px"
+                    :disabled="!config.ui_config.use_windows_sys_control_radius">
                     <el-option v-for="item in blur_style_option" :key="item.value" :label="item.label"
                         :value="item.value" />
                 </el-select>
-                <el-tooltip class="box-item" effect="dark" placement="right-start"
-                    content="该效果仅在 windows 11 上有效，windows 10 不保证有效">
+                <el-tooltip class="box-item" effect="dark" placement="right-start" content="仅支持使用系统圆角">
                     <el-icon class="el-question-icon">
                         <QuestionFilled />
                     </el-icon>
@@ -185,6 +185,28 @@
                     </template>
                 </el-input-number>
             </el-form-item>
+
+            <el-form-item label="使用windows系统调用控制圆角">
+                <el-switch v-model="config.ui_config.use_windows_sys_control_radius"
+                    @change="(val: boolean) => configStore.updateConfig({ ui_config: { use_windows_sys_control_radius: val } })" />
+                <el-tooltip class="box-item" effect="dark" placement="right-start" content="仅支持 Windows11 22h2 及以上的版本">
+                    <el-icon class="el-question-icon">
+                        <QuestionFilled />
+                    </el-icon>
+                </el-tooltip>
+            </el-form-item>
+
+            <el-form-item label="窗口的圆角大小">
+                <el-input-number v-model="config.ui_config.window_corner_radius" placeholder="8" :min="1" :step="1"
+                    :precision="0" :disabled="config.ui_config.use_windows_sys_control_radius"
+                    @change="(val: number) => configStore.updateConfig({ ui_config: { window_corner_radius: val } })">
+                    <template #suffix>
+                        <span>px</span>
+                    </template>
+                </el-input-number>
+
+
+            </el-form-item>
         </el-tab-pane>
     </el-tabs>
 
@@ -200,16 +222,14 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { ref, watch } from 'vue';
 import { useRemoteConfigStore } from '../stores/remote_config';
 import { storeToRefs } from 'pinia';
-import { BlurStyle } from '../api/remote_config_types';
 
 
 const configStore = useRemoteConfigStore()
 const { config } = storeToRefs(configStore)
-const blur_style_value = ref('None')
+const blur_style_value = ref(config.value.ui_config.blur_style)
 
 watch(blur_style_value, (newValue) => {
-    const value = newValue as BlurStyle
-    configStore.updateConfig({ ui_config: { blur_style: value } })
+    configStore.updateConfig({ ui_config: { blur_style: newValue } })
 })
 
 const blur_style_option = [

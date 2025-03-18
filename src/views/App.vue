@@ -1,5 +1,9 @@
 <template>
-  <div class="launcher-container" @keydown="handleKeyDown" tabindex="0" :style="backgroundStyle">
+  <div class="launcher-container" @keydown="handleKeyDown" tabindex="0" :style="[backgroundStyle,
+    !ui_config.use_windows_sys_control_radius ? {
+      border: `1px solid ${is_dark ? '#3d3d3d' : '#bdbdbd'}`,
+      borderRadius: `${ui_config.window_corner_radius}px`
+    } : {}]">
     <div class="unified-container">
       <!-- 搜索栏 -->
       <div class="search-input"
@@ -73,7 +77,7 @@ import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core'
 import { reduceOpacity } from '../utils/color';
-import { AppConfig, BlurStyle, PartialAppConfig, PartialUIConfig, UIConfig } from '../api/remote_config_types';
+import { AppConfig, default_ui_config, PartialAppConfig, PartialUIConfig, UIConfig } from '../api/remote_config_types';
 
 const app_config = ref<AppConfig>({
   search_bar_placeholder: '',
@@ -93,25 +97,8 @@ const app_config = ref<AppConfig>({
   }
 })
 
-const ui_config = ref<UIConfig>({
-  selected_item_color: '#e3e3e3cc',
-  item_font_color: '#000000',
-  search_bar_font_color: '#333333',
-  search_bar_font_size: 2.0,
-  search_bar_background_color: '#FFFFFF00',
-  item_font_size: 1.3,
-  vertical_position_ratio: 0.4,
-  search_bar_height: 65,
-  result_item_height: 62,
-  footer_height: 42,
-  window_width: 1000,
-  background_size: 'cover',
-  background_position: 'center',
-  background_repeat: 'no-repeat',
-  background_opacity: 1,
-  blur_style: BlurStyle.None,
-  search_bar_placeholder_font_color: '#757575',
-})
+const ui_config = ref<UIConfig>(default_ui_config())
+ui_config.value.window_corner_radius
 const searchText = ref('la')
 const selectedIndex = ref<number>(0)
 const searchBarRef = ref<HTMLInputElement | null>(null)
@@ -128,6 +115,7 @@ const background_picture = ref('');
 
 // 用于检测当前系统是深色模式还是浅色模式
 const darkModeMediaQuery = ref<MediaQueryList | null>(null);
+const is_dark = ref(false);
 
 let unlisten: Array<UnlistenFn | null> = [];
 
@@ -327,7 +315,7 @@ const focusSearchInput = () => {
 }
 
 const backgroundStyle = computed(() => ({
-  backgroundColor: ui_config.value.blur_style !== BlurStyle.None
+  backgroundColor: (ui_config.value.blur_style !== 'None' && ui_config.value.use_windows_sys_control_radius === true)
     ? 'transparent'
     : 'white',
   backgroundImage: `linear-gradient(rgba(255, 255, 255, ${1 - ui_config.value.background_opacity}), rgba(255, 255, 255, ${1 - ui_config.value.background_opacity})), url(${background_picture.value})`,
@@ -340,6 +328,7 @@ const backgroundStyle = computed(() => ({
 const applyTheme = async (isDark: boolean) => {
   // 这里可以根据实际主题需求设置颜色变量
   console.log(`主题变更为: ${isDark ? '深色' : '浅色'}`);
+  is_dark.value = isDark;
   await invoke('command_change_tray_icon', { isDark: isDark })
 }
 

@@ -340,7 +340,7 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, onMounted, computed, onUnmounted } from 'vue';
+import { ref, onMounted, computed, onUnmounted, watch } from 'vue';
 import {
     Setting,
     Brush,

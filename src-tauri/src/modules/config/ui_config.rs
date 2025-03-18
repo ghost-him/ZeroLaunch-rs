@@ -2,14 +2,6 @@ use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum BlurStyle {
-    None,
-    Acrylic,
-    Mica,
-    Tabbed,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PartialUiConfig {
     pub selected_item_color: Option<String>,
     pub item_font_color: Option<String>,
@@ -26,8 +18,10 @@ pub struct PartialUiConfig {
     pub background_position: Option<String>,
     pub background_repeat: Option<String>,
     pub background_opacity: Option<f64>,
-    pub blur_style: Option<BlurStyle>,
+    pub blur_style: Option<String>,
     pub search_bar_placeholder_font_color: Option<String>,
+    pub window_corner_radius: Option<u32>,
+    pub use_windows_sys_control_radius: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -96,11 +90,19 @@ pub struct UiConfigInner {
 
     /// 毛玻璃效果
     #[serde(default = "UiConfigInner::default_blur_style")]
-    pub blur_style: BlurStyle,
+    pub blur_style: String,
 
     /// 搜索栏提示字的颜色
     #[serde(default = "UiConfigInner::default_search_bar_placeholder_font_color")]
     pub search_bar_placeholder_font_color: String,
+
+    /// 窗口的圆角大小
+    #[serde(default = "UiConfigInner::default_window_corner_radius")]
+    pub window_corner_radius: u32,
+
+    // 使用windows系统调用实现圆角效果
+    #[serde(default = "UiConfigInner::default_use_windows_sys_control_radius")]
+    use_windows_sys_control_radius: bool,
 }
 
 impl Default for UiConfigInner {
@@ -123,6 +125,8 @@ impl Default for UiConfigInner {
             background_opacity: Self::default_background_opacity(),
             blur_style: Self::default_blur_style(),
             search_bar_placeholder_font_color: Self::default_search_bar_placeholder_font_color(),
+            window_corner_radius: Self::default_window_corner_radius(),
+            use_windows_sys_control_radius: Self::default_use_windows_sys_control_radius(),
         }
     }
 }
@@ -187,12 +191,18 @@ impl UiConfigInner {
         1.0
     }
 
-    pub(crate) fn default_blur_style() -> BlurStyle {
-        BlurStyle::None
+    pub(crate) fn default_blur_style() -> String {
+        "None".to_string()
     }
 
     pub(crate) fn default_search_bar_placeholder_font_color() -> String {
         "#757575".to_string()
+    }
+    pub(crate) fn default_window_corner_radius() -> u32 {
+        8 // 默认圆角大小设为 8
+    }
+    pub(crate) fn default_use_windows_sys_control_radius() -> bool {
+        false
     }
 }
 
@@ -248,6 +258,12 @@ impl UiConfigInner {
         }
         if let Some(color) = partial_ui_config.search_bar_placeholder_font_color {
             self.search_bar_placeholder_font_color = color;
+        }
+        if let Some(window_corner_radius) = partial_ui_config.window_corner_radius {
+            self.window_corner_radius = window_corner_radius;
+        }
+        if let Some(use_windows) = partial_ui_config.use_windows_sys_control_radius {
+            self.use_windows_sys_control_radius = use_windows;
         }
     }
 
@@ -305,6 +321,8 @@ impl UiConfigInner {
             background_opacity: Some(self.background_opacity),
             blur_style: Some(self.blur_style.clone()),
             search_bar_placeholder_font_color: Some(self.search_bar_placeholder_font_color.clone()),
+            window_corner_radius: Some(self.window_corner_radius),
+            use_windows_sys_control_radius: Some(self.use_windows_sys_control_radius),
         }
     }
 }
@@ -405,7 +423,7 @@ impl UiConfig {
         inner.background_opacity
     }
 
-    pub fn get_blur_style(&self) -> BlurStyle {
+    pub fn get_blur_style(&self) -> String {
         let inner = self.inner.read();
         inner.blur_style.clone()
     }
@@ -413,5 +431,14 @@ impl UiConfig {
     pub fn get_search_bar_placeholder_font_color(&self) -> String {
         let inner = self.inner.read();
         inner.search_bar_placeholder_font_color.clone()
+    }
+
+    pub fn get_window_corner_radius(&self) -> u32 {
+        let inner = self.inner.read();
+        inner.window_corner_radius
+    }
+    pub fn get_use_windows_sys_control_radius(&self) -> bool {
+        let inner = self.inner.read();
+        inner.use_windows_sys_control_radius
     }
 }

@@ -1,37 +1,15 @@
 use crate::core::image_processor::ImageProcessor;
 use crate::modules::config::app_config::PartialAppConfig;
 use crate::modules::config::default::APP_PIC_PATH;
-use crate::modules::config::ui_config::{BlurStyle, PartialUiConfig};
+use crate::modules::config::ui_config::PartialUiConfig;
 use crate::state::app_state::AppState;
 use crate::utils::service_locator::ServiceLocator;
-use crate::window_effect::update_rounded_corners_and_border;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tauri::image::Image;
 use tauri::Emitter;
 use tauri::Manager;
 use tauri::Runtime;
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct SearchBarUpdate {
-    search_bar_placeholder: String,
-    selected_item_color: String,
-    item_font_color: String,
-    tips: String,
-    search_bar_font_color: String,
-    search_bar_background_color: String,
-    item_font_size: f64,
-    search_bar_font_size: f64,
-    search_bar_height: u32,
-    result_item_height: u32,
-    footer_height: u32,
-    result_item_count: u32,
-    background_size: String,
-    background_position: String,
-    background_repeat: String,
-    background_opacity: f64,
-    blur_style: BlurStyle,
-    search_bar_placeholder_font_color: String,
-}
 
 #[tauri::command]
 pub async fn update_search_bar_window<R: Runtime>(
@@ -154,6 +132,5 @@ pub async fn command_change_tray_icon<R: Runtime>(
     if let Err(e) = tray_icon.set_icon(Some(Image::from_path(icon_path.value()).unwrap())) {
         return Err(format!("error: {:?}", e));
     }
-    let _ = update_rounded_corners_and_border(is_dark);
     Ok(())
 }

@@ -3,18 +3,18 @@
     <div class="unified-container">
       <!-- 搜索栏 -->
       <div class="search-input"
-        :style="{ background: search_bar_data.search_bar_background_color, height: search_bar_data.search_bar_height + 'px' }">
+        :style="{ background: ui_config.search_bar_background_color, height: ui_config.search_bar_height + 'px' }">
         <span class="search-icon">
           <svg viewBox="0 0 1024 1024" width="26" height="26">
             <path fill="#999"
               d="M795.904 750.72l124.992 124.928a32 32 0 0 1-45.248 45.248L750.656 795.904a416 416 0 1 1 45.248-45.248zM480 832a352 352 0 1 0 0-704 352 352 0 0 0 0 704z" />
           </svg>
         </span>
-        <input v-model="searchText" :placeholder="search_bar_data.search_bar_placeholder" class="input-field"
+        <input v-model="searchText" :placeholder="app_config.search_bar_placeholder" class="input-field"
           ref="searchBarRef" @contextmenu.prevent="showContextMenu" :style="{
-            fontSize: search_bar_data.search_bar_font_size + 'rem',
-            color: search_bar_data.search_bar_font_color,
-            '--placeholder-color': search_bar_data.search_bar_placeholder_font_color
+            fontSize: ui_config.search_bar_font_size + 'rem',
+            color: ui_config.search_bar_font_color,
+            '--placeholder-color': ui_config.search_bar_placeholder_font_color
           }">
       </div>
 
@@ -39,16 +39,16 @@
           @click="(event) => handleItemClick(index, event.ctrlKey)" :class="{ 'selected': selectedIndex === index }"
           :style="{
             '--hover-color': hover_item_color,
-            '--selected-color': search_bar_data.selected_item_color,
-            height: search_bar_data.result_item_height + 'px',
+            '--selected-color': ui_config.selected_item_color,
+            height: ui_config.result_item_height + 'px',
           }">
           <div class="icon">
             <img :src="menuIcons[index]" class="custom-image" alt="icon">
           </div>
           <div class="item-info">
             <div class="item-name" v-html="item" :style="{
-              fontSize: search_bar_data.item_font_size + 'rem',
-              color: search_bar_data.item_font_color
+              fontSize: ui_config.item_font_size + 'rem',
+              color: ui_config.item_font_color
             }"></div>
           </div>
         </div>
@@ -56,10 +56,10 @@
     </div>
 
     <!-- 底部状态栏 -->
-    <div v-if="search_bar_data.footer_height > 0" class="footer"
-      :style="{ backgroundColor: search_bar_data.search_bar_background_color }">
+    <div v-if="ui_config.footer_height > 0" class="footer"
+      :style="{ backgroundColor: ui_config.search_bar_background_color }">
       <div class="footer-left">
-        <span class="status-text">{{ search_bar_data.tips }}</span>
+        <span class="status-text">{{ app_config.tips }}</span>
       </div>
       <div class="footer-right">
         <span class="open-text">{{ '打开' }}</span>
@@ -73,52 +73,45 @@ import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core'
 import { reduceOpacity } from '../utils/color';
-import { BlurStyle } from '../api/remote_config_types';
+import { AppConfig, BlurStyle, PartialAppConfig, PartialUIConfig, UIConfig } from '../api/remote_config_types';
 
-interface SearchBarUpdate {
-  search_bar_placeholder: string;
-  selected_item_color: string;
-  item_font_color: string,
-  search_bar_font_color: string,
-  search_bar_background_color: string,
-  item_font_size: number,
-  search_bar_font_size: number,
-  tips: string
-  search_bar_height: number,
-  result_item_height: number,
-  footer_height: number,
-  result_item_count: number,
-  background_size: string,
-  background_position: string,
-  background_repeat: string,
-  background_opacity: number,
-  blur_style: BlurStyle,
-  search_bar_placeholder_font_color: string,
-}
-
-const search_bar_data = ref<SearchBarUpdate>(
-  {
-    search_bar_placeholder: 'Hello, ZeroLaunch!',
-    selected_item_color: '#e3e3e3cc',
-    item_font_color: '#000000',
-    search_bar_font_color: '#333333',
-    search_bar_background_color: '#FFFFFF00',
-    item_font_size: 1.3,
-    search_bar_font_size: 2.0,
-    tips: 'ZeroLaunch-rs',
-    search_bar_height: 65,
-    result_item_height: 62,
-    footer_height: 42,
-    result_item_count: 4,
-    background_size: 'cover',
-    background_position: 'center',
-    background_repeat: 'no-repeat',
-    background_opacity: 1,
-    blur_style: BlurStyle.None,
-    search_bar_placeholder_font_color: '#757575',
+const app_config = ref<AppConfig>({
+  search_bar_placeholder: '',
+  tips: '',
+  is_auto_start: false,
+  is_silent_start: false,
+  search_result_count: 4,
+  auto_refresh_time: 30,
+  launch_new_on_failure: false,
+  is_debug_mode: false,
+  shortcut: {
+    key: 'Space',
+    ctrl: false,
+    alt: true,
+    shift: false,
+    meta: false,
   }
-);
+})
 
+const ui_config = ref<UIConfig>({
+  selected_item_color: '#e3e3e3cc',
+  item_font_color: '#000000',
+  search_bar_font_color: '#333333',
+  search_bar_font_size: 2.0,
+  search_bar_background_color: '#FFFFFF00',
+  item_font_size: 1.3,
+  vertical_position_ratio: 0.4,
+  search_bar_height: 65,
+  result_item_height: 62,
+  footer_height: 42,
+  window_width: 1000,
+  background_size: 'cover',
+  background_position: 'center',
+  background_repeat: 'no-repeat',
+  background_opacity: 1,
+  blur_style: BlurStyle.None,
+  search_bar_placeholder_font_color: '#757575',
+})
 const searchText = ref('la')
 const selectedIndex = ref<number>(0)
 const searchBarRef = ref<HTMLInputElement | null>(null)
@@ -129,7 +122,7 @@ const program_icons = ref<Map<number, string>>(new Map<number, string>([]));
 const isContextMenuVisible = ref(false);
 const contextMenuPosition = ref({ x: 0, y: 0 });
 const hover_item_color = computed(() => {
-  return reduceOpacity(search_bar_data.value.selected_item_color, 0.8);
+  return reduceOpacity(ui_config.value.selected_item_color, 0.8);
 })
 const background_picture = ref('');
 
@@ -199,9 +192,9 @@ const updateWindow = async () => {
     sendSearchText('');
     const background_picture_data = await invoke<number[]>('get_background_picture');
     const program_count = invoke<number>('get_program_count');
-    const data = await invoke<SearchBarUpdate>('update_search_bar_window');
-    search_bar_data.value = data;
-    console.log(search_bar_data.value)
+    const data = await invoke<[PartialAppConfig, PartialUIConfig]>('update_search_bar_window');
+    app_config.value = { ...app_config.value, ...data[0] }
+    ui_config.value = { ...ui_config.value, ...data[1] }
 
     const blob = new Blob([new Uint8Array(background_picture_data)], { type: 'image/png' });
     const url = URL.createObjectURL(blob);
@@ -274,11 +267,11 @@ const handleKeyDown = async (event: KeyboardEvent) => {
   switch (event.key) {
     case 'ArrowDown':
       event.preventDefault()
-      selectedIndex.value = (selectedIndex.value + 1) % search_bar_data.value.result_item_count
+      selectedIndex.value = (selectedIndex.value + 1) % app_config.value.search_result_count
       break
     case 'ArrowUp':
       event.preventDefault()
-      selectedIndex.value = (selectedIndex.value - 1 + search_bar_data.value.result_item_count) % search_bar_data.value.result_item_count
+      selectedIndex.value = (selectedIndex.value - 1 + app_config.value.search_result_count) % app_config.value.search_result_count
       break
     case 'Enter':
       event.preventDefault()
@@ -288,13 +281,13 @@ const handleKeyDown = async (event: KeyboardEvent) => {
     case 'j':
       if (event.ctrlKey) {
         event.preventDefault()
-        selectedIndex.value = (selectedIndex.value + 1) % search_bar_data.value.result_item_count
+        selectedIndex.value = (selectedIndex.value + 1) % app_config.value.search_result_count
       }
       break
     case 'k':
       if (event.ctrlKey) {
         event.preventDefault()
-        selectedIndex.value = (selectedIndex.value - 1 + search_bar_data.value.result_item_count) % search_bar_data.value.result_item_count
+        selectedIndex.value = (selectedIndex.value - 1 + app_config.value.search_result_count) % app_config.value.search_result_count
       }
       break
     case 'Escape':
@@ -334,13 +327,13 @@ const focusSearchInput = () => {
 }
 
 const backgroundStyle = computed(() => ({
-  backgroundColor: search_bar_data.value.blur_style !== BlurStyle.None
+  backgroundColor: ui_config.value.blur_style !== BlurStyle.None
     ? 'transparent'
     : 'white',
-  backgroundImage: `linear-gradient(rgba(255, 255, 255, ${1 - search_bar_data.value.background_opacity}), rgba(255, 255, 255, ${1 - search_bar_data.value.background_opacity})), url(${background_picture.value})`,
-  backgroundSize: `${search_bar_data.value.background_size}`,
-  backgroundPosition: `${search_bar_data.value.background_position}`,
-  backgroundRepeat: `${search_bar_data.value.background_repeat}`,
+  backgroundImage: `linear-gradient(rgba(255, 255, 255, ${1 - ui_config.value.background_opacity}), rgba(255, 255, 255, ${1 - ui_config.value.background_opacity})), url(${background_picture.value})`,
+  backgroundSize: `${ui_config.value.background_size}`,
+  backgroundPosition: `${ui_config.value.background_position}`,
+  backgroundRepeat: `${ui_config.value.background_repeat}`,
   backgroundClip: 'content-box',
 }));
 

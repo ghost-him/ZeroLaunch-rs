@@ -1,6 +1,7 @@
 use crate::core::image_processor::ImageProcessor;
+use crate::modules::config::app_config::PartialAppConfig;
 use crate::modules::config::default::APP_PIC_PATH;
-use crate::modules::config::ui_config::BlurStyle;
+use crate::modules::config::ui_config::{BlurStyle, PartialUiConfig};
 use crate::state::app_state::AppState;
 use crate::utils::service_locator::ServiceLocator;
 use crate::window_effect::update_rounded_corners_and_border;
@@ -37,31 +38,11 @@ pub async fn update_search_bar_window<R: Runtime>(
     _app: tauri::AppHandle<R>,
     _window: tauri::Window<R>,
     state: tauri::State<'_, Arc<AppState>>,
-) -> Result<SearchBarUpdate, String> {
+) -> Result<(PartialAppConfig, PartialUiConfig), String> {
     let runtime_config = state.get_runtime_config().unwrap();
     let app_config = runtime_config.get_app_config();
     let ui_config = runtime_config.get_ui_config();
-    let result = SearchBarUpdate {
-        search_bar_placeholder: app_config.get_search_bar_placeholder(),
-        selected_item_color: ui_config.get_selected_item_color(),
-        item_font_color: ui_config.get_item_font_color(),
-        tips: app_config.get_tips(),
-        search_bar_font_color: ui_config.get_search_bar_font_color(),
-        search_bar_background_color: ui_config.get_search_bar_background_color(),
-        item_font_size: ui_config.get_item_font_size(),
-        search_bar_font_size: ui_config.get_search_bar_font_size(),
-        search_bar_height: ui_config.get_search_bar_height(),
-        result_item_height: ui_config.get_result_item_height(),
-        footer_height: ui_config.get_footer_height(),
-        result_item_count: app_config.get_search_result_count(),
-        background_size: ui_config.get_background_size(),
-        background_position: ui_config.get_background_position(),
-        background_repeat: ui_config.get_background_repeat(),
-        background_opacity: ui_config.get_background_opacity(),
-        blur_style: ui_config.get_blur_style(),
-        search_bar_placeholder_font_color: ui_config.get_search_bar_placeholder_font_color(),
-    };
-    Ok(result)
+    Ok((app_config.to_partial(), ui_config.to_partial()))
 }
 
 #[tauri::command]

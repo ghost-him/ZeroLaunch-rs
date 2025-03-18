@@ -75,7 +75,7 @@ const handleDocumentKeyDown = (e: KeyboardEvent) => {
     emit('update:modelValue', newShortcut);
 }
 
-const handleDocumentKeyUp = (e: KeyboardEvent) => {
+const handleDocumentKeyUp = () => {
     if (isListening.value) {
         stopListening();
     }

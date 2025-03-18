@@ -144,6 +144,7 @@ export const useRemoteConfigStore = defineStore('config', {
                 background_repeat: 'no-repeat',
                 background_opacity: 1,
                 blur_style: BlurStyle.None,
+                search_bar_placeholder_font_color: '#757575',
             } as UIConfig,
             program_manager_config: {
                 launcher: {

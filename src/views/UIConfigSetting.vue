@@ -13,6 +13,10 @@
                 <el-color-picker v-model="config.ui_config.search_bar_font_color"
                     @change="(val: string) => configStore.updateConfig({ ui_config: { search_bar_font_color: rgbaToHex(val) } })" />
             </el-form-item>
+            <el-form-item label="搜索栏的提示字体的颜色">
+                <el-color-picker v-model="config.ui_config.search_bar_placeholder_font_color"
+                    @change="(val: string) => configStore.updateConfig({ ui_config: { search_bar_placeholder_font_color: rgbaToHex(val) } })" />
+            </el-form-item>
             <el-form-item label="设置结果栏的字体颜色">
                 <el-color-picker v-model="config.ui_config.item_font_color"
                     @change="(val: string) => configStore.updateConfig({ ui_config: { item_font_color: rgbaToHex(val) } })" />

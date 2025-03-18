@@ -27,6 +27,7 @@ pub struct PartialUiConfig {
     pub background_repeat: Option<String>,
     pub background_opacity: Option<f64>,
     pub blur_style: Option<BlurStyle>,
+    pub search_bar_placeholder_font_color: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -96,6 +97,10 @@ pub struct UiConfigInner {
     /// 毛玻璃效果
     #[serde(default = "UiConfigInner::default_blur_style")]
     pub blur_style: BlurStyle,
+
+    /// 搜索栏提示字的颜色
+    #[serde(default = "UiConfigInner::default_search_bar_placeholder_font_color")]
+    pub search_bar_placeholder_font_color: String,
 }
 
 impl Default for UiConfigInner {
@@ -117,6 +122,7 @@ impl Default for UiConfigInner {
             background_repeat: Self::default_background_repeat(),
             background_opacity: Self::default_background_opacity(),
             blur_style: Self::default_blur_style(),
+            search_bar_placeholder_font_color: Self::default_search_bar_placeholder_font_color(),
         }
     }
 }
@@ -184,6 +190,10 @@ impl UiConfigInner {
     pub(crate) fn default_blur_style() -> BlurStyle {
         BlurStyle::None
     }
+
+    pub(crate) fn default_search_bar_placeholder_font_color() -> String {
+        "#757575".to_string()
+    }
 }
 
 impl UiConfigInner {
@@ -235,6 +245,9 @@ impl UiConfigInner {
         }
         if let Some(blur_style) = partial_ui_config.blur_style {
             self.blur_style = blur_style;
+        }
+        if let Some(color) = partial_ui_config.search_bar_placeholder_font_color {
+            self.search_bar_placeholder_font_color = color;
         }
     }
 
@@ -291,6 +304,7 @@ impl UiConfigInner {
             background_repeat: Some(self.background_repeat.clone()),
             background_opacity: Some(self.background_opacity),
             blur_style: Some(self.blur_style.clone()),
+            search_bar_placeholder_font_color: Some(self.search_bar_placeholder_font_color.clone()),
         }
     }
 }
@@ -394,5 +408,10 @@ impl UiConfig {
     pub fn get_blur_style(&self) -> BlurStyle {
         let inner = self.inner.read();
         inner.blur_style.clone()
+    }
+
+    pub fn get_search_bar_placeholder_font_color(&self) -> String {
+        let inner = self.inner.read();
+        inner.search_bar_placeholder_font_color.clone()
     }
 }

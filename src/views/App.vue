@@ -13,7 +13,8 @@
         <input v-model="searchText" :placeholder="search_bar_data.search_bar_placeholder" class="input-field"
           ref="searchBarRef" @contextmenu.prevent="showContextMenu" :style="{
             fontSize: search_bar_data.search_bar_font_size + 'rem',
-            color: search_bar_data.search_bar_font_color
+            color: search_bar_data.search_bar_font_color,
+            '--placeholder-color': search_bar_data.search_bar_placeholder_font_color
           }">
       </div>
 
@@ -92,6 +93,7 @@ interface SearchBarUpdate {
   background_repeat: string,
   background_opacity: number,
   blur_style: BlurStyle,
+  search_bar_placeholder_font_color: string,
 }
 
 const search_bar_data = ref<SearchBarUpdate>(
@@ -113,6 +115,7 @@ const search_bar_data = ref<SearchBarUpdate>(
     background_repeat: 'no-repeat',
     background_opacity: 1,
     blur_style: BlurStyle.None,
+    search_bar_placeholder_font_color: '#757575',
   }
 );
 
@@ -511,6 +514,12 @@ body {
   text-overflow: ellipsis;
   justify-content: center;
   line-height: normal;
+}
+
+.input-field::placeholder {
+  color: var(--placeholder-color);
+  opacity: 1;
+  /* 确保颜色不透明 */
 }
 
 mark {

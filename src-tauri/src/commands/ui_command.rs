@@ -29,6 +29,7 @@ pub struct SearchBarUpdate {
     background_repeat: String,
     background_opacity: f64,
     blur_style: BlurStyle,
+    search_bar_placeholder_font_color: String,
 }
 
 #[tauri::command]
@@ -58,6 +59,7 @@ pub async fn update_search_bar_window<R: Runtime>(
         background_repeat: ui_config.get_background_repeat(),
         background_opacity: ui_config.get_background_opacity(),
         blur_style: ui_config.get_blur_style(),
+        search_bar_placeholder_font_color: ui_config.get_search_bar_placeholder_font_color(),
     };
     Ok(result)
 }

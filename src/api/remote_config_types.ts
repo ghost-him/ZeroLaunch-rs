@@ -44,6 +44,7 @@ export type UIConfig = {
     background_repeat: string,
     background_opacity: number,
     blur_style: BlurStyle,
+    search_bar_placeholder_font_color: string,
 }
 
 export type ProgramLauncherConfig = {

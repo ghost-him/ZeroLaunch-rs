@@ -67,19 +67,27 @@
         </div>
       </div>
     </div>
+    <!-- 二级菜单 -->
+    <SubMenu ref="resultItemMenuRef" :itemHeight="ui_config.result_item_height" :windowSize="windowSize"
+      :menuItems="resultSubMenuItems" :isDark="is_dark" :cornerRadius="ui_config.window_corner_radius"
+      :hoverColor="hover_item_color" :selectedColor="ui_config.selected_item_color"
+      :itemFontColor="ui_config.item_font_color" :itemFontSizePercent="ui_config.item_font_size"></SubMenu>
 
-    <!-- 底部状态栏 -->
-    <div v-if="ui_config.footer_height > 0" class="footer"
-      :style="{ backgroundColor: ui_config.search_bar_background_color }">
-      <div class="footer-left">
-        <span class="status-text" :style="{ fontSize: ui_config.footer_height * ui_config.footer_font_size / 100 }">{{
-          app_config.tips }}</span>
-      </div>
-      <div class="footer-right">
-        <span class="open-text">{{ '打开' }}</span>
-      </div>
+  </div>
+
+
+  <!-- 底部状态栏 -->
+  <div v-if="ui_config.footer_height > 0" class="footer"
+    :style="{ backgroundColor: ui_config.search_bar_background_color }">
+    <div class="footer-left">
+      <span class="status-text" :style="{ fontSize: ui_config.footer_height * ui_config.footer_font_size / 100 }">{{
+        app_config.tips }}</span>
+    </div>
+    <div class="footer-right">
+      <span class="open-text">{{ '打开' }}</span>
     </div>
   </div>
+
 </template>
 
 <script setup lang="ts">
@@ -88,7 +96,10 @@ import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core'
 import { reduceOpacity } from '../utils/color';
 import { AppConfig, default_app_config, default_ui_config, PartialAppConfig, PartialUIConfig, UIConfig } from '../api/remote_config_types';
-
+import SubMenu from './SubMenu.vue';
+import { FolderOpened, StarFilled } from '@element-plus/icons-vue';
+import { getCurrentWebview } from '@tauri-apps/api/webview';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 const app_config = ref<AppConfig>(default_app_config())
 
 const ui_config = ref<UIConfig>(default_ui_config())
@@ -249,34 +260,67 @@ const handleKeyDown = async (event: KeyboardEvent) => {
   switch (event.key) {
     case 'ArrowDown':
       event.preventDefault()
+      if (resultItemMenuRef.value?.isVisible()) {
+        resultItemMenuRef.value?.selectNext()
+        break;
+      }
       selectedIndex.value = (selectedIndex.value + 1) % app_config.value.search_result_count
       break
     case 'ArrowUp':
       event.preventDefault()
+      if (resultItemMenuRef.value?.isVisible()) {
+        resultItemMenuRef.value?.selectPrevious();
+        break;
+      }
       selectedIndex.value = (selectedIndex.value - 1 + app_config.value.search_result_count) % app_config.value.search_result_count
       break
+    case 'ArrowRight':
+      handleRightArrow(event);
+      break;
+    case 'ArrowLeft':
+      if (resultItemMenuRef.value?.isVisible()) {
+        resultItemMenuRef.value?.hideMenu();
+        event.preventDefault();
+      }
+      break;
     case 'Enter':
       event.preventDefault()
       // 传递 ctrlKey 状态到 handle 函数
-      launch_program(selectedIndex.value, event.ctrlKey, event.shiftKey)
+      if (resultItemMenuRef.value?.isVisible()) {
+        resultItemMenuRef.value?.selectCurrent();
+      } else {
+        launch_program(selectedIndex.value, event.ctrlKey, event.shiftKey)
+      }
       break
     case 'j':
       if (event.ctrlKey) {
         event.preventDefault()
+        if (resultItemMenuRef.value?.isVisible()) {
+          resultItemMenuRef.value?.selectNext();
+          break;
+        }
         selectedIndex.value = (selectedIndex.value + 1) % app_config.value.search_result_count
       }
       break
     case 'k':
       if (event.ctrlKey) {
         event.preventDefault()
+        if (resultItemMenuRef.value?.isVisible()) {
+          resultItemMenuRef.value?.selectPrevious();
+          break;
+        }
         selectedIndex.value = (selectedIndex.value - 1 + app_config.value.search_result_count) % app_config.value.search_result_count
       }
       break
     case 'Escape':
-      if (searchText.value.length === 0 || app_config.value.is_esc_hide_window_priority) {
+      if ((searchText.value.length === 0 && !resultItemMenuRef.value?.isVisible()) || app_config.value.is_esc_hide_window_priority) {
         await invoke('hide_window');
       } else {
-        searchText.value = '';
+        if (resultItemMenuRef.value?.isVisible()) {
+          resultItemMenuRef.value?.hideMenu();
+        } else {
+          searchText.value = '';
+        }
       }
       break
   }
@@ -301,11 +345,13 @@ const handleClickOutside = () => {
 }
 
 const focusSearchInput = () => {
+  isContextMenuVisible.value = false;
+  resultItemMenuRef.value?.hideMenu();
+  resultItemMenuRef.value?.initMenu();
   initSearchBar();
   if (searchBarRef.value) {
     searchBarRef.value.focus();
   }
-  isContextMenuVisible.value = false;
 }
 
 const backgroundStyle = computed(() => ({
@@ -331,6 +377,53 @@ function handleThemeChange(e: MediaQueryListEvent) {
   applyTheme(e.matches);
 }
 
+const handleRightArrow = (event: KeyboardEvent) => {
+  const input = searchBarRef.value;
+  if (!input) return;
+
+  // 获取光标位置
+  const cursorPos = input.selectionStart;
+  const textLength = searchText.value.length;
+  console.log(cursorPos + ' ' + textLength);
+  if (cursorPos !== textLength) {
+    // 允许默认的光标移动
+    return;
+  }
+
+  event.preventDefault();
+
+  console.log("显示二级菜单");
+  showSubmenuForItem(selectedIndex.value)
+};
+
+const resultItemMenuRef = ref<InstanceType<typeof SubMenu> | null>(null);
+const resultSubMenuItems = ref([{ name: '打开文件位置', icon: FolderOpened, action: () => { openFolder() } },
+{ name: '以管理员身份运行', icon: StarFilled, action: () => { runTarget() } }]);
+
+const openFolder = () => {
+  console.log("打开文件夹");
+}
+
+const runTarget = () => {
+  console.log("运行指定的程序");
+}
+
+// 显示子菜单
+const showSubmenuForItem = (index: number) => {
+  const selectedItem = document.querySelectorAll('.result-item')[index];
+  if (!selectedItem) return;
+
+  const rect = selectedItem.getBoundingClientRect();
+
+  console.log(rect);
+  // 设置子菜单位置 - 在选中项目的右侧显示
+  resultItemMenuRef.value?.showMenu({ top: rect.top, left: rect.width });
+};
+
+const windowSize = ref<{
+  width: number;
+  height: number;
+}>({ width: 800, height: 800 });
 // 组件挂载后自动聚焦容器以接收键盘事件
 onMounted(async () => {
   // 初始化主题
@@ -353,6 +446,26 @@ onMounted(async () => {
   unlisten.push(await listen('handle_focus_lost', () => {
     initSearchBar();
   }));
+
+  // 获取当前窗口
+  const currentWindow = getCurrentWindow();
+
+  // 获取窗口大小
+  const size = await currentWindow.innerSize();
+  const scaleFactor = await currentWindow.scaleFactor();
+  windowSize.value = {
+    width: size.width / scaleFactor,
+    height: size.height / scaleFactor
+  };
+
+  // 监听窗口大小变化
+  currentWindow.onResized(async ({ payload: size }) => {
+    const scaleFactor = await currentWindow.scaleFactor();
+    windowSize.value = {
+      width: size.width / scaleFactor,
+      height: size.height / scaleFactor,
+    };
+  });
 })
 
 onUnmounted(() => {
@@ -551,5 +664,54 @@ mark {
 .context-menu-item:hover {
   background-color: #f5f7fa;
   color: #409eff;
+}
+
+.submenu {
+  position: absolute;
+  min-width: 180px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  z-index: 1000;
+  overflow: hidden;
+  background-color: white;
+}
+
+.submenu-item {
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  cursor: pointer;
+}
+
+.submenu-item:hover {
+  background-color: var(--hover-color);
+}
+
+.submenu-item.selected {
+  background-color: var(--selected-color);
+}
+
+.submenu-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.submenu-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.submenu-item-name {
+  margin-left: 5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.submenu-indicator {
+  margin-left: auto;
+  margin-right: 10px;
+  font-weight: bold;
 }
 </style>

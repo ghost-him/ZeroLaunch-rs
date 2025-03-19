@@ -66,9 +66,9 @@ export type UIConfig = {
 
 export function default_ui_config(): UIConfig {
     return {
-        selected_item_color: '',
-        item_font_color: '',
-        search_bar_font_color: '',
+        selected_item_color: '#e3e3e3cc',
+        item_font_color: '#000000',
+        search_bar_font_color: '#333333',
         search_bar_font_size: 50,
         search_bar_background_color: '#FFFFFF00',
         item_font_size: 33,
@@ -83,7 +83,7 @@ export function default_ui_config(): UIConfig {
         background_opacity: 1,
         blur_style: 'None',
         search_bar_placeholder_font_color: '#757575',
-        window_corner_radius: 8,
+        window_corner_radius: 16,
         use_windows_sys_control_radius: false,
         footer_font_size: 33,
     } as UIConfig;

@@ -22,6 +22,7 @@ pub struct PartialUiConfig {
     pub search_bar_placeholder_font_color: Option<String>,
     pub window_corner_radius: Option<u32>,
     pub use_windows_sys_control_radius: Option<bool>,
+    pub footer_font_size: Option<f64>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -103,6 +104,8 @@ pub struct UiConfigInner {
     // 使用windows系统调用实现圆角效果
     #[serde(default = "UiConfigInner::default_use_windows_sys_control_radius")]
     use_windows_sys_control_radius: bool,
+
+    pub footer_font_size: f64,
 }
 
 impl Default for UiConfigInner {
@@ -127,6 +130,7 @@ impl Default for UiConfigInner {
             search_bar_placeholder_font_color: Self::default_search_bar_placeholder_font_color(),
             window_corner_radius: Self::default_window_corner_radius(),
             use_windows_sys_control_radius: Self::default_use_windows_sys_control_radius(),
+            footer_font_size: Self::default_footer_font_size(),
         }
     }
 }
@@ -149,11 +153,11 @@ impl UiConfigInner {
     }
 
     pub(crate) fn default_item_font_size() -> f64 {
-        1.3
+        50.0
     }
 
     pub(crate) fn default_search_bar_font_size() -> f64 {
-        2.0
+        33.0
     }
 
     pub(crate) fn default_vertical_position_ratio() -> f64 {
@@ -203,6 +207,9 @@ impl UiConfigInner {
     }
     pub(crate) fn default_use_windows_sys_control_radius() -> bool {
         false
+    }
+    pub(crate) fn default_footer_font_size() -> f64 {
+        33.0
     }
 }
 
@@ -265,6 +272,9 @@ impl UiConfigInner {
         if let Some(use_windows) = partial_ui_config.use_windows_sys_control_radius {
             self.use_windows_sys_control_radius = use_windows;
         }
+        if let Some(footer_font_size) = partial_ui_config.footer_font_size {
+            self.footer_font_size = footer_font_size;
+        }
     }
 
     pub fn get_selected_item_color(&self) -> String {
@@ -323,6 +333,7 @@ impl UiConfigInner {
             search_bar_placeholder_font_color: Some(self.search_bar_placeholder_font_color.clone()),
             window_corner_radius: Some(self.window_corner_radius),
             use_windows_sys_control_radius: Some(self.use_windows_sys_control_radius),
+            footer_font_size: Some(self.footer_font_size),
         }
     }
 }
@@ -440,5 +451,10 @@ impl UiConfig {
     pub fn get_use_windows_sys_control_radius(&self) -> bool {
         let inner = self.inner.read();
         inner.use_windows_sys_control_radius
+    }
+
+    pub fn get_footer_font_size(&self) -> f64 {
+        let inner = self.inner.read();
+        inner.footer_font_size
     }
 }

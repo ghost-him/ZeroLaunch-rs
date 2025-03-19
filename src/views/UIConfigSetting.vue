@@ -21,29 +21,46 @@
                 <el-color-picker v-model="config.ui_config.item_font_color"
                     @change="(val: string) => configStore.updateConfig({ ui_config: { item_font_color: rgbaToHex(val) } })" />
             </el-form-item>
-            <el-form-item label="搜索栏的字体大小">
-                <el-input-number v-model="config.ui_config.search_bar_font_size" placeholder="2" :min="0" :step="0.1"
+            <el-form-item label="搜索栏的字体大小(与行高占比大小)">
+                <el-input-number v-model="config.ui_config.search_bar_font_size" placeholder="50" :min="5" :step="5"
+                    :max="100"
                     @change="(val: number) => configStore.updateConfig({ ui_config: { search_bar_font_size: val } })">
                     <template #suffix>
-                        <span>rem</span>
+                        <span>%</span>
                     </template>
                 </el-input-number>
                 <el-tooltip class="box-item" effect="dark" placement="right-start"
-                    content="单位rem：1rem表示1倍字体的高度，1.3rem表示1.3倍字体的高度">
+                    content="取值：[5, 100]，单位%：80%表示字体的高度为搜索栏高度的80%">
                     <el-icon class="el-question-icon">
                         <QuestionFilled />
                     </el-icon>
                 </el-tooltip>
             </el-form-item>
-            <el-form-item label="结果栏的字体大小">
-                <el-input-number v-model="config.ui_config.item_font_size" placeholder="1.3" :min="0" :step="0.1"
+            <el-form-item label="结果栏的字体大小(与行高占比大小)">
+                <el-input-number v-model="config.ui_config.item_font_size" placeholder="33" :min="5" :step="5"
+                    :max="100"
                     @change="(val: number) => configStore.updateConfig({ ui_config: { item_font_size: val } })">
                     <template #suffix>
-                        <span>rem</span>
+                        <span>%</span>
                     </template>
                 </el-input-number>
                 <el-tooltip class="box-item" effect="dark" placement="right-start"
-                    content="单位rem：1rem表示1倍字体的高度，1.3rem表示1.3倍字体的高度">
+                    content="取值：[5, 100]，单位%：80%表示字体的高度为结果栏一项高度的80%">
+                    <el-icon class="el-question-icon">
+                        <QuestionFilled />
+                    </el-icon>
+                </el-tooltip>
+            </el-form-item>
+            <el-form-item label="底栏的字体大小(与行高占比大小)">
+                <el-input-number v-model="config.ui_config.footer_font_size" placeholder="33" :min="5" :step="5"
+                    :max="100"
+                    @change="(val: number) => configStore.updateConfig({ ui_config: { footer_font_size: val } })">
+                    <template #suffix>
+                        <span>%</span>
+                    </template>
+                </el-input-number>
+                <el-tooltip class="box-item" effect="dark" placement="right-start"
+                    content="取值：[5, 100]，单位%：80%表示字体的高度为底栏高度的80%">
                     <el-icon class="el-question-icon">
                         <QuestionFilled />
                     </el-icon>
@@ -204,7 +221,11 @@
                         <span>px</span>
                     </template>
                 </el-input-number>
-
+                <el-tooltip class="box-item" effect="dark" placement="right-start" content="使用系统圆角时，无法更改圆角大小">
+                    <el-icon class="el-question-icon">
+                        <QuestionFilled />
+                    </el-icon>
+                </el-tooltip>
 
             </el-form-item>
         </el-tab-pane>

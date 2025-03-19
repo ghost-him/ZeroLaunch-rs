@@ -20,7 +20,7 @@
         </span>
         <input v-model="searchText" :placeholder="app_config.search_bar_placeholder" class="input-field"
           ref="searchBarRef" @contextmenu.prevent="showContextMenu" :style="{
-            fontSize: ui_config.search_bar_font_size + 'rem',
+            fontSize: ui_config.search_bar_height * ui_config.search_bar_font_size / 100 + 'px',
             color: ui_config.search_bar_font_color,
             '--placeholder-color': ui_config.search_bar_placeholder_font_color
           }">
@@ -60,7 +60,7 @@
           </div>
           <div class="item-info">
             <div class="item-name" v-html="item" :style="{
-              fontSize: ui_config.item_font_size + 'rem',
+              fontSize: ui_config.result_item_height * ui_config.item_font_size / 100 + 'px',
               color: ui_config.item_font_color
             }"></div>
           </div>
@@ -72,7 +72,8 @@
     <div v-if="ui_config.footer_height > 0" class="footer"
       :style="{ backgroundColor: ui_config.search_bar_background_color }">
       <div class="footer-left">
-        <span class="status-text">{{ app_config.tips }}</span>
+        <span class="status-text" :style="{ fontSize: ui_config.footer_height * ui_config.footer_font_size / 100 }">{{
+          app_config.tips }}</span>
       </div>
       <div class="footer-right">
         <span class="open-text">{{ '打开' }}</span>
@@ -469,10 +470,9 @@ body {
 
 .item-info {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   min-width: 0;
   overflow: hidden;
-  justify-content: center;
   height: 100%;
 }
 
@@ -481,14 +481,13 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  justify-content: center;
+  width: 100%;
   line-height: normal;
 }
 
 .input-field::placeholder {
   color: var(--placeholder-color);
   opacity: 1;
-  /* 确保颜色不透明 */
 }
 
 mark {
@@ -519,7 +518,6 @@ mark {
 .status-text,
 .open-text {
   color: #666;
-  font-size: 14px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

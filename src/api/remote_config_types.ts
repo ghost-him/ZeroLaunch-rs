@@ -61,6 +61,7 @@ export type UIConfig = {
     search_bar_placeholder_font_color: string,
     window_corner_radius: number,
     use_windows_sys_control_radius: boolean,
+    footer_font_size: number,
 }
 
 export function default_ui_config(): UIConfig {
@@ -68,9 +69,9 @@ export function default_ui_config(): UIConfig {
         selected_item_color: '',
         item_font_color: '',
         search_bar_font_color: '',
-        search_bar_font_size: 2.0,
+        search_bar_font_size: 50,
         search_bar_background_color: '#FFFFFF00',
-        item_font_size: 1.3,
+        item_font_size: 33,
         vertical_position_ratio: 0.4,
         search_bar_height: 65,
         result_item_height: 62,
@@ -84,6 +85,7 @@ export function default_ui_config(): UIConfig {
         search_bar_placeholder_font_color: '#757575',
         window_corner_radius: 8,
         use_windows_sys_control_radius: false,
+        footer_font_size: 33,
     } as UIConfig;
 }
 

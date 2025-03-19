@@ -8,8 +8,12 @@
       <!-- 搜索栏 -->
       <div class="search-input"
         :style="{ background: ui_config.search_bar_background_color, height: ui_config.search_bar_height + 'px' }">
-        <span class="search-icon">
-          <svg viewBox="0 0 1024 1024" width="26" height="26">
+        <span class="search-icon" :style="{
+          marginLeft: ui_config.search_bar_height * 0.3 + 'px',
+          marginRight: ui_config.search_bar_height * 0.3 + 'px'
+        }">
+          <svg viewBox="0 0 1024 1024" :width="ui_config.search_bar_height * 0.4"
+            :height="ui_config.search_bar_height * 0.4">
             <path fill="#999"
               d="M795.904 750.72l124.992 124.928a32 32 0 0 1-45.248 45.248L750.656 795.904a416 416 0 1 1 45.248-45.248zM480 832a352 352 0 1 0 0-704 352 352 0 0 0 0 704z" />
           </svg>
@@ -46,7 +50,12 @@
             '--selected-color': ui_config.selected_item_color,
             height: ui_config.result_item_height + 'px',
           }">
-          <div class="icon">
+          <div class="icon" :style="{
+            width: ui_config.result_item_height * 0.6 + 'px',
+            height: ui_config.result_item_height * 0.6 + 'px',
+            marginLeft: ui_config.result_item_height * 0.2 + 'px',
+            marginRight: ui_config.result_item_height * 0.2 + 'px',
+          }">
             <img :src="menuIcons[index]" class="custom-image" alt="icon">
           </div>
           <div class="item-info">
@@ -414,8 +423,6 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-left: 20px;
-  margin-right: 20px;
   flex-shrink: 0;
 }
 
@@ -445,10 +452,6 @@ body {
 
 
 .icon {
-  width: 36px;
-  height: 36px;
-  margin-left: 18px;
-  margin-right: 18px;
   display: flex;
   align-items: center;
   justify-content: center;

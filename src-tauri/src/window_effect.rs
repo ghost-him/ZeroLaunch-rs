@@ -67,7 +67,6 @@ pub fn update_rounded_corners() -> Result<()> {
         .unwrap()
         .get_ui_config()
         .get_use_windows_sys_control_radius();
-    println!("设置圆角");
     unsafe {
         // 设置窗口圆角
         let corner_preference = if use_windows_sys_control_radius {

@@ -89,10 +89,11 @@ const iconStyle = computed(() => {
 });
 
 const nameStyle = computed(() => {
-    const fontSize = props.itemHeight * (props.itemFontSizePercent || 14) / 100 * 0.9;
+    const fontSize = Math.min(props.itemHeight * (props.itemFontSizePercent || 14) / 100, props.itemHeight * 0.4) * 0.75;
     return {
         fontSize: `${fontSize}px`,
         color: props.itemFontColor || (props.isDark ? '#e0e0e0' : '#333333'),
+        marginRight: `${props.itemHeight * 0.1}px`,
         whiteSpace: 'nowrap',
     };
 });
@@ -161,7 +162,13 @@ watch(visible, async (newValue) => {
 
 // 修改后的showMenu方法，需要传入位置参数
 const showMenu = (newPosition: Position) => {
+    initMenu();
     position.value = newPosition;
+    const adjustedPosition = calculateAdjustedPosition(position.value.top, position.value.left);
+    if (submenuRef.value) {
+        position.value.top = adjustedPosition.top;
+        position.value.left = adjustedPosition.left;
+    }
     visible.value = true;
 };
 
@@ -204,7 +211,7 @@ defineExpose({
 
 <style scoped>
 .submenu {
-    position: 'absolute';
+    position: absolute;
     min-width: 120px;
     overflow: hidden;
 }

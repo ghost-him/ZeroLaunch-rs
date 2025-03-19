@@ -9,58 +9,50 @@
       <div class="search-input"
         :style="{ background: ui_config.search_bar_background_color, height: ui_config.search_bar_height + 'px' }">
         <span class="search-icon" :style="{
-          marginLeft: ui_config.search_bar_height * 0.3 + 'px',
-          marginRight: ui_config.search_bar_height * 0.3 + 'px'
+          marginLeft: Math.round(ui_config.search_bar_height * 0.3) + 'px',
+          marginRight: Math.round(ui_config.search_bar_height * 0.3) + 'px'
         }">
-          <svg viewBox="0 0 1024 1024" :width="ui_config.search_bar_height * 0.4"
-            :height="ui_config.search_bar_height * 0.4">
+          <svg viewBox="0 0 1024 1024" :width="Math.round(ui_config.search_bar_height * 0.4) + 'px'"
+            :height="Math.round(ui_config.search_bar_height * 0.4) + 'px'">
             <path fill="#999"
               d="M795.904 750.72l124.992 124.928a32 32 0 0 1-45.248 45.248L750.656 795.904a416 416 0 1 1 45.248-45.248zM480 832a352 352 0 1 0 0-704 352 352 0 0 0 0 704z" />
           </svg>
         </span>
         <input v-model="searchText" :placeholder="app_config.search_bar_placeholder" class="input-field"
-          ref="searchBarRef" @contextmenu.prevent="showContextMenu" :style="{
-            fontSize: ui_config.search_bar_height * ui_config.search_bar_font_size / 100 + 'px',
+          ref="searchBarRef" @contextmenu.prevent="contextSearchBarEvent" :style="{
+            fontSize: Math.round(ui_config.search_bar_height * ui_config.search_bar_font_size / 100) + 'px',
             color: ui_config.search_bar_font_color,
             '--placeholder-color': ui_config.search_bar_placeholder_font_color
           }">
       </div>
 
-      <!-- 上下文菜单 -->
-      <div v-if="isContextMenuVisible" class="custom-context-menu" :style="{
-        top: `${contextMenuPosition.y}px`,
-        left: `${contextMenuPosition.x}px`
-      }" @click.stop>
-        <div class="context-menu">
-          <div class="context-menu-item" @click="handleContextMenuSelect('openSettings')">
-            打开设置窗口
-          </div>
-          <div class="context-menu-item" @click="handleContextMenuSelect('refreshDataset')">
-            刷新程序数据
-          </div>
-        </div>
-      </div>
+      <!-- 二级菜单 -->
+
+      <SubMenu ref="searchBarMenuBuf" :itemHeight="ui_config.search_bar_height" :windowSize="innerWindowSize"
+        :menuItems="searchBarMenuItems" :isDark="is_dark" :cornerRadius="ui_config.window_corner_radius"
+        :hoverColor="hover_item_color" :selectedColor="ui_config.selected_item_color"
+        :itemFontColor="ui_config.item_font_color" :itemFontSizePercent="ui_config.item_font_size"></SubMenu>
 
       <!-- 结果列表 -->
       <div class="results-list">
         <div v-for="(item, index) in menuItems" :key="index" class="result-item"
           @click="(event) => handleItemClick(index, event.ctrlKey)" :class="{ 'selected': selectedIndex === index }"
-          :style="{
+          @contextmenu.prevent="(event) => contextResultItemEvent(index, event)" :style="{
             '--hover-color': hover_item_color,
             '--selected-color': ui_config.selected_item_color,
             height: ui_config.result_item_height + 'px',
           }">
           <div class="icon" :style="{
-            width: ui_config.result_item_height * 0.6 + 'px',
-            height: ui_config.result_item_height * 0.6 + 'px',
-            marginLeft: ui_config.result_item_height * 0.2 + 'px',
-            marginRight: ui_config.result_item_height * 0.2 + 'px',
+            width: Math.round(ui_config.result_item_height * 0.6) + 'px',
+            height: Math.round(ui_config.result_item_height * 0.6) + 'px',
+            marginLeft: Math.round(ui_config.result_item_height * 0.2) + 'px',
+            marginRight: Math.round(ui_config.result_item_height * 0.2) + 'px',
           }">
             <img :src="menuIcons[index]" class="custom-image" alt="icon">
           </div>
           <div class="item-info">
             <div class="item-name" v-html="item" :style="{
-              fontSize: ui_config.result_item_height * ui_config.item_font_size / 100 + 'px',
+              fontSize: Math.round(ui_config.result_item_height * ui_config.item_font_size / 100) + 'px',
               color: ui_config.item_font_color
             }"></div>
           </div>
@@ -68,26 +60,25 @@
       </div>
     </div>
     <!-- 二级菜单 -->
-    <SubMenu ref="resultItemMenuRef" :itemHeight="ui_config.result_item_height" :windowSize="windowSize"
+    <SubMenu ref="resultItemMenuRef" :itemHeight="ui_config.result_item_height" :windowSize="innerWindowSize"
       :menuItems="resultSubMenuItems" :isDark="is_dark" :cornerRadius="ui_config.window_corner_radius"
       :hoverColor="hover_item_color" :selectedColor="ui_config.selected_item_color"
       :itemFontColor="ui_config.item_font_color" :itemFontSizePercent="ui_config.item_font_size"></SubMenu>
 
-  </div>
 
-
-  <!-- 底部状态栏 -->
-  <div v-if="ui_config.footer_height > 0" class="footer"
-    :style="{ backgroundColor: ui_config.search_bar_background_color }">
-    <div class="footer-left">
-      <span class="status-text" :style="{ fontSize: ui_config.footer_height * ui_config.footer_font_size / 100 }">{{
-        app_config.tips }}</span>
+    <!-- 底部状态栏 -->
+    <div v-if="ui_config.footer_height > 0" class="footer"
+      :style="{ backgroundColor: ui_config.search_bar_background_color }">
+      <div class="footer-left">
+        <span class="status-text"
+          :style="{ fontSize: Math.round(ui_config.footer_height * ui_config.footer_font_size / 100) }">{{
+            app_config.tips }}</span>
+      </div>
+      <div class="footer-right">
+        <span class="open-text">{{ '打开' }}</span>
+      </div>
     </div>
-    <div class="footer-right">
-      <span class="open-text">{{ '打开' }}</span>
-    </div>
   </div>
-
 </template>
 
 <script setup lang="ts">
@@ -97,14 +88,14 @@ import { invoke } from '@tauri-apps/api/core'
 import { reduceOpacity } from '../utils/color';
 import { AppConfig, default_app_config, default_ui_config, PartialAppConfig, PartialUIConfig, UIConfig } from '../api/remote_config_types';
 import SubMenu from './SubMenu.vue';
-import { FolderOpened, StarFilled } from '@element-plus/icons-vue';
-import { getCurrentWebview } from '@tauri-apps/api/webview';
+import { FolderOpened, Refresh, Setting, StarFilled } from '@element-plus/icons-vue';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { floor } from 'lodash-es';
 const app_config = ref<AppConfig>(default_app_config())
 
 const ui_config = ref<UIConfig>(default_ui_config())
 ui_config.value.window_corner_radius
-const searchText = ref('la')
+const searchText = ref('')
 const selectedIndex = ref<number>(0)
 const searchBarRef = ref<HTMLInputElement | null>(null)
 const searchResults = ref<Array<[number, string]>>([]);
@@ -141,22 +132,17 @@ const sendSearchText = async (text: string) => {
   }
 }
 
-// 处理菜单项选择
-const handleContextMenuSelect = (index: string) => {
-  if (index === 'openSettings') {
-    openSettingsWindow();
-  } else if (index === 'refreshDataset') {
-    refreshDataset();
-  }
-  isContextMenuVisible.value = false;
-};
 
-// 显示上下文菜单
-const showContextMenu = (event: MouseEvent) => {
-  event.preventDefault();
-  isContextMenuVisible.value = true;
-  contextMenuPosition.value = { x: event.clientX, y: event.clientY };
-};
+const searchBarMenuBuf = ref<InstanceType<typeof SubMenu> | null>(null);
+const searchBarMenuItems = ref([{ name: '打开设置界面', icon: Setting, action: () => { openSettingsWindow() } },
+{ name: '刷新数据库', icon: Refresh, action: () => { refreshDataset() } }]);
+
+const contextSearchBarEvent = (event: MouseEvent) => {
+  if (resultItemMenuRef.value?.isVisible) {
+    resultItemMenuRef.value?.hideMenu()
+  }
+  searchBarMenuBuf.value?.showMenu({ top: event.clientY, left: event.clientX });
+}
 
 // 打开设置窗口的方法
 const openSettingsWindow = () => {
@@ -275,7 +261,9 @@ const handleKeyDown = async (event: KeyboardEvent) => {
       selectedIndex.value = (selectedIndex.value - 1 + app_config.value.search_result_count) % app_config.value.search_result_count
       break
     case 'ArrowRight':
-      handleRightArrow(event);
+      if (!resultItemMenuRef.value?.isVisible()) {
+        handleRightArrow(event);
+      }
       break;
     case 'ArrowLeft':
       if (resultItemMenuRef.value?.isVisible()) {
@@ -339,15 +327,17 @@ const initSearchBar = () => {
 
 // 点击页面其他地方时隐藏自定义菜单
 const handleClickOutside = () => {
-  if (isContextMenuVisible.value) {
-    isContextMenuVisible.value = false;
+  if (searchBarMenuBuf.value?.isVisible) {
+    searchBarMenuBuf.value?.hideMenu()
+  }
+  if (resultItemMenuRef.value?.isVisible) {
+    resultItemMenuRef.value?.hideMenu()
   }
 }
 
 const focusSearchInput = () => {
   isContextMenuVisible.value = false;
   resultItemMenuRef.value?.hideMenu();
-  resultItemMenuRef.value?.initMenu();
   initSearchBar();
   if (searchBarRef.value) {
     searchBarRef.value.focus();
@@ -396,16 +386,26 @@ const handleRightArrow = (event: KeyboardEvent) => {
   showSubmenuForItem(selectedIndex.value)
 };
 
+
 const resultItemMenuRef = ref<InstanceType<typeof SubMenu> | null>(null);
 const resultSubMenuItems = ref([{ name: '打开文件位置', icon: FolderOpened, action: () => { openFolder() } },
-{ name: '以管理员身份运行', icon: StarFilled, action: () => { runTarget() } }]);
+{ name: '以管理员身份运行', icon: StarFilled, action: () => { runTargetProgramWithAdmin() } }]);
+
+const contextResultItemEvent = (index: number, event: MouseEvent) => {
+  if (searchBarMenuBuf.value?.isVisible) {
+    searchBarMenuBuf.value?.hideMenu()
+  }
+  selectedIndex.value = index;
+  resultItemMenuRef.value?.showMenu({ top: event.clientY, left: event.clientX });
+}
 
 const openFolder = () => {
   console.log("打开文件夹");
+  // todo:打开对应的文件夹
 }
 
-const runTarget = () => {
-  console.log("运行指定的程序");
+const runTargetProgramWithAdmin = () => {
+  launch_program(selectedIndex.value, true, false)
 }
 
 // 显示子菜单
@@ -420,10 +420,20 @@ const showSubmenuForItem = (index: number) => {
   resultItemMenuRef.value?.showMenu({ top: rect.top, left: rect.width });
 };
 
+const innerWindowSize = computed(() => {
+  return {
+    width: Math.round(windowSize.value.width / scaleFactor.value),
+    height: Math.round(windowSize.value.height / scaleFactor.value)
+  }
+})
+
 const windowSize = ref<{
   width: number;
   height: number;
 }>({ width: 800, height: 800 });
+
+const scaleFactor = ref<number>(1);
+
 // 组件挂载后自动聚焦容器以接收键盘事件
 onMounted(async () => {
   // 初始化主题
@@ -451,20 +461,13 @@ onMounted(async () => {
   const currentWindow = getCurrentWindow();
 
   // 获取窗口大小
-  const size = await currentWindow.innerSize();
-  const scaleFactor = await currentWindow.scaleFactor();
-  windowSize.value = {
-    width: size.width / scaleFactor,
-    height: size.height / scaleFactor
-  };
+  windowSize.value = await currentWindow.innerSize();
+  scaleFactor.value = await currentWindow.scaleFactor();
 
   // 监听窗口大小变化
   currentWindow.onResized(async ({ payload: size }) => {
-    const scaleFactor = await currentWindow.scaleFactor();
-    windowSize.value = {
-      width: size.width / scaleFactor,
-      height: size.height / scaleFactor,
-    };
+    scaleFactor.value = await currentWindow.scaleFactor();
+    windowSize.value = size;
   });
 })
 
@@ -481,16 +484,28 @@ onUnmounted(() => {
 </script>
 
 <style>
+/*
+这里选择99.85是因为如果选择100%，可能会出现底栏被挡住的情况
+比如：如果在屏幕上的高度为532，而缩放比为150%，那么对应这个界面来说，高度为 532 / 1.5 = 354.666... 
+这个多出来的小数会导致计算错误，从而导致底栏的边框消失，如果让这个显示的界面小一点点，就不会出现这个情况了
+*/
+
 html,
 body {
-  height: 100%;
+  box-sizing: border-box;
+  height: 99.85%;
   margin: 0;
   padding: 0;
 }
 
 #app {
+  box-sizing: border-box;
   height: 100%;
   width: 100%;
+}
+
+main {
+  height: 100%;
 }
 </style>
 
@@ -502,7 +517,7 @@ body {
   overflow: hidden;
   outline: none;
   flex-direction: column;
-  height: 100vh;
+  height: calc(100%);
   width: 100%;
   box-sizing: border-box;
 }
@@ -515,6 +530,7 @@ body {
 }
 
 .search-input {
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   border-bottom: 1px solid rgba(0, 0, 0, 0.05);
@@ -534,7 +550,6 @@ body {
 }
 
 .search-icon {
-  display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
@@ -611,12 +626,12 @@ mark {
 }
 
 .footer {
+  box-sizing: border-box;
   flex: 1;
   display: flex;
   justify-content: space-between;
   align-items: center;
   border-top: 1px solid rgba(0, 0, 0, 0.05);
-  height: 100%;
 }
 
 .footer-left {
@@ -634,84 +649,5 @@ mark {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.custom-context-menu {
-  position: fixed;
-  z-index: 1000;
-}
-
-.context-menu {
-  background-color: white;
-  border-radius: 4px;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
-  padding: 5px 0;
-  min-width: 150px;
-  max-width: 300px;
-}
-
-.context-menu-item {
-  padding: 8px 20px;
-  cursor: pointer;
-  font-size: 14px;
-  color: #606266;
-  transition: background-color 0.3s;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.context-menu-item:hover {
-  background-color: #f5f7fa;
-  color: #409eff;
-}
-
-.submenu {
-  position: absolute;
-  min-width: 180px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-  z-index: 1000;
-  overflow: hidden;
-  background-color: white;
-}
-
-.submenu-item {
-  display: flex;
-  align-items: center;
-  padding: 0 10px;
-  cursor: pointer;
-}
-
-.submenu-item:hover {
-  background-color: var(--hover-color);
-}
-
-.submenu-item.selected {
-  background-color: var(--selected-color);
-}
-
-.submenu-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.submenu-icon img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
-.submenu-item-name {
-  margin-left: 5px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.submenu-indicator {
-  margin-left: auto;
-  margin-right: 10px;
-  font-weight: bold;
 }
 </style>

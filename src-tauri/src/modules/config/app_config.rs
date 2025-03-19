@@ -15,6 +15,7 @@ pub struct PartialAppConfig {
     pub launch_new_on_failure: Option<bool>,
     pub is_debug_mode: Option<bool>,
     pub shortcut: Option<Shortcut>,
+    pub is_esc_hide_window_priority: Option<bool>,
 }
 
 /// 与程序设置有关的，比如是不是要开机自动启动等
@@ -48,6 +49,9 @@ pub struct AppConfigInner {
     /// 唤醒按钮
     #[serde(default = "AppConfigInner::default_shortcut")]
     pub shortcut: Shortcut,
+    /// esc键优先隐藏窗口
+    #[serde(default = "AppConfigInner::default_is_esc_hide_window_priority")]
+    pub is_esc_hide_window_priority: bool,
 }
 
 impl Default for AppConfigInner {
@@ -62,6 +66,7 @@ impl Default for AppConfigInner {
             launch_new_on_failure: Self::default_launch_new_on_failure(),
             is_debug_mode: Self::default_is_debug_mode(),
             shortcut: Self::default_shortcut(),
+            is_esc_hide_window_priority: Self::default_is_esc_hide_window_priority(),
         }
     }
 }
@@ -102,6 +107,9 @@ impl AppConfigInner {
     pub(crate) fn default_shortcut() -> Shortcut {
         Shortcut::default()
     }
+    pub(crate) fn default_is_esc_hide_window_priority() -> bool {
+        false
+    }
 }
 
 impl AppConfigInner {
@@ -132,6 +140,9 @@ impl AppConfigInner {
         }
         if let Some(shortcut) = partial_app_config.shortcut {
             self.shortcut = shortcut;
+        }
+        if let Some(is_esc_hide) = partial_app_config.is_esc_hide_window_priority {
+            self.is_esc_hide_window_priority = is_esc_hide;
         }
     }
 
@@ -171,6 +182,10 @@ impl AppConfigInner {
         &self.shortcut
     }
 
+    pub fn get_is_esc_hide_window_priority(&self) -> bool {
+        self.is_esc_hide_window_priority
+    }
+
     pub fn to_partial(&self) -> PartialAppConfig {
         PartialAppConfig {
             search_bar_placeholder: Some(self.search_bar_placeholder.clone()),
@@ -182,6 +197,7 @@ impl AppConfigInner {
             auto_refresh_time: Some(self.auto_refresh_time),
             is_debug_mode: Some(self.is_debug_mode),
             shortcut: Some(self.shortcut.clone()),
+            is_esc_hide_window_priority: Some(self.is_esc_hide_window_priority),
         }
     }
 }
@@ -252,5 +268,10 @@ impl AppConfig {
     pub fn to_partial(&self) -> PartialAppConfig {
         let inner = self.inner.read();
         inner.to_partial()
+    }
+
+    pub fn get_is_esc_hide_window_priority(&self) -> bool {
+        let inner = self.inner.read();
+        inner.get_is_esc_hide_window_priority()
     }
 }

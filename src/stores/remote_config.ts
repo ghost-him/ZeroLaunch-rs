@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { AppConfig, UIConfig, default_ui_config,default_app_config, ProgramManagerConfig, ProgramLauncherConfig, ProgramLoaderConfig, PartialConfig, Config } from '../api/remote_config_types'
+import { default_ui_config,default_app_config, ProgramManagerConfig, ProgramLauncherConfig, ProgramLoaderConfig, PartialConfig, Config } from '../api/remote_config_types'
 import { invoke } from '@tauri-apps/api/core'
 
 function mergeConfig(config: Config , partial: PartialConfig): Config {

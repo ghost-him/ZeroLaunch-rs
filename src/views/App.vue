@@ -77,25 +77,9 @@ import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core'
 import { reduceOpacity } from '../utils/color';
-import { AppConfig, default_ui_config, PartialAppConfig, PartialUIConfig, UIConfig } from '../api/remote_config_types';
+import { AppConfig, default_app_config, default_ui_config, PartialAppConfig, PartialUIConfig, UIConfig } from '../api/remote_config_types';
 
-const app_config = ref<AppConfig>({
-  search_bar_placeholder: '',
-  tips: '',
-  is_auto_start: false,
-  is_silent_start: false,
-  search_result_count: 4,
-  auto_refresh_time: 30,
-  launch_new_on_failure: false,
-  is_debug_mode: false,
-  shortcut: {
-    key: 'Space',
-    ctrl: false,
-    alt: true,
-    shift: false,
-    meta: false,
-  }
-})
+const app_config = ref<AppConfig>(default_app_config())
 
 const ui_config = ref<UIConfig>(default_ui_config())
 ui_config.value.window_corner_radius
@@ -279,7 +263,7 @@ const handleKeyDown = async (event: KeyboardEvent) => {
       }
       break
     case 'Escape':
-      if (searchText.value.length === 0) {
+      if (searchText.value.length === 0 || app_config.value.is_esc_hide_window_priority) {
         await invoke('hide_window');
       } else {
         searchText.value = '';

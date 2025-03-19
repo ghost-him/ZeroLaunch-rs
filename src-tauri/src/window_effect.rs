@@ -81,7 +81,8 @@ pub fn update_rounded_corners() -> Result<()> {
             DWMWINDOWATTRIBUTE(DWMWA_WINDOW_CORNER_PREFERENCE.0 as i32),
             &corner_preference as *const _ as *const _,
             std::mem::size_of::<u32>() as u32,
-        )?;
+        )
+        .ok();
     }
     Ok(())
 }

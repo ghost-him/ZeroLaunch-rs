@@ -17,6 +17,7 @@ export type AppConfig = {
     launch_new_on_failure: boolean
     is_debug_mode: boolean
     shortcut: Shortcut
+    is_esc_hide_window_priority: boolean
 }
 
 export function default_app_config(): AppConfig {
@@ -35,7 +36,8 @@ export function default_app_config(): AppConfig {
             alt: true,
             shift: false,
             meta: false,
-        }
+        },
+        is_esc_hide_window_priority: false,
     } as AppConfig;
 }
 

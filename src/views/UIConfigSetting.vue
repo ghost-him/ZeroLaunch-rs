@@ -186,7 +186,7 @@
                 </el-input-number>
             </el-form-item>
 
-            <el-form-item label="使用windows系统调用控制圆角">
+            <el-form-item label="使用windows系统圆角">
                 <el-switch v-model="config.ui_config.use_windows_sys_control_radius"
                     @change="(val: boolean) => configStore.updateConfig({ ui_config: { use_windows_sys_control_radius: val } })" />
                 <el-tooltip class="box-item" effect="dark" placement="right-start" content="仅支持 Windows11 22h2 及以上的版本">

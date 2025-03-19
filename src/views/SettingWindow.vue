@@ -75,6 +75,16 @@
                             @change="(val: boolean) => configStore.updateConfig({ app_config: { launch_new_on_failure: val } })" />
                     </el-form-item>
 
+                    <el-form-item label="esc键优先关闭窗口">
+                        <el-switch v-model="config.app_config.is_esc_hide_window_priority"
+                            @change="(val: boolean) => configStore.updateConfig({ app_config: { is_esc_hide_window_priority: val } })" />
+                        <el-tooltip class="box-item" effect="dark" placement="right-start" content="默认优先清空搜索栏后关闭">
+                            <el-icon class="el-question-icon">
+                                <QuestionFilled />
+                            </el-icon>
+                        </el-tooltip>
+                    </el-form-item>
+
                     <el-form-item label="调试模式">
                         <el-switch v-model="config.app_config.is_debug_mode"
                             @change="(val: boolean) => configStore.updateConfig({ app_config: { is_debug_mode: val } })" />
@@ -340,7 +350,7 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, onMounted, computed, onUnmounted, watch } from 'vue';
+import { ref, onMounted, computed, onUnmounted } from 'vue';
 import {
     Setting,
     Brush,

@@ -199,7 +199,7 @@ impl UiConfigInner {
         "#757575".to_string()
     }
     pub(crate) fn default_window_corner_radius() -> u32 {
-        8 // 默认圆角大小设为 8
+        16
     }
     pub(crate) fn default_use_windows_sys_control_radius() -> bool {
         false

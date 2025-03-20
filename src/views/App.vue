@@ -67,13 +67,14 @@
 
 
     <!-- 底部状态栏 -->
-    <div v-if="ui_config.footer_height > 0" class="footer"
+    <div v-if="ui_config.footer_height > 0" class="footer drag_area"
       :style="{ backgroundColor: ui_config.search_bar_background_color }">
       <div class="footer-left">
         <span class="status-text"
           :style="{ fontSize: Math.round(ui_config.footer_height * ui_config.footer_font_size / 100) }">{{
             app_config.tips }}</span>
       </div>
+      <div class="footer-center drag_area"></div>
       <div class="footer-right">
         <span class="open-text">{{ '打开' }}</span>
       </div>
@@ -172,13 +173,17 @@ const updateWindow = async () => {
     app_config.value = { ...app_config.value, ...data[0] }
     ui_config.value = { ...ui_config.value, ...data[1] }
 
-    const element = document.querySelector('.drag_area');
+    const elements = document.querySelectorAll('.drag_area');
     if (app_config.value.is_enable_drag_window) {
       console.log('添加标志')
-      element?.setAttribute('data-tauri-drag-region', 'true');
+      elements.forEach(element => {
+        element.setAttribute('data-tauri-drag-region', 'true');
+      });
     } else {
       console.log('删除标志')
-      element?.removeAttribute('data-tauri-drag-region');
+      elements.forEach(element => {
+        element.removeAttribute('data-tauri-drag-region');
+      });
     }
     const blob = new Blob([new Uint8Array(background_picture_data)], { type: 'image/png' });
     const url = URL.createObjectURL(blob);
@@ -245,79 +250,100 @@ const launch_program = (itemIndex: number, ctrlKey = false, shiftKey = false) =>
   // 这里可以添加实际的处理逻辑
 }
 
-// 处理键盘导航
-const handleKeyDown = async (event: KeyboardEvent) => {
+const handleKeyDown = (event: KeyboardEvent) => {
+  const isMenuVisible = resultItemMenuRef.value?.isVisible() || false;
 
-  switch (event.key) {
-    case 'ArrowDown':
-      event.preventDefault()
-      if (resultItemMenuRef.value?.isVisible()) {
-        resultItemMenuRef.value?.selectNext()
+  // 处理方向键
+  if (['ArrowDown', 'ArrowUp', 'ArrowRight', 'ArrowLeft'].includes(event.key)) {
+    event.preventDefault(); // 直接阻止默认行为
+
+    switch (event.key) {
+      case 'ArrowDown':
+        if (isMenuVisible) {
+          resultItemMenuRef.value?.selectNext();
+        } else {
+          selectedIndex.value = (selectedIndex.value + 1) % app_config.value.search_result_count;
+        }
         break;
-      }
-      selectedIndex.value = (selectedIndex.value + 1) % app_config.value.search_result_count
-      break
-    case 'ArrowUp':
-      event.preventDefault()
-      if (resultItemMenuRef.value?.isVisible()) {
-        resultItemMenuRef.value?.selectPrevious();
+      case 'ArrowUp':
+        if (isMenuVisible) {
+          resultItemMenuRef.value?.selectPrevious();
+        } else {
+          selectedIndex.value = (selectedIndex.value - 1 + app_config.value.search_result_count) % app_config.value.search_result_count;
+        }
         break;
-      }
-      selectedIndex.value = (selectedIndex.value - 1 + app_config.value.search_result_count) % app_config.value.search_result_count
-      break
-    case 'ArrowRight':
-      if (!resultItemMenuRef.value?.isVisible()) {
-        handleRightArrow(event);
-      }
-      break;
-    case 'ArrowLeft':
-      if (resultItemMenuRef.value?.isVisible()) {
-        resultItemMenuRef.value?.hideMenu();
+      case 'ArrowRight':
+        if (!isMenuVisible) {
+          handleRightArrow(event);
+        }
+        break;
+      case 'ArrowLeft':
+        if (isMenuVisible) {
+          resultItemMenuRef.value?.hideMenu();
+        }
+        break;
+    }
+    return;
+  }
+
+  // 处理Ctrl组合键
+  if (event.ctrlKey) {
+    switch (event.key) {
+      case 'j':
         event.preventDefault();
-      }
-      break;
+        if (isMenuVisible) {
+          resultItemMenuRef.value?.selectNext();
+        } else {
+          selectedIndex.value = (selectedIndex.value + 1) % app_config.value.search_result_count;
+        }
+        return;
+      case 'k':
+        event.preventDefault();
+        if (isMenuVisible) {
+          resultItemMenuRef.value?.selectPrevious();
+        } else {
+          selectedIndex.value = (selectedIndex.value - 1 + app_config.value.search_result_count) % app_config.value.search_result_count;
+        }
+        return;
+      case 'h':
+        if (isMenuVisible) {
+          event.preventDefault();
+          resultItemMenuRef.value?.hideMenu();
+        }
+        return;
+      case 'l':
+        if (!isMenuVisible) {
+          event.preventDefault();
+          handleRightArrow(event);
+        }
+        return;
+    }
+  }
+
+  // 处理特殊键
+  switch (event.key) {
     case 'Enter':
-      event.preventDefault()
-      // 传递 ctrlKey 状态到 handle 函数
-      if (resultItemMenuRef.value?.isVisible()) {
+      event.preventDefault();
+      if (isMenuVisible) {
         resultItemMenuRef.value?.selectCurrent();
       } else {
-        launch_program(selectedIndex.value, event.ctrlKey, event.shiftKey)
+        launch_program(selectedIndex.value, event.ctrlKey, event.shiftKey);
       }
-      break
-    case 'j':
-      if (event.ctrlKey) {
-        event.preventDefault()
-        if (resultItemMenuRef.value?.isVisible()) {
-          resultItemMenuRef.value?.selectNext();
-          break;
-        }
-        selectedIndex.value = (selectedIndex.value + 1) % app_config.value.search_result_count
-      }
-      break
-    case 'k':
-      if (event.ctrlKey) {
-        event.preventDefault()
-        if (resultItemMenuRef.value?.isVisible()) {
-          resultItemMenuRef.value?.selectPrevious();
-          break;
-        }
-        selectedIndex.value = (selectedIndex.value - 1 + app_config.value.search_result_count) % app_config.value.search_result_count
-      }
-      break
+      break;
     case 'Escape':
-      if ((searchText.value.length === 0 && !resultItemMenuRef.value?.isVisible()) || app_config.value.is_esc_hide_window_priority) {
-        await invoke('hide_window');
+      if ((searchText.value.length === 0 && !isMenuVisible) ||
+        app_config.value.is_esc_hide_window_priority) {
+        invoke('hide_window').catch(console.error); // 异步处理但不阻塞
       } else {
-        if (resultItemMenuRef.value?.isVisible()) {
+        if (isMenuVisible) {
           resultItemMenuRef.value?.hideMenu();
         } else {
           searchText.value = '';
         }
       }
-      break
+      break;
   }
-}
+};
 
 // 处理点击项目，现在传递 ctrlKey 状态
 const handleItemClick = (itemIndex: number, ctrlKey = false) => {
@@ -636,18 +662,22 @@ mark {
   box-sizing: border-box;
   flex: 1;
   display: flex;
-  justify-content: space-between;
   align-items: center;
   border-top: 1px solid rgba(0, 0, 0, 0.05);
 }
 
 .footer-left {
   margin-left: 16px;
-  min-width: 0;
+  flex-shrink: 0;
+}
+
+.footer-center {
+  flex-grow: 1;
 }
 
 .footer-right {
   margin-right: 16px;
+  flex-shrink: 0;
 }
 
 .status-text,

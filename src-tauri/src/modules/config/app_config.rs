@@ -16,6 +16,27 @@ pub struct PartialAppConfig {
     pub is_debug_mode: Option<bool>,
     pub shortcut: Option<Shortcut>,
     pub is_esc_hide_window_priority: Option<bool>,
+    pub is_enable_drag_window: Option<bool>,
+    pub window_position: Option<(i32, i32)>,
+}
+
+impl Default for PartialAppConfig {
+    fn default() -> Self {
+        PartialAppConfig {
+            search_bar_placeholder: None,
+            tips: None,
+            is_auto_start: None,
+            is_silent_start: None,
+            search_result_count: None,
+            auto_refresh_time: None,
+            launch_new_on_failure: None,
+            is_debug_mode: None,
+            shortcut: None,
+            is_esc_hide_window_priority: None,
+            is_enable_drag_window: None,
+            window_position: None,
+        }
+    }
 }
 
 /// 与程序设置有关的，比如是不是要开机自动启动等
@@ -52,6 +73,12 @@ pub struct AppConfigInner {
     /// esc键优先隐藏窗口
     #[serde(default = "AppConfigInner::default_is_esc_hide_window_priority")]
     pub is_esc_hide_window_priority: bool,
+    /// 是否要自定义拖动窗口
+    #[serde(default = "AppConfigInner::default_is_enable_drag_window")]
+    pub is_enable_drag_window: bool,
+    /// 上一次的窗口位置
+    #[serde(default = "AppConfigInner::default_window_position")]
+    pub window_position: (i32, i32),
 }
 
 impl Default for AppConfigInner {
@@ -67,6 +94,8 @@ impl Default for AppConfigInner {
             is_debug_mode: Self::default_is_debug_mode(),
             shortcut: Self::default_shortcut(),
             is_esc_hide_window_priority: Self::default_is_esc_hide_window_priority(),
+            is_enable_drag_window: Self::default_is_enable_drag_window(),
+            window_position: Self::default_window_position(),
         }
     }
 }
@@ -110,6 +139,13 @@ impl AppConfigInner {
     pub(crate) fn default_is_esc_hide_window_priority() -> bool {
         false
     }
+    pub(crate) fn default_is_enable_drag_window() -> bool {
+        false
+    }
+
+    pub(crate) fn default_window_position() -> (i32, i32) {
+        (0, 0)
+    }
 }
 
 impl AppConfigInner {
@@ -144,48 +180,13 @@ impl AppConfigInner {
         if let Some(is_esc_hide) = partial_app_config.is_esc_hide_window_priority {
             self.is_esc_hide_window_priority = is_esc_hide;
         }
+        if let Some(enable_drag) = partial_app_config.is_enable_drag_window {
+            self.is_enable_drag_window = enable_drag;
+        }
+        if let Some(position) = partial_app_config.window_position {
+            self.window_position = position;
+        }
     }
-
-    pub fn get_search_bar_placeholder(&self) -> String {
-        self.search_bar_placeholder.clone()
-    }
-
-    pub fn get_tips(&self) -> String {
-        self.tips.clone()
-    }
-
-    pub fn get_is_auto_start(&self) -> bool {
-        self.is_auto_start
-    }
-
-    pub fn get_is_silent_start(&self) -> bool {
-        self.is_silent_start
-    }
-
-    pub fn get_search_result_count(&self) -> u32 {
-        self.search_result_count
-    }
-
-    pub fn get_auto_refresh_time(&self) -> u32 {
-        self.auto_refresh_time
-    }
-
-    pub fn get_launch_new_on_failure(&self) -> bool {
-        self.launch_new_on_failure
-    }
-
-    pub fn get_is_debug_mode(&self) -> bool {
-        self.is_debug_mode
-    }
-
-    pub fn get_shortcut(&self) -> &Shortcut {
-        &self.shortcut
-    }
-
-    pub fn get_is_esc_hide_window_priority(&self) -> bool {
-        self.is_esc_hide_window_priority
-    }
-
     pub fn to_partial(&self) -> PartialAppConfig {
         PartialAppConfig {
             search_bar_placeholder: Some(self.search_bar_placeholder.clone()),
@@ -198,6 +199,8 @@ impl AppConfigInner {
             is_debug_mode: Some(self.is_debug_mode),
             shortcut: Some(self.shortcut.clone()),
             is_esc_hide_window_priority: Some(self.is_esc_hide_window_priority),
+            is_enable_drag_window: Some(self.is_enable_drag_window),
+            window_position: Some(self.window_position),
         }
     }
 }
@@ -227,42 +230,42 @@ impl AppConfig {
 
     pub fn get_search_bar_placeholder(&self) -> String {
         let inner = self.inner.read();
-        inner.get_search_bar_placeholder()
+        inner.search_bar_placeholder.clone()
     }
 
     pub fn get_tips(&self) -> String {
         let inner = self.inner.read();
-        inner.get_tips()
+        inner.tips.clone()
     }
 
     pub fn get_is_auto_start(&self) -> bool {
         let inner = self.inner.read();
-        inner.get_is_auto_start()
+        inner.is_auto_start
     }
 
     pub fn get_is_silent_start(&self) -> bool {
         let inner = self.inner.read();
-        inner.get_is_silent_start()
+        inner.is_silent_start
     }
 
     pub fn get_search_result_count(&self) -> u32 {
         let inner = self.inner.read();
-        inner.get_search_result_count()
+        inner.search_result_count
     }
 
     pub fn get_auto_refresh_time(&self) -> u32 {
         let inner = self.inner.read();
-        inner.get_auto_refresh_time()
+        inner.auto_refresh_time
     }
 
     pub fn get_launch_new_on_failure(&self) -> bool {
         let inner = self.inner.read();
-        inner.get_launch_new_on_failure()
+        inner.launch_new_on_failure
     }
 
     pub fn get_is_debug_mode(&self) -> bool {
         let inner = self.inner.read();
-        inner.get_is_debug_mode()
+        inner.is_debug_mode
     }
 
     pub fn to_partial(&self) -> PartialAppConfig {
@@ -272,6 +275,16 @@ impl AppConfig {
 
     pub fn get_is_esc_hide_window_priority(&self) -> bool {
         let inner = self.inner.read();
-        inner.get_is_esc_hide_window_priority()
+        inner.is_esc_hide_window_priority
+    }
+
+    pub fn get_is_enable_drag_window(&self) -> bool {
+        let inner = self.inner.read();
+        inner.is_enable_drag_window
+    }
+
+    pub fn get_window_position(&self) -> (i32, i32) {
+        let inner = self.inner.read();
+        inner.window_position
     }
 }

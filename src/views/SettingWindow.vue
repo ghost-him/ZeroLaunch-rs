@@ -85,6 +85,17 @@
                         </el-tooltip>
                     </el-form-item>
 
+                    <el-form-item label="启用拖动窗口">
+                        <el-switch v-model="config.app_config.is_enable_drag_window"
+                            @change="(val: boolean) => configStore.updateConfig({ app_config: { is_enable_drag_window: val } })" />
+                        <el-tooltip class="box-item" effect="dark" placement="right-start"
+                            content="程序在下一次打开时会记忆上次的关闭的位置">
+                            <el-icon class="el-question-icon">
+                                <QuestionFilled />
+                            </el-icon>
+                        </el-tooltip>
+                    </el-form-item>
+
                     <el-form-item label="调试模式">
                         <el-switch v-model="config.app_config.is_debug_mode"
                             @change="(val: boolean) => configStore.updateConfig({ app_config: { is_debug_mode: val } })" />
@@ -358,7 +369,7 @@ import {
     Connection,
     InfoFilled,
     List,
-    Monitor
+    Monitor, QuestionFilled
 } from '@element-plus/icons-vue';
 
 import { invoke } from '@tauri-apps/api/core';
@@ -820,6 +831,11 @@ body {
     overflow-y: auto;
     height: 100vh;
 }
+
+.el-question-icon {
+    margin-left: 8px;
+}
+
 
 .el-icon {
     font-size: 18px;

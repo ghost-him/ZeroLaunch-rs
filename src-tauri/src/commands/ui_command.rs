@@ -4,6 +4,7 @@ use crate::modules::config::default::APP_PIC_PATH;
 use crate::modules::config::ui_config::PartialUiConfig;
 use crate::state::app_state::AppState;
 use crate::utils::service_locator::ServiceLocator;
+use crate::utils::ui_controller::handle_focus_lost;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tauri::image::Image;
@@ -90,7 +91,7 @@ pub fn hide_window() -> Result<(), String> {
         .unwrap()
         .get_webview_window("main")
         .unwrap();
-    main_window.hide().unwrap();
+    handle_focus_lost(Arc::new(main_window));
     Ok(())
 }
 

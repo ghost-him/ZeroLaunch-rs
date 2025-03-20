@@ -30,6 +30,9 @@ use chrono::Duration;
 use chrono::Local;
 use core::storage;
 use core::storage::storage_manager::StorageManager;
+use device_query::DeviceQuery;
+use device_query::DeviceState;
+use modules::config::app_config::PartialAppConfig;
 use modules::config::config_manager::RuntimeConfig;
 use modules::config::default::{APP_PIC_PATH, REMOTE_CONFIG_NAME};
 use modules::config::load_local_config;
@@ -237,11 +240,20 @@ fn update_window_size_and_position() {
     let config = state.get_runtime_config().unwrap();
 
     let ui_config = config.get_ui_config();
-    let vertical_position_ratio = ui_config.get_vertical_position_ratio();
-    let position = get_window_render_origin(vertical_position_ratio);
-    main_window
-        .set_position(PhysicalPosition::new(position.0 as u32, position.1 as u32))
-        .unwrap();
+    let app_config = config.get_app_config();
+    if app_config.get_is_enable_drag_window() {
+        let position = app_config.get_window_position();
+        main_window
+            .set_position(PhysicalPosition::new(position.0, position.1))
+            .unwrap();
+    } else {
+        let vertical_position_ratio = ui_config.get_vertical_position_ratio();
+        let position = get_window_render_origin(vertical_position_ratio);
+        main_window
+            .set_position(PhysicalPosition::new(position.0 as u32, position.1 as u32))
+            .unwrap();
+    }
+
     let window_size = get_window_size();
     main_window
         .set_size(PhysicalSize::new(
@@ -281,7 +293,24 @@ fn init_search_bar_window(app: &mut App) {
         }
         if let tauri::WindowEvent::Focused(focused) = event {
             if !focused {
-                handle_focus_lost(windows_clone.clone());
+                // 获取当前鼠标位置
+                let device_state = DeviceState::new();
+                let mouse_state = device_state.get_mouse();
+                let position = mouse_state.coords;
+                // 获取窗口位置和大小
+                if let Ok(window_position) = windows_clone.inner_position() {
+                    if let Ok(window_size) = windows_clone.inner_size() {
+                        // 检查鼠标是否在窗口内
+                        let in_window = position.0 >= window_position.x
+                            && position.0 <= window_position.x + window_size.width as i32
+                            && position.1 >= window_position.y
+                            && position.1 <= window_position.y + window_size.height as i32;
+                        // 只有当鼠标不在窗口内时才隐藏
+                        if !in_window {
+                            handle_focus_lost(windows_clone.clone());
+                        }
+                    }
+                }
             }
         }
     });
@@ -380,17 +409,24 @@ async fn update_app_setting() {
     // 5.更新当前的窗口效果
     enable_window_effect();
 
-    let mins = runtime_config.get_app_config().get_auto_refresh_time() as u64;
+    // 获取主窗口句柄
+    if let Ok(handle) = state.get_main_handle() {
+        // 发送事件
+        if let Err(e) = handle.emit("update_search_bar_window", "") {
+            eprintln!("发送窗口更新事件失败: {:?}", e);
+        }
+    } else {
+        println!("无法找到目标窗口");
+    }
 
+    let mins = runtime_config.get_app_config().get_auto_refresh_time() as u64;
     // 取消当前的定时器
     if let Some(guard) = state.take_timer_guard() {
         drop(guard); // 取消定时器
     }
-
     // 创建新定时器
     let new_interval = Duration::seconds((mins * 60) as i64);
     let timer = state.get_timer();
-
     // 使用 spawn_local 来处理异步定时任务
     let guard_value = timer.schedule_repeating(new_interval, move || {
         // 创建一个新的任务来执行异步函数
@@ -398,16 +434,7 @@ async fn update_app_setting() {
             update_app_setting().await;
         });
     });
-
     state.set_timer_guard(guard_value);
-
-    // 获取主窗口句柄
-    if let Ok(handle) = state.get_main_handle() {
-        // 发送事件
-        if let Err(e) = handle.emit("update_search_bar_window", "") {
-            eprintln!("发送窗口更新事件失败: {:?}", e);
-        }
-    }
 }
 
 /// 保存程序的配置信息
@@ -418,16 +445,25 @@ async fn update_app_setting() {
 
 pub async fn save_config_to_file(is_update_app: bool) {
     let state = ServiceLocator::get_state();
-
     let runtime_config = state.get_runtime_config().unwrap();
     let runtime_data = state
         .get_program_manager()
         .unwrap()
         .get_runtime_data()
         .await;
+    let window = state
+        .get_main_handle()
+        .unwrap()
+        .get_webview_window("main")
+        .unwrap()
+        .inner_position()
+        .unwrap();
+
+    let mut partial_app_config = PartialAppConfig::default();
+    partial_app_config.window_position = Some((window.x, window.y));
 
     runtime_config.update(PartialConfig {
-        app_config: None,
+        app_config: Some(partial_app_config),
         ui_config: None,
         program_manager_config: Some(runtime_data),
         window_state: None,
@@ -437,6 +473,7 @@ pub async fn save_config_to_file(is_update_app: bool) {
     let data_str = save_local_config(remote_config);
 
     let storage_manager = state.get_storage_manager().unwrap();
+
     storage_manager
         .upload_file_str(REMOTE_CONFIG_NAME.to_string(), data_str)
         .await;

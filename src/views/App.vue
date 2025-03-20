@@ -6,15 +6,15 @@
     } : {}]">
     <div class="unified-container">
       <!-- 搜索栏 -->
-      <div class="search-input"
+      <div class="search-input drag_area"
         :style="{ background: ui_config.search_bar_background_color, height: ui_config.search_bar_height + 'px' }">
-        <span class="search-icon" :style="{
+        <span class="search-icon drag_area" :style="{
           marginLeft: Math.round(ui_config.search_bar_height * 0.3) + 'px',
           marginRight: Math.round(ui_config.search_bar_height * 0.3) + 'px'
         }">
-          <svg viewBox="0 0 1024 1024" :width="Math.round(ui_config.search_bar_height * 0.4) + 'px'"
+          <svg viewBox="0 0 1024 1024" class="drag_area" :width="Math.round(ui_config.search_bar_height * 0.4) + 'px'"
             :height="Math.round(ui_config.search_bar_height * 0.4) + 'px'">
-            <path fill="#999"
+            <path fill="#999" class="drag_area"
               d="M795.904 750.72l124.992 124.928a32 32 0 0 1-45.248 45.248L750.656 795.904a416 416 0 1 1 45.248-45.248zM480 832a352 352 0 1 0 0-704 352 352 0 0 0 0 704z" />
           </svg>
         </span>
@@ -82,7 +82,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
+import { ref, computed, onMounted, watch, onUnmounted, shallowRef } from 'vue'
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core'
 import { reduceOpacity } from '../utils/color';
@@ -101,7 +101,6 @@ const searchResults = ref<Array<[number, string]>>([]);
 const menuItems = ref<Array<string>>([]);
 const menuIcons = ref<Array<string>>([]);
 const program_icons = ref<Map<number, string>>(new Map<number, string>([]));
-const isContextMenuVisible = ref(false);
 const hover_item_color = computed(() => {
   return reduceOpacity(ui_config.value.selected_item_color, 0.8);
 })
@@ -132,7 +131,7 @@ const sendSearchText = async (text: string) => {
 
 
 const searchBarMenuBuf = ref<InstanceType<typeof SubMenu> | null>(null);
-const searchBarMenuItems = ref([{ name: '打开设置界面', icon: Setting, action: () => { openSettingsWindow() } },
+const searchBarMenuItems = shallowRef([{ name: '打开设置界面', icon: Setting, action: () => { openSettingsWindow() } },
 { name: '刷新数据库', icon: Refresh, action: () => { refreshDataset() } }]);
 
 const contextSearchBarEvent = (event: MouseEvent) => {
@@ -173,6 +172,14 @@ const updateWindow = async () => {
     app_config.value = { ...app_config.value, ...data[0] }
     ui_config.value = { ...ui_config.value, ...data[1] }
 
+    const element = document.querySelector('.drag_area');
+    if (app_config.value.is_enable_drag_window) {
+      console.log('添加标志')
+      element?.setAttribute('data-tauri-drag-region', 'true');
+    } else {
+      console.log('删除标志')
+      element?.removeAttribute('data-tauri-drag-region');
+    }
     const blob = new Blob([new Uint8Array(background_picture_data)], { type: 'image/png' });
     const url = URL.createObjectURL(blob);
 
@@ -334,7 +341,7 @@ const handleClickOutside = () => {
 }
 
 const focusSearchInput = () => {
-  isContextMenuVisible.value = false;
+  searchBarMenuBuf.value?.hideMenu();
   resultItemMenuRef.value?.hideMenu();
   initSearchBar();
   if (searchBarRef.value) {
@@ -386,7 +393,7 @@ const handleRightArrow = (event: KeyboardEvent) => {
 
 
 const resultItemMenuRef = ref<InstanceType<typeof SubMenu> | null>(null);
-const resultSubMenuItems = ref([{ name: '打开文件位置', icon: FolderOpened, action: () => { openFolder() } },
+const resultSubMenuItems = shallowRef([{ name: '打开文件位置', icon: FolderOpened, action: () => { openFolder() } },
 { name: '以管理员身份运行', icon: StarFilled, action: () => { runTargetProgramWithAdmin() } }]);
 
 const contextResultItemEvent = (index: number, event: MouseEvent) => {
@@ -450,6 +457,7 @@ onMounted(async () => {
     focusSearchInput();
   }));
   unlisten.push(await listen('update_search_bar_window', () => {
+    console.log("收到更新请求");
     updateWindow();
   }));
   unlisten.push(await listen('handle_focus_lost', () => {

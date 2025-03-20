@@ -17,6 +17,8 @@
     "global-shortcut:allow-register",
     "global-shortcut:allow-unregister",
     "dialog:allow-open",
-    "dialog:default"
+    "dialog:default",
+    "core:window:default",
+    "core:window:allow-start-dragging"
   ]
 }

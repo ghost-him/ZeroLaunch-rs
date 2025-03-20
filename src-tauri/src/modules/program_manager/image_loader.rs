@@ -34,7 +34,6 @@ impl ImageLoader {
                 Vacant(_) => program.icon_path.clone(),
             };
         }
-        let show_name = program.show_name.clone();
         let mut pic_bytes: Vec<u8> = self.load_image_from_path(&icon_path).await;
         if pic_bytes.is_empty() {
             pic_bytes = self.load_image_from_path(&self.default_app_icon_path).await;

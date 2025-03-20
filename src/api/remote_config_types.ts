@@ -17,7 +17,9 @@ export type AppConfig = {
     launch_new_on_failure: boolean
     is_debug_mode: boolean
     shortcut: Shortcut
-    is_esc_hide_window_priority: boolean
+    is_esc_hide_window_priority: boolean,
+    is_enable_drag_window: boolean,
+    window_position: [number, number],
 }
 
 export function default_app_config(): AppConfig {
@@ -38,6 +40,8 @@ export function default_app_config(): AppConfig {
             meta: false,
         },
         is_esc_hide_window_priority: false,
+        is_enable_drag_window: false,
+        window_position: [0, 0],
     } as AppConfig;
 }
 

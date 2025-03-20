@@ -2,10 +2,12 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Capability for the main window",
-  "windows": ["main", "setting_window"],
+  "windows": [
+    "main",
+    "setting_window"
+  ],
   "permissions": [
     "core:default",
-    "shell:allow-open",
     "autostart:allow-enable",
     "autostart:allow-disable",
     "autostart:allow-is-enabled",

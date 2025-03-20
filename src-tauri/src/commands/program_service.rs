@@ -1,4 +1,5 @@
 use crate::modules::config::config_manager::PartialConfig;
+use crate::notify;
 use crate::save_config_to_file;
 use crate::state::app_state::AppState;
 use crate::update_app_setting;
@@ -147,4 +148,21 @@ pub async fn command_load_remote_config<R: Runtime>(
 ) -> Result<PartialConfig, String> {
     let runtime_config = state.get_runtime_config().unwrap();
     Ok(runtime_config.to_partial())
+}
+
+#[tauri::command]
+pub async fn open_target_folder<R: Runtime>(
+    app: tauri::AppHandle<R>,
+    window: tauri::Window<R>,
+    state: tauri::State<'_, Arc<AppState>>,
+    program_guid: u64,
+) -> Result<bool, String> {
+    let program_manager = state.get_program_manager().unwrap();
+    hide_window().unwrap();
+    let result = program_manager.open_target_folder(program_guid).await;
+    if !result {
+        notify("ZeroLaunch-rs", "打开文件夹失败，目标类型不支持");
+        return Ok(false);
+    }
+    Ok(true)
 }

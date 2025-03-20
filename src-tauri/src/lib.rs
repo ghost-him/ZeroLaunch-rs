@@ -106,7 +106,7 @@ pub fn run() {
 
     cleanup_old_logs(&LOG_DIR.to_string(), 5);
 
-    let builder = tauri::Builder::default().plugin(tauri_plugin_shell::init());
+    let builder = tauri::Builder::default();
     builder
         .plugin(tauri_plugin_single_instance::init(|_app, _argv, _cwd| {}))
         .plugin(tauri_plugin_deep_link::init())
@@ -176,6 +176,7 @@ pub fn run() {
             register_shortcut,
             command_save_local_config,
             command_check_validation,
+            open_target_folder,
             command_change_tray_icon //command_get_onedrive_refresh_token
         ])
         .run(tauri::generate_context!())

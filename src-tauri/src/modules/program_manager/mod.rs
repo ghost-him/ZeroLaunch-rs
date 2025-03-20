@@ -133,6 +133,11 @@ impl ProgramManager {
         let inner = self.inner.read().await;
         inner.is_uwp_program(program_guid)
     }
+    /// 打开目标文件所在的文件夹
+    pub async fn open_target_folder(&self, program_guid: u64) -> bool {
+        let inner = self.inner.read().await;
+        inner.open_target_folder(program_guid)
+    }
 }
 
 impl ProgramManagerInner {
@@ -342,5 +347,9 @@ impl ProgramManagerInner {
         let target_program_index = self.program_locater.get(&program_guid).unwrap();
         let target_program = self.program_registry[*(target_program_index.value())].clone();
         target_program.launch_method.is_uwp()
+    }
+    /// 打开目标文件所在的文件夹
+    pub fn open_target_folder(&self, program_guid: u64) -> bool {
+        self.program_launcher.open_target_folder(program_guid)
     }
 }

@@ -1,5 +1,5 @@
 <template>
-    <div v-if="visible" class="submenu" ref="submenuRef" :style="submenuStyle">
+    <div v-if="visible" class="submenu" ref="submenuRef" :style="submenuStyle" @contextmenu.prevent>
         <div v-for="(item, index) in menuItems" :key="index" class="submenu-item"
             :class="{ 'selected': selectedIndex === index }" @click="handleItemClick(index)" :style="itemStyle">
             <div class="submenu-icon" :style="iconStyle">

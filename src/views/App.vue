@@ -26,9 +26,9 @@
           }">
       </div>
 
-      <!-- 二级菜单 -->
+      <!-- 二级菜单,外观与另一个菜单保持一致 -->
 
-      <SubMenu ref="searchBarMenuBuf" :itemHeight="ui_config.search_bar_height" :windowSize="innerWindowSize"
+      <SubMenu ref="searchBarMenuBuf" :itemHeight="ui_config.result_item_height" :windowSize="innerWindowSize"
         :menuItems="searchBarMenuItems" :isDark="is_dark" :cornerRadius="ui_config.window_corner_radius"
         :hoverColor="hover_item_color" :selectedColor="ui_config.selected_item_color"
         :itemFontColor="ui_config.item_font_color" :itemFontSizePercent="ui_config.item_font_size"></SubMenu>
@@ -90,7 +90,6 @@ import { AppConfig, default_app_config, default_ui_config, PartialAppConfig, Par
 import SubMenu from './SubMenu.vue';
 import { FolderOpened, Refresh, Setting, StarFilled } from '@element-plus/icons-vue';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { floor } from 'lodash-es';
 const app_config = ref<AppConfig>(default_app_config())
 
 const ui_config = ref<UIConfig>(default_ui_config())
@@ -103,7 +102,6 @@ const menuItems = ref<Array<string>>([]);
 const menuIcons = ref<Array<string>>([]);
 const program_icons = ref<Map<number, string>>(new Map<number, string>([]));
 const isContextMenuVisible = ref(false);
-const contextMenuPosition = ref({ x: 0, y: 0 });
 const hover_item_color = computed(() => {
   return reduceOpacity(ui_config.value.selected_item_color, 0.8);
 })
@@ -399,8 +397,9 @@ const contextResultItemEvent = (index: number, event: MouseEvent) => {
   resultItemMenuRef.value?.showMenu({ top: event.clientY, left: event.clientX });
 }
 
-const openFolder = () => {
+const openFolder = async () => {
   console.log("打开文件夹");
+  await invoke('open_target_folder', { programGuid: searchResults.value[selectedIndex.value][0] })
   // todo:打开对应的文件夹
 }
 

@@ -12,6 +12,7 @@ use parking_lot::RwLock;
 use std::collections::{HashMap, VecDeque};
 use std::os::windows::process::CommandExt;
 use std::path::Path;
+use std::process::Command;
 use tracing::{debug, warn};
 use windows::Win32::Foundation::{GetLastError, ERROR_CANCELLED, ERROR_ELEVATION_REQUIRED};
 use windows::Win32::System::Com::{
@@ -279,6 +280,29 @@ impl ProgramLauncherInner {
             self.last_update_data = generate_current_date();
         }
     }
+
+    pub fn open_target_folder(&self, program_guid: u64) -> bool {
+        let program_method = self.launch_store.get(&program_guid).unwrap();
+        let target_method = program_method.clone();
+        // 只支持命令和uwp应用以外的程序
+        match &target_method {
+            LaunchMethod::Command(_) => {
+                return false;
+            }
+            LaunchMethod::PackageFamilyName(_) => {
+                return false;
+            }
+            _ => {}
+        }
+        let target_path = target_method.get_text();
+
+        // 不需要获取父目录，直接使用/select参数
+        Command::new("explorer")
+            .args(&["/select,", &target_path]) // 使用/select参数并指定完整文件路径
+            .spawn()
+            .unwrap();
+        return true;
+    }
 }
 #[derive(Debug)]
 pub struct ProgramLauncher {
@@ -324,5 +348,9 @@ impl ProgramLauncher {
 
     pub fn program_history_launch_time(&self, program_guid: u64) -> u64 {
         self.inner.write().program_history_launch_time(program_guid)
+    }
+
+    pub fn open_target_folder(&self, program_guid: u64) -> bool {
+        self.inner.read().open_target_folder(program_guid)
     }
 }

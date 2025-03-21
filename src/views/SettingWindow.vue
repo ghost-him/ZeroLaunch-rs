@@ -317,27 +317,27 @@
                     点击刷新
                 </el-button>
                 <el-table :data="programInfoList" stripe style="width: 100%; height: 100%">
-                    <el-table-column label="程序名" show-overflow-tooltip>
+                    <el-table-column label="程序名" prop="name" sortable show-overflow-tooltip>
                         <template #default="{ row }">
                             {{ row.name }}
                         </template>
                     </el-table-column>
-                    <el-table-column label="是否是UWP程序" show-overflow-tooltip width="100">
+                    <el-table-column label="是否是UWP程序" prop="is_uwp" sortable show-overflow-tooltip width="100">
                         <template #default="{ row }">
                             {{ row.is_uwp }}
                         </template>
                     </el-table-column>
-                    <el-table-column label="固定偏移量" show-overflow-tooltip width="100">
+                    <el-table-column label="固定偏移量" prop="bias" sortable show-overflow-tooltip width="100">
                         <template #default="{ row }">
                             {{ row.bias }}
                         </template>
                     </el-table-column>
-                    <el-table-column label="启动次数" show-overflow-tooltip width="100">
+                    <el-table-column label="启动次数" prop="history_launch_time" sortable show-overflow-tooltip width="100">
                         <template #default="{ row }">
                             {{ row.history_launch_time }}
                         </template>
                     </el-table-column>
-                    <el-table-column label="路径" show-overflow-tooltip>
+                    <el-table-column label="路径" prop="path" sortable show-overflow-tooltip>
                         <template #default="{ row }">
                             {{ row.path }}
                         </template>

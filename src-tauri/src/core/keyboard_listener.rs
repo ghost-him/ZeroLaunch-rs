@@ -1,3 +1,4 @@
+use crate::commands::shortcut;
 use crate::notify;
 use crate::utils::notify;
 use crate::utils::service_locator::ServiceLocator;
@@ -45,6 +46,7 @@ struct ShortcutManagerInner {
     shortcuts: Arc<Mutex<HashMap<TauriShortcut, ShortcutCallback>>>,
     id_to_shortcut: Arc<Mutex<HashMap<String, TauriShortcut>>>,
     app_handle: Arc<AppHandle>,
+    game_mode: Arc<Mutex<bool>>,
 }
 
 impl ShortcutManagerInner {
@@ -53,6 +55,7 @@ impl ShortcutManagerInner {
             shortcuts: Arc::new(Mutex::new(HashMap::new())),
             id_to_shortcut: Arc::new(Mutex::new(HashMap::new())),
             app_handle: app_handle,
+            game_mode: Arc::new(Mutex::new(false)),
         }
     }
 
@@ -166,9 +169,17 @@ impl ShortcutManagerInner {
     where
         F: Fn(&tauri::AppHandle) + Send + Sync + 'static,
     {
+        let game_mode = self.game_mode.lock();
+        if *game_mode {
+            return Err("当前为游戏模式，请退出后重试".to_string());
+        }
+
         let tauri_shortcut = self.convert_shortcut(&shortcut)?;
         let mut shortcuts = self.shortcuts.lock();
         let mut id_to_shortcut = self.id_to_shortcut.lock();
+
+        shortcuts.insert(tauri_shortcut.clone(), Box::new(callback));
+        id_to_shortcut.insert(id, tauri_shortcut);
 
         // 直接注册到全局快捷键系统
         if let Err(e) = self
@@ -176,11 +187,10 @@ impl ShortcutManagerInner {
             .global_shortcut()
             .register(tauri_shortcut.clone())
         {
+            notify("ZeroLaunch-rs", &format!("注册快捷键失败: {:?}", e));
             return Err(format!("注册快捷键失败: {:?}", e));
         }
 
-        shortcuts.insert(tauri_shortcut.clone(), Box::new(callback));
-        id_to_shortcut.insert(id, tauri_shortcut);
         Ok(())
     }
 
@@ -194,6 +204,10 @@ impl ShortcutManagerInner {
     where
         F: Fn(&tauri::AppHandle) + Send + Sync + 'static,
     {
+        let game_mode = self.game_mode.lock();
+        if *game_mode {
+            return Err("当前为游戏模式，请退出后重试".to_string());
+        }
         let new_tauri_shortcut = self.convert_shortcut(&new_shortcut)?;
         let mut id_to_shortcut = self.id_to_shortcut.lock();
 
@@ -212,25 +226,30 @@ impl ShortcutManagerInner {
             // 继续执行，因为可能是之前没有成功注册
         }
 
+        let mut shortcuts = self.shortcuts.lock();
+        shortcuts.remove(&old_tauri_shortcut); // 使用引用
+        shortcuts.insert(new_tauri_shortcut.clone(), Box::new(callback));
+        id_to_shortcut.insert(id, new_tauri_shortcut);
+
         // 注册新快捷键
         if let Err(e) = self
             .app_handle
             .global_shortcut()
             .register(new_tauri_shortcut.clone())
         {
+            notify("ZeroLaunch-rs", &format!("注册新快捷键失败: {:?}", e));
             return Err(format!("注册新快捷键失败: {:?}", e));
         }
-
-        let mut shortcuts = self.shortcuts.lock();
-        shortcuts.remove(&old_tauri_shortcut); // 使用引用
-        shortcuts.insert(new_tauri_shortcut.clone(), Box::new(callback));
-        id_to_shortcut.insert(id, new_tauri_shortcut);
 
         Ok(())
     }
 
     /// 删除指定ID的快捷键
-    pub fn unregister_shortcut(&self, id: &str) -> Result<(), String> {
+    pub fn delete_shortcut(&self, id: &str) -> Result<(), String> {
+        let game_mode = self.game_mode.lock();
+        if *game_mode {
+            return Err("当前为游戏模式，请退出后重试".to_string());
+        }
         // 获取快捷键映射的锁
         let mut id_to_shortcut = self.id_to_shortcut.lock();
 
@@ -255,15 +274,39 @@ impl ShortcutManagerInner {
         Ok(())
     }
 
-    // 注册所有快捷键到全局快捷键管理器
+    /// 取消注册所有的快捷键（用于游戏模式）
+    pub fn unregister_all_shortcut(&self) -> Result<(), String> {
+        if let Err(e) = self.app_handle.global_shortcut().unregister_all() {
+            println!("取消注册失败: {:?}", e);
+            notify("ZeroLaunch-rs", &format!("取消注册失败: {:?}", e));
+        }
+        Ok(())
+    }
+
+    /// 注册所有快捷键到全局快捷键管理器
     pub fn register_all_shortcuts(&self) -> Result<(), String> {
         let shortcuts = self.shortcuts.lock();
         for shortcut in shortcuts.keys() {
             if let Err(e) = self.app_handle.global_shortcut().register(shortcut.clone()) {
-                return Err(format!("注册快捷键失败: {:?}", e));
+                println!("注册快捷键失败: {:?}", e);
+                notify("ZeroLaunch-rs", &format!("注册快捷键失败: {:?}", e));
             }
         }
         Ok(())
+    }
+
+    /// 打开或关闭游戏模式
+    pub fn switch_game_mode(&self, game_mode: bool) {
+        let mut guard = self.game_mode.lock();
+        *guard = game_mode;
+
+        if game_mode {
+            // 如果打开了游戏模式
+            self.unregister_all_shortcut();
+        } else {
+            // 如果关闭游戏模式
+            self.register_all_shortcuts();
+        }
     }
 
     // 初始化快捷键监听器
@@ -353,8 +396,8 @@ impl ShortcutManager {
             .update_shortcut(id, new_shortcut, callback)
     }
 
-    pub fn unregister_shortcut(&self, id: &str) -> Result<(), String> {
-        self.inner.lock().unregister_shortcut(id)
+    pub fn delete_shortcut(&self, id: &str) -> Result<(), String> {
+        self.inner.lock().delete_shortcut(id)
     }
 
     pub fn init_shortcut_listener(&self) -> Result<(), Box<dyn std::error::Error>> {
@@ -367,6 +410,11 @@ impl ShortcutManager {
 
     pub fn get_all_shortcuts(&self) -> Vec<ShortcutUnit> {
         self.inner.lock().get_all_shortcuts()
+    }
+
+    /// 打开或关闭游戏模式
+    pub fn switch_game_mode(&self, game_mode: bool) {
+        self.inner.lock().switch_game_mode(game_mode);
     }
 }
 

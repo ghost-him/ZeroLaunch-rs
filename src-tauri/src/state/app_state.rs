@@ -30,6 +30,8 @@ pub struct AppState {
     tray_icon: RwLock<Option<Arc<TrayIcon>>>,
     /// 快捷键管理器
     shortcut_manager: RwLock<Option<Arc<ShortcutManager>>>,
+    /// 游戏模式
+    game_mode: RwLock<bool>,
 }
 
 impl AppState {
@@ -45,6 +47,7 @@ impl AppState {
             waiting_hashmap: Arc::new(AsyncWaitingHashMap::new()),
             tray_icon: RwLock::new(None),
             shortcut_manager: RwLock::new(None),
+            game_mode: RwLock::new(false),
         }
     }
 
@@ -174,6 +177,14 @@ impl AppState {
 
     pub fn set_shortcut_manager(&self, manager: Arc<ShortcutManager>) {
         *self.shortcut_manager.write() = Some(manager);
+    }
+
+    pub fn set_game_mode(&self, game_mode: bool) {
+        *self.game_mode.write() = game_mode;
+    }
+
+    pub fn get_game_mode(&self) -> bool {
+        *self.game_mode.read()
     }
 }
 

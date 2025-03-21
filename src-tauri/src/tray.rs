@@ -1,6 +1,7 @@
 use crate::handle_pressed;
 use crate::modules::config::default::APP_VERSION;
 //use crate::retry_register_shortcut;
+use crate::notify;
 use crate::save_config_to_file;
 use crate::show_setting_window;
 use crate::update_app_setting;
@@ -22,6 +23,7 @@ enum MenuEventId {
     ExitProgram,
     UpdateAppSetting,
     RegisterShortcut,
+    SwitchGameMode,
     Unknown(String),
 }
 
@@ -33,6 +35,7 @@ impl From<&str> for MenuEventId {
             "exit_program" => MenuEventId::ExitProgram,
             "update_app_setting" => MenuEventId::UpdateAppSetting,
             "retry_register_shortcut" => MenuEventId::RegisterShortcut,
+            "switch_game_mode" => MenuEventId::SwitchGameMode,
             _ => MenuEventId::Unknown(id.to_string()),
         }
     }
@@ -72,6 +75,16 @@ pub fn init_system_tray(app: &mut App) {
             )
             .unwrap(),
         )
+        .item(
+            &MenuItem::with_id(
+                handle,
+                "switch_game_mode",
+                "开启游戏模式",
+                true,
+                None::<&str>,
+            )
+            .unwrap(),
+        )
         .item(&MenuItem::with_id(handle, "exit_program", "退出程序", true, None::<&str>).unwrap())
         .build()
         .unwrap();
@@ -84,7 +97,7 @@ pub fn init_system_tray(app: &mut App) {
         .show_menu_on_left_click(false)
         .build(handle)
         .unwrap();
-    tray_icon.on_menu_event(|app_handle, event| {
+    tray_icon.on_menu_event(move |app_handle, event| {
         let event_id = MenuEventId::from(event.id().as_ref());
         match event_id {
             MenuEventId::ShowSettingWindow => {
@@ -105,7 +118,30 @@ pub fn init_system_tray(app: &mut App) {
                 update_app_setting().await;
             }),
             MenuEventId::RegisterShortcut => {
-                //retry_register_shortcut(app_handle);
+                let state = ServiceLocator::get_state();
+                let target_game_mode = state.get_game_mode();
+                if target_game_mode {
+                    notify("ZeroLaunch-rs", "请先关闭游戏模式");
+                    return;
+                }
+                let shortcut_manager = state.get_shortcut_manager().unwrap();
+                let _ = shortcut_manager.register_all_shortcuts();
+                notify("ZeroLaunch-rs", "已完成注册注册");
+            }
+            MenuEventId::SwitchGameMode => {
+                let temp = menu.get("switch_game_mode").unwrap();
+                let item = temp.as_menuitem().unwrap();
+
+                let state = ServiceLocator::get_state();
+                let shortcut_manager = state.get_shortcut_manager().unwrap();
+                let target_game_mode = !state.get_game_mode();
+                state.set_game_mode(target_game_mode);
+                shortcut_manager.switch_game_mode(target_game_mode);
+                if target_game_mode {
+                    let _ = item.set_text("关闭游戏模式");
+                } else {
+                    let _ = item.set_text("开启游戏模式");
+                }
             }
             MenuEventId::Unknown(id) => {
                 warn!("Unknown menu event: {}", id);

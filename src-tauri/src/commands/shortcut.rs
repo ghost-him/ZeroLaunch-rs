@@ -26,7 +26,7 @@ pub async fn delete_shortcut<R: Runtime>(
     id: String,
 ) -> Result<(), String> {
     let shortcut_manager = state.get_shortcut_manager().unwrap();
-    shortcut_manager.unregister_shortcut(&id)
+    shortcut_manager.delete_shortcut(&id)
 }
 
 #[tauri::command]

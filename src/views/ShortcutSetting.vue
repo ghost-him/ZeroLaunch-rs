@@ -1,7 +1,7 @@
 <template>
     <div class="shortcut-settings-container">
         <el-form-item class="shortcut-form-item">
-            <ShortcutInput label="唤醒窗口" v-model="shortcut" @before-change="handleUnbindShortcut"
+            <ShortcutInput ref="ShortcutRef" label="唤醒窗口" v-model="shortcut" @before-change="handleUnbindShortcut"
                 :defaultValue="default_shortcut" @after-change="handleBindShortcut"></ShortcutInput>
             <el-button class="reset-button" @click="reset_shortcut">
                 <i class="el-icon-refresh-right"></i>
@@ -20,6 +20,7 @@ import { onMounted } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { useRemoteConfigStore } from '../stores/remote_config';
 import { ElMessage } from 'element-plus';
+
 const default_shortcut = {
     key: 'Space',
     alt: true,
@@ -33,6 +34,7 @@ interface ShortcutUnit {
     shortcut: Shortcut,
 }
 
+const ShortcutRef = ref<InstanceType<typeof ShortcutInput> | null>(null);
 const configStore = useRemoteConfigStore()
 
 const shortcut = ref(default_shortcut as Shortcut);
@@ -43,6 +45,7 @@ const handleUnbindShortcut = async () => {
         await invoke('delete_shortcut', { id: id.value });
     } catch (error) {
         handleError("快捷键解绑失败:" + error);
+        ShortcutRef.value?.stopListening();
         // 可以添加用户提示
         // showErrorMessage("快捷键解绑失败，请重试");
     }
@@ -62,7 +65,7 @@ const handleBindShortcut = async () => {
         configStore.syncConfig();
     } catch (error) {
         handleError("快捷键绑定失败: " + error + "已恢复默认配置");
-
+        ShortcutRef.value?.stopListening();
         shortcut.value = default_shortcut;
         await invoke('register_shortcut', { id: id.value, shortcut: shortcut.value });
         // showErrorMessage("快捷键绑定失败，可能与系统其他快捷键冲突");

@@ -93,12 +93,12 @@ function startListening() {
 
 // 停止监听
 function stopListening() {
-    document.removeEventListener('keydown', handleDocumentKeyDown);
-    document.removeEventListener('keyup', handleDocumentKeyUp);
     if (isListening.value) {
+        document.removeEventListener('keydown', handleDocumentKeyDown);
+        document.removeEventListener('keyup', handleDocumentKeyUp);
         emit('after-change');
+        isListening.value = false;
     }
-    isListening.value = false;
 }
 
 // 点击外部区域停止监听
@@ -116,6 +116,10 @@ onUnmounted(() => {
     document.removeEventListener('click', handleClickOutside);
     stopListening(); // 确保卸载时清理监听器
 });
+
+defineExpose({
+    stopListening
+})
 </script>
 <style scoped>
 .shortcut-input {

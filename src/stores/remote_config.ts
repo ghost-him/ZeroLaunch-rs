@@ -120,13 +120,11 @@ export const useRemoteConfigStore = defineStore('config', {
                 } as ProgramLauncherConfig,
                 loader: {
                     target_paths: [],
-                    forbidden_paths: [],
-                    forbidden_program_key: [],
                     program_bias: {},
                     is_scan_uwp_programs: false,
-                    index_file_paths: [],
                     index_web_pages: [],
                     custom_command: [],
+                    forbidden_paths: [],
                 } as ProgramLoaderConfig
             } as ProgramManagerConfig
         } as Config,

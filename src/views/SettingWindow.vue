@@ -109,147 +109,11 @@
 
             <!-- 外观设置 -->
             <section v-if="activeIndex === 2" class="page">
-                <el-tabs style="height: 100%">
-                    <el-tab-pane label="设置遍历路径">
-                        <el-table :data="targetPath" stripe style="width: 100%; height: 100%">
-                            <el-table-column label="目标路径" show-overflow-tooltip>
-                                <template #default="{ row, $index }">
-                                    <el-input v-model="row[0]" size="small" placeholder="请输入目标路径"
-                                        @change="updateTargetPath($index, row)"></el-input>
-                                </template>
-                            </el-table-column>
-                            <el-table-column label="遍历深度" show-overflow-tooltip fixed="right" width="150">
-                                <template #default="{ row, $index }">
-                                    <el-input-number v-model="row[1]" size="small" placeholder="请输入遍历深度" :precision="0"
-                                        :min="1" @change="updateTargetPath($index, row)"></el-input-number>
-                                </template>
-                            </el-table-column>
-                            <el-table-column fixed="right" label="操作" width="100">
-                                <template #default="scope">
-                                    <el-button link size="small" type="danger"
-                                        @click="deleteTargetPathRow(scope.$index)">
-                                        删除一行
-                                    </el-button>
-                                </template>
-                            </el-table-column>
-                        </el-table>
-
-                        <el-button class="mt-4" style="width: 100%" @click="addTargetPath">
-                            添加项目
-                        </el-button>
-                    </el-tab-pane>
-
-                    <el-tab-pane label="设置屏蔽路径">
-                        <el-table :data="forbidden_paths" stripe style="width: 100%; height: 100%">
-                            <el-table-column label="目标屏蔽路径" show-overflow-tooltip>
-                                <template #default="{ $index }">
-                                    <el-input v-model="forbidden_paths[$index]" size="small" placeholder="请输入目标路径"
-                                        @change="updateForbiddenPaths"></el-input>
-                                </template>
-                            </el-table-column>
-                            <el-table-column fixed="right" label="操作" width="100">
-                                <template #default="{ $index }">
-                                    <el-button link size="small" type="danger" @click="deleteForbiddenPath($index)">
-                                        删除一行
-                                    </el-button>
-                                </template>
-                            </el-table-column>
-                        </el-table>
-                        <el-button class="mt-4" style="width: 100%" @click="addForbiddenPath">
-                            添加项目
-                        </el-button>
-                    </el-tab-pane>
-
-                    <el-tab-pane label="设置屏蔽关键字">
-                        <el-table :data="forbidden_program_key" stripe style="width: 100%; height: 100%">
-                            <el-table-column label="目标关键字" show-overflow-tooltip>
-                                <template #default="{ $index }">
-                                    <el-input v-model="forbidden_program_key[$index]" size="small"
-                                        placeholder="请输入目标关键字" @change="updateForbiddenProgramKey"></el-input>
-                                </template>
-                            </el-table-column>
-                            <el-table-column fixed="right" label="操作" width="100">
-                                <template #default="{ $index }">
-                                    <el-button link size="small" type="danger" @click="deleteForbiddenKey($index)">
-                                        删除一行
-                                    </el-button>
-                                </template>
-                            </el-table-column>
-                        </el-table>
-                        <el-button class="mt-4" style="width: 100%" @click="addForbiddenKey">
-                            添加项目
-                        </el-button>
-                    </el-tab-pane>
-
-
-                    <el-tab-pane label="设置固定偏移量">
-                        <el-table :data="keyFilterData" stripe style="width: 100%; height: 100%">
-                            <el-table-column label="目标关键字">
-                                <template #default="{ row }">
-                                    <el-input v-model="row.key" size="small" placeholder="请输入目标关键字"
-                                        @change="updateProgramBias(row)"></el-input>
-                                </template>
-                            </el-table-column>
-                            <el-table-column label="偏移量" show-overflow-tooltip>
-                                <template #default="{ row }">
-                                    <el-input-number v-model="row.bias" size="small" placeholder="请输入偏移量"
-                                        @change="updateProgramBias(row)"></el-input-number>
-                                </template>
-                            </el-table-column>
-                            <el-table-column label="备注" show-overflow-tooltip>
-                                <template #default="{ row }">
-                                    <el-input v-model="row.note" size="small" placeholder="请输入备注"
-                                        @change="updateProgramBias(row)"></el-input>
-                                </template>
-                            </el-table-column>
-                            <el-table-column fixed="right" label="操作" width="100">
-                                <template #default="{ $index }">
-                                    <el-button link size="small" type="danger" @click="deleteKeyFilterRow($index)">
-                                        删除一行
-                                    </el-button>
-                                </template>
-                            </el-table-column>
-                        </el-table>
-                        <el-button class="mt-4" style="width: 100%" @click="addKeyFilter">
-                            添加项目
-                        </el-button>
-                    </el-tab-pane>
-                    <el-tab-pane label="额外设置">
-                        <el-form-item label="扫描UWP应用">
-                            <el-switch v-model="is_scan_uwp_programs" @change="updateIsScanUwpPrograms" />
-                        </el-form-item>
-                    </el-tab-pane>
-                </el-tabs>
+                <ProgramIndex></ProgramIndex>
             </section>
 
             <section v-if="activeIndex === 3" class="page">
                 <el-tabs style="height: 100%">
-                    <el-tab-pane label="自定义文件搜索">
-                        <div class="mb-4">
-                            <el-button type="primary" plain @click="handleSelectFile">选择并添加一个文件</el-button>
-                        </div>
-
-                        <el-table :data="index_file_paths" stripe style="width: 100%; height: 100%">
-                            <el-table-column label="目标路径" show-overflow-tooltip>
-                                <template #default="scope">
-                                    <el-input v-model="index_file_paths[scope.$index]" size="small"
-                                        placeholder="请输入目标路径" @change="updateIndexFilePaths"></el-input>
-                                </template>
-                            </el-table-column>
-                            <el-table-column fixed="right" label="操作" width="100">
-                                <template #default="scope">
-                                    <el-button link size="small" type="danger"
-                                        @click="deleteIndexFileRow(scope.$index)">
-                                        删除一行
-                                    </el-button>
-                                </template>
-                            </el-table-column>
-                        </el-table>
-                        <el-button class="mt-4" style="width: 100%" @click="addIndexFile">
-                            添加项目
-                        </el-button>
-                    </el-tab-pane>
-
                     <el-tab-pane label="自定义网址搜索">
                         <el-table :data="index_web_pages" stripe style="width: 100%; height: 100%">
                             <el-table-column label="关键字（用于搜索程序的匹配）" show-overflow-tooltip fixed="left" width="150">
@@ -374,6 +238,7 @@ import {
 
 import { invoke } from '@tauri-apps/api/core';
 import { ElMessage } from 'element-plus';
+import ProgramIndex from './ProgramIndex.vue';
 import { open } from '@tauri-apps/plugin-dialog';
 import { useRemoteConfigStore } from '../stores/remote_config';
 import { storeToRefs } from 'pinia';
@@ -383,12 +248,15 @@ import about from "./about.vue";
 import debug from "./debug.vue";
 import ConfigPathSelector from "./ConfigPathSelector.vue";
 import ShortcutSetting from './ShortcutSetting.vue';
+import { DirectoryConfig } from '../api/remote_config_types';
 const configStore = useRemoteConfigStore()
 const { config } = storeToRefs(configStore)
 interface MenuItem {
     title: string;
     icon: any;
 }
+
+
 
 const activeIndex = ref(0);
 
@@ -403,233 +271,6 @@ const menuItems: MenuItem[] = [
     { title: '关于', icon: InfoFilled }
 ];
 
-const targetPath = computed({
-    get: () => config.value.program_manager_config.loader.target_paths,
-    set: (value) => {
-        console.log("调用set方法")
-        configStore.updateConfig({
-            program_manager_config: {
-                loader: { target_paths: value }
-            }
-        })
-    }
-})
-
-const updateTargetPath = (index: number, value: [string, string]) => {
-    console.log(value);
-    const newTargetPaths = [...config.value.program_manager_config.loader.target_paths] as [string, number][]
-    newTargetPaths[index] = [value[0], parseInt(value[1])]
-    console.log([value[0], parseInt(value[1])])
-    configStore.updateConfig({
-        program_manager_config: {
-            loader: {
-                target_paths: newTargetPaths
-            }
-        }
-    })
-}
-
-const deleteTargetPathRow = (index: number) => {
-    const newTargetPaths = config.value.program_manager_config.loader.target_paths.filter((_, i) => i !== index)
-    configStore.updateConfig({
-        program_manager_config: {
-            loader: {
-                target_paths: newTargetPaths
-            }
-        }
-    })
-}
-
-const addTargetPath = () => {
-    const newTargetPaths = [...config.value.program_manager_config.loader.target_paths, ["", 1]] as [string, number][]
-    configStore.updateConfig({
-        program_manager_config: {
-            loader: {
-                target_paths: newTargetPaths
-            }
-        }
-    })
-}
-
-const forbidden_paths = computed({
-    get: () => config.value.program_manager_config.loader.forbidden_paths,
-    set: (value) => {
-        configStore.updateConfig({
-            program_manager_config: {
-                loader: { forbidden_paths: value }
-            }
-        })
-    }
-})
-
-const updateForbiddenPaths = () => {
-    configStore.updateConfig({
-        program_manager_config: {
-            loader: { forbidden_paths: forbidden_paths.value }
-        }
-    })
-}
-
-const deleteForbiddenPath = (index: number) => {
-    const newPaths = [...forbidden_paths.value]
-    newPaths.splice(index, 1)
-    forbidden_paths.value = newPaths
-}
-
-const addForbiddenPath = () => {
-    forbidden_paths.value = [...forbidden_paths.value, ""]
-}
-
-const forbidden_program_key = computed({
-    get: () => config.value.program_manager_config.loader.forbidden_program_key,
-    set: (value) => {
-        configStore.updateConfig({
-            program_manager_config: {
-                loader: { forbidden_program_key: value }
-            }
-        })
-    }
-})
-
-const updateForbiddenProgramKey = () => {
-    configStore.updateConfig({
-        program_manager_config: {
-            loader: { forbidden_program_key: forbidden_program_key.value }
-        }
-    })
-}
-
-const deleteForbiddenKey = (index: number) => {
-    const newKeys = [...forbidden_program_key.value]
-    newKeys.splice(index, 1)
-    forbidden_program_key.value = newKeys
-}
-
-const addForbiddenKey = () => {
-    forbidden_program_key.value = [...forbidden_program_key.value, ""]
-}
-
-const is_scan_uwp_programs = computed({
-    get: () => config.value.program_manager_config.loader.is_scan_uwp_programs,
-    set: (value) => {
-        configStore.updateConfig({
-            program_manager_config: {
-                loader: { is_scan_uwp_programs: value }
-            }
-        })
-    }
-})
-
-const updateIsScanUwpPrograms = () => {
-    configStore.updateConfig({
-        program_manager_config: {
-            loader: { is_scan_uwp_programs: is_scan_uwp_programs.value }
-        }
-    })
-}
-
-interface KeyFilterData {
-    originalKey: string
-    key: string
-    bias: number
-    note: string
-}
-
-const keyFilterData = computed(() => {
-    const bias = config.value.program_manager_config.loader.program_bias;
-    return Object.keys(bias).map(key => ({
-        originalKey: key,  // 初始化时保存原始键
-        key,
-        bias: bias[key][0],
-        note: bias[key][1] || ''
-    }));
-});
-
-const updateProgramBias = (row: KeyFilterData) => {
-    const newProgramBias = { ...config.value.program_manager_config.loader.program_bias }
-
-    // 检查是否存在原始键（仅当数据结构包含originalKey时）
-    if (row.originalKey !== row.key) {
-        delete newProgramBias[row.originalKey] // 删除旧键
-    }
-
-    newProgramBias[row.key] = [row.bias, row.note] // 更新或新增键
-
-    configStore.updateConfig({
-        program_manager_config: {
-            loader: {
-                program_bias: newProgramBias
-            }
-        }
-    })
-}
-
-
-const deleteKeyFilterRow = (index: number) => {
-    // 深拷贝 program_bias
-    const newProgramBias = JSON.parse(JSON.stringify(config.value.program_manager_config.loader.program_bias));
-    const keyToDelete = keyFilterData.value[index].key;
-    delete newProgramBias[keyToDelete];
-    console.log("删除一行")
-
-    console.log(newProgramBias)
-    configStore.updateConfig({
-        program_manager_config: {
-            loader: {
-                program_bias: newProgramBias
-            }
-        }
-    })
-}
-
-const addKeyFilter = () => {
-    const newProgramBias = { ...config.value.program_manager_config.loader.program_bias }
-    const newKey = `请输入关键字`
-    newProgramBias[newKey] = [0, '']
-
-    configStore.updateConfig({
-        program_manager_config: {
-            loader: {
-                program_bias: newProgramBias
-            }
-        }
-    })
-}
-
-const handleSelectFile = async () => {
-    const filePath = await open({ canCreateDirectories: false, directory: false, multiple: false, title: "选择一个文件" })
-    if (filePath) {
-        index_file_paths.value = [...index_file_paths.value, filePath as string]
-    }
-}
-
-// 计算属性用于直接访问和修改 config.program_manager_config 中的数据
-const index_file_paths = computed({
-    get: () => config.value.program_manager_config.loader.index_file_paths,
-    set: (value) => {
-        configStore.updateConfig({
-            program_manager_config: {
-                loader: { index_file_paths: value }
-            }
-        })
-    }
-})
-
-const updateIndexFilePaths = () => {
-    configStore.updateConfig({
-        program_manager_config: {
-            loader: { index_file_paths: index_file_paths.value }
-        }
-    })
-}
-
-const deleteIndexFileRow = (index: number) => {
-    index_file_paths.value = index_file_paths.value.filter((_, i) => i !== index)
-}
-
-const addIndexFile = () => {
-    index_file_paths.value = [...index_file_paths.value, ""]
-}
 
 const index_web_pages = computed({
     get: () => config.value.program_manager_config.loader.index_web_pages,
@@ -840,5 +481,10 @@ body {
 .el-icon {
     font-size: 18px;
     color: #606266;
+}
+
+.page {
+    height: 90%;
+
 }
 </style>

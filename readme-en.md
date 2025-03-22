@@ -154,7 +154,6 @@ Built upon these outstanding open-source projects:
 
 ### Short-Term Goals
 
-* Implement regex-based keyword/path filtering
 * Dark theme support
 * Error handling optimizations
 

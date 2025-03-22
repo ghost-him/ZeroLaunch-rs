@@ -78,6 +78,8 @@ tauri-plugin-deep-link = "2"
 winreg = "0.55.0"
 tauri-utils = { version = "2.2.0", features = ["schema"] }
 device_query = "3.0.1"
+globset = "0.4.16"
+regex = "1.11.1"
 
 [features]
 default = ["custom-protocol"]

@@ -1,17 +1,24 @@
-use crate::modules::config::default::APP_PIC_PATH;
-
+use super::config::program_loader_config::DirectoryConfig;
 use super::pinyin_mapper::PinyinMapper;
 use super::search_model::*;
 use super::LaunchMethod;
+use crate::error;
+use crate::modules::config::default::APP_PIC_PATH;
 use crate::program_manager::config::program_loader_config::PartialProgramLoaderConfig;
 use crate::program_manager::config::program_loader_config::ProgramLoaderConfig;
 /// 这个类用于加载电脑上程序，通过扫描路径或使用系统调用接口
 use crate::program_manager::Program;
 use crate::utils::defer::defer;
+use crate::utils::notify;
+use crate::utils::notify::notify;
 use crate::utils::windows::get_u16_vec;
 use core::time::Duration;
+use dashmap::DashSet;
+use globset::GlobSetBuilder;
+use globset::{Glob, GlobSet};
 use image::ImageReader;
 use parking_lot::RwLock;
+use regex::RegexSet;
 use std::collections::{HashMap, HashSet};
 use std::ffi::OsStr;
 use std::fs;
@@ -47,32 +54,105 @@ impl GuidGenerator {
         ret
     }
 }
+
+/// 路径检查器，用于判断某一个路径是不是想要的路径
+#[derive(Debug)]
+struct PathChecker {
+    glob: Option<GlobSet>,
+    regex: Option<RegexSet>,
+    excluded_keys: Vec<String>,
+    is_glob: bool,
+}
+
+impl PathChecker {
+    pub fn new(
+        patterns: &Vec<String>,
+        pattern_type: &String,
+        excluded_keys: &Vec<String>,
+    ) -> Result<PathChecker, String> {
+        match pattern_type.as_str() {
+            "Wildcard" => {
+                let mut builder = GlobSetBuilder::new();
+                patterns.iter().for_each(|pattern| {
+                    builder.add(
+                        Glob::new(pattern)
+                            .map_err(|e| format!("添加通配符失败：{:?}", e.to_string()))
+                            .unwrap(),
+                    );
+                });
+
+                Ok(PathChecker {
+                    glob: Some(
+                        builder
+                            .build()
+                            .map_err(|e| format!("编译通配符检查器失败：{:?}", e.to_string()))
+                            .unwrap(),
+                    ),
+                    regex: None,
+                    excluded_keys: excluded_keys.clone(),
+                    is_glob: true,
+                })
+            }
+            "Regex" => {
+                let regex = RegexSet::new(patterns)
+                    .map_err(|e| format!("编译正则表达式失败：{:?}", e.to_string()))
+                    .unwrap();
+
+                Ok(PathChecker {
+                    glob: None,
+                    regex: Some(regex),
+                    excluded_keys: excluded_keys.clone(),
+                    is_glob: false,
+                })
+            }
+            _ => Err(format!("无当前该匹配项：{}", pattern_type)),
+        }
+    }
+
+    pub fn is_match(&self, path: &str) -> bool {
+        if self.excluded_keys.iter().any(|item| path.contains(item)) {
+            return false;
+        }
+
+        if self.is_glob {
+            // 使用glob模式匹配
+            if let Some(ref glob_set) = self.glob {
+                return glob_set.is_match(path);
+            }
+        } else {
+            // 使用正则表达式匹配
+            if let Some(ref regex_set) = self.regex {
+                let ret = regex_set.is_match(path);
+                println!("{:?}, {}", path, ret);
+                return ret;
+            }
+        }
+        false
+    }
+}
+
 #[derive(Debug)]
 pub struct ProgramLoaderInner {
     /// 要扫描的路径(路径，遍历的深度)
-    target_paths: Vec<(String, u32)>,
-    /// 不扫描的路径
-    forbidden_paths: Vec<String>,
-    /// 禁止的程序关键字（当程序的名字中有与其完全一致的子字符串时，不注册）
-    forbidden_program_key: Vec<String>,
+    target_paths: Vec<DirectoryConfig>,
     /// 设置程序的固定权重偏移（当程序的名字中有与其完全一致的子字符串时，才会添加）
     program_bias: HashMap<String, (f64, String)>,
     /// guid生成器
     guid_generator: GuidGenerator,
     /// 判断一个程序有没有被添加
-    program_name_hash: HashSet<String>,
+    program_name_hash: DashSet<String>,
     /// 拼音转换器
     pinyin_mapper: PinyinMapper,
     /// 是否要扫描uwp
     is_scan_uwp_programs: bool,
-    /// 索引的单体文件的地址
-    index_file_paths: Vec<String>,
     /// 索引的网页
     index_web_pages: Vec<(String, String)>,
     /// 添加的自定义命令
     custom_command: Vec<(String, String)>,
     /// 加载耗时
     loading_time: Option<Duration>,
+    /// 不扫描的路径
+    forbidden_paths: Vec<String>,
 }
 
 impl ProgramLoaderInner {
@@ -80,17 +160,15 @@ impl ProgramLoaderInner {
     pub fn new() -> Self {
         ProgramLoaderInner {
             target_paths: Vec::new(),
-            forbidden_paths: Vec::new(),
-            forbidden_program_key: Vec::new(),
             program_bias: HashMap::new(),
             guid_generator: GuidGenerator::new(),
-            program_name_hash: HashSet::new(),
+            program_name_hash: DashSet::new(),
             pinyin_mapper: PinyinMapper::new(),
             is_scan_uwp_programs: true,
-            index_file_paths: Vec::new(),
             index_web_pages: Vec::new(),
             custom_command: Vec::new(),
             loading_time: None,
+            forbidden_paths: Vec::new(),
         }
     }
 
@@ -98,10 +176,8 @@ impl ProgramLoaderInner {
         PartialProgramLoaderConfig {
             target_paths: Some(self.target_paths.clone()),
             forbidden_paths: Some(self.forbidden_paths.clone()),
-            forbidden_program_key: Some(self.forbidden_program_key.clone()),
             program_bias: Some(self.program_bias.clone()),
             is_scan_uwp_programs: Some(self.is_scan_uwp_programs),
-            index_file_paths: Some(self.index_file_paths.clone()),
             index_web_pages: Some(self.index_web_pages.clone()),
             custom_command: Some(self.custom_command.clone()),
         }
@@ -111,30 +187,24 @@ impl ProgramLoaderInner {
     pub fn load_from_config(&mut self, config: &ProgramLoaderConfig) {
         self.target_paths = config.get_target_paths();
         self.forbidden_paths = config.get_forbidden_paths();
-        self.forbidden_program_key = config.get_forbidden_program_key();
         self.program_bias = config.get_program_bias();
         self.is_scan_uwp_programs = config.get_is_scan_uwp_programs();
         self.guid_generator = GuidGenerator::new();
-        self.program_name_hash = HashSet::new();
-        self.index_file_paths = config.get_index_file_paths();
+        self.program_name_hash = DashSet::new();
         self.index_web_pages = config.get_index_web_pages();
         self.custom_command = config.get_custom_command();
     }
     /// 添加目标路径
-    pub fn add_target_path(&mut self, path: String, depth: u32) {
-        self.target_paths.push((path, depth));
-    }
-    /// 添加不扫描的路径
-    pub fn add_forbidden_path(&mut self, path: String) {
-        self.forbidden_paths.push(path);
-    }
-    /// 添加禁止的程序关键字
-    pub fn add_forbidden_program_key(&mut self, key: String) {
-        self.forbidden_program_key.push(key);
+    pub fn add_target_path(&mut self, directory_config: DirectoryConfig) {
+        self.target_paths.push(directory_config);
     }
     /// 设置程序的固定权重偏移
     pub fn add_program_bias(&mut self, key: &str, value: f64, note: String) {
         self.program_bias.insert(key.to_string(), (value, note));
+    }
+    /// 添加不扫描的路径
+    pub fn add_forbidden_path(&mut self, path: String) {
+        self.forbidden_paths.push(path);
     }
     /// 获得程序的固定权重偏移
     pub fn get_program_bias(&self, key: &str) -> f64 {
@@ -170,13 +240,14 @@ impl ProgramLoaderInner {
         vec![lower_name, pinyin_name, first_latter_name, uppercase_name]
     }
     /// 判断一个程序是不是已经添加了
-    fn check_program_is_exist(&mut self, full_name: &str) -> bool {
+    fn check_program_is_exist(&self, full_name: &str) -> bool {
         // 用于判断的名字
         let unique_name = full_name.to_lowercase();
-        // 判断当前的程序有没有被添加过
-        if self.program_name_hash.contains(&unique_name.to_string()) {
+        // 检查程序是否已存在
+        if self.program_name_hash.contains(&unique_name) {
             return true;
         }
+        // 不存在则插入并返回 false
         self.program_name_hash.insert(unique_name.to_string());
         false
     }
@@ -194,9 +265,6 @@ impl ProgramLoaderInner {
         // 添加普通的程序
         let program_infos = self.load_program_from_path();
         result.extend(program_infos);
-        // 添加单体文件
-        let file_infos = self.load_file_from_path();
-        result.extend(file_infos);
         let web_infos = self.load_web();
         result.extend(web_infos);
         let command_infos = self.load_custom_command();
@@ -242,86 +310,71 @@ impl ProgramLoaderInner {
         result
     }
 
-    /// 获取所有的单体文件
-    fn load_file_from_path(&mut self) -> Vec<Arc<Program>> {
-        let mut result = Vec::new();
-        let files = self.index_file_paths.clone();
-        for file_path in &files {
-            // 判断文件的路径是不是有效
-            let path = Path::new(&file_path);
-            if path.is_file() {
+    /// 获取所有的程序
+    fn load_program_from_path(&mut self) -> Vec<Arc<Program>> {
+        let mut result: Vec<Arc<Program>> = Vec::new();
+        for directory in &self.target_paths {
+            let mut program_path: Vec<String> = Vec::new();
+            let checker = PathChecker::new(
+                &directory.pattern,
+                &directory.pattern_type,
+                &directory.excluded_keywords,
+            );
+            if checker.is_err() {
+                let message = checker.unwrap_err();
+                warn!("遇到错误: {}", message);
+                notify("ZeroLaunch-rs", &format!("遇到错误: {}", message));
+                continue;
+            }
+            let checker = Arc::new(checker.unwrap());
+            program_path.extend(
+                self.recursive_visit_dir(
+                    Path::new(&directory.root_path),
+                    directory.max_depth as usize,
+                    checker,
+                )
+                .unwrap(),
+            );
+            // 添加通过地址找到的文件
+            println!("{:?}", program_path);
+            for path_str in program_path {
+                let target_path = path_str;
+                let path = Path::new(&target_path);
                 let show_name = path
                     .file_stem()
                     .and_then(|s| s.to_str())
                     .map(String::from)
                     .unwrap_or_default();
-                let check_name = "[文件]".to_string() + &show_name;
-                if self.check_program_is_exist(&check_name) {
+
+                if self.check_program_is_exist(&show_name) {
                     continue;
                 }
 
                 let guid = self.guid_generator.get_guid();
+
                 let alias: Vec<String> = self.convert_search_keywords(&show_name);
-                let unique_name = check_name.to_lowercase();
+                let unique_name = show_name.to_lowercase();
                 let stable_bias = self.get_program_bias(&unique_name);
+
+                let launch_method = if [".url", ".lnk", ".exe"]
+                    .contains(&path.extension().unwrap().to_str().unwrap())
+                {
+                    LaunchMethod::Path(target_path.clone())
+                } else {
+                    LaunchMethod::File(target_path.clone())
+                };
                 let program = Arc::new(Program {
                     program_guid: guid,
                     show_name,
-                    launch_method: LaunchMethod::File(file_path.clone()),
+                    launch_method: launch_method,
                     search_keywords: alias,
                     stable_bias,
-                    icon_path: file_path.clone(),
+                    icon_path: target_path,
                 });
                 result.push(program);
             }
         }
-        result
-    }
 
-    /// 获取所有的程序
-    fn load_program_from_path(&mut self) -> Vec<Arc<Program>> {
-        let mut program_path: Vec<String> = Vec::new();
-        for path_var in &self.target_paths {
-            let path_str = &path_var.0;
-            let depth = path_var.1;
-            let path = Path::new(path_str);
-            program_path.extend(self.recursive_visit_dir(path, depth as usize).unwrap());
-        }
-        let mut result: Vec<Arc<Program>> = Vec::new();
-
-        // 添加通过地址找到的文件
-        for path_str in program_path {
-            let target_path = path_str;
-            let path = Path::new(&target_path);
-
-            let show_name = path
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .map(String::from)
-                .unwrap_or_default();
-            // 判断当前的文件是不是被禁止的
-            if self.check_program_is_forbidden(&show_name) {
-                continue;
-            }
-            if self.check_program_is_exist(&show_name) {
-                continue;
-            }
-
-            let guid = self.guid_generator.get_guid();
-
-            let alias: Vec<String> = self.convert_search_keywords(&show_name);
-            let unique_name = show_name.to_lowercase();
-            let stable_bias = self.get_program_bias(&unique_name);
-            let program = Arc::new(Program {
-                program_guid: guid,
-                show_name,
-                launch_method: LaunchMethod::Path(target_path.clone()),
-                search_keywords: alias,
-                stable_bias,
-                icon_path: target_path,
-            });
-            result.push(program);
-        }
         // 添加通过uwp找到的文件
         result
     }
@@ -358,13 +411,6 @@ impl ProgramLoaderInner {
             result.push(program);
         }
         result
-    }
-
-    fn check_program_is_forbidden(&self, name: &str) -> bool {
-        let lower_case_name = name.to_lowercase();
-        self.forbidden_program_key
-            .iter()
-            .any(|key| lower_case_name.contains(key))
     }
 
     fn prop_variant_to_string(&self, pv: &PROPVARIANT) -> String {
@@ -676,6 +722,9 @@ impl ProgramLoaderInner {
         }
 
         for str in &self.forbidden_paths {
+            if str.is_empty() {
+                continue;
+            }
             let temp = Path::new(&str);
             // 如果当前的路径以禁止路径开头
             if path.starts_with(temp) {
@@ -686,32 +735,24 @@ impl ProgramLoaderInner {
     }
 
     /// 判断一个目标文件是不是想要的
-    fn is_target_file(&self, path: &Path) -> bool {
+    fn is_target_file(&self, path: &Path, checker: Arc<PathChecker>) -> bool {
         if !path.is_file() && !path.is_symlink() {
             return false;
         }
 
-        let extension = path.extension().and_then(|ext| ext.to_str()).unwrap_or("");
-
-        if !["url", "exe", "lnk"].contains(&extension) {
-            return false;
-        }
-
-        path.file_stem()
-            .and_then(|name| name.to_str())
-            .map(|name| {
-                !self
-                    .forbidden_program_key
-                    .iter()
-                    .any(|key| name.contains(key))
-            })
-            .unwrap_or(false)
+        let file_name = path.file_name().and_then(|ext| ext.to_str()).unwrap();
+        checker.is_match(file_name)
     }
 
     /// 递归遍历一个文件夹
     /// 会自动跳过不可遍历的文件夹
     /// 返回文件夹中所有的文件
-    pub fn recursive_visit_dir(&self, dir: &Path, depth: usize) -> io::Result<Vec<String>> {
+    fn recursive_visit_dir(
+        &self,
+        dir: &Path,
+        depth: usize,
+        checker: Arc<PathChecker>,
+    ) -> io::Result<Vec<String>> {
         if depth == 0 || !self.is_valid_path(dir) {
             return Ok(Vec::new());
         }
@@ -726,7 +767,11 @@ impl ProgramLoaderInner {
                             Ok(entry) => {
                                 let path = entry.path();
                                 if path.is_dir() {
-                                    match self.recursive_visit_dir(&path, depth - 1) {
+                                    match self.recursive_visit_dir(
+                                        &path,
+                                        depth - 1,
+                                        checker.clone(),
+                                    ) {
                                         Ok(sub_result) => result.extend(sub_result),
                                         Err(e) => warn!(
                                             "Error accessing directory {}: {}",
@@ -734,7 +779,7 @@ impl ProgramLoaderInner {
                                             e
                                         ),
                                     }
-                                } else if self.is_target_file(&path) {
+                                } else if self.is_target_file(&path, checker.clone()) {
                                     if let Some(path_str) = path.to_str() {
                                         result.push(path_str.to_string());
                                     }
@@ -774,18 +819,13 @@ impl ProgramLoader {
     }
 
     /// 添加目标路径
-    pub fn add_target_path(&self, path: String, depth: u32) {
-        self.inner.write().add_target_path(path, depth);
+    pub fn add_target_path(&self, directory_config: DirectoryConfig) {
+        self.inner.write().add_target_path(directory_config);
     }
 
     /// 添加不扫描的路径
     pub fn add_forbidden_path(&self, path: String) {
         self.inner.write().add_forbidden_path(path);
-    }
-
-    /// 添加禁止的程序关键字
-    pub fn add_forbidden_program_key(&self, key: String) {
-        self.inner.write().add_forbidden_program_key(key);
     }
 
     /// 设置程序的固定权重偏移
@@ -806,11 +846,6 @@ impl ProgramLoader {
     /// 获得加载时间
     pub fn get_loading_time(&self) -> f64 {
         self.inner.read().get_loading_time()
-    }
-
-    /// 递归遍历一个文件夹
-    pub fn recursive_visit_dir(&self, dir: &Path, depth: usize) -> io::Result<Vec<String>> {
-        self.inner.read().recursive_visit_dir(dir, depth)
     }
 
     /// 将 `ProgramLoaderInner` 转换为 `PartialProgramLoaderConfig`

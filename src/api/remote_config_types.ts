@@ -99,15 +99,21 @@ export type ProgramLauncherConfig = {
     last_update_date: string
 }
 
+export type DirectoryConfig = {
+    root_path: string
+    max_depth: number
+    pattern: string[]
+    pattern_type: string
+    excluded_keywords: string[]
+}
+
 export type ProgramLoaderConfig = {
-    target_paths: [string, number][]
-    forbidden_paths: string[]
-    forbidden_program_key: string[]
+    target_paths: DirectoryConfig[]
     program_bias: { [key: string]: [number, string] }
     is_scan_uwp_programs: boolean
-    index_file_paths: string[]
     index_web_pages: [string, string][]
     custom_command: [string, string][]
+    forbidden_paths: string[]
 }
 
 export type ProgramManagerConfig = {

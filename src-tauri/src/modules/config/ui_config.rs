@@ -153,11 +153,11 @@ impl UiConfigInner {
     }
 
     pub(crate) fn default_item_font_size() -> f64 {
-        50.0
+        33.0
     }
 
     pub(crate) fn default_search_bar_font_size() -> f64 {
-        33.0
+        50.0
     }
 
     pub(crate) fn default_vertical_position_ratio() -> f64 {

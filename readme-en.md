@@ -76,6 +76,7 @@ Specializes in application search functionality—streamlined yet powerful, prov
 * **Web Search**: Create custom web search shortcuts for commonly used websites.
 * **Command Shortcuts**: Define custom commands for rapid execution.
 * **Custom Configuration File Save Path**: Supports custom local storage and WebDAV for network storage.
+* **Game Mode**: Allows manual disabling of shortcuts to prevent the search bar from popping up at critical moments
 
 ## 🚀 Quick Start
 

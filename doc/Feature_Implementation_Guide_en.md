@@ -30,7 +30,7 @@ The program scans default installation paths. To add custom installation paths:
 
 Related: [What is Traversal Depth?](#what-is-traversal-depth)
 
-## Adding Files/URLs/Commands (Including Windows Settings and Consoles)
+## Adding URLs/Commands (Including Windows Settings and Consoles)
 
 1. Open the settings interface
 2. Click "其他搜索"

@@ -1,13 +1,11 @@
-use crate::commands::shortcut;
 use crate::notify;
-use crate::utils::notify;
 use crate::utils::service_locator::ServiceLocator;
 use crate::utils::ui_controller::handle_pressed;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::sync::Arc;
-use std::{collections::HashMap, str::FromStr};
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 use tauri_plugin_global_shortcut::{
     Code, GlobalShortcutExt, Modifiers, Shortcut as TauriShortcut, ShortcutState,
 };
@@ -302,10 +300,10 @@ impl ShortcutManagerInner {
 
         if game_mode {
             // 如果打开了游戏模式
-            self.unregister_all_shortcut();
+            let _ = self.unregister_all_shortcut();
         } else {
             // 如果关闭游戏模式
-            self.register_all_shortcuts();
+            let _ = self.register_all_shortcuts();
         }
     }
 

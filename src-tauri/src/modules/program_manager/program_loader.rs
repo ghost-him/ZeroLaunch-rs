@@ -2,14 +2,12 @@ use super::config::program_loader_config::DirectoryConfig;
 use super::pinyin_mapper::PinyinMapper;
 use super::search_model::*;
 use super::LaunchMethod;
-use crate::error;
 use crate::modules::config::default::APP_PIC_PATH;
 use crate::program_manager::config::program_loader_config::PartialProgramLoaderConfig;
 use crate::program_manager::config::program_loader_config::ProgramLoaderConfig;
 /// 这个类用于加载电脑上程序，通过扫描路径或使用系统调用接口
 use crate::program_manager::Program;
 use crate::utils::defer::defer;
-use crate::utils::notify;
 use crate::utils::notify::notify;
 use crate::utils::windows::get_u16_vec;
 use core::time::Duration;
@@ -19,7 +17,7 @@ use globset::{Glob, GlobSet};
 use image::ImageReader;
 use parking_lot::RwLock;
 use regex::RegexSet;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::fs;
 use std::io;
@@ -37,7 +35,6 @@ use windows::Win32::UI::Shell::PropertiesSystem::{IPropertyStore, PSGetPropertyK
 use windows::Win32::UI::Shell::{
     BHID_EnumItems, IEnumShellItems, IShellItem, SHCreateItemFromParsingName, SIGDN_NORMALDISPLAY,
 };
-use windows_core::Interface;
 use windows_core::PCWSTR;
 #[derive(Debug)]
 struct GuidGenerator {

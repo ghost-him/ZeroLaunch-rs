@@ -1,10 +1,9 @@
+use crate::commands::ui_command::hide_window;
 use crate::modules::config::config_manager::PartialConfig;
 use crate::notify;
 use crate::save_config_to_file;
 use crate::state::app_state::AppState;
 use crate::update_app_setting;
-use crate::utils::ui_controller::handle_pressed;
-use crate::{commands::ui_command::hide_window, core::keyboard_listener::Shortcut};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tauri::Runtime;
@@ -152,8 +151,8 @@ pub async fn command_load_remote_config<R: Runtime>(
 
 #[tauri::command]
 pub async fn open_target_folder<R: Runtime>(
-    app: tauri::AppHandle<R>,
-    window: tauri::Window<R>,
+    _app: tauri::AppHandle<R>,
+    _window: tauri::Window<R>,
     state: tauri::State<'_, Arc<AppState>>,
     program_guid: u64,
 ) -> Result<bool, String> {

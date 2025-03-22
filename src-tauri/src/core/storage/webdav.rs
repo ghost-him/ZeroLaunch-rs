@@ -4,7 +4,7 @@ use crate::storage::storage_manager::StorageClient;
 use crate::storage::storage_manager::{TEST_CONFIG_FILE_DATA, TEST_CONFIG_FILE_NAME};
 use async_trait::async_trait;
 use parking_lot::RwLock;
-use reqwest_dav::{Client, ClientBuilder, DecodeError};
+use reqwest_dav::{Client, ClientBuilder};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 #[derive(Serialize, Deserialize, Debug, Clone)]

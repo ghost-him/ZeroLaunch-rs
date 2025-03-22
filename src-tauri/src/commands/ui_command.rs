@@ -5,7 +5,6 @@ use crate::modules::config::ui_config::PartialUiConfig;
 use crate::state::app_state::AppState;
 use crate::utils::service_locator::ServiceLocator;
 use crate::utils::ui_controller::handle_focus_lost;
-use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tauri::image::Image;
 use tauri::Emitter;

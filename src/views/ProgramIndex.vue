@@ -9,7 +9,7 @@
                         <span>共有 {{ targetPaths.length }} 条记录</span>
                     </div>
 
-                    <el-scrollbar height="300px">
+                    <el-scrollbar>
                         <div v-for="(path, index) in targetPaths" :key="index" class="path-item"
                             :class="{ 'active': selectedPathIndex === index }" @click="selectPath(index)">
                             <div class="path-text">{{ path.root_path || '未设置路径' }}</div>
@@ -24,7 +24,7 @@
                         </div>
                     </el-scrollbar>
 
-                    <el-button type="primary" @click="addTargetPath" class="add-path-btn">
+                    <el-button type="primary" @click="addTargetPath" class="add-path-btn" style="margin-top: 10px;">
                         <el-icon>
                             <Plus />
                         </el-icon> 添加路径
@@ -223,7 +223,7 @@ import { DirectoryConfig } from '../api/remote_config_types';
 
 const configStore = useRemoteConfigStore()
 const { config } = storeToRefs(configStore)
-import { computed, ref, reactive } from 'vue'
+import { computed, ref } from 'vue'
 import { Delete, Plus, ArrowDown, QuestionFilled } from '@element-plus/icons-vue'
 import type { ComputedRef, Ref } from 'vue'
 
@@ -546,6 +546,7 @@ const addKeyFilter = () => {
 }
 
 .path-list-section {
+    font-size: 14px;
     width: 150px;
     min-width: 250px;
     display: flex;
@@ -565,7 +566,6 @@ const addKeyFilter = () => {
 }
 
 .section-header {
-    font: 10px;
     display: flex;
     justify-content: space-between;
     align-items: center;

@@ -4,13 +4,10 @@ use tauri::Manager;
 use crate::utils::service_locator::ServiceLocator;
 use windows::{
     core::*,
-    Win32::{
-        Graphics::Dwm::{
-            DwmExtendFrameIntoClientArea, DwmSetWindowAttribute, DWMWA_BORDER_COLOR,
+    Win32::Graphics::Dwm::{
+            DwmSetWindowAttribute,
             DWMWA_WINDOW_CORNER_PREFERENCE, DWMWINDOWATTRIBUTE,
         },
-        UI::Controls::MARGINS,
-    },
 };
 
 // 更新窗口的状态

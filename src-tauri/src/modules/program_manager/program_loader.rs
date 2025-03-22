@@ -350,8 +350,7 @@ impl ProgramLoaderInner {
                 let alias: Vec<String> = self.convert_search_keywords(&show_name);
                 let unique_name = show_name.to_lowercase();
                 let stable_bias = self.get_program_bias(&unique_name);
-
-                let launch_method = if [".url", ".lnk", ".exe"]
+                let launch_method = if ["url", "lnk", "exe"]
                     .contains(&path.extension().unwrap().to_str().unwrap())
                 {
                     LaunchMethod::Path(target_path.clone())

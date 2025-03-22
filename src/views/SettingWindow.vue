@@ -5,23 +5,23 @@
                 <img src="../assets/icon.svg" alt="Logo" class="logo">
                 <span class="title">选项</span>
             </div>
+            <div class="menu-container">
+                <div v-for="(item, index) in menuItems" :key="index" class="menu-item"
+                    :class="{ active: activeIndex === index }" @click="activeIndex = index">
+                    <el-icon>
+                        <component :is="item.icon"></component>
+                    </el-icon>
+                    <span class="menu-text">{{ item.title }}</span>
+                </div>
 
-            <div v-for="(item, index) in menuItems" :key="index" class="menu-item"
-                :class="{ active: activeIndex === index }" @click="activeIndex = index">
-                <el-icon>
-                    <component :is="item.icon"></component>
-                </el-icon>
-                <span class="menu-text">{{ item.title }}</span>
+                <div v-if="config.app_config.is_debug_mode" class="menu-item" :class="{ active: activeIndex === 999 }"
+                    @click="activeIndex = 999">
+                    <el-icon>
+                        <Monitor />
+                    </el-icon>
+                    <span class="menu-text">调试模式</span>
+                </div>
             </div>
-
-            <div v-if="config.app_config.is_debug_mode" class="menu-item" :class="{ active: activeIndex === 999 }"
-                @click="activeIndex = 999">
-                <el-icon>
-                    <Monitor />
-                </el-icon>
-                <span class="menu-text">调试模式</span>
-            </div>
-
             <div class="footer-item">
                 <el-button type="primary" @click="save_config" :disabled="activeIndex >= 4">
                     <span>保存配置文件</span>
@@ -239,7 +239,6 @@ import {
 import { invoke } from '@tauri-apps/api/core';
 import { ElMessage } from 'element-plus';
 import ProgramIndex from './ProgramIndex.vue';
-import { open } from '@tauri-apps/plugin-dialog';
 import { useRemoteConfigStore } from '../stores/remote_config';
 import { storeToRefs } from 'pinia';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
@@ -248,7 +247,6 @@ import about from "./about.vue";
 import debug from "./debug.vue";
 import ConfigPathSelector from "./ConfigPathSelector.vue";
 import ShortcutSetting from './ShortcutSetting.vue';
-import { DirectoryConfig } from '../api/remote_config_types';
 const configStore = useRemoteConfigStore()
 const { config } = storeToRefs(configStore)
 interface MenuItem {
@@ -399,6 +397,7 @@ body {
     top: 0;
     height: 100vh;
     overflow-y: auto;
+    overflow: hidden;
 }
 
 .header {
@@ -406,6 +405,7 @@ body {
     display: flex;
     align-items: center;
     border-bottom: 1px solid #e6e6e6;
+    flex-shrink: 0;
 }
 
 .logo {
@@ -425,6 +425,12 @@ body {
     padding: 16px;
     cursor: pointer;
     transition: background-color 0.3s;
+}
+
+.menu-container {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
 }
 
 .menu-item:hover {
@@ -447,6 +453,7 @@ body {
     padding: 16px;
     margin-top: auto;
     border-top: 1px solid #e6e6e6;
+    flex-shrink: 0;
 }
 
 .custom-action-button:hover {

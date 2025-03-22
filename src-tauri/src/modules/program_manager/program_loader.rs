@@ -123,7 +123,6 @@ impl PathChecker {
             // 使用正则表达式匹配
             if let Some(ref regex_set) = self.regex {
                 let ret = regex_set.is_match(path);
-                println!("{:?}, {}", path, ret);
                 return ret;
             }
         }
@@ -336,7 +335,6 @@ impl ProgramLoaderInner {
                 .unwrap(),
             );
             // 添加通过地址找到的文件
-            println!("{:?}", program_path);
             for path_str in program_path {
                 let target_path = path_str;
                 let path = Path::new(&target_path);

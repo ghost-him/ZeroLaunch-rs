@@ -1,6 +1,6 @@
 //use crate::core::storage::onedrive::get_onedrive_refresh_token;
 use crate::core::storage::storage_manager::check_validation;
-use crate::modules::config::config_manager::PartialConfig;
+use crate::modules::config::config_manager::PartialRuntimeConfig;
 use crate::modules::config::default::REMOTE_CONFIG_DEFAULT;
 use crate::modules::config::load_local_config;
 use crate::save_config_to_file;
@@ -19,7 +19,7 @@ use tracing::error;
 pub async fn command_save_remote_config<R: Runtime>(
     _app: tauri::AppHandle<R>,
     state: tauri::State<'_, Arc<AppState>>,
-    partial_config: PartialConfig,
+    partial_config: PartialRuntimeConfig,
 ) -> Result<(), String> {
     let runtime_config = state.get_runtime_config().unwrap();
     runtime_config.update(partial_config);

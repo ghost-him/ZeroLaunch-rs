@@ -12,8 +12,7 @@ use crate::commands::program_service::*;
 use crate::commands::shortcut::*;
 use crate::commands::ui_command::*;
 use crate::commands::utils::*;
-use crate::core::keyboard_listener::start_key_listener;
-use crate::modules::config::config_manager::PartialConfig;
+use crate::modules::config::config_manager::PartialRuntimeConfig;
 use crate::modules::config::default::LOCAL_CONFIG_PATH;
 use crate::modules::config::default::LOG_DIR;
 use crate::modules::config::default::REMOTE_CONFIG_DEFAULT;
@@ -39,6 +38,8 @@ use modules::config::load_local_config;
 use modules::config::save_local_config;
 use modules::config::window_state::PartialWindowState;
 use modules::program_manager::{self, ProgramManager};
+use modules::shortcut_manager::shortcut_manager::start_shortcut_manager;
+use modules::shortcut_manager::shortcut_manager::update_shortcut_manager;
 use std::fs::File;
 use std::io::Write;
 use std::panic;
@@ -129,7 +130,7 @@ pub fn run() {
                 // 初始化设置窗口
                 init_setting_window(app.app_handle().clone());
                 // 初始化键盘监听器
-                start_key_listener(app);
+                start_shortcut_manager(app);
                 // 根据配置信息更新整个程序
                 update_app_setting().await;
 
@@ -174,12 +175,11 @@ pub fn run() {
             get_search_keys,
             command_get_default_remote_data_dir_path,
             command_load_local_config,
-            get_all_shortcut,
-            delete_shortcut,
-            register_shortcut,
             command_save_local_config,
             command_check_validation,
             open_target_folder,
+            command_unregister_all_shortcut,
+            command_register_all_shortcut,
             command_change_tray_icon //command_get_onedrive_refresh_token
         ])
         .run(tauri::generate_context!())
@@ -409,6 +409,9 @@ async fn update_app_setting() {
     // 5.更新当前的窗口效果
     enable_window_effect();
 
+    // 6.更新快捷键的绑定
+    update_shortcut_manager();
+
     // 获取主窗口句柄
     if let Ok(handle) = state.get_main_handle() {
         // 发送事件
@@ -462,9 +465,10 @@ pub async fn save_config_to_file(is_update_app: bool) {
     let mut partial_app_config = PartialAppConfig::default();
     partial_app_config.window_position = Some((window.x, window.y));
 
-    runtime_config.update(PartialConfig {
+    runtime_config.update(PartialRuntimeConfig {
         app_config: Some(partial_app_config),
         ui_config: None,
+        shortcut_config: None,
         program_manager_config: Some(runtime_data),
         window_state: None,
     });

@@ -7,6 +7,54 @@ export type Shortcut = {
     meta: boolean,
 }
 
+export type ShortcutConfig = {
+    open_search_bar: Shortcut,
+    arrow_up: Shortcut,
+    arrow_down: Shortcut,
+    arrow_left: Shortcut,
+    arrow_right: Shortcut,
+}
+
+export function default_shortcut_config(): ShortcutConfig {
+    return {
+        open_search_bar: {
+            key: 'Space',
+            ctrl: false,
+            alt: true,
+            shift: false,
+            meta: false,
+        },
+        arrow_up: {
+            key: 'k',
+            ctrl: true,
+            alt: false,
+            shift: false,
+            meta: false,
+        },
+        arrow_down: {
+            key: 'j',
+            ctrl: true,
+            alt: false,
+            shift: false,
+            meta: false,
+        },
+        arrow_left: {
+            key: 'h',
+            ctrl: true,
+            alt: false,
+            shift: false,
+            meta: false,
+        },
+        arrow_right: {
+            key: 'l',
+            ctrl: true,
+            alt: false,
+            shift: false,
+            meta: false,
+        }
+    } as ShortcutConfig;
+}
+
 export type AppConfig = {
     search_bar_placeholder: string
     tips: string
@@ -16,7 +64,6 @@ export type AppConfig = {
     auto_refresh_time: number
     launch_new_on_failure: boolean
     is_debug_mode: boolean
-    shortcut: Shortcut
     is_esc_hide_window_priority: boolean,
     is_enable_drag_window: boolean,
     window_position: [number, number],
@@ -32,13 +79,6 @@ export function default_app_config(): AppConfig {
         auto_refresh_time: 30,
         launch_new_on_failure: false,
         is_debug_mode: false,
-        shortcut: {
-            key: 'Space',
-            ctrl: false,
-            alt: true,
-            shift: false,
-            meta: false,
-        },
         is_esc_hide_window_priority: false,
         is_enable_drag_window: false,
         window_position: [0, 0],
@@ -121,9 +161,10 @@ export type ProgramManagerConfig = {
     loader: ProgramLoaderConfig
 }
 
-export type Config = {
+export type RemoteConfig = {
     app_config: AppConfig
     ui_config: UIConfig
+    shortcut_config: ShortcutConfig
     program_manager_config: {
         launcher: ProgramLauncherConfig
         loader: ProgramLoaderConfig
@@ -134,10 +175,12 @@ export type PartialAppConfig = Partial<AppConfig>
 export type PartialUIConfig = Partial<UIConfig>
 export type PartialProgramLauncherConfig = Partial<ProgramLauncherConfig>
 export type PartialProgramLoaderConfig = Partial<ProgramLoaderConfig>
+export type PartialShortcutConfig = Partial<ShortcutConfig>
 
-export type PartialConfig = {
+export type PartialRemoteConfig = {
     app_config?: PartialAppConfig
     ui_config?: PartialUIConfig
+    shortcut_config?: PartialShortcutConfig
     program_manager_config?: {
         launcher?: PartialProgramLauncherConfig
         loader?: PartialProgramLoaderConfig

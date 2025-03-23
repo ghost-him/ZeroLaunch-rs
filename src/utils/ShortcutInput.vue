@@ -1,19 +1,18 @@
 <template>
     <div class="shortcut-input">
         <label class="shortcut-label">{{ label }}</label>
-        <div class="key-display" :class="{ 'listening': isListening }" @click="startListening" tabindex="0">
+        <div class="key-display" :class="{ 'listening': isListening, 'disabled': disabled }" @click="startListening"
+            tabindex="disabled ? -1 : 0">
             <i class="el-icon-keyboard" v-if="!displayValue"></i>
-            {{ displayValue || '点击设置快捷键' }}
+            {{ displayValue || (disabled ? '已禁用' : '点击设置快捷键') }}
         </div>
     </div>
 </template>
 
-
 <script lang="ts" setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { Shortcut } from '../api/remote_config_types'
 import { PropType } from 'vue';
-import { watch } from 'vue';
 
 const props = defineProps({
     label: {
@@ -24,13 +23,13 @@ const props = defineProps({
         type: Object as PropType<Shortcut | null>,
         default: () => null
     },
-    defaultValue: {
-        type: Object as PropType<Shortcut | null>,
-        default: () => null
+    disabled: {
+        type: Boolean,
+        default: false
     }
 });
 
-const emit = defineEmits(['update:modelValue', 'before-change', 'after-change']);
+const emit = defineEmits(['update:modelValue']);
 
 const shortcut = ref(props.modelValue);
 const isListening = ref(false);
@@ -39,6 +38,11 @@ watch(() => props.modelValue, (newVal) => {
     shortcut.value = newVal;
 });
 
+watch(() => props.disabled, (newVal) => {
+    if (newVal && isListening.value) {
+        stopListening();
+    }
+});
 
 // 显示的快捷键文本
 const displayValue = computed(() => {
@@ -58,7 +62,7 @@ const displayValue = computed(() => {
 
 // 全局按键处理
 const handleDocumentKeyDown = (e: KeyboardEvent) => {
-    if (!isListening.value) return;
+    if (!isListening.value || props.disabled) return;
 
     e.preventDefault();
     e.stopPropagation();
@@ -83,9 +87,8 @@ const handleDocumentKeyUp = () => {
 
 // 开始监听
 function startListening() {
-    if (isListening.value) return;
+    if (isListening.value || props.disabled) return;
 
-    emit('before-change');
     isListening.value = true;
     document.addEventListener('keydown', handleDocumentKeyDown);
     document.addEventListener('keyup', handleDocumentKeyUp);
@@ -96,7 +99,6 @@ function stopListening() {
     if (isListening.value) {
         document.removeEventListener('keydown', handleDocumentKeyDown);
         document.removeEventListener('keyup', handleDocumentKeyUp);
-        emit('after-change');
         isListening.value = false;
     }
 }
@@ -121,7 +123,13 @@ defineExpose({
     stopListening
 })
 </script>
+
 <style scoped>
+.key-display.disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
 .shortcut-input {
     display: flex;
     align-items: center;

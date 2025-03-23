@@ -2,6 +2,7 @@ use crate::core::image_processor::ImageProcessor;
 use crate::modules::config::app_config::PartialAppConfig;
 use crate::modules::config::default::APP_PIC_PATH;
 use crate::modules::config::ui_config::PartialUiConfig;
+use crate::modules::shortcut_manager::shortcut_config::PartialShortcutConfig;
 use crate::state::app_state::AppState;
 use crate::utils::service_locator::ServiceLocator;
 use crate::utils::ui_controller::handle_focus_lost;
@@ -16,11 +17,16 @@ pub async fn update_search_bar_window<R: Runtime>(
     _app: tauri::AppHandle<R>,
     _window: tauri::Window<R>,
     state: tauri::State<'_, Arc<AppState>>,
-) -> Result<(PartialAppConfig, PartialUiConfig), String> {
+) -> Result<(PartialAppConfig, PartialUiConfig, PartialShortcutConfig), String> {
     let runtime_config = state.get_runtime_config().unwrap();
     let app_config = runtime_config.get_app_config();
     let ui_config = runtime_config.get_ui_config();
-    Ok((app_config.to_partial(), ui_config.to_partial()))
+    let shortcut_config = runtime_config.get_shortcut_config();
+    Ok((
+        app_config.to_partial(),
+        ui_config.to_partial(),
+        shortcut_config.to_partial(),
+    ))
 }
 
 #[tauri::command]

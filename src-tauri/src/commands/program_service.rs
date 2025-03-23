@@ -1,5 +1,5 @@
 use crate::commands::ui_command::hide_window;
-use crate::modules::config::config_manager::PartialConfig;
+use crate::modules::config::config_manager::PartialRuntimeConfig;
 use crate::notify;
 use crate::save_config_to_file;
 use crate::state::app_state::AppState;
@@ -144,7 +144,7 @@ pub async fn command_load_remote_config<R: Runtime>(
     _app: tauri::AppHandle<R>,
     _window: tauri::Window<R>,
     state: tauri::State<'_, Arc<AppState>>,
-) -> Result<PartialConfig, String> {
+) -> Result<PartialRuntimeConfig, String> {
     let runtime_config = state.get_runtime_config().unwrap();
     Ok(runtime_config.to_partial())
 }

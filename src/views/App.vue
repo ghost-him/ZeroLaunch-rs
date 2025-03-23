@@ -76,7 +76,7 @@
       <div class="footer-center drag_area"></div>
       <div class="footer-right">
         <span class="open-text">{{ '打开'
-        }}</span>
+          }}</span>
       </div>
     </div>
   </div>
@@ -87,13 +87,14 @@ import { ref, computed, onMounted, watch, onUnmounted, shallowRef } from 'vue'
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core'
 import { reduceOpacity } from '../utils/color';
-import { AppConfig, default_app_config, default_ui_config, PartialAppConfig, PartialUIConfig, UIConfig } from '../api/remote_config_types';
-import SubMenu from './SubMenu.vue';
+import { AppConfig, default_app_config, default_ui_config, PartialAppConfig, PartialUIConfig, ShortcutConfig, UIConfig, default_shortcut_config, PartialShortcutConfig } from '../api/remote_config_types';
+import SubMenu from '../utils/SubMenu.vue';
 import { FolderOpened, Refresh, Setting, StarFilled } from '@element-plus/icons-vue';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-const app_config = ref<AppConfig>(default_app_config())
 
+const app_config = ref<AppConfig>(default_app_config())
 const ui_config = ref<UIConfig>(default_ui_config())
+const shortcut_config = ref<ShortcutConfig>(default_shortcut_config())
 ui_config.value.window_corner_radius
 const searchText = ref('')
 const selectedIndex = ref<number>(0)
@@ -169,9 +170,10 @@ const updateWindow = async () => {
     sendSearchText('');
     const background_picture_data = await invoke<number[]>('get_background_picture');
     const program_count = invoke<number>('get_program_count');
-    const data = await invoke<[PartialAppConfig, PartialUIConfig]>('update_search_bar_window');
+    const data = await invoke<[PartialAppConfig, PartialUIConfig, PartialShortcutConfig]>('update_search_bar_window');
     app_config.value = { ...app_config.value, ...data[0] }
     ui_config.value = { ...ui_config.value, ...data[1] }
+    shortcut_config.value = { ...shortcut_config.value, ...data[2] }
 
     const elements = document.querySelectorAll('.drag_area');
     if (app_config.value.is_enable_drag_window) {
@@ -250,90 +252,115 @@ const launch_program = (itemIndex: number, ctrlKey = false, shiftKey = false) =>
   // 这里可以添加实际的处理逻辑
 }
 
+// 定义操作类型
+enum ActionType {
+  MOVE_DOWN,
+  MOVE_UP,
+  MOVE_RIGHT,
+  MOVE_LEFT,
+  CONFIRM,
+  ESCAPE
+}
+
+// 键盘事件处理函数
 const handleKeyDown = (event: KeyboardEvent) => {
   const isMenuVisible = resultItemMenuRef.value?.isVisible() || false;
 
-  // 处理方向键
-  if (['ArrowDown', 'ArrowUp', 'ArrowRight', 'ArrowLeft'].includes(event.key)) {
-    event.preventDefault(); // 直接阻止默认行为
+  // 检查是否匹配快捷键
+  const matchShortcut = (shortcutConfig: any): boolean => {
+    return event.key.toLowerCase() === shortcutConfig.key.toLowerCase() &&
+      event.ctrlKey === shortcutConfig.ctrl &&
+      event.altKey === shortcutConfig.alt &&
+      event.shiftKey === shortcutConfig.shift &&
+      event.metaKey === shortcutConfig.meta;
+  };
 
-    switch (event.key) {
-      case 'ArrowDown':
-        if (isMenuVisible) {
-          resultItemMenuRef.value?.selectNext();
-        } else {
-          selectedIndex.value = (selectedIndex.value + 1) % app_config.value.search_result_count;
-        }
-        break;
-      case 'ArrowUp':
-        if (isMenuVisible) {
-          resultItemMenuRef.value?.selectPrevious();
-        } else {
-          selectedIndex.value = (selectedIndex.value - 1 + app_config.value.search_result_count) % app_config.value.search_result_count;
-        }
-        break;
-      case 'ArrowRight':
-        if (!isMenuVisible) {
-          handleRightArrow(event);
-        }
-        break;
-      case 'ArrowLeft':
-        if (isMenuVisible) {
-          resultItemMenuRef.value?.hideMenu();
-        }
-        break;
-    }
+  // 处理方向键和快捷键
+  if (event.key === 'ArrowDown' || matchShortcut(shortcut_config.value.arrow_down)) {
+    event.preventDefault();
+    handleAction(ActionType.MOVE_DOWN, isMenuVisible);
     return;
   }
 
-  // 处理Ctrl组合键
-  if (event.ctrlKey) {
-    switch (event.key) {
-      case 'j':
-        event.preventDefault();
-        if (isMenuVisible) {
-          resultItemMenuRef.value?.selectNext();
-        } else {
-          selectedIndex.value = (selectedIndex.value + 1) % app_config.value.search_result_count;
-        }
-        return;
-      case 'k':
-        event.preventDefault();
-        if (isMenuVisible) {
-          resultItemMenuRef.value?.selectPrevious();
-        } else {
-          selectedIndex.value = (selectedIndex.value - 1 + app_config.value.search_result_count) % app_config.value.search_result_count;
-        }
-        return;
-      case 'h':
-        if (isMenuVisible) {
-          event.preventDefault();
-          resultItemMenuRef.value?.hideMenu();
-        }
-        return;
-      case 'l':
-        if (!isMenuVisible) {
-          event.preventDefault();
-          handleRightArrow(event);
-        }
-        return;
-    }
+  if (event.key === 'ArrowUp' || matchShortcut(shortcut_config.value.arrow_up)) {
+    event.preventDefault();
+    handleAction(ActionType.MOVE_UP, isMenuVisible);
+    return;
+  }
+
+  if (event.key === 'ArrowRight' || matchShortcut(shortcut_config.value.arrow_right)) {
+    event.preventDefault();
+    handleAction(ActionType.MOVE_RIGHT, isMenuVisible);
+    return;
+  }
+
+  if (event.key === 'ArrowLeft' || matchShortcut(shortcut_config.value.arrow_left)) {
+    event.preventDefault();
+    handleAction(ActionType.MOVE_LEFT, isMenuVisible);
+    return;
   }
 
   // 处理特殊键
-  switch (event.key) {
-    case 'Enter':
-      event.preventDefault();
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    handleAction(ActionType.CONFIRM, isMenuVisible, event.ctrlKey, event.shiftKey);
+    return;
+  }
+
+  if (event.key === 'Escape') {
+    handleAction(ActionType.ESCAPE, isMenuVisible);
+    return;
+  }
+};
+
+// 处理各种操作的函数
+const handleAction = (
+  action: ActionType,
+  isMenuVisible: boolean,
+  ctrlKey: boolean = false,
+  shiftKey: boolean = false
+) => {
+  switch (action) {
+    case ActionType.MOVE_DOWN:
+      if (isMenuVisible) {
+        resultItemMenuRef.value?.selectNext();
+      } else {
+        selectedIndex.value = (selectedIndex.value + 1) % app_config.value.search_result_count;
+      }
+      break;
+
+    case ActionType.MOVE_UP:
+      if (isMenuVisible) {
+        resultItemMenuRef.value?.selectPrevious();
+      } else {
+        selectedIndex.value = (selectedIndex.value - 1 + app_config.value.search_result_count) % app_config.value.search_result_count;
+      }
+      break;
+
+    case ActionType.MOVE_RIGHT:
+      if (!isMenuVisible) {
+        handleRightArrow(new KeyboardEvent('keydown'));
+      }
+      break;
+
+    case ActionType.MOVE_LEFT:
+      if (isMenuVisible) {
+        resultItemMenuRef.value?.hideMenu();
+      }
+      break;
+
+    case ActionType.CONFIRM:
       if (isMenuVisible) {
         resultItemMenuRef.value?.selectCurrent();
       } else {
-        launch_program(selectedIndex.value, event.ctrlKey, event.shiftKey);
+        launch_program(selectedIndex.value, ctrlKey, shiftKey);
       }
       break;
-    case 'Escape':
+
+    case ActionType.ESCAPE:
       if ((searchText.value.length === 0 && !isMenuVisible) ||
         app_config.value.is_esc_hide_window_priority) {
-        invoke('hide_window').catch(console.error); // 异步处理但不阻塞
+        invoke('hide_window').catch(console.error);
       } else {
         if (isMenuVisible) {
           resultItemMenuRef.value?.hideMenu();

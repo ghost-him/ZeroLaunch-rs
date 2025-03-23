@@ -1,83 +1,203 @@
 <template>
-    <div class="shortcut-settings-container">
-        <el-form-item class="shortcut-form-item">
-            <ShortcutInput ref="ShortcutRef" label="唤醒窗口" v-model="shortcut" @before-change="handleUnbindShortcut"
-                :defaultValue="default_shortcut" @after-change="handleBindShortcut"></ShortcutInput>
-            <el-button class="reset-button" @click="reset_shortcut">
-                <i class="el-icon-refresh-right"></i>
-                重置
-            </el-button>
-        </el-form-item>
+    <div class="shortcut-settings">
+        <div class="shortcut-header">
+            <h2 class="shortcut-title">快捷键设置</h2>
+            <div class="shortcut-actions">
+                <el-button type="primary" @click="edit_shortcut_config" :disabled="is_saving">
+                    <el-icon>
+                        <Edit v-if="!is_editing" />
+                        <Close v-else />
+                    </el-icon>
+                    {{ is_editing ? '取消编辑' : '开始设置' }}
+                </el-button>
+                <el-button type="success" @click="save_shortcut_config" :loading="is_saving" :disabled="!is_editing">
+                    <el-icon>
+                        <Check />
+                    </el-icon>
+                    保存设置
+                </el-button>
+                <el-button type="warning" @click="resetAllShortcuts" :disabled="!is_editing">
+                    <el-icon>
+                        <RefreshLeft />
+                    </el-icon>
+                    重置全部
+                </el-button>
+            </div>
+        </div>
+
+        <el-divider content-position="left">系统快捷键</el-divider>
+        <div class="shortcut-settings-container">
+            <el-form label-position="top" class="shortcut-form">
+                <el-form-item v-for="item in shortcutItems" :key="item.key" class="shortcut-form-item">
+                    <div class="shortcut-item-header">
+                        <div class="shortcut-label">
+                            <el-icon>
+                                <component :is="item.icon" />
+                            </el-icon>
+                            <span>{{ item.label }}</span>
+                        </div>
+                        <el-tooltip :content="item.tooltip" placement="top" effect="light">
+                            <el-icon class="info-icon">
+                                <InfoFilled />
+                            </el-icon>
+                        </el-tooltip>
+                    </div>
+
+                    <div class="shortcut-item-content">
+                        <ShortcutInput v-model="dirty_shortcut_config[item.key]" :disabled="!is_editing"
+                            :placeholder="item.placeholder">
+                        </ShortcutInput>
+
+                        <el-button class="reset-button" type="text" :disabled="!is_editing"
+                            @click="resetShortcut(item.key)">
+                            <el-icon>
+                                <RefreshRight />
+                            </el-icon>
+                            重置
+                        </el-button>
+                    </div>
+                </el-form-item>
+            </el-form>
+        </div>
     </div>
 </template>
 
-
 <script lang="ts" setup>
-import { Shortcut } from '../api/remote_config_types';
+import { default_shortcut_config, ShortcutConfig, Shortcut } from '../api/remote_config_types';
 import ShortcutInput from '../utils/ShortcutInput.vue';
-import { ref } from 'vue';
+import { onUnmounted, ref } from 'vue';
 import { onMounted } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { useRemoteConfigStore } from '../stores/remote_config';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import {
+    Search, ArrowLeft, ArrowRight, ArrowUp, ArrowDown,
+    InfoFilled, Edit, Close, Check, RefreshLeft,
+    RefreshRight
+} from '@element-plus/icons-vue';
+import type { Component } from 'vue'
+const configStore = useRemoteConfigStore();
+const is_editing = ref<boolean>(false);
+const is_saving = ref<boolean>(false);
+const d_shortcut_config: ShortcutConfig = default_shortcut_config();
+const dirty_shortcut_config = ref<ShortcutConfig>({ ...configStore.config.shortcut_config });
 
-const default_shortcut = {
-    key: 'Space',
-    alt: true,
-    ctrl: false,
-    shift: false,
-    meta: false
-} as Shortcut;
+// 定义快捷键标签和描述
+type ShortcutKey = keyof ShortcutConfig;
 
-interface ShortcutUnit {
-    id: string,
-    shortcut: Shortcut,
+const shortcutItems = ref<Array<{
+    key: keyof ShortcutConfig;
+    icon: Component;
+    label: string;
+    tooltip: string;
+    placeholder: string;
+}>>([
+    {
+        key: 'open_search_bar',
+        icon: Search,
+        label: '打开搜索栏',
+        tooltip: '打开搜索窗口的快捷键',
+        placeholder: '例如: Ctrl+Space'
+    },
+    {
+        key: 'arrow_left',
+        icon: ArrowLeft,
+        label: '方向键左',
+        tooltip: '向左移动的快捷键',
+        placeholder: '例如: Left'
+    },
+    {
+        key: 'arrow_right',
+        icon: ArrowRight,
+        label: '方向键右',
+        tooltip: '向右移动的快捷键',
+        placeholder: '例如: Right'
+    },
+    {
+        key: 'arrow_up',
+        icon: ArrowUp,
+        label: '方向键上',
+        tooltip: '向上移动的快捷键',
+        placeholder: '例如: Up'
+    },
+    {
+        key: 'arrow_down',
+        icon: ArrowDown,
+        label: '方向键下',
+        tooltip: '向下移动的快捷键',
+        placeholder: '例如: Down'
+    }
+]);
+
+const edit_shortcut_config = async () => {
+    if (is_editing.value) {
+        // 取消编辑，恢复原始配置
+        dirty_shortcut_config.value = { ...configStore.config.shortcut_config };
+        is_editing.value = false;
+        try {
+            await invoke('command_register_all_shortcut');
+            ElMessage.info("已取消编辑并恢复快捷键");
+        } catch (error) {
+            handleError("快捷键恢复失败:" + error);
+        }
+    } else {
+        try {
+            await invoke('command_unregister_all_shortcut');
+            is_editing.value = true;
+            ElMessage.success({
+                message: "已进入编辑模式，可以设置快捷键",
+                duration: 2000
+            });
+        } catch (error) {
+            handleError("快捷键解绑失败:" + error);
+        }
+    }
 }
 
-const ShortcutRef = ref<InstanceType<typeof ShortcutInput> | null>(null);
-const configStore = useRemoteConfigStore()
-
-const shortcut = ref(default_shortcut as Shortcut);
-const id = ref('');
-const handleUnbindShortcut = async () => {
-    // 直接特殊写法,后期如果多了,这里可以传入目标的id,这样可以实现指定的快捷键的更换
+const save_shortcut_config = async () => {
+    is_saving.value = true;
     try {
-        await invoke('delete_shortcut', { id: id.value });
+        await configStore.updateConfig({ shortcut_config: dirty_shortcut_config.value });
+        await configStore.syncConfig();
+        is_editing.value = false;
+        ElMessage.success({
+            message: "快捷键设置已保存并生效",
+            type: 'success',
+            duration: 2000
+        });
     } catch (error) {
-        handleError("快捷键解绑失败:" + error);
-        ShortcutRef.value?.stopListening();
-        // 可以添加用户提示
-        // showErrorMessage("快捷键解绑失败，请重试");
+        handleError("快捷键保存失败: " + error);
+        try {
+            await invoke('command_register_all_shortcut');
+        } catch (e) {
+            handleError("恢复默认配置失败: " + e);
+        }
+    } finally {
+        is_saving.value = false;
     }
 }
 
-const handleBindShortcut = async () => {
-    console.log("调用了一次");
-    if (!shortcut.value || !id.value) {
-        handleError("快捷键或ID不能为空");
-        // showErrorMessage("快捷键不能为空");
-        return;
-    }
+const resetShortcut = (key: ShortcutKey) => {
+    dirty_shortcut_config.value[key] = d_shortcut_config[key];
+    ElMessage.info(`已重置为默认值`);
+}
+
+const resetAllShortcuts = async () => {
     try {
-        await invoke('register_shortcut', { id: id.value, shortcut: shortcut.value });
-        ElMessage.success("快捷键绑定成功");
-        configStore.updateConfig({ app_config: { shortcut: shortcut.value } });
-        configStore.syncConfig();
-    } catch (error) {
-        handleError("快捷键绑定失败: " + error + "已恢复默认配置");
-        ShortcutRef.value?.stopListening();
-        shortcut.value = default_shortcut;
-        await invoke('register_shortcut', { id: id.value, shortcut: shortcut.value });
-        // showErrorMessage("快捷键绑定失败，可能与系统其他快捷键冲突");
+        await ElMessageBox.confirm(
+            '确定要将所有快捷键重置为默认值吗？',
+            '重置确认',
+            {
+                confirmButtonText: '确定重置',
+                cancelButtonText: '取消',
+                type: 'warning',
+            }
+        );
+        dirty_shortcut_config.value = { ...d_shortcut_config };
+        ElMessage.success("已重置所有快捷键为默认值");
+    } catch {
+        // 用户取消操作
     }
-}
-
-const reset_shortcut = async () => {
-    await handleUnbindShortcut()
-
-    shortcut.value = default_shortcut;
-
-    await handleBindShortcut()
 }
 
 const handleError = (error: string) => {
@@ -85,56 +205,124 @@ const handleError = (error: string) => {
         showClose: true,
         message: error,
         type: 'error',
-    })
+        duration: 5000
+    });
 }
 
-
 onMounted(async () => {
-    try {
-        const data = await invoke<ShortcutUnit[]>('get_all_shortcut');
-        // 目前只有一个快捷键可自定义,所以这里直接特殊写
-        if (data && data.length > 0) {
-            id.value = data[0].id;
-            shortcut.value = data[0].shortcut;
-        } else {
-            console.warn("没有找到可用的快捷键配置");
-        }
-    } catch (error) {
-        handleError("获取快捷键配置失败:" + error);
-        // showErrorMessage("获取快捷键配置失败，请重启应用");
-    }
+    // 初始化逻辑
 })
 
-
+onUnmounted(async () => {
+    if (is_editing.value) {
+        await invoke('command_register_all_shortcut');
+        is_editing.value = false;
+    }
+})
 </script>
 
-
-
 <style scoped>
-.shortcut-form-item {
-    margin-bottom: 24px;
-    background-color: #ffffff;
+.shortcut-settings {
+    max-width: 800px;
+    margin: 0 auto;
     padding: 20px;
+}
+
+.shortcut-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.shortcut-title {
+    font-size: 22px;
+    color: #303133;
+    margin: 0;
+}
+
+.shortcut-actions {
+    display: flex;
+    gap: 12px;
+}
+
+.shortcut-settings-container {
+    margin-top: 20px;
+}
+
+.shortcut-form {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 20px;
+}
+
+.shortcut-form-item {
+    background-color: var(--el-bg-color);
+    padding: 16px;
     border-radius: 8px;
     box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
+    transition: all 0.3s;
+    margin: 0;
+}
+
+.shortcut-form-item:hover {
+    box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.1);
+}
+
+.shortcut-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.shortcut-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 500;
+    color: var(--el-text-color-primary);
+}
+
+.info-icon {
+    color: var(--el-color-info);
+    cursor: pointer;
+    font-size: 16px;
+}
+
+.shortcut-item-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
 }
 
 .reset-button {
-    margin-left: 12px;
-    font-size: 13px;
-    color: #606266;
-    transition: color 0.2s;
-    padding: 7px 12px;
-    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--el-color-primary);
+    transition: all 0.2s;
 }
 
-.reset-button:hover {
-    color: #409eff;
-    background-color: #f0f7ff;
+.reset-button:hover:not(:disabled) {
+    color: var(--el-color-primary-light-3);
+    background-color: var(--el-color-primary-light-9);
+}
+
+.reset-button:disabled {
+    color: var(--el-text-color-disabled);
+    cursor: not-allowed;
 }
 
 :deep(.el-form-item__content) {
     display: flex;
-    align-items: center;
+    flex-direction: column;
+    align-items: stretch;
+}
+
+:deep(.el-divider__text) {
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--el-text-color-secondary);
 }
 </style>

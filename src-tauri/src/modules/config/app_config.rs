@@ -1,4 +1,3 @@
-use crate::core::keyboard_listener::Shortcut;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 
@@ -14,7 +13,6 @@ pub struct PartialAppConfig {
     pub auto_refresh_time: Option<u32>,
     pub launch_new_on_failure: Option<bool>,
     pub is_debug_mode: Option<bool>,
-    pub shortcut: Option<Shortcut>,
     pub is_esc_hide_window_priority: Option<bool>,
     pub is_enable_drag_window: Option<bool>,
     pub window_position: Option<(i32, i32)>,
@@ -31,7 +29,6 @@ impl Default for PartialAppConfig {
             auto_refresh_time: None,
             launch_new_on_failure: None,
             is_debug_mode: None,
-            shortcut: None,
             is_esc_hide_window_priority: None,
             is_enable_drag_window: None,
             window_position: None,
@@ -67,9 +64,6 @@ pub struct AppConfigInner {
     /// 是否是debug模式
     #[serde(default = "AppConfigInner::default_is_debug_mode")]
     pub is_debug_mode: bool,
-    /// 唤醒按钮
-    #[serde(default = "AppConfigInner::default_shortcut")]
-    pub shortcut: Shortcut,
     /// esc键优先隐藏窗口
     #[serde(default = "AppConfigInner::default_is_esc_hide_window_priority")]
     pub is_esc_hide_window_priority: bool,
@@ -92,7 +86,6 @@ impl Default for AppConfigInner {
             auto_refresh_time: Self::default_auto_refresh_time(),
             launch_new_on_failure: Self::default_launch_new_on_failure(),
             is_debug_mode: Self::default_is_debug_mode(),
-            shortcut: Self::default_shortcut(),
             is_esc_hide_window_priority: Self::default_is_esc_hide_window_priority(),
             is_enable_drag_window: Self::default_is_enable_drag_window(),
             window_position: Self::default_window_position(),
@@ -132,10 +125,6 @@ impl AppConfigInner {
     pub(crate) fn default_is_debug_mode() -> bool {
         false
     }
-
-    pub(crate) fn default_shortcut() -> Shortcut {
-        Shortcut::default()
-    }
     pub(crate) fn default_is_esc_hide_window_priority() -> bool {
         false
     }
@@ -174,9 +163,6 @@ impl AppConfigInner {
         if let Some(is_debug_mode) = partial_app_config.is_debug_mode {
             self.is_debug_mode = is_debug_mode;
         }
-        if let Some(shortcut) = partial_app_config.shortcut {
-            self.shortcut = shortcut;
-        }
         if let Some(is_esc_hide) = partial_app_config.is_esc_hide_window_priority {
             self.is_esc_hide_window_priority = is_esc_hide;
         }
@@ -197,7 +183,6 @@ impl AppConfigInner {
             launch_new_on_failure: Some(self.launch_new_on_failure),
             auto_refresh_time: Some(self.auto_refresh_time),
             is_debug_mode: Some(self.is_debug_mode),
-            shortcut: Some(self.shortcut.clone()),
             is_esc_hide_window_priority: Some(self.is_esc_hide_window_priority),
             is_enable_drag_window: Some(self.is_enable_drag_window),
             window_position: Some(self.window_position),
@@ -221,11 +206,6 @@ impl AppConfig {
     pub fn update(&self, partial_app_config: PartialAppConfig) {
         let mut inner = self.inner.write();
         inner.update(partial_app_config);
-    }
-
-    pub fn get_shortcut(&self) -> Shortcut {
-        let inner = self.inner.read();
-        inner.shortcut.clone()
     }
 
     pub fn get_search_bar_placeholder(&self) -> String {

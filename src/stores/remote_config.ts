@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia'
-import { default_ui_config,default_app_config, ProgramManagerConfig, ProgramLauncherConfig, ProgramLoaderConfig, PartialConfig, Config } from '../api/remote_config_types'
+import { default_ui_config,default_app_config, ProgramManagerConfig, ProgramLauncherConfig, ProgramLoaderConfig, PartialRemoteConfig, RemoteConfig } from '../api/remote_config_types'
 import { invoke } from '@tauri-apps/api/core'
 
-function mergeConfig(config: Config , partial: PartialConfig): Config {
+function mergeConfig(config: RemoteConfig , partial: PartialRemoteConfig): RemoteConfig {
     // 合并 app_config
     const app_config = partial.app_config
         ? { ...config.app_config, ...partial.app_config }
@@ -12,6 +12,9 @@ function mergeConfig(config: Config , partial: PartialConfig): Config {
     const ui_config = partial.ui_config
         ? { ...config.ui_config, ...partial.ui_config }
         : config.ui_config;
+
+    // 合并 shortcut_config
+    const shortcut_config = partial.shortcut_config ? { ...config.shortcut_config, ...partial.shortcut_config } : config.shortcut_config;
 
     // 处理 program_manager_config
     const pmPartial = partial.program_manager_config;
@@ -32,14 +35,15 @@ function mergeConfig(config: Config , partial: PartialConfig): Config {
         ...config,
         app_config,
         ui_config,
+        shortcut_config,
         program_manager_config,
     };
 }
 
 function mergePartialConfig(
-    partial1: PartialConfig,
-    partial2: PartialConfig
-): PartialConfig {
+    partial1: PartialRemoteConfig,
+    partial2: PartialRemoteConfig
+): PartialRemoteConfig {
     // 合并 app_config
     const mergedAppConfig =
         partial1.app_config || partial2.app_config
@@ -58,6 +62,12 @@ function mergePartialConfig(
               }
             : undefined;
 
+    // 合并shortcut
+    const shortcutConfig = partial1.shortcut_config || partial2.shortcut_config ? {
+        ...(partial1.shortcut_config || {}),
+        ...(partial2.shortcut_config || {}),
+    } : undefined;
+    
     // 合并 program_manager_config
     const mergedProgramManagerConfig = mergePartialProgramManagerConfig(
         partial1.program_manager_config,
@@ -65,9 +75,10 @@ function mergePartialConfig(
     );
 
     // 构建最终的 PartialConfig 对象
-    const result: PartialConfig = {};
+    const result: PartialRemoteConfig = {};
     if (mergedAppConfig !== undefined) result.app_config = mergedAppConfig;
     if (mergedUiConfig !== undefined) result.ui_config = mergedUiConfig;
+    if (shortcutConfig !== undefined) result.shortcut_config = shortcutConfig;
     if (mergedProgramManagerConfig !== undefined)
         result.program_manager_config = mergedProgramManagerConfig;
 
@@ -76,9 +87,9 @@ function mergePartialConfig(
 
 // 合并 program_manager_config 的辅助函数
 function mergePartialProgramManagerConfig(
-    pm1?: PartialConfig["program_manager_config"],
-    pm2?: PartialConfig["program_manager_config"]
-): PartialConfig["program_manager_config"] | undefined {
+    pm1?: PartialRemoteConfig["program_manager_config"],
+    pm2?: PartialRemoteConfig["program_manager_config"]
+): PartialRemoteConfig["program_manager_config"] | undefined {
     if (!pm1 && !pm2) return undefined;
 
     // 合并 launcher
@@ -100,7 +111,7 @@ function mergePartialProgramManagerConfig(
             : undefined;
 
     // 构建最终的 program_manager_config 对象
-    const mergedPm: PartialConfig["program_manager_config"] = {};
+    const mergedPm: PartialRemoteConfig["program_manager_config"] = {};
     if (mergedLauncher !== undefined) mergedPm.launcher = mergedLauncher;
     if (mergedLoader !== undefined) mergedPm.loader = mergedLoader;
 
@@ -127,19 +138,19 @@ export const useRemoteConfigStore = defineStore('config', {
                     forbidden_paths: [],
                 } as ProgramLoaderConfig
             } as ProgramManagerConfig
-        } as Config,
-        dirtyConfig: {} as PartialConfig
+        } as RemoteConfig,
+        dirtyConfig: {} as PartialRemoteConfig
     }),
     actions: {
         // 从后端加载完整配置
         async loadConfig() {
             console.log("load from backend")
-            const config = await invoke<PartialConfig>('command_load_remote_config')
+            const config = await invoke<PartialRemoteConfig>('command_load_remote_config')
             console.log(typeof config.program_manager_config?.loader?.program_bias)
             this.config = mergeConfig(this.config, config);
         },
         // 更新配置并同步到后端
-        updateConfig(partial: PartialConfig) {
+        updateConfig(partial: PartialRemoteConfig) {
             console.log('更新消息');
             // 1. 更新本地状态（带自定义合并规则）
             this.config = mergeConfig(this.config, partial);

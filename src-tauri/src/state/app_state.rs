@@ -1,6 +1,6 @@
-use crate::core::keyboard_listener::ShortcutManager;
 use crate::core::storage::storage_manager::StorageManager;
 use crate::error::AppError;
+use crate::modules::shortcut_manager::shortcut_manager::ShortcutManager;
 use crate::modules::{config::config_manager::RuntimeConfig, program_manager::ProgramManager};
 use crate::utils::waiting_hashmap::AsyncWaitingHashMap;
 use parking_lot::RwLock;
@@ -32,6 +32,8 @@ pub struct AppState {
     shortcut_manager: RwLock<Option<Arc<ShortcutManager>>>,
     /// 游戏模式
     game_mode: RwLock<bool>,
+    /// 阻止所有的键盘输入
+    is_keyboard_blocked: RwLock<bool>,
 }
 
 impl AppState {
@@ -48,6 +50,7 @@ impl AppState {
             tray_icon: RwLock::new(None),
             shortcut_manager: RwLock::new(None),
             game_mode: RwLock::new(false),
+            is_keyboard_blocked: RwLock::new(false),
         }
     }
 
@@ -185,6 +188,14 @@ impl AppState {
 
     pub fn get_game_mode(&self) -> bool {
         *self.game_mode.read()
+    }
+
+    pub fn set_is_keyboard_blocked(&self, is_keyboard_blocked: bool) {
+        *self.is_keyboard_blocked.write() = is_keyboard_blocked;
+    }
+
+    pub fn get_is_keyboard_blocked(&self) -> bool {
+        *self.is_keyboard_blocked.read()
     }
 }
 

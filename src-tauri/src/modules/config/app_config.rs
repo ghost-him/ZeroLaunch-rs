@@ -16,6 +16,7 @@ pub struct PartialAppConfig {
     pub is_esc_hide_window_priority: Option<bool>,
     pub is_enable_drag_window: Option<bool>,
     pub window_position: Option<(i32, i32)>,
+    pub is_wake_on_fullscreen: Option<bool>,
 }
 
 impl Default for PartialAppConfig {
@@ -32,6 +33,7 @@ impl Default for PartialAppConfig {
             is_esc_hide_window_priority: None,
             is_enable_drag_window: None,
             window_position: None,
+            is_wake_on_fullscreen: None,
         }
     }
 }
@@ -73,6 +75,9 @@ pub struct AppConfigInner {
     /// 上一次的窗口位置
     #[serde(default = "AppConfigInner::default_window_position")]
     pub window_position: (i32, i32),
+    /// 是否在全屏时唤醒窗口
+    #[serde(default = "AppConfigInner::default_is_wake_on_fullscreen")]
+    pub is_wake_on_fullscreen: bool,
 }
 
 impl Default for AppConfigInner {
@@ -89,6 +94,7 @@ impl Default for AppConfigInner {
             is_esc_hide_window_priority: Self::default_is_esc_hide_window_priority(),
             is_enable_drag_window: Self::default_is_enable_drag_window(),
             window_position: Self::default_window_position(),
+            is_wake_on_fullscreen: Self::default_is_wake_on_fullscreen(),
         }
     }
 }
@@ -135,6 +141,10 @@ impl AppConfigInner {
     pub(crate) fn default_window_position() -> (i32, i32) {
         (0, 0)
     }
+
+    pub(crate) fn default_is_wake_on_fullscreen() -> bool {
+        false
+    }
 }
 
 impl AppConfigInner {
@@ -172,6 +182,9 @@ impl AppConfigInner {
         if let Some(position) = partial_app_config.window_position {
             self.window_position = position;
         }
+        if let Some(wake) = partial_app_config.is_wake_on_fullscreen {
+            self.is_wake_on_fullscreen = wake;
+        }
     }
     pub fn to_partial(&self) -> PartialAppConfig {
         PartialAppConfig {
@@ -186,6 +199,7 @@ impl AppConfigInner {
             is_esc_hide_window_priority: Some(self.is_esc_hide_window_priority),
             is_enable_drag_window: Some(self.is_enable_drag_window),
             window_position: Some(self.window_position),
+            is_wake_on_fullscreen: Some(self.is_wake_on_fullscreen),
         }
     }
 }
@@ -266,5 +280,10 @@ impl AppConfig {
     pub fn get_window_position(&self) -> (i32, i32) {
         let inner = self.inner.read();
         inner.window_position
+    }
+
+    pub fn get_is_wake_on_fullscreen(&self) -> bool {
+        let inner = self.inner.read();
+        inner.is_wake_on_fullscreen
     }
 }

@@ -4,8 +4,8 @@ use tauri::Runtime;
 
 #[tauri::command]
 pub async fn command_unregister_all_shortcut<R: Runtime>(
-    app: tauri::AppHandle<R>,
-    window: tauri::Window<R>,
+    _app: tauri::AppHandle<R>,
+    _window: tauri::Window<R>,
     state: tauri::State<'_, Arc<AppState>>,
 ) -> Result<(), String> {
     if state.get_game_mode() {
@@ -17,8 +17,8 @@ pub async fn command_unregister_all_shortcut<R: Runtime>(
 
 #[tauri::command]
 pub async fn command_register_all_shortcut<R: Runtime>(
-    app: tauri::AppHandle<R>,
-    window: tauri::Window<R>,
+    _app: tauri::AppHandle<R>,
+    _window: tauri::Window<R>,
     state: tauri::State<'_, Arc<AppState>>,
 ) -> Result<(), String> {
     let shortcut_manager = state.get_shortcut_manager().unwrap();

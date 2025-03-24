@@ -150,6 +150,7 @@ bun run tauri build
 * [LaunchyQt](https://github.com/samsonwang/LaunchyQt) - UWP應用索引方案
 * [bootstrap](https://icons.bootcss.com/) - 提供了部分的程式圖示
 * [icon-icons](https://icon-icons.com/zh/) - 提供了部分的程式圖示
+* [Follower-v2.0](https://github.com/MrBeanCpp/Follower-v2.0) - 提供了全屏檢測的方案
 
 ## 🎯 todo
 

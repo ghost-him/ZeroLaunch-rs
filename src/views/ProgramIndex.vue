@@ -44,7 +44,7 @@
                             <div class="form-label">搜索深度:</div>
                             <el-input-number v-model="currentPath.max_depth" :min="1" :precision="0"
                                 @change="updateCurrentPath"></el-input-number>
-                            <el-tooltip class="box-item" effect="dark" placement="right-start"
+                            <el-tooltip class="box-item" effect="dark"
                                 content="搜索深度为2表示：搜索当前文件夹下的所有文件 以及 下一层子文件夹中的所有的文件">
                                 <el-icon class="el-question-icon">
                                     <QuestionFilled />

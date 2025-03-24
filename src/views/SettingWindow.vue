@@ -78,7 +78,7 @@
                     <el-form-item label="esc键优先关闭窗口">
                         <el-switch v-model="config.app_config.is_esc_hide_window_priority"
                             @change="(val: boolean) => configStore.updateConfig({ app_config: { is_esc_hide_window_priority: val } })" />
-                        <el-tooltip class="box-item" effect="dark" placement="right-start" content="默认优先清空搜索栏后关闭">
+                        <el-tooltip class="box-item" effect="dark" content="默认优先清空搜索栏后关闭">
                             <el-icon class="el-question-icon">
                                 <QuestionFilled />
                             </el-icon>
@@ -88,8 +88,18 @@
                     <el-form-item label="启用拖动窗口">
                         <el-switch v-model="config.app_config.is_enable_drag_window"
                             @change="(val: boolean) => configStore.updateConfig({ app_config: { is_enable_drag_window: val } })" />
-                        <el-tooltip class="box-item" effect="dark" placement="right-start"
-                            content="程序在下一次打开时会记忆上次的关闭的位置">
+                        <el-tooltip class="box-item" effect="dark" content="程序在下一次打开时会记忆上次的关闭的位置">
+                            <el-icon class="el-question-icon">
+                                <QuestionFilled />
+                            </el-icon>
+                        </el-tooltip>
+                    </el-form-item>
+
+                    <el-form-item label="全屏时是否可以唤醒窗口">
+                        <el-switch v-model="config.app_config.is_wake_on_fullscreen"
+                            @change="(val: boolean) => configStore.updateConfig({ app_config: { is_wake_on_fullscreen: val } })" />
+                        <el-tooltip class="box-item" effect="dark"
+                            content="与游戏模式的区别：游戏模式会取消注册唤醒的快捷键，让游戏可以接受到这个快捷键在，而该选项依然会保留快捷键">
                             <el-icon class="el-question-icon">
                                 <QuestionFilled />
                             </el-icon>
@@ -474,6 +484,7 @@ body {
 }
 
 .content {
+    box-sizing: border-box;
     flex: 1;
     padding: 20px;
     overflow-y: auto;

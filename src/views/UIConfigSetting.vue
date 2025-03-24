@@ -29,8 +29,7 @@
                         <span>%</span>
                     </template>
                 </el-input-number>
-                <el-tooltip class="box-item" effect="dark" placement="right-start"
-                    content="取值：[5, 100]，单位%：80%表示字体的高度为搜索栏高度的80%">
+                <el-tooltip class="box-item" effect="dark" content="取值：[5, 100]，单位%：80%表示字体的高度为搜索栏高度的80%">
                     <el-icon class="el-question-icon">
                         <QuestionFilled />
                     </el-icon>
@@ -44,8 +43,7 @@
                         <span>%</span>
                     </template>
                 </el-input-number>
-                <el-tooltip class="box-item" effect="dark" placement="right-start"
-                    content="取值：[5, 100]，单位%：80%表示字体的高度为结果栏一项高度的80%">
+                <el-tooltip class="box-item" effect="dark" content="取值：[5, 100]，单位%：80%表示字体的高度为结果栏一项高度的80%">
                     <el-icon class="el-question-icon">
                         <QuestionFilled />
                     </el-icon>
@@ -59,8 +57,7 @@
                         <span>%</span>
                     </template>
                 </el-input-number>
-                <el-tooltip class="box-item" effect="dark" placement="right-start"
-                    content="取值：[5, 100]，单位%：80%表示字体的高度为底栏高度的80%">
+                <el-tooltip class="box-item" effect="dark" content="取值：[5, 100]，单位%：80%表示字体的高度为底栏高度的80%">
                     <el-icon class="el-question-icon">
                         <QuestionFilled />
                     </el-icon>
@@ -75,7 +72,7 @@
                     <el-option v-for="item in blur_style_option" :key="item.value" :label="item.label"
                         :value="item.value" />
                 </el-select>
-                <el-tooltip class="box-item" effect="dark" placement="right-start" content="仅支持使用系统圆角">
+                <el-tooltip class="box-item" effect="dark" content="仅支持使用系统圆角">
                     <el-icon class="el-question-icon">
                         <QuestionFilled />
                     </el-icon>
@@ -85,7 +82,7 @@
             <el-form-item label="背景图片的大小">
                 <el-input v-model="config.ui_config.background_size" style="max-width: 120px;" placeholder="cover"
                     @change="(val: string) => configStore.updateConfig({ ui_config: { background_size: val } })" />
-                <el-tooltip class="box-item" effect="dark" placement="right-start"
+                <el-tooltip class="box-item" effect="dark"
                     content="'cover': 缩放图片以完全覆盖元素区域，保持比例；'contain:' 缩放图片以完全显示在元素内，保持比例；'auto':使用图片原始尺寸">
                     <el-icon class="el-question-icon">
                         <QuestionFilled />
@@ -96,7 +93,7 @@
             <el-form-item label="背景图片的位置">
                 <el-input v-model="config.ui_config.background_position" style="max-width: 120px;" placeholder="center"
                     @change="(val: string) => configStore.updateConfig({ ui_config: { background_position: val } })" />
-                <el-tooltip class="box-item" effect="dark" placement="right-start"
+                <el-tooltip class="box-item" effect="dark"
                     content="图片的对齐位置，可选：'center', 'top', 'right', 'bottom', 'left'及其结合，例如: 'right bottom'">
                     <el-icon class="el-question-icon">
                         <QuestionFilled />
@@ -108,7 +105,7 @@
             <el-form-item label="背景图片是否重复显示">
                 <el-input v-model="config.ui_config.background_repeat" style="max-width: 120px;" placeholder="no-repeat"
                     @change="(val: string) => configStore.updateConfig({ ui_config: { background_repeat: val } })" />
-                <el-tooltip class="box-item" effect="dark" placement="right-start"
+                <el-tooltip class="box-item" effect="dark"
                     content="'no-repeat': 不重复；'repeat': 水平和垂直方向都重复；'repeat-x': 仅水平方向重复；'repeat-y': 仅垂直方向重复">
                     <el-icon class="el-question-icon">
                         <QuestionFilled />
@@ -120,8 +117,7 @@
                 <el-input-number v-model="config.ui_config.background_opacity" placeholder="65" :min="0" :max="1"
                     :step="0.1"
                     @change="(val: number) => configStore.updateConfig({ ui_config: { background_opacity: val } })" />
-                <el-tooltip class="box-item" effect="dark" placement="right-start"
-                    content="取值范围：[0, 1]。1表示完全不透明，0表示完全透明">
+                <el-tooltip class="box-item" effect="dark" content="取值范围：[0, 1]。1表示完全不透明，0表示完全透明">
                     <el-icon class="el-question-icon">
                         <QuestionFilled />
                     </el-icon>
@@ -135,8 +131,7 @@
             </el-form-item>
             <el-form-item label="计算一个图片的主题色">
                 <el-button type="primary" @click="get_dominant_color">选择图片</el-button>
-                <el-tooltip class="box-item" effect="dark" placement="right-start"
-                    content="如果不会选择结果栏的选中项颜色，可以使用该功能计算背景图片的主题色">
+                <el-tooltip class="box-item" effect="dark" content="如果不会选择结果栏的选中项颜色，可以使用该功能计算背景图片的主题色">
                     <el-icon class="el-question-icon">
                         <QuestionFilled />
                     </el-icon>
@@ -150,8 +145,7 @@
                 <el-input-number v-model="config.ui_config.vertical_position_ratio" placeholder="0.4" :min="0"
                     :step="0.05" :max="1"
                     @change="(val: number) => configStore.updateConfig({ ui_config: { vertical_position_ratio: val } })" />
-                <el-tooltip class="box-item" effect="dark" placement="right-start"
-                    content="0表示在屏幕顶部，1表示在屏幕底部，0.5表示在屏幕正中间">
+                <el-tooltip class="box-item" effect="dark" content="0表示在屏幕顶部，1表示在屏幕底部，0.5表示在屏幕正中间">
                     <el-icon class="el-question-icon">
                         <QuestionFilled />
                     </el-icon>
@@ -166,7 +160,7 @@
                         <span>px</span>
                     </template>
                 </el-input-number>
-                <el-tooltip class="box-item" effect="dark" placement="right-start" content="单位px：是数字图像的最小单位，是屏幕显示的基本点">
+                <el-tooltip class="box-item" effect="dark" content="单位px：是数字图像的最小单位，是屏幕显示的基本点">
                     <el-icon class="el-question-icon">
                         <QuestionFilled />
                     </el-icon>
@@ -206,7 +200,7 @@
             <el-form-item label="使用windows系统圆角">
                 <el-switch v-model="config.ui_config.use_windows_sys_control_radius"
                     @change="(val: boolean) => configStore.updateConfig({ ui_config: { use_windows_sys_control_radius: val } })" />
-                <el-tooltip class="box-item" effect="dark" placement="right-start" content="仅支持 Windows11 22h2 及以上的版本">
+                <el-tooltip class="box-item" effect="dark" content="仅支持 Windows11 22h2 及以上的版本">
                     <el-icon class="el-question-icon">
                         <QuestionFilled />
                     </el-icon>
@@ -221,7 +215,7 @@
                         <span>px</span>
                     </template>
                 </el-input-number>
-                <el-tooltip class="box-item" effect="dark" placement="right-start" content="使用系统圆角时，无法更改圆角大小">
+                <el-tooltip class="box-item" effect="dark" content="使用系统圆角时，无法更改圆角大小">
                     <el-icon class="el-question-icon">
                         <QuestionFilled />
                     </el-icon>

@@ -150,6 +150,7 @@ Built upon these outstanding open-source projects:
 * [LaunchyQt](https://github.com/samsonwang/LaunchyQt) - UWP app indexing solution
 * [bootstrap](https://icons.bootcss.com/) - Partial application icons
 * [icon-icons](https://icon-icons.com/zh/) - Partial application icons
+* [Follower-v2.0](https://github.com/MrBeanCpp/Follower-v2.0) - Provides a full-screen detection solution
 
 ## 🎯 Roadmap
 

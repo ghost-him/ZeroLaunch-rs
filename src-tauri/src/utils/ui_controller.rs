@@ -5,8 +5,20 @@ use tauri::Manager;
 use tracing::warn;
 
 use super::service_locator::ServiceLocator;
+use super::windows::is_foreground_fullscreen;
 
 pub fn handle_pressed(app_handle: &tauri::AppHandle) {
+    // 如果不是全屏情况下才唤醒
+    let state = ServiceLocator::get_state();
+    let runtime_config = state.get_runtime_config().unwrap();
+    let app_config = runtime_config.get_app_config();
+
+    if !app_config.get_is_wake_on_fullscreen() {
+        if is_foreground_fullscreen() {
+            return;
+        }
+    }
+
     let main_window = Arc::new(app_handle.get_webview_window("main").unwrap());
     main_window.show().unwrap();
     main_window.set_focus().unwrap();

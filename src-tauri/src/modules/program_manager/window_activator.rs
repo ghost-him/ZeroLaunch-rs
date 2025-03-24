@@ -10,6 +10,9 @@ use windows::Win32::Foundation::CloseHandle;
 use windows::Win32::System::Diagnostics::ToolHelp::{
     CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS,
 };
+use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
+use windows::Win32::UI::WindowsAndMessaging::SwitchToThisWindow;
+use windows::Win32::UI::WindowsAndMessaging::SW_SHOW;
 use windows::Win32::{
     Foundation::{FALSE, HWND, LPARAM, TRUE},
     UI::WindowsAndMessaging::{
@@ -62,7 +65,8 @@ impl WindowActivatorInner {
     // 直接使用标题来激活窗口
     fn activate_with_title(&self, program_name: &str) -> bool {
         if let Some(hwnd) = self.get_window_by_title(program_name) {
-            return self.activate_with_hwnd(hwnd);
+            self.activate_with_hwnd(hwnd);
+            return true;
         }
         false
     }
@@ -84,7 +88,8 @@ impl WindowActivatorInner {
             return false;
         }
 
-        self.activate_with_hwnd(hwnd.unwrap())
+        self.activate_with_hwnd(hwnd.unwrap());
+        true
     }
 
     // 根据 exe程序，获得目标的窗口
@@ -136,11 +141,9 @@ impl WindowActivatorInner {
     }
 
     // 将目标hwnd的窗口激活
-    fn activate_with_hwnd(&self, hwnd: HWND) -> bool {
+    fn activate_with_hwnd(&self, hwnd: HWND) {
         unsafe {
-            let _ = ShowWindow(hwnd, SW_RESTORE);
-
-            SetForegroundWindow(hwnd).as_bool()
+            SwitchToThisWindow(hwnd, true);
         }
     }
 

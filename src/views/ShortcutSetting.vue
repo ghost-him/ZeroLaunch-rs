@@ -63,7 +63,7 @@
 </template>
 
 <script lang="ts" setup>
-import { default_shortcut_config, ShortcutConfig, Shortcut } from '../api/remote_config_types';
+import { default_shortcut_config, ShortcutConfig } from '../api/remote_config_types';
 import ShortcutInput from '../utils/ShortcutInput.vue';
 import { onUnmounted, ref } from 'vue';
 import { onMounted } from 'vue';

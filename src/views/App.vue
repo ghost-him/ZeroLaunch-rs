@@ -70,12 +70,12 @@
     <div v-if="ui_config.footer_height > 0" class="footer drag_area"
       :style="{ backgroundColor: ui_config.search_bar_background_color, fontSize: Math.round(ui_config.footer_height * ui_config.footer_font_size / 100) + 'px' }">
       <div class="footer-left">
-        <span class="status-text">{{
+        <span class="status-text" :style="{ color: ui_config.footer_font_color }">{{
           app_config.tips }}</span>
       </div>
       <div class="footer-center drag_area"></div>
       <div class="footer-right">
-        <span class="open-text">{{ '打开'
+        <span class="open-text" :style="{ color: ui_config.footer_font_color }">{{ '打开'
         }}</span>
       </div>
     </div>

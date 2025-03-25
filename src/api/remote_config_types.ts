@@ -108,6 +108,7 @@ export type UIConfig = {
     window_corner_radius: number,
     use_windows_sys_control_radius: boolean,
     footer_font_size: number,
+    footer_font_color: string,
 }
 
 export function default_ui_config(): UIConfig {
@@ -132,6 +133,7 @@ export function default_ui_config(): UIConfig {
         window_corner_radius: 16,
         use_windows_sys_control_radius: false,
         footer_font_size: 33,
+        footer_font_color: '#666666'
     } as UIConfig;
 }
 

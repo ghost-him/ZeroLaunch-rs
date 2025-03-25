@@ -23,6 +23,7 @@ pub struct PartialUiConfig {
     pub window_corner_radius: Option<u32>,
     pub use_windows_sys_control_radius: Option<bool>,
     pub footer_font_size: Option<f64>,
+    pub footer_font_color: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -105,7 +106,13 @@ pub struct UiConfigInner {
     #[serde(default = "UiConfigInner::default_use_windows_sys_control_radius")]
     use_windows_sys_control_radius: bool,
 
+    // 底栏字体的大小
+    #[serde(default = "UiConfigInner::default_footer_font_size")]
     pub footer_font_size: f64,
+
+    // 底栏字体的颜色
+    #[serde(default = "UiConfigInner::default_footer_font_color")]
+    pub footer_font_color: String,
 }
 
 impl Default for UiConfigInner {
@@ -131,6 +138,7 @@ impl Default for UiConfigInner {
             window_corner_radius: Self::default_window_corner_radius(),
             use_windows_sys_control_radius: Self::default_use_windows_sys_control_radius(),
             footer_font_size: Self::default_footer_font_size(),
+            footer_font_color: Self::default_footer_font_color(),
         }
     }
 }
@@ -211,6 +219,9 @@ impl UiConfigInner {
     pub(crate) fn default_footer_font_size() -> f64 {
         33.0
     }
+    pub(crate) fn default_footer_font_color() -> String {
+        "#666666".to_string()
+    }
 }
 
 impl UiConfigInner {
@@ -275,6 +286,9 @@ impl UiConfigInner {
         if let Some(footer_font_size) = partial_ui_config.footer_font_size {
             self.footer_font_size = footer_font_size;
         }
+        if let Some(footer_font_color) = partial_ui_config.footer_font_color {
+            self.footer_font_color = footer_font_color;
+        }
     }
 
     pub fn get_selected_item_color(&self) -> String {
@@ -334,6 +348,7 @@ impl UiConfigInner {
             window_corner_radius: Some(self.window_corner_radius),
             use_windows_sys_control_radius: Some(self.use_windows_sys_control_radius),
             footer_font_size: Some(self.footer_font_size),
+            footer_font_color: Some(self.footer_font_color.clone()),
         }
     }
 }
@@ -456,5 +471,10 @@ impl UiConfig {
     pub fn get_footer_font_size(&self) -> f64 {
         let inner = self.inner.read();
         inner.footer_font_size
+    }
+
+    pub fn get_footer_font_color(&self) -> String {
+        let inner = self.inner.read();
+        inner.footer_font_color.clone()
     }
 }

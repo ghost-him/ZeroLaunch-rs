@@ -29,7 +29,7 @@ use windows::Win32::Graphics::Gdi::{
 use windows::Win32::Storage::FileSystem::FILE_ATTRIBUTE_NORMAL;
 use windows::Win32::UI::Shell::SHFILEINFOW;
 use windows::Win32::UI::Shell::{
-    SHGetFileInfoW, SHGFI_ICON, SHGFI_LARGEICON, SHGFI_USEFILEATTRIBUTES,
+    SHGetFileInfoW, SHGFI_ADDOVERLAYS, SHGFI_ICON, SHGFI_LARGEICON, SHGFI_USEFILEATTRIBUTES,
 };
 use windows::Win32::UI::WindowsAndMessaging::DestroyIcon;
 use windows::Win32::UI::WindowsAndMessaging::HICON;
@@ -111,15 +111,22 @@ impl ImageProcessor {
     /// 从文件提取hicon
     async fn extract_icon_from_file(file_path: String) -> Option<RgbaImage> {
         tauri::async_runtime::spawn_blocking(move || {
-            let _com_init = unsafe {
+            let com_init = unsafe {
                 windows::Win32::System::Com::CoInitializeEx(
                     None,
-                    windows::Win32::System::Com::COINIT_APARTMENTTHREADED
-                        | windows::Win32::System::Com::COINIT_DISABLE_OLE1DDE,
+                    windows::Win32::System::Com::COINIT_MULTITHREADED
+                        | windows::Win32::System::Com::COINIT_DISABLE_OLE1DDE
+                        | windows::Win32::System::Com::COINIT_SPEED_OVER_MEMORY,
                 )
             };
-            defer(|| unsafe {
-                windows::Win32::System::Com::CoUninitialize();
+            if com_init.is_err() {
+                warn!("初始化com库失败：{:?}", com_init);
+            }
+
+            defer(move || unsafe {
+                if com_init.is_ok() {
+                    windows::Win32::System::Com::CoUninitialize();
+                }
             });
             let wide_file_path = get_u16_vec(file_path.clone());
             let mut sh_file_info: SHFILEINFOW = unsafe { std::mem::zeroed() };
@@ -129,7 +136,7 @@ impl ImageProcessor {
                     FILE_ATTRIBUTE_NORMAL,
                     Some(&mut sh_file_info),
                     std::mem::size_of::<SHFILEINFOW>() as u32,
-                    SHGFI_ICON | SHGFI_LARGEICON | SHGFI_USEFILEATTRIBUTES,
+                    SHGFI_ICON | SHGFI_LARGEICON | SHGFI_USEFILEATTRIBUTES | SHGFI_ADDOVERLAYS,
                 )
             };
             // 提前返回 None 如果无法获取图标
@@ -138,7 +145,10 @@ impl ImageProcessor {
                 if result == 0 {
                     warn!("SHGetFileInfoW failed for: {:?}", last_error);
                 } else {
-                    warn!("Failed to extract valid icon from: {:?}", last_error);
+                    warn!(
+                        "Failed to extract valid icon from: {:?}, error: {:?}",
+                        file_path, last_error
+                    );
                 }
                 return None;
             }
@@ -166,7 +176,6 @@ impl ImageProcessor {
             hbmMask: std::mem::zeroed::<HBITMAP>() as HBITMAP,
             hbmColor: std::mem::zeroed::<HBITMAP>() as HBITMAP,
         };
-        debug!("{:?} is valid: {}", icon.0, !icon.is_invalid());
         GetIconInfo(icon, &mut info).unwrap();
         DeleteObject(HGDIOBJ(info.hbmMask.0)).unwrap();
         let mut bitmap: MaybeUninit<BITMAP> = MaybeUninit::uninit();

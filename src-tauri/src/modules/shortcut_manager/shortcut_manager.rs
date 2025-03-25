@@ -180,7 +180,6 @@ impl ShortcutManagerInner {
     /// 取消注册所有的快捷键（用于游戏模式）
     pub fn unregister_all_shortcut(&self) -> Result<(), String> {
         if let Err(e) = self.app_handle.global_shortcut().unregister_all() {
-            println!("取消注册失败: {:?}", e);
             notify("ZeroLaunch-rs", &format!("取消注册失败: {:?}", e));
         }
         Ok(())
@@ -191,7 +190,6 @@ impl ShortcutManagerInner {
         let shortcuts = self.shortcuts.lock();
         for shortcut in shortcuts.keys() {
             if let Err(e) = self.app_handle.global_shortcut().register(shortcut.clone()) {
-                println!("注册快捷键失败: {:?}", e);
                 notify("ZeroLaunch-rs", &format!("注册快捷键失败: {:?}", e));
             }
         }

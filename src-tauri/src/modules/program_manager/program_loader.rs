@@ -254,7 +254,6 @@ impl ProgramLoaderInner {
         let start = Instant::now();
         let mut result = Vec::new();
         if self.is_scan_uwp_programs {
-            info!("添加uwp 应用");
             let uwp_infos = self.load_uwp_program();
             result.extend(uwp_infos);
         }
@@ -415,13 +414,22 @@ impl ProgramLoaderInner {
         let mut ret: Vec<Arc<Program>> = Vec::new();
 
         unsafe {
-            // Initialize COM library
-            if CoInitialize(None).is_err() {
-                warn!("Failed to initialize COM library");
-                return ret;
+            let com_init = unsafe {
+                windows::Win32::System::Com::CoInitializeEx(
+                    None,
+                    windows::Win32::System::Com::COINIT_MULTITHREADED
+                        | windows::Win32::System::Com::COINIT_DISABLE_OLE1DDE
+                        | windows::Win32::System::Com::COINIT_SPEED_OVER_MEMORY,
+                )
+            };
+            if com_init.is_err() {
+                warn!("初始化com库失败：{:?}", com_init);
             }
-            defer(|| {
-                CoUninitialize();
+
+            defer(move || unsafe {
+                if com_init.is_ok() {
+                    windows::Win32::System::Com::CoUninitialize();
+                }
             });
 
             // Create Shell item for AppsFolder

@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tauri::Runtime;
 use tracing::debug;
+use tracing::warn;
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ProgramInfo {
     pub name: String,
@@ -31,6 +32,9 @@ pub async fn load_program_icon<R: Runtime>(
 ) -> Result<Vec<u8>, String> {
     let program_manager = state.get_program_manager().unwrap();
     let result = program_manager.get_icon(&program_guid).await;
+    if result.is_empty() {
+        warn!("id： {}， 获得图标失败！", program_guid);
+    }
 
     Ok(result)
 }

@@ -76,7 +76,7 @@
       <div class="footer-center drag_area"></div>
       <div class="footer-right">
         <span class="open-text">{{ '打开'
-          }}</span>
+        }}</span>
       </div>
     </div>
   </div>
@@ -198,7 +198,7 @@ const updateWindow = async () => {
 }
 
 const startPreloadResource = async (program_count: number) => {
-  const BATCH_SIZE = 10; // 增大批次大小以提升效率
+  const BATCH_SIZE = 100; // 增大批次大小以提升效率
 
   // 释放旧资源
   program_icons.value.forEach(url => URL.revokeObjectURL(url));

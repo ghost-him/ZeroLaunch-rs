@@ -21,6 +21,7 @@ use crate::modules::ui_controller::controller::get_window_render_origin;
 use crate::modules::ui_controller::controller::get_window_size;
 use crate::state::app_state::AppState;
 use crate::tray::init_system_tray;
+use crate::utils::defer::defer;
 use crate::utils::ui_controller::handle_focus_lost;
 use crate::utils::ui_controller::handle_pressed;
 use backtrace::Backtrace;
@@ -51,6 +52,7 @@ use tauri::Emitter;
 use tauri::WebviewUrl;
 use tauri::{Manager, PhysicalPosition, PhysicalSize};
 use tauri_plugin_deep_link::DeepLinkExt;
+use tracing::warn;
 use tracing::Level;
 use tracing::{debug, error, info};
 use tracing_appender::rolling::RollingFileAppender;
@@ -109,6 +111,24 @@ pub fn run() {
     }));
 
     cleanup_old_logs(&LOG_DIR.to_string(), 5);
+
+    let com_init = unsafe {
+        windows::Win32::System::Com::CoInitializeEx(
+            None,
+            windows::Win32::System::Com::COINIT_MULTITHREADED
+                | windows::Win32::System::Com::COINIT_DISABLE_OLE1DDE
+                | windows::Win32::System::Com::COINIT_SPEED_OVER_MEMORY,
+        )
+    };
+    if com_init.is_err() {
+        warn!("初始化com库失败：{:?}", com_init);
+    }
+
+    defer(move || unsafe {
+        if com_init.is_ok() {
+            windows::Win32::System::Com::CoUninitialize();
+        }
+    });
 
     let builder = tauri::Builder::default();
     builder

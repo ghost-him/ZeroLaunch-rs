@@ -10,14 +10,12 @@ use windows::Win32::Foundation::CloseHandle;
 use windows::Win32::System::Diagnostics::ToolHelp::{
     CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS,
 };
-use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
 use windows::Win32::UI::WindowsAndMessaging::SwitchToThisWindow;
-use windows::Win32::UI::WindowsAndMessaging::SW_SHOW;
 use windows::Win32::{
     Foundation::{FALSE, HWND, LPARAM, TRUE},
     UI::WindowsAndMessaging::{
         EnumWindows, GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId,
-        IsWindowVisible, SetForegroundWindow, ShowWindow, SW_RESTORE,
+        IsWindowVisible,
     },
 };
 use windows_core::BOOL;

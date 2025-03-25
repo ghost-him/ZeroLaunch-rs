@@ -171,7 +171,7 @@ impl ShortcutManagerInner {
 
     /// 删除指定ID的快捷键
     pub fn delete_all_shortcut(&self) -> Result<(), String> {
-        self.unregister_all_shortcut();
+        let _ = self.unregister_all_shortcut();
         let mut shortcuts = self.shortcuts.lock();
         shortcuts.clear();
         Ok(())

@@ -137,9 +137,9 @@ pub fn init_system_tray(app: &mut App) {
                 let target_game_mode = !state.get_game_mode();
                 state.set_game_mode(target_game_mode);
                 if target_game_mode {
-                    shortcut_manager.unregister_all_shortcut();
+                    let _ = shortcut_manager.unregister_all_shortcut();
                 } else {
-                    shortcut_manager.register_all_shortcuts();
+                    let _ = shortcut_manager.register_all_shortcuts();
                 }
                 if target_game_mode {
                     let _ = item.set_text("关闭游戏模式");

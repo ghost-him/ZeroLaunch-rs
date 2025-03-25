@@ -15,9 +15,7 @@ use std::path::Path;
 use std::process::Command;
 use tracing::{debug, warn};
 use windows::Win32::Foundation::{GetLastError, ERROR_CANCELLED, ERROR_ELEVATION_REQUIRED};
-use windows::Win32::System::Com::{
-    CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_ALL, COINIT_APARTMENTTHREADED,
-};
+use windows::Win32::System::Com::{CoCreateInstance, CLSCTX_ALL};
 use windows::Win32::UI::Shell::{
     ApplicationActivationManager, IApplicationActivationManager, ShellExecuteExW, AO_NONE,
     SHELLEXECUTEINFOW,
@@ -169,19 +167,17 @@ impl ProgramLauncherInner {
     fn launch_uwp_program(&self, package_family_name: &str) {
         unsafe {
             // Initialize COM
-            let com_init = unsafe {
-                windows::Win32::System::Com::CoInitializeEx(
-                    None,
-                    windows::Win32::System::Com::COINIT_MULTITHREADED
-                        | windows::Win32::System::Com::COINIT_DISABLE_OLE1DDE
-                        | windows::Win32::System::Com::COINIT_SPEED_OVER_MEMORY,
-                )
-            };
+            let com_init = windows::Win32::System::Com::CoInitializeEx(
+                None,
+                windows::Win32::System::Com::COINIT_MULTITHREADED
+                    | windows::Win32::System::Com::COINIT_DISABLE_OLE1DDE
+                    | windows::Win32::System::Com::COINIT_SPEED_OVER_MEMORY,
+            );
             if com_init.is_err() {
                 warn!("初始化com库失败：{:?}", com_init);
             }
 
-            defer(move || unsafe {
+            defer(move || {
                 if com_init.is_ok() {
                     windows::Win32::System::Com::CoUninitialize();
                 }

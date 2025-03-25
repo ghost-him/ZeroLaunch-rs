@@ -19,7 +19,6 @@ use std::io::Cursor;
 use std::mem;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
-use tracing::debug;
 use tracing::warn;
 use windows::Win32::Foundation::GetLastError;
 use windows::Win32::Graphics::Gdi::BITMAP;

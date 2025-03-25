@@ -25,12 +25,9 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
-use tracing::{info, warn};
+use tracing::warn;
 use windows::Win32::Foundation::PROPERTYKEY;
-use windows::Win32::System::Com::{
-    CoInitialize, CoUninitialize,
-    StructuredStorage::{PropVariantClear, PROPVARIANT},
-};
+use windows::Win32::System::Com::StructuredStorage::{PropVariantClear, PROPVARIANT};
 use windows::Win32::UI::Shell::PropertiesSystem::{IPropertyStore, PSGetPropertyKeyFromName};
 use windows::Win32::UI::Shell::{
     BHID_EnumItems, IEnumShellItems, IShellItem, SHCreateItemFromParsingName, SIGDN_NORMALDISPLAY,
@@ -414,19 +411,17 @@ impl ProgramLoaderInner {
         let mut ret: Vec<Arc<Program>> = Vec::new();
 
         unsafe {
-            let com_init = unsafe {
-                windows::Win32::System::Com::CoInitializeEx(
-                    None,
-                    windows::Win32::System::Com::COINIT_MULTITHREADED
-                        | windows::Win32::System::Com::COINIT_DISABLE_OLE1DDE
-                        | windows::Win32::System::Com::COINIT_SPEED_OVER_MEMORY,
-                )
-            };
+            let com_init = windows::Win32::System::Com::CoInitializeEx(
+                None,
+                windows::Win32::System::Com::COINIT_MULTITHREADED
+                    | windows::Win32::System::Com::COINIT_DISABLE_OLE1DDE
+                    | windows::Win32::System::Com::COINIT_SPEED_OVER_MEMORY,
+            );
             if com_init.is_err() {
                 warn!("初始化com库失败：{:?}", com_init);
             }
 
-            defer(move || unsafe {
+            defer(move || {
                 if com_init.is_ok() {
                     windows::Win32::System::Com::CoUninitialize();
                 }

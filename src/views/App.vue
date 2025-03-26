@@ -119,7 +119,6 @@ watch(searchText, (newVal) => {
 })
 
 const sendSearchText = async (text: string) => {
-  console.log(hover_item_color)
   try {
     const results: Array<[number, string]> = await invoke('handle_search_text', { searchText: text });
     searchResults.value = results;
@@ -167,7 +166,6 @@ const refreshDataset = async () => {
 const updateWindow = async () => {
   console.log("updateWindow");
   try {
-    sendSearchText('');
     const background_picture_data = await invoke<number[]>('get_background_picture');
     const program_count = invoke<number>('get_program_count');
     const data = await invoke<[PartialAppConfig, PartialUIConfig, PartialShortcutConfig]>('update_search_bar_window');
@@ -191,7 +189,10 @@ const updateWindow = async () => {
     const url = URL.createObjectURL(blob);
 
     background_picture.value = url;
-    await startPreloadResource(await program_count);
+    await startPreloadResource(await program_count).then(async () => {
+      await sendSearchText('');
+    }
+    );
   } catch (error) {
     console.error('Error in updateWindow:', error);
   }
@@ -432,15 +433,12 @@ const handleRightArrow = (event: KeyboardEvent) => {
   // 获取光标位置
   const cursorPos = input.selectionStart;
   const textLength = searchText.value.length;
-  console.log(cursorPos + ' ' + textLength);
   if (cursorPos !== textLength) {
     // 允许默认的光标移动
     return;
   }
 
   event.preventDefault();
-
-  console.log("显示二级菜单");
   showSubmenuForItem(selectedIndex.value)
 };
 
@@ -458,7 +456,6 @@ const contextResultItemEvent = (index: number, event: MouseEvent) => {
 }
 
 const openFolder = async () => {
-  console.log("打开文件夹");
   await invoke('open_target_folder', { programGuid: searchResults.value[selectedIndex.value][0] })
   // todo:打开对应的文件夹
 }
@@ -474,7 +471,6 @@ const showSubmenuForItem = (index: number) => {
 
   const rect = selectedItem.getBoundingClientRect();
 
-  console.log(rect);
   // 设置子菜单位置 - 在选中项目的右侧显示
   resultItemMenuRef.value?.showMenu({ top: rect.top, left: rect.width });
 };
@@ -504,7 +500,9 @@ onMounted(async () => {
   if (searchBarRef.value) {
     searchBarRef.value.focus()
   }
-  updateWindow()
+  updateWindow();
+  // 在更新完图标后再进行显示的更新
+
   window.addEventListener('click', handleClickOutside);
   unlisten.push(await listen('show_window', () => {
     focusSearchInput();

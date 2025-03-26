@@ -16,7 +16,6 @@ pub fn get_u16_vec<P: AsRef<Path>>(path: P) -> Vec<u16> {
         .chain(std::iter::once(0))
         .collect()
 }
-
 /// 检测当前前台窗口是否处于全屏状态
 pub fn is_foreground_fullscreen() -> bool {
     unsafe {

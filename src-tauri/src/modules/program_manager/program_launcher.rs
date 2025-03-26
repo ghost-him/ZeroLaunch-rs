@@ -167,12 +167,7 @@ impl ProgramLauncherInner {
     fn launch_uwp_program(&self, package_family_name: &str) {
         unsafe {
             // Initialize COM
-            let com_init = windows::Win32::System::Com::CoInitializeEx(
-                None,
-                windows::Win32::System::Com::COINIT_MULTITHREADED
-                    | windows::Win32::System::Com::COINIT_DISABLE_OLE1DDE
-                    | windows::Win32::System::Com::COINIT_SPEED_OVER_MEMORY,
-            );
+            let com_init = windows::Win32::System::Com::CoInitialize(None);
             if com_init.is_err() {
                 warn!("初始化com库失败：{:?}", com_init);
             }

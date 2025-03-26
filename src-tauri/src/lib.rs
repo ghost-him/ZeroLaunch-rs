@@ -112,14 +112,7 @@ pub fn run() {
 
     cleanup_old_logs(&LOG_DIR.to_string(), 5);
 
-    let com_init = unsafe {
-        windows::Win32::System::Com::CoInitializeEx(
-            None,
-            windows::Win32::System::Com::COINIT_MULTITHREADED
-                | windows::Win32::System::Com::COINIT_DISABLE_OLE1DDE
-                | windows::Win32::System::Com::COINIT_SPEED_OVER_MEMORY,
-        )
-    };
+    let com_init = unsafe { windows::Win32::System::Com::CoInitialize(None) };
     if com_init.is_err() {
         warn!("初始化com库失败：{:?}", com_init);
     }
@@ -334,6 +327,8 @@ fn init_search_bar_window(app: &mut App) {
             }
         }
     });
+    // 初始化完成后就隐藏
+    handle_focus_lost(main_window.clone());
 }
 
 ///注册图标的路径

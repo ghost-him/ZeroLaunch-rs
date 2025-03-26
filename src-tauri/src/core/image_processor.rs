@@ -19,6 +19,7 @@ use std::io::Cursor;
 use std::mem;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
+use tracing::info;
 use tracing::warn;
 use windows::Win32::Foundation::GetLastError;
 use windows::Win32::Graphics::Gdi::BITMAP;
@@ -27,9 +28,7 @@ use windows::Win32::Graphics::Gdi::{
 };
 use windows::Win32::Storage::FileSystem::FILE_ATTRIBUTE_NORMAL;
 use windows::Win32::UI::Shell::SHFILEINFOW;
-use windows::Win32::UI::Shell::{
-    SHGetFileInfoW, SHGFI_ADDOVERLAYS, SHGFI_ICON, SHGFI_LARGEICON, SHGFI_USEFILEATTRIBUTES,
-};
+use windows::Win32::UI::Shell::{SHGetFileInfoW, SHGFI_ADDOVERLAYS, SHGFI_ICON, SHGFI_LARGEICON};
 use windows::Win32::UI::WindowsAndMessaging::DestroyIcon;
 use windows::Win32::UI::WindowsAndMessaging::HICON;
 use windows::Win32::UI::WindowsAndMessaging::{GetIconInfo, ICONINFO};
@@ -108,61 +107,99 @@ impl ImageProcessor {
     }
 
     /// 从文件提取hicon
+    /// 这个很奇怪啊，不知道为什么我的这个函数在运行的时候就会出现提取图标失败的问题，有可能是因为我开的并发太大了。
+    /// 但是如果是一个一个的获取图片，速度又会比较慢，所以我这里就搞一个重试机制，目前测下来也没啥问题。
     async fn extract_icon_from_file(file_path: String) -> Option<RgbaImage> {
-        tauri::async_runtime::spawn_blocking(move || {
-            let com_init = unsafe {
-                windows::Win32::System::Com::CoInitializeEx(
-                    None,
-                    windows::Win32::System::Com::COINIT_MULTITHREADED
-                        | windows::Win32::System::Com::COINIT_DISABLE_OLE1DDE
-                        | windows::Win32::System::Com::COINIT_SPEED_OVER_MEMORY,
-                )
-            };
-            if com_init.is_err() {
-                warn!("初始化com库失败：{:?}", com_init);
+        const MAX_RETRIES: u32 = 3;
+
+        for attempt in 0..=MAX_RETRIES {
+            let result = tauri::async_runtime::spawn_blocking({
+                let file_path = file_path.clone();
+                move || {
+                    let com_init = unsafe { windows::Win32::System::Com::CoInitialize(None) };
+                    if com_init.is_err() {
+                        warn!("初始化com库失败：{:?}", com_init);
+                    }
+
+                    defer(move || unsafe {
+                        if com_init.is_ok() {
+                            windows::Win32::System::Com::CoUninitialize();
+                        }
+                    });
+
+                    let wide_file_path = get_u16_vec(file_path.clone());
+                    let mut sh_file_info: SHFILEINFOW = unsafe { std::mem::zeroed() };
+                    let result = unsafe {
+                        SHGetFileInfoW(
+                            PCWSTR::from_raw(wide_file_path.as_ptr()),
+                            FILE_ATTRIBUTE_NORMAL,
+                            Some(&mut sh_file_info),
+                            std::mem::size_of::<SHFILEINFOW>() as u32,
+                            SHGFI_ICON | SHGFI_LARGEICON | SHGFI_ADDOVERLAYS,
+                        )
+                    };
+
+                    // 提前返回 None 如果无法获取图标
+                    if result == 0 {
+                        let last_error = unsafe { GetLastError() };
+                        warn!(
+                            "SHGetFileInfoW failed for: {}, error: {:?}",
+                            file_path, last_error
+                        );
+                        return None;
+                    }
+
+                    if sh_file_info.hIcon.is_invalid() {
+                        warn!(
+                            "Invalid icon handle for: {} (attempt {})",
+                            file_path,
+                            attempt + 1
+                        );
+                        return None;
+                    }
+
+                    let hicon = sh_file_info.hIcon;
+
+                    let result = unsafe {
+                        // 将 HICON 传递给转换函数，并确保在转换完成后才销毁
+                        let image = Self::convert_icon_to_image(hicon);
+                        DestroyIcon(hicon).unwrap(); // 显式销毁
+                        image
+                    };
+
+                    Some(result)
+                }
+            })
+            .await
+            .unwrap();
+
+            if result.is_some() {
+                return result;
             }
 
-            defer(move || unsafe {
-                if com_init.is_ok() {
-                    windows::Win32::System::Com::CoUninitialize();
-                }
-            });
-            let wide_file_path = get_u16_vec(file_path.clone());
-            let mut sh_file_info: SHFILEINFOW = unsafe { std::mem::zeroed() };
-            let result = unsafe {
-                SHGetFileInfoW(
-                    PCWSTR::from_raw(wide_file_path.as_ptr()),
-                    FILE_ATTRIBUTE_NORMAL,
-                    Some(&mut sh_file_info),
-                    std::mem::size_of::<SHFILEINFOW>() as u32,
-                    SHGFI_ICON | SHGFI_LARGEICON | SHGFI_USEFILEATTRIBUTES | SHGFI_ADDOVERLAYS,
-                )
-            };
-            // 提前返回 None 如果无法获取图标
-            if result == 0 || sh_file_info.hIcon.is_invalid() {
-                let last_error = unsafe { GetLastError() };
-                if result == 0 {
-                    warn!("SHGetFileInfoW failed for: {:?}", last_error);
-                } else {
-                    warn!(
-                        "Failed to extract valid icon from: {:?}, error: {:?}",
-                        file_path, last_error
-                    );
-                }
-                return None;
-            }
-            let hicon = sh_file_info.hIcon;
+            // 如果不是最后一次尝试，则等待随机时间后重试
+            if attempt < MAX_RETRIES {
+                // 生成100-200ms之间的随机延迟
+                use rand::{rng, Rng};
+                let delay_ms = rng().random_range(50..=250);
+                tokio::time::sleep(tokio::time::Duration::from_millis(delay_ms)).await;
 
-            let result = unsafe {
-                // 将 HICON 传递给转换函数，并确保在转换完成后才销毁
-                let image = Self::convert_icon_to_image(hicon);
-                DestroyIcon(hicon).unwrap(); // 显式销毁
-                image
-            };
-            Some(result)
-        })
-        .await
-        .unwrap()
+                info!(
+                    "Retrying icon extraction for: {} (attempt {}/{})",
+                    file_path,
+                    attempt + 1,
+                    MAX_RETRIES + 1
+                );
+            }
+        }
+
+        // 所有重试都失败
+        warn!(
+            "All {} attempts to extract icon failed for: {}",
+            MAX_RETRIES + 1,
+            file_path
+        );
+        None
     }
     /// 将icon图像变成raga图像
     unsafe fn convert_icon_to_image(icon: HICON) -> RgbaImage {

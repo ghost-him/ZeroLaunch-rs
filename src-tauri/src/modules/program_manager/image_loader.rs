@@ -4,7 +4,6 @@ use crate::core::image_processor::{ImageIdentity, ImageProcessor};
 use crate::core::storage::utils::read_dir_or_create;
 use crate::modules::config::default::ICON_CACHE_DIR;
 use crate::modules::program_manager::config::image_loader_config::ImageLoaderConfig;
-use crate::modules::program_manager::config::program_manager_config::RuntimeProgramConfig;
 use dashmap::Entry::{Occupied, Vacant};
 use dashmap::{DashMap, DashSet};
 use std::path::Path;
@@ -121,7 +120,7 @@ impl ImageLoaderInner {
 
     /// 获取缓存文件夹中的所有的文件
     fn get_cached_icon_name(&self) -> DashSet<String> {
-        let mut result = DashSet::new();
+        let result = DashSet::new();
         if !self.enable_icon_cache {
             return result;
         }

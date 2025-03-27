@@ -38,7 +38,6 @@ use modules::config::default::{APP_PIC_PATH, REMOTE_CONFIG_NAME};
 use modules::config::load_local_config;
 use modules::config::save_local_config;
 use modules::config::window_state::PartialWindowState;
-use modules::program_manager::config::image_loader_config::ImageLoaderConfig;
 use modules::program_manager::config::image_loader_config::RuntimeImageLoaderConfig;
 use modules::program_manager::config::program_manager_config::RuntimeProgramConfig;
 use modules::program_manager::{self, ProgramManager};

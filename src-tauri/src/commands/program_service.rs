@@ -174,8 +174,8 @@ pub async fn open_target_folder<R: Runtime>(
 
 #[tauri::command]
 pub async fn command_open_icon_cache_dir<R: Runtime>(
-    app: tauri::AppHandle<R>,
-    window: tauri::Window<R>,
+    _app: tauri::AppHandle<R>,
+    _window: tauri::Window<R>,
 ) -> Result<(), String> {
     let target_path = ICON_CACHE_DIR.clone();
     Command::new("explorer")

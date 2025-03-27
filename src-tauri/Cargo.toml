@@ -1,6 +1,6 @@
 [package]
 name = "zerolaunch-rs"
-version = "0.4.9"
+version = "0.4.10"
 description = "🚀 Lightning-fast, accurate, lightweight & pure Windows application launcher!"
 authors = ["ghost-him"]
 edition = "2021"
@@ -18,7 +18,32 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "^2", features = [] }
 
 [dependencies]
-windows = { version = "0.60.0", features = ["Win32_UI_WindowsAndMessaging", "Win32_Foundation", "Win32_Graphics_Gdi", "Management_Deployment", "Win32_System_Threading", "Foundation", "Win32_Security", "Foundation_Collections", "System", "Win32_System_Com", "Win32_System_Com_StructuredStorage", "Win32_UI_Shell", "Storage_Streams", "Win32_UI_Shell_PropertiesSystem", "Win32_System_Variant", "Win32_System_Registry", "Win32_Storage_FileSystem", "Win32_System_Console", "Win32_System_Diagnostics", "Win32_System_Diagnostics_ToolHelp", "Win32_Graphics_Dwm", "Win32_UI_Controls", "Win32_Networking", "Win32_Networking_WinInet"] }
+windows = { version = "0.60.0", features = [
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_Foundation",
+    "Win32_Graphics_Gdi",
+    "Management_Deployment",
+    "Win32_System_Threading",
+    "Foundation",
+    "Win32_Security",
+    "Foundation_Collections",
+    "System",
+    "Win32_System_Com",
+    "Win32_System_Com_StructuredStorage",
+    "Win32_UI_Shell",
+    "Storage_Streams",
+    "Win32_UI_Shell_PropertiesSystem",
+    "Win32_System_Variant",
+    "Win32_System_Registry",
+    "Win32_Storage_FileSystem",
+    "Win32_System_Console",
+    "Win32_System_Diagnostics",
+    "Win32_System_Diagnostics_ToolHelp",
+    "Win32_Graphics_Dwm",
+    "Win32_UI_Controls",
+    "Win32_Networking",
+    "Win32_Networking_WinInet",
+] }
 
 tauri = { version = "^2", features = ["tray-icon", "image-ico", "image-png"] }
 serde = { version = "^1", features = ["derive"] }

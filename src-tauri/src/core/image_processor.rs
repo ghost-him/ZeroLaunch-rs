@@ -1,6 +1,5 @@
 use crate::utils::defer::defer;
 use crate::utils::windows::get_u16_vec;
-use crate::APP_PIC_PATH;
 use core::mem::MaybeUninit;
 use fnv::FnvHasher;
 use image::codecs::png::PngEncoder;

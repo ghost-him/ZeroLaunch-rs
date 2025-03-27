@@ -65,6 +65,10 @@ impl PathChecker {
         pattern_type: &String,
         excluded_keys: &Vec<String>,
     ) -> Result<PathChecker, String> {
+        let mut excluded_keys =excluded_keys.iter()
+            .map(|item| item.to_lowercase())
+            .collect();
+
         match pattern_type.as_str() {
             "Wildcard" => {
                 let mut builder = GlobSetBuilder::new();
@@ -84,7 +88,7 @@ impl PathChecker {
                             .unwrap(),
                     ),
                     regex: None,
-                    excluded_keys: excluded_keys.clone(),
+                    excluded_keys: excluded_keys,
                     is_glob: true,
                 })
             }
@@ -96,7 +100,7 @@ impl PathChecker {
                 Ok(PathChecker {
                     glob: None,
                     regex: Some(regex),
-                    excluded_keys: excluded_keys.clone(),
+                    excluded_keys: excluded_keys,
                     is_glob: false,
                 })
             }
@@ -105,6 +109,7 @@ impl PathChecker {
     }
 
     pub fn is_match(&self, path: &str) -> bool {
+        let path = path.to_lowercase();
         if self.excluded_keys.iter().any(|item| path.contains(item)) {
             return false;
         }
@@ -117,7 +122,7 @@ impl PathChecker {
         } else {
             // 使用正则表达式匹配
             if let Some(ref regex_set) = self.regex {
-                let ret = regex_set.is_match(path);
+                let ret = regex_set.is_match(&path);
                 return ret;
             }
         }

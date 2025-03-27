@@ -114,7 +114,7 @@
                         <!-- 排除关键词表格 -->
                         <div class="form-section">
                             <div class="section-header">
-                                <div class="form-label">排除关键词:</div>
+                                <div class="form-label">排除关键词(大小写不敏感):</div>
                             </div>
                             <div class="keywords-table">
                                 <el-table :data="keywordsTableData" size="small" height="150">

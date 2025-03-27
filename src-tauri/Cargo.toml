@@ -58,6 +58,7 @@ globset = "0.4.16"
 regex = "1.11.1"
 scraper = "0.23.1"
 url = "2.5.4"
+fnv = "1.0.7"
 
 [features]
 default = ["custom-protocol"]

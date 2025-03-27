@@ -1,4 +1,5 @@
 use std::fs;
+use std::fs::ReadDir;
 /// 存放通用工具函数
 use std::io;
 use std::path::Path;
@@ -74,5 +75,17 @@ pub fn get_lnk_target_path(lnk_path: &str) -> Option<String> {
             warn!("无法获取基本路径, path: {}", lnk_path);
             return None;
         }
+    }
+}
+
+/// 读取一个目标目录，如果读到了，则返回数据，如果没有这个目录，则新建这个目录
+pub fn read_dir_or_create<P: AsRef<Path>>(path: P) -> Result<fs::ReadDir, String> {
+    match fs::read_dir(&path) {
+        Ok(dir) => Ok(dir),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => {
+            fs::create_dir_all(&path).map_err(|e| format!("无法创建目录: {}", e))?;
+            fs::read_dir(path).map_err(|e| format!("无法读取新创建的目录: {}", e))
+        }
+        Err(e) => Err(format!("无法读取目录: {}", e)),
     }
 }

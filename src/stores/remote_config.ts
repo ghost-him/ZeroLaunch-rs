@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { default_ui_config,default_app_config, ProgramManagerConfig, ProgramLauncherConfig, ProgramLoaderConfig, PartialRemoteConfig, RemoteConfig } from '../api/remote_config_types'
+import { default_ui_config,default_app_config, ProgramManagerConfig, ProgramLauncherConfig, ProgramLoaderConfig, PartialRemoteConfig, RemoteConfig, ImageLoaderConfig } from '../api/remote_config_types'
 import { invoke } from '@tauri-apps/api/core'
 
 function mergeConfig(config: RemoteConfig , partial: PartialRemoteConfig): RemoteConfig {
@@ -21,15 +21,11 @@ function mergeConfig(config: RemoteConfig , partial: PartialRemoteConfig): Remot
     const pmConfig = config.program_manager_config;
     const program_manager_config = pmPartial
         ?{
-                launcher: pmPartial.launcher
-                    ? { ...pmConfig.launcher, ...pmPartial.launcher }
-                    : pmConfig.launcher,
-                loader: pmPartial.loader
-                    ? { ...pmConfig.loader, ...pmPartial.loader }
-                    : pmConfig.loader,
+                launcher: pmPartial.launcher ? { ...pmConfig.launcher, ...pmPartial.launcher } : pmConfig.launcher,
+                loader: pmPartial.loader ? { ...pmConfig.loader, ...pmPartial.loader } : pmConfig.loader,
+                image_loader: pmConfig.image_loader ? { ...pmConfig.image_loader, ...pmPartial.image_loader}:pmConfig.image_loader
         }
         : pmConfig;
-
     // 返回合并后的新 Config 对象
     return {
         ...config,
@@ -109,12 +105,20 @@ function mergePartialProgramManagerConfig(
                   ...(pm2?.loader || {}),
               }
             : undefined;
+    // 合并 image_loader_config
+    const mergedImageLoaderConfig =
+        pm1?.image_loader || pm2?.image_loader
+            ? {
+                ...(pm1?.image_loader || {}),
+                ...(pm2?.image_loader || {}),
+            }
+            : undefined;
 
     // 构建最终的 program_manager_config 对象
     const mergedPm: PartialRemoteConfig["program_manager_config"] = {};
     if (mergedLauncher !== undefined) mergedPm.launcher = mergedLauncher;
     if (mergedLoader !== undefined) mergedPm.loader = mergedLoader;
-
+    if (mergedImageLoaderConfig !== undefined) mergedPm.image_loader = mergedImageLoaderConfig;
     return Object.keys(mergedPm).length > 0 ? mergedPm : undefined;
 }
 
@@ -136,7 +140,11 @@ export const useRemoteConfigStore = defineStore('config', {
                     index_web_pages: [],
                     custom_command: [],
                     forbidden_paths: [],
-                } as ProgramLoaderConfig
+                } as ProgramLoaderConfig,
+                image_loader: {
+                    enable_icon_cache: true,
+                    enable_online: true,
+                } as ImageLoaderConfig,
             } as ProgramManagerConfig
         } as RemoteConfig,
         dirtyConfig: {} as PartialRemoteConfig

@@ -1,10 +1,12 @@
 use crate::commands::ui_command::hide_window;
 use crate::modules::config::config_manager::PartialRuntimeConfig;
+use crate::modules::config::default::ICON_CACHE_DIR;
 use crate::notify;
 use crate::save_config_to_file;
 use crate::state::app_state::AppState;
 use crate::update_app_setting;
 use serde::{Deserialize, Serialize};
+use std::process::Command;
 use std::sync::Arc;
 use tauri::Runtime;
 use tracing::debug;
@@ -168,4 +170,17 @@ pub async fn open_target_folder<R: Runtime>(
         return Ok(false);
     }
     Ok(true)
+}
+
+#[tauri::command]
+pub async fn command_open_icon_cache_dir<R: Runtime>(
+    app: tauri::AppHandle<R>,
+    window: tauri::Window<R>,
+) -> Result<(), String> {
+    let target_path = ICON_CACHE_DIR.clone();
+    Command::new("explorer")
+        .args(&[&target_path]) // 使用/select参数并指定完整文件路径
+        .spawn()
+        .unwrap();
+    Ok(())
 }

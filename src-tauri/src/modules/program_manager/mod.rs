@@ -8,11 +8,12 @@ pub mod search_model;
 pub mod unit;
 pub mod window_activator;
 use crate::core::image_processor::ImageProcessor;
-use crate::modules::program_manager::image_loader::ImageLoader;
+use crate::modules::program_manager::config::program_manager_config::RuntimeProgramConfig;
 use crate::program_manager::config::program_manager_config::ProgramManagerConfig;
 use crate::program_manager::unit::*;
 use config::program_manager_config::PartialProgramManagerConfig;
 use dashmap::DashMap;
+use image_loader::ImageLoader;
 use program_launcher::ProgramLauncher;
 use program_loader::ProgramLoader;
 use rayon::prelude::*;
@@ -22,6 +23,7 @@ use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::RwLock;
 use window_activator::WindowActivator;
+
 /// 数据处理中心
 #[derive(Debug)]
 pub struct ProgramManagerInner {
@@ -53,9 +55,9 @@ struct SearchMatchResult {
 
 impl ProgramManager {
     /// 初始化，空
-    pub fn new(default_icon_path: String) -> Self {
+    pub fn new(runtime_program_config: RuntimeProgramConfig) -> Self {
         ProgramManager {
-            inner: RwLock::new(ProgramManagerInner::new(default_icon_path)),
+            inner: RwLock::new(ProgramManagerInner::new(runtime_program_config)),
         }
     }
     pub async fn get_runtime_data(&self) -> PartialProgramManagerConfig {
@@ -66,7 +68,7 @@ impl ProgramManager {
     /// 使用配置信息初始化自身与子模块
     pub async fn load_from_config(&self, config: Arc<ProgramManagerConfig>) {
         let mut inner = self.inner.write().await;
-        inner.load_from_config(config);
+        inner.load_from_config(config).await;
     }
     /// 使用搜索算法搜索，并给出指定长度的序列
     /// user_input: 用户输入的字符串
@@ -142,13 +144,13 @@ impl ProgramManager {
 
 impl ProgramManagerInner {
     /// 初始化，空
-    pub fn new(default_icon_path: String) -> Self {
+    pub fn new(runtime_program_config: RuntimeProgramConfig) -> Self {
         ProgramManagerInner {
             program_registry: Vec::new(),
             program_loader: Arc::new(ProgramLoader::new()),
             program_launcher: Arc::new(ProgramLauncher::new()),
             search_fn: standard_search_fn,
-            image_loader: Arc::new(ImageLoader::new(default_icon_path)),
+            image_loader: Arc::new(ImageLoader::new(runtime_program_config.image_loader_config)),
             program_locater: Arc::new(DashMap::new()),
             window_activator: Arc::new(WindowActivator::new()),
         }
@@ -157,17 +159,22 @@ impl ProgramManagerInner {
         PartialProgramManagerConfig {
             launcher: Some(self.program_launcher.get_runtime_data()),
             loader: None,
+            image_loader: None,
         }
     }
 
     /// 使用配置信息初始化自身与子模块
-    pub fn load_from_config(&mut self, config: Arc<ProgramManagerConfig>) {
+    pub async fn load_from_config(&mut self, config: Arc<ProgramManagerConfig>) {
         let program_loader_config = &config.get_loader_config();
         let program_launcher_config = &config.get_launcher_config();
+        let image_loader_config = &config.get_image_loader_config();
         // 初始化子模块
         self.program_loader.load_from_config(program_loader_config);
         self.program_launcher
             .load_from_config(program_launcher_config);
+        self.image_loader
+            .load_from_config(image_loader_config)
+            .await;
         // 从loader中加载程序
         self.program_registry.clear();
         self.program_registry = self.program_loader.load_program();

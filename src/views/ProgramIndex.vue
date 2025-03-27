@@ -210,8 +210,47 @@
         </el-tab-pane>
         <el-tab-pane label="额外设置" style="height: 100%">
             <el-form-item label="扫描UWP应用">
-                <el-switch v-model="is_scan_uwp_programs" @change="updateIsScanUwpPrograms" />
+                <el-switch v-model="config.program_manager_config.loader.is_scan_uwp_programs" @change="(val: boolean) =>
+                    configStore.updateConfig({
+                        program_manager_config: {
+                            loader: { is_scan_uwp_programs: val }
+                        }
+                    })
+                " />
             </el-form-item>
+
+            <el-form-item label="启用联网加载网页图标">
+                <el-switch v-model="config.program_manager_config.image_loader.enable_online" @change="(val: boolean) =>
+                    configStore.updateConfig({
+                        program_manager_config: {
+                            image_loader: { enable_online: val }
+                        }
+                    })
+                " />
+                <el-tooltip class="box-item" effect="dark" content="开启后，即可加载网址的图标，成功获取后会替代默认的图标">
+                    <el-icon class="el-question-icon">
+                        <QuestionFilled />
+                    </el-icon>
+                </el-tooltip>
+            </el-form-item>
+
+            <el-form-item label="启用图标缓存">
+                <el-switch v-model="config.program_manager_config.image_loader.enable_icon_cache" @change="(val: boolean) =>
+                    configStore.updateConfig({
+                        program_manager_config: {
+                            image_loader: { enable_icon_cache: val }
+                        }
+                    })
+                " />
+                <el-tooltip class="box-item" effect="dark" content="为每个程序都在本地保存一份图标，这可以加速图标的加载速度">
+                    <el-icon class="el-question-icon">
+                        <QuestionFilled />
+                    </el-icon>
+                </el-tooltip>
+            </el-form-item>
+            <el-button type="primary" @click="openIconCacheDir">
+                打开图标缓存文件夹
+            </el-button>
         </el-tab-pane>
     </el-tabs>
 </template>
@@ -226,6 +265,7 @@ const { config } = storeToRefs(configStore)
 import { computed, ref } from 'vue'
 import { Delete, Plus, ArrowDown, QuestionFilled } from '@element-plus/icons-vue'
 import type { ComputedRef, Ref } from 'vue'
+import { invoke } from '@tauri-apps/api/core';
 
 // 表格数据项接口
 interface TableItem {
@@ -447,27 +487,6 @@ const addForbiddenPath = () => {
     forbidden_paths.value = [...forbidden_paths.value, ""]
 }
 
-
-const is_scan_uwp_programs = computed({
-    get: () => config.value.program_manager_config.loader.is_scan_uwp_programs,
-    set: (value) => {
-        configStore.updateConfig({
-            program_manager_config: {
-                loader: { is_scan_uwp_programs: value }
-            }
-        })
-    }
-})
-
-const updateIsScanUwpPrograms = () => {
-    configStore.updateConfig({
-        program_manager_config: {
-            loader: { is_scan_uwp_programs: is_scan_uwp_programs.value }
-        }
-    })
-}
-
-
 interface KeyFilterData {
     originalKey: string
     key: string
@@ -535,6 +554,11 @@ const addKeyFilter = () => {
         }
     })
 }
+
+const openIconCacheDir = async () => {
+    await invoke('command_open_icon_cache_dir');
+}
+
 </script>
 
 <style scoped>

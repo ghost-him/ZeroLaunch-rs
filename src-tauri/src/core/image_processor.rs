@@ -2,6 +2,7 @@ use crate::utils::defer::defer;
 use crate::utils::windows::get_u16_vec;
 use crate::APP_PIC_PATH;
 use core::mem::MaybeUninit;
+use fnv::FnvHasher;
 use image::codecs::png::PngEncoder;
 use image::DynamicImage;
 use image::GenericImageView;
@@ -16,8 +17,8 @@ use palette::{IntoColor, Lab, Srgb};
 use rand::Rng;
 use rayon::prelude::*;
 use scraper::{Html, Selector};
-use windows::Win32::Networking::WinInet::INTERNET_CONNECTION;
 use std::ffi::c_void;
+use std::hash::{Hash, Hasher};
 use std::io::Cursor;
 use std::mem;
 use std::path::Path;
@@ -30,6 +31,7 @@ use windows::Win32::Graphics::Gdi::BITMAP;
 use windows::Win32::Graphics::Gdi::{
     DeleteObject, GetBitmapBits, GetObjectW, BITMAPINFOHEADER, BI_RGB, HBITMAP, HGDIOBJ,
 };
+use windows::Win32::Networking::WinInet::INTERNET_CONNECTION;
 use windows::Win32::Storage::FileSystem::FILE_ATTRIBUTE_NORMAL;
 use windows::Win32::UI::Shell::SHFILEINFOW;
 use windows::Win32::UI::Shell::{SHGetFileInfoW, SHGFI_ADDOVERLAYS, SHGFI_ICON, SHGFI_LARGEICON};
@@ -55,6 +57,12 @@ impl ImageIdentity {
             ImageIdentity::Web(path) => path.clone(),
         }
     }
+
+    pub fn get_hash(&self) -> String {
+        let mut hasher = FnvHasher::default();
+        self.get_text().hash(&mut hasher);
+        hasher.finish().to_string()
+    }
 }
 
 pub struct ImageProcessor {}
@@ -64,22 +72,21 @@ impl ImageProcessor {
     pub async fn load_image(icon_identity: &ImageIdentity) -> Vec<u8> {
         match icon_identity {
             ImageIdentity::File(path) => Self::load_image_from_path(path).await,
-            ImageIdentity::Web(url) => {
-                if let Ok(data) = Self::fetch_website_favicon_png(url).await {
-                    Self::convert_image_to_png(data).await.unwrap()
-                } else {
-                    // 默认的图标
-                    let path = APP_PIC_PATH.get("web_page").unwrap();
-                    let path = path.value();
-                    Self::load_image_from_path(path).await
-                }
+            ImageIdentity::Web(url) => Self::load_web_icon(url).await,
+        }
+    }
+
+    async fn load_web_icon(url: &str) -> Vec<u8> {
+        if let Ok(icon_data) = Self::fetch_website_favicon_png(url).await {
+            if let Ok(png_data) = Self::convert_image_to_png(icon_data).await {
+                return png_data;
             }
         }
+        vec![]
     }
 
     /// 获取网站的 PNG 格式图标（favicon）
     async fn fetch_website_favicon_png(url: &str) -> Result<Vec<u8>, String> {
-
         if !Self::is_network_available() {
             println!("当前无网络连接");
             return Err("当前无网络连接".to_string());
@@ -129,7 +136,7 @@ impl ImageProcessor {
 
     fn is_network_available() -> bool {
         use windows::Win32::Networking::WinInet::InternetGetConnectedState;
-        
+
         unsafe {
             let mut flags = INTERNET_CONNECTION::default();
             InternetGetConnectedState(&mut flags, None).is_ok()

@@ -160,9 +160,15 @@ export type ProgramLoaderConfig = {
     forbidden_paths: string[]
 }
 
+export type ImageLoaderConfig = {
+    enable_icon_cache: boolean,
+    enable_online: boolean,
+}
+
 export type ProgramManagerConfig = {
     launcher: ProgramLauncherConfig
     loader: ProgramLoaderConfig
+    image_loader: ImageLoaderConfig
 }
 
 export type RemoteConfig = {
@@ -172,6 +178,7 @@ export type RemoteConfig = {
     program_manager_config: {
         launcher: ProgramLauncherConfig
         loader: ProgramLoaderConfig
+        image_loader: ImageLoaderConfig
     }
 }
 
@@ -179,6 +186,7 @@ export type PartialAppConfig = Partial<AppConfig>
 export type PartialUIConfig = Partial<UIConfig>
 export type PartialProgramLauncherConfig = Partial<ProgramLauncherConfig>
 export type PartialProgramLoaderConfig = Partial<ProgramLoaderConfig>
+export type PartialImageLoaderConfig = Partial<ImageLoaderConfig>
 export type PartialShortcutConfig = Partial<ShortcutConfig>
 
 export type PartialRemoteConfig = {
@@ -188,6 +196,7 @@ export type PartialRemoteConfig = {
     program_manager_config?: {
         launcher?: PartialProgramLauncherConfig
         loader?: PartialProgramLoaderConfig
+        image_loader?: PartialImageLoaderConfig
     }
 }
 

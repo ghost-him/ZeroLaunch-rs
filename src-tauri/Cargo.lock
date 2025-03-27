@@ -7330,6 +7330,7 @@ dependencies = [
  "chrono",
  "dashmap",
  "device_query",
+ "fnv",
  "globset",
  "image 0.25.5",
  "kmeans_colors",

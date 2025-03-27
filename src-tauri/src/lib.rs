@@ -38,6 +38,9 @@ use modules::config::default::{APP_PIC_PATH, REMOTE_CONFIG_NAME};
 use modules::config::load_local_config;
 use modules::config::save_local_config;
 use modules::config::window_state::PartialWindowState;
+use modules::program_manager::config::image_loader_config::ImageLoaderConfig;
+use modules::program_manager::config::image_loader_config::RuntimeImageLoaderConfig;
+use modules::program_manager::config::program_manager_config::RuntimeProgramConfig;
 use modules::program_manager::{self, ProgramManager};
 use modules::shortcut_manager::shortcut_manager::start_shortcut_manager;
 use modules::shortcut_manager::shortcut_manager::update_shortcut_manager;
@@ -193,7 +196,8 @@ pub fn run() {
             open_target_folder,
             command_unregister_all_shortcut,
             command_register_all_shortcut,
-            command_change_tray_icon //command_get_onedrive_refresh_token
+            command_change_tray_icon,
+            command_open_icon_cache_dir //command_get_onedrive_refresh_token
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -234,7 +238,14 @@ async fn init_app_state(app: &mut App) {
     // 维护程序的配置信息
     state.set_runtime_config(Arc::new(runtime_config));
     // 维护程序管理器
-    let program_manager = ProgramManager::new(APP_PIC_PATH.get("tips").unwrap().value().clone());
+    let runtime_program_config = RuntimeProgramConfig {
+        image_loader_config: RuntimeImageLoaderConfig {
+            default_app_icon_path: APP_PIC_PATH.get("tips").unwrap().value().clone(),
+            default_web_icon_path: APP_PIC_PATH.get("web_pages").unwrap().value().clone(),
+        },
+    };
+
+    let program_manager = ProgramManager::new(runtime_program_config);
     state.set_program_manager(Arc::new(program_manager));
 
     // 维护文件管理器
@@ -352,7 +363,7 @@ fn register_icon_path(app: &mut App) {
     );
     let web_icon = resource.join("web_pages.png");
     APP_PIC_PATH.insert(
-        "web_page".to_string(),
+        "web_pages".to_string(),
         web_icon.to_str().unwrap().to_string(),
     );
     let tips_icon = resource.join("tips.png");

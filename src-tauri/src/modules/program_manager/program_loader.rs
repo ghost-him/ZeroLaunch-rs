@@ -2,6 +2,7 @@ use super::config::program_loader_config::DirectoryConfig;
 use super::pinyin_mapper::PinyinMapper;
 use super::search_model::*;
 use super::LaunchMethod;
+use crate::core::image_processor::ImageIdentity;
 use crate::modules::config::default::APP_PIC_PATH;
 use crate::program_manager::config::program_loader_config::PartialProgramLoaderConfig;
 use crate::program_manager::config::program_loader_config::ProgramLoaderConfig;
@@ -295,7 +296,7 @@ impl ProgramLoaderInner {
                 launch_method: LaunchMethod::File(url.clone()),
                 search_keywords: alias,
                 stable_bias,
-                icon_path: APP_PIC_PATH.get("web_page").unwrap().value().clone(),
+                icon_path: ImageIdentity::Web(url.to_string()),
             });
             result.push(program);
         }
@@ -359,7 +360,7 @@ impl ProgramLoaderInner {
                     launch_method: launch_method,
                     search_keywords: alias,
                     stable_bias,
-                    icon_path: target_path,
+                    icon_path: ImageIdentity::File(target_path),
                 });
                 result.push(program);
             }
@@ -390,13 +391,14 @@ impl ProgramLoaderInner {
             let alias = self.convert_search_keywords(&show_name);
             let unique_name = show_name.to_lowercase();
             let stable_bias = self.get_program_bias(&unique_name);
+            let icon_path = APP_PIC_PATH.get("terminal").unwrap().value().clone();
             let program = Arc::new(Program {
                 program_guid: guid,
                 show_name: show_name.clone(),
                 launch_method: LaunchMethod::Command(command.clone()),
                 search_keywords: alias,
                 stable_bias,
-                icon_path: APP_PIC_PATH.get("terminal").unwrap().value().clone(),
+                icon_path: ImageIdentity::File(icon_path),
             });
             result.push(program);
         }
@@ -589,7 +591,7 @@ impl ProgramLoaderInner {
                             launch_method: LaunchMethod::PackageFamilyName(app_id),
                             search_keywords: alias_name,
                             stable_bias,
-                            icon_path,
+                            icon_path: ImageIdentity::File(icon_path),
                         }));
                     }
                 }

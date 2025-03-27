@@ -1,5 +1,5 @@
 use super::unit::Program;
-use crate::core::image_processor::ImageProcessor;
+use crate::core::image_processor::{ImageIdentity, ImageProcessor};
 use dashmap::DashMap;
 use dashmap::Entry::{Occupied, Vacant};
 use std::sync::Arc;
@@ -8,6 +8,7 @@ use winreg::RegKey;
 #[derive(Debug)]
 pub struct ImageLoader {
     default_app_icon_path: String,
+    /// 对 .url文件 的特殊缓存
     icon_path_cache: DashMap<String, String>,
 }
 
@@ -23,26 +24,33 @@ impl ImageLoader {
     }
     /// 加载一个图片
     pub async fn load_image(&self, program: Arc<Program>) -> Vec<u8> {
-        let mut icon_path = program.icon_path.clone();
-        if icon_path.ends_with("url") {
-            let show_name = program.show_name.clone();
-            icon_path = match self.icon_path_cache.entry(show_name) {
-                Occupied(entry) => {
-                    let value = entry.get();
-                    value.to_string()
+        let icon_identity = program.icon_path.clone();
+        match icon_identity {
+            ImageIdentity::File(mut icon_path) => {
+                // 如果是以.url结尾的，则优先看看能不能找到其对应的图标，如果有，则使用这个图标来获得程序图标，如果没有，则使用默认的文件地址获得
+                if icon_path.ends_with("url") {
+                    let show_name = program.show_name.clone();
+                    icon_path = match self.icon_path_cache.entry(show_name) {
+                        Occupied(entry) => {
+                            let value = entry.get();
+                            value.to_string()
+                        }
+                        Vacant(_) => program.icon_path.get_text().clone(),
+                    };
                 }
-                Vacant(_) => program.icon_path.clone(),
-            };
+                // 现在 icon_path 就是
+                let mut pic_bytes: Vec<u8> =
+                    ImageProcessor::load_image(&ImageIdentity::File(icon_path)).await;
+                if pic_bytes.is_empty() {
+                    pic_bytes = ImageProcessor::load_image(&ImageIdentity::File(
+                        self.default_app_icon_path.clone(),
+                    ))
+                    .await;
+                }
+                pic_bytes
+            }
+            ImageIdentity::Web(_) => ImageProcessor::load_image(&program.icon_path).await,
         }
-        let mut pic_bytes: Vec<u8> = self.load_image_from_path(&icon_path).await;
-        if pic_bytes.is_empty() {
-            pic_bytes = self.load_image_from_path(&self.default_app_icon_path).await;
-        }
-        pic_bytes
-    }
-    /// 使用路径加载一个图片
-    async fn load_image_from_path(&self, icon_path: &str) -> Vec<u8> {
-        ImageProcessor::load_image_from_path(icon_path.to_string()).await
     }
 
     /// 获取当前安装程序的图标

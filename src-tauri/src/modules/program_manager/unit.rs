@@ -1,4 +1,5 @@
 // 存放辅助型的小类型
+use crate::core::image_processor::ImageIdentity;
 use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone)]
 pub enum LaunchMethod {
@@ -47,7 +48,7 @@ pub struct Program {
     /// 权重固定偏移量
     pub stable_bias: f64,
     /// 应用程序应该展示的图片的地址
-    pub icon_path: String,
+    pub icon_path: ImageIdentity,
 }
 
 /// 表示搜索测试的结果项

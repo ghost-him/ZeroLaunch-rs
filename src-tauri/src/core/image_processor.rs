@@ -1,5 +1,6 @@
 use crate::utils::defer::defer;
 use crate::utils::windows::get_u16_vec;
+use crate::APP_PIC_PATH;
 use core::mem::MaybeUninit;
 use image::codecs::png::PngEncoder;
 use image::DynamicImage;
@@ -14,6 +15,8 @@ use kmeans_colors::get_kmeans;
 use palette::{IntoColor, Lab, Srgb};
 use rand::Rng;
 use rayon::prelude::*;
+use scraper::{Html, Selector};
+use windows::Win32::Networking::WinInet::INTERNET_CONNECTION;
 use std::ffi::c_void;
 use std::io::Cursor;
 use std::mem;
@@ -21,6 +24,7 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 use tracing::info;
 use tracing::warn;
+use url::Url;
 use windows::Win32::Foundation::GetLastError;
 use windows::Win32::Graphics::Gdi::BITMAP;
 use windows::Win32::Graphics::Gdi::{
@@ -34,10 +38,105 @@ use windows::Win32::UI::WindowsAndMessaging::HICON;
 use windows::Win32::UI::WindowsAndMessaging::{GetIconInfo, ICONINFO};
 use windows_core::BOOL;
 use windows_core::PCWSTR;
+
+/// 图片的身份标识，根据不同的身份，使用不同的函数来获取
+#[derive(Debug, Clone)]
+pub enum ImageIdentity {
+    /// 普通的文件类型 => 获取路径的图片，如果是图片则返回png格式，如果是普通文件，则获取图标的png格式
+    File(String),
+    /// 网页类型 => 获取目标网站的图标
+    Web(String),
+}
+
+impl ImageIdentity {
+    pub fn get_text(&self) -> String {
+        match self {
+            ImageIdentity::File(path) => path.clone(),
+            ImageIdentity::Web(path) => path.clone(),
+        }
+    }
+}
+
 pub struct ImageProcessor {}
 
 impl ImageProcessor {
-    pub async fn load_image_from_path(icon_path: String) -> Vec<u8> {
+    /// 传入图片标识，返回png格式的数据
+    pub async fn load_image(icon_identity: &ImageIdentity) -> Vec<u8> {
+        match icon_identity {
+            ImageIdentity::File(path) => Self::load_image_from_path(path).await,
+            ImageIdentity::Web(url) => {
+                if let Ok(data) = Self::fetch_website_favicon_png(url).await {
+                    Self::convert_image_to_png(data).await.unwrap()
+                } else {
+                    // 默认的图标
+                    let path = APP_PIC_PATH.get("web_page").unwrap();
+                    let path = path.value();
+                    Self::load_image_from_path(path).await
+                }
+            }
+        }
+    }
+
+    /// 获取网站的 PNG 格式图标（favicon）
+    async fn fetch_website_favicon_png(url: &str) -> Result<Vec<u8>, String> {
+
+        if !Self::is_network_available() {
+            println!("当前无网络连接");
+            return Err("当前无网络连接".to_string());
+        }
+
+        // 获取网页内容
+        let response = reqwest::get(url)
+            .await
+            .map_err(|e| format!("Failed to fetch website: {}", e))?;
+
+        let html_content = response
+            .text()
+            .await
+            .map_err(|e| format!("Failed to read response text: {}", e))?;
+
+        // 将 HTML 解析和图标 URL 提取放在一个同步代码块中
+        let icon_url = {
+            let document = Html::parse_document(&html_content);
+
+            let icon_selector = Selector::parse(r#"link[rel="icon"], link[rel="shortcut icon"]"#)
+                .map_err(|e| format!("Failed to parse CSS selector: {}", e))?;
+
+            let base_url =
+                Url::parse(url).map_err(|e| format!("Failed to parse base URL: {}", e))?;
+
+            document
+                .select(&icon_selector)
+                .next()
+                .and_then(|e| e.value().attr("href"))
+                .and_then(|href| base_url.join(href).ok())
+                .unwrap_or_else(|| base_url.join("/favicon.ico").unwrap())
+                .to_string()
+        };
+
+        // 下载图标
+        let icon_response = reqwest::get(&icon_url)
+            .await
+            .map_err(|e| format!("Failed to fetch favicon from {}: {}", icon_url, e))?;
+
+        let icon_data = icon_response
+            .bytes()
+            .await
+            .map_err(|e| format!("Failed to read favicon bytes: {}", e))?;
+
+        Ok(icon_data.to_vec())
+    }
+
+    fn is_network_available() -> bool {
+        use windows::Win32::Networking::WinInet::InternetGetConnectedState;
+        
+        unsafe {
+            let mut flags = INTERNET_CONNECTION::default();
+            InternetGetConnectedState(&mut flags, None).is_ok()
+        }
+    }
+    /// 传入目标路径，返回对对应的图片或图标
+    async fn load_image_from_path(icon_path: &str) -> Vec<u8> {
         // 读取程序图标
         let mut img: Option<Vec<u8>> = None;
         if Self::is_program(&icon_path) {
@@ -61,17 +160,22 @@ impl ImageProcessor {
         return vec![];
     }
 
-    // 读取本地图片，并将其转化为png图片
     async fn load_and_convert_to_png<P: AsRef<Path>>(
         file_path: P,
     ) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
         // 异步读取文件内容
         let file_content = tokio::fs::read(file_path.as_ref()).await?;
 
+        Self::convert_image_to_png(file_content).await
+    }
+
+    async fn convert_image_to_png(
+        image_data: Vec<u8>,
+    ) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
         // 在阻塞线程中处理图像
         tauri::async_runtime::spawn_blocking(move || {
             // 创建带有格式猜测的图像读取器
-            let img_reader = ImageReader::new(Cursor::new(file_content)).with_guessed_format()?;
+            let img_reader = ImageReader::new(Cursor::new(image_data)).with_guessed_format()?;
 
             // 读取图像格式
             let format = img_reader.format().ok_or("无法检测格式")?;
@@ -109,9 +213,9 @@ impl ImageProcessor {
     /// 从文件提取hicon
     /// 这个很奇怪啊，不知道为什么我的这个函数在运行的时候就会出现提取图标失败的问题，有可能是因为我开的并发太大了。
     /// 但是如果是一个一个的获取图片，速度又会比较慢，所以我这里就搞一个重试机制，目前测下来也没啥问题。
-    async fn extract_icon_from_file(file_path: String) -> Option<RgbaImage> {
+    async fn extract_icon_from_file(file_path: &str) -> Option<RgbaImage> {
         const MAX_RETRIES: u32 = 3;
-
+        let file_path = file_path.to_string();
         for attempt in 0..=MAX_RETRIES {
             let result = tauri::async_runtime::spawn_blocking({
                 let file_path = file_path.clone();

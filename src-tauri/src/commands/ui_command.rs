@@ -1,3 +1,4 @@
+use crate::core::image_processor::ImageIdentity;
 use crate::core::image_processor::ImageProcessor;
 use crate::modules::config::app_config::PartialAppConfig;
 use crate::modules::config::default::APP_PIC_PATH;
@@ -67,7 +68,8 @@ pub async fn select_background_picture<R: Runtime>(
     state: tauri::State<'_, Arc<AppState>>,
     path: String,
 ) -> Result<(), String> {
-    let content: Vec<u8> = ImageProcessor::load_image_from_path(path).await;
+    let path = ImageIdentity::File(path);
+    let content: Vec<u8> = ImageProcessor::load_image(&path).await;
     let storage_manager = state.get_storage_manager().unwrap();
     storage_manager
         .upload_file_bytes("background.png".to_string(), content)
@@ -82,7 +84,8 @@ pub async fn get_dominant_color<R: Runtime>(
     _window: tauri::Window<R>,
     path: String,
 ) -> Result<String, String> {
-    let content = ImageProcessor::load_image_from_path(path).await;
+    let path = ImageIdentity::File(path);
+    let content = ImageProcessor::load_image(&path).await;
     let ret = ImageProcessor::get_dominant_color(content).await.unwrap();
     Ok(format!("rgba({}, {}, {}, 0.8)", ret.0, ret.1, ret.2))
 }

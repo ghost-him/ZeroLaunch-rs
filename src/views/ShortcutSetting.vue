@@ -1,5 +1,5 @@
 <template>
-    <div class="shortcut-settings">
+    <div class="shortcut-settings" style="height: 100%; overflow-y: auto;">
         <div class="shortcut-header">
             <h2 class="shortcut-title">快捷键设置</h2>
             <div class="shortcut-actions">
@@ -48,8 +48,7 @@
                             :placeholder="item.placeholder">
                         </ShortcutInput>
 
-                        <el-button class="reset-button" type="text" :disabled="!is_editing"
-                            @click="resetShortcut(item.key)">
+                        <el-button class="reset-button" :disabled="!is_editing" @click="resetShortcut(item.key)">
                             <el-icon>
                                 <RefreshRight />
                             </el-icon>
@@ -65,7 +64,7 @@
 <script lang="ts" setup>
 import { default_shortcut_config, ShortcutConfig } from '../api/remote_config_types';
 import ShortcutInput from '../utils/ShortcutInput.vue';
-import { onUnmounted, ref } from 'vue';
+import { onUnmounted, ref, markRaw } from 'vue';
 import { onMounted } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { useRemoteConfigStore } from '../stores/remote_config';
@@ -84,7 +83,6 @@ const dirty_shortcut_config = ref<ShortcutConfig>({ ...configStore.config.shortc
 
 // 定义快捷键标签和描述
 type ShortcutKey = keyof ShortcutConfig;
-
 const shortcutItems = ref<Array<{
     key: keyof ShortcutConfig;
     icon: Component;
@@ -94,35 +92,35 @@ const shortcutItems = ref<Array<{
 }>>([
     {
         key: 'open_search_bar',
-        icon: Search,
+        icon: markRaw(Search),
         label: '打开搜索栏',
         tooltip: '打开搜索窗口的快捷键',
         placeholder: '例如: Ctrl+Space'
     },
     {
         key: 'arrow_left',
-        icon: ArrowLeft,
+        icon: markRaw(ArrowLeft),
         label: '方向键左',
         tooltip: '向左移动的快捷键',
         placeholder: '例如: Left'
     },
     {
         key: 'arrow_right',
-        icon: ArrowRight,
+        icon: markRaw(ArrowRight),
         label: '方向键右',
         tooltip: '向右移动的快捷键',
         placeholder: '例如: Right'
     },
     {
         key: 'arrow_up',
-        icon: ArrowUp,
+        icon: markRaw(ArrowUp),
         label: '方向键上',
         tooltip: '向上移动的快捷键',
         placeholder: '例如: Up'
     },
     {
         key: 'arrow_down',
-        icon: ArrowDown,
+        icon: markRaw(ArrowDown),
         label: '方向键下',
         tooltip: '向下移动的快捷键',
         placeholder: '例如: Down'

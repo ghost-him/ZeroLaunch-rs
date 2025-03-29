@@ -152,63 +152,66 @@
                 </div>
             </div>
         </el-tab-pane>
-
         <el-tab-pane label="设置屏蔽路径" style="height: 100%">
-            <el-button class="mt-4" style="width: 100%" @click="addForbiddenPath">
-                添加项目
-            </el-button>
-            <el-table :data="forbidden_paths" stripe style="width: 100%; height: 100%">
-                <el-table-column label="目标屏蔽路径" show-overflow-tooltip>
-                    <template #default="{ $index }">
-                        <el-input v-model="forbidden_paths[$index]" size="small" placeholder="请输入目标路径"
-                            @change="updateForbiddenPaths"></el-input>
-                    </template>
-                </el-table-column>
-                <el-table-column fixed="right" label="操作" width="100">
-                    <template #default="{ $index }">
-                        <el-button link size="small" type="danger" @click="deleteForbiddenPath($index)">
-                            删除一行
-                        </el-button>
-                    </template>
-                </el-table-column>
-            </el-table>
-
+            <div style="display: flex; flex-direction: column; height: 100%;">
+                <el-button class="mt-4" style="width: 100%; flex-shrink: 0;" @click="addForbiddenPath">
+                    添加项目
+                </el-button>
+                <el-table :data="forbidden_paths" stripe
+                    style="width: 100%;flex-grow: 1; height: 0; min-height: 0; margin-top: 10px;">
+                    <el-table-column label="目标屏蔽路径" show-overflow-tooltip>
+                        <template #default="{ $index }">
+                            <el-input v-model="forbidden_paths[$index]" size="small" placeholder="请输入目标路径"
+                                @change="updateForbiddenPaths"></el-input>
+                        </template>
+                    </el-table-column>
+                    <el-table-column fixed="right" label="操作" width="100">
+                        <template #default="{ $index }">
+                            <el-button link size="small" type="danger" @click="deleteForbiddenPath($index)">
+                                删除一行
+                            </el-button>
+                        </template>
+                    </el-table-column>
+                </el-table>
+            </div>
         </el-tab-pane>
 
         <el-tab-pane label="设置固定偏移量" style="height: 100%">
-            <el-button class="mt-4" style="width: 100%" @click="addKeyFilter">
-                添加项目
-            </el-button>
-            <el-table :data="keyFilterData" stripe style="width: 100%; height: 100%">
-                <el-table-column label="目标关键字">
-                    <template #default="{ row }">
-                        <el-input v-model="row.key" size="small" placeholder="请输入目标关键字"
-                            @change="updateProgramBias(row)"></el-input>
-                    </template>
-                </el-table-column>
-                <el-table-column label="偏移量" show-overflow-tooltip>
-                    <template #default="{ row }">
-                        <el-input-number v-model="row.bias" size="small" placeholder="请输入偏移量"
-                            @change="updateProgramBias(row)"></el-input-number>
-                    </template>
-                </el-table-column>
-                <el-table-column label="备注" show-overflow-tooltip>
-                    <template #default="{ row }">
-                        <el-input v-model="row.note" size="small" placeholder="请输入备注"
-                            @change="updateProgramBias(row)"></el-input>
-                    </template>
-                </el-table-column>
-                <el-table-column fixed="right" label="操作" width="100">
-                    <template #default="{ $index }">
-                        <el-button link size="small" type="danger" @click="deleteKeyFilterRow($index)">
-                            删除一行
-                        </el-button>
-                    </template>
-                </el-table-column>
-            </el-table>
-
+            <div style="display: flex; flex-direction: column; height: 100%;">
+                <el-button class="mt-4" style="width: 100%; flex-shrink: 0;" @click="addKeyFilter">
+                    添加项目
+                </el-button>
+                <el-table :data="keyFilterData" stripe
+                    style="width: 100%;flex-grow: 1; height: 0; min-height: 0; margin-top: 10px;">
+                    <el-table-column label="目标关键字">
+                        <template #default="{ row }">
+                            <el-input v-model="row.key" size="small" placeholder="请输入目标关键字"
+                                @change="updateProgramBias(row)"></el-input>
+                        </template>
+                    </el-table-column>
+                    <el-table-column label="偏移量" show-overflow-tooltip>
+                        <template #default="{ row }">
+                            <el-input-number v-model="row.bias" size="small" placeholder="请输入偏移量"
+                                @change="updateProgramBias(row)"></el-input-number>
+                        </template>
+                    </el-table-column>
+                    <el-table-column label="备注" show-overflow-tooltip>
+                        <template #default="{ row }">
+                            <el-input v-model="row.note" size="small" placeholder="请输入备注"
+                                @change="updateProgramBias(row)"></el-input>
+                        </template>
+                    </el-table-column>
+                    <el-table-column fixed="right" label="操作" width="100">
+                        <template #default="{ $index }">
+                            <el-button link size="small" type="danger" @click="deleteKeyFilterRow($index)">
+                                删除一行
+                            </el-button>
+                        </template>
+                    </el-table-column>
+                </el-table>
+            </div>
         </el-tab-pane>
-        <el-tab-pane label="额外设置" style="height: 100%">
+        <el-tab-pane label="额外设置" style="height: 100%;overflow:auto">
             <el-form-item label="扫描UWP应用">
                 <el-switch v-model="config.program_manager_config.loader.is_scan_uwp_programs" @change="(val: boolean) =>
                     configStore.updateConfig({

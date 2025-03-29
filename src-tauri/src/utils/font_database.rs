@@ -12,7 +12,7 @@ pub fn get_fonts() -> HashSet<String> {
         let has_chinese = face
             .families
             .iter()
-            .any(|(family, language)| language.primary_language() == "Chinese");
+            .any(|(_family, language)| language.primary_language() == "Chinese");
 
         if has_chinese {
             // 找到支持中文的字体名称

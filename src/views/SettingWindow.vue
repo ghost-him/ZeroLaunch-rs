@@ -32,8 +32,8 @@
         <!-- 内容区域 -->
         <div class="content">
             <!-- 常规设置 -->
-            <section v-if="activeIndex === 0" class="page">
-                <el-form label-width="auto" style="max-width: 600px">
+            <section v-if="activeIndex === 0" class="page" style="height: 100%;overflow-y: auto;">
+                <el-form label-width="auto">
 
                     <el-form-item label="自定义搜索栏的提示文本">
                         <el-input v-model="config.app_config.search_bar_placeholder" placeholder="Hello, ZeroLaunch!"
@@ -124,59 +124,65 @@
 
             <section v-if="activeIndex === 3" class="page">
                 <el-tabs style="height: 100%">
-                    <el-tab-pane label="自定义网址搜索">
-                        <el-table :data="index_web_pages" stripe style="width: 100%; height: 100%">
-                            <el-table-column label="关键字（用于搜索程序的匹配）" show-overflow-tooltip fixed="left" width="150">
-                                <template #default="scope">
-                                    <el-input v-model="index_web_pages[scope.$index][0]" size="small"
-                                        placeholder="请输入关键字" @change="updateIndexWebPages"></el-input>
-                                </template>
-                            </el-table-column>
-                            <el-table-column label="目标网站的地址" show-overflow-tooltip>
-                                <template #default="scope">
-                                    <el-input v-model="index_web_pages[scope.$index][1]" size="small"
-                                        placeholder="请输入目标路径" @change="updateIndexWebPages"></el-input>
-                                </template>
-                            </el-table-column>
-                            <el-table-column fixed="right" label="操作" width="100">
-                                <template #default="scope">
-                                    <el-button link size="small" type="danger"
-                                        @click="deleteIndexWebPages(scope.$index)">
-                                        删除一行
-                                    </el-button>
-                                </template>
-                            </el-table-column>
-                        </el-table>
-                        <el-button class="mt-4" style="width: 100%" @click="addIndexWebPage">
-                            添加项目
-                        </el-button>
+                    <el-tab-pane label="自定义网址搜索" style="height: 100%">
+                        <div style="display: flex; flex-direction: column; height: 100%;">
+                            <el-button class="mt-4" style="width: 100%;  flex-shrink: 0;" @click="addIndexWebPage">
+                                添加项目
+                            </el-button>
+                            <el-table :data="index_web_pages" stripe
+                                style="width: 100%;flex-grow: 1; height: 0; min-height: 0; margin-top: 10px;">
+                                <el-table-column label="关键字（用于搜索程序的匹配）" show-overflow-tooltip fixed="left" width="150">
+                                    <template #default="scope">
+                                        <el-input v-model="index_web_pages[scope.$index][0]" size="small"
+                                            placeholder="请输入关键字" @change="updateIndexWebPages"></el-input>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="目标网站的地址" show-overflow-tooltip>
+                                    <template #default="scope">
+                                        <el-input v-model="index_web_pages[scope.$index][1]" size="small"
+                                            placeholder="请输入目标路径" @change="updateIndexWebPages"></el-input>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column fixed="right" label="操作" width="100">
+                                    <template #default="scope">
+                                        <el-button link size="small" type="danger"
+                                            @click="deleteIndexWebPages(scope.$index)">
+                                            删除一行
+                                        </el-button>
+                                    </template>
+                                </el-table-column>
+                            </el-table>
+                        </div>
                     </el-tab-pane>
-                    <el-tab-pane label="自定义命令搜索">
-                        <el-table :data="custom_command" stripe style="width: 100%; height: 100%">
-                            <el-table-column label="关键字（用于搜索程序的匹配）" show-overflow-tooltip fixed="left" width="150">
-                                <template #default="scope">
-                                    <el-input v-model="custom_command[scope.$index][0]" size="small"
-                                        placeholder="请输入关键字" @change="updateCustomCommand"></el-input>
-                                </template>
-                            </el-table-column>
-                            <el-table-column label="命令内容" show-overflow-tooltip>
-                                <template #default="scope">
-                                    <el-input v-model="custom_command[scope.$index][1]" size="small"
-                                        placeholder="请输入命令内容" @change="updateCustomCommand"></el-input>
-                                </template>
-                            </el-table-column>
-                            <el-table-column fixed="right" label="操作" width="100">
-                                <template #default="scope">
-                                    <el-button link size="small" type="danger"
-                                        @click="deleteCustomCommand(scope.$index)">
-                                        删除一行
-                                    </el-button>
-                                </template>
-                            </el-table-column>
-                        </el-table>
-                        <el-button class="mt-4" style="width: 100%" @click="addCustomCommand">
-                            添加项目
-                        </el-button>
+                    <el-tab-pane label="自定义命令搜索" style="height: 100%">
+                        <div style="display: flex; flex-direction: column; height: 100%;">
+                            <el-button class="mt-4" style="width: 100%;  flex-shrink: 0;" @click="addCustomCommand">
+                                添加项目
+                            </el-button>
+                            <el-table :data="custom_command" stripe
+                                style="width: 100%;flex-grow: 1; height: 0; min-height: 0; margin-top: 10px;">
+                                <el-table-column label="关键字（用于搜索程序的匹配）" show-overflow-tooltip fixed="left" width="150">
+                                    <template #default="scope">
+                                        <el-input v-model="custom_command[scope.$index][0]" size="small"
+                                            placeholder="请输入关键字" @change="updateCustomCommand"></el-input>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="命令内容" show-overflow-tooltip>
+                                    <template #default="scope">
+                                        <el-input v-model="custom_command[scope.$index][1]" size="small"
+                                            placeholder="请输入命令内容" @change="updateCustomCommand"></el-input>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column fixed="right" label="操作" width="100">
+                                    <template #default="scope">
+                                        <el-button link size="small" type="danger"
+                                            @click="deleteCustomCommand(scope.$index)">
+                                            删除一行
+                                        </el-button>
+                                    </template>
+                                </el-table-column>
+                            </el-table>
+                        </div>
                     </el-tab-pane>
 
                 </el-tabs>
@@ -187,36 +193,40 @@
             </section>
 
             <section v-if="activeIndex === 5" class="page">
-                <el-button class="mt-4" style="width: 100%" @click="refreshProgramInfo">
-                    点击刷新
-                </el-button>
-                <el-table :data="programInfoList" stripe style="width: 100%; height: 100%">
-                    <el-table-column label="程序名" prop="name" sortable show-overflow-tooltip>
-                        <template #default="{ row }">
-                            {{ row.name }}
-                        </template>
-                    </el-table-column>
-                    <el-table-column label="是否是UWP程序" prop="is_uwp" sortable show-overflow-tooltip width="100">
-                        <template #default="{ row }">
-                            {{ row.is_uwp }}
-                        </template>
-                    </el-table-column>
-                    <el-table-column label="固定偏移量" prop="bias" sortable show-overflow-tooltip width="100">
-                        <template #default="{ row }">
-                            {{ row.bias }}
-                        </template>
-                    </el-table-column>
-                    <el-table-column label="启动次数" prop="history_launch_time" sortable show-overflow-tooltip width="100">
-                        <template #default="{ row }">
-                            {{ row.history_launch_time }}
-                        </template>
-                    </el-table-column>
-                    <el-table-column label="路径" prop="path" sortable show-overflow-tooltip>
-                        <template #default="{ row }">
-                            {{ row.path }}
-                        </template>
-                    </el-table-column>
-                </el-table>
+                <div style="display: flex; flex-direction: column; height: 100%;">
+                    <el-button class="mt-4" style="width: 100%; flex-shrink: 0;" @click="refreshProgramInfo">
+                        点击刷新
+                    </el-button>
+                    <el-table :data="programInfoList" stripe
+                        style="width: 100%;flex-grow: 1; height: 0; min-height: 0; margin-top: 10px;">
+                        <el-table-column label="程序名" prop="name" sortable show-overflow-tooltip>
+                            <template #default="{ row }">
+                                {{ row.name }}
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="是否是UWP程序" prop="is_uwp" sortable show-overflow-tooltip width="100">
+                            <template #default="{ row }">
+                                {{ row.is_uwp }}
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="固定偏移量" prop="bias" sortable show-overflow-tooltip width="100">
+                            <template #default="{ row }">
+                                {{ row.bias }}
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="启动次数" prop="history_launch_time" sortable show-overflow-tooltip
+                            width="100">
+                            <template #default="{ row }">
+                                {{ row.history_launch_time }}
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="路径" prop="path" sortable show-overflow-tooltip>
+                            <template #default="{ row }">
+                                {{ row.path }}
+                            </template>
+                        </el-table-column>
+                    </el-table>
+                </div>
             </section>
 
             <section v-if="activeIndex === 6" class="page">
@@ -487,7 +497,6 @@ body {
     box-sizing: border-box;
     flex: 1;
     padding: 20px;
-    overflow-y: auto;
     height: 100vh;
 }
 
@@ -502,7 +511,6 @@ body {
 }
 
 .page {
-    height: 90%;
-
+    height: 100%;
 }
 </style>

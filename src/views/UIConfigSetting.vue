@@ -1,6 +1,6 @@
 <template>
-    <el-tabs style="height: 100%">
-        <el-tab-pane label="搜索栏与结果栏设置">
+    <el-tabs style="height: 100%;">
+        <el-tab-pane label="搜索栏与结果栏设置" style="height: 100%;overflow-y: auto;">
             <el-divider content-position="left">背景色</el-divider>
             <el-form-item label="搜索栏与状态栏的背景颜色">
                 <el-color-picker v-model="config.ui_config.search_bar_background_color" show-alpha
@@ -99,7 +99,7 @@
             </el-form-item>
         </el-tab-pane>
 
-        <el-tab-pane label="背景图片设置">
+        <el-tab-pane label="背景图片设置" style="height: 100%;overflow-y: auto;">
             <el-form-item label="毛玻璃效果">
                 <el-select v-model="blur_style_value" placeholder="Select" style="width: 240px"
                     :disabled="!config.ui_config.use_windows_sys_control_radius">
@@ -174,7 +174,7 @@
             </el-form-item>
         </el-tab-pane>
 
-        <el-tab-pane label="程序窗口设置">
+        <el-tab-pane label="程序窗口设置" style="height: 100%;overflow-y: auto;">
             <el-form-item label="窗口垂直方向偏移比例因子">
                 <el-input-number v-model="config.ui_config.vertical_position_ratio" placeholder="0.4" :min="0"
                     :step="0.05" :max="1"

@@ -1,5 +1,5 @@
 <template>
-    <div class="storage-config-container">
+    <div class="storage-config-container" style="height: 100%; overflow-y: auto;">
         <h2 class="page-title">配置文件存储设置</h2>
 
         <el-form :model="formData" label-width="180px" class="storage-config-form">

@@ -109,6 +109,9 @@ export type UIConfig = {
     use_windows_sys_control_radius: boolean,
     footer_font_size: number,
     footer_font_color: string,
+    search_bar_font_family: string,
+    result_item_font_family: string,
+    footer_font_family: string,
 }
 
 export function default_ui_config(): UIConfig {
@@ -133,7 +136,10 @@ export function default_ui_config(): UIConfig {
         window_corner_radius: 16,
         use_windows_sys_control_radius: false,
         footer_font_size: 33,
-        footer_font_color: '#666666'
+        footer_font_color: '#666666',
+        search_bar_font_family: 'Segoe UI',
+        result_item_font_family: 'Segoe UI',
+        footer_font_family: 'Segoe UI',
     } as UIConfig;
 }
 

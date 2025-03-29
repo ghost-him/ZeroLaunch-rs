@@ -22,6 +22,7 @@
           ref="searchBarRef" @contextmenu.prevent="contextSearchBarEvent" :style="{
             fontSize: Math.round(ui_config.search_bar_height * ui_config.search_bar_font_size / 100) + 'px',
             color: ui_config.search_bar_font_color,
+            fontFamily: ui_config.search_bar_font_family,
             '--placeholder-color': ui_config.search_bar_placeholder_font_color
           }">
       </div>
@@ -53,6 +54,7 @@
           <div class="item-info">
             <div class="item-name" v-html="item" :style="{
               fontSize: Math.round(ui_config.result_item_height * ui_config.item_font_size / 100) + 'px',
+              fontFamily: ui_config.result_item_font_family,
               color: ui_config.item_font_color
             }"></div>
           </div>
@@ -68,7 +70,7 @@
 
     <!-- 底部状态栏 -->
     <div v-if="ui_config.footer_height > 0" class="footer drag_area"
-      :style="{ backgroundColor: ui_config.search_bar_background_color, fontSize: Math.round(ui_config.footer_height * ui_config.footer_font_size / 100) + 'px' }">
+      :style="{ backgroundColor: ui_config.search_bar_background_color, fontSize: Math.round(ui_config.footer_height * ui_config.footer_font_size / 100) + 'px', fontFamily: ui_config.footer_font_family, }">
       <div class="footer-left">
         <span class="status-text" :style="{ color: ui_config.footer_font_color }">{{
           app_config.tips }}</span>
@@ -544,7 +546,7 @@ onUnmounted(() => {
 <style>
 /*
 这里选择99.85是因为如果选择100%，可能会出现底栏被挡住的情况
-比如：如果在屏幕上的高度为532，而缩放比为150%，那么对应这个界面来说，高度为 532 / 1.5 = 354.666... 
+比如：如果在屏幕上的高度为532，而缩放比为150%，那么对应这个界面来说，高度为 532 / 1.5 = 354.666...
 这个多出来的小数会导致计算错误，从而导致底栏的边框消失，如果让这个显示的界面小一点点，就不会出现这个情况了
 */
 
@@ -571,7 +573,6 @@ main {
 .launcher-container {
   display: flex;
   padding: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   overflow: hidden;
   outline: none;
   flex-direction: column;

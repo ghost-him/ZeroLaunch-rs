@@ -1,13 +1,25 @@
 <template>
     <el-tabs style="height: 100%">
         <el-tab-pane label="搜索栏与结果栏设置">
+            <el-divider content-position="left">背景色</el-divider>
             <el-form-item label="搜索栏与状态栏的背景颜色">
                 <el-color-picker v-model="config.ui_config.search_bar_background_color" show-alpha
                     @change="(val: string) => configStore.updateConfig({ ui_config: { search_bar_background_color: rgbaToHex(val) } })" />
             </el-form-item>
+
             <el-form-item label="设置结果栏的背景颜色">
                 <el-color-picker v-model="config.ui_config.selected_item_color" show-alpha
                     @change="(val: string) => configStore.updateConfig({ ui_config: { selected_item_color: rgbaToHex(val) } })" />
+            </el-form-item>
+
+            <el-divider content-position="left">搜索栏</el-divider>
+            <el-form-item label="搜索栏字体设置">
+                <el-select v-model="config.ui_config.search_bar_font_family" filterable placeholder="选择或输入字体"
+                    @change="(val: string) => configStore.updateConfig({ ui_config: { search_bar_font_family: val } })">
+                    <el-option v-for="font in systemFonts" :key="font" :label="font" :value="font">
+                        <span :style="{ fontFamily: font }">{{ font }}</span>
+                    </el-option>
+                </el-select>
             </el-form-item>
             <el-form-item label="搜索栏字体的颜色">
                 <el-color-picker v-model="config.ui_config.search_bar_font_color"
@@ -16,14 +28,6 @@
             <el-form-item label="搜索栏的提示字体的颜色">
                 <el-color-picker v-model="config.ui_config.search_bar_placeholder_font_color"
                     @change="(val: string) => configStore.updateConfig({ ui_config: { search_bar_placeholder_font_color: rgbaToHex(val) } })" />
-            </el-form-item>
-            <el-form-item label="设置结果栏的字体颜色">
-                <el-color-picker v-model="config.ui_config.item_font_color"
-                    @change="(val: string) => configStore.updateConfig({ ui_config: { item_font_color: rgbaToHex(val) } })" />
-            </el-form-item>
-            <el-form-item label="设置底栏的字体颜色">
-                <el-color-picker v-model="config.ui_config.footer_font_color"
-                    @change="(val: string) => configStore.updateConfig({ ui_config: { footer_font_color: rgbaToHex(val) } })" />
             </el-form-item>
             <el-form-item label="搜索栏的字体大小(与行高占比大小)">
                 <el-input-number v-model="config.ui_config.search_bar_font_size" placeholder="50" :min="5" :step="5"
@@ -39,6 +43,19 @@
                     </el-icon>
                 </el-tooltip>
             </el-form-item>
+            <el-divider content-position="left">结果栏</el-divider>
+            <el-form-item label="结果栏字体设置">
+                <el-select v-model="config.ui_config.result_item_font_family" filterable placeholder="选择或输入字体"
+                    @change="(val: string) => configStore.updateConfig({ ui_config: { result_item_font_family: val } })">
+                    <el-option v-for="font in systemFonts" :key="font" :label="font" :value="font">
+                        <span :style="{ fontFamily: font }">{{ font }}</span>
+                    </el-option>
+                </el-select>
+            </el-form-item>
+            <el-form-item label="设置结果栏的字体颜色">
+                <el-color-picker v-model="config.ui_config.item_font_color"
+                    @change="(val: string) => configStore.updateConfig({ ui_config: { item_font_color: rgbaToHex(val) } })" />
+            </el-form-item>
             <el-form-item label="结果栏的字体大小(与行高占比大小)">
                 <el-input-number v-model="config.ui_config.item_font_size" placeholder="33" :min="5" :step="5"
                     :max="100"
@@ -52,6 +69,19 @@
                         <QuestionFilled />
                     </el-icon>
                 </el-tooltip>
+            </el-form-item>
+            <el-divider content-position="left">底栏</el-divider>
+            <el-form-item label="底栏字体设置">
+                <el-select v-model="config.ui_config.footer_font_family" filterable placeholder="选择或输入字体"
+                    @change="(val: string) => configStore.updateConfig({ ui_config: { footer_font_family: val } })">
+                    <el-option v-for="font in systemFonts" :key="font" :label="font" :value="font">
+                        <span :style="{ fontFamily: font }">{{ font }}</span>
+                    </el-option>
+                </el-select>
+            </el-form-item>
+            <el-form-item label="设置底栏的字体颜色">
+                <el-color-picker v-model="config.ui_config.footer_font_color"
+                    @change="(val: string) => configStore.updateConfig({ ui_config: { footer_font_color: rgbaToHex(val) } })" />
             </el-form-item>
             <el-form-item label="底栏的字体大小(与行高占比大小)">
                 <el-input-number v-model="config.ui_config.footer_font_size" placeholder="33" :min="5" :step="5"
@@ -238,7 +268,7 @@ import { QuestionFilled } from '@element-plus/icons-vue'
 import { invoke } from '@tauri-apps/api/core';
 import { ElMessage } from 'element-plus';
 import { open } from '@tauri-apps/plugin-dialog';
-import { ref, watch } from 'vue';
+import { onMounted, ref, watch } from 'vue';
 import { useRemoteConfigStore } from '../stores/remote_config';
 import { storeToRefs } from 'pinia';
 
@@ -316,6 +346,25 @@ const get_dominant_color = async () => {
     dominant_color.value = ret;
 }
 
+const systemFonts = ref<string[]>([
+    'Default', 'Arial', 'Helvetica', 'Times New Roman', 'Courier New', 'SimSun', 'Microsoft YaHei'
+])
+
+// 加载系统字体的方法
+const loadSystemFonts = async () => {
+    try {
+        const fonts = await invoke('command_get_system_fonts')
+        if (Array.isArray(fonts) && fonts.length > 0) {
+            systemFonts.value = fonts
+        }
+    } catch (error) {
+        console.error('获取系统字体失败:', error)
+    }
+}
+
+onMounted(async () => {
+    await loadSystemFonts()
+})
 
 </script>
 

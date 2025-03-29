@@ -196,7 +196,8 @@ pub fn run() {
             command_unregister_all_shortcut,
             command_register_all_shortcut,
             command_change_tray_icon,
-            command_open_icon_cache_dir //command_get_onedrive_refresh_token
+            command_open_icon_cache_dir,
+            command_get_system_fonts //command_get_onedrive_refresh_token
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

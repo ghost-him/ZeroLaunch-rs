@@ -24,6 +24,9 @@ pub struct PartialUiConfig {
     pub use_windows_sys_control_radius: Option<bool>,
     pub footer_font_size: Option<f64>,
     pub footer_font_color: Option<String>,
+    pub search_bar_font_family: Option<String>,
+    pub result_item_font_family: Option<String>,
+    pub footer_font_family: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -113,6 +116,18 @@ pub struct UiConfigInner {
     // 底栏字体的颜色
     #[serde(default = "UiConfigInner::default_footer_font_color")]
     pub footer_font_color: String,
+
+    // 搜索栏的字体
+    #[serde(default = "UiConfigInner::default_search_bar_font_family")]
+    pub search_bar_font_family: String,
+
+    // 结果栏的字体
+    #[serde(default = "UiConfigInner::default_result_item_font_family")]
+    pub result_item_font_family: String,
+
+    // 底栏的字体
+    #[serde(default = "UiConfigInner::default_footer_font_family")]
+    pub footer_font_family: String,
 }
 
 impl Default for UiConfigInner {
@@ -139,6 +154,9 @@ impl Default for UiConfigInner {
             use_windows_sys_control_radius: Self::default_use_windows_sys_control_radius(),
             footer_font_size: Self::default_footer_font_size(),
             footer_font_color: Self::default_footer_font_color(),
+            search_bar_font_family: Self::default_search_bar_font_family(),
+            result_item_font_family: Self::default_result_item_font_family(),
+            footer_font_family: Self::default_footer_font_family(),
         }
     }
 }
@@ -222,6 +240,18 @@ impl UiConfigInner {
     pub(crate) fn default_footer_font_color() -> String {
         "#666666".to_string()
     }
+
+    pub(crate) fn default_search_bar_font_family() -> String {
+        "Segoe UI".to_string()
+    }
+
+    pub(crate) fn default_result_item_font_family() -> String {
+        "Segoe UI".to_string()
+    }
+
+    pub(crate) fn default_footer_font_family() -> String {
+        "Segoe UI".to_string()
+    }
 }
 
 impl UiConfigInner {
@@ -289,6 +319,15 @@ impl UiConfigInner {
         if let Some(footer_font_color) = partial_ui_config.footer_font_color {
             self.footer_font_color = footer_font_color;
         }
+        if let Some(search_bar_font_family) = partial_ui_config.search_bar_font_family {
+            self.search_bar_font_family = search_bar_font_family;
+        }
+        if let Some(result_item_font_family) = partial_ui_config.result_item_font_family {
+            self.result_item_font_family = result_item_font_family;
+        }
+        if let Some(footer_font_family) = partial_ui_config.footer_font_family {
+            self.footer_font_family = footer_font_family;
+        }
     }
 
     pub fn get_selected_item_color(&self) -> String {
@@ -326,6 +365,18 @@ impl UiConfigInner {
         self.footer_height
     }
 
+    pub fn get_search_bar_font_family(&self) -> String {
+        self.search_bar_font_family.clone()
+    }
+
+    pub fn get_result_item_font_family(&self) -> String {
+        self.result_item_font_family.clone()
+    }
+
+    pub fn get_footer_font_family(&self) -> String {
+        self.footer_font_family.clone()
+    }
+
     pub fn to_partial(&self) -> PartialUiConfig {
         PartialUiConfig {
             selected_item_color: Some(self.selected_item_color.clone()),
@@ -349,6 +400,9 @@ impl UiConfigInner {
             use_windows_sys_control_radius: Some(self.use_windows_sys_control_radius),
             footer_font_size: Some(self.footer_font_size),
             footer_font_color: Some(self.footer_font_color.clone()),
+            search_bar_font_family: Some(self.search_bar_font_family.clone()),
+            result_item_font_family: Some(self.result_item_font_family.clone()),
+            footer_font_family: Some(self.footer_font_family.clone()),
         }
     }
 }
@@ -476,5 +530,20 @@ impl UiConfig {
     pub fn get_footer_font_color(&self) -> String {
         let inner = self.inner.read();
         inner.footer_font_color.clone()
+    }
+
+    pub fn get_search_bar_font_family(&self) -> String {
+        let inner = self.inner.read();
+        inner.search_bar_font_family.clone()
+    }
+
+    pub fn get_result_item_font_family(&self) -> String {
+        let inner = self.inner.read();
+        inner.result_item_font_family.clone()
+    }
+
+    pub fn get_footer_font_family(&self) -> String {
+        let inner = self.inner.read();
+        inner.footer_font_family.clone()
     }
 }

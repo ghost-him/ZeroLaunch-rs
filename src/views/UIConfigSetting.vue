@@ -101,8 +101,9 @@
 
         <el-tab-pane label="背景图片设置" style="height: 100%;overflow-y: auto;">
             <el-form-item label="毛玻璃效果">
-                <el-select v-model="blur_style_value" placeholder="Select" style="width: 240px"
-                    :disabled="!config.ui_config.use_windows_sys_control_radius">
+                <el-select v-model="config.ui_config.blur_style" placeholder="Select" style="width: 240px"
+                    :disabled="!config.ui_config.use_windows_sys_control_radius"
+                    @change="(val: string) => configStore.updateConfig({ ui_config: { blur_style: val } })">
                     <el-option v-for="item in blur_style_option" :key="item.value" :label="item.label"
                         :value="item.value" />
                 </el-select>
@@ -114,8 +115,11 @@
             </el-form-item>
 
             <el-form-item label="背景图片的大小">
-                <el-input v-model="config.ui_config.background_size" style="max-width: 120px;" placeholder="cover"
-                    @change="(val: string) => configStore.updateConfig({ ui_config: { background_size: val } })" />
+                <el-select v-model="config.ui_config.background_size" placeholder="cover" style="width: 240px"
+                    @change="(val: string) => configStore.updateConfig({ ui_config: { background_size: val } })">
+                    <el-option v-for="item in background_size" :key="item.value" :label="item.label"
+                        :value="item.value" />
+                </el-select>
                 <el-tooltip class="box-item" effect="dark"
                     content="'cover': 缩放图片以完全覆盖元素区域，保持比例；'contain:' 缩放图片以完全显示在元素内，保持比例；'auto':使用图片原始尺寸">
                     <el-icon class="el-question-icon">
@@ -125,10 +129,12 @@
             </el-form-item>
 
             <el-form-item label="背景图片的位置">
-                <el-input v-model="config.ui_config.background_position" style="max-width: 120px;" placeholder="center"
-                    @change="(val: string) => configStore.updateConfig({ ui_config: { background_position: val } })" />
-                <el-tooltip class="box-item" effect="dark"
-                    content="图片的对齐位置，可选：'center', 'top', 'right', 'bottom', 'left'及其结合，例如: 'right bottom'">
+                <el-select v-model="config.ui_config.background_position" placeholder="center" style="width: 240px"
+                    @change="(val: string) => configStore.updateConfig({ ui_config: { background_position: val } })">
+                    <el-option v-for="item in background_position" :key="item.value" :label="item.label"
+                        :value="item.value" />
+                </el-select>
+                <el-tooltip class="box-item" effect="dark" content="图片的对齐位置">
                     <el-icon class="el-question-icon">
                         <QuestionFilled />
                     </el-icon>
@@ -137,14 +143,11 @@
             </el-form-item>
 
             <el-form-item label="背景图片是否重复显示">
-                <el-input v-model="config.ui_config.background_repeat" style="max-width: 120px;" placeholder="no-repeat"
-                    @change="(val: string) => configStore.updateConfig({ ui_config: { background_repeat: val } })" />
-                <el-tooltip class="box-item" effect="dark"
-                    content="'no-repeat': 不重复；'repeat': 水平和垂直方向都重复；'repeat-x': 仅水平方向重复；'repeat-y': 仅垂直方向重复">
-                    <el-icon class="el-question-icon">
-                        <QuestionFilled />
-                    </el-icon>
-                </el-tooltip>
+                <el-select v-model="config.ui_config.background_repeat" placeholder="no-repeat" style="width: 240px"
+                    @change="(val: string) => configStore.updateConfig({ ui_config: { background_repeat: val } })">
+                    <el-option v-for="item in background_repeat" :key="item.value" :label="item.label"
+                        :value="item.value" />
+                </el-select>
             </el-form-item>
 
             <el-form-item label="背景图片透明度">
@@ -275,11 +278,6 @@ import { storeToRefs } from 'pinia';
 
 const configStore = useRemoteConfigStore()
 const { config } = storeToRefs(configStore)
-const blur_style_value = ref(config.value.ui_config.blur_style)
-
-watch(blur_style_value, (newValue) => {
-    configStore.updateConfig({ ui_config: { blur_style: newValue } })
-})
 
 const blur_style_option = [
     {
@@ -300,7 +298,69 @@ const blur_style_option = [
     }
 ]
 
+const background_size = [
+    {
+        value: 'cover',
+        label: '图片占满窗口(cover)',
+    },
+    {
+        value: 'contain',
+        label: '图片在窗口内(contain)',
+    }, {
+        value: 'auto',
+        label: '图片保持原尺寸(auto)',
+    }
+]
 
+const background_position = [
+    {
+        value: 'center',
+        label: '居中(center)',
+    },
+    {
+        value: 'top',
+        label: '上对齐(top)',
+    }, {
+        value: 'bottom',
+        label: '下对齐(bottom)',
+    }, {
+        value: 'left',
+        label: '左对齐(left)',
+    },
+    {
+        value: 'right',
+        label: '右对齐(right)',
+    }, {
+        value: 'left top',
+        label: '左上角对齐(left top)',
+    }, {
+        value: 'right top',
+        label: '右上角对齐(right top)',
+    },
+    {
+        value: 'left bottom',
+        label: '左下角对齐(left bottom)',
+    }, {
+        value: 'right bottom',
+        label: '右下角对齐(right bottom)',
+    },
+]
+
+const background_repeat = [
+    {
+        value: 'no-repeat',
+        label: '不重复(no-repeat)',
+    }, {
+        value: 'repeat',
+        label: '水平与垂直方向都重复(repeat)',
+    }, {
+        value: 'repeat-x',
+        label: '水平方向重复(repeat-x)',
+    }, {
+        value: 'repeat-y',
+        label: '垂直方向重复(repeat-y)',
+    },
+]
 
 const select_background_picture = async () => {
     let file_path = await select_picture();

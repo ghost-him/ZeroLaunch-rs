@@ -1,4 +1,4 @@
-use crate::core::storage::windows_utils::get_start_menu_paths;
+use crate::core::storage::windows_utils::{get_desktop_path, get_start_menu_paths};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -87,9 +87,11 @@ impl ProgramLoaderConfigInner {
     pub(crate) fn default_target_paths() -> Vec<DirectoryConfig> {
         let (common, user) =
             get_start_menu_paths().unwrap_or_else(|_| (String::new(), String::new()));
+        let desktop_path = get_desktop_path().unwrap_or_else(|_| String::new());
         vec![
             DirectoryConfig::new(common, 5),
             DirectoryConfig::new(user, 5),
+            DirectoryConfig::new(desktop_path, 3),
         ]
     }
 

@@ -1,5 +1,5 @@
 <template>
-  <div class="launcher-container" @keydown="handleKeyDown" tabindex="0" :style="[backgroundStyle,
+  <div class="launcher-container" @keydown="handleKeyDown" tabindex="0" :style="[program_backgroundStyle,
     !ui_config.use_windows_sys_control_radius ? {
       border: `1px solid ${is_dark ? '#3d3d3d' : '#bdbdbd'}`,
       borderRadius: `${ui_config.window_corner_radius}px`
@@ -32,10 +32,11 @@
       <SubMenu ref="searchBarMenuBuf" :itemHeight="ui_config.result_item_height" :windowSize="innerWindowSize"
         :menuItems="searchBarMenuItems" :isDark="is_dark" :cornerRadius="ui_config.window_corner_radius"
         :hoverColor="hover_item_color" :selectedColor="ui_config.selected_item_color"
-        :itemFontColor="ui_config.item_font_color" :itemFontSizePercent="ui_config.item_font_size"></SubMenu>
+        :itemFontColor="ui_config.item_font_color" :itemFontSizePercent="ui_config.item_font_size"
+        :style="submenu_backgroundStyle"> </SubMenu>
 
-      <!-- 结果列表 -->
-      <div class="results-list">
+      <!--结果列表 -->
+      <div class=" results-list">
         <div v-for="(item, index) in menuItems" :key="index" class="result-item"
           @click="(event) => handleItemClick(index, event.ctrlKey)" :class="{ 'selected': selectedIndex === index }"
           @contextmenu.prevent="(event) => contextResultItemEvent(index, event)" :style="{
@@ -65,7 +66,8 @@
     <SubMenu ref="resultItemMenuRef" :itemHeight="ui_config.result_item_height" :windowSize="innerWindowSize"
       :menuItems="resultSubMenuItems" :isDark="is_dark" :cornerRadius="ui_config.window_corner_radius"
       :hoverColor="hover_item_color" :selectedColor="ui_config.selected_item_color"
-      :itemFontColor="ui_config.item_font_color" :itemFontSizePercent="ui_config.item_font_size"></SubMenu>
+      :itemFontColor="ui_config.item_font_color" :itemFontSizePercent="ui_config.item_font_size"
+      :style="submenu_backgroundStyle"></SubMenu>
 
 
     <!-- 底部状态栏 -->
@@ -97,7 +99,6 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 const app_config = ref<AppConfig>(default_app_config())
 const ui_config = ref<UIConfig>(default_ui_config())
 const shortcut_config = ref<ShortcutConfig>(default_shortcut_config())
-ui_config.value.window_corner_radius
 const searchText = ref('')
 const selectedIndex = ref<number>(0)
 const searchBarRef = ref<HTMLInputElement | null>(null)
@@ -405,10 +406,14 @@ const focusSearchInput = () => {
   }
 }
 
-const backgroundStyle = computed(() => ({
+const submenu_backgroundStyle = computed(() => ({
+  backgroundColor: `${ui_config.value.program_background_color}`,
+}));
+
+const program_backgroundStyle = computed(() => ({
   backgroundColor: (ui_config.value.blur_style !== 'None' && ui_config.value.use_windows_sys_control_radius === true)
     ? 'transparent'
-    : 'white',
+    : ui_config.value.program_background_color,
   backgroundImage: `linear-gradient(rgba(255, 255, 255, ${1 - ui_config.value.background_opacity}), rgba(255, 255, 255, ${1 - ui_config.value.background_opacity})), url(${background_picture.value})`,
   backgroundSize: `${ui_config.value.background_size}`,
   backgroundPosition: `${ui_config.value.background_position}`,

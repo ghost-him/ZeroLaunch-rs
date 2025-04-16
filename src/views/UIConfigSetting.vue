@@ -2,14 +2,28 @@
     <el-tabs style="height: 100%;">
         <el-tab-pane label="搜索栏与结果栏设置" style="height: 100%;overflow-y: auto;">
             <el-divider content-position="left">背景色</el-divider>
+            <el-form-item label="整体的背景色（搜索栏与结果栏的整体的颜色）">
+                <el-color-picker v-model="config.ui_config.program_background_color" show-alpha
+                    @change="(val: string) => configStore.updateConfig({ ui_config: { program_background_color: rgbaToHex(val) } })" />
+            </el-form-item>
+
             <el-form-item label="搜索栏与状态栏的背景颜色">
                 <el-color-picker v-model="config.ui_config.search_bar_background_color" show-alpha
                     @change="(val: string) => configStore.updateConfig({ ui_config: { search_bar_background_color: rgbaToHex(val) } })" />
             </el-form-item>
 
-            <el-form-item label="设置结果栏的背景颜色">
+            <el-form-item label="设置结果栏的选中项高亮颜色">
                 <el-color-picker v-model="config.ui_config.selected_item_color" show-alpha
                     @change="(val: string) => configStore.updateConfig({ ui_config: { selected_item_color: rgbaToHex(val) } })" />
+            </el-form-item>
+
+            <el-form-item label="深色模式推荐配色">
+                <el-tooltip class="box-item" effect="dark"
+                    content="整体的背景色：rgba(31, 31, 31, 1),选中项高亮色：rgba(63, 63, 63, 0.8)，字体颜色：#A6A6A6">
+                    <el-icon class="el-question-icon">
+                        <QuestionFilled />
+                    </el-icon>
+                </el-tooltip>
             </el-form-item>
 
             <el-divider content-position="left">搜索栏</el-divider>
@@ -271,7 +285,7 @@ import { QuestionFilled } from '@element-plus/icons-vue'
 import { invoke } from '@tauri-apps/api/core';
 import { ElMessage } from 'element-plus';
 import { open } from '@tauri-apps/plugin-dialog';
-import { onMounted, ref, watch } from 'vue';
+import { onMounted, ref } from 'vue';
 import { useRemoteConfigStore } from '../stores/remote_config';
 import { storeToRefs } from 'pinia';
 

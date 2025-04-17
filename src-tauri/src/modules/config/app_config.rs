@@ -17,6 +17,7 @@ pub struct PartialAppConfig {
     pub is_enable_drag_window: Option<bool>,
     pub window_position: Option<(i32, i32)>,
     pub is_wake_on_fullscreen: Option<bool>,
+    pub space_is_enter: Option<bool>,
 }
 
 impl Default for PartialAppConfig {
@@ -34,6 +35,7 @@ impl Default for PartialAppConfig {
             is_enable_drag_window: None,
             window_position: None,
             is_wake_on_fullscreen: None,
+            space_is_enter: None,
         }
     }
 }
@@ -78,6 +80,9 @@ pub struct AppConfigInner {
     /// 是否在全屏时唤醒窗口
     #[serde(default = "AppConfigInner::default_is_wake_on_fullscreen")]
     pub is_wake_on_fullscreen: bool,
+    /// 空格键是否等于enter键
+    #[serde(default = "AppConfigInner::default_space_is_enter")]
+    pub space_is_enter: bool,
 }
 
 impl Default for AppConfigInner {
@@ -95,6 +100,7 @@ impl Default for AppConfigInner {
             is_enable_drag_window: Self::default_is_enable_drag_window(),
             window_position: Self::default_window_position(),
             is_wake_on_fullscreen: Self::default_is_wake_on_fullscreen(),
+            space_is_enter: Self::default_space_is_enter(),
         }
     }
 }
@@ -145,6 +151,10 @@ impl AppConfigInner {
     pub(crate) fn default_is_wake_on_fullscreen() -> bool {
         false
     }
+
+    pub(crate) fn default_space_is_enter() -> bool {
+        false
+    }
 }
 
 impl AppConfigInner {
@@ -185,6 +195,9 @@ impl AppConfigInner {
         if let Some(wake) = partial_app_config.is_wake_on_fullscreen {
             self.is_wake_on_fullscreen = wake;
         }
+        if let Some(space_is_enter) = partial_app_config.space_is_enter {
+            self.space_is_enter = space_is_enter;
+        }
     }
     pub fn to_partial(&self) -> PartialAppConfig {
         PartialAppConfig {
@@ -200,6 +213,7 @@ impl AppConfigInner {
             is_enable_drag_window: Some(self.is_enable_drag_window),
             window_position: Some(self.window_position),
             is_wake_on_fullscreen: Some(self.is_wake_on_fullscreen),
+            space_is_enter: Some(self.space_is_enter),
         }
     }
 }
@@ -285,5 +299,10 @@ impl AppConfig {
     pub fn get_is_wake_on_fullscreen(&self) -> bool {
         let inner = self.inner.read();
         inner.is_wake_on_fullscreen
+    }
+
+    pub fn get_space_is_enter(&self) -> bool {
+        let inner = self.inner.read();
+        inner.space_is_enter
     }
 }

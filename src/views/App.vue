@@ -106,6 +106,8 @@ const searchResults = ref<Array<[number, string]>>([]);
 const menuItems = ref<Array<string>>([]);
 const menuIcons = ref<Array<string>>([]);
 const program_icons = ref<Map<number, string>>(new Map<number, string>([]));
+// 当前的搜索栏是否可见
+const is_visible = ref<boolean>(false);
 const hover_item_color = computed(() => {
   return reduceOpacity(ui_config.value.selected_item_color, 0.8);
 })
@@ -193,7 +195,9 @@ const updateWindow = async () => {
 
     background_picture.value = url;
     await startPreloadResource(await program_count).then(async () => {
-      await sendSearchText('');
+      if (!is_visible || searchText.value.length == 0) {
+        await sendSearchText('');
+      }
     }
     );
   } catch (error) {
@@ -269,7 +273,7 @@ enum ActionType {
 // 键盘事件处理函数
 const handleKeyDown = (event: KeyboardEvent) => {
   const isMenuVisible = resultItemMenuRef.value?.isVisible() || false;
-
+  console.log(event)
   // 检查是否匹配快捷键
   const matchShortcut = (shortcutConfig: any): boolean => {
     return event.key.toLowerCase() === shortcutConfig.key.toLowerCase() &&
@@ -305,7 +309,7 @@ const handleKeyDown = (event: KeyboardEvent) => {
   }
 
   // 处理特殊键
-  if (event.key === 'Enter') {
+  if (event.key === 'Enter' || (event.key === ' ' && app_config.value.space_is_enter)) {
     event.preventDefault();
     handleAction(ActionType.CONFIRM, isMenuVisible, event.ctrlKey, event.shiftKey);
     return;
@@ -513,6 +517,7 @@ onMounted(async () => {
   window.addEventListener('click', handleClickOutside);
   unlisten.push(await listen('show_window', () => {
     focusSearchInput();
+    is_visible.value = true;
   }));
   unlisten.push(await listen('update_search_bar_window', () => {
     console.log("收到更新请求");
@@ -520,6 +525,7 @@ onMounted(async () => {
   }));
   unlisten.push(await listen('handle_focus_lost', () => {
     initSearchBar();
+    is_visible.value = false;
   }));
 
   // 获取当前窗口

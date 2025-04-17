@@ -33,84 +33,7 @@
         <div class="content">
             <!-- 常规设置 -->
             <section v-if="activeIndex === 0" class="page" style="height: 100%;overflow-y: auto;">
-                <el-form label-width="auto">
-
-                    <el-form-item label="自定义搜索栏的提示文本">
-                        <el-input v-model="config.app_config.search_bar_placeholder" placeholder="Hello, ZeroLaunch!"
-                            @change="(val: string) => configStore.updateConfig({ app_config: { search_bar_placeholder: val } })" />
-                    </el-form-item>
-
-                    <el-form-item label="自定义底部提示栏">
-                        <el-input v-model="config.app_config.tips" placeholder="ZeroLaunch-rs v0.4.0"
-                            @change="(val: string) => configStore.updateConfig({ app_config: { tips: val } })" />
-                    </el-form-item>
-
-                    <el-form-item label="设置开机自启动">
-                        <el-switch v-model="config.app_config.is_auto_start"
-                            @change="(val: boolean) => configStore.updateConfig({ app_config: { is_auto_start: val } })" />
-                    </el-form-item>
-
-                    <el-form-item label="设置静默启动">
-                        <el-switch v-model="config.app_config.is_silent_start"
-                            @change="(val: boolean) => configStore.updateConfig({ app_config: { is_silent_start: val } })" />
-                    </el-form-item>
-
-                    <el-form-item label="设置搜索结果数量">
-                        <el-input-number v-model="config.app_config.search_result_count" :step="1" :precision="0"
-                            :min="1"
-                            @change="(val: number) => configStore.updateConfig({ app_config: { search_result_count: val } })" />
-                    </el-form-item>
-
-                    <el-form-item label="自动刷新数据库的时间">
-                        <el-input-number v-model="config.app_config.auto_refresh_time" :step="1" :precision="0" :min="1"
-                            @change="(val: number) => configStore.updateConfig({ app_config: { auto_refresh_time: val } })">
-                            <template #suffix>
-                                <span>分钟</span>
-                            </template>
-                        </el-input-number>
-                    </el-form-item>
-
-                    <el-form-item label="当唤醒程序失败时启动新实例">
-                        <el-switch v-model="config.app_config.launch_new_on_failure"
-                            @change="(val: boolean) => configStore.updateConfig({ app_config: { launch_new_on_failure: val } })" />
-                    </el-form-item>
-
-                    <el-form-item label="esc键优先关闭窗口">
-                        <el-switch v-model="config.app_config.is_esc_hide_window_priority"
-                            @change="(val: boolean) => configStore.updateConfig({ app_config: { is_esc_hide_window_priority: val } })" />
-                        <el-tooltip class="box-item" effect="dark" content="默认优先清空搜索栏后关闭">
-                            <el-icon class="el-question-icon">
-                                <QuestionFilled />
-                            </el-icon>
-                        </el-tooltip>
-                    </el-form-item>
-
-                    <el-form-item label="启用拖动窗口">
-                        <el-switch v-model="config.app_config.is_enable_drag_window"
-                            @change="(val: boolean) => configStore.updateConfig({ app_config: { is_enable_drag_window: val } })" />
-                        <el-tooltip class="box-item" effect="dark" content="程序在下一次打开时会记忆上次的关闭的位置">
-                            <el-icon class="el-question-icon">
-                                <QuestionFilled />
-                            </el-icon>
-                        </el-tooltip>
-                    </el-form-item>
-
-                    <el-form-item label="全屏时是否可以唤醒窗口">
-                        <el-switch v-model="config.app_config.is_wake_on_fullscreen"
-                            @change="(val: boolean) => configStore.updateConfig({ app_config: { is_wake_on_fullscreen: val } })" />
-                        <el-tooltip class="box-item" effect="dark"
-                            content="与游戏模式的区别：游戏模式会取消注册唤醒的快捷键，让游戏可以接受到这个快捷键在，而该选项依然会保留快捷键">
-                            <el-icon class="el-question-icon">
-                                <QuestionFilled />
-                            </el-icon>
-                        </el-tooltip>
-                    </el-form-item>
-
-                    <el-form-item label="调试模式">
-                        <el-switch v-model="config.app_config.is_debug_mode"
-                            @change="(val: boolean) => configStore.updateConfig({ app_config: { is_debug_mode: val } })" />
-                    </el-form-item>
-                </el-form>
+                <AppConfigSetting></AppConfigSetting>
             </section>
 
             <section v-if="activeIndex === 1" class="page">
@@ -267,6 +190,7 @@ import about from "./about.vue";
 import debug from "./debug.vue";
 import ConfigPathSelector from "./ConfigPathSelector.vue";
 import ShortcutSetting from './ShortcutSetting.vue';
+import AppConfigSetting from './AppConfigSetting.vue';
 const configStore = useRemoteConfigStore()
 const { config } = storeToRefs(configStore)
 interface MenuItem {

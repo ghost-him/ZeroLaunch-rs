@@ -68,6 +68,7 @@ export type AppConfig = {
     is_enable_drag_window: boolean,
     window_position: [number, number],
     is_wake_on_fullscreen: boolean,
+    space_is_enter: boolean,
 }
 
 export function default_app_config(): AppConfig {
@@ -84,6 +85,7 @@ export function default_app_config(): AppConfig {
         is_enable_drag_window: false,
         window_position: [0, 0],
         is_wake_on_fullscreen: false,
+        space_is_enter: false,
     } as AppConfig;
 }
 

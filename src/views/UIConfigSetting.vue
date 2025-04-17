@@ -1,6 +1,16 @@
 <template>
     <el-tabs style="height: 100%;">
         <el-tab-pane label="搜索栏与结果栏设置" style="height: 100%;overflow-y: auto;">
+            <el-divider content-position="left">提示词</el-divider>
+            <el-form-item label="自定义搜索栏的提示文本">
+                <el-input v-model="config.app_config.search_bar_placeholder" placeholder="Hello, ZeroLaunch!"
+                    @change="(val: string) => configStore.updateConfig({ app_config: { search_bar_placeholder: val } })" />
+            </el-form-item>
+
+            <el-form-item label="自定义底部提示栏">
+                <el-input v-model="config.app_config.tips" placeholder="ZeroLaunch-rs v0.4.0"
+                    @change="(val: string) => configStore.updateConfig({ app_config: { tips: val } })" />
+            </el-form-item>
             <el-divider content-position="left">背景色</el-divider>
             <el-form-item label="整体的背景色（搜索栏与结果栏的整体的颜色）">
                 <el-color-picker v-model="config.ui_config.program_background_color" show-alpha

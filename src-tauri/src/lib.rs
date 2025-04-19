@@ -127,7 +127,9 @@ pub fn run() {
 
     let builder = tauri::Builder::default();
     builder
-        .plugin(tauri_plugin_single_instance::init(|_app, _argv, _cwd| {}))
+        .plugin(tauri_plugin_single_instance::init(|_app, _argv, _cwd| {
+            notify("zerolaunch-rs", "zerolaunch-rs已运行，不要重复运行");
+        }))
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
@@ -197,7 +199,8 @@ pub fn run() {
             command_register_all_shortcut,
             command_change_tray_icon,
             command_open_icon_cache_dir,
-            command_get_system_fonts //command_get_onedrive_refresh_token
+            command_get_system_fonts,
+            command_get_path_info //command_get_onedrive_refresh_token
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -385,6 +388,7 @@ fn init_setting_window(app: tauri::AppHandle) {
             )
             .title("设置")
             .visible(false)
+            .drag_and_drop(false)
             .build()
             .unwrap(),
         );

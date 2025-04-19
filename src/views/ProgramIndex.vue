@@ -3,9 +3,14 @@
         <el-tab-pane label="设置搜索路径" style="height: 100%">
             <div class="path-config-container">
                 <!-- 左侧路径列表 -->
-                <div class="path-list-section">
+                <div class="path-list-section" :class="{ 'drag-over': isDragOver }">
                     <div class="section-header">
                         <h3>目录列表</h3>
+                        <el-tooltip class="box-item" effect="dark" content="支持拖放文件与文件夹来添加搜索路径">
+                            <el-icon class="el-question-icon">
+                                <QuestionFilled />
+                            </el-icon>
+                        </el-tooltip>
                         <span>共有 {{ targetPaths.length }} 条记录</span>
                     </div>
 
@@ -265,10 +270,13 @@ import { DirectoryConfig } from '../api/remote_config_types';
 
 const configStore = useRemoteConfigStore()
 const { config } = storeToRefs(configStore)
-import { computed, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { Delete, Plus, ArrowDown, QuestionFilled } from '@element-plus/icons-vue'
 import type { ComputedRef, Ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core';
+import { listen, TauriEvent, UnlistenFn } from '@tauri-apps/api/event';
+import { DragDropEvent } from '@tauri-apps/api/webview';
+import { ElMessage } from 'element-plus';
 
 // 表格数据项接口
 interface TableItem {
@@ -320,7 +328,9 @@ const selectPath = (index: number): void => {
     currentPath.value = JSON.parse(JSON.stringify(targetPaths.value[index]))
 
     // 更新表格数据
+    console.log("刷新页面")
     extensionsTableData.value = currentPath.value.pattern.map(ext => ({ value: ext }))
+    console.log(extensionsTableData.value)
     keywordsTableData.value = currentPath.value.excluded_keywords.map(keyword => ({ value: keyword }))
 }
 
@@ -562,9 +572,185 @@ const openIconCacheDir = async () => {
     await invoke('command_open_icon_cache_dir');
 }
 
+let unlisten: Array<UnlistenFn | null> = [];
+
+const isDragOver = ref<boolean>(false);
+
+
+/**
+ * 添加或更新目标路径配置 (核心逻辑)
+ * @param configToAddOrUpdate - 要添加或用于更新的配置
+ * @param existingIndex - 如果是更新，则为现有配置的索引；如果是添加，则为 -1
+ */
+const addOrUpdateTargetPath = (configToAddOrUpdate: DirectoryConfig, existingIndex: number = -1): void => {
+    const newTargetPaths: DirectoryConfig[] = JSON.parse(JSON.stringify(targetPaths.value)); // 深拷贝当前列表
+
+    if (existingIndex !== -1) {
+        // --- 更新现有路径 ---
+        // 通常是添加 pattern
+        const existingPath = newTargetPaths[existingIndex];
+        // 合并 pattern，去重
+        const newPatterns = Array.from(new Set([...existingPath.pattern, ...configToAddOrUpdate.pattern]));
+        existingPath.pattern = newPatterns;
+        ElMessage({ type: 'success', message: `已更新路径 ${existingPath.root_path} 的模式` });
+    } else {
+        // --- 添加新路径 ---
+        // 检查 root_path 是否重复
+        const exists = newTargetPaths.some(p => p.root_path === configToAddOrUpdate.root_path);
+        if (exists) {
+            ElMessage({ type: 'warning', message: `路径 ${configToAddOrUpdate.root_path} 已存在，请检查` });
+            return; // 如果已存在，则不添加（拖拽文件到已有目录时，应走上面的更新逻辑）
+        }
+        newTargetPaths.push(configToAddOrUpdate);
+        ElMessage({ type: 'success', message: `已添加路径: ${configToAddOrUpdate.root_path}` });
+    }
+
+    // 使用最终确定的新列表更新 store
+    configStore.updateConfig({
+        program_manager_config: {
+            loader: {
+                target_paths: newTargetPaths
+            }
+        }
+    });
+    // 如果更新的是当前选中的路径，需要刷新右侧表单
+    if (selectedPathIndex.value === existingIndex) {
+        selectPath(existingIndex); // 重新加载选中项数据到 currentPath 和表格
+    }
+}
+
+
+// 后端命令返回的数据的接口
+interface PathInfo {
+    path_type: "file" | "directory" | "error";
+    original_path: string;
+    parent_path?: string;
+    filename?: string;
+    error_message?: string;
+}
+
+/**
+ * 处理 drop 事件。
+ * @param payload - 来自 Tauri drop 事件的有效负载。
+ */
+const handleFileDrop = async (payload: DragDropEvent) => {
+    isDragOver.value = false; // 重置视觉指示器
+    payload.type = "enter";
+    if (payload.type !== "enter") {
+        return;
+    }
+
+    isDragOver.value = false; // 重置拖放视觉指示
+
+    if (!payload.paths || payload.paths.length === 0) {
+        return; // 没有路径，直接返回
+    }
+
+    for (const droppedPath of payload.paths) {
+        try {
+            // 调用后端命令获取路径信息
+            const info = await invoke<PathInfo>('command_get_path_info', { pathStr: droppedPath });
+
+            if (info.path_type === 'directory') {
+                // --- 处理拖入的文件夹 ---
+                const newDirConfig: DirectoryConfig = {
+                    root_path: info.original_path,
+                    max_depth: 2, // 文件夹默认深度 2
+                    pattern: ['*.lnk', '*.url', '*.exe'], // 默认通配符
+                    pattern_type: 'Wildcard',
+                    excluded_keywords: ['帮助', 'help', 'uninstall', '卸载', 'zerolaunch-rs']
+                };
+                // 使用核心函数添加（会自动检查重复的 root_path）
+                addOrUpdateTargetPath(newDirConfig, -1); // 索引 -1 表示尝试添加新条目
+
+            } else if (info.path_type === 'file' && info.parent_path && info.filename) {
+                // --- 处理拖入的文件 ---
+                const parentPath = info.parent_path;
+                const filenamePattern = info.filename; // 文件名作为通配符
+
+                // 查找父目录是否已存在于 targetPaths 中
+                const existingIndex = targetPaths.value.findIndex(p => p.root_path === parentPath);
+
+                if (existingIndex !== -1) {
+                    // 父目录已存在，更新现有条目
+                    const existingPath = targetPaths.value[existingIndex];
+
+                    // 检查文件名模式是否已存在
+                    if (!existingPath.pattern.includes(filenamePattern)) {
+                        // 创建一个只包含新模式的临时配置对象，用于更新
+                        const updatePayload: DirectoryConfig = {
+                            root_path: parentPath, // root_path 必须匹配用于查找
+                            pattern: [filenamePattern], // 只包含要添加的新模式
+                            // 其他字段可以不传或传空，因为 addOrUpdateTargetPath 会合并 pattern
+                            max_depth: existingPath.max_depth, // 保持原有深度
+                            pattern_type: existingPath.pattern_type, // 保持原有类型
+                            excluded_keywords: existingPath.excluded_keywords // 保持原有排除项
+                        };
+                        // 调用核心函数更新，传入找到的索引
+                        addOrUpdateTargetPath(updatePayload, existingIndex);
+                    } else {
+                        ElMessage({ type: 'info', message: `文件模式 '${filenamePattern}' 已存在于路径: ${parentPath}` });
+                    }
+                } else {
+                    // 父目录不存在，创建新条目
+                    const newFileConfig: DirectoryConfig = {
+                        root_path: parentPath,
+                        max_depth: 1, // 文件所在目录默认深度 1
+                        pattern: [filenamePattern], // 模式为该文件名
+                        pattern_type: 'Wildcard', // 默认为通配符
+                        excluded_keywords: ['帮助', 'help', 'uninstall', '卸载', 'zerolaunch-rs']
+                    };
+                    // 调用核心函数添加新条目
+                    addOrUpdateTargetPath(newFileConfig, -1);
+                }
+
+            } else if (info.error_message) {
+                // 处理后端返回的错误
+                console.error(`处理路径 ${info.original_path} 出错: ${info.error_message}`);
+                ElMessage({ type: 'error', message: `处理路径 ${info.original_path} 出错: ${info.error_message}` });
+            } else {
+                // 处理未知类型或其他情况
+                console.warn(`不支持的路径类型或信息缺失: ${info.original_path}`);
+                ElMessage({ type: 'warning', message: `不支持的路径或信息缺失: ${info.original_path}` });
+            }
+
+        } catch (error) {
+            // 处理调用 invoke 时的前端错误
+            console.error(`调用 get_path_info 处理 ${droppedPath} 失败:`, error);
+            ElMessage({ type: 'error', message: `无法检查路径 ${droppedPath}` });
+        }
+    } // end for loop
+};
+
+onMounted(async () => {
+    unlisten.push(await listen<DragDropEvent>(TauriEvent.DRAG_DROP, (e) => {
+        handleFileDrop(e.payload);
+    }))
+    unlisten.push(await listen(TauriEvent.DRAG_LEAVE, () => {
+        isDragOver.value = false;
+        console.log("离开");
+    }))
+    unlisten.push(await listen(TauriEvent.DRAG_ENTER, () => {
+        isDragOver.value = true;
+        console.log("进入");
+    }))
+})
+
+onUnmounted(async () => {
+    unlisten.forEach(unlistenFn => {
+        if (unlistenFn) unlistenFn();
+    });
+    unlisten = [];
+})
+
 </script>
 
 <style scoped>
+.drag-over {
+    background-color: #e0e0e0;
+    border-color: #bbb;
+}
+
 .path-config-container {
     display: flex;
     gap: 20px;

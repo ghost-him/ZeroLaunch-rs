@@ -176,7 +176,7 @@ import {
     Connection,
     InfoFilled,
     List,
-    Monitor, QuestionFilled
+    Monitor
 } from '@element-plus/icons-vue';
 
 import { invoke } from '@tauri-apps/api/core';

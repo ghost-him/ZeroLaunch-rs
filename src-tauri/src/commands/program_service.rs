@@ -6,6 +6,8 @@ use crate::save_config_to_file;
 use crate::state::app_state::AppState;
 use crate::update_app_setting;
 use serde::{Deserialize, Serialize};
+use std::fs;
+use std::path::Path;
 use std::process::Command;
 use std::sync::Arc;
 use tauri::Runtime;
@@ -183,4 +185,57 @@ pub async fn command_open_icon_cache_dir<R: Runtime>(
         .spawn()
         .unwrap();
     Ok(())
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct PathInfo {
+    path_type: String, // "file"、"directory" 或 "error"
+    original_path: String,
+    parent_path: Option<String>,
+    filename: Option<String>,
+    error_message: Option<String>,
+}
+
+#[tauri::command]
+pub fn command_get_path_info(path_str: String) -> PathInfo {
+    let path = Path::new(&path_str);
+    match fs::metadata(path) {
+        Ok(metadata) => {
+            if metadata.is_dir() {
+                PathInfo {
+                    path_type: "directory".to_string(),
+                    original_path: path_str,
+                    parent_path: None,
+                    filename: None,
+                    error_message: None,
+                }
+            } else if metadata.is_file() {
+                let parent = path.parent().and_then(|p| p.to_str()).map(String::from);
+                let filename = path.file_name().and_then(|n| n.to_str()).map(String::from);
+                PathInfo {
+                    path_type: "file".to_string(),
+                    original_path: path_str,
+                    parent_path: parent,
+                    filename: filename,
+                    error_message: None,
+                }
+            } else {
+                // 如果已检索到元数据，则不应经常发生，但要进行防御性处理
+                PathInfo {
+                    path_type: "error".to_string(),
+                    original_path: path_str,
+                    parent_path: None,
+                    filename: None,
+                    error_message: Some("Path is neither a file nor a directory.".to_string()),
+                }
+            }
+        }
+        Err(e) => PathInfo {
+            path_type: "error".to_string(),
+            original_path: path_str,
+            parent_path: None,
+            filename: None,
+            error_message: Some(format!("Failed to access path metadata: {}", e)),
+        },
+    }
 }

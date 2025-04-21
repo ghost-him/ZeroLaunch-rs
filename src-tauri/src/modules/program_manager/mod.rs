@@ -140,6 +140,11 @@ impl ProgramManager {
         let inner = self.inner.read().await;
         inner.open_target_folder(program_guid)
     }
+    /// 获得最近启动的程序
+    pub async fn get_latest_launch_program(&self, program_count: u32) -> Vec<(u64, String)> {
+        let inner = self.inner.read().await;
+        inner.get_latest_launch_program(program_count)
+    }
 }
 
 impl ProgramManagerInner {
@@ -179,7 +184,6 @@ impl ProgramManagerInner {
         self.program_registry.clear();
         self.program_registry = self.program_loader.load_program();
         // 更新launcher
-        self.program_launcher.clear_program_launch_info();
         self.program_locater.clear();
         for (index, program) in self.program_registry.iter().enumerate() {
             self.program_launcher
@@ -358,5 +362,21 @@ impl ProgramManagerInner {
     /// 打开目标文件所在的文件夹
     pub fn open_target_folder(&self, program_guid: u64) -> bool {
         self.program_launcher.open_target_folder(program_guid)
+    }
+
+    /// 获得最近启动的程序
+    /// Vec(应用唯一标识符，展示给用户的名字)
+    pub fn get_latest_launch_program(&self, program_count: u32) -> Vec<(u64, String)> {
+        let latest_launch_program = self
+            .program_launcher
+            .get_latest_launch_program(program_count);
+
+        let mut results = Vec::new();
+        latest_launch_program.into_iter().for_each(|guid| {
+            let index = self.program_locater.get(&guid).unwrap().clone();
+            let program_info = self.program_registry[index].clone();
+            results.push((guid, program_info.show_name.clone()));
+        });
+        results
     }
 }

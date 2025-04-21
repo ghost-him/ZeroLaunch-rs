@@ -10,11 +10,17 @@ use chrono::{Local, NaiveDate};
 use dashmap::DashMap;
 use std::collections::HashMap;
 use std::hash::Hash;
-
+use time::OffsetDateTime;
 /// 生成当前日期的函数
 pub fn generate_current_date() -> String {
     let current_date = Local::now().date_naive();
     current_date.format("%Y-%m-%d").to_string()
+}
+
+/// 生成当前的时间
+pub fn get_current_time() -> i64 {
+    let now = OffsetDateTime::now_utc();
+    now.unix_timestamp()
 }
 
 /// 比较日期字符串与当前日期的函数

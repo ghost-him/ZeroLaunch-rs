@@ -1,5 +1,5 @@
 <template>
-  <div class="launcher-container" @keydown="handleKeyDown" tabindex="0" :style="[program_backgroundStyle,
+  <div class="launcher-container" @keydown="handleKeyDown" @keyup="handleKeyUp" @blur="handleBlur" tabindex="0" :style="[program_backgroundStyle,
     !ui_config.use_windows_sys_control_radius ? {
       border: `1px solid ${is_dark ? '#3d3d3d' : '#bdbdbd'}`,
       borderRadius: `${ui_config.window_corner_radius}px`
@@ -79,8 +79,8 @@
       </div>
       <div class="footer-center drag_area"></div>
       <div class="footer-right">
-        <span class="open-text" :style="{ color: ui_config.footer_font_color }">{{ '打开'
-        }}</span>
+        <span class="open-text" :style="{ color: ui_config.footer_font_color }">{{ right_tips
+          }}</span>
       </div>
     </div>
   </div>
@@ -102,7 +102,14 @@ const shortcut_config = ref<ShortcutConfig>(default_shortcut_config())
 const searchText = ref('')
 const selectedIndex = ref<number>(0)
 const searchBarRef = ref<HTMLInputElement | null>(null)
+// 搜索的结果
 const searchResults = ref<Array<[number, string]>>([]);
+// 最近启动的程序
+const latest_launch_program = ref<Array<[number, string]>>([]);
+// 当前是否按下了alt键
+const is_alt_pressed = ref<boolean>(false);
+//右下角的提示词
+const right_tips = ref<string>('最佳匹配');
 const menuItems = ref<Array<string>>([]);
 const menuIcons = ref<Array<string>>([]);
 const program_icons = ref<Map<number, string>>(new Map<number, string>([]));
@@ -127,14 +134,42 @@ const sendSearchText = async (text: string) => {
   try {
     const results: Array<[number, string]> = await invoke('handle_search_text', { searchText: text });
     searchResults.value = results;
-    menuItems.value = results.map(([_, item]) => item);
-    let keys = results.map(([key, _]) => key);
-    menuIcons.value = await getIcons(keys);
+    await refresh_result_items();
   } catch (error) {
     console.error('Error sending search text to Rust: ', error);
   }
 }
 
+// 监测alt键的变化
+watch(is_alt_pressed, async (new_value) => {
+  // 只要有变化，就调用
+  if (new_value) {
+    // 如果按下了，则向后端调用
+    await get_latest_launch_program();
+  }
+  // 然后刷新
+  await refresh_result_items();
+})
+
+const get_latest_launch_program = async () => {
+  const results: Array<[number, string]> = await invoke('command_get_latest_launch_propgram');
+  latest_launch_program.value = results;
+  await refresh_result_items();
+}
+
+const refresh_result_items = async () => {
+  if (!is_alt_pressed.value) {
+    menuItems.value = searchResults.value.map(([_, item]) => item);
+    let keys = searchResults.value.map(([key, _]) => key);
+    menuIcons.value = await getIcons(keys);
+    right_tips.value = '最值匹配'
+  } else {
+    menuItems.value = latest_launch_program.value.map(([_, item]) => item);
+    let keys = latest_launch_program.value.map(([key, _]) => key);
+    menuIcons.value = await getIcons(keys);
+    right_tips.value = '最近打开'
+  }
+}
 
 const searchBarMenuBuf = ref<InstanceType<typeof SubMenu> | null>(null);
 const searchBarMenuItems = shallowRef([{ name: '打开设置界面', icon: Setting, action: () => { openSettingsWindow() } },
@@ -270,10 +305,30 @@ enum ActionType {
   ESCAPE
 }
 
+// 窗口失去了焦点
+const handleBlur = () => {
+  // console.log('Window blurred'); // 调试用
+  is_alt_pressed.value = false;
+}
+
+// 键盘按键起来
+const handleKeyUp = (event: KeyboardEvent) => {
+  console.log("up");
+  console.log(event);
+  if (event.key === 'Alt') {
+    is_alt_pressed.value = false;
+  }
+}
+
 // 键盘事件处理函数
-const handleKeyDown = (event: KeyboardEvent) => {
+const handleKeyDown = async (event: KeyboardEvent) => {
   const isMenuVisible = resultItemMenuRef.value?.isVisible() || false;
   console.log(event)
+  if (event.key === 'Alt') {
+    is_alt_pressed.value = true;
+    event.preventDefault();
+  }
+
   // 检查是否匹配快捷键
   const matchShortcut = (shortcutConfig: any): boolean => {
     return event.key.toLowerCase() === shortcutConfig.key.toLowerCase() &&

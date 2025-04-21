@@ -3,12 +3,14 @@ use crate::program_manager::config::program_launcher_config::ProgramLauncherConf
 use crate::program_manager::LaunchMethod;
 use crate::utils::dashmap_to_hashmap;
 use crate::utils::defer::defer;
-use crate::utils::generate_current_date;
 use crate::utils::hashmap_to_dashmap;
 use crate::utils::is_date_current;
 use crate::utils::windows::get_u16_vec;
+use crate::utils::{generate_current_date, get_current_time};
 use dashmap::DashMap;
 use parking_lot::RwLock;
+use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 use std::collections::{HashMap, VecDeque};
 use std::os::windows::process::CommandExt;
 use std::path::Path;
@@ -22,12 +24,16 @@ use windows::Win32::UI::Shell::{
 };
 use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 use windows_core::PCWSTR;
+
 #[derive(Debug)]
 struct ProgramLauncherInner {
     launch_store: DashMap<u64, LaunchMethod>,
     launch_time: VecDeque<DashMap<String, u64>>,
     history_launch_time: DashMap<String, u64>,
     last_update_data: String,
+    latest_launch_time: DashMap<String, i64>,
+    // 运行过程中的数据结构，（上一次启动的时间，目标程序的guid）
+    runtime_latest_launch_time: BTreeSet<(i64, u64)>,
 }
 
 impl ProgramLauncherInner {
@@ -39,15 +45,14 @@ impl ProgramLauncherInner {
             launch_time: deque,
             history_launch_time: DashMap::new(),
             last_update_data: generate_current_date(),
+            latest_launch_time: DashMap::new(),
+            runtime_latest_launch_time: BTreeSet::new(),
         }
-    }
-
-    fn clear_program_launch_info(&mut self) {
-        self.launch_store.clear();
     }
 
     fn load_from_config(&mut self, config: &ProgramLauncherConfig) {
         self.launch_time.clear();
+        self.launch_store.clear();
         let launch_info = config.get_launch_info();
         launch_info.iter().for_each(|k| {
             let dash_map = hashmap_to_dashmap(k);
@@ -57,6 +62,11 @@ impl ProgramLauncherInner {
         self.last_update_data = config.get_last_update_data();
         self.history_launch_time = hashmap_to_dashmap(&config.get_history_launch_time());
         self.update_launch_info();
+        // 维护最近启动次数
+        self.latest_launch_time.clear();
+        self.latest_launch_time = hashmap_to_dashmap(&config.get_latest_launch_time());
+
+        self.runtime_latest_launch_time.clear();
     }
 
     fn get_runtime_data(&mut self) -> PartialProgramLauncherConfig {
@@ -71,12 +81,23 @@ impl ProgramLauncherInner {
             launch_info: Some(launch_info_data),
             history_launch_time: Some(dashmap_to_hashmap(&self.history_launch_time)),
             last_update_data: Some(generate_current_date()),
+            latest_launch_time: Some(dashmap_to_hashmap(&self.latest_launch_time)),
         }
     }
 
     fn register_program(&mut self, program_guid: u64, launch_method: LaunchMethod) {
         debug!("register: {} {}", program_guid, launch_method.get_text());
+        let key = launch_method.get_text();
         self.launch_store.insert(program_guid, launch_method);
+
+        self.latest_launch_time.entry(key.clone()).or_insert(0);
+
+        self.latest_launch_time
+            .entry(key)
+            .and_modify(|latest_launch_time| {
+                self.runtime_latest_launch_time
+                    .insert((latest_launch_time.clone(), program_guid));
+            });
     }
 
     fn launch_program(&mut self, program_guid: u64, is_admin_required: bool) {
@@ -89,6 +110,26 @@ impl ProgramLauncherInner {
             .entry(launch_method.get_text())
             .and_modify(|count| *count += 1)
             .or_insert(1);
+
+        // 更新启动的时间
+        self.latest_launch_time
+            .entry(launch_method.get_text())
+            .and_modify(|last_launch_time| {
+                // 去除之前老的数据
+                assert_eq!(
+                    self.runtime_latest_launch_time
+                        .remove(&(last_launch_time.clone(), program_guid)),
+                    true
+                );
+                let current_time = get_current_time();
+                *last_launch_time = current_time;
+                self.runtime_latest_launch_time
+                    .insert((current_time, program_guid));
+            })
+            .or_insert_with(|| {
+                panic!("代码有问题！");
+                0
+            });
 
         match &*launch_method {
             LaunchMethod::Path(path) => {
@@ -104,6 +145,20 @@ impl ProgramLauncherInner {
                 self.launch_command(command);
             }
         }
+    }
+
+    /// 获得启动器维护的数据
+    pub fn get_latest_launch_program(&self, program_count: u32) -> Vec<u64> {
+        let mut result = Vec::new();
+        for (_, program_guid) in self
+            .runtime_latest_launch_time
+            .iter()
+            .rev()
+            .take(program_count as usize)
+        {
+            result.push(program_guid.clone());
+        }
+        result
     }
 
     fn launch_command(&self, command: &str) {
@@ -318,10 +373,6 @@ impl ProgramLauncher {
         }
     }
 
-    pub fn clear_program_launch_info(&self) {
-        self.inner.write().clear_program_launch_info();
-    }
-
     pub fn load_from_config(&self, config: &ProgramLauncherConfig) {
         self.inner.write().load_from_config(config);
     }
@@ -354,5 +405,9 @@ impl ProgramLauncher {
 
     pub fn open_target_folder(&self, program_guid: u64) -> bool {
         self.inner.read().open_target_folder(program_guid)
+    }
+
+    pub fn get_latest_launch_program(&self, program_count: u32) -> Vec<u64> {
+        self.inner.read().get_latest_launch_program(program_count)
     }
 }

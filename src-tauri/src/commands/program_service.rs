@@ -147,6 +147,27 @@ pub async fn handle_search_text<R: Runtime>(
     Ok(ret)
 }
 
+/// 获得最近启动的程序
+#[tauri::command]
+pub async fn command_get_latest_launch_propgram(
+    state: tauri::State<'_, Arc<AppState>>,
+) -> Result<Vec<SearchResult>, String> {
+    let runtime_config = state.get_runtime_config().unwrap();
+    let result_count = runtime_config.get_app_config().get_search_result_count();
+    // 处理消息
+    let program_manager: Arc<crate::modules::program_manager::ProgramManager> =
+        state.get_program_manager().unwrap();
+    let results = program_manager
+        .get_latest_launch_program(result_count)
+        .await;
+    let mut ret = Vec::new();
+    for item in results {
+        ret.push(SearchResult(item.0, item.1));
+    }
+    debug!("latest_launch_propgram: {:?}", ret);
+    Ok(ret)
+}
+
 #[tauri::command]
 pub async fn command_load_remote_config<R: Runtime>(
     _app: tauri::AppHandle<R>,

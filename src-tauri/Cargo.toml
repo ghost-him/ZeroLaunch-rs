@@ -85,6 +85,7 @@ scraper = "0.23.1"
 url = "2.5.4"
 fnv = "1.0.7"
 fontdb = "0.23.0"
+time = "0.3.41"
 
 [features]
 default = ["custom-protocol"]

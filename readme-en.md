@@ -91,6 +91,7 @@ Specializes in application search functionality—streamlined yet powerful, prov
 | Clear Search            | `Esc`            |
 | Hide Interface          | Click Outside    |
 | Focus Existing Window   | `Shift + Enter` |
+| Sorted by most recent startup time |  `Alt` |
 
 ### Feature Implementation Guide
 
@@ -156,7 +157,6 @@ Built upon these outstanding open-source projects:
 
 ### Short-Term Goals
 
-* Dark theme support
 * Error handling optimizations
 
 ### Long-Term Vision

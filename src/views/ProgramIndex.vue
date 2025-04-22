@@ -270,7 +270,7 @@ import { DirectoryConfig } from '../api/remote_config_types';
 
 const configStore = useRemoteConfigStore()
 const { config } = storeToRefs(configStore)
-import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { Delete, Plus, ArrowDown, QuestionFilled } from '@element-plus/icons-vue'
 import type { ComputedRef, Ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core';

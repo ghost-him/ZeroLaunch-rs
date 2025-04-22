@@ -80,7 +80,7 @@
       <div class="footer-center drag_area"></div>
       <div class="footer-right">
         <span class="open-text" :style="{ color: ui_config.footer_font_color }">{{ right_tips
-          }}</span>
+        }}</span>
       </div>
     </div>
   </div>
@@ -162,12 +162,12 @@ const refresh_result_items = async () => {
     menuItems.value = searchResults.value.map(([_, item]) => item);
     let keys = searchResults.value.map(([key, _]) => key);
     menuIcons.value = await getIcons(keys);
-    right_tips.value = '最值匹配'
+    right_tips.value = '最佳匹配';
   } else {
     menuItems.value = latest_launch_program.value.map(([_, item]) => item);
     let keys = latest_launch_program.value.map(([key, _]) => key);
     menuIcons.value = await getIcons(keys);
-    right_tips.value = '最近打开'
+    right_tips.value = '最近打开';
   }
 }
 
@@ -291,7 +291,8 @@ const getIcons = async (keys: Array<number>) => {
 // 处理选中项目的函数，现在接收 ctrlKey 参数
 const launch_program = (itemIndex: number, ctrlKey = false, shiftKey = false) => {
   console.log("向后端调用");
-  invoke('launch_program', { programGuid: searchResults.value[itemIndex][0], ctrl: ctrlKey, shift: shiftKey });
+  const program_guid = is_alt_pressed.value ? latest_launch_program.value[itemIndex][0] : searchResults.value[itemIndex][0]
+  invoke('launch_program', { programGuid: program_guid, ctrl: ctrlKey, shift: shiftKey });
   // 这里可以添加实际的处理逻辑
 }
 
@@ -333,7 +334,7 @@ const handleKeyDown = async (event: KeyboardEvent) => {
   const matchShortcut = (shortcutConfig: any): boolean => {
     return event.key.toLowerCase() === shortcutConfig.key.toLowerCase() &&
       event.ctrlKey === shortcutConfig.ctrl &&
-      event.altKey === shortcutConfig.alt &&
+      //event.altKey === shortcutConfig.alt &&
       event.shiftKey === shortcutConfig.shift &&
       event.metaKey === shortcutConfig.meta;
   };

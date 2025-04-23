@@ -71,12 +71,13 @@ Specializes in application search functionality—streamlined yet powerful, prov
 ### Secondary Features
 
 * **Search Algorithm Tuning**: Fine-tune search algorithms to meet personalized needs.
-* **Custom Program Management**: Add blocklists to exclude specific programs and manually register applications in custom installation paths.
+* **Custom Program Addition**: Supports adding blocked keywords to prevent certain programs from loading, supports adding programs with custom installation paths, and supports installation by dragging and dropping files.
 * **File Search**: Add frequently accessed files for quick retrieval.
 * **Web Search**: Create custom web search shortcuts for commonly used websites.
 * **Command Shortcuts**: Define custom commands for rapid execution.
 * **Custom Configuration File Save Path**: Supports custom local storage and WebDAV for network storage.
 * **Game Mode**: Allows manual disabling of shortcuts to prevent the search bar from popping up at critical moments
+* **Supports opening recently launched programs**: Hold down the Alt key to cycle through recently opened programs in order.
 
 ## 🚀 Quick Start
 

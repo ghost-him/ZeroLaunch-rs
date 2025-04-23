@@ -125,10 +125,6 @@ impl ProgramLauncherInner {
                 *last_launch_time = current_time;
                 self.runtime_latest_launch_time
                     .insert((current_time, program_guid));
-            })
-            .or_insert_with(|| {
-                panic!("代码有问题！");
-                0
             });
 
         match &*launch_method {

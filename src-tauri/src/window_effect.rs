@@ -5,9 +5,8 @@ use crate::utils::service_locator::ServiceLocator;
 use windows::{
     core::*,
     Win32::Graphics::Dwm::{
-            DwmSetWindowAttribute,
-            DWMWA_WINDOW_CORNER_PREFERENCE, DWMWINDOWATTRIBUTE,
-        },
+        DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWINDOWATTRIBUTE,
+    },
 };
 
 // 更新窗口的状态

@@ -37,12 +37,17 @@ use modules::config::config_manager::RuntimeConfig;
 use modules::config::default::{APP_PIC_PATH, REMOTE_CONFIG_NAME};
 use modules::config::load_local_config;
 use modules::config::save_local_config;
+use modules::config::ui_config::PartialUiConfig;
 use modules::config::window_state::PartialWindowState;
 use modules::program_manager::config::image_loader_config::RuntimeImageLoaderConfig;
 use modules::program_manager::config::program_manager_config::RuntimeProgramConfig;
 use modules::program_manager::{self, ProgramManager};
 use modules::shortcut_manager::shortcut_manager::start_shortcut_manager;
 use modules::shortcut_manager::shortcut_manager::update_shortcut_manager;
+use modules::ui_controller::controller::recommend_footer_height;
+use modules::ui_controller::controller::recommend_result_item_height;
+use modules::ui_controller::controller::recommend_search_bar_height;
+use modules::ui_controller::controller::recommend_window_width;
 use std::fs::File;
 use std::io::Write;
 use std::panic;
@@ -280,6 +285,17 @@ fn update_window_size_and_position() {
         main_window
             .set_position(PhysicalPosition::new(position.0 as u32, position.1 as u32))
             .unwrap();
+    }
+
+    // 判断一下窗口的大小是不是默认的大小，如果是，则将其变成比例式的大小
+    if ui_config.is_default_window_size() {
+        // 如果什么都没变，说明用户是第一次启动这个软件，则可以使用自适应窗口大小来优化显示
+        let mut update_config = PartialUiConfig::default();
+        update_config.search_bar_height = Some(recommend_search_bar_height() as u32);
+        update_config.result_item_height = Some(recommend_result_item_height() as u32);
+        update_config.footer_height = Some(recommend_footer_height() as u32);
+        update_config.window_width = Some(recommend_window_width() as u32);
+        ui_config.update(update_config);
     }
 
     let window_size = get_window_size();

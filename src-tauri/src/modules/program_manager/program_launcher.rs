@@ -9,7 +9,6 @@ use crate::utils::windows::get_u16_vec;
 use crate::utils::{generate_current_date, get_current_time};
 use dashmap::DashMap;
 use parking_lot::RwLock;
-use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::collections::{HashMap, VecDeque};
 use std::os::windows::process::CommandExt;
@@ -125,10 +124,6 @@ impl ProgramLauncherInner {
                 *last_launch_time = current_time;
                 self.runtime_latest_launch_time
                     .insert((current_time, program_guid));
-            })
-            .or_insert_with(|| {
-                panic!("代码有问题！");
-                0
             });
 
         match &*launch_method {

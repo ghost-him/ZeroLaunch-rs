@@ -58,7 +58,7 @@
                     <el-switch v-model="config.app_config.is_wake_on_fullscreen"
                         @change="(val: boolean) => configStore.updateConfig({ app_config: { is_wake_on_fullscreen: val } })" />
                     <el-tooltip class="box-item" effect="dark"
-                        content="与游戏模式的区别：游戏模式会取消注册唤醒的快捷键，让游戏可以接受到这个快捷键在，而该选项依然会保留快捷键">
+                        content="与游戏模式的区别：游戏模式会取消注册唤醒的快捷键，让游戏可以接收到这个快捷键在，而该选项依然会保留快捷键">
                         <el-icon class="el-question-icon">
                             <QuestionFilled />
                         </el-icon>

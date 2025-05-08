@@ -2,6 +2,34 @@
 use crate::modules::config::{Height, Width};
 use crate::ServiceLocator;
 
+pub fn recommend_window_width() -> Width {
+    let state = ServiceLocator::get_state();
+    let runtime_config = state.get_runtime_config().unwrap();
+    let window_state = runtime_config.get_window_state();
+    window_state.get_sys_window_width() / 3
+}
+
+pub fn recommend_search_bar_height() -> Height {
+    let state = ServiceLocator::get_state();
+    let runtime_config = state.get_runtime_config().unwrap();
+    let window_state = runtime_config.get_window_state();
+    window_state.get_sys_window_height() / 22
+}
+
+pub fn recommend_result_item_height() -> Height {
+    let state = ServiceLocator::get_state();
+    let runtime_config = state.get_runtime_config().unwrap();
+    let window_state = runtime_config.get_window_state();
+    window_state.get_sys_window_height() / 23
+}
+
+pub fn recommend_footer_height() -> Height {
+    let state = ServiceLocator::get_state();
+    let runtime_config = state.get_runtime_config().unwrap();
+    let window_state = runtime_config.get_window_state();
+    window_state.get_sys_window_height() / 34
+}
+
 // 获得窗口的大小
 pub fn get_window_size() -> (Width, Height) {
     let state = ServiceLocator::get_state();

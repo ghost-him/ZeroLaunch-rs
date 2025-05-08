@@ -30,6 +30,38 @@ pub struct PartialUiConfig {
     pub program_background_color: Option<String>,
 }
 
+impl Default for PartialUiConfig {
+    fn default() -> Self {
+        Self {
+            selected_item_color: None,
+            item_font_color: None,
+            search_bar_font_color: None,
+            search_bar_background_color: None,
+            item_font_size: None,
+            search_bar_font_size: None,
+            vertical_position_ratio: None,
+            search_bar_height: None,
+            result_item_height: None,
+            footer_height: None,
+            window_width: None,
+            background_size: None,
+            background_position: None,
+            background_repeat: None,
+            background_opacity: None,
+            blur_style: None,
+            search_bar_placeholder_font_color: None,
+            window_corner_radius: None,
+            use_windows_sys_control_radius: None,
+            footer_font_size: None,
+            footer_font_color: None,
+            search_bar_font_family: None,
+            result_item_font_family: None,
+            footer_font_family: None,
+            program_background_color: None,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct UiConfigInner {
@@ -343,6 +375,10 @@ impl UiConfigInner {
         }
     }
 
+    pub fn get_window_width(&self) -> u32 {
+        self.window_width
+    }
+
     pub fn get_selected_item_color(&self) -> String {
         self.selected_item_color.clone()
     }
@@ -392,6 +428,19 @@ impl UiConfigInner {
 
     pub fn get_program_background_color(&self) -> String {
         self.program_background_color.clone()
+    }
+
+    pub fn get_vertical_position_ratio(&self) -> f64 {
+        self.vertical_position_ratio
+    }
+
+    // 判断窗口的大小是不是默认的
+    pub fn is_default_window_size(&self) -> bool {
+        self.get_search_bar_height() == Self::default_search_bar_height()
+            && self.get_footer_height() == Self::default_footer_height()
+            && self.get_result_item_height() == Self::default_result_item_height()
+            && self.get_window_width() == Self::default_window_width()
+            && self.get_vertical_position_ratio() == Self::default_vertical_position_ratio()
     }
 
     pub fn to_partial(&self) -> PartialUiConfig {
@@ -479,7 +528,7 @@ impl UiConfig {
 
     pub fn get_vertical_position_ratio(&self) -> f64 {
         let inner = self.inner.read();
-        inner.vertical_position_ratio
+        inner.get_vertical_position_ratio()
     }
 
     pub fn get_search_bar_height(&self) -> u32 {
@@ -568,5 +617,10 @@ impl UiConfig {
     pub fn get_program_background_color(&self) -> String {
         let inner = self.inner.read();
         inner.program_background_color.clone()
+    }
+
+    pub fn is_default_window_size(&self) -> bool {
+        let inner = self.inner.read();
+        inner.is_default_window_size()
     }
 }

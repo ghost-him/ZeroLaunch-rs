@@ -65,6 +65,16 @@
                     </el-tooltip>
                 </el-form-item>
 
+                <el-form-item label="唤醒窗口的位置是否跟随鼠标">
+                    <el-switch v-model="config.app_config.show_pos_follow_mouse"
+                        @change="(val: boolean) => configStore.updateConfig({ app_config: { show_pos_follow_mouse: val } })" />
+                    <el-tooltip class="box-item" effect="dark" content="只推荐多个显示器的分辨率，缩放率均一样时才开启，否则会遇到适配问题">
+                        <el-icon class="el-question-icon">
+                            <QuestionFilled />
+                        </el-icon>
+                    </el-tooltip>
+                </el-form-item>
+
                 <el-form-item label="按下空格启动程序">
                     <el-switch v-model="config.app_config.space_is_enter"
                         @change="(val: boolean) => configStore.updateConfig({ app_config: { space_is_enter: val } })" />

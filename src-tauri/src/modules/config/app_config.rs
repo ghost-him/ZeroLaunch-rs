@@ -18,6 +18,7 @@ pub struct PartialAppConfig {
     pub window_position: Option<(i32, i32)>,
     pub is_wake_on_fullscreen: Option<bool>,
     pub space_is_enter: Option<bool>,
+    pub show_pos_follow_mouse: Option<bool>,
 }
 
 impl Default for PartialAppConfig {
@@ -36,6 +37,7 @@ impl Default for PartialAppConfig {
             window_position: None,
             is_wake_on_fullscreen: None,
             space_is_enter: None,
+            show_pos_follow_mouse: None,
         }
     }
 }
@@ -83,6 +85,9 @@ pub struct AppConfigInner {
     /// 空格键是否等于enter键
     #[serde(default = "AppConfigInner::default_space_is_enter")]
     pub space_is_enter: bool,
+    /// 唤醒的窗口跟随鼠标
+    #[serde(default = "AppConfigInner::default_show_pos_follow_mouse")]
+    pub show_pos_follow_mouse: bool,
 }
 
 impl Default for AppConfigInner {
@@ -101,6 +106,7 @@ impl Default for AppConfigInner {
             window_position: Self::default_window_position(),
             is_wake_on_fullscreen: Self::default_is_wake_on_fullscreen(),
             space_is_enter: Self::default_space_is_enter(),
+            show_pos_follow_mouse: Self::default_show_pos_follow_mouse(),
         }
     }
 }
@@ -155,6 +161,10 @@ impl AppConfigInner {
     pub(crate) fn default_space_is_enter() -> bool {
         false
     }
+
+    pub(crate) fn default_show_pos_follow_mouse() -> bool {
+        false
+    }
 }
 
 impl AppConfigInner {
@@ -198,6 +208,9 @@ impl AppConfigInner {
         if let Some(space_is_enter) = partial_app_config.space_is_enter {
             self.space_is_enter = space_is_enter;
         }
+        if let Some(show_pos_follow_mouse) = partial_app_config.show_pos_follow_mouse {
+            self.show_pos_follow_mouse = show_pos_follow_mouse;
+        }
     }
     pub fn to_partial(&self) -> PartialAppConfig {
         PartialAppConfig {
@@ -214,6 +227,7 @@ impl AppConfigInner {
             window_position: Some(self.window_position),
             is_wake_on_fullscreen: Some(self.is_wake_on_fullscreen),
             space_is_enter: Some(self.space_is_enter),
+            show_pos_follow_mouse: Some(self.show_pos_follow_mouse),
         }
     }
 }
@@ -304,5 +318,10 @@ impl AppConfig {
     pub fn get_space_is_enter(&self) -> bool {
         let inner = self.inner.read();
         inner.space_is_enter
+    }
+
+    pub fn get_show_pos_follow_mouse(&self) -> bool {
+        let inner = self.inner.read();
+        inner.show_pos_follow_mouse
     }
 }

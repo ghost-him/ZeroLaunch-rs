@@ -69,6 +69,7 @@ export type AppConfig = {
     window_position: [number, number],
     is_wake_on_fullscreen: boolean,
     space_is_enter: boolean,
+    show_pos_follow_mouse: boolean,
 }
 
 export function default_app_config(): AppConfig {
@@ -86,6 +87,7 @@ export function default_app_config(): AppConfig {
         window_position: [0, 0],
         is_wake_on_fullscreen: false,
         space_is_enter: false,
+        show_pos_follow_mouse: false,
     } as AppConfig;
 }
 

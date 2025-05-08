@@ -6,6 +6,7 @@ use tracing::warn;
 
 use super::service_locator::ServiceLocator;
 use super::windows::is_foreground_fullscreen;
+use crate::update_window_size_and_position;
 
 pub fn handle_pressed(app_handle: &tauri::AppHandle) {
     // 如果不是全屏情况下才唤醒
@@ -18,6 +19,8 @@ pub fn handle_pressed(app_handle: &tauri::AppHandle) {
             return;
         }
     }
+
+    update_window_size_and_position();
 
     let main_window = Arc::new(app_handle.get_webview_window("main").unwrap());
     main_window.show().unwrap();

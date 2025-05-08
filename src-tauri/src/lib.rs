@@ -6,6 +6,7 @@ pub mod state;
 pub mod tray;
 pub mod utils;
 pub mod window_effect;
+pub mod window_position;
 use crate::commands::config_file::*;
 use crate::commands::debug::*;
 use crate::commands::program_service::*;
@@ -57,7 +58,7 @@ use std::sync::Arc;
 use tauri::App;
 use tauri::Emitter;
 use tauri::WebviewUrl;
-use tauri::{Manager, PhysicalPosition, PhysicalSize};
+use tauri::{Manager, PhysicalSize};
 use tauri_plugin_deep_link::DeepLinkExt;
 use tracing::warn;
 use tracing::Level;
@@ -67,6 +68,7 @@ use tracing_appender::rolling::Rotation;
 use utils::notify::notify;
 use utils::service_locator::ServiceLocator;
 use window_effect::enable_window_effect;
+use window_position::update_window_size_and_position;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // 创建一个按日期滚动的日志文件，例如每天一个新文件
@@ -260,51 +262,6 @@ async fn init_app_state(app: &mut App) {
     // 维护文件管理器
     state.set_storage_manager(Arc::new(storage_manager));
     // 使用ServiceLocator保存一份
-}
-
-/// 更新当前窗口的大小与位置
-fn update_window_size_and_position() {
-    let state = ServiceLocator::get_state();
-    let main_window = state
-        .get_main_handle()
-        .unwrap()
-        .get_webview_window("main")
-        .unwrap();
-    let config = state.get_runtime_config().unwrap();
-
-    let ui_config = config.get_ui_config();
-    let app_config = config.get_app_config();
-    if app_config.get_is_enable_drag_window() {
-        let position = app_config.get_window_position();
-        main_window
-            .set_position(PhysicalPosition::new(position.0, position.1))
-            .unwrap();
-    } else {
-        let vertical_position_ratio = ui_config.get_vertical_position_ratio();
-        let position = get_window_render_origin(vertical_position_ratio);
-        main_window
-            .set_position(PhysicalPosition::new(position.0 as u32, position.1 as u32))
-            .unwrap();
-    }
-
-    // 判断一下窗口的大小是不是默认的大小，如果是，则将其变成比例式的大小
-    if ui_config.is_default_window_size() {
-        // 如果什么都没变，说明用户是第一次启动这个软件，则可以使用自适应窗口大小来优化显示
-        let mut update_config = PartialUiConfig::default();
-        update_config.search_bar_height = Some(recommend_search_bar_height() as u32);
-        update_config.result_item_height = Some(recommend_result_item_height() as u32);
-        update_config.footer_height = Some(recommend_footer_height() as u32);
-        update_config.window_width = Some(recommend_window_width() as u32);
-        ui_config.update(update_config);
-    }
-
-    let window_size = get_window_size();
-    main_window
-        .set_size(PhysicalSize::new(
-            window_size.0 as u32,
-            window_size.1 as u32,
-        ))
-        .unwrap();
 }
 
 /// 初始化搜索界面的窗口设置

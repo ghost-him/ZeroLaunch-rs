@@ -25,8 +25,8 @@ pub fn update_window_size_and_position() {
     let ui_config = config.get_ui_config();
     let app_config = config.get_app_config();
 
-    // 判断一下窗口的大小是不是默认的大小，如果是，则将其变成比例式的大小
-    if ui_config.is_default_window_size() {
+    // 判断一下窗口的大小是不是默认的大小，如果是，并且还是第一次启动程序，则将其变成比例式的大小
+    if ui_config.is_default_window_size() && app_config.get_is_initial() {
         // 如果什么都没变，说明用户是第一次启动这个软件，则可以使用自适应窗口大小来优化显示
         let mut update_config = PartialUiConfig::default();
         update_config.search_bar_height = Some(recommend_search_bar_height() as u32);

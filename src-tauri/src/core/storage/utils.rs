@@ -1,3 +1,4 @@
+use encoding_rs;
 use std::fs;
 /// 存放通用工具函数
 use std::io;
@@ -48,30 +49,49 @@ pub fn read_or_create_bytes(path: &str, content: Option<Vec<u8>>) -> Result<Vec<
 }
 
 /// 将lnk解析为绝对路径
+/// 优先使用本地的编码，如果失败，则使用utf16编码
 pub fn get_lnk_target_path(lnk_path: &str) -> Option<String> {
-    // 尝试打开.lnk文件
-    let shell_link = match lnk::ShellLink::open(lnk_path) {
+    let shell_link_result = lnk::ShellLink::open(lnk_path, encoding_rs::GB18030);
+
+    let shell_link = match shell_link_result {
         Ok(link) => link,
-        Err(e) => {
-            warn!("无法打开lnk文件: {:?}", e);
-            return None;
+        Err(_) => {
+            // 2. 二次尝试：如果首次尝试失败，则使用 UTF-16LE 编码
+            match lnk::ShellLink::open(lnk_path, encoding_rs::UTF_16LE) {
+                Ok(link) => {
+                    warn!(
+                        "在主要编码尝试失败后，成功使用 UTF-16LE 编码打开 LNK 文件: {}",
+                        lnk_path
+                    );
+                    link
+                }
+                Err(e_utf16) => {
+                    warn!(
+                        "尝试使用 UTF-16LE 编码打开 LNK 文件 '{}' 再次失败: {:?}",
+                        lnk_path, e_utf16
+                    );
+                    return None;
+                }
+            }
         }
     };
 
-    // 获取link_info，如果不存在则返回None
+    // 从成功打开的 shell_link 中提取路径信息
     let link_info = match shell_link.link_info() {
         Some(info) => info,
         None => {
-            warn!("无法获取link_info, path: {}", lnk_path);
+            warn!("无法从 LNK 文件 '{}' 获取 link_info。", lnk_path);
             return None;
         }
     };
 
-    // 获取本地基本路径，如果不存在则返回None
     match link_info.local_base_path() {
-        Some(path) => Some(path.clone()),
+        Some(path) => Some(path.to_string()),
         None => {
-            warn!("无法获取基本路径, path: {}", lnk_path);
+            warn!(
+                "无法从 LNK 文件 '{}' 获取基本路径 (local_base_path)。",
+                lnk_path
+            );
             return None;
         }
     }

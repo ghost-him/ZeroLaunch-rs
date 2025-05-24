@@ -5,7 +5,6 @@ use windows::Win32::UI::Shell::CSIDL_STARTMENU;
 use windows::Win32::UI::Shell::KF_FLAG_DEFAULT;
 use windows::Win32::UI::Shell::{FOLDERID_RoamingAppData, SHGetKnownFolderPath};
 use windows::Win32::UI::Shell::{CSIDL_COMMON_STARTMENU, CSIDL_DESKTOP};
-
 /// 获取
 /// 获取当前用户的桌面路径
 pub fn get_desktop_path() -> Result<String, String> {

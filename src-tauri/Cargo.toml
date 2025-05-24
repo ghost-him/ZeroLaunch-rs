@@ -18,7 +18,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "^2", features = [] }
 
 [dependencies]
-windows = { version = "0.60.0", features = [
+windows = { version = "0.61.1", features = [
     "Win32_UI_WindowsAndMessaging",
     "Win32_Foundation",
     "Win32_Graphics_Gdi",
@@ -43,6 +43,7 @@ windows = { version = "0.60.0", features = [
     "Win32_UI_Controls",
     "Win32_Networking",
     "Win32_Networking_WinInet",
+    "Win32_Globalization",
 ] }
 
 tauri = { version = "^2", features = ["tray-icon", "image-ico", "image-png"] }
@@ -51,33 +52,33 @@ serde_json = "^1"
 lazy_static = "^1.5.0"
 rdev = { version = "^0.5.3", features = ["unstable_grab"] }
 widestring = "^1.2.0"
-windows-core = "^0.59.0"
+windows-core = "^0.61.2"
 rayon = "^1.10.0"
 base64 = "^0.22.1"
 dashmap = "^6.1.0"
-image = "^0.25.5"
+image = "^0.25.6"
 tracing = "^0.1.41"
 tracing-subscriber = { version = "^0.3.19", features = ["env-filter"] }
 tracing-appender = "^0.2.3"
-chrono = "^0.4.40"
+chrono = "^0.4.41"
 parking_lot = "^0.12.3"
-tauri-plugin-global-shortcut = "^2.2.0"
-tauri-plugin-dialog = { version = "^2.2.0" }
+tauri-plugin-global-shortcut = "^2.2.1"
+tauri-plugin-dialog = { version = "^2.2.2" }
 timer = "^0.2.0"
-backtrace = "^0.3.74"
+backtrace = "^0.3.75"
 tauri-plugin-notification = "^2"
-kmeans_colors = "^0.6.0"
+kmeans_colors = "^0.7.0"
 palette = "^0.7.6"
-rand = "^0.9.0"
-anyhow = "1.0.97"
-reqwest = { version = "0.12.14", features = ["json"] }
-lnk = "0.5.1"
+rand = "^0.9.1"
+anyhow = "1.0.98"
+reqwest = { version = "0.12.15", features = ["json"] }
+lnk = "0.6.1"
 async-trait = "0.1.88"
-tokio = { version = "1.44.1", features = ["full"] }
-reqwest_dav = "0.1.14"
+tokio = { version = "1.45.0", features = ["full"] }
+reqwest_dav = "0.2.1"
 tauri-plugin-deep-link = "2"
 winreg = "0.55.0"
-tauri-utils = { version = "2.2.0", features = ["schema"] }
+tauri-utils = { version = "2.4.0", features = ["schema"] }
 device_query = "3.0.1"
 globset = "0.4.16"
 regex = "1.11.1"
@@ -86,6 +87,7 @@ url = "2.5.4"
 fnv = "1.0.7"
 fontdb = "0.23.0"
 time = "0.3.41"
+encoding_rs = "0.8.35"
 
 [features]
 default = ["custom-protocol"]

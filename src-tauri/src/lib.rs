@@ -57,8 +57,9 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::App;
 use tauri::Emitter;
+use tauri::LogicalSize;
+use tauri::Manager;
 use tauri::WebviewUrl;
-use tauri::{Manager, PhysicalSize};
 use tauri_plugin_deep_link::DeepLinkExt;
 use tracing::warn;
 use tracing::Level;
@@ -279,6 +280,8 @@ fn init_search_bar_window(app: &mut App) {
         sys_window_scale_factor: Some(scale_factor),
         sys_window_width: Some(size.width as Width),
         sys_window_height: Some(size.height as Height),
+        sys_window_locate_height: Some(0),
+        sys_window_locate_width: Some(0),
     });
 
     update_window_size_and_position();
@@ -367,7 +370,7 @@ fn init_setting_window(app: tauri::AppHandle) {
             .unwrap(),
         );
         setting_window
-            .set_size(PhysicalSize::new(1300, 800))
+            .set_size(LogicalSize::new(1300, 800))
             .unwrap();
         let window_clone = Arc::clone(&setting_window);
         setting_window.on_window_event(move |event| {

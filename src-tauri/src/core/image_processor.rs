@@ -3,13 +3,10 @@ use crate::utils::defer::defer;
 use crate::utils::windows::get_u16_vec;
 use core::mem::MaybeUninit;
 use fnv::FnvHasher;
-use image::codecs::png::PngEncoder;
-use image::DynamicImage;
 use image::GenericImageView;
 use image::ImageBuffer;
 use image::ImageEncoder;
 use image::ImageFormat;
-use image::ImageReader;
 use image::Rgba;
 use image::RgbaImage;
 use kmeans_colors::get_kmeans;
@@ -29,7 +26,6 @@ use tracing::info;
 use tracing::warn;
 use url::Url;
 use usvg;
-use usvg::Tree;
 use windows::Win32::Foundation::GetLastError;
 use windows::Win32::Graphics::Gdi::BITMAP;
 use windows::Win32::Graphics::Gdi::{
@@ -229,10 +225,8 @@ impl ImageProcessor {
                 }
                 Err(_) => {
                     // 解析 SVG 失败，或它不是 SVG。回退到原始的 image crate 逻辑。
-                    // image_data 在这里仍然可用，因为它之前只被借用给 usvg::Tree::from_data。
-                    // 我们需要为 image::io::Reader 创建一个新的 Cursor，因为它会获取所有权。
                     let img_reader =
-                        image::io::Reader::new(Cursor::new(image_data)).with_guessed_format()?;
+                        image::ImageReader::new(Cursor::new(image_data)).with_guessed_format()?;
 
                     // 读取图像格式
                     // 使用 ok_or_else 以便 ? 可以将 String 错误转换为 Box<dyn Error...>

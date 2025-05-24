@@ -121,9 +121,7 @@ pub fn get_window_size() -> (Width, Height) {
     let app_config = runtime_config.get_app_config();
     let ui_config = runtime_config.get_ui_config();
     let show_item_count = app_config.get_search_result_count();
-    let scale_factor = runtime_config
-        .get_window_state()
-        .get_sys_window_scale_factor();
+
     // 结果栏一项的高度
     let item_size = ui_config.get_result_item_height();
     // 搜索栏的高度
@@ -131,9 +129,8 @@ pub fn get_window_size() -> (Width, Height) {
     // 下栏的高度
     let footer_height: u32 = ui_config.get_footer_height();
     // 窗口的宽度
-    let window_width: f64 = ui_config.get_window_width() as f64 * scale_factor;
-    let window_height =
-        (item_size * show_item_count + search_bar_height + footer_height) as f64 * scale_factor;
+    let window_width: f64 = ui_config.get_window_width() as f64;
+    let window_height = (item_size * show_item_count + search_bar_height + footer_height) as f64;
 
     (window_width as Width, (window_height) as Height)
 }
@@ -147,16 +144,26 @@ pub fn get_window_render_origin(vertical_position_ratio: f64) -> (Width, Height)
     let state = ServiceLocator::get_state();
     let runtime_config = state.get_runtime_config().unwrap();
     let window_state = runtime_config.get_window_state();
-    let sys_window_width = window_state.get_sys_window_width();
-    let sys_window_height = window_state.get_sys_window_height();
-
+    let scale_factor = window_state.get_sys_window_scale_factor();
+    let logical_sys_window_width = window_state.get_sys_window_width() as f64;
+    let logical_sys_window_height = window_state.get_sys_window_height() as f64;
+    // println!(
+    //     "sys_width: {}, logical : {}",
+    //     window_state.get_sys_window_width(),
+    //     logical_sys_window_width
+    // );
     let (window_width, window_height) = get_window_size();
 
     // 水平方向保持居中
-    let window_width_margin = ((sys_window_width - window_width) / 2) as Width;
+    let mut window_width_margin =
+        ((logical_sys_window_width - window_width as f64 * scale_factor) / 2.0) as Width;
 
-    let window_height_margin =
-        ((sys_window_height - window_height) as f64 * vertical_position_ratio) as Height;
+    let mut window_height_margin = ((logical_sys_window_height
+        - window_height as f64 * scale_factor)
+        * vertical_position_ratio) as Height;
+
+    window_width_margin += (window_state.get_sys_window_locate_width() as f64) as Width;
+    window_height_margin += (window_state.get_sys_window_locate_height() as f64) as Height;
 
     (window_width_margin, window_height_margin)
 }

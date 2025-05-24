@@ -1,7 +1,7 @@
 use crate::get_window_render_origin;
 use crate::get_window_size;
+use crate::modules::config::window_state::PartialWindowState;
 use crate::PartialUiConfig;
-use crate::PhysicalSize;
 /// 用于调整主窗口的位置的
 use crate::ServiceLocator;
 use crate::{
@@ -10,6 +10,7 @@ use crate::{
 };
 use device_query::DeviceQuery;
 use device_query::DeviceState;
+use tauri::LogicalSize;
 use tauri::Manager;
 use tauri::PhysicalPosition;
 use tracing::debug;
@@ -36,15 +37,14 @@ pub fn update_window_size_and_position() {
         ui_config.update(update_config);
     }
 
-    let window_size = get_window_size();
-    main_window
-        .set_size(PhysicalSize::new(
-            window_size.0 as u32,
-            window_size.1 as u32,
-        ))
-        .unwrap();
+    // 当前程序的显示大小
+    let mut window_size = get_window_size();
 
     if app_config.get_is_enable_drag_window() {
+        // 如果已经启用拖动窗口了，则直接更新窗口的大小，否则还要再次修正窗口的大小
+        main_window
+            .set_size(LogicalSize::new(window_size.0 as u32, window_size.1 as u32))
+            .unwrap();
         let position = app_config.get_window_position();
         // 如果是读取之前的存储位置，则需要先判断一下目标的位置是不是在窗口内
         let windows = main_window.available_monitors().unwrap();
@@ -69,26 +69,23 @@ pub fn update_window_size_and_position() {
         return;
     }
 
-    // 要么没有设置成窗口自定义位置，要么窗口的位置不合条件，则进入这个选项
     let vertical_position_ratio = ui_config.get_vertical_position_ratio();
     let mut show_position = get_window_render_origin(vertical_position_ratio);
-    debug!(
-        "修正前的唤醒的位置: {} {}",
-        show_position.0, show_position.1
-    );
-    // 如果设置了窗口跟随鼠标，则要重新计算新的显示的位置
+    // 要么没有设置成窗口自定义位置，要么窗口的位置不合条件，则进入这个选项
     if app_config.get_show_pos_follow_mouse() {
-        debug!("进入判断");
+        // 如果设置了窗口跟随鼠标，则要重新计算新的显示的位置与窗口的大小
+        let window_state = config.get_window_state();
+
         let device_state = DeviceState::new();
         let mouse_state = device_state.get_mouse();
         let mouse_position = mouse_state.coords;
-        debug!("当前鼠标的位置：{}, {}", mouse_position.0, mouse_position.1);
+        //println!("当前鼠标的位置：{}, {}", mouse_position.0, mouse_position.1);
         let windows = main_window.available_monitors().unwrap();
         let mut target_window_pos = (0, 0);
         windows.iter().any(|window| {
             let window_position = window.position();
             let size = window.size();
-            debug!("窗口的位置：{} {}", window_position.x, window_position.y);
+            //println!("窗口的位置：{} {}", window_position.x, window_position.y);
             if mouse_position.0 >= window_position.x
                 && mouse_position.0 < (window_position.x + size.width as i32)
                 && mouse_position.1 >= window_position.y
@@ -96,23 +93,40 @@ pub fn update_window_size_and_position() {
             {
                 // 如果鼠标在这个窗口中
                 target_window_pos = (window_position.x, window_position.y);
+                // 同时再更新这个窗口的属性
+                window_state.update(PartialWindowState {
+                    sys_window_scale_factor: Some(window.scale_factor()),
+                    sys_window_locate_height: Some(window_position.y),
+                    sys_window_locate_width: Some(window_position.x),
+                    sys_window_width: Some(size.width as i32),
+                    sys_window_height: Some(size.height as i32),
+                });
                 debug!("找到了鼠标所在的窗口");
                 return true;
             }
             return false;
         });
-        show_position.0 += target_window_pos.0 as usize;
-        show_position.1 += target_window_pos.1 as usize;
-        debug!(
-            "经过修正后的唤醒的位置：{} {}",
-            show_position.0, show_position.1
-        );
+        // println!(
+        //     "修正前的唤醒的位置: {} {}",
+        //     show_position.0, show_position.1
+        // );
+        show_position = get_window_render_origin(vertical_position_ratio);
+        // println!(
+        //     "经过修正后的唤醒的位置：{} {}",
+        //     show_position.0, show_position.1
+        // );
     }
 
+    window_size = get_window_size();
+    //println!("window_size: {:?}", window_size);
     main_window
-        .set_position(PhysicalPosition::new(
-            show_position.0 as u32,
-            show_position.1 as u32,
-        ))
+        .set_size(LogicalSize::new(window_size.0, window_size.1))
         .unwrap();
+    //println!("window_position: {:?}", show_position);
+    main_window
+        .set_position(PhysicalPosition::new(show_position.0, show_position.1))
+        .unwrap();
+    //println!("开始等待5s");
+    //std::thread::sleep(Duration::from_millis(5000));
+    //println!("等待结束");
 }

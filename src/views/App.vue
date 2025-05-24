@@ -80,7 +80,7 @@
       <div class="footer-center drag_area"></div>
       <div class="footer-right">
         <span class="open-text" :style="{ color: ui_config.footer_font_color }">{{ right_tips
-        }}</span>
+          }}</span>
       </div>
     </div>
   </div>

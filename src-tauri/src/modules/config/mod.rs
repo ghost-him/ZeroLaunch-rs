@@ -6,8 +6,8 @@ pub mod default;
 pub mod ui_config;
 pub mod window_state;
 
-pub type Width = usize;
-pub type Height = usize;
+pub type Width = i32;
+pub type Height = i32;
 use crate::RuntimeConfig;
 use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Debug, Clone)]

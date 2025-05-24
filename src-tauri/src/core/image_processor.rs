@@ -1,3 +1,4 @@
+use crate::error;
 use crate::utils::defer::defer;
 use crate::utils::windows::get_u16_vec;
 use core::mem::MaybeUninit;
@@ -15,6 +16,7 @@ use kmeans_colors::get_kmeans;
 use palette::{IntoColor, Lab, Srgb};
 use rand::Rng;
 use rayon::prelude::*;
+use resvg;
 use scraper::{Html, Selector};
 use std::ffi::c_void;
 use std::hash::{Hash, Hasher};
@@ -22,9 +24,12 @@ use std::io::Cursor;
 use std::mem;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
+use tiny_skia;
 use tracing::info;
 use tracing::warn;
 use url::Url;
+use usvg;
+use usvg::Tree;
 use windows::Win32::Foundation::GetLastError;
 use windows::Win32::Graphics::Gdi::BITMAP;
 use windows::Win32::Graphics::Gdi::{
@@ -76,12 +81,22 @@ impl ImageProcessor {
     }
 
     async fn load_web_icon(url: &str) -> Vec<u8> {
-        if let Ok(icon_data) = Self::fetch_website_favicon_png(url).await {
-            if let Ok(png_data) = Self::convert_image_to_png(icon_data).await {
-                return png_data;
+        let icon_data = match Self::fetch_website_favicon_png(url).await {
+            Ok(data) => data,
+            Err(fetch_error) => {
+                error!("提取图片失败：{:?}", fetch_error);
+                return vec![];
+            }
+        };
+        // 2. 将图片数据转换为 PNG 格式
+        match Self::convert_image_to_png(icon_data).await {
+            Ok(png_data) => png_data,
+            Err(conversion_error) => {
+                error!("无法转成图片：{:?}", conversion_error);
+                // 将原始错误转换为你的 LoadWebIconError 类型并返回
+                vec![]
             }
         }
-        vec![]
     }
 
     /// 获取网站的 PNG 格式图标（favicon）
@@ -119,7 +134,6 @@ impl ImageProcessor {
                 .unwrap_or_else(|| base_url.join("/favicon.ico").unwrap())
                 .to_string()
         };
-
         // 下载图标
         let icon_response = reqwest::get(&icon_url)
             .await
@@ -180,24 +194,70 @@ impl ImageProcessor {
     ) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
         // 在阻塞线程中处理图像
         tauri::async_runtime::spawn_blocking(move || {
-            // 创建带有格式猜测的图像读取器
-            let img_reader = ImageReader::new(Cursor::new(image_data)).with_guessed_format()?;
+            // 尝试将数据解析为 SVG
+            // usvg::Tree::from_data 需要 &[u8] 和 usvg::Options
+            // 我们使用默认选项
+            match usvg::Tree::from_data(&image_data, &usvg::Options::default()) {
+                Ok(tree) => {
+                    // 成功解析为 SVG，现在进行渲染
+                    let pixmap_size = tree.size().to_int_size();
 
-            // 读取图像格式
-            let format = img_reader.format().ok_or("无法检测格式")?;
-            let mut img = img_reader.decode()?;
+                    // 检查 SVG 尺寸是否有效
+                    if pixmap_size.width() == 0 || pixmap_size.height() == 0 {
+                        // 返回一个描述性错误
+                        return Err(format!(
+                            "SVG 尺寸无效 (宽度 {}px, 高度 {}px)",
+                            pixmap_size.width(),
+                            pixmap_size.height()
+                        )
+                        .into()); // .into() 会将 String 转换为 Box<dyn Error...>
+                    }
 
-            // 如果不是 PNG 格式，则转换
-            if format != ImageFormat::Png {
-                img = DynamicImage::ImageRgba8(img.to_rgba8());
+                    // 创建一个 Pixmap 来渲染 SVG
+                    // .ok_or_else(...) 用于提供自定义错误消息（String 类型）
+                    // ? 会将 String 错误转换为 Box<dyn Error...>
+                    let mut pixmap =
+                        tiny_skia::Pixmap::new(pixmap_size.width(), pixmap_size.height())
+                            .ok_or_else(|| "无法创建 Pixmap 以渲染 SVG".to_string())?;
+                    // 渲染 SVG 到 Pixmap
+                    resvg::render(&tree, tiny_skia::Transform::default(), &mut pixmap.as_mut());
+                    // 将 Pixmap 编码为 PNG 数据
+                    // pixmap.encode_png() 返回 Result<Vec<u8>, tiny_skia::PngEncodingError>
+                    // tiny_skia::PngEncodingError 实现了 std::error::Error,
+                    // 所以 ? 会自动将其转换为 Box<dyn Error...>
+                    Ok(pixmap.encode_png()?)
+                }
+                Err(_) => {
+                    // 解析 SVG 失败，或它不是 SVG。回退到原始的 image crate 逻辑。
+                    // image_data 在这里仍然可用，因为它之前只被借用给 usvg::Tree::from_data。
+                    // 我们需要为 image::io::Reader 创建一个新的 Cursor，因为它会获取所有权。
+                    let img_reader =
+                        image::io::Reader::new(Cursor::new(image_data)).with_guessed_format()?;
+
+                    // 读取图像格式
+                    // 使用 ok_or_else 以便 ? 可以将 String 错误转换为 Box<dyn Error...>
+                    let format = img_reader
+                        .format()
+                        .ok_or_else(|| "无法检测图像格式".to_string())?;
+
+                    // 解码图像
+                    let mut img = img_reader.decode()?;
+
+                    // 如果不是 PNG 格式，则转换
+                    if format != ImageFormat::Png {
+                        // 转换为 RGBA8 以便编码为 PNG
+                        img = image::DynamicImage::ImageRgba8(img.to_rgba8());
+                    }
+
+                    // 使用 PNG 编码器将图像写入 Vec<u8>
+                    let mut png_data = Vec::new();
+                    // 保持原始代码中 PngEncoder 的用法
+                    let encoder = image::codecs::png::PngEncoder::new(&mut png_data);
+                    img.write_with_encoder(encoder)?;
+
+                    Ok(png_data)
+                }
             }
-
-            // 使用 PNG 编码器将图像写入 Vec<u8>
-            let mut png_data = Vec::new();
-            let encoder = PngEncoder::new(&mut png_data);
-            img.write_with_encoder(encoder)?;
-
-            Ok(png_data)
         })
         .await?
     }

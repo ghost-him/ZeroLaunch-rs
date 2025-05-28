@@ -29,7 +29,8 @@
 <div align="center">
     <a href="https://gitee.com/ghost-him/ZeroLaunch-rs" target="_blank">Gitee</a> •
     <a href="https://github.com/ghost-him/ZeroLaunch-rs" target="_blank">GitHub</a> •
-    <a href="https://gitcode.com/ghost-him/ZeroLaunch-rs" target="_blank">GitCode</a>
+    <a href="https://gitcode.com/ghost-him/ZeroLaunch-rs" target="_blank">GitCode</a> •
+    <a href="https://zerolaunch.ghost-him.com" target="_blank">官网</a>
 </div>
 
 ## 📕 一句话介绍

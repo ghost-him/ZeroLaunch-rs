@@ -1,7 +1,7 @@
 {
   "name": "zerolaunch-rs",
   "private": true,
-  "version": "0.4.11",
+  "version": "0.4.14",
   "type": "module",
   "scripts": {
     "dev": "vite",

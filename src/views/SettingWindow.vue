@@ -340,6 +340,7 @@ body {
     position: sticky;
     top: 0;
     height: 100vh;
+    flex-shrink: 0;
     overflow-y: auto;
     overflow: hidden;
 }
@@ -422,6 +423,7 @@ body {
     flex: 1;
     padding: 20px;
     height: 100vh;
+    min-width: 0;
 }
 
 .el-question-icon {
@@ -436,5 +438,6 @@ body {
 
 .page {
     height: 100%;
+    min-width: 0;
 }
 </style>

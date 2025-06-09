@@ -1,5 +1,5 @@
 <template>
-    <div class="debug-container">
+    <div style="height: 100%; overflow-y: auto;">
         <h1>ZeroLaunch-rs 调试页面</h1>
 
         <el-card class="performance-section">
@@ -239,11 +239,6 @@ const removeKeyword = (index: number) => {
 
 
 <style scoped>
-.debug-container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 20px;
-}
 
 h1 {
     text-align: center;

@@ -325,34 +325,40 @@ fn init_search_bar_window(app: &mut App) {
 ///注册图标的路径
 fn register_icon_path(app: &mut App) {
     let path_resolver = app.path();
-    let resource = path_resolver
+    let resource_icons_dir = path_resolver
         .resource_dir()
         .expect("无法获取资源目录")
         .join("icons");
 
-    let icon_path: PathBuf = resource.join("32x32.png");
-    APP_PIC_PATH.insert(
-        "tray_icon".to_string(),
-        icon_path.to_str().unwrap().to_string(),
-    );
+    // 定义图标的键名和对应的文件名
+    // (键名, 文件名)
+    let icons_to_register = [
+        ("tray_icon", "32x32.png"),
+        ("tray_icon_white", "32x32-white.png"),
+        ("web_pages", "web_pages.png"),
+        ("tips", "tips.png"),
+        ("terminal", "terminal.png"),
+        ("settings", "settings.ico"),
+        ("refresh", "refresh.ico"),
+        ("register", "register.ico"),
+        ("game", "game.ico"),
+        ("exit", "exit.ico"),
+    ];
 
-    let white_icon_path: PathBuf = resource.join("32x32-white.png");
-    APP_PIC_PATH.insert(
-        "tray_icon_white".to_string(),
-        white_icon_path.to_str().unwrap().to_string(),
-    );
-    let web_icon = resource.join("web_pages.png");
-    APP_PIC_PATH.insert(
-        "web_pages".to_string(),
-        web_icon.to_str().unwrap().to_string(),
-    );
-    let tips_icon = resource.join("tips.png");
-    APP_PIC_PATH.insert("tips".to_string(), tips_icon.to_str().unwrap().to_string());
-    let terminal = resource.join("terminal.png");
-    APP_PIC_PATH.insert(
-        "terminal".to_string(),
-        terminal.to_str().unwrap().to_string(),
-    );
+    for (key_name, file_name) in icons_to_register.iter() {
+        let icon_path = resource_icons_dir.join(file_name);
+        match icon_path.to_str() {
+            Some(path_str) => {
+                APP_PIC_PATH.insert(key_name.to_string(), path_str.to_string());
+            }
+            None => {
+                // 处理路径无法转换为 UTF-8 字符串的情况
+                // 在这个特定场景下，图标文件名通常是 ASCII/UTF-8，所以 .unwrap() 可能也能接受
+                // 但更健壮的做法是处理 None 的情况
+                eprintln!("警告: 路径 {:?} 无法转换为有效的UTF-8字符串，跳过图标 '{}'", icon_path, key_name);
+            }
+        }
+    }
 }
 
 fn init_setting_window(app: tauri::AppHandle) {

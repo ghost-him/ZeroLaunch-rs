@@ -13,7 +13,7 @@ use tauri::Manager;
 use tracing::debug;
 
 use crate::APP_PIC_PATH;
-use tauri::menu::{MenuBuilder, MenuItem};
+use tauri::menu::MenuBuilder;
 use tauri::tray::TrayIconBuilder;
 use tauri::tray::TrayIconEvent;
 use tauri::App;
@@ -45,47 +45,31 @@ impl From<&str> for MenuEventId {
 pub fn init_system_tray(app: &mut App) {
     let handle = app.handle();
     let menu = MenuBuilder::new(app)
-        .item(
-            &MenuItem::with_id(
-                handle,
-                "show_setting_window",
-                "打开设置界面",
-                true,
-                None::<&str>,
-            )
-            .unwrap(),
+        .icon(
+            "show_setting_window",
+            "打开设置界面",
+            Image::from_path(APP_PIC_PATH.get("settings").unwrap().clone()).unwrap(),
         )
-        .item(
-            &MenuItem::with_id(
-                handle,
-                "update_app_setting",
-                "刷新数据库",
-                true,
-                None::<&str>,
-            )
-            .unwrap(),
+        .icon(
+            "update_app_setting",
+            "刷新数据库",
+            Image::from_path(APP_PIC_PATH.get("refresh").unwrap().clone()).unwrap(),
         )
-        .item(
-            &MenuItem::with_id(
-                handle,
-                "retry_register_shortcut",
-                "重新注册快捷键",
-                true,
-                None::<&str>,
-            )
-            .unwrap(),
+        .icon(
+            "retry_register_shortcut",
+            "重新注册快捷键",
+            Image::from_path(APP_PIC_PATH.get("register").unwrap().clone()).unwrap(),
         )
-        .item(
-            &MenuItem::with_id(
-                handle,
-                "switch_game_mode",
-                "开启游戏模式",
-                true,
-                None::<&str>,
-            )
-            .unwrap(),
+        .icon(
+            "switch_game_mode",
+            "开启游戏模式",
+            Image::from_path(APP_PIC_PATH.get("game").unwrap().clone()).unwrap(),
         )
-        .item(&MenuItem::with_id(handle, "exit_program", "退出程序", true, None::<&str>).unwrap())
+        .icon(
+            "exit_program",
+            "退出程序",
+            Image::from_path(APP_PIC_PATH.get("exit").unwrap().clone()).unwrap(),
+        )
         .build()
         .unwrap();
     let t = APP_PIC_PATH.get("tray_icon").unwrap();

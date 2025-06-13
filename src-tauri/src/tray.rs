@@ -1,23 +1,28 @@
-use crate::handle_pressed;
-use crate::modules::config::default::APP_VERSION;
-//use crate::retry_register_shortcut;
-use crate::notify;
-use crate::save_config_to_file;
-use crate::show_setting_window;
-use crate::update_app_setting;
-use crate::AppState;
-use crate::ServiceLocator;
 use std::sync::Arc;
-use tauri::image::Image;
-use tauri::Manager;
-use tracing::debug;
 
-use crate::APP_PIC_PATH;
-use tauri::menu::MenuBuilder;
-use tauri::tray::TrayIconBuilder;
-use tauri::tray::TrayIconEvent;
-use tauri::App;
-use tracing::warn;
+use tauri::{
+    image::Image,
+    menu::{IconMenuItem, Menu, MenuBuilder, MenuItem}, // Added MenuItem for direct access
+    tray::{TrayIcon, TrayIconBuilder, TrayIconEvent}, // Added TrayIcon for type hint
+    App, AppHandle, Manager, Runtime, // Added AppHandle
+};
+use tracing::{debug, warn};
+
+use crate::{
+    handle_pressed, notify, save_config_to_file, show_setting_window, update_app_setting,
+    AppState, ServiceLocator, APP_PIC_PATH,
+};
+// Removed: use crate::retry_register_shortcut; // Appears unused, functionality merged
+use crate::modules::config::default::APP_VERSION;
+
+// --- Constants for Menu Event IDs ---
+const MENU_ID_SHOW_SETTINGS: &str = "show_setting_window";
+const MENU_ID_EXIT_PROGRAM: &str = "exit_program";
+const MENU_ID_UPDATE_APP_SETTING: &str = "update_app_setting";
+const MENU_ID_RETRY_REGISTER_SHORTCUT: &str = "retry_register_shortcut";
+const MENU_ID_SWITCH_GAME_MODE: &str = "switch_game_mode";
+
+// --- Enum for Menu Event IDs ---
 enum MenuEventId {
     ShowSettingWindow,
     ExitProgram,
@@ -27,124 +32,221 @@ enum MenuEventId {
     Unknown(String),
 }
 
-// 从事件 ID 转换为枚举
 impl From<&str> for MenuEventId {
     fn from(id: &str) -> Self {
         match id {
-            "show_setting_window" => MenuEventId::ShowSettingWindow,
-            "exit_program" => MenuEventId::ExitProgram,
-            "update_app_setting" => MenuEventId::UpdateAppSetting,
-            "retry_register_shortcut" => MenuEventId::RegisterShortcut,
-            "switch_game_mode" => MenuEventId::SwitchGameMode,
+            MENU_ID_SHOW_SETTINGS => MenuEventId::ShowSettingWindow,
+            MENU_ID_EXIT_PROGRAM => MenuEventId::ExitProgram,
+            MENU_ID_UPDATE_APP_SETTING => MenuEventId::UpdateAppSetting,
+            MENU_ID_RETRY_REGISTER_SHORTCUT => MenuEventId::RegisterShortcut,
+            MENU_ID_SWITCH_GAME_MODE => MenuEventId::SwitchGameMode,
             _ => MenuEventId::Unknown(id.to_string()),
         }
     }
 }
 
-/// 创建一个右键菜单
-pub fn init_system_tray(app: &mut App) {
-    let handle = app.handle();
-    let menu = MenuBuilder::new(app)
+// --- Helper function to load icons ---
+fn load_icon_or_panic(name: &str) -> Image {
+    let path = APP_PIC_PATH
+        .get(name)
+        .unwrap_or_else(|| panic!("Icon path for '{}' not found in APP_PIC_PATH", name)).clone();
+    Image::from_path(&path)
+        .unwrap_or_else(|e| panic!("Failed to load image for '{}' from path {:?}: {:?}", name, path, e))
+}
+
+// --- Menu Item Handlers ---
+
+fn handle_show_settings_window() {
+    if let Err(e) = show_setting_window() {
+        warn!("Failed to show setting window: {:?}", e);
+    }
+}
+
+async fn handle_exit_program(app_handle: &AppHandle) {
+    save_config_to_file(false).await;
+    if let Ok(storage_manager) = ServiceLocator::get_state().get_storage_manager() {
+        storage_manager.upload_all_file_force().await;
+    } else {
+        warn!("Storage manager not available during exit.");
+    }
+    app_handle.exit(0);
+}
+
+async fn handle_update_app_setting() {
+    update_app_setting().await;
+}
+
+fn handle_register_shortcut() {
+    let state = ServiceLocator::get_state();
+    if state.get_game_mode() {
+        notify("ZeroLaunch-rs", "请先关闭游戏模式后再尝试重新注册快捷键。");
+        return;
+    }
+    if let Ok(shortcut_manager) = state.get_shortcut_manager() {
+        if let Err(e) = shortcut_manager.register_all_shortcuts() {
+            warn!("Failed to register all shortcuts: {:?}", e);
+            notify("ZeroLaunch-rs", "快捷键注册失败，请查看日志。");
+        } else {
+            notify("ZeroLaunch-rs", "快捷键已重新注册。");
+        }
+    } else {
+        warn!("Shortcut manager not available for registering shortcuts.");
+        notify("ZeroLaunch-rs", "无法访问快捷键管理器。");
+    }
+}
+
+fn handle_switch_game_mode<R: Runtime>(game_mode_item: &IconMenuItem<R>) {
+    let state = ServiceLocator::get_state();
+    let shortcut_manager = match state.get_shortcut_manager() {
+        Ok(manager) => manager,
+        Err(_) => {
+            warn!("Shortcut manager not available for switching game mode.");
+            notify("ZeroLaunch-rs", "无法切换游戏模式：缺少快捷键管理器。");
+            return;
+        }
+    };
+
+    let target_game_mode = !state.get_game_mode();
+    state.set_game_mode(target_game_mode);
+
+    if target_game_mode {
+        if let Err(e) = shortcut_manager.unregister_all_shortcut() {
+            warn!("Failed to unregister shortcuts for game mode: {:?}", e);
+        }
+        if let Err(e) = game_mode_item.set_text("关闭游戏模式") {
+             warn!("Failed to set menu item text for game mode (on): {:?}", e);
+        }
+        notify("ZeroLaunch-rs", "游戏模式已开启，全局快捷键已禁用。");
+    } else {
+        if let Err(e) = shortcut_manager.register_all_shortcuts() {
+            warn!("Failed to register shortcuts after exiting game mode: {:?}", e);
+        }
+        if let Err(e) = game_mode_item.set_text("开启游戏模式") {
+            warn!("Failed to set menu item text for game mode (off): {:?}", e);
+        }
+        notify("ZeroLaunch-rs", "游戏模式已关闭，全局快捷键已启用。");
+    }
+}
+
+// --- Tray Menu and Icon Creation ---
+
+/// Builds the system tray menu.
+fn build_tray_menu<R: Runtime>(app_handle: &AppHandle<R>) -> tauri::Result<Menu<R>> {
+    MenuBuilder::new(app_handle)
         .icon(
-            "show_setting_window",
+            MENU_ID_SHOW_SETTINGS,
             "打开设置界面",
-            Image::from_path(APP_PIC_PATH.get("settings").unwrap().clone()).unwrap(),
+            load_icon_or_panic("settings"),
         )
         .icon(
-            "update_app_setting",
+            MENU_ID_UPDATE_APP_SETTING,
             "刷新数据库",
-            Image::from_path(APP_PIC_PATH.get("refresh").unwrap().clone()).unwrap(),
+            load_icon_or_panic("refresh"),
         )
         .icon(
-            "retry_register_shortcut",
+            MENU_ID_RETRY_REGISTER_SHORTCUT,
             "重新注册快捷键",
-            Image::from_path(APP_PIC_PATH.get("register").unwrap().clone()).unwrap(),
+            load_icon_or_panic("register"),
         )
         .icon(
-            "switch_game_mode",
-            "开启游戏模式",
-            Image::from_path(APP_PIC_PATH.get("game").unwrap().clone()).unwrap(),
+            MENU_ID_SWITCH_GAME_MODE,
+            "开启游戏模式", // Initial text, will be updated
+            load_icon_or_panic("game"),
         )
         .icon(
-            "exit_program",
+            MENU_ID_EXIT_PROGRAM,
             "退出程序",
-            Image::from_path(APP_PIC_PATH.get("exit").unwrap().clone()).unwrap(),
+            load_icon_or_panic("exit"),
         )
         .build()
-        .unwrap();
-    let t = APP_PIC_PATH.get("tray_icon").unwrap();
-    let icon_path = t.value();
-    let tray_icon = TrayIconBuilder::new()
+}
+
+/// Creates and configures the system tray icon.
+fn create_tray_icon<R: Runtime>(app_handle: &AppHandle, menu: Menu<R>) -> tauri::Result<TrayIcon> {
+    let tray_icon_path_value = APP_PIC_PATH
+        .get("tray_icon")
+        .expect("Tray icon path 'tray_icon' not found in APP_PIC_PATH").clone();
+    let icon = Image::from_path(&tray_icon_path_value)
+        .unwrap_or_else(|e| panic!("Failed to load tray icon from path {:?}: {:?}", tray_icon_path_value, e));
+
+    TrayIconBuilder::new()
         .menu(&menu)
-        .icon(Image::from_path(icon_path).unwrap())
+        .icon(icon)
         .tooltip(format!("ZeroLaunch-rs v{}", APP_VERSION.clone()))
         .show_menu_on_left_click(false)
-        .build(handle)
-        .unwrap();
-    tray_icon.on_menu_event(move |app_handle, event| {
-        let event_id = MenuEventId::from(event.id().as_ref());
-        match event_id {
-            MenuEventId::ShowSettingWindow => {
-                if let Err(e) = show_setting_window() {
-                    warn!("Failed to show setting window: {:?}", e);
+        .on_menu_event(move |app, event| {
+            let event_id = MenuEventId::from(event.id().as_ref());
+            // It's often better to pass the specific menu item if needed,
+            // rather than the whole menu, but for `switch_game_mode` we need it.
+            match event_id {
+                MenuEventId::ShowSettingWindow => handle_show_settings_window(),
+                MenuEventId::ExitProgram => {
+                    let app_clone = app.clone();
+                    tauri::async_runtime::spawn(async move { // Spawn to avoid blocking, then block_on inside if necessary
+                        handle_exit_program(&app_clone).await;
+                    });
+                }
+                MenuEventId::UpdateAppSetting => {
+                    tauri::async_runtime::spawn(handle_update_app_setting());
+                }
+                MenuEventId::RegisterShortcut => handle_register_shortcut(),
+                MenuEventId::SwitchGameMode => {
+                    if let Some(item) = menu.get(MENU_ID_SWITCH_GAME_MODE) {
+                        if let Some(menu_item) = item.as_icon_menuitem() {
+                            handle_switch_game_mode(menu_item);
+                        } else {
+                            warn!("'Switch Game Mode' menu item is not a standard MenuItem.");
+                        }
+                    } else {
+                        warn!("Could not find 'Switch Game Mode' menu item by ID.");
+                    }
+                }
+                MenuEventId::Unknown(id) => {
+                    warn!("Unknown menu event: {}", id);
                 }
             }
-            MenuEventId::ExitProgram => {
-                tauri::async_runtime::block_on(async move {
-                    save_config_to_file(false).await;
-                    let storage_manager =
-                        ServiceLocator::get_state().get_storage_manager().unwrap();
-                    storage_manager.upload_all_file_force().await;
-                });
-                app_handle.exit(0);
-            }
-            MenuEventId::UpdateAppSetting => tauri::async_runtime::block_on(async {
-                update_app_setting().await;
-            }),
-            MenuEventId::RegisterShortcut => {
-                let state = ServiceLocator::get_state();
-                let target_game_mode = state.get_game_mode();
-                if target_game_mode {
-                    notify("ZeroLaunch-rs", "请先关闭游戏模式");
-                    return;
-                }
-                let shortcut_manager = state.get_shortcut_manager().unwrap();
-                let _ = shortcut_manager.register_all_shortcuts();
-                notify("ZeroLaunch-rs", "已完成注册注册");
-            }
-            MenuEventId::SwitchGameMode => {
-                let temp = menu.get("switch_game_mode").unwrap();
-                let item = temp.as_menuitem().unwrap();
+            debug!("Menu ID: {}", event.id().0);
+        })
+        .build(app_handle)
+}
 
-                let state = ServiceLocator::get_state();
-                let shortcut_manager = state.get_shortcut_manager().unwrap();
-                let target_game_mode = !state.get_game_mode();
-                state.set_game_mode(target_game_mode);
-                if target_game_mode {
-                    let _ = shortcut_manager.unregister_all_shortcut();
-                } else {
-                    let _ = shortcut_manager.register_all_shortcuts();
-                }
-                if target_game_mode {
-                    let _ = item.set_text("关闭游戏模式");
-                } else {
-                    let _ = item.set_text("开启游戏模式");
-                }
-            }
-            MenuEventId::Unknown(id) => {
-                warn!("Unknown menu event: {}", id);
-            }
+// --- Main Initialization Function ---
+
+/// Initializes the system tray icon and menu for the application.
+pub fn init_system_tray(app: &mut App) {
+    let app_handle = app.handle().clone();
+
+    let menu = match build_tray_menu(&app_handle) {
+        Ok(m) => m,
+        Err(e) => {
+            warn!("Failed to build tray menu: {:?}", e);
+            // Optionally, create a minimal fallback menu or panic
+            return;
         }
-        debug!("Menu ID: {}", event.id().0);
-    });
+    };
 
+    let tray_icon = match create_tray_icon(&app_handle, menu) {
+        Ok(icon) => icon,
+        Err(e) => {
+            warn!("Failed to create tray icon: {:?}", e);
+            return;
+        }
+    };
+
+    // Store the tray icon in app state
     let state = app.state::<Arc<AppState>>();
-    state.set_tray_icon(Arc::new(tray_icon));
-
-    app.on_tray_icon_event(|app_handle, event| match event {
-        TrayIconEvent::DoubleClick { .. } => {
-            handle_pressed(&app_handle);
+    state.set_tray_icon(Arc::new(tray_icon)); // tray_icon is already the TrayIcon type
+    // Handle other tray icon events (e.g., double click)
+    app.on_tray_icon_event(move |tray_app_handle, event| {
+        match event {
+            TrayIconEvent::DoubleClick { .. } => {
+                handle_pressed(&tray_app_handle);
+            }
+            // TrayIconEvent::Click, RightClick, etc. can be handled here
+            _ => {}
         }
-        _ => {}
     });
+
+
+    debug!("System tray initialized.");
 }

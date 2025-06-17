@@ -18,7 +18,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "^2", features = [] }
 
 [dependencies]
-windows = { version = "0.61.1", features = [
+windows = { version = "0.61.3", features = [
     "Win32_UI_WindowsAndMessaging",
     "Win32_Foundation",
     "Win32_Graphics_Gdi",
@@ -61,7 +61,7 @@ tracing = "^0.1.41"
 tracing-subscriber = { version = "^0.3.19", features = ["env-filter"] }
 tracing-appender = "^0.2.3"
 chrono = "^0.4.41"
-parking_lot = "^0.12.3"
+parking_lot = "^0.12.4"
 tauri-plugin-global-shortcut = "^2.2.1"
 tauri-plugin-dialog = { version = "^2.2.2" }
 timer = "^0.2.0"
@@ -71,10 +71,10 @@ kmeans_colors = "^0.7.0"
 palette = "^0.7.6"
 rand = "^0.9.1"
 anyhow = "1.0.98"
-reqwest = { version = "0.12.15", features = ["json"] }
+reqwest = { version = "0.12.20", features = ["json"] }
 lnk = "0.6.1"
 async-trait = "0.1.88"
-tokio = { version = "1.45.0", features = ["full"] }
+tokio = { version = "1.45.1", features = ["full"] }
 reqwest_dav = "0.2.1"
 tauri-plugin-deep-link = "2"
 winreg = "0.55.0"

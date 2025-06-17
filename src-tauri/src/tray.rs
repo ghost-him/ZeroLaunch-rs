@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use tauri::{
     image::Image,
-    menu::{IconMenuItem, Menu, MenuBuilder, MenuItem}, // Added MenuItem for direct access
+    menu::{IconMenuItem, Menu, MenuBuilder}, // Added MenuItem for direct access
     tray::{TrayIcon, TrayIconBuilder, TrayIconEvent}, // Added TrayIcon for type hint
     App, AppHandle, Manager, Runtime, // Added AppHandle
 };

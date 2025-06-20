@@ -4,13 +4,16 @@ use tauri::{
     image::Image,
     menu::{IconMenuItem, Menu, MenuBuilder}, // Added MenuItem for direct access
     tray::{TrayIcon, TrayIconBuilder, TrayIconEvent}, // Added TrayIcon for type hint
-    App, AppHandle, Manager, Runtime, // Added AppHandle
+    App,
+    AppHandle,
+    Manager,
+    Runtime, // Added AppHandle
 };
 use tracing::{debug, warn};
 
 use crate::{
-    handle_pressed, notify, save_config_to_file, show_setting_window, update_app_setting,
-    AppState, ServiceLocator, APP_PIC_PATH,
+    handle_pressed, notify, save_config_to_file, show_setting_window, update_app_setting, AppState,
+    ServiceLocator, APP_PIC_PATH,
 };
 // Removed: use crate::retry_register_shortcut; // Appears unused, functionality merged
 use crate::modules::config::default::APP_VERSION;
@@ -49,9 +52,14 @@ impl From<&str> for MenuEventId {
 fn load_icon_or_panic(name: &str) -> Image {
     let path = APP_PIC_PATH
         .get(name)
-        .unwrap_or_else(|| panic!("Icon path for '{}' not found in APP_PIC_PATH", name)).clone();
-    Image::from_path(&path)
-        .unwrap_or_else(|e| panic!("Failed to load image for '{}' from path {:?}: {:?}", name, path, e))
+        .unwrap_or_else(|| panic!("Icon path for '{}' not found in APP_PIC_PATH", name))
+        .clone();
+    Image::from_path(&path).unwrap_or_else(|e| {
+        panic!(
+            "Failed to load image for '{}' from path {:?}: {:?}",
+            name, path, e
+        )
+    })
 }
 
 // --- Menu Item Handlers ---
@@ -114,12 +122,15 @@ fn handle_switch_game_mode<R: Runtime>(game_mode_item: &IconMenuItem<R>) {
             warn!("Failed to unregister shortcuts for game mode: {:?}", e);
         }
         if let Err(e) = game_mode_item.set_text("关闭游戏模式") {
-             warn!("Failed to set menu item text for game mode (on): {:?}", e);
+            warn!("Failed to set menu item text for game mode (on): {:?}", e);
         }
         notify("ZeroLaunch-rs", "游戏模式已开启，全局快捷键已禁用。");
     } else {
         if let Err(e) = shortcut_manager.register_all_shortcuts() {
-            warn!("Failed to register shortcuts after exiting game mode: {:?}", e);
+            warn!(
+                "Failed to register shortcuts after exiting game mode: {:?}",
+                e
+            );
         }
         if let Err(e) = game_mode_item.set_text("开启游戏模式") {
             warn!("Failed to set menu item text for game mode (off): {:?}", e);
@@ -153,11 +164,7 @@ fn build_tray_menu<R: Runtime>(app_handle: &AppHandle<R>) -> tauri::Result<Menu<
             "开启游戏模式", // Initial text, will be updated
             load_icon_or_panic("game"),
         )
-        .icon(
-            MENU_ID_EXIT_PROGRAM,
-            "退出程序",
-            load_icon_or_panic("exit"),
-        )
+        .icon(MENU_ID_EXIT_PROGRAM, "退出程序", load_icon_or_panic("exit"))
         .build()
 }
 
@@ -165,9 +172,14 @@ fn build_tray_menu<R: Runtime>(app_handle: &AppHandle<R>) -> tauri::Result<Menu<
 fn create_tray_icon<R: Runtime>(app_handle: &AppHandle, menu: Menu<R>) -> tauri::Result<TrayIcon> {
     let tray_icon_path_value = APP_PIC_PATH
         .get("tray_icon")
-        .expect("Tray icon path 'tray_icon' not found in APP_PIC_PATH").clone();
-    let icon = Image::from_path(&tray_icon_path_value)
-        .unwrap_or_else(|e| panic!("Failed to load tray icon from path {:?}: {:?}", tray_icon_path_value, e));
+        .expect("Tray icon path 'tray_icon' not found in APP_PIC_PATH")
+        .clone();
+    let icon = Image::from_path(&tray_icon_path_value).unwrap_or_else(|e| {
+        panic!(
+            "Failed to load tray icon from path {:?}: {:?}",
+            tray_icon_path_value, e
+        )
+    });
 
     TrayIconBuilder::new()
         .menu(&menu)
@@ -182,7 +194,8 @@ fn create_tray_icon<R: Runtime>(app_handle: &AppHandle, menu: Menu<R>) -> tauri:
                 MenuEventId::ShowSettingWindow => handle_show_settings_window(),
                 MenuEventId::ExitProgram => {
                     let app_clone = app.clone();
-                    tauri::async_runtime::spawn(async move { // Spawn to avoid blocking, then block_on inside if necessary
+                    tauri::async_runtime::spawn(async move {
+                        // Spawn to avoid blocking, then block_on inside if necessary
                         handle_exit_program(&app_clone).await;
                     });
                 }
@@ -236,7 +249,7 @@ pub fn init_system_tray(app: &mut App) {
     // Store the tray icon in app state
     let state = app.state::<Arc<AppState>>();
     state.set_tray_icon(Arc::new(tray_icon)); // tray_icon is already the TrayIcon type
-    // Handle other tray icon events (e.g., double click)
+                                              // Handle other tray icon events (e.g., double click)
     app.on_tray_icon_event(move |tray_app_handle, event| {
         match event {
             TrayIconEvent::DoubleClick { .. } => {
@@ -246,7 +259,6 @@ pub fn init_system_tray(app: &mut App) {
             _ => {}
         }
     });
-
 
     debug!("System tray initialized.");
 }

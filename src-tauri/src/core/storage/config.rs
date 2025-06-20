@@ -4,6 +4,7 @@ use crate::core::storage::local_save::PartialLocalSaveConfig;
 // use crate::core::storage::onedrive::PartialOneDriveConfig;
 use crate::core::storage::webdav::PartialWebDAVConfig;
 use crate::core::storage::webdav::WebDAVConfig;
+use crate::modules::config::default::APP_VERSION;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -20,20 +21,28 @@ pub struct PartialLocalConfig {
     pub webdav_save_config: Option<PartialWebDAVConfig>,
     //pub onedrive_save_config: Option<PartialOneDriveConfig>,
     pub save_to_local_per_update: Option<u32>,
+    pub version: Option<String>,
 }
 
 #[derive(Debug)]
 pub struct LocalConfig {
+    // 软件的版本，用于判断当前的用户是不是更新了，默认值为空
+    version: Arc<String>,
+    // 表示远程配置信息的存储的地址
     storage_destination: Arc<StorageDestination>,
+    // 表示远程配置信息如果要保存在本地，则其使用的配置
     local_save_config: Arc<LocalSaveConfig>,
+    // 表示远程配置信息如果要保存的webdav服务器，则其使用的配置
     webdav_save_config: Arc<WebDAVConfig>,
     //onedrive_save_config: Arc<OneDriveConfig>,
+    // 表示缓冲区的大小，保存几次后会更新到本地
     save_to_local_per_update: Arc<u32>,
 }
 
 impl Default for LocalConfig {
     fn default() -> Self {
         LocalConfig {
+            version: Arc::new(String::new()),
             storage_destination: Arc::new(StorageDestination::Local),
             local_save_config: Arc::new(LocalSaveConfig::default()),
             webdav_save_config: Arc::new(WebDAVConfig::default()),
@@ -44,6 +53,10 @@ impl Default for LocalConfig {
 }
 
 impl LocalConfig {
+    pub fn get_version(&self) -> Arc<String> {
+        self.version.clone()
+    }
+
     pub fn get_storage_destination(&self) -> Arc<StorageDestination> {
         self.storage_destination.clone()
     }
@@ -65,6 +78,7 @@ impl LocalConfig {
     }
 
     pub fn update(&mut self, partial_local_config: PartialLocalConfig) {
+        self.version = Arc::new(APP_VERSION.to_string());
         if let Some(sd) = partial_local_config.storage_destination {
             self.storage_destination = Arc::new(sd);
         }
@@ -89,6 +103,7 @@ impl LocalConfig {
             webdav_save_config: Some(self.webdav_save_config.to_partial()),
             //onedrive_save_config: Some(self.onedrive_save_config.to_partial()),
             save_to_local_per_update: Some(*self.save_to_local_per_update),
+            version: Some((*self.version).clone()),
         }
     }
 }

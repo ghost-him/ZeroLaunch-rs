@@ -132,7 +132,7 @@ pub fn run() {
         }
     });
 
-    let builder = tauri::Builder::default();
+    let builder = tauri::Builder::default().plugin(tauri_plugin_shell::init());
     builder
         .plugin(tauri_plugin_single_instance::init(|_app, _argv, _cwd| {
             notify("zerolaunch-rs", "zerolaunch-rs已运行，不要重复运行");
@@ -223,7 +223,22 @@ async fn init_app_state(app: &mut App) {
     // 维护app_handle
     state.set_main_handle(Arc::new(app.app_handle().clone()));
 
-    let storage_manager = StorageManager::new().await;
+    // 在初始化时传入一个函数，这个函数会初始化一个新版本的提示
+
+    let create_and_show_welcome_page = move || {
+        info!("第一次启动程序或者更新程序，创建欢迎页面");
+        // 创建欢迎页面
+        let welcome = Arc::new(
+            tauri::WebviewWindowBuilder::new(app, "welcome", WebviewUrl::App("/welcome".into()))
+                .title("欢迎下载ZeroLaunch-rs! 此页面只会出现一次，用于提供基础的使用说明╰(*°▽°*)╯")
+                .visible(true)
+                .drag_and_drop(false)
+                .build()
+                .unwrap(),
+        );
+        welcome.set_size(LogicalSize::new(1000, 900)).unwrap();
+    };
+    let storage_manager = StorageManager::new(create_and_show_welcome_page).await;
     let remote_config_data = {
         if let Some(data) = storage_manager
             .download_file_str(REMOTE_CONFIG_NAME.to_string())
@@ -354,7 +369,10 @@ fn register_icon_path(app: &mut App) {
                 // 处理路径无法转换为 UTF-8 字符串的情况
                 // 在这个特定场景下，图标文件名通常是 ASCII/UTF-8，所以 .unwrap() 可能也能接受
                 // 但更健壮的做法是处理 None 的情况
-                eprintln!("警告: 路径 {:?} 无法转换为有效的UTF-8字符串，跳过图标 '{}'", icon_path, key_name);
+                warn!(
+                    "警告: 路径 {:?} 无法转换为有效的UTF-8字符串，跳过图标 '{}'",
+                    icon_path, key_name
+                );
             }
         }
     }

@@ -65,7 +65,8 @@ impl PathChecker {
         pattern_type: &String,
         excluded_keys: &Vec<String>,
     ) -> Result<PathChecker, String> {
-        let excluded_keys =excluded_keys.iter()
+        let excluded_keys = excluded_keys
+            .iter()
             .map(|item| item.to_lowercase())
             .collect();
 

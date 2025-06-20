@@ -4,7 +4,8 @@
   "description": "Capability for the main window",
   "windows": [
     "main",
-    "setting_window"
+    "setting_window",
+    "welcome"
   ],
   "permissions": [
     "core:default",
@@ -19,6 +20,7 @@
     "dialog:allow-open",
     "dialog:default",
     "core:window:default",
-    "core:window:allow-start-dragging"
+    "core:window:allow-start-dragging",
+    "shell:allow-open"
   ]
 }

@@ -7,6 +7,10 @@ use super::utils::read_or_create_str;
 use super::webdav::WebDAVStorage;
 use crate::core::storage::config::LocalConfig;
 use crate::core::storage::local_save::LocalStorage;
+use crate::core::storage::utils::create_str;
+use crate::core::storage::utils::read_str;
+use crate::modules::config::default;
+use crate::modules::config::default::APP_VERSION;
 use crate::utils::notify::notify;
 use crate::LOCAL_CONFIG_PATH;
 use async_trait::async_trait;
@@ -52,19 +56,54 @@ impl std::fmt::Debug for StorageManagerInner {
 
 impl StorageManagerInner {
     // 创建一个存储管理器
-    pub async fn new() -> StorageManagerInner {
+    // callback：当检测到版本更新时（说明用户做了更新），或者没有配置文件时（说明用户第一次启动程序），调用该函数
+
+    pub async fn new<F>(callback: F) -> StorageManagerInner
+    where
+        F: Fn() -> (),
+    {
         let inner = StorageManagerInner {
             local_config: RwLock::new(LocalConfig::default()),
             cached_content: DashMap::new(),
             client: RwLock::new(None),
         };
-        // 从本地读取配置信息
-        let default_content =
-            serde_json::to_string(&inner.local_config.read().await.to_partial()).unwrap();
-        let local_config_data =
-            read_or_create_str(&LOCAL_CONFIG_PATH, Some(default_content)).unwrap();
+
+        // 直接读取本地的配置文件，如果读取失败了，则说明是用户第一次启动程序，需要调用callback函数
+        let result = read_str(&LOCAL_CONFIG_PATH);
+
+        let local_config_data = match result {
+            Err(error) => {
+                // 从本地读取配置信息，这个default_content就是当用户读取本地配置信息失败时，要写入的初始值
+                let default_content =
+                    serde_json::to_string(&inner.local_config.read().await.to_partial()).unwrap();
+
+                if error.kind() == std::io::ErrorKind::NotFound {
+                    // 如果没有这个文件，则说明是用户第一次启动程序
+                    // 调用一次回调函数
+                    callback();
+                    // 写入初始值
+                    if let Err(e) = create_str(&LOCAL_CONFIG_PATH, &default_content) {
+                        warn!("创建本地配置文件失败: {}", e);
+                    }
+                } else {
+                    warn!("读取本地配置文件失败: {}", error);
+                }
+                default_content
+            }
+            Ok(local_config_data) => local_config_data,
+        };
+        // println!("当前的本地配置文件内容: {}", local_config_data);
+
         let partial_local_config: PartialLocalConfig =
             serde_json::from_str(&local_config_data).unwrap();
+
+        if partial_local_config.version.is_none()
+            || *partial_local_config.version.as_ref().unwrap() != *APP_VERSION
+        {
+            // 如果版本不匹配，则说明用户更新了程序，需要调用回调函数
+            callback();
+        }
+
         inner.update_and_refresh(partial_local_config).await;
         inner
     }
@@ -347,9 +386,12 @@ pub struct StorageManager {
 
 impl StorageManager {
     /// 创建一个新的 StorageManager 实例
-    pub async fn new() -> Self {
+    pub async fn new<F>(callback: F) -> Self
+    where
+        F: Fn() -> (),
+    {
         Self {
-            inner: RwLock::new(StorageManagerInner::new().await),
+            inner: RwLock::new(StorageManagerInner::new(callback).await),
         }
     }
 

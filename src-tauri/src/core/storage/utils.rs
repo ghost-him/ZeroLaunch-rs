@@ -2,47 +2,89 @@ use encoding_rs;
 use std::fs;
 /// 存放通用工具函数
 use std::io;
+use std::io::Error;
 use std::path::Path;
 use tracing::warn;
-pub fn read_or_create_str(path: &str, content: Option<String>) -> Result<String, String> {
+
+/// 读取一个文件，如果没有这个文件，则返回错误
+/// 返回一个字符串
+pub fn read_str(path: &str) -> Result<String, Error> {
     match fs::read_to_string(path) {
         Ok(data) => Ok(data),
-        Err(e) => {
-            if e.kind() == io::ErrorKind::NotFound {
-                if let Some(parent) = Path::new(path).parent() {
-                    if let Err(e) = fs::create_dir_all(parent) {
-                        return Err(format!("无法创建文件夹: {}", e));
-                    }
-                }
-                let initial_content = content.unwrap_or("".to_string());
-                match fs::write(path, initial_content.clone()) {
+        Err(e) => Err(e),
+    }
+}
+
+pub fn create_str(path: &str, content: &str) -> Result<(), String> {
+    if let Some(parent) = Path::new(path).parent() {
+        if let Err(e) = fs::create_dir_all(parent) {
+            return Err(format!("无法创建文件夹: {}", e));
+        }
+    }
+    match fs::write(path, content) {
+        Ok(_) => Ok(()),
+        Err(e) => Err(format!("无法写入文件: {}，错误: {}", path, e)),
+    }
+}
+
+/// 从一个文件中读取数据，如果没有这个文件，则创建一个新的文件，并写入初始内容
+/// 返回一个字符串
+pub fn read_or_create_str(path: &str, content: Option<String>) -> Result<String, String> {
+    match read_str(path) {
+        Ok(data) => Ok(data),
+        Err(error) => {
+            if error.kind() == io::ErrorKind::NotFound {
+                let initial_content = content.unwrap_or_else(|| "".to_string());
+                match create_str(path, &initial_content) {
                     Ok(_) => Ok(initial_content),
                     Err(write_err) => Err(format!("无法写入文件: {}", write_err)),
                 }
             } else {
-                Err(format!("无法读取： {}", e))
+                Err(format!("无法读取文件: {}", error))
             }
         }
     }
 }
 
-pub fn read_or_create_bytes(path: &str, content: Option<Vec<u8>>) -> Result<Vec<u8>, String> {
+/// 读取一个文件，如果没有这个文件，则返回错误
+/// 返回一个字节数组
+pub fn read_bytes(path: &str) -> Result<Vec<u8>, Error> {
     match fs::read(path) {
         Ok(data) => Ok(data),
-        Err(e) => {
-            if e.kind() == io::ErrorKind::NotFound {
-                if let Some(parent) = Path::new(path).parent() {
-                    if let Err(e) = fs::create_dir_all(parent) {
-                        return Err(format!("无法创建文件夹: {}", e));
-                    }
-                }
-                let initial_content = content.unwrap_or_else(Vec::new);
-                match fs::write(path, &initial_content) {
+        Err(e) => Err(e),
+    }
+}
+
+/// 创建一个文件，并写入字节内容。如果文件已存在则覆盖。
+/// 写入前会确保父目录存在。
+pub fn create_bytes(path: &str, content: &[u8]) -> Result<(), String> {
+    if let Some(parent) = Path::new(path).parent() {
+        if let Err(e) = fs::create_dir_all(parent) {
+            return Err(format!("无法创建文件夹: {}", e));
+        }
+    }
+    match fs::write(path, content) {
+        Ok(_) => Ok(()),
+        Err(e) => Err(format!("无法写入文件: {}，错误: {}", path, e)),
+    }
+}
+
+/// 从一个文件中读取数据，如果没有这个文件，则创建一个新的文件，并写入初始内容
+/// 返回一个字节数组
+pub fn read_or_create_bytes(path: &str, content: Option<Vec<u8>>) -> Result<Vec<u8>, String> {
+    match read_bytes(path) {
+        // 使用新的 read_bytes 函数
+        Ok(data) => Ok(data),
+        Err(error) => {
+            if error.kind() == io::ErrorKind::NotFound {
+                let initial_content = content.unwrap_or_else(Vec::new); // 如果 content 为 None，则使用空 Vec<u8>
+                match create_bytes(path, &initial_content) {
+                    // 使用新的 create_bytes 函数
                     Ok(_) => Ok(initial_content),
                     Err(write_err) => Err(format!("无法写入文件: {}", write_err)),
                 }
             } else {
-                Err(format!("无法读取文件: {}", e))
+                Err(format!("无法读取文件: {}", error))
             }
         }
     }

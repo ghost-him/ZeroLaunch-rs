@@ -72,10 +72,10 @@ import { QuestionFilled } from '@element-plus/icons-vue'
 const shortcuts = ref([
     { id: 1, keys: ['Alt', 'Space'], description: '唤醒 / 隐藏主窗口' },
     { id: 2, keys: ['Enter'], description: '启动选中项' },
-    { id: 3, keys: ['Ctrl', 'Enter'], description: '以管理员权限启动' },
-    { id: 4, keys: ['Esc'], description: '清空输入或隐藏窗口' },
-    { id: 5, keys: ['Shift', 'Space'], description: '置顶当前已打开的窗口' },
-    { id: 6, keys: ['Alt'], description: '临时按最近使用时间排序' },
+    { id: 3, keys: ['Alt'], description: '临时按最近使用时间排序' },
+    { id: 4, keys: ['Ctrl', 'Enter'], description: '以管理员权限启动' },
+    { id: 5, keys: ['Esc'], description: '清空输入或隐藏窗口' },
+    { id: 6, keys: ['Shift', 'Enter'], description: '置顶当前已打开的窗口' },
     { id: 7, keys: ['↑', '↓'], description: '上 / 下移动选择' },
     { id: 8, keys: ['Ctrl', 'J/K'], description: '上 / 下移动选择 (Vim模式)' },
 

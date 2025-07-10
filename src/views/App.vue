@@ -321,8 +321,41 @@ const handleKeyUp = (event: KeyboardEvent) => {
   }
 }
 
+// 阻止一些与程序无关的webview快捷键
+/**
+ * 阻止 WebView 的默认快捷键行为
+ * @param {KeyboardEvent} event 
+ */
+const preventDefaultWebViewShortcuts = (event: KeyboardEvent) => {
+  // 1. 阻止刷新
+  // F5 和 Ctrl+R, Ctrl+Shift+R
+  if (event.key === 'F5' || (event.ctrlKey && event.key.toLowerCase() === 'r')) {
+    event.preventDefault();
+  }
+
+  // 2. 阻止打印
+  // Ctrl+P
+  if (event.ctrlKey && event.key.toLowerCase() === 'p') {
+    event.preventDefault();
+  }
+  
+  // 3. 阻止页面缩放
+  // Ctrl + (加号), Ctrl + (减号), Ctrl + 0
+  if (event.ctrlKey && ['=', '-', '0'].includes(event.key)) {
+    event.preventDefault();
+  }
+
+  // 4. 阻止其他可能不需要的快捷键
+  // Ctrl+F (查找), Ctrl+S (保存)
+  if (event.ctrlKey && ['f', 's'].includes(event.key.toLowerCase())) {
+    event.preventDefault();
+  }
+};
+
+
 // 键盘事件处理函数
 const handleKeyDown = async (event: KeyboardEvent) => {
+  preventDefaultWebViewShortcuts(event);
   const isMenuVisible = resultItemMenuRef.value?.isVisible() || false;
   console.log(event)
   if (event.key === 'Alt') {
@@ -564,6 +597,7 @@ onMounted(async () => {
   // 添加主题变化监听
   darkModeMediaQuery.value.addEventListener('change', handleThemeChange);
 
+
   if (searchBarRef.value) {
     searchBarRef.value.focus()
   }
@@ -575,6 +609,12 @@ onMounted(async () => {
     focusSearchInput();
     is_visible.value = true;
   }));
+  // 阻止通过鼠标滚轮进行缩放
+  window.addEventListener('wheel', (event) => {
+    if (event.ctrlKey) {
+      event.preventDefault();
+    }
+  }, { passive: false });
   unlisten.push(await listen('update_search_bar_window', () => {
     console.log("收到更新请求");
     updateWindow();

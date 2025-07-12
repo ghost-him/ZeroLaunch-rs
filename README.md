@@ -106,6 +106,24 @@
 
 ## 🚩 程序下载
 
+### 使用 WinGet 安装
+
+运行以下任意一个命令即可完成安装
+
+```
+winget install zerolaunch
+```
+
+```
+winget install ZeroLaunch-rs
+```
+
+```
+winget install ghost-him.ZeroLaunch-rs
+```
+
+### 使用安装包安装
+
 * Gitee: [release](https://gitee.com/ghost-him/ZeroLaunch-rs/releases)
 * Github: [release](https://github.com/ghost-him/ZeroLaunch-rs/releases)
 * Gitcode: [release](https://gitcode.com/ghost-him/ZeroLaunch-rs/releases)

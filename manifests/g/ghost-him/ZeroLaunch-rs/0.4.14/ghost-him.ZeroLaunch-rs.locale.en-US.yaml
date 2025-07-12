@@ -37,11 +37,5 @@ Tags:
 ReleaseNotes: '更新日志:版本兼容：版本兼容至 v0.4.7，升级后无法回退，注意核对自己软件的版本，防止更新后出现配置丢失的情况。功能更新：支持svg格式的网站图标（比如github）功能优化：修复了多显示器下的bug（github #10）'
 ReleaseNotesUrl: https://github.com/ghost-him/ZeroLaunch-rs/releases/tag/v0.4.14
 InstallationNotes: 欢迎使用 ZeroLaunch-rs ！如果使用过程中遇到什么问题，欢迎到Issue中提问！
-Icons:
-- IconUrl: https://github.com/ghost-him/ZeroLaunch-rs/blob/main/src-tauri/icons/128x128.png
-  IconFileType: png
-  IconResolution: custom
-  IconTheme: light
-  IconSha256: e38d210d44e5888ecb0b0e99880dab0d4d95e72609282124db51ee1cefd0389e
 ManifestType: defaultLocale
 ManifestVersion: 1.10.0

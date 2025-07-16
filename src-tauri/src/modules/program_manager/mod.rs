@@ -4,11 +4,13 @@ pub mod pinyin_mapper;
 pub mod program_launcher;
 pub mod program_loader;
 pub mod standard_search_model;
+pub mod launchy_search_model;
 pub mod search_model;
 pub mod unit;
 pub mod window_activator;
 use crate::core::image_processor::ImageProcessor;
 use crate::modules::program_manager::config::program_manager_config::RuntimeProgramConfig;
+use crate::modules::program_manager::launchy_search_model::LaunchyScorer;
 use crate::modules::program_manager::search_model::Scorer;
 use crate::modules::program_manager::standard_search_model::StandardScorer;
 use crate::program_manager::config::program_manager_config::ProgramManagerConfig;
@@ -155,7 +157,7 @@ impl ProgramManagerInner {
             program_registry: Vec::new(),
             program_loader: Arc::new(ProgramLoader::new()),
             program_launcher: Arc::new(ProgramLauncher::new()),
-            search_model: Box::new(StandardScorer::new()),
+            search_model: Box::new(LaunchyScorer::new()),
             image_loader: Arc::new(ImageLoader::new(runtime_program_config.image_loader_config)),
             program_locater: Arc::new(DashMap::new()),
             window_activator: Arc::new(WindowActivator::new()),

@@ -7,39 +7,55 @@ use core::f64;
 /// SearchAlgorithm 定义了搜索算法所需具备的核心功能和行为
 ///
 /// ScoreAdjuster 代表一个函数 y = f(x)，通常用于调整权重或将一个值映射到另一个域
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, fmt::Debug, sync::Arc};
 
-/// 预处理一个函数
-/// input: 要预处理的字符串
-/// 返回值：经过预处理后的字符串
-pub type PreprocessorFn = fn(&str) -> String;
-
-/// 计算两个字符串之间的权重
-/// source: 目标字符串
-/// user_input: 用户输入的字符串
-/// 返回：两个字符串的匹配值
-pub type SearchAlgorithmFn = fn(&str, &str) -> f64;
-/// 将一个值映射
-/// x: 要映射的
-/// 返回值：映射后的结果
-pub type ScoreAdjusterFn = fn(f64) -> f64;
-
-/// 表示一个综合的，集成多种子算法的搜索算法
-/// source: 目标程序
-/// user_input: 用户输入的字符串
-pub type SearchModelFn = fn(Arc<Program>, &str) -> f64;
-
-/// 调用函数指针利用不同公式进行权重计算
-/// operation：目标权重公式
-pub fn calculate_weight(program_name: &str, input_name: &str, operation: SearchAlgorithmFn) -> f64 {
-    operation(program_name, input_name)
+/// 实现一个评分策略
+pub trait Scorer: Send + Sync + std::fmt::Debug {
+    /// 计算给定程序和用户输入的匹配分数。
+    ///
+    /// # Arguments
+    /// * `program` - 需要评分的程序。
+    /// * `user_input` - 用户输入的搜索字符串。
+    ///
+    /// # Returns
+    /// * 一个 f64 类型的分数，分数越高表示匹配度越高。
+    fn calculate_score(&self, program: &Arc<Program>, user_input: &str) -> f64;
 }
 
-/// 调用函数调整权重得分
-/// operation: 权重调整公式
-pub fn score_adjust(score: f64, operation: ScoreAdjusterFn) -> f64 {
-    operation(score)
+pub struct StandardScorer;
+
+impl Scorer for StandardScorer {
+    fn calculate_score(&self, program: &Arc<Program>, user_input: &str) -> f64 {
+        // todo: 完成这个实现，如果使用到了什么子算法，用上面的模块实现出来再完成这个就可以了
+        // program中的字符串与user_input都已经是预处理过了，不再需要预处理了
+        let mut ret: f64 = -10000.0;
+        for names in &program.search_keywords {
+            if names.chars().count() < user_input.chars().count() {
+                continue;
+            }
+            let mut score: f64 = shortest_edit_dis(names, user_input);
+            score *= adjust_score_log2(
+                (user_input.chars().count() as f64) / (names.chars().count() as f64));
+            score += subset_dis(names, user_input);
+            score += kmp(names, user_input);
+            ret = f64::max(ret, score);
+        }
+        ret
+    }
 }
+
+impl Debug for StandardScorer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("StandardScorer").finish()
+    }
+}
+
+impl StandardScorer {
+    pub fn new() -> Self {
+        StandardScorer
+    }
+}
+
 
 /// 得分权重调整公式log2
 pub fn adjust_score_log2(origin_score: f64) -> f64 {
@@ -113,7 +129,7 @@ pub fn shortest_edit_dis(compare_name: &str, input_name: &str) -> f64 {
 
     // 计算最终得分
     let value = 1.0 - (min_operations as f64 / n as f64);
-    score_adjust(n as f64, adjust_score_log2) * (3.0 * value - 2.0).exp()
+    adjust_score_log2(n as f64) * (3.0 * value - 2.0).exp()
 }
 
 /// 权重计算KMP
@@ -134,26 +150,6 @@ pub fn kmp(compare_name: &str, input_name: &str) -> f64 {
         ret += input_name.chars().count() as f64;
     }
 
-    ret
-}
-
-pub fn standard_search_fn(program: Arc<Program>, user_input: &str) -> f64 {
-    // todo: 完成这个实现，如果使用到了什么子算法，用上面的模块实现出来再完成这个就可以了
-    // program中的字符串与user_input都已经是预处理过了，不再需要预处理了
-    let mut ret: f64 = -10000.0;
-    for names in &program.search_keywords {
-        if names.chars().count() < user_input.chars().count() {
-            continue;
-        }
-        let mut score: f64 = calculate_weight(names, user_input, shortest_edit_dis);
-        score *= score_adjust(
-            (user_input.chars().count() as f64) / (names.chars().count() as f64),
-            adjust_score_log2,
-        );
-        score += calculate_weight(names, user_input, subset_dis);
-        score += calculate_weight(names, user_input, kmp);
-        ret = f64::max(ret, score);
-    }
     ret
 }
 

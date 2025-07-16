@@ -9,6 +9,7 @@ pub mod unit;
 pub mod window_activator;
 use crate::core::image_processor::ImageProcessor;
 use crate::modules::program_manager::config::program_manager_config::RuntimeProgramConfig;
+use crate::modules::program_manager::search_model::{Scorer, StandardScorer};
 use crate::program_manager::config::program_manager_config::ProgramManagerConfig;
 use crate::program_manager::unit::*;
 use config::program_manager_config::PartialProgramManagerConfig;
@@ -18,7 +19,6 @@ use program_launcher::ProgramLauncher;
 use program_loader::ProgramLoader;
 use rayon::prelude::*;
 use search_model::remove_repeated_space;
-use search_model::{standard_search_fn, SearchModelFn};
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::RwLock;
@@ -33,8 +33,8 @@ pub struct ProgramManagerInner {
     program_loader: Arc<ProgramLoader>,
     /// 程序启动器
     program_launcher: Arc<ProgramLauncher>,
-    /// 当前程序的搜索模型（目前写死，后期变成可用户自定义）
-    search_fn: SearchModelFn,
+    /// 当前程序的搜索模型
+    search_model: Box<dyn Scorer>,
     /// 图标获取器
     image_loader: Arc<ImageLoader>,
     /// 程序查找器(程序的guid, 在registry中的下标)
@@ -86,7 +86,7 @@ impl ProgramManager {
     }
 
     /// 加载搜索模型
-    pub async fn load_search_fn(&self, model: SearchModelFn) {
+    pub async fn load_search_fn(&self, model: Box<dyn Scorer>) {
         let mut inner = self.inner.write().await;
         inner.load_search_fn(model);
     }
@@ -154,7 +154,7 @@ impl ProgramManagerInner {
             program_registry: Vec::new(),
             program_loader: Arc::new(ProgramLoader::new()),
             program_launcher: Arc::new(ProgramLauncher::new()),
-            search_fn: standard_search_fn,
+            search_model: Box::new(StandardScorer::new()),
             image_loader: Arc::new(ImageLoader::new(runtime_program_config.image_loader_config)),
             program_locater: Arc::new(DashMap::new()),
             window_activator: Arc::new(WindowActivator::new()),
@@ -220,7 +220,7 @@ impl ProgramManagerInner {
             .par_iter()
             .map(|program| {
                 // 基础匹配分数
-                let mut score = (self.search_fn)(program.clone(), &user_input);
+                let mut score = self.search_model.calculate_score(program, &user_input);
                 // 加上固定偏移量
                 score += program.stable_bias;
                 // 加上动态偏移量
@@ -267,8 +267,8 @@ impl ProgramManagerInner {
     }
 
     /// 加载搜索模型
-    pub fn load_search_fn(&mut self, model: SearchModelFn) {
-        self.search_fn = model;
+    pub fn load_search_fn(&mut self, model: Box<dyn Scorer>) {
+        self.search_model = model;
     }
     /// 获取当前程序维护的东西
     pub fn get_program_infos(&mut self) -> Vec<(String, bool, f64, String, u64)> {

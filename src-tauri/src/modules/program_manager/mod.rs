@@ -3,13 +3,14 @@ pub mod image_loader;
 pub mod pinyin_mapper;
 pub mod program_launcher;
 pub mod program_loader;
-
+pub mod standard_search_model;
 pub mod search_model;
 pub mod unit;
 pub mod window_activator;
 use crate::core::image_processor::ImageProcessor;
 use crate::modules::program_manager::config::program_manager_config::RuntimeProgramConfig;
-use crate::modules::program_manager::search_model::{Scorer, StandardScorer};
+use crate::modules::program_manager::search_model::Scorer;
+use crate::modules::program_manager::standard_search_model::StandardScorer;
 use crate::program_manager::config::program_manager_config::ProgramManagerConfig;
 use crate::program_manager::unit::*;
 use config::program_manager_config::PartialProgramManagerConfig;

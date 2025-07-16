@@ -1,5 +1,7 @@
 use super::Program;
 use core::f64;
+use fuzzy_matcher::skim::SkimMatcherV2;
+use fuzzy_matcher::FuzzyMatcher;
 /// SearchModel 表示一个综合的搜索模型
 ///
 /// Preprocessor 表示一个预处理函数，会在加载程序，和预处理用户输入时使用。
@@ -7,7 +9,7 @@ use core::f64;
 /// SearchAlgorithm 定义了搜索算法所需具备的核心功能和行为
 ///
 /// ScoreAdjuster 代表一个函数 y = f(x)，通常用于调整权重或将一个值映射到另一个域
-use std::{collections::HashMap, fmt::Debug, sync::Arc};
+use std::{fmt::Debug, sync::Arc};
 
 /// 实现一个评分策略
 pub trait Scorer: Send + Sync + std::fmt::Debug {
@@ -22,136 +24,54 @@ pub trait Scorer: Send + Sync + std::fmt::Debug {
     fn calculate_score(&self, program: &Arc<Program>, user_input: &str) -> f64;
 }
 
-pub struct StandardScorer;
+////////////////////////////////////////
+///
+/// 这些是用第三方库提供的匹配算法，所以就不单开一个文件了
+///
+////////////////////////////////////////
 
-impl Scorer for StandardScorer {
+
+
+pub struct SkimScorer {
+    matcher: Box<dyn FuzzyMatcher>,
+}
+
+impl Scorer for SkimScorer {
     fn calculate_score(&self, program: &Arc<Program>, user_input: &str) -> f64 {
-        // todo: 完成这个实现，如果使用到了什么子算法，用上面的模块实现出来再完成这个就可以了
-        // program中的字符串与user_input都已经是预处理过了，不再需要预处理了
         let mut ret: f64 = -10000.0;
-        for names in &program.search_keywords {
-            if names.chars().count() < user_input.chars().count() {
+        for name in &program.search_keywords {
+            if name.chars().count() < user_input.chars().count() {
                 continue;
             }
-            let mut score: f64 = shortest_edit_dis(names, user_input);
-            score *= adjust_score_log2(
-                (user_input.chars().count() as f64) / (names.chars().count() as f64));
-            score += subset_dis(names, user_input);
-            score += kmp(names, user_input);
-            ret = f64::max(ret, score);
+            let score = self.matcher.fuzzy_match(name, user_input);
+            if let Some(s) = score {
+                ret = f64::max(ret, s as f64);
+            }
         }
         ret
     }
 }
 
-impl Debug for StandardScorer {
+impl Debug for SkimScorer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("StandardScorer").finish()
+        f.debug_struct("SkimScorer").finish()
     }
 }
 
-impl StandardScorer {
+impl SkimScorer {
     pub fn new() -> Self {
-        StandardScorer
-    }
-}
-
-
-/// 得分权重调整公式log2
-pub fn adjust_score_log2(origin_score: f64) -> f64 {
-    3.0 * ((origin_score + 1.0).log2())
-}
-
-/// 子集匹配算法
-pub fn subset_dis(compare_name: &str, input_name: &str) -> f64 {
-    let mut compare_chars = HashMap::with_capacity(compare_name.len());
-
-    // 统计 compare_name 中字符出现次数
-    for c in compare_name.chars() {
-        *compare_chars.entry(c).or_insert(0) += 1;
-    }
-
-    // 计算匹配的字符数
-    let mut result = 0;
-    for c in input_name.chars() {
-        if let Some(count) = compare_chars.get_mut(&c) {
-            if *count > 0 {
-                result += 1;
-                *count -= 1;
-            }
+        SkimScorer {
+            matcher: Box::new(SkimMatcherV2::default()),
         }
     }
-
-    result as f64
 }
 
-/// 权重计算最短编辑距离
-pub fn shortest_edit_dis(compare_name: &str, input_name: &str) -> f64 {
-    let compare_chars: Vec<char> = compare_name.chars().collect();
-    let input_chars: Vec<char> = input_name.chars().collect();
-    let m = compare_chars.len();
-    let n = input_chars.len();
+/////////////////////////////////////////////
+///
+/// 以下是用来预处理的函数
+///
+/////////////////////////////////////////////
 
-    if n == 0 {
-        return 1.0;
-    }
-
-    let mut prev = vec![0i32; n + 1];
-    let mut current = vec![0i32; n + 1];
-    let mut min_operations = i32::MAX;
-
-    // 初始化prev数组（对应i=0）
-    for j in 0..=n {
-        prev[j] = j as i32;
-    }
-
-    for i in 1..=m {
-        current[0] = 0; // dp[i][0] = 0
-        for j in 1..=n {
-            if compare_chars[i - 1] == input_chars[j - 1] {
-                current[j] = prev[j - 1];
-            } else {
-                current[j] = std::cmp::min(prev[j - 1] + 1, prev[j] + 1);
-            }
-        }
-        // 记录dp[i][n]
-        if i >= n && current[n] < min_operations {
-            min_operations = current[n];
-        }
-        // 交换prev和current
-        std::mem::swap(&mut prev, &mut current);
-    }
-
-    // 确保min_operations包含dp[m][n]
-    if m >= n && prev[n] < min_operations {
-        min_operations = prev[n];
-    }
-
-    // 计算最终得分
-    let value = 1.0 - (min_operations as f64 / n as f64);
-    adjust_score_log2(n as f64) * (3.0 * value - 2.0).exp()
-}
-
-/// 权重计算KMP
-pub fn kmp(compare_name: &str, input_name: &str) -> f64 {
-    let mut ret: f64 = 0.0;
-
-    // 首字符串匹配
-    for (c1, c2) in compare_name.chars().zip(input_name.chars()) {
-        if c1 == c2 {
-            ret += 1.0;
-        } else {
-            break;
-        }
-    }
-
-    // 子字符串匹配
-    if compare_name.contains(input_name) {
-        ret += input_name.chars().count() as f64;
-    }
-
-    ret
-}
 
 /// 去除一个程序名中的版本号
 pub fn remove_version_number(input_text: &str) -> String {

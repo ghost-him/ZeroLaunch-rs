@@ -79,7 +79,8 @@
       </div>
       <div class="footer-center drag_area"></div>
       <div class="footer-right">
-        <span class="open-text" :style="{ color: ui_config.footer_font_color }">{{ right_tips
+        <span class="open-text" :style="{ color: ui_config.footer_font_color }">{{ is_loading_icons ? '当前正在后台加载程序图标...' :
+          right_tips
           }}</span>
       </div>
     </div>
@@ -123,6 +124,9 @@ const background_picture = ref('');
 // 用于检测当前系统是深色模式还是浅色模式
 const darkModeMediaQuery = ref<MediaQueryList | null>(null);
 const is_dark = ref(false);
+
+// 表示当前是不是正在加载图片
+const is_loading_icons = ref<boolean>(false);
 
 let unlisten: Array<UnlistenFn | null> = [];
 
@@ -230,6 +234,7 @@ const updateWindow = async () => {
 
     background_picture.value = url;
     await startPreloadResource(await program_count).then(async () => {
+      is_loading_icons.value = false;
       if (!is_visible || searchText.value.length == 0) {
         await sendSearchText('');
       }
@@ -241,6 +246,7 @@ const updateWindow = async () => {
 }
 
 const startPreloadResource = async (program_count: number) => {
+  is_loading_icons.value = true;
   const BATCH_SIZE = 100; // 增大批次大小以提升效率
 
   // 释放旧资源
@@ -338,7 +344,7 @@ const preventDefaultWebViewShortcuts = (event: KeyboardEvent) => {
   if (event.ctrlKey && event.key.toLowerCase() === 'p') {
     event.preventDefault();
   }
-  
+
   // 3. 阻止页面缩放
   // Ctrl + (加号), Ctrl + (减号), Ctrl + 0
   if (event.ctrlKey && ['=', '-', '0'].includes(event.key)) {

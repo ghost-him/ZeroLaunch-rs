@@ -64,10 +64,12 @@ impl ImageLoaderInner {
             let icon_path = Path::new(&cached_icon_dir).join(&hash_name);
             // 如果存在，则直接将目标的路径（网页url）更换成本地的地址
             icon_identity = ImageIdentity::File(icon_path.to_str().unwrap().to_string());
+            return ImageProcessor::load_image(&icon_identity).await;
         }
-        let icon_data = match icon_identity {
+
+        let (icon_data, is_default_pic) = match icon_identity {
             ImageIdentity::File(mut icon_path) => {
-                // 如果是以.url结尾的，则优先看看能不能找到其对应的图标，如果有，则使用这个图标来获得程序图标，如果没有，则使用默认的文件地址获得
+                // 如果是以.url结尾的,比如 steam.url ，则优先看看能不能找到其对应的图标，如果有，则使用这个图标来获得程序图标，如果没有，则使用默认的文件地址获得
                 if icon_path.ends_with("url") {
                     let show_name = program.show_name.clone();
                     icon_path = match self.icon_path_cache.entry(show_name) {
@@ -81,13 +83,15 @@ impl ImageLoaderInner {
                 // 现在 icon_path 就是
                 let mut pic_bytes: Vec<u8> =
                     ImageProcessor::load_image(&ImageIdentity::File(icon_path)).await;
-                if pic_bytes.is_empty() {
+                let is_empty = pic_bytes.is_empty();
+                // 如果是空的，则说明返回的是默认的图标
+                if is_empty {
                     pic_bytes = ImageProcessor::load_image(&ImageIdentity::File(
                         self.default_app_icon_path.clone(),
                     ))
                     .await;
                 }
-                pic_bytes
+                (pic_bytes, is_empty)
             }
             ImageIdentity::Web(_) => {
                 let mut web_image = if self.enable_online {
@@ -96,17 +100,19 @@ impl ImageLoaderInner {
                 } else {
                     Vec::new()
                 };
-                if web_image.is_empty() {
+                let is_empty = web_image.is_empty();
+                // 如果是空的，则说明返回的是默认的图标
+                if is_empty {
                     web_image = ImageProcessor::load_image(&ImageIdentity::File(
                         self.default_web_icon_path.clone(),
                     ))
                     .await;
                 }
-                web_image
+                (web_image, is_empty)
             }
         };
-        // 如果要缓存到本地，则直接缓存
-        if self.enable_icon_cache {
+        // 如果要缓存到本地，则需要判断是不是默认的图标，如果不是默认的图标，则将其保存到缓存中
+        if self.enable_icon_cache && !is_default_pic {
             let icon_cache_clone = icon_data.clone();
             tauri::async_runtime::spawn(async move {
                 let cached_icon_dir = ICON_CACHE_DIR.clone();

@@ -236,8 +236,9 @@ async fn init_app_state(app: &mut App) {
                 .build()
                 .unwrap(),
         );
-        welcome.set_size(LogicalSize::new(1000, 900)).unwrap();
+        welcome.set_size(LogicalSize::new(950, 500)).unwrap();
     };
+    create_and_show_welcome_page();
     let storage_manager = StorageManager::new(create_and_show_welcome_page).await;
     let remote_config_data = {
         if let Some(data) = storage_manager
@@ -393,7 +394,7 @@ fn init_setting_window(app: tauri::AppHandle) {
             .unwrap(),
         );
         setting_window
-            .set_size(LogicalSize::new(1300, 800))
+            .set_size(LogicalSize::new(950, 500))
             .unwrap();
         let window_clone = Arc::clone(&setting_window);
         setting_window.on_window_event(move |event| {

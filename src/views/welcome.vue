@@ -110,17 +110,18 @@ const openSettings = () => {
 .welcome-page {
     display: flex;
     justify-content: center;
-    align-items: center;
-    min-height: 100vh;
+    height: 100%;
     background-color: #f2f3f5;
     /* Element Plus 经典的背景色 */
     padding: 20px;
+    overflow-y: auto;
     box-sizing: border-box;
 }
 
 .welcome-card {
     max-width: 800px;
     width: 100%;
+    margin: auto 0;
 }
 
 .card-header {

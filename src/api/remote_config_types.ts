@@ -191,6 +191,7 @@ export type RemoteConfig = {
         launcher: ProgramLauncherConfig
         loader: ProgramLoaderConfig
         image_loader: ImageLoaderConfig
+        search_model: string
     }
 }
 
@@ -209,6 +210,7 @@ export type PartialRemoteConfig = {
         launcher?: PartialProgramLauncherConfig
         loader?: PartialProgramLoaderConfig
         image_loader?: PartialImageLoaderConfig
+        search_model?: Partial<string>
     }
 }
 

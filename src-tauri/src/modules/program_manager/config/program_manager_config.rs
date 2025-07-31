@@ -3,6 +3,7 @@ use crate::program_manager::config::program_launcher_config::PartialProgramLaunc
 use crate::program_manager::config::program_launcher_config::ProgramLauncherConfig;
 use crate::program_manager::config::program_loader_config::PartialProgramLoaderConfig;
 use crate::program_manager::config::program_loader_config::ProgramLoaderConfig;
+use crate::program_manager::SearchModel;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -15,6 +16,7 @@ pub struct PartialProgramManagerConfig {
     pub launcher: Option<PartialProgramLauncherConfig>,
     pub loader: Option<PartialProgramLoaderConfig>,
     pub image_loader: Option<PartialImageLoaderConfig>,
+    pub search_model: Option<Arc<SearchModel>>,
 }
 
 #[derive(Debug)]
@@ -22,6 +24,7 @@ pub struct ProgramManagerConfigInner {
     pub launcher_config: Arc<ProgramLauncherConfig>,
     pub loader_config: Arc<ProgramLoaderConfig>,
     pub image_loader: Arc<ImageLoaderConfig>,
+    pub search_model: Arc<SearchModel>,
 }
 
 impl Default for ProgramManagerConfigInner {
@@ -30,6 +33,7 @@ impl Default for ProgramManagerConfigInner {
             launcher_config: Arc::new(ProgramLauncherConfig::default()),
             loader_config: Arc::new(ProgramLoaderConfig::default()),
             image_loader: Arc::new(ImageLoaderConfig::default()),
+            search_model: Arc::new(SearchModel::default()),
         }
     }
 }
@@ -40,6 +44,7 @@ impl ProgramManagerConfigInner {
             launcher: Some(self.launcher_config.to_partial()),
             loader: Some(self.loader_config.to_partial()),
             image_loader: Some(self.image_loader.to_partial()),
+            search_model: Some(self.search_model.clone()),
         }
     }
     pub fn update(&mut self, partial_config: PartialProgramManagerConfig) {
@@ -51,6 +56,9 @@ impl ProgramManagerConfigInner {
         }
         if let Some(partial_image_loader) = partial_config.image_loader {
             self.image_loader.update(partial_image_loader);
+        }
+        if let Some(new_search_model) = partial_config.search_model {
+            self.search_model = new_search_model;
         }
     }
 }
@@ -83,6 +91,10 @@ impl ProgramManagerConfig {
 
     pub fn get_image_loader_config(&self) -> Arc<ImageLoaderConfig> {
         self.inner.read().image_loader.clone()
+    }
+
+    pub fn get_search_model(&self) -> Arc<SearchModel> {
+        self.inner.read().search_model.clone()
     }
 
     pub fn update(&self, partial_config: PartialProgramManagerConfig) {

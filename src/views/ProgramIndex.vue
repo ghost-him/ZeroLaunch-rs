@@ -217,6 +217,20 @@
             </div>
         </el-tab-pane>
         <el-tab-pane label="额外设置" style="height: 100%;overflow:auto">
+            <el-form-item label="更改搜索算法">
+                <el-select v-model="config.program_manager_config.search_model" placeholder="standard"
+                    style="width: 240px"
+                    @change="(val: string) => configStore.updateConfig({ program_manager_config: { search_model: val } })">
+                    <el-option v-for="item in search_model" :key="item.value" :label="item.label" :value="item.value" />
+                </el-select>
+                <el-tooltip class="box-item" effect="dark"
+                    content="标准搜索算法: 作者精心设计的搜索算法，高准确率，高可容错率；Skim匹配算法：目前主流的模糊匹配算法；LaunchyQT算法: 对LaunchyQT算法的移植">
+                    <el-icon class="el-question-icon">
+                        <QuestionFilled />
+                    </el-icon>
+                </el-tooltip>
+            </el-form-item>
+
             <el-form-item label="扫描UWP应用">
                 <el-switch v-model="config.program_manager_config.loader.is_scan_uwp_programs" @change="(val: boolean) =>
                     configStore.updateConfig({
@@ -277,6 +291,20 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen, TauriEvent, UnlistenFn } from '@tauri-apps/api/event';
 import { DragDropEvent } from '@tauri-apps/api/webview';
 import { ElMessage } from 'element-plus';
+
+const search_model = [
+    {
+        value: 'standard',
+        label: '标准搜索算法',
+    },
+    {
+        value: 'skim',
+        label: 'Skim匹配算法',
+    }, {
+        value: 'launchy',
+        label: 'LaunchyQT算法（非官方）',
+    }
+]
 
 // 表格数据项接口
 interface TableItem {

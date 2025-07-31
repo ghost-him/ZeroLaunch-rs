@@ -1,10 +1,11 @@
-
-pub struct StandardScorer;
-use std::collections::HashMap;
-use crate::program_manager::Scorer;
+use crate::program_manager::search_model::search_model::Scorer;
 use crate::program_manager::Program;
-use std::sync::Arc;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fmt::Debug;
+use std::sync::Arc;
+#[derive(Serialize, Deserialize)]
+pub struct StandardScorer;
 
 impl Scorer for StandardScorer {
     fn calculate_score(&self, program: &Arc<Program>, user_input: &str) -> f64 {
@@ -17,7 +18,8 @@ impl Scorer for StandardScorer {
             }
             let mut score: f64 = shortest_edit_dis(names, user_input);
             score *= adjust_score_log2(
-                (user_input.chars().count() as f64) / (names.chars().count() as f64));
+                (user_input.chars().count() as f64) / (names.chars().count() as f64),
+            );
             score += subset_dis(names, user_input);
             score += kmp(names, user_input);
             ret = f64::max(ret, score);
@@ -37,7 +39,6 @@ impl StandardScorer {
         StandardScorer
     }
 }
-
 
 /// 得分权重调整公式log2
 pub fn adjust_score_log2(origin_score: f64) -> f64 {

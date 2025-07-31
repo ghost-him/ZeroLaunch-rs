@@ -1,11 +1,11 @@
 use super::config::program_loader_config::DirectoryConfig;
 use super::pinyin_mapper::PinyinMapper;
-use super::search_model::*;
 use super::LaunchMethod;
 use crate::core::image_processor::ImageIdentity;
 use crate::modules::config::default::APP_PIC_PATH;
 use crate::program_manager::config::program_loader_config::PartialProgramLoaderConfig;
 use crate::program_manager::config::program_loader_config::ProgramLoaderConfig;
+use crate::program_manager::search_model::search_model::*;
 /// 这个类用于加载电脑上程序，通过扫描路径或使用系统调用接口
 use crate::program_manager::Program;
 use crate::utils::defer::defer;

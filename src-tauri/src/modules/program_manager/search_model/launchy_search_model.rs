@@ -1,15 +1,13 @@
-use std::fmt::Debug;
+use crate::program_manager::search_model::search_model::Scorer;
+use crate::program_manager::Program;
 /// 这个文件是以LaunchyQT的搜索模型为基础进行的改造
 /// 项目地址如下：https://github.com/samsonwang/LaunchyQt
 /// 但是launchyqt是基于比较进行搜索的，而不是基于分数的
 /// 所以我对这个搜索算法做了一些修改，从而可以适应当前的搜索框架
-
-use std::sync::Arc;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use crate::program_manager::Program;
-use fuzzy_matcher::skim::SkimMatcherV2;
-use fuzzy_matcher::FuzzyMatcher;
-use crate::program_manager::Scorer;
+use std::fmt::Debug;
+use std::sync::Arc;
 /// `LaunchyScorer` 实现了模仿 LaunchyQT 搜索算法的评分策略。
 ///
 /// 它将 Launchy 的多级比较规则（`CatLessPtr`）转化为一个数值分数，
@@ -24,21 +22,18 @@ use crate::program_manager::Scorer;
 ///
 /// 注意: Launchy 的 'usage' (使用频率) 动态权重部分没有在这里实现，
 /// 因为框架已在外部处理了动态分数（`program_dynamic_value_based_launch_time`）。
-
-pub struct LaunchyScorer {
-}
+#[derive(Serialize, Deserialize)]
+pub struct LaunchyScorer {}
 
 impl Debug for LaunchyScorer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("LaunchyScorer")
-            .finish()
+        f.debug_struct("LaunchyScorer").finish()
     }
 }
 
 impl LaunchyScorer {
     pub fn new() -> Self {
-        LaunchyScorer {
-        }
+        LaunchyScorer {}
     }
 }
 

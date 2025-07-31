@@ -23,7 +23,8 @@ function mergeConfig(config: RemoteConfig , partial: PartialRemoteConfig): Remot
         ?{
                 launcher: pmPartial.launcher ? { ...pmConfig.launcher, ...pmPartial.launcher } : pmConfig.launcher,
                 loader: pmPartial.loader ? { ...pmConfig.loader, ...pmPartial.loader } : pmConfig.loader,
-                image_loader: pmConfig.image_loader ? { ...pmConfig.image_loader, ...pmPartial.image_loader}:pmConfig.image_loader
+                image_loader: pmPartial.image_loader ? { ...pmConfig.image_loader, ...pmPartial.image_loader}:pmConfig.image_loader,
+                search_model: pmPartial.search_model ? pmPartial.search_model : pmConfig.search_model,
         }
         : pmConfig;
     // 返回合并后的新 Config 对象
@@ -113,12 +114,15 @@ function mergePartialProgramManagerConfig(
                 ...(pm2?.image_loader || {}),
             }
             : undefined;
+    // 合并 search_model
+    const mergedSearchModel = pm2?.search_model ?? pm1?.search_model;
 
     // 构建最终的 program_manager_config 对象
     const mergedPm: PartialRemoteConfig["program_manager_config"] = {};
     if (mergedLauncher !== undefined) mergedPm.launcher = mergedLauncher;
     if (mergedLoader !== undefined) mergedPm.loader = mergedLoader;
     if (mergedImageLoaderConfig !== undefined) mergedPm.image_loader = mergedImageLoaderConfig;
+    if (mergedSearchModel !== undefined) mergedPm.search_model = mergedSearchModel;
     return Object.keys(mergedPm).length > 0 ? mergedPm : undefined;
 }
 

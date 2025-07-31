@@ -3,17 +3,14 @@ pub mod image_loader;
 pub mod pinyin_mapper;
 pub mod program_launcher;
 pub mod program_loader;
-pub mod standard_search_model;
-pub mod launchy_search_model;
 pub mod search_model;
 pub mod unit;
+use crate::program_manager::search_model::search_model::SearchModel;
 pub mod window_activator;
 use crate::core::image_processor::ImageProcessor;
 use crate::modules::program_manager::config::program_manager_config::RuntimeProgramConfig;
-use crate::modules::program_manager::launchy_search_model::LaunchyScorer;
-use crate::modules::program_manager::search_model::Scorer;
-use crate::modules::program_manager::standard_search_model::StandardScorer;
 use crate::program_manager::config::program_manager_config::ProgramManagerConfig;
+use crate::program_manager::search_model::search_model::*;
 use crate::program_manager::unit::*;
 use config::program_manager_config::PartialProgramManagerConfig;
 use dashmap::DashMap;
@@ -21,7 +18,6 @@ use image_loader::ImageLoader;
 use program_launcher::ProgramLauncher;
 use program_loader::ProgramLoader;
 use rayon::prelude::*;
-use search_model::remove_repeated_space;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::RwLock;
@@ -37,7 +33,7 @@ pub struct ProgramManagerInner {
     /// 程序启动器
     program_launcher: Arc<ProgramLauncher>,
     /// 当前程序的搜索模型
-    search_model: Box<dyn Scorer>,
+    search_model: Arc<SearchModel>,
     /// 图标获取器
     image_loader: Arc<ImageLoader>,
     /// 程序查找器(程序的guid, 在registry中的下标)
@@ -88,11 +84,6 @@ impl ProgramManager {
         inner.test_search_algorithm(user_input)
     }
 
-    /// 加载搜索模型
-    pub async fn load_search_fn(&self, model: Box<dyn Scorer>) {
-        let mut inner = self.inner.write().await;
-        inner.load_search_fn(model);
-    }
     /// 获取当前程序维护的东西
     pub async fn get_program_infos(&self) -> Vec<(String, bool, f64, String, u64)> {
         let mut inner = self.inner.write().await;
@@ -157,7 +148,7 @@ impl ProgramManagerInner {
             program_registry: Vec::new(),
             program_loader: Arc::new(ProgramLoader::new()),
             program_launcher: Arc::new(ProgramLauncher::new()),
-            search_model: Box::new(LaunchyScorer::new()),
+            search_model: Arc::new(SearchModel::default()),
             image_loader: Arc::new(ImageLoader::new(runtime_program_config.image_loader_config)),
             program_locater: Arc::new(DashMap::new()),
             window_activator: Arc::new(WindowActivator::new()),
@@ -168,6 +159,7 @@ impl ProgramManagerInner {
             launcher: Some(self.program_launcher.get_runtime_data()),
             loader: None,
             image_loader: None,
+            search_model: None,
         }
     }
 
@@ -193,6 +185,8 @@ impl ProgramManagerInner {
                 .register_program(program.program_guid, program.launch_method.clone());
             self.program_locater.insert(program.program_guid, index);
         }
+        // 更换搜索算法
+        self.search_model = config.get_search_model();
     }
     /// 使用搜索算法搜索，并给出指定长度的序列
     /// user_input: 用户输入的字符串
@@ -269,10 +263,6 @@ impl ProgramManagerInner {
         results
     }
 
-    /// 加载搜索模型
-    pub fn load_search_fn(&mut self, model: Box<dyn Scorer>) {
-        self.search_model = model;
-    }
     /// 获取当前程序维护的东西
     pub fn get_program_infos(&mut self) -> Vec<(String, bool, f64, String, u64)> {
         let mut result = Vec::new();

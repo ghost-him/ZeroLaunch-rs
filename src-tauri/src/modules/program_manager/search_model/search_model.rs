@@ -1,7 +1,11 @@
-use super::Program;
+use crate::program_manager::search_model::launchy_search_model::LaunchyScorer;
+use crate::program_manager::search_model::skim_search_model::SkimScorer;
+use crate::program_manager::search_model::standard_search_model::StandardScorer;
+use crate::program_manager::Program;
 use core::f64;
-use fuzzy_matcher::skim::SkimMatcherV2;
-use fuzzy_matcher::FuzzyMatcher;
+use serde::{de, Deserializer, Serializer};
+use serde::{Deserialize, Serialize};
+use std::fmt;
 /// SearchModel 表示一个综合的搜索模型
 ///
 /// Preprocessor 表示一个预处理函数，会在加载程序，和预处理用户输入时使用。
@@ -24,45 +28,80 @@ pub trait Scorer: Send + Sync + std::fmt::Debug {
     fn calculate_score(&self, program: &Arc<Program>, user_input: &str) -> f64;
 }
 
-////////////////////////////////////////
-///
-/// 这些是用第三方库提供的匹配算法，所以就不单开一个文件了
-///
-////////////////////////////////////////
-
-
-
-pub struct SkimScorer {
-    matcher: Box<dyn FuzzyMatcher>,
+#[derive(Debug)]
+pub enum SearchModel {
+    Skim(SkimScorer),
+    Standard(StandardScorer),
+    Launchy(LaunchyScorer),
 }
 
-impl Scorer for SkimScorer {
+impl Default for SearchModel {
+    fn default() -> Self {
+        SearchModel::Standard(StandardScorer::new())
+    }
+}
+
+impl Scorer for SearchModel {
     fn calculate_score(&self, program: &Arc<Program>, user_input: &str) -> f64 {
-        let mut ret: f64 = -10000.0;
-        for name in &program.search_keywords {
-            if name.chars().count() < user_input.chars().count() {
-                continue;
-            }
-            let score = self.matcher.fuzzy_match(name, user_input);
-            if let Some(s) = score {
-                ret = f64::max(ret, s as f64);
-            }
+        match self {
+            SearchModel::Launchy(scorer) => scorer.calculate_score(program, user_input),
+            SearchModel::Skim(scorer) => scorer.calculate_score(program, user_input),
+            SearchModel::Standard(scorer) => scorer.calculate_score(program, user_input),
         }
-        ret
     }
 }
 
-impl Debug for SkimScorer {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("SkimScorer").finish()
+impl Serialize for SearchModel {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        // 使用 match 匹配不同的变体，并序列化为对应的字符串
+        match *self {
+            SearchModel::Skim(_) => serializer.serialize_str("skim"),
+            SearchModel::Standard(_) => serializer.serialize_str("standard"),
+            SearchModel::Launchy(_) => serializer.serialize_str("launchy"),
+        }
     }
 }
 
-impl SkimScorer {
-    pub fn new() -> Self {
-        SkimScorer {
-            matcher: Box::new(SkimMatcherV2::default()),
+// 2. 手动实现 Deserialize
+impl<'de> Deserialize<'de> for SearchModel {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        // 定义一个 Visitor 来处理反序列化逻辑
+        struct SearchModelVisitor;
+
+        impl<'de> de::Visitor<'de> for SearchModelVisitor {
+            type Value = SearchModel;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str(
+                    "a string representing a search model: 'skim', 'standard', or 'launchy'",
+                )
+            }
+
+            // 当 serde 遇到一个字符串时，会调用这个方法
+            fn visit_str<E>(self, value: &str) -> Result<SearchModel, E>
+            where
+                E: de::Error,
+            {
+                match value {
+                    "skim" => Ok(SearchModel::Skim(SkimScorer::new())),
+                    "standard" => Ok(SearchModel::Standard(StandardScorer::new())),
+                    "launchy" => Ok(SearchModel::Launchy(LaunchyScorer::new())),
+                    _ => Err(de::Error::unknown_variant(
+                        value,
+                        &["skim", "standard", "launchy"],
+                    )),
+                }
+            }
         }
+
+        // 告诉 serde 我们期望一个字符串，并使用我们的 Visitor 来处理它
+        deserializer.deserialize_str(SearchModelVisitor)
     }
 }
 
@@ -71,7 +110,6 @@ impl SkimScorer {
 /// 以下是用来预处理的函数
 ///
 /////////////////////////////////////////////
-
 
 /// 去除一个程序名中的版本号
 pub fn remove_version_number(input_text: &str) -> String {

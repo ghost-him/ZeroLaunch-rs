@@ -170,6 +170,7 @@ export type ProgramLoaderConfig = {
     index_web_pages: [string, string][]
     custom_command: [string, string][]
     forbidden_paths: string[]
+    program_alias: { [key: string]: string[] }
 }
 
 export type ImageLoaderConfig = {

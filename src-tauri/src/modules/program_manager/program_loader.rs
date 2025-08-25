@@ -9,9 +9,11 @@ use crate::program_manager::search_model::search_model::*;
 /// 这个类用于加载电脑上程序，通过扫描路径或使用系统调用接口
 use crate::program_manager::Program;
 use crate::utils::defer::defer;
+use crate::utils::{hashmap_to_dashmap, dashmap_to_hashmap};
 use crate::utils::notify::notify;
 use crate::utils::windows::get_u16_vec;
 use core::time::Duration;
+use dashmap::DashMap;
 use dashmap::DashSet;
 use globset::GlobSetBuilder;
 use globset::{Glob, GlobSet};
@@ -153,6 +155,8 @@ pub struct ProgramLoaderInner {
     loading_time: Option<Duration>,
     /// 不扫描的路径
     forbidden_paths: Vec<String>,
+    /// 自定义程序别名
+    program_alias: DashMap<String, Vec<String>>,
 }
 
 impl ProgramLoaderInner {
@@ -169,10 +173,13 @@ impl ProgramLoaderInner {
             custom_command: Vec::new(),
             loading_time: None,
             forbidden_paths: Vec::new(),
+            program_alias: DashMap::new(),
         }
     }
 
     pub fn to_partial(&self) -> PartialProgramLoaderConfig {
+        let program_alias_hash_map = dashmap_to_hashmap(&self.program_alias);
+
         PartialProgramLoaderConfig {
             target_paths: Some(self.target_paths.clone()),
             forbidden_paths: Some(self.forbidden_paths.clone()),
@@ -180,6 +187,7 @@ impl ProgramLoaderInner {
             is_scan_uwp_programs: Some(self.is_scan_uwp_programs),
             index_web_pages: Some(self.index_web_pages.clone()),
             custom_command: Some(self.custom_command.clone()),
+            program_alias: Some(program_alias_hash_map),
         }
     }
 
@@ -193,6 +201,7 @@ impl ProgramLoaderInner {
         self.program_name_hash = DashSet::new();
         self.index_web_pages = config.get_index_web_pages();
         self.custom_command = config.get_custom_command();
+        self.program_alias = hashmap_to_dashmap(&config.get_program_alias());
     }
     /// 添加目标路径
     pub fn add_target_path(&mut self, directory_config: DirectoryConfig) {
@@ -272,6 +281,21 @@ impl ProgramLoaderInner {
         self.loading_time = Some(start.elapsed());
         result
     }
+
+    /// 检查用户有没有添加别名
+    fn check_program_alias(&self, key: &LaunchMethod) -> Vec<String> {
+        let key = key.get_text();
+        let mut keywords_to_append = vec![];
+        if let Some(alias) = self.program_alias.get(&key) {
+            // 如果有，则将其添加到program的搜索关键字中
+            for item in alias.iter() {
+                let mut converted = self.convert_search_keywords(item);
+                keywords_to_append.append(&mut converted);
+            }
+        }
+        return keywords_to_append;
+    }
+
     /// 获得加载程序的耗时
     pub fn get_loading_time(&self) -> f64 {
         if self.loading_time.is_some() {
@@ -293,14 +317,19 @@ impl ProgramLoaderInner {
                 continue;
             }
             let guid = self.guid_generator.get_guid();
-            let alias: Vec<String> = self.convert_search_keywords(&show_name);
+            let mut alias_names: Vec<String> = self.convert_search_keywords(&show_name);
             let unique_name = check_name.to_lowercase();
             let stable_bias = self.get_program_bias(&unique_name);
+            // 如果用户自己添加了别名，则添加上去
+            let launch_method = LaunchMethod::File(url.clone());
+            let alias_name_to_append = self.check_program_alias(&launch_method);
+            alias_names.extend(alias_name_to_append);
+
             let program = Arc::new(Program {
                 program_guid: guid,
                 show_name: show_name.clone(),
-                launch_method: LaunchMethod::File(url.clone()),
-                search_keywords: alias,
+                launch_method: launch_method,
+                search_keywords: alias_names,
                 stable_bias,
                 icon_path: ImageIdentity::Web(url.to_string()),
             });
@@ -350,7 +379,7 @@ impl ProgramLoaderInner {
 
                 let guid = self.guid_generator.get_guid();
 
-                let alias: Vec<String> = self.convert_search_keywords(&show_name);
+                let mut alias_names: Vec<String> = self.convert_search_keywords(&show_name);
                 let unique_name = show_name.to_lowercase();
                 let stable_bias = self.get_program_bias(&unique_name);
                 let launch_method = if ["url", "lnk", "exe"]
@@ -360,11 +389,15 @@ impl ProgramLoaderInner {
                 } else {
                     LaunchMethod::File(target_path.clone())
                 };
+
+                // 如果用户自己添加了别名，则添加上去
+                let alias_name_to_append = self.check_program_alias(&launch_method);
+                alias_names.extend(alias_name_to_append);
                 let program = Arc::new(Program {
                     program_guid: guid,
                     show_name,
                     launch_method: launch_method,
-                    search_keywords: alias,
+                    search_keywords: alias_names,
                     stable_bias,
                     icon_path: ImageIdentity::File(target_path),
                 });
@@ -394,15 +427,21 @@ impl ProgramLoaderInner {
 
             let guid = self.guid_generator.get_guid();
 
-            let alias = self.convert_search_keywords(&show_name);
+            let mut alias_names = self.convert_search_keywords(&show_name);
             let unique_name = show_name.to_lowercase();
             let stable_bias = self.get_program_bias(&unique_name);
             let icon_path = APP_PIC_PATH.get("terminal").unwrap().value().clone();
+
+            // 如果用户自己添加了别名，则添加上去
+            let launch_method = LaunchMethod::Command(command.clone());
+            let alias_name_to_append = self.check_program_alias(&launch_method);
+            alias_names.extend(alias_name_to_append);
+
             let program = Arc::new(Program {
                 program_guid: guid,
                 show_name: show_name.clone(),
-                launch_method: LaunchMethod::Command(command.clone()),
-                search_keywords: alias,
+                launch_method: launch_method,
+                search_keywords: alias_names,
                 stable_bias,
                 icon_path: ImageIdentity::File(icon_path),
             });
@@ -586,15 +625,19 @@ impl ProgramLoaderInner {
                             continue;
                         }
 
-                        let alias_name = self.convert_search_keywords(&short_name);
+                        let mut alias_name = self.convert_search_keywords(&short_name);
                         let guid = self.guid_generator.get_guid();
                         let unique_name = short_name.to_lowercase();
                         let stable_bias = self.get_program_bias(&unique_name);
+                        let launch_method = LaunchMethod::PackageFamilyName(app_id);
+                        // 如果用户自己添加了别名，则添加上去
+                        let alias_name_to_append = self.check_program_alias(&launch_method);
+                        alias_name.extend(alias_name_to_append);
 
                         ret.push(Arc::new(Program {
                             program_guid: guid,
                             show_name: short_name,
-                            launch_method: LaunchMethod::PackageFamilyName(app_id),
+                            launch_method: launch_method,
                             search_keywords: alias_name,
                             stable_bias,
                             icon_path: ImageIdentity::File(icon_path),

@@ -23,7 +23,7 @@
                 </div>
             </div>
             <div class="footer-item">
-                <el-button type="primary" @click="save_config" :disabled="activeIndex >= 4">
+                <el-button type="primary" @click="save_config" :disabled="activeIndex >= 5">
                     <span>保存配置文件</span>
                 </el-button>
             </div>
@@ -112,22 +112,18 @@
             </section>
 
             <section v-if="activeIndex === 4" class="page">
-                <ConfigPathSelector></ConfigPathSelector>
-            </section>
-
-            <section v-if="activeIndex === 5" class="page">
                 <div style="display: flex; flex-direction: column; height: 100%;">
                     <el-button class="mt-4" style="width: 100%; flex-shrink: 0;" @click="refreshProgramInfo">
                         点击刷新
                     </el-button>
                     <el-table :data="programInfoList" stripe
                         style="width: 100%;flex-grow: 1; height: 0; min-height: 0; margin-top: 10px;">
-                        <el-table-column label="程序名" prop="name" sortable show-overflow-tooltip>
+                        <el-table-column label="程序名" prop="name" sortable show-overflow-tooltip width="150">
                             <template #default="{ row }">
                                 {{ row.name }}
                             </template>
                         </el-table-column>
-                        <el-table-column label="是否是UWP程序" prop="is_uwp" sortable show-overflow-tooltip width="100">
+                        <el-table-column label="是否是UWP程序" prop="is_uwp" sortable show-overflow-tooltip width="120">
                             <template #default="{ row }">
                                 {{ row.is_uwp }}
                             </template>
@@ -143,13 +139,45 @@
                                 {{ row.history_launch_time }}
                             </template>
                         </el-table-column>
-                        <el-table-column label="路径" prop="path" sortable show-overflow-tooltip>
+                        <el-table-column label="路径" prop="path" sortable show-overflow-tooltip width="200">
                             <template #default="{ row }">
                                 {{ row.path }}
                             </template>
                         </el-table-column>
+                        <el-table-column label="别名" show-overflow-tooltip>
+                            
+                            <template #default="{ row }">
+                                <div style="display: flex; flex-direction: column; gap: 5px;">
+                                    <!-- 1. 直接遍历 store 中的数组 -->
+                                    <div v-for="(alias, index) in program_alias[row.path] || []" :key="index"
+                                        style="display: flex; align-items: center; gap: 5px;">
+                                        
+                                        <!-- 2. 将 v-model 拆分为 :model-value 和 @input/@change -->
+                                        <el-input
+                                            v-model="program_alias[row.path][index]"
+                                            @change="updateProgramAlias(row.path, index, $event)"
+                                            size="small"
+                                            placeholder="输入别名后回车或失焦"
+                                            style="flex: 1;">
+                                        </el-input>
+
+                                        <el-button size="small" type="danger" @click="removeProgramAlias(row.path, index)">
+                                            删除
+                                        </el-button>
+                                    </div>
+                                    <el-button size="small" type="primary" @click="addProgramAlias(row.path)"
+                                            style="width: 100%;">
+                                        添加别名
+                                    </el-button>
+                                </div>
+                            </template>
+                        </el-table-column>
                     </el-table>
                 </div>
+            </section>
+
+            <section v-if="activeIndex === 5" class="page">
+                <ConfigPathSelector></ConfigPathSelector>
             </section>
 
             <section v-if="activeIndex === 6" class="page">
@@ -207,8 +235,8 @@ const menuItems: MenuItem[] = [
     { title: '外观设置', icon: Brush },
     { title: '程序搜索', icon: Search },
     { title: '其他搜索', icon: Search },
-    { title: '远程管理', icon: Connection },
     { title: '所有程序', icon: List },
+    { title: '远程管理', icon: Connection },
     { title: '快捷键设置', icon: Search },
     { title: '关于', icon: InfoFilled }
 ];
@@ -266,6 +294,67 @@ const updateCustomCommand = () => {
 
 const addCustomCommand = () => {
     custom_command.value = [...custom_command.value, ["", ""]]
+}
+
+// 程序别名管理
+const program_alias = computed({
+    get: () => config.value.program_manager_config.loader.program_alias,
+    set: (value) => {
+        console.log("更新pinia");
+        configStore.updateConfig({
+            program_manager_config: {
+                loader: { program_alias: value }
+            }
+        })
+    }
+})
+
+// 添加程序别名
+const addProgramAlias = (programPath: string) => {
+    const currentAliases = program_alias.value[programPath] || []
+    const newAliases = { ...program_alias.value }
+    newAliases[programPath] = [...currentAliases, ""]
+    program_alias.value = newAliases
+}
+
+// 更新程序别名
+// 更新程序别名
+const updateProgramAlias = (programPath: string, index: number, newValue: string) => {
+    // 1. 创建 program_alias 对象的一个浅拷贝
+    const newProgramAlias = { ...program_alias.value };
+    
+    // 2. 获取当前路径下的别名数组，并创建一个新数组的拷贝
+    // 这样做是为了避免直接修改 store 中的原数组
+    const currentAliases = [...(newProgramAlias[programPath] || [])];
+    
+    // 3. 检查索引是否有效，并更新新数组中的值
+    if (index >= 0 && index < currentAliases.length) {
+        currentAliases[index] = newValue;
+    }
+    
+    // 4. 将更新后的新数组放回新的 program_alias 对象中
+    newProgramAlias[programPath] = currentAliases;
+    
+    // 5. 将整个新的 program_alias 对象赋值给 computed 属性
+    // 这将触发 computed 属性的 set 方法，从而调用 configStore.updateConfig
+    program_alias.value = newProgramAlias;
+    console.log("通过setter更新了别名");
+};
+
+// 删除程序别名
+const removeProgramAlias = (programPath: string, index: number) => {
+    const currentAliases = program_alias.value[programPath] || []
+    if (index >= 0 && index < currentAliases.length) {
+        const newAliases = { ...program_alias.value }
+        newAliases[programPath] = currentAliases.filter((_, i) => i !== index)
+        
+        // 如果别名列表为空，删除整个键
+        if (newAliases[programPath].length === 0) {
+            delete newAliases[programPath]
+        }
+        
+        program_alias.value = newAliases
+    }
 }
 
 interface ProgramInfo {

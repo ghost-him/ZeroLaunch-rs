@@ -11,6 +11,7 @@ pub struct PartialProgramLoaderConfig {
     pub index_web_pages: Option<Vec<(String, String)>>,
     pub custom_command: Option<Vec<(String, String)>>,
     pub forbidden_paths: Option<Vec<String>>,
+    pub program_alias: Option<HashMap<String, Vec<String>>>,
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DirectoryConfig {
@@ -68,6 +69,9 @@ pub struct ProgramLoaderConfigInner {
     /// 禁止的地址
     #[serde(default = "ProgramLoaderConfigInner::default_forbidden_paths")]
     pub forbidden_paths: Vec<String>,
+    /// 给程序的别名，将程序的地址当成key (key)=>([alias])
+    #[serde(default = "ProgramLoaderConfigInner::default_program_alias")]
+    pub program_alias: HashMap<String, Vec<String>>,
 }
 
 impl Default for ProgramLoaderConfigInner {
@@ -79,11 +83,16 @@ impl Default for ProgramLoaderConfigInner {
             index_web_pages: Self::default_index_web_pages(),
             custom_command: Self::default_custom_command(),
             forbidden_paths: Self::default_forbidden_paths(),
+            program_alias: Self::default_program_alias(),
         }
     }
 }
 
 impl ProgramLoaderConfigInner {
+    pub(crate) fn default_program_alias() -> HashMap<String, Vec<String>> {
+        HashMap::new()
+    }
+
     pub(crate) fn default_target_paths() -> Vec<DirectoryConfig> {
         let (common, user) =
             get_start_menu_paths().unwrap_or_else(|_| (String::new(), String::new()));
@@ -125,6 +134,7 @@ impl ProgramLoaderConfigInner {
             index_web_pages: Some(self.index_web_pages.clone()),
             custom_command: Some(self.custom_command.clone()),
             forbidden_paths: Some(self.forbidden_paths.clone()),
+            program_alias: Some(self.program_alias.clone()),
         }
     }
 
@@ -146,6 +156,9 @@ impl ProgramLoaderConfigInner {
         }
         if let Some(partial_forbidden_paths) = partial_config.forbidden_paths {
             self.forbidden_paths = partial_forbidden_paths;
+        }
+        if let Some(partial_program_alias) = partial_config.program_alias {
+            self.program_alias = partial_program_alias;
         }
     }
 }
@@ -194,5 +207,8 @@ impl ProgramLoaderConfig {
     }
     pub fn get_forbidden_paths(&self) -> Vec<String> {
         self.inner.read().forbidden_paths.clone()
+    }
+    pub fn get_program_alias(&self) -> HashMap<String, Vec<String>> {
+        self.inner.read().program_alias.clone()
     }
 }

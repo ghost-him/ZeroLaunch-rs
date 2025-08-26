@@ -1,7 +1,9 @@
 use super::config::program_loader_config::DirectoryConfig;
+use super::localization_translation::parse_localized_names_from_dir;
 use super::pinyin_mapper::PinyinMapper;
 use super::LaunchMethod;
 use crate::core::image_processor::ImageIdentity;
+use crate::core::storage::local_save;
 use crate::modules::config::default::APP_PIC_PATH;
 use crate::program_manager::config::program_loader_config::PartialProgramLoaderConfig;
 use crate::program_manager::config::program_loader_config::ProgramLoaderConfig;
@@ -9,9 +11,9 @@ use crate::program_manager::search_model::search_model::*;
 /// 这个类用于加载电脑上程序，通过扫描路径或使用系统调用接口
 use crate::program_manager::Program;
 use crate::utils::defer::defer;
-use crate::utils::{hashmap_to_dashmap, dashmap_to_hashmap};
 use crate::utils::notify::notify;
 use crate::utils::windows::get_u16_vec;
+use crate::utils::{dashmap_to_hashmap, hashmap_to_dashmap};
 use core::time::Duration;
 use dashmap::DashMap;
 use dashmap::DashSet;
@@ -342,7 +344,7 @@ impl ProgramLoaderInner {
     fn load_program_from_path(&mut self) -> Vec<Arc<Program>> {
         let mut result: Vec<Arc<Program>> = Vec::new();
         for directory in &self.target_paths {
-            let mut program_path: Vec<String> = Vec::new();
+            let mut program_paths_str: Vec<String> = Vec::new();
             let checker = PathChecker::new(
                 &directory.pattern,
                 &directory.pattern_type,
@@ -355,7 +357,7 @@ impl ProgramLoaderInner {
                 continue;
             }
             let checker = Arc::new(checker.unwrap());
-            program_path.extend(
+            program_paths_str.extend(
                 self.recursive_visit_dir(
                     Path::new(&directory.root_path),
                     directory.max_depth as usize,
@@ -363,45 +365,82 @@ impl ProgramLoaderInner {
                 )
                 .unwrap(),
             );
-            // 添加通过地址找到的文件
-            for path_str in program_path {
-                let target_path = path_str;
-                let path = Path::new(&target_path);
-                let show_name = path
-                    .file_stem()
-                    .and_then(|s| s.to_str())
-                    .map(String::from)
-                    .unwrap_or_default();
-
-                if self.check_program_is_exist(&show_name) {
-                    continue;
+            let mut grouped_paths: HashMap<PathBuf, Vec<PathBuf>> = HashMap::new();
+            for path_str in program_paths_str {
+                let path = PathBuf::from(path_str);
+                if let Some(parent) = path.parent() {
+                    grouped_paths
+                        .entry(parent.to_path_buf())
+                        .or_default()
+                        .push(path);
                 }
+            }
+            for (dir_path, files_in_dir) in grouped_paths {
+                let localized_names = parse_localized_names_from_dir(&dir_path);
+                for target_path_buf in files_in_dir {
+                    let target_path = target_path_buf.as_path();
+                    let target_path_str = target_path.to_string_lossy().to_string();
 
-                let guid = self.guid_generator.get_guid();
+                    // 这个是本地的文件名，这个用于匹配会不会有翻译过的本地化名字
+                    let file_name = target_path
+                        .file_name()
+                        .and_then(|s| s.to_str())
+                        .map(String::from)
+                        .unwrap_or_default()
+                        .to_lowercase();
+                    // 这个是用于显示的名字（就是去除了后缀的）
+                    let show_name = target_path
+                        .file_stem()
+                        .and_then(|s| s.to_str())
+                        .map(String::from)
+                        .unwrap_or_default();
 
-                let mut alias_names: Vec<String> = self.convert_search_keywords(&show_name);
-                let unique_name = show_name.to_lowercase();
-                let stable_bias = self.get_program_bias(&unique_name);
-                let launch_method = if ["url", "lnk", "exe"]
-                    .contains(&path.extension().unwrap().to_str().unwrap())
-                {
-                    LaunchMethod::Path(target_path.clone())
-                } else {
-                    LaunchMethod::File(target_path.clone())
-                };
+                    if self.check_program_is_exist(&show_name) {
+                        continue;
+                    }
 
-                // 如果用户自己添加了别名，则添加上去
-                let alias_name_to_append = self.check_program_alias(&launch_method);
-                alias_names.extend(alias_name_to_append);
-                let program = Arc::new(Program {
-                    program_guid: guid,
-                    show_name,
-                    launch_method: launch_method,
-                    search_keywords: alias_names,
-                    stable_bias,
-                    icon_path: ImageIdentity::File(target_path),
-                });
-                result.push(program);
+                    let guid = self.guid_generator.get_guid();
+
+                    // 基础别名：来自文件名本身
+                    let mut alias_names: Vec<String> = self.convert_search_keywords(&show_name);
+                    let unique_name = show_name.to_lowercase();
+                    let stable_bias = self.get_program_bias(&unique_name);
+                    let launch_method = if ["url", "lnk", "exe"]
+                        .contains(&target_path.extension().unwrap().to_str().unwrap())
+                    {
+                        LaunchMethod::Path(target_path_str.clone())
+                    } else {
+                        LaunchMethod::File(target_path_str.clone())
+                    };
+
+                    // 如果用户自己添加了别名，则添加上去
+                    let alias_name_to_append = self.check_program_alias(&launch_method);
+                    alias_names.extend(alias_name_to_append);
+                    // 再最后检查一下有没有本地化的名字
+                    let localized_name = localized_names.get(&file_name).cloned();
+                    if localized_name.is_some() {
+                        let localized_name_str = localized_name.as_ref().unwrap();
+                        let mut localized_alias = self.convert_search_keywords(localized_name_str);
+                        alias_names.append(&mut localized_alias);
+                    }
+                    let show_name = if localized_name.is_some() {
+                        // 如果有本地化的名字，则使用本地化的名字
+                        localized_name.unwrap()
+                    } else {
+                        show_name
+                    };
+
+                    let program = Arc::new(Program {
+                        program_guid: guid,
+                        show_name,
+                        launch_method: launch_method,
+                        search_keywords: alias_names,
+                        stable_bias,
+                        icon_path: ImageIdentity::File(target_path_str),
+                    });
+
+                    result.push(program);
+                }
             }
         }
 

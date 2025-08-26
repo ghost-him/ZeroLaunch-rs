@@ -44,6 +44,8 @@ windows = { version = "0.61.3", features = [
     "Win32_Networking",
     "Win32_Networking_WinInet",
     "Win32_Globalization",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Environment"
 ] }
 
 tauri = { version = "^2", features = ["tray-icon", "image-ico", "image-png"] }
@@ -93,6 +95,7 @@ tiny-skia = "0.11.4"
 encoding_rs = "0.8.35"
 tauri-plugin-shell = "2"
 fuzzy-matcher = "0.3.7"
+ini = "1.3.0"
 
 [features]
 default = ["custom-protocol"]

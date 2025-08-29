@@ -2,7 +2,7 @@ use std::ffi::OsStr;
 use std::os::windows::ffi::OsStrExt;
 /// 存放与windows相关的工具类函数
 use std::path::Path;
-use windows::core::{PCWSTR, PWSTR};
+use windows::core::PCWSTR;
 use windows::Win32::Foundation::{HWND, POINT, RECT};
 use windows::Win32::Graphics::Gdi::{
     GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTOPRIMARY,

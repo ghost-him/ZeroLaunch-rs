@@ -3,7 +3,6 @@ use super::localization_translation::parse_localized_names_from_dir;
 use super::pinyin_mapper::PinyinMapper;
 use super::LaunchMethod;
 use crate::core::image_processor::ImageIdentity;
-use crate::core::storage::local_save;
 use crate::modules::config::default::APP_PIC_PATH;
 use crate::program_manager::config::program_loader_config::PartialProgramLoaderConfig;
 use crate::program_manager::config::program_loader_config::ProgramLoaderConfig;

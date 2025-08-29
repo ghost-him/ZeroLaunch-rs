@@ -20,6 +20,7 @@ pub struct PartialAppConfig {
     pub space_is_enter: Option<bool>,
     pub show_pos_follow_mouse: Option<bool>,
     pub is_initial: Option<bool>,
+    pub scroll_threshold: Option<u32>,
 }
 
 impl Default for PartialAppConfig {
@@ -40,6 +41,7 @@ impl Default for PartialAppConfig {
             space_is_enter: None,
             show_pos_follow_mouse: None,
             is_initial: None,
+            scroll_threshold: None,
         }
     }
 }
@@ -93,6 +95,9 @@ pub struct AppConfigInner {
     /// 是否是第一次启动程序
     #[serde(default = "AppConfigInner::default_is_initial")]
     pub is_initial: bool,
+    /// 启用滚动模式的搜索结果数量阈值
+    #[serde(default = "AppConfigInner::default_scroll_threshold")]
+    pub scroll_threshold: u32,
 }
 
 impl Default for AppConfigInner {
@@ -113,6 +118,7 @@ impl Default for AppConfigInner {
             space_is_enter: Self::default_space_is_enter(),
             show_pos_follow_mouse: Self::default_show_pos_follow_mouse(),
             is_initial: Self::default_is_initial(),
+            scroll_threshold: Self::default_scroll_threshold(),
         }
     }
 }
@@ -174,6 +180,10 @@ impl AppConfigInner {
     pub(crate) fn default_is_initial() -> bool {
         true
     }
+
+    pub(crate) fn default_scroll_threshold() -> u32 {
+        10
+    }
 }
 
 impl AppConfigInner {
@@ -220,6 +230,9 @@ impl AppConfigInner {
         if let Some(show_pos_follow_mouse) = partial_app_config.show_pos_follow_mouse {
             self.show_pos_follow_mouse = show_pos_follow_mouse;
         }
+        if let Some(scroll_threshold) = partial_app_config.scroll_threshold {
+            self.scroll_threshold = scroll_threshold;
+        }
         // 一但有东西写入了，则说明已经被初始化了
         self.is_initial = true;
     }
@@ -240,6 +253,7 @@ impl AppConfigInner {
             space_is_enter: Some(self.space_is_enter),
             show_pos_follow_mouse: Some(self.show_pos_follow_mouse),
             is_initial: Some(self.is_initial),
+            scroll_threshold: Some(self.scroll_threshold),
         }
     }
 }
@@ -340,5 +354,10 @@ impl AppConfig {
     pub fn get_is_initial(&self) -> bool {
         let inner = self.inner.read();
         inner.is_initial
+    }
+
+    pub fn get_scroll_threshold(&self) -> u32 {
+        let inner = self.inner.read();
+        inner.scroll_threshold
     }
 }

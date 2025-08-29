@@ -24,6 +24,16 @@
                         @change="(val: number) => configStore.updateConfig({ app_config: { search_result_count: val } })" />
                 </el-form-item>
 
+                <el-form-item label="滚动模式阈值">
+                    <el-input-number v-model="config.app_config.scroll_threshold" :step="1" :precision="0" :min="1"
+                        @change="(val: number) => configStore.updateConfig({ app_config: { scroll_threshold: val } })" />
+                    <el-tooltip class="box-item" effect="dark" content="当搜索结果数量超过此阈值时，界面将自动切换到滚动模式，避免界面显示异常">
+                        <el-icon class="el-question-icon">
+                            <QuestionFilled />
+                        </el-icon>
+                    </el-tooltip>
+                </el-form-item>
+
                 <el-form-item label="自动刷新数据库的时间">
                     <el-input-number v-model="config.app_config.auto_refresh_time" :step="1" :precision="0" :min="1"
                         @change="(val: number) => configStore.updateConfig({ app_config: { auto_refresh_time: val } })">

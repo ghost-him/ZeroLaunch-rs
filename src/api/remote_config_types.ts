@@ -70,6 +70,7 @@ export type AppConfig = {
     is_wake_on_fullscreen: boolean,
     space_is_enter: boolean,
     show_pos_follow_mouse: boolean,
+    scroll_threshold: number,
 }
 
 export function default_app_config(): AppConfig {
@@ -88,6 +89,7 @@ export function default_app_config(): AppConfig {
         is_wake_on_fullscreen: false,
         space_is_enter: false,
         show_pos_follow_mouse: false,
+        scroll_threshold: 10,
     } as AppConfig;
 }
 

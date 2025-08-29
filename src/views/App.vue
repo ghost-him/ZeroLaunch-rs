@@ -36,7 +36,7 @@
         :style="submenu_backgroundStyle"> </SubMenu>
 
       <!--结果列表 -->
-      <div class=" results-list">
+      <div class="results-list" :class="{ 'scroll-mode': isScrollMode }">
         <div v-for="(item, index) in menuItems" :key="index" class="result-item"
           @click="(event) => handleItemClick(index, event.ctrlKey)" :class="{ 'selected': selectedIndex === index }"
           @contextmenu.prevent="(event) => contextResultItemEvent(index, event)" :style="{
@@ -128,6 +128,16 @@ const is_dark = ref(false);
 // 表示当前是不是正在加载图片
 const is_loading_icons = ref<boolean>(false);
 
+// 计算是否启用滚动模式
+const isScrollMode = computed(() => {
+  const currentResults = is_alt_pressed.value ? latest_launch_program.value : searchResults.value;
+  return currentResults.length > app_config.value.scroll_threshold;
+});
+
+const scrollModeMaxHeight = computed(() => {
+  return `${app_config.value.scroll_threshold * ui_config.value.result_item_height}px`;
+});
+
 let unlisten: Array<UnlistenFn | null> = [];
 
 watch(searchText, (newVal) => {
@@ -136,7 +146,7 @@ watch(searchText, (newVal) => {
 
 const sendSearchText = async (text: string) => {
   try {
-    const results: Array<[number, string]> = await invoke('handle_search_text', { searchText: text });
+    const results: Array<[number, string]> = await invoke('handle_search_text', { searchText: text , searchCount: app_config.value.search_result_count});
     searchResults.value = results;
     await refresh_result_items();
   } catch (error) {
@@ -732,6 +742,29 @@ main {
   min-height: 0;
   scrollbar-width: thin;
   scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+}
+
+/* 滚动模式样式 */
+.results-list.scroll-mode {
+  max-height: v-bind(scrollModeMaxHeight);
+  overflow-y: auto;
+}
+/* 自定义滚动条样式 */
+.results-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.results-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.results-list::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+}
+
+.results-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.4);
 }
 
 .result-item {

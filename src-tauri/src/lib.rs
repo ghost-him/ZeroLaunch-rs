@@ -19,12 +19,12 @@ use crate::modules::config::default::LOG_DIR;
 use crate::modules::config::default::REMOTE_CONFIG_DEFAULT;
 use crate::modules::config::{Height, Width};
 use crate::modules::ui_controller::controller::get_window_render_origin;
-use crate::modules::ui_controller::controller::get_window_size;
 use crate::state::app_state::AppState;
 use crate::tray::init_system_tray;
 use crate::utils::defer::defer;
 use crate::utils::ui_controller::handle_focus_lost;
 use crate::utils::ui_controller::handle_pressed;
+use crate::window_position::update_window_size_and_position;
 use backtrace::Backtrace;
 use chrono::DateTime;
 use chrono::Duration;
@@ -68,7 +68,6 @@ use tracing_appender::rolling::Rotation;
 use utils::notify::notify;
 use utils::service_locator::ServiceLocator;
 use window_effect::enable_window_effect;
-use window_position::update_window_size_and_position;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // 创建一个按日期滚动的日志文件，例如每天一个新文件

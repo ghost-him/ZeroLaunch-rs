@@ -1,5 +1,5 @@
 use crate::get_window_render_origin;
-use crate::get_window_size;
+use crate::modules::ui_controller::controller::get_window_size;
 use crate::modules::config::window_state::PartialWindowState;
 use crate::PartialUiConfig;
 /// 用于调整主窗口的位置的
@@ -14,7 +14,7 @@ use tauri::LogicalSize;
 use tauri::Manager;
 use tauri::PhysicalPosition;
 use tracing::debug;
-/// 更新当前窗口的大小与位置
+// 更新当前窗口的大小与位置
 pub fn update_window_size_and_position() {
     let state = ServiceLocator::get_state();
     let main_window = state

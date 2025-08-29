@@ -1,5 +1,6 @@
 pub mod config;
 pub mod image_loader;
+pub mod localization_translation;
 pub mod pinyin_mapper;
 pub mod program_launcher;
 pub mod program_loader;

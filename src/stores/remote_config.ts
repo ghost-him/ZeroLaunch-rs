@@ -144,6 +144,7 @@ export const useRemoteConfigStore = defineStore('config', {
                     index_web_pages: [],
                     custom_command: [],
                     forbidden_paths: [],
+                    program_alias: {},
                 } as ProgramLoaderConfig,
                 image_loader: {
                     enable_icon_cache: true,

@@ -23,7 +23,7 @@
                 </div>
             </div>
             <div class="footer-item">
-                <el-button type="primary" @click="save_config" :disabled="activeIndex >= 4">
+                <el-button type="primary" @click="save_config" :disabled="activeIndex >= 5">
                     <span>保存配置文件</span>
                 </el-button>
             </div>
@@ -112,44 +112,23 @@
             </section>
 
             <section v-if="activeIndex === 4" class="page">
-                <ConfigPathSelector></ConfigPathSelector>
-            </section>
-
-            <section v-if="activeIndex === 5" class="page">
                 <div style="display: flex; flex-direction: column; height: 100%;">
                     <el-button class="mt-4" style="width: 100%; flex-shrink: 0;" @click="refreshProgramInfo">
                         点击刷新
                     </el-button>
-                    <el-table :data="programInfoList" stripe
-                        style="width: 100%;flex-grow: 1; height: 0; min-height: 0; margin-top: 10px;">
-                        <el-table-column label="程序名" prop="name" sortable show-overflow-tooltip>
-                            <template #default="{ row }">
-                                {{ row.name }}
-                            </template>
-                        </el-table-column>
-                        <el-table-column label="是否是UWP程序" prop="is_uwp" sortable show-overflow-tooltip width="100">
-                            <template #default="{ row }">
-                                {{ row.is_uwp }}
-                            </template>
-                        </el-table-column>
-                        <el-table-column label="固定偏移量" prop="bias" sortable show-overflow-tooltip width="100">
-                            <template #default="{ row }">
-                                {{ row.bias }}
-                            </template>
-                        </el-table-column>
-                        <el-table-column label="启动次数" prop="history_launch_time" sortable show-overflow-tooltip
-                            width="100">
-                            <template #default="{ row }">
-                                {{ row.history_launch_time }}
-                            </template>
-                        </el-table-column>
-                        <el-table-column label="路径" prop="path" sortable show-overflow-tooltip>
-                            <template #default="{ row }">
-                                {{ row.path }}
-                            </template>
-                        </el-table-column>
-                    </el-table>
+                    <el-table-v2
+                        :columns="columns"
+                        :data="programInfoList"
+                        :width="1000"
+                        :height="600"
+                        fixed
+                        style="width: 100%;flex-grow: 1; margin-top: 10px;"
+                    />
                 </div>
+            </section>
+
+            <section v-if="activeIndex === 5" class="page">
+                <ConfigPathSelector></ConfigPathSelector>
             </section>
 
             <section v-if="activeIndex === 6" class="page">
@@ -165,10 +144,38 @@
             </section>
         </div>
     </div>
+
+     <el-dialog
+            v-if="editingProgram"
+            v-model="dialogVisible"
+            :title="`编辑程序 '${editingProgram.name}' 的别名`"
+            width="500"
+        >
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+                <div 
+                    v-for="(alias, index) in program_alias[editingProgram.path]" 
+                    :key="index"
+                    style="display: flex; align-items: center; gap: 10px;"
+                >
+                    <el-input 
+                        :model-value="alias"
+                        @update:modelValue="newValue => updateAliasInDialog(index, newValue)"
+                        placeholder="请输入别名"
+                    />
+                    <el-button type="danger" @click="removeAliasInDialog(index)">删除</el-button>
+                </div>
+            </div>
+            <template #footer>
+                <div class="dialog-footer">
+                    <el-button @click="addAliasInDialog" style="width: 100%; margin-bottom: 10px;">添加一个别名</el-button>
+                    <el-button type="primary" @click="dialogVisible = false">关闭</el-button>
+                </div>
+            </template>
+        </el-dialog>
 </template>
 
 <script lang="ts" setup>
-import { ref, onMounted, computed, onUnmounted } from 'vue';
+import { ref, onMounted, computed, onUnmounted, h } from 'vue';
 import {
     Setting,
     Brush,
@@ -180,7 +187,7 @@ import {
 } from '@element-plus/icons-vue';
 
 import { invoke } from '@tauri-apps/api/core';
-import { ElMessage } from 'element-plus';
+import { ElButton, ElInput, ElMessage, ElTag } from 'element-plus';
 import ProgramIndex from './ProgramIndex.vue';
 import { useRemoteConfigStore } from '../stores/remote_config';
 import { storeToRefs } from 'pinia';
@@ -207,8 +214,8 @@ const menuItems: MenuItem[] = [
     { title: '外观设置', icon: Brush },
     { title: '程序搜索', icon: Search },
     { title: '其他搜索', icon: Search },
-    { title: '远程管理', icon: Connection },
     { title: '所有程序', icon: List },
+    { title: '远程管理', icon: Connection },
     { title: '快捷键设置', icon: Search },
     { title: '关于', icon: InfoFilled }
 ];
@@ -266,6 +273,96 @@ const updateCustomCommand = () => {
 
 const addCustomCommand = () => {
     custom_command.value = [...custom_command.value, ["", ""]]
+}
+
+// 程序别名管理
+const program_alias = computed({
+    get: () => config.value.program_manager_config.loader.program_alias,
+    set: (value) => {
+        console.log("更新pinia");
+        configStore.updateConfig({
+            program_manager_config: {
+                loader: { program_alias: value }
+            }
+        })
+    }
+})
+const columns = [
+    { key: 'name', dataKey: 'name', title: '程序名', width: 150 },
+    { key: 'is_uwp', dataKey: 'is_uwp', title: '是否是UWP程序', width: 120 },
+    { key: 'bias', dataKey: 'bias', title: '固定偏移量', width: 100 },
+    { key: 'history_launch_time', dataKey: 'history_launch_time', title: '启动次数', width: 100 },
+    { key: 'path', dataKey: 'path', title: '路径', width: 200 },
+    {
+        key: 'aliases',
+        title: '别名',
+        width: 300,
+        cellRenderer: ({ rowData }: { rowData: ProgramInfo }) => {
+            const aliasList = program_alias.value[rowData.path] || [];
+            
+            // 使用 El-Tag 展示别名
+            const tags = aliasList.map(alias => 
+                h(ElTag, { style: 'margin-right: 5px; margin-bottom: 5px;', type: 'info', size: 'small' }, () => alias)
+            );
+
+            // 编辑按钮
+            const editButton = h(ElButton, {
+                size: 'small',
+                type: 'primary',
+                link: true, // 使用链接样式，更简洁
+                onClick: () => handleEditAliases(rowData)
+            }, () => '管理别名');
+
+            // 将标签和按钮包裹在一个 div 中
+            return h('div', { style: 'display: flex; flex-wrap: wrap; align-items: center;' }, [...tags, editButton]);
+        }
+    }
+];
+
+// 用于控制对话框的状态
+const dialogVisible = ref(false)
+const editingProgram = ref<ProgramInfo | null>(null)
+
+// 打开对话框的方法
+const handleEditAliases = (rowData: ProgramInfo) => {
+    editingProgram.value = { ...rowData }; // 浅拷贝一份，避免直接修改表格数据
+    dialogVisible.value = true;
+}
+
+// Dialog 内的别名操作方法 (基本逻辑不变，只是操作对象从 rowData 变为 editingProgram)
+const addAliasInDialog = () => {
+    if (!editingProgram.value) return;
+    const path = editingProgram.value.path;
+    const currentAliases = program_alias.value[path] || [];
+    const newAliases = { ...program_alias.value };
+    newAliases[path] = [...currentAliases, ""];
+    program_alias.value = newAliases;
+}
+
+const updateAliasInDialog = (index: number, newValue: string) => {
+    if (!editingProgram.value) return;
+    const path = editingProgram.value.path;
+    const newProgramAlias = { ...program_alias.value };
+    const currentAliases = [...(newProgramAlias[path] || [])];
+    if (index >= 0 && index < currentAliases.length) {
+        currentAliases[index] = newValue;
+    }
+    newProgramAlias[path] = currentAliases;
+    program_alias.value = newProgramAlias;
+}
+
+const removeAliasInDialog = (index: number) => {
+    if (!editingProgram.value) return;
+    const path = editingProgram.value.path;
+    const currentAliases = program_alias.value[path] || [];
+    if (index >= 0 && index < currentAliases.length) {
+        const newAliases = { ...program_alias.value };
+        newAliases[path] = currentAliases.filter((_, i) => i !== index);
+        if (newAliases[path].length === 0) {
+            delete newAliases[path];
+        }
+        program_alias.value = newAliases;
+    }
 }
 
 interface ProgramInfo {

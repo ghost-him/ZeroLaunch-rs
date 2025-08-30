@@ -1,4 +1,4 @@
-use crate::program_manager::search_model::search_model::Scorer;
+use crate::program_manager::search_model::Scorer;
 use crate::program_manager::Program;
 /// 这个文件是以LaunchyQT的搜索模型为基础进行的改造
 /// 项目地址如下：https://github.com/samsonwang/LaunchyQt
@@ -28,6 +28,12 @@ pub struct LaunchyScorer {}
 impl Debug for LaunchyScorer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("LaunchyScorer").finish()
+    }
+}
+
+impl Default for LaunchyScorer {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

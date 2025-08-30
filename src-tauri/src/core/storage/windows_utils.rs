@@ -88,7 +88,7 @@ pub fn get_start_menu_paths() -> Result<(String, String), String> {
 pub fn get_default_remote_data_dir_path() -> String {
     unsafe {
         // 获取 AppData 目录
-        let path = SHGetKnownFolderPath(&FOLDERID_RoamingAppData, KF_FLAG_DEFAULT.into(), None);
+        let path = SHGetKnownFolderPath(&FOLDERID_RoamingAppData, KF_FLAG_DEFAULT, None);
 
         // 将 PWSTR 转换为 Rust 字符串
         let path_str = path.unwrap().to_string().unwrap();

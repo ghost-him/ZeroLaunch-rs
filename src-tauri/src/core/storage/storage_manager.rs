@@ -58,7 +58,7 @@ impl StorageManagerInner {
 
     pub async fn new<F>(callback: F) -> StorageManagerInner
     where
-        F: Fn() -> (),
+        F: Fn(),
     {
         let inner = StorageManagerInner {
             local_config: RwLock::new(LocalConfig::default()),
@@ -160,18 +160,14 @@ impl StorageManagerInner {
     /// file_name: 工作目录下的相对地址
     pub async fn download_file_str(&self, file_name: String) -> Option<String> {
         let bytes = self.download_file_bytes(file_name).await;
-        if bytes.is_none() {
-            return None;
-        }
+        bytes.as_ref()?;
         Some(String::from_utf8_lossy(&bytes.unwrap()).into_owned())
     }
     /// 强制下载文件
     /// file_name: 工作目录下的相对地址
     pub async fn download_file_str_force(&mut self, file_name: String) -> Option<String> {
         let bytes = self.download_file_bytes_force(file_name).await;
-        if bytes.is_none() {
-            return None;
-        }
+        bytes.as_ref()?;
         Some(String::from_utf8_lossy(&bytes.unwrap()).into_owned())
     }
 
@@ -205,7 +201,6 @@ impl StorageManagerInner {
                 }
             }
             Entry::Vacant(entry) => {
-                let save_count = save_count;
                 entry.insert((save_count, contents));
             }
         }
@@ -235,7 +230,7 @@ impl StorageManagerInner {
             self.upload(file_name, contents.unwrap()).await;
             return true;
         }
-        return false;
+        false
     }
 
     /// 将当前缓存中所有的文件都上传
@@ -386,7 +381,7 @@ impl StorageManager {
     /// 创建一个新的 StorageManager 实例
     pub async fn new<F>(callback: F) -> Self
     where
-        F: Fn() -> (),
+        F: Fn(),
     {
         Self {
             inner: RwLock::new(StorageManagerInner::new(callback).await),
@@ -494,11 +489,11 @@ pub async fn check_validation(
     if let Some(client) = client.as_ref() {
         if client.validate_config().await {
             // 如果有效，则返回经过修改的PartialLocalConfig
-            return Some(config.to_partial());
+            Some(config.to_partial())
         } else {
-            return None;
+            None
         }
     } else {
-        return None;
+        None
     }
 }

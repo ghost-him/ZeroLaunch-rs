@@ -1,6 +1,6 @@
 use crate::core::storage::storage_manager::StorageManager;
 use crate::error::AppError;
-use crate::modules::shortcut_manager::shortcut_manager::ShortcutManager;
+use crate::modules::shortcut_manager::ShortcutManager;
 use crate::modules::{config::config_manager::RuntimeConfig, program_manager::ProgramManager};
 use crate::utils::waiting_hashmap::AsyncWaitingHashMap;
 use parking_lot::RwLock;
@@ -34,6 +34,12 @@ pub struct AppState {
     game_mode: RwLock<bool>,
     /// 阻止所有的键盘输入
     is_keyboard_blocked: RwLock<bool>,
+}
+
+impl Default for AppState {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl AppState {

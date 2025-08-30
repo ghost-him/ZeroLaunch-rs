@@ -27,9 +27,7 @@ fn resolve_resource_string(resource_ref: &str) -> Option<String> {
     let s = &resource_ref[1..];
 
     // 找到最后一个逗号来分离路径和ID
-    let Some(comma_pos) = s.rfind(',') else {
-        return None;
-    };
+    let comma_pos = s.rfind(',')?;
 
     let (path_part, id_part_with_comma) = s.split_at(comma_pos);
 
@@ -42,7 +40,7 @@ fn resolve_resource_string(resource_ref: &str) -> Option<String> {
     };
 
     let resource_id = match id_part_with_comma[1..].parse::<i32>() {
-        Ok(id) => id.abs() as u32,
+        Ok(id) => id.unsigned_abs(),
         Err(_) => return None,
     };
 

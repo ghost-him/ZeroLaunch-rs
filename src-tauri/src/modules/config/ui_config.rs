@@ -2,6 +2,7 @@ use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Default)]
 pub struct PartialUiConfig {
     pub selected_item_color: Option<String>,
     pub item_font_color: Option<String>,
@@ -30,37 +31,6 @@ pub struct PartialUiConfig {
     pub program_background_color: Option<String>,
 }
 
-impl Default for PartialUiConfig {
-    fn default() -> Self {
-        Self {
-            selected_item_color: None,
-            item_font_color: None,
-            search_bar_font_color: None,
-            search_bar_background_color: None,
-            item_font_size: None,
-            search_bar_font_size: None,
-            vertical_position_ratio: None,
-            search_bar_height: None,
-            result_item_height: None,
-            footer_height: None,
-            window_width: None,
-            background_size: None,
-            background_position: None,
-            background_repeat: None,
-            background_opacity: None,
-            blur_style: None,
-            search_bar_placeholder_font_color: None,
-            window_corner_radius: None,
-            use_windows_sys_control_radius: None,
-            footer_font_size: None,
-            footer_font_color: None,
-            search_bar_font_family: None,
-            result_item_font_family: None,
-            footer_font_family: None,
-            program_background_color: None,
-        }
-    }
-}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]

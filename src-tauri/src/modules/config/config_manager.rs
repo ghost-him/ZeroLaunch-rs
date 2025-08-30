@@ -29,16 +29,22 @@ pub struct RuntimeConfig {
     window_state: Arc<WindowState>,
 }
 
+impl Default for RuntimeConfig {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RuntimeConfig {
     pub fn new() -> Self {
-        let result = RuntimeConfig {
+        
+        RuntimeConfig {
             app_config: Arc::new(AppConfig::default()),
             ui_config: Arc::new(UiConfig::default()),
             shortcut_config: Arc::new(ShortcutConfig::default()),
             program_manager_config: Arc::new(ProgramManagerConfig::default()),
             window_state: Arc::new(WindowState::default()),
-        };
-        result
+        }
     }
 
     pub fn update(&self, partial_config: PartialRuntimeConfig) {

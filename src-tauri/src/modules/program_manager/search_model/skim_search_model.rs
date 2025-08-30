@@ -1,4 +1,4 @@
-use crate::program_manager::search_model::search_model::Scorer;
+use crate::program_manager::search_model::Scorer;
 use crate::program_manager::Program;
 use crate::Arc;
 use fuzzy_matcher::skim::SkimMatcherV2;

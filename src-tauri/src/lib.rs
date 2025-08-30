@@ -43,8 +43,8 @@ use modules::config::window_state::PartialWindowState;
 use modules::program_manager::config::image_loader_config::RuntimeImageLoaderConfig;
 use modules::program_manager::config::program_manager_config::RuntimeProgramConfig;
 use modules::program_manager::{self, ProgramManager};
-use modules::shortcut_manager::shortcut_manager::start_shortcut_manager;
-use modules::shortcut_manager::shortcut_manager::update_shortcut_manager;
+use modules::shortcut_manager::start_shortcut_manager;
+use modules::shortcut_manager::update_shortcut_manager;
 use modules::ui_controller::controller::recommend_footer_height;
 use modules::ui_controller::controller::recommend_result_item_height;
 use modules::ui_controller::controller::recommend_search_bar_height;
@@ -472,7 +472,6 @@ async fn update_app_setting() {
 /// 2. 保存动态数据
 /// 3. 保存到文件中
 /// 4. 重新读取文件并更新配置信息
-
 pub async fn save_config_to_file(is_update_app: bool) {
     let state = ServiceLocator::get_state();
     let runtime_config = state.get_runtime_config().unwrap();
@@ -489,8 +488,7 @@ pub async fn save_config_to_file(is_update_app: bool) {
         .inner_position()
         .unwrap();
 
-    let mut partial_app_config = PartialAppConfig::default();
-    partial_app_config.window_position = Some((window.x, window.y));
+    let partial_app_config = PartialAppConfig{window_position: Some((window.x, window.y)), ..Default::default()};
 
     runtime_config.update(PartialRuntimeConfig {
         app_config: Some(partial_app_config),
@@ -583,25 +581,23 @@ fn cleanup_old_logs(log_dir: &str, retention_days: i64) {
         }
     };
 
-    for entry in entries {
-        if let Ok(entry) = entry {
-            let path = entry.path();
-            if path.is_file() {
-                // 获取文件的元数据
-                if let Ok(metadata) = std::fs::metadata(&path) {
-                    // 获取文件的修改时间
-                    if let Ok(modified) = metadata.modified() {
-                        // 将 SystemTime 转换为 DateTime
-                        let modified_datetime: DateTime<Local> = modified.into();
-                        // 计算文件的年龄
-                        let age = now.signed_duration_since(modified_datetime);
-                        if age.num_days() > retention_days {
-                            // 删除文件
-                            if let Err(e) = std::fs::remove_file(&path) {
-                                error!("无法删除旧日志文件 '{:?}': {}", path, e);
-                            } else {
-                                info!("已删除旧日志文件: {:?}", path);
-                            }
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_file() {
+            // 获取文件的元数据
+            if let Ok(metadata) = std::fs::metadata(&path) {
+                // 获取文件的修改时间
+                if let Ok(modified) = metadata.modified() {
+                    // 将 SystemTime 转换为 DateTime
+                    let modified_datetime: DateTime<Local> = modified.into();
+                    // 计算文件的年龄
+                    let age = now.signed_duration_since(modified_datetime);
+                    if age.num_days() > retention_days {
+                        // 删除文件
+                        if let Err(e) = std::fs::remove_file(&path) {
+                            error!("无法删除旧日志文件 '{:?}': {}", path, e);
+                        } else {
+                            info!("已删除旧日志文件: {:?}", path);
                         }
                     }
                 }

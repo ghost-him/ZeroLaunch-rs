@@ -29,11 +29,13 @@ pub fn update_window_size_and_position() {
     // 判断一下窗口的大小是不是默认的大小，如果是，并且还是第一次启动程序，则将其变成比例式的大小
     if ui_config.is_default_window_size() && app_config.get_is_initial() {
         // 如果什么都没变，说明用户是第一次启动这个软件，则可以使用自适应窗口大小来优化显示
-        let mut update_config = PartialUiConfig::default();
-        update_config.search_bar_height = Some(recommend_search_bar_height() as u32);
-        update_config.result_item_height = Some(recommend_result_item_height() as u32);
-        update_config.footer_height = Some(recommend_footer_height() as u32);
-        update_config.window_width = Some(recommend_window_width() as u32);
+        let update_config = PartialUiConfig {
+            search_bar_height: Some(recommend_search_bar_height() as u32),
+            result_item_height: Some(recommend_result_item_height() as u32),
+            footer_height: Some(recommend_footer_height() as u32),
+            window_width: Some(recommend_window_width() as u32),
+            ..Default::default()
+        };
         ui_config.update(update_config);
     }
 
@@ -54,10 +56,10 @@ pub fn update_window_size_and_position() {
             let size = window.size();
 
             // 检查鼠标坐标是否在显示器边界内
-            return position.0 >= window_position.x
+            position.0 >= window_position.x
                 && position.0 < (window_position.x + size.width as i32)
                 && position.1 >= window_position.y
-                && position.1 < (window_position.y + size.height as i32);
+                && position.1 < (window_position.y + size.height as i32)
         }) {
             debug!("当前没有一个窗口符合目前条件");
             return;
@@ -104,7 +106,7 @@ pub fn update_window_size_and_position() {
                 debug!("找到了鼠标所在的窗口");
                 return true;
             }
-            return false;
+            false
         });
         // println!(
         //     "修正前的唤醒的位置: {} {}",

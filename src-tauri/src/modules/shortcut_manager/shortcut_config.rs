@@ -1,9 +1,10 @@
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 
-use super::shortcut_manager::Shortcut;
+use super::Shortcut;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Default)]
 pub struct PartialShortcutConfig {
     pub open_search_bar: Option<Shortcut>,
     pub arrow_up: Option<Shortcut>,
@@ -12,17 +13,6 @@ pub struct PartialShortcutConfig {
     pub arrow_right: Option<Shortcut>,
 }
 
-impl Default for PartialShortcutConfig {
-    fn default() -> Self {
-        PartialShortcutConfig {
-            open_search_bar: None,
-            arrow_up: None,
-            arrow_down: None,
-            arrow_left: None,
-            arrow_right: None,
-        }
-    }
-}
 
 /// 快捷键配置
 #[derive(Serialize, Deserialize, Debug, Clone)]

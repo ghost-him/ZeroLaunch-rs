@@ -1,4 +1,4 @@
-use crate::program_manager::search_model::search_model::Scorer;
+use crate::program_manager::search_model::Scorer;
 use crate::program_manager::Program;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -31,6 +31,12 @@ impl Scorer for StandardScorer {
 impl Debug for StandardScorer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("StandardScorer").finish()
+    }
+}
+
+impl Default for StandardScorer {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -84,8 +90,8 @@ pub fn shortest_edit_dis(compare_name: &str, input_name: &str) -> f64 {
     let mut min_operations = i32::MAX;
 
     // 初始化prev数组（对应i=0）
-    for j in 0..=n {
-        prev[j] = j as i32;
+    for (j, value) in prev.iter_mut().enumerate() {
+        *value = j as i32;
     }
 
     for i in 1..=m {

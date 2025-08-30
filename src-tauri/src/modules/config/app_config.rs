@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use super::default::APP_VERSION;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Default)]
 pub struct PartialAppConfig {
     pub search_bar_placeholder: Option<String>,
     pub tips: Option<String>,
@@ -23,28 +24,6 @@ pub struct PartialAppConfig {
     pub scroll_threshold: Option<u32>,
 }
 
-impl Default for PartialAppConfig {
-    fn default() -> Self {
-        PartialAppConfig {
-            search_bar_placeholder: None,
-            tips: None,
-            is_auto_start: None,
-            is_silent_start: None,
-            search_result_count: None,
-            auto_refresh_time: None,
-            launch_new_on_failure: None,
-            is_debug_mode: None,
-            is_esc_hide_window_priority: None,
-            is_enable_drag_window: None,
-            window_position: None,
-            is_wake_on_fullscreen: None,
-            space_is_enter: None,
-            show_pos_follow_mouse: None,
-            is_initial: None,
-            scroll_threshold: None,
-        }
-    }
-}
 
 /// 与程序设置有关的，比如是不是要开机自动启动等
 #[derive(Serialize, Deserialize, Debug, Clone)]

@@ -6,7 +6,7 @@ use crate::core::image_processor::ImageIdentity;
 use crate::modules::config::default::APP_PIC_PATH;
 use crate::program_manager::config::program_loader_config::PartialProgramLoaderConfig;
 use crate::program_manager::config::program_loader_config::ProgramLoaderConfig;
-use crate::program_manager::search_model::search_model::*;
+use crate::program_manager::search_model::*;
 /// 这个类用于加载电脑上程序，通过扫描路径或使用系统调用接口
 use crate::program_manager::Program;
 use crate::utils::defer::defer;
@@ -66,7 +66,7 @@ impl PathChecker {
     pub fn new(
         patterns: &Vec<String>,
         pattern_type: &String,
-        excluded_keys: &Vec<String>,
+        excluded_keys: &[String],
     ) -> Result<PathChecker, String> {
         let excluded_keys = excluded_keys
             .iter()
@@ -92,7 +92,7 @@ impl PathChecker {
                             .unwrap(),
                     ),
                     regex: None,
-                    excluded_keys: excluded_keys,
+                    excluded_keys,
                     is_glob: true,
                 })
             }
@@ -104,7 +104,7 @@ impl PathChecker {
                 Ok(PathChecker {
                     glob: None,
                     regex: Some(regex),
-                    excluded_keys: excluded_keys,
+                    excluded_keys,
                     is_glob: false,
                 })
             }
@@ -158,6 +158,12 @@ pub struct ProgramLoaderInner {
     forbidden_paths: Vec<String>,
     /// 自定义程序别名
     program_alias: DashMap<String, Vec<String>>,
+}
+
+impl Default for ProgramLoaderInner {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ProgramLoaderInner {
@@ -294,7 +300,7 @@ impl ProgramLoaderInner {
                 keywords_to_append.append(&mut converted);
             }
         }
-        return keywords_to_append;
+        keywords_to_append
     }
 
     /// 获得加载程序的耗时
@@ -313,12 +319,12 @@ impl ProgramLoaderInner {
             if url.is_empty() || show_name.is_empty() {
                 continue;
             }
-            let check_name = "[网页]".to_string() + &show_name;
+            let check_name = "[网页]".to_string() + show_name;
             if self.check_program_is_exist(&check_name) {
                 continue;
             }
             let guid = self.guid_generator.get_guid();
-            let mut alias_names: Vec<String> = self.convert_search_keywords(&show_name);
+            let mut alias_names: Vec<String> = self.convert_search_keywords(show_name);
             let unique_name = check_name.to_lowercase();
             let stable_bias = self.get_program_bias(&unique_name);
             // 如果用户自己添加了别名，则添加上去
@@ -329,7 +335,7 @@ impl ProgramLoaderInner {
             let program = Arc::new(Program {
                 program_guid: guid,
                 show_name: show_name.clone(),
-                launch_method: launch_method,
+                launch_method,
                 search_keywords: alias_names,
                 stable_bias,
                 icon_path: ImageIdentity::Web(url.to_string()),
@@ -422,17 +428,13 @@ impl ProgramLoaderInner {
                         let mut localized_alias = self.convert_search_keywords(localized_name_str);
                         alias_names.append(&mut localized_alias);
                     }
-                    let show_name = if localized_name.is_some() {
-                        // 如果有本地化的名字，则使用本地化的名字
-                        localized_name.unwrap()
-                    } else {
-                        show_name
-                    };
+                    // 如果有本地化的名字，则使用本地化的名字
+                    let show_name = localized_name.unwrap_or(show_name);
 
                     let program = Arc::new(Program {
                         program_guid: guid,
                         show_name,
-                        launch_method: launch_method,
+                        launch_method,
                         search_keywords: alias_names,
                         stable_bias,
                         icon_path: ImageIdentity::File(target_path_str),
@@ -458,14 +460,14 @@ impl ProgramLoaderInner {
 
             let show_name = key;
             // 不判断是不是被禁止的
-            let check_name = "[命令]".to_string() + &show_name;
+            let check_name = "[命令]".to_string() + show_name;
             if self.check_program_is_exist(&check_name) {
                 continue;
             }
 
             let guid = self.guid_generator.get_guid();
 
-            let mut alias_names = self.convert_search_keywords(&show_name);
+            let mut alias_names = self.convert_search_keywords(show_name);
             let unique_name = show_name.to_lowercase();
             let stable_bias = self.get_program_bias(&unique_name);
             let icon_path = APP_PIC_PATH.get("terminal").unwrap().value().clone();
@@ -478,7 +480,7 @@ impl ProgramLoaderInner {
             let program = Arc::new(Program {
                 program_guid: guid,
                 show_name: show_name.clone(),
-                launch_method: launch_method,
+                launch_method,
                 search_keywords: alias_names,
                 stable_bias,
                 icon_path: ImageIdentity::File(icon_path),
@@ -675,7 +677,7 @@ impl ProgramLoaderInner {
                         ret.push(Arc::new(Program {
                             program_guid: guid,
                             show_name: short_name,
-                            launch_method: launch_method,
+                            launch_method,
                             search_keywords: alias_name,
                             stable_bias,
                             icon_path: ImageIdentity::File(icon_path),
@@ -743,18 +745,16 @@ impl ProgramLoaderInner {
         // 存储所有匹配的图标及其分辨率信息
         let mut matching_icons: Vec<(PathBuf, u64)> = Vec::new();
 
-        for entry in entries {
-            if let Ok(entry) = entry {
-                let path = entry.path();
-                if path.is_file() {
-                    if let Some(ext) = path.extension().and_then(OsStr::to_str) {
-                        if ext.eq_ignore_ascii_case("png") {
-                            if let Some(file_stem) = path.file_stem().and_then(OsStr::to_str) {
-                                if file_stem.starts_with(icon_prefix) {
-                                    // 使用图像元数据获取分辨率
-                                    if let Some(resolution) = self.get_image_resolution(&path) {
-                                        matching_icons.push((path.clone(), resolution));
-                                    }
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_file() {
+                if let Some(ext) = path.extension().and_then(OsStr::to_str) {
+                    if ext.eq_ignore_ascii_case("png") {
+                        if let Some(file_stem) = path.file_stem().and_then(OsStr::to_str) {
+                            if file_stem.starts_with(icon_prefix) {
+                                // 使用图像元数据获取分辨率
+                                if let Some(resolution) = self.get_image_resolution(&path) {
+                                    matching_icons.push((path.clone(), resolution));
                                 }
                             }
                         }
@@ -884,6 +884,12 @@ impl ProgramLoaderInner {
 #[derive(Debug)]
 pub struct ProgramLoader {
     inner: RwLock<ProgramLoaderInner>,
+}
+
+impl Default for ProgramLoader {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ProgramLoader {

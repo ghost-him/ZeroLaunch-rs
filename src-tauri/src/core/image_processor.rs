@@ -155,7 +155,7 @@ impl ImageProcessor {
     async fn load_image_from_path(icon_path: &str) -> Vec<u8> {
         // 读取程序图标
         let mut img: Option<Vec<u8>> = None;
-        if Self::is_program(&icon_path) {
+        if Self::is_program(icon_path) {
             //使用windows 系统调用读
             if let Some(raba) = Self::extract_icon_from_file(icon_path).await {
                 img = Self::rgba_image_to_png(&raba);
@@ -168,12 +168,7 @@ impl ImageProcessor {
                 None
             };
         }
-        // 如果有内容，就返回
-        if img.is_some() {
-            return img.unwrap();
-        }
-        // 如果没有内容，就使用默认的编码
-        return vec![];
+        img.unwrap_or_default()
     }
 
     async fn load_and_convert_to_png<P: AsRef<Path>>(
@@ -267,7 +262,7 @@ impl ImageProcessor {
         if path.ends_with(".url") {
             return true;
         }
-        return false;
+        false
     }
 
     /// 从文件提取hicon

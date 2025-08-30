@@ -134,12 +134,10 @@ impl ImageLoaderInner {
         let icon_cache_dir_clone = ICON_CACHE_DIR.clone();
         match read_dir_or_create(icon_cache_dir_clone) {
             Ok(entries) => {
-                for entry in entries {
-                    if let Ok(entry) = entry {
-                        let file_name = entry.file_name();
-                        let file_name = file_name.to_string_lossy();
-                        result.insert(file_name.into_owned());
-                    }
+                for entry in entries.flatten() {
+                    let file_name = entry.file_name();
+                    let file_name = file_name.to_string_lossy();
+                    result.insert(file_name.into_owned());
                 }
             }
             Err(e) => warn!("Error reading directory: {}", e),
@@ -164,24 +162,22 @@ impl ImageLoaderInner {
             // 尝试打开注册表路径
             if let Ok(uninstall_key) = hklm.open_subkey_with_flags(path, KEY_READ) {
                 // 遍历所有子键
-                for result in uninstall_key.enum_keys() {
-                    if let Ok(subkey_name) = result {
-                        // 打开子键
-                        if let Ok(subkey) =
-                            uninstall_key.open_subkey_with_flags(&subkey_name, KEY_READ)
-                        {
-                            // 尝试读取DisplayName和DisplayIcon值
-                            let display_name: Result<String, _> = subkey.get_value("DisplayName");
-                            let display_icon: Result<String, _> = subkey.get_value("DisplayIcon");
+                for subkey_name in uninstall_key.enum_keys().flatten() {
+                    // 打开子键
+                    if let Ok(subkey) =
+                        uninstall_key.open_subkey_with_flags(&subkey_name, KEY_READ)
+                    {
+                        // 尝试读取DisplayName和DisplayIcon值
+                        let display_name: Result<String, _> = subkey.get_value("DisplayName");
+                        let display_icon: Result<String, _> = subkey.get_value("DisplayIcon");
 
-                            // 如果两个值都存在，则添加到HashMap中
-                            if let (Ok(name), Ok(icon)) = (display_name, display_icon) {
-                                // 过滤掉空值
-                                if !name.trim().is_empty() && !icon.trim().is_empty() {
-                                    let name = name.trim().to_string();
-                                    let icon = self.normalized_icon_path(icon.trim());
-                                    programs.insert(name, icon);
-                                }
+                        // 如果两个值都存在，则添加到HashMap中
+                        if let (Ok(name), Ok(icon)) = (display_name, display_icon) {
+                            // 过滤掉空值
+                            if !name.trim().is_empty() && !icon.trim().is_empty() {
+                                let name = name.trim().to_string();
+                                let icon = self.normalized_icon_path(icon.trim());
+                                programs.insert(name, icon);
                             }
                         }
                     }

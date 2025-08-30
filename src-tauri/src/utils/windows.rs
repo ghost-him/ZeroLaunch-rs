@@ -24,7 +24,7 @@ pub fn is_foreground_fullscreen() -> bool {
     unsafe {
         // 获取当前前台窗口句柄
         let foreground_hwnd = GetForegroundWindow();
-        if foreground_hwnd.0 == std::ptr::null_mut() {
+        if foreground_hwnd.0.is_null() {
             return false;
         }
 
@@ -77,7 +77,7 @@ fn top_window_from_point(point: POINT) -> HWND {
 
         // 循环获取父窗口，直到找到顶层窗口
         while let Ok(parent) = GetParent(hwnd) {
-            if parent.0 == std::ptr::null_mut() {
+            if parent.0.is_null() {
                 break;
             }
             hwnd = parent;

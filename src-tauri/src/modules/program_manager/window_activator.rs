@@ -22,6 +22,12 @@ use windows_core::BOOL;
 #[derive(Debug)]
 pub struct WindowActivatorInner {}
 
+impl Default for WindowActivatorInner {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl WindowActivatorInner {
     pub fn new() -> Self {
         Self {}
@@ -32,29 +38,25 @@ impl WindowActivatorInner {
             LaunchMethod::Path(path) => {
                 if path.ends_with(".url") {
                     let program_name = target.show_name.clone();
-                    return self.activate_with_title(&program_name);
+                    self.activate_with_title(&program_name)
                 } else {
-                    let exe_path;
-                    if path.ends_with(".exe") {
-                        exe_path = path.clone();
+                    let exe_path = if path.ends_with(".exe") {
+                        path.clone()
                     } else {
-                        exe_path = match get_lnk_target_path(&path) {
-                            Some(path) => path,
-                            None => String::new(),
-                        };
-                    }
+                        get_lnk_target_path(&path).unwrap_or_default()
+                    };
                     if exe_path.is_empty() {
                         return false;
                     }
-                    return self.activate_with_exe(&exe_path);
+                    self.activate_with_exe(&exe_path)
                 }
             }
             LaunchMethod::PackageFamilyName(_family_name) => {
-                return false;
+                false
                 // uwp应用是单例启动方式，所以可以直接使用默认的启动方式
             }
             _ => {
-                return false;
+                false
                 // 不对文件启动做处理
             }
         }
@@ -98,8 +100,7 @@ impl WindowActivatorInner {
             // 创建进程快照
             let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0).unwrap();
 
-            let mut entry = PROCESSENTRY32W::default();
-            entry.dwSize = std::mem::size_of::<PROCESSENTRY32W>() as u32;
+            let mut entry = PROCESSENTRY32W{ dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32, ..Default::default()};
 
             if Process32FirstW(snapshot, &mut entry).is_ok() {
                 loop {
@@ -127,7 +128,7 @@ impl WindowActivatorInner {
                         }
                     }
 
-                    if !Process32NextW(snapshot, &mut entry).is_ok() {
+                    if Process32NextW(snapshot, &mut entry).is_err() {
                         break;
                     }
                 }
@@ -166,7 +167,7 @@ impl WindowActivatorInner {
 
         // 如果找到多个匹配窗口，选择第一个
         let (hwnd, _title) = matching_windows[0];
-        Some(hwnd.clone())
+        Some(*hwnd)
     }
 }
 
@@ -174,6 +175,12 @@ impl WindowActivatorInner {
 #[derive(Debug)]
 pub struct WindowActivator {
     inner: RwLock<WindowActivatorInner>,
+}
+
+impl Default for WindowActivator {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl WindowActivator {

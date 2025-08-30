@@ -196,13 +196,14 @@ pub async fn open_target_folder<R: Runtime>(
 }
 
 #[tauri::command]
+#[allow(clippy::zombie_processes)]
 pub async fn command_open_icon_cache_dir<R: Runtime>(
     _app: tauri::AppHandle<R>,
     _window: tauri::Window<R>,
 ) -> Result<(), String> {
     let target_path = ICON_CACHE_DIR.clone();
     Command::new("explorer")
-        .args(&[&target_path]) // 使用/select参数并指定完整文件路径
+        .args([&target_path]) // 使用/select参数并指定完整文件路径
         .spawn()
         .unwrap();
     Ok(())
@@ -237,7 +238,7 @@ pub fn command_get_path_info(path_str: String) -> PathInfo {
                     path_type: "file".to_string(),
                     original_path: path_str,
                     parent_path: parent,
-                    filename: filename,
+                    filename,
                     error_message: None,
                 }
             } else {

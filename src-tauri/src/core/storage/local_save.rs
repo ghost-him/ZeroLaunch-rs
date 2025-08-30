@@ -123,17 +123,17 @@ impl StorageClient for LocalStorageInner {
     }
 
     async fn validate_config(&self) -> bool {
-        if let Err(_) = self
+        if self
             .upload(
                 TEST_CONFIG_FILE_NAME.to_string(),
                 TEST_CONFIG_FILE_DATA.to_string().as_bytes().to_vec(),
             )
-            .await
+            .await.is_err()
         {
             return false;
         }
 
-        if let Err(_) = self.download(TEST_CONFIG_FILE_NAME.to_string()).await {
+        if self.download(TEST_CONFIG_FILE_NAME.to_string()).await.is_err() {
             return false;
         }
 

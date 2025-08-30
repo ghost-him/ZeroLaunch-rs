@@ -6,12 +6,11 @@ pub mod program_launcher;
 pub mod program_loader;
 pub mod search_model;
 pub mod unit;
-use crate::program_manager::search_model::search_model::SearchModel;
 pub mod window_activator;
 use crate::core::image_processor::ImageProcessor;
 use crate::modules::program_manager::config::program_manager_config::RuntimeProgramConfig;
 use crate::program_manager::config::program_manager_config::ProgramManagerConfig;
-use crate::program_manager::search_model::search_model::*;
+use crate::program_manager::search_model::*;
 use crate::program_manager::unit::*;
 use config::program_manager_config::PartialProgramManagerConfig;
 use dashmap::DashMap;
@@ -367,7 +366,7 @@ impl ProgramManagerInner {
 
         let mut results = Vec::new();
         latest_launch_program.into_iter().for_each(|guid| {
-            let index = self.program_locater.get(&guid).unwrap().clone();
+            let index = *self.program_locater.get(&guid).unwrap();
             let program_info = self.program_registry[index].clone();
             results.push((guid, program_info.show_name.clone()));
         });

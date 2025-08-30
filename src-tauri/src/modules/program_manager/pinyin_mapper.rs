@@ -13,6 +13,12 @@ pub struct PinyinMapper {
     pinyin: HashMap<String, String>,
 }
 
+impl Default for PinyinMapper {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PinyinMapper {
     pub fn new() -> Self {
         let items: Vec<Item> =

@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::core::storage::windows_utils::get_default_remote_data_dir_path;
-use crate::modules::version_checker::version_checker::VersionChecker;
+use crate::modules::version_checker::VersionChecker;
 use crate::utils::font_database::get_fonts;
 
 /// 获得当前程序的最新版本

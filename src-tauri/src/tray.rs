@@ -253,7 +253,7 @@ pub fn init_system_tray(app: &mut App) {
     app.on_tray_icon_event(move |tray_app_handle, event| {
         match event {
             TrayIconEvent::DoubleClick { .. } => {
-                handle_pressed(&tray_app_handle);
+                handle_pressed(tray_app_handle);
             }
             // TrayIconEvent::Click, RightClick, etc. can be handled here
             _ => {}

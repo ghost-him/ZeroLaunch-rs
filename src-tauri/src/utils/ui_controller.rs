@@ -14,10 +14,8 @@ pub fn handle_pressed(app_handle: &tauri::AppHandle) {
     let runtime_config = state.get_runtime_config().unwrap();
     let app_config = runtime_config.get_app_config();
 
-    if !app_config.get_is_wake_on_fullscreen() {
-        if is_foreground_fullscreen() {
-            return;
-        }
+    if !app_config.get_is_wake_on_fullscreen() && is_foreground_fullscreen() {
+        return;
     }
 
     update_window_size_and_position();

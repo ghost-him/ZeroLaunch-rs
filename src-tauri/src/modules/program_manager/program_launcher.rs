@@ -73,7 +73,7 @@ impl ProgramLauncherInner {
 
         let mut launch_info_data: VecDeque<HashMap<String, u64>> = VecDeque::new();
         for item in &self.launch_time {
-            launch_info_data.push_back(dashmap_to_hashmap(&item));
+            launch_info_data.push_back(dashmap_to_hashmap(item));
         }
 
         PartialProgramLauncherConfig {
@@ -95,7 +95,7 @@ impl ProgramLauncherInner {
             .entry(key)
             .and_modify(|latest_launch_time| {
                 self.runtime_latest_launch_time
-                    .insert((latest_launch_time.clone(), program_guid));
+                    .insert((*latest_launch_time, program_guid));
             });
     }
 
@@ -115,10 +115,9 @@ impl ProgramLauncherInner {
             .entry(launch_method.get_text())
             .and_modify(|last_launch_time| {
                 // 去除之前老的数据
-                assert_eq!(
+                assert!(
                     self.runtime_latest_launch_time
-                        .remove(&(last_launch_time.clone(), program_guid)),
-                    true
+                        .remove(&(*last_launch_time, program_guid))
                 );
                 let current_time = get_current_time();
                 *last_launch_time = current_time;
@@ -151,7 +150,7 @@ impl ProgramLauncherInner {
             .rev()
             .take(program_count as usize)
         {
-            result.push(program_guid.clone());
+            result.push(*program_guid);
         }
         result
     }
@@ -183,7 +182,7 @@ impl ProgramLauncherInner {
         const CREATE_NO_WINDOW: u32 = 0x08000000;
 
         let result = std::process::Command::new("cmd")
-            .args(&["/C", "start", "", file_name])
+            .args(["/C", "start", "", file_name])
             .creation_flags(CREATE_NO_WINDOW) // 隐藏命令窗口
             .spawn();
 
@@ -211,7 +210,7 @@ impl ProgramLauncherInner {
             .history_launch_time
             .entry(program_string.get_text())
             .or_insert(0);
-        count.clone()
+        *count
     }
 
     fn launch_uwp_program(&self, package_family_name: &str) {
@@ -333,6 +332,7 @@ impl ProgramLauncherInner {
         }
     }
 
+    #[allow(clippy::zombie_processes)]
     pub fn open_target_folder(&self, program_guid: u64) -> bool {
         let program_method = self.launch_store.get(&program_guid).unwrap();
         let target_method = program_method.clone();
@@ -350,15 +350,21 @@ impl ProgramLauncherInner {
 
         // 不需要获取父目录，直接使用/select参数
         Command::new("explorer")
-            .args(&["/select,", &target_path]) // 使用/select参数并指定完整文件路径
+            .args(["/select,", &target_path]) // 使用/select参数并指定完整文件路径
             .spawn()
             .unwrap();
-        return true;
+        true
     }
 }
 #[derive(Debug)]
 pub struct ProgramLauncher {
     inner: RwLock<ProgramLauncherInner>,
+}
+
+impl Default for ProgramLauncher {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ProgramLauncher {

@@ -28,6 +28,7 @@ pub struct PartialUiConfig {
     pub result_item_font_family: Option<String>,
     pub footer_font_family: Option<String>,
     pub program_background_color: Option<String>,
+    pub search_bar_animate: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -133,6 +134,10 @@ pub struct UiConfigInner {
     // 整体的背景色(用户可自己设置成黑色)
     #[serde(default = "UiConfigInner::default_program_background_color")]
     pub program_background_color: String,
+
+    // 搜索栏是否有动画效果
+    #[serde(default = "UiConfigInner::default_search_bar_animate")]
+    pub search_bar_animate: bool,
 }
 
 impl Default for UiConfigInner {
@@ -163,11 +168,16 @@ impl Default for UiConfigInner {
             result_item_font_family: Self::default_result_item_font_family(),
             footer_font_family: Self::default_footer_font_family(),
             program_background_color: Self::default_program_background_color(),
+            search_bar_animate: Self::default_search_bar_animate(),
         }
     }
 }
 
 impl UiConfigInner {
+    pub(crate) fn default_search_bar_animate() -> bool {
+        true
+    }
+
     pub(crate) fn default_selected_item_color() -> String {
         "#e3e3e3cc".to_string()
     }
@@ -341,6 +351,9 @@ impl UiConfigInner {
         if let Some(program_background_color) = partial_ui_config.program_background_color {
             self.program_background_color = program_background_color;
         }
+        if let Some(search_bar_animate) = partial_ui_config.search_bar_animate {
+            self.search_bar_animate = search_bar_animate;
+        }
     }
 
     pub fn get_window_width(&self) -> u32 {
@@ -402,6 +415,10 @@ impl UiConfigInner {
         self.vertical_position_ratio
     }
 
+    pub fn get_search_bar_animate(&self) -> bool {
+        self.search_bar_animate
+    }
+
     // 判断窗口的大小是不是默认的
     pub fn is_default_window_size(&self) -> bool {
         self.get_search_bar_height() == Self::default_search_bar_height()
@@ -438,6 +455,7 @@ impl UiConfigInner {
             result_item_font_family: Some(self.result_item_font_family.clone()),
             footer_font_family: Some(self.footer_font_family.clone()),
             program_background_color: Some(self.program_background_color.clone()),
+            search_bar_animate: Some(self.search_bar_animate),
         }
     }
 }
@@ -590,5 +608,10 @@ impl UiConfig {
     pub fn is_default_window_size(&self) -> bool {
         let inner = self.inner.read();
         inner.is_default_window_size()
+    }
+
+    pub fn get_search_bar_animate(&self) -> bool {
+        let inner = self.inner.read();
+        inner.search_bar_animate
     }
 }

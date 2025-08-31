@@ -27,6 +27,7 @@
           :color="ui_config.search_bar_font_color"
           :font-family="ui_config.search_bar_font_family"
           :placeholder-color="ui_config.search_bar_placeholder_font_color"
+          :dynamic="ui_config.search_bar_animate"
         />
       </div>
 

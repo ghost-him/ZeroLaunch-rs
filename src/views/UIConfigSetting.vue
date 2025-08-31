@@ -67,6 +67,15 @@
                     </el-icon>
                 </el-tooltip>
             </el-form-item>
+            <el-form-item label="搜索栏的动画效果">
+                <el-switch v-model="config.ui_config.search_bar_animate"
+                    @change="(val: boolean) => configStore.updateConfig({ ui_config: { search_bar_animate: val } })" />
+                <el-tooltip class="box-item" effect="dark" content="开启后，搜索栏在输入或删除字符时会有一个渐变的动画效果">
+                    <el-icon class="el-question-icon">
+                        <QuestionFilled />
+                    </el-icon>
+                </el-tooltip>
+            </el-form-item>
             <el-divider content-position="left">结果栏</el-divider>
             <el-form-item label="结果栏字体设置">
                 <el-select v-model="config.ui_config.result_item_font_family" filterable placeholder="选择或输入字体"

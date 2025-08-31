@@ -1,16 +1,15 @@
-<!-- AnimatedInput.vue -->
 <template>
     <div class="animated-input-wrapper" @click="focusInput" :style="{ fontFamily: fontFamily }">
-        <!-- 模拟的文本和光标 -->
         <div class="display-area" :style="{ fontSize: fontSize, color: color }">
             <span ref="textBeforeRef" class="text-segment">{{ textBefore }}</span>
-            <span class="animated-caret" :class="{ 'blinking': isFocused, 'is-moving': isCaretMoving }"
-                :style="{ left: caretLeft + 'px' }"></span>
+            <span class="animated-caret" :class="{
+                'blinking': isFocused,
+                'is-moving': isCaretMoving,
+                'animated': dynamic
+            }" :style="{ left: caretLeft + 'px' }"></span>
             <span class="text-segment">{{ textAfter }}</span>
-            <!-- 占位符 -->
             <span v-if="!modelValue" class="placeholder" :style="{ color: placeholderColor }">{{ placeholder }}</span>
         </div>
-        <!-- 真实的、隐藏的 input -->
         <input ref="realInputRef" v-model="modelValue" @input="handleInput" @keydown="handleInput"
             @click="updateCursorPosition" @select="updateCursorPosition" @focus="isFocused = true"
             @blur="isFocused = false" class="real-input" />
@@ -20,13 +19,16 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted } from 'vue';
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
     placeholder?: string;
     fontSize?: string;
     color?: string;
     fontFamily?: string;
     placeholderColor?: string;
-}>();
+    dynamic?: boolean;
+}>(), {
+    dynamic: true
+});
 
 const modelValue = defineModel<string>({ required: true });
 
@@ -37,7 +39,7 @@ const cursorPosition = ref(0);
 const caretLeft = ref(0);
 const isFocused = ref(false);
 const isCaretMoving = ref(false);
-let caretMoveTimer: number;
+let caretMoveTimer: ReturnType<typeof setTimeout> | null = null;
 
 const textBefore = computed(() => modelValue.value.slice(0, cursorPosition.value));
 const textAfter = computed(() => modelValue.value.slice(cursorPosition.value));
@@ -51,23 +53,22 @@ const updateCursorPosition = async () => {
     const newCaretLeft = textBeforeRef.value.offsetWidth;
 
     if (caretLeft.value !== newCaretLeft) {
+        // 无论是否启用动态效果，移动时都应暂时停止闪烁
         isCaretMoving.value = true;
-        clearTimeout(caretMoveTimer);
+        clearTimeout(caretMoveTimer ?? undefined);
 
         caretLeft.value = newCaretLeft;
 
+        // 设置一个短暂的计时器，在移动结束后恢复闪烁动画
         caretMoveTimer = setTimeout(() => {
             isCaretMoving.value = false;
         }, 50);
     }
 };
 
-
-
 const handleInput = () => {
     setTimeout(updateCursorPosition, 0);
 };
-
 
 watch(modelValue, () => {
     handleInput();
@@ -130,7 +131,10 @@ defineExpose({
     height: 75%;
     background-color: currentColor;
     opacity: 0;
-    transition: left 0.05s cubic-bezier(0, 1, 0.4, 1);
+}
+
+.animated-caret.animated {
+    transition: left 0.05s cubic-bezier(.25,.1,.25,1);
 }
 
 .animated-caret.blinking {

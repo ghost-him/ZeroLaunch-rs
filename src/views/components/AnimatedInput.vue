@@ -1,14 +1,14 @@
 <template>
-    <div class="animated-input-wrapper" @click="focusInput" :style="{ fontFamily: fontFamily }">
-        <div class="display-area" :style="{ fontSize: fontSize, color: color }">
+    <div class="animated-input-wrapper" @click="focusInput" :style="{ fontFamily: props.fontFamily }">
+        <div class="display-area" :style="{ fontSize: props.fontSize, color: props.color }">
             <span ref="textBeforeRef" class="text-segment">{{ textBefore }}</span>
             <span class="animated-caret" :class="{
                 'blinking': isFocused,
                 'is-moving': isCaretMoving,
-                'animated': dynamic
+                'animated': props.dynamic
             }" :style="{ left: caretLeft + 'px' }"></span>
             <span class="text-segment">{{ textAfter }}</span>
-            <span v-if="!modelValue" class="placeholder" :style="{ color: placeholderColor }">{{ placeholder }}</span>
+            <span v-if="!modelValue" class="placeholder" :style="{ color: props.placeholderColor }">{{ props.placeholder }}</span>
         </div>
         <input ref="realInputRef" v-model="modelValue" @input="handleInput" @keydown="handleInput"
             @click="updateCursorPosition" @select="updateCursorPosition" @focus="isFocused = true"

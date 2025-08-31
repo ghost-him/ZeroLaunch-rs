@@ -3,8 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use super::default::APP_VERSION;
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[derive(Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct PartialAppConfig {
     pub search_bar_placeholder: Option<String>,
     pub tips: Option<String>,
@@ -23,7 +22,6 @@ pub struct PartialAppConfig {
     pub is_initial: Option<bool>,
     pub scroll_threshold: Option<u32>,
 }
-
 
 /// 与程序设置有关的，比如是不是要开机自动启动等
 #[derive(Serialize, Deserialize, Debug, Clone)]

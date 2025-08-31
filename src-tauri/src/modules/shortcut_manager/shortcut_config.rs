@@ -3,8 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use super::Shortcut;
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[derive(Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct PartialShortcutConfig {
     pub open_search_bar: Option<Shortcut>,
     pub arrow_up: Option<Shortcut>,
@@ -12,7 +11,6 @@ pub struct PartialShortcutConfig {
     pub arrow_left: Option<Shortcut>,
     pub arrow_right: Option<Shortcut>,
 }
-
 
 /// 快捷键配置
 #[derive(Serialize, Deserialize, Debug, Clone)]

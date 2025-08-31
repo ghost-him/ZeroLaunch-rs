@@ -164,8 +164,7 @@ impl ImageLoaderInner {
                 // 遍历所有子键
                 for subkey_name in uninstall_key.enum_keys().flatten() {
                     // 打开子键
-                    if let Ok(subkey) =
-                        uninstall_key.open_subkey_with_flags(&subkey_name, KEY_READ)
+                    if let Ok(subkey) = uninstall_key.open_subkey_with_flags(&subkey_name, KEY_READ)
                     {
                         // 尝试读取DisplayName和DisplayIcon值
                         let display_name: Result<String, _> = subkey.get_value("DisplayName");

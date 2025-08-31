@@ -128,12 +128,17 @@ impl StorageClient for LocalStorageInner {
                 TEST_CONFIG_FILE_NAME.to_string(),
                 TEST_CONFIG_FILE_DATA.to_string().as_bytes().to_vec(),
             )
-            .await.is_err()
+            .await
+            .is_err()
         {
             return false;
         }
 
-        if self.download(TEST_CONFIG_FILE_NAME.to_string()).await.is_err() {
+        if self
+            .download(TEST_CONFIG_FILE_NAME.to_string())
+            .await
+            .is_err()
+        {
             return false;
         }
 

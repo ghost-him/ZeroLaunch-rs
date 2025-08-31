@@ -7,11 +7,11 @@ pub fn notify(title: &str, message: &str) {
 
     if let Ok(handle) = app_handle {
         handle
-        .notification()
-        .builder()
-        .title(title)
-        .body(message)
-        .show()
-        .unwrap();
+            .notification()
+            .builder()
+            .title(title)
+            .body(message)
+            .show()
+            .unwrap();
     }
 }

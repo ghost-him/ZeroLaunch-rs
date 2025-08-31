@@ -123,7 +123,10 @@ pub fn get_window_size() -> (Width, Height) {
     let app_config = runtime_config.get_app_config();
     let ui_config = runtime_config.get_ui_config();
 
-    let show_item_count = min(app_config.get_search_result_count(), app_config.get_scroll_threshold());
+    let show_item_count = min(
+        app_config.get_search_result_count(),
+        app_config.get_scroll_threshold(),
+    );
 
     // 结果栏一项的高度
     let item_size = ui_config.get_result_item_height();

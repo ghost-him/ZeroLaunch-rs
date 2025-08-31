@@ -100,7 +100,10 @@ impl WindowActivatorInner {
             // 创建进程快照
             let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0).unwrap();
 
-            let mut entry = PROCESSENTRY32W{ dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32, ..Default::default()};
+            let mut entry = PROCESSENTRY32W {
+                dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32,
+                ..Default::default()
+            };
 
             if Process32FirstW(snapshot, &mut entry).is_ok() {
                 loop {

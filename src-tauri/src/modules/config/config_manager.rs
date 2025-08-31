@@ -37,7 +37,6 @@ impl Default for RuntimeConfig {
 
 impl RuntimeConfig {
     pub fn new() -> Self {
-        
         RuntimeConfig {
             app_config: Arc::new(AppConfig::default()),
             ui_config: Arc::new(UiConfig::default()),

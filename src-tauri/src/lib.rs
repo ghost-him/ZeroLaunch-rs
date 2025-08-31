@@ -488,7 +488,10 @@ pub async fn save_config_to_file(is_update_app: bool) {
         .inner_position()
         .unwrap();
 
-    let partial_app_config = PartialAppConfig{window_position: Some((window.x, window.y)), ..Default::default()};
+    let partial_app_config = PartialAppConfig {
+        window_position: Some((window.x, window.y)),
+        ..Default::default()
+    };
 
     runtime_config.update(PartialRuntimeConfig {
         app_config: Some(partial_app_config),

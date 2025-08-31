@@ -161,11 +161,7 @@ impl ShortcutManagerInner {
         shortcuts.insert(tauri_shortcut, Box::new(callback));
 
         // 直接注册到全局快捷键系统
-        if let Err(e) = self
-            .app_handle
-            .global_shortcut()
-            .register(tauri_shortcut)
-        {
+        if let Err(e) = self.app_handle.global_shortcut().register(tauri_shortcut) {
             notify("ZeroLaunch-rs", &format!("注册快捷键失败: {:?}", e));
             return Err(format!("注册快捷键失败: {:?}", e));
         }

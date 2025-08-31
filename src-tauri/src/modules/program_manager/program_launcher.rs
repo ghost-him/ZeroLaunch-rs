@@ -115,10 +115,9 @@ impl ProgramLauncherInner {
             .entry(launch_method.get_text())
             .and_modify(|last_launch_time| {
                 // 去除之前老的数据
-                assert!(
-                    self.runtime_latest_launch_time
-                        .remove(&(*last_launch_time, program_guid))
-                );
+                assert!(self
+                    .runtime_latest_launch_time
+                    .remove(&(*last_launch_time, program_guid)));
                 let current_time = get_current_time();
                 *last_launch_time = current_time;
                 self.runtime_latest_launch_time

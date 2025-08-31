@@ -18,13 +18,16 @@
               d="M795.904 750.72l124.992 124.928a32 32 0 0 1-45.248 45.248L750.656 795.904a416 416 0 1 1 45.248-45.248zM480 832a352 352 0 1 0 0-704 352 352 0 0 0 0 704z" />
           </svg>
         </span>
-        <input v-model="searchText" :placeholder="app_config.search_bar_placeholder" class="input-field"
-          ref="searchBarRef" @contextmenu.prevent="contextSearchBarEvent" :style="{
-            fontSize: Math.round(ui_config.search_bar_height * ui_config.search_bar_font_size / 100) + 'px',
-            color: ui_config.search_bar_font_color,
-            fontFamily: ui_config.search_bar_font_family,
-            '--placeholder-color': ui_config.search_bar_placeholder_font_color
-          }">
+        <AnimatedInput
+          v-model="searchText"
+          :placeholder="app_config.search_bar_placeholder"
+          ref="searchBarRef"
+          @contextmenu.prevent="contextSearchBarEvent"
+          :font-size="Math.round(ui_config.search_bar_height * ui_config.search_bar_font_size / 100) + 'px'"
+          :color="ui_config.search_bar_font_color"
+          :font-family="ui_config.search_bar_font_family"
+          :placeholder-color="ui_config.search_bar_placeholder_font_color"
+        />
       </div>
 
       <!-- 二级菜单,外观与另一个菜单保持一致 -->
@@ -96,13 +99,14 @@ import { AppConfig, default_app_config, default_ui_config, PartialAppConfig, Par
 import SubMenu from '../utils/SubMenu.vue';
 import { FolderOpened, Refresh, Setting, StarFilled } from '@element-plus/icons-vue';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import AnimatedInput from './components/AnimatedInput.vue';
 
 const app_config = ref<AppConfig>(default_app_config())
 const ui_config = ref<UIConfig>(default_ui_config())
 const shortcut_config = ref<ShortcutConfig>(default_shortcut_config())
 const searchText = ref('')
 const selectedIndex = ref<number>(0)
-const searchBarRef = ref<HTMLInputElement | null>(null)
+const searchBarRef = ref<InstanceType<typeof AnimatedInput> | null>(null)
 // 搜索的结果
 const searchResults = ref<Array<[number, string]>>([]);
 // 最近启动的程序
@@ -547,7 +551,7 @@ const handleRightArrow = (event: KeyboardEvent) => {
   if (!input) return;
 
   // 获取光标位置
-  const cursorPos = input.selectionStart;
+  const cursorPos = input.cursorPosition;
   const textLength = searchText.value.length;
   if (cursorPos !== textLength) {
     // 允许默认的光标移动
@@ -717,18 +721,8 @@ main {
   align-items: center;
   border-bottom: 1px solid rgba(0, 0, 0, 0.05);
   flex-shrink: 0;
-}
-
-.input-field {
-  border: none;
-  outline: none;
-  font-weight: 600;
-  background: transparent;
-  width: 100%;
-  padding: 0;
-  margin: 0;
-  height: 100%;
-  line-height: normal;
+  flex-grow: 1; /* 确保它能填满剩余空间 */
+  min-width: 0;
 }
 
 .search-icon {
@@ -816,11 +810,6 @@ main {
   text-overflow: ellipsis;
   width: 100%;
   line-height: normal;
-}
-
-.input-field::placeholder {
-  color: var(--placeholder-color);
-  opacity: 1;
 }
 
 mark {

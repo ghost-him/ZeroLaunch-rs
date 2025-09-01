@@ -1,23 +1,23 @@
 <template>
-    <div class="animated-input-wrapper" @click="focusInput" :style="{ fontFamily: props.fontFamily }">
-        <div class="display-area" :style="{ fontSize: props.fontSize, color: props.color }">
-            <span ref="textBeforeRef" class="text-segment">{{ textBefore }}</span>
-            <span class="animated-caret" :class="{
-                'blinking': isFocused,
-                'is-moving': isCaretMoving,
-                'animated': props.dynamic
-            }" :style="{ left: caretLeft + 'px' }"></span>
-            <span class="text-segment">{{ textAfter }}</span>
-            <span v-if="!modelValue" class="placeholder" :style="{ color: props.placeholderColor }">{{ props.placeholder }}</span>
-        </div>
-        <input ref="realInputRef" v-model="modelValue" @input="handleInput" @keydown="handleInput"
-            @click="updateCursorPosition" @select="updateCursorPosition" @focus="isFocused = true"
-            @blur="isFocused = false" class="real-input" />
+    <div class="hybrid-input-wrapper">
+        <span ref="measurerRef" :style="sharedStyles" class="text-measurer" >{{ textBefore }}</span>
+
+        <span class="animated-caret" :class="{
+            'blinking': isFocused,
+            'is-moving': isCaretMoving,
+            'animated': props.dynamic
+        }" :style="{ left: caretLeft + 'px', backgroundColor: props.color, }"></span>
+
+        <input ref="realInputRef" v-model="modelValue"
+            @click="updateCursorPosition" @select="updateCursorPosition" @keyup="updateCursorPosition" @keydown="updateCursorPosition" @focus="isFocused = true"
+            @blur="isFocused = false" class="real-input" :placeholder="props.placeholder" :style="[
+                sharedStyles,
+                {'--placeholder-color': props.placeholderColor}]" />
     </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onMounted } from 'vue';
+import { ref, computed, nextTick, watch } from 'vue';
 
 const props = withDefaults(defineProps<{
     placeholder?: string;
@@ -27,13 +27,23 @@ const props = withDefaults(defineProps<{
     placeholderColor?: string;
     dynamic?: boolean;
 }>(), {
-    dynamic: true
+    fontSize: '16px',
+    fontFamily: 'inherit',
+    color: 'black',
+    placeholderColor: '#999',
+    dynamic: true,
 });
+
+const sharedStyles = computed(() => ({
+    fontFamily: props.fontFamily,
+    fontSize: props.fontSize,
+    color: props.color,
+}));
 
 const modelValue = defineModel<string>({ required: true });
 
 const realInputRef = ref<HTMLInputElement | null>(null);
-const textBeforeRef = ref<HTMLElement | null>(null);
+const measurerRef = ref<HTMLElement | null>(null);
 
 const cursorPosition = ref(0);
 const caretLeft = ref(0);
@@ -42,85 +52,78 @@ const isCaretMoving = ref(false);
 let caretMoveTimer: ReturnType<typeof setTimeout> | null = null;
 
 const textBefore = computed(() => modelValue.value.slice(0, cursorPosition.value));
-const textAfter = computed(() => modelValue.value.slice(cursorPosition.value));
 
 const updateCursorPosition = async () => {
-    if (!realInputRef.value || !textBeforeRef.value) return;
+    if (!realInputRef.value || !measurerRef.value || !isFocused.value) return;
+
     cursorPosition.value = realInputRef.value.selectionStart || 0;
 
     await nextTick();
 
-    const newCaretLeft = textBeforeRef.value.offsetWidth;
-
+    const newCaretLeft = measurerRef.value.offsetWidth;
     if (caretLeft.value !== newCaretLeft) {
-        // 无论是否启用动态效果，移动时都应暂时停止闪烁
         isCaretMoving.value = true;
         clearTimeout(caretMoveTimer ?? undefined);
 
         caretLeft.value = newCaretLeft;
 
-        // 设置一个短暂的计时器，在移动结束后恢复闪烁动画
         caretMoveTimer = setTimeout(() => {
             isCaretMoving.value = false;
         }, 50);
     }
 };
 
-const handleInput = () => {
-    setTimeout(updateCursorPosition, 0);
-};
-
-watch(modelValue, () => {
-    handleInput();
-});
-
-onMounted(() => {
-    updateCursorPosition();
-});
-
 const focusInput = () => {
     realInputRef.value?.focus();
 };
 
+watch(modelValue, async () => {
+    await updateCursorPosition();
+});
+
 defineExpose({
     focus: focusInput,
-    cursorPosition
+    cursorPosition,
+    realInputRef,
 });
 </script>
 
 <style scoped>
-.animated-input-wrapper {
+.hybrid-input-wrapper {
     position: relative;
     width: 100%;
     height: 100%;
-    cursor: text;
-    background: transparent;
-}
-
-.display-area {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    white-space: nowrap;
-    overflow: hidden;
     font-weight: 600;
     line-height: normal;
-    pointer-events: none;
 }
 
-.text-segment {
-    white-space: pre;
-}
-
-.placeholder {
+.text-measurer {
     position: absolute;
     left: 0;
-    opacity: 0.8;
+    top: 0;
+    visibility: hidden;
+    white-space: pre;
     pointer-events: none;
+    height: 100%;
+    display: inline-flex;
+    align-items: center;
+}
+
+.real-input {
+    width: 100%;
+    height: 100%;
+    border: none;
+    outline: none;
+    padding: 0;
+    margin: 0;
+    background: transparent;
+    caret-color: transparent;
+    font: inherit;
+}
+
+.real-input::placeholder {
+    color: var(--placeholder-color, #999);
+    opacity: 0.8;
 }
 
 .animated-caret {
@@ -131,6 +134,7 @@ defineExpose({
     height: 75%;
     background-color: currentColor;
     opacity: 0;
+    pointer-events: none;
 }
 
 .animated-caret.animated {
@@ -147,30 +151,8 @@ defineExpose({
     opacity: 1;
 }
 
-.real-input {
-    width: 100%;
-    height: 100%;
-    border: none;
-    outline: none;
-    padding: 0;
-    margin: 0;
-    background: transparent;
-    color: transparent;
-    caret-color: transparent;
-    font: inherit;
-    font-weight: 600;
-    line-height: normal;
-}
-
 @keyframes blink {
-
-    0%,
-    100% {
-        opacity: 1;
-    }
-
-    50% {
-        opacity: 0;
-    }
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
 }
 </style>

@@ -378,7 +378,8 @@ const preventDefaultWebViewShortcuts = (event: KeyboardEvent) => {
 const handleKeyDown = async (event: KeyboardEvent) => {
   preventDefaultWebViewShortcuts(event);
   const isMenuVisible = resultItemMenuRef.value?.isVisible() || false;
-  console.log(event)
+  // 获取真实的 input 元素
+  const inputElement = searchBarRef.value?.realInputRef;
   if (event.key === 'Alt') {
     is_alt_pressed.value = true;
     event.preventDefault();
@@ -407,14 +408,20 @@ const handleKeyDown = async (event: KeyboardEvent) => {
   }
 
   if (event.key === 'ArrowRight' || matchShortcut(shortcut_config.value.arrow_right)) {
-    event.preventDefault();
-    handleAction(ActionType.MOVE_RIGHT, isMenuVisible);
+    const isAtEnd = inputElement && (inputElement.selectionStart === searchText.value.length);
+    if (!isMenuVisible && isAtEnd && document.activeElement === inputElement) {
+        // 只有在光标在末尾时，才阻止默认行为并执行我们的操作（比如打开子菜单）
+        event.preventDefault();
+        handleAction(ActionType.MOVE_RIGHT, isMenuVisible);
+    }
     return;
   }
 
   if (event.key === 'ArrowLeft' || matchShortcut(shortcut_config.value.arrow_left)) {
-    event.preventDefault();
-    handleAction(ActionType.MOVE_LEFT, isMenuVisible);
+    if (isMenuVisible) {
+        event.preventDefault();
+        handleAction(ActionType.MOVE_LEFT, isMenuVisible);
+    }
     return;
   }
 

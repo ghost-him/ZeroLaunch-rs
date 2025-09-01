@@ -22,6 +22,7 @@ pub struct PartialLocalConfig {
     //pub onedrive_save_config: Option<PartialOneDriveConfig>,
     pub save_to_local_per_update: Option<u32>,
     pub version: Option<String>,
+    pub welcome_page_version: Option<String>,
 }
 
 #[derive(Debug)]
@@ -37,6 +38,8 @@ pub struct LocalConfig {
     //onedrive_save_config: Arc<OneDriveConfig>,
     // 表示缓冲区的大小，保存几次后会更新到本地
     save_to_local_per_update: Arc<u32>,
+    // 欢迎页面的版本号，用于判断是否需要显示欢迎页面
+    welcome_page_version: Arc<String>,
 }
 
 impl Default for LocalConfig {
@@ -48,6 +51,7 @@ impl Default for LocalConfig {
             webdav_save_config: Arc::new(WebDAVConfig::default()),
             //onedrive_save_config: Arc::new(OneDriveConfig::default()),
             save_to_local_per_update: Arc::new(4),
+            welcome_page_version: Arc::new(String::new()),
         }
     }
 }
@@ -77,6 +81,10 @@ impl LocalConfig {
         self.save_to_local_per_update.clone()
     }
 
+    pub fn get_welcome_page_version(&self) -> Arc<String> {
+        self.welcome_page_version.clone()
+    }
+
     pub fn update(&mut self, partial_local_config: PartialLocalConfig) {
         self.version = Arc::new(APP_VERSION.to_string());
         if let Some(sd) = partial_local_config.storage_destination {
@@ -94,6 +102,9 @@ impl LocalConfig {
         if let Some(count) = partial_local_config.save_to_local_per_update {
             self.save_to_local_per_update = Arc::new(count);
         }
+        if let Some(welcome_version) = partial_local_config.welcome_page_version {
+            self.welcome_page_version = Arc::new(welcome_version);
+        }
     }
 
     pub fn to_partial(&self) -> PartialLocalConfig {
@@ -104,6 +115,7 @@ impl LocalConfig {
             //onedrive_save_config: Some(self.onedrive_save_config.to_partial()),
             save_to_local_per_update: Some(*self.save_to_local_per_update),
             version: Some((*self.version).clone()),
+            welcome_page_version: Some((*self.welcome_page_version).clone()),
         }
     }
 }

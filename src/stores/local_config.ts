@@ -17,6 +17,7 @@ function mergeConfig(config: LocalConfig, partial: PartialLocalConfig): LocalCon
         // 覆盖顶层基本属性
         ...(partial.storage_destination !== undefined ? { storage_destination: partial.storage_destination } : {}),
         ...(partial.save_to_local_per_update !== undefined ? { save_to_local_per_update: partial.save_to_local_per_update } : {}),
+        ...(partial.welcome_page_version !== undefined ? { welcome_page_version: partial.welcome_page_version } : {}),
 
         // 浅层合并嵌套对象，而不是完全替换
         local_save_config: partial.local_save_config !== undefined
@@ -48,6 +49,10 @@ function mergePartialConfig(
     
     if (newPartial.save_to_local_per_update !== undefined) {
         result.save_to_local_per_update = newPartial.save_to_local_per_update;
+    }
+    
+    if (newPartial.welcome_page_version !== undefined) {
+        result.welcome_page_version = newPartial.welcome_page_version;
     }
     
     // 浅层合并嵌套对象

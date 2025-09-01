@@ -7,6 +7,7 @@ export type LocalConfig = {
     webdav_save_config: WebDAVConfig;
     // onedrive_save_config: OneDriveConfig;
     save_to_local_per_update: number;
+    welcome_page_version: string;
 }
 
 export type LocalSaveConfig = {
@@ -41,4 +42,5 @@ export type PartialLocalConfig = {
     webdav_save_config?: PartialWebDAVConfig;
     // onedrive_save_config?: PartialOneDriveConfig;
     save_to_local_per_update?: number;
+    welcome_page_version?: string;
 }

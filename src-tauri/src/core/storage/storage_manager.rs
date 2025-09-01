@@ -18,9 +18,11 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::error;
 use tracing::warn;
+use tauri::Manager;
 
 pub const TEST_CONFIG_FILE_NAME: &str = "zerolaunch-test-link.txt";
 pub const TEST_CONFIG_FILE_DATA: &str = "当前文件仅用于测试连通性，可以手动删除";
+pub const WELCOME_PAGE_VERSION: &str = "1.0.1";
 /// 存储管理器的配置文件为 appdata下的目录，这个决定了远程配置文件保存的位置
 #[async_trait]
 pub trait StorageClient: Send + Sync {
@@ -69,6 +71,7 @@ impl StorageManagerInner {
         // 直接读取本地的配置文件，如果读取失败了，则说明是用户第一次启动程序，需要调用callback函数
         let result = read_str(&LOCAL_CONFIG_PATH);
 
+        let mut is_first_startup = false;
         let local_config_data = match result {
             Err(error) => {
                 // 从本地读取配置信息，这个default_content就是当用户读取本地配置信息失败时，要写入的初始值
@@ -77,8 +80,7 @@ impl StorageManagerInner {
 
                 if error.kind() == std::io::ErrorKind::NotFound {
                     // 如果没有这个文件，则说明是用户第一次启动程序
-                    // 调用一次回调函数
-                    callback();
+                    is_first_startup = true;
                     // 写入初始值
                     if let Err(e) = create_str(&LOCAL_CONFIG_PATH, &default_content) {
                         warn!("创建本地配置文件失败: {}", e);
@@ -95,10 +97,12 @@ impl StorageManagerInner {
         let partial_local_config: PartialLocalConfig =
             serde_json::from_str(&local_config_data).unwrap();
 
-        if partial_local_config.version.is_none()
-            || *partial_local_config.version.as_ref().unwrap() != *APP_VERSION
-        {
-            // 如果版本不匹配，则说明用户更新了程序，需要调用回调函数
+        // 检查是否需要显示欢迎页面
+        // 首次启动或欢迎页面版本更新时显示欢迎页面
+        let should_show_welcome = is_first_startup || 
+            (!is_first_startup && check_welcome_page_version_changed(&partial_local_config));
+        
+        if should_show_welcome {
             callback();
         }
 
@@ -496,4 +500,24 @@ pub async fn check_validation(
     } else {
         None
     }
+}
+
+/// 检查welcome页面版本是否发生变化
+fn check_welcome_page_version_changed(partial_local_config: &PartialLocalConfig) -> bool {
+    // 获取当前welcome页面版本
+    let current_welcome_version = get_current_welcome_page_version();
+    
+    // 获取存储的welcome页面版本
+    let stored_welcome_version = partial_local_config.welcome_page_version.as_ref();
+    
+    // 如果没有存储版本或版本不匹配，则需要显示welcome页面
+    match stored_welcome_version {
+        None => true, // 没有存储版本，需要显示
+        Some(stored_version) => stored_version != &current_welcome_version, // 版本不匹配，需要显示
+    }
+}
+
+/// 获取当前welcome页面版本
+fn get_current_welcome_page_version() -> String {
+    WELCOME_PAGE_VERSION.to_string()
 }

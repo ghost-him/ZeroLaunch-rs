@@ -227,15 +227,27 @@ async fn init_app_state(app: &mut App) {
     let create_and_show_welcome_page = move || {
         info!("第一次启动程序或者更新程序，创建欢迎页面");
         // 创建欢迎页面
-        let welcome = Arc::new(
+        let welcome_result =
             tauri::WebviewWindowBuilder::new(app, "welcome", WebviewUrl::App("/welcome".into()))
                 .title("欢迎下载ZeroLaunch-rs! 此页面只会出现一次，用于提供基础的使用说明╰(*°▽°*)╯")
                 .visible(true)
                 .drag_and_drop(false)
-                .build()
-                .unwrap(),
-        );
+                .build();
+        let welcome = Arc::new(match welcome_result {
+            Err(e) => {
+                error!("创建welcome页面失败: {:?}", e);
+                return;
+            }
+            Ok(w) => w,
+        });
         welcome.set_size(LogicalSize::new(950, 500)).unwrap();
+        // 监听welcome页面关闭事件，更新welcome页面版本
+        welcome.on_window_event(move |event| {
+            if let tauri::WindowEvent::CloseRequested { .. } = event {
+                // 页面关闭时更新welcome页面版本
+                update_welcome_page_version_on_close();
+            }
+        });
     };
     let storage_manager = StorageManager::new(create_and_show_welcome_page).await;
     let remote_config_data = {
@@ -607,4 +619,28 @@ fn cleanup_old_logs(log_dir: &str, retention_days: i64) {
             }
         }
     }
+}
+
+/// 当welcome页面关闭时更新welcome页面版本
+fn update_welcome_page_version_on_close() {
+    tauri::async_runtime::spawn(async {
+        let state = ServiceLocator::get_state();
+        if let Ok(storage_manager) = state.get_storage_manager() {
+            // 获取当前welcome页面版本
+            let current_version = storage::storage_manager::WELCOME_PAGE_VERSION.to_string();
+
+            // 更新本地配置
+            let partial_config = storage::config::PartialLocalConfig {
+                storage_destination: None,
+                local_save_config: None,
+                webdav_save_config: None,
+                save_to_local_per_update: None,
+                version: None,
+                welcome_page_version: Some(current_version),
+            };
+
+            storage_manager.update(partial_config).await;
+            info!("已更新welcome页面版本到本地配置");
+        }
+    });
 }

@@ -7,27 +7,27 @@
                 <span class="version">{{ currentVersion }}</span>
                 <el-button type="primary" size="small" :loading="checkingUpdate" @click="checkUpdate"
                     class="update-btn">
-                    检查更新
+                    {{ t('about.check_update') }}
                 </el-button>
             </div>
             <el-alert v-if="updateStatus" :title="updateStatus.message" :type=updateStatus.type />
         </div>
 
         <div class="about-content">
-            <el-divider content-position="left">软件简介</el-divider>
+            <el-divider content-position="left">{{ t('about.software_intro') }}</el-divider>
             <p class="description">
-                ZeroLaunch 是一款专为 Windows 平台精心打造的应用程序启动器，致力于提供极致高效、快捷的搜索体验，让您瞬间找到并启动所需应用。
+                {{ t('about.description') }}
             </p>
 
-            <el-divider content-position="left">核心特性</el-divider>
+            <el-divider content-position="left">{{ t('about.core_features') }}</el-divider>
             <div class="features">
                 <div class="feature-item">
                     <el-icon>
                         <Location />
                     </el-icon>
                     <div class="feature-content">
-                        <h3>本地运行</h3>
-                        <p>完全离线运行，不会上传任何数据，保护您的隐私安全</p>
+                        <h3>{{ t('about.local_running') }}</h3>
+                        <p>{{ t('about.local_running_desc') }}</p>
                     </div>
                 </div>
                 <div class="feature-item">
@@ -35,8 +35,8 @@
                         <Search />
                     </el-icon>
                     <div class="feature-content">
-                        <h3>智能搜索</h3>
-                        <p>支持全称、拼音、模糊、首字母搜索，基于历史启动次数实现动态权重调节</p>
+                        <h3>{{ t('about.intelligent_search') }}</h3>
+                        <p>{{ t('about.intelligent_search_desc') }}</p>
                     </div>
                 </div>
                 <div class="feature-item">
@@ -44,8 +44,8 @@
                         <Aim />
                     </el-icon>
                     <div class="feature-content">
-                        <h3>功能纯粹</h3>
-                        <p>专注于应用程序搜索，支持自定义搜索路径与UWP应用搜索</p>
+                        <h3>{{ t('about.pure_function') }}</h3>
+                        <p>{{ t('about.pure_function_desc') }}</p>
                     </div>
                 </div>
                 <div class="feature-item">
@@ -53,13 +53,13 @@
                         <Share />
                     </el-icon>
                     <div class="feature-content">
-                        <h3>开源项目</h3>
-                        <p>采用GPLv3许可证，代码完全开源</p>
+                        <h3>{{ t('about.open_source') }}</h3>
+                        <p>{{ t('about.open_source_desc') }}</p>
                     </div>
                 </div>
             </div>
 
-            <el-divider content-position="left">技术栈</el-divider>
+            <el-divider content-position="left">{{ t('about.tech_stack') }}</el-divider>
             <div class="tech-stack">
                 <el-tag>Rust</el-tag>
                 <el-tag>Tauri</el-tag>
@@ -67,7 +67,7 @@
                 <el-tag>Element Plus</el-tag>
             </div>
 
-            <el-divider content-position="left">项目地址</el-divider>
+            <el-divider content-position="left">{{ t('about.project_links') }}</el-divider>
             <div class="repo-links">
                 <el-link type="primary" href="https://github.com/ghost-him/ZeroLaunch-rs" target="_blank">
                     <el-icon class="link-icon">
@@ -88,7 +88,7 @@
         </div>
 
         <div class="about-footer">
-            <p>© {{ new Date().getFullYear() }} ZeroLaunch - 基于 GPLv3 许可证开源</p>
+            <p>© {{ new Date().getFullYear() }} ZeroLaunch - {{ t('about.license') }}</p>
         </div>
     </div>
 </template>
@@ -98,6 +98,9 @@ import { ref, onMounted } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { Location, Search, Aim, Share, ElementPlus } from '@element-plus/icons-vue';
 import { getVersion } from '@tauri-apps/api/app';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
 
 const currentVersion = ref('v0.4.0'); // 假设当前版本
 const checkingUpdate = ref(false);
@@ -107,7 +110,6 @@ const updateStatus = ref(null);
 const checkUpdate = async () => {
     checkingUpdate.value = true;
     updateStatus.value = null;
-    console.log('检查更新');
     try {
 
         const latestVersion = await invoke('command_get_latest_release_version');
@@ -116,19 +118,19 @@ const checkUpdate = async () => {
         if (latestVersion === currentVersion.value) {
             updateStatus.value = {
                 type: 'success',
-                message: '您已经使用的是最新版本'
+                message: t('about.latest_version')
             };
         } else {
             updateStatus.value = {
                 type: 'warning',
-                message: `发现新版本: ${latestVersion}，请前往项目主页下载`
+                message: t('about.new_version_found', { version: latestVersion })
             };
         }
     } catch (error) {
         console.log(error)
         updateStatus.value = {
             type: 'error',
-            message: '检查更新失败: ' + error
+            message: t('about.update_check_failed') + ': ' + error
         };
     } finally {
         checkingUpdate.value = false; // 确保最终重置状态

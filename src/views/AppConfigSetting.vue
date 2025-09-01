@@ -1,102 +1,109 @@
 <template>
     <el-tabs style="height: 100%;">
-        <el-tab-pane label="通用设置" style="height: 100%;overflow-y: auto;">
+        <el-tab-pane :label="t('app_config.general_settings')" style="height: 100%;overflow-y: auto;">
             <el-form label-width="auto">
-                <el-divider content-position="left">启动与实例</el-divider>
-                <el-form-item label="设置开机自启动">
+                <el-divider content-position="left">{{ t('app_config.language_settings') }}</el-divider>
+                <el-form-item :label="t('app_config.language')">
+                    <el-select v-model="currentLanguage" @change="changeLanguage" style="width: 200px;">
+                        <el-option :label="t('app_config.chinese')" value="zh"></el-option>
+                        <el-option :label="t('app_config.english')" value="en"></el-option>
+                    </el-select>
+                </el-form-item>
+
+                <el-divider content-position="left">{{ t('app_config.startup_instance') }}</el-divider>
+                <el-form-item :label="t('app_config.auto_start')">
                     <el-switch v-model="config.app_config.is_auto_start"
                         @change="(val: boolean) => configStore.updateConfig({ app_config: { is_auto_start: val } })" />
                 </el-form-item>
 
-                <el-form-item label="设置静默启动">
+                <el-form-item :label="t('app_config.silent_start')">
                     <el-switch v-model="config.app_config.is_silent_start"
                         @change="(val: boolean) => configStore.updateConfig({ app_config: { is_silent_start: val } })" />
                 </el-form-item>
 
-                <el-form-item label="当唤醒程序失败时启动新实例">
+                <el-form-item :label="t('app_config.launch_new_on_failure')">
                     <el-switch v-model="config.app_config.launch_new_on_failure"
                         @change="(val: boolean) => configStore.updateConfig({ app_config: { launch_new_on_failure: val } })" />
                 </el-form-item>
 
-                <el-divider content-position="left">搜索与数据</el-divider>
-                <el-form-item label="设置搜索结果数量">
+                <el-divider content-position="left">{{ t('app_config.search_data') }}</el-divider>
+                <el-form-item :label="t('app_config.search_result_count')">
                     <el-input-number v-model="config.app_config.search_result_count" :step="1" :precision="0" :min="1"
                         @change="(val: number) => configStore.updateConfig({ app_config: { search_result_count: val } })" />
                 </el-form-item>
 
-                <el-form-item label="滚动模式阈值">
+                <el-form-item :label="t('app_config.scroll_threshold')">
                     <el-input-number v-model="config.app_config.scroll_threshold" :step="1" :precision="0" :min="1"
                         @change="(val: number) => configStore.updateConfig({ app_config: { scroll_threshold: val } })" />
-                    <el-tooltip class="box-item" effect="dark" content="当搜索结果数量超过此阈值时，界面将自动切换到滚动模式，避免界面显示异常">
+                    <el-tooltip class="box-item" effect="dark" :content="t('app_config.scroll_threshold_tooltip')">
                         <el-icon class="el-question-icon">
                             <QuestionFilled />
                         </el-icon>
                     </el-tooltip>
                 </el-form-item>
 
-                <el-form-item label="自动刷新数据库的时间">
+                <el-form-item :label="t('app_config.auto_refresh_time')">
                     <el-input-number v-model="config.app_config.auto_refresh_time" :step="1" :precision="0" :min="1"
                         @change="(val: number) => configStore.updateConfig({ app_config: { auto_refresh_time: val } })">
                         <template #suffix>
-                            <span>分钟</span>
+                            <span>{{ t('app_config.minutes') }}</span>
                         </template>
                     </el-input-number>
                 </el-form-item>
 
-                <el-divider content-position="left">窗口与交互</el-divider>
-                <el-form-item label="esc键优先关闭窗口">
+                <el-divider content-position="left">{{ t('app_config.window_interaction') }}</el-divider>
+                <el-form-item :label="t('app_config.esc_priority_close')">
                     <el-switch v-model="config.app_config.is_esc_hide_window_priority"
                         @change="(val: boolean) => configStore.updateConfig({ app_config: { is_esc_hide_window_priority: val } })" />
-                    <el-tooltip class="box-item" effect="dark" content="默认优先清空搜索栏后关闭">
+                    <el-tooltip class="box-item" effect="dark" :content="t('app_config.esc_priority_tooltip')">
                         <el-icon class="el-question-icon">
                             <QuestionFilled />
                         </el-icon>
                     </el-tooltip>
                 </el-form-item>
 
-                <el-form-item label="启用拖动窗口">
+                <el-form-item :label="t('app_config.enable_drag_window')">
                     <el-switch v-model="config.app_config.is_enable_drag_window"
                         @change="(val: boolean) => configStore.updateConfig({ app_config: { is_enable_drag_window: val } })" />
-                    <el-tooltip class="box-item" effect="dark" content="程序在下一次打开时会记忆上次的关闭的位置">
+                    <el-tooltip class="box-item" effect="dark" :content="t('app_config.drag_window_tooltip')">
                         <el-icon class="el-question-icon">
                             <QuestionFilled />
                         </el-icon>
                     </el-tooltip>
                 </el-form-item>
 
-                <el-form-item label="全屏时是否可以唤醒窗口">
+                <el-form-item :label="t('app_config.wake_on_fullscreen')">
                     <el-switch v-model="config.app_config.is_wake_on_fullscreen"
                         @change="(val: boolean) => configStore.updateConfig({ app_config: { is_wake_on_fullscreen: val } })" />
-                    <el-tooltip class="box-item" effect="dark"
-                        content="与游戏模式的区别：游戏模式会取消注册唤醒的快捷键，让游戏可以接收到这个快捷键在，而该选项依然会保留快捷键">
+                    <el-tooltip class="box-item" effect="dark" :content="t('app_config.wake_fullscreen_tooltip')">
                         <el-icon class="el-question-icon">
                             <QuestionFilled />
                         </el-icon>
                     </el-tooltip>
                 </el-form-item>
 
-                <el-form-item label="唤醒窗口的位置是否跟随鼠标">
+                <el-form-item :label="t('app_config.follow_mouse')">
                     <el-switch v-model="config.app_config.show_pos_follow_mouse"
                         @change="(val: boolean) => configStore.updateConfig({ app_config: { show_pos_follow_mouse: val } })" />
-                    <el-tooltip class="box-item" effect="dark" content="只推荐多个显示器的分辨率，缩放率均一样时才开启，否则会遇到适配问题">
+                    <el-tooltip class="box-item" effect="dark" :content="t('app_config.follow_mouse_tooltip')">
                         <el-icon class="el-question-icon">
                             <QuestionFilled />
                         </el-icon>
                     </el-tooltip>
                 </el-form-item>
 
-                <el-form-item label="按下空格启动程序">
+                <el-form-item :label="t('app_config.space_is_enter')">
                     <el-switch v-model="config.app_config.space_is_enter"
                         @change="(val: boolean) => configStore.updateConfig({ app_config: { space_is_enter: val } })" />
-                    <el-tooltip class="box-item" effect="dark" content="启动后，空格键的作用与enter键一样，同时无法再输入空格键">
+                    <el-tooltip class="box-item" effect="dark" :content="t('app_config.space_enter_tooltip')">
                         <el-icon class="el-question-icon">
                             <QuestionFilled />
                         </el-icon>
                     </el-tooltip>
                 </el-form-item>
 
-                <el-divider content-position="left">高级</el-divider>
-                <el-form-item label="调试模式">
+                <el-divider content-position="left">{{ t('app_config.advanced') }}</el-divider>
+                <el-form-item :label="t('app_config.debug_mode')">
                     <el-switch v-model="config.app_config.is_debug_mode"
                         @change="(val: boolean) => configStore.updateConfig({ app_config: { is_debug_mode: val } })" />
                 </el-form-item>
@@ -113,14 +120,27 @@
 import { QuestionFilled } from '@element-plus/icons-vue'
 import { useRemoteConfigStore } from '../stores/remote_config'; // 确认路径正确
 import { storeToRefs } from 'pinia';
+import { useI18n } from 'vue-i18n';
+import { ref } from 'vue';
+import { initializeLanguage } from '../i18n/index';
 
+const { t, locale } = useI18n();
 const configStore = useRemoteConfigStore()
 const { config } = storeToRefs(configStore)
+
+// 语言切换功能
+const currentLanguage = ref(config.value.app_config.language);
+console.log(currentLanguage)
+const changeLanguage = (lang: string) => {
+    // 使用全局语言初始化函数
+    initializeLanguage(lang);
+    currentLanguage.value = lang;
+    configStore.updateConfig({ app_config: { language: lang } });
+};
 
 </script>
 
 <style>
-/* 确保你的样式（例如 .el-question-icon）仍然可用 */
 .el-question-icon {
     margin-left: 8px;
 }

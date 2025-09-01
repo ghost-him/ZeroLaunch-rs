@@ -3,7 +3,7 @@
         <div class="sidebar">
             <div class="header">
                 <img src="../assets/icon.svg" alt="Logo" class="logo">
-                <span class="title">选项</span>
+                <span class="title">{{ t('settings.title') }}</span>
             </div>
             <div class="menu-container">
                 <div v-for="(item, index) in menuItems" :key="index" class="menu-item"
@@ -19,12 +19,12 @@
                     <el-icon>
                         <Monitor />
                     </el-icon>
-                    <span class="menu-text">调试模式</span>
+                    <span class="menu-text">{{ t('settings.debug_mode') }}</span>
                 </div>
             </div>
             <div class="footer-item">
                 <el-button type="primary" @click="save_config" :disabled="activeIndex >= 5">
-                    <span>保存配置文件</span>
+                    <span>{{ t('settings.save_config') }}</span>
                 </el-button>
             </div>
         </div>
@@ -47,60 +47,66 @@
 
             <section v-if="activeIndex === 3" class="page">
                 <el-tabs style="height: 100%">
-                    <el-tab-pane label="自定义网址搜索" style="height: 100%">
+                    <el-tab-pane :label="t('settings.custom_web_search')" style="height: 100%">
                         <div style="display: flex; flex-direction: column; height: 100%;">
                             <el-button class="mt-4" style="width: 100%;  flex-shrink: 0;" @click="addIndexWebPage">
-                                添加项目
+                                {{ t('settings.add_item') }}
                             </el-button>
                             <el-table :data="index_web_pages" stripe
                                 style="width: 100%;flex-grow: 1; height: 0; min-height: 0; margin-top: 10px;">
-                                <el-table-column label="关键字（用于搜索程序的匹配）" show-overflow-tooltip fixed="left" width="150">
+                                <el-table-column :label="t('settings.keyword_for_search')" show-overflow-tooltip
+                                    fixed="left" width="150">
                                     <template #default="scope">
                                         <el-input v-model="index_web_pages[scope.$index][0]" size="small"
-                                            placeholder="请输入关键字" @change="updateIndexWebPages"></el-input>
+                                            :placeholder="t('settings.enter_keyword')"
+                                            @change="updateIndexWebPages"></el-input>
                                     </template>
                                 </el-table-column>
-                                <el-table-column label="目标网站的地址" show-overflow-tooltip>
+                                <el-table-column :label="t('settings.target_website_address')" show-overflow-tooltip>
                                     <template #default="scope">
                                         <el-input v-model="index_web_pages[scope.$index][1]" size="small"
-                                            placeholder="请输入目标路径" @change="updateIndexWebPages"></el-input>
+                                            :placeholder="t('settings.enter_target_path')"
+                                            @change="updateIndexWebPages"></el-input>
                                     </template>
                                 </el-table-column>
-                                <el-table-column fixed="right" label="操作" width="100">
+                                <el-table-column fixed="right" :label="t('settings.actions')" width="100">
                                     <template #default="scope">
                                         <el-button link size="small" type="danger"
                                             @click="deleteIndexWebPages(scope.$index)">
-                                            删除一行
+                                            {{ t('settings.delete_row') }}
                                         </el-button>
                                     </template>
                                 </el-table-column>
                             </el-table>
                         </div>
                     </el-tab-pane>
-                    <el-tab-pane label="自定义命令搜索" style="height: 100%">
+                    <el-tab-pane :label="t('settings.custom_command_search')" style="height: 100%">
                         <div style="display: flex; flex-direction: column; height: 100%;">
                             <el-button class="mt-4" style="width: 100%;  flex-shrink: 0;" @click="addCustomCommand">
-                                添加项目
+                                {{ t('settings.add_item') }}
                             </el-button>
                             <el-table :data="custom_command" stripe
                                 style="width: 100%;flex-grow: 1; height: 0; min-height: 0; margin-top: 10px;">
-                                <el-table-column label="关键字（用于搜索程序的匹配）" show-overflow-tooltip fixed="left" width="150">
+                                <el-table-column :label="t('settings.keyword_for_search')" show-overflow-tooltip
+                                    fixed="left" width="150">
                                     <template #default="scope">
                                         <el-input v-model="custom_command[scope.$index][0]" size="small"
-                                            placeholder="请输入关键字" @change="updateCustomCommand"></el-input>
+                                            :placeholder="t('settings.enter_keyword')"
+                                            @change="updateCustomCommand"></el-input>
                                     </template>
                                 </el-table-column>
-                                <el-table-column label="命令内容" show-overflow-tooltip>
+                                <el-table-column :label="t('settings.command_content')" show-overflow-tooltip>
                                     <template #default="scope">
                                         <el-input v-model="custom_command[scope.$index][1]" size="small"
-                                            placeholder="请输入命令内容" @change="updateCustomCommand"></el-input>
+                                            :placeholder="t('settings.enter_command_content')"
+                                            @change="updateCustomCommand"></el-input>
                                     </template>
                                 </el-table-column>
-                                <el-table-column fixed="right" label="操作" width="100">
+                                <el-table-column fixed="right" :label="t('settings.actions')" width="100">
                                     <template #default="scope">
                                         <el-button link size="small" type="danger"
                                             @click="deleteCustomCommand(scope.$index)">
-                                            删除一行
+                                            {{ t('settings.delete_row') }}
                                         </el-button>
                                     </template>
                                 </el-table-column>
@@ -114,16 +120,10 @@
             <section v-if="activeIndex === 4" class="page">
                 <div style="display: flex; flex-direction: column; height: 100%;">
                     <el-button class="mt-4" style="width: 100%; flex-shrink: 0;" @click="refreshProgramInfo">
-                        点击刷新
+                        {{ t('settings.click_refresh') }}
                     </el-button>
-                    <el-table-v2
-                        :columns="columns"
-                        :data="programInfoList"
-                        :width="1000"
-                        :height="600"
-                        fixed
-                        style="width: 100%;flex-grow: 1; margin-top: 10px;"
-                    />
+                    <el-table-v2 :columns="columns" :data="programInfoList" :width="1000" :height="600" fixed
+                        style="width: 100%;flex-grow: 1; margin-top: 10px;" />
                 </div>
             </section>
 
@@ -145,36 +145,28 @@
         </div>
     </div>
 
-     <el-dialog
-            v-if="editingProgram"
-            v-model="dialogVisible"
-            :title="`编辑程序 '${editingProgram.name}' 的别名`"
-            width="500"
-        >
-            <div style="display: flex; flex-direction: column; gap: 10px;">
-                <div 
-                    v-for="(alias, index) in program_alias[editingProgram.path]" 
-                    :key="index"
-                    style="display: flex; align-items: center; gap: 10px;"
-                >
-                    <el-input 
-                        :model-value="alias"
-                        @update:modelValue="newValue => updateAliasInDialog(index, newValue)"
-                        placeholder="请输入别名"
-                    />
-                    <el-button type="danger" @click="removeAliasInDialog(index)">删除</el-button>
-                </div>
+    <el-dialog v-if="editingProgram" v-model="dialogVisible"
+        :title="t('settings.edit_program_alias', { name: editingProgram.name })" width="500">
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+            <div v-for="(alias, index) in program_alias[editingProgram.path]" :key="index"
+                style="display: flex; align-items: center; gap: 10px;">
+                <el-input :model-value="alias" @update:modelValue="newValue => updateAliasInDialog(index, newValue)"
+                    :placeholder="t('settings.enter_alias')" />
+                <el-button type="danger" @click="removeAliasInDialog(index)">{{ t('settings.delete') }}</el-button>
             </div>
-            <template #footer>
-                <div class="dialog-footer">
-                    <el-button @click="addAliasInDialog" style="width: 100%; margin-bottom: 10px;">添加一个别名</el-button>
-                    <el-button type="primary" @click="dialogVisible = false">关闭</el-button>
-                </div>
-            </template>
-        </el-dialog>
+        </div>
+        <template #footer>
+            <div class="dialog-footer">
+                <el-button @click="addAliasInDialog" style="width: 100%; margin-bottom: 10px;">{{
+                    t('settings.add_alias') }}</el-button>
+                <el-button type="primary" @click="dialogVisible = false">{{ t('settings.close') }}</el-button>
+            </div>
+        </template>
+    </el-dialog>
 </template>
 
 <script lang="ts" setup>
+import { useI18n } from 'vue-i18n';
 import { ref, onMounted, computed, onUnmounted, h } from 'vue';
 import {
     Setting,
@@ -186,7 +178,10 @@ import {
     Monitor
 } from '@element-plus/icons-vue';
 
+const { t } = useI18n();
+
 import { invoke } from '@tauri-apps/api/core';
+import { initializeLanguage } from '../i18n/index';
 import { ElButton, ElInput, ElMessage, ElTag } from 'element-plus';
 import ProgramIndex from './ProgramIndex.vue';
 import { useRemoteConfigStore } from '../stores/remote_config';
@@ -209,16 +204,16 @@ interface MenuItem {
 
 const activeIndex = ref(0);
 
-const menuItems: MenuItem[] = [
-    { title: '常规设置', icon: Setting },
-    { title: '外观设置', icon: Brush },
-    { title: '程序搜索', icon: Search },
-    { title: '其他搜索', icon: Search },
-    { title: '所有程序', icon: List },
-    { title: '远程管理', icon: Connection },
-    { title: '快捷键设置', icon: Search },
-    { title: '关于', icon: InfoFilled }
-];
+const menuItems = computed<MenuItem[]>(() => [
+    { title: t('settings.menu.general'), icon: Setting },
+    { title: t('settings.menu.appearance'), icon: Brush },
+    { title: t('settings.menu.program_search'), icon: Search },
+    { title: t('settings.menu.other_search'), icon: Search },
+    { title: t('settings.menu.all_programs'), icon: List },
+    { title: t('settings.menu.remote_management'), icon: Connection },
+    { title: t('settings.menu.shortcuts'), icon: Search },
+    { title: t('settings.menu.about'), icon: InfoFilled }
+]);
 
 
 const index_web_pages = computed({
@@ -279,7 +274,7 @@ const addCustomCommand = () => {
 const program_alias = computed({
     get: () => config.value.program_manager_config.loader.program_alias,
     set: (value) => {
-        console.log("更新pinia");
+        console.log(t('settings.update_pinia'));
         configStore.updateConfig({
             program_manager_config: {
                 loader: { program_alias: value }
@@ -287,21 +282,21 @@ const program_alias = computed({
         })
     }
 })
-const columns = [
-    { key: 'name', dataKey: 'name', title: '程序名', width: 150 },
-    { key: 'is_uwp', dataKey: 'is_uwp', title: '是否是UWP程序', width: 120 },
-    { key: 'bias', dataKey: 'bias', title: '固定偏移量', width: 100 },
-    { key: 'history_launch_time', dataKey: 'history_launch_time', title: '启动次数', width: 100 },
-    { key: 'path', dataKey: 'path', title: '路径', width: 200 },
+const columns = computed(() => [
+    { key: 'name', dataKey: 'name', title: t('settings.program_name'), width: 150 },
+    { key: 'is_uwp', dataKey: 'is_uwp', title: t('settings.is_uwp_program'), width: 120 },
+    { key: 'bias', dataKey: 'bias', title: t('settings.fixed_offset'), width: 100 },
+    { key: 'history_launch_time', dataKey: 'history_launch_time', title: t('settings.launch_count'), width: 100 },
+    { key: 'path', dataKey: 'path', title: t('settings.path'), width: 200 },
     {
         key: 'aliases',
-        title: '别名',
+        title: t('settings.aliases'),
         width: 300,
         cellRenderer: ({ rowData }: { rowData: ProgramInfo }) => {
             const aliasList = program_alias.value[rowData.path] || [];
-            
+
             // 使用 El-Tag 展示别名
-            const tags = aliasList.map(alias => 
+            const tags = aliasList.map(alias =>
                 h(ElTag, { style: 'margin-right: 5px; margin-bottom: 5px;', type: 'info', size: 'small' }, () => alias)
             );
 
@@ -311,13 +306,13 @@ const columns = [
                 type: 'primary',
                 link: true, // 使用链接样式，更简洁
                 onClick: () => handleEditAliases(rowData)
-            }, () => '管理别名');
+            }, () => t('settings.manage_aliases'));
 
             // 将标签和按钮包裹在一个 div 中
             return h('div', { style: 'display: flex; flex-wrap: wrap; align-items: center;' }, [...tags, editButton]);
         }
     }
-];
+]);
 
 // 用于控制对话框的状态
 const dialogVisible = ref(false)
@@ -380,14 +375,14 @@ const refreshProgramInfo = async () => {
         const data = await invoke<ProgramInfo[]>('get_program_info')
         programInfoList.value = data
     } catch (error) {
-        console.error('获取程序信息失败:', error)
+        console.error(t('settings.get_program_info_failed'), error)
     }
 }
 
 const save_config = async () => {
     await configStore.syncConfig()
     ElMessage({
-        message: '配置文件已保存',
+        message: t('settings.config_saved'),
         type: 'success',
     })
 }
@@ -396,9 +391,12 @@ let unlisten: Array<UnlistenFn | null> = [];
 
 onMounted(async () => {
     await configStore.loadConfig()
+    // 应用语言设置
+    initializeLanguage(config.value.app_config.language)
     unlisten.push(await listen('emit_update_setting_window_config', async () => {
-        console.log("收到")
         await configStore.loadConfig()
+        // 配置更新后重新应用语言设置
+        initializeLanguage(config.value.app_config.language)
     }))
 })
 

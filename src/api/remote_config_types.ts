@@ -71,6 +71,7 @@ export type AppConfig = {
     space_is_enter: boolean,
     show_pos_follow_mouse: boolean,
     scroll_threshold: number,
+    language: string,
 }
 
 export function default_app_config(): AppConfig {
@@ -90,6 +91,7 @@ export function default_app_config(): AppConfig {
         space_is_enter: false,
         show_pos_follow_mouse: false,
         scroll_threshold: 10,
+        language: 'zh',
     } as AppConfig;
 }
 

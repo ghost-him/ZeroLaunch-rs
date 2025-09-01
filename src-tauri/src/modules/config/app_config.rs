@@ -21,6 +21,7 @@ pub struct PartialAppConfig {
     pub show_pos_follow_mouse: Option<bool>,
     pub is_initial: Option<bool>,
     pub scroll_threshold: Option<u32>,
+    pub language: Option<String>,
 }
 
 /// 与程序设置有关的，比如是不是要开机自动启动等
@@ -75,6 +76,9 @@ pub struct AppConfigInner {
     /// 启用滚动模式的搜索结果数量阈值
     #[serde(default = "AppConfigInner::default_scroll_threshold")]
     pub scroll_threshold: u32,
+    /// 应用程序语言设置
+    #[serde(default = "AppConfigInner::default_language")]
+    pub language: String,
 }
 
 impl Default for AppConfigInner {
@@ -96,6 +100,7 @@ impl Default for AppConfigInner {
             show_pos_follow_mouse: Self::default_show_pos_follow_mouse(),
             is_initial: Self::default_is_initial(),
             scroll_threshold: Self::default_scroll_threshold(),
+            language: Self::default_language(),
         }
     }
 }
@@ -161,6 +166,10 @@ impl AppConfigInner {
     pub(crate) fn default_scroll_threshold() -> u32 {
         10
     }
+
+    pub(crate) fn default_language() -> String {
+        "zh".to_string()
+    }
 }
 
 impl AppConfigInner {
@@ -210,6 +219,9 @@ impl AppConfigInner {
         if let Some(scroll_threshold) = partial_app_config.scroll_threshold {
             self.scroll_threshold = scroll_threshold;
         }
+        if let Some(language) = partial_app_config.language {
+            self.language = language;
+        }
         // 一但有东西写入了，则说明已经被初始化了
         self.is_initial = true;
     }
@@ -231,6 +243,7 @@ impl AppConfigInner {
             show_pos_follow_mouse: Some(self.show_pos_follow_mouse),
             is_initial: Some(self.is_initial),
             scroll_threshold: Some(self.scroll_threshold),
+            language: Some(self.language.clone()),
         }
     }
 }
@@ -336,5 +349,10 @@ impl AppConfig {
     pub fn get_scroll_threshold(&self) -> u32 {
         let inner = self.inner.read();
         inner.scroll_threshold
+    }
+
+    pub fn get_language(&self) -> String {
+        let inner = self.inner.read();
+        inner.language.clone()
     }
 }

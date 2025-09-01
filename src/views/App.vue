@@ -18,17 +18,11 @@
               d="M795.904 750.72l124.992 124.928a32 32 0 0 1-45.248 45.248L750.656 795.904a416 416 0 1 1 45.248-45.248zM480 832a352 352 0 1 0 0-704 352 352 0 0 0 0 704z" />
           </svg>
         </span>
-        <AnimatedInput
-          v-model="searchText"
-          :placeholder="app_config.search_bar_placeholder"
-          ref="searchBarRef"
+        <AnimatedInput v-model="searchText" :placeholder="app_config.search_bar_placeholder" ref="searchBarRef"
           @contextmenu.prevent="contextSearchBarEvent"
           :font-size="Math.round(ui_config.search_bar_height * ui_config.search_bar_font_size / 100) + 'px'"
-          :color="ui_config.search_bar_font_color"
-          :font-family="ui_config.search_bar_font_family"
-          :placeholder-color="ui_config.search_bar_placeholder_font_color"
-          :dynamic="ui_config.search_bar_animate"
-        />
+          :color="ui_config.search_bar_font_color" :font-family="ui_config.search_bar_font_family"
+          :placeholder-color="ui_config.search_bar_placeholder_font_color" :dynamic="ui_config.search_bar_animate" />
       </div>
 
       <!-- 二级菜单,外观与另一个菜单保持一致 -->
@@ -83,7 +77,8 @@
       </div>
       <div class="footer-center drag_area"></div>
       <div class="footer-right">
-        <span class="open-text" :style="{ color: ui_config.footer_font_color }">{{ is_loading_icons ? '当前正在后台加载程序图标...' :
+        <span class="open-text" :style="{ color: ui_config.footer_font_color }">{{ is_loading_icons ?
+          t('app.loading_icons') :
           right_tips
           }}</span>
       </div>
@@ -101,6 +96,10 @@ import SubMenu from '../utils/SubMenu.vue';
 import { FolderOpened, Refresh, Setting, StarFilled } from '@element-plus/icons-vue';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import AnimatedInput from './components/AnimatedInput.vue';
+import { useI18n } from 'vue-i18n';
+import { initializeLanguage } from '../i18n';
+
+const { t } = useI18n();
 
 const app_config = ref<AppConfig>(default_app_config())
 const ui_config = ref<UIConfig>(default_ui_config())
@@ -115,7 +114,7 @@ const latest_launch_program = ref<Array<[number, string]>>([]);
 // 当前是否按下了alt键
 const is_alt_pressed = ref<boolean>(false);
 //右下角的提示词
-const right_tips = ref<string>('最佳匹配');
+const right_tips = ref<string>(t('app.best_match'));
 const menuItems = ref<Array<string>>([]);
 const menuIcons = ref<Array<string>>([]);
 const program_icons = ref<Map<number, string>>(new Map<number, string>([]));
@@ -151,7 +150,7 @@ watch(searchText, (newVal) => {
 
 const sendSearchText = async (text: string) => {
   try {
-    const results: Array<[number, string]> = await invoke('handle_search_text', { searchText: text , searchCount: app_config.value.search_result_count});
+    const results: Array<[number, string]> = await invoke('handle_search_text', { searchText: text, searchCount: app_config.value.search_result_count });
     searchResults.value = results;
     await refresh_result_items();
   } catch (error) {
@@ -181,18 +180,18 @@ const refresh_result_items = async () => {
     menuItems.value = searchResults.value.map(([_, item]) => item);
     let keys = searchResults.value.map(([key, _]) => key);
     menuIcons.value = await getIcons(keys);
-    right_tips.value = '最佳匹配';
+    right_tips.value = t('app.best_match');
   } else {
     menuItems.value = latest_launch_program.value.map(([_, item]) => item);
     let keys = latest_launch_program.value.map(([key, _]) => key);
     menuIcons.value = await getIcons(keys);
-    right_tips.value = '最近打开';
+    right_tips.value = t('app.recent_open');
   }
 }
 
 const searchBarMenuBuf = ref<InstanceType<typeof SubMenu> | null>(null);
-const searchBarMenuItems = shallowRef([{ name: '打开设置界面', icon: Setting, action: () => { openSettingsWindow() } },
-{ name: '刷新数据库', icon: Refresh, action: () => { refreshDataset() } }]);
+const searchBarMenuItems = computed(() => [{ name: t('menu.open_settings'), icon: Setting, action: () => { openSettingsWindow() } },
+{ name: t('menu.refresh_database'), icon: Refresh, action: () => { refreshDataset() } }]);
 
 const contextSearchBarEvent = (event: MouseEvent) => {
   if (resultItemMenuRef.value?.isVisible) {
@@ -215,7 +214,7 @@ const openSettingsWindow = () => {
 
 // 刷新程序库
 const refreshDataset = async () => {
-  console.log("开始刷新");
+  console.log(t('app.start_refresh'));
   await invoke('hide_window');
   await invoke('refresh_program');
   updateWindow();
@@ -231,15 +230,13 @@ const updateWindow = async () => {
     app_config.value = { ...app_config.value, ...data[0] }
     ui_config.value = { ...ui_config.value, ...data[1] }
     shortcut_config.value = { ...shortcut_config.value, ...data[2] }
-
+    await initializeLanguage(app_config.value.language);
     const elements = document.querySelectorAll('.drag_area');
     if (app_config.value.is_enable_drag_window) {
-      console.log('添加标志')
       elements.forEach(element => {
         element.setAttribute('data-tauri-drag-region', 'true');
       });
     } else {
-      console.log('删除标志')
       elements.forEach(element => {
         element.removeAttribute('data-tauri-drag-region');
       });
@@ -286,7 +283,7 @@ const startPreloadResource = async (program_count: number) => {
         const url = URL.createObjectURL(blob);
         program_icons.value.set(programId, url);
       } catch (error) {
-        console.error(`预加载图标失败: ${programId}`, error);
+        console.error(`${t('app.preload_icon_failed')}: ${programId}`, error);
       }
     }));
   }
@@ -311,7 +308,6 @@ const getIcons = async (keys: Array<number>) => {
 
 // 处理选中项目的函数，现在接收 ctrlKey 参数
 const launch_program = (itemIndex: number, ctrlKey = false, shiftKey = false) => {
-  console.log("向后端调用");
   const program_guid = is_alt_pressed.value ? latest_launch_program.value[itemIndex][0] : searchResults.value[itemIndex][0]
   invoke('launch_program', { programGuid: program_guid, ctrl: ctrlKey, shift: shiftKey });
   // 这里可以添加实际的处理逻辑
@@ -410,17 +406,17 @@ const handleKeyDown = async (event: KeyboardEvent) => {
   if (event.key === 'ArrowRight' || matchShortcut(shortcut_config.value.arrow_right)) {
     const isAtEnd = inputElement && (inputElement.selectionStart === searchText.value.length);
     if (!isMenuVisible && isAtEnd && document.activeElement === inputElement) {
-        // 只有在光标在末尾时，才阻止默认行为并执行我们的操作（比如打开子菜单）
-        event.preventDefault();
-        handleAction(ActionType.MOVE_RIGHT, isMenuVisible);
+      // 只有在光标在末尾时，才阻止默认行为并执行我们的操作（比如打开子菜单）
+      event.preventDefault();
+      handleAction(ActionType.MOVE_RIGHT, isMenuVisible);
     }
     return;
   }
 
   if (event.key === 'ArrowLeft' || matchShortcut(shortcut_config.value.arrow_left)) {
     if (isMenuVisible) {
-        event.preventDefault();
-        handleAction(ActionType.MOVE_LEFT, isMenuVisible);
+      event.preventDefault();
+      handleAction(ActionType.MOVE_LEFT, isMenuVisible);
     }
     return;
   }
@@ -544,7 +540,7 @@ const program_backgroundStyle = computed(() => ({
 
 const applyTheme = async (isDark: boolean) => {
   // 这里可以根据实际主题需求设置颜色变量
-  console.log(`主题变更为: ${isDark ? '深色' : '浅色'}`);
+  console.log(`主题变更为: ${isDark ? t('app.theme_change_dark') : t('app.theme_change_light')}`);
   is_dark.value = isDark;
   await invoke('command_change_tray_icon', { isDark: isDark })
 }
@@ -572,8 +568,8 @@ const handleRightArrow = (event: KeyboardEvent) => {
 
 
 const resultItemMenuRef = ref<InstanceType<typeof SubMenu> | null>(null);
-const resultSubMenuItems = shallowRef([{ name: '打开文件位置', icon: FolderOpened, action: () => { openFolder() } },
-{ name: '以管理员身份运行', icon: StarFilled, action: () => { runTargetProgramWithAdmin() } }]);
+const resultSubMenuItems = computed(() => [{ name: t('app.open_file_location'), icon: FolderOpened, action: () => { openFolder() } },
+{ name: t('app.run_as_admin'), icon: StarFilled, action: () => { runTargetProgramWithAdmin() } }]);
 
 const contextResultItemEvent = (index: number, event: MouseEvent) => {
   if (searchBarMenuBuf.value?.isVisible) {
@@ -644,7 +640,6 @@ onMounted(async () => {
     }
   }, { passive: false });
   unlisten.push(await listen('update_search_bar_window', () => {
-    console.log("收到更新请求");
     updateWindow();
   }));
   unlisten.push(await listen('handle_focus_lost', () => {
@@ -729,7 +724,8 @@ main {
   align-items: center;
   border-bottom: 1px solid rgba(0, 0, 0, 0.05);
   flex-shrink: 0;
-  flex-grow: 1; /* 确保它能填满剩余空间 */
+  flex-grow: 1;
+  /* 确保它能填满剩余空间 */
   min-width: 0;
 }
 
@@ -751,6 +747,7 @@ main {
   max-height: v-bind(scrollModeMaxHeight);
   overflow-y: auto;
 }
+
 /* 自定义滚动条样式 */
 .results-list::-webkit-scrollbar {
   width: 6px;

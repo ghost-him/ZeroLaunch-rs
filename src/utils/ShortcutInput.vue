@@ -1,23 +1,26 @@
 <template>
     <div class="shortcut-input">
-        <label class="shortcut-label">{{ label }}</label>
+        <label class="shortcut-label">{{ label || t('shortcut_input.shortcut') }}</label>
         <div class="key-display" :class="{ 'listening': isListening, 'disabled': disabled }" @click="startListening"
             tabindex="disabled ? -1 : 0">
             <i class="el-icon-keyboard" v-if="!displayValue"></i>
-            {{ displayValue || (disabled ? '已禁用' : '点击设置快捷键') }}
+            {{ displayValue || (disabled ? t('shortcut_input.disabled') : t('shortcut_input.click_to_set')) }}
         </div>
     </div>
 </template>
 
 <script lang="ts" setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { Shortcut } from '../api/remote_config_types'
 import { PropType } from 'vue';
+
+const { t } = useI18n();
 
 const props = defineProps({
     label: {
         type: String,
-        default: '快捷键'
+        default: ''
     },
     modelValue: {
         type: Object as PropType<Shortcut | null>,

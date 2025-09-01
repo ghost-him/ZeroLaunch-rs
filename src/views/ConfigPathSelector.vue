@@ -1,11 +1,11 @@
 <template>
     <div class="storage-config-container" style="height: 100%; overflow-y: auto;">
-        <h2 class="page-title">配置文件存储设置</h2>
+        <h2 class="page-title">{{ t('config_path.title') }}</h2>
 
         <el-form :model="formData" label-width="180px" class="storage-config-form">
-            <el-form-item label="配置文件存储位置" class="storage-type-selector">
+            <el-form-item :label="t('config_path.storage_location')" class="storage-type-selector">
                 <el-radio-group v-model="formData.storage_destination" size="large">
-                    <el-radio-button value="Local">本地存储</el-radio-button>
+                    <el-radio-button value="Local">{{ t('config_path.local_storage') }}</el-radio-button>
                     <el-radio-button value="WebDAV">WebDAV</el-radio-button>
                     <!--<el-radio-button value="OneDrive">OneDrive</el-radio-button> -->
                 </el-radio-group>
@@ -14,11 +14,12 @@
             <!-- 存储配置区块 -->
             <div class="config-section">
                 <div v-if="formData.storage_destination === 'Local'" class="storage-section">
-                    <h3 class="section-title">本地存储设置</h3>
-                    <el-form-item label="配置文件保存路径">
+                    <h3 class="section-title">{{ t('config_path.local_storage_settings') }}</h3>
+                    <el-form-item :label="t('config_path.config_file_save_path')">
                         <div class="path-input-container">
-                            <el-input v-model="formData.local_save_config.destination_dir" placeholder="配置文件保存路径"
-                                readonly class="path-display" :title="formData.local_save_config.destination_dir">
+                            <el-input v-model="formData.local_save_config.destination_dir"
+                                :placeholder="t('config_path.config_file_save_path_placeholder')" readonly
+                                class="path-display" :title="formData.local_save_config.destination_dir">
                                 <template #prefix>
                                     <el-icon>
                                         <Folder />
@@ -29,12 +30,12 @@
                                 <el-button type="primary" @click="handleChangeConfigPath">
                                     <el-icon>
                                         <FolderOpened />
-                                    </el-icon> 选择路径
+                                    </el-icon> {{ t('config_path.select_path') }}
                                 </el-button>
                                 <el-button @click="handleUseDefaultPath">
                                     <el-icon>
                                         <SetUp />
-                                    </el-icon> 使用默认路径
+                                    </el-icon> {{ t('config_path.use_default_path') }}
                                 </el-button>
                             </div>
                         </div>
@@ -44,9 +45,10 @@
 
             <!-- WebDAV 配置 -->
             <div v-if="formData.storage_destination === 'WebDAV'" class="storage-section">
-                <h3 class="section-title">WebDAV 设置</h3>
-                <el-form-item label="服务器地址">
-                    <el-input v-model="formData.webdav_save_config.host_url" placeholder="请输入 WebDAV 服务器地址">
+                <h3 class="section-title">{{ t('config_path.webdav_settings') }}</h3>
+                <el-form-item :label="t('config_path.server_address')">
+                    <el-input v-model="formData.webdav_save_config.host_url"
+                        :placeholder="t('config_path.webdav_server_placeholder')">
                         <template #prefix>
                             <el-icon>
                                 <Link />
@@ -54,8 +56,9 @@
                         </template>
                     </el-input>
                 </el-form-item>
-                <el-form-item label="账号">
-                    <el-input v-model="formData.webdav_save_config.account" placeholder="请输入账号">
+                <el-form-item :label="t('config_path.account')">
+                    <el-input v-model="formData.webdav_save_config.account"
+                        :placeholder="t('config_path.account_placeholder')">
                         <template #prefix>
                             <el-icon>
                                 <User />
@@ -63,9 +66,9 @@
                         </template>
                     </el-input>
                 </el-form-item>
-                <el-form-item label="密码">
-                    <el-input v-model="formData.webdav_save_config.password" type="password" placeholder="请输入密码"
-                        show-password>
+                <el-form-item :label="t('config_path.password')">
+                    <el-input v-model="formData.webdav_save_config.password" type="password"
+                        :placeholder="t('config_path.password_placeholder')" show-password>
                         <template #prefix>
                             <el-icon>
                                 <Lock />
@@ -73,8 +76,9 @@
                         </template>
                     </el-input>
                 </el-form-item>
-                <el-form-item label="目标目录">
-                    <el-input v-model="formData.webdav_save_config.destination_dir" placeholder="请输入目标目录">
+                <el-form-item :label="t('config_path.target_directory')">
+                    <el-input v-model="formData.webdav_save_config.destination_dir"
+                        :placeholder="t('config_path.target_directory_placeholder')">
                         <template #prefix>
                             <el-icon>
                                 <FolderOpened />
@@ -157,11 +161,11 @@
 
             <!-- 通用设置区块 -->
             <div class="config-section">
-                <h3 class="section-title">通用设置</h3>
-                <el-form-item label="配置缓存次数">
+                <h3 class="section-title">{{ t('config_path.general_settings') }}</h3>
+                <el-form-item :label="t('config_path.config_cache_count')">
                     <el-input-number v-model="formData.save_to_local_per_update" :min="0" :step="1" :precision="0"
                         controls-position="right" class="number-input" />
-                    <span class="input-description">设置为0表示每次保存配置都上传</span>
+                    <span class="input-description">{{ t('config_path.config_cache_description') }}</span>
                 </el-form-item>
             </div>
 
@@ -169,17 +173,17 @@
                 <el-button type="primary" @click="testConfigValidation">
                     <el-icon>
                         <Connection />
-                    </el-icon> 测试连接
+                    </el-icon> {{ t('config_path.test_connection') }}
                 </el-button>
                 <el-button type="primary" @click="saveConfig" :disabled="!allowSave">
                     <el-icon>
                         <Collection />
-                    </el-icon> 保存配置
+                    </el-icon> {{ t('config_path.save_config') }}
                 </el-button>
                 <el-button @click="resetConfig">
                     <el-icon>
                         <RefreshRight />
-                    </el-icon> 重置
+                    </el-icon> {{ t('config_path.reset') }}
                 </el-button>
             </div>
         </el-form>
@@ -188,6 +192,7 @@
 
 <script lang="ts" setup>
 import { ref, reactive, onMounted, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useLocalConfigStore } from '../stores/local_config'
 import { ElMessage } from 'element-plus'
 import {
@@ -198,6 +203,8 @@ import { open } from '@tauri-apps/plugin-dialog'
 import { invoke } from '@tauri-apps/api/core'
 import { PartialLocalConfig } from '../api/local_config_types'
 import { listen, UnlistenFn } from '@tauri-apps/api/event'
+
+const { t } = useI18n()
 const auth_link = ref('')
 const allowSave = ref(false)
 // 获取配置存储
@@ -236,14 +243,14 @@ const handleChangeConfigPath = async () => {
             canCreateDirectories: true,
             directory: true,
             multiple: false,
-            title: "选择配置文件保存位置"
+            title: t('config_path.select_config_save_location')
         });
 
         if (selected) {
             formData.local_save_config.destination_dir = selected;
         }
     } catch (error) {
-        handleError('选择文件夹失败', error);
+        handleError(t('config_path.select_folder_failed'), error);
     }
 
     console.log('打开文件选择对话框')
@@ -253,7 +260,7 @@ const handleChangeConfigPath = async () => {
 const handleUseDefaultPath = async () => {
     const default_path = await invoke<string>('command_get_default_remote_data_dir_path');
     formData.local_save_config.destination_dir = default_path
-    ElMessage.success('已设置为默认路径')
+    ElMessage.success(t('config_path.set_default_path_success'))
 }
 
 const testConfigValidation = async () => {
@@ -261,16 +268,16 @@ const testConfigValidation = async () => {
         const validation = await invoke<PartialLocalConfig>('command_check_validation', { partialConfig: formData });
         console.log(validation);
         if (validation) {
-            ElMessage.success('连接成功')
+            ElMessage.success(t('config_path.connection_success'))
             allowSave.value = true // 测试成功后允许保存
             configStore.updateConfig(validation)
         } else {
-            ElMessage.error('连接失败')
+            ElMessage.error(t('config_path.connection_failed'))
             allowSave.value = false
         }
 
     } catch (error) {
-        ElMessage.error('连接失败')
+        ElMessage.error(t('config_path.connection_failed'))
         allowSave.value = false
     }
 }
@@ -313,9 +320,9 @@ const saveConfig = async () => {
     try {
         await configStore.updateConfig(formData)
         configStore.syncConfig();
-        ElMessage.success('配置已保存')
+        ElMessage.success(t('config_path.config_saved'))
     } catch (error) {
-        handleError('保存配置失败', error)
+        handleError(t('config_path.save_config_failed'), error)
     }
 }
 
@@ -329,7 +336,7 @@ const resetConfig = () => {
         save_to_local_per_update: configStore.config.save_to_local_per_update
     })
     auth_link.value = ''
-    ElMessage.info('配置已重置')
+    ElMessage.info(t('config_path.config_reset'))
 }
 
 const handleError = (message: string, error: unknown) => {

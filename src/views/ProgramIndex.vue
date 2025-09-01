@@ -1,26 +1,26 @@
 <template>
     <el-tabs style="height: 100%">
-        <el-tab-pane label="设置搜索路径" style="height: 100%">
+        <el-tab-pane :label="t('program_index.set_search_path')" style="height: 100%">
             <div class="path-config-container">
                 <!-- 左侧路径列表 -->
                 <div class="path-list-section" :class="{ 'drag-over': isDragOver }">
                     <div class="section-header">
-                        <h3>目录列表</h3>
-                        <el-tooltip class="box-item" effect="dark" content="支持拖放文件与文件夹来添加搜索路径">
+                        <h3>{{ t('program_index.directory_list') }}</h3>
+                        <el-tooltip class="box-item" effect="dark" :content="t('program_index.drag_drop_tooltip')">
                             <el-icon class="el-question-icon">
                                 <QuestionFilled />
                             </el-icon>
                         </el-tooltip>
-                        <span>共有 {{ targetPaths.length }} 条记录</span>
+                        <span>{{ t('program_index.total_records', { count: targetPaths.length }) }}</span>
                     </div>
 
                     <el-scrollbar>
                         <div v-for="(path, index) in targetPaths" :key="index" class="path-item"
                             :class="{ 'active': selectedPathIndex === index }" @click="selectPath(index)">
-                            <div class="path-text">{{ path.root_path || '未设置路径' }}</div>
+                            <div class="path-text">{{ path.root_path || t('program_index.no_path_set') }}</div>
                             <div class="path-actions">
                                 <el-button type="danger" size="small" circle @click.stop="deleteTargetPathRow(index)"
-                                    title="删除">
+                                    :title="t('program_index.delete')">
                                     <el-icon>
                                         <Delete />
                                     </el-icon>
@@ -32,7 +32,7 @@
                     <el-button type="primary" @click="addTargetPath" class="add-path-btn" style="margin-top: 10px;">
                         <el-icon>
                             <Plus />
-                        </el-icon> 添加路径
+                        </el-icon> {{ t('program_index.add_path') }}
                     </el-button>
                 </div>
 
@@ -40,17 +40,18 @@
                 <div class="path-detail-section" v-if="selectedPathIndex !== null">
                     <div class="detail-form">
                         <div class="form-row">
-                            <div class="form-label">目标路径:</div>
-                            <el-input v-model="currentPath.root_path" placeholder="请输入目标路径"
+                            <div class="form-label">{{ t('program_index.target_path') }}:</div>
+                            <el-input v-model="currentPath.root_path"
+                                :placeholder="t('program_index.enter_target_path')"
                                 @change="updateCurrentPath"></el-input>
                         </div>
 
                         <div class="form-row">
-                            <div class="form-label">搜索深度:</div>
+                            <div class="form-label">{{ t('program_index.search_depth') }}:</div>
                             <el-input-number v-model="currentPath.max_depth" :min="1" :precision="0"
                                 @change="updateCurrentPath"></el-input-number>
                             <el-tooltip class="box-item" effect="dark"
-                                content="搜索深度为2表示：搜索当前文件夹下的所有文件 以及 下一层子文件夹中的所有的文件">
+                                :content="t('program_index.search_depth_tooltip')">
                                 <el-icon class="el-question-icon">
                                     <QuestionFilled />
                                 </el-icon>
@@ -58,24 +59,25 @@
                         </div>
 
                         <div class="form-row">
-                            <div class="form-label">匹配类型:</div>
-                            <el-select v-model="currentPath.pattern_type" placeholder="请选择匹配类型"
-                                @change="updateCurrentPath">
-                                <el-option label="正则表达式" value="Regex"></el-option>
-                                <el-option label="通配符" value="Wildcard"></el-option>
+                            <div class="form-label">{{ t('program_index.match_type') }}:</div>
+                            <el-select v-model="currentPath.pattern_type"
+                                :placeholder="t('program_index.select_match_type')" @change="updateCurrentPath">
+                                <el-option :label="t('program_index.regex')" value="Regex"></el-option>
+                                <el-option :label="t('program_index.wildcard')" value="Wildcard"></el-option>
                             </el-select>
                         </div>
 
                         <!-- 允许的扩展名表格 -->
                         <div class="form-section">
                             <div class="section-header">
-                                <div class="form-label">允许的扩展名:</div>
+                                <div class="form-label">{{ t('program_index.allowed_extensions') }}:</div>
                             </div>
                             <div class="extensions-table">
                                 <el-table :data="extensionsTableData" size="small" height="150">
-                                    <el-table-column prop="value" label="扩展名">
+                                    <el-table-column prop="value" :label="t('program_index.extension')">
                                         <template #default="{ row, $index }">
-                                            <el-input v-model="row.value" size="small" placeholder="输入扩展名"
+                                            <el-input v-model="row.value" size="small"
+                                                :placeholder="t('program_index.enter_extension')"
                                                 @change="updateExtension($index, row.value)"></el-input>
                                         </template>
                                     </el-table-column>
@@ -94,12 +96,12 @@
                                     <el-button type="primary" size="small" @click="addExtension">
                                         <el-icon>
                                             <Plus />
-                                        </el-icon> 添加
+                                        </el-icon> {{ t('program_index.add') }}
                                     </el-button>
                                     <el-dropdown @command="addCommonExtension"
                                         v-if="currentPath.pattern_type === 'Wildcard'">
                                         <el-button size="small">
-                                            常用扩展名 <el-icon>
+                                            {{ t('program_index.common_extensions') }} <el-icon>
                                                 <ArrowDown />
                                             </el-icon>
                                         </el-button>
@@ -119,13 +121,14 @@
                         <!-- 排除关键词表格 -->
                         <div class="form-section">
                             <div class="section-header">
-                                <div class="form-label">排除关键词(大小写不敏感):</div>
+                                <div class="form-label">{{ t('program_index.exclude_keywords') }}:</div>
                             </div>
                             <div class="keywords-table">
                                 <el-table :data="keywordsTableData" size="small" height="150">
-                                    <el-table-column prop="value" label="关键词">
+                                    <el-table-column prop="value" :label="t('program_index.keyword')">
                                         <template #default="{ row, $index }">
-                                            <el-input v-model="row.value" size="small" placeholder="输入关键词"
+                                            <el-input v-model="row.value" size="small"
+                                                :placeholder="t('program_index.enter_keyword')"
                                                 @change="updateKeyword($index, row.value)"></el-input>
                                         </template>
                                     </el-table-column>
@@ -143,7 +146,7 @@
                                     <el-button type="primary" size="small" @click="addKeyword">
                                         <el-icon>
                                             <Plus />
-                                        </el-icon> 添加
+                                        </el-icon> {{ t('program_index.add') }}
                                     </el-button>
                                 </div>
                             </div>
@@ -153,27 +156,28 @@
 
                 <!-- 未选择路径时的提示 -->
                 <div class="path-detail-section empty-state" v-else>
-                    <el-empty description="请选择或添加一个路径进行配置"></el-empty>
+                    <el-empty :description="t('program_index.select_or_add_path')"></el-empty>
                 </div>
             </div>
         </el-tab-pane>
-        <el-tab-pane label="设置屏蔽路径" style="height: 100%">
+        <el-tab-pane :label="t('program_index.set_blocked_paths')" style="height: 100%">
             <div style="display: flex; flex-direction: column; height: 100%;">
                 <el-button class="mt-4" style="width: 100%; flex-shrink: 0;" @click="addForbiddenPath">
-                    添加项目
+                    {{ t('program_index.add_item') }}
                 </el-button>
                 <el-table :data="forbidden_paths" stripe
                     style="width: 100%;flex-grow: 1; height: 0; min-height: 0; margin-top: 10px;">
-                    <el-table-column label="目标屏蔽路径" show-overflow-tooltip>
+                    <el-table-column :label="t('program_index.target_blocked_path')" show-overflow-tooltip>
                         <template #default="{ $index }">
-                            <el-input v-model="forbidden_paths[$index]" size="small" placeholder="请输入目标路径"
+                            <el-input v-model="forbidden_paths[$index]" size="small"
+                                :placeholder="t('program_index.enter_target_path')"
                                 @change="updateForbiddenPaths"></el-input>
                         </template>
                     </el-table-column>
-                    <el-table-column fixed="right" label="操作" width="100">
+                    <el-table-column fixed="right" :label="t('program_index.operation')" width="100">
                         <template #default="{ $index }">
                             <el-button link size="small" type="danger" @click="deleteForbiddenPath($index)">
-                                删除一行
+                                {{ t('program_index.delete_row') }}
                             </el-button>
                         </template>
                     </el-table-column>
@@ -181,57 +185,58 @@
             </div>
         </el-tab-pane>
 
-        <el-tab-pane label="设置固定偏移量" style="height: 100%">
+        <el-tab-pane :label="t('program_index.set_fixed_offset')" style="height: 100%">
             <div style="display: flex; flex-direction: column; height: 100%;">
                 <el-button class="mt-4" style="width: 100%; flex-shrink: 0;" @click="addKeyFilter">
-                    添加项目
+                    {{ t('program_index.add_item') }}
                 </el-button>
                 <el-table :data="keyFilterData" stripe
                     style="width: 100%;flex-grow: 1; height: 0; min-height: 0; margin-top: 10px;">
-                    <el-table-column label="目标关键字">
+                    <el-table-column :label="t('program_index.target_keyword')">
                         <template #default="{ row }">
-                            <el-input v-model="row.key" size="small" placeholder="请输入目标关键字"
+                            <el-input v-model="row.key" size="small"
+                                :placeholder="t('program_index.enter_target_keyword')"
                                 @change="updateProgramBias(row)"></el-input>
                         </template>
                     </el-table-column>
-                    <el-table-column label="偏移量" show-overflow-tooltip>
+                    <el-table-column :label="t('program_index.offset')" show-overflow-tooltip>
                         <template #default="{ row }">
-                            <el-input-number v-model="row.bias" size="small" placeholder="请输入偏移量"
+                            <el-input-number v-model="row.bias" size="small"
+                                :placeholder="t('program_index.enter_offset')"
                                 @change="updateProgramBias(row)"></el-input-number>
                         </template>
                     </el-table-column>
-                    <el-table-column label="备注" show-overflow-tooltip>
+                    <el-table-column :label="t('program_index.note')" show-overflow-tooltip>
                         <template #default="{ row }">
-                            <el-input v-model="row.note" size="small" placeholder="请输入备注"
+                            <el-input v-model="row.note" size="small" :placeholder="t('program_index.enter_note')"
                                 @change="updateProgramBias(row)"></el-input>
                         </template>
                     </el-table-column>
-                    <el-table-column fixed="right" label="操作" width="100">
+                    <el-table-column fixed="right" :label="t('program_index.operation')" width="100">
                         <template #default="{ $index }">
                             <el-button link size="small" type="danger" @click="deleteKeyFilterRow($index)">
-                                删除一行
+                                {{ t('program_index.delete_row') }}
                             </el-button>
                         </template>
                     </el-table-column>
                 </el-table>
             </div>
         </el-tab-pane>
-        <el-tab-pane label="额外设置" style="height: 100%;overflow:auto">
-            <el-form-item label="更改搜索算法">
+        <el-tab-pane :label="t('program_index.extra_settings')" style="height: 100%;overflow:auto">
+            <el-form-item :label="t('program_index.change_search_algorithm')">
                 <el-select v-model="config.program_manager_config.search_model" placeholder="standard"
                     style="width: 240px"
                     @change="(val: string) => configStore.updateConfig({ program_manager_config: { search_model: val } })">
                     <el-option v-for="item in search_model" :key="item.value" :label="item.label" :value="item.value" />
                 </el-select>
-                <el-tooltip class="box-item" effect="dark"
-                    content="标准搜索算法: 作者精心设计的搜索算法，高准确率，高可容错率；Skim匹配算法：目前主流的模糊匹配算法；LaunchyQT算法: 对LaunchyQT算法的移植">
+                <el-tooltip class="box-item" effect="dark" :content="t('program_index.search_algorithm_tooltip')">
                     <el-icon class="el-question-icon">
                         <QuestionFilled />
                     </el-icon>
                 </el-tooltip>
             </el-form-item>
 
-            <el-form-item label="扫描UWP应用">
+            <el-form-item :label="t('program_index.scan_uwp_apps')">
                 <el-switch v-model="config.program_manager_config.loader.is_scan_uwp_programs" @change="(val: boolean) =>
                     configStore.updateConfig({
                         program_manager_config: {
@@ -241,7 +246,7 @@
                 " />
             </el-form-item>
 
-            <el-form-item label="启用联网加载网页图标">
+            <el-form-item :label="t('program_index.enable_online_icon_loading')">
                 <el-switch v-model="config.program_manager_config.image_loader.enable_online" @change="(val: boolean) =>
                     configStore.updateConfig({
                         program_manager_config: {
@@ -249,14 +254,14 @@
                         }
                     })
                 " />
-                <el-tooltip class="box-item" effect="dark" content="开启后，即可加载网址的图标，成功获取后会替代默认的图标">
+                <el-tooltip class="box-item" effect="dark" :content="t('program_index.online_icon_tooltip')">
                     <el-icon class="el-question-icon">
                         <QuestionFilled />
                     </el-icon>
                 </el-tooltip>
             </el-form-item>
 
-            <el-form-item label="启用图标缓存">
+            <el-form-item :label="t('program_index.enable_icon_cache')">
                 <el-switch v-model="config.program_manager_config.image_loader.enable_icon_cache" @change="(val: boolean) =>
                     configStore.updateConfig({
                         program_manager_config: {
@@ -264,23 +269,26 @@
                         }
                     })
                 " />
-                <el-tooltip class="box-item" effect="dark" content="为每个程序都在本地保存一份图标，这可以加速图标的加载速度">
+                <el-tooltip class="box-item" effect="dark" :content="t('program_index.icon_cache_tooltip')">
                     <el-icon class="el-question-icon">
                         <QuestionFilled />
                     </el-icon>
                 </el-tooltip>
             </el-form-item>
             <el-button type="primary" @click="openIconCacheDir">
-                打开图标缓存文件夹
+                {{ t('program_index.open_icon_cache_folder') }}
             </el-button>
         </el-tab-pane>
     </el-tabs>
 </template>
 
 <script lang="ts" setup>
+import { useI18n } from 'vue-i18n';
 import { useRemoteConfigStore } from '../stores/remote_config';
 import { storeToRefs } from 'pinia';
 import { DirectoryConfig } from '../api/remote_config_types';
+
+const { t } = useI18n();
 
 const configStore = useRemoteConfigStore()
 const { config } = storeToRefs(configStore)
@@ -292,19 +300,19 @@ import { listen, TauriEvent, UnlistenFn } from '@tauri-apps/api/event';
 import { DragDropEvent } from '@tauri-apps/api/webview';
 import { ElMessage } from 'element-plus';
 
-const search_model = [
+const search_model = computed(() => [
     {
         value: 'standard',
-        label: '标准搜索算法',
+        label: t('program_index.standard_search_algorithm'),
     },
     {
         value: 'skim',
-        label: 'Skim匹配算法',
+        label: t('program_index.skim_matching_algorithm'),
     }, {
         value: 'launchy',
-        label: 'LaunchyQT算法（非官方）',
+        label: t('program_index.launchyqt_algorithm'),
     }
-]
+])
 
 // 表格数据项接口
 interface TableItem {
@@ -584,7 +592,7 @@ const deleteKeyFilterRow = (index: number) => {
 
 const addKeyFilter = () => {
     const newProgramBias = { ...config.value.program_manager_config.loader.program_bias }
-    const newKey = `请输入关键字`
+    const newKey = t('program_index.enter_keyword_placeholder')
     newProgramBias[newKey] = [0, '']
 
     configStore.updateConfig({
@@ -620,17 +628,17 @@ const addOrUpdateTargetPath = (configToAddOrUpdate: DirectoryConfig, existingInd
         // 合并 pattern，去重
         const newPatterns = Array.from(new Set([...existingPath.pattern, ...configToAddOrUpdate.pattern]));
         existingPath.pattern = newPatterns;
-        ElMessage({ type: 'success', message: `已更新路径 ${existingPath.root_path} 的模式` });
+        ElMessage({ type: 'success', message: t('program_index.path_pattern_updated', { path: existingPath.root_path }) });
     } else {
         // --- 添加新路径 ---
         // 检查 root_path 是否重复
         const exists = newTargetPaths.some(p => p.root_path === configToAddOrUpdate.root_path);
         if (exists) {
-            ElMessage({ type: 'warning', message: `路径 ${configToAddOrUpdate.root_path} 已存在，请检查` });
+            ElMessage({ type: 'warning', message: t('program_index.path_already_exists', { path: configToAddOrUpdate.root_path }) });
             return; // 如果已存在，则不添加（拖拽文件到已有目录时，应走上面的更新逻辑）
         }
         newTargetPaths.push(configToAddOrUpdate);
-        ElMessage({ type: 'success', message: `已添加路径: ${configToAddOrUpdate.root_path}` });
+        ElMessage({ type: 'success', message: t('program_index.path_added', { path: configToAddOrUpdate.root_path }) });
     }
 
     // 使用最终确定的新列表更新 store
@@ -717,7 +725,7 @@ const handleFileDrop = async (payload: DragDropEvent) => {
                         // 调用核心函数更新，传入找到的索引
                         addOrUpdateTargetPath(updatePayload, existingIndex);
                     } else {
-                        ElMessage({ type: 'info', message: `文件模式 '${filenamePattern}' 已存在于路径: ${parentPath}` });
+                        ElMessage({ type: 'info', message: t('program_index.file_pattern_exists', { pattern: filenamePattern, path: parentPath }) });
                     }
                 } else {
                     // 父目录不存在，创建新条目
@@ -734,18 +742,18 @@ const handleFileDrop = async (payload: DragDropEvent) => {
 
             } else if (info.error_message) {
                 // 处理后端返回的错误
-                console.error(`处理路径 ${info.original_path} 出错: ${info.error_message}`);
-                ElMessage({ type: 'error', message: `处理路径 ${info.original_path} 出错: ${info.error_message}` });
+                console.error(t('program_index.process_path_error', { path: info.original_path, error: info.error_message }));
+                ElMessage({ type: 'error', message: t('program_index.process_path_error', { path: info.original_path, error: info.error_message }) });
             } else {
                 // 处理未知类型或其他情况
-                console.warn(`不支持的路径类型或信息缺失: ${info.original_path}`);
-                ElMessage({ type: 'warning', message: `不支持的路径或信息缺失: ${info.original_path}` });
+                console.warn(t('program_index.unsupported_path_type', { path: info.original_path }));
+                ElMessage({ type: 'warning', message: t('program_index.unsupported_path_type', { path: info.original_path }) });
             }
 
         } catch (error) {
             // 处理调用 invoke 时的前端错误
-            console.error(`调用 get_path_info 处理 ${droppedPath} 失败:`, error);
-            ElMessage({ type: 'error', message: `无法检查路径 ${droppedPath}` });
+            console.error(t('program_index.get_path_info_failed', { path: droppedPath }), error);
+            ElMessage({ type: 'error', message: t('program_index.cannot_check_path', { path: droppedPath }) });
         }
     } // end for loop
 };

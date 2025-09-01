@@ -8,8 +8,8 @@
                         <Rocket />
                     </el-icon>
                     <div class="header-text">
-                        <h1 class="title">欢迎使用 ZeroLaunch</h1>
-                        <p class="subtitle">一个可以容忍错别字的 Windows 应用启动器</p>
+                        <h1 class="title">{{ t('welcome.title') }}</h1>
+                        <p class="subtitle">{{ t('welcome.subtitle') }}</p>
                     </div>
                 </div>
             </template>
@@ -20,7 +20,7 @@
                     <el-icon>
                         <Guide />
                     </el-icon>
-                    <span>快速上手</span>
+                    <span>{{ t('welcome.quick_start') }}</span>
                 </h2>
                 <el-steps :active="4" align-center finish-status="success">
                     <el-step v-for="step in steps" :key="step.id" :title="step.title" :description="step.description" />
@@ -35,7 +35,7 @@
                     <el-icon>
                         <Keyboard />
                     </el-icon>
-                    <span>快捷键速查</span>
+                    <span>{{ t('welcome.shortcut_guide') }}</span>
                 </h2>
                 <div class="shortcuts-grid">
                     <div v-for="shortcut in shortcuts" :key="shortcut.id" class="shortcut-item">
@@ -52,10 +52,10 @@
             <!-- 4. 底部操作 -->
             <div class="footer-actions">
                 <el-button type="primary" size="large" :icon="Link" @click="startUsing">
-                    访问官网
+                    {{ t('welcome.visit_website') }}
                 </el-button>
                 <el-button size="large" :icon="Setting" @click="openSettings">
-                    打开设置
+                    {{ t('welcome.open_settings') }}
                 </el-button>
             </div>
         </el-card>
@@ -64,43 +64,46 @@
 
 <script setup>
 // 使用 Vue 3 <script setup> 语法，更简洁
+import { useI18n } from 'vue-i18n';
 import { ref } from 'vue';
 import { open } from '@tauri-apps/plugin-shell';
 import { invoke } from '@tauri-apps/api/core';
 import { QuestionFilled } from '@element-plus/icons-vue'
+
+const { t } = useI18n();
 // 快捷键数据（优化了描述）
 const shortcuts = ref([
-    { id: 1, keys: ['Alt', 'Space'], description: '唤醒 / 隐藏主窗口' },
-    { id: 2, keys: ['Enter'], description: '启动选中项' },
-    { id: 3, keys: ['Alt'], description: '临时按最近使用时间排序' },
-    { id: 4, keys: ['Ctrl', 'Enter'], description: '以管理员权限启动' },
-    { id: 5, keys: ['Esc'], description: '清空输入或隐藏窗口' },
-    { id: 6, keys: ['Shift', 'Enter'], description: '置顶当前已打开的窗口' },
-    { id: 7, keys: ['↑', '↓'], description: '上 / 下移动选择' },
-    { id: 8, keys: ['Ctrl', 'J/K'], description: '上 / 下移动选择 (Vim模式)' },
+    { id: 1, keys: ['Alt', 'Space'], description: t('welcome.shortcuts.toggle_window') },
+    { id: 2, keys: ['Enter'], description: t('welcome.shortcuts.launch_selected') },
+    { id: 3, keys: ['Alt'], description: t('welcome.shortcuts.sort_by_recent') },
+    { id: 4, keys: ['Ctrl', 'Enter'], description: t('welcome.shortcuts.launch_as_admin') },
+    { id: 5, keys: ['Esc'], description: t('welcome.shortcuts.clear_or_hide') },
+    { id: 6, keys: ['Shift', 'Enter'], description: t('welcome.shortcuts.bring_to_front') },
+    { id: 7, keys: ['↑', '↓'], description: t('welcome.shortcuts.move_selection') },
+    { id: 8, keys: ['Ctrl', 'J/K'], description: t('welcome.shortcuts.move_selection_vim') },
 
 
 ]);
 
 // 步骤数据（优化了描述）
 const steps = ref([
-    { id: 1, title: '唤醒应用', description: '按下 Alt + Space 随时唤醒搜索框' },
-    { id: 2, title: '快速搜索', description: '输入应用名、拼音或缩写，高效匹配' },
-    { id: 3, title: '一键启动', description: '使用方向键选择，按下 Enter 即可启动' },
-    { id: 4, title: '个性配置', description: '在设置中打造你的专属启动器' },
+    { id: 1, title: t('welcome.steps.wake_app.title'), description: t('welcome.steps.wake_app.description') },
+    { id: 2, title: t('welcome.steps.quick_search.title'), description: t('welcome.steps.quick_search.description') },
+    { id: 3, title: t('welcome.steps.one_click_launch.title'), description: t('welcome.steps.one_click_launch.description') },
+    { id: 4, title: t('welcome.steps.personalize.title'), description: t('welcome.steps.personalize.description') },
 ]);
 
 // 方法
 const startUsing = () => {
     open('https://zerolaunch.ghost-him.com').catch(err => {
-        console.error('无法打开官网链接:', err);
+        console.error(t('welcome.errors.cannot_open_website'), err);
         // 可以在这里加一个 ElMessage 提示用户
     });
 };
 
 const openSettings = () => {
     invoke('show_setting_window').catch(error => {
-        console.error('无法打开设置窗口:', error);
+        console.error(t('welcome.errors.cannot_open_settings'), error);
         // 可以在这里加一个 ElMessage 提示用户
     });
 };

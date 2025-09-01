@@ -1,31 +1,31 @@
 <template>
     <div class="shortcut-settings" style="height: 100%; overflow-y: auto;">
         <div class="shortcut-header">
-            <h2 class="shortcut-title">快捷键设置</h2>
+            <h2 class="shortcut-title">{{ t('shortcut.title') }}</h2>
             <div class="shortcut-actions">
                 <el-button type="primary" @click="edit_shortcut_config" :disabled="is_saving">
                     <el-icon>
                         <Edit v-if="!is_editing" />
                         <Close v-else />
                     </el-icon>
-                    {{ is_editing ? '取消编辑' : '开始设置' }}
+                    {{ is_editing ? t('shortcut.cancel_edit') : t('shortcut.start_setting') }}
                 </el-button>
                 <el-button type="success" @click="save_shortcut_config" :loading="is_saving" :disabled="!is_editing">
                     <el-icon>
                         <Check />
                     </el-icon>
-                    保存设置
+                    {{ t('shortcut.save_settings') }}
                 </el-button>
                 <el-button type="warning" @click="resetAllShortcuts" :disabled="!is_editing">
                     <el-icon>
                         <RefreshLeft />
                     </el-icon>
-                    重置全部
+                    {{ t('shortcut.reset_all') }}
                 </el-button>
             </div>
         </div>
 
-        <el-divider content-position="left">系统快捷键</el-divider>
+        <el-divider content-position="left">{{ t('shortcut.system_shortcuts') }}</el-divider>
         <div class="shortcut-settings-container">
             <el-form label-position="top" class="shortcut-form">
                 <el-form-item v-for="item in shortcutItems" :key="item.key" class="shortcut-form-item">
@@ -52,7 +52,7 @@
                             <el-icon>
                                 <RefreshRight />
                             </el-icon>
-                            重置
+                            {{ t('shortcut.reset') }}
                         </el-button>
                     </div>
                 </el-form-item>
@@ -69,12 +69,14 @@ import { onMounted } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { useRemoteConfigStore } from '../stores/remote_config';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { useI18n } from 'vue-i18n';
 import {
     Search, ArrowLeft, ArrowRight, ArrowUp, ArrowDown,
     InfoFilled, Edit, Close, Check, RefreshLeft,
     RefreshRight
 } from '@element-plus/icons-vue';
 import type { Component } from 'vue'
+const { t } = useI18n();
 const configStore = useRemoteConfigStore();
 const is_editing = ref<boolean>(false);
 const is_saving = ref<boolean>(false);
@@ -93,37 +95,37 @@ const shortcutItems = ref<Array<{
     {
         key: 'open_search_bar',
         icon: markRaw(Search),
-        label: '打开搜索栏',
-        tooltip: '打开搜索窗口的快捷键',
-        placeholder: '例如: Ctrl+Space'
+        label: t('shortcut.open_search_bar'),
+        tooltip: t('shortcut.open_search_bar_tooltip'),
+        placeholder: t('shortcut.open_search_bar_placeholder')
     },
     {
         key: 'arrow_left',
         icon: markRaw(ArrowLeft),
-        label: '方向键左',
-        tooltip: '向左移动的快捷键',
-        placeholder: '例如: Left'
+        label: t('shortcut.arrow_left'),
+        tooltip: t('shortcut.arrow_left_tooltip'),
+        placeholder: t('shortcut.arrow_left_placeholder')
     },
     {
         key: 'arrow_right',
         icon: markRaw(ArrowRight),
-        label: '方向键右',
-        tooltip: '向右移动的快捷键',
-        placeholder: '例如: Right'
+        label: t('shortcut.arrow_right'),
+        tooltip: t('shortcut.arrow_right_tooltip'),
+        placeholder: t('shortcut.arrow_right_placeholder')
     },
     {
         key: 'arrow_up',
         icon: markRaw(ArrowUp),
-        label: '方向键上',
-        tooltip: '向上移动的快捷键',
-        placeholder: '例如: Up'
+        label: t('shortcut.arrow_up'),
+        tooltip: t('shortcut.arrow_up_tooltip'),
+        placeholder: t('shortcut.arrow_up_placeholder')
     },
     {
         key: 'arrow_down',
         icon: markRaw(ArrowDown),
-        label: '方向键下',
-        tooltip: '向下移动的快捷键',
-        placeholder: '例如: Down'
+        label: t('shortcut.arrow_down'),
+        tooltip: t('shortcut.arrow_down_tooltip'),
+        placeholder: t('shortcut.arrow_down_placeholder')
     }
 ]);
 
@@ -134,20 +136,20 @@ const edit_shortcut_config = async () => {
         is_editing.value = false;
         try {
             await invoke('command_register_all_shortcut');
-            ElMessage.info("已取消编辑并恢复快捷键");
+            ElMessage.info(t('shortcut.edit_cancelled'));
         } catch (error) {
-            handleError("快捷键恢复失败:" + error);
+            handleError(t('shortcut.restore_failed') + error);
         }
     } else {
         try {
             await invoke('command_unregister_all_shortcut');
             is_editing.value = true;
             ElMessage.success({
-                message: "已进入编辑模式，可以设置快捷键",
+                message: t('shortcut.edit_mode_entered'),
                 duration: 2000
             });
         } catch (error) {
-            handleError("快捷键解绑失败:" + error);
+            handleError(t('shortcut.unbind_failed') + error);
         }
     }
 }
@@ -159,16 +161,16 @@ const save_shortcut_config = async () => {
         await configStore.syncConfig();
         is_editing.value = false;
         ElMessage.success({
-            message: "快捷键设置已保存并生效",
+            message: t('shortcut.settings_saved'),
             type: 'success',
             duration: 2000
         });
     } catch (error) {
-        handleError("快捷键保存失败: " + error);
+        handleError(t('shortcut.save_failed') + error);
         try {
             await invoke('command_register_all_shortcut');
         } catch (e) {
-            handleError("恢复默认配置失败: " + e);
+            handleError(t('shortcut.restore_default_failed') + e);
         }
     } finally {
         is_saving.value = false;
@@ -177,22 +179,22 @@ const save_shortcut_config = async () => {
 
 const resetShortcut = (key: ShortcutKey) => {
     dirty_shortcut_config.value[key] = d_shortcut_config[key];
-    ElMessage.info(`已重置为默认值`);
+    ElMessage.info(t('shortcut.reset_to_default'));
 }
 
 const resetAllShortcuts = async () => {
     try {
         await ElMessageBox.confirm(
-            '确定要将所有快捷键重置为默认值吗？',
-            '重置确认',
+            t('shortcut.reset_all_confirm'),
+            t('shortcut.reset_confirm_title'),
             {
-                confirmButtonText: '确定重置',
-                cancelButtonText: '取消',
+                confirmButtonText: t('shortcut.confirm_reset'),
+                cancelButtonText: t('shortcut.cancel'),
                 type: 'warning',
             }
         );
         dirty_shortcut_config.value = { ...d_shortcut_config };
-        ElMessage.success("已重置所有快捷键为默认值");
+        ElMessage.success(t('shortcut.all_reset_success'));
     } catch {
         // 用户取消操作
     }

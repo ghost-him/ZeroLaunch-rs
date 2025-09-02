@@ -411,6 +411,8 @@
     "space_is_enter": "Use Spacebar to launch",
     "space_enter_tooltip": "When enabled, the Space key acts like the Enter key, and you can no longer type spaces",
     "advanced": "Advanced",
-    "debug_mode": "Debug Mode"
+    "debug_mode": "Debug Mode",
+    "log_level": "Log Level",
+    "log_level_tooltip": "Set the application's log output level. Debug level outputs the most detailed information, Error level only outputs error messages"
   }
 }

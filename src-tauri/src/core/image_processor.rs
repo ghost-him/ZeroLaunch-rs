@@ -104,7 +104,7 @@ impl ImageProcessor {
 
         let png_data = Self::convert_image_to_png(icon_data).await?;
 
-        info!(
+        debug!(
             "Successfully converted web icon to PNG ({} bytes)",
             png_data.len()
         );
@@ -293,7 +293,7 @@ impl ImageProcessor {
                                 message: format!("Failed to encode SVG as PNG: {}", e),
                             })?;
 
-                    info!(
+                    debug!(
                         "Successfully converted SVG to PNG ({} bytes)",
                         png_data.len()
                     );
@@ -345,7 +345,7 @@ impl ImageProcessor {
                         }
                     })?;
 
-                    info!(
+                    debug!(
                         "Successfully converted image to PNG ({} bytes)",
                         png_data.len()
                     );
@@ -657,7 +657,7 @@ impl ImageProcessor {
 
         // 如果整个图像都是白色或透明的，返回原图
         if border_width >= size / 2 {
-            info!("Image is mostly transparent/white, returning original");
+            debug!("Image is mostly transparent/white, returning original");
             return Ok(png_data);
         }
 
@@ -692,7 +692,7 @@ impl ImageProcessor {
                 message: format!("Failed to encode trimmed image: {}", e),
             })?;
 
-        info!(
+        debug!(
             "Successfully trimmed image to {}x{} ({} bytes)",
             new_size,
             new_size,
@@ -729,7 +729,7 @@ impl ImageProcessor {
                 message: format!("Failed to encode RGBA image as PNG: {}", e),
             })?;
 
-        info!(
+        debug!(
             "Successfully converted RgbaImage to PNG ({} bytes)",
             buffer.len()
         );

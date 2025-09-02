@@ -411,6 +411,8 @@
     "space_is_enter": "按下空格启动程序",
     "space_enter_tooltip": "启动后，空格键的作用与enter键一样，同时无法再输入空格键",
     "advanced": "高级",
-    "debug_mode": "调试模式"
+    "debug_mode": "调试模式",
+    "log_level": "日志级别",
+    "log_level_tooltip": "设置应用程序的日志输出级别，Debug级别会输出最详细的信息，Error级别只输出错误信息"
   }
 }

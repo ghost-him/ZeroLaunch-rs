@@ -6,7 +6,7 @@
 //! - Panic处理
 //! - 日志文件清理
 
-use crate::error::{OptionExt, ResultExt};
+use crate::error::OptionExt;
 use crate::modules::config::default::LOG_DIR;
 use backtrace::Backtrace;
 use chrono::{DateTime, Local};
@@ -16,7 +16,11 @@ use std::panic;
 use std::path::Path;
 use tracing::{debug, error, info, warn, Level};
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
-use tracing_subscriber;
+use tracing_subscriber::{self, reload};
+use std::sync::OnceLock;
+
+/// 全局日志级别重载句柄
+static LOG_RELOAD_HANDLE: OnceLock<reload::Handle<tracing_subscriber::filter::LevelFilter, tracing_subscriber::Registry>> = OnceLock::new();
 
 /// 日志系统配置
 #[derive(Debug, Clone)]
@@ -72,6 +76,12 @@ pub fn init_logging(config: Option<LoggingConfig>) -> tracing_appender::non_bloc
     // 创建非阻塞的日志写入器
     let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
 
+    // 创建可重载的过滤器
+    let (filter, reload_handle) = reload::Layer::new(tracing_subscriber::filter::LevelFilter::from_level(config.level));
+    
+    // 存储重载句柄
+    let _ = LOG_RELOAD_HANDLE.set(reload_handle);
+
     // 配置订阅者
     if config.enable_console {
         // 同时输出到文件和控制台
@@ -95,26 +105,27 @@ pub fn init_logging(config: Option<LoggingConfig>) -> tracing_appender::non_bloc
             .with_line_number(false);
 
         tracing_subscriber::registry()
+            .with(filter)
             .with(file_layer)
             .with(console_layer)
-            .with(tracing_subscriber::filter::LevelFilter::from_level(
-                config.level,
-            ))
             .init();
     } else {
         // 仅输出到文件
-        let subscriber = tracing_subscriber::fmt()
+        use tracing_subscriber::layer::SubscriberExt;
+        use tracing_subscriber::util::SubscriberInitExt;
+        
+        let file_layer = tracing_subscriber::fmt::layer()
             .with_writer(non_blocking)
-            .with_max_level(config.level)
             .with_ansi(false)
             .with_target(true)
             .with_thread_ids(true)
             .with_file(true)
-            .with_line_number(true)
-            .finish();
+            .with_line_number(true);
 
-        tracing::subscriber::set_global_default(subscriber)
-            .expect_programming("设置全局默认订阅者失败");
+        tracing_subscriber::registry()
+            .with(filter)
+            .with(file_layer)
+            .init();
     }
 
     // 设置panic hook
@@ -361,5 +372,27 @@ pub fn log_error_with_context(error: &dyn std::error::Error, context: &str) {
         error!("  原因 {}: {}", level, err);
         source = err.source();
         level += 1;
+    }
+}
+
+/// 动态更新日志级别
+///
+/// # Arguments
+///
+/// * `new_level` - 新的日志级别
+///
+/// # Returns
+///
+/// 如果更新成功返回Ok(())，否则返回错误信息
+pub fn update_log_level(new_level: Level) -> Result<(), String> {
+    if let Some(handle) = LOG_RELOAD_HANDLE.get() {
+        let new_filter = tracing_subscriber::filter::LevelFilter::from_level(new_level);
+        handle.reload(new_filter).map_err(|e| {
+            format!("更新日志级别失败: {}", e)
+        })?;
+        info!("日志级别已更新为: {:?}", new_level);
+        Ok(())
+    } else {
+        Err("日志系统尚未初始化或不支持动态更新".to_string())
     }
 }

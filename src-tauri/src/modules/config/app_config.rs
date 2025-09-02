@@ -1,7 +1,50 @@
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
+use tracing::Level;
 
 use super::default::APP_VERSION;
+
+/// 日志级别枚举
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub enum LogLevel {
+    #[serde(rename = "debug")]
+    Debug,
+    #[serde(rename = "info")]
+    Info,
+    #[serde(rename = "warn")]
+    Warn,
+    #[serde(rename = "error")]
+    Error,
+}
+
+impl Default for LogLevel {
+    fn default() -> Self {
+        LogLevel::Info
+    }
+}
+
+impl From<LogLevel> for Level {
+    fn from(log_level: LogLevel) -> Self {
+        match log_level {
+            LogLevel::Debug => Level::DEBUG,
+            LogLevel::Info => Level::INFO,
+            LogLevel::Warn => Level::WARN,
+            LogLevel::Error => Level::ERROR,
+        }
+    }
+}
+
+impl From<&str> for LogLevel {
+    fn from(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "debug" => LogLevel::Debug,
+            "info" => LogLevel::Info,
+            "warn" => LogLevel::Warn,
+            "error" => LogLevel::Error,
+            _ => LogLevel::Info, // 默认值
+        }
+    }
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct PartialAppConfig {
@@ -22,6 +65,7 @@ pub struct PartialAppConfig {
     pub is_initial: Option<bool>,
     pub scroll_threshold: Option<u32>,
     pub language: Option<String>,
+    pub log_level: Option<LogLevel>,
 }
 
 /// 与程序设置有关的，比如是不是要开机自动启动等
@@ -79,6 +123,9 @@ pub struct AppConfigInner {
     /// 应用程序语言设置
     #[serde(default = "AppConfigInner::default_language")]
     pub language: String,
+    /// 日志输出级别
+    #[serde(default = "AppConfigInner::default_log_level")]
+    pub log_level: LogLevel,
 }
 
 impl Default for AppConfigInner {
@@ -101,6 +148,7 @@ impl Default for AppConfigInner {
             is_initial: Self::default_is_initial(),
             scroll_threshold: Self::default_scroll_threshold(),
             language: Self::default_language(),
+            log_level: Self::default_log_level(),
         }
     }
 }
@@ -170,6 +218,10 @@ impl AppConfigInner {
     pub(crate) fn default_language() -> String {
         "zh".to_string()
     }
+
+    pub(crate) fn default_log_level() -> LogLevel {
+        LogLevel::Info
+    }
 }
 
 impl AppConfigInner {
@@ -222,6 +274,9 @@ impl AppConfigInner {
         if let Some(language) = partial_app_config.language {
             self.language = language;
         }
+        if let Some(log_level) = partial_app_config.log_level {
+            self.log_level = log_level;
+        }
         // 一但有东西写入了，则说明已经被初始化了
         self.is_initial = true;
     }
@@ -244,6 +299,7 @@ impl AppConfigInner {
             is_initial: Some(self.is_initial),
             scroll_threshold: Some(self.scroll_threshold),
             language: Some(self.language.clone()),
+            log_level: Some(self.log_level.clone()),
         }
     }
 }
@@ -354,5 +410,10 @@ impl AppConfig {
     pub fn get_language(&self) -> String {
         let inner = self.inner.read();
         inner.language.clone()
+    }
+
+    pub fn get_log_level(&self) -> LogLevel {
+        let inner = self.inner.read();
+        inner.log_level.clone()
     }
 }

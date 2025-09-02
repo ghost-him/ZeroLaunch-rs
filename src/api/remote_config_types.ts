@@ -55,6 +55,8 @@ export function default_shortcut_config(): ShortcutConfig {
     } as ShortcutConfig;
 }
 
+export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+
 export type AppConfig = {
     search_bar_placeholder: string
     tips: string
@@ -72,6 +74,7 @@ export type AppConfig = {
     show_pos_follow_mouse: boolean,
     scroll_threshold: number,
     language: string,
+    log_level: LogLevel,
 }
 
 export function default_app_config(): AppConfig {
@@ -92,6 +95,7 @@ export function default_app_config(): AppConfig {
         show_pos_follow_mouse: false,
         scroll_threshold: 10,
         language: 'zh',
+        log_level: 'info',
     } as AppConfig;
 }
 

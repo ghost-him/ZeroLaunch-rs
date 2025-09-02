@@ -15,7 +15,7 @@ use crate::commands::shortcut::*;
 use crate::commands::ui_command::*;
 use crate::commands::utils::*;
 use crate::error::{OptionExt, ResultExt};
-use crate::logging::{init_logging, log_application_shutdown, log_application_start};
+use crate::logging::{init_logging, log_application_shutdown, log_application_start, update_log_level};
 use crate::modules::config::config_manager::PartialRuntimeConfig;
 use crate::modules::config::default::LOCAL_CONFIG_PATH;
 use crate::modules::config::default::REMOTE_CONFIG_DEFAULT;
@@ -275,6 +275,18 @@ async fn init_app_state(app: &mut App) {
 
     // 维护文件管理器
     state.set_storage_manager(Arc::new(storage_manager));
+    
+    // 根据配置更新日志级别
+    let runtime_config = state.get_runtime_config();
+    let app_config = runtime_config.get_app_config();
+    let log_level = app_config.get_log_level();
+    let tracing_level = tracing::Level::from(log_level);
+    if let Err(e) = update_log_level(tracing_level) {
+        warn!("更新日志级别失败: {}", e);
+    } else {
+        info!("日志级别已根据配置更新为: {:?}", tracing_level);
+    }
+    
     // 使用ServiceLocator保存一份
 }
 
@@ -423,28 +435,38 @@ async fn update_app_setting() {
 
     let runtime_config = state.get_runtime_config();
 
-    // 1. 重新更新程序索引的路径
+    // 1.动态更新日志级别
+    let app_config = runtime_config.get_app_config();
+    let log_level = app_config.get_log_level();
+    let tracing_level = tracing::Level::from(log_level);
+    if let Err(e) = update_log_level(tracing_level) {
+        warn!("更新日志级别失败: {}", e);
+    } else {
+        info!("日志级别已根据配置动态更新为: {:?}", tracing_level);
+    }
+
+    // 2. 重新更新程序索引的路径
     let program_manager = state.get_program_manager();
     program_manager
         .load_from_config(runtime_config.get_program_manager_config())
         .await;
 
-    // 2. 判断要不要开机自启动
+    // 3. 判断要不要开机自启动
     if let Err(e) = handle_auto_start() {
         // 可以添加错误处理逻辑
         eprintln!("自启动设置失败: {:?}", e);
     }
 
-    // 3.判断要不要静默启动
+    // 4.判断要不要静默启动
     handle_silent_start();
 
-    // 4.判断要不要更新当前的窗口大小
+    // 5.判断要不要更新当前的窗口大小
     update_window_size_and_position();
 
-    // 5.更新当前的窗口效果
+    // 6.更新当前的窗口效果
     enable_window_effect();
 
-    // 6.更新快捷键的绑定
+    // 7.更新快捷键的绑定
     update_shortcut_manager();
 
     // 获取主窗口句柄

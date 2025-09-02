@@ -107,6 +107,22 @@
                     <el-switch v-model="config.app_config.is_debug_mode"
                         @change="(val: boolean) => configStore.updateConfig({ app_config: { is_debug_mode: val } })" />
                 </el-form-item>
+                
+                <el-form-item :label="t('app_config.log_level')">
+                    <el-select v-model="config.app_config.log_level"
+                        @change="(val: 'debug' | 'info' | 'warn' | 'error') => configStore.updateConfig({ app_config: { log_level: val } })"
+                        style="width: 120px">
+                        <el-option label="Debug" value="debug" />
+                        <el-option label="Info" value="info" />
+                        <el-option label="Warn" value="warn" />
+                        <el-option label="Error" value="error" />
+                    </el-select>
+                    <el-tooltip placement="top" :content="t('app_config.log_level_tooltip')">
+                        <el-icon class="el-question-icon">
+                            <QuestionFilled />
+                        </el-icon>
+                    </el-tooltip>
+                </el-form-item>
             </el-form>
         </el-tab-pane>
 

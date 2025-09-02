@@ -21,7 +21,7 @@ pub async fn command_save_remote_config<R: Runtime>(
     state: tauri::State<'_, Arc<AppState>>,
     partial_config: PartialRuntimeConfig,
 ) -> Result<(), String> {
-    use tracing::{info, warn};
+    use tracing::info;
 
     info!("💾 开始保存远程配置");
 
@@ -42,7 +42,7 @@ pub async fn command_load_local_config<R: Runtime>(
     _window: tauri::Window<R>,
     state: tauri::State<'_, Arc<AppState>>,
 ) -> Result<PartialLocalConfig, String> {
-    use tracing::{info, warn};
+    use tracing::info;
 
     info!("📂 开始加载本地配置");
 

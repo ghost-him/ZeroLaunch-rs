@@ -15,7 +15,6 @@ use async_trait::async_trait;
 use dashmap::DashMap;
 use dashmap::Entry;
 use std::sync::Arc;
-use tauri::Manager;
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
 
@@ -123,8 +122,7 @@ impl StorageManagerInner {
 
         // 检查是否需要显示欢迎页面
         // 首次启动或欢迎页面版本更新时显示欢迎页面
-        let should_show_welcome = is_first_startup
-            || (!is_first_startup && check_welcome_page_version_changed(&partial_local_config));
+        let should_show_welcome = is_first_startup || check_welcome_page_version_changed(&partial_local_config);
 
         if should_show_welcome {
             callback();

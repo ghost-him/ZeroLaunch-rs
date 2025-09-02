@@ -1,5 +1,5 @@
 use crate::core::storage::storage_manager::StorageManager;
-use crate::error::{AppError, OptionExt};
+use crate::error::OptionExt;
 use crate::modules::shortcut_manager::ShortcutManager;
 use crate::modules::{config::config_manager::RuntimeConfig, program_manager::ProgramManager};
 use crate::utils::waiting_hashmap::AsyncWaitingHashMap;

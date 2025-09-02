@@ -63,7 +63,7 @@ pub async fn launch_program<R: Runtime>(
     ctrl: bool,
     shift: bool,
 ) -> Result<(), String> {
-    use tracing::{error, info, warn};
+    use tracing::{info, warn};
 
     info!(
         "🚀 启动程序请求: GUID={}, Ctrl={}, Shift={}",
@@ -158,7 +158,7 @@ pub async fn handle_search_text<R: Runtime>(
     state: tauri::State<'_, Arc<AppState>>,
     search_text: String,
 ) -> Result<Vec<SearchResult>, String> {
-    use tracing::{debug, info, warn};
+    use tracing::{debug, info};
 
     debug!("🔍 处理搜索请求: '{}'", search_text);
 

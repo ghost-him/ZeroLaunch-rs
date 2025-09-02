@@ -9,7 +9,7 @@
 use crate::error::{OptionExt, ResultExt};
 use crate::modules::config::default::LOG_DIR;
 use backtrace::Backtrace;
-use chrono::{DateTime, Duration, Local};
+use chrono::{DateTime, Local};
 use std::fs::File;
 use std::io::Write;
 use std::panic;

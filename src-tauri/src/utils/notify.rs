@@ -12,6 +12,6 @@ pub fn notify(title: &str, message: &str) {
         .body(message)
         .show()
     {
-        tracing::warn!("Failed to show notification: {}", e);
+        tracing::debug!("Failed to show notification: {}", e);
     }
 }

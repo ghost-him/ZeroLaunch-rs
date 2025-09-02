@@ -82,7 +82,7 @@ pub async fn launch_program<R: Runtime>(
 
     // 当shift按下时，唤醒程序
     if open_exist_window {
-        info!("🔍 尝试唤醒现有程序窗口: GUID={}", program_guid);
+        debug!("🔍 尝试唤醒现有程序窗口: GUID={}", program_guid);
         result = program_manager.activate_target_program(program_guid).await;
         if result {
             info!("✅ 程序窗口唤醒成功: GUID={}", program_guid);
@@ -102,7 +102,7 @@ pub async fn launch_program<R: Runtime>(
         || (!result && program_manager.is_uwp_program(program_guid).await)
     {
         // 启动新的程序
-        info!(
+        debug!(
             "🚀 启动新程序实例: GUID={}, 管理员权限={}",
             program_guid, is_admin_required
         );

@@ -434,7 +434,7 @@ impl StorageManagerInner {
 
         match result {
             Ok(_) => {
-                debug!("成功上传文件：{}", file_name);
+                info!("成功上传文件：{}", file_name);
             }
             Err(e) => {
                 warn!("上传文件：{} 失败，错误：{:?}", file_name, e);

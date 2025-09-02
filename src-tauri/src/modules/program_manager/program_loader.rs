@@ -956,11 +956,11 @@ impl ProgramLoaderInner {
                                     }
                                 }
                             }
-                            Err(e) => warn!("Error reading directory entry: {}", e),
+                            Err(e) => debug!("Error reading directory entry: {}", e),
                         }
                     }
                 }
-                Err(e) => warn!("Error reading directory {}: {}", dir.display(), e),
+                Err(e) => debug!("Error reading directory {}: {}", dir.display(), e),
             }
         } else if self.is_valid_path(dir) {
             if let Some(dir_str) = dir.to_str() {

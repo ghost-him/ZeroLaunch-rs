@@ -96,7 +96,7 @@ impl ImageProcessor {
 
     /// 内部函数：加载网页图标，返回Result类型
     async fn load_web_icon_internal(url: &str) -> AppResult<Vec<u8>> {
-        info!("Loading web icon from: {}", url);
+        debug!("Loading web icon from: {}", url);
 
         let icon_data = Self::fetch_website_favicon_png(url).await?;
 
@@ -115,7 +115,7 @@ impl ImageProcessor {
     async fn fetch_website_favicon_png(url: &str) -> AppResult<Vec<u8>> {
         debug!("Checking network availability for favicon fetch");
         if !Self::is_network_available() {
-            warn!("No network connection available");
+            debug!("No network connection available");
             return Err(AppError::NetworkError {
                 message: "No network connection available".to_string(),
                 source: None,
@@ -207,7 +207,7 @@ impl ImageProcessor {
         debug!("Loading image from path: {}", icon_path);
 
         if Self::is_program(icon_path) {
-            info!("Detected program file, extracting icon: {}", icon_path);
+            debug!("Detected program file, extracting icon: {}", icon_path);
             // 使用Windows系统调用读取程序图标
             let rgba_image = Self::extract_icon_from_file(icon_path)
                 .await
@@ -217,17 +217,17 @@ impl ImageProcessor {
 
             let png_data = Self::rgba_image_to_png(&rgba_image)?;
 
-            info!(
+            debug!(
                 "Successfully extracted and converted program icon ({} bytes)",
                 png_data.len()
             );
             Ok(png_data)
         } else {
-            info!("Loading regular image file: {}", icon_path);
+            debug!("Loading regular image file: {}", icon_path);
             // 直接使用库来读取图像文件
             let png_data = Self::load_and_convert_to_png(icon_path).await?;
 
-            info!(
+            debug!(
                 "Successfully loaded and converted image ({} bytes)",
                 png_data.len()
             );

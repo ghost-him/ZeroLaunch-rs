@@ -273,7 +273,7 @@ impl ProgramLauncherInner {
                 .launch_path_program_normal(&mut program_path_wide, &mut working_directory_wide);
             if let Err(error) = result {
                 if error == ERROR_ELEVATION_REQUIRED {
-                    warn!("Normal start failed due to insufficient privileges. Trying with elevation...");
+                    debug!("Normal start failed due to insufficient privileges. Trying with elevation...");
                     self.launch_path_program_elevation(
                         &mut program_path_wide,
                         &mut working_directory_wide,

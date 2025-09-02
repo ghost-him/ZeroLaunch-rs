@@ -21,9 +21,18 @@ pub async fn command_save_remote_config<R: Runtime>(
     state: tauri::State<'_, Arc<AppState>>,
     partial_config: PartialRuntimeConfig,
 ) -> Result<(), String> {
-    let runtime_config = state.get_runtime_config().unwrap();
+    use tracing::{info, warn};
+
+    info!("💾 开始保存远程配置");
+
+    let runtime_config = state.get_runtime_config();
+
     runtime_config.update(partial_config);
+    info!("✅ 运行时配置已更新");
+
     save_config_to_file(true).await;
+    info!("💾 远程配置保存完成");
+
     Ok(())
 }
 
@@ -33,8 +42,16 @@ pub async fn command_load_local_config<R: Runtime>(
     _window: tauri::Window<R>,
     state: tauri::State<'_, Arc<AppState>>,
 ) -> Result<PartialLocalConfig, String> {
-    let storage_manager = state.get_storage_manager().unwrap();
-    Ok(storage_manager.to_partial().await)
+    use tracing::{info, warn};
+
+    info!("📂 开始加载本地配置");
+
+    let storage_manager = state.get_storage_manager();
+
+    let config = storage_manager.to_partial().await;
+    info!("✅ 本地配置加载完成");
+
+    Ok(config)
 }
 
 #[tauri::command]
@@ -44,19 +61,30 @@ pub async fn command_save_local_config<R: Runtime>(
     state: tauri::State<'_, Arc<AppState>>,
     partial_config: PartialLocalConfig,
 ) -> Result<(), String> {
-    let storage_manager = state.get_storage_manager().unwrap();
+    use tracing::{debug, info, warn};
+
+    info!("💾 开始保存本地配置");
+
+    let storage_manager = state.get_storage_manager();
+
+    debug!("📤 强制上传所有文件");
     storage_manager.upload_all_file_force().await;
+
+    debug!("🔄 更新存储管理器配置");
     storage_manager.update(partial_config).await;
 
-    let runtime_config = state.get_runtime_config().unwrap();
+    let runtime_config = state.get_runtime_config();
 
+    debug!("📥 获取远程配置数据");
     let remote_config_data = {
         if let Some(data) = storage_manager
             .download_file_str(REMOTE_CONFIG_NAME.to_string())
             .await
         {
+            debug!("✅ 从远程下载配置成功");
             data
         } else {
+            debug!("📤 远程配置不存在，上传默认配置");
             storage_manager
                 .upload_file_str(
                     REMOTE_CONFIG_NAME.to_string(),
@@ -67,13 +95,28 @@ pub async fn command_save_local_config<R: Runtime>(
         }
     };
 
+    debug!("🔄 加载并更新运行时配置");
     let partial_config = load_local_config(&remote_config_data);
     runtime_config.update(partial_config);
+
+    debug!("⚙️ 更新应用设置");
     update_app_setting().await;
-    let setting_window = app.get_webview_window("setting_window").unwrap();
+
+    let setting_window = match app.get_webview_window("setting_window") {
+        Some(window) => window,
+        None => {
+            warn!("❌ 获取设置窗口失败");
+            return Err("Failed to get setting window".to_string());
+        }
+    };
+
     if let Err(e) = setting_window.emit("emit_update_setting_window_config", "") {
         error!("向 setting_window 发送信号失败: {:?}", e);
+    } else {
+        debug!("📡 设置窗口更新信号发送成功");
     }
+
+    info!("✅ 本地配置保存完成");
     Ok(())
 }
 

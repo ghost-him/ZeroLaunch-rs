@@ -3,6 +3,7 @@ use super::localization_translation::parse_localized_names_from_dir;
 use super::pinyin_mapper::PinyinMapper;
 use super::LaunchMethod;
 use crate::core::image_processor::ImageIdentity;
+use crate::error::OptionExt;
 use crate::modules::config::default::APP_PIC_PATH;
 use crate::program_manager::config::program_loader_config::PartialProgramLoaderConfig;
 use crate::program_manager::config::program_loader_config::ProgramLoaderConfig;
@@ -29,7 +30,7 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
-use tracing::warn;
+use tracing::{debug, warn};
 use windows::Win32::Foundation::PROPERTYKEY;
 use windows::Win32::System::Com::StructuredStorage::{PropVariantClear, PROPVARIANT};
 use windows::Win32::UI::Shell::PropertiesSystem::{IPropertyStore, PSGetPropertyKeyFromName};
@@ -76,38 +77,43 @@ impl PathChecker {
         match pattern_type.as_str() {
             "Wildcard" => {
                 let mut builder = GlobSetBuilder::new();
-                patterns.iter().for_each(|pattern| {
-                    builder.add(
-                        Glob::new(pattern)
-                            .map_err(|e| format!("添加通配符失败：{:?}", e.to_string()))
-                            .unwrap(),
-                    );
-                });
+                for pattern in patterns {
+                    match Glob::new(pattern) {
+                        Ok(glob) => {
+                            builder.add(glob);
+                        }
+                        Err(e) => {
+                            warn!("添加通配符失败: {}", e);
+                            return Err(format!("添加通配符失败：{:?}", e.to_string()));
+                        }
+                    }
+                }
 
-                Ok(PathChecker {
-                    glob: Some(
-                        builder
-                            .build()
-                            .map_err(|e| format!("编译通配符检查器失败：{:?}", e.to_string()))
-                            .unwrap(),
-                    ),
-                    regex: None,
-                    excluded_keys,
-                    is_glob: true,
-                })
+                match builder.build() {
+                    Ok(globset) => Ok(PathChecker {
+                        glob: Some(globset),
+                        regex: None,
+                        excluded_keys,
+                        is_glob: true,
+                    }),
+                    Err(e) => {
+                        warn!("编译通配符检查器失败: {}", e);
+                        Err(format!("编译通配符检查器失败：{:?}", e.to_string()))
+                    }
+                }
             }
-            "Regex" => {
-                let regex = RegexSet::new(patterns)
-                    .map_err(|e| format!("编译正则表达式失败：{:?}", e.to_string()))
-                    .unwrap();
-
-                Ok(PathChecker {
+            "Regex" => match RegexSet::new(patterns) {
+                Ok(regex) => Ok(PathChecker {
                     glob: None,
                     regex: Some(regex),
                     excluded_keys,
                     is_glob: false,
-                })
-            }
+                }),
+                Err(e) => {
+                    warn!("编译正则表达式失败: {}", e);
+                    Err(format!("编译正则表达式失败：{:?}", e.to_string()))
+                }
+            },
             _ => Err(format!("无当前该匹配项：{}", pattern_type)),
         }
     }
@@ -270,22 +276,47 @@ impl ProgramLoaderInner {
 
     /// 获取当前电脑上所有的程序
     pub fn load_program(&mut self) -> Vec<Arc<Program>> {
+        use tracing::{debug, info};
+
+        info!("🔄 开始加载程序列表");
         // 开始计时
         let start = Instant::now();
         let mut result = Vec::new();
+
         if self.is_scan_uwp_programs {
+            info!("📱 开始扫描UWP程序");
             let uwp_infos = self.load_uwp_program();
+            info!("📱 UWP程序扫描完成，找到 {} 个程序", uwp_infos.len());
             result.extend(uwp_infos);
+        } else {
+            debug!("⏭️ 跳过UWP程序扫描（已禁用）");
         }
+
         // 添加普通的程序
+        info!("💻 开始扫描路径中的程序");
         let program_infos = self.load_program_from_path();
+        info!("💻 路径程序扫描完成，找到 {} 个程序", program_infos.len());
         result.extend(program_infos);
+
+        info!("🌐 开始加载网页程序");
         let web_infos = self.load_web();
+        info!("🌐 网页程序加载完成，找到 {} 个程序", web_infos.len());
         result.extend(web_infos);
+
+        info!("⚡ 开始加载自定义命令");
         let command_infos = self.load_custom_command();
+        info!("⚡ 自定义命令加载完成，找到 {} 个命令", command_infos.len());
         result.extend(command_infos);
+
         // 结束计时
         self.loading_time = Some(start.elapsed());
+        let total_time = self.loading_time.expect_programming("加载时间应该已被设置").as_millis();
+
+        info!(
+            "✅ 程序加载完成！总计 {} 个程序，耗时 {} ms",
+            result.len(),
+            total_time
+        );
         result
     }
 
@@ -305,8 +336,8 @@ impl ProgramLoaderInner {
 
     /// 获得加载程序的耗时
     pub fn get_loading_time(&self) -> f64 {
-        if self.loading_time.is_some() {
-            return self.loading_time.as_ref().unwrap().as_secs_f64() * 1000.0;
+        if let Some(ref loading_time) = self.loading_time {
+            return loading_time.as_secs_f64() * 1000.0;
         }
         -1.0
     }
@@ -355,21 +386,32 @@ impl ProgramLoaderInner {
                 &directory.pattern_type,
                 &directory.excluded_keywords,
             );
-            if checker.is_err() {
-                let message = checker.unwrap_err();
-                warn!("遇到错误: {}", message);
-                notify("ZeroLaunch-rs", &format!("遇到错误: {}", message));
-                continue;
+            let checker = match checker {
+                Ok(checker) => Arc::new(checker),
+                Err(message) => {
+                    warn!("遇到错误: {}", message);
+                    notify("ZeroLaunch-rs", &format!("遇到错误: {}", message));
+                    continue;
+                }
+            };
+            match self.recursive_visit_dir(
+                Path::new(&directory.root_path),
+                directory.max_depth as usize,
+                checker,
+            ) {
+                Ok(paths) => {
+                    let paths_count = paths.len();
+                    program_paths_str.extend(paths);
+                    debug!(
+                        "成功扫描目录: {}, 找到 {} 个程序",
+                        directory.root_path, paths_count
+                    );
+                }
+                Err(e) => {
+                    warn!("扫描目录失败: {}, 错误: {}", directory.root_path, e);
+                    continue;
+                }
             }
-            let checker = Arc::new(checker.unwrap());
-            program_paths_str.extend(
-                self.recursive_visit_dir(
-                    Path::new(&directory.root_path),
-                    directory.max_depth as usize,
-                    checker,
-                )
-                .unwrap(),
-            );
             let mut grouped_paths: HashMap<PathBuf, Vec<PathBuf>> = HashMap::new();
             for path_str in program_paths_str {
                 let path = PathBuf::from(path_str);
@@ -410,10 +452,16 @@ impl ProgramLoaderInner {
                     let mut alias_names: Vec<String> = self.convert_search_keywords(&show_name);
                     let unique_name = show_name.to_lowercase();
                     let stable_bias = self.get_program_bias(&unique_name);
-                    let launch_method = if ["url", "lnk", "exe"]
-                        .contains(&target_path.extension().unwrap().to_str().unwrap())
-                    {
-                        LaunchMethod::Path(target_path_str.clone())
+                    let launch_method = if let Some(ext) = target_path.extension() {
+                        if let Some(ext_str) = ext.to_str() {
+                            if ["url", "lnk", "exe"].contains(&ext_str) {
+                                LaunchMethod::Path(target_path_str.clone())
+                            } else {
+                                LaunchMethod::File(target_path_str.clone())
+                            }
+                        } else {
+                            LaunchMethod::File(target_path_str.clone())
+                        }
                     } else {
                         LaunchMethod::File(target_path_str.clone())
                     };
@@ -423,8 +471,7 @@ impl ProgramLoaderInner {
                     alias_names.extend(alias_name_to_append);
                     // 再最后检查一下有没有本地化的名字
                     let localized_name = localized_names.get(&file_name).cloned();
-                    if localized_name.is_some() {
-                        let localized_name_str = localized_name.as_ref().unwrap();
+                    if let Some(ref localized_name_str) = localized_name {
                         let mut localized_alias = self.convert_search_keywords(localized_name_str);
                         alias_names.append(&mut localized_alias);
                     }
@@ -470,7 +517,13 @@ impl ProgramLoaderInner {
             let mut alias_names = self.convert_search_keywords(show_name);
             let unique_name = show_name.to_lowercase();
             let stable_bias = self.get_program_bias(&unique_name);
-            let icon_path = APP_PIC_PATH.get("terminal").unwrap().value().clone();
+            let icon_path = match APP_PIC_PATH.get("terminal") {
+                Some(path) => path.value().clone(),
+                None => {
+                    warn!("未找到终端图标路径");
+                    String::new()
+                }
+            };
 
             // 如果用户自己添加了别名，则添加上去
             let launch_method = LaunchMethod::Command(command.clone());
@@ -597,7 +650,10 @@ impl ProgramLoaderInner {
                         if shell_item.is_none() {
                             continue;
                         }
-                        let shell_item = shell_item.clone().unwrap();
+                        let shell_item = match shell_item.clone() {
+                            Some(item) => item,
+                            None => continue,
+                        };
 
                         // Bind to IPropertyStore
                         let property_store: IPropertyStore = match shell_item
@@ -616,13 +672,21 @@ impl ProgramLoaderInner {
                             pv_launcher = value.clone();
                         }
 
-                        PropVariantClear(&mut pv_launcher).unwrap();
+                        if let Err(e) = PropVariantClear(&mut pv_launcher) {
+                            warn!("清理PropVariant失败: {}", e);
+                        }
 
                         // Get Display Name
                         let short_name = match shell_item.GetDisplayName(SIGDN_NORMALDISPLAY) {
-                            Ok(name) => name.to_string().unwrap(),
+                            Ok(name) => match name.to_string() {
+                                Ok(s) => s,
+                                Err(e) => {
+                                    warn!("转换显示名称失败: {}", e);
+                                    String::new()
+                                }
+                            },
                             Err(e) => {
-                                warn!("error: {}", e);
+                                warn!("获取显示名称失败: {}", e);
                                 String::new()
                             }
                         };
@@ -634,7 +698,9 @@ impl ProgramLoaderInner {
                         };
 
                         let app_id = self.prop_variant_to_string(&pv_app_id);
-                        PropVariantClear(&mut pv_app_id).unwrap();
+                        if let Err(e) = PropVariantClear(&mut pv_app_id) {
+                            warn!("清理PropVariant失败: {}", e);
+                        }
 
                         // Get PackageInstallPath
                         let mut pv_install = PROPVARIANT::default();
@@ -645,7 +711,9 @@ impl ProgramLoaderInner {
                         if install_path.is_empty() {
                             continue;
                         }
-                        PropVariantClear(&mut pv_install).unwrap();
+                        if let Err(e) = PropVariantClear(&mut pv_install) {
+                            warn!("清理PropVariant失败: {}", e);
+                        }
 
                         // Get SmallLogoPath
 
@@ -654,7 +722,9 @@ impl ProgramLoaderInner {
                             pv_icon = value.clone();
                         };
                         let path = self.prop_variant_to_string(&pv_icon);
-                        PropVariantClear(&mut pv_icon).unwrap();
+                        if let Err(e) = PropVariantClear(&mut pv_icon) {
+                            warn!("清理PropVariant失败: {}", e);
+                        }
 
                         let mut full_icon_path = PathBuf::from(&install_path);
                         full_icon_path.push(&path);
@@ -739,7 +809,10 @@ impl ProgramLoaderInner {
 
         let entries = match fs::read_dir(parent) {
             Ok(entries) => entries,
-            Err(_) => return String::new(),
+            Err(e) => {
+                warn!("Failed to read directory for icon validation: {}", e);
+                return String::new();
+            }
         };
 
         // 存储所有匹配的图标及其分辨率信息
@@ -785,13 +858,22 @@ impl ProgramLoaderInner {
                                 // 使用宽×高作为分辨率指标
                                 Some(width as u64 * height as u64)
                             }
-                            Err(_) => None,
+                            Err(e) => {
+                                warn!("Failed to get image dimensions: {}", e);
+                                None
+                            }
                         }
                     }
-                    Err(_) => None,
+                    Err(e) => {
+                        warn!("Failed to guess image format: {}", e);
+                        None
+                    }
                 }
             }
-            Err(_) => None,
+            Err(e) => {
+                warn!("Failed to open image file: {}", e);
+                None
+            }
         }
     }
     /// 判断是不是一个有效的路径
@@ -821,8 +903,13 @@ impl ProgramLoaderInner {
             return false;
         }
 
-        let file_name = path.file_name().and_then(|ext| ext.to_str()).unwrap();
-        checker.is_match(file_name)
+        match path.file_name().and_then(|ext| ext.to_str()) {
+            Some(file_name) => checker.is_match(file_name),
+            None => {
+                warn!("无法获取文件名: {:?}", path);
+                false
+            }
+        }
     }
 
     /// 递归遍历一个文件夹

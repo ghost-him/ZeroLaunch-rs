@@ -1,3 +1,4 @@
+use crate::error::{ResultExt, OptionExt};
 use crate::utils::windows::expand_environment_variables;
 use crate::Path;
 use ini::inistr;
@@ -41,7 +42,10 @@ fn resolve_resource_string(resource_ref: &str) -> Option<String> {
 
     let resource_id = match id_part_with_comma[1..].parse::<i32>() {
         Ok(id) => id.unsigned_abs(),
-        Err(_) => return None,
+        Err(e) => {
+            warn!("Failed to parse resource ID: {}", e);
+            return None;
+        }
     };
 
     // 2. 调用 Windows API
@@ -105,7 +109,11 @@ pub fn parse_localized_names_from_dir(dir_path: &Path) -> HashMap<String, String
 
                 let utf16_values: Vec<u16> = u16_bytes
                     .chunks_exact(2) // 将切片按每2个字节分组
-                    .map(|chunk| u16::from_le_bytes(chunk.try_into().unwrap())) // 将 [u8; 2] 转换为小端序 u16
+                    .map(|chunk| {
+                        u16::from_le_bytes(
+                            chunk.try_into().expect_programming("Chunk should be exactly 2 bytes"),
+                        )
+                    }) // 将 [u8; 2] 转换为小端序 u16
                     .collect();
 
                 widestring::U16Str::from_slice(&utf16_values).to_string_lossy()
@@ -113,7 +121,10 @@ pub fn parse_localized_names_from_dir(dir_path: &Path) -> HashMap<String, String
                 String::from_utf8_lossy(&bytes).to_string()
             }
         }
-        Err(_) => return HashMap::new(),
+        Err(e) => {
+            warn!("Failed to read desktop.ini file: {}", e);
+            return HashMap::new();
+        }
     };
 
     let conf = inistr!(&content);
@@ -123,7 +134,9 @@ pub fn parse_localized_names_from_dir(dir_path: &Path) -> HashMap<String, String
             if value.is_none() {
                 continue;
             }
-            let value = value.clone().unwrap();
+            let value = value
+                .clone()
+                .expect_programming("Value should not be None after is_none check");
             if value.starts_with('@') {
                 if let Some(resolved_name) = resolve_resource_string(&value) {
                     localized_map.insert(key.to_string(), resolved_name);

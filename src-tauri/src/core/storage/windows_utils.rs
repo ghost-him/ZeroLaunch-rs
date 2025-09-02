@@ -1,3 +1,4 @@
+use crate::error::{ResultExt, OptionExt};
 use std::path::Path;
 use tracing::{debug, info};
 use windows::Win32::UI::Shell::SHGetFolderPathW;
@@ -91,11 +92,14 @@ pub fn get_default_remote_data_dir_path() -> String {
         let path = SHGetKnownFolderPath(&FOLDERID_RoamingAppData, KF_FLAG_DEFAULT, None);
 
         // 将 PWSTR 转换为 Rust 字符串
-        let path_str = path.unwrap().to_string().unwrap();
+        let path_str = path
+            .expect_programming("Failed to get AppData path")
+            .to_string()
+            .expect_programming("Failed to convert path to string");
         let app_data_str = Path::new(&path_str)
             .join("ZeroLaunch-rs")
             .to_str()
-            .unwrap()
+            .expect_programming("Failed to convert path to string")
             .to_string();
         info!("AppData Directory: {}", app_data_str);
         app_data_str

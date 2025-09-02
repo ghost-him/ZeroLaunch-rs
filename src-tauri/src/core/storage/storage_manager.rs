@@ -8,17 +8,16 @@ use crate::core::storage::config::LocalConfig;
 use crate::core::storage::local_save::LocalStorage;
 use crate::core::storage::utils::create_str;
 use crate::core::storage::utils::read_str;
-use crate::modules::config::default::APP_VERSION;
+use crate::error::{AppError, AppResult};
 use crate::utils::notify::notify;
 use crate::LOCAL_CONFIG_PATH;
 use async_trait::async_trait;
 use dashmap::DashMap;
 use dashmap::Entry;
 use std::sync::Arc;
-use tokio::sync::RwLock;
-use tracing::error;
-use tracing::warn;
 use tauri::Manager;
+use tokio::sync::RwLock;
+use tracing::{debug, error, info, warn};
 
 pub const TEST_CONFIG_FILE_NAME: &str = "zerolaunch-test-link.txt";
 pub const TEST_CONFIG_FILE_DATA: &str = "当前文件仅用于测试连通性，可以手动删除";
@@ -27,9 +26,9 @@ pub const WELCOME_PAGE_VERSION: &str = "1.0.1";
 #[async_trait]
 pub trait StorageClient: Send + Sync {
     // 要可以上传文件
-    async fn upload(&self, file_name: String, data: Vec<u8>) -> Result<(), String>;
+    async fn upload(&self, file_name: String, data: Vec<u8>) -> AppResult<()>;
     // 要可以下载文件
-    async fn download(&self, file_name: String) -> Result<Option<Vec<u8>>, String>;
+    async fn download(&self, file_name: String) -> AppResult<Option<Vec<u8>>>;
     // 要可以获得当前文件的目标路径
     async fn get_target_dir_path(&self) -> String;
     // 判断是否有效(true: 有效，false: 无效)
@@ -76,7 +75,14 @@ impl StorageManagerInner {
             Err(error) => {
                 // 从本地读取配置信息，这个default_content就是当用户读取本地配置信息失败时，要写入的初始值
                 let default_content =
-                    serde_json::to_string(&inner.local_config.read().await.to_partial()).unwrap();
+                    match serde_json::to_string(&inner.local_config.read().await.to_partial()) {
+                        Ok(content) => content,
+                        Err(e) => {
+                            error!("Failed to serialize default local config: {}", e);
+                            // 使用硬编码的默认配置作为后备
+                            "{}".to_string()
+                        }
+                    };
 
                 if error.kind() == std::io::ErrorKind::NotFound {
                     // 如果没有这个文件，则说明是用户第一次启动程序
@@ -84,24 +90,42 @@ impl StorageManagerInner {
                     // 写入初始值
                     if let Err(e) = create_str(&LOCAL_CONFIG_PATH, &default_content) {
                         warn!("创建本地配置文件失败: {}", e);
+                    } else {
+                        debug!("Created initial local config file");
                     }
                 } else {
                     warn!("读取本地配置文件失败: {}", error);
                 }
                 default_content
             }
-            Ok(local_config_data) => local_config_data,
+            Ok(local_config_data) => {
+                debug!("Successfully loaded local config file");
+                local_config_data
+            }
         };
-        // println!("当前的本地配置文件内容: {}", local_config_data);
+        debug!(
+            "Local config data loaded: {} bytes",
+            local_config_data.len()
+        );
 
         let partial_local_config: PartialLocalConfig =
-            serde_json::from_str(&local_config_data).unwrap();
+            match serde_json::from_str(&local_config_data) {
+                Ok(config) => {
+                    debug!("Successfully parsed local config");
+                    config
+                }
+                Err(e) => {
+                    error!("Failed to parse local config: {}, using default", e);
+                    // 使用默认配置
+                    PartialLocalConfig::default()
+                }
+            };
 
         // 检查是否需要显示欢迎页面
         // 首次启动或欢迎页面版本更新时显示欢迎页面
-        let should_show_welcome = is_first_startup || 
-            (!is_first_startup && check_welcome_page_version_changed(&partial_local_config));
-        
+        let should_show_welcome = is_first_startup
+            || (!is_first_startup && check_welcome_page_version_changed(&partial_local_config));
+
         if should_show_welcome {
             callback();
         }
@@ -147,9 +171,21 @@ impl StorageManagerInner {
     // 将自己的信息保存到本地
     async fn save_to_local_disk(&self) {
         let partial_local_config = self.local_config.read().await.to_partial();
-        let contents = serde_json::to_string(&partial_local_config).unwrap();
+
+        let contents = match serde_json::to_string(&partial_local_config) {
+            Ok(content) => content,
+            Err(e) => {
+                error!("Failed to serialize local config for saving: {}", e);
+                return;
+            }
+        };
+
         let path = LOCAL_CONFIG_PATH.clone();
-        let _ = tokio::fs::write(path, contents).await;
+        if let Err(e) = tokio::fs::write(&path, contents).await {
+            error!("Failed to save local config to disk: {}", e);
+        } else {
+            debug!("Successfully saved local config to disk");
+        }
     }
 
     /// 上传文件
@@ -163,22 +199,26 @@ impl StorageManagerInner {
     /// 下载文件
     /// file_name: 工作目录下的相对地址
     pub async fn download_file_str(&self, file_name: String) -> Option<String> {
-        let bytes = self.download_file_bytes(file_name).await;
-        bytes.as_ref()?;
-        Some(String::from_utf8_lossy(&bytes.unwrap()).into_owned())
+        let bytes = self.download_file_bytes(file_name).await?;
+        Some(String::from_utf8_lossy(&bytes).into_owned())
     }
     /// 强制下载文件
     /// file_name: 工作目录下的相对地址
     pub async fn download_file_str_force(&mut self, file_name: String) -> Option<String> {
-        let bytes = self.download_file_bytes_force(file_name).await;
-        bytes.as_ref()?;
-        Some(String::from_utf8_lossy(&bytes.unwrap()).into_owned())
+        let bytes = self.download_file_bytes_force(file_name).await?;
+        Some(String::from_utf8_lossy(&bytes).into_owned())
     }
 
     /// 上传文件
     /// file_name: 工作目录下的相对地址
     /// contents: 内容
     pub async fn upload_file_bytes(&self, file_name: String, contents: Vec<u8>) -> bool {
+        info!(
+            "📤 开始上传文件: {}, 大小: {} bytes",
+            file_name,
+            contents.len()
+        );
+
         let save_count = *self
             .local_config
             .read()
@@ -186,6 +226,7 @@ impl StorageManagerInner {
             .get_save_to_local_per_update();
         // 若配置为0，直接上传
         if save_count == 0 {
+            debug!("⚡ 配置为直接上传模式: {}", file_name);
             return self
                 .upload_file_bytes_force(file_name, Some(contents))
                 .await;
@@ -196,18 +237,22 @@ impl StorageManagerInner {
                 let (counter, data) = entry.get_mut();
                 *counter -= 1;
                 *data = contents.clone();
+                debug!("🔄 更新缓存文件: {}, 剩余计数: {}", file_name, *counter);
 
                 if *counter == 0 {
                     // 如果减成了0，则上传文件，同时删除当前的文件
+                    debug!("🚀 计数归零，触发上传: {}", file_name);
                     self.upload(file_name.clone(), contents).await;
 
                     entry.remove();
                 }
             }
             Entry::Vacant(entry) => {
+                debug!("➕ 添加新缓存文件: {}, 初始计数: {}", file_name, save_count);
                 entry.insert((save_count, contents));
             }
         }
+        info!("✅ 文件上传操作完成: {}", file_name);
         true
     }
 
@@ -230,8 +275,8 @@ impl StorageManagerInner {
                 // 如果没有内容，则忽略
             }
         }
-        if contents.is_some() {
-            self.upload(file_name, contents.unwrap()).await;
+        if let Some(data) = contents {
+            self.upload(file_name, data).await;
             return true;
         }
         false
@@ -274,15 +319,31 @@ impl StorageManagerInner {
     /// 下载文件
     /// file_name: 工作目录下的相对地址
     pub async fn download_file_bytes(&self, file_name: String) -> Option<Vec<u8>> {
+        info!("📥 开始下载文件: {}", file_name);
+
         let cached_data = self
             .cached_content
             .get(&file_name)
             .map(|entry| entry.value().1.clone());
 
         if let Some(content) = cached_data {
+            debug!(
+                "💾 从缓存获取文件: {}, 大小: {} bytes",
+                file_name,
+                content.len()
+            );
             return Some(content);
         }
-        self.download(file_name).await
+
+        debug!("🌐 从远程下载文件: {}", file_name);
+        let result = self.download(file_name.clone()).await;
+
+        match &result {
+            Some(data) => info!("✅ 文件下载完成: {}, 大小: {} bytes", file_name, data.len()),
+            None => warn!("❌ 文件下载失败: {}", file_name),
+        }
+
+        result
     }
 
     /// 获得目标文件夹的地址
@@ -312,13 +373,20 @@ impl StorageManagerInner {
                             file_name,
                         ),
                     );
-                    Err("存储客户端未初始化，无法下载文件".to_string()) // 返回报错
+                    Err(AppError::NetworkError { message: "存储客户端未初始化，无法下载文件".to_string(), source: None })
                 }
             }
         };
 
         match result {
-            Ok(data) => data,
+            Ok(data) => {
+                if data.is_some() {
+                    debug!("成功下载文件：{}", file_name);
+                } else {
+                    debug!("文件不存在：{}", file_name);
+                }
+                data
+            }
             Err(e) => {
                 warn!(
                     "下载文件：{} 失败，已使用默认配置信息，错误信息：{}",
@@ -353,13 +421,15 @@ impl StorageManagerInner {
                         "zerolaunch-rs",
                         &format!("存储客户端未初始化，无法上传文件：{}", file_name),
                     );
-                    Err("存储客户端未初始化，无法下载文件".to_string()) // 返回报错
+                    Err(AppError::NetworkError { message: "存储客户端未初始化，无法上传文件".to_string(), source: None })
                 }
             }
         };
 
         match result {
-            Ok(_) => (),
+            Ok(_) => {
+                debug!("成功上传文件：{}", file_name);
+            }
             Err(e) => {
                 warn!("上传文件：{} 失败，错误：{:?}", file_name, e);
                 notify(
@@ -506,10 +576,10 @@ pub async fn check_validation(
 fn check_welcome_page_version_changed(partial_local_config: &PartialLocalConfig) -> bool {
     // 获取当前welcome页面版本
     let current_welcome_version = get_current_welcome_page_version();
-    
+
     // 获取存储的welcome页面版本
     let stored_welcome_version = partial_local_config.welcome_page_version.as_ref();
-    
+
     // 如果没有存储版本或版本不匹配，则需要显示welcome页面
     match stored_welcome_version {
         None => true, // 没有存储版本，需要显示

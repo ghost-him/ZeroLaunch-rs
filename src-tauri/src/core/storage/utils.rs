@@ -91,7 +91,11 @@ pub fn get_lnk_target_path(lnk_path: &str) -> Option<String> {
 
     let shell_link = match shell_link_result {
         Ok(link) => link,
-        Err(_) => {
+        Err(e_gb18030) => {
+            warn!(
+                "Failed to open LNK file '{}' with GB18030 encoding: {:?}",
+                lnk_path, e_gb18030
+            );
             // 2. 二次尝试：如果首次尝试失败，则使用 UTF-16LE 编码
             match lnk::ShellLink::open(lnk_path, encoding_rs::UTF_16LE) {
                 Ok(link) => {

@@ -1,3 +1,4 @@
+use crate::error::ResultExt;
 use crate::modules::config::default::PINYIN_CONTENT_JS;
 use serde::{Deserialize, Serialize};
 /// 这个类用于将中文名字转换成拼音名字
@@ -22,7 +23,7 @@ impl Default for PinyinMapper {
 impl PinyinMapper {
     pub fn new() -> Self {
         let items: Vec<Item> =
-            serde_json::from_str(PINYIN_CONTENT_JS).expect("Failed to parse PINYIN_CONTENT_JS");
+            serde_json::from_str(PINYIN_CONTENT_JS).expect_programming("Failed to parse PINYIN_CONTENT_JS");
 
         let mut word_to_pinyin: HashMap<String, String> = HashMap::new();
         for item in items {

@@ -1,5 +1,6 @@
 // src-tauri/src/infrastructure/service_locator.rs
 use super::super::state::app_state::AppState;
+use super::super::error::{ResultExt, OptionExt};
 use std::sync::Arc;
 use std::sync::OnceLock;
 
@@ -9,10 +10,12 @@ pub struct ServiceLocator;
 
 impl ServiceLocator {
     pub fn init(state: Arc<AppState>) {
-        APP_STATE.set(state).unwrap();
+        APP_STATE
+            .set(state)
+            .expect_programming("Failed to initialize app state");
     }
 
     pub fn get_state() -> Arc<AppState> {
-        APP_STATE.get().cloned().expect("State not initialized")
+        APP_STATE.get().cloned().expect_programming("State not initialized")
     }
 }

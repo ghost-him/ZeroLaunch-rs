@@ -1,4 +1,5 @@
 use crate::core::storage::utils::get_lnk_target_path;
+use crate::error::{ResultExt, OptionExt};
 
 use super::unit::LaunchMethod;
 use super::unit::Program;
@@ -74,8 +75,8 @@ impl WindowActivatorInner {
     // 激活.exe程序的窗口，传入绝对路径
     fn activate_with_exe(&self, str: &str) -> bool {
         let abs_path = Path::new(str);
-        let program_name = abs_path.file_name().unwrap().to_str().unwrap().to_string();
-        let program_stem = abs_path.file_stem().unwrap().to_str().unwrap().to_string();
+        let program_name = abs_path.file_name().expect_programming("获取文件名失败").to_str().expect_programming("文件名转换为字符串失败").to_string();
+        let program_stem = abs_path.file_stem().expect_programming("获取文件主名失败").to_str().expect_programming("文件主名转换为字符串失败").to_string();
         let hwnd: Option<HWND> = {
             let mut result = self.get_window_by_process_name(&program_name);
             if result.is_none() {
@@ -88,7 +89,7 @@ impl WindowActivatorInner {
             return false;
         }
 
-        self.activate_with_hwnd(hwnd.unwrap());
+        self.activate_with_hwnd(hwnd.expect_programming("窗口句柄应该存在"));
         true
     }
 
@@ -98,7 +99,7 @@ impl WindowActivatorInner {
 
         unsafe {
             // 创建进程快照
-            let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0).unwrap();
+            let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0).expect_programming("创建进程快照失败");
 
             let mut entry = PROCESSENTRY32W {
                 dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32,
@@ -278,7 +279,7 @@ fn get_all_windows() -> Vec<(HWND, String)> {
             Some(get_all_windows_enum_callback),
             LPARAM(&mut data as *mut _ as isize),
         )
-        .expect("EnumWindows failed");
+        .expect_programming("EnumWindows failed");
     }
 
     data.windows

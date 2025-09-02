@@ -1,3 +1,4 @@
+use crate::error::{ResultExt, OptionExt};
 use crate::program_manager::config::program_launcher_config::PartialProgramLauncherConfig;
 use crate::program_manager::config::program_launcher_config::ProgramLauncherConfig;
 use crate::program_manager::LaunchMethod;
@@ -100,7 +101,10 @@ impl ProgramLauncherInner {
     }
 
     fn launch_program(&mut self, program_guid: u64, is_admin_required: bool) {
-        let launch_method = self.launch_store.get(&program_guid).unwrap();
+        let launch_method = self
+            .launch_store
+            .get(&program_guid)
+            .expect_programming("Program GUID should exist in launch store");
         self.launch_time[0]
             .entry(launch_method.get_text())
             .and_modify(|count| *count += 1)
@@ -191,7 +195,10 @@ impl ProgramLauncherInner {
     }
 
     fn program_dynamic_value_based_launch_time(&self, program_guid: u64) -> f64 {
-        let program_string = self.launch_store.get(&program_guid).unwrap();
+        let program_string = self
+            .launch_store
+            .get(&program_guid)
+            .expect_programming("Program GUID should exist in launch store");
         let mut result: f64 = 0.0;
         let mut k: f64 = 1.0;
         self.launch_time.iter().for_each(|day| {
@@ -204,7 +211,10 @@ impl ProgramLauncherInner {
     }
 
     fn program_history_launch_time(&mut self, program_guid: u64) -> u64 {
-        let program_string = self.launch_store.get(&program_guid).unwrap();
+        let program_string = self
+            .launch_store
+            .get(&program_guid)
+            .expect_programming("Program GUID should exist in launch store");
         let count = self
             .history_launch_time
             .entry(program_string.get_text())
@@ -227,7 +237,9 @@ impl ProgramLauncherInner {
             });
 
             let manager: IApplicationActivationManager =
-                CoCreateInstance(&ApplicationActivationManager, None, CLSCTX_ALL).unwrap();
+                CoCreateInstance(&ApplicationActivationManager, None, CLSCTX_ALL).expect_programming(
+                    "Failed to create ApplicationActivationManager",
+                );
 
             let app_id_wide: Vec<u16> = get_u16_vec(package_family_name);
             let pid = match manager.ActivateApplication(
@@ -248,7 +260,9 @@ impl ProgramLauncherInner {
 
     fn launch_path_program(&self, path: &str, is_admin_required: bool) {
         let program_path = Path::new(&path);
-        let working_directory = program_path.parent().unwrap();
+        let working_directory = program_path
+            .parent()
+            .expect_programming("Program path should have a parent directory");
 
         let mut program_path_wide = get_u16_vec(program_path);
         let mut working_directory_wide = get_u16_vec(working_directory);
@@ -333,7 +347,10 @@ impl ProgramLauncherInner {
 
     #[allow(clippy::zombie_processes)]
     pub fn open_target_folder(&self, program_guid: u64) -> bool {
-        let program_method = self.launch_store.get(&program_guid).unwrap();
+        let program_method = self
+            .launch_store
+            .get(&program_guid)
+            .expect_programming("Program GUID should exist in launch store");
         let target_method = program_method.clone();
         // 只支持命令和uwp应用以外的程序
         match &target_method {
@@ -351,7 +368,7 @@ impl ProgramLauncherInner {
         Command::new("explorer")
             .args(["/select,", &target_path]) // 使用/select参数并指定完整文件路径
             .spawn()
-            .unwrap();
+            .expect_programming("Failed to spawn explorer process");
         true
     }
 }

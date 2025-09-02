@@ -11,7 +11,7 @@ pub async fn command_unregister_all_shortcut<R: Runtime>(
     if state.get_game_mode() {
         return Err("请关闭游戏模式后再更改".to_string());
     }
-    let shortcut_manager = state.get_shortcut_manager().unwrap();
+    let shortcut_manager = state.get_shortcut_manager();
     shortcut_manager.unregister_all_shortcut()
 }
 
@@ -21,6 +21,6 @@ pub async fn command_register_all_shortcut<R: Runtime>(
     _window: tauri::Window<R>,
     state: tauri::State<'_, Arc<AppState>>,
 ) -> Result<(), String> {
-    let shortcut_manager = state.get_shortcut_manager().unwrap();
+    let shortcut_manager = state.get_shortcut_manager();
     shortcut_manager.register_all_shortcuts()
 }

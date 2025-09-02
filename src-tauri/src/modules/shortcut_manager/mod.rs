@@ -1,5 +1,6 @@
 pub mod shortcut_config;
 
+use crate::error::OptionExt;
 use crate::notify;
 use crate::utils::service_locator::ServiceLocator;
 use crate::utils::ui_controller::handle_pressed;
@@ -59,11 +60,11 @@ impl ShortcutManagerInner {
         let code = {
             // 如果是单个字符，则使用单个字符的方式处理
             if shortcut.key.len() == 1 {
-                let first_char = shortcut.key.chars().next().unwrap();
+                let first_char = shortcut.key.chars().next().expect_programming("快捷键字符串为空");
                 match first_char {
                     'a'..='z' | 'A'..='Z' => {
                         // 统一转换为大写字母，然后计算偏移量
-                        let uppercase = first_char.to_uppercase().next().unwrap();
+                        let uppercase = first_char.to_uppercase().next().expect_programming("字符转换大写失败");
                         let offset = uppercase as u8 - b'A';
                         match offset {
                             0 => Some(Code::KeyA),
@@ -270,7 +271,7 @@ pub fn update_shortcut_manager() {
         return;
     }
 
-    let shortcut_manager = state.get_shortcut_manager().unwrap();
+    let shortcut_manager = state.get_shortcut_manager();
 
     if let Err(e) = shortcut_manager.delete_all_shortcut() {
         println!("{:?}", e);
@@ -278,7 +279,7 @@ pub fn update_shortcut_manager() {
         return;
     }
 
-    let runtime_config = state.get_runtime_config().unwrap();
+    let runtime_config = state.get_runtime_config();
     let shortcut_config = runtime_config.get_shortcut_config();
     let shortcut: Shortcut = shortcut_config.get_open_search_bar();
     if let Err(e) = shortcut_manager.register_shortcut(shortcut, move |handle| {

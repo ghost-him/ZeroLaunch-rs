@@ -13,6 +13,7 @@ use crate::commands::program_service::*;
 use crate::commands::shortcut::*;
 use crate::commands::ui_command::*;
 use crate::commands::utils::*;
+use crate::error::{ResultExt, OptionExt};
 use crate::modules::config::config_manager::PartialRuntimeConfig;
 use crate::modules::config::default::LOCAL_CONFIG_PATH;
 use crate::modules::config::default::LOG_DIR;
@@ -85,37 +86,37 @@ pub fn run() {
         .finish();
 
     // 设置全局默认的订阅者
-    tracing::subscriber::set_global_default(subscriber).expect("设置全局默认订阅者失败");
+    tracing::subscriber::set_global_default(subscriber).expect_programming("设置全局默认订阅者失败");
 
     // 设置 panic hook
     panic::set_hook(Box::new(|panic_info| {
-        let location = panic_info.location().unwrap();
+        let location = panic_info.location().expect_programming("无法获取panic位置信息");
         let message = match panic_info.payload().downcast_ref::<&str>() {
             Some(s) => *s,
-            None => "Unknown panic message",
+            None => "未知panic消息",
         };
 
         let log_dir = LOG_DIR.clone();
         let panic_file_path = Path::new(&log_dir)
             .join("panic.log")
             .to_str()
-            .unwrap()
+            .expect_programming("无法转换panic日志路径为字符串")
             .to_string();
-        let mut file = File::create(panic_file_path).expect("Could not create panic log file");
+        let mut file = File::create(panic_file_path).expect_programming("无法创建panic日志文件");
         writeln!(
             file,
-            "Panic occurred in file '{}' at line {}: {}",
+            "Panic发生在文件 '{}' 第{}行: {}",
             location.file(),
             location.line(),
             message
         )
-        .expect("Could not write to panic log file");
+        .expect_programming("无法写入panic日志文件");
 
         let backtrace = Backtrace::new();
 
-        writeln!(file, "backtracing: {:?}", backtrace).expect("Could not write to panic log file");
+        writeln!(file, "堆栈跟踪: {:?}", backtrace).expect_programming("无法写入panic日志文件");
 
-        error!("Panic occurred: {}", message);
+        error!("Panic发生: {}", message);
     }));
 
     cleanup_old_logs(&LOG_DIR.to_string(), 5);
@@ -157,13 +158,13 @@ pub fn run() {
                 // 根据配置信息更新整个程序
                 update_app_setting().await;
 
-                app.deep_link().register_all().unwrap();
+                app.deep_link().register_all().expect_programming("无法注册深度链接");
                 app.deep_link().on_open_url(|event| {
                     tauri::async_runtime::spawn(async move {
                         let state = ServiceLocator::get_state();
                         let waiting_hashmap = state.get_waiting_hashmap();
                         for url in event.urls() {
-                            let domain = url.domain().unwrap().to_string();
+                            let domain = url.domain().expect_programming("URL缺少域名").to_string();
                             let mut pairs = Vec::new();
                             url.query_pairs().into_iter().for_each(|(key, value)| {
                                 pairs.push((key.to_string(), value.to_string()));
@@ -210,7 +211,7 @@ pub fn run() {
             command_get_latest_launch_propgram //command_get_onedrive_refresh_token
         ])
         .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .expect_programming("error while running tauri application");
 }
 
 /// 初始化的流程-> 初始化程序的状态
@@ -240,7 +241,9 @@ async fn init_app_state(app: &mut App) {
             }
             Ok(w) => w,
         });
-        welcome.set_size(LogicalSize::new(950, 500)).unwrap();
+        welcome
+            .set_size(LogicalSize::new(950, 500))
+            .expect_programming("无法设置欢迎窗口大小");
         // 监听welcome页面关闭事件，更新welcome页面版本
         welcome.on_window_event(move |event| {
             if let tauri::WindowEvent::CloseRequested { .. } = event {
@@ -277,8 +280,16 @@ async fn init_app_state(app: &mut App) {
     // 维护程序管理器
     let runtime_program_config = RuntimeProgramConfig {
         image_loader_config: RuntimeImageLoaderConfig {
-            default_app_icon_path: APP_PIC_PATH.get("tips").unwrap().value().clone(),
-            default_web_icon_path: APP_PIC_PATH.get("web_pages").unwrap().value().clone(),
+            default_app_icon_path: APP_PIC_PATH
+                .get("tips")
+                .expect_programming("无法获取默认应用图标路径")
+                .value()
+                .clone(),
+            default_web_icon_path: APP_PIC_PATH
+                .get("web_pages")
+                .expect_programming("无法获取默认网页图标路径")
+                .value()
+                .clone(),
         },
     };
 
@@ -292,14 +303,17 @@ async fn init_app_state(app: &mut App) {
 
 /// 初始化搜索界面的窗口设置
 fn init_search_bar_window(app: &mut App) {
-    let main_window = Arc::new(app.get_webview_window("main").unwrap());
+    let main_window = Arc::new(app.get_webview_window("main").expect_programming("无法获取主窗口"));
     // 设置tauri窗口的大小等参数
-    let monitor = main_window.current_monitor().unwrap().unwrap();
+    let monitor = main_window
+        .current_monitor()
+        .expect_programming("无法获取当前显示器")
+        .expect_programming("显示器信息为空");
     // 获得了当前窗口的物理大小
     let size = monitor.size();
     let scale_factor = main_window.scale_factor().unwrap_or(1.0);
     let state = app.state::<Arc<AppState>>();
-    let config = state.get_runtime_config().unwrap();
+    let config = state.get_runtime_config();
 
     config.get_window_state().update(PartialWindowState {
         sys_window_scale_factor: Some(scale_factor),
@@ -352,7 +366,7 @@ fn register_icon_path(app: &mut App) {
     let path_resolver = app.path();
     let resource_icons_dir = path_resolver
         .resource_dir()
-        .expect("无法获取资源目录")
+        .expect_programming("无法获取资源目录")
         .join("icons");
 
     // 定义图标的键名和对应的文件名
@@ -401,16 +415,18 @@ fn init_setting_window(app: tauri::AppHandle) {
             .visible(false)
             .drag_and_drop(false)
             .build()
-            .unwrap(),
+            .expect_programming("无法创建设置窗口"),
         );
-        setting_window.set_size(LogicalSize::new(950, 500)).unwrap();
+        setting_window
+            .set_size(LogicalSize::new(950, 500))
+            .expect_programming("无法设置设置窗口大小");
         let window_clone = Arc::clone(&setting_window);
         setting_window.on_window_event(move |event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 // 阻止窗口关闭
                 api.prevent_close();
                 // 隐藏窗口
-                window_clone.hide().unwrap();
+                window_clone.hide().expect_programming("无法隐藏设置窗口");
                 debug!("隐藏设置窗口");
             }
         });
@@ -425,10 +441,10 @@ async fn update_app_setting() {
         return;
     }
 
-    let runtime_config = state.get_runtime_config().unwrap();
+    let runtime_config = state.get_runtime_config();
 
     // 1. 重新更新程序索引的路径
-    let program_manager = state.get_program_manager().unwrap();
+    let program_manager = state.get_program_manager();
     program_manager
         .load_from_config(runtime_config.get_program_manager_config())
         .await;
@@ -452,13 +468,10 @@ async fn update_app_setting() {
     update_shortcut_manager();
 
     // 获取主窗口句柄
-    if let Ok(handle) = state.get_main_handle() {
-        // 发送事件
-        if let Err(e) = handle.emit("update_search_bar_window", "") {
-            eprintln!("发送窗口更新事件失败: {:?}", e);
-        }
-    } else {
-        println!("无法找到目标窗口");
+    let handle = state.get_main_handle();
+    // 发送事件
+    if let Err(e) = handle.emit("update_search_bar_window", "") {
+        eprintln!("发送窗口更新事件失败: {:?}", e);
     }
 
     let mins = runtime_config.get_app_config().get_auto_refresh_time() as u64;
@@ -486,19 +499,14 @@ async fn update_app_setting() {
 /// 4. 重新读取文件并更新配置信息
 pub async fn save_config_to_file(is_update_app: bool) {
     let state = ServiceLocator::get_state();
-    let runtime_config = state.get_runtime_config().unwrap();
-    let runtime_data = state
-        .get_program_manager()
-        .unwrap()
-        .get_runtime_data()
-        .await;
+    let runtime_config = state.get_runtime_config();
+    let runtime_data = state.get_program_manager().get_runtime_data().await;
     let window = state
         .get_main_handle()
-        .unwrap()
         .get_webview_window("main")
-        .unwrap()
+        .expect_programming("无法获取主窗口")
         .inner_position()
-        .unwrap();
+        .expect_programming("无法获取窗口位置");
 
     let partial_app_config = PartialAppConfig {
         window_position: Some((window.x, window.y)),
@@ -516,7 +524,7 @@ pub async fn save_config_to_file(is_update_app: bool) {
 
     let data_str = save_local_config(remote_config);
 
-    let storage_manager = state.get_storage_manager().unwrap();
+    let storage_manager = state.get_storage_manager();
 
     storage_manager
         .upload_file_str(REMOTE_CONFIG_NAME.to_string(), data_str)
@@ -532,7 +540,7 @@ pub fn handle_auto_start() -> Result<(), Box<dyn std::error::Error>> {
     let state: Arc<AppState> = ServiceLocator::get_state();
 
     // 处理主窗口句柄
-    let app_handle = state.get_main_handle().unwrap();
+    let app_handle = state.get_main_handle();
 
     // 初始化自动启动插件
     {
@@ -548,7 +556,7 @@ pub fn handle_auto_start() -> Result<(), Box<dyn std::error::Error>> {
 
     // 获取运行时配置
     let is_auto_start = {
-        let config = state.get_runtime_config().unwrap();
+        let config = state.get_runtime_config();
         config.get_app_config().get_is_auto_start()
     };
 
@@ -574,7 +582,7 @@ pub fn handle_silent_start() {
 
     ONCE.call_once(|| {
         let state: Arc<AppState> = ServiceLocator::get_state();
-        let runtime_config = state.get_runtime_config().unwrap();
+        let runtime_config = state.get_runtime_config();
         let app_config = runtime_config.get_app_config();
         if !app_config.get_is_silent_start() {
             notify("ZeroLaunch-rs", "ZeroLaunch-rs已成功启动！");
@@ -625,22 +633,21 @@ fn cleanup_old_logs(log_dir: &str, retention_days: i64) {
 fn update_welcome_page_version_on_close() {
     tauri::async_runtime::spawn(async {
         let state = ServiceLocator::get_state();
-        if let Ok(storage_manager) = state.get_storage_manager() {
-            // 获取当前welcome页面版本
-            let current_version = storage::storage_manager::WELCOME_PAGE_VERSION.to_string();
+        let storage_manager = state.get_storage_manager();
+        // 获取当前welcome页面版本
+        let current_version = storage::storage_manager::WELCOME_PAGE_VERSION.to_string();
 
-            // 更新本地配置
-            let partial_config = storage::config::PartialLocalConfig {
-                storage_destination: None,
-                local_save_config: None,
-                webdav_save_config: None,
-                save_to_local_per_update: None,
-                version: None,
-                welcome_page_version: Some(current_version),
-            };
+        // 更新本地配置
+        let partial_config = storage::config::PartialLocalConfig {
+            storage_destination: None,
+            local_save_config: None,
+            webdav_save_config: None,
+            save_to_local_per_update: None,
+            version: None,
+            welcome_page_version: Some(current_version),
+        };
 
-            storage_manager.update(partial_config).await;
-            info!("已更新welcome页面版本到本地配置");
-        }
+        storage_manager.update(partial_config).await;
+        info!("已更新welcome页面版本到本地配置");
     });
 }

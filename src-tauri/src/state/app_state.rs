@@ -1,5 +1,5 @@
 use crate::core::storage::storage_manager::StorageManager;
-use crate::error::AppError;
+use crate::error::{AppError, OptionExt};
 use crate::modules::shortcut_manager::ShortcutManager;
 use crate::modules::{config::config_manager::RuntimeConfig, program_manager::ProgramManager};
 use crate::utils::waiting_hashmap::AsyncWaitingHashMap;
@@ -62,15 +62,12 @@ impl AppState {
 
     // region: Runtime Config 访问方法
     /// 获取运行时配置的克隆
-    pub fn get_runtime_config(&self) -> Result<Arc<RuntimeConfig>, AppError> {
+    pub fn get_runtime_config(&self) -> Arc<RuntimeConfig> {
         self.runtime_config
             .read()
             .as_ref()
             .cloned()
-            .ok_or(AppError::NotInitialized {
-                resource: "runtime_config".to_string(),
-                context: None,
-            })
+            .expect_programming("runtime config not initialized")
     }
 
     /// 更新运行时配置
@@ -81,15 +78,12 @@ impl AppState {
 
     // region: Program Manager 访问方法
     /// 获取程序管理器的克隆
-    pub fn get_program_manager(&self) -> Result<Arc<ProgramManager>, AppError> {
+    pub fn get_program_manager(&self) -> Arc<ProgramManager> {
         self.program_manager
             .read()
             .as_ref()
             .cloned()
-            .ok_or(AppError::NotInitialized {
-                resource: "program_manager".to_string(),
-                context: None,
-            })
+            .expect_programming("program manager not initialized")
     }
 
     /// 更新程序管理器
@@ -100,15 +94,12 @@ impl AppState {
 
     // region: Main Window Handle 访问方法
     /// 获取主窗口句柄的克隆
-    pub fn get_main_handle(&self) -> Result<Arc<AppHandle>, AppError> {
+    pub fn get_main_handle(&self) -> Arc<AppHandle> {
         self.main_handle
             .read()
             .as_ref()
             .cloned()
-            .ok_or(AppError::NotInitialized {
-                resource: "main_handle".to_string(),
-                context: None,
-            })
+            .expect_programming("main handle not initialized")
     }
 
     /// 更新主窗口句柄
@@ -138,15 +129,12 @@ impl AppState {
     }
 
     /// 获取存储管理器的克隆
-    pub fn get_storage_manager(&self) -> Result<Arc<StorageManager>, AppError> {
+    pub fn get_storage_manager(&self) -> Arc<StorageManager> {
         self.storage_client
             .read()
             .as_ref()
             .cloned()
-            .ok_or(AppError::NotInitialized {
-                resource: "storage_client".to_string(),
-                context: None,
-            })
+            .expect_programming("storage client not initialized")
     }
 
     /// 更新存储管理器
@@ -162,26 +150,20 @@ impl AppState {
         *self.tray_icon.write() = Some(client);
     }
 
-    pub fn get_tray_icon(&self) -> Result<Arc<TrayIcon>, AppError> {
+    pub fn get_tray_icon(&self) -> Arc<TrayIcon> {
         self.tray_icon
             .read()
             .as_ref()
             .cloned()
-            .ok_or(AppError::NotInitialized {
-                resource: "tray_icon".to_string(),
-                context: None,
-            })
+            .expect_programming("tray icon not initialized")
     }
 
-    pub fn get_shortcut_manager(&self) -> Result<Arc<ShortcutManager>, AppError> {
+    pub fn get_shortcut_manager(&self) -> Arc<ShortcutManager> {
         self.shortcut_manager
             .read()
             .as_ref()
             .cloned()
-            .ok_or(AppError::NotInitialized {
-                resource: "shortcut_manager".to_string(),
-                context: None,
-            })
+            .expect_programming("shortcut manager not initialized")
     }
 
     pub fn set_shortcut_manager(&self, manager: Arc<ShortcutManager>) {

@@ -1,4 +1,4 @@
-use crate::error;
+use crate::error::{AppError, AppResult, ResultExt, OptionExt};
 use crate::utils::defer::defer;
 use crate::utils::windows::get_u16_vec;
 use core::mem::MaybeUninit;
@@ -22,8 +22,7 @@ use std::mem;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use tiny_skia;
-use tracing::info;
-use tracing::warn;
+use tracing::{debug, error, info, warn};
 use url::Url;
 use usvg;
 use windows::Win32::Foundation::GetLastError;
@@ -69,77 +68,124 @@ pub struct ImageProcessor {}
 
 impl ImageProcessor {
     /// 传入图片标识，返回png格式的数据
+    /// 如果加载失败，返回空的Vec<u8>
     pub async fn load_image(icon_identity: &ImageIdentity) -> Vec<u8> {
-        match icon_identity {
-            ImageIdentity::File(path) => Self::load_image_from_path(path).await,
-            ImageIdentity::Web(url) => Self::load_web_icon(url).await,
-        }
-    }
-
-    async fn load_web_icon(url: &str) -> Vec<u8> {
-        let icon_data = match Self::fetch_website_favicon_png(url).await {
-            Ok(data) => data,
-            Err(fetch_error) => {
-                error!("提取图片失败：{:?}", fetch_error);
-                return vec![];
-            }
+        let result = match icon_identity {
+            ImageIdentity::File(path) => Self::load_image_from_path_internal(path).await,
+            ImageIdentity::Web(url) => Self::load_web_icon_internal(url).await,
         };
-        // 2. 将图片数据转换为 PNG 格式
-        match Self::convert_image_to_png(icon_data).await {
-            Ok(png_data) => png_data,
-            Err(conversion_error) => {
-                error!("无法转成图片：{:?}", conversion_error);
-                // 将原始错误转换为你的 LoadWebIconError 类型并返回
+
+        match result {
+            Ok(data) => {
+                debug!(
+                    "Successfully loaded image for: {:?}",
+                    icon_identity.get_text()
+                );
+                data
+            }
+            Err(err) => {
+                error!(
+                    "Failed to load image for {:?}: {}",
+                    icon_identity.get_text(),
+                    err
+                );
                 vec![]
             }
         }
     }
 
+    /// 内部函数：加载网页图标，返回Result类型
+    async fn load_web_icon_internal(url: &str) -> AppResult<Vec<u8>> {
+        info!("Loading web icon from: {}", url);
+
+        let icon_data = Self::fetch_website_favicon_png(url).await?;
+
+        debug!("Fetched {} bytes of favicon data", icon_data.len());
+
+        let png_data = Self::convert_image_to_png(icon_data).await?;
+
+        info!(
+            "Successfully converted web icon to PNG ({} bytes)",
+            png_data.len()
+        );
+        Ok(png_data)
+    }
+
     /// 获取网站的 PNG 格式图标（favicon）
-    async fn fetch_website_favicon_png(url: &str) -> Result<Vec<u8>, String> {
+    async fn fetch_website_favicon_png(url: &str) -> AppResult<Vec<u8>> {
+        debug!("Checking network availability for favicon fetch");
         if !Self::is_network_available() {
-            println!("当前无网络连接");
-            return Err("当前无网络连接".to_string());
+            warn!("No network connection available");
+            return Err(AppError::NetworkError{message: "No network connection available".to_string(), source: None});
         }
 
+        debug!("Fetching website content from: {}", url);
         // 获取网页内容
-        let response = reqwest::get(url)
-            .await
-            .map_err(|e| format!("Failed to fetch website: {}", e))?;
+        let response = reqwest::get(url).await.map_err(|e| {
+            AppError::network_error_with_source(
+                format!("Failed to fetch website: {}", url),
+                Box::new(e),
+            )
+        })?;
 
-        let html_content = response
-            .text()
-            .await
-            .map_err(|e| format!("Failed to read response text: {}", e))?;
+        let html_content = response.text().await.map_err(|e| {
+            AppError::network_error_with_source(
+                "Failed to read response text".to_string(),
+                Box::new(e),
+            )
+        })?;
 
+        debug!("Parsing HTML content ({} bytes)", html_content.len());
         // 将 HTML 解析和图标 URL 提取放在一个同步代码块中
         let icon_url = {
             let document = Html::parse_document(&html_content);
 
             let icon_selector = Selector::parse(r#"link[rel="icon"], link[rel="shortcut icon"]"#)
-                .map_err(|e| format!("Failed to parse CSS selector: {}", e))?;
+                .map_err(|e| {
+                AppError::ImageProcessingError{message: format!("Failed to parse CSS selector: {}", e)}
+            })?;
 
-            let base_url =
-                Url::parse(url).map_err(|e| format!("Failed to parse base URL: {}", e))?;
+            let base_url = Url::parse(url)
+                .map_err(|e| AppError::NetworkError{message: format!("Invalid URL format: {}", e), source: None})?;
 
-            document
+            let favicon_url = document
                 .select(&icon_selector)
                 .next()
                 .and_then(|e| e.value().attr("href"))
-                .and_then(|href| base_url.join(href).ok())
-                .unwrap_or_else(|| base_url.join("/favicon.ico").unwrap())
-                .to_string()
+                .and_then(|href| {
+                    debug!("Found favicon href: {}", href);
+                    base_url.join(href).ok()
+                })
+                .unwrap_or_else(|| {
+                    debug!("No favicon link found, using default /favicon.ico");
+                    base_url
+                        .join("/favicon.ico")
+                        .expect_programming("Failed to create default favicon URL - this should never happen")
+                });
+
+            favicon_url.to_string()
         };
+
+        info!("Downloading favicon from: {}", icon_url);
         // 下载图标
-        let icon_response = reqwest::get(&icon_url)
-            .await
-            .map_err(|e| format!("Failed to fetch favicon from {}: {}", icon_url, e))?;
+        let icon_response = reqwest::get(&icon_url).await.map_err(|e| {
+            AppError::network_error_with_source(
+                format!("Failed to fetch favicon from: {}", icon_url),
+                Box::new(e),
+            )
+        })?;
 
-        let icon_data = icon_response
-            .bytes()
-            .await
-            .map_err(|e| format!("Failed to read favicon bytes: {}", e))?;
+        let icon_data = icon_response.bytes().await.map_err(|e| {
+            AppError::network_error_with_source(
+                "Failed to read favicon bytes".to_string(),
+                Box::new(e),
+            )
+        })?;
 
+        debug!(
+            "Successfully downloaded favicon ({} bytes)",
+            icon_data.len()
+        );
         Ok(icon_data.to_vec())
     }
 
@@ -151,104 +197,163 @@ impl ImageProcessor {
             InternetGetConnectedState(&mut flags, None).is_ok()
         }
     }
-    /// 传入目标路径，返回对对应的图片或图标
-    async fn load_image_from_path(icon_path: &str) -> Vec<u8> {
-        // 读取程序图标
-        let mut img: Option<Vec<u8>> = None;
+    /// 内部函数：从路径加载图像，返回Result类型
+    async fn load_image_from_path_internal(icon_path: &str) -> AppResult<Vec<u8>> {
+        debug!("Loading image from path: {}", icon_path);
+
         if Self::is_program(icon_path) {
-            //使用windows 系统调用读
-            if let Some(raba) = Self::extract_icon_from_file(icon_path).await {
-                img = Self::rgba_image_to_png(&raba);
-            }
+            info!("Detected program file, extracting icon: {}", icon_path);
+            // 使用Windows系统调用读取程序图标
+            let rgba_image = Self::extract_icon_from_file(icon_path)
+                .await
+                .ok_or_else(|| {
+                    AppError::ImageProcessingError{message: format!(
+                        "Failed to extract icon from program: {}",
+                        icon_path
+                    )}
+                })?;
+
+            let png_data = Self::rgba_image_to_png(&rgba_image)?;
+
+            info!(
+                "Successfully extracted and converted program icon ({} bytes)",
+                png_data.len()
+            );
+            Ok(png_data)
         } else {
-            // 直接使用库来读
-            img = if let Ok(result) = Self::load_and_convert_to_png(icon_path).await {
-                Some(result)
-            } else {
-                None
-            };
+            info!("Loading regular image file: {}", icon_path);
+            // 直接使用库来读取图像文件
+            let png_data = Self::load_and_convert_to_png(icon_path)
+                .await?;
+
+            info!(
+                "Successfully loaded and converted image ({} bytes)",
+                png_data.len()
+            );
+            Ok(png_data)
         }
-        img.unwrap_or_default()
     }
 
-    async fn load_and_convert_to_png<P: AsRef<Path>>(
-        file_path: P,
-    ) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
-        // 异步读取文件内容
-        let file_content = tokio::fs::read(file_path.as_ref()).await?;
+    async fn load_and_convert_to_png<P: AsRef<Path>>(file_path: P) -> AppResult<Vec<u8>> {
+        let path_str = file_path.as_ref().to_string_lossy();
+        debug!("Reading file content from: {}", path_str);
 
+        // 异步读取文件内容
+        let file_content = tokio::fs::read(file_path.as_ref()).await.map_err(|e| {
+            AppError::filesystem_error_with_io(
+                "Failed to read image file".to_string(),
+                Some(path_str.to_string()),
+                e,
+            )
+        })?;
+
+        debug!("Read {} bytes from file", file_content.len());
         Self::convert_image_to_png(file_content).await
     }
 
-    async fn convert_image_to_png(
-        image_data: Vec<u8>,
-    ) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
+    async fn convert_image_to_png(image_data: Vec<u8>) -> AppResult<Vec<u8>> {
         // 在阻塞线程中处理图像
-        tauri::async_runtime::spawn_blocking(move || {
+        tauri::async_runtime::spawn_blocking(move || -> AppResult<Vec<u8>> {
+            debug!("Converting {} bytes of image data to PNG", image_data.len());
+
             // 尝试将数据解析为 SVG
-            // usvg::Tree::from_data 需要 &[u8] 和 usvg::Options
-            // 我们使用默认选项
             match usvg::Tree::from_data(&image_data, &usvg::Options::default()) {
                 Ok(tree) => {
+                    debug!("Successfully parsed as SVG, rendering to PNG");
                     // 成功解析为 SVG，现在进行渲染
                     let pixmap_size = tree.size().to_int_size();
 
                     // 检查 SVG 尺寸是否有效
                     if pixmap_size.width() == 0 || pixmap_size.height() == 0 {
-                        // 返回一个描述性错误
-                        return Err(format!(
-                            "SVG 尺寸无效 (宽度 {}px, 高度 {}px)",
+                        return Err(AppError::ImageProcessingError{message: format!(
+                            "Invalid SVG dimensions (width: {}px, height: {}px)",
                             pixmap_size.width(),
                             pixmap_size.height()
-                        )
-                        .into()); // .into() 会将 String 转换为 Box<dyn Error...>
+                        )});
                     }
 
                     // 创建一个 Pixmap 来渲染 SVG
-                    // .ok_or_else(...) 用于提供自定义错误消息（String 类型）
-                    // ? 会将 String 错误转换为 Box<dyn Error...>
                     let mut pixmap =
                         tiny_skia::Pixmap::new(pixmap_size.width(), pixmap_size.height())
-                            .ok_or_else(|| "无法创建 Pixmap 以渲染 SVG".to_string())?;
+                            .ok_or_else(|| {
+                                AppError::ImageProcessingError{message: 
+                                    "Failed to create Pixmap for SVG rendering".to_string(),
+                                }
+                            })?;
+
                     // 渲染 SVG 到 Pixmap
                     resvg::render(&tree, tiny_skia::Transform::default(), &mut pixmap.as_mut());
+
                     // 将 Pixmap 编码为 PNG 数据
-                    // pixmap.encode_png() 返回 Result<Vec<u8>, tiny_skia::PngEncodingError>
-                    // tiny_skia::PngEncodingError 实现了 std::error::Error,
-                    // 所以 ? 会自动将其转换为 Box<dyn Error...>
-                    Ok(pixmap.encode_png()?)
+                    let png_data = pixmap.encode_png().map_err(|e| {
+                        AppError::ImageProcessingError{message: format!(
+                            "Failed to encode SVG as PNG: {}",
+                            e
+                        )}
+                    })?;
+
+                    info!(
+                        "Successfully converted SVG to PNG ({} bytes)",
+                        png_data.len()
+                    );
+                    Ok(png_data)
                 }
-                Err(_) => {
+                Err(svg_error) => {
+                    debug!(
+                        "Not an SVG or SVG parsing failed: {}, trying as regular image",
+                        svg_error
+                    );
                     // 解析 SVG 失败，或它不是 SVG。回退到原始的 image crate 逻辑。
-                    let img_reader =
-                        image::ImageReader::new(Cursor::new(image_data)).with_guessed_format()?;
+                    let img_reader = image::ImageReader::new(Cursor::new(image_data))
+                        .with_guessed_format()
+                        .map_err(|e| {
+                            AppError::ImageProcessingError{message: format!(
+                                "Failed to create image reader: {}",
+                                e
+                            )}
+                        })?;
 
                     // 读取图像格式
-                    // 使用 ok_or_else 以便 ? 可以将 String 错误转换为 Box<dyn Error...>
-                    let format = img_reader
-                        .format()
-                        .ok_or_else(|| "无法检测图像格式".to_string())?;
+                    let format = img_reader.format().ok_or_else(|| {
+                        AppError::ImageProcessingError{message: "Unable to detect image format".to_string()}
+                    })?;
+
+                    debug!("Detected image format: {:?}", format);
 
                     // 解码图像
-                    let mut img = img_reader.decode()?;
+                    let mut img = img_reader.decode().map_err(|e| {
+                        AppError::ImageProcessingError{message: format!("Failed to decode image: {}", e)}
+                    })?;
 
                     // 如果不是 PNG 格式，则转换
                     if format != ImageFormat::Png {
+                        debug!("Converting from {:?} to PNG format", format);
                         // 转换为 RGBA8 以便编码为 PNG
                         img = image::DynamicImage::ImageRgba8(img.to_rgba8());
                     }
 
                     // 使用 PNG 编码器将图像写入 Vec<u8>
                     let mut png_data = Vec::new();
-                    // 保持原始代码中 PngEncoder 的用法
                     let encoder = image::codecs::png::PngEncoder::new(&mut png_data);
-                    img.write_with_encoder(encoder)?;
+                    img.write_with_encoder(encoder).map_err(|e| {
+                        AppError::ImageProcessingError{message: format!(
+                            "Failed to encode image as PNG: {}",
+                            e
+                        )}
+                    })?;
 
+                    info!(
+                        "Successfully converted image to PNG ({} bytes)",
+                        png_data.len()
+                    );
                     Ok(png_data)
                 }
             }
         })
-        .await?
+        .await
+        .map_err(|e| {
+            AppError::programming_error(format!("Task join error in image conversion: {}", e))
+        })?
     }
 
     /// 判断是不是一个程序的图标
@@ -319,18 +424,20 @@ impl ImageProcessor {
 
                     let hicon = sh_file_info.hIcon;
 
-                    let result = unsafe {
+                    let image_buffer = unsafe {
                         // 将 HICON 传递给转换函数，并确保在转换完成后才销毁
-                        let image = Self::convert_icon_to_image(hicon);
-                        DestroyIcon(hicon).unwrap(); // 显式销毁
-                        image
+                        let image_result = Self::convert_icon_to_image(hicon);
+                        if let Err(e) = DestroyIcon(hicon) {
+                            warn!("Failed to destroy icon: {:?}", e);
+                        }
+                        image_result.expect_programming("图标转换为图像失败")
                     };
 
-                    Some(result)
+                    Some(image_buffer)
                 }
             })
             .await
-            .unwrap();
+            .expect_programming("Tokio spawn should not fail - this is a programming error");
 
             if result.is_some() {
                 return result;
@@ -361,9 +468,16 @@ impl ImageProcessor {
         None
     }
     /// 将icon图像变成raga图像
-    unsafe fn convert_icon_to_image(icon: HICON) -> RgbaImage {
-        let bitmap_size_i32 = i32::try_from(mem::size_of::<BITMAP>()).unwrap();
-        let biheader_size_u32 = u32::try_from(mem::size_of::<BITMAPINFOHEADER>()).unwrap();
+    unsafe fn convert_icon_to_image(icon: HICON) -> Result<RgbaImage, AppError> {
+        let bitmap_size_i32 = i32::try_from(mem::size_of::<BITMAP>()).map_err(|_| {
+            AppError::programming_error("BITMAP size conversion failed - this should never happen")
+        })?;
+        let biheader_size_u32 =
+            u32::try_from(mem::size_of::<BITMAPINFOHEADER>()).map_err(|_| {
+                AppError::programming_error(
+                    "BITMAPINFOHEADER size conversion failed - this should never happen",
+                )
+            })?;
         let mut info = ICONINFO {
             fIcon: BOOL(0),
             xHotspot: 0,
@@ -371,8 +485,9 @@ impl ImageProcessor {
             hbmMask: std::mem::zeroed::<HBITMAP>() as HBITMAP,
             hbmColor: std::mem::zeroed::<HBITMAP>() as HBITMAP,
         };
-        GetIconInfo(icon, &mut info).unwrap();
-        DeleteObject(HGDIOBJ(info.hbmMask.0)).unwrap();
+        GetIconInfo(icon, &mut info)
+            .map_err(|_| AppError::ImageProcessingError{message: "Failed to get icon information".to_string()})?;
+        DeleteObject(HGDIOBJ(info.hbmMask.0)).expect_programming("Failed to delete mask object");
         let mut bitmap: MaybeUninit<BITMAP> = MaybeUninit::uninit();
 
         let result = GetObjectW(
@@ -381,21 +496,48 @@ impl ImageProcessor {
             Some(bitmap.as_mut_ptr() as *mut c_void),
         );
 
-        assert!(result == bitmap_size_i32);
+        if result != bitmap_size_i32 {
+            return Err(AppError::ImageProcessingError{
+                message: "Failed to get bitmap object information".to_string(),
+            });
+        }
         let bitmap = bitmap.assume_init_ref();
 
-        let width_u32 = u32::try_from(bitmap.bmWidth).unwrap();
-        let height_u32 = u32::try_from(bitmap.bmHeight).unwrap();
-        let width_usize = usize::try_from(bitmap.bmWidth).unwrap();
-        let height_usize = usize::try_from(bitmap.bmHeight).unwrap();
+        let width_u32 = u32::try_from(bitmap.bmWidth).map_err(|_| {
+            AppError::programming_error(format!("Invalid bitmap width: {}", bitmap.bmWidth))
+        })?;
+        let height_u32 = u32::try_from(bitmap.bmHeight).map_err(|_| {
+            AppError::programming_error(format!("Invalid bitmap height: {}", bitmap.bmHeight))
+        })?;
+        let width_usize = usize::try_from(bitmap.bmWidth).map_err(|_| {
+            AppError::programming_error(format!(
+                "Invalid bitmap width for usize: {}",
+                bitmap.bmWidth
+            ))
+        })?;
+        let height_usize = usize::try_from(bitmap.bmHeight).map_err(|_| {
+            AppError::programming_error(format!(
+                "Invalid bitmap height for usize: {}",
+                bitmap.bmHeight
+            ))
+        })?;
         let buf_size = width_usize
             .checked_mul(height_usize)
             .and_then(|size| size.checked_mul(4))
-            .unwrap();
+            .ok_or_else(|| {
+                AppError::programming_error(format!(
+                    "Integer overflow calculating buffer size: {}x{}x4",
+                    width_usize, height_usize
+                ))
+            })?;
         let mut buf: Vec<u8> = Vec::with_capacity(buf_size);
 
         let dc: windows::Win32::Graphics::Gdi::HDC = windows::Win32::Graphics::Gdi::GetDC(None);
-        assert!(dc != windows::Win32::Graphics::Gdi::HDC(std::ptr::null_mut()));
+        if dc == windows::Win32::Graphics::Gdi::HDC(std::ptr::null_mut()) {
+            return Err(AppError::ImageProcessingError{
+                message: "Failed to get device context".to_string(),
+            });
+        }
 
         let _bitmap_info = BITMAPINFOHEADER {
             biSize: biheader_size_u32,
@@ -419,27 +561,51 @@ impl ImageProcessor {
         );
         buf.set_len(bmp.capacity());
         let result = windows::Win32::Graphics::Gdi::ReleaseDC(None, dc);
-        assert!(result == 1);
-        DeleteObject(HGDIOBJ(info.hbmColor.0)).unwrap();
+        if result != 1 {
+            return Err(AppError::ImageProcessingError{
+                message: "Failed to release device context".to_string(),
+            });
+        }
+        DeleteObject(HGDIOBJ(info.hbmColor.0)).expect_programming("Failed to delete color object");
 
         for chunk in bmp.chunks_exact_mut(4) {
-            let [b, _, r, _] = chunk else { unreachable!() };
+            let [b, _, r, _] = chunk else {
+                return Err(AppError::programming_error(
+                    "Unexpected chunk size in pixel data - this should never happen",
+                ));
+            };
             mem::swap(b, r);
         }
-        RgbaImage::from_vec(width_u32, height_u32, bmp).unwrap()
+        RgbaImage::from_vec(width_u32, height_u32, bmp).ok_or_else(|| {
+            AppError::programming_error(
+                "Failed to create RgbaImage from pixel data - this indicates a programming error",
+            )
+        })
     }
 
     /// 从 PNG 图像数据中裁剪掉外围的白色或透明像素
-    pub fn trim_transparent_white_border(png_data: Vec<u8>) -> Result<Vec<u8>, String> {
+    pub fn trim_transparent_white_border(png_data: Vec<u8>) -> AppResult<Vec<u8>> {
+        debug!(
+            "Trimming transparent/white border from {} bytes of PNG data",
+            png_data.len()
+        );
+
         // 解析 PNG 数据
-        let img = image::load_from_memory(&png_data).map_err(|e| format!("无法加载图像: {}", e))?;
+        let img = image::load_from_memory(&png_data).map_err(|e| {
+            AppError::ImageProcessingError{message: format!("Failed to load image from memory: {}", e)}
+        })?;
 
         let width = img.width();
         let height = img.height();
 
+        debug!("Image dimensions: {}x{}", width, height);
+
         // 确保图像是正方形
         if width != height {
-            return Err("输入图像不是正方形".to_string());
+            return Err(AppError::ImageProcessingError{message: format!(
+                "Input image is not square: {}x{}",
+                width, height
+            )});
         }
 
         let mut border_width = 0;
@@ -487,8 +653,15 @@ impl ImageProcessor {
 
         // 如果整个图像都是白色或透明的，返回原图
         if border_width >= size / 2 {
+            info!("Image is mostly transparent/white, returning original");
             return Ok(png_data);
         }
+
+        debug!(
+            "Trimming border of {} pixels, new size will be {}",
+            border_width,
+            size - 2 * border_width
+        );
 
         // 裁剪图像
         let new_size = size - 2 * border_width;
@@ -511,8 +684,16 @@ impl ImageProcessor {
                 new_size,
                 image::ColorType::Rgba8.into(),
             )
-            .map_err(|e| format!("无法编码图像: {}", e))?;
+            .map_err(|e| {
+                AppError::ImageProcessingError{message: format!("Failed to encode trimmed image: {}", e)}
+            })?;
 
+        info!(
+            "Successfully trimmed image to {}x{} ({} bytes)",
+            new_size,
+            new_size,
+            output.len()
+        );
         Ok(output)
     }
 
@@ -524,7 +705,13 @@ impl ImageProcessor {
     }
 
     /// 将RGBA转换为PNG图像数据
-    fn rgba_image_to_png(rgba_image: &RgbaImage) -> Option<Vec<u8>> {
+    fn rgba_image_to_png(rgba_image: &RgbaImage) -> AppResult<Vec<u8>> {
+        debug!(
+            "Converting RgbaImage ({}x{}) to PNG",
+            rgba_image.width(),
+            rgba_image.height()
+        );
+
         // 创建一个缓冲区来存储PNG数据
         let mut buffer = Vec::new();
 
@@ -532,23 +719,43 @@ impl ImageProcessor {
         let mut cursor = Cursor::new(&mut buffer);
 
         // 尝试将RGBA图像编码为PNG格式
-        match rgba_image.write_to(&mut cursor, ImageFormat::Png) {
-            Ok(_) => Some(buffer),
-            Err(e) => {
-                warn!("PNG编码失败: {}", e);
-                None
-            }
-        }
+        rgba_image
+            .write_to(&mut cursor, ImageFormat::Png)
+            .map_err(|e| {
+                AppError::ImageProcessingError{message: format!(
+                    "Failed to encode RGBA image as PNG: {}",
+                    e
+                )}
+            })?;
+
+        info!(
+            "Successfully converted RgbaImage to PNG ({} bytes)",
+            buffer.len()
+        );
+        Ok(buffer)
     }
 
-    pub async fn get_dominant_color(
-        image_data: Vec<u8>,
-    ) -> Result<(u8, u8, u8), Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn get_dominant_color(image_data: Vec<u8>) -> AppResult<(u8, u8, u8)> {
+        debug!(
+            "Analyzing dominant color from {} bytes of image data",
+            image_data.len()
+        );
         // 使用 spawn_blocking 将 CPU 密集型任务移到单独的线程
-        tauri::async_runtime::spawn_blocking(move || {
+        tauri::async_runtime::spawn_blocking(move || -> AppResult<(u8, u8, u8)> {
             // 加载并解码PNG图片
-            let img = image::load_from_memory(&image_data)?;
+            let img = image::load_from_memory(&image_data).map_err(|e| {
+                AppError::ImageProcessingError{message: format!(
+                    "Failed to load image for color analysis: {}",
+                    e
+                )}
+            })?;
             let rgba_img = img.to_rgba8();
+
+            debug!(
+                "Loaded image for color analysis: {}x{}",
+                rgba_img.width(),
+                rgba_img.height()
+            );
 
             // 提取非透明像素的RGB值 - 使用并行迭代器收集
             let pixels: Vec<[u8; 3]> = rgba_img
@@ -565,8 +772,12 @@ impl ImageProcessor {
                 .collect();
 
             if pixels.is_empty() {
-                return Err("No visible pixels in image".into());
+                return Err(AppError::ImageProcessingError{
+                    message: "No visible pixels found in image for color analysis".to_string(),
+                });
             }
+
+            debug!("Found {} visible pixels for color analysis", pixels.len());
 
             // 转换为Lab颜色空间 - 并行处理
             let lab_samples: Vec<Lab> = pixels
@@ -597,8 +808,12 @@ impl ImageProcessor {
                         seed,
                     )
                 })
-                .min_by(|a, b| a.score.partial_cmp(&b.score).unwrap())
-                .unwrap();
+                .min_by(|a, b| {
+                    a.score
+                        .partial_cmp(&b.score)
+                        .expect_programming("Score comparison should not fail")
+                })
+                .expect_programming("Should have at least one clustering result");
 
             // 统计簇分布 - 并行计数
             let cluster_counts = {
@@ -606,11 +821,14 @@ impl ImageProcessor {
                 let counts_mutex = Arc::new(Mutex::new(counts));
 
                 best_result.indices.par_iter().for_each(|&i| {
-                    let mut counts = counts_mutex.lock().unwrap();
+                    let mut counts = counts_mutex.lock().expect_programming("Mutex should not be poisoned");
                     counts[i as usize] += 1;
                 });
 
-                Arc::try_unwrap(counts_mutex).unwrap().into_inner().unwrap()
+                Arc::try_unwrap(counts_mutex)
+                    .expect_programming("Arc should have only one reference")
+                    .into_inner()
+                    .expect_programming("Mutex should not be poisoned")
             };
 
             // 获取最大簇的质心
@@ -618,15 +836,20 @@ impl ImageProcessor {
                 .iter()
                 .enumerate()
                 .max_by_key(|&(_, count)| count)
-                .unwrap();
+                .expect_programming("Should have at least one cluster count");
 
             // 转换回RGB
             let dominant_lab = best_result.centroids[dominant_idx];
             let srgb: Srgb = dominant_lab.into_color();
             let rgb = srgb.into_format::<u8>();
+            let (r, g, b) = rgb.into_components();
 
-            Ok(rgb.into_components())
+            info!("Dominant color analysis complete: RGB({}, {}, {})", r, g, b);
+            Ok((r, g, b))
         })
-        .await?
+        .await
+        .map_err(|e| {
+            AppError::programming_error(format!("Task join error in color analysis: {}", e))
+        })?
     }
 }

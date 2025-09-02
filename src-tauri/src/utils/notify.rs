@@ -5,13 +5,13 @@ pub fn notify(title: &str, message: &str) {
     let state = ServiceLocator::get_state();
     let app_handle = state.get_main_handle();
 
-    if let Ok(handle) = app_handle {
-        handle
-            .notification()
-            .builder()
-            .title(title)
-            .body(message)
-            .show()
-            .unwrap();
+    if let Err(e) = app_handle
+        .notification()
+        .builder()
+        .title(title)
+        .body(message)
+        .show()
+    {
+        tracing::warn!("Failed to show notification: {}", e);
     }
 }

@@ -1,4 +1,5 @@
 use crate::core::storage::windows_utils::get_default_remote_data_dir_path;
+use crate::error::{ResultExt, OptionExt};
 use crate::RuntimeConfig;
 use dashmap::DashMap;
 use lazy_static::lazy_static;
@@ -11,7 +12,7 @@ lazy_static! {
         Path::new(&*DATA_DIR_PATH)
             .join("ZeroLaunch_local_config.json")
             .to_str()
-            .expect("Failed to convert path to string")
+            .expect_programming("Failed to convert path to string")
             .to_string()
     };
     /// 日志文件夹的路径
@@ -19,7 +20,7 @@ lazy_static! {
         Path::new(&*DATA_DIR_PATH)
             .join("logs")
             .to_str()
-            .expect("Failed to convert path to string")
+            .expect_programming("Failed to convert path to string")
             .to_string()
     };
     /// 图标缓存文件夹的路径
@@ -27,13 +28,14 @@ lazy_static! {
         Path::new(&*DATA_DIR_PATH)
         .join("icons")
         .to_str()
-        .expect("Failed to convert path to string")
+        .expect_programming("Failed to convert path to string")
         .to_string()
     };
     /// app使用到的图片的路径
     pub static ref APP_PIC_PATH: DashMap<String, String> = DashMap::new();
     /// 默认的配置信息
-    pub static ref REMOTE_CONFIG_DEFAULT: String = serde_json::to_string(&RuntimeConfig::new().to_partial()).unwrap();
+    pub static ref REMOTE_CONFIG_DEFAULT: String = serde_json::to_string(&RuntimeConfig::new().to_partial())
+        .expect_programming("Failed to serialize default runtime config");
     /// 当前软件的版本号
     pub static ref APP_VERSION: String = env!("CARGO_PKG_VERSION").to_string();
 

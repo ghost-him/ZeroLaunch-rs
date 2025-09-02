@@ -14,7 +14,7 @@ pub enum StorageDestination {
     OneDrive,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct PartialLocalConfig {
     pub storage_destination: Option<StorageDestination>,
     pub local_save_config: Option<PartialLocalSaveConfig>,

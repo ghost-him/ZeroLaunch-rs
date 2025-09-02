@@ -1,3 +1,4 @@
+use crate::error::{ResultExt, OptionExt};
 use crate::get_window_render_origin;
 use crate::modules::config::window_state::PartialWindowState;
 use crate::modules::ui_controller::controller::get_window_size;
@@ -19,10 +20,9 @@ pub fn update_window_size_and_position() {
     let state = ServiceLocator::get_state();
     let main_window = state
         .get_main_handle()
-        .unwrap()
         .get_webview_window("main")
-        .unwrap();
-    let config = state.get_runtime_config().unwrap();
+        .expect_programming("无法获取主窗口");
+    let config = state.get_runtime_config();
     let ui_config = config.get_ui_config();
     let app_config = config.get_app_config();
 
@@ -46,10 +46,10 @@ pub fn update_window_size_and_position() {
         // 如果已经启用拖动窗口了，则直接更新窗口的大小，否则还要再次修正窗口的大小
         main_window
             .set_size(LogicalSize::new(window_size.0 as u32, window_size.1 as u32))
-            .unwrap();
+            .expect_programming("无法设置窗口大小");
         let position = app_config.get_window_position();
         // 如果是读取之前的存储位置，则需要先判断一下目标的位置是不是在窗口内
-        let windows = main_window.available_monitors().unwrap();
+        let windows = main_window.available_monitors().expect_programming("无法获取可用显示器列表");
         if !windows.iter().any(|window| {
             // 对每个窗口作判断
             let window_position = window.position();
@@ -67,7 +67,7 @@ pub fn update_window_size_and_position() {
         // 如果存在一个窗口符合条件，则设置位置
         main_window
             .set_position(PhysicalPosition::new(position.0, position.1))
-            .unwrap();
+            .expect_programming("无法设置窗口位置");
         return;
     }
 
@@ -82,7 +82,7 @@ pub fn update_window_size_and_position() {
         let mouse_state = device_state.get_mouse();
         let mouse_position = mouse_state.coords;
         //println!("当前鼠标的位置：{}, {}", mouse_position.0, mouse_position.1);
-        let windows = main_window.available_monitors().unwrap();
+        let windows = main_window.available_monitors().expect_programming("无法获取可用显示器列表");
         let mut target_window_pos = (0, 0);
         windows.iter().any(|window| {
             let window_position = window.position();
@@ -123,11 +123,11 @@ pub fn update_window_size_and_position() {
     //println!("window_size: {:?}", window_size);
     main_window
         .set_size(LogicalSize::new(window_size.0, window_size.1))
-        .unwrap();
+        .expect_programming("无法设置窗口大小");
     //println!("window_position: {:?}", show_position);
     main_window
         .set_position(PhysicalPosition::new(show_position.0, show_position.1))
-        .unwrap();
+        .expect_programming("无法设置窗口位置");
     //println!("开始等待5s");
     //std::thread::sleep(Duration::from_millis(5000));
     //println!("等待结束");

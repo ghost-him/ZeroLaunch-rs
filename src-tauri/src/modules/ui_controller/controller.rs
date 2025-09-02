@@ -1,4 +1,5 @@
 use std::cmp::min;
+use tracing::warn;
 
 // 这里存放所有与界面大小设置相关的函数
 use crate::modules::config::{Height, Width};
@@ -51,7 +52,7 @@ fn calculate_recommended_dim(
 
 pub fn recommend_window_width() -> Width {
     let state = ServiceLocator::get_state();
-    let runtime_config = state.get_runtime_config().unwrap();
+    let runtime_config = state.get_runtime_config();
     let window_state = runtime_config.get_window_state();
 
     let logical_width =
@@ -68,7 +69,7 @@ pub fn recommend_window_width() -> Width {
 
 pub fn recommend_search_bar_height() -> Height {
     let state = ServiceLocator::get_state();
-    let runtime_config = state.get_runtime_config().unwrap();
+    let runtime_config = state.get_runtime_config();
     let window_state = runtime_config.get_window_state();
 
     let logical_height =
@@ -85,7 +86,7 @@ pub fn recommend_search_bar_height() -> Height {
 
 pub fn recommend_result_item_height() -> Height {
     let state = ServiceLocator::get_state();
-    let runtime_config = state.get_runtime_config().unwrap();
+    let runtime_config = state.get_runtime_config();
     let window_state = runtime_config.get_window_state();
     let logical_height =
         window_state.get_sys_window_height() as f64 / window_state.get_sys_window_scale_factor();
@@ -101,7 +102,7 @@ pub fn recommend_result_item_height() -> Height {
 
 pub fn recommend_footer_height() -> Height {
     let state = ServiceLocator::get_state();
-    let runtime_config = state.get_runtime_config().unwrap();
+    let runtime_config = state.get_runtime_config();
     let window_state = runtime_config.get_window_state();
     let logical_height =
         window_state.get_sys_window_height() as f64 / window_state.get_sys_window_scale_factor();
@@ -118,7 +119,7 @@ pub fn recommend_footer_height() -> Height {
 // 获得窗口的大小
 pub fn get_window_size() -> (Width, Height) {
     let state = ServiceLocator::get_state();
-    let runtime_config = state.get_runtime_config().unwrap();
+    let runtime_config = state.get_runtime_config();
 
     let app_config = runtime_config.get_app_config();
     let ui_config = runtime_config.get_ui_config();
@@ -148,7 +149,7 @@ pub fn get_window_size() -> (Width, Height) {
 // 比例因子，小于0.5会使窗口偏向上方
 pub fn get_window_render_origin(vertical_position_ratio: f64) -> (Width, Height) {
     let state = ServiceLocator::get_state();
-    let runtime_config = state.get_runtime_config().unwrap();
+    let runtime_config = state.get_runtime_config();
     let window_state = runtime_config.get_window_state();
     let scale_factor = window_state.get_sys_window_scale_factor();
     let logical_sys_window_width = window_state.get_sys_window_width() as f64;

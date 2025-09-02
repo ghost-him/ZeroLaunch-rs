@@ -28,7 +28,10 @@ pub fn is_date_current(date_str: &str) -> bool {
     // 解析输入的日期字符串
     let input_date = match NaiveDate::parse_from_str(date_str, "%Y-%m-%d") {
         Ok(date) => date,
-        Err(_) => return false, // 如果解析失败,返回false
+        Err(e) => {
+            tracing::warn!("Failed to parse date string '{}': {}", date_str, e);
+            return false; // 如果解析失败,返回false
+        }
     };
 
     // 获取当前日期

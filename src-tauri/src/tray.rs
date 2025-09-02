@@ -15,6 +15,7 @@ use crate::{
     handle_pressed, notify, save_config_to_file, show_setting_window, update_app_setting, AppState,
     ServiceLocator, APP_PIC_PATH,
 };
+use crate::error::{OptionExt, ResultExt};
 // Removed: use crate::retry_register_shortcut; // Appears unused, functionality merged
 use crate::modules::config::default::APP_VERSION;
 
@@ -52,14 +53,12 @@ impl From<&str> for MenuEventId {
 fn load_icon_or_panic(name: &str) -> Image {
     let path = APP_PIC_PATH
         .get(name)
-        .unwrap_or_else(|| panic!("Icon path for '{}' not found in APP_PIC_PATH", name))
+        .expect_programming(&format!("图标路径 '{}' 在 APP_PIC_PATH 中未找到", name))
         .clone();
-    Image::from_path(&path).unwrap_or_else(|e| {
-        panic!(
-            "Failed to load image for '{}' from path {:?}: {:?}",
-            name, path, e
-        )
-    })
+    Image::from_path(&path).expect_programming(&format!(
+        "无法从路径 {:?} 加载图标 '{}'",
+        path, name
+    ))
 }
 
 // --- Menu Item Handlers ---
@@ -72,11 +71,7 @@ fn handle_show_settings_window() {
 
 async fn handle_exit_program(app_handle: &AppHandle) {
     save_config_to_file(false).await;
-    if let Ok(storage_manager) = ServiceLocator::get_state().get_storage_manager() {
-        storage_manager.upload_all_file_force().await;
-    } else {
-        warn!("Storage manager not available during exit.");
-    }
+    ServiceLocator::get_state().get_storage_manager().upload_all_file_force().await;
     app_handle.exit(0);
 }
 
@@ -90,29 +85,18 @@ fn handle_register_shortcut() {
         notify("ZeroLaunch-rs", "请先关闭游戏模式后再尝试重新注册快捷键。");
         return;
     }
-    if let Ok(shortcut_manager) = state.get_shortcut_manager() {
-        if let Err(e) = shortcut_manager.register_all_shortcuts() {
-            warn!("Failed to register all shortcuts: {:?}", e);
-            notify("ZeroLaunch-rs", "快捷键注册失败，请查看日志。");
-        } else {
-            notify("ZeroLaunch-rs", "快捷键已重新注册。");
-        }
+    let shortcut_manager = state.get_shortcut_manager();
+    if let Err(e) = shortcut_manager.register_all_shortcuts() {
+        warn!("Failed to register all shortcuts: {:?}", e);
+        notify("ZeroLaunch-rs", "快捷键注册失败，请查看日志。");
     } else {
-        warn!("Shortcut manager not available for registering shortcuts.");
-        notify("ZeroLaunch-rs", "无法访问快捷键管理器。");
+        notify("ZeroLaunch-rs", "快捷键已重新注册。");
     }
 }
 
 fn handle_switch_game_mode<R: Runtime>(game_mode_item: &IconMenuItem<R>) {
     let state = ServiceLocator::get_state();
-    let shortcut_manager = match state.get_shortcut_manager() {
-        Ok(manager) => manager,
-        Err(_) => {
-            warn!("Shortcut manager not available for switching game mode.");
-            notify("ZeroLaunch-rs", "无法切换游戏模式：缺少快捷键管理器。");
-            return;
-        }
-    };
+    let shortcut_manager = state.get_shortcut_manager();
 
     let target_game_mode = !state.get_game_mode();
     state.set_game_mode(target_game_mode);
@@ -172,14 +156,12 @@ fn build_tray_menu<R: Runtime>(app_handle: &AppHandle<R>) -> tauri::Result<Menu<
 fn create_tray_icon<R: Runtime>(app_handle: &AppHandle, menu: Menu<R>) -> tauri::Result<TrayIcon> {
     let tray_icon_path_value = APP_PIC_PATH
         .get("tray_icon")
-        .expect("Tray icon path 'tray_icon' not found in APP_PIC_PATH")
+        .expect_programming("Tray icon path 'tray_icon' not found in APP_PIC_PATH")
         .clone();
-    let icon = Image::from_path(&tray_icon_path_value).unwrap_or_else(|e| {
-        panic!(
-            "Failed to load tray icon from path {:?}: {:?}",
-            tray_icon_path_value, e
-        )
-    });
+    let icon = Image::from_path(&tray_icon_path_value).expect_programming(&format!(
+        "无法从路径 {:?} 加载托盘图标",
+        tray_icon_path_value
+    ));
 
     TrayIconBuilder::new()
         .menu(&menu)

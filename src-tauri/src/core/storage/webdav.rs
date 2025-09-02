@@ -1,11 +1,11 @@
-use std::path::PathBuf;
-
+use crate::error::{AppError, AppResult, OptionExt};
 use crate::storage::storage_manager::StorageClient;
 use crate::storage::storage_manager::{TEST_CONFIG_FILE_DATA, TEST_CONFIG_FILE_NAME};
 use async_trait::async_trait;
 use parking_lot::RwLock;
 use reqwest_dav::{Client, ClientBuilder};
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 use std::sync::Arc;
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PartialWebDAVConfig {
@@ -184,22 +184,32 @@ impl WebDAVStorageInner {
 #[async_trait]
 impl StorageClient for WebDAVStorageInner {
     // 要可以上传文件
-    async fn upload(&self, file_name: String, data: Vec<u8>) -> Result<(), String> {
+    async fn upload(&self, file_name: String, data: Vec<u8>) -> AppResult<()> {
         let target_path = self.destination_dir.join(file_name);
-        let target_path = target_path.to_str().unwrap().to_string();
+        let target_path = target_path
+            .to_str()
+            .expect_programming("Path should be valid UTF-8")
+            .to_string();
         if let Some(client) = self.client.as_ref() {
             if let Err(e) = client.put(&target_path, data).await {
-                return Err(e.to_string());
+                return Err(AppError::StorageError {
+                    message: e.to_string(),
+                });
             }
         } else {
-            return Err("当前无客户端连接".to_string());
+            return Err(AppError::StorageError {
+                message: "当前无客户端连接".to_string(),
+            });
         }
         Ok(())
     }
     // 要可以下载文件
-    async fn download(&self, file_name: String) -> Result<Option<Vec<u8>>, String> {
+    async fn download(&self, file_name: String) -> AppResult<Option<Vec<u8>>> {
         let target_path = self.destination_dir.join(file_name);
-        let target_path = target_path.to_str().unwrap().to_string();
+        let target_path = target_path
+            .to_str()
+            .expect_programming("Path should be valid UTF-8 - this is a programming error")
+            .to_string();
         if let Some(client) = self.client.as_ref() {
             // 直接尝试下载文件
             match client.get(&target_path).await {
@@ -207,7 +217,9 @@ impl StorageClient for WebDAVStorageInner {
                     .bytes()
                     .await
                     .map(|bytes| Some(bytes.to_vec()))
-                    .map_err(|e| format!("读取文件流失败: {}", e)),
+                    .map_err(|e| AppError::StorageError {
+                        message: format!("读取文件流失败: {}", e),
+                    }),
 
                 Err(e) => {
                     if let reqwest_dav::Error::Decode(decode_error) = e {
@@ -216,23 +228,34 @@ impl StorageClient for WebDAVStorageInner {
                                 println!("收到404");
                                 return Ok(None);
                             } else {
-                                return Err(format!("{:?}", server_error));
+                                return Err(AppError::StorageError {
+                                    message: format!("{:?}", server_error),
+                                });
                             }
                         } else {
-                            return Err(format!("{:?}", decode_error));
+                            return Err(AppError::StorageError {
+                                message: format!("{:?}", decode_error),
+                            });
                         }
                     } else {
-                        return Err(format!("{:?}", e));
+                        return Err(AppError::StorageError {
+                            message: format!("{:?}", e),
+                        });
                     }
                 }
             }
         } else {
-            return Err("当前无客户端连接".to_string());
+            return Err(AppError::StorageError {
+                message: "当前无客户端连接".to_string(),
+            });
         }
     }
     // 要可以获得当前文件的目标路径
     async fn get_target_dir_path(&self) -> String {
-        self.destination_dir.to_str().unwrap().to_string()
+        self.destination_dir
+            .to_str()
+            .expect_programming("Path should be valid UTF-8 - this is a programming error")
+            .to_string()
     }
 
     async fn validate_config(&self) -> bool {
@@ -274,12 +297,12 @@ impl WebDAVStorage {
 
 #[async_trait]
 impl StorageClient for WebDAVStorage {
-    async fn download(&self, file_path: String) -> Result<Option<Vec<u8>>, String> {
+    async fn download(&self, file_path: String) -> AppResult<Option<Vec<u8>>> {
         let inner = self.inner.read().await;
         inner.download(file_path).await
     }
 
-    async fn upload(&self, file_path: String, data: Vec<u8>) -> Result<(), String> {
+    async fn upload(&self, file_path: String, data: Vec<u8>) -> AppResult<()> {
         let inner = self.inner.read().await;
         inner.upload(file_path, data).await
     }

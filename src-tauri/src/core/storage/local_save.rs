@@ -1,10 +1,10 @@
-use std::path::PathBuf;
-
 use super::storage_manager::{StorageClient, TEST_CONFIG_FILE_DATA, TEST_CONFIG_FILE_NAME};
 use crate::core::storage::windows_utils::get_default_remote_data_dir_path;
+use crate::error::{AppResult, OptionExt};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -93,7 +93,7 @@ impl LocalStorageInner {
 
 #[async_trait]
 impl StorageClient for LocalStorageInner {
-    async fn download(&self, file_path: String) -> Result<Option<Vec<u8>>, String> {
+    async fn download(&self, file_path: String) -> AppResult<Option<Vec<u8>>> {
         let target_path = self.remote_config_dir.join(file_path);
         // 如果没有，则直接返回空
         let path = Path::new(&target_path);
@@ -103,23 +103,36 @@ impl StorageClient for LocalStorageInner {
 
         match tokio::fs::read(&target_path).await {
             Ok(data) => Ok(Some(data)),
-            Err(e) => Err(format!("{}", e)),
+            Err(e) => Err(crate::error::AppError::StorageError {
+                message: format!("{}", e),
+            }),
         }
     }
 
-    async fn upload(&self, file_path: String, data: Vec<u8>) -> Result<(), String> {
+    async fn upload(&self, file_path: String, data: Vec<u8>) -> AppResult<()> {
         let target_path = self.remote_config_dir.join(file_path);
 
-        tokio::fs::create_dir_all(target_path.parent().unwrap())
-            .await
-            .map_err(|e| format!("创建目录失败: {}", e))?;
-        tokio::fs::write(&target_path, data)
-            .await
-            .map_err(|e| format!("上传失败 {}: {}", target_path.display(), e))
+        tokio::fs::create_dir_all(
+            target_path
+                .parent()
+                .expect_programming("Target path should have a parent directory"),
+        )
+        .await
+        .map_err(|e| crate::error::AppError::StorageError {
+            message: format!("创建目录失败: {}", e),
+        })?;
+        tokio::fs::write(&target_path, data).await.map_err(|e| {
+            crate::error::AppError::StorageError {
+                message: format!("上传失败 {}: {}", target_path.display(), e),
+            }
+        })
     }
 
     async fn get_target_dir_path(&self) -> String {
-        self.remote_config_dir.to_str().unwrap().to_string()
+        self.remote_config_dir
+            .to_str()
+            .expect_programming("Path should be valid UTF-8")
+            .to_string()
     }
 
     async fn validate_config(&self) -> bool {
@@ -161,12 +174,12 @@ impl LocalStorage {
 
 #[async_trait]
 impl StorageClient for LocalStorage {
-    async fn download(&self, file_path: String) -> Result<Option<Vec<u8>>, String> {
+    async fn download(&self, file_path: String) -> AppResult<Option<Vec<u8>>> {
         let inner = self.inner.read().await;
         inner.download(file_path).await
     }
 
-    async fn upload(&self, file_path: String, data: Vec<u8>) -> Result<(), String> {
+    async fn upload(&self, file_path: String, data: Vec<u8>) -> AppResult<()> {
         let inner = self.inner.read().await;
         inner.upload(file_path, data).await
     }

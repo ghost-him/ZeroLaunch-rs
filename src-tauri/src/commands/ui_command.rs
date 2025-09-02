@@ -19,7 +19,7 @@ pub async fn update_search_bar_window<R: Runtime>(
     _window: tauri::Window<R>,
     state: tauri::State<'_, Arc<AppState>>,
 ) -> Result<(PartialAppConfig, PartialUiConfig, PartialShortcutConfig), String> {
-    let runtime_config = state.get_runtime_config().unwrap();
+    let runtime_config = state.get_runtime_config();
     let app_config = runtime_config.get_app_config();
     let ui_config = runtime_config.get_ui_config();
     let shortcut_config = runtime_config.get_shortcut_config();
@@ -36,7 +36,7 @@ pub async fn get_background_picture<R: Runtime>(
     _window: tauri::Window<R>,
     state: tauri::State<'_, Arc<AppState>>,
 ) -> Result<Vec<u8>, String> {
-    let storage_manager = state.get_storage_manager().unwrap();
+    let storage_manager = state.get_storage_manager();
     if let Some(data) = storage_manager
         .download_file_bytes("background.png".to_string())
         .await
@@ -56,7 +56,7 @@ pub async fn get_remote_config_dir<R: Runtime>(
     _window: tauri::Window<R>,
     state: tauri::State<'_, Arc<AppState>>,
 ) -> Result<String, String> {
-    let storage_manager = state.get_storage_manager().unwrap();
+    let storage_manager = state.get_storage_manager();
     let path = storage_manager.get_target_dir_path().await;
     Ok(path)
 }
@@ -70,11 +70,13 @@ pub async fn select_background_picture<R: Runtime>(
 ) -> Result<(), String> {
     let path = ImageIdentity::File(path);
     let content: Vec<u8> = ImageProcessor::load_image(&path).await;
-    let storage_manager = state.get_storage_manager().unwrap();
+    let storage_manager = state.get_storage_manager();
     storage_manager
         .upload_file_bytes("background.png".to_string(), content)
         .await;
-    app.emit("update_search_bar_window", "").unwrap();
+    if let Err(e) = app.emit("update_search_bar_window", "") {
+        return Err(format!("Failed to emit update event: {:?}", e));
+    }
     Ok(())
 }
 
@@ -86,7 +88,10 @@ pub async fn get_dominant_color<R: Runtime>(
 ) -> Result<String, String> {
     let path = ImageIdentity::File(path);
     let content = ImageProcessor::load_image(&path).await;
-    let ret = ImageProcessor::get_dominant_color(content).await.unwrap();
+    let ret = match ImageProcessor::get_dominant_color(content).await {
+        Ok(color) => color,
+        Err(e) => return Err(format!("Failed to get dominant color: {:?}", e)),
+    };
     Ok(format!("rgba({}, {}, {}, 0.8)", ret.0, ret.1, ret.2))
 }
 
@@ -94,11 +99,10 @@ pub async fn get_dominant_color<R: Runtime>(
 #[tauri::command]
 pub fn hide_window() -> Result<(), String> {
     let state = ServiceLocator::get_state();
-    let main_window = state
-        .get_main_handle()
-        .unwrap()
-        .get_webview_window("main")
-        .unwrap();
+    let main_window = match state.get_main_handle().get_webview_window("main") {
+        Some(window) => window,
+        None => return Err("Failed to get main window".to_string()),
+    };
     handle_focus_lost(Arc::new(main_window));
     Ok(())
 }
@@ -107,15 +111,20 @@ pub fn hide_window() -> Result<(), String> {
 #[tauri::command]
 pub fn show_setting_window() -> Result<(), String> {
     let state = ServiceLocator::get_state();
-    let setting_window = state
-        .get_main_handle()
-        .unwrap()
-        .get_webview_window("setting_window")
-        .unwrap();
+    let setting_window = match state.get_main_handle().get_webview_window("setting_window") {
+        Some(window) => window,
+        None => return Err("Failed to get setting window".to_string()),
+    };
     let _ = setting_window.unminimize();
-    setting_window.show().unwrap();
-    setting_window.set_focus().unwrap();
-    hide_window().unwrap();
+    if let Err(e) = setting_window.show() {
+        return Err(format!("Failed to show setting window: {:?}", e));
+    }
+    if let Err(e) = setting_window.set_focus() {
+        return Err(format!("Failed to set focus on setting window: {:?}", e));
+    }
+    if let Err(e) = hide_window() {
+        return Err(format!("Failed to hide window: {:?}", e));
+    }
     Ok(())
 }
 
@@ -136,9 +145,16 @@ pub async fn command_change_tray_icon<R: Runtime>(
         }
     };
 
-    let icon_path = APP_PIC_PATH.get(key).unwrap();
-    let tray_icon = state.get_tray_icon().unwrap();
-    if let Err(e) = tray_icon.set_icon(Some(Image::from_path(icon_path.value()).unwrap())) {
+    let icon_path = match APP_PIC_PATH.get(key) {
+        Some(path) => path,
+        None => return Err(format!("Icon path not found for key: {}", key)),
+    };
+    let tray_icon = state.get_tray_icon();
+    let image = match Image::from_path(icon_path.value()) {
+        Ok(img) => img,
+        Err(e) => return Err(format!("Failed to load icon image: {:?}", e)),
+    };
+    if let Err(e) = tray_icon.set_icon(Some(image)) {
         return Err(format!("error: {:?}", e));
     }
     Ok(())

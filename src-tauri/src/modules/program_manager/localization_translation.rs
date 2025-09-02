@@ -1,4 +1,4 @@
-use crate::error::{ResultExt, OptionExt};
+use crate::error::{OptionExt, ResultExt};
 use crate::utils::windows::expand_environment_variables;
 use crate::Path;
 use ini::inistr;
@@ -111,7 +111,9 @@ pub fn parse_localized_names_from_dir(dir_path: &Path) -> HashMap<String, String
                     .chunks_exact(2) // 将切片按每2个字节分组
                     .map(|chunk| {
                         u16::from_le_bytes(
-                            chunk.try_into().expect_programming("Chunk should be exactly 2 bytes"),
+                            chunk
+                                .try_into()
+                                .expect_programming("Chunk should be exactly 2 bytes"),
                         )
                     }) // 将 [u8; 2] 转换为小端序 u16
                     .collect();

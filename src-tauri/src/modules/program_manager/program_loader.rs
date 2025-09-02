@@ -310,7 +310,10 @@ impl ProgramLoaderInner {
 
         // 结束计时
         self.loading_time = Some(start.elapsed());
-        let total_time = self.loading_time.expect_programming("加载时间应该已被设置").as_millis();
+        let total_time = self
+            .loading_time
+            .expect_programming("加载时间应该已被设置")
+            .as_millis();
 
         info!(
             "✅ 程序加载完成！总计 {} 个程序，耗时 {} ms",

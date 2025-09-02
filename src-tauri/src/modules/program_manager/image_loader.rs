@@ -64,7 +64,12 @@ impl ImageLoaderInner {
             let cached_icon_dir = ICON_CACHE_DIR.clone();
             let icon_path = Path::new(&cached_icon_dir).join(&hash_name);
             // 如果存在，则直接将目标的路径（网页url）更换成本地的地址
-            icon_identity = ImageIdentity::File(icon_path.to_str().expect_programming("图标路径转换为字符串失败").to_string());
+            icon_identity = ImageIdentity::File(
+                icon_path
+                    .to_str()
+                    .expect_programming("图标路径转换为字符串失败")
+                    .to_string(),
+            );
             return ImageProcessor::load_image(&icon_identity).await;
         }
 
@@ -118,8 +123,14 @@ impl ImageLoaderInner {
             tauri::async_runtime::spawn(async move {
                 let cached_icon_dir = ICON_CACHE_DIR.clone();
                 let icon_path = Path::new(&cached_icon_dir).join(&hash_name);
-                let _ = tokio::fs::write(icon_path.to_str().expect_programming("缓存路径转换为字符串失败").to_string(), icon_cache_clone)
-                    .await;
+                let _ = tokio::fs::write(
+                    icon_path
+                        .to_str()
+                        .expect_programming("缓存路径转换为字符串失败")
+                        .to_string(),
+                    icon_cache_clone,
+                )
+                .await;
             });
         }
         icon_data

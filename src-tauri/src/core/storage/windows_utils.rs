@@ -1,4 +1,4 @@
-use crate::error::{ResultExt, OptionExt};
+use crate::error::{OptionExt, ResultExt};
 use std::path::Path;
 use tracing::{debug, info};
 use windows::Win32::UI::Shell::SHGetFolderPathW;

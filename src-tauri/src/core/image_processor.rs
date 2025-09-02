@@ -1,4 +1,4 @@
-use crate::error::{AppError, AppResult, ResultExt, OptionExt};
+use crate::error::{AppError, AppResult, OptionExt, ResultExt};
 use crate::utils::defer::defer;
 use crate::utils::windows::get_u16_vec;
 use core::mem::MaybeUninit;
@@ -116,7 +116,10 @@ impl ImageProcessor {
         debug!("Checking network availability for favicon fetch");
         if !Self::is_network_available() {
             warn!("No network connection available");
-            return Err(AppError::NetworkError{message: "No network connection available".to_string(), source: None});
+            return Err(AppError::NetworkError {
+                message: "No network connection available".to_string(),
+                source: None,
+            });
         }
 
         debug!("Fetching website content from: {}", url);
@@ -141,12 +144,14 @@ impl ImageProcessor {
             let document = Html::parse_document(&html_content);
 
             let icon_selector = Selector::parse(r#"link[rel="icon"], link[rel="shortcut icon"]"#)
-                .map_err(|e| {
-                AppError::ImageProcessingError{message: format!("Failed to parse CSS selector: {}", e)}
+                .map_err(|e| AppError::ImageProcessingError {
+                message: format!("Failed to parse CSS selector: {}", e),
             })?;
 
-            let base_url = Url::parse(url)
-                .map_err(|e| AppError::NetworkError{message: format!("Invalid URL format: {}", e), source: None})?;
+            let base_url = Url::parse(url).map_err(|e| AppError::NetworkError {
+                message: format!("Invalid URL format: {}", e),
+                source: None,
+            })?;
 
             let favicon_url = document
                 .select(&icon_selector)
@@ -158,9 +163,9 @@ impl ImageProcessor {
                 })
                 .unwrap_or_else(|| {
                     debug!("No favicon link found, using default /favicon.ico");
-                    base_url
-                        .join("/favicon.ico")
-                        .expect_programming("Failed to create default favicon URL - this should never happen")
+                    base_url.join("/favicon.ico").expect_programming(
+                        "Failed to create default favicon URL - this should never happen",
+                    )
                 });
 
             favicon_url.to_string()
@@ -206,11 +211,8 @@ impl ImageProcessor {
             // 使用Windows系统调用读取程序图标
             let rgba_image = Self::extract_icon_from_file(icon_path)
                 .await
-                .ok_or_else(|| {
-                    AppError::ImageProcessingError{message: format!(
-                        "Failed to extract icon from program: {}",
-                        icon_path
-                    )}
+                .ok_or_else(|| AppError::ImageProcessingError {
+                    message: format!("Failed to extract icon from program: {}", icon_path),
                 })?;
 
             let png_data = Self::rgba_image_to_png(&rgba_image)?;
@@ -223,8 +225,7 @@ impl ImageProcessor {
         } else {
             info!("Loading regular image file: {}", icon_path);
             // 直接使用库来读取图像文件
-            let png_data = Self::load_and_convert_to_png(icon_path)
-                .await?;
+            let png_data = Self::load_and_convert_to_png(icon_path).await?;
 
             info!(
                 "Successfully loaded and converted image ({} bytes)",
@@ -265,32 +266,32 @@ impl ImageProcessor {
 
                     // 检查 SVG 尺寸是否有效
                     if pixmap_size.width() == 0 || pixmap_size.height() == 0 {
-                        return Err(AppError::ImageProcessingError{message: format!(
-                            "Invalid SVG dimensions (width: {}px, height: {}px)",
-                            pixmap_size.width(),
-                            pixmap_size.height()
-                        )});
+                        return Err(AppError::ImageProcessingError {
+                            message: format!(
+                                "Invalid SVG dimensions (width: {}px, height: {}px)",
+                                pixmap_size.width(),
+                                pixmap_size.height()
+                            ),
+                        });
                     }
 
                     // 创建一个 Pixmap 来渲染 SVG
                     let mut pixmap =
                         tiny_skia::Pixmap::new(pixmap_size.width(), pixmap_size.height())
-                            .ok_or_else(|| {
-                                AppError::ImageProcessingError{message: 
-                                    "Failed to create Pixmap for SVG rendering".to_string(),
-                                }
+                            .ok_or_else(|| AppError::ImageProcessingError {
+                                message: "Failed to create Pixmap for SVG rendering".to_string(),
                             })?;
 
                     // 渲染 SVG 到 Pixmap
                     resvg::render(&tree, tiny_skia::Transform::default(), &mut pixmap.as_mut());
 
                     // 将 Pixmap 编码为 PNG 数据
-                    let png_data = pixmap.encode_png().map_err(|e| {
-                        AppError::ImageProcessingError{message: format!(
-                            "Failed to encode SVG as PNG: {}",
-                            e
-                        )}
-                    })?;
+                    let png_data =
+                        pixmap
+                            .encode_png()
+                            .map_err(|e| AppError::ImageProcessingError {
+                                message: format!("Failed to encode SVG as PNG: {}", e),
+                            })?;
 
                     info!(
                         "Successfully converted SVG to PNG ({} bytes)",
@@ -306,24 +307,27 @@ impl ImageProcessor {
                     // 解析 SVG 失败，或它不是 SVG。回退到原始的 image crate 逻辑。
                     let img_reader = image::ImageReader::new(Cursor::new(image_data))
                         .with_guessed_format()
-                        .map_err(|e| {
-                            AppError::ImageProcessingError{message: format!(
-                                "Failed to create image reader: {}",
-                                e
-                            )}
+                        .map_err(|e| AppError::ImageProcessingError {
+                            message: format!("Failed to create image reader: {}", e),
                         })?;
 
                     // 读取图像格式
-                    let format = img_reader.format().ok_or_else(|| {
-                        AppError::ImageProcessingError{message: "Unable to detect image format".to_string()}
-                    })?;
+                    let format =
+                        img_reader
+                            .format()
+                            .ok_or_else(|| AppError::ImageProcessingError {
+                                message: "Unable to detect image format".to_string(),
+                            })?;
 
                     debug!("Detected image format: {:?}", format);
 
                     // 解码图像
-                    let mut img = img_reader.decode().map_err(|e| {
-                        AppError::ImageProcessingError{message: format!("Failed to decode image: {}", e)}
-                    })?;
+                    let mut img =
+                        img_reader
+                            .decode()
+                            .map_err(|e| AppError::ImageProcessingError {
+                                message: format!("Failed to decode image: {}", e),
+                            })?;
 
                     // 如果不是 PNG 格式，则转换
                     if format != ImageFormat::Png {
@@ -336,10 +340,9 @@ impl ImageProcessor {
                     let mut png_data = Vec::new();
                     let encoder = image::codecs::png::PngEncoder::new(&mut png_data);
                     img.write_with_encoder(encoder).map_err(|e| {
-                        AppError::ImageProcessingError{message: format!(
-                            "Failed to encode image as PNG: {}",
-                            e
-                        )}
+                        AppError::ImageProcessingError {
+                            message: format!("Failed to encode image as PNG: {}", e),
+                        }
                     })?;
 
                     info!(
@@ -485,9 +488,10 @@ impl ImageProcessor {
             hbmMask: std::mem::zeroed::<HBITMAP>() as HBITMAP,
             hbmColor: std::mem::zeroed::<HBITMAP>() as HBITMAP,
         };
-        GetIconInfo(icon, &mut info)
-            .map_err(|_| AppError::ImageProcessingError{message: "Failed to get icon information".to_string()})?;
-        DeleteObject(HGDIOBJ(info.hbmMask.0)).expect_programming("Failed to delete mask object");
+        GetIconInfo(icon, &mut info).map_err(|_| AppError::ImageProcessingError {
+            message: "Failed to get icon information".to_string(),
+        })?;
+        DeleteObject(HGDIOBJ(info.hbmMask.0)).expect("Failed to delete mask object");
         let mut bitmap: MaybeUninit<BITMAP> = MaybeUninit::uninit();
 
         let result = GetObjectW(
@@ -497,7 +501,7 @@ impl ImageProcessor {
         );
 
         if result != bitmap_size_i32 {
-            return Err(AppError::ImageProcessingError{
+            return Err(AppError::ImageProcessingError {
                 message: "Failed to get bitmap object information".to_string(),
             });
         }
@@ -534,7 +538,7 @@ impl ImageProcessor {
 
         let dc: windows::Win32::Graphics::Gdi::HDC = windows::Win32::Graphics::Gdi::GetDC(None);
         if dc == windows::Win32::Graphics::Gdi::HDC(std::ptr::null_mut()) {
-            return Err(AppError::ImageProcessingError{
+            return Err(AppError::ImageProcessingError {
                 message: "Failed to get device context".to_string(),
             });
         }
@@ -562,11 +566,11 @@ impl ImageProcessor {
         buf.set_len(bmp.capacity());
         let result = windows::Win32::Graphics::Gdi::ReleaseDC(None, dc);
         if result != 1 {
-            return Err(AppError::ImageProcessingError{
+            return Err(AppError::ImageProcessingError {
                 message: "Failed to release device context".to_string(),
             });
         }
-        DeleteObject(HGDIOBJ(info.hbmColor.0)).expect_programming("Failed to delete color object");
+        DeleteObject(HGDIOBJ(info.hbmColor.0)).expect("Failed to delete color object");
 
         for chunk in bmp.chunks_exact_mut(4) {
             let [b, _, r, _] = chunk else {
@@ -591,9 +595,10 @@ impl ImageProcessor {
         );
 
         // 解析 PNG 数据
-        let img = image::load_from_memory(&png_data).map_err(|e| {
-            AppError::ImageProcessingError{message: format!("Failed to load image from memory: {}", e)}
-        })?;
+        let img =
+            image::load_from_memory(&png_data).map_err(|e| AppError::ImageProcessingError {
+                message: format!("Failed to load image from memory: {}", e),
+            })?;
 
         let width = img.width();
         let height = img.height();
@@ -602,10 +607,9 @@ impl ImageProcessor {
 
         // 确保图像是正方形
         if width != height {
-            return Err(AppError::ImageProcessingError{message: format!(
-                "Input image is not square: {}x{}",
-                width, height
-            )});
+            return Err(AppError::ImageProcessingError {
+                message: format!("Input image is not square: {}x{}", width, height),
+            });
         }
 
         let mut border_width = 0;
@@ -684,8 +688,8 @@ impl ImageProcessor {
                 new_size,
                 image::ColorType::Rgba8.into(),
             )
-            .map_err(|e| {
-                AppError::ImageProcessingError{message: format!("Failed to encode trimmed image: {}", e)}
+            .map_err(|e| AppError::ImageProcessingError {
+                message: format!("Failed to encode trimmed image: {}", e),
             })?;
 
         info!(
@@ -721,11 +725,8 @@ impl ImageProcessor {
         // 尝试将RGBA图像编码为PNG格式
         rgba_image
             .write_to(&mut cursor, ImageFormat::Png)
-            .map_err(|e| {
-                AppError::ImageProcessingError{message: format!(
-                    "Failed to encode RGBA image as PNG: {}",
-                    e
-                )}
+            .map_err(|e| AppError::ImageProcessingError {
+                message: format!("Failed to encode RGBA image as PNG: {}", e),
             })?;
 
         info!(
@@ -744,10 +745,9 @@ impl ImageProcessor {
         tauri::async_runtime::spawn_blocking(move || -> AppResult<(u8, u8, u8)> {
             // 加载并解码PNG图片
             let img = image::load_from_memory(&image_data).map_err(|e| {
-                AppError::ImageProcessingError{message: format!(
-                    "Failed to load image for color analysis: {}",
-                    e
-                )}
+                AppError::ImageProcessingError {
+                    message: format!("Failed to load image for color analysis: {}", e),
+                }
             })?;
             let rgba_img = img.to_rgba8();
 
@@ -772,7 +772,7 @@ impl ImageProcessor {
                 .collect();
 
             if pixels.is_empty() {
-                return Err(AppError::ImageProcessingError{
+                return Err(AppError::ImageProcessingError {
                     message: "No visible pixels found in image for color analysis".to_string(),
                 });
             }
@@ -821,7 +821,9 @@ impl ImageProcessor {
                 let counts_mutex = Arc::new(Mutex::new(counts));
 
                 best_result.indices.par_iter().for_each(|&i| {
-                    let mut counts = counts_mutex.lock().expect_programming("Mutex should not be poisoned");
+                    let mut counts = counts_mutex
+                        .lock()
+                        .expect_programming("Mutex should not be poisoned");
                     counts[i as usize] += 1;
                 });
 

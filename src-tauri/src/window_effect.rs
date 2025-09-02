@@ -1,8 +1,8 @@
 use tauri::window::EffectsBuilder;
 use tauri::Manager;
 
-use crate::utils::service_locator::ServiceLocator;
 use crate::error::OptionExt;
+use crate::utils::service_locator::ServiceLocator;
 use windows::{
     core::*,
     Win32::Graphics::Dwm::{
@@ -23,7 +23,9 @@ pub fn enable_window_effect() {
 pub fn update_blur_effect() {
     let state = ServiceLocator::get_state();
     let handle = state.get_main_handle();
-    let main_window = handle.get_webview_window("main").expect_programming("无法获取主窗口");
+    let main_window = handle
+        .get_webview_window("main")
+        .expect_programming("无法获取主窗口");
     let runtime_config = state.get_runtime_config();
     let ui_config = runtime_config.get_ui_config();
     let blur_style = ui_config.get_blur_style();
@@ -57,7 +59,9 @@ const DWMWCP_DONOTROUND: u32 = 1;
 pub fn update_rounded_corners() -> Result<()> {
     let state = ServiceLocator::get_state();
     let handle = state.get_main_handle();
-    let main_window = handle.get_webview_window("main").expect_programming("无法获取主窗口");
+    let main_window = handle
+        .get_webview_window("main")
+        .expect_programming("无法获取主窗口");
     let hwnd = main_window.hwnd().expect("无法获取窗口句柄");
     let use_windows_sys_control_radius = state
         .get_runtime_config()

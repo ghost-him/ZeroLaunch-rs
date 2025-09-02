@@ -1,4 +1,4 @@
-use crate::error::{ResultExt, OptionExt};
+use crate::error::{OptionExt, ResultExt};
 use crate::get_window_render_origin;
 use crate::modules::config::window_state::PartialWindowState;
 use crate::modules::ui_controller::controller::get_window_size;
@@ -49,7 +49,9 @@ pub fn update_window_size_and_position() {
             .expect_programming("无法设置窗口大小");
         let position = app_config.get_window_position();
         // 如果是读取之前的存储位置，则需要先判断一下目标的位置是不是在窗口内
-        let windows = main_window.available_monitors().expect_programming("无法获取可用显示器列表");
+        let windows = main_window
+            .available_monitors()
+            .expect_programming("无法获取可用显示器列表");
         if !windows.iter().any(|window| {
             // 对每个窗口作判断
             let window_position = window.position();
@@ -82,7 +84,9 @@ pub fn update_window_size_and_position() {
         let mouse_state = device_state.get_mouse();
         let mouse_position = mouse_state.coords;
         //println!("当前鼠标的位置：{}, {}", mouse_position.0, mouse_position.1);
-        let windows = main_window.available_monitors().expect_programming("无法获取可用显示器列表");
+        let windows = main_window
+            .available_monitors()
+            .expect_programming("无法获取可用显示器列表");
         let mut target_window_pos = (0, 0);
         windows.iter().any(|window| {
             let window_position = window.position();

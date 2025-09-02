@@ -286,7 +286,10 @@ impl ProgramManagerInner {
     }
     /// 获取程序的图标，返回使用base64编码的png图片
     pub async fn get_icon(&self, program_guid: &u64) -> Vec<u8> {
-        let index = self.program_locater.get(program_guid).expect_programming("程序定位器中未找到程序GUID");
+        let index = self
+            .program_locater
+            .get(program_guid)
+            .expect_programming("程序定位器中未找到程序GUID");
         let target_program = &self.program_registry[*(index.value())];
         let mut result = self.image_loader.load_image(target_program.clone()).await;
         if let Ok(output) = ImageProcessor::trim_transparent_white_border(result.clone()) {
@@ -342,14 +345,20 @@ impl ProgramManagerInner {
     }
     /// 唤醒窗口
     pub fn activate_target_program(&self, program_guid: u64) -> bool {
-        let target_program_index = self.program_locater.get(&program_guid).expect_programming("程序定位器中未找到程序GUID");
+        let target_program_index = self
+            .program_locater
+            .get(&program_guid)
+            .expect_programming("程序定位器中未找到程序GUID");
         let target_program = self.program_registry[*(target_program_index.value())].clone();
         self.window_activator
             .activate_target_program(target_program)
     }
     /// 返回目标程序是不是 UWP
     pub fn is_uwp_program(&self, program_guid: u64) -> bool {
-        let target_program_index = self.program_locater.get(&program_guid).expect_programming("程序定位器中未找到程序GUID");
+        let target_program_index = self
+            .program_locater
+            .get(&program_guid)
+            .expect_programming("程序定位器中未找到程序GUID");
         let target_program = self.program_registry[*(target_program_index.value())].clone();
         target_program.launch_method.is_uwp()
     }
@@ -367,7 +376,10 @@ impl ProgramManagerInner {
 
         let mut results = Vec::new();
         latest_launch_program.into_iter().for_each(|guid| {
-            let index = *self.program_locater.get(&guid).expect_programming("程序定位器中未找到程序GUID");
+            let index = *self
+                .program_locater
+                .get(&guid)
+                .expect_programming("程序定位器中未找到程序GUID");
             let program_info = self.program_registry[index].clone();
             results.push((guid, program_info.show_name.clone()));
         });

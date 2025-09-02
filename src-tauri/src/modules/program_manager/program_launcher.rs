@@ -1,4 +1,4 @@
-use crate::error::{ResultExt, OptionExt};
+use crate::error::{OptionExt, ResultExt};
 use crate::program_manager::config::program_launcher_config::PartialProgramLauncherConfig;
 use crate::program_manager::config::program_launcher_config::ProgramLauncherConfig;
 use crate::program_manager::LaunchMethod;
@@ -237,9 +237,8 @@ impl ProgramLauncherInner {
             });
 
             let manager: IApplicationActivationManager =
-                CoCreateInstance(&ApplicationActivationManager, None, CLSCTX_ALL).expect_programming(
-                    "Failed to create ApplicationActivationManager",
-                );
+                CoCreateInstance(&ApplicationActivationManager, None, CLSCTX_ALL)
+                    .expect_programming("Failed to create ApplicationActivationManager");
 
             let app_id_wide: Vec<u16> = get_u16_vec(package_family_name);
             let pid = match manager.ActivateApplication(

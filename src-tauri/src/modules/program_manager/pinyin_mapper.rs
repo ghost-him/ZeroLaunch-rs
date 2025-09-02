@@ -22,8 +22,8 @@ impl Default for PinyinMapper {
 
 impl PinyinMapper {
     pub fn new() -> Self {
-        let items: Vec<Item> =
-            serde_json::from_str(PINYIN_CONTENT_JS).expect_programming("Failed to parse PINYIN_CONTENT_JS");
+        let items: Vec<Item> = serde_json::from_str(PINYIN_CONTENT_JS)
+            .expect_programming("Failed to parse PINYIN_CONTENT_JS");
 
         let mut word_to_pinyin: HashMap<String, String> = HashMap::new();
         for item in items {

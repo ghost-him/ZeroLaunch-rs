@@ -1,5 +1,5 @@
 use crate::core::storage::windows_utils::get_default_remote_data_dir_path;
-use crate::error::{ResultExt, OptionExt};
+use crate::error::{OptionExt, ResultExt};
 use crate::RuntimeConfig;
 use dashmap::DashMap;
 use lazy_static::lazy_static;

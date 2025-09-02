@@ -1,6 +1,7 @@
 pub mod commands;
 pub mod core;
 pub mod error;
+pub mod logging;
 pub mod modules;
 pub mod state;
 pub mod tray;
@@ -13,10 +14,10 @@ use crate::commands::program_service::*;
 use crate::commands::shortcut::*;
 use crate::commands::ui_command::*;
 use crate::commands::utils::*;
-use crate::error::{ResultExt, OptionExt};
+use crate::error::{OptionExt, ResultExt};
+use crate::logging::{init_logging, log_application_shutdown, log_application_start};
 use crate::modules::config::config_manager::PartialRuntimeConfig;
 use crate::modules::config::default::LOCAL_CONFIG_PATH;
-use crate::modules::config::default::LOG_DIR;
 use crate::modules::config::default::REMOTE_CONFIG_DEFAULT;
 use crate::modules::config::{Height, Width};
 use crate::modules::ui_controller::controller::get_window_render_origin;
@@ -26,10 +27,7 @@ use crate::utils::defer::defer;
 use crate::utils::ui_controller::handle_focus_lost;
 use crate::utils::ui_controller::handle_pressed;
 use crate::window_position::update_window_size_and_position;
-use backtrace::Backtrace;
-use chrono::DateTime;
 use chrono::Duration;
-use chrono::Local;
 use core::storage;
 use core::storage::storage_manager::StorageManager;
 use device_query::DeviceQuery;
@@ -50,9 +48,6 @@ use modules::ui_controller::controller::recommend_footer_height;
 use modules::ui_controller::controller::recommend_result_item_height;
 use modules::ui_controller::controller::recommend_search_bar_height;
 use modules::ui_controller::controller::recommend_window_width;
-use std::fs::File;
-use std::io::Write;
-use std::panic;
 use std::path::Path;
 use std::sync::Arc;
 use tauri::App;
@@ -61,65 +56,17 @@ use tauri::LogicalSize;
 use tauri::Manager;
 use tauri::WebviewUrl;
 use tauri_plugin_deep_link::DeepLinkExt;
-use tracing::warn;
-use tracing::Level;
-use tracing::{debug, error, info};
-use tracing_appender::rolling::RollingFileAppender;
-use tracing_appender::rolling::Rotation;
+use tracing::{debug, error, info, warn};
 use utils::notify::notify;
 use utils::service_locator::ServiceLocator;
 use window_effect::enable_window_effect;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // 创建一个按日期滚动的日志文件，例如每天一个新文件
-    let file_appender: RollingFileAppender =
-        RollingFileAppender::new(Rotation::DAILY, LOG_DIR.clone(), "info.log");
+    // 初始化日志系统
+    let _log_guard = init_logging(None);
 
-    // 创建一个非阻塞的日志写入器
-    let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
-
-    // 配置订阅者
-    let subscriber = tracing_subscriber::fmt()
-        .with_writer(non_blocking) // 设置日志输出到文件
-        .with_max_level(Level::DEBUG) // 设置日志级别
-        .with_ansi(false)
-        .finish();
-
-    // 设置全局默认的订阅者
-    tracing::subscriber::set_global_default(subscriber).expect_programming("设置全局默认订阅者失败");
-
-    // 设置 panic hook
-    panic::set_hook(Box::new(|panic_info| {
-        let location = panic_info.location().expect_programming("无法获取panic位置信息");
-        let message = match panic_info.payload().downcast_ref::<&str>() {
-            Some(s) => *s,
-            None => "未知panic消息",
-        };
-
-        let log_dir = LOG_DIR.clone();
-        let panic_file_path = Path::new(&log_dir)
-            .join("panic.log")
-            .to_str()
-            .expect_programming("无法转换panic日志路径为字符串")
-            .to_string();
-        let mut file = File::create(panic_file_path).expect_programming("无法创建panic日志文件");
-        writeln!(
-            file,
-            "Panic发生在文件 '{}' 第{}行: {}",
-            location.file(),
-            location.line(),
-            message
-        )
-        .expect_programming("无法写入panic日志文件");
-
-        let backtrace = Backtrace::new();
-
-        writeln!(file, "堆栈跟踪: {:?}", backtrace).expect_programming("无法写入panic日志文件");
-
-        error!("Panic发生: {}", message);
-    }));
-
-    cleanup_old_logs(&LOG_DIR.to_string(), 5);
+    // 记录应用启动信息
+    log_application_start();
 
     let com_init = unsafe { windows::Win32::System::Com::CoInitialize(None) };
     if com_init.is_err() {
@@ -127,6 +74,9 @@ pub fn run() {
     }
 
     defer(move || unsafe {
+        // 记录应用关闭信息
+        log_application_shutdown();
+
         if com_init.is_ok() {
             windows::Win32::System::Com::CoUninitialize();
         }
@@ -143,27 +93,49 @@ pub fn run() {
         .manage(Arc::new(AppState::new()))
         .setup(|app| {
             tauri::async_runtime::block_on(async move {
+                info!("开始初始化应用组件");
+
                 // 初始化程序的图标
+                info!("正在注册图标路径");
                 register_icon_path(app);
+
                 // 初始化程序的配置系统
+                info!("正在初始化应用状态和配置系统");
                 init_app_state(app).await;
+
                 // 初始化程序的系统托盘服务
+                info!("正在初始化系统托盘服务");
                 init_system_tray(app);
+
                 // 初始化搜索栏
+                info!("正在初始化搜索栏窗口");
                 init_search_bar_window(app);
+
                 // 初始化设置窗口
+                info!("正在初始化设置窗口");
                 init_setting_window(app.app_handle().clone());
+
                 // 初始化键盘监听器
+                info!("正在启动快捷键管理器");
                 start_shortcut_manager(app);
+
                 // 根据配置信息更新整个程序
+                info!("正在更新应用设置");
                 update_app_setting().await;
 
-                app.deep_link().register_all().expect_programming("无法注册深度链接");
+                info!("正在注册深度链接");
+                app.deep_link()
+                    .register_all()
+                    .expect_programming("无法注册深度链接");
+                info!("深度链接注册成功");
+
                 app.deep_link().on_open_url(|event| {
+                    let urls = event.urls();
+                    debug!("收到深度链接事件: {:?}", urls);
                     tauri::async_runtime::spawn(async move {
                         let state = ServiceLocator::get_state();
                         let waiting_hashmap = state.get_waiting_hashmap();
-                        for url in event.urls() {
+                        for url in urls {
                             let domain = url.domain().expect_programming("URL缺少域名").to_string();
                             let mut pairs = Vec::new();
                             url.query_pairs().into_iter().for_each(|(key, value)| {
@@ -216,12 +188,17 @@ pub fn run() {
 
 /// 初始化的流程-> 初始化程序的状态
 async fn init_app_state(app: &mut App) {
+    debug!("开始初始化应用状态");
+
     // 维护程序状态
     let state = app.state::<Arc<AppState>>();
     ServiceLocator::init((*state).clone());
+    debug!("ServiceLocator初始化完成");
+
     let state = ServiceLocator::get_state();
     // 维护app_handle
     state.set_main_handle(Arc::new(app.app_handle().clone()));
+    debug!("应用句柄设置完成");
 
     // 在初始化时传入一个函数，这个函数会初始化一个新版本的提示
 
@@ -303,7 +280,10 @@ async fn init_app_state(app: &mut App) {
 
 /// 初始化搜索界面的窗口设置
 fn init_search_bar_window(app: &mut App) {
-    let main_window = Arc::new(app.get_webview_window("main").expect_programming("无法获取主窗口"));
+    let main_window = Arc::new(
+        app.get_webview_window("main")
+            .expect_programming("无法获取主窗口"),
+    );
     // 设置tauri窗口的大小等参数
     let monitor = main_window
         .current_monitor()
@@ -498,9 +478,14 @@ async fn update_app_setting() {
 /// 3. 保存到文件中
 /// 4. 重新读取文件并更新配置信息
 pub async fn save_config_to_file(is_update_app: bool) {
+    info!("开始保存配置文件, is_update_app: {}", is_update_app);
+
     let state = ServiceLocator::get_state();
     let runtime_config = state.get_runtime_config();
+    debug!("获取运行时配置完成");
+
     let runtime_data = state.get_program_manager().get_runtime_data().await;
+    debug!("获取程序管理器运行时数据完成");
     let window = state
         .get_main_handle()
         .get_webview_window("main")
@@ -523,12 +508,14 @@ pub async fn save_config_to_file(is_update_app: bool) {
     let remote_config = runtime_config.to_partial();
 
     let data_str = save_local_config(remote_config);
+    debug!("本地配置保存完成");
 
     let storage_manager = state.get_storage_manager();
 
     storage_manager
         .upload_file_str(REMOTE_CONFIG_NAME.to_string(), data_str)
         .await;
+    debug!("远程配置上传完成");
 
     if is_update_app {
         update_app_setting().await;
@@ -537,6 +524,8 @@ pub async fn save_config_to_file(is_update_app: bool) {
 
 /// 处理自动开机的逻辑
 pub fn handle_auto_start() -> Result<(), Box<dyn std::error::Error>> {
+    info!("开始处理自动启动配置");
+
     let state: Arc<AppState> = ServiceLocator::get_state();
 
     // 处理主窗口句柄
@@ -562,11 +551,15 @@ pub fn handle_auto_start() -> Result<(), Box<dyn std::error::Error>> {
 
     // 根据配置强制更新自动启动状态和路径
     if is_auto_start {
+        info!("启用自动启动功能");
         // 无论当前是否启用，启用自动启动以确保路径正确
         autostart_manager.enable()?;
+        debug!("自动启动已启用");
     } else {
+        info!("检查并禁用自动启动功能");
         // 如果已启用则禁用
         if autostart_manager.is_enabled()? {
+            debug!("检测到自动启动已启用，正在禁用");
             autostart_manager.disable()?;
         }
     }
@@ -588,45 +581,6 @@ pub fn handle_silent_start() {
             notify("ZeroLaunch-rs", "ZeroLaunch-rs已成功启动！");
         }
     });
-}
-
-// 函数用于删除超过一星期的日志文件
-fn cleanup_old_logs(log_dir: &str, retention_days: i64) {
-    // 获取当前时间
-    let now: DateTime<Local> = Local::now();
-
-    // 读取日志目录中的所有文件
-    let entries = match std::fs::read_dir(log_dir) {
-        Ok(entries) => entries,
-        Err(e) => {
-            error!("无法读取日志目录 '{}': {}", log_dir, e);
-            return;
-        }
-    };
-
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_file() {
-            // 获取文件的元数据
-            if let Ok(metadata) = std::fs::metadata(&path) {
-                // 获取文件的修改时间
-                if let Ok(modified) = metadata.modified() {
-                    // 将 SystemTime 转换为 DateTime
-                    let modified_datetime: DateTime<Local> = modified.into();
-                    // 计算文件的年龄
-                    let age = now.signed_duration_since(modified_datetime);
-                    if age.num_days() > retention_days {
-                        // 删除文件
-                        if let Err(e) = std::fs::remove_file(&path) {
-                            error!("无法删除旧日志文件 '{:?}': {}", path, e);
-                        } else {
-                            info!("已删除旧日志文件: {:?}", path);
-                        }
-                    }
-                }
-            }
-        }
-    }
 }
 
 /// 当welcome页面关闭时更新welcome页面版本

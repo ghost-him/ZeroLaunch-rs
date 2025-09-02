@@ -92,7 +92,10 @@ pub async fn launch_program<R: Runtime>(
     }
 
     // 唤醒失败时启动新的程序
-    let launch_new_on_failure = state.get_runtime_config().get_app_config().get_launch_new_on_failure();
+    let launch_new_on_failure = state
+        .get_runtime_config()
+        .get_app_config()
+        .get_launch_new_on_failure();
 
     if (!result && launch_new_on_failure)
         || !open_exist_window

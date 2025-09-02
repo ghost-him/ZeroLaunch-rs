@@ -60,11 +60,18 @@ impl ShortcutManagerInner {
         let code = {
             // 如果是单个字符，则使用单个字符的方式处理
             if shortcut.key.len() == 1 {
-                let first_char = shortcut.key.chars().next().expect_programming("快捷键字符串为空");
+                let first_char = shortcut
+                    .key
+                    .chars()
+                    .next()
+                    .expect_programming("快捷键字符串为空");
                 match first_char {
                     'a'..='z' | 'A'..='Z' => {
                         // 统一转换为大写字母，然后计算偏移量
-                        let uppercase = first_char.to_uppercase().next().expect_programming("字符转换大写失败");
+                        let uppercase = first_char
+                            .to_uppercase()
+                            .next()
+                            .expect_programming("字符转换大写失败");
                         let offset = uppercase as u8 - b'A';
                         match offset {
                             0 => Some(Code::KeyA),

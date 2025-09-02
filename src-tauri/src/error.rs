@@ -54,16 +54,16 @@ pub enum AppError {
         #[source]
         source: Option<std::io::Error>,
     },
-    
+
     // ... 其他特定领域的错误可以继续添加 ...
     #[error("窗口操作错误: {message}")]
     WindowError { message: String },
-    
+
     #[error("快捷键错误: {message}")]
     ShortcutError { message: String },
 
     #[error("存储错误: {message}")]
-    StorageError {message: String},
+    StorageError { message: String },
 
     /// 自动启动错误
     #[error("自动启动错误: {0}")]
@@ -104,7 +104,7 @@ impl AppError {
     pub fn unwrap_failed(context: impl Into<String>) -> Self {
         Self::programming_error(format!("unwrap失败(Option为None): {}", context.into()))
     }
-    
+
     /// 创建一个带源错误的网络错误。
     pub fn network_error_with_source(
         message: impl Into<String>,
@@ -128,7 +128,7 @@ impl AppError {
             source: Some(source),
         }
     }
-    
+
     /// 创建一个自定义错误。
     pub fn custom(message: impl Into<String>, code: u32) -> Self {
         Self::Custom {
@@ -136,7 +136,7 @@ impl AppError {
             code,
         }
     }
-    
+
     /// 检查一个错误是否是程序员错误。
     /// 这在顶层错误处理器中可能有用，比如决定是记录错误并继续，还是直接终止进程。
     pub fn is_programming_error(&self) -> bool {
@@ -144,17 +144,16 @@ impl AppError {
     }
 }
 
-
 // --- 扩展 Trait，用于处理程序员错误 ---
 
 /// 为 `Result` 类型提供处理程序员错误的扩展方法。
 pub trait ResultExt<T> {
     /// 当 `Result` 为 `Err` 时，将其视为一个程序员错误并 `panic`。
-    /// 
+    ///
     /// 这等同于标准库的 `.expect()`，但用于强调这是一个业务逻辑上的断言失败。
-    /// 
+    ///
     /// # Panics
-    /// 
+    ///
     /// 如果 `self` 是 `Err`，则会 panic。
     ///
     /// # 示例
@@ -176,10 +175,7 @@ where
         match self {
             Ok(t) => t,
             Err(e) => {
-                panic!(
-                    "程序逻辑错误: {}. (原始错误: {:?})",
-                    msg, e
-                );
+                panic!("程序逻辑错误: {}. (原始错误: {:?})", msg, e);
             }
         }
     }
@@ -188,11 +184,11 @@ where
 /// 为 `Option` 类型提供处理程序员错误的扩展方法。
 pub trait OptionExt<T> {
     /// 当 `Option` 为 `None` 时，将其视为一个程序员错误并 `panic`。
-    /// 
+    ///
     /// 这等同于标准库的 `.expect()`，但用于强调这是一个业务逻辑上的断言失败。
-    /// 
+    ///
     /// # Panics
-    /// 
+    ///
     /// 如果 `self` 是 `None`，则会 panic。
     ///
     /// # 示例

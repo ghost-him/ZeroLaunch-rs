@@ -11,11 +11,11 @@ use tauri::{
 };
 use tracing::{debug, warn};
 
+use crate::error::{OptionExt, ResultExt};
 use crate::{
     handle_pressed, notify, save_config_to_file, show_setting_window, update_app_setting, AppState,
     ServiceLocator, APP_PIC_PATH,
 };
-use crate::error::{OptionExt, ResultExt};
 // Removed: use crate::retry_register_shortcut; // Appears unused, functionality merged
 use crate::modules::config::default::APP_VERSION;
 
@@ -55,10 +55,8 @@ fn load_icon_or_panic(name: &str) -> Image {
         .get(name)
         .expect_programming(&format!("图标路径 '{}' 在 APP_PIC_PATH 中未找到", name))
         .clone();
-    Image::from_path(&path).expect_programming(&format!(
-        "无法从路径 {:?} 加载图标 '{}'",
-        path, name
-    ))
+    Image::from_path(&path)
+        .expect_programming(&format!("无法从路径 {:?} 加载图标 '{}'", path, name))
 }
 
 // --- Menu Item Handlers ---
@@ -71,7 +69,10 @@ fn handle_show_settings_window() {
 
 async fn handle_exit_program(app_handle: &AppHandle) {
     save_config_to_file(false).await;
-    ServiceLocator::get_state().get_storage_manager().upload_all_file_force().await;
+    ServiceLocator::get_state()
+        .get_storage_manager()
+        .upload_all_file_force()
+        .await;
     app_handle.exit(0);
 }
 

@@ -373,7 +373,10 @@ impl StorageManagerInner {
                             file_name,
                         ),
                     );
-                    Err(AppError::NetworkError { message: "存储客户端未初始化，无法下载文件".to_string(), source: None })
+                    Err(AppError::NetworkError {
+                        message: "存储客户端未初始化，无法下载文件".to_string(),
+                        source: None,
+                    })
                 }
             }
         };
@@ -421,7 +424,10 @@ impl StorageManagerInner {
                         "zerolaunch-rs",
                         &format!("存储客户端未初始化，无法上传文件：{}", file_name),
                     );
-                    Err(AppError::NetworkError { message: "存储客户端未初始化，无法上传文件".to_string(), source: None })
+                    Err(AppError::NetworkError {
+                        message: "存储客户端未初始化，无法上传文件".to_string(),
+                        source: None,
+                    })
                 }
             }
         };

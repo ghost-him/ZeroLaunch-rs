@@ -1,5 +1,5 @@
-use config_manager::PartialRuntimeConfig;
 use crate::error::ResultExt;
+use config_manager::PartialRuntimeConfig;
 
 pub mod app_config;
 pub mod config_manager;
@@ -28,8 +28,7 @@ pub fn save_local_config(partial_config: PartialRuntimeConfig) -> String {
         config_data: partial_config,
     };
 
-    serde_json::to_string(&data)
-        .expect_programming("Failed to serialize local config")
+    serde_json::to_string(&data).expect_programming("Failed to serialize local config")
 }
 
 pub fn load_local_config(local_config_data: &str) -> PartialRuntimeConfig {

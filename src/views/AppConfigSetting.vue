@@ -8,6 +8,11 @@
                         <el-option :label="t('app_config.chinese')" value="zh"></el-option>
                         <el-option :label="t('app_config.english')" value="en"></el-option>
                     </el-select>
+                    <el-tooltip class="box-item" effect="dark" :content="t('app_config.language_save_tip')">
+                        <el-icon class="el-question-icon">
+                            <QuestionFilled />
+                        </el-icon>
+                    </el-tooltip>
                 </el-form-item>
 
                 <el-divider content-position="left">{{ t('app_config.startup_instance') }}</el-divider>

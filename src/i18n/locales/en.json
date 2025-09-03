@@ -255,6 +255,7 @@
     "title": "Settings",
     "debug_mode": "Debug Mode",
     "save_config": "Save Config",
+    "show_welcome": "Show Welcome",
     "menu": {
       "general": "General",
       "appearance": "Appearance",
@@ -387,6 +388,7 @@
     "general_settings": "General Settings",
     "language_settings": "Language Settings",
     "language": "Interface Language",
+    "language_save_tip": "Please save after switching language to apply changes",
     "chinese": "中文",
     "english": "English",
     "startup_instance": "Startup & Instance",

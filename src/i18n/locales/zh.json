@@ -255,6 +255,7 @@
     "title": "选项",
     "debug_mode": "调试模式",
     "save_config": "保存配置文件",
+    "show_welcome": "显示欢迎界面",
     "menu": {
       "general": "常规设置",
       "appearance": "外观设置",
@@ -387,6 +388,7 @@
     "general_settings": "通用设置",
     "language_settings": "语言设置",
     "language": "界面语言",
+    "language_save_tip": "切换完语言后需要先保存才能成功应用",
     "chinese": "中文",
     "english": "English",
     "startup_instance": "启动与实例",

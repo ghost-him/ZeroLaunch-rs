@@ -162,6 +162,7 @@ pub fn run() {
             select_background_picture,
             hide_window,
             show_setting_window,
+            show_welcome_window,
             command_load_remote_config,
             get_dominant_color,
             command_get_latest_release_version,

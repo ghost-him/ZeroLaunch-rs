@@ -26,6 +26,9 @@
                 <el-button type="primary" @click="save_config" :disabled="activeIndex >= 5">
                     <span>{{ t('settings.save_config') }}</span>
                 </el-button>
+                <el-button @click="show_welcome" style="margin-top: 8px;">
+                    <span>{{ t('settings.show_welcome') }}</span>
+                </el-button>
             </div>
         </div>
 
@@ -385,6 +388,22 @@ const save_config = async () => {
         message: t('settings.config_saved'),
         type: 'success',
     })
+}
+
+const show_welcome = async () => {
+    try {
+        await invoke('show_welcome_window')
+        ElMessage({
+            message: t('settings.welcome_opened'),
+            type: 'success',
+        })
+    } catch (error) {
+        console.error('Failed to open welcome window:', error)
+        ElMessage({
+            message: t('settings.welcome_open_failed'),
+            type: 'error',
+        })
+    }
 }
 
 let unlisten: Array<UnlistenFn | null> = [];

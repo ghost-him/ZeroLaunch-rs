@@ -189,7 +189,7 @@ pub async fn handle_search_text<R: Runtime>(
 
 /// 获得最近启动的程序
 #[tauri::command]
-pub async fn command_get_latest_launch_propgram(
+pub async fn command_get_latest_launch_program(
     state: tauri::State<'_, Arc<AppState>>,
 ) -> Result<Vec<SearchResult>, String> {
     let runtime_config = state.get_runtime_config();

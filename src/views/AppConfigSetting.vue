@@ -107,7 +107,7 @@
                     <el-switch v-model="config.app_config.is_debug_mode"
                         @change="(val: boolean) => configStore.updateConfig({ app_config: { is_debug_mode: val } })" />
                 </el-form-item>
-                
+
                 <el-form-item :label="t('app_config.log_level')">
                     <el-select v-model="config.app_config.log_level"
                         @change="(val: 'debug' | 'info' | 'warn' | 'error') => configStore.updateConfig({ app_config: { log_level: val } })"
@@ -137,21 +137,25 @@ import { QuestionFilled } from '@element-plus/icons-vue'
 import { useRemoteConfigStore } from '../stores/remote_config'; // 确认路径正确
 import { storeToRefs } from 'pinia';
 import { useI18n } from 'vue-i18n';
-import { ref } from 'vue';
+import { computed } from 'vue';
 import { initializeLanguage } from '../i18n/index';
 
 const { t } = useI18n();
 const configStore = useRemoteConfigStore()
 const { config } = storeToRefs(configStore)
 
-// 语言切换功能
-const currentLanguage = ref(config.value.app_config.language);
-console.log(currentLanguage)
+// 语言切换功能 - 使用computed确保响应式更新
+const currentLanguage = computed({
+    get: () => config.value.app_config.language,
+    set: (value: string) => {
+        // 使用全局语言初始化函数
+        initializeLanguage(value);
+        configStore.updateConfig({ app_config: { language: value } });
+    }
+});
+
 const changeLanguage = (lang: string) => {
-    // 使用全局语言初始化函数
-    initializeLanguage(lang);
     currentLanguage.value = lang;
-    configStore.updateConfig({ app_config: { language: lang } });
 };
 
 </script>

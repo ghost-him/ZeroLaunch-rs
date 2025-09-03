@@ -80,7 +80,7 @@
         <span class="open-text" :style="{ color: ui_config.footer_font_color }">{{ is_loading_icons ?
           t('app.loading_icons') :
           right_tips
-          }}</span>
+        }}</span>
       </div>
     </div>
   </div>

@@ -197,9 +197,9 @@
 
             <el-form-item :label="t('ui_config.select_background_image')">
                 <el-button type="primary" @click="select_background_picture">{{ t('ui_config.select_image')
-                    }}</el-button>
+                }}</el-button>
                 <el-button type="danger" @click="delete_background_picture">{{ t('ui_config.delete_image')
-                    }}</el-button>
+                }}</el-button>
 
             </el-form-item>
             <el-form-item :label="t('ui_config.calculate_dominant_color')">

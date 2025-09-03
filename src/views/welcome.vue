@@ -5,7 +5,7 @@
             <template #header>
                 <div class="card-header">
                     <el-icon :size="40" color="#409EFC">
-                        <Rocket />
+                        <Star />
                     </el-icon>
                     <div class="header-text">
                         <h1 class="title">{{ t('welcome.title') }}</h1>
@@ -18,7 +18,7 @@
             <div class="section">
                 <h2 class="section-title">
                     <el-icon>
-                        <Guide />
+                        <InfoFilled />
                     </el-icon>
                     <span>{{ t('welcome.quick_start') }}</span>
                 </h2>
@@ -33,7 +33,7 @@
             <div class="section">
                 <h2 class="section-title">
                     <el-icon>
-                        <Keyboard />
+                        <Edit />
                     </el-icon>
                     <span>{{ t('welcome.shortcut_guide') }}</span>
                 </h2>
@@ -65,14 +65,35 @@
 <script setup>
 // 使用 Vue 3 <script setup> 语法，更简洁
 import { useI18n } from 'vue-i18n';
-import { ref } from 'vue';
+import { computed, onMounted } from 'vue';
 import { open } from '@tauri-apps/plugin-shell';
 import { invoke } from '@tauri-apps/api/core';
-import { QuestionFilled } from '@element-plus/icons-vue'
+import { QuestionFilled, Star, InfoFilled, Edit, Link, Setting } from '@element-plus/icons-vue'
+import { initializeLanguage } from '../i18n/index';
+import { useRemoteConfigStore } from '../stores/remote_config';
 
 const { t } = useI18n();
-// 快捷键数据（优化了描述）
-const shortcuts = ref([
+const configStore = useRemoteConfigStore();
+
+// 在组件挂载时初始化语言设置
+onMounted(async () => {
+    try {
+        // 加载配置
+        await configStore.loadConfig();
+        const language = configStore.config.app_config.language;
+        if (language) {
+            await initializeLanguage(language);
+            console.log('Welcome页面语言初始化完成:', language);
+        }
+    } catch (error) {
+        console.warn('Welcome页面语言初始化失败:', error);
+        // 使用默认语言
+        await initializeLanguage('zh');
+    }
+});
+
+// 快捷键数据（使用计算属性，确保语言切换时自动更新）
+const shortcuts = computed(() => [
     { id: 1, keys: ['Alt', 'Space'], description: t('welcome.shortcuts.toggle_window') },
     { id: 2, keys: ['Enter'], description: t('welcome.shortcuts.launch_selected') },
     { id: 3, keys: ['Alt'], description: t('welcome.shortcuts.sort_by_recent') },
@@ -81,12 +102,10 @@ const shortcuts = ref([
     { id: 6, keys: ['Shift', 'Enter'], description: t('welcome.shortcuts.bring_to_front') },
     { id: 7, keys: ['↑', '↓'], description: t('welcome.shortcuts.move_selection') },
     { id: 8, keys: ['Ctrl', 'J/K'], description: t('welcome.shortcuts.move_selection_vim') },
-
-
 ]);
 
-// 步骤数据（优化了描述）
-const steps = ref([
+// 步骤数据（使用计算属性，确保语言切换时自动更新）
+const steps = computed(() => [
     { id: 1, title: t('welcome.steps.wake_app.title'), description: t('welcome.steps.wake_app.description') },
     { id: 2, title: t('welcome.steps.quick_search.title'), description: t('welcome.steps.quick_search.description') },
     { id: 3, title: t('welcome.steps.one_click_launch.title'), description: t('welcome.steps.one_click_launch.description') },
@@ -94,15 +113,15 @@ const steps = ref([
 ]);
 
 // 方法
-const startUsing = () => {
-    open('https://zerolaunch.ghost-him.com').catch(err => {
+const startUsing = async () => {
+    await open('https://zerolaunch.ghost-him.com').catch(err => {
         console.error(t('welcome.errors.cannot_open_website'), err);
         // 可以在这里加一个 ElMessage 提示用户
     });
 };
 
-const openSettings = () => {
-    invoke('show_setting_window').catch(error => {
+const openSettings = async () => {
+    await invoke('show_setting_window').catch(error => {
         console.error(t('welcome.errors.cannot_open_settings'), error);
         // 可以在这里加一个 ElMessage 提示用户
     });

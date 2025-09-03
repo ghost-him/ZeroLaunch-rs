@@ -140,7 +140,7 @@ import { useI18n } from 'vue-i18n';
 import { ref } from 'vue';
 import { initializeLanguage } from '../i18n/index';
 
-const { t, locale } = useI18n();
+const { t } = useI18n();
 const configStore = useRemoteConfigStore()
 const { config } = storeToRefs(configStore)
 

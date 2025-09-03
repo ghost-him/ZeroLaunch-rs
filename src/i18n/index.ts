@@ -1,7 +1,6 @@
-import { createI18n, type I18n } from 'vue-i18n'
+import { createI18n } from 'vue-i18n'
 import zh from './locales/zh.json'
 import en from './locales/en.json'
-import { invoke } from '@tauri-apps/api/core'
 
 // 1. 将 messages 定义在一个常量中，以便提取其类型
 const messages = {

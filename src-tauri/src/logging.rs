@@ -83,8 +83,10 @@ pub fn init_logging(config: Option<LoggingConfig>) -> tracing_appender::non_bloc
     let _ = LOG_RELOAD_HANDLE.set(reload_handle);
 
     // 配置订阅者
-    if config.enable_console {
-        // 同时输出到文件和控制台
+    // 在debug模式下，如果启用控制台输出则同时输出到文件和控制台
+    // 在release模式下，仅输出到文件
+    if config.enable_console && cfg!(debug_assertions) {
+        // 同时输出到文件和控制台（仅在debug模式下）
         use tracing_subscriber::layer::SubscriberExt;
         use tracing_subscriber::util::SubscriberInitExt;
 
@@ -110,7 +112,7 @@ pub fn init_logging(config: Option<LoggingConfig>) -> tracing_appender::non_bloc
             .with(console_layer)
             .init();
     } else {
-        // 仅输出到文件
+        // 仅输出到文件（release模式或未启用控制台输出）
         use tracing_subscriber::layer::SubscriberExt;
         use tracing_subscriber::util::SubscriberInitExt;
         

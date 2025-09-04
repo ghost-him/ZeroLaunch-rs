@@ -5,22 +5,17 @@ use tracing::Level;
 use super::default::APP_VERSION;
 
 /// 日志级别枚举
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
 pub enum LogLevel {
     #[serde(rename = "debug")]
     Debug,
     #[serde(rename = "info")]
+    #[default]
     Info,
     #[serde(rename = "warn")]
     Warn,
     #[serde(rename = "error")]
     Error,
-}
-
-impl Default for LogLevel {
-    fn default() -> Self {
-        LogLevel::Info
-    }
 }
 
 impl From<LogLevel> for Level {

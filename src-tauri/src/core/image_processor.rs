@@ -37,6 +37,7 @@ use windows::Win32::UI::Shell::{SHGetFileInfoW, SHGFI_ADDOVERLAYS, SHGFI_ICON, S
 use windows::Win32::UI::WindowsAndMessaging::DestroyIcon;
 use windows::Win32::UI::WindowsAndMessaging::HICON;
 use windows::Win32::UI::WindowsAndMessaging::{GetIconInfo, ICONINFO};
+use windows::Win32::UI::WindowsAndMessaging::{LoadImageW, IMAGE_ICON, LR_LOADFROMFILE};
 use windows_core::BOOL;
 use windows_core::PCWSTR;
 
@@ -222,6 +223,28 @@ impl ImageProcessor {
                 png_data.len()
             );
             Ok(png_data)
+        } else if Self::is_ico_file(icon_path) {
+            debug!(
+                "Detected ICO file, using LoadImageW to get largest icon: {}",
+                icon_path
+            );
+            // 对于.ico文件，使用LoadImageW来获取最大尺寸的图标
+            let rgba_image = Self::extract_largest_icon_from_ico_file(icon_path)
+                .await
+                .ok_or_else(|| AppError::ImageProcessingError {
+                    message: format!(
+                        "Failed to extract largest icon from ICO file: {}",
+                        icon_path
+                    ),
+                })?;
+
+            let png_data = Self::rgba_image_to_png(&rgba_image)?;
+
+            debug!(
+                "Successfully extracted and converted largest ICO icon ({} bytes)",
+                png_data.len()
+            );
+            Ok(png_data)
         } else {
             debug!("Loading regular image file: {}", icon_path);
             // 直接使用库来读取图像文件
@@ -371,6 +394,112 @@ impl ImageProcessor {
             return true;
         }
         false
+    }
+
+    /// 检查文件是否为ICO图标文件
+    fn is_ico_file(path: &str) -> bool {
+        let path_lower = path.to_lowercase();
+        path_lower.ends_with(".ico")
+    }
+
+    /// 从ICO文件中提取最大尺寸的图标
+    /// 使用LoadImageW函数，请求大尺寸(256x256)来让Windows自动选择最大的图标
+    async fn extract_largest_icon_from_ico_file(file_path: &str) -> Option<RgbaImage> {
+        const MAX_RETRIES: u32 = 3;
+        let file_path = file_path.to_string();
+        for attempt in 0..=MAX_RETRIES {
+            let result = tauri::async_runtime::spawn_blocking({
+                let file_path = file_path.clone();
+                move || {
+                    let com_init = unsafe { windows::Win32::System::Com::CoInitialize(None) };
+                    if com_init.is_err() {
+                        warn!("初始化com库失败：{:?}", com_init);
+                    }
+
+                    defer(move || unsafe {
+                        if com_init.is_ok() {
+                            windows::Win32::System::Com::CoUninitialize();
+                        }
+                    });
+
+                    let wide_file_path = get_u16_vec(file_path.clone());
+
+                    // 使用LoadImageW加载图标，请求256x256尺寸来获取最大的图标
+                    let hicon_result = unsafe {
+                        LoadImageW(
+                            None, // hInst - 对于文件加载设为None
+                            PCWSTR::from_raw(wide_file_path.as_ptr()),
+                            IMAGE_ICON,
+                            256, // 请求的宽度 - 使用大尺寸让Windows选择最大的图标
+                            256, // 请求的高度
+                            LR_LOADFROMFILE, // 从文件加载
+                        )
+                    };
+
+                    let hicon_handle = match hicon_result {
+                        Ok(handle) => handle,
+                        Err(e) => {
+                            warn!(
+                                "LoadImageW failed for ICO file: {}, error: {:?} (attempt {})",
+                                file_path, e, attempt + 1
+                            );
+                            return None;
+                        }
+                    };
+
+                    if hicon_handle.is_invalid() {
+                        let last_error = unsafe { GetLastError() };
+                        warn!(
+                            "LoadImageW returned invalid handle for ICO file: {}, error: {:?} (attempt {})",
+                            file_path, last_error, attempt + 1
+                        );
+                        return None;
+                    }
+
+                    let hicon = HICON(hicon_handle.0);
+
+                    let image_buffer = unsafe {
+                        // 将 HICON 传递给转换函数，并确保在转换完成后才销毁
+                        let image_result = Self::convert_icon_to_image(hicon);
+                        if let Err(e) = DestroyIcon(hicon) {
+                            warn!("Failed to destroy icon: {:?}", e);
+                        }
+                        image_result.expect_programming("图标转换为图像失败")
+                    };
+
+                    Some(image_buffer)
+                }
+            })
+            .await
+            .expect_programming("Tokio spawn should not fail - this is a programming error");
+
+            if result.is_some() {
+                return result;
+            }
+
+            // 如果不是最后一次尝试，则等待随机时间后重试
+            if attempt < MAX_RETRIES {
+                // 生成100-200ms之间的随机延迟
+                use rand::{rng, Rng};
+                let delay_ms = rng().random_range(50..=250);
+                tokio::time::sleep(tokio::time::Duration::from_millis(delay_ms)).await;
+
+                info!(
+                    "Retrying largest icon extraction for ICO file: {} (attempt {}/{})",
+                    file_path,
+                    attempt + 1,
+                    MAX_RETRIES + 1
+                );
+            }
+        }
+
+        // 所有重试都失败
+        warn!(
+            "All {} attempts to extract largest icon failed for ICO file: {}",
+            MAX_RETRIES + 1,
+            file_path
+        );
+        None
     }
 
     /// 从文件提取hicon

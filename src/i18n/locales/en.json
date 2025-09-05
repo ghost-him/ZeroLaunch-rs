@@ -162,6 +162,8 @@
     "unsupported_path_type": "Unsupported path type or missing information: {path}",
     "get_path_info_failed": "Call to get_path_info failed for {path}",
     "cannot_check_path": "Cannot check path {path}",
+    "click_refresh": "Click to Refresh",
+    "setting_alias": "Setting Alias",
     "enter_keyword_placeholder": "Please enter keyword"
   },
   "other_search": {
@@ -255,7 +257,6 @@
     "title": "Settings",
     "debug_mode": "Debug Mode",
     "save_config": "Save Config",
-    "show_welcome": "Show Welcome",
     "menu": {
       "general": "General",
       "appearance": "Appearance",
@@ -277,7 +278,6 @@
     "enter_command_content": "Please enter command content",
     "actions": "Actions",
     "delete_row": "Delete Row",
-    "click_refresh": "Click to Refresh",
     "program_name": "Program Name",
     "is_uwp_program": "UWP Program",
     "fixed_offset": "Fixed Offset",
@@ -312,7 +312,10 @@
     "new_version_found": "New version found: '{version}'. Please go to the project homepage to download.",
     "latest_version": "You are on the latest version.",
     "license": "Open-sourced under the GPLv3 license",
-    "project_links": "Project Links"
+    "project_links": "Project Links",
+    "show_welcome": "Show Welcome",
+    "welcome_language_tip": "After changing the language, you need to reopen the welcome page to see the updated language content",
+    "welcome_page": "Welcome Page"
   },
   "shortcut": {
     "title": "Shortcut Settings",

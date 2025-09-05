@@ -162,6 +162,8 @@
     "unsupported_path_type": "不支持的路径类型或信息缺失: {path}",
     "get_path_info_failed": "调用 get_path_info 处理 {path} 失败",
     "cannot_check_path": "无法检查路径 {path}",
+    "setting_alias": "设置别名",
+    "click_refresh": "点击刷新",
     "enter_keyword_placeholder": "请输入关键字"
   },
   "other_search": {
@@ -255,7 +257,6 @@
     "title": "选项",
     "debug_mode": "调试模式",
     "save_config": "保存配置文件",
-    "show_welcome": "显示欢迎界面",
     "menu": {
       "general": "常规设置",
       "appearance": "外观设置",
@@ -277,7 +278,6 @@
     "enter_command_content": "请输入命令内容",
     "actions": "操作",
     "delete_row": "删除一行",
-    "click_refresh": "点击刷新",
     "program_name": "程序名",
     "is_uwp_program": "是否是UWP程序",
     "fixed_offset": "固定偏移量",
@@ -312,7 +312,10 @@
     "new_version_found": "发现新版本: '{version}' 请前往项目主页下载",
     "latest_version": "当前已经是最新版本",
     "license": "基于 GPLv3 许可证开源",
-    "project_links": "项目地址"
+    "project_links": "项目地址",
+    "show_welcome": "显示欢迎界面",
+    "welcome_language_tip": "更新语言后，需要重新打开欢迎页面才能看到更新后的语言内容",
+    "welcome_page": "欢迎页面"
   },
   "shortcut": {
     "title": "快捷键设置",

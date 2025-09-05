@@ -85,6 +85,18 @@
                     </el-icon>GitCode
                 </el-link>
             </div>
+
+            <el-divider content-position="left">{{ t('about.welcome_page') }}</el-divider>
+            <div class="repo-links">
+                <el-button @click="show_welcome" style="margin-top: 8px;">
+                    <span>{{ t('about.show_welcome') }}</span>
+                    <el-tooltip class="box-item" effect="dark" :content="t('about.welcome_language_tip')">
+                        <el-icon class="el-question-icon">
+                            <QuestionFilled />
+                        </el-icon>
+                    </el-tooltip>
+                </el-button>
+            </div>
         </div>
 
         <div class="about-footer">
@@ -96,7 +108,7 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
-import { Location, Search, Aim, Share, ElementPlus } from '@element-plus/icons-vue';
+import { Location, Search, Aim, Share, ElementPlus, QuestionFilled } from '@element-plus/icons-vue';
 import { getVersion } from '@tauri-apps/api/app';
 import { useI18n } from 'vue-i18n';
 
@@ -105,6 +117,22 @@ const { t } = useI18n();
 const currentVersion = ref('v0.4.0'); // 假设当前版本
 const checkingUpdate = ref(false);
 const updateStatus = ref(null);
+
+const show_welcome = async () => {
+    try {
+        await invoke('show_welcome_window')
+        ElMessage({
+            message: t('settings.welcome_opened'),
+            type: 'success',
+        })
+    } catch (error) {
+        console.error('Failed to open welcome window:', error)
+        ElMessage({
+            message: t('settings.welcome_open_failed'),
+            type: 'error',
+        })
+    }
+}
 
 // 检查更新函数
 const checkUpdate = async () => {
@@ -305,6 +333,15 @@ onMounted(async () => {
     text-align: center;
     color: #909399;
     font-size: 14px;
+}
+
+.el-question-icon {
+    margin-left: 8px;
+}
+
+.el-icon {
+    font-size: 18px;
+    color: #606266;
 }
 
 :deep(.el-divider__text) {

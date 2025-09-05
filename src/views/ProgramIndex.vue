@@ -222,6 +222,17 @@
                 </el-table>
             </div>
         </el-tab-pane>
+
+        <el-tab-pane :label="t('program_index.setting_alias')" style="height: 100%;overflow:auto">
+            <div style="display: flex; flex-direction: column; height: 100%;">
+                <el-button class="mt-4" style="width: 100%; flex-shrink: 0;" @click="refreshProgramInfo">
+                    {{ t('program_index.click_refresh') }}
+                </el-button>
+                <el-table-v2 :columns="columns" :data="programInfoList" :width="1000" :height="600" fixed
+                    style="width: 100%;flex-grow: 1; margin-top: 10px;" />
+            </div>
+        </el-tab-pane>
+
         <el-tab-pane :label="t('program_index.extra_settings')" style="height: 100%;overflow:auto">
             <el-form-item :label="t('program_index.change_search_algorithm')">
                 <el-select v-model="config.program_manager_config.search_model" placeholder="standard"
@@ -280,6 +291,25 @@
             </el-button>
         </el-tab-pane>
     </el-tabs>
+
+    <el-dialog v-if="editingProgram" v-model="dialogVisible"
+        :title="t('settings.edit_program_alias', { name: editingProgram.name })" width="500">
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+            <div v-for="(alias, index) in program_alias[editingProgram.path]" :key="index"
+                style="display: flex; align-items: center; gap: 10px;">
+                <el-input :model-value="alias" @update:modelValue="(newValue: string) => updateAliasInDialog(index, newValue)"
+                    :placeholder="t('settings.enter_alias')" />
+                <el-button type="danger" @click="removeAliasInDialog(index)">{{ t('settings.delete') }}</el-button>
+            </div>
+        </div>
+        <template #footer>
+            <div class="dialog-footer">
+                <el-button @click="addAliasInDialog" style="width: 100%; margin-bottom: 10px;">{{
+                    t('settings.add_alias') }}</el-button>
+                <el-button type="primary" @click="dialogVisible = false">{{ t('settings.close') }}</el-button>
+            </div>
+        </template>
+    </el-dialog>
 </template>
 
 <script lang="ts" setup>
@@ -292,13 +322,13 @@ const { t } = useI18n();
 
 const configStore = useRemoteConfigStore()
 const { config } = storeToRefs(configStore)
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, h, onMounted, onUnmounted, ref } from 'vue'
 import { Delete, Plus, ArrowDown, QuestionFilled } from '@element-plus/icons-vue'
 import type { ComputedRef, Ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core';
 import { listen, TauriEvent, UnlistenFn } from '@tauri-apps/api/event';
 import { DragDropEvent } from '@tauri-apps/api/webview';
-import { ElMessage } from 'element-plus';
+import { ElButton, ElMessage, ElTag } from 'element-plus';
 
 const search_model = computed(() => [
     {
@@ -757,6 +787,122 @@ const handleFileDrop = async (payload: DragDropEvent) => {
         }
     } // end for loop
 };
+
+
+
+
+// 用于控制对话框的状态
+const dialogVisible = ref(false)
+const editingProgram = ref<ProgramInfo | null>(null)
+// 程序别名管理
+const program_alias = computed({
+    get: () => config.value.program_manager_config.loader.program_alias,
+    set: (value) => {
+        console.log(t('settings.update_pinia'));
+        configStore.updateConfig({
+            program_manager_config: {
+                loader: { program_alias: value }
+            }
+        })
+    }
+})
+
+
+const columns = computed(() => [
+    { key: 'name', dataKey: 'name', title: t('settings.program_name'), width: 150 },
+    { key: 'is_uwp', dataKey: 'is_uwp', title: t('settings.is_uwp_program'), width: 120 },
+    { key: 'bias', dataKey: 'bias', title: t('settings.fixed_offset'), width: 100 },
+    { key: 'history_launch_time', dataKey: 'history_launch_time', title: t('settings.launch_count'), width: 100 },
+    { key: 'path', dataKey: 'path', title: t('settings.path'), width: 200 },
+    {
+        key: 'aliases',
+        title: t('settings.aliases'),
+        width: 300,
+        cellRenderer: ({ rowData }: { rowData: ProgramInfo }) => {
+            const aliasList = program_alias.value[rowData.path] || [];
+
+            // 使用 El-Tag 展示别名
+            const tags = aliasList.map(alias =>
+                h(ElTag, { style: 'margin-right: 5px; margin-bottom: 5px;', type: 'info', size: 'small' }, () => alias)
+            );
+
+            // 编辑按钮
+            const editButton = h(ElButton, {
+                size: 'small',
+                type: 'primary',
+                link: true, // 使用链接样式，更简洁
+                onClick: () => handleEditAliases(rowData)
+            }, () => t('settings.manage_aliases'));
+
+            // 将标签和按钮包裹在一个 div 中
+            return h('div', { style: 'display: flex; flex-wrap: wrap; align-items: center;' }, [...tags, editButton]);
+        }
+    }
+]);
+
+
+// 打开对话框的方法
+const handleEditAliases = (rowData: ProgramInfo) => {
+    editingProgram.value = { ...rowData }; // 浅拷贝一份，避免直接修改表格数据
+    dialogVisible.value = true;
+}
+
+// Dialog 内的别名操作方法 (基本逻辑不变，只是操作对象从 rowData 变为 editingProgram)
+const addAliasInDialog = () => {
+    if (!editingProgram.value) return;
+    const path = editingProgram.value.path;
+    const currentAliases = program_alias.value[path] || [];
+    const newAliases = { ...program_alias.value };
+    newAliases[path] = [...currentAliases, ""];
+    program_alias.value = newAliases;
+}
+
+const updateAliasInDialog = (index: number, newValue: string) => {
+    if (!editingProgram.value) return;
+    const path = editingProgram.value.path;
+    const newProgramAlias = { ...program_alias.value };
+    const currentAliases = [...(newProgramAlias[path] || [])];
+    if (index >= 0 && index < currentAliases.length) {
+        currentAliases[index] = newValue;
+    }
+    newProgramAlias[path] = currentAliases;
+    program_alias.value = newProgramAlias;
+}
+
+const removeAliasInDialog = (index: number) => {
+    if (!editingProgram.value) return;
+    const path = editingProgram.value.path;
+    const currentAliases = program_alias.value[path] || [];
+    if (index >= 0 && index < currentAliases.length) {
+        const newAliases = { ...program_alias.value };
+        newAliases[path] = currentAliases.filter((_, i) => i !== index);
+        if (newAliases[path].length === 0) {
+            delete newAliases[path];
+        }
+        program_alias.value = newAliases;
+    }
+}
+
+interface ProgramInfo {
+    name: string
+    is_uwp: boolean
+    bias: number
+    history_launch_time: number
+    path: string
+}
+
+const programInfoList = ref<ProgramInfo[]>([])
+
+const refreshProgramInfo = async () => {
+    try {
+        const data = await invoke<ProgramInfo[]>('get_program_info')
+        programInfoList.value = data
+    } catch (error) {
+        console.error(t('settings.get_program_info_failed'), error)
+    }
+}
+
+
 
 onMounted(async () => {
     unlisten.push(await listen<DragDropEvent>(TauriEvent.DRAG_DROP, (e) => {

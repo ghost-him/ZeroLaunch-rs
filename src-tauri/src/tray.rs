@@ -1,5 +1,5 @@
+use crate::logging::log_application_shutdown;
 use std::sync::Arc;
-
 use tauri::{
     image::Image,
     menu::{IconMenuItem, Menu, MenuBuilder}, // Added MenuItem for direct access
@@ -50,7 +50,7 @@ impl From<&str> for MenuEventId {
 }
 
 // --- Helper function to load icons ---
-fn load_icon_or_panic(name: &str) -> Image {
+fn load_icon_or_panic(name: &str) -> Image<'_> {
     let path = APP_PIC_PATH
         .get(name)
         .expect_programming(&format!("图标路径 '{}' 在 APP_PIC_PATH 中未找到", name))
@@ -73,6 +73,10 @@ async fn handle_exit_program(app_handle: &AppHandle) {
         .get_storage_manager()
         .upload_all_file_force()
         .await;
+
+    // 记录应用关闭信息
+    log_application_shutdown();
+
     app_handle.exit(0);
 }
 
@@ -234,12 +238,8 @@ pub fn init_system_tray(app: &mut App) {
     state.set_tray_icon(Arc::new(tray_icon)); // tray_icon is already the TrayIcon type
                                               // Handle other tray icon events (e.g., double click)
     app.on_tray_icon_event(move |tray_app_handle, event| {
-        match event {
-            TrayIconEvent::DoubleClick { .. } => {
-                handle_pressed(tray_app_handle);
-            }
-            // TrayIconEvent::Click, RightClick, etc. can be handled here
-            _ => {}
+        if let TrayIconEvent::DoubleClick { .. } = event {
+            handle_pressed(tray_app_handle);
         }
     });
 

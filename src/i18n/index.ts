@@ -1,27 +1,50 @@
 import { createI18n } from 'vue-i18n'
-import zh from './locales/zh.json'
-import en from './locales/en.json'
-
-// 1. 将 messages 定义在一个常量中，以便提取其类型
-const messages = {
-  zh,
-  en
-}
-
-// 2. 自动从 messages 的 key 中创建语言联合类型
-//    这里 Language 的类型会自动变为 'zh' | 'en'
-export type Language = keyof typeof messages
+import { resolveResource } from '@tauri-apps/api/path'
+import { invoke } from '@tauri-apps/api/core';
+// 定义支持的语言类型
+export type Language = 'zh' | 'en'
 
 // 定义一个包含所有可用语言的数组，方便进行校验
 export const supportedLanguages: Language[] = ['zh', 'en']
 
+// 动态加载翻译文件的函数
+export const loadLocaleMessages = async (locale: Language) => {
+  try {
+    const resource_path = await resolveResource(`locales/${locale}.json`);
+    console.log(resource_path)
+    const content = await invoke<string>('command_read_file', {path: resource_path});
+    return JSON.parse(content); 
+  } catch (error) {
+    console.error(`Error loading locale ${locale}:`, error)
+    // 返回空对象作为fallback
+    return {}
+  }
+}
+
+// 创建i18n实例，初始时使用空的messages
 const i18n = createI18n({
   legacy: false,
   locale: 'zh',
   fallbackLocale: 'zh',
-  messages, // 直接使用上面定义的常量
+  messages: {
+    zh: {},
+    en: {}
+  },
   globalInjection: true
 })
+
+// 异步初始化默认语言
+const initializeDefaultLanguage = async () => {
+  try {
+    const defaultMessages = await loadLocaleMessages('zh')
+    i18n.global.setLocaleMessage('zh', defaultMessages)
+  } catch (error) {
+    console.error('Failed to load default language:', error)
+  }
+}
+
+// 立即初始化默认语言
+initializeDefaultLanguage()
 
 export default i18n
 
@@ -31,8 +54,11 @@ export const initializeLanguage = async (language: string) => {
     if (language && (supportedLanguages as string[]).includes(language)) {
       const configLanguage = language as Language
       if (configLanguage !== i18n.global.locale.value) {
+        // 动态加载新语言的翻译文件
+        const messages = await loadLocaleMessages(configLanguage)
+        i18n.global.setLocaleMessage(configLanguage, messages)
+        i18n.global.locale.value = configLanguage as any
         console.log("成功设置语言: ", configLanguage);
-        i18n.global.locale.value = configLanguage
       }
     }
   } catch (error) {

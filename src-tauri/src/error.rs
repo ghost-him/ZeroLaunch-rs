@@ -6,7 +6,6 @@ use thiserror::Error;
 // --- 核心错误类型定义 ---
 
 /// 应用程序统一错误类型。
-///
 /// 设计哲学:
 /// 1.  **明确分类**: 错误被分为多种类型，但核心是区分 `ProgrammingError` 和其他可恢复的错误。
 /// 2.  **`ProgrammingError` 表示逻辑Bug**: 任何`ProgrammingError`都代表代码中存在一个需要修复的bug。

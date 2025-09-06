@@ -1,6 +1,8 @@
 use std::collections::HashSet;
 
+use crate::core::storage::utils::read_str;
 use crate::core::storage::windows_utils::get_default_remote_data_dir_path;
+use crate::error::ResultExt;
 use crate::modules::version_checker::VersionChecker;
 use crate::utils::font_database::get_fonts;
 
@@ -25,4 +27,14 @@ pub fn command_get_default_remote_data_dir_path() -> String {
 #[tauri::command]
 pub fn command_get_system_fonts() -> HashSet<String> {
     get_fonts()
+}
+
+#[tauri::command]
+pub async fn command_read_file(path: String) -> String {
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        // 在这里可以安全地执行阻塞代码
+        read_str(&path).expect_programming(&format!("读取当前文件失败：{}", &path))
+    })
+    .await;
+    result.expect_programming("读取文件失败")
 }

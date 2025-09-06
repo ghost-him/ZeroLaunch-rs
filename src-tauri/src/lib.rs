@@ -15,7 +15,7 @@ use crate::commands::shortcut::*;
 use crate::commands::ui_command::*;
 use crate::commands::utils::*;
 use crate::error::{OptionExt, ResultExt};
-use crate::logging::{init_logging, log_application_shutdown, log_application_start, update_log_level};
+use crate::logging::{init_logging, log_application_start, update_log_level};
 use crate::modules::config::config_manager::PartialRuntimeConfig;
 use crate::modules::config::default::LOCAL_CONFIG_PATH;
 use crate::modules::config::default::REMOTE_CONFIG_DEFAULT;
@@ -23,7 +23,6 @@ use crate::modules::config::{Height, Width};
 use crate::modules::ui_controller::controller::get_window_render_origin;
 use crate::state::app_state::AppState;
 use crate::tray::init_system_tray;
-use crate::utils::defer::defer;
 use crate::utils::ui_controller::handle_focus_lost;
 use crate::utils::ui_controller::handle_pressed;
 use crate::window_position::update_window_size_and_position;
@@ -73,18 +72,10 @@ pub fn run() {
         warn!("初始化com库失败：{:?}", com_init);
     }
 
-    defer(move || unsafe {
-        // 记录应用关闭信息
-        log_application_shutdown();
-
-        if com_init.is_ok() {
-            windows::Win32::System::Com::CoUninitialize();
-        }
-    });
-
     let builder = tauri::Builder::default().plugin(tauri_plugin_shell::init());
     builder
         .plugin(tauri_plugin_single_instance::init(|_app, _argv, _cwd| {
+            error!("当前已经运行了一个实例");
             notify("zerolaunch-rs", "zerolaunch-rs已运行，不要重复运行");
         }))
         .plugin(tauri_plugin_deep_link::init())
@@ -181,7 +172,8 @@ pub fn run() {
             command_open_icon_cache_dir,
             command_get_system_fonts,
             command_get_path_info,
-            command_get_latest_launch_program //command_get_onedrive_refresh_token
+            command_get_latest_launch_program, //command_get_onedrive_refresh_token
+            command_read_file
         ])
         .run(tauri::generate_context!())
         .expect_programming("error while running tauri application");
@@ -276,7 +268,7 @@ async fn init_app_state(app: &mut App) {
 
     // 维护文件管理器
     state.set_storage_manager(Arc::new(storage_manager));
-    
+
     // 根据配置更新日志级别
     let runtime_config = state.get_runtime_config();
     let app_config = runtime_config.get_app_config();
@@ -287,7 +279,7 @@ async fn init_app_state(app: &mut App) {
     } else {
         info!("日志级别已根据配置更新为: {:?}", tracing_level);
     }
-    
+
     // 使用ServiceLocator保存一份
 }
 

@@ -164,18 +164,14 @@ impl WebDAVStorageInner {
             client: None,
         };
         inner.client = {
-            if let Ok(client) = ClientBuilder::new()
+            ClientBuilder::new()
                 .set_host(inner.host_url.clone())
                 .set_auth(reqwest_dav::Auth::Basic(
                     inner.account.clone(),
                     inner.password.clone(),
                 ))
                 .build()
-            {
-                Some(client)
-            } else {
-                None
-            }
+                .ok()
         };
         inner
     }

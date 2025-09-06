@@ -131,31 +131,28 @@ pub fn show_setting_window() -> Result<(), String> {
 /// 显示欢迎窗口
 #[tauri::command]
 pub async fn show_welcome_window<R: Runtime>(app: tauri::AppHandle<R>) -> Result<(), String> {
-    use tauri::{LogicalSize, WebviewUrl, WebviewWindowBuilder};
     use std::sync::Arc;
-    
+    use tauri::{LogicalSize, WebviewUrl, WebviewWindowBuilder};
+
     // 先关闭已存在的欢迎窗口（如果有的话）
     if let Some(existing_window) = app.get_webview_window("welcome") {
         let _ = existing_window.close();
     }
-    
+
     // 创建新的欢迎窗口
-    let welcome_result = WebviewWindowBuilder::new(
-        &app,
-        "welcome",
-        WebviewUrl::App("/welcome".into()),
-    )
-    .title("欢迎使用 ZeroLaunch-rs!")
-    .visible(true)
-    .drag_and_drop(false)
-    .build();
-    
+    let welcome_result =
+        WebviewWindowBuilder::new(&app, "welcome", WebviewUrl::App("/welcome".into()))
+            .title("欢迎使用 ZeroLaunch-rs!")
+            .visible(true)
+            .drag_and_drop(false)
+            .build();
+
     match welcome_result {
         Ok(welcome_window) => {
             if let Err(e) = welcome_window.set_size(LogicalSize::new(950, 500)) {
                 return Err(format!("Failed to set welcome window size: {:?}", e));
             }
-            
+
             // 监听窗口关闭事件，确保窗口关闭时清除内存
             let welcome_arc = Arc::new(welcome_window);
             let welcome_for_event = welcome_arc.clone();
@@ -170,7 +167,7 @@ pub async fn show_welcome_window<R: Runtime>(app: tauri::AppHandle<R>) -> Result
             return Err(format!("Failed to create welcome window: {:?}", e));
         }
     }
-    
+
     Ok(())
 }
 

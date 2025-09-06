@@ -14,13 +14,15 @@ use std::fs::File;
 use std::io::Write;
 use std::panic;
 use std::path::Path;
+use std::sync::OnceLock;
 use tracing::{debug, error, info, warn, Level};
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_subscriber::{self, reload};
-use std::sync::OnceLock;
 
 /// 全局日志级别重载句柄
-static LOG_RELOAD_HANDLE: OnceLock<reload::Handle<tracing_subscriber::filter::LevelFilter, tracing_subscriber::Registry>> = OnceLock::new();
+static LOG_RELOAD_HANDLE: OnceLock<
+    reload::Handle<tracing_subscriber::filter::LevelFilter, tracing_subscriber::Registry>,
+> = OnceLock::new();
 
 /// 日志系统配置
 #[derive(Debug, Clone)]
@@ -77,8 +79,10 @@ pub fn init_logging(config: Option<LoggingConfig>) -> tracing_appender::non_bloc
     let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
 
     // 创建可重载的过滤器
-    let (filter, reload_handle) = reload::Layer::new(tracing_subscriber::filter::LevelFilter::from_level(config.level));
-    
+    let (filter, reload_handle) = reload::Layer::new(
+        tracing_subscriber::filter::LevelFilter::from_level(config.level),
+    );
+
     // 存储重载句柄
     let _ = LOG_RELOAD_HANDLE.set(reload_handle);
 
@@ -115,7 +119,7 @@ pub fn init_logging(config: Option<LoggingConfig>) -> tracing_appender::non_bloc
         // 仅输出到文件（release模式或未启用控制台输出）
         use tracing_subscriber::layer::SubscriberExt;
         use tracing_subscriber::util::SubscriberInitExt;
-        
+
         let file_layer = tracing_subscriber::fmt::layer()
             .with_writer(non_blocking)
             .with_ansi(false)
@@ -389,9 +393,9 @@ pub fn log_error_with_context(error: &dyn std::error::Error, context: &str) {
 pub fn update_log_level(new_level: Level) -> Result<(), String> {
     if let Some(handle) = LOG_RELOAD_HANDLE.get() {
         let new_filter = tracing_subscriber::filter::LevelFilter::from_level(new_level);
-        handle.reload(new_filter).map_err(|e| {
-            format!("更新日志级别失败: {}", e)
-        })?;
+        handle
+            .reload(new_filter)
+            .map_err(|e| format!("更新日志级别失败: {}", e))?;
         info!("日志级别已更新为: {:?}", new_level);
         Ok(())
     } else {

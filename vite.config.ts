@@ -12,22 +12,21 @@ const copyI18nPlugin = () => {
     name: 'copy-i18n-locales',
     buildStart() {
       const srcLocalesDir = join(process.cwd(), 'src', 'i18n', 'locales');
-      const destDir = join(process.cwd(), 'src-tauri', 'i18n');
-      const destLocalesDir = join(destDir, 'locales');
+      const destDir = join(process.cwd(), 'src-tauri', 'locales');
       
       // 创建目标目录
       if (!existsSync(destDir)) {
         mkdirSync(destDir, { recursive: true });
       }
-      if (!existsSync(destLocalesDir)) {
-        mkdirSync(destLocalesDir, { recursive: true });
+      if (!existsSync(destDir)) {
+        mkdirSync(destDir, { recursive: true });
       }
       // 复制locales文件夹中的所有文件
       try {
         const files = readdirSync(srcLocalesDir);
         files.forEach(file => {
           const srcFile = join(srcLocalesDir, file);
-          const destFile = join(destLocalesDir, file);
+          const destFile = join(destDir, file);
           copyFileSync(srcFile, destFile);
         });
         console.log(`✓ ${files.length} i18n locales files copied to src-tauri/i18n/locales/`);

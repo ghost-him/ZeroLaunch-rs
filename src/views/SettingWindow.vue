@@ -64,7 +64,7 @@
                                 </el-table-column>
                                 <el-table-column :label="t('settings.target_website_address')" show-overflow-tooltip>
                                     <template #default="scope">
-                                        <el-input-group>
+                                        <div>
                                             <el-select :model-value="getProtocol(scope.$index)" size="small" style="width: 80px;"
                                                 @update:model-value="(value) => updateProtocol(scope.$index, value)">
                                                 <el-option label="https://" value="https://"></el-option>
@@ -73,7 +73,7 @@
                                             <el-input :model-value="getUrlWithoutProtocol(scope.$index)" size="small"
                                                 :placeholder="t('settings.enter_target_path_without_protocol')"
                                                 @update:model-value="(value) => updateUrlWithoutProtocol(scope.$index, value)"></el-input>
-                                        </el-input-group>
+                                        </div>
                                     </template>
                                 </el-table-column>
                                 <el-table-column fixed="right" :label="t('settings.actions')" width="100">
@@ -147,7 +147,7 @@
 
 <script lang="ts" setup>
 import { useI18n } from 'vue-i18n';
-import { ref, onMounted, computed, onUnmounted, h } from 'vue';
+import { ref, onMounted, computed, onUnmounted } from 'vue';
 import {
     Setting,
     Brush,
@@ -162,7 +162,7 @@ const { t } = useI18n();
 
 
 import { initializeLanguage } from '../i18n/index';
-import { ElButton, ElInput, ElMessage, ElTag, ElSelect, ElOption } from 'element-plus';
+import { ElButton, ElInput, ElMessage, ElSelect, ElOption } from 'element-plus';
 import ProgramIndex from './ProgramIndex.vue';
 import { useRemoteConfigStore } from '../stores/remote_config';
 import { storeToRefs } from 'pinia';

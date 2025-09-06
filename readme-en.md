@@ -60,9 +60,10 @@ Focused solely on application search and launch functions, achieving highly spec
 
 ### Core Features
 
-*   **Application Search**: Quickly retrieve and launch **applications** and **UWP apps**, providing a smooth program access experience.
+*   **Application Search**: Quickly retrieve and launch **applications** and **UWP apps**, providing a smooth program access experience. Supports program remarks and aliases, localized name recognition and search.
 *   **Application Wake-up**: Intelligently identifies and brings already open windows to the foreground, enabling convenient multi-task switching.
 *   **Customizable Interface**: Highly customizable appearance, supporting custom background images, option colors, search font color and size, display font color and size, number of candidates displayed, frosted glass effect, rounded corner size settings, program width and height, and many other items, with convenient interaction buttons for each.
+*   **Multi-language support**: Supports Simplified Chinese, Traditional Chinese, and English.
 *   **Open File Location**: In the right-click menu, you can open the folder where the target file is located.
 
 ---
@@ -70,16 +71,17 @@ Focused solely on application search and launch functions, achieving highly spec
 
 *   **Fine-tune Search Algorithm**: Supports fine-tuning the search algorithm to meet personalized settings.
 *   **Custom Program and File Addition**: Supports adding files and programs using file wildcards or regular expressions, enabling the addition of files and programs. Intelligently identifies file formats and reacts correctly.
-*   **Custom Web Search**: Supports adding and using the default browser to launch web pages.
+*   **Custom Web Search**: Supports adding and using the default browser to launch web pages. No need to enter protocol header (http/https).
 *   **Custom Command Search**: Supports custom command addition, enabling functions like system startup, shutdown, and opening specific secondary settings pages.
 *   **Intelligent Loading of Program/File/Web Icons**: Loads the correct file icons to the greatest extent possible, and also supports correct loading of Steam game icons.
 *   **Custom Configuration File Save Path**: Supports custom local storage and network storage using the WebDAV protocol.
 *   **Supports Startup and Silent Launch**: Nothing much to explain, right? ==
-*   **Debugging Function**: Allows viewing the program's running status on the current computer (usually no issues), and viewing the search algorithm's results.
+*   **Debugging Function**: Allows viewing the program's running status on the current computer (usually no issues), and viewing the search algorithm's results. Support setting log output level.
 *   **Gaming Mode**: Allows manually disabling hotkeys to prevent issues during gaming.
 *   **Supports Opening Recently Launched Programs**: Hold down the `Alt` key to list recently opened programs in order.
 *   **Supports Custom Keybindings**: Allows customizing keyboard mappings to better suit your operating habits.
 *   **Supports Call-out Position Following Mouse**: If the mouse is on a secondary screen, the search bar will appear on that secondary screen.
+*   **Search result display optimization**: Support setting the search result display threshold. When the number of searches is greater than the threshold, it will automatically switch to scrolling mode.
 
 ## 🚀 Quick Start
 

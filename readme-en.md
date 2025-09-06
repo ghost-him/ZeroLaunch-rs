@@ -154,6 +154,30 @@ The program's configuration files are divided into: **local configuration file**
 
 ⚠️ When input length is < 3 characters, search results may not be precise enough.
 
+## 🌍 Language Support
+
+ZeroLaunch-rs currently supports the following languages:
+
+- 🇨🇳 Simplified Chinese (zh)
+- 🇹🇼 Traditional Chinese (zh-TW)
+- 🇺🇸 English (en)
+
+### Contributing Translations
+
+We welcome community contributions for localization in more languages! Translation files are located in the `src/i18n/locales/` directory:
+
+- `zh.json` - Simplified Chinese translation
+- `en.json` - English translation
+
+If you want to add new language support for ZeroLaunch-rs, please:
+
+1. Copy an existing translation file (e.g., `en.json`)
+2. Rename it to the corresponding language code (e.g., `fr.json` for French)
+3. Translate all text content in the file
+4. Submit a Pull Request
+
+Thank you for contributing to ZeroLaunch-rs internationalization! 🙏
+
 ## 🤝 Open Source Acknowledgments
 
 This project is built upon the following excellent open-source projects:
@@ -163,18 +187,6 @@ This project is built upon the following excellent open-source projects:
 *   [bootstrap](https://icons.bootcss.com/) - Provided some program icons
 *   [icon-icons](https://icon-icons.com/zh/) - Provided some program icons
 *   [Follower-v2.0](https://github.com/MrBeanCpp/Follower-v2.0) - Provided the full-screen detection solution
-
-## 🎯 To-do
-
-### Software Goals
-
-*   Error handling optimization
-
-### Long-term Goals
-
-> Only start implementing the following features when the above goals are completed.
-
-*   Support Linux system (Wayland preferred)
 
 ## ❤️ Support the Author
 

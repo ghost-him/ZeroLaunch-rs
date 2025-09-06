@@ -174,6 +174,29 @@ bun run tauri build
 
 ⚠️ 输入长度 < 3 字符时，搜索结果可能不够精确
 
+## 🌍 语言支持
+
+当前 ZeroLaunch-rs 支持以下语言：
+
+- 🇨🇳 简体中文 (zh)
+- 🇺🇸 English (en) - 由 Gemini 2.5 Pro 翻译
+
+### 贡献翻译
+
+我们欢迎社区贡献更多语言的本地化翻译！翻译文件位于 `src/i18n/locales/` 目录下：
+
+- `zh.json` - 简体中文翻译
+- `en.json` - 英文翻译
+
+如果您想为 ZeroLaunch-rs 添加新的语言支持，请：
+
+1. 复制现有的翻译文件（如 `en.json`）
+2. 重命名为对应的语言代码（如 `fr.json` 表示法语）
+3. 翻译文件中的所有文本内容
+4. 提交 Pull Request
+
+感谢您为 ZeroLaunch-rs 的国际化做出贡献！🙏
+
 ## 🤝 开源致谢
 
 本项目基于以下优秀开源项目构建：
@@ -183,18 +206,6 @@ bun run tauri build
 * [bootstrap](https://icons.bootcss.com/) - 提供了部分的程序图标
 * [icon-icons](https://icon-icons.com/zh/) - 提供了部分的程序图标
 * [Follower-v2.0](https://github.com/MrBeanCpp/Follower-v2.0) - 提供了全屏检测的方案
-
-## 🎯 todo
-
-### 软件目标
-
-* 错误处理优化
-
-### 长期目标
-
-> 当以上目标都完成时才开始实现以下功能
-
-* 支持linux系统（wayland优先）
 
 ## ❤️ 支持作者
 

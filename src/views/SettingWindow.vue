@@ -64,9 +64,16 @@
                                 </el-table-column>
                                 <el-table-column :label="t('settings.target_website_address')" show-overflow-tooltip>
                                     <template #default="scope">
-                                        <el-input v-model="index_web_pages[scope.$index][1]" size="small"
-                                            :placeholder="t('settings.enter_target_path')"
-                                            @change="updateIndexWebPages"></el-input>
+                                        <el-input-group>
+                                            <el-select :model-value="getProtocol(scope.$index)" size="small" style="width: 80px;"
+                                                @update:model-value="(value) => updateProtocol(scope.$index, value)">
+                                                <el-option label="https://" value="https://"></el-option>
+                                                <el-option label="http://" value="http://"></el-option>
+                                            </el-select>
+                                            <el-input :model-value="getUrlWithoutProtocol(scope.$index)" size="small"
+                                                :placeholder="t('settings.enter_target_path_without_protocol')"
+                                                @update:model-value="(value) => updateUrlWithoutProtocol(scope.$index, value)"></el-input>
+                                        </el-input-group>
                                     </template>
                                 </el-table-column>
                                 <el-table-column fixed="right" :label="t('settings.actions')" width="100">
@@ -155,7 +162,7 @@ const { t } = useI18n();
 
 
 import { initializeLanguage } from '../i18n/index';
-import { ElButton, ElInput, ElMessage, ElTag } from 'element-plus';
+import { ElButton, ElInput, ElMessage, ElTag, ElSelect, ElOption } from 'element-plus';
 import ProgramIndex from './ProgramIndex.vue';
 import { useRemoteConfigStore } from '../stores/remote_config';
 import { storeToRefs } from 'pinia';
@@ -212,7 +219,7 @@ const updateIndexWebPages = () => {
 }
 
 const addIndexWebPage = () => {
-    index_web_pages.value = [...index_web_pages.value, ["", ""]]
+    index_web_pages.value = [...index_web_pages.value, ["", "https://"]]
 }
 
 const custom_command = computed({
@@ -240,6 +247,39 @@ const updateCustomCommand = () => {
 
 const addCustomCommand = () => {
     custom_command.value = [...custom_command.value, ["", ""]]
+}
+
+// 协议和URL处理方法
+const getProtocol = (index: number): string => {
+    const url = index_web_pages.value[index]?.[1] || ''
+    if (url.startsWith('https://')) {
+        return 'https://'
+    } else if (url.startsWith('http://')) {
+        return 'http://'
+    }
+    return 'https://' // 默认使用https
+}
+
+const getUrlWithoutProtocol = (index: number): string => {
+    const url = index_web_pages.value[index]?.[1] || ''
+    if (url.startsWith('https://')) {
+        return url.substring(8)
+    } else if (url.startsWith('http://')) {
+        return url.substring(7)
+    }
+    return url
+}
+
+const updateProtocol = (index: number, protocol: string) => {
+    const urlWithoutProtocol = getUrlWithoutProtocol(index)
+    index_web_pages.value[index][1] = protocol + urlWithoutProtocol
+    updateIndexWebPages()
+}
+
+const updateUrlWithoutProtocol = (index: number, urlWithoutProtocol: string) => {
+    const protocol = getProtocol(index)
+    index_web_pages.value[index][1] = protocol + urlWithoutProtocol
+    updateIndexWebPages()
 }
 
 

@@ -159,7 +159,6 @@ The program's configuration files are divided into: **local configuration file**
 ZeroLaunch-rs currently supports the following languages:
 
 - 🇨🇳 Simplified Chinese (zh)
-- 🇹🇼 Traditional Chinese (zh-TW)
 - 🇺🇸 English (en)
 
 ### Contributing Translations

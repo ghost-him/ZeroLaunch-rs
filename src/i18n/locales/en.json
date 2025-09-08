@@ -394,6 +394,7 @@
     "language": "Interface Language",
     "language_save_tip": "Please save after switching language to apply changes",
     "chinese": "中文",
+    "chinese_traditional": "繁体中文",
     "english": "English",
     "startup_instance": "Startup & Instance",
     "auto_start": "Start on boot",

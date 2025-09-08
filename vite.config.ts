@@ -29,7 +29,7 @@ const copyI18nPlugin = () => {
           const destFile = join(destDir, file);
           copyFileSync(srcFile, destFile);
         });
-        console.log(`✓ ${files.length} i18n locales files copied to src-tauri/i18n/locales/`);
+        console.log(`✓ ${files.length} i18n locales files copied to src-tauri/locales/`);
       } catch (error) {
         console.error('Failed to copy i18n locales:', error);
       }

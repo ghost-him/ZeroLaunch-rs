@@ -5,7 +5,8 @@
                 <el-divider content-position="left">{{ t('app_config.language_settings') }}</el-divider>
                 <el-form-item :label="t('app_config.language')">
                     <el-select v-model="currentLanguage" @change="changeLanguage" style="width: 200px;">
-                        <el-option :label="t('app_config.chinese')" value="zh"></el-option>
+                        <el-option :label="t('app_config.chinese')" value="zh-Hans"></el-option>
+                        <el-option :label="t('app_config.chinese_traditional')" value="zh-Hant"></el-option>
                         <el-option :label="t('app_config.english')" value="en"></el-option>
                     </el-select>
                     <el-tooltip class="box-item" effect="dark" :content="t('app_config.language_save_tip')">

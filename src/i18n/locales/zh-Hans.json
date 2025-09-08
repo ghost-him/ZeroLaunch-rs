@@ -394,6 +394,7 @@
     "language": "界面语言",
     "language_save_tip": "切换完语言后需要先保存才能成功应用",
     "chinese": "中文",
+    "chinese_traditional": "繁体中文",
     "english": "English",
     "startup_instance": "启动与实例",
     "auto_start": "设置开机自启动",

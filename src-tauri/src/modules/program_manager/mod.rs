@@ -206,7 +206,7 @@ impl ProgramManager {
         for i in 1..=count {
             let search_text = "a".repeat(i);
             let start = Instant::now();
-            self.update(&search_text, 5);
+            self.update(&search_text, 5).await;
             let duration = start.elapsed();
             let duration_ms = duration.as_secs_f64() * 1000.0;
             max_time = max_time.max(duration_ms);

@@ -2,10 +2,10 @@ import { createI18n } from 'vue-i18n'
 import { resolveResource } from '@tauri-apps/api/path'
 import { invoke } from '@tauri-apps/api/core';
 // 定义支持的语言类型
-export type Language = 'zh' | 'en'
+export type Language = 'zh-Hans' | 'zh-Hant' | 'en'
 
 // 定义一个包含所有可用语言的数组，方便进行校验
-export const supportedLanguages: Language[] = ['zh', 'en']
+export const supportedLanguages: Language[] = ['zh-Hans', 'zh-Hant', 'en']
 
 // 动态加载翻译文件的函数
 export const loadLocaleMessages = async (locale: Language) => {
@@ -13,7 +13,7 @@ export const loadLocaleMessages = async (locale: Language) => {
     const resource_path = await resolveResource(`locales/${locale}.json`);
     console.log(resource_path)
     const content = await invoke<string>('command_read_file', {path: resource_path});
-    return JSON.parse(content); 
+    return JSON.parse(content);
   } catch (error) {
     console.error(`Error loading locale ${locale}:`, error)
     // 返回空对象作为fallback
@@ -24,11 +24,12 @@ export const loadLocaleMessages = async (locale: Language) => {
 // 创建i18n实例，初始时使用空的messages
 const i18n = createI18n({
   legacy: false,
-  locale: 'zh',
-  fallbackLocale: 'zh',
+  locale: 'zh-Hans',
+  fallbackLocale: 'zh-Hans',
   messages: {
-    zh: {},
-    en: {}
+    'zh-Hans': {},
+    'zh-Hant': {},
+    'en': {}
   },
   globalInjection: true
 })
@@ -36,8 +37,8 @@ const i18n = createI18n({
 // 异步初始化默认语言
 const initializeDefaultLanguage = async () => {
   try {
-    const defaultMessages = await loadLocaleMessages('zh')
-    i18n.global.setLocaleMessage('zh', defaultMessages)
+    const defaultMessages = await loadLocaleMessages('zh-Hans')
+    i18n.global.setLocaleMessage('zh-Hans', defaultMessages)
   } catch (error) {
     console.error('Failed to load default language:', error)
   }

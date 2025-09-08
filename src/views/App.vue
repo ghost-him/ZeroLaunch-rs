@@ -170,7 +170,7 @@ watch(is_alt_pressed, async (new_value) => {
 })
 
 const get_latest_launch_program = async () => {
-  const results: Array<[number, string]> = await invoke('command_get_latest_launch_propgram');
+  const results: Array<[number, string]> = await invoke('command_get_latest_launch_program');
   latest_launch_program.value = results;
   await refresh_result_items();
 }

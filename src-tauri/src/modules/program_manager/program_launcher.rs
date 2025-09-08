@@ -426,4 +426,12 @@ impl ProgramLauncher {
     pub fn get_latest_launch_program(&self, program_count: u32) -> Vec<u64> {
         self.inner.read().get_latest_launch_program(program_count)
     }
+
+    pub fn load_and_register_programs(&self, config: &ProgramLauncherConfig, programs: &[(u64, LaunchMethod)]) {
+        let mut inner = self.inner.write(); // 获取一次写锁
+        inner.load_from_config(config);     // 加载配置
+        for (program_guid, launch_method) in programs {
+            inner.register_program(*program_guid, launch_method.clone()); // 注册程序
+        }
+    }
 }

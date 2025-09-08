@@ -30,7 +30,7 @@ pub struct ProgramManager {
     /// 当前已经注册的程序
     program_registry: Arc<RwLock<Vec<Arc<Program>>>>,
     /// 程序查找器(程序的guid, 在registry中的下标)
-    program_locater: Arc<RwLock<DashMap<u64, usize>>>,
+    program_locater: Arc<DashMap<u64, usize>>,
     /// 程序加载器
     program_loader: Arc<ProgramLoader>,
     /// 程序启动器
@@ -58,7 +58,7 @@ impl ProgramManager {
             program_launcher: Arc::new(ProgramLauncher::new()),
             search_model: Arc::new(RwLock::new(Arc::new(SearchModel::default()))),
             image_loader: Arc::new(ImageLoader::new(runtime_program_config.image_loader_config)),
-            program_locater: Arc::new(RwLock::new(DashMap::new())),
+            program_locater: Arc::new(DashMap::new()),
             window_activator: Arc::new(WindowActivator::new()),
         }
     }
@@ -77,25 +77,33 @@ impl ProgramManager {
         let program_launcher_config = &config.get_launcher_config();
         let image_loader_config = &config.get_image_loader_config();
         // 初始化子模块
-        self.program_loader.load_from_config(program_loader_config);
-        self.program_launcher
-            .load_from_config(program_launcher_config);
         self.image_loader
             .load_from_config(image_loader_config)
             .await;
-        // 从loader中加载程序
+        self.program_loader.load_from_config(program_loader_config);
+        // 加载程序数据
+        let new_programs = self.program_loader.load_program();
+
+        // 清空并更新程序注册表
         let mut program_registry = self.program_registry.write().await;
         program_registry.clear();
-        *program_registry = self.program_loader.load_program();
-        // 更新launcher
-        let program_locater = self.program_locater.write().await;
-        program_locater.clear();
-        for (index, program) in (*program_registry).iter().enumerate() {
-            self.program_launcher
-                .register_program(program.program_guid, program.launch_method.clone());
-            program_locater.insert(program.program_guid, index);
+        *program_registry = new_programs;
+
+        let programs_to_register: Vec<(u64, LaunchMethod)> = program_registry
+            .iter()
+            .map(|program| (program.program_guid, program.launch_method.clone()))
+            .collect();
+
+        // 原子性地加载配置和注册程序
+        self.program_launcher
+            .load_and_register_programs(program_launcher_config, &programs_to_register);
+
+        // 更新定位器
+        self.program_locater.clear();
+        for (index, program) in program_registry.iter().enumerate() {
+            self.program_locater.insert(program.program_guid, index);
         }
-        // 更换搜索算法
+
         *self.search_model.write().await = config.get_search_model();
     }
 
@@ -108,12 +116,12 @@ impl ProgramManager {
         let match_results = self.perform_search(user_input, result_count).await;
         // 转换为所需的输出格式
         let program_registry = self.program_registry.read().await;
-        let program_locater = self.program_locater.read().await;
         let mut result: Vec<(u64, String)> = Vec::new();
         for match_result in match_results {
-            let index = *program_locater.get(&match_result.program_guid).expect_programming(
-                "程序定位器中未找到程序GUID",
-            );
+            let index = *self
+                .program_locater
+                .get(&match_result.program_guid)
+                .expect_programming("程序定位器中未找到程序GUID");
             let program = &program_registry[index];
             result.push((program.program_guid, program.show_name.clone()));
         }
@@ -129,11 +137,11 @@ impl ProgramManager {
         // 转换为详细的测试结果格式
         let mut results: Vec<SearchTestResult> = Vec::new();
         let program_registry = self.program_registry.read().await;
-        let program_locater = self.program_locater.read().await;
         for match_result in match_results {
-            let index = *program_locater.get(&match_result.program_guid).expect_programming(
-                "程序定位器中未找到程序GUID",
-            );
+            let index = *self
+                .program_locater
+                .get(&match_result.program_guid)
+                .expect_programming("程序定位器中未找到程序GUID");
             let program = &program_registry[index];
             results.push(SearchTestResult {
                 program_name: program.show_name.clone(),
@@ -169,12 +177,12 @@ impl ProgramManager {
     }
     /// 获取程序的图标，返回使用base64编码的png图片
     pub async fn get_icon(&self, program_guid: &u64) -> Vec<u8> {
-        let program_locater = self.program_locater.read().await;
-        let index = program_locater
+        let index = *self
+            .program_locater
             .get(program_guid)
             .expect_programming("程序定位器中未找到程序GUID");
         let program_registry = self.program_registry.read().await;
-        let target_program = &program_registry[*(index.value())];
+        let target_program = &program_registry[index];
         let mut result = self.image_loader.load_image(target_program.clone()).await;
         if let Ok(output) = ImageProcessor::trim_transparent_white_border(result.clone()) {
             result = output;
@@ -227,23 +235,23 @@ impl ProgramManager {
     }
     /// 唤醒窗口
     pub async fn activate_target_program(&self, program_guid: u64) -> bool {
-        let program_locater = self.program_locater.read().await;
-        let target_program_index = program_locater
+        let target_program_index = *self
+            .program_locater
             .get(&program_guid)
             .expect_programming("程序定位器中未找到程序GUID");
         let program_registry = self.program_registry.read().await;
-        let target_program = program_registry[*(target_program_index.value())].clone();
+        let target_program = program_registry[target_program_index].clone();
         self.window_activator
             .activate_target_program(target_program)
     }
     /// 目标应用程序是不是uwp应用
     pub async fn is_uwp_program(&self, program_guid: u64) -> bool {
-        let program_locater = self.program_locater.read().await;
-        let target_program_index = program_locater
+        let target_program_index = *self
+            .program_locater
             .get(&program_guid)
             .expect_programming("程序定位器中未找到程序GUID");
         let program_registry = self.program_registry.read().await;
-        let target_program = program_registry[*(target_program_index.value())].clone();
+        let target_program = program_registry[target_program_index].clone();
         target_program.launch_method.is_uwp()
     }
     /// 打开目标文件所在的文件夹
@@ -257,10 +265,10 @@ impl ProgramManager {
             .get_latest_launch_program(program_count);
 
         let mut results = Vec::new();
-        let program_locater = self.program_locater.read().await;
         let program_registry = self.program_registry.read().await;
         latest_launch_program.into_iter().for_each(|guid| {
-            let index = *program_locater
+            let index = *self
+                .program_locater
                 .get(&guid)
                 .expect_programming("程序定位器中未找到程序GUID");
             let program_info = program_registry[index].clone();

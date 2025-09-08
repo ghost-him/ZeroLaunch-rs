@@ -31,6 +31,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 use tracing::{debug, warn};
+use walkdir::WalkDir;
 use windows::Win32::Foundation::PROPERTYKEY;
 use windows::Win32::System::Com::StructuredStorage::{PropVariantClear, PROPVARIANT};
 use windows::Win32::UI::Shell::PropertiesSystem::{IPropertyStore, PSGetPropertyKeyFromName};
@@ -397,24 +398,20 @@ impl ProgramLoaderInner {
                     continue;
                 }
             };
-            match self.recursive_visit_dir(
+
+            let paths = self.recursive_visit_dir(
                 Path::new(&directory.root_path),
                 directory.max_depth as usize,
                 checker,
-            ) {
-                Ok(paths) => {
-                    let paths_count = paths.len();
-                    program_paths_str.extend(paths);
-                    debug!(
-                        "成功扫描目录: {}, 找到 {} 个程序",
-                        directory.root_path, paths_count
-                    );
-                }
-                Err(e) => {
-                    warn!("扫描目录失败: {}, 错误: {}", directory.root_path, e);
-                    continue;
-                }
-            }
+            );
+
+            let paths_count = paths.len();
+            program_paths_str.extend(paths);
+            debug!(
+                "成功扫描目录: {}, 找到 {} 个程序",
+                directory.root_path, paths_count
+            );
+
             let mut grouped_paths: HashMap<PathBuf, Vec<PathBuf>> = HashMap::new();
             for path_str in program_paths_str {
                 let path = PathBuf::from(path_str);
@@ -923,52 +920,34 @@ impl ProgramLoaderInner {
         dir: &Path,
         depth: usize,
         checker: Arc<PathChecker>,
-    ) -> io::Result<Vec<String>> {
-        if depth == 0 || !self.is_valid_path(dir) {
-            return Ok(Vec::new());
+    ) -> Vec<String> {
+        // 注意：返回类型可以简化为 Vec<String>，因为 walkdir 的迭代器在内部处理错误
+        if !self.is_valid_path(dir) {
+            return Vec::new();
         }
 
-        let mut result = Vec::new();
-
-        if dir.is_dir() {
-            match fs::read_dir(dir) {
-                Ok(entries) => {
-                    for entry in entries {
-                        match entry {
-                            Ok(entry) => {
-                                let path = entry.path();
-                                if path.is_dir() {
-                                    match self.recursive_visit_dir(
-                                        &path,
-                                        depth - 1,
-                                        checker.clone(),
-                                    ) {
-                                        Ok(sub_result) => result.extend(sub_result),
-                                        Err(e) => warn!(
-                                            "Error accessing directory {}: {}",
-                                            path.display(),
-                                            e
-                                        ),
-                                    }
-                                } else if self.is_target_file(&path, checker.clone()) {
-                                    if let Some(path_str) = path.to_str() {
-                                        result.push(path_str.to_string());
-                                    }
-                                }
-                            }
-                            Err(e) => debug!("Error reading directory entry: {}", e),
-                        }
+        WalkDir::new(dir)
+            .max_depth(depth)
+            .into_iter()
+            // 使用 filter_entry 提前剪枝。如果目录无效，则不再深入
+            .filter_entry(|e| self.is_valid_path(e.path()))
+            // filter_map 用于处理 Result<DirEntry, Error>
+            .filter_map(|entry_result| {
+                match entry_result {
+                    Ok(entry) => Some(entry),
+                    Err(e) => {
+                        // 记录遍历过程中的错误，与原实现行为一致
+                        debug!("Error reading directory entry: {}", e);
+                        None
                     }
                 }
-                Err(e) => debug!("Error reading directory {}: {}", dir.display(), e),
-            }
-        } else if self.is_valid_path(dir) {
-            if let Some(dir_str) = dir.to_str() {
-                result.push(dir_str.to_string());
-            }
-        }
-
-        Ok(result)
+            })
+            // 筛选出我们想要的目标文件
+            .filter(|entry| self.is_target_file(entry.path(), checker.clone()))
+            // 将路径转换为字符串
+            .map(|entry| entry.path().to_string_lossy().into_owned())
+            // 收集所有结果
+            .collect()
     }
 }
 #[derive(Debug)]

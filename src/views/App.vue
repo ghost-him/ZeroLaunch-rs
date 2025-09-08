@@ -245,11 +245,11 @@ const updateWindow = async () => {
     const url = URL.createObjectURL(blob);
 
     background_picture.value = url;
+    if (!is_visible || searchText.value.length == 0) {
+      await sendSearchText('');
+    }
     await startPreloadResource(await program_count).then(async () => {
       is_loading_icons.value = false;
-      if (!is_visible || searchText.value.length == 0) {
-        await sendSearchText('');
-      }
     }
     );
   } catch (error) {

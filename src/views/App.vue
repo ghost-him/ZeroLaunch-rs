@@ -34,7 +34,7 @@
         :style="submenu_backgroundStyle"> </SubMenu>
 
       <!--结果列表 -->
-      <div class="results-list" :class="{ 'scroll-mode': isScrollMode }">
+      <div class="results-list" :class="{ 'scroll-mode': isScrollMode }" ref="resultsListRef">
         <div v-for="(item, index) in menuItems" :key="index" class="result-item"
           @click="(event) => handleItemClick(index, event.ctrlKey)" :class="{ 'selected': selectedIndex === index }"
           @contextmenu.prevent="(event) => contextResultItemEvent(index, event)" :style="{
@@ -107,6 +107,8 @@ const shortcut_config = ref<ShortcutConfig>(default_shortcut_config())
 const searchText = ref('')
 const selectedIndex = ref<number>(0)
 const searchBarRef = ref<InstanceType<typeof AnimatedInput> | null>(null)
+// 结果列表容器的引用
+const resultsListRef = ref<HTMLElement | null>(null)
 // 搜索的结果
 const searchResults = ref<Array<[number, string]>>([]);
 // 最近启动的程序
@@ -153,6 +155,11 @@ const sendSearchText = async (text: string) => {
     const results: Array<[number, string]> = await invoke('handle_search_text', { searchText: text, searchCount: app_config.value.search_result_count });
     searchResults.value = results;
     await refresh_result_items();
+    // 搜索时重置滚动位置和选中项
+    selectedIndex.value = 0;
+    if (resultsListRef.value) {
+      resultsListRef.value.scrollTop = 0;
+    }
   } catch (error) {
     console.error('Error sending search text to Rust: ', error);
   }
@@ -167,6 +174,11 @@ watch(is_alt_pressed, async (new_value) => {
   }
   // 然后刷新
   await refresh_result_items();
+  // Alt键切换时重置滚动位置和选中项
+  selectedIndex.value = 0;
+  if (resultsListRef.value) {
+    resultsListRef.value.scrollTop = 0;
+  }
 })
 
 const get_latest_launch_program = async () => {
@@ -434,6 +446,28 @@ const handleKeyDown = async (event: KeyboardEvent) => {
   }
 };
 
+// 滚动到选中项的函数
+const scrollToSelectedItem = () => {
+  if (!resultsListRef.value || !isScrollMode.value) return;
+  
+  const container = resultsListRef.value;
+  const itemHeight = ui_config.value.result_item_height;
+  const selectedItemTop = selectedIndex.value * itemHeight;
+  const selectedItemBottom = selectedItemTop + itemHeight;
+  const containerScrollTop = container.scrollTop;
+  const containerHeight = container.clientHeight;
+  const containerScrollBottom = containerScrollTop + containerHeight;
+  
+  // 如果选中项在可视区域上方，滚动到选中项顶部
+  if (selectedItemTop < containerScrollTop) {
+    container.scrollTop = selectedItemTop;
+  }
+  // 如果选中项在可视区域下方，滚动到选中项底部可见
+  else if (selectedItemBottom > containerScrollBottom) {
+    container.scrollTop = selectedItemBottom - containerHeight;
+  }
+};
+
 // 处理各种操作的函数
 const handleAction = (
   action: ActionType,
@@ -446,7 +480,9 @@ const handleAction = (
       if (isMenuVisible) {
         resultItemMenuRef.value?.selectNext();
       } else {
-        selectedIndex.value = (selectedIndex.value + 1) % app_config.value.search_result_count;
+        const currentResults = is_alt_pressed.value ? latest_launch_program.value : searchResults.value;
+        selectedIndex.value = (selectedIndex.value + 1) % Math.min(currentResults.length, app_config.value.search_result_count);
+        scrollToSelectedItem();
       }
       break;
 
@@ -454,7 +490,10 @@ const handleAction = (
       if (isMenuVisible) {
         resultItemMenuRef.value?.selectPrevious();
       } else {
-        selectedIndex.value = (selectedIndex.value - 1 + app_config.value.search_result_count) % app_config.value.search_result_count;
+        const currentResults = is_alt_pressed.value ? latest_launch_program.value : searchResults.value;
+        const maxIndex = Math.min(currentResults.length, app_config.value.search_result_count);
+        selectedIndex.value = (selectedIndex.value - 1 + maxIndex) % maxIndex;
+        scrollToSelectedItem();
       }
       break;
 
@@ -502,6 +541,10 @@ const handleItemClick = (itemIndex: number, ctrlKey = false) => {
 const initSearchBar = () => {
   searchText.value = '';
   selectedIndex.value = 0;
+  // 重置滚动位置
+  if (resultsListRef.value) {
+    resultsListRef.value.scrollTop = 0;
+  }
 }
 
 // 点击页面其他地方时隐藏自定义菜单

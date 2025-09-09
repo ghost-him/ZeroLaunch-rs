@@ -84,33 +84,39 @@ pub fn run() {
         .manage(Arc::new(AppState::new()))
         .setup(|app| {
             tauri::async_runtime::block_on(async move {
-                info!("开始初始化应用组件");
+                // 阶段1: 基础资源初始化（无依赖）
+                info!("=== 阶段1: 基础资源初始化 ===");
 
-                // 初始化程序的图标
                 info!("正在注册图标路径");
                 register_icon_path(app);
 
-                // 初始化程序的配置系统
+                // 阶段2: 核心状态初始化（依赖基础资源）
+                info!("=== 阶段2: 核心状态初始化 ===");
+
                 info!("正在初始化应用状态和配置系统");
                 init_app_state(app).await;
 
-                // 初始化程序的系统托盘服务
-                info!("正在初始化系统托盘服务");
-                init_system_tray(app);
+                // 阶段3: UI组件初始化（依赖核心状态）
+                info!("=== 阶段3: UI组件初始化 ===");
 
-                // 初始化搜索栏
                 info!("正在初始化搜索栏窗口");
                 init_search_bar_window(app);
 
-                // 初始化设置窗口
                 info!("正在初始化设置窗口");
                 init_setting_window(app.app_handle().clone());
 
-                // 初始化键盘监听器
+                info!("正在初始化系统托盘服务");
+                init_system_tray(app);
+
+                // 阶段4: 交互服务初始化（依赖UI组件）
+                info!("=== 阶段4: 交互服务初始化 ===");
+
                 info!("正在启动快捷键管理器");
                 start_shortcut_manager(app);
 
-                // 根据配置信息更新整个程序
+                // 阶段5: 配置应用和外部服务（依赖所有核心组件）
+                info!("=== 阶段5: 配置应用和外部服务 ===");
+
                 info!("正在更新应用设置");
                 update_app_setting().await;
 
@@ -183,18 +189,18 @@ pub fn run() {
 async fn init_app_state(app: &mut App) {
     debug!("开始初始化应用状态");
 
-    // 维护程序状态
+    // === 阶段1: 核心状态初始化 ===
     let state = app.state::<Arc<AppState>>();
     ServiceLocator::init((*state).clone());
     debug!("ServiceLocator初始化完成");
 
     let state = ServiceLocator::get_state();
-    // 维护app_handle
+
+    // 立即设置app_handle，确保后续组件可以使用
     state.set_main_handle(Arc::new(app.app_handle().clone()));
     debug!("应用句柄设置完成");
 
-    // 在初始化时传入一个函数，这个函数会初始化一个新版本的提示
-
+    // === 阶段2: 存储管理器初始化 ===
     let create_and_show_welcome_page = move || {
         info!("第一次启动程序或者更新程序，创建欢迎页面");
         // 创建欢迎页面
@@ -222,7 +228,14 @@ async fn init_app_state(app: &mut App) {
             }
         });
     };
+
     let storage_manager = StorageManager::new(create_and_show_welcome_page).await;
+    // 立即设置存储管理器到状态中，使其可被其他组件使用
+    state.set_storage_manager(Arc::new(storage_manager));
+    debug!("存储管理器初始化并设置完成");
+
+    // === 阶段3: 配置系统初始化 ===
+    let storage_manager = state.get_storage_manager(); // 重新获取以使用Arc包装的版本
     let remote_config_data = {
         if let Some(data) = storage_manager
             .download_file_str(REMOTE_CONFIG_NAME.to_string())
@@ -241,13 +254,25 @@ async fn init_app_state(app: &mut App) {
     };
 
     let partial_config = load_local_config(&remote_config_data);
-
     let runtime_config = RuntimeConfig::new();
     runtime_config.update(partial_config);
 
-    // 维护程序的配置信息
+    // 立即设置配置到状态中
     state.set_runtime_config(Arc::new(runtime_config));
-    // 维护程序管理器
+    debug!("运行时配置初始化并设置完成");
+
+    // 立即应用日志级别配置
+    let runtime_config = state.get_runtime_config();
+    let app_config = runtime_config.get_app_config();
+    let log_level = app_config.get_log_level();
+    let tracing_level = tracing::Level::from(log_level);
+    if let Err(e) = update_log_level(tracing_level) {
+        warn!("更新日志级别失败: {}", e);
+    } else {
+        info!("日志级别已根据配置更新为: {:?}", tracing_level);
+    }
+
+    // === 阶段4: 程序管理器初始化 ===
     let runtime_program_config = RuntimeProgramConfig {
         image_loader_config: RuntimeImageLoaderConfig {
             default_app_icon_path: APP_PIC_PATH
@@ -264,23 +289,11 @@ async fn init_app_state(app: &mut App) {
     };
 
     let program_manager = ProgramManager::new(runtime_program_config);
+    // 立即设置程序管理器到状态中
     state.set_program_manager(Arc::new(program_manager));
+    debug!("程序管理器初始化并设置完成");
 
-    // 维护文件管理器
-    state.set_storage_manager(Arc::new(storage_manager));
-
-    // 根据配置更新日志级别
-    let runtime_config = state.get_runtime_config();
-    let app_config = runtime_config.get_app_config();
-    let log_level = app_config.get_log_level();
-    let tracing_level = tracing::Level::from(log_level);
-    if let Err(e) = update_log_level(tracing_level) {
-        warn!("更新日志级别失败: {}", e);
-    } else {
-        info!("日志级别已根据配置更新为: {:?}", tracing_level);
-    }
-
-    // 使用ServiceLocator保存一份
+    debug!("应用状态初始化完成");
 }
 
 /// 初始化搜索界面的窗口设置

@@ -25,7 +25,6 @@ use regex::RegexSet;
 use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::fs;
-use std::io;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;

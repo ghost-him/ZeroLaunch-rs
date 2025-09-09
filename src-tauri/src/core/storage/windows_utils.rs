@@ -87,21 +87,43 @@ pub fn get_start_menu_paths() -> Result<(String, String), String> {
 }
 // 获取数据目录的路径
 pub fn get_default_remote_data_dir_path() -> String {
-    unsafe {
-        // 获取 AppData 目录
-        let path = SHGetKnownFolderPath(&FOLDERID_RoamingAppData, KF_FLAG_DEFAULT, None);
-
-        // 将 PWSTR 转换为 Rust 字符串
-        let path_str = path
-            .expect_programming("Failed to get AppData path")
-            .to_string()
-            .expect_programming("Failed to convert path to string");
-        let app_data_str = Path::new(&path_str)
-            .join("ZeroLaunch-rs")
-            .to_str()
-            .expect_programming("Failed to convert path to string")
+    #[cfg(feature = "portable")]
+    {
+        // 便携版本：使用程序所在目录
+        if let Ok(exe_path) = std::env::current_exe() {
+            if let Some(exe_dir) = exe_path.parent() {
+                let portable_dir = exe_dir.to_string_lossy().to_string();
+                info!("Portable Directory: {}", portable_dir);
+                return portable_dir;
+            }
+        }
+        // 如果获取失败，回退到当前工作目录
+        let current_dir = std::env::current_dir()
+            .unwrap_or_else(|_| std::path::PathBuf::from("."))
+            .to_string_lossy()
             .to_string();
-        info!("AppData Directory: {}", app_data_str);
-        app_data_str
+        info!("Fallback to current directory: {}", current_dir);
+        current_dir
+    }
+    
+    #[cfg(not(feature = "portable"))]
+    {
+        unsafe {
+            // 获取 AppData 目录
+            let path = SHGetKnownFolderPath(&FOLDERID_RoamingAppData, KF_FLAG_DEFAULT, None);
+
+            // 将 PWSTR 转换为 Rust 字符串
+            let path_str = path
+                .expect_programming("Failed to get AppData path")
+                .to_string()
+                .expect_programming("Failed to convert path to string");
+            let app_data_str = Path::new(&path_str)
+                .join("ZeroLaunch-rs")
+                .to_str()
+                .expect_programming("Failed to convert path to string")
+                .to_string();
+            info!("AppData Directory: {}", app_data_str);
+            app_data_str
+        }
     }
 }

@@ -104,12 +104,13 @@ walkdir = "2.5.0"
 [features]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
+portable = []
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-autostart = "^2"
 tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
 
 [profile.release]
-lto = true
-codegen-units = 1
-opt-level = 3
+# lto = true
+# codegen-units = 1
+# opt-level = 3

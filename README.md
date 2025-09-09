@@ -136,7 +136,7 @@ winget install ghost-him.ZeroLaunch-rs
 
 ### 环境要求
 
-* Rust v1.85.0
+* Rust v1.89.0
 * Node.js v22.11.0
 * Bun v1.2.3
 
@@ -152,20 +152,51 @@ bun install
 # 开发模式
 bun run tauri dev
 
-# 生产构建
-bun run tauri build
+# 使用 xtask 自动化构建工具进行生产构建
+cd xtask
+
+# 仅构建安装包，x64版本
+cargo run --bin xtask build-all --arch x64
+
+# 构建所有版本（安装包 + 便携版，所有架构）
+cargo run --bin xtask build-all
+
+# 清理构建产物
+cargo run --bin xtask clean
 ```
 
-构建产物路径：`./src-tauri/target/release/`
+构建产物：
+- 安装包：项目根目录下的 `.msi` 文件
+- 便携版：项目根目录下的 `.zip` 文件
+- 详细说明请参考 [xtask/README.md](xtask/README.md)
 
 ## 📦 数据目录结构
 
-程序的配置文件分别：**本地配置文件**与**远程配置文件**，这两个都是 json 格式的文件。本地配置文件的存放地址如下，本地配置文件中存放着远程配置文件的地址。远程配置文件就是程序运行时所产生的文件信息，默认的存放地址也是该目录。
+程序分为**安装包版本**与**便捷版**两个版本：
+
+- **安装包版本**：将 `C:\Users\[username]\AppData\Roaming\ZeroLaunch-rs\` 作为本地数据目录
+- **便捷版**：将软件所在的目录作为本地数据目录
+
+### 本地数据目录结构
+
+本地数据目录中存放以下文件：
 
 ```
-%APPDATA%\ZeroLaunch-rs\                # 比如：C:\Users\[用户名]\AppData\Roaming\ZeroLaunch-rs\
+本地数据目录/                            # 安装包版本：C:\Users\[用户名]\AppData\Roaming\ZeroLaunch-rs\
+                                        # 便捷版：软件所在目录
 ├── logs/                               # 运行日志
-└── ZeroLaunch_local_config.json        # 远程配置文件的存放地址，默认为此文件夹
+├── icons/                              # 程序图标缓存
+└── ZeroLaunch_local_config.json        # 本地配置文件，存储相关数据以及远程目录路径
+```
+
+### 远程目录结构
+
+远程目录用于存放程序的详细运行配置，默认为当前的本地数据目录。通过远程存储可以实现两个机器间的数据同步。
+
+```
+远程目录/                               # 默认与本地数据目录相同
+├── background.png                      # 自定义背景图片
+└── ZeroLaunch_remote_config.json       # 远程配置文件，存储程序运行配置
 ```
 
 ## 📌 已知限制
@@ -178,14 +209,33 @@ bun run tauri build
 
 当前 ZeroLaunch-rs 支持以下语言：
 
-- 🇨🇳 简体中文 (zh)
+- 🇨🇳 简体中文 (zh-Hans)
+- 🇹🇼 繁体中文 (zh-Hant) - 由 Gemini 2.5 Pro 翻译
 - 🇺🇸 English (en) - 由 Gemini 2.5 Pro 翻译
+
+### 更改语言
+
+您可以通过以下方式更改应用程序的显示语言：
+
+![语言选择演示](asset/select_language.png)
+
+*语言选择界面演示：简洁直观的语言切换体验*
+
+1. **通过设置界面**：
+   - 打开 ZeroLaunch-rs 设置窗口（如上图所示）
+   - 点击左侧导航栏中的「常规设置」选项
+   - 在「语言设置」区域找到「界面语言」下拉菜单
+   - 点击下拉菜单，从可选语言列表中选择您偏好的语言（支持中文、繁体中文、English）
+   - 保存设置后重启应用程序以应用新的语言设置
+
+> 💡 **贴心提示**：语言切换功能设计简洁明了，无论您选择哪种语言，整个界面都会完整地切换到对应语言，为不同语言背景的用户提供原生化的使用体验。
 
 ### 贡献翻译
 
 我们欢迎社区贡献更多语言的本地化翻译！翻译文件位于 `src/i18n/locales/` 目录下：
 
-- `zh.json` - 简体中文翻译
+- `zh-Hans.json` - 简体中文翻译
+- `zh-Hant.json` - 繁体中文翻译
 - `en.json` - 英文翻译
 
 如果您想为 ZeroLaunch-rs 添加新的语言支持，请：

@@ -116,7 +116,7 @@ Writing documentation is so troublesome, and sometimes I can't describe things w
 
 ### Environment Requirements
 
-*   Rust v1.85.0
+*   Rust v1.89.0
 *   Node.js v22.11.0
 *   Bun v1.2.3
 
@@ -132,20 +132,51 @@ bun install
 # Development mode
 bun run tauri dev
 
-# Production build
-bun run tauri build
+# Use xtask automation build tool for production builds
+cd xtask
+
+# Build installer, x64 version only
+cargo run --bin xtask build-installer --arch x64
+
+# Build all versions (installer + portable, all architectures)
+cargo run --bin xtask build-all
+
+# Clean build artifacts
+cargo run --bin xtask clean
 ```
 
-Build artifact path: `./src-tauri/target/release/`
+Build artifacts:
+- Installer: `.msi` files in project root directory
+- Portable: `.zip` files in project root directory
+- For detailed instructions, see [xtask/README.md](xtask/README.md)
 
 ## 📦 Data Directory Structure
 
-The program's configuration files are divided into: **local configuration file** and **remote configuration file**, both of which are JSON format files. The storage location of the local configuration file is as follows, and the local configuration file stores the address of the remote configuration file. The remote configuration file contains the file information generated during program runtime, and its default storage location is also this directory.
+The program comes in two versions: **Installer Version** and **Portable Version**:
+
+- **Installer Version**: Uses `C:\Users\[username]\AppData\Roaming\ZeroLaunch-rs\` as the local data directory
+- **Portable Version**: Uses the software's installation directory as the local data directory
+
+### Local Data Directory Structure
+
+The local data directory contains the following files:
 
 ```
-%APPDATA%\ZeroLaunch-rs\                # E.g.: C:\Users\[username]\AppData\Roaming\ZeroLaunch-rs\
+Local Data Directory/                   # Installer Version: C:\Users\[username]\AppData\Roaming\ZeroLaunch-rs\
+                                        # Portable Version: Software installation directory
 ├── logs/                               # Runtime logs
-└── ZeroLaunch_local_config.json        # Location of the remote configuration file, defaults to this folder
+├── icons/                              # Program icon cache
+└── ZeroLaunch_local_config.json        # Local configuration file, stores related data and remote directory path
+```
+
+### Remote Directory Structure
+
+The remote directory is used to store detailed runtime configurations of the program. By default, it's the same as the local data directory. Remote storage enables data synchronization between two machines.
+
+```
+Remote Directory/                       # Default: same as local data directory
+├── background.png                      # Custom background image
+└── ZeroLaunch_remote_config.json       # Remote configuration file, stores program runtime configuration
 ```
 
 ## 📌 Known Limitations
@@ -158,14 +189,34 @@ The program's configuration files are divided into: **local configuration file**
 
 ZeroLaunch-rs currently supports the following languages:
 
-- 🇨🇳 Simplified Chinese (zh)
-- 🇺🇸 English (en)
+- 🇨🇳 Simplified Chinese (zh-Hans)
+- 🇹🇼 Traditional Chinese (zh-Hant) - Translated by Gemini 2.5 Pro
+- 🇺🇸 English (en) - Translated by Gemini 2.5 Pro
+
+### Changing Language
+
+You can change the application's display language through the following methods:
+
+![Language Selection Demo](asset/select_language.png)
+
+*Language selection interface demonstration: Simple and intuitive language switching experience*
+
+1. **Through Settings Interface**:
+   - Open ZeroLaunch-rs settings window (as shown in the image above)
+   - Click on the 「常规设置」 option in the left navigation bar
+   - Find the 「界面语言」 dropdown menu in the 「语言设置」 section
+   - Click the dropdown menu and select your preferred language from the available options (supports Chinese, Traditional Chinese, English)
+   - Save the settings and restart the application to apply the new language settings
+
+> 💡 **Helpful Tip**: The language switching feature is designed to be simple and clear. No matter which language you choose, the entire interface will completely switch to the corresponding language, providing a native user experience for users of different language backgrounds.
+
 
 ### Contributing Translations
 
 We welcome community contributions for localization in more languages! Translation files are located in the `src/i18n/locales/` directory:
 
-- `zh.json` - Simplified Chinese translation
+- `zh-Hans.json` - Simplified Chinese translation
+- `zh-Hant.json` - Traditional Chinese translation
 - `en.json` - English translation
 
 If you want to add new language support for ZeroLaunch-rs, please:

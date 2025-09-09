@@ -156,7 +156,7 @@ bun run tauri dev
 cd xtask
 
 # 仅构建安装包，x64版本
-cargo run --bin xtask build-all --arch x64
+cargo run --bin xtask build-installer --arch x64
 
 # 构建所有版本（安装包 + 便携版，所有架构）
 cargo run --bin xtask build-all

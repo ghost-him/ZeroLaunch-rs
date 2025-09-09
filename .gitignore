@@ -28,3 +28,6 @@ config.json
 logs
 
 package-lock.json
+*.msi
+*.exe
+*.zip

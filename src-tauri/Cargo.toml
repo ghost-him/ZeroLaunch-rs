@@ -1,6 +1,6 @@
 [package]
 name = "zerolaunch-rs"
-version = "0.5.0"
+version = "0.5.1"
 description = "🚀 Lightning-fast, accurate, lightweight & pure Windows application launcher!"
 authors = ["ghost-him"]
 edition = "2021"
@@ -111,6 +111,6 @@ tauri-plugin-autostart = "^2"
 tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
 
 [profile.release]
-# lto = true
-# codegen-units = 1
-# opt-level = 3
+lto = true
+codegen-units = 1
+opt-level = 3

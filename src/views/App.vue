@@ -457,14 +457,24 @@ const scrollToSelectedItem = () => {
   const containerScrollTop = container.scrollTop;
   const containerHeight = container.clientHeight;
   const containerScrollBottom = containerScrollTop + containerHeight;
-  
+
+  let targetScrollTop = null;
+
   // 如果选中项在可视区域上方，滚动到选中项顶部
   if (selectedItemTop < containerScrollTop) {
-    container.scrollTop = selectedItemTop;
+    targetScrollTop = selectedItemTop;
   }
   // 如果选中项在可视区域下方，滚动到选中项底部可见
   else if (selectedItemBottom > containerScrollBottom) {
-    container.scrollTop = selectedItemBottom - containerHeight;
+    targetScrollTop = selectedItemBottom - containerHeight;
+  }
+
+  // 使用smooth滚动动画
+  if (targetScrollTop !== null) {
+    container.scrollTo({
+      top: targetScrollTop,
+      behavior: 'smooth'
+    });
   }
 };
 

@@ -211,7 +211,7 @@ impl AppConfigInner {
     }
 
     pub(crate) fn default_language() -> String {
-        "zh".to_string()
+        "zh-Hans".to_string()
     }
 
     pub(crate) fn default_log_level() -> LogLevel {

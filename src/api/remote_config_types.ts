@@ -94,7 +94,7 @@ export function default_app_config(): AppConfig {
         space_is_enter: false,
         show_pos_follow_mouse: false,
         scroll_threshold: 10,
-        language: 'zh',
+        language: 'zh-Hans',
         log_level: 'info',
     } as AppConfig;
 }

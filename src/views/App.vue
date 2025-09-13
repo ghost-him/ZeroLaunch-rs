@@ -152,7 +152,7 @@ watch(searchText, (newVal) => {
 
 const sendSearchText = async (text: string) => {
   try {
-    const results: Array<[number, string]> = await invoke('handle_search_text', { searchText: text, searchCount: app_config.value.search_result_count });
+    const results: Array<[number, string]> = await invoke('handle_search_text', { searchText: text });
     searchResults.value = results;
     await refresh_result_items();
     // 搜索时重置滚动位置和选中项

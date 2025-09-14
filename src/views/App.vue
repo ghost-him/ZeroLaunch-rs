@@ -257,6 +257,11 @@ const updateWindow = async () => {
     const url = URL.createObjectURL(blob);
 
     background_picture.value = url;
+    
+    // 先清空图标缓存，确保数据库更新后图标与程序名保持一致
+    program_icons.value.forEach(url => URL.revokeObjectURL(url));
+    program_icons.value.clear();
+    
     if (!is_visible || searchText.value.length == 0) {
       await sendSearchText('');
     }

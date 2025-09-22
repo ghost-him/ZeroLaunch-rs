@@ -105,7 +105,7 @@ pub fn get_default_remote_data_dir_path() -> String {
         info!("Fallback to current directory: {}", current_dir);
         current_dir
     }
-    
+
     #[cfg(not(feature = "portable"))]
     {
         unsafe {

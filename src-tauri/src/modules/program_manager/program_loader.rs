@@ -8,6 +8,8 @@ use crate::modules::config::default::APP_PIC_PATH;
 use crate::program_manager::config::program_loader_config::PartialProgramLoaderConfig;
 use crate::program_manager::config::program_loader_config::ProgramLoaderConfig;
 use crate::program_manager::search_model::*;
+use crate::program_manager::semantic_manager::GenerateEmbeddingForLoader;
+use crate::program_manager::semantic_manager::SemanticManager;
 /// 这个类用于加载电脑上程序，通过扫描路径或使用系统调用接口
 use crate::program_manager::Program;
 use crate::utils::defer::defer;
@@ -20,6 +22,7 @@ use dashmap::DashSet;
 use globset::GlobSetBuilder;
 use globset::{Glob, GlobSet};
 use image::ImageReader;
+use ndarray::Array1;
 use parking_lot::RwLock;
 use regex::RegexSet;
 use std::collections::HashMap;
@@ -27,6 +30,7 @@ use std::ffi::OsStr;
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 use std::time::Instant;
 use tracing::{debug, warn};
@@ -40,16 +44,19 @@ use windows::Win32::UI::Shell::{
 use windows_core::PCWSTR;
 #[derive(Debug)]
 struct GuidGenerator {
-    next_id: u64,
+    next_id: AtomicU64,
 }
 
 impl GuidGenerator {
     pub fn new() -> Self {
-        GuidGenerator { next_id: 0 }
+        GuidGenerator {
+            next_id: AtomicU64::new(1),
+        }
     }
-    pub fn get_guid(&mut self) -> u64 {
-        let ret = self.next_id;
-        self.next_id += 1;
+    pub fn get_guid(&self) -> u64 {
+        let ret = self
+            .next_id
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         ret
     }
 }
@@ -164,17 +171,21 @@ pub struct ProgramLoaderInner {
     forbidden_paths: Vec<String>,
     /// 自定义程序别名
     program_alias: DashMap<String, Vec<String>>,
+    /// 语义描述信息
+    semantic_descriptions: HashMap<String, String>,
+    /// 语义管理器
+    semantic_manager: Option<Arc<SemanticManager>>,
 }
 
 impl Default for ProgramLoaderInner {
     fn default() -> Self {
-        Self::new()
+        Self::new(None)
     }
 }
 
 impl ProgramLoaderInner {
     /// 创建
-    pub fn new() -> Self {
+    pub fn new(semantic_manager: Option<Arc<SemanticManager>>) -> Self {
         ProgramLoaderInner {
             target_paths: Vec::new(),
             program_bias: HashMap::new(),
@@ -187,6 +198,8 @@ impl ProgramLoaderInner {
             loading_time: None,
             forbidden_paths: Vec::new(),
             program_alias: DashMap::new(),
+            semantic_descriptions: HashMap::new(),
+            semantic_manager,
         }
     }
 
@@ -201,6 +214,7 @@ impl ProgramLoaderInner {
             index_web_pages: Some(self.index_web_pages.clone()),
             custom_command: Some(self.custom_command.clone()),
             program_alias: Some(program_alias_hash_map),
+            semantic_descriptions: Some(self.semantic_descriptions.clone()),
         }
     }
 
@@ -215,6 +229,7 @@ impl ProgramLoaderInner {
         self.index_web_pages = config.get_index_web_pages();
         self.custom_command = config.get_custom_command();
         self.program_alias = hashmap_to_dashmap(&config.get_program_alias());
+        self.semantic_descriptions = config.get_semantic_descriptions();
     }
     /// 添加目标路径
     pub fn add_target_path(&mut self, directory_config: DirectoryConfig) {
@@ -337,6 +352,59 @@ impl ProgramLoaderInner {
         keywords_to_append
     }
 
+    /// 获取程序的语义描述信息
+    fn get_program_semantic_description(&self, key: &LaunchMethod) -> Option<String> {
+        let key = key.get_text();
+        self.semantic_descriptions.get(&key).cloned()
+    }
+
+    /// 创建Program的辅助函数，消除重复代码
+    /// 这个函数统一处理Program的创建逻辑，包括生成GUID、计算stable_bias等
+    fn create_program(
+        &self,
+        show_name: String,
+        unique_name: String,
+        launch_method: LaunchMethod,
+        mut search_keywords: Vec<String>,
+        icon_path: ImageIdentity,
+    ) -> Arc<Program> {
+        let guid = self.guid_generator.get_guid();
+        let stable_bias = self.get_program_bias(&unique_name);
+
+        // 如果用户自己添加了别名，则添加上去
+        let alias_name_to_append = self.check_program_alias(&launch_method);
+        search_keywords.extend(alias_name_to_append);
+
+        let description = self
+            .get_program_semantic_description(&launch_method)
+            .unwrap_or_default();
+
+        // 生成embedding
+        let embedding = if let Some(ref semantic_manager) = self.semantic_manager {
+            match semantic_manager.generate_embedding_for_loader(
+                &show_name,
+                &search_keywords.join("，"),
+                &launch_method,
+                &description,
+            ) {
+                Ok(emb) => emb,
+                Err(_) => Array1::zeros(0), // 如果生成失败，使用空的embedding
+            }
+        } else {
+            warn!("没有语义管理器，无法生成embedding");
+            Array1::zeros(0)
+        };
+        Arc::new(Program {
+            program_guid: guid,
+            show_name,
+            launch_method,
+            search_keywords,
+            stable_bias,
+            icon_path,
+            embedding,
+        })
+    }
+
     /// 获得加载程序的耗时
     pub fn get_loading_time(&self) -> f64 {
         if let Some(ref loading_time) = self.loading_time {
@@ -357,23 +425,17 @@ impl ProgramLoaderInner {
             if self.check_program_is_exist(&check_name) {
                 continue;
             }
-            let guid = self.guid_generator.get_guid();
-            let mut alias_names: Vec<String> = self.convert_search_keywords(show_name);
             let unique_name = check_name.to_lowercase();
-            let stable_bias = self.get_program_bias(&unique_name);
-            // 如果用户自己添加了别名，则添加上去
+            let alias_names: Vec<String> = self.convert_search_keywords(show_name);
             let launch_method = LaunchMethod::File(url.clone());
-            let alias_name_to_append = self.check_program_alias(&launch_method);
-            alias_names.extend(alias_name_to_append);
 
-            let program = Arc::new(Program {
-                program_guid: guid,
-                show_name: show_name.clone(),
+            let program = self.create_program(
+                show_name.clone(),
+                unique_name,
                 launch_method,
-                search_keywords: alias_names,
-                stable_bias,
-                icon_path: ImageIdentity::Web(url.to_string()),
-            });
+                alias_names,
+                ImageIdentity::Web(url.to_string()),
+            );
             result.push(program);
         }
         result
@@ -445,12 +507,9 @@ impl ProgramLoaderInner {
                         continue;
                     }
 
-                    let guid = self.guid_generator.get_guid();
-
                     // 基础别名：来自文件名本身
                     let mut alias_names: Vec<String> = self.convert_search_keywords(&show_name);
                     let unique_name = show_name.to_lowercase();
-                    let stable_bias = self.get_program_bias(&unique_name);
                     let launch_method = if let Some(ext) = target_path.extension() {
                         if let Some(ext_str) = ext.to_str() {
                             if ["url", "lnk", "exe"].contains(&ext_str) {
@@ -465,9 +524,6 @@ impl ProgramLoaderInner {
                         LaunchMethod::File(target_path_str.clone())
                     };
 
-                    // 如果用户自己添加了别名，则添加上去
-                    let alias_name_to_append = self.check_program_alias(&launch_method);
-                    alias_names.extend(alias_name_to_append);
                     // 再最后检查一下有没有本地化的名字
                     let localized_name = localized_names.get(&file_name).cloned();
                     if let Some(ref localized_name_str) = localized_name {
@@ -477,14 +533,13 @@ impl ProgramLoaderInner {
                     // 如果有本地化的名字，则使用本地化的名字
                     let show_name = localized_name.unwrap_or(show_name);
 
-                    let program = Arc::new(Program {
-                        program_guid: guid,
+                    let program = self.create_program(
                         show_name,
+                        unique_name,
                         launch_method,
-                        search_keywords: alias_names,
-                        stable_bias,
-                        icon_path: ImageIdentity::File(target_path_str),
-                    });
+                        alias_names,
+                        ImageIdentity::File(target_path_str),
+                    );
 
                     result.push(program);
                 }
@@ -511,11 +566,9 @@ impl ProgramLoaderInner {
                 continue;
             }
 
-            let guid = self.guid_generator.get_guid();
-
-            let mut alias_names = self.convert_search_keywords(show_name);
             let unique_name = show_name.to_lowercase();
-            let stable_bias = self.get_program_bias(&unique_name);
+            let alias_names = self.convert_search_keywords(show_name);
+            let launch_method = LaunchMethod::Command(command.clone());
             let icon_path = match APP_PIC_PATH.get("terminal") {
                 Some(path) => path.value().clone(),
                 None => {
@@ -524,19 +577,13 @@ impl ProgramLoaderInner {
                 }
             };
 
-            // 如果用户自己添加了别名，则添加上去
-            let launch_method = LaunchMethod::Command(command.clone());
-            let alias_name_to_append = self.check_program_alias(&launch_method);
-            alias_names.extend(alias_name_to_append);
-
-            let program = Arc::new(Program {
-                program_guid: guid,
-                show_name: show_name.clone(),
+            let program = self.create_program(
+                show_name.clone(),
+                unique_name,
                 launch_method,
-                search_keywords: alias_names,
-                stable_bias,
-                icon_path: ImageIdentity::File(icon_path),
-            });
+                alias_names,
+                ImageIdentity::File(icon_path),
+            );
             result.push(program);
         }
         result
@@ -734,23 +781,18 @@ impl ProgramLoaderInner {
                             continue;
                         }
 
-                        let mut alias_name = self.convert_search_keywords(&short_name);
-                        let guid = self.guid_generator.get_guid();
                         let unique_name = short_name.to_lowercase();
-                        let stable_bias = self.get_program_bias(&unique_name);
+                        let alias_name = self.convert_search_keywords(&short_name);
                         let launch_method = LaunchMethod::PackageFamilyName(app_id);
-                        // 如果用户自己添加了别名，则添加上去
-                        let alias_name_to_append = self.check_program_alias(&launch_method);
-                        alias_name.extend(alias_name_to_append);
 
-                        ret.push(Arc::new(Program {
-                            program_guid: guid,
-                            show_name: short_name,
+                        let program = self.create_program(
+                            short_name,
+                            unique_name,
                             launch_method,
-                            search_keywords: alias_name,
-                            stable_bias,
-                            icon_path: ImageIdentity::File(icon_path),
-                        }));
+                            alias_name,
+                            ImageIdentity::File(icon_path),
+                        );
+                        ret.push(program);
                     }
                 }
                 Err(e) => {
@@ -956,15 +998,15 @@ pub struct ProgramLoader {
 
 impl Default for ProgramLoader {
     fn default() -> Self {
-        Self::new()
+        Self::new(None)
     }
 }
 
 impl ProgramLoader {
     /// 创建一个新的 `ProgramLoader` 实例
-    pub fn new() -> Self {
+    pub fn new(semantic_manager: Option<Arc<SemanticManager>>) -> Self {
         ProgramLoader {
-            inner: RwLock::new(ProgramLoaderInner::new()),
+            inner: RwLock::new(ProgramLoaderInner::new(semantic_manager)),
         }
     }
 

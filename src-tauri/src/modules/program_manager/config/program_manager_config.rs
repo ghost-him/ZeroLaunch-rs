@@ -1,22 +1,22 @@
+use super::image_loader_config::PartialImageLoaderConfig;
+use super::image_loader_config::RuntimeImageLoaderConfig;
+use crate::core::ai::model_manager::ModelManager;
 use crate::modules::program_manager::config::image_loader_config::ImageLoaderConfig;
 use crate::program_manager::config::program_launcher_config::PartialProgramLauncherConfig;
 use crate::program_manager::config::program_launcher_config::ProgramLauncherConfig;
 use crate::program_manager::config::program_loader_config::PartialProgramLoaderConfig;
 use crate::program_manager::config::program_loader_config::ProgramLoaderConfig;
-use crate::program_manager::SearchModel;
+use crate::program_manager::SearchModelConfig;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-
-use super::image_loader_config::PartialImageLoaderConfig;
-use super::image_loader_config::RuntimeImageLoaderConfig;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PartialProgramManagerConfig {
     pub launcher: Option<PartialProgramLauncherConfig>,
     pub loader: Option<PartialProgramLoaderConfig>,
     pub image_loader: Option<PartialImageLoaderConfig>,
-    pub search_model: Option<Arc<SearchModel>>,
+    pub search_model: Option<Arc<SearchModelConfig>>,
 }
 
 #[derive(Debug)]
@@ -24,7 +24,7 @@ pub struct ProgramManagerConfigInner {
     pub launcher_config: Arc<ProgramLauncherConfig>,
     pub loader_config: Arc<ProgramLoaderConfig>,
     pub image_loader: Arc<ImageLoaderConfig>,
-    pub search_model: Arc<SearchModel>,
+    pub search_model: Arc<SearchModelConfig>,
 }
 
 impl Default for ProgramManagerConfigInner {
@@ -33,7 +33,7 @@ impl Default for ProgramManagerConfigInner {
             launcher_config: Arc::new(ProgramLauncherConfig::default()),
             loader_config: Arc::new(ProgramLoaderConfig::default()),
             image_loader: Arc::new(ImageLoaderConfig::default()),
-            search_model: Arc::new(SearchModel::default()),
+            search_model: Arc::new(SearchModelConfig::default()),
         }
     }
 }
@@ -93,7 +93,7 @@ impl ProgramManagerConfig {
         self.inner.read().image_loader.clone()
     }
 
-    pub fn get_search_model(&self) -> Arc<SearchModel> {
+    pub fn get_search_model_config(&self) -> Arc<SearchModelConfig> {
         self.inner.read().search_model.clone()
     }
 
@@ -107,4 +107,6 @@ impl ProgramManagerConfig {
 pub struct RuntimeProgramConfig {
     /// 图片加载器的配置
     pub image_loader_config: RuntimeImageLoaderConfig,
+    /// 模型管理器，用于语义搜索
+    pub model_manager: Option<Arc<ModelManager>>,
 }

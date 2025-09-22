@@ -341,6 +341,9 @@ const search_model = computed(() => [
     }, {
         value: 'launchy',
         label: t('program_index.launchyqt_algorithm'),
+    }, {
+        value: 'semantic',
+        label: '语义搜索'
     }
 ])
 

@@ -273,6 +273,11 @@ async fn init_app_state(app: &mut App) {
     }
 
     // === 阶段4: 程序管理器初始化 ===
+    // 初始化模型管理器
+    let model_manager = Arc::new(crate::core::ai::model_manager::ModelManager::new());
+    state.set_model_manager(model_manager.clone());
+    debug!("模型管理器初始化并设置完成");
+
     let runtime_program_config = RuntimeProgramConfig {
         image_loader_config: RuntimeImageLoaderConfig {
             default_app_icon_path: APP_PIC_PATH
@@ -286,6 +291,7 @@ async fn init_app_state(app: &mut App) {
                 .value()
                 .clone(),
         },
+        model_manager: Some(model_manager),
     };
 
     let program_manager = ProgramManager::new(runtime_program_config);

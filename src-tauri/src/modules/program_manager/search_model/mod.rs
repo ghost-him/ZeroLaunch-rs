@@ -1,3 +1,4 @@
+pub mod ai_fuzzy_search_model;
 pub mod launchy_search_model;
 pub mod skim_search_model;
 pub mod standard_search_model;
@@ -5,10 +6,9 @@ use crate::program_manager::search_model::launchy_search_model::LaunchyScorer;
 use crate::program_manager::search_model::skim_search_model::SkimScorer;
 use crate::program_manager::search_model::standard_search_model::StandardScorer;
 use crate::program_manager::Program;
+use crate::program_manager::SemanticManager;
 use core::f64;
-use serde::{de, Deserializer, Serializer};
 use serde::{Deserialize, Serialize};
-use std::fmt;
 /// SearchModel 表示一个综合的搜索模型
 ///
 /// Preprocessor 表示一个预处理函数，会在加载程序，和预处理用户输入时使用。
@@ -31,80 +31,89 @@ pub trait Scorer: Send + Sync + std::fmt::Debug {
     fn calculate_score(&self, program: &Arc<Program>, user_input: &str) -> f64;
 }
 
-#[derive(Debug)]
-pub enum SearchModel {
-    Skim(Box<SkimScorer>),
-    Standard(StandardScorer),
-    Launchy(LaunchyScorer),
+/// 搜索模型的配置信息（用于序列化/反序列化）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum SearchModelConfig {
+    #[serde(rename = "skim")]
+    Skim,
+    #[serde(rename = "standard")]
+    Standard,
+    #[serde(rename = "launchy")]
+    Launchy,
+    #[serde(rename = "semantic")]
+    Semantic,
+}
+
+impl SearchModelConfig {
+    /// 判断当前配置是否属于传统搜索模型
+    pub fn is_traditional_search(&self) -> bool {
+        matches!(
+            self,
+            SearchModelConfig::Skim | SearchModelConfig::Standard | SearchModelConfig::Launchy
+        )
+    }
+}
+
+impl Default for SearchModelConfig {
+    fn default() -> Self {
+        SearchModelConfig::Standard
+    }
+}
+
+/// 搜索模型工厂
+pub struct SearchModelFactory;
+impl SearchModelFactory {
+    /// 根据配置创建具体的 Scorer 实例
+    pub fn create_scorer(
+        config: Arc<SearchModelConfig>,
+        _semantic_manager: Option<Arc<SemanticManager>>,
+    ) -> SearchModel {
+        let scorer: Arc<dyn Scorer> = match config.as_ref() {
+            SearchModelConfig::Skim => Arc::new(SkimScorer::new()),
+            SearchModelConfig::Standard => Arc::new(StandardScorer::new()),
+            SearchModelConfig::Launchy => Arc::new(LaunchyScorer::new()),
+            // SearchModelConfig::Semantic => {
+            //     let semantic_manager = semantic_manager
+            //         .expect_programming("semantic搜索模型需要语义管理器");
+            //     Arc::new(SemanticScorer::new(semantic_manager))
+            // }
+            _ => {
+                panic!("当前代码不应该执行到这里！！！");
+            }
+        };
+
+        SearchModel::new(scorer)
+    }
+}
+
+pub struct SearchModel {
+    scorer: Arc<dyn Scorer>,
+}
+
+impl SearchModel {
+    /// 创建一个新的 SearchModel 实例
+    pub fn new(scorer: Arc<dyn Scorer>) -> Self {
+        SearchModel { scorer }
+    }
 }
 
 impl Default for SearchModel {
     fn default() -> Self {
-        SearchModel::Standard(StandardScorer::new())
+        SearchModel::new(Arc::new(StandardScorer::new()))
     }
 }
 
 impl Scorer for SearchModel {
     fn calculate_score(&self, program: &Arc<Program>, user_input: &str) -> f64 {
-        match self {
-            SearchModel::Launchy(scorer) => scorer.calculate_score(program, user_input),
-            SearchModel::Skim(scorer) => scorer.calculate_score(program, user_input),
-            SearchModel::Standard(scorer) => scorer.calculate_score(program, user_input),
-        }
+        self.scorer.calculate_score(program, user_input)
     }
 }
 
-impl Serialize for SearchModel {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        // 使用 match 匹配不同的变体，并序列化为对应的字符串
-        match *self {
-            SearchModel::Skim(_) => serializer.serialize_str("skim"),
-            SearchModel::Standard(_) => serializer.serialize_str("standard"),
-            SearchModel::Launchy(_) => serializer.serialize_str("launchy"),
-        }
-    }
-}
-
-// 2. 手动实现 Deserialize
-impl<'de> Deserialize<'de> for SearchModel {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        // 定义一个 Visitor 来处理反序列化逻辑
-        struct SearchModelVisitor;
-
-        impl de::Visitor<'_> for SearchModelVisitor {
-            type Value = SearchModel;
-
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str(
-                    "a string representing a search model: 'skim', 'standard', or 'launchy'",
-                )
-            }
-
-            // 当 serde 遇到一个字符串时，会调用这个方法
-            fn visit_str<E>(self, value: &str) -> Result<SearchModel, E>
-            where
-                E: de::Error,
-            {
-                match value {
-                    "skim" => Ok(SearchModel::Skim(Box::new(SkimScorer::new()))),
-                    "standard" => Ok(SearchModel::Standard(StandardScorer::new())),
-                    "launchy" => Ok(SearchModel::Launchy(LaunchyScorer::new())),
-                    _ => Err(de::Error::unknown_variant(
-                        value,
-                        &["skim", "standard", "launchy"],
-                    )),
-                }
-            }
-        }
-
-        // 告诉 serde 我们期望一个字符串，并使用我们的 Visitor 来处理它
-        deserializer.deserialize_str(SearchModelVisitor)
+impl std::fmt::Debug for SearchModel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SearchModel")
+            .field("scorer", &"Arc<dyn Scorer>")
+            .finish()
     }
 }
 

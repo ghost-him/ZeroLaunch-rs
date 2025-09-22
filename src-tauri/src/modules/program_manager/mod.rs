@@ -5,20 +5,24 @@ pub mod pinyin_mapper;
 pub mod program_launcher;
 pub mod program_loader;
 pub mod search_model;
+pub mod semantic_manager;
+use crate::program_manager::search_engine::TraditionalSearchEngine;
+pub mod search_engine;
 pub mod unit;
 pub mod window_activator;
 use crate::core::image_processor::ImageProcessor;
 use crate::error::OptionExt;
 use crate::modules::program_manager::config::program_manager_config::RuntimeProgramConfig;
+use crate::modules::program_manager::search_engine::{SearchEngine, SemanticSearchEngine};
 use crate::program_manager::config::program_manager_config::ProgramManagerConfig;
 use crate::program_manager::search_model::*;
+use crate::program_manager::semantic_manager::SemanticManager;
 use crate::program_manager::unit::*;
 use config::program_manager_config::PartialProgramManagerConfig;
 use dashmap::DashMap;
 use image_loader::ImageLoader;
 use program_launcher::ProgramLauncher;
 use program_loader::ProgramLoader;
-use rayon::prelude::*;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::RwLock;
@@ -35,16 +39,19 @@ pub struct ProgramManager {
     program_loader: Arc<ProgramLoader>,
     /// 程序启动器
     program_launcher: Arc<ProgramLauncher>,
-    /// 当前程序的搜索模型
-    search_model: Arc<RwLock<Arc<SearchModel>>>,
+    /// 当前程序的搜索引擎
+    search_engine: Arc<RwLock<Arc<dyn SearchEngine>>>,
     /// 图标获取器
     image_loader: Arc<ImageLoader>,
     /// 窗口唤醒器
     window_activator: Arc<WindowActivator>,
+    /// 语义生成器
+    semantic_manager: Option<Arc<SemanticManager>>,
 }
 
 /// 内部搜索结果，包含分数和程序ID
-struct SearchMatchResult {
+#[derive(Debug)]
+pub(crate) struct SearchMatchResult {
     score: f64,
     program_guid: u64,
 }
@@ -52,14 +59,16 @@ struct SearchMatchResult {
 impl ProgramManager {
     /// 初始化，空
     pub fn new(runtime_program_config: RuntimeProgramConfig) -> Self {
+        let semantic_manager = Arc::new(SemanticManager::new(runtime_program_config.model_manager));
         ProgramManager {
             program_registry: Arc::new(RwLock::new(Vec::new())),
-            program_loader: Arc::new(ProgramLoader::new()),
+            program_loader: Arc::new(ProgramLoader::new(Some(semantic_manager.clone()))),
             program_launcher: Arc::new(ProgramLauncher::new()),
-            search_model: Arc::new(RwLock::new(Arc::new(SearchModel::default()))),
+            search_engine: Arc::new(RwLock::new(Arc::new(TraditionalSearchEngine::default()))),
             image_loader: Arc::new(ImageLoader::new(runtime_program_config.image_loader_config)),
             program_locater: Arc::new(DashMap::new()),
             window_activator: Arc::new(WindowActivator::new()),
+            semantic_manager: Some(semantic_manager),
         }
     }
     pub async fn get_runtime_data(&self) -> PartialProgramManagerConfig {
@@ -104,7 +113,22 @@ impl ProgramManager {
             self.program_locater.insert(program.program_guid, index);
         }
 
-        *self.search_model.write().await = config.get_search_model();
+        // 更新搜索模型
+        let search_config = config.get_search_model_config(); // 返回 SearchModelConfig
+
+        let search_engine: Arc<dyn SearchEngine> = if search_config.is_traditional_search() {
+            let new_search_model = SearchModelFactory::create_scorer(search_config, None);
+            Arc::new(TraditionalSearchEngine::new(Arc::new(new_search_model)))
+        } else {
+            Arc::new(SemanticSearchEngine::new(
+                self.semantic_manager
+                    .clone()
+                    .expect_programming("语义模型未初始化"),
+            ))
+        };
+
+        let mut search_engine_lock = self.search_engine.write().await;
+        *search_engine_lock = search_engine;
     }
 
     /// 使用搜索算法搜索，并给出指定长度的序列
@@ -285,25 +309,10 @@ impl ProgramManager {
         let launcher = &self.program_launcher;
 
         let program_registry = self.program_registry.read().await;
-        let search_model = self.search_model.read().await;
+        let search_engine = self.search_engine.read().await;
         // 计算所有程序的匹配分数
-        let mut match_scores: Vec<SearchMatchResult> = program_registry
-            .par_iter()
-            .map(|program| {
-                // 基础匹配分数
-                let mut score = search_model.calculate_score(program, &user_input);
-                // 加上固定偏移量
-                score += program.stable_bias;
-                // 加上动态偏移量
-                score += launcher.program_dynamic_value_based_launch_time(program.program_guid);
-
-                SearchMatchResult {
-                    score,
-                    program_guid: program.program_guid,
-                }
-            })
-            .collect();
-
+        let mut match_scores: Vec<SearchMatchResult> =
+            search_engine.perform_search(&user_input, program_registry.as_ref(), launcher);
         // 按分数降序排序
         match_scores.sort_by(|a, b| {
             b.score

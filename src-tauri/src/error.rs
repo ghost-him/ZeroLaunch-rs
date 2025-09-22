@@ -76,6 +76,10 @@ pub enum AppError {
     #[error("序列化错误: {0}")]
     SerdeError(#[from] serde_json::Error),
 
+    /// ONNX Runtime错误 - AI模型相关
+    #[error("AI模型错误: {0}")]
+    OrtError(#[from] ort::Error),
+
     /// 图片处理错误
     #[error("图片处理错误: {message}")]
     ImageProcessingError { message: String },

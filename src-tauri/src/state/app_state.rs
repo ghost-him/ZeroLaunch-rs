@@ -1,3 +1,4 @@
+use crate::core::ai::model_manager::ModelManager;
 use crate::core::storage::storage_manager::StorageManager;
 use crate::error::OptionExt;
 use crate::modules::shortcut_manager::ShortcutManager;
@@ -34,6 +35,8 @@ pub struct AppState {
     game_mode: RwLock<bool>,
     /// 阻止所有的键盘输入
     is_keyboard_blocked: RwLock<bool>,
+    /// 模型管理器
+    model_manager: RwLock<Option<Arc<ModelManager>>>,
 }
 
 impl Default for AppState {
@@ -57,6 +60,7 @@ impl AppState {
             shortcut_manager: RwLock::new(None),
             game_mode: RwLock::new(false),
             is_keyboard_blocked: RwLock::new(false),
+            model_manager: RwLock::new(None),
         }
     }
 
@@ -185,6 +189,18 @@ impl AppState {
     pub fn get_is_keyboard_blocked(&self) -> bool {
         *self.is_keyboard_blocked.read()
     }
+
+    // region: Model Manager 访问方法
+    /// 获取模型管理器的克隆
+    pub fn get_model_manager(&self) -> Option<Arc<ModelManager>> {
+        self.model_manager.read().as_ref().cloned()
+    }
+
+    /// 更新模型管理器
+    pub fn set_model_manager(&self, manager: Arc<ModelManager>) {
+        *self.model_manager.write() = Some(manager);
+    }
+    // endregion
 }
 
 // Custom Debug implementation for AppState

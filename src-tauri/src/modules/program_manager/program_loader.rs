@@ -50,14 +50,14 @@ struct GuidGenerator {
 impl GuidGenerator {
     pub fn new() -> Self {
         GuidGenerator {
-            next_id: AtomicU64::new(1),
+            next_id: AtomicU64::new(0),
         }
     }
     pub fn get_guid(&self) -> u64 {
-        let ret = self
+        
+        self
             .next_id
-            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        ret
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst)
     }
 }
 

@@ -1,14 +1,7 @@
 pub mod embedding_gemma;
-pub mod paraphrase_multilingual_miniml;
 use std::fmt::Debug;
 
-use crate::core::ai::{
-    embedding_model::{
-        embedding_gemma::EmbeddingGemmaModel,
-        paraphrase_multilingual_miniml::ParaphraseMultilingualMiniLM,
-    },
-    OnnxModelConfig,
-};
+use crate::core::ai::{embedding_model::embedding_gemma::EmbeddingGemmaModel, OnnxModelConfig};
 use crate::Arc;
 use ndarray::{Array1, ArrayView1};
 use parking_lot::Mutex;
@@ -45,14 +38,12 @@ pub trait EmbeddingModel: Debug + Send + Sync {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum EmbeddingModelType {
     EmbeddingGemma,
-    //ParaphraseMultilingualMiniLM,
 }
 
 impl EmbeddingModelType {
     fn get_config(&self) -> OnnxModelConfig {
         match self {
             EmbeddingModelType::EmbeddingGemma => EmbeddingGemmaModel::get_default_config(),
-            //EmbeddingModelType::ParaphraseMultilingualMiniLM => ParaphraseMultilingualMiniLM::get_default_config(),
         }
     }
 
@@ -61,7 +52,6 @@ impl EmbeddingModelType {
             EmbeddingModelType::EmbeddingGemma => Ok(Arc::new(Mutex::new(
                 EmbeddingGemmaModel::new(self.get_config())?,
             ))),
-            //EmbeddingModelType::ParaphraseMultilingualMiniLM => Ok(Arc::new(Mutex::new(ParaphraseMultilingualMiniLM::new(self.get_config())?))),
         }
     }
 }

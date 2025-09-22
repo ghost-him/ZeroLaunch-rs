@@ -1,7 +1,6 @@
 // ai模型加载器
 use crate::core::ai::embedding_model::EmbeddingModel;
 use crate::core::ai::embedding_model::EmbeddingModelType;
-use crate::core::ai::text_generation_model::TextGenerationModelType;
 use crate::core::ai::GraphOptimizationLevel;
 use crate::core::ai::OnnxModelConfig;
 use crate::Arc;
@@ -14,6 +13,12 @@ use tracing::info;
 use tracing::warn;
 #[derive(Debug)]
 pub struct AILoader {}
+
+impl Default for AILoader {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl AILoader {
     pub fn new() -> Self {

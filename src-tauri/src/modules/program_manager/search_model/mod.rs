@@ -33,10 +33,12 @@ pub trait Scorer: Send + Sync + std::fmt::Debug {
 
 /// 搜索模型的配置信息（用于序列化/反序列化）
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum SearchModelConfig {
     #[serde(rename = "skim")]
     Skim,
     #[serde(rename = "standard")]
+    #[default]
     Standard,
     #[serde(rename = "launchy")]
     Launchy,
@@ -54,11 +56,6 @@ impl SearchModelConfig {
     }
 }
 
-impl Default for SearchModelConfig {
-    fn default() -> Self {
-        SearchModelConfig::Standard
-    }
-}
 
 /// 搜索模型工厂
 pub struct SearchModelFactory;

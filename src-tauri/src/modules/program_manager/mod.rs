@@ -204,7 +204,7 @@ impl ProgramManager {
         let index = *self
             .program_locater
             .get(program_guid)
-            .expect_programming("程序定位器中未找到程序GUID");
+            .expect_programming(&format!("程序定位器中未找到程序GUID:{}", program_guid));
         let program_registry = self.program_registry.read().await;
         let target_program = &program_registry[index];
         let mut result = self.image_loader.load_image(target_program.clone()).await;

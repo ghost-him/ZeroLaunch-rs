@@ -275,7 +275,7 @@ impl ImageProcessor {
                             })?;
                     Ok(png_data)
                 }
-                Err(svg_error) => {
+                Err(_) => {
                     // 解析 SVG 失败，或它不是 SVG。回退到原始的 image crate 逻辑。
                     let img_reader = image::ImageReader::new(Cursor::new(image_data))
                         .with_guessed_format()

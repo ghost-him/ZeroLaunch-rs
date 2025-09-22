@@ -3,16 +3,20 @@
 use crate::core::ai::ai_loader::AILoader;
 use crate::core::ai::embedding_model::EmbeddingModel;
 use crate::core::ai::embedding_model::EmbeddingModelType;
-use crate::core::ai::text_generation_model::TextGenerationModelType;
 use crate::Arc;
 use dashmap::DashMap;
 use parking_lot::Mutex;
-use std::collections::HashMap;
 #[derive(Debug)]
 pub struct ModelManager {
     ai_loader: AILoader,
     //text_generation_models: HashMap<TextGenerationModelType, Arc<Mutex<TextGenerationModel>>>,
     embedding_models: DashMap<EmbeddingModelType, Arc<Mutex<dyn EmbeddingModel>>>,
+}
+
+impl Default for ModelManager {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ModelManager {

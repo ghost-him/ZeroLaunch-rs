@@ -22,7 +22,7 @@ pub(crate) trait SearchEngine: std::fmt::Debug + Send + Sync {
     fn perform_search(
         &self,
         user_input: &str,
-        programs: &Vec<Arc<Program>>,
+        programs: &[Arc<Program>],
         program_launcher: &ProgramLauncher,
     ) -> Vec<SearchMatchResult>;
 }
@@ -50,7 +50,7 @@ impl SearchEngine for TraditionalSearchEngine {
     fn perform_search(
         &self,
         user_input: &str,
-        programs: &Vec<Arc<Program>>,
+        programs: &[Arc<Program>],
         program_launcher: &ProgramLauncher,
     ) -> Vec<SearchMatchResult> {
         // 预处理用户输入
@@ -94,7 +94,7 @@ impl SearchEngine for SemanticSearchEngine {
     fn perform_search(
         &self,
         user_input: &str,
-        programs: &Vec<Arc<Program>>,
+        programs: &[Arc<Program>],
         _program_launcher: &ProgramLauncher, // 语义搜索暂时不考虑动态分数
     ) -> Vec<SearchMatchResult> {
         let user_input = user_input.to_lowercase();

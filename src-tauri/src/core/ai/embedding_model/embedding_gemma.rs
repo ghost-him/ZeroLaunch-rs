@@ -1,4 +1,3 @@
-use crate::commands::debug;
 use crate::core::ai::ai_loader::setup_session_and_tokenizer;
 use crate::core::ai::embedding_model::{Array1, ArrayView1};
 use crate::core::ai::{embedding_model::EmbeddingModel, OnnxModelConfig};
@@ -116,17 +115,8 @@ impl EmbeddingModel for EmbeddingGemmaModel {
             return 0.0;
         }
 
-        // 使用ndarray的高效向量运算
-        let dot_product = embedding1.dot(&embedding2);
-        let norm1 = embedding1.dot(&embedding1).sqrt();
-        let norm2 = embedding2.dot(&embedding2).sqrt();
-
-        if norm1 == 0.0 || norm2 == 0.0 {
-            return 0.0;
-        }
-
-        // 返回百分比形式的余弦相似度
-        (dot_product / (norm1 * norm2)) * 100.0
+        // 直接计算点积并返回百分比形式
+        embedding1.dot(&embedding2) * 100.0
     }
 
     fn update_backend(&mut self, new_config: OnnxModelConfig) -> ort::Result<()> {

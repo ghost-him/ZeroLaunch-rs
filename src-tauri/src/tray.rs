@@ -138,21 +138,24 @@ fn build_tray_menu<R: Runtime>(app_handle: &AppHandle<R>) -> tauri::Result<Menu<
             "打开设置界面",
             load_icon_or_panic("settings"),
         )
+        .separator()
         .icon(
             MENU_ID_UPDATE_APP_SETTING,
             "刷新数据库",
             load_icon_or_panic("refresh"),
         )
+        .separator()
         .icon(
             MENU_ID_RETRY_REGISTER_SHORTCUT,
             "重新注册快捷键",
             load_icon_or_panic("register"),
         )
+        .separator()
         .icon(
             MENU_ID_SWITCH_GAME_MODE,
             "开启游戏模式", // Initial text, will be updated
             load_icon_or_panic("game"),
-        )
+        ).separator()
         .icon(MENU_ID_EXIT_PROGRAM, "退出程序", load_icon_or_panic("exit"))
         .build()
 }

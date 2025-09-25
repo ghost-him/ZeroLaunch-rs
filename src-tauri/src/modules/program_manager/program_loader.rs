@@ -54,8 +54,7 @@ impl GuidGenerator {
         }
     }
     pub fn get_guid(&self) -> u64 {
-        self
-            .next_id
+        self.next_id
             .fetch_add(1, std::sync::atomic::Ordering::SeqCst)
     }
 }

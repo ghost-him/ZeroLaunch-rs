@@ -238,7 +238,9 @@ pub async fn open_target_folder<R: Runtime>(
     Ok(true)
 }
 
+
 #[tauri::command]
+#[allow(clippy::zombie_processes)]
 pub async fn command_open_models_dir<R: Runtime>(
     _app: tauri::AppHandle<R>,
     _window: tauri::Window<R>,

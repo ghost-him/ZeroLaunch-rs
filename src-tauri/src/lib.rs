@@ -383,11 +383,6 @@ fn register_icon_path(app: &mut App) {
         ("web_pages", "web_pages.png"),
         ("tips", "tips.png"),
         ("terminal", "terminal.png"),
-        ("settings", "settings.ico"),
-        ("refresh", "refresh.ico"),
-        ("register", "register.ico"),
-        ("game", "game.ico"),
-        ("exit", "exit.ico"),
     ];
 
     for (key_name, file_name) in icons_to_register.iter() {
@@ -463,18 +458,26 @@ async fn update_app_setting() {
     let program_manager = state.get_program_manager();
     let storage_manager = state.get_storage_manager();
     // 获取当前最新的描述信息的内容
-    let semantic_store_str = match storage_manager.download_file_str(SEMANTIC_DESCRIPTION_FILE_NAME.to_string()).await {
+    let semantic_store_str = match storage_manager
+        .download_file_str(SEMANTIC_DESCRIPTION_FILE_NAME.to_string())
+        .await
+    {
         Some(data) => data,
         None => {
             // 如果没有获取到，则使用空的json对象，同时上传这个
             let ret = "{}".to_string();
-            storage_manager.upload_file_str(SEMANTIC_DESCRIPTION_FILE_NAME.to_string(), ret.clone()).await;
+            storage_manager
+                .upload_file_str(SEMANTIC_DESCRIPTION_FILE_NAME.to_string(), ret.clone())
+                .await;
             ret
         }
     };
 
     program_manager
-        .load_from_config(runtime_config.get_program_manager_config(), Some(semantic_store_str))
+        .load_from_config(
+            runtime_config.get_program_manager_config(),
+            Some(semantic_store_str),
+        )
         .await;
 
     // 3. 判断要不要开机自启动

@@ -2,12 +2,9 @@ use crate::logging::log_application_shutdown;
 use std::sync::Arc;
 use tauri::{
     image::Image,
-    menu::{IconMenuItem, Menu, MenuBuilder}, // Added MenuItem for direct access
-    tray::{TrayIcon, TrayIconBuilder, TrayIconEvent}, // Added TrayIcon for type hint
-    App,
-    AppHandle,
-    Manager,
-    Runtime, // Added AppHandle
+    menu::{CheckMenuItem, Menu, MenuBuilder, MenuItem},
+    tray::{TrayIcon, TrayIconBuilder, TrayIconEvent},
+    App, AppHandle, Manager, Runtime,
 };
 use tracing::{debug, warn};
 
@@ -49,15 +46,7 @@ impl From<&str> for MenuEventId {
     }
 }
 
-// --- Helper function to load icons ---
-fn load_icon_or_panic(name: &str) -> Image<'_> {
-    let path = APP_PIC_PATH
-        .get(name)
-        .expect_programming(&format!("图标路径 '{}' 在 APP_PIC_PATH 中未找到", name))
-        .clone();
-    Image::from_path(&path)
-        .expect_programming(&format!("无法从路径 {:?} 加载图标 '{}'", path, name))
-}
+// 原先用于菜单图标的辅助函数已移除；托盘菜单现在不使用图标。
 
 // --- Menu Item Handlers ---
 
@@ -99,7 +88,7 @@ fn handle_register_shortcut() {
     }
 }
 
-fn handle_switch_game_mode<R: Runtime>(game_mode_item: &IconMenuItem<R>) {
+fn handle_switch_game_mode<R: Runtime>(game_mode_item: &CheckMenuItem<R>) {
     let state = ServiceLocator::get_state();
     let shortcut_manager = state.get_shortcut_manager();
 
@@ -130,33 +119,56 @@ fn handle_switch_game_mode<R: Runtime>(game_mode_item: &IconMenuItem<R>) {
 
 // --- Tray Menu and Icon Creation ---
 
-/// Builds the system tray menu.
+/// 使用 MenuItem::with_id 与 CheckMenuItem::with_id 构建系统托盘菜单（无图标）。
 fn build_tray_menu<R: Runtime>(app_handle: &AppHandle<R>) -> tauri::Result<Menu<R>> {
+    // 读取当前游戏模式状态以初始化复选项
+    let game_mode = ServiceLocator::get_state().get_game_mode();
+
+    let show_settings = MenuItem::with_id(
+        app_handle,
+        MENU_ID_SHOW_SETTINGS,
+        "打开设置界面",
+        true,
+        None::<&str>,
+    )?;
+    let update_app_setting = MenuItem::with_id(
+        app_handle,
+        MENU_ID_UPDATE_APP_SETTING,
+        "刷新数据库",
+        true,
+        None::<&str>,
+    )?;
+    let retry_shortcut = MenuItem::with_id(
+        app_handle,
+        MENU_ID_RETRY_REGISTER_SHORTCUT,
+        "重新注册快捷键",
+        true,
+        None::<&str>,
+    )?;
+    let game_mode_item = CheckMenuItem::with_id(
+        app_handle,
+        MENU_ID_SWITCH_GAME_MODE,
+        "游戏模式 (禁用全局快捷键)",
+        true,
+        game_mode,
+        None::<&str>,
+    )?;
+    let exit_program = MenuItem::with_id(
+        app_handle,
+        MENU_ID_EXIT_PROGRAM,
+        "退出程序",
+        true,
+        None::<&str>,
+    )?;
+
     MenuBuilder::new(app_handle)
-        .icon(
-            MENU_ID_SHOW_SETTINGS,
-            "打开设置界面",
-            load_icon_or_panic("settings"),
-        )
+        .item(&show_settings)
         .separator()
-        .icon(
-            MENU_ID_UPDATE_APP_SETTING,
-            "刷新数据库",
-            load_icon_or_panic("refresh"),
-        )
+        .item(&update_app_setting)
+        .item(&retry_shortcut)
+        .item(&game_mode_item)
         .separator()
-        .icon(
-            MENU_ID_RETRY_REGISTER_SHORTCUT,
-            "重新注册快捷键",
-            load_icon_or_panic("register"),
-        )
-        .separator()
-        .icon(
-            MENU_ID_SWITCH_GAME_MODE,
-            "开启游戏模式", // Initial text, will be updated
-            load_icon_or_panic("game"),
-        ).separator()
-        .icon(MENU_ID_EXIT_PROGRAM, "退出程序", load_icon_or_panic("exit"))
+        .item(&exit_program)
         .build()
 }
 
@@ -195,10 +207,10 @@ fn create_tray_icon<R: Runtime>(app_handle: &AppHandle, menu: Menu<R>) -> tauri:
                 MenuEventId::RegisterShortcut => handle_register_shortcut(),
                 MenuEventId::SwitchGameMode => {
                     if let Some(item) = menu.get(MENU_ID_SWITCH_GAME_MODE) {
-                        if let Some(menu_item) = item.as_icon_menuitem() {
+                        if let Some(menu_item) = item.as_check_menuitem() {
                             handle_switch_game_mode(menu_item);
                         } else {
-                            warn!("'Switch Game Mode' menu item is not a standard MenuItem.");
+                            warn!("'Switch Game Mode' menu item is not a CheckMenuItem.");
                         }
                     } else {
                         warn!("Could not find 'Switch Game Mode' menu item by ID.");

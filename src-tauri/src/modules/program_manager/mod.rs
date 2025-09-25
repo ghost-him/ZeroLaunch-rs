@@ -85,7 +85,8 @@ impl ProgramManager {
             .map(|m| m.get_runtime_data())
             .unwrap_or_default();
 
-        let semantic_store_str = serde_json::to_string_pretty(&semantic_store).expect_programming("该结构体在格式化时不应该出错");
+        let semantic_store_str = serde_json::to_string_pretty(&semantic_store)
+            .expect_programming("该结构体在格式化时不应该出错");
 
         ProgramManagerRuntimeData {
             semantic_store_str,
@@ -132,10 +133,9 @@ impl ProgramManager {
         // 更新一下semantic_store，将所有不在semantic_store中的程序添加进去，描述为空
         new_programs.iter().for_each(|program| {
             let key = program.launch_method.get_text();
-            if !semantic_store.contains_key(&key) {
-                let semantic_item = SemanticStoreItem::new(program.clone());
-                semantic_store.insert(key, semantic_item);
-            }
+            semantic_store
+                .entry(key)
+                .or_insert_with(|| SemanticStoreItem::new(program.clone()));
         });
 
         if let Some(semantic_manager) = &self.semantic_manager {

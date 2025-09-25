@@ -1,9 +1,9 @@
 // 存放辅助型的小类型
 use crate::core::image_processor::ImageIdentity;
-use ndarray::Array1;
-use std::sync::Arc;
-use serde::{Deserialize, Serialize};
 use crate::program_manager::PartialProgramManagerConfig;
+use ndarray::Array1;
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum LaunchMethod {
     /// 通过文件路径来启动
@@ -68,7 +68,6 @@ pub struct SearchTestResult {
     /// 匹配的权重值
     pub score: f64,
 }
-
 
 /// 表示语义信息的存储项
 #[derive(Debug, Serialize, Deserialize, Clone)]

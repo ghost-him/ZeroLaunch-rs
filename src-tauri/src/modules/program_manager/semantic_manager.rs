@@ -2,12 +2,16 @@ use crate::core::ai::embedding_model::embedding_gemma::EmbeddingGemmaModel;
 use crate::core::ai::embedding_model::{EmbeddingModel, EmbeddingModelType};
 use crate::core::ai::model_manager::ModelManager;
 use crate::error::AppResult;
+use crate::modules::program_manager::unit::Program;
 use crate::program_manager::LaunchMethod;
+use std::collections::HashMap;
+use crate::program_manager::SemanticStoreItem;
 /// 这个语义管理器用于：
 /// 生成embedding向量
 /// 管理程序的描述性信息
 use ndarray::Array1;
 use ndarray::ArrayView1;
+use parking_lot::RwLock;
 use std::sync::Arc;
 use tracing::debug;
 pub trait GenerateEmbeddingForLoader {
@@ -24,14 +28,37 @@ pub trait GenerateEmbeddingForManager {
     fn generate_embedding_for_manager(&self, user_input: &str) -> AppResult<Array1<f32>>;
 }
 
+
 #[derive(Debug)]
 pub struct SemanticManager {
+    // 这个变量用于存储语义描述的信息(launch_method, semantic_item)
+    semantic_store: Arc<RwLock<HashMap<String, SemanticStoreItem>>>,
     model_manager: Option<Arc<ModelManager>>,
 }
 
 impl SemanticManager {
-    pub fn new(model_manager: Option<Arc<ModelManager>>) -> Self {
-        Self { model_manager }
+    pub fn new(model_manager: Option<Arc<ModelManager>>, semantic_store: HashMap<String, SemanticStoreItem>) -> Self {
+        let semantic_store = Arc::new(RwLock::new(semantic_store));
+
+        Self {
+            semantic_store,
+            model_manager,
+        }
+    }
+
+    pub fn get_semantic_descriptions(&self, launch_method: &LaunchMethod) -> String {
+        let key = launch_method.get_text();
+        self.semantic_store.read().get(&key).map(|item| item.description.clone()).unwrap_or_default()
+    }
+
+    pub fn update_semantic_store(&self, new_store: HashMap<String, SemanticStoreItem>) {
+        let mut store = self.semantic_store.write();
+        *store = new_store;
+    }
+
+    pub fn get_runtime_data(&self) -> HashMap<String, SemanticStoreItem> {
+        let store = self.semantic_store.read();
+        store.clone()
     }
 
     /// 基于模型类型计算相似度（更灵活的方案）

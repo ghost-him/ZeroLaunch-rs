@@ -11,7 +11,7 @@ pub mod search_engine;
 pub mod unit;
 pub mod window_activator;
 use crate::core::image_processor::ImageProcessor;
-use crate::error::OptionExt;
+use crate::error::{OptionExt, ResultExt};
 use crate::modules::program_manager::config::program_manager_config::RuntimeProgramConfig;
 use crate::modules::program_manager::search_engine::{SearchEngine, SemanticSearchEngine};
 use crate::program_manager::config::program_manager_config::ProgramManagerConfig;
@@ -23,6 +23,7 @@ use dashmap::DashMap;
 use image_loader::ImageLoader;
 use program_launcher::ProgramLauncher;
 use program_loader::ProgramLoader;
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::RwLock;
@@ -59,7 +60,10 @@ pub(crate) struct SearchMatchResult {
 impl ProgramManager {
     /// 初始化，空
     pub fn new(runtime_program_config: RuntimeProgramConfig) -> Self {
-        let semantic_manager = Arc::new(SemanticManager::new(runtime_program_config.model_manager));
+        let semantic_manager = Arc::new(SemanticManager::new(
+            runtime_program_config.model_manager,
+            HashMap::new(),
+        ));
         ProgramManager {
             program_registry: Arc::new(RwLock::new(Vec::new())),
             program_loader: Arc::new(ProgramLoader::new(Some(semantic_manager.clone()))),
@@ -71,17 +75,35 @@ impl ProgramManager {
             semantic_manager: Some(semantic_manager),
         }
     }
-    pub async fn get_runtime_data(&self) -> PartialProgramManagerConfig {
-        PartialProgramManagerConfig {
-            launcher: Some(self.program_launcher.get_runtime_data()),
-            loader: None,
-            image_loader: None,
-            search_model: None,
+    pub async fn get_runtime_data(&self) -> ProgramManagerRuntimeData {
+        // 这里我认为，semantic_store 是一个 HashMap<String, SemanticStoreItem>，而SemanticStoreItem是一个内部的类，它最好不要被外部的信息所接触
+        // 所以由ProgramManager来管理其实例化
+        // 而PartialProgramManagerConfig本身就是一个用于与外部通信的结构体，所以可以直接返回
+        let semantic_store = self
+            .semantic_manager
+            .as_ref()
+            .map(|m| m.get_runtime_data())
+            .unwrap_or_default();
+
+        let semantic_store_str = serde_json::to_string_pretty(&semantic_store).expect_programming("该结构体在格式化时不应该出错");
+
+        ProgramManagerRuntimeData {
+            semantic_store_str,
+            runtime_data: PartialProgramManagerConfig {
+                launcher: Some(self.program_launcher.get_runtime_data()),
+                loader: None,
+                image_loader: None,
+                search_model: None,
+            },
         }
     }
 
     /// 使用配置信息初始化自身与子模块
-    pub async fn load_from_config(&self, config: Arc<ProgramManagerConfig>) {
+    pub async fn load_from_config(
+        &self,
+        config: Arc<ProgramManagerConfig>,
+        semantic_store: Option<String>,
+    ) {
         let program_loader_config = &config.get_loader_config();
         let program_launcher_config = &config.get_launcher_config();
         let image_loader_config = &config.get_image_loader_config();
@@ -89,9 +111,36 @@ impl ProgramManager {
         self.image_loader
             .load_from_config(image_loader_config)
             .await;
+
+        // 先使用semantic_store初始化semantic_manager
+        // 这样使用program_loader就可以通过semantic_manager来得到不同的语义描述
+        let mut semantic_store = serde_json::from_str::<HashMap<String, SemanticStoreItem>>(
+            &semantic_store.unwrap_or_else(|| "{}".to_string()),
+        )
+        .unwrap_or_default();
+
+        if let Some(semantic_manager) = &self.semantic_manager {
+            semantic_manager.update_semantic_store(semantic_store.clone());
+        }
+
         self.program_loader.load_from_config(program_loader_config);
+
         // 加载程序数据
         let new_programs = self.program_loader.load_program();
+
+        // 之后再使用program_loader加载出来的程序再一次更新semantic_manager，因为这一次加载出来的程序可能会有新的程序
+        // 更新一下semantic_store，将所有不在semantic_store中的程序添加进去，描述为空
+        new_programs.iter().for_each(|program| {
+            let key = program.launch_method.get_text();
+            if !semantic_store.contains_key(&key) {
+                let semantic_item = SemanticStoreItem::new(program.clone());
+                semantic_store.insert(key, semantic_item);
+            }
+        });
+
+        if let Some(semantic_manager) = &self.semantic_manager {
+            semantic_manager.update_semantic_store(semantic_store);
+        }
 
         // 清空并更新程序注册表
         let mut program_registry = self.program_registry.write().await;

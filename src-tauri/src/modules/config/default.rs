@@ -31,6 +31,14 @@ lazy_static! {
         .expect_programming("Failed to convert path to string")
         .to_string()
     };
+    /// 模型文件的保存路径
+    pub static ref MODELS_DIR: String = {
+        Path::new(&*DATA_DIR_PATH)
+            .join("models")
+            .to_str()
+            .expect_programming("Failed to convert path to string")
+            .to_string()
+    };
     /// app使用到的图片的路径
     pub static ref APP_PIC_PATH: DashMap<String, String> = DashMap::new();
     /// 默认的配置信息

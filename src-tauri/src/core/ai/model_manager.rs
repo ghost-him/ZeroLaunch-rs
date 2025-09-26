@@ -37,12 +37,15 @@ impl ModelManager {
         &self,
         model_type: EmbeddingModelType,
     ) -> ort::Result<Arc<Mutex<dyn EmbeddingModel>>> {
-        if let Some(model) = self.embedding_models.get(&model_type) {
-            return Ok(model.clone());
+        use dashmap::mapref::entry::Entry;
+        match self.embedding_models.entry(model_type) {
+            Entry::Occupied(e) => Ok(e.get().clone()),
+            Entry::Vacant(v) => {
+                let model = self.ai_loader.load_embedding_model(model_type)?;
+                let cloned = model.clone();
+                v.insert(cloned.clone());
+                Ok(cloned)
+            }
         }
-
-        let model = self.ai_loader.load_embedding_model(model_type)?;
-        self.embedding_models.insert(model_type, model.clone());
-        Ok(model)
     }
 }

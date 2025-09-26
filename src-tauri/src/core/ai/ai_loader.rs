@@ -3,11 +3,14 @@ use crate::core::ai::embedding_model::EmbeddingModel;
 use crate::core::ai::embedding_model::EmbeddingModelType;
 use crate::core::ai::GraphOptimizationLevel;
 use crate::core::ai::OnnxModelConfig;
+use crate::error::OptionExt;
 use crate::Arc;
 use once_cell::sync::OnceCell;
 use ort::session::Session;
 use ort::Error;
 use parking_lot::Mutex;
+use ort::execution_providers::CPUExecutionProvider;
+use ort::execution_providers::XNNPACKExecutionProvider;
 use tokenizers::Tokenizer;
 use tracing::info;
 use tracing::warn;
@@ -20,16 +23,18 @@ impl Default for AILoader {
     }
 }
 
+static ORT_INIT: OnceCell<()> = OnceCell::new();
+
 impl AILoader {
     pub fn new() -> Self {
-        let once_cell = OnceCell::new();
-        let result = once_cell.get_or_try_init(|| {
-            info!("Initializing ORT...");
-            ort::init().commit()
+        // 全局只初始化一次 ORT
+        let _ = ORT_INIT.get_or_init(|| {
+            if let Err(e) = ort::init().commit() {
+                warn!("Failed to initialize ORT: {:?}", e);
+            } else {
+                info!("ORT initialized");
+            }
         });
-        if let Err(e) = result {
-            warn!("Failed to initialize ORT: {:?}", e);
-        }
         Self {}
     }
 
@@ -48,22 +53,40 @@ impl AILoader {
         model_type.generate_model()
     }
 }
-
 pub fn setup_session_and_tokenizer(config: &OnnxModelConfig) -> ort::Result<(Session, Tokenizer)> {
-    // 步骤1: 创建并配置 Session Builder
-    let session_builder = Session::builder()?
-        .with_optimization_level(GraphOptimizationLevel::Level3)?
-        .with_execution_providers([
-            ort::execution_providers::CUDAExecutionProvider::default().build(),
-            ort::execution_providers::DirectMLExecutionProvider::default().build(),
-            ort::execution_providers::XNNPACKExecutionProvider::default().build(),
-            ort::execution_providers::CPUExecutionProvider::default().build(),
-        ])?;
+    let mut session: Option<Session> = None;
+    // Attempt XNNPACK + CPU
+    if session.is_none() {
+        match Session::builder()
+            .and_then(|b| b.with_optimization_level(GraphOptimizationLevel::Level3))
+            .and_then(|b| {
+                b.with_execution_providers([
+                    XNNPACKExecutionProvider::default().build(),
+                    CPUExecutionProvider::default().build(),
+                ])
+            })
+            .and_then(|b| b.commit_from_file(&config.model_path))
+        {
+            Ok(s) => {
+                info!("Using execution providers: XNNPACK, CPU");
+                session = Some(s);
+            }
+            Err(e) => warn!("Failed to init XNNPACK, CPU providers: {:?}", e),
+        }
+    }
 
-    // 步骤 2: 加载模型
-    let session = session_builder.commit_from_file(&config.model_path)?;
+    // CPU Only
+    if session.is_none() {
+        info!("Falling back to CPU execution provider only");
+        session = Some(
+            Session::builder()?
+                .with_optimization_level(GraphOptimizationLevel::Level3)?
+                .with_execution_providers([CPUExecutionProvider::default().build()])?
+                .commit_from_file(&config.model_path)?,
+        );
+    }
 
-    // 步骤 3: 加载 Tokenizer
+    let session = session.expect_programming("CPU only session creation should never fail if we reached here");
     let tokenizer = Tokenizer::from_file(&config.tokenizer_path)
         .map_err(|e| Error::new(format!("Failed to load tokenizer: {}", e)))?;
 

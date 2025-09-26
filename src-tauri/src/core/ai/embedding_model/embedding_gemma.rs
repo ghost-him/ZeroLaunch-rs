@@ -137,9 +137,9 @@ impl EmbeddingModel for EmbeddingGemmaModel {
 
     fn get_default_config() -> OnnxModelConfig {
         OnnxModelConfig {
-            model_path: "EmbeddingGemma-300m/model.onnx".to_string(),
-            tokenizer_path: "EmbeddingGemma-300m/tokenizer.json".to_string(),
-            tokenizer_config_path: "EmbeddingGemma-300m/tokenizer_config.json".to_string(),
+            model_path: "models/EmbeddingGemma-300m/model.onnx".to_string(),
+            tokenizer_path: "models/EmbeddingGemma-300m/tokenizer.json".to_string(),
+            tokenizer_config_path: "models/EmbeddingGemma-300m/tokenizer_config.json".to_string(),
             ..Default::default()
         }
     }

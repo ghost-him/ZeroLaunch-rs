@@ -38,7 +38,8 @@
     ],
     "resources": [
       "icons/",
-      "locales/"
+      "locales/",
+      "models/readme.md"
     ],
     "targets": "all"
   },

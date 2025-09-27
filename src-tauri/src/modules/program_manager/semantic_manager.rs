@@ -22,6 +22,8 @@ pub trait EmbeddingBackend: Send + Sync {
     fn generate_embedding_for_manager(&self, user_input: &str) -> AppResult<EmbeddingVec>;
 
     fn compute_similarity(&self, embedding1: &EmbeddingVec, embedding2: &EmbeddingVec) -> f32;
+
+    fn release_resources(&self) {}
 }
 
 pub struct SemanticManager {
@@ -145,6 +147,17 @@ impl SemanticManager {
                 embedding: embedding.clone(),
             },
         );
+    }
+
+    pub fn release_backend_resources(&self) {
+        if self.embedding_backend.is_none() {
+            return;
+        }
+
+        if let Some(backend) = &self.embedding_backend {
+            debug!("Releasing embedding backend resources while retaining cached embeddings");
+            backend.release_resources();
+        }
     }
 
     pub fn export_embeddings_cache_to_bytes(&self) -> Vec<u8> {

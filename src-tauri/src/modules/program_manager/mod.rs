@@ -182,9 +182,11 @@ impl ProgramManager {
             self.program_locater.insert(program.program_guid, index);
         }
 
+        let is_traditional_search = search_config.is_traditional_search();
+
         let search_engine: Arc<dyn SearchEngine> =
-            if search_config.is_traditional_search() || !has_backend {
-                let new_search_model = SearchModelFactory::create_scorer(search_config);
+            if is_traditional_search || !has_backend {
+                let new_search_model = SearchModelFactory::create_scorer(search_config.clone());
                 Arc::new(TraditionalSearchEngine::new(Arc::new(new_search_model)))
             } else {
                 Arc::new(SemanticSearchEngine::new(self.semantic_manager.clone()))
@@ -192,6 +194,10 @@ impl ProgramManager {
 
         let mut search_engine_lock = self.search_engine.write().await;
         *search_engine_lock = search_engine;
+
+        if has_backend && is_traditional_search {
+            self.semantic_manager.release_backend_resources();
+        }
         // 数据库更新后，清空短期结果缓存
         *self.short_term_result_cache.write().await = LruCache::new(100.try_into().unwrap());
     }

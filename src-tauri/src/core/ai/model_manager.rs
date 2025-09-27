@@ -48,4 +48,17 @@ impl ModelManager {
             }
         }
     }
+
+    pub fn release_embedding_model(&self, model_type: EmbeddingModelType) {
+        if self.embedding_models.remove(&model_type).is_some() {
+            tracing::debug!(?model_type, "Released embedding model from cache");
+        }
+    }
+
+    pub fn release_all_embedding_models(&self) {
+        if !self.embedding_models.is_empty() {
+            tracing::debug!("Clearing all cached embedding models");
+            self.embedding_models.clear();
+        }
+    }
 }

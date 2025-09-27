@@ -89,4 +89,10 @@ impl EmbeddingBackend for AiEmbeddingBackend {
         let view2 = ArrayView1::from(&embedding2[..]);
         EmbeddingGemmaModel::compute_similarity(view1, view2)
     }
+
+    fn release_resources(&self) {
+        debug!("Releasing cached embedding model");
+        self.model_manager
+            .release_embedding_model(EmbeddingModelType::EmbeddingGemma);
+    }
 }

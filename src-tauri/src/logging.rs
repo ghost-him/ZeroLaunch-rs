@@ -144,8 +144,38 @@ pub fn init_logging(config: Option<LoggingConfig>) -> tracing_appender::non_bloc
     info!("日志级别: {:?}", config.level);
     info!("日志保留天数: {}", config.retention_days);
     info!("日志目录: {}", *LOG_DIR);
+    info!("启用特性: {}", format_enabled_features());
 
     guard
+}
+
+/// 获取当前启用的 Cargo 特性列表
+fn collect_enabled_features() -> Vec<&'static str> {
+    let mut features = Vec::new();
+
+    if cfg!(feature = "custom-protocol") {
+        features.push("custom-protocol");
+    }
+
+    if cfg!(feature = "portable") {
+        features.push("portable");
+    }
+
+    if cfg!(feature = "ai") {
+        features.push("ai");
+    }
+
+    features
+}
+
+/// 将启用的特性列表格式化为字符串
+fn format_enabled_features() -> String {
+    let features = collect_enabled_features();
+    if features.is_empty() {
+        "无".to_string()
+    } else {
+        features.join(", ")
+    }
 }
 
 /// 打印系统信息
@@ -184,6 +214,7 @@ fn print_system_info() {
     }
 
     println!("日志目录: {}", *LOG_DIR);
+    println!("启用特性: {}", format_enabled_features());
     println!("==============================");
 }
 
@@ -347,6 +378,7 @@ pub fn log_application_start() {
     }
 
     info!("日志目录: {}", *LOG_DIR);
+    info!("启用特性: {}", format_enabled_features());
     info!("==============================");
 }
 

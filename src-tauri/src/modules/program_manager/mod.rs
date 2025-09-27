@@ -13,7 +13,9 @@ pub mod window_activator;
 use crate::core::image_processor::ImageProcessor;
 use crate::error::{OptionExt, ResultExt};
 use crate::modules::program_manager::config::program_manager_config::RuntimeProgramConfig;
-use crate::modules::program_manager::search_engine::{SearchEngine, SemanticSearchEngine};
+use crate::modules::program_manager::search_engine::SearchEngine;
+#[cfg(feature = "ai")]
+use crate::modules::program_manager::search_engine::SemanticSearchEngine;
 use crate::program_manager::config::program_manager_config::ProgramManagerConfig;
 use crate::program_manager::search_model::*;
 use crate::program_manager::semantic_manager::SemanticManager;
@@ -47,7 +49,7 @@ pub struct ProgramManager {
     /// 窗口唤醒器
     window_activator: Arc<WindowActivator>,
     /// 语义生成器
-    semantic_manager: Option<Arc<SemanticManager>>,
+    semantic_manager: Arc<SemanticManager>,
 }
 
 /// 内部搜索结果，包含分数和程序ID
@@ -60,30 +62,29 @@ pub(crate) struct SearchMatchResult {
 impl ProgramManager {
     /// 初始化，空
     pub fn new(runtime_program_config: RuntimeProgramConfig) -> Self {
+        #[cfg(feature = "ai")]
         let semantic_manager = Arc::new(SemanticManager::new(
             runtime_program_config.model_manager,
             HashMap::new(),
         ));
+        #[cfg(not(feature = "ai"))]
+        let semantic_manager = Arc::new(SemanticManager::new(HashMap::new()));
         ProgramManager {
             program_registry: Arc::new(RwLock::new(Vec::new())),
-            program_loader: Arc::new(ProgramLoader::new(Some(semantic_manager.clone()))),
+            program_loader: Arc::new(ProgramLoader::new(semantic_manager.clone())),
             program_launcher: Arc::new(ProgramLauncher::new()),
             search_engine: Arc::new(RwLock::new(Arc::new(TraditionalSearchEngine::default()))),
             image_loader: Arc::new(ImageLoader::new(runtime_program_config.image_loader_config)),
             program_locater: Arc::new(DashMap::new()),
             window_activator: Arc::new(WindowActivator::new()),
-            semantic_manager: Some(semantic_manager),
+            semantic_manager,
         }
     }
     pub async fn get_runtime_data(&self) -> ProgramManagerRuntimeData {
         // 这里我认为，semantic_store 是一个 HashMap<String, SemanticStoreItem>，而SemanticStoreItem是一个内部的类，它最好不要被外部的信息所接触
         // 所以由ProgramManager来管理其实例化
         // 而PartialProgramManagerConfig本身就是一个用于与外部通信的结构体，所以可以直接返回
-        let semantic_store = self
-            .semantic_manager
-            .as_ref()
-            .map(|m| m.get_runtime_data())
-            .unwrap_or_default();
+    let semantic_store = self.semantic_manager.get_runtime_data();
 
         let semantic_store_str = serde_json::to_string_pretty(&semantic_store)
             .expect_programming("该结构体在格式化时不应该出错");
@@ -120,9 +121,8 @@ impl ProgramManager {
         )
         .unwrap_or_default();
 
-        if let Some(semantic_manager) = &self.semantic_manager {
-            semantic_manager.update_semantic_store(semantic_store.clone());
-        }
+        self.semantic_manager
+            .update_semantic_store(semantic_store.clone());
 
         self.program_loader.load_from_config(program_loader_config);
 
@@ -138,9 +138,7 @@ impl ProgramManager {
                 .or_insert_with(|| SemanticStoreItem::new(program.clone()));
         });
 
-        if let Some(semantic_manager) = &self.semantic_manager {
-            semantic_manager.update_semantic_store(semantic_store);
-        }
+    self.semantic_manager.update_semantic_store(semantic_store);
 
         // 清空并更新程序注册表
         let mut program_registry = self.program_registry.write().await;
@@ -165,15 +163,20 @@ impl ProgramManager {
         // 更新搜索模型
         let search_config = config.get_search_model_config(); // 返回 SearchModelConfig
 
-        let search_engine: Arc<dyn SearchEngine> = if search_config.is_traditional_search() {
-            let new_search_model = SearchModelFactory::create_scorer(search_config, None);
+    let search_engine: Arc<dyn SearchEngine> = if search_config.is_traditional_search() {
+        let new_search_model = SearchModelFactory::create_scorer(search_config);
             Arc::new(TraditionalSearchEngine::new(Arc::new(new_search_model)))
         } else {
-            Arc::new(SemanticSearchEngine::new(
-                self.semantic_manager
-                    .clone()
-                    .expect_programming("语义模型未初始化"),
-            ))
+            #[cfg(feature = "ai")]
+            {
+        Arc::new(SemanticSearchEngine::new(self.semantic_manager.clone()))
+            }
+            #[cfg(not(feature = "ai"))]
+            {
+                let new_search_model =
+            SearchModelFactory::create_scorer(Arc::new(SearchModelConfig::Standard));
+                Arc::new(TraditionalSearchEngine::new(Arc::new(new_search_model)))
+            }
         };
 
         let mut search_engine_lock = self.search_engine.write().await;

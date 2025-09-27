@@ -6,7 +6,6 @@ use crate::program_manager::search_model::launchy_search_model::LaunchyScorer;
 use crate::program_manager::search_model::skim_search_model::SkimScorer;
 use crate::program_manager::search_model::standard_search_model::StandardScorer;
 use crate::program_manager::Program;
-use crate::program_manager::SemanticManager;
 use core::f64;
 use serde::{Deserialize, Serialize};
 /// SearchModel 表示一个综合的搜索模型
@@ -59,10 +58,7 @@ impl SearchModelConfig {
 pub struct SearchModelFactory;
 impl SearchModelFactory {
     /// 根据配置创建具体的 Scorer 实例
-    pub fn create_scorer(
-        config: Arc<SearchModelConfig>,
-        _semantic_manager: Option<Arc<SemanticManager>>,
-    ) -> SearchModel {
+    pub fn create_scorer(config: Arc<SearchModelConfig>) -> SearchModel {
         let scorer: Arc<dyn Scorer> = match config.as_ref() {
             SearchModelConfig::Skim => Arc::new(SkimScorer::new()),
             SearchModelConfig::Standard => Arc::new(StandardScorer::new()),
@@ -77,7 +73,7 @@ impl SearchModelFactory {
             }
         };
 
-        SearchModel::new(scorer)
+    SearchModel::new(scorer)
     }
 }
 

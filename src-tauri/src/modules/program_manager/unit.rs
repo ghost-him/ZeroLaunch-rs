@@ -1,7 +1,13 @@
 // 存放辅助型的小类型
 use crate::core::image_processor::ImageIdentity;
 use crate::program_manager::PartialProgramManagerConfig;
+#[cfg(feature = "ai")]
 use ndarray::Array1;
+// 统一的 embedding 类型别名：启用 ai 时为 ndarray::Array1<f32>，否则为 Vec<f32>
+#[cfg(feature = "ai")]
+pub type EmbeddingVec = Array1<f32>;
+#[cfg(not(feature = "ai"))]
+pub type EmbeddingVec = Vec<f32>;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -53,7 +59,7 @@ pub struct Program {
     /// 应用程序应该展示的图片的地址
     pub icon_path: ImageIdentity,
     /// 用于语义搜索的相关内容(可选)
-    pub embedding: Array1<f32>,
+    pub embedding: EmbeddingVec,
 }
 
 /// 表示搜索测试的结果项

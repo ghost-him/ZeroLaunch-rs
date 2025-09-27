@@ -22,6 +22,7 @@ use dashmap::DashSet;
 use globset::GlobSetBuilder;
 use globset::{Glob, GlobSet};
 use image::ImageReader;
+#[cfg(feature = "ai")]
 use ndarray::Array1;
 use parking_lot::RwLock;
 use regex::RegexSet;
@@ -172,18 +173,18 @@ pub struct ProgramLoaderInner {
     /// 语义描述信息
     semantic_descriptions: HashMap<String, String>,
     /// 语义管理器
-    semantic_manager: Option<Arc<SemanticManager>>,
+    semantic_manager: Arc<SemanticManager>,
 }
 
 impl Default for ProgramLoaderInner {
     fn default() -> Self {
-        Self::new(None)
+        panic!("ProgramLoaderInner::default() should not be used; provide SemanticManager")
     }
 }
 
 impl ProgramLoaderInner {
     /// 创建
-    pub fn new(semantic_manager: Option<Arc<SemanticManager>>) -> Self {
+    pub fn new(semantic_manager: Arc<SemanticManager>) -> Self {
         ProgramLoaderInner {
             target_paths: Vec::new(),
             program_bias: HashMap::new(),
@@ -378,20 +379,22 @@ impl ProgramLoaderInner {
             .unwrap_or_default();
 
         // 生成embedding
-        let embedding = if let Some(ref semantic_manager) = self.semantic_manager {
-            match semantic_manager.generate_embedding_for_loader(
+    let embedding = {
+        match self.semantic_manager.generate_embedding_for_loader(
                 &show_name,
                 &search_keywords.join("，"),
                 &launch_method,
                 &description,
             ) {
                 Ok(emb) => emb,
-                Err(_) => Array1::zeros(0), // 如果生成失败，使用空的embedding
+                Err(_) => {
+                    #[cfg(feature = "ai")]
+                    { Array1::zeros(0) }
+                    #[cfg(not(feature = "ai"))]
+                    { Vec::new() }
+                },
             }
-        } else {
-            warn!("没有语义管理器，无法生成embedding");
-            Array1::zeros(0)
-        };
+    };
         Arc::new(Program {
             program_guid: guid,
             show_name,
@@ -996,15 +999,15 @@ pub struct ProgramLoader {
 
 impl Default for ProgramLoader {
     fn default() -> Self {
-        Self::new(None)
+    panic!("ProgramLoader::default() should not be used; provide SemanticManager")
     }
 }
 
 impl ProgramLoader {
     /// 创建一个新的 `ProgramLoader` 实例
-    pub fn new(semantic_manager: Option<Arc<SemanticManager>>) -> Self {
+    pub fn new(semantic_manager: Arc<SemanticManager>) -> Self {
         ProgramLoader {
-            inner: RwLock::new(ProgramLoaderInner::new(semantic_manager)),
+        inner: RwLock::new(ProgramLoaderInner::new(semantic_manager)),
         }
     }
 

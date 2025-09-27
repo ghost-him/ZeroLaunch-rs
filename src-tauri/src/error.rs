@@ -77,6 +77,7 @@ pub enum AppError {
     SerdeError(#[from] serde_json::Error),
 
     /// ONNX Runtime错误 - AI模型相关
+    #[cfg(feature = "ai")]
     #[error("AI模型错误: {0}")]
     OrtError(#[from] ort::Error),
 

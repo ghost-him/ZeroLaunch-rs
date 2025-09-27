@@ -1,3 +1,4 @@
+#[cfg(feature = "ai")]
 use crate::core::ai::model_manager::ModelManager;
 use crate::core::storage::storage_manager::StorageManager;
 use crate::error::OptionExt;
@@ -36,6 +37,7 @@ pub struct AppState {
     /// 阻止所有的键盘输入
     is_keyboard_blocked: RwLock<bool>,
     /// 模型管理器
+    #[cfg(feature = "ai")]
     model_manager: RwLock<Option<Arc<ModelManager>>>,
 }
 
@@ -60,6 +62,7 @@ impl AppState {
             shortcut_manager: RwLock::new(None),
             game_mode: RwLock::new(false),
             is_keyboard_blocked: RwLock::new(false),
+            #[cfg(feature = "ai")]
             model_manager: RwLock::new(None),
         }
     }
@@ -192,11 +195,13 @@ impl AppState {
 
     // region: Model Manager 访问方法
     /// 获取模型管理器的克隆
-    pub fn get_model_manager(&self) -> Option<Arc<ModelManager>> {
-        self.model_manager.read().as_ref().cloned()
+    #[cfg(feature = "ai")]
+    pub fn get_model_manager(&self) -> Arc<ModelManager> {
+        self.model_manager.read().as_ref().cloned().expect_programming("model manager not initialized")
     }
 
     /// 更新模型管理器
+    #[cfg(feature = "ai")]
     pub fn set_model_manager(&self, manager: Arc<ModelManager>) {
         *self.model_manager.write() = Some(manager);
     }

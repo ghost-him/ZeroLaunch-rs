@@ -2,12 +2,6 @@
 use crate::core::image_processor::ImageIdentity;
 use crate::program_manager::PartialProgramManagerConfig;
 use bincode::{Decode, Encode};
-#[cfg(feature = "ai")]
-use ndarray::Array1;
-// 统一的 embedding 类型别名：启用 ai 时为 ndarray::Array1<f32>，否则为 Vec<f32>
-#[cfg(feature = "ai")]
-pub type EmbeddingVec = Array1<f32>;
-#[cfg(not(feature = "ai"))]
 pub type EmbeddingVec = Vec<f32>;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;

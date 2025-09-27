@@ -5,6 +5,7 @@ pub mod pinyin_mapper;
 pub mod program_launcher;
 pub mod program_loader;
 pub mod search_model;
+pub mod semantic_backend;
 pub mod semantic_manager;
 use crate::program_manager::search_engine::TraditionalSearchEngine;
 pub mod search_engine;
@@ -13,9 +14,7 @@ pub mod window_activator;
 use crate::core::image_processor::ImageProcessor;
 use crate::error::{OptionExt, ResultExt};
 use crate::modules::program_manager::config::program_manager_config::RuntimeProgramConfig;
-use crate::modules::program_manager::search_engine::SearchEngine;
-#[cfg(feature = "ai")]
-use crate::modules::program_manager::search_engine::SemanticSearchEngine;
+use crate::modules::program_manager::search_engine::{SearchEngine, SemanticSearchEngine};
 use crate::program_manager::config::program_manager_config::ProgramManagerConfig;
 use crate::program_manager::search_model::*;
 use crate::program_manager::semantic_manager::SemanticManager;
@@ -66,32 +65,29 @@ pub(crate) struct SearchMatchResult {
 impl ProgramManager {
     /// 初始化，空
     pub fn new(runtime_program_config: RuntimeProgramConfig) -> Self {
-        #[cfg(feature = "ai")]
-        let semantic_manager = Arc::new(SemanticManager::new(
-            runtime_program_config.model_manager,
-            HashMap::new(),
-        ));
-        #[cfg(not(feature = "ai"))]
-        let semantic_manager = Arc::new(SemanticManager::new(HashMap::new()));
+        let RuntimeProgramConfig {
+            image_loader_config,
+            embedding_backend,
+            embedding_cache_bytes,
+        } = runtime_program_config;
+
+        let semantic_manager = Arc::new(SemanticManager::new(embedding_backend, HashMap::new()));
         let pm = ProgramManager {
             program_registry: Arc::new(RwLock::new(Vec::new())),
             program_loader: Arc::new(ProgramLoader::new(semantic_manager.clone())),
             program_launcher: Arc::new(ProgramLauncher::new()),
             search_engine: Arc::new(RwLock::new(Arc::new(TraditionalSearchEngine::default()))),
-            image_loader: Arc::new(ImageLoader::new(runtime_program_config.image_loader_config)),
+            image_loader: Arc::new(ImageLoader::new(image_loader_config)),
             program_locater: Arc::new(DashMap::new()),
             window_activator: Arc::new(WindowActivator::new()),
             semantic_manager,
             short_term_result_cache: Arc::new(RwLock::new(LruCache::new(100.try_into().unwrap()))),
         };
-        // 从RuntimeProgramConfig导入embedding缓存
-        #[cfg(feature = "ai")]
+        if pm
+            .semantic_manager
+            .load_embeddings_cache_from_bytes(embedding_cache_bytes.as_deref())
         {
-            if pm.semantic_manager.load_embeddings_cache_from_bytes(
-                runtime_program_config.embedding_cache_bytes.as_deref(),
-            ) {
-                info!("已从持久化缓存加载程序embeddings");
-            }
+            info!("已从持久化缓存加载程序embeddings");
         }
         pm
     }
@@ -103,17 +99,9 @@ impl ProgramManager {
         let semantic_store_str = serde_json::to_string_pretty(&semantic_store)
             .expect_programming("该结构体在格式化时不应该出错");
 
-        // 导出语义缓存字节：仅在 ai 特性下导出；否则为空
-        let semantic_cache_bytes: Vec<u8> = {
-            #[cfg(feature = "ai")]
-            {
-                self.semantic_manager.export_embeddings_cache_to_bytes()
-            }
-            #[cfg(not(feature = "ai"))]
-            {
-                Vec::new()
-            }
-        };
+        // 导出语义缓存字节（无后端时返回空向量）
+        let semantic_cache_bytes: Vec<u8> =
+            self.semantic_manager.export_embeddings_cache_to_bytes();
 
         ProgramManagerRuntimeData {
             semantic_store_str,
@@ -155,12 +143,10 @@ impl ProgramManager {
 
         // 根据搜索模型决定是否生成embedding
         let search_config = config.get_search_model_config();
-        #[cfg(feature = "ai")]
-        {
-            let compute_embeddings = !search_config.is_traditional_search();
-            self.program_loader
-                .set_compute_embeddings(compute_embeddings);
-        }
+        let has_backend = self.semantic_manager.has_backend();
+        let enable_embeddings = has_backend && !search_config.is_traditional_search();
+        self.program_loader
+            .set_compute_embeddings(enable_embeddings);
 
         // 加载程序数据
         let new_programs = self.program_loader.load_program();
@@ -196,21 +182,13 @@ impl ProgramManager {
             self.program_locater.insert(program.program_guid, index);
         }
 
-        let search_engine: Arc<dyn SearchEngine> = if search_config.is_traditional_search() {
-            let new_search_model = SearchModelFactory::create_scorer(search_config);
-            Arc::new(TraditionalSearchEngine::new(Arc::new(new_search_model)))
-        } else {
-            #[cfg(feature = "ai")]
-            {
-                Arc::new(SemanticSearchEngine::new(self.semantic_manager.clone()))
-            }
-            #[cfg(not(feature = "ai"))]
-            {
-                let new_search_model =
-                    SearchModelFactory::create_scorer(Arc::new(SearchModelConfig::Standard));
+        let search_engine: Arc<dyn SearchEngine> =
+            if search_config.is_traditional_search() || !has_backend {
+                let new_search_model = SearchModelFactory::create_scorer(search_config);
                 Arc::new(TraditionalSearchEngine::new(Arc::new(new_search_model)))
-            }
-        };
+            } else {
+                Arc::new(SemanticSearchEngine::new(self.semantic_manager.clone()))
+            };
 
         let mut search_engine_lock = self.search_engine.write().await;
         *search_engine_lock = search_engine;

@@ -14,6 +14,8 @@ use crate::commands::program_service::*;
 use crate::commands::shortcut::*;
 use crate::commands::ui_command::*;
 use crate::commands::utils::*;
+#[cfg(feature = "ai")]
+use crate::core::ai::model_manager::ModelManager;
 use crate::error::{OptionExt, ResultExt};
 use crate::logging::{init_logging, log_application_start, update_log_level};
 use crate::modules::config::config_manager::PartialRuntimeConfig;
@@ -43,6 +45,7 @@ use modules::config::ui_config::PartialUiConfig;
 use modules::config::window_state::PartialWindowState;
 use modules::program_manager::config::image_loader_config::RuntimeImageLoaderConfig;
 use modules::program_manager::config::program_manager_config::RuntimeProgramConfig;
+use modules::program_manager::semantic_backend;
 use modules::program_manager::{self, ProgramManager};
 use modules::shortcut_manager::start_shortcut_manager;
 use modules::shortcut_manager::update_shortcut_manager;
@@ -277,20 +280,23 @@ async fn init_app_state(app: &mut App) {
     }
 
     // === 阶段4: 程序管理器初始化 ===
-    // 初始化模型管理器（仅在启用 ai 特性时）
     #[cfg(feature = "ai")]
-    let model_manager = Arc::new(crate::core::ai::model_manager::ModelManager::new());
-    #[cfg(feature = "ai")]
-    {
-        state.set_model_manager(model_manager.clone());
-        debug!("模型管理器初始化并设置完成");
-    }
+    let model_manager = Arc::new(ModelManager::new());
 
-    // 从存储读取embedding缓存（二进制）
-    let embedding_cache_bytes = state
-        .get_storage_manager()
-        .download_file_bytes(SEMANTIC_EMBEDDING_CACHE_FILE_NAME.to_string())
-        .await;
+    #[cfg(feature = "ai")]
+    let embedding_backend = semantic_backend::create_embedding_backend(model_manager.clone());
+
+    #[cfg(not(feature = "ai"))]
+    let embedding_backend = semantic_backend::create_embedding_backend();
+
+    let embedding_cache_bytes = if embedding_backend.is_some() {
+        state
+            .get_storage_manager()
+            .download_file_bytes(SEMANTIC_EMBEDDING_CACHE_FILE_NAME.to_string())
+            .await
+    } else {
+        None
+    };
 
     let runtime_program_config = RuntimeProgramConfig {
         image_loader_config: RuntimeImageLoaderConfig {
@@ -305,8 +311,7 @@ async fn init_app_state(app: &mut App) {
                 .value()
                 .clone(),
         },
-        #[cfg(feature = "ai")]
-        model_manager,
+        embedding_backend,
         embedding_cache_bytes,
     };
 
@@ -587,17 +592,13 @@ pub async fn save_config_to_file(is_update_app: bool) {
             program_manager_runtime_data.semantic_store_str,
         )
         .await;
-    // 保存语义embedding缓存：仅在 ai 特性启用时执行
-    #[cfg(feature = "ai")]
-    {
-        if !program_manager_runtime_data.semantic_cache_bytes.is_empty() {
-            storage_manager
-                .upload_file_bytes(
-                    SEMANTIC_EMBEDDING_CACHE_FILE_NAME.to_string(),
-                    program_manager_runtime_data.semantic_cache_bytes,
-                )
-                .await;
-        }
+    if !program_manager_runtime_data.semantic_cache_bytes.is_empty() {
+        storage_manager
+            .upload_file_bytes(
+                SEMANTIC_EMBEDDING_CACHE_FILE_NAME.to_string(),
+                program_manager_runtime_data.semantic_cache_bytes,
+            )
+            .await;
     }
     debug!("远程配置上传完成");
 

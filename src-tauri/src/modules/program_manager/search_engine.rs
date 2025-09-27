@@ -1,11 +1,6 @@
-// use crate::error::ResultExt;
-#[cfg(feature = "ai")]
 use crate::error::ResultExt;
 use crate::modules::program_manager::program_launcher::ProgramLauncher;
 use crate::modules::program_manager::search_model::Scorer;
-#[cfg(feature = "ai")]
-use crate::modules::program_manager::semantic_manager::GenerateEmbeddingForManager;
-#[cfg(feature = "ai")]
 use crate::modules::program_manager::semantic_manager::SemanticManager;
 use crate::program_manager::remove_repeated_space;
 use crate::program_manager::Program;
@@ -83,20 +78,17 @@ impl SearchEngine for TraditionalSearchEngine {
     }
 }
 
-#[cfg(feature = "ai")]
 #[derive(Debug)]
 pub struct SemanticSearchEngine {
     semantic_model: Arc<SemanticManager>,
 }
 
-#[cfg(feature = "ai")]
 impl SemanticSearchEngine {
     pub fn new(semantic_model: Arc<SemanticManager>) -> Self {
         Self { semantic_model }
     }
 }
 
-#[cfg(feature = "ai")]
 impl SearchEngine for SemanticSearchEngine {
     fn perform_search(
         &self,
@@ -116,18 +108,10 @@ impl SearchEngine for SemanticSearchEngine {
         programs
             .par_iter()
             .map(|program| {
-                let score = {
-                    #[cfg(feature = "ai")]
-                    {
-                        self.semantic_model
-                            .compute_similarity(user_embedding.view(), program.embedding.view())
-                            as f64
-                    }
-                    #[cfg(not(feature = "ai"))]
-                    {
-                        0.0
-                    }
-                };
+                let score = self
+                    .semantic_model
+                    .compute_similarity(&user_embedding, &program.embedding)
+                    as f64;
                 SearchMatchResult {
                     score,
                     program_guid: program.program_guid,

@@ -1,8 +1,7 @@
 use super::image_loader_config::PartialImageLoaderConfig;
 use super::image_loader_config::RuntimeImageLoaderConfig;
-#[cfg(feature = "ai")]
-use crate::core::ai::model_manager::ModelManager;
 use crate::modules::program_manager::config::image_loader_config::ImageLoaderConfig;
+use crate::modules::program_manager::semantic_manager::EmbeddingBackend;
 use crate::program_manager::config::program_launcher_config::PartialProgramLauncherConfig;
 use crate::program_manager::config::program_launcher_config::ProgramLauncherConfig;
 use crate::program_manager::config::program_loader_config::PartialProgramLoaderConfig;
@@ -108,9 +107,8 @@ impl ProgramManagerConfig {
 pub struct RuntimeProgramConfig {
     /// 图片加载器的配置
     pub image_loader_config: RuntimeImageLoaderConfig,
-    /// 模型管理器，用于语义搜索
-    #[cfg(feature = "ai")]
-    pub model_manager: Arc<ModelManager>,
+    /// 语义搜索后端（启用 AI 时存在）
+    pub embedding_backend: Option<Arc<dyn EmbeddingBackend>>,
     /// 启动时加载到内存的embedding缓存（二进制）
     pub embedding_cache_bytes: Option<Vec<u8>>,
 }

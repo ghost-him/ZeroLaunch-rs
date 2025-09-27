@@ -8,8 +8,6 @@ use crate::modules::config::default::APP_PIC_PATH;
 use crate::program_manager::config::program_loader_config::PartialProgramLoaderConfig;
 use crate::program_manager::config::program_loader_config::ProgramLoaderConfig;
 use crate::program_manager::search_model::*;
-#[cfg(feature = "ai")]
-use crate::program_manager::semantic_manager::GenerateEmbeddingForLoader;
 use crate::program_manager::semantic_manager::SemanticManager;
 /// 这个类用于加载电脑上程序，通过扫描路径或使用系统调用接口
 use crate::program_manager::Program;
@@ -175,7 +173,6 @@ pub struct ProgramLoaderInner {
     #[allow(dead_code)]
     semantic_manager: Arc<SemanticManager>,
     /// 是否在加载时生成/读取程序的embedding（仅 ai 构建有效）
-    #[cfg(feature = "ai")]
     compute_embeddings: bool,
 }
 
@@ -202,8 +199,7 @@ impl ProgramLoaderInner {
             program_alias: DashMap::new(),
             semantic_descriptions: HashMap::new(),
             semantic_manager,
-            #[cfg(feature = "ai")]
-            compute_embeddings: true,
+            compute_embeddings: false,
         }
     }
 
@@ -236,7 +232,6 @@ impl ProgramLoaderInner {
         self.semantic_descriptions = config.get_semantic_descriptions();
     }
     /// 设置是否生成程序embedding
-    #[cfg(feature = "ai")]
     pub fn set_compute_embeddings(&mut self, enabled: bool) {
         self.compute_embeddings = enabled;
     }
@@ -390,14 +385,13 @@ impl ProgramLoaderInner {
             .unwrap_or_default();
 
         // 生成或读取 embedding（仅当启用语义搜索时）
-        #[cfg(feature = "ai")]
         let embedding = if self.compute_embeddings {
             let key = launch_method.clone();
             if let Some(cached) = self.semantic_manager.get_cached_embedding(&key) {
-                println!("已命中语义缓存！");
+                debug!("已命中语义缓存！");
                 cached
             } else {
-                println!(
+                debug!(
                     "未命中语义缓存，开始计算新的embedding, show_name: {}, launch_method: {:?}",
                     &show_name, &launch_method
                 );
@@ -415,10 +409,8 @@ impl ProgramLoaderInner {
             }
         } else {
             // 未启用则返回空 embedding
-            Default::default()
+            Vec::new()
         };
-        #[cfg(not(feature = "ai"))]
-        let embedding = Default::default();
         Arc::new(Program {
             program_guid: guid,
             show_name,
@@ -1041,7 +1033,6 @@ impl ProgramLoader {
     }
 
     /// 设置是否在加载时生成/读取程序的embedding
-    #[cfg(feature = "ai")]
     pub fn set_compute_embeddings(&self, enabled: bool) {
         self.inner.write().set_compute_embeddings(enabled);
     }

@@ -8,6 +8,7 @@ use crate::modules::config::default::APP_PIC_PATH;
 use crate::program_manager::config::program_loader_config::PartialProgramLoaderConfig;
 use crate::program_manager::config::program_loader_config::ProgramLoaderConfig;
 use crate::program_manager::search_model::*;
+#[cfg(feature = "ai")]
 use crate::program_manager::semantic_manager::GenerateEmbeddingForLoader;
 use crate::program_manager::semantic_manager::SemanticManager;
 /// 这个类用于加载电脑上程序，通过扫描路径或使用系统调用接口
@@ -22,8 +23,6 @@ use dashmap::DashSet;
 use globset::GlobSetBuilder;
 use globset::{Glob, GlobSet};
 use image::ImageReader;
-#[cfg(feature = "ai")]
-use ndarray::Array1;
 use parking_lot::RwLock;
 use regex::RegexSet;
 use std::collections::HashMap;
@@ -173,7 +172,11 @@ pub struct ProgramLoaderInner {
     /// 语义描述信息
     semantic_descriptions: HashMap<String, String>,
     /// 语义管理器
+    #[allow(dead_code)]
     semantic_manager: Arc<SemanticManager>,
+    /// 是否在加载时生成/读取程序的embedding（仅 ai 构建有效）
+    #[cfg(feature = "ai")]
+    compute_embeddings: bool,
 }
 
 impl Default for ProgramLoaderInner {
@@ -199,6 +202,8 @@ impl ProgramLoaderInner {
             program_alias: DashMap::new(),
             semantic_descriptions: HashMap::new(),
             semantic_manager,
+            #[cfg(feature = "ai")]
+            compute_embeddings: true,
         }
     }
 
@@ -229,6 +234,11 @@ impl ProgramLoaderInner {
         self.custom_command = config.get_custom_command();
         self.program_alias = hashmap_to_dashmap(&config.get_program_alias());
         self.semantic_descriptions = config.get_semantic_descriptions();
+    }
+    /// 设置是否生成程序embedding
+    #[cfg(feature = "ai")]
+    pub fn set_compute_embeddings(&mut self, enabled: bool) {
+        self.compute_embeddings = enabled;
     }
     /// 添加目标路径
     pub fn add_target_path(&mut self, directory_config: DirectoryConfig) {
@@ -374,27 +384,41 @@ impl ProgramLoaderInner {
         let alias_name_to_append = self.check_program_alias(&launch_method);
         search_keywords.extend(alias_name_to_append);
 
+        #[allow(unused_variables)]
         let description = self
             .get_program_semantic_description(&launch_method)
             .unwrap_or_default();
 
-        // 生成embedding
-    let embedding = {
-        match self.semantic_manager.generate_embedding_for_loader(
-                &show_name,
-                &search_keywords.join("，"),
-                &launch_method,
-                &description,
-            ) {
-                Ok(emb) => emb,
-                Err(_) => {
-                    #[cfg(feature = "ai")]
-                    { Array1::zeros(0) }
-                    #[cfg(not(feature = "ai"))]
-                    { Vec::new() }
-                },
+        // 生成或读取 embedding（仅当启用语义搜索时）
+        #[cfg(feature = "ai")]
+        let embedding = if self.compute_embeddings {
+            let key = launch_method.clone();
+            if let Some(cached) = self.semantic_manager.get_cached_embedding(&key) {
+                println!("已命中语义缓存！");
+                cached
+            } else {
+                println!(
+                    "未命中语义缓存，开始计算新的embedding, show_name: {}, launch_method: {:?}",
+                    &show_name, &launch_method
+                );
+                let computed = self
+                    .semantic_manager
+                    .generate_embedding_for_loader(
+                        &show_name,
+                        &search_keywords.join("，"),
+                        &launch_method,
+                        &description,
+                    )
+                    .unwrap_or_default();
+                self.semantic_manager.put_cached_embedding(&key, &computed);
+                computed
             }
-    };
+        } else {
+            // 未启用则返回空 embedding
+            Default::default()
+        };
+        #[cfg(not(feature = "ai"))]
+        let embedding = Default::default();
         Arc::new(Program {
             program_guid: guid,
             show_name,
@@ -999,7 +1023,7 @@ pub struct ProgramLoader {
 
 impl Default for ProgramLoader {
     fn default() -> Self {
-    panic!("ProgramLoader::default() should not be used; provide SemanticManager")
+        panic!("ProgramLoader::default() should not be used; provide SemanticManager")
     }
 }
 
@@ -1007,13 +1031,19 @@ impl ProgramLoader {
     /// 创建一个新的 `ProgramLoader` 实例
     pub fn new(semantic_manager: Arc<SemanticManager>) -> Self {
         ProgramLoader {
-        inner: RwLock::new(ProgramLoaderInner::new(semantic_manager)),
+            inner: RwLock::new(ProgramLoaderInner::new(semantic_manager)),
         }
     }
 
     /// 从配置文件中加载配置
     pub fn load_from_config(&self, config: &ProgramLoaderConfig) {
         self.inner.write().load_from_config(config);
+    }
+
+    /// 设置是否在加载时生成/读取程序的embedding
+    #[cfg(feature = "ai")]
+    pub fn set_compute_embeddings(&self, enabled: bool) {
+        self.inner.write().set_compute_embeddings(enabled);
     }
 
     /// 添加目标路径

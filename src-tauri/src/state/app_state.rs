@@ -197,7 +197,11 @@ impl AppState {
     /// 获取模型管理器的克隆
     #[cfg(feature = "ai")]
     pub fn get_model_manager(&self) -> Arc<ModelManager> {
-        self.model_manager.read().as_ref().cloned().expect_programming("model manager not initialized")
+        self.model_manager
+            .read()
+            .as_ref()
+            .cloned()
+            .expect_programming("model manager not initialized")
     }
 
     /// 更新模型管理器

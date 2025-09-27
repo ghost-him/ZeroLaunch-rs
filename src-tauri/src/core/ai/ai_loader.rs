@@ -6,11 +6,11 @@ use crate::core::ai::OnnxModelConfig;
 use crate::error::OptionExt;
 use crate::Arc;
 use once_cell::sync::OnceCell;
+use ort::execution_providers::CPUExecutionProvider;
+use ort::execution_providers::XNNPACKExecutionProvider;
 use ort::session::Session;
 use ort::Error;
 use parking_lot::Mutex;
-use ort::execution_providers::CPUExecutionProvider;
-use ort::execution_providers::XNNPACKExecutionProvider;
 use tokenizers::Tokenizer;
 use tracing::info;
 use tracing::warn;
@@ -86,7 +86,8 @@ pub fn setup_session_and_tokenizer(config: &OnnxModelConfig) -> ort::Result<(Ses
         );
     }
 
-    let session = session.expect_programming("CPU only session creation should never fail if we reached here");
+    let session = session
+        .expect_programming("CPU only session creation should never fail if we reached here");
     let tokenizer = Tokenizer::from_file(&config.tokenizer_path)
         .map_err(|e| Error::new(format!("Failed to load tokenizer: {}", e)))?;
 

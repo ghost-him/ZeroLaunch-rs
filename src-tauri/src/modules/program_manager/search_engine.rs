@@ -1,4 +1,6 @@
 // use crate::error::ResultExt;
+#[cfg(feature = "ai")]
+use crate::error::ResultExt;
 use crate::modules::program_manager::program_launcher::ProgramLauncher;
 use crate::modules::program_manager::search_model::Scorer;
 #[cfg(feature = "ai")]
@@ -9,8 +11,6 @@ use crate::program_manager::remove_repeated_space;
 use crate::program_manager::Program;
 use crate::program_manager::SearchMatchResult;
 use crate::program_manager::SearchModel;
-#[cfg(feature = "ai")]
-use crate::error::ResultExt;
 use crate::Arc;
 use rayon::prelude::*;
 pub(crate) trait SearchEngine: std::fmt::Debug + Send + Sync {
@@ -63,7 +63,7 @@ impl SearchEngine for TraditionalSearchEngine {
 
         let search_model = self.search_model.clone();
         // 计算所有程序的匹配分数
-    programs
+        programs
             .par_iter()
             .map(|program| {
                 // 基础匹配分数
@@ -107,7 +107,7 @@ impl SearchEngine for SemanticSearchEngine {
         let user_input = user_input.to_lowercase();
         let user_input = remove_repeated_space(&user_input);
 
-    let user_embedding = self
+        let user_embedding = self
             .semantic_model
             .generate_embedding_for_manager(&user_input)
             .expect_programming("Failed to generate user embedding");
@@ -119,8 +119,7 @@ impl SearchEngine for SemanticSearchEngine {
                 let score = {
                     #[cfg(feature = "ai")]
                     {
-                        self
-                            .semantic_model
+                        self.semantic_model
                             .compute_similarity(user_embedding.view(), program.embedding.view())
                             as f64
                     }

@@ -23,12 +23,14 @@ use crate::program_manager::unit::*;
 use config::program_manager_config::PartialProgramManagerConfig;
 use dashmap::DashMap;
 use image_loader::ImageLoader;
+use lru::LruCache;
 use program_launcher::ProgramLauncher;
 use program_loader::ProgramLoader;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::RwLock;
+use tracing::info;
 use window_activator::WindowActivator;
 
 /// 程序管理器 - 使用细粒度锁优化并发性能
@@ -50,10 +52,12 @@ pub struct ProgramManager {
     window_activator: Arc<WindowActivator>,
     /// 语义生成器
     semantic_manager: Arc<SemanticManager>,
+    /// 短期搜索结果缓存（统一，基于 LruCache）
+    short_term_result_cache: Arc<RwLock<LruCache<String, Vec<SearchMatchResult>>>>,
 }
 
 /// 内部搜索结果，包含分数和程序ID
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct SearchMatchResult {
     score: f64,
     program_guid: u64,
@@ -69,7 +73,7 @@ impl ProgramManager {
         ));
         #[cfg(not(feature = "ai"))]
         let semantic_manager = Arc::new(SemanticManager::new(HashMap::new()));
-        ProgramManager {
+        let pm = ProgramManager {
             program_registry: Arc::new(RwLock::new(Vec::new())),
             program_loader: Arc::new(ProgramLoader::new(semantic_manager.clone())),
             program_launcher: Arc::new(ProgramLauncher::new()),
@@ -78,16 +82,38 @@ impl ProgramManager {
             program_locater: Arc::new(DashMap::new()),
             window_activator: Arc::new(WindowActivator::new()),
             semantic_manager,
+            short_term_result_cache: Arc::new(RwLock::new(LruCache::new(100.try_into().unwrap()))),
+        };
+        // 从RuntimeProgramConfig导入embedding缓存
+        #[cfg(feature = "ai")]
+        {
+            if pm.semantic_manager.load_embeddings_cache_from_bytes(
+                runtime_program_config.embedding_cache_bytes.as_deref(),
+            ) {
+                info!("已从持久化缓存加载程序embeddings");
+            }
         }
+        pm
     }
     pub async fn get_runtime_data(&self) -> ProgramManagerRuntimeData {
         // 这里我认为，semantic_store 是一个 HashMap<String, SemanticStoreItem>，而SemanticStoreItem是一个内部的类，它最好不要被外部的信息所接触
         // 所以由ProgramManager来管理其实例化
         // 而PartialProgramManagerConfig本身就是一个用于与外部通信的结构体，所以可以直接返回
-    let semantic_store = self.semantic_manager.get_runtime_data();
-
+        let semantic_store = self.semantic_manager.get_runtime_data();
         let semantic_store_str = serde_json::to_string_pretty(&semantic_store)
             .expect_programming("该结构体在格式化时不应该出错");
+
+        // 导出语义缓存字节：仅在 ai 特性下导出；否则为空
+        let semantic_cache_bytes: Vec<u8> = {
+            #[cfg(feature = "ai")]
+            {
+                self.semantic_manager.export_embeddings_cache_to_bytes()
+            }
+            #[cfg(not(feature = "ai"))]
+            {
+                Vec::new()
+            }
+        };
 
         ProgramManagerRuntimeData {
             semantic_store_str,
@@ -97,6 +123,7 @@ impl ProgramManager {
                 image_loader: None,
                 search_model: None,
             },
+            semantic_cache_bytes,
         }
     }
 
@@ -126,6 +153,15 @@ impl ProgramManager {
 
         self.program_loader.load_from_config(program_loader_config);
 
+        // 根据搜索模型决定是否生成embedding
+        let search_config = config.get_search_model_config();
+        #[cfg(feature = "ai")]
+        {
+            let compute_embeddings = !search_config.is_traditional_search();
+            self.program_loader
+                .set_compute_embeddings(compute_embeddings);
+        }
+
         // 加载程序数据
         let new_programs = self.program_loader.load_program();
 
@@ -138,7 +174,7 @@ impl ProgramManager {
                 .or_insert_with(|| SemanticStoreItem::new(program.clone()));
         });
 
-    self.semantic_manager.update_semantic_store(semantic_store);
+        self.semantic_manager.update_semantic_store(semantic_store);
 
         // 清空并更新程序注册表
         let mut program_registry = self.program_registry.write().await;
@@ -160,27 +196,26 @@ impl ProgramManager {
             self.program_locater.insert(program.program_guid, index);
         }
 
-        // 更新搜索模型
-        let search_config = config.get_search_model_config(); // 返回 SearchModelConfig
-
-    let search_engine: Arc<dyn SearchEngine> = if search_config.is_traditional_search() {
-        let new_search_model = SearchModelFactory::create_scorer(search_config);
+        let search_engine: Arc<dyn SearchEngine> = if search_config.is_traditional_search() {
+            let new_search_model = SearchModelFactory::create_scorer(search_config);
             Arc::new(TraditionalSearchEngine::new(Arc::new(new_search_model)))
         } else {
             #[cfg(feature = "ai")]
             {
-        Arc::new(SemanticSearchEngine::new(self.semantic_manager.clone()))
+                Arc::new(SemanticSearchEngine::new(self.semantic_manager.clone()))
             }
             #[cfg(not(feature = "ai"))]
             {
                 let new_search_model =
-            SearchModelFactory::create_scorer(Arc::new(SearchModelConfig::Standard));
+                    SearchModelFactory::create_scorer(Arc::new(SearchModelConfig::Standard));
                 Arc::new(TraditionalSearchEngine::new(Arc::new(new_search_model)))
             }
         };
 
         let mut search_engine_lock = self.search_engine.write().await;
         *search_engine_lock = search_engine;
+        // 数据库更新后，清空短期结果缓存
+        *self.short_term_result_cache.write().await = LruCache::new(100.try_into().unwrap());
     }
 
     /// 使用搜索算法搜索，并给出指定长度的序列
@@ -358,6 +393,17 @@ impl ProgramManager {
         let user_input = user_input.to_lowercase();
         let user_input = remove_repeated_space(&user_input);
 
+        // 统一短期缓存命中直接返回
+        if let Some(cached) = self
+            .short_term_result_cache
+            .write()
+            .await
+            .get(&user_input)
+            .cloned()
+        {
+            return cached.into_iter().take(result_count as usize).collect();
+        }
+
         let launcher = &self.program_launcher;
 
         let program_registry = self.program_registry.read().await;
@@ -374,6 +420,12 @@ impl ProgramManager {
 
         // 只保留需要的数量
         match_scores.truncate(result_count as usize);
+
+        // 写入短期缓存
+        self.short_term_result_cache
+            .write()
+            .await
+            .put(user_input.clone(), match_scores.clone());
 
         match_scores
     }

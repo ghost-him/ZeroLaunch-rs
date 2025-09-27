@@ -39,6 +39,15 @@ pub struct SemanticManager {
     semantic_store: Arc<RwLock<HashMap<String, SemanticStoreItem>>>,
     #[cfg(feature = "ai")]
     model_manager: Arc<ModelManager>,
+    // 程序embedding缓存（持久化）
+    #[cfg(feature = "ai")]
+    program_embedding_cache: Arc<RwLock<HashMap<LaunchMethod, CachedEntry>>>,
+}
+
+#[cfg(feature = "ai")]
+#[derive(Debug, Clone)]
+pub struct CachedEntry {
+    pub embedding: EmbeddingVec,
 }
 
 impl SemanticManager {
@@ -52,6 +61,7 @@ impl SemanticManager {
         Self {
             semantic_store,
             model_manager,
+            program_embedding_cache: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -125,8 +135,9 @@ impl GenerateEmbeddingForLoader for SemanticManager {
         #[cfg(feature = "ai")]
         {
             // 目前只会使用 EmbeddingGemma 模型作为语义搜索器，所以这里就直接硬编码了，后面如果会添加新的模型，再做对应的解耦处理
-            let embedding_model =
-                self.model_manager.load_embedding_model(EmbeddingModelType::EmbeddingGemma)?;
+            let embedding_model = self
+                .model_manager
+                .load_embedding_model(EmbeddingModelType::EmbeddingGemma)?;
 
             let title = show_name;
             let context = format!(
@@ -157,8 +168,9 @@ impl GenerateEmbeddingForManager for SemanticManager {
         #[cfg(feature = "ai")]
         {
             // 目前只会使用 EmbeddingGemma 模型作为语义搜索器，所以这里就直接硬编码了，后面如果会添加新的模型，再做对应的解耦处理
-            let embedding_model =
-                self.model_manager.load_embedding_model(EmbeddingModelType::EmbeddingGemma)?;
+            let embedding_model = self
+                .model_manager
+                .load_embedding_model(EmbeddingModelType::EmbeddingGemma)?;
 
             let query = format!("task: search result | query: {}", user_input);
             debug!("用户输入: {}", query);
@@ -171,5 +183,82 @@ impl GenerateEmbeddingForManager for SemanticManager {
         {
             Ok(Vec::new())
         }
+    }
+}
+
+#[derive(bincode::Encode, bincode::Decode)]
+struct SerEntry {
+    key: LaunchMethod,
+    embedding: Vec<f32>,
+}
+
+impl SemanticManager {
+    /// 若缓存存在则返回克隆的缓存embedding（以 LaunchMethod 为唯一键）
+    #[cfg(feature = "ai")]
+    pub fn get_cached_embedding(&self, key: &LaunchMethod) -> Option<EmbeddingVec> {
+        let cache = self.program_embedding_cache.read();
+        cache.get(key).map(|entry| entry.embedding.clone())
+    }
+
+    /// 写入/更新缓存
+    #[cfg(feature = "ai")]
+    pub fn put_cached_embedding(&self, key: &LaunchMethod, embedding: &EmbeddingVec) {
+        let mut cache = self.program_embedding_cache.write();
+        cache.insert(
+            key.clone(),
+            CachedEntry {
+                embedding: embedding.clone(),
+            },
+        );
+    }
+
+    /// 将缓存导出为二进制
+    #[cfg(feature = "ai")]
+    pub fn export_embeddings_cache_to_bytes(&self) -> Vec<u8> {
+        // 使用 serde + bincode 进行序列化，避免手写二进制协议
+
+        let cache = self.program_embedding_cache.read();
+        let mut list: Vec<SerEntry> = Vec::with_capacity(cache.len());
+        for (k, v) in cache.iter() {
+            let emb: Vec<f32> = {
+                #[cfg(feature = "ai")]
+                {
+                    v.embedding.as_slice().unwrap_or(&[]).to_vec()
+                }
+                #[cfg(not(feature = "ai"))]
+                {
+                    v.embedding.clone()
+                }
+            };
+            list.push(SerEntry {
+                key: k.clone(),
+                embedding: emb,
+            });
+        }
+        bincode::encode_to_vec(&list, bincode::config::standard()).unwrap_or_default()
+    }
+
+    /// 从二进制加载缓存
+    #[cfg(feature = "ai")]
+    pub fn load_embeddings_cache_from_bytes(&self, bytes: Option<&[u8]>) -> bool {
+        let Some(data) = bytes else {
+            return false;
+        };
+
+        let list: Vec<SerEntry> =
+            match bincode::decode_from_slice(data, bincode::config::standard()) {
+                Ok((v, _)) => v,
+                Err(_) => return false,
+            };
+        let mut map: HashMap<LaunchMethod, CachedEntry> = HashMap::with_capacity(list.len());
+        for item in list.into_iter() {
+            #[cfg(feature = "ai")]
+            let emb = ndarray::Array1::from(item.embedding);
+            #[cfg(not(feature = "ai"))]
+            let emb = item.embedding;
+            map.insert(item.key, CachedEntry { embedding: emb });
+        }
+        *self.program_embedding_cache.write() = map;
+        true
     }
 }

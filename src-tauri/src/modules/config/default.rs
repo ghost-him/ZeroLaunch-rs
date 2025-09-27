@@ -61,4 +61,7 @@ pub const REMOTE_CONFIG_NAME: &str = "ZeroLaunch_remote_config.json";
 
 pub const SEMANTIC_DESCRIPTION_FILE_NAME: &str = "ZeroLaunch_program_semantic_description.json";
 
+/// 程序embedding缓存的二进制文件名
+pub const SEMANTIC_EMBEDDING_CACHE_FILE_NAME: &str = "ZeroLaunch_program_embeddings.cache";
+
 pub const PINYIN_CONTENT_JS: &str = include_str!("../program_manager/pinyin.json");

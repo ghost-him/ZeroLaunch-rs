@@ -34,7 +34,9 @@ use device_query::DeviceQuery;
 use device_query::DeviceState;
 use modules::config::app_config::PartialAppConfig;
 use modules::config::config_manager::RuntimeConfig;
-use modules::config::default::{APP_PIC_PATH, REMOTE_CONFIG_NAME};
+use modules::config::default::{
+    APP_PIC_PATH, REMOTE_CONFIG_NAME, SEMANTIC_EMBEDDING_CACHE_FILE_NAME,
+};
 use modules::config::load_string_to_runtime_config_;
 use modules::config::save_runtime_config_to_string;
 use modules::config::ui_config::PartialUiConfig;
@@ -284,6 +286,12 @@ async fn init_app_state(app: &mut App) {
         debug!("模型管理器初始化并设置完成");
     }
 
+    // 从存储读取embedding缓存（二进制）
+    let embedding_cache_bytes = state
+        .get_storage_manager()
+        .download_file_bytes(SEMANTIC_EMBEDDING_CACHE_FILE_NAME.to_string())
+        .await;
+
     let runtime_program_config = RuntimeProgramConfig {
         image_loader_config: RuntimeImageLoaderConfig {
             default_app_icon_path: APP_PIC_PATH
@@ -296,9 +304,10 @@ async fn init_app_state(app: &mut App) {
                 .expect_programming("无法获取默认网页图标路径")
                 .value()
                 .clone(),
-    },
-    #[cfg(feature = "ai")]
-    model_manager: model_manager,
+        },
+        #[cfg(feature = "ai")]
+        model_manager,
+        embedding_cache_bytes,
     };
 
     let program_manager = ProgramManager::new(runtime_program_config);
@@ -578,6 +587,18 @@ pub async fn save_config_to_file(is_update_app: bool) {
             program_manager_runtime_data.semantic_store_str,
         )
         .await;
+    // 保存语义embedding缓存：仅在 ai 特性启用时执行
+    #[cfg(feature = "ai")]
+    {
+        if !program_manager_runtime_data.semantic_cache_bytes.is_empty() {
+            storage_manager
+                .upload_file_bytes(
+                    SEMANTIC_EMBEDDING_CACHE_FILE_NAME.to_string(),
+                    program_manager_runtime_data.semantic_cache_bytes,
+                )
+                .await;
+        }
+    }
     debug!("远程配置上传完成");
 
     if is_update_app {

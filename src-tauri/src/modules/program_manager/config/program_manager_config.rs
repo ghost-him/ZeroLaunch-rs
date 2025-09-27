@@ -111,4 +111,6 @@ pub struct RuntimeProgramConfig {
     /// 模型管理器，用于语义搜索
     #[cfg(feature = "ai")]
     pub model_manager: Arc<ModelManager>,
+    /// 启动时加载到内存的embedding缓存（二进制）
+    pub embedding_cache_bytes: Option<Vec<u8>>,
 }

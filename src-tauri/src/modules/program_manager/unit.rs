@@ -1,6 +1,7 @@
 // 存放辅助型的小类型
 use crate::core::image_processor::ImageIdentity;
 use crate::program_manager::PartialProgramManagerConfig;
+use bincode::{Decode, Encode};
 #[cfg(feature = "ai")]
 use ndarray::Array1;
 // 统一的 embedding 类型别名：启用 ai 时为 ndarray::Array1<f32>，否则为 Vec<f32>
@@ -10,7 +11,7 @@ pub type EmbeddingVec = Array1<f32>;
 pub type EmbeddingVec = Vec<f32>;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq, Hash, Encode, Decode)]
 pub enum LaunchMethod {
     /// 通过文件路径来启动
     Path(String),
@@ -99,4 +100,5 @@ impl SemanticStoreItem {
 pub struct ProgramManagerRuntimeData {
     pub semantic_store_str: String,
     pub runtime_data: PartialProgramManagerConfig,
+    pub semantic_cache_bytes: Vec<u8>,
 }

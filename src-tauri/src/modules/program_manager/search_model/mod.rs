@@ -73,7 +73,7 @@ impl SearchModelFactory {
             }
         };
 
-    SearchModel::new(scorer)
+        SearchModel::new(scorer)
     }
 }
 

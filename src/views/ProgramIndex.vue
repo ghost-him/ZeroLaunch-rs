@@ -247,6 +247,33 @@
                 </el-tooltip>
             </el-form-item>
 
+            <!-- 语义搜索说明：仅在 semantic 模式下显示 -->
+            <div v-if="config.program_manager_config.search_model === 'semantic'" class="semantic-section">
+                <el-card shadow="never" class="semantic-card">
+                    <p class="semantic-title">
+                        {{ t('program_index.semantic_search_intro') || '使用EmbeddingGemma-300m实现的语义搜索，带来无与论比的搜索体验。' }}
+                    </p>
+                    <el-alert type="info" :closable="false" show-icon class="semantic-tip">
+                        <template #title>
+                            {{ t('program_index.semantic_tip_model') || '需要将模型单独下载到指定的目录中。' }}
+                        </template>
+                    </el-alert>
+                    <el-alert type="warning" :closable="false" show-icon class="semantic-tip">
+                        <template #title>
+                            {{ t('program_index.semantic_tip_description') || '若补充完善描述信息，可让模型提供更准确的功能性搜索。' }}
+                        </template>
+                    </el-alert>
+                    <el-alert type="error" :closable="false" show-icon class="semantic-tip">
+                        <template #title>
+                            {{ t('program_index.semantic_tip_performance') || '启用后在初始化与更新数据库时可能占用 GPU，并显著延长加载时间。' }}
+                        </template>
+                    </el-alert>
+                    <div class="semantic-actions">
+                        <el-button type="primary" @click="openModelFolder">{{ t('program_index.open_model_folder') || '打开模型文件夹 (TODO)' }}</el-button>
+                    </div>
+                </el-card>
+            </div>
+
             <el-form-item :label="t('program_index.scan_uwp_apps')">
                 <el-switch v-model="config.program_manager_config.loader.is_scan_uwp_programs" @change="(val: boolean) =>
                     configStore.updateConfig({
@@ -310,6 +337,7 @@
             </div>
         </template>
     </el-dialog>
+
 </template>
 
 <script lang="ts" setup>
@@ -341,6 +369,9 @@ const search_model = computed(() => [
     }, {
         value: 'launchy',
         label: t('program_index.launchyqt_algorithm'),
+    }, {
+        value: 'semantic',
+    label: t('program_index.semantic_search_algorithm')
     }
 ])
 
@@ -636,6 +667,12 @@ const addKeyFilter = () => {
 
 const openIconCacheDir = async () => {
     await invoke('command_open_icon_cache_dir');
+}
+
+// 语义搜索说明采用内联模式，不再使用弹窗
+
+const openModelFolder = async () => {
+    await invoke('command_open_models_dir');
 }
 
 let unlisten: Array<UnlistenFn | null> = [];
@@ -1057,4 +1094,11 @@ onUnmounted(async () => {
 .el-question-icon {
     margin-left: 8px;
 }
+
+/* 语义搜索内联说明块 */
+.semantic-section { margin-bottom: 20px; }
+.semantic-card { border: 1px dashed var(--el-border-color); background: var(--el-fill-color-lighter); }
+.semantic-title { margin: 0 0 12px 0; font-size: 14px; line-height: 1.5; font-weight: 600; }
+.semantic-tip + .semantic-tip { margin-top: 8px; }
+.semantic-actions { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 12px; }
 </style>

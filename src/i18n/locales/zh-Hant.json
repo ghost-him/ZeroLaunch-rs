@@ -141,7 +141,7 @@
     "enter_note": "請輸入備註",
     "extra_settings": "額外設定",
     "change_search_algorithm": "變更搜尋演算法",
-    "search_algorithm_tooltip": "標準搜尋演算法: 作者精心設計的搜尋演算法，高準確率，高容錯率；Skim符合演算法：目前主流的模糊符合演算法；LaunchyQT演算法: 對LaunchyQT演算法的移植",
+    "search_algorithm_tooltip": "標準: 作者精心設計，高準確率高容錯；Skim: 主流模糊符合演算法；LaunchyQT: 對 LaunchyQT 演算法的移植；語義: 使用嵌入模型進行語義匹配（實驗性，較慢）",
     "scan_uwp_apps": "掃描UWP應用程式",
     "enable_online_icon_loading": "啟用連網載入網頁圖示",
     "online_icon_tooltip": "開啟後，即可載入網址的圖示，成功獲取後會替代預設的圖示",
@@ -151,6 +151,7 @@
     "standard_search_algorithm": "標準搜尋演算法",
     "skim_matching_algorithm": "Skim符合演算法",
     "launchyqt_algorithm": "LaunchyQT演算法（非官方）",
+    "semantic_search_algorithm": "語義搜尋（實驗性）",
     "skim_algorithm": "Skim符合演算法",
     "path_pattern_updated": "已更新路徑 {path} 的模式",
     "path_already_exists": "路徑 {path} 已存在，請檢查",
@@ -164,7 +165,13 @@
     "cannot_check_path": "無法檢查路徑 {path}",
     "setting_alias": "設定別名",
     "click_refresh": "點擊重新整理",
-    "enter_keyword_placeholder": "請輸入關鍵字"
+    "enter_keyword_placeholder": "請輸入關鍵字",
+    "semantic_search_intro": "使用 EmbeddingGemma-300m 實作的語義搜尋，帶來無與倫比的搜尋體驗。",
+    "semantic_tip_model": "需要將模型另行下載到指定的目錄中。",
+    "semantic_tip_description": "若補充更完整的描述資訊，可讓模型提供更精準的功能性搜尋。",
+  "semantic_tip_performance": "啟用後，在初始化與更新資料庫階段可能佔用 GPU，並明顯延長載入時間。",
+    "open_model_folder": "開啟模型資料夾",
+    "open_model_description": "開啟描述資訊檔案"
   },
   "other_search": {
     "custom_web_search": "自訂網址搜尋",

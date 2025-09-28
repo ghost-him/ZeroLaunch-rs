@@ -31,6 +31,22 @@ lazy_static! {
         .expect_programming("Failed to convert path to string")
         .to_string()
     };
+    /// 模型文件的保存路径（与应用程序同级目录下的 models）
+    pub static ref MODELS_DIR: String = {
+        // 优先使用可执行文件所在目录；失败时回退到当前工作目录
+        let exe_dir = std::env::current_exe()
+            .ok()
+            .and_then(|p| p.parent().map(|d| d.to_path_buf()))
+            .unwrap_or_else(|| {
+                std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."))
+            });
+
+        exe_dir
+            .join("models")
+            .to_str()
+            .expect_programming("Failed to convert path to string")
+            .to_string()
+    };
     /// app使用到的图片的路径
     pub static ref APP_PIC_PATH: DashMap<String, String> = DashMap::new();
     /// 默认的配置信息
@@ -42,5 +58,10 @@ lazy_static! {
 }
 
 pub const REMOTE_CONFIG_NAME: &str = "ZeroLaunch_remote_config.json";
+
+pub const SEMANTIC_DESCRIPTION_FILE_NAME: &str = "ZeroLaunch_program_semantic_description.json";
+
+/// 程序embedding缓存的二进制文件名
+pub const SEMANTIC_EMBEDDING_CACHE_FILE_NAME: &str = "ZeroLaunch_program_embeddings.cache";
 
 pub const PINYIN_CONTENT_JS: &str = include_str!("../program_manager/pinyin.json");

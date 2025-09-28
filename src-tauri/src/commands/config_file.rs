@@ -2,7 +2,7 @@
 use crate::core::storage::storage_manager::check_validation;
 use crate::modules::config::config_manager::PartialRuntimeConfig;
 use crate::modules::config::default::REMOTE_CONFIG_DEFAULT;
-use crate::modules::config::load_local_config;
+use crate::modules::config::load_string_to_runtime_config_;
 use crate::save_config_to_file;
 use crate::storage::config::PartialLocalConfig;
 use crate::update_app_setting;
@@ -96,7 +96,7 @@ pub async fn command_save_local_config<R: Runtime>(
     };
 
     debug!("🔄 加载并更新运行时配置");
-    let partial_config = load_local_config(&remote_config_data);
+    let partial_config = load_string_to_runtime_config_(&remote_config_data);
     runtime_config.update(partial_config);
 
     debug!("⚙️ 更新应用设置");

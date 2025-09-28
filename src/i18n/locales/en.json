@@ -141,7 +141,7 @@
     "enter_note": "Please enter note",
     "extra_settings": "Extra Settings",
     "change_search_algorithm": "Change Search Algorithm",
-    "search_algorithm_tooltip": "Standard Search Algorithm: Carefully designed by the author, high accuracy and fault tolerance; Skim Matching Algorithm: A popular fuzzy matching algorithm; LaunchyQT Algorithm: A port of the LaunchyQT algorithm",
+    "search_algorithm_tooltip": "Standard: Carefully designed by the author, high accuracy & fault tolerance; Skim: A popular fuzzy matching algorithm; LaunchyQT: A port of the LaunchyQT algorithm; Semantic: Uses embedding model for meaning-based match (experimental, slower)",
     "scan_uwp_apps": "Scan UWP Applications",
     "enable_online_icon_loading": "Enable online loading of webpage icons",
     "online_icon_tooltip": "When enabled, it can load icons for URLs, which will replace the default icon upon successful retrieval",
@@ -151,6 +151,7 @@
     "standard_search_algorithm": "Standard Search Algorithm",
     "skim_matching_algorithm": "Skim Matching Algorithm",
     "launchyqt_algorithm": "LaunchyQT Algorithm (unofficial)",
+    "semantic_search_algorithm": "Semantic Search (experimental)",
     "skim_algorithm": "Skim Matching Algorithm",
     "path_pattern_updated": "Pattern for path {path} has been updated",
     "path_already_exists": "Path {path} already exists, please check",
@@ -164,7 +165,13 @@
     "cannot_check_path": "Cannot check path {path}",
     "click_refresh": "Click to Refresh",
     "setting_alias": "Setting Alias",
-    "enter_keyword_placeholder": "Please enter keyword"
+    "enter_keyword_placeholder": "Please enter keyword",
+    "semantic_search_intro": "Semantic search powered by EmbeddingGemma-300m for an unparalleled search experience.",
+    "semantic_tip_model": "You need to download the model separately to the specified directory.",
+    "semantic_tip_description": "Providing richer description information helps the model deliver more accurate functional search.",
+  "semantic_tip_performance": "When enabled, initialization and database updates may use the GPU and significantly increase loading time.",
+    "open_model_folder": "Open Model Folder",
+    "open_model_description": "Open Description File"
   },
   "other_search": {
     "custom_web_search": "Custom Web Search",

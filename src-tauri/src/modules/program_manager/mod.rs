@@ -5,23 +5,31 @@ pub mod pinyin_mapper;
 pub mod program_launcher;
 pub mod program_loader;
 pub mod search_model;
+pub mod semantic_backend;
+pub mod semantic_manager;
+use crate::program_manager::search_engine::TraditionalSearchEngine;
+pub mod search_engine;
 pub mod unit;
 pub mod window_activator;
 use crate::core::image_processor::ImageProcessor;
-use crate::error::OptionExt;
+use crate::error::{OptionExt, ResultExt};
 use crate::modules::program_manager::config::program_manager_config::RuntimeProgramConfig;
+use crate::modules::program_manager::search_engine::{SearchEngine, SemanticSearchEngine};
 use crate::program_manager::config::program_manager_config::ProgramManagerConfig;
 use crate::program_manager::search_model::*;
+use crate::program_manager::semantic_manager::SemanticManager;
 use crate::program_manager::unit::*;
 use config::program_manager_config::PartialProgramManagerConfig;
 use dashmap::DashMap;
 use image_loader::ImageLoader;
+use lru::LruCache;
 use program_launcher::ProgramLauncher;
 use program_loader::ProgramLoader;
-use rayon::prelude::*;
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::RwLock;
+use tracing::info;
 use window_activator::WindowActivator;
 
 /// 程序管理器 - 使用细粒度锁优化并发性能
@@ -35,16 +43,21 @@ pub struct ProgramManager {
     program_loader: Arc<ProgramLoader>,
     /// 程序启动器
     program_launcher: Arc<ProgramLauncher>,
-    /// 当前程序的搜索模型
-    search_model: Arc<RwLock<Arc<SearchModel>>>,
+    /// 当前程序的搜索引擎
+    search_engine: Arc<RwLock<Arc<dyn SearchEngine>>>,
     /// 图标获取器
     image_loader: Arc<ImageLoader>,
     /// 窗口唤醒器
     window_activator: Arc<WindowActivator>,
+    /// 语义生成器
+    semantic_manager: Arc<SemanticManager>,
+    /// 短期搜索结果缓存（统一，基于 LruCache）
+    short_term_result_cache: Arc<RwLock<LruCache<String, Vec<SearchMatchResult>>>>,
 }
 
 /// 内部搜索结果，包含分数和程序ID
-struct SearchMatchResult {
+#[derive(Debug, Clone)]
+pub(crate) struct SearchMatchResult {
     score: f64,
     program_guid: u64,
 }
@@ -52,27 +65,62 @@ struct SearchMatchResult {
 impl ProgramManager {
     /// 初始化，空
     pub fn new(runtime_program_config: RuntimeProgramConfig) -> Self {
-        ProgramManager {
+        let RuntimeProgramConfig {
+            image_loader_config,
+            embedding_backend,
+            embedding_cache_bytes,
+        } = runtime_program_config;
+
+        let semantic_manager = Arc::new(SemanticManager::new(embedding_backend, HashMap::new()));
+        let pm = ProgramManager {
             program_registry: Arc::new(RwLock::new(Vec::new())),
-            program_loader: Arc::new(ProgramLoader::new()),
+            program_loader: Arc::new(ProgramLoader::new(semantic_manager.clone())),
             program_launcher: Arc::new(ProgramLauncher::new()),
-            search_model: Arc::new(RwLock::new(Arc::new(SearchModel::default()))),
-            image_loader: Arc::new(ImageLoader::new(runtime_program_config.image_loader_config)),
+            search_engine: Arc::new(RwLock::new(Arc::new(TraditionalSearchEngine::default()))),
+            image_loader: Arc::new(ImageLoader::new(image_loader_config)),
             program_locater: Arc::new(DashMap::new()),
             window_activator: Arc::new(WindowActivator::new()),
+            semantic_manager,
+            short_term_result_cache: Arc::new(RwLock::new(LruCache::new(100.try_into().unwrap()))),
+        };
+        if pm
+            .semantic_manager
+            .load_embeddings_cache_from_bytes(embedding_cache_bytes.as_deref())
+        {
+            info!("已从持久化缓存加载程序embeddings");
         }
+        pm
     }
-    pub async fn get_runtime_data(&self) -> PartialProgramManagerConfig {
-        PartialProgramManagerConfig {
-            launcher: Some(self.program_launcher.get_runtime_data()),
-            loader: None,
-            image_loader: None,
-            search_model: None,
+    pub async fn get_runtime_data(&self) -> ProgramManagerRuntimeData {
+        // 这里我认为，semantic_store 是一个 HashMap<String, SemanticStoreItem>，而SemanticStoreItem是一个内部的类，它最好不要被外部的信息所接触
+        // 所以由ProgramManager来管理其实例化
+        // 而PartialProgramManagerConfig本身就是一个用于与外部通信的结构体，所以可以直接返回
+        let semantic_store = self.semantic_manager.get_runtime_data();
+        let semantic_store_str = serde_json::to_string_pretty(&semantic_store)
+            .expect_programming("该结构体在格式化时不应该出错");
+
+        // 导出语义缓存字节（无后端时返回空向量）
+        let semantic_cache_bytes: Vec<u8> =
+            self.semantic_manager.export_embeddings_cache_to_bytes();
+
+        ProgramManagerRuntimeData {
+            semantic_store_str,
+            runtime_data: PartialProgramManagerConfig {
+                launcher: Some(self.program_launcher.get_runtime_data()),
+                loader: None,
+                image_loader: None,
+                search_model: None,
+            },
+            semantic_cache_bytes,
         }
     }
 
     /// 使用配置信息初始化自身与子模块
-    pub async fn load_from_config(&self, config: Arc<ProgramManagerConfig>) {
+    pub async fn load_from_config(
+        &self,
+        config: Arc<ProgramManagerConfig>,
+        semantic_store: Option<String>,
+    ) {
         let program_loader_config = &config.get_loader_config();
         let program_launcher_config = &config.get_launcher_config();
         let image_loader_config = &config.get_image_loader_config();
@@ -80,9 +128,39 @@ impl ProgramManager {
         self.image_loader
             .load_from_config(image_loader_config)
             .await;
+
+        // 先使用semantic_store初始化semantic_manager
+        // 这样使用program_loader就可以通过semantic_manager来得到不同的语义描述
+        let mut semantic_store = serde_json::from_str::<HashMap<String, SemanticStoreItem>>(
+            &semantic_store.unwrap_or_else(|| "{}".to_string()),
+        )
+        .unwrap_or_default();
+
+        self.semantic_manager
+            .update_semantic_store(semantic_store.clone());
+
         self.program_loader.load_from_config(program_loader_config);
+
+        // 根据搜索模型决定是否生成embedding
+        let search_config = config.get_search_model_config();
+        let has_backend = self.semantic_manager.has_backend();
+        let enable_embeddings = has_backend && !search_config.is_traditional_search();
+        self.program_loader
+            .set_compute_embeddings(enable_embeddings);
+
         // 加载程序数据
         let new_programs = self.program_loader.load_program();
+
+        // 之后再使用program_loader加载出来的程序再一次更新semantic_manager，因为这一次加载出来的程序可能会有新的程序
+        // 更新一下semantic_store，将所有不在semantic_store中的程序添加进去，描述为空
+        new_programs.iter().for_each(|program| {
+            let key = program.launch_method.get_text();
+            semantic_store
+                .entry(key)
+                .or_insert_with(|| SemanticStoreItem::new(program.clone()));
+        });
+
+        self.semantic_manager.update_semantic_store(semantic_store);
 
         // 清空并更新程序注册表
         let mut program_registry = self.program_registry.write().await;
@@ -104,7 +182,24 @@ impl ProgramManager {
             self.program_locater.insert(program.program_guid, index);
         }
 
-        *self.search_model.write().await = config.get_search_model();
+        let is_traditional_search = search_config.is_traditional_search();
+
+        let search_engine: Arc<dyn SearchEngine> =
+            if is_traditional_search || !has_backend {
+                let new_search_model = SearchModelFactory::create_scorer(search_config.clone());
+                Arc::new(TraditionalSearchEngine::new(Arc::new(new_search_model)))
+            } else {
+                Arc::new(SemanticSearchEngine::new(self.semantic_manager.clone()))
+            };
+
+        let mut search_engine_lock = self.search_engine.write().await;
+        *search_engine_lock = search_engine;
+
+        if has_backend && is_traditional_search {
+            self.semantic_manager.release_backend_resources();
+        }
+        // 数据库更新后，清空短期结果缓存
+        *self.short_term_result_cache.write().await = LruCache::new(100.try_into().unwrap());
     }
 
     /// 使用搜索算法搜索，并给出指定长度的序列
@@ -180,7 +275,7 @@ impl ProgramManager {
         let index = *self
             .program_locater
             .get(program_guid)
-            .expect_programming("程序定位器中未找到程序GUID");
+            .expect_programming(&format!("程序定位器中未找到程序GUID:{}", program_guid));
         let program_registry = self.program_registry.read().await;
         let target_program = &program_registry[index];
         let mut result = self.image_loader.load_image(target_program.clone()).await;
@@ -282,28 +377,24 @@ impl ProgramManager {
         let user_input = user_input.to_lowercase();
         let user_input = remove_repeated_space(&user_input);
 
+        // 统一短期缓存命中直接返回
+        if let Some(cached) = self
+            .short_term_result_cache
+            .write()
+            .await
+            .get(&user_input)
+            .cloned()
+        {
+            return cached.into_iter().take(result_count as usize).collect();
+        }
+
         let launcher = &self.program_launcher;
 
         let program_registry = self.program_registry.read().await;
-        let search_model = self.search_model.read().await;
+        let search_engine = self.search_engine.read().await;
         // 计算所有程序的匹配分数
-        let mut match_scores: Vec<SearchMatchResult> = program_registry
-            .par_iter()
-            .map(|program| {
-                // 基础匹配分数
-                let mut score = search_model.calculate_score(program, &user_input);
-                // 加上固定偏移量
-                score += program.stable_bias;
-                // 加上动态偏移量
-                score += launcher.program_dynamic_value_based_launch_time(program.program_guid);
-
-                SearchMatchResult {
-                    score,
-                    program_guid: program.program_guid,
-                }
-            })
-            .collect();
-
+        let mut match_scores: Vec<SearchMatchResult> =
+            search_engine.perform_search(&user_input, program_registry.as_ref(), launcher);
         // 按分数降序排序
         match_scores.sort_by(|a, b| {
             b.score
@@ -313,6 +404,12 @@ impl ProgramManager {
 
         // 只保留需要的数量
         match_scores.truncate(result_count as usize);
+
+        // 写入短期缓存
+        self.short_term_result_cache
+            .write()
+            .await
+            .put(user_input.clone(), match_scores.clone());
 
         match_scores
     }

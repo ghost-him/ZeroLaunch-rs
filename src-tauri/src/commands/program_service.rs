@@ -1,6 +1,8 @@
 use crate::commands::ui_command::hide_window;
+use crate::error::ResultExt;
 use crate::modules::config::config_manager::PartialRuntimeConfig;
 use crate::modules::config::default::ICON_CACHE_DIR;
+use crate::modules::config::default::MODELS_DIR;
 use crate::notify;
 use crate::save_config_to_file;
 use crate::state::app_state::AppState;
@@ -238,15 +240,26 @@ pub async fn open_target_folder<R: Runtime>(
 
 #[tauri::command]
 #[allow(clippy::zombie_processes)]
+pub async fn command_open_models_dir<R: Runtime>(
+    _app: tauri::AppHandle<R>,
+    _window: tauri::Window<R>,
+) -> Result<(), String> {
+    let target_path = MODELS_DIR.clone();
+    Command::new("explorer")
+        .args([&target_path])
+        .spawn()
+        .expect_programming("Failed to spawn explorer process");
+    Ok(())
+}
+
+#[tauri::command]
+#[allow(clippy::zombie_processes)]
 pub async fn command_open_icon_cache_dir<R: Runtime>(
     _app: tauri::AppHandle<R>,
     _window: tauri::Window<R>,
 ) -> Result<(), String> {
     let target_path = ICON_CACHE_DIR.clone();
-    if let Err(e) = Command::new("explorer")
-        .args([&target_path]) // 使用/select参数并指定完整文件路径
-        .spawn()
-    {
+    if let Err(e) = Command::new("explorer").args([&target_path]).spawn() {
         return Err(format!("Failed to open icon cache directory: {:?}", e));
     }
     Ok(())

@@ -152,7 +152,7 @@ watch(searchText, (newVal) => {
 
 const sendSearchText = async (text: string) => {
   try {
-    const results: Array<[number, string]> = await invoke('handle_search_text', { searchText: text, searchCount: app_config.value.search_result_count });
+    const results: Array<[number, string]> = await invoke('handle_search_text', { searchText: text });
     searchResults.value = results;
     await refresh_result_items();
     // 搜索时重置滚动位置和选中项
@@ -257,13 +257,23 @@ const updateWindow = async () => {
     const url = URL.createObjectURL(blob);
 
     background_picture.value = url;
+
+    // 先清空图标缓存，确保数据库更新后图标与程序名保持一致
+    program_icons.value.forEach(url => URL.revokeObjectURL(url));
+    program_icons.value.clear();
+
+    // 如果没有这个，那么就会导致在没有更新完成时，结果栏也是空的，这样不好看，所以提前发送一次搜索文本
     if (!is_visible || searchText.value.length == 0) {
       await sendSearchText('');
     }
     await startPreloadResource(await program_count).then(async () => {
       is_loading_icons.value = false;
-    }
-    );
+      // 如果没有这个，那么可能会导致图标加载不正确（显示是空的），加了以后会再次搜索，从而显示正确的图标
+      if (!is_visible || searchText.value.length == 0) {
+        await sendSearchText('');
+      }
+    });
+
   } catch (error) {
     console.error('Error in updateWindow:', error);
   }

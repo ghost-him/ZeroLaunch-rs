@@ -6,3 +6,5 @@
 # will have schema files for capabilities auto-completion
 /gen/schemas
 /locales
+/EmbeddingGemma-300m
+/models/EmbeddingGemma-300m

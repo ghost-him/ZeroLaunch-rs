@@ -1,7 +1,11 @@
 // 存放辅助型的小类型
 use crate::core::image_processor::ImageIdentity;
+use crate::program_manager::PartialProgramManagerConfig;
+use bincode::{Decode, Encode};
+pub type EmbeddingVec = Vec<f32>;
 use serde::{Deserialize, Serialize};
-#[derive(Debug, Clone)]
+use std::sync::Arc;
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq, Hash, Encode, Decode)]
 pub enum LaunchMethod {
     /// 通过文件路径来启动
     Path(String),
@@ -49,6 +53,8 @@ pub struct Program {
     pub stable_bias: f64,
     /// 应用程序应该展示的图片的地址
     pub icon_path: ImageIdentity,
+    /// 用于语义搜索的相关内容(可选)
+    pub embedding: EmbeddingVec,
 }
 
 /// 表示搜索测试的结果项
@@ -62,4 +68,31 @@ pub struct SearchTestResult {
     pub program_path: String,
     /// 匹配的权重值
     pub score: f64,
+}
+
+/// 表示语义信息的存储项
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct SemanticStoreItem {
+    /// 程序的显示名字
+    pub show_name: String,
+    /// 是否为 UWP 应用
+    pub is_uwp: bool,
+    /// 描述信息
+    pub description: String,
+}
+
+impl SemanticStoreItem {
+    pub fn new(program: Arc<Program>) -> Self {
+        Self {
+            show_name: program.show_name.clone(),
+            is_uwp: program.launch_method.is_uwp(),
+            description: String::new(),
+        }
+    }
+}
+
+pub struct ProgramManagerRuntimeData {
+    pub semantic_store_str: String,
+    pub runtime_data: PartialProgramManagerConfig,
+    pub semantic_cache_bytes: Vec<u8>,
 }

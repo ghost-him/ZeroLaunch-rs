@@ -12,6 +12,7 @@ pub struct PartialProgramLoaderConfig {
     pub custom_command: Option<Vec<(String, String)>>,
     pub forbidden_paths: Option<Vec<String>>,
     pub program_alias: Option<HashMap<String, Vec<String>>>,
+    pub semantic_descriptions: Option<HashMap<String, String>>,
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DirectoryConfig {
@@ -69,9 +70,12 @@ pub struct ProgramLoaderConfigInner {
     /// 禁止的地址
     #[serde(default = "ProgramLoaderConfigInner::default_forbidden_paths")]
     pub forbidden_paths: Vec<String>,
-    /// 给程序的别名，将程序的地址当成key (key)=>([alias])
+    /// 给程序的别名，将程序的地址(LaunchMethod)当成key (key)=>([alias])
     #[serde(default = "ProgramLoaderConfigInner::default_program_alias")]
     pub program_alias: HashMap<String, Vec<String>>,
+    /// 程序的语义性描述信息 (launch_method) => (description)
+    #[serde(default = "ProgramLoaderConfigInner::default_semantic_descriptions")]
+    pub semantic_descriptions: HashMap<String, String>,
 }
 
 impl Default for ProgramLoaderConfigInner {
@@ -84,6 +88,7 @@ impl Default for ProgramLoaderConfigInner {
             custom_command: Self::default_custom_command(),
             forbidden_paths: Self::default_forbidden_paths(),
             program_alias: Self::default_program_alias(),
+            semantic_descriptions: Self::default_semantic_descriptions(),
         }
     }
 }
@@ -123,6 +128,10 @@ impl ProgramLoaderConfigInner {
     pub(crate) fn default_custom_command() -> Vec<(String, String)> {
         Vec::new()
     }
+
+    pub(crate) fn default_semantic_descriptions() -> HashMap<String, String> {
+        HashMap::new()
+    }
 }
 
 impl ProgramLoaderConfigInner {
@@ -135,6 +144,7 @@ impl ProgramLoaderConfigInner {
             custom_command: Some(self.custom_command.clone()),
             forbidden_paths: Some(self.forbidden_paths.clone()),
             program_alias: Some(self.program_alias.clone()),
+            semantic_descriptions: Some(self.semantic_descriptions.clone()),
         }
     }
 
@@ -159,6 +169,9 @@ impl ProgramLoaderConfigInner {
         }
         if let Some(partial_program_alias) = partial_config.program_alias {
             self.program_alias = partial_program_alias;
+        }
+        if let Some(partial_semantic_descriptions) = partial_config.semantic_descriptions {
+            self.semantic_descriptions = partial_semantic_descriptions;
         }
     }
 }
@@ -210,5 +223,8 @@ impl ProgramLoaderConfig {
     }
     pub fn get_program_alias(&self) -> HashMap<String, Vec<String>> {
         self.inner.read().program_alias.clone()
+    }
+    pub fn get_semantic_descriptions(&self) -> HashMap<String, String> {
+        self.inner.read().semantic_descriptions.clone()
     }
 }

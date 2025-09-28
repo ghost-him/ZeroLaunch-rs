@@ -14,11 +14,14 @@ use crate::commands::program_service::*;
 use crate::commands::shortcut::*;
 use crate::commands::ui_command::*;
 use crate::commands::utils::*;
+#[cfg(feature = "ai")]
+use crate::core::ai::model_manager::ModelManager;
 use crate::error::{OptionExt, ResultExt};
 use crate::logging::{init_logging, log_application_start, update_log_level};
 use crate::modules::config::config_manager::PartialRuntimeConfig;
 use crate::modules::config::default::LOCAL_CONFIG_PATH;
 use crate::modules::config::default::REMOTE_CONFIG_DEFAULT;
+use crate::modules::config::default::SEMANTIC_DESCRIPTION_FILE_NAME;
 use crate::modules::config::{Height, Width};
 use crate::modules::ui_controller::controller::get_window_render_origin;
 use crate::state::app_state::AppState;
@@ -33,13 +36,16 @@ use device_query::DeviceQuery;
 use device_query::DeviceState;
 use modules::config::app_config::PartialAppConfig;
 use modules::config::config_manager::RuntimeConfig;
-use modules::config::default::{APP_PIC_PATH, REMOTE_CONFIG_NAME};
-use modules::config::load_local_config;
-use modules::config::save_local_config;
+use modules::config::default::{
+    APP_PIC_PATH, REMOTE_CONFIG_NAME, SEMANTIC_EMBEDDING_CACHE_FILE_NAME,
+};
+use modules::config::load_string_to_runtime_config_;
+use modules::config::save_runtime_config_to_string;
 use modules::config::ui_config::PartialUiConfig;
 use modules::config::window_state::PartialWindowState;
 use modules::program_manager::config::image_loader_config::RuntimeImageLoaderConfig;
 use modules::program_manager::config::program_manager_config::RuntimeProgramConfig;
+use modules::program_manager::semantic_backend;
 use modules::program_manager::{self, ProgramManager};
 use modules::shortcut_manager::start_shortcut_manager;
 use modules::shortcut_manager::update_shortcut_manager;
@@ -179,7 +185,8 @@ pub fn run() {
             command_get_system_fonts,
             command_get_path_info,
             command_get_latest_launch_program, //command_get_onedrive_refresh_token
-            command_read_file
+            command_read_file,
+            command_open_models_dir,
         ])
         .run(tauri::generate_context!())
         .expect_programming("error while running tauri application");
@@ -253,7 +260,7 @@ async fn init_app_state(app: &mut App) {
         }
     };
 
-    let partial_config = load_local_config(&remote_config_data);
+    let partial_config = load_string_to_runtime_config_(&remote_config_data);
     let runtime_config = RuntimeConfig::new();
     runtime_config.update(partial_config);
 
@@ -273,6 +280,24 @@ async fn init_app_state(app: &mut App) {
     }
 
     // === 阶段4: 程序管理器初始化 ===
+    #[cfg(feature = "ai")]
+    let model_manager = Arc::new(ModelManager::new());
+
+    #[cfg(feature = "ai")]
+    let embedding_backend = semantic_backend::create_embedding_backend(model_manager.clone());
+
+    #[cfg(not(feature = "ai"))]
+    let embedding_backend = semantic_backend::create_embedding_backend();
+
+    let embedding_cache_bytes = if embedding_backend.is_some() {
+        state
+            .get_storage_manager()
+            .download_file_bytes(SEMANTIC_EMBEDDING_CACHE_FILE_NAME.to_string())
+            .await
+    } else {
+        None
+    };
+
     let runtime_program_config = RuntimeProgramConfig {
         image_loader_config: RuntimeImageLoaderConfig {
             default_app_icon_path: APP_PIC_PATH
@@ -286,6 +311,8 @@ async fn init_app_state(app: &mut App) {
                 .value()
                 .clone(),
         },
+        embedding_backend,
+        embedding_cache_bytes,
     };
 
     let program_manager = ProgramManager::new(runtime_program_config);
@@ -375,11 +402,6 @@ fn register_icon_path(app: &mut App) {
         ("web_pages", "web_pages.png"),
         ("tips", "tips.png"),
         ("terminal", "terminal.png"),
-        ("settings", "settings.ico"),
-        ("refresh", "refresh.ico"),
-        ("register", "register.ico"),
-        ("game", "game.ico"),
-        ("exit", "exit.ico"),
     ];
 
     for (key_name, file_name) in icons_to_register.iter() {
@@ -453,8 +475,28 @@ async fn update_app_setting() {
 
     // 2. 重新更新程序索引的路径
     let program_manager = state.get_program_manager();
+    let storage_manager = state.get_storage_manager();
+    // 获取当前最新的描述信息的内容
+    let semantic_store_str = match storage_manager
+        .download_file_str(SEMANTIC_DESCRIPTION_FILE_NAME.to_string())
+        .await
+    {
+        Some(data) => data,
+        None => {
+            // 如果没有获取到，则使用空的json对象，同时上传这个
+            let ret = "{}".to_string();
+            storage_manager
+                .upload_file_str(SEMANTIC_DESCRIPTION_FILE_NAME.to_string(), ret.clone())
+                .await;
+            ret
+        }
+    };
+
     program_manager
-        .load_from_config(runtime_config.get_program_manager_config())
+        .load_from_config(
+            runtime_config.get_program_manager_config(),
+            Some(semantic_store_str),
+        )
         .await;
 
     // 3. 判断要不要开机自启动
@@ -512,7 +554,7 @@ pub async fn save_config_to_file(is_update_app: bool) {
     let runtime_config = state.get_runtime_config();
     debug!("获取运行时配置完成");
 
-    let runtime_data = state.get_program_manager().get_runtime_data().await;
+    let program_manager_runtime_data = state.get_program_manager().get_runtime_data().await;
     debug!("获取程序管理器运行时数据完成");
     let window = state
         .get_main_handle()
@@ -530,12 +572,12 @@ pub async fn save_config_to_file(is_update_app: bool) {
         app_config: Some(partial_app_config),
         ui_config: None,
         shortcut_config: None,
-        program_manager_config: Some(runtime_data),
+        program_manager_config: Some(program_manager_runtime_data.runtime_data),
         window_state: None,
     });
     let remote_config = runtime_config.to_partial();
 
-    let data_str = save_local_config(remote_config);
+    let data_str = save_runtime_config_to_string(remote_config);
     debug!("本地配置保存完成");
 
     let storage_manager = state.get_storage_manager();
@@ -543,6 +585,21 @@ pub async fn save_config_to_file(is_update_app: bool) {
     storage_manager
         .upload_file_str(REMOTE_CONFIG_NAME.to_string(), data_str)
         .await;
+    //保存一下描述性信息
+    storage_manager
+        .upload_file_str(
+            SEMANTIC_DESCRIPTION_FILE_NAME.to_string(),
+            program_manager_runtime_data.semantic_store_str,
+        )
+        .await;
+    if !program_manager_runtime_data.semantic_cache_bytes.is_empty() {
+        storage_manager
+            .upload_file_bytes(
+                SEMANTIC_EMBEDDING_CACHE_FILE_NAME.to_string(),
+                program_manager_runtime_data.semantic_cache_bytes,
+            )
+            .await;
+    }
     debug!("远程配置上传完成");
 
     if is_update_app {

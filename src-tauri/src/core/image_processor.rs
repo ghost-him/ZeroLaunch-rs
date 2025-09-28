@@ -77,13 +77,7 @@ impl ImageProcessor {
         };
 
         match result {
-            Ok(data) => {
-                debug!(
-                    "Successfully loaded image for: {:?}",
-                    icon_identity.get_text()
-                );
-                data
-            }
+            Ok(data) => data,
             Err(err) => {
                 error!(
                     "Failed to load image for {:?}: {}",
@@ -114,7 +108,6 @@ impl ImageProcessor {
 
     /// 获取网站的 PNG 格式图标（favicon）
     async fn fetch_website_favicon_png(url: &str) -> AppResult<Vec<u8>> {
-        debug!("Checking network availability for favicon fetch");
         if !Self::is_network_available() {
             debug!("No network connection available");
             return Err(AppError::NetworkError {
@@ -122,8 +115,6 @@ impl ImageProcessor {
                 source: None,
             });
         }
-
-        debug!("Fetching website content from: {}", url);
         // 获取网页内容
         let response = reqwest::get(url).await.map_err(|e| {
             AppError::network_error_with_source(
@@ -139,7 +130,6 @@ impl ImageProcessor {
             )
         })?;
 
-        debug!("Parsing HTML content ({} bytes)", html_content.len());
         // 将 HTML 解析和图标 URL 提取放在一个同步代码块中
         let icon_url = {
             let document = Html::parse_document(&html_content);
@@ -158,12 +148,8 @@ impl ImageProcessor {
                 .select(&icon_selector)
                 .next()
                 .and_then(|e| e.value().attr("href"))
-                .and_then(|href| {
-                    debug!("Found favicon href: {}", href);
-                    base_url.join(href).ok()
-                })
+                .and_then(|href| base_url.join(href).ok())
                 .unwrap_or_else(|| {
-                    debug!("No favicon link found, using default /favicon.ico");
                     base_url.join("/favicon.ico").expect_programming(
                         "Failed to create default favicon URL - this should never happen",
                     )
@@ -188,10 +174,6 @@ impl ImageProcessor {
             )
         })?;
 
-        debug!(
-            "Successfully downloaded favicon ({} bytes)",
-            icon_data.len()
-        );
         Ok(icon_data.to_vec())
     }
 
@@ -205,8 +187,6 @@ impl ImageProcessor {
     }
     /// 内部函数：从路径加载图像，返回Result类型
     async fn load_image_from_path_internal(icon_path: &str) -> AppResult<Vec<u8>> {
-        debug!("Loading image from path: {}", icon_path);
-
         if Self::is_program(icon_path) {
             debug!("Detected program file, extracting icon: {}", icon_path);
             // 使用Windows系统调用读取程序图标
@@ -218,16 +198,8 @@ impl ImageProcessor {
 
             let png_data = Self::rgba_image_to_png(&rgba_image)?;
 
-            debug!(
-                "Successfully extracted and converted program icon ({} bytes)",
-                png_data.len()
-            );
             Ok(png_data)
         } else if Self::is_ico_file(icon_path) {
-            debug!(
-                "Detected ICO file, using LoadImageW to get largest icon: {}",
-                icon_path
-            );
             // 对于.ico文件，使用LoadImageW来获取最大尺寸的图标
             let rgba_image = Self::extract_largest_icon_from_ico_file(icon_path)
                 .await
@@ -240,27 +212,17 @@ impl ImageProcessor {
 
             let png_data = Self::rgba_image_to_png(&rgba_image)?;
 
-            debug!(
-                "Successfully extracted and converted largest ICO icon ({} bytes)",
-                png_data.len()
-            );
             Ok(png_data)
         } else {
-            debug!("Loading regular image file: {}", icon_path);
             // 直接使用库来读取图像文件
             let png_data = Self::load_and_convert_to_png(icon_path).await?;
 
-            debug!(
-                "Successfully loaded and converted image ({} bytes)",
-                png_data.len()
-            );
             Ok(png_data)
         }
     }
 
     async fn load_and_convert_to_png<P: AsRef<Path>>(file_path: P) -> AppResult<Vec<u8>> {
         let path_str = file_path.as_ref().to_string_lossy();
-        debug!("Reading file content from: {}", path_str);
 
         // 异步读取文件内容
         let file_content = tokio::fs::read(file_path.as_ref()).await.map_err(|e| {
@@ -271,19 +233,15 @@ impl ImageProcessor {
             )
         })?;
 
-        debug!("Read {} bytes from file", file_content.len());
         Self::convert_image_to_png(file_content).await
     }
 
     async fn convert_image_to_png(image_data: Vec<u8>) -> AppResult<Vec<u8>> {
         // 在阻塞线程中处理图像
         tauri::async_runtime::spawn_blocking(move || -> AppResult<Vec<u8>> {
-            debug!("Converting {} bytes of image data to PNG", image_data.len());
-
             // 尝试将数据解析为 SVG
             match usvg::Tree::from_data(&image_data, &usvg::Options::default()) {
                 Ok(tree) => {
-                    debug!("Successfully parsed as SVG, rendering to PNG");
                     // 成功解析为 SVG，现在进行渲染
                     let pixmap_size = tree.size().to_int_size();
 
@@ -315,18 +273,9 @@ impl ImageProcessor {
                             .map_err(|e| AppError::ImageProcessingError {
                                 message: format!("Failed to encode SVG as PNG: {}", e),
                             })?;
-
-                    debug!(
-                        "Successfully converted SVG to PNG ({} bytes)",
-                        png_data.len()
-                    );
                     Ok(png_data)
                 }
-                Err(svg_error) => {
-                    debug!(
-                        "Not an SVG or SVG parsing failed: {}, trying as regular image",
-                        svg_error
-                    );
+                Err(_) => {
                     // 解析 SVG 失败，或它不是 SVG。回退到原始的 image crate 逻辑。
                     let img_reader = image::ImageReader::new(Cursor::new(image_data))
                         .with_guessed_format()
@@ -342,8 +291,6 @@ impl ImageProcessor {
                                 message: "Unable to detect image format".to_string(),
                             })?;
 
-                    debug!("Detected image format: {:?}", format);
-
                     // 解码图像
                     let mut img =
                         img_reader
@@ -354,7 +301,6 @@ impl ImageProcessor {
 
                     // 如果不是 PNG 格式，则转换
                     if format != ImageFormat::Png {
-                        debug!("Converting from {:?} to PNG format", format);
                         // 转换为 RGBA8 以便编码为 PNG
                         img = image::DynamicImage::ImageRgba8(img.to_rgba8());
                     }
@@ -367,11 +313,6 @@ impl ImageProcessor {
                             message: format!("Failed to encode image as PNG: {}", e),
                         }
                     })?;
-
-                    debug!(
-                        "Successfully converted image to PNG ({} bytes)",
-                        png_data.len()
-                    );
                     Ok(png_data)
                 }
             }
@@ -718,11 +659,6 @@ impl ImageProcessor {
 
     /// 从 PNG 图像数据中裁剪掉外围的白色或透明像素
     pub fn trim_transparent_white_border(png_data: Vec<u8>) -> AppResult<Vec<u8>> {
-        debug!(
-            "Trimming transparent/white border from {} bytes of PNG data",
-            png_data.len()
-        );
-
         // 解析 PNG 数据
         let img =
             image::load_from_memory(&png_data).map_err(|e| AppError::ImageProcessingError {
@@ -731,8 +667,6 @@ impl ImageProcessor {
 
         let width = img.width();
         let height = img.height();
-
-        debug!("Image dimensions: {}x{}", width, height);
 
         // 确保图像是正方形
         if width != height {
@@ -786,15 +720,8 @@ impl ImageProcessor {
 
         // 如果整个图像都是白色或透明的，返回原图
         if border_width >= size / 2 {
-            debug!("Image is mostly transparent/white, returning original");
             return Ok(png_data);
         }
-
-        debug!(
-            "Trimming border of {} pixels, new size will be {}",
-            border_width,
-            size - 2 * border_width
-        );
 
         // 裁剪图像
         let new_size = size - 2 * border_width;
@@ -821,12 +748,6 @@ impl ImageProcessor {
                 message: format!("Failed to encode trimmed image: {}", e),
             })?;
 
-        debug!(
-            "Successfully trimmed image to {}x{} ({} bytes)",
-            new_size,
-            new_size,
-            output.len()
-        );
         Ok(output)
     }
 
@@ -839,12 +760,6 @@ impl ImageProcessor {
 
     /// 将RGBA转换为PNG图像数据
     fn rgba_image_to_png(rgba_image: &RgbaImage) -> AppResult<Vec<u8>> {
-        debug!(
-            "Converting RgbaImage ({}x{}) to PNG",
-            rgba_image.width(),
-            rgba_image.height()
-        );
-
         // 创建一个缓冲区来存储PNG数据
         let mut buffer = Vec::new();
 
@@ -858,18 +773,10 @@ impl ImageProcessor {
                 message: format!("Failed to encode RGBA image as PNG: {}", e),
             })?;
 
-        debug!(
-            "Successfully converted RgbaImage to PNG ({} bytes)",
-            buffer.len()
-        );
         Ok(buffer)
     }
 
     pub async fn get_dominant_color(image_data: Vec<u8>) -> AppResult<(u8, u8, u8)> {
-        debug!(
-            "Analyzing dominant color from {} bytes of image data",
-            image_data.len()
-        );
         // 使用 spawn_blocking 将 CPU 密集型任务移到单独的线程
         tauri::async_runtime::spawn_blocking(move || -> AppResult<(u8, u8, u8)> {
             // 加载并解码PNG图片
@@ -879,12 +786,6 @@ impl ImageProcessor {
                 }
             })?;
             let rgba_img = img.to_rgba8();
-
-            debug!(
-                "Loaded image for color analysis: {}x{}",
-                rgba_img.width(),
-                rgba_img.height()
-            );
 
             // 提取非透明像素的RGB值 - 使用并行迭代器收集
             let pixels: Vec<[u8; 3]> = rgba_img
@@ -905,8 +806,6 @@ impl ImageProcessor {
                     message: "No visible pixels found in image for color analysis".to_string(),
                 });
             }
-
-            debug!("Found {} visible pixels for color analysis", pixels.len());
 
             // 转换为Lab颜色空间 - 并行处理
             let lab_samples: Vec<Lab> = pixels

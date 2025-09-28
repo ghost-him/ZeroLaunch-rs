@@ -141,7 +141,7 @@
     "enter_note": "请输入备注",
     "extra_settings": "额外设置",
     "change_search_algorithm": "更改搜索算法",
-    "search_algorithm_tooltip": "标准搜索算法: 作者精心设计的搜索算法，高准确率，高可容错率；Skim匹配算法：目前主流的模糊匹配算法；LaunchyQT算法: 对LaunchyQT算法的移植",
+    "search_algorithm_tooltip": "标准: 作者精心设计，高准确率高容错；Skim: 主流模糊匹配算法；LaunchyQT: 对 LaunchyQT 算法的移植；语义: 使用嵌入模型进行语义匹配（实验性，速度较慢）",
     "scan_uwp_apps": "扫描UWP应用",
     "enable_online_icon_loading": "启用联网加载网页图标",
     "online_icon_tooltip": "开启后，即可加载网址的图标，成功获取后会替代默认的图标",
@@ -151,6 +151,7 @@
     "standard_search_algorithm": "标准搜索算法",
     "skim_matching_algorithm": "Skim匹配算法",
     "launchyqt_algorithm": "LaunchyQT算法（非官方）",
+    "semantic_search_algorithm": "语义搜索（实验性）",
     "skim_algorithm": "Skim匹配算法",
     "path_pattern_updated": "已更新路径 {path} 的模式",
     "path_already_exists": "路径 {path} 已存在，请检查",
@@ -164,7 +165,13 @@
     "cannot_check_path": "无法检查路径 {path}",
     "setting_alias": "设置别名",
     "click_refresh": "点击刷新",
-    "enter_keyword_placeholder": "请输入关键字"
+    "enter_keyword_placeholder": "请输入关键字",
+    "semantic_search_intro": "使用 EmbeddingGemma-300m 实现的语义搜索，带来无与伦比的搜索体验。",
+    "semantic_tip_model": "需要将模型单独下载到指定的目录中。",
+    "semantic_tip_description": "如果补充更丰富的描述信息，可让模型提供更准确的功能性搜索。",
+  "semantic_tip_performance": "启用后，在初始化与更新数据库阶段可能占用 GPU，并显著延长加载时间。",
+    "open_model_folder": "打开模型文件夹",
+    "open_model_description": "打开描述信息文件"
   },
   "other_search": {
     "custom_web_search": "自定义网址搜索",

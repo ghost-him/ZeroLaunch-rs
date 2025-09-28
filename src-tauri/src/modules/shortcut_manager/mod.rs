@@ -4,6 +4,7 @@ use crate::error::OptionExt;
 use crate::notify;
 use crate::utils::service_locator::ServiceLocator;
 use crate::utils::ui_controller::handle_pressed;
+use crate::hide_window;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -290,7 +291,11 @@ pub fn update_shortcut_manager() {
     let shortcut_config = runtime_config.get_shortcut_config();
     let shortcut: Shortcut = shortcut_config.get_open_search_bar();
     if let Err(e) = shortcut_manager.register_shortcut(shortcut, move |handle| {
-        handle_pressed(handle);
+        if state.get_search_bar_visible() {
+            hide_window();
+        } else {
+            handle_pressed(handle);
+        }
     }) {
         warn!("注册快捷键失败 {:?}", e);
         notify("ZeroLaunch-rs", &format!("注册快捷键失败 {:?}", e));

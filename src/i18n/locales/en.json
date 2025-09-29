@@ -15,6 +15,15 @@
     "open_settings": "Open Settings",
     "refresh_database": "Refresh Database"
   },
+  "parameter": {
+    "prompt": "Enter argument {index} of {total} for {program}",
+    "input_placeholder": "Type argument and press Enter",
+    "hint": "Press Enter to confirm this argument, or press Esc to cancel.",
+    "cancel": "Cancel",
+    "next": "Next",
+    "launch": "Launch",
+    "preview": "Preview"
+  },
   "ui_config": {
     "search_and_result_settings": "Search & Result Settings",
     "select_or_input_font": "Select or input font",

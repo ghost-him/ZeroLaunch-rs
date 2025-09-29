@@ -100,11 +100,18 @@ impl ProgramLauncherInner {
             });
     }
 
-    fn launch_program(&mut self, program_guid: u64, is_admin_required: bool) {
+    /// 根据需要使用覆盖方法并记录启动统计
+    fn launch_program(
+        &mut self,
+        program_guid: u64,
+        is_admin_required: bool,
+        override_method: Option<LaunchMethod>,
+    ) {
         let launch_method = self
             .launch_store
             .get(&program_guid)
             .expect_programming("Program GUID should exist in launch store");
+        let stored_method = launch_method.clone();
         self.launch_time[0]
             .entry(launch_method.get_text())
             .and_modify(|count| *count += 1)
@@ -128,18 +135,20 @@ impl ProgramLauncherInner {
                     .insert((current_time, program_guid));
             });
 
-        match &*launch_method {
+        let method_to_launch = override_method.unwrap_or(stored_method);
+
+        match method_to_launch {
             LaunchMethod::Path(path) => {
-                self.launch_path_program(path, is_admin_required);
+                self.launch_path_program(&path, is_admin_required);
             }
             LaunchMethod::PackageFamilyName(family_name) => {
-                self.launch_uwp_program(family_name);
+                self.launch_uwp_program(&family_name);
             }
             LaunchMethod::File(file_name) => {
-                self.launch_file(file_name);
+                self.launch_file(&file_name);
             }
             LaunchMethod::Command(command) => {
-                self.launch_command(command);
+                self.launch_command(&command);
             }
         }
     }
@@ -403,10 +412,15 @@ impl ProgramLauncher {
             .register_program(program_guid, launch_method);
     }
 
-    pub fn launch_program(&self, program_guid: u64, is_admin_required: bool) {
+    pub fn launch_program(
+        &self,
+        program_guid: u64,
+        is_admin_required: bool,
+        override_method: Option<LaunchMethod>,
+    ) {
         self.inner
             .write()
-            .launch_program(program_guid, is_admin_required);
+            .launch_program(program_guid, is_admin_required, override_method);
     }
 
     pub fn program_dynamic_value_based_launch_time(&self, program_guid: u64) -> f64 {

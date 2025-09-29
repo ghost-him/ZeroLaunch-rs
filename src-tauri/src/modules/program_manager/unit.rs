@@ -5,6 +5,14 @@ use bincode::{Decode, Encode};
 pub type EmbeddingVec = Vec<f32>;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum LaunchMethodKind {
+    Path,
+    PackageFamilyName,
+    File,
+    Command,
+}
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq, Hash, Encode, Decode)]
 pub enum LaunchMethod {
     /// 通过文件路径来启动
@@ -18,24 +26,84 @@ pub enum LaunchMethod {
 }
 
 impl LaunchMethod {
-    /// 这个是用于在文件中存储的全局唯一标识符
-    pub fn get_text(&self) -> String {
-        match &self {
-            LaunchMethod::Path(path) => path.clone(),
-            LaunchMethod::PackageFamilyName(name) => name.clone(),
-            LaunchMethod::File(path) => path.clone(),
-            LaunchMethod::Command(command) => command.clone(),
+    fn template_text(&self) -> &str {
+        match self {
+            LaunchMethod::Path(path) => path,
+            LaunchMethod::PackageFamilyName(name) => name,
+            LaunchMethod::File(path) => path,
+            LaunchMethod::Command(command) => command,
         }
     }
 
-    pub fn is_uwp(&self) -> bool {
-        match &self {
-            LaunchMethod::Path(_) => false,
-            LaunchMethod::PackageFamilyName(_) => true,
-            LaunchMethod::File(_) => false,
-            LaunchMethod::Command(_) => false,
+    fn map_text(&self, text: String) -> LaunchMethod {
+        match self {
+            LaunchMethod::Path(_) => LaunchMethod::Path(text),
+            LaunchMethod::PackageFamilyName(_) => LaunchMethod::PackageFamilyName(text),
+            LaunchMethod::File(_) => LaunchMethod::File(text),
+            LaunchMethod::Command(_) => LaunchMethod::Command(text),
         }
     }
+
+    /// 这个是用于在文件中存储的全局唯一标识符
+    pub fn get_text(&self) -> String {
+        self.template_text().to_string()
+    }
+
+    /// 统计启动模板中的"{}"占位符数量
+    pub fn placeholder_count(&self) -> usize {
+        self.template_text().matches("{}").count()
+    }
+
+    /// 返回启动方式的具体类型
+    pub fn kind(&self) -> LaunchMethodKind {
+        match self {
+            LaunchMethod::Path(_) => LaunchMethodKind::Path,
+            LaunchMethod::PackageFamilyName(_) => LaunchMethodKind::PackageFamilyName,
+            LaunchMethod::File(_) => LaunchMethodKind::File,
+            LaunchMethod::Command(_) => LaunchMethodKind::Command,
+        }
+    }
+
+    /// 用用户输入替换模板占位符并生成新的启动方式
+    pub fn fill_placeholders(&self, args: &[String]) -> Result<LaunchMethod, String> {
+        let filled = fill_template(self.template_text(), args)?;
+        Ok(self.map_text(filled))
+    }
+
+    pub fn is_uwp(&self) -> bool {
+        matches!(self, LaunchMethod::PackageFamilyName(_))
+    }
+}
+
+// 根据占位符顺序依次填充模板并校验参数数量
+fn fill_template(template: &str, args: &[String]) -> Result<String, String> {
+    let mut result = String::with_capacity(template.len());
+    let mut remaining = template;
+    let mut index = 0;
+
+    while let Some(pos) = remaining.find("{}") {
+        let (before, after_placeholder) = remaining.split_at(pos);
+        result.push_str(before);
+
+        let replacement = args.get(index).ok_or_else(|| {
+            format!("not enough arguments: expected at least {}, got {}", index + 1, args.len())
+        })?;
+        result.push_str(replacement);
+
+        remaining = &after_placeholder[2..];
+        index += 1;
+    }
+
+    if index != args.len() {
+        return Err(format!(
+            "too many arguments: expected {}, got {}",
+            index,
+            args.len()
+        ));
+    }
+
+    result.push_str(remaining);
+    Ok(result)
 }
 
 /// 表示一个数据

@@ -33,6 +33,35 @@
         :itemFontColor="ui_config.item_font_color" :itemFontSizePercent="ui_config.item_font_size"
         :style="submenu_backgroundStyle"> </SubMenu>
 
+      <div v-if="parameterSession" class="parameter-panel" :style="parameterPanelStyle">
+        <div class="parameter-panel__header">
+          <div class="parameter-panel__title">{{ parameterPrompt }}</div>
+          <div class="parameter-panel__progress">
+            {{ parameterSession.collectedArgs.length + 1 }}/{{ parameterSession.info.placeholderCount }}
+          </div>
+        </div>
+        <input
+          ref="parameterInputRef"
+          v-model="parameterSession.inputValue"
+          class="parameter-panel__input"
+          type="text"
+          :placeholder="t('parameter.input_placeholder')"
+        />
+        <div class="parameter-panel__tips">{{ t('parameter.hint') }}</div>
+        <div class="parameter-panel__actions">
+          <button type="button" class="parameter-panel__button secondary" @click="cancelParameterSession">
+            {{ t('parameter.cancel') }}
+          </button>
+          <button type="button" class="parameter-panel__button primary" @click="confirmParameterInput">
+            {{ parameterActionLabel }}
+          </button>
+        </div>
+        <div class="parameter-panel__preview">
+          <div class="parameter-panel__preview-label">{{ t('parameter.preview') }}</div>
+          <pre class="parameter-panel__preview-content">{{ parameterPreview }}</pre>
+        </div>
+      </div>
+
       <!--结果列表 -->
       <div class="results-list" :class="{ 'scroll-mode': isScrollMode }" ref="resultsListRef">
         <div v-for="(item, index) in menuItems" :key="index" class="result-item"
@@ -87,7 +116,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
+import { ref, computed, onMounted, watch, onUnmounted, nextTick } from 'vue'
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core'
 import { reduceOpacity } from '../utils/color';
@@ -127,6 +156,27 @@ const hover_item_color = computed(() => {
 })
 const background_picture = ref('');
 
+type LaunchMethodKind = 'Path' | 'PackageFamilyName' | 'File' | 'Command';
+
+interface LaunchTemplateInfo {
+  template: string;
+  kind: LaunchMethodKind;
+  placeholderCount: number;
+  showName: string;
+}
+
+interface ParameterSession {
+  programGuid: number;
+  ctrlKey: boolean;
+  shiftKey: boolean;
+  info: LaunchTemplateInfo;
+  collectedArgs: string[];
+  inputValue: string;
+}
+
+const parameterSession = ref<ParameterSession | null>(null);
+const parameterInputRef = ref<HTMLInputElement | null>(null);
+
 // 用于检测当前系统是深色模式还是浅色模式
 const darkModeMediaQuery = ref<MediaQueryList | null>(null);
 const is_dark = ref(false);
@@ -144,12 +194,101 @@ const scrollModeMaxHeight = computed(() => {
   return `${app_config.value.scroll_threshold * ui_config.value.result_item_height}px`;
 });
 
+const parameterPanelStyle = computed(() => ({
+  backgroundColor: ui_config.value.search_bar_background_color,
+  borderColor: ui_config.value.selected_item_color,
+  color: ui_config.value.item_font_color,
+}));
+
+// 生成当前参数输入提示文案
+const parameterPrompt = computed(() => {
+  if (!parameterSession.value) {
+    return '';
+  }
+  const currentIndex = parameterSession.value.collectedArgs.length + 1;
+  return t('parameter.prompt', {
+    index: currentIndex,
+    total: parameterSession.value.info.placeholderCount,
+    program: parameterSession.value.info.showName,
+  });
+});
+
+// 确定操作按钮的显示文本
+const parameterActionLabel = computed(() => {
+  if (!parameterSession.value) {
+    return t('parameter.next');
+  }
+  const isLast =
+    parameterSession.value.collectedArgs.length + 1 >=
+    parameterSession.value.info.placeholderCount;
+  return isLast ? t('parameter.launch') : t('parameter.next');
+});
+
+// 构建展示给用户的模板预览字符串
+const buildTemplatePreview = (template: string, args: string[], placeholderCount: number) => {
+  let result = '';
+  let remaining = template;
+  let index = 0;
+
+  while (true) {
+    const placeholderIndex = remaining.indexOf('{}');
+    if (placeholderIndex === -1) {
+      result += remaining;
+      break;
+    }
+
+    result += remaining.slice(0, placeholderIndex);
+    const replacement = index < args.length ? args[index] : '{}';
+    result += replacement;
+
+    remaining = remaining.slice(placeholderIndex + 2);
+    index += 1;
+  }
+
+  // 如果提供的参数多于占位符，追加剩余参数
+  if (args.length > placeholderCount) {
+    const extraArgs = args.slice(placeholderCount).join(' ');
+    if (extraArgs.length > 0) {
+      result += ` ${extraArgs}`;
+    }
+  }
+
+  return result;
+};
+
+// 实时渲染带占位符的启动命令预览
+const parameterPreview = computed(() => {
+  if (!parameterSession.value) {
+    return '';
+  }
+  const { info, collectedArgs, inputValue } = parameterSession.value;
+  const provisionalArgs = [...collectedArgs];
+  if (provisionalArgs.length < info.placeholderCount) {
+    provisionalArgs.push(inputValue);
+  }
+  while (provisionalArgs.length < info.placeholderCount) {
+    provisionalArgs.push('…');
+  }
+  return buildTemplatePreview(info.template, provisionalArgs, info.placeholderCount);
+});
+
 let unlisten: Array<UnlistenFn | null> = [];
 
 watch(searchText, (newVal) => {
   sendSearchText(newVal)
 })
 
+watch(parameterSession, async (session) => {
+  if (session) {
+    await nextTick();
+    parameterInputRef.value?.focus();
+  } else {
+    await nextTick();
+    searchBarRef.value?.focus();
+  }
+})
+
+// 将搜索词传给后端并刷新结果列表
 const sendSearchText = async (text: string) => {
   try {
     const results: Array<[number, string]> = await invoke('handle_search_text', { searchText: text });
@@ -164,6 +303,72 @@ const sendSearchText = async (text: string) => {
     console.error('Error sending search text to Rust: ', error);
   }
 }
+
+interface LaunchTemplateInfoResponse {
+  template: string;
+  kind: LaunchMethodKind;
+  placeholder_count: number;
+  show_name: string;
+}
+
+// 清除当前的参数收集会话
+const resetParameterSession = () => {
+  parameterSession.value = null;
+};
+
+// 初始化参数收集会话并保存模板信息
+const startParameterSession = (programGuid: number, ctrlKey: boolean, shiftKey: boolean, info: LaunchTemplateInfoResponse) => {
+  const sessionInfo: LaunchTemplateInfo = {
+    template: info.template,
+    kind: info.kind,
+    placeholderCount: info.placeholder_count,
+    showName: info.show_name,
+  };
+
+  parameterSession.value = {
+    programGuid,
+    ctrlKey,
+    shiftKey,
+    info: sessionInfo,
+    collectedArgs: [],
+    inputValue: '',
+  };
+};
+
+// 取消参数收集并返回正常搜索模式
+const cancelParameterSession = () => {
+  resetParameterSession();
+};
+
+// 提交当前输入并在占位符收集完成后发起启动
+const confirmParameterInput = async () => {
+  if (!parameterSession.value) {
+    return;
+  }
+
+  const session = parameterSession.value;
+  session.collectedArgs.push(session.inputValue);
+
+  if (session.collectedArgs.length < session.info.placeholderCount) {
+    session.inputValue = '';
+    await nextTick();
+    parameterInputRef.value?.focus();
+    return;
+  }
+
+  try {
+    await invoke('launch_program_with_args', {
+      programGuid: session.programGuid,
+      ctrl: session.ctrlKey,
+      shift: session.shiftKey,
+      args: session.collectedArgs,
+    });
+  } catch (error) {
+    console.error('Failed to launch program with arguments:', error);
+  } finally {
+    resetParameterSession();
+  }
+};
 
 // 监测alt键的变化
 watch(is_alt_pressed, async (new_value) => {
@@ -181,12 +386,14 @@ watch(is_alt_pressed, async (new_value) => {
   }
 })
 
+// 向后端请求最近启动的程序列表
 const get_latest_launch_program = async () => {
   const results: Array<[number, string]> = await invoke('command_get_latest_launch_program');
   latest_launch_program.value = results;
   await refresh_result_items();
 }
 
+// 根据当前模式刷新结果列表和图标
 const refresh_result_items = async () => {
   if (!is_alt_pressed.value) {
     menuItems.value = searchResults.value.map(([_, item]) => item);
@@ -329,9 +536,33 @@ const getIcons = async (keys: Array<number>) => {
 
 
 // 处理选中项目的函数，现在接收 ctrlKey 参数
-const launch_program = (itemIndex: number, ctrlKey = false, shiftKey = false) => {
-  const program_guid = is_alt_pressed.value ? latest_launch_program.value[itemIndex][0] : searchResults.value[itemIndex][0]
-  invoke('launch_program', { programGuid: program_guid, ctrl: ctrlKey, shift: shiftKey });
+const launch_program = async (itemIndex: number, ctrlKey = false, shiftKey = false) => {
+  if (parameterSession.value) {
+    return;
+  }
+
+  const currentResults = is_alt_pressed.value ? latest_launch_program.value : searchResults.value;
+  const selected = currentResults[itemIndex];
+  if (!selected) {
+    return;
+  }
+
+  const program_guid = selected[0];
+
+  try {
+    const info = await invoke<LaunchTemplateInfoResponse>('get_launch_template_info', {
+      programGuid: program_guid,
+    });
+
+    if (info.placeholder_count > 0) {
+      startParameterSession(program_guid, ctrlKey, shiftKey, info);
+      return;
+    }
+  } catch (error) {
+    console.warn('Failed to get launch template info, falling back to direct launch:', error);
+  }
+
+  await invoke('launch_program', { programGuid: program_guid, ctrl: ctrlKey, shift: shiftKey });
   // 这里可以添加实际的处理逻辑
 }
 
@@ -398,6 +629,21 @@ const handleKeyDown = async (event: KeyboardEvent) => {
   const isMenuVisible = resultItemMenuRef.value?.isVisible() || false;
   // 获取真实的 input 元素
   const inputElement = searchBarRef.value?.realInputRef;
+
+  if (parameterSession.value) {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      cancelParameterSession();
+      return;
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      await confirmParameterInput();
+      return;
+    }
+    return;
+  }
+
   if (event.key === 'Alt') {
     is_alt_pressed.value = true;
     event.preventDefault();
@@ -803,6 +1049,110 @@ main {
   min-height: 0;
   scrollbar-width: thin;
   scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+}
+
+.parameter-panel {
+  margin: 12px;
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.parameter-panel__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+}
+
+.parameter-panel__title {
+  font-weight: 600;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.parameter-panel__progress {
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+}
+
+.parameter-panel__input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  font-size: 14px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.parameter-panel__input:focus {
+  border-color: rgba(99, 102, 241, 0.6);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+.parameter-panel__tips {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.parameter-panel__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.parameter-panel__button {
+  border: none;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.parameter-panel__button.primary {
+  background-color: rgba(99, 102, 241, 0.9);
+  color: #fff;
+}
+
+.parameter-panel__button.secondary {
+  background-color: rgba(0, 0, 0, 0.05);
+  color: inherit;
+}
+
+.parameter-panel__button:active {
+  transform: scale(0.98);
+}
+
+.parameter-panel__preview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.parameter-panel__preview-label {
+  font-size: 12px;
+  opacity: 0.7;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.parameter-panel__preview-content {
+  margin: 0;
+  padding: 12px;
+  border-radius: 8px;
+  background-color: rgba(0, 0, 0, 0.05);
+  font-family: 'Cascadia Code', 'Consolas', monospace;
+  font-size: 13px;
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 
 /* 滚动模式样式 */

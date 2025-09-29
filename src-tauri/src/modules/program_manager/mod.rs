@@ -11,6 +11,9 @@ use crate::program_manager::search_engine::TraditionalSearchEngine;
 pub mod search_engine;
 pub mod unit;
 pub mod window_activator;
+pub use unit::{
+    EmbeddingVec, LaunchMethod, LaunchMethodKind, Program, SearchTestResult, SemanticStoreItem,
+};
 use crate::core::image_processor::ImageProcessor;
 use crate::error::{OptionExt, ResultExt};
 use crate::modules::program_manager::config::program_manager_config::RuntimeProgramConfig;
@@ -202,6 +205,45 @@ impl ProgramManager {
         *self.short_term_result_cache.write().await = LruCache::new(100.try_into().unwrap());
     }
 
+    fn get_program_index(&self, program_guid: u64) -> Option<usize> {
+        self.program_locater
+            .get(&program_guid)
+            .map(|entry| *entry.value())
+    }
+
+    async fn get_program_by_guid(&self, program_guid: u64) -> Option<Arc<Program>> {
+        let index = self.get_program_index(program_guid)?;
+        let program_registry = self.program_registry.read().await;
+        program_registry.get(index).cloned()
+    }
+
+    /// 获取指定程序的启动模板及占位符信息
+    pub async fn get_launch_template_info(
+        &self,
+        program_guid: u64,
+    ) -> Option<(String, LaunchMethodKind, usize, String)> {
+        let program = self.get_program_by_guid(program_guid).await?;
+        let launch_method = program.launch_method.clone();
+        let template = launch_method.get_text();
+        let kind = launch_method.kind();
+        let placeholder_count = launch_method.placeholder_count();
+        Some((template, kind, placeholder_count, program.show_name.clone()))
+    }
+
+    /// 使用用户提供的参数填充模板生成新的启动方式
+    pub async fn build_launch_method_with_args(
+        &self,
+        program_guid: u64,
+        args: &[String],
+    ) -> Result<LaunchMethod, String> {
+        let program = self
+            .get_program_by_guid(program_guid)
+            .await
+            .ok_or_else(|| format!("Program GUID {} not found", program_guid))?;
+        let launch_method = program.launch_method.clone();
+        launch_method.fill_placeholders(args)
+    }
+
     /// 使用搜索算法搜索，并给出指定长度的序列
     /// user_input: 用户输入的字符串
     /// result_count: 返回的结果，这个值与 `config.show_item_count` 的值保持一致
@@ -266,9 +308,14 @@ impl ProgramManager {
         result
     }
     /// 启动一个程序
-    pub async fn launch_program(&self, program_guid: u64, is_admin_required: bool) {
+    pub async fn launch_program(
+        &self,
+        program_guid: u64,
+        is_admin_required: bool,
+        override_method: Option<LaunchMethod>,
+    ) {
         self.program_launcher
-            .launch_program(program_guid, is_admin_required);
+            .launch_program(program_guid, is_admin_required, override_method);
     }
     /// 获取程序的图标，返回使用base64编码的png图片
     pub async fn get_icon(&self, program_guid: &u64) -> Vec<u8> {

@@ -15,6 +15,15 @@
     "open_settings": "開啟設定介面",
     "refresh_database": "重新整理資料庫"
   },
+  "parameter": {
+    "prompt": "請輸入 {program} 的第 {index}/{total} 個參數",
+    "input_placeholder": "在此輸入參數並按下 Enter 確認",
+    "hint": "按 Enter 確認目前參數，按 Esc 取消輸入。",
+    "cancel": "取消",
+    "next": "下一步",
+    "launch": "啟動",
+    "preview": "預覽"
+  },
   "ui_config": {
     "search_and_result_settings": "搜尋列與結果列設定",
     "select_or_input_font": "選擇或輸入字型",

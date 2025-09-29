@@ -3,6 +3,7 @@ use crate::error::ResultExt;
 use crate::modules::config::config_manager::PartialRuntimeConfig;
 use crate::modules::config::default::ICON_CACHE_DIR;
 use crate::modules::config::default::MODELS_DIR;
+use crate::modules::program_manager::{LaunchMethod, LaunchMethodKind};
 use crate::notify;
 use crate::save_config_to_file;
 use crate::state::app_state::AppState;
@@ -13,8 +14,7 @@ use std::path::Path;
 use std::process::Command;
 use std::sync::Arc;
 use tauri::Runtime;
-use tracing::debug;
-use tracing::warn;
+use tracing::{debug, info, warn};
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ProgramInfo {
     pub name: String,
@@ -28,6 +28,80 @@ pub struct ProgramInfo {
 
 #[derive(Serialize, Debug)]
 pub struct SearchResult(u64, String);
+
+#[derive(Serialize, Debug)]
+pub struct LaunchTemplateInfo {
+    template: String,
+    kind: LaunchMethodKind,
+    placeholder_count: usize,
+    show_name: String,
+}
+
+/// 协调程序启动流程并处理可选的覆盖启动方式
+async fn launch_program_internal<R: Runtime>(
+    state: tauri::State<'_, Arc<AppState>>,
+    program_guid: u64,
+    ctrl: bool,
+    shift: bool,
+    override_method: Option<LaunchMethod>,
+) -> Result<(), String> {
+    info!(
+        "🚀 启动程序请求: GUID={}, Ctrl={}, Shift={}, Override={}",
+        program_guid,
+        ctrl,
+        shift,
+        override_method.is_some()
+    );
+
+    let program_manager = state.get_program_manager();
+
+    if let Err(e) = hide_window() {
+        warn!("⚠️ 隐藏窗口失败: {:?}", e);
+        return Err(format!("Failed to hide window: {:?}", e));
+    }
+
+    let is_admin_required = ctrl;
+    let open_exist_window = shift;
+    let mut activated_existing = false;
+
+    if open_exist_window {
+        debug!("🔍 尝试唤醒现有程序窗口: GUID={}", program_guid);
+        activated_existing = program_manager
+            .activate_target_program(program_guid)
+            .await;
+        if activated_existing {
+            info!("✅ 程序窗口唤醒成功: GUID={}", program_guid);
+        } else {
+            debug!("⚠️ 程序窗口唤醒失败: GUID={}", program_guid);
+        }
+    }
+
+    let launch_new_on_failure = state
+        .get_runtime_config()
+        .get_app_config()
+        .get_launch_new_on_failure();
+
+    if (!activated_existing && launch_new_on_failure)
+        || !open_exist_window
+        || (!activated_existing && program_manager.is_uwp_program(program_guid).await)
+    {
+        debug!(
+            "🚀 启动新程序实例: GUID={}, 管理员权限={}, 覆盖方法={}",
+            program_guid,
+            is_admin_required,
+            override_method.is_some()
+        );
+        program_manager
+            .launch_program(program_guid, is_admin_required, override_method)
+            .await;
+
+        debug!("💾 保存配置文件");
+        save_config_to_file(false).await;
+        info!("✅ 程序启动完成: GUID={}", program_guid);
+    }
+
+    Ok(())
+}
 
 #[tauri::command]
 pub async fn load_program_icon<R: Runtime>(
@@ -65,60 +139,56 @@ pub async fn launch_program<R: Runtime>(
     ctrl: bool,
     shift: bool,
 ) -> Result<(), String> {
-    use tracing::{info, warn};
+    launch_program_internal::<R>(state, program_guid, ctrl, shift, None).await
+}
 
-    info!(
-        "🚀 启动程序请求: GUID={}, Ctrl={}, Shift={}",
-        program_guid, ctrl, shift
-    );
+#[tauri::command]
+/// 启动程序并传递用户填写的参数占位符
+pub async fn launch_program_with_args<R: Runtime>(
+    _app: tauri::AppHandle<R>,
+    _window: tauri::Window<R>,
+    state: tauri::State<'_, Arc<AppState>>,
+    program_guid: u64,
+    ctrl: bool,
+    shift: bool,
+    args: Vec<String>,
+) -> Result<(), String> {
     let program_manager = state.get_program_manager();
+    let override_method = program_manager
+        .build_launch_method_with_args(program_guid, &args)
+        .await
+        .map_err(|e| format!("Failed to build launch method: {}", e))?;
 
-    if let Err(e) = hide_window() {
-        warn!("⚠️ 隐藏窗口失败: {:?}", e);
-        return Err(format!("Failed to hide window: {:?}", e));
-    }
+    launch_program_internal::<R>(
+        state,
+        program_guid,
+        ctrl,
+        shift,
+        Some(override_method),
+    )
+    .await
+}
 
-    let is_admin_required = ctrl;
-    let open_exist_window = shift;
-    let mut result = false;
+#[tauri::command]
+/// 获取指定程序的启动模板与占位符元数据
+pub async fn get_launch_template_info<R: Runtime>(
+    _app: tauri::AppHandle<R>,
+    _window: tauri::Window<R>,
+    state: tauri::State<'_, Arc<AppState>>,
+    program_guid: u64,
+) -> Result<LaunchTemplateInfo, String> {
+    let program_manager = state.get_program_manager();
+    let (template, kind, placeholder_count, show_name) = program_manager
+        .get_launch_template_info(program_guid)
+        .await
+        .ok_or_else(|| format!("Program GUID {} not found", program_guid))?;
 
-    // 当shift按下时，唤醒程序
-    if open_exist_window {
-        debug!("🔍 尝试唤醒现有程序窗口: GUID={}", program_guid);
-        result = program_manager.activate_target_program(program_guid).await;
-        if result {
-            info!("✅ 程序窗口唤醒成功: GUID={}", program_guid);
-        } else {
-            debug!("⚠️ 程序窗口唤醒失败: GUID={}", program_guid);
-        }
-    }
-
-    // 唤醒失败时启动新的程序
-    let launch_new_on_failure = state
-        .get_runtime_config()
-        .get_app_config()
-        .get_launch_new_on_failure();
-
-    if (!result && launch_new_on_failure)
-        || !open_exist_window
-        || (!result && program_manager.is_uwp_program(program_guid).await)
-    {
-        // 启动新的程序
-        debug!(
-            "🚀 启动新程序实例: GUID={}, 管理员权限={}",
-            program_guid, is_admin_required
-        );
-        program_manager
-            .launch_program(program_guid, is_admin_required)
-            .await;
-
-        // 保存文件
-        debug!("💾 保存配置文件");
-        save_config_to_file(false).await;
-        info!("✅ 程序启动完成: GUID={}", program_guid);
-    }
-
-    Ok(())
+    Ok(LaunchTemplateInfo {
+        template,
+        kind,
+        placeholder_count,
+        show_name,
+    })
 }
 
 #[tauri::command]

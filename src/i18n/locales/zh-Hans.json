@@ -15,6 +15,15 @@
     "open_settings": "打开设置界面",
     "refresh_database": "刷新数据库"
   },
+  "parameter": {
+    "prompt": "请输入 {program} 的第 {index}/{total} 个参数",
+    "input_placeholder": "在此输入参数并按回车确认",
+    "hint": "按 Enter 确认当前参数，按 Esc 取消输入。",
+    "cancel": "取消",
+    "next": "下一步",
+    "launch": "启动",
+    "preview": "预览"
+  },
   "ui_config": {
     "search_and_result_settings": "搜索栏与结果栏设置",
     "select_or_input_font": "选择或输入字体",

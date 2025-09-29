@@ -11,9 +11,6 @@ use crate::program_manager::search_engine::TraditionalSearchEngine;
 pub mod search_engine;
 pub mod unit;
 pub mod window_activator;
-pub use unit::{
-    EmbeddingVec, LaunchMethod, LaunchMethodKind, Program, SearchTestResult, SemanticStoreItem,
-};
 use crate::core::image_processor::ImageProcessor;
 use crate::error::{OptionExt, ResultExt};
 use crate::modules::program_manager::config::program_manager_config::RuntimeProgramConfig;
@@ -33,6 +30,9 @@ use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::RwLock;
 use tracing::info;
+pub use unit::{
+    EmbeddingVec, LaunchMethod, LaunchMethodKind, Program, SearchTestResult, SemanticStoreItem,
+};
 use window_activator::WindowActivator;
 
 /// 程序管理器 - 使用细粒度锁优化并发性能
@@ -187,13 +187,12 @@ impl ProgramManager {
 
         let is_traditional_search = search_config.is_traditional_search();
 
-        let search_engine: Arc<dyn SearchEngine> =
-            if is_traditional_search || !has_backend {
-                let new_search_model = SearchModelFactory::create_scorer(search_config.clone());
-                Arc::new(TraditionalSearchEngine::new(Arc::new(new_search_model)))
-            } else {
-                Arc::new(SemanticSearchEngine::new(self.semantic_manager.clone()))
-            };
+        let search_engine: Arc<dyn SearchEngine> = if is_traditional_search || !has_backend {
+            let new_search_model = SearchModelFactory::create_scorer(search_config.clone());
+            Arc::new(TraditionalSearchEngine::new(Arc::new(new_search_model)))
+        } else {
+            Arc::new(SemanticSearchEngine::new(self.semantic_manager.clone()))
+        };
 
         let mut search_engine_lock = self.search_engine.write().await;
         *search_engine_lock = search_engine;

@@ -14,13 +14,12 @@ use std::collections::BTreeSet;
 use std::collections::{HashMap, VecDeque};
 use std::os::windows::process::CommandExt;
 use std::path::Path;
-use std::process::Command;
 use tracing::{debug, warn};
 use windows::Win32::Foundation::{GetLastError, ERROR_CANCELLED, ERROR_ELEVATION_REQUIRED};
 use windows::Win32::System::Com::{CoCreateInstance, CLSCTX_ALL};
 use windows::Win32::UI::Shell::{
-    ApplicationActivationManager, IApplicationActivationManager, ShellExecuteExW, AO_NONE,
-    SHELLEXECUTEINFOW,
+    ApplicationActivationManager, IApplicationActivationManager, ShellExecuteExW, ShellExecuteW,
+    AO_NONE, SHELLEXECUTEINFOW,
 };
 use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 use windows_core::PCWSTR;
@@ -371,12 +370,49 @@ impl ProgramLauncherInner {
             _ => {}
         }
         let target_path = target_method.get_text();
+        let target_path = Path::new(&target_path);
 
-        // 不需要获取父目录，直接使用/select参数
-        Command::new("explorer")
-            .args(["/select,", &target_path]) // 使用/select参数并指定完整文件路径
-            .spawn()
-            .expect_programming("Failed to spawn explorer process");
+        let folder_to_open = if target_path.is_dir() {
+            target_path
+        } else {
+            target_path.parent().unwrap_or_else(|| {
+                warn!(
+                    "Target path has no parent, fallback to original path: {}",
+                    target_path.display()
+                );
+                target_path
+            })
+        };
+
+        if !folder_to_open.exists() {
+            warn!(
+                "Target folder does not exist and cannot be opened: {}",
+                folder_to_open.display()
+            );
+            return false;
+        }
+
+        let folder_wide = get_u16_vec(folder_to_open);
+        unsafe {
+            let result = ShellExecuteW(
+                None,
+                PCWSTR::from_raw(std::ptr::null()),
+                PCWSTR::from_raw(folder_wide.as_ptr()),
+                PCWSTR::from_raw(std::ptr::null()),
+                PCWSTR::from_raw(std::ptr::null()),
+                SW_SHOWNORMAL,
+            );
+
+            if result.0 as isize <= 32 {
+                let error = GetLastError();
+                warn!(
+                    "Failed to open folder with default file manager. Error code: {}",
+                    error.to_hresult()
+                );
+                return false;
+            }
+        }
+
         true
     }
 }

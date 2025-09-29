@@ -66,9 +66,7 @@ async fn launch_program_internal<R: Runtime>(
 
     if open_exist_window {
         debug!("🔍 尝试唤醒现有程序窗口: GUID={}", program_guid);
-        activated_existing = program_manager
-            .activate_target_program(program_guid)
-            .await;
+        activated_existing = program_manager.activate_target_program(program_guid).await;
         if activated_existing {
             info!("✅ 程序窗口唤醒成功: GUID={}", program_guid);
         } else {
@@ -159,14 +157,7 @@ pub async fn launch_program_with_args<R: Runtime>(
         .await
         .map_err(|e| format!("Failed to build launch method: {}", e))?;
 
-    launch_program_internal::<R>(
-        state,
-        program_guid,
-        ctrl,
-        shift,
-        Some(override_method),
-    )
-    .await
+    launch_program_internal::<R>(state, program_guid, ctrl, shift, Some(override_method)).await
 }
 
 #[tauri::command]

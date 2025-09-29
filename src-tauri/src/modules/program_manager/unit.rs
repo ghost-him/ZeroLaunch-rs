@@ -86,7 +86,11 @@ fn fill_template(template: &str, args: &[String]) -> Result<String, String> {
         result.push_str(before);
 
         let replacement = args.get(index).ok_or_else(|| {
-            format!("not enough arguments: expected at least {}, got {}", index + 1, args.len())
+            format!(
+                "not enough arguments: expected at least {}, got {}",
+                index + 1,
+                args.len()
+            )
         })?;
         result.push_str(replacement);
 

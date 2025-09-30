@@ -5,6 +5,7 @@
 ## 🚀 功能特性
 
 - ✨ **架构选择**：支持选择性构建特定架构（x64、ARM64 或全部）
+- 🧠 **AI 特性开关**：支持构建完全体（启用 AI）或精简版（关闭 AI）
 - 📦 **多版本支持**：安装包版本和便携版本
 - 🏗️ **多架构支持**：x64 和 ARM64 架构
 - 📁 **自动打包**：便携版本自动打包为 ZIP 文件
@@ -15,9 +16,24 @@
 
 ### 基本命令
 
-#### 构建所有版本（默认：所有架构）
+#### 构建所有版本（默认：所有架构 & 启用/关闭 AI 全量构建）
 ```bash
 cargo run --bin xtask build-all
+```
+
+#### 仅构建启用 AI 的完全体
+```bash
+cargo run --bin xtask build-all --ai enabled
+```
+
+#### 仅构建关闭 AI 的精简版
+```bash
+cargo run --bin xtask build-all --ai disabled
+```
+
+#### 构建完全体（启用 AI）
+```bash
+cargo run --bin xtask build-all --ai enabled
 ```
 
 #### 构建安装包版本（默认：所有架构）
@@ -67,11 +83,28 @@ cargo run --bin xtask build-portable --arch arm64
 cargo run --bin xtask build-all --arch all
 ```
 
+### 🤖 AI 特性开关
+
+```bash
+# 构建默认精简版（关闭 AI）
+cargo run --bin xtask build-installer
+
+# 构建启用 AI 的完全体
+cargo run --bin xtask build-installer --ai enabled
+
+# 便携版同样适用
+cargo run --bin xtask build-portable --ai enabled
+
+# build-all 默认同时构建两种 AI 配置，亦可显式指定
+cargo run --bin xtask build-all --ai both
+```
+
 ### 📖 参数说明
 
 | 参数 | 简写 | 可选值 | 默认值 | 说明 |
 |------|------|--------|--------|---------|
 | `--arch` | `-a` | `x64`, `arm64`, `all` | `all` | 指定构建的目标架构 |
+| `--ai` | - | `enabled`, `disabled`, `both`(仅 `build-all`) | `disabled`（`build-all` 默认 `both`） | 是否启用 AI 特性（影响构建特性与产物命名） |
 
 ### 💡 使用场景示例
 
@@ -79,7 +112,7 @@ cargo run --bin xtask build-all --arch all
 # 快速构建：仅构建当前平台的 x64 便携版
 cargo run --bin xtask build-portable -a x64
 
-# 发布准备：构建所有版本的所有架构
+# 发布准备：构建所有版本的所有架构（包含启用/关闭 AI）
 cargo run --bin xtask build-all
 
 # 测试构建：仅构建 ARM64 安装包
@@ -94,13 +127,15 @@ cargo run --bin xtask build-all -a x64
 
 ### 安装包版本
 构建完成后，安装包会自动移动到项目根目录：
-- `ZeroLaunch_x.x.x_x64_en-US.msi` - x64 安装包
-- `ZeroLaunch_x.x.x_arm64_en-US.msi` - ARM64 安装包
+- `zerolaunch-rs_0.5.1_x64-setup.exe` / `ZeroLaunch_0.5.1_x64_en-US.msi` 等 —— 启用 AI 的完全体命名（示例）
+- `zerolaunch-rs_lite_0.5.1_x64-setup.exe` / `ZeroLaunch_lite_0.5.1_x64_en-US.msi` 等 —— 关闭 AI 的精简版命名（示例）
+- ARM64 架构的安装包命名同理，会在架构字段前插入 `_lite`
 
 ### 便携版本
 便携版会打包成 ZIP 文件并放置在项目根目录：
-- `ZeroLaunch-portable-x64.zip` - x64 便携版 ZIP 包
-- `ZeroLaunch-portable-arm64.zip` - ARM64 便携版 ZIP 包
+- `ZeroLaunch-portable-0.5.1-x64.zip` - 启用 AI 的 x64 便携版 ZIP 包
+- `ZeroLaunch-portable-lite-0.5.1-x64.zip` - 关闭 AI 的 x64 便携版 ZIP 包
+- `ZeroLaunch-portable-0.5.1-arm64.zip` / `ZeroLaunch-portable-lite-0.5.1-arm64.zip` - ARM64 架构同理
 
 便携版 ZIP 包包含：
 - 主程序可执行文件

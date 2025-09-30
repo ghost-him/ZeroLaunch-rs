@@ -108,7 +108,7 @@ lru = "0.16.1"
 bincode = "2.0.1"
 
 [features]
-default = ["custom-protocol", "ai"]
+default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
 portable = []
 ai = [

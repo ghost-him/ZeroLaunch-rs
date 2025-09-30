@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand, ValueEnum};
+use serde::Deserialize;
 use std::env;
 use std::fs;
 use std::io;
@@ -251,13 +252,15 @@ async fn run_command(args: &[&str]) -> Result<()> {
 /// 打包便携版本
 async fn package_portable_versions(arch: &Architecture) -> Result<()> {
     let target_dir = Path::new("src-tauri/target");
+    let version = get_app_version()?;
 
     // 打包 x64 版本
     match arch {
         Architecture::X64 | Architecture::All => {
             if let Some(x64_exe) = find_portable_exe(target_dir, "x86_64-pc-windows-msvc")? {
-                create_portable_zip(&x64_exe, "ZeroLaunch-portable-x64.zip").await?;
-                println!("✅ x64 便携版打包完成: ZeroLaunch-portable-x64.zip");
+                let zip_name = format!("ZeroLaunch-portable-{}-x64.zip", version);
+                create_portable_zip(&x64_exe, &zip_name).await?;
+                println!("✅ x64 便携版打包完成: {}", zip_name);
             }
         }
         _ => {}
@@ -267,8 +270,9 @@ async fn package_portable_versions(arch: &Architecture) -> Result<()> {
     match arch {
         Architecture::Arm64 | Architecture::All => {
             if let Some(arm64_exe) = find_portable_exe(target_dir, "aarch64-pc-windows-msvc")? {
-                create_portable_zip(&arm64_exe, "ZeroLaunch-portable-arm64.zip").await?;
-                println!("✅ ARM64 便携版打包完成: ZeroLaunch-portable-arm64.zip");
+                let zip_name = format!("ZeroLaunch-portable-{}-arm64.zip", version);
+                create_portable_zip(&arm64_exe, &zip_name).await?;
+                println!("✅ ARM64 便携版打包完成: {}", zip_name);
             }
         }
         _ => {}
@@ -395,13 +399,56 @@ fn clean_build_artifacts() -> Result<()> {
     }
 
     // 删除生成的 ZIP 文件
-    for zip_file in ["ZeroLaunch-portable-x64.zip", "ZeroLaunch-portable-arm64.zip"] {
-        let zip_path = Path::new(zip_file);
-        if zip_path.exists() {
-            fs::remove_file(zip_path).context(format!("删除 {} 失败", zip_file))?;
-            println!("🧹 已清理 {}", zip_file);
+    let current_dir = env::current_dir()?;
+    for entry in fs::read_dir(&current_dir)? {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        if file_type.is_file() {
+            let name = entry.file_name();
+            if let Some(name_str) = name.to_str() {
+                if name_str.starts_with("ZeroLaunch-portable-") && name_str.ends_with(".zip") {
+                    fs::remove_file(entry.path()).context(format!("删除 {} 失败", name_str))?;
+                    println!("🧹 已清理 {}", name_str);
+                }
+            }
         }
     }
 
     Ok(())
+}
+
+#[derive(Deserialize)]
+struct VersionConfig {
+    version: String,
+}
+
+fn get_app_version() -> Result<String> {
+    let tauri_config_path = Path::new("src-tauri/tauri.conf.json");
+    if tauri_config_path.exists() {
+        let config_content = fs::read_to_string(tauri_config_path)
+            .with_context(|| format!("读取 {} 失败", tauri_config_path.display()))?;
+        let config: VersionConfig = serde_json::from_str(&config_content)
+            .context("解析 src-tauri/tauri.conf.json 失败")?;
+        return Ok(config.version);
+    }
+
+    let portable_config_path = Path::new("src-tauri/tauri.conf.portable.json");
+    if portable_config_path.exists() {
+        let config_content = fs::read_to_string(portable_config_path)
+            .with_context(|| format!("读取 {} 失败", portable_config_path.display()))?;
+        let config: VersionConfig = serde_json::from_str(&config_content)
+            .context("解析 src-tauri/tauri.conf.portable.json 失败")?;
+        return Ok(config.version);
+    }
+
+    let package_json_path = Path::new("package.json");
+    if package_json_path.exists() {
+        let package_content = fs::read_to_string(package_json_path)
+            .with_context(|| format!("读取 {} 失败", package_json_path.display()))?;
+        let package: VersionConfig = serde_json::from_str(&package_content)
+            .context("解析 package.json 失败")?;
+        return Ok(package.version);
+    }
+
+    anyhow::bail!("未找到应用版本号，请确保配置文件中包含 version 字段");
 }

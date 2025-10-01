@@ -210,7 +210,7 @@ enum Commands {
         #[arg(short, long, value_enum, default_value_t = Architecture::All)]
         arch: Architecture,
         /// 是否启用 AI 特性
-        #[arg(long, value_enum, default_value_t = AiMode::Disabled)]
+        #[arg(long, value_enum, default_value_t = AiMode::Enabled)]
         ai: AiMode,
     },
     /// 只构建便携版本
@@ -219,7 +219,7 @@ enum Commands {
         #[arg(short, long, value_enum, default_value_t = Architecture::All)]
         arch: Architecture,
         /// 是否启用 AI 特性
-        #[arg(long, value_enum, default_value_t = AiMode::Disabled)]
+        #[arg(long, value_enum, default_value_t = AiMode::Enabled)]
         ai: AiMode,
     },
     /// 清理构建产物

@@ -157,9 +157,8 @@ winget install ghost-him.ZeroLaunch-rs
 
 ### 环境要求
 
-* Rust v1.89.0
-* Node.js v22.11.0
-* Bun v1.2.3
+* Rust v1.90.0
+* Bun v1.2.22
 
 ### 构建步骤
 

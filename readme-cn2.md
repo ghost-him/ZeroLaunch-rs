@@ -138,9 +138,8 @@ ZeroLaunch：一款懂你輸入習慣的 Windows 智能啟動器，精通拼音�
 
 ### 環境要求
 
-*   Rust v1.89.0
-*   Node.js v22.11.0
-*   Bun v1.2.3
+* Rust v1.90.0
+* Bun v1.2.22
 
 ### 建置步驟
 

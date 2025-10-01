@@ -137,9 +137,8 @@ Build tip (for developers): enable the `ai` feature for AI edition; omit it for 
 
 ### Environment Requirements
 
-*   Rust v1.89.0
-*   Node.js v22.11.0
-*   Bun v1.2.3
+* Rust v1.90.0
+* Bun v1.2.22
 
 ### Build Steps
 

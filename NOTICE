@@ -1,0 +1,7 @@
+Gemma is provided under and subject to the Gemma Terms of Use found at https://ai.google.dev/gemma/terms
+
+This distribution may include unmodified model files from Google's EmbeddingGemma (see src-tauri/EmbeddingGemma-300m/). If any files were modified, they carry notices within the repository history indicating such modifications.
+
+Use of Gemma is subject to additional restrictions described in the Gemma Prohibited Use Policy: https://ai.google.dev/gemma/prohibited_use_policy
+
+“Google” and “Gemma” are trademarks of Google LLC. This project is not affiliated with, endorsed by, or sponsored by Google.

@@ -33,7 +33,7 @@
 
 ## 📕 Brief Introduction
 
-ZeroLaunch is an application launcher meticulously crafted for the Windows platform, **helping you instantly find and launch desired applications for the ultimate in efficiency and speed!**
+ZeroLaunch is a Windows smart launcher that understands your typing. It excels at Pinyin and fuzzy matching, and can optionally add AI semantic understanding—so typos and vague queries still get instant results. Clean, offline, and built for speed.
 
 > Currently, the existing program launchers on the market don't quite meet my needs, so I developed this software. I use it daily, so there's no need to worry about me abandoning it (at most, there might be no new updates (～￣▽￣)～).
 
@@ -51,15 +51,18 @@ ZeroLaunch is an application launcher meticulously crafted for the Windows platf
 Runs completely offline, no internet connection required. Your data always stays on your device. Adhering to a zero data collection policy, strictly following local processing to ensure your information security.
 
 ### ⚡ Efficient Smart Search
-Thanks to the optimization of a unique search algorithm, the program boasts excellent spell correction capabilities based on triple matching technology (full name/Pinyin/initials). The program supports mixed Chinese and English queries, combined with a real-time dynamic sorting algorithm and multi-threaded concurrent processing technology, achieving millisecond-level response speeds even on lower-spec devices.
+With optional on-device AI semantic search (EmbeddingGemma‑300m/ONNX), you get natural‑language and multilingual intent retrieval. Even without AI, our self‑developed matching algorithm (triple matching: full name/Pinyin/initials + spell correction) delivers high efficiency, high match quality, and high fault tolerance, with real‑time ranking.
+
+We’ve implemented systemic performance optimizations end‑to‑end: hot‑path and data‑structure refactors, layered caching and on‑demand loading, a tuned concurrency model, and incremental index updates — all to minimize compute and I/O. You can expect stable millisecond‑level responses even on mid‑/low‑spec machines.
 
 ### 🌐 Lightweight and Pure
-Focused solely on application search and launch functions, achieving highly specialized application search. Undisturbed by other complex features, ready to use out of the box – that's how pure it is.
+Laser‑focused on “quickly and accurately launching what you need.” Zero configuration required — the default setup already fits most users and scenarios. Power users still get ample customization (appearance, behavior, indexing strategy). No unrelated bloat: out‑of‑the‑box, lightweight, and pure.
 
 ## 🔬 Software Features
 
 ### Core Features
 
+*   **AI semantic retrieval (optional)**: Powered by the latest EmbeddingGemma‑300m (ONNX) local embedding model — lightweight, efficient, and accurate. With AI, multi‑language search is supported, and you can use natural intent keywords (e.g., “music app”, “image editor”) to quickly surface relevant applications. All inference runs locally for privacy.
 *   **Application Search**: Quickly retrieve and launch **applications** and **UWP apps**, providing a smooth program access experience. Supports program remarks and aliases, localized name recognition and search.
 *   **Application Wake-up**: Intelligently identifies and brings already open windows to the foreground, enabling convenient multi-task switching.
 *   **Customizable Interface**: Highly customizable appearance, supporting custom background images, option colors, search font color and size, display font color and size, number of candidates displayed, frosted glass effect, rounded corner size settings, program width and height, and many other items, with convenient interaction buttons for each.
@@ -89,7 +92,7 @@ Focused solely on application search and launch functions, achieving highly spec
 
 | Function                  | Hotkey            |
 |---------------------------|-------------------|
-| Call out search bar       | `Alt + Space`     |
+| Call out and hide search bar       | `Alt + Space`     |
 | Select item up/down       | `↑/↓` or `Ctrl+k/j` |
 | Launch selected program   | `Enter`           |
 | Launch as administrator (for regular apps only) | `Ctrl + Enter`    |
@@ -109,6 +112,24 @@ Writing documentation is so troublesome, and sometimes I can't describe things w
 *   Gitee: [release](https://gitee.com/ghost-him/ZeroLaunch-rs/releases)
 *   Github: [release](https://github.com/ghost-him/ZeroLaunch-rs/releases)
 *   Gitcode: [release](https://gitcode.com/ghost-him/ZeroLaunch-rs/releases)
+
+### Editions (AI / Lite)
+
+We provide two editions to fit different resource budgets and feature needs:
+
+- AI edition (default, recommended): Supports local semantic search (requires downloading the EmbeddingGemma ONNX model separately) for smarter retrieval.
+    - Runtime memory: when AI semantic search is enabled, about 500 ~ 550 MB; if you use the traditional search algorithm, the usage is the same as Lite.
+    - Filenames: do not contain `lite`, e.g.:
+        - `zerolaunch-rs_0.x.x_x64-setup.exe`, `zerolaunch-rs_0.x.x_x64_en-US.msi`
+        - `ZeroLaunch-portable-0.x.x-x64.zip`
+
+- Lite (no AI): No semantic search, smaller footprint and lower memory usage.
+    - Memory usage: about 60 ~ 70 MB
+    - Filenames: contain `lite`, e.g.:
+        - `zerolaunch-rs_lite_0.x.x_x64-setup.exe`, `zerolaunch-rs_lite_0.x.x_x64_en-US.msi`
+        - `ZeroLaunch-portable-lite-0.x.x-x64.zip`
+
+Build tip (for developers): enable the `ai` feature for AI edition; omit it for Lite (see tasks or Cargo feature configuration).
 
 ## 🛠️ Developer Guide
 
@@ -185,6 +206,15 @@ Remote Directory/                       # Default: same as local data directory
 
 ⚠️ When input length is < 3 characters, search results may not be precise enough.
 
+## 🧠 Semantic Search & Memory Usage
+
+When the "Semantic Search" feature is enabled, this project loads Google's EmbeddingGemma model locally (ONNX version under `src-tauri/EmbeddingGemma-300m/`). Approximate memory usage by mode:
+
+- Regular algorithm: about 60 ~ 70 MB
+- Semantic search algorithm (EmbeddingGemma): about 500 ~ 550 MB
+
+Tip: If you prefer lower memory usage, run without the AI/Semantic Search feature (build without the `ai` feature flag).
+
 ## 🌍 Language Support
 
 ZeroLaunch-rs currently supports the following languages:
@@ -227,6 +257,24 @@ If you want to add new language support for ZeroLaunch-rs, please:
 4. Submit a Pull Request
 
 Thank you for contributing to ZeroLaunch-rs internationalization! 🙏
+
+## 📄 Third‑party Terms (Google Gemma)
+
+This project includes and uses Google's EmbeddingGemma model files locally, solely to provide offline semantic retrieval. Per the Gemma Terms, distribution must include the following notice and comply with the relevant restrictions:
+
+> Gemma is provided under and subject to the Gemma Terms of Use found at https://ai.google.dev/gemma/terms
+
+Also note:
+
+- Gemma usage is subject to the Prohibited Use Policy:
+    - Gemma Prohibited Use Policy: https://ai.google.dev/gemma/prohibited_use_policy
+- If you redistribute this project or any included Gemma models/derivatives (non‑Hosted Service scenario), please:
+    - Include and notify recipients of the above use restrictions in your distribution terms (Section 3.2).
+    - Provide third‑party recipients with a copy of the Gemma Terms (a link is acceptable).
+    - Add prominent notices to any modified files indicating that you modified the files.
+    - Accompany the distribution with a text file named "NOTICE" containing the above notice sentence.
+
+Trademark notice: “Google” and “Gemma” are trademarks or registered trademarks of Google LLC. This project is not affiliated with, endorsed by, or sponsored by Google.
 
 ## 🤝 Open Source Acknowledgments
 

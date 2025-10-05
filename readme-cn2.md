@@ -130,7 +130,7 @@ ZeroLaunch：一款懂你輸入習慣的 Windows 智能啟動器，精通拼音�
         - `zerolaunch-rs_lite_0.x.x_x64-setup.exe`、`zerolaunch-rs_lite_0.x.x_x64_en-US.msi`
         - `ZeroLaunch-portable-lite-0.x.x-x64.zip`
 
-建置提示（開發者）：啟用 AI 功能需加入 `ai` feature；Lite 版請移除該 feature（見 tasks 或 Cargo feature 設定）。
+建置提示（開發者）：啟用 AI 功能需加入 `ai` feature；Lite 版請移除該 feature（見 tasks 或 Cargo feature 設定）。使用 `xtask` 時：`build-installer` / `build-portable` 預設即為啟用 AI；若需 Lite 版請加入 `--ai disabled`。
 
 ## 🛠️ 開發者指南
 
@@ -156,10 +156,13 @@ bun run tauri dev
 # 使用 xtask 自動化建置工具進行生產建置
 cd xtask
 
-# 僅建置安裝包，x64版本
+# 僅建置安裝包（預設啟用 AI），x64 版本
 cargo run --bin xtask build-installer --arch x64
 
-# 建置所有版本（安裝包 + 便攜版，所有架構）
+# 建置 Lite 安裝包（關閉 AI）
+cargo run --bin xtask build-installer --arch x64 --ai disabled
+
+# 建置所有版本（安裝包 + 便攜版，所有架構，預設同時含 / 不含 AI）
 cargo run --bin xtask build-all
 
 # 清理建置產物

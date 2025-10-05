@@ -16,12 +16,12 @@
 
 ### 基本命令
 
-#### 构建所有版本（默认：所有架构 & 启用/关闭 AI 全量构建）
+#### 构建所有版本（默认：所有架构 & 同时构建 启用/关闭 AI 两种模式）
 ```bash
 cargo run --bin xtask build-all
 ```
 
-#### 仅构建启用 AI 的完全体
+#### 仅构建启用 AI 的完全体（只生成含 AI 版本）
 ```bash
 cargo run --bin xtask build-all --ai enabled
 ```
@@ -31,19 +31,29 @@ cargo run --bin xtask build-all --ai enabled
 cargo run --bin xtask build-all --ai disabled
 ```
 
-#### 构建完全体（启用 AI）
-```bash
-cargo run --bin xtask build-all --ai enabled
-```
-
-#### 构建安装包版本（默认：所有架构）
+#### 构建安装包（默认：启用 AI）
 ```bash
 cargo run --bin xtask build-installer
 ```
 
-#### 构建便携版本（默认：所有架构）
+#### 构建安装包版本（显式关闭 AI）
+```bash
+cargo run --bin xtask build-installer --ai disabled
+```
+
+#### 构建安装包版本（默认：所有架构，默认启用 AI）
+```bash
+cargo run --bin xtask build-installer
+```
+
+#### 构建便携版本（默认：所有架构，默认启用 AI）
 ```bash
 cargo run --bin xtask build-portable
+```
+
+#### 构建便携版本（关闭 AI）
+```bash
+cargo run --bin xtask build-portable --ai disabled
 ```
 
 #### 清理构建产物
@@ -85,17 +95,26 @@ cargo run --bin xtask build-all --arch all
 
 ### 🤖 AI 特性开关
 
+当前默认策略：
+
+* build-installer / build-portable 不加 `--ai` 参数时 = 启用 AI（完全体）
+* 如需精简 Lite 版，加 `--ai disabled`
+* build-all 默认同时构建 enabled + disabled 两种产物，可改为单一模式
+
 ```bash
-# 构建默认精简版（关闭 AI）
+# 构建默认完全体（启用 AI）
 cargo run --bin xtask build-installer
 
-# 构建启用 AI 的完全体
-cargo run --bin xtask build-installer --ai enabled
+# 构建精简版（关闭 AI）
+cargo run --bin xtask build-installer --ai disabled
 
-# 便携版同样适用
-cargo run --bin xtask build-portable --ai enabled
+# 便携版默认同样启用 AI
+cargo run --bin xtask build-portable
 
-# build-all 默认同时构建两种 AI 配置，亦可显式指定
+# 构建便携版精简版
+cargo run --bin xtask build-portable --ai disabled
+
+# build-all 默认同时构建启用与关闭 AI 的两个版本，可显式限制
 cargo run --bin xtask build-all --ai both
 ```
 
@@ -104,7 +123,7 @@ cargo run --bin xtask build-all --ai both
 | 参数 | 简写 | 可选值 | 默认值 | 说明 |
 |------|------|--------|--------|---------|
 | `--arch` | `-a` | `x64`, `arm64`, `all` | `all` | 指定构建的目标架构 |
-| `--ai` | - | `enabled`, `disabled`, `both`(仅 `build-all`) | `disabled`（`build-all` 默认 `both`） | 是否启用 AI 特性（影响构建特性与产物命名） |
+| `--ai` | - | `enabled`, `disabled`, `both`(仅 `build-all`) | `enabled`（`build-all` 默认 `both`） | 是否启用 AI 特性：安装包/便携版默认构建启用 AI；Lite 需显式 `--ai disabled` |
 
 ### 💡 使用场景示例
 

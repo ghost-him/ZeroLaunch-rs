@@ -129,7 +129,7 @@ We provide two editions to fit different resource budgets and feature needs:
         - `zerolaunch-rs_lite_0.x.x_x64-setup.exe`, `zerolaunch-rs_lite_0.x.x_x64_en-US.msi`
         - `ZeroLaunch-portable-lite-0.x.x-x64.zip`
 
-Build tip (for developers): enable the `ai` feature for AI edition; omit it for Lite (see tasks or Cargo feature configuration).
+Build tip (for developers): enable the `ai` feature for AI edition; omit it for Lite (see tasks or Cargo feature configuration). When using the xtask helper: `build-installer` / `build-portable` default to the AI edition; pass `--ai disabled` to build the Lite edition.
 
 ## 🛠️ Developer Guide
 
@@ -155,10 +155,13 @@ bun run tauri dev
 # Use xtask automation build tool for production builds
 cd xtask
 
-# Build installer, x64 version only
+# Build installer (AI edition by default), x64 only
 cargo run --bin xtask build-installer --arch x64
 
-# Build all versions (installer + portable, all architectures)
+# Build Lite installer (disable AI)
+cargo run --bin xtask build-installer --arch x64 --ai disabled
+
+# Build all versions (installer + portable, all architectures, both AI modes by default)
 cargo run --bin xtask build-all
 
 # Clean build artifacts

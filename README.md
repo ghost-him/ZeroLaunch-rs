@@ -149,7 +149,7 @@ winget install ghost-him.ZeroLaunch-rs
         - `zerolaunch-rs_lite_0.x.x_x64-setup.exe`、`zerolaunch-rs_lite_0.x.x_x64_en-US.msi`
         - `ZeroLaunch-portable-lite-0.x.x-x64.zip`
 
-构建提示（开发者）：启用 AI 功能需包含特性 `ai`；Lite 版请移除该特性（参见 tasks 或 Cargo feature 配置）。
+构建提示（开发者）：启用 AI 功能需包含特性 `ai`；Lite 版请移除该特性（参见 tasks 或 Cargo feature 配置）。使用 `xtask` 时：`build-installer` / `build-portable` 默认即构建含 AI 版本，如需 Lite 版本请添加 `--ai disabled`。
 
 ## 🛠️ 开发者指南
 
@@ -175,10 +175,13 @@ bun run tauri dev
 # 使用 xtask 自动化构建工具进行生产构建
 cd xtask
 
-# 仅构建安装包，x64版本
+# 仅构建安装包 (默认启用 AI)，x64 版本
 cargo run --bin xtask build-installer --arch x64
 
-# 构建所有版本（安装包 + 便携版，所有架构）
+# 构建 Lite 版安装包（关闭 AI）
+cargo run --bin xtask build-installer --arch x64 --ai disabled
+
+# 构建所有版本（安装包 + 便携版，所有架构，默认同时含 / 不含 AI）
 cargo run --bin xtask build-all
 
 # 清理构建产物

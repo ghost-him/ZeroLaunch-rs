@@ -106,10 +106,13 @@
       </div>
       <div class="footer-center drag_area"></div>
       <div class="footer-right">
-        <span class="open-text" :style="{ color: ui_config.footer_font_color }">{{ is_loading_icons ?
-          t('app.loading_icons') :
-          right_tips
-        }}</span>
+        <span class="open-text" :style="{ color: ui_config.footer_font_color }">
+          {{
+            is_refreshing_dataset
+              ? t('app.refreshing_dataset')
+              : (is_loading_icons ? t('app.loading_icons') : right_tips)
+          }}
+        </span>
       </div>
     </div>
   </div>
@@ -183,6 +186,8 @@ const is_dark = ref(false);
 
 // 表示当前是不是正在加载图片
 const is_loading_icons = ref<boolean>(false);
+// 表示当前是否正在刷新数据库（数据集）
+const is_refreshing_dataset = ref<boolean>(false);
 
 // 计算是否启用滚动模式
 const isScrollMode = computed(() => {
@@ -435,7 +440,9 @@ const openSettingsWindow = () => {
 const refreshDataset = async () => {
   console.log(t('app.start_refresh'));
   await invoke('hide_window');
+  // 后端会发送开始/结束事件；这里直接调用刷新命令
   await invoke('refresh_program');
+  // updateWindow 会在 refresh 完成后通过事件触发；这里兜底再调用一次
   updateWindow();
 }
 
@@ -950,6 +957,13 @@ onMounted(async () => {
   }, { passive: false });
   unlisten.push(await listen('update_search_bar_window', () => {
     updateWindow();
+  }));
+  // 监听刷新开始与结束事件
+  unlisten.push(await listen('refresh_program_start', () => {
+    is_refreshing_dataset.value = true;
+  }));
+  unlisten.push(await listen('refresh_program_end', () => {
+    is_refreshing_dataset.value = false;
   }));
   unlisten.push(await listen('handle_focus_lost', () => {
     initSearchBar();

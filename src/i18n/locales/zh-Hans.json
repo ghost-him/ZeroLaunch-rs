@@ -9,7 +9,8 @@
     "preload_icon_failed": "预加载图标失败",
     "open_file_location": "打开文件位置",
     "run_as_admin": "以管理员身份运行",
-    "start_refresh": "开始刷新"
+    "start_refresh": "开始刷新",
+    "refreshing_dataset": "正在刷新数据集..."
   },
   "menu": {
     "open_settings": "打开设置界面",

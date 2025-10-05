@@ -463,6 +463,12 @@ async fn update_app_setting() {
         return;
     }
 
+    // 获取主窗口句柄用于发送事件
+    let handle = state.get_main_handle();
+    if let Err(e) = handle.emit("refresh_program_start", "") {
+        tracing::debug!("emit refresh_program_start failed (may be expected during startup): {:?}", e);
+    }
+
     let runtime_config = state.get_runtime_config();
 
     // 1.动态更新日志级别
@@ -519,9 +525,12 @@ async fn update_app_setting() {
     // 7.更新快捷键的绑定
     update_shortcut_manager();
 
-    // 获取主窗口句柄
-    let handle = state.get_main_handle();
-    // 发送事件
+        // 发送刷新结束事件
+    if let Err(e) = handle.emit("refresh_program_end", "") {
+        tracing::debug!("emit refresh_program_end failed: {:?}", e);
+    }
+
+    // 发送窗口更新事件
     if let Err(e) = handle.emit("update_search_bar_window", "") {
         eprintln!("发送窗口更新事件失败: {:?}", e);
     }

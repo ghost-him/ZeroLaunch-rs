@@ -6,7 +6,7 @@ use crate::utils::dashmap_to_hashmap;
 use crate::utils::defer::defer;
 use crate::utils::hashmap_to_dashmap;
 use crate::utils::is_date_current;
-use crate::utils::windows::get_u16_vec;
+use crate::utils::windows::{get_u16_vec, shell_execute_open};
 use crate::utils::{generate_current_date, get_current_time};
 use dashmap::DashMap;
 use parking_lot::RwLock;
@@ -18,8 +18,8 @@ use tracing::{debug, warn};
 use windows::Win32::Foundation::{GetLastError, ERROR_CANCELLED, ERROR_ELEVATION_REQUIRED};
 use windows::Win32::System::Com::{CoCreateInstance, CLSCTX_ALL};
 use windows::Win32::UI::Shell::{
-    ApplicationActivationManager, IApplicationActivationManager, ShellExecuteExW, ShellExecuteW,
-    AO_NONE, SHELLEXECUTEINFOW,
+    ApplicationActivationManager, IApplicationActivationManager, ShellExecuteExW, AO_NONE,
+    SHELLEXECUTEINFOW,
 };
 use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 use windows_core::PCWSTR;
@@ -392,25 +392,12 @@ impl ProgramLauncherInner {
             return false;
         }
 
-        let folder_wide = get_u16_vec(folder_to_open);
-        unsafe {
-            let result = ShellExecuteW(
-                None,
-                PCWSTR::from_raw(std::ptr::null()),
-                PCWSTR::from_raw(folder_wide.as_ptr()),
-                PCWSTR::from_raw(std::ptr::null()),
-                PCWSTR::from_raw(std::ptr::null()),
-                SW_SHOWNORMAL,
+        if let Err(error) = shell_execute_open(folder_to_open) {
+            warn!(
+                "Failed to open folder with default file manager. Error code: {}",
+                error.to_hresult()
             );
-
-            if result.0 as isize <= 32 {
-                let error = GetLastError();
-                warn!(
-                    "Failed to open folder with default file manager. Error code: {}",
-                    error.to_hresult()
-                );
-                return false;
-            }
+            return false;
         }
 
         true

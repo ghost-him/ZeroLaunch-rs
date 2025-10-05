@@ -1,5 +1,4 @@
 use crate::commands::ui_command::hide_window;
-use crate::error::ResultExt;
 use crate::modules::config::config_manager::PartialRuntimeConfig;
 use crate::modules::config::default::ICON_CACHE_DIR;
 use crate::modules::config::default::MODELS_DIR;
@@ -8,10 +7,10 @@ use crate::notify;
 use crate::save_config_to_file;
 use crate::state::app_state::AppState;
 use crate::update_app_setting;
+use crate::utils::windows::shell_execute_open;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
-use std::process::Command;
 use std::sync::Arc;
 use tauri::Runtime;
 use tracing::{debug, info, warn};
@@ -305,11 +304,9 @@ pub async fn command_open_models_dir<R: Runtime>(
     _app: tauri::AppHandle<R>,
     _window: tauri::Window<R>,
 ) -> Result<(), String> {
-    let target_path = MODELS_DIR.clone();
-    Command::new("explorer")
-        .args([&target_path])
-        .spawn()
-        .expect_programming("Failed to spawn explorer process");
+    let target_path = Path::new(&*MODELS_DIR);
+    shell_execute_open(target_path)
+        .map_err(|error| format!("Failed to open models directory: {}", error.to_hresult()))?;
     Ok(())
 }
 
@@ -319,10 +316,13 @@ pub async fn command_open_icon_cache_dir<R: Runtime>(
     _app: tauri::AppHandle<R>,
     _window: tauri::Window<R>,
 ) -> Result<(), String> {
-    let target_path = ICON_CACHE_DIR.clone();
-    if let Err(e) = Command::new("explorer").args([&target_path]).spawn() {
-        return Err(format!("Failed to open icon cache directory: {:?}", e));
-    }
+    let target_path = Path::new(&*ICON_CACHE_DIR);
+    shell_execute_open(target_path).map_err(|error| {
+        format!(
+            "Failed to open icon cache directory: {}",
+            error.to_hresult()
+        )
+    })?;
     Ok(())
 }
 

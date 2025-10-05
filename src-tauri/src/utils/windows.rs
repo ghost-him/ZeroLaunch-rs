@@ -3,14 +3,15 @@ use std::os::windows::ffi::OsStrExt;
 /// 存放与windows相关的工具类函数
 use std::path::Path;
 use windows::core::PCWSTR;
-use windows::Win32::Foundation::{HWND, POINT, RECT};
+use windows::Win32::Foundation::{GetLastError, HWND, POINT, RECT, WIN32_ERROR};
 use windows::Win32::Graphics::Gdi::{
     GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTOPRIMARY,
 };
 use windows::Win32::System::Environment::ExpandEnvironmentStringsW;
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetForegroundWindow, GetParent, GetWindowRect, WindowFromPoint,
+    GetForegroundWindow, GetParent, GetWindowRect, WindowFromPoint, SW_SHOWNORMAL,
 };
+use windows::Win32::UI::Shell::ShellExecuteW;
 /// 将一个字符串转成windows的宽字符
 pub fn get_u16_vec<P: AsRef<Path>>(path: P) -> Vec<u16> {
     path.as_ref()
@@ -116,6 +117,28 @@ pub fn expand_environment_variables(input: &str) -> Option<String> {
             Some(String::from_utf16_lossy(&buffer))
         } else {
             None
+        }
+    }
+}
+
+/// 使用 ShellExecuteW 以系统默认方式打开指定路径
+pub fn shell_execute_open<P: AsRef<Path>>(path: P) -> Result<(), WIN32_ERROR> {
+    let wide_path = get_u16_vec(path);
+
+    unsafe {
+        let result = ShellExecuteW(
+            None,
+            PCWSTR::from_raw(std::ptr::null()),
+            PCWSTR::from_raw(wide_path.as_ptr()),
+            PCWSTR::from_raw(std::ptr::null()),
+            PCWSTR::from_raw(std::ptr::null()),
+            SW_SHOWNORMAL,
+        );
+
+        if result.0 as isize <= 32 {
+            Err(GetLastError())
+        } else {
+            Ok(())
         }
     }
 }

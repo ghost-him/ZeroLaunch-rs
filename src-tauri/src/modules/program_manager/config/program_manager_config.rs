@@ -17,6 +17,8 @@ pub struct PartialProgramManagerConfig {
     pub loader: Option<PartialProgramLoaderConfig>,
     pub image_loader: Option<PartialImageLoaderConfig>,
     pub search_model: Option<Arc<SearchModelConfig>>,
+    pub enable_lru_search_cache: Option<bool>,
+    pub search_cache_capacity: Option<usize>,
 }
 
 #[derive(Debug)]
@@ -25,6 +27,8 @@ pub struct ProgramManagerConfigInner {
     pub loader_config: Arc<ProgramLoaderConfig>,
     pub image_loader: Arc<ImageLoaderConfig>,
     pub search_model: Arc<SearchModelConfig>,
+    pub enable_lru_search_cache: bool,
+    pub search_cache_capacity: usize,
 }
 
 impl Default for ProgramManagerConfigInner {
@@ -34,6 +38,8 @@ impl Default for ProgramManagerConfigInner {
             loader_config: Arc::new(ProgramLoaderConfig::default()),
             image_loader: Arc::new(ImageLoaderConfig::default()),
             search_model: Arc::new(SearchModelConfig::default()),
+            enable_lru_search_cache: false,
+            search_cache_capacity: 120,
         }
     }
 }
@@ -45,6 +51,8 @@ impl ProgramManagerConfigInner {
             loader: Some(self.loader_config.to_partial()),
             image_loader: Some(self.image_loader.to_partial()),
             search_model: Some(self.search_model.clone()),
+            enable_lru_search_cache: Some(self.enable_lru_search_cache),
+            search_cache_capacity: Some(self.search_cache_capacity),
         }
     }
     pub fn update(&mut self, partial_config: PartialProgramManagerConfig) {
@@ -59,6 +67,16 @@ impl ProgramManagerConfigInner {
         }
         if let Some(new_search_model) = partial_config.search_model {
             self.search_model = new_search_model;
+        }
+        if let Some(enable_cache) = partial_config.enable_lru_search_cache {
+            self.enable_lru_search_cache = enable_cache;
+        }
+        if let Some(capacity) = partial_config.search_cache_capacity {
+            if capacity <= 0 {
+                self.search_cache_capacity = 1;
+            } else {
+                self.search_cache_capacity = capacity;
+            }
         }
     }
 }
@@ -95,6 +113,14 @@ impl ProgramManagerConfig {
 
     pub fn get_search_model_config(&self) -> Arc<SearchModelConfig> {
         self.inner.read().search_model.clone()
+    }
+
+    pub fn is_lru_search_cache_enabled(&self) -> bool {
+        self.inner.read().enable_lru_search_cache
+    }
+
+    pub fn get_search_cache_capacity(&self) -> usize {
+        self.inner.read().search_cache_capacity
     }
 
     pub fn update(&self, partial_config: PartialProgramManagerConfig) {

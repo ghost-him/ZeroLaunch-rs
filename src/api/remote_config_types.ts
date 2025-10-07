@@ -192,6 +192,9 @@ export type ProgramManagerConfig = {
     launcher: ProgramLauncherConfig
     loader: ProgramLoaderConfig
     image_loader: ImageLoaderConfig
+    enable_lru_search_cache: boolean
+    search_cache_capacity: number
+    search_model: string
 }
 
 export type RemoteConfig = {
@@ -203,6 +206,8 @@ export type RemoteConfig = {
         loader: ProgramLoaderConfig
         image_loader: ImageLoaderConfig
         search_model: string
+        enable_lru_search_cache: boolean
+        search_cache_capacity: number
     }
 }
 
@@ -222,6 +227,8 @@ export type PartialRemoteConfig = {
         loader?: PartialProgramLoaderConfig
         image_loader?: PartialImageLoaderConfig
         search_model?: Partial<string>
+        enable_lru_search_cache?: boolean
+        search_cache_capacity?: number
     }
 }
 

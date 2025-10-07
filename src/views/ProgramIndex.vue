@@ -247,6 +247,35 @@
                 </el-tooltip>
             </el-form-item>
 
+            <el-form-item :label="t('program_index.enable_lru_search_cache')">
+                <el-switch v-model="config.program_manager_config.enable_lru_search_cache" @change="(val: boolean) =>
+                    configStore.updateConfig({
+                        program_manager_config: {
+                            enable_lru_search_cache: val
+                        }
+                    })
+                " />
+                <el-tooltip class="box-item" effect="dark" :content="t('program_index.lru_cache_tooltip')">
+                    <el-icon class="el-question-icon">
+                        <QuestionFilled />
+                    </el-icon>
+                </el-tooltip>
+            </el-form-item>
+            <p class="lru-cache-hint">{{ t('program_index.lru_cache_description') }}</p>
+
+            <el-form-item v-if="config.program_manager_config.enable_lru_search_cache"
+                :label="t('program_index.search_cache_capacity')">
+                <el-input-number v-model="config.program_manager_config.search_cache_capacity" :min="1" :max="1000"
+                    @change="(val: number) =>
+                        configStore.updateConfig({
+                            program_manager_config: {
+                                search_cache_capacity: Math.max(1, val ?? 1)
+                            }
+                        })
+                    "
+                />
+            </el-form-item>
+
             <!-- 语义搜索说明：仅在 semantic 模式下显示 -->
             <div v-if="config.program_manager_config.search_model === 'semantic'" class="semantic-section">
                 <el-card shadow="never" class="semantic-card">
@@ -1041,6 +1070,12 @@ onUnmounted(async () => {
 
 .path-item:hover .path-actions {
     opacity: 1;
+}
+
+.lru-cache-hint {
+    margin: -6px 0 12px 0;
+    color: #909399;
+    font-size: 12px;
 }
 
 .add-path-btn {

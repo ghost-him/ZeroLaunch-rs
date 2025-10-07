@@ -26,6 +26,7 @@ use lru::LruCache;
 use program_launcher::ProgramLauncher;
 use program_loader::ProgramLoader;
 use std::collections::HashMap;
+use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::RwLock;
@@ -55,7 +56,7 @@ pub struct ProgramManager {
     /// 语义生成器
     semantic_manager: Arc<SemanticManager>,
     /// 短期搜索结果缓存（统一，基于 LruCache）
-    short_term_result_cache: Arc<RwLock<LruCache<String, Vec<SearchMatchResult>>>>,
+    short_term_result_cache: Arc<RwLock<Option<LruCache<String, Vec<SearchMatchResult>>>>>,
 }
 
 /// 内部搜索结果，包含分数和程序ID
@@ -84,7 +85,7 @@ impl ProgramManager {
             program_locater: Arc::new(DashMap::new()),
             window_activator: Arc::new(WindowActivator::new()),
             semantic_manager,
-            short_term_result_cache: Arc::new(RwLock::new(LruCache::new(100.try_into().unwrap()))),
+            short_term_result_cache: Arc::new(RwLock::new(None)),
         };
         if pm
             .semantic_manager
@@ -113,6 +114,8 @@ impl ProgramManager {
                 loader: None,
                 image_loader: None,
                 search_model: None,
+                enable_lru_search_cache: None,
+                search_cache_capacity: None,
             },
             semantic_cache_bytes,
         }
@@ -200,8 +203,19 @@ impl ProgramManager {
         if has_backend && is_traditional_search {
             self.semantic_manager.release_backend_resources();
         }
-        // 数据库更新后，清空短期结果缓存
-        *self.short_term_result_cache.write().await = LruCache::new(100.try_into().unwrap());
+
+        // 根据配置更新短期搜索缓存（启用时刷新实例，禁用时清空）
+        let enable_cache = config.is_lru_search_cache_enabled();
+        let capacity = config.get_search_cache_capacity();
+        let mut cache_guard = self.short_term_result_cache.write().await;
+        if enable_cache {
+            let normalized_capacity = capacity.max(1);
+            let capacity = NonZeroUsize::new(normalized_capacity)
+                .expect("normalized_capacity should be non-zero");
+            *cache_guard = Some(LruCache::new(capacity));
+        } else {
+            *cache_guard = None;
+        }
     }
 
     fn get_program_index(&self, program_guid: u64) -> Option<usize> {
@@ -424,13 +438,12 @@ impl ProgramManager {
         let user_input = remove_repeated_space(&user_input);
 
         // 统一短期缓存命中直接返回
-        if let Some(cached) = self
-            .short_term_result_cache
-            .write()
-            .await
-            .get(&user_input)
-            .cloned()
-        {
+        if let Some(cached) = {
+            let mut cache_guard = self.short_term_result_cache.write().await;
+            cache_guard
+                .as_mut()
+                .and_then(|cache| cache.get(&user_input).cloned())
+        } {
             return cached.into_iter().take(result_count as usize).collect();
         }
 
@@ -452,10 +465,9 @@ impl ProgramManager {
         match_scores.truncate(result_count as usize);
 
         // 写入短期缓存
-        self.short_term_result_cache
-            .write()
-            .await
-            .put(user_input.clone(), match_scores.clone());
+        if let Some(cache) = self.short_term_result_cache.write().await.as_mut() {
+            cache.put(user_input.clone(), match_scores.clone());
+        }
 
         match_scores
     }

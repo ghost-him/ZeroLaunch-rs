@@ -8,10 +8,10 @@ use windows::Win32::Graphics::Gdi::{
     GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTOPRIMARY,
 };
 use windows::Win32::System::Environment::ExpandEnvironmentStringsW;
+use windows::Win32::UI::Shell::ShellExecuteW;
 use windows::Win32::UI::WindowsAndMessaging::{
     GetForegroundWindow, GetParent, GetWindowRect, WindowFromPoint, SW_SHOWNORMAL,
 };
-use windows::Win32::UI::Shell::ShellExecuteW;
 /// 将一个字符串转成windows的宽字符
 pub fn get_u16_vec<P: AsRef<Path>>(path: P) -> Vec<u16> {
     path.as_ref()

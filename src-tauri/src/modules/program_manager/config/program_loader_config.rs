@@ -122,11 +122,19 @@ impl ProgramLoaderConfigInner {
     }
 
     pub(crate) fn default_index_web_pages() -> Vec<(String, String)> {
-        Vec::new()
+        vec![
+            // 预置 Bing 搜索，占位符 {} 会在运行时被替换为用户输入
+            ("bing 搜索".to_string(), "https://www.bing.com/search?q={}".to_string()),
+        ]
     }
 
     pub(crate) fn default_custom_command() -> Vec<(String, String)> {
-        Vec::new()
+        vec![
+            // 常用系统命令预置
+            ("关机".to_string(), "shutdown /s /t 0".to_string()),
+            ("重启".to_string(), "shutdown /r /t 0".to_string()),
+            ("锁屏".to_string(), "rundll32.exe user32.dll,LockWorkStation".to_string()),
+        ]
     }
 
     pub(crate) fn default_semantic_descriptions() -> HashMap<String, String> {

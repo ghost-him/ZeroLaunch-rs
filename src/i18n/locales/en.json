@@ -141,7 +141,7 @@
     "target_blocked_path": "Target Blocked Path",
     "enter_target_path": "Please enter target path",
     "operation": "Operation",
-    "delete_row": "Delete Row",
+    "delete_row": "Delete",
     "set_fixed_offset": "Set Fixed Offset",
     "target_keyword": "Target Keyword",
     "enter_target_keyword": "Please enter target keyword",
@@ -188,7 +188,7 @@
     "open_model_description": "Open Description File"
   },
   "other_search": {
-    "custom_web_search": "Custom Web Search",
+    "custom_web_search": "URL",
     "add_item": "Add Item",
     "keyword_for_search": "Keyword (for program search matching)",
     "enter_keyword": "Please enter keyword",
@@ -288,8 +288,8 @@
       "shortcuts": "Shortcuts",
       "about": "About"
     },
-    "custom_web_search": "Custom Web Search",
-    "custom_command_search": "Custom Command Search",
+    "custom_web_search": "URL",
+    "custom_command_search": "Command",
     "add_item": "Add Item",
     "keyword_for_search": "Keyword (for program search matching)",
     "enter_keyword": "Please enter keyword",
@@ -299,7 +299,7 @@
     "command_content": "Command Content",
     "enter_command_content": "Please enter command content",
     "actions": "Actions",
-    "delete_row": "Delete Row",
+    "delete_row": "Delete",
     "program_name": "Program Name",
     "is_uwp_program": "UWP Program",
     "fixed_offset": "Fixed Offset",

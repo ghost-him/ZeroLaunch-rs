@@ -668,7 +668,6 @@ const deleteKeyFilterRow = (index: number) => {
     const newProgramBias = JSON.parse(JSON.stringify(config.value.program_manager_config.loader.program_bias));
     const keyToDelete = keyFilterData.value[index].key;
     delete newProgramBias[keyToDelete];
-    console.log("删除一行")
 
     console.log(newProgramBias)
     configStore.updateConfig({

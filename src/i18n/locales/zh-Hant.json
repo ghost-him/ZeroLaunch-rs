@@ -141,7 +141,7 @@
     "target_blocked_path": "目標封鎖路徑",
     "enter_target_path": "請輸入目標路徑",
     "operation": "操作",
-    "delete_row": "刪除此行",
+    "delete_row": "刪除",
     "set_fixed_offset": "設定固定偏移量",
     "target_keyword": "目標關鍵字",
     "enter_target_keyword": "請輸入目標關鍵字",
@@ -188,7 +188,7 @@
     "open_model_description": "開啟描述資訊檔案"
   },
   "other_search": {
-    "custom_web_search": "自訂網址搜尋",
+    "custom_web_search": "網址",
     "add_item": "新增項目",
     "keyword_for_search": "關鍵字（用於搜尋程式的符合）",
     "enter_keyword": "請輸入關鍵字",
@@ -288,8 +288,8 @@
       "shortcuts": "快捷鍵",
       "about": "關於"
     },
-    "custom_web_search": "自訂網址搜尋",
-    "custom_command_search": "自訂指令搜尋",
+    "custom_web_search": "網址",
+    "custom_command_search": "指令",
     "add_item": "新增項目",
     "keyword_for_search": "關鍵字（用於搜尋程式的符合）",
     "enter_keyword": "請輸入關鍵字",
@@ -299,7 +299,7 @@
     "command_content": "指令內容",
     "enter_command_content": "請輸入指令內容",
     "actions": "操作",
-    "delete_row": "刪除此行",
+    "delete_row": "刪除",
     "program_name": "程式名稱",
     "is_uwp_program": "是否為UWP程式",
     "fixed_offset": "固定偏移量",

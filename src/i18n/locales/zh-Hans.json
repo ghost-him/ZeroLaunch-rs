@@ -141,7 +141,7 @@
     "target_blocked_path": "目标屏蔽路径",
     "enter_target_path": "请输入目标路径",
     "operation": "操作",
-    "delete_row": "删除一行",
+    "delete_row": "删除",
     "set_fixed_offset": "设置固定偏移量",
     "target_keyword": "目标关键字",
     "enter_target_keyword": "请输入目标关键字",
@@ -188,7 +188,7 @@
     "open_model_description": "打开描述信息文件"
   },
   "other_search": {
-    "custom_web_search": "自定义网址搜索",
+    "custom_web_search": "网址",
     "add_item": "添加项目",
     "keyword_for_search": "关键字（用于搜索程序的匹配）",
     "enter_keyword": "请输入关键字",
@@ -288,8 +288,8 @@
       "shortcuts": "快捷键",
       "about": "关于"
     },
-    "custom_web_search": "自定义网址搜索",
-    "custom_command_search": "自定义命令搜索",
+    "custom_web_search": "网址",
+    "custom_command_search": "命令",
     "add_item": "添加项目",
     "keyword_for_search": "关键字（用于搜索程序的匹配）",
     "enter_keyword": "请输入关键字",
@@ -299,7 +299,7 @@
     "command_content": "命令内容",
     "enter_command_content": "请输入命令内容",
     "actions": "操作",
-    "delete_row": "删除一行",
+    "delete_row": "删除",
     "program_name": "程序名",
     "is_uwp_program": "是否是UWP程序",
     "fixed_offset": "固定偏移量",

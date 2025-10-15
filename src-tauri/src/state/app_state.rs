@@ -34,6 +34,8 @@ pub struct AppState {
     game_mode: RwLock<bool>,
     /// 阻止所有的键盘输入
     is_keyboard_blocked: RwLock<bool>,
+    /// 最后一次搜索的查询词
+    last_search_query: RwLock<String>,
 }
 
 impl Default for AppState {
@@ -57,6 +59,7 @@ impl AppState {
             shortcut_manager: RwLock::new(None),
             game_mode: RwLock::new(false),
             is_keyboard_blocked: RwLock::new(false),
+            last_search_query: RwLock::new(String::new()),
         }
     }
 
@@ -185,6 +188,18 @@ impl AppState {
     pub fn get_is_keyboard_blocked(&self) -> bool {
         *self.is_keyboard_blocked.read()
     }
+
+    // region: Last Search Query 访问方法
+    /// 设置最后一次搜索的查询词
+    pub fn set_last_search_query(&self, query: String) {
+        *self.last_search_query.write() = query;
+    }
+
+    /// 获取最后一次搜索的查询词
+    pub fn get_last_search_query(&self) -> String {
+        self.last_search_query.read().clone()
+    }
+    // endregion
 }
 
 // Custom Debug implementation for AppState

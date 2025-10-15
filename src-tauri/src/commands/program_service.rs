@@ -92,6 +92,13 @@ async fn launch_program_internal<R: Runtime>(
             .launch_program(program_guid, is_admin_required, override_method)
             .await;
 
+        // 记录查询-启动关联
+        let last_query = state.get_last_search_query();
+        if !last_query.trim().is_empty() {
+            debug!("📝 记录查询关联: '{}' -> GUID={}", last_query, program_guid);
+            program_manager.record_query_launch(&last_query, program_guid);
+        }
+
         debug!("💾 保存配置文件");
         save_config_to_file(false).await;
         info!("✅ 程序启动完成: GUID={}", program_guid);
@@ -223,6 +230,9 @@ pub async fn handle_search_text<R: Runtime>(
     use tracing::{debug, info};
 
     debug!("🔍 处理搜索请求: '{}'", search_text);
+
+    // 保存当前搜索查询
+    state.set_last_search_query(search_text.clone());
 
     let runtime_config = state.get_runtime_config();
 

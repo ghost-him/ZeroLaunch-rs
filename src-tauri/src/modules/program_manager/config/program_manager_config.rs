@@ -1,9 +1,9 @@
 use super::image_loader_config::PartialImageLoaderConfig;
 use super::image_loader_config::RuntimeImageLoaderConfig;
 use crate::modules::program_manager::config::image_loader_config::ImageLoaderConfig;
+use crate::modules::program_manager::config::program_ranker_config::PartialProgramRankerConfig;
+use crate::modules::program_manager::config::program_ranker_config::ProgramRankerConfig;
 use crate::modules::program_manager::semantic_manager::EmbeddingBackend;
-use crate::program_manager::config::program_launcher_config::PartialProgramLauncherConfig;
-use crate::program_manager::config::program_launcher_config::ProgramLauncherConfig;
 use crate::program_manager::config::program_loader_config::PartialProgramLoaderConfig;
 use crate::program_manager::config::program_loader_config::ProgramLoaderConfig;
 use crate::program_manager::SearchModelConfig;
@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PartialProgramManagerConfig {
-    pub launcher: Option<PartialProgramLauncherConfig>,
+    pub ranker: Option<PartialProgramRankerConfig>,
     pub loader: Option<PartialProgramLoaderConfig>,
     pub image_loader: Option<PartialImageLoaderConfig>,
     pub search_model: Option<Arc<SearchModelConfig>>,
@@ -23,7 +23,7 @@ pub struct PartialProgramManagerConfig {
 
 #[derive(Debug)]
 pub struct ProgramManagerConfigInner {
-    pub launcher_config: Arc<ProgramLauncherConfig>,
+    pub ranker_config: Arc<ProgramRankerConfig>,
     pub loader_config: Arc<ProgramLoaderConfig>,
     pub image_loader: Arc<ImageLoaderConfig>,
     pub search_model: Arc<SearchModelConfig>,
@@ -34,7 +34,7 @@ pub struct ProgramManagerConfigInner {
 impl Default for ProgramManagerConfigInner {
     fn default() -> Self {
         ProgramManagerConfigInner {
-            launcher_config: Arc::new(ProgramLauncherConfig::default()),
+            ranker_config: Arc::new(ProgramRankerConfig::default()),
             loader_config: Arc::new(ProgramLoaderConfig::default()),
             image_loader: Arc::new(ImageLoaderConfig::default()),
             search_model: Arc::new(SearchModelConfig::default()),
@@ -47,7 +47,7 @@ impl Default for ProgramManagerConfigInner {
 impl ProgramManagerConfigInner {
     pub fn to_partial(&self) -> PartialProgramManagerConfig {
         PartialProgramManagerConfig {
-            launcher: Some(self.launcher_config.to_partial()),
+            ranker: Some(self.ranker_config.to_partial()),
             loader: Some(self.loader_config.to_partial()),
             image_loader: Some(self.image_loader.to_partial()),
             search_model: Some(self.search_model.clone()),
@@ -56,8 +56,8 @@ impl ProgramManagerConfigInner {
         }
     }
     pub fn update(&mut self, partial_config: PartialProgramManagerConfig) {
-        if let Some(partial_launcher) = partial_config.launcher {
-            self.launcher_config.update(partial_launcher);
+        if let Some(partial_ranker) = partial_config.ranker {
+            self.ranker_config.update(partial_ranker);
         }
         if let Some(partial_loader) = partial_config.loader {
             self.loader_config.update(partial_loader);
@@ -99,8 +99,8 @@ impl ProgramManagerConfig {
         inner.to_partial()
     }
 
-    pub fn get_launcher_config(&self) -> Arc<ProgramLauncherConfig> {
-        self.inner.read().launcher_config.clone()
+    pub fn get_ranker_config(&self) -> Arc<ProgramRankerConfig> {
+        self.inner.read().ranker_config.clone()
     }
 
     pub fn get_loader_config(&self) -> Arc<ProgramLoaderConfig> {

@@ -1,5 +1,5 @@
 use crate::error::ResultExt;
-use crate::modules::program_manager::program_launcher::ProgramLauncher;
+use crate::modules::program_manager::program_ranker::ProgramRanker;
 use crate::modules::program_manager::search_model::Scorer;
 use crate::modules::program_manager::semantic_manager::SemanticManager;
 use crate::program_manager::remove_repeated_space;
@@ -8,13 +8,14 @@ use crate::program_manager::SearchMatchResult;
 use crate::program_manager::SearchModel;
 use crate::Arc;
 use rayon::prelude::*;
+
 pub(crate) trait SearchEngine: std::fmt::Debug + Send + Sync {
     /// 执行搜索操作
     ///
     /// # Arguments
     /// * `user_input` - 用户输入的搜索字符串。
     /// * `programs` - 可供搜索的程序列表。
-    /// * `program_launcher` - 程序启动器实例，用于获取程序的动态值等信息。
+    /// * `program_ranker` - 程序排序器实例，用于计算排序分数。
     ///
     /// # Returns
     /// * 一个包含搜索结果的向量，按匹配度按原始数据排列（无排序）。
@@ -22,7 +23,7 @@ pub(crate) trait SearchEngine: std::fmt::Debug + Send + Sync {
         &self,
         user_input: &str,
         programs: &[Arc<Program>],
-        program_launcher: &ProgramLauncher,
+        program_ranker: &ProgramRanker,
     ) -> Vec<SearchMatchResult>;
 }
 
@@ -50,7 +51,7 @@ impl SearchEngine for TraditionalSearchEngine {
         &self,
         user_input: &str,
         programs: &[Arc<Program>],
-        program_launcher: &ProgramLauncher,
+        program_ranker: &ProgramRanker,
     ) -> Vec<SearchMatchResult> {
         // 预处理用户输入
         let user_input = user_input.to_lowercase();
@@ -62,12 +63,14 @@ impl SearchEngine for TraditionalSearchEngine {
             .par_iter()
             .map(|program| {
                 // 基础匹配分数
-                let mut score = search_model.calculate_score(program, &user_input);
-                // 加上固定偏移量
-                score += program.stable_bias;
-                // 加上动态偏移量
-                score +=
-                    program_launcher.program_dynamic_value_based_launch_time(program.program_guid);
+                let base_score = search_model.calculate_score(program, &user_input) + program.stable_bias;
+                
+                // 应用智能排序增强评分
+                let score = program_ranker.calculate_final_score(
+                    base_score,
+                    program.program_guid,
+                    &user_input,
+                );
 
                 SearchMatchResult {
                     score,
@@ -94,7 +97,7 @@ impl SearchEngine for SemanticSearchEngine {
         &self,
         user_input: &str,
         programs: &[Arc<Program>],
-        _program_launcher: &ProgramLauncher, // 语义搜索暂时不考虑动态分数
+        program_ranker: &ProgramRanker,
     ) -> Vec<SearchMatchResult> {
         let user_input = user_input.to_lowercase();
         let user_input = remove_repeated_space(&user_input);
@@ -108,10 +111,18 @@ impl SearchEngine for SemanticSearchEngine {
         programs
             .par_iter()
             .map(|program| {
-                let score = self
+                let base_score = self
                     .semantic_model
                     .compute_similarity(&user_embedding, &program.embedding)
                     as f64;
+                
+                // 应用智能排序增强评分
+                let score = program_ranker.calculate_final_score(
+                    base_score,
+                    program.program_guid,
+                    &user_input,
+                );
+
                 SearchMatchResult {
                     score,
                     program_guid: program.program_guid,

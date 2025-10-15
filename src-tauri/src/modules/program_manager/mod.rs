@@ -4,6 +4,7 @@ pub mod localization_translation;
 pub mod pinyin_mapper;
 pub mod program_launcher;
 pub mod program_loader;
+pub mod program_ranker;
 pub mod search_model;
 pub mod semantic_backend;
 pub mod semantic_manager;
@@ -25,6 +26,7 @@ use image_loader::ImageLoader;
 use lru::LruCache;
 use program_launcher::ProgramLauncher;
 use program_loader::ProgramLoader;
+use program_ranker::ProgramRanker;
 use std::collections::HashMap;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
@@ -47,6 +49,8 @@ pub struct ProgramManager {
     program_loader: Arc<ProgramLoader>,
     /// 程序启动器
     program_launcher: Arc<ProgramLauncher>,
+    /// 程序排序器
+    program_ranker: Arc<ProgramRanker>,
     /// 当前程序的搜索引擎
     search_engine: Arc<RwLock<Arc<dyn SearchEngine>>>,
     /// 图标获取器
@@ -80,6 +84,7 @@ impl ProgramManager {
             program_registry: Arc::new(RwLock::new(Vec::new())),
             program_loader: Arc::new(ProgramLoader::new(semantic_manager.clone())),
             program_launcher: Arc::new(ProgramLauncher::new()),
+            program_ranker: Arc::new(ProgramRanker::new()),
             search_engine: Arc::new(RwLock::new(Arc::new(TraditionalSearchEngine::default()))),
             image_loader: Arc::new(ImageLoader::new(image_loader_config)),
             program_locater: Arc::new(DashMap::new()),
@@ -110,7 +115,7 @@ impl ProgramManager {
         ProgramManagerRuntimeData {
             semantic_store_str,
             runtime_data: PartialProgramManagerConfig {
-                launcher: Some(self.program_launcher.get_runtime_data()),
+                ranker: Some(self.program_ranker.get_runtime_data()),
                 loader: None,
                 image_loader: None,
                 search_model: None,
@@ -128,7 +133,7 @@ impl ProgramManager {
         semantic_store: Option<String>,
     ) {
         let program_loader_config = &config.get_loader_config();
-        let program_launcher_config = &config.get_launcher_config();
+        let program_ranker_config = &config.get_ranker_config();
         let image_loader_config = &config.get_image_loader_config();
         // 初始化子模块
         self.image_loader
@@ -178,9 +183,13 @@ impl ProgramManager {
             .map(|program| (program.program_guid, program.launch_method.clone()))
             .collect();
 
-        // 原子性地加载配置和注册程序
-        self.program_launcher
-            .load_and_register_programs(program_launcher_config, &programs_to_register);
+        // 加载配置和注册程序到 Ranker 和 Launcher
+        self.program_ranker
+            .load_and_register_programs(program_ranker_config, &programs_to_register);
+        
+        for (program_guid, launch_method) in &programs_to_register {
+            self.program_launcher.register_program(*program_guid, launch_method.clone());
+        }
 
         // 更新定位器
         self.program_locater.clear();
@@ -314,12 +323,18 @@ impl ProgramManager {
                 item.launch_method.is_uwp(),
                 item.stable_bias,
                 item.launch_method.get_text(),
-                self.program_launcher
+                self.program_ranker
                     .program_history_launch_time(item.program_guid),
             ));
         }
         result
     }
+    
+    /// 记录查询-程序启动关联
+    pub fn record_query_launch(&self, query: &str, program_guid: u64) {
+        self.program_ranker.record_query_launch(query, program_guid);
+    }
+    
     /// 启动一个程序
     pub async fn launch_program(
         &self,
@@ -327,6 +342,10 @@ impl ProgramManager {
         is_admin_required: bool,
         override_method: Option<LaunchMethod>,
     ) {
+        // 先记录启动统计
+        self.program_ranker.record_launch(program_guid);
+        // 再启动程序
+        // 因为不管有没有成功，用户都是想启动这个的程序的，所以要考虑到用户的这个意愿
         self.program_launcher
             .launch_program(program_guid, is_admin_required, override_method);
     }
@@ -416,7 +435,7 @@ impl ProgramManager {
     /// 获得最近启动的程序
     pub async fn get_latest_launch_program(&self, program_count: u32) -> Vec<(u64, String)> {
         let latest_launch_program = self
-            .program_launcher
+            .program_ranker
             .get_latest_launch_program(program_count);
 
         let mut results = Vec::new();
@@ -447,13 +466,13 @@ impl ProgramManager {
             return cached.into_iter().take(result_count as usize).collect();
         }
 
-        let launcher = &self.program_launcher;
+        let ranker = &self.program_ranker;
 
         let program_registry = self.program_registry.read().await;
         let search_engine = self.search_engine.read().await;
         // 计算所有程序的匹配分数
         let mut match_scores: Vec<SearchMatchResult> =
-            search_engine.perform_search(&user_input, program_registry.as_ref(), launcher);
+            search_engine.perform_search(&user_input, program_registry.as_ref(), ranker);
         // 按分数降序排序
         match_scores.sort_by(|a, b| {
             b.score

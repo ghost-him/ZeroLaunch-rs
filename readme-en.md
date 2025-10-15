@@ -288,6 +288,15 @@ This project is built upon the following excellent open-source projects:
 *   [icon-icons](https://icon-icons.com/zh/) - Provided some program icons
 *   [Follower-v2.0](https://github.com/MrBeanCpp/Follower-v2.0) - Provided the full-screen detection solution
 
+## Roadmap
+
+Planned future goals:
+
+1. Use a database to manage stored information (remote configuration data) and reduce information redundancy.
+2. Refactor the front-end pages to improve maintainability of the application.
+
+These are high-level goals — implementation details (database choice, migration strategy, front-end architecture) will be decided in follow-up design discussions.
+
 ## ❤️ Support the Author
 
 You can support the author in the following ways:

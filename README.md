@@ -297,6 +297,15 @@ cargo run --bin xtask clean
 * [bootstrap](https://icons.bootcss.com/) - 提供了部分的程序图标
 * [icon-icons](https://icon-icons.com/zh/) - 提供了部分的程序图标
 * [Follower-v2.0](https://github.com/MrBeanCpp/Follower-v2.0) - 提供了全屏检测的方案
+ 
+## 未来目标
+
+计划中的未来目标：
+
+1. 使用数据库来管理存储信息（远程配置信息），以减少信息冗余。
+2. 重构前端页面，提高程序的可维护性。
+
+以上为高层目标，具体的实现方案（数据库选型、迁移策略、前端架构方案等）将通过后续的设计讨论确定。
 
 ## ❤️ 支持作者
 

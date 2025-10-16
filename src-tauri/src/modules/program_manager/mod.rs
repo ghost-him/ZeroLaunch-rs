@@ -32,7 +32,7 @@ use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::RwLock;
-use tracing::info;
+use tracing::{info, warn};
 pub use unit::{
     EmbeddingVec, LaunchMethod, LaunchMethodKind, Program, SearchTestResult, SemanticStoreItem,
 };
@@ -183,13 +183,9 @@ impl ProgramManager {
             .map(|program| (program.program_guid, program.launch_method.clone()))
             .collect();
 
-        // 加载配置和注册程序到 Ranker 和 Launcher
+        // 加载配置和注册程序到 Ranker
         self.program_ranker
             .load_and_register_programs(program_ranker_config, &programs_to_register);
-        
-        for (program_guid, launch_method) in &programs_to_register {
-            self.program_launcher.register_program(*program_guid, launch_method.clone());
-        }
 
         // 更新定位器
         self.program_locater.clear();
@@ -344,10 +340,22 @@ impl ProgramManager {
     ) {
         // 先记录启动统计
         self.program_ranker.record_launch(program_guid);
-        // 再启动程序
+        
+        // 获取程序的 launch_method
+        let program = self.get_program_by_guid(program_guid).await;
+        if program.is_none() {
+            warn!("Program with GUID {} not found", program_guid);
+            return;
+        }
+        let program = program.unwrap();
+        
+        // 使用 override_method 或程序自己的 launch_method
+        let launch_method = override_method.as_ref().unwrap_or(&program.launch_method);
+        
+        // 启动程序
         // 因为不管有没有成功，用户都是想启动这个的程序的，所以要考虑到用户的这个意愿
         self.program_launcher
-            .launch_program(program_guid, is_admin_required, override_method);
+            .launch_program(launch_method, is_admin_required);
     }
     /// 获取程序的图标，返回使用base64编码的png图片
     pub async fn get_icon(&self, program_guid: &u64) -> Vec<u8> {
@@ -430,7 +438,13 @@ impl ProgramManager {
     }
     /// 打开目标文件所在的文件夹
     pub async fn open_target_folder(&self, program_guid: u64) -> bool {
-        self.program_launcher.open_target_folder(program_guid)
+        let program = self.get_program_by_guid(program_guid).await;
+        if program.is_none() {
+            warn!("Program with GUID {} not found", program_guid);
+            return false;
+        }
+        let program = program.unwrap();
+        self.program_launcher.open_target_folder(&program.launch_method)
     }
     /// 获得最近启动的程序
     pub async fn get_latest_launch_program(&self, program_count: u32) -> Vec<(u64, String)> {

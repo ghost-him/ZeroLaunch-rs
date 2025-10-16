@@ -2,7 +2,6 @@ use crate::error::{OptionExt, ResultExt};
 use crate::program_manager::LaunchMethod;
 use crate::utils::defer::defer;
 use crate::utils::windows::{get_u16_vec, shell_execute_open};
-use dashmap::DashMap;
 use parking_lot::RwLock;
 use std::os::windows::process::CommandExt;
 use std::path::Path;
@@ -18,50 +17,31 @@ use windows_core::PCWSTR;
 
 /// 程序启动器内部实现
 #[derive(Debug)]
-struct ProgramLauncherInner {
-    /// 程序GUID到启动方式的映射
-    launch_store: DashMap<u64, LaunchMethod>,
-}
+struct ProgramLauncherInner;
 
 impl ProgramLauncherInner {
     fn new() -> Self {
-        ProgramLauncherInner {
-            launch_store: DashMap::new(),
-        }
-    }
-
-    fn register_program(&mut self, program_guid: u64, launch_method: LaunchMethod) {
-        debug!("register: {} {}", program_guid, launch_method.get_text());
-        self.launch_store.insert(program_guid, launch_method);
+        ProgramLauncherInner
     }
 
     /// 启动程序
     fn launch_program(
-        &mut self,
-        program_guid: u64,
+        &self,
+        launch_method: &LaunchMethod,
         is_admin_required: bool,
-        override_method: Option<LaunchMethod>,
     ) {
-        let launch_method = self
-            .launch_store
-            .get(&program_guid)
-            .expect_programming("Program GUID should exist in launch store");
-        let stored_method = launch_method.clone();
-
-        let method_to_launch = override_method.unwrap_or(stored_method);
-
-        match method_to_launch {
+        match launch_method {
             LaunchMethod::Path(path) => {
-                self.launch_path_program(&path, is_admin_required);
+                self.launch_path_program(path, is_admin_required);
             }
             LaunchMethod::PackageFamilyName(family_name) => {
-                self.launch_uwp_program(&family_name);
+                self.launch_uwp_program(family_name);
             }
             LaunchMethod::File(file_name) => {
-                self.launch_file(&file_name);
+                self.launch_file(file_name);
             }
             LaunchMethod::Command(command) => {
-                self.launch_command(&command);
+                self.launch_command(command);
             }
         }
     }
@@ -217,14 +197,9 @@ impl ProgramLauncherInner {
     }
 
     #[allow(clippy::zombie_processes)]
-    pub fn open_target_folder(&self, program_guid: u64) -> bool {
-        let program_method = self
-            .launch_store
-            .get(&program_guid)
-            .expect_programming("Program GUID should exist in launch store");
-        let target_method = program_method.clone();
+    pub fn open_target_folder(&self, launch_method: &LaunchMethod) -> bool {
         // 只支持命令和uwp应用以外的程序
-        match &target_method {
+        match launch_method {
             LaunchMethod::Command(_) => {
                 return false;
             }
@@ -233,7 +208,7 @@ impl ProgramLauncherInner {
             }
             _ => {}
         }
-        let target_path = target_method.get_text();
+        let target_path = launch_method.get_text();
         let target_path = Path::new(&target_path);
 
         let folder_to_open = if target_path.is_dir() {
@@ -287,24 +262,17 @@ impl ProgramLauncher {
         }
     }
 
-    pub fn register_program(&self, program_guid: u64, launch_method: LaunchMethod) {
-        self.inner
-            .write()
-            .register_program(program_guid, launch_method);
-    }
-
     pub fn launch_program(
         &self,
-        program_guid: u64,
+        launch_method: &LaunchMethod,
         is_admin_required: bool,
-        override_method: Option<LaunchMethod>,
     ) {
         self.inner
-            .write()
-            .launch_program(program_guid, is_admin_required, override_method);
+            .read()
+            .launch_program(launch_method, is_admin_required);
     }
 
-    pub fn open_target_folder(&self, program_guid: u64) -> bool {
-        self.inner.read().open_target_folder(program_guid)
+    pub fn open_target_folder(&self, launch_method: &LaunchMethod) -> bool {
+        self.inner.read().open_target_folder(launch_method)
     }
 }

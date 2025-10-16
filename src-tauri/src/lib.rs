@@ -123,8 +123,8 @@ pub fn run() {
                 // 阶段5: 配置应用和外部服务（依赖所有核心组件）
                 info!("=== 阶段5: 配置应用和外部服务 ===");
 
-                info!("正在更新应用设置");
-                update_app_setting().await;
+                info!("正在更新应用设置并完成初始化");
+                initial_app_setup().await;
 
                 info!("正在注册深度链接");
                 app.deep_link()
@@ -455,9 +455,34 @@ fn init_setting_window(app: tauri::AppHandle) {
     });
 }
 
-/// 更新程序的状态
-async fn update_app_setting() {
+/// 初始化时的应用设置（使用写锁确保 ONNX 模型加载完成）
+async fn initial_app_setup() {
     let state = ServiceLocator::get_state();
+    
+    // 获取初始化写锁，确保在初始化期间（包括 ONNX 模型加载）不会有搜索请求
+    let initialization_lock = state.get_initialization_lock();
+    let _init_guard = initialization_lock.write();
+    info!("已获取初始化写锁，开始首次应用配置");
+
+    // 执行实际的配置更新逻辑
+    perform_app_setting_update(true).await;
+
+    // 显式释放写锁
+    drop(_init_guard);
+    info!("首次初始化完成，已释放初始化写锁，ONNX 模型已就绪");
+}
+
+/// 更新程序的状态（定期刷新时调用，不使用写锁）
+async fn update_app_setting() {
+    // 定期更新不需要写锁，因为 ONNX 模型已经加载
+    perform_app_setting_update(false).await;
+}
+
+/// 执行应用设置更新的核心逻辑
+/// _is_initial: 是否是首次初始化（保留参数以便将来扩展）
+async fn perform_app_setting_update(_is_initial: bool) {
+    let state = ServiceLocator::get_state();
+    
     // 如果当前可见，则忽略更新
     if state.get_search_bar_visible() {
         return;
@@ -525,7 +550,7 @@ async fn update_app_setting() {
     // 7.更新快捷键的绑定
     update_shortcut_manager();
 
-        // 发送刷新结束事件
+    // 发送刷新结束事件
     if let Err(e) = handle.emit("refresh_program_end", "") {
         tracing::debug!("emit refresh_program_end failed: {:?}", e);
     }

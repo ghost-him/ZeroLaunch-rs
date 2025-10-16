@@ -52,6 +52,10 @@ async fn launch_program_internal<R: Runtime>(
         override_method.is_some()
     );
 
+    // 获取初始化读锁，确保初始化已完成
+    let initialization_lock = state.get_initialization_lock();
+    let _init_guard = initialization_lock.read().await;
+
     let program_manager = state.get_program_manager();
 
     if let Err(e) = hide_window() {
@@ -114,6 +118,10 @@ pub async fn load_program_icon<R: Runtime>(
     state: tauri::State<'_, Arc<AppState>>,
     program_guid: u64,
 ) -> Result<Vec<u8>, String> {
+    // 获取初始化读锁，确保初始化已完成
+    let initialization_lock = state.get_initialization_lock();
+    let _init_guard = initialization_lock.read().await;
+
     let program_manager = state.get_program_manager();
     let result = program_manager.get_icon(&program_guid).await;
     if result.is_empty() {
@@ -129,6 +137,10 @@ pub async fn get_program_count<R: Runtime>(
     _window: tauri::Window<R>,
     state: tauri::State<'_, Arc<AppState>>,
 ) -> Result<usize, String> {
+    // 获取初始化读锁，确保初始化已完成
+    let initialization_lock = state.get_initialization_lock();
+    let _init_guard = initialization_lock.read().await;
+
     let program_manager = state.get_program_manager();
     let result = program_manager.get_program_count().await;
     Ok(result)
@@ -157,11 +169,18 @@ pub async fn launch_program_with_args<R: Runtime>(
     shift: bool,
     args: Vec<String>,
 ) -> Result<(), String> {
+    // 获取初始化读锁，确保初始化已完成
+    let initialization_lock = state.get_initialization_lock();
+    let _init_guard = initialization_lock.read().await;
+
     let program_manager = state.get_program_manager();
     let override_method = program_manager
         .build_launch_method_with_args(program_guid, &args)
         .await
         .map_err(|e| format!("Failed to build launch method: {}", e))?;
+
+    // 释放读锁，让 launch_program_internal 重新获取
+    drop(_init_guard);
 
     launch_program_internal::<R>(state, program_guid, ctrl, shift, Some(override_method)).await
 }
@@ -174,6 +193,10 @@ pub async fn get_launch_template_info<R: Runtime>(
     state: tauri::State<'_, Arc<AppState>>,
     program_guid: u64,
 ) -> Result<LaunchTemplateInfo, String> {
+    // 获取初始化读锁，确保初始化已完成
+    let initialization_lock = state.get_initialization_lock();
+    let _init_guard = initialization_lock.read().await;
+
     let program_manager = state.get_program_manager();
     let (template, kind, placeholder_count, show_name) = program_manager
         .get_launch_template_info(program_guid)
@@ -194,6 +217,10 @@ pub async fn get_program_info<R: Runtime>(
     _window: tauri::Window<R>,
     state: tauri::State<'_, Arc<AppState>>,
 ) -> Result<Vec<ProgramInfo>, String> {
+    // 获取初始化读锁，确保初始化已完成
+    let initialization_lock = state.get_initialization_lock();
+    let _init_guard = initialization_lock.read().await;
+
     let manager = state.get_program_manager();
     let data = manager.get_program_infos().await;
     debug!("{:?}", data);
@@ -231,6 +258,10 @@ pub async fn handle_search_text<R: Runtime>(
 
     debug!("🔍 处理搜索请求: '{}'", search_text);
 
+    // 获取初始化读锁，确保初始化已完成
+    let initialization_lock = state.get_initialization_lock();
+    let _init_guard = initialization_lock.read().await;
+
     // 保存当前搜索查询
     state.set_last_search_query(search_text.clone());
 
@@ -264,6 +295,10 @@ pub async fn handle_search_text<R: Runtime>(
 pub async fn command_get_latest_launch_program(
     state: tauri::State<'_, Arc<AppState>>,
 ) -> Result<Vec<SearchResult>, String> {
+    // 获取初始化读锁，确保初始化已完成
+    let initialization_lock = state.get_initialization_lock();
+    let _init_guard = initialization_lock.read().await;
+
     let runtime_config = state.get_runtime_config();
     let result_count = runtime_config.get_app_config().get_search_result_count();
     // 处理消息
@@ -296,6 +331,10 @@ pub async fn open_target_folder<R: Runtime>(
     state: tauri::State<'_, Arc<AppState>>,
     program_guid: u64,
 ) -> Result<bool, String> {
+    // 获取初始化读锁，确保初始化已完成
+    let initialization_lock = state.get_initialization_lock();
+    let _init_guard = initialization_lock.read().await;
+
     let program_manager = state.get_program_manager();
     if let Err(e) = hide_window() {
         return Err(format!("Failed to hide window: {:?}", e));

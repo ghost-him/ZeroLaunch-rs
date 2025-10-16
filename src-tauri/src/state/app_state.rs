@@ -8,6 +8,7 @@ use std::sync::Arc;
 use tauri::tray::TrayIcon;
 use tauri::AppHandle;
 use timer::{Guard, Timer};
+use tokio::sync::RwLock as TokioRwLock;
 
 pub struct AppState {
     /// 运行时配置
@@ -36,6 +37,8 @@ pub struct AppState {
     is_keyboard_blocked: RwLock<bool>,
     /// 最后一次搜索的查询词
     last_search_query: RwLock<String>,
+    /// 初始化锁，用于确保程序初始化完成后才能进行搜索等操作
+    initialization_lock: Arc<TokioRwLock<()>>,
 }
 
 impl Default for AppState {
@@ -60,6 +63,7 @@ impl AppState {
             game_mode: RwLock::new(false),
             is_keyboard_blocked: RwLock::new(false),
             last_search_query: RwLock::new(String::new()),
+            initialization_lock: Arc::new(TokioRwLock::new(())),
         }
     }
 
@@ -198,6 +202,14 @@ impl AppState {
     /// 获取最后一次搜索的查询词
     pub fn get_last_search_query(&self) -> String {
         self.last_search_query.read().clone()
+    }
+    // endregion
+
+    // region: Initialization Lock 访问方法
+    /// 获取初始化锁的引用
+    /// 初始化时需要获取写锁，搜索等操作时需要获取读锁
+    pub fn get_initialization_lock(&self) -> Arc<TokioRwLock<()>> {
+        self.initialization_lock.clone()
     }
     // endregion
 }

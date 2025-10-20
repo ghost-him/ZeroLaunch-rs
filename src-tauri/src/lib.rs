@@ -189,6 +189,7 @@ pub fn run() {
             command_get_latest_launch_program, //command_get_onedrive_refresh_token
             command_read_file,
             command_open_models_dir,
+            command_get_search_status_tip,
         ])
         .run(tauri::generate_context!())
         .expect_programming("error while running tauri application");

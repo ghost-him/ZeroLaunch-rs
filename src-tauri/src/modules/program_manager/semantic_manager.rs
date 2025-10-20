@@ -24,6 +24,9 @@ pub trait EmbeddingBackend: Send + Sync {
     fn compute_similarity(&self, embedding1: &EmbeddingVec, embedding2: &EmbeddingVec) -> f32;
 
     fn release_resources(&self) {}
+
+    /// 后端是否就绪（例如模型文件是否存在）。默认认为就绪。
+    fn is_ready(&self) -> bool;
 }
 
 pub struct SemanticManager {
@@ -67,6 +70,14 @@ impl SemanticManager {
 
     pub fn has_backend(&self) -> bool {
         self.embedding_backend.is_some()
+    }
+
+    /// 检查后端是否可用（例如模型文件是否齐全）
+    pub fn is_backend_ready(&self) -> bool {
+        match &self.embedding_backend {
+            Some(b) => b.is_ready(),
+            None => false,
+        }
     }
 
     pub fn get_semantic_descriptions(&self, launch_method: &LaunchMethod) -> String {

@@ -110,7 +110,7 @@
           {{
             is_refreshing_dataset
               ? t('app.refreshing_dataset')
-              : (is_loading_icons ? t('app.loading_icons') : right_tips)
+              : (is_loading_icons ? t('app.loading_icons') : (status_tip || right_tips))
           }}
         </span>
       </div>
@@ -149,6 +149,19 @@ const latest_launch_program = ref<Array<[number, string]>>([]);
 const is_alt_pressed = ref<boolean>(false);
 //右下角的提示词
 const right_tips = ref<string>(t('app.best_match'));
+// 后端返回的搜索状态原因码："none" | "ai_disabled" | "model_not_ready"
+const status_reason_code = ref<string>('none');
+// 基于原因码生成本地化提示
+const status_tip = computed(() => {
+  switch (status_reason_code.value) {
+    case 'ai_disabled':
+      return t('app.semantic_fallback_ai_disabled');
+    case 'model_not_ready':
+      return t('app.semantic_fallback_model_missing');
+    default:
+      return '';
+  }
+});
 const menuItems = ref<Array<string>>([]);
 const menuIcons = ref<Array<string>>([]);
 const program_icons = ref<Map<number, string>>(new Map<number, string>([]));
@@ -410,6 +423,12 @@ const refresh_result_items = async () => {
     let keys = latest_launch_program.value.map(([key, _]) => key);
     menuIcons.value = await getIcons(keys);
     right_tips.value = t('app.recent_open');
+  }
+  // 刷新时也尝试获取后端状态提示原因码
+  try {
+    status_reason_code.value = await invoke<string>('command_get_search_status_tip');
+  } catch (e) {
+    // 忽略错误
   }
 }
 
@@ -956,7 +975,9 @@ onMounted(async () => {
     }
   }, { passive: false });
   unlisten.push(await listen('update_search_bar_window', () => {
-    updateWindow();
+  updateWindow();
+  // UI刷新时同步一次提示
+  invoke<string>('command_get_search_status_tip').then(code => status_reason_code.value = code).catch(() => {});
   }));
   // 监听刷新开始与结束事件
   unlisten.push(await listen('refresh_program_start', () => {

@@ -14,6 +14,8 @@ use crate::core::ai::embedding_model::{EmbeddingModel, EmbeddingModelType};
 use crate::core::ai::model_manager::ModelManager;
 #[cfg(feature = "ai")]
 use ndarray::ArrayView1;
+#[cfg(feature = "ai")]
+use std::path::Path;
 
 /// 根据当前特性构建语义后端。
 #[cfg(feature = "ai")]
@@ -94,5 +96,13 @@ impl EmbeddingBackend for AiEmbeddingBackend {
         debug!("Releasing cached embedding model");
         self.model_manager
             .release_embedding_model(EmbeddingModelType::EmbeddingGemma);
+    }
+
+    fn is_ready(&self) -> bool {
+        // 粗略检测：检查默认模型文件是否存在
+        let cfg = crate::core::ai::embedding_model::EmbeddingModelType::EmbeddingGemma.get_config();
+        Path::new(&cfg.model_path).exists()
+            && Path::new(&cfg.tokenizer_path).exists()
+            && Path::new(&cfg.tokenizer_config_path).exists()
     }
 }

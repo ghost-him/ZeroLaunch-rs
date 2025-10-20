@@ -10,7 +10,9 @@
     "open_file_location": "開啟檔案位置",
     "run_as_admin": "以系統管理員身分執行",
     "start_refresh": "開始重新整理",
-    "refreshing_dataset": "正在重新整理資料集..."
+    "refreshing_dataset": "正在重新整理資料集...",
+    "semantic_fallback_ai_disabled": "已選語義搜尋，但目前為精簡版（未啟用 AI），已回退到標準配對",
+    "semantic_fallback_model_missing": "未偵測到模型權重，已回退到標準配對"
   },
   "menu": {
     "open_settings": "開啟設定介面",

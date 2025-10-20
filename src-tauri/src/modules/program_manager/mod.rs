@@ -38,6 +38,14 @@ pub use unit::{
 };
 use window_activator::WindowActivator;
 
+/// 语义搜索回退原因（用于 command 层决定提示内容）
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FallbackReason {
+    None,
+    AiDisabled,     // 选择语义，但未启用 AI 特性
+    ModelNotReady,  // 选择语义，启用 AI，但模型权重未就绪
+}
+
 /// 程序管理器 - 使用细粒度锁优化并发性能
 #[derive(Debug)]
 pub struct ProgramManager {
@@ -61,6 +69,8 @@ pub struct ProgramManager {
     semantic_manager: Arc<SemanticManager>,
     /// 短期搜索结果缓存（统一，基于 LruCache）
     short_term_result_cache: Arc<RwLock<Option<LruCache<String, Vec<SearchMatchResult>>>>>,
+    /// 当前回退原因
+    fallback_reason: Arc<RwLock<FallbackReason>>,    
 }
 
 /// 内部搜索结果，包含分数和程序ID
@@ -91,6 +101,7 @@ impl ProgramManager {
             window_activator: Arc::new(WindowActivator::new()),
             semantic_manager,
             short_term_result_cache: Arc::new(RwLock::new(None)),
+            fallback_reason: Arc::new(RwLock::new(FallbackReason::None)),
         };
         if pm
             .semantic_manager
@@ -194,8 +205,24 @@ impl ProgramManager {
         }
 
         let is_traditional_search = search_config.is_traditional_search();
+        // 语义后端可用性（AI开关+模型权重就绪）
+        let backend_ready = self.semantic_manager.is_backend_ready();
 
-        let search_engine: Arc<dyn SearchEngine> = if is_traditional_search || !has_backend {
+        // 更新回退原因
+        {
+            let mut reason = self.fallback_reason.write().await;
+            *reason = if is_traditional_search {
+                FallbackReason::None
+            } else if !has_backend {
+                FallbackReason::AiDisabled
+            } else if !backend_ready {
+                FallbackReason::ModelNotReady
+            } else {
+                FallbackReason::None
+            };
+        }
+
+        let search_engine: Arc<dyn SearchEngine> = if is_traditional_search || !has_backend || !backend_ready {
             let new_search_model = SearchModelFactory::create_scorer(search_config.clone());
             Arc::new(TraditionalSearchEngine::new(Arc::new(new_search_model)))
         } else {
@@ -205,7 +232,7 @@ impl ProgramManager {
         let mut search_engine_lock = self.search_engine.write().await;
         *search_engine_lock = search_engine;
 
-        if has_backend && is_traditional_search {
+    if has_backend && (is_traditional_search || !backend_ready) {
             self.semantic_manager.release_backend_resources();
         }
 
@@ -221,6 +248,11 @@ impl ProgramManager {
         } else {
             *cache_guard = None;
         }
+    }
+
+    /// 获取当前回退原因
+    pub async fn get_fallback_reason(&self) -> FallbackReason {
+        *self.fallback_reason.read().await
     }
 
     fn get_program_index(&self, program_guid: u64) -> Option<usize> {

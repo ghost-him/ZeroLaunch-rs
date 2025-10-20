@@ -2,6 +2,7 @@ use crate::commands::ui_command::hide_window;
 use crate::modules::config::config_manager::PartialRuntimeConfig;
 use crate::modules::config::default::ICON_CACHE_DIR;
 use crate::modules::config::default::MODELS_DIR;
+use crate::modules::program_manager::FallbackReason;
 use crate::modules::program_manager::{LaunchMethod, LaunchMethodKind};
 use crate::notify;
 use crate::save_config_to_file;
@@ -277,6 +278,22 @@ pub async fn command_get_latest_launch_program(
     }
     debug!("latest_launch_propgram: {:?}", ret);
     Ok(ret)
+}
+
+/// 获取当前搜索状态提示（用于右下角展示）
+#[tauri::command]
+pub async fn command_get_search_status_tip(
+    state: tauri::State<'_, Arc<AppState>>,
+) -> Result<String, String> {
+    let pm = state.get_program_manager();
+    let reason = pm.get_fallback_reason().await;
+    // 仅返回原因码，前端基于 i18n 进行本地化展示
+    let code = match reason {
+        FallbackReason::None => "none",
+        FallbackReason::AiDisabled => "ai_disabled",
+        FallbackReason::ModelNotReady => "model_not_ready",
+    };
+    Ok(code.to_string())
 }
 
 #[tauri::command]

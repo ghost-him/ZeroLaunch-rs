@@ -10,7 +10,9 @@
     "open_file_location": "打开文件位置",
     "run_as_admin": "以管理员身份运行",
     "start_refresh": "开始刷新",
-    "refreshing_dataset": "正在刷新数据集..."
+    "refreshing_dataset": "正在刷新数据集...",
+    "semantic_fallback_ai_disabled": "已选语义搜索，但当前为精简版（未启用AI），已回退到标准匹配",
+    "semantic_fallback_model_missing": "未检测到模型权重，已回退到标准匹配"
   },
   "menu": {
     "open_settings": "打开设置界面",

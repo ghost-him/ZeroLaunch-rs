@@ -37,6 +37,8 @@ struct ProgramRankerInner {
     query_affinity_weight: f64,
     query_affinity_time_decay: i64,
     temporal_decay: i64,
+    /// 是否启用排序算法
+    is_enable: bool,
 }
 
 impl ProgramRankerInner {
@@ -57,6 +59,7 @@ impl ProgramRankerInner {
             query_affinity_weight: 3.5,
             query_affinity_time_decay: 259200,
             temporal_decay: 10800,
+            is_enable: true,
         }
     }
 
@@ -95,6 +98,7 @@ impl ProgramRankerInner {
         self.query_affinity_weight = config.get_query_affinity_weight();
         self.query_affinity_time_decay = config.get_query_affinity_time_decay();
         self.temporal_decay = config.get_temporal_decay();
+        self.is_enable = config.get_is_enable();
     }
 
     fn get_runtime_data(&mut self) -> PartialProgramRankerConfig {
@@ -128,6 +132,7 @@ impl ProgramRankerInner {
             query_affinity_weight: None,
             query_affinity_time_decay: None,
             temporal_decay: None,
+            is_enable: None,
         }
     }
 
@@ -315,6 +320,11 @@ impl ProgramRankerInner {
         program_guid: u64,
         query: &str,
     ) -> f64 {
+        // 如果排序算法被禁用，直接返回基础分数
+        if !self.is_enable {
+            return base_score;
+        }
+
         let history_score = self.calculate_history_score(program_guid);
         let recent_habit_score = self.calculate_recent_habit_score(program_guid);
         let temporal_score = self.calculate_temporal_score(program_guid);

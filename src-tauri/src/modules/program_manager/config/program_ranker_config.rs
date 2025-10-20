@@ -24,6 +24,8 @@ pub struct PartialProgramRankerConfig {
     pub query_affinity_time_decay: Option<i64>,
     /// 短期热度衰减常数(秒) (默认10800 = 3小时)
     pub temporal_decay: Option<i64>,
+    /// 是否启用排序算法 (默认true)
+    pub is_enable: Option<bool>,
 }
 
 /// 查询亲和度数据
@@ -70,6 +72,9 @@ pub struct ProgramRankerConfigInner {
     /// 短期热度衰减常数
     #[serde(default = "ProgramRankerConfigInner::default_temporal_decay")]
     pub temporal_decay: i64,
+    /// 是否启用排序算法
+    #[serde(default = "ProgramRankerConfigInner::default_is_enable")]
+    pub is_enable: bool,
 }
 
 impl Default for ProgramRankerConfigInner {
@@ -86,6 +91,7 @@ impl Default for ProgramRankerConfigInner {
             query_affinity_weight: Self::default_query_affinity_weight(),
             query_affinity_time_decay: Self::default_query_affinity_time_decay(),
             temporal_decay: Self::default_temporal_decay(),
+            is_enable: Self::default_is_enable(),
         }
     }
 }
@@ -137,6 +143,10 @@ impl ProgramRankerConfigInner {
         10800 // 3 hours in seconds
     }
 
+    pub(crate) fn default_is_enable() -> bool {
+        true
+    }
+
     pub fn to_partial(&self) -> PartialProgramRankerConfig {
         PartialProgramRankerConfig {
             history_launch_time: Some(self.history_launch_time.clone()),
@@ -150,6 +160,7 @@ impl ProgramRankerConfigInner {
             query_affinity_weight: Some(self.query_affinity_weight),
             query_affinity_time_decay: Some(self.query_affinity_time_decay),
             temporal_decay: Some(self.temporal_decay),
+            is_enable: Some(self.is_enable),
         }
     }
 
@@ -186,6 +197,9 @@ impl ProgramRankerConfigInner {
         }
         if let Some(decay) = partial_config.temporal_decay {
             self.temporal_decay = decay;
+        }
+        if let Some(enable) = partial_config.is_enable {
+            self.is_enable = enable;
         }
     }
 }
@@ -252,6 +266,10 @@ impl ProgramRankerConfig {
 
     pub fn get_temporal_decay(&self) -> i64 {
         self.inner.read().temporal_decay
+    }
+
+    pub fn get_is_enable(&self) -> bool {
+        self.inner.read().is_enable
     }
 
     pub fn update(&self, partial_config: PartialProgramRankerConfig) {

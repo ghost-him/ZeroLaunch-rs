@@ -222,7 +222,7 @@ impl ProgramManager {
             };
         }
 
-        let search_engine: Arc<dyn SearchEngine> = if !has_backend || !backend_ready {
+        let search_engine: Arc<dyn SearchEngine> = if !has_backend || !backend_ready || is_traditional_search {
             if !is_traditional_search {
                 search_config = Arc::new(SearchModelConfig::default());
             }

@@ -159,10 +159,14 @@ export function default_ui_config(): UIConfig {
     } as UIConfig;
 }
 
-export type ProgramLauncherConfig = {
-    launch_info: { [key: string]: number }
-    history_launch_time: { [key: string]: number }
-    last_update_date: string
+export type ProgramRankerConfig = {
+    history_weight: number
+    recent_habit_weight: number
+    temporal_weight: number
+    query_affinity_weight: number
+    query_affinity_time_decay: number
+    temporal_decay: number
+    is_enable: boolean
 }
 
 export type DirectoryConfig = {
@@ -189,7 +193,7 @@ export type ImageLoaderConfig = {
 }
 
 export type ProgramManagerConfig = {
-    launcher: ProgramLauncherConfig
+    ranker: ProgramRankerConfig
     loader: ProgramLoaderConfig
     image_loader: ImageLoaderConfig
     enable_lru_search_cache: boolean
@@ -202,7 +206,7 @@ export type RemoteConfig = {
     ui_config: UIConfig
     shortcut_config: ShortcutConfig
     program_manager_config: {
-        launcher: ProgramLauncherConfig
+        ranker: ProgramRankerConfig
         loader: ProgramLoaderConfig
         image_loader: ImageLoaderConfig
         search_model: string
@@ -213,7 +217,7 @@ export type RemoteConfig = {
 
 export type PartialAppConfig = Partial<AppConfig>
 export type PartialUIConfig = Partial<UIConfig>
-export type PartialProgramLauncherConfig = Partial<ProgramLauncherConfig>
+export type PartialProgramRankerConfig = Partial<ProgramRankerConfig>
 export type PartialProgramLoaderConfig = Partial<ProgramLoaderConfig>
 export type PartialImageLoaderConfig = Partial<ImageLoaderConfig>
 export type PartialShortcutConfig = Partial<ShortcutConfig>
@@ -223,7 +227,7 @@ export type PartialRemoteConfig = {
     ui_config?: PartialUIConfig
     shortcut_config?: PartialShortcutConfig
     program_manager_config?: {
-        launcher?: PartialProgramLauncherConfig
+        ranker?: PartialProgramRankerConfig
         loader?: PartialProgramLoaderConfig
         image_loader?: PartialImageLoaderConfig
         search_model?: Partial<string>

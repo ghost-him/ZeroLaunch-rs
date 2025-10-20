@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { default_ui_config,default_app_config, ProgramManagerConfig, ProgramLauncherConfig, ProgramLoaderConfig, PartialRemoteConfig, RemoteConfig, ImageLoaderConfig } from '../api/remote_config_types'
+import { default_ui_config,default_app_config, ProgramManagerConfig, ProgramLoaderConfig, PartialRemoteConfig, RemoteConfig, ImageLoaderConfig, ProgramRankerConfig } from '../api/remote_config_types'
 import { invoke } from '@tauri-apps/api/core'
 
 function mergeConfig(config: RemoteConfig , partial: PartialRemoteConfig): RemoteConfig {
@@ -21,7 +21,7 @@ function mergeConfig(config: RemoteConfig , partial: PartialRemoteConfig): Remot
     const pmConfig = config.program_manager_config;
     const program_manager_config = pmPartial
         ?{
-                launcher: pmPartial.launcher ? { ...pmConfig.launcher, ...pmPartial.launcher } : pmConfig.launcher,
+                ranker: pmPartial.ranker ? { ...pmConfig.ranker, ...pmPartial.ranker } : pmConfig.ranker,
                 loader: pmPartial.loader ? { ...pmConfig.loader, ...pmPartial.loader } : pmConfig.loader,
                 image_loader: pmPartial.image_loader ? { ...pmConfig.image_loader, ...pmPartial.image_loader}:pmConfig.image_loader,
                 search_model: pmPartial.search_model ? pmPartial.search_model : pmConfig.search_model,
@@ -91,12 +91,12 @@ function mergePartialProgramManagerConfig(
 ): PartialRemoteConfig["program_manager_config"] | undefined {
     if (!pm1 && !pm2) return undefined;
 
-    // 合并 launcher
-    const mergedLauncher =
-        pm1?.launcher || pm2?.launcher
+    // 合并 ranker
+    const mergedRanker =
+        pm1?.ranker || pm2?.ranker
             ? {
-                  ...(pm1?.launcher || {}),
-                  ...(pm2?.launcher || {}),
+                  ...(pm1?.ranker || {}),
+                  ...(pm2?.ranker || {}),
               }
             : undefined;
 
@@ -123,7 +123,7 @@ function mergePartialProgramManagerConfig(
 
     // 构建最终的 program_manager_config 对象
     const mergedPm: PartialRemoteConfig["program_manager_config"] = {};
-    if (mergedLauncher !== undefined) mergedPm.launcher = mergedLauncher;
+    if (mergedRanker !== undefined) mergedPm.ranker = mergedRanker;
     if (mergedLoader !== undefined) mergedPm.loader = mergedLoader;
     if (mergedImageLoaderConfig !== undefined) mergedPm.image_loader = mergedImageLoaderConfig;
     if (mergedSearchModel !== undefined) mergedPm.search_model = mergedSearchModel;
@@ -138,11 +138,15 @@ export const useRemoteConfigStore = defineStore('config', {
             app_config: default_app_config(),
             ui_config: default_ui_config(),
             program_manager_config: {
-                launcher: {
-                    launch_info: {},
-                    history_launch_time: {},
-                    last_update_date: ''
-                } as ProgramLauncherConfig,
+                ranker: {
+                    history_weight: 1.2,
+                    recent_habit_weight: 2.5,
+                    temporal_weight: 0.8,
+                    query_affinity_weight: 3.5,
+                    query_affinity_time_decay: 259200,
+                    temporal_decay: 10800,
+                    is_enable: true
+                } as ProgramRankerConfig,
                 loader: {
                     target_paths: [],
                     program_bias: {},

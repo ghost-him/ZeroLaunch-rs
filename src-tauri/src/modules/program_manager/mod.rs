@@ -164,7 +164,7 @@ impl ProgramManager {
         self.program_loader.load_from_config(program_loader_config);
 
         // 根据搜索模型决定是否生成embedding
-        let search_config = config.get_search_model_config();
+        let mut search_config = config.get_search_model_config();
         let has_backend = self.semantic_manager.has_backend();
         let enable_embeddings = has_backend && !search_config.is_traditional_search();
         self.program_loader
@@ -222,7 +222,10 @@ impl ProgramManager {
             };
         }
 
-        let search_engine: Arc<dyn SearchEngine> = if is_traditional_search || !has_backend || !backend_ready {
+        let search_engine: Arc<dyn SearchEngine> = if !has_backend || !backend_ready {
+            if !is_traditional_search {
+                search_config = Arc::new(SearchModelConfig::default());
+            }
             let new_search_model = SearchModelFactory::create_scorer(search_config.clone());
             Arc::new(TraditionalSearchEngine::new(Arc::new(new_search_model)))
         } else {

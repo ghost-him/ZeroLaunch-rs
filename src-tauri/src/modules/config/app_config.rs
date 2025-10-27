@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use tracing::Level;
 
 use super::default::APP_VERSION;
+use crate::utils::locale::get_default_app_language;
 
 /// 日志级别枚举
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
@@ -211,7 +212,7 @@ impl AppConfigInner {
     }
 
     pub(crate) fn default_language() -> String {
-        "zh-Hans".to_string()
+        get_default_app_language()
     }
 
     pub(crate) fn default_log_level() -> LogLevel {

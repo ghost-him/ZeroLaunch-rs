@@ -66,7 +66,7 @@ Laser‑focused on “quickly and accurately launching what you need.” Zero co
 *   **Application Search**: Quickly retrieve and launch **applications** and **UWP apps**, providing a smooth program access experience. Supports program remarks and aliases, localized name recognition and search.
 *   **Application Wake-up**: Intelligently identifies and brings already open windows to the foreground, enabling convenient multi-task switching.
 *   **Customizable Interface**: Highly customizable appearance, supporting custom background images, option colors, search font color and size, display font color and size, number of candidates displayed, frosted glass effect, rounded corner size settings, program width and height, and many other items, with convenient interaction buttons for each.
-*   **Multi-language support**: Supports Simplified Chinese, Traditional Chinese, and English.
+*   **Multi-language support**: Supports Simplified Chinese, Traditional Chinese, and English. On startup, the application will attempt to detect your system language and automatically select the matching UI language. If detection fails, English will be used as the fallback default.
 *   **Open File Location**: In the right-click menu, you can open the folder where the target file is located.
 
 ---
@@ -235,10 +235,10 @@ You can change the application's display language through the following methods:
 
 1. **Through Settings Interface**:
    - Open ZeroLaunch-rs settings window (as shown in the image above)
-   - Click on the 「常规设置」 option in the left navigation bar
-   - Find the 「界面语言」 dropdown menu in the 「语言设置」 section
+   - Click on the 「General」 option in the left navigation bar
+   - Find the 「Interface language」 dropdown menu in the 「Language Settings」 section
    - Click the dropdown menu and select your preferred language from the available options (supports Chinese, Traditional Chinese, English)
-   - Save the settings and restart the application to apply the new language settings
+   - Save the settings「Save Config」to apply the new language settings
 
 > 💡 **Helpful Tip**: The language switching feature is designed to be simple and clear. No matter which language you choose, the entire interface will completely switch to the corresponding language, providing a native user experience for users of different language backgrounds.
 

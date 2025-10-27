@@ -2,6 +2,7 @@ use crate::core::storage::storage_manager::StorageManager;
 use crate::error::OptionExt;
 use crate::modules::shortcut_manager::ShortcutManager;
 use crate::modules::{config::config_manager::RuntimeConfig, program_manager::ProgramManager};
+use crate::utils::i18n::Translator;
 use crate::utils::waiting_hashmap::AsyncWaitingHashMap;
 use parking_lot::RwLock;
 use std::sync::Arc;
@@ -36,6 +37,8 @@ pub struct AppState {
     is_keyboard_blocked: RwLock<bool>,
     /// 最后一次搜索的查询词
     last_search_query: RwLock<String>,
+    /// 国际化翻译器
+    translator: Arc<RwLock<Translator>>,
 }
 
 impl Default for AppState {
@@ -60,6 +63,7 @@ impl AppState {
             game_mode: RwLock::new(false),
             is_keyboard_blocked: RwLock::new(false),
             last_search_query: RwLock::new(String::new()),
+            translator: Arc::new(RwLock::new(Translator::new())),
         }
     }
 
@@ -198,6 +202,11 @@ impl AppState {
     /// 获取最后一次搜索的查询词
     pub fn get_last_search_query(&self) -> String {
         self.last_search_query.read().clone()
+    }
+
+    /// 获取翻译器的 RwLock 引用
+    pub fn get_translator(&self) -> Arc<RwLock<Translator>> {
+        Arc::clone(&self.translator)
     }
     // endregion
 }

@@ -100,7 +100,7 @@ impl EmbeddingBackend for AiEmbeddingBackend {
 
     fn is_ready(&self) -> bool {
         // 粗略检测：检查默认模型文件是否存在
-        let cfg = crate::core::ai::embedding_model::EmbeddingModelType::EmbeddingGemma.get_config();
+        let cfg = EmbeddingModelType::EmbeddingGemma.get_config();
         Path::new(&cfg.model_path).exists()
             && Path::new(&cfg.tokenizer_path).exists()
             && Path::new(&cfg.tokenizer_config_path).exists()

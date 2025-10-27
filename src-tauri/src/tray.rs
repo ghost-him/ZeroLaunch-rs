@@ -9,8 +9,10 @@ use tauri::{
 use tracing::{debug, warn};
 
 use crate::error::{OptionExt, ResultExt};
+use crate::utils::i18n::{t, t_with};
+use crate::utils::notify::notify;
 use crate::{
-    handle_pressed, notify, save_config_to_file, show_setting_window, update_app_setting, AppState,
+    handle_pressed, save_config_to_file, show_setting_window, update_app_setting, AppState,
     ServiceLocator, APP_PIC_PATH,
 };
 // Removed: use crate::retry_register_shortcut; // Appears unused, functionality merged
@@ -76,15 +78,15 @@ async fn handle_update_app_setting() {
 fn handle_register_shortcut() {
     let state = ServiceLocator::get_state();
     if state.get_game_mode() {
-        notify("ZeroLaunch-rs", "请先关闭游戏模式后再尝试重新注册快捷键。");
+        notify("ZeroLaunch-rs", &t("notifications.close_game_mode_first"));
         return;
     }
     let shortcut_manager = state.get_shortcut_manager();
     if let Err(e) = shortcut_manager.register_all_shortcuts() {
         warn!("Failed to register all shortcuts: {:?}", e);
-        notify("ZeroLaunch-rs", "快捷键注册失败，请查看日志。");
+        notify("ZeroLaunch-rs", &t("notifications.shortcut_register_failed"));
     } else {
-        notify("ZeroLaunch-rs", "快捷键已重新注册。");
+        notify("ZeroLaunch-rs", &t("notifications.shortcut_registered"));
     }
 }
 
@@ -99,10 +101,10 @@ fn handle_switch_game_mode<R: Runtime>(game_mode_item: &CheckMenuItem<R>) {
         if let Err(e) = shortcut_manager.unregister_all_shortcut() {
             warn!("Failed to unregister shortcuts for game mode: {:?}", e);
         }
-        if let Err(e) = game_mode_item.set_text("关闭游戏模式") {
+        if let Err(e) = game_mode_item.set_text(&t("tray.disable_game_mode")) {
             warn!("Failed to set menu item text for game mode (on): {:?}", e);
         }
-        notify("ZeroLaunch-rs", "游戏模式已开启，全局快捷键已禁用。");
+        notify("ZeroLaunch-rs", &t("notifications.game_mode_enabled"));
     } else {
         if let Err(e) = shortcut_manager.register_all_shortcuts() {
             warn!(
@@ -110,10 +112,10 @@ fn handle_switch_game_mode<R: Runtime>(game_mode_item: &CheckMenuItem<R>) {
                 e
             );
         }
-        if let Err(e) = game_mode_item.set_text("开启游戏模式") {
+        if let Err(e) = game_mode_item.set_text(&t("tray.enable_game_mode")) {
             warn!("Failed to set menu item text for game mode (off): {:?}", e);
         }
-        notify("ZeroLaunch-rs", "游戏模式已关闭，全局快捷键已启用。");
+        notify("ZeroLaunch-rs", &t("notifications.game_mode_disabled"));
     }
 }
 
@@ -127,28 +129,28 @@ fn build_tray_menu<R: Runtime>(app_handle: &AppHandle<R>) -> tauri::Result<Menu<
     let show_settings = MenuItem::with_id(
         app_handle,
         MENU_ID_SHOW_SETTINGS,
-        "打开设置界面",
+        &t("tray.show_settings"),
         true,
         None::<&str>,
     )?;
     let update_app_setting = MenuItem::with_id(
         app_handle,
         MENU_ID_UPDATE_APP_SETTING,
-        "刷新数据库",
+        &t("tray.refresh_database"),
         true,
         None::<&str>,
     )?;
     let retry_shortcut = MenuItem::with_id(
         app_handle,
         MENU_ID_RETRY_REGISTER_SHORTCUT,
-        "重新注册快捷键",
+        &t("tray.retry_register_shortcut"),
         true,
         None::<&str>,
     )?;
     let game_mode_item = CheckMenuItem::with_id(
         app_handle,
         MENU_ID_SWITCH_GAME_MODE,
-        "游戏模式 (禁用全局快捷键)",
+        &t("tray.switch_game_mode"),
         true,
         game_mode,
         None::<&str>,
@@ -156,7 +158,7 @@ fn build_tray_menu<R: Runtime>(app_handle: &AppHandle<R>) -> tauri::Result<Menu<
     let exit_program = MenuItem::with_id(
         app_handle,
         MENU_ID_EXIT_PROGRAM,
-        "退出程序",
+        &t("tray.exit_program"),
         true,
         None::<&str>,
     )?;
@@ -186,7 +188,7 @@ fn create_tray_icon<R: Runtime>(app_handle: &AppHandle, menu: Menu<R>) -> tauri:
     TrayIconBuilder::new()
         .menu(&menu)
         .icon(icon)
-        .tooltip(format!("ZeroLaunch-rs v{}", APP_VERSION.clone()))
+        .tooltip(t_with("tray.tooltip", &[("version", &APP_VERSION.clone())]))
         .show_menu_on_left_click(false)
         .on_menu_event(move |app, event| {
             let event_id = MenuEventId::from(event.id().as_ref());
@@ -259,4 +261,36 @@ pub fn init_system_tray(app: &mut App) {
     });
 
     debug!("System tray initialized.");
+}
+
+/// 更新托盘菜单的语言
+/// 
+/// 当用户切换应用语言时调用，重新构建托盘菜单以显示新语言的文本
+pub fn update_tray_menu_language() {
+    let state = ServiceLocator::get_state();
+    let app_handle = state.get_main_handle();
+    
+    // 重新构建菜单
+    let menu = match build_tray_menu(&app_handle) {
+        Ok(m) => m,
+        Err(e) => {
+            warn!("Failed to rebuild tray menu: {:?}", e);
+            return;
+        }
+    };
+    
+    // 更新托盘图标的菜单和tooltip
+    let tray_icon = state.get_tray_icon();
+    
+    if let Err(e) = tray_icon.set_menu(Some(menu)) {
+        warn!("Failed to update tray menu: {:?}", e);
+    }
+    
+    // 更新 tooltip
+    let tooltip = t_with("tray.tooltip", &[("version", &APP_VERSION.clone())]);
+    if let Err(e) = tray_icon.set_tooltip(Some(tooltip)) {
+        warn!("Failed to update tray tooltip: {:?}", e);
+    }
+    
+    debug!("Tray menu language updated.");
 }

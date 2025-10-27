@@ -26,6 +26,8 @@ use crate::modules::config::{Height, Width};
 use crate::modules::ui_controller::controller::get_window_render_origin;
 use crate::state::app_state::AppState;
 use crate::tray::init_system_tray;
+use crate::tray::update_tray_menu_language;
+use crate::utils::i18n::switch_language;
 use crate::utils::ui_controller::handle_focus_lost;
 use crate::utils::ui_controller::handle_pressed;
 use crate::window_position::update_window_size_and_position;
@@ -62,7 +64,7 @@ use tauri::Manager;
 use tauri::WebviewUrl;
 use tauri_plugin_deep_link::DeepLinkExt;
 use tracing::{debug, error, info, warn};
-use utils::notify::notify;
+use utils::notify::notify_i18n;
 use utils::service_locator::ServiceLocator;
 use window_effect::enable_window_effect;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -82,7 +84,7 @@ pub fn run() {
     builder
         .plugin(tauri_plugin_single_instance::init(|_app, _argv, _cwd| {
             error!("当前已经运行了一个实例");
-            notify("zerolaunch-rs", "zerolaunch-rs已运行，不要重复运行");
+            notify_i18n("zerolaunch-rs", "notifications.already_running");
         }))
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_dialog::init())
@@ -281,6 +283,11 @@ async fn init_app_state(app: &mut App) {
     } else {
         info!("日志级别已根据配置更新为: {:?}", tracing_level);
     }
+
+    // 初始化翻译系统
+    let language = app_config.get_language();
+    utils::i18n::init_translator(&language);
+    info!("翻译系统已初始化，语言: {}", language);
 
     // === 阶段4: 程序管理器初始化 ===
     #[cfg(feature = "ai")]
@@ -526,6 +533,12 @@ async fn update_app_setting() {
     // 7.更新快捷键的绑定
     update_shortcut_manager();
 
+    // 8.更新翻译语言
+    let language = app_config.get_language();
+    switch_language(&language);
+    // 9.更新完翻译语言后，更新系统托盘
+    update_tray_menu_language();
+
         // 发送刷新结束事件
     if let Err(e) = handle.emit("refresh_program_end", "") {
         tracing::debug!("emit refresh_program_end failed: {:?}", e);
@@ -675,7 +688,7 @@ pub fn handle_silent_start() {
         let runtime_config = state.get_runtime_config();
         let app_config = runtime_config.get_app_config();
         if !app_config.get_is_silent_start() {
-            notify("ZeroLaunch-rs", "ZeroLaunch-rs已成功启动！");
+            notify_i18n("ZeroLaunch-rs", "notifications.app_started");
         }
     });
 }

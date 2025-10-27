@@ -41,7 +41,7 @@ pub enum EmbeddingModelType {
 }
 
 impl EmbeddingModelType {
-    fn get_config(&self) -> OnnxModelConfig {
+    pub fn get_config(&self) -> OnnxModelConfig {
         match self {
             EmbeddingModelType::EmbeddingGemma => EmbeddingGemmaModel::get_default_config(),
         }

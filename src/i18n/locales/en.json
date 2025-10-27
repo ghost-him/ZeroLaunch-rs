@@ -18,6 +18,28 @@
     "open_settings": "Open Settings",
     "refresh_database": "Refresh Database"
   },
+  "tray": {
+    "show_settings": "Open Settings",
+    "refresh_database": "Refresh Database",
+    "retry_register_shortcut": "Retry Register Shortcut",
+    "switch_game_mode": "Game Mode (Disable Global Shortcuts)",
+    "exit_program": "Exit",
+    "enable_game_mode": "Enable Game Mode",
+    "disable_game_mode": "Disable Game Mode",
+    "tooltip": "ZeroLaunch-rs v{version}"
+  },
+  "notifications": {
+    "close_game_mode_first": "Please disable game mode before retrying shortcut registration.",
+    "shortcut_register_failed": "Failed to register shortcut. Please check the log.",
+    "shortcut_register_failed_detail": "Failed to register shortcut: {error}",
+    "shortcut_registered": "Shortcut has been re-registered.",
+    "shortcut_unregister_failed": "Failed to unregister: {error}",
+    "keyboard_listener_init_failed": "Failed to initialize keyboard listener: {error}",
+    "game_mode_enabled": "Game mode enabled. Global shortcuts disabled.",
+    "game_mode_disabled": "Game mode disabled. Global shortcuts enabled.",
+    "already_running": "zerolaunch-rs is already running. Do not run multiple instances.",
+    "app_started": "ZeroLaunch-rs started successfully!"
+  },
   "parameter": {
     "prompt": "Enter argument {index} of {total} for {program}",
     "input_placeholder": "Type argument and press Enter",

@@ -18,6 +18,28 @@
     "open_settings": "打开设置界面",
     "refresh_database": "刷新数据库"
   },
+  "tray": {
+    "show_settings": "打开设置界面",
+    "refresh_database": "刷新数据库",
+    "retry_register_shortcut": "重新注册快捷键",
+    "switch_game_mode": "游戏模式 (禁用全局快捷键)",
+    "exit_program": "退出程序",
+    "enable_game_mode": "开启游戏模式",
+    "disable_game_mode": "关闭游戏模式",
+    "tooltip": "ZeroLaunch-rs v{version}"
+  },
+  "notifications": {
+    "close_game_mode_first": "请先关闭游戏模式后再尝试重新注册快捷键。",
+    "shortcut_register_failed": "快捷键注册失败，请查看日志。",
+    "shortcut_register_failed_detail": "快捷键注册失败: {error}",
+    "shortcut_registered": "快捷键已重新注册。",
+    "shortcut_unregister_failed": "取消注册失败: {error}",
+    "keyboard_listener_init_failed": "键盘监听器初始化失败：{error}",
+    "game_mode_enabled": "游戏模式已开启，全局快捷键已禁用。",
+    "game_mode_disabled": "游戏模式已关闭，全局快捷键已启用。",
+    "already_running": "zerolaunch-rs已运行，不要重复运行",
+    "app_started": "ZeroLaunch-rs已成功启动！"
+  },
   "parameter": {
     "prompt": "请输入 {program} 的第 {index}/{total} 个参数",
     "input_placeholder": "在此输入参数并按回车确认",

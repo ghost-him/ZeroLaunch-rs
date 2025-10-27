@@ -4,7 +4,7 @@ use crate::modules::config::default::ICON_CACHE_DIR;
 use crate::modules::config::default::MODELS_DIR;
 use crate::modules::program_manager::FallbackReason;
 use crate::modules::program_manager::{LaunchMethod, LaunchMethodKind};
-use crate::notify;
+use crate::utils::notify::notify;
 use crate::save_config_to_file;
 use crate::state::app_state::AppState;
 use crate::update_app_setting;

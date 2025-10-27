@@ -18,6 +18,28 @@
     "open_settings": "開啟設定介面",
     "refresh_database": "重新整理資料庫"
   },
+  "tray": {
+    "show_settings": "開啟設定介面",
+    "refresh_database": "重新整理資料庫",
+    "retry_register_shortcut": "重新註冊快速鍵",
+    "switch_game_mode": "遊戲模式 (停用全域快速鍵)",
+    "exit_program": "結束程式",
+    "enable_game_mode": "開啟遊戲模式",
+    "disable_game_mode": "關閉遊戲模式",
+    "tooltip": "ZeroLaunch-rs v{version}"
+  },
+  "notifications": {
+    "close_game_mode_first": "請先關閉遊戲模式後再嘗試重新註冊快速鍵。",
+    "shortcut_register_failed": "快速鍵註冊失敗，請查看記錄檔。",
+    "shortcut_register_failed_detail": "快速鍵註冊失敗: {error}",
+    "shortcut_registered": "快速鍵已重新註冊。",
+    "shortcut_unregister_failed": "取消註冊失敗: {error}",
+    "keyboard_listener_init_failed": "鍵盤監聽器初始化失敗：{error}",
+    "game_mode_enabled": "遊戲模式已開啟，全域快速鍵已停用。",
+    "game_mode_disabled": "遊戲模式已關閉，全域快速鍵已啟用。",
+    "already_running": "zerolaunch-rs已執行，請勿重複執行",
+    "app_started": "ZeroLaunch-rs已成功啟動！"
+  },
   "parameter": {
     "prompt": "請輸入 {program} 的第 {index}/{total} 個參數",
     "input_placeholder": "在此輸入參數並按下 Enter 確認",

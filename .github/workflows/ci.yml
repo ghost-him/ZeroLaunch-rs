@@ -36,6 +36,17 @@ jobs:
       - name: Install dependencies
         run: bun install
 
+      - name: Copy i18n locales to src-tauri
+        shell: pwsh
+        run: |
+          $srcLocalesDir = "src\i18n\locales"
+          $destDir = "src-tauri\locales"
+          if (-not (Test-Path $destDir)) {
+            New-Item -Path $destDir -ItemType Directory -Force | Out-Null
+          }
+          Copy-Item -Path "$srcLocalesDir\*" -Destination $destDir -Force
+          Write-Host "✓ i18n locales files copied to src-tauri/locales/"
+
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
         with:
@@ -78,6 +89,17 @@ jobs:
 
       - name: Install dependencies
         run: bun install
+
+      - name: Copy i18n locales to src-tauri
+        shell: pwsh
+        run: |
+          $srcLocalesDir = "src\i18n\locales"
+          $destDir = "src-tauri\locales"
+          if (-not (Test-Path $destDir)) {
+            New-Item -Path $destDir -ItemType Directory -Force | Out-Null
+          }
+          Copy-Item -Path "$srcLocalesDir\*" -Destination $destDir -Force
+          Write-Host "✓ i18n locales files copied to src-tauri/locales/"
 
       - name: Rust cache
         uses: Swatinem/rust-cache@v2

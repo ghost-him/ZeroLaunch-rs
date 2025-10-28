@@ -274,7 +274,22 @@ cargo run --bin xtask clean
 
 - 本项目可选在本地使用 Google 的 EmbeddingGemma 模型，仅用于离线语义检索。
 - 使用与再分发须遵守《Gemma 使用条款》https://ai.google.dev/gemma/terms 及《禁止用途政策》https://ai.google.dev/gemma/prohibited_use_policy。
-- 如再分发该模型或其衍生物（非托管服务），需：(1) 在您的协议中传递上述限制；(2) 向接收方提供 Gemma 条款副本（可用链接）；(3) 标注被修改的文件；(4) 随附名为 NOTICE 的文本文件，内容为：“Gemma is provided under and subject to the Gemma Terms of Use found at ai.google.dev/gemma/terms”。
+- 如再分发该模型或其衍生物（非托管服务），需：(1) 在您的协议中传递上述限制；(2) 向接收方提供 Gemma 条款副本（可用链接）；(3) 标注被修改的文件；(4) 随附名为 NOTICE 的文本文件，内容为："Gemma is provided under and subject to the Gemma Terms of Use found at ai.google.dev/gemma/terms"。
+
+## ✍️ 代码签名策略
+
+免费代码签名由 [SignPath.io](https://signpath.io) 提供，证书由 [SignPath Foundation](https://signpath.org) 提供。
+
+### 团队角色
+
+项目维护和代码签名的职责分配如下：
+
+*   **提交者和审核者：** [ghost-him](https://github.com/ghost-him)
+*   **批准者：** [ghost-him](https://github.com/ghost-him)
+
+### 隐私政策
+
+除非用户或安装/操作该程序的人员特别要求，否则该程序不会向其他联网系统传输任何信息。有关更多详细信息，请参阅我们完整的[隐私政策](PRIVACY.md)。
 
 ## 🤝 开源致谢
 

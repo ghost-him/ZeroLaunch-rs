@@ -267,6 +267,21 @@ cargo run --bin xtask clean
 - 使用與再散布須遵守《Gemma 使用條款》https://ai.google.dev/gemma/terms 與《禁止用途政策》https://ai.google.dev/gemma/prohibited_use_policy。
 - 如再散布該模型或其衍生物（非託管服務），需：(1) 在您的協議中傳遞上述限制；(2) 向接收方提供 Gemma 條款副本（可用連結）；(3) 標註被修改的檔案；(4) 隨附名為 NOTICE 的文字檔，內容為：「Gemma is provided under and subject to the Gemma Terms of Use found at ai.google.dev/gemma/terms」。
 
+## ✍️ 代碼簽署策略
+
+免費代碼簽署由 [SignPath.io](https://signpath.io) 提供，憑證由 [SignPath Foundation](https://signpath.org) 提供。
+
+### 團隊角色
+
+專案維護和代碼簽署的職責分配如下：
+
+*   **提交者和審核者：** [ghost-him](https://github.com/ghost-him)
+*   **批准者：** [ghost-him](https://github.com/ghost-him)
+
+### 隱私政策
+
+除非使用者或安裝/操作該程式的人員特別要求，否則該程式不會向其他聯網系統傳輸任何資訊。有關更多詳細資訊，請參閱我們完整的[隱私政策](PRIVACY.md)。
+
 ## 🤝 開源致謝
 
 本專案基於以下優秀開源專案建置：

@@ -262,9 +262,24 @@ Thank you for contributing to ZeroLaunch-rs internationalization! 🙏
 
 ## 📄 Third‑party Terms — EmbeddingGemma
 
-- This project may optionally use Google’s EmbeddingGemma model locally for offline semantic search.
+- This project may optionally use Google's EmbeddingGemma model locally for offline semantic search.
 - Use and redistribution are subject to the Gemma Terms of Use https://ai.google.dev/gemma/terms and the Prohibited Use Policy https://ai.google.dev/gemma/prohibited_use_policy.
-- If you redistribute the model or any derivatives (outside a hosted service), you must: (1) pass through these restrictions in your terms; (2) provide recipients a copy of the Gemma Terms (a link is fine); (3) mark modified files as modified; and (4) include a text file named NOTICE containing: “Gemma is provided under and subject to the Gemma Terms of Use found at ai.google.dev/gemma/terms”.
+- If you redistribute the model or any derivatives (outside a hosted service), you must: (1) pass through these restrictions in your terms; (2) provide recipients a copy of the Gemma Terms (a link is fine); (3) mark modified files as modified; and (4) include a text file named NOTICE containing: "Gemma is provided under and subject to the Gemma Terms of Use found at ai.google.dev/gemma/terms".
+
+## ✍️ Code Signing Policy
+
+Free code signing is provided by [SignPath.io](https://signpath.io), with the certificate supplied by the [SignPath Foundation](https://signpath.org).
+
+### Team Roles
+
+The responsibilities for project maintenance and code signing are distributed as follows:
+
+*   **Committers and Reviewers:** [ghost-him](https://github.com/ghost-him)
+*   **Approvers:** [ghost-him](https://github.com/ghost-him)
+
+### Privacy Policy
+
+This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it. For more details, please see our full [Privacy Policy](PRIVACY.md).
 
 ## 🤝 Open Source Acknowledgments
 

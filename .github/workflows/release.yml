@@ -79,9 +79,15 @@ jobs:
         shell: pwsh
         run: |
           echo "=== Build artifacts ==="
-          $files = Get-ChildItem -Path . -Include *.exe,*.msi,*.zip -File
+          echo "当前目录: $(Get-Location)"
+          # 在根目录查找构建产物（不递归，因为 xtask 会将文件移动到根目录）
+          $files = Get-ChildItem -Path . -File | Where-Object { $_.Extension -in '.exe', '.msi', '.zip' }
           if ($files.Count -eq 0) {
             echo "❌ 错误：没有找到任何构建产物！"
+            echo "根目录下的所有文件："
+            Get-ChildItem -Path . -File | Select-Object -First 30 | ForEach-Object { 
+              echo "  - $($_.Name) ($($_.Extension))" 
+            }
             exit 1
           }
           echo "找到 $($files.Count) 个构建产物："
@@ -112,14 +118,65 @@ jobs:
           # 获取贡献者列表
           $contributors = git log "$previousTag..$tag" --pretty=format:"%an" --no-merges 2>$null | Sort-Object -Unique
           if ([string]::IsNullOrEmpty($contributors)) {
-            $contributors = git log -10 --pretty=format:"%an" --no-merges | Sort-Object -Unique
+            $contributors = git log -10 --pretty=format:"* %s (%h)" --no-merges | Sort-Object -Unique
           }
+          
+          # 版本说明
+          $versionGuide = @"
+          ## 📦 版本说明
+          
+          本次发布提供了多个版本以满足不同用户的需求：
+          
+          ### 🎯 版本类型
+          
+          #### 安装包版本 (Installer)
+          - **完整版** (`zerolaunch-rs_{版本}_{架构}-setup.exe` / `.msi`)
+            - 包含所有功能，支持 AI 智能搜索
+            - 提供完整的用户体验
+          
+          - **精简版** (`zerolaunch-rs_lite_{版本}_{架构}-setup.exe` / `.msi`)
+            - 不包含 AI 功能，体积更小
+            - 适合不需要 AI 功能的用户
+          
+          #### 便携版本 (Portable)
+          - **完整版** (`ZeroLaunch-portable-{版本}-{架构}.zip`)
+            - 解压即用，包含 AI 功能
+            - 无需安装，适合移动使用
+          
+          - **精简版** (`ZeroLaunch-portable-lite-{版本}-{架构}.zip`)
+            - 解压即用，不含 AI 功能
+            - 体积更小，启动更快
+          
+          ### 🏗️ 架构支持
+          - **x64**: 适用于 Intel/AMD 64位处理器
+          - **arm64**: 适用于 ARM64 架构（如高通骁龙）
+          
+          ### 🤖 关于 AI 功能
+          
+          > **重要提示**：如需使用 AI 智能搜索功能，需要单独下载模型权重文件。
+          
+          **模型下载地址**：
+          - GitHub: https://github.com/ghost-him/ZeroLaunch-rs/releases/tag/model
+          - Gitee: https://gitee.com/ghost-him/ZeroLaunch-rs/releases/tag/model
+          - GitCode: https://gitcode.com/ghost-him/ZeroLaunch-rs/releases/model
+          
+          模型发布页中包含详细的安装说明，请按照说明进行配置。
+          
+          ### 💡 如何选择版本
+          
+          - **首次使用**：推荐下载安装包版本（完整版或精简版）
+          - **需要 AI 功能**：选择完整版 + 下载模型权重
+          - **追求轻量**：选择精简版
+          - **便携使用**：选择便携版，可放在 U 盘中随身携带
+          
+          ---
+          "@
           
           # 构建 Release Notes
           $contributorsList = ($contributors | ForEach-Object { "* $_" }) -join "`n"
           $changelogUrl = "https://github.com/ghost-him/ZeroLaunch-rs/compare/$previousTag...$tag"
           
-          $releaseNotes = "## What's Changed`n`n$commits`n`n## Contributors`n`n$contributorsList`n`n**Full Changelog**: $changelogUrl"
+          $releaseNotes = "$versionGuide`n## What's Changed`n`n$commits`n`n## Contributors`n`n$contributorsList`n`n**Full Changelog**: $changelogUrl"
           
           # 输出到文件，避免多行字符串在 GitHub Actions 中的问题
           $releaseNotes | Out-File -FilePath "release_notes.txt" -Encoding UTF8

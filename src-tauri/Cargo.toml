@@ -122,8 +122,8 @@ tauri-plugin-autostart = "^2"
 tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
 
 [profile.release]
-lto = true
-codegen-units = 1
+lto = "thin"
+codegen-units = 16
 opt-level = 3
 
 [patch.crates-io]

@@ -121,10 +121,5 @@ ai = [
 tauri-plugin-autostart = "^2"
 tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
 
-[profile.release]
-lto = "thin"
-codegen-units = 16
-opt-level = 3
-
 [patch.crates-io]
 tray-icon = { git = "https://github.com/tauri-apps/tray-icon.git", rev = "34a3442" }

@@ -1,0 +1,285 @@
+name: Release Build
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # 当推送 v1.0.0 格式的标签时触发
+  workflow_dispatch:  # 允许手动触发
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build Release
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: x86_64-pc-windows-msvc,aarch64-pc-windows-msvc
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Get version from tag
+        id: get_version
+        shell: pwsh
+        run: |
+          $tag = $env:GITHUB_REF -replace 'refs/tags/v', ''
+          if ([string]::IsNullOrEmpty($tag)) {
+            $tag = "0.0.0"
+          }
+          
+          # 生成 yymmdd 格式的日期
+          $date = Get-Date -Format "yyMMdd"
+          $releaseTitle = "$date-v$tag"
+          
+          echo "VERSION=$tag" >> $env:GITHUB_OUTPUT
+          echo "RELEASE_TITLE=$releaseTitle" >> $env:GITHUB_OUTPUT
+          echo "Version: $tag"
+          echo "Release Title: $releaseTitle"
+
+      - name: Build all variants
+        shell: pwsh
+        run: |
+          cd xtask
+          # 构建所有架构和 AI 变体
+          cargo run --bin xtask build-all --arch all --ai both
+        
+      - name: List build artifacts
+        shell: pwsh
+        run: |
+          echo "=== Build artifacts ==="
+          $files = Get-ChildItem -Path . -Include *.exe,*.msi,*.zip -File
+          if ($files.Count -eq 0) {
+            echo "❌ 错误：没有找到任何构建产物！"
+            exit 1
+          }
+          echo "找到 $($files.Count) 个构建产物："
+          $files | ForEach-Object {
+            $sizeMB = [math]::Round($_.Length / 1MB, 2)
+            echo "  ✅ $($_.Name) ($sizeMB MB)"
+          }
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ steps.get_version.outputs.RELEASE_TITLE }}
+          files: |
+            *.exe
+            *.msi
+            *.zip
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload to Gitee
+        if: success()
+        shell: pwsh
+        run: |
+          # 配置 Gitee
+          git config --global user.name "ghost-him"
+          git config --global user.email "${{ secrets.GITEE_EMAIL }}"
+          
+          # 添加 Gitee 远程仓库
+          git remote add gitee https://oauth2:${{ secrets.GITEE_TOKEN }}@gitee.com/ghost-him/ZeroLaunch-rs.git || true
+          
+          # 推送代码和标签到 Gitee
+          git push gitee main --tags -f || echo "Failed to push to Gitee"
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+          GITEE_EMAIL: ${{ secrets.GITEE_EMAIL }}
+
+      - name: Create Gitee Release
+        if: success()
+        shell: pwsh
+        run: |
+          $version = "${{ steps.get_version.outputs.VERSION }}"
+          $releaseTitle = "${{ steps.get_version.outputs.RELEASE_TITLE }}"
+          $tag = "v$version"
+          
+          # 使用 Gitee API 创建 Release
+          $headers = @{
+            "Content-Type" = "application/json"
+            "Authorization" = "token ${{ secrets.GITEE_TOKEN }}"
+          }
+          
+          $body = @{
+            tag_name = $tag
+            name = $releaseTitle
+            body = "Release $releaseTitle - Auto-generated from GitHub Actions"
+            prerelease = $false
+          } | ConvertTo-Json
+          
+          try {
+            $response = Invoke-RestMethod -Uri "https://gitee.com/api/v5/repos/ghost-him/ZeroLaunch-rs/releases" -Method Post -Headers $headers -Body $body
+            $releaseId = $response.id
+            echo "Gitee Release ID: $releaseId"
+            
+            # 上传构建产物到 Gitee Release
+            $files = Get-ChildItem -Path . -Include *.exe,*.msi,*.zip -File
+            foreach ($file in $files) {
+              echo "Uploading $($file.Name) to Gitee..."
+              $uploadUrl = "https://gitee.com/api/v5/repos/ghost-him/ZeroLaunch-rs/releases/$releaseId/attach_files?access_token=${{ secrets.GITEE_TOKEN }}"
+              
+              # 使用 curl 上传文件（更可靠）
+              curl.exe -X POST $uploadUrl -F "file=@$($file.FullName)" --silent --show-error
+              
+              if ($LASTEXITCODE -eq 0) {
+                echo "✅ 已上传: $($file.Name)"
+              } else {
+                echo "❌ 上传失败: $($file.Name)"
+              }
+            }
+          } catch {
+            echo "Failed to create/upload to Gitee release: $_"
+          }
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+
+      - name: Upload to GitCode
+        if: success()
+        shell: pwsh
+        run: |
+          # 配置 GitCode
+          git config --global user.name "ghost-him"
+          git config --global user.email "${{ secrets.GITCODE_EMAIL }}"
+          
+          # 添加 GitCode 远程仓库
+          git remote add gitcode https://oauth2:${{ secrets.GITCODE_TOKEN }}@gitcode.com/ghost-him/ZeroLaunch-rs.git || true
+          
+          # 推送代码和标签到 GitCode
+          git push gitcode main --tags -f || echo "Failed to push to GitCode"
+        env:
+          GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
+          GITCODE_EMAIL: ${{ secrets.GITCODE_EMAIL }}
+
+      - name: Upload artifacts to GitCode Generic Packages
+        if: success()
+        shell: pwsh
+        run: |
+          $version = "${{ steps.get_version.outputs.VERSION }}"
+          $projectId = "ghost-him%2FZeroLaunch-rs"
+          $packageName = "releases"
+          
+          $headers = @{
+            "PRIVATE-TOKEN" = "${{ secrets.GITCODE_TOKEN }}"
+          }
+          
+          # 获取所有构建产物
+          $files = Get-ChildItem -Path . -Include *.exe,*.msi,*.zip -File
+          
+          foreach ($file in $files) {
+            $fileName = $file.Name
+            echo "📦 上传 $fileName 到 GitCode Generic Packages..."
+            
+            try {
+              # 上传到 Generic Package Registry
+              # API: PUT /projects/:id/packages/generic/:package_name/:package_version/:file_name
+              $uploadUrl = "https://gitcode.com/api/v4/projects/$projectId/packages/generic/$packageName/$version/$fileName"
+              
+              Invoke-RestMethod -Uri $uploadUrl -Method Put -Headers $headers -InFile $file.FullName
+              echo "✅ 已上传: $fileName"
+            } catch {
+              echo "❌ 上传 $fileName 失败: $_"
+            }
+          }
+        env:
+          GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
+
+      - name: Create GitCode Release with assets
+        if: success()
+        shell: pwsh
+        run: |
+          $version = "${{ steps.get_version.outputs.VERSION }}"
+          $releaseTitle = "${{ steps.get_version.outputs.RELEASE_TITLE }}"
+          $tag = "v$version"
+          $projectId = "ghost-him%2FZeroLaunch-rs"
+          $packageName = "releases"
+          
+          # 使用 GitCode API (类似 GitLab API)
+          $headers = @{
+            "Content-Type" = "application/json"
+            "PRIVATE-TOKEN" = "${{ secrets.GITCODE_TOKEN }}"
+          }
+          
+          # 构建 asset links
+          $files = Get-ChildItem -Path . -Include *.exe,*.msi,*.zip -File
+          $assetLinks = @()
+          
+          foreach ($file in $files) {
+            $fileName = $file.Name
+            $fileUrl = "https://gitcode.com/api/v4/projects/$projectId/packages/generic/$packageName/$version/$fileName"
+            
+            $assetLinks += @{
+              name = $fileName
+              url = $fileUrl
+              link_type = "package"
+            }
+          }
+          
+          $body = @{
+            tag_name = $tag
+            name = $releaseTitle
+            description = "Release $releaseTitle - Auto-generated from GitHub Actions`n`n## 下载链接`n`n构建产物已上传到 Generic Packages"
+            assets = @{
+              links = $assetLinks
+            }
+          } | ConvertTo-Json -Depth 10
+          
+          try {
+            # 先尝试删除已存在的 Release (如果存在)
+            try {
+              Invoke-RestMethod -Uri "https://gitcode.com/api/v4/projects/$projectId/releases/$tag" -Method Delete -Headers $headers
+              echo "已删除旧的 GitCode Release"
+            } catch {
+              echo "没有旧的 Release 需要删除"
+            }
+            
+            # 创建新的 Release
+            $response = Invoke-RestMethod -Uri "https://gitcode.com/api/v4/projects/$projectId/releases" -Method Post -Headers $headers -Body $body
+            echo "✅ GitCode Release 创建成功"
+            echo "Release URL: https://gitcode.com/ghost-him/ZeroLaunch-rs/-/releases/$tag"
+          } catch {
+            echo "❌ 创建 GitCode Release 失败: $_"
+            echo "Response: $($_.Exception.Response)"
+          }
+        env:
+          GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
+
+  notify:
+    name: Notify on completion
+    needs: build
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: Notify build status
+        run: |
+          if [ "${{ needs.build.result }}" == "success" ]; then
+            echo "✅ Build and release completed successfully!"
+          else
+            echo "❌ Build failed!"
+            exit 1
+          fi

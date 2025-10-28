@@ -177,7 +177,8 @@ pub fn switch_language(language: &str) {
 /// * `key` - 翻译键 (如 "tray.show_settings")
 ///
 /// # 示例
-/// ```
+/// ```no_run
+/// use zerolaunch_rs_lib::utils::i18n::t;
 /// let text = t("tray.show_settings");
 /// ```
 pub fn t(key: &str) -> String {
@@ -198,7 +199,8 @@ pub fn t(key: &str) -> String {
 /// * `replacements` - 占位符替换数组 (如 &[("program", "VSCode"), ("index", "1")])
 ///
 /// # 示例
-/// ```
+/// ```no_run
+/// use zerolaunch_rs_lib::utils::i18n::t_with;
 /// let text = t_with("notifications.error", &[("program", "VSCode")]);
 /// ```
 pub fn t_with(key: &str, replacements: &[(&str, &str)]) -> String {

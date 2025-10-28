@@ -162,7 +162,7 @@ pub trait ResultExt<T> {
     ///
     /// # 示例
     /// ```
-    /// # use crate::error::ResultExt; // 假设 trait 在你的 crate::error 模块中
+    /// use zerolaunch_rs_lib::error::ResultExt;
     /// let result: Result<i32, &str> = Ok(10);
     /// let value = result.expect_programming("关键计算不应失败");
     /// ```
@@ -197,7 +197,7 @@ pub trait OptionExt<T> {
     ///
     /// # 示例
     /// ```
-    /// # use crate::error::OptionExt; // 假设 trait 在你的 crate::error 模块中
+    /// use zerolaunch_rs_lib::error::OptionExt;
     /// let option: Option<i32> = Some(10);
     /// let value = option.expect_programming("在初始化后，该值必须存在");
     /// ```

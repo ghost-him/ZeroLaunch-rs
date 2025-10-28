@@ -1,11 +1,14 @@
-use crate::error::{OptionExt, ResultExt};
-use std::path::Path;
 use tracing::{debug, info};
 use windows::Win32::UI::Shell::SHGetFolderPathW;
 use windows::Win32::UI::Shell::CSIDL_STARTMENU;
-use windows::Win32::UI::Shell::KF_FLAG_DEFAULT;
-use windows::Win32::UI::Shell::{FOLDERID_RoamingAppData, SHGetKnownFolderPath};
 use windows::Win32::UI::Shell::{CSIDL_COMMON_STARTMENU, CSIDL_DESKTOP};
+
+#[cfg(not(feature = "portable"))]
+use crate::error::{OptionExt, ResultExt};
+#[cfg(not(feature = "portable"))]
+use std::path::Path;
+#[cfg(not(feature = "portable"))]
+use windows::Win32::UI::Shell::{FOLDERID_RoamingAppData, KF_FLAG_DEFAULT, SHGetKnownFolderPath};
 /// 获取
 /// 获取当前用户的桌面路径
 pub fn get_desktop_path() -> Result<String, String> {

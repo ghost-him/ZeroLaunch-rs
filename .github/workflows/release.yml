@@ -6,6 +6,10 @@ on:
       - 'v*.*.*'  # 当推送 v1.0.0 格式的标签时触发
   workflow_dispatch:  # 允许手动触发
 
+permissions:
+  contents: write
+  actions: read
+
 env:
   CARGO_TERM_COLOR: always
 
@@ -13,6 +17,9 @@ jobs:
   build:
     name: Build Release
     runs-on: windows-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.VERSION }}
+      release_title: ${{ steps.get_version.outputs.RELEASE_TITLE }}
     
     steps:
       - name: Checkout repository
@@ -74,6 +81,7 @@ jobs:
           cd xtask
           # 构建所有架构和 AI 变体
           cargo run --bin xtask build-all --arch all --ai both
+          cd ..
         
       - name: List build artifacts
         shell: pwsh
@@ -183,18 +191,74 @@ jobs:
           echo "RELEASE_NOTES_FILE=release_notes.txt" >> $env:GITHUB_OUTPUT
           echo "Generated release notes"
 
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-packages
+          path: |
+            *.exe
+            *.msi
+            *.zip
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload release notes
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: release_notes.txt
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    name: Publish Release
+    needs: build
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-packages
+          path: .
+
+      - name: Download release notes
+        uses: actions/download-artifact@v4
+        with:
+          name: release-notes
+          path: .
+
+      - name: List downloaded artifacts
+        shell: pwsh
+        run: |
+          echo "=== Downloaded artifacts ==="
+          $files = Get-ChildItem -Path . -File | Where-Object { $_.Extension -in '.exe', '.msi', '.zip', '.txt' }
+          if ($files.Count -eq 0) {
+            echo "❌ 错误：没有找到任何下载的构建产物或说明文件！"
+            exit 1
+          }
+          $files | ForEach-Object {
+            $sizeMB = [math]::Round($_.Length / 1MB, 2)
+            echo "  ✅ $($_.Name) ($sizeMB MB)"
+          }
+
       - name: Create GitHub Release
         id: create_release
         uses: softprops/action-gh-release@v2
         with:
-          name: ${{ steps.get_version.outputs.RELEASE_TITLE }}
+          name: ${{ needs.build.outputs.release_title }}
+          body_path: release_notes.txt
           files: |
             *.exe
             *.msi
             *.zip
           draft: false
           prerelease: false
-          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -204,10 +268,10 @@ jobs:
         run: |
           # 配置 Gitee
           git config --global user.name "ghost-him"
-          git config --global user.email "${{ secrets.GITEE_EMAIL }}"
+          git config --global user.email "$env:GITEE_EMAIL"
           
           # 添加 Gitee 远程仓库
-          git remote add gitee https://oauth2:${{ secrets.GITEE_TOKEN }}@gitee.com/ghost-him/ZeroLaunch-rs.git || true
+          git remote add gitee "https://oauth2:$($env:GITEE_TOKEN)@gitee.com/ghost-him/ZeroLaunch-rs.git" || true
           
           # 推送代码和标签到 Gitee
           git push gitee main --tags -f || echo "Failed to push to Gitee"
@@ -218,9 +282,13 @@ jobs:
       - name: Create Gitee Release
         if: success()
         shell: pwsh
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+          RELEASE_TITLE: ${{ needs.build.outputs.release_title }}
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
         run: |
-          $version = "${{ steps.get_version.outputs.VERSION }}"
-          $releaseTitle = "${{ steps.get_version.outputs.RELEASE_TITLE }}"
+          $version = $env:VERSION
+          $releaseTitle = $env:RELEASE_TITLE
           $tag = "v$version"
           
           # 读取生成的 Release Notes
@@ -229,7 +297,7 @@ jobs:
           # 使用 Gitee API 创建 Release
           $headers = @{
             "Content-Type" = "application/json"
-            "Authorization" = "token ${{ secrets.GITEE_TOKEN }}"
+            "Authorization" = "token $env:GITEE_TOKEN"
           }
           
           $body = @{
@@ -260,7 +328,7 @@ jobs:
             $files = Get-ChildItem -Path . -Include *.exe,*.msi,*.zip -File
             foreach ($file in $files) {
               echo "📦 正在上传 $($file.Name) 到 Gitee Release..."
-              $uploadUrl = "https://gitee.com/api/v5/repos/ghost-him/ZeroLaunch-rs/releases/$releaseId/attach_files?access_token=${{ secrets.GITEE_TOKEN }}"
+              $uploadUrl = "https://gitee.com/api/v5/repos/ghost-him/ZeroLaunch-rs/releases/$releaseId/attach_files?access_token=$env:GITEE_TOKEN"
               
               # 使用 curl 上传文件（更可靠）
               curl.exe -X POST $uploadUrl -F "file=@$($file.FullName)" --silent --show-error
@@ -278,8 +346,6 @@ jobs:
             echo "❌ Gitee Release 创建或上传失败: $_"
             throw
           }
-        env:
-          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
 
       - name: Upload to GitCode
         if: success()
@@ -287,10 +353,10 @@ jobs:
         run: |
           # 配置 GitCode
           git config --global user.name "ghost-him"
-          git config --global user.email "${{ secrets.GITCODE_EMAIL }}"
+          git config --global user.email "$env:GITCODE_EMAIL"
           
           # 添加 GitCode 远程仓库
-          git remote add gitcode https://oauth2:${{ secrets.GITCODE_TOKEN }}@gitcode.com/ghost-him/ZeroLaunch-rs.git || true
+          git remote add gitcode "https://oauth2:$($env:GITCODE_TOKEN)@gitcode.com/ghost-him/ZeroLaunch-rs.git" || true
           
           # 推送代码和标签到 GitCode
           git push gitcode main --tags -f || echo "Failed to push to GitCode"
@@ -301,9 +367,13 @@ jobs:
       - name: Create and Upload to GitCode Release
         if: success()
         shell: pwsh
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+          RELEASE_TITLE: ${{ needs.build.outputs.release_title }}
+          GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
         run: |
-          $version = "${{ steps.get_version.outputs.VERSION }}"
-          $releaseTitle = "${{ steps.get_version.outputs.RELEASE_TITLE }}"
+          $version = $env:VERSION
+          $releaseTitle = $env:RELEASE_TITLE
           $tag = "v$version"
           $projectId = "ghost-him%2FZeroLaunch-rs" # 注意这里需要 URL 编码
           
@@ -314,7 +384,7 @@ jobs:
           # GitCode (GitLab) API 需要先创建 Release，然后再附加文件
           $headers = @{
             "Content-Type" = "application/json"
-            "PRIVATE-TOKEN" = "${{ secrets.GITCODE_TOKEN }}"
+            "PRIVATE-TOKEN" = $env:GITCODE_TOKEN
           }
           
           $releaseBody = @{
@@ -349,11 +419,11 @@ jobs:
             try {
               $uploadUrl = "https://gitcode.com/api/v4/projects/$projectId/uploads"
               $uploadHeaders = @{
-                "PRIVATE-TOKEN" = "${{ secrets.GITCODE_TOKEN }}"
+                "PRIVATE-TOKEN" = $env:GITCODE_TOKEN
               }
               
               # 使用 curl 上传文件，Invoke-RestMethod 对 multipart/form-data 支持不佳
-              $responseJson = curl.exe -s -X POST -H "PRIVATE-TOKEN: ${{ secrets.GITCODE_TOKEN }}" -F "file=@$($file.FullName)" $uploadUrl
+              $responseJson = curl.exe -s -X POST -H "PRIVATE-TOKEN: $env:GITCODE_TOKEN" -F "file=@$($file.FullName)" $uploadUrl
               $responseObj = $responseJson | ConvertFrom-Json
               
               # 获取上传后的文件链接
@@ -377,21 +447,23 @@ jobs:
           }
           
           echo "✅ GitCode Release 所有文件上传完成"
-        env:
-          GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
 
   notify:
     name: Notify on completion
-    needs: build
+    needs:
+      - build
+      - release
     runs-on: ubuntu-latest
     if: always()
     
     steps:
       - name: Notify build status
         run: |
-          if [ "${{ needs.build.result }}" == "success" ]; then
+          if [ "${{ needs.build.result }}" == "success" && "${{ needs.release.result }}" == "success" ]; then
             echo "✅ Build and release completed successfully!"
           else
-            echo "❌ Build failed!"
+            echo "❌ Workflow failed. Status:"
+            echo "  - Build Job: ${{ needs.build.result }}"
+            echo "  - Release Job: ${{ needs.release.result }}"
             exit 1
           fi

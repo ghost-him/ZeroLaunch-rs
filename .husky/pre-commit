@@ -1,0 +1,12 @@
+set -e
+
+echo "Running Rust checks (fmt, clippy, test) in src-tauri..."
+
+# 格式检查（不自动修改，确保 CI 一致）
+( cd src-tauri && cargo fmt --all -- --check )
+
+# 静态检查（作为错误处理）
+( cd src-tauri && cargo clippy --all-targets --all-features -- -D warnings )
+
+# 单元测试
+( cd src-tauri && cargo test --all-features )

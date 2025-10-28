@@ -52,6 +52,12 @@ jobs:
         with:
           workspaces: src-tauri -> target
 
+      - name: Validate commit messages
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch origin ${{ github.base_ref }}
+          bun x commitlint --from origin/${{ github.base_ref }} --to HEAD --verbose
+
       - name: Check formatting
         working-directory: src-tauri
         run: cargo fmt --all -- --check

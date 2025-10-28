@@ -8,7 +8,7 @@ use crate::error::{OptionExt, ResultExt};
 #[cfg(not(feature = "portable"))]
 use std::path::Path;
 #[cfg(not(feature = "portable"))]
-use windows::Win32::UI::Shell::{FOLDERID_RoamingAppData, KF_FLAG_DEFAULT, SHGetKnownFolderPath};
+use windows::Win32::UI::Shell::{FOLDERID_RoamingAppData, SHGetKnownFolderPath, KF_FLAG_DEFAULT};
 /// 获取
 /// 获取当前用户的桌面路径
 pub fn get_desktop_path() -> Result<String, String> {

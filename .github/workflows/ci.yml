@@ -47,6 +47,9 @@ jobs:
           Copy-Item -Path "$srcLocalesDir\*" -Destination $destDir -Force
           Write-Host "✓ i18n locales files copied to src-tauri/locales/"
 
+      - name: Build frontend assets
+        run: bun run build
+
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
         with:
@@ -69,9 +72,6 @@ jobs:
       - name: Run tests
         working-directory: src-tauri
         run: cargo test --all-features
-
-      - name: Build frontend
-        run: bun run build
 
   build-test:
     name: Build Test (x64)
@@ -106,6 +106,9 @@ jobs:
           }
           Copy-Item -Path "$srcLocalesDir\*" -Destination $destDir -Force
           Write-Host "✓ i18n locales files copied to src-tauri/locales/"
+
+      - name: Build frontend assets
+        run: bun run build
 
       - name: Rust cache
         uses: Swatinem/rust-cache@v2

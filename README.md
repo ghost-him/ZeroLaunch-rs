@@ -270,23 +270,11 @@ cargo run --bin xtask clean
 
 感谢您为 ZeroLaunch-rs 的国际化做出贡献！🙏
 
-## 📄 第三方条款（Google Gemma）
+## 📄 第三方条款 — EmbeddingGemma
 
-本项目包含并在本地使用 Google 的 EmbeddingGemma 模型文件，仅用于离线语义检索能力。根据 Gemma 条款，分发时需包含以下声明，并遵守相关限制：
-
-> Gemma is provided under and subject to the Gemma Terms of Use found at https://ai.google.dev/gemma/terms
-
-同时请注意：
-
-- 使用 Gemma 受到「禁止用途政策」的约束：
-    - Gemma Prohibited Use Policy: https://ai.google.dev/gemma/prohibited_use_policy
-- 如果您再分发本项目或其包含的 Gemma 模型/衍生物（非托管服务场景），请：
-    - 在分发协议中加入并提示上述使用限制（条款第 3.2 节）。
-    - 向第三方接收者提供一份 Gemma 条款的副本（可附带链接）。
-    - 对被修改的文件添加醒目的“已修改”声明。
-    - 附带一个名为「NOTICE」的文本文件，包含上面的声明语句。
-
-商标声明：文中出现的“Google”“Gemma”等为 Google LLC 的商标或注册商标。本文档或本项目与 Google 无关，亦未获得其背书或赞助。
+- 本项目可选在本地使用 Google 的 EmbeddingGemma 模型，仅用于离线语义检索。
+- 使用与再分发须遵守《Gemma 使用条款》https://ai.google.dev/gemma/terms 及《禁止用途政策》https://ai.google.dev/gemma/prohibited_use_policy。
+- 如再分发该模型或其衍生物（非托管服务），需：(1) 在您的协议中传递上述限制；(2) 向接收方提供 Gemma 条款副本（可用链接）；(3) 标注被修改的文件；(4) 随附名为 NOTICE 的文本文件，内容为：“Gemma is provided under and subject to the Gemma Terms of Use found at ai.google.dev/gemma/terms”。
 
 ## 🤝 开源致谢
 

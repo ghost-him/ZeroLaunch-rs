@@ -260,23 +260,11 @@ If you want to add new language support for ZeroLaunch-rs, please:
 
 Thank you for contributing to ZeroLaunch-rs internationalization! 🙏
 
-## 📄 Third‑party Terms (Google Gemma)
+## 📄 Third‑party Terms — EmbeddingGemma
 
-This project includes and uses Google's EmbeddingGemma model files locally, solely to provide offline semantic retrieval. Per the Gemma Terms, distribution must include the following notice and comply with the relevant restrictions:
-
-> Gemma is provided under and subject to the Gemma Terms of Use found at https://ai.google.dev/gemma/terms
-
-Also note:
-
-- Gemma usage is subject to the Prohibited Use Policy:
-    - Gemma Prohibited Use Policy: https://ai.google.dev/gemma/prohibited_use_policy
-- If you redistribute this project or any included Gemma models/derivatives (non‑Hosted Service scenario), please:
-    - Include and notify recipients of the above use restrictions in your distribution terms (Section 3.2).
-    - Provide third‑party recipients with a copy of the Gemma Terms (a link is acceptable).
-    - Add prominent notices to any modified files indicating that you modified the files.
-    - Accompany the distribution with a text file named "NOTICE" containing the above notice sentence.
-
-Trademark notice: “Google” and “Gemma” are trademarks or registered trademarks of Google LLC. This project is not affiliated with, endorsed by, or sponsored by Google.
+- This project may optionally use Google’s EmbeddingGemma model locally for offline semantic search.
+- Use and redistribution are subject to the Gemma Terms of Use https://ai.google.dev/gemma/terms and the Prohibited Use Policy https://ai.google.dev/gemma/prohibited_use_policy.
+- If you redistribute the model or any derivatives (outside a hosted service), you must: (1) pass through these restrictions in your terms; (2) provide recipients a copy of the Gemma Terms (a link is fine); (3) mark modified files as modified; and (4) include a text file named NOTICE containing: “Gemma is provided under and subject to the Gemma Terms of Use found at ai.google.dev/gemma/terms”.
 
 ## 🤝 Open Source Acknowledgments
 

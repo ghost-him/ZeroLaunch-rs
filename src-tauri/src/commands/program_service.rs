@@ -4,10 +4,10 @@ use crate::modules::config::default::ICON_CACHE_DIR;
 use crate::modules::config::default::MODELS_DIR;
 use crate::modules::program_manager::FallbackReason;
 use crate::modules::program_manager::{LaunchMethod, LaunchMethodKind};
-use crate::utils::notify::notify;
 use crate::save_config_to_file;
 use crate::state::app_state::AppState;
 use crate::update_app_setting;
+use crate::utils::notify::notify;
 use crate::utils::windows::shell_execute_open;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -38,7 +38,7 @@ pub struct LaunchTemplateInfo {
 }
 
 /// 协调程序启动流程并处理可选的覆盖启动方式
-async fn launch_program_internal<R: Runtime>(
+async fn launch_program_internal(
     state: tauri::State<'_, Arc<AppState>>,
     program_guid: u64,
     ctrl: bool,
@@ -144,7 +144,7 @@ pub async fn launch_program<R: Runtime>(
     ctrl: bool,
     shift: bool,
 ) -> Result<(), String> {
-    launch_program_internal::<R>(state, program_guid, ctrl, shift, None).await
+    launch_program_internal(state, program_guid, ctrl, shift, None).await
 }
 
 #[tauri::command]
@@ -164,7 +164,7 @@ pub async fn launch_program_with_args<R: Runtime>(
         .await
         .map_err(|e| format!("Failed to build launch method: {}", e))?;
 
-    launch_program_internal::<R>(state, program_guid, ctrl, shift, Some(override_method)).await
+    launch_program_internal(state, program_guid, ctrl, shift, Some(override_method)).await
 }
 
 #[tauri::command]

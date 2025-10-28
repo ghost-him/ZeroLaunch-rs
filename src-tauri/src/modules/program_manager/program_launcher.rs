@@ -25,11 +25,7 @@ impl ProgramLauncherInner {
     }
 
     /// 启动程序
-    fn launch_program(
-        &self,
-        launch_method: &LaunchMethod,
-        is_admin_required: bool,
-    ) {
+    fn launch_program(&self, launch_method: &LaunchMethod, is_admin_required: bool) {
         match launch_method {
             LaunchMethod::Path(path) => {
                 self.launch_path_program(path, is_admin_required);
@@ -81,8 +77,6 @@ impl ProgramLauncherInner {
             warn!("启动失败：{:?}", result);
         }
     }
-
-    
 
     fn launch_uwp_program(&self, package_family_name: &str) {
         unsafe {
@@ -262,11 +256,7 @@ impl ProgramLauncher {
         }
     }
 
-    pub fn launch_program(
-        &self,
-        launch_method: &LaunchMethod,
-        is_admin_required: bool,
-    ) {
+    pub fn launch_program(&self, launch_method: &LaunchMethod, is_admin_required: bool) {
         self.inner
             .read()
             .launch_program(launch_method, is_admin_required);

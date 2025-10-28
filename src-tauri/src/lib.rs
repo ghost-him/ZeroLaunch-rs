@@ -474,7 +474,10 @@ async fn update_app_setting() {
     // 获取主窗口句柄用于发送事件
     let handle = state.get_main_handle();
     if let Err(e) = handle.emit("refresh_program_start", "") {
-        tracing::debug!("emit refresh_program_start failed (may be expected during startup): {:?}", e);
+        tracing::debug!(
+            "emit refresh_program_start failed (may be expected during startup): {:?}",
+            e
+        );
     }
 
     let runtime_config = state.get_runtime_config();
@@ -539,7 +542,7 @@ async fn update_app_setting() {
     // 9.更新完翻译语言后，更新系统托盘
     update_tray_menu_language();
 
-        // 发送刷新结束事件
+    // 发送刷新结束事件
     if let Err(e) = handle.emit("refresh_program_end", "") {
         tracing::debug!("emit refresh_program_end failed: {:?}", e);
     }

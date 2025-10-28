@@ -75,7 +75,7 @@ impl ProgramRankerInner {
         self.last_update_data = config.get_last_update_data();
         self.history_launch_time = hashmap_to_dashmap(&config.get_history_launch_time());
         self.update_launch_info();
-        
+
         // 维护最近启动次数
         self.latest_launch_time.clear();
         self.latest_launch_time = hashmap_to_dashmap(&config.get_latest_launch_time());
@@ -87,7 +87,8 @@ impl ProgramRankerInner {
         let query_affinity_store = config.get_query_affinity_store();
         for (query, method_map) in query_affinity_store {
             for (method_text, data) in method_map {
-                self.query_affinity_map.insert((query.clone(), method_text), data);
+                self.query_affinity_map
+                    .insert((query.clone(), method_text), data);
             }
         }
 
@@ -110,13 +111,14 @@ impl ProgramRankerInner {
         }
 
         // 导出查询亲和度数据
-        let mut query_affinity_store: HashMap<String, HashMap<String, QueryAffinityData>> = HashMap::new();
+        let mut query_affinity_store: HashMap<String, HashMap<String, QueryAffinityData>> =
+            HashMap::new();
         for entry in self.query_affinity_map.iter() {
             let (query, method_text) = entry.key();
             let data = entry.value();
             query_affinity_store
                 .entry(query.clone())
-                .or_insert_with(HashMap::new)
+                .or_default()
                 .insert(method_text.clone(), data.clone());
         }
 
@@ -157,15 +159,15 @@ impl ProgramRankerInner {
             .launch_store
             .get(&program_guid)
             .expect_programming("Program GUID should exist in launch store");
-        
+
         let method_text = launch_method.get_text();
-        
+
         // 更新今日启动次数
         self.launch_time[0]
             .entry(method_text.clone())
             .and_modify(|count| *count += 1)
             .or_insert(1);
-        
+
         // 更新历史总启动次数
         self.history_launch_time
             .entry(method_text.clone())
@@ -239,7 +241,7 @@ impl ProgramRankerInner {
             .expect_programming("Program GUID should exist in launch store");
         let method_text = launch_method.get_text();
         let key = (query.to_string(), method_text);
-        
+
         self.query_affinity_map
             .entry(key)
             .and_modify(|data| {
@@ -253,26 +255,23 @@ impl ProgramRankerInner {
     }
 
     /// 计算查询亲和分数
-    fn calculate_query_affinity_score(
-        &self,
-        query: &str,
-        program_guid: u64,
-    ) -> f64 {
+    fn calculate_query_affinity_score(&self, query: &str, program_guid: u64) -> f64 {
         let launch_method = self
             .launch_store
             .get(&program_guid)
             .expect_programming("Program GUID should exist in launch store");
         let method_text = launch_method.get_text();
         let key = (query.to_string(), method_text);
-        
+
         if let Some(data) = self.query_affinity_map.get(&key) {
             let base_score = data.total_launch_count as f64 * 5.0;
             let current_time = get_current_time();
             let time_diff = current_time - data.last_launch_time;
-            
+
             // 时间衰减因子: exp(-(时间差/时间常数))
-            let decay_factor = (-(time_diff as f64) / (self.query_affinity_time_decay as f64 + 1.0)).exp();
-            
+            let decay_factor =
+                (-(time_diff as f64) / (self.query_affinity_time_decay as f64 + 1.0)).exp();
+
             base_score * decay_factor
         } else {
             0.0
@@ -285,11 +284,11 @@ impl ProgramRankerInner {
             .launch_store
             .get(&program_guid)
             .expect_programming("Program GUID should exist in launch store");
-        
+
         if let Some(last_launch_time) = self.latest_launch_time.get(&program_string.get_text()) {
             let current_time = get_current_time();
             let time_diff = current_time - *last_launch_time;
-            
+
             // 热度公式: K / (1 + 时间差/时间单位)
             let k = 6.0;
             k / (1.0 + (time_diff as f64) / (self.temporal_decay as f64 + 1.0))
@@ -304,7 +303,7 @@ impl ProgramRankerInner {
             .launch_store
             .get(&program_guid)
             .expect_programming("Program GUID should exist in launch store");
-        
+
         if let Some(count) = self.history_launch_time.get(&program_string.get_text()) {
             // 使用对数函数避免历史数据过大，log(1 + count) 提供递减收益
             (*count as f64).ln_1p()
@@ -314,12 +313,7 @@ impl ProgramRankerInner {
     }
 
     /// 计算最终排序分数（基础分数 + 智能增强）
-    fn calculate_final_score(
-        &self,
-        base_score: f64,
-        program_guid: u64,
-        query: &str,
-    ) -> f64 {
+    fn calculate_final_score(&self, base_score: f64, program_guid: u64, query: &str) -> f64 {
         // 如果排序算法被禁用，直接返回基础分数
         if !self.is_enable {
             return base_score;
@@ -330,7 +324,7 @@ impl ProgramRankerInner {
         let temporal_score = self.calculate_temporal_score(program_guid);
         let query_affinity = self.calculate_query_affinity_score(query, program_guid);
 
-        base_score 
+        base_score
             + self.history_weight * history_score
             + self.recent_habit_weight * recent_habit_score
             + self.temporal_weight * temporal_score
@@ -408,9 +402,7 @@ impl ProgramRanker {
 
     /// 计算近期习惯分数 (基于最近7天的启动次数，带衰减)
     pub fn calculate_recent_habit_score(&self, program_guid: u64) -> f64 {
-        self.inner
-            .read()
-            .calculate_recent_habit_score(program_guid)
+        self.inner.read().calculate_recent_habit_score(program_guid)
     }
 
     pub fn program_history_launch_time(&self, program_guid: u64) -> u64 {
@@ -431,9 +423,7 @@ impl ProgramRanker {
 
     /// 计算瞬时分数
     pub fn calculate_temporal_score(&self, program_guid: u64) -> f64 {
-        self.inner
-            .read()
-            .calculate_temporal_score(program_guid)
+        self.inner.read().calculate_temporal_score(program_guid)
     }
 
     /// 计算历史总分
@@ -442,12 +432,7 @@ impl ProgramRanker {
     }
 
     /// 计算最终排序分数
-    pub fn calculate_final_score(
-        &self,
-        base_score: f64,
-        program_guid: u64,
-        query: &str,
-    ) -> f64 {
+    pub fn calculate_final_score(&self, base_score: f64, program_guid: u64, query: &str) -> f64 {
         self.inner
             .read()
             .calculate_final_score(base_score, program_guid, query)

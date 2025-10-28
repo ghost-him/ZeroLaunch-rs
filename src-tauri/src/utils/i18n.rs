@@ -1,8 +1,7 @@
 /// 轻量级国际化 (i18n) 翻译管理器
-/// 
+///
 /// 该模块提供了一个简单的翻译系统，用于后端系统托盘和通知的多语言支持。
 /// 翻译器由 AppState 管理，在运行时加载JSON翻译文件，并提供快速的翻译查找功能。
-
 use serde_json::Value;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -21,6 +20,12 @@ pub struct Translator {
     initialized: bool,
 }
 
+impl Default for Translator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Translator {
     /// 创建新的翻译管理器
     pub fn new() -> Self {
@@ -35,22 +40,24 @@ impl Translator {
     /// * `language` - 语言代码 (zh-Hans, zh-Hant, en)
     pub fn load_language(&mut self, language: &str) {
         let locale_path = self.get_locale_file_path(language);
-        
+
         match read_str(&locale_path) {
-            Ok(content) => {
-                match serde_json::from_str::<Value>(&content) {
-                    Ok(json) => {
-                        self.translations.clear();
-                        self.flatten_json(&json, String::new());
-                        self.current_language = language.to_string();
-                        self.initialized = true;
-                        debug!("成功加载语言: {}, 翻译键数量: {}", language, self.translations.len());
-                    }
-                    Err(e) => {
-                        warn!("解析语言文件失败 {}: {:?}", language, e);
-                    }
+            Ok(content) => match serde_json::from_str::<Value>(&content) {
+                Ok(json) => {
+                    self.translations.clear();
+                    self.flatten_json(&json, String::new());
+                    self.current_language = language.to_string();
+                    self.initialized = true;
+                    debug!(
+                        "成功加载语言: {}, 翻译键数量: {}",
+                        language,
+                        self.translations.len()
+                    );
                 }
-            }
+                Err(e) => {
+                    warn!("解析语言文件失败 {}: {:?}", language, e);
+                }
+            },
             Err(e) => {
                 warn!("读取语言文件失败 {}: {:?}", locale_path, e);
             }
@@ -61,7 +68,7 @@ impl Translator {
     fn get_locale_file_path(&self, language: &str) -> String {
         // 使用 tauri 的资源目录
         let resource_path = PathBuf::from("locales").join(format!("{}.json", language));
-        
+
         // 尝试从可执行文件旁边的 locales 目录读取
         if let Ok(exe_path) = std::env::current_exe() {
             if let Some(exe_dir) = exe_path.parent() {
@@ -71,7 +78,7 @@ impl Translator {
                 }
             }
         }
-        
+
         // 回退到相对路径
         format!("src-tauri/locales/{}.json", language)
     }
@@ -101,24 +108,25 @@ impl Translator {
 
     /// 获取翻译文本
     pub fn get(&self, key: &str) -> String {
-        self.translations
-            .get(key)
-            .cloned()
-            .unwrap_or_else(|| {
-                warn!("翻译键未找到: {}", key);
-                key.to_string()
-            })
+        self.translations.get(key).cloned().unwrap_or_else(|| {
+            warn!("翻译键未找到: {}", key);
+            key.to_string()
+        })
     }
 
     /// 获取翻译文本并替换占位符
-    pub fn get_with_replacements(&self, key: &str, replacements: &HashMap<String, String>) -> String {
+    pub fn get_with_replacements(
+        &self,
+        key: &str,
+        replacements: &HashMap<String, String>,
+    ) -> String {
         let mut text = self.get(key);
-        
+
         for (placeholder, value) in replacements {
             let placeholder_key = format!("{{{}}}", placeholder);
             text = text.replace(&placeholder_key, value);
         }
-        
+
         text
     }
 
@@ -136,9 +144,9 @@ impl Translator {
 // ========== 公共 API ==========
 
 /// 初始化翻译系统
-/// 
+///
 /// 应该在应用启动时调用一次
-/// 
+///
 /// # 参数
 /// * `language` - 初始语言代码 (zh-Hans, zh-Hant, en)
 pub fn init_translator(language: &str) {
@@ -150,7 +158,7 @@ pub fn init_translator(language: &str) {
 }
 
 /// 切换语言
-/// 
+///
 /// # 参数
 /// * `language` - 新的语言代码
 pub fn switch_language(language: &str) {
@@ -164,10 +172,10 @@ pub fn switch_language(language: &str) {
 }
 
 /// 获取翻译文本 (简化版)
-/// 
+///
 /// # 参数
 /// * `key` - 翻译键 (如 "tray.show_settings")
-/// 
+///
 /// # 示例
 /// ```
 /// let text = t("tray.show_settings");
@@ -184,11 +192,11 @@ pub fn t(key: &str) -> String {
 }
 
 /// 获取翻译文本并替换占位符
-/// 
+///
 /// # 参数
 /// * `key` - 翻译键
 /// * `replacements` - 占位符替换数组 (如 &[("program", "VSCode"), ("index", "1")])
-/// 
+///
 /// # 示例
 /// ```
 /// let text = t_with("notifications.error", &[("program", "VSCode")]);
@@ -201,12 +209,12 @@ pub fn t_with(key: &str, replacements: &[(&str, &str)]) -> String {
         warn!("翻译系统未初始化，使用键作为默认值: {}", key);
         return key.to_string();
     }
-    
+
     let replacement_map: HashMap<String, String> = replacements
         .iter()
         .map(|(k, v)| (k.to_string(), v.to_string()))
         .collect();
-    
+
     translator.get_with_replacements(key, &replacement_map)
 }
 
@@ -225,7 +233,8 @@ mod tests {
     #[test]
     fn test_flatten_json() {
         let mut translator = Translator::new();
-        let json: Value = serde_json::from_str(r#"
+        let json: Value = serde_json::from_str(
+            r#"
         {
             "tray": {
                 "show_settings": "Open Settings",
@@ -235,10 +244,12 @@ mod tests {
                 "success": "Success"
             }
         }
-        "#).unwrap();
-        
+        "#,
+        )
+        .unwrap();
+
         translator.flatten_json(&json, String::new());
-        
+
         assert_eq!(translator.get("tray.show_settings"), "Open Settings");
         assert_eq!(translator.get("tray.exit"), "Exit");
         assert_eq!(translator.get("notifications.success"), "Success");
@@ -249,13 +260,13 @@ mod tests {
         let mut translator = Translator::new();
         translator.translations.insert(
             "test.message".to_string(),
-            "Hello {name}, you have {count} messages".to_string()
+            "Hello {name}, you have {count} messages".to_string(),
         );
-        
+
         let mut replacements = HashMap::new();
         replacements.insert("name".to_string(), "Alice".to_string());
         replacements.insert("count".to_string(), "5".to_string());
-        
+
         let result = translator.get_with_replacements("test.message", &replacements);
         assert_eq!(result, "Hello Alice, you have 5 messages");
     }

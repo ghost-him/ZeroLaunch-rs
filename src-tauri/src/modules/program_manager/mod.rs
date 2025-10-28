@@ -42,9 +42,12 @@ use window_activator::WindowActivator;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FallbackReason {
     None,
-    AiDisabled,     // 选择语义，但未启用 AI 特性
-    ModelNotReady,  // 选择语义，启用 AI，但模型权重未就绪
+    AiDisabled,    // 选择语义，但未启用 AI 特性
+    ModelNotReady, // 选择语义，启用 AI，但模型权重未就绪
 }
+
+/// 短期搜索结果缓存（统一，基于 LruCache）
+type ShortTermSearchResultsCache = Arc<RwLock<Option<LruCache<String, Vec<SearchMatchResult>>>>>;
 
 /// 程序管理器 - 使用细粒度锁优化并发性能
 #[derive(Debug)]
@@ -68,9 +71,9 @@ pub struct ProgramManager {
     /// 语义生成器
     semantic_manager: Arc<SemanticManager>,
     /// 短期搜索结果缓存（统一，基于 LruCache）
-    short_term_result_cache: Arc<RwLock<Option<LruCache<String, Vec<SearchMatchResult>>>>>,
+    short_term_result_cache: ShortTermSearchResultsCache,
     /// 当前回退原因
-    fallback_reason: Arc<RwLock<FallbackReason>>,    
+    fallback_reason: Arc<RwLock<FallbackReason>>,
 }
 
 /// 内部搜索结果，包含分数和程序ID
@@ -222,20 +225,21 @@ impl ProgramManager {
             };
         }
 
-        let search_engine: Arc<dyn SearchEngine> = if !has_backend || !backend_ready || is_traditional_search {
-            if !is_traditional_search {
-                search_config = Arc::new(SearchModelConfig::default());
-            }
-            let new_search_model = SearchModelFactory::create_scorer(search_config.clone());
-            Arc::new(TraditionalSearchEngine::new(Arc::new(new_search_model)))
-        } else {
-            Arc::new(SemanticSearchEngine::new(self.semantic_manager.clone()))
-        };
+        let search_engine: Arc<dyn SearchEngine> =
+            if !has_backend || !backend_ready || is_traditional_search {
+                if !is_traditional_search {
+                    search_config = Arc::new(SearchModelConfig::default());
+                }
+                let new_search_model = SearchModelFactory::create_scorer(search_config.clone());
+                Arc::new(TraditionalSearchEngine::new(Arc::new(new_search_model)))
+            } else {
+                Arc::new(SemanticSearchEngine::new(self.semantic_manager.clone()))
+            };
 
         let mut search_engine_lock = self.search_engine.write().await;
         *search_engine_lock = search_engine;
 
-    if has_backend && (is_traditional_search || !backend_ready) {
+        if has_backend && (is_traditional_search || !backend_ready) {
             self.semantic_manager.release_backend_resources();
         }
 
@@ -360,12 +364,12 @@ impl ProgramManager {
         }
         result
     }
-    
+
     /// 记录查询-程序启动关联
     pub fn record_query_launch(&self, query: &str, program_guid: u64) {
         self.program_ranker.record_query_launch(query, program_guid);
     }
-    
+
     /// 启动一个程序
     pub async fn launch_program(
         &self,
@@ -375,7 +379,7 @@ impl ProgramManager {
     ) {
         // 先记录启动统计
         self.program_ranker.record_launch(program_guid);
-        
+
         // 获取程序的 launch_method
         let program = self.get_program_by_guid(program_guid).await;
         if program.is_none() {
@@ -383,10 +387,10 @@ impl ProgramManager {
             return;
         }
         let program = program.unwrap();
-        
+
         // 使用 override_method 或程序自己的 launch_method
         let launch_method = override_method.as_ref().unwrap_or(&program.launch_method);
-        
+
         // 启动程序
         // 因为不管有没有成功，用户都是想启动这个的程序的，所以要考虑到用户的这个意愿
         self.program_launcher
@@ -479,13 +483,12 @@ impl ProgramManager {
             return false;
         }
         let program = program.unwrap();
-        self.program_launcher.open_target_folder(&program.launch_method)
+        self.program_launcher
+            .open_target_folder(&program.launch_method)
     }
     /// 获得最近启动的程序
     pub async fn get_latest_launch_program(&self, program_count: u32) -> Vec<(u64, String)> {
-        let latest_launch_program = self
-            .program_ranker
-            .get_latest_launch_program(program_count);
+        let latest_launch_program = self.program_ranker.get_latest_launch_program(program_count);
 
         let mut results = Vec::new();
         let program_registry = self.program_registry.read().await;

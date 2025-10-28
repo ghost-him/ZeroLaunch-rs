@@ -115,7 +115,8 @@ impl ProgramRankerConfigInner {
         HashMap::new()
     }
 
-    pub(crate) fn default_query_affinity_store() -> HashMap<String, HashMap<String, QueryAffinityData>> {
+    pub(crate) fn default_query_affinity_store(
+    ) -> HashMap<String, HashMap<String, QueryAffinityData>> {
         HashMap::new()
     }
 

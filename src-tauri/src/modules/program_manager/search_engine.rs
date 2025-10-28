@@ -63,8 +63,9 @@ impl SearchEngine for TraditionalSearchEngine {
             .par_iter()
             .map(|program| {
                 // 基础匹配分数
-                let base_score = search_model.calculate_score(program, &user_input) + program.stable_bias;
-                
+                let base_score =
+                    search_model.calculate_score(program, &user_input) + program.stable_bias;
+
                 // 应用智能排序增强评分
                 let score = program_ranker.calculate_final_score(
                     base_score,
@@ -115,7 +116,7 @@ impl SearchEngine for SemanticSearchEngine {
                     .semantic_model
                     .compute_similarity(&user_embedding, &program.embedding)
                     as f64;
-                
+
                 // 应用智能排序增强评分
                 let score = program_ranker.calculate_final_score(
                     base_score,

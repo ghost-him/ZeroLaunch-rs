@@ -72,7 +72,7 @@ impl ProgramManagerConfigInner {
             self.enable_lru_search_cache = enable_cache;
         }
         if let Some(capacity) = partial_config.search_cache_capacity {
-            if capacity <= 0 {
+            if capacity == 0 {
                 self.search_cache_capacity = 1;
             } else {
                 self.search_cache_capacity = capacity;

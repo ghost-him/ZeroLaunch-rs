@@ -172,7 +172,11 @@ impl ShortcutManagerInner {
         // 直接注册到全局快捷键系统
         if let Err(e) = self.app_handle.global_shortcut().register(tauri_shortcut) {
             let error_msg = format!("{:?}", e);
-            notify_i18n_with("ZeroLaunch-rs", "notifications.shortcut_register_failed_detail", &[("error", &error_msg)]);
+            notify_i18n_with(
+                "ZeroLaunch-rs",
+                "notifications.shortcut_register_failed_detail",
+                &[("error", &error_msg)],
+            );
             return Err(format!("注册快捷键失败: {:?}", e));
         }
 
@@ -191,7 +195,11 @@ impl ShortcutManagerInner {
     pub fn unregister_all_shortcut(&self) -> Result<(), String> {
         if let Err(e) = self.app_handle.global_shortcut().unregister_all() {
             let error_msg = format!("{:?}", e);
-            notify_i18n_with("ZeroLaunch-rs", "notifications.shortcut_unregister_failed", &[("error", &error_msg)]);
+            notify_i18n_with(
+                "ZeroLaunch-rs",
+                "notifications.shortcut_unregister_failed",
+                &[("error", &error_msg)],
+            );
         }
         Ok(())
     }
@@ -202,7 +210,11 @@ impl ShortcutManagerInner {
         for shortcut in shortcuts.keys() {
             if let Err(e) = self.app_handle.global_shortcut().register(*shortcut) {
                 let error_msg = format!("{:?}", e);
-                notify_i18n_with("ZeroLaunch-rs", "notifications.shortcut_register_failed_detail", &[("error", &error_msg)]);
+                notify_i18n_with(
+                    "ZeroLaunch-rs",
+                    "notifications.shortcut_register_failed_detail",
+                    &[("error", &error_msg)],
+                );
             }
         }
         Ok(())
@@ -271,7 +283,11 @@ pub fn start_shortcut_manager(app: &mut tauri::App) {
     if let Err(e) = shortcut_manager.init_shortcut_listener() {
         warn!("初始化失败:{:?}", e);
         let error_msg = format!("{:?}", e);
-        notify_i18n_with("ZeroLaunch-rs", "notifications.keyboard_listener_init_failed", &[("error", &error_msg)]);
+        notify_i18n_with(
+            "ZeroLaunch-rs",
+            "notifications.keyboard_listener_init_failed",
+            &[("error", &error_msg)],
+        );
     }
     state.set_shortcut_manager(Arc::new(shortcut_manager));
     update_shortcut_manager();
@@ -303,6 +319,10 @@ pub fn update_shortcut_manager() {
     }) {
         warn!("注册快捷键失败 {:?}", e);
         let error_msg = format!("{:?}", e);
-        notify_i18n_with("ZeroLaunch-rs", "notifications.shortcut_register_failed_detail", &[("error", &error_msg)]);
+        notify_i18n_with(
+            "ZeroLaunch-rs",
+            "notifications.shortcut_register_failed_detail",
+            &[("error", &error_msg)],
+        );
     }
 }

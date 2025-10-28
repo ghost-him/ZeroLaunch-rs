@@ -84,7 +84,10 @@ fn handle_register_shortcut() {
     let shortcut_manager = state.get_shortcut_manager();
     if let Err(e) = shortcut_manager.register_all_shortcuts() {
         warn!("Failed to register all shortcuts: {:?}", e);
-        notify("ZeroLaunch-rs", &t("notifications.shortcut_register_failed"));
+        notify(
+            "ZeroLaunch-rs",
+            &t("notifications.shortcut_register_failed"),
+        );
     } else {
         notify("ZeroLaunch-rs", &t("notifications.shortcut_registered"));
     }
@@ -101,7 +104,7 @@ fn handle_switch_game_mode<R: Runtime>(game_mode_item: &CheckMenuItem<R>) {
         if let Err(e) = shortcut_manager.unregister_all_shortcut() {
             warn!("Failed to unregister shortcuts for game mode: {:?}", e);
         }
-        if let Err(e) = game_mode_item.set_text(&t("tray.disable_game_mode")) {
+        if let Err(e) = game_mode_item.set_text(t("tray.disable_game_mode")) {
             warn!("Failed to set menu item text for game mode (on): {:?}", e);
         }
         notify("ZeroLaunch-rs", &t("notifications.game_mode_enabled"));
@@ -112,7 +115,7 @@ fn handle_switch_game_mode<R: Runtime>(game_mode_item: &CheckMenuItem<R>) {
                 e
             );
         }
-        if let Err(e) = game_mode_item.set_text(&t("tray.enable_game_mode")) {
+        if let Err(e) = game_mode_item.set_text(t("tray.enable_game_mode")) {
             warn!("Failed to set menu item text for game mode (off): {:?}", e);
         }
         notify("ZeroLaunch-rs", &t("notifications.game_mode_disabled"));
@@ -129,28 +132,28 @@ fn build_tray_menu<R: Runtime>(app_handle: &AppHandle<R>) -> tauri::Result<Menu<
     let show_settings = MenuItem::with_id(
         app_handle,
         MENU_ID_SHOW_SETTINGS,
-        &t("tray.show_settings"),
+        t("tray.show_settings"),
         true,
         None::<&str>,
     )?;
     let update_app_setting = MenuItem::with_id(
         app_handle,
         MENU_ID_UPDATE_APP_SETTING,
-        &t("tray.refresh_database"),
+        t("tray.refresh_database"),
         true,
         None::<&str>,
     )?;
     let retry_shortcut = MenuItem::with_id(
         app_handle,
         MENU_ID_RETRY_REGISTER_SHORTCUT,
-        &t("tray.retry_register_shortcut"),
+        t("tray.retry_register_shortcut"),
         true,
         None::<&str>,
     )?;
     let game_mode_item = CheckMenuItem::with_id(
         app_handle,
         MENU_ID_SWITCH_GAME_MODE,
-        &t("tray.switch_game_mode"),
+        t("tray.switch_game_mode"),
         true,
         game_mode,
         None::<&str>,
@@ -158,7 +161,7 @@ fn build_tray_menu<R: Runtime>(app_handle: &AppHandle<R>) -> tauri::Result<Menu<
     let exit_program = MenuItem::with_id(
         app_handle,
         MENU_ID_EXIT_PROGRAM,
-        &t("tray.exit_program"),
+        t("tray.exit_program"),
         true,
         None::<&str>,
     )?;
@@ -264,12 +267,12 @@ pub fn init_system_tray(app: &mut App) {
 }
 
 /// 更新托盘菜单的语言
-/// 
+///
 /// 当用户切换应用语言时调用，重新构建托盘菜单以显示新语言的文本
 pub fn update_tray_menu_language() {
     let state = ServiceLocator::get_state();
     let app_handle = state.get_main_handle();
-    
+
     // 重新构建菜单
     let menu = match build_tray_menu(&app_handle) {
         Ok(m) => m,
@@ -278,19 +281,19 @@ pub fn update_tray_menu_language() {
             return;
         }
     };
-    
+
     // 更新托盘图标的菜单和tooltip
     let tray_icon = state.get_tray_icon();
-    
+
     if let Err(e) = tray_icon.set_menu(Some(menu)) {
         warn!("Failed to update tray menu: {:?}", e);
     }
-    
+
     // 更新 tooltip
     let tooltip = t_with("tray.tooltip", &[("version", &APP_VERSION.clone())]);
     if let Err(e) = tray_icon.set_tooltip(Some(tooltip)) {
         warn!("Failed to update tray tooltip: {:?}", e);
     }
-    
+
     debug!("Tray menu language updated.");
 }

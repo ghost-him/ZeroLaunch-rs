@@ -1,5 +1,5 @@
 /// 系统区域设置和语言检测工具
-use tracing::{debug, warn, info};
+use tracing::{debug, info, warn};
 use windows::Win32::Globalization::GetUserDefaultLocaleName;
 
 /// 使用 Windows API GetUserDefaultLocaleName 来获取用户的默认区域设置
@@ -12,7 +12,10 @@ pub fn get_system_locale() -> Option<String> {
 
         if result > 0 {
             // 找到第一个 null 终止符
-            let len = locale_name.iter().position(|&c| c == 0).unwrap_or(result as usize);
+            let len = locale_name
+                .iter()
+                .position(|&c| c == 0)
+                .unwrap_or(result as usize);
             let locale_string = String::from_utf16_lossy(&locale_name[..len]);
             debug!("检测到系统语言: {}", locale_string);
             Some(locale_string)
@@ -28,12 +31,7 @@ pub fn map_locale_to_language(locale: &str) -> String {
     let locale_lower = locale.to_lowercase();
 
     if locale_lower.starts_with("zh-") {
-        let traditional_locales = [
-            "zh-tw",
-            "zh-hk",
-            "zh-mo",
-            "zh-hant",
-        ];
+        let traditional_locales = ["zh-tw", "zh-hk", "zh-mo", "zh-hant"];
 
         for traditional in &traditional_locales {
             if locale_lower.starts_with(traditional) {

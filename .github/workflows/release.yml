@@ -151,7 +151,6 @@ jobs:
           # 构建最终的 Release Notes
           $changelogUrl = "https://github.com/ghost-him/ZeroLaunch-rs/compare/$previousTag...$tag"
           $releaseNotes = @"
-          $versionGuide
 
           ## What's Changed
 
@@ -162,6 +161,8 @@ jobs:
           $contributorsList
 
           **Full Changelog**: $changelogUrl
+
+          $versionGuide
           "@
           
           # 输出到文件
@@ -215,7 +216,7 @@ jobs:
         shell: pwsh
         run: |
           echo "=== Downloaded artifacts ==="
-          $files = Get-ChildItem -Path . -File | Where-Object { $_.Extension -in '.exe', '.msi', '.zip', '.txt' }
+          $files = Get-ChildItem -Path . -File -Recurse | Where-Object { $_.Extension -in '.exe', '.msi', '.zip', '.txt' }
           if ($files.Count -eq 0) {
             echo "❌ 错误：没有找到任何下载的构建产物或说明文件！"
             exit 1
@@ -259,6 +260,7 @@ jobs:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
           GITEE_EMAIL: ${{ secrets.GITEE_EMAIL }}
 
+      
       - name: Create Gitee Release
         if: success()
         shell: pwsh
@@ -270,16 +272,13 @@ jobs:
           $version = $env:VERSION
           $releaseTitle = $env:RELEASE_TITLE
           $tag = "v$version"
-          
           # 读取生成的 Release Notes
           $releaseNotes = Get-Content -Path "release_notes.txt" -Raw -Encoding UTF8
-          
           # 使用 Gitee API 创建 Release
           $headers = @{
             "Content-Type" = "application/json"
             "Authorization" = "token $env:GITEE_TOKEN"
           }
-          
           $body = @{
             tag_name = $tag
             name = $releaseTitle
@@ -287,7 +286,7 @@ jobs:
             target_commitish = "main"
             prerelease = $false
           } | ConvertTo-Json
-          
+
           try {
             # 先尝试删除旧的 Release，确保幂等性
             try {
@@ -299,21 +298,22 @@ jobs:
             } catch {
               echo "没有旧的 Gitee Release 需要删除"
             }
-            
             # 创建新的 Release
             $response = Invoke-RestMethod -Uri "https://gitee.com/api/v5/repos/ghost-him/ZeroLaunch-rs/releases" -Method Post -Headers $headers -Body $body
             $releaseId = $response.id
             echo "✅ Gitee Release 创建成功，ID: $releaseId"
-            
+
             # 上传构建产物到 Gitee Release
-            $files = Get-ChildItem -Path . -Include *.exe,*.msi,*.zip -File
+            $files = Get-ChildItem -Path . -Recurse -Include *.exe,*.msi,*.zip -File | Sort-Object FullName
+            if ($files.Count -eq 0) {
+              echo "❌ 未找到需要上传到 Gitee 的构建产物"
+              throw "No build artifacts found for Gitee upload"
+            }
             foreach ($file in $files) {
               echo "📦 正在上传 $($file.Name) 到 Gitee Release..."
-              $uploadUrl = "https://gitee.com/api/v5/repos/ghost-him/ZeroLaunch-rs/releases/$releaseId/attach_files?access_token=$env:GITEE_TOKEN"
-              
-              # 使用 curl 上传文件（更可靠）
-              curl.exe -X POST $uploadUrl -F "file=@$($file.FullName)" --silent --show-error
-              
+              $uploadUrl = "https://gitee.com/api/v5/repos/ghost-him/ZeroLaunch-rs/releases/$releaseId/attach_files"
+              # 使用 curl 上传文件，并捕获输出
+              $curlOutput = curl.exe -X POST $uploadUrl -F "access_token=$env:GITEE_TOKEN" -F "file=@$($file.FullName)" 2>&1
               if ($LASTEXITCODE -eq 0) {
                 echo "✅ 已上传: $($file.Name)"
               } else {
@@ -321,7 +321,6 @@ jobs:
                 throw "Failed to upload $($file.Name) to Gitee"
               }
             }
-            
             echo "✅ Gitee Release 所有文件上传完成"
           } catch {
             echo "❌ Gitee Release 创建或上传失败: $_"
@@ -355,6 +354,7 @@ jobs:
           RELEASE_TITLE: ${{ needs.build.outputs.release_title }}
           GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
         run: |
+          # 定义变量
           $version = $env:VERSION
           $releaseTitle = $env:RELEASE_TITLE
           $tag = "v$version"
@@ -362,67 +362,100 @@ jobs:
           $repo = "ZeroLaunch-rs"
           $token = $env:GITCODE_TOKEN
 
-          # 读取生成的 Release Notes
+          # 从文件读取 Release Notes 内容
           $releaseNotes = Get-Content -Path "release_notes.txt" -Raw -Encoding UTF8
 
-          # 根据 GitCode API 规范，token 需要统一放在 Header 中
+          # 定义 API 请求头
           $headers = @{
-            "Content-Type" = "application/json"
             "Private-Token" = $token
           }
 
           try {
-            # 1. 尝试删除旧的 Release (确保幂等性)
-            # 需要先通过 tag 获取 release id，再进行删除
-            try {
-              $getReleaseUri = "https://gitcode.com/api/v5/repos/$owner/$repo/releases/tags/$tag"
-              $existingRelease = Invoke-RestMethod -Uri $getReleaseUri -Method Get -Headers $headers -ErrorAction SilentlyContinue
-              if ($existingRelease) {
-                $releaseIdToDelete = $existingRelease.id
-                $deleteUri = "https://gitcode.com/api/v5/repos/$owner/$repo/releases/$releaseIdToDelete"
-                Invoke-RestMethod -Uri $deleteUri -Method Delete -Headers $headers
-                echo "已删除旧的 GitCode Release"
-              }
-            } catch {
-              echo "没有旧的 GitCode Release 需要删除"
-            }
-
-            # 2. 创建新的 Release
+            # 1. 创建新的 Release
+            Write-Host "正在创建新的 GitCode Release..."
             $createReleaseUri = "https://gitcode.com/api/v5/repos/$owner/$repo/releases"
             $releaseBody = @{
               tag_name = $tag
-              name = $releaseTitle
-              body = $releaseNotes
-              target_commitish = "main"
-            } | ConvertTo-Json
+              name     = $releaseTitle
+              body     = $releaseNotes
+            } | ConvertTo-Json -Depth 5
 
-            $response = Invoke-RestMethod -Uri $createReleaseUri -Method Post -Headers $headers -Body $releaseBody
-            $releaseId = $response.id
-            echo "✅ GitCode Release 创建成功，ID: $releaseId"
+            Write-Host "发送 Release Body:"
+            Write-Host $releaseBody
 
-            # 3. 上传构建产物作为附件
-            $files = Get-ChildItem -Path . -Include *.exe,*.msi,*.zip -File
-            foreach ($file in $files) {
-              echo "📦 正在上传 $($file.Name) 到 GitCode Release..."
-              $uploadUrl = "https://gitcode.com/api/v5/repos/$owner/$repo/releases/$releaseId/attach_files"
-
-              # 使用 curl 上传文件，对于 multipart/form-data 更可靠，并将 token 放入 header
-              curl.exe -X POST $uploadUrl -H "Private-Token: $token" -F "file=@$($file.FullName)" --silent --show-error
-
-              if ($LASTEXITCODE -eq 0) {
-                echo "✅ 已上传: $($file.Name)"
-              } else {
-                echo "❌ 上传失败: $($file.Name)"
-                throw "Failed to upload $($file.Name) to GitCode"
-              }
+            $response = Invoke-RestMethod -Uri $createReleaseUri -Method Post -Headers $headers -ContentType "application/json" -Body $releaseBody -ErrorAction Stop
+            Write-Host "✅ GitCode Release 创建成功，Tag: $($response.tag_name)"
+            
+            $files = Get-ChildItem -Path . -Recurse -Include *.exe,*.msi,*.zip -File | Sort-Object FullName
+            if ($files.Count -eq 0) {
+              Write-Host "❌ 未找到需要上传到 GitCode 的构建产物"
+              throw "No build artifacts found for GitCode upload"
             }
 
-            echo "✅ GitCode Release 所有文件上传完成"
+            foreach ($file in $files) {
+              Write-Host "📦 正在上传 $($file.Name) 到 GitCode Release..."
+              try {
+                # URL 编码文件名
+                $encodedFileName = [System.Web.HttpUtility]::UrlEncode($file.Name)
+                $getUploadUrlEndpoint = "https://gitcode.com/api/v5/repos/$owner/$repo/releases/$tag/upload_url?access_token=$token&file_name=$encodedFileName"
+
+                # 获取预签名上传地址和必需的请求头
+                $uploadInfo = Invoke-RestMethod -Uri $getUploadUrlEndpoint -Method Get -ErrorAction Stop
+                $uploadUrl = $uploadInfo.url
+                $uploadHeaders = $uploadInfo.headers
+
+                if (-not $uploadUrl) {
+                  throw "未从 GitCode 获取到上传地址"
+                }
+
+                $putHeaders = @{}
+                if ($uploadHeaders) {
+                  foreach ($key in $uploadHeaders.PSObject.Properties.Name) {
+                    $putHeaders[$key] = $uploadHeaders.$key
+                  }
+                }
+
+                # 使用正确的请求头上传文件
+                Invoke-RestMethod -Uri $uploadUrl `
+                                  -Method Put `
+                                  -InFile $file.FullName `
+                                  -Headers $putHeaders `
+                                  -ErrorAction Stop
+
+                Write-Host "✅ 已上传: $($file.Name)"
+              } catch {
+                Write-Host "❌ 上传文件 $($file.Name) 失败: $($_.Exception.Message)"
+
+                # 改进的错误处理
+                if ($_.Exception.Response) {
+                  try {
+                    $statusCode = $_.Exception.Response.StatusCode.value__
+                    Write-Host "HTTP 状态码: $statusCode"
+                    # 读取错误响应内容
+                    $stream = $_.Exception.Response.GetResponseStream()
+                    $reader = New-Object System.IO.StreamReader($stream)
+                    $errorResponse = $reader.ReadToEnd()
+                  } catch {
+                    Write-Host "无法读取详细错误信息"
+                  }
+                }
+                throw
+              }
+            }
+            Write-Host "✅ GitCode Release 所有文件上传完成"
           } catch {
-            echo "❌ GitCode Release 创建或上传失败: $_"
+            Write-Host "❌ GitCode Release 创建或上传过程中发生致命错误: $($_.Exception.Message)"
+            if ($_.Exception.Response) {
+              try {
+                $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+                $errorResponse = $reader.ReadToEnd()
+              } catch {
+                Write-Host "无法读取错误响应内容"
+              }
+            }
             throw
           }
-            
+
   notify:
     name: Notify on completion
     needs:

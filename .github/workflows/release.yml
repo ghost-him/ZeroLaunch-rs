@@ -52,11 +52,6 @@ jobs:
           Copy-Item -Path "$srcLocalesDir\*" -Destination $destDir -Force
           Write-Host "✓ i18n locales files copied to src-tauri/locales/"
 
-      - name: Rust cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri -> target
-
       - name: Get version from tag
         id: get_version
         shell: pwsh
@@ -289,6 +284,7 @@ jobs:
             tag_name = $tag
             name = $releaseTitle
             body = $releaseNotes
+            target_commitish = "main"
             prerelease = $false
           } | ConvertTo-Json
           
@@ -362,79 +358,71 @@ jobs:
           $version = $env:VERSION
           $releaseTitle = $env:RELEASE_TITLE
           $tag = "v$version"
-          $projectId = "ghost-him%2FZeroLaunch-rs" # 注意这里需要 URL 编码
-          
+          $owner = "ghost-him"
+          $repo = "ZeroLaunch-rs"
+          $token = $env:GITCODE_TOKEN
+
           # 读取生成的 Release Notes
           $releaseNotes = Get-Content -Path "release_notes.txt" -Raw -Encoding UTF8
-          
-          # 1. 创建 Release (不带附件)
-          # GitCode (GitLab) API 需要先创建 Release，然后再附加文件
+
+          # 根据 GitCode API 规范，token 需要统一放在 Header 中
           $headers = @{
             "Content-Type" = "application/json"
-            "PRIVATE-TOKEN" = $env:GITCODE_TOKEN
+            "Private-Token" = $token
           }
-          
-          $releaseBody = @{
-            tag_name = $tag
-            name = $releaseTitle
-            description = $releaseNotes
-          } | ConvertTo-Json
-          
+
           try {
-            # 先尝试删除旧的 Release，确保幂等性
+            # 1. 尝试删除旧的 Release (确保幂等性)
+            # 需要先通过 tag 获取 release id，再进行删除
             try {
-              Invoke-RestMethod -Uri "https://gitcode.com/api/v4/projects/$projectId/releases/$tag" -Method Delete -Headers $headers -ErrorAction SilentlyContinue
-              echo "已删除旧的 GitCode Release"
+              $getReleaseUri = "https://gitcode.com/api/v5/repos/$owner/$repo/releases/tags/$tag"
+              $existingRelease = Invoke-RestMethod -Uri $getReleaseUri -Method Get -Headers $headers -ErrorAction SilentlyContinue
+              if ($existingRelease) {
+                $releaseIdToDelete = $existingRelease.id
+                $deleteUri = "https://gitcode.com/api/v5/repos/$owner/$repo/releases/$releaseIdToDelete"
+                Invoke-RestMethod -Uri $deleteUri -Method Delete -Headers $headers
+                echo "已删除旧的 GitCode Release"
+              }
             } catch {
               echo "没有旧的 GitCode Release 需要删除"
             }
-            
-            # 创建新的 Release
-            Invoke-RestMethod -Uri "https://gitcode.com/api/v4/projects/$projectId/releases" -Method Post -Headers $headers -Body $releaseBody
-            echo "✅ GitCode Release 创建成功"
-          } catch {
-            echo "❌ 创建 GitCode Release 失败: $_"
-            exit 1
-          }
 
-          # 2. 上传构建产物作为 Release 的附件
-          $files = Get-ChildItem -Path . -Include *.exe,*.msi,*.zip -File
-          foreach ($file in $files) {
-            echo "📦 正在上传 $($file.Name) 到 GitCode Release..."
-            
-            # GitCode/GitLab 上传附件的 API 比较特殊，需要先将文件上传到项目，获取链接，再将链接附加到 Release
-            try {
-              $uploadUrl = "https://gitcode.com/api/v4/projects/$projectId/uploads"
-              $uploadHeaders = @{
-                "PRIVATE-TOKEN" = $env:GITCODE_TOKEN
+            # 2. 创建新的 Release
+            $createReleaseUri = "https://gitcode.com/api/v5/repos/$owner/$repo/releases"
+            $releaseBody = @{
+              tag_name = $tag
+              name = $releaseTitle
+              body = $releaseNotes
+              target_commitish = "main"
+            } | ConvertTo-Json
+
+            $response = Invoke-RestMethod -Uri $createReleaseUri -Method Post -Headers $headers -Body $releaseBody
+            $releaseId = $response.id
+            echo "✅ GitCode Release 创建成功，ID: $releaseId"
+
+            # 3. 上传构建产物作为附件
+            $files = Get-ChildItem -Path . -Include *.exe,*.msi,*.zip -File
+            foreach ($file in $files) {
+              echo "📦 正在上传 $($file.Name) 到 GitCode Release..."
+              $uploadUrl = "https://gitcode.com/api/v5/repos/$owner/$repo/releases/$releaseId/attach_files"
+
+              # 使用 curl 上传文件，对于 multipart/form-data 更可靠，并将 token 放入 header
+              curl.exe -X POST $uploadUrl -H "Private-Token: $token" -F "file=@$($file.FullName)" --silent --show-error
+
+              if ($LASTEXITCODE -eq 0) {
+                echo "✅ 已上传: $($file.Name)"
+              } else {
+                echo "❌ 上传失败: $($file.Name)"
+                throw "Failed to upload $($file.Name) to GitCode"
               }
-              
-              # 使用 curl 上传文件，Invoke-RestMethod 对 multipart/form-data 支持不佳
-              $responseJson = curl.exe -s -X POST -H "PRIVATE-TOKEN: $env:GITCODE_TOKEN" -F "file=@$($file.FullName)" $uploadUrl
-              $responseObj = $responseJson | ConvertFrom-Json
-              
-              # 获取上传后的文件链接
-              $fileUrl = $responseObj.url
-              $fileName = $responseObj.alt
-              
-              # 将上传后的文件链接附加到 Release
-              $linkBody = @{
-                name = $fileName
-                url = "https://gitcode.com/ghost-him/ZeroLaunch-rs$($fileUrl)" # 需要拼接成完整 URL
-              } | ConvertTo-Json
-              
-              $attachUrl = "https://gitcode.com/api/v4/projects/$projectId/releases/$tag/assets/links"
-              Invoke-RestMethod -Uri $attachUrl -Method Post -Headers $headers -Body $linkBody
-              
-              echo "✅ 已上传并附加: $($file.Name)"
-            } catch {
-              echo "❌ 上传或附加 $($file.Name) 失败: $_"
-              throw "Failed to upload $($file.Name) to GitCode"
             }
-          }
-          
-          echo "✅ GitCode Release 所有文件上传完成"
 
+            echo "✅ GitCode Release 所有文件上传完成"
+          } catch {
+            echo "❌ GitCode Release 创建或上传失败: $_"
+            throw
+          }
+            
   notify:
     name: Notify on completion
     needs:
@@ -446,7 +434,7 @@ jobs:
     steps:
       - name: Notify build status
         run: |
-          if [ "${{ needs.build.result }}" == "success" && "${{ needs.release.result }}" == "success" ]; then
+          if [[ "${{ needs.build.result }}" == "success" && "${{ needs.release.result }}" == "success" ]]; then
             echo "✅ Build and release completed successfully!"
           else
             echo "❌ Workflow failed. Status:"

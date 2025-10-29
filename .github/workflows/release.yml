@@ -60,11 +60,11 @@ jobs:
           if ([string]::IsNullOrEmpty($tag)) {
             $tag = "0.0.0"
           }
-          
+
           # 生成 yymmdd 格式的日期
           $date = Get-Date -Format "yyMMdd"
           $releaseTitle = "$date-v$tag"
-          
+
           echo "VERSION=$tag" >> $env:GITHUB_OUTPUT
           echo "RELEASE_TITLE=$releaseTitle" >> $env:GITHUB_OUTPUT
           echo "Version: $tag"
@@ -77,7 +77,7 @@ jobs:
           # 构建所有架构和 AI 变体
           cargo run --bin xtask build-all --arch all --ai both
           cd ..
-        
+
       - name: List build artifacts
         shell: pwsh
         run: |
@@ -105,26 +105,27 @@ jobs:
         run: |
           $version = "${{ steps.get_version.outputs.VERSION }}"
           $tag = "v$version"
-          
+          $repoPath = "${{ github.repository }}"
+
           # 获取上一个标签
           $previousTag = git describe --tags --abbrev=0 "$tag^" 2>$null
           if ([string]::IsNullOrEmpty($previousTag)) {
             $previousTag = git rev-list --max-parents=0 HEAD
           }
-          
+
           # 生成格式化的变更日志
           $commits = (git log "$previousTag..$tag" --pretty=format:"* %s (`%h`)" --no-merges 2>$null) -join "`n"
           if ([string]::IsNullOrEmpty($commits)) {
             $commits = (git log -10 --pretty=format:"* %s (`%h`)" --no-merges) -join "`n"
           }
-          
+
           # 获取贡献者列表
           $contributors = (git log "$previousTag..$tag" --pretty=format:"%an" --no-merges 2>$null | Sort-Object -Unique)
           if ($contributors.Count -eq 0) {
             $contributors = (git log -10 --pretty=format:"%an" --no-merges | Sort-Object -Unique)
           }
           $contributorsList = ($contributors | ForEach-Object { "* @$_" }) -join "`n"
-          
+
           # 构建精简后的版本说明
           $versionGuide = @"
           ## 📦 版本说明
@@ -135,21 +136,21 @@ jobs:
           > **完整版**包含 AI 智能搜索功能，而 **精简版 (lite)** 不含 AI 功能，体积更小。
 
           ---
-          
+
           ### 🤖 关于 AI 功能
-          
+
           > **重要提示**：AI 智能搜索功能需要单独下载模型权重文件才能使用。
-          
+
           **模型下载地址**：
-          - GitHub: https://github.com/ghost-him/ZeroLaunch-rs/releases/tag/model
-          - Gitee: https://gitee.com/ghost-him/ZeroLaunch-rs/releases/tag/model
-          - GitCode: https://gitcode.com/ghost-him/ZeroLaunch-rs/releases/model
-          
+          - GitHub: https://github.com/$repoPath/releases/tag/model
+          - Gitee: https://gitee.com/$repoPath/releases/tag/model
+          - GitCode: https://gitcode.com/$repoPath/releases/model
+
           请根据模型发布页中的说明进行配置。
           "@
 
           # 构建最终的 Release Notes
-          $changelogUrl = "https://github.com/ghost-him/ZeroLaunch-rs/compare/$previousTag...$tag"
+          $changelogUrl = "https://github.com/$repoPath/compare/$previousTag...$tag"
           $releaseNotes = @"
 
           ## What's Changed
@@ -164,7 +165,7 @@ jobs:
 
           $versionGuide
           "@
-          
+
           # 输出到文件
           $releaseNotes | Out-File -FilePath "release_notes.txt" -Encoding UTF8
           echo "RELEASE_NOTES_FILE=release_notes.txt" >> $env:GITHUB_OUTPUT
@@ -173,61 +174,30 @@ jobs:
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: release-packages
+          name: release-assets
           path: |
             *.exe
             *.msi
             *.zip
+            release_notes.txt
           if-no-files-found: error
           retention-days: 7
 
-      - name: Upload release notes
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-notes
-          path: release_notes.txt
-          if-no-files-found: error
-          retention-days: 7
-
-  release:
-    name: Publish Release
+  # =======================================================
+  # 独立的 GitHub Release Job
+  # =======================================================
+  release-github:
+    name: Publish to GitHub
     needs: build
     runs-on: windows-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Download build artifacts
+      - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
-          name: release-packages
+          name: release-assets
           path: .
-
-      - name: Download release notes
-        uses: actions/download-artifact@v4
-        with:
-          name: release-notes
-          path: .
-
-      - name: List downloaded artifacts
-        shell: pwsh
-        run: |
-          echo "=== Downloaded artifacts ==="
-          $files = Get-ChildItem -Path . -File -Recurse | Where-Object { $_.Extension -in '.exe', '.msi', '.zip', '.txt' }
-          if ($files.Count -eq 0) {
-            echo "❌ 错误：没有找到任何下载的构建产物或说明文件！"
-            exit 1
-          }
-          $files | ForEach-Object {
-            $sizeMB = [math]::Round($_.Length / 1MB, 2)
-            echo "  ✅ $($_.Name) ($sizeMB MB)"
-          }
 
       - name: Create GitHub Release
-        id: create_release
         uses: softprops/action-gh-release@v2
         with:
           name: ${{ needs.build.outputs.release_title }}
@@ -241,237 +211,231 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload to Gitee
-        if: success()
-        shell: pwsh
-        run: |
-          # 配置 Gitee
-          git config --global user.name "ghost-him"
-          git config --global user.email "$env:GITEE_EMAIL"
-          
-          # 添加 Gitee 远程仓库
-          git remote add gitee "https://oauth2:$($env:GITEE_TOKEN)@gitee.com/ghost-him/ZeroLaunch-rs.git" || true
-          
-          git checkout main
+  # =======================================================
+  # 独立的 Gitee Release Job (带重试机制)
+  # =======================================================
+  release-gitee:
+    name: Publish to Gitee
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-          # 推送代码和标签到 Gitee
-          git push gitee main --tags -f || echo "Failed to push to Gitee"
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-assets
+          path: .
+
+      - name: Push to Gitee
+        shell: pwsh
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
           GITEE_EMAIL: ${{ secrets.GITEE_EMAIL }}
+        run: |
+          $owner, $repo = "${{ github.repository }}".Split('/')
+          git config --global user.name "ghost-him"
+          git config --global user.email "$env:GITEE_EMAIL"
+          git remote add gitee "https://oauth2:$($env:GITEE_TOKEN)@gitee.com/$owner/$repo.git" || true
+          git push gitee HEAD:main --tags -f
 
-      
-      - name: Create Gitee Release
-        if: success()
+      - name: Create Gitee Release with Retry
         shell: pwsh
         env:
           VERSION: ${{ needs.build.outputs.version }}
           RELEASE_TITLE: ${{ needs.build.outputs.release_title }}
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
         run: |
-          $version = $env:VERSION
-          $releaseTitle = $env:RELEASE_TITLE
-          $tag = "v$version"
-          # 读取生成的 Release Notes
-          $releaseNotes = Get-Content -Path "release_notes.txt" -Raw -Encoding UTF8
-          # 使用 Gitee API 创建 Release
-          $headers = @{
-            "Content-Type" = "application/json"
-            "Authorization" = "token $env:GITEE_TOKEN"
-          }
-          $body = @{
-            tag_name = $tag
-            name = $releaseTitle
-            body = $releaseNotes
-            target_commitish = "main"
-            prerelease = $false
-          } | ConvertTo-Json
+          # --- 重试机制配置 ---
+          $maxRetries = 3
+          $retryDelaySeconds = 20
+          # --------------------
 
-          try {
-            # 先尝试删除旧的 Release，确保幂等性
+          # 动态获取仓库所有者和名称
+          $owner, $repo = "${{ github.repository }}".Split('/')
+          Write-Host "Target Gitee Repository: $owner/$repo"
+
+          for ($i = 1; $i -le $maxRetries; $i++) {
             try {
-              $deleteResponse = Invoke-RestMethod -Uri "https://gitee.com/api/v5/repos/ghost-him/ZeroLaunch-rs/releases/tags/$tag" -Method Get -Headers $headers -ErrorAction SilentlyContinue
-              if ($deleteResponse) {
-                Invoke-RestMethod -Uri "https://gitee.com/api/v5/repos/ghost-him/ZeroLaunch-rs/releases/$($deleteResponse.id)" -Method Delete -Headers $headers
-                echo "已删除旧的 Gitee Release"
-              }
-            } catch {
-              echo "没有旧的 Gitee Release 需要删除"
-            }
-            # 创建新的 Release
-            $response = Invoke-RestMethod -Uri "https://gitee.com/api/v5/repos/ghost-him/ZeroLaunch-rs/releases" -Method Post -Headers $headers -Body $body
-            $releaseId = $response.id
-            echo "✅ Gitee Release 创建成功，ID: $releaseId"
+              Write-Host "Attempt $i of $maxRetries to create and upload Gitee release..."
 
-            # 上传构建产物到 Gitee Release
-            $files = Get-ChildItem -Path . -Recurse -Include *.exe,*.msi,*.zip -File | Sort-Object FullName
-            if ($files.Count -eq 0) {
-              echo "❌ 未找到需要上传到 Gitee 的构建产物"
-              throw "No build artifacts found for Gitee upload"
-            }
-            foreach ($file in $files) {
-              echo "📦 正在上传 $($file.Name) 到 Gitee Release..."
-              $uploadUrl = "https://gitee.com/api/v5/repos/ghost-him/ZeroLaunch-rs/releases/$releaseId/attach_files"
-              # 使用 curl 上传文件，并捕获输出
-              $curlOutput = curl.exe -X POST $uploadUrl -F "access_token=$env:GITEE_TOKEN" -F "file=@$($file.FullName)" 2>&1
-              if ($LASTEXITCODE -eq 0) {
-                echo "✅ 已上传: $($file.Name)"
+              $version = $env:VERSION
+              $releaseTitle = $env:RELEASE_TITLE
+              $tag = "v$version"
+              $releaseNotes = Get-Content -Path "release_notes.txt" -Raw -Encoding UTF8
+              $headers = @{"Content-Type" = "application/json"; "Authorization" = "token $env:GITEE_TOKEN"}
+              $body = @{tag_name = $tag; name = $releaseTitle; body = $releaseNotes; target_commitish = "main"; prerelease = $false} | ConvertTo-Json
+
+              # 确保幂等性：先删除旧 Release
+              try {
+                $existingRelease = Invoke-RestMethod -Uri "https://gitee.com/api/v5/repos/$owner/$repo/releases/tags/$tag" -Method Get -Headers $headers -ErrorAction SilentlyContinue
+                if ($existingRelease) {
+                  Invoke-RestMethod -Uri "https://gitee.com/api/v5/repos/$owner/$repo/releases/$($existingRelease.id)" -Method Delete -Headers $headers
+                  Write-Host "已删除旧的 Gitee Release"
+                }
+              } catch { Write-Host "没有旧的 Gitee Release 需要删除" }
+
+              # 创建新 Release
+              $response = Invoke-RestMethod -Uri "https://gitee.com/api/v5/repos/$owner/$repo/releases" -Method Post -Headers $headers -Body $body
+              $releaseId = $response.id
+              Write-Host "✅ Gitee Release 创建成功，ID: $releaseId"
+
+              # 上传文件
+              $files = Get-ChildItem -Path . -Recurse -Include *.exe,*.msi,*.zip -File
+              if ($files.Count -eq 0) { throw "未找到需要上传到 Gitee 的构建产物" }
+
+              foreach ($file in $files) {
+                Write-Host "📦 正在上传 $($file.Name) 到 Gitee Release..."
+                curl.exe -X POST "https://gitee.com/api/v5/repos/$owner/$repo/releases/$releaseId/attach_files" -F "access_token=$env:GITEE_TOKEN" -F "file=@$($file.FullName)"
+                if ($LASTEXITCODE -ne 0) {
+                  throw "上传文件 $($file.Name) 到 Gitee 失败"
+                }
+                Write-Host "✅ 已上传: $($file.Name)"
+              }
+
+              Write-Host "✅ Gitee Release 所有文件上传完成"
+              break # 成功则跳出循环
+            } catch {
+              Write-Host "❌ Gitee Release 操作失败: $_"
+              if ($i -lt $maxRetries) {
+                Write-Host "将在 $retryDelaySeconds 秒后重试..."
+                Start-Sleep -Seconds $retryDelaySeconds
               } else {
-                echo "❌ 上传失败: $($file.Name)"
-                throw "Failed to upload $($file.Name) to Gitee"
+                Write-Host "❌ 已达到最大重试次数，Gitee 发布失败。"
+                throw # 最后一次失败时，抛出异常以使 job 失败
               }
             }
-            echo "✅ Gitee Release 所有文件上传完成"
-          } catch {
-            echo "❌ Gitee Release 创建或上传失败: $_"
-            throw
           }
 
-      - name: Upload to GitCode
-        if: success()
-        shell: pwsh
-        run: |
-          # 配置 GitCode
-          git config --global user.name "ghost-him"
-          git config --global user.email "$env:GITCODE_EMAIL"
-          
-          # 添加 GitCode 远程仓库
-          git remote add gitcode "https://oauth2:$($env:GITCODE_TOKEN)@gitcode.com/ghost-him/ZeroLaunch-rs.git" || true
-          
-          git checkout main
+  # =======================================================
+  # 独立的 GitCode Release Job (带重试机制)
+  # =======================================================
+  release-gitcode:
+    name: Publish to GitCode
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-          # 推送代码和标签到 GitCode
-          git push gitcode main --tags -f || echo "Failed to push to GitCode"
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-assets
+          path: .
+
+      - name: Push to GitCode
+        shell: pwsh
         env:
           GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
           GITCODE_EMAIL: ${{ secrets.GITCODE_EMAIL }}
-
-      - name: Create and Upload to GitCode Release
-        if: success()
+        run: |
+          $owner, $repo = "${{ github.repository }}".Split('/')
+          git config --global user.name "ghost-him"
+          git config --global user.email "$env:GITCODE_EMAIL"
+          git remote add gitcode "https://oauth2:$($env:GITCODE_TOKEN)@gitcode.com/$owner/$repo.git" || true
+          git push gitcode HEAD:main --tags -f
+      - name: Create GitCode Release with Retry
         shell: pwsh
         env:
           VERSION: ${{ needs.build.outputs.version }}
           RELEASE_TITLE: ${{ needs.build.outputs.release_title }}
           GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
         run: |
-          # 定义变量
-          $version = $env:VERSION
-          $releaseTitle = $env:RELEASE_TITLE
-          $tag = "v$version"
-          $owner = "ghost-him"
-          $repo = "ZeroLaunch-rs"
-          $token = $env:GITCODE_TOKEN
+          # --- 重试机制配置 ---
+          $maxRetries = 3
+          $retryDelaySeconds = 30 # GitCode API 可能更慢，延迟稍长
+          # --------------------
 
-          # 从文件读取 Release Notes 内容
-          $releaseNotes = Get-Content -Path "release_notes.txt" -Raw -Encoding UTF8
+          # 动态获取仓库所有者和名称
+          $owner, $repo = "${{ github.repository }}".Split('/')
+          Write-Host "Target GitCode Repository: $owner/$repo"
 
-          # 定义 API 请求头
-          $headers = @{
-            "Private-Token" = $token
-          }
+          for ($i = 1; $i -le $maxRetries; $i++) {
+            try {
+              Write-Host "Attempt $i of $maxRetries to create and upload GitCode release..."
 
-          try {
-            # 1. 创建新的 Release
-            Write-Host "正在创建新的 GitCode Release..."
-            $createReleaseUri = "https://gitcode.com/api/v5/repos/$owner/$repo/releases"
-            $releaseBody = @{
-              tag_name = $tag
-              name     = $releaseTitle
-              body     = $releaseNotes
-            } | ConvertTo-Json -Depth 5
+              $version = $env:VERSION
+              $releaseTitle = $env:RELEASE_TITLE
+              $tag = "v$version"
+              $token = $env:GITCODE_TOKEN
+              $releaseNotes = Get-Content -Path "release_notes.txt" -Raw -Encoding UTF8
+              $headers = @{"Private-Token" = $token}
 
-            Write-Host "发送 Release Body:"
-            Write-Host $releaseBody
+              # 1. 创建 Release
+              $createReleaseUri = "https://gitcode.com/api/v5/repos/$owner/$repo/releases"
+              $releaseBody = @{tag_name = $tag; name = $releaseTitle; body = $releaseNotes} | ConvertTo-Json -Depth 5
+              Invoke-RestMethod -Uri $createReleaseUri -Method Post -Headers $headers -ContentType "application/json" -Body $releaseBody -ErrorAction Stop
+              Write-Host "✅ GitCode Release 创建成功"
 
-            $response = Invoke-RestMethod -Uri $createReleaseUri -Method Post -Headers $headers -ContentType "application/json" -Body $releaseBody -ErrorAction Stop
-            Write-Host "✅ GitCode Release 创建成功，Tag: $($response.tag_name)"
-            
-            $files = Get-ChildItem -Path . -Recurse -Include *.exe,*.msi,*.zip -File | Sort-Object FullName
-            if ($files.Count -eq 0) {
-              Write-Host "❌ 未找到需要上传到 GitCode 的构建产物"
-              throw "No build artifacts found for GitCode upload"
-            }
+              # 2. 上传文件
+              $files = Get-ChildItem -Path . -Recurse -Include *.exe,*.msi,*.zip -File
+              if ($files.Count -eq 0) { throw "未找到需要上传到 GitCode 的构建产物" }
 
-            foreach ($file in $files) {
-              Write-Host "📦 正在上传 $($file.Name) 到 GitCode Release..."
-              try {
-                # URL 编码文件名
+              foreach ($file in $files) {
+                Write-Host "📦 正在上传 $($file.Name) 到 GitCode Release..."
                 $encodedFileName = [System.Web.HttpUtility]::UrlEncode($file.Name)
                 $getUploadUrlEndpoint = "https://gitcode.com/api/v5/repos/$owner/$repo/releases/$tag/upload_url?access_token=$token&file_name=$encodedFileName"
-
-                # 获取预签名上传地址和必需的请求头
                 $uploadInfo = Invoke-RestMethod -Uri $getUploadUrlEndpoint -Method Get -ErrorAction Stop
-                $uploadUrl = $uploadInfo.url
-                $uploadHeaders = $uploadInfo.headers
 
-                if (-not $uploadUrl) {
-                  throw "未从 GitCode 获取到上传地址"
-                }
+                if (-not $uploadInfo.url) { throw "未从 GitCode 获取到上传地址" }
 
                 $putHeaders = @{}
-                if ($uploadHeaders) {
-                  foreach ($key in $uploadHeaders.PSObject.Properties.Name) {
-                    $putHeaders[$key] = $uploadHeaders.$key
-                  }
+                if ($uploadInfo.headers) {
+                  foreach ($key in $uploadInfo.headers.PSObject.Properties.Name) { $putHeaders[$key] = $uploadInfo.headers.$key }
                 }
 
-                # 使用正确的请求头上传文件
-                Invoke-RestMethod -Uri $uploadUrl `
-                                  -Method Put `
-                                  -InFile $file.FullName `
-                                  -Headers $putHeaders `
-                                  -ErrorAction Stop
-
+                Invoke-RestMethod -Uri $uploadInfo.url -Method Put -InFile $file.FullName -Headers $putHeaders -ErrorAction Stop
                 Write-Host "✅ 已上传: $($file.Name)"
-              } catch {
-                Write-Host "❌ 上传文件 $($file.Name) 失败: $($_.Exception.Message)"
+              }
 
-                # 改进的错误处理
-                if ($_.Exception.Response) {
-                  try {
-                    $statusCode = $_.Exception.Response.StatusCode.value__
-                    Write-Host "HTTP 状态码: $statusCode"
-                    # 读取错误响应内容
-                    $stream = $_.Exception.Response.GetResponseStream()
-                    $reader = New-Object System.IO.StreamReader($stream)
-                    $errorResponse = $reader.ReadToEnd()
-                  } catch {
-                    Write-Host "无法读取详细错误信息"
-                  }
-                }
-                throw
+              Write-Host "✅ GitCode Release 所有文件上传完成"
+              break # 成功则跳出循环
+            } catch {
+              Write-Host "❌ GitCode Release 操作失败: $($_.Exception.Message)"
+              if ($i -lt $maxRetries) {
+                Write-Host "将在 $retryDelaySeconds 秒后重试..."
+                Start-Sleep -Seconds $retryDelaySeconds
+              } else {
+                Write-Host "❌ 已达到最大重试次数，GitCode 发布失败。"
+                throw # 最后一次失败时，抛出异常以使 job 失败
               }
             }
-            Write-Host "✅ GitCode Release 所有文件上传完成"
-          } catch {
-            Write-Host "❌ GitCode Release 创建或上传过程中发生致命错误: $($_.Exception.Message)"
-            if ($_.Exception.Response) {
-              try {
-                $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
-                $errorResponse = $reader.ReadToEnd()
-              } catch {
-                Write-Host "无法读取错误响应内容"
-              }
-            }
-            throw
           }
 
+  # =======================================================
+  # 最终的通知 Job，依赖于所有并行的 release job
+  # =======================================================
   notify:
     name: Notify on completion
     needs:
-      - build
-      - release
+      - release-github
+      - release-gitee
+      - release-gitcode
     runs-on: ubuntu-latest
-    if: always()
-    
+    if: always() 
+    # 无论成功失败都运行
     steps:
-      - name: Notify build status
+      - name: Check status of all release jobs
         run: |
-          if [[ "${{ needs.build.result }}" == "success" && "${{ needs.release.result }}" == "success" ]]; then
-            echo "✅ Build and release completed successfully!"
+          echo "🔎 Checking status of all release jobs..."
+          
+          github_status="${{ needs.release-github.result }}"
+          gitee_status="${{ needs.release-gitee.result }}"
+          gitcode_status="${{ needs.release-gitcode.result }}"
+          
+          echo "  - GitHub Release: $github_status"
+          echo "  - Gitee Release:  $gitee_status"
+          echo "  - GitCode Release: $gitcode_status"
+
+          if [[ "$github_status" == "success" && "$gitee_status" == "success" && "$gitcode_status" == "success" ]]; then
+            echo "✅ All platforms released successfully!"
           else
-            echo "❌ Workflow failed. Status:"
-            echo "  - Build Job: ${{ needs.build.result }}"
-            echo "  - Release Job: ${{ needs.release.result }}"
+            echo "❌ One or more platforms failed to release. Please check the logs."
             exit 1
           fi

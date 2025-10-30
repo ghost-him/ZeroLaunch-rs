@@ -8326,7 +8326,7 @@ checksum = "b97154e67e32c85465826e8bcc1c59429aaaf107c1e4a9e53c8d8ccd5eff88d0"
 
 [[package]]
 name = "zerolaunch-rs"
-version = "0.5.2"
+version = "0.5.3"
 dependencies = [
  "anyhow",
  "async-trait",

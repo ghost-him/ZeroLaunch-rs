@@ -112,9 +112,29 @@ ZeroLaunch：一款懂你輸入習慣的 Windows 智能啟動器，精通拼音�
 
 ## 🚩 程式下載
 
-*   Gitee: [版本](https://gitee.com/ghost-him/ZeroLaunch-rs/releases)
-*   Github: [版本](https://github.com/ghost-him/ZeroLaunch-rs/releases)
-*   Gitcode: [版本](https://gitcode.com/ghost-him/ZeroLaunch-rs/releases)
+### 使用 WinGet 安裝（推薦）
+
+執行下列任意一個命令即可完成安裝：
+
+```
+winget install zerolaunch
+```
+
+```
+winget install ZeroLaunch-rs
+```
+
+```
+winget install ghost-him.ZeroLaunch-rs
+```
+
+### 從發布頁獲取
+
+本專案已實現全自動構建與發布流程（CI/CD）。每當發布新版本時，GitHub Actions 會自動構建所有變體（AI / Lite 版，x64 / arm64 架構），並同步發布到以下平台。您可以選擇訪問速度最快的鏡像源進行下載：
+
+*   **GitHub Releases:** [https://github.com/ghost-him/ZeroLaunch-rs/releases](https://github.com/ghost-him/ZeroLaunch-rs/releases) (全球用戶推薦)
+*   **Gitee Releases:** [https://gitee.com/ghost-him/ZeroLaunch-rs/releases](https://gitee.com/ghost-him/ZeroLaunch-rs/releases) (中國大陸用戶推薦)
+*   **GitCode Releases:** [https://gitcode.com/ghost-him/ZeroLaunch-rs/releases](https://gitcode.com/ghost-him/ZeroLaunch-rs/releases) (中國大陸用戶推薦)
 
 ### 版本說明（AI / Lite）
 
@@ -136,45 +156,7 @@ ZeroLaunch：一款懂你輸入習慣的 Windows 智能啟動器，精通拼音�
 
 ## 🛠️ 開發者指南
 
-> 這個 Rust 很不錯啊，統一的套件管理很方便啊。
-
-### 環境要求
-
-* Rust v1.90.0
-* Bun v1.2.22
-
-### 建置步驟
-
-```bash
-# 複製儲存庫
-git clone https://github.com/ghost-him/ZeroLaunch-rs.git
-
-# 安裝依賴
-bun install
-
-# 開發模式
-bun run tauri dev
-
-# 使用 xtask 自動化建置工具進行生產建置
-cd xtask
-
-# 僅建置安裝包（預設啟用 AI），x64 版本
-cargo run --bin xtask build-installer --arch x64
-
-# 建置 Lite 安裝包（關閉 AI）
-cargo run --bin xtask build-installer --arch x64 --ai disabled
-
-# 建置所有版本（安裝包 + 便攜版，所有架構，預設同時含 / 不含 AI）
-cargo run --bin xtask build-all
-
-# 清理建置產物
-cargo run --bin xtask clean
-```
-
-建置產物：
-- 安裝包：專案根目錄下的 `.msi` 檔案
-- 便攜版：專案根目錄下的 `.zip` 檔案
-- 詳細說明請參考 [xtask/README.md](xtask/README.md)
+詳細的開發指南、環境配置、建置步驟以及貢獻指南，請參考 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ## 📦 資料目錄結構
 

@@ -113,7 +113,7 @@ ZeroLaunch：一款懂你输入习惯的 Windows 智能启动器，精通拼音�
 
 ## 🚩 程序下载
 
-### 使用 WinGet 安装
+### 使用 WinGet 安装（推荐）
 
 运行以下任意一个命令即可完成安装
 
@@ -129,11 +129,13 @@ winget install ZeroLaunch-rs
 winget install ghost-him.ZeroLaunch-rs
 ```
 
-### 使用安装包安装
+### 从发布页获取
 
-* Gitee: [release](https://gitee.com/ghost-him/ZeroLaunch-rs/releases)
-* Github: [release](https://github.com/ghost-him/ZeroLaunch-rs/releases)
-* Gitcode: [release](https://gitcode.com/ghost-him/ZeroLaunch-rs/releases)
+本项目已实现全自动构建与发布流程（CI/CD）。每当发布新版本时，GitHub Actions 会自动构建所有变体（AI / Lite 版，x64 / arm64 架构），并同步发布到以下平台。您可以选择访问速度最快的镜像源进行下载：
+
+*   **GitHub Releases:** [https://github.com/ghost-him/ZeroLaunch-rs/releases](https://github.com/ghost-him/ZeroLaunch-rs/releases) (全球用户推荐)
+*   **Gitee Releases:** [https://gitee.com/ghost-him/ZeroLaunch-rs/releases](https://gitee.com/ghost-him/ZeroLaunch-rs/releases) (中国大陆用户推荐)
+*   **GitCode Releases:** [https://gitcode.com/ghost-him/ZeroLaunch-rs/releases](https://gitcode.com/ghost-him/ZeroLaunch-rs/releases) (中国大陆用户推荐)
 
 ### 版本说明（AI / Lite）
 
@@ -155,45 +157,7 @@ winget install ghost-him.ZeroLaunch-rs
 
 ## 🛠️ 开发者指南
 
-> 这个 Rust 很不错啊，统一的包管理很方便啊。
-
-### 环境要求
-
-* Rust v1.90.0
-* Bun v1.2.22
-
-### 构建步骤
-
-```bash
-# 克隆仓库
-git clone https://github.com/ghost-him/ZeroLaunch-rs.git
-
-# 安装依赖
-bun install
-
-# 开发模式
-bun run tauri dev
-
-# 使用 xtask 自动化构建工具进行生产构建
-cd xtask
-
-# 仅构建安装包 (默认启用 AI)，x64 版本
-cargo run --bin xtask build-installer --arch x64
-
-# 构建 Lite 版安装包（关闭 AI）
-cargo run --bin xtask build-installer --arch x64 --ai disabled
-
-# 构建所有版本（安装包 + 便携版，所有架构，默认同时含 / 不含 AI）
-cargo run --bin xtask build-all
-
-# 清理构建产物
-cargo run --bin xtask clean
-```
-
-构建产物：
-- 安装包：项目根目录下的 `.msi` 文件
-- 便携版：项目根目录下的 `.zip` 文件
-- 详细说明请参考 [xtask/README.md](xtask/README.md)
+详细的开发指南、环境配置、构建步骤以及贡献指南，请参考 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ## 📦 数据目录结构
 
@@ -302,7 +266,7 @@ cargo run --bin xtask clean
 * [bootstrap](https://icons.bootcss.com/) - 提供了部分的程序图标
 * [icon-icons](https://icon-icons.com/zh/) - 提供了部分的程序图标
 * [Follower-v2.0](https://github.com/MrBeanCpp/Follower-v2.0) - 提供了全屏检测的方案
- 
+
 ## 未来目标
 
 计划中的未来目标：

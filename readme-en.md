@@ -111,9 +111,29 @@ Writing documentation is so troublesome, and sometimes I can't describe things w
 
 ## 🚩 Program Download
 
-*   Gitee: [release](https://gitee.com/ghost-him/ZeroLaunch-rs/releases)
-*   Github: [release](https://github.com/ghost-him/ZeroLaunch-rs/releases)
-*   Gitcode: [release](https://gitcode.com/ghost-him/ZeroLaunch-rs/releases)
+### Install via WinGet (recommended)
+
+Run any of the following commands to install:
+
+```
+winget install zerolaunch
+```
+
+```
+winget install ZeroLaunch-rs
+```
+
+```
+winget install ghost-him.ZeroLaunch-rs
+```
+
+### Get from releases
+
+This project implements an automated build & release pipeline (CI/CD). On each release GitHub Actions builds all variants (AI / Lite, x64 / arm64) and publishes them to multiple platforms. Choose the fastest mirror for your region:
+
+*   **GitHub Releases:** [https://github.com/ghost-him/ZeroLaunch-rs/releases](https://github.com/ghost-him/ZeroLaunch-rs/releases) (recommended for global users)
+*   **Gitee Releases:** [https://gitee.com/ghost-him/ZeroLaunch-rs/releases](https://gitee.com/ghost-him/ZeroLaunch-rs/releases) (recommended for users in mainland China)
+*   **GitCode Releases:** [https://gitcode.com/ghost-him/ZeroLaunch-rs/releases](https://gitcode.com/ghost-him/ZeroLaunch-rs/releases) (recommended for users in mainland China)
 
 ### Editions (AI / Lite)
 
@@ -135,45 +155,7 @@ Build tip (for developers): enable the `ai` feature for AI edition; omit it for 
 
 ## 🛠️ Developer Guide
 
-> This Rust is quite good, unified package management is very convenient.
-
-### Environment Requirements
-
-* Rust v1.90.0
-* Bun v1.2.22
-
-### Build Steps
-
-```bash
-# Clone the repository
-git clone https://github.com/ghost-him/ZeroLaunch-rs.git
-
-# Install dependencies
-bun install
-
-# Development mode
-bun run tauri dev
-
-# Use xtask automation build tool for production builds
-cd xtask
-
-# Build installer (AI edition by default), x64 only
-cargo run --bin xtask build-installer --arch x64
-
-# Build Lite installer (disable AI)
-cargo run --bin xtask build-installer --arch x64 --ai disabled
-
-# Build all versions (installer + portable, all architectures, both AI modes by default)
-cargo run --bin xtask build-all
-
-# Clean build artifacts
-cargo run --bin xtask clean
-```
-
-Build artifacts:
-- Installer: `.msi` files in project root directory
-- Portable: `.zip` files in project root directory
-- For detailed instructions, see [xtask/README.md](xtask/README.md)
+For detailed developer guide, environment setup, build steps, and contribution guidelines, please refer to [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## 📦 Data Directory Structure
 

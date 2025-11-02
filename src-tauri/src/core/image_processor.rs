@@ -93,7 +93,7 @@ impl ImageProcessor {
     async fn load_web_icon_internal(url: &str) -> AppResult<Vec<u8>> {
         debug!("Loading web icon from: {}", url);
 
-        let icon_data = Self::fetch_website_favicon_png(url).await?;
+        let icon_data = Self::fetch_website_favicon_data(url).await?;
 
         debug!("Fetched {} bytes of favicon data", icon_data.len());
 
@@ -106,8 +106,8 @@ impl ImageProcessor {
         Ok(png_data)
     }
 
-    /// 获取网站的 PNG 格式图标（favicon）
-    async fn fetch_website_favicon_png(url: &str) -> AppResult<Vec<u8>> {
+    /// 获取网站的 PNG 格式图标(favicon)
+    async fn fetch_website_favicon_data(url: &str) -> AppResult<Vec<u8>> {
         if !Self::is_network_available() {
             debug!("No network connection available");
             return Err(AppError::NetworkError {
@@ -133,34 +133,81 @@ impl ImageProcessor {
         // 将 HTML 解析和图标 URL 提取放在一个同步代码块中
         let icon_url = {
             let document = Html::parse_document(&html_content);
-
-            let icon_selector = Selector::parse(r#"link[rel="icon"], link[rel="shortcut icon"]"#)
-                .map_err(|e| AppError::ImageProcessingError {
-                message: format!("Failed to parse CSS selector: {}", e),
-            })?;
-
             let base_url = Url::parse(url).map_err(|e| AppError::NetworkError {
                 message: format!("Invalid URL format: {}", e),
                 source: None,
             })?;
 
-            let favicon_url = document
-                .select(&icon_selector)
-                .next()
-                .and_then(|e| e.value().attr("href"))
-                .and_then(|href| base_url.join(href).ok())
-                .unwrap_or_else(|| {
-                    base_url.join("/favicon.ico").expect_programming(
-                        "Failed to create default favicon URL - this should never happen",
-                    )
-                });
+            // 定义要搜索的图标类型(按优先级排序)
+            let icon_selectors = [
+                r#"link[rel="icon"]"#,
+                r#"link[rel="shortcut icon"]"#,
+            ];
 
-            favicon_url.to_string()
+            #[derive(Debug)]
+            struct IconCandidate {
+                url: String,
+                size: u32, // 使用单个数字表示尺寸(取宽高中的较大值)
+            }
+
+            let mut candidates = Vec::new();
+
+            // 遍历所有选择器,收集候选图标
+            for selector_str in &icon_selectors {
+                let selector = Selector::parse(selector_str).map_err(|e| {
+                    AppError::ImageProcessingError {
+                        message: format!("Failed to parse CSS selector: {}", e),
+                    }
+                })?;
+
+                for element in document.select(&selector) {
+                    if let Some(href) = element.value().attr("href") {
+                        if let Ok(icon_url) = base_url.join(href) {
+                            // 解析尺寸信息
+                            let size = if let Some(sizes_attr) = element.value().attr("sizes") {
+                                Self::parse_icon_size(sizes_attr)
+                            } else {
+                                32
+                            };
+
+                            candidates.push(IconCandidate {
+                                url: icon_url.to_string(),
+                                size,
+                            });
+
+                            debug!(
+                                "Found icon candidate: {} (size: {}x{})",
+                                icon_url, size, size
+                            );
+                        }
+                    }
+                }
+            }
+
+            // 选择尺寸最大的图标
+            let favicon_url = if let Some(best_candidate) =
+                candidates.iter().max_by_key(|c| c.size)
+            {
+                info!(
+                    "Selected best icon: {} (size: {}x{})",
+                    best_candidate.url, best_candidate.size, best_candidate.size
+                );
+                best_candidate.url.clone()
+            } else {
+                // 如果没有找到任何图标,回退到默认的 /favicon.ico
+                let default_url = base_url.join("/favicon.ico").expect_programming(
+                    "Failed to create default favicon URL - this should never happen",
+                );
+                info!("No icon found in HTML, falling back to: {}", default_url);
+                default_url.to_string()
+            };
+
+            favicon_url
         };
 
         info!("Downloading favicon from: {}", icon_url);
         // 下载图标
-        let icon_response = reqwest::get(&icon_url).await.map_err(|e| {
+        let icon_response: reqwest::Response = reqwest::get(&icon_url).await.map_err(|e| {
             AppError::network_error_with_source(
                 format!("Failed to fetch favicon from: {}", icon_url),
                 Box::new(e),
@@ -175,6 +222,31 @@ impl ImageProcessor {
         })?;
 
         Ok(icon_data.to_vec())
+    }
+
+    /// 解析图标尺寸字符串(如 "16x16", "32x32", "any" 等)
+    /// 返回尺寸的数值(取宽高中的较大值)
+    fn parse_icon_size(sizes: &str) -> u32 {
+        // 处理 "any" 情况
+        if sizes.eq_ignore_ascii_case("any") {
+            return 512; // 假设 "any" 表示可缩放,给予高优先级
+        }
+
+        // 解析 "WxH" 格式,支持多个尺寸(如 "16x16 32x32")
+        sizes
+            .split_whitespace()
+            .filter_map(|size_str| {
+                let parts: Vec<&str> = size_str.split('x').collect();
+                if parts.len() == 2 {
+                    let width = parts[0].parse::<u32>().ok()?;
+                    let height = parts[1].parse::<u32>().ok()?;
+                    Some(width.max(height))
+                } else {
+                    None
+                }
+            })
+            .max()
+            .unwrap_or(32) // 默认尺寸
     }
 
     fn is_network_available() -> bool {

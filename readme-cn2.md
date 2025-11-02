@@ -107,7 +107,7 @@ ZeroLaunch：一款懂你輸入習慣的 Windows 智能啟動器，精通拼音�
 
 ### 常見功能的實現
 
-程式添加、檔案添加、命令添加、搜尋演算法微調等功能的實現以及**常見問題**的解決辦法詳見以下文件：[使用指南](doc/Feature_Implementation_Guide_cn2.md)
+程式添加、檔案添加、命令添加、搜尋演算法微調等功能的實現以及**常見問題**的解決辦法詳見以下文件：[使用指南](docs/Feature_Implementation_Guide_cn2.md)
 
 寫文件好麻煩，有時候也不會描述(っ °Д °;)っ，去 [DeepWiki](https://deepwiki.com/ghost-him/ZeroLaunch-rs) 上看看吧，那個上面講的看起來也不錯。
 

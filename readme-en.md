@@ -105,7 +105,7 @@ Laser‑focused on “quickly and accurately launching what you need.” Zero co
 
 ### Implementation of Common Features
 
-For the implementation of program addition, file addition, command addition, search algorithm fine-tuning, and solutions to **common problems**, please refer to the following document: [Usage Guide](doc/Feature_Implementation_Guide_en.md)
+For the implementation of program addition, file addition, command addition, search algorithm fine-tuning, and solutions to **common problems**, please refer to the following document: [Usage Guide](docs/Feature_Implementation_Guide_en.md)
 
 Writing documentation is so troublesome, and sometimes I can't describe things well (っ °Д °;)っ. Go check out [DeepWiki](https://deepwiki.com/ghost-him/ZeroLaunch-rs), it seems to explain things pretty well there.
 

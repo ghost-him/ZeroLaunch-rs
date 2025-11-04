@@ -163,7 +163,7 @@
     "set_blocked_paths": "設定封鎖路徑",
     "add_item": "新增項目",
     "target_blocked_path": "目標封鎖路徑",
-    "enter_target_path": "請輸入目標路徑",
+    "enter_target_path": "請輸入或選擇目標路徑",
     "operation": "操作",
     "delete_row": "刪除",
     "set_fixed_offset": "設定固定偏移量",

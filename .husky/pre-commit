@@ -1,12 +1,29 @@
 set -e
 
-echo "Running Rust checks (fmt, clippy, test) in src-tauri..."
+echo "Running pre-commit checks..."
 
-# 格式检查（不自动修改，确保 CI 一致）
+# 1. 复制 i18n locales 文件到 src-tauri
+echo "📦 Copying i18n locales to src-tauri..."
+SRC_LOCALES_DIR="src/i18n/locales"
+DEST_DIR="src-tauri/locales"
+
+if [ ! -d "$DEST_DIR" ]; then
+  mkdir -p "$DEST_DIR"
+fi
+
+cp -r "$SRC_LOCALES_DIR"/* "$DEST_DIR"/
+echo "✓ i18n locales files copied to src-tauri/locales/"
+
+# 2. Rust 格式检查
+echo "🎨 Running Rust formatting check..."
 ( cd src-tauri && cargo fmt --all -- --check )
 
-# 静态检查（作为错误处理）
+# 3. Rust 静态检查
+echo "📋 Running Rust clippy..."
 ( cd src-tauri && cargo clippy --all-targets --all-features -- -D warnings )
 
-# 单元测试
+# 4. Rust 单元测试
+echo "🧪 Running Rust tests..."
 ( cd src-tauri && cargo test --all-features )
+
+echo "✅ All pre-commit checks passed!"

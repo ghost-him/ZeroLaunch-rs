@@ -139,10 +139,7 @@ impl ImageProcessor {
             })?;
 
             // 定义要搜索的图标类型(按优先级排序)
-            let icon_selectors = [
-                r#"link[rel="icon"]"#,
-                r#"link[rel="shortcut icon"]"#,
-            ];
+            let icon_selectors = [r#"link[rel="icon"]"#, r#"link[rel="shortcut icon"]"#];
 
             #[derive(Debug)]
             struct IconCandidate {
@@ -154,11 +151,10 @@ impl ImageProcessor {
 
             // 遍历所有选择器,收集候选图标
             for selector_str in &icon_selectors {
-                let selector = Selector::parse(selector_str).map_err(|e| {
-                    AppError::ImageProcessingError {
+                let selector =
+                    Selector::parse(selector_str).map_err(|e| AppError::ImageProcessingError {
                         message: format!("Failed to parse CSS selector: {}", e),
-                    }
-                })?;
+                    })?;
 
                 for element in document.select(&selector) {
                     if let Some(href) = element.value().attr("href") {
@@ -185,8 +181,7 @@ impl ImageProcessor {
             }
 
             // 选择尺寸最大的图标
-            let favicon_url = if let Some(best_candidate) =
-                candidates.iter().max_by_key(|c| c.size)
+            let favicon_url = if let Some(best_candidate) = candidates.iter().max_by_key(|c| c.size)
             {
                 info!(
                     "Selected best icon: {} (size: {}x{})",

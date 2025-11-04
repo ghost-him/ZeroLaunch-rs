@@ -2,7 +2,11 @@ set -e
 
 echo "Running pre-commit checks..."
 
-# 1. 复制 i18n locales 文件到 src-tauri
+# 1. 构建前端（确保 dist 文件夹存在）
+echo "🏗️  Building frontend..."
+bun run build
+
+# 2. 复制 i18n locales 文件到 src-tauri
 echo "📦 Copying i18n locales to src-tauri..."
 SRC_LOCALES_DIR="src/i18n/locales"
 DEST_DIR="src-tauri/locales"
@@ -14,15 +18,15 @@ fi
 cp -r "$SRC_LOCALES_DIR"/* "$DEST_DIR"/
 echo "✓ i18n locales files copied to src-tauri/locales/"
 
-# 2. Rust 格式检查
+# 3. Rust 格式检查
 echo "🎨 Running Rust formatting check..."
 ( cd src-tauri && cargo fmt --all -- --check )
 
-# 3. Rust 静态检查
+# 4. Rust 静态检查
 echo "📋 Running Rust clippy..."
 ( cd src-tauri && cargo clippy --all-targets --all-features -- -D warnings )
 
-# 4. Rust 单元测试
+# 5. Rust 单元测试
 echo "🧪 Running Rust tests..."
 ( cd src-tauri && cargo test --all-features )
 

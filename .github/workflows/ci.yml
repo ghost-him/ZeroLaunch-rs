@@ -36,6 +36,9 @@ jobs:
       - name: Install dependencies
         run: bun install
 
+      - name: Build frontend
+        run: bun run build
+
       - name: Copy i18n locales to src-tauri
         shell: pwsh
         run: |

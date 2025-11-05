@@ -163,7 +163,7 @@
     "set_blocked_paths": "设置屏蔽路径",
     "add_item": "添加项目",
     "target_blocked_path": "目标屏蔽路径",
-    "enter_target_path": "请输入目标路径",
+    "enter_target_path": "请输入或选择目标路径",
     "operation": "操作",
     "delete_row": "删除",
     "set_fixed_offset": "设置固定偏移量",

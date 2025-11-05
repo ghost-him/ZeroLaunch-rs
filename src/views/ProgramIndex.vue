@@ -43,7 +43,18 @@
                             <div class="form-label">{{ t('program_index.target_path') }}:</div>
                             <el-input v-model="currentPath.root_path"
                                 :placeholder="t('program_index.enter_target_path')"
-                                @change="updateCurrentPath"></el-input>
+                                @change="updateCurrentPath"
+                                class="input-with-button"
+                                clearable
+                            >
+                            <template #suffix>
+                                <el-button
+                                text
+                                :icon="Folder"
+                                @click="handleSelectFolder"
+                                />
+                            </template>
+                            </el-input>
                         </div>
 
                         <div class="form-row">
@@ -526,12 +537,15 @@ const { t } = useI18n();
 const configStore = useRemoteConfigStore()
 const { config } = storeToRefs(configStore)
 import { computed, h, onMounted, onUnmounted, ref } from 'vue'
-import { Delete, Plus, ArrowDown, QuestionFilled } from '@element-plus/icons-vue'
+import { ElButton, ElMessage, ElTag } from 'element-plus';
+import { Delete, Plus, ArrowDown, QuestionFilled, Folder } from '@element-plus/icons-vue'
 import type { ComputedRef, Ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core';
 import { listen, TauriEvent, UnlistenFn } from '@tauri-apps/api/event';
 import { DragDropEvent } from '@tauri-apps/api/webview';
-import { ElButton, ElMessage, ElTag } from 'element-plus';
+import { open } from '@tauri-apps/plugin-dialog';
+import { homeDir } from '@tauri-apps/api/path';
+
 
 const search_model = computed(() => [
     {
@@ -626,6 +640,20 @@ const updateCurrentPath = (): void => {
                 }
             }
         })
+    }
+}
+
+const handleSelectFolder = async ():Promise<void> => {
+    const folderSelected = await open({
+        directory: true,
+        multiple: false,
+        defaultPath: await homeDir()
+    })
+
+    if (folderSelected) {
+        const picked = Array.isArray(folderSelected) ? folderSelected[0] : folderSelected
+        currentPath.value.root_path = picked as string
+        updateCurrentPath()
     }
 }
 
@@ -1245,6 +1273,7 @@ onUnmounted(async () => {
 .form-label {
     min-width: 80px;
     font-weight: 500;
+    white-space: nowrap;
 }
 
 .form-section {

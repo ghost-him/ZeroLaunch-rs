@@ -65,7 +65,7 @@ tracing-appender = "^0.2.3"
 chrono = "^0.4.42"
 parking_lot = "^0.12.5"
 tauri-plugin-global-shortcut = "^2.3.1"
-tauri-plugin-dialog = { version = "^2.4.2" }
+tauri-plugin-dialog = "2"
 timer = "^0.2.0"
 backtrace = "^0.3.76"
 tauri-plugin-notification = "^2"

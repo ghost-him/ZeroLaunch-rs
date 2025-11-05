@@ -163,7 +163,7 @@
     "set_blocked_paths": "Set Blocked Paths",
     "add_item": "Add Item",
     "target_blocked_path": "Target Blocked Path",
-    "enter_target_path": "Please enter target path",
+    "enter_target_path": "Please enter or select target path",
     "operation": "Operation",
     "delete_row": "Delete",
     "set_fixed_offset": "Set Fixed Offset",

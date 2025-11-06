@@ -27,7 +27,7 @@ use crate::modules::ui_controller::controller::get_window_render_origin;
 use crate::state::app_state::AppState;
 use crate::tray::init_system_tray;
 use crate::tray::update_tray_menu_language;
-use crate::utils::i18n::switch_language;
+use crate::utils::i18n::{current_language, switch_language};
 use crate::utils::ui_controller::handle_focus_lost;
 use crate::utils::ui_controller::handle_pressed;
 use crate::window_position::update_window_size_and_position;
@@ -36,7 +36,7 @@ use core::storage;
 use core::storage::storage_manager::StorageManager;
 use device_query::DeviceQuery;
 use device_query::DeviceState;
-use modules::config::app_config::PartialAppConfig;
+use modules::config::app_config::{AppConfig, PartialAppConfig};
 use modules::config::config_manager::RuntimeConfig;
 use modules::config::default::{
     APP_PIC_PATH, REMOTE_CONFIG_NAME, SEMANTIC_EMBEDDING_CACHE_FILE_NAME,
@@ -468,6 +468,54 @@ fn init_setting_window(app: tauri::AppHandle) {
     });
 }
 
+fn apply_log_level(app_config: &AppConfig) {
+    let log_level = app_config.get_log_level();
+    let tracing_level = tracing::Level::from(log_level);
+    if let Err(e) = update_log_level(tracing_level) {
+        warn!("更新日志级别失败: {}", e);
+    } else {
+        info!("日志级别已根据配置动态更新为: {:?}", tracing_level);
+    }
+}
+
+fn apply_language_and_tray(app_config: &AppConfig) {
+    let language = app_config.get_language();
+    let previous_language = current_language();
+    switch_language(&language);
+    if previous_language != language {
+        update_tray_menu_language();
+    }
+}
+
+async fn load_or_initialize_semantic_store(storage_manager: &StorageManager) -> String {
+    match storage_manager
+        .download_file_str(SEMANTIC_DESCRIPTION_FILE_NAME.to_string())
+        .await
+    {
+        Some(data) => data,
+        None => {
+            let ret = "{}".to_string();
+            storage_manager
+                .upload_file_str(SEMANTIC_DESCRIPTION_FILE_NAME.to_string(), ret.clone())
+                .await;
+            ret
+        }
+    }
+}
+
+async fn reload_program_catalog(state: &AppState, runtime_config: &RuntimeConfig) {
+    let program_manager = state.get_program_manager();
+    let storage_manager = state.get_storage_manager();
+    let semantic_store_str = load_or_initialize_semantic_store(storage_manager.as_ref()).await;
+
+    program_manager
+        .load_from_config(
+            runtime_config.get_program_manager_config(),
+            Some(semantic_store_str),
+        )
+        .await;
+}
+
 /// 更新程序的状态
 async fn update_app_setting() {
     let state = ServiceLocator::get_state();
@@ -486,66 +534,34 @@ async fn update_app_setting() {
     }
 
     let runtime_config = state.get_runtime_config();
-
-    // 1.动态更新日志级别
     let app_config = runtime_config.get_app_config();
-    let log_level = app_config.get_log_level();
-    let tracing_level = tracing::Level::from(log_level);
-    if let Err(e) = update_log_level(tracing_level) {
-        warn!("更新日志级别失败: {}", e);
-    } else {
-        info!("日志级别已根据配置动态更新为: {:?}", tracing_level);
-    }
 
-    // 2. 重新更新程序索引的路径
-    let program_manager = state.get_program_manager();
-    let storage_manager = state.get_storage_manager();
-    // 获取当前最新的描述信息的内容
-    let semantic_store_str = match storage_manager
-        .download_file_str(SEMANTIC_DESCRIPTION_FILE_NAME.to_string())
-        .await
-    {
-        Some(data) => data,
-        None => {
-            // 如果没有获取到，则使用空的json对象，同时上传这个
-            let ret = "{}".to_string();
-            storage_manager
-                .upload_file_str(SEMANTIC_DESCRIPTION_FILE_NAME.to_string(), ret.clone())
-                .await;
-            ret
-        }
-    };
+    // 1. 动态更新日志级别
+    apply_log_level(app_config.as_ref());
 
-    program_manager
-        .load_from_config(
-            runtime_config.get_program_manager_config(),
-            Some(semantic_store_str),
-        )
-        .await;
+    // 2. 切换语言并刷新托盘
+    apply_language_and_tray(app_config.as_ref());
 
-    // 3. 判断要不要开机自启动
+    // 3. 重新更新程序索引的路径
+    reload_program_catalog(state.as_ref(), runtime_config.as_ref()).await;
+
+    // 4. 判断要不要开机自启动
     if let Err(e) = handle_auto_start() {
         // 可以添加错误处理逻辑
         eprintln!("自启动设置失败: {:?}", e);
     }
 
-    // 4.判断要不要静默启动
+    // 5. 判断要不要静默启动
     handle_silent_start();
 
-    // 5.判断要不要更新当前的窗口大小
+    // 6. 判断要不要更新当前的窗口大小
     update_window_size_and_position();
 
-    // 6.更新当前的窗口效果
+    // 7. 更新当前的窗口效果
     enable_window_effect();
 
-    // 7.更新快捷键的绑定
+    // 8. 更新快捷键的绑定
     update_shortcut_manager();
-
-    // 8.更新翻译语言
-    let language = app_config.get_language();
-    switch_language(&language);
-    // 9.更新完翻译语言后，更新系统托盘
-    update_tray_menu_language();
 
     // 发送刷新结束事件
     if let Err(e) = handle.emit("refresh_program_end", "") {
@@ -557,7 +573,7 @@ async fn update_app_setting() {
         eprintln!("发送窗口更新事件失败: {:?}", e);
     }
 
-    let mins = runtime_config.get_app_config().get_auto_refresh_time() as u64;
+    let mins = app_config.get_auto_refresh_time() as u64;
     // 取消当前的定时器
     if let Some(guard) = state.take_timer_guard() {
         drop(guard); // 取消定时器

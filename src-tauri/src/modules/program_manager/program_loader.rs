@@ -309,6 +309,7 @@ impl ProgramLoaderInner {
         use tracing::{debug, info};
 
         info!("🔄 开始加载程序列表");
+
         // 开始计时
         let start = Instant::now();
         let mut result = Vec::new();
@@ -479,7 +480,6 @@ impl ProgramLoaderInner {
     fn load_program_from_path(&mut self) -> Vec<Arc<Program>> {
         let mut result: Vec<Arc<Program>> = Vec::new();
         for directory in &self.target_paths {
-            let mut program_paths_str: Vec<String> = Vec::new();
             let checker = PathChecker::new(
                 &directory.pattern,
                 &directory.pattern_type,
@@ -498,17 +498,17 @@ impl ProgramLoaderInner {
                 Path::new(&directory.root_path),
                 directory.max_depth as usize,
                 checker,
+                &directory.symlink_mode,
             );
 
             let paths_count = paths.len();
-            program_paths_str.extend(paths);
             debug!(
                 "成功扫描目录: {}, 找到 {} 个程序",
                 directory.root_path, paths_count
             );
 
             let mut grouped_paths: HashMap<PathBuf, Vec<PathBuf>> = HashMap::new();
-            for path_str in program_paths_str {
+            for path_str in paths {
                 let path = PathBuf::from(path_str);
                 if let Some(parent) = path.parent() {
                     grouped_paths
@@ -521,17 +521,47 @@ impl ProgramLoaderInner {
                 let localized_names = parse_localized_names_from_dir(&dir_path);
                 for target_path_buf in files_in_dir {
                     let target_path = target_path_buf.as_path();
-                    let target_path_str = target_path.to_string_lossy().to_string();
 
-                    // 这个是本地的文件名，这个用于匹配会不会有翻译过的本地化名字
                     let file_name = target_path
                         .file_name()
                         .and_then(|s| s.to_str())
                         .map(String::from)
-                        .unwrap_or_default()
-                        .to_lowercase();
-                    // 这个是用于显示的名字（就是去除了后缀的）
-                    let show_name = target_path
+                        .unwrap_or_default();
+
+                    // 第一次屏蔽字检查：检查文件名（无论是否为符号链接都要检查）
+                    if self.contains_excluded_keywords(&file_name, &directory.excluded_keywords) {
+                        debug!("文件名包含屏蔽字，跳过: {:?}", target_path);
+                        continue;
+                    }
+
+                    // 判断是否需要处理符号链接
+                    let should_process_as_symlink = self.should_process_symlink(
+                        target_path,
+                        &file_name,
+                        &directory.symlink_mode,
+                    );
+
+                    // 对于符号链接，直接使用链接本身的路径，不再解析目标
+                    // 这样用户可以通过创建符号链接来重命名程序
+                    let (actual_path, actual_path_str) = if should_process_as_symlink {
+                        // 符号链接：直接使用链接本身
+                        let target_path_str = target_path.to_string_lossy().to_string();
+                        (target_path.to_path_buf(), target_path_str)
+                    } else {
+                        // 普通文件，直接使用原路径
+                        let target_path_str = target_path.to_string_lossy().to_string();
+                        (target_path.to_path_buf(), target_path_str)
+                    };
+
+                    // 从实际路径中提取文件名和显示名
+                    let file_name_lower = actual_path
+                        .file_name()
+                        .and_then(|s| s.to_str())
+                        .map(|s| s.to_lowercase())
+                        .unwrap_or_default();
+
+                    // 这个是用于显示的名字（去除后缀的）
+                    let show_name = actual_path
                         .file_stem()
                         .and_then(|s| s.to_str())
                         .map(String::from)
@@ -544,22 +574,24 @@ impl ProgramLoaderInner {
                     // 基础别名：来自文件名本身
                     let mut alias_names: Vec<String> = self.convert_search_keywords(&show_name);
                     let unique_name = show_name.to_lowercase();
-                    let launch_method = if let Some(ext) = target_path.extension() {
+
+                    // 根据实际文件的扩展名决定启动方式
+                    let launch_method = if let Some(ext) = actual_path.extension() {
                         if let Some(ext_str) = ext.to_str() {
                             if ["url", "lnk", "exe"].contains(&ext_str) {
-                                LaunchMethod::Path(target_path_str.clone())
+                                LaunchMethod::Path(actual_path_str.clone())
                             } else {
-                                LaunchMethod::File(target_path_str.clone())
+                                LaunchMethod::File(actual_path_str.clone())
                             }
                         } else {
-                            LaunchMethod::File(target_path_str.clone())
+                            LaunchMethod::File(actual_path_str.clone())
                         }
                     } else {
-                        LaunchMethod::File(target_path_str.clone())
+                        LaunchMethod::File(actual_path_str.clone())
                     };
 
                     // 再最后检查一下有没有本地化的名字
-                    let localized_name = localized_names.get(&file_name).cloned();
+                    let localized_name = localized_names.get(&file_name_lower).cloned();
                     if let Some(ref localized_name_str) = localized_name {
                         let mut localized_alias = self.convert_search_keywords(localized_name_str);
                         alias_names.append(&mut localized_alias);
@@ -572,7 +604,7 @@ impl ProgramLoaderInner {
                         unique_name,
                         launch_method,
                         alias_names,
-                        ImageIdentity::File(target_path_str),
+                        ImageIdentity::File(actual_path_str),
                     );
 
                     result.push(program);
@@ -1013,6 +1045,103 @@ impl ProgramLoaderInner {
             }
         }
     }
+
+    /// 检查文件名是否包含屏蔽字
+    fn contains_excluded_keywords(&self, file_name: &str, excluded_keywords: &[String]) -> bool {
+        let file_name_lower = file_name.to_lowercase();
+        excluded_keywords.iter().any(|keyword| {
+            if keyword.is_empty() {
+                return false;
+            }
+            file_name_lower.contains(&keyword.to_lowercase())
+        })
+    }
+
+    /// 解析符号链接，带递归保护
+    /// 返回 None 表示解析失败（broken symlink、循环引用或超过深度限制）
+    /// 注意：这个函数不使用缓存，因为在遍历时不能修改 self
+    ///
+    /// **重要**: 此函数已不再用于主要的程序加载逻辑。
+    /// 当前实现中，符号链接不会被解析，而是直接使用链接本身的路径。
+    /// 保留此函数是为了可能的其他用途。（好不容易写了这么多，删了怪可惜的，就先留着了（*゜ー゜*））
+    #[allow(dead_code)]
+    fn resolve_symlink_with_protection(&self, path: &Path, max_depth: u32) -> Option<PathBuf> {
+        // 使用 HashSet 追踪已访问的路径，防止循环引用
+        let mut visited = std::collections::HashSet::new();
+        Self::resolve_symlink_recursive(path, max_depth, 0, &mut visited)
+    }
+
+    /// 递归解析符号链接的内部实现
+    #[allow(dead_code)]
+    fn resolve_symlink_recursive(
+        path: &Path,
+        max_depth: u32,
+        current_depth: u32,
+        visited: &mut std::collections::HashSet<PathBuf>,
+    ) -> Option<PathBuf> {
+        // 检查递归深度
+        if current_depth > max_depth {
+            warn!("符号链接递归深度超过限制 {}: {:?}", max_depth, path);
+            return None;
+        }
+
+        // 检查循环引用
+        let canonical_path = path.to_path_buf();
+        if visited.contains(&canonical_path) {
+            warn!("检测到符号链接循环引用: {:?}", path);
+            return None;
+        }
+        visited.insert(canonical_path);
+
+        // 检查是否是符号链接
+        match fs::symlink_metadata(path) {
+            Ok(metadata) => {
+                if !metadata.is_symlink() {
+                    // 不是符号链接，直接返回
+                    return Some(path.to_path_buf());
+                }
+            }
+            Err(e) => {
+                debug!("无法获取文件元数据: {:?}, 错误: {}", path, e);
+                return None;
+            }
+        }
+
+        // 读取符号链接目标
+        match fs::read_link(path) {
+            Ok(target) => {
+                // 如果目标是相对路径，需要相对于符号链接所在目录解析
+                let absolute_target = if target.is_relative() {
+                    if let Some(parent) = path.parent() {
+                        parent.join(&target)
+                    } else {
+                        target
+                    }
+                } else {
+                    target
+                };
+
+                // 检查目标是否存在
+                if !absolute_target.exists() {
+                    debug!("符号链接目标不存在: {:?} -> {:?}", path, absolute_target);
+                    return None;
+                }
+
+                // 递归解析目标（可能目标也是符号链接）
+                Self::resolve_symlink_recursive(
+                    &absolute_target,
+                    max_depth,
+                    current_depth + 1,
+                    visited,
+                )
+            }
+            Err(e) => {
+                debug!("无法读取符号链接目标: {:?}, 错误: {}", path, e);
+                None
+            }
+        }
+    }
+
     /// 判断是不是一个有效的路径
     /// 1. 路径本身有效
     /// 2. 没有被屏蔽
@@ -1035,16 +1164,66 @@ impl ProgramLoaderInner {
     }
 
     /// 判断一个目标文件是不是想要的
-    fn is_target_file(&self, path: &Path, checker: Arc<PathChecker>) -> bool {
-        if !path.is_file() && !path.is_symlink() {
+    /// 根据 symlink_mode 决定是否检查符号链接
+    /// 在 Auto 模式下，符号链接会跳过 pattern 检查
+    fn is_target_file(
+        &self,
+        path: &Path,
+        checker: Arc<PathChecker>,
+        symlink_mode: &crate::program_manager::config::program_loader_config::SymlinkMode,
+    ) -> bool {
+        // 获取文件名
+        let file_name = match path.file_name().and_then(|name| name.to_str()) {
+            Some(name) => name,
+            None => {
+                warn!("无法获取文件名: {:?}", path);
+                return false;
+            }
+        };
+
+        // 判断是否是符号链接（根据模式决定）
+        let is_symlink = self.should_process_symlink(path, file_name, symlink_mode);
+
+        // 在 Auto 模式下，如果是符号链接，直接返回 true（跳过 pattern 检查）
+        if is_symlink
+            && matches!(
+                symlink_mode,
+                crate::program_manager::config::program_loader_config::SymlinkMode::Auto
+            )
+        {
+            return true;
+        }
+
+        // 检查是否匹配 pattern
+        if !checker.is_match(file_name) {
             return false;
         }
 
-        match path.file_name().and_then(|ext| ext.to_str()) {
-            Some(file_name) => checker.is_match(file_name),
-            None => {
-                warn!("无法获取文件名: {:?}", path);
-                false
+        // 如果是符号链接，直接返回 true（后续会处理）
+        // 如果不是符号链接，必须是普通文件（不能是文件夹）
+        is_symlink || path.is_file()
+    }
+
+    fn should_process_symlink(
+        &self,
+        path: &Path,
+        file_name: &str,
+        symlink_mode: &crate::program_manager::config::program_loader_config::SymlinkMode,
+    ) -> bool {
+        let is_explicit_symlink = file_name.ends_with(".symlink");
+        use crate::program_manager::config::program_loader_config::SymlinkMode::{
+            Auto, ExplicitOnly,
+        };
+        match symlink_mode {
+            ExplicitOnly => is_explicit_symlink,
+            Auto => {
+                if is_explicit_symlink {
+                    return true;
+                }
+                match fs::symlink_metadata(path) {
+                    Ok(metadata) => metadata.is_symlink(),
+                    Err(_) => false,
+                }
             }
         }
     }
@@ -1057,6 +1236,7 @@ impl ProgramLoaderInner {
         dir: &Path,
         depth: usize,
         checker: Arc<PathChecker>,
+        symlink_mode: &crate::program_manager::config::program_loader_config::SymlinkMode,
     ) -> Vec<String> {
         // 注意：返回类型可以简化为 Vec<String>，因为 walkdir 的迭代器在内部处理错误
         if !self.is_valid_path(dir) {
@@ -1065,6 +1245,7 @@ impl ProgramLoaderInner {
 
         WalkDir::new(dir)
             .max_depth(depth)
+            .follow_links(true) // 跟随符号链接
             .into_iter()
             // 使用 filter_entry 提前剪枝。如果目录无效，则不再深入
             .filter_entry(|e| self.is_valid_path(e.path()))
@@ -1080,7 +1261,7 @@ impl ProgramLoaderInner {
                 }
             })
             // 筛选出我们想要的目标文件
-            .filter(|entry| self.is_target_file(entry.path(), checker.clone()))
+            .filter(|entry| self.is_target_file(entry.path(), checker.clone(), symlink_mode))
             // 将路径转换为字符串
             .map(|entry| entry.path().to_string_lossy().into_owned())
             // 收集所有结果
@@ -1154,5 +1335,358 @@ impl ProgramLoader {
     /// 获得一个程序的关键字
     pub fn convert_search_keywords(&self, show_name: &str) -> Vec<String> {
         self.inner.write().convert_search_keywords(show_name)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::program_manager::config::program_loader_config::SymlinkMode;
+    use std::collections::HashSet;
+    use std::fs;
+    use tempfile::TempDir;
+
+    /// 创建临时测试文件结构
+    fn setup_test_env() -> TempDir {
+        let temp_dir = TempDir::new().unwrap();
+        let temp_path = temp_dir.path();
+
+        // 创建测试文件
+        fs::write(temp_path.join("test.exe"), b"fake exe").unwrap();
+        fs::write(temp_path.join("notepad.exe"), b"fake notepad").unwrap();
+        fs::write(temp_path.join("uninstall.exe"), b"fake uninstall").unwrap();
+        fs::write(temp_path.join("readme.txt"), b"readme").unwrap();
+
+        temp_dir
+    }
+
+    #[cfg(windows)]
+    fn create_symlink(target: &Path, link: &Path) -> std::io::Result<()> {
+        use std::os::windows::fs::symlink_file;
+        symlink_file(target, link)
+    }
+
+    #[cfg(unix)]
+    fn create_symlink(target: &Path, link: &Path) -> std::io::Result<()> {
+        use std::os::unix::fs::symlink;
+        symlink(target, link)
+    }
+
+    #[test]
+    fn test_symlink_mode_enum() {
+        // 测试默认值
+        assert_eq!(SymlinkMode::default(), SymlinkMode::ExplicitOnly);
+
+        // 测试序列化/反序列化
+        let mode = SymlinkMode::ExplicitOnly;
+        let serialized = serde_json::to_string(&mode).unwrap();
+        let deserialized: SymlinkMode = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(mode, deserialized);
+    }
+
+    #[test]
+    fn test_contains_excluded_keywords() {
+        let _temp_dir = setup_test_env();
+        let semantic_manager = Arc::new(SemanticManager::new(None, HashMap::new()));
+        let loader_inner = ProgramLoaderInner::new(semantic_manager);
+
+        let excluded = vec![
+            "uninstall".to_string(),
+            "help".to_string(),
+            "帮助".to_string(),
+        ];
+
+        // 应该被屏蔽
+        assert!(loader_inner.contains_excluded_keywords("uninstall.exe", &excluded));
+        assert!(loader_inner.contains_excluded_keywords("app_uninstall.exe", &excluded));
+        assert!(loader_inner.contains_excluded_keywords("UNINSTALL.EXE", &excluded)); // 大小写不敏感
+        assert!(loader_inner.contains_excluded_keywords("帮助文档.txt", &excluded));
+
+        // 不应该被屏蔽
+        assert!(!loader_inner.contains_excluded_keywords("notepad.exe", &excluded));
+        assert!(!loader_inner.contains_excluded_keywords("myapp.exe", &excluded));
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn test_resolve_symlink_simple() {
+        let temp_dir = setup_test_env();
+        let temp_path = temp_dir.path();
+        let semantic_manager = Arc::new(SemanticManager::new(None, HashMap::new()));
+        let loader_inner = ProgramLoaderInner::new(semantic_manager);
+
+        // 创建符号链接
+        let target = temp_path.join("test.exe");
+        let link = temp_path.join("test_link.symlink");
+
+        if create_symlink(&target, &link).is_ok() {
+            // 解析符号链接
+            let resolved = loader_inner.resolve_symlink_with_protection(&link, 8);
+            assert!(resolved.is_some());
+
+            let resolved_path = resolved.unwrap();
+            // 应该解析到实际的 test.exe
+            assert!(resolved_path.ends_with("test.exe"));
+        }
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn test_resolve_symlink_chain() {
+        let temp_dir = setup_test_env();
+        let temp_path = temp_dir.path();
+        let semantic_manager = Arc::new(SemanticManager::new(None, HashMap::new()));
+        let loader_inner = ProgramLoaderInner::new(semantic_manager);
+
+        // 创建符号链接链: link3 -> link2 -> link1 -> test.exe
+        let target = temp_path.join("test.exe");
+        let link1 = temp_path.join("link1");
+        let link2 = temp_path.join("link2");
+        let link3 = temp_path.join("link3.symlink");
+
+        if create_symlink(&target, &link1).is_ok()
+            && create_symlink(&link1, &link2).is_ok()
+            && create_symlink(&link2, &link3).is_ok()
+        {
+            // 解析符号链接链
+            let resolved = loader_inner.resolve_symlink_with_protection(&link3, 8);
+            assert!(resolved.is_some());
+
+            let resolved_path = resolved.unwrap();
+            assert!(resolved_path.ends_with("test.exe"));
+        }
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn test_resolve_symlink_depth_limit() {
+        let temp_dir = setup_test_env();
+        let temp_path = temp_dir.path();
+        let semantic_manager = Arc::new(SemanticManager::new(None, HashMap::new()));
+        let loader_inner = ProgramLoaderInner::new(semantic_manager);
+
+        // 创建一个很深的符号链接链
+        let mut current = temp_path.join("test.exe");
+        let mut links = vec![];
+
+        // 创建 10 层符号链接
+        for i in 0..10 {
+            let link = temp_path.join(format!("link{}.symlink", i));
+            if create_symlink(&current, &link).is_err() {
+                return; // 如果创建失败，跳过测试
+            }
+            links.push(link.clone());
+            current = link;
+        }
+
+        // 用深度限制 5 解析最后一个链接（第 10 层）
+        // 应该失败，因为超过深度限制
+        let last_link = &links[9];
+        let resolved = loader_inner.resolve_symlink_with_protection(last_link, 5);
+        assert!(resolved.is_none());
+
+        // 用深度限制 15 解析
+        // 应该成功
+        let resolved = loader_inner.resolve_symlink_with_protection(last_link, 15);
+        assert!(resolved.is_some());
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn test_resolve_symlink_broken() {
+        let temp_dir = setup_test_env();
+        let temp_path = temp_dir.path();
+        let semantic_manager = Arc::new(SemanticManager::new(None, HashMap::new()));
+        let loader_inner = ProgramLoaderInner::new(semantic_manager);
+
+        // 创建指向不存在文件的符号链接
+        let nonexistent = temp_path.join("nonexistent.exe");
+        let broken_link = temp_path.join("broken.symlink");
+
+        if create_symlink(&nonexistent, &broken_link).is_ok() {
+            // 解析损坏的符号链接
+            let resolved = loader_inner.resolve_symlink_with_protection(&broken_link, 8);
+            // 应该返回 None
+            assert!(resolved.is_none());
+        }
+    }
+
+    #[test]
+    fn test_symlink_mode_explicit_only() {
+        let temp_dir = setup_test_env();
+        let temp_path = temp_dir.path();
+
+        // 创建一个简单的检查器
+        let patterns = vec!["*.exe".to_string(), "*.symlink".to_string()];
+        let pattern_type = "Wildcard".to_string();
+        let excluded = vec![];
+        let checker = PathChecker::new(&patterns, &pattern_type, &excluded).unwrap();
+        let checker = Arc::new(checker);
+
+        let semantic_manager = Arc::new(SemanticManager::new(None, HashMap::new()));
+        let loader_inner = ProgramLoaderInner::new(semantic_manager);
+
+        // ExplicitOnly 模式
+        let symlink_mode = SymlinkMode::ExplicitOnly;
+
+        // 普通 .exe 文件应该通过
+        let exe_file = temp_path.join("test.exe");
+        assert!(loader_inner.is_target_file(&exe_file, checker.clone(), &symlink_mode));
+
+        // .symlink 文件应该通过（如果匹配 pattern）
+        fs::write(temp_path.join("app.symlink"), b"fake").unwrap();
+        let symlink_file = temp_path.join("app.symlink");
+        assert!(loader_inner.is_target_file(&symlink_file, checker.clone(), &symlink_mode));
+
+        // .txt 文件不应该通过（不匹配 pattern）
+        let txt_file = temp_path.join("readme.txt");
+        assert!(!loader_inner.is_target_file(&txt_file, checker.clone(), &symlink_mode));
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn test_is_target_file_auto_mode_detects_symlink() {
+        let temp_dir = setup_test_env();
+        let temp_path = temp_dir.path();
+
+        // 创建一个实际的符号链接，不带 .symlink 后缀，且不匹配 pattern
+        let target = temp_path.join("test.exe");
+        let link = temp_path.join("test_link"); // 注意：不带 .exe 后缀
+
+        if create_symlink(&target, &link).is_ok() {
+            // pattern 只匹配 .exe 文件
+            let patterns = vec!["*.exe".to_string()];
+            let pattern_type = "Wildcard".to_string();
+            let excluded = vec![];
+            let checker = PathChecker::new(&patterns, &pattern_type, &excluded).unwrap();
+            let checker = Arc::new(checker);
+
+            let semantic_manager = Arc::new(SemanticManager::new(None, HashMap::new()));
+            let loader_inner = ProgramLoaderInner::new(semantic_manager);
+
+            let symlink_mode = SymlinkMode::Auto;
+
+            // Auto 模式下，符号链接即使不匹配 pattern 也应该被识别
+            assert!(loader_inner.is_target_file(&link, checker.clone(), &symlink_mode));
+            // 普通 .exe 文件应该被识别（匹配 pattern）
+            assert!(loader_inner.is_target_file(&target, checker.clone(), &symlink_mode));
+
+            // 非符号链接且不匹配 pattern 的文件不应该被识别
+            let non_exe = temp_path.join("test.txt");
+            fs::write(&non_exe, b"test").unwrap();
+            assert!(!loader_inner.is_target_file(&non_exe, checker.clone(), &symlink_mode));
+        }
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn test_symlink_excluded_keywords_check() {
+        let _temp_dir = setup_test_env();
+
+        let semantic_manager = Arc::new(SemanticManager::new(None, HashMap::new()));
+        let loader_inner = ProgramLoaderInner::new(semantic_manager);
+
+        let excluded = vec!["uninstall".to_string()];
+
+        // 测试：符号链接文件名包含屏蔽字应该被过滤
+        let bad_link_name = "uninstall_app.symlink";
+        assert!(loader_inner.contains_excluded_keywords(bad_link_name, &excluded));
+
+        // 测试：符号链接文件名不包含屏蔽字应该通过
+        let good_link_name = "myapp.symlink";
+        assert!(!loader_inner.contains_excluded_keywords(good_link_name, &excluded));
+
+        // 注意：新的实现不再解析符号链接目标，所以目标文件名不再被检查
+        // 这允许用户通过创建符号链接来重命名程序
+    }
+
+    #[test]
+    fn test_recursive_visit_dir_respects_depth_and_forbidden() {
+        let temp_dir = setup_test_env();
+        let temp_path = temp_dir.path();
+
+        // 创建嵌套目录结构
+        let nested_level_one = temp_path.join("nested");
+        let nested_level_two = nested_level_one.join("inner");
+        fs::create_dir_all(&nested_level_two).unwrap();
+        let deep_file = nested_level_two.join("deep.exe");
+        fs::write(&deep_file, b"deep").unwrap();
+
+        // 创建需要屏蔽的目录
+        let forbidden_dir = temp_path.join("skip");
+        fs::create_dir_all(&forbidden_dir).unwrap();
+        fs::write(forbidden_dir.join("skip.exe"), b"skip").unwrap();
+
+        let patterns = vec!["*.exe".to_string()];
+        let pattern_type = "Wildcard".to_string();
+        let excluded = vec![];
+
+        let semantic_manager = Arc::new(SemanticManager::new(None, HashMap::new()));
+        let mut loader_inner = ProgramLoaderInner::new(semantic_manager);
+        loader_inner
+            .forbidden_paths
+            .push(forbidden_dir.to_string_lossy().into_owned());
+
+        let checker = Arc::new(PathChecker::new(&patterns, &pattern_type, &excluded).unwrap());
+
+        // 深度限制为 2，应该无法访问到 nested/inner/deep.exe
+        let results_shallow = loader_inner.recursive_visit_dir(
+            temp_path,
+            2,
+            checker.clone(),
+            &SymlinkMode::ExplicitOnly,
+        );
+        let shallow_names: HashSet<String> = results_shallow
+            .iter()
+            .filter_map(|p| Path::new(p).file_name())
+            .filter_map(|name| name.to_str())
+            .map(|name| name.to_string())
+            .collect();
+        assert!(!shallow_names.contains("deep.exe"));
+        assert!(!shallow_names.contains("skip.exe"));
+
+        // 放宽深度限制，应该能访问到 deep.exe，但仍然排除 skip.exe
+        let checker = Arc::new(PathChecker::new(&patterns, &pattern_type, &excluded).unwrap());
+        let results_deep =
+            loader_inner.recursive_visit_dir(temp_path, 10, checker, &SymlinkMode::ExplicitOnly);
+        let deep_names: HashSet<String> = results_deep
+            .iter()
+            .filter_map(|p| Path::new(p).file_name())
+            .filter_map(|name| name.to_str())
+            .map(|name| name.to_string())
+            .collect();
+        assert!(deep_names.contains("deep.exe"));
+        assert!(!deep_names.contains("skip.exe"));
+    }
+
+    #[test]
+    fn test_directory_config_defaults() {
+        let config = DirectoryConfig::new("C:\\Test".to_string(), 5);
+
+        // 检查默认值
+        assert_eq!(config.symlink_mode, SymlinkMode::ExplicitOnly);
+        assert_eq!(config.max_symlink_depth, 4); // 默认深度限制为 4
+        assert!(config.pattern.contains(&"*.exe".to_string()));
+        assert!(config.excluded_keywords.contains(&"uninstall".to_string()));
+    }
+
+    #[test]
+    fn test_symlink_mode_serialization() {
+        // 测试 ExplicitOnly
+        let mode = SymlinkMode::ExplicitOnly;
+        let json = serde_json::to_string(&mode).unwrap();
+        assert_eq!(json, r#""ExplicitOnly""#);
+
+        // 测试 Auto
+        let mode = SymlinkMode::Auto;
+        let json = serde_json::to_string(&mode).unwrap();
+        assert_eq!(json, r#""Auto""#);
+
+        // 测试反序列化
+        let mode: SymlinkMode = serde_json::from_str(r#""ExplicitOnly""#).unwrap();
+        assert_eq!(mode, SymlinkMode::ExplicitOnly);
+
+        let mode: SymlinkMode = serde_json::from_str(r#""Auto""#).unwrap();
+        assert_eq!(mode, SymlinkMode::Auto);
     }
 }

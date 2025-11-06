@@ -4,6 +4,18 @@ use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+/// 符号链接处理模式
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SymlinkMode {
+    /// 仅处理带有 .symlink 扩展名的符号链接
+    /// 用户需要在 pattern 中添加 *.symlink，并将符号链接重命名为 xxx.symlink
+    #[default]
+    ExplicitOnly,
+    /// 自动处理所有符号链接
+    /// 会自动检测文件系统元数据来识别符号链接，无需 .symlink 扩展名
+    Auto,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PartialProgramLoaderConfig {
     pub target_paths: Option<Vec<DirectoryConfig>>,
@@ -29,6 +41,12 @@ pub struct DirectoryConfig {
     pub pattern_type: String,
     /// 要禁止的程序关键字
     pub excluded_keywords: Vec<String>,
+    /// 符号链接处理模式（该目录及其子目录都使用这个设置）
+    #[serde(default)]
+    pub symlink_mode: SymlinkMode,
+    /// 符号链接最大解析深度（防止循环引用）
+    #[serde(default = "DirectoryConfig::default_max_symlink_depth")]
+    pub max_symlink_depth: u32,
 }
 
 impl DirectoryConfig {
@@ -49,7 +67,13 @@ impl DirectoryConfig {
                 "卸载".to_string(),
                 "zerolaunch-rs".to_string(),
             ],
+            symlink_mode: SymlinkMode::default(),
+            max_symlink_depth: Self::default_max_symlink_depth(),
         }
+    }
+
+    fn default_max_symlink_depth() -> u32 {
+        4
     }
 }
 

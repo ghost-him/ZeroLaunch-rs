@@ -70,9 +70,40 @@
                         </div>
 
                         <div class="form-row">
+                            <div class="form-label">{{ t('program_index.symlink_mode') }}:</div>
+                            <el-select v-model="currentPath.symlink_mode"
+                                :placeholder="t('program_index.symlink_mode_explicit')" 
+                                @change="updateCurrentPath"
+                                style="flex: 1;">
+                                <el-option :label="t('program_index.symlink_mode_explicit')" value="ExplicitOnly"></el-option>
+                                <el-option :label="t('program_index.symlink_mode_auto')" value="Auto"></el-option>
+                            </el-select>
+                            <el-tooltip class="box-item" effect="dark"
+                                :content="t('program_index.symlink_mode_tooltip')">
+                                <el-icon class="el-question-icon">
+                                    <QuestionFilled />
+                                </el-icon>
+                            </el-tooltip>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-label">{{ t('program_index.max_symlink_depth') }}:</div>
+                            <el-input-number v-model="currentPath.max_symlink_depth" :min="1" :max="10" :precision="0"
+                                @change="updateCurrentPath"></el-input-number>
+                            <el-tooltip class="box-item" effect="dark"
+                                :content="t('program_index.max_symlink_depth_tooltip')">
+                                <el-icon class="el-question-icon">
+                                    <QuestionFilled />
+                                </el-icon>
+                            </el-tooltip>
+                        </div>
+
+                        <div class="form-row">
                             <div class="form-label">{{ t('program_index.match_type') }}:</div>
                             <el-select v-model="currentPath.pattern_type"
-                                :placeholder="t('program_index.select_match_type')" @change="updateCurrentPath">
+                                :placeholder="t('program_index.select_match_type')" 
+                                @change="updateCurrentPath"
+                                style="flex: 1;">
                                 <el-option :label="t('program_index.regex')" value="Regex"></el-option>
                                 <el-option :label="t('program_index.wildcard')" value="Wildcard"></el-option>
                             </el-select>
@@ -592,7 +623,9 @@ const currentPath: Ref<DirectoryConfig> = ref({
     max_depth: 2,
     pattern: [],
     pattern_type: 'Wildcard',
-    excluded_keywords: []
+    excluded_keywords: [],
+    symlink_mode: 'ExplicitOnly',
+    max_symlink_depth: 4
 })
 
 // 扩展名和关键词的表格数据
@@ -611,7 +644,13 @@ const commonExtensions: string[] = [
 const selectPath = (index: number): void => {
     selectedPathIndex.value = index
     // 深拷贝当前选中的路径配置
-    currentPath.value = JSON.parse(JSON.stringify(targetPaths.value[index]))
+    const selectedPath = targetPaths.value[index]
+    currentPath.value = {
+        ...JSON.parse(JSON.stringify(selectedPath)),
+        // 确保 symlink_mode 和 max_symlink_depth 有默认值（向后兼容）
+        symlink_mode: selectedPath.symlink_mode || 'ExplicitOnly',
+        max_symlink_depth: selectedPath.max_symlink_depth || 4
+    }
 
     // 更新表格数据
     console.log("刷新页面")
@@ -730,7 +769,9 @@ const addTargetPath = (): void => {
         max_depth: 2,
         pattern: ['*.lnk', '*.url', '*.exe'],
         pattern_type: 'Wildcard',
-        excluded_keywords: []
+        excluded_keywords: [],
+        symlink_mode: 'ExplicitOnly',
+        max_symlink_depth: 4
     }
 
     const newTargetPaths: DirectoryConfig[] = [...targetPaths.value, newRow]
@@ -963,7 +1004,9 @@ const handleFileDrop = async (payload: DragDropEvent) => {
                     max_depth: 2, // 文件夹默认深度 2
                     pattern: ['*.lnk', '*.url', '*.exe'], // 默认通配符
                     pattern_type: 'Wildcard',
-                    excluded_keywords: ['帮助', 'help', 'uninstall', '卸载', 'zerolaunch-rs']
+                    excluded_keywords: ['帮助', 'help', 'uninstall', '卸载', 'zerolaunch-rs'],
+                    symlink_mode: 'ExplicitOnly',
+                    max_symlink_depth: 4
                 };
                 // 使用核心函数添加（会自动检查重复的 root_path）
                 addOrUpdateTargetPath(newDirConfig, -1); // 索引 -1 表示尝试添加新条目
@@ -1003,7 +1046,9 @@ const handleFileDrop = async (payload: DragDropEvent) => {
                         max_depth: 1, // 文件所在目录默认深度 1
                         pattern: [filenamePattern], // 模式为该文件名
                         pattern_type: 'Wildcard', // 默认为通配符
-                        excluded_keywords: ['帮助', 'help', 'uninstall', '卸载', 'zerolaunch-rs']
+                        excluded_keywords: ['帮助', 'help', 'uninstall', '卸载', 'zerolaunch-rs'],
+                        symlink_mode: 'ExplicitOnly',
+                        max_symlink_depth: 4
                     };
                     // 调用核心函数添加新条目
                     addOrUpdateTargetPath(newFileConfig, -1);
@@ -1271,7 +1316,7 @@ onUnmounted(async () => {
 }
 
 .form-label {
-    min-width: 80px;
+    min-width: 140px;
     font-weight: 500;
     white-space: nowrap;
 }

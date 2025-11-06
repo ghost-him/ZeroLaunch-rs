@@ -169,12 +169,16 @@ export type ProgramRankerConfig = {
     is_enable: boolean
 }
 
+export type SymlinkMode = 'ExplicitOnly' | 'Auto';
+
 export type DirectoryConfig = {
     root_path: string
     max_depth: number
     pattern: string[]
     pattern_type: string
     excluded_keywords: string[]
+    symlink_mode?: SymlinkMode
+    max_symlink_depth?: number
 }
 
 export type BuiltinCommandType = 

@@ -112,7 +112,10 @@ pub fn handle_toggle_game_mode() {
         notify("ZeroLaunch-rs", &t("notifications.game_mode_enabled"));
     } else {
         if let Err(e) = shortcut_manager.register_all_shortcuts() {
-            warn!("Failed to register shortcuts after exiting game mode: {:?}", e);
+            warn!(
+                "Failed to register shortcuts after exiting game mode: {:?}",
+                e
+            );
         }
         notify("ZeroLaunch-rs", &t("notifications.game_mode_disabled"));
     }
@@ -129,7 +132,10 @@ fn update_game_mode_menu_state(checked: bool) {
     if let Some(item) = tray_menu.get(MENU_ID_SWITCH_GAME_MODE) {
         if let Some(menu_item) = item.as_check_menuitem() {
             if let Err(e) = menu_item.set_checked(checked) {
-                warn!("Failed to update game mode menu item checked state: {:?}", e);
+                warn!(
+                    "Failed to update game mode menu item checked state: {:?}",
+                    e
+                );
             }
         } else {
             warn!("Game mode menu item is not a CheckMenuItem.");

@@ -1,8 +1,8 @@
+use super::builtin_commands;
 use super::config::program_loader_config::DirectoryConfig;
 use super::localization_translation::parse_localized_names_from_dir;
 use super::pinyin_mapper::PinyinMapper;
 use super::LaunchMethod;
-use super::builtin_commands;
 use crate::core::image_processor::ImageIdentity;
 use crate::error::OptionExt;
 use crate::modules::config::default::APP_PIC_PATH;
@@ -646,7 +646,13 @@ impl ProgramLoaderInner {
 
             // 获取搜索关键词:
             // 一定是有关键字的，不应该没有关键字，如果没有，则说明代码写错了
-            let keywords = self.builtin_command_keywords.get(&meta.cmd_type).expect_programming(format!("当前程序无法获取以下的命令：{}", meta.name_key).as_str()).clone();
+            let keywords = self
+                .builtin_command_keywords
+                .get(&meta.cmd_type)
+                .expect_programming(
+                    format!("当前程序无法获取以下的命令：{}", meta.name_key).as_str(),
+                )
+                .clone();
 
             // 转换关键词
             let mut search_keywords = Vec::new();

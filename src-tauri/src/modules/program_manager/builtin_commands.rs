@@ -33,10 +33,7 @@ pub fn get_all_builtin_commands() -> Vec<BuiltinCommandMeta> {
             unique_key: format!("{}open_settings", PREFIX),
             description_key: "builtin.open_settings_desc".to_string(),
             icon: "settings".to_string(),
-            default_keywords: vec![
-                "settings".to_string(),
-                "设置".to_string(),
-            ],
+            default_keywords: vec!["settings".to_string(), "设置".to_string()],
         },
         BuiltinCommandMeta {
             cmd_type: BuiltinCommandType::RefreshDatabase,
@@ -44,10 +41,7 @@ pub fn get_all_builtin_commands() -> Vec<BuiltinCommandMeta> {
             unique_key: format!("{}refresh_database", PREFIX),
             description_key: "builtin.refresh_database_desc".to_string(),
             icon: "refresh".to_string(),
-            default_keywords: vec![
-                "refresh".to_string(),
-                "刷新数据".to_string(),
-            ],
+            default_keywords: vec!["refresh".to_string(), "刷新数据".to_string()],
         },
         BuiltinCommandMeta {
             cmd_type: BuiltinCommandType::RetryRegisterShortcut,
@@ -55,10 +49,7 @@ pub fn get_all_builtin_commands() -> Vec<BuiltinCommandMeta> {
             unique_key: format!("{}retry_register_shortcut", PREFIX),
             description_key: "builtin.retry_register_shortcut_desc".to_string(),
             icon: "register".to_string(),
-            default_keywords: vec![
-                "register".to_string(),
-                "重新注册".to_string(),
-            ],
+            default_keywords: vec!["register".to_string(), "重新注册".to_string()],
         },
         BuiltinCommandMeta {
             cmd_type: BuiltinCommandType::ToggleGameMode,
@@ -66,10 +57,7 @@ pub fn get_all_builtin_commands() -> Vec<BuiltinCommandMeta> {
             unique_key: format!("{}toggle_game_mode", PREFIX),
             description_key: "builtin.toggle_game_mode_desc".to_string(),
             icon: "game".to_string(),
-            default_keywords: vec![
-                "game".to_string(),
-                "游戏模式".to_string(),
-            ],
+            default_keywords: vec!["game".to_string(), "游戏模式".to_string()],
         },
         BuiltinCommandMeta {
             cmd_type: BuiltinCommandType::ExitProgram,
@@ -77,10 +65,7 @@ pub fn get_all_builtin_commands() -> Vec<BuiltinCommandMeta> {
             unique_key: format!("{}exit_program", PREFIX),
             description_key: "builtin.exit_program_desc".to_string(),
             icon: "exit".to_string(),
-            default_keywords: vec![
-                "exit".to_string(),
-                "退出".to_string(),
-            ],
+            default_keywords: vec!["exit".to_string(), "退出".to_string()],
         },
     ]
 }
@@ -101,5 +86,3 @@ pub fn parse_builtin_command(cmd_str: &str) -> Option<BuiltinCommandType> {
         _ => None,
     }
 }
-
-

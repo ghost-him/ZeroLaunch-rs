@@ -1,7 +1,7 @@
 // 存放辅助型的小类型
 use crate::core::image_processor::ImageIdentity;
-use crate::program_manager::PartialProgramManagerConfig;
 use crate::program_manager::builtin_commands::PREFIX;
+use crate::program_manager::PartialProgramManagerConfig;
 use bincode::{Decode, Encode};
 pub type EmbeddingVec = Vec<f32>;
 use serde::{Deserialize, Serialize};
@@ -52,7 +52,7 @@ impl LaunchMethod {
                 } else {
                     panic!("编码错误！内置命令必须以 内置命令前缀 PREFIX 开头");
                 }
-            },
+            }
         }
     }
 

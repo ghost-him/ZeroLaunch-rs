@@ -43,8 +43,8 @@ async fn execute_builtin_command(cmd_str: &str) -> Result<(), String> {
         parse_builtin_command, BuiltinCommandType,
     };
 
-    let cmd_type = parse_builtin_command(cmd_str)
-        .ok_or_else(|| format!("未知的内置命令: {}", cmd_str))?;
+    let cmd_type =
+        parse_builtin_command(cmd_str).ok_or_else(|| format!("未知的内置命令: {}", cmd_str))?;
 
     info!("🔧 执行内置命令: {:?}", cmd_type);
 

@@ -1,3 +1,4 @@
+pub mod builtin_commands;
 pub mod config;
 pub mod image_loader;
 pub mod localization_translation;
@@ -8,7 +9,6 @@ pub mod program_ranker;
 pub mod search_model;
 pub mod semantic_backend;
 pub mod semantic_manager;
-pub mod builtin_commands;
 use crate::program_manager::search_engine::TraditionalSearchEngine;
 pub mod search_engine;
 pub mod unit;

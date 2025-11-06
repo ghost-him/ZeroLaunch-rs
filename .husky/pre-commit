@@ -2,6 +2,43 @@ set -e
 
 echo "Running pre-commit checks..."
 
+# 0. 检查是否存在未暂存或未跟踪的文件
+# git diff --name-only: 工作区与暂存区的差异（已修改但未暂存）
+UNSTAGED_FILES=$(git diff --name-only)
+# git ls-files: 未被 git 跟踪的文件
+UNTRACKED_FILES=$(git ls-files --others --exclude-standard)
+
+if [ -n "$UNSTAGED_FILES" ] || [ -n "$UNTRACKED_FILES" ]; then
+  echo "⚠️  检测到以下文件尚未被暂存："
+
+  if [ -n "$UNSTAGED_FILES" ]; then
+    echo "$UNSTAGED_FILES" | sed 's/^/  • 修改未暂存: /'
+  fi
+
+  if [ -n "$UNTRACKED_FILES" ]; then
+    echo "$UNTRACKED_FILES" | sed 's/^/  • 新文件未暂存: /'
+  fi
+
+  while true; do
+    printf "是否继续执行提交流程？[y/N]: "
+    read -r answer < /dev/tty
+
+    case "$answer" in
+      [Yy]|[Yy][Ee][Ss])
+        echo "继续执行提交流程..."
+        break
+        ;;
+      ""|[Nn]|[Nn][Oo])
+        echo "已终止提交。请先处理上述文件后再提交。"
+        exit 1
+        ;;
+      *)
+        echo "请输入 y 或 n。"
+        ;;
+    esac
+  done
+fi
+
 # 1. 构建前端（确保 dist 文件夹存在）
 echo "🏗️  Building frontend..."
 bun run build

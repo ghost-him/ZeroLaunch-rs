@@ -24,6 +24,7 @@ pub async fn command_save_remote_config<R: Runtime>(
     use tracing::info;
 
     info!("💾 开始保存远程配置");
+    println!("收到的远程配置: {:?}", partial_config);
 
     let runtime_config = state.get_runtime_config();
 

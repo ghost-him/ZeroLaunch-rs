@@ -24,8 +24,6 @@
     "retry_register_shortcut": "重新注册快捷键",
     "switch_game_mode": "游戏模式 (禁用全局快捷键)",
     "exit_program": "退出程序",
-    "enable_game_mode": "开启游戏模式",
-    "disable_game_mode": "关闭游戏模式",
     "tooltip": "ZeroLaunch-rs v{version}"
   },
   "notifications": {
@@ -38,7 +36,20 @@
     "game_mode_enabled": "游戏模式已开启，全局快捷键已禁用。",
     "game_mode_disabled": "游戏模式已关闭，全局快捷键已启用。",
     "already_running": "zerolaunch-rs已运行，不要重复运行",
-    "app_started": "ZeroLaunch-rs已成功启动！"
+    "app_started": "ZeroLaunch-rs已成功启动！",
+    "refresh_started": "已开始刷新程序数据库..."
+  },
+  "builtin": {
+    "open_settings": "设置",
+    "open_settings_desc": "打开 ZeroLaunch-rs 设置窗口",
+    "refresh_database": "刷新数据库",
+    "refresh_database_desc": "重新扫描并加载所有程序",
+    "retry_register_shortcut": "重新注册快捷键",
+    "retry_register_shortcut_desc": "重新注册全局快捷键",
+    "toggle_game_mode": "游戏模式",
+    "toggle_game_mode_desc": "切换游戏模式以禁用或启用快捷键",
+    "exit_program": "退出程序",
+    "exit_program_desc": "保存配置并退出 ZeroLaunch-rs"
   },
   "parameter": {
     "prompt": "请输入 {program} 的第 {index}/{total} 个参数",
@@ -331,6 +342,17 @@
     },
     "custom_web_search": "网址",
     "custom_command_search": "命令",
+    "builtin_command_settings": "内置命令",
+    "builtin_command_title": "内置命令管理",
+    "builtin_command_description": "启用或禁用内置命令，禁用的命令不会出现在搜索结果中",
+    "builtin_command_function": "功能",
+    "builtin_command_display_name": "显示名称",
+    "builtin_command_keywords": "搜索关键词",
+    "builtin_command_enabled": "启用",
+    "add_keyword": "添加关键词",
+    "reset_to_default": "恢复默认",
+    "enable_all": "全部启用",
+    "disable_all": "全部禁用",
     "add_item": "添加项目",
     "keyword_for_search": "关键字（用于搜索程序的匹配）",
     "enter_keyword": "请输入关键字",

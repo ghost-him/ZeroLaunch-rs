@@ -6,8 +6,8 @@ use crate::modules::program_manager::FallbackReason;
 use crate::modules::program_manager::{LaunchMethod, LaunchMethodKind};
 use crate::save_config_to_file;
 use crate::state::app_state::AppState;
-use crate::update_app_setting;
 use crate::utils::notify::notify;
+use crate::utils::service_locator::ServiceLocator;
 use crate::utils::windows::shell_execute_open;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -37,6 +37,47 @@ pub struct LaunchTemplateInfo {
     show_name: String,
 }
 
+/// 执行内置命令
+async fn execute_builtin_command(cmd_str: &str) -> Result<(), String> {
+    use crate::modules::program_manager::builtin_commands::{
+        parse_builtin_command, BuiltinCommandType,
+    };
+
+    let cmd_type = parse_builtin_command(cmd_str)
+        .ok_or_else(|| format!("未知的内置命令: {}", cmd_str))?;
+
+    info!("🔧 执行内置命令: {:?}", cmd_type);
+
+    match cmd_type {
+        BuiltinCommandType::OpenSettings => {
+            // 复用 tray.rs 中的函数
+            crate::tray::handle_show_settings_window();
+        }
+        BuiltinCommandType::RefreshDatabase => {
+            // 复用 tray.rs 中的函数
+            tauri::async_runtime::spawn(async {
+                crate::tray::handle_update_app_setting().await;
+            });
+        }
+        BuiltinCommandType::RetryRegisterShortcut => {
+            // 复用 tray.rs 中的函数
+            crate::tray::handle_register_shortcut();
+        }
+        BuiltinCommandType::ToggleGameMode => {
+            // 复用 tray.rs 中的函数
+            crate::tray::handle_toggle_game_mode();
+        }
+        BuiltinCommandType::ExitProgram => {
+            // 复用 tray.rs 中的函数
+            let state = ServiceLocator::get_state();
+            let app_handle = state.get_main_handle();
+            crate::tray::handle_exit_program(&app_handle).await;
+        }
+    }
+
+    Ok(())
+}
+
 /// 协调程序启动流程并处理可选的覆盖启动方式
 async fn launch_program_internal(
     state: tauri::State<'_, Arc<AppState>>,
@@ -55,11 +96,23 @@ async fn launch_program_internal(
 
     let program_manager = state.get_program_manager();
 
+    // 先隐藏窗口
     if let Err(e) = hide_window() {
         warn!("⚠️ 隐藏窗口失败: {:?}", e);
         return Err(format!("Failed to hide window: {:?}", e));
     }
 
+    // 检查是否是内置命令
+    let program = program_manager
+        .get_program_by_guid(program_guid)
+        .await
+        .ok_or_else(|| format!("未找到程序: GUID={}", program_guid))?;
+
+    if let LaunchMethod::BuiltinCommand(ref cmd_str) = program.launch_method {
+        return execute_builtin_command(cmd_str).await;
+    }
+
+    // 普通程序的启动逻辑
     let is_admin_required = ctrl;
     let open_exist_window = shift;
     let mut activated_existing = false;
@@ -216,7 +269,7 @@ pub async fn refresh_program<R: Runtime>(
     _app: tauri::AppHandle<R>,
     _window: tauri::Window<R>,
 ) -> Result<(), String> {
-    update_app_setting().await;
+    crate::tray::handle_update_app_setting().await;
     Ok(())
 }
 

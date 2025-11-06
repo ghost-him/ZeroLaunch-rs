@@ -121,6 +121,9 @@
                         </div>
                     </el-tab-pane>
 
+                    <el-tab-pane :label="t('settings.builtin_command_settings')" style="height: 100%">
+                        <BuiltinCommandSetting></BuiltinCommandSetting>
+                    </el-tab-pane>
                 </el-tabs>
             </section>
 
@@ -173,6 +176,7 @@ import debug from "./debug.vue";
 import ConfigPathSelector from "./ConfigPathSelector.vue";
 import ShortcutSetting from './ShortcutSetting.vue';
 import AppConfigSetting from './AppConfigSetting.vue';
+import BuiltinCommandSetting from './BuiltinCommandSetting.vue';
 const configStore = useRemoteConfigStore()
 const { config } = storeToRefs(configStore)
 interface MenuItem {

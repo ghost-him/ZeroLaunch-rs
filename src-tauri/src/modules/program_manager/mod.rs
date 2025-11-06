@@ -8,6 +8,7 @@ pub mod program_ranker;
 pub mod search_model;
 pub mod semantic_backend;
 pub mod semantic_manager;
+pub mod builtin_commands;
 use crate::program_manager::search_engine::TraditionalSearchEngine;
 pub mod search_engine;
 pub mod unit;
@@ -268,7 +269,7 @@ impl ProgramManager {
             .map(|entry| *entry.value())
     }
 
-    async fn get_program_by_guid(&self, program_guid: u64) -> Option<Arc<Program>> {
+    pub async fn get_program_by_guid(&self, program_guid: u64) -> Option<Arc<Program>> {
         let index = self.get_program_index(program_guid)?;
         let program_registry = self.program_registry.read().await;
         program_registry.get(index).cloned()

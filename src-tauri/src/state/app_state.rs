@@ -6,6 +6,7 @@ use crate::utils::i18n::Translator;
 use crate::utils::waiting_hashmap::AsyncWaitingHashMap;
 use parking_lot::RwLock;
 use std::sync::Arc;
+use tauri::menu::Menu;
 use tauri::tray::TrayIcon;
 use tauri::AppHandle;
 use timer::{Guard, Timer};
@@ -29,6 +30,8 @@ pub struct AppState {
     waiting_hashmap: Arc<AsyncWaitingHashMap<String, Vec<(String, String)>>>,
     /// 系统托盘
     tray_icon: RwLock<Option<Arc<TrayIcon>>>,
+    /// 托盘菜单
+    tray_menu: RwLock<Option<Arc<Menu<tauri::Wry>>>>,
     /// 快捷键管理器
     shortcut_manager: RwLock<Option<Arc<ShortcutManager>>>,
     /// 游戏模式
@@ -59,6 +62,7 @@ impl AppState {
             storage_client: RwLock::new(None),
             waiting_hashmap: Arc::new(AsyncWaitingHashMap::new()),
             tray_icon: RwLock::new(None),
+            tray_menu: RwLock::new(None),
             shortcut_manager: RwLock::new(None),
             game_mode: RwLock::new(false),
             is_keyboard_blocked: RwLock::new(false),
@@ -163,6 +167,18 @@ impl AppState {
             .as_ref()
             .cloned()
             .expect_programming("tray icon not initialized")
+    }
+
+    pub fn set_tray_menu(&self, menu: Arc<Menu<tauri::Wry>>) {
+        *self.tray_menu.write() = Some(menu);
+    }
+
+    pub fn get_tray_menu(&self) -> Arc<Menu<tauri::Wry>> {
+        self.tray_menu
+            .read()
+            .as_ref()
+            .cloned()
+            .expect_programming("tray menu not initialized")
     }
 
     pub fn get_shortcut_manager(&self) -> Arc<ShortcutManager> {

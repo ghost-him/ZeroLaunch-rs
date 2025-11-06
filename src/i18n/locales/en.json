@@ -24,8 +24,6 @@
     "retry_register_shortcut": "Retry Register Shortcut",
     "switch_game_mode": "Game Mode (Disable Global Shortcuts)",
     "exit_program": "Exit",
-    "enable_game_mode": "Enable Game Mode",
-    "disable_game_mode": "Disable Game Mode",
     "tooltip": "ZeroLaunch-rs v{version}"
   },
   "notifications": {
@@ -38,7 +36,20 @@
     "game_mode_enabled": "Game mode enabled. Global shortcuts disabled.",
     "game_mode_disabled": "Game mode disabled. Global shortcuts enabled.",
     "already_running": "zerolaunch-rs is already running. Do not run multiple instances.",
-    "app_started": "ZeroLaunch-rs started successfully!"
+    "app_started": "ZeroLaunch-rs started successfully!",
+    "refresh_started": "Started refreshing program database..."
+  },
+  "builtin": {
+    "open_settings": "Settings",
+    "open_settings_desc": "Open ZeroLaunch-rs settings window",
+    "refresh_database": "Refresh Database",
+    "refresh_database_desc": "Rescan and reload all programs",
+    "retry_register_shortcut": "Register Shortcut",
+    "retry_register_shortcut_desc": "Re-register global shortcuts",
+    "toggle_game_mode": "Game Mode",
+    "toggle_game_mode_desc": "Toggle game mode to disable or enable shortcuts",
+    "exit_program": "Exit Program",
+    "exit_program_desc": "Save configuration and exit ZeroLaunch-rs"
   },
   "parameter": {
     "prompt": "Enter argument {index} of {total} for {program}",
@@ -331,6 +342,17 @@
     },
     "custom_web_search": "URL",
     "custom_command_search": "Command",
+    "builtin_command_settings": "Built-in Commands",
+    "builtin_command_title": "Built-in Command Management",
+    "builtin_command_description": "Enable or disable built-in commands. Disabled commands will not appear in search results",
+    "builtin_command_function": "Function",
+    "builtin_command_display_name": "Display Name",
+    "builtin_command_keywords": "Search Keywords",
+    "builtin_command_enabled": "Enabled",
+    "add_keyword": "Add Keyword",
+    "reset_to_default": "Reset to Default",
+    "enable_all": "Enable All",
+    "disable_all": "Disable All",
     "add_item": "Add Item",
     "keyword_for_search": "Keyword (for program search matching)",
     "enter_keyword": "Please enter keyword",

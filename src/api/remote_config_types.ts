@@ -177,6 +177,13 @@ export type DirectoryConfig = {
     excluded_keywords: string[]
 }
 
+export type BuiltinCommandType = 
+    | 'OpenSettings'
+    | 'RefreshDatabase'
+    | 'RetryRegisterShortcut'
+    | 'ToggleGameMode'
+    | 'ExitProgram';
+
 export type ProgramLoaderConfig = {
     target_paths: DirectoryConfig[]
     program_bias: { [key: string]: [number, string] }
@@ -185,6 +192,8 @@ export type ProgramLoaderConfig = {
     custom_command: [string, string][]
     forbidden_paths: string[]
     program_alias: { [key: string]: string[] }
+    enabled_builtin_commands: Record<BuiltinCommandType, boolean>
+    builtin_command_keywords: Record<BuiltinCommandType, string[]>
 }
 
 export type ImageLoaderConfig = {

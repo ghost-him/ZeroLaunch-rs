@@ -1,4 +1,5 @@
 use crate::core::storage::windows_utils::{get_desktop_path, get_start_menu_paths};
+use crate::program_manager::builtin_commands::BuiltinCommandType;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -13,6 +14,8 @@ pub struct PartialProgramLoaderConfig {
     pub forbidden_paths: Option<Vec<String>>,
     pub program_alias: Option<HashMap<String, Vec<String>>>,
     pub semantic_descriptions: Option<HashMap<String, String>>,
+    pub enabled_builtin_commands: Option<HashMap<BuiltinCommandType, bool>>,
+    pub builtin_command_keywords: Option<HashMap<BuiltinCommandType, Vec<String>>>,
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DirectoryConfig {
@@ -76,6 +79,12 @@ pub struct ProgramLoaderConfigInner {
     /// 程序的语义性描述信息 (launch_method) => (description)
     #[serde(default = "ProgramLoaderConfigInner::default_semantic_descriptions")]
     pub semantic_descriptions: HashMap<String, String>,
+    /// 启用的内置命令配置 (command_type) => (is_enabled)
+    #[serde(default = "ProgramLoaderConfigInner::default_enabled_builtin_commands")]
+    pub enabled_builtin_commands: HashMap<BuiltinCommandType, bool>,
+    /// 内置命令的自定义关键词 (command_type) => (keywords)
+    #[serde(default = "ProgramLoaderConfigInner::default_builtin_command_keywords")]
+    pub builtin_command_keywords: HashMap<BuiltinCommandType, Vec<String>>,
 }
 
 impl Default for ProgramLoaderConfigInner {
@@ -89,6 +98,8 @@ impl Default for ProgramLoaderConfigInner {
             forbidden_paths: Self::default_forbidden_paths(),
             program_alias: Self::default_program_alias(),
             semantic_descriptions: Self::default_semantic_descriptions(),
+            enabled_builtin_commands: Self::default_enabled_builtin_commands(),
+            builtin_command_keywords: Self::default_builtin_command_keywords(),
         }
     }
 }
@@ -146,6 +157,25 @@ impl ProgramLoaderConfigInner {
     pub(crate) fn default_semantic_descriptions() -> HashMap<String, String> {
         HashMap::new()
     }
+
+    pub(crate) fn default_enabled_builtin_commands() -> HashMap<BuiltinCommandType, bool> {
+        use crate::program_manager::builtin_commands::get_all_builtin_commands;
+        // 从元数据动态生成，默认全部启用
+        get_all_builtin_commands()
+            .into_iter()
+            .map(|meta| (meta.cmd_type, true))
+            .collect()
+    }
+
+    pub(crate) fn default_builtin_command_keywords() -> HashMap<BuiltinCommandType, Vec<String>> {
+        use crate::program_manager::builtin_commands::get_all_builtin_commands;
+        let builtin_commands = get_all_builtin_commands();
+        let mut result = HashMap::new();
+        for command in builtin_commands {
+            result.insert(command.cmd_type, command.default_keywords.clone());
+        }
+        result
+    }
 }
 
 impl ProgramLoaderConfigInner {
@@ -159,6 +189,8 @@ impl ProgramLoaderConfigInner {
             forbidden_paths: Some(self.forbidden_paths.clone()),
             program_alias: Some(self.program_alias.clone()),
             semantic_descriptions: Some(self.semantic_descriptions.clone()),
+            enabled_builtin_commands: Some(self.enabled_builtin_commands.clone()),
+            builtin_command_keywords: Some(self.builtin_command_keywords.clone()),
         }
     }
 
@@ -186,6 +218,12 @@ impl ProgramLoaderConfigInner {
         }
         if let Some(partial_semantic_descriptions) = partial_config.semantic_descriptions {
             self.semantic_descriptions = partial_semantic_descriptions;
+        }
+        if let Some(partial_enabled_builtin_commands) = partial_config.enabled_builtin_commands {
+            self.enabled_builtin_commands = partial_enabled_builtin_commands;
+        }
+        if let Some(partial_builtin_command_keywords) = partial_config.builtin_command_keywords {
+            self.builtin_command_keywords = partial_builtin_command_keywords;
         }
     }
 }
@@ -240,5 +278,12 @@ impl ProgramLoaderConfig {
     }
     pub fn get_semantic_descriptions(&self) -> HashMap<String, String> {
         self.inner.read().semantic_descriptions.clone()
+    }
+    pub fn get_enabled_builtin_commands(&self) -> HashMap<BuiltinCommandType, bool> {
+        self.inner.read().enabled_builtin_commands.clone()
+    }
+
+    pub fn get_builtin_command_keywords(&self) -> HashMap<BuiltinCommandType, Vec<String>> {
+        self.inner.read().builtin_command_keywords.clone()
     }
 }

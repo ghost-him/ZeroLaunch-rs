@@ -1,6 +1,7 @@
 // 存放辅助型的小类型
 use crate::core::image_processor::ImageIdentity;
 use crate::program_manager::PartialProgramManagerConfig;
+use crate::program_manager::builtin_commands::PREFIX;
 use bincode::{Decode, Encode};
 pub type EmbeddingVec = Vec<f32>;
 use serde::{Deserialize, Serialize};
@@ -12,6 +13,7 @@ pub enum LaunchMethodKind {
     PackageFamilyName,
     File,
     Command,
+    BuiltinCommand,
 }
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq, Hash, Encode, Decode)]
 pub enum LaunchMethod {
@@ -23,6 +25,8 @@ pub enum LaunchMethod {
     File(String),
     /// 一个自定义的命令
     Command(String),
+    /// 内置设置的命令
+    BuiltinCommand(String),
 }
 
 impl LaunchMethod {
@@ -32,6 +36,7 @@ impl LaunchMethod {
             LaunchMethod::PackageFamilyName(name) => name,
             LaunchMethod::File(path) => path,
             LaunchMethod::Command(command) => command,
+            LaunchMethod::BuiltinCommand(command) => command,
         }
     }
 
@@ -41,6 +46,13 @@ impl LaunchMethod {
             LaunchMethod::PackageFamilyName(_) => LaunchMethod::PackageFamilyName(text),
             LaunchMethod::File(_) => LaunchMethod::File(text),
             LaunchMethod::Command(_) => LaunchMethod::Command(text),
+            LaunchMethod::BuiltinCommand(_) => {
+                if text.starts_with(PREFIX) {
+                    LaunchMethod::BuiltinCommand(text)
+                } else {
+                    panic!("编码错误！内置命令必须以 内置命令前缀 PREFIX 开头");
+                }
+            },
         }
     }
 
@@ -61,6 +73,7 @@ impl LaunchMethod {
             LaunchMethod::PackageFamilyName(_) => LaunchMethodKind::PackageFamilyName,
             LaunchMethod::File(_) => LaunchMethodKind::File,
             LaunchMethod::Command(_) => LaunchMethodKind::Command,
+            LaunchMethod::BuiltinCommand(_) => LaunchMethodKind::BuiltinCommand,
         }
     }
 

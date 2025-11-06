@@ -24,8 +24,6 @@
     "retry_register_shortcut": "重新註冊快速鍵",
     "switch_game_mode": "遊戲模式 (停用全域快速鍵)",
     "exit_program": "結束程式",
-    "enable_game_mode": "開啟遊戲模式",
-    "disable_game_mode": "關閉遊戲模式",
     "tooltip": "ZeroLaunch-rs v{version}"
   },
   "notifications": {
@@ -38,7 +36,20 @@
     "game_mode_enabled": "遊戲模式已開啟，全域快速鍵已停用。",
     "game_mode_disabled": "遊戲模式已關閉，全域快速鍵已啟用。",
     "already_running": "zerolaunch-rs已執行，請勿重複執行",
-    "app_started": "ZeroLaunch-rs已成功啟動！"
+    "app_started": "ZeroLaunch-rs已成功啟動！",
+    "refresh_started": "已開始重新整理程式資料庫..."
+  },
+  "builtin": {
+    "open_settings": "設定",
+    "open_settings_desc": "開啟 ZeroLaunch-rs 設定視窗",
+    "refresh_database": "重新整理資料庫",
+    "refresh_database_desc": "重新掃描並載入所有程式",
+    "retry_register_shortcut": "重新註冊快速鍵",
+    "retry_register_shortcut_desc": "重新註冊全域快速鍵",
+    "toggle_game_mode": "遊戲模式",
+    "toggle_game_mode_desc": "切換遊戲模式以停用或啟用快速鍵",
+    "exit_program": "結束程式",
+    "exit_program_desc": "儲存組態並結束 ZeroLaunch-rs"
   },
   "parameter": {
     "prompt": "請輸入 {program} 的第 {index}/{total} 個參數",
@@ -331,6 +342,17 @@
     },
     "custom_web_search": "網址",
     "custom_command_search": "指令",
+    "builtin_command_settings": "內建指令",
+    "builtin_command_title": "內建指令管理",
+    "builtin_command_description": "啟用或停用內建指令，停用的指令不會出現在搜尋結果中",
+    "builtin_command_function": "功能",
+    "builtin_command_display_name": "顯示名稱",
+    "builtin_command_keywords": "搜尋關鍵字",
+    "builtin_command_enabled": "啟用",
+    "add_keyword": "新增關鍵字",
+    "reset_to_default": "恢復預設",
+    "enable_all": "全部啟用",
+    "disable_all": "全部停用",
     "add_item": "新增項目",
     "keyword_for_search": "關鍵字（用於搜尋程式的符合）",
     "enter_keyword": "請輸入關鍵字",

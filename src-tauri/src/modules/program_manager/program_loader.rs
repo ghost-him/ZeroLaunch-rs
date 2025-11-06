@@ -2,6 +2,7 @@ use super::config::program_loader_config::DirectoryConfig;
 use super::localization_translation::parse_localized_names_from_dir;
 use super::pinyin_mapper::PinyinMapper;
 use super::LaunchMethod;
+use super::builtin_commands;
 use crate::core::image_processor::ImageIdentity;
 use crate::error::OptionExt;
 use crate::modules::config::default::APP_PIC_PATH;
@@ -174,6 +175,10 @@ pub struct ProgramLoaderInner {
     semantic_manager: Arc<SemanticManager>,
     /// 是否在加载时生成/读取程序的embedding（仅 ai 构建有效）
     compute_embeddings: bool,
+    /// 启用的内置命令配置
+    enabled_builtin_commands: HashMap<builtin_commands::BuiltinCommandType, bool>,
+    /// 内置命令的自定义关键词
+    builtin_command_keywords: HashMap<builtin_commands::BuiltinCommandType, Vec<String>>,
 }
 
 impl Default for ProgramLoaderInner {
@@ -200,6 +205,8 @@ impl ProgramLoaderInner {
             semantic_descriptions: HashMap::new(),
             semantic_manager,
             compute_embeddings: false,
+            enabled_builtin_commands: HashMap::new(),
+            builtin_command_keywords: HashMap::new(),
         }
     }
 
@@ -215,6 +222,8 @@ impl ProgramLoaderInner {
             custom_command: Some(self.custom_command.clone()),
             program_alias: Some(program_alias_hash_map),
             semantic_descriptions: Some(self.semantic_descriptions.clone()),
+            enabled_builtin_commands: Some(self.enabled_builtin_commands.clone()),
+            builtin_command_keywords: Some(self.builtin_command_keywords.clone()),
         }
     }
 
@@ -230,6 +239,8 @@ impl ProgramLoaderInner {
         self.custom_command = config.get_custom_command();
         self.program_alias = hashmap_to_dashmap(&config.get_program_alias());
         self.semantic_descriptions = config.get_semantic_descriptions();
+        self.enabled_builtin_commands = config.get_enabled_builtin_commands();
+        self.builtin_command_keywords = config.get_builtin_command_keywords();
     }
     /// 设置是否生成程序embedding
     pub fn set_compute_embeddings(&mut self, enabled: bool) {
@@ -301,6 +312,12 @@ impl ProgramLoaderInner {
         // 开始计时
         let start = Instant::now();
         let mut result = Vec::new();
+
+        // 加载内置命令
+        info!("🔧 开始加载内置命令");
+        let builtin_infos = self.load_builtin_commands();
+        info!("🔧 内置命令加载完成，找到 {} 个命令", builtin_infos.len());
+        result.extend(builtin_infos);
 
         if self.is_scan_uwp_programs {
             info!("📱 开始扫描UWP程序");
@@ -610,6 +627,62 @@ impl ProgramLoaderInner {
         pv.to_string()
     }
 
+    /// 加载内置命令
+    fn load_builtin_commands(&mut self) -> Vec<Arc<Program>> {
+        use crate::program_manager::builtin_commands;
+        use crate::utils::i18n::t;
+        let mut result = Vec::new();
+
+        // 获取启用的内置命令配置
+        let enabled_commands = &self.enabled_builtin_commands;
+
+        for meta in builtin_commands::get_all_builtin_commands() {
+            // 检查该命令是否启用,默认为启用
+            if !enabled_commands.get(&meta.cmd_type).unwrap_or(&true) {
+                continue;
+            }
+
+            let name = t(&meta.name_key);
+
+            // 获取搜索关键词:
+            // 一定是有关键字的，不应该没有关键字，如果没有，则说明代码写错了
+            let keywords = self.builtin_command_keywords.get(&meta.cmd_type).expect_programming(format!("当前程序无法获取以下的命令：{}", meta.name_key).as_str()).clone();
+
+            // 转换关键词
+            let mut search_keywords = Vec::new();
+            for keyword in keywords {
+                let mut converted = self.convert_search_keywords(&keyword);
+                search_keywords.append(&mut converted);
+            }
+
+            // 格式：zerolaunch-builtin:OpenSettings
+            let command_str = format!("{}{:?}", builtin_commands::PREFIX, meta.cmd_type);
+
+            let icon_file_name = &meta.icon;
+
+            // 使用内置图标
+            let icon_path = match APP_PIC_PATH.get(icon_file_name) {
+                Some(path) => ImageIdentity::File(path.value().clone()),
+                None => {
+                    warn!("未找到内置命令图标路径");
+                    ImageIdentity::File(String::new())
+                }
+            };
+
+            let program = self.create_program(
+                name.clone(),
+                meta.unique_key.clone(),
+                LaunchMethod::BuiltinCommand(command_str),
+                search_keywords,
+                icon_path,
+            );
+
+            result.push(program);
+        }
+        result
+    }
+
+    /// 加载UWP程序
     fn load_uwp_program(&mut self) -> Vec<Arc<Program>> {
         let mut ret: Vec<Arc<Program>> = Vec::new();
 

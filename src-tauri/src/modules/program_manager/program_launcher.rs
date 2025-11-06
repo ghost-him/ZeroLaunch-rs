@@ -39,7 +39,15 @@ impl ProgramLauncherInner {
             LaunchMethod::Command(command) => {
                 self.launch_command(command);
             }
+            LaunchMethod::BuiltinCommand(command) => {
+                self.handle_builtin_command(command);
+            }
         }
+    }
+
+    fn handle_builtin_command(&self, command: &str) {
+        // 内置命令在上层（commands 层）执行，这里只做日志记录
+        panic!("当前代码不应该执行到这里，内置命令应将在上层执行完成，同时 return。当前的命令为: {}", command);
     }
 
     fn launch_command(&self, command: &str) {

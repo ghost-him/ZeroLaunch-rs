@@ -52,13 +52,13 @@ impl From<&str> for MenuEventId {
 
 // --- Menu Item Handlers ---
 
-fn handle_show_settings_window() {
+pub fn handle_show_settings_window() {
     if let Err(e) = show_setting_window() {
         warn!("Failed to show setting window: {:?}", e);
     }
 }
 
-async fn handle_exit_program(app_handle: &AppHandle) {
+pub async fn handle_exit_program(app_handle: &AppHandle) {
     save_config_to_file(false).await;
     ServiceLocator::get_state()
         .get_storage_manager()
@@ -71,11 +71,11 @@ async fn handle_exit_program(app_handle: &AppHandle) {
     app_handle.exit(0);
 }
 
-async fn handle_update_app_setting() {
+pub async fn handle_update_app_setting() {
     update_app_setting().await;
 }
 
-fn handle_register_shortcut() {
+pub fn handle_register_shortcut() {
     let state = ServiceLocator::get_state();
     if state.get_game_mode() {
         notify("ZeroLaunch-rs", &t("notifications.close_game_mode_first"));
@@ -93,32 +93,49 @@ fn handle_register_shortcut() {
     }
 }
 
-fn handle_switch_game_mode<R: Runtime>(game_mode_item: &CheckMenuItem<R>) {
+/// 切换游戏模式（禁用/启用全局快捷键）
+///
+/// 此函数会切换游戏模式状态，并同步更新托盘菜单中的复选框状态
+pub fn handle_toggle_game_mode() {
     let state = ServiceLocator::get_state();
     let shortcut_manager = state.get_shortcut_manager();
 
-    let target_game_mode = !state.get_game_mode();
-    state.set_game_mode(target_game_mode);
+    // 切换游戏模式状态
+    let new_game_mode = !state.get_game_mode();
+    state.set_game_mode(new_game_mode);
 
-    if target_game_mode {
+    // 根据新的游戏模式状态，注册或注销快捷键
+    if new_game_mode {
         if let Err(e) = shortcut_manager.unregister_all_shortcut() {
             warn!("Failed to unregister shortcuts for game mode: {:?}", e);
-        }
-        if let Err(e) = game_mode_item.set_text(t("tray.disable_game_mode")) {
-            warn!("Failed to set menu item text for game mode (on): {:?}", e);
         }
         notify("ZeroLaunch-rs", &t("notifications.game_mode_enabled"));
     } else {
         if let Err(e) = shortcut_manager.register_all_shortcuts() {
-            warn!(
-                "Failed to register shortcuts after exiting game mode: {:?}",
-                e
-            );
-        }
-        if let Err(e) = game_mode_item.set_text(t("tray.enable_game_mode")) {
-            warn!("Failed to set menu item text for game mode (off): {:?}", e);
+            warn!("Failed to register shortcuts after exiting game mode: {:?}", e);
         }
         notify("ZeroLaunch-rs", &t("notifications.game_mode_disabled"));
+    }
+
+    // 同步更新托盘菜单中的复选框状态
+    update_game_mode_menu_state(new_game_mode);
+}
+
+/// 更新托盘菜单中游戏模式复选框的状态
+fn update_game_mode_menu_state(checked: bool) {
+    let state = ServiceLocator::get_state();
+    let tray_menu = state.get_tray_menu();
+
+    if let Some(item) = tray_menu.get(MENU_ID_SWITCH_GAME_MODE) {
+        if let Some(menu_item) = item.as_check_menuitem() {
+            if let Err(e) = menu_item.set_checked(checked) {
+                warn!("Failed to update game mode menu item checked state: {:?}", e);
+            }
+        } else {
+            warn!("Game mode menu item is not a CheckMenuItem.");
+        }
+    } else {
+        warn!("Could not find game mode menu item.");
     }
 }
 
@@ -210,17 +227,7 @@ fn create_tray_icon<R: Runtime>(app_handle: &AppHandle, menu: Menu<R>) -> tauri:
                     tauri::async_runtime::spawn(handle_update_app_setting());
                 }
                 MenuEventId::RegisterShortcut => handle_register_shortcut(),
-                MenuEventId::SwitchGameMode => {
-                    if let Some(item) = menu.get(MENU_ID_SWITCH_GAME_MODE) {
-                        if let Some(menu_item) = item.as_check_menuitem() {
-                            handle_switch_game_mode(menu_item);
-                        } else {
-                            warn!("'Switch Game Mode' menu item is not a CheckMenuItem.");
-                        }
-                    } else {
-                        warn!("Could not find 'Switch Game Mode' menu item by ID.");
-                    }
-                }
+                MenuEventId::SwitchGameMode => handle_toggle_game_mode(),
                 MenuEventId::Unknown(id) => {
                     warn!("Unknown menu event: {}", id);
                 }
@@ -245,7 +252,7 @@ pub fn init_system_tray(app: &mut App) {
         }
     };
 
-    let tray_icon = match create_tray_icon(&app_handle, menu) {
+    let tray_icon = match create_tray_icon(&app_handle, menu.clone()) {
         Ok(icon) => icon,
         Err(e) => {
             warn!("Failed to create tray icon: {:?}", e);
@@ -253,10 +260,12 @@ pub fn init_system_tray(app: &mut App) {
         }
     };
 
-    // Store the tray icon in app state
+    // Store the tray icon and menu in app state
     let state = app.state::<Arc<AppState>>();
-    state.set_tray_icon(Arc::new(tray_icon)); // tray_icon is already the TrayIcon type
-                                              // Handle other tray icon events (e.g., double click)
+    state.set_tray_icon(Arc::new(tray_icon));
+    state.set_tray_menu(Arc::new(menu));
+
+    // Handle other tray icon events (e.g., double click)
     app.on_tray_icon_event(move |tray_app_handle, event| {
         if let TrayIconEvent::DoubleClick { .. } = event {
             handle_pressed(tray_app_handle);
@@ -285,9 +294,12 @@ pub fn update_tray_menu_language() {
     // 更新托盘图标的菜单和tooltip
     let tray_icon = state.get_tray_icon();
 
-    if let Err(e) = tray_icon.set_menu(Some(menu)) {
+    if let Err(e) = tray_icon.set_menu(Some(menu.clone())) {
         warn!("Failed to update tray menu: {:?}", e);
     }
+
+    // 更新存储的菜单引用
+    state.set_tray_menu(Arc::new(menu));
 
     // 更新 tooltip
     let tooltip = t_with("tray.tooltip", &[("version", &APP_VERSION.clone())]);

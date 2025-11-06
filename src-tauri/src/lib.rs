@@ -412,6 +412,11 @@ fn register_icon_path(app: &mut App) {
         ("web_pages", "web_pages.png"),
         ("tips", "tips.png"),
         ("terminal", "terminal.png"),
+        ("settings", "settings.png"),
+        ("refresh", "refresh.png"),
+        ("register", "register.png"),
+        ("game", "game.png"),
+        ("exit", "exit.png"),
     ];
 
     for (key_name, file_name) in icons_to_register.iter() {

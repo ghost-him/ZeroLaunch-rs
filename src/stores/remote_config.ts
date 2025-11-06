@@ -155,6 +155,20 @@ export const useRemoteConfigStore = defineStore('config', {
                     custom_command: [],
                     forbidden_paths: [],
                     program_alias: {},
+                    enabled_builtin_commands: {
+                        OpenSettings: true,
+                        RefreshDatabase: true,
+                        RetryRegisterShortcut: true,
+                        ToggleGameMode: true,
+                        ExitProgram: true,
+                    },
+                    builtin_command_keywords: {
+                        OpenSettings: [],
+                        RefreshDatabase: [],
+                        RetryRegisterShortcut: [],
+                        ToggleGameMode: [],
+                        ExitProgram: [],
+                    }
                 } as ProgramLoaderConfig,
                 image_loader: {
                     enable_icon_cache: true,

@@ -18,6 +18,19 @@ pub fn handle_pressed(app_handle: &tauri::AppHandle) {
         return;
     }
 
+    // 在显示搜索栏之前,先保存当前的前台窗口句柄
+    unsafe {
+        use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
+        let hwnd = GetForegroundWindow();
+        if !hwnd.0.is_null() {
+            state.set_previous_foreground_window(Some(hwnd.0 as isize));
+            tracing::debug!("🎯 保存唤醒前的窗口句柄: {}", hwnd.0 as isize);
+        } else {
+            state.set_previous_foreground_window(None);
+            tracing::warn!("⚠️ 无法获取唤醒前的窗口句柄");
+        }
+    }
+
     update_window_size_and_position();
 
     let main_window = match app_handle.get_webview_window("main") {

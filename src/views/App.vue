@@ -375,7 +375,7 @@ const confirmParameterInput = async () => {
   }
 
   try {
-    await invoke('launch_program_with_args', {
+    await invoke('launch_program', {
       programGuid: session.programGuid,
       ctrl: session.ctrlKey,
       shift: session.shiftKey,
@@ -588,7 +588,12 @@ const launch_program = async (itemIndex: number, ctrlKey = false, shiftKey = fal
     console.warn('Failed to get launch template info, falling back to direct launch:', error);
   }
 
-  await invoke('launch_program', { programGuid: program_guid, ctrl: ctrlKey, shift: shiftKey });
+  await invoke('launch_program', {
+    programGuid: program_guid,
+    ctrl: ctrlKey,
+    shift: shiftKey,
+    args: []
+  });
   // 这里可以添加实际的处理逻辑
 }
 

@@ -42,6 +42,8 @@ pub struct AppState {
     last_search_query: RwLock<String>,
     /// 国际化翻译器
     translator: Arc<RwLock<Translator>>,
+    /// 唤醒搜索栏前的前台窗口句柄
+    previous_foreground_window: RwLock<Option<isize>>,
 }
 
 impl Default for AppState {
@@ -68,6 +70,7 @@ impl AppState {
             is_keyboard_blocked: RwLock::new(false),
             last_search_query: RwLock::new(String::new()),
             translator: Arc::new(RwLock::new(Translator::new())),
+            previous_foreground_window: RwLock::new(None),
         }
     }
 
@@ -223,6 +226,17 @@ impl AppState {
     /// 获取翻译器的 RwLock 引用
     pub fn get_translator(&self) -> Arc<RwLock<Translator>> {
         Arc::clone(&self.translator)
+    }
+
+    // region: Previous Foreground Window 访问方法
+    /// 设置唤醒前的前台窗口句柄
+    pub fn set_previous_foreground_window(&self, hwnd: Option<isize>) {
+        *self.previous_foreground_window.write() = hwnd;
+    }
+
+    /// 获取唤醒前的前台窗口句柄
+    pub fn get_previous_foreground_window(&self) -> Option<isize> {
+        *self.previous_foreground_window.read()
     }
     // endregion
 }

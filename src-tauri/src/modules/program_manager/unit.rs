@@ -1,5 +1,6 @@
 // 存放辅助型的小类型
 use crate::core::image_processor::ImageIdentity;
+use crate::modules::parameter_resolver::{ParameterResolver, SystemParameterSnapshot};
 use crate::program_manager::builtin_commands::PREFIX;
 use crate::program_manager::PartialProgramManagerConfig;
 use bincode::{Decode, Encode};
@@ -61,9 +62,9 @@ impl LaunchMethod {
         self.template_text().to_string()
     }
 
-    /// 统计启动模板中的"{}"占位符数量
-    pub fn placeholder_count(&self) -> usize {
-        self.template_text().matches("{}").count()
+    /// 统计启动模板中需要用户输入的参数数量(使用新的参数解析器)
+    pub fn user_parameter_count(&self, resolver: &ParameterResolver) -> usize {
+        resolver.count_user_parameters(self.template_text())
     }
 
     /// 返回启动方式的具体类型
@@ -77,50 +78,22 @@ impl LaunchMethod {
         }
     }
 
-    /// 用用户输入替换模板占位符并生成新的启动方式
-    pub fn fill_placeholders(&self, args: &[String]) -> Result<LaunchMethod, String> {
-        let filled = fill_template(self.template_text(), args)?;
+    /// 使用参数解析器填充占位符(新方法)
+    pub fn fill_placeholders_with_resolver(
+        &self,
+        args: &[String],
+        snapshot: &SystemParameterSnapshot,
+        resolver: &ParameterResolver,
+    ) -> Result<LaunchMethod, String> {
+        let filled = resolver
+            .resolve_template(self.template_text(), args, snapshot)
+            .map_err(|e| e.to_string())?;
         Ok(self.map_text(filled))
     }
 
     pub fn is_uwp(&self) -> bool {
         matches!(self, LaunchMethod::PackageFamilyName(_))
     }
-}
-
-// 根据占位符顺序依次填充模板并校验参数数量
-fn fill_template(template: &str, args: &[String]) -> Result<String, String> {
-    let mut result = String::with_capacity(template.len());
-    let mut remaining = template;
-    let mut index = 0;
-
-    while let Some(pos) = remaining.find("{}") {
-        let (before, after_placeholder) = remaining.split_at(pos);
-        result.push_str(before);
-
-        let replacement = args.get(index).ok_or_else(|| {
-            format!(
-                "not enough arguments: expected at least {}, got {}",
-                index + 1,
-                args.len()
-            )
-        })?;
-        result.push_str(replacement);
-
-        remaining = &after_placeholder[2..];
-        index += 1;
-    }
-
-    if index != args.len() {
-        return Err(format!(
-            "too many arguments: expected {}, got {}",
-            index,
-            args.len()
-        ));
-    }
-
-    result.push_str(remaining);
-    Ok(result)
 }
 
 /// 表示一个数据

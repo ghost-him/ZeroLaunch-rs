@@ -189,20 +189,14 @@ pub async fn get_program_count<R: Runtime>(
 }
 
 #[tauri::command]
+/// 统一的程序启动接口
+///
+/// # 参数
+/// - `program_guid`: 程序唯一标识
+/// - `ctrl`: 是否按下 Ctrl 键(请求管理员权限)
+/// - `shift`: 是否按下 Shift 键(唤醒已存在窗口)
+/// - `args`: 用户参数数组,无参数时传递空数组 []
 pub async fn launch_program<R: Runtime>(
-    _app: tauri::AppHandle<R>,
-    _window: tauri::Window<R>,
-    state: tauri::State<'_, Arc<AppState>>,
-    program_guid: u64,
-    ctrl: bool,
-    shift: bool,
-) -> Result<(), String> {
-    launch_program_internal(state, program_guid, ctrl, shift, None).await
-}
-
-#[tauri::command]
-/// 启动程序并传递用户填写的参数占位符
-pub async fn launch_program_with_args<R: Runtime>(
     _app: tauri::AppHandle<R>,
     _window: tauri::Window<R>,
     state: tauri::State<'_, Arc<AppState>>,
@@ -211,9 +205,16 @@ pub async fn launch_program_with_args<R: Runtime>(
     shift: bool,
     args: Vec<String>,
 ) -> Result<(), String> {
+    use crate::modules::parameter_resolver::SystemParameterSnapshot;
+
+    // 总是捕获系统参数快照(性能影响可忽略,约 0.1ms)
+    let snapshot = SystemParameterSnapshot::capture();
+
     let program_manager = state.get_program_manager();
+
+    // 使用传入的用户参数数组(可能为空),同时解析系统参数
     let override_method = program_manager
-        .build_launch_method_with_args(program_guid, &args)
+        .build_launch_method_with_args(program_guid, &args, &snapshot)
         .await
         .map_err(|e| format!("Failed to build launch method: {}", e))?;
 

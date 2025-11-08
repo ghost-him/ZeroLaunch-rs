@@ -15,6 +15,7 @@ pub mod unit;
 pub mod window_activator;
 use crate::core::image_processor::ImageProcessor;
 use crate::error::{OptionExt, ResultExt};
+use crate::modules::parameter_resolver::{ParameterResolver, SystemParameterSnapshot};
 use crate::modules::program_manager::config::program_manager_config::RuntimeProgramConfig;
 use crate::modules::program_manager::search_engine::{SearchEngine, SemanticSearchEngine};
 use crate::program_manager::config::program_manager_config::ProgramManagerConfig;
@@ -75,6 +76,8 @@ pub struct ProgramManager {
     short_term_result_cache: ShortTermSearchResultsCache,
     /// 当前回退原因
     fallback_reason: Arc<RwLock<FallbackReason>>,
+    /// 参数解析器
+    parameter_resolver: Arc<ParameterResolver>,
 }
 
 /// 内部搜索结果，包含分数和程序ID
@@ -94,6 +97,7 @@ impl ProgramManager {
         } = runtime_program_config;
 
         let semantic_manager = Arc::new(SemanticManager::new(embedding_backend, HashMap::new()));
+        let parameter_resolver = Arc::new(ParameterResolver::new());
         let pm = ProgramManager {
             program_registry: Arc::new(RwLock::new(Vec::new())),
             program_loader: Arc::new(ProgramLoader::new(semantic_manager.clone())),
@@ -106,6 +110,7 @@ impl ProgramManager {
             semantic_manager,
             short_term_result_cache: Arc::new(RwLock::new(None)),
             fallback_reason: Arc::new(RwLock::new(FallbackReason::None)),
+            parameter_resolver,
         };
         if pm
             .semantic_manager
@@ -275,6 +280,11 @@ impl ProgramManager {
         program_registry.get(index).cloned()
     }
 
+    /// 获取参数解析器的引用
+    pub fn get_parameter_resolver(&self) -> Arc<ParameterResolver> {
+        self.parameter_resolver.clone()
+    }
+
     /// 获取指定程序的启动模板及占位符信息
     pub async fn get_launch_template_info(
         &self,
@@ -284,8 +294,9 @@ impl ProgramManager {
         let launch_method = program.launch_method.clone();
         let template = launch_method.get_text();
         let kind = launch_method.kind();
-        let placeholder_count = launch_method.placeholder_count();
-        Some((template, kind, placeholder_count, program.show_name.clone()))
+        // 使用新的参数解析器统计用户参数数量
+        let user_param_count = launch_method.user_parameter_count(&self.parameter_resolver);
+        Some((template, kind, user_param_count, program.show_name.clone()))
     }
 
     /// 使用用户提供的参数填充模板生成新的启动方式
@@ -293,13 +304,15 @@ impl ProgramManager {
         &self,
         program_guid: u64,
         args: &[String],
+        snapshot: &SystemParameterSnapshot,
     ) -> Result<LaunchMethod, String> {
         let program = self
             .get_program_by_guid(program_guid)
             .await
             .ok_or_else(|| format!("Program GUID {} not found", program_guid))?;
         let launch_method = program.launch_method.clone();
-        launch_method.fill_placeholders(args)
+        // 使用新的参数解析器
+        launch_method.fill_placeholders_with_resolver(args, snapshot, &self.parameter_resolver)
     }
 
     /// 使用搜索算法搜索，并给出指定长度的序列

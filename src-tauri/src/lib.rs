@@ -158,7 +158,6 @@ pub fn run() {
             load_program_icon,
             get_program_count,
             launch_program,
-            launch_program_with_args,
             get_program_info,
             refresh_program,
             handle_search_text,

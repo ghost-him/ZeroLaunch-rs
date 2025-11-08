@@ -65,6 +65,19 @@ impl ImageIdentity {
     }
 }
 
+/// 文件类型枚举
+#[derive(Debug, PartialEq)]
+enum FileType {
+    /// 程序文件（.exe, .lnk, .url）
+    Program,
+    /// ICO图标文件
+    Ico,
+    /// 图片文件（png, jpg, svg等）
+    Image,
+    /// 其他文件（txt, docx等）
+    Other,
+}
+
 pub struct ImageProcessor {}
 
 impl ImageProcessor {
@@ -254,37 +267,52 @@ impl ImageProcessor {
     }
     /// 内部函数：从路径加载图像，返回Result类型
     async fn load_image_from_path_internal(icon_path: &str) -> AppResult<Vec<u8>> {
-        if Self::is_program(icon_path) {
-            debug!("Detected program file, extracting icon: {}", icon_path);
-            // 使用Windows系统调用读取程序图标
-            let rgba_image = Self::extract_icon_from_file(icon_path)
-                .await
-                .ok_or_else(|| AppError::ImageProcessingError {
-                    message: format!("Failed to extract icon from program: {}", icon_path),
-                })?;
+        match Self::get_file_type(icon_path) {
+            FileType::Ico => {
+                // 对于.ico文件，使用LoadImageW来获取最大尺寸的图标
+                debug!("Detected ICO file, extracting largest icon: {}", icon_path);
+                let rgba_image = Self::extract_largest_icon_from_ico_file(icon_path)
+                    .await
+                    .ok_or_else(|| AppError::ImageProcessingError {
+                        message: format!(
+                            "Failed to extract largest icon from ICO file: {}",
+                            icon_path
+                        ),
+                    })?;
 
-            let png_data = Self::rgba_image_to_png(&rgba_image)?;
+                let png_data = Self::rgba_image_to_png(&rgba_image)?;
+                Ok(png_data)
+            }
+            FileType::Image => {
+                // 对于真正的图片文件，使用图片库来读取
+                debug!("Detected image file, loading directly: {}", icon_path);
+                let png_data = Self::load_and_convert_to_png(icon_path).await?;
+                Ok(png_data)
+            }
+            FileType::Program | FileType::Other => {
+                // 对于程序文件和其他文件（如txt、docx等），使用Windows API提取系统图标
+                debug!(
+                    "Detected {} file, extracting system icon: {}",
+                    if matches!(Self::get_file_type(icon_path), FileType::Program) {
+                        "program"
+                    } else {
+                        "non-image"
+                    },
+                    icon_path
+                );
+                let rgba_image =
+                    Self::extract_icon_from_file(icon_path)
+                        .await
+                        .ok_or_else(|| AppError::ImageProcessingError {
+                            message: format!(
+                                "Failed to extract system icon from file: {}",
+                                icon_path
+                            ),
+                        })?;
 
-            Ok(png_data)
-        } else if Self::is_ico_file(icon_path) {
-            // 对于.ico文件，使用LoadImageW来获取最大尺寸的图标
-            let rgba_image = Self::extract_largest_icon_from_ico_file(icon_path)
-                .await
-                .ok_or_else(|| AppError::ImageProcessingError {
-                    message: format!(
-                        "Failed to extract largest icon from ICO file: {}",
-                        icon_path
-                    ),
-                })?;
-
-            let png_data = Self::rgba_image_to_png(&rgba_image)?;
-
-            Ok(png_data)
-        } else {
-            // 直接使用库来读取图像文件
-            let png_data = Self::load_and_convert_to_png(icon_path).await?;
-
-            Ok(png_data)
+                let png_data = Self::rgba_image_to_png(&rgba_image)?;
+                Ok(png_data)
+            }
         }
     }
 
@@ -390,24 +418,39 @@ impl ImageProcessor {
         })?
     }
 
-    /// 判断是不是一个程序的图标
-    fn is_program(path: &str) -> bool {
-        if path.ends_with(".lnk") {
-            return true;
-        }
-        if path.ends_with(".exe") {
-            return true;
-        }
-        if path.ends_with(".url") {
-            return true;
-        }
-        false
-    }
-
-    /// 检查文件是否为ICO图标文件
-    fn is_ico_file(path: &str) -> bool {
+    /// 统一的文件类型判断函数
+    fn get_file_type(path: &str) -> FileType {
         let path_lower = path.to_lowercase();
-        path_lower.ends_with(".ico")
+
+        // 检查是否为程序文件
+        if path_lower.ends_with(".exe")
+            || path_lower.ends_with(".lnk")
+            || path_lower.ends_with(".url")
+        {
+            return FileType::Program;
+        }
+
+        // 检查是否为ICO文件
+        if path_lower.ends_with(".ico") {
+            return FileType::Ico;
+        }
+
+        // 检查是否为图片文件
+        if path_lower.ends_with(".png")
+            || path_lower.ends_with(".jpg")
+            || path_lower.ends_with(".jpeg")
+            || path_lower.ends_with(".gif")
+            || path_lower.ends_with(".bmp")
+            || path_lower.ends_with(".webp")
+            || path_lower.ends_with(".tiff")
+            || path_lower.ends_with(".tif")
+            || path_lower.ends_with(".svg")
+        {
+            return FileType::Image;
+        }
+
+        // 其他文件
+        FileType::Other
     }
 
     /// 从ICO文件中提取最大尺寸的图标

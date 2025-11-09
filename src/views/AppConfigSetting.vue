@@ -129,6 +129,17 @@
                         </el-icon>
                     </el-tooltip>
                 </el-form-item>
+
+                <el-form-item :label="t('app_config.export_logs_button')">
+                    <el-button @click="exportLogs" type="primary">
+                        {{ t('app_config.export_logs_button') }}
+                    </el-button>
+                    <el-tooltip placement="top" :content="t('app_config.export_logs_tooltip')">
+                        <el-icon class="el-question-icon">
+                            <QuestionFilled />
+                        </el-icon>
+                    </el-tooltip>
+                </el-form-item>
             </el-form>
         </el-tab-pane>
 
@@ -145,6 +156,9 @@ import { storeToRefs } from 'pinia';
 import { useI18n } from 'vue-i18n';
 import { computed } from 'vue';
 import { initializeLanguage } from '../i18n/index';
+import { invoke } from '@tauri-apps/api/core';
+import { save } from '@tauri-apps/plugin-dialog';
+import { ElMessage } from 'element-plus';
 
 const { t } = useI18n();
 const configStore = useRemoteConfigStore()
@@ -162,6 +176,42 @@ const currentLanguage = computed({
 
 const changeLanguage = (lang: string) => {
     currentLanguage.value = lang;
+};
+
+// 导出日志功能
+const exportLogs = async () => {
+    try {
+        // 生成默认文件名（带时间戳）
+        const now = new Date();
+        const timestamp = now.toISOString().replace(/[-:]/g, '').replace('T', '-').split('.')[0];
+        const defaultFileName = `zerolaunch-logs-${timestamp}.zip`;
+
+        // 打开保存对话框
+        const savePath = await save({
+            defaultPath: defaultFileName,
+            filters: [{
+                name: 'ZIP Archive',
+                extensions: ['zip']
+            }]
+        });
+
+        // 用户取消选择
+        if (!savePath) {
+            ElMessage.info(t('app_config.export_logs_cancelled'));
+            return;
+        }
+
+        // 调用后端命令导出日志
+        await invoke('command_export_logs', { savePath });
+        
+        // 导出成功
+        ElMessage.success(t('app_config.export_logs_success'));
+    } catch (error) {
+        // 导出失败
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        ElMessage.error(t('app_config.export_logs_failed', { error: errorMessage }));
+        console.error('导出日志失败:', error);
+    }
 };
 
 </script>

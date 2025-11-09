@@ -510,6 +510,11 @@
     "advanced": "高级",
     "debug_mode": "调试模式",
     "log_level": "日志级别",
-    "log_level_tooltip": "设置应用程序的日志输出级别，Debug级别会输出最详细的信息，Error级别只输出错误信息"
+    "log_level_tooltip": "设置应用程序的日志输出级别，Debug级别会输出最详细的信息，Error级别只输出错误信息",
+    "export_logs_button": "导出日志",
+    "export_logs_tooltip": "将所有日志文件打包导出为ZIP压缩包",
+    "export_logs_success": "日志导出成功！",
+    "export_logs_failed": "日志导出失败：{error}",
+    "export_logs_cancelled": "已取消导出日志"
   }
 }

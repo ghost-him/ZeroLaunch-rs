@@ -191,6 +191,7 @@ pub fn run() {
             command_read_file,
             command_open_models_dir,
             command_get_search_status_tip,
+            command_export_logs,
         ])
         .run(tauri::generate_context!())
         .expect_programming("error while running tauri application");

@@ -510,6 +510,11 @@
     "advanced": "進階",
     "debug_mode": "偵錯模式",
     "log_level": "日誌級別",
-    "log_level_tooltip": "設定應用程式的日誌輸出級別，Debug級別會輸出最詳細的資訊，Error級別只輸出錯誤資訊"
+    "log_level_tooltip": "設定應用程式的日誌輸出級別，Debug級別會輸出最詳細的資訊，Error級別只輸出錯誤資訊",
+    "export_logs_button": "匯出日誌",
+    "export_logs_tooltip": "將所有日誌檔案打包匯出為ZIP壓縮包",
+    "export_logs_success": "日誌匯出成功！",
+    "export_logs_failed": "日誌匯出失敗：{error}",
+    "export_logs_cancelled": "已取消匯出日誌"
   }
 }

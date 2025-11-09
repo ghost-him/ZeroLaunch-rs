@@ -510,6 +510,11 @@
     "advanced": "Advanced",
     "debug_mode": "Debug Mode",
     "log_level": "Log Level",
-    "log_level_tooltip": "Set the application's log output level. Debug level outputs the most detailed information, Error level only outputs error messages"
+    "log_level_tooltip": "Set the application's log output level. Debug level outputs the most detailed information, Error level only outputs error messages",
+    "export_logs_button": "Export Logs",
+    "export_logs_tooltip": "Export all log files as a ZIP archive",
+    "export_logs_success": "Logs exported successfully!",
+    "export_logs_failed": "Failed to export logs: {error}",
+    "export_logs_cancelled": "Log export cancelled"
   }
 }

@@ -379,9 +379,14 @@ impl ProgramManager {
         result
     }
 
-    /// 记录查询-程序启动关联
+    /// 记录程序使用（总是记录一次启动使用），并在查询非空时记录查询关联
     pub fn record_query_launch(&self, query: &str, program_guid: u64) {
-        self.program_ranker.record_query_launch(query, program_guid);
+        // 记录使用意图（提升排序）
+        self.program_ranker.record_launch(program_guid);
+        // 仅当查询非空时记录关联关系，避免空查询污染关联映射
+        if !query.trim().is_empty() {
+            self.program_ranker.record_query_launch(query, program_guid);
+        }
     }
 
     /// 启动一个程序
@@ -391,9 +396,6 @@ impl ProgramManager {
         is_admin_required: bool,
         override_method: Option<LaunchMethod>,
     ) {
-        // 先记录启动统计
-        self.program_ranker.record_launch(program_guid);
-
         // 获取程序的 launch_method
         let program = self.get_program_by_guid(program_guid).await;
         if program.is_none() {

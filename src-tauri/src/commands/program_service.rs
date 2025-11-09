@@ -9,6 +9,7 @@ use crate::state::app_state::AppState;
 use crate::utils::notify::notify;
 use crate::utils::service_locator::ServiceLocator;
 use crate::utils::windows::shell_execute_open;
+use crate::ProgramManager;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
@@ -50,25 +51,20 @@ async fn execute_builtin_command(cmd_str: &str) -> Result<(), String> {
 
     match cmd_type {
         BuiltinCommandType::OpenSettings => {
-            // 复用 tray.rs 中的函数
             crate::tray::handle_show_settings_window();
         }
         BuiltinCommandType::RefreshDatabase => {
-            // 复用 tray.rs 中的函数
             tauri::async_runtime::spawn(async {
                 crate::tray::handle_update_app_setting().await;
             });
         }
         BuiltinCommandType::RetryRegisterShortcut => {
-            // 复用 tray.rs 中的函数
             crate::tray::handle_register_shortcut();
         }
         BuiltinCommandType::ToggleGameMode => {
-            // 复用 tray.rs 中的函数
             crate::tray::handle_toggle_game_mode();
         }
         BuiltinCommandType::ExitProgram => {
-            // 复用 tray.rs 中的函数
             let state = ServiceLocator::get_state();
             let app_handle = state.get_main_handle();
             crate::tray::handle_exit_program(&app_handle).await;
@@ -76,6 +72,54 @@ async fn execute_builtin_command(cmd_str: &str) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+/// 尝试唤醒已存在的程序窗口
+async fn try_activate_window(program_manager: &ProgramManager, program_guid: u64) -> bool {
+    debug!("🔍 尝试唤醒现有程序窗口: GUID={}", program_guid);
+    let activated = program_manager.activate_target_program(program_guid).await;
+    if activated {
+        info!("✅ 程序窗口唤醒成功: GUID={}", program_guid);
+    } else {
+        debug!("⚠️ 程序窗口唤醒失败: GUID={}", program_guid);
+    }
+    activated
+}
+
+/// 启动新程序实例
+async fn launch_new_program(
+    program_manager: &ProgramManager,
+    program_guid: u64,
+    is_admin_required: bool,
+    override_method: Option<LaunchMethod>,
+) {
+    debug!(
+        "🚀 启动新程序实例: GUID={}, 管理员权限={}, 覆盖方法={}",
+        program_guid,
+        is_admin_required,
+        override_method.is_some()
+    );
+    program_manager
+        .launch_program(program_guid, is_admin_required, override_method)
+        .await;
+}
+
+/// 统一记录一次“用户使用该程序/命令”的意图：
+/// - 由 ProgramManager 统一记录 ranker 与查询关联
+/// - 并保存配置
+async fn record_full_launch(state: &tauri::State<'_, Arc<AppState>>, program_guid: u64) {
+    let program_manager = state.get_program_manager();
+
+    let last_query = state.get_last_search_query();
+    debug!(
+        "📝 记录使用: query='{}' -> GUID={}",
+        last_query, program_guid
+    );
+    program_manager.record_query_launch(&last_query, program_guid);
+
+    debug!("💾 保存配置文件");
+    save_config_to_file(false).await;
+    info!("✅ 使用意图统计完成: GUID={}", program_guid);
 }
 
 /// 协调程序启动流程并处理可选的覆盖启动方式
@@ -96,67 +140,72 @@ async fn launch_program_internal(
 
     let program_manager = state.get_program_manager();
 
-    // 先隐藏窗口
+    // 1. 先隐藏窗口
     if let Err(e) = hide_window() {
         warn!("⚠️ 隐藏窗口失败: {:?}", e);
         return Err(format!("Failed to hide window: {:?}", e));
     }
 
-    // 检查是否是内置命令
+    // 2. 获取程序信息
     let program = program_manager
         .get_program_by_guid(program_guid)
         .await
         .ok_or_else(|| format!("未找到程序: GUID={}", program_guid))?;
 
+    // 3. 检查是否是内置命令 (这是一个独立的逻辑分支，提前返回是清晰的)
     if let LaunchMethod::BuiltinCommand(ref cmd_str) = program.launch_method {
-        return execute_builtin_command(cmd_str).await;
+        let result = execute_builtin_command(cmd_str).await;
+        // 无论命令执行是否成功，都记录一次用户意图
+        record_full_launch(&state, program_guid).await;
+        return result;
     }
 
-    // 普通程序的启动逻辑
+    // 4. 处理普通程序的启动逻辑
     let is_admin_required = ctrl;
-    let open_exist_window = shift;
-    let mut activated_existing = false;
+    let should_activate_window = shift;
 
-    if open_exist_window {
-        debug!("🔍 尝试唤醒现有程序窗口: GUID={}", program_guid);
-        activated_existing = program_manager.activate_target_program(program_guid).await;
-        if activated_existing {
-            info!("✅ 程序窗口唤醒成功: GUID={}", program_guid);
+    let need_launch_new = if should_activate_window {
+        let activated = try_activate_window(&program_manager, program_guid).await;
+        let launch_new_on_failure = state
+            .get_runtime_config()
+            .get_app_config()
+            .get_launch_new_on_failure();
+
+        if activated {
+            info!("✅ 窗口唤醒成功，无需启动新实例");
+            false
         } else {
-            debug!("⚠️ 程序窗口唤醒失败: GUID={}", program_guid);
+            // 唤醒失败，根据配置与 UWP 判断是否启动
+            if program_manager.is_uwp_program(program_guid).await {
+                debug!("⚠️ UWP 程序窗口唤醒失败，尝试启动新实例");
+                true
+            } else if launch_new_on_failure {
+                debug!("⚠️ 普通程序窗口唤醒失败，配置允许 -> 启动新实例");
+                true
+            } else {
+                info!("⚠️ 窗口唤醒失败，配置禁止启动新实例 -> 不启动");
+                false
+            }
         }
-    }
+    } else {
+        // 未请求唤醒，直接需要启动
+        true
+    };
 
-    let launch_new_on_failure = state
-        .get_runtime_config()
-        .get_app_config()
-        .get_launch_new_on_failure();
-
-    if (!activated_existing && launch_new_on_failure)
-        || !open_exist_window
-        || (!activated_existing && program_manager.is_uwp_program(program_guid).await)
-    {
-        debug!(
-            "🚀 启动新程序实例: GUID={}, 管理员权限={}, 覆盖方法={}",
+    // 5. 根据决策执行启动动作
+    if need_launch_new {
+        launch_new_program(
+            &program_manager,
             program_guid,
             is_admin_required,
-            override_method.is_some()
-        );
-        program_manager
-            .launch_program(program_guid, is_admin_required, override_method)
-            .await;
-
-        // 记录查询-启动关联
-        let last_query = state.get_last_search_query();
-        if !last_query.trim().is_empty() {
-            debug!("📝 记录查询关联: '{}' -> GUID={}", last_query, program_guid);
-            program_manager.record_query_launch(&last_query, program_guid);
-        }
-
-        debug!("💾 保存配置文件");
-        save_config_to_file(false).await;
-        info!("✅ 程序启动完成: GUID={}", program_guid);
+            override_method,
+        )
+        .await;
     }
+
+    // 6. 统一记录本次用户意图
+    // 无论是成功唤醒、启动新实例，还是唤醒失败但不启动，都代表了一次用户意图的完成。
+    record_full_launch(&state, program_guid).await;
 
     Ok(())
 }

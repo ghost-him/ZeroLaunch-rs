@@ -2,112 +2,71 @@
 <artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
   <!--
     ZeroLaunch-rs - 批量签名所有构建产物
-    
+
     用途：一次性签名所有类型的构建产物（推荐用于 CI/CD）
     适用场景：GitHub Actions Release 构建
-    
+
     支持的文件类型：
-    1. NSIS 安装包 (.exe)
-       - zerolaunch-rs_{version}_{arch}-setup.exe
-       - zerolaunch-rs_lite_{version}_{arch}-setup.exe
-    
-    2. MSI 安装包 (.msi)
-       - ZeroLaunch_{version}_{arch}_en-US.msi
-       - ZeroLaunch_lite_{version}_{arch}_en-US.msi
-    
-    3. 便携版 ZIP 包 (.zip)
-       - ZeroLaunch-portable-{version}-{arch}.zip
-       - ZeroLaunch-portable-lite-{version}-{arch}.zip
-    
-    支持的架构：
-    - x64
-    - arm64
-    
+    1. NSIS 安装包 (.exe) - 只签名外壳
+      - zerolaunch-rs*_*_*-setup.exe (只签名安装包本身)
+      - 注意：NSIS 不支持深度签名，内部 exe 需在构建时预先签名
+
+    2. MSI 安装包 (.msi) - 带深度签名 ✅
+      - zerolaunch-rs*_*_*_en-US.msi (签名安装包本身)
+      - 内部的 zerolaunch-rs.exe (深度签名应用程序)
+
+    3. 便携版 ZIP 包 (.zip) - 带深度签名 ✅
+      - ZeroLaunch-portable*-*-*.zip (使用 JAR 格式签名 ZIP 本身)
+      - 内部的 zerolaunch-rs.exe (深度签名应用程序)
+
     使用方法：
-    1. 将所有构建产物打包到一个 ZIP 文件中
+    1. 将所有构建产物（4个.exe + 4个.msi + 4个.zip）打包到一个 ZIP 文件中
     2. 提交到 SignPath 进行批量签名
-    3. 提交时指定参数：
-       - version: 版本号（如 "0.5.4"）
+    3. 不需要传递任何参数（使用通配符自动匹配所有文件）
+
+    技术说明：
+    - MSI 和 ZIP 支持深度签名，因为它们是容器格式
+    - NSIS .exe 是 PE 文件，不是容器格式，SignPath 无法解包签名内部文件
+    - 如需 NSIS 内部的 exe 也被签名，需要在构建流程中先签名再打包
   -->
-  
-  <parameters>
-    <parameter name="version" required="true" />
-  </parameters>
-  
+
   <!-- 使用 ZIP 作为顶层容器，包含所有构建产物 -->
   <zip-file>
     <!-- ============================================
-         1. 签名所有 NSIS 安装包 (.exe)
-         支持所有架构和版本（完整版和精简版）
-         ============================================ -->
-    <pe-file-set>
-      <!-- 完整版安装包 -->
-      <include path="zerolaunch-rs_${version}_x64-setup.exe" min-matches="0" />
-      <include path="zerolaunch-rs_${version}_arm64-setup.exe" min-matches="0" />
-      
-      <!-- 精简版安装包 -->
-      <include path="zerolaunch-rs_lite_${version}_x64-setup.exe" min-matches="0" />
-      <include path="zerolaunch-rs_lite_${version}_arm64-setup.exe" min-matches="0" />
-      
-      <!-- 通配符匹配（作为备用） -->
-      <include path="zerolaunch-rs*_${version}_*-setup.exe" max-matches="unbounded" min-matches="0" />
-      
-      <for-each>
-        <authenticode-sign hash-algorithm="sha256" />
-      </for-each>
-    </pe-file-set>
-    
+        1. 签名 NSIS 安装包 (.exe)
+        注意：NSIS .exe 不支持深度签名（PE 文件不是容器格式）
+        只签名安装包本身，内部的 zerolaunch-rs.exe 需要在构建时预先签名
+        ============================================ -->
+    <pe-file path="zerolaunch-rs*_*_*-setup.exe" max-matches="unbounded" min-matches="0">
+      <authenticode-sign hash-algorithm="sha256" />
+    </pe-file>
+
     <!-- ============================================
-         2. 签名所有 MSI 安装包 (.msi)
-         支持所有架构和版本（完整版和精简版）
-         ============================================ -->
-    <msi-file-set>
-      <!-- 完整版 MSI -->
-      <include path="ZeroLaunch_${version}_x64_en-US.msi" min-matches="0" />
-      <include path="ZeroLaunch_${version}_arm64_en-US.msi" min-matches="0" />
-      
-      <!-- 精简版 MSI -->
-      <include path="ZeroLaunch_lite_${version}_x64_en-US.msi" min-matches="0" />
-      <include path="ZeroLaunch_lite_${version}_arm64_en-US.msi" min-matches="0" />
-      
-      <!-- 通配符匹配（作为备用） -->
-      <include path="ZeroLaunch*_${version}_*_en-US.msi" max-matches="unbounded" min-matches="0" />
-      
-      <for-each>
+        2. 深度签名 MSI 安装包 (.msi)
+        MSI 支持深度签名：先签名内部的 zerolaunch-rs.exe，再签名 MSI 本身
+        ============================================ -->
+    <msi-file path="zerolaunch-rs*_*_*_en-US.msi" max-matches="unbounded" min-matches="0">
+      <!-- 深度签名：先签名内部的应用程序（递归搜索） -->
+      <pe-file path="**/zerolaunch-rs.exe" max-matches="unbounded" min-matches="0">
         <authenticode-sign hash-algorithm="sha256" />
-      </for-each>
-    </msi-file-set>
-    
+      </pe-file>
+      
+      <!-- 然后签名 MSI 本身 -->
+      <authenticode-sign hash-algorithm="sha256" />
+    </msi-file>
+
     <!-- ============================================
-         3. 签名便携版 ZIP 包内的可执行文件
-         需要深度签名：解压 -> 签名 EXE -> 重新打包
-         ============================================ -->
-    <zip-file-set>
-      <!-- 完整版便携包 -->
-      <include path="ZeroLaunch-portable-${version}-x64.zip" min-matches="0" />
-      <include path="ZeroLaunch-portable-${version}-arm64.zip" min-matches="0" />
+        3. 深度签名便携版 ZIP 包
+        先签名 ZIP 内的 zerolaunch-rs.exe，再签名 ZIP 本身（使用 JAR 签名）
+        ============================================ -->
+    <zip-file path="ZeroLaunch-portable*-*-*.zip" max-matches="unbounded" min-matches="0">
+      <!-- 深度签名：先签名内部的可执行文件 -->
+      <pe-file path="zerolaunch-rs.exe" min-matches="0">
+        <authenticode-sign hash-algorithm="sha256" />
+      </pe-file>
       
-      <!-- 精简版便携包 -->
-      <include path="ZeroLaunch-portable-lite-${version}-x64.zip" min-matches="0" />
-      <include path="ZeroLaunch-portable-lite-${version}-arm64.zip" min-matches="0" />
-      
-      <!-- 通配符匹配（作为备用） -->
-      <include path="ZeroLaunch-portable*-${version}-*.zip" max-matches="unbounded" min-matches="0" />
-      
-      <for-each>
-        <!-- 签名嵌套 ZIP 内的可执行文件 -->
-        <pe-file-set>
-          <!-- 主程序的各种可能命名 -->
-          <include path="zerolaunch-rs.exe" min-matches="0" />
-          <include path="app.exe" min-matches="0" />
-          <include path="zero*.exe" max-matches="unbounded" min-matches="0" />
-          <include path="*launch*.exe" max-matches="unbounded" min-matches="0" />
-          
-          <for-each>
-            <authenticode-sign hash-algorithm="sha256" />
-          </for-each>
-        </pe-file-set>
-      </for-each>
-    </zip-file-set>
+      <!-- 然后使用 JAR 格式签名 ZIP 本身 -->
+      <jar-sign />
+    </zip-file>
   </zip-file>
 </artifact-configuration>

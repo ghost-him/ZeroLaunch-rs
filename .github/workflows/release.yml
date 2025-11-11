@@ -68,7 +68,7 @@ jobs:
         run: |
           # 检查是否有用户输入的 tag
           $inputTag = "${{ github.event.inputs.tag }}"
-          
+
           if (-not [string]::IsNullOrEmpty($inputTag)) {
             # 使用用户输入的 tag
             $tag = $inputTag -replace '^v', ''
@@ -239,6 +239,7 @@ jobs:
 
           - **安装版 (`.exe`/`.msi`)**: 提供传统的安装体验。
           - **便携版 (`.zip`)**: 无需安装，解压即用，适合移动或绿色版爱好者。
+          - **`.exe` 与 `.msi`**: 推荐使用 `.msi` 安装。`.exe` 安装包受平台限制，没有进行深层签名。
 
           > **完整版**包含 AI 智能搜索功能，而 **精简版 (lite)** 不含 AI 功能，体积更小。
 

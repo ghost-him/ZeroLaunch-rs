@@ -5,6 +5,12 @@ on:
     tags:
       - 'v*.*.*'  # 当推送 v1.0.0 格式的标签时触发
   workflow_dispatch:  # 允许手动触发
+    inputs:
+      skip_release:
+        description: '仅构建，不发布 Release'
+        required: false
+        default: true
+        type: boolean
 
 permissions:
   contents: write
@@ -99,6 +105,128 @@ jobs:
             echo "  ✅ $($_.Name) ($sizeMB MB)"
           }
 
+      # ==========================================
+      # SignPath 代码签名集成
+      # ==========================================
+      
+      - name: Package artifacts for signing
+        id: package-artifacts
+        shell: pwsh
+        run: |
+          echo "📦 打包构建产物用于签名..."
+          
+          # 创建临时目录
+          $bundleDir = "signing-artifacts"
+          New-Item -Path $bundleDir -ItemType Directory -Force | Out-Null
+          
+          # 复制所有构建产物到临时目录
+          $files = Get-ChildItem -Path . -File | Where-Object { $_.Extension -in '.exe', '.msi', '.zip' }
+          foreach ($file in $files) {
+            Copy-Item -Path $file.FullName -Destination $bundleDir -Force
+            echo "  ✓ 已添加: $($file.Name)"
+          }
+          
+          echo "✅ 共打包 $($files.Count) 个文件"
+
+      - name: Upload unsigned artifacts to GitHub
+        id: upload-unsigned-artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-artifacts
+          path: signing-artifacts/*
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Submit to SignPath for code signing
+        id: submit-signing-request
+        uses: signpath/github-action-submit-signing-request@v2
+        with:
+          api-token: '${{ secrets.SIGNPATH_API_TOKEN }}'
+          organization-id: '${{ secrets.SIGNPATH_ORGANIZATION_ID }}'
+          project-slug: '${{ secrets.SIGNPATH_PROJECT_SLUG }}'
+          signing-policy-slug: '${{ secrets.SIGNPATH_SIGNING_POLICY_SLUG }}'
+          artifact-configuration-slug: 'zerolaunch-rs-release'
+          github-artifact-id: '${{ steps.upload-unsigned-artifacts.outputs.artifact-id }}'
+          wait-for-completion: true
+          output-artifact-directory: 'signed-artifacts'
+          wait-for-completion-timeout-in-seconds: 1800
+          parameters: |
+            version: "${{ steps.get_version.outputs.VERSION }}"
+
+      - name: List signed artifacts
+        shell: pwsh
+        run: |
+          echo "=== 已签名的构建产物 ==="
+          if (Test-Path "signed-artifacts") {
+            $signedFiles = Get-ChildItem -Path "signed-artifacts" -File -Recurse | Where-Object { $_.Extension -in '.exe', '.msi', '.zip' }
+            if ($signedFiles.Count -eq 0) {
+              echo "❌ 错误：签名目录中没有找到任何文件！"
+              exit 1
+            }
+            echo "找到 $($signedFiles.Count) 个已签名文件："
+            $signedFiles | ForEach-Object {
+              $sizeMB = [math]::Round($_.Length / 1MB, 2)
+              echo "  ✅ $($_.Name) ($sizeMB MB)"
+            }
+          } else {
+            echo "❌ 错误：签名输出目录不存在！"
+            exit 1
+          }
+
+      - name: Verify code signatures
+        shell: pwsh
+        run: |
+          echo "🔍 验证代码签名..."
+          
+          $signedFiles = Get-ChildItem -Path "signed-artifacts" -File -Recurse | Where-Object { $_.Extension -in '.exe', '.msi' }
+          $allValid = $true
+          
+          foreach ($file in $signedFiles) {
+            try {
+              $sig = Get-AuthenticodeSignature -FilePath $file.FullName
+              if ($sig.Status -eq 'Valid') {
+                echo "  ✅ $($file.Name): 签名有效"
+                if ($sig.SignerCertificate) {
+                  echo "     签名者: $($sig.SignerCertificate.Subject)"
+                }
+              } else {
+                echo "  ⚠️  $($file.Name): 签名状态 - $($sig.Status)"
+                if ($sig.Status -eq 'UnknownError' -or $sig.Status -eq 'NotSigned') {
+                  $allValid = $false
+                }
+              }
+            } catch {
+              echo "  ⚠️  $($file.Name): 无法验证签名 - $($_.Exception.Message)"
+            }
+          }
+          
+          if (-not $allValid) {
+            echo "❌ 部分文件签名无效！"
+            exit 1
+          }
+          
+          echo "✅ 所有签名验证通过！"
+
+      - name: Move signed artifacts to root
+        shell: pwsh
+        run: |
+          echo "📦 移动已签名文件到根目录..."
+          
+          # 删除原有的未签名文件
+          Get-ChildItem -Path . -File | Where-Object { $_.Extension -in '.exe', '.msi', '.zip' } | Remove-Item -Force
+          
+          # 移动已签名文件到根目录
+          Get-ChildItem -Path "signed-artifacts" -File -Recurse | Where-Object { $_.Extension -in '.exe', '.msi', '.zip' } | ForEach-Object {
+            Move-Item -Path $_.FullName -Destination . -Force
+            echo "  ✓ $($_.Name)"
+          }
+          
+          # 清理临时目录
+          Remove-Item -Path "signing-artifacts" -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item -Path "signed-artifacts" -Recurse -Force -ErrorAction SilentlyContinue
+          
+          echo "✅ 已签名文件已就绪"
+
       - name: Generate Release Notes
         id: release_notes
         shell: pwsh
@@ -190,6 +318,7 @@ jobs:
     name: Publish to GitHub
     needs: build
     runs-on: windows-latest
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.skip_release == 'false')
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -218,6 +347,7 @@ jobs:
     name: Publish to Gitee
     needs: build
     runs-on: windows-latest
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.skip_release == 'false')
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -317,6 +447,7 @@ jobs:
     name: Publish to GitCode
     needs: build
     runs-on: windows-latest
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.skip_release == 'false')
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -409,7 +540,7 @@ jobs:
           }
 
   # =======================================================
-  # 最终的通知 Job，依赖于所有并行的 release job
+  # 最终的通知 Job,依赖于所有并行的 release job
   # =======================================================
   notify:
     name: Notify on completion
@@ -418,8 +549,8 @@ jobs:
       - release-gitee
       - release-gitcode
     runs-on: ubuntu-latest
-    if: always() 
-    # 无论成功失败都运行
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.skip_release == 'false')
+    # 无论成功失败都运行,但手动触发时不运行
     steps:
       - name: Check status of all release jobs
         run: |

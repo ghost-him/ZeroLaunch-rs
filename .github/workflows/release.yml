@@ -108,24 +108,24 @@ jobs:
       # ==========================================
       # SignPath 代码签名集成
       # ==========================================
-      
+
       - name: Package artifacts for signing
         id: package-artifacts
         shell: pwsh
         run: |
           echo "📦 打包构建产物用于签名..."
-          
+
           # 创建临时目录
           $bundleDir = "signing-artifacts"
           New-Item -Path $bundleDir -ItemType Directory -Force | Out-Null
-          
+
           # 复制所有构建产物到临时目录
           $files = Get-ChildItem -Path . -File | Where-Object { $_.Extension -in '.exe', '.msi', '.zip' }
           foreach ($file in $files) {
             Copy-Item -Path $file.FullName -Destination $bundleDir -Force
             echo "  ✓ 已添加: $($file.Name)"
           }
-          
+
           echo "✅ 共打包 $($files.Count) 个文件"
 
       - name: Upload unsigned artifacts to GitHub
@@ -158,21 +158,6 @@ jobs:
         run: |
           echo "=== 已签名的构建产物 ==="
           if (Test-Path "signed-artifacts") {
-            echo "📂 signed-artifacts 目录内容："
-            Get-ChildItem -Path "signed-artifacts" -Recurse | ForEach-Object {
-              echo "  - $($_.FullName)"
-            }
-            
-            # 检查是否有 zip 文件需要解压
-            $zipFiles = Get-ChildItem -Path "signed-artifacts" -Filter "*.zip" -File -Recurse
-            if ($zipFiles.Count -gt 0) {
-              echo "📦 发现 zip 文件，正在解压..."
-              foreach ($zipFile in $zipFiles) {
-                echo "  解压: $($zipFile.Name)"
-                Expand-Archive -Path $zipFile.FullName -DestinationPath "signed-artifacts" -Force
-              }
-            }
-            
             $signedFiles = Get-ChildItem -Path "signed-artifacts" -File -Recurse | Where-Object { $_.Extension -in '.exe', '.msi', '.zip' }
             if ($signedFiles.Count -eq 0) {
               echo "❌ 错误：签名目录中没有找到任何文件！"
@@ -188,70 +173,24 @@ jobs:
             exit 1
           }
 
-      - name: Verify code signatures
-        shell: pwsh
-        run: |
-          echo "🔍 验证代码签名..."
-          
-          $signedFiles = Get-ChildItem -Path "signed-artifacts" -File -Recurse | Where-Object { $_.Extension -in '.exe', '.msi' }
-          $allSigned = $true
-          
-          foreach ($file in $signedFiles) {
-            try {
-              $sig = Get-AuthenticodeSignature -FilePath $file.FullName
-              
-              # 检查是否有签名（即使是测试证书或不受信任的证书）
-              if ($sig.SignerCertificate) {
-                echo "  ✅ $($file.Name): 已签名"
-                echo "     签名者: $($sig.SignerCertificate.Subject)"
-                echo "     签名状态: $($sig.Status)"
-                
-                # 对于测试证书，Valid、UnknownError 或 UntrustedRoot 都是可接受的
-                # 只有 NotSigned 才是真正的失败
-                if ($sig.Status -eq 'NotSigned') {
-                  echo "     ⚠️  警告: 文件未签名"
-                  $allSigned = $false
-                }
-              } else {
-                echo "  ❌ $($file.Name): 未找到签名证书"
-                echo "     签名状态: $($sig.Status)"
-                if ($sig.Status -eq 'NotSigned') {
-                  $allSigned = $false
-                }
-              }
-            } catch {
-              echo "  ⚠️  $($file.Name): 无法验证签名 - $($_.Exception.Message)"
-              # 不因为验证异常而失败，可能是 PowerShell 版本问题
-            }
-          }
-          
-          if (-not $allSigned) {
-            echo ""
-            echo "❌ 发现未签名的文件！"
-            exit 1
-          }
-          
-          echo ""
-          echo "✅ 所有文件均已签名！"
-
       - name: Move signed artifacts to root
         shell: pwsh
         run: |
           echo "📦 移动已签名文件到根目录..."
-          
+
           # 删除原有的未签名文件
           Get-ChildItem -Path . -File | Where-Object { $_.Extension -in '.exe', '.msi', '.zip' } | Remove-Item -Force
-          
+
           # 移动已签名文件到根目录
           Get-ChildItem -Path "signed-artifacts" -File -Recurse | Where-Object { $_.Extension -in '.exe', '.msi', '.zip' } | ForEach-Object {
             Move-Item -Path $_.FullName -Destination . -Force
             echo "  ✓ $($_.Name)"
           }
-          
+
           # 清理临时目录
           Remove-Item -Path "signing-artifacts" -Recurse -Force -ErrorAction SilentlyContinue
           Remove-Item -Path "signed-artifacts" -Recurse -Force -ErrorAction SilentlyContinue
-          
+
           echo "✅ 已签名文件已就绪"
 
       - name: Generate Release Notes

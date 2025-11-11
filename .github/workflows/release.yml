@@ -11,6 +11,10 @@ on:
         required: false
         default: true
         type: boolean
+      tag:
+        description: '指定版本标签 (例如: v0.5.4)，留空则自动从 git 提取'
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -62,9 +66,20 @@ jobs:
         id: get_version
         shell: pwsh
         run: |
-          $tag = $env:GITHUB_REF -replace 'refs/tags/v', ''
-          if ([string]::IsNullOrEmpty($tag)) {
-            $tag = "0.0.0"
+          # 检查是否有用户输入的 tag
+          $inputTag = "${{ github.event.inputs.tag }}"
+          
+          if (-not [string]::IsNullOrEmpty($inputTag)) {
+            # 使用用户输入的 tag
+            $tag = $inputTag -replace '^v', ''
+            echo "📝 使用用户输入的标签: v$tag"
+          } else {
+            # 从 git ref 提取 tag
+            $tag = $env:GITHUB_REF -replace 'refs/tags/v', ''
+            if ([string]::IsNullOrEmpty($tag)) {
+              $tag = "0.0.0"
+            }
+            echo "📝 从 git ref 提取标签: v$tag"
           }
 
           # 生成 yymmdd 格式的日期

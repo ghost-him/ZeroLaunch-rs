@@ -1,6 +1,5 @@
 use std::error::Error as StdError;
 use std::fmt;
-use tauri_plugin_autostart::Error as AutostartError;
 use thiserror::Error;
 
 // --- 核心错误类型定义 ---
@@ -63,10 +62,6 @@ pub enum AppError {
 
     #[error("存储错误: {message}")]
     StorageError { message: String },
-
-    /// 自动启动错误
-    #[error("自动启动错误: {0}")]
-    AutostartError(#[from] AutostartError),
 
     /// IO错误
     #[error("IO错误: {0}")]

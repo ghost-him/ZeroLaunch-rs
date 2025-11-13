@@ -9,9 +9,6 @@
   ],
   "permissions": [
     "core:default",
-    "autostart:allow-enable",
-    "autostart:allow-disable",
-    "autostart:allow-is-enabled",
     "global-shortcut:allow-is-registered",
     "global-shortcut:allow-register-all",
     "global-shortcut:allow-unregister-all",

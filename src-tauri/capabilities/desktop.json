@@ -5,7 +5,5 @@
     "windows",
     "linux"
   ],
-  "permissions": [
-    "autostart:default"
-  ]
+  "permissions": []
 }

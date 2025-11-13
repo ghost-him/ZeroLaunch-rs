@@ -662,20 +662,21 @@ pub fn handle_auto_start() -> Result<(), Box<dyn std::error::Error>> {
 
     let state: Arc<AppState> = ServiceLocator::get_state();
 
-    // 处理主窗口句柄
-    let app_handle = state.get_main_handle();
+    // 获取当前可执行文件的路径
+    let exe_path = std::env::current_exe().map_err(|e| format!("获取可执行文件路径失败: {}", e))?;
 
-    // 初始化自动启动插件
-    {
-        use tauri_plugin_autostart::MacosLauncher;
-        app_handle.plugin(tauri_plugin_autostart::init(
-            MacosLauncher::LaunchAgent,
-            None,
-        ))?;
-    }
-    use tauri_plugin_autostart::ManagerExt;
-    // 获取自动启动管理器
-    let autostart_manager = app_handle.autolaunch();
+    let exe_path_str = exe_path.to_str().ok_or("可执行文件路径包含无效字符")?;
+
+    let username = whoami::username();
+
+    let folder_name = "ZeroLaunch-rs";
+    let task_base_name = format!("autostart ({})", username);
+
+    let full_task_name = format!("{}\\{}", folder_name, task_base_name);
+
+    // 创建任务计划程序管理器
+    use crate::modules::task_scheduler::TaskScheduler;
+    let task_scheduler = TaskScheduler::new(full_task_name, exe_path_str);
 
     // 获取运行时配置
     let is_auto_start = {
@@ -683,18 +684,23 @@ pub fn handle_auto_start() -> Result<(), Box<dyn std::error::Error>> {
         config.get_app_config().get_is_auto_start()
     };
 
-    // 根据配置强制更新自动启动状态和路径
+    // 根据配置强制更新自动启动状态 (这部分逻辑保持不变)
     if is_auto_start {
         info!("启用自动启动功能");
-        // 无论当前是否启用，启用自动启动以确保路径正确
-        autostart_manager.enable()?;
+        task_scheduler
+            .enable()
+            .map_err(|e| format!("启用自动启动失败: {}", e))?;
         debug!("自动启动已启用");
     } else {
         info!("检查并禁用自动启动功能");
-        // 如果已启用则禁用
-        if autostart_manager.is_enabled()? {
+        if task_scheduler
+            .is_enabled()
+            .map_err(|e| format!("检查自动启动状态失败: {}", e))?
+        {
             debug!("检测到自动启动已启用，正在禁用");
-            autostart_manager.disable()?;
+            task_scheduler
+                .disable()
+                .map_err(|e| format!("禁用自动启动失败: {}", e))?;
         }
     }
 

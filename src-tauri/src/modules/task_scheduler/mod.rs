@@ -8,6 +8,10 @@ use std::process::Command;
 use tempfile::Builder;
 use tracing::{debug, info, warn};
 
+use std::os::windows::process::CommandExt;
+
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
 /// 任务计划程序管理器
 pub struct TaskScheduler {
     task_name: String,
@@ -29,6 +33,7 @@ impl TaskScheduler {
 
         let output = Command::new("schtasks")
             .args(["/Query", "/TN", &self.task_name, "/FO", "LIST"])
+            .creation_flags(CREATE_NO_WINDOW)
             .output()
             .map_err(|e| format!("执行 schtasks 查询命令失败: {}", e))?;
 
@@ -73,6 +78,7 @@ impl TaskScheduler {
         let output = Command::new("schtasks")
             .args(["/Create", "/TN", &self.task_name, "/XML"])
             .arg(temp_path.as_os_str())
+            .creation_flags(CREATE_NO_WINDOW)
             .output()
             .map_err(|e| format!("执行 schtasks 创建命令失败: {}", e))?;
 
@@ -96,6 +102,7 @@ impl TaskScheduler {
 
         let output = Command::new("schtasks")
             .args(["/Delete", "/TN", &self.task_name, "/F"])
+            .creation_flags(CREATE_NO_WINDOW)
             .output()
             .map_err(|e| format!("执行 schtasks 删除命令失败: {}", e))?;
 

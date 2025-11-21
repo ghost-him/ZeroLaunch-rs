@@ -11,7 +11,7 @@ const copyI18nPlugin = () => {
   return {
     name: 'copy-i18n-locales',
     buildStart() {
-      const srcLocalesDir = join(process.cwd(), 'src', 'i18n', 'locales');
+      const srcLocalesDir = join(process.cwd(), 'src-ui', 'i18n', 'locales');
       const destDir = join(process.cwd(), 'src-tauri', 'locales');
       
       // 创建目标目录

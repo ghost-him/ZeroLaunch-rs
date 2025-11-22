@@ -204,7 +204,7 @@ export const useRemoteConfigStore = defineStore('config', {
         async syncConfig() {
             if (Object.keys(this.dirtyConfig).length === 0) return;
             try {
-                await invoke('command_save_remote_config', { config: this.dirtyConfig });
+                await invoke('command_save_remote_config', { partialConfig: this.dirtyConfig });
                 this.dirtyConfig = {};
             } catch (e) {
                 console.error("Failed to sync config", e);

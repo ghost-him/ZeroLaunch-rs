@@ -917,3 +917,49 @@ onUnmounted(() => {
   darkModeMediaQuery.value?.removeEventListener('change', handleThemeChange);
 })
 </script>
+
+<style>
+/*
+这里选择99.85是因为如果选择100%，可能会出现底栏被挡住的情况
+比如：如果在屏幕上的高度为532，而缩放比为150%，那么对应这个界面来说，高度为 532 / 1.5 = 354.666...
+这个多出来的小数会导致计算错误，从而导致底栏的边框消失，如果让这个显示的界面小一点点，就不会出现这个情况了
+*/
+
+html,
+body {
+  box-sizing: border-box;
+  height: 99.85%;
+  margin: 0;
+  padding: 0;
+}
+
+#app {
+  box-sizing: border-box;
+  height: 100%;
+  width: 100%;
+}
+
+main {
+  height: 100%;
+}
+</style>
+
+<style scoped>
+.launcher-container {
+  display: flex;
+  padding: 0;
+  overflow: hidden;
+  outline: none;
+  flex-direction: column;
+  height: calc(100%);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.unified-container {
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+  flex-shrink: 0;
+}
+</style>

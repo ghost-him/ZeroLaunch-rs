@@ -1,13 +1,13 @@
 <template>
-  <div v-if="uiConfig.footer_height > 0" class="footer drag_area"
+  <div v-if="uiConfig.footer_height > 0" class="footer" @mousedown="startDrag"
     :style="{ backgroundColor: uiConfig.search_bar_background_color, fontSize: Math.round(uiConfig.footer_height * uiConfig.footer_font_size * layoutConstants.fontSizeRatio) + 'px', fontFamily: uiConfig.footer_font_family, }">
     <div class="footer-left">
-      <span class="status-text" :style="{ color: uiConfig.footer_font_color }">{{
+      <span class="status-text" :style="{ color: uiConfig.footer_font_color, fontFamily: uiConfig.footer_font_family }">{{
         leftText || appConfig.tips }}</span>
     </div>
-    <div class="footer-center drag_area"></div>
+    <div class="footer-center"></div>
     <div class="footer-right">
-      <span class="open-text" :style="{ color: uiConfig.footer_font_color }">
+      <span class="open-text" :style="{ color: uiConfig.footer_font_color, fontFamily: uiConfig.footer_font_family }">
         {{ statusText }}
       </span>
     </div>
@@ -16,43 +16,54 @@
 
 <script setup lang="ts">
 import type { UIConfig, AppConfig } from '../../api/remote_config_types';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 
 const layoutConstants = {
   fontSizeRatio: 0.01
 };
 
-defineProps<{
+const props = defineProps<{
   uiConfig: UIConfig;
   appConfig: AppConfig;
   statusText: string;
   leftText?: string;
 }>();
+
+const startDrag = (e: MouseEvent) => {
+  if (!props.appConfig.is_enable_drag_window) return;
+  if (e.button !== 0) return;
+  getCurrentWindow().startDragging();
+}
 </script>
 
 <style scoped>
 .footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0 10px;
-  width: 100%;
   box-sizing: border-box;
-  height: 100%; /* Controlled by parent or style binding */
+  flex: 1;
+  display: flex;
+  align-items: center;
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+  width: 100%;
 }
 
-.footer-left,
+.footer-left {
+  margin-left: 16px;
+  flex-shrink: 0;
+}
+
 .footer-right {
-  display: flex;
-  align-items: center;
-  white-space: nowrap;
+  margin-right: 16px;
+  flex-shrink: 0;
 }
 
 .footer-center {
-  flex: 1;
-  height: 100%;
+  flex-grow: 1;
 }
 
-.drag_area {
-  -webkit-app-region: drag;
+.status-text,
+.open-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 </style>

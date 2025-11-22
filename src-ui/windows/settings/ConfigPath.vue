@@ -48,7 +48,7 @@
                 <h3 class="section-title">{{ t('config_path.webdav_settings') }}</h3>
                 <el-form-item :label="t('config_path.server_address')">
                     <el-input v-model="formData.webdav_save_config.host_url"
-                        :placeholder="t('config_path.webdav_server_placeholder')">
+                        :placeholder="t('config_path.server_address_placeholder')">
                         <template #prefix>
                             <el-icon>
                                 <Link />

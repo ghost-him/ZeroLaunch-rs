@@ -1,21 +1,21 @@
 <template>
-  <div class="search-input drag_area"
-    :style="{ background: uiConfig.search_bar_background_color, height: uiConfig.search_bar_height + 'px' }"
-    @contextmenu.prevent="onContextMenu">
-    <span class="search-icon drag_area" :style="{
-      marginLeft: Math.round(uiConfig.search_bar_height * layoutConstants.iconMarginRatio) + 'px',
-      marginRight: Math.round(uiConfig.search_bar_height * layoutConstants.iconMarginRatio) + 'px'
+  <div class="search-input"
+    :style="{ background: props.uiConfig.search_bar_background_color, height: props.uiConfig.search_bar_height + 'px' }"
+    @contextmenu.prevent="onContextMenu" @mousedown="startDrag">
+    <span class="search-icon" :style="{
+      marginLeft: Math.round(props.uiConfig.search_bar_height * layoutConstants.iconMarginRatio) + 'px',
+      marginRight: Math.round(props.uiConfig.search_bar_height * layoutConstants.iconMarginRatio) + 'px'
     }">
-      <svg viewBox="0 0 1024 1024" class="drag_area" :width="Math.round(uiConfig.search_bar_height * layoutConstants.iconSizeRatio) + 'px'"
-        :height="Math.round(uiConfig.search_bar_height * layoutConstants.iconSizeRatio) + 'px'">
-        <path fill="#999" class="drag_area"
+      <svg viewBox="0 0 1024 1024" :width="Math.round(props.uiConfig.search_bar_height * layoutConstants.iconSizeRatio) + 'px'"
+        :height="Math.round(props.uiConfig.search_bar_height * layoutConstants.iconSizeRatio) + 'px'">
+        <path fill="#999"
           d="M795.904 750.72l124.992 124.928a32 32 0 0 1-45.248 45.248L750.656 795.904a416 416 0 1 1 45.248-45.248zM480 832a352 352 0 1 0 0-704 352 352 0 0 0 0 704z" />
       </svg>
     </span>
-    <AnimatedInput v-model="modelValue" :placeholder="appConfig.search_bar_placeholder" ref="animatedInputRef"
-      :font-size="Math.round(uiConfig.search_bar_height * uiConfig.search_bar_font_size * layoutConstants.fontSizeRatio) + 'px'"
-      :color="uiConfig.search_bar_font_color" :font-family="uiConfig.search_bar_font_family"
-      :placeholder-color="uiConfig.search_bar_placeholder_font_color" :dynamic="uiConfig.search_bar_animate" />
+    <AnimatedInput v-model="modelValue" :placeholder="props.appConfig.search_bar_placeholder" ref="animatedInputRef"
+      :font-size="Math.round(props.uiConfig.search_bar_height * props.uiConfig.search_bar_font_size * layoutConstants.fontSizeRatio) + 'px'"
+      :color="props.uiConfig.search_bar_font_color" :font-family="props.uiConfig.search_bar_font_family"
+      :placeholder-color="props.uiConfig.search_bar_placeholder_font_color" :dynamic="props.uiConfig.search_bar_animate" />
   </div>
 </template>
 
@@ -23,6 +23,7 @@
 import { ref, computed } from 'vue';
 import AnimatedInput from './AnimatedInput.vue';
 import type { AppConfig, UIConfig } from '../../api/remote_config_types';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 
 const layoutConstants = {
   iconMarginRatio: 0.3,
@@ -46,6 +47,13 @@ const realInputRef = computed(() => animatedInputRef.value?.realInputRef);
 const onContextMenu = (event: MouseEvent) => {
   emit('contextmenu', event);
 };
+
+const startDrag = (e: MouseEvent) => {
+  if (!props.appConfig.is_enable_drag_window) return;
+  if (e.button !== 0) return;
+  if ((e.target as HTMLElement).tagName.toLowerCase() === 'input') return;
+  getCurrentWindow().startDragging();
+}
 
 const focus = () => {
   animatedInputRef.value?.focus();
@@ -75,8 +83,5 @@ defineExpose({
   justify-content: center;
   flex-shrink: 0;
 }
-
-.drag_area {
-  -webkit-app-region: drag;
-}
 </style>
+ 

@@ -42,7 +42,7 @@ jobs:
       - name: Copy i18n locales to src-tauri
         shell: pwsh
         run: |
-          $srcLocalesDir = "src\i18n\locales"
+          $srcLocalesDir = "src-ui\i18n\locales"
           $destDir = "src-tauri\locales"
           if (-not (Test-Path $destDir)) {
             New-Item -Path $destDir -ItemType Directory -Force | Out-Null
@@ -99,7 +99,7 @@ jobs:
       - name: Copy i18n locales to src-tauri
         shell: pwsh
         run: |
-          $srcLocalesDir = "src\i18n\locales"
+          $srcLocalesDir = "src-ui\i18n\locales"
           $destDir = "src-tauri\locales"
           if (-not (Test-Path $destDir)) {
             New-Item -Path $destDir -ItemType Directory -Force | Out-Null

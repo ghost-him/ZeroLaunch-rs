@@ -45,7 +45,7 @@ bun run build
 
 # 2. 复制 i18n locales 文件到 src-tauri
 echo "📦 Copying i18n locales to src-tauri..."
-SRC_LOCALES_DIR="src/i18n/locales"
+SRC_LOCALES_DIR="src-ui/i18n/locales"
 DEST_DIR="src-tauri/locales"
 
 if [ ! -d "$DEST_DIR" ]; then

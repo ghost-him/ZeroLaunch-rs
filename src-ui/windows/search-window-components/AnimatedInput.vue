@@ -6,13 +6,19 @@
             'blinking': isFocused,
             'is-moving': isCaretMoving,
             'animated': props.dynamic
-        }" :style="{ left: caretLeft + 'px', backgroundColor: props.color, }"></span>
+        }" :style="{ left: caretLeft + 'px', backgroundColor: props.color }"></span>
 
         <input ref="realInputRef" v-model="modelValue"
-            @click="updateCursorPosition" @select="updateCursorPosition" @keyup="updateCursorPosition" @keydown="updateCursorPosition" @focus="isFocused = true"
-            @blur="isFocused = false" class="real-input" :placeholder="props.placeholder" :style="[
+            @click="updateCursorPosition" 
+            @select="updateCursorPosition" 
+            @keyup="updateCursorPosition" 
+            @keydown="updateCursorPosition" 
+            @input="updateCursorPosition"
+            @focus="isFocused = true"
+            @blur="isFocused = false" 
+            class="real-input" :placeholder="props.placeholder" :style="[
                 sharedStyles,
-                {'--placeholder-color': props.placeholderColor}]" />
+                {'--placeholder-color': props.placeholderColor, 'caret-color': 'transparent'}]" />
     </div>
 </template>
 
@@ -38,9 +44,11 @@ const sharedStyles = computed(() => ({
     fontFamily: props.fontFamily,
     fontSize: props.fontSize,
     color: props.color,
+    letterSpacing: 'normal', // Ensure consistent spacing
 }));
 
 const modelValue = defineModel<string>({ required: true });
+const currentInputValue = ref(modelValue.value);
 
 const realInputRef = ref<HTMLInputElement | null>(null);
 const measurerRef = ref<HTMLElement | null>(null);
@@ -51,12 +59,30 @@ const isFocused = ref(false);
 const isCaretMoving = ref(false);
 let caretMoveTimer: ReturnType<typeof setTimeout> | null = null;
 
-const textBefore = computed(() => modelValue.value.slice(0, cursorPosition.value));
+const textBefore = computed(() => currentInputValue.value.slice(0, cursorPosition.value));
 
 const updateCursorPosition = async () => {
-    if (!realInputRef.value || !measurerRef.value || !isFocused.value) return;
+    if (!realInputRef.value || !measurerRef.value) return;
 
-    cursorPosition.value = realInputRef.value.selectionStart || 0;
+    const input = realInputRef.value;
+    currentInputValue.value = input.value;
+
+    let pos = input.selectionStart || 0;
+
+    // Handle selection direction
+    if (input.selectionDirection === 'backward') {
+        pos = input.selectionStart || 0;
+    } else if (input.selectionDirection === 'forward') {
+        pos = input.selectionEnd || 0;
+    } else {
+        // Default behavior if direction is not supported or 'none'
+        pos = input.selectionStart || 0;
+        if (input.selectionStart !== input.selectionEnd) {
+            pos = input.selectionEnd || 0;
+        }
+    }
+
+    cursorPosition.value = pos;
 
     await nextTick();
 
@@ -80,6 +106,7 @@ defineExpose({
 });
 
 watch(modelValue, async () => {
+    await nextTick();
     await updateCursorPosition();
 });
 </script>
@@ -101,7 +128,7 @@ watch(modelValue, async () => {
     white-space: pre;
     pointer-events: none;
     height: 100%;
-    display: inline-flex;
+    display: inline-block;
     align-items: center;
 }
 
@@ -113,7 +140,6 @@ watch(modelValue, async () => {
     padding: 0;
     margin: 0;
     background: transparent;
-    caret-color: transparent;
     font: inherit;
     -webkit-app-region: no-drag;
 }

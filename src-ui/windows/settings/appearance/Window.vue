@@ -15,7 +15,7 @@
                         @change="(val: number) => configStore.updateConfig({ ui_config: { window_corner_radius: val } })" />
                 </el-form-item>
 
-                <el-form-item :label="t('ui_config.use_windows_sys_control_radius')">
+                <el-form-item :label="t('ui_config.use_windows_system_radius')">
                     <el-switch v-model="config.ui_config.use_windows_sys_control_radius"
                         @change="(val: boolean) => configStore.updateConfig({ ui_config: { use_windows_sys_control_radius: val } })" />
                 </el-form-item>

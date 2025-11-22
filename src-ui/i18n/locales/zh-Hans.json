@@ -116,7 +116,7 @@
     "result_item_height": "结果栏中一项的高度",
     "footer_height": "底栏的高度",
     "window_width": "程序的宽度",
-    "use_windows_sys_control_radius": "使用windows系统圆角",
+    "use_windows_system_radius": "使用windows系统圆角",
     "windows11_requirement": "仅支持 Windows11 22h2 及以上的版本",
     "window_corner_radius": "窗口的圆角大小",
     "system_radius_disabled": "使用系统圆角时，无法更改圆角大小",

@@ -39,7 +39,8 @@
     "resources": [
       "icons/",
       "locales/",
-      "models/readme.md"
+      "models/readme.md",
+      "Everything64.dll"
     ],
     "targets": "all"
   },

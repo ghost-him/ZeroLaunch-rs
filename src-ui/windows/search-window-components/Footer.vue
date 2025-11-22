@@ -1,6 +1,6 @@
 <template>
   <div v-if="uiConfig.footer_height > 0" class="footer drag_area"
-    :style="{ backgroundColor: uiConfig.search_bar_background_color, fontSize: Math.round(uiConfig.footer_height * uiConfig.footer_font_size / 100) + 'px', fontFamily: uiConfig.footer_font_family, }">
+    :style="{ backgroundColor: uiConfig.search_bar_background_color, fontSize: Math.round(uiConfig.footer_height * uiConfig.footer_font_size * layoutConstants.fontSizeRatio) + 'px', fontFamily: uiConfig.footer_font_family, }">
     <div class="footer-left">
       <span class="status-text" :style="{ color: uiConfig.footer_font_color }">{{
         leftText || appConfig.tips }}</span>
@@ -16,6 +16,10 @@
 
 <script setup lang="ts">
 import type { UIConfig, AppConfig } from '../../api/remote_config_types';
+
+const layoutConstants = {
+  fontSizeRatio: 0.01
+};
 
 defineProps<{
   uiConfig: UIConfig;

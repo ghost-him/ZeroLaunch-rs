@@ -1,5 +1,6 @@
 use crate::core::storage::storage_manager::StorageManager;
 use crate::error::OptionExt;
+use crate::modules::everything::EverythingManager;
 use crate::modules::shortcut_manager::ShortcutManager;
 use crate::modules::{config::config_manager::RuntimeConfig, program_manager::ProgramManager};
 use crate::utils::i18n::Translator;
@@ -44,6 +45,8 @@ pub struct AppState {
     translator: Arc<RwLock<Translator>>,
     /// 唤醒搜索栏前的前台窗口句柄
     previous_foreground_window: RwLock<Option<isize>>,
+    /// Everything 管理器
+    everything_manager: Arc<EverythingManager>,
 }
 
 impl Default for AppState {
@@ -71,6 +74,7 @@ impl AppState {
             last_search_query: RwLock::new(String::new()),
             translator: Arc::new(RwLock::new(Translator::new())),
             previous_foreground_window: RwLock::new(None),
+            everything_manager: Arc::new(EverythingManager::new()),
         }
     }
 
@@ -212,7 +216,6 @@ impl AppState {
         *self.is_keyboard_blocked.read()
     }
 
-    // region: Last Search Query 访问方法
     /// 设置最后一次搜索的查询词
     pub fn set_last_search_query(&self, query: String) {
         *self.last_search_query.write() = query;
@@ -228,7 +231,6 @@ impl AppState {
         Arc::clone(&self.translator)
     }
 
-    // region: Previous Foreground Window 访问方法
     /// 设置唤醒前的前台窗口句柄
     pub fn set_previous_foreground_window(&self, hwnd: Option<isize>) {
         *self.previous_foreground_window.write() = hwnd;
@@ -238,7 +240,11 @@ impl AppState {
     pub fn get_previous_foreground_window(&self) -> Option<isize> {
         *self.previous_foreground_window.read()
     }
-    // endregion
+
+    /// 获取 Everything 管理器的克隆
+    pub fn get_everything_manager(&self) -> Arc<EverythingManager> {
+        self.everything_manager.clone()
+    }
 }
 
 // Custom Debug implementation for AppState

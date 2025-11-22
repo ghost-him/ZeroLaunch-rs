@@ -30,6 +30,7 @@
 
       <!-- Result List -->
       <ResultList
+        v-if="!isEverythingMode"
         ref="resultsListRef"
         :menuItems="menuItems"
         :menuIcons="menuIcons"
@@ -40,6 +41,16 @@
         :isScrollMode="isScrollMode"
         @item-click="handleItemClick"
         @item-contextmenu="contextResultItemEvent"
+      />
+
+      <!-- Everything Panel -->
+      <EverythingPanel
+        v-else
+        ref="everythingPanelRef"
+        :searchText="searchText"
+        :uiConfig="ui_config"
+        :appConfig="app_config"
+        :hoverColor="hover_item_color"
       />
     </div>
 
@@ -83,6 +94,7 @@ import {
 
 import SearchBar from './search-window-components/SearchBar.vue';
 import ResultList from './search-window-components/ResultList.vue';
+import EverythingPanel from './search-window-components/EverythingPanel.vue';
 import Footer from './search-window-components/Footer.vue';
 import ParameterPanel from './search-window-components/ParameterPanel.vue';
 import SubMenu from './search-window-components/SubMenu.vue';
@@ -97,6 +109,7 @@ const searchText = ref('')
 const selectedIndex = ref<number>(0)
 const searchBarRef = ref<InstanceType<typeof SearchBar> | null>(null)
 const resultsListRef = ref<InstanceType<typeof ResultList> | null>(null)
+const everythingPanelRef = ref<InstanceType<typeof EverythingPanel> | null>(null)
 const searchResults = ref<Array<[number, string]>>([]);
 const latest_launch_program = ref<Array<[number, string]>>([]);
 const is_alt_pressed = ref<boolean>(false);
@@ -113,6 +126,14 @@ const is_dark = ref(false);
 const darkModeMediaQuery = ref<MediaQueryList | null>(null);
 const windowSize = ref<{ width: number; height: number; }>({ width: 800, height: 800 });
 const scaleFactor = ref<number>(1);
+const isEverythingMode = ref(false);
+
+const toggleEverythingMode = async () => {
+  isEverythingMode.value = !isEverythingMode.value;
+  searchResults.value = [];
+  selectedIndex.value = 0;
+  // No need to call sendSearchText here, EverythingPanel will react to searchText prop
+};
 
 // Parameter Session Types
 type LaunchMethodKind = 'Path' | 'PackageFamilyName' | 'File' | 'Command';
@@ -267,7 +288,12 @@ const buildTemplatePreview = (template: string, args: string[], placeholderCount
 
 const sendSearchText = async (text: string) => {
   try {
-    const results: Array<[number, string]> = await invoke('handle_search_text', { searchText: text });
+    if (isEverythingMode.value) {
+      // Everything mode handles search internally in EverythingPanel via prop watch
+      return;
+    }
+    let results: Array<[number, string]>;
+    results = await invoke('handle_search_text', { searchText: text });
     searchResults.value = results;
     await refresh_result_items();
     selectedIndex.value = 0;
@@ -345,8 +371,13 @@ const refresh_result_items = async () => {
   if (!is_alt_pressed.value) {
     menuItems.value = searchResults.value.map(([_, item]) => item);
     let keys = searchResults.value.map(([key, _]) => key);
-    menuIcons.value = await getIcons(keys);
-    right_tips.value = t('app.best_match');
+    if (isEverythingMode.value) {
+      menuIcons.value = new Array(keys.length).fill('/tauri.svg');
+      right_tips.value = 'Everything Search';
+    } else {
+      menuIcons.value = await getIcons(keys);
+      right_tips.value = t('app.best_match');
+    }
   } else {
     menuItems.value = latest_launch_program.value.map(([_, item]) => item);
     let keys = latest_launch_program.value.map(([key, _]) => key);
@@ -555,6 +586,35 @@ const handleKeyDown = async (event: KeyboardEvent) => {
       event.preventDefault();
       await confirmParameterInput();
       return;
+    }
+    return;
+  }
+
+  if (event.ctrlKey && event.key.toLowerCase() === 'e') {
+    event.preventDefault();
+    toggleEverythingMode();
+    return;
+  }
+
+  if (isEverythingMode.value) {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      everythingPanelRef.value?.moveSelection(1);
+      return;
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      everythingPanelRef.value?.moveSelection(-1);
+      return;
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      everythingPanelRef.value?.launchSelected();
+      return;
+    }
+    // Allow other keys (like typing) to pass through
+    if (event.key !== 'Alt' && event.key !== 'Control' && event.key !== 'Shift') {
+        // Let it bubble to input
     }
     return;
   }
@@ -854,60 +914,6 @@ onUnmounted(() => {
       item();
     }
   }
-  program_icons.value.forEach((url) => URL.revokeObjectURL(url));
-});
+  darkModeMediaQuery.value?.removeEventListener('change', handleThemeChange);
+})
 </script>
-
-<style>
-/* Global styles moved to App.vue */
-</style>
-
-<style scoped>
-.launcher-container {
-  display: flex;
-  padding: 0;
-  overflow: hidden;
-  outline: none;
-  flex-direction: column;
-  height: calc(100%);
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.unified-container {
-  flex-direction: column;
-  overflow: hidden;
-  min-height: 0;
-  flex-shrink: 0;
-}
-
-.footer {
-  box-sizing: border-box;
-  flex: 1;
-  display: flex;
-  align-items: center;
-  border-top: 1px solid rgba(0, 0, 0, 0.05);
-}
-
-.footer-left {
-  margin-left: 16px;
-  flex-shrink: 0;
-}
-
-.footer-center {
-  flex-grow: 1;
-}
-
-.footer-right {
-  margin-right: 16px;
-  flex-shrink: 0;
-}
-
-.status-text,
-.open-text {
-  color: #666;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-</style>

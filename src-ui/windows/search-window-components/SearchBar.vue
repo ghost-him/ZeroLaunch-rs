@@ -3,17 +3,17 @@
     :style="{ background: uiConfig.search_bar_background_color, height: uiConfig.search_bar_height + 'px' }"
     @contextmenu.prevent="onContextMenu">
     <span class="search-icon drag_area" :style="{
-      marginLeft: Math.round(uiConfig.search_bar_height * 0.3) + 'px',
-      marginRight: Math.round(uiConfig.search_bar_height * 0.3) + 'px'
+      marginLeft: Math.round(uiConfig.search_bar_height * layoutConstants.iconMarginRatio) + 'px',
+      marginRight: Math.round(uiConfig.search_bar_height * layoutConstants.iconMarginRatio) + 'px'
     }">
-      <svg viewBox="0 0 1024 1024" class="drag_area" :width="Math.round(uiConfig.search_bar_height * 0.4) + 'px'"
-        :height="Math.round(uiConfig.search_bar_height * 0.4) + 'px'">
+      <svg viewBox="0 0 1024 1024" class="drag_area" :width="Math.round(uiConfig.search_bar_height * layoutConstants.iconSizeRatio) + 'px'"
+        :height="Math.round(uiConfig.search_bar_height * layoutConstants.iconSizeRatio) + 'px'">
         <path fill="#999" class="drag_area"
           d="M795.904 750.72l124.992 124.928a32 32 0 0 1-45.248 45.248L750.656 795.904a416 416 0 1 1 45.248-45.248zM480 832a352 352 0 1 0 0-704 352 352 0 0 0 0 704z" />
       </svg>
     </span>
     <AnimatedInput v-model="modelValue" :placeholder="appConfig.search_bar_placeholder" ref="animatedInputRef"
-      :font-size="Math.round(uiConfig.search_bar_height * uiConfig.search_bar_font_size / 100) + 'px'"
+      :font-size="Math.round(uiConfig.search_bar_height * uiConfig.search_bar_font_size * layoutConstants.fontSizeRatio) + 'px'"
       :color="uiConfig.search_bar_font_color" :font-family="uiConfig.search_bar_font_family"
       :placeholder-color="uiConfig.search_bar_placeholder_font_color" :dynamic="uiConfig.search_bar_animate" />
   </div>
@@ -23,6 +23,12 @@
 import { ref, computed } from 'vue';
 import AnimatedInput from './AnimatedInput.vue';
 import type { AppConfig, UIConfig } from '../../api/remote_config_types';
+
+const layoutConstants = {
+  iconMarginRatio: 0.3,
+  iconSizeRatio: 0.4,
+  fontSizeRatio: 0.01
+};
 
 const props = defineProps<{
   appConfig: AppConfig;

@@ -161,6 +161,8 @@ pub fn run() {
             get_program_info,
             refresh_program,
             handle_search_text,
+            handle_everything_search,
+            launch_everything_item,
             get_launch_template_info,
             update_search_bar_window,
             get_background_picture,

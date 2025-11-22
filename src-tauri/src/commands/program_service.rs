@@ -363,6 +363,36 @@ pub async fn handle_search_text<R: Runtime>(
     Ok(ret)
 }
 
+/// 启动Everything搜索结果
+#[tauri::command]
+pub async fn launch_everything_item<R: Runtime>(
+    _app: tauri::AppHandle<R>,
+    _window: tauri::Window<R>,
+    state: tauri::State<'_, Arc<AppState>>,
+    path: String,
+) -> Result<(), String> {
+    let everything_manager = state.get_everything_manager();
+    everything_manager.launch(&path);
+    Ok(())
+}
+
+/// 处理Everything搜索请求
+#[tauri::command]
+pub async fn handle_everything_search<R: Runtime>(
+    _app: tauri::AppHandle<R>,
+    _window: tauri::Window<R>,
+    state: tauri::State<'_, Arc<AppState>>,
+    search_text: String,
+) -> Result<Vec<SearchResult>, String> {
+    let everything_manager = state.get_everything_manager();
+    let results = everything_manager.search(&search_text, 20)?;
+
+    Ok(results
+        .into_iter()
+        .map(|r| SearchResult(r.id, r.path))
+        .collect())
+}
+
 /// 获得最近启动的程序
 #[tauri::command]
 pub async fn command_get_latest_launch_program(

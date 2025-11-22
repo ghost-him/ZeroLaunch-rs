@@ -109,6 +109,7 @@ bincode = "2.0.1"
 arboard = "3.6.1"
 zip = "6.0.0"
 whoami = "1.6.1"
+everything-rs = "0.1.10"
 
 [features]
 default = ["custom-protocol"]

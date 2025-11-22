@@ -8,16 +8,16 @@
         height: uiConfig.result_item_height + 'px',
       }">
       <div class="icon" :style="{
-        width: Math.round(uiConfig.result_item_height * 0.6) + 'px',
-        height: Math.round(uiConfig.result_item_height * 0.6) + 'px',
-        marginLeft: Math.round(uiConfig.result_item_height * 0.2) + 'px',
-        marginRight: Math.round(uiConfig.result_item_height * 0.2) + 'px',
+        width: Math.round(uiConfig.result_item_height * layoutConstants.iconSizeRatio) + 'px',
+        height: Math.round(uiConfig.result_item_height * layoutConstants.iconSizeRatio) + 'px',
+        marginLeft: Math.round(uiConfig.result_item_height * layoutConstants.iconMarginRatio) + 'px',
+        marginRight: Math.round(uiConfig.result_item_height * layoutConstants.iconMarginRatio) + 'px',
       }">
         <img :src="menuIcons[index]" class="custom-image" alt="icon">
       </div>
       <div class="item-info">
         <div class="item-name" v-html="item" :style="{
-          fontSize: Math.round(uiConfig.result_item_height * uiConfig.item_font_size / 100) + 'px',
+          fontSize: Math.round(uiConfig.result_item_height * uiConfig.item_font_size * layoutConstants.fontSizeRatio) + 'px',
           fontFamily: uiConfig.result_item_font_family,
           color: uiConfig.item_font_color
         }"></div>
@@ -29,6 +29,12 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import type { UIConfig, AppConfig } from '../../api/remote_config_types';
+
+const layoutConstants = {
+  iconSizeRatio: 0.6,
+  iconMarginRatio: 0.2,
+  fontSizeRatio: 0.01
+};
 
 const props = defineProps<{
   menuItems: string[];

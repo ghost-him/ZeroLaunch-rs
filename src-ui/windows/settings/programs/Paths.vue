@@ -204,7 +204,7 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, ref, onMounted, onUnmounted, Ref } from 'vue';
+import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRemoteConfigStore } from '../../../stores/remote_config';
 import { storeToRefs } from 'pinia';

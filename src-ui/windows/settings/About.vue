@@ -1,123 +1,165 @@
 <template>
-    <div class="about-container">
-        <div class="about-header">
-            <img src="../../assets/icon.svg" alt="ZeroLaunch Logo" class="logo" />
-            <h1>ZeroLaunch</h1>
-            <div class="version-container">
-                <span class="version">{{ currentVersion }}</span>
-                <el-button type="primary" size="small" :loading="checkingUpdate" @click="checkUpdate"
-                    class="update-btn">
-                    {{ t('about.check_update') }}
-                </el-button>
-            </div>
-            <el-alert v-if="updateStatus" :title="updateStatus.message" :type=updateStatus.type />
-        </div>
-
-        <div class="about-content">
-            <el-divider content-position="left">{{ t('about.software_intro') }}</el-divider>
-            <p class="description">
-                {{ t('about.description') }}
-            </p>
-
-            <el-divider content-position="left">{{ t('about.core_features') }}</el-divider>
-            <div class="features">
-                <div class="feature-item">
-                    <el-icon>
-                        <Location />
-                    </el-icon>
-                    <div class="feature-content">
-                        <h3>{{ t('about.local_running') }}</h3>
-                        <p>{{ t('about.local_running_desc') }}</p>
-                    </div>
-                </div>
-                <div class="feature-item">
-                    <el-icon>
-                        <Search />
-                    </el-icon>
-                    <div class="feature-content">
-                        <h3>{{ t('about.intelligent_search') }}</h3>
-                        <p>{{ t('about.intelligent_search_desc') }}</p>
-                    </div>
-                </div>
-                <div class="feature-item">
-                    <el-icon>
-                        <Aim />
-                    </el-icon>
-                    <div class="feature-content">
-                        <h3>{{ t('about.pure_function') }}</h3>
-                        <p>{{ t('about.pure_function_desc') }}</p>
-                    </div>
-                </div>
-                <div class="feature-item">
-                    <el-icon>
-                        <Share />
-                    </el-icon>
-                    <div class="feature-content">
-                        <h3>{{ t('about.open_source') }}</h3>
-                        <p>{{ t('about.open_source_desc') }}</p>
-                    </div>
-                </div>
-            </div>
-
-            <el-divider content-position="left">{{ t('about.tech_stack') }}</el-divider>
-            <div class="tech-stack">
-                <el-tag>Rust</el-tag>
-                <el-tag>Tauri</el-tag>
-                <el-tag>Vue.js</el-tag>
-                <el-tag>Element Plus</el-tag>
-            </div>
-
-            <el-divider content-position="left">{{ t('about.project_links') }}</el-divider>
-            <div class="repo-links">
-                <el-link type="primary" href="https://github.com/ghost-him/ZeroLaunch-rs" target="_blank">
-                    <el-icon class="link-icon">
-                        <ElementPlus />
-                    </el-icon>GitHub
-                </el-link>
-                <el-link type="success" href="https://gitee.com/ghost-him/ZeroLaunch-rs" target="_blank">
-                    <el-icon class="link-icon">
-                        <ElementPlus />
-                    </el-icon>Gitee
-                </el-link>
-                <el-link type="warning" href="https://gitcode.com/ghost-him/ZeroLaunch-rs" target="_blank">
-                    <el-icon class="link-icon">
-                        <ElementPlus />
-                    </el-icon>GitCode
-                </el-link>
-            </div>
-
-            <el-divider content-position="left">{{ t('about.welcome_page') }}</el-divider>
-            <div class="repo-links">
-                <el-button @click="show_welcome" style="margin-top: 8px;">
-                    <span>{{ t('about.show_welcome') }}</span>
-                    <el-tooltip class="box-item" effect="dark" :content="t('about.welcome_language_tip')">
-                        <el-icon class="el-question-icon">
-                            <QuestionFilled />
-                        </el-icon>
-                    </el-tooltip>
-                </el-button>
-            </div>
-        </div>
-
-        <div class="about-footer">
-            <p>© {{ new Date().getFullYear() }} ZeroLaunch - {{ t('about.license') }}</p>
-        </div>
+  <div class="about-container">
+    <div class="about-header">
+      <img
+        src="../../assets/icon.svg"
+        alt="ZeroLaunch Logo"
+        class="logo"
+      >
+      <h1>ZeroLaunch</h1>
+      <div class="version-container">
+        <span class="version">{{ currentVersion }}</span>
+        <el-button
+          type="primary"
+          size="small"
+          :loading="checkingUpdate"
+          class="update-btn"
+          @click="checkUpdate"
+        >
+          {{ t('about.check_update') }}
+        </el-button>
+      </div>
+      <el-alert
+        v-if="updateStatus"
+        :title="updateStatus.message"
+        :type="updateStatus.type"
+      />
     </div>
+
+    <div class="about-content">
+      <el-divider content-position="left">
+        {{ t('about.software_intro') }}
+      </el-divider>
+      <p class="description">
+        {{ t('about.description') }}
+      </p>
+
+      <el-divider content-position="left">
+        {{ t('about.core_features') }}
+      </el-divider>
+      <div class="features">
+        <div class="feature-item">
+          <el-icon>
+            <Location />
+          </el-icon>
+          <div class="feature-content">
+            <h3>{{ t('about.local_running') }}</h3>
+            <p>{{ t('about.local_running_desc') }}</p>
+          </div>
+        </div>
+        <div class="feature-item">
+          <el-icon>
+            <Search />
+          </el-icon>
+          <div class="feature-content">
+            <h3>{{ t('about.intelligent_search') }}</h3>
+            <p>{{ t('about.intelligent_search_desc') }}</p>
+          </div>
+        </div>
+        <div class="feature-item">
+          <el-icon>
+            <Aim />
+          </el-icon>
+          <div class="feature-content">
+            <h3>{{ t('about.pure_function') }}</h3>
+            <p>{{ t('about.pure_function_desc') }}</p>
+          </div>
+        </div>
+        <div class="feature-item">
+          <el-icon>
+            <Share />
+          </el-icon>
+          <div class="feature-content">
+            <h3>{{ t('about.open_source') }}</h3>
+            <p>{{ t('about.open_source_desc') }}</p>
+          </div>
+        </div>
+      </div>
+
+      <el-divider content-position="left">
+        {{ t('about.tech_stack') }}
+      </el-divider>
+      <div class="tech-stack">
+        <el-tag>Rust</el-tag>
+        <el-tag>Tauri</el-tag>
+        <el-tag>Vue.js</el-tag>
+        <el-tag>Element Plus</el-tag>
+      </div>
+
+      <el-divider content-position="left">
+        {{ t('about.project_links') }}
+      </el-divider>
+      <div class="repo-links">
+        <el-link
+          type="primary"
+          href="https://github.com/ghost-him/ZeroLaunch-rs"
+          target="_blank"
+        >
+          <el-icon class="link-icon">
+            <ElementPlus />
+          </el-icon>GitHub
+        </el-link>
+        <el-link
+          type="success"
+          href="https://gitee.com/ghost-him/ZeroLaunch-rs"
+          target="_blank"
+        >
+          <el-icon class="link-icon">
+            <ElementPlus />
+          </el-icon>Gitee
+        </el-link>
+        <el-link
+          type="warning"
+          href="https://gitcode.com/ghost-him/ZeroLaunch-rs"
+          target="_blank"
+        >
+          <el-icon class="link-icon">
+            <ElementPlus />
+          </el-icon>GitCode
+        </el-link>
+      </div>
+
+      <el-divider content-position="left">
+        {{ t('about.welcome_page') }}
+      </el-divider>
+      <div class="repo-links">
+        <el-button
+          style="margin-top: 8px;"
+          @click="show_welcome"
+        >
+          <span>{{ t('about.show_welcome') }}</span>
+          <el-tooltip
+            class="box-item"
+            effect="dark"
+            :content="t('about.welcome_language_tip')"
+          >
+            <el-icon class="el-question-icon">
+              <QuestionFilled />
+            </el-icon>
+          </el-tooltip>
+        </el-button>
+      </div>
+    </div>
+
+    <div class="about-footer">
+      <p>© {{ new Date().getFullYear() }} ZeroLaunch - {{ t('about.license') }}</p>
+    </div>
+  </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
-import { invoke } from '@tauri-apps/api/core';
-import { Location, Search, Aim, Share, ElementPlus, QuestionFilled } from '@element-plus/icons-vue';
-import { getVersion } from '@tauri-apps/api/app';
-import { useI18n } from 'vue-i18n';
-import { ElMessage } from 'element-plus';
+import { ref, onMounted } from 'vue'
+import { invoke } from '@tauri-apps/api/core'
+import { Location, Search, Aim, Share, ElementPlus, QuestionFilled } from '@element-plus/icons-vue'
+import { getVersion } from '@tauri-apps/api/app'
+import { useI18n } from 'vue-i18n'
+import { ElMessage } from 'element-plus'
 
-const { t } = useI18n();
+const { t } = useI18n()
 
-const currentVersion = ref('v0.4.0'); // 假设当前版本
-const checkingUpdate = ref(false);
-const updateStatus = ref(null);
+const currentVersion = ref('v0.4.0') // 假设当前版本
+const checkingUpdate = ref(false)
+const updateStatus = ref(null)
 
 const show_welcome = async () => {
     try {
@@ -137,43 +179,43 @@ const show_welcome = async () => {
 
 // 检查更新函数
 const checkUpdate = async () => {
-    checkingUpdate.value = true;
-    updateStatus.value = null;
+    checkingUpdate.value = true
+    updateStatus.value = null
     try {
 
-        const latestVersion = await invoke('command_get_latest_release_version');
+        const latestVersion = await invoke('command_get_latest_release_version')
 
 
         if (latestVersion === currentVersion.value) {
             updateStatus.value = {
                 type: 'success',
-                message: t('about.latest_version')
-            };
+                message: t('about.latest_version'),
+            }
         } else {
             updateStatus.value = {
                 type: 'warning',
-                message: t('about.new_version_found', { version: latestVersion })
-            };
+                message: t('about.new_version_found', { version: latestVersion }),
+            }
         }
     } catch (error) {
 
         updateStatus.value = {
             type: 'error',
-            message: t('about.update_check_failed') + ': ' + error
-        };
+            message: t('about.update_check_failed') + ': ' + error,
+        }
     } finally {
-        checkingUpdate.value = false; // 确保最终重置状态
+        checkingUpdate.value = false // 确保最终重置状态
     }
-};
+}
 
 const updateCurrentVersion = async () => {
-    currentVersion.value = 'v' + await getVersion();
+    currentVersion.value = 'v' + await getVersion()
 
 }
 
 onMounted(async () => {
     await updateCurrentVersion()
-});
+})
 </script>
 
 <style scoped>

@@ -6,19 +6,19 @@ function mergeConfig(config: RemoteConfig, partial: PartialRemoteConfig): Remote
     // 合并 app_config
     const app_config = partial.app_config
         ? { ...config.app_config, ...partial.app_config }
-        : config.app_config;
+        : config.app_config
 
     // 合并 ui_config
     const ui_config = partial.ui_config
         ? { ...config.ui_config, ...partial.ui_config }
-        : config.ui_config;
+        : config.ui_config
 
     // 合并 shortcut_config
-    const shortcut_config = partial.shortcut_config ? { ...config.shortcut_config, ...partial.shortcut_config } : config.shortcut_config;
+    const shortcut_config = partial.shortcut_config ? { ...config.shortcut_config, ...partial.shortcut_config } : config.shortcut_config
 
     // 处理 program_manager_config
-    const pmPartial = partial.program_manager_config;
-    const pmConfig = config.program_manager_config;
+    const pmPartial = partial.program_manager_config
+    const pmConfig = config.program_manager_config
     const program_manager_config = pmPartial
         ? {
             ranker: pmPartial.ranker ? { ...pmConfig.ranker, ...pmPartial.ranker } : pmConfig.ranker,
@@ -28,7 +28,7 @@ function mergeConfig(config: RemoteConfig, partial: PartialRemoteConfig): Remote
             enable_lru_search_cache: pmPartial.enable_lru_search_cache !== undefined ? pmPartial.enable_lru_search_cache : pmConfig.enable_lru_search_cache,
             search_cache_capacity: pmPartial.search_cache_capacity !== undefined ? pmPartial.search_cache_capacity : pmConfig.search_cache_capacity,
         }
-        : pmConfig;
+        : pmConfig
     // 返回合并后的新 Config 对象
     return {
         ...config,
@@ -36,12 +36,12 @@ function mergeConfig(config: RemoteConfig, partial: PartialRemoteConfig): Remote
         ui_config,
         shortcut_config,
         program_manager_config,
-    };
+    }
 }
 
 function mergePartialConfig(
     partial1: PartialRemoteConfig,
-    partial2: PartialRemoteConfig
+    partial2: PartialRemoteConfig,
 ): PartialRemoteConfig {
     // 合并 app_config
     const mergedAppConfig =
@@ -50,7 +50,7 @@ function mergePartialConfig(
                 ...(partial1.app_config || {}),
                 ...(partial2.app_config || {}),
             }
-            : undefined;
+            : undefined
 
     // 合并 ui_config
     const mergedUiConfig =
@@ -59,37 +59,37 @@ function mergePartialConfig(
                 ...(partial1.ui_config || {}),
                 ...(partial2.ui_config || {}),
             }
-            : undefined;
+            : undefined
 
     // 合并shortcut
     const shortcutConfig = partial1.shortcut_config || partial2.shortcut_config ? {
         ...(partial1.shortcut_config || {}),
         ...(partial2.shortcut_config || {}),
-    } : undefined;
+    } : undefined
 
     // 合并 program_manager_config
     const mergedProgramManagerConfig = mergePartialProgramManagerConfig(
         partial1.program_manager_config,
-        partial2.program_manager_config
-    );
+        partial2.program_manager_config,
+    )
 
     // 构建最终的 PartialConfig 对象
-    const result: PartialRemoteConfig = {};
-    if (mergedAppConfig !== undefined) result.app_config = mergedAppConfig;
-    if (mergedUiConfig !== undefined) result.ui_config = mergedUiConfig;
-    if (shortcutConfig !== undefined) result.shortcut_config = shortcutConfig;
+    const result: PartialRemoteConfig = {}
+    if (mergedAppConfig !== undefined) result.app_config = mergedAppConfig
+    if (mergedUiConfig !== undefined) result.ui_config = mergedUiConfig
+    if (shortcutConfig !== undefined) result.shortcut_config = shortcutConfig
     if (mergedProgramManagerConfig !== undefined)
-        result.program_manager_config = mergedProgramManagerConfig;
+        result.program_manager_config = mergedProgramManagerConfig
 
-    return result;
+    return result
 }
 
 // 合并 program_manager_config 的辅助函数
 function mergePartialProgramManagerConfig(
-    pm1?: PartialRemoteConfig["program_manager_config"],
-    pm2?: PartialRemoteConfig["program_manager_config"]
-): PartialRemoteConfig["program_manager_config"] | undefined {
-    if (!pm1 && !pm2) return undefined;
+    pm1?: PartialRemoteConfig['program_manager_config'],
+    pm2?: PartialRemoteConfig['program_manager_config'],
+): PartialRemoteConfig['program_manager_config'] | undefined {
+    if (!pm1 && !pm2) return undefined
 
     // 合并 ranker
     const mergedRanker =
@@ -98,7 +98,7 @@ function mergePartialProgramManagerConfig(
                 ...(pm1?.ranker || {}),
                 ...(pm2?.ranker || {}),
             }
-            : undefined;
+            : undefined
 
     // 合并 loader
     const mergedLoader =
@@ -107,7 +107,7 @@ function mergePartialProgramManagerConfig(
                 ...(pm1?.loader || {}),
                 ...(pm2?.loader || {}),
             }
-            : undefined;
+            : undefined
     // 合并 image_loader_config
     const mergedImageLoaderConfig =
         pm1?.image_loader || pm2?.image_loader
@@ -115,21 +115,21 @@ function mergePartialProgramManagerConfig(
                 ...(pm1?.image_loader || {}),
                 ...(pm2?.image_loader || {}),
             }
-            : undefined;
+            : undefined
     // 合并 search_model
-    const mergedSearchModel = pm2?.search_model ?? pm1?.search_model;
-    const mergedEnableCache = pm2?.enable_lru_search_cache ?? pm1?.enable_lru_search_cache;
-    const mergedCacheCapacity = pm2?.search_cache_capacity ?? pm1?.search_cache_capacity;
+    const mergedSearchModel = pm2?.search_model ?? pm1?.search_model
+    const mergedEnableCache = pm2?.enable_lru_search_cache ?? pm1?.enable_lru_search_cache
+    const mergedCacheCapacity = pm2?.search_cache_capacity ?? pm1?.search_cache_capacity
 
     // 构建最终的 program_manager_config 对象
-    const mergedPm: PartialRemoteConfig["program_manager_config"] = {};
-    if (mergedRanker !== undefined) mergedPm.ranker = mergedRanker;
-    if (mergedLoader !== undefined) mergedPm.loader = mergedLoader;
-    if (mergedImageLoaderConfig !== undefined) mergedPm.image_loader = mergedImageLoaderConfig;
-    if (mergedSearchModel !== undefined) mergedPm.search_model = mergedSearchModel;
-    if (mergedEnableCache !== undefined) mergedPm.enable_lru_search_cache = mergedEnableCache;
-    if (mergedCacheCapacity !== undefined) mergedPm.search_cache_capacity = mergedCacheCapacity;
-    return Object.keys(mergedPm).length > 0 ? mergedPm : undefined;
+    const mergedPm: PartialRemoteConfig['program_manager_config'] = {}
+    if (mergedRanker !== undefined) mergedPm.ranker = mergedRanker
+    if (mergedLoader !== undefined) mergedPm.loader = mergedLoader
+    if (mergedImageLoaderConfig !== undefined) mergedPm.image_loader = mergedImageLoaderConfig
+    if (mergedSearchModel !== undefined) mergedPm.search_model = mergedSearchModel
+    if (mergedEnableCache !== undefined) mergedPm.enable_lru_search_cache = mergedEnableCache
+    if (mergedCacheCapacity !== undefined) mergedPm.search_cache_capacity = mergedCacheCapacity
+    return Object.keys(mergedPm).length > 0 ? mergedPm : undefined
 }
 
 export const useRemoteConfigStore = defineStore('config', {
@@ -146,7 +146,7 @@ export const useRemoteConfigStore = defineStore('config', {
                     query_affinity_weight: 3.5,
                     query_affinity_time_decay: 259200,
                     temporal_decay: 10800,
-                    is_enable: true
+                    is_enable: true,
                 } as ProgramRankerConfig,
                 loader: {
                     target_paths: [],
@@ -169,7 +169,7 @@ export const useRemoteConfigStore = defineStore('config', {
                         RetryRegisterShortcut: [],
                         ToggleGameMode: [],
                         ExitProgram: [],
-                    }
+                    },
                 } as ProgramLoaderConfig,
                 image_loader: {
                     enable_icon_cache: true,
@@ -178,9 +178,9 @@ export const useRemoteConfigStore = defineStore('config', {
                 search_model: 'standard',
                 enable_lru_search_cache: false,
                 search_cache_capacity: 120,
-            } as ProgramManagerConfig
+            } as ProgramManagerConfig,
         } as RemoteConfig,
-        dirtyConfig: {} as PartialRemoteConfig
+        dirtyConfig: {} as PartialRemoteConfig,
     }),
     actions: {
         // 从后端加载完整配置
@@ -188,27 +188,27 @@ export const useRemoteConfigStore = defineStore('config', {
 
             try {
                 const config = await invoke<PartialRemoteConfig>('command_load_remote_config')
-                this.config = mergeConfig(this.config, config);
+                this.config = mergeConfig(this.config, config)
             } catch (e) {
-                console.error("Failed to load config", e);
+                console.error('Failed to load config', e)
             }
         },
         // 更新配置并同步到后端
         updateConfig(partial: PartialRemoteConfig) {
 
             // 1. 更新本地状态（带自定义合并规则）
-            this.config = mergeConfig(this.config, partial);
+            this.config = mergeConfig(this.config, partial)
             // 2. 更新 dirtyConfig（带相同合并规则）
             this.dirtyConfig = mergePartialConfig(this.dirtyConfig, partial)
         },
         async syncConfig() {
-            if (Object.keys(this.dirtyConfig).length === 0) return;
+            if (Object.keys(this.dirtyConfig).length === 0) return
             try {
-                await invoke('command_save_remote_config', { partialConfig: this.dirtyConfig });
-                this.dirtyConfig = {};
+                await invoke('command_save_remote_config', { partialConfig: this.dirtyConfig })
+                this.dirtyConfig = {}
             } catch (e) {
-                console.error("Failed to sync config", e);
+                console.error('Failed to sync config', e)
             }
-        }
-    }
-});
+        },
+    },
+})

@@ -51,8 +51,8 @@ export function default_shortcut_config(): ShortcutConfig {
             alt: false,
             shift: false,
             meta: false,
-        }
-    } as ShortcutConfig;
+        },
+    } as ShortcutConfig
 }
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
@@ -96,7 +96,7 @@ export function default_app_config(): AppConfig {
         scroll_threshold: 10,
         language: 'zh-Hans',
         log_level: 'info',
-    } as AppConfig;
+    } as AppConfig
 }
 
 export type UIConfig = {
@@ -115,7 +115,7 @@ export type UIConfig = {
     background_position: string,
     background_repeat: string,
     background_opacity: number,
-    blur_style: String,
+    blur_style: string,
     search_bar_placeholder_font_color: string,
     window_corner_radius: number,
     use_windows_sys_control_radius: boolean,
@@ -156,7 +156,7 @@ export function default_ui_config(): UIConfig {
         footer_font_family: 'Segoe UI',
         program_background_color: '#FFFFFFFF',
         search_bar_animate: true,
-    } as UIConfig;
+    } as UIConfig
 }
 
 export type ProgramRankerConfig = {

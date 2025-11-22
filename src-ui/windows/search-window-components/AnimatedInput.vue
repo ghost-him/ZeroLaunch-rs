@@ -1,29 +1,42 @@
 <template>
-    <div class="hybrid-input-wrapper">
-        <span ref="measurerRef" :style="sharedStyles" class="text-measurer" >{{ textBefore }}</span>
+  <div class="hybrid-input-wrapper">
+    <span
+      ref="measurerRef"
+      :style="sharedStyles"
+      class="text-measurer"
+    >{{ textBefore }}</span>
 
-        <span class="animated-caret" :class="{
-            'blinking': isFocused,
-            'is-moving': isCaretMoving,
-            'animated': props.dynamic
-        }" :style="{ left: caretLeft + 'px', backgroundColor: props.color }"></span>
+    <span
+      class="animated-caret"
+      :class="{
+        'blinking': isFocused,
+        'is-moving': isCaretMoving,
+        'animated': props.dynamic
+      }"
+      :style="{ left: caretLeft + 'px', backgroundColor: props.color }"
+    />
 
-        <input ref="realInputRef" v-model="modelValue"
-            @click="updateCursorPosition" 
-            @select="updateCursorPosition" 
-            @keyup="updateCursorPosition" 
-            @keydown="updateCursorPosition" 
-            @input="updateCursorPosition"
-            @focus="isFocused = true"
-            @blur="isFocused = false" 
-            class="real-input" :placeholder="props.placeholder" :style="[
-                sharedStyles,
-                {'--placeholder-color': props.placeholderColor, 'caret-color': 'transparent'}]" />
-    </div>
+    <input
+      ref="realInputRef"
+      v-model="modelValue"
+      class="real-input" 
+      :placeholder="props.placeholder" 
+      :style="[
+        sharedStyles,
+        {'--placeholder-color': props.placeholderColor, 'caret-color': 'transparent'}]" 
+      @click="updateCursorPosition" 
+      @select="updateCursorPosition"
+      @keyup="updateCursorPosition"
+      @keydown="updateCursorPosition" 
+      @input="updateCursorPosition"
+      @focus="isFocused = true"
+      @blur="isFocused = false"
+    >
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, watch } from 'vue';
+import { ref, computed, nextTick, watch } from 'vue'
 
 const props = withDefaults(defineProps<{
     placeholder?: string;
@@ -38,77 +51,77 @@ const props = withDefaults(defineProps<{
     color: 'black',
     placeholderColor: '#999',
     dynamic: true,
-});
+})
 
 const sharedStyles = computed(() => ({
     fontFamily: props.fontFamily,
     fontSize: props.fontSize,
     color: props.color,
     letterSpacing: 'normal', // Ensure consistent spacing
-}));
+}))
 
-const modelValue = defineModel<string>({ required: true });
-const currentInputValue = ref(modelValue.value);
+const modelValue = defineModel<string>({ required: true })
+const currentInputValue = ref(modelValue.value)
 
-const realInputRef = ref<HTMLInputElement | null>(null);
-const measurerRef = ref<HTMLElement | null>(null);
+const realInputRef = ref<HTMLInputElement | null>(null)
+const measurerRef = ref<HTMLElement | null>(null)
 
-const cursorPosition = ref(0);
-const caretLeft = ref(0);
-const isFocused = ref(false);
-const isCaretMoving = ref(false);
-let caretMoveTimer: ReturnType<typeof setTimeout> | null = null;
+const cursorPosition = ref(0)
+const caretLeft = ref(0)
+const isFocused = ref(false)
+const isCaretMoving = ref(false)
+let caretMoveTimer: ReturnType<typeof setTimeout> | null = null
 
-const textBefore = computed(() => currentInputValue.value.slice(0, cursorPosition.value));
+const textBefore = computed(() => currentInputValue.value.slice(0, cursorPosition.value))
 
 const updateCursorPosition = async () => {
-    if (!realInputRef.value || !measurerRef.value) return;
+    if (!realInputRef.value || !measurerRef.value) return
 
-    const input = realInputRef.value;
-    currentInputValue.value = input.value;
+    const input = realInputRef.value
+    currentInputValue.value = input.value
 
-    let pos = input.selectionStart || 0;
+    let pos = input.selectionStart || 0
 
     // Handle selection direction
     if (input.selectionDirection === 'backward') {
-        pos = input.selectionStart || 0;
+        pos = input.selectionStart || 0
     } else if (input.selectionDirection === 'forward') {
-        pos = input.selectionEnd || 0;
+        pos = input.selectionEnd || 0
     } else {
         // Default behavior if direction is not supported or 'none'
-        pos = input.selectionStart || 0;
+        pos = input.selectionStart || 0
         if (input.selectionStart !== input.selectionEnd) {
-            pos = input.selectionEnd || 0;
+            pos = input.selectionEnd || 0
         }
     }
 
-    cursorPosition.value = pos;
+    cursorPosition.value = pos
 
-    await nextTick();
+    await nextTick()
 
-    const newCaretLeft = measurerRef.value.offsetWidth;
+    const newCaretLeft = measurerRef.value.offsetWidth
     if (caretLeft.value !== newCaretLeft) {
-        isCaretMoving.value = true;
-        clearTimeout(caretMoveTimer ?? undefined);
+        isCaretMoving.value = true
+        clearTimeout(caretMoveTimer ?? undefined)
 
-        caretLeft.value = newCaretLeft;
+        caretLeft.value = newCaretLeft
 
         caretMoveTimer = setTimeout(() => {
-            isCaretMoving.value = false;
-        }, 50);
+            isCaretMoving.value = false
+        }, 50)
     }
-};
+}
 
 defineExpose({
     realInputRef,
     focus: () => realInputRef.value?.focus(),
-    cursorPosition
-});
+    cursorPosition,
+})
 
 watch(modelValue, async () => {
-    await nextTick();
-    await updateCursorPosition();
-});
+    await nextTick()
+    await updateCursorPosition()
+})
 </script>
 
 <style scoped>

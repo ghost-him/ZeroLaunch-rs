@@ -1,53 +1,87 @@
 <template>
-    <div class="settings-page">
-        <h2 class="page-title">{{ t('program_index.set_fixed_offset') }}</h2>
-        <div class="content-container">
-            <el-button class="add-btn" @click="addKeyFilter">
-                <el-icon><Plus /></el-icon> {{ t('program_index.add_item') }}
+  <div class="settings-page">
+    <h2 class="page-title">
+      {{ t('program_index.set_fixed_offset') }}
+    </h2>
+    <div class="content-container">
+      <el-button
+        class="add-btn"
+        @click="addKeyFilter"
+      >
+        <el-icon><Plus /></el-icon> {{ t('program_index.add_item') }}
+      </el-button>
+      <el-table
+        :data="keyFilterData"
+        stripe
+        style="width: 100%; margin-top: 10px;"
+      >
+        <el-table-column :label="t('program_index.target_keyword')">
+          <template #default="{ row }">
+            <el-input
+              v-model="row.key"
+              size="small"
+              :placeholder="t('program_index.enter_target_keyword')"
+              @change="updateProgramBias(row)"
+            />
+          </template>
+        </el-table-column>
+        <el-table-column
+          :label="t('program_index.offset')"
+          show-overflow-tooltip
+        >
+          <template #default="{ row }">
+            <el-input-number
+              v-model="row.bias"
+              size="small"
+              :placeholder="t('program_index.enter_offset')"
+              @change="updateProgramBias(row)"
+            />
+          </template>
+        </el-table-column>
+        <el-table-column
+          :label="t('program_index.note')"
+          show-overflow-tooltip
+        >
+          <template #default="{ row }">
+            <el-input
+              v-model="row.note"
+              size="small"
+              :placeholder="t('program_index.enter_note')"
+              @change="updateProgramBias(row)"
+            />
+          </template>
+        </el-table-column>
+        <el-table-column
+          fixed="right"
+          :label="t('program_index.operation')"
+          width="100"
+        >
+          <template #default="{ $index }">
+            <el-button
+              link
+              size="small"
+              type="danger"
+              @click="deleteKeyFilterRow($index)"
+            >
+              {{ t('program_index.delete_row') }}
             </el-button>
-            <el-table :data="keyFilterData" stripe style="width: 100%; margin-top: 10px;">
-                <el-table-column :label="t('program_index.target_keyword')">
-                    <template #default="{ row }">
-                        <el-input v-model="row.key" size="small"
-                            :placeholder="t('program_index.enter_target_keyword')"
-                            @change="updateProgramBias(row)"></el-input>
-                    </template>
-                </el-table-column>
-                <el-table-column :label="t('program_index.offset')" show-overflow-tooltip>
-                    <template #default="{ row }">
-                        <el-input-number v-model="row.bias" size="small"
-                            :placeholder="t('program_index.enter_offset')"
-                            @change="updateProgramBias(row)"></el-input-number>
-                    </template>
-                </el-table-column>
-                <el-table-column :label="t('program_index.note')" show-overflow-tooltip>
-                    <template #default="{ row }">
-                        <el-input v-model="row.note" size="small" :placeholder="t('program_index.enter_note')"
-                            @change="updateProgramBias(row)"></el-input>
-                    </template>
-                </el-table-column>
-                <el-table-column fixed="right" :label="t('program_index.operation')" width="100">
-                    <template #default="{ $index }">
-                        <el-button link size="small" type="danger" @click="deleteKeyFilterRow($index)">
-                            {{ t('program_index.delete_row') }}
-                        </el-button>
-                    </template>
-                </el-table-column>
-            </el-table>
-        </div>
+          </template>
+        </el-table-column>
+      </el-table>
     </div>
+  </div>
 </template>
 
 <script lang="ts" setup>
-import { computed } from 'vue';
-import { useI18n } from 'vue-i18n';
-import { useRemoteConfigStore } from '../../../stores/remote_config';
-import { storeToRefs } from 'pinia';
-import { Plus } from '@element-plus/icons-vue';
+import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { useRemoteConfigStore } from '../../../stores/remote_config'
+import { storeToRefs } from 'pinia'
+import { Plus } from '@element-plus/icons-vue'
 
-const { t } = useI18n();
-const configStore = useRemoteConfigStore();
-const { config } = storeToRefs(configStore);
+const { t } = useI18n()
+const configStore = useRemoteConfigStore()
+const { config } = storeToRefs(configStore)
 
 interface KeyFilterData {
     originalKey: string
@@ -57,14 +91,14 @@ interface KeyFilterData {
 }
 
 const keyFilterData = computed(() => {
-    const bias = config.value.program_manager_config.loader.program_bias;
+    const bias = config.value.program_manager_config.loader.program_bias
     return Object.keys(bias).map(key => ({
         originalKey: key,
         key,
         bias: bias[key][0],
-        note: bias[key][1] || ''
-    }));
-});
+        note: bias[key][1] || '',
+    }))
+})
 
 const updateProgramBias = (row: KeyFilterData) => {
     const newProgramBias = { ...config.value.program_manager_config.loader.program_bias }
@@ -74,19 +108,19 @@ const updateProgramBias = (row: KeyFilterData) => {
     newProgramBias[row.key] = [row.bias, row.note]
     configStore.updateConfig({
         program_manager_config: {
-            loader: { program_bias: newProgramBias }
-        }
+            loader: { program_bias: newProgramBias },
+        },
     })
 }
 
 const deleteKeyFilterRow = (index: number) => {
-    const newProgramBias = JSON.parse(JSON.stringify(config.value.program_manager_config.loader.program_bias));
-    const keyToDelete = keyFilterData.value[index].key;
-    delete newProgramBias[keyToDelete];
+    const newProgramBias = JSON.parse(JSON.stringify(config.value.program_manager_config.loader.program_bias))
+    const keyToDelete = keyFilterData.value[index].key
+    delete newProgramBias[keyToDelete]
     configStore.updateConfig({
         program_manager_config: {
-            loader: { program_bias: newProgramBias }
-        }
+            loader: { program_bias: newProgramBias },
+        },
     })
 }
 
@@ -96,8 +130,8 @@ const addKeyFilter = () => {
     newProgramBias[newKey] = [0, '']
     configStore.updateConfig({
         program_manager_config: {
-            loader: { program_bias: newProgramBias }
-        }
+            loader: { program_bias: newProgramBias },
+        },
     })
 }
 </script>

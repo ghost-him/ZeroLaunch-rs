@@ -1,40 +1,62 @@
 <template>
-  <div class="results-list" :class="{ 'scroll-mode': isScrollMode }" ref="resultsListRef" :style="listStyle">
-    <div v-for="(item, index) in menuItems" :key="index" class="result-item"
-      @click="(event) => handleItemClick(index, event.ctrlKey)" :class="{ 'selected': selectedIndex === index }"
-      @contextmenu.prevent="(event) => handleContextMenu(index, event)" :style="{
+  <div
+    ref="resultsListRef"
+    class="results-list"
+    :class="{ 'scroll-mode': isScrollMode }"
+    :style="listStyle"
+  >
+    <div
+      v-for="(item, index) in menuItems"
+      :key="index"
+      class="result-item"
+      :class="{ 'selected': selectedIndex === index }"
+      :style="{
         '--hover-color': hoverColor,
         '--selected-color': uiConfig.selected_item_color,
         height: uiConfig.result_item_height + 'px',
-      }">
-      <div class="icon" :style="{
-        width: Math.round(uiConfig.result_item_height * layoutConstants.iconSizeRatio) + 'px',
-        height: Math.round(uiConfig.result_item_height * layoutConstants.iconSizeRatio) + 'px',
-        marginLeft: Math.round(uiConfig.result_item_height * layoutConstants.iconMarginRatio) + 'px',
-        marginRight: Math.round(uiConfig.result_item_height * layoutConstants.iconMarginRatio) + 'px',
-      }">
-        <img :src="menuIcons[index]" class="custom-image" alt="icon">
+      }"
+      @click="(event) => handleItemClick(index, event.ctrlKey)"
+      @contextmenu.prevent="(event) => handleContextMenu(index, event)"
+    >
+      <div
+        class="icon"
+        :style="{
+          width: Math.round(uiConfig.result_item_height * layoutConstants.iconSizeRatio) + 'px',
+          height: Math.round(uiConfig.result_item_height * layoutConstants.iconSizeRatio) + 'px',
+          marginLeft: Math.round(uiConfig.result_item_height * layoutConstants.iconMarginRatio) + 'px',
+          marginRight: Math.round(uiConfig.result_item_height * layoutConstants.iconMarginRatio) + 'px',
+        }"
+      >
+        <img
+          :src="menuIcons[index]"
+          class="custom-image"
+          alt="icon"
+        >
       </div>
       <div class="item-info">
-        <div class="item-name" v-html="item" :style="{
-          fontSize: Math.round(uiConfig.result_item_height * uiConfig.item_font_size * layoutConstants.fontSizeRatio) + 'px',
-          fontFamily: uiConfig.result_item_font_family,
-          color: uiConfig.item_font_color
-        }"></div>
+        <div
+          class="item-name"
+          :style="{
+            fontSize: Math.round(uiConfig.result_item_height * uiConfig.item_font_size * layoutConstants.fontSizeRatio) + 'px',
+            fontFamily: uiConfig.result_item_font_family,
+            color: uiConfig.item_font_color
+          }"
+          v-html="item"
+        />
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
-import type { UIConfig, AppConfig } from '../../api/remote_config_types';
+import { computed, ref } from 'vue'
+import type { UIConfig, AppConfig } from '../../api/remote_config_types'
 
 const layoutConstants = {
   iconSizeRatio: 0.6,
   iconMarginRatio: 0.2,
-  fontSizeRatio: 0.01
-};
+  fontSizeRatio: 0.01,
+}
 
 const props = defineProps<{
   menuItems: string[];
@@ -44,40 +66,40 @@ const props = defineProps<{
   appConfig: AppConfig;
   hoverColor: string;
   isScrollMode: boolean;
-}>();
+}>()
 
 const emit = defineEmits<{
   (e: 'item-click', index: number, ctrlKey: boolean): void;
   (e: 'item-contextmenu', index: number, event: MouseEvent): void;
-}>();
+}>()
 
-const resultsListRef = ref<HTMLElement | null>(null);
+const resultsListRef = ref<HTMLElement | null>(null)
 
 const scrollModeMaxHeight = computed(() => {
-  return `${props.appConfig.scroll_threshold * props.uiConfig.result_item_height}px`;
-});
+  return `${props.appConfig.scroll_threshold * props.uiConfig.result_item_height}px`
+})
 
 const listStyle = computed(() => {
     if (props.isScrollMode) {
         return {
             maxHeight: `${props.appConfig.scroll_threshold * props.uiConfig.result_item_height}px`,
-            overflowY: 'auto' as const
+            overflowY: 'auto' as const,
         }
     }
-    return {};
-});
+    return {}
+})
 
 const handleItemClick = (index: number, ctrlKey: boolean) => {
-  emit('item-click', index, ctrlKey);
-};
+  emit('item-click', index, ctrlKey)
+}
 
 const handleContextMenu = (index: number, event: MouseEvent) => {
-  emit('item-contextmenu', index, event);
-};
+  emit('item-contextmenu', index, event)
+}
 
 defineExpose({
-  resultsListRef
-});
+  resultsListRef,
+})
 </script>
 
 <style scoped>

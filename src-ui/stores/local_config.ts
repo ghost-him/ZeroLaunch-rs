@@ -5,7 +5,7 @@ import {
     WebDAVConfig,
     // OneDriveConfig,
     PartialLocalConfig,
-    StorageDestination
+    StorageDestination,
 } from '../api/local_config_types'
 import { invoke } from '@tauri-apps/api/core'
 
@@ -31,43 +31,43 @@ function mergeConfig(config: LocalConfig, partial: PartialLocalConfig): LocalCon
         // onedrive_save_config: partial.onedrive_save_config !== undefined
         //     ? { ...config.onedrive_save_config, ...partial.onedrive_save_config }
         //     : config.onedrive_save_config,
-    };
+    }
 }
 
 // 合并两个 partial 配置的辅助函数
 function mergePartialConfig(
     oldPartial: PartialLocalConfig,
-    newPartial: PartialLocalConfig
+    newPartial: PartialLocalConfig,
 ): PartialLocalConfig {
     // 创建结果对象
-    const result: PartialLocalConfig = { ...oldPartial };
+    const result: PartialLocalConfig = { ...oldPartial }
     
     // 合并顶层基本属性
     if (newPartial.storage_destination !== undefined) {
-        result.storage_destination = newPartial.storage_destination;
+        result.storage_destination = newPartial.storage_destination
     }
     
     if (newPartial.save_to_local_per_update !== undefined) {
-        result.save_to_local_per_update = newPartial.save_to_local_per_update;
+        result.save_to_local_per_update = newPartial.save_to_local_per_update
     }
     
     if (newPartial.welcome_page_version !== undefined) {
-        result.welcome_page_version = newPartial.welcome_page_version;
+        result.welcome_page_version = newPartial.welcome_page_version
     }
     
     // 浅层合并嵌套对象
     if (newPartial.local_save_config !== undefined) {
         result.local_save_config = {
             ...(oldPartial.local_save_config || {}),
-            ...newPartial.local_save_config
-        };
+            ...newPartial.local_save_config,
+        }
     }
     
     if (newPartial.webdav_save_config !== undefined) {
         result.webdav_save_config = {
             ...(oldPartial.webdav_save_config || {}),
-            ...newPartial.webdav_save_config
-        };
+            ...newPartial.webdav_save_config,
+        }
     }
     
     // if (newPartial.onedrive_save_config !== undefined) {
@@ -77,29 +77,29 @@ function mergePartialConfig(
     //     };
     // }
     
-    return result;
+    return result
 }
 
 export const useLocalConfigStore = defineStore('localConfig', {
     state: () => ({
         config: {
-            storage_destination: "Local" as StorageDestination,
+            storage_destination: 'Local' as StorageDestination,
             local_save_config: {
-                destination_dir: ""
+                destination_dir: '',
             } as LocalSaveConfig,
             webdav_save_config: {
-                host_url: "",
-                account: "",
-                password: "",
-                destination_dir: ""
+                host_url: '',
+                account: '',
+                password: '',
+                destination_dir: '',
             } as WebDAVConfig,
             // onedrive_save_config: {
             //     refresh_token: "",
             //     destination_dir: ""
             // } as OneDriveConfig,
-            save_to_local_per_update: 0
+            save_to_local_per_update: 0,
         } as LocalConfig,
-        dirtyConfig: {} as PartialLocalConfig
+        dirtyConfig: {} as PartialLocalConfig,
     }),
 
     actions: {
@@ -109,7 +109,7 @@ export const useLocalConfigStore = defineStore('localConfig', {
                 const config = await invoke<PartialLocalConfig>('command_load_local_config')
                 this.config = mergeConfig(this.config, config)
             } catch (error) {
-                console.error("加载配置失败:", error)
+                console.error('加载配置失败:', error)
             }
         },
 
@@ -127,13 +127,13 @@ export const useLocalConfigStore = defineStore('localConfig', {
             if (Object.keys(this.dirtyConfig).length === 0) return
 
             try {
-                await invoke("command_save_local_config", { partialConfig: this.dirtyConfig })
+                await invoke('command_save_local_config', { partialConfig: this.dirtyConfig })
                 this.dirtyConfig = {}
                 await this.loadConfig()
             } catch (error) {
-                console.error("同步配置失败:", error)
+                console.error('同步配置失败:', error)
                 throw error // 抛出错误以便 UI 处理
             }
-        }
+        },
     },
 })

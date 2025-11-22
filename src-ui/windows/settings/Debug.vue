@@ -1,106 +1,175 @@
 <template>
-    <div class="settings-page">
-        <h1 class="page-title">{{ t('debug.title') }}</h1>
+  <div class="settings-page">
+    <h1 class="page-title">
+      {{ t('debug.title') }}
+    </h1>
 
-        <div class="content-container">
-        <el-card class="performance-section">
-            <template #header>
-                <div class="card-header">
-                    <h2>{{ t('debug.performance_test') }}</h2>
-                </div>
-            </template>
+    <div class="content-container">
+      <el-card class="performance-section">
+        <template #header>
+          <div class="card-header">
+            <h2>{{ t('debug.performance_test') }}</h2>
+          </div>
+        </template>
 
-            <div class="performance-buttons">
-                <el-button type="primary" @click="testSearchTime" :loading="searchTimeLoading">
-                    {{ t('debug.test_search_time') }}
-                </el-button>
+        <div class="performance-buttons">
+          <el-button
+            type="primary"
+            :loading="searchTimeLoading"
+            @click="testSearchTime"
+          >
+            {{ t('debug.test_search_time') }}
+          </el-button>
 
-                <el-button type="success" @click="testIndexTime" :loading="indexTimeLoading">
-                    {{ t('debug.test_index_time') }}
-                </el-button>
-            </div>
-
-            <div class="performance-results" v-if="searchTimeResult || indexTimeResult">
-                <el-descriptions border direction="vertical">
-                    <el-descriptions-item v-if="searchTimeResult" :label="t('debug.search_algorithm_time')">
-                        {{ searchTimeResult }}
-                    </el-descriptions-item>
-
-                </el-descriptions>
-                <el-descriptions border direction="vertical">
-                    <el-descriptions-item v-if="indexTimeResult" :label="t('debug.index_file_time')">
-                        {{ indexTimeResult }}
-                    </el-descriptions-item>
-                </el-descriptions>
-            </div>
-        </el-card>
-
-        <el-card class="keyword-generator-section">
-            <template #header>
-                <div class="card-header">
-                    <h2>{{ t('debug.keyword_generation') }}</h2>
-                </div>
-            </template>
-
-            <el-input v-model="keywordInput" :placeholder="t('debug.input_parameter')" clearable
-                @keyup.enter="generateSearchKeywords">
-                <template #append>
-                    <el-button @click="generateSearchKeywords" :loading="isGenerating">
-                        {{ t('debug.do_generate_keywords') }}
-                    </el-button>
-                </template>
-            </el-input>
-
-            <div class="keyword-results" v-if="searchKeywords.length > 0">
-                <h3>{{ t('debug.generated_keywords') }}</h3>
-                <el-tag v-for="(keyword, index) in searchKeywords" :key="index" class="keyword-tag" closable
-                    @close="removeKeyword(index)">
-                    {{ keyword }}
-                </el-tag>
-            </div>
-        </el-card>
-
-        <el-card class="search-section">
-            <template #header>
-                <div class="card-header">
-                    <h2>{{ t('debug.program_search') }}</h2>
-                </div>
-            </template>
-
-            <el-input v-model="searchQuery" :placeholder="t('debug.input_search_keyword')" clearable
-                @keyup.enter="handleSearch">
-                <template #append>
-                    <el-button @click="handleSearch" :loading="searchLoading">
-                        {{ t('debug.search') }}
-                    </el-button>
-                </template>
-            </el-input>
-
-            <div class="result-table" v-if="searchResults.length > 0">
-                <h3>{{ t('debug.search_results') }}</h3>
-                <el-table :data="searchResults" stripe style="width: 100%" v-loading="searchLoading">
-                    <el-table-column prop="program_name" :label="t('debug.program_name')" />
-                    <el-table-column prop="program_keywords" :label="t('debug.keywords')" />
-                    <el-table-column prop="program_path" :label="t('debug.program_path')" />
-                    <el-table-column prop="score" :label="t('debug.weight_value')" />
-                </el-table>
-            </div>
-
-            <div v-else-if="searchPerformed && !searchLoading" class="no-results">
-                <el-empty :description="t('debug.no_matching_programs')" />
-            </div>
-        </el-card>
+          <el-button
+            type="success"
+            :loading="indexTimeLoading"
+            @click="testIndexTime"
+          >
+            {{ t('debug.test_index_time') }}
+          </el-button>
         </div>
+
+        <div
+          v-if="searchTimeResult || indexTimeResult"
+          class="performance-results"
+        >
+          <el-descriptions
+            border
+            direction="vertical"
+          >
+            <el-descriptions-item
+              v-if="searchTimeResult"
+              :label="t('debug.search_algorithm_time')"
+            >
+              {{ searchTimeResult }}
+            </el-descriptions-item>
+          </el-descriptions>
+          <el-descriptions
+            border
+            direction="vertical"
+          >
+            <el-descriptions-item
+              v-if="indexTimeResult"
+              :label="t('debug.index_file_time')"
+            >
+              {{ indexTimeResult }}
+            </el-descriptions-item>
+          </el-descriptions>
+        </div>
+      </el-card>
+
+      <el-card class="keyword-generator-section">
+        <template #header>
+          <div class="card-header">
+            <h2>{{ t('debug.keyword_generation') }}</h2>
+          </div>
+        </template>
+
+        <el-input
+          v-model="keywordInput"
+          :placeholder="t('debug.input_parameter')"
+          clearable
+          @keyup.enter="generateSearchKeywords"
+        >
+          <template #append>
+            <el-button
+              :loading="isGenerating"
+              @click="generateSearchKeywords"
+            >
+              {{ t('debug.do_generate_keywords') }}
+            </el-button>
+          </template>
+        </el-input>
+
+        <div
+          v-if="searchKeywords.length > 0"
+          class="keyword-results"
+        >
+          <h3>{{ t('debug.generated_keywords') }}</h3>
+          <el-tag
+            v-for="(keyword, index) in searchKeywords"
+            :key="index"
+            class="keyword-tag"
+            closable
+            @close="removeKeyword(index)"
+          >
+            {{ keyword }}
+          </el-tag>
+        </div>
+      </el-card>
+
+      <el-card class="search-section">
+        <template #header>
+          <div class="card-header">
+            <h2>{{ t('debug.program_search') }}</h2>
+          </div>
+        </template>
+
+        <el-input
+          v-model="searchQuery"
+          :placeholder="t('debug.input_search_keyword')"
+          clearable
+          @keyup.enter="handleSearch"
+        >
+          <template #append>
+            <el-button
+              :loading="searchLoading"
+              @click="handleSearch"
+            >
+              {{ t('debug.search') }}
+            </el-button>
+          </template>
+        </el-input>
+
+        <div
+          v-if="searchResults.length > 0"
+          class="result-table"
+        >
+          <h3>{{ t('debug.search_results') }}</h3>
+          <el-table
+            v-loading="searchLoading"
+            :data="searchResults"
+            stripe
+            style="width: 100%"
+          >
+            <el-table-column
+              prop="program_name"
+              :label="t('debug.program_name')"
+            />
+            <el-table-column
+              prop="program_keywords"
+              :label="t('debug.keywords')"
+            />
+            <el-table-column
+              prop="program_path"
+              :label="t('debug.program_path')"
+            />
+            <el-table-column
+              prop="score"
+              :label="t('debug.weight_value')"
+            />
+          </el-table>
+        </div>
+
+        <div
+          v-else-if="searchPerformed && !searchLoading"
+          class="no-results"
+        >
+          <el-empty :description="t('debug.no_matching_programs')" />
+        </div>
+      </el-card>
     </div>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
-import { ElMessage } from 'element-plus';
-import { invoke } from '@tauri-apps/api/core';
-import { useI18n } from 'vue-i18n';
+import { ref } from 'vue'
+import { ElMessage } from 'element-plus'
+import { invoke } from '@tauri-apps/api/core'
+import { useI18n } from 'vue-i18n'
 
-const { t } = useI18n();
+const { t } = useI18n()
 
 interface ProgramItem {
     program_name: string;
@@ -110,137 +179,137 @@ interface ProgramItem {
 }
 
 // 搜索相关
-const searchQuery = ref('');
-const searchResults = ref<ProgramItem[]>([]);
-const searchLoading = ref(false);
-const searchPerformed = ref(false);
+const searchQuery = ref('')
+const searchResults = ref<ProgramItem[]>([])
+const searchLoading = ref(false)
+const searchPerformed = ref(false)
 
 // 性能测试相关
-const searchTimeResult = ref('');
-const indexTimeResult = ref('');
-const searchTimeLoading = ref(false);
-const indexTimeLoading = ref(false);
+const searchTimeResult = ref('')
+const indexTimeResult = ref('')
+const searchTimeLoading = ref(false)
+const indexTimeLoading = ref(false)
 
 // 自定义函数相关
-const keywordInput = ref('');
-const searchKeywords = ref<string[]>([]);
-const isGenerating = ref(false);
+const keywordInput = ref('')
+const searchKeywords = ref<string[]>([])
+const isGenerating = ref(false)
 
 // 搜索程序
 const handleSearch = async () => {
     if (!searchQuery.value.trim()) {
-        ElMessage.warning(t('debug.please_input_search_keyword'));
-        return;
+        ElMessage.warning(t('debug.please_input_search_keyword'))
+        return
     }
 
-    searchLoading.value = true;
-    searchPerformed.value = true;
+    searchLoading.value = true
+    searchPerformed.value = true
 
     try {
-        const results = await invoke<ProgramItem[]>('test_search_algorithm', { searchText: searchQuery.value });
-        searchResults.value = results;
+        const results = await invoke<ProgramItem[]>('test_search_algorithm', { searchText: searchQuery.value })
+        searchResults.value = results
         if (results.length === 0) {
-            ElMessage.info(t('debug.no_matching_programs'));
+            ElMessage.info(t('debug.no_matching_programs'))
         }
     } catch (error) {
-        console.error(t('debug.search_error'), error);
-        ElMessage.error(t('debug.search_failed'));
-        searchResults.value = [];
+        console.error(t('debug.search_error'), error)
+        ElMessage.error(t('debug.search_failed'))
+        searchResults.value = []
     } finally {
-        searchLoading.value = false;
+        searchLoading.value = false
     }
-};
+}
 
 // 测试搜索算法耗时
 const testSearchTime = async () => {
-    searchTimeLoading.value = true;
+    searchTimeLoading.value = true
     try {
-        const result = await invoke<[number, number, number]>('test_search_algorithm_time');
+        const result = await invoke<[number, number, number]>('test_search_algorithm_time')
         // 完成格式的判断与输出
-        const [maxTime, minTime, avgTime] = result;
-        const threshold = 30; // 约33.33ms
+        const [maxTime, minTime, avgTime] = result
+        const threshold = 30 // 约33.33ms
 
         // 格式化时间，保留2位小数
-        const formattedMax = maxTime.toFixed(2);
-        const formattedMin = minTime.toFixed(2);
-        const formattedAvg = avgTime.toFixed(2);
+        const formattedMax = maxTime.toFixed(2)
+        const formattedMin = minTime.toFixed(2)
+        const formattedAvg = avgTime.toFixed(2)
 
-        let performanceStatus = '';
+        let performanceStatus = ''
         if (maxTime < threshold) {
-            performanceStatus = '✅ ' + t('debug.smooth');
+            performanceStatus = '✅ ' + t('debug.smooth')
         } else if (minTime > threshold) {
-            performanceStatus = '❌ ' + t('debug.too_slow');
+            performanceStatus = '❌ ' + t('debug.too_slow')
         } else {
-            performanceStatus = '⚠️ ' + t('debug.partially_not_smooth');
+            performanceStatus = '⚠️ ' + t('debug.partially_not_smooth')
         }
 
-        searchTimeResult.value = `${t('debug.max_time')}: ${formattedMax}ms | ${t('debug.min_time')}: ${formattedMin}ms | ${t('debug.avg_time')}: ${formattedAvg}ms | ${performanceStatus}`;
+        searchTimeResult.value = `${t('debug.max_time')}: ${formattedMax}ms | ${t('debug.min_time')}: ${formattedMin}ms | ${t('debug.avg_time')}: ${formattedAvg}ms | ${performanceStatus}`
 
 
-        ElMessage.success(t('debug.search_test_completed'));
+        ElMessage.success(t('debug.search_test_completed'))
     } catch (error) {
-        console.error(t('debug.test_algorithm_error'), error);
-        ElMessage.error(t('debug.test_failed'));
+        console.error(t('debug.test_algorithm_error'), error)
+        ElMessage.error(t('debug.test_failed'))
     } finally {
-        searchTimeLoading.value = false;
+        searchTimeLoading.value = false
     }
-};
+}
 
 const formatTime = (milliseconds: number): string => {
     if (milliseconds < 100) {
-        return `${milliseconds.toFixed(2)}${t('debug.milliseconds')}`;
+        return `${milliseconds.toFixed(2)}${t('debug.milliseconds')}`
     } else if (milliseconds < 60000) {
-        const seconds = milliseconds / 1000;
-        return `${seconds.toFixed(2)}${t('debug.seconds')}`;
+        const seconds = milliseconds / 1000
+        return `${seconds.toFixed(2)}${t('debug.seconds')}`
     } else {
-        const minutes = Math.floor(milliseconds / 60000);
-        const seconds = (milliseconds % 60000) / 1000;
-        return `${minutes}${t('debug.minutes')} ${seconds.toFixed(2)}${t('debug.seconds')}`;
+        const minutes = Math.floor(milliseconds / 60000)
+        const seconds = (milliseconds % 60000) / 1000
+        return `${minutes}${t('debug.minutes')} ${seconds.toFixed(2)}${t('debug.seconds')}`
     }
-};
+}
 
 // 测试索引文件耗时
 const testIndexTime = async () => {
-    indexTimeLoading.value = true;
+    indexTimeLoading.value = true
 
     try {
-        const result = await invoke<number>('test_index_app_time');
-        indexTimeResult.value = formatTime(result);
-        ElMessage.success(t('debug.index_test_completed'));
+        const result = await invoke<number>('test_index_app_time')
+        indexTimeResult.value = formatTime(result)
+        ElMessage.success(t('debug.index_test_completed'))
     } catch (error) {
 
-        ElMessage.error(t('debug.test_failed'));
+        ElMessage.error(t('debug.test_failed'))
     } finally {
-        indexTimeLoading.value = false;
+        indexTimeLoading.value = false
     }
-};
+}
 
 // 生成搜索关键字
 const generateSearchKeywords = async () => {
     if (!keywordInput.value.trim()) {
-        ElMessage.warning(t('debug.please_input_parameter'));
-        return;
+        ElMessage.warning(t('debug.please_input_parameter'))
+        return
     }
 
-    isGenerating.value = true;
+    isGenerating.value = true
 
     try {
         const keywords = await invoke<string[]>('get_search_keys', {
-            showName: keywordInput.value
-        });
-        searchKeywords.value = keywords;
+            showName: keywordInput.value,
+        })
+        searchKeywords.value = keywords
     } catch (error) {
-        console.error(t('debug.keyword_generation_failed'), error);
-        ElMessage.error(t('debug.keyword_generation_failed'));
+        console.error(t('debug.keyword_generation_failed'), error)
+        ElMessage.error(t('debug.keyword_generation_failed'))
     } finally {
-        isGenerating.value = false;
+        isGenerating.value = false
     }
-};
+}
 
 // 移除关键字
 const removeKeyword = (index: number) => {
-    searchKeywords.value.splice(index, 1);
-};
+    searchKeywords.value.splice(index, 1)
+}
 </script>
 
 

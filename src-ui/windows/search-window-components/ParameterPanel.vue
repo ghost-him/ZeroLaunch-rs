@@ -1,7 +1,12 @@
 <template>
-  <div class="parameter-panel" :style="panelStyle">
+  <div
+    class="parameter-panel"
+    :style="panelStyle"
+  >
     <div class="parameter-panel__header">
-      <div class="parameter-panel__title">{{ prompt }}</div>
+      <div class="parameter-panel__title">
+        {{ prompt }}
+      </div>
       <div class="parameter-panel__progress">
         {{ progress }}
       </div>
@@ -14,29 +19,41 @@
       :placeholder="t('parameter.input_placeholder')"
       @keydown.enter="onConfirm"
       @keydown.esc="onCancel"
-    />
-    <div class="parameter-panel__tips">{{ t('parameter.hint') }}</div>
+    >
+    <div class="parameter-panel__tips">
+      {{ t('parameter.hint') }}
+    </div>
     <div class="parameter-panel__actions">
-      <button type="button" class="parameter-panel__button secondary" @click="onCancel">
+      <button
+        type="button"
+        class="parameter-panel__button secondary"
+        @click="onCancel"
+      >
         {{ t('parameter.cancel') }}
       </button>
-      <button type="button" class="parameter-panel__button primary" @click="onConfirm">
+      <button
+        type="button"
+        class="parameter-panel__button primary"
+        @click="onConfirm"
+      >
         {{ actionLabel }}
       </button>
     </div>
     <div class="parameter-panel__preview">
-      <div class="parameter-panel__preview-label">{{ t('parameter.preview') }}</div>
+      <div class="parameter-panel__preview-label">
+        {{ t('parameter.preview') }}
+      </div>
       <pre class="parameter-panel__preview-content">{{ preview }}</pre>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
-import { useI18n } from 'vue-i18n';
-import type { UIConfig } from '../../api/remote_config_types';
+import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
+import type { UIConfig } from '../../api/remote_config_types'
 
-const { t } = useI18n();
+const { t } = useI18n()
 
 const props = defineProps<{
   uiConfig: UIConfig;
@@ -44,37 +61,37 @@ const props = defineProps<{
   progress: string;
   actionLabel: string;
   preview: string;
-}>();
+}>()
 
-const inputValue = defineModel<string>('inputValue', { required: true });
+const inputValue = defineModel<string>('inputValue', { required: true })
 const emit = defineEmits<{
   (e: 'confirm'): void;
   (e: 'cancel'): void;
-}>();
+}>()
 
-const inputRef = ref<HTMLInputElement | null>(null);
+const inputRef = ref<HTMLInputElement | null>(null)
 
 const onConfirm = () => {
-  emit('confirm');
-};
+  emit('confirm')
+}
 
 const onCancel = () => {
-  emit('cancel');
-};
+  emit('cancel')
+}
 
 const focus = () => {
-  inputRef.value?.focus();
-};
+  inputRef.value?.focus()
+}
 
 const panelStyle = computed(() => ({
   backgroundColor: props.uiConfig.search_bar_background_color,
   borderColor: props.uiConfig.selected_item_color,
   color: props.uiConfig.item_font_color,
-}));
+}))
 
 defineExpose({
-  focus
-});
+  focus,
+})
 </script>
 
 <style scoped>

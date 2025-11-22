@@ -1,5 +1,5 @@
 /** 存储目的地枚举 */
-export type StorageDestination = "WebDAV" | "Local" | "OneDrive";
+export type StorageDestination = 'WebDAV' | 'Local' | 'OneDrive';
 
 export type LocalConfig = {
     storage_destination: StorageDestination;

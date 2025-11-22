@@ -67,7 +67,7 @@ import { useI18n } from 'vue-i18n';
 import { computed, onMounted } from 'vue';
 import { open } from '@tauri-apps/plugin-shell';
 import { invoke } from '@tauri-apps/api/core';
-import { QuestionFilled, Star, InfoFilled, Edit, Link, Setting } from '@element-plus/icons-vue'
+import { Star, InfoFilled, Edit, Link, Setting } from '@element-plus/icons-vue'
 import { initializeLanguage } from '../i18n/index';
 import { useRemoteConfigStore } from '../stores/remote_config';
 

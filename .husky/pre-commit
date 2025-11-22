@@ -55,15 +55,19 @@ fi
 cp -r "$SRC_LOCALES_DIR"/* "$DEST_DIR"/
 echo "✓ i18n locales files copied to src-tauri/locales/"
 
-# 3. Rust 格式检查
+# 3. 前端静态检查
+echo "📋 Running frontend vue-tsc..."
+bun run vue-tsc --noEmit
+
+# 4. Rust 格式检查
 echo "🎨 Running Rust formatting check..."
 ( cd src-tauri && cargo fmt --all -- --check )
 
-# 4. Rust 静态检查
+# 5. Rust 静态检查
 echo "📋 Running Rust clippy..."
 ( cd src-tauri && cargo clippy --all-targets --all-features -- -D warnings )
 
-# 5. Rust 单元测试
+# 6. Rust 单元测试
 echo "🧪 Running Rust tests..."
 ( cd src-tauri && cargo test --all-features )
 

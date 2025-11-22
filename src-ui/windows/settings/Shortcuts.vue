@@ -37,24 +37,27 @@
                             </el-icon>
                             <span>{{ item.label }}</span>
                         </div>
-                        <el-tooltip :content="item.tooltip" placement="top" effect="light">
-                            <el-icon class="info-icon">
-                                <InfoFilled />
-                            </el-icon>
-                        </el-tooltip>
+                        <div class="header-actions">
+                            <el-tooltip :content="t('shortcut.reset')" placement="top" effect="light">
+                                <el-button link class="reset-icon-btn" :disabled="!is_editing"
+                                    @click="resetShortcut(item.key)">
+                                    <el-icon>
+                                        <RefreshRight />
+                                    </el-icon>
+                                </el-button>
+                            </el-tooltip>
+                            <el-tooltip :content="item.tooltip" placement="top" effect="light">
+                                <el-icon class="info-icon">
+                                    <InfoFilled />
+                                </el-icon>
+                            </el-tooltip>
+                        </div>
                     </div>
 
                     <div class="shortcut-item-content">
                         <ShortcutInput v-model="dirty_shortcut_config[item.key]" :disabled="!is_editing"
                             :placeholder="item.placeholder">
                         </ShortcutInput>
-
-                        <el-button class="reset-button" :disabled="!is_editing" @click="resetShortcut(item.key)">
-                            <el-icon>
-                                <RefreshRight />
-                            </el-icon>
-                            {{ t('shortcut.reset') }}
-                        </el-button>
                     </div>
                 </el-form-item>
             </el-form>
@@ -285,7 +288,7 @@ onUnmounted(async () => {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 12px;
+    margin-bottom: 16px;
 }
 
 .shortcut-label {
@@ -296,34 +299,48 @@ onUnmounted(async () => {
     color: var(--el-text-color-primary);
 }
 
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
 .info-icon {
     color: var(--el-color-info);
     cursor: pointer;
     font-size: 16px;
 }
 
+.reset-icon-btn {
+    padding: 0;
+    height: auto;
+    font-size: 16px;
+    color: var(--el-text-color-secondary);
+    transition: color 0.2s;
+}
+
+.reset-icon-btn:hover:not(:disabled) {
+    color: var(--el-color-primary);
+}
+
+.reset-icon-btn:disabled {
+    color: var(--el-text-color-disabled);
+}
+
 .shortcut-item-content {
     display: flex;
     align-items: center;
-    gap: 12px;
 }
 
-.reset-button {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    color: var(--el-color-primary);
-    transition: all 0.2s;
+:deep(.shortcut-input) {
+    margin-bottom: 0;
+    width: 100%;
 }
 
-.reset-button:hover:not(:disabled) {
-    color: var(--el-color-primary-light-3);
-    background-color: var(--el-color-primary-light-9);
-}
-
-.reset-button:disabled {
-    color: var(--el-text-color-disabled);
-    cursor: not-allowed;
+:deep(.key-display) {
+    flex: 1;
+    width: auto;
+    min-width: 0;
 }
 
 :deep(.el-form-item__content) {

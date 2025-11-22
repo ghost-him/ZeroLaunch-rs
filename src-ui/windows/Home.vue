@@ -416,25 +416,19 @@ const refreshDataset = async () => {
 }
 
 const updateWindow = async () => {
-
+  console.log("updateWindow");
   try {
-    const background_picture_data = await invoke<number[]>('get_background_picture');
-    const program_count = invoke<number>('get_program_count');
-    const data = await invoke<[PartialAppConfig, PartialUIConfig, PartialShortcutConfig]>('update_search_bar_window');
+    const [background_picture_data, program_count, data] = await Promise.all([
+      invoke<number[]>('get_background_picture'),
+      invoke<number>('get_program_count'),
+      invoke<[PartialAppConfig, PartialUIConfig, PartialShortcutConfig]>('update_search_bar_window')
+    ]);
+
     app_config.value = { ...app_config.value, ...data[0] }
     ui_config.value = { ...ui_config.value, ...data[1] }
     shortcut_config.value = { ...shortcut_config.value, ...data[2] }
     await initializeLanguage(app_config.value.language);
-    const elements = document.querySelectorAll('.drag_area');
-    if (app_config.value.is_enable_drag_window) {
-      elements.forEach(element => {
-        element.setAttribute('data-tauri-drag-region', 'true');
-      });
-    } else {
-      elements.forEach(element => {
-        element.removeAttribute('data-tauri-drag-region');
-      });
-    }
+
     const blob = new Blob([new Uint8Array(background_picture_data)], { type: 'image/png' });
     const url = URL.createObjectURL(blob);
 
@@ -447,7 +441,7 @@ const updateWindow = async () => {
       // 如果没有这个，那么就会导致在没有更新完成时，结果栏也是空的，这样不好看，所以提前发送一次搜索文本
       await sendSearchText('');
     }
-    await startPreloadResource(await program_count).then(async () => {
+    await startPreloadResource(program_count).then(async () => {
       is_loading_icons.value = false;
       // 如果没有这个，那么可能会导致图标加载不正确（显示是空的），加了以后会再次搜索，从而显示正确的图标
       if (!is_visible.value || searchText.value.length == 0) {

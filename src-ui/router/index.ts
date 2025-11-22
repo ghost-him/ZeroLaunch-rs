@@ -3,7 +3,7 @@ import Home from '../windows/Home.vue';
 import Welcome from '../windows/Welcome.vue';
 
 // Settings Layout
-import SettingsLayout from '../windows/settings/SettingsLayout.vue';
+import SettingsLayout from '../windows/SettingsLayout.vue';
 
 // Settings Sub-views
 import General from '../windows/settings/general/General.vue';

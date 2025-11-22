@@ -336,6 +336,8 @@
     "title": "Settings",
     "debug_mode": "Debug Mode",
     "save_config": "Save Config",
+    "please_save_first": "Please save your changes before switching pages",
+    "save_failed": "Save Failed",
     "menu": {
       "general": "General",
       "appearance": "Appearance",

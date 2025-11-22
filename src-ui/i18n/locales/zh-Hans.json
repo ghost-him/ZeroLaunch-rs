@@ -336,6 +336,8 @@
     "title": "选项",
     "debug_mode": "调试模式",
     "save_config": "保存配置文件",
+    "please_save_first": "请先保存配置文件后再切换页面",
+    "save_failed": "保存失败",
     "menu": {
       "general": "常规设置",
       "appearance": "外观设置",

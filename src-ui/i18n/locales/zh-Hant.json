@@ -379,6 +379,8 @@
     "update_pinia": "更新pinia",
     "get_program_info_failed": "獲取程式資訊失敗:",
     "config_saved": "設定檔已儲存",
+    "please_save_first": "請先儲存設定檔後再切換頁面",
+    "save_failed": "儲存失敗",
     "edit_program_alias": "編輯程式 '{name}' 的別名",
     "enter_alias": "請輸入別名",
     "delete": "刪除",

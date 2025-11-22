@@ -14,8 +14,8 @@
         <el-menu
           :default-active="activeMenu"
           class="settings-menu"
-          router
           :collapse="false"
+          @select="handleMenuSelect"
         >
           <el-menu-item index="/setting_window/general">
             <el-icon>
@@ -133,6 +133,7 @@
         <el-button
           type="primary"
           :loading="isSaving"
+          :disabled="isSaveDisabled"
           class="save-btn"
           @click="saveConfig"
         >
@@ -156,7 +157,7 @@
 
 <script lang="ts" setup>
 import { computed, ref, onMounted, onUnmounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useRemoteConfigStore } from '../stores/remote_config'
 import { storeToRefs } from 'pinia'
@@ -176,12 +177,36 @@ import {
 
 const { t } = useI18n()
 const route = useRoute()
+const router = useRouter()
 const configStore = useRemoteConfigStore()
 const { config } = storeToRefs(configStore)
 
 const activeMenu = computed(() => route.path)
 const isDebugMode = computed(() => config.value.app_config.is_debug_mode)
 const isSaving = ref(false)
+
+const isDirty = computed(() => Object.keys(configStore.dirtyConfig).length > 0)
+const restrictedPaths = [
+    '/setting_window/config',
+    '/setting_window/shortcuts',
+    '/setting_window/about',
+    '/setting_window/debug',
+]
+const isRestrictedPage = computed(() => restrictedPaths.some(path => route.path.startsWith(path)))
+
+const isSaveDisabled = computed(() => {
+    return !isDirty.value || isRestrictedPage.value
+})
+
+const handleMenuSelect = (index: string) => {
+    if (restrictedPaths.some(path => index.startsWith(path))) {
+        if (isDirty.value) {
+            ElMessage.warning(t('settings.please_save_first'))
+            return
+        }
+    }
+    router.push(index)
+}
 
 const saveConfig = async () => {
     isSaving.value = true

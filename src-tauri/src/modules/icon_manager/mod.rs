@@ -13,8 +13,9 @@ use tracing::warn;
 use winreg::enums::{HKEY_LOCAL_MACHINE, KEY_READ};
 use winreg::RegKey;
 pub mod config;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum IconRequest {
     /// 本地文件路径 (exe, lnk, ico, png) -> 提取文件图标
     /// 对于 .url 文件，可以提供 app_name 用于注册表查找
@@ -172,8 +173,6 @@ impl IconManagerInner {
             return (default_data, true);
         }
 
-        // TODO: 这里可以添加 DomainStrategy，查找 Icons/url/{domain}.png
-
         let data = ImageProcessor::load_image(&ImageIdentity::Web(url)).await;
         if data.is_empty() {
             let default_data = ImageProcessor::load_image(&ImageIdentity::File(
@@ -291,5 +290,42 @@ impl IconManager {
     pub async fn get_icon(&self, request: IconRequest) -> Vec<u8> {
         let inner = self.inner.read().await;
         inner.get_icon(request).await
+    }
+
+    pub async fn update_program_icon_cache(
+        &self,
+        icon_request: IconRequest,
+        new_icon_source: &str,
+    ) -> Result<(), String> {
+        let inner = self.inner.read().await;
+        if !inner.enable_icon_cache {
+            return Err("Icon cache is disabled".to_string());
+        }
+
+        // 1. 计算缓存文件名 (Hash)
+        let hash_name = icon_request.get_hash_string() + ".png";
+        let cached_icon_dir = ICON_CACHE_DIR.clone();
+        let target_icon_path = Path::new(&cached_icon_dir).join(&hash_name);
+
+        // 2. 处理新图标源
+        // new_icon_source 可能是图片文件，也可能是 exe/lnk
+        let identity = ImageIdentity::File(new_icon_source.to_string());
+        let mut icon_data = ImageProcessor::load_image(&identity).await;
+
+        if icon_data.is_empty() {
+            return Err("Failed to load new icon".to_string());
+        }
+
+        // 3. 裁剪透明白边 (保持一致性)
+        if let Ok(output) = ImageProcessor::trim_transparent_white_border(icon_data.clone()) {
+            icon_data = output;
+        }
+
+        // 4. 覆盖写入缓存
+        tokio::fs::write(target_icon_path, icon_data)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        Ok(())
     }
 }

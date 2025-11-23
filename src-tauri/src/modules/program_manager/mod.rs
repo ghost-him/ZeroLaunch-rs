@@ -13,7 +13,7 @@ pub mod search_engine;
 pub mod unit;
 pub mod window_activator;
 use crate::error::{OptionExt, ResultExt};
-use crate::modules::icon_manager::{IconManager, IconRequest};
+use crate::modules::icon_manager::IconManager;
 use crate::modules::parameter_resolver::{ParameterResolver, SystemParameterSnapshot};
 use crate::modules::program_manager::config::program_manager_config::RuntimeProgramConfig;
 use crate::modules::program_manager::search_engine::{SearchEngine, SemanticSearchEngine};
@@ -83,6 +83,14 @@ pub struct ProgramManager {
 pub(crate) struct SearchMatchResult {
     score: f64,
     program_guid: u64,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ProgramIconEntry {
+    pub name: String,
+    pub path: String,
+    pub program_guid: u64,
+    pub icon_request_json: String,
 }
 
 impl ProgramManager {
@@ -413,14 +421,9 @@ impl ProgramManager {
         let program_registry = self.program_registry.read().await;
         let target_program = &program_registry[index];
 
-        let request = match &target_program.icon_path {
-            crate::core::image_processor::ImageIdentity::File(path) => IconRequest::Path {
-                path: path.clone(),
-                app_name: Some(target_program.show_name.clone()),
-            },
-            crate::core::image_processor::ImageIdentity::Web(url) => IconRequest::Url(url.clone()),
-        };
-        self.icon_manager.get_icon(request).await
+        self.icon_manager
+            .get_icon(target_program.icon_request.clone())
+            .await
     }
     /// 获得当前已保存的程序的个数
     pub async fn get_program_count(&self) -> usize {
@@ -512,6 +515,32 @@ impl ProgramManager {
             let program_info = program_registry[index].clone();
             results.push((guid, program_info.show_name.clone()));
         });
+        results
+    }
+
+    /// 轻量级搜索程序（用于图标编辑）
+    pub async fn search_programs_lightweight(&self, keyword: &str) -> Vec<ProgramIconEntry> {
+        let registry = self.program_registry.read().await;
+        let keyword = keyword.to_lowercase();
+
+        let results: Vec<ProgramIconEntry> = registry
+            .iter()
+            .filter(|p| {
+                if keyword.is_empty() {
+                    return true;
+                }
+                p.show_name.to_lowercase().contains(&keyword)
+                    || p.launch_method.get_text().to_lowercase().contains(&keyword)
+            })
+            .take(20)
+            .map(|p| ProgramIconEntry {
+                name: p.show_name.to_string(),
+                path: p.launch_method.get_text().to_string(),
+                program_guid: p.program_guid,
+                icon_request_json: serde_json::to_string(&p.icon_request).unwrap_or_default(),
+            })
+            .collect();
+
         results
     }
 

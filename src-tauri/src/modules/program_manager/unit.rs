@@ -1,10 +1,10 @@
 // 存放辅助型的小类型
-use crate::core::image_processor::ImageIdentity;
 use crate::modules::parameter_resolver::{ParameterResolver, SystemParameterSnapshot};
 use crate::program_manager::builtin_commands::PREFIX;
 use crate::program_manager::PartialProgramManagerConfig;
 use bincode::{Decode, Encode};
 pub type EmbeddingVec = Vec<f32>;
+use crate::modules::icon_manager::IconRequest;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -110,7 +110,7 @@ pub struct Program {
     /// 权重固定偏移量
     pub stable_bias: f64,
     /// 应用程序应该展示的图片的地址
-    pub icon_path: ImageIdentity,
+    pub icon_request: IconRequest,
     /// 用于语义搜索的相关内容(可选)
     pub embedding: EmbeddingVec,
 }

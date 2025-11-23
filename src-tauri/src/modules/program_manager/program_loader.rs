@@ -3,9 +3,9 @@ use super::config::program_loader_config::DirectoryConfig;
 use super::localization_translation::parse_localized_names_from_dir;
 use super::pinyin_mapper::PinyinMapper;
 use super::LaunchMethod;
-use crate::core::image_processor::ImageIdentity;
 use crate::error::OptionExt;
 use crate::modules::config::default::APP_PIC_PATH;
+use crate::modules::icon_manager::IconRequest;
 use crate::program_manager::config::program_loader_config::PartialProgramLoaderConfig;
 use crate::program_manager::config::program_loader_config::ProgramLoaderConfig;
 use crate::program_manager::search_model::*;
@@ -388,7 +388,7 @@ impl ProgramLoaderInner {
         unique_name: String,
         launch_method: LaunchMethod,
         mut search_keywords: Vec<String>,
-        icon_path: ImageIdentity,
+        icon_request: IconRequest,
     ) -> Arc<Program> {
         let guid = self.guid_generator.get_guid();
         let stable_bias = self.get_program_bias(&unique_name);
@@ -435,7 +435,7 @@ impl ProgramLoaderInner {
             launch_method,
             search_keywords,
             stable_bias,
-            icon_path,
+            icon_request,
             embedding,
         })
     }
@@ -469,7 +469,7 @@ impl ProgramLoaderInner {
                 unique_name,
                 launch_method,
                 alias_names,
-                ImageIdentity::Web(url.to_string()),
+                IconRequest::Url(url.to_string()),
             );
             result.push(program);
         }
@@ -552,6 +552,12 @@ impl ProgramLoaderInner {
                         let target_path_str = target_path.to_string_lossy().to_string();
                         (target_path.to_path_buf(), target_path_str)
                     };
+                    // 是不是以url结尾的
+                    let is_end_with_url = actual_path
+                        .extension()
+                        .and_then(OsStr::to_str)
+                        .map(|s| s.eq_ignore_ascii_case("url"))
+                        .unwrap_or(false);
 
                     // 从实际路径中提取文件名和显示名
                     let file_name_lower = actual_path
@@ -599,12 +605,22 @@ impl ProgramLoaderInner {
                     // 如果有本地化的名字，则使用本地化的名字
                     let show_name = localized_name.unwrap_or(show_name);
 
+                    let app_name = if is_end_with_url {
+                        Some(show_name.clone())
+                    } else {
+                        None
+                    };
+                    let icon_request = IconRequest::Path {
+                        path: actual_path_str.clone(),
+                        app_name,
+                    };
+
                     let program = self.create_program(
                         show_name,
                         unique_name,
                         launch_method,
                         alias_names,
-                        ImageIdentity::File(actual_path_str),
+                        icon_request,
                     );
 
                     result.push(program);
@@ -657,7 +673,10 @@ impl ProgramLoaderInner {
             };
 
             let icon_identity = if let Some(path) = executable_path {
-                ImageIdentity::File(path)
+                IconRequest::Path {
+                    path,
+                    app_name: None,
+                }
             } else {
                 let icon_path = match APP_PIC_PATH.get("terminal") {
                     Some(path) => path.value().clone(),
@@ -666,7 +685,10 @@ impl ProgramLoaderInner {
                         String::new()
                     }
                 };
-                ImageIdentity::File(icon_path)
+                IconRequest::Path {
+                    path: icon_path,
+                    app_name: None,
+                }
             };
 
             let program = self.create_program(
@@ -725,11 +747,17 @@ impl ProgramLoaderInner {
             let icon_file_name = &meta.icon;
 
             // 使用内置图标
-            let icon_path = match APP_PIC_PATH.get(icon_file_name) {
-                Some(path) => ImageIdentity::File(path.value().clone()),
+            let icon_request = match APP_PIC_PATH.get(icon_file_name) {
+                Some(path) => IconRequest::Path {
+                    path: path.value().clone(),
+                    app_name: None,
+                },
                 None => {
                     warn!("未找到内置命令图标路径");
-                    ImageIdentity::File(String::new())
+                    IconRequest::Path {
+                        path: String::new(),
+                        app_name: None,
+                    }
                 }
             };
 
@@ -738,7 +766,7 @@ impl ProgramLoaderInner {
                 meta.unique_key.clone(),
                 LaunchMethod::BuiltinCommand(command_str),
                 search_keywords,
-                icon_path,
+                icon_request,
             );
 
             result.push(program);
@@ -944,7 +972,10 @@ impl ProgramLoaderInner {
                             unique_name,
                             launch_method,
                             alias_name,
-                            ImageIdentity::File(icon_path),
+                            IconRequest::Path {
+                                path: icon_path,
+                                app_name: None,
+                            },
                         );
                         ret.push(program);
                     }

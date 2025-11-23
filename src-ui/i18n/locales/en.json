@@ -152,7 +152,18 @@
     "online_icon_tooltip": "When enabled, it can load icons for URLs, which will replace the default icon upon successful retrieval",
     "enable_icon_cache": "Enable Icon Cache",
     "icon_cache_tooltip": "Saves a local copy of the icon for each program to speed up icon loading",
-    "open_icon_cache_folder": "Open Icon Cache Folder"
+    "open_icon_cache_folder": "Open Icon Cache Folder",
+    "custom_program_icon": "Custom Program Icon",
+    "icon_cache_disabled_warning": "This feature is only available when icon cache is enabled",
+    "search_placeholder": "Search program name...",
+    "icon": "Icon",
+    "program_name": "Program Name",
+    "path": "Path",
+    "actions": "Actions",
+    "change_icon": "Change Icon",
+    "update_success": "Icon updated successfully",
+    "update_failed": "Failed to update icon",
+    "refresh_note": "Please enable icon cache! After updating an icon, please refresh the program database manually. The new icon will appear correctly after a successful refresh."
   },
   "program_index": {
     "set_search_path": "Set Search Path",

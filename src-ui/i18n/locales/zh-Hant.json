@@ -152,7 +152,18 @@
     "online_icon_tooltip": "開啟後，即可載入網址的圖示，成功獲取後會替代預設的圖示",
     "enable_icon_cache": "啟用圖示快取",
     "icon_cache_tooltip": "為每個程式都在本機儲存一份圖示，這可以加速圖示的載入速度",
-    "open_icon_cache_folder": "開啟圖示快取資料夾"
+    "open_icon_cache_folder": "開啟圖示快取資料夾",
+    "custom_program_icon": "自訂程式圖示",
+    "icon_cache_disabled_warning": "此功能僅在啟用圖示快取時可用",
+    "search_placeholder": "輸入程式名稱搜尋...",
+    "icon": "圖示",
+    "program_name": "程式名稱",
+    "path": "路徑",
+    "actions": "操作",
+    "change_icon": "更改圖示",
+    "update_success": "圖示更新成功",
+    "update_failed": "圖示更新失敗",
+    "refresh_note": "請開啟圖示快取功能！圖示更新完成後，請手動刷新程式資料庫。刷新成功後，新圖示才會在介面中正確顯示。"
   },
   "program_index": {
     "set_search_path": "設定搜尋路徑",

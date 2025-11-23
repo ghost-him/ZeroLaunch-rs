@@ -538,3 +538,37 @@ pub fn command_get_path_info(path_str: String) -> PathInfo {
         },
     }
 }
+
+use crate::modules::icon_manager::IconRequest;
+use crate::modules::program_manager::ProgramIconEntry;
+
+#[tauri::command]
+pub async fn command_search_programs_for_icon_edit(
+    keyword: String,
+) -> Result<Vec<ProgramIconEntry>, String> {
+    let state = ServiceLocator::get_state();
+    let program_manager = state.get_program_manager();
+    Ok(program_manager.search_programs_lightweight(&keyword).await)
+}
+
+#[tauri::command]
+pub async fn command_update_program_icon(
+    icon_request_json: String,
+    new_icon_path: String,
+) -> Result<(), String> {
+    let state = ServiceLocator::get_state();
+    let icon_manager = state.get_icon_manager();
+
+    let icon_request: IconRequest =
+        serde_json::from_str(&icon_request_json).map_err(|e| e.to_string())?;
+
+    println!(
+        "Updating icon: request={:?}, new_path={}",
+        icon_request, new_icon_path
+    );
+
+    icon_manager
+        .update_program_icon_cache(icon_request, &new_icon_path)
+        .await
+        .map_err(|e| e.to_string())
+}

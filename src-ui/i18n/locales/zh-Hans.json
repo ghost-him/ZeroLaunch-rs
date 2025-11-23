@@ -152,7 +152,18 @@
     "online_icon_tooltip": "开启后，即可加载网址的图标，成功获取后会替代默认的图标",
     "enable_icon_cache": "启用图标缓存",
     "icon_cache_tooltip": "为每个程序都在本地保存一份图标，这可以加速图标的加载速度",
-    "open_icon_cache_folder": "打开图标缓存文件夹"
+    "open_icon_cache_folder": "打开图标缓存文件夹",
+    "custom_program_icon": "自定义程序图标",
+    "icon_cache_disabled_warning": "此功能仅在开启图标缓存时可用",
+    "search_placeholder": "输入程序名称搜索...",
+    "icon": "图标",
+    "program_name": "程序名称",
+    "path": "路径",
+    "actions": "操作",
+    "change_icon": "更改图标",
+    "update_success": "图标更新成功",
+    "update_failed": "图标更新失败",
+    "refresh_note": "请开启图标缓存功能！图标更新完成后，请手动刷新程序数据库。刷新成功后，新图标才会在界面中正确显示。"
   },
   "program_index": {
     "set_search_path": "设置搜索路径",

@@ -635,12 +635,38 @@ impl ProgramLoaderInner {
             let unique_name = show_name.to_lowercase();
             let alias_names = self.convert_search_keywords(show_name);
             let launch_method = LaunchMethod::Command(command.clone());
-            let icon_path = match APP_PIC_PATH.get("terminal") {
-                Some(path) => path.value().clone(),
-                None => {
-                    warn!("未找到终端图标路径");
-                    String::new()
-                }
+
+            // 尝试解析出可执行文件路径以用于图标提取
+            let executable_path = if Path::new(command).is_absolute() && Path::new(command).exists()
+            {
+                Some(command.clone())
+            } else if command.trim().starts_with('"') {
+                // 处理带引号的路径，如 "C:\Program Files\App.exe" --arg
+                command
+                    .split('"')
+                    .nth(1)
+                    .map(|s| s.to_string())
+                    .filter(|s| Path::new(s).is_absolute() && Path::new(s).exists())
+            } else {
+                // 处理不带引号但带参数的路径，如 C:\App.exe --arg
+                command
+                    .split_whitespace()
+                    .next()
+                    .map(|s| s.to_string())
+                    .filter(|s| Path::new(s).is_absolute() && Path::new(s).exists())
+            };
+
+            let icon_identity = if let Some(path) = executable_path {
+                ImageIdentity::File(path)
+            } else {
+                let icon_path = match APP_PIC_PATH.get("terminal") {
+                    Some(path) => path.value().clone(),
+                    None => {
+                        warn!("未找到终端图标路径");
+                        String::new()
+                    }
+                };
+                ImageIdentity::File(icon_path)
             };
 
             let program = self.create_program(
@@ -648,7 +674,7 @@ impl ProgramLoaderInner {
                 unique_name,
                 launch_method,
                 alias_names,
-                ImageIdentity::File(icon_path),
+                icon_identity,
             );
             result.push(program);
         }

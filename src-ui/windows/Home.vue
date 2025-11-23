@@ -661,9 +661,12 @@ const handleKeyDown = async (event: KeyboardEvent) => {
   }
 
   if (event.key === 'ArrowRight' || matchShortcut(shortcut_config.value.arrow_right)) {
-    if (!isMenuVisible) {
-        // event.preventDefault(); // Only if we handle it
-        // handleAction(ActionType.MOVE_RIGHT, isMenuVisible);
+    const inputElement = searchBarRef.value?.realInputRef
+    const isAtEnd = inputElement && (inputElement.selectionStart === searchText.value.length)
+
+    if (!isMenuVisible && isAtEnd && document.activeElement === inputElement) {
+      event.preventDefault()
+      handleAction(ActionType.MOVE_RIGHT, isMenuVisible)
     }
     return
   }

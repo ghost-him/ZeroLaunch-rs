@@ -142,56 +142,6 @@
           />
         </el-form-item>
 
-        <el-form-item :label="t('program_index.enable_online_icon_loading')">
-          <el-switch
-            v-model="config.program_manager_config.image_loader.enable_online"
-            @change="(val: boolean) =>
-              configStore.updateConfig({
-                program_manager_config: {
-                  image_loader: { enable_online: val }
-                }
-              })
-            "
-          />
-          <el-tooltip
-            class="box-item"
-            effect="dark"
-            :content="t('program_index.online_icon_tooltip')"
-          >
-            <el-icon class="el-question-icon">
-              <QuestionFilled />
-            </el-icon>
-          </el-tooltip>
-        </el-form-item>
-
-        <el-form-item :label="t('program_index.enable_icon_cache')">
-          <el-switch
-            v-model="config.program_manager_config.image_loader.enable_icon_cache"
-            @change="(val: boolean) =>
-              configStore.updateConfig({
-                program_manager_config: {
-                  image_loader: { enable_icon_cache: val }
-                }
-              })
-            "
-          />
-          <el-tooltip
-            class="box-item"
-            effect="dark"
-            :content="t('program_index.icon_cache_tooltip')"
-          >
-            <el-icon class="el-question-icon">
-              <QuestionFilled />
-            </el-icon>
-          </el-tooltip>
-        </el-form-item>
-        <el-button
-          type="primary"
-          @click="openIconCacheDir"
-        >
-          {{ t('program_index.open_icon_cache_folder') }}
-        </el-button>
-
         <!-- 排序算法参数设置 -->
         <el-divider />
         <h3>{{ t('program_index.sorting_algorithm_settings') }}</h3>
@@ -437,10 +387,6 @@ const search_model = computed(() => [
     { value: 'launchy', label: t('program_index.launchyqt_algorithm') },
     { value: 'semantic', label: t('program_index.semantic_search_algorithm') },
 ])
-
-const openIconCacheDir = async () => {
-    await invoke('command_open_icon_cache_dir')
-}
 
 const openModelFolder = async () => {
     await invoke('command_open_models_dir')

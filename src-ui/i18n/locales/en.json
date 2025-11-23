@@ -147,6 +147,13 @@
     "disabled": "Disabled",
     "click_to_set": "Click to set shortcut"
   },
+  "icon_management": {
+    "enable_online_icon_loading": "Enable online loading of webpage icons",
+    "online_icon_tooltip": "When enabled, it can load icons for URLs, which will replace the default icon upon successful retrieval",
+    "enable_icon_cache": "Enable Icon Cache",
+    "icon_cache_tooltip": "Saves a local copy of the icon for each program to speed up icon loading",
+    "open_icon_cache_folder": "Open Icon Cache Folder"
+  },
   "program_index": {
     "set_search_path": "Set Search Path",
     "directory_list": "Directory List",
@@ -194,15 +201,10 @@
     "change_search_algorithm": "Change Search Algorithm",
     "search_algorithm_tooltip": "Standard: Carefully designed by the author, high accuracy & fault tolerance; Skim: A popular fuzzy matching algorithm; LaunchyQT: A port of the LaunchyQT algorithm; Semantic: Uses embedding model for meaning-based match (experimental, slower)",
     "scan_uwp_apps": "Scan UWP Applications",
-    "enable_online_icon_loading": "Enable online loading of webpage icons",
-    "online_icon_tooltip": "When enabled, it can load icons for URLs, which will replace the default icon upon successful retrieval",
-    "enable_icon_cache": "Enable Icon Cache",
-    "icon_cache_tooltip": "Saves a local copy of the icon for each program to speed up icon loading",
     "enable_lru_search_cache": "Enable LRU Search Cache",
     "lru_cache_tooltip": "Caches recent search results to greatly reduce latency, but dynamic weight updates won't show immediately.",
     "lru_cache_description": "When the LRU search cache is enabled, launch weight changes are not reflected instantly, but search latency can drop to about 0.01 ms. Recommended when using semantic search.",
     "search_cache_capacity": "Cache Entry Limit",
-    "open_icon_cache_folder": "Open Icon Cache Folder",
     "standard_search_algorithm": "Standard Search Algorithm",
     "skim_matching_algorithm": "Skim Matching Algorithm",
     "launchyqt_algorithm": "LaunchyQT Algorithm (unofficial)",
@@ -338,6 +340,7 @@
     "save_config": "Save Config",
     "please_save_first": "Please save your changes before switching pages",
     "save_failed": "Save Failed",
+    "icon_management": "Icon Management",
     "menu": {
       "general": "General",
       "appearance": "Appearance",

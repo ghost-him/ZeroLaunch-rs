@@ -1,6 +1,5 @@
 pub mod builtin_commands;
 pub mod config;
-pub mod image_loader;
 pub mod localization_translation;
 pub mod pinyin_mapper;
 pub mod program_launcher;
@@ -13,8 +12,8 @@ use crate::program_manager::search_engine::TraditionalSearchEngine;
 pub mod search_engine;
 pub mod unit;
 pub mod window_activator;
-use crate::core::image_processor::ImageProcessor;
 use crate::error::{OptionExt, ResultExt};
+use crate::modules::icon_manager::{IconManager, IconRequest};
 use crate::modules::parameter_resolver::{ParameterResolver, SystemParameterSnapshot};
 use crate::modules::program_manager::config::program_manager_config::RuntimeProgramConfig;
 use crate::modules::program_manager::search_engine::{SearchEngine, SemanticSearchEngine};
@@ -24,7 +23,6 @@ use crate::program_manager::semantic_manager::SemanticManager;
 use crate::program_manager::unit::*;
 use config::program_manager_config::PartialProgramManagerConfig;
 use dashmap::DashMap;
-use image_loader::ImageLoader;
 use lru::LruCache;
 use program_launcher::ProgramLauncher;
 use program_loader::ProgramLoader;
@@ -67,7 +65,7 @@ pub struct ProgramManager {
     /// 当前程序的搜索引擎
     search_engine: Arc<RwLock<Arc<dyn SearchEngine>>>,
     /// 图标获取器
-    image_loader: Arc<ImageLoader>,
+    icon_manager: Arc<IconManager>,
     /// 窗口唤醒器
     window_activator: Arc<WindowActivator>,
     /// 语义生成器
@@ -91,20 +89,21 @@ impl ProgramManager {
     /// 初始化，空
     pub fn new(runtime_program_config: RuntimeProgramConfig) -> Self {
         let RuntimeProgramConfig {
-            image_loader_config,
             embedding_backend,
             embedding_cache_bytes,
+            icon_manager,
         } = runtime_program_config;
 
         let semantic_manager = Arc::new(SemanticManager::new(embedding_backend, HashMap::new()));
         let parameter_resolver = Arc::new(ParameterResolver::new());
+
         let pm = ProgramManager {
             program_registry: Arc::new(RwLock::new(Vec::new())),
             program_loader: Arc::new(ProgramLoader::new(semantic_manager.clone())),
             program_launcher: Arc::new(ProgramLauncher::new()),
             program_ranker: Arc::new(ProgramRanker::new()),
             search_engine: Arc::new(RwLock::new(Arc::new(TraditionalSearchEngine::default()))),
-            image_loader: Arc::new(ImageLoader::new(image_loader_config)),
+            icon_manager,
             program_locater: Arc::new(DashMap::new()),
             window_activator: Arc::new(WindowActivator::new()),
             semantic_manager,
@@ -137,7 +136,6 @@ impl ProgramManager {
             runtime_data: PartialProgramManagerConfig {
                 ranker: Some(self.program_ranker.get_runtime_data()),
                 loader: None,
-                image_loader: None,
                 search_model: None,
                 enable_lru_search_cache: None,
                 search_cache_capacity: None,
@@ -154,12 +152,6 @@ impl ProgramManager {
     ) {
         let program_loader_config = &config.get_loader_config();
         let program_ranker_config = &config.get_ranker_config();
-        let image_loader_config = &config.get_image_loader_config();
-        // 初始化子模块
-        self.image_loader
-            .load_from_config(image_loader_config)
-            .await;
-
         // 先使用semantic_store初始化semantic_manager
         // 这样使用program_loader就可以通过semantic_manager来得到不同的语义描述
         let mut semantic_store = serde_json::from_str::<HashMap<String, SemanticStoreItem>>(
@@ -420,11 +412,15 @@ impl ProgramManager {
             .expect_programming(&format!("程序定位器中未找到程序GUID:{}", program_guid));
         let program_registry = self.program_registry.read().await;
         let target_program = &program_registry[index];
-        let mut result = self.image_loader.load_image(target_program.clone()).await;
-        if let Ok(output) = ImageProcessor::trim_transparent_white_border(result.clone()) {
-            result = output;
-        }
-        result
+
+        let request = match &target_program.icon_path {
+            crate::core::image_processor::ImageIdentity::File(path) => IconRequest::Path {
+                path: path.clone(),
+                app_name: Some(target_program.show_name.clone()),
+            },
+            crate::core::image_processor::ImageIdentity::Web(url) => IconRequest::Url(url.clone()),
+        };
+        self.icon_manager.get_icon(request).await
     }
     /// 获得当前已保存的程序的个数
     pub async fn get_program_count(&self) -> usize {

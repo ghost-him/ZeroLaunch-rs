@@ -23,6 +23,8 @@ use crate::modules::config::default::LOCAL_CONFIG_PATH;
 use crate::modules::config::default::REMOTE_CONFIG_DEFAULT;
 use crate::modules::config::default::SEMANTIC_DESCRIPTION_FILE_NAME;
 use crate::modules::config::{Height, Width};
+use crate::modules::icon_manager::config::RuntimeIconManagerConfig;
+use crate::modules::icon_manager::IconManager;
 use crate::modules::ui_controller::controller::get_window_render_origin;
 use crate::state::app_state::AppState;
 use crate::tray::init_system_tray;
@@ -45,7 +47,6 @@ use modules::config::load_string_to_runtime_config_;
 use modules::config::save_runtime_config_to_string;
 use modules::config::ui_config::PartialUiConfig;
 use modules::config::window_state::PartialWindowState;
-use modules::program_manager::config::image_loader_config::RuntimeImageLoaderConfig;
 use modules::program_manager::config::program_manager_config::RuntimeProgramConfig;
 use modules::program_manager::semantic_backend;
 use modules::program_manager::{self, ProgramManager};
@@ -310,21 +311,28 @@ async fn init_app_state(app: &mut App) {
         None
     };
 
+    // 初始化图标管理器
+    let image_loader_runtime_config = RuntimeIconManagerConfig {
+        default_app_icon_path: APP_PIC_PATH
+            .get("tips")
+            .expect_programming("无法获取默认应用图标路径")
+            .value()
+            .clone(),
+        default_web_icon_path: APP_PIC_PATH
+            .get("web_pages")
+            .expect_programming("无法获取默认网页图标路径")
+            .value()
+            .clone(),
+    };
+
+    let icon_manager = Arc::new(IconManager::new(image_loader_runtime_config));
+    state.set_icon_manager(icon_manager.clone());
+
+    // 初始化程序管理器
     let runtime_program_config = RuntimeProgramConfig {
-        image_loader_config: RuntimeImageLoaderConfig {
-            default_app_icon_path: APP_PIC_PATH
-                .get("tips")
-                .expect_programming("无法获取默认应用图标路径")
-                .value()
-                .clone(),
-            default_web_icon_path: APP_PIC_PATH
-                .get("web_pages")
-                .expect_programming("无法获取默认网页图标路径")
-                .value()
-                .clone(),
-        },
         embedding_backend,
         embedding_cache_bytes,
+        icon_manager,
     };
 
     let program_manager = ProgramManager::new(runtime_program_config);
@@ -507,8 +515,13 @@ async fn load_or_initialize_semantic_store(storage_manager: &StorageManager) -> 
 
 async fn reload_program_catalog(state: &AppState, runtime_config: &RuntimeConfig) {
     let program_manager = state.get_program_manager();
+    let icon_manager = state.get_icon_manager();
     let storage_manager = state.get_storage_manager();
     let semantic_store_str = load_or_initialize_semantic_store(storage_manager.as_ref()).await;
+
+    // 更新 IconManager 配置
+    let icon_manager_config = runtime_config.get_icon_manager_config();
+    icon_manager.load_from_config(icon_manager_config).await;
 
     program_manager
         .load_from_config(
@@ -625,6 +638,7 @@ pub async fn save_config_to_file(is_update_app: bool) {
         shortcut_config: None,
         program_manager_config: Some(program_manager_runtime_data.runtime_data),
         window_state: None,
+        icon_manager_config: None,
     });
     let remote_config = runtime_config.to_partial();
 

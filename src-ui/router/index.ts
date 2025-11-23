@@ -24,6 +24,9 @@ import ProgramKeywords from '../windows/settings/programs/Keywords.vue'
 import ProgramAliases from '../windows/settings/programs/Aliases.vue'
 import ProgramAdvanced from '../windows/settings/programs/Advanced.vue'
 
+// Icon Settings
+import Icons from '../windows/settings/Icons.vue'
+
 // Search Settings
 import WebSearch from '../windows/settings/search/WebSearch.vue'
 import CustomCommands from '../windows/settings/search/CustomCommands.vue'
@@ -45,6 +48,7 @@ const routes = [
       { path: 'programs/keywords', component: ProgramKeywords },
       { path: 'programs/aliases', component: ProgramAliases },
       { path: 'programs/advanced', component: ProgramAdvanced },
+      { path: 'icons', component: Icons },
       { path: 'search/web', component: WebSearch },
       { path: 'search/custom', component: CustomCommands },
       { path: 'search/builtin', component: BuiltinCommands },

@@ -1,6 +1,7 @@
 use crate::core::storage::storage_manager::StorageManager;
 use crate::error::OptionExt;
 use crate::modules::everything::EverythingManager;
+use crate::modules::icon_manager::IconManager;
 use crate::modules::shortcut_manager::ShortcutManager;
 use crate::modules::{config::config_manager::RuntimeConfig, program_manager::ProgramManager};
 use crate::utils::i18n::Translator;
@@ -47,6 +48,8 @@ pub struct AppState {
     previous_foreground_window: RwLock<Option<isize>>,
     /// Everything 管理器
     everything_manager: Arc<EverythingManager>,
+    /// 图标管理器
+    icon_manager: RwLock<Option<Arc<IconManager>>>,
 }
 
 impl Default for AppState {
@@ -75,6 +78,7 @@ impl AppState {
             translator: Arc::new(RwLock::new(Translator::new())),
             previous_foreground_window: RwLock::new(None),
             everything_manager: Arc::new(EverythingManager::new()),
+            icon_manager: RwLock::new(None),
         }
     }
 
@@ -244,6 +248,20 @@ impl AppState {
     /// 获取 Everything 管理器的克隆
     pub fn get_everything_manager(&self) -> Arc<EverythingManager> {
         self.everything_manager.clone()
+    }
+
+    /// 获取图标管理器的克隆
+    pub fn get_icon_manager(&self) -> Arc<IconManager> {
+        self.icon_manager
+            .read()
+            .as_ref()
+            .cloned()
+            .expect_programming("icon manager not initialized")
+    }
+
+    /// 设置图标管理器
+    pub fn set_icon_manager(&self, icon_manager: Arc<IconManager>) {
+        *self.icon_manager.write() = Some(icon_manager);
     }
 }
 

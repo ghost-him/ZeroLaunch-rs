@@ -147,6 +147,13 @@
     "disabled": "已禁用",
     "click_to_set": "点击设置快捷键"
   },
+  "icon_management": {
+    "enable_online_icon_loading": "启用联网加载网页图标",
+    "online_icon_tooltip": "开启后，即可加载网址的图标，成功获取后会替代默认的图标",
+    "enable_icon_cache": "启用图标缓存",
+    "icon_cache_tooltip": "为每个程序都在本地保存一份图标，这可以加速图标的加载速度",
+    "open_icon_cache_folder": "打开图标缓存文件夹"
+  },
   "program_index": {
     "set_search_path": "设置搜索路径",
     "directory_list": "目录列表",
@@ -194,15 +201,10 @@
     "change_search_algorithm": "更改搜索算法",
     "search_algorithm_tooltip": "标准: 作者精心设计，高准确率高容错；Skim: 主流模糊匹配算法；LaunchyQT: 对 LaunchyQT 算法的移植；语义: 使用嵌入模型进行语义匹配（实验性，速度较慢）",
     "scan_uwp_apps": "扫描UWP应用",
-    "enable_online_icon_loading": "启用联网加载网页图标",
-    "online_icon_tooltip": "开启后，即可加载网址的图标，成功获取后会替代默认的图标",
-    "enable_icon_cache": "启用图标缓存",
-    "icon_cache_tooltip": "为每个程序都在本地保存一份图标，这可以加速图标的加载速度",
     "enable_lru_search_cache": "启用 LRU 搜索缓存",
     "lru_cache_tooltip": "启用后会缓存最近的搜索结果，极大降低搜索耗时，但动态权重更新不会立刻生效。",
     "lru_cache_description": "启用 LRU 搜索缓存后，将无法实时体现启动权重变化，但可以把搜索耗时压缩到 0.01 毫秒左右。推荐在语义搜索模式下开启。",
     "search_cache_capacity": "缓存条目数量",
-    "open_icon_cache_folder": "打开图标缓存文件夹",
     "standard_search_algorithm": "标准搜索算法",
     "skim_matching_algorithm": "Skim匹配算法",
     "launchyqt_algorithm": "LaunchyQT算法（非官方）",
@@ -338,6 +340,7 @@
     "save_config": "保存配置文件",
     "please_save_first": "请先保存配置文件后再切换页面",
     "save_failed": "保存失败",
+    "icon_management": "图标管理",
     "menu": {
       "general": "常规设置",
       "appearance": "外观设置",

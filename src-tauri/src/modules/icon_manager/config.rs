@@ -1,7 +1,7 @@
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 
-pub struct RuntimeImageLoaderConfig {
+pub struct RuntimeIconManagerConfig {
     /// 默认的 app 图标的路径
     pub default_app_icon_path: String,
     /// 默认的 网址图标
@@ -9,23 +9,23 @@ pub struct RuntimeImageLoaderConfig {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct PartialImageLoaderConfig {
+pub struct PartialIconManagerConfig {
     pub enable_icon_cache: Option<bool>,
     pub enable_online: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
-pub struct ImageLoaderConfigInner {
+pub struct IconManagerConfigInner {
     /// 要不要开启图片缓存
-    #[serde(default = "ImageLoaderConfigInner::default_enable_icon_cache")]
+    #[serde(default = "IconManagerConfigInner::default_enable_icon_cache")]
     pub enable_icon_cache: bool,
     /// 要不要联网来获取网址的图标
-    #[serde(default = "ImageLoaderConfigInner::default_enable_online")]
+    #[serde(default = "IconManagerConfigInner::default_enable_online")]
     pub enable_online: bool,
 }
 
-impl Default for ImageLoaderConfigInner {
+impl Default for IconManagerConfigInner {
     fn default() -> Self {
         Self {
             enable_icon_cache: Self::default_enable_icon_cache(),
@@ -34,7 +34,7 @@ impl Default for ImageLoaderConfigInner {
     }
 }
 
-impl ImageLoaderConfigInner {
+impl IconManagerConfigInner {
     pub(crate) fn default_enable_icon_cache() -> bool {
         true
     }
@@ -44,15 +44,15 @@ impl ImageLoaderConfigInner {
     }
 }
 
-impl ImageLoaderConfigInner {
-    pub fn to_partial(&self) -> PartialImageLoaderConfig {
-        PartialImageLoaderConfig {
+impl IconManagerConfigInner {
+    pub fn to_partial(&self) -> PartialIconManagerConfig {
+        PartialIconManagerConfig {
             enable_icon_cache: Some(self.enable_icon_cache),
             enable_online: Some(self.enable_online),
         }
     }
 
-    pub fn update(&mut self, partial_config: PartialImageLoaderConfig) {
+    pub fn update(&mut self, partial_config: PartialIconManagerConfig) {
         if let Some(enable) = partial_config.enable_icon_cache {
             self.enable_icon_cache = enable;
         }
@@ -63,20 +63,20 @@ impl ImageLoaderConfigInner {
 }
 
 #[derive(Debug)]
-pub struct ImageLoaderConfig {
-    inner: RwLock<ImageLoaderConfigInner>,
+pub struct IconManagerConfig {
+    inner: RwLock<IconManagerConfigInner>,
 }
 
-impl Default for ImageLoaderConfig {
+impl Default for IconManagerConfig {
     fn default() -> Self {
-        ImageLoaderConfig {
-            inner: RwLock::new(ImageLoaderConfigInner::default()),
+        IconManagerConfig {
+            inner: RwLock::new(IconManagerConfigInner::default()),
         }
     }
 }
 
-impl ImageLoaderConfig {
-    pub fn to_partial(&self) -> PartialImageLoaderConfig {
+impl IconManagerConfig {
+    pub fn to_partial(&self) -> PartialIconManagerConfig {
         let inner = self.inner.read();
         inner.to_partial()
     }
@@ -89,7 +89,7 @@ impl ImageLoaderConfig {
         self.inner.read().enable_online
     }
 
-    pub fn update(&self, partial_config: PartialImageLoaderConfig) {
+    pub fn update(&self, partial_config: PartialIconManagerConfig) {
         let mut inner = self.inner.write();
         inner.update(partial_config);
     }

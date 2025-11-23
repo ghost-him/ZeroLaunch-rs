@@ -147,6 +147,13 @@
     "disabled": "已停用",
     "click_to_set": "點擊設定快捷鍵"
   },
+  "icon_management": {
+    "enable_online_icon_loading": "啟用連網載入網頁圖示",
+    "online_icon_tooltip": "開啟後，即可載入網址的圖示，成功獲取後會替代預設的圖示",
+    "enable_icon_cache": "啟用圖示快取",
+    "icon_cache_tooltip": "為每個程式都在本機儲存一份圖示，這可以加速圖示的載入速度",
+    "open_icon_cache_folder": "開啟圖示快取資料夾"
+  },
   "program_index": {
     "set_search_path": "設定搜尋路徑",
     "directory_list": "目錄清單",
@@ -194,15 +201,12 @@
     "change_search_algorithm": "變更搜尋演算法",
     "search_algorithm_tooltip": "標準: 作者精心設計，高準確率高容錯；Skim: 主流模糊符合演算法；LaunchyQT: 對 LaunchyQT 演算法的移植；語義: 使用嵌入模型進行語義匹配（實驗性，較慢）",
     "scan_uwp_apps": "掃描UWP應用程式",
-    "enable_online_icon_loading": "啟用連網載入網頁圖示",
-    "online_icon_tooltip": "開啟後，即可載入網址的圖示，成功獲取後會替代預設的圖示",
-    "enable_icon_cache": "啟用圖示快取",
-    "icon_cache_tooltip": "為每個程式都在本機儲存一份圖示，這可以加速圖示的載入速度",
+
     "enable_lru_search_cache": "啟用 LRU 搜尋快取",
     "lru_cache_tooltip": "啟用後會快取最近的搜尋結果，可大幅降低耗時，但動態權重更新不會立即生效。",
     "lru_cache_description": "啟用 LRU 搜尋快取後，啟動權重的變化無法即時反映，但可將搜尋耗時壓縮至約 0.01 毫秒。建議在語義搜尋模式下啟用。",
     "search_cache_capacity": "快取條目數量",
-    "open_icon_cache_folder": "開啟圖示快取資料夾",
+
     "standard_search_algorithm": "標準搜尋演算法",
     "skim_matching_algorithm": "Skim符合演算法",
     "launchyqt_algorithm": "LaunchyQT演算法（非官方）",
@@ -381,6 +385,7 @@
     "config_saved": "設定檔已儲存",
     "please_save_first": "請先儲存設定檔後再切換頁面",
     "save_failed": "儲存失敗",
+    "icon_management": "圖示管理",
     "edit_program_alias": "編輯程式 '{name}' 的別名",
     "enter_alias": "請輸入別名",
     "delete": "刪除",

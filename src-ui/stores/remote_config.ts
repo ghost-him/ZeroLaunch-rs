@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { default_ui_config, default_app_config, default_shortcut_config, ProgramManagerConfig, ProgramLoaderConfig, PartialRemoteConfig, RemoteConfig, ImageLoaderConfig, ProgramRankerConfig } from '../api/remote_config_types'
+import { default_ui_config, default_app_config, default_shortcut_config, ProgramManagerConfig, ProgramLoaderConfig, PartialRemoteConfig, RemoteConfig, IconManagerConfig, ProgramRankerConfig } from '../api/remote_config_types'
 import { invoke } from '@tauri-apps/api/core'
 
 function mergeConfig(config: RemoteConfig, partial: PartialRemoteConfig): RemoteConfig {
@@ -23,12 +23,19 @@ function mergeConfig(config: RemoteConfig, partial: PartialRemoteConfig): Remote
         ? {
             ranker: pmPartial.ranker ? { ...pmConfig.ranker, ...pmPartial.ranker } : pmConfig.ranker,
             loader: pmPartial.loader ? { ...pmConfig.loader, ...pmPartial.loader } : pmConfig.loader,
-            image_loader: pmPartial.image_loader ? { ...pmConfig.image_loader, ...pmPartial.image_loader } : pmConfig.image_loader,
             search_model: pmPartial.search_model ? pmPartial.search_model : pmConfig.search_model,
             enable_lru_search_cache: pmPartial.enable_lru_search_cache !== undefined ? pmPartial.enable_lru_search_cache : pmConfig.enable_lru_search_cache,
             search_cache_capacity: pmPartial.search_cache_capacity !== undefined ? pmPartial.search_cache_capacity : pmConfig.search_cache_capacity,
         }
         : pmConfig
+
+    // 处理 icon_manager_config
+    const iconPartial = partial.icon_manager_config
+    const iconConfig = config.icon_manager_config
+    const icon_manager_config = iconPartial
+        ? { ...iconConfig, ...iconPartial }
+        : iconConfig
+
     // 返回合并后的新 Config 对象
     return {
         ...config,
@@ -36,6 +43,7 @@ function mergeConfig(config: RemoteConfig, partial: PartialRemoteConfig): Remote
         ui_config,
         shortcut_config,
         program_manager_config,
+        icon_manager_config,
     }
 }
 
@@ -73,6 +81,15 @@ function mergePartialConfig(
         partial2.program_manager_config,
     )
 
+    // 合并 icon_manager_config
+    const mergedIconManagerConfig =
+        partial1.icon_manager_config || partial2.icon_manager_config
+            ? {
+                ...(partial1.icon_manager_config || {}),
+                ...(partial2.icon_manager_config || {}),
+            }
+            : undefined
+
     // 构建最终的 PartialConfig 对象
     const result: PartialRemoteConfig = {}
     if (mergedAppConfig !== undefined) result.app_config = mergedAppConfig
@@ -80,6 +97,7 @@ function mergePartialConfig(
     if (shortcutConfig !== undefined) result.shortcut_config = shortcutConfig
     if (mergedProgramManagerConfig !== undefined)
         result.program_manager_config = mergedProgramManagerConfig
+    if (mergedIconManagerConfig !== undefined) result.icon_manager_config = mergedIconManagerConfig
 
     return result
 }
@@ -108,14 +126,7 @@ function mergePartialProgramManagerConfig(
                 ...(pm2?.loader || {}),
             }
             : undefined
-    // 合并 image_loader_config
-    const mergedImageLoaderConfig =
-        pm1?.image_loader || pm2?.image_loader
-            ? {
-                ...(pm1?.image_loader || {}),
-                ...(pm2?.image_loader || {}),
-            }
-            : undefined
+
     // 合并 search_model
     const mergedSearchModel = pm2?.search_model ?? pm1?.search_model
     const mergedEnableCache = pm2?.enable_lru_search_cache ?? pm1?.enable_lru_search_cache
@@ -125,7 +136,6 @@ function mergePartialProgramManagerConfig(
     const mergedPm: PartialRemoteConfig['program_manager_config'] = {}
     if (mergedRanker !== undefined) mergedPm.ranker = mergedRanker
     if (mergedLoader !== undefined) mergedPm.loader = mergedLoader
-    if (mergedImageLoaderConfig !== undefined) mergedPm.image_loader = mergedImageLoaderConfig
     if (mergedSearchModel !== undefined) mergedPm.search_model = mergedSearchModel
     if (mergedEnableCache !== undefined) mergedPm.enable_lru_search_cache = mergedEnableCache
     if (mergedCacheCapacity !== undefined) mergedPm.search_cache_capacity = mergedCacheCapacity
@@ -171,14 +181,14 @@ export const useRemoteConfigStore = defineStore('config', {
                         ExitProgram: [],
                     },
                 } as ProgramLoaderConfig,
-                image_loader: {
-                    enable_icon_cache: true,
-                    enable_online: true,
-                } as ImageLoaderConfig,
                 search_model: 'standard',
                 enable_lru_search_cache: false,
                 search_cache_capacity: 120,
             } as ProgramManagerConfig,
+            icon_manager_config: {
+                enable_icon_cache: true,
+                enable_online: true,
+            } as IconManagerConfig,
         } as RemoteConfig,
         dirtyConfig: {} as PartialRemoteConfig,
     }),

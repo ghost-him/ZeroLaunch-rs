@@ -181,7 +181,7 @@ export type DirectoryConfig = {
     max_symlink_depth?: number
 }
 
-export type BuiltinCommandType = 
+export type BuiltinCommandType =
     | 'OpenSettings'
     | 'RefreshDatabase'
     | 'RetryRegisterShortcut'
@@ -200,7 +200,7 @@ export type ProgramLoaderConfig = {
     builtin_command_keywords: Record<BuiltinCommandType, string[]>
 }
 
-export type ImageLoaderConfig = {
+export type IconManagerConfig = {
     enable_icon_cache: boolean,
     enable_online: boolean,
 }
@@ -208,7 +208,6 @@ export type ImageLoaderConfig = {
 export type ProgramManagerConfig = {
     ranker: ProgramRankerConfig
     loader: ProgramLoaderConfig
-    image_loader: ImageLoaderConfig
     enable_lru_search_cache: boolean
     search_cache_capacity: number
     search_model: string
@@ -221,18 +220,18 @@ export type RemoteConfig = {
     program_manager_config: {
         ranker: ProgramRankerConfig
         loader: ProgramLoaderConfig
-        image_loader: ImageLoaderConfig
         search_model: string
         enable_lru_search_cache: boolean
         search_cache_capacity: number
     }
+    icon_manager_config: IconManagerConfig
 }
 
 export type PartialAppConfig = Partial<AppConfig>
 export type PartialUIConfig = Partial<UIConfig>
 export type PartialProgramRankerConfig = Partial<ProgramRankerConfig>
 export type PartialProgramLoaderConfig = Partial<ProgramLoaderConfig>
-export type PartialImageLoaderConfig = Partial<ImageLoaderConfig>
+export type PartialIconManagerConfig = Partial<IconManagerConfig>
 export type PartialShortcutConfig = Partial<ShortcutConfig>
 
 export type PartialRemoteConfig = {
@@ -242,9 +241,9 @@ export type PartialRemoteConfig = {
     program_manager_config?: {
         ranker?: PartialProgramRankerConfig
         loader?: PartialProgramLoaderConfig
-        image_loader?: PartialImageLoaderConfig
         search_model?: Partial<string>
         enable_lru_search_cache?: boolean
         search_cache_capacity?: number
     }
+    icon_manager_config?: PartialIconManagerConfig
 }

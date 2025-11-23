@@ -75,6 +75,13 @@
             </el-menu-item>
           </el-sub-menu>
 
+          <el-menu-item index="/setting_window/icons">
+            <el-icon>
+              <Picture />
+            </el-icon>
+            <span>{{ t('settings.icon_management') }}</span>
+          </el-menu-item>
+
           <el-sub-menu index="/setting_window/search">
             <template #title>
               <el-icon>
@@ -173,6 +180,7 @@ import {
     Key,
     InfoFilled,
     Monitor,
+    Picture,
 } from '@element-plus/icons-vue'
 
 const { t } = useI18n()

@@ -54,29 +54,19 @@ impl ProgramLauncherInner {
     }
 
     fn launch_command(&self, command: &str) {
-        // 分割命令和参数
-        let parts: Vec<&str> = command.split_whitespace().collect();
-        if parts.is_empty() {
-            return;
-        }
-
-        let program = parts[0];
-        let args = &parts[1..];
-
         const CREATE_NO_WINDOW: u32 = 0x08000000;
-        const DETACHED_PROCESS: u32 = 0x00000008;
+        // 使用 cmd /C 执行命令
+        let result = std::process::Command::new("cmd")
+            .raw_arg(format!("/C \"{}\"", command))
+            .creation_flags(CREATE_NO_WINDOW)
+            .spawn();
 
-        if let Err(error) = std::process::Command::new(program)
-            .args(args)
-            .creation_flags(CREATE_NO_WINDOW | DETACHED_PROCESS)
-            .spawn()
-        {
+        if let Err(error) = result {
             warn!("启动命令失败: {:?}", error);
         }
     }
 
     fn launch_file(&self, file_name: &str) {
-        use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x08000000;
 
         let result = std::process::Command::new("cmd")

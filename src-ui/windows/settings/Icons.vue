@@ -95,74 +95,25 @@ import { useRemoteConfigStore } from '../../stores/remote_config'
 import { useI18n } from 'vue-i18n'
 import { QuestionFilled } from '@element-plus/icons-vue'
 import { invoke } from '@tauri-apps/api/core'
-import { ref } from 'vue'
 import { open } from '@tauri-apps/plugin-dialog'
 import { ElMessage } from 'element-plus'
+import type { ProgramDisplayInfo } from '../../api/program'
+import { useProgramSearch } from '../../composables/useProgramSearch'
 
 const { t } = useI18n()
 const configStore = useRemoteConfigStore()
 const { config } = storeToRefs(configStore)
 
-type ProgramIconEntry = {
-    name: string    // 显示的名字
-    path: string    // 唯一标识符，用于让用户知道具体是哪个程序
-    program_guid: number
-    icon_request_json: string
-}
+const {
+    searchKeyword,
+    loading,
+    programList,
+    handleSearch,
+    getIconUrl,
+    refreshIcon
+} = useProgramSearch()
 
-const searchKeyword = ref('')
-const loading = ref(false)
-const programList = ref<ProgramIconEntry[]>([])
-const iconUrls = ref(new Map<string, string>())
-
-let searchTimeout: number | undefined
-
-const handleSearch = () => {
-    if (searchTimeout) clearTimeout(searchTimeout)
-    searchTimeout = window.setTimeout(async () => {
-        loading.value = true
-        try {
-            const results = await invoke<ProgramIconEntry[]>('command_search_programs_for_icon_edit', {
-                keyword: searchKeyword.value
-            })
-            programList.value = results
-            // Load icons for results
-            results.forEach(loadIcon)
-        } catch (e) {
-            console.error('Search failed', e)
-        } finally {
-            loading.value = false
-        }
-    }, 300)
-}
-
-const loadIcon = async (row: ProgramIconEntry) => {
-    if (iconUrls.value.has(row.icon_request_json)) return
-    try {
-        const data = await invoke<number[]>('load_program_icon', { programGuid: row.program_guid })
-
-        // Optimize: Process in chunks to avoid Maximum call stack size exceeded
-        const bytes = new Uint8Array(data)
-        let binary = ''
-        const len = bytes.byteLength
-        const chunkSize = 0x8000 // 32KB
-        for (let i = 0; i < len; i += chunkSize) {
-            const chunk = bytes.subarray(i, Math.min(i + chunkSize, len))
-            binary += String.fromCharCode.apply(null, chunk as any)
-        }
-        const base64 = btoa(binary)
-
-        iconUrls.value.set(row.icon_request_json, `data:image/png;base64,${base64}`)
-    } catch (e) {
-        console.error('Failed to load icon', e)
-    }
-}
-
-const getIconUrl = (icon_request_json: string) => {
-    return iconUrls.value.get(icon_request_json) || ''
-}
-
-const handleChangeIcon = async (program: ProgramIconEntry) => {
+const handleChangeIcon = async (program: ProgramDisplayInfo) => {
     try {
         const selected = await open({
             multiple: false,
@@ -179,8 +130,7 @@ const handleChangeIcon = async (program: ProgramIconEntry) => {
             })
 
             // Force refresh icon
-            iconUrls.value.delete(program.icon_request_json)
-            await loadIcon(program)
+            await refreshIcon(program)
 
             ElMessage.success(t('icon_management.update_success'))
         }

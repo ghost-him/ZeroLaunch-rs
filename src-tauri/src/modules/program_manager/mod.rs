@@ -86,7 +86,7 @@ pub(crate) struct SearchMatchResult {
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
-pub struct ProgramIconEntry {
+pub struct ProgramDisplayInfo {
     pub name: String,
     pub path: String,
     pub program_guid: u64,
@@ -518,30 +518,22 @@ impl ProgramManager {
         results
     }
 
-    /// 轻量级搜索程序（用于图标编辑）
-    pub async fn search_programs_lightweight(&self, keyword: &str) -> Vec<ProgramIconEntry> {
+    /// 轻量级搜索程序（用于设置界面等）
+    pub async fn search_programs_lightweight(&self, keyword: &str) -> Vec<ProgramDisplayInfo> {
         let registry = self.program_registry.read().await;
         let keyword = keyword.to_lowercase();
 
-        let results: Vec<ProgramIconEntry> = registry
+        registry
             .iter()
-            .filter(|p| {
-                if keyword.is_empty() {
-                    return true;
-                }
-                p.show_name.to_lowercase().contains(&keyword)
-                    || p.launch_method.get_text().to_lowercase().contains(&keyword)
+            .filter(|program| program.show_name.to_lowercase().contains(&keyword))
+            .take(50) // 限制返回数量
+            .map(|program| ProgramDisplayInfo {
+                name: program.show_name.clone(),
+                path: program.launch_method.get_text().clone(),
+                program_guid: program.program_guid,
+                icon_request_json: serde_json::to_string(&program.icon_request).unwrap_or_default(),
             })
-            .take(20)
-            .map(|p| ProgramIconEntry {
-                name: p.show_name.to_string(),
-                path: p.launch_method.get_text().to_string(),
-                program_guid: p.program_guid,
-                icon_request_json: serde_json::to_string(&p.icon_request).unwrap_or_default(),
-            })
-            .collect();
-
-        results
+            .collect()
     }
 
     async fn perform_search(&self, user_input: &str, result_count: u32) -> Vec<SearchMatchResult> {

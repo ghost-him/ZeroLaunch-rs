@@ -195,7 +195,7 @@ pub fn run() {
             command_open_models_dir,
             command_get_search_status_tip,
             command_export_logs,
-            command_search_programs_for_icon_edit,
+            command_search_programs_lightweight,
             command_update_program_icon,
         ])
         .run(tauri::generate_context!())

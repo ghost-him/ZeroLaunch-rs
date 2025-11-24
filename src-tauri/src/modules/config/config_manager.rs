@@ -4,6 +4,7 @@ use crate::modules::config::app_config::PartialAppConfig;
 use crate::modules::config::ui_config::UiConfig;
 use crate::modules::config::window_state::PartialWindowState;
 use crate::modules::config::window_state::WindowState;
+use crate::modules::everything::config::{EverythingConfig, PartialEverythingConfig};
 use crate::modules::icon_manager::config::{IconManagerConfig, PartialIconManagerConfig};
 use crate::modules::shortcut_manager::shortcut_config::PartialShortcutConfig;
 use crate::modules::shortcut_manager::shortcut_config::ShortcutConfig;
@@ -20,6 +21,7 @@ pub struct PartialRuntimeConfig {
     pub program_manager_config: Option<PartialProgramManagerConfig>,
     pub window_state: Option<PartialWindowState>,
     pub icon_manager_config: Option<PartialIconManagerConfig>,
+    pub everything_config: Option<PartialEverythingConfig>,
 }
 
 #[derive(Debug)]
@@ -30,6 +32,7 @@ pub struct RuntimeConfig {
     program_manager_config: Arc<ProgramManagerConfig>,
     window_state: Arc<WindowState>,
     icon_manager_config: Arc<IconManagerConfig>,
+    everything_config: Arc<EverythingConfig>,
 }
 
 impl Default for RuntimeConfig {
@@ -47,6 +50,7 @@ impl RuntimeConfig {
             program_manager_config: Arc::new(ProgramManagerConfig::default()),
             window_state: Arc::new(WindowState::default()),
             icon_manager_config: Arc::new(IconManagerConfig::default()),
+            everything_config: Arc::new(EverythingConfig::default()),
         }
     }
 
@@ -69,6 +73,9 @@ impl RuntimeConfig {
         }
         if let Some(partial_icon_manager_config) = partial_config.icon_manager_config {
             self.icon_manager_config.update(partial_icon_manager_config);
+        }
+        if let Some(partial_everything_config) = partial_config.everything_config {
+            self.everything_config.update(partial_everything_config);
         }
     }
 
@@ -96,6 +103,10 @@ impl RuntimeConfig {
         self.icon_manager_config.clone()
     }
 
+    pub fn get_everything_config(&self) -> Arc<EverythingConfig> {
+        self.everything_config.clone()
+    }
+
     pub fn to_partial(&self) -> PartialRuntimeConfig {
         PartialRuntimeConfig {
             app_config: Some(self.app_config.to_partial()),
@@ -103,7 +114,8 @@ impl RuntimeConfig {
             shortcut_config: Some(self.shortcut_config.to_partial()),
             program_manager_config: Some(self.program_manager_config.to_partial()),
             window_state: None,
-            icon_manager_config: None,
+            icon_manager_config: Some(self.icon_manager_config.to_partial()),
+            everything_config: Some(self.everything_config.to_partial()),
         }
     }
 }

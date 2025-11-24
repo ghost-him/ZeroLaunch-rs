@@ -385,7 +385,7 @@ pub async fn handle_everything_search<R: Runtime>(
     search_text: String,
 ) -> Result<Vec<SearchResult>, String> {
     let everything_manager = state.get_everything_manager();
-    let results = everything_manager.search(&search_text, 20)?;
+    let results = everything_manager.search(&search_text)?;
 
     Ok(results
         .into_iter()

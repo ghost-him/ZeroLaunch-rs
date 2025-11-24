@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { default_ui_config, default_app_config, default_shortcut_config, ProgramManagerConfig, ProgramLoaderConfig, PartialRemoteConfig, RemoteConfig, IconManagerConfig, ProgramRankerConfig } from '../api/remote_config_types'
+import { default_ui_config, default_app_config, default_shortcut_config, ProgramManagerConfig, ProgramLoaderConfig, PartialRemoteConfig, RemoteConfig, IconManagerConfig, ProgramRankerConfig, default_everything_config } from '../api/remote_config_types'
 import { invoke } from '@tauri-apps/api/core'
 
 function mergeConfig(config: RemoteConfig, partial: PartialRemoteConfig): RemoteConfig {
@@ -36,6 +36,13 @@ function mergeConfig(config: RemoteConfig, partial: PartialRemoteConfig): Remote
         ? { ...iconConfig, ...iconPartial }
         : iconConfig
 
+    // 处理 everything_config
+    const everythingPartial = partial.everything_config
+    const everythingConfig = config.everything_config
+    const everything_config = everythingPartial
+        ? { ...everythingConfig, ...everythingPartial }
+        : everythingConfig
+
     // 返回合并后的新 Config 对象
     return {
         ...config,
@@ -44,6 +51,7 @@ function mergeConfig(config: RemoteConfig, partial: PartialRemoteConfig): Remote
         shortcut_config,
         program_manager_config,
         icon_manager_config,
+        everything_config,
     }
 }
 
@@ -90,6 +98,15 @@ function mergePartialConfig(
             }
             : undefined
 
+    // 合并 everything_config
+    const mergedEverythingConfig =
+        partial1.everything_config || partial2.everything_config
+            ? {
+                ...(partial1.everything_config || {}),
+                ...(partial2.everything_config || {}),
+            }
+            : undefined
+
     // 构建最终的 PartialConfig 对象
     const result: PartialRemoteConfig = {}
     if (mergedAppConfig !== undefined) result.app_config = mergedAppConfig
@@ -98,6 +115,7 @@ function mergePartialConfig(
     if (mergedProgramManagerConfig !== undefined)
         result.program_manager_config = mergedProgramManagerConfig
     if (mergedIconManagerConfig !== undefined) result.icon_manager_config = mergedIconManagerConfig
+    if (mergedEverythingConfig !== undefined) result.everything_config = mergedEverythingConfig
 
     return result
 }
@@ -189,6 +207,7 @@ export const useRemoteConfigStore = defineStore('config', {
                 enable_icon_cache: true,
                 enable_online: true,
             } as IconManagerConfig,
+            everything_config: default_everything_config(),
         } as RemoteConfig,
         dirtyConfig: {} as PartialRemoteConfig,
     }),

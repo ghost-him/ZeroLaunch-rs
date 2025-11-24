@@ -31,6 +31,7 @@ import Icons from '../windows/settings/Icons.vue'
 import WebSearch from '../windows/settings/search/WebSearch.vue'
 import CustomCommands from '../windows/settings/search/CustomCommands.vue'
 import BuiltinCommands from '../windows/settings/search/BuiltinCommands.vue'
+import Everything from '../windows/settings/search/Everything.vue'
 
 const routes = [
   { path: '/', component: Home },
@@ -52,6 +53,7 @@ const routes = [
       { path: 'search/web', component: WebSearch },
       { path: 'search/custom', component: CustomCommands },
       { path: 'search/builtin', component: BuiltinCommands },
+      { path: 'search/everything', component: Everything },
       { path: 'config', component: ConfigPath },
       { path: 'shortcuts', component: Shortcuts },
       { path: 'about', component: About },

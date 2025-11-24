@@ -101,6 +101,10 @@
               {{ t('settings.builtin_command_settings')
               }}
             </el-menu-item>
+            <el-menu-item index="/setting_window/search/everything">
+              {{ t('everything.everything_search_settings')
+              }}
+            </el-menu-item>
           </el-sub-menu>
 
           <el-menu-item index="/setting_window/config">

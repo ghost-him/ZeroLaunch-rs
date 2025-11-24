@@ -518,6 +518,7 @@ async fn load_or_initialize_semantic_store(storage_manager: &StorageManager) -> 
 async fn reload_program_catalog(state: &AppState, runtime_config: &RuntimeConfig) {
     let program_manager = state.get_program_manager();
     let icon_manager = state.get_icon_manager();
+    let everything_manager = state.get_everything_manager();
     let storage_manager = state.get_storage_manager();
     let semantic_store_str = load_or_initialize_semantic_store(storage_manager.as_ref()).await;
 
@@ -525,6 +526,11 @@ async fn reload_program_catalog(state: &AppState, runtime_config: &RuntimeConfig
     let icon_manager_config = runtime_config.get_icon_manager_config();
     icon_manager.load_from_config(icon_manager_config).await;
 
+    // 更新 EverythingManager 配置
+    let everything_config = runtime_config.get_everything_config();
+    everything_manager.load_from_config(everything_config);
+
+    // 重新加载程序目录
     program_manager
         .load_from_config(
             runtime_config.get_program_manager_config(),
@@ -641,6 +647,7 @@ pub async fn save_config_to_file(is_update_app: bool) {
         program_manager_config: Some(program_manager_runtime_data.runtime_data),
         window_state: None,
         icon_manager_config: None,
+        everything_config: None,
     });
     let remote_config = runtime_config.to_partial();
 

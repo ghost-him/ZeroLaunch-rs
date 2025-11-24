@@ -213,6 +213,48 @@ export type ProgramManagerConfig = {
     search_model: string
 }
 
+export type EverythingSortKind =
+    | 'NameAscending'
+    | 'NameDescending'
+    | 'PathAscending'
+    | 'PathDescending'
+    | 'SizeAscending'
+    | 'SizeDescending'
+    | 'ExtensionAscending'
+    | 'ExtensionDescending'
+    | 'TypeNameAscending'
+    | 'TypeNameDescending'
+    | 'DateCreatedAscending'
+    | 'DateCreatedDescending'
+    | 'DateModifiedAscending'
+    | 'DateModifiedDescending'
+    | 'AttributesAscending'
+    | 'AttributesDescending'
+    | 'FileListFilenameAscending'
+    | 'FileListFilenameDescending'
+    | 'RunCountAscending'
+    | 'RunCountDescending'
+    | 'DateRecentlyChangedAscending'
+    | 'DateRecentlyChangedDescending'
+    | 'DateAccessedAscending'
+    | 'DateAccessedDescending'
+    | 'DateRunAscending'
+    | 'DateRunDescending';
+
+export type EverythingConfig = {
+    sort_threshold: number
+    sort_method: EverythingSortKind
+    result_limit: number
+}
+
+export function default_everything_config(): EverythingConfig {
+    return {
+        sort_threshold: 3,
+        sort_method: 'NameAscending',
+        result_limit: 10,
+    } as EverythingConfig
+}
+
 export type RemoteConfig = {
     app_config: AppConfig
     ui_config: UIConfig
@@ -225,6 +267,7 @@ export type RemoteConfig = {
         search_cache_capacity: number
     }
     icon_manager_config: IconManagerConfig
+    everything_config: EverythingConfig
 }
 
 export type PartialAppConfig = Partial<AppConfig>
@@ -233,6 +276,7 @@ export type PartialProgramRankerConfig = Partial<ProgramRankerConfig>
 export type PartialProgramLoaderConfig = Partial<ProgramLoaderConfig>
 export type PartialIconManagerConfig = Partial<IconManagerConfig>
 export type PartialShortcutConfig = Partial<ShortcutConfig>
+export type PartialEverythingConfig = Partial<EverythingConfig>
 
 export type PartialRemoteConfig = {
     app_config?: PartialAppConfig
@@ -246,4 +290,5 @@ export type PartialRemoteConfig = {
         search_cache_capacity?: number
     }
     icon_manager_config?: PartialIconManagerConfig
+    everything_config?: PartialEverythingConfig
 }

@@ -48,6 +48,8 @@ pub enum ImageIdentity {
     File(String),
     /// 网页类型 => 获取目标网站的图标
     Web(String),
+    /// 扩展名类型 => 获取扩展名的系统图标
+    Extension(String),
 }
 
 impl ImageIdentity {
@@ -55,6 +57,7 @@ impl ImageIdentity {
         match self {
             ImageIdentity::File(path) => path.clone(),
             ImageIdentity::Web(path) => path.clone(),
+            ImageIdentity::Extension(ext) => ext.clone(),
         }
     }
 
@@ -87,6 +90,7 @@ impl ImageProcessor {
         let result = match icon_identity {
             ImageIdentity::File(path) => Self::load_image_from_path_internal(path).await,
             ImageIdentity::Web(url) => Self::load_web_icon_internal(url).await,
+            ImageIdentity::Extension(ext) => Self::extract_icon_from_extension(ext).await,
         };
 
         match result {
@@ -418,6 +422,40 @@ impl ImageProcessor {
         })?
     }
 
+    /// 调整图片大小，如果超过指定尺寸
+    pub async fn resize_image(
+        data: Vec<u8>,
+        max_width: u32,
+        max_height: u32,
+    ) -> AppResult<Vec<u8>> {
+        tauri::async_runtime::spawn_blocking(move || -> AppResult<Vec<u8>> {
+            let img =
+                image::load_from_memory(&data).map_err(|e| AppError::ImageProcessingError {
+                    message: format!("Failed to load image for resizing: {}", e),
+                })?;
+
+            if img.width() <= max_width && img.height() <= max_height {
+                return Ok(data);
+            }
+
+            let resized = img.thumbnail(max_width, max_height);
+
+            let mut png_data = Vec::new();
+            let encoder = image::codecs::png::PngEncoder::new(&mut png_data);
+            resized
+                .write_with_encoder(encoder)
+                .map_err(|e| AppError::ImageProcessingError {
+                    message: format!("Failed to encode resized image: {}", e),
+                })?;
+
+            Ok(png_data)
+        })
+        .await
+        .map_err(|e| {
+            AppError::programming_error(format!("Task join error in image resizing: {}", e))
+        })?
+    }
+
     /// 统一的文件类型判断函数
     fn get_file_type(path: &str) -> FileType {
         let path_lower = path.to_lowercase();
@@ -650,6 +688,64 @@ impl ImageProcessor {
         );
         None
     }
+
+    async fn extract_icon_from_extension(ext: &str) -> AppResult<Vec<u8>> {
+        use windows::Win32::Storage::FileSystem::FILE_ATTRIBUTE_DIRECTORY;
+        use windows::Win32::UI::Shell::SHGFI_USEFILEATTRIBUTES;
+
+        let ext = ext.to_string();
+        let image_buffer = tauri::async_runtime::spawn_blocking(move || {
+            let com_init = unsafe { windows::Win32::System::Com::CoInitialize(None) };
+            defer(move || unsafe {
+                if com_init.is_ok() {
+                    windows::Win32::System::Com::CoUninitialize();
+                }
+            });
+
+            let mut sh_file_info: SHFILEINFOW = unsafe { std::mem::zeroed() };
+            let flags = SHGFI_ICON | SHGFI_LARGEICON | SHGFI_USEFILEATTRIBUTES;
+            let mut file_attributes = FILE_ATTRIBUTE_NORMAL;
+
+            // Special handling for folder
+            let wide_path;
+            if ext == "folder" {
+                file_attributes = FILE_ATTRIBUTE_DIRECTORY;
+
+                wide_path = get_u16_vec("dummy_folder");
+            } else {
+                wide_path = get_u16_vec(ext.clone());
+            }
+            let path_ptr = wide_path.as_ptr();
+
+            let result = unsafe {
+                SHGetFileInfoW(
+                    PCWSTR::from_raw(path_ptr),
+                    file_attributes,
+                    Some(&mut sh_file_info),
+                    std::mem::size_of::<SHFILEINFOW>() as u32,
+                    flags,
+                )
+            };
+
+            if result == 0 || sh_file_info.hIcon.is_invalid() {
+                return None;
+            }
+
+            let hicon = sh_file_info.hIcon;
+
+            unsafe {
+                let res = Self::convert_icon_to_image(hicon);
+                let _ = DestroyIcon(hicon);
+                res.ok()
+            }
+        })
+        .await
+        .ok()
+        .flatten()
+        .unwrap_or_default();
+        Self::rgba_image_to_png(&image_buffer)
+    }
+
     /// 将icon图像变成raga图像
     unsafe fn convert_icon_to_image(icon: HICON) -> Result<RgbaImage, AppError> {
         let bitmap_size_i32 = i32::try_from(mem::size_of::<BITMAP>()).map_err(|_| {

@@ -95,6 +95,17 @@ pub async fn get_dominant_color<R: Runtime>(
     Ok(format!("rgba({}, {}, {}, 0.8)", ret.0, ret.1, ret.2))
 }
 
+#[tauri::command]
+pub async fn get_everything_icon<R: Runtime>(
+    _app: tauri::AppHandle<R>,
+    state: tauri::State<'_, Arc<AppState>>,
+    path: String,
+) -> Result<Vec<u8>, String> {
+    let icon_manager = state.get_icon_manager();
+    let icon_data = icon_manager.get_everything_icon(path).await;
+    Ok(icon_data)
+}
+
 /// 隐藏窗口
 #[tauri::command]
 pub fn hide_window() -> Result<(), String> {

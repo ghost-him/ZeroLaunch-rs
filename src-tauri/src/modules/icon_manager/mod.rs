@@ -185,13 +185,17 @@ impl IconManagerInner {
         }
     }
 
-    async fn handle_extension_request(&self, _ext: String) -> (Vec<u8>, bool) {
-        // TODO: 实现获取扩展名关联图标的逻辑
-        // 目前暂时返回默认图标
-        let default_data =
-            ImageProcessor::load_image(&ImageIdentity::File(self.default_app_icon_path.clone()))
-                .await;
-        (default_data, true)
+    async fn handle_extension_request(&self, ext: String) -> (Vec<u8>, bool) {
+        let data = ImageProcessor::load_image(&ImageIdentity::Extension(ext)).await;
+        if data.is_empty() {
+            let default_data = ImageProcessor::load_image(&ImageIdentity::File(
+                self.default_app_icon_path.clone(),
+            ))
+            .await;
+            (default_data, true)
+        } else {
+            (data, false)
+        }
     }
 
     async fn handle_appid_request(&self, app_id: String) -> (Vec<u8>, bool) {
@@ -268,6 +272,54 @@ impl IconManagerInner {
         }
         result
     }
+
+    pub async fn get_everything_icon(&self, path: String) -> Vec<u8> {
+        let path_lower = path.to_lowercase();
+
+        // 1. Executables/Links/URLs -> Direct load, no cache
+        if path_lower.ends_with(".exe")
+            || path_lower.ends_with(".lnk")
+            || path_lower.ends_with(".url")
+        {
+            return ImageProcessor::load_image(&ImageIdentity::File(path)).await;
+        }
+
+        // 2. Images -> Direct load, resize if needed
+        let image_extensions = [
+            ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".tiff", ".tif", ".svg",
+        ];
+        if image_extensions.iter().any(|ext| path_lower.ends_with(ext)) {
+            let data = ImageProcessor::load_image(&ImageIdentity::File(path)).await;
+            if !data.is_empty() {
+                if let Ok(resized) = ImageProcessor::resize_image(data.clone(), 256, 256).await {
+                    return resized;
+                }
+            }
+            return data;
+        }
+
+        // 3. Folders -> Cache as "folder" extension
+        if Path::new(&path).is_dir() {
+            return self
+                .get_icon(IconRequest::Extension("folder".to_string()))
+                .await;
+        }
+
+        // 4. Other files -> Extension based cache via get_icon
+        let extension = Path::new(&path)
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .unwrap_or("")
+            .to_lowercase();
+
+        if extension.is_empty() {
+            return ImageProcessor::load_image(&ImageIdentity::File(path)).await;
+        }
+
+        // Use get_icon to handle caching automatically
+        self.get_icon(IconRequest::Extension(format!(".{}", extension)))
+            .await
+    }
 }
 
 #[derive(Debug)]
@@ -327,5 +379,10 @@ impl IconManager {
             .map_err(|e| e.to_string())?;
 
         Ok(())
+    }
+
+    pub async fn get_everything_icon(&self, path: String) -> Vec<u8> {
+        let inner = self.inner.read().await;
+        inner.get_everything_icon(path).await
     }
 }

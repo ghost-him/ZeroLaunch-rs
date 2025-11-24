@@ -197,6 +197,7 @@ pub fn run() {
             command_export_logs,
             command_search_programs_lightweight,
             command_update_program_icon,
+            get_everything_icon,
         ])
         .run(tauri::generate_context!())
         .expect_programming("error while running tauri application");

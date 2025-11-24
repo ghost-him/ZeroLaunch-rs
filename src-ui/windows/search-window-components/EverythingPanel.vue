@@ -44,7 +44,7 @@
           }"
         >
           <img
-            src="/tauri.svg"
+            :src="iconMap.get(item[1]) || '/tauri.svg'"
             class="custom-image"
             alt="icon"
           >
@@ -78,7 +78,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { useI18n } from 'vue-i18n'
 import { getColorWithReducedOpacity } from '../../utils/color'
@@ -104,6 +104,7 @@ const selectedIndex = ref(0)
 const isSearching = ref(false)
 const pendingSearchText = ref<string | null>(null)
 const resultsListRef = ref<HTMLElement | null>(null)
+const iconMap = ref<Map<string, string>>(new Map())
 
 // 从完整路径中提取文件名（包含扩展名）
 const getFileName = (fullPath: string): string => {
@@ -123,6 +124,36 @@ const getPathColor = (): string => {
     return getColorWithReducedOpacity(props.uiConfig.item_font_color, 0.6)
 }
 
+const loadIcons = async () => {
+    // 创建新的 Map
+    const newIconMap = new Map<string, string>()
+    
+    // 并行加载所有图标
+    const promises = results.value.map(async (item) => {
+        const path = item[1]
+        try {
+            const iconData = await invoke<number[]>('get_everything_icon', { path })
+            if (iconData && iconData.length > 0) {
+                const blob = new Blob([new Uint8Array(iconData)], { type: 'image/png' })
+                const url = URL.createObjectURL(blob)
+                newIconMap.set(path, url)
+            }
+        } catch (e) {
+            // console.error('Failed to load icon for', path, e)
+        }
+    })
+    
+    await Promise.all(promises)
+    
+    // 释放旧的 URL
+    iconMap.value.forEach(url => URL.revokeObjectURL(url))
+    iconMap.value = newIconMap
+}
+
+onUnmounted(() => {
+    iconMap.value.forEach(url => URL.revokeObjectURL(url))
+})
+
 const performSearch = async (text: string) => {
     if (isSearching.value) {
         pendingSearchText.value = text
@@ -137,6 +168,8 @@ const performSearch = async (text: string) => {
         if (resultsListRef.value) {
             resultsListRef.value.scrollTop = 0
         }
+        // 加载图标
+        loadIcons()
     } catch (error) {
         console.error('Everything search failed:', error)
     } finally {
@@ -150,6 +183,7 @@ const performSearch = async (text: string) => {
         }
     }
 }
+
 
 watch(() => props.searchText, (newText) => {
     performSearch(newText)

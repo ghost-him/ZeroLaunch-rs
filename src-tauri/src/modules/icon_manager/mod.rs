@@ -373,7 +373,12 @@ impl IconManager {
             icon_data = output;
         }
 
-        // 4. 覆盖写入缓存
+        // 4. 如果图标过大，则将其等比例的缩小，以提高读取的速度
+        if let Ok(resized) = ImageProcessor::resize_image(icon_data.clone(), 256, 256).await {
+            icon_data = resized;
+        }
+
+        // 5. 覆盖写入缓存
         tokio::fs::write(target_icon_path, icon_data)
             .await
             .map_err(|e| e.to_string())?;

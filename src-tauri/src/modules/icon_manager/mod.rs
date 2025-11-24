@@ -3,9 +3,8 @@ use crate::core::storage::utils::read_dir_or_create;
 use crate::error::OptionExt;
 use crate::modules::config::default::ICON_CACHE_DIR;
 use crate::modules::icon_manager::config::{IconManagerConfig, RuntimeIconManagerConfig};
+use bincode::Encode;
 use dashmap::{DashMap, DashSet};
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
 use std::path::Path;
 use std::sync::Arc;
 use tauri::async_runtime::RwLock;
@@ -15,7 +14,7 @@ use winreg::RegKey;
 pub mod config;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Encode, PartialEq, Eq, Serialize, Deserialize)]
 pub enum IconRequest {
     /// 本地文件路径 (exe, lnk, ico, png) -> 提取文件图标
     /// 对于 .url 文件，可以提供 app_name 用于注册表查找
@@ -33,9 +32,9 @@ pub enum IconRequest {
 
 impl IconRequest {
     pub fn get_hash_string(&self) -> String {
-        let mut hasher = DefaultHasher::new();
-        self.hash(&mut hasher);
-        hasher.finish().to_string()
+        let mut hasher = blake3::Hasher::new();
+        let _ = bincode::encode_into_std_write(self, &mut hasher, bincode::config::standard());
+        hasher.finalize().to_hex().to_string()
     }
 }
 

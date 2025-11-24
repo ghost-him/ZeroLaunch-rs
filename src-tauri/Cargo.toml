@@ -110,6 +110,7 @@ arboard = "3.6.1"
 zip = "6.0.0"
 whoami = "1.6.1"
 everything-rs = "0.1.10"
+blake3 = "1.8.2"
 
 [features]
 default = ["custom-protocol"]

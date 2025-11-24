@@ -1,8 +1,6 @@
 use crate::utils::defer::defer;
 use everything_rs::{Everything, EverythingRequestFlags, EverythingSort};
 use parking_lot::RwLock;
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tracing::warn;
@@ -87,9 +85,8 @@ impl EverythingManagerInner {
 
         let mut results = Vec::new();
         for path in everything.full_path_iter().flatten() {
-            let mut hasher = DefaultHasher::new();
-            path.hash(&mut hasher);
-            let id: u64 = hasher.finish();
+            let hash = blake3::hash(path.as_bytes());
+            let id: u64 = u64::from_le_bytes(hash.as_bytes()[0..8].try_into().unwrap());
             results.push(EverythingSearchResult { id, path });
         }
         Ok(results)

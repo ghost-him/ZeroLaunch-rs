@@ -72,9 +72,8 @@ impl EverythingManagerInner {
 
         let everything = Everything::new();
         everything.set_search(query);
-        everything.set_request_flags(
-            EverythingRequestFlags::FullPathAndFileName | EverythingRequestFlags::Extension,
-        );
+        // FullPathAndFileName 已经包含完整路径和文件名（包括扩展名）
+        everything.set_request_flags(EverythingRequestFlags::FullPathAndFileName);
         everything.set_max_results(self.result_limit as u32);
 
         // Use sort_threshold from config
@@ -87,11 +86,7 @@ impl EverythingManagerInner {
             .map_err(|e| format!("Everything query failed: {:?}", e))?;
 
         let mut results = Vec::new();
-        for (index, mut path) in everything.full_path_iter().flatten().enumerate() {
-            let extension = everything
-                .get_result_extension(index as u32)
-                .unwrap_or_default();
-            path.push_str(&extension);
+        for path in everything.full_path_iter().flatten() {
             let mut hasher = DefaultHasher::new();
             path.hash(&mut hasher);
             let id: u64 = hasher.finish();

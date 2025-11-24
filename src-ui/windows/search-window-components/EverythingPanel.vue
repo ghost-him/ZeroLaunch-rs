@@ -15,7 +15,7 @@
         fontSize: Math.round(uiConfig.result_item_height * 0.4) + 'px'
       }"
     >
-      {{ t('app.no_results') }}
+      {{ t('everything.no_results') }}
     </div>
     <div
       v-else
@@ -49,16 +49,27 @@
             alt="icon"
           >
         </div>
-        <div class="item-info">
+        <div class="item-content">
           <div
-            class="item-name"
+            class="file-name"
             :style="{
               fontSize: Math.round(uiConfig.result_item_height * uiConfig.item_font_size * layoutConstants.fontSizeRatio) + 'px',
               fontFamily: uiConfig.result_item_font_family,
-              color: uiConfig.item_font_color
+              color: uiConfig.item_font_color,
+              fontWeight: '600',
             }"
           >
-            {{ item[1] }}
+            {{ getFileName(item[1]) }}
+          </div>
+          <div
+            class="file-path"
+            :style="{
+              fontSize: Math.round(uiConfig.result_item_height * uiConfig.item_font_size * layoutConstants.fontSizeRatio * 0.65) + 'px',
+              fontFamily: uiConfig.result_item_font_family,
+              color: getPathColor(),
+            }"
+          >
+            {{ getDirectoryPath(item[1]) }}
           </div>
         </div>
       </div>
@@ -70,6 +81,7 @@
 import { ref, watch, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { useI18n } from 'vue-i18n'
+import { getColorWithReducedOpacity } from '../../utils/color'
 import type { UIConfig, AppConfig } from '../../api/remote_config_types'
 
 const props = defineProps<{
@@ -92,6 +104,24 @@ const selectedIndex = ref(0)
 const isSearching = ref(false)
 const pendingSearchText = ref<string | null>(null)
 const resultsListRef = ref<HTMLElement | null>(null)
+
+// 从完整路径中提取文件名（包含扩展名）
+const getFileName = (fullPath: string): string => {
+    const parts = fullPath.split('\\')
+    return parts[parts.length - 1] || fullPath
+}
+
+// 从完整路径中提取目录路径
+const getDirectoryPath = (fullPath: string): string => {
+    const parts = fullPath.split('\\')
+    if (parts.length <= 1) return fullPath
+    return parts.slice(0, -1).join('\\')
+}
+
+// 计算路径颜色（使用统一的 color.ts 函数）
+const getPathColor = (): string => {
+    return getColorWithReducedOpacity(props.uiConfig.item_font_color, 0.6)
+}
 
 const performSearch = async (text: string) => {
     if (isSearching.value) {
@@ -207,6 +237,7 @@ onMounted(() => {
     align-items: center;
     cursor: pointer;
     transition: background-color 0.2s;
+    flex-shrink: 0;
 }
 
 .result-item:hover {
@@ -231,20 +262,32 @@ onMounted(() => {
     border-radius: 6px;
 }
 
-.item-info {
+.item-content {
     display: flex;
-    align-items: center;
+    flex-direction: column;
+    justify-content: center;
     min-width: 0;
     overflow: hidden;
-    height: 100%;
     flex: 1;
+    padding-right: 12px;
+    height: 100%;
 }
 
-.item-name {
-    font-weight: 500;
+.file-name {
+    font-weight: 600;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     width: 100%;
+    line-height: 1.2;
+}
+
+.file-path {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    width: 100%;
+    opacity: 0.8;
+    line-height: 1.2;
 }
 </style>

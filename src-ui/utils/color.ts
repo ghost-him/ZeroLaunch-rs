@@ -1,66 +1,105 @@
-export function reduceOpacity(color: string, factor: number = 0.5): string {
-  // 验证输入颜色格式
+/**
+ * Color utility class to handle color parsing and conversion
+ */
+class Color {
+  r: number;
+  g: number;
+  b: number;
+  a: number;
 
-  if (!/^#[0-9A-Fa-f]{8}$/.test(color)) {
-    // throw new Error('颜色格式必须为 #RRGGBBAA');
-    return color // Fail gracefully or return original if not matching
+  constructor(r: number, g: number, b: number, a: number = 1) {
+    this.r = Math.max(0, Math.min(255, Math.round(r)));
+    this.g = Math.max(0, Math.min(255, Math.round(g)));
+    this.b = Math.max(0, Math.min(255, Math.round(b)));
+    this.a = Math.max(0, Math.min(1, a));
   }
 
+  static fromString(color: string): Color | null {
+    if (!color) return null;
+    const c = color.trim();
+
+    // Hex format
+    if (c.startsWith('#')) {
+      const hex = c.substring(1);
+      if (hex.length === 3) {
+        // #RGB
+        const r = parseInt(hex[0] + hex[0], 16);
+        const g = parseInt(hex[1] + hex[1], 16);
+        const b = parseInt(hex[2] + hex[2], 16);
+        return new Color(r, g, b);
+      } else if (hex.length === 6) {
+        // #RRGGBB
+        const r = parseInt(hex.substring(0, 2), 16);
+        const g = parseInt(hex.substring(2, 4), 16);
+        const b = parseInt(hex.substring(4, 6), 16);
+        return new Color(r, g, b);
+      } else if (hex.length === 8) {
+        // #RRGGBBAA
+        const r = parseInt(hex.substring(0, 2), 16);
+        const g = parseInt(hex.substring(2, 4), 16);
+        const b = parseInt(hex.substring(4, 6), 16);
+        const a = parseInt(hex.substring(6, 8), 16) / 255;
+        return new Color(r, g, b, a);
+      }
+    }
+
+    // RGB/RGBA format
+    if (c.toLowerCase().startsWith('rgb')) {
+      const match = c.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/i);
+      if (match) {
+        const r = parseInt(match[1], 10);
+        const g = parseInt(match[2], 10);
+        const b = parseInt(match[3], 10);
+        const a = match[4] !== undefined ? parseFloat(match[4]) : 1;
+        return new Color(r, g, b, a);
+      }
+    }
+
+    return null;
+  }
+
+  toHex(includeAlpha: boolean = true): string {
+    const toHexPair = (n: number) => n.toString(16).padStart(2, '0');
+    let hex = `#${toHexPair(this.r)}${toHexPair(this.g)}${toHexPair(this.b)}`;
+    if (includeAlpha) {
+      const alphaInt = Math.round(this.a * 255);
+      hex += toHexPair(alphaInt);
+    }
+    return hex;
+  }
+
+  toRgba(): string {
+    const aStr = parseFloat(this.a.toFixed(3)).toString();
+    return `rgba(${this.r}, ${this.g}, ${this.b}, ${aStr})`;
+  }
+}
+
+export function reduceOpacity(color: string, factor: number = 0.5): string {
   // 验证因子范围
   if (factor < 0 || factor > 1) {
-    throw new Error('透明度因子必须在 0-1 范围内')
+    console.warn('透明度因子必须在 0-1 范围内, 已自动调整');
+    factor = Math.max(0, Math.min(1, factor));
   }
 
-  // 提取颜色的 RGB 和 Alpha 部分
-  const r = color.substring(1, 3)
-  const g = color.substring(3, 5)
-  const b = color.substring(5, 7)
-  const a = color.substring(7, 9)
+  const c = Color.fromString(color);
+  if (!c) return color;
 
-  // 将 Alpha 值从十六进制转换为十进制
-  const alphaDecimal = parseInt(a, 16)
-  
-  // 计算新的 Alpha 值（降低透明度）
-  const newAlphaDecimal = Math.max(0, Math.floor(alphaDecimal * factor))
-  
-  // 将新的 Alpha 值转换回十六进制，并确保是两位数
-  const newAlphaHex = newAlphaDecimal.toString(16).padStart(2, '0')
-  
-  // 返回新的 RGBA 颜色
-  return `#${r}${g}${b}${newAlphaHex}`
+  c.a = c.a * factor;
+  return c.toHex(true);
 }
 
 export function rgbaToHex(color: string): string {
-  // 检查是否以 "rgba(" 开头并以 ")" 结尾
-  if (!color.toLowerCase().startsWith('rgba(') || !color.endsWith(')')) {
-    return color
-  }
-  
-  // 提取括号内的内容
-  const content = color.substring(5, color.length - 1)
-  
-  // 分割 RGBA 值
-  const parts = content.split(',')
-  
-  // 确保有 4 个部分 (r, g, b, a)
-  if (parts.length !== 4) {
-    return color
-  }
-  
-  // 解析 RGBA 值
-  const r = parseInt(parts[0].trim(), 10)
-  const g = parseInt(parts[1].trim(), 10)
-  const b = parseInt(parts[2].trim(), 10)
-  const a = parseFloat(parts[3].trim())
-  
-  // 将 RGB 值转换为十六进制
-  const rHex = r.toString(16).padStart(2, '0')
-  const gHex = g.toString(16).padStart(2, '0')
-  const bHex = b.toString(16).padStart(2, '0')
-  
-  // 将 Alpha 值转换为十六进制 (0-255)
-  const aHex = Math.round(a * 255).toString(16).padStart(2, '0')
-  
-  // 返回十六进制颜色字符串
-  return `#${rHex}${gHex}${bHex}${aHex}`
+  const c = Color.fromString(color);
+  if (!c) return color;
+  return c.toHex(true);
+}
+
+/**
+ * 将任意颜色格式转换为带降低透明度的颜色字符串
+ * @param color 原始颜色（支持 rgba、rgb、hex 格式）
+ * @param opacityFactor 透明度因子 (0-1)，默认 0.6
+ * @returns 处理后的颜色字符串
+ */
+export function getColorWithReducedOpacity(color: string, opacityFactor: number = 0.6): string {
+  return reduceOpacity(color, opacityFactor);
 }

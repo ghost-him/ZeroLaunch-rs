@@ -1,4 +1,4 @@
-use crate::error::{OptionExt, ResultExt};
+use crate::error::ResultExt;
 use crate::program_manager::LaunchMethod;
 use crate::utils::defer::defer;
 use crate::utils::windows::{get_u16_vec, shell_execute_open};
@@ -6,7 +6,7 @@ use parking_lot::RwLock;
 use std::os::windows::process::CommandExt;
 use std::path::Path;
 use tracing::{debug, warn};
-use windows::Win32::Foundation::{GetLastError, ERROR_CANCELLED, ERROR_ELEVATION_REQUIRED};
+use windows::Win32::Foundation::{GetLastError, ERROR_CANCELLED};
 use windows::Win32::System::Com::{CoCreateInstance, CLSCTX_ALL};
 use windows::Win32::UI::Shell::{
     ApplicationActivationManager, IApplicationActivationManager, ShellExecuteExW, AO_NONE,
@@ -114,35 +114,48 @@ impl ProgramLauncherInner {
         }
     }
 
+    // 启动普通的程序
     fn launch_path_program(&self, path: &str, is_admin_required: bool) {
         let program_path = Path::new(&path);
-        let working_directory = program_path
-            .parent()
-            .expect_programming("Program path should have a parent directory");
+        let working_directory = program_path.parent().unwrap_or_else(|| Path::new("."));
 
-        let mut program_path_wide = get_u16_vec(program_path);
-        let mut working_directory_wide = get_u16_vec(working_directory);
-
+        // 1. 管理员模式
         if is_admin_required {
+            let mut program_path_wide = get_u16_vec(program_path);
+            let mut working_directory_wide = get_u16_vec(working_directory);
             self.launch_path_program_elevation(&mut program_path_wide, &mut working_directory_wide);
-        } else {
-            let result = self
-                .launch_path_program_normal(&mut program_path_wide, &mut working_directory_wide);
-            if let Err(error) = result {
-                if error == ERROR_ELEVATION_REQUIRED {
-                    debug!("Normal start failed due to insufficient privileges. Trying with elevation...");
-                    self.launch_path_program_elevation(
-                        &mut program_path_wide,
-                        &mut working_directory_wide,
-                    );
-                } else {
-                    warn!("Failed to start process. Error: {}", error.to_hresult());
-                }
+            return;
+        }
+
+        // 2. 普通模式：使用 explorer.exe 代理启动（可以实现进程完全的分离）
+        let path_str = program_path.to_string_lossy();
+
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        const DETACHED_PROCESS: u32 = 0x00000008;
+
+        let result = std::process::Command::new("explorer")
+            .arg(&*path_str) // 直接传入路径
+            .creation_flags(CREATE_NO_WINDOW | DETACHED_PROCESS)
+            .spawn();
+
+        match result {
+            Ok(_) => {
+                debug!("已请求 Explorer 启动: {}", path);
+            }
+            Err(e) => {
+                warn!("Explorer 启动失败: {:?}, 尝试回退到 ShellExecute...", e);
+                let mut program_path_wide = get_u16_vec(program_path);
+                let mut working_directory_wide = get_u16_vec(working_directory);
+                let _ = self.launch_path_program_with_shellexec(
+                    &mut program_path_wide,
+                    &mut working_directory_wide,
+                );
             }
         }
     }
 
-    fn launch_path_program_normal(
+    // 使用 ShellExecuteExW 启动程序
+    fn launch_path_program_with_shellexec(
         &self,
         program_path_wide: &mut [u16],
         working_directory_wide: &mut [u16],

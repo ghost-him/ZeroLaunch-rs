@@ -67,15 +67,15 @@ impl SearchEngine for TraditionalSearchEngine {
                     search_model.calculate_score(program, &user_input) + program.stable_bias;
 
                 // 应用智能排序增强评分
-                let score = program_ranker.calculate_final_score(
+                let score_details = program_ranker.calculate_score_details(
                     base_score,
                     program.program_guid,
                     &user_input,
                 );
 
                 SearchMatchResult {
-                    score,
                     program_guid: program.program_guid,
+                    score_details,
                 }
             })
             .collect()
@@ -118,15 +118,15 @@ impl SearchEngine for SemanticSearchEngine {
                     as f64;
 
                 // 应用智能排序增强评分
-                let score = program_ranker.calculate_final_score(
+                let score_details = program_ranker.calculate_score_details(
                     base_score,
                     program.program_guid,
                     &user_input,
                 );
 
                 SearchMatchResult {
-                    score,
                     program_guid: program.program_guid,
+                    score_details,
                 }
             })
             .collect()

@@ -2,6 +2,7 @@ use crate::error::OptionExt;
 use crate::program_manager::config::program_ranker_config::PartialProgramRankerConfig;
 use crate::program_manager::config::program_ranker_config::ProgramRankerConfig;
 use crate::program_manager::config::program_ranker_config::QueryAffinityData;
+use crate::program_manager::remove_repeated_space;
 use crate::program_manager::LaunchMethod;
 use crate::utils::dashmap_to_hashmap;
 use crate::utils::hashmap_to_dashmap;
@@ -234,13 +235,17 @@ impl ProgramRankerInner {
 
     /// 记录查询-程序启动关联
     fn record_query_launch(&mut self, query: &str, program_guid: u64) {
+        // 预处理查询词，确保与搜索时的一致性
+        let query = query.to_lowercase();
+        let query = remove_repeated_space(&query);
+
         let current_time = get_current_time();
         let launch_method = self
             .launch_store
             .get(&program_guid)
             .expect_programming("Program GUID should exist in launch store");
         let method_text = launch_method.get_text();
-        let key = (query.to_string(), method_text);
+        let key = (query, method_text);
 
         self.query_affinity_map
             .entry(key)
@@ -313,10 +318,20 @@ impl ProgramRankerInner {
     }
 
     /// 计算最终排序分数（基础分数 + 智能增强）
-    fn calculate_final_score(&self, base_score: f64, program_guid: u64, query: &str) -> f64 {
-        // 如果排序算法被禁用，直接返回基础分数
+    fn calculate_score_details(
+        &self,
+        base_score: f64,
+        program_guid: u64,
+        query: &str,
+    ) -> crate::program_manager::unit::ScoreDetails {
+        use crate::program_manager::unit::ScoreDetails;
+
         if !self.is_enable {
-            return base_score;
+            return ScoreDetails {
+                base_score,
+                final_score: base_score,
+                ..Default::default()
+            };
         }
 
         let history_score = self.calculate_history_score(program_guid);
@@ -324,11 +339,24 @@ impl ProgramRankerInner {
         let temporal_score = self.calculate_temporal_score(program_guid);
         let query_affinity = self.calculate_query_affinity_score(query, program_guid);
 
-        base_score
+        let final_score = base_score
             + self.history_weight * history_score
             + self.recent_habit_weight * recent_habit_score
             + self.temporal_weight * temporal_score
-            + self.query_affinity_weight * query_affinity
+            + self.query_affinity_weight * query_affinity;
+
+        ScoreDetails {
+            base_score,
+            history_score,
+            recent_habit_score,
+            temporal_score,
+            query_affinity_score: query_affinity,
+            history_weight: self.history_weight,
+            recent_habit_weight: self.recent_habit_weight,
+            temporal_weight: self.temporal_weight,
+            query_affinity_weight: self.query_affinity_weight,
+            final_score,
+        }
     }
 
     /// 获取历史权重系数
@@ -431,11 +459,16 @@ impl ProgramRanker {
         self.inner.read().calculate_history_score(program_guid)
     }
 
-    /// 计算最终排序分数
-    pub fn calculate_final_score(&self, base_score: f64, program_guid: u64, query: &str) -> f64 {
+    /// 计算详细的排序分数
+    pub fn calculate_score_details(
+        &self,
+        base_score: f64,
+        program_guid: u64,
+        query: &str,
+    ) -> crate::program_manager::unit::ScoreDetails {
         self.inner
             .read()
-            .calculate_final_score(base_score, program_guid, query)
+            .calculate_score_details(base_score, program_guid, query)
     }
 
     /// 获取历史权重系数

@@ -124,8 +124,33 @@ pub struct SearchTestResult {
     pub program_keywords: String,
     /// 程序的路径
     pub program_path: String,
-    /// 匹配的权重值
-    pub score: f64,
+    /// 详细的权重信息
+    pub score_details: ScoreDetails,
+}
+
+/// 详细的权重信息
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ScoreDetails {
+    /// 基础分数
+    pub base_score: f64,
+    /// 历史分数
+    pub history_score: f64,
+    /// 近期习惯分数
+    pub recent_habit_score: f64,
+    /// 瞬时分数
+    pub temporal_score: f64,
+    /// 查询亲和分数
+    pub query_affinity_score: f64,
+    /// 历史权重
+    pub history_weight: f64,
+    /// 近期习惯权重
+    pub recent_habit_weight: f64,
+    /// 瞬时权重
+    pub temporal_weight: f64,
+    /// 查询亲和权重
+    pub query_affinity_weight: f64,
+    /// 最终分数
+    pub final_score: f64,
 }
 
 /// 表示语义信息的存储项

@@ -145,10 +145,70 @@
               prop="program_path"
               :label="t('debug.program_path')"
             />
-            <el-table-column
-              prop="score"
-              :label="t('debug.weight_value')"
-            />
+            <el-table-column :label="t('debug.weight_value')">
+              <el-table-column
+                prop="score_details.base_score"
+                label="基础分"
+                width="100"
+              >
+                <template #default="scope">
+                  {{ scope.row.score_details.base_score.toFixed(4) }}
+                </template>
+              </el-table-column>
+              <el-table-column
+                label="历史分"
+                width="120"
+              >
+                <template #default="scope">
+                  <div>{{ scope.row.score_details.history_score.toFixed(4) }}</div>
+                  <div style="font-size: 0.8em; color: gray;">
+                    (x{{ scope.row.score_details.history_weight }})
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column
+                label="习惯分"
+                width="120"
+              >
+                <template #default="scope">
+                  <div>{{ scope.row.score_details.recent_habit_score.toFixed(4) }}</div>
+                  <div style="font-size: 0.8em; color: gray;">
+                    (x{{ scope.row.score_details.recent_habit_weight }})
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column
+                label="瞬时分"
+                width="120"
+              >
+                <template #default="scope">
+                  <div>{{ scope.row.score_details.temporal_score.toFixed(4) }}</div>
+                  <div style="font-size: 0.8em; color: gray;">
+                    (x{{ scope.row.score_details.temporal_weight }})
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column
+                label="亲和分"
+                width="120"
+              >
+                <template #default="scope">
+                  <div>{{ scope.row.score_details.query_affinity_score.toFixed(4) }}</div>
+                  <div style="font-size: 0.8em; color: gray;">
+                    (x{{ scope.row.score_details.query_affinity_weight }})
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column
+                prop="score"
+                label="总分"
+                width="100"
+              >
+                <template #default="scope">
+                  <strong>{{ scope.row.score_details.final_score.toFixed(4) }}</strong>
+                </template>
+              </el-table-column>
+            </el-table-column>
           </el-table>
         </div>
 
@@ -171,11 +231,24 @@ import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
 
+interface ScoreDetails {
+    base_score: number;
+    history_score: number;
+    recent_habit_score: number;
+    temporal_score: number;
+    query_affinity_score: number;
+    history_weight: number;
+    recent_habit_weight: number;
+    temporal_weight: number;
+    query_affinity_weight: number;
+    final_score: number;
+}
+
 interface ProgramItem {
     program_name: string;
     program_keywords: string;
     program_path: string;
-    score: number;
+    score_details: ScoreDetails;
 }
 
 // 搜索相关

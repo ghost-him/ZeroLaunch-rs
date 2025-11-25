@@ -81,8 +81,8 @@ pub struct ProgramManager {
 /// 内部搜索结果，包含分数和程序ID
 #[derive(Debug, Clone)]
 pub(crate) struct SearchMatchResult {
-    score: f64,
     program_guid: u64,
+    score_details: ScoreDetails,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -355,7 +355,7 @@ impl ProgramManager {
                 program_name: program.show_name.clone(),
                 program_keywords: program.search_keywords.join(", "),
                 program_path: program.launch_method.get_text(),
-                score: match_result.score,
+                score_details: match_result.score_details,
             });
         }
 
@@ -560,8 +560,9 @@ impl ProgramManager {
             search_engine.perform_search(&user_input, program_registry.as_ref(), ranker);
         // 按分数降序排序
         match_scores.sort_by(|a, b| {
-            b.score
-                .partial_cmp(&a.score)
+            b.score_details
+                .final_score
+                .partial_cmp(&a.score_details.final_score)
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
 

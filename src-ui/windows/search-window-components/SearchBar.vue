@@ -59,7 +59,7 @@ const emit = defineEmits<{
 }>()
 
 const animatedInputRef = ref<InstanceType<typeof AnimatedInput> | null>(null)
-const realInputRef = computed(() => animatedInputRef.value?.realInputRef)
+const realInputRef = computed(() => animatedInputRef.value?.realInputRef || null)
 
 const onContextMenu = (event: MouseEvent) => {
   emit('contextmenu', event)

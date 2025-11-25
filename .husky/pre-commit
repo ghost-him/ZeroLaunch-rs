@@ -59,16 +59,15 @@ echo "✓ i18n locales files copied to src-tauri/locales/"
 echo "📋 Running frontend vue-tsc..."
 bun run vue-tsc --noEmit
 
+cd src-tauri
 # 4. Rust 格式检查
 echo "🎨 Running Rust formatting check..."
-( cd src-tauri && cargo fmt --all -- --check )
-
+cargo fmt --all -- --check
 # 5. Rust 静态检查
 echo "📋 Running Rust clippy..."
-( cd src-tauri && cargo clippy --all-targets --all-features -- -D warnings )
-
+cargo clippy --all-targets --all-features -- -D warnings
 # 6. Rust 单元测试
 echo "🧪 Running Rust tests..."
-( cd src-tauri && cargo test --all-features )
+cargo test --all-features
 
 echo "✅ All pre-commit checks passed!"

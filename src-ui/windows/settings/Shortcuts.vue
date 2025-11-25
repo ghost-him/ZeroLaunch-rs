@@ -116,7 +116,7 @@ import { useI18n } from 'vue-i18n'
 import {
     Search, ArrowLeft, ArrowRight, ArrowUp, ArrowDown,
     InfoFilled, Edit, Close, Check, RefreshLeft,
-    RefreshRight,
+    RefreshRight, Files,
 } from '@element-plus/icons-vue'
 import type { Component } from 'vue'
 const { t } = useI18n()
@@ -141,6 +141,13 @@ const shortcutItems = ref<Array<{
         label: t('shortcut.open_search_bar'),
         tooltip: t('shortcut.open_search_bar_tooltip'),
         placeholder: t('shortcut.open_search_bar_placeholder'),
+    },
+    {
+        key: 'switch_to_everything',
+        icon: markRaw(Files),
+        label: t('shortcut.switch_to_everything'),
+        tooltip: t('shortcut.switch_to_everything_tooltip'),
+        placeholder: t('shortcut.switch_to_everything_placeholder'),
     },
     {
         key: 'arrow_left',

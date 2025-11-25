@@ -9,6 +9,7 @@ export type Shortcut = {
 
 export type ShortcutConfig = {
     open_search_bar: Shortcut,
+    switch_to_everything: Shortcut,
     arrow_up: Shortcut,
     arrow_down: Shortcut,
     arrow_left: Shortcut,
@@ -21,6 +22,13 @@ export function default_shortcut_config(): ShortcutConfig {
             key: 'Space',
             ctrl: false,
             alt: true,
+            shift: false,
+            meta: false,
+        },
+        switch_to_everything: {
+            key: 'e',
+            ctrl: true,
+            alt: false,
             shift: false,
             meta: false,
         },

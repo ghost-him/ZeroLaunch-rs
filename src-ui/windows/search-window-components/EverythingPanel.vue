@@ -206,11 +206,17 @@ const launchItem = async (index: number) => {
 }
 
 const moveSelection = (direction: number) => {
-    const newIndex = selectedIndex.value + direction
-    if (newIndex >= 0 && newIndex < results.value.length) {
-        selectedIndex.value = newIndex
-        scrollToSelected()
+    if (results.value.length === 0) return
+    
+    let newIndex = selectedIndex.value + direction
+    if (newIndex < 0) {
+        newIndex = results.value.length - 1
+    } else if (newIndex >= results.value.length) {
+        newIndex = 0
     }
+    
+    selectedIndex.value = newIndex
+    scrollToSelected()
 }
 
 const scrollToSelected = () => {

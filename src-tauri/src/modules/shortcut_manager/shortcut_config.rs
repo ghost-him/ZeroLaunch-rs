@@ -6,6 +6,7 @@ use super::Shortcut;
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct PartialShortcutConfig {
     pub open_search_bar: Option<Shortcut>,
+    pub switch_to_everything: Option<Shortcut>,
     pub arrow_up: Option<Shortcut>,
     pub arrow_down: Option<Shortcut>,
     pub arrow_left: Option<Shortcut>,
@@ -18,6 +19,8 @@ pub struct PartialShortcutConfig {
 pub struct ShortcutConfigInner {
     #[serde(default = "ShortcutConfigInner::default_open_search_bar")]
     pub open_search_bar: Shortcut,
+    #[serde(default = "ShortcutConfigInner::default_switch_to_everything")]
+    pub switch_to_everything: Shortcut,
     #[serde(default = "ShortcutConfigInner::default_arrow_up")]
     pub arrow_up: Shortcut,
     #[serde(default = "ShortcutConfigInner::default_arrow_down")]
@@ -32,6 +35,7 @@ impl Default for ShortcutConfigInner {
     fn default() -> Self {
         Self {
             open_search_bar: Self::default_open_search_bar(),
+            switch_to_everything: Self::default_switch_to_everything(),
             arrow_up: Self::default_arrow_up(),
             arrow_down: Self::default_arrow_down(),
             arrow_left: Self::default_arrow_left(),
@@ -45,6 +49,13 @@ impl ShortcutConfigInner {
         let mut shortcut = Shortcut::new();
         shortcut.key = "Space".to_string();
         shortcut.alt = true;
+        shortcut
+    }
+
+    pub(crate) fn default_switch_to_everything() -> Shortcut {
+        let mut shortcut = Shortcut::new();
+        shortcut.key = "e".to_string();
+        shortcut.ctrl = true;
         shortcut
     }
 
@@ -80,6 +91,9 @@ impl ShortcutConfigInner {
         if let Some(shortcut) = partial.open_search_bar {
             self.open_search_bar = shortcut;
         }
+        if let Some(shortcut) = partial.switch_to_everything {
+            self.switch_to_everything = shortcut;
+        }
         if let Some(shortcut) = partial.arrow_up {
             self.arrow_up = shortcut;
         }
@@ -97,6 +111,7 @@ impl ShortcutConfigInner {
     pub fn to_partial(&self) -> PartialShortcutConfig {
         PartialShortcutConfig {
             open_search_bar: Some(self.open_search_bar.clone()),
+            switch_to_everything: Some(self.switch_to_everything.clone()),
             arrow_up: Some(self.arrow_up.clone()),
             arrow_down: Some(self.arrow_down.clone()),
             arrow_left: Some(self.arrow_left.clone()),
@@ -127,6 +142,11 @@ impl ShortcutConfig {
     pub fn get_open_search_bar(&self) -> Shortcut {
         let inner = self.inner.read();
         inner.open_search_bar.clone()
+    }
+
+    pub fn get_switch_to_everything(&self) -> Shortcut {
+        let inner = self.inner.read();
+        inner.switch_to_everything.clone()
     }
 
     pub fn get_arrow_up(&self) -> Shortcut {

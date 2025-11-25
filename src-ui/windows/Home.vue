@@ -115,6 +115,7 @@ import {
   PartialShortcutConfig, 
 } from '../api/remote_config_types'
 
+import { useShortcuts } from '../composables/useShortcuts'
 import SearchBar from './search-window-components/SearchBar.vue'
 import ResultList from './search-window-components/ResultList.vue'
 import EverythingPanel from './search-window-components/EverythingPanel.vue'
@@ -392,8 +393,8 @@ const get_latest_launch_program = async () => {
 
 const refresh_result_items = async () => {
   if (!is_alt_pressed.value) {
-    menuItems.value = searchResults.value.map(([_, item]) => item)
-    let keys = searchResults.value.map(([key, _]) => key)
+    menuItems.value = searchResults.value.map(([_id, item]: [number, string]) => item)
+    const keys = searchResults.value.map(([key]: [number, string]) => key)
     if (isEverythingMode.value) {
       menuIcons.value = new Array(keys.length).fill('/tauri.svg')
       right_tips.value = 'Everything Search'
@@ -402,8 +403,8 @@ const refresh_result_items = async () => {
       right_tips.value = t('app.best_match')
     }
   } else {
-    menuItems.value = latest_launch_program.value.map(([_, item]) => item)
-    let keys = latest_launch_program.value.map(([key, _]) => key)
+    menuItems.value = latest_launch_program.value.map(([_id, item]: [number, string]) => item)
+    const keys = latest_launch_program.value.map(([key]: [number, string]) => key)
     menuIcons.value = await getIcons(keys)
     right_tips.value = t('app.recent_open')
   }
@@ -426,7 +427,7 @@ const openSettingsWindow = () => {
     .then(() => {
 
     })
-    .catch((error) => {
+    .catch((error: any) => {
       console.error('Failed to open settings window:', error)
     })
 }
@@ -457,7 +458,7 @@ const updateWindow = async () => {
 
     background_picture.value = url
 
-    program_icons.value.forEach(url => URL.revokeObjectURL(url))
+    program_icons.value.forEach((url: string) => URL.revokeObjectURL(url))
     program_icons.value.clear()
 
     if (!is_visible.value || searchText.value.length == 0) {
@@ -481,15 +482,15 @@ const startPreloadResource = async (program_count: number) => {
   is_loading_icons.value = true
   const BATCH_SIZE = 100
 
-  program_icons.value.forEach(url => URL.revokeObjectURL(url))
+  program_icons.value.forEach((url: string) => URL.revokeObjectURL(url))
   program_icons.value.clear()
 
-  const allIds = Array.from({ length: program_count }, (_, i) => i)
+  const allIds = Array.from({ length: program_count }, (_: any, i: number) => i)
 
   for (let i = 0; i < allIds.length; i += BATCH_SIZE) {
     const batchIds = allIds.slice(i, i + BATCH_SIZE)
 
-    await Promise.all(batchIds.map(async (programId) => {
+    await Promise.all(batchIds.map(async (programId: number) => {
       try {
         const iconData: number[] = await invoke('load_program_icon', {
           programGuid: programId,
@@ -498,7 +499,7 @@ const startPreloadResource = async (program_count: number) => {
         const blob = new Blob([new Uint8Array(iconData)], { type: 'image/png' })
         const url = URL.createObjectURL(blob)
         program_icons.value.set(programId, url)
-      } catch (error) {
+      } catch (error: any) {
         console.error(`${t('app.preload_icon_failed')}: ${programId}`, error)
       }
     }))
@@ -555,233 +556,6 @@ const launch_program = async (itemIndex: number, ctrlKey = false, shiftKey = fal
   })
 }
 
-enum ActionType {
-  MOVE_DOWN,
-  MOVE_UP,
-  MOVE_RIGHT,
-  MOVE_LEFT,
-  CONFIRM,
-  ESCAPE
-}
-
-const handleBlur = () => {
-  is_alt_pressed.value = false
-}
-
-const handleKeyUp = (event: KeyboardEvent) => {
-  if (event.key === 'Alt') {
-    is_alt_pressed.value = false
-  }
-}
-
-const preventDefaultWebViewShortcuts = (event: KeyboardEvent) => {
-  if (event.key === 'F5' || (event.ctrlKey && event.key.toLowerCase() === 'r')) {
-    event.preventDefault()
-  }
-  if (event.ctrlKey && event.key.toLowerCase() === 'p') {
-    event.preventDefault()
-  }
-  if (event.ctrlKey && ['=', '-', '0'].includes(event.key)) {
-    event.preventDefault()
-  }
-  if (event.ctrlKey && ['f', 's'].includes(event.key.toLowerCase())) {
-    event.preventDefault()
-  }
-}
-
-const handleKeyDown = async (event: KeyboardEvent) => {
-  preventDefaultWebViewShortcuts(event)
-  const isMenuVisible = resultItemMenuRef.value?.isVisible() || false
-  
-  if (parameterSession.value) {
-    if (event.key === 'Escape') {
-      event.preventDefault()
-      cancelParameterSession()
-      return
-    }
-    if (event.key === 'Enter') {
-      event.preventDefault()
-      await confirmParameterInput()
-      return
-    }
-    return
-  }
-
-  if (event.ctrlKey && event.key.toLowerCase() === 'e') {
-    event.preventDefault()
-    toggleEverythingMode()
-    return
-  }
-
-  if (isEverythingMode.value) {
-    if (event.key === 'ArrowDown') {
-      event.preventDefault()
-      everythingPanelRef.value?.moveSelection(1)
-      return
-    }
-    if (event.key === 'ArrowUp') {
-      event.preventDefault()
-      everythingPanelRef.value?.moveSelection(-1)
-      return
-    }
-    if (event.key === 'Enter') {
-      event.preventDefault()
-      everythingPanelRef.value?.launchSelected()
-      return
-    }
-    // Allow other keys (like typing) to pass through
-    if (event.key !== 'Alt' && event.key !== 'Control' && event.key !== 'Shift') {
-        // Let it bubble to input
-    }
-    return
-  }
-
-  if (event.key === 'Alt') {
-    is_alt_pressed.value = true
-    event.preventDefault()
-  }
-
-  const matchShortcut = (shortcutConfig: any): boolean => {
-    return event.key.toLowerCase() === shortcutConfig.key.toLowerCase() &&
-      event.ctrlKey === shortcutConfig.ctrl &&
-      event.shiftKey === shortcutConfig.shift &&
-      event.metaKey === shortcutConfig.meta
-  }
-
-  if (event.key === 'ArrowDown' || matchShortcut(shortcut_config.value.arrow_down)) {
-    event.preventDefault()
-    handleAction(ActionType.MOVE_DOWN, isMenuVisible)
-    return
-  }
-
-  if (event.key === 'ArrowUp' || matchShortcut(shortcut_config.value.arrow_up)) {
-    event.preventDefault()
-    handleAction(ActionType.MOVE_UP, isMenuVisible)
-    return
-  }
-
-  if (event.key === 'ArrowRight' || matchShortcut(shortcut_config.value.arrow_right)) {
-    const inputElement = searchBarRef.value?.realInputRef
-    const isAtEnd = inputElement && (inputElement.selectionStart === searchText.value.length)
-
-    if (!isMenuVisible && isAtEnd && document.activeElement === inputElement) {
-      event.preventDefault()
-      handleAction(ActionType.MOVE_RIGHT, isMenuVisible)
-    }
-    return
-  }
-
-  if (event.key === 'ArrowLeft' || matchShortcut(shortcut_config.value.arrow_left)) {
-    if (isMenuVisible) {
-      event.preventDefault()
-      handleAction(ActionType.MOVE_LEFT, isMenuVisible)
-    }
-    return
-  }
-
-  if (event.key === 'Enter' || (event.key === ' ' && app_config.value.space_is_enter)) {
-    event.preventDefault()
-    handleAction(ActionType.CONFIRM, isMenuVisible, event.ctrlKey, event.shiftKey)
-    return
-  }
-
-  if (event.key === 'Escape') {
-    handleAction(ActionType.ESCAPE, isMenuVisible)
-    return
-  }
-}
-
-const scrollToSelectedItem = () => {
-  if (!resultsListRef.value?.resultsListRef || !isScrollMode.value) return
-  
-  const container = resultsListRef.value.resultsListRef
-  const itemHeight = ui_config.value.result_item_height
-  const selectedItemTop = selectedIndex.value * itemHeight
-  const selectedItemBottom = selectedItemTop + itemHeight
-  const containerScrollTop = container.scrollTop
-  const containerHeight = container.clientHeight
-  const containerScrollBottom = containerScrollTop + containerHeight
-
-  let targetScrollTop = null
-
-  if (selectedItemTop < containerScrollTop) {
-    targetScrollTop = selectedItemTop
-  }
-  else if (selectedItemBottom > containerScrollBottom) {
-    targetScrollTop = selectedItemBottom - containerHeight
-  }
-
-  if (targetScrollTop !== null) {
-    container.scrollTo({
-      top: targetScrollTop,
-      behavior: 'smooth',
-    })
-  }
-}
-
-const handleAction = (
-  action: ActionType,
-  isMenuVisible: boolean,
-  ctrlKey: boolean = false,
-  shiftKey: boolean = false,
-) => {
-  switch (action) {
-    case ActionType.MOVE_DOWN:
-      if (isMenuVisible) {
-        resultItemMenuRef.value?.selectNext()
-      } else {
-        const currentResults = is_alt_pressed.value ? latest_launch_program.value : searchResults.value
-        selectedIndex.value = (selectedIndex.value + 1) % Math.min(currentResults.length, app_config.value.search_result_count)
-        scrollToSelectedItem()
-      }
-      break
-
-    case ActionType.MOVE_UP:
-      if (isMenuVisible) {
-        resultItemMenuRef.value?.selectPrevious()
-      } else {
-        const currentResults = is_alt_pressed.value ? latest_launch_program.value : searchResults.value
-        const maxIndex = Math.min(currentResults.length, app_config.value.search_result_count)
-        selectedIndex.value = (selectedIndex.value - 1 + maxIndex) % maxIndex
-        scrollToSelectedItem()
-      }
-      break
-
-    case ActionType.MOVE_RIGHT:
-      if (!isMenuVisible) {
-        handleRightArrow(new KeyboardEvent('keydown'))
-      }
-      break
-
-    case ActionType.MOVE_LEFT:
-      if (isMenuVisible) {
-        resultItemMenuRef.value?.hideMenu()
-      }
-      break
-
-    case ActionType.CONFIRM:
-      if (isMenuVisible) {
-        resultItemMenuRef.value?.selectCurrent()
-      } else {
-        launch_program(selectedIndex.value, ctrlKey, shiftKey)
-      }
-      break
-
-    case ActionType.ESCAPE:
-      if ((searchText.value.length === 0 && !isMenuVisible) ||
-        app_config.value.is_esc_hide_window_priority) {
-        invoke('hide_window').catch(console.error)
-      } else {
-        if (isMenuVisible) {
-          resultItemMenuRef.value?.hideMenu()
-        } else {
-          searchText.value = ''
-        }
-      }
-      break
-  }
-}
-
 const handleItemClick = (itemIndex: number, ctrlKey: boolean) => {
   launch_program(itemIndex, ctrlKey)
 }
@@ -830,6 +604,28 @@ const handleRightArrow = (event: KeyboardEvent) => {
   showSubmenuForItem(selectedIndex.value)
 }
 
+const { handleKeyDown, handleKeyUp, handleBlur } = useShortcuts(
+  app_config,
+  shortcut_config,
+  ui_config,
+  isEverythingMode,
+  toggleEverythingMode,
+  everythingPanelRef,
+  resultsListRef,
+  resultItemMenuRef,
+  searchBarRef,
+  searchText,
+  selectedIndex,
+  is_alt_pressed,
+  latest_launch_program,
+  searchResults,
+  launch_program,
+  confirmParameterInput,
+  cancelParameterSession,
+  parameterSession,
+  handleRightArrow
+)
+
 const contextResultItemEvent = (index: number, event: MouseEvent) => {
   if (searchBarMenuBuf.value?.isVisible()) {
     searchBarMenuBuf.value?.hideMenu()
@@ -856,11 +652,11 @@ const showSubmenuForItem = (index: number) => {
 
 let unlisten: Array<UnlistenFn | null> = []
 
-watch(searchText, (newVal) => {
+watch(searchText, (newVal: string) => {
   sendSearchText(newVal)
 })
 
-watch(parameterSession, async (session) => {
+watch(parameterSession, async (session: ParameterSession | null) => {
   if (session) {
     await nextTick()
     parameterPanelRef.value?.focus()
@@ -870,7 +666,7 @@ watch(parameterSession, async (session) => {
   }
 })
 
-watch(is_alt_pressed, async (new_value) => {
+watch(is_alt_pressed, async (new_value: boolean) => {
   if (new_value) {
     await get_latest_launch_program()
   }
@@ -903,7 +699,7 @@ onMounted(async () => {
   
   unlisten.push(await listen('update_search_bar_window', () => {
     updateWindow()
-    invoke<string>('command_get_search_status_tip').then(code => status_reason_code.value = code).catch(() => {})
+    invoke<string>('command_get_search_status_tip').then((code: string) => status_reason_code.value = code).catch(() => {})
   }))
   
   unlisten.push(await listen('refresh_program_start', () => {
@@ -921,7 +717,7 @@ onMounted(async () => {
   windowSize.value = await currentWindow.innerSize()
   scaleFactor.value = await currentWindow.scaleFactor()
 
-  currentWindow.onResized(async ({ payload: size }) => {
+  currentWindow.onResized(async ({ payload: size }: any) => {
     scaleFactor.value = await currentWindow.scaleFactor()
     windowSize.value = size
   })
@@ -929,9 +725,9 @@ onMounted(async () => {
 
 onUnmounted(() => {
   window.removeEventListener('click', handleClickOutside)
-  for (let item of unlisten) {
-    if (item) {
-      item()
+  for (const listener of unlisten) {
+    if (listener) {
+      listener()
     }
   }
   darkModeMediaQuery.value?.removeEventListener('change', handleThemeChange)
@@ -983,3 +779,4 @@ main {
   flex-shrink: 0;
 }
 </style>
+

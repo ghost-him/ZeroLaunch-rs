@@ -61,6 +61,10 @@
     "preview": "预览"
   },
   "ui_config": {
+    "theme_mode": "主题模式",
+    "theme_mode_system": "跟随系统",
+    "theme_mode_light": "浅色模式",
+    "theme_mode_dark": "深色模式",
     "search_and_result_settings": "搜索栏与结果栏设置",
     "select_or_input_font": "选择或输入字体",
     "search_bar_result_bar_settings": "搜索栏与结果栏设置",

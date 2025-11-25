@@ -5,6 +5,26 @@
     </h2>
     <div class="content-container">
       <el-form label-width="auto">
+        <el-form-item :label="t('ui_config.theme_mode')">
+          <el-select
+            v-model="config.ui_config.theme_mode"
+            @change="(val: ThemeMode) => configStore.updateConfig({ ui_config: { theme_mode: val } })"
+          >
+            <el-option
+              :label="t('ui_config.theme_mode_system')"
+              value="system"
+            />
+            <el-option
+              :label="t('ui_config.theme_mode_light')"
+              value="light"
+            />
+            <el-option
+              :label="t('ui_config.theme_mode_dark')"
+              value="dark"
+            />
+          </el-select>
+        </el-form-item>
+
         <el-form-item :label="t('ui_config.vertical_position_ratio')">
           <el-input-number
             v-model="config.ui_config.vertical_position_ratio"
@@ -146,6 +166,7 @@ import { useI18n } from 'vue-i18n'
 import { QuestionFilled } from '@element-plus/icons-vue'
 import { useRemoteConfigStore } from '../../../stores/remote_config'
 import { storeToRefs } from 'pinia'
+import { ThemeMode } from '../../../api/remote_config_types'
 
 const { t } = useI18n()
 const configStore = useRemoteConfigStore()

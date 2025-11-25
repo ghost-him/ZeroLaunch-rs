@@ -61,6 +61,10 @@
     "preview": "Preview"
   },
   "ui_config": {
+    "theme_mode": "Theme Mode",
+    "theme_mode_system": "System",
+    "theme_mode_light": "Light",
+    "theme_mode_dark": "Dark",
     "search_and_result_settings": "Search & Result Settings",
     "select_or_input_font": "Select or input font",
     "search_bar_result_bar_settings": "Search Bar & Result Bar Settings",

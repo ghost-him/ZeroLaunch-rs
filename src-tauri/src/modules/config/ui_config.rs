@@ -1,8 +1,20 @@
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
+pub enum ThemeMode {
+    #[serde(rename = "system")]
+    #[default]
+    System,
+    #[serde(rename = "light")]
+    Light,
+    #[serde(rename = "dark")]
+    Dark,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct PartialUiConfig {
+    pub theme_mode: Option<ThemeMode>,
     pub selected_item_color: Option<String>,
     pub item_font_color: Option<String>,
     pub search_bar_font_color: Option<String>,
@@ -34,6 +46,10 @@ pub struct PartialUiConfig {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct UiConfigInner {
+    /// 主题模式
+    #[serde(default = "UiConfigInner::default_theme_mode")]
+    pub theme_mode: ThemeMode,
+
     /// 显示器的大小与窗口的大小的比例
     /// 选中项的颜色
     #[serde(default = "UiConfigInner::default_selected_item_color")]
@@ -143,6 +159,7 @@ pub struct UiConfigInner {
 impl Default for UiConfigInner {
     fn default() -> Self {
         Self {
+            theme_mode: Self::default_theme_mode(),
             selected_item_color: Self::default_selected_item_color(),
             item_font_color: Self::default_item_font_color(),
             search_bar_font_color: Self::default_search_bar_font_color(),
@@ -174,6 +191,10 @@ impl Default for UiConfigInner {
 }
 
 impl UiConfigInner {
+    pub(crate) fn default_theme_mode() -> ThemeMode {
+        ThemeMode::System
+    }
+
     pub(crate) fn default_search_bar_animate() -> bool {
         true
     }
@@ -276,6 +297,9 @@ impl UiConfigInner {
 
 impl UiConfigInner {
     pub fn update(&mut self, partial_ui_config: PartialUiConfig) {
+        if let Some(theme_mode) = partial_ui_config.theme_mode {
+            self.theme_mode = theme_mode;
+        }
         if let Some(selected_item_color) = partial_ui_config.selected_item_color {
             self.selected_item_color = selected_item_color;
         }
@@ -356,6 +380,10 @@ impl UiConfigInner {
         }
     }
 
+    pub fn get_theme_mode(&self) -> ThemeMode {
+        self.theme_mode.clone()
+    }
+
     pub fn get_window_width(&self) -> u32 {
         self.window_width
     }
@@ -430,6 +458,7 @@ impl UiConfigInner {
 
     pub fn to_partial(&self) -> PartialUiConfig {
         PartialUiConfig {
+            theme_mode: Some(self.theme_mode.clone()),
             selected_item_color: Some(self.selected_item_color.clone()),
             item_font_color: Some(self.item_font_color.clone()),
             search_bar_font_color: Some(self.search_bar_font_color.clone()),
@@ -476,6 +505,11 @@ impl UiConfig {
     pub fn update(&self, partial_ui_config: PartialUiConfig) {
         let mut inner = self.inner.write();
         inner.update(partial_ui_config);
+    }
+
+    pub fn get_theme_mode(&self) -> ThemeMode {
+        let inner = self.inner.read();
+        inner.get_theme_mode()
     }
 
     pub fn get_selected_item_color(&self) -> String {

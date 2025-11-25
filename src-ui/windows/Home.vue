@@ -3,9 +3,9 @@
     class="launcher-container"
     tabindex="0"
     :style="[program_backgroundStyle,
-             !ui_config.use_windows_sys_control_radius ? {
+             !effective_ui_config.use_windows_sys_control_radius ? {
                border: `1px solid ${is_dark ? '#3d3d3d' : '#bdbdbd'}`,
-               borderRadius: `${ui_config.window_corner_radius}px`
+               borderRadius: `${effective_ui_config.window_corner_radius}px`
              } : {}]"
     @keydown="handleKeyDown"
     @keyup="handleKeyUp"
@@ -17,7 +17,7 @@
         ref="searchBarRef"
         v-model="searchText"
         :app-config="app_config"
-        :ui-config="ui_config"
+        :ui-config="effective_ui_config"
         @contextmenu="contextSearchBarEvent"
       />
 
@@ -26,7 +26,7 @@
         v-if="parameterSession"
         ref="parameterPanelRef"
         v-model:input-value="parameterSession.inputValue"
-        :ui-config="ui_config"
+        :ui-config="effective_ui_config"
         :prompt="parameterPrompt"
         :progress="`${parameterSession.collectedArgs.length + 1}/${parameterSession.info.placeholderCount}`"
         :action-label="parameterActionLabel"
@@ -42,7 +42,7 @@
         :menu-items="menuItems"
         :menu-icons="menuIcons"
         :selected-index="selectedIndex"
-        :ui-config="ui_config"
+        :ui-config="effective_ui_config"
         :app-config="app_config"
         :hover-color="hover_item_color"
         :is-scroll-mode="isScrollMode"
@@ -55,7 +55,7 @@
         v-else
         ref="everythingPanelRef"
         :search-text="searchText"
-        :ui-config="ui_config"
+        :ui-config="effective_ui_config"
         :app-config="app_config"
         :hover-color="hover_item_color"
       />
@@ -63,7 +63,7 @@
 
     <!-- Footer -->
     <Footer
-      :ui-config="ui_config"
+      :ui-config="effective_ui_config"
       :app-config="app_config"
       :status-text="is_refreshing_dataset ? t('app.refreshing_dataset') : (is_loading_icons ? t('app.loading_icons') : (status_tip || right_tips))"
     />
@@ -71,29 +71,29 @@
     <!-- SubMenus -->
     <SubMenu
       ref="searchBarMenuBuf"
-      :item-height="ui_config.result_item_height"
+      :item-height="effective_ui_config.result_item_height"
       :window-size="innerWindowSize"
       :menu-items="searchBarMenuItems"
       :is-dark="is_dark"
-      :corner-radius="ui_config.window_corner_radius"
+      :corner-radius="effective_ui_config.window_corner_radius"
       :hover-color="hover_item_color"
-      :selected-color="ui_config.selected_item_color"
-      :item-font-color="ui_config.item_font_color"
-      :item-font-size-percent="ui_config.item_font_size"
+      :selected-color="effective_ui_config.selected_item_color"
+      :item-font-color="effective_ui_config.item_font_color"
+      :item-font-size-percent="effective_ui_config.item_font_size"
       :style="submenu_backgroundStyle"
     />
 
     <SubMenu
       ref="resultItemMenuRef"
-      :item-height="ui_config.result_item_height"
+      :item-height="effective_ui_config.result_item_height"
       :window-size="innerWindowSize"
       :menu-items="resultSubMenuItems"
       :is-dark="is_dark"
-      :corner-radius="ui_config.window_corner_radius"
+      :corner-radius="effective_ui_config.window_corner_radius"
       :hover-color="hover_item_color"
-      :selected-color="ui_config.selected_item_color"
-      :item-font-color="ui_config.item_font_color"
-      :item-font-size-percent="ui_config.item_font_size"
+      :selected-color="effective_ui_config.selected_item_color"
+      :item-font-color="effective_ui_config.item_font_color"
+      :item-font-size-percent="effective_ui_config.item_font_size"
       :style="submenu_backgroundStyle"
     />
   </div>
@@ -152,6 +152,21 @@ const windowSize = ref<{ width: number; height: number; }>({ width: 800, height:
 const scaleFactor = ref<number>(1)
 const isEverythingMode = ref(false)
 
+const effective_ui_config = computed(() => {
+  if (!is_dark.value) {
+    return ui_config.value
+  }
+  return {
+    ...ui_config.value,
+    program_background_color: 'rgba(31, 31, 31, 1)',
+    selected_item_color: 'rgba(63, 63, 63, 0.8)',
+    item_font_color: '#A6A6A6',
+    search_bar_font_color: '#A6A6A6',
+    search_bar_placeholder_font_color: '#757575',
+    footer_font_color: '#A6A6A6',
+  }
+})
+
 const toggleEverythingMode = async () => {
   isEverythingMode.value = !isEverythingMode.value
   searchResults.value = []
@@ -201,7 +216,7 @@ const status_tip = computed(() => {
 })
 
 const hover_item_color = computed(() => {
-  return reduceOpacity(ui_config.value.selected_item_color, 0.8)
+  return reduceOpacity(effective_ui_config.value.selected_item_color, 0.8)
 })
 
 const isScrollMode = computed(() => {
@@ -254,17 +269,17 @@ const innerWindowSize = computed(() => {
 })
 
 const submenu_backgroundStyle = computed(() => ({
-  backgroundColor: `${ui_config.value.program_background_color}`,
+  backgroundColor: `${effective_ui_config.value.program_background_color}`,
 }))
 
 const program_backgroundStyle = computed(() => ({
-  backgroundColor: (ui_config.value.blur_style !== 'None' && ui_config.value.use_windows_sys_control_radius === true)
+  backgroundColor: (effective_ui_config.value.blur_style !== 'None' && effective_ui_config.value.use_windows_sys_control_radius === true)
     ? 'transparent'
-    : ui_config.value.program_background_color,
-  backgroundImage: `linear-gradient(rgba(255, 255, 255, ${1 - ui_config.value.background_opacity}), rgba(255, 255, 255, ${1 - ui_config.value.background_opacity})), url(${background_picture.value})`,
-  backgroundSize: `${ui_config.value.background_size}`,
-  backgroundPosition: `${ui_config.value.background_position}`,
-  backgroundRepeat: `${ui_config.value.background_repeat}`,
+    : effective_ui_config.value.program_background_color,
+  backgroundImage: `linear-gradient(rgba(255, 255, 255, ${1 - effective_ui_config.value.background_opacity}), rgba(255, 255, 255, ${1 - effective_ui_config.value.background_opacity})), url(${background_picture.value})`,
+  backgroundSize: `${effective_ui_config.value.background_size}`,
+  backgroundPosition: `${effective_ui_config.value.background_position}`,
+  backgroundRepeat: `${effective_ui_config.value.background_repeat}`,
   backgroundClip: 'content-box',
 }))
 
@@ -590,9 +605,29 @@ const applyTheme = async (isDark: boolean) => {
   await invoke('command_change_tray_icon', { isDark: isDark })
 }
 
-function handleThemeChange(e: MediaQueryListEvent) {
-  applyTheme(e.matches)
+const updateTheme = () => {
+  const mode = ui_config.value.theme_mode;
+  if (mode === 'dark') {
+    applyTheme(true);
+  } else if (mode === 'light') {
+    applyTheme(false);
+  } else {
+    // System
+    if (darkModeMediaQuery.value) {
+      applyTheme(darkModeMediaQuery.value.matches);
+    }
+  }
 }
+
+function handleThemeChange(e: MediaQueryListEvent) {
+  if (ui_config.value.theme_mode === 'system') {
+    applyTheme(e.matches)
+  }
+}
+
+watch(() => ui_config.value.theme_mode, () => {
+  updateTheme()
+})
 
 const handleRightArrow = (event: KeyboardEvent) => {
   // Logic to check cursor position would go here if we had access
@@ -679,7 +714,7 @@ watch(is_alt_pressed, async (new_value: boolean) => {
 
 onMounted(async () => {
   darkModeMediaQuery.value = window.matchMedia('(prefers-color-scheme: dark)')
-  applyTheme(darkModeMediaQuery.value.matches)
+  updateTheme()
   darkModeMediaQuery.value.addEventListener('change', handleThemeChange)
 
   searchBarRef.value?.focus()

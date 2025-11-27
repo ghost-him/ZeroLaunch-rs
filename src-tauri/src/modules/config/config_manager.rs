@@ -4,6 +4,7 @@ use crate::modules::config::app_config::PartialAppConfig;
 use crate::modules::config::ui_config::UiConfig;
 use crate::modules::config::window_state::PartialWindowState;
 use crate::modules::config::window_state::WindowState;
+
 use crate::modules::everything::config::{EverythingConfig, PartialEverythingConfig};
 use crate::modules::icon_manager::config::{IconManagerConfig, PartialIconManagerConfig};
 use crate::modules::shortcut_manager::shortcut_config::PartialShortcutConfig;

@@ -1,5 +1,6 @@
 use crate::core::storage::storage_manager::StorageManager;
 use crate::error::OptionExt;
+#[cfg(target_arch = "x86_64")]
 use crate::modules::everything::EverythingManager;
 use crate::modules::icon_manager::IconManager;
 use crate::modules::shortcut_manager::ShortcutManager;
@@ -47,6 +48,7 @@ pub struct AppState {
     /// 唤醒搜索栏前的前台窗口句柄
     previous_foreground_window: RwLock<Option<isize>>,
     /// Everything 管理器
+    #[cfg(target_arch = "x86_64")]
     everything_manager: Arc<EverythingManager>,
     /// 图标管理器
     icon_manager: RwLock<Option<Arc<IconManager>>>,
@@ -77,6 +79,7 @@ impl AppState {
             last_search_query: RwLock::new(String::new()),
             translator: Arc::new(RwLock::new(Translator::new())),
             previous_foreground_window: RwLock::new(None),
+            #[cfg(target_arch = "x86_64")]
             everything_manager: Arc::new(EverythingManager::new()),
             icon_manager: RwLock::new(None),
         }
@@ -246,6 +249,7 @@ impl AppState {
     }
 
     /// 获取 Everything 管理器的克隆
+    #[cfg(target_arch = "x86_64")]
     pub fn get_everything_manager(&self) -> Arc<EverythingManager> {
         self.everything_manager.clone()
     }

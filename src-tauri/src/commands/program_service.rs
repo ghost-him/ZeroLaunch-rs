@@ -364,6 +364,7 @@ pub async fn handle_search_text<R: Runtime>(
 }
 
 /// 启动Everything搜索结果
+#[cfg(target_arch = "x86_64")]
 #[tauri::command]
 pub async fn launch_everything_item<R: Runtime>(
     _app: tauri::AppHandle<R>,
@@ -376,7 +377,20 @@ pub async fn launch_everything_item<R: Runtime>(
     Ok(())
 }
 
+/// 启动Everything搜索结果 (arm64 不支持)
+#[cfg(not(target_arch = "x86_64"))]
+#[tauri::command]
+pub async fn launch_everything_item<R: Runtime>(
+    _app: tauri::AppHandle<R>,
+    _window: tauri::Window<R>,
+    _state: tauri::State<'_, Arc<AppState>>,
+    _path: String,
+) -> Result<(), String> {
+    Ok(())
+}
+
 /// 处理Everything搜索请求
+#[cfg(target_arch = "x86_64")]
 #[tauri::command]
 pub async fn handle_everything_search<R: Runtime>(
     _app: tauri::AppHandle<R>,
@@ -391,6 +405,18 @@ pub async fn handle_everything_search<R: Runtime>(
         .into_iter()
         .map(|r| SearchResult(r.id, r.path))
         .collect())
+}
+
+/// 处理Everything搜索请求 (arm64 不支持)
+#[cfg(not(target_arch = "x86_64"))]
+#[tauri::command]
+pub async fn handle_everything_search<R: Runtime>(
+    _app: tauri::AppHandle<R>,
+    _window: tauri::Window<R>,
+    _state: tauri::State<'_, Arc<AppState>>,
+    _search_text: String,
+) -> Result<Vec<SearchResult>, String> {
+    Ok(Vec::new())
 }
 
 /// 获得最近启动的程序

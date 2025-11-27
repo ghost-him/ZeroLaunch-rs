@@ -519,6 +519,7 @@ async fn load_or_initialize_semantic_store(storage_manager: &StorageManager) -> 
 async fn reload_program_catalog(state: &AppState, runtime_config: &RuntimeConfig) {
     let program_manager = state.get_program_manager();
     let icon_manager = state.get_icon_manager();
+    #[cfg(target_arch = "x86_64")]
     let everything_manager = state.get_everything_manager();
     let storage_manager = state.get_storage_manager();
     let semantic_store_str = load_or_initialize_semantic_store(storage_manager.as_ref()).await;
@@ -528,8 +529,11 @@ async fn reload_program_catalog(state: &AppState, runtime_config: &RuntimeConfig
     icon_manager.load_from_config(icon_manager_config).await;
 
     // 更新 EverythingManager 配置
-    let everything_config = runtime_config.get_everything_config();
-    everything_manager.load_from_config(everything_config);
+    #[cfg(target_arch = "x86_64")]
+    {
+        let everything_config = runtime_config.get_everything_config();
+        everything_manager.load_from_config(everything_config);
+    }
 
     // 重新加载程序目录
     program_manager

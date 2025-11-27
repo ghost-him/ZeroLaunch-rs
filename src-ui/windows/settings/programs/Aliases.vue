@@ -10,14 +10,14 @@
         :prefix-icon="Search"
         clearable
         @input="handleSearch"
-        style="margin-bottom: 16px;"
+        :style="{ marginBottom: '16px' }"
       />
 
       <div class="table-wrapper">
         <el-table
           v-loading="loading"
           :data="programList"
-          style="width: 100%"
+          :style="{ width: '100%' }"
           height="100%"
         >
           <el-table-column

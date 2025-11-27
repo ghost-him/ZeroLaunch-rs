@@ -27,7 +27,7 @@
         :data="builtinCommandList"
         border
         stripe
-        style="width: 100%"
+        :style="{ width: '100%' }"
       >
         <el-table-column
           :label="t('settings.builtin_command_function')"

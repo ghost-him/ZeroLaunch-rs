@@ -121,10 +121,38 @@ jobs:
           }
 
       # ==========================================
-      # SignPath 代码签名集成
+      # 判断是否需要签名
+      # ==========================================
+      - name: Check if signing is needed
+        id: check_signing
+        shell: pwsh
+        run: |
+          $skipTestSigning = "${{ secrets.SKIP_TEST_SIGNING_ON_AUTO }}" -eq "true"
+          $isTestSigning = "${{ secrets.SIGNPATH_SIGNING_POLICY_SLUG }}" -eq "test-signing"
+          $isAutoPush = "${{ github.event_name }}" -eq "push"
+          
+          echo "Skip Test Signing on Auto: $skipTestSigning"
+          echo "Is Test Signing: $isTestSigning"
+          echo "Is Auto Push: $isAutoPush"
+          
+          # 判断是否应该跳过签名
+          # 条件：开启了跳过测试签名 AND 当前使用测试签名 AND 是自动触发（push tag）
+          $shouldSkipSigning = $skipTestSigning -and $isTestSigning -and $isAutoPush
+          
+          if ($shouldSkipSigning) {
+            echo "🔄 检测到测试签名 + 自动触发，将跳过签名步骤"
+            echo "SHOULD_SIGN=false" >> $env:GITHUB_OUTPUT
+          } else {
+            echo "✅ 将执行签名流程"
+            echo "SHOULD_SIGN=true" >> $env:GITHUB_OUTPUT
+          }
+
+      # ==========================================
+      # SignPath 代码签名集成（条件执行）
       # ==========================================
 
       - name: Package artifacts for signing
+        if: steps.check_signing.outputs.SHOULD_SIGN == 'true'
         id: package-artifacts
         shell: pwsh
         run: |
@@ -144,6 +172,7 @@ jobs:
           echo "✅ 共打包 $($files.Count) 个文件"
 
       - name: Upload unsigned artifacts to GitHub
+        if: steps.check_signing.outputs.SHOULD_SIGN == 'true'
         id: upload-unsigned-artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -153,6 +182,7 @@ jobs:
           retention-days: 7
 
       - name: Submit to SignPath for code signing
+        if: steps.check_signing.outputs.SHOULD_SIGN == 'true'
         id: submit-signing-request
         uses: signpath/github-action-submit-signing-request@v2
         with:
@@ -167,6 +197,7 @@ jobs:
           wait-for-completion-timeout-in-seconds: 1800
 
       - name: List signed artifacts
+        if: steps.check_signing.outputs.SHOULD_SIGN == 'true'
         shell: pwsh
         run: |
           echo "=== 已签名的构建产物 ==="
@@ -187,6 +218,7 @@ jobs:
           }
 
       - name: Move signed artifacts to root
+        if: steps.check_signing.outputs.SHOULD_SIGN == 'true'
         shell: pwsh
         run: |
           echo "📦 移动已签名文件到根目录..."
@@ -205,6 +237,20 @@ jobs:
           Remove-Item -Path "signed-artifacts" -Recurse -Force -ErrorAction SilentlyContinue
 
           echo "✅ 已签名文件已就绪"
+
+      # ==========================================
+      # 跳过签名的处理（直接使用未签名文件）
+      # ==========================================
+      - name: Use unsigned artifacts (skip signing)
+        if: steps.check_signing.outputs.SHOULD_SIGN == 'false'
+        shell: pwsh
+        run: |
+          echo "⚠️  跳过签名步骤，直接使用未签名的构建产物"
+          echo "当前工作目录下的构建文件："
+          Get-ChildItem -Path . -File | Where-Object { $_.Extension -in '.exe', '.msi', '.zip' } | ForEach-Object {
+            $sizeMB = [math]::Round($_.Length / 1MB, 2)
+            echo "  📦 $($_.Name) ($sizeMB MB)"
+          }
 
       - name: Generate Release Notes
         id: release_notes

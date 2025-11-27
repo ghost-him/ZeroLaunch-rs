@@ -1,3 +1,4 @@
+#[cfg(target_arch = "x86_64")]
 use everything_rs::EverythingSort;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
@@ -36,7 +37,7 @@ impl EverythingConfigInner {
     }
 
     pub(crate) fn default_sort_method() -> EverythingSortKind {
-        EverythingSortKind::NameAscending
+        EverythingSortKind("NameAscending".to_string())
     }
 
     pub(crate) fn default_result_limit() -> usize {
@@ -58,7 +59,7 @@ impl EverythingConfigInner {
     pub fn to_partial(&self) -> PartialEverythingConfig {
         PartialEverythingConfig {
             sort_threshold: Some(self.sort_threshold),
-            sort_method: Some(self.sort_method),
+            sort_method: Some(self.sort_method.clone()),
             result_limit: Some(self.result_limit),
         }
     }
@@ -93,7 +94,7 @@ impl EverythingConfig {
     }
 
     pub fn get_sort_method(&self) -> EverythingSortKind {
-        self.inner.read().sort_method
+        self.inner.read().sort_method.clone()
     }
 
     pub fn get_result_limit(&self) -> usize {
@@ -101,73 +102,40 @@ impl EverythingConfig {
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
-pub enum EverythingSortKind {
-    NameAscending,
-    NameDescending,
-    PathAscending,
-    PathDescending,
-    SizeAscending,
-    SizeDescending,
-    ExtensionAscending,
-    ExtensionDescending,
-    TypeNameAscending,
-    TypeNameDescending,
-    DateCreatedAscending,
-    DateCreatedDescending,
-    DateModifiedAscending,
-    DateModifiedDescending,
-    AttributesAscending,
-    AttributesDescending,
-    FileListFilenameAscending,
-    FileListFilenameDescending,
-    RunCountAscending,
-    RunCountDescending,
-    DateRecentlyChangedAscending,
-    DateRecentlyChangedDescending,
-    DateAccessedAscending,
-    DateAccessedDescending,
-    DateRunAscending,
-    DateRunDescending,
-}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EverythingSortKind(String);
 
+#[cfg(target_arch = "x86_64")]
 impl From<EverythingSortKind> for EverythingSort {
     fn from(kind: EverythingSortKind) -> Self {
-        match kind {
-            EverythingSortKind::NameAscending => EverythingSort::NameAscending,
-            EverythingSortKind::NameDescending => EverythingSort::NameDescending,
-            EverythingSortKind::PathAscending => EverythingSort::PathAscending,
-            EverythingSortKind::PathDescending => EverythingSort::PathDescending,
-            EverythingSortKind::SizeAscending => EverythingSort::SizeAscending,
-            EverythingSortKind::SizeDescending => EverythingSort::SizeDescending,
-            EverythingSortKind::ExtensionAscending => EverythingSort::ExtensionAscending,
-            EverythingSortKind::ExtensionDescending => EverythingSort::ExtensionDescending,
-            EverythingSortKind::TypeNameAscending => EverythingSort::TypeNameAscending,
-            EverythingSortKind::TypeNameDescending => EverythingSort::TypeNameDescending,
-            EverythingSortKind::DateCreatedAscending => EverythingSort::DateCreatedAscending,
-            EverythingSortKind::DateCreatedDescending => EverythingSort::DateCreatedDescending,
-            EverythingSortKind::DateModifiedAscending => EverythingSort::DateModifiedAscending,
-            EverythingSortKind::DateModifiedDescending => EverythingSort::DateModifiedDescending,
-            EverythingSortKind::AttributesAscending => EverythingSort::AttributesAscending,
-            EverythingSortKind::AttributesDescending => EverythingSort::AttributesDescending,
-            EverythingSortKind::FileListFilenameAscending => {
-                EverythingSort::FileListFilenameAscending
-            }
-            EverythingSortKind::FileListFilenameDescending => {
-                EverythingSort::FileListFilenameDescending
-            }
-            EverythingSortKind::RunCountAscending => EverythingSort::RunCountAscending,
-            EverythingSortKind::RunCountDescending => EverythingSort::RunCountDescending,
-            EverythingSortKind::DateRecentlyChangedAscending => {
-                EverythingSort::DateRecentlyChangedAscending
-            }
-            EverythingSortKind::DateRecentlyChangedDescending => {
-                EverythingSort::DateRecentlyChangedDescending
-            }
-            EverythingSortKind::DateAccessedAscending => EverythingSort::DateAccessedAscending,
-            EverythingSortKind::DateAccessedDescending => EverythingSort::DateAccessedDescending,
-            EverythingSortKind::DateRunAscending => EverythingSort::DateRunAscending,
-            EverythingSortKind::DateRunDescending => EverythingSort::DateRunDescending,
+        match kind.0.as_str() {
+            "NameAscending" => EverythingSort::NameAscending,
+            "NameDescending" => EverythingSort::NameDescending,
+            "PathAscending" => EverythingSort::PathAscending,
+            "PathDescending" => EverythingSort::PathDescending,
+            "SizeAscending" => EverythingSort::SizeAscending,
+            "SizeDescending" => EverythingSort::SizeDescending,
+            "ExtensionAscending" => EverythingSort::ExtensionAscending,
+            "ExtensionDescending" => EverythingSort::ExtensionDescending,
+            "TypeNameAscending" => EverythingSort::TypeNameAscending,
+            "TypeNameDescending" => EverythingSort::TypeNameDescending,
+            "DateCreatedAscending" => EverythingSort::DateCreatedAscending,
+            "DateCreatedDescending" => EverythingSort::DateCreatedDescending,
+            "DateModifiedAscending" => EverythingSort::DateModifiedAscending,
+            "DateModifiedDescending" => EverythingSort::DateModifiedDescending,
+            "AttributesAscending" => EverythingSort::AttributesAscending,
+            "AttributesDescending" => EverythingSort::AttributesDescending,
+            "FileListFilenameAscending" => EverythingSort::FileListFilenameAscending,
+            "FileListFilenameDescending" => EverythingSort::FileListFilenameDescending,
+            "RunCountAscending" => EverythingSort::RunCountAscending,
+            "RunCountDescending" => EverythingSort::RunCountDescending,
+            "DateRecentlyChangedAscending" => EverythingSort::DateRecentlyChangedAscending,
+            "DateRecentlyChangedDescending" => EverythingSort::DateRecentlyChangedDescending,
+            "DateAccessedAscending" => EverythingSort::DateAccessedAscending,
+            "DateAccessedDescending" => EverythingSort::DateAccessedDescending,
+            "DateRunAscending" => EverythingSort::DateRunAscending,
+            "DateRunDescending" => EverythingSort::DateRunDescending,
+            _ => EverythingSort::NameAscending, // 默认值
         }
     }
 }

@@ -15,7 +15,7 @@
         fontSize: Math.round(uiConfig.result_item_height * 0.4) + 'px'
       }"
     >
-      {{ t('everything.no_results') }}
+      {{ props.searchText ? t('everything.not_supported') : t('everything.no_results') }}
     </div>
     <div
       v-else

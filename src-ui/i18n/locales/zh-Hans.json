@@ -549,6 +549,7 @@
     "result_limit": "结果数量限制",
     "result_limit_tooltip": "限制返回的搜索结果的最大数量",
     "no_results": "未找到匹配的文件",
+    "not_supported": "当前架构不支持 Everything",
     "sort_name_ascending": "按名称升序",
     "sort_name_descending": "按名称降序",
     "sort_path_ascending": "按路径升序",

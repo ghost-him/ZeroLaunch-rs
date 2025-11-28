@@ -216,12 +216,10 @@
     "change_search_algorithm": "變更搜尋演算法",
     "search_algorithm_tooltip": "標準: 作者精心設計，高準確率高容錯；Skim: 主流模糊符合演算法；LaunchyQT: 對 LaunchyQT 演算法的移植；語義: 使用嵌入模型進行語義匹配（實驗性，較慢）",
     "scan_uwp_apps": "掃描UWP應用程式",
-
     "enable_lru_search_cache": "啟用 LRU 搜尋快取",
     "lru_cache_tooltip": "啟用後會快取最近的搜尋結果，可大幅降低耗時，但動態權重更新不會立即生效。",
     "lru_cache_description": "啟用 LRU 搜尋快取後，啟動權重的變化無法即時反映，但可將搜尋耗時壓縮至約 0.01 毫秒。建議在語義搜尋模式下啟用。",
     "search_cache_capacity": "快取條目數量",
-
     "standard_search_algorithm": "標準搜尋演算法",
     "skim_matching_algorithm": "Skim符合演算法",
     "launchyqt_algorithm": "LaunchyQT演算法（非官方）",
@@ -551,6 +549,7 @@
     "result_limit": "結果數量限制",
     "result_limit_tooltip": "限制返回的搜尋結果的最大數量",
     "no_results": "未找到匹配的檔案",
+    "not_supported": "當前架構不支援 Everything",
     "sort_name_ascending": "按名稱升序",
     "sort_name_descending": "按名稱降序",
     "sort_path_ascending": "按路徑升序",

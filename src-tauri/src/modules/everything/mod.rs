@@ -1,5 +1,7 @@
+use crate::modules::everything::config::EverythingSortKind;
 use crate::utils::defer::defer;
-use everything_rs::{Everything, EverythingRequestFlags, EverythingSort};
+#[cfg(target_arch = "x86_64")]
+use everything_rs::{Everything, EverythingRequestFlags};
 use parking_lot::RwLock;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -22,7 +24,7 @@ pub struct EverythingManagerInner {
     // 排序阈值
     pub sort_threshold: usize,
     // 排序方式
-    pub sort_method: EverythingSort,
+    pub sort_method: EverythingSortKind,
     // 结果限制
     pub result_limit: usize,
 }
@@ -38,14 +40,14 @@ impl EverythingManagerInner {
         Self {
             is_searching: AtomicBool::new(false),
             sort_threshold: EverythingConfig::default().get_sort_threshold(),
-            sort_method: EverythingConfig::default().get_sort_method().into(),
+            sort_method: EverythingConfig::default().get_sort_method().clone(),
             result_limit: EverythingConfig::default().get_result_limit(),
         }
     }
 
     pub fn load_from_config(&mut self, config: Arc<EverythingConfig>) {
         self.sort_threshold = config.get_sort_threshold();
-        self.sort_method = config.get_sort_method().into();
+        self.sort_method = config.get_sort_method().clone();
         self.result_limit = config.get_result_limit();
     }
 
@@ -68,27 +70,35 @@ impl EverythingManagerInner {
             return Ok(Vec::new());
         }
 
-        let everything = Everything::new();
-        everything.set_search(query);
-        // FullPathAndFileName 已经包含完整路径和文件名（包括扩展名）
-        everything.set_request_flags(EverythingRequestFlags::FullPathAndFileName);
-        everything.set_max_results(self.result_limit as u32);
-
-        // Use sort_threshold from config
-        if query.len() >= self.sort_threshold {
-            everything.set_sort(self.sort_method);
-        }
-
-        everything
-            .query()
-            .map_err(|e| format!("Everything query failed: {:?}", e))?;
-
+        // 这里允许使用无更改的mut，因为对于arm64架构来说，everything.rs并不支持
+        #[allow(unused_mut)]
         let mut results = Vec::new();
-        for path in everything.full_path_iter().flatten() {
-            let hash = blake3::hash(path.as_bytes());
-            let id: u64 = u64::from_le_bytes(hash.as_bytes()[0..8].try_into().unwrap());
-            results.push(EverythingSearchResult { id, path });
+
+        #[cfg(target_arch = "x86_64")]
+        {
+            // 如果启用了everything集成，则使用everything进行搜索，否则就对results无处理
+            let everything = Everything::new();
+            everything.set_search(query);
+            // FullPathAndFileName 已经包含完整路径和文件名（包括扩展名）
+            everything.set_request_flags(EverythingRequestFlags::FullPathAndFileName);
+            everything.set_max_results(self.result_limit as u32);
+
+            // Use sort_threshold from config
+            if query.len() >= self.sort_threshold {
+                everything.set_sort(self.sort_method.clone().into());
+            }
+
+            everything
+                .query()
+                .map_err(|e| format!("Everything query failed: {:?}", e))?;
+
+            for path in everything.full_path_iter().flatten() {
+                let hash = blake3::hash(path.as_bytes());
+                let id: u64 = u64::from_le_bytes(hash.as_bytes()[0..8].try_into().unwrap());
+                results.push(EverythingSearchResult { id, path });
+            }
         }
+
         Ok(results)
     }
 

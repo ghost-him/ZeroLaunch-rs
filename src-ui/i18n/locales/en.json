@@ -549,6 +549,7 @@
     "result_limit": "Result Limit",
     "result_limit_tooltip": "Limit the maximum number of search results returned",
     "no_results": "No matching files found",
+    "not_supported": "Everything is not supported on this architecture",
     "sort_name_ascending": "Name Ascending",
     "sort_name_descending": "Name Descending",
     "sort_path_ascending": "Path Ascending",

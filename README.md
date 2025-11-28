@@ -45,6 +45,7 @@ ZeroLaunch：一款懂你输入习惯的 Windows 智能启动器，精通拼音�
 ## 🖥️ 软件界面
 
 [![主界面预览](asset/主界面.png)](asset/picture.md)
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fghost-him%2FZeroLaunch-rs.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fghost-him%2FZeroLaunch-rs?ref=badge_shield)
 
 *点击图片查看完整功能截图集*
 
@@ -287,3 +288,6 @@ winget install ghost-him.ZeroLaunch-rs
 3. 提出更多改进的建议（ZeroLaunch-rs 的定位就是纯粹的程序启动器，所以只会专注于启动器的功能，不会添加太多无关的功能哦，请谅解🥺🙏）
 
 [![Star History Chart](https://api.star-history.com/svg?repos=ghost-him/zerolaunch-rs&type=Date)](https://www.star-history.com/#ghost-him/zerolaunch-rs&Date)
+
+## License
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fghost-him%2FZeroLaunch-rs.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Fghost-him%2FZeroLaunch-rs?ref=badge_large)

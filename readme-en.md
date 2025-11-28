@@ -86,6 +86,7 @@ Laser‑focused on “quickly and accurately launching what you need.” Zero co
 *   **Supports Opening Recently Launched Programs**: Hold down the `Alt` key to list recently opened programs in order.
 *   **Supports Custom Keybindings**: Allows customizing keyboard mappings to better suit your operating habits.
 *   **Supports Call-out Position Following Mouse**: If the mouse is on a secondary screen, the search bar will appear on that secondary screen.
+*   **Everything mode search**: Provides a broader index and matching mode that, in addition to regular programs and aliases, prioritizes filesystem paths, filenames and common locations—ideal for quickly finding arbitrary files or applications. Press `Ctrl + e` to toggle between normal search and Everything mode; the hotkey is configurable in settings.
 *   **Search result display optimization**: Support setting the search result display threshold. When the number of searches is greater than the threshold, it will automatically switch to scrolling mode.
 
 ## 🚀 Quick Start

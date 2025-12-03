@@ -12,13 +12,13 @@ pub struct PartialProgramRankerConfig {
     pub latest_launch_time: Option<HashMap<String, i64>>,
     /// 查询亲和度存储: 查询词 -> { "launch_method.get_text()" -> QueryAffinityData }
     pub query_affinity_store: Option<HashMap<String, HashMap<String, QueryAffinityData>>>,
-    /// 历史总分权重系数 (默认1.2)
+    /// 历史总分权重系数 (默认1.0)
     pub history_weight: Option<f64>,
-    /// 近期习惯权重系数 (7天内,默认2.5)
+    /// 近期习惯权重系数 (7天内,默认2.0)
     pub recent_habit_weight: Option<f64>,
-    /// 短期热度系数 (默认0.8)
+    /// 短期热度系数 (默认0.5)
     pub temporal_weight: Option<f64>,
-    /// 查询亲和系数 (默认3.5)
+    /// 查询亲和系数 (默认3.2)
     pub query_affinity_weight: Option<f64>,
     /// 查询亲和时间衰减常数(秒) (默认259200 = 3天)
     pub query_affinity_time_decay: Option<i64>,
@@ -121,19 +121,19 @@ impl ProgramRankerConfigInner {
     }
 
     pub(crate) fn default_history_weight() -> f64 {
-        1.2
+        1.0
     }
 
     pub(crate) fn default_recent_habit_weight() -> f64 {
-        2.5
+        2.0
     }
 
     pub(crate) fn default_temporal_weight() -> f64 {
-        0.8
+        0.5
     }
 
     pub(crate) fn default_query_affinity_weight() -> f64 {
-        3.5
+        3.2
     }
 
     pub(crate) fn default_query_affinity_time_decay() -> i64 {

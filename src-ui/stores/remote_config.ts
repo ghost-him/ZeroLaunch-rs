@@ -168,10 +168,10 @@ export const useRemoteConfigStore = defineStore('config', {
             shortcut_config: default_shortcut_config(),
             program_manager_config: {
                 ranker: {
-                    history_weight: 1.2,
-                    recent_habit_weight: 2.5,
-                    temporal_weight: 0.8,
-                    query_affinity_weight: 3.5,
+                    history_weight: 1.0,
+                    recent_habit_weight: 2.0,
+                    temporal_weight: 0.5,
+                    query_affinity_weight: 3.2,
                     query_affinity_time_decay: 259200,
                     temporal_decay: 10800,
                     is_enable: true,

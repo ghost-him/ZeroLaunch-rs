@@ -1,6 +1,5 @@
 ![zerolaunch-rs](https://socialify.git.ci/ghost-him/zerolaunch-rs/image?custom_description=%F0%9F%9A%80%E6%9E%81%E9%80%9F%E7%B2%BE%E5%87%86%E3%80%81%E8%BD%BB%E9%87%8F%E7%BA%AF%E7%B2%B9%E7%9A%84+Windows+%E5%BA%94%E7%94%A8%E7%A8%8B%E5%BA%8F%E5%90%AF%E5%8A%A8%E5%99%A8%EF%BC%81%E6%8B%BC%E9%9F%B3%E6%A8%A1%E7%B3%8A%E5%8C%B9%E9%85%8D+%2B+%E6%80%A5%E9%80%9F%E5%93%8D%E5%BA%94%EF%BC%8C%E5%9F%BA%E4%BA%8E+Rust+%2B+Tauri+%2B+Vue.js+%E6%9E%84%E5%BB%BA%EF%BC%81&description=1&font=Bitter&forks=1&issues=1&language=1&logo=https%3A%2F%2Fgithub.com%2Fghost-him%2FZeroLaunch-rs%2Fblob%2Fmain%2Fsrc-tauri%2Ficons%2FSquare310x310Logo.png%3Fraw%3Dtrue&name=1&owner=1&pattern=Floating+Cogs&pulls=1&stargazers=1&theme=Light)
 
-
 <div align="center">
 
 ![Platform](https://img.shields.io/badge/Platform-Windows_11-0078d7?logo=windows11&logoColor=white)
@@ -9,6 +8,7 @@
 [![GitHub downloads](https://img.shields.io/github/downloads/ghost-him/ZeroLaunch-rs/total)](https://github.com/ghost-him/ZeroLaunch-rs/releases)
 [![Release Build](https://github.com/ghost-him/ZeroLaunch-rs/actions/workflows/release.yml/badge.svg)](https://github.com/ghost-him/ZeroLaunch-rs/actions/workflows/release.yml)
 [![CI](https://github.com/ghost-him/ZeroLaunch-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/ghost-him/ZeroLaunch-rs/actions/workflows/ci.yml)
+
 </div>
 
 <div align="center">
@@ -27,272 +27,227 @@
 
 </div>
 
+
 <div align="center">
     <a href="https://gitee.com/ghost-him/ZeroLaunch-rs" target="_blank">Gitee</a> •
     <a href="https://github.com/ghost-him/ZeroLaunch-rs" target="_blank">GitHub</a> •
-    <a href="https://gitcode.com/ghost-him/ZeroLaunch-rs" target="_blank">GitCode</a>
+    <a href="https://gitcode.com/ghost-him/ZeroLaunch-rs" target="_blank">GitCode</a> •
+    <a href="https://zerolaunch.ghost-him.com" target="_blank">Official Website</a>
 </div>
 
-## 📕 Brief Introduction
+## 📕 Introduction
 
-ZeroLaunch is a Windows smart launcher that understands your typing. It excels at Pinyin and fuzzy matching, and can optionally add AI semantic understanding—so typos and vague queries still get instant results. Clean, offline, and built for speed.
+ZeroLaunch is a smart Windows launcher that understands your typing habits. It masters Pinyin and fuzzy search, and supports optional local AI semantic understanding, allowing for instant responses even with typos or vague search terms. Pure, offline, and born for efficiency.
 
-> Currently, the existing program launchers on the market don't quite meet my needs, so I developed this software. I use it daily, so there's no need to worry about me abandoning it (at most, there might be no new updates (～￣▽￣)～).
+> Existing launchers on the market didn't quite fit my needs, so I built one myself. It has become my capable assistant for daily work, so rest assured, I won't abandon this project~ (Updates might just be a bit slow sometimes (～￣▽￣)～).
 
 ## 🖥️ Software Interface
 
-[![Main Interface Preview](asset/主界面.png)](asset/picture-en.md)
+[![Main Interface Preview](asset/主界面.png)](asset/picture.md)
 
-*Click the image to view the complete set of feature screenshots*
+*Click the image to view the full collection of feature screenshots*
 
-**Customizable background image**
+**Background image is customizable**
 
-## ✨ Why choose ZeroLaunch-rs / What makes ZeroLaunch-rs unique?
+## ✨ Highlights
 
-### 🔒 Privacy First
-Runs completely offline, no internet connection required. Your data always stays on your device. Adhering to a zero data collection policy, strictly following local processing to ensure your information security.
+### 🔒 Privacy First, Completely Offline
+All searching and matching are done locally without any network connection. We adhere to zero data collection. Your data stays on your device forever.
 
-### ⚡ Efficient Smart Search
-With optional on-device AI semantic search (EmbeddingGemma‑300m/ONNX), you get natural‑language and multilingual intent retrieval. Even without AI, our self‑developed matching algorithm (triple matching: full name/Pinyin/initials + spell correction) delivers high efficiency, high match quality, and high fault tolerance, with real‑time ranking.
+### ⚡ Smart Search, Millisecond Response
+- **Optional AI Semantic Search**: Integrated with the EmbeddingGemma-300m local model, supporting natural language and multi-language intent retrieval for smarter understanding.
+- **Powerful Traditional Algorithms**: Based on self-developed matching algorithms, supporting full name, Pinyin, initial letter matching, and typo correction. Highly efficient with high fault tolerance.
+- **Extreme Performance Optimization**: Through data structure optimization, layered caching, on-demand loading, and concurrent processing, it ensures a millisecond-level response experience even on low-to-mid-range devices.
 
-We’ve implemented systemic performance optimizations end‑to‑end: hot‑path and data‑structure refactors, layered caching and on‑demand loading, a tuned concurrency model, and incremental index updates — all to minimize compute and I/O. You can expect stable millisecond‑level responses even on mid‑/low‑spec machines.
+### 🌐 Lightweight & Pure, Out-of-the-Box
+Focused on the core need of "launching quickly and accurately." Default settings cover most usage scenarios with zero learning cost; meanwhile, it provides rich customization options for appearance, behavior, and indexing strategies for advanced users, without adding any bloated features.
 
-### 🌐 Lightweight and Pure
-Laser‑focused on “quickly and accurately launching what you need.” Zero configuration required — the default setup already fits most users and scenarios. Power users still get ample customization (appearance, behavior, indexing strategy). No unrelated bloat: out‑of‑the‑box, lightweight, and pure.
+## 🔧 Core Features Overview
 
-## 🔬 Software Features
+### 🎯 Core Search & Launch
+*   **AI Semantic Retrieval (Optional)**: Based on the lightweight and efficient EmbeddingGemma-300m local model, supports finding apps using natural language (e.g., "music software") while keeping privacy secure.
+*   **Application Search**: Quickly retrieve and launch traditional apps and UWP apps, supporting remarks, aliases, and localized name recognition.
+*   **Application Awake**: Smartly brings the windows of running programs to the front for quick task switching.
+*   **Open File Location**: Quickly locate files via the right-click menu.
+*   **Everything Mode**: Press `Ctrl + e` to switch to a broader file system path search mode to quickly locate any file. (Note: Everything Mode currently only supports x86_64 architecture; arm64 is not supported.)
 
-### Core Features
+### 🎨 Personalization & Interaction
+*   **Highly Customizable Appearance**: Supports customization of background, colors, fonts, blur effects, corner radius, window size, etc., with convenient adjustment buttons.
+*   **Multi-language Interface**: Supports Simplified Chinese, Traditional Chinese, and English, automatically matching the system language.
+*   **Custom Hotkeys**: All core operation hotkeys can be remapped according to your habits.
+*   **Mouse Following**: The search bar intelligently pops up on the monitor where the mouse is located.
 
-*   **AI semantic retrieval (optional)**: Powered by the latest EmbeddingGemma‑300m (ONNX) local embedding model — lightweight, efficient, and accurate. With AI, multi‑language search is supported, and you can use natural intent keywords (e.g., “music app”, “image editor”) to quickly surface relevant applications. All inference runs locally for privacy.
-*   **Application Search**: Quickly retrieve and launch **applications** and **UWP apps**, providing a smooth program access experience. Supports program remarks and aliases, localized name recognition and search.
-*   **Application Wake-up**: Intelligently identifies and brings already open windows to the foreground, enabling convenient multi-task switching.
-*   **Customizable Interface**: Highly customizable appearance, supporting custom background images, option colors, search font color and size, display font color and size, number of candidates displayed, frosted glass effect, rounded corner size settings, program width and height, and many other items, with convenient interaction buttons for each.
-*   **Multi-language support**: Supports Simplified Chinese, Traditional Chinese, and English. On startup, the application will attempt to detect your system language and automatically select the matching UI language. If detection fails, English will be used as the fallback default.
-*   **Open File Location**: In the right-click menu, you can open the folder where the target file is located.
-
----
-### More Practical Features / Advanced Play
-
-*   **Fine-tune Search Algorithm**: Supports fine-tuning the search algorithm to meet personalized settings.
-*   **Custom Program and File Addition**: Supports adding files and programs using file wildcards or regular expressions, enabling the addition of files and programs. Intelligently identifies file formats and reacts correctly.
-*   **Custom Web Search**: Supports adding and using the default browser to launch web pages. No need to enter protocol header (http/https).
-*   **Custom Command Search**: Supports custom command addition, enabling functions like system startup, shutdown, and opening specific secondary settings pages.
-*   **Intelligent Loading of Program/File/Web Icons**: Loads the correct file icons to the greatest extent possible, and also supports correct loading of Steam game icons.
-*   **Custom Configuration File Save Path**: Supports custom local storage and network storage using the WebDAV protocol.
-*   **Supports Startup and Silent Launch**: Nothing much to explain, right? ==
-*   **Debugging Function**: Allows viewing the program's running status on the current computer (usually no issues), and viewing the search algorithm's results. Support setting log output level.
-*   **Gaming Mode**: Allows manually disabling hotkeys to prevent issues during gaming.
-*   **Supports Opening Recently Launched Programs**: Hold down the `Alt` key to list recently opened programs in order.
-*   **Supports Custom Keybindings**: Allows customizing keyboard mappings to better suit your operating habits.
-*   **Supports Call-out Position Following Mouse**: If the mouse is on a secondary screen, the search bar will appear on that secondary screen.
-*   **Everything mode search**: Provides a broader index and matching mode that, in addition to regular programs and aliases, prioritizes filesystem paths, filenames and common locations—ideal for quickly finding arbitrary files or applications. Press `Ctrl + e` to toggle between normal search and Everything mode; the hotkey is configurable in settings.
-*   **Search result display optimization**: Support setting the search result display threshold. When the number of searches is greater than the threshold, it will automatically switch to scrolling mode.
+### ⚙️ Advanced & Efficiency Tools
+*   **Custom Indexing**: Supports adding programs, files, websites, and commands (e.g., shutdown, open specific settings pages) via wildcards or regular expressions.
+*   **Search Algorithm Fine-tuning**: Adjustable matching algorithm parameters to meet personalized needs.
+*   **Smart Icon Loading**: Strives to load the correct icons, with perfect support for Steam games.
+*   **Config Sync**: Supports local storage or network synchronization via WebDAV.
+*   **Auto-start & Silent Start**: One-click setup, ready to use upon boot.
+*   **Game Mode**: Manually disable hotkeys to avoid accidental triggers during gaming.
+*   **Recent Apps**: Hold the `Alt` key to view and quickly open recently used programs.
+*   **Result Display Optimization**: Set a quantity threshold, automatically switching to scrolling display when exceeded.
 
 ## 🚀 Quick Start
 
-### Hotkey Quick Reference
+### Hotkey Cheat Sheet
 
-| Function                  | Hotkey            |
-|---------------------------|-------------------|
-| Call out and hide search bar       | `Alt + Space`     |
-| Select item up/down       | `↑/↓` or `Ctrl+k/j` |
-| Launch selected program   | `Enter`           |
-| Launch as administrator (for regular apps only) | `Ctrl + Enter`    |
-| Clear search box          | `Esc`             |
-| Hide search interface     | Click outside area |
-| Open already open window  | `Shift + Enter`   |
-| Sort by recent launch time | `Alt`             |
+| Function | Hotkey |
+| :--- | :--- |
+| Show/Hide Search Bar | `Alt + Space` |
+| Select Item Up/Down | `↑`/`↓` or `Ctrl + k`/`j` |
+| Launch Selected Program | `Enter` |
+| Run as Administrator (Standard Apps) | `Ctrl + Enter` |
+| Clear Search Box | `Esc` |
+| Hide Interface | Click outside the search box |
+| Switch to Open Window | `Shift + Enter` |
+| Sort by Recent Launch Time | Hold `Alt` |
+| Enter Everything Mode | `Ctrl + e` |
 
 ### Implementation of Common Features
 
-For the implementation of program addition, file addition, command addition, search algorithm fine-tuning, and solutions to **common problems**, please refer to the following document: [Usage Guide](docs/Feature_Implementation_Guide_en.md)
+For details on adding programs, files, commands, fine-tuning search algorithms, and solutions to **common issues**, please refer to the following documentation: [wiki](https://github.com/ghost-him/ZeroLaunch-rs/wiki)
 
-Writing documentation is so troublesome, and sometimes I can't describe things well (っ °Д °;)っ. Go check out [DeepWiki](https://deepwiki.com/ghost-him/ZeroLaunch-rs), it seems to explain things pretty well there.
+Writing documentation is troublesome, and sometimes descriptions aren't intuitive enough (っ °Д °;)っ. You can also check [DeepWiki](https://deepwiki.com/ghost-him/ZeroLaunch-rs), where the explanations might be clearer.
 
-## 🚩 Program Download
+## 🚩 Download
 
-### Install via WinGet (recommended)
-
-Run any of the following commands to install:
-
-```
+### Install via Winget (Recommended)
+Run any of the following commands in your terminal:
+```bash
 winget install zerolaunch
-```
-
-```
+# or
 winget install ZeroLaunch-rs
-```
-
-```
+# or
 winget install ghost-him.ZeroLaunch-rs
 ```
 
-### Get from releases
+### Manual Download
+This project uses CI/CD for automatic builds. When a new version is released, AI and Lite versions (x64/arm64) are automatically built and synced to the following mirrors. Please choose the fastest source for you:
 
-This project implements an automated build & release pipeline (CI/CD). On each release GitHub Actions builds all variants (AI / Lite, x64 / arm64) and publishes them to multiple platforms. Choose the fastest mirror for your region:
+*   **GitHub Releases** (Global): [https://github.com/ghost-him/ZeroLaunch-rs/releases](https://github.com/ghost-him/ZeroLaunch-rs/releases)
+*   **Gitee Releases** (Mainland China): [https://gitee.com/ghost-him/ZeroLaunch-rs/releases](https://gitee.com/ghost-him/ZeroLaunch-rs/releases)
+*   **GitCode Releases** (Mainland China): [https://gitcode.com/ghost-him/ZeroLaunch-rs/releases](https://gitcode.com/ghost-him/ZeroLaunch-rs/releases)
 
-*   **GitHub Releases:** [https://github.com/ghost-him/ZeroLaunch-rs/releases](https://github.com/ghost-him/ZeroLaunch-rs/releases) (recommended for global users)
-*   **Gitee Releases:** [https://gitee.com/ghost-him/ZeroLaunch-rs/releases](https://gitee.com/ghost-him/ZeroLaunch-rs/releases) (recommended for users in mainland China)
-*   **GitCode Releases:** [https://gitcode.com/ghost-him/ZeroLaunch-rs/releases](https://gitcode.com/ghost-him/ZeroLaunch-rs/releases) (recommended for users in mainland China)
+### 🧩 Version Explanation: AI Version vs Lite Version
+| Feature | **AI Version (Default/Recommended)** | **Lite Version** |
+| :--- | :--- | :--- |
+| **AI Semantic Search** | ✅ Supported (requires extra model download) | ❌ Not Supported |
+| **RAM Usage** | ~500-550 MB when AI is enabled<br>Same as Lite when using only traditional search | ~60-70 MB |
+| **Installer ID** | Filename **does not** contain `lite`, e.g.:<br>`zerolaunch-rs_0.x.x_x64-setup.exe` | Filename **contains** `lite`, e.g.:<br>`zerolaunch-rs_lite_0.x.x_x64-setup.exe` |
 
-### Editions (AI / Lite)
-
-We provide two editions to fit different resource budgets and feature needs:
-
-- AI edition (default, recommended): Supports local semantic search (requires downloading the EmbeddingGemma ONNX model separately) for smarter retrieval.
-    - Runtime memory: when AI semantic search is enabled, about 500 ~ 550 MB; if you use the traditional search algorithm, the usage is the same as Lite.
-    - Filenames: do not contain `lite`, e.g.:
-        - `zerolaunch-rs_0.x.x_x64-setup.exe`, `zerolaunch-rs_0.x.x_x64_en-US.msi`
-        - `ZeroLaunch-portable-0.x.x-x64.zip`
-
-- Lite (no AI): No semantic search, smaller footprint and lower memory usage.
-    - Memory usage: about 60 ~ 70 MB
-    - Filenames: contain `lite`, e.g.:
-        - `zerolaunch-rs_lite_0.x.x_x64-setup.exe`, `zerolaunch-rs_lite_0.x.x_x64_en-US.msi`
-        - `ZeroLaunch-portable-lite-0.x.x-x64.zip`
-
-Build tip (for developers): enable the `ai` feature for AI edition; omit it for Lite (see tasks or Cargo feature configuration). When using the xtask helper: `build-installer` / `build-portable` default to the AI edition; pass `--ai disabled` to build the Lite edition.
+**Developer Note**: Building the AI version requires enabling the `ai` feature; building the Lite version removes this feature. When using `xtask`, it defaults to building the AI version. To build the Lite version, add the `--ai disabled` argument.
 
 ## 🛠️ Developer Guide
 
-For detailed developer guide, environment setup, build steps, and contribution guidelines, please refer to [CONTRIBUTING.md](CONTRIBUTING.md).
+For detailed development guides, environment configuration, build steps, and contribution guidelines, please refer to [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## 📦 Data Directory Structure
 
-The program comes in two versions: **Installer Version** and **Portable Version**:
-
-- **Installer Version**: Uses `C:\Users\[username]\AppData\Roaming\ZeroLaunch-rs\` as the local data directory
-- **Portable Version**: Uses the software's installation directory as the local data directory
+The program is available in **Installer** and **Portable** versions, with different data storage locations:
+- **Installer Version**: Data is stored in `C:\Users\[Username]\AppData\Roaming\ZeroLaunch-rs\`
+- **Portable Version**: Data is stored in the same directory as the software.
 
 ### Local Data Directory Structure
 
 The local data directory contains the following files:
 
 ```
-Local Data Directory/                   # Installer Version: C:\Users\[username]\AppData\Roaming\ZeroLaunch-rs\
-                                        # Portable Version: Software installation directory
+Local Data Directory/                   # Installer: C:\Users\[Username]\AppData\Roaming\ZeroLaunch-rs\
+                                        # Portable: Software directory
 ├── logs/                               # Runtime logs
 ├── icons/                              # Program icon cache
-└── ZeroLaunch_local_config.json        # Local configuration file, stores related data and remote directory path
+└── ZeroLaunch_local_config.json        # Local config file, stores related data and remote directory path
 ```
 
 ### Remote Directory Structure
 
-The remote directory is used to store detailed runtime configurations of the program. By default, it's the same as the local data directory. Remote storage enables data synchronization between two machines.
+The remote directory is used to store detailed runtime configurations of the program, defaulting to the current local data directory. Remote storage allows for data synchronization between two machines.
 
 ```
-Remote Directory/                       # Default: same as local data directory
+Remote Directory/                       # Defaults to the same as Local Data Directory
 ├── background.png                      # Custom background image
-└── ZeroLaunch_remote_config.json       # Remote configuration file, stores program runtime configuration
+└── ZeroLaunch_remote_config.json       # Remote config file, stores program runtime settings
 ```
 
-## 📌 Known Limitations
+## ⚠️ Known Limitations
 
-### Short Word Search
-
-⚠️ When input length is < 3 characters, search results may not be precise enough.
-
-## 🧠 Semantic Search & Memory Usage
-
-When the "Semantic Search" feature is enabled, this project loads Google's EmbeddingGemma model locally (ONNX version under `src-tauri/EmbeddingGemma-300m/`). Approximate memory usage by mode:
-
-- Regular algorithm: about 60 ~ 70 MB
-- Semantic search algorithm (EmbeddingGemma): about 500 ~ 550 MB
-
-Tip: If you prefer lower memory usage, run without the AI/Semantic Search feature (build without the `ai` feature flag).
+*   **Short Word Search**: When the input character count is less than 3, search results may not be precise enough.
 
 ## 🌍 Language Support
 
-ZeroLaunch-rs currently supports the following languages:
-
-- 🇨🇳 Simplified Chinese (zh-Hans)
-- 🇹🇼 Traditional Chinese (zh-Hant) - Translated by Gemini 2.5 Pro
-- 🇺🇸 English (en) - Translated by Gemini 2.5 Pro
+Currently supported: Simplified Chinese (zh-Hans), Traditional Chinese (zh-Hant), English (en).
 
 ### Changing Language
 
-You can change the application's display language through the following methods:
+1.  Open ZeroLaunch Settings.
+2.  Go to "General" -> "Language Settings".
+3.  Select the desired language from the "Interface language" dropdown menu.
+4.  Click "Save Config" to save.
 
 ![Language Selection Demo](asset/select_language.png)
 
-*Language selection interface demonstration: Simple and intuitive language switching experience*
+> ZeroLaunch-rs will automatically detect the current system language and select the appropriate language upon first launch.
 
-1. **Through Settings Interface**:
-   - Open ZeroLaunch-rs settings window (as shown in the image above)
-   - Click on the 「General」 option in the left navigation bar
-   - Find the 「Interface language」 dropdown menu in the 「Language Settings」 section
-   - Click the dropdown menu and select your preferred language from the available options (supports Chinese, Traditional Chinese, English)
-   - Save the settings「Save Config」to apply the new language settings
+### Contribute Translations
 
-> 💡 **Helpful Tip**: The language switching feature is designed to be simple and clear. No matter which language you choose, the entire interface will completely switch to the corresponding language, providing a native user experience for users of different language backgrounds.
+We welcome the community to help translate more languages! Translation files are located in the `src-ui/i18n/locales/` directory. To add a new language, please:
+1.  Copy an existing translation file (e.g., `en.json`).
+2.  Rename it to the target language code (e.g., `fr.json`).
+3.  Translate all text content.
+4.  Submit a Pull Request.
 
+Thank you for helping ZeroLaunch go global! 🙏
 
-### Contributing Translations
+## 📄 Third-Party Terms — EmbeddingGemma
 
-We welcome community contributions for localization in more languages! Translation files are located in the `src/i18n/locales/` directory:
+*   This project optionally integrates Google's EmbeddingGemma model, solely for offline semantic retrieval.
+*   Use and redistribution must comply with the [Gemma Terms of Use](https://ai.google.dev/gemma/terms) and [Prohibited Use Policy](https://ai.google.dev/gemma/prohibited_use_policy).
+*   If you redistribute this model or its derivatives, you must:
+    1.  Pass on the above restrictions in your agreement;
+    2.  Provide the recipient with a copy of the Gemma Terms;
+    3.  Mark modified files;
+    4.  Include a text file named `NOTICE` containing: `"Gemma is provided under and subject to the Gemma Terms of Use found at ai.google.dev/gemma/terms"`.
 
-- `zh-Hans.json` - Simplified Chinese translation
-- `zh-Hant.json` - Traditional Chinese translation
-- `en.json` - English translation
+## ✍️ Code Signing
 
-If you want to add new language support for ZeroLaunch-rs, please:
-
-1. Copy an existing translation file (e.g., `en.json`)
-2. Rename it to the corresponding language code (e.g., `fr.json` for French)
-3. Translate all text content in the file
-4. Submit a Pull Request
-
-Thank you for contributing to ZeroLaunch-rs internationalization! 🙏
-
-## 📄 Third‑party Terms — EmbeddingGemma
-
-- This project may optionally use Google's EmbeddingGemma model locally for offline semantic search.
-- Use and redistribution are subject to the Gemma Terms of Use https://ai.google.dev/gemma/terms and the Prohibited Use Policy https://ai.google.dev/gemma/prohibited_use_policy.
-- If you redistribute the model or any derivatives (outside a hosted service), you must: (1) pass through these restrictions in your terms; (2) provide recipients a copy of the Gemma Terms (a link is fine); (3) mark modified files as modified; and (4) include a text file named NOTICE containing: "Gemma is provided under and subject to the Gemma Terms of Use found at ai.google.dev/gemma/terms".
-
-## ✍️ Code Signing Policy
-
-Free code signing is provided by [SignPath.io](https://signpath.io), with the certificate supplied by the [SignPath Foundation](https://signpath.org).
-
-### Team Roles
-
-The responsibilities for project maintenance and code signing are distributed as follows:
-
-*   **Committers and Reviewers:** [ghost-him](https://github.com/ghost-him)
-*   **Approvers:** [ghost-him](https://github.com/ghost-him)
+Code signing is provided by SignPath. For details, please see [Code Signing](CODE_SIGNING.md).
 
 ### Privacy Policy
+Unless explicitly requested by the user, this program will not transmit information to any external system. For details, please see the [Privacy Policy](PRIVACY.md).
 
-This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it. For more details, please see our full [Privacy Policy](PRIVACY.md).
-
-## 🤝 Open Source Acknowledgments
+## 🤝 Open Source Credits
 
 This project is built upon the following excellent open-source projects:
 
-*   [chinese-xinhua](https://github.com/pwxcoo/chinese-xinhua) - Core dictionary for Chinese to Pinyin conversion
-*   [LaunchyQt](https://github.com/samsonwang/LaunchyQt) - UWP application indexing solution
-*   [bootstrap](https://icons.bootcss.com/) - Provided some program icons
-*   [icon-icons](https://icon-icons.com/zh/) - Provided some program icons
-*   [Follower-v2.0](https://github.com/MrBeanCpp/Follower-v2.0) - Provided the full-screen detection solution
+* [chinese-xinhua](https://github.com/pwxcoo/chinese-xinhua) - Core dictionary for Chinese-to-Pinyin conversion
+* [LaunchyQt](https://github.com/samsonwang/LaunchyQt) - UWP application indexing solution
+* [bootstrap](https://icons.bootcss.com/) - Provided some program icons
+* [icon-icons](https://icon-icons.com/zh/) - Provided some program icons
+* [Follower-v2.0](https://github.com/MrBeanCpp/Follower-v2.0) - Provided the full-screen detection solution
 
-## Roadmap
+## 💝 Sponsors
 
-Planned future goals:
+Thanks to the following sponsors for their strong support of ZeroLaunch-rs, making the project better (´▽´ʃ♡ƪ)
 
-1. Use a database to manage stored information (remote configuration data) and reduce information redundancy.
-2. Refactor the front-end pages to improve maintainability of the application.
-
-These are high-level goals — implementation details (database choice, migration strategy, front-end architecture) will be decided in follow-up design discussions.
+<table>
+  <tr>
+    <td width="60" align="center" valign="middle">
+      <a href="https://signpath.io" target="_blank" rel="noopener noreferrer">
+        <img src="https://app.signpath.io/Web/apple-touch-icon.png" width="40" height="40" alt="SignPath Logo" style="border-radius: 6px;">
+      </a>
+    </td>
+    <td align="left" valign="middle">
+      Free code signing on Windows provided by <a href="https://signpath.io" target="_blank" rel="noopener noreferrer"><b>SignPath.io</b></a>, certificate by <a href="https://signpath.org" target="_blank" rel="noopener noreferrer"><b>SignPath Foundation</b></a>.
+    </td>
+  </tr>
+</table>
 
 ## ❤️ Support the Author
 
-You can support the author in the following ways:
+If you like ZeroLaunch-rs, you can support us in the following ways:
 
-1.  Give a free little star ⭐
-2.  Share this project with other interested friends
-3.  Propose more suggestions for improvement (ZeroLaunch-rs is positioned as a pure program launcher, so it will only focus on launcher functions and will not add too many irrelevant features, please understand 🥺🙏)
+1. Give a free star ⭐
+2. Share this project with other interested friends
+3. Offer suggestions for improvement (ZeroLaunch-rs is positioned as a pure application launcher, so we will focus on launcher functions and won't add too many unrelated features, please understand 🥺🙏)
 
 [![Star History Chart](https://api.star-history.com/svg?repos=ghost-him/zerolaunch-rs&type=Date)](https://www.star-history.com/#ghost-him/zerolaunch-rs&Date)
-
-> translated by gemini 2.5 flash thinking

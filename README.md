@@ -1,6 +1,5 @@
 ![zerolaunch-rs](https://socialify.git.ci/ghost-him/zerolaunch-rs/image?custom_description=%F0%9F%9A%80%E6%9E%81%E9%80%9F%E7%B2%BE%E5%87%86%E3%80%81%E8%BD%BB%E9%87%8F%E7%BA%AF%E7%B2%B9%E7%9A%84+Windows+%E5%BA%94%E7%94%A8%E7%A8%8B%E5%BA%8F%E5%90%AF%E5%8A%A8%E5%99%A8%EF%BC%81%E6%8B%BC%E9%9F%B3%E6%A8%A1%E7%B3%8A%E5%8C%B9%E9%85%8D+%2B+%E6%80%A5%E9%80%9F%E5%93%8D%E5%BA%94%EF%BC%8C%E5%9F%BA%E4%BA%8E+Rust+%2B+Tauri+%2B+Vue.js+%E6%9E%84%E5%BB%BA%EF%BC%81&description=1&font=Bitter&forks=1&issues=1&language=1&logo=https%3A%2F%2Fgithub.com%2Fghost-him%2FZeroLaunch-rs%2Fblob%2Fmain%2Fsrc-tauri%2Ficons%2FSquare310x310Logo.png%3Fraw%3Dtrue&name=1&owner=1&pattern=Floating+Cogs&pulls=1&stargazers=1&theme=Light)
 
-
 <div align="center">
 
 ![Platform](https://img.shields.io/badge/Platform-Windows_11-0078d7?logo=windows11&logoColor=white)
@@ -38,9 +37,9 @@
 
 ## 📕 一句话介绍
 
-ZeroLaunch：一款懂你输入习惯的 Windows 智能启动器，精通拼音与模糊搜索，更能选配 AI 语义理解，让错字、搜词都能秒速响应。纯净、离线，为高效而生。
+ZeroLaunch 是一款懂你输入习惯的 Windows 智能启动器。它精通拼音与模糊搜索，还能选配本地 AI 语义理解，让错字、搜词都能秒速响应。纯净、离线，一切为高效而生。
 
-> 目前市面上的程序启动器都有点不合我的需求，所以我就搞了这个软件。现在每天都会使用，所以不需要担心我会跑路（最多是没东西更新(～￣▽￣)～
+> 市面上现有的启动器总有点不合我心意，索性自己造了一个。现在它已是我每天工作的得力助手，所以请放心，我不会跑路的～（最多是更新慢点 (～￣▽￣)～）
 
 ## 🖥️ 软件界面
 
@@ -50,112 +49,94 @@ ZeroLaunch：一款懂你输入习惯的 Windows 智能启动器，精通拼音�
 
 **背景图片可自定义**
 
-## ✨ 为什么选择 ZeroLaunch-rs / ZeroLaunch-rs 的独特之处 ?
 
-### 🔒 隐私至上
-完全离线运行，无需网络连接，您的数据始终保留在设备中。坚持零数据采集原则，严格遵循本地化处理，确保您的信息安全。
+## ✨ 特色亮点
 
-### ⚡ 高效智能搜索
-在可选的本地 AI 语义搜索（EmbeddingGemma‑300m/ONNX）加持下，支持自然语言/多语言意图检索；即便不启用 AI，我们基于自研的搜索匹配算法（全称/拼音/首字母三重匹配 + 拼写纠错），同样具备高效性、高匹配性与高容错性，并提供实时排序。
+### 🔒 隐私至上，完全离线
+所有搜索与匹配均在本地完成，无需网络连接，坚持零数据采集。你的数据，永远只留在你的设备里。
 
-我们对程序做了系统性的性能优化：从数据结构与热路径重构，到分层缓存与按需加载、并发模型优化与索引的增量更新，尽可能降低计算与 I/O 开销；在中低配设备上也能稳定获得毫秒级响应。
+### ⚡ 智能搜索，毫秒响应
+- **可选 AI 语义搜索**：集成 EmbeddingGemma-300m 本地模型，支持自然语言、多语言意图检索，理解更智能。
+- **强大传统算法**：基于自研匹配算法，支持全称、拼音、首字母三重匹配与拼写纠错，高效且容错性高。
+- **极致性能优化**：通过数据结构优化、分层缓存、按需加载与并发处理，确保即使在中低配设备上也能获得毫秒级响应体验。
 
-### 🌐 轻巧纯粹
-始终专注于“快速、准确地启动所需内容”。无需折腾即可上手——即使不做任何配置，默认设置也能覆盖大多数人的使用习惯与场景；同时为进阶用户保留充分的个性化空间（外观、行为、索引策略均可细调）。不夹杂与启动无关的功能，开箱即用、轻巧纯粹。
+### 🌐 轻巧纯粹，开箱即用
+专注于“快速、准确地启动”这一核心需求。默认设置已覆盖大多数使用场景，上手零成本；同时也为进阶用户提供了丰富的外观、行为与索引策略自定义选项，不加任何冗余功能。
 
-## 🔬 软件功能
+## 🔧 核心功能一览
 
-### 核心功能
+### 🎯 核心搜索与启动
+*   **AI 语义检索（可选）**：基于轻量高效的 EmbeddingGemma-300m 本地模型，支持用自然语言（如“音乐软件”）查找应用，隐私安全。
+*   **应用程序搜索**：快速检索并启动传统应用及 UWP 应用，支持备注与别名，识别本地化名称。
+*   **应用程序唤醒**：智能将已运行程序的窗口置前，快速切换任务。
+*   **打开文件所在目录**：通过右键菜单快速定位文件位置。
+*   **Everything 模式**：按 `Ctrl + e` 切换到更广泛的文件系统路径搜索模式，快速定位任意文件。（注意：Everything 模式目前仅支持 x86_64 架构，不支持 arm64 架构。）
 
-* **AI 语义检索（可选）**：基于最新 EmbeddingGemma-300m（ONNX）本地向量模型，轻量、高效、准确；在 AI 的加持下，支持多语言检索，也可使用自然语言意图关键词（如“音乐软件”“图片编辑”）快速定位相关应用。所有推理均在本地完成，隐私无忧。
-* **应用程序搜索**：快速检索并启动**应用程序**及**UWP应用**，支持程序备注与别名，实现对程序本地化名称的识别与搜索，提供流畅的程序访问体验。
-* **应用程序唤醒**：智能识别并将已打开的窗口置前，实现便捷的多任务切换。
-* **自定义外观界面**：外观高度自定义化，支持自定义背景图片，选项颜色，搜索字体颜色与大小，显示字体颜色与大小，显示候选个数，毛玻璃效果，圆角大小设置，程序的宽度与高度等多项内容，并且每一项都做了方便交互的按钮。
-* **多语言支持**：支持简体中文与英文，可以自由切换。程序启动时会尝试读取系统当前使用的语言并自动选择对应的界面语言；若检测失败，则改用英文作为默认语言。
-* **打开文件所在的目录**：在右键菜单中，可以打开目标文件所在的文件夹。
+### 🎨 个性化与交互
+*   **高度自定义外观**：支持自定义背景、颜色、字体、毛玻璃效果、圆角、窗口尺寸等，并提供便捷的调节按钮。
+*   **多语言界面**：支持简体中文、繁体中文与英文，自动匹配系统语言。
+*   **自定义快捷键**：所有核心操作快捷键均可按习惯重新映射。
+*   **呼出位置跟随鼠标**：搜索栏会智能地在鼠标所在的显示器上弹出。
 
----
-### 更多实用功能 / 进阶玩法
-
-* **微调搜索算法**：支持对搜索算法做微调，从而满足个性化设置。
-* **自定义程序与文件添加**：支持使用文件通配符或正则表达式添加文件与程序，从而实现对文件与程序的添加。智能识别文件的格式并做出正确的反映。
-* **自定义网页搜索**：支持添加并使用默认的浏览器启动网页，无需输入 `http://` 或 `https://`。
-* **自定义命令搜索**：支持自定义添加命令，可以实现开机、关机、打开指定的设置二级页面的功能。
-* **智能加载程序/文件/网页的图标**：尽最大的可能加载正确的文件图标，同时支持steam游戏图标的正确加载。
-* **自定义配置文件的保存路径**：支持自定义本地存储与使用 WebDAV 协议实现网络存储。
-* **支持开机自启动与静默启动**：没啥好解释的吧==
-* **调试功能**：可以查看程序在当前电脑上的运行情况（基本都没问题），查看搜索算法的运行结果，并设置日志输出级别。
-* **游戏模式**：可以手动关闭快捷键，防止在游戏时寄掉。
-* **支持打开最近启动程序**：按住 `Alt` 键就可以顺序列出最近打开的程序。
-* **支持自定义按键**：可以自定义键盘上的映射，可设置成更符合自己的操作方式。
-* **支持呼出位置跟随鼠标而动**：如果鼠标在副屏上，则搜索栏呼出在副屏上。
-* **Everything 模式搜索**：提供一种更广泛的索引和匹配模式，除了常规的程序与别名外，还会优先检索文件系统路径、文件名与常见位置，适合快速定位任意文件或程序。按 `Ctrl + e` 在普通搜索与 Everything 模式之间切换；该快捷键可在设置中自定义。
-* **搜索结果显示优化**：支持设置搜索结果显示阈值，当搜索的数量大于阈值后会自动切换成滚动模式。
+### ⚙️ 进阶与效率工具
+*   **自定义索引项**：支持通过通配符或正则表达式添加程序、文件、网页与命令（如关机、打开特定设置页）。
+*   **搜索算法微调**：可调整匹配算法参数，满足个性化需求。
+*   **智能图标加载**：尽最大努力加载正确图标，完美支持 Steam 游戏。
+*   **配置文件多端同步**：支持本地存储或通过 WebDAV 进行网络同步。
+*   **开机自启与静默启动**：一键设置，启动即用。
+*   **游戏模式**：可手动禁用快捷键，避免游戏时误触。
+*   **最近启动程序**：按住 `Alt` 键可查看并快速打开最近使用的程序。
+*   **结果显示优化**：可设置数量阈值，超出后自动切换为滚动显示。
 
 ## 🚀 快速入门
 
 ### 快捷键速查
 
-| 功能                | 快捷键           |
-|---------------------|------------------|
-| 呼出与隐藏搜索栏          | `Alt + Space`    |
-| 上下选择项目        | `↑/↓` 或 `Ctrl+k/j` |
-| 启动选中程序        | `Enter`          |
-| 管理员权限启动（仅限普通应用）      | `Ctrl + Enter`   |
-| 清空搜索框          | `Esc`            |
-| 隐藏搜索界面        | 点击外部区域      |
-| 打开已打开的窗口     | `Shift + Enter` |
-| 以最近启动时间排序  | `Alt` |
+| 功能 | 快捷键 |
+| :--- | :--- |
+| 呼出/隐藏搜索栏 | `Alt + Space` |
+| 上下选择项目 | `↑`/`↓` 或 `Ctrl + k`/`j` |
+| 启动选中程序 | `Enter` |
+| 以管理员权限启动（普通应用） | `Ctrl + Enter` |
+| 清空搜索框 | `Esc` |
+| 隐藏搜索界面 | 点击搜索框外部区域 |
+| 切换到已打开的窗口 | `Shift + Enter` |
+| 按最近启动时间排序 | 按住 `Alt` 键 |
+| 进入Everything模式 | `Ctrl + e` |
 
 ### 常见功能的实现
 
-程序添加，文件添加，命令添加，搜索算法微调等功能的实现以及**常见的问题**的解决办法详见以下文档：[使用指南](docs/Feature_Implementation_Guide_cn.md)
+程序添加，文件添加，命令添加，搜索算法微调等功能的实现以及**常见的问题**的解决办法详见以下文档：[wiki](https://github.com/ghost-him/ZeroLaunch-rs/wiki)
 
-写文档好麻烦，有的时候也不会描述(っ °Д °;)っ，去 [DeepWiki](https://deepwiki.com/ghost-him/ZeroLaunch-rs) 上看看吧，那个上面讲的看起来也不错。
+文档写起来好麻烦，有时描述也不够直观 (っ °Д °;)っ。你也可以去 [DeepWiki](https://deepwiki.com/ghost-him/ZeroLaunch-rs) 看看，那里的讲解也许更清楚。
 
 ## 🚩 程序下载
 
-### 使用 WinGet 安装（推荐）
-
-运行以下任意一个命令即可完成安装
-
-```
+### 使用 Winget 安装（推荐）
+在终端中运行以下任一命令即可：
+```bash
 winget install zerolaunch
-```
-
-```
+# 或
 winget install ZeroLaunch-rs
-```
-
-```
+# 或
 winget install ghost-him.ZeroLaunch-rs
 ```
 
-### 从发布页获取
+### 手动下载安装包
+本项目采用 CI/CD 自动构建。新版本发布时，会自动构建 AI 版与 Lite 版（x64/arm64），并同步至以下镜像，请选择访问最快的源下载：
 
-本项目已实现全自动构建与发布流程（CI/CD）。每当发布新版本时，GitHub Actions 会自动构建所有变体（AI / Lite 版，x64 / arm64 架构），并同步发布到以下平台。您可以选择访问速度最快的镜像源进行下载：
+*   **GitHub Releases** (全球用户推荐): [https://github.com/ghost-him/ZeroLaunch-rs/releases](https://github.com/ghost-him/ZeroLaunch-rs/releases)
+*   **Gitee Releases** (中国大陆用户推荐): [https://gitee.com/ghost-him/ZeroLaunch-rs/releases](https://gitee.com/ghost-him/ZeroLaunch-rs/releases)
+*   **GitCode Releases** (中国大陆用户推荐): [https://gitcode.com/ghost-him/ZeroLaunch-rs/releases](https://gitcode.com/ghost-him/ZeroLaunch-rs/releases)
 
-*   **GitHub Releases:** [https://github.com/ghost-him/ZeroLaunch-rs/releases](https://github.com/ghost-him/ZeroLaunch-rs/releases) (全球用户推荐)
-*   **Gitee Releases:** [https://gitee.com/ghost-him/ZeroLaunch-rs/releases](https://gitee.com/ghost-him/ZeroLaunch-rs/releases) (中国大陆用户推荐)
-*   **GitCode Releases:** [https://gitcode.com/ghost-him/ZeroLaunch-rs/releases](https://gitcode.com/ghost-him/ZeroLaunch-rs/releases) (中国大陆用户推荐)
+### 🧩 版本说明：AI 版 vs Lite 版
+| 特性 | **含 AI 版 (默认/推荐)** | **Lite 版 (轻量)** |
+| :--- | :--- | :--- |
+| **AI 语义搜索** | ✅ 支持 (需额外下载模型) | ❌ 不支持 |
+| **内存占用** | 启用 AI 时 ~500-550 MB<br>仅传统搜索时同 Lite 版 | ~60-70 MB |
+| **安装包标识** | 文件名**不含** `lite`，如：<br>`zerolaunch-rs_0.x.x_x64-setup.exe` | 文件名**包含** `lite`，如：<br>`zerolaunch-rs_lite_0.x.x_x64-setup.exe` |
 
-### 版本说明（AI / Lite）
-
-本项目提供两个版本，满足不同资源占用与功能需求：
-
-- 含 AI（默认，推荐）：支持本地语义搜索（需要额外下载EmbeddingGemma ONNX模型），检索更智能。
-    - 运行时内存占用：启用ai语义搜索后，约 500 ~ 550 MB；若使用传统搜索算法，则与lite版内存占用一致。
-    - 文件命名：安装包与便携包文件名不包含 `lite` 标识，例如：
-        - `zerolaunch-rs_0.x.x_x64-setup.exe`、`zerolaunch-rs_0.x.x_x64_en-US.msi`
-        - `ZeroLaunch-portable-0.x.x-x64.zip`
-
-- 轻量版 Lite（无 AI）：不包含语义搜索，体积更小、占用更低。
-    - 内存占用：约 60 ~ 70 MB
-    - 文件命名：文件名包含 `lite` 标识，例如：
-        - `zerolaunch-rs_lite_0.x.x_x64-setup.exe`、`zerolaunch-rs_lite_0.x.x_x64_en-US.msi`
-        - `ZeroLaunch-portable-lite-0.x.x-x64.zip`
-
-构建提示（开发者）：启用 AI 功能需包含特性 `ai`；Lite 版请移除该特性（参见 tasks 或 Cargo feature 配置）。使用 `xtask` 时：`build-installer` / `build-portable` 默认即构建含 AI 版本，如需 Lite 版本请添加 `--ai disabled`。
+**开发者提示**：构建 AI 版需启用 `ai` 特性；构建 Lite 版则移除该特性。使用 `xtask` 时，默认构建 AI 版，构建 Lite 版请添加 `--ai disabled` 参数。
 
 ## 🛠️ 开发者指南
 
@@ -163,10 +144,9 @@ winget install ghost-him.ZeroLaunch-rs
 
 ## 📦 数据目录结构
 
-程序分为**安装包版本**与**便捷版**两个版本：
-
-- **安装包版本**：将 `C:\Users\[username]\AppData\Roaming\ZeroLaunch-rs\` 作为本地数据目录
-- **便捷版**：将软件所在的目录作为本地数据目录
+程序提供**安装版**与**便携版**两种形式，数据存储位置不同：
+- **安装版**：数据存储在 `C:\Users\[用户名]\AppData\Roaming\ZeroLaunch-rs\`
+- **便携版**：数据存储在软件同级目录下
 
 ### 本地数据目录结构
 
@@ -190,74 +170,53 @@ winget install ghost-him.ZeroLaunch-rs
 └── ZeroLaunch_remote_config.json       # 远程配置文件，存储程序运行配置
 ```
 
-## 📌 已知限制
+## ⚠️ 已知限制
 
-### 短词搜索
-
-⚠️ 输入长度 < 3 字符时，搜索结果可能不够精确
+*   **短词搜索**：当输入字符数少于 3 个时，搜索结果可能不够精确。
 
 ## 🌍 语言支持
 
-当前 ZeroLaunch-rs 支持以下语言：
-
-- 🇨🇳 简体中文 (zh-Hans)
-- 🇹🇼 繁体中文 (zh-Hant) - 由 Gemini 2.5 Pro 翻译
-- 🇺🇸 English (en) - 由 Gemini 2.5 Pro 翻译
+当前支持：简体中文 (zh-Hans)、繁体中文 (zh-Hant)、English (en)。
 
 ### 更改语言
 
-您可以通过以下方式更改应用程序的显示语言：
+### 切换语言
+
+1.  打开 ZeroLaunch 设置。
+2.  进入「General」 -> 「Language Settings」。
+3.  在「Interface language」下拉菜单中选择所需语言。
+4.  点击「Save Config」保存。
 
 ![语言选择演示](asset/select_language.png)
 
-*语言选择界面演示：简洁直观的语言切换体验*
-
-1. **通过设置界面**：
-   - 打开 ZeroLaunch-rs 设置窗口（如上图所示）
-   - 点击左侧导航栏中的「General」选项
-   - 在「Language Settings」区域找到「Interface language」下拉菜单
-   - 点击下拉菜单，从可选语言列表中选择您偏好的语言（支持中文、繁体中文、English）
-   - 保存设置「Save Config」以应用新的语言设置
-
-> 💡 **贴心提示**：语言切换功能设计简洁明了，无论您选择哪种语言，整个界面都会完整地切换到对应语言，为不同语言背景的用户提供原生化的使用体验。
+> ZeroLaunch-rs 在初次启动时会自动检测当前系统使用的语言并选择合适的语言
 
 ### 贡献翻译
 
-我们欢迎社区贡献更多语言的本地化翻译！翻译文件位于 `src/i18n/locales/` 目录下：
+我们非常欢迎社区帮助翻译更多语言！翻译文件位于 `src-ui/i18n/locales/` 目录。若要添加新语言，请：
+1.  复制一份现有翻译文件（如 `en.json`）。
+2.  重命名为目标语言代码（如 `fr.json`）。
+3.  翻译所有文本内容。
+4.  提交 Pull Request。
 
-- `zh-Hans.json` - 简体中文翻译
-- `zh-Hant.json` - 繁体中文翻译
-- `en.json` - 英文翻译
-
-如果您想为 ZeroLaunch-rs 添加新的语言支持，请：
-
-1. 复制现有的翻译文件（如 `en.json`）
-2. 重命名为对应的语言代码（如 `fr.json` 表示法语）
-3. 翻译文件中的所有文本内容
-4. 提交 Pull Request
-
-感谢您为 ZeroLaunch-rs 的国际化做出贡献！🙏
+感谢你帮助 ZeroLaunch 走向世界！🙏
 
 ## 📄 第三方条款 — EmbeddingGemma
 
-- 本项目可选在本地使用 Google 的 EmbeddingGemma 模型，仅用于离线语义检索。
-- 使用与再分发须遵守《Gemma 使用条款》https://ai.google.dev/gemma/terms 及《禁止用途政策》https://ai.google.dev/gemma/prohibited_use_policy。
-- 如再分发该模型或其衍生物（非托管服务），需：(1) 在您的协议中传递上述限制；(2) 向接收方提供 Gemma 条款副本（可用链接）；(3) 标注被修改的文件；(4) 随附名为 NOTICE 的文本文件，内容为："Gemma is provided under and subject to the Gemma Terms of Use found at ai.google.dev/gemma/terms"。
+*   本项目可选集成 Google 的 EmbeddingGemma 模型，仅用于离线语义检索。
+*   使用与再分发须遵守 [Gemma 使用条款](https://ai.google.dev/gemma/terms) 及 [禁止用途政策](https://ai.google.dev/gemma/prohibited_use_policy)。
+*   如再分发该模型或其衍生物，需：
+    1.  在您的协议中传递上述限制；
+    2.  向接收方提供 Gemma 条款副本；
+    3.  标注被修改的文件；
+    4.  随附名为 `NOTICE` 的文本文件，内容为：`"Gemma is provided under and subject to the Gemma Terms of Use found at ai.google.dev/gemma/terms"`。
 
-## ✍️ 代码签名策略
+## ✍️ 代码签名
 
-免费代码签名由 [SignPath.io](https://signpath.io) 提供，证书由 [SignPath Foundation](https://signpath.org) 提供。
+代码签名由 SignPath 提供，详情请见 [代码签名](CODE_SIGNING.md)
 
-### 团队角色
-
-项目维护和代码签名的职责分配如下：
-
-*   **提交者和审核者：** [ghost-him](https://github.com/ghost-him)
-*   **批准者：** [ghost-him](https://github.com/ghost-him)
-
-### 隐私政策
-
-除非用户或安装/操作该程序的人员特别要求，否则该程序不会向其他联网系统传输任何信息。有关更多详细信息，请参阅我们完整的[隐私政策](PRIVACY.md)。
+### 隐私声明
+除非用户明确要求，否则本程序不会向任何外部系统传输信息。详情请见 [隐私政策](PRIVACY.md)。
 
 ## 🤝 开源致谢
 
@@ -269,18 +228,26 @@ winget install ghost-him.ZeroLaunch-rs
 * [icon-icons](https://icon-icons.com/zh/) - 提供了部分的程序图标
 * [Follower-v2.0](https://github.com/MrBeanCpp/Follower-v2.0) - 提供了全屏检测的方案
 
-## 未来目标
+## 💝 赞助商
 
-计划中的未来目标：
+感谢以下赞助商对 ZeroLaunch-rs 的大力支持，让项目变得更好 (´▽´ʃ♡ƪ)
 
-1. 使用数据库来管理存储信息（远程配置信息），以减少信息冗余。
-2. 重构前端页面，提高程序的可维护性。
-
-以上为高层目标，具体的实现方案（数据库选型、迁移策略、前端架构方案等）将通过后续的设计讨论确定。
+<table>
+  <tr>
+    <td width="60" align="center" valign="middle">
+      <a href="https://signpath.io" target="_blank" rel="noopener noreferrer">
+        <img src="https://app.signpath.io/Web/apple-touch-icon.png" width="40" height="40" alt="SignPath Logo" style="border-radius: 6px;">
+      </a>
+    </td>
+    <td align="left" valign="middle">
+      Windows 平台的免费代码签名由 <a href="https://signpath.io" target="_blank" rel="noopener noreferrer"><b>SignPath.io</b></a> 提供，证书由 <a href="https://signpath.org" target="_blank" rel="noopener noreferrer"><b>SignPath Foundation</b></a> 提供。
+    </td>
+  </tr>
+</table>
 
 ## ❤️ 支持作者
 
-可以通过以下的方式支持作者：
+如果你喜欢 ZeroLaunch-rs，可以通过以下方式支持我们：
 
 1. 点一个免费的小星星⭐
 2. 把这个项目分享给其他感兴趣的朋友

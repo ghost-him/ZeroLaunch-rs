@@ -236,7 +236,7 @@ winget install ghost-him.ZeroLaunch-rs
   <tr>
     <td width="60" align="center" valign="middle">
       <a href="https://signpath.io" target="_blank" rel="noopener noreferrer">
-        <img src="https://app.signpath.io/Web/apple-touch-icon.png" width="40" height="40" alt="SignPath Logo" style="border-radius: 6px;">
+        <img src="./asset/signpath-icon.png" width="40" height="40" alt="SignPath Logo" style="border-radius: 6px;">
       </a>
     </td>
     <td align="left" valign="middle">

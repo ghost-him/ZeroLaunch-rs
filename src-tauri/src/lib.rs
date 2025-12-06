@@ -17,7 +17,9 @@ use crate::commands::utils::*;
 #[cfg(feature = "ai")]
 use crate::core::ai::model_manager::ModelManager;
 use crate::error::{OptionExt, ResultExt};
-use crate::logging::{init_logging, log_application_start, update_log_level};
+use crate::logging::{
+    init_logging, log_application_shutdown, log_application_start, update_log_level,
+};
 use crate::modules::config::config_manager::PartialRuntimeConfig;
 use crate::modules::config::default::LOCAL_CONFIG_PATH;
 use crate::modules::config::default::REMOTE_CONFIG_DEFAULT;
@@ -57,6 +59,7 @@ use modules::ui_controller::controller::recommend_result_item_height;
 use modules::ui_controller::controller::recommend_search_bar_height;
 use modules::ui_controller::controller::recommend_window_width;
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tauri::App;
 use tauri::Emitter;
@@ -68,6 +71,20 @@ use tracing::{debug, error, info, warn};
 use utils::notify::notify_i18n;
 use utils::service_locator::ServiceLocator;
 use window_effect::enable_window_effect;
+
+static IS_EXITING: AtomicBool = AtomicBool::new(false);
+
+pub async fn do_cleanup_before_exit() {
+    info!("执行退出前清理工作...");
+    save_config_to_file(false).await;
+    ServiceLocator::get_state()
+        .get_storage_manager()
+        .upload_all_file_force()
+        .await;
+    log_application_shutdown();
+    info!("退出前清理工作完成");
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // 初始化日志系统
@@ -201,8 +218,24 @@ pub fn run() {
             command_get_arch,
             get_everything_icon,
         ])
-        .run(tauri::generate_context!())
-        .expect_programming("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect_programming("error while building tauri application")
+        .run(|app_handle, event| {
+            if let tauri::RunEvent::ExitRequested { api, .. } = event {
+                if !IS_EXITING.load(Ordering::Relaxed) {
+                    info!("检测到退出请求，开始清理...");
+                    api.prevent_exit();
+                    IS_EXITING.store(true, Ordering::Relaxed);
+
+                    let app_handle = app_handle.clone();
+                    tauri::async_runtime::spawn(async move {
+                        do_cleanup_before_exit().await;
+                        info!("清理完成，正在退出程序...");
+                        app_handle.exit(0);
+                    });
+                }
+            }
+        });
 }
 
 /// 初始化的流程-> 初始化程序的状态

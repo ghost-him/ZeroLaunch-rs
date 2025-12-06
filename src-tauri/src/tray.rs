@@ -1,4 +1,3 @@
-use crate::logging::log_application_shutdown;
 use std::sync::Arc;
 use tauri::{
     image::Image,
@@ -12,8 +11,7 @@ use crate::error::{OptionExt, ResultExt};
 use crate::utils::i18n::{t, t_with};
 use crate::utils::notify::notify;
 use crate::{
-    handle_pressed, save_config_to_file, show_setting_window, update_app_setting, AppState,
-    ServiceLocator, APP_PIC_PATH,
+    handle_pressed, show_setting_window, update_app_setting, AppState, ServiceLocator, APP_PIC_PATH,
 };
 // Removed: use crate::retry_register_shortcut; // Appears unused, functionality merged
 use crate::modules::config::default::APP_VERSION;
@@ -59,15 +57,6 @@ pub fn handle_show_settings_window() {
 }
 
 pub async fn handle_exit_program(app_handle: &AppHandle) {
-    save_config_to_file(false).await;
-    ServiceLocator::get_state()
-        .get_storage_manager()
-        .upload_all_file_force()
-        .await;
-
-    // 记录应用关闭信息
-    log_application_shutdown();
-
     app_handle.exit(0);
 }
 

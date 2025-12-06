@@ -420,6 +420,7 @@ pub async fn handle_everything_search<R: Runtime>(
 }
 
 /// 在资源管理器中打开 Everything 搜索结果所在目录
+#[cfg(target_arch = "x86_64")]
 #[tauri::command]
 pub async fn everything_enable_path_match<R: Runtime>(
     _app: tauri::AppHandle<R>,
@@ -429,6 +430,17 @@ pub async fn everything_enable_path_match<R: Runtime>(
 ) -> Result<(), String> {
     let everything_manager = state.get_everything_manager();
     everything_manager.enable_path_match(enable);
+    Ok(())
+}
+
+#[cfg(not(target_arch = "x86_64"))]
+#[tauri::command]
+pub async fn everything_enable_path_match<R: Runtime>(
+    _app: tauri::AppHandle<R>,
+    _window: tauri::Window<R>,
+    state: tauri::State<'_, Arc<AppState>>,
+    enable: bool,
+) -> Result<(), String> {
     Ok(())
 }
 

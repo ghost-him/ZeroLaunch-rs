@@ -8723,6 +8723,7 @@ dependencies = [
  "device_query",
  "encoding_rs",
  "everything-rs",
+ "everything-sys-bindgen",
  "fnv",
  "fontdb",
  "fuzzy-matcher",

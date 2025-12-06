@@ -126,3 +126,4 @@ tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
 
 [target.'cfg(target_arch = "x86_64")'.dependencies]
 everything-rs = "0.1.10"
+everything-sys-bindgen = "0.1.5"

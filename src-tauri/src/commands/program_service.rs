@@ -419,6 +419,19 @@ pub async fn handle_everything_search<R: Runtime>(
     Ok(Vec::new())
 }
 
+/// 在资源管理器中打开 Everything 搜索结果所在目录
+#[tauri::command]
+pub async fn everything_enable_path_match<R: Runtime>(
+    _app: tauri::AppHandle<R>,
+    _window: tauri::Window<R>,
+    state: tauri::State<'_, Arc<AppState>>,
+    enable: bool,
+) -> Result<(), String> {
+    let everything_manager = state.get_everything_manager();
+    everything_manager.enable_path_match(enable);
+    Ok(())
+}
+
 /// 获得最近启动的程序
 #[tauri::command]
 pub async fn command_get_latest_launch_program(

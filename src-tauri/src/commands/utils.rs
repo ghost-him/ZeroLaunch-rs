@@ -143,3 +143,8 @@ fn export_logs_internal(log_dir: &str, save_path: &str) -> Result<(), String> {
 
     Ok(())
 }
+
+#[tauri::command]
+pub fn command_get_arch() -> String {
+    std::env::consts::ARCH.to_string()
+}

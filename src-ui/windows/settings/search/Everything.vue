@@ -69,6 +69,13 @@
             </el-icon>
           </el-tooltip>
         </el-form-item>
+
+        <el-form-item :label="t('everything.enable_path_match_shortcut')">
+          <ShortcutInput
+            v-model="everything_config.shortcuts.enable_path_match" :enableLabel="false"
+            @update:modelValue="updateShortcut"
+          />
+        </el-form-item>
       </el-form>
     </div>
   </div>
@@ -80,7 +87,8 @@ import { useI18n } from 'vue-i18n'
 import { useRemoteConfigStore } from '../../../stores/remote_config'
 import { storeToRefs } from 'pinia'
 import { QuestionFilled } from '@element-plus/icons-vue'
-import type { EverythingSortKind } from '../../../api/remote_config_types'
+import type { EverythingSortKind, Shortcut } from '../../../api/remote_config_types'
+import ShortcutInput from '../components/ShortcutInput.vue'
 
 const { t } = useI18n()
 const configStore = useRemoteConfigStore()
@@ -150,6 +158,16 @@ const updateResultLimit = (value: number | undefined) => {
             },
         })
     }
+}
+
+const updateShortcut = (value: Shortcut) => {
+    configStore.updateConfig({
+        everything_config: {
+            shortcuts: {
+                enable_path_match: value,
+            },
+        },
+    })
 }
 </script>
 

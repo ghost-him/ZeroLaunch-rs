@@ -253,10 +253,28 @@ export type EverythingSortKind =
     | 'DateRunAscending'
     | 'DateRunDescending';
 
+// Everything 页面特有的快捷键配置
+export type EverythingShortcutConfig = {
+    enable_path_match: Shortcut,  // 在资源管理器中打开选中项
+}
+
+export function default_everything_shortcut_config(): EverythingShortcutConfig {
+    return {
+        enable_path_match: {
+            key: 'u',
+            ctrl: true,
+            alt: false,
+            shift: false,
+            meta: false,
+        },
+    }
+}
+
 export type EverythingConfig = {
     sort_threshold: number
     sort_method: EverythingSortKind
     result_limit: number
+    shortcuts: EverythingShortcutConfig
 }
 
 export function default_everything_config(): EverythingConfig {
@@ -264,6 +282,7 @@ export function default_everything_config(): EverythingConfig {
         sort_threshold: 3,
         sort_method: 'NameAscending',
         result_limit: 10,
+        shortcuts: default_everything_shortcut_config(),
     } as EverythingConfig
 }
 
@@ -288,7 +307,10 @@ export type PartialProgramRankerConfig = Partial<ProgramRankerConfig>
 export type PartialProgramLoaderConfig = Partial<ProgramLoaderConfig>
 export type PartialIconManagerConfig = Partial<IconManagerConfig>
 export type PartialShortcutConfig = Partial<ShortcutConfig>
-export type PartialEverythingConfig = Partial<EverythingConfig>
+export type PartialEverythingShortcutConfig = Partial<EverythingShortcutConfig>
+export type PartialEverythingConfig = Partial<Omit<EverythingConfig, 'shortcuts'>> & {
+    shortcuts?: PartialEverythingShortcutConfig
+}
 
 export type PartialRemoteConfig = {
     app_config?: PartialAppConfig

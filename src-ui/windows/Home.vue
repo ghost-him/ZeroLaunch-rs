@@ -112,8 +112,9 @@ import { initializeLanguage } from '../i18n'
 import { 
   AppConfig, default_app_config, default_ui_config, PartialAppConfig, 
   PartialUIConfig, ShortcutConfig, UIConfig, default_shortcut_config, 
-  PartialShortcutConfig, 
+  PartialShortcutConfig, PartialEverythingConfig, default_everything_shortcut_config, EverythingShortcutConfig
 } from '../api/remote_config_types'
+import { InputContext } from '../input_states'
 
 import { useShortcuts } from '../composables/useShortcuts'
 import SearchBar from './search-window-components/SearchBar.vue'
@@ -150,7 +151,13 @@ const is_dark = ref(false)
 const darkModeMediaQuery = ref<MediaQueryList | null>(null)
 const windowSize = ref<{ width: number; height: number; }>({ width: 800, height: 800 })
 const scaleFactor = ref<number>(1)
-const isEverythingMode = ref(false)
+
+// 输入上下文状态
+const inputContext = ref<InputContext>(InputContext.MainSearch)
+const everything_shortcut_config = ref<EverythingShortcutConfig>(default_everything_shortcut_config())
+
+// 计算属性：是否处于 Everything 模式
+const isEverythingMode = computed(() => inputContext.value === InputContext.Everything)
 
 const effective_ui_config = computed(() => {
   if (!is_dark.value) {
@@ -168,7 +175,11 @@ const effective_ui_config = computed(() => {
 })
 
 const toggleEverythingMode = async () => {
-  isEverythingMode.value = !isEverythingMode.value
+  if (inputContext.value === InputContext.Everything) {
+    inputContext.value = InputContext.MainSearch
+  } else {
+    inputContext.value = InputContext.Everything
+  }
   searchResults.value = []
   selectedIndex.value = 0
   // No need to call sendSearchText here, EverythingPanel will react to searchText prop
@@ -346,6 +357,10 @@ const sendSearchText = async (text: string) => {
 
 const resetParameterSession = () => {
   parameterSession.value = null
+  // 退出参数输入模式时，恢复到主搜索模式
+  if (inputContext.value === InputContext.ParameterInput) {
+    inputContext.value = InputContext.MainSearch
+  }
 }
 
 const startParameterSession = (programGuid: number, ctrlKey: boolean, shiftKey: boolean, info: LaunchTemplateInfoResponse) => {
@@ -364,6 +379,8 @@ const startParameterSession = (programGuid: number, ctrlKey: boolean, shiftKey: 
     collectedArgs: [],
     inputValue: '',
   }
+  // 进入参数输入模式
+  inputContext.value = InputContext.ParameterInput
 }
 
 const cancelParameterSession = () => {
@@ -460,12 +477,13 @@ const updateWindow = async () => {
     const [background_picture_data, program_count, data] = await Promise.all([
       invoke<number[]>('get_background_picture'),
       invoke<number>('get_program_count'),
-      invoke<[PartialAppConfig, PartialUIConfig, PartialShortcutConfig]>('update_search_bar_window'),
+      invoke<[PartialAppConfig, PartialUIConfig, PartialShortcutConfig, PartialEverythingConfig]>('update_search_bar_window'),
     ])
 
     app_config.value = { ...app_config.value, ...data[0] }
     ui_config.value = { ...ui_config.value, ...data[1] }
     shortcut_config.value = { ...shortcut_config.value, ...data[2] }
+    everything_shortcut_config.value = {...everything_shortcut_config.value, ...data[3].shortcuts}
     await initializeLanguage(app_config.value.language)
 
     const blob = new Blob([new Uint8Array(background_picture_data)], { type: 'image/png' })
@@ -639,27 +657,27 @@ const handleRightArrow = (event: KeyboardEvent) => {
   showSubmenuForItem(selectedIndex.value)
 }
 
-const { handleKeyDown, handleKeyUp, handleBlur } = useShortcuts(
-  app_config,
-  shortcut_config,
-  ui_config,
-  isEverythingMode,
-  toggleEverythingMode,
+const { handleKeyDown, handleKeyUp, handleBlur } = useShortcuts({
+  appConfig: app_config,
+  shortcutConfig: shortcut_config,
+  everythingShortcutConfig: everything_shortcut_config,
+  uiConfig: ui_config,
+  inputContext,
+  searchText,
+  selectedIndex,
+  isAltPressed: is_alt_pressed,
+  latestLaunchProgram: latest_launch_program,
+  searchResults,
   everythingPanelRef,
   resultsListRef,
   resultItemMenuRef,
   searchBarRef,
-  searchText,
-  selectedIndex,
-  is_alt_pressed,
-  latest_launch_program,
-  searchResults,
-  launch_program,
+  toggleEverythingMode,
+  launchProgram: launch_program,
   confirmParameterInput,
   cancelParameterSession,
-  parameterSession,
-  handleRightArrow
-)
+  handleRightArrowCallback: handleRightArrow,
+})
 
 const contextResultItemEvent = (index: number, event: MouseEvent) => {
   if (searchBarMenuBuf.value?.isVisible()) {

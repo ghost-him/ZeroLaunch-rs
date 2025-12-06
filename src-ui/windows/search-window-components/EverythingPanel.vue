@@ -4,6 +4,7 @@
     :style="{
       height: uiConfig.result_item_height * appConfig.search_result_count + 'px',
       maxHeight: uiConfig.result_item_height * appConfig.search_result_count + 'px',
+      position: 'relative',
     }"
   >
     <div
@@ -15,7 +16,19 @@
         fontSize: Math.round(uiConfig.result_item_height * 0.4) + 'px'
       }"
     >
-      {{ props.searchText ? t('everything.not_supported') : t('everything.no_results') }}
+      {{ props.searchText ? (currentArch === 'aarch64' ? t('everything.not_supported') : t('everything.no_results')) : t('everything.no_results') }}
+    </div>
+    <div
+      v-if="message"
+      class="message-overlay"
+      :style="{
+        color: uiConfig.item_font_color,
+        fontFamily: uiConfig.result_item_font_family,
+        fontSize: Math.round(uiConfig.result_item_height * 0.4) + 'px',
+        backgroundColor: hoverColor,
+      }"
+    >
+      {{ message }}
     </div>
     <div
       v-else
@@ -105,6 +118,18 @@ const isSearching = ref(false)
 const pendingSearchText = ref<string | null>(null)
 const resultsListRef = ref<HTMLElement | null>(null)
 const iconMap = ref<Map<string, string>>(new Map())
+const enablePathMatch = ref<boolean>(false)
+const currentArch = ref<string>('')
+const message = ref<string | null>(null)
+let messageTimeout: number | null = null
+
+const showMessage = (msg: string) => {
+    message.value = msg
+    if (messageTimeout) clearTimeout(messageTimeout)
+    messageTimeout = window.setTimeout(() => {
+        message.value = null
+    }, 2000)
+}
 
 // 从完整路径中提取文件名（包含扩展名）
 const getFileName = (fullPath: string): string => {
@@ -231,9 +256,20 @@ defineExpose({
     moveSelection,
     launchSelected: () => launchItem(selectedIndex.value),
     resultsCount: () => results.value.length,
+    getSelectedPath: () => {
+        const item = results.value[selectedIndex.value]
+        return item ? item[1] : null
+    },
+    enablePathMatch,
+    togglePathMatch: () => {
+        enablePathMatch.value = !enablePathMatch.value
+        showMessage(enablePathMatch.value ? t('everything.path_match_enabled') : t('everything.path_match_disabled'))
+        return enablePathMatch.value
+    },
 })
 
-onMounted(() => {
+onMounted(async () => {
+    currentArch.value = await invoke('command_get_arch')
     if (props.searchText) {
         performSearch(props.searchText)
     }
@@ -329,5 +365,17 @@ onMounted(() => {
     width: 100%;
     opacity: 0.8;
     line-height: 1.2;
+}
+
+.message-overlay {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 8px 16px;
+    border-radius: 4px;
+    z-index: 10;
+    pointer-events: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 </style>

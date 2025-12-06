@@ -36,11 +36,18 @@ function mergeConfig(config: RemoteConfig, partial: PartialRemoteConfig): Remote
         ? { ...iconConfig, ...iconPartial }
         : iconConfig
 
-    // 处理 everything_config
+    // 处理 everything_config（包含嵌套的 shortcuts）
     const everythingPartial = partial.everything_config
     const everythingConfig = config.everything_config
     const everything_config = everythingPartial
-        ? { ...everythingConfig, ...everythingPartial }
+        ? {
+            ...everythingConfig,
+            ...everythingPartial,
+            // 深度合并 shortcuts
+            shortcuts: everythingPartial.shortcuts
+                ? { ...everythingConfig.shortcuts, ...everythingPartial.shortcuts }
+                : everythingConfig.shortcuts,
+        }
         : everythingConfig
 
     // 返回合并后的新 Config 对象
@@ -98,12 +105,19 @@ function mergePartialConfig(
             }
             : undefined
 
-    // 合并 everything_config
+    // 合并 everything_config（包含嵌套的 shortcuts）
     const mergedEverythingConfig =
         partial1.everything_config || partial2.everything_config
             ? {
                 ...(partial1.everything_config || {}),
                 ...(partial2.everything_config || {}),
+                // 深度合并 shortcuts
+                shortcuts: (partial1.everything_config?.shortcuts || partial2.everything_config?.shortcuts)
+                    ? {
+                        ...(partial1.everything_config?.shortcuts || {}),
+                        ...(partial2.everything_config?.shortcuts || {}),
+                    }
+                    : undefined,
             }
             : undefined
 

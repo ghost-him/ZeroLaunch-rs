@@ -1,6 +1,6 @@
 <template>
     <div class="shortcut-input">
-        <label class="shortcut-label">{{ label || t('shortcut_input.shortcut') }}</label>
+        <label v-if="enableLabel" class="shortcut-label">{{ label || t('shortcut_input.shortcut') }}</label>
         <div class="key-display" :class="{ 'listening': isListening, 'disabled': disabled }" @click="startListening"
             tabindex="disabled ? -1 : 0">
             <i class="el-icon-keyboard" v-if="!displayValue"></i>
@@ -18,6 +18,10 @@ import { PropType } from 'vue';
 const { t } = useI18n();
 
 const props = defineProps({
+    enableLabel: {
+        type: Boolean,
+        default: true
+    },
     label: {
         type: String,
         default: ''

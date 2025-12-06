@@ -164,6 +164,7 @@ pub fn run() {
             handle_search_text,
             handle_everything_search,
             launch_everything_item,
+            everything_enable_path_match,
             get_launch_template_info,
             update_search_bar_window,
             get_background_picture,
@@ -197,6 +198,7 @@ pub fn run() {
             command_export_logs,
             command_search_programs_lightweight,
             command_update_program_icon,
+            command_get_arch,
             get_everything_icon,
         ])
         .run(tauri::generate_context!())

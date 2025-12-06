@@ -1,45 +1,229 @@
 import { Ref } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
-import { AppConfig, ShortcutConfig, Shortcut } from '../api/remote_config_types'
+import { AppConfig, ShortcutConfig, EverythingShortcutConfig, UIConfig } from '../api/remote_config_types'
+import {
+  InputContext,
+  matchShortcut,
+  createEverythingShortcutHandler,
+  createMainSearchShortcutHandler,
+  createParameterInputShortcutHandler,
+} from '../input_states'
+import type {
+  EverythingPanelInstance,
+  SearchBarInstance,
+  ResultListInstance,
+  SubMenuInstance,
+} from '../input_states'
 
-// Define interfaces for the components we interact with
-export interface EverythingPanelInstance {
-  moveSelection: (direction: number) => void
-  launchSelected: () => void
+// Re-export types for backward compatibility
+export type { EverythingPanelInstance, SearchBarInstance, ResultListInstance, SubMenuInstance } from '../input_states'
+
+/**
+ * useShortcuts 的配置选项
+ */
+export interface UseShortcutsOptions {
+  // 配置
+  appConfig: Ref<AppConfig>
+  shortcutConfig: Ref<ShortcutConfig>
+  everythingShortcutConfig: Ref<EverythingShortcutConfig>
+  uiConfig: Ref<UIConfig>
+
+  // 状态
+  inputContext: Ref<InputContext>
+  searchText: Ref<string>
+  selectedIndex: Ref<number>
+  isAltPressed: Ref<boolean>
+  latestLaunchProgram: Ref<Array<[number, string]>>
+  searchResults: Ref<Array<[number, string]>>
+
+  // 组件引用
+  everythingPanelRef: Ref<EverythingPanelInstance | null>
+  resultsListRef: Ref<ResultListInstance | null>
+  resultItemMenuRef: Ref<SubMenuInstance | null>
+  searchBarRef: Ref<SearchBarInstance | null>
+
+  // 回调函数
+  toggleEverythingMode: () => void
+  launchProgram: (index: number, ctrlKey?: boolean, shiftKey?: boolean) => Promise<void>
+  confirmParameterInput: () => Promise<void>
+  cancelParameterSession: () => void
+  handleRightArrowCallback: (event: KeyboardEvent) => void
 }
 
-export interface SearchBarInstance {
-  realInputRef: HTMLInputElement | null
-  focus: () => void
+/**
+ * 快捷键管理 Composable
+ *
+ * 职责：
+ * 1. 阻止浏览器默认快捷键
+ * 2. 处理全局快捷键（如切换 Everything 模式）
+ * 3. 根据当前 InputContext 分发事件到对应的处理器
+ */
+export function useShortcuts(options: UseShortcutsOptions) {
+  const {
+    appConfig,
+    shortcutConfig,
+    everythingShortcutConfig,
+    uiConfig,
+    inputContext,
+    searchText,
+    selectedIndex,
+    isAltPressed,
+    latestLaunchProgram,
+    searchResults,
+    everythingPanelRef,
+    resultsListRef,
+    resultItemMenuRef,
+    searchBarRef,
+    toggleEverythingMode,
+    launchProgram,
+    confirmParameterInput,
+    cancelParameterSession,
+    handleRightArrowCallback,
+  } = options
+
+  // 创建各个上下文的快捷键处理器
+  const mainSearchHandler = createMainSearchShortcutHandler({
+    appConfig,
+    shortcutConfig,
+    uiConfig,
+    resultsListRef,
+    resultItemMenuRef,
+    searchBarRef,
+    searchText,
+    selectedIndex,
+    isAltPressed,
+    latestLaunchProgram,
+    searchResults,
+    launchProgram,
+    handleRightArrowCallback,
+  })
+
+  const everythingHandler = createEverythingShortcutHandler(
+    everythingShortcutConfig,
+    shortcutConfig,
+    everythingPanelRef,
+    searchText,
+  )
+
+  const parameterInputHandler = createParameterInputShortcutHandler(
+    confirmParameterInput,
+    cancelParameterSession,
+  )
+
+  /**
+   * 阻止 WebView 的默认快捷键行为
+   */
+  const preventDefaultWebViewShortcuts = (event: KeyboardEvent): void => {
+    // 阻止刷新
+    if (event.key === 'F5' || (event.ctrlKey && event.key.toLowerCase() === 'r')) {
+      event.preventDefault()
+    }
+    // 阻止打印
+    if (event.ctrlKey && event.key.toLowerCase() === 'p') {
+      event.preventDefault()
+    }
+    // 阻止缩放
+    if (event.ctrlKey && ['=', '-', '0'].includes(event.key)) {
+      event.preventDefault()
+    }
+    // 阻止查找和保存
+    if (event.ctrlKey && ['f', 's', 'i'].includes(event.key.toLowerCase())) {
+      event.preventDefault()
+    }
+  }
+
+  /**
+   * 处理全局快捷键（在所有上下文中都生效的快捷键）
+   * @returns 如果处理了快捷键则返回 true
+   */
+  const handleGlobalShortcuts = (event: KeyboardEvent): boolean => {
+    // 切换到 Everything 模式（在主搜索和 Everything 模式下都可用）
+    if (
+      inputContext.value !== InputContext.ParameterInput &&
+      matchShortcut(event, shortcutConfig.value.switch_to_everything)
+    ) {
+      event.preventDefault()
+      toggleEverythingMode()
+      return true
+    }
+    return false
+  }
+
+  /**
+   * 键盘按下事件处理
+   */
+  const handleKeyDown = async (event: KeyboardEvent): Promise<void> => {
+    // 1. 阻止浏览器默认行为
+    preventDefaultWebViewShortcuts(event)
+
+    // 2. 处理全局快捷键
+    if (handleGlobalShortcuts(event)) {
+      return
+    }
+
+    // 3. 根据当前上下文分发到对应处理器
+    switch (inputContext.value) {
+      case InputContext.ParameterInput:
+        parameterInputHandler.handleKeyDown(event)
+        break
+
+      case InputContext.Everything:
+        // Everything 处理器处理
+        if (everythingHandler.handleKeyDown(event)) {
+          return
+        }
+        // 未被处理的 ESC：返回主搜索
+        if (event.key === 'Escape') {
+          event.preventDefault()
+          toggleEverythingMode()
+        }
+        break
+
+      case InputContext.MainSearch:
+      default:
+        mainSearchHandler.handleKeyDown(event)
+        break
+    }
+  }
+
+  /**
+   * 键盘释放事件处理
+   */
+  const handleKeyUp = (event: KeyboardEvent): void => {
+    // 只有主搜索模式需要处理 keyup（Alt 键释放）
+    if (inputContext.value === InputContext.MainSearch) {
+      mainSearchHandler.handleKeyUp?.(event)
+    }
+  }
+
+  /**
+   * 失去焦点事件处理
+   */
+  const handleBlur = (): void => {
+    // 重置 Alt 键状态
+    isAltPressed.value = false
+  }
+
+  return {
+    handleKeyDown,
+    handleKeyUp,
+    handleBlur,
+  }
 }
 
-export interface ResultListInstance {
-  resultsListRef: HTMLElement | null
-}
+// ============================================================================
+// 兼容性包装器：保持与旧 API 的兼容性
+// ============================================================================
 
-export interface SubMenuInstance {
-  isVisible: () => boolean
-  hideMenu: () => void
-  showMenu: (pos: { top: number, left: number }) => void
-  selectNext: () => void
-  selectPrevious: () => void
-  selectCurrent: () => void
-}
-
-enum ActionType {
-  MOVE_DOWN,
-  MOVE_UP,
-  MOVE_RIGHT,
-  MOVE_LEFT,
-  CONFIRM,
-  ESCAPE
-}
-
-export function useShortcuts(
+/**
+ * @deprecated 请使用新的 useShortcuts(options) API
+ * 这个函数是为了向后兼容而保留的
+ */
+export function useShortcutsLegacy(
   app_config: Ref<AppConfig>,
   shortcut_config: Ref<ShortcutConfig>,
+  everything_shortcut_config: Ref<EverythingShortcutConfig>,
   ui_config: Ref<any>,
-  isEverythingMode: Ref<boolean>,
+  inputContext: Ref<InputContext>,
   toggleEverythingMode: () => void,
   everythingPanelRef: Ref<EverythingPanelInstance | null>,
   resultsListRef: Ref<ResultListInstance | null>,
@@ -53,243 +237,27 @@ export function useShortcuts(
   launch_program: (index: number, ctrlKey?: boolean, shiftKey?: boolean) => Promise<void>,
   confirmParameterInput: () => Promise<void>,
   cancelParameterSession: () => void,
-  parameterSession: Ref<any>,
-  handleRightArrowCallback: (event: KeyboardEvent) => void
+  handleRightArrowCallback: (event: KeyboardEvent) => void,
 ) {
-
-  const isScrollMode = () => {
-    const currentResults = is_alt_pressed.value ? latest_launch_program.value : searchResults.value
-    return currentResults.length > app_config.value.scroll_threshold
-  }
-
-  const scrollToSelectedItem = () => {
-    if (!resultsListRef.value?.resultsListRef || !isScrollMode()) return
-    
-    const container = resultsListRef.value.resultsListRef
-    const itemHeight = ui_config.value.result_item_height
-    const selectedItemTop = selectedIndex.value * itemHeight
-    const selectedItemBottom = selectedItemTop + itemHeight
-    const containerScrollTop = container.scrollTop
-    const containerHeight = container.clientHeight
-    const containerScrollBottom = containerScrollTop + containerHeight
-  
-    let targetScrollTop = null
-  
-    if (selectedItemTop < containerScrollTop) {
-      targetScrollTop = selectedItemTop
-    }
-    else if (selectedItemBottom > containerScrollBottom) {
-      targetScrollTop = selectedItemBottom - containerHeight
-    }
-  
-    if (targetScrollTop !== null) {
-      container.scrollTo({
-        top: targetScrollTop,
-        behavior: 'smooth',
-      })
-    }
-  }
-
-  const handleAction = (
-    action: ActionType,
-    isMenuVisible: boolean,
-    ctrlKey: boolean = false,
-    shiftKey: boolean = false,
-  ) => {
-    switch (action) {
-      case ActionType.MOVE_DOWN:
-        if (isMenuVisible) {
-          resultItemMenuRef.value?.selectNext()
-        } else {
-          const currentResults = is_alt_pressed.value ? latest_launch_program.value : searchResults.value
-          const count = Math.min(currentResults.length, app_config.value.search_result_count)
-          if (count > 0) {
-             selectedIndex.value = (selectedIndex.value + 1) % count
-             scrollToSelectedItem()
-          }
-        }
-        break
-  
-      case ActionType.MOVE_UP:
-        if (isMenuVisible) {
-          resultItemMenuRef.value?.selectPrevious()
-        } else {
-          const currentResults = is_alt_pressed.value ? latest_launch_program.value : searchResults.value
-          const maxIndex = Math.min(currentResults.length, app_config.value.search_result_count)
-          if (maxIndex > 0) {
-            selectedIndex.value = (selectedIndex.value - 1 + maxIndex) % maxIndex
-            scrollToSelectedItem()
-          }
-        }
-        break
-  
-      case ActionType.MOVE_RIGHT:
-        if (!isMenuVisible) {
-          handleRightArrowCallback(new KeyboardEvent('keydown'))
-        }
-        break
-  
-      case ActionType.MOVE_LEFT:
-        if (isMenuVisible) {
-          resultItemMenuRef.value?.hideMenu()
-        }
-        break
-  
-      case ActionType.CONFIRM:
-        if (isMenuVisible) {
-          resultItemMenuRef.value?.selectCurrent()
-        } else {
-          launch_program(selectedIndex.value, ctrlKey, shiftKey)
-        }
-        break
-  
-      case ActionType.ESCAPE:
-        if ((searchText.value.length === 0 && !isMenuVisible) ||
-          app_config.value.is_esc_hide_window_priority) {
-          invoke('hide_window').catch(console.error)
-        } else {
-          if (isMenuVisible) {
-            resultItemMenuRef.value?.hideMenu()
-          } else {
-            searchText.value = ''
-          }
-        }
-        break
-    }
-  }
-
-  const matchShortcut = (event: KeyboardEvent, shortcutConfig: Shortcut): boolean => {
-    return event.key.toLowerCase() === shortcutConfig.key.toLowerCase() &&
-      event.ctrlKey === shortcutConfig.ctrl &&
-      event.shiftKey === shortcutConfig.shift &&
-      event.metaKey === shortcutConfig.meta
-  }
-
-  const preventDefaultWebViewShortcuts = (event: KeyboardEvent) => {
-    if (event.key === 'F5' || (event.ctrlKey && event.key.toLowerCase() === 'r')) {
-      event.preventDefault()
-    }
-    if (event.ctrlKey && event.key.toLowerCase() === 'p') {
-      event.preventDefault()
-    }
-    if (event.ctrlKey && ['=', '-', '0'].includes(event.key)) {
-      event.preventDefault()
-    }
-    if (event.ctrlKey && ['f', 's'].includes(event.key.toLowerCase())) {
-      event.preventDefault()
-    }
-  }
-
-  const handleKeyDown = async (event: KeyboardEvent) => {
-    preventDefaultWebViewShortcuts(event)
-    const isMenuVisible = resultItemMenuRef.value?.isVisible() || false
-    
-    if (parameterSession.value) {
-      if (event.key === 'Escape') {
-        event.preventDefault()
-        cancelParameterSession()
-        return
-      }
-      if (event.key === 'Enter') {
-        event.preventDefault()
-        await confirmParameterInput()
-        return
-      }
-      return
-    }
-  
-    // Switch to Everything mode shortcut
-    if (matchShortcut(event, shortcut_config.value.switch_to_everything)) {
-      event.preventDefault()
-      toggleEverythingMode()
-      return
-    }
-  
-    if (isEverythingMode.value) {
-      // In Everything mode, we also want to support configured shortcuts for navigation
-      if (event.key === 'ArrowDown' || matchShortcut(event, shortcut_config.value.arrow_down)) {
-        event.preventDefault()
-        everythingPanelRef.value?.moveSelection(1)
-        return
-      }
-      if (event.key === 'ArrowUp' || matchShortcut(event, shortcut_config.value.arrow_up)) {
-        event.preventDefault()
-        everythingPanelRef.value?.moveSelection(-1)
-        return
-      }
-      if (event.key === 'Enter') {
-        event.preventDefault()
-        everythingPanelRef.value?.launchSelected()
-        return
-      }
-      // Allow other keys (like typing) to pass through
-      if (event.key !== 'Alt' && event.key !== 'Control' && event.key !== 'Shift') {
-          // Let it bubble to input
-      }
-      return
-    }
-  
-    if (event.key === 'Alt') {
-      is_alt_pressed.value = true
-      event.preventDefault()
-    }
-  
-    if (event.key === 'ArrowDown' || matchShortcut(event, shortcut_config.value.arrow_down)) {
-      event.preventDefault()
-      handleAction(ActionType.MOVE_DOWN, isMenuVisible)
-      return
-    }
-  
-    if (event.key === 'ArrowUp' || matchShortcut(event, shortcut_config.value.arrow_up)) {
-      event.preventDefault()
-      handleAction(ActionType.MOVE_UP, isMenuVisible)
-      return
-    }
-  
-    if (event.key === 'ArrowRight' || matchShortcut(event, shortcut_config.value.arrow_right)) {
-      const inputElement = searchBarRef.value?.realInputRef
-      const isAtEnd = inputElement && (inputElement.selectionStart === searchText.value.length)
-  
-      if (!isMenuVisible && isAtEnd && document.activeElement === inputElement) {
-        event.preventDefault()
-        handleAction(ActionType.MOVE_RIGHT, isMenuVisible)
-      }
-      return
-    }
-  
-    if (event.key === 'ArrowLeft' || matchShortcut(event, shortcut_config.value.arrow_left)) {
-      if (isMenuVisible) {
-        event.preventDefault()
-        handleAction(ActionType.MOVE_LEFT, isMenuVisible)
-      }
-      return
-    }
-  
-    if (event.key === 'Enter' || (event.key === ' ' && app_config.value.space_is_enter)) {
-      event.preventDefault()
-      handleAction(ActionType.CONFIRM, isMenuVisible, event.ctrlKey, event.shiftKey)
-      return
-    }
-  
-    if (event.key === 'Escape') {
-      handleAction(ActionType.ESCAPE, isMenuVisible)
-      return
-    }
-  }
-
-  const handleKeyUp = (event: KeyboardEvent) => {
-    if (event.key === 'Alt') {
-      is_alt_pressed.value = false
-    }
-  }
-
-  const handleBlur = () => {
-    is_alt_pressed.value = false
-  }
-
-  return {
-    handleKeyDown,
-    handleKeyUp,
-    handleBlur
-  }
+  return useShortcuts({
+    appConfig: app_config,
+    shortcutConfig: shortcut_config,
+    everythingShortcutConfig: everything_shortcut_config,
+    uiConfig: ui_config,
+    inputContext,
+    searchText,
+    selectedIndex,
+    isAltPressed: is_alt_pressed,
+    latestLaunchProgram: latest_launch_program,
+    searchResults,
+    everythingPanelRef,
+    resultsListRef,
+    resultItemMenuRef,
+    searchBarRef,
+    toggleEverythingMode,
+    launchProgram: launch_program,
+    confirmParameterInput,
+    cancelParameterSession,
+    handleRightArrowCallback,
+  })
 }

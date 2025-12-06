@@ -2,6 +2,8 @@ use crate::modules::everything::config::EverythingSortKind;
 use crate::utils::defer::defer;
 #[cfg(target_arch = "x86_64")]
 use everything_rs::{Everything, EverythingRequestFlags};
+#[cfg(target_arch = "x86_64")]
+use everything_sys_bindgen;
 use parking_lot::RwLock;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -27,6 +29,8 @@ pub struct EverythingManagerInner {
     pub sort_method: EverythingSortKind,
     // 结果限制
     pub result_limit: usize,
+    // 路径匹配（如果启用，则效果与 everything 的 ctrl + u 一样）
+    pub enable_path_match: bool,
 }
 
 impl Default for EverythingManagerInner {
@@ -42,7 +46,12 @@ impl EverythingManagerInner {
             sort_threshold: EverythingConfig::default().get_sort_threshold(),
             sort_method: EverythingConfig::default().get_sort_method().clone(),
             result_limit: EverythingConfig::default().get_result_limit(),
+            enable_path_match: false,
         }
+    }
+
+    pub fn enable_path_match(&mut self, enable: bool) {
+        self.enable_path_match = enable;
     }
 
     pub fn load_from_config(&mut self, config: Arc<EverythingConfig>) {
@@ -82,6 +91,13 @@ impl EverythingManagerInner {
             // FullPathAndFileName 已经包含完整路径和文件名（包括扩展名）
             everything.set_request_flags(EverythingRequestFlags::FullPathAndFileName);
             everything.set_max_results(self.result_limit as u32);
+
+            // 启用路径匹配（相当于 Everything 的 Ctrl + U）
+            if self.enable_path_match {
+                unsafe {
+                    everything_sys_bindgen::Everything_SetMatchPath(1); // 1 = TRUE
+                }
+            }
 
             // Use sort_threshold from config
             if query.len() >= self.sort_threshold {
@@ -133,6 +149,11 @@ impl EverythingManager {
         Self {
             inner: Arc::new(RwLock::new(EverythingManagerInner::new())),
         }
+    }
+
+    pub fn enable_path_match(&self, enable: bool) {
+        let mut inner = self.inner.write();
+        inner.enable_path_match(enable);
     }
 
     pub fn load_from_config(&self, config: Arc<EverythingConfig>) {

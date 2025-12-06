@@ -4,30 +4,22 @@ use crate::error::OptionExt;
 use crate::modules::config::default::ICON_CACHE_DIR;
 use crate::modules::icon_manager::config::{IconManagerConfig, RuntimeIconManagerConfig};
 use bincode::Encode;
-use dashmap::{DashMap, DashSet};
+use dashmap::DashSet;
 use std::path::Path;
 use std::sync::Arc;
 use tauri::async_runtime::RwLock;
 use tracing::warn;
-use winreg::enums::{HKEY_LOCAL_MACHINE, KEY_READ};
-use winreg::RegKey;
 pub mod config;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Encode, PartialEq, Eq, Serialize, Deserialize)]
 pub enum IconRequest {
-    /// 本地文件路径 (exe, lnk, ico, png) -> 提取文件图标
-    /// 对于 .url 文件，可以提供 app_name 用于注册表查找
-    Path {
-        path: String,
-        app_name: Option<String>,
-    },
+    /// 本地文件路径 (exe, lnk, url, ico, png) -> 提取文件图标
+    Path(String),
     /// 网址 -> 下载或查找本地域名图标库
     Url(String),
     /// 文件扩展名 (.txt, .doc) -> 获取系统关联图标
     Extension(String),
-    /// 应用程序名称 -> 用于从注册表查找图标
-    AppId(String),
 }
 
 impl IconRequest {
@@ -44,8 +36,6 @@ struct IconManagerInner {
     default_app_icon_path: String,
     /// 默认的网址图片路径
     default_web_icon_path: String,
-    /// 注册表图标缓存 (AppId -> IconPath)
-    registry_icon_cache: DashMap<String, String>,
     /// 已缓存的图标哈希集合 (文件名)
     cached_icon_hashes: DashSet<String>,
     /// 要不要开启图片缓存
@@ -61,7 +51,6 @@ impl IconManagerInner {
             default_web_icon_path: runtime_config.default_web_icon_path,
             enable_icon_cache: true,
             enable_online: true,
-            registry_icon_cache: DashMap::new(),
             cached_icon_hashes: DashSet::new(),
         };
         inner.init();
@@ -69,7 +58,6 @@ impl IconManagerInner {
     }
 
     fn init(&mut self) {
-        self.registry_icon_cache = self.scan_registry_programs();
         self.cached_icon_hashes = self.scan_cached_icons();
     }
 
@@ -100,10 +88,9 @@ impl IconManagerInner {
 
         // 2. 处理不同类型的请求
         let (mut icon_data, is_default) = match request {
-            IconRequest::Path { path, app_name } => self.handle_path_request(path, app_name).await,
+            IconRequest::Path(path) => self.handle_path_request(path).await,
             IconRequest::Url(url) => self.handle_url_request(url).await,
             IconRequest::Extension(ext) => self.handle_extension_request(ext).await,
-            IconRequest::AppId(app_id) => self.handle_appid_request(app_id).await,
         };
 
         // 裁剪透明白边
@@ -135,22 +122,7 @@ impl IconManagerInner {
         icon_data
     }
 
-    async fn handle_path_request(&self, path: String, app_name: Option<String>) -> (Vec<u8>, bool) {
-        // 特殊处理 .url 文件
-        if path.ends_with(".url") {
-            // 优先使用提供的 app_name 查找注册表图标（与 ImageLoader 逻辑一致）
-            if let Some(name) = app_name {
-                if let Some(registry_icon) = self.registry_icon_cache.get(&name) {
-                    let data =
-                        ImageProcessor::load_image(&ImageIdentity::File(registry_icon.clone()))
-                            .await;
-                    if !data.is_empty() {
-                        return (data, false);
-                    }
-                }
-            }
-        }
-
+    async fn handle_path_request(&self, path: String) -> (Vec<u8>, bool) {
         let data = ImageProcessor::load_image(&ImageIdentity::File(path)).await;
         if data.is_empty() {
             let default_data = ImageProcessor::load_image(&ImageIdentity::File(
@@ -197,20 +169,6 @@ impl IconManagerInner {
         }
     }
 
-    async fn handle_appid_request(&self, app_id: String) -> (Vec<u8>, bool) {
-        if let Some(icon_path) = self.registry_icon_cache.get(&app_id) {
-            let data = ImageProcessor::load_image(&ImageIdentity::File(icon_path.clone())).await;
-            if !data.is_empty() {
-                return (data, false);
-            }
-        }
-
-        let default_data =
-            ImageProcessor::load_image(&ImageIdentity::File(self.default_app_icon_path.clone()))
-                .await;
-        (default_data, true)
-    }
-
     fn scan_cached_icons(&self) -> DashSet<String> {
         let result = DashSet::new();
         if !self.enable_icon_cache {
@@ -227,47 +185,6 @@ impl IconManagerInner {
                 }
             }
             Err(e) => warn!("Error reading icon cache directory: {}", e),
-        }
-        result
-    }
-
-    fn scan_registry_programs(&self) -> DashMap<String, String> {
-        let programs = DashMap::new();
-        let paths = [
-            r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
-            r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
-        ];
-        let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
-
-        for path in paths.iter() {
-            if let Ok(uninstall_key) = hklm.open_subkey_with_flags(path, KEY_READ) {
-                for subkey_name in uninstall_key.enum_keys().flatten() {
-                    if let Ok(subkey) = uninstall_key.open_subkey_with_flags(&subkey_name, KEY_READ)
-                    {
-                        let display_name: Result<String, _> = subkey.get_value("DisplayName");
-                        let display_icon: Result<String, _> = subkey.get_value("DisplayIcon");
-
-                        if let (Ok(name), Ok(icon)) = (display_name, display_icon) {
-                            if !name.trim().is_empty() && !icon.trim().is_empty() {
-                                let name = name.trim().to_string();
-                                let icon = self.normalized_icon_path(icon.trim());
-                                programs.insert(name, icon);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        programs
-    }
-
-    fn normalized_icon_path(&self, icon_path: &str) -> String {
-        let mut result = icon_path.to_string();
-        if let Some(pos) = result.rfind(',') {
-            result = result[..pos].to_string();
-        }
-        if result.starts_with('"') && result.ends_with('"') {
-            result = result[1..result.len() - 1].to_string()
         }
         result
     }

@@ -32,6 +32,7 @@ use windows::Win32::Graphics::Gdi::{
 };
 use windows::Win32::Networking::WinInet::INTERNET_CONNECTION;
 use windows::Win32::Storage::FileSystem::FILE_ATTRIBUTE_NORMAL;
+use windows::Win32::UI::Shell::ExtractIconExW;
 use windows::Win32::UI::Shell::SHFILEINFOW;
 use windows::Win32::UI::Shell::{SHGetFileInfoW, SHGFI_ADDOVERLAYS, SHGFI_ICON, SHGFI_LARGEICON};
 use windows::Win32::UI::WindowsAndMessaging::DestroyIcon;
@@ -71,8 +72,10 @@ impl ImageIdentity {
 /// 文件类型枚举
 #[derive(Debug, PartialEq)]
 enum FileType {
-    /// 程序文件（.exe, .lnk, .url）
+    /// 程序文件（.exe, .lnk）
     Program,
+    /// URL快捷方式文件（.url）
+    UrlShortcut,
     /// ICO图标文件
     Ico,
     /// 图片文件（png, jpg, svg等）
@@ -293,6 +296,24 @@ impl ImageProcessor {
                 let png_data = Self::load_and_convert_to_png(icon_path).await?;
                 Ok(png_data)
             }
+            FileType::UrlShortcut => {
+                // 对于.url文件，解析文件内容获取IconFile和IconIndex
+                debug!(
+                    "Detected URL shortcut file, parsing icon info: {}",
+                    icon_path
+                );
+                let rgba_image = Self::extract_icon_from_url_file(icon_path)
+                    .await
+                    .ok_or_else(|| AppError::ImageProcessingError {
+                        message: format!(
+                            "Failed to extract icon from URL shortcut file: {}",
+                            icon_path
+                        ),
+                    })?;
+
+                let png_data = Self::rgba_image_to_png(&rgba_image)?;
+                Ok(png_data)
+            }
             FileType::Program | FileType::Other => {
                 // 对于程序文件和其他文件（如txt、docx等），使用Windows API提取系统图标
                 debug!(
@@ -460,11 +481,13 @@ impl ImageProcessor {
     fn get_file_type(path: &str) -> FileType {
         let path_lower = path.to_lowercase();
 
+        // 检查是否为 URL 快捷方式文件
+        if path_lower.ends_with(".url") {
+            return FileType::UrlShortcut;
+        }
+
         // 检查是否为程序文件
-        if path_lower.ends_with(".exe")
-            || path_lower.ends_with(".lnk")
-            || path_lower.ends_with(".url")
-        {
+        if path_lower.ends_with(".exe") || path_lower.ends_with(".lnk") {
             return FileType::Program;
         }
 
@@ -683,6 +706,156 @@ impl ImageProcessor {
         // 所有重试都失败
         warn!(
             "All {} attempts to extract icon failed for: {}",
+            MAX_RETRIES + 1,
+            file_path
+        );
+        None
+    }
+
+    /// 从.url文件提取图标
+    /// .url文件是INI格式，包含IconFile和IconIndex字段
+    async fn extract_icon_from_url_file(file_path: &str) -> Option<RgbaImage> {
+        let file_path = file_path.to_string();
+
+        // 首先读取并解析.url文件获取图标信息
+        let content = tokio::fs::read_to_string(&file_path).await.ok()?;
+
+        let mut icon_file: Option<String> = None;
+        let mut icon_index: i32 = 0;
+
+        // 解析INI格式
+        for line in content.lines() {
+            let line = line.trim();
+            if let Some(value) = line.strip_prefix("IconFile=") {
+                icon_file = Some(value.to_string());
+            } else if let Some(value) = line.strip_prefix("IconIndex=") {
+                icon_index = value.parse().unwrap_or(0);
+            }
+        }
+
+        // 如果找到了IconFile，从中提取图标
+        if let Some(icon_path) = icon_file {
+            debug!(
+                "Found icon info in .url file: IconFile={}, IconIndex={}",
+                icon_path, icon_index
+            );
+
+            // 检查图标文件是否存在
+            if !Path::new(&icon_path).exists() {
+                warn!("Icon file does not exist: {}", icon_path);
+                // 回退到使用SHGetFileInfoW
+                return Self::extract_icon_from_file(&file_path).await;
+            }
+
+            // 根据图标文件类型处理
+            let icon_path_lower = icon_path.to_lowercase();
+
+            if icon_path_lower.ends_with(".ico") {
+                // 对于.ico文件，直接提取最大尺寸的图标
+                return Self::extract_largest_icon_from_ico_file(&icon_path).await;
+            } else if icon_path_lower.ends_with(".exe")
+                || icon_path_lower.ends_with(".dll")
+                || icon_path_lower.ends_with(".icl")
+            {
+                // 对于exe/dll/icl文件，使用ExtractIconExW提取指定索引的图标
+                return Self::extract_icon_by_index(&icon_path, icon_index).await;
+            } else {
+                // 其他图标文件，直接作为图片加载
+                if let Ok(data) = Self::load_and_convert_to_png(&icon_path).await {
+                    if let Ok(img) = image::load_from_memory(&data) {
+                        return Some(img.to_rgba8());
+                    }
+                }
+            }
+        }
+
+        // 如果没有IconFile或提取失败，回退到使用SHGetFileInfoW
+        debug!(
+            "No IconFile found in .url file or extraction failed, falling back to SHGetFileInfoW: {}",
+            file_path
+        );
+        Self::extract_icon_from_file(&file_path).await
+    }
+
+    /// 从exe/dll文件中提取指定索引的图标
+    async fn extract_icon_by_index(file_path: &str, icon_index: i32) -> Option<RgbaImage> {
+        const MAX_RETRIES: u32 = 3;
+        let file_path = file_path.to_string();
+
+        for attempt in 0..=MAX_RETRIES {
+            let result = tauri::async_runtime::spawn_blocking({
+                let file_path = file_path.clone();
+                move || {
+                    let com_init = unsafe { windows::Win32::System::Com::CoInitialize(None) };
+                    if com_init.is_err() {
+                        warn!("初始化com库失败：{:?}", com_init);
+                    }
+
+                    defer(move || unsafe {
+                        if com_init.is_ok() {
+                            windows::Win32::System::Com::CoUninitialize();
+                        }
+                    });
+
+                    let wide_file_path = get_u16_vec(file_path.clone());
+                    let mut large_icon: HICON = HICON::default();
+
+                    // 使用ExtractIconExW提取指定索引的图标
+                    let extracted_count = unsafe {
+                        ExtractIconExW(
+                            PCWSTR::from_raw(wide_file_path.as_ptr()),
+                            icon_index,
+                            Some(&mut large_icon),
+                            None,
+                            1,
+                        )
+                    };
+
+                    if extracted_count == 0 || large_icon.is_invalid() {
+                        warn!(
+                            "ExtractIconExW failed for: {}, index: {} (attempt {})",
+                            file_path,
+                            icon_index,
+                            attempt + 1
+                        );
+                        return None;
+                    }
+
+                    let image_buffer = unsafe {
+                        let image_result = Self::convert_icon_to_image(large_icon);
+                        if let Err(e) = DestroyIcon(large_icon) {
+                            warn!("Failed to destroy icon: {:?}", e);
+                        }
+                        image_result.ok()?
+                    };
+
+                    Some(image_buffer)
+                }
+            })
+            .await
+            .expect_programming("Tokio spawn should not fail - this is a programming error");
+
+            if result.is_some() {
+                return result;
+            }
+
+            // 如果不是最后一次尝试，则等待随机时间后重试
+            if attempt < MAX_RETRIES {
+                use rand::{rng, Rng};
+                let delay_ms = rng().random_range(50..=250);
+                tokio::time::sleep(tokio::time::Duration::from_millis(delay_ms)).await;
+
+                info!(
+                    "Retrying icon extraction by index for: {} (attempt {}/{})",
+                    file_path,
+                    attempt + 1,
+                    MAX_RETRIES + 1
+                );
+            }
+        }
+
+        warn!(
+            "All {} attempts to extract icon by index failed for: {}",
             MAX_RETRIES + 1,
             file_path
         );

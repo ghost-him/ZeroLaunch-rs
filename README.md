@@ -70,7 +70,6 @@ ZeroLaunch 是一款懂你输入习惯的 Windows 智能启动器。它精通拼
 *   **应用程序搜索**：快速检索并启动传统应用及 UWP 应用，支持备注与别名，识别本地化名称。
 *   **应用程序唤醒**：智能将已运行程序的窗口置前，快速切换任务。
 *   **打开文件所在目录**：通过右键菜单快速定位文件位置。
-*   **Everything 模式**：按 `Ctrl + e` 切换到更广泛的文件系统路径搜索模式，快速定位任意文件。（注意：Everything 模式目前仅支持 x86_64 架构，不支持 arm64 架构。）
 
 ### 🎨 个性化与交互
 *   **高度自定义外观**：支持自定义背景、颜色、字体、毛玻璃效果、圆角、窗口尺寸等，并提供便捷的调节按钮。
@@ -87,22 +86,24 @@ ZeroLaunch 是一款懂你输入习惯的 Windows 智能启动器。它精通拼
 *   **游戏模式**：可手动禁用快捷键，避免游戏时误触。
 *   **最近启动程序**：按住 `Alt` 键可查看并快速打开最近使用的程序。
 *   **结果显示优化**：可设置数量阈值，超出后自动切换为滚动显示。
+*   **Everything 模式**：按 `Ctrl + e` 切换到更广泛的文件系统路径搜索模式，快速定位任意文件。（注意：Everything 模式目前仅支持 x86_64 架构，不支持 arm64 架构。）
+
 
 ## 🚀 快速入门
 
 ### 快捷键速查
 
-| 功能 | 快捷键 |
-| :--- | :--- |
-| 呼出/隐藏搜索栏 | `Alt + Space` |
-| 上下选择项目 | `↑`/`↓` 或 `Ctrl + k`/`j` |
-| 启动选中程序 | `Enter` |
-| 以管理员权限启动（普通应用） | `Ctrl + Enter` |
-| 清空搜索框 | `Esc` |
-| 隐藏搜索界面 | 点击搜索框外部区域 |
-| 切换到已打开的窗口 | `Shift + Enter` |
-| 按最近启动时间排序 | 按住 `Alt` 键 |
-| 进入Everything模式 | `Ctrl + e` |
+| 功能                         | 快捷键                    |
+| :--------------------------- | :------------------------ |
+| 呼出/隐藏搜索栏              | `Alt + Space`             |
+| 上下选择项目                 | `↑`/`↓` 或 `Ctrl + k`/`j` |
+| 启动选中程序                 | `Enter`                   |
+| 以管理员权限启动（普通应用） | `Ctrl + Enter`            |
+| 清空搜索框                   | `Esc`                     |
+| 隐藏搜索界面                 | 点击搜索框外部区域        |
+| 切换到已打开的窗口           | `Shift + Enter`           |
+| 按最近启动时间排序           | 按住 `Alt` 键             |
+| 进入/退出Everything模式      | `Ctrl + e`                |
 
 ### 常见功能的实现
 
@@ -130,11 +131,11 @@ winget install ghost-him.ZeroLaunch-rs
 *   **GitCode Releases** (中国大陆用户推荐): [https://gitcode.com/ghost-him/ZeroLaunch-rs/releases](https://gitcode.com/ghost-him/ZeroLaunch-rs/releases)
 
 ### 🧩 版本说明：AI 版 vs Lite 版
-| 特性 | **含 AI 版 (默认/推荐)** | **Lite 版 (轻量)** |
-| :--- | :--- | :--- |
-| **AI 语义搜索** | ✅ 支持 (需额外下载模型) | ❌ 不支持 |
-| **内存占用** | 启用 AI 时 ~500-550 MB<br>仅传统搜索时同 Lite 版 | ~60-70 MB |
-| **安装包标识** | 文件名**不含** `lite`，如：<br>`zerolaunch-rs_0.x.x_x64-setup.exe` | 文件名**包含** `lite`，如：<br>`zerolaunch-rs_lite_0.x.x_x64-setup.exe` |
+| 特性            | **含 AI 版 (默认/推荐)**                                           | **Lite 版 (轻量)**                                                      |
+| :-------------- | :----------------------------------------------------------------- | :---------------------------------------------------------------------- |
+| **AI 语义搜索** | ✅ 支持 (需额外下载模型)                                            | ❌ 不支持                                                                |
+| **内存占用**    | 启用 AI 时 ~500-550 MB<br>仅传统搜索时同 Lite 版                   | ~60-70 MB                                                               |
+| **安装包标识**  | 文件名**不含** `lite`，如：<br>`zerolaunch-rs_0.x.x_x64-setup.exe` | 文件名**包含** `lite`，如：<br>`zerolaunch-rs_lite_0.x.x_x64-setup.exe` |
 
 **开发者提示**：构建 AI 版需启用 `ai` 特性；构建 Lite 版则移除该特性。使用 `xtask` 时，默认构建 AI 版，构建 Lite 版请添加 `--ai disabled` 参数。
 
@@ -177,8 +178,6 @@ winget install ghost-him.ZeroLaunch-rs
 ## 🌍 语言支持
 
 当前支持：简体中文 (zh-Hans)、繁体中文 (zh-Hant)、English (en)。
-
-### 更改语言
 
 ### 切换语言
 
@@ -252,5 +251,7 @@ winget install ghost-him.ZeroLaunch-rs
 1. 点一个免费的小星星⭐
 2. 把这个项目分享给其他感兴趣的朋友
 3. 提出更多改进的建议（ZeroLaunch-rs 的定位就是纯粹的程序启动器，所以只会专注于启动器的功能，不会添加太多无关的功能哦，请谅解🥺🙏）
+
+> 本项目目前**仅主动优化核心搜索启动功能**，其他功能不在优先级之内。如果你有功能需求或发现 bug，欢迎提交 Issue。我会定期查看反馈，并根据实际情况进行优化和修复。感谢你的理解与支持！
 
 [![Star History Chart](https://api.star-history.com/svg?repos=ghost-him/zerolaunch-rs&type=Date)](https://www.star-history.com/#ghost-him/zerolaunch-rs&Date)

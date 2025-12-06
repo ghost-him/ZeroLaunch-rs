@@ -69,7 +69,6 @@ Focused on the core need of "launching quickly and accurately." Default settings
 *   **Application Search**: Quickly retrieve and launch traditional apps and UWP apps, supporting remarks, aliases, and localized name recognition.
 *   **Application Awake**: Smartly brings the windows of running programs to the front for quick task switching.
 *   **Open File Location**: Quickly locate files via the right-click menu.
-*   **Everything Mode**: Press `Ctrl + e` to switch to a broader file system path search mode to quickly locate any file. (Note: Everything Mode currently only supports x86_64 architecture; arm64 is not supported.)
 
 ### 🎨 Personalization & Interaction
 *   **Highly Customizable Appearance**: Supports customization of background, colors, fonts, blur effects, corner radius, window size, etc., with convenient adjustment buttons.
@@ -86,22 +85,23 @@ Focused on the core need of "launching quickly and accurately." Default settings
 *   **Game Mode**: Manually disable hotkeys to avoid accidental triggers during gaming.
 *   **Recent Apps**: Hold the `Alt` key to view and quickly open recently used programs.
 *   **Result Display Optimization**: Set a quantity threshold, automatically switching to scrolling display when exceeded.
+*   **Everything Mode**: Press `Ctrl + e` to switch to a broader file system path search mode to quickly locate any file. (Note: Everything Mode currently only supports x86_64 architecture; arm64 is not supported.)
 
 ## 🚀 Quick Start
 
 ### Hotkey Cheat Sheet
 
-| Function | Hotkey |
-| :--- | :--- |
-| Show/Hide Search Bar | `Alt + Space` |
-| Select Item Up/Down | `↑`/`↓` or `Ctrl + k`/`j` |
-| Launch Selected Program | `Enter` |
-| Run as Administrator (Standard Apps) | `Ctrl + Enter` |
-| Clear Search Box | `Esc` |
-| Hide Interface | Click outside the search box |
-| Switch to Open Window | `Shift + Enter` |
-| Sort by Recent Launch Time | Hold `Alt` |
-| Enter Everything Mode | `Ctrl + e` |
+| Function                             | Hotkey                       |
+| :----------------------------------- | :--------------------------- |
+| Show/Hide Search Bar                 | `Alt + Space`                |
+| Select Item Up/Down                  | `↑`/`↓` or `Ctrl + k`/`j`    |
+| Launch Selected Program              | `Enter`                      |
+| Run as Administrator (Standard Apps) | `Ctrl + Enter`               |
+| Clear Search Box                     | `Esc`                        |
+| Hide Interface                       | Click outside the search box |
+| Switch to Open Window                | `Shift + Enter`              |
+| Sort by Recent Launch Time           | Hold `Alt`                   |
+| Enter/Quit Everything Mode           | `Ctrl + e`                   |
 
 ### Implementation of Common Features
 
@@ -129,11 +129,11 @@ This project uses CI/CD for automatic builds. When a new version is released, AI
 *   **GitCode Releases** (Mainland China): [https://gitcode.com/ghost-him/ZeroLaunch-rs/releases](https://gitcode.com/ghost-him/ZeroLaunch-rs/releases)
 
 ### 🧩 Version Explanation: AI Version vs Lite Version
-| Feature | **AI Version (Default/Recommended)** | **Lite Version** |
-| :--- | :--- | :--- |
-| **AI Semantic Search** | ✅ Supported (requires extra model download) | ❌ Not Supported |
-| **RAM Usage** | ~500-550 MB when AI is enabled<br>Same as Lite when using only traditional search | ~60-70 MB |
-| **Installer ID** | Filename **does not** contain `lite`, e.g.:<br>`zerolaunch-rs_0.x.x_x64-setup.exe` | Filename **contains** `lite`, e.g.:<br>`zerolaunch-rs_lite_0.x.x_x64-setup.exe` |
+| Feature                | **AI Version (Default/Recommended)**                                               | **Lite Version**                                                                |
+| :--------------------- | :--------------------------------------------------------------------------------- | :------------------------------------------------------------------------------ |
+| **AI Semantic Search** | ✅ Supported (requires extra model download)                                        | ❌ Not Supported                                                                 |
+| **RAM Usage**          | ~500-550 MB when AI is enabled<br>Same as Lite when using only traditional search  | ~60-70 MB                                                                       |
+| **Installer ID**       | Filename **does not** contain `lite`, e.g.:<br>`zerolaunch-rs_0.x.x_x64-setup.exe` | Filename **contains** `lite`, e.g.:<br>`zerolaunch-rs_lite_0.x.x_x64-setup.exe` |
 
 **Developer Note**: Building the AI version requires enabling the `ai` feature; building the Lite version removes this feature. When using `xtask`, it defaults to building the AI version. To build the Lite version, add the `--ai disabled` argument.
 
@@ -249,5 +249,7 @@ If you like ZeroLaunch-rs, you can support us in the following ways:
 1. Give a free star ⭐
 2. Share this project with other interested friends
 3. Offer suggestions for improvement (ZeroLaunch-rs is positioned as a pure application launcher, so we will focus on launcher functions and won't add too many unrelated features, please understand 🥺🙏)
+
+> This project currently **focuses on optimizing core search and launch features only**. Other features are not prioritized at this stage. If you have feature requests or discover bugs, please feel free to submit an Issue. I'll review feedback regularly and optimize or fix issues accordingly. Thank you for your understanding and support!
 
 [![Star History Chart](https://api.star-history.com/svg?repos=ghost-him/zerolaunch-rs&type=Date)](https://www.star-history.com/#ghost-him/zerolaunch-rs&Date)

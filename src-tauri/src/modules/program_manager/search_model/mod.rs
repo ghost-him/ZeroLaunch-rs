@@ -223,3 +223,8 @@ pub fn get_first_letters(s: &str) -> String {
         .filter_map(|word| word.chars().next())
         .collect()
 }
+
+/// 移除字符串中的符号，只保留字母和数字
+pub fn remove_symbols(s: &str) -> String {
+    s.chars().filter(|c| c.is_alphanumeric()).collect()
+}

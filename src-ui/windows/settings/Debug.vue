@@ -88,13 +88,13 @@
         >
           <h3>{{ t('debug.generated_keywords') }}</h3>
           <el-tag
-            v-for="(keyword, index) in searchKeywords"
+            v-for="(item, index) in searchKeywords"
             :key="index"
             class="keyword-tag"
             closable
             @close="removeKeyword(index)"
           >
-            {{ keyword }}
+            {{ item }}
           </el-tag>
         </div>
       </el-card>

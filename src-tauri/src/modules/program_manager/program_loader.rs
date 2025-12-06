@@ -275,21 +275,47 @@ impl ProgramLoaderInner {
         let filtered_name = remove_repeated_space(&removed_version_name);
 
         // 以大写首字母开头的名字
-        let uppercase_name = get_upper_case_latter(&filtered_name).to_lowercase();
+        let camel_case_initials = get_upper_case_latter(&filtered_name).to_lowercase();
 
         // 小写名字
-        let lower_name = filtered_name.to_lowercase();
+        let original_lower = filtered_name.to_lowercase();
 
-        // 分隔开的名字
-        let mut split_name = self.pinyin_mapper.convert(&lower_name);
+        // 分隔开的名字 (如果是中文则是拼音，英文则是原名)
+        let mut expanded_name = self.pinyin_mapper.convert(&original_lower);
 
-        if split_name.is_empty() {
-            split_name = lower_name.clone();
+        if expanded_name.is_empty() {
+            expanded_name = original_lower.clone();
         }
 
-        let first_latter_name = get_first_letters(&split_name);
-        let pinyin_name = remove_string_space(&split_name);
-        vec![lower_name, pinyin_name, first_latter_name, uppercase_name]
+        let initials = get_first_letters(&expanded_name);
+        let compact_name = remove_string_space(&expanded_name);
+
+        // 生成去符号的版本
+        let original_lower_pure = remove_symbols(&original_lower);
+        let initials_pure = remove_symbols(&initials);
+        let compact_name_pure = remove_symbols(&compact_name);
+
+        let keywords = vec![
+            original_lower,
+            compact_name,
+            initials,
+            camel_case_initials, // 只有比如 PowerPoint 这种才会有用，生成 pp
+            original_lower_pure,
+            initials_pure,
+            compact_name_pure,
+        ];
+
+        // 去重和去空
+        let mut seen = std::collections::HashSet::new();
+        let mut result = Vec::new();
+
+        for k in keywords {
+            if !k.is_empty() && seen.insert(k.clone()) {
+                result.push(k);
+            }
+        }
+
+        result
     }
     /// 判断一个程序是不是已经添加了
     fn check_program_is_exist(&self, full_name: &str) -> bool {
@@ -461,7 +487,7 @@ impl ProgramLoaderInner {
                 continue;
             }
             let unique_name = check_name.to_lowercase();
-            let alias_names: Vec<String> = self.convert_search_keywords(show_name);
+            let alias_names = self.convert_search_keywords(show_name);
             let launch_method = LaunchMethod::File(url.clone());
 
             let program = self.create_program(
@@ -572,7 +598,7 @@ impl ProgramLoaderInner {
                     }
 
                     // 基础别名：来自文件名本身
-                    let mut alias_names: Vec<String> = self.convert_search_keywords(&show_name);
+                    let mut alias_names = self.convert_search_keywords(&show_name);
                     let unique_name = show_name.to_lowercase();
 
                     // 根据实际文件的扩展名决定启动方式

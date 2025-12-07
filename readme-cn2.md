@@ -32,7 +32,8 @@
     <a href="https://gitee.com/ghost-him/ZeroLaunch-rs" target="_blank">Gitee</a> •
     <a href="https://github.com/ghost-him/ZeroLaunch-rs" target="_blank">GitHub</a> •
     <a href="https://gitcode.com/ghost-him/ZeroLaunch-rs" target="_blank">GitCode</a> •
-    <a href="https://zerolaunch.ghost-him.com" target="_blank">官網</a>
+    <a href="https://zerolaunch.ghost-him.com" target="_blank">官網</a> •
+    <a href="https://github.com/ghost-him/ZeroLaunch-rs/wiki" target="_blank">Wiki</a>
 </div>
 
 ## 📕 一句話介紹

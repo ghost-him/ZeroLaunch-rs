@@ -96,13 +96,13 @@
         </el-tooltip>
       </el-form-item>
 
-      <el-form-item :label="t('app_config.auto_refresh_time')">
+      <el-form-item :label="t('refresh_scheduler.auto_refresh_time')">
         <el-input-number
-          v-model="config.app_config.auto_refresh_time"
+          v-model="config.refresh_scheduler_config.auto_refresh_interval_mins"
           :step="1"
           :precision="0"
           :min="1"
-          @change="(val: number) => configStore.updateConfig({ app_config: { auto_refresh_time: val } })"
+          @change="(val: number) => configStore.updateConfig({ refresh_scheduler_config: { auto_refresh_interval_mins: val } })"
         >
           <template #suffix>
             <span>{{ t('app_config.minutes') }}</span>

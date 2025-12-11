@@ -214,7 +214,6 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { homeDir } from '@tauri-apps/api/path';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, TauriEvent, UnlistenFn } from '@tauri-apps/api/event';
-import { DragDropEvent } from '@tauri-apps/api/webview';
 import { ElMessage } from 'element-plus';
 
 const { t } = useI18n();
@@ -372,6 +371,11 @@ interface PathInfo {
     error_message?: string;
 }
 
+interface DragDropPayload {
+    paths: string[];
+    position: { x: number; y: number };
+}
+
 const addOrUpdateTargetPath = (configToAddOrUpdate: DirectoryConfig, existingIndex: number = -1) => {
     const newTargetPaths = JSON.parse(JSON.stringify(targetPaths.value));
     if (existingIndex !== -1) {
@@ -398,12 +402,8 @@ const addOrUpdateTargetPath = (configToAddOrUpdate: DirectoryConfig, existingInd
     }
 }
 
-const handleFileDrop = async (payload: DragDropEvent) => {
+const handleFileDrop = async (payload: DragDropPayload) => {
     isDragOver.value = false;
-    if (payload.type !== "enter" && payload.type !== "drop") return; // Fix type check logic if needed, assuming 'drop' is what we want or 'enter' is just trigger
-    // Actually payload.type is 'enter', 'over', 'drop', 'leave'. The event listener filters.
-    // The original code had `payload.type = "enter"` assignment which was weird.
-    // Let's assume payload comes from DRAG_DROP event so it is a drop.
     
     if (!payload.paths || payload.paths.length === 0) return;
 
@@ -467,7 +467,7 @@ const handleFileDrop = async (payload: DragDropEvent) => {
 let unlisten: Array<UnlistenFn | null> = [];
 
 onMounted(async () => {
-    unlisten.push(await listen<DragDropEvent>(TauriEvent.DRAG_DROP, (e) => {
+    unlisten.push(await listen<DragDropPayload>(TauriEvent.DRAG_DROP, (e) => {
         handleFileDrop(e.payload);
     }))
     unlisten.push(await listen(TauriEvent.DRAG_LEAVE, () => {

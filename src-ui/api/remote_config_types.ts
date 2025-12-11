@@ -71,7 +71,6 @@ export type AppConfig = {
     is_auto_start: boolean
     is_silent_start: boolean
     search_result_count: number
-    auto_refresh_time: number
     launch_new_on_failure: boolean
     is_debug_mode: boolean
     is_esc_hide_window_priority: boolean,
@@ -92,7 +91,6 @@ export function default_app_config(): AppConfig {
         is_auto_start: false,
         is_silent_start: false,
         search_result_count: 4,
-        auto_refresh_time: 30,
         launch_new_on_failure: false,
         is_debug_mode: false,
         is_esc_hide_window_priority: false,
@@ -286,6 +284,21 @@ export function default_everything_config(): EverythingConfig {
     } as EverythingConfig
 }
 
+// 刷新调度器配置
+export type RefreshSchedulerConfig = {
+    auto_refresh_interval_mins: number
+    enable_installation_monitor: boolean
+    monitor_debounce_secs: number
+}
+
+export function default_refresh_scheduler_config(): RefreshSchedulerConfig {
+    return {
+        auto_refresh_interval_mins: 30,
+        enable_installation_monitor: false,
+        monitor_debounce_secs: 5,
+    } as RefreshSchedulerConfig
+}
+
 export type RemoteConfig = {
     app_config: AppConfig
     ui_config: UIConfig
@@ -299,6 +312,7 @@ export type RemoteConfig = {
     }
     icon_manager_config: IconManagerConfig
     everything_config: EverythingConfig
+    refresh_scheduler_config: RefreshSchedulerConfig
 }
 
 export type PartialAppConfig = Partial<AppConfig>
@@ -311,6 +325,7 @@ export type PartialEverythingShortcutConfig = Partial<EverythingShortcutConfig>
 export type PartialEverythingConfig = Partial<Omit<EverythingConfig, 'shortcuts'>> & {
     shortcuts?: PartialEverythingShortcutConfig
 }
+export type PartialRefreshSchedulerConfig = Partial<RefreshSchedulerConfig>
 
 export type PartialRemoteConfig = {
     app_config?: PartialAppConfig
@@ -325,4 +340,5 @@ export type PartialRemoteConfig = {
     }
     icon_manager_config?: PartialIconManagerConfig
     everything_config?: PartialEverythingConfig
+    refresh_scheduler_config?: PartialRefreshSchedulerConfig
 }

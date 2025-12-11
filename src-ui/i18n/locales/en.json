@@ -517,7 +517,6 @@
     "search_result_count": "Number of search results",
     "scroll_threshold": "Scroll mode threshold",
     "scroll_threshold_tooltip": "When the number of search results exceeds this threshold, the UI will switch to scroll mode to avoid display issues",
-    "auto_refresh_time": "Auto-refresh database time",
     "minutes": "min",
     "window_interaction": "Window & Interaction",
     "esc_priority_close": "ESC key prioritizes closing window",
@@ -579,5 +578,13 @@
     "sort_date_accessed_descending": "Date Accessed Descending",
     "sort_date_run_ascending": "Date Run Ascending",
     "sort_date_run_descending": "Date Run Descending"
+  },
+  "refresh_scheduler": {
+    "auto_refresh_time": "Auto-refresh database time",
+    "enable_installation_monitor": "Enable installation monitor",
+    "enable_installation_monitor_tooltip": "Automatically refresh the database when a new program is installed (monitors Start Menu shortcuts)",
+    "monitor_debounce_secs": "Monitor debounce time",
+    "monitor_debounce_tooltip": "Time to wait after detecting file changes before refreshing, to avoid frequent updates",
+    "seconds": "sec"
   }
 }

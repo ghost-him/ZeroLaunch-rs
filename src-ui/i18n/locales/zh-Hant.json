@@ -517,7 +517,6 @@
     "search_result_count": "設定搜尋結果數量",
     "scroll_threshold": "滾動模式閾值",
     "scroll_threshold_tooltip": "當搜尋結果數量超過此閾值時，介面將自動切換到滾動模式，避免介面顯示異常",
-    "auto_refresh_time": "自動重新整理資料庫的時間",
     "minutes": "分鐘",
     "window_interaction": "視窗與互動",
     "esc_priority_close": "Esc鍵優先關閉視窗",
@@ -579,5 +578,13 @@
     "sort_date_accessed_descending": "按存取日期降序",
     "sort_date_run_ascending": "按執行日期升序",
     "sort_date_run_descending": "按執行日期降序"
+  },
+  "refresh_scheduler": {
+    "auto_refresh_time": "自動重新整理資料庫的時間",
+    "enable_installation_monitor": "啟用安裝監控",
+    "enable_installation_monitor_tooltip": "當安裝新程式時自動重新整理資料庫（監控開始功能表捷徑）",
+    "monitor_debounce_secs": "監控防抖時間",
+    "monitor_debounce_tooltip": "偵測到檔案變化後等待的時間，避免頻繁重新整理",
+    "seconds": "秒"
   }
 }

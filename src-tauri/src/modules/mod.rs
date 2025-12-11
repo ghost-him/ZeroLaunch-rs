@@ -3,6 +3,7 @@ pub mod everything;
 pub mod icon_manager;
 pub mod parameter_resolver;
 pub mod program_manager;
+pub mod refresh_scheduler;
 pub mod shortcut_manager;
 pub mod task_scheduler;
 pub mod ui_controller;

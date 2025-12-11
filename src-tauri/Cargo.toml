@@ -110,6 +110,7 @@ arboard = "3.6.1"
 zip = "6.0.0"
 whoami = "1.6.1"
 blake3 = "1.8.2"
+notify = "8.2.0"
 
 [features]
 default = ["custom-protocol"]

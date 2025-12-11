@@ -5,7 +5,7 @@ use crate::modules::config::default::REMOTE_CONFIG_DEFAULT;
 use crate::modules::config::load_string_to_runtime_config_;
 use crate::save_config_to_file;
 use crate::storage::config::PartialLocalConfig;
-use crate::update_app_setting;
+use crate::utils::service_locator::ServiceLocator;
 use crate::AppState;
 use crate::REMOTE_CONFIG_NAME;
 use std::sync::Arc;
@@ -101,7 +101,8 @@ pub async fn command_save_local_config<R: Runtime>(
     runtime_config.update(partial_config);
 
     debug!("⚙️ 更新应用设置");
-    update_app_setting().await;
+    let state = ServiceLocator::get_state();
+    state.get_refresh_scheduler().trigger_refresh();
 
     let setting_window = match app.get_webview_window("setting_window") {
         Some(window) => window,

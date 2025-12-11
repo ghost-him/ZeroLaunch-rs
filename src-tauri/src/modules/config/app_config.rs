@@ -49,7 +49,6 @@ pub struct PartialAppConfig {
     pub is_auto_start: Option<bool>,
     pub is_silent_start: Option<bool>,
     pub search_result_count: Option<u32>,
-    pub auto_refresh_time: Option<u32>,
     pub launch_new_on_failure: Option<bool>,
     pub is_debug_mode: Option<bool>,
     pub is_esc_hide_window_priority: Option<bool>,
@@ -83,9 +82,6 @@ pub struct AppConfigInner {
     /// 搜索结果的数量
     #[serde(default = "AppConfigInner::default_search_result_count")]
     pub search_result_count: u32,
-    /// 自动刷新数据库的时间
-    #[serde(default = "AppConfigInner::default_auto_refresh_time")]
-    pub auto_refresh_time: u32,
     /// 当唤醒失败时启动新实例
     #[serde(default = "AppConfigInner::default_launch_new_on_failure")]
     pub launch_new_on_failure: bool,
@@ -132,7 +128,6 @@ impl Default for AppConfigInner {
             is_auto_start: Self::default_is_auto_start(),
             is_silent_start: Self::default_is_silent_start(),
             search_result_count: Self::default_search_result_count(),
-            auto_refresh_time: Self::default_auto_refresh_time(),
             launch_new_on_failure: Self::default_launch_new_on_failure(),
             is_debug_mode: Self::default_is_debug_mode(),
             is_esc_hide_window_priority: Self::default_is_esc_hide_window_priority(),
@@ -168,10 +163,6 @@ impl AppConfigInner {
 
     pub(crate) fn default_search_result_count() -> u32 {
         4
-    }
-
-    pub(crate) fn default_auto_refresh_time() -> u32 {
-        30
     }
 
     pub(crate) fn default_launch_new_on_failure() -> bool {
@@ -240,9 +231,6 @@ impl AppConfigInner {
         if let Some(launch_new) = partial_app_config.launch_new_on_failure {
             self.launch_new_on_failure = launch_new;
         }
-        if let Some(auto_refresh_time) = partial_app_config.auto_refresh_time {
-            self.auto_refresh_time = auto_refresh_time;
-        }
         if let Some(is_debug_mode) = partial_app_config.is_debug_mode {
             self.is_debug_mode = is_debug_mode;
         }
@@ -284,7 +272,6 @@ impl AppConfigInner {
             is_silent_start: Some(self.is_silent_start),
             search_result_count: Some(self.search_result_count),
             launch_new_on_failure: Some(self.launch_new_on_failure),
-            auto_refresh_time: Some(self.auto_refresh_time),
             is_debug_mode: Some(self.is_debug_mode),
             is_esc_hide_window_priority: Some(self.is_esc_hide_window_priority),
             is_enable_drag_window: Some(self.is_enable_drag_window),
@@ -341,11 +328,6 @@ impl AppConfig {
     pub fn get_search_result_count(&self) -> u32 {
         let inner = self.inner.read();
         inner.search_result_count
-    }
-
-    pub fn get_auto_refresh_time(&self) -> u32 {
-        let inner = self.inner.read();
-        inner.auto_refresh_time
     }
 
     pub fn get_launch_new_on_failure(&self) -> bool {

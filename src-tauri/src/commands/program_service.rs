@@ -54,9 +54,7 @@ async fn execute_builtin_command(cmd_str: &str) -> Result<(), String> {
             crate::tray::handle_show_settings_window();
         }
         BuiltinCommandType::RefreshDatabase => {
-            tauri::async_runtime::spawn(async {
-                crate::tray::handle_update_app_setting().await;
-            });
+            crate::tray::handle_update_app_setting();
         }
         BuiltinCommandType::RetryRegisterShortcut => {
             crate::tray::handle_register_shortcut();
@@ -319,7 +317,7 @@ pub async fn refresh_program<R: Runtime>(
     _app: tauri::AppHandle<R>,
     _window: tauri::Window<R>,
 ) -> Result<(), String> {
-    crate::tray::handle_update_app_setting().await;
+    crate::tray::handle_update_app_setting();
     Ok(())
 }
 

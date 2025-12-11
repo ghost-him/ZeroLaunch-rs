@@ -127,6 +127,7 @@ impl ProgramManager {
         }
         pm
     }
+
     pub async fn get_runtime_data(&self) -> ProgramManagerRuntimeData {
         // 这里我认为，semantic_store 是一个 HashMap<String, SemanticStoreItem>，而SemanticStoreItem是一个内部的类，它最好不要被外部的信息所接触
         // 所以由ProgramManager来管理其实例化

@@ -517,7 +517,6 @@
     "search_result_count": "设置搜索结果数量",
     "scroll_threshold": "滚动模式阈值",
     "scroll_threshold_tooltip": "当搜索结果数量超过此阈值时，界面将自动切换到滚动模式，避免界面显示异常",
-    "auto_refresh_time": "自动刷新数据库的时间",
     "minutes": "分钟",
     "window_interaction": "窗口与交互",
     "esc_priority_close": "esc键优先关闭窗口",
@@ -579,5 +578,13 @@
     "sort_date_accessed_descending": "按访问日期降序",
     "sort_date_run_ascending": "按运行日期升序",
     "sort_date_run_descending": "按运行日期降序"
+  },
+  "refresh_scheduler": {
+    "auto_refresh_time": "自动刷新数据库的时间",
+    "enable_installation_monitor": "启用安装监控",
+    "enable_installation_monitor_tooltip": "当安装新程序时自动刷新数据库（监控开始菜单快捷方式）",
+    "monitor_debounce_secs": "监控防抖时间",
+    "monitor_debounce_tooltip": "检测到文件变化后等待的时间，避免频繁刷新",
+    "seconds": "秒"
   }
 }

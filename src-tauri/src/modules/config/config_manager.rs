@@ -7,6 +7,9 @@ use crate::modules::config::window_state::WindowState;
 
 use crate::modules::everything::config::{EverythingConfig, PartialEverythingConfig};
 use crate::modules::icon_manager::config::{IconManagerConfig, PartialIconManagerConfig};
+use crate::modules::refresh_scheduler::config::{
+    PartialRefreshSchedulerConfig, RefreshSchedulerConfig,
+};
 use crate::modules::shortcut_manager::shortcut_config::PartialShortcutConfig;
 use crate::modules::shortcut_manager::shortcut_config::ShortcutConfig;
 use crate::program_manager::config::program_manager_config::PartialProgramManagerConfig;
@@ -23,6 +26,7 @@ pub struct PartialRuntimeConfig {
     pub window_state: Option<PartialWindowState>,
     pub icon_manager_config: Option<PartialIconManagerConfig>,
     pub everything_config: Option<PartialEverythingConfig>,
+    pub refresh_scheduler_config: Option<PartialRefreshSchedulerConfig>,
 }
 
 #[derive(Debug)]
@@ -34,6 +38,7 @@ pub struct RuntimeConfig {
     window_state: Arc<WindowState>,
     icon_manager_config: Arc<IconManagerConfig>,
     everything_config: Arc<EverythingConfig>,
+    refresh_scheduler_config: Arc<RefreshSchedulerConfig>,
 }
 
 impl Default for RuntimeConfig {
@@ -52,6 +57,7 @@ impl RuntimeConfig {
             window_state: Arc::new(WindowState::default()),
             icon_manager_config: Arc::new(IconManagerConfig::default()),
             everything_config: Arc::new(EverythingConfig::default()),
+            refresh_scheduler_config: Arc::new(RefreshSchedulerConfig::default()),
         }
     }
 
@@ -77,6 +83,10 @@ impl RuntimeConfig {
         }
         if let Some(partial_everything_config) = partial_config.everything_config {
             self.everything_config.update(partial_everything_config);
+        }
+        if let Some(partial_refresh_scheduler_config) = partial_config.refresh_scheduler_config {
+            self.refresh_scheduler_config
+                .update(partial_refresh_scheduler_config);
         }
     }
 
@@ -108,6 +118,10 @@ impl RuntimeConfig {
         self.everything_config.clone()
     }
 
+    pub fn get_refresh_scheduler_config(&self) -> Arc<RefreshSchedulerConfig> {
+        self.refresh_scheduler_config.clone()
+    }
+
     pub fn to_partial(&self) -> PartialRuntimeConfig {
         PartialRuntimeConfig {
             app_config: Some(self.app_config.to_partial()),
@@ -117,6 +131,7 @@ impl RuntimeConfig {
             window_state: None,
             icon_manager_config: Some(self.icon_manager_config.to_partial()),
             everything_config: Some(self.everything_config.to_partial()),
+            refresh_scheduler_config: Some(self.refresh_scheduler_config.to_partial()),
         }
     }
 }

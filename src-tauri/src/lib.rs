@@ -35,7 +35,6 @@ use crate::utils::i18n::{current_language, switch_language};
 use crate::utils::ui_controller::handle_focus_lost;
 use crate::utils::ui_controller::handle_pressed;
 use crate::window_position::update_window_size_and_position;
-use chrono::Duration;
 use core::storage;
 use core::storage::storage_manager::StorageManager;
 use device_query::DeviceQuery;
@@ -378,6 +377,34 @@ async fn init_app_state(app: &mut App) {
     state.set_program_manager(Arc::new(program_manager));
     debug!("程序管理器初始化并设置完成");
 
+    // 初始化刷新调度器
+    let refresh_scheduler_config = runtime_config.get_refresh_scheduler_config();
+    let refresh_scheduler = Arc::new(modules::refresh_scheduler::RefreshScheduler::new());
+
+    // 启动刷新调度器
+    refresh_scheduler.set_callback(|trigger| {
+        use modules::refresh_scheduler::RefreshTrigger;
+        match trigger {
+            RefreshTrigger::Timer => {
+                info!("定时刷新触发");
+            }
+            RefreshTrigger::InstallationMonitor => {
+                info!("安装监控刷新触发");
+            }
+            RefreshTrigger::Manual => {
+                info!("手动刷新触发");
+            }
+        }
+        tauri::async_runtime::spawn(async {
+            update_app_setting().await;
+        });
+    });
+
+    refresh_scheduler.update_config(refresh_scheduler_config.to_partial());
+
+    state.set_refresh_scheduler(refresh_scheduler);
+    debug!("刷新调度器初始化完成");
+
     debug!("应用状态初始化完成");
 }
 
@@ -626,6 +653,12 @@ async fn update_app_setting() {
     // 8. 更新快捷键的绑定
     update_shortcut_manager();
 
+    // 9. 更新刷新调度器配置
+    let refresh_scheduler_config = runtime_config.get_refresh_scheduler_config();
+    state
+        .get_refresh_scheduler()
+        .update_config(refresh_scheduler_config.to_partial());
+
     // 发送刷新结束事件
     if let Err(e) = handle.emit("refresh_program_end", "") {
         tracing::debug!("emit refresh_program_end failed: {:?}", e);
@@ -635,23 +668,6 @@ async fn update_app_setting() {
     if let Err(e) = handle.emit("update_search_bar_window", "") {
         eprintln!("发送窗口更新事件失败: {:?}", e);
     }
-
-    let mins = app_config.get_auto_refresh_time() as u64;
-    // 取消当前的定时器
-    if let Some(guard) = state.take_timer_guard() {
-        drop(guard); // 取消定时器
-    }
-    // 创建新定时器
-    let new_interval = Duration::seconds((mins * 60) as i64);
-    let timer = state.get_timer();
-    // 使用 spawn_local 来处理异步定时任务
-    let guard_value = timer.schedule_repeating(new_interval, move || {
-        // 创建一个新的任务来执行异步函数
-        tauri::async_runtime::block_on(async {
-            update_app_setting().await;
-        });
-    });
-    state.set_timer_guard(guard_value);
 }
 
 /// 保存程序的配置信息
@@ -688,6 +704,7 @@ pub async fn save_config_to_file(is_update_app: bool) {
         window_state: None,
         icon_manager_config: None,
         everything_config: None,
+        refresh_scheduler_config: None,
     });
     let remote_config = runtime_config.to_partial();
 
@@ -717,7 +734,8 @@ pub async fn save_config_to_file(is_update_app: bool) {
     debug!("远程配置上传完成");
 
     if is_update_app {
-        update_app_setting().await;
+        let state = ServiceLocator::get_state();
+        state.get_refresh_scheduler().trigger_refresh();
     }
 }
 

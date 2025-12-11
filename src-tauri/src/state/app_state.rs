@@ -3,6 +3,7 @@ use crate::error::OptionExt;
 #[cfg(target_arch = "x86_64")]
 use crate::modules::everything::EverythingManager;
 use crate::modules::icon_manager::IconManager;
+use crate::modules::refresh_scheduler::RefreshScheduler;
 use crate::modules::shortcut_manager::ShortcutManager;
 use crate::modules::{config::config_manager::RuntimeConfig, program_manager::ProgramManager};
 use crate::utils::i18n::Translator;
@@ -12,7 +13,6 @@ use std::sync::Arc;
 use tauri::menu::Menu;
 use tauri::tray::TrayIcon;
 use tauri::AppHandle;
-use timer::{Guard, Timer};
 
 pub struct AppState {
     /// 运行时配置
@@ -21,10 +21,8 @@ pub struct AppState {
     program_manager: RwLock<Option<Arc<ProgramManager>>>,
     /// 主窗口句柄
     main_handle: RwLock<Option<Arc<AppHandle>>>,
-    /// 定时器守卫
-    timer_guard: RwLock<Option<Guard>>,
-    /// 定时器
-    timer: Arc<Timer>,
+    /// 刷新调度器
+    refresh_scheduler: RwLock<Option<Arc<RefreshScheduler>>>,
     /// 当前的窗口是否可见
     is_search_bar_visible: RwLock<bool>,
     /// 文件存储器
@@ -66,8 +64,7 @@ impl AppState {
             runtime_config: RwLock::new(None),
             program_manager: RwLock::new(None),
             main_handle: RwLock::new(None),
-            timer_guard: RwLock::new(None),
-            timer: Arc::new(Timer::new()),
+            refresh_scheduler: RwLock::new(None),
             is_search_bar_visible: RwLock::new(false),
             storage_client: RwLock::new(None),
             waiting_hashmap: Arc::new(AsyncWaitingHashMap::new()),
@@ -133,17 +130,21 @@ impl AppState {
     }
     // endregion
 
-    pub fn get_timer(&self) -> Arc<Timer> {
-        self.timer.clone()
+    // region: RefreshScheduler 访问方法
+    /// 获取刷新调度器的克隆
+    pub fn get_refresh_scheduler(&self) -> Arc<RefreshScheduler> {
+        self.refresh_scheduler
+            .read()
+            .as_ref()
+            .cloned()
+            .expect_programming("refresh scheduler not initialized")
     }
 
-    pub fn set_timer_guard(&self, guard: Guard) {
-        *self.timer_guard.write() = Some(guard);
+    /// 设置刷新调度器
+    pub fn set_refresh_scheduler(&self, scheduler: Arc<RefreshScheduler>) {
+        *self.refresh_scheduler.write() = Some(scheduler);
     }
-
-    pub fn take_timer_guard(&self) -> Option<Guard> {
-        self.timer_guard.write().take()
-    }
+    // endregion
 
     pub fn set_search_bar_visible(&self, is_visible: bool) {
         *self.is_search_bar_visible.write() = is_visible;
@@ -276,8 +277,7 @@ impl std::fmt::Debug for AppState {
             .field("runtime_config", &self.runtime_config)
             .field("program_manager", &self.program_manager)
             .field("main_handle", &self.main_handle)
-            .field("timer_guard", &"<Timer Guard>")
-            .field("timer", &"<Timer>")
+            .field("refresh_scheduler", &"<RefreshScheduler>")
             .field("storage_client", &self.storage_client)
             .field("waiting_hashmap", &self.waiting_hashmap)
             .finish()

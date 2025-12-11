@@ -10,9 +10,7 @@ use tracing::{debug, warn};
 use crate::error::{OptionExt, ResultExt};
 use crate::utils::i18n::{t, t_with};
 use crate::utils::notify::notify;
-use crate::{
-    handle_pressed, show_setting_window, update_app_setting, AppState, ServiceLocator, APP_PIC_PATH,
-};
+use crate::{handle_pressed, show_setting_window, AppState, ServiceLocator, APP_PIC_PATH};
 // Removed: use crate::retry_register_shortcut; // Appears unused, functionality merged
 use crate::modules::config::default::APP_VERSION;
 
@@ -60,8 +58,9 @@ pub async fn handle_exit_program(app_handle: &AppHandle) {
     app_handle.exit(0);
 }
 
-pub async fn handle_update_app_setting() {
-    update_app_setting().await;
+pub fn handle_update_app_setting() {
+    let state = ServiceLocator::get_state();
+    state.get_refresh_scheduler().trigger_refresh();
 }
 
 pub fn handle_register_shortcut() {
@@ -219,7 +218,7 @@ fn create_tray_icon<R: Runtime>(app_handle: &AppHandle, menu: Menu<R>) -> tauri:
                     });
                 }
                 MenuEventId::UpdateAppSetting => {
-                    tauri::async_runtime::spawn(handle_update_app_setting());
+                    handle_update_app_setting();
                 }
                 MenuEventId::RegisterShortcut => handle_register_shortcut(),
                 MenuEventId::SwitchGameMode => handle_toggle_game_mode(),

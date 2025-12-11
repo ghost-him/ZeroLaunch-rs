@@ -94,18 +94,58 @@
           </el-tooltip>
         </el-form-item>
 
-        <el-form-item :label="t('app_config.auto_refresh_time')">
+        <el-form-item :label="t('refresh_scheduler.auto_refresh_time')">
           <el-input-number
-            v-model="config.app_config.auto_refresh_time"
+            v-model="config.refresh_scheduler_config.auto_refresh_interval_mins"
             :step="1"
             :precision="0"
             :min="1"
-            @change="(val: number) => configStore.updateConfig({ app_config: { auto_refresh_time: val } })"
+            @change="(val: number) => configStore.updateConfig({ refresh_scheduler_config: { auto_refresh_interval_mins: val } })"
           >
             <template #suffix>
               <span>{{ t('app_config.minutes') }}</span>
             </template>
           </el-input-number>
+        </el-form-item>
+
+        <el-form-item :label="t('refresh_scheduler.enable_installation_monitor')">
+          <el-switch
+            v-model="config.refresh_scheduler_config.enable_installation_monitor"
+            @change="(val: boolean) => configStore.updateConfig({ refresh_scheduler_config: { enable_installation_monitor: val } })"
+          />
+          <el-tooltip
+            class="box-item"
+            effect="dark"
+            :content="t('refresh_scheduler.enable_installation_monitor_tooltip')"
+          >
+            <el-icon class="el-question-icon">
+              <QuestionFilled />
+            </el-icon>
+          </el-tooltip>
+        </el-form-item>
+
+        <el-form-item :label="t('refresh_scheduler.monitor_debounce_secs')">
+          <el-input-number
+            v-model="config.refresh_scheduler_config.monitor_debounce_secs"
+            :step="1"
+            :precision="0"
+            :min="1"
+            :max="60"
+            @change="(val: number) => configStore.updateConfig({ refresh_scheduler_config: { monitor_debounce_secs: val } })"
+          >
+            <template #suffix>
+              <span>{{ t('refresh_scheduler.seconds') }}</span>
+            </template>
+          </el-input-number>
+          <el-tooltip
+            class="box-item"
+            effect="dark"
+            :content="t('refresh_scheduler.monitor_debounce_tooltip')"
+          >
+            <el-icon class="el-question-icon">
+              <QuestionFilled />
+            </el-icon>
+          </el-tooltip>
         </el-form-item>
 
         <el-divider content-position="left">

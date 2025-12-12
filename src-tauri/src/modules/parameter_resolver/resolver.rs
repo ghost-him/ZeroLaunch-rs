@@ -24,6 +24,7 @@ pub enum ResolverError {
 ///
 /// 捕获时机:
 /// - 窗口句柄: 从 AppState 读取(已在唤醒时保存)
+/// - 选中文本: 从 AppState 读取(已在唤醒时保存)
 /// - 剪贴板: 在调用 capture() 时实时获取
 #[derive(Debug, Clone)]
 pub struct SystemParameterSnapshot {
@@ -31,6 +32,8 @@ pub struct SystemParameterSnapshot {
     pub clipboard: Option<String>,
     /// 窗口句柄(唤醒前的前台窗口)
     pub window_handle: Option<String>,
+    /// 选中文本(唤醒前活动窗口的选中内容)
+    pub selection: Option<String>,
 }
 
 impl SystemParameterSnapshot {
@@ -38,6 +41,7 @@ impl SystemParameterSnapshot {
     ///
     /// - 剪贴板: 获取当前剪贴板内容
     /// - 窗口句柄: 从 AppState 读取已保存的值(在 ui_controller 唤醒时保存)
+    /// - 选中文本: 从 AppState 读取已保存的值(在 ui_controller 唤醒时保存)
     pub fn capture() -> Self {
         use crate::utils::service_locator::ServiceLocator;
 
@@ -50,15 +54,23 @@ impl SystemParameterSnapshot {
             .get_previous_foreground_window()
             .map(|hwnd| hwnd.to_string());
 
+        // 从 AppState 读取已保存的选中文本(唤醒时保存的)
+        let selection = state.get_previous_selection();
+
         debug!(
-            "📸 捕获系统参数快照: clipboard={}, hwnd={}",
+            "📸 捕获系统参数快照: clipboard={}, hwnd={}, selection={}",
             clipboard.as_deref().unwrap_or("<empty>"),
-            window_handle.as_deref().unwrap_or("<null>")
+            window_handle.as_deref().unwrap_or("<null>"),
+            selection
+                .as_ref()
+                .map(|s| format!("{}字符", s.len()))
+                .unwrap_or_else(|| "<empty>".to_string())
         );
 
         Self {
             clipboard,
             window_handle,
+            selection,
         }
     }
 
@@ -70,6 +82,7 @@ impl SystemParameterSnapshot {
                 .window_handle
                 .clone()
                 .unwrap_or_else(|| "0".to_string()),
+            SystemParameter::Selection => self.selection.clone().unwrap_or_default(),
         }
     }
 }
@@ -172,6 +185,7 @@ mod tests {
         let snapshot = SystemParameterSnapshot {
             clipboard: Some("test".to_string()),
             window_handle: Some("12345".to_string()),
+            selection: None,
         };
 
         let result = resolver
@@ -187,6 +201,7 @@ mod tests {
         let snapshot = SystemParameterSnapshot {
             clipboard: None,
             window_handle: None,
+            selection: None,
         };
 
         let result = resolver
@@ -202,6 +217,7 @@ mod tests {
         let snapshot = SystemParameterSnapshot {
             clipboard: Some("clipboard_content".to_string()),
             window_handle: None,
+            selection: None,
         };
 
         let result = resolver
@@ -217,6 +233,7 @@ mod tests {
         let snapshot = SystemParameterSnapshot {
             clipboard: None,
             window_handle: Some("98765".to_string()),
+            selection: None,
         };
 
         let result = resolver
@@ -227,22 +244,39 @@ mod tests {
     }
 
     #[test]
+    fn test_resolve_selection_parameter() {
+        let resolver = ParameterResolver::new();
+        let snapshot = SystemParameterSnapshot {
+            clipboard: None,
+            window_handle: None,
+            selection: Some("selected text".to_string()),
+        };
+
+        let result = resolver
+            .resolve_template("translate {selection}", &[], &snapshot)
+            .unwrap();
+
+        assert_eq!(result, "translate selected text");
+    }
+
+    #[test]
     fn test_resolve_mixed_parameters() {
         let resolver = ParameterResolver::new();
         let snapshot = SystemParameterSnapshot {
             clipboard: Some("clip_data".to_string()),
             window_handle: Some("54321".to_string()),
+            selection: Some("selected".to_string()),
         };
 
         let result = resolver
             .resolve_template(
-                "program {} {clip} {} {hwnd}",
+                "program {} {clip} {} {hwnd} {selection}",
                 &["arg1".to_string(), "arg2".to_string()],
                 &snapshot,
             )
             .unwrap();
 
-        assert_eq!(result, "program arg1 clip_data arg2 54321");
+        assert_eq!(result, "program arg1 clip_data arg2 54321 selected");
     }
 
     #[test]
@@ -251,6 +285,7 @@ mod tests {
         let snapshot = SystemParameterSnapshot {
             clipboard: None,
             window_handle: None,
+            selection: None,
         };
 
         let result = resolver.resolve_template("program {} {}", &["arg1".to_string()], &snapshot);
@@ -273,5 +308,10 @@ mod tests {
         assert_eq!(resolver.count_user_parameters("program {} {}"), 2);
         assert_eq!(resolver.count_user_parameters("program {clip} {hwnd}"), 0);
         assert_eq!(resolver.count_user_parameters("program {} {clip} {}"), 2);
+        assert_eq!(resolver.count_user_parameters("program {selection}"), 0);
+        assert_eq!(
+            resolver.count_user_parameters("program {} {selection} {}"),
+            2
+        );
     }
 }

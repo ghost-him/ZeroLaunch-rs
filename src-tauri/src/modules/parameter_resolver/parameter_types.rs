@@ -20,6 +20,9 @@ pub enum SystemParameter {
 
     /// 当前活动窗口句柄 {hwnd}
     WindowHandle,
+
+    /// 唤醒前活动窗口的选中文本 {selection}
+    Selection,
 }
 
 impl SystemParameter {
@@ -28,6 +31,7 @@ impl SystemParameter {
         match name {
             "clip" => Some(SystemParameter::Clipboard),
             "hwnd" => Some(SystemParameter::WindowHandle),
+            "selection" => Some(SystemParameter::Selection),
             _ => None,
         }
     }
@@ -37,6 +41,7 @@ impl SystemParameter {
         match self {
             SystemParameter::Clipboard => "clip",
             SystemParameter::WindowHandle => "hwnd",
+            SystemParameter::Selection => "selection",
         }
     }
 }
@@ -55,6 +60,10 @@ mod tests {
             SystemParameter::from_name("hwnd"),
             Some(SystemParameter::WindowHandle)
         );
+        assert_eq!(
+            SystemParameter::from_name("selection"),
+            Some(SystemParameter::Selection)
+        );
         assert_eq!(SystemParameter::from_name("unknown"), None);
     }
 
@@ -62,5 +71,6 @@ mod tests {
     fn test_system_parameter_name() {
         assert_eq!(SystemParameter::Clipboard.name(), "clip");
         assert_eq!(SystemParameter::WindowHandle.name(), "hwnd");
+        assert_eq!(SystemParameter::Selection.name(), "selection");
     }
 }

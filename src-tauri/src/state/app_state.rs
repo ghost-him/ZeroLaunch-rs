@@ -45,6 +45,8 @@ pub struct AppState {
     translator: Arc<RwLock<Translator>>,
     /// 唤醒搜索栏前的前台窗口句柄
     previous_foreground_window: RwLock<Option<isize>>,
+    /// 唤醒搜索栏前活动窗口的选中文本
+    previous_selection: RwLock<Option<String>>,
     /// Everything 管理器
     #[cfg(target_arch = "x86_64")]
     everything_manager: Arc<EverythingManager>,
@@ -76,6 +78,7 @@ impl AppState {
             last_search_query: RwLock::new(String::new()),
             translator: Arc::new(RwLock::new(Translator::new())),
             previous_foreground_window: RwLock::new(None),
+            previous_selection: RwLock::new(None),
             #[cfg(target_arch = "x86_64")]
             everything_manager: Arc::new(EverythingManager::new()),
             icon_manager: RwLock::new(None),
@@ -247,6 +250,16 @@ impl AppState {
     /// 获取唤醒前的前台窗口句柄
     pub fn get_previous_foreground_window(&self) -> Option<isize> {
         *self.previous_foreground_window.read()
+    }
+
+    /// 设置唤醒前活动窗口的选中文本
+    pub fn set_previous_selection(&self, selection: Option<String>) {
+        *self.previous_selection.write() = selection;
+    }
+
+    /// 获取唤醒前活动窗口的选中文本
+    pub fn get_previous_selection(&self) -> Option<String> {
+        self.previous_selection.read().clone()
     }
 
     /// 获取 Everything 管理器的克隆

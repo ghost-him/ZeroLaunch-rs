@@ -168,6 +168,35 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_selection_parameter() {
+        let params = TemplateParser::parse("translate {selection}");
+        assert_eq!(params.len(), 1);
+        assert_eq!(
+            params[0].param_type,
+            ParameterType::System(SystemParameter::Selection)
+        );
+        assert_eq!(params[0].placeholder, "{selection}");
+    }
+
+    #[test]
+    fn test_parse_all_system_parameters() {
+        let params = TemplateParser::parse("program {clip} {hwnd} {selection}");
+        assert_eq!(params.len(), 3);
+        assert_eq!(
+            params[0].param_type,
+            ParameterType::System(SystemParameter::Clipboard)
+        );
+        assert_eq!(
+            params[1].param_type,
+            ParameterType::System(SystemParameter::WindowHandle)
+        );
+        assert_eq!(
+            params[2].param_type,
+            ParameterType::System(SystemParameter::Selection)
+        );
+    }
+
+    #[test]
     fn test_count_user_parameters() {
         assert_eq!(
             TemplateParser::count_user_parameters("program {} {clip} {} {hwnd}"),
@@ -178,12 +207,21 @@ mod tests {
             0
         );
         assert_eq!(TemplateParser::count_user_parameters("program {} {}"), 2);
+        assert_eq!(
+            TemplateParser::count_user_parameters("program {selection}"),
+            0
+        );
+        assert_eq!(
+            TemplateParser::count_user_parameters("program {} {selection} {}"),
+            2
+        );
     }
 
     #[test]
     fn test_has_system_parameters() {
         assert!(TemplateParser::has_system_parameters("program {clip}"));
         assert!(TemplateParser::has_system_parameters("program {hwnd}"));
+        assert!(TemplateParser::has_system_parameters("program {selection}"));
         assert!(TemplateParser::has_system_parameters("program {} {clip}"));
         assert!(!TemplateParser::has_system_parameters("program {}"));
         assert!(!TemplateParser::has_system_parameters("program"));

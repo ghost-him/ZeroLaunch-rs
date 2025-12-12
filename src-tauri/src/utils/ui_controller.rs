@@ -6,6 +6,7 @@ use tracing::warn;
 
 use super::service_locator::ServiceLocator;
 use super::windows::is_foreground_fullscreen;
+use crate::modules::parameter_resolver::SelectionProvider;
 use crate::update_window_size_and_position;
 
 pub fn handle_pressed(app_handle: &tauri::AppHandle) {
@@ -18,17 +19,43 @@ pub fn handle_pressed(app_handle: &tauri::AppHandle) {
         return;
     }
 
-    // 在显示搜索栏之前,先保存当前的前台窗口句柄
+    // 在显示搜索栏之前,先保存当前的前台窗口句柄和选中文本
+    // 注意：必须在获取焦点之前捕获这些信息
+    let hwnd_value: isize;
     unsafe {
         use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
         let hwnd = GetForegroundWindow();
         if !hwnd.0.is_null() {
-            state.set_previous_foreground_window(Some(hwnd.0 as isize));
-            tracing::debug!("🎯 保存唤醒前的窗口句柄: {}", hwnd.0 as isize);
+            hwnd_value = hwnd.0 as isize;
+            state.set_previous_foreground_window(Some(hwnd_value));
+            tracing::debug!("🎯 保存唤醒前的窗口句柄: {}", hwnd_value);
         } else {
+            hwnd_value = 0;
             state.set_previous_foreground_window(None);
             tracing::warn!("⚠️ 无法获取唤醒前的窗口句柄");
         }
+    }
+
+    // 在窗口句柄捕获后，立即尝试获取选中文本
+    // 此时目标窗口仍然是前台窗口，焦点元素应该是正确的
+    if hwnd_value != 0 {
+        match SelectionProvider::get_value_from_hwnd(hwnd_value) {
+            Ok(selection) => {
+                if !selection.is_empty() {
+                    tracing::debug!("📝 保存唤醒前的选中文本: {} 字符", selection.len());
+                    state.set_previous_selection(Some(selection));
+                } else {
+                    tracing::debug!("📝 唤醒前没有选中文本");
+                    state.set_previous_selection(None);
+                }
+            }
+            Err(e) => {
+                tracing::debug!("⚠️ 无法获取选中文本: {}", e);
+                state.set_previous_selection(None);
+            }
+        }
+    } else {
+        state.set_previous_selection(None);
     }
 
     update_window_size_and_position();

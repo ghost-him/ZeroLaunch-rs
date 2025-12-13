@@ -200,6 +200,14 @@
                 </template>
               </el-table-column>
               <el-table-column
+                label="抑制因子"
+                width="100"
+              >
+                <template #default="scope">
+                  {{ scope.row.score_details.suppression_factor?.toFixed(4) }}
+                </template>
+              </el-table-column>
+              <el-table-column
                 prop="score"
                 label="总分"
                 width="100"
@@ -241,6 +249,7 @@ interface ScoreDetails {
     recent_habit_weight: number;
     temporal_weight: number;
     query_affinity_weight: number;
+    suppression_factor: number;
     final_score: number;
 }
 

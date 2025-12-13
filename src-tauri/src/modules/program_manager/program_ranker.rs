@@ -54,10 +54,10 @@ impl ProgramRankerInner {
             latest_launch_time: DashMap::new(),
             runtime_latest_launch_time: BTreeSet::new(),
             query_affinity_map: DashMap::new(),
-            history_weight: 1.2,
-            recent_habit_weight: 2.5,
-            temporal_weight: 0.8,
-            query_affinity_weight: 3.5,
+            history_weight: 0.8,
+            recent_habit_weight: 1.5,
+            temporal_weight: 0.5,
+            query_affinity_weight: 5.0,
             query_affinity_time_decay: 259200,
             temporal_decay: 10800,
             is_enable: true,
@@ -339,10 +339,18 @@ impl ProgramRankerInner {
         let temporal_score = self.calculate_temporal_score(program_guid);
         let query_affinity = self.calculate_query_affinity_score(query, program_guid);
 
-        let final_score = base_score
-            + self.history_weight * history_score
+        // 动态权重总和
+        let dynamic_score = self.history_weight * history_score
             + self.recent_habit_weight * recent_habit_score
-            + self.temporal_weight * temporal_score
+            + self.temporal_weight * temporal_score;
+
+        // 基础分抑制因子：如果基础匹配分过低（说明文本匹配度差），则抑制历史习惯等权重的加成
+        // 只有当 base_score >= 15.0 时，才能获得 100% 的动态权重加成
+        // 这样可以避免"高频使用的无关程序"挤占"低频使用的精准匹配程序"
+        let suppression_factor = (base_score / 15.0).clamp(0.0, 1.0);
+
+        let final_score = base_score
+            + dynamic_score * suppression_factor
             + self.query_affinity_weight * query_affinity;
 
         ScoreDetails {
@@ -355,6 +363,7 @@ impl ProgramRankerInner {
             recent_habit_weight: self.recent_habit_weight,
             temporal_weight: self.temporal_weight,
             query_affinity_weight: self.query_affinity_weight,
+            suppression_factor,
             final_score,
         }
     }

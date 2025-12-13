@@ -189,7 +189,7 @@
               @change="(val: number) =>
                 configStore.updateConfig({
                   program_manager_config: {
-                    ranker: { history_weight: val ?? 1.2 }
+                    ranker: { history_weight: val ?? 0.8 }
                   }
                 })
               "
@@ -221,7 +221,7 @@
               @change="(val: number) =>
                 configStore.updateConfig({
                   program_manager_config: {
-                    ranker: { recent_habit_weight: val ?? 2.5 }
+                    ranker: { recent_habit_weight: val ?? 1.5 }
                   }
                 })
               "
@@ -252,7 +252,7 @@
               @change="(val: number) =>
                 configStore.updateConfig({
                   program_manager_config: {
-                    ranker: { temporal_weight: val ?? 0.8 }
+                    ranker: { temporal_weight: val ?? 0.5 }
                   }
                 })
               "
@@ -283,7 +283,7 @@
               @change="(val: number) =>
                 configStore.updateConfig({
                   program_manager_config: {
-                    ranker: { query_affinity_weight: val ?? 3.5 }
+                    ranker: { query_affinity_weight: val ?? 5.0 }
                   }
                 })
               "

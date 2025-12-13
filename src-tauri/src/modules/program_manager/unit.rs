@@ -149,6 +149,8 @@ pub struct ScoreDetails {
     pub temporal_weight: f64,
     /// 查询亲和权重
     pub query_affinity_weight: f64,
+    /// 抑制因子
+    pub suppression_factor: f64,
     /// 最终分数
     pub final_score: f64,
 }

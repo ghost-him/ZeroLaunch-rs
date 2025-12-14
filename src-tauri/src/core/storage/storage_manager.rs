@@ -171,7 +171,7 @@ impl StorageManagerInner {
     async fn save_to_local_disk(&self) {
         let partial_local_config = self.local_config.read().await.to_partial();
 
-        let contents = match serde_json::to_string(&partial_local_config) {
+        let contents = match serde_json::to_string_pretty(&partial_local_config) {
             Ok(content) => content,
             Err(e) => {
                 error!("Failed to serialize local config for saving: {}", e);

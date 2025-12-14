@@ -28,7 +28,7 @@ pub fn save_runtime_config_to_string(partial_config: PartialRuntimeConfig) -> St
         config_data: partial_config,
     };
 
-    serde_json::to_string(&data).expect_programming("Failed to serialize local config")
+    serde_json::to_string_pretty(&data).expect_programming("Failed to serialize local config")
 }
 
 pub fn load_string_to_runtime_config_(local_config_data: &str) -> PartialRuntimeConfig {

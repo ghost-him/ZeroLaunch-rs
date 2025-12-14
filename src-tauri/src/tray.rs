@@ -5,7 +5,7 @@ use tauri::{
     tray::{TrayIcon, TrayIconBuilder, TrayIconEvent},
     App, AppHandle, Manager, Runtime,
 };
-use tracing::{debug, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::error::{OptionExt, ResultExt};
 use crate::utils::i18n::{t, t_with};
@@ -237,28 +237,6 @@ fn create_tray_icon<R: Runtime>(app_handle: &AppHandle, menu: Menu<R>) -> tauri:
 pub fn init_system_tray(app: &mut App) {
     let app_handle = app.handle().clone();
 
-    let menu = match build_tray_menu(&app_handle) {
-        Ok(m) => m,
-        Err(e) => {
-            warn!("Failed to build tray menu: {:?}", e);
-            // Optionally, create a minimal fallback menu or panic
-            return;
-        }
-    };
-
-    let tray_icon = match create_tray_icon(&app_handle, menu.clone()) {
-        Ok(icon) => icon,
-        Err(e) => {
-            warn!("Failed to create tray icon: {:?}", e);
-            return;
-        }
-    };
-
-    // Store the tray icon and menu in app state
-    let state = app.state::<Arc<AppState>>();
-    state.set_tray_icon(Arc::new(tray_icon));
-    state.set_tray_menu(Arc::new(menu));
-
     // Handle other tray icon events (e.g., double click)
     app.on_tray_icon_event(move |tray_app_handle, event| {
         if let TrayIconEvent::DoubleClick { .. } = event {
@@ -266,7 +244,56 @@ pub fn init_system_tray(app: &mut App) {
         }
     });
 
-    debug!("System tray initialized.");
+    // Spawn an async task to handle tray creation with retry logic
+    tauri::async_runtime::spawn(async move {
+        // Initial attempt
+        if try_create_and_set_tray(&app_handle).is_ok() {
+            debug!("System tray initialized successfully on first attempt.");
+            return;
+        }
+
+        // Retry logic
+        let retry_delays = [5, 10, 20];
+        for &delay in &retry_delays {
+            warn!(
+                "Tray icon creation failed. Retrying in {} seconds...",
+                delay
+            );
+            tokio::time::sleep(std::time::Duration::from_secs(delay)).await;
+
+            if try_create_and_set_tray(&app_handle).is_ok() {
+                info!("System tray initialized successfully after retry.");
+                return;
+            }
+        }
+
+        error!("Failed to initialize system tray after all retries.");
+    });
+}
+
+fn try_create_and_set_tray(app_handle: &AppHandle) -> Result<(), ()> {
+    let menu = match build_tray_menu(app_handle) {
+        Ok(m) => m,
+        Err(e) => {
+            warn!("Failed to build tray menu: {:?}", e);
+            return Err(());
+        }
+    };
+
+    let tray_icon = match create_tray_icon(app_handle, menu.clone()) {
+        Ok(icon) => icon,
+        Err(e) => {
+            warn!("Failed to create tray icon: {:?}", e);
+            return Err(());
+        }
+    };
+
+    // Store the tray icon and menu in app state
+    let state = app_handle.state::<Arc<AppState>>();
+    state.set_tray_icon(Arc::new(tray_icon));
+    state.set_tray_menu(Arc::new(menu));
+
+    Ok(())
 }
 
 /// 更新托盘菜单的语言

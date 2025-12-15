@@ -638,7 +638,7 @@ async fn update_app_setting() {
     // 4. 判断要不要开机自启动
     if let Err(e) = handle_auto_start() {
         // 可以添加错误处理逻辑
-        eprintln!("自启动设置失败: {:?}", e);
+        error!("自启动设置失败: {:?}", e);
     }
 
     // 5. 判断要不要静默启动

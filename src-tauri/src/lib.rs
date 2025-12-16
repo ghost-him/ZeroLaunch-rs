@@ -215,6 +215,7 @@ pub fn run() {
             command_search_programs_lightweight,
             command_update_program_icon,
             command_get_arch,
+            command_download_model,
             get_everything_icon,
         ])
         .build(tauri::generate_context!())

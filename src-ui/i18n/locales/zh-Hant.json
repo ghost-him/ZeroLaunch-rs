@@ -243,6 +243,8 @@
     "semantic_tip_description": "若補充更完整的描述資訊，可讓模型提供更精準的功能性搜尋。",
     "semantic_tip_performance": "啟用後，在初始化與更新資料庫階段可能佔用 GPU，並明顯延長載入時間。",
     "open_model_folder": "開啟模型資料夾",
+    "download_model": "下載模型",
+    "select_download_folder": "選擇下載保存的資料夾",
     "open_model_description": "開啟描述資訊檔案",
     "sorting_algorithm_settings": "排序演算法參數設定",
     "enable_sorting": "啟用排序演算法",

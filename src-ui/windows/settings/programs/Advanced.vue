@@ -125,6 +125,12 @@
               >
                 {{ t('program_index.open_model_folder') || '打开模型文件夹 (TODO)' }}
               </el-button>
+              <el-button
+                type="primary"
+                @click="downloadModel"
+              >
+                {{ t('program_index.download_model') || '下载模型' }}
+              </el-button>
             </div>
           </el-card>
         </div>
@@ -376,6 +382,7 @@ import { useRemoteConfigStore } from '../../../stores/remote_config'
 import { storeToRefs } from 'pinia'
 import { QuestionFilled } from '@element-plus/icons-vue'
 import { invoke } from '@tauri-apps/api/core'
+import { open } from '@tauri-apps/plugin-dialog'
 
 const { t } = useI18n()
 const configStore = useRemoteConfigStore()
@@ -390,6 +397,18 @@ const search_model = computed(() => [
 
 const openModelFolder = async () => {
     await invoke('command_open_models_dir')
+}
+
+const downloadModel = async () => {
+    const selected = await open({
+        directory: true,
+        multiple: false,
+        title: t('program_index.select_download_folder') || '选择下载保存的文件夹',
+    });
+    
+    if (selected) {
+        await invoke('command_download_model', { savePath: selected });
+    }
 }
 </script>
 

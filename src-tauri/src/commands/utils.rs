@@ -148,3 +148,48 @@ fn export_logs_internal(log_dir: &str, save_path: &str) -> Result<(), String> {
 pub fn command_get_arch() -> String {
     std::env::consts::ARCH.to_string()
 }
+
+#[tauri::command]
+pub fn command_download_model(save_path: String) {
+    let url = "https://github.com/ghost-him/ZeroLaunch-rs/releases/download/model/EmbeddingGemma-300m.zip";
+    let save_path = Path::new(&save_path).join("EmbeddingGemma-300m.zip");
+    let save_path_str = save_path
+        .to_str()
+        .unwrap_or("EmbeddingGemma-300m.zip")
+        .replace("'", "''");
+
+    let script = format!(
+        "Write-Host 'Downloading AI Model...'; \
+         Write-Host (' '); \
+         Write-Host (' '); \
+         Write-Host (' '); \
+         Write-Host (' '); \
+         Write-Host (' '); \
+         Write-Host (' '); \
+         Write-Host (' '); \
+         $url = '{}'; \
+         $output = '{}'; \
+         Write-Host ('Source: ' + $url); \
+         Write-Host ('Destination: ' + $output); \
+         try {{ \
+             $start = Get-Date; \
+             Invoke-WebRequest -Uri $url -OutFile $output; \
+             $end = Get-Date; \
+             $duration = $end - $start; \
+             $file = Get-Item $output; \
+             $sizeMB = $file.Length / 1MB; \
+             Write-Host ('Download Complete!'); \
+             Write-Host ('File Size: {{0:N2}} MB' -f $sizeMB); \
+             Write-Host ('Time Elapsed: ' + $duration); \
+         }} catch {{ \
+             Write-Error $_; \
+         }} \
+         Read-Host 'Press Enter to exit...'",
+        url, save_path_str
+    );
+
+    std::process::Command::new("cmd")
+        .args(["/C", "start", "powershell", "-Command", &script])
+        .spawn()
+        .ok();
+}

@@ -243,6 +243,8 @@
     "semantic_tip_description": "Providing richer description information helps the model deliver more accurate functional search.",
     "semantic_tip_performance": "When enabled, initialization and database updates may use the GPU and significantly increase loading time.",
     "open_model_folder": "Open Model Folder",
+    "download_model": "Download Model",
+    "select_download_folder": "Select Download Folder",
     "open_model_description": "Open Description File",
     "sorting_algorithm_settings": "Sorting Algorithm Parameters",
     "enable_sorting": "Enable Sorting Algorithm",

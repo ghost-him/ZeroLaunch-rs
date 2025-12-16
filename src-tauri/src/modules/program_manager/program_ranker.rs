@@ -347,7 +347,12 @@ impl ProgramRankerInner {
         // 基础分抑制因子：如果基础匹配分过低（说明文本匹配度差），则抑制历史习惯等权重的加成
         // 只有当 base_score >= 15.0 时，才能获得 100% 的动态权重加成
         // 这样可以避免"高频使用的无关程序"挤占"低频使用的精准匹配程序"
-        let suppression_factor = (base_score / 15.0).clamp(0.0, 1.0);
+        // 当用户没有输入时，不启用抑制因子，以便显示最近使用的程序
+        let suppression_factor = if query.is_empty() {
+            1.0
+        } else {
+            (base_score / 15.0).clamp(0.0, 1.0)
+        };
 
         let final_score = base_score
             + dynamic_score * suppression_factor

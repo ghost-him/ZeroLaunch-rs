@@ -1,12 +1,14 @@
 //! Windows 任务计划程序模块
 //! 用于管理应用程序的开机自启动
 
-use encoding_rs::UTF_16LE;
+use encoding_rs::{GBK, UTF_16LE};
 use std::io::Write;
 use std::path::Path;
 use std::process::Command;
 use tempfile::Builder;
 use tracing::{debug, info, warn};
+use winreg::enums::*;
+use winreg::RegKey;
 
 use std::os::windows::process::CommandExt;
 
@@ -27,8 +29,69 @@ impl TaskScheduler {
         }
     }
 
-    /// 检查任务是否已存在
+    /// 检查任务是否已存在 (Public Interface)
     pub fn is_enabled(&self) -> Result<bool, String> {
+        let task_enabled = self.is_enabled_via_task_scheduler().unwrap_or(false);
+        let reg_enabled = self.is_enabled_via_registry().unwrap_or(false);
+        Ok(task_enabled || reg_enabled)
+    }
+
+    /// 启用自动启动 (Public Interface)
+    pub fn enable(&self) -> Result<(), String> {
+        // 尝试使用任务计划程序
+        match self.enable_via_task_scheduler() {
+            Ok(_) => {
+                // 如果任务计划程序成功，确保注册表项被清理（避免重复）
+                let _ = self.disable_via_registry();
+                return Ok(());
+            }
+            Err(e) => {
+                warn!("任务计划程序设置失败: {}。尝试使用注册表方式...", e);
+                let _ = self.disable_via_task_scheduler();
+            }
+        }
+
+        // 如果任务计划程序失败，尝试注册表
+        self.enable_via_registry().map_err(|e| {
+            format!(
+                "自动启动设置完全失败。任务计划程序和注册表均失败。注册表错误: {}",
+                e
+            )
+        })
+    }
+
+    /// 禁用自动启动 (Public Interface)
+    pub fn disable(&self) -> Result<(), String> {
+        let mut errors = Vec::new();
+
+        // 尝试禁用任务计划
+        if self.is_enabled_via_task_scheduler().unwrap_or(false) {
+            if let Err(e) = self.disable_via_task_scheduler() {
+                warn!("禁用任务计划程序失败: {}", e);
+                errors.push(format!("任务计划程序: {}", e));
+            }
+        }
+
+        // 尝试禁用注册表
+        if let Err(e) = self.disable_via_registry() {
+            warn!("禁用注册表启动项失败: {}", e);
+            errors.push(format!("注册表: {}", e));
+        }
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            // 再次检查是否真的还启用着
+            if self.is_enabled().unwrap_or(true) {
+                Err(format!("无法完全禁用自动启动: {}", errors.join("; ")))
+            } else {
+                Ok(())
+            }
+        }
+    }
+
+    /// 检查任务计划程序任务是否存在
+    fn is_enabled_via_task_scheduler(&self) -> Result<bool, String> {
         debug!("检查任务是否存在: {}", self.task_name);
 
         let output = Command::new("schtasks")
@@ -41,14 +104,17 @@ impl TaskScheduler {
         Ok(output.status.success())
     }
 
-    /// 启用自动启动（创建任务计划）
-    pub fn enable(&self) -> Result<(), String> {
-        info!("正在启用自动启动，任务名: {}", self.task_name);
+    /// 通过任务计划程序启用自动启动
+    fn enable_via_task_scheduler(&self) -> Result<(), String> {
+        info!(
+            "正在通过任务计划程序启用自动启动，任务名: {}",
+            self.task_name
+        );
 
         // 先删除已存在的任务（如果有）
-        if self.is_enabled()? {
+        if self.is_enabled_via_task_scheduler()? {
             debug!("检测到已存在的任务，先删除");
-            self.disable()?;
+            self.disable_via_task_scheduler()?;
         }
 
         // 创建 XML 配置文件内容
@@ -88,17 +154,20 @@ impl TaskScheduler {
         }
 
         if !output.status.success() {
-            let error_msg = String::from_utf8_lossy(&output.stderr);
+            let error_msg = Self::decode_system_output(&output.stderr);
             return Err(format!("创建任务计划失败: {}", error_msg));
         }
 
-        info!("自动启动任务创建成功");
+        info!("任务计划程序自动启动任务创建成功");
         Ok(())
     }
 
-    /// 禁用自动启动（删除任务计划）
-    pub fn disable(&self) -> Result<(), String> {
-        info!("正在禁用自动启动，任务名: {}", self.task_name);
+    /// 通过任务计划程序禁用自动启动
+    fn disable_via_task_scheduler(&self) -> Result<(), String> {
+        info!(
+            "正在通过任务计划程序禁用自动启动，任务名: {}",
+            self.task_name
+        );
 
         let output = Command::new("schtasks")
             .args(["/Delete", "/TN", &self.task_name, "/F"])
@@ -107,13 +176,90 @@ impl TaskScheduler {
             .map_err(|e| format!("执行 schtasks 删除命令失败: {}", e))?;
 
         if !output.status.success() {
-            let error_msg = String::from_utf8_lossy(&output.stderr);
+            let error_msg = Self::decode_system_output(&output.stderr);
             warn!("删除任务计划失败: {}", error_msg);
             return Err(format!("删除任务计划失败: {}", error_msg));
         }
 
-        info!("自动启动任务删除成功");
+        info!("任务计划程序自动启动任务删除成功");
         Ok(())
+    }
+
+    /// 检查注册表启动项是否存在
+    fn is_enabled_via_registry(&self) -> Result<bool, String> {
+        let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+        let path = Path::new("Software")
+            .join("Microsoft")
+            .join("Windows")
+            .join("CurrentVersion")
+            .join("Run");
+        let key = hkcu
+            .open_subkey_with_flags(&path, KEY_READ)
+            .map_err(|e| format!("打开注册表键失败: {}", e))?;
+
+        match key.get_value::<String, _>(&self.task_name) {
+            Ok(_) => Ok(true),
+            Err(ref e) if e.kind() == std::io::ErrorKind::NotFound => Ok(false),
+            Err(e) => Err(format!("读取注册表值失败: {}", e)),
+        }
+    }
+
+    /// 通过注册表启用自动启动
+    fn enable_via_registry(&self) -> Result<(), String> {
+        info!("尝试通过注册表启用自动启动: {}", self.task_name);
+        let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+        let path = Path::new("Software")
+            .join("Microsoft")
+            .join("Windows")
+            .join("CurrentVersion")
+            .join("Run");
+        let (key, _) = hkcu
+            .create_subkey(&path)
+            .map_err(|e| format!("打开或创建注册表键失败: {}", e))?;
+
+        key.set_value(&self.task_name, &self.exe_path)
+            .map_err(|e| format!("写入注册表值失败: {}", e))?;
+
+        info!("注册表自动启动设置成功");
+        Ok(())
+    }
+
+    /// 通过注册表禁用自动启动
+    fn disable_via_registry(&self) -> Result<(), String> {
+        info!("尝试通过注册表禁用自动启动: {}", self.task_name);
+        let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+        let path = Path::new("Software")
+            .join("Microsoft")
+            .join("Windows")
+            .join("CurrentVersion")
+            .join("Run");
+
+        // 如果键不存在，直接返回成功
+        let key = match hkcu.open_subkey_with_flags(&path, KEY_WRITE) {
+            Ok(k) => k,
+            Err(ref e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(e) => return Err(format!("打开注册表键失败: {}", e)),
+        };
+
+        match key.delete_value(&self.task_name) {
+            Ok(_) => {
+                info!("注册表自动启动项删除成功");
+                Ok(())
+            }
+            Err(ref e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(e) => Err(format!("删除注册表值失败: {}", e)),
+        }
+    }
+
+    /// 解码系统命令输出（处理 GBK 编码的中文 Windows）
+    fn decode_system_output(bytes: &[u8]) -> String {
+        // 先尝试 UTF-8
+        if let Ok(s) = std::str::from_utf8(bytes) {
+            return s.trim().to_string();
+        }
+        // 回退到 GBK（中文 Windows 默认编码）
+        let (decoded, _, _) = GBK.decode(bytes);
+        decoded.trim().to_string()
     }
 
     /// 生成任务计划的 XML 配置（来自模板替换）
@@ -138,6 +284,7 @@ impl TaskScheduler {
         let author = escape_xml(&author_name);
 
         let user_id_raw = Self::current_user_id();
+        debug!("任务计划使用的用户标识: {}", user_id_raw);
         let user_id = escape_xml(&user_id_raw);
 
         let exe_path_escaped = escape_xml(&self.exe_path);
@@ -157,6 +304,33 @@ impl TaskScheduler {
     }
 
     fn current_user_id() -> String {
+        // 尝试通过 whoami /user 获取 SID
+        // 这比用户名更可靠，特别是当用户名包含特殊字符或在不同语言环境下
+        // 同时也解决了管理员账户下可能出现的用户名匹配问题
+        let output = Command::new("whoami")
+            .args(["/user", "/fo", "csv", "/nh"])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output();
+
+        if let Ok(output) = output {
+            if output.status.success() {
+                // whoami 的输出可能是系统编码，但 SID 仅包含 ASCII 字符
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                let line = stdout.trim();
+
+                // 解析 CSV: "User Name","SID"
+                // 简单的 split 应该足够，因为我们只想要最后一个字段（SID）
+                let parts: Vec<&str> = line.split(',').collect();
+                if let Some(sid_part) = parts.last() {
+                    let sid = sid_part.trim().trim_matches('"');
+                    if sid.starts_with("S-1-") {
+                        return sid.to_string();
+                    }
+                }
+            }
+        }
+
+        // 回退到旧方法
         let username = whoami::username();
         let domain = std::env::var("USERDOMAIN").ok();
         match domain {

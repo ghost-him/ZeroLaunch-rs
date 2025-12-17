@@ -175,6 +175,7 @@ export type ProgramRankerConfig = {
     temporal_weight: number
     query_affinity_weight: number
     query_affinity_time_decay: number
+    query_affinity_cooldown: number
     temporal_decay: number
     is_enable: boolean
 }

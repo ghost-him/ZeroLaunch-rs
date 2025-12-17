@@ -259,6 +259,8 @@
     "query_affinity_weight_description": "影响：根据某个搜索词与程序的关联度调整排名。值越大，经常在某关键词下启动的程序在该关键词搜索时排名越高。建议范围：3.0-7.0。如不了解，请勿修改。详见代码：program_ranker.rs。",
     "query_affinity_time_decay": "查询亲和时间衰减常数（秒）",
     "query_affinity_time_decay_description": "影响：控制查询亲和度随时间的衰减速度。值越小，旧的关联越快失效。默认259200秒（3天）。如不了解，请勿修改。详见代码：program_ranker.rs。",
+    "query_affinity_cooldown": "查询亲和冷却时间（秒）",
+    "query_affinity_cooldown_description": "影响：防止短时间内重复启动同一程序导致亲和度过度累积。在冷却时间内多次启动只计一次。默认60秒。如不了解，请勿修改。详见代码：program_ranker.rs。",
     "temporal_decay": "短期热度衰减常数（秒）",
     "temporal_decay_description": "影响：控制短期热度随时间的衰减速度。值越小，短期热度消退越快。默认10800秒（3小时）。如不了解，请勿修改。详见代码：program_ranker.rs。",
     "check_code_for_details": "查看代码了解详细影响",

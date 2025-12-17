@@ -259,6 +259,8 @@
     "query_affinity_weight_description": "Effect: Adjusts ranking based on association between search term and program. Higher values favor programs frequently launched under specific keywords. Recommended range: 3.0-7.0. Do not modify unless you understand. See code: program_ranker.rs.",
     "query_affinity_time_decay": "Query Affinity Time Decay Constant (seconds)",
     "query_affinity_time_decay_description": "Effect: Controls decay speed of query affinity over time. Smaller values make old associations expire faster. Default 259200 seconds (3 days). Do not modify unless you understand. See code: program_ranker.rs.",
+    "query_affinity_cooldown": "Query Affinity Cooldown (seconds)",
+    "query_affinity_cooldown_description": "Effect: Prevents excessive affinity accumulation from repeated launches in short time. Multiple launches within cooldown period count as one. Default 60 seconds. Do not modify unless you understand. See code: program_ranker.rs.",
     "temporal_decay": "Temporal Decay Constant (seconds)",
     "temporal_decay_description": "Effect: Controls decay speed of temporal weight over time. Smaller values make temporal boost fade faster. Default 10800 seconds (3 hours). Do not modify unless you understand. See code: program_ranker.rs.",
     "check_code_for_details": "Check code for detailed effects",

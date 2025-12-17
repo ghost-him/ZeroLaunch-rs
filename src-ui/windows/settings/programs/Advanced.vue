@@ -340,6 +340,36 @@
             </el-tooltip>
           </el-form-item>
 
+          <el-form-item :label="t('program_index.query_affinity_cooldown')">
+            <el-input-number
+              v-model="config.program_manager_config.ranker.query_affinity_cooldown"
+              :min="0"
+              :max="3600"
+              :step="10"
+              @change="(val: number) =>
+                configStore.updateConfig({
+                  program_manager_config: {
+                    ranker: { query_affinity_cooldown: val ?? 60 }
+                  }
+                })
+              "
+            />
+            <el-tooltip
+              class="box-item"
+              effect="dark"
+              placement="right"
+            >
+              <template #content>
+                <div style="max-width: 400px;">
+                  {{ t('program_index.query_affinity_cooldown_description') }}
+                </div>
+              </template>
+              <el-icon class="el-question-icon">
+                <QuestionFilled />
+              </el-icon>
+            </el-tooltip>
+          </el-form-item>
+
           <el-form-item :label="t('program_index.temporal_decay')">
             <el-input-number
               v-model="config.program_manager_config.ranker.temporal_decay"

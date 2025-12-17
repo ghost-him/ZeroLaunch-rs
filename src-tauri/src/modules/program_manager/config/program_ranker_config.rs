@@ -18,10 +18,12 @@ pub struct PartialProgramRankerConfig {
     pub recent_habit_weight: Option<f64>,
     /// 短期热度系数 (默认0.5)
     pub temporal_weight: Option<f64>,
-    /// 查询亲和系数 (默认3.2)
+    /// 查询亲和系数 (默认3)
     pub query_affinity_weight: Option<f64>,
     /// 查询亲和时间衰减常数(秒) (默认259200 = 3天)
     pub query_affinity_time_decay: Option<i64>,
+    /// 查询亲和冷却时间(秒) (默认60秒)
+    pub query_affinity_cooldown: Option<i64>,
     /// 短期热度衰减常数(秒) (默认10800 = 3小时)
     pub temporal_decay: Option<i64>,
     /// 是否启用排序算法 (默认true)
@@ -31,8 +33,29 @@ pub struct PartialProgramRankerConfig {
 /// 查询亲和度数据
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QueryAffinityData {
-    pub total_launch_count: u64,
+    /// 衰减后的有效次数（浮点数，支持衰减累积）
+    #[serde(default = "QueryAffinityData::default_effective_count")]
+    pub effective_count: f64,
+    /// 最后一次启动时间（用于计算时的衰减）
+    #[serde(default = "QueryAffinityData::default_last_launch_time")]
     pub last_launch_time: i64,
+    /// 最后一次记录计数的时间（用于冷却机制）
+    #[serde(default = "QueryAffinityData::default_last_record_time")]
+    pub last_record_time: i64,
+}
+
+impl QueryAffinityData {
+    pub(crate) fn default_effective_count() -> f64 {
+        0.0
+    }
+
+    pub(crate) fn default_last_launch_time() -> i64 {
+        0
+    }
+
+    pub(crate) fn default_last_record_time() -> i64 {
+        0
+    }
 }
 
 /// 程序排序器配置内部结构
@@ -69,6 +92,9 @@ pub struct ProgramRankerConfigInner {
     /// 查询亲和时间衰减常数
     #[serde(default = "ProgramRankerConfigInner::default_query_affinity_time_decay")]
     pub query_affinity_time_decay: i64,
+    /// 查询亲和冷却时间（秒），防止短时间重复计数
+    #[serde(default = "ProgramRankerConfigInner::default_query_affinity_cooldown")]
+    pub query_affinity_cooldown: i64,
     /// 短期热度衰减常数
     #[serde(default = "ProgramRankerConfigInner::default_temporal_decay")]
     pub temporal_decay: i64,
@@ -90,6 +116,7 @@ impl Default for ProgramRankerConfigInner {
             temporal_weight: Self::default_temporal_weight(),
             query_affinity_weight: Self::default_query_affinity_weight(),
             query_affinity_time_decay: Self::default_query_affinity_time_decay(),
+            query_affinity_cooldown: Self::default_query_affinity_cooldown(),
             temporal_decay: Self::default_temporal_decay(),
             is_enable: Self::default_is_enable(),
         }
@@ -133,11 +160,15 @@ impl ProgramRankerConfigInner {
     }
 
     pub(crate) fn default_query_affinity_weight() -> f64 {
-        3.2
+        3.0
     }
 
     pub(crate) fn default_query_affinity_time_decay() -> i64 {
         259200 // 3 days in seconds
+    }
+
+    pub(crate) fn default_query_affinity_cooldown() -> i64 {
+        15 // 15 seconds cooldown
     }
 
     pub(crate) fn default_temporal_decay() -> i64 {
@@ -160,6 +191,7 @@ impl ProgramRankerConfigInner {
             temporal_weight: Some(self.temporal_weight),
             query_affinity_weight: Some(self.query_affinity_weight),
             query_affinity_time_decay: Some(self.query_affinity_time_decay),
+            query_affinity_cooldown: Some(self.query_affinity_cooldown),
             temporal_decay: Some(self.temporal_decay),
             is_enable: Some(self.is_enable),
         }
@@ -195,6 +227,9 @@ impl ProgramRankerConfigInner {
         }
         if let Some(decay) = partial_config.query_affinity_time_decay {
             self.query_affinity_time_decay = decay;
+        }
+        if let Some(cooldown) = partial_config.query_affinity_cooldown {
+            self.query_affinity_cooldown = cooldown;
         }
         if let Some(decay) = partial_config.temporal_decay {
             self.temporal_decay = decay;
@@ -263,6 +298,10 @@ impl ProgramRankerConfig {
 
     pub fn get_query_affinity_time_decay(&self) -> i64 {
         self.inner.read().query_affinity_time_decay
+    }
+
+    pub fn get_query_affinity_cooldown(&self) -> i64 {
+        self.inner.read().query_affinity_cooldown
     }
 
     pub fn get_temporal_decay(&self) -> i64 {

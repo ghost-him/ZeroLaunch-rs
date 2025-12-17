@@ -37,6 +37,7 @@ struct ProgramRankerInner {
     temporal_weight: f64,
     query_affinity_weight: f64,
     query_affinity_time_decay: i64,
+    query_affinity_cooldown: i64,
     temporal_decay: i64,
     /// 是否启用排序算法
     is_enable: bool,
@@ -57,8 +58,9 @@ impl ProgramRankerInner {
             history_weight: 0.8,
             recent_habit_weight: 1.5,
             temporal_weight: 0.5,
-            query_affinity_weight: 5.0,
+            query_affinity_weight: 3.0,
             query_affinity_time_decay: 259200,
+            query_affinity_cooldown: 60,
             temporal_decay: 10800,
             is_enable: true,
         }
@@ -99,6 +101,7 @@ impl ProgramRankerInner {
         self.temporal_weight = config.get_temporal_weight();
         self.query_affinity_weight = config.get_query_affinity_weight();
         self.query_affinity_time_decay = config.get_query_affinity_time_decay();
+        self.query_affinity_cooldown = config.get_query_affinity_cooldown();
         self.temporal_decay = config.get_temporal_decay();
         self.is_enable = config.get_is_enable();
     }
@@ -134,6 +137,7 @@ impl ProgramRankerInner {
             temporal_weight: None,
             query_affinity_weight: None,
             query_affinity_time_decay: None,
+            query_affinity_cooldown: None,
             temporal_decay: None,
             is_enable: None,
         }
@@ -233,7 +237,7 @@ impl ProgramRankerInner {
         *count
     }
 
-    /// 记录查询-程序启动关联
+    /// 记录查询-程序启动关联（衰减累积 + 冷却机制）
     fn record_query_launch(&mut self, query: &str, program_guid: u64) {
         // 预处理查询词，确保与搜索时的一致性
         let query = query.to_lowercase();
@@ -250,16 +254,28 @@ impl ProgramRankerInner {
         self.query_affinity_map
             .entry(key)
             .and_modify(|data| {
-                data.total_launch_count += 1;
+                // 冷却机制：检查距离上次记录是否超过冷却时间
+                let time_since_last_record = current_time - data.last_record_time;
+                if time_since_last_record >= self.query_affinity_cooldown {
+                    // 衰减累积：先对旧的有效次数进行衰减，再加上新的一次
+                    let time_diff = current_time - data.last_launch_time;
+                    let decay =
+                        (-(time_diff as f64) / (self.query_affinity_time_decay as f64 + 1.0)).exp();
+
+                    data.effective_count = data.effective_count * decay + 1.0;
+                    data.last_record_time = current_time;
+                }
+                // 无论是否在冷却时间内，都更新最后启动时间
                 data.last_launch_time = current_time;
             })
             .or_insert(QueryAffinityData {
-                total_launch_count: 1,
+                effective_count: 1.0,
                 last_launch_time: current_time,
+                last_record_time: current_time,
             });
     }
 
-    /// 计算查询亲和分数
+    /// 计算查询亲和分数（对数缩放 + 时间衰减）
     fn calculate_query_affinity_score(&self, query: &str, program_guid: u64) -> f64 {
         let launch_method = self
             .launch_store
@@ -269,7 +285,6 @@ impl ProgramRankerInner {
         let key = (query.to_string(), method_text);
 
         if let Some(data) = self.query_affinity_map.get(&key) {
-            let base_score = data.total_launch_count as f64 * 5.0;
             let current_time = get_current_time();
             let time_diff = current_time - data.last_launch_time;
 
@@ -277,7 +292,12 @@ impl ProgramRankerInner {
             let decay_factor =
                 (-(time_diff as f64) / (self.query_affinity_time_decay as f64 + 1.0)).exp();
 
-            base_score * decay_factor
+            // 计算当前有效次数（应用衰减）
+            let current_effective_count = data.effective_count * decay_factor;
+
+            // 使用对数缩放，避免分数过大
+            // ln(1 + effective_count) * 系数
+            (current_effective_count).ln_1p() * 10.0
         } else {
             0.0
         }

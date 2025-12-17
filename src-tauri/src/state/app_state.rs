@@ -39,8 +39,6 @@ pub struct AppState {
     game_mode: RwLock<bool>,
     /// 阻止所有的键盘输入
     is_keyboard_blocked: RwLock<bool>,
-    /// 最后一次搜索的查询词
-    last_search_query: RwLock<String>,
     /// 国际化翻译器
     translator: Arc<RwLock<Translator>>,
     /// 唤醒搜索栏前的前台窗口句柄
@@ -75,7 +73,6 @@ impl AppState {
             shortcut_manager: RwLock::new(None),
             game_mode: RwLock::new(false),
             is_keyboard_blocked: RwLock::new(false),
-            last_search_query: RwLock::new(String::new()),
             translator: Arc::new(RwLock::new(Translator::new())),
             previous_foreground_window: RwLock::new(None),
             previous_selection: RwLock::new(None),
@@ -225,16 +222,6 @@ impl AppState {
 
     pub fn get_is_keyboard_blocked(&self) -> bool {
         *self.is_keyboard_blocked.read()
-    }
-
-    /// 设置最后一次搜索的查询词
-    pub fn set_last_search_query(&self, query: String) {
-        *self.last_search_query.write() = query;
-    }
-
-    /// 获取最后一次搜索的查询词
-    pub fn get_last_search_query(&self) -> String {
-        self.last_search_query.read().clone()
     }
 
     /// 获取翻译器的 RwLock 引用

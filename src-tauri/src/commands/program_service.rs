@@ -105,15 +105,17 @@ async fn launch_new_program(
 /// 统一记录一次“用户使用该程序/命令”的意图：
 /// - 由 ProgramManager 统一记录 ranker 与查询关联
 /// - 并保存配置
-async fn record_full_launch(state: &tauri::State<'_, Arc<AppState>>, program_guid: u64) {
+async fn record_full_launch(
+    state: &tauri::State<'_, Arc<AppState>>,
+    program_guid: u64,
+    query_text: String,
+) {
     let program_manager = state.get_program_manager();
-
-    let last_query = state.get_last_search_query();
     debug!(
         "📝 记录使用: query='{}' -> GUID={}",
-        last_query, program_guid
+        query_text, program_guid
     );
-    program_manager.record_query_launch(&last_query, program_guid);
+    program_manager.record_query_launch(&query_text, program_guid);
 
     debug!("💾 保存配置文件");
     save_config_to_file(false).await;
@@ -126,6 +128,7 @@ async fn launch_program_internal(
     program_guid: u64,
     ctrl: bool,
     shift: bool,
+    query_text: String,
     override_method: Option<LaunchMethod>,
 ) -> Result<(), String> {
     info!(
@@ -154,7 +157,7 @@ async fn launch_program_internal(
     if let LaunchMethod::BuiltinCommand(ref cmd_str) = program.launch_method {
         let result = execute_builtin_command(cmd_str).await;
         // 无论命令执行是否成功，都记录一次用户意图
-        record_full_launch(&state, program_guid).await;
+        record_full_launch(&state, program_guid, query_text).await;
         return result;
     }
 
@@ -203,7 +206,7 @@ async fn launch_program_internal(
 
     // 6. 统一记录本次用户意图
     // 无论是成功唤醒、启动新实例，还是唤醒失败但不启动，都代表了一次用户意图的完成。
-    record_full_launch(&state, program_guid).await;
+    record_full_launch(&state, program_guid, query_text).await;
 
     Ok(())
 }
@@ -243,14 +246,13 @@ pub async fn get_program_count<R: Runtime>(
 /// - `ctrl`: 是否按下 Ctrl 键(请求管理员权限)
 /// - `shift`: 是否按下 Shift 键(唤醒已存在窗口)
 /// - `args`: 用户参数数组,无参数时传递空数组 []
-pub async fn launch_program<R: Runtime>(
-    _app: tauri::AppHandle<R>,
-    _window: tauri::Window<R>,
+pub async fn launch_program(
     state: tauri::State<'_, Arc<AppState>>,
     program_guid: u64,
     ctrl: bool,
     shift: bool,
     args: Vec<String>,
+    query_text: String,
 ) -> Result<(), String> {
     use crate::modules::parameter_resolver::SystemParameterSnapshot;
 
@@ -265,7 +267,15 @@ pub async fn launch_program<R: Runtime>(
         .await
         .map_err(|e| format!("Failed to build launch method: {}", e))?;
 
-    launch_program_internal(state, program_guid, ctrl, shift, Some(override_method)).await
+    launch_program_internal(
+        state,
+        program_guid,
+        ctrl,
+        shift,
+        query_text,
+        Some(override_method),
+    )
+    .await
 }
 
 #[tauri::command]
@@ -332,9 +342,6 @@ pub async fn handle_search_text<R: Runtime>(
     use tracing::{debug, info};
 
     debug!("🔍 处理搜索请求: '{}'", search_text);
-
-    // 保存当前搜索查询
-    state.set_last_search_query(search_text.clone());
 
     let runtime_config = state.get_runtime_config();
 

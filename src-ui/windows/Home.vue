@@ -409,6 +409,7 @@ const confirmParameterInput = async () => {
       ctrl: session.ctrlKey,
       shift: session.shiftKey,
       args: session.collectedArgs,
+      queryText: searchText.value,
     })
   } catch (error) {
     console.error('Failed to launch program with arguments:', error)
@@ -586,6 +587,7 @@ const launch_program = async (itemIndex: number, ctrlKey = false, shiftKey = fal
     ctrl: ctrlKey,
     shift: shiftKey,
     args: [],
+    queryText: searchText.value,
   })
 }
 

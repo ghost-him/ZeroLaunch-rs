@@ -13,13 +13,38 @@ impl Scorer for StandardScorer {
         // program中的字符串与user_input都已经是预处理过了，不再需要预处理了
         let mut ret: f64 = -10000.0;
         for names in &program.search_keywords {
-            if names.chars().count() < user_input.chars().count() {
+            let input_len = user_input.chars().count();
+            let target_len = names.chars().count();
+
+            // 条件性容错：短关键字（<=2字符）严格匹配，长关键字允许多打1字符
+            let tolerance = if target_len <= 2 { 0 } else { 1 };
+            if target_len + tolerance < input_len {
                 continue;
             }
+
             let mut score: f64 = shortest_edit_dis(names, user_input);
-            score *= adjust_score_log2(
-                (user_input.chars().count() as f64) / (names.chars().count() as f64),
-            );
+
+            // 计算长度比率
+            let input_len_f = input_len as f64;
+            let target_len_f = target_len as f64;
+
+            // 1. 限制比率加成：如果输入比目标长，比率锁定为 1.0，避免"越长分越高"的逻辑谬误
+            let ratio = if input_len > target_len {
+                1.0
+            } else {
+                input_len_f / target_len_f
+            };
+            score *= adjust_score_log2(ratio);
+
+            // 2. 动态溢出惩罚：根据溢出比例动态调整惩罚
+            // 溢出越多惩罚越重，对长词更宽容，对短词更严格
+            if input_len > target_len {
+                let overflow_ratio = (input_len_f - target_len_f) / target_len_f;
+                // 惩罚因子：溢出比例 * 0.3，最低 0.7
+                let penalty = (1.0 - overflow_ratio * 0.3).max(0.7);
+                score *= penalty;
+            }
+
             score += subset_dis(names, user_input);
             score += kmp(names, user_input);
             ret = f64::max(ret, score);
@@ -87,7 +112,8 @@ pub fn shortest_edit_dis(compare_name: &str, input_name: &str) -> f64 {
 
     let mut prev = vec![0i32; n + 1];
     let mut current = vec![0i32; n + 1];
-    let mut min_operations = i32::MAX;
+    // 初始化为最大可能距离（即完全插入），确保包含dp[0][n]的情况
+    let mut min_operations = n as i32;
 
     // 初始化prev数组（对应i=0）
     for (j, value) in prev.iter_mut().enumerate() {
@@ -95,25 +121,23 @@ pub fn shortest_edit_dis(compare_name: &str, input_name: &str) -> f64 {
     }
 
     for i in 1..=m {
-        current[0] = 0; // dp[i][0] = 0
+        current[0] = 0; // dp[i][0] = 0，允许从compare的任意位置开始匹配
         for j in 1..=n {
-            if compare_chars[i - 1] == input_chars[j - 1] {
-                current[j] = prev[j - 1];
+            let cost = if compare_chars[i - 1] == input_chars[j - 1] {
+                0
             } else {
-                current[j] = std::cmp::min(prev[j - 1] + 1, prev[j] + 1);
-            }
+                1
+            };
+            current[j] = (prev[j - 1] + cost) // 替换/匹配
+                .min(prev[j] + 1) // 删除 (compare中有，input中无)
+                .min(current[j - 1] + 1); // 插入 (compare中无，input中有)
         }
-        // 记录dp[i][n]
-        if i >= n && current[n] < min_operations {
+        // 记录dp[i][n]，即input完全匹配到compare[..i]的某个后缀的代价
+        if current[n] < min_operations {
             min_operations = current[n];
         }
         // 交换prev和current
         std::mem::swap(&mut prev, &mut current);
-    }
-
-    // 确保min_operations包含dp[m][n]
-    if m >= n && prev[n] < min_operations {
-        min_operations = prev[n];
     }
 
     // 计算最终得分

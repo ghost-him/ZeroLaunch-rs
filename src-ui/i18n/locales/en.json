@@ -470,7 +470,9 @@
     "reset_confirm_title": "Reset Confirmation",
     "confirm_reset": "Confirm Reset",
     "cancel": "Cancel",
-    "all_reset_success": "All shortcuts have been reset to default values"
+    "all_reset_success": "All shortcuts have been reset to default values",
+    "advanced_shortcuts": "Advanced Shortcuts",
+    "double_click_ctrl": "Double Click Ctrl to Wake"
   },
   "config_path": {
     "title": "Configuration File Storage Settings",

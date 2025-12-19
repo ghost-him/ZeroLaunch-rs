@@ -1,19 +1,22 @@
 pub mod shortcut_config;
 
 use crate::error::OptionExt;
-use crate::hide_window;
 use crate::utils::notify::notify_i18n_with;
 use crate::utils::service_locator::ServiceLocator;
-use crate::utils::ui_controller::handle_pressed;
+use crate::utils::ui_controller::toggle_search_bar;
 use parking_lot::Mutex;
+use rdev::{listen, EventType, Key};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::thread;
+use std::time::{Duration, Instant};
 use tauri::AppHandle;
 use tauri_plugin_global_shortcut::{
     Code, GlobalShortcutExt, Modifiers, Shortcut as TauriShortcut, ShortcutState,
 };
-use tracing::warn;
+use tracing::{error, info, warn};
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Shortcut {
     pub key: String,
@@ -43,6 +46,9 @@ impl Shortcut {
 
 type ShortcutCallback = Box<dyn Fn(&tauri::AppHandle) + Send + Sync>;
 
+static DOUBLE_CTRL_ENABLED: AtomicBool = AtomicBool::new(false);
+static DOUBLE_CTRL_LISTENING: AtomicBool = AtomicBool::new(false);
+
 struct ShortcutManagerInner {
     shortcuts: Arc<Mutex<HashMap<TauriShortcut, ShortcutCallback>>>,
     app_handle: Arc<AppHandle>,
@@ -54,6 +60,83 @@ impl ShortcutManagerInner {
             shortcuts: Arc::new(Mutex::new(HashMap::new())),
             app_handle,
         }
+    }
+
+    pub fn set_double_ctrl_enabled(&self, enabled: bool) {
+        DOUBLE_CTRL_ENABLED.store(enabled, Ordering::Relaxed);
+        if enabled && !DOUBLE_CTRL_LISTENING.load(Ordering::Relaxed) {
+            self.start_double_ctrl_listener();
+        }
+    }
+
+    fn start_double_ctrl_listener(&self) {
+        if DOUBLE_CTRL_LISTENING.swap(true, Ordering::Relaxed) {
+            return;
+        }
+
+        thread::spawn(|| {
+            info!("Starting Double Ctrl listener");
+            let mut last_ctrl_press = Instant::now();
+            let mut press_count = 0;
+            let mut last_key_was_release = false;
+
+            if let Err(error) = listen(move |event| {
+                if !DOUBLE_CTRL_ENABLED.load(Ordering::Relaxed) {
+                    // Reset state when disabled to prevent stale state when re-enabled
+                    press_count = 0;
+                    last_key_was_release = false;
+                    return;
+                }
+
+                match event.event_type {
+                    EventType::KeyPress(Key::ControlLeft)
+                    | EventType::KeyPress(Key::ControlRight) => {
+                        let now = Instant::now();
+                        if now.duration_since(last_ctrl_press) < Duration::from_millis(400) {
+                            if press_count == 1 {
+                                if last_key_was_release {
+                                    press_count = 2;
+                                } else {
+                                    press_count = 1;
+                                }
+                            } else {
+                                press_count = 1;
+                            }
+                        } else {
+                            press_count = 1;
+                        }
+                        last_ctrl_press = now;
+                        last_key_was_release = false;
+
+                        if press_count == 2 {
+                            press_count = 0; // Reset
+
+                            // Trigger action
+                            let state = ServiceLocator::get_state();
+                            if state.get_game_mode() {
+                                return;
+                            }
+
+                            let app_handle = state.get_main_handle();
+                            toggle_search_bar(&app_handle);
+                        }
+                    }
+                    EventType::KeyRelease(Key::ControlLeft)
+                    | EventType::KeyRelease(Key::ControlRight) => {
+                        last_key_was_release = true;
+                    }
+                    EventType::KeyPress(_) => {
+                        // Any other key press resets the counter
+                        press_count = 0;
+                        last_key_was_release = false;
+                    }
+                    _ => {}
+                }
+            }) {
+                error!("Double Ctrl listener error: {:?}", error);
+                DOUBLE_CTRL_LISTENING.store(false, Ordering::Relaxed);
+            }
+        });
     }
 
     // 将自定义Shortcut转换为Tauri的Shortcut
@@ -274,6 +357,10 @@ impl ShortcutManager {
     pub fn unregister_all_shortcut(&self) -> Result<(), String> {
         self.inner.lock().unregister_all_shortcut()
     }
+
+    pub fn set_double_ctrl_enabled(&self, enabled: bool) {
+        self.inner.lock().set_double_ctrl_enabled(enabled);
+    }
 }
 
 pub fn start_shortcut_manager(app: &mut tauri::App) {
@@ -295,11 +382,12 @@ pub fn start_shortcut_manager(app: &mut tauri::App) {
 
 pub fn update_shortcut_manager() {
     let state = ServiceLocator::get_state();
+    let shortcut_manager = state.get_shortcut_manager();
+
     if state.get_game_mode() {
+        shortcut_manager.set_double_ctrl_enabled(false);
         return;
     }
-
-    let shortcut_manager = state.get_shortcut_manager();
 
     if let Err(e) = shortcut_manager.delete_all_shortcut() {
         println!("{:?}", e);
@@ -309,20 +397,23 @@ pub fn update_shortcut_manager() {
 
     let runtime_config = state.get_runtime_config();
     let shortcut_config = runtime_config.get_shortcut_config();
-    let shortcut: Shortcut = shortcut_config.get_open_search_bar();
-    if let Err(e) = shortcut_manager.register_shortcut(shortcut, move |handle| {
-        if state.get_search_bar_visible() {
-            let _ = hide_window();
-        } else {
-            handle_pressed(handle);
+
+    let double_click_ctrl = shortcut_config.get_double_click_ctrl();
+    shortcut_manager.set_double_ctrl_enabled(double_click_ctrl);
+
+    // 如果启用了双击Ctrl，则不注册打开搜索栏的快捷键
+    if !double_click_ctrl {
+        let shortcut: Shortcut = shortcut_config.get_open_search_bar();
+        if let Err(e) = shortcut_manager.register_shortcut(shortcut, move |handle| {
+            toggle_search_bar(handle);
+        }) {
+            warn!("注册快捷键失败 {:?}", e);
+            let error_msg = format!("{:?}", e);
+            notify_i18n_with(
+                "ZeroLaunch-rs",
+                "notifications.shortcut_register_failed_detail",
+                &[("error", &error_msg)],
+            );
         }
-    }) {
-        warn!("注册快捷键失败 {:?}", e);
-        let error_msg = format!("{:?}", e);
-        notify_i18n_with(
-            "ZeroLaunch-rs",
-            "notifications.shortcut_register_failed_detail",
-            &[("error", &error_msg)],
-        );
     }
 }

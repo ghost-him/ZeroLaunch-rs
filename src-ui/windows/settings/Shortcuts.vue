@@ -99,6 +99,32 @@
             </div>
           </el-form-item>
         </el-form>
+
+        <el-divider content-position="left">
+          {{ t('shortcut.advanced_shortcuts') }}
+        </el-divider>
+
+        <el-form
+          label-position="top"
+          class="shortcut-form"
+        >
+          <el-form-item class="shortcut-form-item">
+            <div class="shortcut-item-header">
+              <div class="shortcut-label">
+                <el-icon>
+                  <Search />
+                </el-icon>
+                <span>{{ t('shortcut.double_click_ctrl') }}</span>
+              </div>
+              <div class="shortcut-item-content" style="flex: 0;">
+                <el-switch
+                  v-model="dirty_shortcut_config.double_click_ctrl"
+                  :disabled="!is_editing"
+                />
+              </div>
+            </div>
+          </el-form-item>
+        </el-form>
       </div>
     </div>
   </div>
@@ -127,9 +153,9 @@ const d_shortcut_config: ShortcutConfig = default_shortcut_config()
 const dirty_shortcut_config = ref<ShortcutConfig>({ ...configStore.config.shortcut_config })
 
 // 定义快捷键标签和描述
-type ShortcutKey = keyof ShortcutConfig;
+type ShortcutKey = Exclude<keyof ShortcutConfig, 'double_click_ctrl'>;
 const shortcutItems = ref<Array<{
-    key: keyof ShortcutConfig;
+    key: ShortcutKey;
     icon: Component;
     label: string;
     tooltip: string;

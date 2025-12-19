@@ -14,6 +14,7 @@ export type ShortcutConfig = {
     arrow_down: Shortcut,
     arrow_left: Shortcut,
     arrow_right: Shortcut,
+    double_click_ctrl: boolean,
 }
 
 export function default_shortcut_config(): ShortcutConfig {
@@ -60,6 +61,7 @@ export function default_shortcut_config(): ShortcutConfig {
             shift: false,
             meta: false,
         },
+        double_click_ctrl: false,
     } as ShortcutConfig
 }
 

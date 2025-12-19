@@ -470,7 +470,9 @@
     "reset_confirm_title": "重設確認",
     "confirm_reset": "確定重設",
     "cancel": "取消",
-    "all_reset_success": "已將所有快捷鍵重設為預設值"
+    "all_reset_success": "已將所有快捷鍵重設為預設值",
+    "advanced_shortcuts": "進階快捷鍵",
+    "double_click_ctrl": "雙擊 Ctrl 鍵"
   },
   "config_path": {
     "title": "設定檔儲存設定",

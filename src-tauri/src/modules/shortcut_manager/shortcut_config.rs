@@ -11,6 +11,7 @@ pub struct PartialShortcutConfig {
     pub arrow_down: Option<Shortcut>,
     pub arrow_left: Option<Shortcut>,
     pub arrow_right: Option<Shortcut>,
+    pub double_click_ctrl: Option<bool>,
 }
 
 /// 快捷键配置
@@ -29,6 +30,8 @@ pub struct ShortcutConfigInner {
     pub arrow_left: Shortcut,
     #[serde(default = "ShortcutConfigInner::default_arrow_right")]
     pub arrow_right: Shortcut,
+    #[serde(default = "ShortcutConfigInner::default_double_click_ctrl")]
+    pub double_click_ctrl: bool,
 }
 
 impl Default for ShortcutConfigInner {
@@ -40,11 +43,16 @@ impl Default for ShortcutConfigInner {
             arrow_down: Self::default_arrow_down(),
             arrow_left: Self::default_arrow_left(),
             arrow_right: Self::default_arrow_right(),
+            double_click_ctrl: Self::default_double_click_ctrl(),
         }
     }
 }
 
 impl ShortcutConfigInner {
+    pub(crate) fn default_double_click_ctrl() -> bool {
+        false
+    }
+
     pub(crate) fn default_open_search_bar() -> Shortcut {
         let mut shortcut = Shortcut::new();
         shortcut.key = "Space".to_string();
@@ -106,6 +114,9 @@ impl ShortcutConfigInner {
         if let Some(shortcut) = partial.arrow_right {
             self.arrow_right = shortcut;
         }
+        if let Some(val) = partial.double_click_ctrl {
+            self.double_click_ctrl = val;
+        }
     }
 
     pub fn to_partial(&self) -> PartialShortcutConfig {
@@ -116,6 +127,7 @@ impl ShortcutConfigInner {
             arrow_down: Some(self.arrow_down.clone()),
             arrow_left: Some(self.arrow_left.clone()),
             arrow_right: Some(self.arrow_right.clone()),
+            double_click_ctrl: Some(self.double_click_ctrl),
         }
     }
 }
@@ -167,6 +179,11 @@ impl ShortcutConfig {
     pub fn get_arrow_right(&self) -> Shortcut {
         let inner = self.inner.read();
         inner.arrow_right.clone()
+    }
+
+    pub fn get_double_click_ctrl(&self) -> bool {
+        let inner = self.inner.read();
+        inner.double_click_ctrl
     }
 
     pub fn to_partial(&self) -> PartialShortcutConfig {

@@ -95,3 +95,14 @@ pub fn handle_focus_lost(main_window: Arc<WebviewWindow>) {
     let state = ServiceLocator::get_state();
     state.set_search_bar_visible(false);
 }
+
+pub fn toggle_search_bar(app_handle: &tauri::AppHandle) {
+    let state = ServiceLocator::get_state();
+    if state.get_search_bar_visible() {
+        if let Some(window) = app_handle.get_webview_window("main") {
+            handle_focus_lost(Arc::new(window));
+        }
+    } else {
+        handle_pressed(app_handle);
+    }
+}

@@ -470,7 +470,9 @@
     "reset_confirm_title": "重置确认",
     "confirm_reset": "确定重置",
     "cancel": "取消",
-    "all_reset_success": "已重置所有快捷键为默认值"
+    "all_reset_success": "已重置所有快捷键为默认值",
+    "advanced_shortcuts": "高级快捷键",
+    "double_click_ctrl": "双击 Ctrl 唤醒"
   },
   "config_path": {
     "title": "配置文件存储设置",

@@ -60,6 +60,8 @@ All searching and matching are done locally without any network connection. We a
 - **Powerful Traditional Algorithms**: Based on self-developed matching algorithms, supporting full name, Pinyin, initial letter matching, and typo correction. Highly efficient with high fault tolerance.
 - **Extreme Performance Optimization**: Through data structure optimization, layered caching, on-demand loading, and concurrent processing, it ensures a millisecond-level response experience even on low-to-mid-range devices.
 
+> 💡 **Want to dive deeper into the search algorithm principles?** Check out the GitHub Wiki: [Search Introduction](https://github.com/ghost-him/ZeroLaunch-rs/wiki/%E6%90%9C%E7%B4%A2%E4%BB%8B%E7%BB%8D)
+
 ### 🌐 Lightweight & Pure, Out-of-the-Box
 Focused on the core need of "launching quickly and accurately." Default settings cover most usage scenarios with zero learning cost; meanwhile, it provides rich customization options for appearance, behavior, and indexing strategies for advanced users, without adding any bloated features.
 

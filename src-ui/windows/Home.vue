@@ -656,7 +656,7 @@ const handleRightArrow = (event: KeyboardEvent) => {
   showSubmenuForItem(selectedIndex.value)
 }
 
-const { handleKeyDown, handleKeyUp, handleBlur } = useShortcuts({
+const { handleKeyDown: originalHandleKeyDown, handleKeyUp, handleBlur } = useShortcuts({
   appConfig: app_config,
   shortcutConfig: shortcut_config,
   everythingShortcutConfig: everything_shortcut_config,
@@ -677,6 +677,20 @@ const { handleKeyDown, handleKeyUp, handleBlur } = useShortcuts({
   cancelParameterSession,
   handleRightArrowCallback: handleRightArrow,
 })
+
+const handleKeyDown = async (event: KeyboardEvent) => {
+  await originalHandleKeyDown(event)
+  if (event.defaultPrevented) return
+
+  const inputElement = searchBarRef.value?.realInputRef
+  if (inputElement && document.activeElement !== inputElement) {
+     if (event.key.length === 1 && !event.ctrlKey && !event.altKey && !event.metaKey) {
+         inputElement.focus()
+         searchText.value += event.key
+         event.preventDefault()
+     }
+  }
+}
 
 const contextResultItemEvent = (index: number, event: MouseEvent) => {
   if (searchBarMenuBuf.value?.isVisible()) {
@@ -746,6 +760,9 @@ onMounted(async () => {
   unlisten.push(await listen('show_window', () => {
     focusSearchInput()
     is_visible.value = true
+    setTimeout(() => {
+      searchBarRef.value?.focus()
+    }, 50)
   }))
   
   window.addEventListener('wheel', (event) => {

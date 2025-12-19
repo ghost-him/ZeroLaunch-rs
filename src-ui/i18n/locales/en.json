@@ -389,7 +389,6 @@
     "enter_keyword": "Please enter keyword",
     "target_website_address": "Target website address",
     "enter_target_path": "Please enter target path",
-    "enter_target_path_without_protocol": "Please enter website address (without protocol)",
     "command_content": "Command Content",
     "enter_command_content": "Please enter command content",
     "actions": "Actions",

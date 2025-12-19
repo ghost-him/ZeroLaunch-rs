@@ -389,7 +389,6 @@
     "enter_keyword": "请输入关键字",
     "target_website_address": "目标网站的地址",
     "enter_target_path": "请输入目标路径",
-    "enter_target_path_without_protocol": "请输入网站地址（不含协议）",
     "command_content": "命令内容",
     "enter_command_content": "请输入命令内容",
     "actions": "操作",

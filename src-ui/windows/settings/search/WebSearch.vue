@@ -35,30 +35,12 @@
           show-overflow-tooltip
         >
           <template #default="scope">
-            <div style="display: flex; gap: 5px;">
-              <el-select
-                :model-value="getProtocol(scope.$index)"
-                size="small"
-                style="width: 90px;"
-                @update:model-value="(value: string) => updateProtocol(scope.$index, value)"
-              >
-                <el-option
-                  label="https://"
-                  value="https://"
-                />
-                <el-option
-                  label="http://"
-                  value="http://"
-                />
-              </el-select>
-              <el-input
-                :model-value="getUrlWithoutProtocol(scope.$index)"
-                size="small"
-                :placeholder="t('settings.enter_target_path_without_protocol')"
-                style="flex: 1;"
-                @update:model-value="(value: string) => updateUrlWithoutProtocol(scope.$index, value)"
-              />
-            </div>
+            <el-input
+              v-model="index_web_pages[scope.$index][1]"
+              size="small"
+              :placeholder="t('settings.enter_target_path')"
+              @change="updateIndexWebPages"
+            />
           </template>
         </el-table-column>
         <el-table-column
@@ -117,39 +99,7 @@ const updateIndexWebPages = () => {
 }
 
 const addIndexWebPage = () => {
-    index_web_pages.value = [...index_web_pages.value, ['', 'https://']]
-}
-
-const getProtocol = (index: number): string => {
-    const url = index_web_pages.value[index]?.[1] || ''
-    if (url.startsWith('https://')) {
-        return 'https://'
-    } else if (url.startsWith('http://')) {
-        return 'http://'
-    }
-    return 'https://'
-}
-
-const getUrlWithoutProtocol = (index: number): string => {
-    const url = index_web_pages.value[index]?.[1] || ''
-    if (url.startsWith('https://')) {
-        return url.substring(8)
-    } else if (url.startsWith('http://')) {
-        return url.substring(7)
-    }
-    return url
-}
-
-const updateProtocol = (index: number, protocol: string) => {
-    const urlWithoutProtocol = getUrlWithoutProtocol(index)
-    index_web_pages.value[index][1] = protocol + urlWithoutProtocol
-    updateIndexWebPages()
-}
-
-const updateUrlWithoutProtocol = (index: number, urlWithoutProtocol: string) => {
-    const protocol = getProtocol(index)
-    index_web_pages.value[index][1] = protocol + urlWithoutProtocol
-    updateIndexWebPages()
+    index_web_pages.value = [...index_web_pages.value, ['', '']]
 }
 </script>
 

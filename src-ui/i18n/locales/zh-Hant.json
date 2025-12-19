@@ -386,7 +386,6 @@
     "enter_keyword": "請輸入關鍵字",
     "target_website_address": "目標網站的位址",
     "enter_target_path": "請輸入目標路徑",
-    "enter_target_path_without_protocol": "請輸入網站位址（不含通訊協定）",
     "command_content": "指令內容",
     "enter_command_content": "請輸入指令內容",
     "actions": "操作",

@@ -13,6 +13,7 @@ pub enum LaunchMethodKind {
     Path,
     PackageFamilyName,
     File,
+    Url,
     Command,
     BuiltinCommand,
 }
@@ -24,6 +25,8 @@ pub enum LaunchMethod {
     PackageFamilyName(String),
     /// 使用默认的启动方式来打开一个文件
     File(String),
+    /// 打开一个网址
+    Url(String),
     /// 一个自定义的命令
     Command(String),
     /// 内置设置的命令
@@ -36,6 +39,7 @@ impl LaunchMethod {
             LaunchMethod::Path(path) => path,
             LaunchMethod::PackageFamilyName(name) => name,
             LaunchMethod::File(path) => path,
+            LaunchMethod::Url(url) => url,
             LaunchMethod::Command(command) => command,
             LaunchMethod::BuiltinCommand(command) => command,
         }
@@ -46,6 +50,7 @@ impl LaunchMethod {
             LaunchMethod::Path(_) => LaunchMethod::Path(text),
             LaunchMethod::PackageFamilyName(_) => LaunchMethod::PackageFamilyName(text),
             LaunchMethod::File(_) => LaunchMethod::File(text),
+            LaunchMethod::Url(_) => LaunchMethod::Url(text),
             LaunchMethod::Command(_) => LaunchMethod::Command(text),
             LaunchMethod::BuiltinCommand(_) => {
                 if text.starts_with(PREFIX) {
@@ -73,6 +78,7 @@ impl LaunchMethod {
             LaunchMethod::Path(_) => LaunchMethodKind::Path,
             LaunchMethod::PackageFamilyName(_) => LaunchMethodKind::PackageFamilyName,
             LaunchMethod::File(_) => LaunchMethodKind::File,
+            LaunchMethod::Url(_) => LaunchMethodKind::Url,
             LaunchMethod::Command(_) => LaunchMethodKind::Command,
             LaunchMethod::BuiltinCommand(_) => LaunchMethodKind::BuiltinCommand,
         }

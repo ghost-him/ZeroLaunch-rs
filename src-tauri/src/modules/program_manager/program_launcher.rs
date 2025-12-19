@@ -36,6 +36,9 @@ impl ProgramLauncherInner {
             LaunchMethod::File(file_name) => {
                 self.launch_file(file_name);
             }
+            LaunchMethod::Url(url) => {
+                self.launch_url(url);
+            }
             LaunchMethod::Command(command) => {
                 self.launch_command(command);
             }
@@ -67,15 +70,17 @@ impl ProgramLauncherInner {
     }
 
     fn launch_file(&self, file_name: &str) {
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        // 使用 ShellExecuteW 直接打开文件
+        if let Err(error) = shell_execute_open(file_name) {
+            warn!("启动文件失败：{:?}", error);
+        }
+    }
 
-        let result = std::process::Command::new("cmd")
-            .args(["/C", "start", "", file_name])
-            .creation_flags(CREATE_NO_WINDOW) // 隐藏命令窗口
-            .spawn();
-
-        if result.is_err() {
-            warn!("启动失败：{:?}", result);
+    fn launch_url(&self, url: &str) {
+        // 使用 ShellExecuteW 直接打开 URL
+        // 这避免了通过 cmd.exe 时特殊字符（如 &）被错误解析的问题
+        if let Err(error) = shell_execute_open(url) {
+            warn!("启动 URL 失败：{:?}", error);
         }
     }
 

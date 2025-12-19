@@ -488,7 +488,7 @@ impl ProgramLoaderInner {
             }
             let unique_name = check_name.to_lowercase();
             let alias_names = self.convert_search_keywords(show_name);
-            let launch_method = LaunchMethod::File(url.clone());
+            let launch_method = LaunchMethod::Url(url.clone());
 
             let program = self.create_program(
                 show_name.clone(),
@@ -604,7 +604,9 @@ impl ProgramLoaderInner {
                     // 根据实际文件的扩展名决定启动方式
                     let launch_method = if let Some(ext) = actual_path.extension() {
                         if let Some(ext_str) = ext.to_str() {
-                            if ["url", "lnk", "exe"].contains(&ext_str) {
+                            if ["url"].contains(&ext_str) {
+                                LaunchMethod::Url(actual_path_str.clone())
+                            } else if ["lnk", "exe"].contains(&ext_str) {
                                 LaunchMethod::Path(actual_path_str.clone())
                             } else {
                                 LaunchMethod::File(actual_path_str.clone())

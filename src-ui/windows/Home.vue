@@ -185,7 +185,7 @@ const toggleEverythingMode = async () => {
 }
 
 // Parameter Session Types
-type LaunchMethodKind = 'Path' | 'PackageFamilyName' | 'File' | 'Command';
+type LaunchMethodKind = 'Path' | 'PackageFamilyName' | 'File' | 'Url' | 'Command';
 
 interface LaunchTemplateInfo {
   template: string;
@@ -681,6 +681,11 @@ const { handleKeyDown: originalHandleKeyDown, handleKeyUp, handleBlur } = useSho
 const handleKeyDown = async (event: KeyboardEvent) => {
   await originalHandleKeyDown(event)
   if (event.defaultPrevented) return
+
+  // 如果处于参数输入模式，不应该强制聚焦到主搜索框，避免抢夺焦点
+  if (inputContext.value === InputContext.ParameterInput) {
+    return
+  }
 
   const inputElement = searchBarRef.value?.realInputRef
   if (inputElement && document.activeElement !== inputElement) {

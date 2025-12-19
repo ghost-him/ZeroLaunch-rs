@@ -17,8 +17,6 @@
       class="parameter-panel__input"
       type="text"
       :placeholder="t('parameter.input_placeholder')"
-      @keydown.enter="onConfirm"
-      @keydown.esc="onCancel"
     >
     <div class="parameter-panel__tips">
       {{ t('parameter.hint') }}

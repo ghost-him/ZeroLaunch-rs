@@ -1,7 +1,6 @@
 use crate::core::image_processor::ImageIdentity;
 use crate::core::image_processor::ImageProcessor;
 use crate::modules::config::app_config::PartialAppConfig;
-use crate::modules::config::default::APP_PIC_PATH;
 use crate::modules::config::ui_config::PartialUiConfig;
 use crate::modules::everything::config::PartialEverythingConfig;
 use crate::modules::shortcut_manager::shortcut_config::PartialShortcutConfig;
@@ -9,7 +8,6 @@ use crate::state::app_state::AppState;
 use crate::utils::service_locator::ServiceLocator;
 use crate::utils::ui_controller::handle_focus_lost;
 use std::sync::Arc;
-use tauri::image::Image;
 use tauri::Emitter;
 use tauri::Manager;
 use tauri::Runtime;
@@ -204,34 +202,16 @@ pub async fn show_welcome_window<R: Runtime>(app: tauri::AppHandle<R>) -> Result
     Ok(())
 }
 
-/// 用于更改系统托盘图标的颜色
-
 #[tauri::command]
-pub async fn command_change_tray_icon<R: Runtime>(
-    _app: tauri::AppHandle<R>,
-    _window: tauri::Window<R>,
-    state: tauri::State<'_, Arc<AppState>>,
-    is_dark: bool,
-) -> Result<(), String> {
-    let key = {
-        if is_dark {
-            "tray_icon_white"
-        } else {
-            "tray_icon"
+pub async fn command_is_system_dark_mode<R: Runtime>(
+    app: tauri::AppHandle<R>,
+) -> Result<bool, String> {
+    if let Some(window) = app.get_webview_window("main") {
+        match window.theme() {
+            Ok(theme) => Ok(theme == tauri::Theme::Dark),
+            Err(_) => Ok(false),
         }
-    };
-
-    let icon_path = match APP_PIC_PATH.get(key) {
-        Some(path) => path,
-        None => return Err(format!("Icon path not found for key: {}", key)),
-    };
-    let tray_icon = state.get_tray_icon();
-    let image = match Image::from_path(icon_path.value()) {
-        Ok(img) => img,
-        Err(e) => return Err(format!("Failed to load icon image: {:?}", e)),
-    };
-    if let Err(e) = tray_icon.set_icon(Some(image)) {
-        return Err(format!("error: {:?}", e));
+    } else {
+        Ok(false)
     }
-    Ok(())
 }

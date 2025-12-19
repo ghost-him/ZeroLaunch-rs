@@ -5,6 +5,7 @@ use crate::modules::config::default::REMOTE_CONFIG_DEFAULT;
 use crate::modules::config::load_string_to_runtime_config_;
 use crate::save_config_to_file;
 use crate::storage::config::PartialLocalConfig;
+use crate::tray::update_tray_icon_theme;
 use crate::utils::service_locator::ServiceLocator;
 use crate::AppState;
 use crate::REMOTE_CONFIG_NAME;
@@ -30,6 +31,9 @@ pub async fn command_save_remote_config<R: Runtime>(
 
     runtime_config.update(partial_config);
     info!("✅ 运行时配置已更新");
+
+    // Update tray icon if needed
+    update_tray_icon_theme();
 
     save_config_to_file(true).await;
     info!("💾 远程配置保存完成");

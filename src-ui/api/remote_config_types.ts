@@ -110,7 +110,8 @@ export function default_app_config(): AppConfig {
 export type ThemeMode = 'system' | 'light' | 'dark';
 
 export type UIConfig = {
-    theme_mode: ThemeMode,
+    frontend_theme_mode: ThemeMode,
+    tray_theme_mode: ThemeMode,
     selected_item_color: string
     item_font_color: string
     search_bar_font_color: string
@@ -141,7 +142,8 @@ export type UIConfig = {
 
 export function default_ui_config(): UIConfig {
     return {
-        theme_mode: 'system',
+        frontend_theme_mode: 'system',
+        tray_theme_mode: 'system',
         selected_item_color: '#e3e3e3cc',
         item_font_color: '#000000',
         search_bar_font_color: '#333333',

@@ -14,7 +14,8 @@ pub enum ThemeMode {
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct PartialUiConfig {
-    pub theme_mode: Option<ThemeMode>,
+    pub frontend_theme_mode: Option<ThemeMode>,
+    pub tray_theme_mode: Option<ThemeMode>,
     pub selected_item_color: Option<String>,
     pub item_font_color: Option<String>,
     pub search_bar_font_color: Option<String>,
@@ -46,9 +47,13 @@ pub struct PartialUiConfig {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct UiConfigInner {
-    /// 主题模式
-    #[serde(default = "UiConfigInner::default_theme_mode")]
-    pub theme_mode: ThemeMode,
+    /// 前端主题模式
+    #[serde(default = "UiConfigInner::default_frontend_theme_mode")]
+    pub frontend_theme_mode: ThemeMode,
+
+    /// 托盘图标主题模式
+    #[serde(default = "UiConfigInner::default_tray_theme_mode")]
+    pub tray_theme_mode: ThemeMode,
 
     /// 显示器的大小与窗口的大小的比例
     /// 选中项的颜色
@@ -159,7 +164,8 @@ pub struct UiConfigInner {
 impl Default for UiConfigInner {
     fn default() -> Self {
         Self {
-            theme_mode: Self::default_theme_mode(),
+            frontend_theme_mode: Self::default_frontend_theme_mode(),
+            tray_theme_mode: Self::default_tray_theme_mode(),
             selected_item_color: Self::default_selected_item_color(),
             item_font_color: Self::default_item_font_color(),
             search_bar_font_color: Self::default_search_bar_font_color(),
@@ -191,7 +197,11 @@ impl Default for UiConfigInner {
 }
 
 impl UiConfigInner {
-    pub(crate) fn default_theme_mode() -> ThemeMode {
+    pub(crate) fn default_frontend_theme_mode() -> ThemeMode {
+        ThemeMode::System
+    }
+
+    pub(crate) fn default_tray_theme_mode() -> ThemeMode {
         ThemeMode::System
     }
 
@@ -297,8 +307,11 @@ impl UiConfigInner {
 
 impl UiConfigInner {
     pub fn update(&mut self, partial_ui_config: PartialUiConfig) {
-        if let Some(theme_mode) = partial_ui_config.theme_mode {
-            self.theme_mode = theme_mode;
+        if let Some(frontend_theme_mode) = partial_ui_config.frontend_theme_mode {
+            self.frontend_theme_mode = frontend_theme_mode;
+        }
+        if let Some(tray_theme_mode) = partial_ui_config.tray_theme_mode {
+            self.tray_theme_mode = tray_theme_mode;
         }
         if let Some(selected_item_color) = partial_ui_config.selected_item_color {
             self.selected_item_color = selected_item_color;
@@ -380,8 +393,12 @@ impl UiConfigInner {
         }
     }
 
-    pub fn get_theme_mode(&self) -> ThemeMode {
-        self.theme_mode.clone()
+    pub fn get_frontend_theme_mode(&self) -> ThemeMode {
+        self.frontend_theme_mode.clone()
+    }
+
+    pub fn get_tray_theme_mode(&self) -> ThemeMode {
+        self.tray_theme_mode.clone()
     }
 
     pub fn get_window_width(&self) -> u32 {
@@ -458,7 +475,8 @@ impl UiConfigInner {
 
     pub fn to_partial(&self) -> PartialUiConfig {
         PartialUiConfig {
-            theme_mode: Some(self.theme_mode.clone()),
+            frontend_theme_mode: Some(self.frontend_theme_mode.clone()),
+            tray_theme_mode: Some(self.tray_theme_mode.clone()),
             selected_item_color: Some(self.selected_item_color.clone()),
             item_font_color: Some(self.item_font_color.clone()),
             search_bar_font_color: Some(self.search_bar_font_color.clone()),
@@ -507,9 +525,14 @@ impl UiConfig {
         inner.update(partial_ui_config);
     }
 
-    pub fn get_theme_mode(&self) -> ThemeMode {
+    pub fn get_frontend_theme_mode(&self) -> ThemeMode {
         let inner = self.inner.read();
-        inner.get_theme_mode()
+        inner.get_frontend_theme_mode()
+    }
+
+    pub fn get_tray_theme_mode(&self) -> ThemeMode {
+        let inner = self.inner.read();
+        inner.get_tray_theme_mode()
     }
 
     pub fn get_selected_item_color(&self) -> String {

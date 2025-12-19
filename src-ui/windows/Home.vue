@@ -148,7 +148,6 @@ const background_picture = ref('')
 const is_loading_icons = ref<boolean>(false)
 const is_refreshing_dataset = ref<boolean>(false)
 const is_dark = ref(false)
-const darkModeMediaQuery = ref<MediaQueryList | null>(null)
 const windowSize = ref<{ width: number; height: number; }>({ width: 800, height: 800 })
 const scaleFactor = ref<number>(1)
 
@@ -622,30 +621,28 @@ const focusSearchInput = () => {
 const applyTheme = async (isDark: boolean) => {
 
   is_dark.value = isDark
-  await invoke('command_change_tray_icon', { isDark: isDark })
 }
 
-const updateTheme = () => {
-  const mode = ui_config.value.theme_mode;
+const updateTheme = async () => {
+  const mode = ui_config.value.frontend_theme_mode;
   if (mode === 'dark') {
     applyTheme(true);
   } else if (mode === 'light') {
     applyTheme(false);
   } else {
-    // System
-    if (darkModeMediaQuery.value) {
-      applyTheme(darkModeMediaQuery.value.matches);
+    // System - initial check via backend, subsequent updates via event
+    try {
+      const isDark = await invoke<boolean>('command_is_system_dark_mode');
+      applyTheme(isDark);
+    } catch (e) {
+      console.error('Failed to get system theme from backend:', e);
+      // Fallback to light
+      applyTheme(false);
     }
   }
 }
 
-function handleThemeChange(e: MediaQueryListEvent) {
-  if (ui_config.value.theme_mode === 'system') {
-    applyTheme(e.matches)
-  }
-}
-
-watch(() => ui_config.value.theme_mode, () => {
+watch(() => ui_config.value.frontend_theme_mode, () => {
   updateTheme()
 })
 
@@ -733,9 +730,14 @@ watch(is_alt_pressed, async (new_value: boolean) => {
 })
 
 onMounted(async () => {
-  darkModeMediaQuery.value = window.matchMedia('(prefers-color-scheme: dark)')
-  updateTheme()
-  darkModeMediaQuery.value.addEventListener('change', handleThemeChange)
+  await updateTheme()
+  
+  unlisten.push(await listen('system-theme-changed', (event) => {
+    if (ui_config.value.frontend_theme_mode === 'system') {
+      const theme = event.payload as string;
+      applyTheme(theme === 'dark');
+    }
+  }))
 
   searchBarRef.value?.focus()
   updateWindow()
@@ -785,7 +787,6 @@ onUnmounted(() => {
       listener()
     }
   }
-  darkModeMediaQuery.value?.removeEventListener('change', handleThemeChange)
 })
 </script>
 

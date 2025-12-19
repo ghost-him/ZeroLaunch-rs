@@ -203,7 +203,7 @@ pub fn run() {
             open_target_folder,
             command_unregister_all_shortcut,
             command_register_all_shortcut,
-            command_change_tray_icon,
+            command_is_system_dark_mode,
             command_open_icon_cache_dir,
             command_get_system_fonts,
             command_get_path_info,
@@ -220,8 +220,8 @@ pub fn run() {
         ])
         .build(tauri::generate_context!())
         .expect_programming("error while building tauri application")
-        .run(|app_handle, event| {
-            if let tauri::RunEvent::ExitRequested { api, .. } = event {
+        .run(|app_handle, event| match event {
+            tauri::RunEvent::ExitRequested { api, .. } => {
                 if !IS_EXITING.load(Ordering::Relaxed) {
                     info!("检测到退出请求，开始清理...");
                     api.prevent_exit();
@@ -235,6 +235,20 @@ pub fn run() {
                     });
                 }
             }
+            tauri::RunEvent::WindowEvent { label, event, .. } => {
+                if label == "main" {
+                    if let tauri::WindowEvent::ThemeChanged(theme) = event {
+                        crate::tray::update_tray_icon_theme();
+                        let theme_str = match theme {
+                            tauri::Theme::Dark => "dark",
+                            tauri::Theme::Light => "light",
+                            _ => "light",
+                        };
+                        let _ = app_handle.emit("system-theme-changed", theme_str);
+                    }
+                }
+            }
+            _ => {}
         });
 }
 

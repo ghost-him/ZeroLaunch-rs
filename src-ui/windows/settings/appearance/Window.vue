@@ -7,8 +7,28 @@
       <el-form label-width="auto">
         <el-form-item :label="t('ui_config.theme_mode')">
           <el-select
-            v-model="config.ui_config.theme_mode"
-            @change="(val: ThemeMode) => configStore.updateConfig({ ui_config: { theme_mode: val } })"
+            v-model="config.ui_config.frontend_theme_mode"
+            @change="(val: ThemeMode) => configStore.updateConfig({ ui_config: { frontend_theme_mode: val } })"
+          >
+            <el-option
+              :label="t('ui_config.theme_mode_system')"
+              value="system"
+            />
+            <el-option
+              :label="t('ui_config.theme_mode_light')"
+              value="light"
+            />
+            <el-option
+              :label="t('ui_config.theme_mode_dark')"
+              value="dark"
+            />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item :label="t('ui_config.tray_theme_mode')">
+          <el-select
+            v-model="config.ui_config.tray_theme_mode"
+            @change="(val: ThemeMode) => configStore.updateConfig({ ui_config: { tray_theme_mode: val } })"
           >
             <el-option
               :label="t('ui_config.theme_mode_system')"

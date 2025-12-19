@@ -13,6 +13,7 @@ use crate::utils::notify::notify;
 use crate::{handle_pressed, show_setting_window, AppState, ServiceLocator, APP_PIC_PATH};
 // Removed: use crate::retry_register_shortcut; // Appears unused, functionality merged
 use crate::modules::config::default::APP_VERSION;
+use crate::modules::config::ui_config::ThemeMode;
 
 // --- Constants for Menu Event IDs ---
 const MENU_ID_SHOW_SETTINGS: &str = "show_setting_window";
@@ -188,11 +189,43 @@ fn build_tray_menu<R: Runtime>(app_handle: &AppHandle<R>) -> tauri::Result<Menu<
         .build()
 }
 
+fn should_use_white_tray_icon(app_handle: &AppHandle) -> bool {
+    let state = ServiceLocator::get_state();
+    let ui_config = state.get_runtime_config().get_ui_config();
+    let tray_theme_mode = ui_config.get_tray_theme_mode();
+
+    match tray_theme_mode {
+        ThemeMode::Dark => true,
+        ThemeMode::Light => false,
+        ThemeMode::System => {
+            if let Some(window) = app_handle.get_webview_window("main") {
+                match window.theme() {
+                    Ok(theme) => theme == tauri::Theme::Dark,
+                    Err(_) => false,
+                }
+            } else {
+                false
+            }
+        }
+    }
+}
+
 /// Creates and configures the system tray icon.
 fn create_tray_icon<R: Runtime>(app_handle: &AppHandle, menu: Menu<R>) -> tauri::Result<TrayIcon> {
+    let use_white_icon = should_use_white_tray_icon(app_handle);
+
+    let icon_key = if use_white_icon {
+        "tray_icon_white"
+    } else {
+        "tray_icon"
+    };
+
     let tray_icon_path_value = APP_PIC_PATH
-        .get("tray_icon")
-        .expect_programming("Tray icon path 'tray_icon' not found in APP_PIC_PATH")
+        .get(icon_key)
+        .expect_programming(&format!(
+            "Tray icon path '{}' not found in APP_PIC_PATH",
+            icon_key
+        ))
         .clone();
     let icon = Image::from_path(&tray_icon_path_value).expect_programming(&format!(
         "无法从路径 {:?} 加载托盘图标",
@@ -329,4 +362,38 @@ pub fn update_tray_menu_language() {
     }
 
     debug!("Tray menu language updated.");
+}
+
+/// Updates the tray icon based on the current configuration (tray_theme_mode).
+pub fn update_tray_icon_theme() {
+    let state = ServiceLocator::get_state();
+    let app_handle = state.get_main_handle();
+
+    // Determine if we should use the dark mode icon (white icon) or light mode icon (dark icon)
+    let use_white_icon = should_use_white_tray_icon(&app_handle);
+
+    let icon_key = if use_white_icon {
+        "tray_icon_white"
+    } else {
+        "tray_icon"
+    };
+
+    if let Some(path_entry) = APP_PIC_PATH.get(icon_key) {
+        let path = path_entry.value();
+        match Image::from_path(path) {
+            Ok(icon) => {
+                let tray_icon = state.get_tray_icon();
+                if let Err(e) = tray_icon.set_icon(Some(icon)) {
+                    warn!("Failed to update tray icon: {:?}", e);
+                } else {
+                    debug!("Tray icon updated to {}", icon_key);
+                }
+            }
+            Err(e) => {
+                warn!("Failed to load tray icon from path {:?}: {:?}", path, e);
+            }
+        }
+    } else {
+        warn!("Tray icon key '{}' not found in APP_PIC_PATH", icon_key);
+    }
 }

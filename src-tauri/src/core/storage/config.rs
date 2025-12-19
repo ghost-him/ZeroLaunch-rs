@@ -29,14 +29,14 @@ pub struct PartialLocalConfig {
 pub struct LocalConfig {
     // 软件的版本，用于判断当前的用户是不是更新了，默认值为空
     version: Arc<String>,
-    // 表示远程配置信息的存储的地址
+    // 表示配置信息的存储目标
     storage_destination: Arc<StorageDestination>,
-    // 表示远程配置信息如果要保存在本地，则其使用的配置
+    // 表示配置信息如果要保存在本地，则其使用的配置
     local_save_config: Arc<LocalSaveConfig>,
-    // 表示远程配置信息如果要保存的webdav服务器，则其使用的配置
+    // 表示配置信息如果要保存到 WebDAV 服务器，则其使用的配置
     webdav_save_config: Arc<WebDAVConfig>,
     //onedrive_save_config: Arc<OneDriveConfig>,
-    // 表示缓冲区的大小，保存几次后会更新到本地
+    // 表示缓冲区的大小，保存几次后会更新到存储目标。如果为0，则每次都直接上传。
     save_to_local_per_update: Arc<u32>,
     // 欢迎页面的版本号，用于判断是否需要显示欢迎页面
     welcome_page_version: Arc<String>,
@@ -50,7 +50,7 @@ impl Default for LocalConfig {
             local_save_config: Arc::new(LocalSaveConfig::default()),
             webdav_save_config: Arc::new(WebDAVConfig::default()),
             //onedrive_save_config: Arc::new(OneDriveConfig::default()),
-            save_to_local_per_update: Arc::new(4),
+            save_to_local_per_update: Arc::new(0),
             welcome_page_version: Arc::new(String::new()),
         }
     }

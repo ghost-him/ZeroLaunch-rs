@@ -60,7 +60,7 @@ impl ProgramRankerInner {
             temporal_weight: 0.5,
             query_affinity_weight: 3.0,
             query_affinity_time_decay: 259200,
-            query_affinity_cooldown: 60,
+            query_affinity_cooldown: 15,
             temporal_decay: 10800,
             is_enable: true,
         }

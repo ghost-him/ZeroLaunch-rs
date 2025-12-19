@@ -349,7 +349,7 @@
               @change="(val: number) =>
                 configStore.updateConfig({
                   program_manager_config: {
-                    ranker: { query_affinity_cooldown: val ?? 60 }
+                    ranker: { query_affinity_cooldown: val ?? 15 }
                   }
                 })
               "

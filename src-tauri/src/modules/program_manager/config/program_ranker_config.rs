@@ -22,7 +22,7 @@ pub struct PartialProgramRankerConfig {
     pub query_affinity_weight: Option<f64>,
     /// 查询亲和时间衰减常数(秒) (默认259200 = 3天)
     pub query_affinity_time_decay: Option<i64>,
-    /// 查询亲和冷却时间(秒) (默认60秒)
+    /// 查询亲和冷却时间(秒) (默认15秒)
     pub query_affinity_cooldown: Option<i64>,
     /// 短期热度衰减常数(秒) (默认10800 = 3小时)
     pub temporal_decay: Option<i64>,

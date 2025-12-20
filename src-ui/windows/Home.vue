@@ -656,7 +656,7 @@ const handleRightArrow = (event: KeyboardEvent) => {
   showSubmenuForItem(selectedIndex.value)
 }
 
-const { handleKeyDown: originalHandleKeyDown, handleKeyUp, handleBlur } = useShortcuts({
+const { handleKeyDown, handleKeyUp, handleBlur } = useShortcuts({
   appConfig: app_config,
   shortcutConfig: shortcut_config,
   everythingShortcutConfig: everything_shortcut_config,
@@ -677,25 +677,6 @@ const { handleKeyDown: originalHandleKeyDown, handleKeyUp, handleBlur } = useSho
   cancelParameterSession,
   handleRightArrowCallback: handleRightArrow,
 })
-
-const handleKeyDown = async (event: KeyboardEvent) => {
-  await originalHandleKeyDown(event)
-  if (event.defaultPrevented) return
-
-  // 如果处于参数输入模式，不应该强制聚焦到主搜索框，避免抢夺焦点
-  if (inputContext.value === InputContext.ParameterInput) {
-    return
-  }
-
-  const inputElement = searchBarRef.value?.realInputRef
-  if (inputElement && document.activeElement !== inputElement) {
-     if (event.key.length === 1 && !event.ctrlKey && !event.altKey && !event.metaKey) {
-         inputElement.focus()
-         searchText.value += event.key
-         event.preventDefault()
-     }
-  }
-}
 
 const contextResultItemEvent = (index: number, event: MouseEvent) => {
   if (searchBarMenuBuf.value?.isVisible()) {

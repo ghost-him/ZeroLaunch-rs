@@ -258,6 +258,25 @@ export function createMainSearchShortcutHandler(
                 return true
             }
 
+            // 自动聚焦和输入重定向：如果输入框未聚焦，尝试捕获输入
+            const inputElement = searchBarRef.value?.realInputRef
+            if (inputElement && document.activeElement !== inputElement) {
+                // 处理普通字符输入
+                if (event.key.length === 1 && !event.ctrlKey && !event.altKey && !event.metaKey) {
+                    event.preventDefault()
+                    searchBarRef.value?.focus()
+                    searchText.value += event.key
+                    return true
+                }
+                // 处理退格键
+                if (event.key === 'Backspace') {
+                    event.preventDefault()
+                    searchBarRef.value?.focus()
+                    searchText.value = searchText.value.slice(0, -1)
+                    return true
+                }
+            }
+
             // 未处理的事件
             return false
         },

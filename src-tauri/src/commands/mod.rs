@@ -1,3 +1,4 @@
+pub mod browser_bookmarks;
 pub mod config_file;
 pub mod debug;
 pub mod program_service;

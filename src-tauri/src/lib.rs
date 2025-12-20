@@ -8,6 +8,7 @@ pub mod tray;
 pub mod utils;
 pub mod window_effect;
 pub mod window_position;
+use crate::commands::browser_bookmarks::*;
 use crate::commands::config_file::*;
 use crate::commands::debug::*;
 use crate::commands::program_service::*;
@@ -198,6 +199,8 @@ pub fn run() {
             get_search_keys,
             command_get_default_remote_data_dir_path,
             command_load_local_config,
+            detect_installed_browsers,
+            read_browser_bookmarks,
             command_save_local_config,
             command_check_validation,
             open_target_folder,

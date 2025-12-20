@@ -37,8 +37,6 @@ use crate::utils::ui_controller::handle_pressed;
 use crate::window_position::update_window_size_and_position;
 use core::storage;
 use core::storage::storage_manager::StorageManager;
-use device_query::DeviceQuery;
-use device_query::DeviceState;
 use modules::config::app_config::{AppConfig, PartialAppConfig};
 use modules::config::config_manager::RuntimeConfig;
 use modules::config::default::{
@@ -70,6 +68,8 @@ use tracing::{debug, error, info, warn};
 use utils::notify::notify_i18n;
 use utils::service_locator::ServiceLocator;
 use window_effect::enable_window_effect;
+use windows::Win32::Foundation::POINT;
+use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
 
 static IS_EXITING: AtomicBool = AtomicBool::new(false);
 
@@ -462,9 +462,11 @@ fn init_search_bar_window(app: &mut App) {
         if let tauri::WindowEvent::Focused(focused) = event {
             if !focused {
                 // 获取当前鼠标位置
-                let device_state = DeviceState::new();
-                let mouse_state = device_state.get_mouse();
-                let position = mouse_state.coords;
+                let mut point = POINT { x: 0, y: 0 };
+                unsafe {
+                    let _ = GetCursorPos(&mut point);
+                }
+                let position = (point.x, point.y);
                 // 获取窗口位置和大小
                 if let Ok(window_position) = windows_clone.inner_position() {
                     if let Ok(window_size) = windows_clone.inner_size() {

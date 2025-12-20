@@ -81,7 +81,6 @@ reqwest_dav = "0.2.2"
 tauri-plugin-deep-link = "2"
 winreg = "0.55.0"
 tauri-utils = { version = "2.8.1", features = ["schema"] }
-device_query = "4.0.1"
 globset = "0.4.18"
 regex = "1.12.2"
 scraper = "0.24.0"

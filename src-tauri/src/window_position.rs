@@ -9,12 +9,105 @@ use crate::{
     recommend_footer_height, recommend_result_item_height, recommend_search_bar_height,
     recommend_window_width,
 };
-use device_query::DeviceQuery;
-use device_query::DeviceState;
 use tauri::LogicalSize;
 use tauri::Manager;
 use tauri::PhysicalPosition;
 use tracing::debug;
+
+use windows::Win32::Foundation::POINT;
+use windows::Win32::Graphics::Gdi::{
+    GetMonitorInfoW, MonitorFromPoint, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTONEAREST,
+};
+use windows::Win32::UI::WindowsAndMessaging::{GetCursorPos, GetForegroundWindow};
+
+/// 获取最佳匹配的显示器
+/// 优先使用鼠标所在的显示器，如果失败则尝试使用当前活动窗口所在的显示器
+fn get_best_monitor(monitors: &[tauri::Monitor]) -> Option<tauri::Monitor> {
+    unsafe {
+        // 1. 尝试获取鼠标位置所在的显示器
+        let mut point = POINT { x: 0, y: 0 };
+        let _ = GetCursorPos(&mut point);
+        let hmonitor = MonitorFromPoint(point, MONITOR_DEFAULTTONEAREST);
+
+        if let Some(m) = find_monitor_by_handle(monitors, hmonitor) {
+            return Some(m);
+        }
+
+        // 2. 如果鼠标位置获取失败（极少情况），尝试获取当前活动窗口所在的显示器
+        let hwnd = GetForegroundWindow();
+        if !hwnd.0.is_null() {
+            let hmonitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+            if let Some(m) = find_monitor_by_handle(monitors, hmonitor) {
+                return Some(m);
+            }
+        }
+    }
+
+    None
+}
+
+unsafe fn find_monitor_by_handle(
+    monitors: &[tauri::Monitor],
+    hmonitor: windows::Win32::Graphics::Gdi::HMONITOR,
+) -> Option<tauri::Monitor> {
+    let mut monitor_info = MONITORINFO {
+        cbSize: std::mem::size_of::<MONITORINFO>() as u32,
+        ..Default::default()
+    };
+
+    if GetMonitorInfoW(hmonitor, &mut monitor_info).as_bool() {
+        let rect = monitor_info.rcMonitor;
+        let win_width = (rect.right - rect.left) as u32;
+        let win_height = (rect.bottom - rect.top) as u32;
+
+        debug!(
+            "Windows API Monitor: x={}, y={}, width={}, height={}",
+            rect.left, rect.top, win_width, win_height
+        );
+
+        // 精确匹配：检查所有四个条件都相同
+        for m in monitors {
+            let pos = m.position();
+            let size = m.size();
+            if pos.x == rect.left
+                && pos.y == rect.top
+                && size.width == win_width
+                && size.height == win_height
+            {
+                debug!(
+                    "精确匹配找到显示器: {:?} (x={}, y={}, width={}, height={})",
+                    m.name(),
+                    pos.x,
+                    pos.y,
+                    size.width,
+                    size.height
+                );
+                return Some(m.clone());
+            }
+        }
+
+        // 降级策略：如果精确匹配失败，使用模糊匹配（只比较左上角坐标）
+        debug!("精确匹配失败，尝试模糊匹配...");
+        for m in monitors {
+            let pos = m.position();
+            if pos.x == rect.left && pos.y == rect.top {
+                debug!(
+                    "模糊匹配找到显示器: {:?} (x={}, y={})",
+                    m.name(),
+                    pos.x,
+                    pos.y
+                );
+                return Some(m.clone());
+            }
+        }
+
+        debug!("未找到任何匹配的显示器");
+    } else {
+        debug!("GetMonitorInfoW 调用失败");
+    }
+    None
+}
+
 // 更新当前窗口的大小与位置
 pub fn update_window_size_and_position() {
     let state = ServiceLocator::get_state();
@@ -79,48 +172,29 @@ pub fn update_window_size_and_position() {
     if app_config.get_show_pos_follow_mouse() {
         // 如果设置了窗口跟随鼠标，则要重新计算新的显示的位置与窗口的大小
         let window_state = config.get_window_state();
-
-        let device_state = DeviceState::new();
-        let mouse_state = device_state.get_mouse();
-        let mouse_position = mouse_state.coords;
-        //println!("当前鼠标的位置：{}, {}", mouse_position.0, mouse_position.1);
         let windows = main_window
             .available_monitors()
             .expect_programming("无法获取可用显示器列表");
-        let mut target_window_pos = (0, 0);
-        windows.iter().any(|window| {
+
+        if let Some(window) = get_best_monitor(&windows) {
             let window_position = window.position();
             let size = window.size();
-            //println!("窗口的位置：{} {}", window_position.x, window_position.y);
-            if mouse_position.0 >= window_position.x
-                && mouse_position.0 < (window_position.x + size.width as i32)
-                && mouse_position.1 >= window_position.y
-                && mouse_position.1 < (window_position.y + size.height as i32)
-            {
-                // 如果鼠标在这个窗口中
-                target_window_pos = (window_position.x, window_position.y);
-                // 同时再更新这个窗口的属性
-                window_state.update(PartialWindowState {
-                    sys_window_scale_factor: Some(window.scale_factor()),
-                    sys_window_locate_height: Some(window_position.y),
-                    sys_window_locate_width: Some(window_position.x),
-                    sys_window_width: Some(size.width as i32),
-                    sys_window_height: Some(size.height as i32),
-                });
-                debug!("找到了鼠标所在的窗口");
-                return true;
-            }
-            false
-        });
-        // println!(
-        //     "修正前的唤醒的位置: {} {}",
-        //     show_position.0, show_position.1
-        // );
-        show_position = get_window_render_origin(vertical_position_ratio);
-        // println!(
-        //     "经过修正后的唤醒的位置：{} {}",
-        //     show_position.0, show_position.1
-        // );
+
+            // 更新窗口状态
+            window_state.update(PartialWindowState {
+                sys_window_scale_factor: Some(window.scale_factor()),
+                sys_window_locate_height: Some(window_position.y),
+                sys_window_locate_width: Some(window_position.x),
+                sys_window_width: Some(size.width as i32),
+                sys_window_height: Some(size.height as i32),
+            });
+            debug!("找到了最佳显示器: {:?}", window.name());
+
+            // 重新计算显示位置
+            show_position = get_window_render_origin(vertical_position_ratio);
+        } else {
+            debug!("未找到合适的显示器，使用默认位置");
+        }
     }
 
     window_size = get_window_size();

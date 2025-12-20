@@ -597,6 +597,8 @@ const handleItemClick = (itemIndex: number, ctrlKey: boolean) => {
 const initSearchBar = () => {
   searchText.value = ''
   selectedIndex.value = 0
+  resetParameterSession()
+  inputContext.value = InputContext.MainSearch
   if (resultsListRef.value?.resultsListRef) {
     resultsListRef.value.resultsListRef.scrollTop = 0
   }

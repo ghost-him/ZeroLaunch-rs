@@ -1,6 +1,7 @@
 use crate::error::{AppError, AppResult, OptionExt, ResultExt};
 use crate::utils::defer::defer;
 use crate::utils::windows::get_u16_vec;
+use base64::prelude::*;
 use core::mem::MaybeUninit;
 use fnv::FnvHasher;
 use image::GenericImageView;
@@ -135,8 +136,15 @@ impl ImageProcessor {
                 source: None,
             });
         }
+
+        // 构建带有 User-Agent 的 Client
+        let client = reqwest::Client::builder()
+            .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+            .build()
+            .map_err(|e| AppError::programming_error(format!("Failed to build reqwest client: {}", e)))?;
+
         // 获取网页内容
-        let response = reqwest::get(url).await.map_err(|e| {
+        let response = client.get(url).send().await.map_err(|e| {
             AppError::network_error_with_source(
                 format!("Failed to fetch website: {}", url),
                 Box::new(e),
@@ -221,8 +229,30 @@ impl ImageProcessor {
         };
 
         info!("Downloading favicon from: {}", icon_url);
+
+        // 处理 Data URI
+        if icon_url.starts_with("data:") {
+            if let Some(comma_pos) = icon_url.find(',') {
+                let meta = &icon_url[5..comma_pos];
+                let data = &icon_url[comma_pos + 1..];
+
+                if meta.ends_with(";base64") {
+                    let decoded = BASE64_STANDARD.decode(data).map_err(|e| {
+                        AppError::ImageProcessingError {
+                            message: format!("Failed to decode base64 data URI: {}", e),
+                        }
+                    })?;
+                    return Ok(decoded);
+                } else {
+                    // 简单的 URL decode 尝试，如果不是 base64
+                    // 这里假设是 ASCII 或者是 UTF-8 编码的 SVG
+                    return Ok(data.as_bytes().to_vec());
+                }
+            }
+        }
+
         // 下载图标
-        let icon_response: reqwest::Response = reqwest::get(&icon_url).await.map_err(|e| {
+        let icon_response = client.get(&icon_url).send().await.map_err(|e| {
             AppError::network_error_with_source(
                 format!("Failed to fetch favicon from: {}", icon_url),
                 Box::new(e),
@@ -357,6 +387,16 @@ impl ImageProcessor {
     }
 
     async fn convert_image_to_png(image_data: Vec<u8>) -> AppResult<Vec<u8>> {
+        // 检查是否是 HTML 内容 (常见的错误情况)
+        if let Ok(s) = std::str::from_utf8(&image_data) {
+            let s_trimmed = s.trim_start();
+            if s_trimmed.starts_with("<!DOCTYPE html") || s_trimmed.starts_with("<html") {
+                return Err(AppError::ImageProcessingError {
+                    message: "Downloaded content appears to be HTML, not an image".to_string(),
+                });
+            }
+        }
+
         // 在阻塞线程中处理图像
         tauri::async_runtime::spawn_blocking(move || -> AppResult<Vec<u8>> {
             // 尝试将数据解析为 SVG

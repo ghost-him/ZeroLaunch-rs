@@ -109,6 +109,15 @@
           </el-icon>Gitee
         </el-link>
         <el-link
+          type="info"
+          href="https://codeberg.org/ghost-him/ZeroLaunch-rs"
+          target="_blank"
+        >
+          <el-icon class="link-icon">
+            <ElementPlus />
+          </el-icon>Codeberg
+        </el-link>
+        <el-link
           type="warning"
           href="https://gitcode.com/ghost-him/ZeroLaunch-rs"
           target="_blank"

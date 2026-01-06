@@ -9,6 +9,7 @@
 ## 代码仓库：
 
 * github: [https://github.com/ghost-him/ZeroLaunch-rs](https://github.com/ghost-him/ZeroLaunch-rs)
+* codeberg: [https://codeberg.org/ghost-him/ZeroLaunch-rs](https://codeberg.org/ghost-him/ZeroLaunch-rs)
 * gitee: [https://gitee.com/ghost-him/ZeroLaunch-rs](https://gitee.com/ghost-him/ZeroLaunch-rs)
 * gitcode: [https://gitcode.com/ghost-him/ZeroLaunch-rs](https://gitcode.com/ghost-him/ZeroLaunch-rs)
 

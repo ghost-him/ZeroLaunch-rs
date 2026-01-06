@@ -56,6 +56,7 @@ ZeroLaunch-rs 为您提供了一个完全可选的功能，允许您通过 WebDA
 如果您对本隐私政策有任何疑问、意见或建议，欢迎通过以下方式与开发者 **ghost-him** 联系：
 
 *   **GitHub Issues 页面：** https://github.com/ghost-him/ZeroLaunch-rs/issues
+*   **Codeberg Issues 页面：** https://codeberg.org/ghost-him/ZeroLaunch-rs/issues
 *   **Gitee Issues 页面：** https://gitee.com/ghost-him/ZeroLaunch-rs/issues
 *   **Gitcode Issues 页面** https://gitcode.com/ghost-him/ZeroLaunch-rs/issues
 

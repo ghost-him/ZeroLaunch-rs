@@ -172,6 +172,7 @@ cargo run --bin xtask clean
 ## 联系方式
 
 - **GitHub**: https://github.com/ghost-him/ZeroLaunch-rs
+- **Codeberg**: https://codeberg.org/ghost-him/ZeroLaunch-rs
 - **Gitee**: https://gitee.com/ghost-him/ZeroLaunch-rs
 - **GitCode**: https://gitcode.com/ghost-him/ZeroLaunch-rs
 - **官网**: https://zerolaunch.ghost-him.com

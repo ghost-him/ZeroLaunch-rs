@@ -517,7 +517,7 @@ async fn package_portable_variant(target: BuildTarget, version: &str) -> Result<
             target.ai_mode.display(),
             zip_name
         );
-        create_portable_zip(&exe_path, &zip_name).await?;
+        create_portable_zip(&exe_path, &zip_name, target.arch).await?;
         println!("✅ 便携版打包完成: {}", zip_name);
     } else {
         println!(
@@ -566,7 +566,7 @@ fn find_portable_exe(target_dir: &Path, arch: TargetArch) -> Result<Option<PathB
 }
 
 /// 创建便携版 ZIP 包
-async fn create_portable_zip(exe_path: &Path, zip_name: &str) -> Result<()> {
+async fn create_portable_zip(exe_path: &Path, zip_name: &str, arch: TargetArch) -> Result<()> {
     let zip_path = Path::new(zip_name);
     let file = fs::File::create(zip_path)?;
     let mut zip = ZipWriter::new(file);
@@ -588,6 +588,26 @@ async fn create_portable_zip(exe_path: &Path, zip_name: &str) -> Result<()> {
     let locale_dir = Path::new("src-tauri/locales");
     if locale_dir.exists() {
         add_directory_to_zip(&mut zip, locale_dir, "locales", &options)?;
+    }
+
+    // 添加 Everything64.dll（仅限 x64 架构，因为 everything-rs 不支持 ARM64）
+    if arch == TargetArch::X86_64 {
+        let dll_path = Path::new("src-tauri/Everything64.dll");
+        if dll_path.exists() {
+            zip.start_file("Everything64.dll", options)?;
+            let dll_data = fs::read(dll_path)?;
+            std::io::copy(&mut dll_data.as_slice(), &mut zip)?;
+        }
+    }
+
+    // 添加 models/readme.md（如果存在）
+    let models_readme_path = Path::new("src-tauri/models/readme.md");
+    if models_readme_path.exists() {
+        // 首先确保 models 目录在 zip 中存在
+        zip.add_directory("models", options)?;
+        zip.start_file("models/readme.md", options)?;
+        let readme_data = fs::read(models_readme_path)?;
+        std::io::copy(&mut readme_data.as_slice(), &mut zip)?;
     }
 
     zip.finish()?;

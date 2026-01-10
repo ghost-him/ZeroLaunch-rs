@@ -1,4 +1,5 @@
 use super::ui_config::PartialUiConfig;
+use crate::modules::bookmark_loader::config::{BookmarkLoaderConfig, PartialBookmarkLoaderConfig};
 use crate::modules::config::app_config::AppConfig;
 use crate::modules::config::app_config::PartialAppConfig;
 use crate::modules::config::ui_config::UiConfig;
@@ -27,6 +28,7 @@ pub struct PartialRuntimeConfig {
     pub icon_manager_config: Option<PartialIconManagerConfig>,
     pub everything_config: Option<PartialEverythingConfig>,
     pub refresh_scheduler_config: Option<PartialRefreshSchedulerConfig>,
+    pub bookmark_loader_config: Option<PartialBookmarkLoaderConfig>,
 }
 
 #[derive(Debug)]
@@ -39,6 +41,7 @@ pub struct RuntimeConfig {
     icon_manager_config: Arc<IconManagerConfig>,
     everything_config: Arc<EverythingConfig>,
     refresh_scheduler_config: Arc<RefreshSchedulerConfig>,
+    bookmark_loader_config: Arc<BookmarkLoaderConfig>,
 }
 
 impl Default for RuntimeConfig {
@@ -58,6 +61,7 @@ impl RuntimeConfig {
             icon_manager_config: Arc::new(IconManagerConfig::default()),
             everything_config: Arc::new(EverythingConfig::default()),
             refresh_scheduler_config: Arc::new(RefreshSchedulerConfig::default()),
+            bookmark_loader_config: Arc::new(BookmarkLoaderConfig::default()),
         }
     }
 
@@ -87,6 +91,10 @@ impl RuntimeConfig {
         if let Some(partial_refresh_scheduler_config) = partial_config.refresh_scheduler_config {
             self.refresh_scheduler_config
                 .update(partial_refresh_scheduler_config);
+        }
+        if let Some(partial_bookmark_loader_config) = partial_config.bookmark_loader_config {
+            self.bookmark_loader_config
+                .update(partial_bookmark_loader_config);
         }
     }
 
@@ -122,6 +130,10 @@ impl RuntimeConfig {
         self.refresh_scheduler_config.clone()
     }
 
+    pub fn get_bookmark_loader_config(&self) -> Arc<BookmarkLoaderConfig> {
+        self.bookmark_loader_config.clone()
+    }
+
     pub fn to_partial(&self) -> PartialRuntimeConfig {
         PartialRuntimeConfig {
             app_config: Some(self.app_config.to_partial()),
@@ -132,6 +144,7 @@ impl RuntimeConfig {
             icon_manager_config: Some(self.icon_manager_config.to_partial()),
             everything_config: Some(self.everything_config.to_partial()),
             refresh_scheduler_config: Some(self.refresh_scheduler_config.to_partial()),
+            bookmark_loader_config: Some(self.bookmark_loader_config.to_partial()),
         }
     }
 }

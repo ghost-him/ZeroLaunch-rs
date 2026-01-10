@@ -1,5 +1,6 @@
 use crate::core::storage::storage_manager::StorageManager;
 use crate::error::OptionExt;
+use crate::modules::bookmark_loader::BookmarkLoader;
 #[cfg(target_arch = "x86_64")]
 use crate::modules::everything::EverythingManager;
 use crate::modules::icon_manager::IconManager;
@@ -50,6 +51,8 @@ pub struct AppState {
     everything_manager: Arc<EverythingManager>,
     /// 图标管理器
     icon_manager: RwLock<Option<Arc<IconManager>>>,
+    /// 书签加载器
+    bookmark_loader: RwLock<Option<Arc<BookmarkLoader>>>,
 }
 
 impl Default for AppState {
@@ -79,6 +82,7 @@ impl AppState {
             #[cfg(target_arch = "x86_64")]
             everything_manager: Arc::new(EverythingManager::new()),
             icon_manager: RwLock::new(None),
+            bookmark_loader: RwLock::new(None),
         }
     }
 
@@ -267,6 +271,20 @@ impl AppState {
     /// 设置图标管理器
     pub fn set_icon_manager(&self, icon_manager: Arc<IconManager>) {
         *self.icon_manager.write() = Some(icon_manager);
+    }
+
+    /// 获取书签加载器的克隆
+    pub fn get_bookmark_loader(&self) -> Arc<BookmarkLoader> {
+        self.bookmark_loader
+            .read()
+            .as_ref()
+            .cloned()
+            .expect_programming("bookmark loader not initialized")
+    }
+
+    /// 设置书签加载器
+    pub fn set_bookmark_loader(&self, bookmark_loader: Arc<BookmarkLoader>) {
+        *self.bookmark_loader.write() = Some(bookmark_loader);
     }
 }
 

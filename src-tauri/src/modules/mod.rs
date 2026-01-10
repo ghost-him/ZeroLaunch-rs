@@ -1,3 +1,4 @@
+pub mod bookmark_loader;
 pub mod config;
 pub mod everything;
 pub mod icon_manager;

@@ -11,12 +11,6 @@
         >
           <el-icon><Plus /></el-icon> {{ t('settings.add_item') }}
         </el-button>
-        <el-button
-          class="import-btn"
-          @click="showImportDialog = true"
-        >
-          <el-icon><Download /></el-icon> {{ t('settings.import_from_browser') }}
-        </el-button>
       </div>
       <el-table
         :data="index_web_pages"
@@ -69,11 +63,6 @@
         </el-table-column>
       </el-table>
     </div>
-
-    <BrowserImportDialog
-      v-model="showImportDialog"
-      @import="handleImportBookmarks"
-    />
   </div>
 </template>
 
@@ -82,13 +71,11 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRemoteConfigStore } from '../../../stores/remote_config'
 import { storeToRefs } from 'pinia'
-import { Plus, Download } from '@element-plus/icons-vue'
-import BrowserImportDialog from './BrowserImportDialog.vue'
+import { Plus } from '@element-plus/icons-vue'
 
 const { t } = useI18n()
 const configStore = useRemoteConfigStore()
 const { config } = storeToRefs(configStore)
-const showImportDialog = ref(false)
 
 const index_web_pages = computed({
     get: () => config.value.program_manager_config.loader.index_web_pages,
@@ -115,12 +102,6 @@ const updateIndexWebPages = () => {
 
 const addIndexWebPage = () => {
     index_web_pages.value = [...index_web_pages.value, ['', '']]
-}
-
-const handleImportBookmarks = (bookmarks: Array<{ title: string, url: string }>) => {
-    const newPages = bookmarks.map(b => [b.title, b.url] as [string, string])
-    // Append new bookmarks to existing ones
-    index_web_pages.value = [...index_web_pages.value, ...newPages]
 }
 </script>
 

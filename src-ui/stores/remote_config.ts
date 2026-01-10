@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { default_ui_config, default_app_config, default_shortcut_config, ProgramManagerConfig, ProgramLoaderConfig, PartialRemoteConfig, RemoteConfig, IconManagerConfig, ProgramRankerConfig, default_everything_config, default_refresh_scheduler_config } from '../api/remote_config_types'
+import { default_ui_config, default_app_config, default_shortcut_config, ProgramManagerConfig, ProgramLoaderConfig, PartialRemoteConfig, RemoteConfig, IconManagerConfig, ProgramRankerConfig, default_everything_config, default_refresh_scheduler_config, default_bookmark_loader_config } from '../api/remote_config_types'
 import { invoke } from '@tauri-apps/api/core'
 
 function mergeConfig(config: RemoteConfig, partial: PartialRemoteConfig): RemoteConfig {
@@ -57,6 +57,13 @@ function mergeConfig(config: RemoteConfig, partial: PartialRemoteConfig): Remote
         ? { ...refreshSchedulerConfig, ...refreshSchedulerPartial }
         : refreshSchedulerConfig
 
+    // 处理 bookmark_loader_config
+    const bookmarkLoaderPartial = partial.bookmark_loader_config
+    const bookmarkLoaderConfig = config.bookmark_loader_config
+    const bookmark_loader_config = bookmarkLoaderPartial
+        ? { ...bookmarkLoaderConfig, ...bookmarkLoaderPartial }
+        : bookmarkLoaderConfig
+
     // 返回合并后的新 Config 对象
     return {
         ...config,
@@ -67,6 +74,7 @@ function mergeConfig(config: RemoteConfig, partial: PartialRemoteConfig): Remote
         icon_manager_config,
         everything_config,
         refresh_scheduler_config,
+        bookmark_loader_config,
     }
 }
 
@@ -138,6 +146,15 @@ function mergePartialConfig(
             }
             : undefined
 
+    // 合并 bookmark_loader_config
+    const mergedBookmarkLoaderConfig =
+        partial1.bookmark_loader_config || partial2.bookmark_loader_config
+            ? {
+                ...(partial1.bookmark_loader_config || {}),
+                ...(partial2.bookmark_loader_config || {}),
+            }
+            : undefined
+
     // 构建最终的 PartialConfig 对象
     const result: PartialRemoteConfig = {}
     if (mergedAppConfig !== undefined) result.app_config = mergedAppConfig
@@ -148,6 +165,7 @@ function mergePartialConfig(
     if (mergedIconManagerConfig !== undefined) result.icon_manager_config = mergedIconManagerConfig
     if (mergedEverythingConfig !== undefined) result.everything_config = mergedEverythingConfig
     if (mergedRefreshSchedulerConfig !== undefined) result.refresh_scheduler_config = mergedRefreshSchedulerConfig
+    if (mergedBookmarkLoaderConfig !== undefined) result.bookmark_loader_config = mergedBookmarkLoaderConfig
 
     return result
 }
@@ -242,6 +260,7 @@ export const useRemoteConfigStore = defineStore('config', {
             } as IconManagerConfig,
             everything_config: default_everything_config(),
             refresh_scheduler_config: default_refresh_scheduler_config(),
+            bookmark_loader_config: default_bookmark_loader_config(),
         } as RemoteConfig,
         dirtyConfig: {} as PartialRemoteConfig,
     }),

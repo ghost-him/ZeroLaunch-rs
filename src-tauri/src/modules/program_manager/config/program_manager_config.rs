@@ -124,4 +124,6 @@ pub struct RuntimeProgramConfig {
     pub embedding_cache_bytes: Option<Vec<u8>>,
     /// 图标管理器
     pub icon_manager: Arc<IconManager>,
+    /// 书签加载器
+    pub bookmark_loader: Arc<crate::modules::bookmark_loader::BookmarkLoader>,
 }

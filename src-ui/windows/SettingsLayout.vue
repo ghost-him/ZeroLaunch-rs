@@ -105,6 +105,9 @@
               {{ t('everything.everything_search_settings')
               }}
             </el-menu-item>
+            <el-menu-item index="/setting_window/search/bookmarks">
+              {{ t('settings.search.bookmarks.title') }}
+            </el-menu-item>
           </el-sub-menu>
 
           <el-menu-item index="/setting_window/config">

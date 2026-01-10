@@ -38,6 +38,7 @@ use crate::utils::ui_controller::handle_pressed;
 use crate::window_position::update_window_size_and_position;
 use core::storage;
 use core::storage::storage_manager::StorageManager;
+use modules::bookmark_loader::BookmarkLoader;
 use modules::config::app_config::{AppConfig, PartialAppConfig};
 use modules::config::config_manager::RuntimeConfig;
 use modules::config::default::{
@@ -201,6 +202,10 @@ pub fn run() {
             command_load_local_config,
             detect_installed_browsers,
             read_browser_bookmarks,
+            get_bookmark_sources,
+            update_bookmark_sources,
+            get_bookmark_overrides,
+            update_bookmark_overrides,
             command_save_local_config,
             command_check_validation,
             open_target_folder,
@@ -383,11 +388,18 @@ async fn init_app_state(app: &mut App) {
     let icon_manager = Arc::new(IconManager::new(image_loader_runtime_config));
     state.set_icon_manager(icon_manager.clone());
 
+    // 初始化书签加载器
+    let bookmark_loader = Arc::new(BookmarkLoader::new());
+    let bookmark_loader_config = runtime_config.get_bookmark_loader_config();
+    bookmark_loader.load_from_config(&bookmark_loader_config);
+    state.set_bookmark_loader(bookmark_loader.clone());
+
     // 初始化程序管理器
     let runtime_program_config = RuntimeProgramConfig {
         embedding_backend,
         embedding_cache_bytes,
         icon_manager,
+        bookmark_loader,
     };
 
     let program_manager = ProgramManager::new(runtime_program_config);
@@ -601,6 +613,7 @@ async fn load_or_initialize_semantic_store(storage_manager: &StorageManager) -> 
 async fn reload_program_catalog(state: &AppState, runtime_config: &RuntimeConfig) {
     let program_manager = state.get_program_manager();
     let icon_manager = state.get_icon_manager();
+    let bookmark_loader = state.get_bookmark_loader();
     #[cfg(target_arch = "x86_64")]
     let everything_manager = state.get_everything_manager();
     let storage_manager = state.get_storage_manager();
@@ -616,6 +629,10 @@ async fn reload_program_catalog(state: &AppState, runtime_config: &RuntimeConfig
         let everything_config = runtime_config.get_everything_config();
         everything_manager.load_from_config(everything_config);
     }
+
+    // 更新 BookmarkLoader 配置
+    let bookmark_loader_config = runtime_config.get_bookmark_loader_config();
+    bookmark_loader.load_from_config(&bookmark_loader_config);
 
     // 重新加载程序目录
     program_manager
@@ -725,6 +742,7 @@ pub async fn save_config_to_file(is_update_app: bool) {
         icon_manager_config: None,
         everything_config: None,
         refresh_scheduler_config: None,
+        bookmark_loader_config: None,
     });
     let remote_config = runtime_config.to_partial();
 

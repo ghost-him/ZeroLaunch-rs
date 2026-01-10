@@ -5,11 +5,10 @@ pub mod pinyin_mapper;
 pub mod program_launcher;
 pub mod program_loader;
 pub mod program_ranker;
+pub mod search_engine;
 pub mod search_model;
 pub mod semantic_backend;
 pub mod semantic_manager;
-use crate::program_manager::search_engine::TraditionalSearchEngine;
-pub mod search_engine;
 pub mod unit;
 pub mod window_activator;
 use crate::error::{OptionExt, ResultExt};
@@ -18,6 +17,7 @@ use crate::modules::parameter_resolver::{ParameterResolver, SystemParameterSnaps
 use crate::modules::program_manager::config::program_manager_config::RuntimeProgramConfig;
 use crate::modules::program_manager::search_engine::{SearchEngine, SemanticSearchEngine};
 use crate::program_manager::config::program_manager_config::ProgramManagerConfig;
+use crate::program_manager::search_engine::TraditionalSearchEngine;
 use crate::program_manager::search_model::*;
 use crate::program_manager::semantic_manager::SemanticManager;
 use crate::program_manager::unit::*;
@@ -100,6 +100,7 @@ impl ProgramManager {
             embedding_backend,
             embedding_cache_bytes,
             icon_manager,
+            bookmark_loader,
         } = runtime_program_config;
 
         let semantic_manager = Arc::new(SemanticManager::new(embedding_backend, HashMap::new()));
@@ -125,6 +126,10 @@ impl ProgramManager {
         {
             info!("已从持久化缓存加载程序embeddings");
         }
+
+        // 设置书签加载器（在初始化时立即设置，而不是延迟设置）
+        pm.program_loader.set_bookmark_loader(bookmark_loader);
+
         pm
     }
 

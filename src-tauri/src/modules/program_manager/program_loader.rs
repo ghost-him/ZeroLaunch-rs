@@ -4,6 +4,7 @@ use super::localization_translation::parse_localized_names_from_dir;
 use super::pinyin_mapper::PinyinMapper;
 use super::LaunchMethod;
 use crate::error::OptionExt;
+use crate::modules::bookmark_loader::BookmarkLoader;
 use crate::modules::config::default::APP_PIC_PATH;
 use crate::modules::icon_manager::IconRequest;
 use crate::program_manager::config::program_loader_config::PartialProgramLoaderConfig;
@@ -179,6 +180,8 @@ pub struct ProgramLoaderInner {
     enabled_builtin_commands: HashMap<builtin_commands::BuiltinCommandType, bool>,
     /// 内置命令的自定义关键词
     builtin_command_keywords: HashMap<builtin_commands::BuiltinCommandType, Vec<String>>,
+    /// 书签加载器引用
+    bookmark_loader: Option<Arc<BookmarkLoader>>,
 }
 
 impl Default for ProgramLoaderInner {
@@ -207,7 +210,13 @@ impl ProgramLoaderInner {
             compute_embeddings: false,
             enabled_builtin_commands: HashMap::new(),
             builtin_command_keywords: HashMap::new(),
+            bookmark_loader: None,
         }
+    }
+
+    /// 设置书签加载器
+    pub fn set_bookmark_loader(&mut self, loader: Arc<BookmarkLoader>) {
+        self.bookmark_loader = Some(loader);
     }
 
     pub fn to_partial(&self) -> PartialProgramLoaderConfig {
@@ -366,6 +375,11 @@ impl ProgramLoaderInner {
         info!("🌐 网页程序加载完成，找到 {} 个程序", web_infos.len());
         result.extend(web_infos);
 
+        info!("📚 开始加载书签");
+        let bookmark_infos = self.load_bookmarks();
+        info!("📚 书签加载完成，找到 {} 个书签", bookmark_infos.len());
+        result.extend(bookmark_infos);
+
         info!("⚡ 开始加载自定义命令");
         let command_infos = self.load_custom_command();
         info!("⚡ 自定义命令加载完成，找到 {} 个命令", command_infos.len());
@@ -496,6 +510,41 @@ impl ProgramLoaderInner {
                 launch_method,
                 alias_names,
                 IconRequest::Url(url.to_string()),
+            );
+            result.push(program);
+        }
+        result
+    }
+
+    fn load_bookmarks(&mut self) -> Vec<Arc<Program>> {
+        let mut result = Vec::new();
+
+        // 使用 BookmarkLoader 获取已启用书签源的所有书签
+        let bookmarks = match &self.bookmark_loader {
+            Some(loader) => loader.get_enabled_bookmarks(),
+            None => return result,
+        };
+
+        for (title, url) in bookmarks {
+            if title.trim().is_empty() || url.trim().is_empty() {
+                continue;
+            }
+
+            // 使用 url 作为唯一标识的一部分
+            let unique_name = format!("bookmark:{}", url).to_lowercase();
+            if self.check_program_is_exist(&unique_name) {
+                continue;
+            }
+
+            let launch_method = LaunchMethod::Url(url.clone());
+            let alias_names = self.convert_search_keywords(&title);
+
+            let program = self.create_program(
+                title,
+                unique_name,
+                launch_method,
+                alias_names,
+                IconRequest::Url(url),
             );
             result.push(program);
         }
@@ -1346,6 +1395,11 @@ impl ProgramLoader {
     /// 从配置文件中加载配置
     pub fn load_from_config(&self, config: &ProgramLoaderConfig) {
         self.inner.write().load_from_config(config);
+    }
+
+    /// 设置书签加载器
+    pub fn set_bookmark_loader(&self, loader: Arc<BookmarkLoader>) {
+        self.inner.write().set_bookmark_loader(loader);
     }
 
     /// 设置是否在加载时生成/读取程序的embedding

@@ -304,6 +304,32 @@ export function default_refresh_scheduler_config(): RefreshSchedulerConfig {
     } as RefreshSchedulerConfig
 }
 
+// 书签源配置
+export type BookmarkSourceConfig = {
+    name: string
+    bookmarks_path: string
+    enabled: boolean
+}
+
+// 书签覆盖配置
+export type BookmarkOverride = {
+    url: string
+    excluded: boolean
+    custom_title: string | null
+}
+
+export type BookmarkLoaderConfig = {
+    sources: BookmarkSourceConfig[]
+    overrides: BookmarkOverride[]
+}
+
+export function default_bookmark_loader_config(): BookmarkLoaderConfig {
+    return {
+        sources: [],
+        overrides: [],
+    }
+}
+
 export type RemoteConfig = {
     app_config: AppConfig
     ui_config: UIConfig
@@ -318,6 +344,7 @@ export type RemoteConfig = {
     icon_manager_config: IconManagerConfig
     everything_config: EverythingConfig
     refresh_scheduler_config: RefreshSchedulerConfig
+    bookmark_loader_config: BookmarkLoaderConfig
 }
 
 export type PartialAppConfig = Partial<AppConfig>
@@ -331,6 +358,7 @@ export type PartialEverythingConfig = Partial<Omit<EverythingConfig, 'shortcuts'
     shortcuts?: PartialEverythingShortcutConfig
 }
 export type PartialRefreshSchedulerConfig = Partial<RefreshSchedulerConfig>
+export type PartialBookmarkLoaderConfig = Partial<BookmarkLoaderConfig>
 
 export type PartialRemoteConfig = {
     app_config?: PartialAppConfig
@@ -346,4 +374,5 @@ export type PartialRemoteConfig = {
     icon_manager_config?: PartialIconManagerConfig
     everything_config?: PartialEverythingConfig
     refresh_scheduler_config?: PartialRefreshSchedulerConfig
+    bookmark_loader_config?: PartialBookmarkLoaderConfig
 }

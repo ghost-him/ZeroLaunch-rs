@@ -32,11 +32,12 @@ import WebSearch from '../windows/settings/search/WebSearch.vue'
 import CustomCommands from '../windows/settings/search/CustomCommands.vue'
 import BuiltinCommands from '../windows/settings/search/BuiltinCommands.vue'
 import Everything from '../windows/settings/search/Everything.vue'
+import Bookmarks from '../windows/settings/search/Bookmarks.vue'
 
 const routes = [
   { path: '/', component: Home },
-  { 
-    path: '/setting_window', 
+  {
+    path: '/setting_window',
     component: SettingsLayout,
     children: [
       { path: '', redirect: '/setting_window/general' },
@@ -54,6 +55,7 @@ const routes = [
       { path: 'search/custom', component: CustomCommands },
       { path: 'search/builtin', component: BuiltinCommands },
       { path: 'search/everything', component: Everything },
+      { path: 'search/bookmarks', component: Bookmarks },
       { path: 'config', component: ConfigPath },
       { path: 'shortcuts', component: Shortcuts },
       { path: 'about', component: About },

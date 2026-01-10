@@ -67,7 +67,7 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRemoteConfigStore } from '../../../stores/remote_config'
 import { storeToRefs } from 'pinia'

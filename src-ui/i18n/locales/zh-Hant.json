@@ -90,6 +90,7 @@
     "font_size_tooltip": "取值：[5, 100]，單位%：80%表示字型的高度為搜尋列高度的80%",
     "search_bar_animation": "搜尋列的動畫效果",
     "search_bar_animation_tooltip": "開啟後，搜尋列在輸入或刪除字元時會有一個漸變的動畫效果",
+    "show_launch_command": "顯示啟動命令（文件路徑/URL）",
     "result_bar": "結果列",
     "result_bar_font_settings": "結果列字型設定",
     "result_bar_font_color": "設定結果列的字型顏色",

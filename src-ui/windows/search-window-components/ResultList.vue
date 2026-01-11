@@ -41,8 +41,20 @@
             fontFamily: uiConfig.result_item_font_family,
             color: uiConfig.item_font_color
           }"
-          v-html="item"
+          v-html="item.name"
         />
+        <div
+          v-if="uiConfig.show_launch_command"
+          class="item-command"
+          :style="{
+            fontSize: Math.round(uiConfig.result_item_height * uiConfig.item_font_size * layoutConstants.fontSizeRatio * 0.6) + 'px',
+            fontFamily: uiConfig.result_item_font_family,
+            color: uiConfig.item_font_color,
+            opacity: 0.6
+          }"
+        >
+          {{ item.command }}
+        </div>
       </div>
     </div>
   </div>
@@ -59,7 +71,7 @@ const layoutConstants = {
 }
 
 const props = defineProps<{
-  menuItems: string[];
+  menuItems: { name: string; command: string }[];
   menuIcons: string[];
   selectedIndex: number;
   uiConfig: UIConfig;
@@ -166,7 +178,9 @@ defineExpose({
 
 .item-info {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
   min-width: 0;
   overflow: hidden;
   height: 100%;
@@ -178,7 +192,14 @@ defineExpose({
   overflow: hidden;
   text-overflow: ellipsis;
   width: 100%;
-  line-height: normal;
+}
+
+.item-command {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+  margin-top: 2px;
 }
 
 :deep(mark) {

@@ -181,6 +181,12 @@
             </el-icon>
           </el-tooltip>
         </el-form-item>
+        <el-form-item :label="t('ui_config.show_launch_command')">
+          <el-switch
+            v-model="config.ui_config.show_launch_command"
+            @change="(val: boolean) => configStore.updateConfig({ ui_config: { show_launch_command: val } })"
+          />
+        </el-form-item>
         <el-divider content-position="left">
           {{ t('ui_config.footer_bar') }}
         </el-divider>

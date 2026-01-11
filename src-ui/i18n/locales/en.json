@@ -90,6 +90,7 @@
     "font_size_tooltip": "Value: [5, 100], unit %: 80% means the font height is 80% of the search bar height",
     "search_bar_animation": "Search bar animation effect",
     "search_bar_animation_tooltip": "When enabled, the search bar will have a gradient animation effect when typing or deleting characters",
+    "show_launch_command": "Show launch command (file path/URL)",
     "result_bar": "Result Bar",
     "result_bar_font_settings": "Result bar font settings",
     "result_bar_font_color": "Set result bar font color",

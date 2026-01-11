@@ -28,7 +28,7 @@ pub struct ProgramInfo {
 /// 更新搜索窗口
 
 #[derive(Serialize, Debug)]
-pub struct SearchResult(u64, String);
+pub struct SearchResult(u64, String, String);
 
 #[derive(Serialize, Debug)]
 pub struct LaunchTemplateInfo {
@@ -356,7 +356,7 @@ pub async fn handle_search_text<R: Runtime>(
 
     let mut ret = Vec::new();
     for item in results {
-        ret.push(SearchResult(item.0, item.1));
+        ret.push(SearchResult(item.0, item.1, item.2));
     }
 
     if search_text.trim().is_empty() {
@@ -408,7 +408,7 @@ pub async fn handle_everything_search<R: Runtime>(
 
     Ok(results
         .into_iter()
-        .map(|r| SearchResult(r.id, r.path))
+        .map(|r| SearchResult(r.id, r.path.clone(), r.path))
         .collect())
 }
 
@@ -463,7 +463,7 @@ pub async fn command_get_latest_launch_program(
         .await;
     let mut ret = Vec::new();
     for item in results {
-        ret.push(SearchResult(item.0, item.1));
+        ret.push(SearchResult(item.0, item.1, item.2));
     }
     debug!("latest_launch_propgram: {:?}", ret);
     Ok(ret)

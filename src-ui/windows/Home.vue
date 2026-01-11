@@ -136,12 +136,12 @@ const selectedIndex = ref<number>(0)
 const searchBarRef = ref<InstanceType<typeof SearchBar> | null>(null)
 const resultsListRef = ref<InstanceType<typeof ResultList> | null>(null)
 const everythingPanelRef = ref<InstanceType<typeof EverythingPanel> | null>(null)
-const searchResults = ref<Array<[number, string]>>([])
-const latest_launch_program = ref<Array<[number, string]>>([])
+const searchResults = ref<Array<[number, string, string]>>([])
+const latest_launch_program = ref<Array<[number, string, string]>>([])
 const is_alt_pressed = ref<boolean>(false)
 const right_tips = ref<string>(t('app.best_match'))
 const status_reason_code = ref<string>('none')
-const menuItems = ref<Array<string>>([])
+const menuItems = ref<Array<{ name: string; command: string }>>([])
 const menuIcons = ref<Array<string>>([])
 const program_icons = ref<Map<number, string>>(new Map<number, string>([]))
 const is_visible = ref<boolean>(false)
@@ -343,7 +343,7 @@ const sendSearchText = async (text: string) => {
       // Everything mode handles search internally in EverythingPanel via prop watch
       return
     }
-    let results: Array<[number, string]>
+    let results: Array<[number, string, string]>
     results = await invoke('handle_search_text', { searchText: text })
     searchResults.value = results
     await refresh_result_items()
@@ -420,15 +420,15 @@ const confirmParameterInput = async () => {
 }
 
 const get_latest_launch_program = async () => {
-  const results: Array<[number, string]> = await invoke('command_get_latest_launch_program')
+  const results: Array<[number, string, string]> = await invoke('command_get_latest_launch_program')
   latest_launch_program.value = results
   await refresh_result_items()
 }
 
 const refresh_result_items = async () => {
   if (!is_alt_pressed.value) {
-    menuItems.value = searchResults.value.map(([_id, item]: [number, string]) => item)
-    const keys = searchResults.value.map(([key]: [number, string]) => key)
+    menuItems.value = searchResults.value.map(([_id, item, command]: [number, string, string]) => ({ name: item, command }))
+    const keys = searchResults.value.map(([key]: [number, string, string]) => key)
     if (isEverythingMode.value) {
       menuIcons.value = new Array(keys.length).fill('/tauri.svg')
       right_tips.value = 'Everything Search'
@@ -437,8 +437,8 @@ const refresh_result_items = async () => {
       right_tips.value = t('app.best_match')
     }
   } else {
-    menuItems.value = latest_launch_program.value.map(([_id, item]: [number, string]) => item)
-    const keys = latest_launch_program.value.map(([key]: [number, string]) => key)
+    menuItems.value = latest_launch_program.value.map(([_id, item, command]: [number, string, string]) => ({ name: item, command }))
+    const keys = latest_launch_program.value.map(([key]: [number, string, string]) => key)
     menuIcons.value = await getIcons(keys)
     right_tips.value = t('app.recent_open')
   }

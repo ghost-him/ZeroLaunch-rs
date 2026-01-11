@@ -42,6 +42,7 @@ pub struct PartialUiConfig {
     pub footer_font_family: Option<String>,
     pub program_background_color: Option<String>,
     pub search_bar_animate: Option<bool>,
+    pub show_launch_command: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -159,6 +160,10 @@ pub struct UiConfigInner {
     // 搜索栏是否有动画效果
     #[serde(default = "UiConfigInner::default_search_bar_animate")]
     pub search_bar_animate: bool,
+
+    // 是否显示启动命令
+    #[serde(default = "UiConfigInner::default_show_launch_command")]
+    pub show_launch_command: bool,
 }
 
 impl Default for UiConfigInner {
@@ -192,6 +197,7 @@ impl Default for UiConfigInner {
             footer_font_family: Self::default_footer_font_family(),
             program_background_color: Self::default_program_background_color(),
             search_bar_animate: Self::default_search_bar_animate(),
+            show_launch_command: Self::default_show_launch_command(),
         }
     }
 }
@@ -207,6 +213,10 @@ impl UiConfigInner {
 
     pub(crate) fn default_search_bar_animate() -> bool {
         true
+    }
+
+    pub(crate) fn default_show_launch_command() -> bool {
+        false
     }
 
     pub(crate) fn default_selected_item_color() -> String {
@@ -391,6 +401,9 @@ impl UiConfigInner {
         if let Some(search_bar_animate) = partial_ui_config.search_bar_animate {
             self.search_bar_animate = search_bar_animate;
         }
+        if let Some(show_launch_command) = partial_ui_config.show_launch_command {
+            self.show_launch_command = show_launch_command;
+        }
     }
 
     pub fn get_frontend_theme_mode(&self) -> ThemeMode {
@@ -464,6 +477,10 @@ impl UiConfigInner {
         self.search_bar_animate
     }
 
+    pub fn get_show_launch_command(&self) -> bool {
+        self.show_launch_command
+    }
+
     // 判断窗口的大小是不是默认的
     pub fn is_default_window_size(&self) -> bool {
         self.get_search_bar_height() == Self::default_search_bar_height()
@@ -503,6 +520,7 @@ impl UiConfigInner {
             footer_font_family: Some(self.footer_font_family.clone()),
             program_background_color: Some(self.program_background_color.clone()),
             search_bar_animate: Some(self.search_bar_animate),
+            show_launch_command: Some(self.show_launch_command),
         }
     }
 }
@@ -670,5 +688,10 @@ impl UiConfig {
     pub fn get_search_bar_animate(&self) -> bool {
         let inner = self.inner.read();
         inner.search_bar_animate
+    }
+
+    pub fn get_show_launch_command(&self) -> bool {
+        let inner = self.inner.read();
+        inner.show_launch_command
     }
 }

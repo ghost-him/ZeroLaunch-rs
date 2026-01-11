@@ -138,6 +138,7 @@ export type UIConfig = {
     footer_font_family: string,
     program_background_color: string,
     search_bar_animate: boolean,
+    show_launch_command: boolean,
 }
 
 export function default_ui_config(): UIConfig {
@@ -170,6 +171,7 @@ export function default_ui_config(): UIConfig {
         footer_font_family: 'Segoe UI',
         program_background_color: '#FFFFFFFF',
         search_bar_animate: true,
+        show_launch_command: false,
     } as UIConfig
 }
 

@@ -44,8 +44,8 @@ export interface MainSearchShortcutHandlerOptions {
     searchText: Ref<string>
     selectedIndex: Ref<number>
     isAltPressed: Ref<boolean>
-    latestLaunchProgram: Ref<Array<[number, string]>>
-    searchResults: Ref<Array<[number, string]>>
+    latestLaunchProgram: Ref<Array<[number, string, string]>>
+    searchResults: Ref<Array<[number, string, string]>>
     launchProgram: (index: number, ctrlKey?: boolean, shiftKey?: boolean) => Promise<void>
     handleRightArrowCallback: (event: KeyboardEvent) => void
 }

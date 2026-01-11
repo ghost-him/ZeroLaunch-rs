@@ -32,8 +32,8 @@ export interface UseShortcutsOptions {
   searchText: Ref<string>
   selectedIndex: Ref<number>
   isAltPressed: Ref<boolean>
-  latestLaunchProgram: Ref<Array<[number, string]>>
-  searchResults: Ref<Array<[number, string]>>
+  latestLaunchProgram: Ref<Array<[number, string, string]>>
+  searchResults: Ref<Array<[number, string, string]>>
 
   // 组件引用
   everythingPanelRef: Ref<EverythingPanelInstance | null>
@@ -232,8 +232,8 @@ export function useShortcutsLegacy(
   searchText: Ref<string>,
   selectedIndex: Ref<number>,
   is_alt_pressed: Ref<boolean>,
-  latest_launch_program: Ref<Array<[number, string]>>,
-  searchResults: Ref<Array<[number, string]>>,
+  latest_launch_program: Ref<Array<[number, string, string]>>,
+  searchResults: Ref<Array<[number, string, string]>>,
   launch_program: (index: number, ctrlKey?: boolean, shiftKey?: boolean) => Promise<void>,
   confirmParameterInput: () => Promise<void>,
   cancelParameterSession: () => void,

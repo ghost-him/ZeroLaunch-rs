@@ -112,7 +112,7 @@ const layoutConstants = {
     fontSizeRatio: 0.01,
 }
 
-const results = ref<Array<[number, string]>>([])
+const results = ref<Array<[number, string, string]>>([])
 const selectedIndex = ref(0)
 const isSearching = ref(false)
 const pendingSearchText = ref<string | null>(null)
@@ -187,7 +187,7 @@ const performSearch = async (text: string) => {
 
     isSearching.value = true
     try {
-        const searchResults: Array<[number, string]> = await invoke('handle_everything_search', { searchText: text })
+        const searchResults: Array<[number, string, string]> = await invoke('handle_everything_search', { searchText: text })
         results.value = searchResults
         selectedIndex.value = 0
         if (resultsListRef.value) {

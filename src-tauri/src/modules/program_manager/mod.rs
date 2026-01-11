@@ -324,20 +324,24 @@ impl ProgramManager {
     /// 使用搜索算法搜索，并给出指定长度的序列
     /// user_input: 用户输入的字符串
     /// result_count: 返回的结果，这个值与 `config.show_item_count` 的值保持一致
-    /// 返回值：Vec(应用唯一标识符，展示给用户的名字)
-    pub async fn update(&self, user_input: &str, result_count: u32) -> Vec<(u64, String)> {
+    /// 返回值：Vec(应用唯一标识符，展示给用户的名字, 启动命令文本)
+    pub async fn update(&self, user_input: &str, result_count: u32) -> Vec<(u64, String, String)> {
         // 使用核心搜索算法
         let match_results = self.perform_search(user_input, result_count).await;
         // 转换为所需的输出格式
         let program_registry = self.program_registry.read().await;
-        let mut result: Vec<(u64, String)> = Vec::new();
+        let mut result: Vec<(u64, String, String)> = Vec::new();
         for match_result in match_results {
             let index = *self
                 .program_locater
                 .get(&match_result.program_guid)
                 .expect_programming("程序定位器中未找到程序GUID");
             let program = &program_registry[index];
-            result.push((program.program_guid, program.show_name.clone()));
+            result.push((
+                program.program_guid,
+                program.show_name.clone(),
+                program.launch_method.get_text(),
+            ));
         }
         result
     }
@@ -508,7 +512,10 @@ impl ProgramManager {
             .open_target_folder(&program.launch_method)
     }
     /// 获得最近启动的程序
-    pub async fn get_latest_launch_program(&self, program_count: u32) -> Vec<(u64, String)> {
+    pub async fn get_latest_launch_program(
+        &self,
+        program_count: u32,
+    ) -> Vec<(u64, String, String)> {
         let latest_launch_program = self.program_ranker.get_latest_launch_program(program_count);
 
         let mut results = Vec::new();
@@ -519,7 +526,11 @@ impl ProgramManager {
                 .get(&guid)
                 .expect_programming("程序定位器中未找到程序GUID");
             let program_info = program_registry[index].clone();
-            results.push((guid, program_info.show_name.clone()));
+            results.push((
+                guid,
+                program_info.show_name.clone(),
+                program_info.launch_method.get_text(),
+            ));
         });
         results
     }

@@ -90,6 +90,7 @@
     "font_size_tooltip": "取值：[5, 100]，单位%：80%表示字体的高度为搜索栏高度的80%",
     "search_bar_animation": "搜索栏的动画效果",
     "search_bar_animation_tooltip": "开启后，搜索栏在输入或删除字符时会有一个渐变的动画效果",
+    "show_launch_command": "显示启动命令（文件路径/URL）",
     "result_bar": "结果栏",
     "result_bar_font_settings": "结果栏字体设置",
     "result_bar_font_color": "设置结果栏的字体颜色",

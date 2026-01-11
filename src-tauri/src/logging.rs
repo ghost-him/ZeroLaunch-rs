@@ -17,12 +17,11 @@ use std::path::Path;
 use std::sync::OnceLock;
 use tracing::{debug, error, info, warn, Level};
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
-use tracing_subscriber::{self, reload};
+use tracing_subscriber::{self, reload, EnvFilter};
 
 /// 全局日志级别重载句柄
-static LOG_RELOAD_HANDLE: OnceLock<
-    reload::Handle<tracing_subscriber::filter::LevelFilter, tracing_subscriber::Registry>,
-> = OnceLock::new();
+static LOG_RELOAD_HANDLE: OnceLock<reload::Handle<EnvFilter, tracing_subscriber::Registry>> =
+    OnceLock::new();
 
 /// 日志系统配置
 #[derive(Debug, Clone)]
@@ -79,9 +78,21 @@ pub fn init_logging(config: Option<LoggingConfig>) -> tracing_appender::non_bloc
     let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
 
     // 创建可重载的过滤器
-    let (filter, reload_handle) = reload::Layer::new(
-        tracing_subscriber::filter::LevelFilter::from_level(config.level),
-    );
+    // 设置默认级别为 INFO，但对当前软件使用配置的级别
+    let level_str = config.level.as_str().to_lowercase();
+    let env_filter = EnvFilter::new("info")
+        .add_directive(
+            format!("{}={}", "zerolaunch_rs", level_str)
+                .parse()
+                .unwrap(),
+        )
+        .add_directive(
+            format!("{}={}", "zerolaunch_rs_lib", level_str)
+                .parse()
+                .unwrap(),
+        );
+
+    let (filter, reload_handle) = reload::Layer::new(env_filter);
 
     // 存储重载句柄
     let _ = LOG_RELOAD_HANDLE.set(reload_handle);
@@ -470,7 +481,18 @@ pub fn log_error_with_context(error: &dyn std::error::Error, context: &str) {
 /// 如果更新成功返回Ok(())，否则返回错误信息
 pub fn update_log_level(new_level: Level) -> Result<(), String> {
     if let Some(handle) = LOG_RELOAD_HANDLE.get() {
-        let new_filter = tracing_subscriber::filter::LevelFilter::from_level(new_level);
+        let level_str = new_level.as_str().to_lowercase();
+        let new_filter = EnvFilter::new("info")
+            .add_directive(
+                format!("{}={}", "zerolaunch_rs", level_str)
+                    .parse()
+                    .unwrap(),
+            )
+            .add_directive(
+                format!("{}={}", "zerolaunch_rs_lib", level_str)
+                    .parse()
+                    .unwrap(),
+            );
         handle
             .reload(new_filter)
             .map_err(|e| format!("更新日志级别失败: {}", e))?;

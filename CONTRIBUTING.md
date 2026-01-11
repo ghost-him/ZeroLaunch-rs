@@ -6,10 +6,9 @@
 
 在开始开发之前，请确保您已安装以下工具：
 
-* **Rust** v1.90.0 或更高版本
-* **Bun** v1.2.22 或更高版本
-
-Github Actions 使用最新稳定版完成构建
+* **Rust**: v1.90.0+ (推荐安装最新稳定版)
+* **Bun**: v1.2.22+
+* **Just**: (可选) 用于快速执行开发指令
 
 ## 构建步骤
 
@@ -24,6 +23,8 @@ cd ZeroLaunch-rs
 
 ```bash
 bun install
+# 可选安装，用于简化常用指令
+cargo install just
 ```
 
 ### 开发模式
@@ -90,6 +91,8 @@ cargo run --bin xtask clean
                                           # 便携版：软件所在目录
 ├── logs/                                 # 运行日志
 ├── icons/                                # 程序图标缓存
+├── ZeroLaunch_program_embeddings.cache   # AI 语义向量缓存，用于加速程序初始化
+├── ZeroLaunch_program_semantic_description.json # 程序功能语义描述文件，供 AI 模型检索调用
 └── ZeroLaunch_local_config.json          # 本地配置文件，存储相关数据以及远程目录路径
 ```
 
@@ -109,26 +112,29 @@ cargo run --bin xtask clean
 
 如果您发现了 bug 或有改进建议，请在 GitHub Issues 中报告。提交 Issue 时，请尽量提供：
 
-- 问题的详细描述
+- 问题的详细描述（如果有图片，可将图片附带上）
 - 复现步骤
 - 系统环境信息（Windows 版本、Rust 版本等）
-- 相关的日志输出（可在`C:\Users\[username]\AppData\Roaming\ZeroLaunch-rs\logs\`目录下找到）
+- 相关的日志输出（可在`C:\Users\[username]\AppData\Roaming\ZeroLaunch-rs\logs\`目录下找到，或直接在设置页面中导出）
 
 ### 拉取请求（Pull Request）
 
 我们欢迎您的 Pull Request！请遵循以下步骤：
 
-1. Fork 本仓库
-2. 创建您的功能分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交您的更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 创建 Pull Request
+1. Fork 本仓库并克隆到本地
+2. 基于 `main` 分支创建您的功能分支 (`git checkout -b feature/AmazingFeature`)
+3. 在更改完成后，格式化代码：
+   - 运行 `just style`
+   - 若未安装 `just`，请执行 `cargo clippy --fix --allow-dirty; cargo fmt --all`
+4. 提交您的更改 (`git commit -m 'feat: Add some AmazingFeature'`)
+5. 推送到您的 Fork 分支 (`git push origin feature/AmazingFeature`)
+6. 在 GitHub 上创建 Pull Request
 
 ### 代码风格
 
 请确保您的代码遵循项目现有的代码风格：
 
-- **Rust 代码**：使用 `cargo fmt` 进行格式化，使用 `cargo clippy` 进行 linting
+- **Rust 代码**：使用 `just style` 完成代码的格式化 
 - **TypeScript/Vue 代码**：遵循现有的代码风格惯例
 
 ### 测试
@@ -136,8 +142,9 @@ cargo run --bin xtask clean
 提交 PR 前，请确保：
 
 - 代码能够成功编译（运行 `cargo check`）
+- 代码已格式化
 - 所有现有功能仍然正常工作
-- 新功能包含适当的测试
+- 新功能包含适当的测试（不强制）
 
 ## 许可证
 
@@ -169,12 +176,10 @@ cargo run --bin xtask clean
 3. 标注被修改的文件
 4. 随附名为 NOTICE 的文本文件，内容为："Gemma is provided under and subject to the Gemma Terms of Use found at ai.google.dev/gemma/terms"
 
-## 联系方式
+## 资源与联系方式
 
-- **GitHub**: https://github.com/ghost-him/ZeroLaunch-rs
-- **Codeberg**: https://codeberg.org/ghost-him/ZeroLaunch-rs
-- **Gitee**: https://gitee.com/ghost-him/ZeroLaunch-rs
-- **GitCode**: https://gitcode.com/ghost-him/ZeroLaunch-rs
-- **官网**: https://zerolaunch.ghost-him.com
+- **GitHub 仓库**: [ghost-him/ZeroLaunch-rs](https://github.com/ghost-him/ZeroLaunch-rs)
+- **项目官网**: [zerolaunch.ghost-him.com](https://zerolaunch.ghost-him.com)
+- **反馈问题**: [GitHub Issues](https://github.com/ghost-him/ZeroLaunch-rs/issues)
 
-感谢您的贡献！🙏
+感谢您的每一份贡献！🙏

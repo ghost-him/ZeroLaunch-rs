@@ -516,29 +516,73 @@ const updateWindow = async () => {
 const startPreloadResource = async (program_count: number) => {
   is_loading_icons.value = true
   const BATCH_SIZE = 100
+  // use large batch size for url icons
+  const BATCH_SIZE_URL = 1000
 
   program_icons.value.forEach((url: string) => URL.revokeObjectURL(url))
   program_icons.value.clear()
 
-  const allIds = Array.from({ length: program_count }, (_: any, i: number) => i)
-
-  for (let i = 0; i < allIds.length; i += BATCH_SIZE) {
-    const batchIds = allIds.slice(i, i + BATCH_SIZE)
-
-    await Promise.all(batchIds.map(async (programId: number) => {
-      try {
-        const iconData: number[] = await invoke('load_program_icon', {
-          programGuid: programId,
-        })
-
-        const blob = new Blob([new Uint8Array(iconData)], { type: 'image/png' })
-        const url = URL.createObjectURL(blob)
-        program_icons.value.set(programId, url)
-      } catch (error: any) {
-        console.error(`${t('app.preload_icon_failed')}: ${programId}`, error)
-      }
-    }))
+  let urlStatus: boolean[] = []
+  try {
+    urlStatus = await invoke<boolean[]>('command_get_program_url_status')
+  } catch (error) {
+    console.error('Failed to get program url status:', error)
+    urlStatus = new Array(program_count).fill(false)
   }
+
+  const normalIds: number[] = []
+  const urlIds: number[] = []
+
+  // program_count match the length of urlStatus theoretically 
+  // but safely handle index
+  for (let i = 0; i < program_count; i++) {
+    if (i < urlStatus.length && urlStatus[i]) {
+      urlIds.push(i)
+    } else {
+      normalIds.push(i)
+    }
+  }
+
+  const loadBatch = async (ids: number[], concurrency: number) => {
+    const activePromises = new Set<Promise<void>>()
+
+    for (const programId of ids) {
+      if (activePromises.size >= concurrency) {
+        await Promise.race(activePromises)
+      }
+
+      const bgTask = (async () => {
+        try {
+          const iconData: number[] = await invoke('load_program_icon', {
+            programGuid: programId,
+          })
+
+          const blob = new Blob([new Uint8Array(iconData)], { type: 'image/png' })
+          const url = URL.createObjectURL(blob)
+          program_icons.value.set(programId, url)
+        } catch (error: any) {
+          console.error(`${t('app.preload_icon_failed')}: ${programId}`, error)
+        }
+      })()
+
+      // Wrap the promise to remove itself from the set when done, with error handling
+      const p = bgTask.then(() => {
+        activePromises.delete(p)
+      }).catch(() => {
+        activePromises.delete(p)
+      })
+
+      activePromises.add(p)
+    }
+    
+    // Wait for remaining tasks to finish
+    await Promise.all(activePromises)
+  }
+
+  await Promise.all([
+    loadBatch(normalIds, BATCH_SIZE),
+    loadBatch(urlIds, BATCH_SIZE_URL)
+  ])
 }
 
 const getIcons = async (keys: Array<number>) => {

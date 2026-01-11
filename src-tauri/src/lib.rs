@@ -176,6 +176,7 @@ pub fn run() {
             command_save_remote_config,
             load_program_icon,
             get_program_count,
+            command_get_program_url_status,
             launch_program,
             get_program_info,
             refresh_program,

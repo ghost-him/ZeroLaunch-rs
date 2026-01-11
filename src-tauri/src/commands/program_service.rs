@@ -239,6 +239,16 @@ pub async fn get_program_count<R: Runtime>(
 }
 
 #[tauri::command]
+pub async fn command_get_program_url_status<R: Runtime>(
+    _app: tauri::AppHandle<R>,
+    _window: tauri::Window<R>,
+    state: tauri::State<'_, Arc<AppState>>,
+) -> Result<Vec<bool>, String> {
+    let program_manager = state.get_program_manager();
+    Ok(program_manager.get_program_is_url_list().await)
+}
+
+#[tauri::command]
 /// 统一的程序启动接口
 ///
 /// # 参数

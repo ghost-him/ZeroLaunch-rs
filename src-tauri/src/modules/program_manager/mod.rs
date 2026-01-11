@@ -435,10 +435,18 @@ impl ProgramManager {
             .get_icon(target_program.icon_request.clone())
             .await
     }
-    /// 获得当前已保存的程序的个数
+    /// 获得已保存的程序的个数
     pub async fn get_program_count(&self) -> usize {
         let program_registry = self.program_registry.read().await;
         program_registry.len()
+    }
+    /// 获得程序是否是 URL 的列表
+    pub async fn get_program_is_url_list(&self) -> Vec<bool> {
+        let program_registry = self.program_registry.read().await;
+        program_registry
+            .iter()
+            .map(|program| matches!(program.launch_method, LaunchMethod::Url(_)))
+            .collect()
     }
     /// 测试搜索算法的时间开销
     pub async fn test_search_algorithm_time(&self) -> (f64, f64, f64) {

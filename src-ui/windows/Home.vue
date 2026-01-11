@@ -105,7 +105,8 @@ import { listen, UnlistenFn } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useI18n } from 'vue-i18n'
-import { FolderOpened, Refresh, Setting, StarFilled } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
+import { FolderOpened, Refresh, Setting, StarFilled, CircleClose } from '@element-plus/icons-vue'
 
 import { reduceOpacity } from '../utils/color'
 import { initializeLanguage } from '../i18n'
@@ -301,7 +302,8 @@ const searchBarMenuItems = computed(() => [{ name: t('menu.open_settings'), icon
 { name: t('menu.refresh_database'), icon: Refresh, action: () => { refreshDataset() } }])
 
 const resultSubMenuItems = computed(() => [{ name: t('app.open_file_location'), icon: FolderOpened, action: () => { openFolder() } },
-{ name: t('app.run_as_admin'), icon: StarFilled, action: () => { runTargetProgramWithAdmin() } }])
+{ name: t('app.run_as_admin'), icon: StarFilled, action: () => { runTargetProgramWithAdmin() } },
+{ name: t('app.block_this_result'), icon: CircleClose, action: () => { blockCurrentResult() } }])
 
 
 // Methods
@@ -694,6 +696,31 @@ const openFolder = async () => {
 
 const runTargetProgramWithAdmin = () => {
   launch_program(selectedIndex.value, true, false)
+}
+
+const blockCurrentResult = async () => {
+  const currentResults = is_alt_pressed.value ? latest_launch_program.value : searchResults.value
+  const selected = currentResults[selectedIndex.value]
+  if (!selected) return
+
+  const programGuid = selected[0]
+
+  try {
+    // 获取程序路径
+    const programPath = await invoke<string>('command_get_program_path', { programGuid })
+
+    // 添加到屏蔽列表
+    await invoke('command_add_forbidden_path', { path: programPath })
+
+    // 提示用户
+    ElMessage.success(t('app.block_success_body'))
+
+    // 隐藏右键菜单
+    resultItemMenuRef.value?.hideMenu()
+  } catch (e) {
+    console.error('Failed to block program:', e)
+    ElMessage.error(e instanceof Error ? e.message : String(e))
+  }
 }
 
 const showSubmenuForItem = (index: number) => {

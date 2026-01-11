@@ -525,21 +525,30 @@ impl ProgramManager {
     }
 
     /// 轻量级搜索程序（用于设置界面等）
-    pub async fn search_programs_lightweight(&self, keyword: &str) -> Vec<ProgramDisplayInfo> {
+    /// 当 load_all 为 true 时，返回所有匹配的程序；否则限制返回 30 条
+    pub async fn search_programs_lightweight(
+        &self,
+        keyword: &str,
+        load_all: bool,
+    ) -> Vec<ProgramDisplayInfo> {
         let registry = self.program_registry.read().await;
         let keyword = keyword.to_lowercase();
 
-        registry
+        let iter = registry
             .iter()
             .filter(|program| program.show_name.to_lowercase().contains(&keyword))
-            .take(50) // 限制返回数量
             .map(|program| ProgramDisplayInfo {
                 name: program.show_name.clone(),
                 path: program.launch_method.get_text().clone(),
                 program_guid: program.program_guid,
                 icon_request_json: serde_json::to_string(&program.icon_request).unwrap_or_default(),
-            })
-            .collect()
+            });
+
+        if load_all {
+            iter.collect()
+        } else {
+            iter.take(30).collect()
+        }
     }
 
     async fn perform_search(&self, user_input: &str, result_count: u32) -> Vec<SearchMatchResult> {

@@ -9,7 +9,7 @@ use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct PartialProgramManagerConfig {
     pub ranker: Option<PartialProgramRankerConfig>,
     pub loader: Option<PartialProgramLoaderConfig>,

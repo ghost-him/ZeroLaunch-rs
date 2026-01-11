@@ -18,7 +18,7 @@ use crate::program_manager::config::program_manager_config::ProgramManagerConfig
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct PartialRuntimeConfig {
     pub app_config: Option<PartialAppConfig>,
     pub ui_config: Option<PartialUiConfig>,

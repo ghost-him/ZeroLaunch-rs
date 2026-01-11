@@ -7,6 +7,7 @@ export function useProgramSearch() {
     const loading = ref(false)
     const programList = ref<ProgramDisplayInfo[]>([])
     const iconUrls = ref(new Map<string, string>())
+    const showAllMode = ref(false)
     let searchTimeout: number | undefined
 
     const loadIcon = async (row: ProgramDisplayInfo) => {
@@ -31,7 +32,8 @@ export function useProgramSearch() {
             loading.value = true
             try {
                 const results = await invoke<ProgramDisplayInfo[]>('command_search_programs_lightweight', {
-                    keyword: searchKeyword.value
+                    keyword: searchKeyword.value,
+                    loadAll: showAllMode.value
                 })
                 programList.value = results
                 // Load icons for results
@@ -42,6 +44,11 @@ export function useProgramSearch() {
                 loading.value = false
             }
         }, 300)
+    }
+
+    const toggleShowAll = () => {
+        showAllMode.value = !showAllMode.value
+        handleSearch()
     }
 
     const getIconUrl = (icon_request_json: string) => {
@@ -68,7 +75,9 @@ export function useProgramSearch() {
         searchKeyword,
         loading,
         programList,
+        showAllMode,
         handleSearch,
+        toggleShowAll,
         getIconUrl,
         refreshIcon
     }

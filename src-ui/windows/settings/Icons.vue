@@ -55,8 +55,16 @@
                     style="margin-bottom: 16px;" />
 
                 <div v-else class="table-container">
-                    <el-input v-model="searchKeyword" :placeholder="t('icon_management.search_placeholder')"
-                        prefix-icon="Search" clearable @input="handleSearch" style="margin-bottom: 16px;" />
+                    <div class="search-bar-row">
+                        <el-input v-model="searchKeyword" :placeholder="t('icon_management.search_placeholder')"
+                            prefix-icon="Search" clearable :disabled="showAllMode" @input="handleSearch" class="search-input" />
+                        <el-button
+                            :type="showAllMode ? 'primary' : 'default'"
+                            @click="toggleShowAll"
+                        >
+                            {{ showAllMode ? t('icon_management.back_to_search') : t('icon_management.show_all') }}
+                        </el-button>
+                    </div>
 
                     <div class="table-wrapper">
                         <el-table v-loading="loading" :data="programList" style="width: 100%" height="100%">
@@ -108,7 +116,9 @@ const {
     searchKeyword,
     loading,
     programList,
+    showAllMode,
     handleSearch,
+    toggleShowAll,
     getIconUrl,
     refreshIcon
 } = useProgramSearch()
@@ -201,6 +211,16 @@ handleSearch()
     display: flex;
     flex-direction: column;
     min-height: 0;
+}
+
+.search-bar-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 16px;
+}
+
+.search-input {
+    flex: 1;
 }
 
 .table-wrapper {

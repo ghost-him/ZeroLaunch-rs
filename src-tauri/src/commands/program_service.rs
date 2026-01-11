@@ -601,10 +601,13 @@ use crate::modules::program_manager::ProgramDisplayInfo;
 #[tauri::command]
 pub async fn command_search_programs_lightweight(
     keyword: String,
+    load_all: Option<bool>,
 ) -> Result<Vec<ProgramDisplayInfo>, String> {
     let state = ServiceLocator::get_state();
     let program_manager = state.get_program_manager();
-    Ok(program_manager.search_programs_lightweight(&keyword).await)
+    Ok(program_manager
+        .search_programs_lightweight(&keyword, load_all.unwrap_or(false))
+        .await)
 }
 
 #[tauri::command]
@@ -622,4 +625,69 @@ pub async fn command_update_program_icon(
         .update_program_icon_cache(icon_request, &new_icon_path)
         .await
         .map_err(|e| e.to_string())
+}
+
+/// 添加屏蔽路径（用于右键菜单屏蔽功能）
+/// 将路径添加到 forbidden_paths 配置中，并保存配置文件
+/// 需要用户手动刷新数据库后才能生效
+#[tauri::command]
+pub async fn command_add_forbidden_path(path: String) -> Result<(), String> {
+    let state = ServiceLocator::get_state();
+    let runtime_config = state.get_runtime_config();
+
+    // 获取当前的 forbidden_paths
+    let program_manager_config = runtime_config.get_program_manager_config();
+    let loader_config = program_manager_config.get_loader_config();
+    let mut forbidden_paths = loader_config.get_forbidden_paths();
+
+    // 检查是否已存在
+    if forbidden_paths.contains(&path) {
+        return Ok(());
+    }
+
+    // 添加新路径
+    forbidden_paths.push(path);
+
+    // 更新配置
+    use crate::modules::program_manager::config::program_loader_config::PartialProgramLoaderConfig;
+    use crate::modules::program_manager::config::program_manager_config::PartialProgramManagerConfig;
+    use tauri::Emitter;
+
+    let partial_loader = PartialProgramLoaderConfig {
+        forbidden_paths: Some(forbidden_paths),
+        ..Default::default()
+    };
+
+    let partial_pm = PartialProgramManagerConfig {
+        loader: Some(partial_loader),
+        ..Default::default()
+    };
+
+    runtime_config.update(PartialRuntimeConfig {
+        program_manager_config: Some(partial_pm),
+        ..Default::default()
+    });
+
+    // 保存配置文件（不触发刷新）
+    save_config_to_file(false).await;
+
+    // 通知设置窗口更新配置
+    let handle = state.get_main_handle();
+    let _ = handle.emit("emit_update_setting_window_config", "");
+
+    Ok(())
+}
+
+/// 获取程序的路径（用于屏蔽功能）
+#[tauri::command]
+pub async fn command_get_program_path(program_guid: u64) -> Result<String, String> {
+    let state = ServiceLocator::get_state();
+    let program_manager = state.get_program_manager();
+
+    let program = program_manager
+        .get_program_by_guid(program_guid)
+        .await
+        .ok_or_else(|| "Program not found".to_string())?;
+
+    Ok(program.launch_method.get_text().clone())
 }

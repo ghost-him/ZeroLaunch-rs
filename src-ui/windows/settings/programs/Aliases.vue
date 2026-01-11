@@ -4,14 +4,23 @@
       {{ t('program_index.setting_alias') }}
     </h2>
     <div class="content-container">
-      <el-input
-        v-model="searchKeyword"
-        :placeholder="t('icon_management.search_placeholder')"
-        :prefix-icon="Search"
-        clearable
-        @input="handleSearch"
-        :style="{ marginBottom: '16px' }"
-      />
+      <div class="search-bar-row">
+        <el-input
+          v-model="searchKeyword"
+          :placeholder="t('icon_management.search_placeholder')"
+          :prefix-icon="Search"
+          clearable
+          :disabled="showAllMode"
+          @input="handleSearch"
+          class="search-input"
+        />
+        <el-button
+          :type="showAllMode ? 'primary' : 'default'"
+          @click="toggleShowAll"
+        >
+          {{ showAllMode ? t('icon_management.back_to_search') : t('icon_management.show_all') }}
+        </el-button>
+      </div>
 
       <div class="table-wrapper">
         <el-table
@@ -143,7 +152,9 @@ const {
     searchKeyword,
     loading,
     programList,
+    showAllMode,
     handleSearch,
+    toggleShowAll,
     getIconUrl
 } = useProgramSearch()
 
@@ -239,6 +250,16 @@ handleSearch()
     flex-direction: column;
     overflow-y: auto;
     overflow-x: hidden;
+}
+
+.search-bar-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 16px;
+}
+
+.search-input {
+    flex: 1;
 }
 
 .table-wrapper {

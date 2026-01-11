@@ -16,7 +16,7 @@ pub enum SymlinkMode {
     Auto,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct PartialProgramLoaderConfig {
     pub target_paths: Option<Vec<DirectoryConfig>>,
     pub program_bias: Option<HashMap<String, (f64, String)>>,

@@ -93,7 +93,7 @@ impl ImageProcessor {
     pub async fn load_image(icon_identity: &ImageIdentity) -> Vec<u8> {
         let result = match icon_identity {
             ImageIdentity::File(path) => Self::load_image_from_path_internal(path).await,
-            ImageIdentity::Web(url) => Self::load_web_icon_internal(url).await,
+            ImageIdentity::Web(url) => Self::fetch_website_favicon_data(url).await,
             ImageIdentity::Extension(ext) => Self::extract_icon_from_extension(ext).await,
         };
 
@@ -110,46 +110,30 @@ impl ImageProcessor {
         }
     }
 
-    /// 内部函数：加载网页图标，返回Result类型
-    async fn load_web_icon_internal(url: &str) -> AppResult<Vec<u8>> {
-        debug!("Loading web icon from: {}", url);
-
-        let icon_data = Self::fetch_website_favicon_data(url).await?;
-
-        debug!("Fetched {} bytes of favicon data", icon_data.len());
-
-        let png_data = Self::convert_image_to_png(icon_data).await?;
-
-        debug!(
-            "Successfully converted web icon to PNG ({} bytes)",
-            png_data.len()
-        );
-        Ok(png_data)
-    }
-
-    /// 获取网站的 PNG 格式图标(favicon)
-    async fn fetch_website_favicon_data(url: &str) -> AppResult<Vec<u8>> {
-        if !Self::is_network_available() {
-            debug!("No network connection available");
-            return Err(AppError::NetworkError {
-                message: "No network connection available".to_string(),
-                source: None,
-            });
-        }
-
-        // 构建带有 User-Agent 的 Client
-        let client = reqwest::Client::builder()
-            .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-            .build()
-            .map_err(|e| AppError::programming_error(format!("Failed to build reqwest client: {}", e)))?;
-
-        // 获取网页内容
+    /// 内部函数：获取网站的主图标
+    async fn fetch_favicon_primary(client: &reqwest::Client, url: &str) -> AppResult<Vec<u8>> {
         let response = client.get(url).send().await.map_err(|e| {
             AppError::network_error_with_source(
                 format!("Failed to fetch website: {}", url),
                 Box::new(e),
             )
         })?;
+
+        // 如果返回的是图片，直接使用
+        if let Some(ct) = response.headers().get(reqwest::header::CONTENT_TYPE) {
+            if ct.to_str().unwrap_or("").starts_with("image/") {
+                return Ok(response
+                    .bytes()
+                    .await
+                    .map_err(|e| {
+                        AppError::network_error_with_source(
+                            "Failed to read image bytes".to_string(),
+                            Box::new(e),
+                        )
+                    })?
+                    .to_vec());
+            }
+        }
 
         let html_content = response.text().await.map_err(|e| {
             AppError::network_error_with_source(
@@ -167,18 +151,29 @@ impl ImageProcessor {
             })?;
 
             // 定义要搜索的图标类型(按优先级排序)
-            let icon_selectors = [r#"link[rel="icon"]"#, r#"link[rel="shortcut icon"]"#];
+            // 优先查找 apple-touch-icon，因为它们通常质量更高
+            let icon_selectors = [
+                r#"link[rel="apple-touch-icon"]"#,
+                r#"link[rel="apple-touch-icon-precomposed"]"#,
+                r#"link[rel="icon"]"#,
+                r#"link[rel="shortcut icon"]"#,
+            ];
 
             #[derive(Debug)]
             struct IconCandidate {
                 url: String,
-                size: u32, // 使用单个数字表示尺寸(取宽高中的较大值)
+                size: u32,    // 使用单个数字表示尺寸(取宽高中的较大值)
+                priority: u8, // 优先级：数值越大优先级越高
             }
 
             let mut candidates = Vec::new();
 
             // 遍历所有选择器,收集候选图标
-            for selector_str in &icon_selectors {
+            for (index, selector_str) in icon_selectors.iter().enumerate() {
+                // 计算优先级：apple-touch-icon (index 0, 1) 优先级高
+                // 列表前面的优先级高，这里用反向索引作为基础优先级
+                let base_priority = (icon_selectors.len() - index) as u8;
+
                 let selector =
                     Selector::parse(selector_str).map_err(|e| AppError::ImageProcessingError {
                         message: format!("Failed to parse CSS selector: {}", e),
@@ -191,26 +186,38 @@ impl ImageProcessor {
                             let size = if let Some(sizes_attr) = element.value().attr("sizes") {
                                 Self::parse_icon_size(sizes_attr)
                             } else {
-                                32
+                                // apple-touch-icon 默认为 180 (如果未指定)
+                                if selector_str.contains("apple-touch-icon") {
+                                    180
+                                } else {
+                                    32
+                                }
                             };
 
                             candidates.push(IconCandidate {
                                 url: icon_url.to_string(),
                                 size,
+                                priority: base_priority,
                             });
 
                             debug!(
-                                "Found icon candidate: {} (size: {}x{})",
-                                icon_url, size, size
+                                "Found icon candidate: {} (size: {}x{}, priority: {})",
+                                icon_url, size, size, base_priority
                             );
                         }
                     }
                 }
             }
 
-            // 选择尺寸最大的图标
-            let favicon_url = if let Some(best_candidate) = candidates.iter().max_by_key(|c| c.size)
+            // 选择最佳图标：先看优先级，再看尺寸
+            // 我们希望优先选 apple-touch-icon，但在同类中选最大的
+            let favicon_url = if let Some(best_candidate) = candidates.iter().max_by(|a, b| match a
+                .priority
+                .cmp(&b.priority)
             {
+                std::cmp::Ordering::Equal => a.size.cmp(&b.size),
+                other => other,
+            }) {
                 info!(
                     "Selected best icon: {} (size: {}x{})",
                     best_candidate.url, best_candidate.size, best_candidate.size
@@ -267,6 +274,102 @@ impl ImageProcessor {
         })?;
 
         Ok(icon_data.to_vec())
+    }
+
+    /// 获取网站的 PNG 格式图标(favicon)
+    async fn fetch_website_favicon_data(url: &str) -> AppResult<Vec<u8>> {
+        if !Self::is_network_available() {
+            debug!("No network connection available");
+            return Err(AppError::NetworkError {
+                message: "No network connection available".to_string(),
+                source: None,
+            });
+        }
+
+        // 构建带有 User-Agent 的 Client，增加超时处理
+        let client = reqwest::Client::builder()
+            .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+            .timeout(std::time::Duration::from_secs(10))
+            .build()
+            .map_err(|e| AppError::programming_error(format!("Failed to build reqwest client: {}", e)))?;
+
+        // 定义候选 URL列表：首先尝试原始 URL
+        // 然后尝试根域名及逐级向上的父域名
+        // 例如输入: https://sub.example.com/foo/bar
+        // 候选列表将包含:
+        // 1. https://sub.example.com/foo/bar (原始)
+        // 2. https://sub.example.com/ (当前域名根)
+        // 3. https://example.com/ (父域名根)
+        let mut candidate_urls = vec![url.to_string()];
+
+        if let Ok(parsed_url) = Url::parse(url) {
+            if let Some(host) = parsed_url.host_str() {
+                let segments: Vec<&str> = host.split('.').collect();
+                let scheme = parsed_url.scheme();
+
+                // 逐级尝试，停止于剩下两个部分 (例如 a.b.com -> b.com)
+                // i=0 是当前域名，i=1 是父域名
+                for i in 0..(segments.len().saturating_sub(1)) {
+                    let current_host = segments[i..].join(".");
+                    let root_url = format!("{}://{}/", scheme, current_host);
+
+                    // 避免重复添加 (例如原始 URL 就是根域名)
+                    // 简单的字符串包含检查可能不够，处理一下末尾斜杠
+                    let is_duplicate = candidate_urls
+                        .iter()
+                        .any(|c| c.trim_end_matches('/') == root_url.trim_end_matches('/'));
+
+                    if !is_duplicate {
+                        candidate_urls.push(root_url);
+                        debug!(
+                            "Added fallback candidate: {}",
+                            candidate_urls.last().unwrap()
+                        );
+                    }
+                }
+            }
+        }
+
+        // 遍历所有候选 URL，尝试解析 HTML 获取图标
+        for (index, candidate_url) in candidate_urls.iter().enumerate() {
+            debug!(
+                "Attempting favicon fetch from candidate {}/{}: {}",
+                index + 1,
+                candidate_urls.len(),
+                candidate_url
+            );
+
+            match Self::fetch_favicon_primary(&client, candidate_url).await {
+                Ok(data) => {
+                    // 验证图片有效性
+                    match Self::convert_image_to_png(data).await {
+                        Ok(png_data) => {
+                            if index > 0 {
+                                info!(
+                                    "Successfully fetched favicon from fallback URL: {}",
+                                    candidate_url
+                                );
+                            }
+                            return Ok(png_data);
+                        }
+                        Err(e) => {
+                            warn!(
+                                "Favicon found at {} but validation failed. Error: {}",
+                                candidate_url, e
+                            );
+                        }
+                    }
+                }
+                Err(e) => {
+                    debug!("Fetch failed for candidate {}: {}", candidate_url, e);
+                }
+            }
+        }
+
+        Err(AppError::NetworkError {
+            message: format!("Failed to fetch valid favicon for {}", url),
+            source: None,
+        })
     }
 
     /// 解析图标尺寸字符串(如 "16x16", "32x32", "any" 等)
@@ -387,14 +490,17 @@ impl ImageProcessor {
     }
 
     async fn convert_image_to_png(image_data: Vec<u8>) -> AppResult<Vec<u8>> {
+        if image_data.is_empty() {
+            return Err(AppError::ImageProcessingError {
+                message: "Input image data is empty".to_string(),
+            });
+        }
+
         // 检查是否是 HTML 内容 (常见的错误情况)
-        if let Ok(s) = std::str::from_utf8(&image_data) {
-            let s_trimmed = s.trim_start();
-            if s_trimmed.starts_with("<!DOCTYPE html") || s_trimmed.starts_with("<html") {
-                return Err(AppError::ImageProcessingError {
-                    message: "Downloaded content appears to be HTML, not an image".to_string(),
-                });
-            }
+        if Self::is_html_content(&image_data) {
+            return Err(AppError::ImageProcessingError {
+                message: "Downloaded content appears to be HTML, not an image".to_string(),
+            });
         }
 
         // 在阻塞线程中处理图像
@@ -481,6 +587,24 @@ impl ImageProcessor {
         .map_err(|e| {
             AppError::programming_error(format!("Task join error in image conversion: {}", e))
         })?
+    }
+
+    /// 判断数据是否像是 HTML 内容
+    fn is_html_content(data: &[u8]) -> bool {
+        // 快速检查：如果数据以 < 开头，可能是 HTML/XML/SVG
+        // 但我们主要想过滤掉 <!DOCTYPE html> 或 <html>
+        // SVG 也以 <svg 或 <?xml 开头，所以要小心
+        if let Ok(s) = std::str::from_utf8(data) {
+            let s_trimmed = s.trim_start();
+            if s_trimmed.eq_ignore_ascii_case("<!DOCTYPE html")
+                || s_trimmed.starts_with("<!DOCTYPE html")
+                || s_trimmed.starts_with("<html")
+                || s_trimmed.starts_with("<HTML")
+            {
+                return true;
+            }
+        }
+        false
     }
 
     /// 调整图片大小，如果超过指定尺寸

@@ -267,7 +267,7 @@ fn create_tray_icon<R: Runtime>(app_handle: &AppHandle, menu: Menu<R>) -> tauri:
 // --- Main Initialization Function ---
 
 /// Initializes the system tray icon and menu for the application.
-pub fn init_system_tray(app: &mut App) {
+pub async fn init_system_tray(app: &mut App) {
     let app_handle = app.handle().clone();
 
     // Handle other tray icon events (e.g., double click)
@@ -277,31 +277,28 @@ pub fn init_system_tray(app: &mut App) {
         }
     });
 
-    // Spawn an async task to handle tray creation with retry logic
-    tauri::async_runtime::spawn(async move {
-        // Initial attempt
+    // Initial attempt
+    if try_create_and_set_tray(&app_handle).is_ok() {
+        debug!("System tray initialized successfully on first attempt.");
+        return;
+    }
+
+    // Retry logic
+    let retry_delays = [5, 10, 20];
+    for &delay in &retry_delays {
+        warn!(
+            "Tray icon creation failed. Retrying in {} seconds...",
+            delay
+        );
+        tokio::time::sleep(std::time::Duration::from_secs(delay)).await;
+
         if try_create_and_set_tray(&app_handle).is_ok() {
-            debug!("System tray initialized successfully on first attempt.");
+            info!("System tray initialized successfully after retry.");
             return;
         }
+    }
 
-        // Retry logic
-        let retry_delays = [5, 10, 20];
-        for &delay in &retry_delays {
-            warn!(
-                "Tray icon creation failed. Retrying in {} seconds...",
-                delay
-            );
-            tokio::time::sleep(std::time::Duration::from_secs(delay)).await;
-
-            if try_create_and_set_tray(&app_handle).is_ok() {
-                info!("System tray initialized successfully after retry.");
-                return;
-            }
-        }
-
-        error!("Failed to initialize system tray after all retries.");
-    });
+    error!("Failed to initialize system tray after all retries.");
 }
 
 fn try_create_and_set_tray(app_handle: &AppHandle) -> Result<(), ()> {

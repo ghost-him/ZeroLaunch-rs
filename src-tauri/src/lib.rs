@@ -133,7 +133,7 @@ pub fn run() {
                 init_setting_window(app.app_handle().clone());
 
                 info!("正在初始化系统托盘服务");
-                init_system_tray(app);
+                init_system_tray(app).await;
 
                 // 阶段4: 交互服务初始化（依赖UI组件）
                 info!("=== 阶段4: 交互服务初始化 ===");

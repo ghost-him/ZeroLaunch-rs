@@ -1,4 +1,5 @@
 use crate::utils::generate_current_date;
+use dashmap::DashMap;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
@@ -6,12 +7,12 @@ use std::collections::{HashMap, VecDeque};
 /// 部分程序排序器配置（用于运行时数据导出）
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PartialProgramRankerConfig {
-    pub launch_info: Option<VecDeque<HashMap<String, u64>>>,
-    pub history_launch_time: Option<HashMap<String, u64>>,
+    pub launch_info: Option<VecDeque<DashMap<String, u64>>>,
+    pub history_launch_time: Option<DashMap<String, u64>>,
     pub last_update_data: Option<String>,
-    pub latest_launch_time: Option<HashMap<String, i64>>,
+    pub latest_launch_time: Option<DashMap<String, i64>>,
     /// 查询亲和度存储: 查询词 -> { "launch_method.get_text()" -> QueryAffinityData }
-    pub query_affinity_store: Option<HashMap<String, HashMap<String, QueryAffinityData>>>,
+    pub query_affinity_store: Option<HashMap<String, DashMap<String, QueryAffinityData>>>,
     /// 历史总分权重系数 (默认1.0)
     pub history_weight: Option<f64>,
     /// 近期习惯权重系数 (7天内,默认2.0)
@@ -64,19 +65,19 @@ impl QueryAffinityData {
 pub struct ProgramRankerConfigInner {
     /// 天数,[一个地址的启动次数]
     #[serde(default = "ProgramRankerConfigInner::default_launch_info")]
-    pub launch_info: VecDeque<HashMap<String, u64>>,
+    pub launch_info: VecDeque<DashMap<String, u64>>,
     /// 历史启动次数
     #[serde(default = "ProgramRankerConfigInner::default_history_launch_time")]
-    pub history_launch_time: HashMap<String, u64>,
+    pub history_launch_time: DashMap<String, u64>,
     /// 上次的读取日期
     #[serde(default = "ProgramRankerConfigInner::default_last_update_data")]
     pub last_update_data: String,
     /// 最近一次的启动时间
     #[serde(default = "ProgramRankerConfigInner::default_latest_launch_time")]
-    pub latest_launch_time: HashMap<String, i64>,
+    pub latest_launch_time: DashMap<String, i64>,
     /// 查询亲和度存储
     #[serde(default = "ProgramRankerConfigInner::default_query_affinity_store")]
-    pub query_affinity_store: HashMap<String, HashMap<String, QueryAffinityData>>,
+    pub query_affinity_store: HashMap<String, DashMap<String, QueryAffinityData>>,
     /// 历史总分权重系数
     #[serde(default = "ProgramRankerConfigInner::default_history_weight")]
     pub history_weight: f64,
@@ -124,26 +125,26 @@ impl Default for ProgramRankerConfigInner {
 }
 
 impl ProgramRankerConfigInner {
-    pub(crate) fn default_launch_info() -> VecDeque<HashMap<String, u64>> {
+    pub(crate) fn default_launch_info() -> VecDeque<DashMap<String, u64>> {
         let mut deque = VecDeque::new();
-        deque.push_front(HashMap::new());
+        deque.push_front(DashMap::new());
         deque
     }
 
-    pub(crate) fn default_history_launch_time() -> HashMap<String, u64> {
-        HashMap::new()
+    pub(crate) fn default_history_launch_time() -> DashMap<String, u64> {
+        DashMap::new()
     }
 
     pub(crate) fn default_last_update_data() -> String {
         generate_current_date()
     }
 
-    pub(crate) fn default_latest_launch_time() -> HashMap<String, i64> {
-        HashMap::new()
+    pub(crate) fn default_latest_launch_time() -> DashMap<String, i64> {
+        DashMap::new()
     }
 
     pub(crate) fn default_query_affinity_store(
-    ) -> HashMap<String, HashMap<String, QueryAffinityData>> {
+    ) -> HashMap<String, DashMap<String, QueryAffinityData>> {
         HashMap::new()
     }
 
@@ -260,11 +261,11 @@ impl ProgramRankerConfig {
         inner.to_partial()
     }
 
-    pub fn get_launch_info(&self) -> VecDeque<HashMap<String, u64>> {
+    pub fn get_launch_info(&self) -> VecDeque<DashMap<String, u64>> {
         self.inner.read().launch_info.clone()
     }
 
-    pub fn get_history_launch_time(&self) -> HashMap<String, u64> {
+    pub fn get_history_launch_time(&self) -> DashMap<String, u64> {
         self.inner.read().history_launch_time.clone()
     }
 
@@ -272,11 +273,11 @@ impl ProgramRankerConfig {
         self.inner.read().last_update_data.clone()
     }
 
-    pub fn get_latest_launch_time(&self) -> HashMap<String, i64> {
+    pub fn get_latest_launch_time(&self) -> DashMap<String, i64> {
         self.inner.read().latest_launch_time.clone()
     }
 
-    pub fn get_query_affinity_store(&self) -> HashMap<String, HashMap<String, QueryAffinityData>> {
+    pub fn get_query_affinity_store(&self) -> HashMap<String, DashMap<String, QueryAffinityData>> {
         self.inner.read().query_affinity_store.clone()
     }
 

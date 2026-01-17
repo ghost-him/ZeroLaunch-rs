@@ -4,8 +4,6 @@ use crate::program_manager::config::program_ranker_config::ProgramRankerConfig;
 use crate::program_manager::config::program_ranker_config::QueryAffinityData;
 use crate::program_manager::remove_repeated_space;
 use crate::program_manager::LaunchMethod;
-use crate::utils::dashmap_to_hashmap;
-use crate::utils::hashmap_to_dashmap;
 use crate::utils::is_date_current;
 use crate::utils::{generate_current_date, get_current_time};
 use dashmap::DashMap;
@@ -67,21 +65,15 @@ impl ProgramRankerInner {
     }
 
     fn load_from_config(&mut self, config: &ProgramRankerConfig) {
-        self.launch_time.clear();
+        self.launch_time = config.get_launch_info();
         self.launch_store.clear();
-        let launch_info = config.get_launch_info();
-        launch_info.iter().for_each(|k| {
-            let dash_map = hashmap_to_dashmap(k);
-            self.launch_time.push_back(dash_map);
-        });
 
         self.last_update_data = config.get_last_update_data();
-        self.history_launch_time = hashmap_to_dashmap(&config.get_history_launch_time());
+        self.history_launch_time = config.get_history_launch_time();
         self.update_launch_info();
 
         // 维护最近启动次数
-        self.latest_launch_time.clear();
-        self.latest_launch_time = hashmap_to_dashmap(&config.get_latest_launch_time());
+        self.latest_launch_time = config.get_latest_launch_time();
 
         self.runtime_latest_launch_time.clear();
 
@@ -89,7 +81,8 @@ impl ProgramRankerInner {
         self.query_affinity_map.clear();
         let query_affinity_store = config.get_query_affinity_store();
         for (query, method_map) in query_affinity_store {
-            for (method_text, data) in method_map {
+            for entry in method_map {
+                let (method_text, data) = entry;
                 self.query_affinity_map
                     .insert((query.clone(), method_text), data);
             }
@@ -109,28 +102,24 @@ impl ProgramRankerInner {
     fn get_runtime_data(&mut self) -> PartialProgramRankerConfig {
         self.update_launch_info();
 
-        let mut launch_info_data: VecDeque<HashMap<String, u64>> = VecDeque::new();
-        for item in &self.launch_time {
-            launch_info_data.push_back(dashmap_to_hashmap(item));
-        }
-
         // 导出查询亲和度数据
-        let mut query_affinity_store: HashMap<String, HashMap<String, QueryAffinityData>> =
-            HashMap::new();
-        for entry in self.query_affinity_map.iter() {
-            let (query, method_text) = entry.key();
-            let data = entry.value();
-            query_affinity_store
-                .entry(query.clone())
-                .or_default()
-                .insert(method_text.clone(), data.clone());
-        }
+        let query_affinity_store: HashMap<String, DashMap<String, QueryAffinityData>> = self
+            .query_affinity_map
+            .iter()
+            .fold(HashMap::new(), |mut acc, entry| {
+                let (query, method_text) = entry.key();
+                let data = entry.value();
+                acc.entry(query.clone())
+                    .or_insert_with(DashMap::new)
+                    .insert(method_text.clone(), data.clone());
+                acc
+            });
 
         PartialProgramRankerConfig {
-            launch_info: Some(launch_info_data),
-            history_launch_time: Some(dashmap_to_hashmap(&self.history_launch_time)),
+            launch_info: Some(self.launch_time.clone()),
+            history_launch_time: Some(self.history_launch_time.clone()),
             last_update_data: Some(generate_current_date()),
-            latest_launch_time: Some(dashmap_to_hashmap(&self.latest_launch_time)),
+            latest_launch_time: Some(self.latest_launch_time.clone()),
             query_affinity_store: Some(query_affinity_store),
             history_weight: None,
             recent_habit_weight: None,

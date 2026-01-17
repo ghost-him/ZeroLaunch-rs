@@ -1,5 +1,6 @@
 use crate::core::storage::windows_utils::{get_desktop_path, get_start_menu_paths};
 use crate::program_manager::builtin_commands::BuiltinCommandType;
+use dashmap::DashMap;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -24,7 +25,7 @@ pub struct PartialProgramLoaderConfig {
     pub index_web_pages: Option<Vec<(String, String)>>,
     pub custom_command: Option<Vec<(String, String)>>,
     pub forbidden_paths: Option<Vec<String>>,
-    pub program_alias: Option<HashMap<String, Vec<String>>>,
+    pub program_alias: Option<DashMap<String, Vec<String>>>,
     pub semantic_descriptions: Option<HashMap<String, String>>,
     pub enabled_builtin_commands: Option<HashMap<BuiltinCommandType, bool>>,
     pub builtin_command_keywords: Option<HashMap<BuiltinCommandType, Vec<String>>>,
@@ -99,7 +100,7 @@ pub struct ProgramLoaderConfigInner {
     pub forbidden_paths: Vec<String>,
     /// 给程序的别名，将程序的地址(LaunchMethod)当成key (key)=>([alias])
     #[serde(default = "ProgramLoaderConfigInner::default_program_alias")]
-    pub program_alias: HashMap<String, Vec<String>>,
+    pub program_alias: DashMap<String, Vec<String>>,
     /// 程序的语义性描述信息 (launch_method) => (description)
     #[serde(default = "ProgramLoaderConfigInner::default_semantic_descriptions")]
     pub semantic_descriptions: HashMap<String, String>,
@@ -129,8 +130,8 @@ impl Default for ProgramLoaderConfigInner {
 }
 
 impl ProgramLoaderConfigInner {
-    pub(crate) fn default_program_alias() -> HashMap<String, Vec<String>> {
-        HashMap::new()
+    pub(crate) fn default_program_alias() -> DashMap<String, Vec<String>> {
+        DashMap::new()
     }
 
     pub(crate) fn default_target_paths() -> Vec<DirectoryConfig> {
@@ -297,7 +298,7 @@ impl ProgramLoaderConfig {
     pub fn get_forbidden_paths(&self) -> Vec<String> {
         self.inner.read().forbidden_paths.clone()
     }
-    pub fn get_program_alias(&self) -> HashMap<String, Vec<String>> {
+    pub fn get_program_alias(&self) -> DashMap<String, Vec<String>> {
         self.inner.read().program_alias.clone()
     }
     pub fn get_semantic_descriptions(&self) -> HashMap<String, String> {

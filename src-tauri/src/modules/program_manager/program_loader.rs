@@ -16,7 +16,6 @@ use crate::program_manager::Program;
 use crate::utils::defer::defer;
 use crate::utils::notify::notify;
 use crate::utils::windows::get_u16_vec;
-use crate::utils::{dashmap_to_hashmap, hashmap_to_dashmap};
 use core::time::Duration;
 use dashmap::DashMap;
 use dashmap::DashSet;
@@ -220,8 +219,6 @@ impl ProgramLoaderInner {
     }
 
     pub fn to_partial(&self) -> PartialProgramLoaderConfig {
-        let program_alias_hash_map = dashmap_to_hashmap(&self.program_alias);
-
         PartialProgramLoaderConfig {
             target_paths: Some(self.target_paths.clone()),
             forbidden_paths: Some(self.forbidden_paths.clone()),
@@ -229,7 +226,7 @@ impl ProgramLoaderInner {
             is_scan_uwp_programs: Some(self.is_scan_uwp_programs),
             index_web_pages: Some(self.index_web_pages.clone()),
             custom_command: Some(self.custom_command.clone()),
-            program_alias: Some(program_alias_hash_map),
+            program_alias: Some(self.program_alias.clone()),
             semantic_descriptions: Some(self.semantic_descriptions.clone()),
             enabled_builtin_commands: Some(self.enabled_builtin_commands.clone()),
             builtin_command_keywords: Some(self.builtin_command_keywords.clone()),
@@ -246,7 +243,7 @@ impl ProgramLoaderInner {
         self.program_name_hash = DashSet::new();
         self.index_web_pages = config.get_index_web_pages();
         self.custom_command = config.get_custom_command();
-        self.program_alias = hashmap_to_dashmap(&config.get_program_alias());
+        self.program_alias = config.get_program_alias();
         self.semantic_descriptions = config.get_semantic_descriptions();
         self.enabled_builtin_commands = config.get_enabled_builtin_commands();
         self.builtin_command_keywords = config.get_builtin_command_keywords();

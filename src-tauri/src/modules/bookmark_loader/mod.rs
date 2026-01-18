@@ -153,14 +153,27 @@ impl BookmarkLoader {
 
         let base_path = PathBuf::from(local_app_data);
 
-        // Helper closure to create BrowserInfo
-        let create_browser_info = |name: String, path: PathBuf| -> BrowserInfo {
-            let bookmarks_path = path.join("User Data").join("Default").join("Bookmarks");
-            BrowserInfo {
-                name,
-                bookmarks_path: bookmarks_path.to_string_lossy().to_string(),
-            }
-        };
+        // 使用闭包来扫描 User Data 下的所有 Profile
+        let find_profiles =
+            |browsers: &mut Vec<BrowserInfo>, browser_name: String, user_data_path: PathBuf| {
+                if let Ok(entries) = fs::read_dir(&user_data_path) {
+                    for entry in entries.flatten() {
+                        let path = entry.path();
+                        if path.is_dir() {
+                            let bookmarks = path.join("Bookmarks");
+                            if bookmarks.exists() {
+                                let profile_name = entry.file_name().to_string_lossy().to_string();
+                                // 如果目录名是 Default，显示原始名。如果是其他（如 Profile 1），则带上。
+                                let display_name = format!("{} ({})", browser_name, profile_name);
+                                browsers.push(BrowserInfo {
+                                    name: display_name,
+                                    bookmarks_path: bookmarks.to_string_lossy().to_string(),
+                                });
+                            }
+                        }
+                    }
+                }
+            };
 
         if let Ok(entries) = fs::read_dir(&base_path) {
             for entry in entries.flatten() {
@@ -169,17 +182,15 @@ impl BookmarkLoader {
                     continue;
                 }
 
-                // Check Depth 1: %LOCALAPPDATA%/<Browser>/User Data/Default/Bookmarks
+                let name = entry.file_name().to_string_lossy().to_string();
+
+                // Check Depth 1: %LOCALAPPDATA%/<Browser>/User Data
                 let user_data = path.join("User Data");
-                if user_data.exists() {
-                    let bookmarks = user_data.join("Default").join("Bookmarks");
-                    if bookmarks.exists() {
-                        let name = entry.file_name().to_string_lossy().to_string();
-                        browsers.push(create_browser_info(name, path.clone()));
-                    }
+                if user_data.is_dir() {
+                    find_profiles(&mut browsers, name.clone(), user_data);
                 }
 
-                // Check Depth 2: %LOCALAPPDATA%/<Vendor>/<Browser>/User Data/Default/Bookmarks
+                // Check Depth 2: %LOCALAPPDATA%/<Vendor>/<Browser>/User Data
                 if let Ok(sub_entries) = fs::read_dir(&path) {
                     for sub_entry in sub_entries.flatten() {
                         let sub_path = sub_entry.path();
@@ -188,15 +199,10 @@ impl BookmarkLoader {
                         }
 
                         let sub_user_data = sub_path.join("User Data");
-                        if sub_user_data.exists() {
-                            let sub_bookmarks = sub_user_data.join("Default").join("Bookmarks");
-                            if sub_bookmarks.exists() {
-                                let parent_name = entry.file_name().to_string_lossy().to_string();
-                                let child_name =
-                                    sub_entry.file_name().to_string_lossy().to_string();
-                                let name = format!("{} {}", parent_name, child_name);
-                                browsers.push(create_browser_info(name, sub_path));
-                            }
+                        if sub_user_data.is_dir() {
+                            let sub_name = sub_entry.file_name().to_string_lossy().to_string();
+                            let full_name = format!("{} {}", name, sub_name);
+                            find_profiles(&mut browsers, full_name, sub_user_data);
                         }
                     }
                 }

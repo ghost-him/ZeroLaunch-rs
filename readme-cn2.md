@@ -19,6 +19,7 @@
 [![GitHub forks](https://img.shields.io/github/forks/ghost-him/ZeroLaunch-rs.svg?style=social)](https://github.com/ghost-him/ZeroLaunch-rs/network/members)
 [![Codeberg stars](https://img.shields.io/gitea/stars/ghost-him/ZeroLaunch-rs?gitea_url=https%3A%2F%2Fcodeberg.org&logo=codeberg&style=social)](https://codeberg.org/ghost-him/ZeroLaunch-rs)
 [![GitCode stars](https://gitcode.com/ghost-him/ZeroLaunch-rs/star/badge.svg)](https://gitcode.com/ghost-him/ZeroLaunch-rs/stargazers)
+[![Gitcode 2025](https://atomgit.com/ghost-him/ZeroLaunch-rs/star/2025top.svg)](https://gitcode.com/ghost-him/ZeroLaunch-rs)
 
 </div>
 

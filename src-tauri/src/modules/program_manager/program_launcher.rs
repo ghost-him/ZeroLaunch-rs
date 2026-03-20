@@ -58,10 +58,18 @@ impl ProgramLauncherInner {
 
     fn launch_command(&self, command: &str) {
         const CREATE_NO_WINDOW: u32 = 0x08000000;
-        // 使用 cmd /C 执行命令
+        const DETACHED_PROCESS: u32 = 0x00000008;
+
+        let command = command.trim();
+        if command.is_empty() {
+            warn!("启动命令失败: 命令为空");
+            return;
+        }
+
         let result = std::process::Command::new("cmd")
-            .raw_arg(format!("/C \"{}\"", command))
-            .creation_flags(CREATE_NO_WINDOW)
+            .args(["/D", "/S", "/C"])
+            .raw_arg(command)
+            .creation_flags(CREATE_NO_WINDOW | DETACHED_PROCESS)
             .spawn();
 
         if let Err(error) = result {

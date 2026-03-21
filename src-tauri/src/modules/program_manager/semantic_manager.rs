@@ -57,6 +57,21 @@ struct SerEntry {
 }
 
 impl SemanticManager {
+    pub fn is_valid_embedding(embedding: &[f32]) -> bool {
+        let mut has_non_zero = false;
+        // 遍历检查数值合法性
+        for &v in embedding {
+            // is_finite 同时检查了 NaN 和 Infinity
+            if !v.is_finite() {
+                return false; // 含有非法浮点数，直接判定无效
+            }
+            if v != 0.0 {
+                has_non_zero = true;
+            }
+        }
+        has_non_zero
+    }
+
     pub fn new(
         embedding_backend: Option<Arc<dyn EmbeddingBackend>>,
         semantic_store: HashMap<String, SemanticStoreItem>,
@@ -205,12 +220,14 @@ impl SemanticManager {
 
         let mut map: HashMap<LaunchMethod, CachedEntry> = HashMap::with_capacity(list.len());
         for item in list.into_iter() {
-            map.insert(
-                item.key,
-                CachedEntry {
-                    embedding: item.embedding,
-                },
-            );
+            if Self::is_valid_embedding(&item.embedding) {
+                map.insert(
+                    item.key,
+                    CachedEntry {
+                        embedding: item.embedding,
+                    },
+                );
+            }
         }
         *self.program_embedding_cache.write() = map;
         true

@@ -434,33 +434,54 @@ impl ProgramLoaderInner {
         let alias_name_to_append = self.check_program_alias(&launch_method);
         search_keywords.extend(alias_name_to_append);
 
-        #[allow(unused_variables)]
-        let description = self
-            .get_program_semantic_description(&launch_method)
-            .unwrap_or_default();
-
         // 生成或读取 embedding（仅当启用语义搜索时）
         let embedding = if self.compute_embeddings {
             let key = launch_method.clone();
-            if let Some(cached) = self.semantic_manager.get_cached_embedding(&key) {
-                debug!("已命中语义缓存！");
-                cached
-            } else {
+
+            let cached_opt = self.semantic_manager.get_cached_embedding(&key);
+
+            if let Some(cached) = cached_opt
+                .as_ref()
+                .filter(|e| SemanticManager::is_valid_embedding(e))
+            {
                 debug!(
-                    "未命中语义缓存，开始计算新的embedding, show_name: {}, launch_method: {:?}",
+                    "已命中语义缓存！ show_name: {}, launch_method: {:?}",
                     &show_name, &launch_method
                 );
-                let computed = self
-                    .semantic_manager
-                    .generate_embedding_for_loader(
-                        &show_name,
-                        &search_keywords.join("，"),
-                        &launch_method,
-                        &description,
-                    )
+                cached.clone()
+            } else {
+                // 表明当前要么没有缓存，要么缓存无效，需要重新计算
+                debug!("未命中有效的语义缓存，开始计算新的embedding, show_name: {}, launch_method: {:?}", &show_name, &launch_method);
+
+                let description = self
+                    .get_program_semantic_description(&launch_method)
                     .unwrap_or_default();
-                self.semantic_manager.put_cached_embedding(&key, &computed);
-                computed
+
+                match self.semantic_manager.generate_embedding_for_loader(
+                    &show_name,
+                    &search_keywords.join("，"),
+                    &launch_method,
+                    &description,
+                ) {
+                    Ok(computed) if SemanticManager::is_valid_embedding(&computed) => {
+                        self.semantic_manager.put_cached_embedding(&key, &computed);
+                        computed
+                    }
+                    Ok(_) => {
+                        warn!(
+                            "生成到无效 embedding，跳过写入缓存, show_name: {}, launch_method: {:?}",
+                            &show_name, &launch_method
+                        );
+                        Vec::new()
+                    }
+                    Err(e) => {
+                        warn!(
+                            "生成 embedding 失败，跳过写入缓存, show_name: {}, launch_method: {:?}, error: {:?}",
+                            &show_name, &launch_method, e
+                        );
+                        Vec::new()
+                    }
+                }
             }
         } else {
             // 未启用则返回空 embedding

@@ -284,7 +284,7 @@ pub async fn init_system_tray(app: &mut App) {
     }
 
     // Retry logic
-    let retry_delays = [5, 10, 20];
+    let retry_delays = [1, 2, 2, 3, 5]; // Seconds to wait before each retry
     for &delay in &retry_delays {
         warn!(
             "Tray icon creation failed. Retrying in {} seconds...",

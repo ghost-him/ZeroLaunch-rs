@@ -33,7 +33,7 @@ impl Default for ProgramManagerConfigInner {
             ranker_config: Arc::new(ProgramRankerConfig::default()),
             loader_config: Arc::new(ProgramLoaderConfig::default()),
             search_model: Arc::new(SearchModelConfig::default()),
-            enable_lru_search_cache: false,
+            enable_lru_search_cache: true,
             search_cache_capacity: 120,
         }
     }

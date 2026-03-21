@@ -54,9 +54,6 @@
             </el-icon>
           </el-tooltip>
         </el-form-item>
-        <p class="lru-cache-hint">
-          {{ t('program_index.lru_cache_description') }}
-        </p>
 
         <el-form-item
           v-if="config.program_manager_config.enable_lru_search_cache"

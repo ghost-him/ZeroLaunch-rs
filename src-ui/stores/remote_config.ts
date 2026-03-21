@@ -251,7 +251,7 @@ export const useRemoteConfigStore = defineStore('config', {
                     },
                 } as ProgramLoaderConfig,
                 search_model: 'standard',
-                enable_lru_search_cache: false,
+                enable_lru_search_cache: true,
                 search_cache_capacity: 120,
             } as ProgramManagerConfig,
             icon_manager_config: {

@@ -27,6 +27,8 @@ use lru::LruCache;
 use program_launcher::ProgramLauncher;
 use program_loader::ProgramLoader;
 use program_ranker::ProgramRanker;
+use rayon::iter::IntoParallelRefIterator;
+use rayon::iter::ParallelIterator;
 use std::collections::HashMap;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
@@ -46,8 +48,8 @@ pub enum FallbackReason {
     ModelNotReady, // 选择语义，启用 AI，但模型权重未就绪
 }
 
-/// 短期搜索结果缓存（统一，基于 LruCache）
-type ShortTermSearchResultsCache = Arc<RwLock<Option<LruCache<String, Vec<SearchMatchResult>>>>>;
+/// 短期搜索基础分缓存（统一，基于 LruCache）
+type ShortTermSearchResultsCache = Arc<RwLock<Option<LruCache<String, Vec<SearchModelResult>>>>>;
 
 /// 程序管理器 - 使用细粒度锁优化并发性能
 #[derive(Debug)]
@@ -83,6 +85,13 @@ pub struct ProgramManager {
 pub(crate) struct SearchMatchResult {
     program_guid: u64,
     score_details: ScoreDetails,
+}
+
+// 表示搜索模型的搜索结果
+#[derive(Debug, Clone)]
+pub(crate) struct SearchModelResult {
+    program_guid: u64,
+    base_score: f64,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -575,23 +584,45 @@ impl ProgramManager {
         let user_input = user_input.to_lowercase();
         let user_input = remove_repeated_space(&user_input);
 
-        // 统一短期缓存命中直接返回
-        if let Some(cached) = {
+        let ranker = &self.program_ranker;
+
+        // 先尝试从短期缓存获取基础分；未命中时再执行搜索并写入缓存
+        let basic_scores: Vec<SearchModelResult> = if let Some(cached) = {
             let mut cache_guard = self.short_term_result_cache.write().await;
             cache_guard
                 .as_mut()
                 .and_then(|cache| cache.get(&user_input).cloned())
         } {
-            return cached.into_iter().take(result_count as usize).collect();
-        }
+            cached
+        } else {
+            let program_registry = self.program_registry.read().await;
+            let search_engine = self.search_engine.read().await;
+            let computed = search_engine.perform_search(&user_input, program_registry.as_ref());
 
-        let ranker = &self.program_ranker;
+            if let Some(cache) = self.short_term_result_cache.write().await.as_mut() {
+                cache.put(user_input.clone(), computed.clone());
+            }
 
-        let program_registry = self.program_registry.read().await;
-        let search_engine = self.search_engine.read().await;
-        // 计算所有程序的匹配分数
-        let mut match_scores: Vec<SearchMatchResult> =
-            search_engine.perform_search(&user_input, program_registry.as_ref(), ranker);
+            computed
+        };
+
+        // 计算所有程序的智能排序增强分数
+        let mut match_scores: Vec<SearchMatchResult> = basic_scores
+            .par_iter()
+            .map(|base_result| {
+                let program_guid = base_result.program_guid;
+                let base_score = base_result.base_score;
+
+                // 应用智能排序增强评分(如果没有启动，则会直接返回，不更进一步的计算)
+                let score_details =
+                    ranker.calculate_score_details(base_score, program_guid, &user_input);
+                SearchMatchResult {
+                    program_guid,
+                    score_details,
+                }
+            })
+            .collect();
+
         // 按分数降序排序
         match_scores.sort_by(|a, b| {
             b.score_details
@@ -602,11 +633,6 @@ impl ProgramManager {
 
         // 只保留需要的数量
         match_scores.truncate(result_count as usize);
-
-        // 写入短期缓存
-        if let Some(cache) = self.short_term_result_cache.write().await.as_mut() {
-            cache.put(user_input.clone(), match_scores.clone());
-        }
 
         match_scores
     }

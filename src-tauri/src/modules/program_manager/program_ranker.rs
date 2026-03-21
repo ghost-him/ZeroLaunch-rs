@@ -451,11 +451,6 @@ impl ProgramRanker {
         self.inner.write().record_launch(program_guid);
     }
 
-    /// 计算近期习惯分数 (基于最近7天的启动次数，带衰减)
-    pub fn calculate_recent_habit_score(&self, program_guid: u64) -> f64 {
-        self.inner.read().calculate_recent_habit_score(program_guid)
-    }
-
     pub fn program_history_launch_time(&self, program_guid: u64) -> u64 {
         self.inner.write().program_history_launch_time(program_guid)
     }
@@ -463,23 +458,6 @@ impl ProgramRanker {
     /// 记录查询-程序启动关联
     pub fn record_query_launch(&self, query: &str, program_guid: u64) {
         self.inner.write().record_query_launch(query, program_guid);
-    }
-
-    /// 计算查询亲和分数
-    pub fn calculate_query_affinity_score(&self, query: &str, program_guid: u64) -> f64 {
-        self.inner
-            .read()
-            .calculate_query_affinity_score(query, program_guid)
-    }
-
-    /// 计算瞬时分数
-    pub fn calculate_temporal_score(&self, program_guid: u64) -> f64 {
-        self.inner.read().calculate_temporal_score(program_guid)
-    }
-
-    /// 计算历史总分
-    pub fn calculate_history_score(&self, program_guid: u64) -> f64 {
-        self.inner.read().calculate_history_score(program_guid)
     }
 
     /// 计算详细的排序分数

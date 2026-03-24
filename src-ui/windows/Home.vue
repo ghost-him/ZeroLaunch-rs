@@ -65,7 +65,7 @@
     <Footer
       :ui-config="effective_ui_config"
       :app-config="app_config"
-      :status-text="is_refreshing_dataset ? t('app.refreshing_dataset') : (is_loading_icons ? t('app.loading_icons') : (status_tip || right_tips))"
+      :status-text="footerStatusText"
     />
 
     <!-- SubMenus -->
@@ -118,6 +118,7 @@ import {
 import { InputContext } from '../input_states'
 
 import { useShortcuts } from '../composables/useShortcuts'
+import { useInlineParameterMode } from '../composables/useInlineParameterMode'
 import SearchBar from './search-window-components/SearchBar.vue'
 import ResultList from './search-window-components/ResultList.vue'
 import EverythingPanel from './search-window-components/EverythingPanel.vue'
@@ -175,6 +176,7 @@ const effective_ui_config = computed(() => {
 })
 
 const toggleEverythingMode = async () => {
+  clearInlineParameterSession()
   if (inputContext.value === InputContext.Everything) {
     inputContext.value = InputContext.MainSearch
   } else {
@@ -213,6 +215,35 @@ interface LaunchTemplateInfoResponse {
 
 const parameterSession = ref<ParameterSession | null>(null)
 const parameterPanelRef = ref<InstanceType<typeof ParameterPanel> | null>(null)
+const searchRequestId = ref(0)
+
+const {
+  isInlineParameterMode,
+  clearInlineParameterSession,
+  isWithinLockedPrefix,
+  tryEnterInlineParameterMode,
+  tryLaunchInlineParameters,
+  getCurrentResults,
+} = useInlineParameterMode({
+  searchText,
+  selectedIndex,
+  searchResults,
+  latestLaunchProgram: latest_launch_program,
+  isAltPressed: is_alt_pressed,
+  isEverythingMode,
+  hasParameterPanelSession: computed(() => parameterSession.value !== null),
+  onWarnEmptyArgs: () => ElMessage.warning(t('parameter.inline_empty')),
+  onWarnArgCountMismatch: ({ expected, actual, parsedArgs }) => {
+    const argsPreview = parsedArgs.length > 0 ? parsedArgs.join(' | ') : '[]'
+    ElMessage.warning(
+      t('parameter.inline_arg_count_mismatch', {
+        expected,
+        actual,
+        args: argsPreview,
+      }),
+    )
+  },
+})
 
 // Computed
 const status_tip = computed(() => {
@@ -272,6 +303,19 @@ const parameterPreview = computed(() => {
   return buildTemplatePreview(info.template, provisionalArgs, info.placeholderCount)
 })
 
+const footerStatusText = computed(() => {
+  if (is_refreshing_dataset.value) {
+    return t('app.refreshing_dataset')
+  }
+  if (is_loading_icons.value) {
+    return t('app.loading_icons')
+  }
+  if (isInlineParameterMode.value) {
+    return t('parameter.inline_mode')
+  }
+  return status_tip.value || right_tips.value
+})
+
 const innerWindowSize = computed(() => {
   return {
     width: Math.round(windowSize.value.width / scaleFactor.value),
@@ -304,7 +348,6 @@ const searchBarMenuItems = computed(() => [{ name: t('menu.open_settings'), icon
 const resultSubMenuItems = computed(() => [{ name: t('app.open_file_location'), icon: FolderOpened, action: () => { openFolder() } },
 { name: t('app.run_as_admin'), icon: StarFilled, action: () => { runTargetProgramWithAdmin() } },
 { name: t('app.block_this_result'), icon: CircleClose, action: () => { blockCurrentResult() } }])
-
 
 // Methods
 const buildTemplatePreview = (template: string, args: string[], placeholderCount: number) => {
@@ -343,8 +386,15 @@ const sendSearchText = async (text: string) => {
       // Everything mode handles search internally in EverythingPanel via prop watch
       return
     }
+    if (isInlineParameterMode.value) {
+      return
+    }
+    const requestId = ++searchRequestId.value
     let results: Array<[number, string, string]>
     results = await invoke('handle_search_text', { searchText: text })
+    if (requestId !== searchRequestId.value) {
+      return
+    }
     searchResults.value = results
     await refresh_result_items()
     selectedIndex.value = 0
@@ -365,6 +415,7 @@ const resetParameterSession = () => {
 }
 
 const startParameterSession = (programGuid: number, ctrlKey: boolean, shiftKey: boolean, info: LaunchTemplateInfoResponse) => {
+  clearInlineParameterSession()
   const sessionInfo: LaunchTemplateInfo = {
     template: info.template,
     kind: info.kind,
@@ -606,7 +657,11 @@ const launch_program = async (itemIndex: number, ctrlKey = false, shiftKey = fal
     return
   }
 
-  const currentResults = is_alt_pressed.value ? latest_launch_program.value : searchResults.value
+  if (await tryLaunchInlineParameters(ctrlKey, shiftKey)) {
+    return
+  }
+
+  const currentResults = getCurrentResults()
   const selected = currentResults[itemIndex]
   if (!selected) {
     return
@@ -643,6 +698,7 @@ const handleItemClick = (itemIndex: number, ctrlKey: boolean) => {
 const initSearchBar = () => {
   searchText.value = ''
   selectedIndex.value = 0
+  clearInlineParameterSession()
   resetParameterSession()
   inputContext.value = InputContext.MainSearch
   if (resultsListRef.value?.resultsListRef) {
@@ -735,7 +791,12 @@ const contextResultItemEvent = (index: number, event: MouseEvent) => {
 }
 
 const openFolder = async () => {
-  await invoke('open_target_folder', { programGuid: searchResults.value[selectedIndex.value][0] })
+  const currentResults = getCurrentResults()
+  const selected = currentResults[selectedIndex.value]
+  if (!selected) {
+    return
+  }
+  await invoke('open_target_folder', { programGuid: selected[0] })
 }
 
 const runTargetProgramWithAdmin = () => {
@@ -778,7 +839,23 @@ const showSubmenuForItem = (index: number) => {
 let unlisten: Array<UnlistenFn | null> = []
 
 watch(searchText, (newVal: string) => {
-  sendSearchText(newVal)
+  ;(async () => {
+    if (await tryEnterInlineParameterMode(newVal)) {
+      return
+    }
+
+    if (isInlineParameterMode.value) {
+      if (!isWithinLockedPrefix(newVal)) {
+        clearInlineParameterSession()
+        await sendSearchText(newVal)
+      }
+      return
+    }
+
+    await sendSearchText(newVal)
+  })().catch((error) => {
+    console.error('Failed to process search text update:', error)
+  })
 })
 
 watch(parameterSession, async (session: ParameterSession | null) => {
@@ -792,6 +869,10 @@ watch(parameterSession, async (session: ParameterSession | null) => {
 })
 
 watch(is_alt_pressed, async (new_value: boolean) => {
+  if (isInlineParameterMode.value && new_value) {
+    is_alt_pressed.value = false
+    return
+  }
   if (new_value) {
     await get_latest_launch_program()
   }

@@ -113,7 +113,8 @@ import { initializeLanguage } from '../i18n'
 import { 
   AppConfig, default_app_config, default_ui_config, PartialAppConfig, 
   PartialUIConfig, ShortcutConfig, UIConfig, default_shortcut_config, 
-  PartialShortcutConfig, PartialEverythingConfig, default_everything_shortcut_config, EverythingShortcutConfig
+  PartialShortcutConfig, PartialEverythingConfig, default_everything_shortcut_config, EverythingShortcutConfig,
+  PartialRemoteConfig
 } from '../api/remote_config_types'
 import { InputContext } from '../input_states'
 
@@ -132,6 +133,20 @@ const { t } = useI18n()
 const app_config = ref<AppConfig>(default_app_config())
 const ui_config = ref<UIConfig>(default_ui_config())
 const shortcut_config = ref<ShortcutConfig>(default_shortcut_config())
+const current_search_model = ref<string>('standard')
+
+const SEARCH_MODEL_I18N_KEY_MAP: Record<string, string> = {
+  standard: 'program_index.standard_search_algorithm',
+  skim: 'program_index.skim_matching_algorithm',
+  launchy: 'program_index.launchyqt_algorithm',
+  semantic: 'program_index.semantic_search_algorithm',
+}
+
+const getSearchModelLabel = (searchModel: string): string => {
+  const i18nKey = SEARCH_MODEL_I18N_KEY_MAP[searchModel]
+  return i18nKey ? t(i18nKey) : searchModel
+}
+
 const searchText = ref('')
 const selectedIndex = ref<number>(0)
 const searchBarRef = ref<InstanceType<typeof SearchBar> | null>(null)
@@ -140,7 +155,7 @@ const everythingPanelRef = ref<InstanceType<typeof EverythingPanel> | null>(null
 const searchResults = ref<Array<[number, string, string]>>([])
 const latest_launch_program = ref<Array<[number, string, string]>>([])
 const is_alt_pressed = ref<boolean>(false)
-const right_tips = ref<string>(t('app.best_match'))
+const right_tips = ref<string>(getSearchModelLabel(current_search_model.value))
 const status_reason_code = ref<string>('none')
 const menuItems = ref<Array<{ name: string; command: string }>>([])
 const menuIcons = ref<Array<string>>([])
@@ -485,7 +500,7 @@ const refresh_result_items = async () => {
       right_tips.value = 'Everything Search'
     } else {
       menuIcons.value = await getIcons(keys)
-      right_tips.value = t('app.best_match')
+      right_tips.value = getSearchModelLabel(current_search_model.value)
     }
   } else {
     menuItems.value = latest_launch_program.value.map(([_id, item, command]: [number, string, string]) => ({ name: item, command }))
@@ -527,15 +542,17 @@ const refreshDataset = async () => {
 const updateWindow = async () => {
   console.log('updateWindow')
   try {
-    const [background_picture_data, program_count, data] = await Promise.all([
+    const [background_picture_data, program_count, data, remote_config] = await Promise.all([
       invoke<number[]>('get_background_picture'),
       invoke<number>('get_program_count'),
       invoke<[PartialAppConfig, PartialUIConfig, PartialShortcutConfig, PartialEverythingConfig]>('update_search_bar_window'),
+      invoke<PartialRemoteConfig>('command_load_remote_config'),
     ])
 
     app_config.value = { ...app_config.value, ...data[0] }
     ui_config.value = { ...ui_config.value, ...data[1] }
     shortcut_config.value = { ...shortcut_config.value, ...data[2] }
+    current_search_model.value = remote_config.program_manager_config?.search_model ?? current_search_model.value
     everything_shortcut_config.value = {...everything_shortcut_config.value, ...data[3].shortcuts}
     await initializeLanguage(app_config.value.language)
 

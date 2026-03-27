@@ -305,16 +305,6 @@ impl AppConfig {
         inner.update(partial_app_config);
     }
 
-    pub fn get_search_bar_placeholder(&self) -> String {
-        let inner = self.inner.read();
-        inner.search_bar_placeholder.clone()
-    }
-
-    pub fn get_tips(&self) -> String {
-        let inner = self.inner.read();
-        inner.tips.clone()
-    }
-
     pub fn get_is_auto_start(&self) -> bool {
         let inner = self.inner.read();
         inner.is_auto_start
@@ -335,19 +325,9 @@ impl AppConfig {
         inner.launch_new_on_failure
     }
 
-    pub fn get_is_debug_mode(&self) -> bool {
-        let inner = self.inner.read();
-        inner.is_debug_mode
-    }
-
     pub fn to_partial(&self) -> PartialAppConfig {
         let inner = self.inner.read();
         inner.to_partial()
-    }
-
-    pub fn get_is_esc_hide_window_priority(&self) -> bool {
-        let inner = self.inner.read();
-        inner.is_esc_hide_window_priority
     }
 
     pub fn get_is_enable_drag_window(&self) -> bool {
@@ -363,11 +343,6 @@ impl AppConfig {
     pub fn get_is_wake_on_fullscreen(&self) -> bool {
         let inner = self.inner.read();
         inner.is_wake_on_fullscreen
-    }
-
-    pub fn get_space_is_enter(&self) -> bool {
-        let inner = self.inner.read();
-        inner.space_is_enter
     }
 
     pub fn get_show_pos_follow_mouse(&self) -> bool {

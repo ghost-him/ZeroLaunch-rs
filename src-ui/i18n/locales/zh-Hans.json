@@ -67,6 +67,7 @@
     "preview": "预览"
   },
   "ui_config": {
+    "theme_color_settings": "主题颜色设置",
     "theme_mode": "前端主题模式",
     "tray_theme_mode": "托盘图标主题模式",
     "theme_mode_system": "跟随系统",

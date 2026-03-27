@@ -39,7 +39,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import AnimatedInput from './AnimatedInput.vue'
-import type { AppConfig, UIConfig } from '../../api/remote_config_types'
+import type { AppConfig, ResolvedUIConfig } from '../../api/remote_config_types'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 
 const layoutConstants = {
@@ -50,7 +50,7 @@ const layoutConstants = {
 
 const props = defineProps<{
   appConfig: AppConfig;
-  uiConfig: UIConfig;
+  uiConfig: ResolvedUIConfig;
 }>()
 
 const modelValue = defineModel<string>({ required: true })

@@ -2,6 +2,42 @@ import { defineStore } from 'pinia'
 import { default_ui_config, default_app_config, default_shortcut_config, ProgramManagerConfig, ProgramLoaderConfig, PartialRemoteConfig, RemoteConfig, IconManagerConfig, ProgramRankerConfig, default_everything_config, default_refresh_scheduler_config, default_bookmark_loader_config } from '../api/remote_config_types'
 import { invoke } from '@tauri-apps/api/core'
 
+export function mergeUiConfig(
+    current: RemoteConfig['ui_config'],
+    partial?: PartialRemoteConfig['ui_config'],
+): RemoteConfig['ui_config'] {
+    if (!partial) return current
+
+    return {
+        ...current,
+        ...partial,
+        light_mode_colors: partial.light_mode_colors
+            ? { ...current.light_mode_colors, ...partial.light_mode_colors }
+            : current.light_mode_colors,
+        dark_mode_colors: partial.dark_mode_colors
+            ? { ...current.dark_mode_colors, ...partial.dark_mode_colors }
+            : current.dark_mode_colors,
+    }
+}
+
+function mergePartialUiConfig(
+    ui1?: PartialRemoteConfig['ui_config'],
+    ui2?: PartialRemoteConfig['ui_config'],
+): PartialRemoteConfig['ui_config'] | undefined {
+    if (!ui1 && !ui2) return undefined
+
+    return {
+        ...(ui1 || {}),
+        ...(ui2 || {}),
+        light_mode_colors: (ui1?.light_mode_colors || ui2?.light_mode_colors)
+            ? { ...(ui1?.light_mode_colors || {}), ...(ui2?.light_mode_colors || {}) }
+            : undefined,
+        dark_mode_colors: (ui1?.dark_mode_colors || ui2?.dark_mode_colors)
+            ? { ...(ui1?.dark_mode_colors || {}), ...(ui2?.dark_mode_colors || {}) }
+            : undefined,
+    }
+}
+
 function mergeConfig(config: RemoteConfig, partial: PartialRemoteConfig): RemoteConfig {
     // 合并 app_config
     const app_config = partial.app_config
@@ -9,9 +45,7 @@ function mergeConfig(config: RemoteConfig, partial: PartialRemoteConfig): Remote
         : config.app_config
 
     // 合并 ui_config
-    const ui_config = partial.ui_config
-        ? { ...config.ui_config, ...partial.ui_config }
-        : config.ui_config
+    const ui_config = mergeUiConfig(config.ui_config, partial.ui_config)
 
     // 合并 shortcut_config
     const shortcut_config = partial.shortcut_config ? { ...config.shortcut_config, ...partial.shortcut_config } : config.shortcut_config
@@ -92,13 +126,7 @@ function mergePartialConfig(
             : undefined
 
     // 合并 ui_config
-    const mergedUiConfig =
-        partial1.ui_config || partial2.ui_config
-            ? {
-                ...(partial1.ui_config || {}),
-                ...(partial2.ui_config || {}),
-            }
-            : undefined
+    const mergedUiConfig = mergePartialUiConfig(partial1.ui_config, partial2.ui_config)
 
     // 合并shortcut
     const shortcutConfig = partial1.shortcut_config || partial2.shortcut_config ? {

@@ -62,7 +62,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import type { UIConfig, AppConfig } from '../../api/remote_config_types'
+import type { ResolvedUIConfig, AppConfig } from '../../api/remote_config_types'
 
 const layoutConstants = {
   iconSizeRatio: 0.6,
@@ -74,7 +74,7 @@ const props = defineProps<{
   menuItems: { name: string; command: string }[];
   menuIcons: string[];
   selectedIndex: number;
-  uiConfig: UIConfig;
+  uiConfig: ResolvedUIConfig;
   appConfig: AppConfig;
   hoverColor: string;
   isScrollMode: boolean;

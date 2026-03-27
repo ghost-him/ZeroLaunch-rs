@@ -49,12 +49,12 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { UIConfig } from '../../api/remote_config_types'
+import type { ResolvedUIConfig } from '../../api/remote_config_types'
 
 const { t } = useI18n()
 
 const props = defineProps<{
-  uiConfig: UIConfig;
+  uiConfig: ResolvedUIConfig;
   prompt: string;
   progress: string;
   actionLabel: string;

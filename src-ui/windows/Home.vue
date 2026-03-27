@@ -126,6 +126,7 @@ import EverythingPanel from './search-window-components/EverythingPanel.vue'
 import Footer from './search-window-components/Footer.vue'
 import ParameterPanel from './search-window-components/ParameterPanel.vue'
 import SubMenu from './search-window-components/SubMenu.vue'
+import { mergeUiConfig } from '../stores/remote_config'
 
 const { t } = useI18n()
 
@@ -176,17 +177,10 @@ const everything_shortcut_config = ref<EverythingShortcutConfig>(default_everyth
 const isEverythingMode = computed(() => inputContext.value === InputContext.Everything)
 
 const effective_ui_config = computed(() => {
-  if (!is_dark.value) {
-    return ui_config.value
-  }
+  const current_mode_colors = is_dark.value ? ui_config.value.dark_mode_colors : ui_config.value.light_mode_colors
   return {
     ...ui_config.value,
-    program_background_color: 'rgba(31, 31, 31, 1)',
-    selected_item_color: 'rgba(63, 63, 63, 0.8)',
-    item_font_color: '#A6A6A6',
-    search_bar_font_color: '#A6A6A6',
-    search_bar_placeholder_font_color: '#757575',
-    footer_font_color: '#A6A6A6',
+    ...current_mode_colors
   }
 })
 
@@ -550,7 +544,7 @@ const updateWindow = async () => {
     ])
 
     app_config.value = { ...app_config.value, ...data[0] }
-    ui_config.value = { ...ui_config.value, ...data[1] }
+    ui_config.value = mergeUiConfig(ui_config.value, data[1])
     shortcut_config.value = { ...shortcut_config.value, ...data[2] }
     current_search_model.value = remote_config.program_manager_config?.search_model ?? current_search_model.value
     everything_shortcut_config.value = {...everything_shortcut_config.value, ...data[3].shortcuts}

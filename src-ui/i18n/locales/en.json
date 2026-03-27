@@ -67,6 +67,7 @@
     "preview": "Preview"
   },
   "ui_config": {
+    "theme_color_settings": "Theme Color Settings",
     "theme_mode": "Frontend Theme Mode",
     "tray_theme_mode": "Tray Icon Theme Mode",
     "theme_mode_system": "System",

@@ -95,11 +95,11 @@ import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { useI18n } from 'vue-i18n'
 import { getColorWithReducedOpacity } from '../../utils/color'
-import type { UIConfig, AppConfig } from '../../api/remote_config_types'
+import type { ResolvedUIConfig, AppConfig } from '../../api/remote_config_types'
 
 const props = defineProps<{
     searchText: string;
-    uiConfig: UIConfig;
+    uiConfig: ResolvedUIConfig;
     appConfig: AppConfig;
     hoverColor: string;
 }>()

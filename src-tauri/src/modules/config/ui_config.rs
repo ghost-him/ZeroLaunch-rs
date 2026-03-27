@@ -13,13 +13,140 @@ pub enum ThemeMode {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
-pub struct PartialUiConfig {
-    pub frontend_theme_mode: Option<ThemeMode>,
-    pub tray_theme_mode: Option<ThemeMode>,
+pub struct PartialUiThemeColorPalette {
     pub selected_item_color: Option<String>,
     pub item_font_color: Option<String>,
     pub search_bar_font_color: Option<String>,
     pub search_bar_background_color: Option<String>,
+    pub search_bar_placeholder_font_color: Option<String>,
+    pub footer_font_color: Option<String>,
+    pub program_background_color: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(default)]
+pub struct UiThemeColorPalette {
+    #[serde(default = "UiThemeColorPalette::default_selected_item_color")]
+    pub selected_item_color: String,
+    #[serde(default = "UiThemeColorPalette::default_item_font_color")]
+    pub item_font_color: String,
+    #[serde(default = "UiThemeColorPalette::default_search_bar_font_color")]
+    pub search_bar_font_color: String,
+    #[serde(default = "UiThemeColorPalette::default_search_bar_background_color")]
+    pub search_bar_background_color: String,
+    #[serde(default = "UiThemeColorPalette::default_search_bar_placeholder_font_color")]
+    pub search_bar_placeholder_font_color: String,
+    #[serde(default = "UiThemeColorPalette::default_footer_font_color")]
+    pub footer_font_color: String,
+    #[serde(default = "UiThemeColorPalette::default_program_background_color")]
+    pub program_background_color: String,
+}
+
+impl Default for UiThemeColorPalette {
+    fn default() -> Self {
+        Self::default_light()
+    }
+}
+
+impl UiThemeColorPalette {
+    pub(crate) fn default_selected_item_color() -> String {
+        "#e3e3e3cc".to_string()
+    }
+
+    pub(crate) fn default_item_font_color() -> String {
+        "#000000".to_string()
+    }
+
+    pub(crate) fn default_search_bar_font_color() -> String {
+        "#333333".to_string()
+    }
+
+    pub(crate) fn default_search_bar_background_color() -> String {
+        "#FFFFFF00".to_string()
+    }
+
+    pub(crate) fn default_search_bar_placeholder_font_color() -> String {
+        "#757575".to_string()
+    }
+
+    pub(crate) fn default_footer_font_color() -> String {
+        "#666666".to_string()
+    }
+
+    pub(crate) fn default_program_background_color() -> String {
+        "#FFFFFFFF".to_string()
+    }
+
+    pub fn default_light() -> Self {
+        Self {
+            selected_item_color: Self::default_selected_item_color(),
+            item_font_color: Self::default_item_font_color(),
+            search_bar_font_color: Self::default_search_bar_font_color(),
+            search_bar_background_color: Self::default_search_bar_background_color(),
+            search_bar_placeholder_font_color: Self::default_search_bar_placeholder_font_color(),
+            footer_font_color: Self::default_footer_font_color(),
+            program_background_color: Self::default_program_background_color(),
+        }
+    }
+
+    pub fn default_dark() -> Self {
+        Self {
+            program_background_color: "rgba(31, 31, 31, 1)".to_string(),
+            selected_item_color: "rgba(63, 63, 63, 0.8)".to_string(),
+            item_font_color: "#A6A6A6".to_string(),
+            search_bar_font_color: "#A6A6A6".to_string(),
+            search_bar_background_color: Self::default_search_bar_background_color(),
+            search_bar_placeholder_font_color: "#757575".to_string(),
+            footer_font_color: "#A6A6A6".to_string(),
+        }
+    }
+
+    pub fn update(&mut self, partial: PartialUiThemeColorPalette) {
+        if let Some(selected_item_color) = partial.selected_item_color {
+            self.selected_item_color = selected_item_color;
+        }
+        if let Some(item_font_color) = partial.item_font_color {
+            self.item_font_color = item_font_color;
+        }
+        if let Some(search_bar_font_color) = partial.search_bar_font_color {
+            self.search_bar_font_color = search_bar_font_color;
+        }
+        if let Some(search_bar_background_color) = partial.search_bar_background_color {
+            self.search_bar_background_color = search_bar_background_color;
+        }
+        if let Some(search_bar_placeholder_font_color) = partial.search_bar_placeholder_font_color {
+            self.search_bar_placeholder_font_color = search_bar_placeholder_font_color;
+        }
+        if let Some(footer_font_color) = partial.footer_font_color {
+            self.footer_font_color = footer_font_color;
+        }
+        if let Some(program_background_color) = partial.program_background_color {
+            self.program_background_color = program_background_color;
+        }
+    }
+
+    pub fn to_partial(&self) -> PartialUiThemeColorPalette {
+        PartialUiThemeColorPalette {
+            selected_item_color: Some(self.selected_item_color.clone()),
+            item_font_color: Some(self.item_font_color.clone()),
+            search_bar_font_color: Some(self.search_bar_font_color.clone()),
+            search_bar_background_color: Some(self.search_bar_background_color.clone()),
+            search_bar_placeholder_font_color: Some(self.search_bar_placeholder_font_color.clone()),
+            footer_font_color: Some(self.footer_font_color.clone()),
+            program_background_color: Some(self.program_background_color.clone()),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct PartialUiConfig {
+    pub frontend_theme_mode: Option<ThemeMode>,
+    pub tray_theme_mode: Option<ThemeMode>,
+
+    // 分别保存浅色与深色配色
+    pub light_mode_colors: Option<PartialUiThemeColorPalette>,
+    pub dark_mode_colors: Option<PartialUiThemeColorPalette>,
+
     pub item_font_size: Option<f64>,
     pub search_bar_font_size: Option<f64>,
     pub vertical_position_ratio: Option<f64>,
@@ -32,15 +159,12 @@ pub struct PartialUiConfig {
     pub background_repeat: Option<String>,
     pub background_opacity: Option<f64>,
     pub blur_style: Option<String>,
-    pub search_bar_placeholder_font_color: Option<String>,
     pub window_corner_radius: Option<u32>,
     pub use_windows_sys_control_radius: Option<bool>,
     pub footer_font_size: Option<f64>,
-    pub footer_font_color: Option<String>,
     pub search_bar_font_family: Option<String>,
     pub result_item_font_family: Option<String>,
     pub footer_font_family: Option<String>,
-    pub program_background_color: Option<String>,
     pub search_bar_animate: Option<bool>,
     pub show_launch_command: Option<bool>,
 }
@@ -56,22 +180,13 @@ pub struct UiConfigInner {
     #[serde(default = "UiConfigInner::default_tray_theme_mode")]
     pub tray_theme_mode: ThemeMode,
 
-    /// 显示器的大小与窗口的大小的比例
-    /// 选中项的颜色
-    #[serde(default = "UiConfigInner::default_selected_item_color")]
-    pub selected_item_color: String,
+    // 浅色模式配色
+    #[serde(default = "UiConfigInner::default_light_mode_colors")]
+    pub light_mode_colors: UiThemeColorPalette,
 
-    /// 选项中的字体的颜色
-    #[serde(default = "UiConfigInner::default_item_font_color")]
-    pub item_font_color: String,
-
-    /// 搜索栏的字体颜色
-    #[serde(default = "UiConfigInner::default_search_bar_font_color")]
-    pub search_bar_font_color: String,
-
-    /// 搜索栏与状态栏的背景颜色
-    #[serde(default = "UiConfigInner::default_search_bar_background_color")]
-    pub search_bar_background_color: String,
+    // 深色模式配色
+    #[serde(default = "UiConfigInner::default_dark_mode_colors")]
+    pub dark_mode_colors: UiThemeColorPalette,
 
     /// 结果栏的字体大小
     #[serde(default = "UiConfigInner::default_item_font_size")]
@@ -121,10 +236,6 @@ pub struct UiConfigInner {
     #[serde(default = "UiConfigInner::default_blur_style")]
     pub blur_style: String,
 
-    /// 搜索栏提示字的颜色
-    #[serde(default = "UiConfigInner::default_search_bar_placeholder_font_color")]
-    pub search_bar_placeholder_font_color: String,
-
     /// 窗口的圆角大小
     #[serde(default = "UiConfigInner::default_window_corner_radius")]
     pub window_corner_radius: u32,
@@ -137,10 +248,6 @@ pub struct UiConfigInner {
     #[serde(default = "UiConfigInner::default_footer_font_size")]
     pub footer_font_size: f64,
 
-    // 底栏字体的颜色
-    #[serde(default = "UiConfigInner::default_footer_font_color")]
-    pub footer_font_color: String,
-
     // 搜索栏的字体
     #[serde(default = "UiConfigInner::default_search_bar_font_family")]
     pub search_bar_font_family: String,
@@ -152,10 +259,6 @@ pub struct UiConfigInner {
     // 底栏的字体
     #[serde(default = "UiConfigInner::default_footer_font_family")]
     pub footer_font_family: String,
-
-    // 整体的背景色(用户可自己设置成黑色)
-    #[serde(default = "UiConfigInner::default_program_background_color")]
-    pub program_background_color: String,
 
     // 搜索栏是否有动画效果
     #[serde(default = "UiConfigInner::default_search_bar_animate")]
@@ -171,10 +274,8 @@ impl Default for UiConfigInner {
         Self {
             frontend_theme_mode: Self::default_frontend_theme_mode(),
             tray_theme_mode: Self::default_tray_theme_mode(),
-            selected_item_color: Self::default_selected_item_color(),
-            item_font_color: Self::default_item_font_color(),
-            search_bar_font_color: Self::default_search_bar_font_color(),
-            search_bar_background_color: Self::default_search_bar_background_color(),
+            light_mode_colors: Self::default_light_mode_colors(),
+            dark_mode_colors: Self::default_dark_mode_colors(),
             item_font_size: Self::default_item_font_size(),
             search_bar_font_size: Self::default_search_bar_font_size(),
             vertical_position_ratio: Self::default_vertical_position_ratio(),
@@ -187,15 +288,12 @@ impl Default for UiConfigInner {
             background_repeat: Self::default_background_repeat(),
             background_opacity: Self::default_background_opacity(),
             blur_style: Self::default_blur_style(),
-            search_bar_placeholder_font_color: Self::default_search_bar_placeholder_font_color(),
             window_corner_radius: Self::default_window_corner_radius(),
             use_windows_sys_control_radius: Self::default_use_windows_sys_control_radius(),
             footer_font_size: Self::default_footer_font_size(),
-            footer_font_color: Self::default_footer_font_color(),
             search_bar_font_family: Self::default_search_bar_font_family(),
             result_item_font_family: Self::default_result_item_font_family(),
             footer_font_family: Self::default_footer_font_family(),
-            program_background_color: Self::default_program_background_color(),
             search_bar_animate: Self::default_search_bar_animate(),
             show_launch_command: Self::default_show_launch_command(),
         }
@@ -211,28 +309,20 @@ impl UiConfigInner {
         ThemeMode::System
     }
 
+    pub(crate) fn default_light_mode_colors() -> UiThemeColorPalette {
+        UiThemeColorPalette::default_light()
+    }
+
+    pub(crate) fn default_dark_mode_colors() -> UiThemeColorPalette {
+        UiThemeColorPalette::default_dark()
+    }
+
     pub(crate) fn default_search_bar_animate() -> bool {
         true
     }
 
     pub(crate) fn default_show_launch_command() -> bool {
         false
-    }
-
-    pub(crate) fn default_selected_item_color() -> String {
-        "#e3e3e3cc".to_string()
-    }
-
-    pub(crate) fn default_item_font_color() -> String {
-        "#000000".to_string()
-    }
-
-    pub(crate) fn default_search_bar_font_color() -> String {
-        "#333333".to_string()
-    }
-
-    pub(crate) fn default_search_bar_background_color() -> String {
-        "#FFFFFF00".to_string()
     }
 
     pub(crate) fn default_item_font_size() -> f64 {
@@ -274,6 +364,7 @@ impl UiConfigInner {
     pub(crate) fn default_background_repeat() -> String {
         "no-repeat".to_string()
     }
+
     pub(crate) fn default_background_opacity() -> f64 {
         1.0
     }
@@ -282,20 +373,16 @@ impl UiConfigInner {
         "None".to_string()
     }
 
-    pub(crate) fn default_search_bar_placeholder_font_color() -> String {
-        "#757575".to_string()
-    }
     pub(crate) fn default_window_corner_radius() -> u32 {
         16
     }
+
     pub(crate) fn default_use_windows_sys_control_radius() -> bool {
         false
     }
+
     pub(crate) fn default_footer_font_size() -> f64 {
         33.0
-    }
-    pub(crate) fn default_footer_font_color() -> String {
-        "#666666".to_string()
     }
 
     pub(crate) fn default_search_bar_font_family() -> String {
@@ -309,10 +396,6 @@ impl UiConfigInner {
     pub(crate) fn default_footer_font_family() -> String {
         "Segoe UI".to_string()
     }
-
-    pub(crate) fn default_program_background_color() -> String {
-        "#FFFFFFFF".to_string()
-    }
 }
 
 impl UiConfigInner {
@@ -323,18 +406,14 @@ impl UiConfigInner {
         if let Some(tray_theme_mode) = partial_ui_config.tray_theme_mode {
             self.tray_theme_mode = tray_theme_mode;
         }
-        if let Some(selected_item_color) = partial_ui_config.selected_item_color {
-            self.selected_item_color = selected_item_color;
+
+        if let Some(light_mode_colors) = partial_ui_config.light_mode_colors {
+            self.light_mode_colors.update(light_mode_colors);
         }
-        if let Some(item_font_color) = partial_ui_config.item_font_color {
-            self.item_font_color = item_font_color;
+        if let Some(dark_mode_colors) = partial_ui_config.dark_mode_colors {
+            self.dark_mode_colors.update(dark_mode_colors);
         }
-        if let Some(search_bar_font_color) = partial_ui_config.search_bar_font_color {
-            self.search_bar_font_color = search_bar_font_color;
-        }
-        if let Some(search_bar_background_color) = partial_ui_config.search_bar_background_color {
-            self.search_bar_background_color = search_bar_background_color;
-        }
+
         if let Some(item_font_size) = partial_ui_config.item_font_size {
             self.item_font_size = item_font_size;
         }
@@ -371,9 +450,6 @@ impl UiConfigInner {
         if let Some(blur_style) = partial_ui_config.blur_style {
             self.blur_style = blur_style;
         }
-        if let Some(color) = partial_ui_config.search_bar_placeholder_font_color {
-            self.search_bar_placeholder_font_color = color;
-        }
         if let Some(window_corner_radius) = partial_ui_config.window_corner_radius {
             self.window_corner_radius = window_corner_radius;
         }
@@ -383,9 +459,6 @@ impl UiConfigInner {
         if let Some(footer_font_size) = partial_ui_config.footer_font_size {
             self.footer_font_size = footer_font_size;
         }
-        if let Some(footer_font_color) = partial_ui_config.footer_font_color {
-            self.footer_font_color = footer_font_color;
-        }
         if let Some(search_bar_font_family) = partial_ui_config.search_bar_font_family {
             self.search_bar_font_family = search_bar_font_family;
         }
@@ -394,9 +467,6 @@ impl UiConfigInner {
         }
         if let Some(footer_font_family) = partial_ui_config.footer_font_family {
             self.footer_font_family = footer_font_family;
-        }
-        if let Some(program_background_color) = partial_ui_config.program_background_color {
-            self.program_background_color = program_background_color;
         }
         if let Some(search_bar_animate) = partial_ui_config.search_bar_animate {
             self.search_bar_animate = search_bar_animate;
@@ -418,27 +488,12 @@ impl UiConfigInner {
         self.window_width
     }
 
-    pub fn get_selected_item_color(&self) -> String {
-        self.selected_item_color.clone()
-    }
-    pub fn get_item_font_color(&self) -> String {
-        self.item_font_color.clone()
+    pub fn get_light_mode_colors(&self) -> UiThemeColorPalette {
+        self.light_mode_colors.clone()
     }
 
-    pub fn get_search_bar_font_color(&self) -> String {
-        self.search_bar_font_color.clone()
-    }
-
-    pub fn get_search_bar_background_color(&self) -> String {
-        self.search_bar_background_color.clone()
-    }
-
-    pub fn get_item_font_size(&self) -> f64 {
-        self.item_font_size
-    }
-
-    pub fn get_search_bar_font_size(&self) -> f64 {
-        self.search_bar_font_size
+    pub fn get_dark_mode_colors(&self) -> UiThemeColorPalette {
+        self.dark_mode_colors.clone()
     }
 
     pub fn get_search_bar_height(&self) -> u32 {
@@ -453,32 +508,8 @@ impl UiConfigInner {
         self.footer_height
     }
 
-    pub fn get_search_bar_font_family(&self) -> String {
-        self.search_bar_font_family.clone()
-    }
-
-    pub fn get_result_item_font_family(&self) -> String {
-        self.result_item_font_family.clone()
-    }
-
-    pub fn get_footer_font_family(&self) -> String {
-        self.footer_font_family.clone()
-    }
-
-    pub fn get_program_background_color(&self) -> String {
-        self.program_background_color.clone()
-    }
-
     pub fn get_vertical_position_ratio(&self) -> f64 {
         self.vertical_position_ratio
-    }
-
-    pub fn get_search_bar_animate(&self) -> bool {
-        self.search_bar_animate
-    }
-
-    pub fn get_show_launch_command(&self) -> bool {
-        self.show_launch_command
     }
 
     // 判断窗口的大小是不是默认的
@@ -494,10 +525,8 @@ impl UiConfigInner {
         PartialUiConfig {
             frontend_theme_mode: Some(self.frontend_theme_mode.clone()),
             tray_theme_mode: Some(self.tray_theme_mode.clone()),
-            selected_item_color: Some(self.selected_item_color.clone()),
-            item_font_color: Some(self.item_font_color.clone()),
-            search_bar_font_color: Some(self.search_bar_font_color.clone()),
-            search_bar_background_color: Some(self.search_bar_background_color.clone()),
+            light_mode_colors: Some(self.light_mode_colors.to_partial()),
+            dark_mode_colors: Some(self.dark_mode_colors.to_partial()),
             item_font_size: Some(self.item_font_size),
             search_bar_font_size: Some(self.search_bar_font_size),
             vertical_position_ratio: Some(self.vertical_position_ratio),
@@ -510,20 +539,18 @@ impl UiConfigInner {
             background_repeat: Some(self.background_repeat.clone()),
             background_opacity: Some(self.background_opacity),
             blur_style: Some(self.blur_style.clone()),
-            search_bar_placeholder_font_color: Some(self.search_bar_placeholder_font_color.clone()),
             window_corner_radius: Some(self.window_corner_radius),
             use_windows_sys_control_radius: Some(self.use_windows_sys_control_radius),
             footer_font_size: Some(self.footer_font_size),
-            footer_font_color: Some(self.footer_font_color.clone()),
             search_bar_font_family: Some(self.search_bar_font_family.clone()),
             result_item_font_family: Some(self.result_item_font_family.clone()),
             footer_font_family: Some(self.footer_font_family.clone()),
-            program_background_color: Some(self.program_background_color.clone()),
             search_bar_animate: Some(self.search_bar_animate),
             show_launch_command: Some(self.show_launch_command),
         }
     }
 }
+
 #[derive(Debug)]
 pub struct UiConfig {
     inner: RwLock<UiConfigInner>,
@@ -553,38 +580,9 @@ impl UiConfig {
         inner.get_tray_theme_mode()
     }
 
-    pub fn get_selected_item_color(&self) -> String {
-        let inner = self.inner.read();
-        inner.selected_item_color.clone()
-    }
-    pub fn get_item_font_color(&self) -> String {
-        let inner = self.inner.read();
-        inner.item_font_color.clone()
-    }
-
     pub fn to_partial(&self) -> PartialUiConfig {
         let inner = self.inner.read();
         inner.to_partial()
-    }
-
-    pub fn get_search_bar_font_color(&self) -> String {
-        let inner = self.inner.read();
-        inner.search_bar_font_color.clone()
-    }
-
-    pub fn get_search_bar_background_color(&self) -> String {
-        let inner = self.inner.read();
-        inner.search_bar_background_color.clone()
-    }
-
-    pub fn get_item_font_size(&self) -> f64 {
-        let inner = self.inner.read();
-        inner.item_font_size
-    }
-
-    pub fn get_search_bar_font_size(&self) -> f64 {
-        let inner = self.inner.read();
-        inner.search_bar_font_size
     }
 
     pub fn get_vertical_position_ratio(&self) -> f64 {
@@ -606,29 +604,10 @@ impl UiConfig {
         let inner = self.inner.read();
         inner.footer_height
     }
+
     pub fn get_window_width(&self) -> u32 {
         let inner = self.inner.read();
         inner.window_width
-    }
-
-    pub fn get_background_size(&self) -> String {
-        let inner = self.inner.read();
-        inner.background_size.clone()
-    }
-
-    pub fn get_background_position(&self) -> String {
-        let inner = self.inner.read();
-        inner.background_position.clone()
-    }
-
-    pub fn get_background_repeat(&self) -> String {
-        let inner = self.inner.read();
-        inner.background_repeat.clone()
-    }
-
-    pub fn get_background_opacity(&self) -> f64 {
-        let inner = self.inner.read();
-        inner.background_opacity
     }
 
     pub fn get_blur_style(&self) -> String {
@@ -636,62 +615,13 @@ impl UiConfig {
         inner.blur_style.clone()
     }
 
-    pub fn get_search_bar_placeholder_font_color(&self) -> String {
-        let inner = self.inner.read();
-        inner.search_bar_placeholder_font_color.clone()
-    }
-
-    pub fn get_window_corner_radius(&self) -> u32 {
-        let inner = self.inner.read();
-        inner.window_corner_radius
-    }
     pub fn get_use_windows_sys_control_radius(&self) -> bool {
         let inner = self.inner.read();
         inner.use_windows_sys_control_radius
     }
 
-    pub fn get_footer_font_size(&self) -> f64 {
-        let inner = self.inner.read();
-        inner.footer_font_size
-    }
-
-    pub fn get_footer_font_color(&self) -> String {
-        let inner = self.inner.read();
-        inner.footer_font_color.clone()
-    }
-
-    pub fn get_search_bar_font_family(&self) -> String {
-        let inner = self.inner.read();
-        inner.search_bar_font_family.clone()
-    }
-
-    pub fn get_result_item_font_family(&self) -> String {
-        let inner = self.inner.read();
-        inner.result_item_font_family.clone()
-    }
-
-    pub fn get_footer_font_family(&self) -> String {
-        let inner = self.inner.read();
-        inner.footer_font_family.clone()
-    }
-
-    pub fn get_program_background_color(&self) -> String {
-        let inner = self.inner.read();
-        inner.program_background_color.clone()
-    }
-
     pub fn is_default_window_size(&self) -> bool {
         let inner = self.inner.read();
         inner.is_default_window_size()
-    }
-
-    pub fn get_search_bar_animate(&self) -> bool {
-        let inner = self.inner.read();
-        inner.search_bar_animate
-    }
-
-    pub fn get_show_launch_command(&self) -> bool {
-        let inner = self.inner.read();
-        inner.show_launch_command
     }
 }

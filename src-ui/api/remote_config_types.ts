@@ -109,13 +109,23 @@ export function default_app_config(): AppConfig {
 
 export type ThemeMode = 'system' | 'light' | 'dark';
 
-export type UIConfig = {
-    frontend_theme_mode: ThemeMode,
-    tray_theme_mode: ThemeMode,
+export type UiThemeColorPalette = {
     selected_item_color: string
     item_font_color: string
     search_bar_font_color: string
     search_bar_background_color: string
+    search_bar_placeholder_font_color: string
+    footer_font_color: string
+    program_background_color: string
+}
+
+export type PartialUiThemeColorPalette = Partial<UiThemeColorPalette>
+
+export type UIConfig = {
+    frontend_theme_mode: ThemeMode,
+    tray_theme_mode: ThemeMode,
+    light_mode_colors: UiThemeColorPalette,
+    dark_mode_colors: UiThemeColorPalette,
     item_font_size: number
     search_bar_font_size: number
     vertical_position_ratio: number
@@ -128,28 +138,41 @@ export type UIConfig = {
     background_repeat: string,
     background_opacity: number,
     blur_style: string,
-    search_bar_placeholder_font_color: string,
     window_corner_radius: number,
     use_windows_sys_control_radius: boolean,
     footer_font_size: number,
-    footer_font_color: string,
     search_bar_font_family: string,
     result_item_font_family: string,
     footer_font_family: string,
-    program_background_color: string,
     search_bar_animate: boolean,
     show_launch_command: boolean,
 }
+
+export type ResolvedUIConfig = Omit<UIConfig, 'light_mode_colors' | 'dark_mode_colors'> & UiThemeColorPalette
 
 export function default_ui_config(): UIConfig {
     return {
         frontend_theme_mode: 'system',
         tray_theme_mode: 'system',
-        selected_item_color: '#e3e3e3cc',
-        item_font_color: '#000000',
-        search_bar_font_color: '#333333',
+        light_mode_colors: {
+            selected_item_color: '#e3e3e3cc',
+            item_font_color: '#000000',
+            search_bar_font_color: '#333333',
+            search_bar_background_color: '#FFFFFF00',
+            search_bar_placeholder_font_color: '#757575',
+            footer_font_color: '#666666',
+            program_background_color: '#FFFFFFFF',
+        },
+        dark_mode_colors: {
+            program_background_color: 'rgba(31, 31, 31, 1)',
+            selected_item_color: 'rgba(63, 63, 63, 0.8)',
+            item_font_color: '#A6A6A6',
+            search_bar_font_color: '#A6A6A6',
+            search_bar_background_color: '#FFFFFF00',
+            search_bar_placeholder_font_color: '#757575',
+            footer_font_color: '#A6A6A6',
+        },
         search_bar_font_size: 50,
-        search_bar_background_color: '#FFFFFF00',
         item_font_size: 33,
         vertical_position_ratio: 0.4,
         search_bar_height: 65,
@@ -161,15 +184,12 @@ export function default_ui_config(): UIConfig {
         background_repeat: 'no-repeat',
         background_opacity: 1,
         blur_style: 'None',
-        search_bar_placeholder_font_color: '#757575',
         window_corner_radius: 16,
         use_windows_sys_control_radius: false,
         footer_font_size: 33,
-        footer_font_color: '#666666',
         search_bar_font_family: 'Segoe UI',
         result_item_font_family: 'Segoe UI',
         footer_font_family: 'Segoe UI',
-        program_background_color: '#FFFFFFFF',
         search_bar_animate: true,
         show_launch_command: false,
     } as UIConfig
@@ -350,7 +370,10 @@ export type RemoteConfig = {
 }
 
 export type PartialAppConfig = Partial<AppConfig>
-export type PartialUIConfig = Partial<UIConfig>
+export type PartialUIConfig = Omit<Partial<UIConfig>, 'light_mode_colors' | 'dark_mode_colors'> & {
+    light_mode_colors?: PartialUiThemeColorPalette
+    dark_mode_colors?: PartialUiThemeColorPalette
+}
 export type PartialProgramRankerConfig = Partial<ProgramRankerConfig>
 export type PartialProgramLoaderConfig = Partial<ProgramLoaderConfig>
 export type PartialIconManagerConfig = Partial<IconManagerConfig>

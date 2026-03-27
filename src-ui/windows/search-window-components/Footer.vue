@@ -25,7 +25,7 @@
 </template>
 
 <script setup lang="ts">
-import type { UIConfig, AppConfig } from '../../api/remote_config_types'
+import type { ResolvedUIConfig, AppConfig } from '../../api/remote_config_types'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 
 const layoutConstants = {
@@ -33,7 +33,7 @@ const layoutConstants = {
 }
 
 const props = defineProps<{
-  uiConfig: UIConfig;
+  uiConfig: ResolvedUIConfig;
   appConfig: AppConfig;
   statusText: string;
   leftText?: string;

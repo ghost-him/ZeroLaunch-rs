@@ -5,6 +5,7 @@
     </h2>
     <div class="content-container">
       <el-form label-width="auto">
+        <!-- Hints Section -->
         <el-divider content-position="left">
           {{ t('ui_config.hints') }}
         </el-divider>
@@ -23,45 +24,75 @@
             @change="(val: string) => configStore.updateConfig({ app_config: { tips: val } })"
           />
         </el-form-item>
+
+        <!-- Color Settings Section -->
         <el-divider content-position="left">
-          {{ t('ui_config.background_color') }}
+          {{ t('ui_config.theme_color_settings') }}
         </el-divider>
-        <el-form-item :label="t('ui_config.overall_background_color')">
-          <el-color-picker
-            v-model="config.ui_config.program_background_color"
-            show-alpha
-            @change="(val: string) => configStore.updateConfig({ ui_config: { program_background_color: rgbaToHex(val) } })"
-          />
-        </el-form-item>
 
-        <el-form-item :label="t('ui_config.search_bar_status_bar_background')">
-          <el-color-picker
-            v-model="config.ui_config.search_bar_background_color"
-            show-alpha
-            @change="(val: string) => configStore.updateConfig({ ui_config: { search_bar_background_color: rgbaToHex(val) } })"
-          />
-        </el-form-item>
-
-        <el-form-item :label="t('ui_config.result_bar_highlight_color')">
-          <el-color-picker
-            v-model="config.ui_config.selected_item_color"
-            show-alpha
-            @change="(val: string) => configStore.updateConfig({ ui_config: { selected_item_color: rgbaToHex(val) } })"
-          />
-        </el-form-item>
-
-        <el-form-item :label="t('ui_config.dark_mode_recommended_colors')">
-          <el-tooltip
-            class="box-item"
-            effect="dark"
-            :content="t('ui_config.dark_mode_tooltip')"
+        <el-form-item :label="t('ui_config.theme_mode')">
+          <el-select
+            v-model="config.ui_config.frontend_theme_mode"
+            @change="onThemeModeChange"
           >
-            <el-icon class="el-question-icon">
-              <QuestionFilled />
-            </el-icon>
-          </el-tooltip>
+            <el-option
+              :label="t('ui_config.theme_mode_system')"
+              value="system"
+            />
+            <el-option
+              :label="t('ui_config.theme_mode_light')"
+              value="light"
+            />
+            <el-option
+              :label="t('ui_config.theme_mode_dark')"
+              value="dark"
+            />
+          </el-select>
         </el-form-item>
 
+        <el-form-item :label="t('ui_config.tray_theme_mode')">
+          <el-select
+            v-model="config.ui_config.tray_theme_mode"
+            @change="(val: ThemeMode) => configStore.updateConfig({ ui_config: { tray_theme_mode: val } })"
+          >
+            <el-option
+              :label="t('ui_config.theme_mode_system')"
+              value="system"
+            />
+            <el-option
+              :label="t('ui_config.theme_mode_light')"
+              value="light"
+            />
+            <el-option
+              :label="t('ui_config.theme_mode_dark')"
+              value="dark"
+            />
+          </el-select>
+        </el-form-item>
+        
+        <el-tabs v-model="activeColorTab" type="card">
+          <el-tab-pane :label="t('ui_config.theme_mode_light')" name="light">
+            <el-form-item v-for="item in colorConfigs" :key="item.key" :label="t(item.label)">
+              <el-color-picker
+                v-model="config.ui_config.light_mode_colors[item.key]"
+                show-alpha
+                @change="(val: string) => updateColor('light_mode_colors', item.key, val)"
+              />
+            </el-form-item>
+          </el-tab-pane>
+
+          <el-tab-pane :label="t('ui_config.theme_mode_dark')" name="dark">
+             <el-form-item v-for="item in colorConfigs" :key="item.key" :label="t(item.label)">
+              <el-color-picker
+                v-model="config.ui_config.dark_mode_colors[item.key]"
+                show-alpha
+                @change="(val: string) => updateColor('dark_mode_colors', item.key, val)"
+              />
+            </el-form-item>
+          </el-tab-pane>
+        </el-tabs>
+
+        <!-- Search Bar Font & Layout Section -->
         <el-divider content-position="left">
           {{ t('ui_config.search_bar') }}
         </el-divider>
@@ -81,18 +112,6 @@
               <span :style="{ fontFamily: font }">{{ font }}</span>
             </el-option>
           </el-select>
-        </el-form-item>
-        <el-form-item :label="t('ui_config.search_bar_font_color')">
-          <el-color-picker
-            v-model="config.ui_config.search_bar_font_color"
-            @change="(val: string) => configStore.updateConfig({ ui_config: { search_bar_font_color: rgbaToHex(val) } })"
-          />
-        </el-form-item>
-        <el-form-item :label="t('ui_config.search_bar_placeholder_font_color')">
-          <el-color-picker
-            v-model="config.ui_config.search_bar_placeholder_font_color"
-            @change="(val: string) => configStore.updateConfig({ ui_config: { search_bar_placeholder_font_color: rgbaToHex(val) } })"
-          />
         </el-form-item>
         <el-form-item :label="t('ui_config.search_bar_font_size')">
           <el-input-number
@@ -132,6 +151,8 @@
             </el-icon>
           </el-tooltip>
         </el-form-item>
+
+        <!-- Result Bar Font & Layout Section -->
         <el-divider content-position="left">
           {{ t('ui_config.result_bar') }}
         </el-divider>
@@ -151,12 +172,6 @@
               <span :style="{ fontFamily: font }">{{ font }}</span>
             </el-option>
           </el-select>
-        </el-form-item>
-        <el-form-item :label="t('ui_config.result_bar_font_color')">
-          <el-color-picker
-            v-model="config.ui_config.item_font_color"
-            @change="(val: string) => configStore.updateConfig({ ui_config: { item_font_color: rgbaToHex(val) } })"
-          />
         </el-form-item>
         <el-form-item :label="t('ui_config.result_bar_font_size')">
           <el-input-number
@@ -187,6 +202,8 @@
             @change="(val: boolean) => configStore.updateConfig({ ui_config: { show_launch_command: val } })"
           />
         </el-form-item>
+
+        <!-- Footer Bar Font & Layout Section -->
         <el-divider content-position="left">
           {{ t('ui_config.footer_bar') }}
         </el-divider>
@@ -206,12 +223,6 @@
               <span :style="{ fontFamily: font }">{{ font }}</span>
             </el-option>
           </el-select>
-        </el-form-item>
-        <el-form-item :label="t('ui_config.footer_font_color')">
-          <el-color-picker
-            v-model="config.ui_config.footer_font_color"
-            @change="(val: string) => configStore.updateConfig({ ui_config: { footer_font_color: rgbaToHex(val) } })"
-          />
         </el-form-item>
         <el-form-item :label="t('ui_config.footer_font_size')">
           <el-input-number
@@ -236,6 +247,7 @@
             </el-icon>
           </el-tooltip>
         </el-form-item>
+
       </el-form>
     </div>
   </div>
@@ -249,11 +261,46 @@ import { invoke } from '@tauri-apps/api/core'
 import { onMounted, ref } from 'vue'
 import { useRemoteConfigStore } from '../../../stores/remote_config'
 import { storeToRefs } from 'pinia'
+import type { UiThemeColorPalette, ThemeMode } from '../../../api/remote_config_types'
 
 const { t } = useI18n()
 
 const configStore = useRemoteConfigStore()
 const { config } = storeToRefs(configStore)
+
+const activeColorTab = ref('light')
+
+const onThemeModeChange = (val: ThemeMode) => {
+    configStore.updateConfig({ ui_config: { frontend_theme_mode: val } })
+    if (val === 'dark') {
+        activeColorTab.value = 'dark'
+    } else if (val === 'light') {
+        activeColorTab.value = 'light'
+    }
+}
+
+type ColorKey = keyof UiThemeColorPalette
+
+const colorConfigs: { key: ColorKey; label: string }[] = [
+    { key: 'program_background_color', label: 'ui_config.overall_background_color' },
+    { key: 'search_bar_background_color', label: 'ui_config.search_bar_status_bar_background' },
+    { key: 'selected_item_color', label: 'ui_config.result_bar_highlight_color' },
+    { key: 'search_bar_font_color', label: 'ui_config.search_bar_font_color' },
+    { key: 'search_bar_placeholder_font_color', label: 'ui_config.search_bar_placeholder_font_color' },
+    { key: 'item_font_color', label: 'ui_config.result_bar_font_color' },
+    { key: 'footer_font_color', label: 'ui_config.footer_font_color' },
+]
+
+const updateColor = (mode: 'light_mode_colors' | 'dark_mode_colors', key: ColorKey, val: string | null) => {
+    if (!val) return
+    configStore.updateConfig({
+        ui_config: {
+            [mode]: {
+                [key]: rgbaToHex(val)
+            }
+        }
+    })
+}
 
 const systemFonts = ref<string[]>([
     'Default', 'Arial', 'Helvetica', 'Times New Roman', 'Courier New', 'SimSun', 'Microsoft YaHei',

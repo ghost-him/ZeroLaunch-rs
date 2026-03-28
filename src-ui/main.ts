@@ -6,6 +6,12 @@ import router from './router/index'
 import App from './App.vue'
 import i18n from './i18n'
 
+// 禁用右键菜单
+document.addEventListener('contextmenu', (e) => {
+    console.log("右键菜单被禁用")
+    e.preventDefault()
+})
+
 const app = createApp(App)
 const pinia = createPinia()
 

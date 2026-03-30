@@ -3,6 +3,8 @@ pub mod core;
 pub mod error;
 pub mod logging;
 pub mod modules;
+pub mod plugin;
+pub mod plugin_system;
 pub mod state;
 pub mod tray;
 pub mod utils;

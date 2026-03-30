@@ -7,6 +7,9 @@ use crate::modules::icon_manager::IconManager;
 use crate::modules::refresh_scheduler::RefreshScheduler;
 use crate::modules::shortcut_manager::ShortcutManager;
 use crate::modules::{config::config_manager::RuntimeConfig, program_manager::ProgramManager};
+use crate::plugin_system::service::PluginService;
+use crate::plugin_system::DefaultPluginAPI;
+use crate::plugin_system::SessionRouter;
 use crate::utils::i18n::Translator;
 use crate::utils::waiting_hashmap::AsyncWaitingHashMap;
 use parking_lot::RwLock;
@@ -16,6 +19,13 @@ use tauri::tray::TrayIcon;
 use tauri::AppHandle;
 
 pub struct AppState {
+    /// 开始重构
+    ///
+    /// 会话路由器，用于处理插件会话路由。
+    session_router: Arc<SessionRouter>,
+
+    /// 以下为旧版本的配置信息
+
     /// 运行时配置
     runtime_config: RwLock<Option<Arc<RuntimeConfig>>>,
     /// 程序管理器
@@ -63,7 +73,10 @@ impl Default for AppState {
 
 impl AppState {
     pub fn new() -> Self {
+        let api = Arc::new(DefaultPluginAPI::new());
+        let plugin_service = Arc::new(PluginService::new(api));
         AppState {
+            session_router: Arc::new(SessionRouter::new(plugin_service)),
             runtime_config: RwLock::new(None),
             program_manager: RwLock::new(None),
             main_handle: RwLock::new(None),
@@ -84,6 +97,11 @@ impl AppState {
             icon_manager: RwLock::new(None),
             bookmark_loader: RwLock::new(None),
         }
+    }
+
+    /// 获取会话路由器的。
+    pub fn get_session_router(&self) -> &Arc<SessionRouter> {
+        &self.session_router
     }
 
     // region: Runtime Config 访问方法

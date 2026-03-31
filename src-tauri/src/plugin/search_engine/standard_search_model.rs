@@ -1,9 +1,22 @@
 use crate::plugin_system::cached_candidate::CachedCandidateData;
-use crate::plugin_system::types::ScoredCandidate;
-use crate::plugin_system::types::SearchEngine;
+use crate::plugin_system::types::{ComponentType, Configurable, ScoredCandidate, SearchEngine};
 
 #[allow(dead_code)]
 pub struct StandardSearchModel {}
+
+impl Configurable for StandardSearchModel {
+    fn component_id(&self) -> &str {
+        "standard-search-model"
+    }
+
+    fn component_name(&self) -> &str {
+        "标准搜索引擎"
+    }
+
+    fn component_type(&self) -> ComponentType {
+        ComponentType::SearchEngine
+    }
+}
 
 impl SearchEngine for StandardSearchModel {
     fn calculate_scores(

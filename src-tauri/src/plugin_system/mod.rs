@@ -18,7 +18,7 @@ pub use search_pipeline::*;
 pub use service::PluginService;
 pub use session_router::{SessionMode, SessionRouter};
 pub use types::{
-    LaunchError, LaunchMethod, LaunchMethodType, Launcher, ListItem, LogLevel, Plugin, PluginAPI,
-    PluginContext, PluginError, PluginMetadata, Query, ResultAction, SettingDefinition,
-    SettingType,
+    ComponentType, ConfigError, Configurable, LaunchError, LaunchMethod, LaunchMethodType,
+    Launcher, ListItem, LogLevel, PathMode, Plugin, PluginAPI, PluginContext, PluginError,
+    PluginMetadata, Query, ResultAction, SettingDefinition, SettingType,
 };

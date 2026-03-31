@@ -1,6 +1,7 @@
 use crate::plugin_system::cached_candidate::CachedCandidateData;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 pub type CandidateId = u64;
@@ -98,21 +99,136 @@ pub struct ScoredCandidate {
     pub detailed_score: Vec<ScoreDetail>,
 }
 
+/// 组件类型枚举，用于区分不同类型的可配置组件
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, Serialize, Deserialize)]
+pub enum ComponentType {
+    DataSource,
+    KeywordOptimizer,
+    SearchEngine,
+    ScoreBooster,
+    Launcher,
+    Plugin,
+    Core,
+}
+
+/// 配置错误类型
+#[derive(Debug, thiserror::Error)]
+pub enum ConfigError {
+    #[error("Configuration validation failed: {0}")]
+    ValidationFailed(String),
+
+    #[error("Invalid setting value for key '{key}': {message}")]
+    InvalidValue { key: String, message: String },
+
+    #[error("Setting not found: {0}")]
+    NotFound(String),
+
+    #[error("Configuration apply failed: {0}")]
+    ApplyFailed(String),
+}
+
+/// 组件配置项的声明式定义。
+/// 服务于设置存储与动态设置界面生成。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SettingDefinition {
+    pub key: String,
+    pub label: String,
+    pub description: String,
+    pub setting_type: SettingType,
+    pub default_value: String,
+    pub group: Option<String>,
+    pub order: u32,
+    pub visible: bool,
+    pub editable: bool,
+}
+
+impl Default for SettingDefinition {
+    fn default() -> Self {
+        Self {
+            key: String::new(),
+            label: String::new(),
+            description: String::new(),
+            setting_type: SettingType::Text,
+            default_value: String::new(),
+            group: None,
+            order: 0,
+            visible: true,
+            editable: true,
+        }
+    }
+}
+
+/// 组件设置项的输入控件类型。
+/// 服务于设置表单渲染与取值校验。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum SettingType {
+    Text,
+    Number {
+        min: Option<f64>,
+        max: Option<f64>,
+        step: Option<f64>,
+    },
+    Boolean,
+    Select {
+        options: Vec<String>,
+    },
+    Path {
+        mode: PathMode,
+    },
+    PathList,
+    Color,
+    Json,
+}
+
+/// 路径选择模式
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum PathMode {
+    File,
+    Directory,
+}
+
+/// 所有可配置组件都需实现的核心契约。
+/// 提供组件标识、配置定义、配置读写和配置变更回调能力。
+pub trait Configurable: Send + Sync {
+    fn component_id(&self) -> &str;
+    fn component_name(&self) -> &str;
+    fn component_type(&self) -> ComponentType;
+
+    fn setting_schema(&self) -> Vec<SettingDefinition> {
+        vec![]
+    }
+
+    fn get_settings(&self) -> HashMap<String, String> {
+        HashMap::new()
+    }
+
+    fn apply_settings(&mut self, settings: HashMap<String, String>) -> Result<(), ConfigError> {
+        let _ = settings;
+        Ok(())
+    }
+
+    fn validate_settings(&self, settings: &HashMap<String, String>) -> Result<(), ConfigError> {
+        let _ = settings;
+        Ok(())
+    }
+
+    fn on_settings_changed(&self) {}
+}
+
 // 表示一个数据源
-pub trait DataSource: Send + Sync {
-    fn id(&self) -> &str;
+pub trait DataSource: Configurable {
     fn fetch_candidates(&self) -> CachedCandidateData;
 }
 
 // 表示对搜索的候选项的搜索关键字做优化的组件，通常是对搜索关键字进行扩展或者优化，以提高搜索的召回率
-pub trait KeywordOptimizer: Send + Sync {
+pub trait KeywordOptimizer: Configurable {
     fn optimize(&self, query: &str) -> Vec<String>;
 }
 
 // 表示一个搜索引擎，用于计算搜索候选项的分数
 // 用于根据搜索候选项的分数进行排序
 // 搜索引擎通常计算的是一个候选项与用户输入之间的关系
-pub trait SearchEngine: Send + Sync {
+pub trait SearchEngine: Configurable {
     fn calculate_scores(
         &self,
         candidates: &CachedCandidateData,
@@ -123,7 +239,7 @@ pub trait SearchEngine: Send + Sync {
 // 表示一个分数优化器，用于对搜索候选项的分数进行优化
 // 用于根据搜索候选项的分数进行排序
 // 分数优化器则是计算的是 *所有* 候选项与用户输入之间的关系
-pub trait ScoreBooster: Send + Sync {
+pub trait ScoreBooster: Configurable {
     // 记录用户输入了这个查询时，选择的是这个候选项
     fn record(&self, candidate: &mut ScoredCandidate, query: &str);
     // 根据用户历史输入的查询与选择的候选项，优化当前查询所得到的所有候选项的分数
@@ -252,32 +368,11 @@ pub struct PluginMetadata {
     pub priority: i32,
 }
 
-/// 单个插件配置项的声明式定义。
-/// 服务于设置存储与动态设置界面生成。
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SettingDefinition {
-    pub key: String,
-    pub label: String,
-    pub setting_type: SettingType,
-    pub default_value: String,
-    pub options: Option<Vec<String>>,
-}
-
-/// 插件设置项的输入控件类型。
-/// 服务于设置表单渲染与取值校验。
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum SettingType {
-    Text,
-    Number,
-    Boolean,
-    Select,
-    Color,
-}
-
 /// 所有插件对象都需实现的核心契约。
-/// 服务于插件生命周期管理、查询处理、动作执行与插件内设置管理。
+/// 服务于插件生命周期管理、查询处理与动作执行。
+/// 配置管理能力由 Configurable trait 提供。
 #[async_trait]
-pub trait Plugin: Send + Sync {
+pub trait Plugin: Configurable {
     fn metadata(&self) -> &PluginMetadata;
 
     async fn init(&self, ctx: &PluginContext, api: Arc<dyn PluginAPI>) -> Result<(), PluginError>;
@@ -291,14 +386,6 @@ pub trait Plugin: Send + Sync {
         action_id: &str,
         payload: serde_json::Value,
     ) -> Result<(), PluginError>;
-
-    fn setting_definitions(&self) -> Vec<SettingDefinition> {
-        vec![]
-    }
-
-    async fn get_setting(&self, key: &str) -> Option<String>;
-
-    async fn update_setting(&self, key: &str, value: &str) -> Result<(), PluginError>;
 }
 
 /// 宿主向插件暴露能力的契约。

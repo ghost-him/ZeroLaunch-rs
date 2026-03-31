@@ -91,31 +91,68 @@ ProgramManager
 
 #### 配置系统
 
+**新架构设计**：
+
+采用扁平化配置结构，每个组件自管理配置，通过 `Configurable` trait 提供统一的配置能力：
+
 ```
-配置层次结构：
-├── LocalConfig（本地配置）
-│   ├── storage_destination    # 存储目标
-│   ├── webdav_save_config     # WebDAV 配置
-│   └── save_to_local_per_update # 缓存策略
-│
-└── RuntimeConfig（运行时配置）
-    ├── app_config             # 应用配置
-    ├── ui_config              # UI 配置
-    ├── shortcut_config        # 快捷键配置
-    ├── program_manager_config # 程序管理配置
-    ├── everything_config      # Everything 配置
-    └── ...
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              ConfigManager                                   │
+│  - 统一管理所有可配置组件                                                      │
+│  - 提供配置的 CRUD 操作                                                       │
+│  - 负责配置的持久化                                                            │
+│  - 向前端提供配置 schema                                                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      │ 管理所有 Configurable
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Configurable Components                              │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
+│  │ Plugin      │  │ DataSource  │  │ SearchEngine│  │ ScoreBooster│        │
+│  │(Configurable)│  │(Configurable)│  │(Configurable)│  │(Configurable)│        │
+│  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘        │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**设计亮点**：
-- Partial 模式支持增量更新
-- Arc 包装支持共享访问
-- RwLock 保护并发修改
+**配置文件结构**：
 
-**改进空间**：
-- 缺乏统一的配置验证机制
-- 配置变更通知机制不完善
-- 版本迁移逻辑分散
+```json
+{
+  "version": "3",
+  "components": {
+    "program-source": {
+      "enabled": true,
+      "settings": {
+        "target_paths": "[{\"root_path\":\"...\", ...}]",
+        "scan_uwp": "true"
+      }
+    },
+    "calculator-plugin": {
+      "enabled": true,
+      "settings": {
+        "precision": "10"
+      }
+    }
+  }
+}
+```
+
+**设计优势**：
+- 扁平化结构，所有组件配置在同一层级
+- 统一的 `enabled` 字段管理启用状态
+- 新增组件只需添加新条目，无需修改整体结构
+- 前端根据 Schema 动态渲染配置界面
+
+**与原系统对比**：
+
+| 方面     | 原系统                              | 新系统                  |
+| -------- | ----------------------------------- | ----------------------- |
+| 配置结构 | `RuntimeConfig` 包含所有配置        | 扁平化，每个组件自管理  |
+| 更新方式 | Partial 模式，增量更新              | 整体替换                |
+| 新增组件 | 修改 `RuntimeConfig` + 新建 Partial | 只需实现 `Configurable` |
+| 前端渲染 | 需要硬编码配置界面                  | 根据 Schema 动态渲染    |
+| 启用状态 | 无统一管理                          | 统一的 `enabled` 字段   |
 
 ---
 
@@ -242,6 +279,43 @@ ZeroLaunch 当前流程类似，但缺乏插件匹配和并行查询的抽象。
 
 // 直接查看当前的代码仓库，了解最新的定义
 
+### 4.2.1 Configurable Trait（配置能力基础）
+
+所有可配置组件都需实现 `Configurable` trait，它提供了统一的配置管理能力：
+
+```rust
+pub trait Configurable: Send + Sync {
+    fn component_id(&self) -> &str;
+    fn component_name(&self) -> &str;
+    fn component_type(&self) -> ComponentType;
+
+    fn setting_schema(&self) -> Vec<SettingDefinition> { vec![] }
+    fn get_settings(&self) -> HashMap<String, String> { HashMap::new() }
+    fn apply_settings(&mut self, settings: HashMap<String, String>) -> Result<(), ConfigError>;
+    fn validate_settings(&self, settings: &HashMap<String, String>) -> Result<(), ConfigError> { Ok(()) }
+    fn on_settings_changed(&self) {}
+}
+```
+
+**Trait 继承关系**：
+
+```
+┌───────────────────┐
+│   Configurable    │  ← 基础配置能力
+└─────────┬─────────┘
+          │
+    ┌─────┴─────┬─────────────────┬───────────────┐
+    ▼           ▼                 ▼               ▼
+┌─────────┐ ┌───────────┐ ┌───────────────┐ ┌─────────────┐
+│ Plugin  │ │ DataSource│ │ SearchEngine  │ │ ScoreBooster│
+└─────────┘ └───────────┘ └───────────────┘ └─────────────┘
+```
+
+**设计优势**：
+- 配置与组件紧密绑定，每个组件自己定义和管理配置
+- 新增组件只需实现 `Configurable` trait，无需修改核心代码
+- 前端可根据 Schema 动态渲染配置界面，无需硬编码
+
 ### 4.3 插件注册中心设计
 
 // 直接看当前的代码仓库，了解最新的定义
@@ -274,12 +348,13 @@ ZeroLaunch 当前流程类似，但缺乏插件匹配和并行查询的抽象。
 use crate::plugin::*;
 use crate::modules::program_manager::ProgramManager;
 use async_trait::async_trait;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 pub struct ProgramPlugin {
     metadata: PluginMetadata,
     program_manager: Arc<ProgramManager>,
-    settings: DashMap<String, String>,
+    settings: HashMap<String, String>,
 }
 
 impl ProgramPlugin {
@@ -296,8 +371,51 @@ impl ProgramPlugin {
                 priority: 100,
             },
             program_manager,
-            settings: DashMap::new(),
+            settings: HashMap::new(),
         }
+    }
+}
+
+impl Configurable for ProgramPlugin {
+    fn component_id(&self) -> &str {
+        &self.metadata.id
+    }
+
+    fn component_name(&self) -> &str {
+        &self.metadata.name
+    }
+
+    fn component_type(&self) -> ComponentType {
+        ComponentType::Plugin
+    }
+
+    fn setting_schema(&self) -> Vec<SettingDefinition> {
+        vec![
+            SettingDefinition {
+                key: "max_results".to_string(),
+                label: "最大结果数".to_string(),
+                description: "搜索返回的最大结果数量".to_string(),
+                setting_type: SettingType::Number { min: Some(1.0), max: Some(50.0), step: Some(1.0) },
+                default_value: "10".to_string(),
+                group: Some("搜索设置".to_string()),
+                order: 0,
+                visible: true,
+                editable: true,
+            },
+        ]
+    }
+
+    fn get_settings(&self) -> HashMap<String, String> {
+        self.settings.clone()
+    }
+
+    fn apply_settings(&mut self, settings: HashMap<String, String>) -> Result<(), ConfigError> {
+        self.settings = settings;
+        Ok(())
+    }
+
+    fn on_settings_changed(&self) {
+        // 配置变更后的处理逻辑
     }
 }
 
@@ -311,43 +429,38 @@ impl Plugin for ProgramPlugin {
         Ok(())
     }
 
-    async fn query(&self, _ctx: &PluginContext, query: &Query) -> Result<Vec<QueryResult>, PluginError> {
+    async fn query(&self, _ctx: &PluginContext, query: &Query) -> Result<QueryResponse, PluginError> {
         let results = self.program_manager.update(&query.search_term, 10).await;
 
-        Ok(results.into_iter().map(|(guid, name, path)| {
-            QueryResult {
-                id: guid.to_string(),
+        let items: Vec<ListItem> = results.into_iter().map(|(guid, name, path)| {
+            ListItem {
+                id: guid as u64,
                 title: name,
                 subtitle: path,
-                icon: None,
+                icon: String::new(),
                 score: 1.0,
                 actions: vec![
                     ResultAction {
                         id: "launch".to_string(),
-                        label: "Launch".to_string(),
+                        label: "打开".to_string(),
+                        icon: String::new(),
                         is_default: true,
                     },
                     ResultAction {
                         id: "launch_admin".to_string(),
-                        label: "Launch as Admin".to_string(),
+                        label: "以管理员身份运行".to_string(),
+                        icon: String::new(),
                         is_default: false,
                     },
                 ],
             }
-        }).collect())
+        }).collect();
+
+        Ok(QueryResponse::List { results: items })
     }
 
-    async fn execute_action(&self, _ctx: &PluginContext, action_id: &str) -> Result<(), PluginError> {
+    async fn execute_action(&self, _ctx: &PluginContext, action_id: &str, _payload: serde_json::Value) -> Result<(), PluginError> {
         // 实现动作执行逻辑
-        Ok(())
-    }
-
-    async fn get_setting(&self, key: &str) -> Option<String> {
-        self.settings.get(key).map(|e| e.value().clone())
-    }
-
-    async fn update_setting(&self, key: &str, value: &str) -> Result<(), PluginError> {
-        self.settings.insert(key.to_string(), value.to_string());
         Ok(())
     }
 }
@@ -360,6 +473,7 @@ impl Plugin for ProgramPlugin {
 
 use crate::plugin::*;
 use async_trait::async_trait;
+use std::collections::HashMap;
 
 pub struct BuiltinCommandPlugin {
     metadata: PluginMetadata,
@@ -382,6 +496,20 @@ impl BuiltinCommandPlugin {
     }
 }
 
+impl Configurable for BuiltinCommandPlugin {
+    fn component_id(&self) -> &str {
+        &self.metadata.id
+    }
+
+    fn component_name(&self) -> &str {
+        &self.metadata.name
+    }
+
+    fn component_type(&self) -> ComponentType {
+        ComponentType::Plugin
+    }
+}
+
 #[async_trait]
 impl Plugin for BuiltinCommandPlugin {
     fn metadata(&self) -> &PluginMetadata {
@@ -392,44 +520,37 @@ impl Plugin for BuiltinCommandPlugin {
         Ok(())
     }
 
-    async fn query(&self, _ctx: &PluginContext, query: &Query) -> Result<Vec<QueryResult>, PluginError> {
+    async fn query(&self, _ctx: &PluginContext, query: &Query) -> Result<QueryResponse, PluginError> {
         let commands = vec![
-            ("settings", "Open Settings", "Open the settings window"),
-            ("refresh", "Refresh Database", "Reload program database"),
-            ("exit", "Exit", "Close ZeroLaunch"),
+            ("settings", "打开设置", "打开设置窗口"),
+            ("refresh", "刷新数据库", "重新加载程序数据库"),
+            ("exit", "退出", "关闭 ZeroLaunch"),
         ];
 
         let search = query.search_term.to_lowercase();
-        let results: Vec<QueryResult> = commands
+        let items: Vec<ListItem> = commands
             .into_iter()
             .filter(|(id, _, _)| id.contains(&search) || search.is_empty())
-            .map(|(id, title, subtitle)| QueryResult {
-                id: id.to_string(),
+            .map(|(id, title, subtitle)| ListItem {
+                id: id.as_bytes().iter().map(|&b| b as u64).sum(),
                 title: title.to_string(),
                 subtitle: subtitle.to_string(),
-                icon: None,
+                icon: String::new(),
                 score: 1.0,
                 actions: vec![ResultAction {
                     id: "execute".to_string(),
-                    label: "Execute".to_string(),
+                    label: "执行".to_string(),
+                    icon: String::new(),
                     is_default: true,
                 }],
             })
             .collect();
 
-        Ok(results)
+        Ok(QueryResponse::List { results: items })
     }
 
-    async fn execute_action(&self, ctx: &PluginContext, action_id: &str) -> Result<(), PluginError> {
+    async fn execute_action(&self, _ctx: &PluginContext, _action_id: &str, _payload: serde_json::Value) -> Result<(), PluginError> {
         // 根据结果 ID 执行对应命令
-        Ok(())
-    }
-
-    async fn get_setting(&self, _key: &str) -> Option<String> {
-        None
-    }
-
-    async fn update_setting(&self, _key: &str, _value: &str) -> Result<(), PluginError> {
         Ok(())
     }
 }

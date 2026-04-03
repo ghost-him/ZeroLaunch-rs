@@ -94,20 +94,56 @@ pub trait DataSource: Configurable {
 
 ```rust
 pub trait KeywordOptimizer: Configurable {
-    fn optimize(&self, query: &str) -> Vec<String>;
+    // 根据关键词优化出一组新关键词
+    fn optimize(&self, keyword: &str) -> Vec<String>;
+    
+    // 是否对所有已累积的关键词进行优化（true），还是只对原始名称优化
+    fn uses_context(&self) -> bool { false }
+    
+    // 获得优先级，优先级小的优化器会先被调用
+    fn get_priority(&self) -> i32;
+    fn set_priority(&mut self, priority: i32);
 }
 ```
 
 **设计目的**：
 - 将"微信"扩展为 ["微信", "wechat", "weixin"]
 - 将拼音 "weixin" 转换为 "微信"
-- 支持多种优化策略组合
+- 支持多种优化策略组合，按优先级链式调用
+
+**链式优化流程**：
+
+```
+原始名称: "微信"
+    │
+    ▼
+┌─────────────────────────────────┐
+│ Optimizer A (priority=10)        │
+│ uses_context=false               │
+│ optimize("微信")                  │
+│ 输出: ["weixin"]                  │
+└─────────────────────────────────┘
+    │
+    ▼ 累积关键词: ["微信", "weixin"]
+    │
+┌─────────────────────────────────┐
+│ Optimizer B (priority=20)        │
+│ uses_context=true                │
+│ 对每个关键词调用 optimize:        │
+│   optimize("微信") → []           │
+│   optimize("weixin") → ["wx"]    │
+│ 输出: ["wx"]                      │
+└─────────────────────────────────┘
+    │
+    ▼ 最终关键词: ["微信", "weixin", "wx"]
+```
 
 **使用场景**：
-| 实现类            | 功能                   |
-| ----------------- | ---------------------- |
-| `PinyinConverter` | 中文转拼音、拼音转中文 |
-| `AliasExpander`   | 添加常用别名           |
+| 实现类             | 功能                   |
+| ------------------ | ---------------------- |
+| `PinyinConverter`  | 中文转拼音、拼音转中文 |
+| `AliasExpander`    | 添加常用别名           |
+| `InitialExtractor` | 提取首字母（如 "wx"）  |
 
 ---
 
@@ -289,7 +325,7 @@ impl DataSource for ProgramSource {
 | 我想写...    | 需要实现的 Trait                      | 核心方法                         |
 | ------------ | ------------------------------------- | -------------------------------- |
 | 数据源       | `DataSource` (+ `Configurable`)       | `fetch_candidates()`             |
-| 关键字优化器 | `KeywordOptimizer` (+ `Configurable`) | `optimize()`                     |
+| 关键字优化器 | `KeywordOptimizer` (+ `Configurable`) | `optimize()`, `uses_context()`   |
 | 搜索引擎     | `SearchEngine` (+ `Configurable`)     | `calculate_scores()`             |
 | 分数提升器   | `ScoreBooster` (+ `Configurable`)     | `record()`, `boost()`            |
 | 启动器       | `Launcher`                            | `supported_method()`, `launch()` |

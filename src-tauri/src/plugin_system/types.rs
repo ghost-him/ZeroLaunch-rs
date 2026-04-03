@@ -285,7 +285,16 @@ pub trait DataSource: Configurable {
 
 // 表示对搜索的候选项的搜索关键字做优化的组件，通常是对搜索关键字进行扩展或者优化，以提高搜索的召回率
 pub trait KeywordOptimizer: Configurable {
-    fn optimize(&self, query: &str) -> Vec<String>;
+    // 根据关键词优化出一组新关键词，通常是对关键词进行分词、扩展或转换
+    fn optimize(&self, keyword: &str) -> Vec<String>;
+    // 是否对所有已累积的关键词进行优化（true），还是只对原始名称优化
+    fn uses_context(&self) -> bool {
+        false
+    }
+    // 获得优先级，优先级小的优化器会先被调用，优先级相同的优化器会按照注册的顺序被调用
+    fn get_priority(&self) -> i32;
+    // 设置优先级
+    fn set_priority(&mut self, priority: i32);
 }
 
 // 表示一个搜索引擎，用于计算搜索候选项的分数

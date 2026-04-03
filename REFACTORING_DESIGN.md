@@ -290,12 +290,27 @@ pub trait Configurable: Send + Sync {
     fn component_type(&self) -> ComponentType;
 
     fn setting_schema(&self) -> Vec<SettingDefinition> { vec![] }
-    fn get_settings(&self) -> HashMap<String, String> { HashMap::new() }
-    fn apply_settings(&mut self, settings: HashMap<String, String>) -> Result<(), ConfigError>;
-    fn validate_settings(&self, settings: &HashMap<String, String>) -> Result<(), ConfigError> { Ok(()) }
+    fn get_settings(&self) -> serde_json::Value { serde_json::Value::Object(serde_json::Map::new()) }
+    fn apply_settings(&mut self, settings: serde_json::Value) -> Result<(), ConfigError>;
+    fn validate_settings(&self, settings: &serde_json::Value) -> Result<(), ConfigError> { Ok(()) }
+    fn get_default_settings(&self) -> serde_json::Value {
+        let schema = self.setting_schema();
+        let mut map = serde_json::Map::new();
+        for def in schema {
+            if !def.default_value.is_null() {
+                map.insert(def.key.clone(), def.default_value.clone());
+            }
+        }
+        serde_json::Value::Object(map)
+    }
     fn on_settings_changed(&self) {}
 }
 ```
+
+**设计说明**：
+- 使用 `serde_json::Value` 作为配置传递介质，支持复杂嵌套结构
+- 保留类型信息（数字、布尔、数组、对象），与前端 JSON 交互更自然
+- 可直接使用 `serde_json::from_value` 反序列化到结构体
 
 **Trait 继承关系**：
 
@@ -391,16 +406,18 @@ impl Configurable for ProgramPlugin {
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {
         vec![
-            SettingDefinition {
-                key: "max_results".to_string(),
-                label: "最大结果数".to_string(),
-                description: "搜索返回的最大结果数量".to_string(),
-                setting_type: SettingType::Number { min: Some(1.0), max: Some(50.0), step: Some(1.0) },
-                default_value: "10".to_string(),
+'            SettingDefinition {
+                field: FieldDefinition {
+                    key: "max_results".to_string(),
+                    label: "最大结果数".to_string(),
+                    description: "搜索返回的最大结果数量".to_string(),
+                    setting_type: SettingType::Number { min: Some(1.0), max: Some(50.0), step: Some(1.0) },
+                    default_value: serde_json::json!(10),
+                    visible: true,
+                    editable: true,
+                },
                 group: Some("搜索设置".to_string()),
                 order: 0,
-                visible: true,
-                editable: true,
             },
         ]
     }

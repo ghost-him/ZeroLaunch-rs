@@ -62,14 +62,19 @@ pub trait Configurable: Send + Sync {
 
     // 配置定义与读写
     fn setting_schema(&self) -> Vec<SettingDefinition>;  // 配置项定义
-    fn get_settings(&self) -> HashMap<String, String>;   // 获取所有配置值
-    fn apply_settings(&mut self, settings: HashMap<String, String>) -> Result<(), ConfigError>;
+    fn get_settings(&self) -> serde_json::Value;         // 获取所有配置值
+    fn apply_settings(&mut self, settings: serde_json::Value) -> Result<(), ConfigError>;
 
     // 可选方法
-    fn validate_settings(&self, settings: &HashMap<String, String>) -> Result<(), ConfigError>;
+    fn validate_settings(&self, settings: &serde_json::Value) -> Result<(), ConfigError>;
     fn on_settings_changed(&self);  // 配置变更回调
 }
 ```
+
+**设计说明**：
+- 使用 `serde_json::Value` 作为配置传递介质，支持复杂嵌套结构
+- 保留类型信息（数字、布尔、数组、对象），与前端 JSON 交互更自然
+- 可直接使用 `serde_json::from_value` 反序列化到结构体
 
 ### Trait 继承关系
 
@@ -89,28 +94,183 @@ pub trait Configurable: Send + Sync {
 
 ## 四、SettingDefinition 设计
 
+### 核心类型定义
+
 ```rust
-pub struct SettingDefinition {
-    pub key: String,                    // 配置项键名
-    pub label: String,                  // 显示标签
-    pub description: String,            // 描述说明
-    pub setting_type: SettingType,      // 输入类型
-    pub default_value: String,          // 默认值
-    pub group: Option<String>,          // 分组（用于UI分组显示）
-    pub order: u32,                     // 排序权重
-    pub visible: bool,                  // 是否在UI中显示
-    pub editable: bool,                 // 是否可编辑
+/// 组件配置项的字段定义。
+/// 用于描述配置项的核心属性，可被 SettingDefinition 和 ArrayItem::Object 复用。
+pub struct FieldDefinition {
+    pub key: String,                        // 配置项键名
+    pub label: String,                      // 显示标签
+    pub description: String,                // 描述说明
+    pub setting_type: SettingType,          // 输入类型
+    pub default_value: serde_json::Value,   // 默认值
+    pub visible: bool,                      // 是否在UI中显示
+    pub editable: bool,                     // 是否可编辑
 }
 
+/// 组件配置项的声明式定义。
+/// 服务于设置存储与动态设置界面生成。
+/// 
+/// 字段语义说明：
+/// - `field.default_value`: 整个设置项的默认值（如整个数组的默认内容）
+/// - `FieldDefinition.default_value`（在 ArrayItem::Object 内）: 新增一行对象时，该字段的默认值模板
+pub struct SettingDefinition {
+    pub field: FieldDefinition,             // 字段定义
+    pub group: Option<String>,              // 分组（用于UI分组显示）
+    pub order: u32,                         // 排序权重
+}
+
+/// 数组元素的 UI 渲染提示。
+/// 用于指导前端如何渲染数组类型的配置项。
+pub enum ArrayUiHint {
+    Default,        // 简单列表（适合 Vec<String>）
+    Table,          // 表格视图（适合 Vec<(String, String)>）
+    MasterDetail,   // 主从视图（适合 Vec<Object>）
+    Tags,           // 标签输入（适合 Vec<String>，更紧凑）
+}
+
+/// 原始类型枚举，用于数组元素的类型定义。
+/// 与 SettingType 类似，但不包含复合类型（Array）。
+pub enum PrimitiveType {
+    Text,
+    Number { min: Option<f64>, max: Option<f64>, step: Option<f64> },
+    Boolean,
+    Select { options: Vec<String> },
+    Path { mode: PathMode },
+    Color,
+}
+
+/// 数组元素类型定义。
+/// 用于区分数组元素是原始类型还是对象类型。
+pub enum ArrayItem {
+    Primitive(PrimitiveType),           // 简单类型数组
+    Object(Vec<FieldDefinition>),       // 对象数组
+}
+
+/// 组件设置项的输入控件类型。
+/// 服务于设置表单渲染与取值校验。
 pub enum SettingType {
-    Text,                         // 文本输入
-    Number { min, max, step },    // 数字输入
-    Boolean,                      // 开关
-    Select { options },           // 下拉选择
-    Path { mode },                // 路径选择
-    PathList,                     // 路径列表（可添加/删除）
-    Color,                        // 颜色选择
-    Json,                         // JSON 编辑器
+    Text,
+    Number { min: Option<f64>, max: Option<f64>, step: Option<f64> },
+    Boolean,
+    Select { options: Vec<String> },
+    Path { mode: PathMode },
+    Color,
+    Json,
+    Array {
+        item: ArrayItem,                // 数组元素类型（Primitive 或 Object）
+        min_items: Option<usize>,
+        max_items: Option<usize>,
+        ui_hint: ArrayUiHint,           // UI 渲染提示
+    },
+}
+
+pub enum PathMode {
+    File,
+    Directory,
+}
+```
+
+### 设计说明
+
+1. **类型安全**：`ArrayItem` 使用联合类型，编译期阻止 `Primitive` 和 `Object` 同时存在的无效状态
+2. **default_value 语义**：
+   - `SettingDefinition.field.default_value`：整个设置项的默认值
+   - `FieldDefinition.default_value`（在 `ArrayItem::Object` 内）：新增一行对象时的字段默认值模板
+3. **UI 渲染提示**：`ArrayUiHint` 指导前端如何渲染数组配置项
+
+### 使用示例
+
+#### 简单配置项
+
+```rust
+SettingDefinition {
+    field: FieldDefinition {
+        key: "max_results".to_string(),
+        label: "最大结果数".to_string(),
+        description: "搜索返回的最大结果数量".to_string(),
+        setting_type: SettingType::Number {
+            min: Some(1.0),
+            max: Some(50.0),
+            step: Some(1.0),
+        },
+        default_value: serde_json::json!(10),
+        visible: true,
+        editable: true,
+    },
+    group: Some("搜索设置".to_string()),
+    order: 0,
+}
+```
+
+#### 字符串数组（标签输入）
+
+```rust
+SettingType::Array {
+    item: ArrayItem::Primitive(PrimitiveType::Text),
+    min_items: Some(1),
+    max_items: None,
+    ui_hint: ArrayUiHint::Tags,
+}
+```
+
+#### 元组数组（表格视图）
+
+```rust
+SettingType::Array {
+    item: ArrayItem::Object(vec![
+        FieldDefinition {
+            key: "keyword".to_string(),
+            label: "关键字".to_string(),
+            description: "搜索关键字".to_string(),
+            setting_type: SettingType::Text,
+            default_value: serde_json::json!(""),
+            visible: true,
+            editable: true,
+        },
+        FieldDefinition {
+            key: "command".to_string(),
+            label: "命令".to_string(),
+            description: "执行的命令".to_string(),
+            setting_type: SettingType::Text,
+            default_value: serde_json::json!(""),
+            visible: true,
+            editable: true,
+        },
+    ]),
+    min_items: None,
+    max_items: None,
+    ui_hint: ArrayUiHint::Table,
+}
+```
+
+#### 对象数组（主从视图）
+
+```rust
+SettingType::Array {
+    item: ArrayItem::Object(vec![
+        FieldDefinition {
+            key: "root_path".to_string(),
+            label: "目录路径".to_string(),
+            setting_type: SettingType::Path { mode: PathMode::Directory },
+            default_value: serde_json::json!(""),
+            visible: true,
+            editable: true,
+        },
+        FieldDefinition {
+            key: "max_depth".to_string(),
+            label: "扫描深度".to_string(),
+            setting_type: SettingType::Number { min: Some(1.0), max: Some(10.0), step: Some(1.0) },
+            default_value: serde_json::json!(3),
+            visible: true,
+            editable: true,
+        },
+        // ... 其他字段
+    ]),
+    min_items: Some(1),
+    max_items: None,
+    ui_hint: ArrayUiHint::MasterDetail,
 }
 ```
 

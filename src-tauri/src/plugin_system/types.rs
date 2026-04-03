@@ -1,7 +1,6 @@
 use crate::plugin_system::cached_candidate::CachedCandidateData;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::sync::Arc;
 
 pub type CandidateId = u64;
@@ -127,35 +126,83 @@ pub enum ConfigError {
     ApplyFailed(String),
 }
 
-/// 组件配置项的声明式定义。
-/// 服务于设置存储与动态设置界面生成。
+/// 组件配置项的字段定义。
+/// 用于描述配置项的核心属性，可被 SettingDefinition 和 ArrayItem::Object 复用。
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SettingDefinition {
+pub struct FieldDefinition {
     pub key: String,
     pub label: String,
     pub description: String,
     pub setting_type: SettingType,
-    pub default_value: String,
-    pub group: Option<String>,
-    pub order: u32,
+    pub default_value: serde_json::Value,
     pub visible: bool,
     pub editable: bool,
 }
 
-impl Default for SettingDefinition {
+impl Default for FieldDefinition {
     fn default() -> Self {
         Self {
             key: String::new(),
             label: String::new(),
             description: String::new(),
             setting_type: SettingType::Text,
-            default_value: String::new(),
-            group: None,
-            order: 0,
+            default_value: serde_json::Value::Null,
             visible: true,
             editable: true,
         }
     }
+}
+
+/// 组件配置项的声明式定义。
+/// 服务于设置存储与动态设置界面生成。
+///
+/// 字段语义说明：
+/// - `field.default_value`: 整个设置项的默认值（如整个数组的默认内容）
+/// - `FieldDefinition.default_value`（在 ArrayItem::Object 内）: 新增一行对象时，该字段的默认值模板
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct SettingDefinition {
+    pub field: FieldDefinition,
+    pub group: Option<String>,
+    pub order: u32,
+}
+
+/// 数组元素的 UI 渲染提示。
+/// 用于指导前端如何渲染数组类型的配置项。
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub enum ArrayUiHint {
+    #[default]
+    Default,
+    Table,
+    MasterDetail,
+    Tags,
+}
+
+/// 原始类型枚举，用于数组元素的类型定义。
+/// 与 SettingType 类似，但不包含复合类型（Array）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum PrimitiveType {
+    Text,
+    Number {
+        min: Option<f64>,
+        max: Option<f64>,
+        step: Option<f64>,
+    },
+    Boolean,
+    Select {
+        options: Vec<String>,
+    },
+    Path {
+        mode: PathMode,
+    },
+    Color,
+}
+
+/// 数组元素类型定义。
+/// 用于区分数组元素是原始类型还是对象类型。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ArrayItem {
+    Primitive(PrimitiveType),
+    Object(Vec<FieldDefinition>),
 }
 
 /// 组件设置项的输入控件类型。
@@ -175,9 +222,14 @@ pub enum SettingType {
     Path {
         mode: PathMode,
     },
-    PathList,
     Color,
     Json,
+    Array {
+        item: ArrayItem,
+        min_items: Option<usize>,
+        max_items: Option<usize>,
+        ui_hint: ArrayUiHint,
+    },
 }
 
 /// 路径选择模式
@@ -198,18 +250,29 @@ pub trait Configurable: Send + Sync {
         vec![]
     }
 
-    fn get_settings(&self) -> HashMap<String, String> {
-        HashMap::new()
+    fn get_settings(&self) -> serde_json::Value {
+        serde_json::Value::Object(serde_json::Map::new())
     }
 
-    fn apply_settings(&mut self, settings: HashMap<String, String>) -> Result<(), ConfigError> {
+    fn apply_settings(&mut self, settings: serde_json::Value) -> Result<(), ConfigError> {
         let _ = settings;
         Ok(())
     }
 
-    fn validate_settings(&self, settings: &HashMap<String, String>) -> Result<(), ConfigError> {
+    fn validate_settings(&self, settings: &serde_json::Value) -> Result<(), ConfigError> {
         let _ = settings;
         Ok(())
+    }
+
+    fn get_default_settings(&self) -> serde_json::Value {
+        let schema = self.setting_schema();
+        let mut map = serde_json::Map::new();
+        for def in schema {
+            if !def.field.default_value.is_null() {
+                map.insert(def.field.key.clone(), def.field.default_value.clone());
+            }
+        }
+        serde_json::Value::Object(map)
     }
 
     fn on_settings_changed(&self) {}

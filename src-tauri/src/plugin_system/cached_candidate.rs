@@ -13,6 +13,9 @@ pub struct CachedCandidateData {
     // 该方法用于去重，只有没有重复的候选项才会被添加到candidates中，重复的候选项会被丢弃掉
     // 判断的依据：启动方式
     cached_launch_methods: HashSet<LaunchMethod>,
+    // 该方法用于去重，只有显示名不重复的候选项才会被添加到candidates中
+    // 判断的依据：候选项显示名（忽略大小写）
+    cached_display_names: HashSet<String>,
     // 下一个候选项ID
     next_candidate_id: CandidateId,
 }
@@ -29,21 +32,26 @@ impl CachedCandidateData {
             candidates: Vec::new(),
             index: DashMap::new(),
             cached_launch_methods: HashSet::new(),
+            cached_display_names: HashSet::new(),
             next_candidate_id: 1, // 从1开始，0表示无效ID
         }
     }
 
     // 添加一个候选人
     pub fn add_candidate(&mut self, mut candidate: SearchCandidate) {
-        // 如果已经缓存了这个候选项的启动方式了，就不添加了，避免重复
-        if self.has_launch_method(&candidate.launch_method) {
+        // 如果已经缓存了这个候选项的启动方式或显示名，就不添加了，避免重复
+        if self.has_launch_method(&candidate.launch_method)
+            || self.has_display_name(&candidate.name)
+        {
             return;
         }
-        // 给这个候选项分配一个新的ID，并添加到candidates中，同时更新index和cached_launch_methods
+        // 给这个候选项分配一个新的ID，并添加到candidates中，同时更新索引和去重缓存
         let candidate_id = self.next_candidate_id;
         candidate.id = candidate_id;
         self.cached_launch_methods
             .insert(candidate.launch_method.clone());
+        self.cached_display_names
+            .insert(candidate.name.to_lowercase());
         self.candidates.push(candidate);
         self.index.insert(candidate_id, self.candidates.len() - 1);
         self.next_candidate_id += 1;
@@ -77,5 +85,11 @@ impl CachedCandidateData {
     // 判断是否已经缓存了某个启动方式的候选项了
     fn has_launch_method(&self, launch_method: &LaunchMethod) -> bool {
         self.cached_launch_methods.contains(launch_method)
+    }
+
+    // 判断是否已经缓存了某个显示名的候选项（忽略大小写）
+    fn has_display_name(&self, display_name: &str) -> bool {
+        self.cached_display_names
+            .contains(&display_name.to_lowercase())
     }
 }

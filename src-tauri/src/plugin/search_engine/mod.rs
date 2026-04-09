@@ -1,1 +1,1 @@
-mod standard_search_model;
+pub mod standard_search_model;

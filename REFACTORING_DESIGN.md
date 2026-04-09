@@ -625,7 +625,10 @@ src-tauri/src/
 │   ├── search_pipeline.rs         # 搜索管道
 │   ├── service.rs                 # 插件服务整合层
 │   ├── api.rs                     # 插件 API 实现
-│   └── session_router.rs          # 会话路由器（新增）
+│   ├── session_router.rs          # 会话路由器（新增）
+│   ├── cached_candidate.rs        # 候选项缓存
+│   ├── candidate_pipeline.rs      # 候选项处理管道
+│   └── launcher_registry.rs       # 启动器注册中心
 │
 ├── plugin/                        # 插件实现（按 trait 分类）
 │   ├── mod.rs
@@ -635,6 +638,12 @@ src-tauri/src/
 │   │   ├── program_source.rs      # 程序数据源
 │   │   ├── bookmark_source.rs     # 书签数据源
 │   │   └── url_source.rs          # URL 数据源
+│   │
+│   ├── keyword_optimizer/         # 关键字优化器
+│   │   ├── mod.rs
+│   │   ├── pinyin_converter.rs    # 拼音转换
+│   │   ├── version_number_remover.rs # 版本号移除
+│   │   └── ...                    # 其他优化器
 │   │
 │   ├── search_engine/             # 搜索引擎插件
 │   │   ├── mod.rs

@@ -102,7 +102,6 @@ pub trait KeywordOptimizer: Configurable {
     
     // 获得优先级，优先级小的优化器会先被调用
     fn get_priority(&self) -> i32;
-    fn set_priority(&mut self, priority: i32);
 }
 ```
 
@@ -180,8 +179,8 @@ pub trait SearchEngine: Configurable {
 
 ```rust
 pub trait ScoreBooster: Configurable {
-    fn record(&self, candidate: &mut ScoredCandidate, query: &str);  // 记录用户选择
-    fn boost(&self, candidates: &mut Vec<ScoredCandidate>);          // 批量调整分数
+    fn record(&self, candidate: &ScoredCandidate, data: &CachedCandidateData, query: &str);  // 记录用户选择
+    fn boost(&self, candidates: &mut Vec<ScoredCandidate>, data: &CachedCandidateData, query: &str);  // 批量调整分数
 }
 ```
 
@@ -205,7 +204,8 @@ pub trait ScoreBooster: Configurable {
 ```rust
 pub trait Launcher: Send + Sync {
     fn supported_method(&self) -> LaunchMethodType;  // 支持的启动类型
-    fn launch(&self, method: &LaunchMethod) -> Result<(), LaunchError>;
+    fn supported_actions(&self) -> Vec<ResultAction> { ... }  // 支持的动作列表
+    fn execute(&self, method: &LaunchMethod, action_id: &str) -> Result<(), LaunchError>;  // 执行动作
 }
 ```
 
@@ -322,11 +322,11 @@ impl DataSource for ProgramSource {
 
 ## 快速参考表
 
-| 我想写...    | 需要实现的 Trait                      | 核心方法                         |
-| ------------ | ------------------------------------- | -------------------------------- |
-| 数据源       | `DataSource` (+ `Configurable`)       | `fetch_candidates()`             |
-| 关键字优化器 | `KeywordOptimizer` (+ `Configurable`) | `optimize()`, `uses_context()`   |
-| 搜索引擎     | `SearchEngine` (+ `Configurable`)     | `calculate_scores()`             |
-| 分数提升器   | `ScoreBooster` (+ `Configurable`)     | `record()`, `boost()`            |
-| 启动器       | `Launcher`                            | `supported_method()`, `launch()` |
-| 完整插件     | `Plugin` (+ `Configurable`)           | `query()`, `execute_action()`    |
+| 我想写...    | 需要实现的 Trait                      | 核心方法                                                 |
+| ------------ | ------------------------------------- | -------------------------------------------------------- |
+| 数据源       | `DataSource` (+ `Configurable`)       | `fetch_candidates()`                                     |
+| 关键字优化器 | `KeywordOptimizer` (+ `Configurable`) | `optimize()`, `uses_context()`                           |
+| 搜索引擎     | `SearchEngine` (+ `Configurable`)     | `calculate_scores()`                                     |
+| 分数提升器   | `ScoreBooster` (+ `Configurable`)     | `record()`, `boost()`                                    |
+| 启动器       | `Launcher`                            | `supported_method()`, `supported_actions()`, `execute()` |
+| 完整插件     | `Plugin` (+ `Configurable`)           | `query()`, `execute_action()`                            |

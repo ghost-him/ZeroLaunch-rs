@@ -276,6 +276,12 @@ pub trait Configurable: Send + Sync {
     }
 
     fn on_settings_changed(&self) {}
+
+    /// 返回当前组件是否启用。
+    /// 所有组件都会被注册和发现，但只有 enabled=true 的组件才会被激活使用。
+    fn enabled(&self) -> bool {
+        true
+    }
 }
 
 // 表示一个数据源

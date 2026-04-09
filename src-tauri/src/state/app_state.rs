@@ -75,8 +75,10 @@ impl AppState {
     pub fn new() -> Self {
         let api = Arc::new(DefaultPluginAPI::new());
         let plugin_service = Arc::new(PluginService::new(api));
+        let session_router = Arc::new(SessionRouter::new(plugin_service));
+
         AppState {
-            session_router: Arc::new(SessionRouter::new(plugin_service)),
+            session_router,
             runtime_config: RwLock::new(None),
             program_manager: RwLock::new(None),
             main_handle: RwLock::new(None),

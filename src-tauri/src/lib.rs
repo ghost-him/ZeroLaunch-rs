@@ -13,6 +13,7 @@ pub mod window_position;
 use crate::commands::browser_bookmarks::*;
 use crate::commands::config_file::*;
 use crate::commands::debug::*;
+use crate::commands::new_search::*;
 use crate::commands::program_service::*;
 use crate::commands::shortcut::*;
 use crate::commands::ui_command::*;
@@ -31,6 +32,17 @@ use crate::modules::config::{Height, Width};
 use crate::modules::icon_manager::config::RuntimeIconManagerConfig;
 use crate::modules::icon_manager::IconManager;
 use crate::modules::ui_controller::controller::get_window_render_origin;
+use crate::plugin::data_source::program_source::ProgramSource;
+use crate::plugin::keyword_optimizer::{
+    FirstLetterExtractor, LowerCaseConverter, PinyinConverter, SpaceNormalizer, SpaceRemover,
+    SymbolRemover, UpperCaseLetterExtractor, VersionNumberRemover,
+};
+use crate::plugin::launcher::{CommandLauncher, PathLauncher, UrlLauncher, UwpLauncher};
+use crate::plugin::score_booster::history_booster::HistoryBooster;
+use crate::plugin::search_engine::standard_search_model::StandardSearchModel;
+use crate::plugin_system::types::{ScoreBooster, SearchEngine};
+use crate::plugin_system::Configurable;
+use crate::plugin_system::{CandidatePipeline, SearchPipeline};
 use crate::state::app_state::AppState;
 use crate::tray::init_system_tray;
 use crate::tray::update_tray_menu_language;
@@ -230,6 +242,11 @@ pub fn run() {
             command_get_arch,
             command_download_model,
             get_everything_icon,
+            // 新架构搜索命令
+            handle_new_search,
+            handle_new_launch,
+            get_new_candidates_count,
+            refresh_new_candidates,
         ])
         .build(tauri::generate_context!())
         .expect_programming("error while building tauri application")
@@ -440,7 +457,69 @@ async fn init_app_state(app: &mut App) {
     state.set_refresh_scheduler(refresh_scheduler);
     debug!("刷新调度器初始化完成");
 
+    // === 阶段6: 新插件系统初始化 ===
+    info!("=== 阶段6: 新插件系统初始化 ===");
+    init_plugin_system(&state);
+    debug!("新插件系统初始化完成");
+
     debug!("应用状态初始化完成");
+}
+
+/// 初始化新插件系统的所有组件
+fn init_plugin_system(state: &Arc<AppState>) {
+    let session_router = state.get_session_router();
+
+    // 1. 注册启动器
+    info!("正在注册启动器...");
+    session_router.register_launcher(Arc::new(PathLauncher::new()));
+    session_router.register_launcher(Arc::new(UrlLauncher::new()));
+    session_router.register_launcher(Arc::new(UwpLauncher::new()));
+    session_router.register_launcher(Arc::new(CommandLauncher::new()));
+    info!("启动器注册完成");
+
+    // 2. 初始化候选管道并注册数据源和关键词优化器
+    info!("正在初始化候选管道...");
+    let mut candidate_pipeline = CandidatePipeline::new();
+
+    // 注册数据源
+    let mut program_source = ProgramSource::new();
+    let _ = program_source.apply_settings(program_source.get_default_settings());
+    candidate_pipeline.add_source(Arc::new(program_source));
+
+    // 注册关键词优化器（按优先级顺序）
+    candidate_pipeline.add_keyword_optimizer(Arc::new(VersionNumberRemover::new()));
+    candidate_pipeline.add_keyword_optimizer(Arc::new(SymbolRemover::new()));
+    candidate_pipeline.add_keyword_optimizer(Arc::new(SpaceRemover::new()));
+    candidate_pipeline.add_keyword_optimizer(Arc::new(SpaceNormalizer::new()));
+    candidate_pipeline.add_keyword_optimizer(Arc::new(LowerCaseConverter::new()));
+    candidate_pipeline.add_keyword_optimizer(Arc::new(PinyinConverter::new()));
+    candidate_pipeline.add_keyword_optimizer(Arc::new(FirstLetterExtractor::new()));
+    candidate_pipeline.add_keyword_optimizer(Arc::new(UpperCaseLetterExtractor::new()));
+
+    // 收集候选项
+    info!("正在收集候选项...");
+    let candidates = candidate_pipeline.collect();
+    info!(
+        "候选项收集完成，共 {} 个",
+        candidates.get_candidates().len()
+    );
+
+    // 3. 初始化搜索管道
+    info!("正在初始化搜索管道...");
+    let search_engine: Arc<dyn SearchEngine> = Arc::new(StandardSearchModel {});
+    let boosters: Vec<Arc<dyn ScoreBooster>> = vec![Arc::new(HistoryBooster::new())];
+    let search_pipeline = SearchPipeline::new(Some(search_engine), boosters, 10);
+
+    // 4. 更新 SessionRouter 的状态
+    info!("正在更新 SessionRouter 状态...");
+    session_router.set_candidate_pipeline(candidate_pipeline);
+    session_router.set_search_pipeline(search_pipeline);
+    session_router.set_cached_candidates(candidates);
+
+    info!(
+        "新插件系统初始化完成，已缓存 {} 个候选项",
+        session_router.get_cached_candidates_count()
+    );
 }
 
 /// 初始化搜索界面的窗口设置

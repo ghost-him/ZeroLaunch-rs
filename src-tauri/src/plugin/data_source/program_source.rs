@@ -373,7 +373,8 @@ impl Configurable for ProgramSource {
                         "symlink_mode": "ExplicitOnly"
                     },
                     {
-                        "root_path": "C:\\Users\\用户名\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu",
+                        // todo: 需要将这个硬编码的路径做更改，变成当前用户的路径
+                        "root_path": "C:\\Users\\ghost\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu",
                         "max_depth": 5,
                         "pattern": ["*.exe", "*.lnk", "*.url"],
                         "pattern_type": "Wildcard",
@@ -382,7 +383,8 @@ impl Configurable for ProgramSource {
                         "symlink_mode": "ExplicitOnly"
                     },
                     {
-                        "root_path": "C:\\Users\\用户名\\Desktop",
+                        // todo: 需要将这个硬编码的路径做更改，变成当前用户的路径
+                        "root_path": "C:\\Users\\ghost\\Desktop",
                         "max_depth": 3,
                         "pattern": ["*.exe", "*.lnk", "*.url"],
                         "pattern_type": "Wildcard",

@@ -106,7 +106,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
-import { FolderOpened, Refresh, Setting, StarFilled, CircleClose } from '@element-plus/icons-vue'
+import { FolderOpened, Refresh, Setting, StarFilled, CircleClose, Cpu } from '@element-plus/icons-vue'
 
 import { reduceOpacity } from '../utils/color'
 import { initializeLanguage } from '../i18n'
@@ -352,11 +352,52 @@ const searchBarMenuBuf = ref<InstanceType<typeof SubMenu> | null>(null)
 const resultItemMenuRef = ref<InstanceType<typeof SubMenu> | null>(null)
 
 const searchBarMenuItems = computed(() => [{ name: t('menu.open_settings'), icon: Setting, action: () => { openSettingsWindow() } },
-{ name: t('menu.refresh_database'), icon: Refresh, action: () => { refreshDataset() } }])
+{ name: t('menu.refresh_database'), icon: Refresh, action: () => { refreshDataset() } },
+{ name: '测试新架构搜索', icon: Cpu, action: () => { testNewArchitecture() } }])
 
 const resultSubMenuItems = computed(() => [{ name: t('app.open_file_location'), icon: FolderOpened, action: () => { openFolder() } },
 { name: t('app.run_as_admin'), icon: StarFilled, action: () => { runTargetProgramWithAdmin() } },
 { name: t('app.block_this_result'), icon: CircleClose, action: () => { blockCurrentResult() } }])
+
+// 新架构测试相关
+interface NewSearchResult {
+  id: number
+  title: string
+  subtitle: string
+  icon: string
+  score: number
+  actions: { id: string; label: string; icon: string; is_default: boolean }[]
+}
+
+interface NewSearchResponse {
+  results: NewSearchResult[]
+  mode: string
+}
+
+const testNewArchitecture = async () => {
+  try {
+    const count = await invoke<number>('get_new_candidates_count')
+    console.log(`[新架构] 已缓存 ${count} 个候选项`)
+
+    const testQuery = searchText.value || 'wyy'
+    console.log(`[新架构] 测试搜索: "${testQuery}"`)
+
+    const response = await invoke<NewSearchResponse>('handle_new_search', { searchText: testQuery })
+    console.log('[新架构] 搜索结果:', response)
+
+    const resultCount = response.results.length
+    ElMessage.success(`新架构搜索完成: 找到 ${resultCount} 个结果 (共 ${count} 个候选项)`)
+
+    if (resultCount > 0) {
+      const first = response.results[0]
+      console.log(`[新架构] 第一个结果: ${first.title}, 分数: ${first.score}`)
+      console.log(`[新架构] 可用动作:`, first.actions.map(a => a.label).join(', '))
+    }
+  } catch (error) {
+    console.error('[新架构] 测试失败:', error)
+    ElMessage.error(`新架构测试失败: ${error}`)
+  }
+}
 
 // Methods
 const buildTemplatePreview = (template: string, args: string[], placeholderCount: number) => {

@@ -8750,6 +8750,7 @@ dependencies = [
  "uiautomation",
  "url",
  "usvg",
+ "uuid",
  "walkdir",
  "whoami",
  "widestring",

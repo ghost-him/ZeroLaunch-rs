@@ -40,6 +40,26 @@ impl SessionRouter {
         self.launcher_registry.write().register(launcher);
     }
 
+    /// 设置候选管道
+    pub fn set_candidate_pipeline(&self, pipeline: CandidatePipeline) {
+        *self.candidate_pipeline.write() = pipeline;
+    }
+
+    /// 设置搜索管道
+    pub fn set_search_pipeline(&self, pipeline: SearchPipeline) {
+        *self.search_pipeline.write() = pipeline;
+    }
+
+    /// 设置缓存的候选项
+    pub fn set_cached_candidates(&self, candidates: CachedCandidateData) {
+        *self.cached_candidates.write() = candidates;
+    }
+
+    /// 获取缓存的候选项数量
+    pub fn get_cached_candidates_count(&self) -> usize {
+        self.cached_candidates.read().get_candidates().len()
+    }
+
     pub fn refresh_candidates(&self) {
         let candidates = self.candidate_pipeline.read().collect();
         *self.cached_candidates.write() = candidates;

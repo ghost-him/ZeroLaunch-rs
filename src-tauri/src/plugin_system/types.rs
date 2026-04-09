@@ -324,16 +324,32 @@ pub enum LaunchError {
 
     #[error("Launcher not found for method: {0:?}")]
     NotFound(LaunchMethodType),
+
+    #[error("Unsupported action: {0}")]
+    UnsupportedAction(String),
 }
 
 /// 表示一个启动器，用于启动搜索候选项
 /// 每个 Launcher 只负责一种 LaunchMethodType
+/// Launcher 自身声明支持的 actions 并自行处理 action_id 的执行分发
 pub trait Launcher: Send + Sync {
     /// 返回该 Launcher 支持的启动方法类型
     fn supported_method(&self) -> LaunchMethodType;
 
-    /// 执行启动
-    fn launch(&self, method: &LaunchMethod) -> Result<(), LaunchError>;
+    /// 返回该 Launcher 支持的动作列表，用于构建前端 UI（右键菜单、默认确认键）
+    fn supported_actions(&self) -> Vec<ResultAction> {
+        vec![ResultAction {
+            id: "launch".to_string(),
+            label: "打开".to_string(),
+            icon: String::new(),
+            is_default: true,
+        }]
+    }
+
+    /// 根据动作 ID 执行对应的操作
+    /// 参数：method - 启动方法；action_id - 动作 ID
+    /// 返回：执行成功返回 Ok(())，不支持的动作返回 UnsupportedAction
+    fn execute(&self, method: &LaunchMethod, action_id: &str) -> Result<(), LaunchError>;
 }
 
 /// 请求级上下文，在宿主与插件之间共享。

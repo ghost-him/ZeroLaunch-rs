@@ -78,12 +78,10 @@ impl SessionRouter {
                     .get_candidate(candidate.candidate_id)
                     .unwrap();
 
-                let actions = vec![ResultAction {
-                    id: "launch".to_string(),
-                    label: "打开应用".to_string(),
-                    icon: "default_icon".to_string(),
-                    is_default: true,
-                }];
+                let actions = self
+                    .launcher_registry
+                    .read()
+                    .get_actions(search_candidate.launch_method.method_type());
 
                 ListItem {
                     id: search_candidate.id,
@@ -128,7 +126,7 @@ impl SessionRouter {
 
                 self.launcher_registry
                     .read()
-                    .launch(&candidate.launch_method)
+                    .execute(&candidate.launch_method, action_id)
                     .map_err(|e| e.to_string())
             }
             SessionMode::None => Err("No active session".to_string()),

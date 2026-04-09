@@ -1,4 +1,4 @@
-use super::types::{LaunchError, LaunchMethod, LaunchMethodType, Launcher};
+use super::types::{LaunchError, LaunchMethod, LaunchMethodType, Launcher, ResultAction};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -22,16 +22,26 @@ impl LauncherRegistry {
         self.launchers.insert(launcher.supported_method(), launcher);
     }
 
-    /// 根据启动方法执行启动
-    /// 参数：method - 启动方法
+    /// 根据启动方法和动作 ID 执行对应操作
+    /// 参数：method - 启动方法；action_id - 动作 ID
     /// 返回：成功返回 Ok(())，失败返回 LaunchError
-    pub fn launch(&self, method: &LaunchMethod) -> Result<(), LaunchError> {
+    pub fn execute(&self, method: &LaunchMethod, action_id: &str) -> Result<(), LaunchError> {
         let method_type = method.method_type();
 
         self.launchers
             .get(&method_type)
             .ok_or(LaunchError::NotFound(method_type))?
-            .launch(method)
+            .execute(method, action_id)
+    }
+
+    /// 获取指定启动方法类型的 Launcher 所支持的动作列表
+    /// 参数：method_type - 启动方法类型
+    /// 返回：该 Launcher 支持的动作列表，若未注册对应 Launcher 则返回空列表
+    pub fn get_actions(&self, method_type: LaunchMethodType) -> Vec<ResultAction> {
+        self.launchers
+            .get(&method_type)
+            .map(|l| l.supported_actions())
+            .unwrap_or_default()
     }
 
     /// 检查是否已注册指定类型的启动器

@@ -1,6 +1,6 @@
 use super::types::DataSource;
 use crate::plugin_system::cached_candidate::CachedCandidateData;
-use crate::plugin_system::types::KeywordOptimizer;
+use crate::plugin_system::types::{Configurable, KeywordOptimizer};
 use std::collections::HashSet;
 use std::sync::Arc;
 
@@ -63,6 +63,16 @@ impl CandidatePipeline {
             .into_iter()
             .filter(|k| seen.insert(k.clone()))
             .collect()
+    }
+
+    /// 根据 component_id 查找已注册的 Configurable 组件。
+    /// 参数：component_id - 组件标识符。
+    /// 返回：找到则返回组件引用，否则返回 None。
+    pub fn find_configurable(&self, component_id: &str) -> Option<Arc<dyn Configurable>> {
+        self.data_sources
+            .iter()
+            .find(|s| s.component_id() == component_id)
+            .map(|s| s.clone() as Arc<dyn Configurable>)
     }
 }
 

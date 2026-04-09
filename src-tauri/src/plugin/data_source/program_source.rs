@@ -398,6 +398,7 @@ impl Configurable for ProgramSource {
             },
             group: Some("目录扫描".to_string()),
             order: 1,
+            config_action: None,
         }]
     }
 

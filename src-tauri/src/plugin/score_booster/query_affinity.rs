@@ -156,6 +156,7 @@ impl Configurable for QueryAffinityBooster {
                 },
                 group: Some("权重配置".to_string()),
                 order: 0,
+                config_action: None,
             },
             SettingDefinition {
                 field: FieldDefinition {
@@ -173,6 +174,7 @@ impl Configurable for QueryAffinityBooster {
                 },
                 group: Some("衰减配置".to_string()),
                 order: 1,
+                config_action: None,
             },
             SettingDefinition {
                 field: FieldDefinition {
@@ -190,6 +192,7 @@ impl Configurable for QueryAffinityBooster {
                 },
                 group: Some("冷却配置".to_string()),
                 order: 2,
+                config_action: None,
             },
         ]
     }

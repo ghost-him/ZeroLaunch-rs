@@ -242,6 +242,9 @@ pub fn run() {
             command_get_arch,
             command_download_model,
             get_everything_icon,
+            // 配置动作命令
+            get_config_actions,
+            execute_config_action,
             // 新架构搜索命令
             handle_new_search,
             handle_new_launch,

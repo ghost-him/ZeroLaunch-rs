@@ -3,6 +3,7 @@ use crate::core::storage::storage_manager::check_validation;
 use crate::modules::config::config_manager::PartialRuntimeConfig;
 use crate::modules::config::default::REMOTE_CONFIG_DEFAULT;
 use crate::modules::config::load_string_to_runtime_config_;
+use crate::plugin_system::ConfigActionDef;
 use crate::save_config_to_file;
 use crate::storage::config::PartialLocalConfig;
 use crate::tray::update_tray_icon_theme;
@@ -142,3 +143,24 @@ pub async fn command_check_validation<R: Runtime>(
 // ) -> Result<String, String> {
 //     get_onedrive_refresh_token(window).await
 // }
+
+/// 获取指定组件的配置动作列表
+#[tauri::command]
+pub fn get_config_actions(
+    state: tauri::State<'_, Arc<AppState>>,
+    component_id: String,
+) -> Vec<ConfigActionDef> {
+    state.get_session_router().get_config_actions(&component_id)
+}
+
+/// 执行指定组件的配置动作
+#[tauri::command]
+pub fn execute_config_action(
+    state: tauri::State<'_, Arc<AppState>>,
+    component_id: String,
+    action: String,
+) -> Result<serde_json::Value, String> {
+    state
+        .get_session_router()
+        .execute_config_action(&component_id, &action)
+}

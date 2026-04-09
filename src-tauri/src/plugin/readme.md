@@ -52,6 +52,10 @@ pub trait Configurable: Send + Sync {
     // === 可选回调 ===
     fn validate_settings(&self, settings: &serde_json::Value) -> Result<(), ConfigError> { Ok(()) }
     fn on_settings_changed(&self) {}  // 配置变更后的回调
+
+    // === 配置动作 ===
+    fn config_actions(&self) -> Vec<ConfigActionDef> { vec![] }  // 声明配置动作列表
+    fn execute_config_action(&self, action: &str) -> Result<serde_json::Value, String> { ... }  // 执行配置动作
 }
 ```
 
@@ -60,6 +64,7 @@ pub trait Configurable: Send + Sync {
 - 统一的配置管理，新增组件无需修改核心代码
 - 支持配置验证和变更通知
 - 使用 `serde_json::Value` 作为配置传递介质，支持复杂嵌套结构
+- 通过 `config_actions()` 和 `execute_config_action()` 提供配置辅助动作（如自动检测浏览器）
 
 ---
 
@@ -330,3 +335,123 @@ impl DataSource for ProgramSource {
 | 分数提升器   | `ScoreBooster` (+ `Configurable`)     | `record()`, `boost()`                                    |
 | 启动器       | `Launcher`                            | `supported_method()`, `supported_actions()`, `execute()` |
 | 完整插件     | `Plugin` (+ `Configurable`)           | `query()`, `execute_action()`                            |
+
+---
+
+## 配置动作机制
+
+### 设计意图
+
+当插件需要在设置面板中提供"一键式辅助操作"（如自动检测浏览器、扫描目录）时，
+框架无法直接调用插件内部方法（违背插件边界原则）。配置动作机制通过扩展 Configurable trait，
+让插件以声明式方式暴露辅助操作，框架通过统一契约路由调用。
+
+### 核心类型
+
+```rust
+/// 配置动作定义
+pub struct ConfigActionDef {
+    pub action: String,       // 动作唯一标识符，如 "detect_browsers"
+    pub label: String,        // 动作显示名称，用于 UI 按钮文本
+    pub description: String,  // 动作描述
+}
+
+/// SettingDefinition 中关联配置动作的字段
+pub struct SettingDefinition {
+    pub field: FieldDefinition,
+    pub group: Option<String>,
+    pub order: u32,
+    pub config_action: Option<String>,  // 关联的配置动作标识符
+}
+```
+
+### Configurable trait 中的配置动作方法
+
+```rust
+pub trait Configurable: Send + Sync {
+    // ... 现有方法 ...
+
+    /// 返回该组件支持的配置动作定义列表
+    fn config_actions(&self) -> Vec<ConfigActionDef> { vec![] }
+
+    /// 执行配置动作
+    /// 参数：action - 动作标识符，对应 ConfigActionDef.action
+    /// 返回：动作执行结果（JSON 格式），由前端根据配置项类型解析并填充
+    fn execute_config_action(&self, action: &str) -> Result<serde_json::Value, String> {
+        Err(format!("Unknown config action: {}", action))
+    }
+}
+```
+
+### Tauri 命令
+
+| 命令                    | 参数                                   | 返回值                      |
+| ----------------------- | -------------------------------------- | --------------------------- |
+| `get_config_actions`    | `component_id: String`                 | `Vec<ConfigActionDef>`      |
+| `execute_config_action` | `component_id: String, action: String` | `Result<serde_json::Value>` |
+
+### 前端行为描述（设想）
+
+1. 前端渲染设置项时，若 `SettingDefinition.config_action` 非空，在配置项旁渲染一个操作按钮
+2. 按钮文本取自对应 `ConfigActionDef.label`（通过 `get_config_actions(component_id)` 获取）
+3. 用户点击按钮后，前端调用 `execute_config_action(component_id, action)`
+4. 返回的 JSON 数据由前端根据配置项类型自行解析并填入对应设置项
+5. 对于 BookmarkSource 的 `detect_browsers` 场景：
+   - 返回 `Vec<BrowserInfo>`，每项包含 `{ name, bookmarks_path }`
+   - 前端将每项转为 `{ name, bookmarks_path, enabled: true }` 对象填入 sources 数组
+
+### 调用链路
+
+```
+前端设置面板
+    │
+    ├─ 渲染时：发现 config_action 非空
+    │   └─ 调用 get_config_actions(component_id) 获取按钮信息
+    │       └─ Tauri command → SessionRouter.get_config_actions(component_id)
+    │
+    ├─ 用户点击按钮
+    │   └─ 调用 execute_config_action(component_id, action)
+    │       └─ Tauri command → SessionRouter.execute_config_action(component_id, action)
+    │           └─ 内部通过 find_configurable 定位组件 → Configurable.execute_config_action(action)
+    │               └─ 返回 JSON 结果
+    │
+    └─ 前端解析 JSON 填充设置项
+
+注意：当前 find_configurable 委托给 CandidatePipeline（仅查找 DataSource），
+未来将迁移至 ConfigManager 的 ConfigurableRegistry（查找所有 Configurable 类型），
+详见 CONFIG_SYSTEM_DESIGN.md 第七章。
+```
+
+### BookmarkSource 实现示例
+
+```rust
+impl Configurable for BookmarkSource {
+    fn setting_schema(&self) -> Vec<SettingDefinition> {
+        vec![
+            SettingDefinition {
+                field: FieldDefinition { key: "sources", ... },
+                group: Some("书签源".to_string()),
+                order: 1,
+                config_action: Some("detect_browsers".to_string()),  // 关联配置动作
+            },
+            // ...
+        ]
+    }
+
+    fn config_actions(&self) -> Vec<ConfigActionDef> {
+        vec![ConfigActionDef {
+            action: "detect_browsers".to_string(),
+            label: "自动检测浏览器".to_string(),
+            description: "扫描系统中已安装的浏览器书签路径".to_string(),
+        }]
+    }
+
+    fn execute_config_action(&self, action: &str) -> Result<serde_json::Value, String> {
+        match action {
+            "detect_browsers" => serde_json::to_value(Self::detect_installed_browsers())
+                .map_err(|e| e.to_string()),
+            _ => Err(format!("Unknown config action: {}", action)),
+        }
+    }
+}
+```

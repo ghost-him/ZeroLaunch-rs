@@ -164,6 +164,11 @@ pub struct SettingDefinition {
     pub field: FieldDefinition,
     pub group: Option<String>,
     pub order: u32,
+    /// 关联的配置动作标识符。
+    /// 前端据此在配置项旁渲染操作按钮（如"自动检测"），
+    /// 点击后调用该组件的 execute_config_action(action) 获取数据填充配置。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub config_action: Option<String>,
 }
 
 /// 数组元素的 UI 渲染提示。
@@ -239,6 +244,18 @@ pub enum PathMode {
     Directory,
 }
 
+/// 配置动作定义，描述组件在配置面板中提供的辅助操作。
+/// 如"自动检测浏览器"等一键式操作，无需参数。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConfigActionDef {
+    /// 动作唯一标识符，如 "detect_browsers"
+    pub action: String,
+    /// 动作显示名称，用于 UI 按钮文本
+    pub label: String,
+    /// 动作描述
+    pub description: String,
+}
+
 /// 所有可配置组件都需实现的核心契约。
 /// 提供组件标识、配置定义、配置读写和配置变更回调能力。
 pub trait Configurable: Send + Sync {
@@ -276,6 +293,20 @@ pub trait Configurable: Send + Sync {
     }
 
     fn on_settings_changed(&self) {}
+
+    /// 返回该组件支持的配置动作定义列表。
+    /// 配置动作用于在设置面板中提供一键式辅助操作（如自动检测浏览器），
+    /// 前端据此渲染操作按钮，用户点击后通过 execute_config_action 执行。
+    fn config_actions(&self) -> Vec<ConfigActionDef> {
+        vec![]
+    }
+
+    /// 执行配置动作。
+    /// 参数：action - 动作标识符，对应 ConfigActionDef.action。
+    /// 返回：动作执行结果（JSON 格式），由前端根据配置项类型解析并填充。
+    fn execute_config_action(&self, action: &str) -> Result<serde_json::Value, String> {
+        Err(format!("Unknown config action: {}", action))
+    }
 
     /// 返回当前组件是否启用。
     /// 所有组件都会被注册和发现，但只有 enabled=true 的组件才会被激活使用。

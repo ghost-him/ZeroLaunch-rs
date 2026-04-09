@@ -77,6 +77,7 @@ impl Configurable for SpaceNormalizer {
                 },
                 group: None,
                 order: 0,
+                config_action: None,
             },
             SettingDefinition {
                 field: FieldDefinition {
@@ -91,6 +92,7 @@ impl Configurable for SpaceNormalizer {
                 },
                 group: None,
                 order: 1,
+                config_action: None,
             },
         ]
     }

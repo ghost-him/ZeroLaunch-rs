@@ -1,6 +1,7 @@
 use crate::plugin_system::cached_candidate::CachedCandidateData;
 use crate::plugin_system::types::{
-    ArrayItem, ArrayUiHint, DataSource, FieldDefinition, LaunchMethod, SearchCandidate, SettingType,
+    ArrayItem, ArrayUiHint, ConfigActionDef, DataSource, FieldDefinition, LaunchMethod,
+    SearchCandidate, SettingType,
 };
 use crate::plugin_system::{ComponentType, ConfigError, Configurable, SettingDefinition};
 use serde::{Deserialize, Serialize};
@@ -315,6 +316,7 @@ impl Configurable for BookmarkSource {
                 },
                 group: Some("书签源".to_string()),
                 order: 1,
+                config_action: Some("detect_browsers".to_string()),
             },
             SettingDefinition {
                 field: FieldDefinition {
@@ -362,6 +364,7 @@ impl Configurable for BookmarkSource {
                 },
                 group: Some("覆盖配置".to_string()),
                 order: 2,
+                config_action: None,
             },
         ]
     }
@@ -373,6 +376,23 @@ impl Configurable for BookmarkSource {
     fn apply_settings(&mut self, settings: serde_json::Value) -> Result<(), ConfigError> {
         self.settings = settings;
         Ok(())
+    }
+
+    fn config_actions(&self) -> Vec<ConfigActionDef> {
+        vec![ConfigActionDef {
+            action: "detect_browsers".to_string(),
+            label: "自动检测浏览器".to_string(),
+            description: "扫描系统中已安装的浏览器书签路径".to_string(),
+        }]
+    }
+
+    fn execute_config_action(&self, action: &str) -> Result<serde_json::Value, String> {
+        match action {
+            "detect_browsers" => {
+                serde_json::to_value(Self::detect_installed_browsers()).map_err(|e| e.to_string())
+            }
+            _ => Err(format!("Unknown config action: {}", action)),
+        }
     }
 }
 

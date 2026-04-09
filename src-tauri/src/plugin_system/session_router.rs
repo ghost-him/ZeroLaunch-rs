@@ -4,6 +4,7 @@ use super::launcher_registry::LauncherRegistry;
 use super::search_pipeline::SearchPipeline;
 use super::service::PluginService;
 use super::types::*;
+use crate::plugin_system::Configurable;
 use parking_lot::RwLock;
 use std::sync::Arc;
 
@@ -159,5 +160,37 @@ impl SessionRouter {
 
     pub fn current_mode(&self) -> SessionMode {
         self.current_mode.read().clone()
+    }
+
+    /// 根据 component_id 查找已注册的 Configurable 组件。
+    /// 委托到 CandidatePipeline 实现。
+    /// 参数：component_id - 组件标识符。
+    /// 返回：找到则返回组件引用，否则返回 None。
+    pub(crate) fn find_configurable(&self, component_id: &str) -> Option<Arc<dyn Configurable>> {
+        self.candidate_pipeline
+            .read()
+            .find_configurable(component_id)
+    }
+
+    /// 获取指定组件的配置动作列表。
+    /// 参数：component_id - 组件标识符。
+    /// 返回：组件支持的配置动作列表，未找到则返回空列表。
+    pub fn get_config_actions(&self, component_id: &str) -> Vec<ConfigActionDef> {
+        self.find_configurable(component_id)
+            .map(|c| c.config_actions())
+            .unwrap_or_default()
+    }
+
+    /// 执行指定组件的配置动作。
+    /// 参数：component_id - 组件标识符，action - 动作标识符。
+    /// 返回：动作执行结果（JSON 格式），未找到组件则返回错误。
+    pub fn execute_config_action(
+        &self,
+        component_id: &str,
+        action: &str,
+    ) -> Result<serde_json::Value, String> {
+        self.find_configurable(component_id)
+            .ok_or_else(|| format!("Component not found: {}", component_id))?
+            .execute_config_action(action)
     }
 }

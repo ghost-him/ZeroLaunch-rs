@@ -781,7 +781,64 @@ ConfigManager ──(发布事件)──▶ EventBus ──(广播)──▶ Ses
 
 ---
 
-## 七、初始化顺序
+## 七、配置查找职责迁移（find_configurable）
+
+### 当前状态
+
+当前 `SessionRouter` 的配置查找（`find_configurable`）委托给 `CandidatePipeline` 实现：
+
+```
+SessionRouter.find_configurable(component_id)
+  → CandidatePipeline.find_configurable(component_id)
+    → 遍历 data_sources (Vec<Arc<dyn DataSource>>)
+```
+
+**问题**：`CandidatePipeline` 只持有 `DataSource` 类型的组件，因此 `find_configurable` **只能查找到 DataSource**。
+其他类型的 Configurable 组件（KeywordOptimizer、SearchEngine、ScoreBooster、Launcher、Plugin）无法被查找到。
+
+### 过渡策略
+
+当前已在 `SessionRouter` 上封装了业务方法，将查找细节内聚：
+
+```rust
+impl SessionRouter {
+    // 可见性已降为 pub(crate)，不再对外暴露查找细节
+    pub(crate) fn find_configurable(&self, component_id: &str) -> Option<Arc<dyn Configurable>> { ... }
+
+    // 对外暴露的是完整业务方法
+    pub fn get_config_actions(&self, component_id: &str) -> Vec<ConfigActionDef> { ... }
+    pub fn execute_config_action(&self, component_id: &str, action: &str) -> Result<serde_json::Value, String> { ... }
+}
+```
+
+这样当查找目标切换时，外部接口无需变动。
+
+### 目标状态
+
+引入 `ConfigManager` 后，配置查找应从 `CandidatePipeline` 迁移到 `ConfigManager` 的 `ConfigurableRegistry`：
+
+```
+SessionRouter.get_config_actions() / execute_config_action()
+  → ConfigManager.get_component(component_id)      ← 替换查找目标
+    → ConfigurableRegistry.get(component_id)        ← 注册了所有类型的 Configurable
+```
+
+**迁移原因**：
+
+| 维度     | CandidatePipeline      | ConfigManager            |
+| -------- | ---------------------- | ------------------------ |
+| 查找范围 | 仅 DataSource          | 所有 Configurable 类型   |
+| 职责对齐 | 收集候选项时按类型查找 | 管理所有可配置组件是本职 |
+| 依赖方向 | plugin_system 层       | core 基础设施层          |
+
+**迁移时需要做的事**：
+1. `SessionRouter` 持有 `ConfigManager` 的引用，将 `find_configurable` 的委托目标从 `CandidatePipeline` 改为 `ConfigManager`
+2. 删除 `CandidatePipeline.find_configurable` 方法
+3. `SessionRouter` 对外的 `get_config_actions` / `execute_config_action` 接口不变
+
+---
+
+## 八、初始化顺序
 
 ```
 阶段1: 基础设施
@@ -820,7 +877,7 @@ ConfigManager ──(发布事件)──▶ EventBus ──(广播)──▶ Ses
 
 ---
 
-## 八、关键设计要点
+## 九、关键设计要点
 
 ### 1. 组件自响应
 

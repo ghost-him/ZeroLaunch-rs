@@ -32,7 +32,7 @@ impl SearchPipeline {
         }
 
         for booster in &self.boosters {
-            booster.boost(&mut scored);
+            booster.boost(&mut scored, candidates, query);
         }
 
         scored.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap());

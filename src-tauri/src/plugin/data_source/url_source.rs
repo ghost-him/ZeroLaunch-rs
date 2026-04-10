@@ -1,0 +1,133 @@
+use crate::plugin_system::cached_candidate::CachedCandidateData;
+use crate::plugin_system::types::{
+    ArrayItem, ArrayUiHint, DataSource, FieldDefinition, LaunchMethod, SearchCandidate, SettingType,
+};
+use crate::plugin_system::{ComponentType, ConfigError, Configurable, SettingDefinition};
+use tracing::debug;
+
+/// 网页数据源插件，负责从用户配置的网页列表中加载数据源候选项。
+pub struct UrlSource {
+    settings: serde_json::Value,
+}
+
+impl Default for UrlSource {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl UrlSource {
+    pub fn new() -> Self {
+        UrlSource {
+            settings: serde_json::Value::Null,
+        }
+    }
+
+    /// 从 settings 中解析网页列表配置
+    fn parse_web_pages(&self) -> Vec<(String, String)> {
+        self.settings
+            .get("web_pages")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|item| {
+                        let name = item.get("name")?.as_str()?.to_string();
+                        let url = item.get("url")?.as_str()?.to_string();
+                        Some((name, url))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+}
+
+impl Configurable for UrlSource {
+    fn component_id(&self) -> &str {
+        "url-source"
+    }
+
+    fn component_name(&self) -> &str {
+        "网页数据源"
+    }
+
+    fn component_type(&self) -> ComponentType {
+        ComponentType::DataSource
+    }
+
+    fn setting_schema(&self) -> Vec<SettingDefinition> {
+        vec![SettingDefinition {
+            field: FieldDefinition {
+                key: "web_pages".to_string(),
+                label: "索引网页".to_string(),
+                description: "配置要索引的网页快捷方式".to_string(),
+                setting_type: SettingType::Array {
+                    item: ArrayItem::Object(vec![
+                        FieldDefinition {
+                            key: "name".to_string(),
+                            label: "名称".to_string(),
+                            description: "网页的显示名称".to_string(),
+                            setting_type: SettingType::Text,
+                            default_value: serde_json::json!(""),
+                            visible: true,
+                            editable: true,
+                        },
+                        FieldDefinition {
+                            key: "url".to_string(),
+                            label: "URL".to_string(),
+                            description: "网页的完整网址".to_string(),
+                            setting_type: SettingType::Text,
+                            default_value: serde_json::json!(""),
+                            visible: true,
+                            editable: true,
+                        },
+                    ]),
+                    min_items: None,
+                    max_items: None,
+                    ui_hint: ArrayUiHint::Table,
+                },
+                default_value: serde_json::json!([]),
+                visible: true,
+                editable: true,
+            },
+            group: Some("网页索引".to_string()),
+            order: 1,
+            config_action: None,
+        }]
+    }
+
+    fn get_settings(&self) -> serde_json::Value {
+        self.settings.clone()
+    }
+
+    fn apply_settings(&mut self, settings: serde_json::Value) -> Result<(), ConfigError> {
+        self.settings = settings;
+        Ok(())
+    }
+}
+
+impl DataSource for UrlSource {
+    fn fetch_candidates(&self) -> CachedCandidateData {
+        let mut result = CachedCandidateData::new();
+        let web_pages = self.parse_web_pages();
+
+        for (name, url) in &web_pages {
+            if name.is_empty() || url.is_empty() {
+                continue;
+            }
+
+            let candidate = SearchCandidate {
+                id: 0,
+                name: name.clone(),
+                icon: url.clone(),
+                launch_method: LaunchMethod::Url(url.clone()),
+                keywords: Vec::new(),
+                bias: 0.0,
+            };
+
+            debug!("UrlSource: 加载网页候选项: {} -> {}", name, url);
+            result.add_candidate(candidate);
+        }
+
+        result
+    }
+}

@@ -601,7 +601,144 @@ fn register_plugins(app_state: &Arc<AppState>) {
 
 ---
 
+### 4.8 Plugin SDK 与跨平台架构
 
+#### 4.8.1 设计背景
+
+在当前架构中，插件（如 `FileLauncher`、`UrlLauncher`）直接调用框架层的平台相关函数（如 `shell_execute_open`），存在以下问题：
+
+| 问题                 | 影响                         |
+| -------------------- | ---------------------------- |
+| 插件与框架隐式耦合   | 框架函数变更会波及所有插件   |
+| 平台差异泄露到插件层 | 插件代码包含平台特定逻辑     |
+| 难以独立测试         | 需要 mock 框架层才能测试插件 |
+
+为解决这些问题，并支持未来的跨平台开发（macOS、Linux），引入 **Plugin SDK** 层。
+
+#### 4.8.2 架构分层
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│                        应用层 (Application)                     │
+│                    前端 UI / 业务逻辑                           │
+└────────────────────────────────────────────────────────────────┘
+                              ↓
+┌────────────────────────────────────────────────────────────────┐
+│                      插件层 (Plugins)                           │
+│     FileLauncher / UrlLauncher / PathLauncher / ...           │
+│                    只依赖 Plugin SDK 接口                       │
+└────────────────────────────────────────────────────────────────┘
+                              ↓
+┌────────────────────────────────────────────────────────────────┐
+│                     Plugin SDK (抽象接口)                       │
+│     ┌─────────────────────────────────────────────────────┐   │
+│     │  trait HostApi:                                      │   │
+│     │    - shell_open(path) -> Result                     │   │
+│     │    - shell_open_folder(path) -> Result              │   │
+│     │    - get_default_browser() -> String                │   │
+│     │    - ...                                             │   │
+│     └─────────────────────────────────────────────────────┘   │
+└────────────────────────────────────────────────────────────────┘
+                              ↓
+┌────────────────────────────────────────────────────────────────┐
+│                   平台实现层 (Platform Impl)                    │
+│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────┐ │
+│  │   WindowsApi     │  │     MacApi       │  │   LinuxApi   │ │
+│  │  ShellExecuteW   │  │   NSWorkspace    │  │   xdg-open   │ │
+│  └──────────────────┘  └──────────────────┘  └──────────────┘ │
+└────────────────────────────────────────────────────────────────┘
+```
+
+#### 4.8.3 核心设计原则
+
+| 原则           | 说明                                               |
+| -------------- | -------------------------------------------------- |
+| **关注点分离** | 插件只关注「做什么」，SDK 负责平台差异的「怎么做」 |
+| **接口抽象**   | 通过 trait 定义能力契约，平台实现可替换            |
+| **渐进式演进** | 先完善 SDK 接口设计，再补充各平台实现              |
+| **测试友好**   | 可注入 Mock 实现进行单元测试                       |
+
+#### 4.8.4 重构顺序
+
+```
+阶段一：插件化重构（当前）
+├── 定义 Plugin SDK 接口 (HostApi trait)
+├── 将现有功能迁移为插件
+├── 验证接口设计的合理性
+└── 此时平台实现只有 Windows
+
+阶段二：跨平台实现（后续）
+├── SDK 接口已稳定（经过阶段一验证）
+├── 插件代码无需改动
+├── 只需新增 macOS / Linux 平台实现
+└── 核心逻辑零修改
+```
+
+#### 4.8.5 接口设计要点
+
+**1. 接口粒度控制**
+
+```
+太细：shell_open_file(), shell_open_url(), shell_open_folder()...
+      → 每个平台都要实现多个方法，且逻辑相似
+
+太粗：shell_execute(command: &str)
+      → 插件需要自己拼命令，平台差异泄露到插件层
+
+合适：shell_open(target: OpenTarget)
+      enum OpenTarget { File(Path), Url(String), Folder(Path) }
+      → 平台层统一处理差异，插件层语义清晰
+```
+
+**2. 平台能力差异处理**
+
+不同平台能力不对等是必然的：
+
+| 能力         | Windows    | macOS       | Linux        |
+| ------------ | ---------- | ----------- | ------------ |
+| 以管理员运行 | ✅ runas    | ⚠️ osascript | ❌ 需 pkexec  |
+| UWP 应用启动 | ✅ 专属 API | ❌ 不存在    | ❌ 不存在     |
+| 默认浏览器   | 注册表     | LSWorkspace | xdg-settings |
+
+设计建议：
+- SDK 接口返回 `Result<Option<...>>` 或定义 `Capability` 查询
+- 插件通过 `host.capabilities()` 查询平台支持的能力
+- UI 层根据能力动态隐藏/禁用不可用功能
+
+**3. 异步操作统一**
+
+```rust
+// 考虑异步接口，因为某些平台操作可能阻塞
+#[async_trait]
+pub trait HostApi: Send + Sync {
+    async fn shell_open(&self, path: &Path) -> Result<(), HostError>;
+}
+```
+
+#### 4.8.6 与现有架构的整合
+
+Plugin SDK 将作为 `plugin_system/api.rs` 的核心内容，与现有组件的关系：
+
+```
+plugin_system/
+├── types.rs                   # 核心 trait 定义
+├── registry.rs                # 插件注册中心
+├── dispatcher.rs              # 查询分发器
+├── api.rs                     # Plugin SDK (HostApi trait + 实现)
+│   ├── HostApi trait          # 宿主能力接口
+│   ├── HostApiImpl            # 具体实现（委托给 platform 层）
+│   └── MockHostApi            # 测试用 Mock
+└── ...
+```
+
+插件通过 `Launcher` trait 的上下文参数获取 `HostApi`：
+
+```rust
+pub trait Launcher: Configurable {
+    fn execute(&self, method: &LaunchMethod, action_id: &str, host: &dyn HostApi) 
+        -> Result<(), LaunchError>;
+}
+```
 
 ---
 
@@ -700,18 +837,28 @@ src-tauri/src/
 │       ├── bus.rs
 │       └── events.rs
 │
-├── platform/                      # 平台适配层（新增）
-│   ├── mod.rs
-│   ├── traits.rs                  # 平台能力 trait 定义
-│   ├── windows/                   # Windows 实现
+├── platform/                      # 平台适配层（Plugin SDK 实现）
+│   ├── mod.rs                     # 平台模块入口，条件编译选择实现
+│   ├── traits.rs                  # HostApi trait 定义（与 plugin_system/api.rs 共享）
+│   ├── capabilities.rs            # 平台能力查询（Capability enum）
+│   │
+│   ├── windows/                   # Windows 平台实现
 │   │   ├── mod.rs
-│   │   ├── launcher.rs
-│   │   ├── icon.rs
-│   │   └── shortcut.rs
-│   ├── macos/                     # macOS 实现（预留）
-│   │   └── mod.rs
-│   └── linux/                     # Linux 实现（预留）
-│       └── mod.rs
+│   │   ├── host_api.rs            # HostApi trait 的 Windows 实现
+│   │   ├── shell.rs               # ShellExecuteW 封装
+│   │   ├── uwp.rs                 # UWP 应用启动
+│   │   ├── icon.rs                # 图标提取
+│   │   └── shortcut.rs            # 快捷方式解析
+│   │
+│   ├── macos/                     # macOS 平台实现（预留）
+│   │   ├── mod.rs
+│   │   ├── host_api.rs            # HostApi trait 的 macOS 实现
+│   │   └── workspace.rs           # NSWorkspace 封装
+│   │
+│   └── linux/                     # Linux 平台实现（预留）
+│       ├── mod.rs
+│       ├── host_api.rs            # HostApi trait 的 Linux 实现
+│       └── desktop.rs             # xdg-open / gtk 封装
 │
 ├── state/                         # 应用状态（核心组件）
 │   ├── mod.rs
@@ -772,17 +919,22 @@ src-tauri/src/
 │  │ PluginRegistry  │            │ ScoreBooster        │    │
 │  └─────────────────┘            └─────────────────────┘    │
 │                                                             │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │              api.rs (Plugin SDK)                    │   │
+│  │         HostApi trait - 宿主能力抽象                 │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                                                             │
 └─────────────────────────────┬───────────────────────────────┘
-                              │
+                              │ 通过 HostApi trait
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                       plugin/                               │
 │                    (插件实现)                               │
 │                                                             │
 │  data_source/    search_engine/    score_booster/          │
-│  launcher/       triggerable/                                │
+│  launcher/       triggerable/      (只依赖 HostApi 接口)    │
 └─────────────────────────────┬───────────────────────────────┘
-                              │
+                              │ HostApi trait 实现
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                       core/                                 │
@@ -796,7 +948,7 @@ src-tauri/src/
 │                      platform/                              │
 │                   (平台适配层)                              │
 │                                                             │
-│  traits.rs    windows/    macos/    linux/                 │
+│  HostApi 实现: windows/    macos/    linux/                │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -1081,20 +1233,23 @@ struct AppState {
 
 1. **引入插件架构** - 统一功能扩展入口，为未来支持外部插件预留空间
 2. **职责分离设计** - 插件注册中心与查询分发器分离，遵循单一职责原则
-3. **混合存储策略** - JSON 存储用户配置，SQLite 存储运行时数据
-4. **模块解耦** - 通过 trait 定义接口，降低模块间耦合
-5. **统一事件系统** - 支持模块间松耦合通信
+3. **Plugin SDK 层** - 通过 HostApi trait 抽象平台能力，插件与平台实现解耦
+4. **跨平台架构** - 平台相关代码隔离在 platform/ 目录，支持渐进式跨平台开发
+5. **混合存储策略** - JSON 存储用户配置，SQLite 存储运行时数据
+6. **模块解耦** - 通过 trait 定义接口，降低模块间耦合
+7. **统一事件系统** - 支持模块间松耦合通信
 
 ### 8.2 预期收益
 
-| 方面         | 当前状态     | 重构后                   |
-| ------------ | ------------ | ------------------------ |
-| **可扩展性** | 功能硬编码   | 插件化扩展               |
-| **可维护性** | 模块耦合     | 接口清晰                 |
-| **可测试性** | 难以单元测试 | 模块可独立测试           |
-| **配置管理** | 分散         | 统一管理                 |
-| **数据安全** | 写入可能损坏 | 原子写入 + 事务          |
-| **职责清晰** | 混合职责     | Registry/Dispatcher 分离 |
+| 方面         | 当前状态     | 重构后                     |
+| ------------ | ------------ | -------------------------- |
+| **可扩展性** | 功能硬编码   | 插件化扩展                 |
+| **可维护性** | 模块耦合     | 接口清晰                   |
+| **可测试性** | 难以单元测试 | 模块可独立测试（Mock SDK） |
+| **配置管理** | 分散         | 统一管理                   |
+| **数据安全** | 写入可能损坏 | 原子写入 + 事务            |
+| **职责清晰** | 混合职责     | Registry/Dispatcher 分离   |
+| **跨平台**   | 仅 Windows   | 架构支持多平台             |
 
 ### 8.3 架构决策说明
 
@@ -1105,5 +1260,23 @@ struct AppState {
 | `PluginRegistry`  | 插件生命周期管理 | 注册、注销、发现插件                      |
 | `QueryDispatcher` | 查询流程编排     | 分发查询、并行执行、结果聚合              |
 | `PluginService`   | 整合层           | 提供统一入口，协调 Registry 和 Dispatcher |
+| `Plugin SDK`      | 平台能力抽象     | HostApi trait 定义，插件与平台解耦        |
+| `Platform Impl`   | 平台实现         | Windows/macOS/Linux 各平台的 HostApi 实现 |
 
-这种设计相比 Wox 的 `PluginManager` 混合职责方案，更适合 ZeroLaunch 将 `ProgramManager` 拆分为多个小插件的目标。
+这种设计相比 Wox 的 `PluginManager` 混合职责方案，更适合 ZeroLaunch 将 `ProgramManager` 拆分为多个小插件的目标，同时为跨平台开发奠定了基础。
+
+### 8.4 重构阶段规划
+
+```
+阶段一：插件化重构
+├── 定义核心 trait（Configurable, DataSource, Launcher 等）
+├── 实现 Plugin SDK（HostApi trait + Windows 实现）
+├── 将现有功能迁移为插件
+└── 验证接口设计合理性
+
+阶段二：跨平台实现
+├── SDK 接口已稳定
+├── 实现 macOS 平台适配
+├── 实现 Linux 平台适配
+└── 插件代码零修改
+```

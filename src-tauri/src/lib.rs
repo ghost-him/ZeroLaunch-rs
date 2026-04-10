@@ -37,7 +37,9 @@ use crate::plugin::keyword_optimizer::{
     FirstLetterExtractor, LowerCaseConverter, PinyinConverter, SpaceNormalizer, SpaceRemover,
     SymbolRemover, UpperCaseLetterExtractor, VersionNumberRemover,
 };
-use crate::plugin::launcher::{CommandLauncher, PathLauncher, UrlLauncher, UwpLauncher};
+use crate::plugin::launcher::{
+    CommandLauncher, FileLauncher, PathLauncher, UrlLauncher, UwpLauncher,
+};
 use crate::plugin::score_booster::history_booster::HistoryBooster;
 use crate::plugin::search_engine::standard_search_model::StandardSearchModel;
 use crate::plugin_system::types::{ScoreBooster, SearchEngine};
@@ -475,6 +477,7 @@ fn init_plugin_system(state: &Arc<AppState>) {
     // 1. 注册启动器
     info!("正在注册启动器...");
     session_router.register_launcher(Arc::new(PathLauncher::new()));
+    session_router.register_launcher(Arc::new(FileLauncher::new()));
     session_router.register_launcher(Arc::new(UrlLauncher::new()));
     session_router.register_launcher(Arc::new(UwpLauncher::new()));
     session_router.register_launcher(Arc::new(CommandLauncher::new()));

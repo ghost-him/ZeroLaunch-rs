@@ -1,12 +1,25 @@
 use crate::plugin_system::types::{
     LaunchError, LaunchMethod, LaunchMethodType, Launcher, ResultAction,
 };
+use crate::utils::windows::shell_execute_open;
+use tracing::warn;
 
+/// URL 启动器 - 负责使用系统默认浏览器打开 URL
+/// 使用 ShellExecuteW 直接打开 URL，避免 cmd.exe 对特殊字符的错误解析
 pub struct UrlLauncher;
 
 impl UrlLauncher {
     pub fn new() -> Self {
         Self
+    }
+
+    /// 使用系统默认浏览器打开 URL
+    fn launch_url(&self, url: &str) -> Result<(), LaunchError> {
+        shell_execute_open(url).map_err(|e| {
+            let msg = format!("启动 URL 失败：{:?}", e);
+            warn!("{}", msg);
+            LaunchError::Failed(msg)
+        })
     }
 }
 
@@ -30,9 +43,18 @@ impl Launcher for UrlLauncher {
         }]
     }
 
-    fn execute(&self, _method: &LaunchMethod, action_id: &str) -> Result<(), LaunchError> {
+    fn execute(&self, method: &LaunchMethod, action_id: &str) -> Result<(), LaunchError> {
+        let url = match method {
+            LaunchMethod::Url(u) => u,
+            _ => {
+                return Err(LaunchError::Failed(
+                    "Invalid launch method for UrlLauncher".into(),
+                ))
+            }
+        };
+
         match action_id {
-            "launch" => todo!("UrlLauncher::launch 尚未实现"),
+            "launch" => self.launch_url(url),
             _ => Err(LaunchError::UnsupportedAction(action_id.to_string())),
         }
     }

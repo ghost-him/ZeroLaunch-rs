@@ -3,11 +3,12 @@ use crate::plugin_system::types::{
     ArrayItem, ArrayUiHint, DataSource, FieldDefinition, LaunchMethod, SearchCandidate, SettingType,
 };
 use crate::plugin_system::{ComponentType, ConfigError, Configurable, SettingDefinition};
+use parking_lot::RwLock;
 use tracing::debug;
 
 /// 网页数据源插件，负责从用户配置的网页列表中加载数据源候选项。
 pub struct UrlSource {
-    settings: serde_json::Value,
+    settings: RwLock<serde_json::Value>,
 }
 
 impl Default for UrlSource {
@@ -19,13 +20,14 @@ impl Default for UrlSource {
 impl UrlSource {
     pub fn new() -> Self {
         UrlSource {
-            settings: serde_json::Value::Null,
+            settings: RwLock::new(serde_json::Value::Null),
         }
     }
 
     /// 从 settings 中解析网页列表配置
     fn parse_web_pages(&self) -> Vec<(String, String)> {
         self.settings
+            .read()
             .get("web_pages")
             .and_then(|v| v.as_array())
             .map(|arr| {
@@ -96,11 +98,11 @@ impl Configurable for UrlSource {
     }
 
     fn get_settings(&self) -> serde_json::Value {
-        self.settings.clone()
+        self.settings.read().clone()
     }
 
-    fn apply_settings(&mut self, settings: serde_json::Value) -> Result<(), ConfigError> {
-        self.settings = settings;
+    fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
+        *self.settings.write() = settings;
         Ok(())
     }
 }

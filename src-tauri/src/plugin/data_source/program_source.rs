@@ -8,6 +8,7 @@ use crate::plugin_system::{
     ComponentType, ConfigError, Configurable, SettingDefinition, SettingType,
 };
 use globset::GlobSetBuilder;
+use parking_lot::RwLock;
 use regex::RegexSet;
 use std::collections::HashMap;
 use std::path::Path;
@@ -114,7 +115,7 @@ impl PathChecker {
 }
 
 pub struct ProgramSource {
-    settings: serde_json::Value,
+    settings: RwLock<serde_json::Value>,
 }
 
 impl Default for ProgramSource {
@@ -126,7 +127,7 @@ impl Default for ProgramSource {
 impl ProgramSource {
     pub fn new() -> Self {
         ProgramSource {
-            settings: serde_json::Value::Null,
+            settings: RwLock::new(serde_json::Value::Null),
         }
     }
 
@@ -236,7 +237,8 @@ impl ProgramSource {
     }
 
     fn parse_directory_configs(&self) -> Vec<DirectoryConfig> {
-        let directories = self.settings.get("directories").and_then(|v| v.as_array());
+        let settings = self.settings.read();
+        let directories = settings.get("directories").and_then(|v| v.as_array());
 
         match directories {
             Some(arr) => arr
@@ -403,11 +405,11 @@ impl Configurable for ProgramSource {
     }
 
     fn get_settings(&self) -> serde_json::Value {
-        self.settings.clone()
+        self.settings.read().clone()
     }
 
-    fn apply_settings(&mut self, settings: serde_json::Value) -> Result<(), ConfigError> {
-        self.settings = settings;
+    fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
+        *self.settings.write() = settings;
         Ok(())
     }
 

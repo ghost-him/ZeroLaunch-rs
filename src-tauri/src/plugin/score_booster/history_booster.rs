@@ -119,7 +119,7 @@ impl HistoryBoosterInner {
 #[derive(Debug)]
 pub struct HistoryBooster {
     inner: RwLock<HistoryBoosterInner>,
-    settings: serde_json::Value,
+    settings: RwLock<serde_json::Value>,
 }
 
 impl Default for HistoryBooster {
@@ -132,7 +132,7 @@ impl HistoryBooster {
     pub fn new() -> Self {
         HistoryBooster {
             inner: RwLock::new(HistoryBoosterInner::new()),
-            settings: serde_json::Value::Null,
+            settings: RwLock::new(serde_json::Value::Null),
         }
     }
 }
@@ -228,10 +228,10 @@ impl Configurable for HistoryBooster {
     }
 
     fn get_settings(&self) -> serde_json::Value {
-        self.settings.clone()
+        self.settings.read().clone()
     }
 
-    fn apply_settings(&mut self, settings: serde_json::Value) -> Result<(), ConfigError> {
+    fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
         let mut inner = self.inner.write();
         if let Some(v) = settings.get("history_weight").and_then(|v| v.as_f64()) {
             inner.history_weight = v;
@@ -245,7 +245,7 @@ impl Configurable for HistoryBooster {
         if let Some(v) = settings.get("temporal_decay").and_then(|v| v.as_f64()) {
             inner.temporal_decay = v as i64;
         }
-        self.settings = settings;
+        *self.settings.write() = settings;
         Ok(())
     }
 }

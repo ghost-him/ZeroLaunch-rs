@@ -61,13 +61,17 @@ pub trait Configurable: Send + Sync {
     fn component_type(&self) -> ComponentType; // 组件类型
 
     // 配置定义与读写
-    fn setting_schema(&self) -> Vec<SettingDefinition>;  // 配置项定义
-    fn get_settings(&self) -> serde_json::Value;         // 获取所有配置值
-    fn apply_settings(&mut self, settings: serde_json::Value) -> Result<(), ConfigError>;
+    fn setting_schema(&self) -> Vec<SettingDefinition> { vec![] }  // 配置项定义
+    fn get_settings(&self) -> serde_json::Value { ... }            // 获取所有配置值
+    fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> { ... } // 使用 &self，内部 RwLock
 
     // 可选方法
-    fn validate_settings(&self, settings: &serde_json::Value) -> Result<(), ConfigError>;
-    fn on_settings_changed(&self);  // 配置变更回调
+    fn validate_settings(&self, settings: &serde_json::Value) -> Result<(), ConfigError> { Ok(()) }
+    fn get_default_settings(&self) -> serde_json::Value { ... }
+    fn on_settings_changed(&self) {}  // 配置变更回调
+    fn config_actions(&self) -> Vec<ConfigActionDef> { vec![] }
+    fn execute_config_action(&self, action: &str) -> Result<serde_json::Value, String> { ... }
+    fn enabled(&self) -> bool { true }
 }
 ```
 
@@ -83,11 +87,11 @@ pub trait Configurable: Send + Sync {
 │   Configurable    │  ← 基础配置能力
 └─────────┬─────────┘
           │
-    ┌─────┴─────┬─────────────────┐
-    ▼           ▼                 ▼
-┌─────────┐ ┌───────────┐ ┌───────────────┐
-│ Plugin  │ │ DataSource│ │ SearchEngine  │
-└─────────┘ └───────────┘ └───────────────┘
+    ┌─────┴─────┬─────────────────┬───────────────┬──────────────┐
+    ▼           ▼                 ▼               ▼              ▼
+┌─────────┐ ┌───────────┐ ┌───────────────┐ ┌─────────────┐ ┌─────────┐
+│ Plugin  │ │ DataSource│ │ SearchEngine  │ │ ScoreBooster│ │ Launcher│
+└─────────┘ └───────────┘ └───────────────┘ └─────────────┘ └─────────┘
 ```
 
 ---

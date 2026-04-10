@@ -3,19 +3,15 @@ use crate::plugin_system::{
     types::{ComponentType, ConfigError, Configurable, KeywordOptimizer, SettingDefinition},
     SettingType,
 };
-pub struct UpperCaseLetterExtractor {
+use parking_lot::RwLock;
+
+struct UpperCaseLetterExtractorInner {
     priority: i32,
     uses_context: bool,
 }
 
-impl Default for UpperCaseLetterExtractor {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl UpperCaseLetterExtractor {
-    pub fn new() -> Self {
+impl UpperCaseLetterExtractorInner {
+    fn new() -> Self {
         Self {
             priority: 40,
             uses_context: false,
@@ -36,6 +32,33 @@ impl UpperCaseLetterExtractor {
         }
 
         result.to_lowercase()
+    }
+
+    fn optimize(&self, keyword: &str) -> Vec<String> {
+        let result = self.get_upper_case_latter(keyword);
+        if result.is_empty() {
+            Vec::new()
+        } else {
+            vec![result]
+        }
+    }
+}
+
+pub struct UpperCaseLetterExtractor {
+    inner: RwLock<UpperCaseLetterExtractorInner>,
+}
+
+impl Default for UpperCaseLetterExtractor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl UpperCaseLetterExtractor {
+    pub fn new() -> Self {
+        Self {
+            inner: RwLock::new(UpperCaseLetterExtractorInner::new()),
+        }
     }
 }
 
@@ -91,18 +114,20 @@ impl Configurable for UpperCaseLetterExtractor {
     }
 
     fn get_settings(&self) -> serde_json::Value {
+        let inner = self.inner.read();
         serde_json::json!({
-            "priority": self.priority,
-            "uses_context": self.uses_context
+            "priority": inner.priority,
+            "uses_context": inner.uses_context
         })
     }
 
-    fn apply_settings(&mut self, settings: serde_json::Value) -> Result<(), ConfigError> {
+    fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
+        let mut inner = self.inner.write();
         if let Some(priority) = settings.get("priority").and_then(|v| v.as_f64()) {
-            self.priority = priority as i32;
+            inner.priority = priority as i32;
         }
         if let Some(uses_context) = settings.get("uses_context").and_then(|v| v.as_bool()) {
-            self.uses_context = uses_context;
+            inner.uses_context = uses_context;
         }
         Ok(())
     }
@@ -110,19 +135,14 @@ impl Configurable for UpperCaseLetterExtractor {
 
 impl KeywordOptimizer for UpperCaseLetterExtractor {
     fn optimize(&self, keyword: &str) -> Vec<String> {
-        let result = self.get_upper_case_latter(keyword);
-        if result.is_empty() {
-            Vec::new()
-        } else {
-            vec![result]
-        }
+        self.inner.read().optimize(keyword)
     }
 
     fn uses_context(&self) -> bool {
-        self.uses_context
+        self.inner.read().uses_context
     }
 
     fn get_priority(&self) -> i32 {
-        self.priority
+        self.inner.read().priority
     }
 }

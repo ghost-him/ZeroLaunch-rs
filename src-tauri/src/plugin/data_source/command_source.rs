@@ -4,12 +4,13 @@ use crate::plugin_system::types::{
     ArrayItem, ArrayUiHint, DataSource, FieldDefinition, LaunchMethod, SearchCandidate, SettingType,
 };
 use crate::plugin_system::{ComponentType, ConfigError, Configurable, SettingDefinition};
+use parking_lot::RwLock;
 use std::path::Path;
 use tracing::{debug, warn};
 
 /// 自定义命令数据源插件，负责从用户配置的命令列表中加载数据源候选项。
 pub struct CommandSource {
-    settings: serde_json::Value,
+    settings: RwLock<serde_json::Value>,
 }
 
 impl Default for CommandSource {
@@ -21,7 +22,7 @@ impl Default for CommandSource {
 impl CommandSource {
     pub fn new() -> Self {
         CommandSource {
-            settings: serde_json::Value::Null,
+            settings: RwLock::new(serde_json::Value::Null),
         }
     }
 
@@ -29,6 +30,7 @@ impl CommandSource {
     /// 返回 (名称, 命令) 的列表
     fn parse_commands(&self) -> Vec<(String, String)> {
         self.settings
+            .read()
             .get("commands")
             .and_then(|v| v.as_array())
             .map(|arr| {
@@ -145,11 +147,11 @@ impl Configurable for CommandSource {
     }
 
     fn get_settings(&self) -> serde_json::Value {
-        self.settings.clone()
+        self.settings.read().clone()
     }
 
-    fn apply_settings(&mut self, settings: serde_json::Value) -> Result<(), ConfigError> {
-        self.settings = settings;
+    fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
+        *self.settings.write() = settings;
         Ok(())
     }
 }

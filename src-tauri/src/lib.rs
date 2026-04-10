@@ -20,6 +20,9 @@ use crate::commands::ui_command::*;
 use crate::commands::utils::*;
 #[cfg(feature = "ai")]
 use crate::core::ai::model_manager::ModelManager;
+use crate::core::config::ConfigManager;
+use crate::core::storage;
+use crate::core::storage::storage_manager::StorageManager;
 use crate::error::{OptionExt, ResultExt};
 use crate::logging::{
     init_logging, log_application_shutdown, log_application_start, update_log_level,
@@ -52,8 +55,6 @@ use crate::utils::i18n::{current_language, switch_language};
 use crate::utils::ui_controller::handle_focus_lost;
 use crate::utils::ui_controller::handle_pressed;
 use crate::window_position::update_window_size_and_position;
-use core::storage;
-use core::storage::storage_manager::StorageManager;
 use modules::bookmark_loader::BookmarkLoader;
 use modules::config::app_config::{AppConfig, PartialAppConfig};
 use modules::config::config_manager::RuntimeConfig;
@@ -247,6 +248,13 @@ pub fn run() {
             // 配置动作命令
             get_config_actions,
             execute_config_action,
+            // ConfigManager API 命令
+            get_all_components,
+            get_component_schema,
+            get_component_settings,
+            apply_component_settings,
+            reset_component_settings,
+            set_component_enabled,
             // 新架构搜索命令
             handle_new_search,
             handle_new_launch,
@@ -379,6 +387,19 @@ async fn init_app_state(app: &mut App) {
     utils::i18n::init_translator(&language);
     info!("翻译系统已初始化，语言: {}", language);
 
+    // === 阶段3.5: 初始化 ConfigManager ===
+    // ConfigManager 需要配置目录，使用当前可执行文件所在目录
+    let config_dir = std::env::current_exe()
+        .and_then(|p| {
+            p.parent()
+                .map(|p| p.to_path_buf())
+                .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "no parent"))
+        })
+        .unwrap_or_else(|_| std::path::PathBuf::from("."));
+    let config_manager = Arc::new(ConfigManager::new(config_dir));
+    state.set_config_manager(config_manager);
+    debug!("ConfigManager 初始化完成");
+
     // === 阶段4: 程序管理器初始化 ===
     #[cfg(feature = "ai")]
     let model_manager = Arc::new(ModelManager::new());
@@ -473,34 +494,118 @@ async fn init_app_state(app: &mut App) {
 /// 初始化新插件系统的所有组件
 fn init_plugin_system(state: &Arc<AppState>) {
     let session_router = state.get_session_router();
+    let config_manager = state.get_config_manager();
 
-    // 1. 注册启动器
+    // 设置 SessionRouter 的 ConfigManager 引用
+    session_router.set_config_manager(config_manager.clone());
+
+    // 启动配置事件监听任务
+    let event_router = session_router.clone();
+    let mut event_receiver = config_manager.event_sender().subscribe();
+    tauri::async_runtime::spawn(async move {
+        loop {
+            match event_receiver.recv().await {
+                Ok(event) => {
+                    event_router.handle_config_event(&event);
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(count)) => {
+                    warn!("配置事件接收器落后 {} 条消息", count);
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                    info!("配置事件通道已关闭，退出监听");
+                    break;
+                }
+            }
+        }
+    });
+
+    // === 阶段1: 注册所有组件到 ConfigManager ===
+    info!("正在注册可配置组件到 ConfigManager...");
+
+    // 1. 注册启动器（同时注册到 ConfigManager 和 LauncherRegistry，双重索引）
     info!("正在注册启动器...");
-    session_router.register_launcher(Arc::new(PathLauncher::new()));
-    session_router.register_launcher(Arc::new(FileLauncher::new()));
-    session_router.register_launcher(Arc::new(UrlLauncher::new()));
-    session_router.register_launcher(Arc::new(UwpLauncher::new()));
-    session_router.register_launcher(Arc::new(CommandLauncher::new()));
+    let path_launcher: Arc<dyn crate::plugin_system::types::Launcher> =
+        Arc::new(PathLauncher::new());
+    let file_launcher: Arc<dyn crate::plugin_system::types::Launcher> =
+        Arc::new(FileLauncher::new());
+    let url_launcher: Arc<dyn crate::plugin_system::types::Launcher> = Arc::new(UrlLauncher::new());
+    let uwp_launcher: Arc<dyn crate::plugin_system::types::Launcher> = Arc::new(UwpLauncher::new());
+    let command_launcher: Arc<dyn crate::plugin_system::types::Launcher> =
+        Arc::new(CommandLauncher::new());
+
+    // 注册到 ConfigManager（配置维度索引）
+    config_manager.register(path_launcher.clone());
+    config_manager.register(file_launcher.clone());
+    config_manager.register(url_launcher.clone());
+    config_manager.register(uwp_launcher.clone());
+    config_manager.register(command_launcher.clone());
+
+    // 注册到 LauncherRegistry（业务维度索引）
+    session_router.register_launcher(path_launcher);
+    session_router.register_launcher(file_launcher);
+    session_router.register_launcher(url_launcher);
+    session_router.register_launcher(uwp_launcher);
+    session_router.register_launcher(command_launcher);
     info!("启动器注册完成");
 
-    // 2. 初始化候选管道并注册数据源和关键词优化器
-    info!("正在初始化候选管道...");
+    // 2. 注册数据源
+    info!("正在注册数据源...");
+    let program_source = Arc::new(ProgramSource::new());
+    let _ = program_source.apply_settings(program_source.get_default_settings());
+    config_manager.register(program_source.clone());
+    info!("数据源注册完成");
+
+    // 3. 注册关键词优化器
+    info!("正在注册关键词优化器...");
+    let version_number_remover = Arc::new(VersionNumberRemover::new());
+    let symbol_remover = Arc::new(SymbolRemover::new());
+    let space_remover = Arc::new(SpaceRemover::new());
+    let space_normalizer = Arc::new(SpaceNormalizer::new());
+    let lower_case_converter = Arc::new(LowerCaseConverter::new());
+    let pinyin_converter = Arc::new(PinyinConverter::new());
+    let first_letter_extractor = Arc::new(FirstLetterExtractor::new());
+    let upper_case_letter_extractor = Arc::new(UpperCaseLetterExtractor::new());
+
+    config_manager.register(version_number_remover.clone());
+    config_manager.register(symbol_remover.clone());
+    config_manager.register(space_remover.clone());
+    config_manager.register(space_normalizer.clone());
+    config_manager.register(lower_case_converter.clone());
+    config_manager.register(pinyin_converter.clone());
+    config_manager.register(first_letter_extractor.clone());
+    config_manager.register(upper_case_letter_extractor.clone());
+    info!("关键词优化器注册完成");
+
+    // 4. 注册搜索引擎
+    info!("正在注册搜索引擎...");
+    let search_engine: Arc<dyn SearchEngine> = Arc::new(StandardSearchModel {});
+    config_manager.register(search_engine.clone());
+    info!("搜索引擎注册完成");
+
+    // 5. 注册分数增强器
+    info!("正在注册分数增强器...");
+    let history_booster: Arc<dyn ScoreBooster> = Arc::new(HistoryBooster::new());
+    config_manager.register(history_booster.clone());
+    info!("分数增强器注册完成");
+
+    // === 阶段2: 从 ConfigManager 按类型获取组件，构建各 Pipeline ===
+    info!("正在构建业务管道...");
+
+    // 构建候选管道
     let mut candidate_pipeline = CandidatePipeline::new();
 
-    // 注册数据源
-    let mut program_source = ProgramSource::new();
-    let _ = program_source.apply_settings(program_source.get_default_settings());
-    candidate_pipeline.add_source(Arc::new(program_source));
+    // 添加数据源
+    candidate_pipeline.add_source(program_source);
 
-    // 注册关键词优化器（按优先级顺序）
-    candidate_pipeline.add_keyword_optimizer(Arc::new(VersionNumberRemover::new()));
-    candidate_pipeline.add_keyword_optimizer(Arc::new(SymbolRemover::new()));
-    candidate_pipeline.add_keyword_optimizer(Arc::new(SpaceRemover::new()));
-    candidate_pipeline.add_keyword_optimizer(Arc::new(SpaceNormalizer::new()));
-    candidate_pipeline.add_keyword_optimizer(Arc::new(LowerCaseConverter::new()));
-    candidate_pipeline.add_keyword_optimizer(Arc::new(PinyinConverter::new()));
-    candidate_pipeline.add_keyword_optimizer(Arc::new(FirstLetterExtractor::new()));
-    candidate_pipeline.add_keyword_optimizer(Arc::new(UpperCaseLetterExtractor::new()));
+    // 添加关键词优化器（按优先级顺序）
+    candidate_pipeline.add_keyword_optimizer(version_number_remover);
+    candidate_pipeline.add_keyword_optimizer(symbol_remover);
+    candidate_pipeline.add_keyword_optimizer(space_remover);
+    candidate_pipeline.add_keyword_optimizer(space_normalizer);
+    candidate_pipeline.add_keyword_optimizer(lower_case_converter);
+    candidate_pipeline.add_keyword_optimizer(pinyin_converter);
+    candidate_pipeline.add_keyword_optimizer(first_letter_extractor);
+    candidate_pipeline.add_keyword_optimizer(upper_case_letter_extractor);
 
     // 收集候选项
     info!("正在收集候选项...");
@@ -510,17 +615,21 @@ fn init_plugin_system(state: &Arc<AppState>) {
         candidates.get_candidates().len()
     );
 
-    // 3. 初始化搜索管道
-    info!("正在初始化搜索管道...");
-    let search_engine: Arc<dyn SearchEngine> = Arc::new(StandardSearchModel {});
-    let boosters: Vec<Arc<dyn ScoreBooster>> = vec![Arc::new(HistoryBooster::new())];
+    // 构建搜索管道
+    let boosters: Vec<Arc<dyn ScoreBooster>> = vec![history_booster];
     let search_pipeline = SearchPipeline::new(Some(search_engine), boosters, 10);
 
-    // 4. 更新 SessionRouter 的状态
+    // === 阶段3: 更新 SessionRouter 状态 ===
     info!("正在更新 SessionRouter 状态...");
     session_router.set_candidate_pipeline(candidate_pipeline);
     session_router.set_search_pipeline(search_pipeline);
     session_router.set_cached_candidates(candidates);
+
+    // === 阶段4: 加载持久化配置 ===
+    info!("正在加载持久化配置...");
+    if let Err(e) = config_manager.load_from_storage() {
+        warn!("加载持久化配置失败: {}", e);
+    }
 
     info!(
         "新插件系统初始化完成，已缓存 {} 个候选项",

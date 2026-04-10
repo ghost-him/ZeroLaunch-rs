@@ -1,3 +1,4 @@
+use crate::core::types::{ComponentType, Configurable};
 use crate::plugin_system::types::{
     LaunchError, LaunchMethod, LaunchMethodType, Launcher, ResultAction,
 };
@@ -49,6 +50,20 @@ impl UwpLauncher {
             debug!("activated {} with pid {}", package_family_name, pid);
             Ok(())
         }
+    }
+}
+
+impl Configurable for UwpLauncher {
+    fn component_id(&self) -> &str {
+        "uwp-launcher"
+    }
+
+    fn component_name(&self) -> &str {
+        "UWP启动器"
+    }
+
+    fn component_type(&self) -> ComponentType {
+        ComponentType::Launcher
     }
 }
 

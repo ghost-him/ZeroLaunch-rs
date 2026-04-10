@@ -1,3 +1,4 @@
+use crate::core::config::ConfigManager;
 use crate::core::storage::storage_manager::StorageManager;
 use crate::error::OptionExt;
 use crate::modules::bookmark_loader::BookmarkLoader;
@@ -23,6 +24,9 @@ pub struct AppState {
     ///
     /// 会话路由器，用于处理插件会话路由。
     session_router: Arc<SessionRouter>,
+
+    /// 配置管理器，统一管理所有可配置组件
+    config_manager: RwLock<Option<Arc<ConfigManager>>>,
 
     /// 以下为旧版本的配置信息
 
@@ -79,6 +83,7 @@ impl AppState {
 
         AppState {
             session_router,
+            config_manager: RwLock::new(None),
             runtime_config: RwLock::new(None),
             program_manager: RwLock::new(None),
             main_handle: RwLock::new(None),
@@ -104,6 +109,20 @@ impl AppState {
     /// 获取会话路由器的。
     pub fn get_session_router(&self) -> &Arc<SessionRouter> {
         &self.session_router
+    }
+
+    /// 获取配置管理器
+    pub fn get_config_manager(&self) -> Arc<ConfigManager> {
+        self.config_manager
+            .read()
+            .as_ref()
+            .cloned()
+            .expect_programming("config manager not initialized")
+    }
+
+    /// 设置配置管理器
+    pub fn set_config_manager(&self, config_manager: Arc<ConfigManager>) {
+        *self.config_manager.write() = Some(config_manager);
     }
 
     // region: Runtime Config 访问方法

@@ -107,7 +107,7 @@ impl QueryAffinityBoosterInner {
 #[derive(Debug)]
 pub struct QueryAffinityBooster {
     inner: RwLock<QueryAffinityBoosterInner>,
-    settings: serde_json::Value,
+    settings: RwLock<serde_json::Value>,
 }
 
 impl Default for QueryAffinityBooster {
@@ -120,7 +120,7 @@ impl QueryAffinityBooster {
     pub fn new() -> Self {
         QueryAffinityBooster {
             inner: RwLock::new(QueryAffinityBoosterInner::new()),
-            settings: serde_json::Value::Null,
+            settings: RwLock::new(serde_json::Value::Null),
         }
     }
 }
@@ -198,10 +198,10 @@ impl Configurable for QueryAffinityBooster {
     }
 
     fn get_settings(&self) -> serde_json::Value {
-        self.settings.clone()
+        self.settings.read().clone()
     }
 
-    fn apply_settings(&mut self, settings: serde_json::Value) -> Result<(), ConfigError> {
+    fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
         let mut inner = self.inner.write();
         if let Some(v) = settings
             .get("query_affinity_weight")
@@ -221,7 +221,7 @@ impl Configurable for QueryAffinityBooster {
         {
             inner.query_affinity_cooldown = v as i64;
         }
-        self.settings = settings;
+        *self.settings.write() = settings;
         Ok(())
     }
 }

@@ -291,19 +291,16 @@ pub trait Configurable: Send + Sync {
 
     fn setting_schema(&self) -> Vec<SettingDefinition> { vec![] }
     fn get_settings(&self) -> serde_json::Value { serde_json::Value::Object(serde_json::Map::new()) }
-    fn apply_settings(&mut self, settings: serde_json::Value) -> Result<(), ConfigError>;
-    fn validate_settings(&self, settings: &serde_json::Value) -> Result<(), ConfigError> { Ok(()) }
-    fn get_default_settings(&self) -> serde_json::Value {
-        let schema = self.setting_schema();
-        let mut map = serde_json::Map::new();
-        for def in schema {
-            if !def.default_value.is_null() {
-                map.insert(def.key.clone(), def.default_value.clone());
-            }
-        }
-        serde_json::Value::Object(map)
+    fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
+        let _ = settings;
+        Ok(())
     }
+    fn validate_settings(&self, settings: &serde_json::Value) -> Result<(), ConfigError> { Ok(()) }
+    fn get_default_settings(&self) -> serde_json::Value { ... }
     fn on_settings_changed(&self) {}
+    fn config_actions(&self) -> Vec<ConfigActionDef> { vec![] }
+    fn execute_config_action(&self, action: &str) -> Result<serde_json::Value, String> { ... }
+    fn enabled(&self) -> bool { true }
 }
 ```
 
@@ -323,7 +320,14 @@ pub trait Configurable: Send + Sync {
     ▼           ▼                 ▼               ▼
 ┌─────────┐ ┌───────────┐ ┌───────────────┐ ┌─────────────┐
 │ Plugin  │ │ DataSource│ │ SearchEngine  │ │ ScoreBooster│
+│         │ │           │ │               │ │             │
 └─────────┘ └───────────┘ └───────────────┘ └─────────────┘
+     ▲
+     │
+┌─────────┐ ┌───────────┐
+│Launcher │ │KeywordOpt. │
+│         │ │           │
+└─────────┘ └───────────┘
 ```
 
 **设计优势**：
@@ -809,6 +813,22 @@ src-tauri/src/
 ├── core/                          # 核心模块
 │   ├── mod.rs
 │   │
+│   ├── types/                     # 基础类型层
+│   │   ├── mod.rs
+│   │   ├── configurable.rs        # Configurable trait
+│   │   ├── component_type.rs      # ComponentType 枚举
+│   │   ├── setting_def.rs         # SettingDefinition 等
+│   │   ├── config_error.rs        # ConfigError 枚举
+│   │   └── config_action.rs       # ConfigActionDef
+│   │
+│   ├── config/                    # 配置管理层
+│   │   ├── mod.rs
+│   │   ├── manager.rs             # ConfigManager 主结构
+│   │   ├── registry.rs            # ConfigurableRegistry
+│   │   ├── store.rs               # ConfigStore
+│   │   ├── event.rs               # ConfigEvent
+│   │   └── models.rs              # 数据模型
+│   │
 │   ├── storage/                   # 存储后端
 │   │   ├── mod.rs
 │   │   ├── local_save.rs
@@ -820,22 +840,14 @@ src-tauri/src/
 │   │   ├── embedding/             # 嵌入模型
 │   │   └── semantic/              # 语义处理
 │   │
+│   ├── image_processor.rs        # 图像处理器
+│   │
 │   ├── parameter/                 # 参数解析（核心组件）
 │   │   ├── mod.rs
 │   │   ├── resolver.rs
 │   │   ├── template_parser.rs
 │   │   ├── parameter_types.rs
 │   │   └── providers.rs
-│   │
-│   ├── config/                    # 配置管理（核心组件）
-│   │   ├── mod.rs
-│   │   ├── manager.rs
-│   │   └── models.rs
-│   │
-│   └── event/                     # 事件系统
-│       ├── mod.rs
-│       ├── bus.rs
-│       └── events.rs
 │
 ├── platform/                      # 平台适配层（Plugin SDK 实现）
 │   ├── mod.rs                     # 平台模块入口，条件编译选择实现
@@ -1002,8 +1014,10 @@ src-tauri/src/
 启动器（Launcher）负责启动候选项。`launch()` 方法内部会判断程序是否已运行：如果已运行则唤醒窗口，否则启动新进程。
 
 ```rust
-pub trait Launcher: Send + Sync {
-    fn launch(&self, candidate: &SearchCandidate);
+pub trait Launcher: Configurable {
+    fn supported_method(&self) -> LaunchMethodType;
+    fn supported_actions(&self) -> Vec<ResultAction> { ... }
+    fn execute(&self, method: &LaunchMethod, action_id: &str) -> Result<(), LaunchError>;
 }
 ```
 

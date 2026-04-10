@@ -3,19 +3,15 @@ use crate::plugin_system::{
     types::{ComponentType, ConfigError, Configurable, KeywordOptimizer, SettingDefinition},
     SettingType,
 };
-pub struct SpaceNormalizer {
+use parking_lot::RwLock;
+
+struct SpaceNormalizerInner {
     priority: i32,
     uses_context: bool,
 }
 
-impl Default for SpaceNormalizer {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl SpaceNormalizer {
-    pub fn new() -> Self {
+impl SpaceNormalizerInner {
+    fn new() -> Self {
         Self {
             priority: 20,
             uses_context: false,
@@ -43,6 +39,33 @@ impl SpaceNormalizer {
         }
 
         result
+    }
+
+    fn optimize(&self, keyword: &str) -> Vec<String> {
+        let result = self.remove_repeated_space(keyword);
+        if result.is_empty() || result == keyword {
+            Vec::new()
+        } else {
+            vec![result]
+        }
+    }
+}
+
+pub struct SpaceNormalizer {
+    inner: RwLock<SpaceNormalizerInner>,
+}
+
+impl Default for SpaceNormalizer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl SpaceNormalizer {
+    pub fn new() -> Self {
+        Self {
+            inner: RwLock::new(SpaceNormalizerInner::new()),
+        }
     }
 }
 
@@ -98,18 +121,20 @@ impl Configurable for SpaceNormalizer {
     }
 
     fn get_settings(&self) -> serde_json::Value {
+        let inner = self.inner.read();
         serde_json::json!({
-            "priority": self.priority,
-            "uses_context": self.uses_context
+            "priority": inner.priority,
+            "uses_context": inner.uses_context
         })
     }
 
-    fn apply_settings(&mut self, settings: serde_json::Value) -> Result<(), ConfigError> {
+    fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
+        let mut inner = self.inner.write();
         if let Some(priority) = settings.get("priority").and_then(|v| v.as_f64()) {
-            self.priority = priority as i32;
+            inner.priority = priority as i32;
         }
         if let Some(uses_context) = settings.get("uses_context").and_then(|v| v.as_bool()) {
-            self.uses_context = uses_context;
+            inner.uses_context = uses_context;
         }
         Ok(())
     }
@@ -117,19 +142,14 @@ impl Configurable for SpaceNormalizer {
 
 impl KeywordOptimizer for SpaceNormalizer {
     fn optimize(&self, keyword: &str) -> Vec<String> {
-        let result = self.remove_repeated_space(keyword);
-        if result.is_empty() || result == keyword {
-            Vec::new()
-        } else {
-            vec![result]
-        }
+        self.inner.read().optimize(keyword)
     }
 
     fn uses_context(&self) -> bool {
-        self.uses_context
+        self.inner.read().uses_context
     }
 
     fn get_priority(&self) -> i32 {
-        self.priority
+        self.inner.read().priority
     }
 }

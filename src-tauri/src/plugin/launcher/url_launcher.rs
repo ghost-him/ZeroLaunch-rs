@@ -1,3 +1,4 @@
+use crate::core::types::{ComponentType, Configurable};
 use crate::plugin_system::types::{
     LaunchError, LaunchMethod, LaunchMethodType, Launcher, ResultAction,
 };
@@ -20,6 +21,20 @@ impl UrlLauncher {
             warn!("{}", msg);
             LaunchError::Failed(msg)
         })
+    }
+}
+
+impl Configurable for UrlLauncher {
+    fn component_id(&self) -> &str {
+        "url-launcher"
+    }
+
+    fn component_name(&self) -> &str {
+        "URL启动器"
+    }
+
+    fn component_type(&self) -> ComponentType {
+        ComponentType::Launcher
     }
 }
 

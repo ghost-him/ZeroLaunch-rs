@@ -4,6 +4,7 @@ use crate::plugin_system::{ComponentType, ConfigError, Configurable};
 use crate::utils::defer::defer;
 use crate::utils::windows::get_u16_vec;
 use image::ImageReader;
+use parking_lot::RwLock;
 use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -18,7 +19,7 @@ use windows::Win32::UI::Shell::{
 use windows_core::PCWSTR;
 
 pub struct UwpSource {
-    settings: serde_json::Value,
+    settings: RwLock<serde_json::Value>,
 }
 
 impl Default for UwpSource {
@@ -30,7 +31,7 @@ impl Default for UwpSource {
 impl UwpSource {
     pub fn new() -> Self {
         UwpSource {
-            settings: serde_json::Value::Null,
+            settings: RwLock::new(serde_json::Value::Null),
         }
     }
 
@@ -158,11 +159,11 @@ impl Configurable for UwpSource {
     }
 
     fn get_settings(&self) -> serde_json::Value {
-        self.settings.clone()
+        self.settings.read().clone()
     }
 
-    fn apply_settings(&mut self, settings: serde_json::Value) -> Result<(), ConfigError> {
-        self.settings = settings;
+    fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
+        *self.settings.write() = settings;
         Ok(())
     }
 }

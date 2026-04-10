@@ -1,3 +1,4 @@
+use crate::core::types::{ComponentType, Configurable};
 use crate::plugin_system::types::{
     LaunchError, LaunchMethod, LaunchMethodType, Launcher, ResultAction,
 };
@@ -7,6 +8,20 @@ pub struct CommandLauncher;
 impl CommandLauncher {
     pub fn new() -> Self {
         Self
+    }
+}
+
+impl Configurable for CommandLauncher {
+    fn component_id(&self) -> &str {
+        "command-launcher"
+    }
+
+    fn component_name(&self) -> &str {
+        "命令启动器"
+    }
+
+    fn component_type(&self) -> ComponentType {
+        ComponentType::Launcher
     }
 }
 

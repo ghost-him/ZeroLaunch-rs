@@ -4,6 +4,7 @@ use crate::plugin_system::types::{
     SearchCandidate, SettingType,
 };
 use crate::plugin_system::{ComponentType, ConfigError, Configurable, SettingDefinition};
+use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
@@ -83,7 +84,7 @@ fn normalize_url(url: &str) -> String {
 // ============ BookmarkSource 实现 ============
 
 pub struct BookmarkSource {
-    settings: serde_json::Value,
+    settings: RwLock<serde_json::Value>,
 }
 
 impl Default for BookmarkSource {
@@ -95,13 +96,14 @@ impl Default for BookmarkSource {
 impl BookmarkSource {
     pub fn new() -> Self {
         BookmarkSource {
-            settings: serde_json::Value::Null,
+            settings: RwLock::new(serde_json::Value::Null),
         }
     }
 
     /// 从 settings 中解析书签源配置
     fn parse_sources(&self) -> Vec<BookmarkSourceConfig> {
         self.settings
+            .read()
             .get("sources")
             .and_then(|v| v.as_array())
             .map(|arr| {
@@ -115,6 +117,7 @@ impl BookmarkSource {
     /// 从 settings 中解析覆盖配置
     fn parse_overrides(&self) -> Vec<BookmarkOverride> {
         self.settings
+            .read()
             .get("overrides")
             .and_then(|v| v.as_array())
             .map(|arr| {
@@ -370,11 +373,11 @@ impl Configurable for BookmarkSource {
     }
 
     fn get_settings(&self) -> serde_json::Value {
-        self.settings.clone()
+        self.settings.read().clone()
     }
 
-    fn apply_settings(&mut self, settings: serde_json::Value) -> Result<(), ConfigError> {
-        self.settings = settings;
+    fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
+        *self.settings.write() = settings;
         Ok(())
     }
 

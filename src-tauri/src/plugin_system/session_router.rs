@@ -4,9 +4,11 @@ use super::launcher_registry::LauncherRegistry;
 use super::search_pipeline::SearchPipeline;
 use super::service::PluginService;
 use super::types::*;
+use crate::core::config::{ConfigEvent, ConfigManager};
 use crate::plugin_system::Configurable;
 use parking_lot::RwLock;
 use std::sync::Arc;
+use tracing::{debug, info};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SessionMode {
@@ -22,6 +24,7 @@ pub struct SessionRouter {
     cached_candidates: RwLock<CachedCandidateData>,
     current_mode: RwLock<SessionMode>,
     launcher_registry: RwLock<LauncherRegistry>,
+    config_manager: RwLock<Option<Arc<ConfigManager>>>,
 }
 
 impl SessionRouter {
@@ -33,6 +36,7 @@ impl SessionRouter {
             cached_candidates: RwLock::new(CachedCandidateData::new()),
             current_mode: RwLock::new(SessionMode::None),
             launcher_registry: RwLock::new(LauncherRegistry::new()),
+            config_manager: RwLock::new(None),
         }
     }
 
@@ -162,14 +166,80 @@ impl SessionRouter {
         self.current_mode.read().clone()
     }
 
+    /// 设置 ConfigManager 引用并订阅配置变更事件
+    pub fn set_config_manager(&self, config_manager: Arc<ConfigManager>) {
+        *self.config_manager.write() = Some(config_manager);
+    }
+
+    /// 处理配置变更事件。
+    /// 根据事件类型执行相应的响应逻辑。
+    pub fn handle_config_event(&self, event: &ConfigEvent) {
+        match event {
+            ConfigEvent::SettingsChanged {
+                component_type,
+                component_id,
+            } => {
+                debug!("配置变更事件: {} ({:?})", component_id, component_type);
+                match component_type {
+                    ComponentType::DataSource | ComponentType::KeywordOptimizer => {
+                        // 数据源或关键词优化器变更，需要刷新候选项缓存
+                        info!("数据源/关键词优化器配置变更，刷新候选项缓存");
+                        self.refresh_candidates();
+                    }
+                    ComponentType::SearchEngine => {
+                        // 搜索引擎变更，需要重建搜索管道
+                        // TODO: 在 SearchPipeline 支持动态重建后实现
+                        debug!("搜索引擎配置变更");
+                    }
+                    ComponentType::ScoreBooster => {
+                        // 分数增强器变更，需要更新搜索管道
+                        // TODO: 在 SearchPipeline 支持动态更新 boosters 后实现
+                        debug!("分数增强器配置变更");
+                    }
+                    ComponentType::Launcher | ComponentType::Plugin | ComponentType::Core => {
+                        // Launcher 和 Plugin 不需要 SessionRouter 响应
+                        debug!("Launcher/Plugin/Core 配置变更，无需响应");
+                    }
+                }
+            }
+            ConfigEvent::EnabledChanged {
+                component_type,
+                component_id,
+                enabled,
+            } => {
+                debug!(
+                    "启用状态变更事件: {} ({:?}), enabled={}",
+                    component_id, component_type, enabled
+                );
+                match component_type {
+                    ComponentType::DataSource | ComponentType::KeywordOptimizer => {
+                        // 数据源启用状态变更，需要刷新候选项缓存
+                        info!("数据源启用状态变更，刷新候选项缓存");
+                        self.refresh_candidates();
+                    }
+                    ComponentType::SearchEngine | ComponentType::ScoreBooster => {
+                        // TODO: 在 Pipeline 支持动态重建后实现
+                        debug!("搜索引擎/分数增强器启用状态变更");
+                    }
+                    ComponentType::Launcher | ComponentType::Plugin | ComponentType::Core => {
+                        debug!("Launcher/Plugin/Core 启用状态变更，无需响应");
+                    }
+                }
+            }
+            ConfigEvent::Registered { .. } | ConfigEvent::Unregistered { .. } => {
+                // 注册/注销事件不需要特殊响应
+            }
+        }
+    }
+
     /// 根据 component_id 查找已注册的 Configurable 组件。
-    /// 委托到 CandidatePipeline 实现。
     /// 参数：component_id - 组件标识符。
     /// 返回：找到则返回组件引用，否则返回 None。
     pub(crate) fn find_configurable(&self, component_id: &str) -> Option<Arc<dyn Configurable>> {
-        self.candidate_pipeline
+        self.config_manager
             .read()
-            .find_configurable(component_id)
+            .as_ref()
+            .and_then(|cm| cm.find_configurable(component_id))
     }
 
     /// 获取指定组件的配置动作列表。

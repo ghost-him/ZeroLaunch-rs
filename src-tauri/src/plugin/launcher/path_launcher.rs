@@ -1,3 +1,4 @@
+use crate::core::types::{ComponentType, Configurable};
 use crate::plugin_system::types::{
     LaunchError, LaunchMethod, LaunchMethodType, Launcher, ResultAction,
 };
@@ -136,6 +137,20 @@ impl PathLauncher {
             }
             Ok(())
         }
+    }
+}
+
+impl Configurable for PathLauncher {
+    fn component_id(&self) -> &str {
+        "path-launcher"
+    }
+
+    fn component_name(&self) -> &str {
+        "路径启动器"
+    }
+
+    fn component_type(&self) -> ComponentType {
+        ComponentType::Launcher
     }
 }
 

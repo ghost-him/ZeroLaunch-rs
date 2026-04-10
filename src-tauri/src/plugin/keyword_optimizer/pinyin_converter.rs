@@ -3,72 +3,49 @@ use crate::plugin_system::{
     types::{ComponentType, ConfigError, Configurable, KeywordOptimizer, SettingDefinition},
     SettingType,
 };
+use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-/// 拼音数据条目
 #[derive(Serialize, Deserialize, Debug)]
 struct PinyinItem {
     pinyin: String,
     word: String,
 }
 
-/// 拼音转换器，将中文字符转换为对应的拼音
-///
-/// 实现为 KeywordOptimizer 插件，在 CandidatePipeline 中按优先级执行，
-/// 将候选项名称中的中文字符转换为拼音，以支持拼音搜索和首字母搜索。
-pub struct PinyinConverter {
-    /// 汉字到拼音的映射表，使用 char 作为 key 避免堆分配
-    pinyin: HashMap<char, String>,
-    /// 优化器执行优先级，数值越小越先执行
+struct PinyinConverterInner {
     priority: i32,
-    /// 是否对所有已累积的关键词进行优化
     uses_context: bool,
+    pinyin: HashMap<char, String>,
 }
 
-impl Default for PinyinConverter {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl PinyinConverter {
+impl PinyinConverterInner {
     const PINYIN_DATA: &'static str = include_str!("./pinyin.json");
 
-    /// 创建拼音转换器实例
-    pub fn new() -> Self {
+    fn new() -> Self {
         let items: Vec<PinyinItem> =
             serde_json::from_str(Self::PINYIN_DATA).expect("Failed to parse pinyin data");
 
         let mut char_to_pinyin: HashMap<char, String> = HashMap::new();
         for item in items {
-            // word 字段为单汉字，取第一个字符作为 key
             if let Some(ch) = item.word.chars().next() {
                 char_to_pinyin.insert(ch, item.pinyin);
             }
         }
 
-        PinyinConverter {
-            pinyin: char_to_pinyin,
+        Self {
             priority: 25,
             uses_context: true,
+            pinyin: char_to_pinyin,
         }
     }
 
-    /// 将输入字符串中的汉字转换为拼音
-    ///
-    /// 转换规则：
-    /// - 每个汉字替换为对应的拼音，拼音后附加一个空格
-    /// - 连续的汉字之间不加额外空格（拼音后自带空格已足够分隔）
-    /// - ASCII 字符原样保留
-    /// - 汉字与 ASCII 字符之间插入一个空格用于分隔
     fn convert_to_pinyin(&self, input: &str) -> String {
         let mut result = String::new();
         let mut prev_is_han = false;
 
         for c in input.chars() {
             if let Some(pinyin) = self.pinyin.get(&c) {
-                // 如果前一个字符不是汉字，且结果字符串不为空，插入一个空格分隔
                 if !prev_is_han && !result.is_empty() {
                     result.push(' ');
                 }
@@ -82,6 +59,29 @@ impl PinyinConverter {
         }
 
         result.trim_end().to_string()
+    }
+
+    fn optimize(&self, keyword: &str) -> Vec<String> {
+        let result = self.convert_to_pinyin(keyword);
+        vec![result]
+    }
+}
+
+pub struct PinyinConverter {
+    inner: RwLock<PinyinConverterInner>,
+}
+
+impl Default for PinyinConverter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl PinyinConverter {
+    pub fn new() -> Self {
+        PinyinConverter {
+            inner: RwLock::new(PinyinConverterInner::new()),
+        }
     }
 }
 
@@ -136,36 +136,36 @@ impl Configurable for PinyinConverter {
     }
 
     fn get_settings(&self) -> serde_json::Value {
+        let inner = self.inner.read();
         serde_json::json!({
-            "priority": self.priority,
-            "uses_context": self.uses_context
+            "priority": inner.priority,
+            "uses_context": inner.uses_context
         })
     }
 
-    fn apply_settings(&mut self, settings: serde_json::Value) -> Result<(), ConfigError> {
+    fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
+        let mut inner = self.inner.write();
         if let Some(priority) = settings.get("priority").and_then(|v| v.as_f64()) {
-            self.priority = priority as i32;
+            inner.priority = priority as i32;
         }
         if let Some(uses_context) = settings.get("uses_context").and_then(|v| v.as_bool()) {
-            self.uses_context = uses_context;
+            inner.uses_context = uses_context;
         }
         Ok(())
     }
 }
 
 impl KeywordOptimizer for PinyinConverter {
-    /// 将关键词中的中文字符转换为拼音
     fn optimize(&self, keyword: &str) -> Vec<String> {
-        let result = self.convert_to_pinyin(keyword);
-        vec![result]
+        self.inner.read().optimize(keyword)
     }
 
     fn uses_context(&self) -> bool {
-        self.uses_context
+        self.inner.read().uses_context
     }
 
     fn get_priority(&self) -> i32 {
-        self.priority
+        self.inner.read().priority
     }
 }
 

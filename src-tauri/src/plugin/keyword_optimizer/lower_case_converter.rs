@@ -3,10 +3,33 @@ use crate::plugin_system::{
     types::{ComponentType, ConfigError, Configurable, KeywordOptimizer, SettingDefinition},
     SettingType,
 };
+use parking_lot::RwLock;
 
-pub struct LowerCaseConverter {
+struct LowerCaseConverterInner {
     priority: i32,
     uses_context: bool,
+}
+
+impl LowerCaseConverterInner {
+    fn new() -> Self {
+        Self {
+            priority: 30,
+            uses_context: false,
+        }
+    }
+
+    fn optimize(&self, keyword: &str) -> Vec<String> {
+        let result = keyword.to_lowercase();
+        if result == keyword {
+            Vec::new()
+        } else {
+            vec![result]
+        }
+    }
+}
+
+pub struct LowerCaseConverter {
+    inner: RwLock<LowerCaseConverterInner>,
 }
 
 impl Default for LowerCaseConverter {
@@ -18,8 +41,7 @@ impl Default for LowerCaseConverter {
 impl LowerCaseConverter {
     pub fn new() -> Self {
         Self {
-            priority: 30,
-            uses_context: false,
+            inner: RwLock::new(LowerCaseConverterInner::new()),
         }
     }
 }
@@ -76,18 +98,20 @@ impl Configurable for LowerCaseConverter {
     }
 
     fn get_settings(&self) -> serde_json::Value {
+        let inner = self.inner.read();
         serde_json::json!({
-            "priority": self.priority,
-            "uses_context": self.uses_context
+            "priority": inner.priority,
+            "uses_context": inner.uses_context
         })
     }
 
-    fn apply_settings(&mut self, settings: serde_json::Value) -> Result<(), ConfigError> {
+    fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
+        let mut inner = self.inner.write();
         if let Some(priority) = settings.get("priority").and_then(|v| v.as_f64()) {
-            self.priority = priority as i32;
+            inner.priority = priority as i32;
         }
         if let Some(uses_context) = settings.get("uses_context").and_then(|v| v.as_bool()) {
-            self.uses_context = uses_context;
+            inner.uses_context = uses_context;
         }
         Ok(())
     }
@@ -95,19 +119,14 @@ impl Configurable for LowerCaseConverter {
 
 impl KeywordOptimizer for LowerCaseConverter {
     fn optimize(&self, keyword: &str) -> Vec<String> {
-        let result = keyword.to_lowercase();
-        if result == keyword {
-            Vec::new()
-        } else {
-            vec![result]
-        }
+        self.inner.read().optimize(keyword)
     }
 
     fn uses_context(&self) -> bool {
-        self.uses_context
+        self.inner.read().uses_context
     }
 
     fn get_priority(&self) -> i32 {
-        self.priority
+        self.inner.read().priority
     }
 }

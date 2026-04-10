@@ -44,6 +44,8 @@ use crate::plugin::launcher::{
     CommandLauncher, FileLauncher, PathLauncher, UrlLauncher, UwpLauncher,
 };
 use crate::plugin::score_booster::history_booster::HistoryBooster;
+use crate::plugin::search_engine::launchy_search_model::LaunchySearchModel;
+use crate::plugin::search_engine::skim_search_model::SkimSearchModel;
 use crate::plugin::search_engine::standard_search_model::StandardSearchModel;
 use crate::plugin_system::types::{ScoreBooster, SearchEngine};
 use crate::plugin_system::Configurable;
@@ -579,7 +581,11 @@ fn init_plugin_system(state: &Arc<AppState>) {
     // 4. 注册搜索引擎
     info!("正在注册搜索引擎...");
     let search_engine: Arc<dyn SearchEngine> = Arc::new(StandardSearchModel {});
+    let launchy_search_engine: Arc<dyn SearchEngine> = Arc::new(LaunchySearchModel {});
+    let skim_search_engine: Arc<dyn SearchEngine> = Arc::new(SkimSearchModel::new());
     config_manager.register(search_engine.clone());
+    config_manager.register(launchy_search_engine);
+    config_manager.register(skim_search_engine);
     info!("搜索引擎注册完成");
 
     // 5. 注册分数增强器

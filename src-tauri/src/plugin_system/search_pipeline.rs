@@ -38,4 +38,12 @@ impl SearchPipeline {
         scored.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap());
         scored.into_iter().take(self.top_k).collect()
     }
+
+    /// 记录候选项被选中启动，通知所有 ScoreBooster 学习用户习惯
+    /// 参数：candidate_id - 被选中的候选项 ID；data - 候选项缓存数据；query - 用户查询词
+    pub fn record(&self, candidate_id: CandidateId, data: &CachedCandidateData, query: &str) {
+        for booster in &self.boosters {
+            booster.record(candidate_id, data, query);
+        }
+    }
 }

@@ -1,7 +1,7 @@
 use crate::plugin_system::cached_candidate::CachedCandidateData;
 use crate::plugin_system::types::{
-    ComponentType, ConfigError, Configurable, FieldDefinition, ScoreBooster, ScoreDetail,
-    ScoredCandidate, SettingDefinition, SettingType,
+    CandidateId, ComponentType, ConfigError, Configurable, FieldDefinition, ScoreBooster,
+    ScoreDetail, ScoredCandidate, SettingDefinition, SettingType,
 };
 use crate::utils::get_current_time;
 use dashmap::DashMap;
@@ -228,17 +228,17 @@ impl Configurable for QueryAffinityBooster {
 
 impl ScoreBooster for QueryAffinityBooster {
     /// 记录查询-候选项启动关联
-    fn record(&self, candidate: &ScoredCandidate, data: &CachedCandidateData, query: &str) {
+    fn record(&self, candidate_id: CandidateId, data: &CachedCandidateData, query: &str) {
         if query.trim().is_empty() {
             return;
         }
-        if let Some(search_candidate) = data.get_candidate(candidate.candidate_id) {
+        if let Some(search_candidate) = data.get_candidate(candidate_id) {
             let method_text = search_candidate.launch_method.payload();
             self.inner.write().record_query_launch(query, method_text);
         } else {
             error!(
                 "[QueryAffinityBooster] 无法找到候选项数据，无法记录查询启动关联，candidate_id: {}",
-                candidate.candidate_id
+                candidate_id
             );
         }
     }

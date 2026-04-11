@@ -144,15 +144,26 @@ impl SessionRouter {
                     .map_err(|e| e.to_string())
             }
             SessionMode::Search => {
+                let candidate_id = payload["candidate_id"].as_u64().unwrap_or(0) as CandidateId;
+                let query_text = payload["query_text"].as_str().unwrap_or("").to_string();
+
                 let cached_candidate = self.cached_candidates.read();
                 let candidate = cached_candidate
-                    .get_candidate(payload["candidate_id"].as_u64().unwrap_or(0) as CandidateId)
+                    .get_candidate(candidate_id)
                     .ok_or_else(|| "Candidate not found".to_string())?;
 
+                // 执行启动
                 self.launcher_registry
                     .read()
                     .execute(&candidate.launch_method, action_id)
-                    .map_err(|e| e.to_string())
+                    .map_err(|e| e.to_string())?;
+
+                // 启动成功后，通知所有 ScoreBooster 记录用户行为
+                self.search_pipeline
+                    .read()
+                    .record(candidate_id, &cached_candidate, &query_text);
+
+                Ok(())
             }
             SessionMode::None => Err("No active session".to_string()),
         }

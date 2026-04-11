@@ -116,10 +116,11 @@ pub async fn handle_new_launch(
     state: tauri::State<'_, Arc<AppState>>,
     candidate_id: u64,
     action_id: String,
+    query_text: String,
 ) -> Result<(), String> {
     debug!(
-        "🚀 [新架构] 启动候选项: id={}, action={}",
-        candidate_id, action_id
+        "🚀 [新架构] 启动候选项: id={}, action={}, query='{}'",
+        candidate_id, action_id, query_text
     );
 
     let session_router = state.get_session_router();
@@ -127,7 +128,8 @@ pub async fn handle_new_launch(
     let trace_id = Uuid::new_v4().to_string()[..8].to_string();
 
     let payload = serde_json::json!({
-        "candidate_id": candidate_id
+        "candidate_id": candidate_id,
+        "query_text": query_text
     });
 
     session_router

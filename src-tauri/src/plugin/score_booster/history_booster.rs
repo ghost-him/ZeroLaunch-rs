@@ -1,7 +1,7 @@
 use crate::plugin_system::cached_candidate::CachedCandidateData;
 use crate::plugin_system::types::{
-    ComponentType, ConfigError, Configurable, FieldDefinition, ScoreBooster, ScoreDetail,
-    ScoredCandidate, SettingDefinition, SettingType,
+    CandidateId, ComponentType, ConfigError, Configurable, FieldDefinition, ScoreBooster,
+    ScoreDetail, ScoredCandidate, SettingDefinition, SettingType,
 };
 use crate::utils::{generate_current_date, get_current_time, is_date_current};
 use dashmap::DashMap;
@@ -252,14 +252,14 @@ impl Configurable for HistoryBooster {
 
 impl ScoreBooster for HistoryBooster {
     /// 记录候选项被选中启动
-    fn record(&self, candidate: &ScoredCandidate, data: &CachedCandidateData, _query: &str) {
-        if let Some(search_candidate) = data.get_candidate(candidate.candidate_id) {
+    fn record(&self, candidate_id: CandidateId, data: &CachedCandidateData, _query: &str) {
+        if let Some(search_candidate) = data.get_candidate(candidate_id) {
             let method_text = search_candidate.launch_method.payload();
             self.inner.write().record_launch(method_text);
         } else {
             error!(
                 "[HistoryBooster] 无法找到候选项数据，无法记录启动，candidate_id: {}",
-                candidate.candidate_id
+                candidate_id
             );
         }
     }

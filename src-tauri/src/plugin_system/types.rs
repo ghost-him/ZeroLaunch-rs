@@ -134,7 +134,7 @@ pub trait SearchEngine: Configurable {
 // 分数优化器则是计算的是 *所有* 候选项与用户输入之间的关系
 pub trait ScoreBooster: Configurable {
     // 记录用户输入了这个查询时，选择的是这个候选项
-    fn record(&self, candidate: &ScoredCandidate, data: &CachedCandidateData, query: &str);
+    fn record(&self, candidate_id: CandidateId, data: &CachedCandidateData, query: &str);
     // 根据用户历史输入的查询与选择的候选项，优化当前查询所得到的所有候选项的分数
     fn boost(&self, candidates: &mut Vec<ScoredCandidate>, data: &CachedCandidateData, query: &str);
 }

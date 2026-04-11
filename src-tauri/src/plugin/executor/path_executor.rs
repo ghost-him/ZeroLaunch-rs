@@ -1,6 +1,6 @@
 use crate::core::types::{ComponentType, Configurable};
 use crate::plugin_system::types::{
-    LaunchError, LaunchMethod, LaunchMethodType, Launcher, ResultAction,
+    ActionExecutor, ExecutionContext, ExecutionError, ExecutionTarget, ResultAction, TargetType,
 };
 use crate::utils::windows::{get_u16_vec, shell_execute_open};
 use std::os::windows::process::CommandExt;
@@ -11,18 +11,18 @@ use windows::Win32::UI::Shell::{ShellExecuteExW, SHELLEXECUTEINFOW};
 use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 use windows_core::PCWSTR;
 
-/// 路径启动器 - 负责通过文件路径启动程序
+/// 路径执行器 - 负责通过文件路径启动程序
 /// 支持普通启动、管理员启动和打开所在文件夹
-pub struct PathLauncher;
+pub struct PathExecutor;
 
-impl PathLauncher {
+impl PathExecutor {
     pub fn new() -> Self {
         Self
     }
 
     /// 普通启动程序
     /// 优先使用 explorer.exe 代理启动以实现进程分离，失败时回退到 ShellExecuteExW
-    fn launch_normal(&self, path: &str) {
+    fn execute_normal(&self, path: &str) {
         let program_path = Path::new(path);
         let working_directory = program_path.parent().unwrap_or_else(|| Path::new("."));
         let path_str = program_path.to_string_lossy();
@@ -51,7 +51,7 @@ impl PathLauncher {
 
     /// 以管理员权限启动程序
     /// 使用 ShellExecuteExW 的 runas verb 触发 UAC 提升对话框
-    fn launch_elevation(&self, path: &str) {
+    fn execute_elevation(&self, path: &str) {
         let program_path = Path::new(path);
         let working_directory = program_path.parent().unwrap_or_else(|| Path::new("."));
         let program_path_wide = get_u16_vec(program_path);
@@ -82,7 +82,7 @@ impl PathLauncher {
 
     /// 打开目标文件所在的文件夹
     /// 返回成功或失败
-    fn open_folder(&self, path: &str) -> Result<(), LaunchError> {
+    fn open_folder(&self, path: &str) -> Result<(), ExecutionError> {
         let target_path = Path::new(path);
 
         let folder_to_open = if target_path.is_dir() {
@@ -103,7 +103,7 @@ impl PathLauncher {
                 folder_to_open.display()
             );
             warn!("{}", msg);
-            return Err(LaunchError::Failed(msg));
+            return Err(ExecutionError::Failed(msg));
         }
 
         if let Err(error) = shell_execute_open(folder_to_open) {
@@ -112,7 +112,7 @@ impl PathLauncher {
                 error.to_hresult()
             );
             warn!("{}", msg);
-            return Err(LaunchError::Failed(msg));
+            return Err(ExecutionError::Failed(msg));
         }
 
         Ok(())
@@ -140,13 +140,13 @@ impl PathLauncher {
     }
 }
 
-impl Configurable for PathLauncher {
+impl Configurable for PathExecutor {
     fn component_id(&self) -> &str {
-        "path-launcher"
+        "path-executor"
     }
 
     fn component_name(&self) -> &str {
-        "路径启动器"
+        "路径执行器"
     }
 
     fn component_type(&self) -> ComponentType {
@@ -154,61 +154,67 @@ impl Configurable for PathLauncher {
     }
 }
 
-impl Default for PathLauncher {
+impl Default for PathExecutor {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Launcher for PathLauncher {
-    fn supported_method(&self) -> LaunchMethodType {
-        LaunchMethodType::Path
+impl ActionExecutor for PathExecutor {
+    fn supported_target_types(&self) -> Vec<TargetType> {
+        vec![TargetType::Path]
     }
 
     fn supported_actions(&self) -> Vec<ResultAction> {
         vec![
             ResultAction {
-                id: "launch".to_string(),
+                id: "execute".to_string(),
                 label: "打开".to_string(),
                 icon: String::new(),
                 is_default: true,
+                shortcut_key: String::new(),
             },
             ResultAction {
-                id: "launch_admin".to_string(),
+                id: "execute_admin".to_string(),
                 label: "以管理员身份运行".to_string(),
                 icon: String::new(),
                 is_default: false,
+                shortcut_key: "Ctrl+Enter".to_string(),
             },
             ResultAction {
                 id: "open_folder".to_string(),
                 label: "打开所在文件夹".to_string(),
                 icon: String::new(),
                 is_default: false,
+                shortcut_key: String::new(),
             },
         ]
     }
 
-    fn execute(&self, method: &LaunchMethod, action_id: &str) -> Result<(), LaunchError> {
-        let path = match method {
-            LaunchMethod::Path(p) => p,
+    fn execute(&self, ctx: &ExecutionContext, action_id: &str) -> Result<(), ExecutionError> {
+        let path = match &ctx.target {
+            ExecutionTarget::Path(p) => p,
             _ => {
-                return Err(LaunchError::Failed(
-                    "Invalid launch method for PathLauncher".into(),
+                return Err(ExecutionError::Failed(
+                    "Invalid target type for PathExecutor".into(),
                 ))
             }
         };
 
         match action_id {
-            "launch" => {
-                self.launch_normal(path);
+            "execute" => {
+                self.execute_normal(path);
                 Ok(())
             }
-            "launch_admin" => {
-                self.launch_elevation(path);
+            "execute_admin" => {
+                self.execute_elevation(path);
                 Ok(())
             }
             "open_folder" => self.open_folder(path),
-            _ => Err(LaunchError::UnsupportedAction(action_id.to_string())),
+            _ => Err(ExecutionError::UnsupportedAction(
+                TargetType::Path,
+                action_id.to_string(),
+            )),
         }
     }
 }

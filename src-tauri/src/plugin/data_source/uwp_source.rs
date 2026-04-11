@@ -1,5 +1,5 @@
 use crate::plugin_system::cached_candidate::CachedCandidateData;
-use crate::plugin_system::types::{DataSource, LaunchMethod, SearchCandidate};
+use crate::plugin_system::types::{DataSource, ExecutionTarget, SearchCandidate};
 use crate::plugin_system::{ComponentType, ConfigError, Configurable};
 use crate::utils::defer::defer;
 use crate::utils::windows::get_u16_vec;
@@ -346,7 +346,7 @@ impl DataSource for UwpSource {
                     id: 0,
                     name: short_name,
                     icon: icon_path,
-                    launch_method: LaunchMethod::PackageFamilyName(app_id),
+                    target: ExecutionTarget::PackageFamilyName(app_id),
                     keywords: Vec::new(),
                     bias: 0.0,
                 };

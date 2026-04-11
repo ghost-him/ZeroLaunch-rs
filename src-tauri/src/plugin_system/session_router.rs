@@ -1,6 +1,6 @@
 use super::cached_candidate::CachedCandidateData;
 use super::candidate_pipeline::CandidatePipeline;
-use super::launcher_registry::LauncherRegistry;
+use super::executor_registry::ExecutorRegistry;
 use super::search_pipeline::SearchPipeline;
 use super::service::PluginService;
 use super::types::*;
@@ -23,7 +23,7 @@ pub struct SessionRouter {
     candidate_pipeline: Arc<RwLock<CandidatePipeline>>,
     cached_candidates: RwLock<CachedCandidateData>,
     current_mode: RwLock<SessionMode>,
-    launcher_registry: RwLock<LauncherRegistry>,
+    executor_registry: RwLock<ExecutorRegistry>,
     config_manager: RwLock<Option<Arc<ConfigManager>>>,
 }
 
@@ -35,14 +35,17 @@ impl SessionRouter {
             candidate_pipeline: Arc::new(RwLock::new(CandidatePipeline::new())),
             cached_candidates: RwLock::new(CachedCandidateData::new()),
             current_mode: RwLock::new(SessionMode::None),
-            launcher_registry: RwLock::new(LauncherRegistry::new()),
+            executor_registry: RwLock::new(ExecutorRegistry::new()),
             config_manager: RwLock::new(None),
         }
     }
 
-    /// 注册一个启动器
-    pub fn register_launcher(&self, launcher: Arc<dyn Launcher>) {
-        self.launcher_registry.write().register(launcher);
+    /// 注册一个执行器
+    pub fn register_executor(&self, executor: Arc<dyn ActionExecutor>) {
+        self.executor_registry
+            .write()
+            .register(executor)
+            .expect("Failed to register executor");
     }
 
     /// 设置候选管道
@@ -104,9 +107,9 @@ impl SessionRouter {
                     .unwrap();
 
                 let actions = self
-                    .launcher_registry
+                    .executor_registry
                     .read()
-                    .get_actions(search_candidate.launch_method.method_type());
+                    .get_actions(search_candidate.target.target_type());
 
                 ListItem {
                     id: search_candidate.id,
@@ -152,10 +155,15 @@ impl SessionRouter {
                     .get_candidate(candidate_id)
                     .ok_or_else(|| "Candidate not found".to_string())?;
 
-                // 执行启动
-                self.launcher_registry
+                let exec_ctx = ExecutionContext {
+                    target: candidate.target.clone(),
+                    display_name: candidate.name.clone(),
+                };
+
+                // 执行动作（框架只做透传，不解释 action_id 语义）
+                self.executor_registry
                     .read()
-                    .execute(&candidate.launch_method, action_id)
+                    .execute(&exec_ctx, action_id)
                     .map_err(|e| e.to_string())?;
 
                 // 启动成功后，通知所有 ScoreBooster 记录用户行为

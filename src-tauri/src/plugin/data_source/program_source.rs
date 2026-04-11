@@ -1,7 +1,7 @@
 use crate::modules::program_manager::localization_translation::parse_localized_names_from_dir;
 use crate::plugin_system::cached_candidate::CachedCandidateData;
 use crate::plugin_system::types::{
-    ArrayItem, ArrayUiHint, DataSource, FieldDefinition, LaunchMethod, PrimitiveType,
+    ArrayItem, ArrayUiHint, DataSource, ExecutionTarget, FieldDefinition, PrimitiveType,
     SearchCandidate,
 };
 use crate::plugin_system::{
@@ -496,20 +496,20 @@ impl DataSource for ProgramSource {
                         .map(String::from)
                         .unwrap_or_default();
 
-                    let launch_method = if let Some(ext) = actual_path.extension() {
+                    let target = if let Some(ext) = actual_path.extension() {
                         if let Some(ext_str) = ext.to_str() {
                             if ["url"].contains(&ext_str) {
-                                LaunchMethod::Url(actual_path_str.clone())
+                                ExecutionTarget::Url(actual_path_str.clone())
                             } else if ["lnk", "exe"].contains(&ext_str) {
-                                LaunchMethod::Path(actual_path_str.clone())
+                                ExecutionTarget::Path(actual_path_str.clone())
                             } else {
-                                LaunchMethod::File(actual_path_str.clone())
+                                ExecutionTarget::File(actual_path_str.clone())
                             }
                         } else {
-                            LaunchMethod::File(actual_path_str.clone())
+                            ExecutionTarget::File(actual_path_str.clone())
                         }
                     } else {
-                        LaunchMethod::File(actual_path_str.clone())
+                        ExecutionTarget::File(actual_path_str.clone())
                     };
 
                     let localized_name = localized_names.get(&file_name_lower).cloned();
@@ -522,7 +522,7 @@ impl DataSource for ProgramSource {
                         id: 0, // 这个值由 CachedCandidateData 负责分配
                         name: final_show_name,
                         icon,
-                        launch_method,
+                        target,
                         keywords: Vec::new(), //  这个值的内容由 KeywordOptimizer 负责填充
                         bias: 0.0,
                     };

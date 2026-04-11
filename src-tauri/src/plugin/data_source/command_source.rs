@@ -1,7 +1,8 @@
 use crate::modules::config::default::APP_PIC_PATH;
 use crate::plugin_system::cached_candidate::CachedCandidateData;
 use crate::plugin_system::types::{
-    ArrayItem, ArrayUiHint, DataSource, FieldDefinition, LaunchMethod, SearchCandidate, SettingType,
+    ArrayItem, ArrayUiHint, DataSource, ExecutionTarget, FieldDefinition, SearchCandidate,
+    SettingType,
 };
 use crate::plugin_system::{ComponentType, ConfigError, Configurable, SettingDefinition};
 use parking_lot::RwLock;
@@ -171,7 +172,7 @@ impl DataSource for CommandSource {
                 id: 0,
                 name: name.clone(),
                 icon,
-                launch_method: LaunchMethod::Command(command.clone()),
+                target: ExecutionTarget::Command(command.clone()),
                 keywords: Vec::new(),
                 bias: 0.0,
             };

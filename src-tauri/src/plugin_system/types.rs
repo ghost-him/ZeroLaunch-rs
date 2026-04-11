@@ -8,9 +8,9 @@ use std::sync::Arc;
 
 pub type CandidateId = u64;
 
-/// 启动方法类型枚举，用于 Launcher 注册和查找
+/// 执行目标类型枚举，用于 ActionExecutor 注册和查找
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
-pub enum LaunchMethodType {
+pub enum TargetType {
     Path,
     PackageFamilyName,
     File,
@@ -19,47 +19,74 @@ pub enum LaunchMethodType {
     BuiltinCommand,
 }
 
-/// 这个表示是使用什么启动方法来完成对于该搜索候选项的启动的
+/// 执行目标
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, Hash, PartialEq)]
-pub enum LaunchMethod {
-    /// 表示使用路径启动
+pub enum ExecutionTarget {
     Path(String),
-    /// 表示使用包家族名称启动
     PackageFamilyName(String),
-    /// 表示使用文件启动
     File(String),
-    /// 表示使用URL启动
     Url(String),
-    /// 表示使用命令启动
     Command(String),
-    /// 表示使用内置命令启动
     BuiltinCommand(String),
 }
 
-impl LaunchMethod {
-    /// 获取启动方法的类型
-    pub fn method_type(&self) -> LaunchMethodType {
+impl ExecutionTarget {
+    pub fn target_type(&self) -> TargetType {
         match self {
-            LaunchMethod::Path(_) => LaunchMethodType::Path,
-            LaunchMethod::PackageFamilyName(_) => LaunchMethodType::PackageFamilyName,
-            LaunchMethod::File(_) => LaunchMethodType::File,
-            LaunchMethod::Url(_) => LaunchMethodType::Url,
-            LaunchMethod::Command(_) => LaunchMethodType::Command,
-            LaunchMethod::BuiltinCommand(_) => LaunchMethodType::BuiltinCommand,
+            ExecutionTarget::Path(_) => TargetType::Path,
+            ExecutionTarget::PackageFamilyName(_) => TargetType::PackageFamilyName,
+            ExecutionTarget::File(_) => TargetType::File,
+            ExecutionTarget::Url(_) => TargetType::Url,
+            ExecutionTarget::Command(_) => TargetType::Command,
+            ExecutionTarget::BuiltinCommand(_) => TargetType::BuiltinCommand,
         }
     }
 
-    /// 获取启动方法的载荷（路径、URL、命令等）
     pub fn payload(&self) -> &str {
         match self {
-            LaunchMethod::Path(s) => s,
-            LaunchMethod::PackageFamilyName(s) => s,
-            LaunchMethod::File(s) => s,
-            LaunchMethod::Url(s) => s,
-            LaunchMethod::Command(s) => s,
-            LaunchMethod::BuiltinCommand(s) => s,
+            ExecutionTarget::Path(s) => s,
+            ExecutionTarget::PackageFamilyName(s) => s,
+            ExecutionTarget::File(s) => s,
+            ExecutionTarget::Url(s) => s,
+            ExecutionTarget::Command(s) => s,
+            ExecutionTarget::BuiltinCommand(s) => s,
         }
     }
+}
+
+/// 执行上下文
+#[derive(Debug, Clone)]
+pub struct ExecutionContext {
+    pub target: ExecutionTarget,
+    pub display_name: String,
+}
+
+/// 执行错误
+#[derive(Debug, thiserror::Error)]
+pub enum ExecutionError {
+    #[error("Execution failed: {0}")]
+    Failed(String),
+
+    #[error("Executor not found for target type: {0:?}")]
+    NotFound(TargetType),
+
+    #[error("Unsupported action: {0:?}:{1}")]
+    UnsupportedAction(TargetType, String),
+
+    /// 窗口唤醒失败，携带回退目标
+    /// Executor 声明回退策略，Registry 负责执行回退
+    #[error("Window activation failed, fallback to: {fallback_action}")]
+    ActivationFailed { fallback_action: String },
+}
+
+/// 注册错误
+#[derive(Debug, thiserror::Error)]
+pub enum RegistrationError {
+    #[error("Action '{action_id}' for {target_type:?} is already registered")]
+    ActionConflict {
+        target_type: TargetType,
+        action_id: String,
+    },
 }
 
 // 这个是一个搜索候选项
@@ -71,8 +98,8 @@ pub struct SearchCandidate {
     pub name: String,
     // 表示用于显示在搜索结果中的图标
     pub icon: String,
-    // 表示应该怎么启动这个候选项
-    pub launch_method: LaunchMethod,
+    // 执行目标，替代原 launch_method
+    pub target: ExecutionTarget,
     // 表示该候选项的关键词，即怎么可以确认用户想要启动这个候选项
     pub keywords: Vec<String>,
     // 固定的权重偏移，用于在计算分数时考虑该候选项的固定权重。由每个数据源来控制各自的权重
@@ -139,41 +166,28 @@ pub trait ScoreBooster: Configurable {
     fn boost(&self, candidates: &mut Vec<ScoredCandidate>, data: &CachedCandidateData, query: &str);
 }
 
-/// 启动器错误类型
-#[derive(Debug, thiserror::Error)]
-pub enum LaunchError {
-    #[error("Launch failed: {0}")]
-    Failed(String),
+/// 动作执行器 trait
+/// 每个 Executor 可以声明支持多种 TargetType 和多种 Action
+/// Executor 继承 Configurable，以支持统一配置管理和发现
+pub trait ActionExecutor: Configurable {
+    /// 返回该 Executor 支持的目标类型集合
+    fn supported_target_types(&self) -> Vec<TargetType>;
 
-    #[error("Launcher not found for method: {0:?}")]
-    NotFound(LaunchMethodType),
-
-    #[error("Unsupported action: {0}")]
-    UnsupportedAction(String),
-}
-
-/// 表示一个启动器，用于启动搜索候选项
-/// 每个 Launcher 只负责一种 LaunchMethodType
-/// Launcher 自身声明支持的 actions 并自行处理 action_id 的执行分发
-/// Launcher 继承 Configurable，以支持统一配置管理和发现
-pub trait Launcher: Configurable {
-    /// 返回该 Launcher 支持的启动方法类型
-    fn supported_method(&self) -> LaunchMethodType;
-
-    /// 返回该 Launcher 支持的动作列表，用于构建前端 UI（右键菜单、默认确认键）
+    /// 返回该 Executor 支持的动作列表
     fn supported_actions(&self) -> Vec<ResultAction> {
         vec![ResultAction {
-            id: "launch".to_string(),
-            label: "打开".to_string(),
+            id: "execute".to_string(),
+            label: "执行".to_string(),
             icon: String::new(),
             is_default: true,
+            shortcut_key: String::new(),
         }]
     }
 
     /// 根据动作 ID 执行对应的操作
-    /// 参数：method - 启动方法；action_id - 动作 ID
-    /// 返回：执行成功返回 Ok(())，不支持的动作返回 UnsupportedAction
-    fn execute(&self, method: &LaunchMethod, action_id: &str) -> Result<(), LaunchError>;
+    /// 参数：ctx - 执行上下文；action_id - 动作 ID
+    /// 返回：执行成功返回 Ok(())，失败返回 ExecutionError
+    fn execute(&self, ctx: &ExecutionContext, action_id: &str) -> Result<(), ExecutionError>;
 }
 
 /// 请求级上下文，在宿主与插件之间共享。
@@ -262,6 +276,9 @@ pub struct ResultAction {
     pub icon: String,
     // 是不是默认的动作，默认的动作会在用户直接按下回车时被触发
     pub is_default: bool,
+    /// 快捷键提示，格式如 "Shift+Enter"、"Ctrl+Enter"
+    /// 前端根据此字段匹配修饰键到 action 的映射
+    pub shortcut_key: String,
 }
 
 /// 单个插件实例的静态元数据描述。

@@ -36,12 +36,12 @@ use crate::modules::icon_manager::config::RuntimeIconManagerConfig;
 use crate::modules::icon_manager::IconManager;
 use crate::modules::ui_controller::controller::get_window_render_origin;
 use crate::plugin::data_source::program_source::ProgramSource;
+use crate::plugin::executor::{
+    CommandExecutor, FileExecutor, PathExecutor, UrlExecutor, UwpExecutor, WindowActivateExecutor,
+};
 use crate::plugin::keyword_optimizer::{
     FirstLetterExtractor, LowerCaseConverter, PinyinConverter, SpaceNormalizer, SpaceRemover,
     SymbolRemover, UpperCaseLetterExtractor, VersionNumberRemover,
-};
-use crate::plugin::launcher::{
-    CommandLauncher, FileLauncher, PathLauncher, UrlLauncher, UwpLauncher,
 };
 use crate::plugin::score_booster::history_booster::HistoryBooster;
 use crate::plugin::search_engine::launchy_search_model::LaunchySearchModel;
@@ -524,31 +524,38 @@ fn init_plugin_system(state: &Arc<AppState>) {
     // === 阶段1: 注册所有组件到 ConfigManager ===
     info!("正在注册可配置组件到 ConfigManager...");
 
-    // 1. 注册启动器（同时注册到 ConfigManager 和 LauncherRegistry，双重索引）
-    info!("正在注册启动器...");
-    let path_launcher: Arc<dyn crate::plugin_system::types::Launcher> =
-        Arc::new(PathLauncher::new());
-    let file_launcher: Arc<dyn crate::plugin_system::types::Launcher> =
-        Arc::new(FileLauncher::new());
-    let url_launcher: Arc<dyn crate::plugin_system::types::Launcher> = Arc::new(UrlLauncher::new());
-    let uwp_launcher: Arc<dyn crate::plugin_system::types::Launcher> = Arc::new(UwpLauncher::new());
-    let command_launcher: Arc<dyn crate::plugin_system::types::Launcher> =
-        Arc::new(CommandLauncher::new());
+    // 1. 注册执行器（同时注册到 ConfigManager 和 ExecutorRegistry，双重索引）
+    info!("正在注册执行器...");
+    let path_executor: Arc<dyn crate::plugin_system::types::ActionExecutor> =
+        Arc::new(PathExecutor::new());
+    let file_executor: Arc<dyn crate::plugin_system::types::ActionExecutor> =
+        Arc::new(FileExecutor::new());
+    let url_executor: Arc<dyn crate::plugin_system::types::ActionExecutor> =
+        Arc::new(UrlExecutor::new());
+    let uwp_executor: Arc<dyn crate::plugin_system::types::ActionExecutor> =
+        Arc::new(UwpExecutor::new());
+    let command_executor: Arc<dyn crate::plugin_system::types::ActionExecutor> =
+        Arc::new(CommandExecutor::new());
+    let window_activate_executor: Arc<dyn crate::plugin_system::types::ActionExecutor> =
+        Arc::new(WindowActivateExecutor::new());
 
     // 注册到 ConfigManager（配置维度索引）
-    config_manager.register(path_launcher.clone());
-    config_manager.register(file_launcher.clone());
-    config_manager.register(url_launcher.clone());
-    config_manager.register(uwp_launcher.clone());
-    config_manager.register(command_launcher.clone());
+    config_manager.register(path_executor.clone());
+    config_manager.register(file_executor.clone());
+    config_manager.register(url_executor.clone());
+    config_manager.register(uwp_executor.clone());
+    config_manager.register(command_executor.clone());
+    config_manager.register(window_activate_executor.clone());
 
-    // 注册到 LauncherRegistry（业务维度索引）
-    session_router.register_launcher(path_launcher);
-    session_router.register_launcher(file_launcher);
-    session_router.register_launcher(url_launcher);
-    session_router.register_launcher(uwp_launcher);
-    session_router.register_launcher(command_launcher);
-    info!("启动器注册完成");
+    // 注册到 ExecutorRegistry（业务维度索引）
+    // 注意，这个步骤应该交给config_manager来完成，因为要只给session_router注册已启用的executor，对于没有启用的，那么是不应该注册的！当前的实现下，先默认都启用，为了方便测试，则直接在这里完成注册！
+    session_router.register_executor(path_executor);
+    session_router.register_executor(file_executor);
+    session_router.register_executor(url_executor);
+    session_router.register_executor(uwp_executor);
+    session_router.register_executor(command_executor);
+    session_router.register_executor(window_activate_executor);
+    info!("执行器注册完成");
 
     // 2. 注册数据源
     info!("正在注册数据源...");

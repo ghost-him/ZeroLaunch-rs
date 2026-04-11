@@ -1,15 +1,15 @@
 use crate::core::types::{ComponentType, Configurable};
 use crate::plugin_system::types::{
-    LaunchError, LaunchMethod, LaunchMethodType, Launcher, ResultAction,
+    ActionExecutor, ExecutionContext, ExecutionError, ExecutionTarget, ResultAction, TargetType,
 };
 use std::os::windows::process::CommandExt;
 use tracing::{debug, warn};
 
-/// 命令启动器 - 负责执行自定义命令
+/// 命令执行器 - 负责执行自定义命令
 /// 使用 cmd.exe 执行用户配置的命令字符串
-pub struct CommandLauncher;
+pub struct CommandExecutor;
 
-impl CommandLauncher {
+impl CommandExecutor {
     pub fn new() -> Self {
         Self
     }
@@ -19,13 +19,13 @@ impl CommandLauncher {
     /// /D: 禁用 AutoRun 注册表键
     /// /S: 修改 /C 后字符串的处理方式
     /// /C: 执行字符串指定的命令后终止
-    fn execute_command(&self, command: &str) -> Result<(), LaunchError> {
+    fn execute_command(&self, command: &str) -> Result<(), ExecutionError> {
         const CREATE_NO_WINDOW: u32 = 0x08000000;
         const DETACHED_PROCESS: u32 = 0x00000008;
 
         let command = command.trim();
         if command.is_empty() {
-            return Err(LaunchError::Failed("命令为空".to_string()));
+            return Err(ExecutionError::Failed("命令为空".to_string()));
         }
 
         let result = std::process::Command::new("cmd")
@@ -42,19 +42,19 @@ impl CommandLauncher {
             Err(e) => {
                 let msg = format!("命令启动失败: {:?}", e);
                 warn!("{}", msg);
-                Err(LaunchError::Failed(msg))
+                Err(ExecutionError::Failed(msg))
             }
         }
     }
 }
 
-impl Configurable for CommandLauncher {
+impl Configurable for CommandExecutor {
     fn component_id(&self) -> &str {
-        "command-launcher"
+        "command-executor"
     }
 
     fn component_name(&self) -> &str {
-        "命令启动器"
+        "命令执行器"
     }
 
     fn component_type(&self) -> ComponentType {
@@ -62,39 +62,43 @@ impl Configurable for CommandLauncher {
     }
 }
 
-impl Default for CommandLauncher {
+impl Default for CommandExecutor {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Launcher for CommandLauncher {
-    fn supported_method(&self) -> LaunchMethodType {
-        LaunchMethodType::Command
+impl ActionExecutor for CommandExecutor {
+    fn supported_target_types(&self) -> Vec<TargetType> {
+        vec![TargetType::Command]
     }
 
     fn supported_actions(&self) -> Vec<ResultAction> {
         vec![ResultAction {
-            id: "launch".to_string(),
+            id: "execute".to_string(),
             label: "执行".to_string(),
             icon: String::new(),
             is_default: true,
+            shortcut_key: String::new(),
         }]
     }
 
-    fn execute(&self, method: &LaunchMethod, action_id: &str) -> Result<(), LaunchError> {
-        let command = match method {
-            LaunchMethod::Command(cmd) => cmd,
+    fn execute(&self, ctx: &ExecutionContext, action_id: &str) -> Result<(), ExecutionError> {
+        let command = match &ctx.target {
+            ExecutionTarget::Command(cmd) => cmd,
             _ => {
-                return Err(LaunchError::Failed(
-                    "Invalid launch method for CommandLauncher".into(),
+                return Err(ExecutionError::Failed(
+                    "Invalid target type for CommandExecutor".into(),
                 ))
             }
         };
 
         match action_id {
-            "launch" => self.execute_command(command),
-            _ => Err(LaunchError::UnsupportedAction(action_id.to_string())),
+            "execute" => self.execute_command(command),
+            _ => Err(ExecutionError::UnsupportedAction(
+                TargetType::Command,
+                action_id.to_string(),
+            )),
         }
     }
 }

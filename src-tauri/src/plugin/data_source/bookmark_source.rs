@@ -1,6 +1,6 @@
 use crate::plugin_system::cached_candidate::CachedCandidateData;
 use crate::plugin_system::types::{
-    ArrayItem, ArrayUiHint, ConfigActionDef, DataSource, FieldDefinition, LaunchMethod,
+    ArrayItem, ArrayUiHint, ConfigActionDef, DataSource, ExecutionTarget, FieldDefinition,
     SearchCandidate, SettingType,
 };
 use crate::plugin_system::{ComponentType, ConfigError, Configurable, SettingDefinition};
@@ -450,7 +450,7 @@ impl DataSource for BookmarkSource {
                             id: 0,
                             name: title,
                             icon: url.clone(),
-                            launch_method: LaunchMethod::Url(url),
+                            target: ExecutionTarget::Url(url),
                             keywords: Vec::new(),
                             bias: 0.0,
                         };

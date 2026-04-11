@@ -24,6 +24,7 @@ pub struct NewSearchAction {
     pub label: String,
     pub icon: String,
     pub is_default: bool,
+    pub shortcut_key: String,
 }
 
 impl From<crate::plugin_system::types::ResultAction> for NewSearchAction {
@@ -33,6 +34,7 @@ impl From<crate::plugin_system::types::ResultAction> for NewSearchAction {
             label: action.label,
             icon: action.icon,
             is_default: action.is_default,
+            shortcut_key: action.shortcut_key,
         }
     }
 }

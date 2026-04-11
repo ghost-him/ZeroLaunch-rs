@@ -233,7 +233,7 @@ impl ScoreBooster for QueryAffinityBooster {
             return;
         }
         if let Some(search_candidate) = data.get_candidate(candidate_id) {
-            let method_text = search_candidate.launch_method.payload();
+            let method_text = search_candidate.target.payload();
             self.inner.write().record_query_launch(query, method_text);
         } else {
             error!(
@@ -258,7 +258,7 @@ impl ScoreBooster for QueryAffinityBooster {
 
         for candidate in candidates.iter_mut() {
             let method_text = match data.get_candidate(candidate.candidate_id) {
-                Some(sc) => sc.launch_method.payload(),
+                Some(sc) => sc.target.payload(),
                 None => continue,
             };
 

@@ -1,6 +1,7 @@
 use crate::plugin_system::cached_candidate::CachedCandidateData;
 use crate::plugin_system::types::{
-    ArrayItem, ArrayUiHint, DataSource, FieldDefinition, LaunchMethod, SearchCandidate, SettingType,
+    ArrayItem, ArrayUiHint, DataSource, ExecutionTarget, FieldDefinition, SearchCandidate,
+    SettingType,
 };
 use crate::plugin_system::{ComponentType, ConfigError, Configurable, SettingDefinition};
 use parking_lot::RwLock;
@@ -121,7 +122,7 @@ impl DataSource for UrlSource {
                 id: 0,
                 name: name.clone(),
                 icon: url.clone(),
-                launch_method: LaunchMethod::Url(url.clone()),
+                target: ExecutionTarget::Url(url.clone()),
                 keywords: Vec::new(),
                 bias: 0.0,
             };

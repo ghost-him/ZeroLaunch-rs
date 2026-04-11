@@ -2,7 +2,7 @@ mod api;
 pub mod cached_candidate;
 mod candidate_pipeline;
 mod dispatcher;
-mod launcher_registry;
+mod executor_registry;
 mod registry;
 mod search_pipeline;
 pub mod service;
@@ -12,13 +12,14 @@ pub mod types;
 pub use api::DefaultPluginAPI;
 pub use candidate_pipeline::CandidatePipeline;
 pub use dispatcher::QueryDispatcher;
-pub use launcher_registry::LauncherRegistry;
+pub use executor_registry::ExecutorRegistry;
 pub use registry::PluginRegistry;
 pub use search_pipeline::*;
 pub use service::PluginService;
 pub use session_router::{SessionMode, SessionRouter};
 pub use types::{
-    ComponentType, ConfigActionDef, ConfigError, Configurable, LaunchError, LaunchMethod,
-    LaunchMethodType, Launcher, ListItem, LogLevel, PathMode, Plugin, PluginAPI, PluginContext,
-    PluginError, PluginMetadata, Query, ResultAction, SettingDefinition, SettingType,
+    ActionExecutor, ComponentType, ConfigActionDef, ConfigError, Configurable, ExecutionContext,
+    ExecutionError, ExecutionTarget, ListItem, LogLevel, PathMode, Plugin, PluginAPI,
+    PluginContext, PluginError, PluginMetadata, Query, RegistrationError, ResultAction,
+    SettingDefinition, SettingType, TargetType,
 };

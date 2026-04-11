@@ -1,22 +1,21 @@
-use super::types::{CandidateId, SearchCandidate};
-use crate::plugin_system::types::LaunchMethod;
+use super::types::{CandidateId, ExecutionTarget, SearchCandidate};
 use dashmap::DashMap;
 use dashmap::Entry;
 use std::collections::HashSet;
 
-// 保存当前已经缓存的候选数据
+/// 保存当前已经缓存的候选数据
 pub struct CachedCandidateData {
-    // 当前缓存的候选数据
+    /// 当前缓存的候选数据
     candidates: Vec<SearchCandidate>,
-    // 候选ID到索引的映射
+    /// 候选ID到索引的映射
     index: DashMap<CandidateId, usize>,
-    // 该方法用于去重，只有没有重复的候选项才会被添加到candidates中，重复的候选项会被丢弃掉
-    // 判断的依据：启动方式
-    cached_launch_methods: HashSet<LaunchMethod>,
-    // 该方法用于去重，只有显示名不重复的候选项才会被添加到candidates中
-    // 判断的依据：候选项显示名（忽略大小写）
+    /// 该方法用于去重，只有没有重复的候选项才会被添加到candidates中，重复的候选项会被丢弃掉
+    /// 判断的依据：执行目标
+    cached_targets: HashSet<ExecutionTarget>,
+    /// 该方法用于去重，只有显示名不重复的候选项才会被添加到candidates中
+    /// 判断的依据：候选项显示名（忽略大小写）
     cached_display_names: HashSet<String>,
-    // 下一个候选项ID
+    /// 下一个候选项ID
     next_candidate_id: CandidateId,
 }
 
@@ -31,25 +30,20 @@ impl CachedCandidateData {
         Self {
             candidates: Vec::new(),
             index: DashMap::new(),
-            cached_launch_methods: HashSet::new(),
+            cached_targets: HashSet::new(),
             cached_display_names: HashSet::new(),
-            next_candidate_id: 1, // 从1开始，0表示无效ID
+            next_candidate_id: 1,
         }
     }
 
-    // 添加一个候选人
+    /// 添加一个候选人
     pub fn add_candidate(&mut self, mut candidate: SearchCandidate) {
-        // 如果已经缓存了这个候选项的启动方式或显示名，就不添加了，避免重复
-        if self.has_launch_method(&candidate.launch_method)
-            || self.has_display_name(&candidate.name)
-        {
+        if self.has_target(&candidate.target) || self.has_display_name(&candidate.name) {
             return;
         }
-        // 给这个候选项分配一个新的ID，并添加到candidates中，同时更新索引和去重缓存
         let candidate_id = self.next_candidate_id;
         candidate.id = candidate_id;
-        self.cached_launch_methods
-            .insert(candidate.launch_method.clone());
+        self.cached_targets.insert(candidate.target.clone());
         self.cached_display_names
             .insert(candidate.name.to_lowercase());
         self.candidates.push(candidate);
@@ -57,7 +51,7 @@ impl CachedCandidateData {
         self.next_candidate_id += 1;
     }
 
-    // 根据id获得指定的一个候选人
+    /// 根据id获得指定的一个候选人
     pub fn get_candidate(&self, id: CandidateId) -> Option<&SearchCandidate> {
         match self.index.entry(id) {
             Entry::Occupied(entry) => Some(&self.candidates[*entry.get()]),
@@ -65,29 +59,29 @@ impl CachedCandidateData {
         }
     }
 
-    // 添加多个候选人
+    /// 添加多个候选人
     pub fn add_candidates(&mut self, candidates: CachedCandidateData) {
         for candidate in candidates.candidates.iter() {
             self.add_candidate(candidate.clone());
         }
     }
 
-    // 获得原始的数据
+    /// 获得原始的数据
     pub fn get_candidates(&self) -> &Vec<SearchCandidate> {
         &self.candidates
     }
 
-    // 获得原始的数据的可变引用
+    /// 获得原始的数据的可变引用
     pub fn get_candidates_mut(&mut self) -> &mut Vec<SearchCandidate> {
         &mut self.candidates
     }
 
-    // 判断是否已经缓存了某个启动方式的候选项了
-    fn has_launch_method(&self, launch_method: &LaunchMethod) -> bool {
-        self.cached_launch_methods.contains(launch_method)
+    /// 判断是否已经缓存了某个执行目标的候选项了
+    fn has_target(&self, target: &ExecutionTarget) -> bool {
+        self.cached_targets.contains(target)
     }
 
-    // 判断是否已经缓存了某个显示名的候选项（忽略大小写）
+    /// 判断是否已经缓存了某个显示名的候选项（忽略大小写）
     fn has_display_name(&self, display_name: &str) -> bool {
         self.cached_display_names
             .contains(&display_name.to_lowercase())

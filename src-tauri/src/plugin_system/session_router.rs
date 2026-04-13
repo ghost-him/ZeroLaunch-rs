@@ -215,9 +215,9 @@ impl SessionRouter {
                         // TODO: 在 SearchPipeline 支持动态更新 boosters 后实现
                         debug!("分数增强器配置变更");
                     }
-                    ComponentType::Launcher | ComponentType::Plugin | ComponentType::Core => {
-                        // Launcher 和 Plugin 不需要 SessionRouter 响应
-                        debug!("Launcher/Plugin/Core 配置变更，无需响应");
+                    ComponentType::ActionExecutor | ComponentType::Plugin | ComponentType::Core => {
+                        // ActionExecutor 和 Plugin 不需要 SessionRouter 响应
+                        debug!("ActionExecutor/Plugin/Core 配置变更，无需响应");
                     }
                 }
             }
@@ -240,8 +240,8 @@ impl SessionRouter {
                         // TODO: 在 Pipeline 支持动态重建后实现
                         debug!("搜索引擎/分数增强器启用状态变更");
                     }
-                    ComponentType::Launcher | ComponentType::Plugin | ComponentType::Core => {
-                        debug!("Launcher/Plugin/Core 启用状态变更，无需响应");
+                    ComponentType::ActionExecutor | ComponentType::Plugin | ComponentType::Core => {
+                        debug!("ActionExecutor/Plugin/Core 启用状态变更，无需响应");
                     }
                 }
             }

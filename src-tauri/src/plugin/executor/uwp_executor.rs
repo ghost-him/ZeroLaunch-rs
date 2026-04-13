@@ -63,7 +63,7 @@ impl Configurable for UwpExecutor {
     }
 
     fn component_type(&self) -> ComponentType {
-        ComponentType::Launcher
+        ComponentType::ActionExecutor
     }
 }
 

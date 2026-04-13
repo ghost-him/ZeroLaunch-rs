@@ -281,10 +281,10 @@ pub trait Configurable: Send + Sync {
 └─────────┘ └───────────┘ └───────────────┘ └─────────────┘
      ▲
      │
-┌─────────┐ ┌───────────┐
-│Launcher │ │KeywordOpt. │
-│         │ │           │
-└─────────┘ └───────────┘
+┌─────────────────┐ ┌───────────┐
+│ActionExecutor   │ │KeywordOpt. │
+│                 │ │           │
+└─────────────────┘ └───────────┘
 ```
 
 **设计优势**：
@@ -423,12 +423,14 @@ impl Plugin for ProgramPlugin {
                         label: "打开".to_string(),
                         icon: String::new(),
                         is_default: true,
+                        shortcut_key: String::new(),
                     },
                     ResultAction {
                         id: "launch_admin".to_string(),
                         label: "以管理员身份运行".to_string(),
                         icon: String::new(),
                         is_default: false,
+                        shortcut_key: "Ctrl+Enter".to_string(),
                     },
                 ],
             }
@@ -574,7 +576,7 @@ fn register_plugins(app_state: &Arc<AppState>) {
                               ↓
 ┌────────────────────────────────────────────────────────────────┐
 │                      插件层 (Plugins)                           │
-│     FileLauncher / UrlLauncher / PathLauncher / ...           │
+│     FileExecutor / UrlExecutor / PathExecutor / ...           │
 │                    只依赖 Plugin SDK 接口                       │
 └────────────────────────────────────────────────────────────────┘
                               ↓
@@ -630,12 +632,12 @@ plugin_system/
 └── ...
 ```
 
-插件通过 `Launcher` trait 的上下文参数获取 `HostApi`：
+插件通过 `ActionExecutor` trait 的上下文参数获取 `HostApi`：
 
 ```rust
-pub trait Launcher: Configurable {
-    fn execute(&self, method: &LaunchMethod, action_id: &str, host: &dyn HostApi) 
-        -> Result<(), LaunchError>;
+pub trait ActionExecutor: Configurable {
+    fn execute(&self, ctx: &ExecutionContext, action_id: &str, host: &dyn HostApi)
+        -> Result<(), ExecutionError>;
 }
 ```
 
@@ -664,7 +666,7 @@ src-tauri/src/
 │   ├── session_router.rs          # 会话路由器（新增）
 │   ├── cached_candidate.rs        # 候选项缓存
 │   ├── candidate_pipeline.rs      # 候选项处理管道
-│   └── launcher_registry.rs       # 启动器注册中心
+│   └── executor_registry.rs       # 执行器注册中心
 │
 ├── plugin/                        # 插件实现（按 trait 分类）
 │   ├── mod.rs
@@ -894,26 +896,27 @@ src-tauri/src/
 
 **SemanticEngine 的 embedding 管理**：SemanticSearchEngine 内部维护 embedding 缓存（`candidate_id → embedding`），数据源在加载程序时调用其方法注册 embedding，SearchCandidate 本身不需要存储 embedding 数据。
 
-### 6.4 启动器设计
+### 6.4 执行器设计
 
-启动器（Launcher）负责启动候选项。`launch()` 方法内部会判断程序是否已运行：如果已运行则唤醒窗口，否则启动新进程。
+执行器（ActionExecutor）负责执行候选项的动作。`execute()` 方法内部会判断程序是否已运行：如果已运行则唤醒窗口，否则启动新进程。
 
 ```rust
-pub trait Launcher: Configurable {
-    fn supported_method(&self) -> LaunchMethodType;
+pub trait ActionExecutor: Configurable {
+    fn supported_target_types(&self) -> Vec<TargetType>;
     fn supported_actions(&self) -> Vec<ResultAction> { ... }
-    fn execute(&self, method: &LaunchMethod, action_id: &str) -> Result<(), LaunchError>;
+    fn execute(&self, ctx: &ExecutionContext, action_id: &str) -> Result<(), ExecutionError>;
 }
 ```
 
-不同启动方式由不同的 Launcher 实现处理：
+不同目标类型由不同的 Executor 实现处理：
 
-| Launcher 实现   | 处理的 LaunchMethod              |
-| --------------- | -------------------------------- |
-| PathLauncher    | Path（可执行文件路径）           |
-| UwpLauncher     | PackageFamilyName（UWP 应用）    |
-| UrlLauncher     | Url（网址）                      |
-| CommandLauncher | Command / BuiltinCommand（命令） |
+| Executor 实现          | 处理的 TargetType                   |
+| ---------------------- | ----------------------------------- |
+| PathExecutor           | Path（可执行文件路径）              |
+| UwpExecutor            | PackageFamilyName（UWP 应用）       |
+| UrlExecutor            | Url（网址）                         |
+| CommandExecutor        | Command / BuiltinCommand（命令）    |
+| WindowActivateExecutor | Path, PackageFamilyName（窗口唤醒） |
 
 ### 6.5 模块之间的数据流动
 
@@ -982,8 +985,8 @@ pub trait Launcher: Configurable {
               │                                     │
               ▼                                     ▼
     ┌─────────────────┐                  ┌─────────────────┐
-    │ PluginService   │                  │    Launcher     │
-    │ .execute_action │                  │    .launch()    │
+    │ PluginService   │                  │  ActionExecutor  │
+    │ .execute_action │                  │    .execute()    │
     └────────┬────────┘                  └────────┬────────┘
              │                                    │
              ▼                                    ▼
@@ -1132,7 +1135,7 @@ route_confirm:
 
 ```
 阶段一：插件化重构
-├── 定义核心 trait（Configurable, DataSource, Launcher 等）
+├── 定义核心 trait（Configurable, DataSource, ActionExecutor 等）
 ├── 实现 Plugin SDK（HostApi trait + Windows 实现）
 ├── 将现有功能迁移为插件
 └── 验证接口设计合理性

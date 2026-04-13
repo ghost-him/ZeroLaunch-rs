@@ -58,7 +58,7 @@ impl Configurable for CommandExecutor {
     }
 
     fn component_type(&self) -> ComponentType {
-        ComponentType::Launcher
+        ComponentType::ActionExecutor
     }
 }
 

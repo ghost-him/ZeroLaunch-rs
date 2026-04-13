@@ -7,7 +7,7 @@ pub enum ComponentType {
     KeywordOptimizer,
     SearchEngine,
     ScoreBooster,
-    Launcher,
+    ActionExecutor,
     Plugin,
     Core,
 }

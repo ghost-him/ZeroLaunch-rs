@@ -21,10 +21,10 @@ filePath: c:\Users\ghost\ZeroLaunch\ZeroLaunch-rs\src-tauri\src\plugin_system\ty
                               │
         ┌─────────┬───────────┼───────────┬─────────────┬─────────────┐
         ▼         ▼           ▼           ▼             ▼             ▼
-┌───────────┐ ┌───────────┐ ┌───────────┐ ┌─────────────┐ ┌───────────┐ ┌─────────┐
-│DataSource │ │KeywordOpt │ │SearchEng  │ │ScoreBooster │ │  Launcher  │ │ Plugin  │
-│(数据源)    │ │(关键字优化)│ │(搜索引擎)  │ │(分数提升器)  │ │ (启动器)   │ │(插件)   │
-└───────────┘ └───────────┘ └───────────┘ └─────────────┘ └───────────┘ └─────────┘
+┌───────────┐ ┌───────────┐ ┌───────────┐ ┌─────────────┐ ┌─────────────────┐ ┌─────────┐
+│DataSource │ │KeywordOpt │ │SearchEng  │ │ScoreBooster │ │ActionExecutor   │ │ Plugin  │
+│(数据源)    │ │(关键字优化)│ │(搜索引擎)  │ │(分数提升器)  │ │ (动作执行器)     │ │(插件)   │
+└───────────┘ └───────────┘ └───────────┘ └─────────────┘ └─────────────────┘ └─────────┘
 ```
 
 ---
@@ -202,30 +202,31 @@ pub trait ScoreBooster: Configurable {
 
 ---
 
-### 6. Launcher（启动器）
+### 6. ActionExecutor（动作执行器）
 
-**作用**：执行候选项的实际启动操作。
+**作用**：执行候选项的实际动作（如启动程序、唤醒窗口等）。
 
 ```rust
-pub trait Launcher: Send + Sync {
-    fn supported_method(&self) -> LaunchMethodType;  // 支持的启动类型
+pub trait ActionExecutor: Configurable {
+    fn supported_target_types(&self) -> Vec<TargetType>;  // 支持的目标类型集合
     fn supported_actions(&self) -> Vec<ResultAction> { ... }  // 支持的动作列表
-    fn execute(&self, method: &LaunchMethod, action_id: &str) -> Result<(), LaunchError>;  // 执行动作
+    fn execute(&self, ctx: &ExecutionContext, action_id: &str) -> Result<(), ExecutionError>;  // 执行动作
 }
 ```
 
 **设计目的**：
-- 每种启动方式一个 Launcher，职责单一
-- 通过 `LaunchMethodType` 匹配对应的 Launcher
-- 支持扩展新的启动方式
+- 每个 Executor 可以声明支持多种 TargetType 和多种 Action
+- 通过 `(TargetType, action_id)` 复合主键定位 Executor
+- 支持扩展新的执行方式和动作
 
 **使用场景**：
-| 实现类            | LaunchMethodType    |
-| ----------------- | ------------------- |
-| `PathLauncher`    | `Path`              |
-| `UwpLauncher`     | `PackageFamilyName` |
-| `UrlLauncher`     | `Url`               |
-| `CommandLauncher` | `Command`           |
+| 实现类                   | TargetType                  | 支持的动作                          |
+| ------------------------ | --------------------------- | ----------------------------------- |
+| `PathExecutor`           | `Path`                      | execute, execute_admin, open_folder |
+| `UwpExecutor`            | `PackageFamilyName`         | execute                             |
+| `UrlExecutor`            | `Url`                       | execute                             |
+| `CommandExecutor`        | `Command`                   | execute                             |
+| `WindowActivateExecutor` | `Path`, `PackageFamilyName` | activate_window                     |
 
 ---
 
@@ -312,7 +313,7 @@ impl DataSource for ProgramSource {
                 id: p.program_guid,
                 name: p.show_name.clone(),
                 icon: p.icon_request_json.clone(),
-                launch_method: p.launch_method.clone().into(),
+                target: p.target.clone().into(),
                 keywords: p.search_keywords.clone(),
                 bias: p.stable_bias,
             }
@@ -327,14 +328,14 @@ impl DataSource for ProgramSource {
 
 ## 快速参考表
 
-| 我想写...    | 需要实现的 Trait                      | 核心方法                                                 |
-| ------------ | ------------------------------------- | -------------------------------------------------------- |
-| 数据源       | `DataSource` (+ `Configurable`)       | `fetch_candidates()`                                     |
-| 关键字优化器 | `KeywordOptimizer` (+ `Configurable`) | `optimize()`, `uses_context()`                           |
-| 搜索引擎     | `SearchEngine` (+ `Configurable`)     | `calculate_scores()`                                     |
-| 分数提升器   | `ScoreBooster` (+ `Configurable`)     | `record()`, `boost()`                                    |
-| 启动器       | `Launcher`                            | `supported_method()`, `supported_actions()`, `execute()` |
-| 完整插件     | `Plugin` (+ `Configurable`)           | `query()`, `execute_action()`                            |
+| 我想写...    | 需要实现的 Trait                      | 核心方法                                                       |
+| ------------ | ------------------------------------- | -------------------------------------------------------------- |
+| 数据源       | `DataSource` (+ `Configurable`)       | `fetch_candidates()`                                           |
+| 关键字优化器 | `KeywordOptimizer` (+ `Configurable`) | `optimize()`, `uses_context()`                                 |
+| 搜索引擎     | `SearchEngine` (+ `Configurable`)     | `calculate_scores()`                                           |
+| 分数提升器   | `ScoreBooster` (+ `Configurable`)     | `record()`, `boost()`                                          |
+| 动作执行器   | `ActionExecutor` (+ `Configurable`)   | `supported_target_types()`, `supported_actions()`, `execute()` |
+| 完整插件     | `Plugin` (+ `Configurable`)           | `query()`, `execute_action()`                                  |
 
 ---
 

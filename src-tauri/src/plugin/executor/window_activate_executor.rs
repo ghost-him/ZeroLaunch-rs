@@ -93,7 +93,7 @@ impl Configurable for WindowActivateExecutor {
     }
 
     fn component_type(&self) -> ComponentType {
-        ComponentType::Launcher
+        ComponentType::ActionExecutor
     }
 }
 

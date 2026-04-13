@@ -70,7 +70,7 @@ impl Configurable for FileExecutor {
     }
 
     fn component_type(&self) -> ComponentType {
-        ComponentType::Launcher
+        ComponentType::ActionExecutor
     }
 }
 

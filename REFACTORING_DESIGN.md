@@ -618,19 +618,25 @@ fn register_plugins(app_state: &Arc<AppState>) {
 
 #### 4.8.3 与现有架构的整合
 
-Plugin SDK 将作为 `plugin_system/api.rs` 的核心内容，与现有组件的关系：
+Plugin SDK 作为独立模块 `sdk/`，与 `plugin_system/`、`core/` 同级。HostApi trait 定义在 `sdk/host_api.rs`，平台实现层 `platform/` 放置在 `sdk/` 下（因为 platform 的唯一消费者是 sdk）。
+
+详细设计请参考 `PLUGIN_SDK_DESIGN.md`。
 
 ```
-plugin_system/
-├── types.rs                   # 核心 trait 定义
-├── registry.rs                # 插件注册中心
-├── dispatcher.rs              # 查询分发器
-├── api.rs                     # Plugin SDK (HostApi trait + 实现)
-│   ├── HostApi trait          # 宿主能力接口
-│   ├── HostApiImpl            # 具体实现（委托给 platform 层）
-│   └── MockHostApi            # 测试用 Mock
-└── ...
+sdk/
+├── mod.rs                     # 模块入口，导出公共 API
+├── host_api.rs                # HostApi trait + HostApiError + OpenTarget + IconRequest
+└── platform/
+    ├── mod.rs                 # 条件编译选择平台实现
+    ├── capabilities.rs        # PlatformCapabilities 定义
+    └── windows/
+        ├── mod.rs             # Windows 平台入口
+        └── host_api_impl.rs   # WindowsHostApi 实现
 ```
+
+HostApi 与 PluginAPI 平行共存：
+- **PluginAPI** (`plugin_system/types.rs`) = 平台无关通用能力（日志、通知、配置读写）
+- **HostApi** (`sdk/host_api.rs`) = 平台相关服务能力（图标提取、shell 操作、窗口管理）
 
 插件通过 `ActionExecutor` trait 的上下文参数获取 `HostApi`：
 
@@ -746,28 +752,24 @@ src-tauri/src/
 │   │   ├── parameter_types.rs
 │   │   └── providers.rs
 │
-├── platform/                      # 平台适配层（Plugin SDK 实现）
-│   ├── mod.rs                     # 平台模块入口，条件编译选择实现
-│   ├── traits.rs                  # HostApi trait 定义（与 plugin_system/api.rs 共享）
-│   ├── capabilities.rs            # 平台能力查询（Capability enum）
-│   │
-│   ├── windows/                   # Windows 平台实现
-│   │   ├── mod.rs
-│   │   ├── host_api.rs            # HostApi trait 的 Windows 实现
-│   │   ├── shell.rs               # ShellExecuteW 封装
-│   │   ├── uwp.rs                 # UWP 应用启动
-│   │   ├── icon.rs                # 图标提取
-│   │   └── shortcut.rs            # 快捷方式解析
-│   │
-│   ├── macos/                     # macOS 平台实现（预留）
-│   │   ├── mod.rs
-│   │   ├── host_api.rs            # HostApi trait 的 macOS 实现
-│   │   └── workspace.rs           # NSWorkspace 封装
-│   │
-│   └── linux/                     # Linux 平台实现（预留）
-│       ├── mod.rs
-│       ├── host_api.rs            # HostApi trait 的 Linux 实现
-│       └── desktop.rs             # xdg-open / gtk 封装
+├── sdk/                           # Plugin SDK（核心向插件提供统一服务）
+│   ├── mod.rs                     # 模块入口，导出公共 API
+│   ├── host_api.rs                # HostApi trait + HostApiError + OpenTarget + IconRequest
+│   └── platform/                  # 平台实现层（HostApi 的具体实现）
+│       ├── mod.rs                 # 条件编译选择平台实现
+│       ├── capabilities.rs        # PlatformCapabilities 定义
+│       ├── windows/               # Windows 平台实现
+│       │   ├── mod.rs
+│       │   ├── host_api_impl.rs   # HostApi trait 的 Windows 实现
+│       │   ├── icon.rs            # 图标提取
+│       │   ├── shell.rs           # ShellExecuteW 封装
+│       │   └── window.rs          # 窗口操作封装
+│       ├── macos/                 # macOS 平台实现（预留）
+│       │   ├── mod.rs
+│       │   └── host_api_impl.rs   # HostApi trait 的 macOS 实现
+│       └── linux/                 # Linux 平台实现（预留）
+│           ├── mod.rs
+│           └── host_api_impl.rs   # HostApi trait 的 Linux 实现
 │
 ├── state/                         # 应用状态（核心组件）
 │   ├── mod.rs
@@ -819,11 +821,11 @@ src-tauri/src/
 │  └─────────────────┘            └─────────────────────┘    │
 │                                                             │
 │  ┌─────────────────────────────────────────────────────┐   │
-│  │              api.rs (Plugin SDK)                    │   │
-│  │         HostApi trait - 宿主能力抽象                 │   │
+│  │              api.rs (PluginAPI)                    │   │
+│  │         PluginAPI trait - 平台无关通用能力           │   │
 │  └─────────────────────────────────────────────────────┘   │
 │                                                             │
-└─────────────────────────────┬───────────────────────────────┘
+└─────────────────────────────────────────────────────────────┘
                               │ 通过 HostApi trait
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
@@ -831,23 +833,28 @@ src-tauri/src/
 │                    (插件实现)                               │
 │                                                             │
 │  data_source/    search_engine/    score_booster/          │
-│  launcher/       triggerable/      (只依赖 HostApi 接口)    │
+│  executor/       triggerable/      (依赖 HostApi 接口)     │
 └─────────────────────────────┬───────────────────────────────┘
                               │ HostApi trait 实现
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                       sdk/                                   │
+│                 (Plugin SDK - 宿主服务接口)                  │
+│                                                             │
+│  HostApi trait    PlatformCapabilities    HostApiError     │
+│                                                             │
+│  ┌───────────────────────────────────────────────────────┐ │
+│  │              platform/ (平台实现层)                     │ │
+│  │  WindowsHostApi    MacHostApi(预留)    LinuxHostApi   │ │
+│  └───────────────────────────────────────────────────────┘ │
+└─────────────────────────────┬───────────────────────────────┘
+                              │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                       core/                                 │
 │                   (核心基础设施)                            │
 │                                                             │
 │  storage/    ai/    parameter/    config/    event/         │
-└─────────────────────────────┬───────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                      platform/                              │
-│                   (平台适配层)                              │
-│                                                             │
-│  HostApi 实现: windows/    macos/    linux/                │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -864,7 +871,7 @@ src-tauri/src/
         ┌────────────────────┼────────────────────┐
         │                    │                    │
         ▼                    ▼                    ▼
-   commands/          plugin_system/          core/
+   commands/          plugin_system/          sdk/
 ```
 
 ### 6.3 搜索引擎设计

@@ -5,6 +5,7 @@ pub mod logging;
 pub mod modules;
 pub mod plugin;
 pub mod plugin_system;
+pub mod sdk;
 pub mod state;
 pub mod tray;
 pub mod utils;

@@ -11,6 +11,7 @@ use crate::modules::{config::config_manager::RuntimeConfig, program_manager::Pro
 use crate::plugin_system::service::PluginService;
 use crate::plugin_system::DefaultPluginAPI;
 use crate::plugin_system::SessionRouter;
+use crate::sdk::HostApi;
 use crate::utils::i18n::Translator;
 use crate::utils::waiting_hashmap::AsyncWaitingHashMap;
 use parking_lot::RwLock;
@@ -67,6 +68,8 @@ pub struct AppState {
     icon_manager: RwLock<Option<Arc<IconManager>>>,
     /// 书签加载器
     bookmark_loader: RwLock<Option<Arc<BookmarkLoader>>>,
+    /// HostApi 实例
+    host_api: RwLock<Option<Arc<HostApi>>>,
 }
 
 impl Default for AppState {
@@ -103,6 +106,7 @@ impl AppState {
             everything_manager: Arc::new(EverythingManager::new()),
             icon_manager: RwLock::new(None),
             bookmark_loader: RwLock::new(None),
+            host_api: RwLock::new(None),
         }
     }
 
@@ -324,6 +328,20 @@ impl AppState {
     /// 设置书签加载器
     pub fn set_bookmark_loader(&self, bookmark_loader: Arc<BookmarkLoader>) {
         *self.bookmark_loader.write() = Some(bookmark_loader);
+    }
+
+    /// 获取 HostApi 实例
+    pub fn get_host_api(&self) -> Arc<HostApi> {
+        self.host_api
+            .read()
+            .as_ref()
+            .cloned()
+            .expect_programming("host_api not initialized")
+    }
+
+    /// 设置 HostApi 实例
+    pub fn set_host_api(&self, host_api: Arc<HostApi>) {
+        *self.host_api.write() = Some(host_api);
     }
 }
 

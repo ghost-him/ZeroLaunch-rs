@@ -2,141 +2,56 @@ use crate::core::types::{ComponentType, Configurable};
 use crate::plugin_system::types::{
     ActionExecutor, ExecutionContext, ExecutionError, ExecutionTarget, ResultAction, TargetType,
 };
-use crate::utils::windows::{get_u16_vec, shell_execute_open};
-use std::os::windows::process::CommandExt;
-use std::path::Path;
-use tracing::{debug, warn};
-use windows::Win32::Foundation::{GetLastError, ERROR_CANCELLED};
-use windows::Win32::UI::Shell::{ShellExecuteExW, SHELLEXECUTEINFOW};
-use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
-use windows_core::PCWSTR;
+use crate::sdk::host_api::{OpenTarget, PluginHandle};
+use std::sync::Arc;
+use tracing::warn;
 
 /// 路径执行器 - 负责通过文件路径启动程序
 /// 支持普通启动、管理员启动和打开所在文件夹
-pub struct PathExecutor;
+pub struct PathExecutor {
+    plugin_handle: Arc<PluginHandle>,
+}
 
 impl PathExecutor {
-    pub fn new() -> Self {
-        Self
+    pub fn new(plugin_handle: Arc<PluginHandle>) -> Self {
+        Self { plugin_handle }
     }
 
-    /// 普通启动程序
-    /// 优先使用 explorer.exe 代理启动以实现进程分离，失败时回退到 ShellExecuteExW
+    /// 普通启动程序。
+    /// 委托 PluginHandle::shell_open 完成启动，由平台层负责实现“模拟双击”语义。
     fn execute_normal(&self, path: &str) {
-        let program_path = Path::new(path);
-        let working_directory = program_path.parent().unwrap_or_else(|| Path::new("."));
-        let path_str = program_path.to_string_lossy();
-
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        const DETACHED_PROCESS: u32 = 0x00000008;
-
-        let result = std::process::Command::new("explorer")
-            .arg(&*path_str)
-            .creation_flags(CREATE_NO_WINDOW | DETACHED_PROCESS)
-            .spawn();
-
-        match result {
-            Ok(_) => {
-                debug!("已请求 Explorer 启动: {}", path);
+        let handle = self.plugin_handle.clone();
+        let path = path.to_string();
+        tokio::spawn(async move {
+            if let Err(e) = handle.shell_open(OpenTarget::File(path)).await {
+                warn!("启动程序失败: {}", e);
             }
-            Err(e) => {
-                warn!("Explorer 启动失败: {:?}, 尝试回退到 ShellExecute...", e);
-                let mut program_path_wide = get_u16_vec(program_path);
-                let mut working_directory_wide = get_u16_vec(working_directory);
-                let _ =
-                    self.launch_with_shellexec(&mut program_path_wide, &mut working_directory_wide);
-            }
-        }
+        });
     }
 
     /// 以管理员权限启动程序
-    /// 使用 ShellExecuteExW 的 runas verb 触发 UAC 提升对话框
+    /// 委托给 PluginHandle 的 shell_execute_elevation 方法
     fn execute_elevation(&self, path: &str) {
-        let program_path = Path::new(path);
-        let working_directory = program_path.parent().unwrap_or_else(|| Path::new("."));
-        let program_path_wide = get_u16_vec(program_path);
-        let working_directory_wide = get_u16_vec(working_directory);
-
-        unsafe {
-            let lp_verb = get_u16_vec("runas");
-            let mut sei: SHELLEXECUTEINFOW = std::mem::zeroed();
-            sei.cbSize = std::mem::size_of::<SHELLEXECUTEINFOW>() as u32;
-            sei.lpVerb = PCWSTR::from_raw(lp_verb.as_ptr());
-            sei.lpFile = PCWSTR::from_raw(program_path_wide.as_ptr());
-            sei.lpDirectory = PCWSTR::from_raw(working_directory_wide.as_ptr());
-            sei.nShow = SW_SHOWNORMAL.0;
-
-            if ShellExecuteExW(&mut sei).is_err() {
-                let error = GetLastError();
-                if error == ERROR_CANCELLED {
-                    warn!("User declined the elevation request.");
-                } else {
-                    warn!(
-                        "Failed to start process with elevation. Error: {}",
-                        error.to_hresult()
-                    );
-                }
+        let handle = self.plugin_handle.clone();
+        let path = path.to_string();
+        tokio::spawn(async move {
+            if let Err(e) = handle.shell_execute_elevation(&path).await {
+                warn!("管理员启动失败: {}", e);
             }
-        }
+        });
     }
 
     /// 打开目标文件所在的文件夹
-    /// 返回成功或失败
+    /// 委托给 PluginHandle 的 shell_open_folder 方法
     fn open_folder(&self, path: &str) -> Result<(), ExecutionError> {
-        let target_path = Path::new(path);
-
-        let folder_to_open = if target_path.is_dir() {
-            target_path
-        } else {
-            target_path.parent().unwrap_or_else(|| {
-                warn!(
-                    "Target path has no parent, fallback to original path: {}",
-                    target_path.display()
-                );
-                target_path
-            })
-        };
-
-        if !folder_to_open.exists() {
-            let msg = format!(
-                "Target folder does not exist and cannot be opened: {}",
-                folder_to_open.display()
-            );
-            warn!("{}", msg);
-            return Err(ExecutionError::Failed(msg));
-        }
-
-        if let Err(error) = shell_execute_open(folder_to_open) {
-            let msg = format!(
-                "Failed to open folder with default file manager. Error code: {}",
-                error.to_hresult()
-            );
-            warn!("{}", msg);
-            return Err(ExecutionError::Failed(msg));
-        }
-
-        Ok(())
-    }
-
-    /// 使用 ShellExecuteExW 启动程序（作为 explorer 启动失败时的回退方案）
-    fn launch_with_shellexec(
-        &self,
-        program_path_wide: &mut [u16],
-        working_directory_wide: &mut [u16],
-    ) -> Result<(), windows::Win32::Foundation::WIN32_ERROR> {
-        unsafe {
-            let mut sei: SHELLEXECUTEINFOW = std::mem::zeroed();
-            sei.cbSize = std::mem::size_of::<SHELLEXECUTEINFOW>() as u32;
-            sei.lpVerb = PCWSTR::from_raw(std::ptr::null());
-            sei.lpFile = PCWSTR::from_raw(program_path_wide.as_ptr());
-            sei.lpDirectory = PCWSTR::from_raw(working_directory_wide.as_ptr());
-            sei.nShow = SW_SHOWNORMAL.0;
-
-            if ShellExecuteExW(&mut sei).is_err() {
-                return Err(GetLastError());
+        let handle = self.plugin_handle.clone();
+        let path = path.to_string();
+        tokio::spawn(async move {
+            if let Err(e) = handle.shell_open_folder(&path).await {
+                warn!("打开文件夹失败: {}", e);
             }
-            Ok(())
-        }
+        });
+        Ok(())
     }
 }
 
@@ -156,7 +71,7 @@ impl Configurable for PathExecutor {
 
 impl Default for PathExecutor {
     fn default() -> Self {
-        Self::new()
+        panic!("PathExecutor 必须通过 new(plugin_handle) 创建，不支持 Default");
     }
 }
 

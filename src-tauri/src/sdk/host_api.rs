@@ -1,6 +1,7 @@
 use crate::sdk::icon::icon_cache::IconCacheService;
 use crate::sdk::icon::icon_extractor::IconExtractor;
 use crate::sdk::platform::capabilities::PlatformCapabilities;
+use crate::sdk::shell::ShellExecutor;
 use bincode::Encode;
 use dashmap::DashMap;
 use parking_lot::RwLock;
@@ -108,6 +109,8 @@ pub struct PluginHandle {
     icon_extractor: Arc<dyn IconExtractor>,
     /// 图标缓存服务，由 HostApi 共享
     icon_cache: Arc<IconCacheService>,
+    /// Shell 执行器，由 HostApi 注入的平台实现
+    shell_executor: Arc<dyn ShellExecutor>,
 }
 
 impl PluginHandle {
@@ -147,22 +150,22 @@ impl PluginHandle {
     /// 使用系统默认方式打开目标（文件/网址/文件夹）。
     /// 参数：target - 打开目标。
     /// 返回：成功返回 Ok(())，失败返回 HostApiError。
-    pub async fn shell_open(&self, _target: OpenTarget) -> Result<(), HostApiError> {
-        todo!("迁移 Shell 服务后实现")
+    pub async fn shell_open(&self, target: OpenTarget) -> Result<(), HostApiError> {
+        self.shell_executor.shell_open(&target).await
     }
 
     /// 在文件资源管理器中打开指定路径的父目录并选中该文件。
     /// 参数：path - 要打开所在位置的文件路径。
     /// 返回：成功返回 Ok(())，失败返回 HostApiError。
-    pub async fn shell_open_folder(&self, _path: &str) -> Result<(), HostApiError> {
-        todo!("迁移 Shell 服务后实现")
+    pub async fn shell_open_folder(&self, path: &str) -> Result<(), HostApiError> {
+        self.shell_executor.shell_open_folder(path).await
     }
 
-    /// 获取系统默认浏览器名称。
-    /// 参数：无。
-    /// 返回：浏览器名称字符串，失败返回 HostApiError。
-    pub async fn get_default_browser(&self) -> Result<String, HostApiError> {
-        todo!("迁移 Shell 服务后实现")
+    /// 以管理员权限启动程序。
+    /// 参数：path - 要以管理员身份运行的程序路径。
+    /// 返回：成功返回 Ok(())，失败返回 HostApiError。
+    pub async fn shell_execute_elevation(&self, path: &str) -> Result<(), HostApiError> {
+        self.shell_executor.shell_execute_elevation(path).await
     }
 
     // ===== 窗口服务 =====
@@ -215,15 +218,21 @@ pub struct HostApi {
     icon_cache: Arc<IconCacheService>,
     /// 图标提取器（平台实现）
     icon_extractor: Arc<dyn IconExtractor>,
+    /// Shell 执行器（平台实现）
+    shell_executor: Arc<dyn ShellExecutor>,
 }
 
 impl HostApi {
     /// 创建 Windows 平台的 HostApi 实例。
-    /// 在此注入 Windows 平台的图标提取器等组件。
-    /// 参数：icon_cache_dir - 图标缓存目录；icon_extractor - Windows 图标提取器实例。
+    /// 在此注入 Windows 平台的图标提取器、Shell 执行器等组件。
+    /// 参数：icon_cache_dir - 图标缓存目录；icon_extractor - Windows 图标提取器实例；shell_executor - Windows Shell 执行器实例。
     /// 返回：初始化后的 HostApi。
     #[cfg(target_os = "windows")]
-    pub fn new_windows(icon_cache_dir: String, icon_extractor: Arc<dyn IconExtractor>) -> Self {
+    pub fn new_windows(
+        icon_cache_dir: String,
+        icon_extractor: Arc<dyn IconExtractor>,
+        shell_executor: Arc<dyn ShellExecutor>,
+    ) -> Self {
         let icon_cache = Arc::new(IconCacheService::new(icon_cache_dir));
         icon_cache.init();
         Self {
@@ -231,6 +240,7 @@ impl HostApi {
             capabilities: PlatformCapabilities::windows(),
             icon_cache,
             icon_extractor,
+            shell_executor,
         }
     }
 
@@ -245,6 +255,7 @@ impl HostApi {
             capabilities: self.capabilities.clone(),
             icon_extractor: self.icon_extractor.clone(),
             icon_cache: self.icon_cache.clone(),
+            shell_executor: self.shell_executor.clone(),
         });
         self.handles.insert(plugin_id.to_string(), handle.clone());
         handle

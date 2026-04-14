@@ -2,25 +2,31 @@ use crate::core::types::{ComponentType, Configurable};
 use crate::plugin_system::types::{
     ActionExecutor, ExecutionContext, ExecutionError, ExecutionTarget, ResultAction, TargetType,
 };
-use crate::utils::windows::shell_execute_open;
+use crate::sdk::host_api::{OpenTarget, PluginHandle};
+use std::sync::Arc;
 use tracing::warn;
 
 /// URL 执行器 - 负责使用系统默认浏览器打开 URL
-/// 使用 ShellExecuteW 直接打开 URL，避免 cmd.exe 对特殊字符的错误解析
-pub struct UrlExecutor;
+/// 委托 PluginHandle 的 shell_open 方法打开 URL
+pub struct UrlExecutor {
+    plugin_handle: Arc<PluginHandle>,
+}
 
 impl UrlExecutor {
-    pub fn new() -> Self {
-        Self
+    pub fn new(plugin_handle: Arc<PluginHandle>) -> Self {
+        Self { plugin_handle }
     }
 
     /// 使用系统默认浏览器打开 URL
     fn execute_url(&self, url: &str) -> Result<(), ExecutionError> {
-        shell_execute_open(url).map_err(|e| {
-            let msg = format!("启动 URL 失败：{:?}", e);
-            warn!("{}", msg);
-            ExecutionError::Failed(msg)
-        })
+        let handle = self.plugin_handle.clone();
+        let url = url.to_string();
+        tokio::spawn(async move {
+            if let Err(e) = handle.shell_open(OpenTarget::Url(url)).await {
+                warn!("启动 URL 失败: {}", e);
+            }
+        });
+        Ok(())
     }
 }
 
@@ -40,7 +46,7 @@ impl Configurable for UrlExecutor {
 
 impl Default for UrlExecutor {
     fn default() -> Self {
-        Self::new()
+        panic!("UrlExecutor 必须通过 new(plugin_handle) 创建，不支持 Default");
     }
 }
 

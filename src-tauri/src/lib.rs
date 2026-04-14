@@ -51,6 +51,9 @@ use crate::plugin::search_engine::standard_search_model::StandardSearchModel;
 use crate::plugin_system::types::{ScoreBooster, SearchEngine};
 use crate::plugin_system::Configurable;
 use crate::plugin_system::{CandidatePipeline, SearchPipeline};
+use crate::sdk::platform::WindowsIconExtractor;
+use crate::sdk::platform::WindowsShellExecutor;
+use crate::sdk::ShellExecutor;
 use crate::state::app_state::AppState;
 use crate::tray::init_system_tray;
 use crate::tray::update_tray_menu_language;
@@ -525,14 +528,42 @@ fn init_plugin_system(state: &Arc<AppState>) {
     // === 阶段1: 注册所有组件到 ConfigManager ===
     info!("正在注册可配置组件到 ConfigManager...");
 
+    // 1. 初始化 HostApi（SDK 层）
+    info!("正在初始化 HostApi...");
+    let icon_cache_dir = crate::modules::config::default::ICON_CACHE_DIR.clone();
+    let default_app_icon_path = crate::modules::config::default::APP_PIC_PATH
+        .get("tips")
+        .expect_programming("无法获取默认应用图标路径")
+        .value()
+        .clone();
+    let default_web_icon_path = crate::modules::config::default::APP_PIC_PATH
+        .get("web_pages")
+        .expect_programming("无法获取默认网页图标路径")
+        .value()
+        .clone();
+    let icon_extractor: Arc<dyn crate::sdk::IconExtractor> = Arc::new(WindowsIconExtractor::new(
+        default_app_icon_path,
+        default_web_icon_path,
+    ));
+    let shell_executor: Arc<dyn ShellExecutor> = Arc::new(WindowsShellExecutor::new());
+    let host_api = Arc::new(crate::sdk::HostApi::new_windows(
+        icon_cache_dir,
+        icon_extractor,
+        shell_executor,
+    ));
+    state.set_host_api(host_api.clone());
+
+    // 为 Shell 相关执行器注册 PluginHandle
+    let shell_service_handle = host_api.register("shell-executors", Default::default());
+
     // 1. 注册执行器（同时注册到 ConfigManager 和 ExecutorRegistry，双重索引）
     info!("正在注册执行器...");
     let path_executor: Arc<dyn crate::plugin_system::types::ActionExecutor> =
-        Arc::new(PathExecutor::new());
+        Arc::new(PathExecutor::new(shell_service_handle.clone()));
     let file_executor: Arc<dyn crate::plugin_system::types::ActionExecutor> =
-        Arc::new(FileExecutor::new());
+        Arc::new(FileExecutor::new(shell_service_handle.clone()));
     let url_executor: Arc<dyn crate::plugin_system::types::ActionExecutor> =
-        Arc::new(UrlExecutor::new());
+        Arc::new(UrlExecutor::new(shell_service_handle.clone()));
     let uwp_executor: Arc<dyn crate::plugin_system::types::ActionExecutor> =
         Arc::new(UwpExecutor::new());
     let command_executor: Arc<dyn crate::plugin_system::types::ActionExecutor> =

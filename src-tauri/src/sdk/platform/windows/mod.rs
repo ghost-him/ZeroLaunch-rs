@@ -1,3 +1,3 @@
-mod host_api_impl;
+mod icon;
 
-pub use host_api_impl::WindowsHostApi;
+pub use icon::WindowsIconExtractor;

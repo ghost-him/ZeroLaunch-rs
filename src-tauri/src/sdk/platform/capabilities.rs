@@ -20,6 +20,7 @@ pub enum PlatformCapability {
 
 /// 平台能力集合。
 /// 封装当前平台支持的能力，提供便捷的查询接口。
+#[derive(Clone)]
 pub struct PlatformCapabilities {
     capabilities: HashSet<PlatformCapability>,
 }

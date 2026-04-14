@@ -1,11 +1,15 @@
+use crate::sdk::icon::icon_cache::IconCacheService;
+use crate::sdk::icon::icon_extractor::IconExtractor;
 use crate::sdk::platform::capabilities::PlatformCapabilities;
-use async_trait::async_trait;
+use bincode::Encode;
+use dashmap::DashMap;
+use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 /// 图标请求类型，表示不同来源的图标提取需求。
 /// 各类型使用各自的提取逻辑完成图标提取。
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Encode)]
 pub enum IconRequest {
     /// 本地文件路径 (exe, lnk, url, ico, png) -> 提取文件图标
     Path(String),
@@ -13,6 +17,17 @@ pub enum IconRequest {
     Url(String),
     /// 文件扩展名 (.txt, .doc) -> 获取系统关联图标
     Extension(String),
+}
+
+impl IconRequest {
+    /// 计算图标请求的 blake3 哈希值，用作缓存键。
+    /// 参数：无。
+    /// 返回：十六进制格式的哈希字符串。
+    pub fn get_hash_string(&self) -> String {
+        let mut hasher = blake3::Hasher::new();
+        let _ = bincode::encode_into_std_write(self, &mut hasher, bincode::config::standard());
+        hasher.finalize().to_hex().to_string()
+    }
 }
 
 /// Shell 打开目标类型。
@@ -81,53 +96,93 @@ pub enum HostApiError {
 }
 
 /// 插件服务句柄，绑定插件身份与配置。
+/// 跨平台 struct，通过 Arc<dyn IconExtractor> 等平台 trait 注入平台代码。
 /// 插件通过 HostApi::register() 获取此句柄，后续所有服务调用通过句柄完成。
 /// 句柄自动应用注册时的插件配置（如缓存等级），插件无需在每次调用时传递配置。
-#[async_trait]
-pub trait PluginHandle: Send + Sync {
+pub struct PluginHandle {
+    #[allow(dead_code)]
+    plugin_id: String,
+    config: RwLock<PluginSdkConfig>,
+    capabilities: PlatformCapabilities,
+    /// 图标提取器，由 HostApi 注入的平台实现
+    icon_extractor: Arc<dyn IconExtractor>,
+    /// 图标缓存服务，由 HostApi 共享
+    icon_cache: Arc<IconCacheService>,
+}
+
+impl PluginHandle {
+    /// 获取当前图标缓存等级，None 时返回默认值 Full。
+    fn icon_cache_level(&self) -> CacheLevel {
+        self.config.read().icon_cache_level.unwrap_or_default()
+    }
+
     // ===== 图标服务 =====
 
     /// 根据图标请求提取图标数据，行为由注册时的缓存等级决定。
     /// 参数：request - 图标请求（路径/网址/扩展名）。
     /// 返回：PNG 格式的图标字节数据，失败返回 HostApiError。
-    async fn get_icon(&self, request: IconRequest) -> Result<Vec<u8>, HostApiError>;
+    pub async fn get_icon(&self, request: IconRequest) -> Result<Vec<u8>, HostApiError> {
+        let level = self.icon_cache_level();
+        self.icon_extractor
+            .get_icon(&self.icon_cache, &request, level)
+            .await
+    }
 
-    /// 根据原始图标请求提取图标数据，直接从硬盘中读并根据缓存等级更新缓存信息
+    /// 强制从磁盘提取图标数据并根据缓存等级更新缓存。
+    /// 与 get_icon 不同，此方法跳过缓存读取，直接提取并更新缓存。
     /// 参数：request - 图标请求（路径/网址/扩展名）。
-    /// 返回：PNG 格式的图标字节数据，失败返回 HostApiError
-    async fn get_icon_and_update_cache(
+    /// 返回：PNG 格式的图标字节数据，失败返回 HostApiError。
+    pub async fn get_icon_and_update_cache(
         &self,
         request: IconRequest,
-    ) -> Result<Vec<u8>, HostApiError>;
+    ) -> Result<Vec<u8>, HostApiError> {
+        let level = self.icon_cache_level();
+        self.icon_extractor
+            .get_icon_and_update_cache(&self.icon_cache, &request, level)
+            .await
+    }
 
     // ===== Shell 服务 =====
 
     /// 使用系统默认方式打开目标（文件/网址/文件夹）。
     /// 参数：target - 打开目标。
     /// 返回：成功返回 Ok(())，失败返回 HostApiError。
-    async fn shell_open(&self, target: OpenTarget) -> Result<(), HostApiError>;
+    pub async fn shell_open(&self, _target: OpenTarget) -> Result<(), HostApiError> {
+        todo!("迁移 Shell 服务后实现")
+    }
 
     /// 在文件资源管理器中打开指定路径的父目录并选中该文件。
     /// 参数：path - 要打开所在位置的文件路径。
     /// 返回：成功返回 Ok(())，失败返回 HostApiError。
-    async fn shell_open_folder(&self, path: &str) -> Result<(), HostApiError>;
+    pub async fn shell_open_folder(&self, _path: &str) -> Result<(), HostApiError> {
+        todo!("迁移 Shell 服务后实现")
+    }
 
     /// 获取系统默认浏览器名称。
     /// 参数：无。
     /// 返回：浏览器名称字符串，失败返回 HostApiError。
-    async fn get_default_browser(&self) -> Result<String, HostApiError>;
+    pub async fn get_default_browser(&self) -> Result<String, HostApiError> {
+        todo!("迁移 Shell 服务后实现")
+    }
 
     // ===== 窗口服务 =====
 
     /// 根据进程名（如 "chrome.exe"）激活已存在的窗口。
     /// 参数：process_name - 进程名（含扩展名）。
     /// 返回：成功激活返回 Ok(true)，未找到窗口返回 Ok(false)，失败返回 HostApiError。
-    async fn activate_window_by_process(&self, process_name: &str) -> Result<bool, HostApiError>;
+    pub async fn activate_window_by_process(
+        &self,
+        _process_name: &str,
+    ) -> Result<bool, HostApiError> {
+        todo!("迁移窗口服务后实现")
+    }
 
     /// 根据窗口标题的部分内容激活已存在的窗口。
     /// 参数：title - 窗口标题的部分匹配文本。
     /// 返回：成功激活返回 Ok(true)，未找到窗口返回 Ok(false)，失败返回 HostApiError。
-    async fn activate_window_by_title(&self, title: &str) -> Result<bool, HostApiError>;
+    pub async fn activate_window_by_title(&self, _title: &str) -> Result<bool, HostApiError> {
+        todo!("迁移窗口服务后实现")
+    }
 
     // ===== 配置管理 =====
 
@@ -135,35 +190,79 @@ pub trait PluginHandle: Send + Sync {
     /// 参数：config - 新的插件 SDK 配置。
     /// 返回：无。
     /// 特性：立即生效，影响后续所有服务调用。
-    fn update_config(&self, config: PluginSdkConfig);
+    pub fn update_config(&self, config: PluginSdkConfig) {
+        *self.config.write() = config;
+    }
 
     // ===== 能力查询 =====
 
     /// 查询当前平台支持的能力集合。
     /// 参数：无。
     /// 返回：平台能力的不可变引用。
-    fn capabilities(&self) -> &PlatformCapabilities;
+    pub fn capabilities(&self) -> &PlatformCapabilities {
+        &self.capabilities
+    }
 }
 
 /// 宿主向插件暴露的平台能力注册层。
+/// 跨平台 struct，平台组件在构造时注入。
 /// 插件必须先调用 register() 获取 PluginHandle，再通过句柄访问服务。
 /// 全局管理操作（如更新缓存目录）保留在 HostApi 上，不暴露给插件。
-#[async_trait]
-pub trait HostApi: Send + Sync {
+pub struct HostApi {
+    handles: DashMap<String, Arc<PluginHandle>>,
+    capabilities: PlatformCapabilities,
+    /// 共享的图标缓存服务
+    icon_cache: Arc<IconCacheService>,
+    /// 图标提取器（平台实现）
+    icon_extractor: Arc<dyn IconExtractor>,
+}
+
+impl HostApi {
+    /// 创建 Windows 平台的 HostApi 实例。
+    /// 在此注入 Windows 平台的图标提取器等组件。
+    /// 参数：icon_cache_dir - 图标缓存目录；icon_extractor - Windows 图标提取器实例。
+    /// 返回：初始化后的 HostApi。
+    #[cfg(target_os = "windows")]
+    pub fn new_windows(icon_cache_dir: String, icon_extractor: Arc<dyn IconExtractor>) -> Self {
+        let icon_cache = Arc::new(IconCacheService::new(icon_cache_dir));
+        icon_cache.init();
+        Self {
+            handles: DashMap::new(),
+            capabilities: PlatformCapabilities::windows(),
+            icon_cache,
+            icon_extractor,
+        }
+    }
+
     /// 注册插件并返回绑定了插件身份与配置的服务句柄。
     /// 参数：plugin_id - 插件唯一标识；config - 插件的 SDK 配置。
     /// 返回：绑定该插件配置的服务句柄。
     /// 特性：同一 plugin_id 重复注册将覆盖原有配置。
-    fn register(&self, plugin_id: &str, config: PluginSdkConfig) -> Arc<dyn PluginHandle>;
+    pub fn register(&self, plugin_id: &str, config: PluginSdkConfig) -> Arc<PluginHandle> {
+        let handle = Arc::new(PluginHandle {
+            plugin_id: plugin_id.to_string(),
+            config: RwLock::new(config),
+            capabilities: self.capabilities.clone(),
+            icon_extractor: self.icon_extractor.clone(),
+            icon_cache: self.icon_cache.clone(),
+        });
+        self.handles.insert(plugin_id.to_string(), handle.clone());
+        handle
+    }
 
     /// 更新图标缓存目录路径（宿主级操作，不暴露给插件）。
     /// 参数：new_icon_cache_dir - 新的图标文件缓存目录路径。
     /// 返回：成功返回 Ok(())，失败返回 HostApiError。
     /// 特性：切换文件缓存的存储位置，同时清空内存缓存以保持一致性。
-    async fn update_icon_cache_dir(&self, new_icon_cache_dir: &str) -> Result<(), HostApiError>;
+    pub fn update_icon_cache_dir(&self, new_icon_cache_dir: &str) -> Result<(), HostApiError> {
+        self.icon_cache.update_cache_dir(new_icon_cache_dir);
+        Ok(())
+    }
 
     /// 查询当前平台支持的能力集合。
     /// 参数：无。
     /// 返回：平台能力的不可变引用。
-    fn capabilities(&self) -> &PlatformCapabilities;
+    pub fn capabilities(&self) -> &PlatformCapabilities {
+        &self.capabilities
+    }
 }

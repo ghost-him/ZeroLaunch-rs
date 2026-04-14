@@ -36,16 +36,17 @@ trait PluginAPI {
     async fn hide_window();
 }
 
-// HostApi: 注册层，管理插件句柄
-trait HostApi {
+// HostApi: 跨平台注册层 struct，管理插件句柄
+struct HostApi {
     fn register(plugin_id, config) -> Arc<PluginHandle>;
-    async fn update_icon_cache_dir(...);
+    fn update_icon_cache_dir(...);
     fn capabilities() -> &PlatformCapabilities;
 }
 
-// PluginHandle: 服务层，绑定插件身份与配置
-trait PluginHandle {
+// PluginHandle: 跨平台服务层 struct，绑定插件身份与配置
+struct PluginHandle {
     async fn get_icon(...);
+    async fn get_icon_and_update_cache(...);
     async fn shell_open(...);
     async fn shell_open_folder(...);
     async fn get_default_browser(...);
@@ -58,52 +59,62 @@ trait PluginHandle {
 
 ---
 
-## 三、双层架构：HostApi + PluginHandle
+## 三、组件注入架构：HostApi + PluginHandle + 平台 Trait
 
 ### 3.1 架构设计
 
-Plugin SDK 采用**注册层 + 服务层**的双层架构：
+Plugin SDK 采用**跨平台 struct + 平台 trait 注入**的架构：
 
-- **HostApi（注册层）**：宿主持有，管理插件注册表，提供全局管理操作
-- **PluginHandle（服务层）**：插件持有，绑定插件身份与配置，提供所有服务方法
+- **HostApi（跨平台 struct）**：宿主持有，管理插件注册表，通过 `new_windows()` 工厂方法注入平台组件
+- **PluginHandle（跨平台 struct）**：插件持有，绑定插件身份与配置，所有服务方法委托给注入的平台 trait
+- **平台 Trait（IconExtractor 等）**：定义平台原语 + 跨平台业务默认实现
+
+核心设计原则：**平台抽象只有一层，且在组件注入点**。
 
 ```
-┌──────────────────────────────────────────────────┐
-│  HostApi (注册层)                                 │
-│  ┌─────────────────────────────────────────────┐ │
-│  │ register(plugin_id, config) → PluginHandle  │ │
-│  │ update_icon_cache_dir(...)                  │ │
-│  │ capabilities()                              │ │
-│  └─────────────────────────────────────────────┘ │
-│         │                                        │
-│         │ register() 返回 Arc<PluginHandle>       │
-│         ▼                                        │
-│  ┌─────────────────────────────────────────────┐ │
-│  │ PluginHandle (服务层)                        │ │
-│  │  ┌───────────────────────────────────────┐  │ │
-│  │  │ plugin_id: "everything"               │  │ │
-│  │  │ config: { icon_cache_level: SkipAll } │  │ │
-│  │  └───────────────────────────────────────┘  │ │
-│  │ get_icon(request) → 按 SkipAll 行为执行   │ │
-│  │ shell_open(target)                          │ │
-│  │ shell_open_folder(path)                     │ │
-│  │ get_default_browser()                       │ │
-│  │ activate_window_by_process(name)            │ │
-│  │ activate_window_by_title(title)             │ │
-│  │ update_config(config)                       │ │
-│  │ capabilities()                              │ │
-│  └─────────────────────────────────────────────┘ │
-└──────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────┐
+│  HostApi (跨平台 struct)                              │
+│  ┌──────────────────────────────────────────────────┐ │
+│  │ register(plugin_id, config) → Arc<PluginHandle>  │ │
+│  │ update_icon_cache_dir(...)                       │ │
+│  │ capabilities()                                   │ │
+│  │                                                   │ │
+│  │ icon_cache: Arc<IconCacheService>  ← 共享缓存    │ │
+│  │ icon_extractor: Arc<dyn IconExtractor> ← 平台注入 │ │
+│  └──────────────────────────────────────────────────┘ │
+│         │ register() 注入共享组件                      │
+│         ▼                                             │
+│  ┌──────────────────────────────────────────────────┐ │
+│  │ PluginHandle (跨平台 struct)                      │ │
+│  │  ┌────────────────────────────────────────────┐  │ │
+│  │  │ plugin_id: "everything"                    │  │ │
+│  │  │ config: { icon_cache_level: SkipAll }      │  │ │
+│  │  │ icon_extractor: Arc<dyn IconExtractor>     │  │ │
+│  │  │ icon_cache: Arc<IconCacheService>           │  │ │
+│  │  └────────────────────────────────────────────┘  │ │
+│  │ get_icon() → icon_extractor.get_icon(cache,..)   │ │
+│  │ shell_open() → shell_executor.shell_open(..)      │ │
+│  └──────────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────────┘
+        ▲ 创建时注入                      ▲ 创建时注入
+        │                                 │
+┌───────┴──────────┐            ┌─────────┴──────────┐
+│ WindowsIcon-     │            │ MacIcon-           │
+│ Extractor        │            │ Extractor          │
+│ (只实现原语)      │            │ (只实现原语)        │
+└──────────────────┘            └────────────────────┘
 ```
 
 ### 3.2 设计理由
 
-| 设计决策                 | 理由                                             |
-| ------------------------ | ------------------------------------------------ |
-| **先注册后使用**         | 插件必须调用 `register()` 获取句柄，强制注册流程 |
-| **句柄绑定配置**         | 每次服务调用自动应用该插件的配置，无需重复传递   |
-| **全局操作留在 HostApi** | `update_icon_cache_dir` 等宿主级操作不暴露给插件 |
-| **可更新配置**           | `update_config()` 允许插件运行时调整 SDK 配置    |
+| 设计决策                       | 理由                                                                                     |
+| ------------------------------ | ---------------------------------------------------------------------------------------- |
+| **先注册后使用**               | 插件必须调用 `register()` 获取句柄，强制注册流程                                         |
+| **句柄绑定配置**               | 每次服务调用自动应用该插件的配置，无需重复传递                                           |
+| **全局操作留在 HostApi**       | `update_icon_cache_dir` 等宿主级操作不暴露给插件                                         |
+| **可更新配置**                 | `update_config()` 允许插件运行时调整 SDK 配置                                            |
+| **跨平台 struct + trait 注入** | HostApi/PluginHandle 为跨平台 struct，通过 Arc<dyn Trait> 注入平台代码，平台抽象只有一层 |
+| **默认实现提供业务逻辑**       | IconExtractor trait 的默认实现提供跨平台缓存策略，平台只需实现原语                       |
 
 ### 3.3 调用流程
 
@@ -212,6 +223,56 @@ get_icon(IconRequest::Path("chrome.exe"))
 | **权限隔离**    | 插件通过配置表达意图，无权修改全局缓存配置、无法清空缓存 |
 | **配置可更新**  | 运行时通过 PluginHandle::update_config() 调整            |
 
+### 4.4 三组件协作模型
+
+图标服务由三个组件协作完成，职责正交：
+
+| 组件                   | 职责                                          | 依赖                         |
+| ---------------------- | --------------------------------------------- | ---------------------------- |
+| `IconExtractor` trait  | 平台原语 + 跨平台业务逻辑（缓存策略、后处理） | IconCacheService, ImageUtils |
+| `IconCacheService`     | 纯缓存工具（L1/L2 原语）                      | 无业务依赖                   |
+| `WindowsIconExtractor` | Windows API 图标提取（只实现 6 个原语）       | Win32 API                    |
+
+```rust
+// IconExtractor trait — 平台原语 + 默认业务实现
+#[async_trait]
+pub trait IconExtractor: Send + Sync {
+    // 平台原语（必须实现）
+    async fn extract_from_path(&self, path: &str) -> Result<Vec<u8>, HostApiError>;
+    async fn extract_from_url(&self, url: &str) -> Result<Vec<u8>, HostApiError>;
+    async fn extract_from_extension(&self, ext: &str) -> Result<Vec<u8>, HostApiError>;
+    fn default_app_icon_path(&self) -> &str;
+    fn default_web_icon_path(&self) -> &str;
+    fn is_network_available(&self) -> bool;
+
+    // 跨平台业务逻辑（默认实现，可覆盖）
+    async fn extract(&self, request: &IconRequest) -> Result<Vec<u8>, HostApiError>;
+    async fn extract_and_process(&self, request: &IconRequest) -> Result<Vec<u8>, HostApiError>;
+    async fn load_default_icon(&self, request: &IconRequest) -> Vec<u8>;
+    async fn get_icon(&self, cache: &IconCacheService, request: &IconRequest, level: CacheLevel) -> Result<Vec<u8>, HostApiError>;
+    async fn get_icon_and_update_cache(&self, cache: &IconCacheService, request: &IconRequest, level: CacheLevel) -> Result<Vec<u8>, HostApiError>;
+}
+```
+
+```rust
+// IconCacheService — 纯缓存工具，不知道提取
+pub struct IconCacheService {
+    memory_cache: DashMap<String, Vec<u8>>,
+    cache_dir: RwLock<String>,
+    cached_file_hashes: DashSet<String>,
+}
+```
+
+核心方法：
+| 方法                                                     | 说明                                    |
+| -------------------------------------------------------- | --------------------------------------- |
+| `get_l1(key)` / `set_l1(key, data)`                      | L1 内存缓存读写                         |
+| `contains_l2(key)` / `get_l2(key)` / `set_l2(key, data)` | L2 文件缓存操作                         |
+| `update_cache_dir(new_dir)`                              | 切换 L2 缓存目录，清空 L1，重新扫描 L2  |
+| `init()`                                                 | 扫描 L2 缓存目录填充 cached_file_hashes |
+
+图标提取由 `sdk/platform/windows/icon.rs` 中的 `WindowsIconExtractor` 直接实现，不再依赖 `core::image_processor`。
+
 ---
 
 ## 五、HostApiError
@@ -282,13 +343,20 @@ impl PlatformCapabilities {
 ```
 src-tauri/src/sdk/
 ├── mod.rs                     # 模块入口，导出公共 API
-├── host_api.rs                # HostApi + PluginHandle trait + CacheLevel + PluginSdkConfig + 错误类型
+├── host_api.rs                # HostApi struct + PluginHandle struct + IconRequest + CacheLevel + PluginSdkConfig + 错误类型
+├── common/
+│   ├── mod.rs                 # 通用模块入口
+│   └── image_utils.rs         # ImageUtils — 跨平台图片处理工具函数
+├── icon/
+│   ├── mod.rs                 # 图标模块入口
+│   ├── icon_cache.rs          # IconCacheService — 纯缓存工具（L1/L2 原语）
+│   └── icon_extractor.rs      # IconExtractor trait — 平台原语 + 跨平台默认实现
 └── platform/
     ├── mod.rs                 # 条件编译选择平台实现
     ├── capabilities.rs        # PlatformCapabilities 定义
     └── windows/
         ├── mod.rs             # Windows 平台入口
-        └── host_api_impl.rs   # WindowsHostApi + WindowsPluginHandle 实现
+        └── icon.rs            # WindowsIconExtractor — Windows API 图标提取实现
 ```
 
 platform 放在 sdk/ 下的理由：
@@ -309,14 +377,14 @@ platform 放在 sdk/ 下的理由：
 // 当前
 async fn init(&self, ctx: &PluginContext, api: Arc<dyn PluginAPI>) -> Result<(), PluginError>;
 
-// 整合后：增加 HostApi 参数
-async fn init(&self, ctx: &PluginContext, api: Arc<dyn PluginAPI>, host_api: Arc<dyn HostApi>) -> Result<(), PluginError>;
+// 整合后：增加 HostApi 参数（HostApi 为 struct，不再需要 dyn）
+async fn init(&self, ctx: &PluginContext, api: Arc<dyn PluginAPI>, host_api: Arc<HostApi>) -> Result<(), PluginError>;
 ```
 
 插件在 `init()` 中注册并持有 PluginHandle：
 
 ```rust
-async fn init(&self, ctx: &PluginContext, api: Arc<dyn PluginAPI>, host_api: Arc<dyn HostApi>) -> Result<(), PluginError> {
+async fn init(&self, ctx: &PluginContext, api: Arc<dyn PluginAPI>, host_api: Arc<HostApi>) -> Result<(), PluginError> {
     let handle = host_api.register("everything", PluginSdkConfig {
         icon_cache_level: Some(CacheLevel::SkipAll),
     });
@@ -332,7 +400,7 @@ HostApi 实例将在 AppState 中初始化，供整个应用共享：
 ```rust
 pub struct AppState {
     // ... 现有字段
-    host_api: RwLock<Option<Arc<dyn HostApi>>>,  // 新增
+    host_api: RwLock<Option<Arc<HostApi>>>,  // 新增（struct，非 trait）
 }
 ```
 
@@ -341,7 +409,7 @@ pub struct AppState {
 在 lib.rs 的 init_plugin_system 中，创建 HostApi 实例并存入 AppState：
 
 ```rust
-let host_api: Arc<dyn HostApi> = Arc::new(WindowsHostApi::new());
+let host_api = Arc::new(HostApi::new_windows(icon_cache_dir, icon_extractor));
 state.set_host_api(host_api);
 ```
 
@@ -350,46 +418,65 @@ state.set_host_api(host_api);
 ## 九、依赖方向
 
 ```
-plugin/          →  sdk/ (通过 PluginHandle trait)
+plugin/          →  sdk/ (通过 PluginHandle struct)
 plugin_system/   →  sdk/ (通过类型引用，如 ExecutionContext)
 sdk/             →  sdk/platform/ (内部委托)
 sdk/platform/    →  Windows API / macOS API / Linux API
+sdk/common/      →  image/palette/kmeans_colors (跨平台图片处理)
 ```
 
 整体依赖方向：
 ```
 commands → plugin_system → plugin → sdk → platform
-                                     ↑
-                              core/ ─┘ (core 暂不依赖 sdk，迁移后逐渐改变)
+                                              ↓
+                                       sdk/common (跨平台)
 ```
+
+**注意**：`core/image_processor.rs` 中的图标提取代码已搬迁到 `sdk/platform/windows/icon.rs`，跨平台图片处理函数已搬迁到 `sdk/common/image_utils.rs`。SDK 不再依赖 `core/` 目录。
 
 ---
 
 ## 十、迁移路线图
 
 ```
-阶段一：框架搭建（当前）
+阶段一：框架搭建 ✅
 ├── 定义 HostApi trait、PluginHandle trait
 ├── 定义 CacheLevel、PluginSdkConfig
 ├── 定义 PlatformCapabilities
 ├── 创建 WindowsHostApi + WindowsPluginHandle 骨架（todo!() 占位）
 └── 验证编译通过
 
-阶段二：图标服务迁移
-├── 将 IconManager 迁移到 sdk/icon/
-├── 将 ImageProcessor 中平台相关代码拆到 sdk/platform/windows/icon.rs
-├── WindowsPluginHandle::get_icon() 根据缓存等级调用对应逻辑
-└── SearchCandidate.icon 从 String 改为 IconRequest
+阶段二：图标服务迁移 ✅ (初版)
+├── 新建 sdk/icon/icon_cache.rs（IconCacheService — L1 DashMap + L2 文件缓存）
+├── 新建 sdk/platform/windows/icon.rs（WindowsIconExtractor — 委托 ImageProcessor）
+├── 为 sdk::host_api::IconRequest 添加 blake3 hash 方法
+├── PluginHandle trait 新增 get_icon_and_update_cache() 方法
+├── WindowsPluginHandle 实现 get_icon() / get_icon_and_update_cache() — 根据 CacheLevel 委托 IconCacheService
+├── WindowsHostApi 实现 update_icon_cache_dir() — 委托 IconCacheService
+└── 验证编译通过
+
+阶段二重构：架构升级 ✅
+├── HostApi / PluginHandle 从 trait 重构为跨平台 struct
+├── 新建 sdk/icon/icon_extractor.rs（IconExtractor trait — 平台原语 + 跨平台默认实现）
+├── IconCacheService 精简为纯缓存工具（移除业务逻辑）
+├── 缓存策略从 IconCacheService 迁移到 IconExtractor 默认实现
+├── 新建 sdk/common/image_utils.rs（跨平台图片处理函数）
+├── WindowsIconExtractor 搬迁 ImageProcessor 代码（不再依赖 core/）
+├── 删除 sdk/platform/windows/host_api_impl.rs（逻辑合并到 host_api.rs）
+├── 删除 ImageIdentity 枚举（被 IconRequest 替代）
+└── 验证编译通过
 
 阶段三：Shell 服务迁移
+├── 定义 ShellExecutor trait（平台原语）
 ├── 将 shell_execute_open 等函数迁移到 sdk/platform/windows/shell.rs
-├── WindowsPluginHandle::shell_open() 委托给 platform 层
+├── PluginHandle::shell_open() 委托给 shell_executor
 ├── 修改 PathExecutor / UrlExecutor 使用 HostApi
 └── 去除插件对 core::platform 的直接依赖
 
 阶段四：窗口服务迁移
+├── 定义 WindowManager trait（平台原语）
 ├── 将 core::platform::window 迁移到 sdk/platform/windows/window.rs
-├── WindowsPluginHandle 窗口方法委托给 platform 层
+├── PluginHandle 窗口方法委托给 window_manager
 ├── 修改 WindowActivateExecutor 使用 HostApi
 └── 删除 core::platform 目录
 

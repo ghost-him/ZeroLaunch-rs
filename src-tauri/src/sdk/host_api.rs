@@ -2,6 +2,7 @@ use crate::sdk::icon::icon_cache::IconCacheService;
 use crate::sdk::icon::icon_extractor::IconExtractor;
 use crate::sdk::platform::capabilities::PlatformCapabilities;
 use crate::sdk::shell::ShellExecutor;
+use crate::sdk::window::WindowManager;
 use bincode::Encode;
 use dashmap::DashMap;
 use parking_lot::RwLock;
@@ -111,6 +112,8 @@ pub struct PluginHandle {
     icon_cache: Arc<IconCacheService>,
     /// Shell 执行器，由 HostApi 注入的平台实现
     shell_executor: Arc<dyn ShellExecutor>,
+    /// 窗口管理器，由 HostApi 注入的平台实现
+    window_manager: Arc<dyn WindowManager>,
 }
 
 impl PluginHandle {
@@ -175,16 +178,18 @@ impl PluginHandle {
     /// 返回：成功激活返回 Ok(true)，未找到窗口返回 Ok(false)，失败返回 HostApiError。
     pub async fn activate_window_by_process(
         &self,
-        _process_name: &str,
+        process_name: &str,
     ) -> Result<bool, HostApiError> {
-        todo!("迁移窗口服务后实现")
+        self.window_manager
+            .activate_window_by_process(process_name)
+            .await
     }
 
     /// 根据窗口标题的部分内容激活已存在的窗口。
     /// 参数：title - 窗口标题的部分匹配文本。
     /// 返回：成功激活返回 Ok(true)，未找到窗口返回 Ok(false)，失败返回 HostApiError。
-    pub async fn activate_window_by_title(&self, _title: &str) -> Result<bool, HostApiError> {
-        todo!("迁移窗口服务后实现")
+    pub async fn activate_window_by_title(&self, title: &str) -> Result<bool, HostApiError> {
+        self.window_manager.activate_window_by_title(title).await
     }
 
     // ===== 配置管理 =====
@@ -220,18 +225,21 @@ pub struct HostApi {
     icon_extractor: Arc<dyn IconExtractor>,
     /// Shell 执行器（平台实现）
     shell_executor: Arc<dyn ShellExecutor>,
+    /// 窗口管理器（平台实现）
+    window_manager: Arc<dyn WindowManager>,
 }
 
 impl HostApi {
     /// 创建 Windows 平台的 HostApi 实例。
-    /// 在此注入 Windows 平台的图标提取器、Shell 执行器等组件。
-    /// 参数：icon_cache_dir - 图标缓存目录；icon_extractor - Windows 图标提取器实例；shell_executor - Windows Shell 执行器实例。
+    /// 在此注入 Windows 平台的图标提取器、Shell 执行器、窗口管理器等组件。
+    /// 参数：icon_cache_dir - 图标缓存目录；icon_extractor - Windows 图标提取器实例；shell_executor - Windows Shell 执行器实例；window_manager - Windows 窗口管理器实例。
     /// 返回：初始化后的 HostApi。
     #[cfg(target_os = "windows")]
     pub fn new_windows(
         icon_cache_dir: String,
         icon_extractor: Arc<dyn IconExtractor>,
         shell_executor: Arc<dyn ShellExecutor>,
+        window_manager: Arc<dyn WindowManager>,
     ) -> Self {
         let icon_cache = Arc::new(IconCacheService::new(icon_cache_dir));
         icon_cache.init();
@@ -241,6 +249,7 @@ impl HostApi {
             icon_cache,
             icon_extractor,
             shell_executor,
+            window_manager,
         }
     }
 
@@ -256,6 +265,7 @@ impl HostApi {
             icon_extractor: self.icon_extractor.clone(),
             icon_cache: self.icon_cache.clone(),
             shell_executor: self.shell_executor.clone(),
+            window_manager: self.window_manager.clone(),
         });
         self.handles.insert(plugin_id.to_string(), handle.clone());
         handle

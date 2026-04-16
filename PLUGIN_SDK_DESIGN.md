@@ -91,9 +91,12 @@ Plugin SDK 采用**跨平台 struct + 平台 trait 注入**的架构：
 │  │  │ config: { icon_cache_level: SkipAll }      │  │ │
 │  │  │ icon_extractor: Arc<dyn IconExtractor>     │  │ │
 │  │  │ icon_cache: Arc<IconCacheService>           │  │ │
+│  │  │ shell_executor: Arc<dyn ShellExecutor>      │  │ │
+│  │  │ window_manager: Arc<dyn WindowManager>      │  │ │
 │  │  └────────────────────────────────────────────┘  │ │
 │  │ get_icon() → icon_extractor.get_icon(cache,..)   │ │
 │  │ shell_open() → shell_executor.shell_open(..)      │ │
+│  │ activate_window() → window_manager.activate(..)   │ │
 │  └──────────────────────────────────────────────────┘ │
 └──────────────────────────────────────────────────────┘
         ▲ 创建时注入                      ▲ 创建时注入
@@ -351,12 +354,20 @@ src-tauri/src/sdk/
 │   ├── mod.rs                 # 图标模块入口
 │   ├── icon_cache.rs          # IconCacheService — 纯缓存工具（L1/L2 原语）
 │   └── icon_extractor.rs      # IconExtractor trait — 平台原语 + 跨平台默认实现
+├── shell/
+│   ├── mod.rs                 # Shell 模块入口
+│   └── shell_executor.rs      # ShellExecutor trait — 平台原语
+├── window/
+│   ├── mod.rs                 # 窗口模块入口
+│   └── window_manager.rs      # WindowManager trait — 平台原语
 └── platform/
     ├── mod.rs                 # 条件编译选择平台实现
     ├── capabilities.rs        # PlatformCapabilities 定义
     └── windows/
         ├── mod.rs             # Windows 平台入口
-        └── icon.rs            # WindowsIconExtractor — Windows API 图标提取实现
+        ├── icon.rs            # WindowsIconExtractor — Windows API 图标提取实现
+        ├── shell.rs           # WindowsShellExecutor — Windows API Shell 操作实现
+        └── window.rs          # WindowsWindowManager — Windows API 窗口管理实现
 ```
 
 platform 放在 sdk/ 下的理由：
@@ -466,19 +477,22 @@ commands → plugin_system → plugin → sdk → platform
 ├── 删除 ImageIdentity 枚举（被 IconRequest 替代）
 └── 验证编译通过
 
-阶段三：Shell 服务迁移
+阶段三：Shell 服务迁移 ✅
 ├── 定义 ShellExecutor trait（平台原语）
 ├── 将 shell_execute_open 等函数迁移到 sdk/platform/windows/shell.rs
 ├── PluginHandle::shell_open() 委托给 shell_executor
 ├── 修改 PathExecutor / UrlExecutor 使用 HostApi
-└── 去除插件对 core::platform 的直接依赖
+└── 验证编译通过
 
-阶段四：窗口服务迁移
-├── 定义 WindowManager trait（平台原语）
-├── 将 core::platform::window 迁移到 sdk/platform/windows/window.rs
-├── PluginHandle 窗口方法委托给 window_manager
-├── 修改 WindowActivateExecutor 使用 HostApi
-└── 删除 core::platform 目录
+阶段四：窗口服务迁移 ✅
+├── 定义 WindowManager trait（平台原语：activate_window_by_process / activate_window_by_title）
+├── 将 core::platform::window 迁移到 sdk/platform/windows/window.rs（WindowsWindowManager）
+├── PluginHandle 窗口方法委托给 window_manager（替换 todo!()）
+├── 修改 WindowActivateExecutor 使用 PluginHandle（保留 ActivationFailed 回退逻辑）
+├── HostApi / PluginHandle 注入 WindowManager
+└── 验证编译通过
+
+注意：core::platform 目录暂不删除，等全局重构时统一清理。
 
 阶段五：Plugin::init() 整合
 ├── 修改 Plugin trait 签名增加 HostApi 参数

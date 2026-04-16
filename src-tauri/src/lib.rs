@@ -53,7 +53,9 @@ use crate::plugin_system::Configurable;
 use crate::plugin_system::{CandidatePipeline, SearchPipeline};
 use crate::sdk::platform::WindowsIconExtractor;
 use crate::sdk::platform::WindowsShellExecutor;
+use crate::sdk::platform::WindowsWindowManager;
 use crate::sdk::ShellExecutor;
+use crate::sdk::WindowManager;
 use crate::state::app_state::AppState;
 use crate::tray::init_system_tray;
 use crate::tray::update_tray_menu_language;
@@ -546,15 +548,18 @@ fn init_plugin_system(state: &Arc<AppState>) {
         default_web_icon_path,
     ));
     let shell_executor: Arc<dyn ShellExecutor> = Arc::new(WindowsShellExecutor::new());
+    let window_manager: Arc<dyn WindowManager> = Arc::new(WindowsWindowManager::new());
     let host_api = Arc::new(crate::sdk::HostApi::new_windows(
         icon_cache_dir,
         icon_extractor,
         shell_executor,
+        window_manager,
     ));
     state.set_host_api(host_api.clone());
 
-    // 为 Shell 相关执行器注册 PluginHandle
+    // 为 Shell 和窗口相关执行器注册 PluginHandle
     let shell_service_handle = host_api.register("shell-executors", Default::default());
+    let window_service_handle = host_api.register("window-activator", Default::default());
 
     // 1. 注册执行器（同时注册到 ConfigManager 和 ExecutorRegistry，双重索引）
     info!("正在注册执行器...");
@@ -569,7 +574,7 @@ fn init_plugin_system(state: &Arc<AppState>) {
     let command_executor: Arc<dyn crate::plugin_system::types::ActionExecutor> =
         Arc::new(CommandExecutor::new());
     let window_activate_executor: Arc<dyn crate::plugin_system::types::ActionExecutor> =
-        Arc::new(WindowActivateExecutor::new());
+        Arc::new(WindowActivateExecutor::new(window_service_handle));
 
     // 注册到 ConfigManager（配置维度索引）
     config_manager.register(path_executor.clone());

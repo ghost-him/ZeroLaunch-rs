@@ -14,8 +14,6 @@ pub enum PlatformCapability {
     UwpLaunch,
     /// 窗口激活：根据进程名或标题激活已存在的窗口
     WindowActivation,
-    /// 获取默认浏览器信息
-    DefaultBrowser,
 }
 
 /// 平台能力集合。
@@ -59,7 +57,6 @@ impl PlatformCapabilities {
             PlatformCapability::RunAsAdmin,
             PlatformCapability::UwpLaunch,
             PlatformCapability::WindowActivation,
-            PlatformCapability::DefaultBrowser,
         ]))
     }
 }

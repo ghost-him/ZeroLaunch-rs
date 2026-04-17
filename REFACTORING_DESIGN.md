@@ -586,7 +586,6 @@ fn register_plugins(app_state: &Arc<AppState>) {
 │     │  trait HostApi:                                      │   │
 │     │    - shell_open(path) -> Result                     │   │
 │     │    - shell_open_folder(path) -> Result              │   │
-│     │    - get_default_browser() -> String                │   │
 │     │    - ...                                             │   │
 │     └─────────────────────────────────────────────────────┘   │
 └────────────────────────────────────────────────────────────────┘
@@ -917,13 +916,13 @@ pub trait ActionExecutor: Configurable {
 
 不同目标类型由不同的 Executor 实现处理：
 
-| Executor 实现          | 处理的 TargetType                   |
-| ---------------------- | ----------------------------------- |
-| PathExecutor           | Path（可执行文件路径）              |
-| UwpExecutor            | PackageFamilyName（UWP 应用）       |
-| UrlExecutor            | Url（网址）                         |
-| CommandExecutor        | Command / BuiltinCommand（命令）    |
-| WindowActivateExecutor | Path, PackageFamilyName（窗口唤醒） |
+| Executor 实现          | 处理的 TargetType                |
+| ---------------------- | -------------------------------- |
+| PathExecutor           | Path（可执行文件路径）           |
+| AppExecutor            | App（系统应用，跨平台统一）      |
+| UrlExecutor            | Url（网址）                      |
+| CommandExecutor        | Command / BuiltinCommand（命令） |
+| WindowActivateExecutor | Path, App（窗口唤醒）            |
 
 ### 6.5 模块之间的数据流动
 
@@ -1141,15 +1140,53 @@ route_confirm:
 ### 8.3 重构阶段规划
 
 ```
-阶段一：插件化重构
+阶段一：插件化重构 + SDK 基础设施
 ├── 定义核心 trait（Configurable, DataSource, ActionExecutor 等）
-├── 实现 Plugin SDK（HostApi trait + Windows 实现）
+├── 实现 Plugin SDK（HostApi + PluginHandle + 平台 trait 注入）
+├── 定义 PathResolver trait（路径解析接口）
+├── 实现 WindowsPathResolver（SHGetKnownFolderPath）
+├── 扩展 HostApi / PluginHandle（注入 PathResolver）
+├── 修复 ProgramSource 硬编码路径（委托 PluginHandle::resolve_path()）
 ├── 将现有功能迁移为插件
 └── 验证接口设计合理性
 
-阶段二：跨平台实现
+阶段二：应用枚举与启动抽象
+├── 定义 AppEnumerator trait（应用枚举接口）
+├── 定义 AppLauncher trait（应用启动接口）
+├── 定义 AppInfo 统一数据结构
+├── 实现 WindowsAppEnumerator（迁移 AppSource 的 Win32 调用）
+├── 实现 WindowsAppLauncher（迁移 AppExecutor 的 Win32 调用）
+├── 扩展 PlatformCapability（新增 AppEnumeration、AppLaunch）
+├── 扩展 HostApi / PluginHandle（注入新组件，暴露新方法）
+├── 重命名 UwpExecutor → AppExecutor（委托 PluginHandle::launch_app()）
+├── 重命名 UwpSource → AppSource（委托 WindowsAppEnumerator）
+└── 重命名 TargetType::PackageFamilyName → TargetType::App
+└── 验证 UWP 应用枚举和启动功能
+
+阶段三：跨平台实现
 ├── SDK 接口已稳定
-├── 实现 macOS 平台适配
-├── 实现 Linux 平台适配
+├── 实现 macOS 平台适配（Launch Services 集成）
+├── 实现 Linux 平台适配（Flatpak/Snap 集成）
 └── 插件代码零修改
+
+阶段四：ShellExecutor 扩展
+├── 扩展 ShellExecutor trait（新增 execute_command 方法）
+├── 实现 Windows execute_command（封装 CommandExt::creation_flags）
+├── 重构 CommandExecutor（委托 PluginHandle::execute_command()）
+└── 验证命令执行功能
 ```
+
+### 8.4 当前进度
+
+| 模块                     | 状态     | 说明                        |
+| ------------------------ | -------- | --------------------------- |
+| **Plugin SDK 设计**      | ✅ 完成   | `PLUGIN_SDK_DESIGN.md` v2.0 |
+| **PathResolver trait**   | ⏳ 待实现 | 路径解析接口                |
+| **WindowsPathResolver**  | ⏳ 待实现 | Windows 路径解析实现        |
+| **AppEnumerator trait**  | ⏳ 待实现 | 应用枚举统一接口            |
+| **AppLauncher trait**    | ⏳ 待实现 | 应用启动统一接口            |
+| **WindowsAppEnumerator** | ⏳ 待实现 | 迁移 AppSource Win32 调用   |
+| **WindowsAppLauncher**   | ⏳ 待实现 | 迁移 AppExecutor Win32 调用 |
+| **ShellExecutor 扩展**   | ⏳ 待实现 | 新增 execute_command 方法   |
+
+详细设计请参考 [PLUGIN_SDK_DESIGN.md](file:///c:/Users/ghost/ZeroLaunch/ZeroLaunch-rs/PLUGIN_SDK_DESIGN.md)

@@ -1,5 +1,6 @@
 use crate::sdk::icon::icon_cache::IconCacheService;
 use crate::sdk::icon::icon_extractor::IconExtractor;
+use crate::sdk::path::path_resolver::{KnownPath, PathResolver};
 use crate::sdk::platform::capabilities::PlatformCapabilities;
 use crate::sdk::shell::ShellExecutor;
 use crate::sdk::window::WindowManager;
@@ -95,6 +96,10 @@ pub enum HostApiError {
     /// 通用执行失败
     #[error("{service} 执行失败: {reason}")]
     ExecutionFailed { service: String, reason: String },
+
+    /// 路径解析失败
+    #[error("路径解析失败 ({path}): {reason}")]
+    PathResolutionFailed { path: String, reason: String },
 }
 
 /// 插件服务句柄，绑定插件身份与配置。
@@ -114,6 +119,8 @@ pub struct PluginHandle {
     shell_executor: Arc<dyn ShellExecutor>,
     /// 窗口管理器，由 HostApi 注入的平台实现
     window_manager: Arc<dyn WindowManager>,
+    /// 路径解析器，由 HostApi 注入的平台实现
+    path_resolver: Arc<dyn PathResolver>,
 }
 
 impl PluginHandle {
@@ -192,6 +199,15 @@ impl PluginHandle {
         self.window_manager.activate_window_by_title(title).await
     }
 
+    // ===== 路径服务 =====
+
+    /// 根据已知路径类型解析实际文件系统路径。
+    /// 参数：path - 已知路径类型枚举。
+    /// 返回：解析后的路径字符串，失败返回 HostApiError。
+    pub fn resolve_path(&self, path: KnownPath) -> Result<String, HostApiError> {
+        self.path_resolver.resolve_path(path)
+    }
+
     // ===== 配置管理 =====
 
     /// 更新插件的 SDK 配置。
@@ -227,12 +243,14 @@ pub struct HostApi {
     shell_executor: Arc<dyn ShellExecutor>,
     /// 窗口管理器（平台实现）
     window_manager: Arc<dyn WindowManager>,
+    /// 路径解析器（平台实现）
+    path_resolver: Arc<dyn PathResolver>,
 }
 
 impl HostApi {
     /// 创建 Windows 平台的 HostApi 实例。
-    /// 在此注入 Windows 平台的图标提取器、Shell 执行器、窗口管理器等组件。
-    /// 参数：icon_cache_dir - 图标缓存目录；icon_extractor - Windows 图标提取器实例；shell_executor - Windows Shell 执行器实例；window_manager - Windows 窗口管理器实例。
+    /// 在此注入 Windows 平台的图标提取器、Shell 执行器、窗口管理器、路径解析器等组件。
+    /// 参数：icon_cache_dir - 图标缓存目录；icon_extractor - Windows 图标提取器实例；shell_executor - Windows Shell 执行器实例；window_manager - Windows 窗口管理器实例；path_resolver - Windows 路径解析器实例。
     /// 返回：初始化后的 HostApi。
     #[cfg(target_os = "windows")]
     pub fn new_windows(
@@ -240,6 +258,7 @@ impl HostApi {
         icon_extractor: Arc<dyn IconExtractor>,
         shell_executor: Arc<dyn ShellExecutor>,
         window_manager: Arc<dyn WindowManager>,
+        path_resolver: Arc<dyn PathResolver>,
     ) -> Self {
         let icon_cache = Arc::new(IconCacheService::new(icon_cache_dir));
         icon_cache.init();
@@ -250,6 +269,7 @@ impl HostApi {
             icon_extractor,
             shell_executor,
             window_manager,
+            path_resolver,
         }
     }
 
@@ -266,6 +286,7 @@ impl HostApi {
             icon_cache: self.icon_cache.clone(),
             shell_executor: self.shell_executor.clone(),
             window_manager: self.window_manager.clone(),
+            path_resolver: self.path_resolver.clone(),
         });
         self.handles.insert(plugin_id.to_string(), handle.clone());
         handle

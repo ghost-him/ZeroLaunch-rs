@@ -7,6 +7,9 @@ mod windows;
 pub use windows::WindowsIconExtractor;
 
 #[cfg(target_os = "windows")]
+pub use windows::WindowsPathResolver;
+
+#[cfg(target_os = "windows")]
 pub use windows::WindowsShellExecutor;
 
 #[cfg(target_os = "windows")]

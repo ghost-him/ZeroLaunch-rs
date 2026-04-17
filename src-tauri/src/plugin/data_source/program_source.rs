@@ -7,11 +7,14 @@ use crate::plugin_system::types::{
 use crate::plugin_system::{
     ComponentType, ConfigError, Configurable, SettingDefinition, SettingType,
 };
+use crate::sdk::host_api::PluginHandle;
+use crate::sdk::path::path_resolver::KnownPath;
 use globset::GlobSetBuilder;
 use parking_lot::RwLock;
 use regex::RegexSet;
 use std::collections::HashMap;
 use std::path::Path;
+use std::sync::Arc;
 use tracing::{debug, warn};
 use walkdir::WalkDir;
 
@@ -116,18 +119,20 @@ impl PathChecker {
 
 pub struct ProgramSource {
     settings: RwLock<serde_json::Value>,
+    handle: Arc<PluginHandle>,
 }
 
 impl Default for ProgramSource {
     fn default() -> Self {
-        Self::new()
+        unreachable!("ProgramSource 必须通过 new(handle) 构造，不允许默认构造")
     }
 }
 
 impl ProgramSource {
-    pub fn new() -> Self {
+    pub fn new(handle: Arc<PluginHandle>) -> Self {
         ProgramSource {
             settings: RwLock::new(serde_json::Value::Null),
+            handle,
         }
     }
 
@@ -264,6 +269,29 @@ impl Configurable for ProgramSource {
     }
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {
+        // 通过 PathResolver 动态解析用户目录路径
+        let common_start_menu = self
+            .handle
+            .resolve_path(KnownPath::CommonStartMenu)
+            .unwrap_or_else(|e| {
+                warn!("解析公共开始菜单路径失败: {}", e);
+                "C:\\ProgramData\\Microsoft\\Windows\\Start Menu".to_string()
+            });
+        let user_start_menu = self
+            .handle
+            .resolve_path(KnownPath::UserStartMenu)
+            .unwrap_or_else(|e| {
+                warn!("解析用户开始菜单路径失败: {}", e);
+                String::new()
+            });
+        let user_desktop = self
+            .handle
+            .resolve_path(KnownPath::UserDesktop)
+            .unwrap_or_else(|e| {
+                warn!("解析用户桌面路径失败: {}", e);
+                String::new()
+            });
+
         vec![SettingDefinition {
             field: FieldDefinition {
                 key: "directories".to_string(),
@@ -366,7 +394,7 @@ impl Configurable for ProgramSource {
                 },
                 default_value: serde_json::json!([
                     {
-                        "root_path": "C:\\ProgramData\\Microsoft\\Windows\\Start Menu",
+                        "root_path": common_start_menu,
                         "max_depth": 5,
                         "pattern": ["*.exe", "*.lnk", "*.url"],
                         "pattern_type": "Wildcard",
@@ -375,8 +403,7 @@ impl Configurable for ProgramSource {
                         "symlink_mode": "ExplicitOnly"
                     },
                     {
-                        // todo: 需要将这个硬编码的路径做更改，变成当前用户的路径
-                        "root_path": "C:\\Users\\ghost\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu",
+                        "root_path": user_start_menu,
                         "max_depth": 5,
                         "pattern": ["*.exe", "*.lnk", "*.url"],
                         "pattern_type": "Wildcard",
@@ -385,8 +412,7 @@ impl Configurable for ProgramSource {
                         "symlink_mode": "ExplicitOnly"
                     },
                     {
-                        // todo: 需要将这个硬编码的路径做更改，变成当前用户的路径
-                        "root_path": "C:\\Users\\ghost\\Desktop",
+                        "root_path": user_desktop,
                         "max_depth": 3,
                         "pattern": ["*.exe", "*.lnk", "*.url"],
                         "pattern_type": "Wildcard",

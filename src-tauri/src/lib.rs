@@ -52,8 +52,10 @@ use crate::plugin_system::types::{ScoreBooster, SearchEngine};
 use crate::plugin_system::Configurable;
 use crate::plugin_system::{CandidatePipeline, SearchPipeline};
 use crate::sdk::platform::WindowsIconExtractor;
+use crate::sdk::platform::WindowsPathResolver;
 use crate::sdk::platform::WindowsShellExecutor;
 use crate::sdk::platform::WindowsWindowManager;
+use crate::sdk::PathResolver;
 use crate::sdk::ShellExecutor;
 use crate::sdk::WindowManager;
 use crate::state::app_state::AppState;
@@ -549,17 +551,20 @@ fn init_plugin_system(state: &Arc<AppState>) {
     ));
     let shell_executor: Arc<dyn ShellExecutor> = Arc::new(WindowsShellExecutor::new());
     let window_manager: Arc<dyn WindowManager> = Arc::new(WindowsWindowManager::new());
+    let path_resolver: Arc<dyn PathResolver> = Arc::new(WindowsPathResolver::new());
     let host_api = Arc::new(crate::sdk::HostApi::new_windows(
         icon_cache_dir,
         icon_extractor,
         shell_executor,
         window_manager,
+        path_resolver,
     ));
     state.set_host_api(host_api.clone());
 
     // 为 Shell 和窗口相关执行器注册 PluginHandle
     let shell_service_handle = host_api.register("shell-executors", Default::default());
     let window_service_handle = host_api.register("window-activator", Default::default());
+    let program_source_handle = host_api.register("program-source", Default::default());
 
     // 1. 注册执行器（同时注册到 ConfigManager 和 ExecutorRegistry，双重索引）
     info!("正在注册执行器...");
@@ -596,7 +601,7 @@ fn init_plugin_system(state: &Arc<AppState>) {
 
     // 2. 注册数据源
     info!("正在注册数据源...");
-    let program_source = Arc::new(ProgramSource::new());
+    let program_source = Arc::new(ProgramSource::new(program_source_handle));
     let _ = program_source.apply_settings(program_source.get_default_settings());
     config_manager.register(program_source.clone());
     info!("数据源注册完成");

@@ -408,21 +408,12 @@ pub struct AppInfo {
 
     /// 安装路径（某些平台可能为空，如 UWP 沙箱应用）
     pub install_path: Option<String>,
-
-    /// 启动命令（某些平台需要特殊启动方式）
-    /// - Windows UWP: AppUserModelID（通过 COM API 启动）
-    /// - Linux Flatpak: "flatpak run com.xxx.App"
-    /// - Linux Snap: "snap run xxx"
-    /// - None: 直接通过 install_path 启动
-    pub launch_command: Option<String>,
 }
 ```
 
 **设计说明**：
 - 不需要 `AppType` / `SandboxType` 枚举，所有应用统一用 `AppInfo` 表示
-- 启动时根据 `launch_command` 是否存在来决定启动方式：
-  - `Some(cmd)` → 使用平台专属 API 启动（UWP 用 COM API，Flatpak 用 `flatpak run`）
-  - `None` → 直接通过 `install_path` 启动传统应用
+- 不包含 `launch_command` 字段：启动方式是 `AppLauncher` 的实现细节，不应编码进数据结构。`AppLauncher` 根据 `app_id` 的格式自行决定启动方式（如 Windows UWP 用 COM API，Linux Flatpak 内部构造 `flatpak run`）
 
 ### 7.3 AppEnumerator trait
 
@@ -431,12 +422,13 @@ pub struct AppInfo {
 #[async_trait]
 pub trait AppEnumerator: Send + Sync {
     /// 枚举所有已安装应用
-    fn enumerate_apps(&self) -> Vec<AppInfo>;
-
-    /// 根据 app_id 获取应用信息
-    fn get_app_info(&self, app_id: &str) -> Option<AppInfo>;
+    async fn enumerate_apps(&self) -> Vec<AppInfo>;
 }
 ```
+
+**设计说明**：
+- `enumerate_apps` 为 async，与 SDK 其他 trait（IconExtractor、ShellExecutor、WindowManager）风格统一
+- 不提供 `get_app_info(app_id)` 方法：当前无按 ID 单独查询的场景（YAGNI），如需可在 AppSource 层做缓存
 
 ### 7.4 AppLauncher trait
 
@@ -464,7 +456,7 @@ pub struct WindowsAppEnumerator {
 }
 
 impl AppEnumerator for WindowsAppEnumerator {
-    fn enumerate_apps(&self) -> Vec<AppInfo> {
+    async fn enumerate_apps(&self) -> Vec<AppInfo> {
         // 1. 枚举 shell:AppsFolder 获取 UWP 应用
         // 2. 通过 IPropertyStore 读取属性：
         //    - System.AppUserModel.ID
@@ -472,10 +464,6 @@ impl AppEnumerator for WindowsAppEnumerator {
         //    - System.Tile.SmallLogoPath
         //    - System.Launcher.AppState
         // 3. 验证并选择最佳分辨率图标
-    }
-
-    fn get_app_info(&self, app_id: &str) -> Option<AppInfo> {
-        // 根据 AppUserModelID 查找应用
     }
 }
 ```
@@ -575,9 +563,9 @@ src-tauri/src/sdk/
 │   ├── mod.rs                 # [新增] 路径模块入口
 │   └── path_resolver.rs       # [新增] PathResolver trait — 平台原语
 ├── app/
-│   ├── mod.rs                 # [新增] 应用模块入口
-│   ├── app_enumerator.rs      # [新增] AppEnumerator trait
-│   └── app_launcher.rs        # [新增] AppLauncher trait
+│   ├── mod.rs                 # 应用模块入口
+│   ├── app_enumerator.rs      # AppEnumerator trait
+│   └── app_launcher.rs        # AppLauncher trait
 └── platform/
     ├── mod.rs                 # 条件编译选择平台实现
     ├── capabilities.rs        # PlatformCapabilities 定义
@@ -587,8 +575,8 @@ src-tauri/src/sdk/
         ├── shell.rs           # WindowsShellExecutor — Windows API Shell 操作实现
         ├── window.rs          # WindowsWindowManager — Windows API 窗口管理实现
         ├── path_resolver.rs   # [新增] WindowsPathResolver — Windows API 路径解析实现
-        ├── app_enumerator.rs  # [新增] WindowsAppEnumerator — Windows 应用枚举实现
-        └── app_launcher.rs    # [新增] WindowsAppLauncher — Windows 应用启动实现
+        ├── app_enumerator.rs  # WindowsAppEnumerator — Windows 应用枚举实现
+        └── app_launcher.rs    # WindowsAppLauncher — Windows 应用启动实现
 ```
 
 platform 放在 sdk/ 下的理由：
@@ -653,19 +641,21 @@ async fn init(
 - `program_source.rs` 中不再出现硬编码的用户路径
 - 默认配置能正确获取当前用户的 StartMenu 和 Desktop 路径
 
-### 阶段二：应用枚举与启动（优先级：高）
+### 阶段二：应用枚举与启动（优先级：高）— ✅ 已完成
 
-| 任务                                 | 文件                                     | 说明                               |
-| ------------------------------------ | ---------------------------------------- | ---------------------------------- |
-| 定义 `AppEnumerator` trait           | `sdk/app/app_enumerator.rs`              | 应用枚举接口                       |
-| 定义 `AppLauncher` trait             | `sdk/app/app_launcher.rs`                | 应用启动接口                       |
-| 定义 `AppInfo`                       | `sdk/app/mod.rs`                         | 统一数据结构                       |
-| 实现 `WindowsAppEnumerator`          | `sdk/platform/windows/app_enumerator.rs` | 迁移 `AppSource` 的 Win32 调用     |
-| 实现 `WindowsAppLauncher`            | `sdk/platform/windows/app_launcher.rs`   | 迁移 `AppExecutor` 的 Win32 调用   |
-| 扩展 `PlatformCapability`            | `sdk/platform/capabilities.rs`           | 新增 `AppEnumeration`、`AppLaunch` |
-| 扩展 `HostApi` / `PluginHandle`      | `sdk/host_api.rs`                        | 注入新组件，暴露新方法             |
-| 重命名 `UwpExecutor` → `AppExecutor` | `plugin/executor/`                       | 委托 `PluginHandle::launch_app()`  |
-| 重命名 `UwpSource` → `AppSource`     | `plugin/data_source/`                    | 委托 `WindowsAppEnumerator`        |
+| 任务                                 | 文件                                     | 说明                                         | 状态 |
+| ------------------------------------ | ---------------------------------------- | -------------------------------------------- | ---- |
+| 定义 `AppEnumerator` trait           | `sdk/app/app_enumerator.rs`              | 应用枚举接口（async）                        | ✅    |
+| 定义 `AppLauncher` trait             | `sdk/app/app_launcher.rs`                | 应用启动接口                                 | ✅    |
+| 定义 `AppInfo`                       | `sdk/app/mod.rs`                         | 统一数据结构（无 launch_command）            | ✅    |
+| 实现 `WindowsAppEnumerator`          | `sdk/platform/windows/app_enumerator.rs` | 迁移 `UwpSource` 的 Win32 调用               | ✅    |
+| 实现 `WindowsAppLauncher`            | `sdk/platform/windows/app_launcher.rs`   | 迁移 `UwpExecutor` 的 Win32 调用             | ✅    |
+| 扩展 `PlatformCapability`            | `sdk/platform/capabilities.rs`           | `UwpLaunch` → `AppEnumeration` + `AppLaunch` | ✅    |
+| 扩展 `HostApi` / `PluginHandle`      | `sdk/host_api.rs`                        | 注入新组件，暴露新方法                       | ✅    |
+| 重命名 `UwpExecutor` → `AppExecutor` | `plugin/executor/app_executor.rs`        | 委托 `PluginHandle::launch_app()`            | ✅    |
+| 重命名 `UwpSource` → `AppSource`     | `plugin/data_source/app_source.rs`       | 委托 `PluginHandle::enumerate_apps()`        | ✅    |
+| 重命名 `PackageFamilyName` → `App`   | `plugin_system/types.rs`                 | TargetType + ExecutionTarget 统一命名        | ✅    |
+| 注册 AppSource 到新插件系统          | `lib.rs`                                 | ConfigManager + CandidatePipeline            | ✅    |
 
 **验收标准**：
 - `AppExecutor` 不再直接调用 `windows::Win32` API
@@ -744,6 +734,41 @@ async fn init(
 3. 统一架构风格：所有平台相关能力都通过 trait 注入，避免在 `common` 中堆积条件编译代码
 4. 新增平台时只需实现 trait，无需修改 `common` 中的条件编译分支
 
+### 12.5 为什么删除 AppInfo.launch_command？
+
+**问题**: `AppInfo` 是否需要 `launch_command` 字段来区分不同启动方式？
+
+**决策**: 删除 `launch_command` 字段。
+
+**理由**:
+1. Windows 上 `launch_command` 与 `app_id` 完全重复（都是 AppUserModelID）
+2. Linux 上的 shell 命令格式（如 `flatpak run xxx`）是 `AppLauncher` 的实现细节，不应由 `AppEnumerator` 编码进数据结构
+3. 违背 SDK 设计原则：插件只关注「做什么」，SDK 负责「怎么做」。`launch_command` 把启动方式编码进数据结构，启动方式变化时数据结构也要跟着变
+4. `AppLauncher` 可自行根据 `app_id` 格式决定启动方式，无需外部传入
+
+### 12.6 为什么删除 AppEnumerator::get_app_info？
+
+**问题**: `AppEnumerator` 是否需要按 ID 单独查询的方法？
+
+**决策**: 删除 `get_app_info`，trait 只保留 `enumerate_apps` 一个方法。
+
+**理由**:
+1. 唯一的消费者 `AppSource::fetch_candidates()` 调用 `enumerate_apps()` 后遍历全量结果，没有任何按 ID 单独查询的场景
+2. 实现 `get_app_info` 需要 `WindowsAppEnumerator` 维护内部索引表，引入隐式的「先 enumerate 再 get」调用顺序依赖
+3. 即使未来需要单条查询，也可在 `AppSource` 层做缓存解决
+4. trait 方法越少，平台实现者负担越小，越容易跨平台
+
+### 12.7 为什么 enumerate_apps 是 async？
+
+**问题**: Windows COM 枚举是同步操作，`enumerate_apps` 是否应该保持 sync？
+
+**决策**: 使用 async。
+
+**理由**:
+1. 与 SDK 其他 trait（`IconExtractor`、`ShellExecutor`、`WindowManager`）风格统一
+2. 未来 macOS/Linux 的枚举可能需要异步（如 IPC 调用 Flatpak/Snap）
+3. 统一 async 风格降低未来跨平台适配成本
+
 ---
 
-*文档版本: v2.0 | 最后更新: 2026-04-17*
+*文档版本: v2.1 | 最后更新: 2026-04-17*

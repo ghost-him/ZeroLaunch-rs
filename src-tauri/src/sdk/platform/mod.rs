@@ -4,6 +4,12 @@ pub mod capabilities;
 mod windows;
 
 #[cfg(target_os = "windows")]
+pub use windows::WindowsAppEnumerator;
+
+#[cfg(target_os = "windows")]
+pub use windows::WindowsAppLauncher;
+
+#[cfg(target_os = "windows")]
 pub use windows::WindowsIconExtractor;
 
 #[cfg(target_os = "windows")]

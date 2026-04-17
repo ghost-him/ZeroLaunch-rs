@@ -1,3 +1,6 @@
+use crate::sdk::app::app_enumerator::AppEnumerator;
+use crate::sdk::app::app_launcher::AppLauncher;
+use crate::sdk::app::AppInfo;
 use crate::sdk::icon::icon_cache::IconCacheService;
 use crate::sdk::icon::icon_extractor::IconExtractor;
 use crate::sdk::path::path_resolver::{KnownPath, PathResolver};
@@ -100,6 +103,14 @@ pub enum HostApiError {
     /// 路径解析失败
     #[error("路径解析失败 ({path}): {reason}")]
     PathResolutionFailed { path: String, reason: String },
+
+    /// 应用枚举失败
+    #[error("应用枚举失败: {reason}")]
+    AppEnumerationFailed { reason: String },
+
+    /// 应用启动失败
+    #[error("应用启动失败 (app_id: {app_id}): {reason}")]
+    AppLaunchFailed { app_id: String, reason: String },
 }
 
 /// 插件服务句柄，绑定插件身份与配置。
@@ -121,6 +132,10 @@ pub struct PluginHandle {
     window_manager: Arc<dyn WindowManager>,
     /// 路径解析器，由 HostApi 注入的平台实现
     path_resolver: Arc<dyn PathResolver>,
+    /// 应用枚举器，由 HostApi 注入的平台实现
+    app_enumerator: Arc<dyn AppEnumerator>,
+    /// 应用启动器，由 HostApi 注入的平台实现
+    app_launcher: Arc<dyn AppLauncher>,
 }
 
 impl PluginHandle {
@@ -208,6 +223,26 @@ impl PluginHandle {
         self.path_resolver.resolve_path(path)
     }
 
+    // ===== 应用服务 =====
+
+    /// 枚举当前平台已安装的应用。
+    /// 参数：无。
+    /// 返回：应用信息列表。
+    pub async fn enumerate_apps(&self) -> Vec<AppInfo> {
+        self.app_enumerator.enumerate_apps().await
+    }
+
+    /// 启动指定应用。
+    /// 参数：app_id - 应用唯一标识；args - 启动参数（可选）。
+    /// 返回：成功返回 Ok(pid)，失败返回 HostApiError。
+    pub async fn launch_app(
+        &self,
+        app_id: &str,
+        args: Option<&[String]>,
+    ) -> Result<u32, HostApiError> {
+        self.app_launcher.launch_app(app_id, args).await
+    }
+
     // ===== 配置管理 =====
 
     /// 更新插件的 SDK 配置。
@@ -245,12 +280,16 @@ pub struct HostApi {
     window_manager: Arc<dyn WindowManager>,
     /// 路径解析器（平台实现）
     path_resolver: Arc<dyn PathResolver>,
+    /// 应用枚举器（平台实现）
+    app_enumerator: Arc<dyn AppEnumerator>,
+    /// 应用启动器（平台实现）
+    app_launcher: Arc<dyn AppLauncher>,
 }
 
 impl HostApi {
     /// 创建 Windows 平台的 HostApi 实例。
-    /// 在此注入 Windows 平台的图标提取器、Shell 执行器、窗口管理器、路径解析器等组件。
-    /// 参数：icon_cache_dir - 图标缓存目录；icon_extractor - Windows 图标提取器实例；shell_executor - Windows Shell 执行器实例；window_manager - Windows 窗口管理器实例；path_resolver - Windows 路径解析器实例。
+    /// 在此注入 Windows 平台的所有组件：图标提取器、Shell 执行器、窗口管理器、路径解析器、应用枚举器、应用启动器。
+    /// 参数：icon_cache_dir - 图标缓存目录；icon_extractor - Windows 图标提取器实例；shell_executor - Windows Shell 执行器实例；window_manager - Windows 窗口管理器实例；path_resolver - Windows 路径解析器实例；app_enumerator - Windows 应用枚举器实例；app_launcher - Windows 应用启动器实例。
     /// 返回：初始化后的 HostApi。
     #[cfg(target_os = "windows")]
     pub fn new_windows(
@@ -259,6 +298,8 @@ impl HostApi {
         shell_executor: Arc<dyn ShellExecutor>,
         window_manager: Arc<dyn WindowManager>,
         path_resolver: Arc<dyn PathResolver>,
+        app_enumerator: Arc<dyn AppEnumerator>,
+        app_launcher: Arc<dyn AppLauncher>,
     ) -> Self {
         let icon_cache = Arc::new(IconCacheService::new(icon_cache_dir));
         icon_cache.init();
@@ -270,6 +311,8 @@ impl HostApi {
             shell_executor,
             window_manager,
             path_resolver,
+            app_enumerator,
+            app_launcher,
         }
     }
 
@@ -287,6 +330,8 @@ impl HostApi {
             shell_executor: self.shell_executor.clone(),
             window_manager: self.window_manager.clone(),
             path_resolver: self.path_resolver.clone(),
+            app_enumerator: self.app_enumerator.clone(),
+            app_launcher: self.app_launcher.clone(),
         });
         self.handles.insert(plugin_id.to_string(), handle.clone());
         handle

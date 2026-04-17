@@ -1,10 +1,9 @@
-use crate::plugin_system::cached_candidate::CachedCandidateData;
-use crate::plugin_system::types::{DataSource, ExecutionTarget, SearchCandidate};
-use crate::plugin_system::{ComponentType, ConfigError, Configurable};
+use crate::sdk::app::app_enumerator::AppEnumerator;
+use crate::sdk::app::AppInfo;
 use crate::utils::defer::defer;
 use crate::utils::windows::get_u16_vec;
+use async_trait::async_trait;
 use image::ImageReader;
-use parking_lot::RwLock;
 use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -18,21 +17,19 @@ use windows::Win32::UI::Shell::{
 };
 use windows_core::PCWSTR;
 
-pub struct UwpSource {
-    settings: RwLock<serde_json::Value>,
-}
+/// Windows 应用枚举器实现。
+/// 通过 shell:AppsFolder 枚举 UWP 应用，通过 IPropertyStore 读取应用属性。
+pub struct WindowsAppEnumerator;
 
-impl Default for UwpSource {
+impl Default for WindowsAppEnumerator {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl UwpSource {
+impl WindowsAppEnumerator {
     pub fn new() -> Self {
-        UwpSource {
-            settings: RwLock::new(serde_json::Value::Null),
-        }
+        Self
     }
 
     /// 将 PROPVARIANT 转换为字符串
@@ -40,7 +37,9 @@ impl UwpSource {
         pv.to_string()
     }
 
-    /// 验证图标路径并返回分辨率最大的图标
+    /// 验证图标路径并返回分辨率最大的图标。
+    /// 参数：icon_path - 原始图标路径。
+    /// 返回：验证后的图标路径，验证失败返回空字符串。
     fn validate_icon_path(icon_path: String) -> String {
         let scales = [
             ".scale-400.",
@@ -121,7 +120,9 @@ impl UwpSource {
         String::new()
     }
 
-    /// 获取图像的分辨率（宽 x 高）
+    /// 获取图像的分辨率（宽 x 高）。
+    /// 参数：path - 图像文件路径。
+    /// 返回：像素总数（宽*高），失败返回 None。
     fn get_image_resolution(path: &Path) -> Option<u64> {
         match ImageReader::open(path) {
             Ok(reader) => match reader.with_guessed_format() {
@@ -145,37 +146,19 @@ impl UwpSource {
     }
 }
 
-impl Configurable for UwpSource {
-    fn component_id(&self) -> &str {
-        "uwp-source"
-    }
-
-    fn component_name(&self) -> &str {
-        "UWP 应用数据源"
-    }
-
-    fn component_type(&self) -> ComponentType {
-        ComponentType::DataSource
-    }
-
-    fn get_settings(&self) -> serde_json::Value {
-        self.settings.read().clone()
-    }
-
-    fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
-        *self.settings.write() = settings;
-        Ok(())
-    }
-}
-
-impl DataSource for UwpSource {
-    fn fetch_candidates(&self) -> CachedCandidateData {
-        let mut result = CachedCandidateData::new();
+#[async_trait]
+impl AppEnumerator for WindowsAppEnumerator {
+    /// 枚举所有已安装应用。
+    /// 通过 shell:AppsFolder 枚举 UWP 应用，读取 IPropertyStore 属性构建 AppInfo。
+    /// 参数：无。
+    /// 返回：应用信息列表。
+    async fn enumerate_apps(&self) -> Vec<AppInfo> {
+        let mut result = Vec::new();
 
         unsafe {
             let com_init = windows::Win32::System::Com::CoInitialize(None);
             if com_init.is_err() {
-                warn!("初始化com库失败：{:?}", com_init);
+                warn!("初始化COM库失败：{:?}", com_init);
             }
 
             let _defer = defer(move || {
@@ -190,7 +173,7 @@ impl DataSource for UwpSource {
                 match SHCreateItemFromParsingName(PCWSTR::from_raw(tmp.as_ptr()), None) {
                     Ok(item) => item,
                     Err(e) => {
-                        warn!("UwpSource: fail to open shell:AppsFolder {}", e);
+                        warn!("WindowsAppEnumerator: fail to open shell:AppsFolder {}", e);
                         return result;
                     }
                 };
@@ -200,7 +183,7 @@ impl DataSource for UwpSource {
                 match app_folder.BindToHandler(None, &BHID_EnumItems) {
                     Ok(enumerator) => enumerator,
                     Err(e) => {
-                        warn!("UwpSource: fail to bind to handler {}", e);
+                        warn!("WindowsAppEnumerator: fail to bind to handler {}", e);
                         return result;
                     }
                 };
@@ -257,7 +240,7 @@ impl DataSource for UwpSource {
 
             let mut fetched: u32 = 0;
             if let Err(e) = enum_shell_items.Next(&mut items, Some(&mut fetched as *mut u32)) {
-                warn!("UwpSource: error enumerating shell items: {}", e);
+                warn!("WindowsAppEnumerator: error enumerating shell items: {}", e);
                 return result;
             }
 
@@ -275,7 +258,10 @@ impl DataSource for UwpSource {
                     match shell_item.BindToHandler(None, &BHID_PropertyStore) {
                         Ok(store) => store,
                         Err(e) => {
-                            warn!("UwpSource: error binding to property store: {}", e);
+                            warn!(
+                                "WindowsAppEnumerator: error binding to property store: {}",
+                                e
+                            );
                             continue;
                         }
                     };
@@ -342,16 +328,12 @@ impl DataSource for UwpSource {
                 let icon_path =
                     Self::validate_icon_path(full_icon_path.to_string_lossy().into_owned());
 
-                let candidate = SearchCandidate {
-                    id: 0,
-                    name: short_name,
+                result.push(AppInfo {
+                    app_id,
+                    display_name: short_name,
                     icon: icon_path,
-                    target: ExecutionTarget::PackageFamilyName(app_id),
-                    keywords: Vec::new(),
-                    bias: 0.0,
-                };
-
-                result.add_candidate(candidate);
+                    install_path: Some(install_path),
+                });
             }
         }
 

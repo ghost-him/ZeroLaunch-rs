@@ -1,3 +1,4 @@
+pub mod app;
 pub mod common;
 pub mod host_api;
 pub mod icon;
@@ -6,6 +7,7 @@ pub mod platform;
 pub mod shell;
 pub mod window;
 
+pub use app::{AppEnumerator, AppInfo, AppLauncher};
 pub use host_api::{
     CacheLevel, HostApi, HostApiError, IconRequest, OpenTarget, PluginHandle, PluginSdkConfig,
 };

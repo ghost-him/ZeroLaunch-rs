@@ -22,7 +22,7 @@ impl WindowActivateExecutor {
     /// 根据 ExecutionTarget 类型选择不同的激活策略：
     /// - Path(.url): 按标题激活
     /// - Path(.exe/.lnk): 按进程名激活
-    /// - PackageFamilyName: 按标题激活
+    /// - App: 按标题激活
     ///
     /// 使用 tauri::async_runtime 同步等待异步结果，以支持 ActivationFailed 回退。
     fn try_activate(&self, target: &ExecutionTarget, name: &str) -> bool {
@@ -42,7 +42,7 @@ impl WindowActivateExecutor {
                     self.activate_by_exe(&exe_path)
                 }
             }
-            ExecutionTarget::PackageFamilyName(_) => self.activate_by_title(name),
+            ExecutionTarget::App(_) => self.activate_by_title(name),
             _ => false,
         }
     }
@@ -124,7 +124,7 @@ impl Configurable for WindowActivateExecutor {
 
 impl ActionExecutor for WindowActivateExecutor {
     fn supported_target_types(&self) -> Vec<TargetType> {
-        vec![TargetType::Path, TargetType::PackageFamilyName]
+        vec![TargetType::Path, TargetType::App]
     }
 
     fn supported_actions(&self) -> Vec<ResultAction> {

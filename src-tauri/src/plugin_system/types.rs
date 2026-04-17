@@ -12,7 +12,7 @@ pub type CandidateId = u64;
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
 pub enum TargetType {
     Path,
-    PackageFamilyName,
+    App,
     File,
     Url,
     Command,
@@ -23,7 +23,7 @@ pub enum TargetType {
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, Hash, PartialEq)]
 pub enum ExecutionTarget {
     Path(String),
-    PackageFamilyName(String),
+    App(String),
     File(String),
     Url(String),
     Command(String),
@@ -34,7 +34,7 @@ impl ExecutionTarget {
     pub fn target_type(&self) -> TargetType {
         match self {
             ExecutionTarget::Path(_) => TargetType::Path,
-            ExecutionTarget::PackageFamilyName(_) => TargetType::PackageFamilyName,
+            ExecutionTarget::App(_) => TargetType::App,
             ExecutionTarget::File(_) => TargetType::File,
             ExecutionTarget::Url(_) => TargetType::Url,
             ExecutionTarget::Command(_) => TargetType::Command,
@@ -45,7 +45,7 @@ impl ExecutionTarget {
     pub fn payload(&self) -> &str {
         match self {
             ExecutionTarget::Path(s) => s,
-            ExecutionTarget::PackageFamilyName(s) => s,
+            ExecutionTarget::App(s) => s,
             ExecutionTarget::File(s) => s,
             ExecutionTarget::Url(s) => s,
             ExecutionTarget::Command(s) => s,

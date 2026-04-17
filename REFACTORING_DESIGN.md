@@ -1178,15 +1178,17 @@ route_confirm:
 
 ### 8.4 当前进度
 
-| 模块                     | 状态     | 说明                        |
-| ------------------------ | -------- | --------------------------- |
-| **Plugin SDK 设计**      | ✅ 完成   | `PLUGIN_SDK_DESIGN.md` v2.0 |
-| **PathResolver trait**   | ⏳ 待实现 | 路径解析接口                |
-| **WindowsPathResolver**  | ⏳ 待实现 | Windows 路径解析实现        |
-| **AppEnumerator trait**  | ⏳ 待实现 | 应用枚举统一接口            |
-| **AppLauncher trait**    | ⏳ 待实现 | 应用启动统一接口            |
-| **WindowsAppEnumerator** | ⏳ 待实现 | 迁移 AppSource Win32 调用   |
-| **WindowsAppLauncher**   | ⏳ 待实现 | 迁移 AppExecutor Win32 调用 |
-| **ShellExecutor 扩展**   | ⏳ 待实现 | 新增 execute_command 方法   |
+| 模块                      | 状态     | 说明                                                 |
+| ------------------------- | -------- | ---------------------------------------------------- |
+| **Plugin SDK 设计**       | ✅ 完成   | `PLUGIN_SDK_DESIGN.md` v2.1                          |
+| **PathResolver trait**    | ✅ 完成   | 阶段一：路径解析接口 + Windows 实现                  |
+| **WindowsPathResolver**   | ✅ 完成   | 阶段一：SHGetKnownFolderPath                         |
+| **AppEnumerator trait**   | ✅ 完成   | 阶段二：应用枚举统一接口（async）                    |
+| **AppLauncher trait**     | ✅ 完成   | 阶段二：应用启动统一接口                             |
+| **WindowsAppEnumerator**  | ✅ 完成   | 阶段二：迁移 UwpSource Win32 调用                    |
+| **WindowsAppLauncher**    | ✅ 完成   | 阶段二：迁移 UwpExecutor Win32 调用                  |
+| **TargetType::App**       | ✅ 完成   | 阶段二：PackageFamilyName → App 重命名               |
+| **AppSource/AppExecutor** | ✅ 完成   | 阶段二：UwpSource→AppSource, UwpExecutor→AppExecutor |
+| **ShellExecutor 扩展**    | ⏳ 待实现 | 阶段三：新增 execute_command 方法                    |
 
 详细设计请参考 [PLUGIN_SDK_DESIGN.md](file:///c:/Users/ghost/ZeroLaunch/ZeroLaunch-rs/PLUGIN_SDK_DESIGN.md)

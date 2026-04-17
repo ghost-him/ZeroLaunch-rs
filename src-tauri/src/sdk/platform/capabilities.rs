@@ -10,8 +10,10 @@ pub enum PlatformCapability {
     ShellOpen,
     /// 以管理员身份运行
     RunAsAdmin,
-    /// UWP 应用启动（仅 Windows）
-    UwpLaunch,
+    /// 应用枚举：发现系统中已安装的应用（含沙箱/容器应用）
+    AppEnumeration,
+    /// 应用启动：通过平台专属 API 启动应用
+    AppLaunch,
     /// 窗口激活：根据进程名或标题激活已存在的窗口
     WindowActivation,
 }
@@ -55,7 +57,8 @@ impl PlatformCapabilities {
             PlatformCapability::IconExtraction,
             PlatformCapability::ShellOpen,
             PlatformCapability::RunAsAdmin,
-            PlatformCapability::UwpLaunch,
+            PlatformCapability::AppEnumeration,
+            PlatformCapability::AppLaunch,
             PlatformCapability::WindowActivation,
         ]))
     }

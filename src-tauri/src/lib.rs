@@ -36,9 +36,10 @@ use crate::modules::config::{Height, Width};
 use crate::modules::icon_manager::config::RuntimeIconManagerConfig;
 use crate::modules::icon_manager::IconManager;
 use crate::modules::ui_controller::controller::get_window_render_origin;
+use crate::plugin::data_source::app_source::AppSource;
 use crate::plugin::data_source::program_source::ProgramSource;
 use crate::plugin::executor::{
-    CommandExecutor, FileExecutor, PathExecutor, UrlExecutor, UwpExecutor, WindowActivateExecutor,
+    AppExecutor, CommandExecutor, FileExecutor, PathExecutor, UrlExecutor, WindowActivateExecutor,
 };
 use crate::plugin::keyword_optimizer::{
     FirstLetterExtractor, LowerCaseConverter, PinyinConverter, SpaceNormalizer, SpaceRemover,
@@ -51,10 +52,14 @@ use crate::plugin::search_engine::standard_search_model::StandardSearchModel;
 use crate::plugin_system::types::{ScoreBooster, SearchEngine};
 use crate::plugin_system::Configurable;
 use crate::plugin_system::{CandidatePipeline, SearchPipeline};
+use crate::sdk::platform::WindowsAppEnumerator;
+use crate::sdk::platform::WindowsAppLauncher;
 use crate::sdk::platform::WindowsIconExtractor;
 use crate::sdk::platform::WindowsPathResolver;
 use crate::sdk::platform::WindowsShellExecutor;
 use crate::sdk::platform::WindowsWindowManager;
+use crate::sdk::AppEnumerator;
+use crate::sdk::AppLauncher;
 use crate::sdk::PathResolver;
 use crate::sdk::ShellExecutor;
 use crate::sdk::WindowManager;
@@ -552,12 +557,16 @@ fn init_plugin_system(state: &Arc<AppState>) {
     let shell_executor: Arc<dyn ShellExecutor> = Arc::new(WindowsShellExecutor::new());
     let window_manager: Arc<dyn WindowManager> = Arc::new(WindowsWindowManager::new());
     let path_resolver: Arc<dyn PathResolver> = Arc::new(WindowsPathResolver::new());
+    let app_enumerator: Arc<dyn AppEnumerator> = Arc::new(WindowsAppEnumerator::new());
+    let app_launcher: Arc<dyn AppLauncher> = Arc::new(WindowsAppLauncher::new());
     let host_api = Arc::new(crate::sdk::HostApi::new_windows(
         icon_cache_dir,
         icon_extractor,
         shell_executor,
         window_manager,
         path_resolver,
+        app_enumerator,
+        app_launcher,
     ));
     state.set_host_api(host_api.clone());
 
@@ -565,6 +574,8 @@ fn init_plugin_system(state: &Arc<AppState>) {
     let shell_service_handle = host_api.register("shell-executors", Default::default());
     let window_service_handle = host_api.register("window-activator", Default::default());
     let program_source_handle = host_api.register("program-source", Default::default());
+    let app_source_handle = host_api.register("app-source", Default::default());
+    let app_executor_handle = host_api.register("app-executor", Default::default());
 
     // 1. 注册执行器（同时注册到 ConfigManager 和 ExecutorRegistry，双重索引）
     info!("正在注册执行器...");
@@ -574,8 +585,8 @@ fn init_plugin_system(state: &Arc<AppState>) {
         Arc::new(FileExecutor::new(shell_service_handle.clone()));
     let url_executor: Arc<dyn crate::plugin_system::types::ActionExecutor> =
         Arc::new(UrlExecutor::new(shell_service_handle.clone()));
-    let uwp_executor: Arc<dyn crate::plugin_system::types::ActionExecutor> =
-        Arc::new(UwpExecutor::new());
+    let app_executor: Arc<dyn crate::plugin_system::types::ActionExecutor> =
+        Arc::new(AppExecutor::new(app_executor_handle));
     let command_executor: Arc<dyn crate::plugin_system::types::ActionExecutor> =
         Arc::new(CommandExecutor::new());
     let window_activate_executor: Arc<dyn crate::plugin_system::types::ActionExecutor> =
@@ -585,7 +596,7 @@ fn init_plugin_system(state: &Arc<AppState>) {
     config_manager.register(path_executor.clone());
     config_manager.register(file_executor.clone());
     config_manager.register(url_executor.clone());
-    config_manager.register(uwp_executor.clone());
+    config_manager.register(app_executor.clone());
     config_manager.register(command_executor.clone());
     config_manager.register(window_activate_executor.clone());
 
@@ -594,7 +605,7 @@ fn init_plugin_system(state: &Arc<AppState>) {
     session_router.register_executor(path_executor);
     session_router.register_executor(file_executor);
     session_router.register_executor(url_executor);
-    session_router.register_executor(uwp_executor);
+    session_router.register_executor(app_executor);
     session_router.register_executor(command_executor);
     session_router.register_executor(window_activate_executor);
     info!("执行器注册完成");
@@ -603,7 +614,9 @@ fn init_plugin_system(state: &Arc<AppState>) {
     info!("正在注册数据源...");
     let program_source = Arc::new(ProgramSource::new(program_source_handle));
     let _ = program_source.apply_settings(program_source.get_default_settings());
+    let app_source = Arc::new(AppSource::new(app_source_handle));
     config_manager.register(program_source.clone());
+    config_manager.register(app_source.clone());
     info!("数据源注册完成");
 
     // 3. 注册关键词优化器
@@ -651,6 +664,7 @@ fn init_plugin_system(state: &Arc<AppState>) {
 
     // 添加数据源
     candidate_pipeline.add_source(program_source);
+    candidate_pipeline.add_source(app_source);
 
     // 添加关键词优化器（按优先级顺序）
     candidate_pipeline.add_keyword_optimizer(version_number_remover);

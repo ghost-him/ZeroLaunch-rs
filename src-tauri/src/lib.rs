@@ -60,13 +60,6 @@ use crate::sdk::platform::WindowsPathResolver;
 use crate::sdk::platform::WindowsResourceLoader;
 use crate::sdk::platform::WindowsShellExecutor;
 use crate::sdk::platform::WindowsWindowManager;
-use crate::sdk::AppEnumerator;
-use crate::sdk::AppLauncher;
-use crate::sdk::LnkResolver;
-use crate::sdk::PathResolver;
-use crate::sdk::ResourceLoader;
-use crate::sdk::ShellExecutor;
-use crate::sdk::WindowManager;
 use crate::state::app_state::AppState;
 use crate::tray::init_system_tray;
 use crate::tray::update_tray_menu_language;
@@ -554,28 +547,21 @@ fn init_plugin_system(state: &Arc<AppState>) {
         .expect_programming("无法获取默认网页图标路径")
         .value()
         .clone();
-    let icon_extractor: Arc<dyn crate::sdk::IconExtractor> = Arc::new(WindowsIconExtractor::new(
-        default_app_icon_path,
-        default_web_icon_path,
-    ));
-    let shell_executor: Arc<dyn ShellExecutor> = Arc::new(WindowsShellExecutor::new());
-    let window_manager: Arc<dyn WindowManager> = Arc::new(WindowsWindowManager::new());
-    let path_resolver: Arc<dyn PathResolver> = Arc::new(WindowsPathResolver::new());
-    let app_enumerator: Arc<dyn AppEnumerator> = Arc::new(WindowsAppEnumerator::new());
-    let app_launcher: Arc<dyn AppLauncher> = Arc::new(WindowsAppLauncher::new());
-    let lnk_resolver: Arc<dyn LnkResolver> = Arc::new(WindowsLnkResolver::new());
-    let resource_loader: Arc<dyn ResourceLoader> = Arc::new(WindowsResourceLoader::new());
-    let host_api = Arc::new(crate::sdk::HostApi::new_windows(
-        icon_cache_dir,
-        icon_extractor,
-        shell_executor,
-        window_manager,
-        path_resolver,
-        app_enumerator,
-        app_launcher,
-        lnk_resolver,
-        resource_loader,
-    ));
+    let host_api = Arc::new(
+        crate::sdk::HostApi::builder(icon_cache_dir)
+            .icon_extractor(Arc::new(WindowsIconExtractor::new(
+                default_app_icon_path,
+                default_web_icon_path,
+            )))
+            .shell_executor(Arc::new(WindowsShellExecutor::new()))
+            .window_manager(Arc::new(WindowsWindowManager::new()))
+            .path_resolver(Arc::new(WindowsPathResolver::new()))
+            .app_enumerator(Arc::new(WindowsAppEnumerator::new()))
+            .app_launcher(Arc::new(WindowsAppLauncher::new()))
+            .lnk_resolver(Arc::new(WindowsLnkResolver::new()))
+            .resource_loader(Arc::new(WindowsResourceLoader::new()))
+            .build(),
+    );
     state.set_host_api(host_api.clone());
 
     // 为 Shell 和窗口相关执行器注册 PluginHandle

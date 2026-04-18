@@ -9,7 +9,8 @@ pub mod window;
 
 pub use app::{AppEnumerator, AppInfo, AppLauncher};
 pub use host_api::{
-    CacheLevel, HostApi, HostApiError, IconRequest, OpenTarget, PluginHandle, PluginSdkConfig,
+    CacheLevel, HostApi, HostApiBuilder, HostApiError, IconRequest, OpenTarget, PluginHandle,
+    PluginSdkConfig,
 };
 pub use icon::icon_cache::IconCacheService;
 pub use icon::icon_extractor::IconExtractor;

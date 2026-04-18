@@ -328,38 +328,11 @@ pub struct HostApi {
 }
 
 impl HostApi {
-    /// 创建 Windows 平台的 HostApi 实例。
-    /// 在此注入 Windows 平台的所有组件：图标提取器、Shell 执行器、窗口管理器、路径解析器、应用枚举器、应用启动器、Lnk 解析器、资源加载器。
-    /// 参数：icon_cache_dir - 图标缓存目录；icon_extractor - Windows 图标提取器实例；shell_executor - Windows Shell 执行器实例；window_manager - Windows 窗口管理器实例；path_resolver - Windows 路径解析器实例；app_enumerator - Windows 应用枚举器实例；app_launcher - Windows 应用启动器实例；lnk_resolver - Windows Lnk 解析器实例；resource_loader - Windows 资源加载器实例。
-    /// 返回：初始化后的 HostApi。
-    #[cfg(target_os = "windows")]
-    #[allow(clippy::too_many_arguments)]
-    pub fn new_windows(
-        icon_cache_dir: String,
-        icon_extractor: Arc<dyn IconExtractor>,
-        shell_executor: Arc<dyn ShellExecutor>,
-        window_manager: Arc<dyn WindowManager>,
-        path_resolver: Arc<dyn PathResolver>,
-        app_enumerator: Arc<dyn AppEnumerator>,
-        app_launcher: Arc<dyn AppLauncher>,
-        lnk_resolver: Arc<dyn LnkResolver>,
-        resource_loader: Arc<dyn ResourceLoader>,
-    ) -> Self {
-        let icon_cache = Arc::new(IconCacheService::new(icon_cache_dir));
-        icon_cache.init();
-        Self {
-            handles: DashMap::new(),
-            capabilities: PlatformCapabilities::windows(),
-            icon_cache,
-            icon_extractor,
-            shell_executor,
-            window_manager,
-            path_resolver,
-            app_enumerator,
-            app_launcher,
-            lnk_resolver,
-            resource_loader,
-        }
+    /// 创建 HostApiBuilder，用于构建 HostApi 实例。
+    /// 参数：icon_cache_dir - 图标缓存目录。
+    /// 返回：HostApiBuilder 实例。
+    pub fn builder(icon_cache_dir: String) -> HostApiBuilder {
+        HostApiBuilder::new(icon_cache_dir)
     }
 
     /// 注册插件并返回绑定了插件身份与配置的服务句柄。
@@ -399,5 +372,123 @@ impl HostApi {
     /// 返回：平台能力的不可变引用。
     pub fn capabilities(&self) -> &PlatformCapabilities {
         &self.capabilities
+    }
+}
+
+/// HostApi 构建器，用于链式配置平台组件并构建 HostApi 实例。
+pub struct HostApiBuilder {
+    icon_cache_dir: String,
+    icon_extractor: Option<Arc<dyn IconExtractor>>,
+    shell_executor: Option<Arc<dyn ShellExecutor>>,
+    window_manager: Option<Arc<dyn WindowManager>>,
+    path_resolver: Option<Arc<dyn PathResolver>>,
+    app_enumerator: Option<Arc<dyn AppEnumerator>>,
+    app_launcher: Option<Arc<dyn AppLauncher>>,
+    lnk_resolver: Option<Arc<dyn LnkResolver>>,
+    resource_loader: Option<Arc<dyn ResourceLoader>>,
+}
+
+impl HostApiBuilder {
+    /// 创建 HostApiBuilder 实例。
+    /// 参数：icon_cache_dir - 图标缓存目录。
+    /// 返回：HostApiBuilder 实例。
+    fn new(icon_cache_dir: String) -> Self {
+        Self {
+            icon_cache_dir,
+            icon_extractor: None,
+            shell_executor: None,
+            window_manager: None,
+            path_resolver: None,
+            app_enumerator: None,
+            app_launcher: None,
+            lnk_resolver: None,
+            resource_loader: None,
+        }
+    }
+
+    /// 设置图标提取器。
+    /// 参数：icon_extractor - 图标提取器实例。
+    /// 返回：Self（支持链式调用）。
+    pub fn icon_extractor(mut self, icon_extractor: Arc<dyn IconExtractor>) -> Self {
+        self.icon_extractor = Some(icon_extractor);
+        self
+    }
+
+    /// 设置 Shell 执行器。
+    /// 参数：shell_executor - Shell 执行器实例。
+    /// 返回：Self（支持链式调用）。
+    pub fn shell_executor(mut self, shell_executor: Arc<dyn ShellExecutor>) -> Self {
+        self.shell_executor = Some(shell_executor);
+        self
+    }
+
+    /// 设置窗口管理器。
+    /// 参数：window_manager - 窗口管理器实例。
+    /// 返回：Self（支持链式调用）。
+    pub fn window_manager(mut self, window_manager: Arc<dyn WindowManager>) -> Self {
+        self.window_manager = Some(window_manager);
+        self
+    }
+
+    /// 设置路径解析器。
+    /// 参数：path_resolver - 路径解析器实例。
+    /// 返回：Self（支持链式调用）。
+    pub fn path_resolver(mut self, path_resolver: Arc<dyn PathResolver>) -> Self {
+        self.path_resolver = Some(path_resolver);
+        self
+    }
+
+    /// 设置应用枚举器。
+    /// 参数：app_enumerator - 应用枚举器实例。
+    /// 返回：Self（支持链式调用）。
+    pub fn app_enumerator(mut self, app_enumerator: Arc<dyn AppEnumerator>) -> Self {
+        self.app_enumerator = Some(app_enumerator);
+        self
+    }
+
+    /// 设置应用启动器。
+    /// 参数：app_launcher - 应用启动器实例。
+    /// 返回：Self（支持链式调用）。
+    pub fn app_launcher(mut self, app_launcher: Arc<dyn AppLauncher>) -> Self {
+        self.app_launcher = Some(app_launcher);
+        self
+    }
+
+    /// 设置 Lnk 快捷方式解析器。
+    /// 参数：lnk_resolver - Lnk 解析器实例。
+    /// 返回：Self（支持链式调用）。
+    pub fn lnk_resolver(mut self, lnk_resolver: Arc<dyn LnkResolver>) -> Self {
+        self.lnk_resolver = Some(lnk_resolver);
+        self
+    }
+
+    /// 设置资源加载器。
+    /// 参数：resource_loader - 资源加载器实例。
+    /// 返回：Self（支持链式调用）。
+    pub fn resource_loader(mut self, resource_loader: Arc<dyn ResourceLoader>) -> Self {
+        self.resource_loader = Some(resource_loader);
+        self
+    }
+
+    /// 构建 HostApi 实例。
+    /// 参数：无。
+    /// 返回：构建完成的 HostApi 实例，如果缺少必需组件则 panic。
+    #[cfg(target_os = "windows")]
+    pub fn build(self) -> HostApi {
+        let icon_cache = Arc::new(IconCacheService::new(self.icon_cache_dir));
+        icon_cache.init();
+        HostApi {
+            handles: DashMap::new(),
+            capabilities: PlatformCapabilities::windows(),
+            icon_cache,
+            icon_extractor: self.icon_extractor.expect("missing icon_extractor"),
+            shell_executor: self.shell_executor.expect("missing shell_executor"),
+            window_manager: self.window_manager.expect("missing window_manager"),
+            path_resolver: self.path_resolver.expect("missing path_resolver"),
+            app_enumerator: self.app_enumerator.expect("missing app_enumerator"),
+            app_launcher: self.app_launcher.expect("missing app_launcher"),
+            lnk_resolver: self.lnk_resolver.expect("missing lnk_resolver"),
+            resource_loader: self.resource_loader.expect("missing resource_loader"),
+        }
     }
 }

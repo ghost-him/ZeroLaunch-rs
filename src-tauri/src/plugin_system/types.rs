@@ -302,7 +302,12 @@ pub struct PluginMetadata {
 pub trait Plugin: Configurable {
     fn metadata(&self) -> &PluginMetadata;
 
-    async fn init(&self, ctx: &PluginContext, api: Arc<dyn PluginAPI>) -> Result<(), PluginError>;
+    async fn init(
+        &self,
+        ctx: &PluginContext,
+        api: Arc<dyn PluginAPI>,
+        host_api: Arc<crate::sdk::HostApi>,
+    ) -> Result<(), PluginError>;
 
     async fn query(&self, ctx: &PluginContext, query: &Query)
         -> Result<QueryResponse, PluginError>;

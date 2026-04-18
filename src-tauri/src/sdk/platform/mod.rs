@@ -13,7 +13,13 @@ pub use windows::WindowsAppLauncher;
 pub use windows::WindowsIconExtractor;
 
 #[cfg(target_os = "windows")]
+pub use windows::WindowsLnkResolver;
+
+#[cfg(target_os = "windows")]
 pub use windows::WindowsPathResolver;
+
+#[cfg(target_os = "windows")]
+pub use windows::WindowsResourceLoader;
 
 #[cfg(target_os = "windows")]
 pub use windows::WindowsShellExecutor;

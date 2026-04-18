@@ -1,4 +1,3 @@
-use crate::modules::program_manager::localization_translation::parse_localized_names_from_dir;
 use crate::plugin_system::cached_candidate::CachedCandidateData;
 use crate::plugin_system::types::{
     ArrayItem, ArrayUiHint, DataSource, ExecutionTarget, FieldDefinition, PrimitiveType,
@@ -487,7 +486,7 @@ impl DataSource for ProgramSource {
             }
 
             for (dir_path, files_in_dir) in grouped_paths {
-                let localized_names = parse_localized_names_from_dir(&dir_path);
+                let localized_names = self.handle.parse_localized_names_from_dir(&dir_path);
 
                 for target_path_buf in files_in_dir {
                     let target_path = target_path_buf.as_path();

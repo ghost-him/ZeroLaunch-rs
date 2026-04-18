@@ -753,22 +753,42 @@ src-tauri/src/
 │
 ├── sdk/                           # Plugin SDK（核心向插件提供统一服务）
 │   ├── mod.rs                     # 模块入口，导出公共 API
-│   ├── host_api.rs                # HostApi trait + HostApiError + OpenTarget + IconRequest
-│   └── platform/                  # 平台实现层（HostApi 的具体实现）
+│   ├── host_api.rs                # HostApi struct + PluginHandle struct + IconRequest + CacheLevel + PluginSdkConfig + 错误类型
+│   ├── common/
+│   │   ├── mod.rs                 # 通用模块入口
+│   │   └── image_utils.rs         # ImageUtils — 跨平台图片处理工具函数
+│   ├── icon/
+│   │   ├── mod.rs                 # 图标模块入口
+│   │   ├── icon_cache.rs          # IconCacheService — 纯缓存工具
+│   │   └── icon_extractor.rs      # IconExtractor trait — 平台原语 + 跨平台默认实现
+│   ├── shell/
+│   │   ├── mod.rs                 # Shell 模块入口
+│   │   ├── shell_executor.rs      # ShellExecutor trait — 平台原语
+│   │   ├── lnk_resolver.rs        # LnkResolver trait — Lnk 快捷方式解析
+│   │   └── resource_loader.rs      # ResourceLoader trait — 本地化字符串资源加载
+│   ├── window/
+│   │   ├── mod.rs                 # 窗口模块入口
+│   │   └── window_manager.rs      # WindowManager trait — 平台原语
+│   ├── path/
+│   │   ├── mod.rs                 # 路径模块入口
+│   │   └── path_resolver.rs       # PathResolver trait — 平台原语
+│   ├── app/
+│   │   ├── mod.rs                 # 应用模块入口
+│   │   ├── app_enumerator.rs      # AppEnumerator trait
+│   │   └── app_launcher.rs        # AppLauncher trait
+│   └── platform/
 │       ├── mod.rs                 # 条件编译选择平台实现
 │       ├── capabilities.rs        # PlatformCapabilities 定义
-│       ├── windows/               # Windows 平台实现
-│       │   ├── mod.rs
-│       │   ├── host_api_impl.rs   # HostApi trait 的 Windows 实现
-│       │   ├── icon.rs            # 图标提取
-│       │   ├── shell.rs           # ShellExecuteW 封装
-│       │   └── window.rs          # 窗口操作封装
-│       ├── macos/                 # macOS 平台实现（预留）
-│       │   ├── mod.rs
-│       │   └── host_api_impl.rs   # HostApi trait 的 macOS 实现
-│       └── linux/                 # Linux 平台实现（预留）
-│           ├── mod.rs
-│           └── host_api_impl.rs   # HostApi trait 的 Linux 实现
+│       └── windows/
+│           ├── mod.rs             # Windows 平台入口
+│           ├── icon.rs            # WindowsIconExtractor
+│           ├── shell.rs           # WindowsShellExecutor
+│           ├── lnk_resolver.rs    # WindowsLnkResolver
+│           ├── resource_loader.rs # WindowsResourceLoader
+│           ├── window.rs          # WindowsWindowManager
+│           ├── path_resolver.rs   # WindowsPathResolver
+│           ├── app_enumerator.rs  # WindowsAppEnumerator
+│           └── app_launcher.rs    # WindowsAppLauncher
 │
 ├── state/                         # 应用状态（核心组件）
 │   ├── mod.rs
@@ -1163,32 +1183,56 @@ route_confirm:
 └── 重命名 TargetType::PackageFamilyName → TargetType::App
 └── 验证 UWP 应用枚举和启动功能
 
-阶段三：跨平台实现
-├── SDK 接口已稳定
-├── 实现 macOS 平台适配（Launch Services 集成）
-├── 实现 Linux 平台适配（Flatpak/Snap 集成）
-└── 插件代码零修改
-
-阶段四：ShellExecutor 扩展
+阶段三：ShellExecutor 扩展
 ├── 扩展 ShellExecutor trait（新增 execute_command 方法）
 ├── 实现 Windows execute_command（封装 CommandExt::creation_flags）
 ├── 重构 CommandExecutor（委托 PluginHandle::execute_command()）
 └── 验证命令执行功能
+
+阶段四：LnkResolver 快捷方式解析
+├── 定义 LnkResolver trait（Lnk 解析接口）
+├── 实现 WindowsLnkResolver（lnk crate + 双编码回退）
+├── 扩展 HostApi / PluginHandle（注入 LnkResolver）
+├── 迁移 WindowActivateExecutor（委托 PluginHandle::resolve_lnk_target()）
+└── 验证 .lnk 文件解析功能
+
+阶段五：ResourceLoader 本地化字符串加载
+├── 定义 ResourceLoader trait（资源加载接口）
+├── 实现 WindowsResourceLoader（LoadLibraryExW + LoadStringW + desktop.ini 解析）
+├── 扩展 HostApi / PluginHandle（注入 ResourceLoader）
+├── 迁移 ProgramSource（委托 PluginHandle::parse_localized_names_from_dir()）
+└── 验证本地化名称显示功能
+
+阶段六：Plugin::init() 整合
+├── 修改 Plugin::init() 签名（增加 host_api: Arc<HostApi> 参数）
+├── 更新所有 Plugin::init() 实现
+└── 验证 Plugin 可通过 init 访问平台能力
+
+阶段七：跨平台实现
+├── SDK 接口已稳定
+├── 实现 macOS 平台适配（Launch Services 集成）
+├── 实现 Linux 平台适配（Flatpak/Snap 集成）
+└── 插件代码零修改
 ```
 
 ### 8.4 当前进度
 
-| 模块                      | 状态     | 说明                                                 |
-| ------------------------- | -------- | ---------------------------------------------------- |
-| **Plugin SDK 设计**       | ✅ 完成   | `PLUGIN_SDK_DESIGN.md` v2.1                          |
-| **PathResolver trait**    | ✅ 完成   | 阶段一：路径解析接口 + Windows 实现                  |
-| **WindowsPathResolver**   | ✅ 完成   | 阶段一：SHGetKnownFolderPath                         |
-| **AppEnumerator trait**   | ✅ 完成   | 阶段二：应用枚举统一接口（async）                    |
-| **AppLauncher trait**     | ✅ 完成   | 阶段二：应用启动统一接口                             |
-| **WindowsAppEnumerator**  | ✅ 完成   | 阶段二：迁移 UwpSource Win32 调用                    |
-| **WindowsAppLauncher**    | ✅ 完成   | 阶段二：迁移 UwpExecutor Win32 调用                  |
-| **TargetType::App**       | ✅ 完成   | 阶段二：PackageFamilyName → App 重命名               |
-| **AppSource/AppExecutor** | ✅ 完成   | 阶段二：UwpSource→AppSource, UwpExecutor→AppExecutor |
-| **ShellExecutor 扩展**    | ✅ 完成   | 阶段三：`shell_execute_command` 方法 + CommandExecutor 迁移      |
+| 模块                      | 状态   | 说明                                                        |
+| ------------------------- | ------ | ----------------------------------------------------------- |
+| **Plugin SDK 设计**       | ✅ 完成 | `PLUGIN_SDK_DESIGN.md` v2.2                                 |
+| **PathResolver trait**    | ✅ 完成 | 阶段一：路径解析接口 + Windows 实现                         |
+| **WindowsPathResolver**   | ✅ 完成 | 阶段一：SHGetKnownFolderPath                                |
+| **AppEnumerator trait**   | ✅ 完成 | 阶段二：应用枚举统一接口（async）                           |
+| **AppLauncher trait**     | ✅ 完成 | 阶段二：应用启动统一接口                                    |
+| **WindowsAppEnumerator**  | ✅ 完成 | 阶段二：迁移 UwpSource Win32 调用                           |
+| **WindowsAppLauncher**    | ✅ 完成 | 阶段二：迁移 UwpExecutor Win32 调用                         |
+| **TargetType::App**       | ✅ 完成 | 阶段二：PackageFamilyName → App 重命名                      |
+| **AppSource/AppExecutor** | ✅ 完成 | 阶段二：UwpSource→AppSource, UwpExecutor→AppExecutor        |
+| **ShellExecutor 扩展**    | ✅ 完成 | 阶段三：`shell_execute_command` 方法 + CommandExecutor 迁移 |
+| **LnkResolver trait**     | ✅ 完成 | 阶段四：Lnk 快捷方式解析接口 + Windows 实现（lnk crate）    |
+| **WindowsLnkResolver**    | ✅ 完成 | 阶段四：双编码回退（GB18030 → UTF-16LE）                    |
+| **ResourceLoader trait**  | ✅ 完成 | 阶段五：本地化字符串资源加载接口 + Windows 实现             |
+| **WindowsResourceLoader** | ✅ 完成 | 阶段五：LoadLibraryExW + LoadStringW + desktop.ini 解析     |
+| **Plugin::init() 整合**   | ✅ 完成 | 阶段六：Plugin::init() 接收 Arc<HostApi> 参数               |
 
 详细设计请参考 [PLUGIN_SDK_DESIGN.md](file:///c:/Users/ghost/ZeroLaunch/ZeroLaunch-rs/PLUGIN_SDK_DESIGN.md)

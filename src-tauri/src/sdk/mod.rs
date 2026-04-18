@@ -15,5 +15,5 @@ pub use icon::icon_cache::IconCacheService;
 pub use icon::icon_extractor::IconExtractor;
 pub use path::path_resolver::{KnownPath, PathResolver};
 pub use platform::capabilities::{PlatformCapabilities, PlatformCapability};
-pub use shell::ShellExecutor;
+pub use shell::{LnkResolver, ResourceLoader, ShellExecutor};
 pub use window::WindowManager;

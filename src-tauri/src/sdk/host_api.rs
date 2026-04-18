@@ -5,6 +5,8 @@ use crate::sdk::icon::icon_cache::IconCacheService;
 use crate::sdk::icon::icon_extractor::IconExtractor;
 use crate::sdk::path::path_resolver::{KnownPath, PathResolver};
 use crate::sdk::platform::capabilities::PlatformCapabilities;
+use crate::sdk::shell::lnk_resolver::LnkResolver;
+use crate::sdk::shell::resource_loader::ResourceLoader;
 use crate::sdk::shell::ShellExecutor;
 use crate::sdk::window::WindowManager;
 use bincode::Encode;
@@ -111,6 +113,10 @@ pub enum HostApiError {
     /// 应用启动失败
     #[error("应用启动失败 (app_id: {app_id}): {reason}")]
     AppLaunchFailed { app_id: String, reason: String },
+
+    /// Lnk 快捷方式解析失败
+    #[error("Lnk 解析失败 ({path}): {reason}")]
+    LnkResolutionFailed { path: String, reason: String },
 }
 
 /// 插件服务句柄，绑定插件身份与配置。
@@ -136,6 +142,10 @@ pub struct PluginHandle {
     app_enumerator: Arc<dyn AppEnumerator>,
     /// 应用启动器，由 HostApi 注入的平台实现
     app_launcher: Arc<dyn AppLauncher>,
+    /// Lnk 快捷方式解析器，由 HostApi 注入的平台实现
+    lnk_resolver: Arc<dyn LnkResolver>,
+    /// 资源加载器，由 HostApi 注入的平台实现
+    resource_loader: Arc<dyn ResourceLoader>,
 }
 
 impl PluginHandle {
@@ -252,6 +262,26 @@ impl PluginHandle {
 
     // ===== 配置管理 =====
 
+    /// 解析 .lnk 快捷方式文件的目标路径。
+    /// 参数：lnk_path - .lnk 文件的路径。
+    /// 返回：解析成功返回目标路径，失败返回 None。
+    pub fn resolve_lnk_target(&self, lnk_path: &str) -> Option<String> {
+        self.lnk_resolver.resolve_lnk_target(lnk_path)
+    }
+
+    /// 解析指定目录下的 desktop.ini 文件，提取 [LocalizedFileNames] 部分。
+    /// 参数：dir_path - 要解析的目录路径。
+    /// 返回：从原始文件名到本地化名称的映射。
+    pub fn parse_localized_names_from_dir(
+        &self,
+        dir_path: &std::path::Path,
+    ) -> std::collections::HashMap<String, String> {
+        self.resource_loader
+            .parse_localized_names_from_dir(dir_path)
+    }
+
+    // ===== 配置管理 =====
+
     /// 更新插件的 SDK 配置。
     /// 参数：config - 新的插件 SDK 配置。
     /// 返回：无。
@@ -291,14 +321,19 @@ pub struct HostApi {
     app_enumerator: Arc<dyn AppEnumerator>,
     /// 应用启动器（平台实现）
     app_launcher: Arc<dyn AppLauncher>,
+    /// Lnk 快捷方式解析器（平台实现）
+    lnk_resolver: Arc<dyn LnkResolver>,
+    /// 资源加载器（平台实现）
+    resource_loader: Arc<dyn ResourceLoader>,
 }
 
 impl HostApi {
     /// 创建 Windows 平台的 HostApi 实例。
-    /// 在此注入 Windows 平台的所有组件：图标提取器、Shell 执行器、窗口管理器、路径解析器、应用枚举器、应用启动器。
-    /// 参数：icon_cache_dir - 图标缓存目录；icon_extractor - Windows 图标提取器实例；shell_executor - Windows Shell 执行器实例；window_manager - Windows 窗口管理器实例；path_resolver - Windows 路径解析器实例；app_enumerator - Windows 应用枚举器实例；app_launcher - Windows 应用启动器实例。
+    /// 在此注入 Windows 平台的所有组件：图标提取器、Shell 执行器、窗口管理器、路径解析器、应用枚举器、应用启动器、Lnk 解析器、资源加载器。
+    /// 参数：icon_cache_dir - 图标缓存目录；icon_extractor - Windows 图标提取器实例；shell_executor - Windows Shell 执行器实例；window_manager - Windows 窗口管理器实例；path_resolver - Windows 路径解析器实例；app_enumerator - Windows 应用枚举器实例；app_launcher - Windows 应用启动器实例；lnk_resolver - Windows Lnk 解析器实例；resource_loader - Windows 资源加载器实例。
     /// 返回：初始化后的 HostApi。
     #[cfg(target_os = "windows")]
+    #[allow(clippy::too_many_arguments)]
     pub fn new_windows(
         icon_cache_dir: String,
         icon_extractor: Arc<dyn IconExtractor>,
@@ -307,6 +342,8 @@ impl HostApi {
         path_resolver: Arc<dyn PathResolver>,
         app_enumerator: Arc<dyn AppEnumerator>,
         app_launcher: Arc<dyn AppLauncher>,
+        lnk_resolver: Arc<dyn LnkResolver>,
+        resource_loader: Arc<dyn ResourceLoader>,
     ) -> Self {
         let icon_cache = Arc::new(IconCacheService::new(icon_cache_dir));
         icon_cache.init();
@@ -320,6 +357,8 @@ impl HostApi {
             path_resolver,
             app_enumerator,
             app_launcher,
+            lnk_resolver,
+            resource_loader,
         }
     }
 
@@ -339,6 +378,8 @@ impl HostApi {
             path_resolver: self.path_resolver.clone(),
             app_enumerator: self.app_enumerator.clone(),
             app_launcher: self.app_launcher.clone(),
+            lnk_resolver: self.lnk_resolver.clone(),
+            resource_loader: self.resource_loader.clone(),
         });
         self.handles.insert(plugin_id.to_string(), handle.clone());
         handle

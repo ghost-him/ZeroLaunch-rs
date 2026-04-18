@@ -55,12 +55,16 @@ use crate::plugin_system::{CandidatePipeline, SearchPipeline};
 use crate::sdk::platform::WindowsAppEnumerator;
 use crate::sdk::platform::WindowsAppLauncher;
 use crate::sdk::platform::WindowsIconExtractor;
+use crate::sdk::platform::WindowsLnkResolver;
 use crate::sdk::platform::WindowsPathResolver;
+use crate::sdk::platform::WindowsResourceLoader;
 use crate::sdk::platform::WindowsShellExecutor;
 use crate::sdk::platform::WindowsWindowManager;
 use crate::sdk::AppEnumerator;
 use crate::sdk::AppLauncher;
+use crate::sdk::LnkResolver;
 use crate::sdk::PathResolver;
+use crate::sdk::ResourceLoader;
 use crate::sdk::ShellExecutor;
 use crate::sdk::WindowManager;
 use crate::state::app_state::AppState;
@@ -559,6 +563,8 @@ fn init_plugin_system(state: &Arc<AppState>) {
     let path_resolver: Arc<dyn PathResolver> = Arc::new(WindowsPathResolver::new());
     let app_enumerator: Arc<dyn AppEnumerator> = Arc::new(WindowsAppEnumerator::new());
     let app_launcher: Arc<dyn AppLauncher> = Arc::new(WindowsAppLauncher::new());
+    let lnk_resolver: Arc<dyn LnkResolver> = Arc::new(WindowsLnkResolver::new());
+    let resource_loader: Arc<dyn ResourceLoader> = Arc::new(WindowsResourceLoader::new());
     let host_api = Arc::new(crate::sdk::HostApi::new_windows(
         icon_cache_dir,
         icon_extractor,
@@ -567,6 +573,8 @@ fn init_plugin_system(state: &Arc<AppState>) {
         path_resolver,
         app_enumerator,
         app_launcher,
+        lnk_resolver,
+        resource_loader,
     ));
     state.set_host_api(host_api.clone());
 

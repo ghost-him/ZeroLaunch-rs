@@ -30,15 +30,17 @@ impl PluginService {
     }
 
     /// 初始化当前已注册的所有插件。
-    /// 参数：无。
+    /// 参数：host_api - 宿主 API 句柄，用于插件访问平台能力。
     /// 返回：成功返回 ()，失败返回 PluginError。
-    pub async fn init_all(&self) -> Result<(), PluginError> {
+    pub async fn init_all(&self, host_api: Arc<crate::sdk::HostApi>) -> Result<(), PluginError> {
         let mut rng = rand::rng();
         let trace_id = Alphanumeric.sample_string(&mut rng, 8);
         let ctx = PluginContext::new(&trace_id);
 
         for plugin in self.registry.get_all() {
-            plugin.init(&ctx, self.api.clone()).await?;
+            plugin
+                .init(&ctx, self.api.clone(), host_api.clone())
+                .await?;
         }
 
         Ok(())

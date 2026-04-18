@@ -50,11 +50,14 @@ struct PluginHandle {
     async fn shell_open(...);
     async fn shell_open_folder(...);
     async fn shell_execute_elevation(...);
-    async fn execute_command(...);
+    async fn shell_execute_command(...);
     async fn activate_window_by_process(...);
     async fn activate_window_by_title(...);
     async fn enumerate_apps(...);
     async fn launch_app(...);
+    fn resolve_lnk_target(...) -> Option<String>;
+    fn parse_localized_names_from_dir(...) -> HashMap<String, String>;
+    fn resolve_path(...) -> Result<String, HostApiError>;
     fn update_config(config);
     fn capabilities() -> &PlatformCapabilities;
 }
@@ -88,6 +91,8 @@ Plugin SDK 采用**跨平台 struct + 平台 trait 注入**的架构：
 │  │ window_manager: Arc<dyn WindowManager> ← 平台注入           │  │
 │  │ app_enumerator: Arc<dyn AppEnumerator> ← 平台注入           │  │
 │  │ app_launcher: Arc<dyn AppLauncher>     ← 平台注入           │  │
+│  │ lnk_resolver: Arc<dyn LnkResolver>     ← 平台注入           │  │
+│  │ resource_loader: Arc<dyn ResourceLoader> ← 平台注入         │  │
 │  └────────────────────────────────────────────────────────────┘  │
 │         │ register() 注入共享组件                                 │
 │         ▼                                                         │
@@ -102,12 +107,17 @@ Plugin SDK 采用**跨平台 struct + 平台 trait 注入**的架构：
 │  │  │ window_manager: Arc<dyn WindowManager>               │  │  │
 │  │  │ app_enumerator: Arc<dyn AppEnumerator>               │  │  │
 │  │  │ app_launcher: Arc<dyn AppLauncher>                   │  │  │
+│  │  │ lnk_resolver: Arc<dyn LnkResolver>                   │  │  │
+│  │  │ resource_loader: Arc<dyn ResourceLoader>             │  │  │
 │  │  └──────────────────────────────────────────────────────┘  │  │
 │  │ get_icon() → icon_extractor.get_icon(cache,..)             │  │
 │  │ shell_open() → shell_executor.shell_open(..)               │  │
 │  │ activate_window() → window_manager.activate(..)            │  │
 │  │ enumerate_apps() → app_enumerator.enumerate_apps()         │  │
 │  │ launch_app() → app_launcher.launch_app(..)                 │  │
+│  │ resolve_lnk_target() → lnk_resolver.resolve_lnk_target(..) │  │
+│  │ parse_localized_names_from_dir() → resource_loader        │  │
+│  │ resolve_path() → path_resolver.resolve_path(..)           │  │
 │  └────────────────────────────────────────────────────────────┘  │
 └──────────────────────────────────────────────────────────────────┘
         ▲ 创建时注入                      ▲ 创建时注入
@@ -309,6 +319,8 @@ pub enum HostApiError {
     AppLaunchFailed { app_id: String, reason: String },
     /// 通用执行失败
     ExecutionFailed { service: String, reason: String },
+    /// Lnk 快捷方式解析失败
+    LnkResolutionFailed { path: String, reason: String },
 }
 ```
 
@@ -540,6 +552,138 @@ impl ShellExecutor for WindowsShellExecutor {
 
 ---
 
+## 八-A、LnkResolver：Lnk 快捷方式解析
+
+### 8A.1 设计动机
+
+Windows 系统中，开始菜单和桌面的程序入口通常是 `.lnk` 快捷方式文件。插件在判断程序的实际目标路径时（例如窗口唤醒需要通过 .lnk 找到 exe 进程名），需要解析 `.lnk` 文件获取其指向的真实路径。
+
+这是一个平台特定的操作（Windows .lnk 二进制格式），因此抽象为 trait 注入 SDK。
+
+### 8A.2 LnkResolver trait
+
+```rust
+/// Lnk 快捷方式解析器 trait，定义平台原语。
+/// 各平台实现通过系统 API 解析 .lnk 快捷方式文件的目标路径，
+/// 插件通过 PluginHandle 委托调用。
+pub trait LnkResolver: Send + Sync {
+    /// 解析 .lnk 快捷方式文件的目标路径。
+    /// 参数：lnk_path - .lnk 文件的路径。
+    /// 返回：解析成功返回目标路径，失败返回 None。
+    fn resolve_lnk_target(&self, lnk_path: &str) -> Option<String>;
+}
+```
+
+**设计说明**：
+- 只有 1 个方法，职责单一
+- 返回 `Option<String>` 而非 `Result`：解析失败是常见场景（文件损坏、格式异常），调用方通常需要 fallback 而非中断
+- 同步方法：`.lnk` 文件读取是本地 IO，无需异步
+
+### 8A.3 Windows 平台实现
+
+**文件位置**: `sdk/platform/windows/lnk_resolver.rs`
+
+```rust
+/// Windows 平台 Lnk 快捷方式解析器实现。
+/// 使用 lnk crate 解析 .lnk 快捷方式文件，优先使用 GB18030 编码，失败后回退 UTF-16LE。
+pub struct WindowsLnkResolver;
+
+impl LnkResolver for WindowsLnkResolver {
+    fn resolve_lnk_target(&self, lnk_path: &str) -> Option<String> {
+        // 1. 优先使用 GB18030 编码打开 .lnk 文件
+        // 2. GB18030 失败时回退 UTF-16LE 编码
+        // 3. 从 link_info 中提取 local_base_path
+    }
+}
+```
+
+**设计说明**：
+- 使用 `lnk` crate 而非 Win32 `IShellLink` COM 接口，避免 COM 初始化开销
+- 双编码策略：中文 Windows 系统的 .lnk 文件主要使用 GB18030 编码，但部分文件可能使用 UTF-16LE
+- 回退策略确保兼容性
+
+### 8A.4 调用链示例
+
+```
+WindowActivateExecutor::execute()
+    → PluginHandle::resolve_lnk_target(lnk_path)   // SDK 层
+        → WindowsLnkResolver::resolve_lnk_target()  // 平台实现
+            → lnk::ShellLink::open() + link_info     // lnk crate
+```
+
+---
+
+## 八-B、ResourceLoader：本地化字符串资源加载
+
+### 8B.1 设计动机
+
+Windows 系统中，开始菜单文件夹的显示名称可能通过 `desktop.ini` 文件引用 PE 资源（如 `@C:\Windows\System32\shell32.dll,-12345`），指向 DLL/EXE 中的本地化字符串资源。程序数据源在枚举程序时需要将这些资源引用解析为用户可见的本地化名称。
+
+这涉及两个平台特定操作：
+1. **资源字符串解析**：从 PE 文件加载本地化字符串（`LoadLibraryExW` + `LoadStringW`）
+2. **desktop.ini 解析**：读取 INI 文件并提取 `[LocalizedFileNames]` 部分
+
+### 8B.2 ResourceLoader trait
+
+```rust
+/// 平台资源加载器 trait，定义平台原语。
+/// 各平台实现通过系统 API 加载本地化字符串资源，
+/// 插件通过 PluginHandle 委托调用。
+pub trait ResourceLoader: Send + Sync {
+    /// 解析指定目录下的 desktop.ini 文件，提取 [LocalizedFileNames] 部分。
+    /// 参数：dir_path - 要解析的目录路径。
+    /// 返回：从原始文件名到本地化名称的映射。
+    fn parse_localized_names_from_dir(&self, dir_path: &Path) -> HashMap<String, String>;
+}
+```
+
+**设计说明**：
+- `parse_localized_names_from_dir`：读取目录下的 `desktop.ini`，自动解析其中的 DLL 资源引用
+- 两个方法都是同步的：文件读取和 PE 资源加载都是本地操作
+- 返回 `Option` / `HashMap`：解析失败是常见场景，调用方需要 fallback
+
+### 8B.3 Windows 平台实现
+
+**文件位置**: `sdk/platform/windows/resource_loader.rs`
+
+```rust
+/// Windows 平台资源加载器实现。
+/// 通过 Windows API 加载 PE 文件中的本地化字符串资源，并解析 desktop.ini 文件。
+pub struct WindowsResourceLoader;
+
+impl ResourceLoader for WindowsResourceLoader {
+
+    fn parse_localized_names_from_dir(&self, dir_path: &Path) -> HashMap<String, String> {
+        // 1. 读取 desktop.ini 文件
+        // 2. 支持 UTF-16LE（BOM 标记）和 UTF-8 编码
+        // 3. 解析 [LocalizedFileNames] section
+        // 4. 自动调用 resolve_resource_string 处理 DLL 资源引用
+    }
+}
+```
+
+**设计说明**：
+- `LoadLibraryExW` 使用 `LOAD_LIBRARY_AS_DATAFILE` 标志，仅加载资源不执行 DllMain
+- `desktop.ini` 支持 UTF-16LE 和 UTF-8 两种编码（Windows 系统文件可能使用 UTF-16LE）
+- 环境变量展开：`%SystemRoot%\System32\shell32.dll` 需要展开为实际路径
+- 资源 ID 支持负值：Windows 资源 ID 可以是负数，使用 `unsigned_abs()` 转换
+
+### 8B.4 调用链示例
+
+```
+ProgramSource::fetch_candidates()
+    → PluginHandle::parse_localized_names_from_dir(dir_path)  // SDK 层
+        → WindowsResourceLoader::parse_localized_names_from_dir()
+            → desktop.ini 读取 + resolve_resource_string()
+                → LoadLibraryExW + LoadStringW              // Win32 API
+
+resolve_resource_string("@shell32.dll,-12345")
+    → WindowsResourceLoader::resolve_resource_string()
+        → LoadLibraryExW + LoadStringW + FreeLibrary         // Win32 API
+```
+
+---
+
 ## 九、目录结构
 
 ```
@@ -555,7 +699,9 @@ src-tauri/src/sdk/
 │   └── icon_extractor.rs      # IconExtractor trait — 平台原语 + 跨平台默认实现
 ├── shell/
 │   ├── mod.rs                 # Shell 模块入口
-│   └── shell_executor.rs      # ShellExecutor trait — 平台原语
+│   ├── shell_executor.rs      # ShellExecutor trait — 平台原语
+│   ├── lnk_resolver.rs        # LnkResolver trait — 平台原语
+│   ├── resource_loader.rs      # ResourceLoader trait — 平台原语
 ├── window/
 │   ├── mod.rs                 # 窗口模块入口
 │   └── window_manager.rs      # WindowManager trait — 平台原语
@@ -573,6 +719,8 @@ src-tauri/src/sdk/
         ├── mod.rs             # Windows 平台入口
         ├── icon.rs            # WindowsIconExtractor — Windows API 图标提取实现
         ├── shell.rs           # WindowsShellExecutor — Windows API Shell 操作实现
+│       ├── lnk_resolver.rs   # WindowsLnkResolver — Windows Lnk 解析实现
+│       ├── resource_loader.rs # WindowsResourceLoader — Windows 资源加载实现
         ├── window.rs          # WindowsWindowManager — Windows API 窗口管理实现
         ├── path_resolver.rs   # [新增] WindowsPathResolver — Windows API 路径解析实现
         ├── app_enumerator.rs  # WindowsAppEnumerator — Windows 应用枚举实现
@@ -589,53 +737,61 @@ platform 放在 sdk/ 下的理由：
 
 ## 十、与现有架构的整合
 
-### 10.1 Plugin::init() 整合
+### 10.1 Plugin::init() 整合 — ✅ 已落地
 
-当前 Plugin::init() 接收 `Arc<dyn PluginAPI>`。整合后：
+Plugin::init() 接收 `Arc<HostApi>` 参数，Plugin 类型的插件可在 init 中调用 `host_api.register()` 获取 `PluginHandle`，从而访问平台能力。
 
 ```rust
-// 当前
-async fn init(&self, ctx: &PluginContext, api: Arc<dyn PluginAPI>) -> Result<(), PluginError>;
-
-// 整合后（可选方案）
+// 已落地的签名
 async fn init(
     &self,
     ctx: &PluginContext,
     api: Arc<dyn PluginAPI>,
     host_api: Arc<HostApi>,  // 新增：访问平台能力
 ) -> Result<(), PluginError>;
+
+// 使用示例：在 init 中注册获取 PluginHandle
+async fn init(&self, ctx: &PluginContext, api: Arc<dyn PluginAPI>, host_api: Arc<HostApi>) -> Result<(), PluginError> {
+    let handle = host_api.register("my-plugin", Default::default());
+    // 存储 handle 供后续使用
+    Ok(())
+}
 ```
 
-### 10.2 Executor 迁移
+### 10.2 Executor 迁移 — ✅ 已完成
 
-| 执行器                            | 当前实现              | 迁移后实现                             |
-| --------------------------------- | --------------------- | -------------------------------------- |
-| `PathExecutor`                    | 已使用 `PluginHandle` | 无需改动                               |
-| `FileExecutor`                    | 已使用 `PluginHandle` | 无需改动                               |
-| `UrlExecutor`                     | 已使用 `PluginHandle` | 无需改动                               |
-| `WindowActivateExecutor`          | 已使用 `PluginHandle` | 无需改动                               |
-| `AppExecutor`（原 `UwpExecutor`） | 直接调用 Win32 API    | 委托 `PluginHandle::launch_app()`      |
-| `CommandExecutor`                 | 使用 `CommandExt`     | 委托 `PluginHandle::execute_command()` |
+| 执行器                            | 实现方式                                                                   | 状态 |
+| --------------------------------- | -------------------------------------------------------------------------- | ---- |
+| `PathExecutor`                    | 使用 `PluginHandle::shell_open()`                                          | ✅    |
+| `FileExecutor`                    | 使用 `PluginHandle::shell_open()`                                          | ✅    |
+| `UrlExecutor`                     | 使用 `PluginHandle::shell_open()`                                          | ✅    |
+| `WindowActivateExecutor`          | 使用 `PluginHandle::activate_window_by_process()` + `resolve_lnk_target()` | ✅    |
+| `AppExecutor`（原 `UwpExecutor`） | 使用 `PluginHandle::launch_app()`                                          | ✅    |
+| `CommandExecutor`                 | 使用 `PluginHandle::shell_execute_command()`                               | ✅    |
 
-### 10.3 DataSource 迁移
+所有执行器均不再直接调用 Win32 API，完全委托 PluginHandle。
 
-| 数据源                        | 当前实现           | 迁移后实现                   |
-| ----------------------------- | ------------------ | ---------------------------- |
-| `ProgramSource`               | 硬编码用户路径     | 使用 `PathResolver` 动态获取 |
-| `AppSource`（原 `UwpSource`） | 直接调用 Win32 API | 委托 `WindowsAppEnumerator`  |
+### 10.3 DataSource 迁移 — ✅ 已完成
+
+| 数据源                        | 实现方式                                                                 | 状态 |
+| ----------------------------- | ------------------------------------------------------------------------ | ---- |
+| `ProgramSource`               | 使用 `PluginHandle::resolve_path()` + `parse_localized_names_from_dir()` | ✅    |
+| `AppSource`（原 `UwpSource`） | 使用 `PluginHandle::enumerate_apps()`                                    | ✅    |
+
+所有数据源均不再直接调用 Win32 API，完全委托 PluginHandle。
 
 ---
 
 ## 十一、迁移路线图
 
-### 阶段一：基础设施（优先级：高）
+### 阶段一：基础设施（优先级：高）— ✅ 已完成
 
-| 任务                            | 文件                                    | 说明                                             |
-| ------------------------------- | --------------------------------------- | ------------------------------------------------ |
-| 定义 `PathResolver` trait       | `sdk/path/path_resolver.rs`             | 路径解析接口（StartMenu、Desktop、AppData）      |
-| 实现 `WindowsPathResolver`      | `sdk/platform/windows/path_resolver.rs` | Windows 路径解析（SHGetKnownFolderPath）         |
-| 扩展 `HostApi` / `PluginHandle` | `sdk/host_api.rs`                       | 注入 `PathResolver`，暴露 `resolve_path()` 方法  |
-| 修复 `ProgramSource` 硬编码路径 | `plugin/data_source/program_source.rs`  | 委托 `PluginHandle::resolve_path()` 动态生成配置 |
+| 任务                            | 文件                                    | 说明                                             | 状态 |
+| ------------------------------- | --------------------------------------- | ------------------------------------------------ | ---- |
+| 定义 `PathResolver` trait       | `sdk/path/path_resolver.rs`             | 路径解析接口（StartMenu、Desktop、AppData）      | ✅    |
+| 实现 `WindowsPathResolver`      | `sdk/platform/windows/path_resolver.rs` | Windows 路径解析（SHGetKnownFolderPath）         | ✅    |
+| 扩展 `HostApi` / `PluginHandle` | `sdk/host_api.rs`                       | 注入 `PathResolver`，暴露 `resolve_path()` 方法  | ✅    |
+| 修复 `ProgramSource` 硬编码路径 | `plugin/data_source/program_source.rs`  | 委托 `PluginHandle::resolve_path()` 动态生成配置 | ✅    |
 
 **验收标准**：
 - `program_source.rs` 中不再出现硬编码的用户路径
@@ -664,13 +820,13 @@ async fn init(
 
 ### 阶段三：ShellExecutor 扩展（优先级：中）— ✅ 已完成
 
-| 任务                               | 文件                                  | 说明                                    | 状态 |
-| ---------------------------------- | ------------------------------------- | --------------------------------------- | ---- |
-| 扩展 `ShellExecutor` trait         | `sdk/shell/shell_executor.rs`         | 新增 `shell_execute_command` 方法       | ✅    |
-| 实现 Windows `shell_execute_command` | `sdk/platform/windows/shell.rs`       | 封装 `CommandExt::creation_flags` + 空校验 | ✅    |
-| 扩展 `PluginHandle`                | `sdk/host_api.rs`                     | 新增 `shell_execute_command` 委托方法    | ✅    |
-| 重构 `CommandExecutor`             | `plugin/executor/command_executor.rs` | 委托 `PluginHandle::shell_execute_command()` | ✅    |
-| 更新注册处                         | `lib.rs`                              | 注册 `command-executor` PluginHandle     | ✅    |
+| 任务                                 | 文件                                  | 说明                                         | 状态 |
+| ------------------------------------ | ------------------------------------- | -------------------------------------------- | ---- |
+| 扩展 `ShellExecutor` trait           | `sdk/shell/shell_executor.rs`         | 新增 `shell_execute_command` 方法            | ✅    |
+| 实现 Windows `shell_execute_command` | `sdk/platform/windows/shell.rs`       | 封装 `CommandExt::creation_flags` + 空校验   | ✅    |
+| 扩展 `PluginHandle`                  | `sdk/host_api.rs`                     | 新增 `shell_execute_command` 委托方法        | ✅    |
+| 重构 `CommandExecutor`               | `plugin/executor/command_executor.rs` | 委托 `PluginHandle::shell_execute_command()` | ✅    |
+| 更新注册处                           | `lib.rs`                              | 注册 `command-executor` PluginHandle         | ✅    |
 
 **验收标准**：
 - `CommandExecutor` 不再直接调用 `std::os::windows::process::CommandExt`
@@ -678,7 +834,44 @@ async fn init(
 - 命令执行功能正常工作（cmd /D /S /C 后台运行）
 - ShellExecutor trait 的 4 个方法命名风格统一（`shell_*` 前缀）
 
-### 阶段四：文档与测试（优先级：低）
+### 阶段四：LnkResolver 快捷方式解析（优先级：高）— ✅ 已完成
+
+| 任务                            | 文件                                   | 说明                                            | 状态 |
+| ------------------------------- | -------------------------------------- | ----------------------------------------------- | ---- |
+| 定义 `LnkResolver` trait        | `sdk/shell/lnk_resolver.rs`            | Lnk 解析接口                                    | ✅    |
+| 实现 `WindowsLnkResolver`       | `sdk/platform/windows/lnk_resolver.rs` | Windows Lnk 解析（lnk crate + 双编码回退）      | ✅    |
+| 扩展 `HostApi` / `PluginHandle` | `sdk/host_api.rs`                      | 注入 `LnkResolver`，暴露 `resolve_lnk_target()` | ✅    |
+| 迁移 `WindowActivateExecutor`   | `plugin/executor/window_activate.rs`   | 委托 `PluginHandle::resolve_lnk_target()`       | ✅    |
+
+**验收标准**：
+- `WindowActivateExecutor` 不再直接调用 `core::storage::utils::get_lnk_target_path()`
+- .lnk 文件解析功能正常工作
+
+### 阶段五：ResourceLoader 本地化字符串加载（优先级：中）— ✅ 已完成
+
+| 任务                            | 文件                                      | 说明                                                              | 状态 |
+| ------------------------------- | ----------------------------------------- | ----------------------------------------------------------------- | ---- |
+| 定义 `ResourceLoader` trait     | `sdk/shell/resource_loader.rs`            | 资源加载接口（parse_localized）                                   | ✅    |
+| 实现 `WindowsResourceLoader`    | `sdk/platform/windows/resource_loader.rs` | Windows 资源加载（LoadLibraryExW + LoadStringW + INI 解析）       | ✅    |
+| 扩展 `HostApi` / `PluginHandle` | `sdk/host_api.rs`                         | 注入 `ResourceLoader`，暴露 `parse_localized_names_from_dir()` 等 | ✅    |
+| 迁移 `ProgramSource`            | `plugin/data_source/program_source.rs`    | 委托 `PluginHandle::parse_localized_names_from_dir()`             | ✅    |
+
+**验收标准**：
+- `ProgramSource` 不再直接调用 `LoadLibraryExW` / `LoadStringW`
+- 开始菜单文件夹的本地化名称正确显示
+
+### 阶段六：Plugin::init() 整合（优先级：高）— ✅ 已完成
+
+| 任务                           | 文件                     | 说明                               | 状态 |
+| ------------------------------ | ------------------------ | ---------------------------------- | ---- |
+| 修改 `Plugin::init()` 签名     | `plugin_system/types.rs` | 增加 `host_api: Arc<HostApi>` 参数 | ✅    |
+| 更新所有 `Plugin::init()` 实现 | `plugin/` 目录           | 适配新签名                         | ✅    |
+
+**验收标准**：
+- `Plugin::init()` 可接收 `Arc<HostApi>` 参数
+- Plugin 类型的插件可在 init 中注册获取 PluginHandle
+
+### 阶段七：文档与测试（优先级：低）
 
 | 任务                         | 说明                  |
 | ---------------------------- | --------------------- |
@@ -773,6 +966,54 @@ async fn init(
 2. 未来 macOS/Linux 的枚举可能需要异步（如 IPC 调用 Flatpak/Snap）
 3. 统一 async 风格降低未来跨平台适配成本
 
+### 12.8 为什么 LnkResolver 用 lnk crate 而非 IShellLink COM 接口？
+
+**问题**: Windows 原生提供了 `IShellLink` COM 接口来解析 .lnk 文件，是否应该使用原生 API？
+
+**决策**: 使用 `lnk` crate。
+
+**理由**:
+1. `IShellLink` 需要 COM 初始化（`CoInitialize`），而 `lnk` crate 是纯 Rust 实现，无此依赖
+2. 避免在每次解析时都进行 COM 初始化/反初始化的开销
+3. `lnk` crate 直接解析 .lnk 二进制格式，性能更优
+4. 跨平台潜力：未来如果其他平台也支持 .lnk 格式（如 Wine），可直接复用
+
+### 12.9 为什么 LnkResolver 使用双编码回退策略？
+
+**问题**: .lnk 文件应该使用什么编码解析？
+
+**决策**: 优先 GB18030，失败后回退 UTF-16LE。
+
+**理由**:
+1. 中文 Windows 系统的 .lnk 文件主要使用 GB18030 编码
+2. 部分系统创建的 .lnk 文件可能使用 UTF-16LE 编码
+3. 双编码回退确保最大兼容性，不会因编码问题导致解析失败
+4. 解析失败时记录 warn 日志，便于排查问题
+
+### 12.10 为什么 ResourceLoader 返回 Option 而非 Result？
+
+**问题**: 资源字符串解析可能因多种原因失败（文件不存在、资源 ID 无效、DLL 加载失败），是否应该返回 `Result` 提供详细错误信息？
+
+**决策**: 返回 `Option<String>`。
+
+**理由**:
+1. 资源解析失败是常见场景（用户自定义文件夹不需要本地化、资源 ID 引用的 DLL 不存在等）
+2. 调用方通常只需要 fallback 到原始字符串，不需要根据错误类型做不同处理
+3. 失败原因已通过 `warn!` 日志记录，排查时可直接查看日志
+4. 与 `LnkResolver::resolve_lnk_target()` 返回类型一致，API 风格统一
+
+### 12.11 为什么 parse_localized_names_from_dir 放在 ResourceLoader 而非独立 trait？
+
+**问题**: `parse_localized_names_from_dir` 读取 INI 文件，是否应该放在独立的 trait 中？
+
+**决策**: 放在 `ResourceLoader` 中。
+
+**理由**:
+1. `desktop.ini` 的 `[LocalizedFileNames]` 中的值通常是 PE 资源引用（`@dll,-id`），需要调用 `resolve_resource_string` 解析
+2. 两个方法紧密协作：`parse_localized_names_from_dir` 内部自动调用 `resolve_resource_string`
+3. 拆分为独立 trait 会导致调用方需要同时持有两个 trait 的引用，增加复杂度
+4. 从概念上，“加载本地化资源”包含“从 desktop.ini 读取映射”和“从 PE 文件解析字符串”两个步骤
+
 ---
 
-*文档版本: v2.1 | 最后更新: 2026-04-17*
+*文档版本: v2.2 | 最后更新: 2026-04-18*

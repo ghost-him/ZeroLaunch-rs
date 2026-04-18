@@ -1,4 +1,3 @@
-use crate::core::storage::utils::get_lnk_target_path;
 use crate::core::types::{ComponentType, Configurable};
 use crate::plugin_system::types::{
     ActionExecutor, ExecutionContext, ExecutionError, ExecutionTarget, ResultAction, TargetType,
@@ -34,7 +33,9 @@ impl WindowActivateExecutor {
                     let exe_path = if path.ends_with(".exe") {
                         path.clone()
                     } else {
-                        get_lnk_target_path(path).unwrap_or_default()
+                        self.plugin_handle
+                            .resolve_lnk_target(path)
+                            .unwrap_or_default()
                     };
                     if exe_path.is_empty() {
                         return false;

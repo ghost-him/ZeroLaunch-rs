@@ -19,4 +19,9 @@ pub trait ShellExecutor: Send + Sync {
     /// 参数：path - 要以管理员身份运行的程序路径。
     /// 返回：成功返回 Ok(())，失败返回 HostApiError。
     async fn shell_execute_elevation(&self, path: &str) -> Result<(), HostApiError>;
+
+    /// 执行命令字符串（后台运行，无窗口）。
+    /// 参数：command - 要执行的命令字符串。
+    /// 返回：成功返回 Ok(())，失败返回 HostApiError。
+    async fn shell_execute_command(&self, command: &str) -> Result<(), HostApiError>;
 }

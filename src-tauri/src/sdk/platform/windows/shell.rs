@@ -164,4 +164,41 @@ impl ShellExecutor for WindowsShellExecutor {
 
         Ok(())
     }
+
+    /// 执行命令字符串（后台运行，无窗口）。
+    /// 使用 cmd /D /S /C 执行命令，CREATE_NO_WINDOW | DETACHED_PROCESS 防止弹出控制台窗口。
+    /// 输入验证：空命令或纯空白命令返回错误。
+    async fn shell_execute_command(&self, command: &str) -> Result<(), HostApiError> {
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        const DETACHED_PROCESS: u32 = 0x00000008;
+
+        let command = command.trim();
+        if command.is_empty() {
+            return Err(HostApiError::ShellOperationFailed {
+                target: String::new(),
+                reason: "命令为空".to_string(),
+            });
+        }
+
+        let result = std::process::Command::new("cmd")
+            .args(["/D", "/S", "/C"])
+            .raw_arg(command)
+            .creation_flags(CREATE_NO_WINDOW | DETACHED_PROCESS)
+            .spawn();
+
+        match result {
+            Ok(_) => {
+                debug!("命令启动成功: {}", command);
+                Ok(())
+            }
+            Err(e) => {
+                let msg = format!("命令启动失败: {:?}", e);
+                warn!("{}", msg);
+                Err(HostApiError::ShellOperationFailed {
+                    target: command.to_string(),
+                    reason: msg,
+                })
+            }
+        }
+    }
 }

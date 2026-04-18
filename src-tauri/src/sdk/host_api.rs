@@ -193,6 +193,13 @@ impl PluginHandle {
         self.shell_executor.shell_execute_elevation(path).await
     }
 
+    /// 执行命令字符串（后台运行，无窗口）。
+    /// 参数：command - 要执行的命令字符串。
+    /// 返回：成功返回 Ok(())，失败返回 HostApiError。
+    pub async fn shell_execute_command(&self, command: &str) -> Result<(), HostApiError> {
+        self.shell_executor.shell_execute_command(command).await
+    }
+
     // ===== 窗口服务 =====
 
     /// 根据进程名（如 "chrome.exe"）激活已存在的窗口。

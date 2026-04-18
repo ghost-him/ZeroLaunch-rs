@@ -662,17 +662,21 @@ async fn init(
 - `AppSource` 不再直接调用 `windows::Win32` API
 - 系统应用枚举和启动功能正常工作
 
-### 阶段三：ShellExecutor 扩展（优先级：中）
+### 阶段三：ShellExecutor 扩展（优先级：中）— ✅ 已完成
 
-| 任务                           | 文件                                  | 说明                                   |
-| ------------------------------ | ------------------------------------- | -------------------------------------- |
-| 扩展 `ShellExecutor` trait     | `sdk/shell/shell_executor.rs`         | 新增 `execute_command` 方法            |
-| 实现 Windows `execute_command` | `sdk/platform/windows/shell.rs`       | 封装 `CommandExt::creation_flags`      |
-| 重构 `CommandExecutor`         | `plugin/executor/command_executor.rs` | 委托 `PluginHandle::execute_command()` |
+| 任务                               | 文件                                  | 说明                                    | 状态 |
+| ---------------------------------- | ------------------------------------- | --------------------------------------- | ---- |
+| 扩展 `ShellExecutor` trait         | `sdk/shell/shell_executor.rs`         | 新增 `shell_execute_command` 方法       | ✅    |
+| 实现 Windows `shell_execute_command` | `sdk/platform/windows/shell.rs`       | 封装 `CommandExt::creation_flags` + 空校验 | ✅    |
+| 扩展 `PluginHandle`                | `sdk/host_api.rs`                     | 新增 `shell_execute_command` 委托方法    | ✅    |
+| 重构 `CommandExecutor`             | `plugin/executor/command_executor.rs` | 委托 `PluginHandle::shell_execute_command()` | ✅    |
+| 更新注册处                         | `lib.rs`                              | 注册 `command-executor` PluginHandle     | ✅    |
 
 **验收标准**：
 - `CommandExecutor` 不再直接调用 `std::os::windows::process::CommandExt`
-- 命令执行功能正常工作
+- `CommandExecutor` 不再包含任何 Windows 特定的 API 调用
+- 命令执行功能正常工作（cmd /D /S /C 后台运行）
+- ShellExecutor trait 的 4 个方法命名风格统一（`shell_*` 前缀）
 
 ### 阶段四：文档与测试（优先级：低）
 

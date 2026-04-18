@@ -576,6 +576,7 @@ fn init_plugin_system(state: &Arc<AppState>) {
     let program_source_handle = host_api.register("program-source", Default::default());
     let app_source_handle = host_api.register("app-source", Default::default());
     let app_executor_handle = host_api.register("app-executor", Default::default());
+    let command_executor_handle = host_api.register("command-executor", Default::default());
 
     // 1. 注册执行器（同时注册到 ConfigManager 和 ExecutorRegistry，双重索引）
     info!("正在注册执行器...");
@@ -588,7 +589,7 @@ fn init_plugin_system(state: &Arc<AppState>) {
     let app_executor: Arc<dyn crate::plugin_system::types::ActionExecutor> =
         Arc::new(AppExecutor::new(app_executor_handle));
     let command_executor: Arc<dyn crate::plugin_system::types::ActionExecutor> =
-        Arc::new(CommandExecutor::new());
+        Arc::new(CommandExecutor::new(command_executor_handle));
     let window_activate_executor: Arc<dyn crate::plugin_system::types::ActionExecutor> =
         Arc::new(WindowActivateExecutor::new(window_service_handle));
 

@@ -1189,6 +1189,6 @@ route_confirm:
 | **WindowsAppLauncher**    | ✅ 完成   | 阶段二：迁移 UwpExecutor Win32 调用                  |
 | **TargetType::App**       | ✅ 完成   | 阶段二：PackageFamilyName → App 重命名               |
 | **AppSource/AppExecutor** | ✅ 完成   | 阶段二：UwpSource→AppSource, UwpExecutor→AppExecutor |
-| **ShellExecutor 扩展**    | ⏳ 待实现 | 阶段三：新增 execute_command 方法                    |
+| **ShellExecutor 扩展**    | ✅ 完成   | 阶段三：`shell_execute_command` 方法 + CommandExecutor 迁移      |
 
 详细设计请参考 [PLUGIN_SDK_DESIGN.md](file:///c:/Users/ghost/ZeroLaunch/ZeroLaunch-rs/PLUGIN_SDK_DESIGN.md)

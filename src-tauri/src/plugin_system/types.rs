@@ -2,6 +2,7 @@
 pub use crate::core::types::*;
 
 use crate::plugin_system::cached_candidate::CachedCandidateData;
+use crate::sdk::ParameterSnapshot;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -59,6 +60,21 @@ impl ExecutionTarget {
 pub struct ExecutionContext {
     pub target: ExecutionTarget,
     pub display_name: String,
+    /// 用户输入的参数列表
+    pub user_args: Vec<String>,
+    /// 系统参数快照（不透明句柄）
+    pub parameter_snapshot: ParameterSnapshot,
+}
+
+impl Default for ExecutionContext {
+    fn default() -> Self {
+        Self {
+            target: ExecutionTarget::Path(String::new()),
+            display_name: String::new(),
+            user_args: Vec::new(),
+            parameter_snapshot: ParameterSnapshot::empty(),
+        }
+    }
 }
 
 /// 执行错误

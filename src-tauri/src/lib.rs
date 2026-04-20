@@ -54,11 +54,14 @@ use crate::plugin_system::Configurable;
 use crate::plugin_system::{CandidatePipeline, SearchPipeline};
 use crate::sdk::platform::WindowsAppEnumerator;
 use crate::sdk::platform::WindowsAppLauncher;
+use crate::sdk::platform::WindowsClipboardProvider;
 use crate::sdk::platform::WindowsIconExtractor;
 use crate::sdk::platform::WindowsLnkResolver;
 use crate::sdk::platform::WindowsPathResolver;
 use crate::sdk::platform::WindowsResourceLoader;
+use crate::sdk::platform::WindowsSelectionProvider;
 use crate::sdk::platform::WindowsShellExecutor;
+use crate::sdk::platform::WindowsWindowHandleProvider;
 use crate::sdk::platform::WindowsWindowManager;
 use crate::state::app_state::AppState;
 use crate::tray::init_system_tray;
@@ -560,9 +563,19 @@ fn init_plugin_system(state: &Arc<AppState>) {
             .app_launcher(Arc::new(WindowsAppLauncher::new()))
             .lnk_resolver(Arc::new(WindowsLnkResolver::new()))
             .resource_loader(Arc::new(WindowsResourceLoader::new()))
+            .parameter_resolver(Arc::new(
+                crate::sdk::parameter::DefaultParameterResolver::new(),
+            ))
+            .parameter_providers(
+                Arc::new(WindowsClipboardProvider),
+                Arc::new(WindowsWindowHandleProvider),
+                Arc::new(WindowsSelectionProvider),
+            )
             .build(),
     );
     state.set_host_api(host_api.clone());
+    // 设置 SessionRouter 的 HostApi 引用，用于捕获系统参数快照
+    session_router.set_host_api(host_api.clone());
 
     // 为 Shell 和窗口相关执行器注册 PluginHandle
     let shell_service_handle = host_api.register("shell-executors", Default::default());

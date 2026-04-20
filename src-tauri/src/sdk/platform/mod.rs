@@ -10,6 +10,9 @@ pub use windows::WindowsAppEnumerator;
 pub use windows::WindowsAppLauncher;
 
 #[cfg(target_os = "windows")]
+pub use windows::WindowsClipboardProvider;
+
+#[cfg(target_os = "windows")]
 pub use windows::WindowsIconExtractor;
 
 #[cfg(target_os = "windows")]
@@ -22,7 +25,13 @@ pub use windows::WindowsPathResolver;
 pub use windows::WindowsResourceLoader;
 
 #[cfg(target_os = "windows")]
+pub use windows::WindowsSelectionProvider;
+
+#[cfg(target_os = "windows")]
 pub use windows::WindowsShellExecutor;
+
+#[cfg(target_os = "windows")]
+pub use windows::WindowsWindowHandleProvider;
 
 #[cfg(target_os = "windows")]
 pub use windows::WindowsWindowManager;

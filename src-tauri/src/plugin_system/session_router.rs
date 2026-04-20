@@ -6,7 +6,9 @@ use super::service::PluginService;
 use super::types::*;
 use crate::core::config::{ConfigEvent, ConfigManager};
 use crate::plugin_system::Configurable;
-use parking_lot::RwLock;
+use crate::sdk::HostApi;
+use crate::sdk::ParameterSnapshot;
+use parking_lot::{Mutex, RwLock};
 use std::sync::Arc;
 use tracing::{debug, info};
 
@@ -25,6 +27,11 @@ pub struct SessionRouter {
     current_mode: RwLock<SessionMode>,
     executor_registry: RwLock<ExecutorRegistry>,
     config_manager: RwLock<Option<Arc<ConfigManager>>>,
+    /// HostApi 引用，用于捕获系统参数快照
+    host_api: RwLock<Option<Arc<HostApi>>>,
+    /// 当前会话的系统参数快照
+    /// 在唤醒搜索栏时捕获，执行动作时消费
+    parameter_snapshot: Mutex<ParameterSnapshot>,
 }
 
 impl SessionRouter {
@@ -37,6 +44,8 @@ impl SessionRouter {
             current_mode: RwLock::new(SessionMode::None),
             executor_registry: RwLock::new(ExecutorRegistry::new()),
             config_manager: RwLock::new(None),
+            host_api: RwLock::new(None),
+            parameter_snapshot: Mutex::new(ParameterSnapshot::empty()),
         }
     }
 
@@ -46,6 +55,12 @@ impl SessionRouter {
             .write()
             .register(executor)
             .expect("Failed to register executor");
+    }
+
+    /// 设置 HostApi 引用
+    /// 参数：host_api - SDK 宿主 API 实例
+    pub fn set_host_api(&self, host_api: Arc<HostApi>) {
+        *self.host_api.write() = Some(host_api);
     }
 
     /// 设置候选管道
@@ -150,14 +165,30 @@ impl SessionRouter {
                 let candidate_id = payload["candidate_id"].as_u64().unwrap_or(0) as CandidateId;
                 let query_text = payload["query_text"].as_str().unwrap_or("").to_string();
 
+                // 从 payload 中提取用户参数
+                let user_args: Vec<String> = payload
+                    .get("user_args")
+                    .and_then(|v| v.as_array())
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|v| v.as_str().map(String::from))
+                            .collect()
+                    })
+                    .unwrap_or_default();
+
                 let cached_candidate = self.cached_candidates.read();
                 let candidate = cached_candidate
                     .get_candidate(candidate_id)
                     .ok_or_else(|| "Candidate not found".to_string())?;
 
+                // 使用唤醒时捕获的快照
+                let snapshot = self.parameter_snapshot.lock().clone();
+
                 let exec_ctx = ExecutionContext {
                     target: candidate.target.clone(),
                     display_name: candidate.name.clone(),
+                    user_args,
+                    parameter_snapshot: snapshot,
                 };
 
                 // 执行动作（框架只做透传，不解释 action_id 语义）
@@ -179,10 +210,31 @@ impl SessionRouter {
 
     pub fn reset_session(&self) {
         *self.current_mode.write() = SessionMode::None;
+        *self.parameter_snapshot.lock() = ParameterSnapshot::empty();
     }
 
     pub fn current_mode(&self) -> SessionMode {
         self.current_mode.read().clone()
+    }
+
+    /// 唤醒搜索栏时调用，捕获当前系统参数快照
+    ///
+    /// 调用时机：在搜索栏窗口获取焦点之前调用，确保窗口句柄和选中文本捕获正确。
+    /// 数据流：唤醒时捕获 → 存储到 parameter_snapshot → 执行时由 route_confirm 使用。
+    ///
+    /// 返回：捕获成功返回 Ok(())，HostApi 未初始化时返回错误
+    pub async fn on_search_bar_wake(&self) -> Result<(), String> {
+        let host_api = self
+            .host_api
+            .read()
+            .clone()
+            .ok_or_else(|| "HostApi not initialized in SessionRouter".to_string())?;
+
+        let snapshot = host_api.capture_parameter_snapshot().await;
+        *self.parameter_snapshot.lock() = snapshot;
+
+        debug!("📸 搜索栏唤醒，系统参数快照已捕获");
+        Ok(())
     }
 
     /// 设置 ConfigManager 引用并订阅配置变更事件

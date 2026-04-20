@@ -3,6 +3,9 @@ use crate::sdk::app::app_launcher::AppLauncher;
 use crate::sdk::app::AppInfo;
 use crate::sdk::icon::icon_cache::IconCacheService;
 use crate::sdk::icon::icon_extractor::IconExtractor;
+use crate::sdk::parameter::provider::SystemParameterProvider;
+use crate::sdk::parameter::resolver::ParameterResolver;
+use crate::sdk::parameter::types::ParameterSnapshot;
 use crate::sdk::path::path_resolver::{KnownPath, PathResolver};
 use crate::sdk::platform::capabilities::PlatformCapabilities;
 use crate::sdk::shell::lnk_resolver::LnkResolver;
@@ -117,6 +120,10 @@ pub enum HostApiError {
     /// Lnk 快捷方式解析失败
     #[error("Lnk 解析失败 ({path}): {reason}")]
     LnkResolutionFailed { path: String, reason: String },
+
+    /// 参数解析失败
+    #[error("参数解析失败: {reason}")]
+    ParameterResolutionFailed { reason: String },
 }
 
 /// 插件服务句柄，绑定插件身份与配置。
@@ -146,6 +153,8 @@ pub struct PluginHandle {
     lnk_resolver: Arc<dyn LnkResolver>,
     /// 资源加载器，由 HostApi 注入的平台实现
     resource_loader: Arc<dyn ResourceLoader>,
+    /// 参数解析器，由 HostApi 注入
+    parameter_resolver: Arc<dyn ParameterResolver>,
 }
 
 impl PluginHandle {
@@ -298,6 +307,46 @@ impl PluginHandle {
     pub fn capabilities(&self) -> &PlatformCapabilities {
         &self.capabilities
     }
+
+    // ===== 参数解析服务 =====
+
+    /// 解析参数模板
+    ///
+    /// 参数：
+    /// - template: 包含占位符的模板字符串
+    /// - user_args: 用户输入的参数列表
+    /// - snapshot: 系统参数快照（不透明句柄）
+    ///
+    /// 返回：填充后的完整字符串
+    pub async fn resolve_parameters(
+        &self,
+        template: &str,
+        user_args: &[String],
+        snapshot: &ParameterSnapshot,
+    ) -> Result<String, HostApiError> {
+        self.parameter_resolver
+            .resolve(template, user_args, snapshot)
+            .await
+            .map_err(|e| HostApiError::ParameterResolutionFailed {
+                reason: e.to_string(),
+            })
+    }
+
+    /// 统计模板中需要用户输入的参数数量
+    ///
+    /// 参数：template - 模板字符串
+    /// 返回：位置参数的数量
+    pub fn count_user_parameters(&self, template: &str) -> usize {
+        self.parameter_resolver.count_user_parameters(template)
+    }
+
+    /// 检查模板是否包含系统参数
+    ///
+    /// 参数：template - 模板字符串
+    /// 返回：是否包含系统参数
+    pub fn has_system_parameters(&self, template: &str) -> bool {
+        self.parameter_resolver.has_system_parameters(template)
+    }
 }
 
 /// 宿主向插件暴露的平台能力注册层。
@@ -325,6 +374,14 @@ pub struct HostApi {
     lnk_resolver: Arc<dyn LnkResolver>,
     /// 资源加载器（平台实现）
     resource_loader: Arc<dyn ResourceLoader>,
+    /// 参数解析器
+    parameter_resolver: Arc<dyn ParameterResolver>,
+    /// 剪贴板参数提供者（平台实现）
+    clipboard_provider: Arc<dyn SystemParameterProvider>,
+    /// 窗口句柄参数提供者（平台实现）
+    window_handle_provider: Arc<dyn SystemParameterProvider>,
+    /// 选中文本参数提供者（平台实现）
+    selection_provider: Arc<dyn SystemParameterProvider>,
 }
 
 impl HostApi {
@@ -353,6 +410,7 @@ impl HostApi {
             app_launcher: self.app_launcher.clone(),
             lnk_resolver: self.lnk_resolver.clone(),
             resource_loader: self.resource_loader.clone(),
+            parameter_resolver: self.parameter_resolver.clone(),
         });
         self.handles.insert(plugin_id.to_string(), handle.clone());
         handle
@@ -373,6 +431,30 @@ impl HostApi {
     pub fn capabilities(&self) -> &PlatformCapabilities {
         &self.capabilities
     }
+
+    /// 捕获当前系统参数快照
+    ///
+    /// 调用时机：唤醒搜索栏时，由宿主调用（非插件调用）。
+    /// 通过各 Provider 获取当前时刻的系统参数值，封装为不透明句柄。
+    ///
+    /// 返回：ParameterSnapshot 不透明句柄
+    pub async fn capture_parameter_snapshot(&self) -> ParameterSnapshot {
+        let mut snapshot = ParameterSnapshot::empty();
+
+        if let Ok(value) = self.clipboard_provider.get_value().await {
+            snapshot.insert("clipboard".to_string(), value);
+        }
+
+        if let Ok(value) = self.window_handle_provider.get_value().await {
+            snapshot.insert("hwnd".to_string(), value);
+        }
+
+        if let Ok(value) = self.selection_provider.get_value().await {
+            snapshot.insert("selection".to_string(), value);
+        }
+
+        snapshot
+    }
 }
 
 /// HostApi 构建器，用于链式配置平台组件并构建 HostApi 实例。
@@ -386,6 +468,10 @@ pub struct HostApiBuilder {
     app_launcher: Option<Arc<dyn AppLauncher>>,
     lnk_resolver: Option<Arc<dyn LnkResolver>>,
     resource_loader: Option<Arc<dyn ResourceLoader>>,
+    parameter_resolver: Option<Arc<dyn ParameterResolver>>,
+    clipboard_provider: Option<Arc<dyn SystemParameterProvider>>,
+    window_handle_provider: Option<Arc<dyn SystemParameterProvider>>,
+    selection_provider: Option<Arc<dyn SystemParameterProvider>>,
 }
 
 impl HostApiBuilder {
@@ -403,6 +489,10 @@ impl HostApiBuilder {
             app_launcher: None,
             lnk_resolver: None,
             resource_loader: None,
+            parameter_resolver: None,
+            clipboard_provider: None,
+            window_handle_provider: None,
+            selection_provider: None,
         }
     }
 
@@ -470,6 +560,29 @@ impl HostApiBuilder {
         self
     }
 
+    /// 设置参数解析器。
+    /// 参数：parameter_resolver - 参数解析器实例。
+    /// 返回：Self（支持链式调用）。
+    pub fn parameter_resolver(mut self, parameter_resolver: Arc<dyn ParameterResolver>) -> Self {
+        self.parameter_resolver = Some(parameter_resolver);
+        self
+    }
+
+    /// 设置参数提供者（剪贴板、窗口句柄、选中文本）。
+    /// 参数：clipboard - 剪贴板提供者；window_handle - 窗口句柄提供者；selection - 选中文本提供者。
+    /// 返回：Self（支持链式调用）。
+    pub fn parameter_providers(
+        mut self,
+        clipboard: Arc<dyn SystemParameterProvider>,
+        window_handle: Arc<dyn SystemParameterProvider>,
+        selection: Arc<dyn SystemParameterProvider>,
+    ) -> Self {
+        self.clipboard_provider = Some(clipboard);
+        self.window_handle_provider = Some(window_handle);
+        self.selection_provider = Some(selection);
+        self
+    }
+
     /// 构建 HostApi 实例。
     /// 参数：无。
     /// 返回：构建完成的 HostApi 实例，如果缺少必需组件则 panic。
@@ -489,6 +602,12 @@ impl HostApiBuilder {
             app_launcher: self.app_launcher.expect("missing app_launcher"),
             lnk_resolver: self.lnk_resolver.expect("missing lnk_resolver"),
             resource_loader: self.resource_loader.expect("missing resource_loader"),
+            parameter_resolver: self.parameter_resolver.expect("missing parameter_resolver"),
+            clipboard_provider: self.clipboard_provider.expect("missing clipboard_provider"),
+            window_handle_provider: self
+                .window_handle_provider
+                .expect("missing window_handle_provider"),
+            selection_provider: self.selection_provider.expect("missing selection_provider"),
         }
     }
 }

@@ -7,6 +7,9 @@ mod windows;
 pub use windows::WindowsAppEnumerator;
 
 #[cfg(target_os = "windows")]
+pub use windows::WindowsAutoStartManager;
+
+#[cfg(target_os = "windows")]
 pub use windows::WindowsAppLauncher;
 
 #[cfg(target_os = "windows")]

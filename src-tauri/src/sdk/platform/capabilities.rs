@@ -16,6 +16,8 @@ pub enum PlatformCapability {
     AppLaunch,
     /// 窗口激活：根据进程名或标题激活已存在的窗口
     WindowActivation,
+    /// 自启动管理：管理系统开机自启动
+    AutoStart,
 }
 
 /// 平台能力集合。
@@ -60,6 +62,7 @@ impl PlatformCapabilities {
             PlatformCapability::AppEnumeration,
             PlatformCapability::AppLaunch,
             PlatformCapability::WindowActivation,
+            PlatformCapability::AutoStart,
         ]))
     }
 }

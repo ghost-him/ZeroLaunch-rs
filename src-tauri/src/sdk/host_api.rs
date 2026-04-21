@@ -1,6 +1,7 @@
 use crate::sdk::app::app_enumerator::AppEnumerator;
 use crate::sdk::app::app_launcher::AppLauncher;
 use crate::sdk::app::AppInfo;
+use crate::sdk::autostart::AutoStartManager;
 use crate::sdk::icon::icon_cache::IconCacheService;
 use crate::sdk::icon::icon_extractor::IconExtractor;
 use crate::sdk::parameter::provider::SystemParameterProvider;
@@ -124,6 +125,10 @@ pub enum HostApiError {
     /// 参数解析失败
     #[error("参数解析失败: {reason}")]
     ParameterResolutionFailed { reason: String },
+
+    /// 自启动操作失败
+    #[error("自启动操作失败: {reason}")]
+    AutoStartFailed { reason: String },
 }
 
 /// 插件服务句柄，绑定插件身份与配置。
@@ -382,6 +387,8 @@ pub struct HostApi {
     window_handle_provider: Arc<dyn SystemParameterProvider>,
     /// 选中文本参数提供者（平台实现）
     selection_provider: Arc<dyn SystemParameterProvider>,
+    /// 自启动管理器（平台实现）
+    autostart_manager: Arc<dyn AutoStartManager>,
 }
 
 impl HostApi {
@@ -455,6 +462,43 @@ impl HostApi {
 
         snapshot
     }
+
+    // ===== 自启动服务 =====
+
+    /// 应用自启动设置。根据 enabled 启用或禁用自启动。
+    ///
+    /// 参数：enabled - 是否启用自启动
+    /// 返回：成功返回 Ok(())，失败返回 HostApiError
+    ///
+    /// 此方法供核心程序调用，根据配置自动启用或禁用自启动。
+    pub async fn apply_autostart_setting(&self, enabled: bool) -> Result<(), HostApiError> {
+        let task_name = self.autostart_manager.default_task_name();
+        if enabled {
+            let exe_path = std::env::current_exe()
+                .map_err(|e| HostApiError::AutoStartFailed {
+                    reason: format!("获取可执行文件路径失败: {}", e),
+                })?
+                .to_str()
+                .ok_or_else(|| HostApiError::AutoStartFailed {
+                    reason: "无效的可执行文件路径".to_string(),
+                })?
+                .to_string();
+            self.autostart_manager.enable(&task_name, &exe_path).await
+        } else if self.autostart_manager.is_enabled(&task_name).await? {
+            self.autostart_manager.disable(&task_name).await
+        } else {
+            Ok(())
+        }
+    }
+
+    /// 检查自启动是否已启用
+    ///
+    /// 参数：无
+    /// 返回：已启用返回 Ok(true)，否则返回 Ok(false)，失败返回 HostApiError
+    pub async fn is_autostart_enabled(&self) -> Result<bool, HostApiError> {
+        let task_name = self.autostart_manager.default_task_name();
+        self.autostart_manager.is_enabled(&task_name).await
+    }
 }
 
 /// HostApi 构建器，用于链式配置平台组件并构建 HostApi 实例。
@@ -472,6 +516,7 @@ pub struct HostApiBuilder {
     clipboard_provider: Option<Arc<dyn SystemParameterProvider>>,
     window_handle_provider: Option<Arc<dyn SystemParameterProvider>>,
     selection_provider: Option<Arc<dyn SystemParameterProvider>>,
+    autostart_manager: Option<Arc<dyn AutoStartManager>>,
 }
 
 impl HostApiBuilder {
@@ -493,6 +538,7 @@ impl HostApiBuilder {
             clipboard_provider: None,
             window_handle_provider: None,
             selection_provider: None,
+            autostart_manager: None,
         }
     }
 
@@ -583,6 +629,14 @@ impl HostApiBuilder {
         self
     }
 
+    /// 设置自启动管理器。
+    /// 参数：autostart_manager - 自启动管理器实例。
+    /// 返回：Self（支持链式调用）。
+    pub fn autostart_manager(mut self, autostart_manager: Arc<dyn AutoStartManager>) -> Self {
+        self.autostart_manager = Some(autostart_manager);
+        self
+    }
+
     /// 构建 HostApi 实例。
     /// 参数：无。
     /// 返回：构建完成的 HostApi 实例，如果缺少必需组件则 panic。
@@ -608,6 +662,7 @@ impl HostApiBuilder {
                 .window_handle_provider
                 .expect("missing window_handle_provider"),
             selection_provider: self.selection_provider.expect("missing selection_provider"),
+            autostart_manager: self.autostart_manager.expect("missing autostart_manager"),
         }
     }
 }

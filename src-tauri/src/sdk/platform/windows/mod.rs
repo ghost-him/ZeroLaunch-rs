@@ -1,5 +1,6 @@
 mod app_enumerator;
 mod app_launcher;
+mod autostart;
 mod icon;
 mod lnk_resolver;
 mod parameter_providers;
@@ -10,6 +11,7 @@ mod window;
 
 pub use app_enumerator::WindowsAppEnumerator;
 pub use app_launcher::WindowsAppLauncher;
+pub use autostart::WindowsAutoStartManager;
 pub use icon::WindowsIconExtractor;
 pub use lnk_resolver::WindowsLnkResolver;
 pub use parameter_providers::{

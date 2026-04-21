@@ -54,6 +54,7 @@ use crate::plugin_system::Configurable;
 use crate::plugin_system::{CandidatePipeline, SearchPipeline};
 use crate::sdk::platform::WindowsAppEnumerator;
 use crate::sdk::platform::WindowsAppLauncher;
+use crate::sdk::platform::WindowsAutoStartManager;
 use crate::sdk::platform::WindowsClipboardProvider;
 use crate::sdk::platform::WindowsIconExtractor;
 use crate::sdk::platform::WindowsLnkResolver;
@@ -571,6 +572,7 @@ fn init_plugin_system(state: &Arc<AppState>) {
                 Arc::new(WindowsWindowHandleProvider),
                 Arc::new(WindowsSelectionProvider),
             )
+            .autostart_manager(Arc::new(WindowsAutoStartManager::new()))
             .build(),
     );
     state.set_host_api(host_api.clone());
@@ -949,8 +951,9 @@ async fn update_app_setting() {
     reload_program_catalog(state.as_ref(), runtime_config.as_ref()).await;
 
     // 4. 判断要不要开机自启动
-    if let Err(e) = handle_auto_start() {
-        // 可以添加错误处理逻辑
+    let host_api = state.get_host_api();
+    let is_auto_start = app_config.get_is_auto_start();
+    if let Err(e) = host_api.apply_autostart_setting(is_auto_start).await {
         error!("自启动设置失败: {:?}", e);
     }
 
@@ -1051,57 +1054,6 @@ pub async fn save_config_to_file(is_update_app: bool) {
         let state = ServiceLocator::get_state();
         state.get_refresh_scheduler().trigger_refresh();
     }
-}
-
-/// 处理自动开机的逻辑
-pub fn handle_auto_start() -> Result<(), Box<dyn std::error::Error>> {
-    info!("开始处理自动启动配置");
-
-    let state: Arc<AppState> = ServiceLocator::get_state();
-
-    // 获取当前可执行文件的路径
-    let exe_path = std::env::current_exe().map_err(|e| format!("获取可执行文件路径失败: {}", e))?;
-
-    let exe_path_str = exe_path.to_str().ok_or("可执行文件路径包含无效字符")?;
-
-    let username = whoami::username();
-
-    let folder_name = "ZeroLaunch-rs";
-    let task_base_name = format!("autostart ({})", username);
-
-    let full_task_name = format!("{}\\{}", folder_name, task_base_name);
-
-    // 创建任务计划程序管理器
-    use crate::modules::task_scheduler::TaskScheduler;
-    let task_scheduler = TaskScheduler::new(full_task_name, exe_path_str);
-
-    // 获取运行时配置
-    let is_auto_start = {
-        let config = state.get_runtime_config();
-        config.get_app_config().get_is_auto_start()
-    };
-
-    // 根据配置强制更新自动启动状态 (这部分逻辑保持不变)
-    if is_auto_start {
-        info!("启用自动启动功能");
-        task_scheduler
-            .enable()
-            .map_err(|e| format!("启用自动启动失败: {}", e))?;
-        debug!("自动启动已启用");
-    } else {
-        info!("检查并禁用自动启动功能");
-        if task_scheduler
-            .is_enabled()
-            .map_err(|e| format!("检查自动启动状态失败: {}", e))?
-        {
-            debug!("检测到自动启动已启用，正在禁用");
-            task_scheduler
-                .disable()
-                .map_err(|e| format!("禁用自动启动失败: {}", e))?;
-        }
-    }
-
-    Ok(())
 }
 
 /// 处理静默启动

@@ -56,6 +56,7 @@ use crate::sdk::platform::WindowsAppEnumerator;
 use crate::sdk::platform::WindowsAppLauncher;
 use crate::sdk::platform::WindowsAutoStartManager;
 use crate::sdk::platform::WindowsClipboardProvider;
+use crate::sdk::platform::WindowsHotkeyManager;
 use crate::sdk::platform::WindowsIconExtractor;
 use crate::sdk::platform::WindowsLnkResolver;
 use crate::sdk::platform::WindowsPathResolver;
@@ -509,6 +510,7 @@ async fn init_app_state(app: &mut App) {
 
 /// 初始化新插件系统的所有组件
 fn init_plugin_system(state: &Arc<AppState>) {
+    let app = state.get_main_handle();
     let session_router = state.get_session_router();
     let config_manager = state.get_config_manager();
 
@@ -573,9 +575,36 @@ fn init_plugin_system(state: &Arc<AppState>) {
                 Arc::new(WindowsSelectionProvider),
             )
             .autostart_manager(Arc::new(WindowsAutoStartManager::new()))
+            .hotkey_manager(Arc::new(WindowsHotkeyManager::new(app.clone())))
             .build(),
     );
     state.set_host_api(host_api.clone());
+
+    // 注册快捷键回调（当前还在使用旧系统的快捷键管理器，待后续统一使用新系统快捷键）
+    // let app_handle_for_callback = app.clone();
+    // host_api
+    //     .register_hotkey_callback(
+    //         "toggle_search_bar",
+    //         crate::sdk::HotkeyEventFilter::All,
+    //         Arc::new(move |_event| {
+    //             toggle_search_bar(&app_handle_for_callback);
+    //         }),
+    //     )
+    //     .expect("注册快捷键回调失败");
+
+    // // 异步初始化按键监听
+    // let host_api_for_hotkey = host_api.clone();
+    // tauri::async_runtime::spawn(async move {
+    //     let config = crate::sdk::HotkeyConfig {
+    //         hotkeys: vec![crate::sdk::HotkeyRegistration {
+    //             hotkey: crate::sdk::Hotkey::new("Space").with_alt(),
+    //         }],
+    //         double_ctrl_enabled: false,
+    //     };
+    //     let _ = host_api_for_hotkey.apply_hotkey_config(&config).await;
+    //     let _ = host_api_for_hotkey.init_hotkey_listening().await;
+    // });
+
     // 设置 SessionRouter 的 HostApi 引用，用于捕获系统参数快照
     session_router.set_host_api(host_api.clone());
 

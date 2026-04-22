@@ -10,6 +10,9 @@ pub use windows::WindowsAppEnumerator;
 pub use windows::WindowsAutoStartManager;
 
 #[cfg(target_os = "windows")]
+pub use windows::WindowsHotkeyManager;
+
+#[cfg(target_os = "windows")]
 pub use windows::WindowsAppLauncher;
 
 #[cfg(target_os = "windows")]

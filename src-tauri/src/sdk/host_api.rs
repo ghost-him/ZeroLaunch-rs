@@ -2,6 +2,8 @@ use crate::sdk::app::app_enumerator::AppEnumerator;
 use crate::sdk::app::app_launcher::AppLauncher;
 use crate::sdk::app::AppInfo;
 use crate::sdk::autostart::AutoStartManager;
+use crate::sdk::hotkey::types::{HotkeyCallback, HotkeyConfig, HotkeyEventFilter};
+use crate::sdk::hotkey::HotkeyManager;
 use crate::sdk::icon::icon_cache::IconCacheService;
 use crate::sdk::icon::icon_extractor::IconExtractor;
 use crate::sdk::parameter::provider::SystemParameterProvider;
@@ -389,6 +391,8 @@ pub struct HostApi {
     selection_provider: Arc<dyn SystemParameterProvider>,
     /// 自启动管理器（平台实现）
     autostart_manager: Arc<dyn AutoStartManager>,
+    /// 按键管理器（平台实现）
+    hotkey_manager: Arc<dyn HotkeyManager>,
 }
 
 impl HostApi {
@@ -499,6 +503,53 @@ impl HostApi {
         let task_name = self.autostart_manager.default_task_name();
         self.autostart_manager.is_enabled(&task_name).await
     }
+
+    // ===== 按键监听服务 =====
+
+    /// 注册按键事件回调。
+    /// 参数：id - 回调标识；filter - 事件过滤器；callback - 回调函数。
+    /// 返回：成功返回 Ok(())，失败返回 HostApiError。
+    pub fn register_hotkey_callback(
+        &self,
+        id: &str,
+        filter: HotkeyEventFilter,
+        callback: HotkeyCallback,
+    ) -> Result<(), HostApiError> {
+        self.hotkey_manager.register_callback(id, filter, callback);
+        Ok(())
+    }
+
+    /// 注销按键事件回调。
+    /// 参数：id - 回调标识。
+    /// 返回：成功返回 Ok(())，失败返回 HostApiError。
+    pub fn unregister_hotkey_callback(&self, id: &str) -> Result<(), HostApiError> {
+        self.hotkey_manager.unregister_callback(id);
+        Ok(())
+    }
+
+    /// 应用按键配置。
+    /// 注销所有现有快捷键，注册新快捷键，设置双击 Ctrl 状态。
+    /// 参数：config - 按键配置。
+    /// 返回：成功返回 Ok(())，失败返回 HostApiError。
+    pub async fn apply_hotkey_config(&self, config: &HotkeyConfig) -> Result<(), HostApiError> {
+        self.hotkey_manager.unregister_all().await?;
+        for registration in &config.hotkeys {
+            self.hotkey_manager
+                .register_hotkey(&registration.hotkey)
+                .await?;
+        }
+        self.hotkey_manager
+            .set_double_ctrl_enabled(config.double_ctrl_enabled)
+            .await?;
+        Ok(())
+    }
+
+    /// 初始化按键监听。
+    /// 将已注册的回调注入到 HotkeyManager，开始接收按键事件。
+    /// 返回：成功返回 Ok(())，失败返回 HostApiError。
+    pub async fn init_hotkey_listening(&self) -> Result<(), HostApiError> {
+        self.hotkey_manager.start_listening().await
+    }
 }
 
 /// HostApi 构建器，用于链式配置平台组件并构建 HostApi 实例。
@@ -517,6 +568,7 @@ pub struct HostApiBuilder {
     window_handle_provider: Option<Arc<dyn SystemParameterProvider>>,
     selection_provider: Option<Arc<dyn SystemParameterProvider>>,
     autostart_manager: Option<Arc<dyn AutoStartManager>>,
+    hotkey_manager: Option<Arc<dyn HotkeyManager>>,
 }
 
 impl HostApiBuilder {
@@ -539,6 +591,7 @@ impl HostApiBuilder {
             window_handle_provider: None,
             selection_provider: None,
             autostart_manager: None,
+            hotkey_manager: None,
         }
     }
 
@@ -637,6 +690,14 @@ impl HostApiBuilder {
         self
     }
 
+    /// 设置按键管理器。
+    /// 参数：hotkey_manager - 按键管理器实例。
+    /// 返回：Self（支持链式调用）。
+    pub fn hotkey_manager(mut self, hotkey_manager: Arc<dyn HotkeyManager>) -> Self {
+        self.hotkey_manager = Some(hotkey_manager);
+        self
+    }
+
     /// 构建 HostApi 实例。
     /// 参数：无。
     /// 返回：构建完成的 HostApi 实例，如果缺少必需组件则 panic。
@@ -663,6 +724,7 @@ impl HostApiBuilder {
                 .expect("missing window_handle_provider"),
             selection_provider: self.selection_provider.expect("missing selection_provider"),
             autostart_manager: self.autostart_manager.expect("missing autostart_manager"),
+            hotkey_manager: self.hotkey_manager.expect("missing hotkey_manager"),
         }
     }
 }

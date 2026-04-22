@@ -18,6 +18,8 @@ pub enum PlatformCapability {
     WindowActivation,
     /// 自启动管理：管理系统开机自启动
     AutoStart,
+    /// 按键监听：全局快捷键和双击 Ctrl 监听
+    HotkeyListening,
 }
 
 /// 平台能力集合。
@@ -63,6 +65,7 @@ impl PlatformCapabilities {
             PlatformCapability::AppLaunch,
             PlatformCapability::WindowActivation,
             PlatformCapability::AutoStart,
+            PlatformCapability::HotkeyListening,
         ]))
     }
 }

@@ -2,6 +2,7 @@ pub mod app;
 pub mod autostart;
 pub mod common;
 pub mod host_api;
+pub mod hotkey;
 pub mod icon;
 pub mod parameter;
 pub mod path;
@@ -14,6 +15,9 @@ pub use autostart::AutoStartManager;
 pub use host_api::{
     CacheLevel, HostApi, HostApiBuilder, HostApiError, IconRequest, OpenTarget, PluginHandle,
     PluginSdkConfig,
+};
+pub use hotkey::{
+    Hotkey, HotkeyConfig, HotkeyEvent, HotkeyEventFilter, HotkeyManager, HotkeyRegistration,
 };
 pub use icon::icon_cache::IconCacheService;
 pub use icon::icon_extractor::IconExtractor;

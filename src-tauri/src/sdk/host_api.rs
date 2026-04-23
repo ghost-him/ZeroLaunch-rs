@@ -14,6 +14,7 @@ use crate::sdk::platform::capabilities::PlatformCapabilities;
 use crate::sdk::shell::lnk_resolver::LnkResolver;
 use crate::sdk::shell::resource_loader::ResourceLoader;
 use crate::sdk::shell::ShellExecutor;
+use crate::sdk::storage::storage_service::StorageService;
 use crate::sdk::window::WindowManager;
 use bincode::Encode;
 use dashmap::DashMap;
@@ -131,6 +132,10 @@ pub enum HostApiError {
     /// 自启动操作失败
     #[error("自启动操作失败: {reason}")]
     AutoStartFailed { reason: String },
+
+    /// 存储操作失败
+    #[error("存储操作失败 ({file}): {reason}")]
+    StorageOperationFailed { file: String, reason: String },
 }
 
 /// 插件服务句柄，绑定插件身份与配置。
@@ -354,6 +359,9 @@ impl PluginHandle {
     pub fn has_system_parameters(&self, template: &str) -> bool {
         self.parameter_resolver.has_system_parameters(template)
     }
+
+    // ===== 存储服务 =====
+    // 插件的存储服务最好通过配置信息来管理，而不是通过直接访问存储服务
 }
 
 /// 宿主向插件暴露的平台能力注册层。
@@ -393,6 +401,8 @@ pub struct HostApi {
     autostart_manager: Arc<dyn AutoStartManager>,
     /// 按键管理器（平台实现）
     hotkey_manager: Arc<dyn HotkeyManager>,
+    /// 存储服务（可运行时重配置：Local ↔ WebDAV）
+    storage: RwLock<Arc<dyn StorageService>>,
 }
 
 impl HostApi {
@@ -550,6 +560,23 @@ impl HostApi {
     pub async fn init_hotkey_listening(&self) -> Result<(), HostApiError> {
         self.hotkey_manager.start_listening().await
     }
+
+    // ===== 存储服务（宿主级） =====
+
+    /// 获取当前存储服务的引用。
+    /// 参数：无。
+    /// 返回：当前存储服务的 Arc 引用。
+    pub fn storage(&self) -> Arc<dyn StorageService> {
+        self.storage.read().clone()
+    }
+
+    /// 重新配置存储服务（用户在设置中切换 Local/WebDAV 时调用）。
+    /// 参数：new_service - 新的存储服务实例。
+    /// 返回：无。
+    /// 特性：立即生效，影响后续所有插件调用。
+    pub fn reconfigure_storage(&self, new_service: Arc<dyn StorageService>) {
+        *self.storage.write() = new_service;
+    }
 }
 
 /// HostApi 构建器，用于链式配置平台组件并构建 HostApi 实例。
@@ -569,6 +596,7 @@ pub struct HostApiBuilder {
     selection_provider: Option<Arc<dyn SystemParameterProvider>>,
     autostart_manager: Option<Arc<dyn AutoStartManager>>,
     hotkey_manager: Option<Arc<dyn HotkeyManager>>,
+    storage_service: Option<Arc<dyn StorageService>>,
 }
 
 impl HostApiBuilder {
@@ -592,6 +620,7 @@ impl HostApiBuilder {
             selection_provider: None,
             autostart_manager: None,
             hotkey_manager: None,
+            storage_service: None,
         }
     }
 
@@ -698,6 +727,14 @@ impl HostApiBuilder {
         self
     }
 
+    /// 设置存储服务。
+    /// 参数：storage_service - 存储服务实例。
+    /// 返回：Self（支持链式调用）。
+    pub fn storage_service(mut self, storage_service: Arc<dyn StorageService>) -> Self {
+        self.storage_service = Some(storage_service);
+        self
+    }
+
     /// 构建 HostApi 实例。
     /// 参数：无。
     /// 返回：构建完成的 HostApi 实例，如果缺少必需组件则 panic。
@@ -725,6 +762,7 @@ impl HostApiBuilder {
             selection_provider: self.selection_provider.expect("missing selection_provider"),
             autostart_manager: self.autostart_manager.expect("missing autostart_manager"),
             hotkey_manager: self.hotkey_manager.expect("missing hotkey_manager"),
+            storage: RwLock::new(self.storage_service.expect("missing storage_service")),
         }
     }
 }

@@ -21,6 +21,7 @@ use crate::commands::ui_command::*;
 use crate::commands::utils::*;
 #[cfg(feature = "ai")]
 use crate::core::ai::model_manager::ModelManager;
+use crate::core::config::storage_config::StorageConfigComponent;
 use crate::core::config::ConfigManager;
 use crate::core::storage;
 use crate::core::storage::storage_manager::StorageManager;
@@ -65,6 +66,9 @@ use crate::sdk::platform::WindowsSelectionProvider;
 use crate::sdk::platform::WindowsShellExecutor;
 use crate::sdk::platform::WindowsWindowHandleProvider;
 use crate::sdk::platform::WindowsWindowManager;
+use crate::sdk::storage::local_storage::LocalStorageService;
+use crate::sdk::storage::storage_service::StorageService;
+use crate::sdk::PathResolver;
 use crate::state::app_state::AppState;
 use crate::tray::init_system_tray;
 use crate::tray::update_tray_menu_language;
@@ -327,7 +331,57 @@ async fn init_app_state(app: &mut App) {
     state.set_main_handle(Arc::new(app.app_handle().clone()));
     debug!("应用句柄设置完成");
 
-    // === 阶段2: 存储管理器初始化 ===
+    // === 阶段1.5: 提前创建 HostApi（含默认 LocalStorageService） ===
+    info!("=== 阶段1.5: 提前创建 HostApi ===");
+    let path_resolver_instance = WindowsPathResolver::new();
+    let app_data_dir = path_resolver_instance
+        .resolve_path(crate::sdk::path::path_resolver::KnownPath::AppDataDir)
+        .unwrap_or_else(|_| ".".to_string());
+    let path_resolver = Arc::new(path_resolver_instance);
+    let default_storage: Arc<dyn StorageService> =
+        Arc::new(LocalStorageService::new(&app_data_dir));
+    let icon_cache_dir = crate::modules::config::default::ICON_CACHE_DIR.clone();
+    let default_app_icon_path = crate::modules::config::default::APP_PIC_PATH
+        .get("tips")
+        .expect_programming("无法获取默认应用图标路径")
+        .value()
+        .clone();
+    let default_web_icon_path = crate::modules::config::default::APP_PIC_PATH
+        .get("web_pages")
+        .expect_programming("无法获取默认网页图标路径")
+        .value()
+        .clone();
+    let app_handle = state.get_main_handle();
+    let host_api = Arc::new(
+        crate::sdk::HostApi::builder(icon_cache_dir)
+            .icon_extractor(Arc::new(WindowsIconExtractor::new(
+                default_app_icon_path,
+                default_web_icon_path,
+            )))
+            .shell_executor(Arc::new(WindowsShellExecutor::new()))
+            .window_manager(Arc::new(WindowsWindowManager::new()))
+            .path_resolver(path_resolver)
+            .app_enumerator(Arc::new(WindowsAppEnumerator::new()))
+            .app_launcher(Arc::new(WindowsAppLauncher::new()))
+            .lnk_resolver(Arc::new(WindowsLnkResolver::new()))
+            .resource_loader(Arc::new(WindowsResourceLoader::new()))
+            .parameter_resolver(Arc::new(
+                crate::sdk::parameter::DefaultParameterResolver::new(),
+            ))
+            .parameter_providers(
+                Arc::new(WindowsClipboardProvider),
+                Arc::new(WindowsWindowHandleProvider),
+                Arc::new(WindowsSelectionProvider),
+            )
+            .autostart_manager(Arc::new(WindowsAutoStartManager::new()))
+            .hotkey_manager(Arc::new(WindowsHotkeyManager::new(app_handle)))
+            .storage_service(default_storage)
+            .build(),
+    );
+    state.set_host_api(host_api.clone());
+    info!("HostApi 初始化完成，默认存储路径: {}", app_data_dir);
+
+    // === 阶段2: 存储管理器初始化（旧系统） ===
     let create_and_show_welcome_page = move || {
         info!("第一次启动程序或者更新程序，创建欢迎页面");
         // 创建欢迎页面
@@ -405,17 +459,16 @@ async fn init_app_state(app: &mut App) {
     info!("翻译系统已初始化，语言: {}", language);
 
     // === 阶段3.5: 初始化 ConfigManager ===
-    // ConfigManager 需要配置目录，使用当前可执行文件所在目录
-    let config_dir = std::env::current_exe()
-        .and_then(|p| {
-            p.parent()
-                .map(|p| p.to_path_buf())
-                .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "no parent"))
-        })
-        .unwrap_or_else(|_| std::path::PathBuf::from("."));
+    // ConfigManager 使用 HostApi 的 StorageService 做持久化
+    let config_dir = std::path::PathBuf::from(&app_data_dir);
     let config_manager = Arc::new(ConfigManager::new(config_dir));
+    // 设置 HostApi 引用，启用远程同步
+    config_manager.set_host_api(host_api.clone());
+    // 注册 StorageConfig 组件
+    let storage_config_component = Arc::new(StorageConfigComponent::new(host_api.clone()));
+    config_manager.register(storage_config_component);
     state.set_config_manager(config_manager);
-    debug!("ConfigManager 初始化完成");
+    info!("ConfigManager 初始化完成，已关联 HostApi 和注册 StorageConfig");
 
     // === 阶段4: 程序管理器初始化 ===
     #[cfg(feature = "ai")]
@@ -510,7 +563,6 @@ async fn init_app_state(app: &mut App) {
 
 /// 初始化新插件系统的所有组件
 fn init_plugin_system(state: &Arc<AppState>) {
-    let app = state.get_main_handle();
     let session_router = state.get_session_router();
     let config_manager = state.get_config_manager();
 
@@ -540,70 +592,8 @@ fn init_plugin_system(state: &Arc<AppState>) {
     // === 阶段1: 注册所有组件到 ConfigManager ===
     info!("正在注册可配置组件到 ConfigManager...");
 
-    // 1. 初始化 HostApi（SDK 层）
-    info!("正在初始化 HostApi...");
-    let icon_cache_dir = crate::modules::config::default::ICON_CACHE_DIR.clone();
-    let default_app_icon_path = crate::modules::config::default::APP_PIC_PATH
-        .get("tips")
-        .expect_programming("无法获取默认应用图标路径")
-        .value()
-        .clone();
-    let default_web_icon_path = crate::modules::config::default::APP_PIC_PATH
-        .get("web_pages")
-        .expect_programming("无法获取默认网页图标路径")
-        .value()
-        .clone();
-    let host_api = Arc::new(
-        crate::sdk::HostApi::builder(icon_cache_dir)
-            .icon_extractor(Arc::new(WindowsIconExtractor::new(
-                default_app_icon_path,
-                default_web_icon_path,
-            )))
-            .shell_executor(Arc::new(WindowsShellExecutor::new()))
-            .window_manager(Arc::new(WindowsWindowManager::new()))
-            .path_resolver(Arc::new(WindowsPathResolver::new()))
-            .app_enumerator(Arc::new(WindowsAppEnumerator::new()))
-            .app_launcher(Arc::new(WindowsAppLauncher::new()))
-            .lnk_resolver(Arc::new(WindowsLnkResolver::new()))
-            .resource_loader(Arc::new(WindowsResourceLoader::new()))
-            .parameter_resolver(Arc::new(
-                crate::sdk::parameter::DefaultParameterResolver::new(),
-            ))
-            .parameter_providers(
-                Arc::new(WindowsClipboardProvider),
-                Arc::new(WindowsWindowHandleProvider),
-                Arc::new(WindowsSelectionProvider),
-            )
-            .autostart_manager(Arc::new(WindowsAutoStartManager::new()))
-            .hotkey_manager(Arc::new(WindowsHotkeyManager::new(app.clone())))
-            .build(),
-    );
-    state.set_host_api(host_api.clone());
-
-    // 注册快捷键回调（当前还在使用旧系统的快捷键管理器，待后续统一使用新系统快捷键）
-    // let app_handle_for_callback = app.clone();
-    // host_api
-    //     .register_hotkey_callback(
-    //         "toggle_search_bar",
-    //         crate::sdk::HotkeyEventFilter::All,
-    //         Arc::new(move |_event| {
-    //             toggle_search_bar(&app_handle_for_callback);
-    //         }),
-    //     )
-    //     .expect("注册快捷键回调失败");
-
-    // // 异步初始化按键监听
-    // let host_api_for_hotkey = host_api.clone();
-    // tauri::async_runtime::spawn(async move {
-    //     let config = crate::sdk::HotkeyConfig {
-    //         hotkeys: vec![crate::sdk::HotkeyRegistration {
-    //             hotkey: crate::sdk::Hotkey::new("Space").with_alt(),
-    //         }],
-    //         double_ctrl_enabled: false,
-    //     };
-    //     let _ = host_api_for_hotkey.apply_hotkey_config(&config).await;
-    //     let _ = host_api_for_hotkey.init_hotkey_listening().await;
-    // });
+    // 1. 获取已创建的 HostApi（在 init_app_state 阶段1.5 中创建）
+    let host_api = state.get_host_api();
 
     // 设置 SessionRouter 的 HostApi 引用，用于捕获系统参数快照
     session_router.set_host_api(host_api.clone());

@@ -12,6 +12,10 @@ pub enum KnownPath {
     UserDesktop,
     /// 当前用户 AppData\Roaming 目录（Windows: %APPDATA%）
     UserAppDataRoaming,
+    /// 应用数据目录（ZeroLaunch-rs 专用）
+    /// 标准模式：FOLDERID_RoamingAppData/ZeroLaunch-rs
+    /// 便携模式（feature="portable"）：可执行文件所在目录
+    AppDataDir,
 }
 
 /// 路径解析器 trait，定义平台原语。

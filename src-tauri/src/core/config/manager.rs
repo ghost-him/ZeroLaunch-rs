@@ -5,6 +5,7 @@ use crate::core::config::models::{
 use crate::core::config::registry::ConfigurableRegistry;
 use crate::core::config::store::ConfigStore;
 use crate::core::types::{ComponentType, ConfigError, Configurable};
+use crate::sdk::host_api::HostApi;
 use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -16,8 +17,10 @@ use tracing::{debug, info, warn};
 pub struct ConfigManager {
     /// 组件注册中心
     registry: ConfigurableRegistry,
-    /// 配置持久化层
+    /// 配置持久化层（始终使用本地存储）
     store: ConfigStore,
+    /// 可选的 HostApi 引用（设置后启用远程同步）
+    host_api: RwLock<Option<Arc<HostApi>>>,
     /// enabled 状态持久化
     enabled_map: RwLock<HashMap<String, bool>>,
     /// 配置变更事件发送端
@@ -34,9 +37,18 @@ impl ConfigManager {
         Self {
             registry: ConfigurableRegistry::new(),
             store,
+            host_api: RwLock::new(None),
             enabled_map: RwLock::new(HashMap::new()),
             event_sender,
         }
+    }
+
+    /// 设置 HostApi 引用，启用远程同步。
+    /// 参数：host_api - HostApi 实例。
+    /// 返回：无。
+    /// 特性：设置后，配置保存时会同步到远程存储后端。
+    pub fn set_host_api(&self, host_api: Arc<HostApi>) {
+        *self.host_api.write() = Some(host_api);
     }
 
     /// 获取事件发送端的引用，用于订阅配置变更事件
@@ -229,9 +241,43 @@ impl ConfigManager {
 
     // region: 持久化
 
-    /// 从持久化文件加载配置，应用到所有已注册组件
+    /// 从持久化文件加载配置，应用到所有已注册组件。
+    /// 如果设置了 HostApi，优先尝试从远程存储拉取配置，失败时回退到本地。
     pub fn load_from_storage(&self) -> Result<(), ConfigError> {
-        let config = self.store.load()?;
+        let config = if let Some(host_api) = self.host_api.read().as_ref() {
+            // 尝试从远程拉取
+            match tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current()
+                    .block_on(async { host_api.storage().download("zerolaunch_config.json").await })
+            }) {
+                Ok(Some(data)) => {
+                    match serde_json::from_slice::<PersistentConfig>(&data) {
+                        Ok(remote_config) => {
+                            info!("从远程存储加载配置成功");
+                            // 同时保存到本地，确保本地副本是最新的
+                            if let Err(e) = self.store.save(&remote_config) {
+                                warn!("远程配置本地备份失败: {}", e);
+                            }
+                            remote_config
+                        }
+                        Err(e) => {
+                            warn!("远程配置解析失败: {}, 回退到本地", e);
+                            self.store.load().unwrap_or_default()
+                        }
+                    }
+                }
+                Ok(None) => {
+                    debug!("远程存储无配置文件，使用本地配置");
+                    self.store.load().unwrap_or_default()
+                }
+                Err(e) => {
+                    warn!("远程配置加载失败: {}, 回退到本地", e);
+                    self.store.load().unwrap_or_default()
+                }
+            }
+        } else {
+            self.store.load().unwrap_or_default()
+        };
 
         for (component_id, state) in &config.components {
             // 1. 设置 enabled 状态
@@ -258,7 +304,8 @@ impl ConfigManager {
         Ok(())
     }
 
-    /// 将当前所有组件的配置保存到持久化文件
+    /// 将当前所有组件的配置保存到持久化文件。
+    /// 如果设置了 HostApi，同时异步同步到远程存储后端。
     fn save_to_storage(&self) {
         let mut config = PersistentConfig::default();
 
@@ -272,8 +319,26 @@ impl ConfigManager {
                 .insert(component_id, ComponentPersistentState { enabled, settings });
         }
 
+        // 始终保存到本地
         if let Err(e) = self.store.save(&config) {
-            warn!("配置持久化失败: {}", e);
+            warn!("配置本地持久化失败: {}", e);
+        }
+
+        // 如果设置了 HostApi，异步同步到远程
+        if let Some(host_api) = self.host_api.read().as_ref() {
+            let json_bytes = match serde_json::to_vec(&config) {
+                Ok(bytes) => bytes,
+                Err(e) => {
+                    warn!("配置序列化失败，跳过远程同步: {}", e);
+                    return;
+                }
+            };
+            let storage = host_api.storage();
+            tokio::spawn(async move {
+                if let Err(e) = storage.upload("zerolaunch_config.json", &json_bytes).await {
+                    warn!("配置远程同步失败: {}", e);
+                }
+            });
         }
     }
 

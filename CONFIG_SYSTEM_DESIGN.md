@@ -319,6 +319,44 @@ impl ConfigManager {
 
 ---
 
+## 二.5、配置组件目录组织规范（重要）
+
+**核心原则**：所有**核心程序**（非插件）的 Configurable 组件属于上层业务配置，统一放在 `core/config/components/` 下，按能力维度组织。
+
+```
+src-tauri/src/core/config/
+├── components/                  ← 按能力维度组织的配置组件
+│   ├── mod.rs                   # 组件模块入口，统一导出所有 Configurable 组件
+│   ├── hotkey_config.rs         # HotkeyConfigComponent — 快捷键语义化配置（Alt+Space 格式）
+│   └── storage_config.rs        # StorageConfigComponent — 存储后端切换与 WebDAV 配置
+├── event.rs                     # 配置事件定义（ConfigEvent）
+├── manager.rs                   # ConfigManager — 统一配置管理器核心逻辑
+├── models.rs                    # 配置数据模型（ComponentInfo, ComponentSchema, PersistentConfig）
+├── registry.rs                  # ConfigurableRegistry — 组件注册表
+└── store.rs                     # ConfigStore — 配置持久化存储
+```
+
+**SDK 层与 Configurable 的职责边界**：
+- `sdk/` 只提供**平台原语**（trait + 实现），如 `HotkeyManager`、`StorageService trait`。
+- `core/config/components/` 提供**业务配置组件**（实现 `Configurable` trait），如 `HotkeyConfigComponent`、`StorageConfigComponent`。
+- SDK 不导出 Configurable 组件，不关心配置如何管理——这是 `core/config` 的职责。
+
+**错误示范**：
+- 把 `HotkeyConfigComponent` 放在 `sdk/hotkey/` 下 — SDK 是平台层，不应该包含业务配置逻辑。
+- 把 `StorageConfigComponent` 放在 `sdk/storage/` 下 — 同上，配置属于上层业务。
+
+**正确示范**：
+- `sdk/hotkey/` → 只有 `HotkeyManager`（平台原语）+ `types.rs`（类型定义）
+- `core/config/components/hotkey_config.rs` → `HotkeyConfigComponent`（业务配置组件）
+- `sdk/storage/` → 只有 `StorageService trait` + 实现
+- `core/config/components/storage_config.rs` → `StorageConfigComponent`（业务配置组件）
+
+**与 sdk/ 目录风格的一致性**：
+- `core/config/components/` 按能力维度组织文件（如 `hotkey_config.rs`、`storage_config.rs`），与 `sdk/` 下按能力建目录（`hotkey/`、`storage/`）风格一致。
+- 但层次不同：SDK 是平台层，`core/config` 是业务配置层。
+
+---
+
 ## 六、前端交互数据结构
 
 ### 1. 获取所有可配置组件列表

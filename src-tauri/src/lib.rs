@@ -21,7 +21,9 @@ use crate::commands::ui_command::*;
 use crate::commands::utils::*;
 #[cfg(feature = "ai")]
 use crate::core::ai::model_manager::ModelManager;
-use crate::core::config::storage_config::StorageConfigComponent;
+use crate::core::config::components::{
+    hotkey_config::HotkeyConfigComponent, storage_config::StorageConfigComponent,
+};
 use crate::core::config::ConfigManager;
 use crate::core::storage;
 use crate::core::storage::storage_manager::StorageManager;
@@ -684,6 +686,12 @@ fn init_plugin_system(state: &Arc<AppState>) {
     let history_booster: Arc<dyn ScoreBooster> = Arc::new(HistoryBooster::new());
     config_manager.register(history_booster.clone());
     info!("分数增强器注册完成");
+
+    // 6. 注册核心配置组件
+    info!("正在注册核心配置组件...");
+    let hotkey_config_component = Arc::new(HotkeyConfigComponent::new(host_api.clone()));
+    config_manager.register(hotkey_config_component);
+    info!("核心配置组件注册完成");
 
     // === 阶段2: 从 ConfigManager 按类型获取组件，构建各 Pipeline ===
     info!("正在构建业务管道...");

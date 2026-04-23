@@ -688,7 +688,7 @@ resolve_resource_string("@shell32.dll,-12345")
 
 ```
 src-tauri/src/sdk/
-├── mod.rs                     # 模块入口，导出公共 API
+├── mod.rs                     # 模块入口，导出公共 API（不导出 Configurable 组件）
 ├── host_api.rs                # HostApi struct + PluginHandle struct + IconRequest + CacheLevel + PluginSdkConfig + 错误类型
 ├── common/
 │   ├── mod.rs                 # 通用模块入口
@@ -712,6 +712,20 @@ src-tauri/src/sdk/
 │   ├── mod.rs                 # 应用模块入口
 │   ├── app_enumerator.rs      # AppEnumerator trait
 │   └── app_launcher.rs        # AppLauncher trait
+├── storage/
+│   ├── mod.rs                 # 存储模块入口
+│   ├── storage_service.rs     # StorageService trait — 存储操作抽象接口（跨平台）
+│   ├── local_storage.rs       # LocalStorageService — 本地文件存储实现（trait 实现）
+│   └── webdav_storage.rs      # WebDAVStorageService — WebDAV 远程存储实现（trait 实现）
+├── parameter/
+│   ├── mod.rs                 # 参数模块入口（子模块必须 pub）
+│   ├── parameter_resolver.rs  # ParameterResolver trait + 错误定义 + 结构体（核心入口）
+│   ├── parser.rs              # 解析器 — 环境变量和路径占位符展开逻辑（pub）
+│   └── provider.rs            # 系统参数提供者 — 时间、用户、系统信息（pub）
+└── hotkey/
+    ├── mod.rs                 # 快捷键模块入口（仅导出平台原语）
+    ├── hotkey_manager.rs      # HotkeyManager — 快捷键注册与监听管理（平台原语）
+    └── types.rs               # Hotkey、HotkeyConfig、HotkeyEvent 等类型定义（平台原语）
 └── platform/
     ├── mod.rs                 # 条件编译选择平台实现
     ├── capabilities.rs        # PlatformCapabilities 定义
@@ -726,6 +740,10 @@ src-tauri/src/sdk/
         ├── app_enumerator.rs  # WindowsAppEnumerator — Windows 应用枚举实现
         └── app_launcher.rs    # WindowsAppLauncher — Windows 应用启动实现
 ```
+
+**SDK 层职责边界**：
+- SDK 只提供**平台原语**（trait + 实现），不包含任何 Configurable 业务逻辑。
+- SDK 不导出 Configurable 组件（如 `HotkeyConfigComponent`），这些属于上层配置管理，放在 `core/config/components/`。
 
 platform 放在 sdk/ 下的理由：
 1. platform 的唯一消费者是 sdk（HostApi 的实现层）

@@ -561,6 +561,13 @@ impl HostApi {
         self.hotkey_manager.start_listening().await
     }
 
+    /// 检查快捷键是否正在监听。
+    /// 参数：无。
+    /// 返回：正在监听返回 true。
+    pub fn is_hotkey_listening(&self) -> bool {
+        self.hotkey_manager.is_listening()
+    }
+
     // ===== 存储服务（宿主级） =====
 
     /// 获取当前存储服务的引用。

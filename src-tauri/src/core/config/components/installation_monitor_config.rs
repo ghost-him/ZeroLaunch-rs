@@ -98,18 +98,6 @@ impl Configurable for InstallationMonitorConfigComponent {
     }
 
     fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
-        // 验证 debounce 范围
-        if let Some(debounce) = settings
-            .get("monitor_debounce_secs")
-            .and_then(|v| v.as_f64())
-        {
-            if !(1.0..=60.0).contains(&debounce) {
-                return Err(ConfigError::ValidationFailed(
-                    "去抖等待时间必须在 1-60 秒之间".to_string(),
-                ));
-            }
-        }
-
         *self.settings.write() = settings;
         Ok(())
     }

@@ -168,12 +168,6 @@ impl Configurable for StorageConfigComponent {
                     .unwrap_or("/ZeroLaunch-rs/")
                     .to_string();
 
-                if host_url.is_empty() || account.is_empty() {
-                    return Err(ConfigError::ValidationFailed(
-                        "WebDAV 服务器地址和账号不能为空".to_string(),
-                    ));
-                }
-
                 info!("切换存储后端为 WebDAV: {}", host_url);
                 let config = WebDAVConfig {
                     host_url,

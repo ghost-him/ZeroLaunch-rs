@@ -176,19 +176,6 @@ impl Configurable for HotkeyConfigComponent {
     }
 
     fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
-        // 验证所有快捷键字段格式
-        let hotkey_fields = ["open_search_bar", "switch_to_everything"];
-        for field in &hotkey_fields {
-            if let Some(hotkey_str) = settings.get(field).and_then(|v| v.as_str()) {
-                if !hotkey_str.is_empty() && parse_hotkey_string(hotkey_str).is_none() {
-                    return Err(ConfigError::ValidationFailed(format!(
-                        "快捷键格式无效: {} = '{}', 期望格式如 'Alt+Space'",
-                        field, hotkey_str
-                    )));
-                }
-            }
-        }
-
         *self.settings.write() = settings;
         Ok(())
     }

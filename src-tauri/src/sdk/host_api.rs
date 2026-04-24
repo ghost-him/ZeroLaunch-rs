@@ -6,6 +6,8 @@ use crate::sdk::hotkey::types::{HotkeyCallback, HotkeyConfig, HotkeyEventFilter}
 use crate::sdk::hotkey::HotkeyManager;
 use crate::sdk::icon::icon_cache::IconCacheService;
 use crate::sdk::icon::icon_extractor::IconExtractor;
+use crate::sdk::installation_monitor::types::InstallationCallback;
+use crate::sdk::installation_monitor::InstallationMonitor;
 use crate::sdk::parameter::provider::SystemParameterProvider;
 use crate::sdk::parameter::resolver::ParameterResolver;
 use crate::sdk::parameter::types::ParameterSnapshot;
@@ -401,6 +403,8 @@ pub struct HostApi {
     autostart_manager: Arc<dyn AutoStartManager>,
     /// 按键管理器（平台实现）
     hotkey_manager: Arc<dyn HotkeyManager>,
+    /// 安装监控器（平台实现）
+    installation_monitor: Arc<dyn InstallationMonitor>,
     /// 存储服务（可运行时重配置：Local ↔ WebDAV）
     storage: RwLock<Arc<dyn StorageService>>,
 }
@@ -568,6 +572,49 @@ impl HostApi {
         self.hotkey_manager.is_listening()
     }
 
+    // ===== 安装监控服务 =====
+
+    /// 注册安装事件回调。
+    /// 参数：id - 回调标识；callback - 回调函数。
+    pub fn register_installation_callback(
+        &self,
+        id: &str,
+        callback: InstallationCallback,
+    ) -> Result<(), HostApiError> {
+        self.installation_monitor.register_callback(id, callback);
+        Ok(())
+    }
+
+    /// 注销安装事件回调。
+    /// 参数：id - 回调标识。
+    pub fn unregister_installation_callback(&self, id: &str) -> Result<(), HostApiError> {
+        self.installation_monitor.unregister_callback(id);
+        Ok(())
+    }
+
+    /// 启动安装监控。
+    /// 返回：成功返回 Ok(())，失败返回 HostApiError。
+    pub async fn start_installation_monitor(&self) -> Result<(), HostApiError> {
+        self.installation_monitor.start_watching().await
+    }
+
+    /// 停止安装监控。
+    /// 返回：成功返回 Ok(())，失败返回 HostApiError。
+    pub async fn stop_installation_monitor(&self) -> Result<(), HostApiError> {
+        self.installation_monitor.stop_watching().await
+    }
+
+    /// 检查安装监控是否正在运行。
+    pub fn is_installation_monitor_running(&self) -> bool {
+        self.installation_monitor.is_watching()
+    }
+
+    /// 更新安装监控路径。
+    /// 参数：paths - 要监控的目录路径列表。
+    pub fn update_installation_monitor_paths(&self, paths: Vec<String>) {
+        self.installation_monitor.update_watch_paths(paths);
+    }
+
     // ===== 存储服务（宿主级） =====
 
     /// 获取当前存储服务的引用。
@@ -603,6 +650,7 @@ pub struct HostApiBuilder {
     selection_provider: Option<Arc<dyn SystemParameterProvider>>,
     autostart_manager: Option<Arc<dyn AutoStartManager>>,
     hotkey_manager: Option<Arc<dyn HotkeyManager>>,
+    installation_monitor: Option<Arc<dyn InstallationMonitor>>,
     storage_service: Option<Arc<dyn StorageService>>,
 }
 
@@ -627,6 +675,7 @@ impl HostApiBuilder {
             selection_provider: None,
             autostart_manager: None,
             hotkey_manager: None,
+            installation_monitor: None,
             storage_service: None,
         }
     }
@@ -734,6 +783,17 @@ impl HostApiBuilder {
         self
     }
 
+    /// 设置安装监控器。
+    /// 参数：installation_monitor - 安装监控器实例。
+    /// 返回：Self（支持链式调用）。
+    pub fn installation_monitor(
+        mut self,
+        installation_monitor: Arc<dyn InstallationMonitor>,
+    ) -> Self {
+        self.installation_monitor = Some(installation_monitor);
+        self
+    }
+
     /// 设置存储服务。
     /// 参数：storage_service - 存储服务实例。
     /// 返回：Self（支持链式调用）。
@@ -769,6 +829,9 @@ impl HostApiBuilder {
             selection_provider: self.selection_provider.expect("missing selection_provider"),
             autostart_manager: self.autostart_manager.expect("missing autostart_manager"),
             hotkey_manager: self.hotkey_manager.expect("missing hotkey_manager"),
+            installation_monitor: self
+                .installation_monitor
+                .expect("missing installation_monitor"),
             storage: RwLock::new(self.storage_service.expect("missing storage_service")),
         }
     }

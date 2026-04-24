@@ -4,6 +4,7 @@ pub mod common;
 pub mod host_api;
 pub mod hotkey;
 pub mod icon;
+pub mod installation_monitor;
 pub mod parameter;
 pub mod path;
 pub mod platform;
@@ -22,6 +23,9 @@ pub use hotkey::{
 };
 pub use icon::icon_cache::IconCacheService;
 pub use icon::icon_extractor::IconExtractor;
+pub use installation_monitor::{
+    InstallationCallback, InstallationEvent, InstallationEventKind, InstallationMonitor,
+};
 pub use parameter::{
     ParameterError, ParameterResolver, ParameterSnapshot, SystemParameterProvider,
 };

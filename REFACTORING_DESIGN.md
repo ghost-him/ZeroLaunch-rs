@@ -1215,24 +1215,4 @@ route_confirm:
 └── 插件代码零修改
 ```
 
-### 8.4 当前进度
-
-| 模块                      | 状态   | 说明                                                        |
-| ------------------------- | ------ | ----------------------------------------------------------- |
-| **Plugin SDK 设计**       | ✅ 完成 | `PLUGIN_SDK_DESIGN.md` v2.2                                 |
-| **PathResolver trait**    | ✅ 完成 | 阶段一：路径解析接口 + Windows 实现                         |
-| **WindowsPathResolver**   | ✅ 完成 | 阶段一：SHGetKnownFolderPath                                |
-| **AppEnumerator trait**   | ✅ 完成 | 阶段二：应用枚举统一接口（async）                           |
-| **AppLauncher trait**     | ✅ 完成 | 阶段二：应用启动统一接口                                    |
-| **WindowsAppEnumerator**  | ✅ 完成 | 阶段二：迁移 UwpSource Win32 调用                           |
-| **WindowsAppLauncher**    | ✅ 完成 | 阶段二：迁移 UwpExecutor Win32 调用                         |
-| **TargetType::App**       | ✅ 完成 | 阶段二：PackageFamilyName → App 重命名                      |
-| **AppSource/AppExecutor** | ✅ 完成 | 阶段二：UwpSource→AppSource, UwpExecutor→AppExecutor        |
-| **ShellExecutor 扩展**    | ✅ 完成 | 阶段三：`shell_execute_command` 方法 + CommandExecutor 迁移 |
-| **LnkResolver trait**     | ✅ 完成 | 阶段四：Lnk 快捷方式解析接口 + Windows 实现（lnk crate）    |
-| **WindowsLnkResolver**    | ✅ 完成 | 阶段四：双编码回退（GB18030 → UTF-16LE）                    |
-| **ResourceLoader trait**  | ✅ 完成 | 阶段五：本地化字符串资源加载接口 + Windows 实现             |
-| **WindowsResourceLoader** | ✅ 完成 | 阶段五：LoadLibraryExW + LoadStringW + desktop.ini 解析     |
-| **Plugin::init() 整合**   | ✅ 完成 | 阶段六：Plugin::init() 接收 Arc<HostApi> 参数               |
-
 详细设计请参考 [PLUGIN_SDK_DESIGN.md](file:///c:/Users/ghost/ZeroLaunch/ZeroLaunch-rs/PLUGIN_SDK_DESIGN.md)

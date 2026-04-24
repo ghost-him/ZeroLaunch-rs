@@ -47,7 +47,7 @@ pub trait Configurable: Send + Sync {
     
     // === 配置读写 ===
     fn get_settings(&self) -> serde_json::Value { serde_json::Value::Object(serde_json::Map::new()) }
-    fn apply_settings(&mut self, settings: serde_json::Value) -> Result<(), ConfigError>;
+    fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError>;
     
     // === 可选回调 ===
     fn validate_settings(&self, settings: &serde_json::Value) -> Result<(), ConfigError> { Ok(()) }
@@ -143,11 +143,16 @@ pub trait KeywordOptimizer: Configurable {
 ```
 
 **使用场景**：
-| 实现类             | 功能                   |
-| ------------------ | ---------------------- |
-| `PinyinConverter`  | 中文转拼音、拼音转中文 |
-| `AliasExpander`    | 添加常用别名           |
-| `InitialExtractor` | 提取首字母（如 "wx"）  |
+| 实现类                     | 功能                      |
+| -------------------------- | ------------------------- |
+| `PinyinConverter`          | 中文转拼音、拼音转中文    |
+| `FirstLetterExtractor`     | 提取拼音首字母（如 "wx"） |
+| `UpperCaseLetterExtractor` | 提取大写字母（如 "ABC"）  |
+| `LowerCaseConverter`       | 全小写转换                |
+| `SpaceNormalizer`          | 空格归一化                |
+| `SpaceRemover`             | 移除空格                  |
+| `SymbolRemover`            | 移除特殊符号              |
+| `VersionNumberRemover`     | 移除版本号                |
 
 ---
 
@@ -171,10 +176,11 @@ pub trait SearchEngine: Configurable {
 - 可替换的搜索策略
 
 **使用场景**：
-| 实现类                 | 算法                  |
-| ---------------------- | --------------------- |
-| `StandardSearchEngine` | 模糊匹配 + 关键字匹配 |
-| `SemanticSearchEngine` | AI 语义相似度搜索     |
+| 实现类                | 算法                 |
+| --------------------- | -------------------- |
+| `StandardSearchModel` | 标准模糊匹配算法     |
+| `LaunchySearchModel`  | Launchy 风格评分算法 |
+| `SkimSearchModel`     | Skim 风格评分算法    |
 
 ---
 
@@ -184,7 +190,7 @@ pub trait SearchEngine: Configurable {
 
 ```rust
 pub trait ScoreBooster: Configurable {
-    fn record(&self, candidate: &ScoredCandidate, data: &CachedCandidateData, query: &str);  // 记录用户选择
+    fn record(&self, candidate_id: CandidateId, data: &CachedCandidateData, query: &str);  // 记录用户选择
     fn boost(&self, candidates: &mut Vec<ScoredCandidate>, data: &CachedCandidateData, query: &str);  // 批量调整分数
 }
 ```
@@ -220,13 +226,13 @@ pub trait ActionExecutor: Configurable {
 - 支持扩展新的执行方式和动作
 
 **使用场景**：
-| 实现类                   | TargetType                  | 支持的动作                          |
-| ------------------------ | --------------------------- | ----------------------------------- |
-| `PathExecutor`           | `Path`                      | execute, execute_admin, open_folder |
-| `UwpExecutor`            | `PackageFamilyName`         | execute                             |
-| `UrlExecutor`            | `Url`                       | execute                             |
-| `CommandExecutor`        | `Command`                   | execute                             |
-| `WindowActivateExecutor` | `Path`, `PackageFamilyName` | activate_window                     |
+| 实现类                   | TargetType    | 支持的动作                          |
+| ------------------------ | ------------- | ----------------------------------- |
+| `PathExecutor`           | `Path`        | execute, execute_admin, open_folder |
+| `AppExecutor`            | `App`         | execute                             |
+| `UrlExecutor`            | `Url`         | execute                             |
+| `CommandExecutor`        | `Command`     | execute                             |
+| `WindowActivateExecutor` | `Path`, `App` | activate_window                     |
 
 ---
 
@@ -239,7 +245,11 @@ pub trait ActionExecutor: Configurable {
 pub trait Plugin: Configurable {
     fn metadata(&self) -> &PluginMetadata;
     
-    async fn init(&self, ctx: &PluginContext, api: Arc<dyn PluginAPI>) -> Result<(), PluginError>;
+    async fn init(&self,
+        ctx: &PluginContext,
+        api: Arc<dyn PluginAPI>,
+        host_api: Arc<HostApi>,
+    ) -> Result<(), PluginError>;
     async fn query(&self, ctx: &PluginContext, query: &Query) -> Result<QueryResponse, PluginError>;
     async fn execute_action(&self, ctx: &PluginContext, action_id: &str, payload: serde_json::Value) -> Result<(), PluginError>;
 }
@@ -298,8 +308,8 @@ impl Configurable for ProgramSource {
         serde_json::to_value(&self.config).unwrap_or(serde_json::Value::Null)
     }
     
-    fn apply_settings(&mut self, settings: serde_json::Value) -> Result<(), ConfigError> {
-        self.config = serde_json::from_value(settings)
+    fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
+        self.config.write() = serde_json::from_value(settings)
             .map_err(|e| ConfigError::ApplyFailed(e.to_string()))?;
         Ok(())
     }
@@ -418,9 +428,8 @@ pub trait Configurable: Send + Sync {
     │
     └─ 前端解析 JSON 填充设置项
 
-注意：当前 find_configurable 委托给 CandidatePipeline（仅查找 DataSource），
-未来将迁移至 ConfigManager 的 ConfigurableRegistry（查找所有 Configurable 类型），
-详见 CONFIG_SYSTEM_DESIGN.md 第七章。
+注意：find_configurable 由 SessionRouter 委托给 ConfigManager 的 ConfigurableRegistry，
+可查找所有 Configurable 组件（DataSource、Executor、Plugin、Core 等）。
 ```
 
 ### BookmarkSource 实现示例

@@ -20,6 +20,8 @@ pub enum PlatformCapability {
     AutoStart,
     /// 按键监听：全局快捷键和双击 Ctrl 监听
     HotkeyListening,
+    /// 安装监控：监控文件系统变化（如开始菜单），检测程序安装/卸载
+    InstallationMonitoring,
 }
 
 /// 平台能力集合。
@@ -66,6 +68,7 @@ impl PlatformCapabilities {
             PlatformCapability::WindowActivation,
             PlatformCapability::AutoStart,
             PlatformCapability::HotkeyListening,
+            PlatformCapability::InstallationMonitoring,
         ]))
     }
 }

@@ -17,6 +17,8 @@ use crate::sdk::shell::lnk_resolver::LnkResolver;
 use crate::sdk::shell::resource_loader::ResourceLoader;
 use crate::sdk::shell::ShellExecutor;
 use crate::sdk::storage::storage_service::StorageService;
+use crate::sdk::timer::types::{TimerCallback, TimerId, TimerMode};
+use crate::sdk::timer::TimerManager;
 use crate::sdk::window::WindowManager;
 use bincode::Encode;
 use dashmap::DashMap;
@@ -169,6 +171,8 @@ pub struct PluginHandle {
     resource_loader: Arc<dyn ResourceLoader>,
     /// 参数解析器，由 HostApi 注入
     parameter_resolver: Arc<dyn ParameterResolver>,
+    /// 定时器管理器，由 HostApi 注入
+    timer_manager: Arc<dyn TimerManager>,
 }
 
 impl PluginHandle {
@@ -362,6 +366,54 @@ impl PluginHandle {
         self.parameter_resolver.has_system_parameters(template)
     }
 
+    // ===== 定时器服务 =====
+
+    /// 创建一个一次性定时器，在指定延迟后触发回调。
+    ///
+    /// 参数：
+    /// - delay: 触发延迟时长
+    /// - callback: 触发时调用的回调函数
+    ///
+    /// 返回：TimerId，可用于取消定时器。
+    pub async fn set_timeout(
+        &self,
+        delay: std::time::Duration,
+        callback: TimerCallback,
+    ) -> Result<TimerId, HostApiError> {
+        self.timer_manager
+            .set_timer(delay, TimerMode::OneShot, callback)
+            .await
+    }
+
+    /// 创建一个重复定时器，每隔指定间隔触发回调。
+    ///
+    /// 参数：
+    /// - interval: 触发间隔时长
+    /// - callback: 每次触发时调用的回调函数
+    ///
+    /// 返回：TimerId，可用于取消定时器。
+    pub async fn set_interval(
+        &self,
+        interval: std::time::Duration,
+        callback: TimerCallback,
+    ) -> Result<TimerId, HostApiError> {
+        self.timer_manager
+            .set_timer(interval, TimerMode::Interval, callback)
+            .await
+    }
+
+    /// 取消指定 ID 的定时器。
+    ///
+    /// 参数：id - 要取消的定时器 ID。
+    pub async fn cancel_timer(&self, id: TimerId) -> Result<(), HostApiError> {
+        self.timer_manager.cancel_timer(id).await
+    }
+
+    /// 取消所有定时器。
+    pub async fn cancel_all_timers(&self) -> Result<(), HostApiError> {
+        self.timer_manager.cancel_all().await
+    }
+
     // ===== 存储服务 =====
     // 插件的存储服务最好通过配置信息来管理，而不是通过直接访问存储服务
 }
@@ -405,6 +457,8 @@ pub struct HostApi {
     hotkey_manager: Arc<dyn HotkeyManager>,
     /// 安装监控器（平台实现）
     installation_monitor: Arc<dyn InstallationMonitor>,
+    /// 定时器管理器
+    timer_manager: Arc<dyn TimerManager>,
     /// 存储服务（可运行时重配置：Local ↔ WebDAV）
     storage: RwLock<Arc<dyn StorageService>>,
 }
@@ -436,6 +490,7 @@ impl HostApi {
             lnk_resolver: self.lnk_resolver.clone(),
             resource_loader: self.resource_loader.clone(),
             parameter_resolver: self.parameter_resolver.clone(),
+            timer_manager: self.timer_manager.clone(),
         });
         self.handles.insert(plugin_id.to_string(), handle.clone());
         handle
@@ -615,6 +670,54 @@ impl HostApi {
         self.installation_monitor.update_watch_paths(paths);
     }
 
+    // ===== 定时器服务（宿主级） =====
+
+    /// 创建一个一次性定时器，在指定延迟后触发回调。
+    ///
+    /// 参数：
+    /// - delay: 触发延迟时长
+    /// - callback: 触发时调用的回调函数
+    ///
+    /// 返回：TimerId，可用于取消定时器。
+    pub async fn set_timeout(
+        &self,
+        delay: std::time::Duration,
+        callback: TimerCallback,
+    ) -> Result<TimerId, HostApiError> {
+        self.timer_manager
+            .set_timer(delay, TimerMode::OneShot, callback)
+            .await
+    }
+
+    /// 创建一个重复定时器，每隔指定间隔触发回调。
+    ///
+    /// 参数：
+    /// - interval: 触发间隔时长
+    /// - callback: 每次触发时调用的回调函数
+    ///
+    /// 返回：TimerId，可用于取消定时器。
+    pub async fn set_interval(
+        &self,
+        interval: std::time::Duration,
+        callback: TimerCallback,
+    ) -> Result<TimerId, HostApiError> {
+        self.timer_manager
+            .set_timer(interval, TimerMode::Interval, callback)
+            .await
+    }
+
+    /// 取消指定 ID 的定时器。
+    ///
+    /// 参数：id - 要取消的定时器 ID。
+    pub async fn cancel_timer(&self, id: TimerId) -> Result<(), HostApiError> {
+        self.timer_manager.cancel_timer(id).await
+    }
+
+    /// 取消所有定时器。
+    pub async fn cancel_all_timers(&self) -> Result<(), HostApiError> {
+        self.timer_manager.cancel_all().await
+    }
+
     // ===== 存储服务（宿主级） =====
 
     /// 获取当前存储服务的引用。
@@ -651,6 +754,7 @@ pub struct HostApiBuilder {
     autostart_manager: Option<Arc<dyn AutoStartManager>>,
     hotkey_manager: Option<Arc<dyn HotkeyManager>>,
     installation_monitor: Option<Arc<dyn InstallationMonitor>>,
+    timer_manager: Option<Arc<dyn TimerManager>>,
     storage_service: Option<Arc<dyn StorageService>>,
 }
 
@@ -676,6 +780,7 @@ impl HostApiBuilder {
             autostart_manager: None,
             hotkey_manager: None,
             installation_monitor: None,
+            timer_manager: None,
             storage_service: None,
         }
     }
@@ -794,6 +899,14 @@ impl HostApiBuilder {
         self
     }
 
+    /// 设置定时器管理器。
+    /// 参数：timer_manager - 定时器管理器实例。
+    /// 返回：Self（支持链式调用）。
+    pub fn timer_manager(mut self, timer_manager: Arc<dyn TimerManager>) -> Self {
+        self.timer_manager = Some(timer_manager);
+        self
+    }
+
     /// 设置存储服务。
     /// 参数：storage_service - 存储服务实例。
     /// 返回：Self（支持链式调用）。
@@ -832,6 +945,7 @@ impl HostApiBuilder {
             installation_monitor: self
                 .installation_monitor
                 .expect("missing installation_monitor"),
+            timer_manager: self.timer_manager.expect("missing timer_manager"),
             storage: RwLock::new(self.storage_service.expect("missing storage_service")),
         }
     }

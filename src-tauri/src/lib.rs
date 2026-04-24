@@ -70,6 +70,7 @@ use crate::sdk::platform::WindowsWindowHandleProvider;
 use crate::sdk::platform::WindowsWindowManager;
 use crate::sdk::storage::local_storage::LocalStorageService;
 use crate::sdk::storage::storage_service::StorageService;
+use crate::sdk::timer::TokioTimerManager;
 use crate::sdk::PathResolver;
 use crate::state::app_state::AppState;
 use crate::tray::init_system_tray;
@@ -377,6 +378,7 @@ async fn init_app_state(app: &mut App) {
             )
             .autostart_manager(Arc::new(WindowsAutoStartManager::new()))
             .hotkey_manager(Arc::new(WindowsHotkeyManager::new(app_handle)))
+            .timer_manager(Arc::new(TokioTimerManager::new()))
             .storage_service(default_storage)
             .build(),
     );

@@ -10,6 +10,7 @@ pub mod path;
 pub mod platform;
 pub mod shell;
 pub mod storage;
+pub mod timer;
 pub mod window;
 
 pub use app::{AppEnumerator, AppInfo, AppLauncher};
@@ -35,4 +36,5 @@ pub use shell::{LnkResolver, ResourceLoader, ShellExecutor};
 pub use storage::{
     LocalStorageService, StorageError, StorageService, WebDAVConfig, WebDAVStorageService,
 };
+pub use timer::{TimerCallback, TimerId, TimerManager, TimerMode, TokioTimerManager};
 pub use window::WindowManager;

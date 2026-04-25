@@ -1,4 +1,3 @@
-use crate::modules::config::default::APP_PIC_PATH;
 use crate::plugin_system::cached_candidate::CachedCandidateData;
 use crate::plugin_system::types::{
     ArrayItem, ArrayUiHint, DataSource, ExecutionTarget, FieldDefinition, SearchCandidate,
@@ -7,7 +6,7 @@ use crate::plugin_system::types::{
 use crate::plugin_system::{ComponentType, ConfigError, Configurable, SettingDefinition};
 use parking_lot::RwLock;
 use std::path::Path;
-use tracing::{debug, warn};
+use tracing::debug;
 
 /// 自定义命令数据源插件，负责从用户配置的命令列表中加载数据源候选项。
 pub struct CommandSource {
@@ -75,21 +74,13 @@ impl CommandSource {
     }
 
     /// 获取命令候选项的图标路径。
-    /// 优先使用解析出的可执行文件路径，回退到终端图标。
+    /// 优先使用解析出的可执行文件路径。
     fn resolve_icon(command: &str) -> String {
         if let Some(path) = Self::resolve_executable_path(command) {
             debug!("CommandSource: 解析到可执行文件路径用于图标: {}", path);
             return path;
         }
-
-        // 回退到终端图标
-        match APP_PIC_PATH.get("terminal") {
-            Some(path) => path.value().clone(),
-            None => {
-                warn!("CommandSource: 未找到终端图标路径，使用空字符串");
-                String::new()
-            }
-        }
+        String::new()
     }
 }
 

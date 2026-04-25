@@ -2,9 +2,6 @@
 use everything_rs::EverythingSort;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-
-use crate::modules::shortcut_manager::Shortcut;
-
 /// Everything 页面特有的快捷键配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]

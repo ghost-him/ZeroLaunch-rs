@@ -306,7 +306,7 @@ impl ConfigManager {
 
     /// 将当前所有组件的配置保存到持久化文件。
     /// 如果设置了 HostApi，同时异步同步到远程存储后端。
-    fn save_to_storage(&self) {
+    pub fn save_to_storage(&self) {
         let mut config = PersistentConfig::default();
 
         for component in self.registry.get_all() {

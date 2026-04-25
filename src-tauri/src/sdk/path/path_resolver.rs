@@ -4,6 +4,9 @@ use crate::sdk::host_api::HostApiError;
 /// 各平台实现将枚举值映射为实际文件系统路径。
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
 pub enum KnownPath {
+    // ========================================================================
+    // 系统路径（平台相关）
+    // ========================================================================
     /// 公共开始菜单目录（Windows: C:\ProgramData\Microsoft\Windows\Start Menu）
     CommonStartMenu,
     /// 当前用户开始菜单目录（Windows: %APPDATA%\Microsoft\Windows\Start Menu）
@@ -12,10 +15,23 @@ pub enum KnownPath {
     UserDesktop,
     /// 当前用户 AppData\Roaming 目录（Windows: %APPDATA%）
     UserAppDataRoaming,
-    /// 应用数据目录（ZeroLaunch-rs 专用）
+
+    // ========================================================================
+    // 应用路径（ZeroLaunch-rs 专用）
+    // ========================================================================
+    /// 应用数据根目录
     /// 标准模式：FOLDERID_RoamingAppData/ZeroLaunch-rs
     /// 便携模式（feature="portable"）：可执行文件所在目录
     AppDataDir,
+
+    /// 日志目录（AppDataDir/logs）
+    AppLogDir,
+
+    /// 图标缓存目录（AppDataDir/icons）
+    AppIconCacheDir,
+
+    /// 配置目录（AppDataDir/config）
+    AppConfigDir,
 }
 
 /// 路径解析器 trait，定义平台原语。

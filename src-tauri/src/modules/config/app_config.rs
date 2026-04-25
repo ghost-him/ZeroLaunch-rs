@@ -2,7 +2,6 @@ use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use tracing::Level;
 
-use super::default::APP_VERSION;
 use crate::utils::locale::get_default_app_language;
 
 /// 日志级别枚举
@@ -150,7 +149,7 @@ impl AppConfigInner {
     }
 
     pub(crate) fn default_tips() -> String {
-        format!("ZeroLaunch-rs v{}", APP_VERSION.clone())
+        format!("ZeroLaunch-rs v{}", APP_VERSION)
     }
 
     pub(crate) fn default_is_auto_start() -> bool {

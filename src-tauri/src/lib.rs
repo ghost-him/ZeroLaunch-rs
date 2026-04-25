@@ -18,7 +18,10 @@ use crate::core::config::ConfigManager;
 use crate::core::constants::APP_PIC_PATH;
 use crate::logging::{init_logging, log_application_shutdown, log_application_start};
 use crate::plugin::data_source::app_source::AppSource;
+use crate::plugin::data_source::bookmark_source::BookmarkSource;
+use crate::plugin::data_source::command_source::CommandSource;
 use crate::plugin::data_source::program_source::ProgramSource;
+use crate::plugin::data_source::url_source::UrlSource;
 use crate::plugin::executor::{
     AppExecutor, CommandExecutor, FileExecutor, PathExecutor, UrlExecutor, WindowActivateExecutor,
 };
@@ -27,6 +30,7 @@ use crate::plugin::keyword_optimizer::{
     SymbolRemover, UpperCaseLetterExtractor, VersionNumberRemover,
 };
 use crate::plugin::score_booster::history_booster::HistoryBooster;
+use crate::plugin::score_booster::query_affinity::QueryAffinityBooster;
 use crate::plugin::search_engine::launchy_search_model::LaunchySearchModel;
 use crate::plugin::search_engine::skim_search_model::SkimSearchModel;
 use crate::plugin::search_engine::standard_search_model::StandardSearchModel;
@@ -350,8 +354,14 @@ fn init_plugin_system(state: &Arc<AppState>) {
     let program_source = Arc::new(ProgramSource::new(program_source_handle));
     let _ = program_source.apply_settings(program_source.get_default_settings());
     let app_source = Arc::new(AppSource::new(app_source_handle));
+    let url_source = Arc::new(UrlSource::new());
+    let bookmark_source = Arc::new(BookmarkSource::new());
+    let command_source = Arc::new(CommandSource::new());
     config_manager.register(program_source.clone());
     config_manager.register(app_source.clone());
+    config_manager.register(url_source.clone());
+    config_manager.register(bookmark_source.clone());
+    config_manager.register(command_source.clone());
     info!("数据源注册完成");
 
     // 3. 注册关键词优化器
@@ -388,7 +398,9 @@ fn init_plugin_system(state: &Arc<AppState>) {
     // 5. 注册分数增强器
     info!("正在注册分数增强器...");
     let history_booster: Arc<dyn ScoreBooster> = Arc::new(HistoryBooster::new());
+    let query_affinity_booster: Arc<dyn ScoreBooster> = Arc::new(QueryAffinityBooster::new());
     config_manager.register(history_booster.clone());
+    config_manager.register(query_affinity_booster.clone());
     info!("分数增强器注册完成");
 
     // 6. 注册核心配置组件
@@ -406,6 +418,9 @@ fn init_plugin_system(state: &Arc<AppState>) {
     // 添加数据源
     candidate_pipeline.add_source(program_source);
     candidate_pipeline.add_source(app_source);
+    candidate_pipeline.add_source(url_source);
+    candidate_pipeline.add_source(bookmark_source);
+    candidate_pipeline.add_source(command_source);
 
     // 添加关键词优化器（按优先级顺序）
     candidate_pipeline.add_keyword_optimizer(version_number_remover);
@@ -426,7 +441,7 @@ fn init_plugin_system(state: &Arc<AppState>) {
     );
 
     // 构建搜索管道
-    let boosters: Vec<Arc<dyn ScoreBooster>> = vec![history_booster];
+    let boosters: Vec<Arc<dyn ScoreBooster>> = vec![history_booster, query_affinity_booster];
     let search_pipeline = SearchPipeline::new(Some(search_engine), boosters, 10);
 
     // === 阶段3: 更新 SessionRouter 状态 ===

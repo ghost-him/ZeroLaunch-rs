@@ -162,13 +162,23 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            // hide_window,
-            // show_setting_window,
-            // show_welcome_window,
-            // handle_new_search,
-            // handle_new_launch,
-            // get_new_candidates_count,
-            // refresh_new_candidates,
+            // Bridge: 搜索与会话管理
+            crate::commands::bridge::bridge_query,
+            crate::commands::bridge::bridge_confirm,
+            crate::commands::bridge::bridge_wake,
+            crate::commands::bridge::bridge_reset,
+            crate::commands::bridge::bridge_get_session_mode,
+            crate::commands::bridge::bridge_refresh_candidates,
+            crate::commands::bridge::bridge_get_candidates_count,
+            // Bridge: 配置管理
+            crate::commands::config_file::get_all_components,
+            crate::commands::config_file::get_component_schema,
+            crate::commands::config_file::get_component_settings,
+            crate::commands::config_file::apply_component_settings,
+            crate::commands::config_file::reset_component_settings,
+            crate::commands::config_file::set_component_enabled,
+            crate::commands::config_file::get_config_actions,
+            crate::commands::config_file::execute_config_action,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

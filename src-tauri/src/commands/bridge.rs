@@ -1,6 +1,6 @@
 use crate::plugin_system::types::{Query, QueryResponse};
 use crate::state::app_state::AppState;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::{debug, info};
 use uuid::Uuid;
@@ -10,6 +10,7 @@ use uuid::Uuid;
 // ============================================================================
 
 #[derive(Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct BridgeSearchResult {
     pub id: u64,
     pub title: String,
@@ -20,6 +21,7 @@ pub struct BridgeSearchResult {
 }
 
 #[derive(Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct BridgeResultAction {
     pub id: String,
     pub label: String,
@@ -41,9 +43,23 @@ impl From<crate::plugin_system::types::ResultAction> for BridgeResultAction {
 }
 
 #[derive(Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct BridgeQueryResponse {
-    pub results: Vec<BridgeSearchResult>,
     pub mode: String,
+    pub results: Vec<BridgeSearchResult>,
+    pub panel_type: Option<String>,
+    pub panel_data: Option<serde_json::Value>,
+    pub panel_actions: Option<Vec<BridgeResultAction>>,
+}
+
+/// 确认执行负载
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ConfirmPayload {
+    pub candidate_id: u64,
+    pub action_id: String,
+    pub query_text: String,
+    pub user_args: Option<Vec<String>>,
 }
 
 /// 通用查询入口。
@@ -53,7 +69,7 @@ pub async fn bridge_query(
     state: tauri::State<'_, Arc<AppState>>,
     raw_query: String,
 ) -> Result<BridgeQueryResponse, String> {
-    debug!("🔍 [Bridge] 查询: '{}'", raw_query);
+    debug!("[Bridge] 查询: '{}'", raw_query);
 
     let session_router = state.get_session_router();
     let trace_id = Uuid::new_v4().to_string()[..8].to_string();
@@ -65,7 +81,6 @@ pub async fn bridge_query(
     };
 
     let response = session_router.route_query(&trace_id, &query).await;
-    // todo!("这里还有待商榷");
 
     match response {
         QueryResponse::List { results } => {
@@ -82,28 +97,60 @@ pub async fn bridge_query(
                 .collect();
 
             info!(
-                "🔍 [Bridge] 查询完成: '{}' -> {} 个结果",
+                "[Bridge] 查询完成: '{}' -> {} 个结果",
                 raw_query,
                 bridge_results.len()
             );
 
             Ok(BridgeQueryResponse {
-                results: bridge_results,
                 mode: "search".to_string(),
+                results: bridge_results,
+                panel_type: None,
+                panel_data: None,
+                panel_actions: None,
             })
         }
         QueryResponse::Empty => {
-            info!("🔍 [Bridge] 查询完成: '{}' -> 0 个结果", raw_query);
+            info!("[Bridge] 查询完成: '{}' -> 0 个结果", raw_query);
             Ok(BridgeQueryResponse {
+                mode: "empty".to_string(),
                 results: Vec::new(),
-                mode: "search".to_string(),
+                panel_type: None,
+                panel_data: None,
+                panel_actions: None,
             })
         }
-        _ => {
-            info!("🔍 [Bridge] 查询完成: '{}' -> 插件/自定义模式", raw_query);
+        QueryResponse::CustomPanel {
+            panel_type,
+            data,
+            actions,
+            keep_search_bar,
+        } => {
+            let mode = if keep_search_bar {
+                "plugin_panel"
+            } else {
+                "plugin_immersive"
+            };
+            info!(
+                "[Bridge] 查询完成: '{}' -> 插件面板 '{}' ({})",
+                raw_query, panel_type, mode
+            );
             Ok(BridgeQueryResponse {
+                mode: mode.to_string(),
                 results: Vec::new(),
-                mode: "plugin".to_string(),
+                panel_type: Some(panel_type),
+                panel_data: Some(data),
+                panel_actions: Some(actions.into_iter().map(|a| a.into()).collect()),
+            })
+        }
+        QueryResponse::WebView { .. } => {
+            info!("[Bridge] 查询完成: '{}' -> WebView 模式", raw_query);
+            Ok(BridgeQueryResponse {
+                mode: "plugin_immersive".to_string(),
+                results: Vec::new(),
+                panel_type: None,
+                panel_data: None,
+                panel_actions: None,
             })
         }
     }
@@ -114,30 +161,27 @@ pub async fn bridge_query(
 #[tauri::command]
 pub async fn bridge_confirm(
     state: tauri::State<'_, Arc<AppState>>,
-    candidate_id: u64,
-    action_id: String,
-    query_text: String,
-    user_args: Option<Vec<String>>,
+    payload: ConfirmPayload,
 ) -> Result<(), String> {
     debug!(
-        "🚀 [Bridge] 执行: candidate_id={}, action='{}', query='{}'",
-        candidate_id, action_id, query_text
+        "[Bridge] 执行: candidate_id={}, action='{}', query='{}'",
+        payload.candidate_id, payload.action_id, payload.query_text
     );
 
     let session_router = state.get_session_router();
     let trace_id = Uuid::new_v4().to_string()[..8].to_string();
 
-    let payload = serde_json::json!({
-        "candidate_id": candidate_id,
-        "query_text": query_text,
-        "user_args": user_args.unwrap_or_default(),
+    let json_payload = serde_json::json!({
+        "candidate_id": payload.candidate_id,
+        "query_text": payload.query_text,
+        "user_args": payload.user_args.unwrap_or_default(),
     });
 
     session_router
-        .route_confirm(&trace_id, &action_id, payload)
+        .route_confirm(&trace_id, &payload.action_id, json_payload)
         .await?;
 
-    info!("🚀 [Bridge] 执行成功: candidate_id={}", candidate_id);
+    info!("[Bridge] 执行成功: candidate_id={}", payload.candidate_id);
     Ok(())
 }
 

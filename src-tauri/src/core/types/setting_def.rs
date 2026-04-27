@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 /// 组件配置项的字段定义。
 /// 用于描述配置项的核心属性，可被 SettingDefinition 和 ArrayItem::Object 复用。
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FieldDefinition {
     pub key: String,
     pub label: String,
@@ -34,6 +35,7 @@ impl Default for FieldDefinition {
 /// - `field.default_value`: 整个设置项的默认值（如整个数组的默认内容）
 /// - `FieldDefinition.default_value`（在 ArrayItem::Object 内）: 新增一行对象时，该字段的默认值模板
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct SettingDefinition {
     pub field: FieldDefinition,
     pub group: Option<String>,
@@ -48,6 +50,7 @@ pub struct SettingDefinition {
 /// 数组元素的 UI 渲染提示。
 /// 用于指导前端如何渲染数组类型的配置项。
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
 pub enum ArrayUiHint {
     #[default]
     Default,
@@ -59,6 +62,7 @@ pub enum ArrayUiHint {
 /// 原始类型枚举，用于数组元素的类型定义。
 /// 与 SettingType 类似，但不包含复合类型（Array）。
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum PrimitiveType {
     Text,
     Number {
@@ -79,6 +83,7 @@ pub enum PrimitiveType {
 /// 数组元素类型定义。
 /// 用于区分数组元素是原始类型还是对象类型。
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum ArrayItem {
     Primitive(PrimitiveType),
     Object(Vec<FieldDefinition>),
@@ -87,6 +92,7 @@ pub enum ArrayItem {
 /// 组件设置项的输入控件类型。
 /// 服务于设置表单渲染与取值校验。
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum SettingType {
     Text,
     Number {
@@ -113,6 +119,7 @@ pub enum SettingType {
 
 /// 路径选择模式
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum PathMode {
     File,
     Directory,

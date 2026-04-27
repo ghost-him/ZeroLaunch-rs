@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 /// 获取指定组件的配置动作列表
 #[tauri::command]
-pub fn get_config_actions(
+pub fn config_get_actions(
     state: tauri::State<'_, Arc<AppState>>,
     component_id: String,
 ) -> Vec<ConfigActionDef> {
@@ -13,7 +13,7 @@ pub fn get_config_actions(
 
 /// 执行指定组件的配置动作
 #[tauri::command]
-pub fn execute_config_action(
+pub fn config_execute_action(
     state: tauri::State<'_, Arc<AppState>>,
     component_id: String,
     action: String,
@@ -25,7 +25,7 @@ pub fn execute_config_action(
 
 /// 获取所有可配置组件的概览信息
 #[tauri::command]
-pub fn get_all_components(
+pub fn config_get_all_components(
     state: tauri::State<'_, Arc<AppState>>,
 ) -> Vec<crate::core::config::ComponentInfo> {
     state.get_config_manager().get_all_components()
@@ -33,7 +33,7 @@ pub fn get_all_components(
 
 /// 获取指定组件的配置 Schema
 #[tauri::command]
-pub fn get_component_schema(
+pub fn config_get_schema(
     state: tauri::State<'_, Arc<AppState>>,
     component_id: String,
 ) -> Result<crate::core::config::ComponentSchema, String> {
@@ -45,7 +45,7 @@ pub fn get_component_schema(
 
 /// 获取指定组件的当前配置值
 #[tauri::command]
-pub fn get_component_settings(
+pub fn config_get_settings(
     state: tauri::State<'_, Arc<AppState>>,
     component_id: String,
 ) -> Result<serde_json::Value, String> {
@@ -57,7 +57,7 @@ pub fn get_component_settings(
 
 /// 应用配置到指定组件
 #[tauri::command]
-pub fn apply_component_settings(
+pub fn config_apply_settings(
     state: tauri::State<'_, Arc<AppState>>,
     component_id: String,
     settings: serde_json::Value,
@@ -70,7 +70,7 @@ pub fn apply_component_settings(
 
 /// 重置组件配置为默认值
 #[tauri::command]
-pub fn reset_component_settings(
+pub fn config_reset_settings(
     state: tauri::State<'_, Arc<AppState>>,
     component_id: String,
 ) -> Result<(), String> {
@@ -82,7 +82,7 @@ pub fn reset_component_settings(
 
 /// 设置组件启用状态
 #[tauri::command]
-pub fn set_component_enabled(
+pub fn config_set_enabled(
     state: tauri::State<'_, Arc<AppState>>,
     component_id: String,
     enabled: bool,

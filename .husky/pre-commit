@@ -44,16 +44,16 @@ echo "🏗️  Building frontend..."
 bun run build
 
 # 2. 复制 i18n locales 文件到 src-tauri
-echo "📦 Copying i18n locales to src-tauri..."
-SRC_LOCALES_DIR="src-ui/i18n/locales"
-DEST_DIR="src-tauri/locales"
+# echo "📦 Copying i18n locales to src-tauri..."
+# SRC_LOCALES_DIR="src-ui/i18n/locales"
+# DEST_DIR="src-tauri/locales"
 
-if [ ! -d "$DEST_DIR" ]; then
-  mkdir -p "$DEST_DIR"
-fi
+# if [ ! -d "$DEST_DIR" ]; then
+#   mkdir -p "$DEST_DIR"
+# fi
 
-cp -r "$SRC_LOCALES_DIR"/* "$DEST_DIR"/
-echo "✓ i18n locales files copied to src-tauri/locales/"
+# cp -r "$SRC_LOCALES_DIR"/* "$DEST_DIR"/
+# echo "✓ i18n locales files copied to src-tauri/locales/"
 
 # 3. 前端静态检查
 echo "📋 Running frontend vue-tsc..."

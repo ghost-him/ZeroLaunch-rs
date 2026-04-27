@@ -109,6 +109,7 @@ impl ConfigManager {
     pub fn get_component_schema(&self, component_id: &str) -> Option<ComponentSchema> {
         self.registry.get(component_id).map(|c| ComponentSchema {
             component_id: c.component_id().to_string(),
+            component_name: c.component_name().to_string(),
             component_type: c.component_type(),
             settings: c.setting_schema(),
         })

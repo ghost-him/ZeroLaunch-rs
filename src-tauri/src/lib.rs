@@ -171,14 +171,14 @@ pub fn run() {
             crate::commands::bridge::bridge_refresh_candidates,
             crate::commands::bridge::bridge_get_candidates_count,
             // Bridge: 配置管理
-            crate::commands::config_file::get_all_components,
-            crate::commands::config_file::get_component_schema,
-            crate::commands::config_file::get_component_settings,
-            crate::commands::config_file::apply_component_settings,
-            crate::commands::config_file::reset_component_settings,
-            crate::commands::config_file::set_component_enabled,
-            crate::commands::config_file::get_config_actions,
-            crate::commands::config_file::execute_config_action,
+            crate::commands::config_file::config_get_all_components,
+            crate::commands::config_file::config_get_schema,
+            crate::commands::config_file::config_get_settings,
+            crate::commands::config_file::config_apply_settings,
+            crate::commands::config_file::config_reset_settings,
+            crate::commands::config_file::config_set_enabled,
+            crate::commands::config_file::config_get_actions,
+            crate::commands::config_file::config_execute_action,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

@@ -22,6 +22,7 @@ pub enum TargetType {
 
 /// 执行目标
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, Hash, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub enum ExecutionTarget {
     Path(String),
     App(String),
@@ -107,6 +108,7 @@ pub enum RegistrationError {
 
 // 这个是一个搜索候选项
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SearchCandidate {
     // 候选项的唯一标识符
     pub id: CandidateId,
@@ -124,6 +126,7 @@ pub struct SearchCandidate {
 
 // 这个是一个搜索候选项的详细分数
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ScoreDetail {
     // 基础分
     pub score: f64,
@@ -135,6 +138,7 @@ pub struct ScoreDetail {
 
 // 这个是一个搜索候选项的分数
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ScoredCandidate {
     // 表示该候选项的分数
     pub candidate_id: CandidateId,
@@ -246,6 +250,7 @@ pub struct Query {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum QueryResponse {
     // 目前先实现该内容
     List {
@@ -256,6 +261,7 @@ pub enum QueryResponse {
         panel_type: String,         // "notebook", "todo", etc.
         data: serde_json::Value,    // 插件自定义数据
         actions: Vec<ResultAction>, // 可选的全局动作
+        keep_search_bar: bool,      // true=保留搜索框, false=沉浸态
     },
     // 该内容暂时先不实现，后续如果有需要了再来实现它
     WebView {
@@ -269,6 +275,7 @@ pub enum QueryResponse {
 /// 插件返回给宿主的搜索结果项。
 /// 服务于结果聚合、排序与 UI 渲染。
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ListItem {
     // 这个是候选项的唯一标识符
     pub id: CandidateId,
@@ -283,6 +290,7 @@ pub struct ListItem {
 /// 挂载在查询结果上的动作项。
 /// 服务于用户触发后的 Plugin::execute_action 执行流程。
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ResultAction {
     // 这个是动作的唯一标识符，通常是一个字符串，由插件定义
     pub id: String,
@@ -300,6 +308,7 @@ pub struct ResultAction {
 /// 单个插件实例的静态元数据描述。
 /// 服务于注册中心索引、触发词路由与插件发现/展示。
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PluginMetadata {
     pub id: String,
     pub name: String,

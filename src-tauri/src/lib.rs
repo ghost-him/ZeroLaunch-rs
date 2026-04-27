@@ -15,7 +15,6 @@ pub mod window_position;
 use crate::core::config::components::hotkey_config::HotkeyConfigComponent;
 use crate::core::config::components::storage_config::StorageConfigComponent;
 use crate::core::config::ConfigManager;
-use crate::core::constants::APP_PIC_PATH;
 use crate::logging::{init_logging, log_application_shutdown, log_application_start};
 use crate::plugin::data_source::app_source::AppSource;
 use crate::plugin::data_source::bookmark_source::BookmarkSource;
@@ -54,6 +53,7 @@ use crate::sdk::platform::WindowsWindowManager;
 use crate::sdk::storage::local_storage::LocalStorageService;
 use crate::sdk::storage::storage_service::StorageService;
 use crate::sdk::timer::TokioTimerManager;
+use crate::sdk::AppResourceService;
 use crate::sdk::PathResolver;
 use crate::state::app_state::AppState;
 use crate::tray::init_system_tray;
@@ -120,10 +120,6 @@ pub fn run() {
             let config_dir = path_resolver.resolve_path(KnownPath::AppConfigDir).unwrap();
 
             tauri::async_runtime::block_on(async move {
-                info!("=== 阶段4: 基础资源初始化 ===");
-                info!("正在注册图标路径");
-                register_icon_path(app);
-
                 info!("=== 阶段5: 核心状态初始化 ===");
                 info!("正在初始化应用状态和配置系统");
                 init_app_state(app, path_resolver, app_data_dir, icon_cache_dir, config_dir).await;
@@ -232,18 +228,23 @@ async fn init_app_state(
     state.set_main_handle(Arc::new(app.app_handle().clone()));
     debug!("应用句柄设置完成");
 
+    // 初始化应用资源服务（图标等内置资源）
+    let resource_dir = app.path().resource_dir().expect("无法获取资源目录");
+    let icons_dir = resource_dir.join("icons");
+    let app_resource = Arc::new(AppResourceService::new(
+        icons_dir.to_string_lossy().to_string(),
+    ));
+
     info!("=== 阶段5.1: 创建 HostApi ===");
 
     let default_storage: Arc<dyn StorageService> =
         Arc::new(LocalStorageService::new(&app_data_dir));
 
-    let default_app_icon_path = APP_PIC_PATH
-        .get("tips")
-        .map(|v| v.value().clone())
+    let default_app_icon_path = app_resource
+        .get_icon_path("tips")
         .unwrap_or_else(|| ".".to_string());
-    let default_web_icon_path = APP_PIC_PATH
-        .get("web_pages")
-        .map(|v| v.value().clone())
+    let default_web_icon_path = app_resource
+        .get_icon_path("web_pages")
         .unwrap_or_else(|| ".".to_string());
 
     let app_handle = state.get_main_handle();
@@ -272,6 +273,7 @@ async fn init_app_state(
             .hotkey_manager(Arc::new(WindowsHotkeyManager::new(app_handle)))
             .timer_manager(Arc::new(TokioTimerManager::new()))
             .storage_service(default_storage)
+            .app_resource(app_resource)
             .build(),
     );
     state.set_host_api(host_api.clone());
@@ -325,6 +327,9 @@ fn init_plugin_system(state: &Arc<AppState>) {
     let app_source_handle = host_api.register("app-source", Default::default());
     let app_executor_handle = host_api.register("app-executor", Default::default());
     let command_executor_handle = host_api.register("command-executor", Default::default());
+    let url_source_handle = host_api.register("url-source", Default::default());
+    let bookmark_source_handle = host_api.register("bookmark-source", Default::default());
+    let command_source_handle = host_api.register("command-source", Default::default());
 
     // 1. 注册执行器（同时注册到 ConfigManager 和 ExecutorRegistry，双重索引）
     info!("正在注册执行器...");
@@ -364,9 +369,9 @@ fn init_plugin_system(state: &Arc<AppState>) {
     let program_source = Arc::new(ProgramSource::new(program_source_handle));
     let _ = program_source.apply_settings(program_source.get_default_settings());
     let app_source = Arc::new(AppSource::new(app_source_handle));
-    let url_source = Arc::new(UrlSource::new());
-    let bookmark_source = Arc::new(BookmarkSource::new());
-    let command_source = Arc::new(CommandSource::new());
+    let url_source = Arc::new(UrlSource::new(url_source_handle));
+    let bookmark_source = Arc::new(BookmarkSource::new(bookmark_source_handle));
+    let command_source = Arc::new(CommandSource::new(command_source_handle));
     config_manager.register(program_source.clone());
     config_manager.register(app_source.clone());
     config_manager.register(url_source.clone());
@@ -516,49 +521,6 @@ fn init_search_bar_window(app: &mut App) {
     });
     // handle_focus_lost(main_window.clone());
     todo!("实现处理窗口失焦的场景");
-}
-
-///注册图标的路径
-fn register_icon_path(_app: &mut App) {
-    todo!("优化这个功能，看看能不能使用tauri 内置的命令来代替使用硬路径获取资源的方法");
-    // let path_resolver = app.path();
-    // let resource_icons_dir = path_resolver
-    //     .resource_dir()
-    //     .expect("无法获取资源目录")
-    //     .join("icons");
-
-    // // 定义图标的键名和对应的文件名
-    // // (键名, 文件名)
-    // let icons_to_register = [
-    //     ("tray_icon", "32x32.png"),
-    //     ("tray_icon_white", "32x32-white.png"),
-    //     ("web_pages", "web_pages.png"),
-    //     ("tips", "tips.png"),
-    //     ("terminal", "terminal.png"),
-    //     ("settings", "settings.png"),
-    //     ("refresh", "refresh.png"),
-    //     ("register", "register.png"),
-    //     ("game", "game.png"),
-    //     ("exit", "exit.png"),
-    // ];
-
-    // for (key_name, file_name) in icons_to_register.iter() {
-    //     let icon_path = resource_icons_dir.join(file_name);
-    //     match icon_path.to_str() {
-    //         Some(path_str) => {
-    //             APP_PIC_PATH.insert(key_name.to_string(), path_str.to_string());
-    //         }
-    //         None => {
-    //             // 处理路径无法转换为 UTF-8 字符串的情况
-    //             // 在这个特定场景下，图标文件名通常是 ASCII/UTF-8，所以 .unwrap() 可能也能接受
-    //             // 但更健壮的做法是处理 None 的情况
-    //             warn!(
-    //                 "警告: 路径 {:?} 无法转换为有效的UTF-8字符串，跳过图标 '{}'",
-    //                 icon_path, key_name
-    //             );
-    //         }
-    //     }
-    // }
 }
 
 fn init_setting_window(app: tauri::AppHandle) {

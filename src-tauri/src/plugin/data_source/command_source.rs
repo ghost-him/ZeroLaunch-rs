@@ -4,25 +4,23 @@ use crate::plugin_system::types::{
     SettingType,
 };
 use crate::plugin_system::{ComponentType, ConfigError, Configurable, SettingDefinition};
+use crate::sdk::host_api::PluginHandle;
 use parking_lot::RwLock;
 use std::path::Path;
+use std::sync::Arc;
 use tracing::debug;
 
 /// 自定义命令数据源插件，负责从用户配置的命令列表中加载数据源候选项。
 pub struct CommandSource {
     settings: RwLock<serde_json::Value>,
-}
-
-impl Default for CommandSource {
-    fn default() -> Self {
-        Self::new()
-    }
+    handle: Arc<PluginHandle>,
 }
 
 impl CommandSource {
-    pub fn new() -> Self {
+    pub fn new(handle: Arc<PluginHandle>) -> Self {
         CommandSource {
             settings: RwLock::new(serde_json::Value::Null),
+            handle,
         }
     }
 
@@ -74,13 +72,15 @@ impl CommandSource {
     }
 
     /// 获取命令候选项的图标路径。
-    /// 优先使用解析出的可执行文件路径。
-    fn resolve_icon(command: &str) -> String {
+    /// 优先使用解析出的可执行文件路径，无法解析时使用默认终端图标。
+    fn resolve_icon(&self, command: &str) -> String {
         if let Some(path) = Self::resolve_executable_path(command) {
             debug!("CommandSource: 解析到可执行文件路径用于图标: {}", path);
             return path;
         }
-        String::new()
+        self.handle
+            .get_app_icon_path("terminal")
+            .unwrap_or_default()
     }
 }
 
@@ -158,7 +158,7 @@ impl DataSource for CommandSource {
                 continue;
             }
 
-            let icon = Self::resolve_icon(command);
+            let icon = self.resolve_icon(command);
             let candidate = SearchCandidate {
                 id: 0,
                 name: name.clone(),

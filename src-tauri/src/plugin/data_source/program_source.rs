@@ -121,12 +121,6 @@ pub struct ProgramSource {
     handle: Arc<PluginHandle>,
 }
 
-impl Default for ProgramSource {
-    fn default() -> Self {
-        unreachable!("ProgramSource 必须通过 new(handle) 构造，不允许默认构造")
-    }
-}
-
 impl ProgramSource {
     pub fn new(handle: Arc<PluginHandle>) -> Self {
         ProgramSource {

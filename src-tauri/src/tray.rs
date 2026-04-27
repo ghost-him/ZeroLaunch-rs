@@ -9,7 +9,7 @@ use tracing::{debug, error, info, warn};
 
 use crate::error::{OptionExt, ResultExt};
 
-use crate::{AppState, ServiceLocator, APP_PIC_PATH};
+use crate::{AppState, ServiceLocator};
 
 const MENU_ID_SHOW_SETTINGS: &str = "show_setting_window";
 const MENU_ID_EXIT_PROGRAM: &str = "exit_program";
@@ -83,13 +83,14 @@ fn create_tray_icon<R: Runtime>(app_handle: &AppHandle, menu: Menu<R>) -> tauri:
         "tray_icon"
     };
 
-    let tray_icon_path_value = APP_PIC_PATH
-        .get(icon_key)
+    let state = app_handle.state::<Arc<AppState>>();
+    let host_api = state.get_host_api();
+    let tray_icon_path_value = host_api
+        .get_app_icon_path(icon_key)
         .expect_programming(&format!(
-            "Tray icon path '{}' not found in APP_PIC_PATH",
+            "Tray icon path '{}' not found in app resource service",
             icon_key
-        ))
-        .clone();
+        ));
     let icon = Image::from_path(&tray_icon_path_value).expect_programming(&format!(
         "无法从路径 {:?} 加载托盘图标",
         tray_icon_path_value
@@ -221,9 +222,9 @@ pub fn update_tray_icon_theme() {
         "tray_icon"
     };
 
-    if let Some(path_entry) = APP_PIC_PATH.get(icon_key) {
-        let path = path_entry.value();
-        match Image::from_path(path) {
+    let host_api = state.get_host_api();
+    if let Some(path) = host_api.get_app_icon_path(icon_key) {
+        match Image::from_path(&path) {
             Ok(icon) => {
                 let tray_icon = state.get_tray_icon();
                 if let Err(e) = tray_icon.set_icon(Some(icon)) {
@@ -237,7 +238,10 @@ pub fn update_tray_icon_theme() {
             }
         }
     } else {
-        warn!("Tray icon key '{}' not found in APP_PIC_PATH", icon_key);
+        warn!(
+            "Tray icon key '{}' not found in app resource service",
+            icon_key
+        );
     }
 }
 

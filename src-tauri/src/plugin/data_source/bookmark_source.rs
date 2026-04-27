@@ -4,11 +4,13 @@ use crate::plugin_system::types::{
     SearchCandidate, SettingType,
 };
 use crate::plugin_system::{ComponentType, ConfigError, Configurable, SettingDefinition};
+use crate::sdk::host_api::PluginHandle;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
+use std::sync::Arc;
 use tracing::{debug, warn};
 
 // ============ Chrome 书签解析相关结构 ============
@@ -85,18 +87,15 @@ fn normalize_url(url: &str) -> String {
 
 pub struct BookmarkSource {
     settings: RwLock<serde_json::Value>,
-}
-
-impl Default for BookmarkSource {
-    fn default() -> Self {
-        Self::new()
-    }
+    #[allow(dead_code)]
+    handle: Arc<PluginHandle>,
 }
 
 impl BookmarkSource {
-    pub fn new() -> Self {
+    pub fn new(handle: Arc<PluginHandle>) -> Self {
         BookmarkSource {
             settings: RwLock::new(serde_json::Value::Null),
+            handle,
         }
     }
 

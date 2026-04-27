@@ -13,6 +13,7 @@ use crate::sdk::parameter::resolver::ParameterResolver;
 use crate::sdk::parameter::types::ParameterSnapshot;
 use crate::sdk::path::path_resolver::{KnownPath, PathResolver};
 use crate::sdk::platform::capabilities::PlatformCapabilities;
+use crate::sdk::resource::AppResourceService;
 use crate::sdk::shell::lnk_resolver::LnkResolver;
 use crate::sdk::shell::resource_loader::ResourceLoader;
 use crate::sdk::shell::ShellExecutor;
@@ -173,6 +174,8 @@ pub struct PluginHandle {
     parameter_resolver: Arc<dyn ParameterResolver>,
     /// 定时器管理器，由 HostApi 注入
     timer_manager: Arc<dyn TimerManager>,
+    /// 应用资源服务，由 HostApi 注入
+    app_resource: Arc<AppResourceService>,
 }
 
 impl PluginHandle {
@@ -287,7 +290,16 @@ impl PluginHandle {
         self.app_launcher.launch_app(app_id, args).await
     }
 
-    // ===== 配置管理 =====
+    // ===== 应用资源服务 =====
+
+    /// 根据名称获取内置图标资源的文件系统路径。
+    /// 参数：name - 图标名称（如 "tray_icon", "web_pages" 等）。
+    /// 返回：图标路径，未注册则返回 None。
+    pub fn get_app_icon_path(&self, name: &str) -> Option<String> {
+        self.app_resource.get_icon_path(name)
+    }
+
+    // ===== 快捷方式解析 =====
 
     /// 解析 .lnk 快捷方式文件的目标路径。
     /// 参数：lnk_path - .lnk 文件的路径。
@@ -461,6 +473,8 @@ pub struct HostApi {
     timer_manager: Arc<dyn TimerManager>,
     /// 存储服务（可运行时重配置：Local ↔ WebDAV）
     storage: RwLock<Arc<dyn StorageService>>,
+    /// 应用资源服务
+    app_resource: Arc<AppResourceService>,
 }
 
 impl HostApi {
@@ -491,6 +505,7 @@ impl HostApi {
             resource_loader: self.resource_loader.clone(),
             parameter_resolver: self.parameter_resolver.clone(),
             timer_manager: self.timer_manager.clone(),
+            app_resource: self.app_resource.clone(),
         });
         self.handles.insert(plugin_id.to_string(), handle.clone());
         handle
@@ -510,6 +525,15 @@ impl HostApi {
     /// 返回：平台能力的不可变引用。
     pub fn capabilities(&self) -> &PlatformCapabilities {
         &self.capabilities
+    }
+
+    // ===== 应用资源服务 =====
+
+    /// 根据名称获取内置图标资源的文件系统路径。
+    /// 参数：name - 图标名称（如 "tray_icon", "web_pages" 等）。
+    /// 返回：图标路径，未注册则返回 None。
+    pub fn get_app_icon_path(&self, name: &str) -> Option<String> {
+        self.app_resource.get_icon_path(name)
     }
 
     /// 捕获当前系统参数快照
@@ -756,6 +780,7 @@ pub struct HostApiBuilder {
     installation_monitor: Option<Arc<dyn InstallationMonitor>>,
     timer_manager: Option<Arc<dyn TimerManager>>,
     storage_service: Option<Arc<dyn StorageService>>,
+    app_resource: Option<Arc<AppResourceService>>,
 }
 
 impl HostApiBuilder {
@@ -782,6 +807,7 @@ impl HostApiBuilder {
             installation_monitor: None,
             timer_manager: None,
             storage_service: None,
+            app_resource: None,
         }
     }
 
@@ -915,6 +941,14 @@ impl HostApiBuilder {
         self
     }
 
+    /// 设置应用资源服务。
+    /// 参数：app_resource - 应用资源服务实例。
+    /// 返回：Self（支持链式调用）。
+    pub fn app_resource(mut self, app_resource: Arc<AppResourceService>) -> Self {
+        self.app_resource = Some(app_resource);
+        self
+    }
+
     /// 构建 HostApi 实例。
     /// 参数：无。
     /// 返回：构建完成的 HostApi 实例，如果缺少必需组件则 panic。
@@ -947,6 +981,7 @@ impl HostApiBuilder {
                 .expect("missing installation_monitor"),
             timer_manager: self.timer_manager.expect("missing timer_manager"),
             storage: RwLock::new(self.storage_service.expect("missing storage_service")),
+            app_resource: self.app_resource.expect("missing app_resource"),
         }
     }
 }

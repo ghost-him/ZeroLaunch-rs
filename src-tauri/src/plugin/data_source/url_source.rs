@@ -4,24 +4,23 @@ use crate::plugin_system::types::{
     SettingType,
 };
 use crate::plugin_system::{ComponentType, ConfigError, Configurable, SettingDefinition};
+use crate::sdk::host_api::PluginHandle;
 use parking_lot::RwLock;
+use std::sync::Arc;
 use tracing::debug;
 
 /// 网页数据源插件，负责从用户配置的网页列表中加载数据源候选项。
 pub struct UrlSource {
     settings: RwLock<serde_json::Value>,
-}
-
-impl Default for UrlSource {
-    fn default() -> Self {
-        Self::new()
-    }
+    #[allow(dead_code)]
+    handle: Arc<PluginHandle>,
 }
 
 impl UrlSource {
-    pub fn new() -> Self {
+    pub fn new(handle: Arc<PluginHandle>) -> Self {
         UrlSource {
             settings: RwLock::new(serde_json::Value::Null),
+            handle,
         }
     }
 

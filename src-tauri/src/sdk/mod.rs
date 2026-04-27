@@ -8,6 +8,7 @@ pub mod installation_monitor;
 pub mod parameter;
 pub mod path;
 pub mod platform;
+pub mod resource;
 pub mod shell;
 pub mod storage;
 pub mod timer;
@@ -32,6 +33,7 @@ pub use parameter::{
 };
 pub use path::path_resolver::{KnownPath, PathResolver};
 pub use platform::capabilities::{PlatformCapabilities, PlatformCapability};
+pub use resource::AppResourceService;
 pub use shell::{LnkResolver, ResourceLoader, ShellExecutor};
 pub use storage::{
     LocalStorageService, StorageError, StorageService, WebDAVConfig, WebDAVStorageService,

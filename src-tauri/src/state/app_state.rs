@@ -2,7 +2,6 @@ use crate::core::config::ConfigManager;
 use crate::core::tray::TrayManager;
 use crate::error::OptionExt;
 use crate::plugin_system::service::PluginService;
-use crate::plugin_system::DefaultPluginAPI;
 use crate::plugin_system::SessionRouter;
 use crate::sdk::HostApi;
 use crate::utils::waiting_hashmap::AsyncWaitingHashMap;
@@ -32,8 +31,7 @@ impl Default for AppState {
 
 impl AppState {
     pub fn new() -> Self {
-        let api = Arc::new(DefaultPluginAPI::new());
-        let plugin_service = Arc::new(PluginService::new(api));
+        let plugin_service = Arc::new(PluginService::new());
         let session_router = Arc::new(SessionRouter::new(plugin_service));
 
         AppState {

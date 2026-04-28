@@ -330,7 +330,6 @@ pub trait Plugin: Configurable {
     async fn init(
         &self,
         ctx: &PluginContext,
-        api: Arc<dyn PluginAPI>,
         host_api: Arc<crate::sdk::HostApi>,
     ) -> Result<(), PluginError>;
 
@@ -343,32 +342,6 @@ pub trait Plugin: Configurable {
         action_id: &str,
         payload: serde_json::Value,
     ) -> Result<(), PluginError>;
-}
-
-/// 宿主向插件暴露能力的契约。
-/// 服务于日志、通知、设置读写以及 UI 回调等横切能力。
-#[async_trait]
-pub trait PluginAPI: Send + Sync {
-    async fn log(&self, ctx: &PluginContext, level: LogLevel, message: &str);
-
-    async fn notify(&self, ctx: &PluginContext, title: &str, message: &str);
-
-    async fn get_setting(&self, plugin_id: &str, key: &str) -> Option<String>;
-
-    async fn set_setting(&self, plugin_id: &str, key: &str, value: &str);
-
-    async fn refresh_programs(&self);
-
-    async fn hide_window(&self);
-}
-
-/// PluginAPI::log 使用的日志级别。
-#[derive(Debug, Clone)]
-pub enum LogLevel {
-    Debug,
-    Info,
-    Warn,
-    Error,
 }
 
 /// 插件层统一错误类型。

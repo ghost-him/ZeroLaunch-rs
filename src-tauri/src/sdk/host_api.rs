@@ -475,6 +475,10 @@ pub struct HostApi {
     storage: RwLock<Arc<dyn StorageService>>,
     /// 应用资源服务
     app_resource: Arc<AppResourceService>,
+    /// 通知回调（宿主级）
+    notify_callback: RwLock<Arc<dyn Fn(String, String) + Send + Sync + 'static>>,
+    /// 隐藏窗口回调（宿主级）
+    hide_window_callback: RwLock<Arc<dyn Fn() + Send + Sync + 'static>>,
 }
 
 impl HostApi {
@@ -534,6 +538,21 @@ impl HostApi {
     /// 返回：图标路径，未注册则返回 None。
     pub fn get_app_icon_path(&self, name: &str) -> Option<String> {
         self.app_resource.get_icon_path(name)
+    }
+
+    // ===== 通知服务 =====
+
+    /// 发送桌面通知。
+    /// 参数：title - 通知标题；message - 通知内容。
+    pub async fn notify(&self, title: &str, message: &str) {
+        self.notify_callback.read()(title.to_string(), message.to_string());
+    }
+
+    // ===== 窗口控制 =====
+
+    /// 隐藏搜索栏窗口。
+    pub async fn hide_window(&self) {
+        self.hide_window_callback.read()();
     }
 
     /// 捕获当前系统参数快照
@@ -781,6 +800,8 @@ pub struct HostApiBuilder {
     timer_manager: Option<Arc<dyn TimerManager>>,
     storage_service: Option<Arc<dyn StorageService>>,
     app_resource: Option<Arc<AppResourceService>>,
+    notify_callback: Option<Arc<dyn Fn(String, String) + Send + Sync + 'static>>,
+    hide_window_callback: Option<Arc<dyn Fn() + Send + Sync + 'static>>,
 }
 
 impl HostApiBuilder {
@@ -808,6 +829,8 @@ impl HostApiBuilder {
             timer_manager: None,
             storage_service: None,
             app_resource: None,
+            notify_callback: None,
+            hide_window_callback: None,
         }
     }
 
@@ -949,6 +972,28 @@ impl HostApiBuilder {
         self
     }
 
+    /// 设置通知回调，宿主层在初始化时注入平台通知实现。
+    /// 参数：callback - 接收 (title, message) 的通知回调。
+    /// 返回：Self（支持链式调用）。
+    pub fn notify_callback<F>(mut self, callback: F) -> Self
+    where
+        F: Fn(String, String) + Send + Sync + 'static,
+    {
+        self.notify_callback = Some(Arc::new(callback));
+        self
+    }
+
+    /// 设置隐藏窗口回调，宿主层在初始化时注入 Tauri 窗口控制实现。
+    /// 参数：callback - 隐藏搜索窗口的回调。
+    /// 返回：Self（支持链式调用）。
+    pub fn hide_window_callback<F>(mut self, callback: F) -> Self
+    where
+        F: Fn() + Send + Sync + 'static,
+    {
+        self.hide_window_callback = Some(Arc::new(callback));
+        self
+    }
+
     /// 构建 HostApi 实例。
     /// 参数：无。
     /// 返回：构建完成的 HostApi 实例，如果缺少必需组件则 panic。
@@ -982,6 +1027,11 @@ impl HostApiBuilder {
             timer_manager: self.timer_manager.expect("missing timer_manager"),
             storage: RwLock::new(self.storage_service.expect("missing storage_service")),
             app_resource: self.app_resource.expect("missing app_resource"),
+            notify_callback: RwLock::new(self.notify_callback.expect("missing notify_callback")),
+            hide_window_callback: RwLock::new(
+                self.hide_window_callback
+                    .expect("missing hide_window_callback"),
+            ),
         }
     }
 }

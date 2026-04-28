@@ -1,24 +1,28 @@
 use super::dispatcher::QueryDispatcher;
 use super::registry::PluginRegistry;
-use super::types::{Plugin, PluginAPI, PluginContext, PluginError, Query, QueryResponse};
+use super::types::{Plugin, PluginContext, PluginError, Query, QueryResponse};
 use rand::distr::{Alphanumeric, SampleString};
 use std::sync::Arc;
 
 pub struct PluginService {
     registry: Arc<PluginRegistry>,
     dispatcher: Arc<QueryDispatcher>,
-    api: Arc<dyn PluginAPI>,
+}
+
+impl Default for PluginService {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl PluginService {
-    pub fn new(api: Arc<dyn PluginAPI>) -> Self {
+    pub fn new() -> Self {
         let registry = Arc::new(PluginRegistry::new());
         let dispatcher = Arc::new(QueryDispatcher::new(registry.clone()));
 
         Self {
             registry,
             dispatcher,
-            api,
         }
     }
 
@@ -38,9 +42,7 @@ impl PluginService {
         let ctx = PluginContext::new(&trace_id);
 
         for plugin in self.registry.get_all() {
-            plugin
-                .init(&ctx, self.api.clone(), host_api.clone())
-                .await?;
+            plugin.init(&ctx, host_api.clone()).await?;
         }
 
         Ok(())

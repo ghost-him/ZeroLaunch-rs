@@ -1,4 +1,5 @@
 use crate::core::config::ConfigManager;
+use crate::core::tray::TrayManager;
 use crate::error::OptionExt;
 use crate::plugin_system::service::PluginService;
 use crate::plugin_system::DefaultPluginAPI;
@@ -7,8 +8,6 @@ use crate::sdk::HostApi;
 use crate::utils::waiting_hashmap::AsyncWaitingHashMap;
 use parking_lot::RwLock;
 use std::sync::Arc;
-use tauri::menu::Menu;
-use tauri::tray::TrayIcon;
 use tauri::AppHandle;
 
 pub struct AppState {
@@ -17,8 +16,7 @@ pub struct AppState {
     main_handle: RwLock<Option<Arc<AppHandle>>>,
     is_search_bar_visible: RwLock<bool>,
     waiting_hashmap: Arc<AsyncWaitingHashMap<String, Vec<(String, String)>>>,
-    tray_icon: RwLock<Option<Arc<TrayIcon>>>,
-    tray_menu: RwLock<Option<Arc<Menu<tauri::Wry>>>>,
+    tray_manager: RwLock<Option<Arc<TrayManager>>>,
     game_mode: RwLock<bool>,
     is_keyboard_blocked: RwLock<bool>,
     previous_foreground_window: RwLock<Option<isize>>,
@@ -44,8 +42,7 @@ impl AppState {
             main_handle: RwLock::new(None),
             is_search_bar_visible: RwLock::new(false),
             waiting_hashmap: Arc::new(AsyncWaitingHashMap::new()),
-            tray_icon: RwLock::new(None),
-            tray_menu: RwLock::new(None),
+            tray_manager: RwLock::new(None),
             game_mode: RwLock::new(false),
             is_keyboard_blocked: RwLock::new(false),
             previous_foreground_window: RwLock::new(None),
@@ -94,28 +91,12 @@ impl AppState {
         self.waiting_hashmap.clone()
     }
 
-    pub fn set_tray_icon(&self, client: Arc<TrayIcon>) {
-        *self.tray_icon.write() = Some(client);
+    pub fn set_tray_manager(&self, manager: Arc<TrayManager>) {
+        *self.tray_manager.write() = Some(manager);
     }
 
-    pub fn get_tray_icon(&self) -> Arc<TrayIcon> {
-        self.tray_icon
-            .read()
-            .as_ref()
-            .cloned()
-            .expect_programming("tray icon not initialized")
-    }
-
-    pub fn set_tray_menu(&self, menu: Arc<Menu<tauri::Wry>>) {
-        *self.tray_menu.write() = Some(menu);
-    }
-
-    pub fn get_tray_menu(&self) -> Arc<Menu<tauri::Wry>> {
-        self.tray_menu
-            .read()
-            .as_ref()
-            .cloned()
-            .expect_programming("tray menu not initialized")
+    pub fn get_tray_manager(&self) -> Option<Arc<TrayManager>> {
+        self.tray_manager.read().clone()
     }
 
     pub fn set_game_mode(&self, game_mode: bool) {

@@ -7,7 +7,6 @@ pub mod plugin;
 pub mod plugin_system;
 pub mod sdk;
 pub mod state;
-pub mod tray;
 pub mod utils;
 pub mod window_effect;
 pub mod window_position;
@@ -15,6 +14,7 @@ pub mod window_position;
 use crate::core::config::components::hotkey_config::HotkeyConfigComponent;
 use crate::core::config::components::storage_config::StorageConfigComponent;
 use crate::core::config::ConfigManager;
+use crate::core::tray::TrayManager;
 use crate::logging::{init_logging, log_application_shutdown, log_application_start};
 use crate::plugin::data_source::app_source::AppSource;
 use crate::plugin::data_source::bookmark_source::BookmarkSource;
@@ -56,7 +56,6 @@ use crate::sdk::timer::TokioTimerManager;
 use crate::sdk::AppResourceService;
 use crate::sdk::PathResolver;
 use crate::state::app_state::AppState;
-use crate::tray::init_system_tray;
 // use crate::utils::ui_controller::handle_focus_lost;
 use crate::window_position::update_window_size_and_position;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -132,7 +131,11 @@ pub fn run() {
                 init_setting_window(app.app_handle().clone());
 
                 info!("正在初始化系统托盘服务");
-                init_system_tray(app).await;
+                let tray_manager = app
+                    .state::<Arc<AppState>>()
+                    .get_tray_manager()
+                    .expect("TrayManager not initialized");
+                tray_manager.init(app).await;
 
                 info!("正在注册深度链接");
                 app.deep_link().register_all().expect("无法注册深度链接");
@@ -196,7 +199,11 @@ pub fn run() {
             tauri::RunEvent::WindowEvent { label, event, .. } => {
                 if label == "main" {
                     if let tauri::WindowEvent::ThemeChanged(theme) = event {
-                        crate::tray::update_tray_icon_theme();
+                        if let Some(tray_manager) =
+                            app_handle.state::<Arc<AppState>>().get_tray_manager()
+                        {
+                            tray_manager.update_icon_theme();
+                        }
                         let theme_str = match theme {
                             tauri::Theme::Dark => "dark",
                             tauri::Theme::Light => "light",
@@ -278,6 +285,10 @@ async fn init_app_state(
     );
     state.set_host_api(host_api.clone());
     info!("HostApi 初始化完成");
+
+    let tray_manager = Arc::new(TrayManager::new(host_api.clone()));
+    state.set_tray_manager(tray_manager);
+    info!("TrayManager 创建完成");
 
     let config_manager = Arc::new(ConfigManager::new(std::path::PathBuf::from(&config_dir)));
     config_manager.set_host_api(host_api.clone());

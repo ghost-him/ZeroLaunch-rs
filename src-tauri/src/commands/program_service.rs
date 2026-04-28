@@ -51,21 +51,36 @@ async fn execute_builtin_command(cmd_str: &str) -> Result<(), String> {
 
     match cmd_type {
         BuiltinCommandType::OpenSettings => {
-            crate::tray::handle_show_settings_window();
+            let state = ServiceLocator::get_state();
+            if let Some(tray_manager) = state.get_tray_manager() {
+                tray_manager.show_settings_window();
+            }
         }
         BuiltinCommandType::RefreshDatabase => {
-            crate::tray::handle_update_app_setting();
+            let state = ServiceLocator::get_state();
+            state.get_session_router().refresh_candidates();
+            info!("候选项已刷新");
         }
         BuiltinCommandType::RetryRegisterShortcut => {
-            crate::tray::handle_register_shortcut();
+            let state = ServiceLocator::get_state();
+            let host_api = state.get_host_api();
+            tauri::async_runtime::spawn(async move {
+                if let Err(e) = host_api.init_hotkey_listening().await {
+                    warn!("重试注册快捷键失败: {}", e);
+                }
+            });
         }
         BuiltinCommandType::ToggleGameMode => {
-            crate::tray::handle_toggle_game_mode();
+            let state = ServiceLocator::get_state();
+            let current = state.get_game_mode();
+            state.set_game_mode(!current);
+            info!("游戏模式已切换: {}", !current);
         }
         BuiltinCommandType::ExitProgram => {
             let state = ServiceLocator::get_state();
-            let app_handle = state.get_main_handle();
-            crate::tray::handle_exit_program(&app_handle).await;
+            if let Some(tray_manager) = state.get_tray_manager() {
+                tray_manager.exit_program();
+            }
         }
     }
 

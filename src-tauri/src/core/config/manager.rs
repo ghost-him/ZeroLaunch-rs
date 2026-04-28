@@ -101,6 +101,7 @@ impl ConfigManager {
                 component_name: c.component_name().to_string(),
                 component_type: c.component_type(),
                 enabled: self.is_enabled(c.component_id()),
+                default_enabled: c.default_enabled(),
             })
             .collect()
     }

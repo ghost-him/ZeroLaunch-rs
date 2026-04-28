@@ -3,7 +3,7 @@
     v-if="actionDef"
     size="small"
     :loading="loading"
-    :disabled="!field.editable"
+    :disabled="!editable"
     @click="executeAction"
   >
     {{ actionDef.label }}
@@ -14,11 +14,13 @@
 import { ref, onMounted } from 'vue'
 import { NButton } from 'naive-ui'
 import { useConfigStore } from '../../stores/config-store'
-import type { FieldDefinition, ConfigActionDef } from '../../bridge/contract'
+import type { ConfigActionDef } from '../../bridge/contract'
 
 const props = defineProps<{
   componentId: string
-  field: FieldDefinition
+  configAction: string
+  fieldKey: string
+  editable: boolean
   modelValue: unknown
 }>()
 
@@ -34,7 +36,7 @@ onMounted(async () => {
   try {
     const actions = await configStore.getActions(props.componentId)
     actionDef.value =
-      actions.find((a) => a.action === props.field.key) ?? null
+      actions.find((a) => a.action === props.configAction) ?? null
   } catch {
     // No actions available
   }
@@ -51,7 +53,7 @@ async function executeAction() {
     )
 
     if (result && typeof result === 'object') {
-      const fieldValue = (result as Record<string, unknown>)[props.field.key]
+      const fieldValue = (result as Record<string, unknown>)[props.fieldKey]
       if (fieldValue !== undefined) {
         emit('update:modelValue', fieldValue)
       }

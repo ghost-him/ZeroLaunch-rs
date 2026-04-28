@@ -57,7 +57,7 @@ use crate::sdk::AppResourceService;
 use crate::sdk::PathResolver;
 use crate::state::app_state::AppState;
 // use crate::utils::ui_controller::handle_focus_lost;
-use crate::window_position::update_window_size_and_position;
+use crate::window_position::update_window_position;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tauri::App;
@@ -499,7 +499,7 @@ fn init_search_bar_window(app: &mut App) {
     let _scale_factor = main_window.scale_factor().unwrap_or(1.0);
     let _state = app.state::<Arc<AppState>>();
 
-    update_window_size_and_position();
+    update_window_position();
     // 设置当窗口被关闭时，忽略
     let windows_clone = main_window.clone();
     main_window.on_window_event(move |event| {
@@ -540,7 +540,7 @@ fn init_setting_window(app: tauri::AppHandle) {
             tauri::WebviewWindowBuilder::new(
                 &app,
                 "setting_window",
-                WebviewUrl::App("/setting_window".into()),
+                WebviewUrl::App("/setting_window.html".into()),
             )
             .title("设置")
             .visible(false)

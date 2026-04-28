@@ -51,6 +51,7 @@ export interface ComponentInfo {
   componentName: string
   componentType: ComponentType
   enabled: boolean
+  defaultEnabled: boolean
 }
 
 export interface ComponentSchema {

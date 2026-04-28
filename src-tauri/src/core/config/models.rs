@@ -14,6 +14,8 @@ pub struct ComponentInfo {
     pub component_type: ComponentType,
     /// 组件是否启用
     pub enabled: bool,
+    /// 组件默认是否启用
+    pub default_enabled: bool,
 }
 
 /// 组件配置 Schema，用于前端渲染配置表单

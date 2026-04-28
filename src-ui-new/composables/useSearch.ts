@@ -9,14 +9,6 @@ export function useSearch() {
     store.query = value
 
     if (debounceTimer) clearTimeout(debounceTimer)
-
-    if (value === '') {
-      store.results = []
-      store.sessionMode = 'none'
-      store.selectedIndex = 0
-      return
-    }
-
     debounceTimer = setTimeout(() => {
       store.doQuery(value)
     }, 150)

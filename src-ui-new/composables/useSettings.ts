@@ -10,21 +10,16 @@ export interface SidebarItem {
 }
 
 export function useSettings() {
+  /**
+   * Show the settings window (already created by Rust backend at startup).
+   * The Rust backend manages the window lifecycle; frontend only shows/hides.
+   */
   async function openSettings() {
-    const existing = await WebviewWindow.getByLabel('settings')
-    if (existing) {
-      await existing.setFocus()
-      return
+    const win = await WebviewWindow.getByLabel('setting_window')
+    if (win) {
+      await win.show()
+      await win.setFocus()
     }
-
-    new WebviewWindow('settings', {
-      url: '/#/settings',
-      title: '设置',
-      width: 800,
-      height: 600,
-      resizable: true,
-      center: true,
-    })
   }
 
   function buildSidebarItems(components: ComponentInfo[]): SidebarItem[] {

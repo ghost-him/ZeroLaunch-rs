@@ -1,7 +1,6 @@
 use crate::error::OptionExt;
 use crate::error::ResultExt;
 use crate::ServiceLocator;
-use tauri::LogicalSize;
 use tauri::Manager;
 use tauri::PhysicalPosition;
 use tracing::debug;
@@ -76,8 +75,9 @@ unsafe fn find_monitor_by_handle(
     None
 }
 
-// 更新当前窗口的大小与位置
-pub fn update_window_size_and_position() {
+/// 更新窗口位置（居中到当前显示器）。
+/// 窗口大小由前端 useWindowResize 动态控制。
+pub fn update_window_position() {
     let state = ServiceLocator::get_state();
     let main_window = state
         .get_main_handle()
@@ -85,11 +85,6 @@ pub fn update_window_size_and_position() {
         .expect_programming("无法获取主窗口");
 
     let window_width = 600u32;
-    let window_height = 80u32;
-
-    main_window
-        .set_size(LogicalSize::new(window_width, window_height))
-        .expect_programming("无法设置窗口大小");
 
     let windows = main_window
         .available_monitors()
@@ -111,5 +106,5 @@ pub fn update_window_size_and_position() {
         .set_position(PhysicalPosition::new(show_position.0, show_position.1))
         .expect_programming("无法设置窗口位置");
 
-    debug!("窗口位置和大小已更新");
+    debug!("窗口位置已更新");
 }

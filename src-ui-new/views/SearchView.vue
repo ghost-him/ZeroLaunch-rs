@@ -35,10 +35,12 @@ import PluginPanelHost from '../components/panel/PluginPanelHost.vue'
 import Footer from '../components/layout/Footer.vue'
 import { useSearchStore } from '../stores/search-store'
 import { useKeyboard } from '../composables/useKeyboard'
+import { useWindowResize } from '../composables/useWindowResize'
 
 const searchStore = useSearchStore()
 
 useKeyboard()
+useWindowResize()
 
 onMounted(() => {
   searchStore.fetchCandidatesCount()

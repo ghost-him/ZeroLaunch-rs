@@ -965,6 +965,24 @@ async function executeAction() {
 </style>
 ```
 
+### 5.5.2 DynamicFormField 实现状态
+
+| SettingType                  | 状态             | 说明                                     |
+| ---------------------------- | ---------------- | ---------------------------------------- |
+| `Text`                       | 已实现           |                                          |
+| `{ Number: ... }`            | 已实现           |                                          |
+| `Boolean`                    | 已实现           |                                          |
+| `{ Select: ... }`            | 已实现           |                                          |
+| `{ Path: { mode: 'File' } }` | 已实现           | 接入 `@tauri-apps/plugin-dialog`         |
+| `{ Path: { mode: 'Directory' } }` | 已实现      | 接入 `@tauri-apps/plugin-dialog`         |
+| `Color`                      | 已实现           |                                          |
+| `Json`                       | 已实现           |                                          |
+| `{ Array: { item: Primitive, uiHint: 'Tags' } }` | 已实现 | `n-dynamic-tags` 组件                  |
+| `{ Array: { item: Primitive, uiHint: 'Default' } }` | 已实现 | 简单列表 + 添加/删除按钮          |
+| `{ Array: { item: Primitive, uiHint: 'Table' } }` | **TODO** | 暂回退为 JSON 编辑，控制台输出警告 |
+| `{ Array: { item: Primitive, uiHint: 'MasterDetail' } }` | **TODO** | 暂回退为 JSON 编辑，控制台输出警告 |
+| `{ Array: { item: Object, ... } }` | **TODO**       | 暂回退为 JSON 编辑，控制台输出警告 |
+
 ### 5.6 配置提交流程
 
 ```

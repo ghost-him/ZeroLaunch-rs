@@ -43,6 +43,7 @@ use crate::sdk::platform::WindowsAutoStartManager;
 use crate::sdk::platform::WindowsClipboardProvider;
 use crate::sdk::platform::WindowsHotkeyManager;
 use crate::sdk::platform::WindowsIconExtractor;
+use crate::sdk::platform::WindowsInstallationMonitor;
 use crate::sdk::platform::WindowsLnkResolver;
 use crate::sdk::platform::WindowsPathResolver;
 use crate::sdk::platform::WindowsResourceLoader;
@@ -255,6 +256,9 @@ async fn init_app_state(
         .unwrap_or_else(|| ".".to_string());
 
     let app_handle = state.get_main_handle();
+    let app_handle_for_notify = app_handle.clone();
+    let app_handle_for_hide = app_handle.clone();
+
     let host_api = Arc::new(
         crate::sdk::HostApi::builder(icon_cache_dir)
             .icon_extractor(Arc::new(WindowsIconExtractor::new(
@@ -278,9 +282,25 @@ async fn init_app_state(
             )
             .autostart_manager(Arc::new(WindowsAutoStartManager::new()))
             .hotkey_manager(Arc::new(WindowsHotkeyManager::new(app_handle)))
+            .installation_monitor(Arc::new(WindowsInstallationMonitor::new()))
             .timer_manager(Arc::new(TokioTimerManager::new()))
             .storage_service(default_storage)
             .app_resource(app_resource)
+            .notify_callback(move |title: String, message: String| {
+                use tauri_plugin_notification::NotificationExt;
+                let _ = app_handle_for_notify
+                    .notification()
+                    .builder()
+                    .title(title)
+                    .body(message)
+                    .show();
+            })
+            .hide_window_callback(move || {
+                if let Some(window) = app_handle_for_hide.get_webview_window("main") {
+                    let _ = window.hide();
+                    let _ = window.emit("handle_focus_lost", ());
+                }
+            })
             .build(),
     );
     state.set_host_api(host_api.clone());

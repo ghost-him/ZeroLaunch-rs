@@ -21,34 +21,12 @@ use crate::sdk::storage::storage_service::StorageService;
 use crate::sdk::timer::types::{TimerCallback, TimerId, TimerMode};
 use crate::sdk::timer::TimerManager;
 use crate::sdk::window::WindowManager;
-use bincode::Encode;
 use dashmap::DashMap;
 use parking_lot::RwLock;
-use serde::{Deserialize, Serialize};
+
 use std::sync::Arc;
 
-/// 图标请求类型，表示不同来源的图标提取需求。
-/// 各类型使用各自的提取逻辑完成图标提取。
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Encode)]
-pub enum IconRequest {
-    /// 本地文件路径 (exe, lnk, url, ico, png) -> 提取文件图标
-    Path(String),
-    /// 网址 -> 下载或查找本地域名图标库
-    Url(String),
-    /// 文件扩展名 (.txt, .doc) -> 获取系统关联图标
-    Extension(String),
-}
-
-impl IconRequest {
-    /// 计算图标请求的 blake3 哈希值，用作缓存键。
-    /// 参数：无。
-    /// 返回：十六进制格式的哈希字符串。
-    pub fn get_hash_string(&self) -> String {
-        let mut hasher = blake3::Hasher::new();
-        let _ = bincode::encode_into_std_write(self, &mut hasher, bincode::config::standard());
-        hasher.finalize().to_hex().to_string()
-    }
-}
+use crate::sdk::icon::IconRequest;
 
 /// Shell 打开目标类型。
 /// 将不同打开语义统一为枚举，平台层根据类型选择不同的系统调用。

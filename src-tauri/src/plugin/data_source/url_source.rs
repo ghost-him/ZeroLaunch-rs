@@ -5,6 +5,7 @@ use crate::plugin_system::types::{
 };
 use crate::plugin_system::{ComponentType, ConfigError, Configurable, SettingDefinition};
 use crate::sdk::host_api::PluginHandle;
+use crate::sdk::IconRequest;
 use parking_lot::RwLock;
 use std::sync::Arc;
 use tracing::debug;
@@ -120,7 +121,7 @@ impl DataSource for UrlSource {
             let candidate = SearchCandidate {
                 id: 0,
                 name: name.clone(),
-                icon: url.clone(),
+                icon: IconRequest::Url(url.clone()),
                 target: ExecutionTarget::Url(url.clone()),
                 keywords: Vec::new(),
                 bias: 0.0,

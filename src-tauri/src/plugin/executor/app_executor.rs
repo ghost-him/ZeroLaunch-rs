@@ -3,6 +3,7 @@ use crate::plugin_system::types::{
     ActionExecutor, ExecutionContext, ExecutionError, ExecutionTarget, ResultAction, TargetType,
 };
 use crate::sdk::host_api::PluginHandle;
+use crate::sdk::IconRequest;
 use std::sync::Arc;
 
 /// 应用执行器 - 负责通过 PluginHandle 启动系统应用（UWP 等）。
@@ -40,7 +41,7 @@ impl ActionExecutor for AppExecutor {
         vec![ResultAction {
             id: "execute".to_string(),
             label: "打开".to_string(),
-            icon: String::new(),
+            icon: IconRequest::Path(String::new()),
             is_default: true,
             shortcut_key: String::new(),
         }]

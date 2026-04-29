@@ -2,7 +2,7 @@
 pub use crate::core::types::*;
 
 use crate::plugin_system::cached_candidate::CachedCandidateData;
-use crate::sdk::ParameterSnapshot;
+use crate::sdk::{IconRequest, ParameterSnapshot};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -115,7 +115,7 @@ pub struct SearchCandidate {
     // 表示用于显示在搜索结果中的名称
     pub name: String,
     // 表示用于显示在搜索结果中的图标
-    pub icon: String,
+    pub icon: IconRequest,
     // 执行目标，替代原 launch_method
     pub target: ExecutionTarget,
     // 表示该候选项的关键词，即怎么可以确认用户想要启动这个候选项
@@ -198,7 +198,7 @@ pub trait ActionExecutor: Configurable {
         vec![ResultAction {
             id: "execute".to_string(),
             label: "执行".to_string(),
-            icon: String::new(),
+            icon: IconRequest::Path(String::new()),
             is_default: true,
             shortcut_key: String::new(),
         }]
@@ -281,7 +281,7 @@ pub struct ListItem {
     pub id: CandidateId,
     pub title: String,
     pub subtitle: String,
-    pub icon: String,
+    pub icon: IconRequest,
     pub score: f64,
     // 一个动作列表中只可以有一个默认动作，默认动作会在用户直接按下回车时被触发（由程序员保证）
     pub actions: Vec<ResultAction>,
@@ -297,7 +297,7 @@ pub struct ResultAction {
     // 这个是动作的显示名称，用于展示在 UI 上
     pub label: String,
     // 这个是该选项的图标，用于展示在 UI 上
-    pub icon: String,
+    pub icon: IconRequest,
     // 是不是默认的动作，默认的动作会在用户直接按下回车时被触发
     pub is_default: bool,
     /// 快捷键提示，格式如 "Shift+Enter"、"Ctrl+Enter"

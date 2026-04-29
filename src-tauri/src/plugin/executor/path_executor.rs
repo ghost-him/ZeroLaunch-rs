@@ -3,6 +3,7 @@ use crate::plugin_system::types::{
     ActionExecutor, ExecutionContext, ExecutionError, ExecutionTarget, ResultAction, TargetType,
 };
 use crate::sdk::host_api::{OpenTarget, PluginHandle};
+use crate::sdk::IconRequest;
 use std::sync::Arc;
 use tracing::warn;
 
@@ -85,21 +86,21 @@ impl ActionExecutor for PathExecutor {
             ResultAction {
                 id: "execute".to_string(),
                 label: "打开".to_string(),
-                icon: String::new(),
+                icon: IconRequest::Path(String::new()),
                 is_default: true,
                 shortcut_key: String::new(),
             },
             ResultAction {
                 id: "execute_admin".to_string(),
                 label: "以管理员身份运行".to_string(),
-                icon: String::new(),
+                icon: IconRequest::Path(String::new()),
                 is_default: false,
                 shortcut_key: "Ctrl+Enter".to_string(),
             },
             ResultAction {
                 id: "open_folder".to_string(),
                 label: "打开所在文件夹".to_string(),
-                icon: String::new(),
+                icon: IconRequest::Path(String::new()),
                 is_default: false,
                 shortcut_key: String::new(),
             },

@@ -5,6 +5,7 @@ use crate::plugin_system::types::{
 };
 use crate::plugin_system::{ComponentType, ConfigError, Configurable, SettingDefinition};
 use crate::sdk::host_api::PluginHandle;
+use crate::sdk::IconRequest;
 use parking_lot::RwLock;
 use std::path::Path;
 use std::sync::Arc;
@@ -73,14 +74,16 @@ impl CommandSource {
 
     /// 获取命令候选项的图标路径。
     /// 优先使用解析出的可执行文件路径，无法解析时使用默认终端图标。
-    fn resolve_icon(&self, command: &str) -> String {
+    fn resolve_icon(&self, command: &str) -> IconRequest {
         if let Some(path) = Self::resolve_executable_path(command) {
             debug!("CommandSource: 解析到可执行文件路径用于图标: {}", path);
-            return path;
+            return IconRequest::Path(path);
         }
-        self.handle
-            .get_app_icon_path("terminal")
-            .unwrap_or_default()
+        IconRequest::Path(
+            self.handle
+                .get_app_icon_path("terminal")
+                .unwrap_or_default(),
+        )
     }
 }
 

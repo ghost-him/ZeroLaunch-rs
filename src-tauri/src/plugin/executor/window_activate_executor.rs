@@ -3,6 +3,7 @@ use crate::plugin_system::types::{
     ActionExecutor, ExecutionContext, ExecutionError, ExecutionTarget, ResultAction, TargetType,
 };
 use crate::sdk::host_api::PluginHandle;
+use crate::sdk::IconRequest;
 use std::sync::Arc;
 use tracing::warn;
 
@@ -132,7 +133,7 @@ impl ActionExecutor for WindowActivateExecutor {
         vec![ResultAction {
             id: "activate_window".to_string(),
             label: "唤醒窗口".to_string(),
-            icon: String::new(),
+            icon: IconRequest::Path(String::new()),
             is_default: false,
             shortcut_key: "Shift+Enter".to_string(),
         }]

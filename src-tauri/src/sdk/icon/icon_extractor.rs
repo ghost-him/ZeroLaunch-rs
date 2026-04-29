@@ -1,6 +1,7 @@
 use crate::sdk::common::image_utils::ImageUtils;
-use crate::sdk::host_api::{CacheLevel, HostApiError, IconRequest};
+use crate::sdk::host_api::{CacheLevel, HostApiError};
 use crate::sdk::icon::icon_cache::IconCacheService;
+use crate::sdk::icon::IconRequest;
 use async_trait::async_trait;
 
 /// 图标提取器 trait，定义平台原语与跨平台业务默认实现。

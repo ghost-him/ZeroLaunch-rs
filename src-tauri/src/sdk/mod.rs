@@ -17,14 +17,14 @@ pub mod window;
 pub use app::{AppEnumerator, AppInfo, AppLauncher};
 pub use autostart::AutoStartManager;
 pub use host_api::{
-    CacheLevel, HostApi, HostApiBuilder, HostApiError, IconRequest, OpenTarget, PluginHandle,
-    PluginSdkConfig,
+    CacheLevel, HostApi, HostApiBuilder, HostApiError, OpenTarget, PluginHandle, PluginSdkConfig,
 };
 pub use hotkey::{
     Hotkey, HotkeyConfig, HotkeyEvent, HotkeyEventFilter, HotkeyManager, HotkeyRegistration,
 };
 pub use icon::icon_cache::IconCacheService;
 pub use icon::icon_extractor::IconExtractor;
+pub use icon::IconRequest;
 pub use installation_monitor::{
     InstallationCallback, InstallationEvent, InstallationEventKind, InstallationMonitor,
 };

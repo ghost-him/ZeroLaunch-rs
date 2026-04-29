@@ -3,6 +3,7 @@ use crate::plugin_system::types::{
     ActionExecutor, ExecutionContext, ExecutionError, ExecutionTarget, ResultAction, TargetType,
 };
 use crate::sdk::host_api::PluginHandle;
+use crate::sdk::IconRequest;
 use std::sync::Arc;
 
 /// 命令执行器 - 负责执行自定义命令
@@ -40,7 +41,7 @@ impl ActionExecutor for CommandExecutor {
         vec![ResultAction {
             id: "execute".to_string(),
             label: "执行".to_string(),
-            icon: String::new(),
+            icon: IconRequest::Path(String::new()),
             is_default: true,
             shortcut_key: String::new(),
         }]

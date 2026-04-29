@@ -3,7 +3,10 @@
     "allow": [
       "Bash(cargo check *)",
       "Bash(bun install *)",
-      "Bash(bun run *)"
+      "Bash(bun run *)",
+      "Bash(cargo clippy *)",
+      "Bash(cargo fmt *)",
+      "Bash(cargo test *)"
     ]
   }
 }

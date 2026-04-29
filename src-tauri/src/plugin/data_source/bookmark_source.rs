@@ -5,6 +5,7 @@ use crate::plugin_system::types::{
 };
 use crate::plugin_system::{ComponentType, ConfigError, Configurable, SettingDefinition};
 use crate::sdk::host_api::PluginHandle;
+use crate::sdk::IconRequest;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -448,7 +449,7 @@ impl DataSource for BookmarkSource {
                         let candidate = SearchCandidate {
                             id: 0,
                             name: title,
-                            icon: url.clone(),
+                            icon: IconRequest::Url(url.clone()),
                             target: ExecutionTarget::Url(url),
                             keywords: Vec::new(),
                             bias: 0.0,

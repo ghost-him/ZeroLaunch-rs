@@ -32,7 +32,7 @@ impl From<crate::plugin_system::types::ResultAction> for NewSearchAction {
         NewSearchAction {
             id: action.id,
             label: action.label,
-            icon: action.icon,
+            icon: action.icon.value().to_string(),
             is_default: action.is_default,
             shortcut_key: action.shortcut_key,
         }
@@ -78,7 +78,7 @@ pub async fn handle_new_search(
                     id: item.id,
                     title: item.title,
                     subtitle: item.subtitle,
-                    icon: item.icon,
+                    icon: item.icon.value().to_string(),
                     score: item.score,
                     actions: item.actions.into_iter().map(|a| a.into()).collect(),
                 })

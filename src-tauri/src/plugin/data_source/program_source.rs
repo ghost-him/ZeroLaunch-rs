@@ -8,6 +8,7 @@ use crate::plugin_system::{
 };
 use crate::sdk::host_api::PluginHandle;
 use crate::sdk::path::path_resolver::KnownPath;
+use crate::sdk::IconRequest;
 use globset::GlobSetBuilder;
 use parking_lot::RwLock;
 use regex::RegexSet;
@@ -535,7 +536,7 @@ impl DataSource for ProgramSource {
 
                     let final_show_name = localized_name.unwrap_or(show_name);
 
-                    let icon = actual_path_str.clone();
+                    let icon = IconRequest::Path(actual_path_str.clone());
 
                     let candidate = SearchCandidate {
                         id: 0, // 这个值由 CachedCandidateData 负责分配

@@ -1,5 +1,6 @@
 use crate::sdk::app::app_enumerator::AppEnumerator;
 use crate::sdk::app::AppInfo;
+use crate::sdk::IconRequest;
 use crate::utils::defer::defer;
 use crate::utils::windows::get_u16_vec;
 use async_trait::async_trait;
@@ -331,7 +332,7 @@ impl AppEnumerator for WindowsAppEnumerator {
                 result.push(AppInfo {
                     app_id,
                     display_name: short_name,
-                    icon: icon_path,
+                    icon: IconRequest::Path(icon_path),
                     install_path: Some(install_path),
                 });
             }

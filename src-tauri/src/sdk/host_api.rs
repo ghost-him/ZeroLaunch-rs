@@ -463,6 +463,8 @@ pub struct HostApi {
     hide_window_callback: RwLock<Arc<dyn Fn() + Send + Sync + 'static>>,
     /// 显示窗口回调（宿主级）
     show_window_callback: RwLock<Arc<dyn Fn() + Send + Sync + 'static>>,
+    /// 查询窗口可见性回调（宿主级）
+    is_window_visible_callback: RwLock<Arc<dyn Fn() -> bool + Send + Sync + 'static>>,
 }
 
 impl HostApi {
@@ -542,6 +544,12 @@ impl HostApi {
     /// 显示搜索栏窗口。
     pub async fn show_window(&self) {
         self.show_window_callback.read()();
+    }
+
+    /// 查询搜索栏窗口是否可见。
+    /// 直接查询窗口真实状态，不依赖缓存变量。
+    pub fn is_window_visible(&self) -> bool {
+        self.is_window_visible_callback.read()()
     }
 
     /// 捕获当前系统参数快照
@@ -811,6 +819,7 @@ pub struct HostApiBuilder {
     notify_callback: Option<Arc<dyn Fn(String, String) + Send + Sync + 'static>>,
     hide_window_callback: Option<Arc<dyn Fn() + Send + Sync + 'static>>,
     show_window_callback: Option<Arc<dyn Fn() + Send + Sync + 'static>>,
+    is_window_visible_callback: Option<Arc<dyn Fn() -> bool + Send + Sync + 'static>>,
 }
 
 impl HostApiBuilder {
@@ -842,6 +851,7 @@ impl HostApiBuilder {
             notify_callback: None,
             hide_window_callback: None,
             show_window_callback: None,
+            is_window_visible_callback: None,
         }
     }
 
@@ -1024,6 +1034,17 @@ impl HostApiBuilder {
         self
     }
 
+    /// 设置查询窗口可见性回调，宿主层在初始化时注入 Tauri 窗口查询实现。
+    /// 参数：callback - 返回窗口是否可见的回调。
+    /// 返回：Self（支持链式调用）。
+    pub fn is_window_visible_callback<F>(mut self, callback: F) -> Self
+    where
+        F: Fn() -> bool + Send + Sync + 'static,
+    {
+        self.is_window_visible_callback = Some(Arc::new(callback));
+        self
+    }
+
     /// 构建 HostApi 实例。
     /// 参数：无。
     /// 返回：构建完成的 HostApi 实例，如果缺少必需组件则 panic。
@@ -1066,6 +1087,10 @@ impl HostApiBuilder {
             show_window_callback: RwLock::new(
                 self.show_window_callback
                     .expect("missing show_window_callback"),
+            ),
+            is_window_visible_callback: RwLock::new(
+                self.is_window_visible_callback
+                    .expect("missing is_window_visible_callback"),
             ),
         }
     }

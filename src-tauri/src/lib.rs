@@ -268,6 +268,7 @@ async fn init_app_state(
     let app_handle_for_notify = app_handle.clone();
     let app_handle_for_hide = app_handle.clone();
     let app_handle_for_show = app_handle.clone();
+    let app_handle_for_is_visible = app_handle.clone();
     let app_handle_for_focus_monitor = app_handle.clone();
 
     let host_api = Arc::new(
@@ -321,6 +322,12 @@ async fn init_app_state(
                     let _ = window.set_focus();
                     let _ = window.emit("show_window", ());
                 }
+            })
+            .is_window_visible_callback(move || {
+                app_handle_for_is_visible
+                    .get_webview_window("main")
+                    .map(|w| w.is_visible().unwrap_or(false))
+                    .unwrap_or(false)
             })
             .build(),
     );
@@ -481,7 +488,7 @@ async fn init_plugin_system(state: &Arc<AppState>) {
     config_manager.register(hotkey_config_component);
     info!("核心配置组件注册完成");
 
-    // 注册快捷键回调：按下全局快捷键时显示搜索栏
+    // 注册快捷键回调：按下全局快捷键时切换搜索栏显示/隐藏
     let host_api_for_hotkey = host_api.clone();
     let session_router_for_hotkey = session_router.clone();
     let _ = host_api.register_hotkey_callback(
@@ -492,8 +499,12 @@ async fn init_plugin_system(state: &Arc<AppState>) {
             let host_api = host_api_for_hotkey.clone();
             let session_router = session_router_for_hotkey.clone();
             tauri::async_runtime::spawn(async move {
-                let _ = session_router.on_search_bar_wake().await;
-                host_api.show_window().await;
+                if host_api.is_window_visible() {
+                    host_api.hide_window().await;
+                } else {
+                    let _ = session_router.on_search_bar_wake().await;
+                    host_api.show_window().await;
+                }
             });
         }),
     );

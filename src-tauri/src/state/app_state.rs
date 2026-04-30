@@ -13,7 +13,6 @@ pub struct AppState {
     session_router: Arc<SessionRouter>,
     config_manager: RwLock<Option<Arc<ConfigManager>>>,
     main_handle: RwLock<Option<Arc<AppHandle>>>,
-    is_search_bar_visible: RwLock<bool>,
     waiting_hashmap: Arc<AsyncWaitingHashMap<String, Vec<(String, String)>>>,
     tray_manager: RwLock<Option<Arc<TrayManager>>>,
     game_mode: RwLock<bool>,
@@ -38,7 +37,6 @@ impl AppState {
             session_router,
             config_manager: RwLock::new(None),
             main_handle: RwLock::new(None),
-            is_search_bar_visible: RwLock::new(false),
             waiting_hashmap: Arc::new(AsyncWaitingHashMap::new()),
             tray_manager: RwLock::new(None),
             game_mode: RwLock::new(false),
@@ -75,14 +73,6 @@ impl AppState {
 
     pub fn set_main_handle(&self, handle: Arc<AppHandle>) {
         *self.main_handle.write() = Some(handle);
-    }
-
-    pub fn set_search_bar_visible(&self, is_visible: bool) {
-        *self.is_search_bar_visible.write() = is_visible;
-    }
-
-    pub fn get_search_bar_visible(&self) -> bool {
-        *self.is_search_bar_visible.read()
     }
 
     pub fn get_waiting_hashmap(&self) -> Arc<AsyncWaitingHashMap<String, Vec<(String, String)>>> {

@@ -2,6 +2,7 @@ use crate::plugin_system::cached_candidate::CachedCandidateData;
 use crate::plugin_system::types::{DataSource, ExecutionTarget, SearchCandidate};
 use crate::plugin_system::{ComponentType, ConfigError, Configurable};
 use crate::sdk::host_api::PluginHandle;
+use async_trait::async_trait;
 use parking_lot::RwLock;
 use std::sync::Arc;
 
@@ -44,13 +45,14 @@ impl Configurable for AppSource {
     }
 }
 
+#[async_trait]
 impl DataSource for AppSource {
     /// 枚举系统应用并转换为搜索候选项。
     /// 委托 PluginHandle::enumerate_apps() 获取应用列表，将 AppInfo 映射为 SearchCandidate。
-    fn fetch_candidates(&self) -> CachedCandidateData {
+    async fn fetch_candidates(&self) -> CachedCandidateData {
         let mut result = CachedCandidateData::new();
 
-        let apps = tauri::async_runtime::block_on(self.plugin_handle.enumerate_apps());
+        let apps = self.plugin_handle.enumerate_apps().await;
 
         for app_info in apps {
             let candidate = SearchCandidate {

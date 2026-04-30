@@ -22,7 +22,7 @@ pub enum SessionMode {
 pub struct SessionRouter {
     plugin_service: Arc<PluginService>,
     search_pipeline: Arc<RwLock<SearchPipeline>>,
-    candidate_pipeline: Arc<RwLock<CandidatePipeline>>,
+    candidate_pipeline: Arc<tokio::sync::RwLock<CandidatePipeline>>,
     cached_candidates: RwLock<CachedCandidateData>,
     current_mode: RwLock<SessionMode>,
     executor_registry: RwLock<ExecutorRegistry>,
@@ -39,7 +39,7 @@ impl SessionRouter {
         Self {
             plugin_service,
             search_pipeline: Arc::new(RwLock::new(SearchPipeline::new(None, Vec::new(), 3))),
-            candidate_pipeline: Arc::new(RwLock::new(CandidatePipeline::new())),
+            candidate_pipeline: Arc::new(tokio::sync::RwLock::new(CandidatePipeline::new())),
             cached_candidates: RwLock::new(CachedCandidateData::new()),
             current_mode: RwLock::new(SessionMode::None),
             executor_registry: RwLock::new(ExecutorRegistry::new()),
@@ -64,8 +64,8 @@ impl SessionRouter {
     }
 
     /// 设置候选管道
-    pub fn set_candidate_pipeline(&self, pipeline: CandidatePipeline) {
-        *self.candidate_pipeline.write() = pipeline;
+    pub async fn set_candidate_pipeline(&self, pipeline: CandidatePipeline) {
+        *self.candidate_pipeline.write().await = pipeline;
     }
 
     /// 设置搜索管道
@@ -83,8 +83,9 @@ impl SessionRouter {
         self.cached_candidates.read().get_candidates().len()
     }
 
-    pub fn refresh_candidates(&self) {
-        let candidates = self.candidate_pipeline.read().collect();
+    pub async fn refresh_candidates(&self) {
+        let pipeline = self.candidate_pipeline.read().await;
+        let candidates = pipeline.collect().await;
         *self.cached_candidates.write() = candidates;
     }
 
@@ -244,7 +245,7 @@ impl SessionRouter {
 
     /// 处理配置变更事件。
     /// 根据事件类型执行相应的响应逻辑。
-    pub fn handle_config_event(&self, event: &ConfigEvent) {
+    pub async fn handle_config_event(&self, event: &ConfigEvent) {
         match event {
             ConfigEvent::SettingsChanged {
                 component_type,
@@ -255,7 +256,7 @@ impl SessionRouter {
                     ComponentType::DataSource | ComponentType::KeywordOptimizer => {
                         // 数据源或关键词优化器变更，需要刷新候选项缓存
                         info!("数据源/关键词优化器配置变更，刷新候选项缓存");
-                        self.refresh_candidates();
+                        self.refresh_candidates().await;
                     }
                     ComponentType::SearchEngine => {
                         // 搜索引擎变更，需要重建搜索管道
@@ -286,7 +287,7 @@ impl SessionRouter {
                     ComponentType::DataSource | ComponentType::KeywordOptimizer => {
                         // 数据源启用状态变更，需要刷新候选项缓存
                         info!("数据源启用状态变更，刷新候选项缓存");
-                        self.refresh_candidates();
+                        self.refresh_candidates().await;
                     }
                     ComponentType::SearchEngine | ComponentType::ScoreBooster => {
                         // TODO: 在 Pipeline 支持动态重建后实现

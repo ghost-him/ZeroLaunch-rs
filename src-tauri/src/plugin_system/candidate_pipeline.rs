@@ -25,11 +25,11 @@ impl CandidatePipeline {
         self.keyword_optimizers.push(optimizer);
     }
 
-    pub fn collect(&self) -> CachedCandidateData {
+    pub async fn collect(&self) -> CachedCandidateData {
         let mut candidates = CachedCandidateData::new();
 
         for source in &self.data_sources {
-            candidates.add_candidates(source.fetch_candidates());
+            candidates.add_candidates(source.fetch_candidates().await);
         }
 
         let mut sorted_optimizers: Vec<_> = self.keyword_optimizers.iter().collect();

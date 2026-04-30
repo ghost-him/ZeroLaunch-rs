@@ -6,6 +6,7 @@ use crate::plugin_system::types::{
 use crate::plugin_system::{ComponentType, ConfigError, Configurable, SettingDefinition};
 use crate::sdk::host_api::PluginHandle;
 use crate::sdk::IconRequest;
+use async_trait::async_trait;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -399,8 +400,9 @@ impl Configurable for BookmarkSource {
     }
 }
 
+#[async_trait]
 impl DataSource for BookmarkSource {
-    fn fetch_candidates(&self) -> CachedCandidateData {
+    async fn fetch_candidates(&self) -> CachedCandidateData {
         let mut result = CachedCandidateData::new();
 
         let sources = self.parse_sources();

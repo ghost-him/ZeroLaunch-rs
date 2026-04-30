@@ -6,6 +6,7 @@ use crate::plugin_system::types::{
 use crate::plugin_system::{ComponentType, ConfigError, Configurable, SettingDefinition};
 use crate::sdk::host_api::PluginHandle;
 use crate::sdk::IconRequest;
+use async_trait::async_trait;
 use parking_lot::RwLock;
 use std::sync::Arc;
 use tracing::debug;
@@ -108,8 +109,9 @@ impl Configurable for UrlSource {
     }
 }
 
+#[async_trait]
 impl DataSource for UrlSource {
-    fn fetch_candidates(&self) -> CachedCandidateData {
+    async fn fetch_candidates(&self) -> CachedCandidateData {
         let mut result = CachedCandidateData::new();
         let web_pages = self.parse_web_pages();
 

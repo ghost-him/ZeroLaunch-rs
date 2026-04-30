@@ -223,13 +223,15 @@ pub fn bridge_get_session_mode(state: tauri::State<'_, Arc<AppState>>) -> String
 
 /// 强制刷新候选项缓存。
 #[tauri::command]
-pub fn bridge_refresh_candidates(state: tauri::State<'_, Arc<AppState>>) -> usize {
+pub async fn bridge_refresh_candidates(
+    state: tauri::State<'_, Arc<AppState>>,
+) -> Result<usize, String> {
     debug!("🔄 [Bridge] 刷新候选项缓存");
     let session_router = state.get_session_router();
-    session_router.refresh_candidates();
+    session_router.refresh_candidates().await;
     let count = session_router.get_cached_candidates_count();
     info!("🔄 [Bridge] 刷新完成，共 {} 个候选项", count);
-    count
+    Ok(count)
 }
 
 /// 获取缓存的候选项数量。

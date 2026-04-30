@@ -157,7 +157,7 @@ pub async fn refresh_new_candidates(
 ) -> Result<usize, String> {
     debug!("🔄 [新架构] 刷新候选项缓存");
     let session_router = state.get_session_router();
-    session_router.refresh_candidates();
+    session_router.refresh_candidates().await;
     let count = session_router.get_cached_candidates_count();
     info!("🔄 [新架构] 刷新完成，共 {} 个候选项", count);
     Ok(count)

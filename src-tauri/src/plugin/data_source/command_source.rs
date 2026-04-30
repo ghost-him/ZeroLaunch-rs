@@ -6,6 +6,7 @@ use crate::plugin_system::types::{
 use crate::plugin_system::{ComponentType, ConfigError, Configurable, SettingDefinition};
 use crate::sdk::host_api::PluginHandle;
 use crate::sdk::IconRequest;
+use async_trait::async_trait;
 use parking_lot::RwLock;
 use std::path::Path;
 use std::sync::Arc;
@@ -151,8 +152,9 @@ impl Configurable for CommandSource {
     }
 }
 
+#[async_trait]
 impl DataSource for CommandSource {
-    fn fetch_candidates(&self) -> CachedCandidateData {
+    async fn fetch_candidates(&self) -> CachedCandidateData {
         let mut result = CachedCandidateData::new();
         let commands = self.parse_commands();
 

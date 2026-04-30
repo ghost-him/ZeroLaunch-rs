@@ -149,8 +149,9 @@ pub struct ScoredCandidate {
 }
 
 // 表示一个数据源
+#[async_trait]
 pub trait DataSource: Configurable {
-    fn fetch_candidates(&self) -> CachedCandidateData;
+    async fn fetch_candidates(&self) -> CachedCandidateData;
 }
 
 // 表示对搜索的候选项的搜索关键字做优化的组件，通常是对搜索关键字进行扩展或者优化，以提高搜索的召回率

@@ -9,6 +9,7 @@ use crate::plugin_system::{
 use crate::sdk::host_api::PluginHandle;
 use crate::sdk::path::path_resolver::KnownPath;
 use crate::sdk::IconRequest;
+use async_trait::async_trait;
 use globset::GlobSetBuilder;
 use parking_lot::RwLock;
 use regex::RegexSet;
@@ -436,8 +437,9 @@ impl Configurable for ProgramSource {
     fn on_settings_changed(&self) {}
 }
 
+#[async_trait]
 impl DataSource for ProgramSource {
-    fn fetch_candidates(&self) -> CachedCandidateData {
+    async fn fetch_candidates(&self) -> CachedCandidateData {
         let mut result = CachedCandidateData::new();
         let directory_configs = self.parse_directory_configs();
 

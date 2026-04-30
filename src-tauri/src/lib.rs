@@ -325,11 +325,11 @@ async fn init_app_state(
     info!("ConfigManager 初始化完成");
 
     info!("=== 阶段5.2: 新插件系统初始化 ===");
-    init_plugin_system(&state);
+    init_plugin_system(&state).await;
     debug!("应用状态初始化完成");
 }
 
-fn init_plugin_system(state: &Arc<AppState>) {
+async fn init_plugin_system(state: &Arc<AppState>) {
     let session_router = state.get_session_router();
     let config_manager = state.get_config_manager();
 
@@ -341,7 +341,7 @@ fn init_plugin_system(state: &Arc<AppState>) {
         loop {
             match event_receiver.recv().await {
                 Ok(event) => {
-                    event_router.handle_config_event(&event);
+                    event_router.handle_config_event(&event).await;
                 }
                 Err(tokio::sync::broadcast::error::RecvError::Lagged(count)) => {
                     warn!("配置事件接收器落后 {} 条消息", count);
@@ -487,7 +487,7 @@ fn init_plugin_system(state: &Arc<AppState>) {
 
     // 收集候选项
     info!("正在收集候选项...");
-    let candidates = candidate_pipeline.collect();
+    let candidates = candidate_pipeline.collect().await;
     info!(
         "候选项收集完成，共 {} 个",
         candidates.get_candidates().len()
@@ -499,7 +499,9 @@ fn init_plugin_system(state: &Arc<AppState>) {
 
     // === 阶段3: 更新 SessionRouter 状态 ===
     info!("正在更新 SessionRouter 状态...");
-    session_router.set_candidate_pipeline(candidate_pipeline);
+    session_router
+        .set_candidate_pipeline(candidate_pipeline)
+        .await;
     session_router.set_search_pipeline(search_pipeline);
     session_router.set_cached_candidates(candidates);
 

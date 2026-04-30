@@ -34,8 +34,9 @@ use crate::plugin::search_engine::launchy_search_model::LaunchySearchModel;
 use crate::plugin::search_engine::skim_search_model::SkimSearchModel;
 use crate::plugin::search_engine::standard_search_model::StandardSearchModel;
 use crate::plugin_system::types::{ScoreBooster, SearchEngine};
-use crate::plugin_system::Configurable;
+
 use crate::plugin_system::{CandidatePipeline, SearchPipeline};
+use crate::sdk::hotkey::types::HotkeyEventFilter;
 use crate::sdk::path::KnownPath;
 use crate::sdk::platform::WindowsAppEnumerator;
 use crate::sdk::platform::WindowsAppLauncher;
@@ -122,19 +123,22 @@ pub fn run() {
                 .unwrap();
             let config_dir = path_resolver.resolve_path(KnownPath::AppConfigDir).unwrap();
 
+            info!("应用数据目录: {}", app_data_dir);
+            info!("图标缓存目录: {}", icon_cache_dir);
+            info!("配置目录: {}", config_dir);
+
             tauri::async_runtime::block_on(async move {
-                info!("=== 阶段5: 核心状态初始化 ===");
-                info!("正在初始化应用状态和配置系统");
+                info!("=== 核心服务初始化 ===");
                 init_app_state(app, path_resolver, app_data_dir, icon_cache_dir, config_dir).await;
 
-                info!("=== 阶段6: UI组件初始化 ===");
+                info!("=== UI 组件初始化 ===");
                 info!("正在初始化搜索栏窗口");
                 init_search_bar_window(app);
 
                 info!("正在初始化设置窗口");
                 init_setting_window(app.app_handle().clone());
 
-                info!("正在初始化系统托盘服务");
+                info!("正在初始化系统托盘");
                 let tray_manager = app
                     .state::<Arc<AppState>>()
                     .get_tray_manager()
@@ -161,6 +165,8 @@ pub fn run() {
                         }
                     });
                 });
+
+                info!("应用启动完成");
             });
             Ok(())
         })
@@ -246,7 +252,7 @@ async fn init_app_state(
         icons_dir.to_string_lossy().to_string(),
     ));
 
-    info!("=== 阶段5.1: 创建 HostApi ===");
+    info!("=== Phase 1: SDK 初始化 - 创建 HostApi ===");
 
     let default_storage: Arc<dyn StorageService> =
         Arc::new(LocalStorageService::new(&app_data_dir));
@@ -261,6 +267,7 @@ async fn init_app_state(
     let app_handle = state.get_main_handle();
     let app_handle_for_notify = app_handle.clone();
     let app_handle_for_hide = app_handle.clone();
+    let app_handle_for_show = app_handle.clone();
     let app_handle_for_focus_monitor = app_handle.clone();
 
     let host_api = Arc::new(
@@ -308,6 +315,13 @@ async fn init_app_state(
                     let _ = window.emit("handle_focus_lost", ());
                 }
             })
+            .show_window_callback(move || {
+                if let Some(window) = app_handle_for_show.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                    let _ = window.emit("show_window", ());
+                }
+            })
             .build(),
     );
     state.set_host_api(host_api.clone());
@@ -317,6 +331,8 @@ async fn init_app_state(
     state.set_tray_manager(tray_manager);
     info!("TrayManager 创建完成");
 
+    info!("=== Phase 2: Core 初始化 - 创建 ConfigManager ===");
+
     let config_manager = Arc::new(ConfigManager::new(std::path::PathBuf::from(&config_dir)));
     config_manager.set_host_api(host_api.clone());
     let storage_config_component = Arc::new(StorageConfigComponent::new(host_api.clone()));
@@ -324,9 +340,12 @@ async fn init_app_state(
     state.set_config_manager(config_manager);
     info!("ConfigManager 初始化完成");
 
-    info!("=== 阶段5.2: 新插件系统初始化 ===");
+    info!("=== Phase 3: Plugin 初始化 ===");
     init_plugin_system(&state).await;
-    debug!("应用状态初始化完成");
+    info!(
+        "应用状态初始化完成 (HostApi, ConfigManager, {} 个已注册组件)",
+        state.get_config_manager().get_all_components().len()
+    );
 }
 
 async fn init_plugin_system(state: &Arc<AppState>) {
@@ -335,6 +354,7 @@ async fn init_plugin_system(state: &Arc<AppState>) {
 
     session_router.set_config_manager(config_manager.clone());
 
+    // 订阅配置事件
     let event_router = session_router.clone();
     let mut event_receiver = config_manager.event_sender().subscribe();
     tauri::async_runtime::spawn(async move {
@@ -354,10 +374,13 @@ async fn init_plugin_system(state: &Arc<AppState>) {
         }
     });
 
-    info!("正在注册可配置组件到 ConfigManager...");
-
     let host_api = state.get_host_api();
     session_router.set_host_api(host_api.clone());
+
+    // ========================================================================
+    // Phase A: 创建并注册所有组件到 ConfigManager
+    // ========================================================================
+    info!("=== Phase A: 创建并注册所有组件 ===");
 
     let shell_service_handle = host_api.register("shell-executors", Default::default());
     let window_service_handle = host_api.register("window-activator", Default::default());
@@ -369,7 +392,7 @@ async fn init_plugin_system(state: &Arc<AppState>) {
     let bookmark_source_handle = host_api.register("bookmark-source", Default::default());
     let command_source_handle = host_api.register("command-source", Default::default());
 
-    // 1. 注册执行器（同时注册到 ConfigManager 和 ExecutorRegistry，双重索引）
+    // -- 执行器 --
     info!("正在注册执行器...");
     let path_executor: Arc<dyn crate::plugin_system::types::ActionExecutor> =
         Arc::new(PathExecutor::new(shell_service_handle.clone()));
@@ -384,7 +407,6 @@ async fn init_plugin_system(state: &Arc<AppState>) {
     let window_activate_executor: Arc<dyn crate::plugin_system::types::ActionExecutor> =
         Arc::new(WindowActivateExecutor::new(window_service_handle));
 
-    // 注册到 ConfigManager（配置维度索引）
     config_manager.register(path_executor.clone());
     config_manager.register(file_executor.clone());
     config_manager.register(url_executor.clone());
@@ -392,8 +414,6 @@ async fn init_plugin_system(state: &Arc<AppState>) {
     config_manager.register(command_executor.clone());
     config_manager.register(window_activate_executor.clone());
 
-    // 注册到 ExecutorRegistry（业务维度索引）
-    // 注意，这个步骤应该交给config_manager来完成，因为要只给session_router注册已启用的executor，对于没有启用的，那么是不应该注册的！当前的实现下，先默认都启用，为了方便测试，则直接在这里完成注册！
     session_router.register_executor(path_executor);
     session_router.register_executor(file_executor);
     session_router.register_executor(url_executor);
@@ -402,10 +422,9 @@ async fn init_plugin_system(state: &Arc<AppState>) {
     session_router.register_executor(window_activate_executor);
     info!("执行器注册完成");
 
-    // 2. 注册数据源
+    // -- 数据源 --
     info!("正在注册数据源...");
     let program_source = Arc::new(ProgramSource::new(program_source_handle));
-    let _ = program_source.apply_settings(program_source.get_default_settings());
     let app_source = Arc::new(AppSource::new(app_source_handle));
     let url_source = Arc::new(UrlSource::new(url_source_handle));
     let bookmark_source = Arc::new(BookmarkSource::new(bookmark_source_handle));
@@ -417,7 +436,7 @@ async fn init_plugin_system(state: &Arc<AppState>) {
     config_manager.register(command_source.clone());
     info!("数据源注册完成");
 
-    // 3. 注册关键词优化器
+    // -- 关键词优化器 --
     info!("正在注册关键词优化器...");
     let version_number_remover = Arc::new(VersionNumberRemover::new());
     let symbol_remover = Arc::new(SymbolRemover::new());
@@ -438,7 +457,7 @@ async fn init_plugin_system(state: &Arc<AppState>) {
     config_manager.register(upper_case_letter_extractor.clone());
     info!("关键词优化器注册完成");
 
-    // 4. 注册搜索引擎
+    // -- 搜索引擎 --
     info!("正在注册搜索引擎...");
     let search_engine: Arc<dyn SearchEngine> = Arc::new(StandardSearchModel {});
     let launchy_search_engine: Arc<dyn SearchEngine> = Arc::new(LaunchySearchModel {});
@@ -448,7 +467,7 @@ async fn init_plugin_system(state: &Arc<AppState>) {
     config_manager.register(skim_search_engine);
     info!("搜索引擎注册完成");
 
-    // 5. 注册分数增强器
+    // -- 分数增强器 --
     info!("正在注册分数增强器...");
     let history_booster: Arc<dyn ScoreBooster> = Arc::new(HistoryBooster::new());
     let query_affinity_booster: Arc<dyn ScoreBooster> = Arc::new(QueryAffinityBooster::new());
@@ -456,26 +475,56 @@ async fn init_plugin_system(state: &Arc<AppState>) {
     config_manager.register(query_affinity_booster.clone());
     info!("分数增强器注册完成");
 
-    // 6. 注册核心配置组件
+    // -- 核心配置组件 --
     info!("正在注册核心配置组件...");
     let hotkey_config_component = Arc::new(HotkeyConfigComponent::new(host_api.clone()));
     config_manager.register(hotkey_config_component);
     info!("核心配置组件注册完成");
 
-    // === 阶段2: 从 ConfigManager 按类型获取组件，构建各 Pipeline ===
-    info!("正在构建业务管道...");
+    // 注册快捷键回调：按下全局快捷键时显示搜索栏
+    let host_api_for_hotkey = host_api.clone();
+    let session_router_for_hotkey = session_router.clone();
+    let _ = host_api.register_hotkey_callback(
+        "search_bar_toggle",
+        HotkeyEventFilter::All,
+        Arc::new(move |event| {
+            debug!("收到快捷键事件: {:?}", event);
+            let host_api = host_api_for_hotkey.clone();
+            let session_router = session_router_for_hotkey.clone();
+            tauri::async_runtime::spawn(async move {
+                let _ = session_router.on_search_bar_wake().await;
+                host_api.show_window().await;
+            });
+        }),
+    );
 
-    // 构建候选管道
+    info!(
+        "Phase A 完成: 共注册 {} 个组件",
+        config_manager.get_all_components().len(),
+    );
+
+    // ========================================================================
+    // Phase B: 加载持久化配置
+    // ========================================================================
+    info!("=== Phase B: 加载持久化配置 ===");
+    if let Err(e) = config_manager.load_from_storage(true) {
+        warn!("加载持久化配置失败: {}", e);
+    }
+
+    // ========================================================================
+    // Phase C: 构建管道
+    // ========================================================================
+    info!("=== Phase C: 构建业务管道 ===");
+
+    info!("构建候选管道 (5 数据源 + 8 关键词优化器)...");
     let mut candidate_pipeline = CandidatePipeline::new();
 
-    // 添加数据源
     candidate_pipeline.add_source(program_source);
     candidate_pipeline.add_source(app_source);
     candidate_pipeline.add_source(url_source);
     candidate_pipeline.add_source(bookmark_source);
     candidate_pipeline.add_source(command_source);
 
-    // 添加关键词优化器（按优先级顺序）
     candidate_pipeline.add_keyword_optimizer(version_number_remover);
     candidate_pipeline.add_keyword_optimizer(symbol_remover);
     candidate_pipeline.add_keyword_optimizer(space_remover);
@@ -485,34 +534,27 @@ async fn init_plugin_system(state: &Arc<AppState>) {
     candidate_pipeline.add_keyword_optimizer(first_letter_extractor);
     candidate_pipeline.add_keyword_optimizer(upper_case_letter_extractor);
 
-    // 收集候选项
-    info!("正在收集候选项...");
+    info!("正在收集候选项（此时各组件已持有用户持久化配置）...");
     let candidates = candidate_pipeline.collect().await;
     info!(
         "候选项收集完成，共 {} 个",
         candidates.get_candidates().len()
     );
 
-    // 构建搜索管道
+    info!("构建搜索管道 (搜索引擎: StandardSearchModel, 增强器: 2, 结果上限: 10)...");
     let boosters: Vec<Arc<dyn ScoreBooster>> = vec![history_booster, query_affinity_booster];
     let search_pipeline = SearchPipeline::new(Some(search_engine), boosters, 10);
 
-    // === 阶段3: 更新 SessionRouter 状态 ===
-    info!("正在更新 SessionRouter 状态...");
+    info!("更新 SessionRouter 状态...");
     session_router
         .set_candidate_pipeline(candidate_pipeline)
         .await;
     session_router.set_search_pipeline(search_pipeline);
     session_router.set_cached_candidates(candidates);
 
-    // === 阶段4: 加载持久化配置 ===
-    info!("正在加载持久化配置...");
-    if let Err(e) = config_manager.load_from_storage() {
-        warn!("加载持久化配置失败: {}", e);
-    }
-
     info!(
-        "新插件系统初始化完成，已缓存 {} 个候选项",
+        "插件系统初始化完成，已注册 {} 个组件，缓存 {} 个候选项",
+        config_manager.get_all_components().len(),
         session_router.get_cached_candidates_count()
     );
 }

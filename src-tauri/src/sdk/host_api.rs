@@ -461,6 +461,8 @@ pub struct HostApi {
     notify_callback: RwLock<Arc<dyn Fn(String, String) + Send + Sync + 'static>>,
     /// 隐藏窗口回调（宿主级）
     hide_window_callback: RwLock<Arc<dyn Fn() + Send + Sync + 'static>>,
+    /// 显示窗口回调（宿主级）
+    show_window_callback: RwLock<Arc<dyn Fn() + Send + Sync + 'static>>,
 }
 
 impl HostApi {
@@ -535,6 +537,11 @@ impl HostApi {
     /// 隐藏搜索栏窗口。
     pub async fn hide_window(&self) {
         self.hide_window_callback.read()();
+    }
+
+    /// 显示搜索栏窗口。
+    pub async fn show_window(&self) {
+        self.show_window_callback.read()();
     }
 
     /// 捕获当前系统参数快照
@@ -803,6 +810,7 @@ pub struct HostApiBuilder {
     focus_monitor: Option<Arc<dyn FocusMonitor>>,
     notify_callback: Option<Arc<dyn Fn(String, String) + Send + Sync + 'static>>,
     hide_window_callback: Option<Arc<dyn Fn() + Send + Sync + 'static>>,
+    show_window_callback: Option<Arc<dyn Fn() + Send + Sync + 'static>>,
 }
 
 impl HostApiBuilder {
@@ -833,6 +841,7 @@ impl HostApiBuilder {
             focus_monitor: None,
             notify_callback: None,
             hide_window_callback: None,
+            show_window_callback: None,
         }
     }
 
@@ -1004,6 +1013,17 @@ impl HostApiBuilder {
         self
     }
 
+    /// 设置显示窗口回调，宿主层在初始化时注入 Tauri 窗口控制实现。
+    /// 参数：callback - 显示搜索窗口的回调。
+    /// 返回：Self（支持链式调用）。
+    pub fn show_window_callback<F>(mut self, callback: F) -> Self
+    where
+        F: Fn() + Send + Sync + 'static,
+    {
+        self.show_window_callback = Some(Arc::new(callback));
+        self
+    }
+
     /// 构建 HostApi 实例。
     /// 参数：无。
     /// 返回：构建完成的 HostApi 实例，如果缺少必需组件则 panic。
@@ -1042,6 +1062,10 @@ impl HostApiBuilder {
             hide_window_callback: RwLock::new(
                 self.hide_window_callback
                     .expect("missing hide_window_callback"),
+            ),
+            show_window_callback: RwLock::new(
+                self.show_window_callback
+                    .expect("missing show_window_callback"),
             ),
         }
     }

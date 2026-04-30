@@ -244,30 +244,29 @@ impl ConfigManager {
     // region: 持久化
 
     /// 从持久化文件加载配置，应用到所有已注册组件。
-    /// 如果设置了 HostApi，优先尝试从远程存储拉取配置，失败时回退到本地。
-    pub fn load_from_storage(&self) -> Result<(), ConfigError> {
-        let config = if let Some(host_api) = self.host_api.read().as_ref() {
-            // 尝试从远程拉取
+    /// 参数：local_only - true 时仅从本地文件加载，跳过远程存储。
+    ///         初始化阶段应传 true，因为远程存储可能尚未配置。
+    pub fn load_from_storage(&self, local_only: bool) -> Result<(), ConfigError> {
+        let config = if local_only {
+            self.store.load().unwrap_or_default()
+        } else if let Some(host_api) = self.host_api.read().as_ref() {
             match tokio::task::block_in_place(|| {
                 tokio::runtime::Handle::current()
                     .block_on(async { host_api.storage().download("zerolaunch_config.json").await })
             }) {
-                Ok(Some(data)) => {
-                    match serde_json::from_slice::<PersistentConfig>(&data) {
-                        Ok(remote_config) => {
-                            info!("从远程存储加载配置成功");
-                            // 同时保存到本地，确保本地副本是最新的
-                            if let Err(e) = self.store.save(&remote_config) {
-                                warn!("远程配置本地备份失败: {}", e);
-                            }
-                            remote_config
+                Ok(Some(data)) => match serde_json::from_slice::<PersistentConfig>(&data) {
+                    Ok(remote_config) => {
+                        info!("从远程存储加载配置成功");
+                        if let Err(e) = self.store.save(&remote_config) {
+                            warn!("远程配置本地备份失败: {}", e);
                         }
-                        Err(e) => {
-                            warn!("远程配置解析失败: {}, 回退到本地", e);
-                            self.store.load().unwrap_or_default()
-                        }
+                        remote_config
                     }
-                }
+                    Err(e) => {
+                        warn!("远程配置解析失败: {}, 回退到本地", e);
+                        self.store.load().unwrap_or_default()
+                    }
+                },
                 Ok(None) => {
                     debug!("远程存储无配置文件，使用本地配置");
                     self.store.load().unwrap_or_default()
@@ -282,12 +281,10 @@ impl ConfigManager {
         };
 
         for (component_id, state) in &config.components {
-            // 1. 设置 enabled 状态
             self.enabled_map
                 .write()
                 .insert(component_id.clone(), state.enabled);
 
-            // 2. 应用配置到组件
             if let Some(component) = self.registry.get(component_id) {
                 if let Err(e) = component.apply_settings(state.settings.clone()) {
                     warn!("加载组件配置失败: {}, 错误: {}", component_id, e);
@@ -296,12 +293,30 @@ impl ConfigManager {
                     debug!("已从持久化加载组件配置: {}", component_id);
                 }
             }
-            // 注意：组件可能还未注册（顺序问题），配置会保留在文件中等待后续注册时应用
+        }
+
+        // 初始化在持久化配置中不存在的新组件，应用其默认配置
+        for component in self.registry.get_all() {
+            let component_id = component.component_id().to_string();
+            if !config.components.contains_key(&component_id) {
+                let defaults = component.get_default_settings();
+                if defaults.is_null() || defaults.as_object().map(|o| o.is_empty()).unwrap_or(false)
+                {
+                    continue;
+                }
+                if let Err(e) = component.apply_settings(defaults) {
+                    warn!("应用默认配置失败: {}, 错误: {}", component_id, e);
+                } else {
+                    component.on_settings_changed();
+                    info!("首次初始化组件默认配置: {}", component_id);
+                }
+            }
         }
 
         info!(
-            "配置加载完成，共加载 {} 个组件配置",
-            config.components.len()
+            "配置加载完成，已加载 {} 个持久化配置，共 {} 个已注册组件",
+            config.components.len(),
+            self.registry.len()
         );
         Ok(())
     }

@@ -15,7 +15,7 @@ use tauri::AppHandle;
 use tauri_plugin_global_shortcut::{
     Code, GlobalShortcutExt, Modifiers, Shortcut as TauriShortcut, ShortcutState,
 };
-use tracing::{error, info};
+use tracing::{debug, error, info, warn};
 
 /// Windows 平台按键管理器实现。
 /// 使用 `tauri-plugin-global-shortcut` 注册全局快捷键，使用 `rdev` 监听双击 Ctrl。
@@ -228,12 +228,17 @@ impl HotkeyManager for WindowsHotkeyManager {
         let callback_ref = self.event_callback.clone();
         let hotkey_clone = hotkey.clone();
 
+        let hotkey_debug = hotkey.clone();
         self.app_handle
             .global_shortcut()
             .on_shortcut(tauri_shortcut, move |_app, _shortcut, event| {
                 if let ShortcutState::Pressed = event.state() {
+                    debug!("全局快捷键按下: {:?}", hotkey_debug);
                     if let Some(callback) = callback_ref.read().as_ref() {
+                        debug!("分发快捷键事件: {:?}", hotkey_debug);
                         callback(HotkeyEvent::GlobalHotkey(hotkey_clone.clone()));
+                    } else {
+                        warn!("快捷键按下但无事件分发器: {:?}", hotkey_debug);
                     }
                 }
             })
@@ -264,12 +269,21 @@ impl HotkeyManager for WindowsHotkeyManager {
     async fn start_listening(&self) -> Result<(), HostApiError> {
         let was_listening = self.is_listening.swap(true, Ordering::Relaxed);
         let callbacks = self.callbacks.clone();
+        let callback_count = callbacks.len();
+        info!("启动按键监听，已注册 {} 个回调", callback_count);
         let dispatcher: HotkeyCallback = Arc::new(move |event| {
+            debug!("按键事件分发: {:?}, 回调总数: {}", event, callback_count);
+            let mut matched = 0;
             for entry in callbacks.iter() {
                 let registration = entry.value();
                 if matches_filter(&registration.filter, &event) {
+                    debug!("  匹配回调: {}", registration.id);
                     (registration.callback)(event.clone());
+                    matched += 1;
                 }
+            }
+            if matched == 0 {
+                debug!("  无匹配回调");
             }
         });
         *self.event_callback.write() = Some(dispatcher);

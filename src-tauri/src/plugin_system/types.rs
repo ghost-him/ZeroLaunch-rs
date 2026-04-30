@@ -264,12 +264,6 @@ pub enum QueryResponse {
         actions: Vec<ResultAction>, // 可选的全局动作
         keep_search_bar: bool,      // true=保留搜索框, false=沉浸态
     },
-    // 该内容暂时先不实现，后续如果有需要了再来实现它
-    WebView {
-        url: String,
-        width: Option<u32>,
-        height: Option<u32>,
-    },
     Empty,
 }
 

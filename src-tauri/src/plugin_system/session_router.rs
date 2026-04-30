@@ -21,7 +21,7 @@ pub enum SessionMode {
 
 pub struct SessionRouter {
     plugin_service: Arc<PluginService>,
-    search_pipeline: Arc<RwLock<SearchPipeline>>,
+    search_pipeline: Arc<RwLock<Option<SearchPipeline>>>,
     candidate_pipeline: Arc<tokio::sync::RwLock<CandidatePipeline>>,
     cached_candidates: RwLock<CachedCandidateData>,
     current_mode: RwLock<SessionMode>,
@@ -38,7 +38,7 @@ impl SessionRouter {
     pub fn new(plugin_service: Arc<PluginService>) -> Self {
         Self {
             plugin_service,
-            search_pipeline: Arc::new(RwLock::new(SearchPipeline::new(None, Vec::new(), 3))),
+            search_pipeline: Arc::new(RwLock::new(None)),
             candidate_pipeline: Arc::new(tokio::sync::RwLock::new(CandidatePipeline::new())),
             cached_candidates: RwLock::new(CachedCandidateData::new()),
             current_mode: RwLock::new(SessionMode::None),
@@ -70,7 +70,7 @@ impl SessionRouter {
 
     /// 设置搜索管道
     pub fn set_search_pipeline(&self, pipeline: SearchPipeline) {
-        *self.search_pipeline.write() = pipeline;
+        *self.search_pipeline.write() = Some(pipeline);
     }
 
     /// 设置缓存的候选项
@@ -109,11 +109,15 @@ impl SessionRouter {
 
         let cached_candidate = self.cached_candidates.read();
 
-        let scored_candidates = self
-            .search_pipeline
-            .as_ref()
-            .read()
-            .search(&cached_candidate, &query.search_term);
+        let pipeline_guard = self.search_pipeline.read();
+        let pipeline = match pipeline_guard.as_ref() {
+            Some(p) => p,
+            None => {
+                tracing::warn!("SearchPipeline 未初始化，返回空结果");
+                return QueryResponse::Empty;
+            }
+        };
+        let scored_candidates = pipeline.search(&cached_candidate, &query.search_term);
 
         let results = scored_candidates
             .into_iter()
@@ -199,9 +203,9 @@ impl SessionRouter {
                     .map_err(|e| e.to_string())?;
 
                 // 启动成功后，通知所有 ScoreBooster 记录用户行为
-                self.search_pipeline
-                    .read()
-                    .record(candidate_id, &cached_candidate, &query_text);
+                if let Some(pipeline) = self.search_pipeline.read().as_ref() {
+                    pipeline.record(candidate_id, &cached_candidate, &query_text);
+                }
 
                 Ok(())
             }

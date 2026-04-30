@@ -143,16 +143,6 @@ pub async fn bridge_query(
                 panel_actions: Some(actions.into_iter().map(|a| a.into()).collect()),
             })
         }
-        QueryResponse::WebView { .. } => {
-            info!("[Bridge] 查询完成: '{}' -> WebView 模式", raw_query);
-            Ok(BridgeQueryResponse {
-                mode: "plugin_immersive".to_string(),
-                results: Vec::new(),
-                panel_type: None,
-                panel_data: None,
-                panel_actions: None,
-            })
-        }
     }
 }
 

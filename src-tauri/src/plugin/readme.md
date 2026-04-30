@@ -258,7 +258,7 @@ pub trait Plugin: Configurable {
 **设计目的**：
 - 独立的功能模块，通过触发词激活
 - 支持异步操作
-- 可以返回自定义 UI（List、CustomPanel、WebView）
+- 可以返回自定义 UI（List、CustomPanel）
 
 **使用场景**：
 | 实现类             | 触发词 | 功能     |

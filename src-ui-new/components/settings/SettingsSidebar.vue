@@ -5,7 +5,11 @@
       :key="group.key"
       class="sidebar-group"
     >
-      <div class="group-header" @click="toggleGroup(group.key)">
+      <div
+        class="group-header"
+        :class="{ active: group.type === 'static' && selectedId === group.key }"
+        @click="onGroupClick(group)"
+      >
         <n-icon :size="16">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle v-if="group.icon === 'settings'" cx="12" cy="12" r="3" />
@@ -58,12 +62,19 @@ defineProps<{
   selectedId: string | null
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   (e: 'select', componentId: string): void
   (e: 'toggle', componentId: string, enabled: boolean): void
 }>()
 
 const expandedGroups = ref(new Set<string>(['core', 'pipeline', 'plugins']))
+function onGroupClick(group: SidebarItem) {
+  if (group.type === 'static') {
+    emit('select', group.key)
+  } else {
+    toggleGroup(group.key)
+  }
+}
 function toggleGroup(key: string) {
   if (expandedGroups.value.has(key)) {
     expandedGroups.value.delete(key)
@@ -93,7 +104,8 @@ function toggleGroup(key: string) {
   cursor: pointer;
 }
 
-.group-header:hover {
+.group-header:hover,
+.group-header.active {
   background: var(--bg-secondary);
 }
 

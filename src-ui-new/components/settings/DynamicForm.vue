@@ -25,7 +25,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { NButton, NTag, useMessage, useDialog } from 'naive-ui'
 import DynamicFormField from './DynamicFormField.vue'
 import { useConfigStore } from '../../stores/config-store'
@@ -46,6 +46,13 @@ const configStore = useConfigStore()
 const saving = ref(false)
 const resetting = ref(false)
 const localValues = ref<Record<string, unknown>>({ ...props.currentSettings })
+
+watch(
+  () => props.currentSettings,
+  (newSettings) => {
+    localValues.value = { ...newSettings }
+  },
+)
 
 const sortedSettings = computed(() =>
   [...props.schema.settings].sort((a, b) => a.order - b.order),

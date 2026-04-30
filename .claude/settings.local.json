@@ -6,7 +6,8 @@
       "Bash(bun run *)",
       "Bash(cargo clippy *)",
       "Bash(cargo fmt *)",
-      "Bash(cargo test *)"
+      "Bash(cargo test *)",
+      "Bash(npx vue-tsc *)"
     ]
   }
 }

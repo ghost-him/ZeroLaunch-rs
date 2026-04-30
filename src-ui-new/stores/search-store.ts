@@ -10,6 +10,7 @@ export const useSearchStore = defineStore('search', () => {
   const query = ref('')
   const results = ref<ListItem[]>([])
   const selectedIndex = ref(0)
+  const selectedActionIndex = ref(0)
   const isSearching = ref(false)
   const sessionMode = ref<SessionMode>('none')
   const cachedCount = ref(0)
@@ -38,12 +39,15 @@ export const useSearchStore = defineStore('search', () => {
       sessionMode.value = 'none'
       panelType.value = null
       selectedIndex.value = 0
+      selectedActionIndex.value = 0
       return
     }
 
     isSearching.value = true
     try {
       const resp: BridgeQueryResponse = await bridgeQuery(raw)
+
+      selectedActionIndex.value = 0
 
       switch (resp.mode) {
         case 'search':
@@ -85,8 +89,12 @@ export const useSearchStore = defineStore('search', () => {
     const item = results.value[idx]
     if (!item) return
 
-    const defaultAction = item.actions.find((a) => a.isDefault)
-    const targetActionId = actionId ?? defaultAction?.id
+    let targetActionId = actionId
+    if (!targetActionId) {
+      const actionIdx = Math.min(selectedActionIndex.value, item.actions.length - 1)
+      const action = item.actions[actionIdx]
+      targetActionId = action?.id ?? item.actions.find((a) => a.isDefault)?.id
+    }
     if (!targetActionId) return
 
     await bridgeConfirm({
@@ -137,7 +145,7 @@ export const useSearchStore = defineStore('search', () => {
   }
 
   return {
-    query, results, selectedIndex, isSearching, sessionMode, cachedCount,
+    query, results, selectedIndex, selectedActionIndex, isSearching, sessionMode, cachedCount,
     panelType, panelData, panelActions, keepSearchBar,
     isIdle, selectedItem,
     doQuery, doConfirm, doWake, doReset, selectNext, selectPrev,

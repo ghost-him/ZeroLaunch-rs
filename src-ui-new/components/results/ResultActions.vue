@@ -1,14 +1,15 @@
 <template>
   <div class="result-actions">
-    <span
+    <button
       v-for="(action, i) in actions"
       :key="action.id"
       class="action-btn"
       :class="{ 'is-default': action.isDefault, 'is-selected': i === selectedIndex }"
+      @click="$emit('execute', i)"
     >
       {{ action.label }}
-      <span v-if="action.shortcutKey" class="shortcut">{{ action.shortcutKey }}</span>
-    </span>
+      <kbd v-if="action.shortcutKey" class="shortcut">{{ action.shortcutKey }}</kbd>
+    </button>
   </div>
 </template>
 
@@ -18,6 +19,10 @@ import type { ResultAction } from '../../bridge/contract'
 defineProps<{
   actions: ResultAction[]
   selectedIndex: number
+}>()
+
+defineEmits<{
+  (e: 'execute', index: number): void
 }>()
 </script>
 
@@ -33,7 +38,10 @@ defineProps<{
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
   background: var(--bg-secondary);
+  border: none;
   border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
 }
 
 .action-btn.is-selected {

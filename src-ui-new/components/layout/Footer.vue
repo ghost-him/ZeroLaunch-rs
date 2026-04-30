@@ -1,7 +1,8 @@
 <template>
   <div class="footer">
     <div class="footer-left">
-      <span v-if="resultCount > 0">{{ resultCount }} 个结果</span>
+      <span v-if="sessionMode === 'plugin' && panelType">{{ panelType }}</span>
+      <span v-else-if="resultCount > 0">{{ resultCount }} 个结果</span>
       <span v-else>就绪</span>
     </div>
     <div class="footer-right">
@@ -23,9 +24,12 @@
 <script setup lang="ts">
 import { NButton, NIcon } from 'naive-ui'
 import { useSettings } from '../../composables/useSettings'
+import type { SessionMode } from '../../stores/search-store'
 
 defineProps<{
   resultCount: number
+  sessionMode: SessionMode
+  panelType: string | null
 }>()
 
 const { openSettings } = useSettings()

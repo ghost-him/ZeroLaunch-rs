@@ -10,7 +10,8 @@
     <ResultActions
       v-if="selected && item.actions.length > 0"
       :actions="item.actions"
-      :selected-index="0"
+      :selected-index="actionIndex"
+      @execute="(actionIdx: number) => $emit('action-execute', actionIdx)"
     />
   </div>
 </template>
@@ -24,11 +25,13 @@ defineProps<{
   item: ListItem
   selected: boolean
   index: number
+  actionIndex: number
 }>()
 
 defineEmits<{
   (e: 'click'): void
   (e: 'dblclick'): void
+  (e: 'action-execute', idx: number): void
 }>()
 </script>
 

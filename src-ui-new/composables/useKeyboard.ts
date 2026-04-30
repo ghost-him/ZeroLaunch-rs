@@ -1,4 +1,5 @@
 import { onMounted, onUnmounted } from 'vue'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useSearchStore } from '../stores/search-store'
 
 export function useKeyboard() {
@@ -29,12 +30,19 @@ export function useKeyboard() {
           store.query = ''
           store.results = []
           store.sessionMode = 'none'
+        } else {
+          getCurrentWindow().hide()
         }
         break
-      case 'Tab':
+      case 'Tab': {
         e.preventDefault()
-        // TODO: cycle through actions
+        const item = store.selectedItem
+        if (item && item.actions.length > 0) {
+          store.selectedActionIndex =
+            (store.selectedActionIndex + 1) % item.actions.length
+        }
         break
+      }
       case 'Home':
         e.preventDefault()
         store.selectedIndex = 0
@@ -45,12 +53,16 @@ export function useKeyboard() {
         break
     }
 
-    // Ctrl+数字: 快速触发
+    // Ctrl+数字: 触发对应 action
     if (ctrl && e.code.startsWith('Digit')) {
       const num = parseInt(e.code.replace('Digit', ''))
       if (num >= 1 && num <= 9) {
         e.preventDefault()
-        store.doConfirm(num - 1)
+        const actionIdx = num - 1
+        const item = store.selectedItem
+        if (item && actionIdx < item.actions.length) {
+          store.doConfirm(undefined, item.actions[actionIdx].id)
+        }
       }
     }
   }

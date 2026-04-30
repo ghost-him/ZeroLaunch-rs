@@ -554,7 +554,7 @@ async fn init_plugin_system(state: &Arc<AppState>) {
 
     info!("构建搜索管道 (搜索引擎: StandardSearchModel, 增强器: 2, 结果上限: 10)...");
     let boosters: Vec<Arc<dyn ScoreBooster>> = vec![history_booster, query_affinity_booster];
-    let search_pipeline = SearchPipeline::new(Some(search_engine), boosters, 10);
+    let search_pipeline = SearchPipeline::new(search_engine, boosters, 10);
 
     info!("更新 SessionRouter 状态...");
     session_router

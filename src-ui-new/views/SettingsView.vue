@@ -17,7 +17,7 @@
         v-if="!loading"
         :sidebar-items="sidebarItems"
         :selected-id="selectedId"
-        @select="onSelectComponent"
+        @select="onSelectItem"
         @toggle="onToggleComponent"
       />
 
@@ -30,12 +30,29 @@
           <n-button size="small" @click="init">重试</n-button>
         </div>
         <DynamicForm
-          v-else-if="selectedSchema && selectedSettings"
-          :key="selectedId ?? ''"
+          v-else-if="selectedId && selectedSchema && selectedSettings"
+          :key="selectedId"
           :schema="selectedSchema"
           :current-settings="selectedSettings"
           @reload="onReloadComponent"
         />
+        <div v-else-if="selectedId === 'appearance'" class="static-panel">
+          <h3>外观</h3>
+          <div class="static-row">
+            <span>主题</span>
+            <n-button-group>
+              <n-button :type="!themeStore.isDark ? 'primary' : 'default'" size="small" @click="themeStore.setTheme(false)">浅色</n-button>
+              <n-button :type="themeStore.isDark ? 'primary' : 'default'" size="small" @click="themeStore.setTheme(true)">深色</n-button>
+            </n-button-group>
+          </div>
+        </div>
+        <div v-else-if="selectedId === 'about'" class="static-panel">
+          <h3>关于</h3>
+          <div class="static-row">
+            <span>ZeroLaunch-rs</span>
+            <n-text depth="3">v0.6.12</n-text>
+          </div>
+        </div>
         <div v-else class="empty-hint">
           <n-text depth="3">从左侧选择一个组件</n-text>
         </div>
@@ -45,16 +62,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { NButton, NIcon, NSpin, NText } from 'naive-ui'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { NButton, NIcon, NSpin, NText, NButtonGroup } from 'naive-ui'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import SettingsSidebar from '../components/settings/SettingsSidebar.vue'
 import DynamicForm from '../components/settings/DynamicForm.vue'
 import { useConfigStore } from '../stores/config-store'
+import { useThemeStore } from '../stores/theme-store'
 import { useSettings } from '../composables/useSettings'
+import { onConfigChanged } from '../bridge/events'
 import type { ComponentInfo, ComponentSchema } from '../bridge/contract'
 
 const configStore = useConfigStore()
+const themeStore = useThemeStore()
 const { buildSidebarItems } = useSettings()
 
 const loading = ref(true)
@@ -62,6 +82,8 @@ const loadErr = ref<string | null>(null)
 const selectedId = ref<string | null>(null)
 const selectedSchema = ref<ComponentSchema | null>(null)
 const selectedSettings = ref<Record<string, unknown> | null>(null)
+
+let unlistenConfig: (() => void) | null = null
 
 function getComponentsList(): ComponentInfo[] {
   return Object.values(configStore.components)
@@ -81,12 +103,20 @@ async function init() {
   }
 }
 
-async function onSelectComponent(componentId: string) {
-  selectedId.value = componentId
+async function onSelectItem(itemId: string) {
+  selectedId.value = itemId
+
+  // Static sidebar items
+  if (itemId === 'appearance' || itemId === 'about') {
+    selectedSchema.value = null
+    selectedSettings.value = null
+    return
+  }
+
   try {
     const [schema, settings] = await Promise.all([
-      configStore.getSchema(componentId),
-      configStore.getSettings(componentId),
+      configStore.getSchema(itemId),
+      configStore.getSettings(itemId),
     ])
     selectedSchema.value = schema
     selectedSettings.value = settings as Record<string, unknown>
@@ -117,7 +147,20 @@ function closeWindow() {
   getCurrentWindow().close()
 }
 
-onMounted(init)
+onMounted(async () => {
+  await init()
+
+  unlistenConfig = await onConfigChanged((payload) => {
+    // Cross-window sync: if the changed component is currently selected, reload
+    if (payload.componentId === selectedId.value) {
+      onReloadComponent()
+    }
+  })
+})
+
+onUnmounted(() => {
+  unlistenConfig?.()
+})
 </script>
 
 <style scoped>
@@ -163,5 +206,22 @@ onMounted(init)
   justify-content: center;
   height: 100%;
   gap: 12px;
+}
+
+.static-panel {
+  padding: 24px;
+}
+
+.static-panel h3 {
+  margin: 0 0 16px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.static-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
 }
 </style>

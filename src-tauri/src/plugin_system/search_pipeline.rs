@@ -2,14 +2,14 @@ use super::types::*;
 use crate::plugin_system::cached_candidate::CachedCandidateData;
 use std::sync::Arc;
 pub struct SearchPipeline {
-    engine: Option<Arc<dyn SearchEngine>>,
+    engine: Arc<dyn SearchEngine>,
     boosters: Vec<Arc<dyn ScoreBooster>>,
     top_k: usize,
 }
 
 impl SearchPipeline {
     pub fn new(
-        engine: Option<Arc<dyn SearchEngine>>,
+        engine: Arc<dyn SearchEngine>,
         boosters: Vec<Arc<dyn ScoreBooster>>,
         top_k: usize,
     ) -> Self {
@@ -21,11 +21,7 @@ impl SearchPipeline {
     }
 
     pub fn search(&self, candidates: &CachedCandidateData, query: &str) -> Vec<ScoredCandidate> {
-        let mut scored = self
-            .engine
-            .as_ref()
-            .unwrap()
-            .calculate_scores(candidates, query);
+        let mut scored = self.engine.calculate_scores(candidates, query);
 
         if scored.is_empty() {
             return Vec::new();

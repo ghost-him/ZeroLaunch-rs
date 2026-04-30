@@ -12,7 +12,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { NButton } from 'naive-ui'
+import { NButton, useMessage } from 'naive-ui'
 import { useConfigStore } from '../../stores/config-store'
 import type { ConfigActionDef } from '../../bridge/contract'
 
@@ -29,6 +29,7 @@ const emit = defineEmits<{
 }>()
 
 const configStore = useConfigStore()
+const message = useMessage()
 const loading = ref(false)
 const actionDef = ref<ConfigActionDef | null>(null)
 
@@ -58,6 +59,10 @@ async function executeAction() {
         emit('update:modelValue', fieldValue)
       }
     }
+
+    message.success(`${actionDef.value.label} 完成`)
+  } catch (e) {
+    message.error(`${actionDef.value?.label ?? '操作'} 失败: ${String(e)}`)
   } finally {
     loading.value = false
   }

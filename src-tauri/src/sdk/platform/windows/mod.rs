@@ -1,6 +1,7 @@
 mod app_enumerator;
 mod app_launcher;
 mod autostart;
+mod focus_monitor;
 mod hotkey;
 mod icon;
 mod installation_monitor;
@@ -14,6 +15,7 @@ mod window;
 pub use app_enumerator::WindowsAppEnumerator;
 pub use app_launcher::WindowsAppLauncher;
 pub use autostart::WindowsAutoStartManager;
+pub use focus_monitor::WindowsFocusMonitor;
 pub use hotkey::WindowsHotkeyManager;
 pub use icon::WindowsIconExtractor;
 pub use installation_monitor::WindowsInstallationMonitor;

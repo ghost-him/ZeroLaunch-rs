@@ -1,6 +1,7 @@
 pub mod app;
 pub mod autostart;
 pub mod common;
+pub mod focus_monitor;
 pub mod host_api;
 pub mod hotkey;
 pub mod icon;
@@ -16,6 +17,7 @@ pub mod window;
 
 pub use app::{AppEnumerator, AppInfo, AppLauncher};
 pub use autostart::AutoStartManager;
+pub use focus_monitor::{FocusCallback, FocusEvent, FocusMonitor};
 pub use host_api::{
     CacheLevel, HostApi, HostApiBuilder, HostApiError, OpenTarget, PluginHandle, PluginSdkConfig,
 };

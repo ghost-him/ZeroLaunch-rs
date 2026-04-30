@@ -41,6 +41,7 @@ use crate::sdk::platform::WindowsAppEnumerator;
 use crate::sdk::platform::WindowsAppLauncher;
 use crate::sdk::platform::WindowsAutoStartManager;
 use crate::sdk::platform::WindowsClipboardProvider;
+use crate::sdk::platform::WindowsFocusMonitor;
 use crate::sdk::platform::WindowsHotkeyManager;
 use crate::sdk::platform::WindowsIconExtractor;
 use crate::sdk::platform::WindowsInstallationMonitor;
@@ -57,7 +58,6 @@ use crate::sdk::timer::TokioTimerManager;
 use crate::sdk::AppResourceService;
 use crate::sdk::PathResolver;
 use crate::state::app_state::AppState;
-// use crate::utils::ui_controller::handle_focus_lost;
 use crate::window_position::update_window_position;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -69,8 +69,6 @@ use tauri::WebviewUrl;
 use tauri_plugin_deep_link::DeepLinkExt;
 use tracing::{debug, error, info, warn};
 use utils::service_locator::ServiceLocator;
-use windows::Win32::Foundation::POINT;
-use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
 
 static IS_EXITING: AtomicBool = AtomicBool::new(false);
 
@@ -104,9 +102,14 @@ pub fn run() {
 
     let builder = tauri::Builder::default().plugin(tauri_plugin_shell::init());
     builder
-        .plugin(tauri_plugin_single_instance::init(|_app, _argv, _cwd| {
-            error!("当前已经运行了一个实例");
-            todo!("通知已经运行一个实例");
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            use tauri_plugin_notification::NotificationExt;
+            let _ = app
+                .notification()
+                .builder()
+                .title("ZeroLaunch")
+                .body("程序已在运行中，无需重复启动")
+                .show();
         }))
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_dialog::init())
@@ -258,6 +261,7 @@ async fn init_app_state(
     let app_handle = state.get_main_handle();
     let app_handle_for_notify = app_handle.clone();
     let app_handle_for_hide = app_handle.clone();
+    let app_handle_for_focus_monitor = app_handle.clone();
 
     let host_api = Arc::new(
         crate::sdk::HostApi::builder(icon_cache_dir)
@@ -286,6 +290,9 @@ async fn init_app_state(
             .timer_manager(Arc::new(TokioTimerManager::new()))
             .storage_service(default_storage)
             .app_resource(app_resource)
+            .focus_monitor(Arc::new(WindowsFocusMonitor::new(
+                app_handle_for_focus_monitor,
+            )))
             .notify_callback(move |title: String, message: String| {
                 use tauri_plugin_notification::NotificationExt;
                 let _ = app_handle_for_notify
@@ -508,50 +515,34 @@ fn init_plugin_system(state: &Arc<AppState>) {
     );
 }
 
-/// 初始化搜索界面的窗口设置
+/// 初始化搜索栏窗口。
+///
+/// 职责：
+/// 1. 更新窗口位置（居中显示）
+/// 2. 注册焦点丢失回调（隐藏窗口 + 重置会话）
+///
+/// 窗口失焦检测由 FocusMonitor（push-based）统一管理，
+/// 本函数仅负责注册业务层回调，不直接处理窗口事件。
 fn init_search_bar_window(app: &mut App) {
-    let main_window = Arc::new(app.get_webview_window("main").expect("无法获取主窗口"));
-    let monitor = main_window
-        .current_monitor()
-        .expect("无法获取当前显示器")
-        .expect("显示器信息为空");
-    let _size = monitor.size();
-    let _scale_factor = main_window.scale_factor().unwrap_or(1.0);
-    let _state = app.state::<Arc<AppState>>();
-
     update_window_position();
-    // 设置当窗口被关闭时，忽略
-    let windows_clone = main_window.clone();
-    main_window.on_window_event(move |event| {
-        if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-            api.prevent_close();
-            // handle_focus_lost(windows_clone.clone());
-            todo!("实现处理窗口失焦的场景");
-        }
-        if let tauri::WindowEvent::Focused(focused) = event {
-            if !focused {
-                let mut point = POINT { x: 0, y: 0 };
-                unsafe {
-                    let _ = GetCursorPos(&mut point);
-                }
-                let position = (point.x, point.y);
-                if let Ok(window_position) = windows_clone.inner_position() {
-                    if let Ok(window_size) = windows_clone.inner_size() {
-                        let in_window = position.0 >= window_position.x
-                            && position.0 <= window_position.x + window_size.width as i32
-                            && position.1 >= window_position.y
-                            && position.1 <= window_position.y + window_size.height as i32;
-                        if !in_window {
-                            // handle_focus_lost(windows_clone.clone());
-                            todo!("实现处理窗口失焦的场景");
-                        }
-                    }
-                }
-            }
-        }
-    });
-    // handle_focus_lost(main_window.clone());
-    todo!("实现处理窗口失焦的场景");
+
+    let state = app.state::<Arc<AppState>>();
+    let host_api = state.get_host_api();
+    let session_router = state.get_session_router().clone();
+
+    // 注册焦点丢失回调：隐藏窗口 + 重置会话
+    let host_api_for_cb = host_api.clone();
+    let _ = host_api.register_focus_callback(
+        "main_window_focus",
+        Arc::new(move |_event| {
+            let host_api = host_api_for_cb.clone();
+            let session_router = session_router.clone();
+            tauri::async_runtime::spawn(async move {
+                host_api.hide_window().await;
+                session_router.reset_session();
+            });
+        }),
+    );
 }
 
 fn init_setting_window(app: tauri::AppHandle) {

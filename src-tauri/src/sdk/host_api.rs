@@ -2,6 +2,8 @@ use crate::sdk::app::app_enumerator::AppEnumerator;
 use crate::sdk::app::app_launcher::AppLauncher;
 use crate::sdk::app::AppInfo;
 use crate::sdk::autostart::AutoStartManager;
+use crate::sdk::focus_monitor::types::FocusCallback;
+use crate::sdk::focus_monitor::FocusMonitor;
 use crate::sdk::hotkey::types::{HotkeyCallback, HotkeyConfig, HotkeyEventFilter};
 use crate::sdk::hotkey::HotkeyManager;
 use crate::sdk::icon::icon_cache::IconCacheService;
@@ -447,6 +449,8 @@ pub struct HostApi {
     hotkey_manager: Arc<dyn HotkeyManager>,
     /// 安装监控器（平台实现）
     installation_monitor: Arc<dyn InstallationMonitor>,
+    /// 聚焦监控器（平台实现，可选，由 init_search_bar_window 设置）
+    focus_monitor: Arc<dyn FocusMonitor>,
     /// 定时器管理器
     timer_manager: Arc<dyn TimerManager>,
     /// 存储服务（可运行时重配置：Local ↔ WebDAV）
@@ -691,6 +695,24 @@ impl HostApi {
         self.installation_monitor.update_watch_paths(paths);
     }
 
+    // ===== 聚焦监控服务 =====
+
+    /// 注册焦点事件回调。
+    pub fn register_focus_callback(
+        &self,
+        id: &str,
+        callback: FocusCallback,
+    ) -> Result<(), HostApiError> {
+        self.focus_monitor.as_ref().register_callback(id, callback);
+        Ok(())
+    }
+
+    /// 注销焦点事件回调。
+    pub fn unregister_focus_callback(&self, id: &str) -> Result<(), HostApiError> {
+        self.focus_monitor.as_ref().unregister_callback(id);
+        Ok(())
+    }
+
     // ===== 定时器服务（宿主级） =====
 
     /// 创建一个一次性定时器，在指定延迟后触发回调。
@@ -778,6 +800,7 @@ pub struct HostApiBuilder {
     timer_manager: Option<Arc<dyn TimerManager>>,
     storage_service: Option<Arc<dyn StorageService>>,
     app_resource: Option<Arc<AppResourceService>>,
+    focus_monitor: Option<Arc<dyn FocusMonitor>>,
     notify_callback: Option<Arc<dyn Fn(String, String) + Send + Sync + 'static>>,
     hide_window_callback: Option<Arc<dyn Fn() + Send + Sync + 'static>>,
 }
@@ -807,6 +830,7 @@ impl HostApiBuilder {
             timer_manager: None,
             storage_service: None,
             app_resource: None,
+            focus_monitor: None,
             notify_callback: None,
             hide_window_callback: None,
         }
@@ -950,6 +974,14 @@ impl HostApiBuilder {
         self
     }
 
+    /// 设置聚焦监控器
+    /// 参数：focus_monitor - 聚焦监控器实例。
+    /// 返回：Self（支持链式调用）。
+    pub fn focus_monitor(mut self, focus_monitor: Arc<dyn FocusMonitor>) -> Self {
+        self.focus_monitor = Some(focus_monitor);
+        self
+    }
+
     /// 设置通知回调，宿主层在初始化时注入平台通知实现。
     /// 参数：callback - 接收 (title, message) 的通知回调。
     /// 返回：Self（支持链式调用）。
@@ -1005,6 +1037,7 @@ impl HostApiBuilder {
             timer_manager: self.timer_manager.expect("missing timer_manager"),
             storage: RwLock::new(self.storage_service.expect("missing storage_service")),
             app_resource: self.app_resource.expect("missing app_resource"),
+            focus_monitor: self.focus_monitor.expect("missing focus_monitor"),
             notify_callback: RwLock::new(self.notify_callback.expect("missing notify_callback")),
             hide_window_callback: RwLock::new(
                 self.hide_window_callback

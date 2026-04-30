@@ -22,6 +22,9 @@ pub use windows::WindowsClipboardProvider;
 pub use windows::WindowsIconExtractor;
 
 #[cfg(target_os = "windows")]
+pub use windows::WindowsFocusMonitor;
+
+#[cfg(target_os = "windows")]
 pub use windows::WindowsInstallationMonitor;
 
 #[cfg(target_os = "windows")]

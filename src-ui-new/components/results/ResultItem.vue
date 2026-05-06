@@ -12,6 +12,7 @@
     :class="{ selected }"
     @click="$emit('click')"
     @dblclick="$emit('dblclick')"
+    @contextmenu.prevent="onContextMenu"
   >
     <div class="item-icon">
       <IconDisplay :src="item.icon" :size="24" />
@@ -27,15 +28,23 @@
       @execute="(actionIdx: number) => $emit('action-execute', actionIdx)"
     />
   </div>
+  <ContextMenu
+    :visible="ctxVisible"
+    :x="ctxX"
+    :y="ctxY"
+    :items="ctxItems"
+    @close="ctxVisible = false"
+  />
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import type { Component } from 'vue'
 import type { ListItem, ResultAction } from '../../bridge/contract'
 import { usePluginStore } from '../../stores/plugin-store'
 import IconDisplay from '../common/IconDisplay.vue'
 import ResultActions from './ResultActions.vue'
+import ContextMenu from '../layout/ContextMenu.vue'
 
 const props = defineProps<{
   item: ListItem
@@ -44,10 +53,11 @@ const props = defineProps<{
   actionIndex: number
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   (e: 'click'): void
   (e: 'dblclick'): void
   (e: 'action-execute', idx: number): void
+  (e: 'context-action', actionId: string): void
 }>()
 
 const pluginStore = usePluginStore()
@@ -61,6 +71,27 @@ const allActions = computed<ResultAction[]>(() => {
   const extra = pluginStore.getExtraActions(props.item, props.item.targetType)
   return extra.length > 0 ? [...base, ...extra] : base
 })
+
+// ---- Context Menu ----
+const ctxVisible = ref(false)
+const ctxX = ref(0)
+const ctxY = ref(0)
+
+const ctxItems = computed(() => {
+  return props.item.actions.map((a) => ({
+    key: a.id,
+    label: a.label,
+    action: () => {
+      emit('context-action', a.id)
+    },
+  }))
+})
+
+function onContextMenu(e: MouseEvent) {
+  ctxX.value = e.clientX
+  ctxY.value = e.clientY
+  ctxVisible.value = true
+}
 </script>
 
 <style scoped>

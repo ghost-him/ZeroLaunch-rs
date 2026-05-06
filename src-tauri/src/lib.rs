@@ -11,6 +11,7 @@ pub mod utils;
 pub mod window_effect;
 pub mod window_position;
 
+use crate::core::config::components::appearance_config::AppearanceConfigComponent;
 use crate::core::config::components::hotkey_config::HotkeyConfigComponent;
 use crate::core::config::components::storage_config::StorageConfigComponent;
 use crate::core::config::ConfigManager;
@@ -471,8 +472,11 @@ async fn init_plugin_system(state: &Arc<AppState>) {
     let launchy_search_engine: Arc<dyn SearchEngine> = Arc::new(LaunchySearchModel {});
     let skim_search_engine: Arc<dyn SearchEngine> = Arc::new(SkimSearchModel::new());
     config_manager.register(search_engine.clone());
-    config_manager.register(launchy_search_engine);
-    config_manager.register(skim_search_engine);
+    config_manager.register(launchy_search_engine.clone());
+    config_manager.register(skim_search_engine.clone());
+    session_router.register_search_engine(search_engine.clone());
+    session_router.register_search_engine(launchy_search_engine);
+    session_router.register_search_engine(skim_search_engine);
     info!("搜索引擎注册完成");
 
     // -- 分数增强器 --
@@ -481,12 +485,16 @@ async fn init_plugin_system(state: &Arc<AppState>) {
     let query_affinity_booster: Arc<dyn ScoreBooster> = Arc::new(QueryAffinityBooster::new());
     config_manager.register(history_booster.clone());
     config_manager.register(query_affinity_booster.clone());
+    session_router.register_score_booster(history_booster.clone());
+    session_router.register_score_booster(query_affinity_booster.clone());
     info!("分数增强器注册完成");
 
     // -- 核心配置组件 --
     info!("正在注册核心配置组件...");
     let hotkey_config_component = Arc::new(HotkeyConfigComponent::new(host_api.clone()));
     config_manager.register(hotkey_config_component);
+    let appearance_config_component = Arc::new(AppearanceConfigComponent::new());
+    config_manager.register(appearance_config_component);
     info!("核心配置组件注册完成");
 
     // -- Plugin 组件 --

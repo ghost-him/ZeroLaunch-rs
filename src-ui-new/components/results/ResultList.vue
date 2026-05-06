@@ -10,6 +10,7 @@
       @click="onItemClick(index)"
       @dblclick="onItemDblClick(index)"
       @action-execute="(actionIdx: number) => onActionExecute(index, actionIdx)"
+      @context-action="(actionId: string) => emit('context-action', index, actionId)"
     />
     <div v-if="results.length === 0" class="no-results">
       无结果
@@ -31,6 +32,7 @@ defineProps<{
 const emit = defineEmits<{
   (e: 'select', index: number): void
   (e: 'confirm', index: number, actionIdx?: number): void
+  (e: 'context-action', index: number, actionId: string): void
 }>()
 
 function onItemClick(index: number) {

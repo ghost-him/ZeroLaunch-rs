@@ -1,0 +1,61 @@
+{
+  "search": {
+    "placeholder": "Type to search...",
+    "noResults": "No results",
+    "ready": "Ready",
+    "candidates": "{count} candidates"
+  },
+  "footer": {
+    "settings": "Settings",
+    "about": "About",
+    "exit": "Exit"
+  },
+  "settings": {
+    "title": "Settings",
+    "general": "General",
+    "searchPipeline": "Search Pipeline",
+    "plugins": "Plugins",
+    "appearance": "Appearance",
+    "about": "About",
+    "save": "Apply",
+    "reset": "Reset to Default",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "dataSource": "Data Sources",
+    "keywordOptimizer": "Keyword Optimizers",
+    "searchEngine": "Search Engines",
+    "scoreBooster": "Score Boosters",
+    "actionExecutor": "Action Executors",
+    "core": "Core",
+    "saveSuccess": "Settings saved",
+    "resetSuccess": "Reset to defaults",
+    "saveFailed": "Failed to save settings",
+    "selectPath": "Select Path"
+  },
+  "appearance": {
+    "theme": "Theme",
+    "themeSystem": "Follow System",
+    "themeLight": "Light",
+    "themeDark": "Dark",
+    "language": "Language",
+    "languageZh": "简体中文",
+    "languageEn": "English"
+  },
+  "contextMenu": {
+    "execute": "Execute",
+    "openLocation": "Open File Location",
+    "runAsAdmin": "Run as Administrator",
+    "copyPath": "Copy Path",
+    "copyResult": "Copy Result"
+  },
+  "error": {
+    "invalidQuery": "Invalid Query",
+    "componentNotFound": "Component Not Found",
+    "validationFailed": "Validation Failed",
+    "actionFailed": "Action Failed",
+    "pluginError": "Plugin Error",
+    "configError": "Config Error",
+    "networkError": "Network Error",
+    "internalError": "Internal Error"
+  }
+}

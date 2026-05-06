@@ -11,6 +11,7 @@
       :action-index="searchStore.selectedActionIndex"
       @select="searchStore.selectedIndex = $event"
       @confirm="(idx: number, actionIdx?: number) => searchStore.doConfirm(idx, actionIdx !== undefined ? searchStore.results[idx]?.actions[actionIdx]?.id : undefined)"
+      @context-action="(idx: number, actionId: string) => searchStore.doConfirm(idx, actionId)"
     />
 
     <EmptyState v-else-if="!searchStore.isSearching && searchStore.isIdle && searchStore.sessionMode !== 'plugin'" />

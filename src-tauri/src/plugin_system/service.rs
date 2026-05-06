@@ -50,8 +50,12 @@ impl PluginService {
 
     /// 执行一次查询并返回结果。
     /// 参数：ctx - 当前插件上下文；query - 查询内容。
-    /// 返回：查询结果列表。
-    pub async fn query(&self, ctx: &PluginContext, query: &Query) -> Option<QueryResponse> {
+    /// 返回：命中触发器时返回 (插件ID, 查询结果)，否则返回 None。
+    pub async fn query(
+        &self,
+        ctx: &PluginContext,
+        query: &Query,
+    ) -> Option<(String, QueryResponse)> {
         self.dispatcher.dispatch_plugin(ctx, query).await
     }
 

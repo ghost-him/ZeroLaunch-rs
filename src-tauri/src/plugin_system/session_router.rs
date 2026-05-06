@@ -9,13 +9,14 @@ use crate::plugin_system::Configurable;
 use crate::sdk::HostApi;
 use crate::sdk::ParameterSnapshot;
 use parking_lot::{Mutex, RwLock};
+use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{debug, info};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SessionMode {
     None,
-    Plugin(Option<String>),
+    Plugin(String),
     Search,
 }
 
@@ -32,6 +33,12 @@ pub struct SessionRouter {
     /// 当前会话的系统参数快照
     /// 在唤醒搜索栏时捕获，执行动作时消费
     parameter_snapshot: Mutex<ParameterSnapshot>,
+    /// 搜索引擎注册表（按 component_id 索引），用于动态重建管道
+    search_engines: RwLock<HashMap<String, Arc<dyn SearchEngine>>>,
+    /// 分数增强器注册表（按 component_id 索引），用于动态重建管道
+    score_boosters: RwLock<HashMap<String, Arc<dyn ScoreBooster>>>,
+    /// 上次构建管道时的 top_k 值
+    last_top_k: RwLock<usize>,
 }
 
 impl SessionRouter {
@@ -46,7 +53,24 @@ impl SessionRouter {
             config_manager: RwLock::new(None),
             host_api: RwLock::new(None),
             parameter_snapshot: Mutex::new(ParameterSnapshot::empty()),
+            search_engines: RwLock::new(HashMap::new()),
+            score_boosters: RwLock::new(HashMap::new()),
+            last_top_k: RwLock::new(10),
         }
+    }
+
+    /// 注册一个搜索引擎引用，用于配置变更时动态重建管道
+    pub fn register_search_engine(&self, engine: Arc<dyn SearchEngine>) {
+        self.search_engines
+            .write()
+            .insert(engine.component_id().to_string(), engine);
+    }
+
+    /// 注册一个分数增强器引用，用于配置变更时动态重建管道
+    pub fn register_score_booster(&self, booster: Arc<dyn ScoreBooster>) {
+        self.score_boosters
+            .write()
+            .insert(booster.component_id().to_string(), booster);
     }
 
     /// 注册一个执行器
@@ -58,7 +82,6 @@ impl SessionRouter {
     }
 
     /// 设置 HostApi 引用
-    /// 参数：host_api - SDK 宿主 API 实例
     pub fn set_host_api(&self, host_api: Arc<HostApi>) {
         *self.host_api.write() = Some(host_api);
     }
@@ -70,6 +93,7 @@ impl SessionRouter {
 
     /// 设置搜索管道
     pub fn set_search_pipeline(&self, pipeline: SearchPipeline) {
+        *self.last_top_k.write() = pipeline.top_k();
         *self.search_pipeline.write() = Some(pipeline);
     }
 
@@ -90,20 +114,15 @@ impl SessionRouter {
     }
 
     pub async fn route_query(&self, trace_id: &str, query: &Query) -> QueryResponse {
-        // 生成一个上下文
         let mut ctx = PluginContext::new(trace_id);
         ctx.with_query(query.raw_query.clone());
 
         let results = self.plugin_service.query(&ctx, query).await;
 
-        // 如果被插件触发了，那么就要进入插件模式，同时记录一下是哪个插件触发了
-        if let Some(results) = results {
-            // 插件被触发时，会写到上下文中，从而让该函数能被调用
-            let plugin_id = ctx.plugin_id.clone();
-            *self.current_mode.write() = SessionMode::Plugin(plugin_id.clone());
+        if let Some((plugin_id, results)) = results {
+            *self.current_mode.write() = SessionMode::Plugin(plugin_id);
             return results;
         }
-        // 如果插件没有被触发，那么说明当前还是要进入搜索模式
 
         *self.current_mode.write() = SessionMode::Search;
 
@@ -145,8 +164,6 @@ impl SessionRouter {
         QueryResponse::List { results }
     }
 
-    // 执行一个动作
-    // action_id 是用户触发的动作的ID，这个id就是指actions的id，在查询时会被传递到前端，当用户触发一个动作时，前端会把这个id传回来的
     pub async fn route_confirm(
         &self,
         trace_id: &str,
@@ -158,9 +175,6 @@ impl SessionRouter {
 
         match mode {
             SessionMode::Plugin(plugin_id) => {
-                let plugin_id =
-                    plugin_id.ok_or_else(|| "No plugin in current session".to_string())?;
-
                 ctx.with_plugin_id(plugin_id.clone());
                 self.plugin_service
                     .execute_action(&ctx, &plugin_id, action_id, payload)
@@ -168,10 +182,12 @@ impl SessionRouter {
                     .map_err(|e| e.to_string())
             }
             SessionMode::Search => {
-                let candidate_id = payload["candidate_id"].as_u64().unwrap_or(0) as CandidateId;
+                let candidate_id = payload["candidate_id"]
+                    .as_u64()
+                    .ok_or_else(|| "Missing or invalid candidate_id in payload".to_string())?
+                    as CandidateId;
                 let query_text = payload["query_text"].as_str().unwrap_or("").to_string();
 
-                // 从 payload 中提取用户参数
                 let user_args: Vec<String> = payload
                     .get("user_args")
                     .and_then(|v| v.as_array())
@@ -187,7 +203,6 @@ impl SessionRouter {
                     .get_candidate(candidate_id)
                     .ok_or_else(|| "Candidate not found".to_string())?;
 
-                // 使用唤醒时捕获的快照
                 let snapshot = self.parameter_snapshot.lock().clone();
 
                 let exec_ctx = ExecutionContext {
@@ -197,13 +212,11 @@ impl SessionRouter {
                     parameter_snapshot: snapshot,
                 };
 
-                // 执行动作（框架只做透传，不解释 action_id 语义）
                 self.executor_registry
                     .read()
                     .execute(&exec_ctx, action_id)
                     .map_err(|e| e.to_string())?;
 
-                // 启动成功后，通知所有 ScoreBooster 记录用户行为
                 if let Some(pipeline) = self.search_pipeline.read().as_ref() {
                     pipeline.record(candidate_id, &cached_candidate, &query_text);
                 }
@@ -223,17 +236,10 @@ impl SessionRouter {
         self.current_mode.read().clone()
     }
 
-    /// 获取 PluginService 引用，用于在外部注册 Plugin
     pub fn plugin_service(&self) -> &Arc<PluginService> {
         &self.plugin_service
     }
 
-    /// 唤醒搜索栏时调用，捕获当前系统参数快照
-    ///
-    /// 调用时机：在搜索栏窗口获取焦点之前调用，确保窗口句柄和选中文本捕获正确。
-    /// 数据流：唤醒时捕获 → 存储到 parameter_snapshot → 执行时由 route_confirm 使用。
-    ///
-    /// 返回：捕获成功返回 Ok(())，HostApi 未初始化时返回错误
     pub async fn on_search_bar_wake(&self) -> Result<(), String> {
         let host_api = self
             .host_api
@@ -248,9 +254,46 @@ impl SessionRouter {
         Ok(())
     }
 
-    /// 设置 ConfigManager 引用并订阅配置变更事件
     pub fn set_config_manager(&self, config_manager: Arc<ConfigManager>) {
         *self.config_manager.write() = Some(config_manager);
+    }
+
+    /// 动态重建搜索管道。
+    /// 根据当前已注册且启用的 SearchEngine 和 ScoreBooster 重建 SearchPipeline。
+    fn rebuild_search_pipeline(&self) {
+        let cm_guard = self.config_manager.read();
+        let cm = match cm_guard.as_ref() {
+            Some(cm) => cm,
+            None => return,
+        };
+
+        // 收集启用的搜索引擎（取第一个）
+        let engines = self.search_engines.read();
+        let enabled_engine = engines
+            .values()
+            .find(|e| cm.is_enabled(e.component_id()))
+            .cloned();
+
+        // 收集启用的分数增强器（保持注册顺序）
+        let boosters = self.score_boosters.read();
+        let enabled_boosters: Vec<Arc<dyn ScoreBooster>> = boosters
+            .values()
+            .filter(|b| cm.is_enabled(b.component_id()))
+            .cloned()
+            .collect();
+
+        if let Some(engine) = enabled_engine {
+            let top_k = *self.last_top_k.read();
+            let pipeline = SearchPipeline::new(engine, enabled_boosters, top_k);
+            *self.search_pipeline.write() = Some(pipeline);
+            info!(
+                "搜索管道已重建 (搜索引擎: 1, 增强器: {}, top_k: {})",
+                boosters.len(),
+                top_k
+            );
+        } else {
+            tracing::warn!("没有启用的搜索引擎，无法重建搜索管道");
+        }
     }
 
     /// 处理配置变更事件。
@@ -264,22 +307,14 @@ impl SessionRouter {
                 debug!("配置变更事件: {} ({:?})", component_id, component_type);
                 match component_type {
                     ComponentType::DataSource | ComponentType::KeywordOptimizer => {
-                        // 数据源或关键词优化器变更，需要刷新候选项缓存
                         info!("数据源/关键词优化器配置变更，刷新候选项缓存");
                         self.refresh_candidates().await;
                     }
-                    ComponentType::SearchEngine => {
-                        // 搜索引擎变更，需要重建搜索管道
-                        // TODO: 在 SearchPipeline 支持动态重建后实现
-                        debug!("搜索引擎配置变更");
-                    }
-                    ComponentType::ScoreBooster => {
-                        // 分数增强器变更，需要更新搜索管道
-                        // TODO: 在 SearchPipeline 支持动态更新 boosters 后实现
-                        debug!("分数增强器配置变更");
+                    ComponentType::SearchEngine | ComponentType::ScoreBooster => {
+                        info!("搜索引擎/分数增强器配置变更，重建搜索管道");
+                        self.rebuild_search_pipeline();
                     }
                     ComponentType::ActionExecutor | ComponentType::Plugin | ComponentType::Core => {
-                        // ActionExecutor 和 Plugin 不需要 SessionRouter 响应
                         debug!("ActionExecutor/Plugin/Core 配置变更，无需响应");
                     }
                 }
@@ -295,28 +330,22 @@ impl SessionRouter {
                 );
                 match component_type {
                     ComponentType::DataSource | ComponentType::KeywordOptimizer => {
-                        // 数据源启用状态变更，需要刷新候选项缓存
                         info!("数据源启用状态变更，刷新候选项缓存");
                         self.refresh_candidates().await;
                     }
                     ComponentType::SearchEngine | ComponentType::ScoreBooster => {
-                        // TODO: 在 Pipeline 支持动态重建后实现
-                        debug!("搜索引擎/分数增强器启用状态变更");
+                        info!("搜索引擎/分数增强器启用状态变更，重建搜索管道");
+                        self.rebuild_search_pipeline();
                     }
                     ComponentType::ActionExecutor | ComponentType::Plugin | ComponentType::Core => {
                         debug!("ActionExecutor/Plugin/Core 启用状态变更，无需响应");
                     }
                 }
             }
-            ConfigEvent::Registered { .. } | ConfigEvent::Unregistered { .. } => {
-                // 注册/注销事件不需要特殊响应
-            }
+            ConfigEvent::Registered { .. } | ConfigEvent::Unregistered { .. } => {}
         }
     }
 
-    /// 根据 component_id 查找已注册的 Configurable 组件。
-    /// 参数：component_id - 组件标识符。
-    /// 返回：找到则返回组件引用，否则返回 None。
     pub(crate) fn find_configurable(&self, component_id: &str) -> Option<Arc<dyn Configurable>> {
         self.config_manager
             .read()
@@ -324,18 +353,12 @@ impl SessionRouter {
             .and_then(|cm| cm.find_configurable(component_id))
     }
 
-    /// 获取指定组件的配置动作列表。
-    /// 参数：component_id - 组件标识符。
-    /// 返回：组件支持的配置动作列表，未找到则返回空列表。
     pub fn get_config_actions(&self, component_id: &str) -> Vec<ConfigActionDef> {
         self.find_configurable(component_id)
             .map(|c| c.config_actions())
             .unwrap_or_default()
     }
 
-    /// 执行指定组件的配置动作。
-    /// 参数：component_id - 组件标识符，action - 动作标识符。
-    /// 返回：动作执行结果（JSON 格式），未找到组件则返回错误。
     pub fn execute_config_action(
         &self,
         component_id: &str,

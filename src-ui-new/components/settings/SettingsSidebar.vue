@@ -67,7 +67,7 @@ const emit = defineEmits<{
   (e: 'toggle', componentId: string, enabled: boolean): void
 }>()
 
-const expandedGroups = ref(new Set<string>(['core', 'pipeline', 'plugins']))
+const expandedGroups = ref(new Set<string>(['core', 'pipeline', 'plugins', 'appearance']))
 function onGroupClick(group: SidebarItem) {
   if (group.type === 'static') {
     emit('select', group.key)

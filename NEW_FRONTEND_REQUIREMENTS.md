@@ -776,7 +776,7 @@ const panelProps = computed(() => ({
 | **常规**     | `Core`                                                                             | settings  | 核心系统组件（热键、存储、自启动等）  |
 | **搜索管道** | `DataSource`, `KeywordOptimizer`, `SearchEngine`, `ScoreBooster`, `ActionExecutor` | search    | 按 trait 分标签页                     |
 | **插件**     | `Plugin`                                                                           | extension | 独立功能插件（计算器、Everything 等） |
-| **外观**     | —（纯前端配置）                                                                    | palette   | 主题、字体等                          |
+| **外观**     | `Core`（`appearance` 组件）                                                        | palette   | 主题、语言等（后端 ConfigManager 持久化） |
 | **关于**     | —（纯前端信息）                                                                    | info      | 版本、许可                            |
 
 **实现方式**: `getAllComponents()` → 按 `component_type` 分组 → 生成侧边栏条目。
@@ -784,7 +784,8 @@ const panelProps = computed(() => ({
 ```typescript
 // composables/useSettings.ts
 function buildSidebarItems(components: ComponentInfo[]): SidebarItem[] {
-  const core = components.filter(c => c.component_type === 'Core')
+  const core = components.filter(c => c.component_type === 'Core' && c.component_id !== 'appearance')
+  const appearance = components.filter(c => c.component_id === 'appearance')
   const pipeline = components.filter(c =>
     ['DataSource', 'KeywordOptimizer', 'SearchEngine', 'ScoreBooster', 'ActionExecutor'].includes(c.component_type)
   )
@@ -794,7 +795,7 @@ function buildSidebarItems(components: ComponentInfo[]): SidebarItem[] {
     { key: 'core', label: '常规', icon: 'settings', type: 'list', items: core },
     { key: 'pipeline', label: '搜索管道', icon: 'search', type: 'tabs', items: pipeline },
     { key: 'plugins', label: '插件', icon: 'extension', type: 'list', items: plugins },
-    { key: 'appearance', label: '外观', icon: 'palette', type: 'static' },
+    { key: 'appearance', label: '外观', icon: 'palette', type: 'list', items: appearance },
     { key: 'about', label: '关于', icon: 'info', type: 'static' },
   ]
 }

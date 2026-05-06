@@ -1,3 +1,4 @@
+use crate::core::types::BridgeError;
 use crate::plugin_system::ConfigActionDef;
 use crate::state::app_state::AppState;
 use std::sync::Arc;
@@ -17,10 +18,11 @@ pub fn config_execute_action(
     state: tauri::State<'_, Arc<AppState>>,
     component_id: String,
     action: String,
-) -> Result<serde_json::Value, String> {
+) -> Result<serde_json::Value, BridgeError> {
     state
         .get_session_router()
         .execute_config_action(&component_id, &action)
+        .map_err(BridgeError::internal)
 }
 
 /// 获取所有可配置组件的概览信息
@@ -36,11 +38,11 @@ pub fn config_get_all_components(
 pub fn config_get_schema(
     state: tauri::State<'_, Arc<AppState>>,
     component_id: String,
-) -> Result<crate::core::config::ComponentSchema, String> {
+) -> Result<crate::core::config::ComponentSchema, BridgeError> {
     state
         .get_config_manager()
         .get_component_schema(&component_id)
-        .ok_or_else(|| format!("Component not found: {}", component_id))
+        .ok_or_else(|| BridgeError::not_found(&component_id))
 }
 
 /// 获取指定组件的当前配置值
@@ -48,11 +50,11 @@ pub fn config_get_schema(
 pub fn config_get_settings(
     state: tauri::State<'_, Arc<AppState>>,
     component_id: String,
-) -> Result<serde_json::Value, String> {
+) -> Result<serde_json::Value, BridgeError> {
     state
         .get_config_manager()
         .get_settings(&component_id)
-        .ok_or_else(|| format!("Component not found: {}", component_id))
+        .ok_or_else(|| BridgeError::not_found(&component_id))
 }
 
 /// 应用配置到指定组件
@@ -61,11 +63,11 @@ pub fn config_apply_settings(
     state: tauri::State<'_, Arc<AppState>>,
     component_id: String,
     settings: serde_json::Value,
-) -> Result<(), String> {
+) -> Result<(), BridgeError> {
     state
         .get_config_manager()
         .apply_settings(&component_id, settings)
-        .map_err(|e| e.to_string())
+        .map_err(BridgeError::from)
 }
 
 /// 重置组件配置为默认值
@@ -73,11 +75,11 @@ pub fn config_apply_settings(
 pub fn config_reset_settings(
     state: tauri::State<'_, Arc<AppState>>,
     component_id: String,
-) -> Result<(), String> {
+) -> Result<(), BridgeError> {
     state
         .get_config_manager()
         .reset_to_default(&component_id)
-        .map_err(|e| e.to_string())
+        .map_err(BridgeError::from)
 }
 
 /// 设置组件启用状态
@@ -86,9 +88,9 @@ pub fn config_set_enabled(
     state: tauri::State<'_, Arc<AppState>>,
     component_id: String,
     enabled: bool,
-) -> Result<(), String> {
+) -> Result<(), BridgeError> {
     state
         .get_config_manager()
         .set_enabled(&component_id, enabled)
-        .map_err(|e| e.to_string())
+        .map_err(BridgeError::from)
 }

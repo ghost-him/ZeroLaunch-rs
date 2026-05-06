@@ -1,3 +1,4 @@
+use crate::core::types::BridgeError;
 use crate::plugin_system::types::{Query, QueryResponse};
 use crate::state::app_state::AppState;
 use serde::{Deserialize, Serialize};
@@ -69,7 +70,7 @@ pub struct ConfirmPayload {
 pub async fn bridge_query(
     state: tauri::State<'_, Arc<AppState>>,
     raw_query: String,
-) -> Result<BridgeQueryResponse, String> {
+) -> Result<BridgeQueryResponse, BridgeError> {
     debug!("[Bridge] 查询: '{}'", raw_query);
 
     let session_router = state.get_session_router();
@@ -154,7 +155,7 @@ pub async fn bridge_query(
 pub async fn bridge_confirm(
     state: tauri::State<'_, Arc<AppState>>,
     payload: ConfirmPayload,
-) -> Result<(), String> {
+) -> Result<(), BridgeError> {
     debug!(
         "[Bridge] 执行: candidate_id={}, action='{}', query='{}'",
         payload.candidate_id, payload.action_id, payload.query_text
@@ -171,7 +172,8 @@ pub async fn bridge_confirm(
 
     session_router
         .route_confirm(&trace_id, &payload.action_id, json_payload)
-        .await?;
+        .await
+        .map_err(BridgeError::internal)?;
 
     info!("[Bridge] 执行成功: candidate_id={}", payload.candidate_id);
     Ok(())
@@ -184,10 +186,13 @@ pub async fn bridge_confirm(
 /// 唤醒搜索栏时调用。
 /// 捕获系统参数快照（选中文本、窗口句柄等）。
 #[tauri::command]
-pub async fn bridge_wake(state: tauri::State<'_, Arc<AppState>>) -> Result<(), String> {
+pub async fn bridge_wake(state: tauri::State<'_, Arc<AppState>>) -> Result<(), BridgeError> {
     debug!("📸 [Bridge] 搜索栏唤醒");
     let session_router = state.get_session_router();
-    session_router.on_search_bar_wake().await
+    session_router
+        .on_search_bar_wake()
+        .await
+        .map_err(BridgeError::internal)
 }
 
 /// 重置当前会话。
@@ -217,7 +222,7 @@ pub fn bridge_get_session_mode(state: tauri::State<'_, Arc<AppState>>) -> String
 #[tauri::command]
 pub async fn bridge_refresh_candidates(
     state: tauri::State<'_, Arc<AppState>>,
-) -> Result<usize, String> {
+) -> Result<usize, BridgeError> {
     debug!("🔄 [Bridge] 刷新候选项缓存");
     let session_router = state.get_session_router();
     session_router.refresh_candidates().await;

@@ -33,6 +33,7 @@
 
 <script setup lang="ts">
 import { onMounted, onUnmounted } from 'vue'
+import { useNotification } from 'naive-ui'
 import WindowFrame from '../components/layout/WindowFrame.vue'
 import SearchBar from '../components/search/SearchBar.vue'
 import ResultList from '../components/results/ResultList.vue'
@@ -45,9 +46,12 @@ import { useKeyboard } from '../composables/useKeyboard'
 import { useWindowResize } from '../composables/useWindowResize'
 import { useSearch } from '../composables/useSearch'
 import { onConfigChanged, onInstallationEvent } from '../bridge/events'
+import { registerErrorHandler } from '../bridge/commands'
+import type { BridgeError } from '../bridge/commands'
 
 const searchStore = useSearchStore()
 const { cleanup } = useSearch()
+const notification = useNotification()
 
 useKeyboard()
 useWindowResize()
@@ -56,6 +60,15 @@ let unlistenConfig: (() => void) | null = null
 let unlistenInstall: (() => void) | null = null
 
 onMounted(async () => {
+  // 注册全局错误处理器（必须在 n-notification-provider 后代中调用）
+  registerErrorHandler((error: BridgeError) => {
+    notification.error({
+      title: error.code,
+      content: error.message,
+      duration: 5000,
+    })
+  })
+
   searchStore.fetchCandidatesCount()
 
   unlistenConfig = await onConfigChanged((payload) => {

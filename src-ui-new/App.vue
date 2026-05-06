@@ -17,29 +17,17 @@ import {
   NNotificationProvider,
   NMessageProvider,
   NDialogProvider,
-  useNotification,
   zhCN,
   enUS,
 } from 'naive-ui'
 import { useThemeStore } from './stores/theme-store'
-import { registerErrorHandler, configGetSettings } from './bridge/commands'
-import type { BridgeError } from './bridge/commands'
+import { configGetSettings } from './bridge/commands'
 import { i18n } from './i18n'
 import { onConfigChanged } from './bridge/events'
 
 const themeStore = useThemeStore()
-const notification = useNotification()
 
 const naiveLocale = ref(i18n.global.locale.value === 'en' ? enUS : zhCN)
-
-// 全局错误处理器
-registerErrorHandler((error: BridgeError) => {
-  notification.error({
-    title: error.code,
-    content: error.message,
-    duration: 5000,
-  })
-})
 
 let unlistenAppearance: (() => void) | null = null
 

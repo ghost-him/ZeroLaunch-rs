@@ -341,21 +341,23 @@ impl ConfigManager {
             warn!("配置本地持久化失败: {}", e);
         }
 
-        // 如果设置了 HostApi，异步同步到远程
+        // 如果设置了 HostApi，异步同步到远程（仅在 tokio 上下文中执行）
         if let Some(host_api) = self.host_api.read().as_ref() {
-            let json_bytes = match serde_json::to_vec(&config) {
-                Ok(bytes) => bytes,
-                Err(e) => {
-                    warn!("配置序列化失败，跳过远程同步: {}", e);
-                    return;
-                }
-            };
-            let storage = host_api.storage();
-            tokio::spawn(async move {
-                if let Err(e) = storage.upload("zerolaunch_config.json", &json_bytes).await {
-                    warn!("配置远程同步失败: {}", e);
-                }
-            });
+            if let Ok(handle) = tokio::runtime::Handle::try_current() {
+                let json_bytes = match serde_json::to_vec(&config) {
+                    Ok(bytes) => bytes,
+                    Err(e) => {
+                        warn!("配置序列化失败，跳过远程同步: {}", e);
+                        return;
+                    }
+                };
+                let storage = host_api.storage();
+                handle.spawn(async move {
+                    if let Err(e) = storage.upload("zerolaunch_config.json", &json_bytes).await {
+                        warn!("配置远程同步失败: {}", e);
+                    }
+                });
+            }
         }
     }
 

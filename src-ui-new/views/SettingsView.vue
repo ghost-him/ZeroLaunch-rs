@@ -53,17 +53,20 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { NButton, NIcon, NSpin, NText } from 'naive-ui'
+import { NButton, NIcon, NSpin, NText, useNotification } from 'naive-ui'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import SettingsSidebar from '../components/settings/SettingsSidebar.vue'
 import DynamicForm from '../components/settings/DynamicForm.vue'
 import { useConfigStore } from '../stores/config-store'
 import { useSettings } from '../composables/useSettings'
 import { onConfigChanged } from '../bridge/events'
+import { registerErrorHandler } from '../bridge/commands'
+import type { BridgeError } from '../bridge/commands'
 import type { ComponentInfo, ComponentSchema } from '../bridge/contract'
 
 const configStore = useConfigStore()
 const { buildSidebarItems } = useSettings()
+const notification = useNotification()
 
 const loading = ref(true)
 const loadErr = ref<string | null>(null)
@@ -135,6 +138,15 @@ function closeWindow() {
 }
 
 onMounted(async () => {
+  // 注册全局错误处理器（必须在 n-notification-provider 后代中调用）
+  registerErrorHandler((error: BridgeError) => {
+    notification.error({
+      title: error.code,
+      content: error.message,
+      duration: 5000,
+    })
+  })
+
   await init()
 
   unlistenConfig = await onConfigChanged((payload) => {

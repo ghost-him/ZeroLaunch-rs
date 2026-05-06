@@ -17,6 +17,7 @@
     "dialog:allow-open",
     "dialog:default",
     "core:window:default",
+    "core:window:allow-set-size",
     "core:window:allow-start-dragging",
     "shell:allow-open"
   ]

@@ -1,5 +1,18 @@
 <template>
-  <div class="result-item" :class="{ selected }" @click="$emit('click')" @dblclick="$emit('dblclick')">
+  <component
+    :is="customRenderer"
+    v-if="customRenderer"
+    :item="item"
+    :selected="selected"
+    :index="index"
+  />
+  <div
+    v-else
+    class="result-item"
+    :class="{ selected }"
+    @click="$emit('click')"
+    @dblclick="$emit('dblclick')"
+  >
     <div class="item-icon">
       <IconDisplay :src="item.icon" :size="24" />
     </div>
@@ -8,8 +21,8 @@
       <div class="item-subtitle" v-if="item.subtitle">{{ item.subtitle }}</div>
     </div>
     <ResultActions
-      v-if="selected && item.actions.length > 0"
-      :actions="item.actions"
+      v-if="selected && allActions.length > 0"
+      :actions="allActions"
       :selected-index="actionIndex"
       @execute="(actionIdx: number) => $emit('action-execute', actionIdx)"
     />
@@ -17,11 +30,14 @@
 </template>
 
 <script setup lang="ts">
-import type { ListItem } from '../../bridge/contract'
+import { computed } from 'vue'
+import type { Component } from 'vue'
+import type { ListItem, ResultAction } from '../../bridge/contract'
+import { usePluginStore } from '../../stores/plugin-store'
 import IconDisplay from '../common/IconDisplay.vue'
 import ResultActions from './ResultActions.vue'
 
-defineProps<{
+const props = defineProps<{
   item: ListItem
   selected: boolean
   index: number
@@ -33,6 +49,18 @@ defineEmits<{
   (e: 'dblclick'): void
   (e: 'action-execute', idx: number): void
 }>()
+
+const pluginStore = usePluginStore()
+
+const customRenderer = computed<Component | null>(() =>
+  pluginStore.getResultItemComponent(props.item.targetType),
+)
+
+const allActions = computed<ResultAction[]>(() => {
+  const base = props.item.actions
+  const extra = pluginStore.getExtraActions(props.item, props.item.targetType)
+  return extra.length > 0 ? [...base, ...extra] : base
+})
 </script>
 
 <style scoped>

@@ -37,6 +37,12 @@ const copyI18nPlugin = () => {
 export default defineConfig(async () => ({
   plugins: [vue(), copyI18nPlugin()],
 
+  resolve: {
+    alias: {
+      '@': resolve(__dirname, 'src-ui-new'),
+    },
+  },
+
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
   // 1. prevent vite from obscuring rust errors

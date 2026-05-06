@@ -61,21 +61,13 @@ export const useSearchStore = defineStore('search', () => {
           selectedIndex.value = 0
           break
         case 'plugin_panel':
-          results.value = []
-          sessionMode.value = 'plugin'
-          panelType.value = resp.panelType
-          panelData.value = resp.panelData
-          panelActions.value = resp.panelActions
-          keepSearchBar.value = true
-          selectedIndex.value = 0
-          break
         case 'plugin_immersive':
           results.value = []
           sessionMode.value = 'plugin'
           panelType.value = resp.panelType
           panelData.value = resp.panelData
           panelActions.value = resp.panelActions
-          keepSearchBar.value = false
+          keepSearchBar.value = resp.mode === 'plugin_panel'
           selectedIndex.value = 0
           break
       }
@@ -85,6 +77,33 @@ export const useSearchStore = defineStore('search', () => {
   }
 
   async function doConfirm(index?: number, actionId?: string) {
+    // 插件模式：使用虚拟 candidate_id=0（插件模式下后端按 plugin_id 路由，不依赖 candidate_id）
+    if (sessionMode.value === 'plugin') {
+      let targetActionId = actionId
+      if (!targetActionId) {
+        const action = panelActions.value[selectedActionIndex.value]
+        targetActionId = action?.id ?? panelActions.value.find((a) => a.isDefault)?.id
+      }
+      if (!targetActionId) return
+
+      try {
+        await bridgeConfirm({
+          candidateId: 0,
+          actionId: targetActionId,
+          queryText: query.value,
+        })
+      } catch (e) {
+        console.error('[doConfirm] Plugin action failed:', e)
+        return
+      }
+
+      query.value = ''
+      results.value = []
+      sessionMode.value = 'none'
+      panelType.value = null
+      return
+    }
+
     const idx = index ?? selectedIndex.value
     const item = results.value[idx]
     if (!item) return
@@ -97,13 +116,18 @@ export const useSearchStore = defineStore('search', () => {
     }
     if (!targetActionId) return
 
-    await bridgeConfirm({
-      candidateId: item.id,
-      actionId: targetActionId,
-      queryText: query.value,
-    })
+    try {
+      await bridgeConfirm({
+        candidateId: item.id,
+        actionId: targetActionId,
+        queryText: query.value,
+      })
+    } catch (e) {
+      console.error('[doConfirm] Search action failed:', e)
+      return
+    }
 
-    // 执行后清空输入
+    // 执行成功后才清空输入
     query.value = ''
     results.value = []
     sessionMode.value = 'none'

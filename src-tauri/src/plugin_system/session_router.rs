@@ -138,6 +138,7 @@ impl SessionRouter {
                     icon: search_candidate.icon.clone(),
                     score: candidate.score,
                     actions,
+                    target_type: search_candidate.target.target_type().as_str().to_string(),
                 }
             })
             .collect();
@@ -220,6 +221,11 @@ impl SessionRouter {
 
     pub fn current_mode(&self) -> SessionMode {
         self.current_mode.read().clone()
+    }
+
+    /// 获取 PluginService 引用，用于在外部注册 Plugin
+    pub fn plugin_service(&self) -> &Arc<PluginService> {
+        &self.plugin_service
     }
 
     /// 唤醒搜索栏时调用，捕获当前系统参数快照

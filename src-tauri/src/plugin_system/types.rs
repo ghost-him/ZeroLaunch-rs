@@ -20,6 +20,19 @@ pub enum TargetType {
     BuiltinCommand,
 }
 
+impl TargetType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            TargetType::Path => "Path",
+            TargetType::App => "App",
+            TargetType::File => "File",
+            TargetType::Url => "Url",
+            TargetType::Command => "Command",
+            TargetType::BuiltinCommand => "BuiltinCommand",
+        }
+    }
+}
+
 /// 执行目标
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, Hash, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -280,6 +293,8 @@ pub struct ListItem {
     pub score: f64,
     // 一个动作列表中只可以有一个默认动作，默认动作会在用户直接按下回车时被触发（由程序员保证）
     pub actions: Vec<ResultAction>,
+    /// 目标类型字符串，供前端 ResultItemProvider/ActionInjector 匹配使用
+    pub target_type: String,
 }
 
 /// 挂载在查询结果上的动作项。

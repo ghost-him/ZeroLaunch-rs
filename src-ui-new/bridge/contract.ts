@@ -12,6 +12,7 @@ export interface ListItem {
   icon: string
   score: number
   actions: ResultAction[]
+  targetType: string
 }
 
 export interface ResultAction {

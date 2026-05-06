@@ -33,7 +33,8 @@ use crate::plugin::score_booster::query_affinity::QueryAffinityBooster;
 use crate::plugin::search_engine::launchy_search_model::LaunchySearchModel;
 use crate::plugin::search_engine::skim_search_model::SkimSearchModel;
 use crate::plugin::search_engine::standard_search_model::StandardSearchModel;
-use crate::plugin_system::types::{ScoreBooster, SearchEngine};
+use crate::plugin::triggerable::calculator_plugin::CalculatorPlugin;
+use crate::plugin_system::types::{Plugin, ScoreBooster, SearchEngine};
 
 use crate::plugin_system::{CandidatePipeline, SearchPipeline};
 use crate::sdk::hotkey::types::HotkeyEventFilter;
@@ -487,6 +488,15 @@ async fn init_plugin_system(state: &Arc<AppState>) {
     let hotkey_config_component = Arc::new(HotkeyConfigComponent::new(host_api.clone()));
     config_manager.register(hotkey_config_component);
     info!("核心配置组件注册完成");
+
+    // -- Plugin 组件 --
+    info!("正在注册 Plugin 组件...");
+    let calculator_plugin: Arc<dyn Plugin> = Arc::new(CalculatorPlugin::new());
+    config_manager.register(calculator_plugin.clone());
+    session_router
+        .plugin_service()
+        .register(calculator_plugin.clone());
+    info!("Plugin 组件注册完成");
 
     // 注册快捷键回调：按下全局快捷键时切换搜索栏显示/隐藏
     let host_api_for_hotkey = host_api.clone();

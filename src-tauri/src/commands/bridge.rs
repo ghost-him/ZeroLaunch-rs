@@ -18,6 +18,7 @@ pub struct BridgeSearchResult {
     pub icon: String,
     pub score: f64,
     pub actions: Vec<BridgeResultAction>,
+    pub target_type: String,
 }
 
 #[derive(Serialize, Debug)]
@@ -93,6 +94,7 @@ pub async fn bridge_query(
                     icon: item.icon.value().to_string(),
                     score: item.score,
                     actions: item.actions.into_iter().map(|a| a.into()).collect(),
+                    target_type: item.target_type,
                 })
                 .collect();
 

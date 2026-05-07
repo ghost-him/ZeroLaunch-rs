@@ -2,10 +2,8 @@
   <WindowFrame>
     <SearchBar v-if="searchStore.keepSearchBar" />
 
-    <LoadingIndicator v-if="searchStore.isSearching" />
-
     <ResultList
-      v-if="!searchStore.isSearching && searchStore.sessionMode === 'search' && !searchStore.isIdle"
+      v-if="searchStore.sessionMode === 'search' && !searchStore.isIdle"
       :results="searchStore.results"
       :selected-index="searchStore.selectedIndex"
       :action-index="searchStore.selectedActionIndex"
@@ -14,10 +12,10 @@
       @context-action="(idx: number, actionId: string) => searchStore.doConfirm(idx, actionId)"
     />
 
-    <EmptyState v-else-if="!searchStore.isSearching && searchStore.isIdle && searchStore.sessionMode !== 'plugin'" />
+    <EmptyState v-else-if="searchStore.isIdle && searchStore.sessionMode !== 'plugin'" />
 
     <PluginPanelHost
-      v-else-if="!searchStore.isSearching && searchStore.sessionMode === 'plugin' && searchStore.panelType"
+      v-else-if="searchStore.sessionMode === 'plugin' && searchStore.panelType"
       :panel-type="searchStore.panelType"
       :panel-data="searchStore.panelData"
     />
@@ -40,7 +38,7 @@ import ResultList from '../components/results/ResultList.vue'
 import EmptyState from '../components/panel/EmptyState.vue'
 import PluginPanelHost from '../components/panel/PluginPanelHost.vue'
 import Footer from '../components/layout/Footer.vue'
-import LoadingIndicator from '../components/common/LoadingIndicator.vue'
+
 import { useSearchStore } from '../stores/search-store'
 import { useKeyboard } from '../composables/useKeyboard'
 import { useWindowResize } from '../composables/useWindowResize'

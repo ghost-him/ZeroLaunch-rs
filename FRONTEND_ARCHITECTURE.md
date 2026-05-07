@@ -107,8 +107,7 @@ src-ui-new/
 │
 ├── components/                   # Vue 组件
 │   ├── common/                   # 通用组件
-│   │   ├── IconDisplay.vue       # 图标渲染器
-│   │   └── LoadingIndicator.vue  # 加载指示器
+│   │   └── IconDisplay.vue       # 图标渲染器
 │   ├── layout/                   # 布局组件
 │   │   ├── WindowFrame.vue       # 无边框窗口框架
 │   │   ├── Footer.vue            # 状态栏
@@ -245,7 +244,7 @@ query: string                    // 当前输入
 results: ListItem[]              // 搜索结果列表
 selectedIndex: number            // 当前高亮项索引
 selectedActionIndex: number      // 当前高亮的操作按钮索引
-isSearching: boolean             // 是否正在搜索
+isSearching: boolean             // 已移除 — 查询时保留上一次结果，不显示加载状态
 sessionMode: "none"|"search"|"plugin"  // 当前会话模式
 cachedCount: number              // 缓存候选项数量
 panelType: string | null         // 插件面板类型
@@ -349,7 +348,6 @@ App.vue
             SearchView.vue
               ├─ WindowFrame.vue               ← 无边框窗口框架
               ├─ SearchBar.vue                 ← keepSearchBar 时显示
-              ├─ LoadingIndicator.vue          ← isSearching 时显示
               ├─ ResultList.vue                ← search 模式且非空闲
               │   └─ ResultItem.vue × N        ← 每条搜索结果
               │       ├─ IconDisplay.vue       ← 图标渲染

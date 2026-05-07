@@ -11,7 +11,6 @@ export const useSearchStore = defineStore('search', () => {
   const results = ref<ListItem[]>([])
   const selectedIndex = ref(0)
   const selectedActionIndex = ref(0)
-  const isSearching = ref(false)
   const sessionMode = ref<SessionMode>('none')
   const cachedCount = ref(0)
 
@@ -43,7 +42,6 @@ export const useSearchStore = defineStore('search', () => {
       return
     }
 
-    isSearching.value = true
     try {
       const resp: BridgeQueryResponse = await bridgeQuery(raw)
 
@@ -71,8 +69,8 @@ export const useSearchStore = defineStore('search', () => {
           selectedIndex.value = 0
           break
       }
-    } finally {
-      isSearching.value = false
+    } catch (e) {
+      console.error('[doQuery] Query failed:', e)
     }
   }
 
@@ -169,7 +167,7 @@ export const useSearchStore = defineStore('search', () => {
   }
 
   return {
-    query, results, selectedIndex, selectedActionIndex, isSearching, sessionMode, cachedCount,
+    query, results, selectedIndex, selectedActionIndex, sessionMode, cachedCount,
     panelType, panelData, panelActions, keepSearchBar,
     isIdle, selectedItem,
     doQuery, doConfirm, doWake, doReset, selectNext, selectPrev,

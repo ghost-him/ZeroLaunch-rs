@@ -625,9 +625,9 @@ SessionMode::Plugin
 ```
 
 **关键规则**：
-- 空闲态（`query === ''`）是最简形态，只渲染搜索框。窗口高度收缩到仅搜索框的高度。
-- 底栏（Footer）只在有搜索框且 query 非空时显示。
-- 结果列表只在有搜索框、query 非空、且 `sessionMode === 'search'` 时显示。
+- 空闲态（`query === ''`）是最简形态，只渲染搜索框，不渲染 EmptyState 组件。窗口高度收缩到仅搜索框的高度，搜索框通过 WindowFrame 的圆角获得完整的圆角外观。
+- 底栏（Footer）只在有搜索框且 query 非空时显示。底栏同时承载当前选中项的操作按钮（如启动、以管理员运行等）。
+- 结果列表只在有搜索框、query 非空、且 `sessionMode === 'search'` 时显示。结果项只显示图标+标题+副标题，操作按钮统一在底栏展示。
 
 ### 4.2 `bridge_query` 返回 → `SearchView.vue` 渲染决策树
 
@@ -685,22 +685,27 @@ async function doQuery(raw: string) {
 
 ```vue
 <template>
-  <div class="search-view">
+  <WindowFrame>
     <!-- 搜索框：只在非沉浸态显示 -->
     <SearchBar v-if="searchStore.keepSearchBar" />
 
     <!-- 结果列表：只在搜索模式 && 非空闲态显示 -->
     <ResultList v-if="searchStore.sessionMode === 'search' && searchStore.query !== ''" />
 
-    <!-- 空闲态提示：搜索模式 && query 为空 && 之前没进入过搜索 -->
-    <EmptyState v-else-if="searchStore.query === '' && searchStore.sessionMode !== 'plugin'" />
-
     <!-- 插件面板：非空闲插件态 -->
     <PluginPanelHost v-else-if="searchStore.sessionMode === 'plugin' && searchStore.panelType" />
 
-    <!-- 底栏：只在非空闲 && 非沉浸态显示 -->
-    <Footer v-if="searchStore.query !== '' && searchStore.keepSearchBar" />
-  </div>
+    <!-- 底栏：只在非空闲 && 非沉浸态显示，承载操作按钮 -->
+    <Footer
+      v-if="searchStore.query !== '' && searchStore.keepSearchBar"
+      :result-count="searchStore.results.length"
+      :session-mode="searchStore.sessionMode"
+      :panel-type="searchStore.panelType"
+      :actions="searchStore.selectedItem?.actions ?? []"
+      :selected-action-index="searchStore.selectedActionIndex"
+      @action-execute="(actionId: string) => searchStore.doConfirm(undefined, actionId)"
+    />
+  </WindowFrame>
 </template>
 ```
 
@@ -771,13 +776,13 @@ const panelProps = computed(() => ({
 
 侧边栏条目由 `ComponentType` 按以下规则映射：
 
-| 侧边栏条目   | 包含的 ComponentType                                                               | 图标      | 说明                                  |
-| ------------ | ---------------------------------------------------------------------------------- | --------- | ------------------------------------- |
-| **常规**     | `Core`                                                                             | settings  | 核心系统组件（热键、存储、自启动等）  |
-| **搜索管道** | `DataSource`, `KeywordOptimizer`, `SearchEngine`, `ScoreBooster`, `ActionExecutor` | search    | 按 trait 分标签页                     |
-| **插件**     | `Plugin`                                                                           | extension | 独立功能插件（计算器、Everything 等） |
+| 侧边栏条目   | 包含的 ComponentType                                                               | 图标      | 说明                                      |
+| ------------ | ---------------------------------------------------------------------------------- | --------- | ----------------------------------------- |
+| **常规**     | `Core`                                                                             | settings  | 核心系统组件（热键、存储、自启动等）      |
+| **搜索管道** | `DataSource`, `KeywordOptimizer`, `SearchEngine`, `ScoreBooster`, `ActionExecutor` | search    | 按 trait 分标签页                         |
+| **插件**     | `Plugin`                                                                           | extension | 独立功能插件（计算器、Everything 等）     |
 | **外观**     | `Core`（`appearance` 组件）                                                        | palette   | 主题、语言等（后端 ConfigManager 持久化） |
-| **关于**     | —（纯前端信息）                                                                    | info      | 版本、许可                            |
+| **关于**     | —（纯前端信息）                                                                    | info      | 版本、许可                                |
 
 **实现方式**: `getAllComponents()` → 按 `component_type` 分组 → 生成侧边栏条目。
 
@@ -968,21 +973,21 @@ async function executeAction() {
 
 ### 5.5.2 DynamicFormField 实现状态
 
-| SettingType                  | 状态             | 说明                                     |
-| ---------------------------- | ---------------- | ---------------------------------------- |
-| `Text`                       | 已实现           |                                          |
-| `{ Number: ... }`            | 已实现           |                                          |
-| `Boolean`                    | 已实现           |                                          |
-| `{ Select: ... }`            | 已实现           |                                          |
-| `{ Path: { mode: 'File' } }` | 已实现           | 接入 `@tauri-apps/plugin-dialog`         |
-| `{ Path: { mode: 'Directory' } }` | 已实现      | 接入 `@tauri-apps/plugin-dialog`         |
-| `Color`                      | 已实现           |                                          |
-| `Json`                       | 已实现           |                                          |
-| `{ Array: { item: Primitive, uiHint: 'Tags' } }` | 已实现 | `n-dynamic-tags` 组件                  |
-| `{ Array: { item: Primitive, uiHint: 'Default' } }` | 已实现 | 简单列表 + 添加/删除按钮          |
-| `{ Array: { item: Primitive, uiHint: 'Table' } }` | **TODO** | 暂回退为 JSON 编辑，控制台输出警告 |
+| SettingType                                              | 状态     | 说明                               |
+| -------------------------------------------------------- | -------- | ---------------------------------- |
+| `Text`                                                   | 已实现   |                                    |
+| `{ Number: ... }`                                        | 已实现   |                                    |
+| `Boolean`                                                | 已实现   |                                    |
+| `{ Select: ... }`                                        | 已实现   |                                    |
+| `{ Path: { mode: 'File' } }`                             | 已实现   | 接入 `@tauri-apps/plugin-dialog`   |
+| `{ Path: { mode: 'Directory' } }`                        | 已实现   | 接入 `@tauri-apps/plugin-dialog`   |
+| `Color`                                                  | 已实现   |                                    |
+| `Json`                                                   | 已实现   |                                    |
+| `{ Array: { item: Primitive, uiHint: 'Tags' } }`         | 已实现   | `n-dynamic-tags` 组件              |
+| `{ Array: { item: Primitive, uiHint: 'Default' } }`      | 已实现   | 简单列表 + 添加/删除按钮           |
+| `{ Array: { item: Primitive, uiHint: 'Table' } }`        | **TODO** | 暂回退为 JSON 编辑，控制台输出警告 |
 | `{ Array: { item: Primitive, uiHint: 'MasterDetail' } }` | **TODO** | 暂回退为 JSON 编辑，控制台输出警告 |
-| `{ Array: { item: Object, ... } }` | **TODO**       | 暂回退为 JSON 编辑，控制台输出警告 |
+| `{ Array: { item: Object, ... } }`                       | **TODO** | 暂回退为 JSON 编辑，控制台输出警告 |
 
 ### 5.6 配置提交流程
 

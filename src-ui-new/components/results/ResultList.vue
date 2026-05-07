@@ -6,10 +6,8 @@
       :item="item"
       :selected="index === selectedIndex"
       :index="index"
-      :action-index="index === selectedIndex ? actionIndex : 0"
       @click="onItemClick(index)"
       @dblclick="onItemDblClick(index)"
-      @action-execute="(actionIdx: number) => onActionExecute(index, actionIdx)"
       @context-action="(actionId: string) => emit('context-action', index, actionId)"
     />
     <div v-if="results.length === 0" class="no-results">
@@ -25,7 +23,6 @@ import type { ListItem } from '../../bridge/contract'
 defineProps<{
   results: ListItem[]
   selectedIndex: number
-  actionIndex: number
   maxHeight?: number
 }>()
 
@@ -41,10 +38,6 @@ function onItemClick(index: number) {
 
 function onItemDblClick(index: number) {
   emit('confirm', index)
-}
-
-function onActionExecute(candidateIdx: number, actionIdx: number) {
-  emit('confirm', candidateIdx, actionIdx)
 }
 </script>
 

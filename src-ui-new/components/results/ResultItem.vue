@@ -21,12 +21,6 @@
       <div class="item-title">{{ item.title }}</div>
       <div class="item-subtitle" v-if="item.subtitle">{{ item.subtitle }}</div>
     </div>
-    <ResultActions
-      v-if="selected && allActions.length > 0"
-      :actions="allActions"
-      :selected-index="actionIndex"
-      @execute="(actionIdx: number) => $emit('action-execute', actionIdx)"
-    />
   </div>
   <ContextMenu
     :visible="ctxVisible"
@@ -40,23 +34,20 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import type { Component } from 'vue'
-import type { ListItem, ResultAction } from '../../bridge/contract'
+import type { ListItem } from '../../bridge/contract'
 import { usePluginStore } from '../../stores/plugin-store'
 import IconDisplay from '../common/IconDisplay.vue'
-import ResultActions from './ResultActions.vue'
 import ContextMenu from '../layout/ContextMenu.vue'
 
 const props = defineProps<{
   item: ListItem
   selected: boolean
   index: number
-  actionIndex: number
 }>()
 
 const emit = defineEmits<{
   (e: 'click'): void
   (e: 'dblclick'): void
-  (e: 'action-execute', idx: number): void
   (e: 'context-action', actionId: string): void
 }>()
 
@@ -65,12 +56,6 @@ const pluginStore = usePluginStore()
 const customRenderer = computed<Component | null>(() =>
   pluginStore.getResultItemComponent(props.item.targetType),
 )
-
-const allActions = computed<ResultAction[]>(() => {
-  const base = props.item.actions
-  const extra = pluginStore.getExtraActions(props.item, props.item.targetType)
-  return extra.length > 0 ? [...base, ...extra] : base
-})
 
 // ---- Context Menu ----
 const ctxVisible = ref(false)

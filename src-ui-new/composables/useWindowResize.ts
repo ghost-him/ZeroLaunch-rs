@@ -4,11 +4,11 @@ import { LogicalSize } from '@tauri-apps/api/dpi'
 import { useSearchStore } from '../stores/search-store'
 
 const BASE_WIDTH = 600
-const SEARCH_BAR_HEIGHT = 56
+const SEARCH_BAR_HEIGHT = 60
 const RESULT_ITEM_HEIGHT = 40
 const FOOTER_HEIGHT = 32
 const MAX_VISIBLE_RESULTS = 8
-const MIN_CONTENT_HEIGHT = 100
+const MIN_CONTENT_HEIGHT = 80
 
 export function useWindowResize() {
   const store = useSearchStore()
@@ -25,8 +25,8 @@ export function useWindowResize() {
       let height: number
 
       if (isIdle && mode === 'none') {
-        // Idle: compact, search bar only
-        height = SEARCH_BAR_HEIGHT + 20
+        // Idle: compact, search bar only (no EmptyState, no Footer)
+        height = SEARCH_BAR_HEIGHT
       } else if (mode === 'plugin' && !keepSearchBar) {
         // Immersive plugin mode: let plugin control the height
         height = 420
@@ -36,9 +36,13 @@ export function useWindowResize() {
         const resultsHeight = visibleResults > 0
           ? visibleResults * RESULT_ITEM_HEIGHT + 16
           : MIN_CONTENT_HEIGHT
-        height = SEARCH_BAR_HEIGHT + resultsHeight + FOOTER_HEIGHT + 8
+        height = SEARCH_BAR_HEIGHT + resultsHeight + FOOTER_HEIGHT
+      } else if (!isIdle) {
+        // Transition state: query sent but mode not yet updated
+        // Reserve space for Footer so it appears immediately
+        height = SEARCH_BAR_HEIGHT + MIN_CONTENT_HEIGHT + FOOTER_HEIGHT
       } else {
-        height = SEARCH_BAR_HEIGHT + 20
+        height = SEARCH_BAR_HEIGHT
       }
 
       try {

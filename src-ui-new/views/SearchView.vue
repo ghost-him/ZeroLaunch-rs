@@ -6,13 +6,10 @@
       v-if="searchStore.sessionMode === 'search' && !searchStore.isIdle"
       :results="searchStore.results"
       :selected-index="searchStore.selectedIndex"
-      :action-index="searchStore.selectedActionIndex"
       @select="searchStore.selectedIndex = $event"
-      @confirm="(idx: number, actionIdx?: number) => searchStore.doConfirm(idx, actionIdx !== undefined ? searchStore.results[idx]?.actions[actionIdx]?.id : undefined)"
+      @confirm="(idx: number) => searchStore.doConfirm(idx)"
       @context-action="(idx: number, actionId: string) => searchStore.doConfirm(idx, actionId)"
     />
-
-    <EmptyState v-else-if="searchStore.isIdle && searchStore.sessionMode !== 'plugin'" />
 
     <PluginPanelHost
       v-else-if="searchStore.sessionMode === 'plugin' && searchStore.panelType"
@@ -25,6 +22,9 @@
       :result-count="searchStore.results.length"
       :session-mode="searchStore.sessionMode"
       :panel-type="searchStore.panelType"
+      :actions="searchStore.selectedItem?.actions ?? []"
+      :selected-action-index="searchStore.selectedActionIndex"
+      @action-execute="(actionId: string) => searchStore.doConfirm(undefined, actionId)"
     />
   </WindowFrame>
 </template>
@@ -35,7 +35,6 @@ import { useNotification } from 'naive-ui'
 import WindowFrame from '../components/layout/WindowFrame.vue'
 import SearchBar from '../components/search/SearchBar.vue'
 import ResultList from '../components/results/ResultList.vue'
-import EmptyState from '../components/panel/EmptyState.vue'
 import PluginPanelHost from '../components/panel/PluginPanelHost.vue'
 import Footer from '../components/layout/Footer.vue'
 

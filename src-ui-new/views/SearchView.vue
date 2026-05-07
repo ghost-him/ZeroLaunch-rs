@@ -50,7 +50,7 @@ import { registerErrorHandler } from '../bridge/commands'
 import type { BridgeError } from '../bridge/commands'
 
 const searchStore = useSearchStore()
-const { cleanup } = useSearch()
+useSearch()
 const notification = useNotification()
 
 useKeyboard()
@@ -84,7 +84,6 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
-  cleanup()
   unlistenConfig?.()
   unlistenInstall?.()
 })

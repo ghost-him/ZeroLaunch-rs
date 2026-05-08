@@ -4,8 +4,8 @@ use crate::plugin_system::types::{
 };
 use crate::sdk::host_api::{OpenTarget, PluginHandle};
 use crate::sdk::IconRequest;
+use async_trait::async_trait;
 use std::sync::Arc;
-use tracing::warn;
 
 /// 文件执行器 - 负责使用系统默认方式打开文件
 /// 支持打开文件和打开所在文件夹
@@ -19,27 +19,23 @@ impl FileExecutor {
     }
 
     /// 使用系统默认程序打开文件
-    fn execute_file(&self, file_name: &str) -> Result<(), ExecutionError> {
+    async fn execute_file(&self, file_name: &str) -> Result<(), ExecutionError> {
         let handle = self.plugin_handle.clone();
         let file_name = file_name.to_string();
-        tokio::spawn(async move {
-            if let Err(e) = handle.shell_open(OpenTarget::File(file_name)).await {
-                warn!("启动文件失败: {}", e);
-            }
-        });
-        Ok(())
+        handle
+            .shell_open(OpenTarget::File(file_name))
+            .await
+            .map_err(|e| ExecutionError::Failed(format!("启动文件失败: {}", e)))
     }
 
     /// 打开目标文件所在的文件夹
-    fn open_folder(&self, file_name: &str) -> Result<(), ExecutionError> {
+    async fn open_folder(&self, file_name: &str) -> Result<(), ExecutionError> {
         let handle = self.plugin_handle.clone();
         let file_name = file_name.to_string();
-        tokio::spawn(async move {
-            if let Err(e) = handle.shell_open_folder(&file_name).await {
-                warn!("打开文件夹失败: {}", e);
-            }
-        });
-        Ok(())
+        handle
+            .shell_open_folder(&file_name)
+            .await
+            .map_err(|e| ExecutionError::Failed(format!("打开文件夹失败: {}", e)))
     }
 }
 
@@ -63,6 +59,7 @@ impl Default for FileExecutor {
     }
 }
 
+#[async_trait]
 impl ActionExecutor for FileExecutor {
     fn supported_target_types(&self) -> Vec<TargetType> {
         vec![TargetType::File]
@@ -87,7 +84,7 @@ impl ActionExecutor for FileExecutor {
         ]
     }
 
-    fn execute(&self, ctx: &ExecutionContext, action_id: &str) -> Result<(), ExecutionError> {
+    async fn execute(&self, ctx: &ExecutionContext, action_id: &str) -> Result<(), ExecutionError> {
         let file_name = match &ctx.target {
             ExecutionTarget::File(f) => f,
             _ => {
@@ -98,8 +95,8 @@ impl ActionExecutor for FileExecutor {
         };
 
         match action_id {
-            "execute" => self.execute_file(file_name),
-            "open_folder" => self.open_folder(file_name),
+            "execute" => self.execute_file(file_name).await,
+            "open_folder" => self.open_folder(file_name).await,
             _ => Err(ExecutionError::UnsupportedAction(
                 TargetType::File,
                 action_id.to_string(),

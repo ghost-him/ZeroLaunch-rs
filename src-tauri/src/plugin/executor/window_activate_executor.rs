@@ -4,6 +4,7 @@ use crate::plugin_system::types::{
 };
 use crate::sdk::host_api::PluginHandle;
 use crate::sdk::IconRequest;
+use async_trait::async_trait;
 use std::sync::Arc;
 use tracing::warn;
 
@@ -23,13 +24,11 @@ impl WindowActivateExecutor {
     /// - Path(.url): 按标题激活
     /// - Path(.exe/.lnk): 按进程名激活
     /// - App: 按标题激活
-    ///
-    /// 使用 tauri::async_runtime 同步等待异步结果，以支持 ActivationFailed 回退。
-    fn try_activate(&self, target: &ExecutionTarget, name: &str) -> bool {
+    async fn try_activate(&self, target: &ExecutionTarget, name: &str) -> bool {
         match target {
             ExecutionTarget::Path(path) => {
                 if path.ends_with(".url") {
-                    self.activate_by_title(name)
+                    self.activate_by_title(name).await
                 } else {
                     let exe_path = if path.ends_with(".exe") {
                         path.clone()
@@ -41,19 +40,19 @@ impl WindowActivateExecutor {
                     if exe_path.is_empty() {
                         return false;
                     }
-                    self.activate_by_exe(&exe_path)
+                    self.activate_by_exe(&exe_path).await
                 }
             }
-            ExecutionTarget::App(_) => self.activate_by_title(name),
+            ExecutionTarget::App(_) => self.activate_by_title(name).await,
             _ => false,
         }
     }
 
     /// 直接使用标题来激活窗口。
-    fn activate_by_title(&self, program_name: &str) -> bool {
+    async fn activate_by_title(&self, program_name: &str) -> bool {
         let handle = self.plugin_handle.clone();
         let program_name = program_name.to_string();
-        match tauri::async_runtime::block_on(handle.activate_window_by_title(&program_name)) {
+        match handle.activate_window_by_title(&program_name).await {
             Ok(activated) => activated,
             Err(e) => {
                 warn!("按标题激活窗口失败: {}", e);
@@ -64,7 +63,7 @@ impl WindowActivateExecutor {
 
     /// 激活 .exe 程序的窗口，传入绝对路径。
     /// 先按进程名查找，未找到则按文件名（不含扩展名）按标题查找。
-    fn activate_by_exe(&self, path: &str) -> bool {
+    async fn activate_by_exe(&self, path: &str) -> bool {
         let abs_path = std::path::Path::new(path);
         let program_name = match abs_path.file_name() {
             Some(name) => match name.to_str() {
@@ -84,9 +83,7 @@ impl WindowActivateExecutor {
         let handle = self.plugin_handle.clone();
 
         // 先按进程名查找窗口
-        let activated = match tauri::async_runtime::block_on(
-            handle.activate_window_by_process(&program_name),
-        ) {
+        let activated = match handle.activate_window_by_process(&program_name).await {
             Ok(result) => result,
             Err(e) => {
                 warn!("按进程名激活窗口失败: {}", e);
@@ -100,7 +97,7 @@ impl WindowActivateExecutor {
 
         // 未找到则按文件主名按标题查找
         let handle2 = self.plugin_handle.clone();
-        match tauri::async_runtime::block_on(handle2.activate_window_by_title(&program_stem)) {
+        match handle2.activate_window_by_title(&program_stem).await {
             Ok(result) => result,
             Err(e) => {
                 warn!("按标题激活窗口失败: {}", e);
@@ -124,6 +121,7 @@ impl Configurable for WindowActivateExecutor {
     }
 }
 
+#[async_trait]
 impl ActionExecutor for WindowActivateExecutor {
     fn supported_target_types(&self) -> Vec<TargetType> {
         vec![TargetType::Path, TargetType::App]
@@ -139,10 +137,10 @@ impl ActionExecutor for WindowActivateExecutor {
         }]
     }
 
-    fn execute(&self, ctx: &ExecutionContext, action_id: &str) -> Result<(), ExecutionError> {
+    async fn execute(&self, ctx: &ExecutionContext, action_id: &str) -> Result<(), ExecutionError> {
         match action_id {
             "activate_window" => {
-                if self.try_activate(&ctx.target, &ctx.display_name) {
+                if self.try_activate(&ctx.target, &ctx.display_name).await {
                     Ok(())
                 } else {
                     Err(ExecutionError::ActivationFailed {

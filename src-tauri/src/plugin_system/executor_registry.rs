@@ -61,42 +61,37 @@ impl ExecutorRegistry {
         Ok(())
     }
 
-    /// 执行动作
-    pub fn execute(&self, ctx: &ExecutionContext, action_id: &str) -> Result<(), ExecutionError> {
+    /// 根据上下文和动作 ID 查找执行器，返回 Arc 克隆（同步，无锁持有）
+    pub fn resolve(
+        &self,
+        ctx: &ExecutionContext,
+        action_id: &str,
+    ) -> Result<Arc<dyn ActionExecutor>, ExecutionError> {
         let target_type = ctx.target.target_type();
         let key = (target_type, action_id.to_string());
-
-        let executor = self
-            .executor_map
+        self.executor_map
             .get(&key)
-            .ok_or_else(|| ExecutionError::UnsupportedAction(target_type, action_id.to_string()))?;
-
-        match executor.execute(ctx, action_id) {
-            Ok(()) => Ok(()),
-            Err(ExecutionError::ActivationFailed { fallback_action }) => {
-                // 窗口唤醒失败，执行 Executor 声明的回退策略
-                self.execute_fallback(ctx, &fallback_action)
-            }
-            Err(e) => Err(e),
-        }
+            .cloned()
+            .ok_or_else(|| ExecutionError::UnsupportedAction(target_type, action_id.to_string()))
     }
 
-    /// 执行回退动作
-    fn execute_fallback(
+    /// 查找回退执行器，返回 Arc 克隆（同步，无锁持有）
+    pub fn resolve_fallback(
         &self,
         ctx: &ExecutionContext,
         fallback_action: &str,
-    ) -> Result<(), ExecutionError> {
+    ) -> Result<Arc<dyn ActionExecutor>, ExecutionError> {
         let target_type = ctx.target.target_type();
         let fallback_key = (target_type, fallback_action.to_string());
-
-        match self.executor_map.get(&fallback_key) {
-            Some(fallback_executor) => fallback_executor.execute(ctx, fallback_action),
-            None => Err(ExecutionError::Failed(format!(
-                "Fallback action '{}' not found for {:?}",
-                fallback_action, target_type
-            ))),
-        }
+        self.executor_map
+            .get(&fallback_key)
+            .cloned()
+            .ok_or_else(|| {
+                ExecutionError::Failed(format!(
+                    "Fallback action '{}' not found for {:?}",
+                    fallback_action, target_type
+                ))
+            })
     }
 
     /// 获取某个 TargetType 下所有可用的 actions

@@ -4,6 +4,7 @@ use crate::plugin_system::types::{
 };
 use crate::sdk::host_api::PluginHandle;
 use crate::sdk::IconRequest;
+use async_trait::async_trait;
 use std::sync::Arc;
 
 /// 应用执行器 - 负责通过 PluginHandle 启动系统应用（UWP 等）。
@@ -32,6 +33,7 @@ impl Configurable for AppExecutor {
     }
 }
 
+#[async_trait]
 impl ActionExecutor for AppExecutor {
     fn supported_target_types(&self) -> Vec<TargetType> {
         vec![TargetType::App]
@@ -47,7 +49,7 @@ impl ActionExecutor for AppExecutor {
         }]
     }
 
-    fn execute(&self, ctx: &ExecutionContext, action_id: &str) -> Result<(), ExecutionError> {
+    async fn execute(&self, ctx: &ExecutionContext, action_id: &str) -> Result<(), ExecutionError> {
         let app_id = match &ctx.target {
             ExecutionTarget::App(id) => id,
             _ => {
@@ -61,7 +63,7 @@ impl ActionExecutor for AppExecutor {
             "execute" => {
                 let handle = self.plugin_handle.clone();
                 let app_id = app_id.to_string();
-                match tauri::async_runtime::block_on(handle.launch_app(&app_id, None)) {
+                match handle.launch_app(&app_id, None).await {
                     Ok(_) => Ok(()),
                     Err(e) => Err(ExecutionError::Failed(format!("应用启动失败: {}", e))),
                 }

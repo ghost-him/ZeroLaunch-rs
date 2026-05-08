@@ -198,27 +198,52 @@ impl SessionRouter {
                     })
                     .unwrap_or_default();
 
-                let cached_candidate = self.cached_candidates.read();
-                let candidate = cached_candidate
-                    .get_candidate(candidate_id)
-                    .ok_or_else(|| "Candidate not found".to_string())?;
+                // Build ExecutionContext and record in a block — guard must be dropped before .await
+                let exec_ctx = {
+                    let cached_candidate = self.cached_candidates.read();
+                    let candidate = cached_candidate
+                        .get_candidate(candidate_id)
+                        .ok_or_else(|| "Candidate not found".to_string())?;
 
-                let snapshot = self.parameter_snapshot.lock().clone();
+                    let snapshot = self.parameter_snapshot.lock().clone();
 
-                let exec_ctx = ExecutionContext {
-                    target: candidate.target.clone(),
-                    display_name: candidate.name.clone(),
-                    user_args,
-                    parameter_snapshot: snapshot,
+                    let exec_ctx = ExecutionContext {
+                        target: candidate.target.clone(),
+                        display_name: candidate.name.clone(),
+                        user_args,
+                        parameter_snapshot: snapshot,
+                    };
+
+                    if let Some(pipeline) = self.search_pipeline.read().as_ref() {
+                        pipeline.record(candidate_id, &cached_candidate, &query_text);
+                    }
+
+                    exec_ctx
+                };
+                // All RwLock/Mutex guards dropped here — safe to .await
+
+                let executor = {
+                    let registry = self.executor_registry.read();
+                    registry
+                        .resolve(&exec_ctx, action_id)
+                        .map_err(|e| e.to_string())?
                 };
 
-                self.executor_registry
-                    .read()
-                    .execute(&exec_ctx, action_id)
-                    .map_err(|e| e.to_string())?;
-
-                if let Some(pipeline) = self.search_pipeline.read().as_ref() {
-                    pipeline.record(candidate_id, &cached_candidate, &query_text);
+                match executor.execute(&exec_ctx, action_id).await {
+                    Ok(()) => {}
+                    Err(ExecutionError::ActivationFailed { fallback_action }) => {
+                        let fallback_executor = {
+                            let registry = self.executor_registry.read();
+                            registry
+                                .resolve_fallback(&exec_ctx, &fallback_action)
+                                .map_err(|e| e.to_string())?
+                        };
+                        fallback_executor
+                            .execute(&exec_ctx, &fallback_action)
+                            .await
+                            .map_err(|e| e.to_string())?;
+                    }
+                    Err(e) => return Err(e.to_string()),
                 }
 
                 Ok(())

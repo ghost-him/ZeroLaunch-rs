@@ -4,6 +4,7 @@ use crate::plugin_system::types::{
 };
 use crate::sdk::host_api::{OpenTarget, PluginHandle};
 use crate::sdk::IconRequest;
+use async_trait::async_trait;
 use std::sync::Arc;
 use tracing::warn;
 
@@ -19,40 +20,31 @@ impl PathExecutor {
     }
 
     /// 普通启动程序。
-    /// 委托 PluginHandle::shell_open 完成启动，由平台层负责实现“模拟双击”语义。
-    fn execute_normal(&self, path: &str) {
+    async fn execute_normal(&self, path: &str) {
         let handle = self.plugin_handle.clone();
         let path = path.to_string();
-        tokio::spawn(async move {
-            if let Err(e) = handle.shell_open(OpenTarget::File(path)).await {
-                warn!("启动程序失败: {}", e);
-            }
-        });
+        if let Err(e) = handle.shell_open(OpenTarget::File(path)).await {
+            warn!("启动程序失败: {}", e);
+        }
     }
 
     /// 以管理员权限启动程序
-    /// 委托给 PluginHandle 的 shell_execute_elevation 方法
-    fn execute_elevation(&self, path: &str) {
+    async fn execute_elevation(&self, path: &str) {
         let handle = self.plugin_handle.clone();
         let path = path.to_string();
-        tokio::spawn(async move {
-            if let Err(e) = handle.shell_execute_elevation(&path).await {
-                warn!("管理员启动失败: {}", e);
-            }
-        });
+        if let Err(e) = handle.shell_execute_elevation(&path).await {
+            warn!("管理员启动失败: {}", e);
+        }
     }
 
     /// 打开目标文件所在的文件夹
-    /// 委托给 PluginHandle 的 shell_open_folder 方法
-    fn open_folder(&self, path: &str) -> Result<(), ExecutionError> {
+    async fn open_folder(&self, path: &str) -> Result<(), ExecutionError> {
         let handle = self.plugin_handle.clone();
         let path = path.to_string();
-        tokio::spawn(async move {
-            if let Err(e) = handle.shell_open_folder(&path).await {
-                warn!("打开文件夹失败: {}", e);
-            }
-        });
-        Ok(())
+        handle
+            .shell_open_folder(&path)
+            .await
+            .map_err(|e| ExecutionError::Failed(format!("打开文件夹失败: {}", e)))
     }
 }
 
@@ -76,6 +68,7 @@ impl Default for PathExecutor {
     }
 }
 
+#[async_trait]
 impl ActionExecutor for PathExecutor {
     fn supported_target_types(&self) -> Vec<TargetType> {
         vec![TargetType::Path]
@@ -107,7 +100,7 @@ impl ActionExecutor for PathExecutor {
         ]
     }
 
-    fn execute(&self, ctx: &ExecutionContext, action_id: &str) -> Result<(), ExecutionError> {
+    async fn execute(&self, ctx: &ExecutionContext, action_id: &str) -> Result<(), ExecutionError> {
         let path = match &ctx.target {
             ExecutionTarget::Path(p) => p,
             _ => {
@@ -119,14 +112,14 @@ impl ActionExecutor for PathExecutor {
 
         match action_id {
             "execute" => {
-                self.execute_normal(path);
+                self.execute_normal(path).await;
                 Ok(())
             }
             "execute_admin" => {
-                self.execute_elevation(path);
+                self.execute_elevation(path).await;
                 Ok(())
             }
-            "open_folder" => self.open_folder(path),
+            "open_folder" => self.open_folder(path).await,
             _ => Err(ExecutionError::UnsupportedAction(
                 TargetType::Path,
                 action_id.to_string(),

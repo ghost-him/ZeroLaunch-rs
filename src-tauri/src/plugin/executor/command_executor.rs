@@ -4,6 +4,7 @@ use crate::plugin_system::types::{
 };
 use crate::sdk::host_api::PluginHandle;
 use crate::sdk::IconRequest;
+use async_trait::async_trait;
 use std::sync::Arc;
 
 /// 命令执行器 - 负责执行自定义命令
@@ -32,6 +33,7 @@ impl Configurable for CommandExecutor {
     }
 }
 
+#[async_trait]
 impl ActionExecutor for CommandExecutor {
     fn supported_target_types(&self) -> Vec<TargetType> {
         vec![TargetType::Command]
@@ -47,7 +49,7 @@ impl ActionExecutor for CommandExecutor {
         }]
     }
 
-    fn execute(&self, ctx: &ExecutionContext, action_id: &str) -> Result<(), ExecutionError> {
+    async fn execute(&self, ctx: &ExecutionContext, action_id: &str) -> Result<(), ExecutionError> {
         let command = match &ctx.target {
             ExecutionTarget::Command(cmd) => cmd,
             _ => {
@@ -61,7 +63,7 @@ impl ActionExecutor for CommandExecutor {
             "execute" => {
                 let handle = self.plugin_handle.clone();
                 let command = command.to_string();
-                match tauri::async_runtime::block_on(handle.shell_execute_command(&command)) {
+                match handle.shell_execute_command(&command).await {
                     Ok(_) => Ok(()),
                     Err(e) => Err(ExecutionError::Failed(format!("命令执行失败: {}", e))),
                 }

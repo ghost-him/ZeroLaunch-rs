@@ -203,6 +203,7 @@ pub trait ScoreBooster: Configurable {
 /// 动作执行器 trait
 /// 每个 Executor 可以声明支持多种 TargetType 和多种 Action
 /// Executor 继承 Configurable，以支持统一配置管理和发现
+#[async_trait]
 pub trait ActionExecutor: Configurable {
     /// 返回该 Executor 支持的目标类型集合
     fn supported_target_types(&self) -> Vec<TargetType>;
@@ -221,7 +222,7 @@ pub trait ActionExecutor: Configurable {
     /// 根据动作 ID 执行对应的操作
     /// 参数：ctx - 执行上下文；action_id - 动作 ID
     /// 返回：执行成功返回 Ok(())，失败返回 ExecutionError
-    fn execute(&self, ctx: &ExecutionContext, action_id: &str) -> Result<(), ExecutionError>;
+    async fn execute(&self, ctx: &ExecutionContext, action_id: &str) -> Result<(), ExecutionError>;
 }
 
 /// 请求级上下文，在宿主与插件之间共享。

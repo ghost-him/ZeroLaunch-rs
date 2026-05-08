@@ -101,8 +101,14 @@ User changes setting → ConfigManager.apply_settings()
 
 ## Key Conventions
 
+- **Configurable lifecycle contract** (iron rule): `validate_settings` = pure check only. `apply_settings` = update internal state only (write RwLock). `on_settings_changed` = side effects only (rebuild services, register callbacks, etc.). Never put side effects in `apply_settings`; never put validation only in `apply_settings` (override `validate_settings` instead). See `HotkeyConfigComponent` / `InstallationMonitorConfigComponent` for reference.
+- **ConfigAction for pre-save tests**: If a side effect must gate whether config is saved (e.g. WebDAV connectivity test), use `config_actions` + `execute_config_action` — a separate user-triggered action, not embedded in the save flow.
 - **JSON numeric values**: Always use `as_f64()` not `as_i64()` — the frontend may send floats, and `as_i64()` will silently return 0.
 - **Configurable trait**: `apply_settings(&self, ...)` uses `&self` (immutable); components use internal `RwLock` for interior mutability.
 - **Inner pattern**: For `RwLock<Inner>` components, the outer struct only delegates (one-line call through the lock). All business logic lives in `Inner`.
+- **ActionExecutor is async**: `ActionExecutor::execute` is `async fn` via `#[async_trait]`. Never use `tauri::async_runtime::block_on` in any executor or async context — it blocks the tokio worker thread. Use `.await` and propagate errors instead of `tokio::spawn` fire-and-forget.
+- **RwLock guards must not cross `.await`**: `parking_lot::RwLock*Guard` is `!Send`. Holding one across an `.await` makes the future `!Send` and breaks `#[tauri::command]`. Clone data out of the lock in a block, drop the guard, then `.await`.
+- **Dead code**: Delete it immediately. No backup files (Git is the backup). No temporary/legacy markers lingering. Remove from `mod.rs` when deleting.
+- **Config component granularity**: Split by functional domain (appearance, storage, hotkey, ranking, etc.). Never make a monolithic `AppConfigComponent` or `UIConfigComponent`.
 - **Platform services with callbacks** (hotkey, installation monitor): Use a push-based callback registration pattern — register callbacks via trait methods; events trigger all registered callbacks.
 - **Existing architecture documentation**: `AGENTS.md` is the detailed reference for the new system architecture. `DESIGN_DECISIONS.md` records design rationale. `REFACTORING_DESIGN.md` explains the refactoring strategy.

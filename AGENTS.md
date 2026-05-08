@@ -230,20 +230,59 @@ pub trait Configurable: Send + Sync {
 事件     → broadcast channel，SessionRouter 等订阅
 ```
 
-### 4.4 Configurable 组件实现原则
+### 4.4 Configurable 生命周期契约（铁律）
 
-`core/config/components/` 下的组件（如 `HotkeyConfigComponent`、`InstallationMonitorConfigComponent`）负责：
+`ConfigManager::apply_settings()` 的执行顺序是固定的：
+
+```
+1. component.validate_settings(&settings)?   ← 纯校验，无副作用
+2. component.apply_settings(settings.clone())? ← 仅更新组件内部状态（写入 RwLock）
+3. component.on_settings_changed()           ← 执行副作用（重建服务、注册回调等）
+4. 发布 ConfigEvent
+5. save_to_storage()
+```
+
+**这条流水线是不可妥协的契约，所有 Configurable 实现者必须遵守：**
+
+| 方法 | 职责 | 禁止 |
+|------|------|------|
+| `validate_settings` | 纯校验（枚举值范围、格式检查等） | 修改状态、执行 I/O、操作平台能力 |
+| `apply_settings` | 仅将 settings 写入内部 RwLock | 重建外部服务、调用 HostApi、执行任何副作用 |
+| `on_settings_changed` | 响应配置变更的副作用：重建 storage service、启动/停止监听器、注册/注销热键等 | 修改配置值（此时配置已生效） |
+
+**参考实现**：`HotkeyConfigComponent` 和 `InstallationMonitorConfigComponent` 已遵循此契约。
+
+**反例**：不要把校验逻辑写在 `apply_settings` 里（应写 `validate_settings`）；不要把副作用写在 `apply_settings` 里（应写 `on_settings_changed`）。
+
+### 4.5 ConfigAction — 保存前的连通性测试
+
+如果某个副作用必须影响"配置是否保存"的判断（例如 WebDAV 连通性测试），不要在 `apply_settings` 或 `on_settings_changed` 中强行执行复杂副作用。使用 `config_actions` 机制：
+
+```rust
+fn config_actions(&self) -> Vec<ConfigActionDef> { ... }
+fn execute_config_action(&self, action: &str) -> Result<serde_json::Value, String>;
+```
+
+前端可以提供一个"测试连接"按钮，触发 `execute_config_action`，这是一个独立的用户操作，与保存配置解耦。
+
+### 4.6 配置组件粒度
+
+**禁止**创建"大杂烩"式配置组件（如 `AppConfigComponent`、`UIConfigComponent` 囊括所有设置）。按功能域拆分，每个组件职责单一：
+
+- `AppearanceConfigComponent` — 主题、语言
+- `StorageConfigComponent` — 存储后端、路径
+- `HotkeyConfigComponent` — 全局快捷键
+- `InstallationMonitorConfigComponent` — 安装监控
+- 各 plugin 自己的配置项
+
+好处：独立加载/保存/校验、前端按需获取、减少合并冲突。
+
+### 4.7 Configurable 组件实现原则
+
+`core/config/components/` 下的组件负责：
 1. 定义配置 Schema（前端据此渲染设置界面）
 2. 配置变更时通过 `on_settings_changed()` 调用 HostApi 操作平台能力
 3. 组件 **关心"怎么调用"平台能力**，而不关心平台能力的具体实现
-
-示例流程（安装监控配置变更）：
-```
-用户修改配置 → ConfigManager.apply_settings()
-  → InstallationMonitorConfigComponent.on_settings_changed()
-    → HostApi.start_installation_monitor() / stop_installation_monitor()
-      → InstallationMonitor::start_watching()（平台trait实现）
-```
 
 ---
 
@@ -331,7 +370,46 @@ pub trait PluginAPI: Send + Sync {
 }
 ```
 
-### 6.4 模块结构
+### 6.5 ActionExecutor 异步契约
+
+`ActionExecutor::execute` 是 `async fn`（通过 `#[async_trait]`）。所有执行器**必须**使用 `.await` 调用异步 SDK 方法。
+
+**绝对禁止**：在 executor 或任何 async context 中使用 `tauri::async_runtime::block_on`。这会阻塞 tokio worker thread，导致性能退化乃至死锁。
+
+| 模式 | 做法 |
+|------|------|
+| 调用 SDK 异步方法 | 直接 `.await`，不要 `block_on` |
+| 调用可能失败的操作 | 用 `?` 或 `.map_err()` 传播错误，不要 `tokio::spawn` 静默吞错 |
+
+### 6.6 parking_lot RwLock 守卫生命周期规则
+
+`parking_lot::RwLock*Guard` 是 `!Send`。在 `#[tauri::command]`（要求 `Future: Send`）的 async context 中：
+
+- **任何 `RwLock*Guard` 都不能存活过 `.await` 点**，否则整个 future 变为 `!Send`。
+- 正确做法：在作用域块中锁定 → 提取/克隆需要的数据 → 释放守卫 → 然后 `.await`。
+
+```rust
+// 正确：守卫在 .await 前释放
+let data = {
+    let guard = self.some_lock.read();
+    guard.get_data().clone()  // 克隆出需要的数据
+};  // guard 在此释放
+something_async().await;
+
+// 错误：守卫存活过 .await
+let guard = self.some_lock.read();
+something_async().await;  // guard 仍存活 → future !Send
+```
+
+**此规则适用于 SessionRouter、ConfigManager 以及所有持有 `RwLock`/`Mutex` 的 async 代码路径。**
+
+### 6.7 ExecutorRegistry API 设计
+
+`ExecutorRegistry` 的公共 API 保持最小化：
+- **`execute()`**（pub async）：唯一的动作执行入口，内部处理正常执行 + `ActivationFailed` 回退链
+- **`resolve()` / `resolve_fallback()`**（private）：仅供内部使用的同步查找方法
+- **`get_actions()`**（pub）：查询某 TargetType 下所有可用动作
+- 外部调用方只通过 `execute()` 执行动作，不直接操作 executor 查找逻辑
 
 ```
 plugin_system/
@@ -426,10 +504,33 @@ plugin_system/
 ### 8.2 配置处理安全
 - JSON 数值配置统一使用 `as_f64()` 而非 `as_i64()`（预防前端浮点数传入导致解析失败）
 
-### 8.3 最小化改动
+### 8.3 死代码清理纪律
+- **不保留备份文件**：重构完成后立即删除旧代码（如 `lib copy.rs`、未注册的模块文件）。Git 历史是唯一的备份。
+- **不保留临时文件**：标注 "临时/待重构" 的代码在功能被新代码覆盖后立即删除（如 `new_search.rs` 被 `bridge.rs` 覆盖后删除）。
+- **不在 mod.rs 中保留已删除模块的声明**：删除文件时同步清理 `mod.rs`。
+- **死代码信号**：文件中出现 `// temp`、`// 临时`、`// 待重构`、`// TODO: remove` 但长时间未动作 → 立即处理。
+
+### 8.4 核心路径冒烟测试
+
+每次涉及架构层的更改后，**必须**验证以下核心路径：
+
+| # | 路径 | 验证点 |
+|---|------|--------|
+| 1 | 启动应用 | Tauri app 正常启动，无 panic |
+| 2 | 唤醒搜索框 | 热键唤起搜索栏，参数快照正确捕获 |
+| 3 | 搜索程序 | 输入关键词，候选项正确返回 |
+| 4 | 启动程序 | 选中候选项执行，目标程序正常启动 |
+| 5 | 打开设置 | 设置面板正常渲染 |
+| 6 | 修改配置 | 修改主题/语言/快捷键等，即时生效 |
+| 7 | 保存配置 | 配置持久化到磁盘 |
+| 8 | 重启后配置生效 | 重启应用，之前的配置仍然正确加载 |
+| 9 | 刷新候选栏 | 安装/卸载程序后候选项更新 |
+| 10 | 托盘退出 | 托盘菜单退出，进程正常结束 |
+
+### 8.5 最小化改动
 - 优先在现有框架内解决问题，除非必要或用户明确要求，否则避免大面积重构
 
-### 8.4 模块间调用设计
+### 8.6 模块间调用设计
 - **SDK 层定义能力契约，不定义调用逻辑**
 - **Core 层 Config 组件定义调用逻辑（何时/怎么调用 HostApi）**
 - **插件通过 PluginHandle 句柄访问服务，不直接操作平台实现**

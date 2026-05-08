@@ -89,7 +89,11 @@ impl Configurable for AppearanceConfigComponent {
     }
 
     fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
-        // 校验 theme 值
+        *self.settings.write() = settings;
+        Ok(())
+    }
+
+    fn validate_settings(&self, settings: &serde_json::Value) -> Result<(), ConfigError> {
         if let Some(theme) = settings.get("theme").and_then(|v| v.as_str()) {
             if !["system", "light", "dark"].contains(&theme) {
                 return Err(ConfigError::ValidationFailed(format!(
@@ -98,7 +102,6 @@ impl Configurable for AppearanceConfigComponent {
                 )));
             }
         }
-        // 校验 language 值
         if let Some(lang) = settings.get("language").and_then(|v| v.as_str()) {
             if !["zh-Hans", "en"].contains(&lang) {
                 return Err(ConfigError::ValidationFailed(format!(
@@ -107,7 +110,6 @@ impl Configurable for AppearanceConfigComponent {
                 )));
             }
         }
-        *self.settings.write() = settings;
         Ok(())
     }
 

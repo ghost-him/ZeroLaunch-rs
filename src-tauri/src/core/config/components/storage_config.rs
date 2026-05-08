@@ -140,6 +140,44 @@ impl Configurable for StorageConfigComponent {
     }
 
     fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
+        *self.settings.write() = settings;
+        Ok(())
+    }
+
+    fn validate_settings(&self, settings: &serde_json::Value) -> Result<(), ConfigError> {
+        let destination = settings
+            .get("storage_destination")
+            .and_then(|v| v.as_str())
+            .unwrap_or("Local");
+
+        if destination == "WebDAV" {
+            let host_url = settings
+                .get("webdav_host_url")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let account = settings
+                .get("webdav_account")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+
+            if host_url.is_empty() {
+                return Err(ConfigError::ValidationFailed(
+                    "WebDAV 服务器地址不能为空".to_string(),
+                ));
+            }
+            if account.is_empty() {
+                return Err(ConfigError::ValidationFailed(
+                    "WebDAV 账号不能为空".to_string(),
+                ));
+            }
+        }
+
+        Ok(())
+    }
+
+    fn on_settings_changed(&self) {
+        let settings = self.settings.read().clone();
+
         let destination = settings
             .get("storage_destination")
             .and_then(|v| v.as_str())
@@ -178,14 +216,12 @@ impl Configurable for StorageConfigComponent {
                 Arc::new(WebDAVStorageService::new(&config))
             }
             _ => {
-                // Local 模式
                 let custom_path = settings
                     .get("custom_save_path")
                     .and_then(|v| v.as_str())
                     .unwrap_or("");
 
                 if custom_path.is_empty() {
-                    // 使用当前 HostApi 中存储服务的目标路径（保持默认）
                     info!("切换存储后端为 Local（默认路径）");
                     let current_dir = self.host_api.storage().target_dir_path();
                     Arc::new(LocalStorageService::new(&current_dir))
@@ -197,49 +233,6 @@ impl Configurable for StorageConfigComponent {
         };
 
         self.host_api.reconfigure_storage(new_service);
-        *self.settings.write() = settings;
-        Ok(())
-    }
-
-    fn validate_settings(&self, settings: &serde_json::Value) -> Result<(), ConfigError> {
-        let destination = settings
-            .get("storage_destination")
-            .and_then(|v| v.as_str())
-            .unwrap_or("Local");
-
-        if destination == "WebDAV" {
-            let host_url = settings
-                .get("webdav_host_url")
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
-            let account = settings
-                .get("webdav_account")
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
-
-            if host_url.is_empty() {
-                return Err(ConfigError::ValidationFailed(
-                    "WebDAV 服务器地址不能为空".to_string(),
-                ));
-            }
-            if account.is_empty() {
-                return Err(ConfigError::ValidationFailed(
-                    "WebDAV 账号不能为空".to_string(),
-                ));
-            }
-        }
-
-        Ok(())
-    }
-
-    fn on_settings_changed(&self) {
-        let destination = self
-            .settings
-            .read()
-            .get("storage_destination")
-            .and_then(|v| v.as_str())
-            .unwrap_or("Local")
-            .to_string();
         info!("存储配置已变更，当前后端: {}", destination);
     }
 }

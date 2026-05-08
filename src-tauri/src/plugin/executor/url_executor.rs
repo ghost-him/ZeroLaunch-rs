@@ -4,8 +4,8 @@ use crate::plugin_system::types::{
 };
 use crate::sdk::host_api::{OpenTarget, PluginHandle};
 use crate::sdk::IconRequest;
+use async_trait::async_trait;
 use std::sync::Arc;
-use tracing::warn;
 
 /// URL 执行器 - 负责使用系统默认浏览器打开 URL
 /// 委托 PluginHandle 的 shell_open 方法打开 URL
@@ -19,15 +19,13 @@ impl UrlExecutor {
     }
 
     /// 使用系统默认浏览器打开 URL
-    fn execute_url(&self, url: &str) -> Result<(), ExecutionError> {
+    async fn execute_url(&self, url: &str) -> Result<(), ExecutionError> {
         let handle = self.plugin_handle.clone();
         let url = url.to_string();
-        tokio::spawn(async move {
-            if let Err(e) = handle.shell_open(OpenTarget::Url(url)).await {
-                warn!("启动 URL 失败: {}", e);
-            }
-        });
-        Ok(())
+        handle
+            .shell_open(OpenTarget::Url(url))
+            .await
+            .map_err(|e| ExecutionError::Failed(format!("启动 URL 失败: {}", e)))
     }
 }
 
@@ -51,6 +49,7 @@ impl Default for UrlExecutor {
     }
 }
 
+#[async_trait]
 impl ActionExecutor for UrlExecutor {
     fn supported_target_types(&self) -> Vec<TargetType> {
         vec![TargetType::Url]
@@ -66,7 +65,7 @@ impl ActionExecutor for UrlExecutor {
         }]
     }
 
-    fn execute(&self, ctx: &ExecutionContext, action_id: &str) -> Result<(), ExecutionError> {
+    async fn execute(&self, ctx: &ExecutionContext, action_id: &str) -> Result<(), ExecutionError> {
         let url = match &ctx.target {
             ExecutionTarget::Url(u) => u,
             _ => {
@@ -77,7 +76,7 @@ impl ActionExecutor for UrlExecutor {
         };
 
         match action_id {
-            "execute" => self.execute_url(url),
+            "execute" => self.execute_url(url).await,
             _ => Err(ExecutionError::UnsupportedAction(
                 TargetType::Url,
                 action_id.to_string(),

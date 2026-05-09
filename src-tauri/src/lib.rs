@@ -78,7 +78,9 @@ static IS_EXITING: AtomicBool = AtomicBool::new(false);
 pub async fn do_cleanup_before_exit() {
     info!("执行退出前清理工作...");
     let state = ServiceLocator::get_state();
-    state.get_config_manager().save_to_storage();
+    if let Err(e) = state.get_config_manager().save_to_storage() {
+        warn!("退出前配置保存失败: {}", e);
+    }
     log_application_shutdown();
     info!("退出前清理工作完成");
 }
@@ -536,7 +538,7 @@ async fn init_plugin_system(state: &Arc<AppState>) {
     // Phase B: 加载持久化配置
     // ========================================================================
     info!("=== Phase B: 加载持久化配置 ===");
-    if let Err(e) = config_manager.load_from_storage(true) {
+    if let Err(e) = config_manager.load_from_storage(true).await {
         warn!("加载持久化配置失败: {}", e);
     }
 

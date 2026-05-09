@@ -326,6 +326,6 @@ plugin/
 ---
 
 详细设计请参考：
-- [PLUGIN_SDK_DESIGN.md](file:///c:/Users/ghost/ZeroLaunch/ZeroLaunch-rs/PLUGIN_SDK_DESIGN.md) - Plugin SDK 详细设计
-- [CONFIG_SYSTEM_DESIGN.md](file:///c:/Users/ghost/ZeroLaunch/ZeroLaunch-rs/CONFIG_SYSTEM_DESIGN.md) - 配置系统详细设计
-- [DESIGN_DECISIONS.md](file:///c:/Users/ghost/ZeroLaunch/ZeroLaunch-rs/DESIGN_DECISIONS.md) - 设计决策记录
+- [plugin-sdk.md](plugin-sdk.md) - Plugin SDK 详细设计
+- [config-system.md](config-system.md) - 配置系统详细设计
+- [decisions.md](decisions.md) - 设计决策记录

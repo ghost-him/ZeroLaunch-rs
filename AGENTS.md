@@ -13,6 +13,8 @@ plugin_system/→ 插件框架（SessionRouter, PluginRegistry, CandidatePipelin
 
 **依赖方向**: `sdk/ ← core/ ← plugin/ ← plugin_system/` — 禁止反向依赖。
 
+**前后端边界**: 前端负责数据显示与用户交互，后端负责数据持久化与逻辑控制。前端是"薄"展示层，所有业务逻辑、平台操作必须通过 IPC 委托后端。
+
 ## 关键文件
 
 | 类别             | 路径                                            |

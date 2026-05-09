@@ -12,6 +12,15 @@
   --font-size-sm: 12px;
   --font-size-base: 14px;
   --font-size-lg: 16px;
+
+  /* Layout dimensions — single source of truth for JS window sizing */
+  --window-width: 600px;
+  --search-bar-height: 60px;
+  --result-item-height: 40px;
+  --footer-height: 32px;
+  --window-border-width: 1px;
+  --max-visible-results: 8;
+  --min-content-height: 80px;
 }
 
 html.dark {
@@ -31,8 +40,9 @@ html.dark {
   box-sizing: border-box;
 }
 
-html, body {
-  height: 100%;
+html,
+body {
+  min-height: 100vh;
   overflow: hidden;
   background: transparent;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -43,6 +53,7 @@ html, body {
 }
 
 #app {
-  height: 100%;
   width: 100%;
+  display: flex;
+  flex-direction: column;
 }

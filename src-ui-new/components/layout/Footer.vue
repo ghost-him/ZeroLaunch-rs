@@ -57,6 +57,8 @@ const openSettingsWindow = () => openSettings()
 
 <style scoped>
 .footer {
+  height: var(--footer-height);
+  flex-shrink: 0;
   display: flex;
   justify-content: space-between;
   align-items: center;

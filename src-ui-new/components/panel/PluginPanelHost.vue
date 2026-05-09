@@ -38,6 +38,10 @@ const panelProps = computed(() => ({
 
 <style scoped>
 .plugin-panel-host {
+  flex: 1;
+  min-height: 0;
+  max-height: 420px; /* 默认最大高度 */
+  overflow-y: auto;
   padding: 0;
 }
 

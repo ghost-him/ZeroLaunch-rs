@@ -1,19 +1,19 @@
-import { watch } from 'vue'
+import { watch, onMounted, onUnmounted } from 'vue'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { LogicalSize } from '@tauri-apps/api/dpi'
 import { useSearchStore } from '../stores/search-store'
 
-const BASE_WIDTH = 600
-const SEARCH_BAR_HEIGHT = 60
-const RESULT_ITEM_HEIGHT = 40
-const FOOTER_HEIGHT = 32
-const MAX_VISIBLE_RESULTS = 8
-const MIN_CONTENT_HEIGHT = 80
+function readCssProp(name: string): number {
+  return parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name).trim()) || 0
+}
 
 export function useWindowResize() {
   const store = useSearchStore()
   const appWindow = getCurrentWindow()
+  let observer: ResizeObserver | null = null
+  let lastHeight = 0
 
+  // 当内容产生变化时，等待 DOM 渲染后测算尺寸
   watch(
     () => ({
       mode: store.sessionMode,
@@ -21,36 +21,51 @@ export function useWindowResize() {
       resultCount: store.results.length,
       keepSearchBar: store.keepSearchBar,
     }),
-    async ({ mode, isIdle, resultCount, keepSearchBar }) => {
-      let height: number
+    async () => {
+      const frame = document.querySelector('.window-frame')
+      if (!frame) return
 
-      if (isIdle && mode === 'none') {
-        // Idle: compact, search bar only (no EmptyState, no Footer)
-        height = SEARCH_BAR_HEIGHT
-      } else if (mode === 'plugin' && !keepSearchBar) {
-        // Immersive plugin mode: let plugin control the height
-        height = 420
-      } else if (mode === 'search' || (mode === 'plugin' && keepSearchBar)) {
-        // Search results or plugin with search bar
-        const visibleResults = Math.min(resultCount, MAX_VISIBLE_RESULTS)
-        const resultsHeight = visibleResults > 0
-          ? visibleResults * RESULT_ITEM_HEIGHT + 16
-          : MIN_CONTENT_HEIGHT
-        height = SEARCH_BAR_HEIGHT + resultsHeight + FOOTER_HEIGHT
-      } else if (!isIdle) {
-        // Transition state: query sent but mode not yet updated
-        // Reserve space for Footer so it appears immediately
-        height = SEARCH_BAR_HEIGHT + MIN_CONTENT_HEIGHT + FOOTER_HEIGHT
-      } else {
-        height = SEARCH_BAR_HEIGHT
-      }
+      const rect = frame.getBoundingClientRect()
+      const windowWidth = readCssProp('--window-width') || 600
+
+      if (Math.abs(rect.height - lastHeight) < 0.5) return
+      lastHeight = rect.height
 
       try {
-        await appWindow.setSize(new LogicalSize(BASE_WIDTH, height))
+        await appWindow.setSize(new LogicalSize(windowWidth, rect.height))
       } catch (e) {
         console.warn('[useWindowResize] Failed to resize window:', e)
       }
     },
-    { immediate: true },
+    { immediate: true, flush: 'post' }
   )
+
+  onMounted(() => {
+    const frame = document.querySelector('.window-frame')
+    if (!frame) return
+
+    // 监听可能由其他途径引起的高度变化（如插件面板异步加载数据等）
+    observer = new ResizeObserver(async (entries) => {
+      const height = entries[entries.length - 1].borderBoxSize?.[0]?.blockSize
+        ?? entries[entries.length - 1].contentRect.height + (readCssProp('--window-border-width') * 2)
+      const windowWidth = readCssProp('--window-width') || 600
+
+      if (Math.abs(height - lastHeight) < 0.5) return
+      lastHeight = height
+
+      try {
+        await appWindow.setSize(new LogicalSize(windowWidth, height))
+      } catch (e) {
+        console.warn('[useWindowResize] Failed to resize from observer:', e)
+      }
+    })
+
+    observer.observe(frame, { box: 'border-box' })
+  })
+
+  onUnmounted(() => {
+    if (observer) {
+      observer.disconnect()
+    }
+  })
 }

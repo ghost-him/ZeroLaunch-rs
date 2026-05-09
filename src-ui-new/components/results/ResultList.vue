@@ -1,5 +1,5 @@
 <template>
-  <div class="result-list" :style="{ maxHeight: maxHeight + 'px' }">
+  <div class="result-list">
     <ResultItem
       v-for="(item, index) in results"
       :key="item.id"
@@ -23,7 +23,6 @@ import type { ListItem } from '../../bridge/contract'
 defineProps<{
   results: ListItem[]
   selectedIndex: number
-  maxHeight?: number
 }>()
 
 const emit = defineEmits<{
@@ -43,6 +42,9 @@ function onItemDblClick(index: number) {
 
 <style scoped>
 .result-list {
+  flex: 1;
+  min-height: calc(var(--result-item-height) * 1);
+  max-height: calc(var(--result-item-height) * var(--max-visible-results));
   overflow-y: auto;
   padding: 0 8px;
 }

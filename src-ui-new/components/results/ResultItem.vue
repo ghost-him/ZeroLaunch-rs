@@ -81,6 +81,8 @@ function onContextMenu(e: MouseEvent) {
 
 <style scoped>
 .result-item {
+  height: var(--result-item-height);
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 10px;

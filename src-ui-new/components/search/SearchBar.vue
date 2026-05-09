@@ -45,6 +45,8 @@ onMounted(async () => {
 
 <style scoped>
 .search-bar-wrapper {
+  height: var(--search-bar-height);
+  flex-shrink: 0;
   padding: 12px 16px 8px;
 }
 

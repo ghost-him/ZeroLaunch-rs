@@ -1,6 +1,6 @@
 # AGENTS.md — AI 快速导航
 
-ZeroLaunch-rs 是基于 Bun + Tauri 2.x + Vue 3 + Native UI 的 Windows 快捷启动器。新系统采用三层架构。
+ZeroLaunch-rs 是基于 Bun + Tauri 2.x + Vue 3 + Naive UI 的 Windows 快捷启动器。新系统采用三层架构。
 
 ## 架构
 

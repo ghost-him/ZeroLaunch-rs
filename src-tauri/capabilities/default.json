@@ -19,6 +19,9 @@
     "core:window:default",
     "core:window:allow-set-size",
     "core:window:allow-start-dragging",
+    "core:window:allow-show",
+    "core:window:allow-set-focus",
+    "core:window:allow-hide",
     "shell:allow-open"
   ]
 }

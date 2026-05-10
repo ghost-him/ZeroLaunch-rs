@@ -34,7 +34,8 @@
   /* Slightly taller for breathing room */
   --footer-height: 48px;
   /* Increased for breathing room */
-  --window-border-width: 0px;
+  --window-border-width: 1px;
+  --window-border-color: var(--border-color);
   /* Cancel physical borders -> soft shadows usually handle it, or we rely on border radius */
   --max-visible-results: 8;
   --min-content-height: 80px;

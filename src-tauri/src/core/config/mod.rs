@@ -3,6 +3,7 @@ pub mod event;
 pub mod manager;
 pub mod models;
 pub mod registry;
+pub mod setting_builders;
 pub mod store;
 
 pub use components::{

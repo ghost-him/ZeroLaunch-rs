@@ -4,7 +4,7 @@
       ref="inputRef"
       v-model:value="inputText"
       type="text"
-      placeholder="Hello, ZeroLaunch! ヾ(≧▽≦*)o"
+      :placeholder="themeStore.searchBarPlaceholder"
       :autofocus="true"
       size="large"
       @update:value="onInput"
@@ -19,10 +19,12 @@ import { ref, onMounted, nextTick } from 'vue'
 import { NInput } from 'naive-ui'
 import { useSearch } from '../../composables/useSearch'
 import { useSettings } from '../../composables/useSettings'
+import { useThemeStore } from '../../stores/theme-store'
 import type { CtxItem } from '../layout/ContextMenu.vue'
 
 const { handleInput } = useSearch()
 const { openSettings } = useSettings()
+const themeStore = useThemeStore()
 
 const inputText = ref('')
 const inputRef = ref<InstanceType<typeof NInput> | null>(null)
@@ -87,5 +89,6 @@ defineExpose({ focusInput })
   --n-height: 40px !important;
   --n-caret-color: var(--accent-color) !important;
   --n-padding-left: 0 !important; /* Flush with wrapper padding */
+  --n-font-family: var(--search-bar-font-family) !important;
 }
 </style>

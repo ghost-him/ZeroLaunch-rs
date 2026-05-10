@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { darkTheme, type GlobalTheme } from 'naive-ui'
 import { configGetSettings, configApplySettings } from '@/bridge/commands'
+import { applyAppearanceSettings, extractPlaceholder } from '@/utils/appearance'
 
 export type ThemeMode = 'system' | 'light' | 'dark'
 export type Locale = 'zh-Hans' | 'en'
@@ -20,6 +21,9 @@ export const useThemeStore = defineStore('theme', () => {
   const naiveTheme = ref<GlobalTheme | null>(null)
   const locale = ref<Locale>('zh-Hans')
 
+  /** 搜索栏占位符文本（响应式，直接绑定到 SearchBar 的 placeholder 属性） */
+  const searchBarPlaceholder = ref('Hello, ZeroLaunch! ヾ(≧▽≦*)o')
+
   let systemMediaQuery: MediaQueryList | null = null
 
   function onSystemChange(e: MediaQueryListEvent) {
@@ -33,7 +37,15 @@ export const useThemeStore = defineStore('theme', () => {
     const dark = themeMode.value === 'dark' || (themeMode.value === 'system' && systemIsDark.value)
     naiveTheme.value = dark ? darkTheme : null
     document.documentElement.classList.toggle('dark', dark)
+
+    // 主题切换时重新应用配色 CSS 变量
+    if (Object.keys(currentAppearanceSettings).length > 0) {
+      applyAppearanceSettings(currentAppearanceSettings)
+    }
   }
+
+  /** 当前内存中的外观配置缓存（用于主题切换时重新应用配色） */
+  let currentAppearanceSettings: Record<string, unknown> = {}
 
   function setTheme(mode: ThemeMode) {
     themeMode.value = mode
@@ -55,7 +67,7 @@ export const useThemeStore = defineStore('theme', () => {
     }, 100)
   }
 
-  /** 从后端加载外观配置（主题 + 语言），在应用挂载前调用 */
+  /** 从后端加载外观配置（主题 + 语言 + 全部外观设置），在应用挂载前调用 */
   async function loadFromBackend(): Promise<Locale> {
     let lang: Locale = 'zh-Hans'
     try {
@@ -67,6 +79,13 @@ export const useThemeStore = defineStore('theme', () => {
         lang = 'en'
       }
       locale.value = lang
+
+      // 应用外观 CSS 变量并同步响应式状态
+      if (s) {
+        currentAppearanceSettings = s
+        applyAppearanceSettings(s)
+        searchBarPlaceholder.value = extractPlaceholder(s)
+      }
     } catch {
       console.warn('[theme-store] Failed to load appearance config, using defaults')
       themeMode.value = 'system'
@@ -82,15 +101,23 @@ export const useThemeStore = defineStore('theme', () => {
   /** 应用跨窗口同步的外观配置（不写回后端，避免死循环） */
   function applyRemoteSettings(settings: Record<string, unknown>) {
     const t = (settings.theme as ThemeMode | undefined) ?? themeMode.value
-    if (t !== themeMode.value) {
+    const themeChanged = t !== themeMode.value
+    if (themeChanged) {
       themeMode.value = t
       applyNaiveTheme()
     }
     const l = settings.language === 'en' ? 'en' : 'zh-Hans'
-    if (l !== locale.value) {
+    const langChanged = l !== locale.value
+    if (langChanged) {
       locale.value = l
     }
-    return { themeChanged: t !== themeMode.value, langChanged: l !== locale.value, newLang: l }
+
+    // 重新应用外观 CSS 变量并同步响应式状态
+    currentAppearanceSettings = settings
+    applyAppearanceSettings(settings)
+    searchBarPlaceholder.value = extractPlaceholder(settings)
+
+    return { themeChanged, langChanged, newLang: l }
   }
 
   function stopSystemListener() {
@@ -101,6 +128,7 @@ export const useThemeStore = defineStore('theme', () => {
     themeMode,
     naiveTheme,
     locale,
+    searchBarPlaceholder,
     setTheme,
     loadFromBackend,
     applyRemoteSettings,

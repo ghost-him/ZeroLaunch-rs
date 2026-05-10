@@ -64,7 +64,7 @@ useSearch()
 const notification = useNotification()
 
 useKeyboard()
-useWindowResize()
+const { resizeWindow } = useWindowResize()
 
 // ---- 集中管理的右键菜单状态 ----
 const ctxVisible = ref(false)
@@ -108,6 +108,10 @@ onMounted(async () => {
     // DataSource/KeywordOptimizer 变更时刷新候选项
     if (payload.componentType === 'DataSource' || payload.componentType === 'KeywordOptimizer') {
       searchStore.refreshCandidates()
+    }
+    // 外观配置变更时重新计算窗口尺寸（宽度/高度/字体可能变化）
+    if (payload.componentId === 'appearance') {
+      nextTick(() => resizeWindow())
     }
   })
 

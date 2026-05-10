@@ -100,6 +100,7 @@ function onContextMenu(e: MouseEvent) {
 
 .item-title {
   font-size: var(--font-size-lg);
+  font-family: var(--result-item-font-family);
   font-weight: 500;
   color: var(--text-primary);
   white-space: nowrap;
@@ -110,6 +111,7 @@ function onContextMenu(e: MouseEvent) {
 
 .item-subtitle {
   font-size: var(--font-size-md);
+  font-family: var(--result-item-font-family);
   color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;

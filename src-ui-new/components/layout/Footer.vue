@@ -66,6 +66,7 @@ const openSettingsWindow = () => openSettings()
   /* Remove hard dividing line */
   border-top: 1px solid transparent; 
   font-size: var(--font-size-sm);
+  font-family: var(--footer-font-family);
   color: var(--text-secondary);
   gap: 12px;
   background: var(--bg-primary); /* Ensure background is solid */

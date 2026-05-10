@@ -1,4 +1,5 @@
-use crate::core::types::setting_def::{FieldDefinition, SettingDefinition, SettingType};
+use crate::core::config::setting_builders::{bool_field, num_field, text_field};
+use crate::core::types::setting_def::SettingDefinition;
 use crate::core::types::{ComponentType, ConfigError, Configurable};
 use crate::sdk::host_api::HostApi;
 use parking_lot::RwLock;
@@ -41,55 +42,33 @@ impl Configurable for InstallationMonitorConfigComponent {
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {
         vec![
-            SettingDefinition {
-                field: FieldDefinition {
-                    key: "enable_installation_monitor".to_string(),
-                    label: "启用安装监控".to_string(),
-                    description: "启用后，自动监控文件系统变化（如开始菜单），检测程序的安装和卸载"
-                        .to_string(),
-                    setting_type: SettingType::Boolean,
-                    default_value: serde_json::json!(false),
-                    visible: true,
-                    editable: true,
-                },
-                group: Some("安装监控".to_string()),
-                order: 0,
-                config_action: None,
-            },
-            SettingDefinition {
-                field: FieldDefinition {
-                    key: "monitor_debounce_secs".to_string(),
-                    label: "去抖等待时间（秒）".to_string(),
-                    description: "检测到文件变化后等待的时间，避免频繁触发刷新".to_string(),
-                    setting_type: SettingType::Number {
-                        min: Some(1.0),
-                        max: Some(60.0),
-                        step: Some(1.0),
-                    },
-                    default_value: serde_json::json!(5),
-                    visible: true,
-                    editable: true,
-                },
-                group: Some("安装监控".to_string()),
-                order: 1,
-                config_action: None,
-            },
-            SettingDefinition {
-                field: FieldDefinition {
-                    key: "monitor_watch_paths".to_string(),
-                    label: "监控路径".to_string(),
-                    description:
-                        "要监控的目录路径列表（每行一个），留空使用平台默认路径（Windows 开始菜单）"
-                            .to_string(),
-                    setting_type: SettingType::Text,
-                    default_value: serde_json::json!(""),
-                    visible: true,
-                    editable: true,
-                },
-                group: Some("安装监控".to_string()),
-                order: 2,
-                config_action: None,
-            },
+            bool_field(
+                "enable_installation_monitor",
+                "启用安装监控",
+                "启用后，自动监控文件系统变化（如开始菜单），检测程序的安装和卸载",
+                "安装监控",
+                0,
+                false,
+            ),
+            num_field(
+                "monitor_debounce_secs",
+                "去抖等待时间（秒）",
+                "检测到文件变化后等待的时间，避免频繁触发刷新",
+                "安装监控",
+                1,
+                5.0,
+                1.0,
+                60.0,
+                1.0,
+            ),
+            text_field(
+                "monitor_watch_paths",
+                "监控路径",
+                "要监控的目录路径列表（每行一个），留空使用平台默认路径（Windows 开始菜单）",
+                "安装监控",
+                2,
+                "",
+            ),
         ]
     }
 

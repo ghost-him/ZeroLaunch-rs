@@ -4,7 +4,6 @@ use crate::core::config::setting_builders::{
 use crate::core::types::setting_def::SettingDefinition;
 use crate::core::types::{ComponentType, ConfigError, Configurable};
 use parking_lot::RwLock;
-use serde_json::json;
 use tracing::info;
 
 /// 外观配置组件。
@@ -22,58 +21,8 @@ impl Default for AppearanceConfigComponent {
 impl AppearanceConfigComponent {
     pub fn new() -> Self {
         Self {
-            settings: RwLock::new(Self::default_settings_value()),
+            settings: RwLock::new(serde_json::Value::Null),
         }
-    }
-
-    fn default_settings_value() -> serde_json::Value {
-        json!({
-            // 主题 & 语言
-            "theme": "system",
-            "language": "zh-Hans",
-
-            // 搜索栏
-            "searchBarHeight": 72,
-            "searchBarFontRatio": 0.56,
-            "searchBarFontFamily": "",
-            "searchBarPlaceholder": "Hello, ZeroLaunch!",
-
-            // 结果栏
-            "resultItemHeight": 54,
-            "resultItemFontRatio": 0.30,
-            "resultItemSubtitleFontRatio": 0.24,
-            "resultItemFontFamily": "",
-            "maxVisibleResults": 8,
-            "showLaunchCommand": false,
-
-            // 底栏
-            "footerHeight": 48,
-            "footerFontRatio": 0.25,
-            "footerFontFamily": "",
-
-            // 窗口
-            "windowWidth": 800,
-            "windowCornerRadius": 12,
-            "verticalPositionRatio": 0.28,
-
-            // 浅色配色
-            "bgPrimary": "#ffffff",
-            "bgSecondary": "#f5f5f5",
-            "textPrimary": "#1a1a1a",
-            "textSecondary": "#666666",
-            "borderColor": "#e5e5e5",
-            "accentColor": "#2080f0",
-            "hoverColor": "rgba(0,0,0,0.04)",
-
-            // 深色配色
-            "darkBgPrimary": "#1a1a1a",
-            "darkBgSecondary": "#2a2a2a",
-            "darkTextPrimary": "#e5e5e5",
-            "darkTextSecondary": "#999999",
-            "darkBorderColor": "#333333",
-            "darkAccentColor": "#4098fc",
-            "darkHoverColor": "rgba(255,255,255,0.06)"
-        })
     }
 }
 

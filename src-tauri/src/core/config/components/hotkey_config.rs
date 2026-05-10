@@ -1,4 +1,5 @@
-use crate::core::types::setting_def::{FieldDefinition, SettingDefinition, SettingType};
+use crate::core::config::setting_builders::{bool_field, text_field};
+use crate::core::types::setting_def::SettingDefinition;
 use crate::core::types::{ComponentType, ConfigError, Configurable};
 use crate::sdk::host_api::HostApi;
 use crate::sdk::hotkey::types::{Hotkey, HotkeyConfig, HotkeyRegistration};
@@ -124,50 +125,22 @@ impl Configurable for HotkeyConfigComponent {
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {
         vec![
-            SettingDefinition {
-                field: FieldDefinition {
-                    key: "open_search_bar".to_string(),
-                    label: "打开搜索栏".to_string(),
-                    description: "全局快捷键，用于显示/隐藏搜索栏".to_string(),
-                    setting_type: SettingType::Text,
-                    default_value: serde_json::json!("Alt+Space"),
-                    visible: true,
-                    editable: true,
-                },
-                group: Some("全局快捷键".to_string()),
-                order: 0,
-                config_action: None,
-            },
-            SettingDefinition {
-                field: FieldDefinition {
-                    key: "switch_to_everything".to_string(),
-                    label: "切换 Everything 搜索".to_string(),
-                    description: "切换到 Everything 搜索模式的快捷键".to_string(),
-                    setting_type: SettingType::Text,
-                    default_value: serde_json::json!("Ctrl+E"),
-                    visible: true,
-                    editable: true,
-                },
-                group: Some("全局快捷键".to_string()),
-                order: 1,
-                config_action: None,
-            },
-            SettingDefinition {
-                field: FieldDefinition {
-                    key: "double_click_ctrl".to_string(),
-                    label: "双击 Ctrl 打开搜索栏".to_string(),
-                    description:
-                        "启用后，快速双击 Ctrl 键可打开搜索栏（此时将忽略打开搜索栏的快捷键）"
-                            .to_string(),
-                    setting_type: SettingType::Boolean,
-                    default_value: serde_json::json!(false),
-                    visible: true,
-                    editable: true,
-                },
-                group: Some("全局快捷键".to_string()),
-                order: 2,
-                config_action: None,
-            },
+            text_field(
+                "open_search_bar",
+                "打开搜索栏",
+                "全局快捷键，用于显示/隐藏搜索栏",
+                "全局快捷键",
+                0,
+                "Alt+Space",
+            ),
+            bool_field(
+                "double_click_ctrl",
+                "双击 Ctrl 打开搜索栏",
+                "启用后，快速双击 Ctrl 键可打开搜索栏（此时将忽略打开搜索栏的快捷键）",
+                "全局快捷键",
+                2,
+                false,
+            ),
         ]
     }
 

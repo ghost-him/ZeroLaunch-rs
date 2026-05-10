@@ -1,4 +1,5 @@
-use crate::core::types::setting_def::{FieldDefinition, SettingDefinition, SettingType};
+use crate::core::config::setting_builders::{path_field, select_field, text_field};
+use crate::core::types::setting_def::{PathMode, SettingDefinition};
 use crate::core::types::{ComponentType, ConfigError, Configurable};
 use crate::sdk::host_api::HostApi;
 use crate::sdk::storage::local_storage::LocalStorageService;
@@ -44,94 +45,56 @@ impl Configurable for StorageConfigComponent {
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {
         vec![
-            SettingDefinition {
-                field: FieldDefinition {
-                    key: "storage_destination".to_string(),
-                    label: "存储后端".to_string(),
-                    description: "选择配置文件的存储方式".to_string(),
-                    setting_type: SettingType::Select {
-                        options: vec!["Local".to_string(), "WebDAV".to_string()],
-                    },
-                    default_value: serde_json::json!("Local"),
-                    visible: true,
-                    editable: true,
-                },
-                group: Some("存储设置".to_string()),
-                order: 0,
-                config_action: None,
-            },
-            SettingDefinition {
-                field: FieldDefinition {
-                    key: "custom_save_path".to_string(),
-                    label: "自定义保存路径".to_string(),
-                    description: "覆盖默认的应用数据目录（留空使用默认路径）".to_string(),
-                    setting_type: SettingType::Path {
-                        mode: crate::core::types::setting_def::PathMode::Directory,
-                    },
-                    default_value: serde_json::json!(""),
-                    visible: true,
-                    editable: true,
-                },
-                group: Some("存储设置".to_string()),
-                order: 1,
-                config_action: None,
-            },
-            SettingDefinition {
-                field: FieldDefinition {
-                    key: "webdav_host_url".to_string(),
-                    label: "WebDAV 服务器地址".to_string(),
-                    description: "WebDAV 服务器的完整 URL".to_string(),
-                    setting_type: SettingType::Text,
-                    default_value: serde_json::json!(""),
-                    visible: true,
-                    editable: true,
-                },
-                group: Some("WebDAV 配置".to_string()),
-                order: 2,
-                config_action: None,
-            },
-            SettingDefinition {
-                field: FieldDefinition {
-                    key: "webdav_account".to_string(),
-                    label: "WebDAV 账号".to_string(),
-                    description: "WebDAV 服务的认证账号".to_string(),
-                    setting_type: SettingType::Text,
-                    default_value: serde_json::json!(""),
-                    visible: true,
-                    editable: true,
-                },
-                group: Some("WebDAV 配置".to_string()),
-                order: 3,
-                config_action: None,
-            },
-            SettingDefinition {
-                field: FieldDefinition {
-                    key: "webdav_password".to_string(),
-                    label: "WebDAV 密码".to_string(),
-                    description: "WebDAV 服务的认证密码".to_string(),
-                    setting_type: SettingType::Text,
-                    default_value: serde_json::json!(""),
-                    visible: true,
-                    editable: true,
-                },
-                group: Some("WebDAV 配置".to_string()),
-                order: 4,
-                config_action: None,
-            },
-            SettingDefinition {
-                field: FieldDefinition {
-                    key: "webdav_destination_dir".to_string(),
-                    label: "WebDAV 远程目录".to_string(),
-                    description: "WebDAV 服务器上的目标存储目录".to_string(),
-                    setting_type: SettingType::Text,
-                    default_value: serde_json::json!("/ZeroLaunch-rs/"),
-                    visible: true,
-                    editable: true,
-                },
-                group: Some("WebDAV 配置".to_string()),
-                order: 5,
-                config_action: None,
-            },
+            select_field(
+                "storage_destination",
+                "存储后端",
+                "选择配置文件的存储方式",
+                "存储设置",
+                0,
+                vec!["Local", "WebDAV"],
+                "Local",
+            ),
+            path_field(
+                "custom_save_path",
+                "自定义保存路径",
+                "覆盖默认的应用数据目录（留空使用默认路径）",
+                "存储设置",
+                1,
+                PathMode::Directory,
+                "",
+            ),
+            text_field(
+                "webdav_host_url",
+                "WebDAV 服务器地址",
+                "WebDAV 服务器的完整 URL",
+                "WebDAV 配置",
+                2,
+                "",
+            ),
+            text_field(
+                "webdav_account",
+                "WebDAV 账号",
+                "WebDAV 服务的认证账号",
+                "WebDAV 配置",
+                3,
+                "",
+            ),
+            text_field(
+                "webdav_password",
+                "WebDAV 密码",
+                "WebDAV 服务的认证密码",
+                "WebDAV 配置",
+                4,
+                "",
+            ),
+            text_field(
+                "webdav_destination_dir",
+                "WebDAV 远程目录",
+                "WebDAV 服务器上的目标存储目录",
+                "WebDAV 配置",
+                5,
+                "/ZeroLaunch-rs/",
+            ),
         ]
     }
 

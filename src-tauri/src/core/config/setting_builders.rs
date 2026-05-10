@@ -4,7 +4,7 @@
 //! 这些函数覆盖 90% 的简单字段场景。
 //! 复杂嵌套结构（如 Array + Object items、带 config_action 的字段）建议直接手写。
 
-use crate::core::types::setting_def::{FieldDefinition, SettingDefinition, SettingType};
+use crate::core::types::setting_def::{FieldDefinition, PathMode, SettingDefinition, SettingType};
 use serde_json::json;
 
 #[allow(clippy::too_many_arguments)]
@@ -101,6 +101,32 @@ pub fn color_field(
             label: label.to_string(),
             description: desc.to_string(),
             setting_type: SettingType::Color,
+            default_value: json!(default),
+            visible: true,
+            editable: true,
+        },
+        group: Some(group.to_string()),
+        order,
+        config_action: None,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn path_field(
+    key: &str,
+    label: &str,
+    desc: &str,
+    group: &str,
+    order: u32,
+    mode: PathMode,
+    default: &str,
+) -> SettingDefinition {
+    SettingDefinition {
+        field: FieldDefinition {
+            key: key.to_string(),
+            label: label.to_string(),
+            description: desc.to_string(),
+            setting_type: SettingType::Path { mode },
             default_value: json!(default),
             visible: true,
             editable: true,

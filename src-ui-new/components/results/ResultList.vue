@@ -9,6 +9,7 @@
       @click="onItemClick(index)"
       @dblclick="onItemDblClick(index)"
       @context-action="(actionId: string) => emit('context-action', index, actionId)"
+      @contextmenu="(x: number, y: number, items: CtxItem[]) => emit('contextmenu', x, y, items)"
     />
     <div v-if="results.length === 0" class="no-results">
       无结果
@@ -19,6 +20,7 @@
 <script setup lang="ts">
 import ResultItem from './ResultItem.vue'
 import type { ListItem } from '../../bridge/contract'
+import type { CtxItem } from '../layout/ContextMenu.vue'
 
 defineProps<{
   results: ListItem[]
@@ -29,6 +31,7 @@ const emit = defineEmits<{
   (e: 'select', index: number): void
   (e: 'confirm', index: number, actionIdx?: number): void
   (e: 'context-action', index: number, actionId: string): void
+  (e: 'contextmenu', x: number, y: number, items: CtxItem[]): void
 }>()
 
 function onItemClick(index: number) {

@@ -1,9 +1,12 @@
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
-import { cursorPosition, monitorFromPoint } from '@tauri-apps/api/window'
+import { cursorPosition, monitorFromPoint, getCurrentWindow } from '@tauri-apps/api/window'
 import { PhysicalPosition } from '@tauri-apps/api/dpi'
 
 export function useSettings() {
   async function openSettings() {
+    // 先隐藏搜索主窗口，否则 alwaysOnTop 会使设置窗口被遮挡
+    await getCurrentWindow().hide()
+
     const win = await WebviewWindow.getByLabel('setting_window')
     if (!win) return
 

@@ -22,22 +22,15 @@
       <div class="item-subtitle" v-if="item.subtitle">{{ item.subtitle }}</div>
     </div>
   </div>
-  <ContextMenu
-    :visible="ctxVisible"
-    :x="ctxX"
-    :y="ctxY"
-    :items="ctxItems"
-    @close="ctxVisible = false"
-  />
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import type { Component } from 'vue'
 import type { ListItem } from '../../bridge/contract'
 import { usePluginStore } from '../../stores/plugin-store'
 import IconDisplay from '../common/IconDisplay.vue'
-import ContextMenu from '../layout/ContextMenu.vue'
+import type { CtxItem } from '../layout/ContextMenu.vue'
 
 const props = defineProps<{
   item: ListItem
@@ -49,6 +42,7 @@ const emit = defineEmits<{
   (e: 'click'): void
   (e: 'dblclick'): void
   (e: 'context-action', actionId: string): void
+  (e: 'contextmenu', x: number, y: number, items: CtxItem[]): void
 }>()
 
 const pluginStore = usePluginStore()
@@ -57,25 +51,13 @@ const customRenderer = computed<Component | null>(() =>
   pluginStore.getResultItemComponent(props.item.targetType),
 )
 
-// ---- Context Menu ----
-const ctxVisible = ref(false)
-const ctxX = ref(0)
-const ctxY = ref(0)
-
-const ctxItems = computed(() => {
-  return props.item.actions.map((a) => ({
+function onContextMenu(e: MouseEvent) {
+  const items: CtxItem[] = props.item.actions.map((a) => ({
     key: a.id,
     label: a.label,
-    action: () => {
-      emit('context-action', a.id)
-    },
+    action: () => emit('context-action', a.id),
   }))
-})
-
-function onContextMenu(e: MouseEvent) {
-  ctxX.value = e.clientX
-  ctxY.value = e.clientY
-  ctxVisible.value = true
+  emit('contextmenu', e.clientX, e.clientY, items)
 }
 </script>
 

@@ -88,6 +88,7 @@ const openSettingsWindow = () => openSettings()
   align-items: center;
   flex-shrink: 1;
   overflow: hidden;
+  margin-left: auto;
 }
 
 .action-btn {

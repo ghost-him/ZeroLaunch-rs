@@ -1,5 +1,5 @@
 <template>
-  <div class="search-bar-wrapper">
+  <div class="search-bar-wrapper" @contextmenu.prevent="onContextMenu">
     <n-input
       ref="inputRef"
       v-model:value="inputText"
@@ -18,8 +18,11 @@
 import { ref, onMounted, nextTick } from 'vue'
 import { NInput } from 'naive-ui'
 import { useSearch } from '../../composables/useSearch'
+import { useSettings } from '../../composables/useSettings'
+import type { CtxItem } from '../layout/ContextMenu.vue'
 
 const { handleInput } = useSearch()
+const { openSettings } = useSettings()
 
 const inputText = ref('')
 const inputRef = ref<InstanceType<typeof NInput> | null>(null)
@@ -29,10 +32,33 @@ function onInput(value: string) {
   handleInput(value)
 }
 
+// ---- 右键菜单（事件委托给 SearchView） ----
+const emit = defineEmits<{
+  (e: 'contextmenu', x: number, y: number, items: CtxItem[]): void
+}>()
+
+function onContextMenu(e: MouseEvent) {
+  const items: CtxItem[] = [
+    {
+      key: 'open-settings',
+      label: '打开设置',
+      action: () => openSettings(),
+    },
+  ]
+  emit('contextmenu', e.clientX, e.clientY, items)
+}
+
+// 暴露 focusInput 方法供外部恢复焦点
+function focusInput() {
+  inputRef.value?.focus()
+}
+
 onMounted(async () => {
   await nextTick()
   inputRef.value?.focus()
 })
+
+defineExpose({ focusInput })
 </script>
 
 <style scoped>

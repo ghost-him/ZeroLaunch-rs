@@ -5,6 +5,15 @@
   --text-secondary: #666666;
   --border-color: #e5e5e5;
   --accent-color: #2080f0;
+
+  /* 设置页专用别名 */
+  --bg-color: var(--bg-primary);
+  --bg-color-secondary: var(--bg-secondary);
+  --text-color: var(--text-primary);
+  --text-color-secondary: var(--text-secondary);
+  --primary-color: var(--accent-color);
+  --primary-color-alpha: rgba(32, 128, 240, 0.1);
+  --hover-color: rgba(0, 0, 0, 0.04);
   --radius-sm: 6px;
   --radius-md: 10px;
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
@@ -30,6 +39,15 @@ html.dark {
   --text-secondary: #999999;
   --border-color: #333333;
   --accent-color: #4098fc;
+
+  /* 设置页专用别名 */
+  --bg-color: var(--bg-primary);
+  --bg-color-secondary: var(--bg-secondary);
+  --text-color: var(--text-primary);
+  --text-color-secondary: var(--text-secondary);
+  --primary-color: var(--accent-color);
+  --primary-color-alpha: rgba(64, 152, 252, 0.15);
+  --hover-color: rgba(255, 255, 255, 0.06);
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
 }

@@ -2,14 +2,6 @@
   <div class="settings-view">
     <div class="settings-header">
       <h2>{{ $t('settings.title') }}</h2>
-      <n-button text @click="closeWindow">
-        <n-icon :size="18">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="18" y1="6" x2="6" y2="18" />
-            <line x1="6" y1="6" x2="18" y2="18" />
-          </svg>
-        </n-icon>
-      </n-button>
     </div>
 
     <div class="settings-body">
@@ -18,7 +10,6 @@
         :sidebar-items="sidebarItems"
         :selected-id="selectedId"
         @select="onSelectItem"
-        @toggle="onToggleComponent"
       />
 
       <div class="settings-content">
@@ -29,20 +20,46 @@
           <n-text type="error">{{ loadErr }}</n-text>
           <n-button size="small" @click="init">{{ $t('settings.saveFailed') }}</n-button>
         </div>
-        <DynamicForm
-          v-else-if="selectedId && selectedSchema && selectedSettings"
-          :key="selectedId"
-          :schema="selectedSchema"
-          :current-settings="selectedSettings"
-          @reload="onReloadComponent"
-        />
-        <div v-else-if="selectedId === 'about'" class="static-panel">
+        
+        <!-- About -->
+        <div v-else-if="selectedId === 'category_about'" class="static-panel">
           <h3>{{ $t('settings.about') }}</h3>
           <div class="static-row">
             <span>ZeroLaunch-rs</span>
             <n-text depth="3">v0.6.12</n-text>
           </div>
         </div>
+
+        <!-- Dynamic Category Views -->
+        <template v-else-if="selectedCategory">
+          <div class="category-header">
+            <h3>{{ selectedCategory.label }}</h3>
+          </div>
+          
+          <div class="category-scroll-area">
+            <CategoryViewPipeline
+              v-if="selectedCategory.type === 'pipeline' && selectedCategory.components"
+              :components="selectedCategory.components"
+            />
+            <CategoryViewTabs
+              v-else-if="selectedCategory.type === 'tabs' && selectedCategory.components"
+              :components="selectedCategory.components"
+            />
+            <CategoryViewList
+              v-else-if="selectedCategory.type === 'plugin' && selectedCategory.components"
+              :components="selectedCategory.components"
+              :show-toggle="true"
+            />
+            <CategoryViewList
+              v-else-if="selectedCategory.components"
+              :components="selectedCategory.components"
+            />
+            <div v-else class="empty-hint">
+              <n-text depth="3">无可用设置</n-text>
+            </div>
+          </div>
+        </template>
+
         <div v-else class="empty-hint">
           <n-text depth="3">从左侧选择一个组件</n-text>
         </div>
@@ -52,35 +69,46 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { NButton, NIcon, NSpin, NText, useNotification } from 'naive-ui'
-import { getCurrentWindow } from '@tauri-apps/api/window'
+import { ref, computed, onMounted } from 'vue'
+import { NButton, NSpin, NText, useNotification } from 'naive-ui'
 import SettingsSidebar from '../components/settings/SettingsSidebar.vue'
-import DynamicForm from '../components/settings/DynamicForm.vue'
+import CategoryViewList from '../components/settings/CategoryViewList.vue'
+import CategoryViewPipeline from '../components/settings/CategoryViewPipeline.vue'
+import CategoryViewTabs from '../components/settings/CategoryViewTabs.vue'
 import { useConfigStore } from '../stores/config-store'
-import { useSettings } from '../composables/useSettings'
-import { onConfigChanged } from '../bridge/events'
+import { buildSidebarItems } from '../utils/settingsSidebar'
 import { registerErrorHandler } from '../bridge/commands'
 import type { BridgeError } from '../bridge/commands'
-import type { ComponentInfo, ComponentSchema } from '../bridge/contract'
+import type { ComponentInfo } from '../bridge/contract'
 
 const configStore = useConfigStore()
-const { buildSidebarItems } = useSettings()
 const notification = useNotification()
 
 const loading = ref(true)
 const loadErr = ref<string | null>(null)
-const selectedId = ref<string | null>(null)
-const selectedSchema = ref<ComponentSchema | null>(null)
-const selectedSettings = ref<Record<string, unknown> | null>(null)
-
-let unlistenConfig: (() => void) | null = null
+const selectedId = ref<string | null>('category_core')
 
 function getComponentsList(): ComponentInfo[] {
   return Object.values(configStore.components)
 }
 
 const sidebarItems = computed(() => buildSidebarItems(getComponentsList()))
+
+const selectedCategory = computed(() => {
+  if (!selectedId.value) return null
+  
+  // Find in top level
+  for (const item of sidebarItems.value) {
+    if (item.key === selectedId.value) return item
+    
+    // Find in nested plugins
+    if (item.items) {
+      const found = item.items.find(sub => sub.key === selectedId.value)
+      if (found) return found
+    }
+  }
+  return null
+})
 
 async function init() {
   loading.value = true
@@ -94,51 +122,11 @@ async function init() {
   }
 }
 
-async function onSelectItem(itemId: string) {
+function onSelectItem(itemId: string) {
   selectedId.value = itemId
-
-  if (itemId === 'about') {
-    selectedSchema.value = null
-    selectedSettings.value = null
-    return
-  }
-
-  try {
-    const [schema, settings] = await Promise.all([
-      configStore.getSchema(itemId),
-      configStore.getSettings(itemId),
-    ])
-    selectedSchema.value = schema
-    selectedSettings.value = settings as Record<string, unknown>
-  } catch (e) {
-    loadErr.value = String(e)
-  }
-}
-
-async function onToggleComponent(componentId: string, enabled: boolean) {
-  try {
-    await configStore.setEnabled(componentId, enabled)
-  } catch (e) {
-    loadErr.value = String(e)
-  }
-}
-
-async function onReloadComponent() {
-  if (!selectedId.value) return
-  try {
-    const settings = await configStore.getSettings(selectedId.value)
-    selectedSettings.value = settings as Record<string, unknown>
-  } catch (e) {
-    loadErr.value = String(e)
-  }
-}
-
-function closeWindow() {
-  getCurrentWindow().close()
 }
 
 onMounted(async () => {
-  // 注册全局错误处理器（必须在 n-notification-provider 后代中调用）
   registerErrorHandler((error: BridgeError) => {
     notification.error({
       title: error.code,
@@ -148,34 +136,27 @@ onMounted(async () => {
   })
 
   await init()
-
-  unlistenConfig = await onConfigChanged((payload) => {
-    if (payload.componentId === selectedId.value) {
-      onReloadComponent()
-    }
-  })
-})
-
-onUnmounted(() => {
-  unlistenConfig?.()
 })
 </script>
 
 <style scoped>
 .settings-view {
-  height: 100vh;
   display: flex;
   flex-direction: column;
-  background: var(--bg-primary);
-  color: var(--text-primary);
+  height: 100vh;
+  background-color: var(--bg-color);
+  color: var(--text-color);
 }
 
 .settings-header {
+  flex-shrink: 0;
+  height: 48px;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 12px 20px;
+  justify-content: space-between;
+  padding: 0 16px;
   border-bottom: 1px solid var(--border-color);
+  background-color: var(--bg-color-secondary);
 }
 
 .settings-header h2 {
@@ -185,41 +166,52 @@ onUnmounted(() => {
 }
 
 .settings-body {
-  display: flex;
   flex: 1;
+  display: flex;
   overflow: hidden;
 }
 
 .settings-content {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-color);
+  overflow: hidden;
+}
+
+.category-header {
+  padding: 16px 24px 0;
+}
+
+.category-header h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.category-scroll-area {
+  flex: 1;
   overflow-y: auto;
+  padding: 16px 24px 24px;
 }
 
 .loading-state,
 .error-state,
-.empty-hint {
+.empty-hint,
+.static-panel {
+  padding: 32px;
+  height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 100%;
-  gap: 12px;
-}
-
-.static-panel {
-  padding: 24px;
-}
-
-.static-panel h3 {
-  margin: 0 0 16px;
-  font-size: 16px;
-  font-weight: 600;
+  gap: 16px;
 }
 
 .static-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 8px 0;
+  gap: 12px;
 }
 </style>
+

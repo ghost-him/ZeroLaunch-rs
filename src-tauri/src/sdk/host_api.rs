@@ -501,6 +501,26 @@ impl HostApi {
         handle
     }
 
+    // ===== 图标服务（宿主级） =====
+
+    /// 根据 IconRequest 提取图标 PNG 数据（宿主级操作，使用 Full 缓存等级）。
+    /// 供 Bridge 层在构建搜索响应时调用，将图标解析为前端可用的数据。
+    /// 参数：request - 图标请求（路径/网址/扩展名）。
+    /// 返回：PNG 格式图标字节数据，提取失败返回默认图标数据。
+    pub async fn get_icon(&self, request: &IconRequest) -> Vec<u8> {
+        match self
+            .icon_extractor
+            .get_icon(&self.icon_cache, request, CacheLevel::Full)
+            .await
+        {
+            Ok(data) if !data.is_empty() => data,
+            _ => {
+                tracing::warn!("图标提取失败，使用默认图标: {:?}", request);
+                self.icon_extractor.load_default_icon(request).await
+            }
+        }
+    }
+
     /// 更新图标缓存目录路径（宿主级操作，不暴露给插件）。
     /// 参数：new_icon_cache_dir - 新的图标文件缓存目录路径。
     /// 返回：成功返回 Ok(())，失败返回 HostApiError。

@@ -1,6 +1,7 @@
 use crate::core::types::BridgeError;
 use crate::plugin_system::types::{Query, QueryResponse};
 use crate::state::app_state::AppState;
+use base64::{engine::general_purpose::STANDARD, Engine};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::{debug, info};
@@ -64,8 +65,19 @@ pub struct ConfirmPayload {
     pub user_args: Option<Vec<String>>,
 }
 
+/// 将 PNG 图标字节数据转换为前端可直接使用的 base64 data URL。
+/// 参数：png_data - PNG 格式图标字节数据。
+/// 返回：data:image/png;base64,... 格式的字符串，空数据返回空字符串。
+fn icon_to_data_url(png_data: &[u8]) -> String {
+    if png_data.is_empty() {
+        return String::new();
+    }
+    format!("data:image/png;base64,{}", STANDARD.encode(png_data))
+}
+
 /// 通用查询入口。
 /// 前端搜索输入变化时调用此命令，后端通过 SessionRouter 路由到搜索引擎或插件。
+/// 图标会被解析为 base64 data URL，前端 IconDisplay 可直接渲染。
 #[tauri::command]
 pub async fn bridge_query(
     state: tauri::State<'_, Arc<AppState>>,
@@ -86,18 +98,22 @@ pub async fn bridge_query(
 
     match response {
         QueryResponse::List { results } => {
-            let bridge_results: Vec<BridgeSearchResult> = results
-                .into_iter()
-                .map(|item| BridgeSearchResult {
+            let host_api = state.get_host_api();
+
+            // 解析图标：L1 缓存命中率高，几乎零开销；未命中时由 L2 文件缓存兜底
+            let mut bridge_results = Vec::with_capacity(results.len());
+            for item in results {
+                let icon_data = host_api.get_icon(&item.icon).await;
+                bridge_results.push(BridgeSearchResult {
                     id: item.id,
                     title: item.title,
                     subtitle: item.subtitle,
-                    icon: item.icon.value().to_string(),
+                    icon: icon_to_data_url(&icon_data),
                     score: item.score,
                     actions: item.actions.into_iter().map(|a| a.into()).collect(),
                     target_type: item.target_type,
-                })
-                .collect();
+                });
+            }
 
             info!(
                 "[Bridge] 查询完成: '{}' -> {} 个结果",

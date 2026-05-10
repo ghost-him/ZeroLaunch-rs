@@ -22,6 +22,7 @@
     "core:window:allow-show",
     "core:window:allow-set-focus",
     "core:window:allow-hide",
+    "core:window:allow-set-position",
     "shell:allow-open"
   ]
 }

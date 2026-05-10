@@ -1,6 +1,6 @@
 import { watch, onMounted, onUnmounted } from 'vue'
-import { getCurrentWindow } from '@tauri-apps/api/window'
-import { LogicalSize } from '@tauri-apps/api/dpi'
+import { getCurrentWindow, monitorFromPoint, cursorPosition } from '@tauri-apps/api/window'
+import { LogicalSize, PhysicalPosition } from '@tauri-apps/api/dpi'
 import { useSearchStore } from '../stores/search-store'
 
 function readCssProp(name: string): number {
@@ -12,6 +12,18 @@ export function useWindowResize() {
   const appWindow = getCurrentWindow()
   let observer: ResizeObserver | null = null
   let lastHeight = 0
+
+  // 首次挂载时将窗口定位到鼠标所在显示器（水平居中，垂直约 1/3 处）
+  onMounted(async () => {
+    const pos = await cursorPosition()
+    const monitor = await monitorFromPoint(pos.x, pos.y)
+    if (!monitor) return
+
+    const size = await appWindow.outerSize()
+    const x = monitor.position.x + (monitor.size.width - size.width) / 2
+    const y = monitor.position.y + monitor.size.height / 3.6
+    await appWindow.setPosition(new PhysicalPosition(Math.round(x), Math.round(y)))
+  })
 
   // 当内容产生变化时，等待 DOM 渲染后测算尺寸
   watch(

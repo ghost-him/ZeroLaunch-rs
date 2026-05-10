@@ -9,7 +9,6 @@ pub mod sdk;
 pub mod state;
 pub mod utils;
 pub mod window_effect;
-pub mod window_position;
 
 use crate::core::config::components::appearance_config::AppearanceConfigComponent;
 use crate::core::config::components::hotkey_config::HotkeyConfigComponent;
@@ -61,7 +60,6 @@ use crate::sdk::timer::TokioTimerManager;
 use crate::sdk::AppResourceService;
 use crate::sdk::PathResolver;
 use crate::state::app_state::AppState;
-use crate::window_position::update_window_position;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tauri::App;
@@ -592,15 +590,12 @@ async fn init_plugin_system(state: &Arc<AppState>) {
 
 /// 初始化搜索栏窗口。
 ///
-/// 职责：
-/// 1. 更新窗口位置（居中显示）
-/// 2. 注册焦点丢失回调（隐藏窗口 + 重置会话）
+/// 注册焦点丢失回调（隐藏窗口 + 重置会话）。
+/// 窗口位置由前端 useWindowResize 负责居中。
 ///
 /// 窗口失焦检测由 FocusMonitor（push-based）统一管理，
 /// 本函数仅负责注册业务层回调，不直接处理窗口事件。
 fn init_search_bar_window(app: &mut App) {
-    update_window_position();
-
     let state = app.state::<Arc<AppState>>();
     let host_api = state.get_host_api();
     let session_router = state.get_session_router().clone();

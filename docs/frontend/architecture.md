@@ -585,7 +585,9 @@ TypeScript 对象
 [后端] lib.rs 中的广播接收器 (spawn 的 tokio task)
   │  收到 ConfigEvent
   │  ├─ 如果是 DataSource/KeywordOptimizer 变更
-  │  │   → session_router.rebuild_pipelines() 重建候选管道
+  │  │   → session_router.refresh_candidates() 刷新候选缓存
+  │  ├─ 如果是 SearchEngine/ScoreBooster 变更
+  │  │   → session_router.rebuild_search_pipeline() 重建搜索管道
   │  └─ 通过 Tauri 事件发射到前端
   │      app_handle.emit("config-changed", payload)
   │
@@ -805,10 +807,11 @@ configGetSchema("program-source") 返回:
   │        user_args,
   │        parameter_snapshot  ← 来自 bridge_wake 时捕获的快照
   │      }
-  │   4. ExecutorRegistry::execute(exec_ctx, "launch")
+  │   4. ExecutorRegistry::resolve(exec_ctx, "launch")
   │      ├─ 查找 (targetType="App", action_id="launch") → AppExecutor
-  │      └─ AppExecutor::execute() → 启动 Firefox
-  │   5. 记录选择（用于 HistoryBooster 学习）
+  │      └─ AppExecutor::execute(exec_ctx, "launch") → 启动 Firefox
+  │   5. 若 ActivationFailed → ExecutorRegistry::resolve_fallback() → 重试执行
+  │   6. 记录选择（用于 HistoryBooster 学习）
   │
   └─ 成功 → 返回 Ok(())
   │

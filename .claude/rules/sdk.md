@@ -49,6 +49,6 @@ paths:
 
 ## 模块组织
 
-- `sdk/` 模块按能力域组织（如果新的能力，则依次增加）：`app/`、`autostart/`、`hotkey/`、`icon/`、`installation_monitor/`、`parameter/`、`path/`、`platform/`、`shell/`、`storage/`、`window/`
+- `sdk/` 模块按能力域组织。当前支持的能力域请直接阅读 `sdk/` 目录结构，以代码为准
 - 每个能力域包含：`mod.rs`（重新导出）、一个 trait 文件、以及按需的 `types.rs`（共享类型）
 - 平台实现放入 `sdk/platform/<os>/`，按所实现的 trait 命名

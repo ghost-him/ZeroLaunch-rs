@@ -188,6 +188,44 @@ plugin/
 | `ActionExecutor`   | **执行器**：定义如何执行动作                              | `Configurable` |
 | `Plugin`           | **独立功能**：处理特定指令的完整闭环插件                  | `Configurable` |
 
+### 4.3 插件分类：管道插件 vs 独立插件
+
+插件分为两类，它们在程序中的角色和控制流截然不同。
+
+**管道插件**（`DataSource`、`KeywordOptimizer`、`SearchEngine`、`ScoreBooster`、`ActionExecutor`）在核心程序固定的管道中运行。管道顺序不可变：
+
+```
+CandidatePipeline.collect()
+  → DataSource[]      (采集候选)
+  → KeywordOptimizer[](优化关键词)
+SearchPipeline.search()
+  → SearchEngine      (基础打分)
+  → ScoreBooster[]    (个性化提分)
+ExecutorRegistry.resolve(ctx, action_id) → executor
+  → executor.execute(ctx, action_id).await   (执行动作)
+```
+
+管道插件是**可替换的处理步骤**：更换搜索引擎、增删数据源、调整排序策略，都不改变管道结构本身。它们始终在线，每次搜索都会经过完整管道。
+
+**独立插件**（`Plugin`）通过触发关键词（如 `=` 触发计算器）激活。一旦触发，插件**绕过整个搜索管道**，直接接管本次会话的查询与执行：
+
+```
+用户输入 → 解析触发词 → 命中 → SessionMode::Plugin
+  → plugin.query()       (插件自处理查询)
+  → plugin.execute_action() (插件自处理执行)
+  → 返回 CustomPanel     (插件自定 UI)
+```
+
+独立插件在被触发期间拥有本次会话的完整控制权，核心程序不做任何管道处理。会话结束后控制权归还核心程序。
+
+| 维度 | 管道插件 | 独立插件 |
+|------|---------|---------|
+| **激活方式** | 始终运行 | 触发关键词前缀匹配 |
+| **控制流** | 经过固定管道 | 绕过管道，自处理 |
+| **结果类型** | `QueryResponse::List` | `QueryResponse::CustomPanel` |
+| **SessionMode** | `Search` | `Plugin(plugin_id)` |
+| **配置变更响应** | 重建候选缓存或搜索管道 | 仅记录日志 |
+
 ---
 
 ## 五、PluginSystem 层设计理念
@@ -238,10 +276,11 @@ plugin/
 ```
 用户选择候选项 → SessionRouter.route_confirm()
   ├─ 插件模式 → Plugin.execute_action()
-  └─ 搜索模式 → ExecutorRegistry.execute(ctx, action_id)
-      ├─ 通过 (TargetType, action_id) 定位 Executor
-      ├─ 窗口唤醒失败 → 执行 Executor 声明的回退策略
-      └─ 成功 → ScoreBooster.record() ← 记录用户行为
+  └─ 搜索模式 → ExecutorRegistry.resolve(ctx, action_id)
+      ├─ 得到 Arc<dyn ActionExecutor> → executor.execute(ctx, action_id).await
+      ├─ ActivationFailed → ExecutorRegistry.resolve_fallback(ctx, fallback_action)
+      │   └─ fallback_executor.execute(ctx, fallback_action).await
+      └─ 成功 → SearchPipeline.record(candidate_id, query) → ScoreBooster.record()
 ```
 
 ### 6.3 配置变更流程
@@ -257,7 +296,8 @@ plugin/
        │
        ▼ SessionRouter 收到 ConfigEvent
        ├─ DataSource/KeywordOptimizer → refresh_candidates()
-       └─ 其他类型 → 记录日志或 TODO
+       ├─ SearchEngine/ScoreBooster → rebuild_search_pipeline()
+       └─ ActionExecutor/Plugin/Core → 记录 debug 日志
 ```
 
 ---

@@ -19,14 +19,6 @@ paths:
 如果校验（步骤 1）失败，后续步骤 **不得** 执行。
 广播事件（步骤 4）**无论** 持久化成功与否都会触发。
 
-## Configurable Trait 实现
-
-- `apply_settings(&self, settings)` 接收 `&self`（不可变引用）。用内部 `RwLock` 实现内部可变性。**禁止** 用 `&mut self`
-- `get_settings()` 返回 `serde_json::Value`。返回当前配置的 JSON 格式。**禁止** 返回内部 Rust 类型
-- `setting_schema()` 返回 `Vec<SettingDefinition>`。此方法驱动前端设置 UI。前端接收到的就是此方法返回的内容
-- `default_enabled()` 返回 `bool`。默认为 `true`。对可选/实验性组件覆盖
-- `get_default_settings()` 返回 `serde_json::Value`。供 `config_reset_settings` 调用
-
 ## ConfigAction 用于保存前测试
 
 - 如果副作用必须决定配置能否保存（如 WebDAV 连通性测试）：使用 `ConfigAction`。**禁止** 将此类测试嵌入 `validate_settings` 或 `apply_settings`

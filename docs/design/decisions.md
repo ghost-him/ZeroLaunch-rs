@@ -44,7 +44,7 @@
 | KeywordOptimizer | 简单 (2-3个字段)     | 极高 (每次 optimize 调用)   | Inner    |
 | DataSource       | 复杂 (嵌套数组/对象) | 低 (仅 fetch_candidates 时) | Value    |
 | ScoreBooster     | 中等                 | 高                          | Inner    |
-| Launcher         | 无配置               | -                           | 无状态   |
+| ActionExecutor   | 无配置               | -                           | 无状态   |
 | SearchEngine     | 无配置               | -                           | 无状态   |
 
 ### 选择理由

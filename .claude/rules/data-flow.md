@@ -32,7 +32,7 @@ paths:
                 └─ scored.into_iter().take(top_k).collect()
             → route_query 将 ScoredCandidate 映射为 ListItem (session_router.rs:141-163)
                 ├─ 从 cached_candidates 查找完整 SearchCandidate
-                └─ executor_registry 解析可用动作
+                └─ executor_registry.get_actions(target_type) 查询可用动作
             → 返回 QueryResponse::List { results }
 ```
 
@@ -100,12 +100,13 @@ SessionRouter.refresh_candidates() (session_router.rs:110)
 ```
 bridge_confirm (commands/bridge.rs)
   → session_router.route_confirm() (session_router.rs)
-    → executor_registry.execute(ctx, action_id).await
+    → executor_registry.resolve(ctx, action_id) → executor.execute(ctx, action_id).await
+    → 若 ActivationFailed → executor_registry.resolve_fallback(ctx, fallback) → 重试执行
     → search_pipeline.record(candidate_id, query)  ← 学习反馈
         → 逐个 booster.record(id, data, query)      ← HistoryBooster / QueryAffinityBooster
 ```
 
 **关键文件**：
 - `plugin_system/session_router.rs` — route_confirm()
-- `plugin_system/executor_registry.rs` — execute() 唯一公开入口
+- `plugin_system/executor_registry.rs` — resolve() / resolve_fallback() 查找，get_actions() 查询
 - `plugin_system/search_pipeline.rs` — record() 学习记录

@@ -4,27 +4,19 @@
       ref="inputRef"
       v-model:value="inputText"
       type="text"
-      placeholder="输入关键字搜索..."
+      placeholder="Hello, ZeroLaunch! ヾ(≧▽≦*)o"
       :autofocus="true"
       size="large"
-      clearable
       @update:value="onInput"
     >
-      <template #prefix>
-        <n-icon :size="18" color="var(--text-secondary)">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="11" cy="11" r="8" />
-            <path d="m21 21-4.3-4.3" />
-          </svg>
-        </n-icon>
-      </template>
+      <!-- 无边框无图标的纯净设计 -->
     </n-input>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, nextTick } from 'vue'
-import { NInput, NIcon } from 'naive-ui'
+import { NInput } from 'naive-ui'
 import { useSearch } from '../../composables/useSearch'
 
 const { handleInput } = useSearch()
@@ -47,17 +39,27 @@ onMounted(async () => {
 .search-bar-wrapper {
   height: var(--search-bar-height);
   flex-shrink: 0;
-  padding: 12px 16px 8px;
+  padding: 16px 24px; /* Larger horizontal padding */
+  display: flex;
+  align-items: center;
+  position: relative;
+  z-index: 10;
+  /* Soft hierarchical shadow indicating separation without hard lines */
+  box-shadow: var(--shadow-header);
 }
 
 .search-bar-wrapper :deep(.n-input) {
-  --n-border: var(--border-color);
-  --n-border-focus: var(--accent-color);
-  --n-box-shadow-focus: 0 0 0 2px rgba(32, 128, 240, 0.2);
-  --n-border-radius: var(--radius-md);
-  --n-color: var(--bg-primary);
-  --n-color-focus: var(--bg-primary);
+  --n-border: transparent !important;
+  --n-border-hover: transparent !important;
+  --n-border-focus: transparent !important;
+  --n-box-shadow-focus: transparent !important;
+  --n-color: transparent !important;
+  --n-color-focus: transparent !important;
   --n-text-color: var(--text-primary);
   --n-placeholder-color: var(--text-secondary);
+  --n-font-size: var(--font-size-xl) !important;
+  --n-height: 40px !important;
+  --n-caret-color: var(--accent-color) !important;
+  --n-padding-left: 0 !important; /* Flush with wrapper padding */
 }
 </style>

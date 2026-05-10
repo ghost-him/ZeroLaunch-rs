@@ -62,11 +62,16 @@ const openSettingsWindow = () => openSettings()
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 4px 12px 6px;
-  border-top: 1px solid var(--border-color);
+  padding: 8px 16px 10px; /* Increased padding */
+  /* Remove hard dividing line */
+  border-top: 1px solid transparent; 
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
-  gap: 8px;
+  gap: 12px;
+  background: var(--bg-primary); /* Ensure background is solid */
+  position: relative;
+  z-index: 10;
+  box-shadow: var(--shadow-footer);
 }
 
 .footer-left, .footer-right {
@@ -74,26 +79,28 @@ const openSettingsWindow = () => openSettings()
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
+  opacity: 0.8;
 }
 
 .footer-actions {
   display: flex;
-  gap: 4px;
+  gap: 6px;
   align-items: center;
   flex-shrink: 1;
   overflow: hidden;
 }
 
 .action-btn {
-  padding: 2px 8px;
+  padding: 4px 10px;
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
   background: var(--bg-secondary);
   border: none;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
   font-family: inherit;
   white-space: nowrap;
+  transition: all 0.2s ease;
 }
 
 .action-btn.is-default {
@@ -102,12 +109,17 @@ const openSettingsWindow = () => openSettings()
 
 .action-btn.is-selected {
   color: var(--accent-color);
-  background: rgba(32, 128, 240, 0.1);
+  background: var(--primary-color-alpha); /* Subtle highlight */
+}
+
+.action-btn:hover {
+  background: var(--hover-color);
 }
 
 .shortcut {
-  margin-left: 4px;
-  opacity: 0.6;
-  font-size: 10px;
+  margin-left: 6px;
+  opacity: 0.5;
+  font-size: 11px;
+  font-family: monospace;
 }
 </style>

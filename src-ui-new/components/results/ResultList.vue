@@ -43,16 +43,29 @@ function onItemDblClick(index: number) {
 <style scoped>
 .result-list {
   flex: 1;
-  min-height: calc(var(--result-item-height) * 1);
-  max-height: calc(var(--result-item-height) * var(--max-visible-results));
+  min-height: calc((var(--result-item-height) + 2px) * 1);
+  max-height: calc((var(--result-item-height) + 2px) * var(--max-visible-results));
   overflow-y: auto;
-  padding: 0 8px;
+  padding: 8px 12px; /* Increased padding for spacious list wrapper */
+}
+
+/* Hide scrollbar for a cleaner look, similar to modern OS / sofast */
+.result-list::-webkit-scrollbar {
+  width: 4px;
+}
+.result-list::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+}
+html.dark .result-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .no-results {
-  padding: 24px;
+  padding: 32px 24px; /* More padding for empty state */
   text-align: center;
   color: var(--text-secondary);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-base);
+  opacity: 0.8;
 }
 </style>

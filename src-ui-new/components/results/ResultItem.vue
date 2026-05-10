@@ -85,22 +85,24 @@ function onContextMenu(e: MouseEvent) {
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 6px 8px;
-  border-radius: var(--radius-sm);
+  gap: 16px; /* Increased gap for breathing room */
+  padding: 8px 16px; /* Larger padding */
+  margin-bottom: 2px; /* Slight separation */
+  border-radius: var(--radius-md); /* Softer corners */
   cursor: pointer;
-  transition: background-color 0.1s;
+  transition: all 0.2s ease; /* Smoother transition */
+  border: 1px solid transparent; /* Prepare for possible active state without shifting layout */
 }
 
 .result-item:hover,
 .result-item.selected {
-  background-color: var(--bg-secondary);
+  background-color: var(--hover-color); /* Use subtle hover color rather than strong secondary background */
 }
 
 .item-icon {
   flex-shrink: 0;
-  width: 28px;
-  height: 28px;
+  width: 32px; /* Slightly larger icons */
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -109,21 +111,27 @@ function onContextMenu(e: MouseEvent) {
 .item-text {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .item-title {
-  font-size: var(--font-size-base);
+  font-size: var(--font-size-lg);
+  font-weight: 500;
   color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  letter-spacing: 0.2px;
 }
 
 .item-subtitle {
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-md);
   color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  margin-top: 2px;
 }
 </style>

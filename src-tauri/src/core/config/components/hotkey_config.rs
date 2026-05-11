@@ -1,4 +1,4 @@
-use crate::core::config::setting_builders::{bool_field, text_field};
+use crate::core::config::setting_builders::SchemaBuilder;
 use crate::core::types::setting_def::SettingDefinition;
 use crate::core::types::{ComponentType, ConfigError, Configurable};
 use crate::sdk::host_api::HostApi;
@@ -125,22 +125,24 @@ impl Configurable for HotkeyConfigComponent {
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {
         vec![
-            text_field(
+            SchemaBuilder::text(
                 "open_search_bar",
                 "打开搜索栏",
                 "全局快捷键，用于显示/隐藏搜索栏",
-                "全局快捷键",
-                0,
-                "Alt+Space",
-            ),
-            bool_field(
+            )
+            .group("全局快捷键")
+            .order(0)
+            .default("Alt+Space")
+            .build(),
+            SchemaBuilder::boolean(
                 "double_click_ctrl",
                 "双击 Ctrl 打开搜索栏",
                 "启用后，快速双击 Ctrl 键可打开搜索栏（此时将忽略打开搜索栏的快捷键）",
-                "全局快捷键",
-                2,
-                false,
-            ),
+            )
+            .group("全局快捷键")
+            .order(2)
+            .default(false)
+            .build(),
         ]
     }
 

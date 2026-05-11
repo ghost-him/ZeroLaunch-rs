@@ -1,4 +1,4 @@
-use crate::core::config::setting_builders::{bool_field, num_field, text_field};
+use crate::core::config::setting_builders::SchemaBuilder;
 use crate::core::types::setting_def::SettingDefinition;
 use crate::core::types::{ComponentType, ConfigError, Configurable};
 use crate::sdk::host_api::HostApi;
@@ -42,33 +42,36 @@ impl Configurable for InstallationMonitorConfigComponent {
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {
         vec![
-            bool_field(
+            SchemaBuilder::boolean(
                 "enable_installation_monitor",
                 "启用安装监控",
                 "启用后，自动监控文件系统变化（如开始菜单），检测程序的安装和卸载",
-                "安装监控",
-                0,
-                false,
-            ),
-            num_field(
+            )
+            .group("安装监控")
+            .order(0)
+            .default(false)
+            .build(),
+            SchemaBuilder::number(
                 "monitor_debounce_secs",
                 "去抖等待时间（秒）",
                 "检测到文件变化后等待的时间，避免频繁触发刷新",
-                "安装监控",
-                1,
-                5.0,
-                1.0,
-                60.0,
-                1.0,
-            ),
-            text_field(
+            )
+            .group("安装监控")
+            .order(1)
+            .default(5.0)
+            .min(1.0)
+            .max(60.0)
+            .step(1.0)
+            .build(),
+            SchemaBuilder::text(
                 "monitor_watch_paths",
                 "监控路径",
                 "要监控的目录路径列表（每行一个），留空使用平台默认路径（Windows 开始菜单）",
-                "安装监控",
-                2,
-                "",
-            ),
+            )
+            .group("安装监控")
+            .order(2)
+            .default("")
+            .build(),
         ]
     }
 

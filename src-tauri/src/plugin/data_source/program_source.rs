@@ -1,11 +1,7 @@
+use crate::core::config::setting_builders::SchemaBuilder;
 use crate::plugin_system::cached_candidate::CachedCandidateData;
-use crate::plugin_system::types::{
-    ArrayItem, ArrayUiHint, DataSource, ExecutionTarget, FieldDefinition, PrimitiveType,
-    SearchCandidate,
-};
-use crate::plugin_system::{
-    ComponentType, ConfigError, Configurable, SettingDefinition, SettingType,
-};
+use crate::plugin_system::types::{DataSource, ExecutionTarget, PrimitiveType, SearchCandidate};
+use crate::plugin_system::{ComponentType, ConfigError, Configurable, SettingDefinition};
 use crate::sdk::host_api::PluginHandle;
 use crate::sdk::path::path_resolver::KnownPath;
 use crate::sdk::IconRequest;
@@ -287,107 +283,61 @@ impl Configurable for ProgramSource {
                 String::new()
             });
 
-        vec![SettingDefinition {
-            field: FieldDefinition {
-                key: "directories".to_string(),
-                label: "扫描目录".to_string(),
-                description: "配置要扫描的程序目录".to_string(),
-                setting_type: SettingType::Array {
-                    item: ArrayItem::Object(vec![
-                        FieldDefinition {
-                            key: "root_path".to_string(),
-                            label: "目录路径".to_string(),
-                            description: "要扫描的根目录".to_string(),
-                            setting_type: SettingType::Path {
-                                mode: crate::plugin_system::types::PathMode::Directory,
-                            },
-                            default_value: serde_json::json!(""),
-                            visible: true,
-                            editable: true,
-                        },
-                        FieldDefinition {
-                            key: "max_depth".to_string(),
-                            label: "扫描深度".to_string(),
-                            description: "子目录递归深度".to_string(),
-                            setting_type: SettingType::Number {
-                                min: Some(1.0),
-                                max: Some(10.0),
-                                step: Some(1.0),
-                            },
-                            default_value: serde_json::json!(3),
-                            visible: true,
-                            editable: true,
-                        },
-                        FieldDefinition {
-                            key: "pattern".to_string(),
-                            label: "文件模式".to_string(),
-                            description: "要匹配的文件类型，如 *.exe, *.lnk".to_string(),
-                            setting_type: SettingType::Array {
-                                item: ArrayItem::Primitive(PrimitiveType::Text),
-                                min_items: Some(1),
-                                max_items: None,
-                                ui_hint: ArrayUiHint::Tags,
-                            },
-                            default_value: serde_json::json!(["*.exe", "*.lnk", "*.url"]),
-                            visible: true,
-                            editable: true,
-                        },
-                        FieldDefinition {
-                            key: "pattern_type".to_string(),
-                            label: "匹配方式".to_string(),
-                            description: "通配符或正则表达式".to_string(),
-                            setting_type: SettingType::Select {
-                                options: vec!["Wildcard".to_string(), "Regex".to_string()],
-                            },
-                            default_value: serde_json::json!("Wildcard"),
-                            visible: true,
-                            editable: true,
-                        },
-                        FieldDefinition {
-                            key: "excluded_keywords".to_string(),
-                            label: "排除关键字".to_string(),
-                            description: "包含这些关键字的路径将被忽略".to_string(),
-                            setting_type: SettingType::Array {
-                                item: ArrayItem::Primitive(PrimitiveType::Text),
-                                min_items: None,
-                                max_items: None,
-                                ui_hint: ArrayUiHint::Tags,
-                            },
-                            default_value: serde_json::json!(["uninstall", "帮助", "help", "卸载"]),
-                            visible: true,
-                            editable: true,
-                        },
-                        FieldDefinition {
-                            key: "forbidden_paths".to_string(),
-                            label: "禁止路径".to_string(),
-                            description: "这些路径及其子路径将不会被扫描".to_string(),
-                            setting_type: SettingType::Array {
-                                item: ArrayItem::Primitive(PrimitiveType::Text),
-                                min_items: None,
-                                max_items: None,
-                                ui_hint: ArrayUiHint::Tags,
-                            },
-                            default_value: serde_json::json!([]),
-                            visible: true,
-                            editable: true,
-                        },
-                        FieldDefinition {
-                            key: "symlink_mode".to_string(),
-                            label: "符号链接模式".to_string(),
-                            description: "如何处理符号链接".to_string(),
-                            setting_type: SettingType::Select {
-                                options: vec!["ExplicitOnly".to_string(), "Auto".to_string()],
-                            },
-                            default_value: serde_json::json!("ExplicitOnly"),
-                            visible: true,
-                            editable: true,
-                        },
-                    ]),
-                    min_items: Some(1),
-                    max_items: None,
-                    ui_hint: ArrayUiHint::MasterDetail,
-                },
-                default_value: serde_json::json!([
+        vec![
+            SchemaBuilder::array("directories", "扫描目录", "配置要扫描的程序目录")
+                .group("目录扫描")
+                .order(1)
+                .object_items(vec![
+                    SchemaBuilder::path("root_path", "目录路径", "要扫描的根目录")
+                        .directory()
+                        .default("")
+                        .build_field(),
+                    SchemaBuilder::number("max_depth", "扫描深度", "子目录递归深度")
+                        .default(3.0)
+                        .min(1.0)
+                        .max(10.0)
+                        .step(1.0)
+                        .build_field(),
+                    SchemaBuilder::array(
+                        "pattern",
+                        "文件模式",
+                        "要匹配的文件类型，如 *.exe, *.lnk",
+                    )
+                    .primitive_item(PrimitiveType::Text)
+                    .tags_ui()
+                    .min_items(1)
+                    .default(serde_json::json!(["*.exe", "*.lnk", "*.url"]))
+                    .build_field(),
+                    SchemaBuilder::select("pattern_type", "匹配方式", "通配符或正则表达式")
+                        .options(&["Wildcard", "Regex"])
+                        .default("Wildcard")
+                        .build_field(),
+                    SchemaBuilder::array(
+                        "excluded_keywords",
+                        "排除关键字",
+                        "包含这些关键字的路径将被忽略",
+                    )
+                    .primitive_item(PrimitiveType::Text)
+                    .tags_ui()
+                    .default(serde_json::json!(["uninstall", "帮助", "help", "卸载"]))
+                    .build_field(),
+                    SchemaBuilder::array(
+                        "forbidden_paths",
+                        "禁止路径",
+                        "这些路径及其子路径将不会被扫描",
+                    )
+                    .primitive_item(PrimitiveType::Text)
+                    .tags_ui()
+                    .default(serde_json::json!([]))
+                    .build_field(),
+                    SchemaBuilder::select("symlink_mode", "符号链接模式", "如何处理符号链接")
+                        .options(&["ExplicitOnly", "Auto"])
+                        .default("ExplicitOnly")
+                        .build_field(),
+                ])
+                .min_items(1)
+                .master_detail()
+                .default(serde_json::json!([
                     {
                         "root_path": common_start_menu,
                         "max_depth": 5,
@@ -415,14 +365,9 @@ impl Configurable for ProgramSource {
                         "forbidden_paths": [],
                         "symlink_mode": "ExplicitOnly"
                     }
-                ]),
-                visible: true,
-                editable: true,
-            },
-            group: Some("目录扫描".to_string()),
-            order: 1,
-            config_action: None,
-        }]
+                ]))
+                .build(),
+        ]
     }
 
     fn get_settings(&self) -> serde_json::Value {

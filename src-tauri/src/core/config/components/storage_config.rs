@@ -1,5 +1,5 @@
-use crate::core::config::setting_builders::{path_field, select_field, text_field};
-use crate::core::types::setting_def::{PathMode, SettingDefinition};
+use crate::core::config::setting_builders::SchemaBuilder;
+use crate::core::types::setting_def::SettingDefinition;
 use crate::core::types::{ComponentType, ConfigError, Configurable};
 use crate::sdk::host_api::HostApi;
 use crate::sdk::storage::local_storage::LocalStorageService;
@@ -45,56 +45,50 @@ impl Configurable for StorageConfigComponent {
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {
         vec![
-            select_field(
-                "storage_destination",
-                "存储后端",
-                "选择配置文件的存储方式",
-                "存储设置",
-                0,
-                vec!["Local", "WebDAV"],
-                "Local",
-            ),
-            path_field(
+            SchemaBuilder::select("storage_destination", "存储后端", "选择配置文件的存储方式")
+                .group("存储设置")
+                .order(0)
+                .options(&["Local", "WebDAV"])
+                .default("Local")
+                .build(),
+            SchemaBuilder::path(
                 "custom_save_path",
                 "自定义保存路径",
                 "覆盖默认的应用数据目录（留空使用默认路径）",
-                "存储设置",
-                1,
-                PathMode::Directory,
-                "",
-            ),
-            text_field(
+            )
+            .group("存储设置")
+            .order(1)
+            .directory()
+            .default("")
+            .build(),
+            SchemaBuilder::text(
                 "webdav_host_url",
                 "WebDAV 服务器地址",
                 "WebDAV 服务器的完整 URL",
-                "WebDAV 配置",
-                2,
-                "",
-            ),
-            text_field(
-                "webdav_account",
-                "WebDAV 账号",
-                "WebDAV 服务的认证账号",
-                "WebDAV 配置",
-                3,
-                "",
-            ),
-            text_field(
-                "webdav_password",
-                "WebDAV 密码",
-                "WebDAV 服务的认证密码",
-                "WebDAV 配置",
-                4,
-                "",
-            ),
-            text_field(
+            )
+            .group("WebDAV 配置")
+            .order(2)
+            .default("")
+            .build(),
+            SchemaBuilder::text("webdav_account", "WebDAV 账号", "WebDAV 服务的认证账号")
+                .group("WebDAV 配置")
+                .order(3)
+                .default("")
+                .build(),
+            SchemaBuilder::text("webdav_password", "WebDAV 密码", "WebDAV 服务的认证密码")
+                .group("WebDAV 配置")
+                .order(4)
+                .default("")
+                .build(),
+            SchemaBuilder::text(
                 "webdav_destination_dir",
                 "WebDAV 远程目录",
                 "WebDAV 服务器上的目标存储目录",
-                "WebDAV 配置",
-                5,
-                "/ZeroLaunch-rs/",
-            ),
+            )
+            .group("WebDAV 配置")
+            .order(5)
+            .default("/ZeroLaunch-rs/")
+            .build(),
         ]
     }
 

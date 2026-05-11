@@ -1,8 +1,6 @@
+use crate::core::config::setting_builders::SchemaBuilder;
 use crate::plugin_system::cached_candidate::CachedCandidateData;
-use crate::plugin_system::types::{
-    ArrayItem, ArrayUiHint, DataSource, ExecutionTarget, FieldDefinition, SearchCandidate,
-    SettingType,
-};
+use crate::plugin_system::types::{DataSource, ExecutionTarget, SearchCandidate};
 use crate::plugin_system::{ComponentType, ConfigError, Configurable, SettingDefinition};
 use crate::sdk::host_api::PluginHandle;
 use crate::sdk::IconRequest;
@@ -102,44 +100,22 @@ impl Configurable for CommandSource {
     }
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {
-        vec![SettingDefinition {
-            field: FieldDefinition {
-                key: "commands".to_string(),
-                label: "自定义命令".to_string(),
-                description: "配置要索引的自定义命令快捷方式".to_string(),
-                setting_type: SettingType::Array {
-                    item: ArrayItem::Object(vec![
-                        FieldDefinition {
-                            key: "name".to_string(),
-                            label: "名称".to_string(),
-                            description: "命令的显示名称".to_string(),
-                            setting_type: SettingType::Text,
-                            default_value: serde_json::json!(""),
-                            visible: true,
-                            editable: true,
-                        },
-                        FieldDefinition {
-                            key: "command".to_string(),
-                            label: "命令".to_string(),
-                            description: "要执行的命令或程序路径".to_string(),
-                            setting_type: SettingType::Text,
-                            default_value: serde_json::json!(""),
-                            visible: true,
-                            editable: true,
-                        },
-                    ]),
-                    min_items: None,
-                    max_items: None,
-                    ui_hint: ArrayUiHint::Table,
-                },
-                default_value: serde_json::json!([]),
-                visible: true,
-                editable: true,
-            },
-            group: Some("命令配置".to_string()),
-            order: 1,
-            config_action: None,
-        }]
+        vec![
+            SchemaBuilder::array("commands", "自定义命令", "配置要索引的自定义命令快捷方式")
+                .group("命令配置")
+                .order(1)
+                .object_items(vec![
+                    SchemaBuilder::text("name", "名称", "命令的显示名称")
+                        .default("")
+                        .build_field(),
+                    SchemaBuilder::text("command", "命令", "要执行的命令或程序路径")
+                        .default("")
+                        .build_field(),
+                ])
+                .table_ui()
+                .default(serde_json::json!([]))
+                .build(),
+        ]
     }
 
     fn get_settings(&self) -> serde_json::Value {

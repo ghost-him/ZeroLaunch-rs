@@ -1,8 +1,6 @@
+use crate::core::config::setting_builders::SchemaBuilder;
 use crate::plugin_system::cached_candidate::CachedCandidateData;
-use crate::plugin_system::types::{
-    ArrayItem, ArrayUiHint, DataSource, ExecutionTarget, FieldDefinition, SearchCandidate,
-    SettingType,
-};
+use crate::plugin_system::types::{DataSource, ExecutionTarget, SearchCandidate};
 use crate::plugin_system::{ComponentType, ConfigError, Configurable, SettingDefinition};
 use crate::sdk::host_api::PluginHandle;
 use crate::sdk::IconRequest;
@@ -59,44 +57,22 @@ impl Configurable for UrlSource {
     }
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {
-        vec![SettingDefinition {
-            field: FieldDefinition {
-                key: "web_pages".to_string(),
-                label: "索引网页".to_string(),
-                description: "配置要索引的网页快捷方式".to_string(),
-                setting_type: SettingType::Array {
-                    item: ArrayItem::Object(vec![
-                        FieldDefinition {
-                            key: "name".to_string(),
-                            label: "名称".to_string(),
-                            description: "网页的显示名称".to_string(),
-                            setting_type: SettingType::Text,
-                            default_value: serde_json::json!(""),
-                            visible: true,
-                            editable: true,
-                        },
-                        FieldDefinition {
-                            key: "url".to_string(),
-                            label: "URL".to_string(),
-                            description: "网页的完整网址".to_string(),
-                            setting_type: SettingType::Text,
-                            default_value: serde_json::json!(""),
-                            visible: true,
-                            editable: true,
-                        },
-                    ]),
-                    min_items: None,
-                    max_items: None,
-                    ui_hint: ArrayUiHint::Table,
-                },
-                default_value: serde_json::json!([]),
-                visible: true,
-                editable: true,
-            },
-            group: Some("网页索引".to_string()),
-            order: 1,
-            config_action: None,
-        }]
+        vec![
+            SchemaBuilder::array("web_pages", "索引网页", "配置要索引的网页快捷方式")
+                .group("网页索引")
+                .order(1)
+                .object_items(vec![
+                    SchemaBuilder::text("name", "名称", "网页的显示名称")
+                        .default("")
+                        .build_field(),
+                    SchemaBuilder::text("url", "URL", "网页的完整网址")
+                        .default("")
+                        .build_field(),
+                ])
+                .table_ui()
+                .default(serde_json::json!([]))
+                .build(),
+        ]
     }
 
     fn get_settings(&self) -> serde_json::Value {

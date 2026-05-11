@@ -1,165 +1,270 @@
-//! SettingDefinition 构建器函数。
+//! Schema 构建器 — 链式调用 API。
 //!
-//! 提供简洁的工厂函数来创建常见的 SettingDefinition，避免在各组件中重复手写 FieldDefinition 结构体。
-//! 这些函数覆盖 90% 的简单字段场景。
-//! 复杂嵌套结构（如 Array + Object items、带 config_action 的字段）建议直接手写。
+//! 提供统一的 `SchemaBuilder` 来构建 `SettingDefinition` 和 `FieldDefinition`，
+//! 覆盖全部 8 种 SettingType，消除旧自由函数的位置参数混乱。
+//!
+//! # 使用示例
+//!
+//! ```ignore
+//! // 简单文本字段
+//! SchemaBuilder::text("key", "Label", "Description")
+//!     .group("Group").order(0).default("default").build()
+//!
+//! // 带约束的数值字段
+//! SchemaBuilder::number("height", "Height", "Height in px")
+//!     .group("Layout").order(1).default(72.0)
+//!     .min(40.0).max(120.0).step(1.0).build()
+//!
+//! // Array + Object + config_action
+//! SchemaBuilder::array("sources", "Sources", "Browser sources")
+//!     .group("Sources").order(2).config_action("detect_browsers")
+//!     .object_items(vec![
+//!         SchemaBuilder::text("name", "Name", "Name").default("").build_field(),
+//!     ])
+//!     .master_detail().default(serde_json::json!([])).build()
+//! ```
 
-use crate::core::types::setting_def::{FieldDefinition, PathMode, SettingDefinition, SettingType};
-use serde_json::json;
+use crate::core::types::setting_def::{
+    ArrayItem, ArrayUiHint, FieldDefinition, PathMode, SettingDefinition, SettingType,
+};
+use crate::core::types::PrimitiveType;
+use serde_json::Value;
 
-#[allow(clippy::too_many_arguments)]
-pub fn num_field(
-    key: &str,
-    label: &str,
-    desc: &str,
-    group: &str,
+pub struct SchemaBuilder {
+    field_def: FieldDefinition,
+    group: Option<String>,
     order: u32,
-    default: f64,
-    min: f64,
-    max: f64,
-    step: f64,
-) -> SettingDefinition {
-    SettingDefinition {
-        field: FieldDefinition {
-            key: key.to_string(),
-            label: label.to_string(),
-            description: desc.to_string(),
-            setting_type: SettingType::Number {
-                min: Some(min),
-                max: Some(max),
-                step: Some(step),
+    config_action: Option<String>,
+}
+
+impl SchemaBuilder {
+    // ── constructors ──────────────────────────────────────────────
+
+    pub fn text(key: &str, label: &str, desc: &str) -> Self {
+        Self::new(key, label, desc, SettingType::Text)
+    }
+
+    pub fn number(key: &str, label: &str, desc: &str) -> Self {
+        Self::new(
+            key,
+            label,
+            desc,
+            SettingType::Number {
+                min: None,
+                max: None,
+                step: None,
             },
-            default_value: json!(default),
-            visible: true,
-            editable: true,
-        },
-        group: Some(group.to_string()),
-        order,
-        config_action: None,
+        )
     }
-}
 
-pub fn text_field(
-    key: &str,
-    label: &str,
-    desc: &str,
-    group: &str,
-    order: u32,
-    default: &str,
-) -> SettingDefinition {
-    SettingDefinition {
-        field: FieldDefinition {
-            key: key.to_string(),
-            label: label.to_string(),
-            description: desc.to_string(),
-            setting_type: SettingType::Text,
-            default_value: json!(default),
-            visible: true,
-            editable: true,
-        },
-        group: Some(group.to_string()),
-        order,
-        config_action: None,
+    pub fn boolean(key: &str, label: &str, desc: &str) -> Self {
+        Self::new(key, label, desc, SettingType::Boolean)
     }
-}
 
-pub fn bool_field(
-    key: &str,
-    label: &str,
-    desc: &str,
-    group: &str,
-    order: u32,
-    default: bool,
-) -> SettingDefinition {
-    SettingDefinition {
-        field: FieldDefinition {
-            key: key.to_string(),
-            label: label.to_string(),
-            description: desc.to_string(),
-            setting_type: SettingType::Boolean,
-            default_value: json!(default),
-            visible: true,
-            editable: true,
-        },
-        group: Some(group.to_string()),
-        order,
-        config_action: None,
+    pub fn select(key: &str, label: &str, desc: &str) -> Self {
+        Self::new(key, label, desc, SettingType::Select { options: vec![] })
     }
-}
 
-pub fn color_field(
-    key: &str,
-    label: &str,
-    desc: &str,
-    group: &str,
-    order: u32,
-    default: &str,
-) -> SettingDefinition {
-    SettingDefinition {
-        field: FieldDefinition {
-            key: key.to_string(),
-            label: label.to_string(),
-            description: desc.to_string(),
-            setting_type: SettingType::Color,
-            default_value: json!(default),
-            visible: true,
-            editable: true,
-        },
-        group: Some(group.to_string()),
-        order,
-        config_action: None,
+    pub fn color(key: &str, label: &str, desc: &str) -> Self {
+        Self::new(key, label, desc, SettingType::Color)
     }
-}
 
-#[allow(clippy::too_many_arguments)]
-pub fn path_field(
-    key: &str,
-    label: &str,
-    desc: &str,
-    group: &str,
-    order: u32,
-    mode: PathMode,
-    default: &str,
-) -> SettingDefinition {
-    SettingDefinition {
-        field: FieldDefinition {
-            key: key.to_string(),
-            label: label.to_string(),
-            description: desc.to_string(),
-            setting_type: SettingType::Path { mode },
-            default_value: json!(default),
-            visible: true,
-            editable: true,
-        },
-        group: Some(group.to_string()),
-        order,
-        config_action: None,
-    }
-}
-
-pub fn select_field(
-    key: &str,
-    label: &str,
-    desc: &str,
-    group: &str,
-    order: u32,
-    options: Vec<&str>,
-    default: &str,
-) -> SettingDefinition {
-    SettingDefinition {
-        field: FieldDefinition {
-            key: key.to_string(),
-            label: label.to_string(),
-            description: desc.to_string(),
-            setting_type: SettingType::Select {
-                options: options.iter().map(|s| s.to_string()).collect(),
+    pub fn path(key: &str, label: &str, desc: &str) -> Self {
+        Self::new(
+            key,
+            label,
+            desc,
+            SettingType::Path {
+                mode: PathMode::File,
             },
-            default_value: json!(default),
-            visible: true,
-            editable: true,
-        },
-        group: Some(group.to_string()),
-        order,
-        config_action: None,
+        )
+    }
+
+    pub fn json(key: &str, label: &str, desc: &str) -> Self {
+        Self::new(key, label, desc, SettingType::Json)
+    }
+
+    pub fn array(key: &str, label: &str, desc: &str) -> Self {
+        Self::new(
+            key,
+            label,
+            desc,
+            SettingType::Array {
+                item: ArrayItem::Primitive(PrimitiveType::Text),
+                min_items: None,
+                max_items: None,
+                ui_hint: ArrayUiHint::Default,
+            },
+        )
+    }
+
+    fn new(key: &str, label: &str, desc: &str, setting_type: SettingType) -> Self {
+        Self {
+            field_def: FieldDefinition {
+                key: key.to_string(),
+                label: label.to_string(),
+                description: desc.to_string(),
+                setting_type,
+                default_value: Value::Null,
+                visible: true,
+                editable: true,
+            },
+            group: None,
+            order: 0,
+            config_action: None,
+        }
+    }
+
+    // ── universal methods ─────────────────────────────────────────
+
+    pub fn group(mut self, group: &str) -> Self {
+        self.group = Some(group.to_string());
+        self
+    }
+
+    pub fn order(mut self, order: u32) -> Self {
+        self.order = order;
+        self
+    }
+
+    pub fn config_action(mut self, action: &str) -> Self {
+        self.config_action = Some(action.to_string());
+        self
+    }
+
+    pub fn default(mut self, value: impl Into<Value>) -> Self {
+        self.field_def.default_value = value.into();
+        self
+    }
+
+    pub fn visible(mut self, v: bool) -> Self {
+        self.field_def.visible = v;
+        self
+    }
+
+    pub fn editable(mut self, v: bool) -> Self {
+        self.field_def.editable = v;
+        self
+    }
+
+    // ── Number ────────────────────────────────────────────────────
+
+    pub fn min(mut self, v: f64) -> Self {
+        if let SettingType::Number { min, .. } = &mut self.field_def.setting_type {
+            *min = Some(v);
+        }
+        self
+    }
+
+    pub fn max(mut self, v: f64) -> Self {
+        if let SettingType::Number { max, .. } = &mut self.field_def.setting_type {
+            *max = Some(v);
+        }
+        self
+    }
+
+    pub fn step(mut self, v: f64) -> Self {
+        if let SettingType::Number { step, .. } = &mut self.field_def.setting_type {
+            *step = Some(v);
+        }
+        self
+    }
+
+    // ── Select ────────────────────────────────────────────────────
+
+    pub fn options(mut self, options: &[&str]) -> Self {
+        if let SettingType::Select { options: opts } = &mut self.field_def.setting_type {
+            *opts = options.iter().map(|s| s.to_string()).collect();
+        }
+        self
+    }
+
+    // ── Path ──────────────────────────────────────────────────────
+
+    pub fn file(mut self) -> Self {
+        if let SettingType::Path { mode } = &mut self.field_def.setting_type {
+            *mode = PathMode::File;
+        }
+        self
+    }
+
+    pub fn directory(mut self) -> Self {
+        if let SettingType::Path { mode } = &mut self.field_def.setting_type {
+            *mode = PathMode::Directory;
+        }
+        self
+    }
+
+    // ── Array ─────────────────────────────────────────────────────
+
+    pub fn primitive_item(mut self, item: PrimitiveType) -> Self {
+        if let SettingType::Array { item: arr_item, .. } = &mut self.field_def.setting_type {
+            *arr_item = ArrayItem::Primitive(item);
+        }
+        self
+    }
+
+    pub fn object_items(mut self, items: Vec<FieldDefinition>) -> Self {
+        if let SettingType::Array { item: arr_item, .. } = &mut self.field_def.setting_type {
+            *arr_item = ArrayItem::Object(items);
+        }
+        self
+    }
+
+    pub fn min_items(mut self, n: usize) -> Self {
+        if let SettingType::Array { min_items, .. } = &mut self.field_def.setting_type {
+            *min_items = Some(n);
+        }
+        self
+    }
+
+    pub fn max_items(mut self, n: usize) -> Self {
+        if let SettingType::Array { max_items, .. } = &mut self.field_def.setting_type {
+            *max_items = Some(n);
+        }
+        self
+    }
+
+    pub fn default_ui(mut self) -> Self {
+        if let SettingType::Array { ui_hint, .. } = &mut self.field_def.setting_type {
+            *ui_hint = ArrayUiHint::Default;
+        }
+        self
+    }
+
+    pub fn table_ui(mut self) -> Self {
+        if let SettingType::Array { ui_hint, .. } = &mut self.field_def.setting_type {
+            *ui_hint = ArrayUiHint::Table;
+        }
+        self
+    }
+
+    pub fn master_detail(mut self) -> Self {
+        if let SettingType::Array { ui_hint, .. } = &mut self.field_def.setting_type {
+            *ui_hint = ArrayUiHint::MasterDetail;
+        }
+        self
+    }
+
+    pub fn tags_ui(mut self) -> Self {
+        if let SettingType::Array { ui_hint, .. } = &mut self.field_def.setting_type {
+            *ui_hint = ArrayUiHint::Tags;
+        }
+        self
+    }
+
+    // ── build ─────────────────────────────────────────────────────
+
+    pub fn build(self) -> SettingDefinition {
+        SettingDefinition {
+            field: self.field_def,
+            group: self.group,
+            order: self.order,
+            config_action: self.config_action,
+        }
+    }
+
+    pub fn build_field(self) -> FieldDefinition {
+        self.field_def
     }
 }

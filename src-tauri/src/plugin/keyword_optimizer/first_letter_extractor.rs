@@ -1,7 +1,6 @@
-use crate::plugin_system::types::FieldDefinition;
-use crate::plugin_system::{
-    types::{ComponentType, ConfigError, Configurable, KeywordOptimizer, SettingDefinition},
-    SettingType,
+use crate::core::config::setting_builders::SchemaBuilder;
+use crate::plugin_system::types::{
+    ComponentType, ConfigError, Configurable, KeywordOptimizer, SettingDefinition,
 };
 use parking_lot::RwLock;
 
@@ -67,39 +66,21 @@ impl Configurable for FirstLetterExtractor {
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {
         vec![
-            SettingDefinition {
-                field: FieldDefinition {
-                    key: "priority".to_string(),
-                    label: "优先级".to_string(),
-                    description: "优化器执行优先级，数值越小越先执行".to_string(),
-                    setting_type: SettingType::Number {
-                        min: Some(1.0),
-                        max: Some(100.0),
-                        step: Some(1.0),
-                    },
-                    default_value: serde_json::json!(50),
-                    visible: true,
-                    editable: true,
-                },
-                group: None,
-                order: 0,
-                config_action: None,
-            },
-            SettingDefinition {
-                field: FieldDefinition {
-                    key: "uses_context".to_string(),
-                    label: "使用上下文".to_string(),
-                    description: "是否对所有已累积的关键词进行优化，而非仅对原始名称优化"
-                        .to_string(),
-                    setting_type: SettingType::Boolean,
-                    default_value: serde_json::json!(true),
-                    visible: true,
-                    editable: true,
-                },
-                group: None,
-                order: 1,
-                config_action: None,
-            },
+            SchemaBuilder::number("priority", "优先级", "优化器执行优先级，数值越小越先执行")
+                .order(0)
+                .default(50.0)
+                .min(1.0)
+                .max(100.0)
+                .step(1.0)
+                .build(),
+            SchemaBuilder::boolean(
+                "uses_context",
+                "使用上下文",
+                "是否对所有已累积的关键词进行优化，而非仅对原始名称优化",
+            )
+            .order(1)
+            .default(true)
+            .build(),
         ]
     }
 

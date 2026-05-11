@@ -1,7 +1,8 @@
+use crate::core::config::setting_builders::SchemaBuilder;
 use crate::plugin_system::cached_candidate::CachedCandidateData;
 use crate::plugin_system::types::{
-    CandidateId, ComponentType, ConfigError, Configurable, FieldDefinition, ScoreBooster,
-    ScoreDetail, ScoredCandidate, SettingDefinition, SettingType,
+    CandidateId, ComponentType, ConfigError, Configurable, ScoreBooster, ScoreDetail,
+    ScoredCandidate, SettingDefinition,
 };
 use crate::utils::{generate_current_date, get_current_time, is_date_current};
 use dashmap::DashMap;
@@ -152,78 +153,46 @@ impl Configurable for HistoryBooster {
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {
         vec![
-            SettingDefinition {
-                field: FieldDefinition {
-                    key: "history_weight".to_string(),
-                    label: "历史权重".to_string(),
-                    description: "历史总启动次数的权重系数".to_string(),
-                    setting_type: SettingType::Number {
-                        min: Some(0.0),
-                        max: Some(10.0),
-                        step: Some(0.1),
-                    },
-                    default_value: serde_json::json!(0.8),
-                    visible: true,
-                    editable: true,
-                },
-                group: Some("权重配置".to_string()),
-                order: 0,
-                config_action: None,
-            },
-            SettingDefinition {
-                field: FieldDefinition {
-                    key: "recent_habit_weight".to_string(),
-                    label: "近期习惯权重".to_string(),
-                    description: "最近7天启动习惯的权重系数".to_string(),
-                    setting_type: SettingType::Number {
-                        min: Some(0.0),
-                        max: Some(10.0),
-                        step: Some(0.1),
-                    },
-                    default_value: serde_json::json!(1.5),
-                    visible: true,
-                    editable: true,
-                },
-                group: Some("权重配置".to_string()),
-                order: 1,
-                config_action: None,
-            },
-            SettingDefinition {
-                field: FieldDefinition {
-                    key: "temporal_weight".to_string(),
-                    label: "短期热度权重".to_string(),
-                    description: "短期热度的权重系数".to_string(),
-                    setting_type: SettingType::Number {
-                        min: Some(0.0),
-                        max: Some(10.0),
-                        step: Some(0.1),
-                    },
-                    default_value: serde_json::json!(0.5),
-                    visible: true,
-                    editable: true,
-                },
-                group: Some("权重配置".to_string()),
-                order: 2,
-                config_action: None,
-            },
-            SettingDefinition {
-                field: FieldDefinition {
-                    key: "temporal_decay".to_string(),
-                    label: "热度衰减常数(秒)".to_string(),
-                    description: "短期热度的衰减时间常数，默认10800秒(3小时)".to_string(),
-                    setting_type: SettingType::Number {
-                        min: Some(60.0),
-                        max: Some(86400.0),
-                        step: Some(60.0),
-                    },
-                    default_value: serde_json::json!(10800),
-                    visible: true,
-                    editable: true,
-                },
-                group: Some("衰减配置".to_string()),
-                order: 3,
-                config_action: None,
-            },
+            SchemaBuilder::number("history_weight", "历史权重", "历史总启动次数的权重系数")
+                .group("权重配置")
+                .order(0)
+                .default(0.8)
+                .min(0.0)
+                .max(10.0)
+                .step(0.1)
+                .build(),
+            SchemaBuilder::number(
+                "recent_habit_weight",
+                "近期习惯权重",
+                "最近7天启动习惯的权重系数",
+            )
+            .group("权重配置")
+            .order(1)
+            .default(1.5)
+            .min(0.0)
+            .max(10.0)
+            .step(0.1)
+            .build(),
+            SchemaBuilder::number("temporal_weight", "短期热度权重", "短期热度的权重系数")
+                .group("权重配置")
+                .order(2)
+                .default(0.5)
+                .min(0.0)
+                .max(10.0)
+                .step(0.1)
+                .build(),
+            SchemaBuilder::number(
+                "temporal_decay",
+                "热度衰减常数(秒)",
+                "短期热度的衰减时间常数，默认10800秒(3小时)",
+            )
+            .group("衰减配置")
+            .order(3)
+            .default(10800.0)
+            .min(60.0)
+            .max(86400.0)
+            .step(60.0)
+            .build(),
         ]
     }
 

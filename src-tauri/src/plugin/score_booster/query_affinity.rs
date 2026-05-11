@@ -1,7 +1,8 @@
+use crate::core::config::setting_builders::SchemaBuilder;
 use crate::plugin_system::cached_candidate::CachedCandidateData;
 use crate::plugin_system::types::{
-    CandidateId, ComponentType, ConfigError, Configurable, FieldDefinition, ScoreBooster,
-    ScoreDetail, ScoredCandidate, SettingDefinition, SettingType,
+    CandidateId, ComponentType, ConfigError, Configurable, ScoreBooster, ScoreDetail,
+    ScoredCandidate, SettingDefinition,
 };
 use crate::utils::get_current_time;
 use dashmap::DashMap;
@@ -140,60 +141,42 @@ impl Configurable for QueryAffinityBooster {
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {
         vec![
-            SettingDefinition {
-                field: FieldDefinition {
-                    key: "query_affinity_weight".to_string(),
-                    label: "查询亲和权重".to_string(),
-                    description: "查询亲和度的权重系数".to_string(),
-                    setting_type: SettingType::Number {
-                        min: Some(0.0),
-                        max: Some(20.0),
-                        step: Some(0.1),
-                    },
-                    default_value: serde_json::json!(3.0),
-                    visible: true,
-                    editable: true,
-                },
-                group: Some("权重配置".to_string()),
-                order: 0,
-                config_action: None,
-            },
-            SettingDefinition {
-                field: FieldDefinition {
-                    key: "query_affinity_time_decay".to_string(),
-                    label: "亲和衰减常数(秒)".to_string(),
-                    description: "查询亲和度的时间衰减常数，默认259200秒(3天)".to_string(),
-                    setting_type: SettingType::Number {
-                        min: Some(60.0),
-                        max: Some(2592000.0),
-                        step: Some(60.0),
-                    },
-                    default_value: serde_json::json!(259200),
-                    visible: true,
-                    editable: true,
-                },
-                group: Some("衰减配置".to_string()),
-                order: 1,
-                config_action: None,
-            },
-            SettingDefinition {
-                field: FieldDefinition {
-                    key: "query_affinity_cooldown".to_string(),
-                    label: "亲和冷却时间(秒)".to_string(),
-                    description: "查询亲和度的冷却时间，防止短时间重复计数，默认15秒".to_string(),
-                    setting_type: SettingType::Number {
-                        min: Some(1.0),
-                        max: Some(300.0),
-                        step: Some(1.0),
-                    },
-                    default_value: serde_json::json!(15),
-                    visible: true,
-                    editable: true,
-                },
-                group: Some("冷却配置".to_string()),
-                order: 2,
-                config_action: None,
-            },
+            SchemaBuilder::number(
+                "query_affinity_weight",
+                "查询亲和权重",
+                "查询亲和度的权重系数",
+            )
+            .group("权重配置")
+            .order(0)
+            .default(3.0)
+            .min(0.0)
+            .max(20.0)
+            .step(0.1)
+            .build(),
+            SchemaBuilder::number(
+                "query_affinity_time_decay",
+                "亲和衰减常数(秒)",
+                "查询亲和度的时间衰减常数，默认259200秒(3天)",
+            )
+            .group("衰减配置")
+            .order(1)
+            .default(259200.0)
+            .min(60.0)
+            .max(2592000.0)
+            .step(60.0)
+            .build(),
+            SchemaBuilder::number(
+                "query_affinity_cooldown",
+                "亲和冷却时间(秒)",
+                "查询亲和度的冷却时间，防止短时间重复计数，默认15秒",
+            )
+            .group("冷却配置")
+            .order(2)
+            .default(15.0)
+            .min(1.0)
+            .max(300.0)
+            .step(1.0)
+            .build(),
         ]
     }
 

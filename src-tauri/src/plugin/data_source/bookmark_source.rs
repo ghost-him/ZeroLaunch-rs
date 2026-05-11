@@ -1,8 +1,6 @@
+use crate::core::config::setting_builders::SchemaBuilder;
 use crate::plugin_system::cached_candidate::CachedCandidateData;
-use crate::plugin_system::types::{
-    ArrayItem, ArrayUiHint, ConfigActionDef, DataSource, ExecutionTarget, FieldDefinition,
-    SearchCandidate, SettingType,
-};
+use crate::plugin_system::types::{ConfigActionDef, DataSource, ExecutionTarget, SearchCandidate};
 use crate::plugin_system::{ComponentType, ConfigError, Configurable, SettingDefinition};
 use crate::sdk::host_api::PluginHandle;
 use crate::sdk::IconRequest;
@@ -273,103 +271,53 @@ impl Configurable for BookmarkSource {
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {
         vec![
-            SettingDefinition {
-                field: FieldDefinition {
-                    key: "sources".to_string(),
-                    label: "书签源".to_string(),
-                    description: "配置要索引的浏览器书签来源".to_string(),
-                    setting_type: SettingType::Array {
-                        item: ArrayItem::Object(vec![
-                            FieldDefinition {
-                                key: "name".to_string(),
-                                label: "浏览器名称".to_string(),
-                                description: "书签来源的浏览器名称".to_string(),
-                                setting_type: SettingType::Text,
-                                default_value: serde_json::json!(""),
-                                visible: true,
-                                editable: false,
-                            },
-                            FieldDefinition {
-                                key: "bookmarks_path".to_string(),
-                                label: "书签文件路径".to_string(),
-                                description: "浏览器书签文件的完整路径".to_string(),
-                                setting_type: SettingType::Path {
-                                    mode: crate::plugin_system::types::PathMode::File,
-                                },
-                                default_value: serde_json::json!(""),
-                                visible: true,
-                                editable: false,
-                            },
-                            FieldDefinition {
-                                key: "enabled".to_string(),
-                                label: "启用".to_string(),
-                                description: "是否启用此书签源".to_string(),
-                                setting_type: SettingType::Boolean,
-                                default_value: serde_json::json!(true),
-                                visible: true,
-                                editable: true,
-                            },
-                        ]),
-                        min_items: None,
-                        max_items: None,
-                        ui_hint: ArrayUiHint::MasterDetail,
-                    },
-                    default_value: serde_json::json!([]),
-                    visible: true,
-                    editable: true,
-                },
-                group: Some("书签源".to_string()),
-                order: 1,
-                config_action: Some("detect_browsers".to_string()),
-            },
-            SettingDefinition {
-                field: FieldDefinition {
-                    key: "overrides".to_string(),
-                    label: "覆盖配置".to_string(),
-                    description: "对特定书签进行排除或自定义标题".to_string(),
-                    setting_type: SettingType::Array {
-                        item: ArrayItem::Object(vec![
-                            FieldDefinition {
-                                key: "url".to_string(),
-                                label: "URL".to_string(),
-                                description: "要匹配的书签 URL".to_string(),
-                                setting_type: SettingType::Text,
-                                default_value: serde_json::json!(""),
-                                visible: true,
-                                editable: false,
-                            },
-                            FieldDefinition {
-                                key: "excluded".to_string(),
-                                label: "排除".to_string(),
-                                description: "是否排除此书签".to_string(),
-                                setting_type: SettingType::Boolean,
-                                default_value: serde_json::json!(false),
-                                visible: true,
-                                editable: true,
-                            },
-                            FieldDefinition {
-                                key: "custom_title".to_string(),
-                                label: "自定义标题".to_string(),
-                                description: "替换原始标题的自定义标题，留空则使用原始标题"
-                                    .to_string(),
-                                setting_type: SettingType::Text,
-                                default_value: serde_json::json!(""),
-                                visible: true,
-                                editable: true,
-                            },
-                        ]),
-                        min_items: None,
-                        max_items: None,
-                        ui_hint: ArrayUiHint::Table,
-                    },
-                    default_value: serde_json::json!([]),
-                    visible: true,
-                    editable: true,
-                },
-                group: Some("覆盖配置".to_string()),
-                order: 2,
-                config_action: None,
-            },
+            SchemaBuilder::array("sources", "书签源", "配置要索引的浏览器书签来源")
+                .group("书签源")
+                .order(1)
+                .config_action("detect_browsers")
+                .object_items(vec![
+                    SchemaBuilder::text("name", "浏览器名称", "书签来源的浏览器名称")
+                        .default("")
+                        .editable(false)
+                        .build_field(),
+                    SchemaBuilder::path(
+                        "bookmarks_path",
+                        "书签文件路径",
+                        "浏览器书签文件的完整路径",
+                    )
+                    .file()
+                    .default("")
+                    .editable(false)
+                    .build_field(),
+                    SchemaBuilder::boolean("enabled", "启用", "是否启用此书签源")
+                        .default(true)
+                        .build_field(),
+                ])
+                .master_detail()
+                .default(serde_json::json!([]))
+                .build(),
+            SchemaBuilder::array("overrides", "覆盖配置", "对特定书签进行排除或自定义标题")
+                .group("覆盖配置")
+                .order(2)
+                .object_items(vec![
+                    SchemaBuilder::text("url", "URL", "要匹配的书签 URL")
+                        .default("")
+                        .editable(false)
+                        .build_field(),
+                    SchemaBuilder::boolean("excluded", "排除", "是否排除此书签")
+                        .default(false)
+                        .build_field(),
+                    SchemaBuilder::text(
+                        "custom_title",
+                        "自定义标题",
+                        "替换原始标题的自定义标题，留空则使用原始标题",
+                    )
+                    .default("")
+                    .build_field(),
+                ])
+                .table_ui()
+                .default(serde_json::json!([]))
+                .build(),
         ]
     }
 

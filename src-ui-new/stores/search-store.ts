@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import { bridgeQuery, bridgeConfirm, bridgeWake, bridgeReset, bridgeRefreshCandidates, bridgeGetCandidatesCount } from '../bridge/commands'
 import type { ListItem, ResultAction, BridgeQueryResponse } from '../bridge/contract'
 
@@ -99,6 +100,7 @@ export const useSearchStore = defineStore('search', () => {
       results.value = []
       sessionMode.value = 'none'
       panelType.value = null
+      getCurrentWindow().hide()
       return
     }
 
@@ -129,6 +131,7 @@ export const useSearchStore = defineStore('search', () => {
     query.value = ''
     results.value = []
     sessionMode.value = 'none'
+    getCurrentWindow().hide()
   }
 
   async function doWake() {

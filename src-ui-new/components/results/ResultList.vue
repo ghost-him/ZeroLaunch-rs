@@ -45,11 +45,12 @@ function onItemDblClick(index: number) {
 
 <style scoped>
 .result-list {
+  --rl-padding-y: 8px;
   flex: 1;
-  min-height: calc((var(--result-item-height) + 2px) * 1);
-  max-height: calc((var(--result-item-height) + 2px) * var(--max-visible-results));
+  min-height: calc((var(--result-item-height) + 2px) * 1 + 2 * var(--rl-padding-y));
+  max-height: calc((var(--result-item-height) + 2px) * var(--max-visible-results) + 2 * var(--rl-padding-y));
   overflow-y: auto;
-  padding: 8px 12px; /* Increased padding for spacious list wrapper */
+  padding: var(--rl-padding-y) 12px;
 }
 
 /* Hide scrollbar for a cleaner look, similar to modern OS / sofast */

@@ -11,25 +11,6 @@
 type AppearanceSettings = Record<string, unknown>
 
 /**
- * 从后端加载外观配置并应用为 CSS 变量。
- * 应在 Vue 挂载前调用，防止布局闪烁。
- * 返回原始 settings 对象供调用方缓存。
- */
-export async function loadAndApplyAppearance(): Promise<AppearanceSettings> {
-  const { configGetSettings } = await import('@/bridge/commands')
-  let settings: AppearanceSettings = {}
-  try {
-    settings = (await configGetSettings('appearance')) as AppearanceSettings
-  } catch {
-    console.warn('[appearance] Failed to load appearance config, using CSS defaults')
-  }
-  if (Object.keys(settings).length > 0) {
-    applyAppearanceSettings(settings)
-  }
-  return settings
-}
-
-/**
  * 将外观配置映射为 CSS 变量并应用到 document.documentElement。
  * 仅设置 settings 中存在的 key；缺失 key 不修改 CSS 变量。
  */

@@ -2,7 +2,7 @@
   <div class="search-bar-wrapper" @contextmenu.prevent="onContextMenu">
     <n-input
       ref="inputRef"
-      v-model:value="inputText"
+      v-model:value="searchStore.query"
       type="text"
       :placeholder="themeStore.searchBarPlaceholder"
       :autofocus="true"
@@ -20,17 +20,17 @@ import { NInput } from 'naive-ui'
 import { useSearch } from '../../composables/useSearch'
 import { useSettings } from '../../composables/useSettings'
 import { useThemeStore } from '../../stores/theme-store'
+import { useSearchStore } from '../../stores/search-store'
 import type { CtxItem } from '../layout/ContextMenu.vue'
 
 const { handleInput } = useSearch()
 const { openSettings } = useSettings()
 const themeStore = useThemeStore()
+const searchStore = useSearchStore()
 
-const inputText = ref('')
 const inputRef = ref<InstanceType<typeof NInput> | null>(null)
 
 function onInput(value: string) {
-  inputText.value = value
   handleInput(value)
 }
 

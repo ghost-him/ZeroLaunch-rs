@@ -4,7 +4,6 @@ export function useSearch() {
   const store = useSearchStore()
 
   function handleInput(value: string) {
-    store.query = value
     store.doQuery(value)
   }
 

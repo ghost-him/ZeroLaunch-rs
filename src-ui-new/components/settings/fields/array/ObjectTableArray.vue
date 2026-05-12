@@ -14,7 +14,7 @@
               v-if="isTextType(fd.settingType)"
               :value="getField(idx, fd.key) as string"
               size="small"
-              :disabled="!definition.field.editable"
+              :disabled="!definition.field.editable || !fd.editable"
               @update:value="(val: string) => setField(idx, fd.key, val)"
             />
             <n-input-number
@@ -24,14 +24,14 @@
               :min="fieldNumConfig(fd).min"
               :max="fieldNumConfig(fd).max"
               :step="fieldNumConfig(fd).step"
-              :disabled="!definition.field.editable"
+              :disabled="!definition.field.editable || !fd.editable"
               @update:value="(val: number | null) => setField(idx, fd.key, val ?? 0)"
             />
             <n-switch
               v-else-if="isBooleanType(fd.settingType)"
               :value="getField(idx, fd.key) as boolean"
               size="small"
-              :disabled="!definition.field.editable"
+              :disabled="!definition.field.editable || !fd.editable"
               @update:value="(val: boolean) => setField(idx, fd.key, val)"
             />
             <n-select
@@ -39,14 +39,14 @@
               :value="getField(idx, fd.key) as string"
               :options="fieldSelectOpts(fd)"
               size="small"
-              :disabled="!definition.field.editable"
+              :disabled="!definition.field.editable || !fd.editable"
               @update:value="(val: string) => setField(idx, fd.key, val)"
             />
             <div v-else-if="isFieldPath(fd)" class="table-path-row">
               <n-input
                 :value="getField(idx, fd.key) as string"
                 size="small"
-                :disabled="!definition.field.editable"
+                :disabled="!definition.field.editable || !fd.editable"
                 @update:value="(val: string) => setField(idx, fd.key, val)"
               />
             </div>

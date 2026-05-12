@@ -80,28 +80,28 @@ export interface FieldDefinition {
 }
 
 export type SettingType =
-  | 'Text'
-  | { Number: { min?: number; max?: number; step?: number } }
-  | 'Boolean'
-  | { Select: { options: string[] } }
-  | { Path: { mode: 'File' | 'Directory' } }
-  | 'Color'
-  | 'Json'
-  | { Array: { item: ArrayItem; minItems?: number; maxItems?: number; uiHint: ArrayUiHint } }
+  | 'text'
+  | { number: { min?: number; max?: number; step?: number } }
+  | 'boolean'
+  | { select: { options: string[] } }
+  | { path: { mode: 'file' | 'directory' } }
+  | 'color'
+  | 'json'
+  | { array: { item: ArrayItem; minItems?: number; maxItems?: number; uiHint: ArrayUiHint } }
 
 export type ArrayItem =
-  | { Primitive: PrimitiveType }
-  | { Object: FieldDefinition[] }
+  | { primitive: PrimitiveType }
+  | { object: FieldDefinition[] }
 
 export type PrimitiveType =
-  | 'Text'
-  | { Number: { min?: number; max?: number; step?: number } }
-  | 'Boolean'
-  | { Select: { options: string[] } }
-  | { Path: { mode: 'File' | 'Directory' } }
-  | 'Color'
+  | 'text'
+  | { number: { min?: number; max?: number; step?: number } }
+  | 'boolean'
+  | { select: { options: string[] } }
+  | { path: { mode: 'file' | 'directory' } }
+  | 'color'
 
-export type ArrayUiHint = 'Default' | 'Table' | 'MasterDetail' | 'Tags'
+export type ArrayUiHint = 'default' | 'table' | 'masterDetail' | 'tags'
 
 export interface ConfigActionDef {
   action: string

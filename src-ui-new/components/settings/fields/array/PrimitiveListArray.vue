@@ -2,14 +2,14 @@
   <div class="primitive-list">
     <div v-for="(item, idx) in listValue" :key="idx" class="array-row">
       <n-input
-        v-if="itemType === 'Text'"
+        v-if="itemType === 'text'"
         :value="item as string"
         :disabled="!definition.field.editable"
         size="small"
         @update:value="(val: string) => onUpdate(idx, val)"
       />
       <n-input-number
-        v-else-if="itemType === 'Number'"
+        v-else-if="itemType === 'number'"
         :value="item as number"
         :min="numConfig.min"
         :max="numConfig.max"
@@ -19,14 +19,14 @@
         @update:value="(val: number | null) => onUpdate(idx, val ?? 0)"
       />
       <n-select
-        v-else-if="itemType === 'Select'"
+        v-else-if="itemType === 'select'"
         :value="item as string"
         :options="selectOpts"
         :disabled="!definition.field.editable"
         size="small"
         @update:value="(val: string) => onUpdate(idx, val)"
       />
-      <div v-else-if="itemType === 'Path'" class="path-input-row">
+      <div v-else-if="itemType === 'path'" class="path-input-row">
         <n-input
           :value="item as string"
           :disabled="!definition.field.editable"
@@ -38,13 +38,13 @@
         </n-button>
       </div>
       <n-switch
-        v-else-if="itemType === 'Boolean'"
+        v-else-if="itemType === 'boolean'"
         :value="item as boolean"
         :disabled="!definition.field.editable"
         @update:value="(val: boolean) => onUpdate(idx, val)"
       />
       <n-color-picker
-        v-else-if="itemType === 'Color'"
+        v-else-if="itemType === 'color'"
         :value="item as string"
         :disabled="!definition.field.editable"
         @update:value="(val: string) => onUpdate(idx, val)"
@@ -116,7 +116,7 @@ function onUpdate(idx: number, val: unknown) {
 
 async function browsePath(idx: number) {
   try {
-    if (pathMode.value === 'Directory') {
+    if (pathMode.value === 'directory') {
       const selected = await open({ directory: true, multiple: false })
       if (selected && typeof selected === 'string') onUpdate(idx, selected)
     } else {

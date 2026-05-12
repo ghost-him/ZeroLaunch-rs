@@ -48,12 +48,12 @@ const emit = defineEmits<{
 const mode = computed(() => getPathMode(props.definition.field.settingType))
 
 const placeholder = computed(() =>
-  mode.value === 'Directory' ? '选择目录...' : '选择文件...',
+  mode.value === 'directory' ? '选择目录...' : '选择文件...',
 )
 
 async function browsePath() {
   try {
-    if (mode.value === 'Directory') {
+    if (mode.value === 'directory') {
       const selected = await open({ directory: true, multiple: false })
       if (selected && typeof selected === 'string') {
         emit('update:modelValue', selected)

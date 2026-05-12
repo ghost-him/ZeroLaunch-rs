@@ -11,7 +11,7 @@
     />
 
     <PrimitiveTagsArray
-      v-if="isPrimitive && uiHint === 'Tags'"
+      v-if="isPrimitive && uiHint === 'tags'"
       :definition="definition"
       :model-value="arrayValue"
       :item="arrayItem"
@@ -27,7 +27,7 @@
     />
 
     <ObjectMasterDetailArray
-      v-else-if="isObject && uiHint === 'MasterDetail'"
+      v-else-if="isObject && uiHint === 'masterDetail'"
       :definition="definition"
       :component-id="componentId"
       :model-value="arrayValue"
@@ -36,7 +36,7 @@
     />
 
     <ObjectTableArray
-      v-else-if="isObject && uiHint === 'Table'"
+      v-else-if="isObject && uiHint === 'table'"
       :definition="definition"
       :model-value="arrayValue"
       :item="arrayItem"
@@ -80,18 +80,18 @@ const emit = defineEmits<{
 
 const arrayItem = computed<ArrayItem>(() => {
   const st = props.definition.field.settingType
-  if (typeof st === 'object' && st !== null && 'Array' in st) {
-    return st.Array.item
+  if (typeof st === 'object' && st !== null && 'array' in st) {
+    return st.array.item
   }
-  return { Primitive: 'Text' }
+  return { primitive: 'text' }
 })
 
 const uiHint = computed<ArrayUiHint>(() => {
   const st = props.definition.field.settingType
-  if (typeof st === 'object' && st !== null && 'Array' in st) {
-    return st.Array.uiHint
+  if (typeof st === 'object' && st !== null && 'array' in st) {
+    return st.array.uiHint
   }
-  return 'Default'
+  return 'default'
 })
 
 const isPrimitive = computed(() => isPrimitiveArray(arrayItem.value))

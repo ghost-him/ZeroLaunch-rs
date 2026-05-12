@@ -13,45 +13,45 @@ import type {
 
 // ---- SettingType 类型守卫 ----
 
-export function isTextType(st: SettingType): st is 'Text' {
-  return st === 'Text'
+export function isTextType(st: SettingType): st is 'text' {
+  return st === 'text'
 }
 
-export function isNumberType(st: SettingType): st is { Number: { min?: number; max?: number; step?: number } } {
-  return typeof st === 'object' && st !== null && 'Number' in st
+export function isNumberType(st: SettingType): st is { number: { min?: number; max?: number; step?: number } } {
+  return typeof st === 'object' && st !== null && 'number' in st
 }
 
-export function isBooleanType(st: SettingType): st is 'Boolean' {
-  return st === 'Boolean'
+export function isBooleanType(st: SettingType): st is 'boolean' {
+  return st === 'boolean'
 }
 
-export function isSelectType(st: SettingType): st is { Select: { options: string[] } } {
-  return typeof st === 'object' && st !== null && 'Select' in st
+export function isSelectType(st: SettingType): st is { select: { options: string[] } } {
+  return typeof st === 'object' && st !== null && 'select' in st
 }
 
-export function isPathType(st: SettingType): st is { Path: { mode: 'File' | 'Directory' } } {
-  return typeof st === 'object' && st !== null && 'Path' in st
+export function isPathType(st: SettingType): st is { path: { mode: 'file' | 'directory' } } {
+  return typeof st === 'object' && st !== null && 'path' in st
 }
 
-export function isColorType(st: SettingType): st is 'Color' {
-  return st === 'Color'
+export function isColorType(st: SettingType): st is 'color' {
+  return st === 'color'
 }
 
-export function isJsonType(st: SettingType): st is 'Json' {
-  return st === 'Json'
+export function isJsonType(st: SettingType): st is 'json' {
+  return st === 'json'
 }
 
 export function isArrayType(st: SettingType): st is {
-  Array: { item: ArrayItem; minItems?: number; maxItems?: number; uiHint: ArrayUiHint }
+  array: { item: ArrayItem; minItems?: number; maxItems?: number; uiHint: ArrayUiHint }
 } {
-  return typeof st === 'object' && st !== null && 'Array' in st
+  return typeof st === 'object' && st !== null && 'array' in st
 }
 
 // ---- SettingType 配置提取器 ----
 
 export function getNumberConfig(st: SettingType) {
   if (isNumberType(st)) {
-    return st.Number
+    return st.number
   }
   return { min: undefined, max: undefined, step: undefined } as {
     min?: number
@@ -62,21 +62,21 @@ export function getNumberConfig(st: SettingType) {
 
 export function getSelectOptions(st: SettingType): { label: string; value: string }[] {
   if (isSelectType(st)) {
-    return st.Select.options.map((o) => ({ label: o, value: o }))
+    return st.select.options.map((o) => ({ label: o, value: o }))
   }
   return []
 }
 
-export function getPathMode(st: SettingType): 'File' | 'Directory' {
+export function getPathMode(st: SettingType): 'file' | 'directory' {
   if (isPathType(st)) {
-    return st.Path.mode
+    return st.path.mode
   }
-  return 'File'
+  return 'file'
 }
 
 export function getArrayConfig(st: SettingType) {
   if (isArrayType(st)) {
-    return st.Array
+    return st.array
   }
   return null
 }
@@ -84,88 +84,88 @@ export function getArrayConfig(st: SettingType) {
 // FieldDefinition-level helpers (for object array sub-fields)
 
 export function isFieldNumber(fd: FieldDefinition): fd is FieldDefinition & {
-  settingType: { Number: { min?: number; max?: number; step?: number } }
+  settingType: { number: { min?: number; max?: number; step?: number } }
 } {
   return isNumberType(fd.settingType)
 }
 
 export function isFieldSelect(fd: FieldDefinition): fd is FieldDefinition & {
-  settingType: { Select: { options: string[] } }
+  settingType: { select: { options: string[] } }
 } {
   return isSelectType(fd.settingType)
 }
 
 export function isFieldPath(fd: FieldDefinition): fd is FieldDefinition & {
-  settingType: { Path: { mode: 'File' | 'Directory' } }
+  settingType: { path: { mode: 'file' | 'directory' } }
 } {
   return isPathType(fd.settingType)
 }
 
 export function isFieldBoolean(fd: FieldDefinition): boolean {
-  return fd.settingType === 'Boolean'
+  return fd.settingType === 'boolean'
 }
 
 // ---- ArrayItem 类型守卫 ----
 
-export function isPrimitiveArray(item: ArrayItem): item is { Primitive: PrimitiveType } {
-  return typeof item === 'object' && item !== null && 'Primitive' in item
+export function isPrimitiveArray(item: ArrayItem): item is { primitive: PrimitiveType } {
+  return typeof item === 'object' && item !== null && 'primitive' in item
 }
 
-export function isObjectArray(item: ArrayItem): item is { Object: FieldDefinition[] } {
-  return typeof item === 'object' && item !== null && 'Object' in item
+export function isObjectArray(item: ArrayItem): item is { object: FieldDefinition[] } {
+  return typeof item === 'object' && item !== null && 'object' in item
 }
 
 // ---- PrimitiveType 工具 ----
 
-export type PrimitiveTypeName = 'Text' | 'Number' | 'Boolean' | 'Select' | 'Path' | 'Color'
+export type PrimitiveTypeName = 'text' | 'number' | 'boolean' | 'select' | 'path' | 'color'
 
 export function getPrimitiveItemType(item: ArrayItem): PrimitiveTypeName {
-  if (!isPrimitiveArray(item)) return 'Text'
-  const prim = item.Primitive
+  if (!isPrimitiveArray(item)) return 'text'
+  const prim = item.primitive
   if (typeof prim === 'string') {
-    if (prim === 'Text' || prim === 'Boolean' || prim === 'Color') return prim
-    return 'Text'
+    if (prim === 'text' || prim === 'boolean' || prim === 'color') return prim
+    return 'text'
   }
   if (typeof prim === 'object' && prim !== null) {
-    if ('Number' in prim) return 'Number'
-    if ('Select' in prim) return 'Select'
-    if ('Path' in prim) return 'Path'
+    if ('number' in prim) return 'number'
+    if ('select' in prim) return 'select'
+    if ('path' in prim) return 'path'
   }
-  return 'Text'
+  return 'text'
 }
 
 export function getPrimitiveNumberConfig(item: ArrayItem) {
   if (!isPrimitiveArray(item)) return {}
-  const prim = item.Primitive
-  if (typeof prim === 'object' && prim !== null && 'Number' in prim) {
-    return prim.Number
+  const prim = item.primitive
+  if (typeof prim === 'object' && prim !== null && 'number' in prim) {
+    return prim.number
   }
   return {}
 }
 
 export function getPrimitiveSelectOptions(item: ArrayItem): { label: string; value: string }[] {
   if (!isPrimitiveArray(item)) return []
-  const prim = item.Primitive
-  if (typeof prim === 'object' && prim !== null && 'Select' in prim) {
-    return prim.Select.options.map((o) => ({ label: o, value: o }))
+  const prim = item.primitive
+  if (typeof prim === 'object' && prim !== null && 'select' in prim) {
+    return prim.select.options.map((o) => ({ label: o, value: o }))
   }
   return []
 }
 
-export function getPrimitivePathMode(item: ArrayItem): 'File' | 'Directory' {
-  if (!isPrimitiveArray(item)) return 'File'
-  const prim = item.Primitive
-  if (typeof prim === 'object' && prim !== null && 'Path' in prim) {
-    return prim.Path.mode
+export function getPrimitivePathMode(item: ArrayItem): 'file' | 'directory' {
+  if (!isPrimitiveArray(item)) return 'file'
+  const prim = item.primitive
+  if (typeof prim === 'object' && prim !== null && 'path' in prim) {
+    return prim.path.mode
   }
-  return 'File'
+  return 'file'
 }
 
 // ---- Object array helpers ----
 
 export function getVisibleObjectFields(item: ArrayItem): FieldDefinition[] {
   if (!isObjectArray(item)) return []
-  return item.Object.filter((f) => f.visible !== false)
+  return item.object.filter((f) => f.visible !== false)
 }
 
 // ---- 默认值生成 ----
@@ -177,8 +177,8 @@ export function getDefaultArrayItem(
   if (isPrimitiveArray(item)) {
     if (Array.isArray(defaultValue) && defaultValue.length > 0) return defaultValue[0]
     switch (getPrimitiveItemType(item)) {
-      case 'Number': return 0
-      case 'Boolean': return false
+      case 'number': return 0
+      case 'boolean': return false
       default: return ''
     }
   }

@@ -85,7 +85,7 @@ impl Configurable for AppearanceConfigComponent {
             SchemaBuilder::text("searchBarPlaceholder", "搜索栏占位符", "搜索栏的提示文本")
                 .group("searchBar")
                 .order(13)
-                .default("Hello, ZeroLaunch!")
+                .default("Hello, ZeroLaunch! ヾ(≧▽≦*)o")
                 .build(),
             // ---- 结果栏 ----
             SchemaBuilder::number("resultItemHeight", "结果项高度", "单条结果的高度(px)")

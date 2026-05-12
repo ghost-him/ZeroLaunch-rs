@@ -67,7 +67,7 @@ defineExpose({ focusInput })
 .search-bar-wrapper {
   height: var(--search-bar-height);
   flex-shrink: 0;
-  padding: 16px 24px; /* Larger horizontal padding */
+  padding: 0 24px;
   display: flex;
   align-items: center;
   position: relative;
@@ -86,9 +86,13 @@ defineExpose({ focusInput })
   --n-text-color: var(--text-primary);
   --n-placeholder-color: var(--text-secondary);
   --n-font-size: var(--font-size-xl) !important;
-  --n-height: 40px !important;
+  --n-height: 100% !important;
   --n-caret-color: var(--accent-color) !important;
   --n-padding-left: 0 !important; /* Flush with wrapper padding */
   --n-font-family: var(--search-bar-font-family) !important;
+}
+.search-bar-wrapper :deep(.n-input .n-input-wrapper) {
+  padding-top: 10px;
+  padding-bottom: 10px;
 }
 </style>

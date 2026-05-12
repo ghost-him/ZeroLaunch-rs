@@ -6,15 +6,22 @@
     </div>
     <p class="form-desc" v-if="schema.componentId">{{ schema.componentId }}</p>
 
-    <div class="form-fields">
-      <DynamicFormField
-        v-for="def in sortedSettings"
-        :key="def.field.key"
-        :definition="def"
-        :component-id="schema.componentId"
-        :model-value="getValue(def.field.key)"
-        @update:model-value="(val: unknown) => setValue(def.field.key, val)"
-      />
+    <div class="form-groups">
+      <FormSection
+        v-for="group in groupedSettings"
+        :key="group.name"
+        :title="group.name"
+        :collapsible="group.name !== ''"
+      >
+        <DynamicFormField
+          v-for="def in group.items"
+          :key="def.field.key"
+          :definition="def"
+          :component-id="schema.componentId"
+          :model-value="getValue(def.field.key)"
+          @update:model-value="(val: unknown) => setValue(def.field.key, val)"
+        />
+      </FormSection>
     </div>
 
     <div class="form-actions">
@@ -28,8 +35,9 @@
 import { ref, computed, watch } from 'vue'
 import { NButton, NTag, useMessage, useDialog } from 'naive-ui'
 import DynamicFormField from './DynamicFormField.vue'
+import FormSection from './FormSection.vue'
 import { useConfigStore } from '../../stores/config-store'
-import type { ComponentSchema } from '../../bridge/contract'
+import type { ComponentSchema, SettingDefinition } from '../../bridge/contract'
 
 const props = defineProps<{
   schema: ComponentSchema
@@ -54,9 +62,18 @@ watch(
   },
 )
 
-const sortedSettings = computed(() =>
-  [...props.schema.settings].sort((a, b) => a.order - b.order),
-)
+const groupedSettings = computed(() => {
+  const groups = new Map<string, SettingDefinition[]>()
+  for (const def of props.schema.settings) {
+    const g = def.group || ''
+    if (!groups.has(g)) groups.set(g, [])
+    groups.get(g)!.push(def)
+  }
+  for (const [, items] of groups) {
+    items.sort((a, b) => a.order - b.order)
+  }
+  return [...groups.entries()].map(([name, items]) => ({ name, items }))
+})
 
 function getValue(key: string): unknown {
   return localValues.value[key]
@@ -125,10 +142,10 @@ async function onReset() {
   margin-bottom: 16px;
 }
 
-.form-fields {
+.form-groups {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
   margin-bottom: 20px;
 }
 

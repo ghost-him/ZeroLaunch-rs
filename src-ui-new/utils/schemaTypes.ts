@@ -47,6 +47,10 @@ export function isArrayType(st: SettingType): st is {
   return typeof st === 'object' && st !== null && 'array' in st
 }
 
+export function isImageType(st: SettingType): st is { image: { accept: string[]; maxSize?: number } } {
+  return typeof st === 'object' && st !== null && 'image' in st
+}
+
 // ---- SettingType 配置提取器 ----
 
 export function getNumberConfig(st: SettingType) {
@@ -79,6 +83,13 @@ export function getArrayConfig(st: SettingType) {
     return st.array
   }
   return null
+}
+
+export function getImageConfig(st: SettingType): { accept: string[]; maxSize?: number } {
+  if (isImageType(st)) {
+    return st.image
+  }
+  return { accept: ['png', 'jpg', 'jpeg', 'webp'], maxSize: 2 * 1024 * 1024 }
 }
 
 // FieldDefinition-level helpers (for object array sub-fields)

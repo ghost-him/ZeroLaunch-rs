@@ -88,6 +88,7 @@ export type SettingType =
   | 'color'
   | 'json'
   | { array: { item: ArrayItem; minItems?: number; maxItems?: number; uiHint: ArrayUiHint } }
+  | { image: { accept: string[]; maxSize?: number } }
 
 export type ArrayItem =
   | { primitive: PrimitiveType }

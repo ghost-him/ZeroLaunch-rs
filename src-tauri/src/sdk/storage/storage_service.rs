@@ -21,4 +21,10 @@ pub trait StorageService: Send + Sync {
 
     /// 验证存储配置是否有效（上传+下载测试文件）。
     async fn validate(&self) -> bool;
+
+    /// 从存储后端删除文件。
+    async fn delete(&self, file_name: &str) -> Result<(), StorageError>;
+
+    /// 列出指定前缀下的所有文件名。
+    async fn list(&self, prefix: &str) -> Result<Vec<String>, StorageError>;
 }

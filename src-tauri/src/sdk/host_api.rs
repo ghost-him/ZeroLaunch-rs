@@ -121,6 +121,10 @@ pub enum HostApiError {
     /// 存储操作失败
     #[error("存储操作失败 ({file}): {reason}")]
     StorageOperationFailed { file: String, reason: String },
+
+    /// 资源未找到
+    #[error("资源未找到: {id}")]
+    ResourceNotFound { id: String },
 }
 
 /// 插件服务句柄，绑定插件身份与配置。
@@ -156,6 +160,8 @@ pub struct PluginHandle {
     timer_manager: Arc<dyn TimerManager>,
     /// 应用资源服务，由 HostApi 注入
     app_resource: Arc<AppResourceService>,
+    /// 存储服务，由 HostApi 注入
+    storage: Arc<dyn StorageService>,
 }
 
 impl PluginHandle {
@@ -406,8 +412,96 @@ impl PluginHandle {
         self.timer_manager.cancel_all().await
     }
 
-    // ===== 存储服务 =====
-    // 插件的存储服务最好通过配置信息来管理，而不是通过直接访问存储服务
+    // ===== 资源管理 =====
+
+    /// 上传资源文件到本插件的资源空间。
+    pub async fn resource_upload(
+        &self,
+        purpose: &str,
+        file_path: &str,
+        max_size: Option<u64>,
+    ) -> Result<String, HostApiError> {
+        let path = std::path::Path::new(file_path);
+        let ext = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("bin")
+            .to_lowercase();
+
+        if let Some(limit) = max_size {
+            let metadata = tokio::fs::metadata(path).await.map_err(|e| {
+                HostApiError::StorageOperationFailed {
+                    file: file_path.to_string(),
+                    reason: format!("读取文件元数据失败: {}", e),
+                }
+            })?;
+            if metadata.len() > limit {
+                return Err(HostApiError::StorageOperationFailed {
+                    file: file_path.to_string(),
+                    reason: format!("文件大小 {} 超过限制 {} 字节", metadata.len(), limit),
+                });
+            }
+        }
+
+        let data =
+            tokio::fs::read(path)
+                .await
+                .map_err(|e| HostApiError::StorageOperationFailed {
+                    file: file_path.to_string(),
+                    reason: format!("读取文件失败: {}", e),
+                })?;
+
+        let hash = short_hash(&data);
+        let filename = format!("{}_{}.{}", purpose, hash, ext);
+        let storage_path = build_resource_path(&self.plugin_id, Some(&filename));
+        self.storage
+            .upload(&storage_path, &data)
+            .await
+            .map_err(|e| HostApiError::StorageOperationFailed {
+                file: storage_path,
+                reason: e.to_string(),
+            })?;
+        Ok(format!("res://{}", filename))
+    }
+
+    /// 获取资源文件内容。
+    pub async fn resource_get(&self, resource_id: &str) -> Result<Vec<u8>, HostApiError> {
+        let path = build_resource_path(&self.plugin_id, Some(resource_id));
+        self.storage
+            .download(&path)
+            .await
+            .map_err(|e| HostApiError::StorageOperationFailed {
+                file: path,
+                reason: e.to_string(),
+            })?
+            .ok_or_else(|| HostApiError::ResourceNotFound {
+                id: resource_id.to_string(),
+            })
+    }
+
+    /// 删除资源文件。
+    pub async fn resource_delete(&self, resource_id: &str) -> Result<(), HostApiError> {
+        let path = build_resource_path(&self.plugin_id, Some(resource_id));
+        self.storage
+            .delete(&path)
+            .await
+            .map_err(|e| HostApiError::StorageOperationFailed {
+                file: path,
+                reason: e.to_string(),
+            })
+    }
+
+    /// 列出本插件的所有资源。
+    pub async fn resource_list(&self) -> Result<Vec<String>, HostApiError> {
+        let prefix = build_resource_path(&self.plugin_id, None);
+        self.storage
+            .list(&prefix)
+            .await
+            .map_err(|e| HostApiError::StorageOperationFailed {
+                file: prefix,
+                reason: e.to_string(),
+            })
+    }
 }
 
 /// 宿主向插件暴露的平台能力注册层。
@@ -496,6 +590,7 @@ impl HostApi {
             parameter_resolver: self.parameter_resolver.clone(),
             timer_manager: self.timer_manager.clone(),
             app_resource: self.app_resource.clone(),
+            storage: self.storage(),
         });
         self.handles.insert(plugin_id.to_string(), handle.clone());
         handle
@@ -794,6 +889,111 @@ impl HostApi {
     /// 取消所有定时器。
     pub async fn cancel_all_timers(&self) -> Result<(), HostApiError> {
         self.timer_manager.cancel_all().await
+    }
+
+    // ===== 资源管理（宿主级） =====
+
+    /// 上传资源文件到指定插件的资源空间。
+    /// 读取本地文件、计算哈希、写入存储后端，返回 "res://filename" 标识符。
+    /// max_size: 若提供，则在读取文件前检查文件大小是否超出限制。
+    pub async fn resource_upload(
+        &self,
+        plugin_id: &str,
+        purpose: &str,
+        file_path: &str,
+        max_size: Option<u64>,
+    ) -> Result<String, HostApiError> {
+        let path = std::path::Path::new(file_path);
+        let ext = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("bin")
+            .to_lowercase();
+
+        if let Some(limit) = max_size {
+            let metadata = tokio::fs::metadata(path).await.map_err(|e| {
+                HostApiError::StorageOperationFailed {
+                    file: file_path.to_string(),
+                    reason: format!("读取文件元数据失败: {}", e),
+                }
+            })?;
+            if metadata.len() > limit {
+                return Err(HostApiError::StorageOperationFailed {
+                    file: file_path.to_string(),
+                    reason: format!("文件大小 {} 超过限制 {} 字节", metadata.len(), limit),
+                });
+            }
+        }
+
+        let data =
+            tokio::fs::read(path)
+                .await
+                .map_err(|e| HostApiError::StorageOperationFailed {
+                    file: file_path.to_string(),
+                    reason: format!("读取文件失败: {}", e),
+                })?;
+
+        let hash = short_hash(&data);
+        let filename = format!("{}_{}.{}", purpose, hash, ext);
+        let storage_path = build_resource_path(plugin_id, Some(&filename));
+        let storage = self.storage();
+        storage.upload(&storage_path, &data).await.map_err(|e| {
+            HostApiError::StorageOperationFailed {
+                file: storage_path,
+                reason: e.to_string(),
+            }
+        })?;
+        Ok(format!("res://{}", filename))
+    }
+
+    /// 获取资源文件内容。
+    pub async fn resource_get(
+        &self,
+        plugin_id: &str,
+        resource_id: &str,
+    ) -> Result<Vec<u8>, HostApiError> {
+        let path = build_resource_path(plugin_id, Some(resource_id));
+        let storage = self.storage();
+        storage
+            .download(&path)
+            .await
+            .map_err(|e| HostApiError::StorageOperationFailed {
+                file: path,
+                reason: e.to_string(),
+            })?
+            .ok_or_else(|| HostApiError::ResourceNotFound {
+                id: resource_id.to_string(),
+            })
+    }
+
+    /// 删除资源文件。
+    pub async fn resource_delete(
+        &self,
+        plugin_id: &str,
+        resource_id: &str,
+    ) -> Result<(), HostApiError> {
+        let path = build_resource_path(plugin_id, Some(resource_id));
+        let storage = self.storage();
+        storage
+            .delete(&path)
+            .await
+            .map_err(|e| HostApiError::StorageOperationFailed {
+                file: path,
+                reason: e.to_string(),
+            })
+    }
+
+    /// 列出指定插件的所有资源。
+    pub async fn resource_list(&self, plugin_id: &str) -> Result<Vec<String>, HostApiError> {
+        let prefix = build_resource_path(plugin_id, None);
+        let storage = self.storage();
+        storage
+            .list(&prefix)
+            .await
+            .map_err(|e| HostApiError::StorageOperationFailed {
+                file: prefix,
+                reason: e.to_string(),
+            })
     }
 
     // ===== 存储服务（宿主级） =====
@@ -1114,4 +1314,28 @@ impl HostApiBuilder {
             ),
         }
     }
+}
+
+/// 构建资源存储路径。
+/// 使用 PathBuf 确保路径构建的安全性，避免路径遍历攻击。
+/// 返回 Unix 风格路径（存储后端约定）。
+fn build_resource_path(plugin_id: &str, filename: Option<&str>) -> String {
+    let mut path = std::path::PathBuf::new();
+    path.push("resources");
+    path.push(plugin_id);
+    if let Some(name) = filename {
+        path.push(name);
+    }
+    // 统一使用 Unix 风格路径分隔符
+    path.to_string_lossy().replace('\\', "/")
+}
+
+/// 生成数据的短哈希（用于资源文件名去重）。
+fn short_hash(data: &[u8]) -> String {
+    let mut hasher = blake3::Hasher::new();
+    hasher.update(data);
+    let hash = hasher.finalize();
+    // 取前 12 个 hex 字符，足够避免碰撞
+    let hex = hash.to_hex();
+    hex[..12].to_string()
 }

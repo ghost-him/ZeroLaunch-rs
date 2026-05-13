@@ -66,6 +66,17 @@ impl From<crate::core::types::ConfigError> for BridgeError {
     }
 }
 
+impl From<crate::sdk::host_api::HostApiError> for BridgeError {
+    fn from(e: crate::sdk::host_api::HostApiError) -> Self {
+        BridgeError {
+            code: ErrorCode::InternalError,
+            message: e.to_string(),
+            details: None,
+            component_id: None,
+        }
+    }
+}
+
 impl From<crate::plugin_system::types::PluginError> for BridgeError {
     fn from(e: crate::plugin_system::types::PluginError) -> Self {
         BridgeError {

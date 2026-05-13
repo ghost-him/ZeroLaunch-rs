@@ -123,6 +123,67 @@ impl StorageService for WebDAVStorageService {
         self.destination_dir.to_str().unwrap_or("").to_string()
     }
 
+    /// 从 WebDAV 服务器删除文件。
+    async fn delete(&self, file_name: &str) -> Result<(), StorageError> {
+        let target_path = self.destination_dir.join(file_name);
+        let target_path_str = target_path
+            .to_str()
+            .ok_or_else(|| StorageError::InvalidPath(file_name.to_string()))?
+            .to_string();
+
+        let client = self
+            .client
+            .as_ref()
+            .ok_or(StorageError::ClientNotInitialized)?;
+
+        client
+            .delete(&target_path_str)
+            .await
+            .map_err(|e| StorageError::DeleteFailed {
+                file: file_name.to_string(),
+                reason: format!("{:?}", e),
+            })?;
+
+        debug!("WebDAV 删除完成: {}", file_name);
+        Ok(())
+    }
+
+    /// 列出 WebDAV 服务器上指定前缀下的所有文件。
+    async fn list(&self, prefix: &str) -> Result<Vec<String>, StorageError> {
+        let target_path = self.destination_dir.join(prefix);
+        let target_path_str = target_path
+            .to_str()
+            .ok_or_else(|| StorageError::InvalidPath(prefix.to_string()))?
+            .to_string();
+
+        let client = self
+            .client
+            .as_ref()
+            .ok_or(StorageError::ClientNotInitialized)?;
+
+        let entries = client
+            .list(&target_path_str, reqwest_dav::Depth::Number(1))
+            .await
+            .map_err(|e| StorageError::ListFailed {
+                prefix: prefix.to_string(),
+                reason: format!("{:?}", e),
+            })?;
+
+        let files: Vec<String> = entries
+            .into_iter()
+            .filter_map(|e| match e {
+                reqwest_dav::list_cmd::ListEntity::File(f) => {
+                    let name = f.href.rsplit('/').next().map(|s| s.to_string());
+                    name
+                }
+                reqwest_dav::list_cmd::ListEntity::Folder(_) => None,
+            })
+            .collect();
+
+        debug!("WebDAV 列表完成: {} ({})", prefix, files.len());
+        Ok(files)
+    }
+
     /// 验证 WebDAV 存储配置是否有效。
     /// 尝试写入并读取测试文件来验证。
     async fn validate(&self) -> bool {

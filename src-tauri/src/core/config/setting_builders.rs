@@ -98,6 +98,18 @@ impl SchemaBuilder {
         )
     }
 
+    pub fn image(key: &str, label: &str, desc: &str) -> Self {
+        Self::new(
+            key,
+            label,
+            desc,
+            SettingType::Image {
+                accept: vec!["png".into(), "jpg".into(), "jpeg".into(), "webp".into()],
+                max_size: Some(2 * 1024 * 1024),
+            },
+        )
+    }
+
     fn new(key: &str, label: &str, desc: &str, setting_type: SettingType) -> Self {
         Self {
             field_def: FieldDefinition {
@@ -249,6 +261,22 @@ impl SchemaBuilder {
     pub fn tags_ui(mut self) -> Self {
         if let SettingType::Array { ui_hint, .. } = &mut self.field_def.setting_type {
             *ui_hint = ArrayUiHint::Tags;
+        }
+        self
+    }
+
+    // ── Image ──────────────────────────────────────────────────────
+
+    pub fn accept(mut self, formats: &[&str]) -> Self {
+        if let SettingType::Image { accept, .. } = &mut self.field_def.setting_type {
+            *accept = formats.iter().map(|s| s.to_string()).collect();
+        }
+        self
+    }
+
+    pub fn max_image_size(mut self, bytes: u64) -> Self {
+        if let SettingType::Image { max_size, .. } = &mut self.field_def.setting_type {
+            *max_size = Some(bytes);
         }
         self
     }

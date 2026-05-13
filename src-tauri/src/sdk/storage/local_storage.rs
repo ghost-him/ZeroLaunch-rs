@@ -71,6 +71,61 @@ impl StorageService for LocalStorageService {
         self.target_dir.to_str().unwrap_or(".").to_string()
     }
 
+    /// 从本地文件系统删除文件。
+    async fn delete(&self, file_name: &str) -> Result<(), StorageError> {
+        let target_path = self.target_dir.join(file_name);
+        if !target_path.exists() {
+            debug!("本地文件不存在，跳过删除: {}", file_name);
+            return Ok(());
+        }
+        tokio::fs::remove_file(&target_path)
+            .await
+            .map_err(|e| StorageError::DeleteFailed {
+                file: file_name.to_string(),
+                reason: format!("删除文件失败: {}", e),
+            })?;
+        debug!("本地删除完成: {}", file_name);
+        Ok(())
+    }
+
+    /// 列出本地目录中指定前缀下的所有文件。
+    async fn list(&self, prefix: &str) -> Result<Vec<String>, StorageError> {
+        let target_dir = self.target_dir.join(prefix);
+        if !target_dir.exists() {
+            return Ok(Vec::new());
+        }
+        let mut entries =
+            tokio::fs::read_dir(&target_dir)
+                .await
+                .map_err(|e| StorageError::ListFailed {
+                    prefix: prefix.to_string(),
+                    reason: format!("读取目录失败: {}", e),
+                })?;
+        let mut files = Vec::new();
+        while let Some(entry) =
+            entries
+                .next_entry()
+                .await
+                .map_err(|e| StorageError::ListFailed {
+                    prefix: prefix.to_string(),
+                    reason: format!("遍历目录失败: {}", e),
+                })?
+        {
+            if entry
+                .file_type()
+                .await
+                .map(|t| t.is_file())
+                .unwrap_or(false)
+            {
+                if let Some(name) = entry.file_name().to_str() {
+                    files.push(name.to_string());
+                }
+            }
+        }
+        debug!("本地列表完成: {} ({})", prefix, files.len());
+        Ok(files)
+    }
+
     /// 验证本地存储配置是否有效。
     /// 尝试写入并读取测试文件来验证。
     async fn validate(&self) -> bool {

@@ -190,6 +190,9 @@ pub fn run() {
             crate::commands::config_file::config_set_enabled,
             crate::commands::config_file::config_get_actions,
             crate::commands::config_file::config_execute_action,
+            // 资源管理
+            crate::commands::resource::resource_get,
+            crate::commands::resource::resource_upload,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

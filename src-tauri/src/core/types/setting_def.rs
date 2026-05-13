@@ -115,6 +115,10 @@ pub enum SettingType {
         max_items: Option<usize>,
         ui_hint: ArrayUiHint,
     },
+    Image {
+        accept: Vec<String>,
+        max_size: Option<u64>,
+    },
 }
 
 /// 路径选择模式

@@ -6,6 +6,8 @@
   - `bridge_query`、`bridge_confirm`、`bridge_wake`、`bridge_reset`、`bridge_get_session_mode`、`bridge_refresh_candidates`、`bridge_get_candidates_count`
 - 配置命令：**必须** 用 `config_` 前缀
   - `config_get_all_components`、`config_get_schema`、`config_get_settings`、`config_apply_settings`、`config_reset_settings`、`config_set_enabled`、`config_get_actions`、`config_execute_action`
+- 资源命令：**必须** 用 `resource_` 前缀
+  - `resource_get`、`resource_upload`
 - **禁止** 混用前缀。**禁止** 不更新此规则文件就引入新前缀
 
 ## 参数约定
@@ -29,6 +31,7 @@
 - 所有命令 **必须** 在 `lib.rs` 中通过 `generate_handler![]` 注册
 - Bridge 命令在 `commands/bridge.rs` 中。**禁止** 在其他地方添加 bridge 命令
 - Config 命令在 `commands/config_file.rs` 中。**禁止** 在其他地方添加 config 命令
+- 资源命令在 `commands/resource.rs` 中。**禁止** 在其他地方添加资源命令
 
 ## 错误处理
 

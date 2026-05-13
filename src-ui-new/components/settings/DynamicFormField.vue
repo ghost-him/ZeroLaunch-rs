@@ -64,6 +64,13 @@
         :model-value="modelValue"
         @update:model-value="emit('update:modelValue', $event)"
       />
+      <ImageField
+        v-else-if="isImageType(st)"
+        :definition="definition"
+        :component-id="componentId"
+        :model-value="modelValue"
+        @update:model-value="emit('update:modelValue', $event)"
+      />
       <n-input v-else :value="JSON.stringify(modelValue)" disabled />
     </div>
   </div>
@@ -81,6 +88,7 @@ import {
   isPathType,
   isJsonType,
   isArrayType,
+  isImageType,
 } from '../../utils/schemaTypes'
 import type { SettingDefinition, SettingType } from '../../bridge/contract'
 import TextField from './fields/TextField.vue'
@@ -91,6 +99,7 @@ import ColorField from './fields/ColorField.vue'
 import PathField from './fields/PathField.vue'
 import JsonField from './fields/JsonField.vue'
 import ArrayField from './fields/ArrayField.vue'
+import ImageField from './fields/ImageField.vue'
 
 const props = defineProps<{
   definition: SettingDefinition

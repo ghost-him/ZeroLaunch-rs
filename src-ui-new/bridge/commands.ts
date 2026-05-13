@@ -99,3 +99,13 @@ export function configGetActions(componentId: string): Promise<ConfigActionDef[]
 export function configExecuteAction(componentId: string, action: string): Promise<unknown> {
   return invokeCommand<unknown>('config_execute_action', { componentId, action })
 }
+
+// ---- 资源管理 ----
+
+export function resourceGet(pluginId: string, resourceId: string): Promise<string> {
+  return invokeCommand<string>('resource_get', { pluginId, resourceId })
+}
+
+export function resourceUpload(pluginId: string, filePath: string, purpose: string, maxSize?: number): Promise<string> {
+  return invokeCommand<string>('resource_upload', { payload: { pluginId, filePath, purpose, maxSize } })
+}

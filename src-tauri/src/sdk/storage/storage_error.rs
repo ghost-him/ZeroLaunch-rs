@@ -14,6 +14,14 @@ pub enum StorageError {
     #[error("存储客户端未初始化")]
     ClientNotInitialized,
 
+    /// 删除文件失败
+    #[error("删除失败 ({file}): {reason}")]
+    DeleteFailed { file: String, reason: String },
+
+    /// 列出文件失败
+    #[error("列表失败 ({prefix}): {reason}")]
+    ListFailed { prefix: String, reason: String },
+
     /// 路径无效
     #[error("路径无效: {0}")]
     InvalidPath(String),

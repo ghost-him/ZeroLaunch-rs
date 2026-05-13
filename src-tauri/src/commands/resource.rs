@@ -1,0 +1,67 @@
+use crate::core::types::BridgeError;
+use crate::state::app_state::AppState;
+use base64::{engine::general_purpose::STANDARD, Engine};
+use serde::Deserialize;
+use std::sync::Arc;
+
+/// 资源上传负载（3 个参数，按规范使用结构体）。
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ResourceUploadPayload {
+    pub plugin_id: String,
+    pub file_path: String,
+    pub purpose: String,
+    pub max_size: Option<u64>,
+}
+
+/// 获取资源文件内容，返回 base64 data URL 供前端预览。
+#[tauri::command]
+pub async fn resource_get(
+    state: tauri::State<'_, Arc<AppState>>,
+    plugin_id: String,
+    resource_id: String,
+) -> Result<String, BridgeError> {
+    let host_api = state.get_host_api();
+    let data = host_api.resource_get(&plugin_id, &resource_id).await?;
+    Ok(to_data_url(&data, &resource_id))
+}
+
+/// 上传资源文件，返回 "res://filename" 标识符。
+/// 文件读取与存储操作均由 HostApi 完成，命令层仅做委托。
+#[tauri::command]
+pub async fn resource_upload(
+    state: tauri::State<'_, Arc<AppState>>,
+    payload: ResourceUploadPayload,
+) -> Result<String, BridgeError> {
+    let host_api = state.get_host_api();
+    host_api
+        .resource_upload(
+            &payload.plugin_id,
+            &payload.purpose,
+            &payload.file_path,
+            payload.max_size,
+        )
+        .await
+        .map_err(Into::into)
+}
+
+/// 将字节数据转为 base64 data URL。
+fn to_data_url(data: &[u8], resource_id: &str) -> String {
+    let mime = mime_type(resource_id);
+    let b64 = STANDARD.encode(data);
+    format!("data:{};base64,{}", mime, b64)
+}
+
+/// 根据扩展名推断 MIME 类型。
+fn mime_type(filename: &str) -> &'static str {
+    let ext = filename.rsplit('.').next().unwrap_or("").to_lowercase();
+    match ext.as_str() {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "webp" => "image/webp",
+        "gif" => "image/gif",
+        "bmp" => "image/bmp",
+        "svg" => "image/svg+xml",
+        _ => "application/octet-stream",
+    }
+}

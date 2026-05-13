@@ -98,12 +98,12 @@ pub async fn bridge_query(
 
     match response {
         QueryResponse::List { results } => {
-            let host_api = state.get_host_api();
+            let core_handle = state.get_core_handle();
 
             // 解析图标：L1 缓存命中率高，几乎零开销；未命中时由 L2 文件缓存兜底
             let mut bridge_results = Vec::with_capacity(results.len());
             for item in results {
-                let icon_data = host_api.get_icon(&item.icon).await;
+                let icon_data = core_handle.get_icon_or_default(item.icon.clone()).await;
                 bridge_results.push(BridgeSearchResult {
                     id: item.id,
                     title: item.title,

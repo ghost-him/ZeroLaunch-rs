@@ -339,6 +339,10 @@ async fn init_app_state(
     state.set_host_api(host_api.clone());
     info!("HostApi 初始化完成");
 
+    let core_handle = host_api.register("core", Default::default());
+    state.set_core_handle(core_handle.clone());
+    info!("Core PluginHandle 注册完成");
+
     let tray_manager = Arc::new(TrayManager::new(host_api.clone()));
     state.set_tray_manager(tray_manager);
     info!("TrayManager 创建完成");
@@ -510,9 +514,10 @@ async fn init_plugin_system(state: &Arc<AppState>) {
     info!("Plugin 组件注册完成");
 
     // 注册快捷键回调：按下全局快捷键时切换搜索栏显示/隐藏
+    let core_handle_for_hotkey = state.get_core_handle();
     let host_api_for_hotkey = host_api.clone();
     let session_router_for_hotkey = session_router.clone();
-    let _ = host_api.register_hotkey_callback(
+    core_handle_for_hotkey.register_hotkey_callback(
         "search_bar_toggle",
         HotkeyEventFilter::All,
         Arc::new(move |event| {
@@ -604,8 +609,9 @@ fn init_search_bar_window(app: &mut App) {
     let session_router = state.get_session_router().clone();
 
     // 注册焦点丢失回调：隐藏窗口 + 重置会话
+    let core_handle = state.get_core_handle();
     let host_api_for_cb = host_api.clone();
-    let _ = host_api.register_focus_callback(
+    core_handle.register_focus_callback(
         "main_window_focus",
         Arc::new(move |_event| {
             let host_api = host_api_for_cb.clone();

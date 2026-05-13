@@ -102,10 +102,10 @@ export function configExecuteAction(componentId: string, action: string): Promis
 
 // ---- 资源管理 ----
 
-export function resourceGet(pluginId: string, resourceId: string): Promise<string> {
-  return invokeCommand<string>('resource_get', { pluginId, resourceId })
+export function resourceGet(resourceId: string): Promise<string> {
+  return invokeCommand<string>('resource_get', { resourceId })
 }
 
-export function resourceUpload(pluginId: string, filePath: string, purpose: string, maxSize?: number): Promise<string> {
-  return invokeCommand<string>('resource_upload', { payload: { pluginId, filePath, purpose, maxSize } })
+export function resourceUpload(filePath: string, purpose: string, maxSize?: number): Promise<string> {
+  return invokeCommand<string>('resource_upload', { payload: { filePath, purpose, maxSize } })
 }

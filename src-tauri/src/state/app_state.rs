@@ -3,6 +3,7 @@ use crate::core::tray::TrayManager;
 use crate::error::OptionExt;
 use crate::plugin_system::service::PluginService;
 use crate::plugin_system::SessionRouter;
+use crate::sdk::host_api::PluginHandle;
 use crate::sdk::HostApi;
 use crate::utils::waiting_hashmap::AsyncWaitingHashMap;
 use parking_lot::RwLock;
@@ -20,6 +21,7 @@ pub struct AppState {
     previous_foreground_window: RwLock<Option<isize>>,
     previous_selection: RwLock<Option<String>>,
     host_api: RwLock<Option<Arc<HostApi>>>,
+    core_handle: RwLock<Option<Arc<PluginHandle>>>,
 }
 
 impl Default for AppState {
@@ -44,6 +46,7 @@ impl AppState {
             previous_foreground_window: RwLock::new(None),
             previous_selection: RwLock::new(None),
             host_api: RwLock::new(None),
+            core_handle: RwLock::new(None),
         }
     }
 
@@ -129,6 +132,18 @@ impl AppState {
 
     pub fn set_host_api(&self, host_api: Arc<HostApi>) {
         *self.host_api.write() = Some(host_api);
+    }
+
+    pub fn get_core_handle(&self) -> Arc<PluginHandle> {
+        self.core_handle
+            .read()
+            .as_ref()
+            .cloned()
+            .expect_programming("core_handle not initialized")
+    }
+
+    pub fn set_core_handle(&self, handle: Arc<PluginHandle>) {
+        *self.core_handle.write() = Some(handle);
     }
 }
 

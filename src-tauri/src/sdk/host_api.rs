@@ -162,6 +162,12 @@ pub struct PluginHandle {
     app_resource: Arc<AppResourceService>,
     /// 存储服务，由 HostApi 注入
     storage: Arc<dyn StorageService>,
+    /// 按键管理器，由 HostApi 注入
+    hotkey_manager: Arc<dyn HotkeyManager>,
+    /// 安装监控器，由 HostApi 注入
+    installation_monitor: Arc<dyn InstallationMonitor>,
+    /// 聚焦监控器，由 HostApi 注入
+    focus_monitor: Arc<dyn FocusMonitor>,
 }
 
 impl PluginHandle {
@@ -180,6 +186,23 @@ impl PluginHandle {
         self.icon_extractor
             .get_icon(&self.icon_cache, &request, level)
             .await
+    }
+
+    /// 提取图标数据，失败时回退到默认图标。
+    /// 与 get_icon 不同，此方法永不返回错误，提取失败时返回默认图标数据。
+    pub async fn get_icon_or_default(&self, request: IconRequest) -> Vec<u8> {
+        let level = self.icon_cache_level();
+        match self
+            .icon_extractor
+            .get_icon(&self.icon_cache, &request, level)
+            .await
+        {
+            Ok(data) if !data.is_empty() => data,
+            _ => {
+                tracing::warn!("图标提取失败，使用默认图标: {:?}", request);
+                self.icon_extractor.load_default_icon(&request).await
+            }
+        }
     }
 
     /// 强制从磁盘提取图标数据并根据缓存等级更新缓存。
@@ -502,6 +525,62 @@ impl PluginHandle {
                 reason: e.to_string(),
             })
     }
+
+    // ===== 推送式回调注册 =====
+
+    /// 为回调 ID 添加插件前缀，避免不同插件间的 ID 冲突。
+    fn prefix_callback_id(&self, id: &str) -> String {
+        format!("{}:{}", self.plugin_id, id)
+    }
+
+    /// 注册按键事件回调。
+    /// 参数：id - 回调标识（自动前缀化为 "{plugin_id}:{id}"）；filter - 事件过滤器；callback - 回调函数。
+    pub fn register_hotkey_callback(
+        &self,
+        id: &str,
+        filter: HotkeyEventFilter,
+        callback: HotkeyCallback,
+    ) {
+        let prefixed = self.prefix_callback_id(id);
+        self.hotkey_manager
+            .register_callback(&prefixed, filter, callback);
+    }
+
+    /// 注销按键事件回调。
+    /// 参数：id - 回调标识（自动前缀化为 "{plugin_id}:{id}"）。
+    pub fn unregister_hotkey_callback(&self, id: &str) {
+        let prefixed = self.prefix_callback_id(id);
+        self.hotkey_manager.unregister_callback(&prefixed);
+    }
+
+    /// 注册安装事件回调。
+    /// 参数：id - 回调标识（自动前缀化为 "{plugin_id}:{id}"）；callback - 回调函数。
+    pub fn register_installation_callback(&self, id: &str, callback: InstallationCallback) {
+        let prefixed = self.prefix_callback_id(id);
+        self.installation_monitor
+            .register_callback(&prefixed, callback);
+    }
+
+    /// 注销安装事件回调。
+    /// 参数：id - 回调标识（自动前缀化为 "{plugin_id}:{id}"）。
+    pub fn unregister_installation_callback(&self, id: &str) {
+        let prefixed = self.prefix_callback_id(id);
+        self.installation_monitor.unregister_callback(&prefixed);
+    }
+
+    /// 注册焦点事件回调。
+    /// 参数：id - 回调标识（自动前缀化为 "{plugin_id}:{id}"）；callback - 回调函数。
+    pub fn register_focus_callback(&self, id: &str, callback: FocusCallback) {
+        let prefixed = self.prefix_callback_id(id);
+        self.focus_monitor.register_callback(&prefixed, callback);
+    }
+
+    /// 注销焦点事件回调。
+    /// 参数：id - 回调标识（自动前缀化为 "{plugin_id}:{id}"）。
+    pub fn unregister_focus_callback(&self, id: &str) {
+        let prefixed = self.prefix_callback_id(id);
+        self.focus_monitor.unregister_callback(&prefixed);
+    }
 }
 
 /// 宿主向插件暴露的平台能力注册层。
@@ -591,29 +670,12 @@ impl HostApi {
             timer_manager: self.timer_manager.clone(),
             app_resource: self.app_resource.clone(),
             storage: self.storage(),
+            hotkey_manager: self.hotkey_manager.clone(),
+            installation_monitor: self.installation_monitor.clone(),
+            focus_monitor: self.focus_monitor.clone(),
         });
         self.handles.insert(plugin_id.to_string(), handle.clone());
         handle
-    }
-
-    // ===== 图标服务（宿主级） =====
-
-    /// 根据 IconRequest 提取图标 PNG 数据（宿主级操作，使用 Full 缓存等级）。
-    /// 供 Bridge 层在构建搜索响应时调用，将图标解析为前端可用的数据。
-    /// 参数：request - 图标请求（路径/网址/扩展名）。
-    /// 返回：PNG 格式图标字节数据，提取失败返回默认图标数据。
-    pub async fn get_icon(&self, request: &IconRequest) -> Vec<u8> {
-        match self
-            .icon_extractor
-            .get_icon(&self.icon_cache, request, CacheLevel::Full)
-            .await
-        {
-            Ok(data) if !data.is_empty() => data,
-            _ => {
-                tracing::warn!("图标提取失败，使用默认图标: {:?}", request);
-                self.icon_extractor.load_default_icon(request).await
-            }
-        }
     }
 
     /// 更新图标缓存目录路径（宿主级操作，不暴露给插件）。
@@ -730,27 +792,6 @@ impl HostApi {
 
     // ===== 按键监听服务 =====
 
-    /// 注册按键事件回调。
-    /// 参数：id - 回调标识；filter - 事件过滤器；callback - 回调函数。
-    /// 返回：成功返回 Ok(())，失败返回 HostApiError。
-    pub fn register_hotkey_callback(
-        &self,
-        id: &str,
-        filter: HotkeyEventFilter,
-        callback: HotkeyCallback,
-    ) -> Result<(), HostApiError> {
-        self.hotkey_manager.register_callback(id, filter, callback);
-        Ok(())
-    }
-
-    /// 注销按键事件回调。
-    /// 参数：id - 回调标识。
-    /// 返回：成功返回 Ok(())，失败返回 HostApiError。
-    pub fn unregister_hotkey_callback(&self, id: &str) -> Result<(), HostApiError> {
-        self.hotkey_manager.unregister_callback(id);
-        Ok(())
-    }
-
     /// 应用按键配置。
     /// 注销所有现有快捷键，注册新快捷键，设置双击 Ctrl 状态。
     /// 参数：config - 按键配置。
@@ -784,24 +825,6 @@ impl HostApi {
 
     // ===== 安装监控服务 =====
 
-    /// 注册安装事件回调。
-    /// 参数：id - 回调标识；callback - 回调函数。
-    pub fn register_installation_callback(
-        &self,
-        id: &str,
-        callback: InstallationCallback,
-    ) -> Result<(), HostApiError> {
-        self.installation_monitor.register_callback(id, callback);
-        Ok(())
-    }
-
-    /// 注销安装事件回调。
-    /// 参数：id - 回调标识。
-    pub fn unregister_installation_callback(&self, id: &str) -> Result<(), HostApiError> {
-        self.installation_monitor.unregister_callback(id);
-        Ok(())
-    }
-
     /// 启动安装监控。
     /// 返回：成功返回 Ok(())，失败返回 HostApiError。
     pub async fn start_installation_monitor(&self) -> Result<(), HostApiError> {
@@ -823,177 +846,6 @@ impl HostApi {
     /// 参数：paths - 要监控的目录路径列表。
     pub fn update_installation_monitor_paths(&self, paths: Vec<String>) {
         self.installation_monitor.update_watch_paths(paths);
-    }
-
-    // ===== 聚焦监控服务 =====
-
-    /// 注册焦点事件回调。
-    pub fn register_focus_callback(
-        &self,
-        id: &str,
-        callback: FocusCallback,
-    ) -> Result<(), HostApiError> {
-        self.focus_monitor.as_ref().register_callback(id, callback);
-        Ok(())
-    }
-
-    /// 注销焦点事件回调。
-    pub fn unregister_focus_callback(&self, id: &str) -> Result<(), HostApiError> {
-        self.focus_monitor.as_ref().unregister_callback(id);
-        Ok(())
-    }
-
-    // ===== 定时器服务（宿主级） =====
-
-    /// 创建一个一次性定时器，在指定延迟后触发回调。
-    ///
-    /// 参数：
-    /// - delay: 触发延迟时长
-    /// - callback: 触发时调用的回调函数
-    ///
-    /// 返回：TimerId，可用于取消定时器。
-    pub async fn set_timeout(
-        &self,
-        delay: std::time::Duration,
-        callback: TimerCallback,
-    ) -> Result<TimerId, HostApiError> {
-        self.timer_manager
-            .set_timer(delay, TimerMode::OneShot, callback)
-            .await
-    }
-
-    /// 创建一个重复定时器，每隔指定间隔触发回调。
-    ///
-    /// 参数：
-    /// - interval: 触发间隔时长
-    /// - callback: 每次触发时调用的回调函数
-    ///
-    /// 返回：TimerId，可用于取消定时器。
-    pub async fn set_interval(
-        &self,
-        interval: std::time::Duration,
-        callback: TimerCallback,
-    ) -> Result<TimerId, HostApiError> {
-        self.timer_manager
-            .set_timer(interval, TimerMode::Interval, callback)
-            .await
-    }
-
-    /// 取消指定 ID 的定时器。
-    ///
-    /// 参数：id - 要取消的定时器 ID。
-    pub async fn cancel_timer(&self, id: TimerId) -> Result<(), HostApiError> {
-        self.timer_manager.cancel_timer(id).await
-    }
-
-    /// 取消所有定时器。
-    pub async fn cancel_all_timers(&self) -> Result<(), HostApiError> {
-        self.timer_manager.cancel_all().await
-    }
-
-    // ===== 资源管理（宿主级） =====
-
-    /// 上传资源文件到指定插件的资源空间。
-    /// 读取本地文件、计算哈希、写入存储后端，返回 "res://filename" 标识符。
-    /// max_size: 若提供，则在读取文件前检查文件大小是否超出限制。
-    pub async fn resource_upload(
-        &self,
-        plugin_id: &str,
-        purpose: &str,
-        file_path: &str,
-        max_size: Option<u64>,
-    ) -> Result<String, HostApiError> {
-        let path = std::path::Path::new(file_path);
-        let ext = path
-            .extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or("bin")
-            .to_lowercase();
-
-        if let Some(limit) = max_size {
-            let metadata = tokio::fs::metadata(path).await.map_err(|e| {
-                HostApiError::StorageOperationFailed {
-                    file: file_path.to_string(),
-                    reason: format!("读取文件元数据失败: {}", e),
-                }
-            })?;
-            if metadata.len() > limit {
-                return Err(HostApiError::StorageOperationFailed {
-                    file: file_path.to_string(),
-                    reason: format!("文件大小 {} 超过限制 {} 字节", metadata.len(), limit),
-                });
-            }
-        }
-
-        let data =
-            tokio::fs::read(path)
-                .await
-                .map_err(|e| HostApiError::StorageOperationFailed {
-                    file: file_path.to_string(),
-                    reason: format!("读取文件失败: {}", e),
-                })?;
-
-        let hash = short_hash(&data);
-        let filename = format!("{}_{}.{}", purpose, hash, ext);
-        let storage_path = build_resource_path(plugin_id, Some(&filename));
-        let storage = self.storage();
-        storage.upload(&storage_path, &data).await.map_err(|e| {
-            HostApiError::StorageOperationFailed {
-                file: storage_path,
-                reason: e.to_string(),
-            }
-        })?;
-        Ok(format!("res://{}", filename))
-    }
-
-    /// 获取资源文件内容。
-    pub async fn resource_get(
-        &self,
-        plugin_id: &str,
-        resource_id: &str,
-    ) -> Result<Vec<u8>, HostApiError> {
-        let path = build_resource_path(plugin_id, Some(resource_id));
-        let storage = self.storage();
-        storage
-            .download(&path)
-            .await
-            .map_err(|e| HostApiError::StorageOperationFailed {
-                file: path,
-                reason: e.to_string(),
-            })?
-            .ok_or_else(|| HostApiError::ResourceNotFound {
-                id: resource_id.to_string(),
-            })
-    }
-
-    /// 删除资源文件。
-    pub async fn resource_delete(
-        &self,
-        plugin_id: &str,
-        resource_id: &str,
-    ) -> Result<(), HostApiError> {
-        let path = build_resource_path(plugin_id, Some(resource_id));
-        let storage = self.storage();
-        storage
-            .delete(&path)
-            .await
-            .map_err(|e| HostApiError::StorageOperationFailed {
-                file: path,
-                reason: e.to_string(),
-            })
-    }
-
-    /// 列出指定插件的所有资源。
-    pub async fn resource_list(&self, plugin_id: &str) -> Result<Vec<String>, HostApiError> {
-        let prefix = build_resource_path(plugin_id, None);
-        let storage = self.storage();
-        storage
-            .list(&prefix)
-            .await
-            .map_err(|e| HostApiError::StorageOperationFailed {
-                file: prefix,
-                reason: e.to_string(),
-            })
     }
 
     // ===== 存储服务（宿主级） =====

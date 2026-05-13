@@ -35,11 +35,13 @@ paths:
 
 ## 推送式回调模式
 
-对于向应用推送事件的服务（`HotkeyManager`、`InstallationMonitor`）：
+对于向应用推送事件的服务（`HotkeyManager`、`InstallationMonitor`、`FocusMonitor`、`TimerManager`）：
 - **正确**：通过 `register_callback(id, callback)` 注册回调，通过 `unregister_callback(id)` 取消注册
 - **正确**：将回调存储在线程安全集合（`DashMap`）中，事件发生时依次调用所有回调
 - **正确**：通过 `start_watching()` / `stop_watching()` 管理生命周期
-- **禁止**：在 `PluginHandle` 上暴露推送式回调注册。推送式服务通过 `HostApi` 直接注册回调
+- **正确**：回调注册/注销可以通过 `PluginHandle` 暴露，插件通过句柄注册自己的回调
+- **正确**：`PluginHandle` 上的回调注册方法内部用 `plugin_id` 前缀化 callback ID，避免不同插件间的 ID 冲突
+- **全局生命周期管理**（`start_listening`、`stop_listening`、`start_watching`、`stop_watching`）保留在 `HostApi` 上，插件只能注册/注销自己的回调，不能启停全局服务
 
 ## 平台能力
 

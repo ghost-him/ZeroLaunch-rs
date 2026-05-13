@@ -69,7 +69,7 @@ async function loadPreview() {
   }
   const resourceId = val.slice(6)
   try {
-    previewUrl.value = await resourceGet(props.componentId, resourceId)
+    previewUrl.value = await resourceGet(resourceId)
   } catch (e) {
     console.error('[ImageField] Failed to load preview:', e)
     message.error('图片加载失败')
@@ -92,7 +92,7 @@ async function selectImage() {
     })
     if (!selected || typeof selected !== 'string') return
 
-    const resId = await resourceUpload(props.componentId, selected, props.definition.field.key, config.maxSize)
+    const resId = await resourceUpload(selected, props.definition.field.key, config.maxSize)
     emit('update:modelValue', resId)
   } catch (e) {
     console.error('[ImageField] Upload failed:', e)

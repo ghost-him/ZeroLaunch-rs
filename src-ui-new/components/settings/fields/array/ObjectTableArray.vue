@@ -49,6 +49,13 @@
                 :disabled="!definition.field.editable || !fd.editable"
                 @update:value="(val: string) => setField(idx, fd.key, val)"
               />
+              <n-button
+                size="tiny"
+                :disabled="!definition.field.editable || !fd.editable"
+                @click="browsePath(idx, fd.key, fd)"
+              >
+                浏览
+              </n-button>
             </div>
             <span v-else>{{ getField(idx, fd.key) }}</span>
           </td>
@@ -69,6 +76,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { NInput, NInputNumber, NSwitch, NSelect, NButton } from 'naive-ui'
+import { open } from '@tauri-apps/plugin-dialog'
 import {
   getVisibleObjectFields,
   getDefaultArrayItem,
@@ -79,6 +87,7 @@ import {
   isFieldPath,
   getNumberConfig,
   getSelectOptions,
+  getPathMode,
 } from '../../../../utils/schemaTypes'
 import type { SettingDefinition, ArrayItem, FieldDefinition } from '../../../../bridge/contract'
 
@@ -132,6 +141,19 @@ function onRemove(idx: number) {
   const arr = [...listValue.value]
   arr.splice(idx, 1)
   emit('update:modelValue', arr)
+}
+
+async function browsePath(idx: number, key: string, fd: FieldDefinition) {
+  try {
+    const mode = getPathMode(fd.settingType)
+    const selected = await open({
+      directory: mode === 'directory',
+      multiple: false,
+    })
+    if (selected && typeof selected === 'string') setField(idx, key, selected)
+  } catch (e) {
+    console.error('[ObjectTableArray] Browse path failed:', e)
+  }
 }
 </script>
 

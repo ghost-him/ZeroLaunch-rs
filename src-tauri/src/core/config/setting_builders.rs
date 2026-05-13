@@ -210,7 +210,19 @@ impl SchemaBuilder {
     // ── Array ─────────────────────────────────────────────────────
 
     pub fn primitive_item(mut self, item: PrimitiveType) -> Self {
-        if let SettingType::Array { item: arr_item, .. } = &mut self.field_def.setting_type {
+        if let SettingType::Array {
+            item: arr_item,
+            ui_hint,
+            ..
+        } = &mut self.field_def.setting_type
+        {
+            if matches!(ui_hint, ArrayUiHint::Tags) {
+                debug_assert!(
+                    matches!(item, PrimitiveType::Text),
+                    "tags_ui is only supported for Text primitive arrays, cannot set primitive_item to {:?}",
+                    item
+                );
+            }
             *arr_item = ArrayItem::Primitive(item);
         }
         self
@@ -258,8 +270,14 @@ impl SchemaBuilder {
         self
     }
 
+    /// 切换到 Tags UI。仅支持 Text 类型的 primitive array，
+    /// 因为 Naive UI 的 n-dynamic-tags 组件本质上是基于字符串的。
     pub fn tags_ui(mut self) -> Self {
-        if let SettingType::Array { ui_hint, .. } = &mut self.field_def.setting_type {
+        if let SettingType::Array { item, ui_hint, .. } = &mut self.field_def.setting_type {
+            debug_assert!(
+                matches!(item, ArrayItem::Primitive(PrimitiveType::Text)),
+                "tags_ui is only supported for Text primitive arrays"
+            );
             *ui_hint = ArrayUiHint::Tags;
         }
         self

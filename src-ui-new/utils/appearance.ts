@@ -8,13 +8,15 @@
  * - 缺失 key 时不修改对应 CSS 变量，由 variables.css 中的静态默认值兜底
  */
 
+import { resourceGet } from '../bridge/commands'
+
 type AppearanceSettings = Record<string, unknown>
 
 /**
  * 将外观配置映射为 CSS 变量并应用到 document.documentElement。
  * 仅设置 settings 中存在的 key；缺失 key 不修改 CSS 变量。
  */
-export function applyAppearanceSettings(settings: AppearanceSettings): void {
+export async function applyAppearanceSettings(settings: AppearanceSettings): Promise<void> {
   const root = document.documentElement.style
   const isDark = document.documentElement.classList.contains('dark')
 
@@ -78,6 +80,30 @@ export function applyAppearanceSettings(settings: AppearanceSettings): void {
   if ('bgPrimary' in settings) {
     applyColorScheme(root, settings, isDark)
   }
+
+  // ---- 背景图片 ----
+  if ('bgSize' in settings) {
+    root.setProperty('--bg-size', asStr(settings.bgSize))
+  }
+  if ('bgPosition' in settings) {
+    root.setProperty('--bg-position', asStr(settings.bgPosition))
+  }
+  if ('bgRepeat' in settings) {
+    root.setProperty('--bg-repeat', asStr(settings.bgRepeat))
+  }
+  if ('bgOpacity' in settings) {
+    root.setProperty('--bg-image-opacity', String(asNum(settings.bgOpacity, 1)))
+  }
+
+  // 异步解析背景图片 res:// 标识为 base64 data URL
+  // 深色模式下优先使用 bgImageDark，未设置则回退到 bgImage
+  if ('bgImage' in settings || 'bgImageDark' in settings) {
+    const darkBg = asStr(settings.bgImageDark)
+    const lightBg = asStr(settings.bgImage)
+    const activeBg = isDark && darkBg ? darkBg : lightBg
+    const url = await resolveBgUrl(activeBg)
+    root.setProperty('--bg-image-url', url)
+  }
 }
 
 /** 提取搜索栏占位符文本（用于响应式绑定） */
@@ -91,6 +117,18 @@ export function extractPlaceholder(settings: AppearanceSettings): string {
 }
 
 // ---- 内部工具 ----
+
+/** 将 res:// 资源标识解析为 CSS url() 值；空字符串返回 "none" */
+async function resolveBgUrl(resId: string): Promise<string> {
+  if (!resId || !resId.startsWith('res://')) return 'none'
+  try {
+    const dataUrl = await resourceGet(resId.slice(6))
+    return `url(${dataUrl})`
+  } catch {
+    console.warn('[appearance] Failed to resolve background image:', resId)
+    return 'none'
+  }
+}
 
 function applyColorScheme(root: CSSStyleDeclaration, s: AppearanceSettings, isDark: boolean): void {
   if (isDark) {

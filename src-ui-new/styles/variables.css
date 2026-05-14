@@ -53,6 +53,13 @@
   /* Window geometry — can be overridden by appearance config */
   --window-corner-radius: 12px;
   --vertical-position-ratio: 0.28;
+
+  /* Background image — can be overridden by appearance config */
+  --bg-image-url: none;
+  --bg-size: cover;
+  --bg-position: center;
+  --bg-repeat: no-repeat;
+  --bg-image-opacity: 1;
 }
 
 html.dark {

@@ -277,6 +277,65 @@ impl Configurable for AppearanceConfigComponent {
                 .order(66)
                 .default("rgba(255,255,255,0.06)")
                 .build(),
+            // ---- 背景图片 ----
+            SchemaBuilder::image(
+                "bgImage",
+                "背景图片",
+                "浅色模式下的背景图片，留空则不使用背景图",
+            )
+            .group("background")
+            .order(70)
+            .default("")
+            .build(),
+            SchemaBuilder::image(
+                "bgImageDark",
+                "深色背景图片",
+                "深色模式下的背景图片，留空则回退到浅色背景图",
+            )
+            .group("background")
+            .order(71)
+            .default("")
+            .build(),
+            SchemaBuilder::select("bgSize", "背景尺寸", "CSS background-size 属性")
+                .group("background")
+                .order(72)
+                .options(&["cover", "contain", "auto", "100% auto"])
+                .default("cover")
+                .build(),
+            SchemaBuilder::select("bgPosition", "背景位置", "CSS background-position 属性")
+                .group("background")
+                .order(73)
+                .options(&[
+                    "center",
+                    "top",
+                    "bottom",
+                    "left",
+                    "right",
+                    "top left",
+                    "top right",
+                    "bottom left",
+                    "bottom right",
+                ])
+                .default("center")
+                .build(),
+            SchemaBuilder::select("bgRepeat", "背景重复", "CSS background-repeat 属性")
+                .group("background")
+                .order(74)
+                .options(&["no-repeat", "repeat", "repeat-x", "repeat-y"])
+                .default("no-repeat")
+                .build(),
+            SchemaBuilder::number(
+                "bgOpacity",
+                "背景不透明度",
+                "背景图片的不透明度 (0.0 ~ 1.0)",
+            )
+            .group("background")
+            .order(75)
+            .default(1.0)
+            .min(0.0)
+            .max(1.0)
+            .step(0.01)
+            .build(),
         ]
     }
 
@@ -340,6 +399,53 @@ impl Configurable for AppearanceConfigComponent {
                 return Err(ConfigError::ValidationFailed(format!(
                     "verticalPositionRatio value {} is out of range [0.0, 1.0]",
                     val
+                )));
+            }
+        }
+        // bgOpacity
+        if let Some(val) = settings.get("bgOpacity").and_then(|v| v.as_f64()) {
+            if !(0.0..=1.0).contains(&val) {
+                return Err(ConfigError::ValidationFailed(format!(
+                    "bgOpacity value {} is out of range [0.0, 1.0]",
+                    val
+                )));
+            }
+        }
+        // 背景图片 CSS 属性枚举校验
+        let bg_size_opts = ["cover", "contain", "auto", "100% auto"];
+        if let Some(v) = settings.get("bgSize").and_then(|v| v.as_str()) {
+            if !bg_size_opts.contains(&v) {
+                return Err(ConfigError::ValidationFailed(format!(
+                    "Invalid bgSize value: {}",
+                    v
+                )));
+            }
+        }
+        let bg_position_opts = [
+            "center",
+            "top",
+            "bottom",
+            "left",
+            "right",
+            "top left",
+            "top right",
+            "bottom left",
+            "bottom right",
+        ];
+        if let Some(v) = settings.get("bgPosition").and_then(|v| v.as_str()) {
+            if !bg_position_opts.contains(&v) {
+                return Err(ConfigError::ValidationFailed(format!(
+                    "Invalid bgPosition value: {}",
+                    v
+                )));
+            }
+        }
+        let bg_repeat_opts = ["no-repeat", "repeat", "repeat-x", "repeat-y"];
+        if let Some(v) = settings.get("bgRepeat").and_then(|v| v.as_str()) {
+            if !bg_repeat_opts.contains(&v) {
+                return Err(ConfigError::ValidationFailed(format!(
+                    "Invalid bgRepeat value: {}",
+                    v
                 )));
             }
         }

@@ -26,6 +26,7 @@ export const useThemeStore = defineStore('theme', () => {
 
   let systemMediaQuery: MediaQueryList | null = null
 
+  /** 系统主题变化回调。applyNaiveTheme 内部有异步图片解析，此处 fire-and-forget 即可 */
   function onSystemChange(e: MediaQueryListEvent) {
     systemIsDark.value = e.matches
     if (themeMode.value === 'system') {
@@ -33,23 +34,24 @@ export const useThemeStore = defineStore('theme', () => {
     }
   }
 
-  function applyNaiveTheme() {
+  /** 应用 Naive UI 主题并重新计算 CSS 变量（含背景图片异步解析） */
+  async function applyNaiveTheme() {
     const dark = themeMode.value === 'dark' || (themeMode.value === 'system' && systemIsDark.value)
     naiveTheme.value = dark ? darkTheme : null
     document.documentElement.classList.toggle('dark', dark)
 
-    // 主题切换时重新应用配色 CSS 变量
+    // 主题切换时重新应用配色与背景图片 CSS 变量
     if (Object.keys(currentAppearanceSettings).length > 0) {
-      applyAppearanceSettings(currentAppearanceSettings)
+      await applyAppearanceSettings(currentAppearanceSettings)
     }
   }
 
   /** 当前内存中的外观配置缓存（用于主题切换时重新应用配色） */
   let currentAppearanceSettings: Record<string, unknown> = {}
 
-  function setTheme(mode: ThemeMode) {
+  async function setTheme(mode: ThemeMode) {
     themeMode.value = mode
-    applyNaiveTheme()
+    await applyNaiveTheme()
     syncToBackend(mode)
   }
 
@@ -83,14 +85,14 @@ export const useThemeStore = defineStore('theme', () => {
       // 应用外观 CSS 变量并同步响应式状态
       if (s) {
         currentAppearanceSettings = s
-        applyAppearanceSettings(s)
+        await applyAppearanceSettings(s)
         searchBarPlaceholder.value = extractPlaceholder(s)
       }
     } catch {
       console.warn('[theme-store] Failed to load appearance config, using defaults')
       themeMode.value = 'system'
     }
-    applyNaiveTheme()
+    await applyNaiveTheme()
 
     systemMediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
     systemMediaQuery.addEventListener('change', onSystemChange)
@@ -99,22 +101,28 @@ export const useThemeStore = defineStore('theme', () => {
   }
 
   /** 应用跨窗口同步的外观配置（不写回后端，避免死循环） */
-  function applyRemoteSettings(settings: Record<string, unknown>) {
+  async function applyRemoteSettings(settings: Record<string, unknown>) {
     const t = (settings.theme as ThemeMode | undefined) ?? themeMode.value
     const themeChanged = t !== themeMode.value
+
+    // 先更新缓存，再应用主题，确保 applyNaiveTheme 使用的是最新配置
+    currentAppearanceSettings = settings
+
     if (themeChanged) {
       themeMode.value = t
-      applyNaiveTheme()
+      await applyNaiveTheme()
     }
+
     const l = settings.language === 'en' ? 'en' : 'zh-Hans'
     const langChanged = l !== locale.value
     if (langChanged) {
       locale.value = l
     }
 
-    // 重新应用外观 CSS 变量并同步响应式状态
-    currentAppearanceSettings = settings
-    applyAppearanceSettings(settings)
+    // 重新应用外观 CSS 变量并同步响应式状态（即使主题未变，配置字段也可能有变化）
+    if (!themeChanged) {
+      await applyAppearanceSettings(settings)
+    }
     searchBarPlaceholder.value = extractPlaceholder(settings)
 
     return { themeChanged, langChanged, newLang: l }

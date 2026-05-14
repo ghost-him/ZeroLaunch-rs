@@ -35,9 +35,9 @@ onMounted(async () => {
   // 监听外观配置变更（跨窗口同步主题/语言/外观CSS变量）
   unlistenAppearance = await onConfigChanged((payload) => {
     if (payload.componentId !== 'appearance') return
-    configGetSettings('appearance').then((s) => {
+    configGetSettings('appearance').then(async (s) => {
       const settings = s as Record<string, unknown>
-      const result = themeStore.applyRemoteSettings(settings)
+      const result = await themeStore.applyRemoteSettings(settings)
       if (result.langChanged) {
         naiveLocale.value = result.newLang === 'en' ? enUS : zhCN
       }

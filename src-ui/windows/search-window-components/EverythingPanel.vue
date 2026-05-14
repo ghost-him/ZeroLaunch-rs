@@ -46,6 +46,7 @@
           height: uiConfig.result_item_height + 'px',
         }"
         @click="handleItemClick(index)"
+        @contextmenu.prevent="(event) => handleContextMenu(index, event)"
       >
         <div
           class="icon"
@@ -102,6 +103,10 @@ const props = defineProps<{
     uiConfig: ResolvedUIConfig;
     appConfig: AppConfig;
     hoverColor: string;
+}>()
+
+const emit = defineEmits<{
+    (e: 'item-contextmenu', index: number, event: MouseEvent): void;
 }>()
 
 const { t } = useI18n()
@@ -217,6 +222,11 @@ watch(() => props.searchText, (newText) => {
 const handleItemClick = (index: number) => {
     selectedIndex.value = index
     launchItem(index)
+}
+
+const handleContextMenu = (index: number, event: MouseEvent) => {
+    selectedIndex.value = index
+    emit('item-contextmenu', index, event)
 }
 
 const launchItem = async (index: number) => {

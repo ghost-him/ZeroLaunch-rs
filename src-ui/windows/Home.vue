@@ -58,6 +58,7 @@
         :ui-config="effective_ui_config"
         :app-config="app_config"
         :hover-color="hover_item_color"
+        @item-contextmenu="contextEverythingItemEvent"
       />
     </div>
 
@@ -106,7 +107,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
-import { FolderOpened, Refresh, Setting, StarFilled, CircleClose } from '@element-plus/icons-vue'
+import { FolderOpened, Refresh, Setting, StarFilled, CircleClose, Document, EditPen, DocumentCopy } from '@element-plus/icons-vue'
 
 import { reduceOpacity } from '../utils/color'
 import { initializeLanguage } from '../i18n'
@@ -354,9 +355,19 @@ const resultItemMenuRef = ref<InstanceType<typeof SubMenu> | null>(null)
 const searchBarMenuItems = computed(() => [{ name: t('menu.open_settings'), icon: Setting, action: () => { openSettingsWindow() } },
 { name: t('menu.refresh_database'), icon: Refresh, action: () => { refreshDataset() } }])
 
-const resultSubMenuItems = computed(() => [{ name: t('app.open_file_location'), icon: FolderOpened, action: () => { openFolder() } },
-{ name: t('app.run_as_admin'), icon: StarFilled, action: () => { runTargetProgramWithAdmin() } },
-{ name: t('app.block_this_result'), icon: CircleClose, action: () => { blockCurrentResult() } }])
+const resultSubMenuItems = computed(() => {
+  if (isEverythingMode.value) {
+    return [
+      { name: t('app.open_file'), icon: Document, action: () => { openEverythingFile() } },
+      { name: t('app.open_with_notepad'), icon: EditPen, action: () => { openEverythingWithNotepad() } },
+      { name: t('app.open_file_location'), icon: FolderOpened, action: () => { openEverythingFileLocation() } },
+      { name: t('app.copy_file_path'), icon: DocumentCopy, action: () => { copyEverythingFilePath() } },
+    ]
+  }
+  return [{ name: t('app.open_file_location'), icon: FolderOpened, action: () => { openFolder() } },
+  { name: t('app.run_as_admin'), icon: StarFilled, action: () => { runTargetProgramWithAdmin() } },
+  { name: t('app.block_this_result'), icon: CircleClose, action: () => { blockCurrentResult() } }]
+})
 
 // Methods
 const buildTemplatePreview = (template: string, args: string[], placeholderCount: number) => {
@@ -835,6 +846,63 @@ const blockCurrentResult = async () => {
     resultItemMenuRef.value?.hideMenu()
   } catch (e) {
     console.error('Failed to block program:', e)
+    ElMessage.error(e instanceof Error ? e.message : String(e))
+  }
+}
+
+const contextEverythingItemEvent = (_index: number, event: MouseEvent) => {
+  if (searchBarMenuBuf.value?.isVisible()) {
+    searchBarMenuBuf.value?.hideMenu()
+  }
+  resultItemMenuRef.value?.showMenu({ top: event.clientY, left: event.clientX })
+}
+
+const getEverythingSelectedPath = (): string | null => {
+  return everythingPanelRef.value?.getSelectedPath() ?? null
+}
+
+const openEverythingFile = async () => {
+  const path = getEverythingSelectedPath()
+  if (!path) return
+  try {
+    await invoke('launch_everything_item', { path })
+  } catch (e) {
+    console.error('Failed to launch everything item:', e)
+    ElMessage.error(e instanceof Error ? e.message : String(e))
+  }
+}
+
+const openEverythingWithNotepad = async () => {
+  const path = getEverythingSelectedPath()
+  if (!path) return
+  try {
+    await invoke('everything_open_with_notepad', { path })
+  } catch (e) {
+    console.error('Failed to open with notepad:', e)
+    ElMessage.error(e instanceof Error ? e.message : String(e))
+  }
+}
+
+const openEverythingFileLocation = async () => {
+  const path = getEverythingSelectedPath()
+  if (!path) return
+  try {
+    await invoke('everything_open_file_location', { path })
+  } catch (e) {
+    console.error('Failed to open file location:', e)
+    ElMessage.error(e instanceof Error ? e.message : String(e))
+  }
+}
+
+const copyEverythingFilePath = async () => {
+  const path = getEverythingSelectedPath()
+  if (!path) return
+  const normalized = path.replace(/\\/g, '/')
+  try {
+    await navigator.clipboard.writeText(normalized)
+    ElMessage.success(t('app.copy_path_success'))
+  } catch (e) {
+    console.error('Failed to copy path:', e)
     ElMessage.error(e instanceof Error ? e.message : String(e))
   }
 }

@@ -183,6 +183,8 @@ pub fn run() {
             handle_search_text,
             handle_everything_search,
             launch_everything_item,
+            everything_open_with_notepad,
+            everything_open_file_location,
             everything_enable_path_match,
             get_launch_template_info,
             update_search_bar_window,

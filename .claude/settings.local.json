@@ -9,7 +9,9 @@
       "Bash(cargo test *)",
       "Bash(npx vue-tsc *)",
       "Bash(npx tsc *)",
-      "Bash(cargo doc *)"
+      "Bash(cargo doc *)",
+      "Bash(git checkout *)",
+      "Bash(git cherry-pick *)"
     ]
   }
 }

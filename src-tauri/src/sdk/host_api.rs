@@ -160,8 +160,8 @@ pub struct PluginHandle {
     timer_manager: Arc<dyn TimerManager>,
     /// 应用资源服务，由 HostApi 注入
     app_resource: Arc<AppResourceService>,
-    /// 存储服务，由 HostApi 注入
-    storage: Arc<dyn StorageService>,
+    /// 存储服务，由 HostApi 注入（共享 RwLock，reconfigure 后自动可见）
+    storage: Arc<RwLock<Arc<dyn StorageService>>>,
     /// 按键管理器，由 HostApi 注入
     hotkey_manager: Arc<dyn HotkeyManager>,
     /// 安装监控器，由 HostApi 注入
@@ -477,20 +477,21 @@ impl PluginHandle {
         let hash = short_hash(&data);
         let filename = format!("{}_{}.{}", purpose, hash, ext);
         let storage_path = build_resource_path(&self.plugin_id, Some(&filename));
-        self.storage
-            .upload(&storage_path, &data)
-            .await
-            .map_err(|e| HostApiError::StorageOperationFailed {
+        let storage = self.storage.read().clone();
+        storage.upload(&storage_path, &data).await.map_err(|e| {
+            HostApiError::StorageOperationFailed {
                 file: storage_path,
                 reason: e.to_string(),
-            })?;
+            }
+        })?;
         Ok(format!("res://{}", filename))
     }
 
     /// 获取资源文件内容。
     pub async fn resource_get(&self, resource_id: &str) -> Result<Vec<u8>, HostApiError> {
         let path = build_resource_path(&self.plugin_id, Some(resource_id));
-        self.storage
+        let storage = self.storage.read().clone();
+        storage
             .download(&path)
             .await
             .map_err(|e| HostApiError::StorageOperationFailed {
@@ -505,7 +506,8 @@ impl PluginHandle {
     /// 删除资源文件。
     pub async fn resource_delete(&self, resource_id: &str) -> Result<(), HostApiError> {
         let path = build_resource_path(&self.plugin_id, Some(resource_id));
-        self.storage
+        let storage = self.storage.read().clone();
+        storage
             .delete(&path)
             .await
             .map_err(|e| HostApiError::StorageOperationFailed {
@@ -517,7 +519,8 @@ impl PluginHandle {
     /// 列出本插件的所有资源。
     pub async fn resource_list(&self) -> Result<Vec<String>, HostApiError> {
         let prefix = build_resource_path(&self.plugin_id, None);
-        self.storage
+        let storage = self.storage.read().clone();
+        storage
             .list(&prefix)
             .await
             .map_err(|e| HostApiError::StorageOperationFailed {
@@ -627,7 +630,7 @@ pub struct HostApi {
     /// 定时器管理器
     timer_manager: Arc<dyn TimerManager>,
     /// 存储服务（可运行时重配置：Local ↔ WebDAV）
-    storage: RwLock<Arc<dyn StorageService>>,
+    storage: Arc<RwLock<Arc<dyn StorageService>>>,
     /// 应用资源服务
     app_resource: Arc<AppResourceService>,
     /// 通知回调（宿主级）
@@ -669,7 +672,7 @@ impl HostApi {
             parameter_resolver: self.parameter_resolver.clone(),
             timer_manager: self.timer_manager.clone(),
             app_resource: self.app_resource.clone(),
-            storage: self.storage(),
+            storage: self.storage.clone(),
             hotkey_manager: self.hotkey_manager.clone(),
             installation_monitor: self.installation_monitor.clone(),
             focus_monitor: self.focus_monitor.clone(),
@@ -854,7 +857,8 @@ impl HostApi {
     /// 参数：无。
     /// 返回：当前存储服务的 Arc 引用。
     pub fn storage(&self) -> Arc<dyn StorageService> {
-        self.storage.read().clone()
+        let storage = self.storage.read().clone();
+        storage.clone()
     }
 
     /// 重新配置存储服务（用户在设置中切换 Local/WebDAV 时调用）。
@@ -1148,7 +1152,9 @@ impl HostApiBuilder {
                 .installation_monitor
                 .expect("missing installation_monitor"),
             timer_manager: self.timer_manager.expect("missing timer_manager"),
-            storage: RwLock::new(self.storage_service.expect("missing storage_service")),
+            storage: Arc::new(RwLock::new(
+                self.storage_service.expect("missing storage_service"),
+            )),
             app_resource: self.app_resource.expect("missing app_resource"),
             focus_monitor: self.focus_monitor.expect("missing focus_monitor"),
             notify_callback: RwLock::new(self.notify_callback.expect("missing notify_callback")),

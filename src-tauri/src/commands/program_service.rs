@@ -434,6 +434,97 @@ pub async fn handle_everything_search<R: Runtime>(
     Ok(Vec::new())
 }
 
+/// 使用记事本打开 Everything 搜索结果
+#[cfg(target_arch = "x86_64")]
+#[tauri::command]
+pub async fn everything_open_with_notepad<R: Runtime>(
+    _app: tauri::AppHandle<R>,
+    _window: tauri::Window<R>,
+    path: String,
+) -> Result<(), String> {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+    if let Err(e) = hide_window() {
+        warn!("隐藏窗口失败: {:?}", e);
+    }
+
+    let result = std::process::Command::new("notepad.exe")
+        .arg(&path)
+        .creation_flags(CREATE_NO_WINDOW)
+        .spawn();
+
+    if let Err(e) = result {
+        warn!("使用记事本打开文件失败: {:?}, 路径: {}", e, path);
+        return Err(format!("Failed to open with notepad: {}", e));
+    }
+
+    Ok(())
+}
+
+/// 使用记事本打开 Everything 搜索结果 (arm64 不支持)
+#[cfg(not(target_arch = "x86_64"))]
+#[tauri::command]
+pub async fn everything_open_with_notepad<R: Runtime>(
+    _app: tauri::AppHandle<R>,
+    _window: tauri::Window<R>,
+    _path: String,
+) -> Result<(), String> {
+    Ok(())
+}
+
+/// 在资源管理器中打开 Everything 搜索结果所在文件夹并选中文件
+#[cfg(target_arch = "x86_64")]
+#[tauri::command]
+pub async fn everything_open_file_location<R: Runtime>(
+    _app: tauri::AppHandle<R>,
+    _window: tauri::Window<R>,
+    path: String,
+) -> Result<(), String> {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+    if let Err(e) = hide_window() {
+        warn!("隐藏窗口失败: {:?}", e);
+    }
+
+    let windows_path = path.replace("/", "\\");
+    let path_obj = Path::new(&windows_path);
+    let spawn_result = if path_obj.is_dir() {
+        // 如果目标本身是目录，直接在资源管理器中打开
+        std::process::Command::new("explorer.exe")
+            .arg(&windows_path)
+            .creation_flags(CREATE_NO_WINDOW)
+            .spawn()
+    } else {
+        // 如果是文件，打开其所在目录并选中该文件
+        // 使用 cmd /C 包裹 explorer 命令，并通过 raw_arg 避免 Rust 对引号的自动转义
+        // 确保路径中的空格被正确引号包裹，explorer 能正确解析 /select,"path" 语法
+        std::process::Command::new("cmd")
+            .raw_arg(format!("/C explorer /select,\"{}\"", windows_path))
+            .creation_flags(CREATE_NO_WINDOW)
+            .spawn()
+    };
+
+    if let Err(e) = spawn_result {
+        warn!("打开文件所在位置失败: {:?}, 路径: {}", e, path);
+        return Err(format!("Failed to open file location: {}", e));
+    }
+
+    Ok(())
+}
+
+/// 在资源管理器中打开 Everything 搜索结果所在文件夹 (arm64 不支持)
+#[cfg(not(target_arch = "x86_64"))]
+#[tauri::command]
+pub async fn everything_open_file_location<R: Runtime>(
+    _app: tauri::AppHandle<R>,
+    _window: tauri::Window<R>,
+    _path: String,
+) -> Result<(), String> {
+    Ok(())
+}
+
 /// 在资源管理器中打开 Everything 搜索结果所在目录
 #[cfg(target_arch = "x86_64")]
 #[tauri::command]

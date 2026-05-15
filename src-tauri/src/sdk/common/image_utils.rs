@@ -6,7 +6,7 @@ use image::Rgba;
 use image::RgbaImage;
 use kmeans_colors::get_kmeans;
 use palette::{IntoColor, Lab, Srgb};
-use rand::Rng;
+use rand::RngExt;
 use rayon::prelude::*;
 use std::io::Cursor;
 use std::sync::{Arc, Mutex};

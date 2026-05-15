@@ -15,7 +15,6 @@
     "jsx": "preserve",
 
     /* Path aliases */
-    "baseUrl": ".",
     "paths": {
       "@/*": ["./src-ui-new/*"]
     },

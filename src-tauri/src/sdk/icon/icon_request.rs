@@ -1,4 +1,4 @@
-use bincode::Encode;
+use bincode_next::Encode;
 use serde::{Deserialize, Serialize};
 
 /// 图标请求类型，表示不同来源的图标提取需求。
@@ -30,7 +30,11 @@ impl IconRequest {
     /// 计算图标请求的 blake3 哈希值，用作缓存键。
     pub fn get_hash_string(&self) -> String {
         let mut hasher = blake3::Hasher::new();
-        let _ = bincode::encode_into_std_write(self, &mut hasher, bincode::config::standard());
+        let _ = bincode_next::encode_into_std_write(
+            self,
+            &mut hasher,
+            bincode_next::config::standard(),
+        );
         hasher.finalize().to_hex().to_string()
     }
 }

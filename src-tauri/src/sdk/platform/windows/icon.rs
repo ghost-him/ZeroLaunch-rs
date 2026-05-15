@@ -248,14 +248,14 @@ impl WindowsIconExtractor {
                 }
             })
             .await
-            .expect("Tokio spawn should not fail");
+            .ok()?;
 
             if result.is_some() {
                 return result;
             }
 
             if attempt < MAX_RETRIES {
-                use rand::{rng, Rng};
+                use rand::{rng, RngExt};
                 let delay_ms = rng().random_range(50..=250);
                 tokio::time::sleep(tokio::time::Duration::from_millis(delay_ms)).await;
                 info!(
@@ -335,14 +335,14 @@ impl WindowsIconExtractor {
                 }
             })
             .await
-            .expect("Tokio spawn should not fail");
+            .ok()?;
 
             if result.is_some() {
                 return result;
             }
 
             if attempt < MAX_RETRIES {
-                use rand::{rng, Rng};
+                use rand::{rng, RngExt};
                 let delay_ms = rng().random_range(50..=250);
                 tokio::time::sleep(tokio::time::Duration::from_millis(delay_ms)).await;
                 info!(
@@ -467,14 +467,14 @@ impl WindowsIconExtractor {
                 }
             })
             .await
-            .expect("Tokio spawn should not fail");
+            .ok()?;
 
             if result.is_some() {
                 return result;
             }
 
             if attempt < MAX_RETRIES {
-                use rand::{rng, Rng};
+                use rand::{rng, RngExt};
                 let delay_ms = rng().random_range(50..=250);
                 tokio::time::sleep(tokio::time::Duration::from_millis(delay_ms)).await;
                 info!(

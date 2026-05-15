@@ -11,7 +11,8 @@
       "Bash(npx tsc *)",
       "Bash(cargo doc *)",
       "Bash(git checkout *)",
-      "Bash(git cherry-pick *)"
+      "Bash(git cherry-pick *)",
+      "Bash(git stash *)"
     ]
   }
 }

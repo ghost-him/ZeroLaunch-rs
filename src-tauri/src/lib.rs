@@ -197,36 +197,32 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app_handle, event| match event {
-            tauri::RunEvent::ExitRequested { api, .. } => {
-                if !IS_EXITING.load(Ordering::Relaxed) {
-                    info!("检测到退出请求，开始清理...");
-                    api.prevent_exit();
-                    IS_EXITING.store(true, Ordering::Relaxed);
+            tauri::RunEvent::ExitRequested { api, .. } if !IS_EXITING.load(Ordering::Relaxed) => {
+                info!("检测到退出请求，开始清理...");
+                api.prevent_exit();
+                IS_EXITING.store(true, Ordering::Relaxed);
 
-                    let app_handle = app_handle.clone();
-                    tauri::async_runtime::spawn(async move {
-                        do_cleanup_before_exit().await;
-                        info!("清理完成，正在退出程序...");
-                        app_handle.exit(0);
-                    });
-                }
+                let app_handle = app_handle.clone();
+                tauri::async_runtime::spawn(async move {
+                    do_cleanup_before_exit().await;
+                    info!("清理完成，正在退出程序...");
+                    app_handle.exit(0);
+                });
             }
-            tauri::RunEvent::WindowEvent { label, event, .. } => {
-                if label == "main" {
-                    if let tauri::WindowEvent::ThemeChanged(theme) = event {
-                        if let Some(tray_manager) =
-                            app_handle.state::<Arc<AppState>>().get_tray_manager()
-                        {
-                            tray_manager.update_icon_theme();
-                        }
-                        let theme_str = match theme {
-                            tauri::Theme::Dark => "dark",
-                            tauri::Theme::Light => "light",
-                            _ => "light",
-                        };
-                        let _ = app_handle.emit("system-theme-changed", theme_str);
-                    }
+            tauri::RunEvent::WindowEvent {
+                label,
+                event: tauri::WindowEvent::ThemeChanged(theme),
+                ..
+            } if label == "main" => {
+                if let Some(tray_manager) = app_handle.state::<Arc<AppState>>().get_tray_manager() {
+                    tray_manager.update_icon_theme();
                 }
+                let theme_str = match theme {
+                    tauri::Theme::Dark => "dark",
+                    tauri::Theme::Light => "light",
+                    _ => "light",
+                };
+                let _ = app_handle.emit("system-theme-changed", theme_str);
             }
             _ => {}
         });

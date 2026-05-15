@@ -191,10 +191,6 @@ fn collect_enabled_features() -> Vec<&'static str> {
         features.push("portable");
     }
 
-    if cfg!(feature = "ai") {
-        features.push("ai");
-    }
-
     features
 }
 

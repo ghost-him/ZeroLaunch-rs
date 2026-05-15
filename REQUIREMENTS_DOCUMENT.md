@@ -612,13 +612,11 @@ ProgramManager
 │   ├── 执行命令
 │   └── 内置命令
 ├── SearchEngine（搜索引擎）
-│   ├── TraditionalSearchEngine（传统搜索）
-│   └── SemanticSearchEngine（语义搜索）
+│   └── TraditionalSearchEngine（传统搜索）
 ├── SearchModel（多种匹配算法）
 │   ├── StandardSearchModel（标准匹配）
 │   ├── SkimSearchModel（Skim 模糊匹配）
-│   ├── LaunchySearchModel（LaunchyQT 匹配）
-│   └── AiFuzzySearchModel（AI 模糊匹配）
+│   └── LaunchySearchModel（LaunchyQT 匹配）
 ├── ProgramRanker（程序排序器）
 │   ├── 历史分值
 │   ├── 近期习惯分值
@@ -626,7 +624,6 @@ ProgramManager
 │   ├── 查询亲和度分值
 │   └── 综合加权排序
 ├── WindowActivator（窗口唤醒器）
-├── SemanticManager（语义管理器）
 ├── IconManager（图标管理器）
 └── ParameterResolver（参数解析器）
 ```
@@ -654,12 +651,11 @@ ProgramManager
 
 ### 7.3 搜索算法
 
-**四种搜索模式**:
+**三种搜索模式**:
 
 1. **标准搜索算法（Standard）**: 作者设计的综合匹配算法，高准确率高容错
 2. **Skim 匹配算法（Skim）**: 主流模糊匹配算法
 3. **LaunchyQT 算法**: 对 LaunchyQT 的移植实现
-4. **语义搜索（Semantic）**: 使用嵌入模型进行语义匹配（实验性，速度较慢）
 
 **搜索流程**:
 1. 用户输入文本
@@ -806,8 +802,6 @@ StorageManager
 
 - `zerolaunch.json`: 远程配置
 - `background.png`: 背景图片
-- `semantic_embedding_cache.bin`: 语义嵌入缓存
-- `semantic_description.json`: 语义描述信息
 
 ---
 
@@ -952,42 +946,6 @@ StorageManager
 ### 16.2 支持的浏览器
 
 通过 `detect_installed_browsers` 命令自动检测系统已安装的浏览器及其书签文件路径。
-
----
-
-## 17. AI 语义搜索（实验性功能）
-
-### 17.1 架构
-
-```
-SemanticManager
-├── EmbeddingBackend trait
-│   └── EmbeddingGemma（EmbeddingGemma-300m 模型）
-├── 嵌入向量生成（GPU 加速）
-├── 嵌入向量缓存（持久化到磁盘）
-├── 语义相似度计算
-└── 语义描述管理
-```
-
-### 17.2 功能
-
-- 使用 `EmbeddingGemma-300m` 模型生成程序名称和描述的嵌入向量
-- 基于向量相似度实现语义匹配
-- 支持语义描述信息，提升功能性搜索的准确性
-- 嵌入缓存持久化，避免重复计算
-
-### 17.3 回退机制
-
-- 选择语义搜索但未启用 AI 特性 → 回退到标准匹配，提示"已选语义搜索，但当前为精简版"
-- 选择语义搜索且启用 AI，但模型权重未就绪 → 回退到标准匹配，提示"未检测到模型权重"
-- 回退提示通过 `command_get_search_status_tip` 传递给前端
-
-### 17.4 模型管理
-
-- 模型需单独下载到指定目录
-- 支持下载模型
-- 支持打开模型文件夹
-- 支持打开描述信息文件
 
 ---
 

@@ -91,8 +91,7 @@ cargo run --bin xtask clean
                                           # 便携版：软件所在目录
 ├── logs/                                 # 运行日志
 ├── icons/                                # 程序图标缓存
-├── ZeroLaunch_program_embeddings.cache   # AI 语义向量缓存，用于加速程序初始化
-├── ZeroLaunch_program_semantic_description.json # 程序功能语义描述文件，供 AI 模型检索调用
+├── ZeroLaunch_program_embeddings.cache   # 程序向量缓存，用于加速程序初始化
 └── ZeroLaunch_local_config.json          # 本地配置文件，存储相关数据以及远程目录路径
 ```
 

@@ -235,7 +235,7 @@ impl WindowsAutoStartManager {
             s
         }
 
-        let author_name = whoami::username();
+        let author_name = whoami::username().unwrap_or_else(|_| "unknown_user".to_string());
         let author = escape_xml(&author_name);
 
         let user_id_raw = Self::current_user_id();
@@ -280,7 +280,7 @@ impl WindowsAutoStartManager {
             }
         }
 
-        let username = whoami::username();
+        let username = whoami::username().unwrap_or_else(|_| "unknown_user".to_string());
         let domain = std::env::var("USERDOMAIN").ok();
         match domain {
             Some(ref d) if !d.is_empty() => format!(r"{}\\{}", d, username),
@@ -343,7 +343,7 @@ impl AutoStartManager for WindowsAutoStartManager {
     }
 
     fn default_task_name(&self) -> String {
-        let username = whoami::username();
+        let username = whoami::username().unwrap_or_else(|_| "unknown_user".to_string());
         format!("ZeroLaunch-rs\\autostart ({})", username)
     }
 }

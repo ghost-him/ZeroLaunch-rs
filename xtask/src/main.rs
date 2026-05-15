@@ -49,51 +49,9 @@ impl TargetArch {
     }
 }
 
-#[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]
-enum AiMode {
-    /// 启用 AI 特性（完全体）
-    Enabled,
-    /// 禁用 AI 特性（精简版）
-    Disabled,
-}
-
-impl AiMode {
-    fn is_enabled(self) -> bool {
-        matches!(self, AiMode::Enabled)
-    }
-
-    fn display(self) -> &'static str {
-        match self {
-            AiMode::Enabled => "启用 AI",
-            AiMode::Disabled => "关闭 AI",
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]
-enum AiProfile {
-    /// 仅构建启用 AI 的完全体
-    Enabled,
-    /// 仅构建关闭 AI 的精简版
-    Disabled,
-    /// 同时构建启用与关闭 AI 的版本
-    Both,
-}
-
-impl AiProfile {
-    fn modes(self) -> Vec<AiMode> {
-        match self {
-            AiProfile::Enabled => vec![AiMode::Enabled],
-            AiProfile::Disabled => vec![AiMode::Disabled],
-            AiProfile::Both => vec![AiMode::Disabled, AiMode::Enabled],
-        }
-    }
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct BuildTarget {
     arch: TargetArch,
-    ai_mode: AiMode,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -126,17 +84,11 @@ fn expand_architecture(arch: &Architecture) -> Vec<TargetArch> {
     }
 }
 
-fn collect_build_targets(arch: &Architecture, ai_modes: &[AiMode]) -> Vec<BuildTarget> {
-    let mut targets = Vec::new();
-    for target_arch in expand_architecture(arch) {
-        for &ai_mode in ai_modes {
-            targets.push(BuildTarget {
-                arch: target_arch,
-                ai_mode,
-            });
-        }
-    }
-    targets
+fn collect_build_targets(arch: &Architecture) -> Vec<BuildTarget> {
+    expand_architecture(arch)
+        .into_iter()
+        .map(|target_arch| BuildTarget { arch: target_arch })
+        .collect()
 }
 
 fn print_build_plan(kind: BuildKind, targets: &[BuildTarget], version: &str) {
@@ -148,34 +100,25 @@ fn print_build_plan(kind: BuildKind, targets: &[BuildTarget], version: &str) {
     println!("📋 将构建以下 {}:", kind.description());
     for target in targets {
         println!(
-            "  ▶️ {} | 架构: {} | 模式: {}",
+            "  ▶️ {} | 架构: {}",
             kind.item_label(),
             target.arch.display(),
-            target.ai_mode.display()
         );
 
         match kind {
             BuildKind::Installer => {
-                let base_nsis = format!(
+                let nsis_name = format!(
                     "zerolaunch-rs_{}_{}-setup.exe",
                     version,
                     target.arch.label()
                 );
-                let base_msi = format!("ZeroLaunch_{}_{}_en-US.msi", version, target.arch.label());
-                let final_nsis = generate_installer_name(&base_nsis, version, target.ai_mode);
-                let final_msi = generate_installer_name(&base_msi, version, target.ai_mode);
-                println!("      • {}", final_nsis);
-                println!("      • {}", final_msi);
+                let msi_name = format!("ZeroLaunch_{}_{}_en-US.msi", version, target.arch.label());
+                println!("      • {}", nsis_name);
+                println!("      • {}", msi_name);
             }
             BuildKind::Portable => {
-                let suffix = if target.ai_mode.is_enabled() {
-                    ""
-                } else {
-                    "-lite"
-                };
                 let zip_name = format!(
-                    "ZeroLaunch-portable{}-{}-{}.zip",
-                    suffix,
+                    "ZeroLaunch-portable-{}-{}.zip",
                     version,
                     target.arch.label()
                 );
@@ -200,27 +143,18 @@ enum Commands {
         /// 指定构建架构
         #[arg(short, long, value_enum, default_value_t = Architecture::All)]
         arch: Architecture,
-        /// 是否启用 AI 特性
-        #[arg(long, value_enum, default_value_t = AiProfile::Both)]
-        ai: AiProfile,
     },
     /// 只构建安装包版本
     BuildInstaller {
         /// 指定构建架构
         #[arg(short, long, value_enum, default_value_t = Architecture::All)]
         arch: Architecture,
-        /// 是否启用 AI 特性
-        #[arg(long, value_enum, default_value_t = AiMode::Enabled)]
-        ai: AiMode,
     },
     /// 只构建便携版本
     BuildPortable {
         /// 指定构建架构
         #[arg(short, long, value_enum, default_value_t = Architecture::All)]
         arch: Architecture,
-        /// 是否启用 AI 特性
-        #[arg(long, value_enum, default_value_t = AiMode::Enabled)]
-        ai: AiMode,
     },
     /// 清理构建产物
     Clean,
@@ -244,26 +178,23 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match &cli.command {
-        Commands::BuildAll { arch, ai } => {
+        Commands::BuildAll { arch } => {
             println!("🚀 开始构建所有版本...");
             let version = get_app_version()?;
-            let ai_modes = ai.modes();
-            build_installer_versions(arch, &ai_modes, &version).await?;
-            build_portable_versions(arch, &ai_modes, &version).await?;
+            build_installer_versions(arch, &version).await?;
+            build_portable_versions(arch, &version).await?;
             println!("✅ 所有版本构建完成！");
         }
-        Commands::BuildInstaller { arch, ai } => {
+        Commands::BuildInstaller { arch } => {
             println!("🚀 开始构建安装包版本...");
             let version = get_app_version()?;
-            let ai_modes = vec![*ai];
-            build_installer_versions(arch, &ai_modes, &version).await?;
+            build_installer_versions(arch, &version).await?;
             println!("✅ 安装包版本构建完成！");
         }
-        Commands::BuildPortable { arch, ai } => {
+        Commands::BuildPortable { arch } => {
             println!("🚀 开始构建便携版本...");
             let version = get_app_version()?;
-            let ai_modes = vec![*ai];
-            build_portable_versions(arch, &ai_modes, &version).await?;
+            build_portable_versions(arch, &version).await?;
             println!("✅ 便携版本构建完成！");
         }
         Commands::Clean => {
@@ -277,12 +208,8 @@ async fn main() -> Result<()> {
 }
 
 /// 构建安装包版本
-async fn build_installer_versions(
-    arch: &Architecture,
-    ai_modes: &[AiMode],
-    version: &str,
-) -> Result<()> {
-    let targets = collect_build_targets(arch, ai_modes);
+async fn build_installer_versions(arch: &Architecture, version: &str) -> Result<()> {
+    let targets = collect_build_targets(arch);
     print_build_plan(BuildKind::Installer, &targets, version);
 
     for target in targets {
@@ -292,14 +219,10 @@ async fn build_installer_versions(
     Ok(())
 }
 
-async fn build_single_installer(target: BuildTarget, version: &str) -> Result<()> {
-    println!(
-        "📦 构建安装包 -> 架构: {} | 模式: {}",
-        target.arch.display(),
-        target.ai_mode.display()
-    );
+async fn build_single_installer(target: BuildTarget, _version: &str) -> Result<()> {
+    println!("📦 构建安装包 -> 架构: {}", target.arch.display());
 
-    let mut args = vec![
+    let args = vec![
         "bun".to_string(),
         "run".to_string(),
         "tauri".to_string(),
@@ -308,32 +231,18 @@ async fn build_single_installer(target: BuildTarget, version: &str) -> Result<()
         target.arch.triple().to_string(),
     ];
 
-    if target.ai_mode.is_enabled() {
-        args.push("--".to_string());
-        args.push("--features".to_string());
-        args.push("ai".to_string());
-    }
-
     run_command(args).await.with_context(|| {
-        format!(
-            "构建安装包失败: 架构 {} | 模式 {}",
-            target.arch.display(),
-            target.ai_mode.display()
-        )
+        format!("构建安装包失败: 架构 {}", target.arch.display())
     })?;
 
-    move_installer_to_root(target.arch, version, target.ai_mode)?;
+    move_installer_to_root(target.arch)?;
 
     Ok(())
 }
 
 /// 构建便携版本
-async fn build_portable_versions(
-    arch: &Architecture,
-    ai_modes: &[AiMode],
-    version: &str,
-) -> Result<()> {
-    let targets = collect_build_targets(arch, ai_modes);
+async fn build_portable_versions(arch: &Architecture, version: &str) -> Result<()> {
+    let targets = collect_build_targets(arch);
     print_build_plan(BuildKind::Portable, &targets, version);
 
     for target in targets {
@@ -344,13 +253,9 @@ async fn build_portable_versions(
 }
 
 async fn build_single_portable(target: BuildTarget, version: &str) -> Result<()> {
-    println!(
-        "📦 构建便携版 -> 架构: {} | 模式: {}",
-        target.arch.display(),
-        target.ai_mode.display()
-    );
+    println!("📦 构建便携版 -> 架构: {}", target.arch.display());
 
-    let mut args = vec![
+    let args = vec![
         "bun".to_string(),
         "run".to_string(),
         "tauri".to_string(),
@@ -361,21 +266,11 @@ async fn build_single_portable(target: BuildTarget, version: &str) -> Result<()>
         target.arch.triple().to_string(),
         "--".to_string(),
         "--features".to_string(),
+        "portable".to_string(),
     ];
 
-    let features = if target.ai_mode.is_enabled() {
-        "portable,ai".to_string()
-    } else {
-        "portable".to_string()
-    };
-    args.push(features);
-
     run_command(args).await.with_context(|| {
-        format!(
-            "构建便携版失败: 架构 {} | 模式 {}",
-            target.arch.display(),
-            target.ai_mode.display()
-        )
+        format!("构建便携版失败: 架构 {}", target.arch.display())
     })?;
 
     package_portable_variant(target, version).await?;
@@ -383,7 +278,7 @@ async fn build_single_portable(target: BuildTarget, version: &str) -> Result<()>
     Ok(())
 }
 
-fn move_installer_to_root(target_arch: TargetArch, version: &str, ai_mode: AiMode) -> Result<()> {
+fn move_installer_to_root(target_arch: TargetArch) -> Result<()> {
     let root_dir = env::current_dir()?;
     let bundle_dir = Path::new("src-tauri")
         .join("target")
@@ -400,42 +295,21 @@ fn move_installer_to_root(target_arch: TargetArch, version: &str, ai_mode: AiMod
         return Ok(());
     }
 
-    // 需要检查的子目录
     let installer_subdirs = ["msi", "nsis"];
 
     for subdir_name in installer_subdirs {
         let subdir_path = bundle_dir.join(subdir_name);
         if subdir_path.is_dir() {
-            // 遍历子目录中的文件
             for entry in fs::read_dir(&subdir_path)? {
                 let entry = entry?;
                 let source_path = entry.path();
                 if source_path.is_file() {
                     if let Some(file_name) = source_path.file_name() {
-                        let file_name_str = file_name.to_string_lossy();
-                        let dest_name = if ai_mode.is_enabled() {
-                            OsString::from(&*file_name_str)
-                        } else {
-                            OsString::from(generate_installer_name(
-                                &file_name_str,
-                                version,
-                                ai_mode,
-                            ))
-                        };
+                        let dest_name = OsString::from(&*file_name.to_string_lossy());
                         let dest_path = root_dir.join(&dest_name);
                         if dest_path.exists() {
                             fs::remove_file(&dest_path)
                                 .context(format!("删除已存在的安装包 {:?} 失败", dest_path))?;
-                        }
-                        // 如果拷贝出的是精简版，顺便清理 root 下可能残留的完全体安装包
-                        if !ai_mode.is_enabled() {
-                            let original_path = root_dir.join(file_name);
-                            if original_path.exists() {
-                                fs::remove_file(&original_path).context(format!(
-                                    "删除残留的安装包 {:?} 失败",
-                                    original_path
-                                ))?;
-                            }
                         }
 
                         fs::copy(&source_path, &dest_path)
@@ -448,31 +322,6 @@ fn move_installer_to_root(target_arch: TargetArch, version: &str, ai_mode: AiMod
     }
 
     Ok(())
-}
-
-fn generate_installer_name(original: &str, version: &str, ai_mode: AiMode) -> String {
-    if ai_mode.is_enabled() || original.contains("_lite") {
-        return original.to_string();
-    }
-
-    let version_marker = format!("_{}", version);
-    if let Some(idx) = original.find(&version_marker) {
-        let mut renamed = String::with_capacity(original.len() + 6);
-        renamed.push_str(&original[..idx]);
-        renamed.push_str("_lite");
-        renamed.push_str(&original[idx..]);
-        return renamed;
-    }
-
-    if let Some(dot_idx) = original.rfind('.') {
-        let mut renamed = String::with_capacity(original.len() + 6);
-        renamed.push_str(&original[..dot_idx]);
-        renamed.push_str("_lite");
-        renamed.push_str(&original[dot_idx..]);
-        return renamed;
-    }
-
-    format!("{}_lite", original)
 }
 
 /// 运行命令
@@ -498,23 +347,16 @@ async fn run_command(args: Vec<String>) -> Result<()> {
 /// 打包便携版本
 async fn package_portable_variant(target: BuildTarget, version: &str) -> Result<()> {
     let target_dir = Path::new("src-tauri/target");
-    let suffix = if target.ai_mode.is_enabled() {
-        ""
-    } else {
-        "-lite"
-    };
     let zip_name = format!(
-        "ZeroLaunch-portable{}-{}-{}.zip",
-        suffix,
+        "ZeroLaunch-portable-{}-{}.zip",
         version,
         target.arch.label()
     );
 
     if let Some(exe_path) = find_portable_exe(target_dir, target.arch)? {
         println!(
-            "📦 打包便携版 -> 架构: {} | 模式: {} => {}",
+            "📦 打包便携版 -> 架构: {} => {}",
             target.arch.display(),
-            target.ai_mode.display(),
             zip_name
         );
         create_portable_zip(&exe_path, &zip_name, target.arch).await?;
@@ -543,13 +385,11 @@ fn find_portable_exe(target_dir: &Path, arch: TargetArch) -> Result<Option<PathB
         return Ok(None);
     }
 
-    // 查找 .exe 文件
     for entry in fs::read_dir(&release_dir)? {
         let entry = entry?;
         let path = entry.path();
 
         if path.extension().and_then(|s| s.to_str()) == Some("exe") {
-            // 排除依赖文件，只要主程序
             let file_name = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
             if file_name.contains("zero") || file_name.contains("launch") || file_name == "app" {
                 return Ok(Some(path));
@@ -600,16 +440,6 @@ async fn create_portable_zip(exe_path: &Path, zip_name: &str, arch: TargetArch) 
         }
     }
 
-    // 添加 models/readme.md（如果存在）
-    let models_readme_path = Path::new("src-tauri/models/readme.md");
-    if models_readme_path.exists() {
-        // 首先确保 models 目录在 zip 中存在
-        zip.add_directory("models", options)?;
-        zip.start_file("models/readme.md", options)?;
-        let readme_data = fs::read(models_readme_path)?;
-        std::io::copy(&mut readme_data.as_slice(), &mut zip)?;
-    }
-
     zip.finish()?;
     Ok(())
 }
@@ -621,7 +451,6 @@ fn add_directory_to_zip(
     zip_dir_name: &str,
     options: &FileOptions<()>,
 ) -> Result<()> {
-    // ... 函数体保持不变
     for entry in fs::read_dir(dir_path)? {
         let entry = entry?;
         let path = entry.path();
@@ -629,7 +458,6 @@ fn add_directory_to_zip(
         let zip_path = format!("{}/{}", zip_dir_name, name);
 
         if path.is_file() {
-            // 注意：因为 FileOptions<()> 实现了 Copy trait，所以 *options 是有效的
             zip.start_file(&zip_path, *options)?;
             let mut file = fs::File::open(&path)?;
             std::io::copy(&mut file, zip)?;
@@ -643,7 +471,6 @@ fn add_directory_to_zip(
 /// 清理构建产物
 fn clean_build_artifacts() -> Result<()> {
     let target_dir = Path::new("src-tauri/target");
-    let version = get_app_version().ok();
 
     // 在删除 target 目录前，先清理根目录下的安装包副本
     let targets = ["x86_64-pc-windows-msvc", "aarch64-pc-windows-msvc"];
@@ -666,23 +493,6 @@ fn clean_build_artifacts() -> Result<()> {
                                     "🧹 已清理根目录下的安装包: {}",
                                     file_name.to_string_lossy()
                                 );
-                            }
-
-                            if let (Some(version), Some(name_str)) =
-                                (version.as_ref(), file_name.to_str())
-                            {
-                                let no_ai_name =
-                                    generate_installer_name(name_str, version, AiMode::Disabled);
-                                if no_ai_name != name_str {
-                                    let no_ai_path = Path::new(&no_ai_name);
-                                    if no_ai_path.exists() {
-                                        fs::remove_file(no_ai_path).context(format!(
-                                            "删除根目录的 {:?} 失败",
-                                            no_ai_name
-                                        ))?;
-                                        println!("🧹 已清理根目录下的安装包: {}", no_ai_name);
-                                    }
-                                }
                             }
                         }
                     }

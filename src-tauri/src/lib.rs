@@ -15,7 +15,7 @@ use crate::api::ReadApi;
 use crate::core::config::components::appearance_config::AppearanceConfigComponent;
 use crate::core::config::components::hotkey_config::HotkeyConfigComponent;
 use crate::core::config::components::storage_config::StorageConfigComponent;
-use crate::core::config::ConfigManager;
+use crate::core::config::{ConfigEvent, ConfigManager};
 use crate::core::tray::TrayManager;
 use crate::logging::{init_logging, log_application_shutdown, log_application_start};
 use crate::plugin::data_source::app_source::AppSource;
@@ -396,12 +396,29 @@ async fn init_plugin_system(state: &Arc<AppState>) {
 
     // 订阅配置事件
     let event_router = session_router.clone();
+    let app_handle = state.get_main_handle();
     let mut event_receiver = config_manager.event_sender().subscribe();
     tauri::async_runtime::spawn(async move {
         loop {
             match event_receiver.recv().await {
                 Ok(event) => {
                     event_router.handle_config_event(&event).await;
+                    // 将 SettingsChanged 事件桥接到 Tauri 前端，实现跨窗口同步。
+                    // 注：Registered/Unregistered 仅启动时触发（前端窗口未创建），
+                    // EnabledChanged 暂无前端消费者，故暂不转发。
+                    if let ConfigEvent::SettingsChanged {
+                        component_id,
+                        component_type,
+                    } = &event
+                    {
+                        let _ = app_handle.emit(
+                            "config-changed",
+                            serde_json::json!({
+                                "componentId": component_id,
+                                "componentType": format!("{:?}", component_type),
+                            }),
+                        );
+                    }
                 }
                 Err(tokio::sync::broadcast::error::RecvError::Lagged(count)) => {
                     warn!("配置事件接收器落后 {} 条消息", count);

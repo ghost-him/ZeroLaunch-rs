@@ -114,7 +114,7 @@ export interface ConfigActionDef {
 
 export interface ConfigChangedPayload {
   componentId: string
-  componentType: string
+  componentType: ComponentType
 }
 
 export interface ConfigErrorPayload {

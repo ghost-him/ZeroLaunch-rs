@@ -222,12 +222,11 @@ pub fn bridge_reset(state: tauri::State<'_, Arc<AppState>>) {
 /// 获取当前会话模式。
 #[tauri::command]
 pub fn bridge_get_session_mode(state: tauri::State<'_, Arc<AppState>>) -> String {
-    let mode = state.get_session_router().current_mode();
-    match mode {
-        crate::plugin_system::SessionMode::None => "none".to_string(),
-        crate::plugin_system::SessionMode::Plugin(_) => "plugin".to_string(),
-        crate::plugin_system::SessionMode::Search => "search".to_string(),
-    }
+    state
+        .get_session_router()
+        .current_mode()
+        .as_str()
+        .to_string()
 }
 
 // ============================================================================

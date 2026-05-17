@@ -20,6 +20,16 @@ pub enum SessionMode {
     Search,
 }
 
+impl SessionMode {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            SessionMode::None => "none",
+            SessionMode::Plugin(_) => "plugin",
+            SessionMode::Search => "search",
+        }
+    }
+}
+
 pub struct SessionRouter {
     plugin_service: Arc<PluginService>,
     search_pipeline: Arc<RwLock<Option<SearchPipeline>>>,
@@ -105,6 +115,23 @@ impl SessionRouter {
     /// 获取缓存的候选项数量
     pub fn get_cached_candidates_count(&self) -> usize {
         self.cached_candidates.read().get_candidates().len()
+    }
+
+    /// 获取所有缓存的候选项克隆
+    pub fn get_cached_candidates(&self) -> Vec<SearchCandidate> {
+        self.cached_candidates.read().get_candidates().to_vec()
+    }
+
+    /// 根据 ID 获取单个缓存的候选项
+    pub fn get_cached_candidate_by_id(&self, id: CandidateId) -> Option<SearchCandidate> {
+        self.cached_candidates.read().get_candidate(id).cloned()
+    }
+
+    /// 获取候选项的快照（计数 + 数据），单次锁获取保证一致性
+    pub fn get_candidates_snapshot(&self) -> (usize, Vec<SearchCandidate>) {
+        let guard = self.cached_candidates.read();
+        let candidates = guard.get_candidates();
+        (candidates.len(), candidates.to_vec())
     }
 
     pub async fn refresh_candidates(&self) {

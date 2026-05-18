@@ -46,12 +46,46 @@ paths:
 - 如果某平台操作没有 `PluginHandle` 方法：先添加到 `PluginHandle`，再使用。**禁止** 绕过 `PluginHandle`
 - 可用的方法列表请直接阅读 `PluginHandle` 源码（`src-tauri/src/sdk/host_api.rs`），以代码为准，避免文档滞后
 
-## Inner 模式（RwLock\<Inner\> 组件）
+## 配置存储模式（RwLock\<Value\> 组件）
 
-- 外壳方法仅做 **一行** 委托：`self.inner.read().method()` 或 `self.inner.write().method()`
-- 外壳方法签名 **必须** 与 Inner 方法签名完全一致
-- 所有业务逻辑在 Inner 的 `impl` 块中。外壳 `impl` 块仅包含锁委托
-- **禁止** 把业务逻辑放入外壳的 `impl` 块
+- 插件组件（DataSource、Executor 等）使用 `RwLock<serde_json::Value>` 存储配置
+- `apply_settings()` 仅做一件事：`*self.settings.write() = settings;`
+- 读取配置时，通过 helper 方法从 JSON 反序列化：
+  ```rust
+  fn parse_xxx(&self) -> Vec<XxxConfig> {
+      self.settings.read().get("key")
+          .and_then(|v| v.as_array())
+          .map(|arr| arr.iter().filter_map(|item| serde_json::from_value(item.clone()).ok()).collect())
+          .unwrap_or_default()
+  }
+  ```
+- **禁止** 在 `apply_settings()` 中做任何解析、校验或副作用。仅存储 raw JSON
+
+## 核心配置组件模式（core/config/components/ 中的组件）
+
+- 核心配置组件（HotkeyConfig、AppearanceConfig 等）可使用更复杂的内部状态
+- 可持有 `Arc<HostApi>` 用于在 `on_settings_changed()` 中调用平台服务
+- `on_settings_changed()` 中 **允许** spawn async task 执行副作用（如注册热键、启动监控）
+- **禁止** 在 `apply_settings()` 中 spawn async task。副作用 **必须** 在 `on_settings_changed()` 中
+
+## PluginHandle 回调 ID 规范
+
+- 通过 PluginHandle 注册回调时，ID 自动被 plugin_id 前缀化（如 `"core:search_bar_toggle"`）
+- **禁止** 在回调 ID 中手动添加 plugin_id 前缀
+- 回调注销 **必须** 在 `on_settings_changed()` 或组件 drop 时执行。**禁止** 泄漏注册的回调
+
+## 候选项管道（CandidatePipeline）
+
+- `CandidatePipeline::collect()` 是异步方法，按注册顺序调用每个 DataSource 的 `fetch_candidates()`
+- 采集后的候选项经过 KeywordOptimizer 链处理关键词
+- 候选项缓存在 `SessionRouter` 中，通过 `bridge_refresh_candidates` 命令触发重新采集
+- **禁止** 在搜索路径（`route_query`）中调用 `collect()`。搜索使用缓存数据
+
+## SearchPipeline
+
+- `SearchPipeline::search()` 接收查询和缓存候选项，返回排序后的 top_k 结果
+- 当前搜索引擎通过 `config_set_enabled` 切换。**仅** 允许一个搜索引擎同时启用
+- ScoreBooster 在搜索引擎打分后追加分数修正（历史频率、查询亲和度）
 
 ## 依赖方向
 

@@ -54,3 +54,26 @@ paths:
 - `sdk/` 模块按能力域组织。当前支持的能力域请直接阅读 `sdk/` 目录结构，以代码为准
 - 每个能力域包含：`mod.rs`（重新导出）、一个 trait 文件、以及按需的 `types.rs`（共享类型）
 - 平台实现放入 `sdk/platform/<os>/`，按所实现的 trait 命名
+
+## 当前已实现的能力域（以代码为准）
+
+| 能力域 | Trait 位置 | Windows 实现 | HostApi 方法 |
+|--------|-----------|-------------|-------------|
+| 应用枚举 | `sdk/app/app_enumerator.rs` | `WindowsAppEnumerator` | `enumerate_apps()` |
+| 应用启动 | `sdk/app/app_launcher.rs` | `WindowsAppLauncher` | `launch_app()` |
+| 开机自启 | `sdk/autostart/autostart_manager.rs` | `WindowsAutoStartManager` | `set_autostart()` / `is_autostart_enabled()` |
+| 焦点监控 | `sdk/focus_monitor/monitor.rs` | `WindowsFocusMonitor` | `register_focus_callback()` |
+| 全局热键 | `sdk/hotkey/hotkey_manager.rs` | `WindowsHotkeyManager` | `register_hotkey()` / `apply_hotkey_config()` |
+| 图标提取 | `sdk/icon/icon_extractor.rs` | `WindowsIconExtractor` | `get_icon_or_default()` |
+| 安装监控 | `sdk/installation_monitor/monitor.rs` | `WindowsInstallationMonitor` | `start_installation_monitor()` |
+| 参数解析 | `sdk/parameter/resolver.rs` | `DefaultParameterResolver` | `resolve_parameters()` |
+| 路径解析 | `sdk/path/path_resolver.rs` | `WindowsPathResolver` | `resolve_path()` |
+| Shell 执行 | `sdk/shell/shell_executor.rs` | `WindowsShellExecutor` | `shell_open()` / `shell_execute_elevation()` |
+| .lnk 解析 | `sdk/shell/lnk_resolver.rs` | `WindowsLnkResolver` | `resolve_lnk()` |
+| 资源加载 | `sdk/shell/resource_loader.rs` | `WindowsResourceLoader` | `parse_localized_names_from_dir()` |
+| 存储服务 | `sdk/storage/storage_service.rs` | `LocalStorageService` / `WebDavStorageService` | `storage()` |
+| 定时器 | `sdk/timer/timer_manager.rs` | `TokioTimerManager` | `set_interval()` / `set_timeout()` |
+| 窗口管理 | `sdk/window/window_manager.rs` | `WindowsWindowManager` | `show_window()` / `hide_window()` |
+
+- 新增能力 **必须** 在此表中登记
+- 表中的方法名是简化表示，以 `HostApi` 源码和 `PluginHandle` 源码为准

@@ -1,3 +1,8 @@
+---
+paths:
+  - "**"
+---
+
 # 通用工程纪律
 
 ## Async 契约
@@ -54,3 +59,26 @@
 ## 冒烟测试
 
 - 任何涉及 `sdk/`、`core/`、`plugin_system/` 或 `commands/` 的改动后，至少验证 `cargo check` 零错误通过。
+
+## ServiceLocator 规范
+
+- `ServiceLocator` 是 `OnceLock<Arc<AppState>>` 全局单例。**仅** 在 `lib.rs` 的 `init_app_state` 中通过 `ServiceLocator::init()` 初始化一次
+- `ServiceLocator::get_state()` 返回 `Arc<AppState>` 的 clone。在异步代码中 **必须** 先 `let state = ServiceLocator::get_state()`，再使用 `state.xxx()`
+- **禁止** 在 `commands/` 层使用 `ServiceLocator`。命令处理器通过 `tauri::State<Arc<AppState>>` 注入状态
+- `ServiceLocator` 的合法使用场景：回调闭包中（如 hotkey callback、focus callback、deep-link handler）、`window_effect.rs` 等不在 Tauri 命令上下文的代码
+- **禁止** 在测试代码中依赖 `ServiceLocator`。测试应直接构造所需状态
+
+## 文件命名约定
+
+- Rust 文件名使用 `snake_case`。**禁止** 使用 kebab-case 或 camelCase
+- Vue 组件文件名使用 `PascalCase`（如 `DynamicForm.vue`）
+- TypeScript 工具文件使用 `camelCase`（如 `schemaTypes.ts`）
+- Store 文件使用 `kebab-case` + `-store` 后缀（如 `config-store.ts`）
+- Composable 文件使用 `camelCase` + `use` 前缀（如 `useKeyboard.ts`）
+
+## 日志规范
+
+- 使用 `tracing` crate（`info!`、`debug!`、`warn!`、`error!`）。**禁止** 使用 `println!` 或 `eprintln!`
+- 启动阶段关键步骤使用 `info!`。运行时频繁调用使用 `debug!`
+- 错误恢复后使用 `warn!`。不可恢复错误使用 `error!`
+- **禁止** 在日志中输出用户敏感信息（密码、完整路径中的用户名等）

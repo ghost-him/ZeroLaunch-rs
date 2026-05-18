@@ -1,3 +1,9 @@
+---
+paths:
+  - "src-tauri/src/commands/**"
+  - "src-ui-new/bridge/**"
+---
+
 # Tauri Command 规范
 
 ## 命名前缀
@@ -41,3 +47,12 @@
 ## trace_id
 
 - `trace_id` 由后端（`lib.rs`）生成。**禁止** 从前端接收 `trace_id`。**禁止** 将其添加到命令签名中
+
+## 返回类型约定
+
+- 命令返回 `Result<T, BridgeError>`。`BridgeError` 在 `core/types/bridge_error.rs` 中定义
+- `BridgeError` 包含 `code`（ErrorCode 枚举）和 `message`（人类可读描述）
+- **正确**：`BridgeError::not_found(&component_id)` — 组件未找到
+- **正确**：`BridgeError::internal(error_string)` — 内部错误
+- **禁止** 返回裸 `String` 错误。**必须** 使用 `BridgeError` 包装
+- 无数据返回的命令使用 `Result<(), BridgeError>`

@@ -44,3 +44,14 @@ paths:
 
 - `ConfigStore` 处理本地 JSON 文件持久化。远程同步（WebDAV）是可选的，单独处理
 - 本地持久化 **必须** 独立于远程同步而成功。**禁止** 让远程同步失败阻塞本地保存或导致配置回滚
+
+## ConfigAction 参数传递
+
+- `execute_config_action(&self, action: &str, params: &serde_json::Value)` 签名支持参数
+- 无参数的动作（如 `detect_browsers`）：前端不传 params，后端收到 `Value::Null`
+- 有参数的动作（如 `read_bookmarks`）：前端传 `{ paramKey: value }`，后端从 params 中提取
+- **禁止** 在 `execute_config_action` 中修改组件内部状态。它是 **纯查询/计算** 操作
+- 动作返回值格式：
+  - 填充某个字段 → 返回 `{ "fieldKey": [...] }` 或 `{ "fieldKey": value }`
+  - 返回预览数据 → 返回数组 `[{ ... }, { ... }]`
+  - **禁止** 返回需要前端特殊解析的非 JSON 数据

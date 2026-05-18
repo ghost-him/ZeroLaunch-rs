@@ -8,6 +8,7 @@ pub mod service;
 mod session_router;
 pub mod types;
 
+pub use crate::core::types::DetailActionDef;
 pub use candidate_pipeline::CandidatePipeline;
 pub use dispatcher::QueryDispatcher;
 pub use executor_registry::ExecutorRegistry;

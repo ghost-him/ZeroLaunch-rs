@@ -18,10 +18,12 @@ pub fn config_execute_action(
     state: tauri::State<'_, Arc<AppState>>,
     component_id: String,
     action: String,
+    params: Option<serde_json::Value>,
 ) -> Result<serde_json::Value, BridgeError> {
+    let params = params.unwrap_or(serde_json::Value::Null);
     state
         .get_session_router()
-        .execute_config_action(&component_id, &action)
+        .execute_config_action(&component_id, &action, &params)
         .map_err(BridgeError::internal)
 }
 

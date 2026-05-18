@@ -415,9 +415,10 @@ impl SessionRouter {
         &self,
         component_id: &str,
         action: &str,
+        params: &serde_json::Value,
     ) -> Result<serde_json::Value, String> {
         self.find_configurable(component_id)
             .ok_or_else(|| format!("Component not found: {}", component_id))?
-            .execute_config_action(action)
+            .execute_config_action(action, params)
     }
 }

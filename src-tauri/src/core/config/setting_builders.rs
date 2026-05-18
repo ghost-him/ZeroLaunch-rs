@@ -25,7 +25,8 @@
 //! ```
 
 use crate::core::types::setting_def::{
-    ArrayItem, ArrayUiHint, FieldDefinition, PathMode, SettingDefinition, SettingType,
+    ArrayItem, ArrayUiHint, DetailActionDef, FieldDefinition, PathMode, SettingDefinition,
+    SettingType,
 };
 use crate::core::types::PrimitiveType;
 use serde_json::Value;
@@ -35,6 +36,7 @@ pub struct SchemaBuilder {
     group: Option<String>,
     order: u32,
     config_action: Option<String>,
+    detail_action: Option<DetailActionDef>,
 }
 
 impl SchemaBuilder {
@@ -124,6 +126,7 @@ impl SchemaBuilder {
             group: None,
             order: 0,
             config_action: None,
+            detail_action: None,
         }
     }
 
@@ -141,6 +144,14 @@ impl SchemaBuilder {
 
     pub fn config_action(mut self, action: &str) -> Self {
         self.config_action = Some(action.to_string());
+        self
+    }
+
+    /// 为 MasterDetail 数组配置详情面板联动动作。
+    /// 选中列表项时，前端将调用指定的 config_action，
+    /// 并从选中项中提取指定字段作为参数，将用户编辑结果写入指定的兄弟设置字段。
+    pub fn detail_action(mut self, def: DetailActionDef) -> Self {
+        self.detail_action = Some(def);
         self
     }
 
@@ -307,6 +318,7 @@ impl SchemaBuilder {
             group: self.group,
             order: self.order,
             config_action: self.config_action,
+            detail_action: self.detail_action,
         }
     }
 

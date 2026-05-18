@@ -35,6 +35,12 @@
             @update:model-value="(val: unknown) => setField(selectedIndex, fd.key, val)"
           />
         </div>
+        <DetailPreviewPanel
+          v-if="definition.detailAction && selectedParamValue"
+          :component-id="componentId"
+          :detail-action="definition.detailAction"
+          :param-value="selectedParamValue"
+        />
       </template>
       <n-text v-else depth="3">选择一个项目</n-text>
     </div>
@@ -45,6 +51,7 @@
 import { ref, computed } from 'vue'
 import { NButton, NText } from 'naive-ui'
 import DynamicFormField from '../../DynamicFormField.vue'
+import DetailPreviewPanel from './DetailPreviewPanel.vue'
 import { getVisibleObjectFields, getDefaultArrayItem } from '../../../../utils/schemaTypes'
 import type { SettingDefinition, ArrayItem } from '../../../../bridge/contract'
 
@@ -61,6 +68,15 @@ const emit = defineEmits<{
 
 const fields = computed(() => getVisibleObjectFields(props.item))
 const selectedIndex = ref(0)
+
+const selectedParamValue = computed<string | undefined>(() => {
+  const da = props.definition.detailAction
+  if (!da) return undefined
+  const item = listValue.value[selectedIndex.value]
+  if (!item || typeof item !== 'object') return undefined
+  const val = (item as Record<string, unknown>)[da.paramField]
+  return typeof val === 'string' && val.length > 0 ? val : undefined
+})
 
 const listValue = computed<unknown[]>(() => {
   if (Array.isArray(props.modelValue)) return props.modelValue as unknown[]
@@ -99,13 +115,7 @@ function onAdd() {
 function onRemove(idx: number) {
   const arr = [...listValue.value]
   arr.splice(idx, 1)
-  if (arr.length === 0) {
-    selectedIndex.value = 0
-  } else if (idx < selectedIndex.value) {
-    selectedIndex.value -= 1
-  } else if (idx === selectedIndex.value && selectedIndex.value >= arr.length) {
-    selectedIndex.value = arr.length - 1
-  }
+  selectedIndex.value = Math.min(selectedIndex.value, Math.max(0, arr.length - 1))
   emit('update:modelValue', arr)
 }
 </script>

@@ -1,7 +1,9 @@
 use crate::core::config::setting_builders::SchemaBuilder;
 use crate::plugin_system::cached_candidate::CachedCandidateData;
 use crate::plugin_system::types::{ConfigActionDef, DataSource, ExecutionTarget, SearchCandidate};
-use crate::plugin_system::{ComponentType, ConfigError, Configurable, SettingDefinition};
+use crate::plugin_system::{
+    ComponentType, ConfigError, Configurable, DetailActionDef, SettingDefinition,
+};
 use crate::sdk::host_api::PluginHandle;
 use crate::sdk::IconRequest;
 use async_trait::async_trait;
@@ -275,6 +277,15 @@ impl Configurable for BookmarkSource {
                 .group("书签源")
                 .order(1)
                 .config_action("detect_browsers")
+                .detail_action(DetailActionDef {
+                    action: "read_bookmarks".to_string(),
+                    param_field: "bookmarks_path".to_string(),
+                    param_key: "bookmarksPath".to_string(),
+                    preview_item_key: "url".to_string(),
+                    preview_item_label: "title".to_string(),
+                    target_field: "overrides".to_string(),
+                    target_match_key: "url".to_string(),
+                })
                 .object_items(vec![
                     SchemaBuilder::text("name", "浏览器名称", "书签来源的浏览器名称")
                         .default("")
@@ -297,8 +308,9 @@ impl Configurable for BookmarkSource {
                 .default(serde_json::json!([]))
                 .build(),
             SchemaBuilder::array("overrides", "覆盖配置", "对特定书签进行排除或自定义标题")
-                .group("覆盖配置")
+                .group("书签源")
                 .order(2)
+                .visible(false)
                 .object_items(vec![
                     SchemaBuilder::text("url", "URL", "要匹配的书签 URL")
                         .default("")
@@ -331,17 +343,47 @@ impl Configurable for BookmarkSource {
     }
 
     fn config_actions(&self) -> Vec<ConfigActionDef> {
-        vec![ConfigActionDef {
-            action: "detect_browsers".to_string(),
-            label: "自动检测浏览器".to_string(),
-            description: "扫描系统中已安装的浏览器书签路径".to_string(),
-        }]
+        vec![
+            ConfigActionDef {
+                action: "detect_browsers".to_string(),
+                label: "自动检测浏览器".to_string(),
+                description: "扫描系统中已安装的浏览器书签路径".to_string(),
+            },
+            ConfigActionDef {
+                action: "read_bookmarks".to_string(),
+                label: "读取书签".to_string(),
+                description: "读取指定浏览器书签文件中的所有书签".to_string(),
+            },
+        ]
     }
 
-    fn execute_config_action(&self, action: &str) -> Result<serde_json::Value, String> {
+    fn execute_config_action(
+        &self,
+        action: &str,
+        params: &serde_json::Value,
+    ) -> Result<serde_json::Value, String> {
         match action {
             "detect_browsers" => {
-                serde_json::to_value(Self::detect_installed_browsers()).map_err(|e| e.to_string())
+                let browsers = Self::detect_installed_browsers();
+                let sources: Vec<serde_json::Value> = browsers
+                    .into_iter()
+                    .map(|b| {
+                        serde_json::json!({
+                            "name": b.name,
+                            "bookmarks_path": b.bookmarks_path,
+                            "enabled": true,
+                        })
+                    })
+                    .collect();
+                Ok(serde_json::json!({ "sources": sources }))
+            }
+            "read_bookmarks" => {
+                let path = params
+                    .get("bookmarksPath")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| "缺少参数 bookmarksPath".to_string())?;
+                let bookmarks = Self::read_bookmarks_from_path(path)?;
+                serde_json::to_value(bookmarks).map_err(|e| e.to_string())
             }
             _ => Err(format!("Unknown config action: {}", action)),
         }

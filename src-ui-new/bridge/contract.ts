@@ -67,6 +67,17 @@ export interface SettingDefinition {
   group?: string
   order: number
   configAction?: string
+  detailAction?: DetailActionDef
+}
+
+export interface DetailActionDef {
+  action: string
+  paramField: string
+  paramKey: string
+  previewItemKey: string
+  previewItemLabel: string
+  targetField: string
+  targetMatchKey: string
 }
 
 export interface FieldDefinition {

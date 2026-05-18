@@ -32,11 +32,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, provide } from 'vue'
 import { NButton, NTag, useMessage, useDialog } from 'naive-ui'
 import DynamicFormField from './DynamicFormField.vue'
 import FormSection from './FormSection.vue'
 import { useConfigStore } from '../../stores/config-store'
+import { FORM_VALUES_KEY } from '../../utils/formInjection'
 import type { ComponentSchema, SettingDefinition } from '../../bridge/contract'
 
 const props = defineProps<{
@@ -65,6 +66,7 @@ watch(
 const groupedSettings = computed(() => {
   const groups = new Map<string, SettingDefinition[]>()
   for (const def of props.schema.settings) {
+    if (def.field.visible === false) continue
     const g = def.group || ''
     if (!groups.has(g)) groups.set(g, [])
     groups.get(g)!.push(def)
@@ -82,6 +84,8 @@ function getValue(key: string): unknown {
 function setValue(key: string, val: unknown) {
   localValues.value = { ...localValues.value, [key]: val }
 }
+
+provide(FORM_VALUES_KEY, { getValue, setValue })
 
 async function onApply() {
   saving.value = true

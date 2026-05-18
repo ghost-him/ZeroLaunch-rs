@@ -68,8 +68,8 @@ export const useConfigStore = defineStore('config', () => {
     return configGetActions(componentId)
   }
 
-  async function executeAction(componentId: string, action: string): Promise<unknown> {
-    return configExecuteAction(componentId, action)
+  async function executeAction(componentId: string, action: string, params?: unknown): Promise<unknown> {
+    return configExecuteAction(componentId, action, params)
   }
 
   return {

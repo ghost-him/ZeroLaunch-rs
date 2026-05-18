@@ -96,8 +96,12 @@ export function configGetActions(componentId: string): Promise<ConfigActionDef[]
   return invokeCommand<ConfigActionDef[]>('config_get_actions', { componentId })
 }
 
-export function configExecuteAction(componentId: string, action: string): Promise<unknown> {
-  return invokeCommand<unknown>('config_execute_action', { componentId, action })
+export function configExecuteAction(
+  componentId: string,
+  action: string,
+  params?: unknown,
+): Promise<unknown> {
+  return invokeCommand<unknown>('config_execute_action', { componentId, action, params })
 }
 
 // ---- 资源管理 ----

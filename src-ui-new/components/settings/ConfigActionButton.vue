@@ -53,10 +53,14 @@ async function executeAction() {
       actionDef.value.action,
     )
 
-    if (result && typeof result === 'object') {
-      const fieldValue = (result as Record<string, unknown>)[props.fieldKey]
-      if (fieldValue !== undefined) {
-        emit('update:modelValue', fieldValue)
+    if (result !== null && result !== undefined) {
+      if (typeof result === 'object' && !Array.isArray(result)) {
+        const fieldValue = (result as Record<string, unknown>)[props.fieldKey]
+        if (fieldValue !== undefined) {
+          emit('update:modelValue', fieldValue)
+        }
+      } else if (Array.isArray(result)) {
+        emit('update:modelValue', result)
       }
     }
 

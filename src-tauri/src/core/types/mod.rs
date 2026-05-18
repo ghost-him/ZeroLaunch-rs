@@ -11,6 +11,6 @@ pub use config_action::ConfigActionDef;
 pub use config_error::ConfigError;
 pub use configurable::Configurable;
 pub use setting_def::{
-    ArrayItem, ArrayUiHint, FieldDefinition, PathMode, PrimitiveType, SettingDefinition,
-    SettingType,
+    ArrayItem, ArrayUiHint, DetailActionDef, FieldDefinition, PathMode, PrimitiveType,
+    SettingDefinition, SettingType,
 };

@@ -52,8 +52,14 @@ pub trait Configurable: Send + Sync {
 
     /// 执行配置动作。
     /// 参数：action - 动作标识符，对应 ConfigActionDef.action。
+    ///       params - 前端传递的附加参数（如书签文件路径）。
     /// 返回：动作执行结果（JSON 格式），由前端根据配置项类型解析并填充。
-    fn execute_config_action(&self, action: &str) -> Result<serde_json::Value, String> {
+    fn execute_config_action(
+        &self,
+        action: &str,
+        params: &serde_json::Value,
+    ) -> Result<serde_json::Value, String> {
+        let _ = params;
         Err(format!("Unknown config action: {}", action))
     }
 

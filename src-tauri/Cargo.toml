@@ -109,7 +109,7 @@ whoami = "2.1.2"
 blake3 = "1.8.5"
 notify = "8.2.0"
 uiautomation = "0.25.0"
-axum = { version = "0.8", default-features = false, features = ["tokio", "json", "query", "http1"] }
+
 
 [features]
 default = ["custom-protocol"]

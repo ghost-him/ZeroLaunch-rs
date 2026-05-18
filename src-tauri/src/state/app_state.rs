@@ -22,9 +22,6 @@ pub struct AppState {
     previous_selection: RwLock<Option<String>>,
     host_api: RwLock<Option<Arc<HostApi>>>,
     core_handle: RwLock<Option<Arc<PluginHandle>>>,
-    http_server_shutdown: RwLock<Option<tokio::sync::oneshot::Sender<()>>>,
-    http_server_handle: RwLock<Option<tokio::task::JoinHandle<()>>>,
-    port_file_dir: RwLock<Option<String>>,
 }
 
 impl Default for AppState {
@@ -50,9 +47,6 @@ impl AppState {
             previous_selection: RwLock::new(None),
             host_api: RwLock::new(None),
             core_handle: RwLock::new(None),
-            http_server_shutdown: RwLock::new(None),
-            http_server_handle: RwLock::new(None),
-            port_file_dir: RwLock::new(None),
         }
     }
 
@@ -150,30 +144,6 @@ impl AppState {
 
     pub fn set_core_handle(&self, handle: Arc<PluginHandle>) {
         *self.core_handle.write() = Some(handle);
-    }
-
-    pub fn set_http_server_shutdown(&self, sender: tokio::sync::oneshot::Sender<()>) {
-        *self.http_server_shutdown.write() = Some(sender);
-    }
-
-    pub fn take_http_server_shutdown(&self) -> Option<tokio::sync::oneshot::Sender<()>> {
-        self.http_server_shutdown.write().take()
-    }
-
-    pub fn set_http_server_handle(&self, handle: tokio::task::JoinHandle<()>) {
-        *self.http_server_handle.write() = Some(handle);
-    }
-
-    pub fn take_http_server_handle(&self) -> Option<tokio::task::JoinHandle<()>> {
-        self.http_server_handle.write().take()
-    }
-
-    pub fn set_port_file_dir(&self, dir: String) {
-        *self.port_file_dir.write() = Some(dir);
-    }
-
-    pub fn take_port_file_dir(&self) -> Option<String> {
-        self.port_file_dir.write().take()
     }
 }
 

@@ -1,4 +1,3 @@
-pub mod api;
 pub mod commands;
 pub mod core;
 pub mod error;
@@ -11,7 +10,6 @@ pub mod state;
 pub mod utils;
 pub mod window_effect;
 
-use crate::api::ReadApi;
 use crate::core::config::components::appearance_config::AppearanceConfigComponent;
 use crate::core::config::components::hotkey_config::HotkeyConfigComponent;
 use crate::core::config::components::storage_config::StorageConfigComponent;
@@ -206,23 +204,6 @@ pub fn run() {
 
                 let app_handle = app_handle.clone();
                 tauri::async_runtime::spawn(async move {
-                    // 发送 HTTP 服务器关闭信号并等待优雅关闭
-                    let state = ServiceLocator::get_state();
-                    if let Some(shutdown_tx) = state.take_http_server_shutdown() {
-                        let _ = shutdown_tx.send(());
-                        info!("HTTP API 服务器关闭信号已发送");
-                    }
-                    if let Some(handle) = state.take_http_server_handle() {
-                        let _ =
-                            tokio::time::timeout(std::time::Duration::from_secs(5), handle).await;
-                    }
-                    // 清理端口发现文件
-                    if let Some(dir) = state.take_port_file_dir() {
-                        let port_file = std::path::Path::new(&dir).join(".zl-port");
-                        if let Err(e) = std::fs::remove_file(&port_file) {
-                            debug!("清理端口文件失败（可忽略）: {}", e);
-                        }
-                    }
                     do_cleanup_before_exit().await;
                     info!("清理完成，正在退出程序...");
                     app_handle.exit(0);
@@ -377,15 +358,6 @@ async fn init_app_state(
         "应用状态初始化完成 (HostApi, ConfigManager, {} 个已注册组件)",
         state.get_config_manager().get_all_components().len()
     );
-
-    info!("=== Phase 4: HTTP API 服务器启动 ===");
-    let read_api: Arc<dyn ReadApi> = Arc::new(crate::api::ReadApiImpl);
-    match crate::api::HttpServerHandle::start(read_api, std::path::PathBuf::from(&app_data_dir))
-        .await
-    {
-        Ok(port) => info!("HTTP API 服务器已启动: 127.0.0.1:{}", port),
-        Err(e) => warn!("HTTP API 服务器启动失败: {}", e),
-    }
 }
 
 async fn init_plugin_system(state: &Arc<AppState>) {

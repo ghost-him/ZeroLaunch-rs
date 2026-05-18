@@ -4,26 +4,36 @@ use std::fmt;
 /// 前后端通信统一错误类型。
 /// 用于所有 Tauri command 的 Err 变体，前端可据此展示用户友好的错误提示。
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct BridgeError {
+    #[serde(rename = "code")]
     pub code: ErrorCode,
+    #[serde(rename = "message")]
     pub message: String,
+    #[serde(rename = "details")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub details: Option<serde_json::Value>,
+    #[serde(rename = "componentId")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub component_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ErrorCode {
+    #[serde(rename = "INVALID_QUERY")]
     InvalidQuery,
+    #[serde(rename = "COMPONENT_NOT_FOUND")]
     ComponentNotFound,
+    #[serde(rename = "VALIDATION_FAILED")]
     ValidationFailed,
+    #[serde(rename = "ACTION_FAILED")]
     ActionFailed,
+    #[serde(rename = "PLUGIN_ERROR")]
     PluginError,
+    #[serde(rename = "CONFIG_ERROR")]
     ConfigError,
+    #[serde(rename = "NETWORK_ERROR")]
     NetworkError,
+    #[serde(rename = "INTERNAL_ERROR")]
     InternalError,
 }
 

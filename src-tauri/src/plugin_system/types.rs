@@ -35,13 +35,18 @@ impl TargetType {
 
 /// 执行目标
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, Hash, PartialEq)]
-#[serde(rename_all = "camelCase")]
 pub enum ExecutionTarget {
+    #[serde(rename = "path")]
     Path(String),
+    #[serde(rename = "app")]
     App(String),
+    #[serde(rename = "file")]
     File(String),
+    #[serde(rename = "url")]
     Url(String),
+    #[serde(rename = "command")]
     Command(String),
+    #[serde(rename = "builtinCommand")]
     BuiltinCommand(String),
 }
 
@@ -121,43 +126,52 @@ pub enum RegistrationError {
 
 // 这个是一个搜索候选项
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct SearchCandidate {
     // 候选项的唯一标识符
+    #[serde(rename = "id")]
     pub id: CandidateId,
     // 表示用于显示在搜索结果中的名称
+    #[serde(rename = "name")]
     pub name: String,
     // 表示用于显示在搜索结果中的图标
+    #[serde(rename = "icon")]
     pub icon: IconRequest,
     // 执行目标，替代原 launch_method
+    #[serde(rename = "target")]
     pub target: ExecutionTarget,
     // 表示该候选项的关键词，即怎么可以确认用户想要启动这个候选项
+    #[serde(rename = "keywords")]
     pub keywords: Vec<String>,
     // 固定的权重偏移，用于在计算分数时考虑该候选项的固定权重。由每个数据源来控制各自的权重
+    #[serde(rename = "bias")]
     pub bias: f64,
 }
 
 // 这个是一个搜索候选项的详细分数
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ScoreDetail {
     // 基础分
+    #[serde(rename = "score")]
     pub score: f64,
     // 当前权重分
+    #[serde(rename = "weight")]
     pub weight: f64,
     // 这个是什么分，以及这个分的来源
+    #[serde(rename = "description")]
     pub description: String,
 }
 
 // 这个是一个搜索候选项的分数
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ScoredCandidate {
     // 表示该候选项的分数
+    #[serde(rename = "candidateId")]
     pub candidate_id: CandidateId,
     // 表示该候选项的分数
+    #[serde(rename = "score")]
     pub score: f64,
     //表示该候选项得来的详细的分数, score = sum(detailed_score * detailed_weight)
+    #[serde(rename = "detailedScore")]
     pub detailed_score: Vec<ScoreDetail>,
 }
 
@@ -265,69 +279,93 @@ pub struct Query {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub enum QueryResponse {
     // 目前先实现该内容
+    #[serde(rename = "list")]
     List {
+        #[serde(rename = "results")]
         results: Vec<ListItem>,
     },
     // 该内容暂时先不实现，后续如果有需要了再来实现它
+    #[serde(rename = "customPanel")]
     CustomPanel {
-        panel_type: String,         // "notebook", "todo", etc.
-        data: serde_json::Value,    // 插件自定义数据
+        #[serde(rename = "panelType")]
+        panel_type: String, // "notebook", "todo", etc.
+        #[serde(rename = "data")]
+        data: serde_json::Value, // 插件自定义数据
+        #[serde(rename = "actions")]
         actions: Vec<ResultAction>, // 可选的全局动作
-        keep_search_bar: bool,      // true=保留搜索框, false=沉浸态
+        #[serde(rename = "keepSearchBar")]
+        keep_search_bar: bool, // true=保留搜索框, false=沉浸态
     },
+    #[serde(rename = "empty")]
     Empty,
 }
 
 /// 插件返回给宿主的搜索结果项。
 /// 服务于结果聚合、排序与 UI 渲染。
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ListItem {
     // 这个是候选项的唯一标识符
+    #[serde(rename = "id")]
     pub id: CandidateId,
+    #[serde(rename = "title")]
     pub title: String,
+    #[serde(rename = "subtitle")]
     pub subtitle: String,
+    #[serde(rename = "icon")]
     pub icon: IconRequest,
+    #[serde(rename = "score")]
     pub score: f64,
     // 一个动作列表中只可以有一个默认动作，默认动作会在用户直接按下回车时被触发（由程序员保证）
+    #[serde(rename = "actions")]
     pub actions: Vec<ResultAction>,
     /// 目标类型字符串，供前端 ResultItemProvider/ActionInjector 匹配使用
+    #[serde(rename = "targetType")]
     pub target_type: String,
 }
 
 /// 挂载在查询结果上的动作项。
 /// 服务于用户触发后的 Plugin::execute_action 执行流程。
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ResultAction {
     // 这个是动作的唯一标识符，通常是一个字符串，由插件定义
+    #[serde(rename = "id")]
     pub id: String,
     // 这个是动作的显示名称，用于展示在 UI 上
+    #[serde(rename = "label")]
     pub label: String,
     // 这个是该选项的图标，用于展示在 UI 上
+    #[serde(rename = "icon")]
     pub icon: IconRequest,
     // 是不是默认的动作，默认的动作会在用户直接按下回车时被触发
+    #[serde(rename = "isDefault")]
     pub is_default: bool,
     /// 快捷键提示，格式如 "Shift+Enter"、"Ctrl+Enter"
     /// 前端根据此字段匹配修饰键到 action 的映射
+    #[serde(rename = "shortcutKey")]
     pub shortcut_key: String,
 }
 
 /// 单个插件实例的静态元数据描述。
 /// 服务于注册中心索引、触发词路由与插件发现/展示。
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct PluginMetadata {
+    #[serde(rename = "id")]
     pub id: String,
+    #[serde(rename = "name")]
     pub name: String,
+    #[serde(rename = "version")]
     pub version: String,
+    #[serde(rename = "description")]
     pub description: String,
+    #[serde(rename = "author")]
     pub author: String,
+    #[serde(rename = "triggerKeywords")]
     pub trigger_keywords: Vec<String>,
+    #[serde(rename = "supportedOs")]
     pub supported_os: Vec<String>,
+    #[serde(rename = "priority")]
     pub priority: i32,
 }
 

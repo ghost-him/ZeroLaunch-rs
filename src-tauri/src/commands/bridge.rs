@@ -12,24 +12,34 @@ use uuid::Uuid;
 // ============================================================================
 
 #[derive(Serialize, Debug)]
-#[serde(rename_all = "camelCase")]
 pub struct BridgeSearchResult {
+    #[serde(rename = "id")]
     pub id: u64,
+    #[serde(rename = "title")]
     pub title: String,
+    #[serde(rename = "subtitle")]
     pub subtitle: String,
+    #[serde(rename = "icon")]
     pub icon: String,
+    #[serde(rename = "score")]
     pub score: f64,
+    #[serde(rename = "actions")]
     pub actions: Vec<BridgeResultAction>,
+    #[serde(rename = "targetType")]
     pub target_type: String,
 }
 
 #[derive(Serialize, Debug)]
-#[serde(rename_all = "camelCase")]
 pub struct BridgeResultAction {
+    #[serde(rename = "id")]
     pub id: String,
+    #[serde(rename = "label")]
     pub label: String,
+    #[serde(rename = "icon")]
     pub icon: String,
+    #[serde(rename = "isDefault")]
     pub is_default: bool,
+    #[serde(rename = "shortcutKey")]
     pub shortcut_key: String,
 }
 
@@ -46,22 +56,29 @@ impl From<crate::plugin_system::types::ResultAction> for BridgeResultAction {
 }
 
 #[derive(Serialize, Debug)]
-#[serde(rename_all = "camelCase")]
 pub struct BridgeQueryResponse {
+    #[serde(rename = "mode")]
     pub mode: String,
+    #[serde(rename = "results")]
     pub results: Vec<BridgeSearchResult>,
+    #[serde(rename = "panelType")]
     pub panel_type: Option<String>,
+    #[serde(rename = "panelData")]
     pub panel_data: Option<serde_json::Value>,
+    #[serde(rename = "panelActions")]
     pub panel_actions: Option<Vec<BridgeResultAction>>,
 }
 
 /// 确认执行负载
 #[derive(Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
 pub struct ConfirmPayload {
+    #[serde(rename = "candidateId")]
     pub candidate_id: u64,
+    #[serde(rename = "actionId")]
     pub action_id: String,
+    #[serde(rename = "queryText")]
     pub query_text: String,
+    #[serde(rename = "userArgs")]
     pub user_args: Option<Vec<String>>,
 }
 

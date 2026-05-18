@@ -4,13 +4,16 @@ use serde::{Deserialize, Serialize};
 /// 图标请求类型，表示不同来源的图标提取需求。
 /// 各类型使用各自的提取逻辑完成图标提取。
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Encode)]
-#[serde(tag = "type", content = "value", rename_all = "camelCase")]
+#[serde(tag = "type", content = "value")]
 pub enum IconRequest {
     /// 本地文件路径 (exe, lnk, url, ico, png) -> 提取文件图标
+    #[serde(rename = "path")]
     Path(String),
     /// 网址 -> 下载或查找本地域名图标库
+    #[serde(rename = "url")]
     Url(String),
     /// 文件扩展名 (.txt, .doc) -> 获取系统关联图标
+    #[serde(rename = "extension")]
     Extension(String),
 }
 

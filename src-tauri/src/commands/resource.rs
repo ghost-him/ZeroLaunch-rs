@@ -6,10 +6,12 @@ use std::sync::Arc;
 
 /// 资源上传负载。
 #[derive(Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
 pub struct ResourceUploadPayload {
+    #[serde(rename = "filePath")]
     pub file_path: String,
+    #[serde(rename = "purpose")]
     pub purpose: String,
+    #[serde(rename = "maxSize")]
     pub max_size: Option<u64>,
 }
 

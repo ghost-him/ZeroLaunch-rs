@@ -43,7 +43,7 @@ impl Configurable for GeneralConfigComponent {
     fn setting_schema(&self) -> Vec<SettingDefinition> {
         vec![
             SchemaBuilder::boolean(
-                "isAutoStart",
+                "is_auto_start",
                 "开机自启动",
                 "启用后，系统启动时自动运行 ZeroLaunch",
             )
@@ -52,7 +52,7 @@ impl Configurable for GeneralConfigComponent {
             .default(false)
             .build(),
             SchemaBuilder::boolean(
-                "isDebugMode",
+                "is_debug_mode",
                 "调试模式",
                 "启用后，显示额外的调试信息和开发工具",
             )
@@ -60,7 +60,7 @@ impl Configurable for GeneralConfigComponent {
             .order(1)
             .default(false)
             .build(),
-            SchemaBuilder::select("logLevel", "日志级别", "控制日志输出的详细程度")
+            SchemaBuilder::select("log_level", "日志级别", "控制日志输出的详细程度")
                 .group("通用")
                 .order(2)
                 .options(&["debug", "info", "warn", "error"])
@@ -79,7 +79,7 @@ impl Configurable for GeneralConfigComponent {
     }
 
     fn validate_settings(&self, settings: &serde_json::Value) -> Result<(), ConfigError> {
-        if let Some(level) = settings.get("logLevel").and_then(|v| v.as_str()) {
+        if let Some(level) = settings.get("log_level").and_then(|v| v.as_str()) {
             if !["debug", "info", "warn", "error"].contains(&level) {
                 return Err(ConfigError::ValidationFailed(format!(
                     "无效的日志级别: {}",
@@ -95,7 +95,7 @@ impl Configurable for GeneralConfigComponent {
 
         // 处理自启动配置
         let is_auto_start = settings
-            .get("isAutoStart")
+            .get("is_auto_start")
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
 
@@ -112,7 +112,7 @@ impl Configurable for GeneralConfigComponent {
         });
 
         // 处理日志级别
-        if let Some(level_str) = settings.get("logLevel").and_then(|v| v.as_str()) {
+        if let Some(level_str) = settings.get("log_level").and_then(|v| v.as_str()) {
             let level: tracing::Level = match level_str {
                 "debug" => tracing::Level::DEBUG,
                 "info" => tracing::Level::INFO,

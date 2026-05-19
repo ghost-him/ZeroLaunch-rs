@@ -53,7 +53,7 @@ impl Configurable for AppearanceConfigComponent {
                 .default("zh-Hans")
                 .build(),
             // ---- 搜索栏 ----
-            SchemaBuilder::number("searchBarHeight", "搜索栏高度", "搜索栏的高度(px)")
+            SchemaBuilder::number("search_bar_height", "搜索栏高度", "搜索栏的高度(px)")
                 .group("searchBar")
                 .order(10)
                 .default(72.0)
@@ -62,7 +62,7 @@ impl Configurable for AppearanceConfigComponent {
                 .step(1.0)
                 .build(),
             SchemaBuilder::number(
-                "searchBarFontRatio",
+                "search_bar_font_ratio",
                 "搜索栏字体比例",
                 "字体大小 = 搜索栏高度 × 此比例",
             )
@@ -74,7 +74,7 @@ impl Configurable for AppearanceConfigComponent {
             .step(0.01)
             .build(),
             SchemaBuilder::text(
-                "searchBarFontFamily",
+                "search_bar_font_family",
                 "搜索栏字体",
                 "字体族名称，留空则跟随系统",
             )
@@ -82,13 +82,13 @@ impl Configurable for AppearanceConfigComponent {
             .order(12)
             .default("")
             .build(),
-            SchemaBuilder::text("searchBarPlaceholder", "搜索栏占位符", "搜索栏的提示文本")
+            SchemaBuilder::text("search_bar_placeholder", "搜索栏占位符", "搜索栏的提示文本")
                 .group("searchBar")
                 .order(13)
                 .default("Hello, ZeroLaunch! ヾ(≧▽≦*)o")
                 .build(),
             // ---- 结果栏 ----
-            SchemaBuilder::number("resultItemHeight", "结果项高度", "单条结果的高度(px)")
+            SchemaBuilder::number("result_item_height", "结果项高度", "单条结果的高度(px)")
                 .group("resultList")
                 .order(20)
                 .default(54.0)
@@ -97,7 +97,7 @@ impl Configurable for AppearanceConfigComponent {
                 .step(1.0)
                 .build(),
             SchemaBuilder::number(
-                "resultItemFontRatio",
+                "result_item_font_ratio",
                 "结果标题字体比例",
                 "标题字体大小 = 结果项高度 × 此比例",
             )
@@ -109,7 +109,7 @@ impl Configurable for AppearanceConfigComponent {
             .step(0.01)
             .build(),
             SchemaBuilder::number(
-                "resultItemSubtitleFontRatio",
+                "result_item_subtitle_font_ratio",
                 "结果副标题字体比例",
                 "副标题字体大小 = 结果项高度 × 此比例",
             )
@@ -121,7 +121,7 @@ impl Configurable for AppearanceConfigComponent {
             .step(0.01)
             .build(),
             SchemaBuilder::text(
-                "resultItemFontFamily",
+                "result_item_font_family",
                 "结果栏字体",
                 "字体族名称，留空则跟随系统",
             )
@@ -130,7 +130,7 @@ impl Configurable for AppearanceConfigComponent {
             .default("")
             .build(),
             SchemaBuilder::number(
-                "maxVisibleResults",
+                "max_visible_results",
                 "最大可见结果数",
                 "不滚动时最多显示的结果条数",
             )
@@ -142,7 +142,7 @@ impl Configurable for AppearanceConfigComponent {
             .step(1.0)
             .build(),
             SchemaBuilder::boolean(
-                "showLaunchCommand",
+                "show_launch_command",
                 "显示启动命令",
                 "在结果项中显示启动命令路径",
             )
@@ -151,7 +151,7 @@ impl Configurable for AppearanceConfigComponent {
             .default(false)
             .build(),
             // ---- 底栏 ----
-            SchemaBuilder::number("footerHeight", "底栏高度", "底栏的高度(px)，设为0则隐藏")
+            SchemaBuilder::number("footer_height", "底栏高度", "底栏的高度(px)，设为0则隐藏")
                 .group("footer")
                 .order(30)
                 .default(48.0)
@@ -160,7 +160,7 @@ impl Configurable for AppearanceConfigComponent {
                 .step(1.0)
                 .build(),
             SchemaBuilder::number(
-                "footerFontRatio",
+                "footer_font_ratio",
                 "底栏字体比例",
                 "字体大小 = 底栏高度 × 此比例",
             )
@@ -171,13 +171,17 @@ impl Configurable for AppearanceConfigComponent {
             .max(0.35)
             .step(0.01)
             .build(),
-            SchemaBuilder::text("footerFontFamily", "底栏字体", "字体族名称，留空则跟随系统")
-                .group("footer")
-                .order(32)
-                .default("")
-                .build(),
+            SchemaBuilder::text(
+                "footer_font_family",
+                "底栏字体",
+                "字体族名称，留空则跟随系统",
+            )
+            .group("footer")
+            .order(32)
+            .default("")
+            .build(),
             // ---- 窗口 ----
-            SchemaBuilder::number("windowWidth", "窗口宽度", "搜索窗口的宽度(px)")
+            SchemaBuilder::number("window_width", "窗口宽度", "搜索窗口的宽度(px)")
                 .group("window")
                 .order(40)
                 .default(800.0)
@@ -185,7 +189,7 @@ impl Configurable for AppearanceConfigComponent {
                 .max(1200.0)
                 .step(10.0)
                 .build(),
-            SchemaBuilder::number("windowCornerRadius", "窗口圆角", "窗口圆角大小(px)")
+            SchemaBuilder::number("window_corner_radius", "窗口圆角", "窗口圆角大小(px)")
                 .group("window")
                 .order(41)
                 .default(12.0)
@@ -194,7 +198,7 @@ impl Configurable for AppearanceConfigComponent {
                 .step(1.0)
                 .build(),
             SchemaBuilder::number(
-                "verticalPositionRatio",
+                "vertical_position_ratio",
                 "垂直位置比例",
                 "窗口在屏幕垂直方向的位置比例(0=顶部, 1=底部)",
             )
@@ -206,80 +210,84 @@ impl Configurable for AppearanceConfigComponent {
             .step(0.01)
             .build(),
             // ---- 浅色配色 ----
-            SchemaBuilder::color("bgPrimary", "主背景色", "浅色模式下的主背景颜色")
+            SchemaBuilder::color("bg_primary", "主背景色", "浅色模式下的主背景颜色")
                 .group("colorsLight")
                 .order(50)
                 .default("#ffffff")
                 .build(),
-            SchemaBuilder::color("bgSecondary", "副背景色", "浅色模式下的次要背景颜色")
+            SchemaBuilder::color("bg_secondary", "副背景色", "浅色模式下的次要背景颜色")
                 .group("colorsLight")
                 .order(51)
                 .default("#f5f5f5")
                 .build(),
-            SchemaBuilder::color("textPrimary", "主文字色", "浅色模式下的主要文字颜色")
+            SchemaBuilder::color("text_primary", "主文字色", "浅色模式下的主要文字颜色")
                 .group("colorsLight")
                 .order(52)
                 .default("#1a1a1a")
                 .build(),
-            SchemaBuilder::color("textSecondary", "副文字色", "浅色模式下的次要文字颜色")
+            SchemaBuilder::color("text_secondary", "副文字色", "浅色模式下的次要文字颜色")
                 .group("colorsLight")
                 .order(53)
                 .default("#666666")
                 .build(),
-            SchemaBuilder::color("borderColor", "边框色", "浅色模式下的边框颜色")
+            SchemaBuilder::color("border_color", "边框色", "浅色模式下的边框颜色")
                 .group("colorsLight")
                 .order(54)
                 .default("#e5e5e5")
                 .build(),
-            SchemaBuilder::color("accentColor", "强调色", "浅色模式下的强调/链接颜色")
+            SchemaBuilder::color("accent_color", "强调色", "浅色模式下的强调/链接颜色")
                 .group("colorsLight")
                 .order(55)
                 .default("#2080f0")
                 .build(),
-            SchemaBuilder::color("hoverColor", "悬停色", "浅色模式下鼠标悬停的背景颜色")
+            SchemaBuilder::color("hover_color", "悬停色", "浅色模式下鼠标悬停的背景颜色")
                 .group("colorsLight")
                 .order(56)
                 .default("rgba(0,0,0,0.04)")
                 .build(),
             // ---- 深色配色 ----
-            SchemaBuilder::color("darkBgPrimary", "主背景色", "深色模式下的主背景颜色")
+            SchemaBuilder::color("dark_bg_primary", "主背景色", "深色模式下的主背景颜色")
                 .group("colorsDark")
                 .order(60)
                 .default("#1a1a1a")
                 .build(),
-            SchemaBuilder::color("darkBgSecondary", "副背景色", "深色模式下的次要背景颜色")
+            SchemaBuilder::color("dark_bg_secondary", "副背景色", "深色模式下的次要背景颜色")
                 .group("colorsDark")
                 .order(61)
                 .default("#2a2a2a")
                 .build(),
-            SchemaBuilder::color("darkTextPrimary", "主文字色", "深色模式下的主要文字颜色")
+            SchemaBuilder::color("dark_text_primary", "主文字色", "深色模式下的主要文字颜色")
                 .group("colorsDark")
                 .order(62)
                 .default("#e5e5e5")
                 .build(),
-            SchemaBuilder::color("darkTextSecondary", "副文字色", "深色模式下的次要文字颜色")
-                .group("colorsDark")
-                .order(63)
-                .default("#999999")
-                .build(),
-            SchemaBuilder::color("darkBorderColor", "边框色", "深色模式下的边框颜色")
+            SchemaBuilder::color(
+                "dark_text_secondary",
+                "副文字色",
+                "深色模式下的次要文字颜色",
+            )
+            .group("colorsDark")
+            .order(63)
+            .default("#999999")
+            .build(),
+            SchemaBuilder::color("dark_border_color", "边框色", "深色模式下的边框颜色")
                 .group("colorsDark")
                 .order(64)
                 .default("#333333")
                 .build(),
-            SchemaBuilder::color("darkAccentColor", "强调色", "深色模式下的强调/链接颜色")
+            SchemaBuilder::color("dark_accent_color", "强调色", "深色模式下的强调/链接颜色")
                 .group("colorsDark")
                 .order(65)
                 .default("#4098fc")
                 .build(),
-            SchemaBuilder::color("darkHoverColor", "悬停色", "深色模式下鼠标悬停的背景颜色")
+            SchemaBuilder::color("dark_hover_color", "悬停色", "深色模式下鼠标悬停的背景颜色")
                 .group("colorsDark")
                 .order(66)
                 .default("rgba(255,255,255,0.06)")
                 .build(),
             // ---- 背景图片 ----
             SchemaBuilder::image(
-                "bgImage",
+                "bg_image",
                 "背景图片",
                 "浅色模式下的背景图片，留空则不使用背景图",
             )
@@ -288,7 +296,7 @@ impl Configurable for AppearanceConfigComponent {
             .default("")
             .build(),
             SchemaBuilder::image(
-                "bgImageDark",
+                "bg_image_dark",
                 "深色背景图片",
                 "深色模式下的背景图片，留空则回退到浅色背景图",
             )
@@ -296,13 +304,13 @@ impl Configurable for AppearanceConfigComponent {
             .order(71)
             .default("")
             .build(),
-            SchemaBuilder::select("bgSize", "背景尺寸", "CSS background-size 属性")
+            SchemaBuilder::select("bg_size", "背景尺寸", "CSS background-size 属性")
                 .group("background")
                 .order(72)
                 .options(&["cover", "contain", "auto", "100% auto"])
                 .default("cover")
                 .build(),
-            SchemaBuilder::select("bgPosition", "背景位置", "CSS background-position 属性")
+            SchemaBuilder::select("bg_position", "背景位置", "CSS background-position 属性")
                 .group("background")
                 .order(73)
                 .options(&[
@@ -318,14 +326,14 @@ impl Configurable for AppearanceConfigComponent {
                 ])
                 .default("center")
                 .build(),
-            SchemaBuilder::select("bgRepeat", "背景重复", "CSS background-repeat 属性")
+            SchemaBuilder::select("bg_repeat", "背景重复", "CSS background-repeat 属性")
                 .group("background")
                 .order(74)
                 .options(&["no-repeat", "repeat", "repeat-x", "repeat-y"])
                 .default("no-repeat")
                 .build(),
             SchemaBuilder::number(
-                "bgOpacity",
+                "bg_opacity",
                 "背景不透明度",
                 "背景图片的不透明度 (0.0 ~ 1.0)",
             )
@@ -369,16 +377,16 @@ impl Configurable for AppearanceConfigComponent {
         }
         // 数值范围校验
         let numeric_validations: [(&str, f64, f64); 10] = [
-            ("searchBarHeight", 40.0, 120.0),
-            ("searchBarFontRatio", 0.3, 0.8),
-            ("resultItemHeight", 36.0, 80.0),
-            ("resultItemFontRatio", 0.2, 0.5),
-            ("resultItemSubtitleFontRatio", 0.15, 0.4),
-            ("maxVisibleResults", 3.0, 20.0),
-            ("footerHeight", 0.0, 60.0),
-            ("footerFontRatio", 0.15, 0.35),
-            ("windowWidth", 400.0, 1200.0),
-            ("windowCornerRadius", 0.0, 24.0),
+            ("search_bar_height", 40.0, 120.0),
+            ("search_bar_font_ratio", 0.3, 0.8),
+            ("result_item_height", 36.0, 80.0),
+            ("result_item_font_ratio", 0.2, 0.5),
+            ("result_item_subtitle_font_ratio", 0.15, 0.4),
+            ("max_visible_results", 3.0, 20.0),
+            ("footer_height", 0.0, 60.0),
+            ("footer_font_ratio", 0.15, 0.35),
+            ("window_width", 400.0, 1200.0),
+            ("window_corner_radius", 0.0, 24.0),
         ];
         for (key, min, max) in &numeric_validations {
             if let Some(val) = settings.get(*key).and_then(|v| v.as_f64()) {
@@ -392,7 +400,7 @@ impl Configurable for AppearanceConfigComponent {
         }
         // verticalPositionRatio
         if let Some(val) = settings
-            .get("verticalPositionRatio")
+            .get("vertical_position_ratio")
             .and_then(|v| v.as_f64())
         {
             if !(0.0..=1.0).contains(&val) {
@@ -403,7 +411,7 @@ impl Configurable for AppearanceConfigComponent {
             }
         }
         // bgOpacity
-        if let Some(val) = settings.get("bgOpacity").and_then(|v| v.as_f64()) {
+        if let Some(val) = settings.get("bg_opacity").and_then(|v| v.as_f64()) {
             if !(0.0..=1.0).contains(&val) {
                 return Err(ConfigError::ValidationFailed(format!(
                     "bgOpacity value {} is out of range [0.0, 1.0]",
@@ -413,7 +421,7 @@ impl Configurable for AppearanceConfigComponent {
         }
         // 背景图片 CSS 属性枚举校验
         let bg_size_opts = ["cover", "contain", "auto", "100% auto"];
-        if let Some(v) = settings.get("bgSize").and_then(|v| v.as_str()) {
+        if let Some(v) = settings.get("bg_size").and_then(|v| v.as_str()) {
             if !bg_size_opts.contains(&v) {
                 return Err(ConfigError::ValidationFailed(format!(
                     "Invalid bgSize value: {}",
@@ -432,7 +440,7 @@ impl Configurable for AppearanceConfigComponent {
             "bottom left",
             "bottom right",
         ];
-        if let Some(v) = settings.get("bgPosition").and_then(|v| v.as_str()) {
+        if let Some(v) = settings.get("bg_position").and_then(|v| v.as_str()) {
             if !bg_position_opts.contains(&v) {
                 return Err(ConfigError::ValidationFailed(format!(
                     "Invalid bgPosition value: {}",
@@ -441,7 +449,7 @@ impl Configurable for AppearanceConfigComponent {
             }
         }
         let bg_repeat_opts = ["no-repeat", "repeat", "repeat-x", "repeat-y"];
-        if let Some(v) = settings.get("bgRepeat").and_then(|v| v.as_str()) {
+        if let Some(v) = settings.get("bg_repeat").and_then(|v| v.as_str()) {
             if !bg_repeat_opts.contains(&v) {
                 return Err(ConfigError::ValidationFailed(format!(
                     "Invalid bgRepeat value: {}",

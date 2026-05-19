@@ -21,85 +21,85 @@ export async function applyAppearanceSettings(settings: AppearanceSettings): Pro
   const isDark = document.documentElement.classList.contains('dark')
 
   // ---- 搜索栏 ----
-  if ('searchBarHeight' in settings) {
-    const h = asNum(settings.searchBarHeight)
+  if ('search_bar_height' in settings) {
+    const h = asNum(settings.search_bar_height)
     root.setProperty('--search-bar-height', h + 'px')
-    if ('searchBarFontRatio' in settings) {
-      root.setProperty('--font-size-xl', Math.round(h * asNum(settings.searchBarFontRatio)) + 'px')
+    if ('search_bar_font_ratio' in settings) {
+      root.setProperty('--font-size-xl', Math.round(h * asNum(settings.search_bar_font_ratio)) + 'px')
     }
   }
-  if ('searchBarFontFamily' in settings) {
-    root.setProperty('--search-bar-font-family', asStr(settings.searchBarFontFamily) || 'inherit')
+  if ('search_bar_font_family' in settings) {
+    root.setProperty('--search-bar-font-family', asStr(settings.search_bar_font_family) || 'inherit')
   }
-  if ('searchBarPlaceholder' in settings) {
-    root.setProperty('--search-bar-placeholder', `"${asStr(settings.searchBarPlaceholder)}"`)
+  if ('search_bar_placeholder' in settings) {
+    root.setProperty('--search-bar-placeholder', `"${asStr(settings.search_bar_placeholder)}"`)
   }
 
   // ---- 结果栏 ----
-  if ('resultItemHeight' in settings) {
-    const h = asNum(settings.resultItemHeight)
+  if ('result_item_height' in settings) {
+    const h = asNum(settings.result_item_height)
     root.setProperty('--result-item-height', h + 'px')
-    if ('resultItemFontRatio' in settings) {
-      root.setProperty('--font-size-lg', Math.round(h * asNum(settings.resultItemFontRatio)) + 'px')
+    if ('result_item_font_ratio' in settings) {
+      root.setProperty('--font-size-lg', Math.round(h * asNum(settings.result_item_font_ratio)) + 'px')
     }
-    if ('resultItemSubtitleFontRatio' in settings) {
-      root.setProperty('--font-size-md', Math.round(h * asNum(settings.resultItemSubtitleFontRatio)) + 'px')
+    if ('result_item_subtitle_font_ratio' in settings) {
+      root.setProperty('--font-size-md', Math.round(h * asNum(settings.result_item_subtitle_font_ratio)) + 'px')
     }
   }
-  if ('resultItemFontFamily' in settings) {
-    root.setProperty('--result-item-font-family', asStr(settings.resultItemFontFamily) || 'inherit')
+  if ('result_item_font_family' in settings) {
+    root.setProperty('--result-item-font-family', asStr(settings.result_item_font_family) || 'inherit')
   }
-  if ('maxVisibleResults' in settings) {
-    root.setProperty('--max-visible-results', String(Math.round(asNum(settings.maxVisibleResults))))
+  if ('max_visible_results' in settings) {
+    root.setProperty('--max-visible-results', String(Math.round(asNum(settings.max_visible_results))))
   }
 
   // ---- 底栏 ----
-  if ('footerHeight' in settings) {
-    const h = asNum(settings.footerHeight)
+  if ('footer_height' in settings) {
+    const h = asNum(settings.footer_height)
     root.setProperty('--footer-height', h + 'px')
-    if ('footerFontRatio' in settings) {
-      root.setProperty('--font-size-sm', Math.round(h * asNum(settings.footerFontRatio)) + 'px')
+    if ('footer_font_ratio' in settings) {
+      root.setProperty('--font-size-sm', Math.round(h * asNum(settings.footer_font_ratio)) + 'px')
     }
   }
-  if ('footerFontFamily' in settings) {
-    root.setProperty('--footer-font-family', asStr(settings.footerFontFamily) || 'inherit')
+  if ('footer_font_family' in settings) {
+    root.setProperty('--footer-font-family', asStr(settings.footer_font_family) || 'inherit')
   }
 
   // ---- 窗口 ----
-  if ('windowWidth' in settings) {
-    root.setProperty('--window-width', asNum(settings.windowWidth) + 'px')
+  if ('window_width' in settings) {
+    root.setProperty('--window-width', asNum(settings.window_width) + 'px')
   }
-  if ('windowCornerRadius' in settings) {
-    root.setProperty('--window-corner-radius', asNum(settings.windowCornerRadius) + 'px')
+  if ('window_corner_radius' in settings) {
+    root.setProperty('--window-corner-radius', asNum(settings.window_corner_radius) + 'px')
   }
-  if ('verticalPositionRatio' in settings) {
-    root.setProperty('--vertical-position-ratio', String(asNum(settings.verticalPositionRatio)))
+  if ('vertical_position_ratio' in settings) {
+    root.setProperty('--vertical-position-ratio', String(asNum(settings.vertical_position_ratio)))
   }
 
   // ---- 配色（深色/浅色整组切换） ----
-  if ('bgPrimary' in settings) {
+  if ('bg_primary' in settings) {
     applyColorScheme(root, settings, isDark)
   }
 
   // ---- 背景图片 ----
-  if ('bgSize' in settings) {
-    root.setProperty('--bg-size', asStr(settings.bgSize))
+  if ('bg_size' in settings) {
+    root.setProperty('--bg-size', asStr(settings.bg_size))
   }
-  if ('bgPosition' in settings) {
-    root.setProperty('--bg-position', asStr(settings.bgPosition))
+  if ('bg_position' in settings) {
+    root.setProperty('--bg-position', asStr(settings.bg_position))
   }
-  if ('bgRepeat' in settings) {
-    root.setProperty('--bg-repeat', asStr(settings.bgRepeat))
+  if ('bg_repeat' in settings) {
+    root.setProperty('--bg-repeat', asStr(settings.bg_repeat))
   }
-  if ('bgOpacity' in settings) {
-    root.setProperty('--bg-image-opacity', String(asNum(settings.bgOpacity, 1)))
+  if ('bg_opacity' in settings) {
+    root.setProperty('--bg-image-opacity', String(asNum(settings.bg_opacity, 1)))
   }
 
   // 异步解析背景图片 res:// 标识为 base64 data URL
   // 深色模式下优先使用 bgImageDark，未设置则回退到 bgImage
-  if ('bgImage' in settings || 'bgImageDark' in settings) {
-    const darkBg = asStr(settings.bgImageDark)
-    const lightBg = asStr(settings.bgImage)
+  if ('bg_image' in settings || 'bg_image_dark' in settings) {
+    const darkBg = asStr(settings.bg_image_dark)
+    const lightBg = asStr(settings.bg_image)
     const activeBg = isDark && darkBg ? darkBg : lightBg
     const url = await resolveBgUrl(activeBg)
     root.setProperty('--bg-image-url', url)
@@ -108,8 +108,8 @@ export async function applyAppearanceSettings(settings: AppearanceSettings): Pro
 
 /** 提取搜索栏占位符文本（用于响应式绑定） */
 export function extractPlaceholder(settings: AppearanceSettings): string {
-  if ('searchBarPlaceholder' in settings) {
-    return asStr(settings.searchBarPlaceholder) || 'Hello, ZeroLaunch! ヾ(≧▽≦*)o'
+  if ('search_bar_placeholder' in settings) {
+    return asStr(settings.search_bar_placeholder) || 'Hello, ZeroLaunch! ヾ(≧▽≦*)o'
   }
   // 从 CSS 变量回退读取
   const css = getComputedStyle(document.documentElement).getPropertyValue('--search-bar-placeholder').trim()
@@ -132,39 +132,39 @@ async function resolveBgUrl(resId: string): Promise<string> {
 
 function applyColorScheme(root: CSSStyleDeclaration, s: AppearanceSettings, isDark: boolean): void {
   if (isDark) {
-    root.setProperty('--bg-primary', asStr(s.darkBgPrimary))
-    root.setProperty('--bg-secondary', asStr(s.darkBgSecondary))
-    root.setProperty('--text-primary', asStr(s.darkTextPrimary))
-    root.setProperty('--text-secondary', asStr(s.darkTextSecondary))
-    root.setProperty('--border-color', asStr(s.darkBorderColor))
-    root.setProperty('--accent-color', asStr(s.darkAccentColor))
-    root.setProperty('--hover-color', asStr(s.darkHoverColor))
+    root.setProperty('--bg-primary', asStr(s.dark_bg_primary))
+    root.setProperty('--bg-secondary', asStr(s.dark_bg_secondary))
+    root.setProperty('--text-primary', asStr(s.dark_text_primary))
+    root.setProperty('--text-secondary', asStr(s.dark_text_secondary))
+    root.setProperty('--border-color', asStr(s.dark_border_color))
+    root.setProperty('--accent-color', asStr(s.dark_accent_color))
+    root.setProperty('--hover-color', asStr(s.dark_hover_color))
 
-    const accent = asStr(s.darkAccentColor)
+    const accent = asStr(s.dark_accent_color)
     root.setProperty('--primary-color', accent)
     root.setProperty('--primary-color-alpha', colorToAlpha(accent, 0.15))
 
-    root.setProperty('--bg-color', asStr(s.darkBgPrimary))
-    root.setProperty('--bg-color-secondary', asStr(s.darkBgSecondary))
-    root.setProperty('--text-color', asStr(s.darkTextPrimary))
-    root.setProperty('--text-color-secondary', asStr(s.darkTextSecondary))
+    root.setProperty('--bg-color', asStr(s.dark_bg_primary))
+    root.setProperty('--bg-color-secondary', asStr(s.dark_bg_secondary))
+    root.setProperty('--text-color', asStr(s.dark_text_primary))
+    root.setProperty('--text-color-secondary', asStr(s.dark_text_secondary))
   } else {
-    root.setProperty('--bg-primary', asStr(s.bgPrimary))
-    root.setProperty('--bg-secondary', asStr(s.bgSecondary))
-    root.setProperty('--text-primary', asStr(s.textPrimary))
-    root.setProperty('--text-secondary', asStr(s.textSecondary))
-    root.setProperty('--border-color', asStr(s.borderColor))
-    root.setProperty('--accent-color', asStr(s.accentColor))
-    root.setProperty('--hover-color', asStr(s.hoverColor))
+    root.setProperty('--bg-primary', asStr(s.bg_primary))
+    root.setProperty('--bg-secondary', asStr(s.bg_secondary))
+    root.setProperty('--text-primary', asStr(s.text_primary))
+    root.setProperty('--text-secondary', asStr(s.text_secondary))
+    root.setProperty('--border-color', asStr(s.border_color))
+    root.setProperty('--accent-color', asStr(s.accent_color))
+    root.setProperty('--hover-color', asStr(s.hover_color))
 
-    const accent = asStr(s.accentColor)
+    const accent = asStr(s.accent_color)
     root.setProperty('--primary-color', accent)
     root.setProperty('--primary-color-alpha', colorToAlpha(accent, 0.1))
 
-    root.setProperty('--bg-color', asStr(s.bgPrimary))
-    root.setProperty('--bg-color-secondary', asStr(s.bgSecondary))
-    root.setProperty('--text-color', asStr(s.textPrimary))
-    root.setProperty('--text-color-secondary', asStr(s.textSecondary))
+    root.setProperty('--bg-color', asStr(s.bg_primary))
+    root.setProperty('--bg-color-secondary', asStr(s.bg_secondary))
+    root.setProperty('--text-color', asStr(s.text_primary))
+    root.setProperty('--text-color-secondary', asStr(s.text_secondary))
   }
 }
 

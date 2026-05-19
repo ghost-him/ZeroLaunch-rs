@@ -85,7 +85,7 @@ function setValue(key: string, val: unknown) {
   localValues.value = { ...localValues.value, [key]: val }
 }
 
-provide(FORM_VALUES_KEY, { getValue, setValue })
+provide(FORM_VALUES_KEY, { getValue, setValue, values: localValues })
 
 async function onApply() {
   saving.value = true

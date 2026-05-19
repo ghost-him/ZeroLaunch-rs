@@ -116,8 +116,6 @@ const loading = ref(false)
 const errorMsg = ref<string | null>(null)
 const filterText = ref('')
 const debouncedFilter = ref('')
-const overridesVersion = ref(0)
-
 const editDialogVisible = ref(false)
 const editingItem = ref<PreviewItem | null>(null)
 const editCustomTitle = ref('')
@@ -183,7 +181,6 @@ function getOverrides(): Record<string, unknown>[] {
 
 function setOverrides(overrides: Record<string, unknown>[]) {
   formValues.setValue(props.detailAction.targetField, overrides)
-  overridesVersion.value++
 }
 
 function normalizeKey(key: string): string {
@@ -196,12 +193,14 @@ function normalizeKey(key: string): string {
 
 /// Build override lookup map and enrich preview items with computed display fields.
 /// Single pass over overrides (build map) + single pass over filtered previews (enrich).
+/// 直接读取 formValues.values.value[targetField] 以建立 Vue 响应式依赖追踪，
+/// 当 DynamicForm.setValue 创建新的 localValues 对象时自动触发重新计算。
 const enrichedItems = computed<EnrichedItem[]>(() => {
-  overridesVersion.value
-
   const matchKey = props.detailAction.targetMatchKey
+  const rawOverrides = formValues.values.value[props.detailAction.targetField]
+  const overrides: Record<string, unknown>[] = Array.isArray(rawOverrides) ? rawOverrides as Record<string, unknown>[] : []
   const overrideMap = new Map<string, Record<string, unknown>>()
-  for (const o of getOverrides()) {
+  for (const o of overrides) {
     overrideMap.set(normalizeKey(String(o[matchKey] ?? '')), o)
   }
 
@@ -218,7 +217,7 @@ const enrichedItems = computed<EnrichedItem[]>(() => {
     const override = overrideMap.get(normalizeKey(item.key))
     const excluded = override?.excluded === true
     const customTitle =
-      typeof override?.custom_title === 'string' ? String(override.custom_title).trim() : ''
+      typeof override?.customTitle === 'string' ? String(override.customTitle).trim() : ''
     return {
       ...item,
       excluded,
@@ -229,7 +228,7 @@ const enrichedItems = computed<EnrichedItem[]>(() => {
 })
 
 function hasCustomTitleInOverride(override: Record<string, unknown>): boolean {
-  const title = override.custom_title
+  const title = override.customTitle
   return typeof title === 'string' && title.trim().length > 0
 }
 
@@ -251,7 +250,7 @@ function toggleExcluded(key: string, excluded: boolean) {
     overrides.push({
       [matchKey]: key,
       excluded: true,
-      custom_title: '',
+      customTitle: '',
     })
   }
 
@@ -266,7 +265,7 @@ function openEdit(item: PreviewItem) {
   const override = overrides.find(
     (o) => normalizeKey(String(o[matchKey] ?? '')) === nk,
   )
-  editCustomTitle.value = (override?.custom_title as string) ?? ''
+  editCustomTitle.value = (override?.customTitle as string) ?? ''
   editExcluded.value = override?.excluded === true
   editDialogVisible.value = true
 }
@@ -291,14 +290,14 @@ function saveEdit() {
       overrides[idx] = {
         ...overrides[idx],
         excluded: editExcluded.value,
-        custom_title: editCustomTitle.value.trim(),
+        customTitle: editCustomTitle.value.trim(),
       }
     }
   } else if (hasChanges) {
     overrides.push({
       [matchKey]: key,
       excluded: editExcluded.value,
-      custom_title: editCustomTitle.value.trim(),
+      customTitle: editCustomTitle.value.trim(),
     })
   }
 

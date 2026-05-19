@@ -39,6 +39,10 @@ impl Default for FieldDefinition {
 /// - 调用哪个 config_action（带参数）
 /// - 从选中项的哪个字段提取参数
 /// - 将预览数据的编辑结果写入哪个兄弟设置字段
+///
+/// 约定：`target_field` 引用同一个 `setting_schema()` 返回数组中另一个设置的 key。
+/// 这是一种隐式外键关系——如果重命名目标设置的 key，必须同步更新此字段。
+/// 预览数据的 item key 和 override 的 match key 也必须保持一致。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DetailActionDef {
     /// 要调用的 config_action 标识符
@@ -56,10 +60,13 @@ pub struct DetailActionDef {
     /// 预览数据中每条记录的显示键
     #[serde(rename = "previewItemLabel")]
     pub preview_item_label: String,
-    /// 写入编辑结果的兄弟设置字段 key
+    /// 写入编辑结果的兄弟设置字段 key。
+    /// 引用同一 schema 数组中另一个 SettingDefinition 的 field.key。
+    /// 重命名目标设置的 key 时需同步更新此处。
     #[serde(rename = "targetField")]
     pub target_field: String,
-    /// target_field 数组中，用于匹配预览项的键
+    /// target_field 数组中，用于匹配预览项的键。
+    /// 此键的名称应与 preview_item_key 指向的字段同名，以确保 override 项能正确匹配到预览数据中的条目。
     #[serde(rename = "targetMatchKey")]
     pub target_match_key: String,
 }
@@ -180,6 +187,7 @@ pub enum SettingType {
     Json,
     #[serde(rename = "array")]
     Array {
+        #[serde(rename = "item")]
         item: ArrayItem,
         #[serde(rename = "minItems")]
         min_items: Option<usize>,
@@ -190,6 +198,7 @@ pub enum SettingType {
     },
     #[serde(rename = "image")]
     Image {
+        #[serde(rename = "accept")]
         accept: Vec<String>,
         #[serde(rename = "maxSize")]
         max_size: Option<u64>,

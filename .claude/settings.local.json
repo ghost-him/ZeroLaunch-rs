@@ -12,7 +12,8 @@
       "Bash(cargo doc *)",
       "Bash(git checkout *)",
       "Bash(git cherry-pick *)",
-      "Bash(git stash *)"
+      "Bash(git stash *)",
+      "Bash(ls *)"
     ]
   }
 }

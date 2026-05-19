@@ -55,7 +55,7 @@ pub trait Configurable: Send + Sync {
 
     // === 配置动作 ===
     fn config_actions(&self) -> Vec<ConfigActionDef> { vec![] }  // 声明配置动作列表
-    fn execute_config_action(&self, action: &str) -> Result<serde_json::Value, String> { ... }  // 执行配置动作
+    fn execute_config_action(&self, action: &str, params: &serde_json::Value) -> Result<serde_json::Value, String> { ... }  // 执行配置动作
 }
 ```
 
@@ -387,8 +387,10 @@ pub trait Configurable: Send + Sync {
 
     /// 执行配置动作
     /// 参数：action - 动作标识符，对应 ConfigActionDef.action
+    ///       params - 前端传递的附加参数（如书签文件路径）
     /// 返回：动作执行结果（JSON 格式），由前端根据配置项类型解析并填充
-    fn execute_config_action(&self, action: &str) -> Result<serde_json::Value, String> {
+    fn execute_config_action(&self, action: &str, params: &serde_json::Value) -> Result<serde_json::Value, String> {
+        let _ = params;
         Err(format!("Unknown config action: {}", action))
     }
 }
@@ -396,10 +398,10 @@ pub trait Configurable: Send + Sync {
 
 ### Tauri 命令
 
-| 命令                    | 参数                                   | 返回值                      |
-| ----------------------- | -------------------------------------- | --------------------------- |
-| `get_config_actions`    | `component_id: String`                 | `Vec<ConfigActionDef>`      |
-| `execute_config_action` | `component_id: String, action: String` | `Result<serde_json::Value>` |
+| 命令                    | 参数                                                     | 返回值                      |
+| ----------------------- | -------------------------------------------------------- | --------------------------- |
+| `get_config_actions`    | `component_id: String`                                   | `Vec<ConfigActionDef>`      |
+| `execute_config_action` | `component_id: String, action: String, params: Value`    | `Result<serde_json::Value>` |
 
 ### 前端行为描述（设想）
 
@@ -408,8 +410,8 @@ pub trait Configurable: Send + Sync {
 3. 用户点击按钮后，前端调用 `execute_config_action(component_id, action)`
 4. 返回的 JSON 数据由前端根据配置项类型自行解析并填入对应设置项
 5. 对于 BookmarkSource 的 `detect_browsers` 场景：
-   - 返回 `Vec<BrowserInfo>`，每项包含 `{ name, bookmarks_path }`
-   - 前端将每项转为 `{ name, bookmarks_path, enabled: true }` 对象填入 sources 数组
+   - 返回 `Vec<BrowserInfo>`，每项包含 `{ name, bookmarksPath }`
+   - 前端将每项转为 `{ name, bookmarksPath, enabled: true }` 对象填入 sources 数组
 
 ### 调用链路
 
@@ -421,9 +423,9 @@ pub trait Configurable: Send + Sync {
     │       └─ Tauri command → SessionRouter.get_config_actions(component_id)
     │
     ├─ 用户点击按钮
-    │   └─ 调用 execute_config_action(component_id, action)
-    │       └─ Tauri command → SessionRouter.execute_config_action(component_id, action)
-    │           └─ 内部通过 find_configurable 定位组件 → Configurable.execute_config_action(action)
+    │   └─ 调用 execute_config_action(component_id, action, params)
+    │       └─ Tauri command → SessionRouter.execute_config_action(component_id, action, params)
+    │           └─ 内部通过 find_configurable 定位组件 → Configurable.execute_config_action(action, params)
     │               └─ 返回 JSON 结果
     │
     └─ 前端解析 JSON 填充设置项
@@ -456,10 +458,18 @@ impl Configurable for BookmarkSource {
         }]
     }
 
-    fn execute_config_action(&self, action: &str) -> Result<serde_json::Value, String> {
+    fn execute_config_action(&self, action: &str, params: &serde_json::Value) -> Result<serde_json::Value, String> {
         match action {
             "detect_browsers" => serde_json::to_value(Self::detect_installed_browsers())
                 .map_err(|e| e.to_string()),
+            "read_bookmarks" => {
+                let path = params
+                    .get("bookmarksPath")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| "缺少参数 bookmarksPath".to_string())?;
+                let bookmarks = Self::read_bookmarks_from_path(path)?;
+                serde_json::to_value(bookmarks).map_err(|e| e.to_string())
+            }
             _ => Err(format!("Unknown config action: {}", action)),
         }
     }

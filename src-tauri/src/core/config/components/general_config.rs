@@ -1,0 +1,134 @@
+use crate::core::config::setting_builders::SchemaBuilder;
+use crate::core::types::setting_def::SettingDefinition;
+use crate::core::types::{ComponentType, ConfigError, Configurable};
+use crate::sdk::host_api::HostApi;
+use parking_lot::RwLock;
+use std::sync::Arc;
+use tracing::{info, warn};
+
+/// 通用设置配置组件。
+/// 管理开机自启动、调试模式和日志级别。
+/// 配置变更时自动应用自启动设置和日志级别。
+pub struct GeneralConfigComponent {
+    /// HostApi 引用，用于应用自启动配置
+    host_api: Arc<HostApi>,
+    /// 当前配置状态
+    settings: RwLock<serde_json::Value>,
+}
+
+impl GeneralConfigComponent {
+    /// 创建 GeneralConfigComponent。
+    /// 参数：host_api - HostApi 实例，用于应用自启动配置。
+    pub fn new(host_api: Arc<HostApi>) -> Self {
+        Self {
+            host_api,
+            settings: RwLock::new(serde_json::Value::Null),
+        }
+    }
+}
+
+impl Configurable for GeneralConfigComponent {
+    fn component_id(&self) -> &str {
+        "general"
+    }
+
+    fn component_name(&self) -> &str {
+        "通用"
+    }
+
+    fn component_type(&self) -> ComponentType {
+        ComponentType::Core
+    }
+
+    fn setting_schema(&self) -> Vec<SettingDefinition> {
+        vec![
+            SchemaBuilder::boolean(
+                "isAutoStart",
+                "开机自启动",
+                "启用后，系统启动时自动运行 ZeroLaunch",
+            )
+            .group("通用")
+            .order(0)
+            .default(false)
+            .build(),
+            SchemaBuilder::boolean(
+                "isDebugMode",
+                "调试模式",
+                "启用后，显示额外的调试信息和开发工具",
+            )
+            .group("通用")
+            .order(1)
+            .default(false)
+            .build(),
+            SchemaBuilder::select("logLevel", "日志级别", "控制日志输出的详细程度")
+                .group("通用")
+                .order(2)
+                .options(&["debug", "info", "warn", "error"])
+                .default("info")
+                .build(),
+        ]
+    }
+
+    fn get_settings(&self) -> serde_json::Value {
+        self.settings.read().clone()
+    }
+
+    fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
+        *self.settings.write() = settings;
+        Ok(())
+    }
+
+    fn validate_settings(&self, settings: &serde_json::Value) -> Result<(), ConfigError> {
+        if let Some(level) = settings.get("logLevel").and_then(|v| v.as_str()) {
+            if !["debug", "info", "warn", "error"].contains(&level) {
+                return Err(ConfigError::ValidationFailed(format!(
+                    "无效的日志级别: {}",
+                    level
+                )));
+            }
+        }
+        Ok(())
+    }
+
+    fn on_settings_changed(&self) {
+        let settings = self.settings.read().clone();
+
+        // 处理自启动配置
+        let is_auto_start = settings
+            .get("isAutoStart")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+
+        let host_api = self.host_api.clone();
+        tokio::spawn(async move {
+            if let Err(e) = host_api.apply_autostart_setting(is_auto_start).await {
+                warn!("应用自启动配置失败: {}", e);
+            } else {
+                info!(
+                    "自启动配置已更新: {}",
+                    if is_auto_start { "启用" } else { "禁用" }
+                );
+            }
+        });
+
+        // 处理日志级别
+        if let Some(level_str) = settings.get("logLevel").and_then(|v| v.as_str()) {
+            let level: tracing::Level = match level_str {
+                "debug" => tracing::Level::DEBUG,
+                "info" => tracing::Level::INFO,
+                "warn" => tracing::Level::WARN,
+                "error" => tracing::Level::ERROR,
+                _ => return,
+            };
+            if let Err(e) = crate::logging::update_log_level(level) {
+                warn!("更新日志级别失败: {}", e);
+            } else {
+                info!("日志级别已更新为: {}", level_str);
+            }
+        }
+    }
+
+    fn default_enabled(&self) -> bool {
+        true
+    }
+}

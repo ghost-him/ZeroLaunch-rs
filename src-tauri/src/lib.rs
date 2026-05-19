@@ -9,6 +9,7 @@ pub mod state;
 pub mod utils;
 
 use crate::core::config::components::appearance_config::AppearanceConfigComponent;
+use crate::core::config::components::general_config::GeneralConfigComponent;
 use crate::core::config::components::hotkey_config::HotkeyConfigComponent;
 use crate::core::config::components::storage_config::StorageConfigComponent;
 use crate::core::config::{ConfigEvent, ConfigManager};
@@ -513,6 +514,8 @@ async fn init_plugin_system(state: &Arc<AppState>) {
     config_manager.register(hotkey_config_component);
     let appearance_config_component = Arc::new(AppearanceConfigComponent::new());
     config_manager.register(appearance_config_component);
+    let general_config_component = Arc::new(GeneralConfigComponent::new(host_api.clone()));
+    config_manager.register(general_config_component);
     info!("核心配置组件注册完成");
 
     // -- Plugin 组件 --

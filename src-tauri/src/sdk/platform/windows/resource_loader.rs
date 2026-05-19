@@ -1,4 +1,3 @@
-use crate::error::{OptionExt, ResultExt};
 use crate::sdk::shell::resource_loader::ResourceLoader;
 use crate::utils::windows::expand_environment_variables;
 use ini::inistr;
@@ -125,9 +124,7 @@ fn parse_localized_names_from_dir(dir_path: &Path) -> HashMap<String, String> {
                     .chunks_exact(2)
                     .map(|chunk| {
                         u16::from_le_bytes(
-                            chunk
-                                .try_into()
-                                .expect_programming("Chunk should be exactly 2 bytes"),
+                            chunk.try_into().expect("Chunk should be exactly 2 bytes"),
                         )
                     })
                     .collect();
@@ -152,7 +149,7 @@ fn parse_localized_names_from_dir(dir_path: &Path) -> HashMap<String, String> {
             }
             let value = value
                 .clone()
-                .expect_programming("Value should not be None after is_none check");
+                .expect("Value should not be None after is_none check");
             if value.starts_with('@') {
                 if let Some(resolved_name) = resolve_resource_string(&value) {
                     localized_map.insert(key.to_string(), resolved_name);

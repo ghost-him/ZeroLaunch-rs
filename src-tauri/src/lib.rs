@@ -1,6 +1,5 @@
 pub mod commands;
 pub mod core;
-pub mod error;
 pub mod logging;
 pub mod modules;
 pub mod plugin;
@@ -8,7 +7,6 @@ pub mod plugin_system;
 pub mod sdk;
 pub mod state;
 pub mod utils;
-pub mod window_effect;
 
 use crate::core::config::components::appearance_config::AppearanceConfigComponent;
 use crate::core::config::components::hotkey_config::HotkeyConfigComponent;

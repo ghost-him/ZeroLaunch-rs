@@ -1,6 +1,5 @@
 use crate::core::config::ConfigManager;
 use crate::core::tray::TrayManager;
-use crate::error::OptionExt;
 use crate::plugin_system::service::PluginService;
 use crate::plugin_system::SessionRouter;
 use crate::sdk::host_api::PluginHandle;
@@ -59,7 +58,7 @@ impl AppState {
             .read()
             .as_ref()
             .cloned()
-            .expect_programming("config manager not initialized")
+            .expect("config manager not initialized")
     }
 
     pub fn set_config_manager(&self, config_manager: Arc<ConfigManager>) {
@@ -71,7 +70,7 @@ impl AppState {
             .read()
             .as_ref()
             .cloned()
-            .expect_programming("main handle not initialized")
+            .expect("main handle not initialized")
     }
 
     pub fn set_main_handle(&self, handle: Arc<AppHandle>) {
@@ -127,7 +126,7 @@ impl AppState {
             .read()
             .as_ref()
             .cloned()
-            .expect_programming("host_api not initialized")
+            .expect("host_api not initialized")
     }
 
     pub fn set_host_api(&self, host_api: Arc<HostApi>) {
@@ -139,7 +138,7 @@ impl AppState {
             .read()
             .as_ref()
             .cloned()
-            .expect_programming("core_handle not initialized")
+            .expect("core_handle not initialized")
     }
 
     pub fn set_core_handle(&self, handle: Arc<PluginHandle>) {

@@ -12,6 +12,7 @@ use crate::core::config::components::appearance_config::AppearanceConfigComponen
 use crate::core::config::components::general_config::GeneralConfigComponent;
 use crate::core::config::components::hotkey_config::HotkeyConfigComponent;
 use crate::core::config::components::storage_config::StorageConfigComponent;
+use crate::core::config::components::window_behavior_config::WindowBehaviorConfigComponent;
 use crate::core::config::{ConfigEvent, ConfigManager};
 use crate::core::tray::TrayManager;
 use crate::logging::{init_logging, log_application_shutdown, log_application_start};
@@ -516,6 +517,8 @@ async fn init_plugin_system(state: &Arc<AppState>) {
     config_manager.register(appearance_config_component);
     let general_config_component = Arc::new(GeneralConfigComponent::new(host_api.clone()));
     config_manager.register(general_config_component);
+    let window_behavior_component = Arc::new(WindowBehaviorConfigComponent::new());
+    config_manager.register(window_behavior_component);
     info!("核心配置组件注册完成");
 
     // -- Plugin 组件 --
@@ -531,6 +534,7 @@ async fn init_plugin_system(state: &Arc<AppState>) {
     let core_handle_for_hotkey = state.get_core_handle();
     let host_api_for_hotkey = host_api.clone();
     let session_router_for_hotkey = session_router.clone();
+    let config_manager_for_hotkey = config_manager.clone();
     core_handle_for_hotkey.register_hotkey_callback(
         "search_bar_toggle",
         HotkeyEventFilter::All,
@@ -538,10 +542,18 @@ async fn init_plugin_system(state: &Arc<AppState>) {
             debug!("收到快捷键事件: {:?}", event);
             let host_api = host_api_for_hotkey.clone();
             let session_router = session_router_for_hotkey.clone();
+            let config_manager = config_manager_for_hotkey.clone();
             tauri::async_runtime::spawn(async move {
                 if host_api.is_window_visible() {
                     host_api.hide_window().await;
                 } else {
+                    let wake_on_fullscreen = config_manager
+                        .get_component_setting("window-behavior", "is_wake_on_fullscreen")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false);
+                    if !wake_on_fullscreen && crate::utils::windows::is_foreground_fullscreen() {
+                        return;
+                    }
                     let _ = session_router.on_search_bar_wake().await;
                     host_api.show_window().await;
                 }

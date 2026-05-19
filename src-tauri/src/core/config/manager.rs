@@ -121,6 +121,17 @@ impl ConfigManager {
         self.registry.get(component_id).map(|c| c.get_settings())
     }
 
+    /// 获取指定组件中单个配置项的值。
+    /// 用于运行时读取被动配置（如窗口行为设置）。
+    pub fn get_component_setting(
+        &self,
+        component_id: &str,
+        key: &str,
+    ) -> Option<serde_json::Value> {
+        self.get_settings(component_id)
+            .and_then(|settings| settings.get(key).cloned())
+    }
+
     /// 按 component_id 查找已注册的 Configurable 组件
     pub fn find_configurable(&self, component_id: &str) -> Option<Arc<dyn Configurable>> {
         self.registry.get(component_id)

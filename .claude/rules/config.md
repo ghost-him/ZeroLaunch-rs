@@ -40,6 +40,13 @@ paths:
 - 配置组件实现 `Configurable` trait。**禁止** 在配置组件中 import `plugin/` 或 `plugin_system/` 的类型
 - 配置组件可持有 `Arc<HostApi>` 以在 `on_settings_changed()` 中调用平台服务
 
+## 命名规范
+
+- `component_id`：**必须** 使用 kebab-case（如 `"hotkey-config"`、`"window-behavior"`）。单单词组件可省略连字符（如 `"appearance"`、`"general"`）
+- Setting JSON key：**必须** 使用 snake_case（如 `"open_search_bar"`、`"is_esc_hide_window_priority"`）。**禁止** 使用 camelCase
+- 前端通过 `configStore.settings[component_id][setting_key]` 读取，key 名与后端一致
+- 前后端 key 名 **必须** 保持一致。新增/重命名 key 时，前后端 **同一 commit** 中同步修改
+
 ## 存储分离
 
 - `ConfigStore` 处理本地 JSON 文件持久化。远程同步（WebDAV）是可选的，单独处理

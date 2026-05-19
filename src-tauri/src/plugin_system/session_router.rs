@@ -259,16 +259,27 @@ impl SessionRouter {
                 match executor.execute(&exec_ctx, action_id).await {
                     Ok(()) => {}
                     Err(ExecutionError::ActivationFailed { fallback_action }) => {
-                        let fallback_executor = {
-                            let registry = self.executor_registry.read();
-                            registry
-                                .resolve_fallback(&exec_ctx, &fallback_action)
-                                .map_err(|e| e.to_string())?
-                        };
-                        fallback_executor
-                            .execute(&exec_ctx, &fallback_action)
-                            .await
-                            .map_err(|e| e.to_string())?;
+                        let launch_new = self
+                            .config_manager
+                            .read()
+                            .as_ref()
+                            .and_then(|cm| {
+                                cm.get_component_setting("window-behavior", "launch_new_on_failure")
+                            })
+                            .and_then(|v| v.as_bool())
+                            .unwrap_or(true);
+                        if launch_new {
+                            let fallback_executor = {
+                                let registry = self.executor_registry.read();
+                                registry
+                                    .resolve_fallback(&exec_ctx, &fallback_action)
+                                    .map_err(|e| e.to_string())?
+                            };
+                            fallback_executor
+                                .execute(&exec_ctx, &fallback_action)
+                                .await
+                                .map_err(|e| e.to_string())?;
+                        }
                     }
                     Err(e) => return Err(e.to_string()),
                 }

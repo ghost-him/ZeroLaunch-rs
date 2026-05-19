@@ -21,15 +21,18 @@ import {
   enUS,
 } from 'naive-ui'
 import { useThemeStore } from './stores/theme-store'
+import { useConfigStore } from './stores/config-store'
 import { configGetSettings } from './bridge/commands'
 import { i18n } from './i18n'
 import { onConfigChanged } from './bridge/events'
 
 const themeStore = useThemeStore()
+const configStore = useConfigStore()
 
 const naiveLocale = ref(i18n.global.locale.value === 'en' ? enUS : zhCN)
 
 let unlistenAppearance: (() => void) | null = null
+let unlistenWindowBehavior: (() => void) | null = null
 
 onMounted(async () => {
   // 监听外观配置变更（跨窗口同步主题/语言/外观CSS变量）
@@ -43,9 +46,23 @@ onMounted(async () => {
       }
     }).catch(() => {})
   })
+
+  // 加载窗口行为配置（供 useKeyboard 消费）
+  configGetSettings('window-behavior').then(s => {
+    configStore.settings['window-behavior'] = s
+  }).catch(() => {})
+
+  // 监听窗口行为配置变更（跨窗口同步）
+  unlistenWindowBehavior = await onConfigChanged((payload) => {
+    if (payload.componentId !== 'window-behavior') return
+    configGetSettings('window-behavior').then(s => {
+      configStore.settings['window-behavior'] = s
+    }).catch(() => {})
+  })
 })
 
 onUnmounted(() => {
   unlistenAppearance?.()
+  unlistenWindowBehavior?.()
 })
 </script>

@@ -120,13 +120,25 @@ impl Configurable for AppearanceConfigComponent {
             .max(0.4)
             .step(0.01)
             .build(),
+            SchemaBuilder::number(
+                "result_item_icon_ratio",
+                "图标大小比例",
+                "图标大小 = 结果项高度 × 此比例",
+            )
+            .group("resultList")
+            .order(23)
+            .default(0.72)
+            .min(0.3)
+            .max(0.9)
+            .step(0.01)
+            .build(),
             SchemaBuilder::text(
                 "result_item_font_family",
                 "结果栏字体",
                 "字体族名称，留空则跟随系统",
             )
             .group("resultList")
-            .order(23)
+            .order(24)
             .default("")
             .build(),
             SchemaBuilder::number(
@@ -135,7 +147,7 @@ impl Configurable for AppearanceConfigComponent {
                 "不滚动时最多显示的结果条数",
             )
             .group("resultList")
-            .order(24)
+            .order(25)
             .default(8.0)
             .min(3.0)
             .max(20.0)
@@ -147,7 +159,7 @@ impl Configurable for AppearanceConfigComponent {
                 "在结果项中显示启动命令路径",
             )
             .group("resultList")
-            .order(25)
+            .order(26)
             .default(false)
             .build(),
             // ---- 底栏 ----
@@ -376,12 +388,13 @@ impl Configurable for AppearanceConfigComponent {
             }
         }
         // 数值范围校验
-        let numeric_validations: [(&str, f64, f64); 10] = [
+        let numeric_validations: [(&str, f64, f64); 11] = [
             ("search_bar_height", 40.0, 120.0),
             ("search_bar_font_ratio", 0.3, 0.8),
             ("result_item_height", 36.0, 80.0),
             ("result_item_font_ratio", 0.2, 0.5),
             ("result_item_subtitle_font_ratio", 0.15, 0.4),
+            ("result_item_icon_ratio", 0.3, 0.9),
             ("max_visible_results", 3.0, 20.0),
             ("footer_height", 0.0, 60.0),
             ("footer_font_ratio", 0.15, 0.35),

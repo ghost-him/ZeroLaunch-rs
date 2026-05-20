@@ -15,7 +15,7 @@
     @contextmenu.prevent="onContextMenu"
   >
     <div class="item-icon">
-      <IconDisplay :src="item.icon" :size="24" />
+      <IconDisplay :src="item.icon" :size="iconSize" />
     </div>
     <div class="item-text">
       <div class="item-title">{{ item.title }}</div>
@@ -31,6 +31,12 @@ import type { ListItem } from '../../bridge/contract'
 import { usePluginStore } from '../../stores/plugin-store'
 import IconDisplay from '../common/IconDisplay.vue'
 import type { CtxItem } from '../layout/ContextMenu.vue'
+
+const iconSize = computed(() => {
+  const raw = getComputedStyle(document.documentElement).getPropertyValue('--result-item-icon-size').trim()
+  const num = parseFloat(raw)
+  return isNaN(num) ? 32 : num
+})
 
 const props = defineProps<{
   item: ListItem
@@ -83,8 +89,8 @@ function onContextMenu(e: MouseEvent) {
 
 .item-icon {
   flex-shrink: 0;
-  width: 32px; /* Slightly larger icons */
-  height: 32px;
+  width: var(--result-item-icon-size);
+  height: var(--result-item-icon-size);
   display: flex;
   align-items: center;
   justify-content: center;

@@ -45,6 +45,9 @@ export async function applyAppearanceSettings(settings: AppearanceSettings): Pro
     if ('result_item_subtitle_font_ratio' in settings) {
       root.setProperty('--font-size-md', Math.round(h * asNum(settings.result_item_subtitle_font_ratio)) + 'px')
     }
+    if ('result_item_icon_ratio' in settings) {
+      root.setProperty('--result-item-icon-size', Math.round(h * asNum(settings.result_item_icon_ratio)) + 'px')
+    }
   }
   if ('result_item_font_family' in settings) {
     root.setProperty('--result-item-font-family', asStr(settings.result_item_font_family) || 'inherit')

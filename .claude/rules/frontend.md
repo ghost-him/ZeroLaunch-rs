@@ -19,17 +19,16 @@ paths:
 ### 组件编写
 
 - **必须** 使用 `<script setup lang="ts">`。**禁止** 使用 Options API
-- **必须** 使用 `defineProps<T>()` 和 `defineEmits<T>()` 的泛型形式。**禁止** 运行时 props 声明
-- 所有组件样式 **必须** 使用 `<style scoped>`。**禁止** 全局样式泄漏
-- 颜色、字号、间距 **必须** 使用 CSS 变量（如 `var(--text-primary)`）。**禁止** 硬编码色值或像素值
-- **禁止** 在组件中直接调用 `invoke()` 或 Tauri API。**必须** 通过 `bridge/commands.ts` 封装
-- **禁止** 在组件中实现业务逻辑（文件操作、搜索算法等）。所有逻辑通过 IPC 委托后端
+- **必须** 使用 `defineProps<T>()` 和 `defineEmits<T>()` 的泛型形式
+- 所有组件样式 **必须** 使用 `<style scoped>`
+- 颜色、字号、间距 **必须** 使用 CSS 变量（如 `var(--text-primary)`）
+- **必须** 通过 `bridge/commands.ts` 封装所有 Tauri API 调用
+- 所有业务逻辑 **必须** 通过 IPC 委托后端（见 [general.md](general.md) 的前后端职责边界）
 
 ### 响应式状态
 
-- 对象/数组更新 **必须** 使用展开运算符创建新引用：`state.value = { ...state.value, [key]: val }`
-- **禁止** 直接 mutate ref 内部对象（如 `state.value.key = val`），这不会触发 Vue 的响应式追踪
-- Store 暴露的方法 **必须** 封装状态更新逻辑。**禁止** 在组件中直接修改 store 的 ref 值
+- 对象/数组更新 **必须** 使用展开运算符创建新引用：`state.value = { ...state.value, [key]: val }`（直接 mutate 如 `state.value.key = val` 不会触发 Vue 的响应式追踪）
+- Store 暴露的方法 **必须** 封装状态更新逻辑
 
 ### Store 模式
 
@@ -50,7 +49,7 @@ paths:
 - 所有外观配置（颜色、尺寸、字体）由后端 `appearance` 组件管理
 - 后端设置变更 → 前端 `applyAppearanceSettings()` 更新 CSS 变量 → 组件自动响应
 - `styles/variables.css` 定义所有 CSS 变量的 **静态默认值**
-- **禁止** 在 JS/TS 中用 `element.style.xxx` 设置样式。**必须** 通过 `setProperty('--var', val)` 操作 CSS 变量
+- **必须** 通过 `setProperty('--var', val)` 操作 CSS 变量
 - 暗色模式通过 `html.dark` class 切换。**禁止** 使用 `@media (prefers-color-scheme)`
 
 ### Schema 驱动的设置 UI
@@ -68,18 +67,15 @@ paths:
 
 ### 类型安全
 
-- 所有 IPC 类型在 `bridge/contract.ts` 中定义，与 Rust `#[serde(rename_all = "camelCase")]` 同步
+- 所有 IPC 类型在 `bridge/contract.ts` 中定义，与 Rust 字段级 `#[serde(rename = "camelCaseKey")]` 保持同步
 - Schema 类型守卫集中在 `utils/schemaTypes.ts`。**禁止** 在组件中内联类型判断
 - **禁止** 使用 `any` 类型。使用 `unknown` + 类型守卫
 
 ### 国际化
 
-- 所有用户可见文本 **必须** 使用 `t('key')` 或 `$t('key')`
-- 语言文件放 `i18n/locales/`，支持 `zh-Hans` 和 `en`
-- **禁止** 硬编码中文或英文字符串到模板或脚本中
+- 所有用户可见文本 **必须** 使用 `t('key')` 或 `$t('key')`。语言文件放 `i18n/locales/`，支持 `zh-Hans` 和 `en`
 
 ### Pre-mount 初始化
 
 - 外观主题 **必须** 在 app.mount() 之前加载并应用（防止白屏闪烁）
 - 顺序：createPinia → createApp → useThemeStore().loadFromBackend() → app.mount()
-- **禁止** 在 mount 之后再设置主题（会导致视觉闪烁）

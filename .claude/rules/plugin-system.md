@@ -6,31 +6,9 @@ paths:
 
 # 插件系统规范
 
-## Configurable 生命周期铁律
+## Configurable 生命周期
 
-配置变更的 5 步流水线顺序见 [config.md](config.md) 的 `ConfigManager 的 save/load 流水线`。此处从组件实现者视角补充各方法的职责边界：
-
-### validate_settings
-
-- **只做**：纯校验 — 检查枚举范围、格式正确性、必要字段
-- **禁止**：修改状态、执行 I/O、调用 `HostApi`、注册回调
-
-### apply_settings
-
-- **只做**：将配置写入组件的内部 `RwLock`。不做任何其他副作用
-- **禁止**：重建外部服务、启动/停止监听器、注册热键、调用 `HostApi`
-
-### on_settings_changed
-
-- **只做**：执行副作用 — 重建服务、注册/取消注册回调、启动/停止监听器
-- **禁止**：修改配置值（此时配置已生效）
-
-参照实现：`HotkeyConfigComponent`、`InstallationMonitorConfigComponent`。
-
-### 反模式
-
-- **禁止** 把校验逻辑放在 `apply_settings` 中。放入 `validate_settings`
-- **禁止** 把副作用放在 `apply_settings` 中。放入 `on_settings_changed`
+配置变更的 5 步流水线及各方法的职责边界见 [config.md](config.md) 的 Configurable 生命周期规范。参照实现：`HotkeyConfigComponent`、`InstallationMonitorConfigComponent`。
 
 ## ExecutorRegistry
 
@@ -42,9 +20,8 @@ paths:
 
 ## PluginHandle 使用
 
-- 插件通过 `PluginHandle`（从 `HostApi::register()` 获取）访问平台能力。**禁止** 从 `plugin/` 代码直接 import 或调用 `sdk/platform/*`
-- 如果某平台操作没有 `PluginHandle` 方法：先添加到 `PluginHandle`，再使用。**禁止** 绕过 `PluginHandle`
-- 可用的方法列表请直接阅读 `PluginHandle` 源码（`src-tauri/src/sdk/host_api.rs`），以代码为准，避免文档滞后
+- 插件 **必须** 通过 `PluginHandle`（从 `HostApi::register()` 获取）访问平台能力。可用方法列表见 `PluginHandle` 源码（`src-tauri/src/sdk/host_api.rs`）
+- 如果某平台操作没有 `PluginHandle` 方法，**必须** 先添加到 `PluginHandle` 再使用
 
 ## 配置存储模式（RwLock\<Value\> 组件）
 
@@ -70,16 +47,14 @@ paths:
 
 ## PluginHandle 回调 ID 规范
 
-- 通过 PluginHandle 注册回调时，ID 自动被 plugin_id 前缀化（如 `"core:search_bar_toggle"`）
-- **禁止** 在回调 ID 中手动添加 plugin_id 前缀
-- 回调注销 **必须** 在 `on_settings_changed()` 或组件 drop 时执行。**禁止** 泄漏注册的回调
+- 通过 PluginHandle 注册回调时，ID 自动被 plugin_id 前缀化（如 `"core:search_bar_toggle"`），**必须** 避免手动添加前缀
+- 回调注销 **必须** 在 `on_settings_changed()` 或组件 drop 时执行
 
 ## 候选项管道（CandidatePipeline）
 
 - `CandidatePipeline::collect()` 是异步方法，按注册顺序调用每个 DataSource 的 `fetch_candidates()`
 - 采集后的候选项经过 KeywordOptimizer 链处理关键词
-- 候选项缓存在 `SessionRouter` 中，通过 `bridge_refresh_candidates` 命令触发重新采集
-- **禁止** 在搜索路径（`route_query`）中调用 `collect()`。搜索使用缓存数据
+- 候选项缓存在 `SessionRouter` 中，通过 `bridge_refresh_candidates` 命令触发重新采集。搜索 **必须** 使用缓存数据
 
 ## SearchPipeline
 
@@ -89,11 +64,7 @@ paths:
 
 ## 依赖方向
 
-- `sdk/` → **禁止** 引用 `core/`、`plugin/`、`plugin_system/`
-- `core/` → **禁止** 引用 `plugin/`、`plugin_system/`
-- `plugin/` → 可引用 `core/` 和 `sdk/`
-- `plugin_system/` → 可引用 `plugin/`、`core/`、`sdk/`
-- **禁止** 添加反向依赖引用
+见 [directory-map.md](directory-map.md) 的顶层目录职责表。
 
 ## Plugin Trait Init
 

@@ -7,9 +7,9 @@ paths:
 
 ## Async 契约
 
-- `ActionExecutor::execute` 是 `async fn`。**必须** 用 `.await`。**禁止** 使用 `tauri::async_runtime::block_on`、`tokio::runtime::Handle::block_on` 或任何在异步运行时上的同步阻塞。
-- 错误用 `?` 或 `.map_err()` 传播。**禁止** 用 `tokio::spawn` fire-and-forget 并静默吞掉错误。
-- 调用异步 SDK 方法：直接用 `.await`。**禁止** 包在 `block_on` 或 `spawn_blocking` 中。
+- `ActionExecutor::execute` 是 `async fn`。**必须** 用 `.await`
+- 错误 **必须** 用 `?` 或 `.map_err()` 传播
+- 调用异步 SDK 方法：**必须** 直接用 `.await`
 
 ## RwLock 守卫生命周期
 
@@ -33,7 +33,7 @@ paths:
 
 ## JSON 数值安全
 
-- 从 `serde_json::Value` 读取数值时，**必须** 用 `as_f64()`。**禁止** 用 `as_i64()`。前端可能对整数字段发送浮点数，`as_i64()` 遇到浮点数静默返回 0。
+- 从 `serde_json::Value` 读取数值时，**必须** 用 `as_f64()`。前端可能对整数字段发送浮点数，`as_i64()` 遇到浮点数静默返回 0。
 - **正确**：`value.as_f64().map(|v| v as i32).unwrap_or(default)`
 - **错误**：`value.as_i64().unwrap_or(default)`
 
@@ -48,12 +48,12 @@ paths:
 
 ## 用户交互
 
-- 需要向用户提问时，**必须** 使用 `AskUserQuestion` 工具。**禁止** 自行假设或猜测用户意图。
+- 需要向用户提问时，**必须** 使用 `AskUserQuestion` 工具。
 - 如果用户的需求涉及到了实际的代码的更改，则在更改之前，**必须** 先使用 plan 模式生成一个深度而又详细的计划，返回给用户。由用户确认以后，再完成代码的更改。
 
 ## 软件工程
 
-- 在做代码更改时，**必须** 在每个新写的函数前，写精简的一段注释，描述这个函数的功能、输入输出、错误情况等。**禁止** 写没有注释的函数。
+- 在做代码更改时，**必须** 在每个新写的函数前，写精简的一段注释，描述这个函数的功能、输入输出、错误情况等。
 - 对于已有函数，如果它的内部存在注释，则需要检查该注释是否正确，如果正确或是说明性的注释内容，则 **禁止** 将其删除；如果不正确，则需要修改该注释。**禁止** 留下过时或错误的注释。
 
 ## 冒烟测试
@@ -70,7 +70,7 @@ paths:
 
 ## 文件命名约定
 
-- Rust 文件名使用 `snake_case`。**禁止** 使用 kebab-case 或 camelCase
+- Rust 文件名 **必须** 使用 `snake_case`
 - Vue 组件文件名使用 `PascalCase`（如 `DynamicForm.vue`）
 - TypeScript 工具文件使用 `camelCase`（如 `schemaTypes.ts`）
 - Store 文件使用 `kebab-case` + `-store` 后缀（如 `config-store.ts`）
@@ -78,8 +78,7 @@ paths:
 
 ## Serde 序列化规范
 
-- **禁止** 使用 `#[serde(rename_all = "camelCase")]` 或任何 `rename_all` 属性。`rename_all` 在 externally tagged enum 上只会重命名 variant 标签名，**不会** 重命名 variant 内部的字段名，导致前后端字段名不一致。
-- **必须** 使用字段级 `#[serde(rename = "xxx")]` 显式标注每个字段和 variant 的 JSON 键名。即使 Rust 字段名与 JSON 键名相同，也必须显式标注以保持风格统一和可读性。
+- **必须** 使用字段级 `#[serde(rename = "xxx")]` 显式标注每个字段和 variant 的 JSON 键名。即使 Rust 字段名与 JSON 键名相同，也必须显式标注以保持风格统一和可读性。`rename_all` 在 externally tagged enum 上只会重命名 variant 标签名，**不会** 重命名 variant 内部的字段名，导致前后端字段名不一致。
 - **正确**：
   ```rust
   #[derive(Serialize, Deserialize)]
@@ -104,7 +103,7 @@ paths:
 
 ## 日志规范
 
-- 使用 `tracing` crate（`info!`、`debug!`、`warn!`、`error!`）。**禁止** 使用 `println!` 或 `eprintln!`
+- **必须** 使用 `tracing` crate（`info!`、`debug!`、`warn!`、`error!`）
 - 启动阶段关键步骤使用 `info!`。运行时频繁调用使用 `debug!`
 - 错误恢复后使用 `warn!`。不可恢复错误使用 `error!`
 - **禁止** 在日志中输出用户敏感信息（密码、完整路径中的用户名等）

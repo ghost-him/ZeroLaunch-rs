@@ -7,8 +7,8 @@ paths:
 
 ## 平台抽象
 
-- SDK 层定义 **能力契约**（trait）。SDK 层 **不** 定义调用逻辑（何时/如何调用平台服务）
-- 调用逻辑属于 `core/config/components/`（业务配置组件）
+- SDK 层 **只** 提供平台能力（trait 定义 + 平台实现），**不** 关心用户配置。用户配置的读取、校验、持久化由 Configurable 组件（`core/config/components/` 或 `plugin/`）负责
+- SDK 定义 **能力契约**（trait），调用逻辑（何时/如何调用平台服务）属于 `core/config/components/`（业务配置组件）
 - 每个平台能力包含三部分：
   1. `sdk/<capability>/` 中的 trait（如 `IconExtractor`、`ShellExecutor`、`HotkeyManager`）
   2. `sdk/platform/<os>/` 中的平台实现（如 `WindowsIconExtractor`）
@@ -17,9 +17,9 @@ paths:
 ## HostApi — 唯一跨模块出口
 
 - `HostApi` 是所有平台操作的 **唯一** 出口。`sdk/` 之外所有需要平台服务的代码都通过 `HostApi`
-- `HostApi` 方法体委托给注入的 `Arc<dyn Trait>` 实现。**禁止** 在 `HostApi` 方法中重复平台逻辑 — 委托给 trait
-- 新增 `HostApi` 方法时：先加到 `HostApi` 结构体，再考虑 `PluginHandle` 是否也要暴露
-- **禁止** 从 `plugin/` 或 `core/` 直接调用平台 API
+- `HostApi` 方法体 **必须** 委托给注入的 `Arc<dyn Trait>` 实现
+- 新增 `HostApi` 方法时：**必须** 先加到 `HostApi` 结构体，再考虑 `PluginHandle` 是否也要暴露
+- 核心程序也通过 `PluginHandle` 调用 `HostApi`（插件名字为 `core`），`HostApi` 只暴露只对核心程序开放的方法。对于插件与核心程序都可以使用的方法，**必须** 只在 `PluginHandle` 上暴露，不需要在 `HostApi` 上实现，以减少重复的代码。
 
 ## 新增平台能力的流程
 
@@ -46,8 +46,8 @@ paths:
 ## 平台能力
 
 - 每个平台通过 `PlatformCapability` 枚举声明其支持的能力。用 `capabilities()` 查询
-- 消费平台服务的代码 **必须** 优雅处理 `UnsupportedCapability` 错误。**禁止** 假设任何能力在所有平台都可用
-- UI **必须** 基于平台能力隐藏/禁用功能，而不对不支持的功能显示错误
+- 消费平台服务的代码 **必须** 优雅处理 `UnsupportedCapability` 错误
+- UI **必须** 基于平台能力隐藏/禁用功能
 
 ## 模块组织
 

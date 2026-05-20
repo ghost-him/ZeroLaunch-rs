@@ -86,8 +86,7 @@ plugin/
 └── triggerable/         ← 可触发插件（计算器等）
 ```
 
-- 每个插件实现 `Configurable` trait（配置）+ 对应的领域 trait（如 `DataSource`、`ActionExecutor`）
-- **禁止** 从 plugin/ 直接调用 `sdk/platform/*`。通过 `PluginHandle` 访问
+- 每个插件实现 `Configurable` trait（配置）+ 对应的领域 trait（如 `DataSource`、`ActionExecutor`）。**必须** 通过 `PluginHandle` 访问平台能力（见 [plugin-system.md](plugin-system.md)）
 
 #### `plugin_system/` — 插件框架
 ```
@@ -114,9 +113,7 @@ commands/
 └── resource.rs   ← resource_ 前缀（资源管理）2个命令
 ```
 
-- 命令处理器是 **薄代理**：接收参数 → 委托给 SessionRouter/ConfigManager → 返回结果
-- **禁止** 在命令处理器中包含业务逻辑
-- **禁止** 在命令处理器中直接访问 plugin/ 或 sdk/ 的类型
+- 命令处理器是 **薄代理**：接收参数 → 委托给 SessionRouter/ConfigManager → 返回结果。详细规范见 [commands.md](commands.md)
 
 ### 前端 (src-ui-new/)
 

@@ -410,8 +410,8 @@ pub trait Configurable: Send + Sync {
 3. 用户点击按钮后，前端调用 `execute_config_action(component_id, action)`
 4. 返回的 JSON 数据由前端根据配置项类型自行解析并填入对应设置项
 5. 对于 BookmarkSource 的 `detect_browsers` 场景：
-   - 返回 `Vec<BrowserInfo>`，每项包含 `{ name, bookmarksPath }`
-   - 前端将每项转为 `{ name, bookmarksPath, enabled: true }` 对象填入 sources 数组
+   - 返回 `Vec<BrowserInfo>`，每项包含 `{ name, bookmarks_path }`
+   - 前端将每项转为 `{ name, bookmarks_path, enabled: true }` 对象填入 sources 数组
 
 ### 调用链路
 
@@ -464,9 +464,9 @@ impl Configurable for BookmarkSource {
                 .map_err(|e| e.to_string()),
             "read_bookmarks" => {
                 let path = params
-                    .get("bookmarksPath")
+                    .get("bookmarks_path")
                     .and_then(|v| v.as_str())
-                    .ok_or_else(|| "缺少参数 bookmarksPath".to_string())?;
+                    .ok_or_else(|| "缺少参数 bookmarks_path".to_string())?;
                 let bookmarks = Self::read_bookmarks_from_path(path)?;
                 serde_json::to_value(bookmarks).map_err(|e| e.to_string())
             }

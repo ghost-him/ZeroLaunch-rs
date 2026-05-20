@@ -42,7 +42,7 @@ pub struct BookmarkSourceConfig {
     #[serde(rename = "name")]
     pub name: String,
     /// 书签文件路径
-    #[serde(rename = "bookmarksPath")]
+    #[serde(rename = "bookmarks_path")]
     pub bookmarks_path: String,
     /// 是否启用
     #[serde(rename = "enabled")]
@@ -59,7 +59,7 @@ pub struct BookmarkOverride {
     #[serde(rename = "excluded")]
     pub excluded: bool,
     /// 自定义标题
-    #[serde(rename = "customTitle")]
+    #[serde(rename = "custom_title")]
     pub custom_title: Option<String>,
 }
 
@@ -68,7 +68,7 @@ pub struct BookmarkOverride {
 pub struct BrowserInfo {
     #[serde(rename = "name")]
     pub name: String,
-    #[serde(rename = "bookmarksPath")]
+    #[serde(rename = "bookmarks_path")]
     pub bookmarks_path: String,
 }
 
@@ -289,8 +289,8 @@ impl Configurable for BookmarkSource {
                 .config_action("detect_browsers")
                 .detail_action(DetailActionDef {
                     action: "read_bookmarks".to_string(),
-                    param_field: "bookmarksPath".to_string(),
-                    param_key: "bookmarksPath".to_string(),
+                    param_field: "bookmarks_path".to_string(),
+                    param_key: "bookmarks_path".to_string(),
                     preview_item_key: "url".to_string(),
                     preview_item_label: "title".to_string(),
                     target_field: "overrides".to_string(),
@@ -302,7 +302,7 @@ impl Configurable for BookmarkSource {
                         .editable(false)
                         .build_field(),
                     SchemaBuilder::path(
-                        "bookmarksPath",
+                        "bookmarks_path",
                         "书签文件路径",
                         "浏览器书签文件的完整路径",
                     )
@@ -330,7 +330,7 @@ impl Configurable for BookmarkSource {
                         .default(false)
                         .build_field(),
                     SchemaBuilder::text(
-                        "customTitle",
+                        "custom_title",
                         "自定义标题",
                         "替换原始标题的自定义标题，留空则使用原始标题",
                     )
@@ -380,7 +380,7 @@ impl Configurable for BookmarkSource {
                     .map(|b| {
                         serde_json::json!({
                             "name": b.name,
-                            "bookmarksPath": b.bookmarks_path,
+                            "bookmarks_path": b.bookmarks_path,
                             "enabled": true,
                         })
                     })
@@ -389,9 +389,9 @@ impl Configurable for BookmarkSource {
             }
             "read_bookmarks" => {
                 let path = params
-                    .get("bookmarksPath")
+                    .get("bookmarks_path")
                     .and_then(|v| v.as_str())
-                    .ok_or_else(|| "缺少参数 bookmarksPath".to_string())?;
+                    .ok_or_else(|| "缺少参数 bookmarks_path".to_string())?;
                 let bookmarks = Self::read_bookmarks_from_path(path)?;
                 serde_json::to_value(bookmarks).map_err(|e| e.to_string())
             }

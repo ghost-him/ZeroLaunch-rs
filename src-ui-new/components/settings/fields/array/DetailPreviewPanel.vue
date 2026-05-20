@@ -217,7 +217,7 @@ const enrichedItems = computed<EnrichedItem[]>(() => {
     const override = overrideMap.get(normalizeKey(item.key))
     const excluded = override?.excluded === true
     const customTitle =
-      typeof override?.customTitle === 'string' ? String(override.customTitle).trim() : ''
+      typeof override?.custom_title === 'string' ? String(override.custom_title).trim() : ''
     return {
       ...item,
       excluded,
@@ -228,7 +228,7 @@ const enrichedItems = computed<EnrichedItem[]>(() => {
 })
 
 function hasCustomTitleInOverride(override: Record<string, unknown>): boolean {
-  const title = override.customTitle
+  const title = override.custom_title
   return typeof title === 'string' && title.trim().length > 0
 }
 
@@ -250,7 +250,7 @@ function toggleExcluded(key: string, excluded: boolean) {
     overrides.push({
       [matchKey]: key,
       excluded: true,
-      customTitle: '',
+      custom_title: '',
     })
   }
 
@@ -265,7 +265,7 @@ function openEdit(item: PreviewItem) {
   const override = overrides.find(
     (o) => normalizeKey(String(o[matchKey] ?? '')) === nk,
   )
-  editCustomTitle.value = (override?.customTitle as string) ?? ''
+  editCustomTitle.value = (override?.custom_title as string) ?? ''
   editExcluded.value = override?.excluded === true
   editDialogVisible.value = true
 }
@@ -290,14 +290,14 @@ function saveEdit() {
       overrides[idx] = {
         ...overrides[idx],
         excluded: editExcluded.value,
-        customTitle: editCustomTitle.value.trim(),
+        custom_title: editCustomTitle.value.trim(),
       }
     }
   } else if (hasChanges) {
     overrides.push({
       [matchKey]: key,
       excluded: editExcluded.value,
-      customTitle: editCustomTitle.value.trim(),
+      custom_title: editCustomTitle.value.trim(),
     })
   }
 

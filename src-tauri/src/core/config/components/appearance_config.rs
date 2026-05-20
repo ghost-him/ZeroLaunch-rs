@@ -2,12 +2,293 @@ use crate::core::config::setting_builders::SchemaBuilder;
 use crate::core::types::setting_def::SettingDefinition;
 use crate::core::types::{ComponentType, ConfigError, Configurable};
 use parking_lot::RwLock;
+use serde::{Deserialize, Serialize};
 use tracing::info;
+
+// ============ 默认值函数 ============
+// 为所有非类型原生的业务默认值提供函数，供 #[serde(default = "...")] 引用。
+
+fn default_theme() -> String {
+    "system".to_string()
+}
+fn default_language() -> String {
+    "zh-Hans".to_string()
+}
+fn default_search_bar_height() -> f64 {
+    72.0
+}
+fn default_search_bar_font_ratio() -> f64 {
+    0.56
+}
+fn default_search_bar_placeholder() -> String {
+    "Hello, ZeroLaunch! ヾ(≧▽≦*)o".to_string()
+}
+fn default_result_item_height() -> f64 {
+    54.0
+}
+fn default_result_item_font_ratio() -> f64 {
+    0.30
+}
+fn default_result_item_subtitle_font_ratio() -> f64 {
+    0.24
+}
+fn default_result_item_icon_ratio() -> f64 {
+    0.72
+}
+fn default_max_visible_results() -> f64 {
+    8.0
+}
+fn default_footer_height() -> f64 {
+    48.0
+}
+fn default_footer_font_ratio() -> f64 {
+    0.25
+}
+fn default_window_width() -> f64 {
+    800.0
+}
+fn default_window_corner_radius() -> f64 {
+    12.0
+}
+fn default_vertical_position_ratio() -> f64 {
+    0.28
+}
+fn default_bg_primary() -> String {
+    "#ffffff".to_string()
+}
+fn default_bg_secondary() -> String {
+    "#f5f5f5".to_string()
+}
+fn default_text_primary() -> String {
+    "#1a1a1a".to_string()
+}
+fn default_text_secondary() -> String {
+    "#666666".to_string()
+}
+fn default_border_color() -> String {
+    "#e5e5e5".to_string()
+}
+fn default_accent_color() -> String {
+    "#2080f0".to_string()
+}
+fn default_hover_color() -> String {
+    "rgba(0,0,0,0.04)".to_string()
+}
+fn default_dark_bg_primary() -> String {
+    "#1a1a1a".to_string()
+}
+fn default_dark_bg_secondary() -> String {
+    "#2a2a2a".to_string()
+}
+fn default_dark_text_primary() -> String {
+    "#e5e5e5".to_string()
+}
+fn default_dark_text_secondary() -> String {
+    "#999999".to_string()
+}
+fn default_dark_border_color() -> String {
+    "#333333".to_string()
+}
+fn default_dark_accent_color() -> String {
+    "#4098fc".to_string()
+}
+fn default_dark_hover_color() -> String {
+    "rgba(255,255,255,0.06)".to_string()
+}
+fn default_bg_size() -> String {
+    "cover".to_string()
+}
+fn default_bg_position() -> String {
+    "center".to_string()
+}
+fn default_bg_repeat() -> String {
+    "no-repeat".to_string()
+}
+fn default_bg_opacity() -> f64 {
+    1.0
+}
+
+// ============ 强类型配置结构 ============
+
+/// 外观设置的强类型配置结构。
+/// 每个字段标注 `#[serde(default)]`，确保老 JSON 缺失新字段时回退到业务默认值，
+/// 且 `get_settings()` 返回的 JSON 始终包含完整字段。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AppearanceSettings {
+    // ---- 主题 & 语言 ----
+    #[serde(rename = "theme", default = "default_theme")]
+    pub theme: String,
+    #[serde(rename = "language", default = "default_language")]
+    pub language: String,
+
+    // ---- 搜索栏 ----
+    #[serde(rename = "search_bar_height", default = "default_search_bar_height")]
+    pub search_bar_height: f64,
+    #[serde(
+        rename = "search_bar_font_ratio",
+        default = "default_search_bar_font_ratio"
+    )]
+    pub search_bar_font_ratio: f64,
+    #[serde(rename = "search_bar_font_family", default)]
+    pub search_bar_font_family: String,
+    #[serde(
+        rename = "search_bar_placeholder",
+        default = "default_search_bar_placeholder"
+    )]
+    pub search_bar_placeholder: String,
+
+    // ---- 结果栏 ----
+    #[serde(rename = "result_item_height", default = "default_result_item_height")]
+    pub result_item_height: f64,
+    #[serde(
+        rename = "result_item_font_ratio",
+        default = "default_result_item_font_ratio"
+    )]
+    pub result_item_font_ratio: f64,
+    #[serde(
+        rename = "result_item_subtitle_font_ratio",
+        default = "default_result_item_subtitle_font_ratio"
+    )]
+    pub result_item_subtitle_font_ratio: f64,
+    #[serde(
+        rename = "result_item_icon_ratio",
+        default = "default_result_item_icon_ratio"
+    )]
+    pub result_item_icon_ratio: f64,
+    #[serde(rename = "result_item_font_family", default)]
+    pub result_item_font_family: String,
+    #[serde(
+        rename = "max_visible_results",
+        default = "default_max_visible_results"
+    )]
+    pub max_visible_results: f64,
+    #[serde(rename = "show_launch_command", default)]
+    pub show_launch_command: bool,
+
+    // ---- 底栏 ----
+    #[serde(rename = "footer_height", default = "default_footer_height")]
+    pub footer_height: f64,
+    #[serde(rename = "footer_font_ratio", default = "default_footer_font_ratio")]
+    pub footer_font_ratio: f64,
+    #[serde(rename = "footer_font_family", default)]
+    pub footer_font_family: String,
+
+    // ---- 窗口 ----
+    #[serde(rename = "window_width", default = "default_window_width")]
+    pub window_width: f64,
+    #[serde(
+        rename = "window_corner_radius",
+        default = "default_window_corner_radius"
+    )]
+    pub window_corner_radius: f64,
+    #[serde(
+        rename = "vertical_position_ratio",
+        default = "default_vertical_position_ratio"
+    )]
+    pub vertical_position_ratio: f64,
+
+    // ---- 浅色配色 ----
+    #[serde(rename = "bg_primary", default = "default_bg_primary")]
+    pub bg_primary: String,
+    #[serde(rename = "bg_secondary", default = "default_bg_secondary")]
+    pub bg_secondary: String,
+    #[serde(rename = "text_primary", default = "default_text_primary")]
+    pub text_primary: String,
+    #[serde(rename = "text_secondary", default = "default_text_secondary")]
+    pub text_secondary: String,
+    #[serde(rename = "border_color", default = "default_border_color")]
+    pub border_color: String,
+    #[serde(rename = "accent_color", default = "default_accent_color")]
+    pub accent_color: String,
+    #[serde(rename = "hover_color", default = "default_hover_color")]
+    pub hover_color: String,
+
+    // ---- 深色配色 ----
+    #[serde(rename = "dark_bg_primary", default = "default_dark_bg_primary")]
+    pub dark_bg_primary: String,
+    #[serde(rename = "dark_bg_secondary", default = "default_dark_bg_secondary")]
+    pub dark_bg_secondary: String,
+    #[serde(rename = "dark_text_primary", default = "default_dark_text_primary")]
+    pub dark_text_primary: String,
+    #[serde(
+        rename = "dark_text_secondary",
+        default = "default_dark_text_secondary"
+    )]
+    pub dark_text_secondary: String,
+    #[serde(rename = "dark_border_color", default = "default_dark_border_color")]
+    pub dark_border_color: String,
+    #[serde(rename = "dark_accent_color", default = "default_dark_accent_color")]
+    pub dark_accent_color: String,
+    #[serde(rename = "dark_hover_color", default = "default_dark_hover_color")]
+    pub dark_hover_color: String,
+
+    // ---- 背景图片 ----
+    #[serde(rename = "bg_image", default)]
+    pub bg_image: String,
+    #[serde(rename = "bg_image_dark", default)]
+    pub bg_image_dark: String,
+    #[serde(rename = "bg_size", default = "default_bg_size")]
+    pub bg_size: String,
+    #[serde(rename = "bg_position", default = "default_bg_position")]
+    pub bg_position: String,
+    #[serde(rename = "bg_repeat", default = "default_bg_repeat")]
+    pub bg_repeat: String,
+    #[serde(rename = "bg_opacity", default = "default_bg_opacity")]
+    pub bg_opacity: f64,
+}
+
+impl Default for AppearanceSettings {
+    fn default() -> Self {
+        Self {
+            theme: default_theme(),
+            language: default_language(),
+            search_bar_height: default_search_bar_height(),
+            search_bar_font_ratio: default_search_bar_font_ratio(),
+            search_bar_font_family: String::new(),
+            search_bar_placeholder: default_search_bar_placeholder(),
+            result_item_height: default_result_item_height(),
+            result_item_font_ratio: default_result_item_font_ratio(),
+            result_item_subtitle_font_ratio: default_result_item_subtitle_font_ratio(),
+            result_item_icon_ratio: default_result_item_icon_ratio(),
+            result_item_font_family: String::new(),
+            max_visible_results: default_max_visible_results(),
+            show_launch_command: false,
+            footer_height: default_footer_height(),
+            footer_font_ratio: default_footer_font_ratio(),
+            footer_font_family: String::new(),
+            window_width: default_window_width(),
+            window_corner_radius: default_window_corner_radius(),
+            vertical_position_ratio: default_vertical_position_ratio(),
+            bg_primary: default_bg_primary(),
+            bg_secondary: default_bg_secondary(),
+            text_primary: default_text_primary(),
+            text_secondary: default_text_secondary(),
+            border_color: default_border_color(),
+            accent_color: default_accent_color(),
+            hover_color: default_hover_color(),
+            dark_bg_primary: default_dark_bg_primary(),
+            dark_bg_secondary: default_dark_bg_secondary(),
+            dark_text_primary: default_dark_text_primary(),
+            dark_text_secondary: default_dark_text_secondary(),
+            dark_border_color: default_dark_border_color(),
+            dark_accent_color: default_dark_accent_color(),
+            dark_hover_color: default_dark_hover_color(),
+            bg_image: String::new(),
+            bg_image_dark: String::new(),
+            bg_size: default_bg_size(),
+            bg_position: default_bg_position(),
+            bg_repeat: default_bg_repeat(),
+            bg_opacity: default_bg_opacity(),
+        }
+    }
+}
+
+// ============ 配置组件 ============
 
 /// 外观配置组件。
 /// 管理主题（浅色/深色/跟随系统）、语言偏好、搜索栏/结果栏/底栏尺寸与字体、窗口参数、配色方案。
 pub struct AppearanceConfigComponent {
-    settings: RwLock<serde_json::Value>,
+    settings: RwLock<AppearanceSettings>,
 }
 
 impl Default for AppearanceConfigComponent {
@@ -19,7 +300,7 @@ impl Default for AppearanceConfigComponent {
 impl AppearanceConfigComponent {
     pub fn new() -> Self {
         Self {
-            settings: RwLock::new(serde_json::Value::Null),
+            settings: RwLock::new(AppearanceSettings::default()),
         }
     }
 }
@@ -360,11 +641,12 @@ impl Configurable for AppearanceConfigComponent {
     }
 
     fn get_settings(&self) -> serde_json::Value {
-        self.settings.read().clone()
+        serde_json::to_value(self.settings.read().clone()).unwrap_or_default()
     }
 
     fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
-        *self.settings.write() = settings;
+        let parsed: AppearanceSettings = serde_json::from_value(settings).unwrap_or_default();
+        *self.settings.write() = parsed;
         Ok(())
     }
 

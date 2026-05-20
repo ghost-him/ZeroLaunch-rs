@@ -6,12 +6,29 @@ use crate::sdk::host_api::PluginHandle;
 use crate::sdk::IconRequest;
 use async_trait::async_trait;
 use parking_lot::RwLock;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::debug;
 
+/// 单个网页快捷方式的配置项。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UrlEntry {
+    #[serde(rename = "name", default)]
+    pub name: String,
+    #[serde(rename = "url", default)]
+    pub url: String,
+}
+
+/// 网页数据源的强类型配置结构。
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct UrlSourceSettings {
+    #[serde(rename = "web_pages", default)]
+    pub web_pages: Vec<UrlEntry>,
+}
+
 /// 网页数据源插件，负责从用户配置的网页列表中加载数据源候选项。
 pub struct UrlSource {
-    settings: RwLock<serde_json::Value>,
+    settings: RwLock<UrlSourceSettings>,
     #[allow(dead_code)]
     handle: Arc<PluginHandle>,
 }
@@ -19,27 +36,9 @@ pub struct UrlSource {
 impl UrlSource {
     pub fn new(handle: Arc<PluginHandle>) -> Self {
         UrlSource {
-            settings: RwLock::new(serde_json::Value::Null),
+            settings: RwLock::new(UrlSourceSettings::default()),
             handle,
         }
-    }
-
-    /// 从 settings 中解析网页列表配置
-    fn parse_web_pages(&self) -> Vec<(String, String)> {
-        self.settings
-            .read()
-            .get("web_pages")
-            .and_then(|v| v.as_array())
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|item| {
-                        let name = item.get("name")?.as_str()?.to_string();
-                        let url = item.get("url")?.as_str()?.to_string();
-                        Some((name, url))
-                    })
-                    .collect()
-            })
-            .unwrap_or_default()
     }
 }
 
@@ -76,11 +75,12 @@ impl Configurable for UrlSource {
     }
 
     fn get_settings(&self) -> serde_json::Value {
-        self.settings.read().clone()
+        serde_json::to_value(self.settings.read().clone()).unwrap_or_default()
     }
 
     fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
-        *self.settings.write() = settings;
+        let parsed: UrlSourceSettings = serde_json::from_value(settings).unwrap_or_default();
+        *self.settings.write() = parsed;
         Ok(())
     }
 }
@@ -89,23 +89,23 @@ impl Configurable for UrlSource {
 impl DataSource for UrlSource {
     async fn fetch_candidates(&self) -> CachedCandidateData {
         let mut result = CachedCandidateData::new();
-        let web_pages = self.parse_web_pages();
+        let s = self.settings.read();
 
-        for (name, url) in &web_pages {
-            if name.is_empty() || url.is_empty() {
+        for entry in &s.web_pages {
+            if entry.name.is_empty() || entry.url.is_empty() {
                 continue;
             }
 
             let candidate = SearchCandidate {
                 id: 0,
-                name: name.clone(),
-                icon: IconRequest::Url(url.clone()),
-                target: ExecutionTarget::Url(url.clone()),
+                name: entry.name.clone(),
+                icon: IconRequest::Url(entry.url.clone()),
+                target: ExecutionTarget::Url(entry.url.clone()),
                 keywords: Vec::new(),
                 bias: 0.0,
             };
 
-            debug!("UrlSource: 加载网页候选项: {} -> {}", name, url);
+            debug!("UrlSource: 加载网页候选项: {} -> {}", entry.name, entry.url);
             result.add_candidate(candidate);
         }
 

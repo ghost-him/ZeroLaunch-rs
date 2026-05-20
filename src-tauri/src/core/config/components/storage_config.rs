@@ -6,8 +6,53 @@ use crate::sdk::storage::local_storage::LocalStorageService;
 use crate::sdk::storage::storage_service::StorageService;
 use crate::sdk::storage::webdav_storage::{WebDAVConfig, WebDAVStorageService};
 use parking_lot::RwLock;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::info;
+
+/// 存储设置的强类型配置结构。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StorageSettings {
+    #[serde(
+        rename = "storage_destination",
+        default = "default_storage_destination"
+    )]
+    pub storage_destination: String,
+    #[serde(rename = "custom_save_path", default)]
+    pub custom_save_path: String,
+    #[serde(rename = "webdav_host_url", default)]
+    pub webdav_host_url: String,
+    #[serde(rename = "webdav_account", default)]
+    pub webdav_account: String,
+    #[serde(rename = "webdav_password", default)]
+    pub webdav_password: String,
+    #[serde(
+        rename = "webdav_destination_dir",
+        default = "default_webdav_destination_dir"
+    )]
+    pub webdav_destination_dir: String,
+}
+
+impl Default for StorageSettings {
+    fn default() -> Self {
+        Self {
+            storage_destination: default_storage_destination(),
+            custom_save_path: String::new(),
+            webdav_host_url: String::new(),
+            webdav_account: String::new(),
+            webdav_password: String::new(),
+            webdav_destination_dir: default_webdav_destination_dir(),
+        }
+    }
+}
+
+fn default_storage_destination() -> String {
+    "Local".to_string()
+}
+
+fn default_webdav_destination_dir() -> String {
+    "/ZeroLaunch-rs/".to_string()
+}
 
 /// 存储配置组件。
 /// 管理存储后端类型、自定义保存路径、WebDAV 连接配置。
@@ -16,7 +61,7 @@ pub struct StorageConfigComponent {
     /// HostApi 引用，用于运行时重配置存储服务
     host_api: Arc<HostApi>,
     /// 当前配置状态
-    settings: RwLock<serde_json::Value>,
+    settings: RwLock<StorageSettings>,
 }
 
 impl StorageConfigComponent {
@@ -25,7 +70,7 @@ impl StorageConfigComponent {
     pub fn new(host_api: Arc<HostApi>) -> Self {
         Self {
             host_api,
-            settings: RwLock::new(serde_json::Value::Null),
+            settings: RwLock::new(StorageSettings::default()),
         }
     }
 }
@@ -93,11 +138,12 @@ impl Configurable for StorageConfigComponent {
     }
 
     fn get_settings(&self) -> serde_json::Value {
-        self.settings.read().clone()
+        serde_json::to_value(self.settings.read().clone()).unwrap_or_default()
     }
 
     fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
-        *self.settings.write() = settings;
+        let parsed: StorageSettings = serde_json::from_value(settings).unwrap_or_default();
+        *self.settings.write() = parsed;
         Ok(())
     }
 
@@ -133,63 +179,32 @@ impl Configurable for StorageConfigComponent {
     }
 
     fn on_settings_changed(&self) {
-        let settings = self.settings.read().clone();
+        let s = self.settings.read().clone();
 
-        let destination = settings
-            .get("storage_destination")
-            .and_then(|v| v.as_str())
-            .unwrap_or("Local");
-
-        let new_service: Arc<dyn StorageService> = match destination {
+        let new_service: Arc<dyn StorageService> = match s.storage_destination.as_str() {
             "WebDAV" => {
-                let host_url = settings
-                    .get("webdav_host_url")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string();
-                let account = settings
-                    .get("webdav_account")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string();
-                let password = settings
-                    .get("webdav_password")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string();
-                let destination_dir = settings
-                    .get("webdav_destination_dir")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("/ZeroLaunch-rs/")
-                    .to_string();
-
-                info!("切换存储后端为 WebDAV: {}", host_url);
+                info!("切换存储后端为 WebDAV: {}", s.webdav_host_url);
                 let config = WebDAVConfig {
-                    host_url,
-                    account,
-                    password,
-                    destination_dir,
+                    host_url: s.webdav_host_url,
+                    account: s.webdav_account,
+                    password: s.webdav_password,
+                    destination_dir: s.webdav_destination_dir,
                 };
                 Arc::new(WebDAVStorageService::new(&config))
             }
             _ => {
-                let custom_path = settings
-                    .get("custom_save_path")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("");
-
-                if custom_path.is_empty() {
+                if s.custom_save_path.is_empty() {
                     info!("切换存储后端为 Local（默认路径）");
                     let current_dir = self.host_api.storage().target_dir_path();
                     Arc::new(LocalStorageService::new(&current_dir))
                 } else {
-                    info!("切换存储后端为 Local（自定义路径: {}）", custom_path);
-                    Arc::new(LocalStorageService::new(custom_path))
+                    info!("切换存储后端为 Local（自定义路径: {}）", s.custom_save_path);
+                    Arc::new(LocalStorageService::new(&s.custom_save_path))
                 }
             }
         };
 
         self.host_api.reconfigure_storage(new_service);
-        info!("存储配置已变更，当前后端: {}", destination);
+        info!("存储配置已变更，当前后端: {}", s.storage_destination);
     }
 }

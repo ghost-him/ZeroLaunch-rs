@@ -5,16 +5,29 @@ use crate::plugin_system::types::{
 use crate::sdk::IconRequest;
 use async_trait::async_trait;
 use parking_lot::RwLock;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::sync::Arc;
 
 pub struct CalculatorPlugin {
     metadata: PluginMetadata,
-    inner: RwLock<CalculatorInner>,
+    inner: RwLock<CalculatorSettings>,
 }
 
-struct CalculatorInner {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct CalculatorSettings {
+    #[serde(rename = "enabled", default = "default_enabled_true")]
     enabled: bool,
+}
+
+fn default_enabled_true() -> bool {
+    true
+}
+
+impl Default for CalculatorSettings {
+    fn default() -> Self {
+        Self { enabled: true }
+    }
 }
 
 impl Default for CalculatorPlugin {
@@ -40,10 +53,12 @@ impl CalculatorPlugin {
                 ],
                 priority: 100,
             },
-            inner: RwLock::new(CalculatorInner { enabled: true }),
+            inner: RwLock::new(CalculatorSettings::default()),
         }
     }
 
+    /// 对数学表达式求值，返回计算结果。
+    /// 错误时返回描述性字符串。
     fn evaluate(&self, expr: &str) -> Result<f64, String> {
         let mut parser = ExprParser::new(expr);
         parser.parse()
@@ -66,14 +81,12 @@ impl Configurable for CalculatorPlugin {
     }
 
     fn get_settings(&self) -> serde_json::Value {
-        let inner = self.inner.read();
-        json!({ "enabled": inner.enabled })
+        serde_json::to_value(self.inner.read().clone()).unwrap_or_default()
     }
 
     fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
-        if let Some(enabled) = settings.get("enabled").and_then(|v| v.as_bool()) {
-            self.inner.write().enabled = enabled;
-        }
+        let parsed: CalculatorSettings = serde_json::from_value(settings).unwrap_or_default();
+        *self.inner.write() = parsed;
         Ok(())
     }
 

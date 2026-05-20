@@ -3,24 +3,41 @@ use crate::plugin_system::types::{
     ComponentType, ConfigError, Configurable, KeywordOptimizer, SettingDefinition,
 };
 use parking_lot::RwLock;
+use serde::{Deserialize, Serialize};
 
-struct SymbolRemoverInner {
+/// 符号移除器的可持久化配置
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct SymbolRemoverSettings {
+    #[serde(rename = "priority", default = "default_priority_70")]
     priority: i32,
+    #[serde(rename = "uses_context", default = "default_uses_context_true")]
     uses_context: bool,
 }
 
-impl SymbolRemoverInner {
-    fn new() -> Self {
+fn default_priority_70() -> i32 {
+    70
+}
+
+fn default_uses_context_true() -> bool {
+    true
+}
+
+impl Default for SymbolRemoverSettings {
+    fn default() -> Self {
         Self {
-            priority: 70,
-            uses_context: true,
+            priority: default_priority_70(),
+            uses_context: default_uses_context_true(),
         }
     }
+}
 
+impl SymbolRemoverSettings {
+    /// 移除字符串中所有非字母数字的符号字符
     fn remove_symbols(&self, s: &str) -> String {
         s.chars().filter(|c| c.is_alphanumeric()).collect()
     }
 
+    /// 对关键词执行优化：移除符号，生成去符号后的变体
     fn optimize(&self, keyword: &str) -> Vec<String> {
         let result = self.remove_symbols(keyword);
         if result.is_empty() || result == keyword {
@@ -32,7 +49,7 @@ impl SymbolRemoverInner {
 }
 
 pub struct SymbolRemover {
-    inner: RwLock<SymbolRemoverInner>,
+    inner: RwLock<SymbolRemoverSettings>,
 }
 
 impl Default for SymbolRemover {
@@ -44,7 +61,7 @@ impl Default for SymbolRemover {
 impl SymbolRemover {
     pub fn new() -> Self {
         Self {
-            inner: RwLock::new(SymbolRemoverInner::new()),
+            inner: RwLock::new(SymbolRemoverSettings::default()),
         }
     }
 }
@@ -83,21 +100,12 @@ impl Configurable for SymbolRemover {
     }
 
     fn get_settings(&self) -> serde_json::Value {
-        let inner = self.inner.read();
-        serde_json::json!({
-            "priority": inner.priority,
-            "uses_context": inner.uses_context
-        })
+        serde_json::to_value(self.inner.read().clone()).unwrap_or_default()
     }
 
     fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
-        let mut inner = self.inner.write();
-        if let Some(priority) = settings.get("priority").and_then(|v| v.as_f64()) {
-            inner.priority = priority as i32;
-        }
-        if let Some(uses_context) = settings.get("uses_context").and_then(|v| v.as_bool()) {
-            inner.uses_context = uses_context;
-        }
+        let parsed: SymbolRemoverSettings = serde_json::from_value(settings).unwrap_or_default();
+        *self.inner.write() = parsed;
         Ok(())
     }
 }

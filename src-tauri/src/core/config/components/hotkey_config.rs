@@ -4,8 +4,31 @@ use crate::core::types::{ComponentType, ConfigError, Configurable};
 use crate::sdk::host_api::HostApi;
 use crate::sdk::hotkey::types::{Hotkey, HotkeyConfig, HotkeyRegistration};
 use parking_lot::RwLock;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::{info, warn};
+
+/// 快捷键设置的强类型配置结构。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HotkeySettings {
+    #[serde(rename = "open_search_bar", default = "default_open_search_bar")]
+    pub open_search_bar: String,
+    #[serde(rename = "double_click_ctrl", default)]
+    pub double_click_ctrl: bool,
+}
+
+impl Default for HotkeySettings {
+    fn default() -> Self {
+        Self {
+            open_search_bar: default_open_search_bar(),
+            double_click_ctrl: false,
+        }
+    }
+}
+
+fn default_open_search_bar() -> String {
+    "Alt+Space".to_string()
+}
 
 /// 快捷键配置组件。
 /// 管理全局快捷键（打开搜索栏、切换 Everything 等）和双击 Ctrl 开关。
@@ -14,7 +37,7 @@ pub struct HotkeyConfigComponent {
     /// HostApi 引用，用于应用快捷键配置
     host_api: Arc<HostApi>,
     /// 当前配置状态
-    settings: RwLock<serde_json::Value>,
+    settings: RwLock<HotkeySettings>,
 }
 
 impl HotkeyConfigComponent {
@@ -23,7 +46,7 @@ impl HotkeyConfigComponent {
     pub fn new(host_api: Arc<HostApi>) -> Self {
         Self {
             host_api,
-            settings: RwLock::new(serde_json::Value::Null),
+            settings: RwLock::new(HotkeySettings::default()),
         }
     }
 }
@@ -79,34 +102,26 @@ fn format_hotkey_string(hotkey: &Hotkey) -> String {
 
 /// 将当前配置值转换为 HotkeyConfig。
 /// 从语义化的配置项（open_search_bar 等）映射到 SDK 的 HotkeyConfig。
-/// 参数：settings - 当前配置 JSON。
+/// 参数：settings - 当前热键配置。
 /// 返回：HotkeyConfig 实例。
-fn settings_to_hotkey_config(settings: &serde_json::Value) -> HotkeyConfig {
+fn settings_to_hotkey_config(settings: &HotkeySettings) -> HotkeyConfig {
     let mut hotkeys = Vec::new();
 
-    // 解析各个语义化快捷键
-    let hotkey_fields = ["open_search_bar", "switch_to_everything"];
+    let hotkey_strs = [&settings.open_search_bar];
 
-    for field in &hotkey_fields {
-        if let Some(hotkey_str) = settings.get(field).and_then(|v| v.as_str()) {
-            if !hotkey_str.is_empty() {
-                if let Some(hotkey) = parse_hotkey_string(hotkey_str) {
-                    hotkeys.push(HotkeyRegistration { hotkey });
-                } else {
-                    warn!("快捷键配置解析失败: {} = {}", field, hotkey_str);
-                }
+    for hotkey_str in &hotkey_strs {
+        if !hotkey_str.is_empty() {
+            if let Some(hotkey) = parse_hotkey_string(hotkey_str) {
+                hotkeys.push(HotkeyRegistration { hotkey });
+            } else {
+                warn!("快捷键配置解析失败: {}", hotkey_str);
             }
         }
     }
 
-    let double_ctrl_enabled = settings
-        .get("double_click_ctrl")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
-
     HotkeyConfig {
         hotkeys,
-        double_ctrl_enabled,
+        double_ctrl_enabled: settings.double_click_ctrl,
     }
 }
 
@@ -147,11 +162,12 @@ impl Configurable for HotkeyConfigComponent {
     }
 
     fn get_settings(&self) -> serde_json::Value {
-        self.settings.read().clone()
+        serde_json::to_value(self.settings.read().clone()).unwrap_or_default()
     }
 
     fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
-        *self.settings.write() = settings;
+        let parsed: HotkeySettings = serde_json::from_value(settings).unwrap_or_default();
+        *self.settings.write() = parsed;
         Ok(())
     }
 
@@ -171,8 +187,7 @@ impl Configurable for HotkeyConfigComponent {
     }
 
     fn on_settings_changed(&self) {
-        let settings = self.settings.read().clone();
-        let hotkey_config = settings_to_hotkey_config(&settings);
+        let hotkey_config = settings_to_hotkey_config(&self.settings.read());
         let double_ctrl = hotkey_config.double_ctrl_enabled;
 
         info!(
@@ -251,13 +266,12 @@ mod tests {
 
     #[test]
     fn test_settings_to_hotkey_config() {
-        let settings = serde_json::json!({
-            "open_search_bar": "Alt+Space",
-            "switch_to_everything": "Ctrl+E",
-            "double_click_ctrl": true
-        });
+        let settings = HotkeySettings {
+            open_search_bar: "Alt+Space".to_string(),
+            double_click_ctrl: true,
+        };
         let config = settings_to_hotkey_config(&settings);
-        assert_eq!(config.hotkeys.len(), 2);
+        assert_eq!(config.hotkeys.len(), 1);
         assert!(config.double_ctrl_enabled);
     }
 }

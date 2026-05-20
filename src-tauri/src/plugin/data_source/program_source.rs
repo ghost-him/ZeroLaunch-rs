@@ -9,30 +9,47 @@ use async_trait::async_trait;
 use globset::GlobSetBuilder;
 use parking_lot::RwLock;
 use regex::RegexSet;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 use tracing::{debug, warn};
 use walkdir::WalkDir;
 
-#[derive(Debug, Clone, serde::Deserialize, Default)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, Default)]
 enum SymlinkMode {
     #[default]
     ExplicitOnly,
     Auto,
 }
 
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 struct DirectoryConfig {
+    #[serde(default)]
     root_path: String,
+    #[serde(default = "default_max_depth")]
     max_depth: u32,
+    #[serde(default)]
     pattern: Vec<String>,
+    #[serde(default)]
     pattern_type: String,
+    #[serde(default)]
     excluded_keywords: Vec<String>,
     #[serde(default)]
     forbidden_paths: Vec<String>,
     #[serde(default)]
     symlink_mode: SymlinkMode,
+}
+
+fn default_max_depth() -> u32 {
+    3
+}
+
+/// 程序数据源的强类型配置结构。
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+struct ProgramSourceSettings {
+    #[serde(rename = "directories", default)]
+    directories: Vec<DirectoryConfig>,
 }
 
 struct PathChecker {
@@ -115,14 +132,14 @@ impl PathChecker {
 }
 
 pub struct ProgramSource {
-    settings: RwLock<serde_json::Value>,
+    settings: RwLock<ProgramSourceSettings>,
     handle: Arc<PluginHandle>,
 }
 
 impl ProgramSource {
     pub fn new(handle: Arc<PluginHandle>) -> Self {
         ProgramSource {
-            settings: RwLock::new(serde_json::Value::Null),
+            settings: RwLock::new(ProgramSourceSettings::default()),
             handle,
         }
     }
@@ -233,16 +250,7 @@ impl ProgramSource {
     }
 
     fn parse_directory_configs(&self) -> Vec<DirectoryConfig> {
-        let settings = self.settings.read();
-        let directories = settings.get("directories").and_then(|v| v.as_array());
-
-        match directories {
-            Some(arr) => arr
-                .iter()
-                .filter_map(|config| serde_json::from_value(config.clone()).ok())
-                .collect(),
-            None => Vec::new(),
-        }
+        self.settings.read().directories.clone()
     }
 }
 
@@ -371,11 +379,12 @@ impl Configurable for ProgramSource {
     }
 
     fn get_settings(&self) -> serde_json::Value {
-        self.settings.read().clone()
+        serde_json::to_value(self.settings.read().clone()).unwrap_or_default()
     }
 
     fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
-        *self.settings.write() = settings;
+        let parsed: ProgramSourceSettings = serde_json::from_value(settings).unwrap_or_default();
+        *self.settings.write() = parsed;
         Ok(())
     }
 

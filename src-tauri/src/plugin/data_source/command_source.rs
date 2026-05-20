@@ -6,41 +6,39 @@ use crate::sdk::host_api::PluginHandle;
 use crate::sdk::IconRequest;
 use async_trait::async_trait;
 use parking_lot::RwLock;
+use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::sync::Arc;
 use tracing::debug;
 
+/// 单条自定义命令的配置项。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CommandEntry {
+    #[serde(rename = "name", default)]
+    pub name: String,
+    #[serde(rename = "command", default)]
+    pub command: String,
+}
+
+/// 自定义命令数据源的强类型配置结构。
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct CommandSourceSettings {
+    #[serde(rename = "commands", default)]
+    pub commands: Vec<CommandEntry>,
+}
+
 /// 自定义命令数据源插件，负责从用户配置的命令列表中加载数据源候选项。
 pub struct CommandSource {
-    settings: RwLock<serde_json::Value>,
+    settings: RwLock<CommandSourceSettings>,
     handle: Arc<PluginHandle>,
 }
 
 impl CommandSource {
     pub fn new(handle: Arc<PluginHandle>) -> Self {
         CommandSource {
-            settings: RwLock::new(serde_json::Value::Null),
+            settings: RwLock::new(CommandSourceSettings::default()),
             handle,
         }
-    }
-
-    /// 从 settings 中解析命令列表配置
-    /// 返回 (名称, 命令) 的列表
-    fn parse_commands(&self) -> Vec<(String, String)> {
-        self.settings
-            .read()
-            .get("commands")
-            .and_then(|v| v.as_array())
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|item| {
-                        let name = item.get("name")?.as_str()?.to_string();
-                        let command = item.get("command")?.as_str()?.to_string();
-                        Some((name, command))
-                    })
-                    .collect()
-            })
-            .unwrap_or_default()
     }
 
     /// 尝试从命令字符串中解析出可执行文件路径，用于图标提取。
@@ -119,11 +117,12 @@ impl Configurable for CommandSource {
     }
 
     fn get_settings(&self) -> serde_json::Value {
-        self.settings.read().clone()
+        serde_json::to_value(self.settings.read().clone()).unwrap_or_default()
     }
 
     fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
-        *self.settings.write() = settings;
+        let parsed: CommandSourceSettings = serde_json::from_value(settings).unwrap_or_default();
+        *self.settings.write() = parsed;
         Ok(())
     }
 }
@@ -132,24 +131,27 @@ impl Configurable for CommandSource {
 impl DataSource for CommandSource {
     async fn fetch_candidates(&self) -> CachedCandidateData {
         let mut result = CachedCandidateData::new();
-        let commands = self.parse_commands();
+        let s = self.settings.read();
 
-        for (name, command) in &commands {
-            if name.is_empty() || command.is_empty() {
+        for entry in &s.commands {
+            if entry.name.is_empty() || entry.command.is_empty() {
                 continue;
             }
 
-            let icon = self.resolve_icon(command);
+            let icon = self.resolve_icon(&entry.command);
             let candidate = SearchCandidate {
                 id: 0,
-                name: name.clone(),
+                name: entry.name.clone(),
                 icon,
-                target: ExecutionTarget::Command(command.clone()),
+                target: ExecutionTarget::Command(entry.command.clone()),
                 keywords: Vec::new(),
                 bias: 0.0,
             };
 
-            debug!("CommandSource: 加载命令候选项: {} -> {}", name, command);
+            debug!(
+                "CommandSource: 加载命令候选项: {} -> {}",
+                entry.name, entry.command
+            );
             result.add_candidate(candidate);
         }
 

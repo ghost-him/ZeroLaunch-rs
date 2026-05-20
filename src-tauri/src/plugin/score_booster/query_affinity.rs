@@ -9,6 +9,7 @@ use dashmap::DashMap;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use tracing::error;
+
 /// 查询亲和度数据
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct QueryAffinityData {
@@ -28,6 +29,46 @@ impl QueryAffinityData {
             last_record_time: current_time,
         }
     }
+}
+
+/// 查询亲和度增强器的强类型配置结构。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QueryAffinitySettings {
+    #[serde(
+        rename = "query_affinity_weight",
+        default = "default_query_affinity_weight"
+    )]
+    pub query_affinity_weight: f64,
+    #[serde(
+        rename = "query_affinity_time_decay",
+        default = "default_query_affinity_time_decay"
+    )]
+    pub query_affinity_time_decay: f64,
+    #[serde(
+        rename = "query_affinity_cooldown",
+        default = "default_query_affinity_cooldown"
+    )]
+    pub query_affinity_cooldown: f64,
+}
+
+impl Default for QueryAffinitySettings {
+    fn default() -> Self {
+        Self {
+            query_affinity_weight: default_query_affinity_weight(),
+            query_affinity_time_decay: default_query_affinity_time_decay(),
+            query_affinity_cooldown: default_query_affinity_cooldown(),
+        }
+    }
+}
+
+fn default_query_affinity_weight() -> f64 {
+    3.0
+}
+fn default_query_affinity_time_decay() -> f64 {
+    259200.0
+}
+fn default_query_affinity_cooldown() -> f64 {
+    15.0
 }
 
 /// 查询亲和度增强器内部实现
@@ -56,8 +97,6 @@ impl QueryAffinityBoosterInner {
     /// 记录查询-程序启动关联（衰减累积 + 冷却机制）
     fn record_query_launch(&mut self, query: &str, method_text: &str) {
         let query = query.to_lowercase();
-        // 这里的归一化由外部保证
-        // let query = remove_repeated_space(&query);
         let current_time = get_current_time();
         let key = (query, method_text.to_string());
 
@@ -108,7 +147,7 @@ impl QueryAffinityBoosterInner {
 #[derive(Debug)]
 pub struct QueryAffinityBooster {
     inner: RwLock<QueryAffinityBoosterInner>,
-    settings: RwLock<serde_json::Value>,
+    settings: RwLock<QueryAffinitySettings>,
 }
 
 impl Default for QueryAffinityBooster {
@@ -121,7 +160,7 @@ impl QueryAffinityBooster {
     pub fn new() -> Self {
         QueryAffinityBooster {
             inner: RwLock::new(QueryAffinityBoosterInner::new()),
-            settings: RwLock::new(serde_json::Value::Null),
+            settings: RwLock::new(QueryAffinitySettings::default()),
         }
     }
 }
@@ -181,30 +220,16 @@ impl Configurable for QueryAffinityBooster {
     }
 
     fn get_settings(&self) -> serde_json::Value {
-        self.settings.read().clone()
+        serde_json::to_value(self.settings.read().clone()).unwrap_or_default()
     }
 
     fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
+        let parsed: QueryAffinitySettings = serde_json::from_value(settings).unwrap_or_default();
         let mut inner = self.inner.write();
-        if let Some(v) = settings
-            .get("query_affinity_weight")
-            .and_then(|v| v.as_f64())
-        {
-            inner.query_affinity_weight = v;
-        }
-        if let Some(v) = settings
-            .get("query_affinity_time_decay")
-            .and_then(|v| v.as_f64())
-        {
-            inner.query_affinity_time_decay = v as i64;
-        }
-        if let Some(v) = settings
-            .get("query_affinity_cooldown")
-            .and_then(|v| v.as_f64())
-        {
-            inner.query_affinity_cooldown = v as i64;
-        }
-        *self.settings.write() = settings;
+        inner.query_affinity_weight = parsed.query_affinity_weight;
+        inner.query_affinity_time_decay = parsed.query_affinity_time_decay as i64;
+        inner.query_affinity_cooldown = parsed.query_affinity_cooldown as i64;
+        *self.settings.write() = parsed;
         Ok(())
     }
 }

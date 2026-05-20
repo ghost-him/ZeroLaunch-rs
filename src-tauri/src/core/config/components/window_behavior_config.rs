@@ -2,12 +2,41 @@ use crate::core::config::setting_builders::SchemaBuilder;
 use crate::core::types::setting_def::SettingDefinition;
 use crate::core::types::{ComponentType, ConfigError, Configurable};
 use parking_lot::RwLock;
+use serde::{Deserialize, Serialize};
+
+/// 窗口行为设置的强类型配置结构。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WindowBehaviorSettings {
+    #[serde(rename = "is_esc_hide_window_priority", default)]
+    pub is_esc_hide_window_priority: bool,
+    #[serde(rename = "space_is_enter", default)]
+    pub space_is_enter: bool,
+    #[serde(rename = "is_wake_on_fullscreen", default)]
+    pub is_wake_on_fullscreen: bool,
+    #[serde(rename = "launch_new_on_failure", default = "default_true")]
+    pub launch_new_on_failure: bool,
+}
+
+impl Default for WindowBehaviorSettings {
+    fn default() -> Self {
+        Self {
+            is_esc_hide_window_priority: false,
+            space_is_enter: false,
+            is_wake_on_fullscreen: false,
+            launch_new_on_failure: true,
+        }
+    }
+}
+
+fn default_true() -> bool {
+    true
+}
 
 /// 窗口交互行为配置组件。
 /// 管理 ESC 键行为、空格确认、全屏唤醒和窗口激活失败降级策略。
 /// 所有配置项均为被动设置（read-at-use），无 on_settings_changed 副作用。
 pub struct WindowBehaviorConfigComponent {
-    settings: RwLock<serde_json::Value>,
+    settings: RwLock<WindowBehaviorSettings>,
 }
 
 impl Default for WindowBehaviorConfigComponent {
@@ -20,7 +49,7 @@ impl WindowBehaviorConfigComponent {
     /// 创建 WindowBehaviorConfigComponent。
     pub fn new() -> Self {
         Self {
-            settings: RwLock::new(serde_json::Value::Null),
+            settings: RwLock::new(WindowBehaviorSettings::default()),
         }
     }
 }
@@ -80,11 +109,12 @@ impl Configurable for WindowBehaviorConfigComponent {
     }
 
     fn get_settings(&self) -> serde_json::Value {
-        self.settings.read().clone()
+        serde_json::to_value(self.settings.read().clone()).unwrap_or_default()
     }
 
     fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
-        *self.settings.write() = settings;
+        let parsed: WindowBehaviorSettings = serde_json::from_value(settings).unwrap_or_default();
+        *self.settings.write() = parsed;
         Ok(())
     }
 

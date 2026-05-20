@@ -3,8 +3,35 @@ use crate::core::types::setting_def::SettingDefinition;
 use crate::core::types::{ComponentType, ConfigError, Configurable};
 use crate::sdk::host_api::HostApi;
 use parking_lot::RwLock;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::{info, warn};
+
+/// 通用设置的强类型配置结构。
+/// 每个字段标注 `#[serde(default)]`，确保老 JSON 缺失新字段时回退到业务默认值。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GeneralSettings {
+    #[serde(rename = "is_auto_start", default)]
+    pub is_auto_start: bool,
+    #[serde(rename = "is_debug_mode", default)]
+    pub is_debug_mode: bool,
+    #[serde(rename = "log_level", default = "default_log_level")]
+    pub log_level: String,
+}
+
+impl Default for GeneralSettings {
+    fn default() -> Self {
+        Self {
+            is_auto_start: false,
+            is_debug_mode: false,
+            log_level: "info".to_string(),
+        }
+    }
+}
+
+fn default_log_level() -> String {
+    "info".to_string()
+}
 
 /// 通用设置配置组件。
 /// 管理开机自启动、调试模式和日志级别。
@@ -13,7 +40,7 @@ pub struct GeneralConfigComponent {
     /// HostApi 引用，用于应用自启动配置
     host_api: Arc<HostApi>,
     /// 当前配置状态
-    settings: RwLock<serde_json::Value>,
+    settings: RwLock<GeneralSettings>,
 }
 
 impl GeneralConfigComponent {
@@ -22,7 +49,7 @@ impl GeneralConfigComponent {
     pub fn new(host_api: Arc<HostApi>) -> Self {
         Self {
             host_api,
-            settings: RwLock::new(serde_json::Value::Null),
+            settings: RwLock::new(GeneralSettings::default()),
         }
     }
 }
@@ -70,11 +97,12 @@ impl Configurable for GeneralConfigComponent {
     }
 
     fn get_settings(&self) -> serde_json::Value {
-        self.settings.read().clone()
+        serde_json::to_value(self.settings.read().clone()).unwrap_or_default()
     }
 
     fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
-        *self.settings.write() = settings;
+        let parsed: GeneralSettings = serde_json::from_value(settings).unwrap_or_default();
+        *self.settings.write() = parsed;
         Ok(())
     }
 
@@ -91,14 +119,9 @@ impl Configurable for GeneralConfigComponent {
     }
 
     fn on_settings_changed(&self) {
-        let settings = self.settings.read().clone();
+        let s = self.settings.read().clone();
 
-        // 处理自启动配置
-        let is_auto_start = settings
-            .get("is_auto_start")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
-
+        let is_auto_start = s.is_auto_start;
         let host_api = self.host_api.clone();
         tokio::spawn(async move {
             if let Err(e) = host_api.apply_autostart_setting(is_auto_start).await {
@@ -111,20 +134,17 @@ impl Configurable for GeneralConfigComponent {
             }
         });
 
-        // 处理日志级别
-        if let Some(level_str) = settings.get("log_level").and_then(|v| v.as_str()) {
-            let level: tracing::Level = match level_str {
-                "debug" => tracing::Level::DEBUG,
-                "info" => tracing::Level::INFO,
-                "warn" => tracing::Level::WARN,
-                "error" => tracing::Level::ERROR,
-                _ => return,
-            };
-            if let Err(e) = crate::logging::update_log_level(level) {
-                warn!("更新日志级别失败: {}", e);
-            } else {
-                info!("日志级别已更新为: {}", level_str);
-            }
+        let level: tracing::Level = match s.log_level.as_str() {
+            "debug" => tracing::Level::DEBUG,
+            "info" => tracing::Level::INFO,
+            "warn" => tracing::Level::WARN,
+            "error" => tracing::Level::ERROR,
+            _ => return,
+        };
+        if let Err(e) = crate::logging::update_log_level(level) {
+            warn!("更新日志级别失败: {}", e);
+        } else {
+            info!("日志级别已更新为: {}", s.log_level);
         }
     }
 

@@ -39,27 +39,31 @@ struct ChromeBookmarksRoot {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BookmarkSourceConfig {
     /// 浏览器名称
-    #[serde(rename = "name")]
+    #[serde(rename = "name", default)]
     pub name: String,
     /// 书签文件路径
-    #[serde(rename = "bookmarks_path")]
+    #[serde(rename = "bookmarks_path", default)]
     pub bookmarks_path: String,
     /// 是否启用
-    #[serde(rename = "enabled")]
+    #[serde(rename = "enabled", default = "default_enabled_true")]
     pub enabled: bool,
+}
+
+fn default_enabled_true() -> bool {
+    true
 }
 
 /// 单个书签的覆盖配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BookmarkOverride {
     /// 匹配 URL
-    #[serde(rename = "url")]
+    #[serde(rename = "url", default)]
     pub url: String,
     /// 是否排除
-    #[serde(rename = "excluded")]
+    #[serde(rename = "excluded", default)]
     pub excluded: bool,
     /// 自定义标题
-    #[serde(rename = "custom_title")]
+    #[serde(rename = "custom_title", default)]
     pub custom_title: Option<String>,
 }
 
@@ -81,6 +85,15 @@ pub struct Bookmark {
     pub url: String,
 }
 
+/// 书签数据源的强类型配置结构。
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct BookmarkSourceSettings {
+    #[serde(rename = "sources", default)]
+    pub sources: Vec<BookmarkSourceConfig>,
+    #[serde(rename = "overrides", default)]
+    pub overrides: Vec<BookmarkOverride>,
+}
+
 // ============ URL 规范化 ============
 
 /// 规范化 URL 以支持宽松匹配。
@@ -98,7 +111,7 @@ fn normalize_url(url: &str) -> String {
 // ============ BookmarkSource 实现 ============
 
 pub struct BookmarkSource {
-    settings: RwLock<serde_json::Value>,
+    settings: RwLock<BookmarkSourceSettings>,
     #[allow(dead_code)]
     handle: Arc<PluginHandle>,
 }
@@ -106,37 +119,9 @@ pub struct BookmarkSource {
 impl BookmarkSource {
     pub fn new(handle: Arc<PluginHandle>) -> Self {
         BookmarkSource {
-            settings: RwLock::new(serde_json::Value::Null),
+            settings: RwLock::new(BookmarkSourceSettings::default()),
             handle,
         }
-    }
-
-    /// 从 settings 中解析书签源配置
-    fn parse_sources(&self) -> Vec<BookmarkSourceConfig> {
-        self.settings
-            .read()
-            .get("sources")
-            .and_then(|v| v.as_array())
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|item| serde_json::from_value(item.clone()).ok())
-                    .collect()
-            })
-            .unwrap_or_default()
-    }
-
-    /// 从 settings 中解析覆盖配置
-    fn parse_overrides(&self) -> Vec<BookmarkOverride> {
-        self.settings
-            .read()
-            .get("overrides")
-            .and_then(|v| v.as_array())
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|item| serde_json::from_value(item.clone()).ok())
-                    .collect()
-            })
-            .unwrap_or_default()
     }
 
     /// 从指定路径读取书签文件并解析。
@@ -344,11 +329,12 @@ impl Configurable for BookmarkSource {
     }
 
     fn get_settings(&self) -> serde_json::Value {
-        self.settings.read().clone()
+        serde_json::to_value(self.settings.read().clone()).unwrap_or_default()
     }
 
     fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
-        *self.settings.write() = settings;
+        let parsed: BookmarkSourceSettings = serde_json::from_value(settings).unwrap_or_default();
+        *self.settings.write() = parsed;
         Ok(())
     }
 
@@ -404,20 +390,19 @@ impl Configurable for BookmarkSource {
 impl DataSource for BookmarkSource {
     async fn fetch_candidates(&self) -> CachedCandidateData {
         let mut result = CachedCandidateData::new();
-
-        let sources = self.parse_sources();
-        let overrides = self.parse_overrides();
+        let s = self.settings.read();
 
         // 过滤出已启用的书签源
         let enabled_sources: Vec<&BookmarkSourceConfig> =
-            sources.iter().filter(|s| s.enabled).collect();
+            s.sources.iter().filter(|src| src.enabled).collect();
 
         if enabled_sources.is_empty() {
             return result;
         }
 
-        // 构建规范化的 URL -> Override 映射
-        let override_map: HashMap<String, &BookmarkOverride> = overrides
+        // 构建规范化的 URL → Override 映射
+        let override_map: HashMap<String, &BookmarkOverride> = s
+            .overrides
             .iter()
             .map(|o| (normalize_url(&o.url), o))
             .collect();

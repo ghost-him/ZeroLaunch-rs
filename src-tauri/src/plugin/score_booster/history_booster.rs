@@ -7,8 +7,49 @@ use crate::plugin_system::types::{
 use crate::utils::{generate_current_date, get_current_time, is_date_current};
 use dashmap::DashMap;
 use parking_lot::RwLock;
+use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use tracing::error;
+
+/// 历史记录增强器的强类型配置结构。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HistoryBoosterSettings {
+    #[serde(rename = "history_weight", default = "default_history_weight")]
+    pub history_weight: f64,
+    #[serde(
+        rename = "recent_habit_weight",
+        default = "default_recent_habit_weight"
+    )]
+    pub recent_habit_weight: f64,
+    #[serde(rename = "temporal_weight", default = "default_temporal_weight")]
+    pub temporal_weight: f64,
+    #[serde(rename = "temporal_decay", default = "default_temporal_decay")]
+    pub temporal_decay: f64,
+}
+
+impl Default for HistoryBoosterSettings {
+    fn default() -> Self {
+        Self {
+            history_weight: default_history_weight(),
+            recent_habit_weight: default_recent_habit_weight(),
+            temporal_weight: default_temporal_weight(),
+            temporal_decay: default_temporal_decay(),
+        }
+    }
+}
+
+fn default_history_weight() -> f64 {
+    0.8
+}
+fn default_recent_habit_weight() -> f64 {
+    1.5
+}
+fn default_temporal_weight() -> f64 {
+    0.5
+}
+fn default_temporal_decay() -> f64 {
+    10800.0
+}
 
 /// 历史记录增强器内部实现
 #[derive(Debug)]
@@ -120,7 +161,7 @@ impl HistoryBoosterInner {
 #[derive(Debug)]
 pub struct HistoryBooster {
     inner: RwLock<HistoryBoosterInner>,
-    settings: RwLock<serde_json::Value>,
+    settings: RwLock<HistoryBoosterSettings>,
 }
 
 impl Default for HistoryBooster {
@@ -133,7 +174,7 @@ impl HistoryBooster {
     pub fn new() -> Self {
         HistoryBooster {
             inner: RwLock::new(HistoryBoosterInner::new()),
-            settings: RwLock::new(serde_json::Value::Null),
+            settings: RwLock::new(HistoryBoosterSettings::default()),
         }
     }
 }
@@ -197,24 +238,17 @@ impl Configurable for HistoryBooster {
     }
 
     fn get_settings(&self) -> serde_json::Value {
-        self.settings.read().clone()
+        serde_json::to_value(self.settings.read().clone()).unwrap_or_default()
     }
 
     fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
+        let parsed: HistoryBoosterSettings = serde_json::from_value(settings).unwrap_or_default();
         let mut inner = self.inner.write();
-        if let Some(v) = settings.get("history_weight").and_then(|v| v.as_f64()) {
-            inner.history_weight = v;
-        }
-        if let Some(v) = settings.get("recent_habit_weight").and_then(|v| v.as_f64()) {
-            inner.recent_habit_weight = v;
-        }
-        if let Some(v) = settings.get("temporal_weight").and_then(|v| v.as_f64()) {
-            inner.temporal_weight = v;
-        }
-        if let Some(v) = settings.get("temporal_decay").and_then(|v| v.as_f64()) {
-            inner.temporal_decay = v as i64;
-        }
-        *self.settings.write() = settings;
+        inner.history_weight = parsed.history_weight;
+        inner.recent_habit_weight = parsed.recent_habit_weight;
+        inner.temporal_weight = parsed.temporal_weight;
+        inner.temporal_decay = parsed.temporal_decay as i64;
+        *self.settings.write() = parsed;
         Ok(())
     }
 }

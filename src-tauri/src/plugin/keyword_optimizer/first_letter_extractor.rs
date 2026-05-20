@@ -3,13 +3,27 @@ use crate::plugin_system::types::{
     ComponentType, ConfigError, Configurable, KeywordOptimizer, SettingDefinition,
 };
 use parking_lot::RwLock;
+use serde::{Deserialize, Serialize};
 
-struct FirstLetterExtractorInner {
+/// Default priority value for FirstLetterExtractorSettings.
+fn default_priority_50() -> i32 {
+    50
+}
+
+/// Default uses_context value for FirstLetterExtractorSettings.
+fn default_uses_context_true() -> bool {
+    true
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct FirstLetterExtractorSettings {
+    #[serde(rename = "priority", default = "default_priority_50")]
     priority: i32,
+    #[serde(rename = "uses_context", default = "default_uses_context_true")]
     uses_context: bool,
 }
 
-impl FirstLetterExtractorInner {
+impl FirstLetterExtractorSettings {
     fn new() -> Self {
         Self {
             priority: 50,
@@ -17,12 +31,15 @@ impl FirstLetterExtractorInner {
         }
     }
 
+    /// Extracts the first letter of each whitespace-separated word in the input string.
     fn get_first_letters(&self, s: &str) -> String {
         s.split_whitespace()
             .filter_map(|word| word.chars().next())
             .collect()
     }
 
+    /// Generates a keyword variant consisting of the first letters of each word.
+    /// Returns an empty Vec if the result equals the original keyword or is empty.
     fn optimize(&self, keyword: &str) -> Vec<String> {
         let result = self.get_first_letters(keyword);
         if result.is_empty() || result == keyword {
@@ -33,8 +50,14 @@ impl FirstLetterExtractorInner {
     }
 }
 
+impl Default for FirstLetterExtractorSettings {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub struct FirstLetterExtractor {
-    inner: RwLock<FirstLetterExtractorInner>,
+    inner: RwLock<FirstLetterExtractorSettings>,
 }
 
 impl Default for FirstLetterExtractor {
@@ -46,7 +69,7 @@ impl Default for FirstLetterExtractor {
 impl FirstLetterExtractor {
     pub fn new() -> Self {
         Self {
-            inner: RwLock::new(FirstLetterExtractorInner::new()),
+            inner: RwLock::new(FirstLetterExtractorSettings::new()),
         }
     }
 }
@@ -85,21 +108,13 @@ impl Configurable for FirstLetterExtractor {
     }
 
     fn get_settings(&self) -> serde_json::Value {
-        let inner = self.inner.read();
-        serde_json::json!({
-            "priority": inner.priority,
-            "uses_context": inner.uses_context
-        })
+        serde_json::to_value(self.inner.read().clone()).unwrap_or_default()
     }
 
     fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
-        let mut inner = self.inner.write();
-        if let Some(priority) = settings.get("priority").and_then(|v| v.as_f64()) {
-            inner.priority = priority as i32;
-        }
-        if let Some(uses_context) = settings.get("uses_context").and_then(|v| v.as_bool()) {
-            inner.uses_context = uses_context;
-        }
+        let parsed: FirstLetterExtractorSettings =
+            serde_json::from_value(settings).unwrap_or_default();
+        *self.inner.write() = parsed;
         Ok(())
     }
 }

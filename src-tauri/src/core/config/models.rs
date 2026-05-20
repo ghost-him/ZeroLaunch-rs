@@ -43,11 +43,15 @@ pub struct ComponentSchema {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PersistentConfig {
     /// 配置格式版本
-    #[serde(rename = "version")]
+    #[serde(rename = "version", default = "default_config_version")]
     pub version: String,
     /// 各组件的持久化状态
-    #[serde(rename = "components")]
+    #[serde(rename = "components", default)]
     pub components: std::collections::HashMap<String, ComponentPersistentState>,
+}
+
+fn default_config_version() -> String {
+    "3".to_string()
 }
 
 impl Default for PersistentConfig {
@@ -63,9 +67,9 @@ impl Default for PersistentConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ComponentPersistentState {
     /// 是否启用
-    #[serde(rename = "enabled")]
+    #[serde(rename = "enabled", default)]
     pub enabled: bool,
     /// 配置值
-    #[serde(rename = "settings")]
+    #[serde(rename = "settings", default)]
     pub settings: serde_json::Value,
 }

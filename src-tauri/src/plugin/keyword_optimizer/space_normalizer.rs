@@ -3,20 +3,35 @@ use crate::plugin_system::types::{
     ComponentType, ConfigError, Configurable, KeywordOptimizer, SettingDefinition,
 };
 use parking_lot::RwLock;
+use serde::{Deserialize, Serialize};
 
-struct SpaceNormalizerInner {
+/// Default priority value for SpaceNormalizerSettings.
+fn default_priority_20() -> i32 {
+    20
+}
+
+/// Default uses_context value for SpaceNormalizerSettings.
+fn default_uses_context_true() -> bool {
+    true
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct SpaceNormalizerSettings {
+    #[serde(rename = "priority", default = "default_priority_20")]
     priority: i32,
+    #[serde(rename = "uses_context", default = "default_uses_context_true")]
     uses_context: bool,
 }
 
-impl SpaceNormalizerInner {
+impl SpaceNormalizerSettings {
     fn new() -> Self {
         Self {
             priority: 20,
-            uses_context: false,
+            uses_context: true,
         }
     }
 
+    /// Removes leading spaces and collapses consecutive spaces into a single space.
     fn remove_repeated_space(&self, input_text: &str) -> String {
         let mut result = String::new();
         let mut is_space = false;
@@ -40,6 +55,7 @@ impl SpaceNormalizerInner {
         result
     }
 
+    /// Normalizes whitespace in the keyword. Returns an empty Vec if the result equals the original.
     fn optimize(&self, keyword: &str) -> Vec<String> {
         let result = self.remove_repeated_space(keyword);
         if result.is_empty() || result == keyword {
@@ -50,8 +66,14 @@ impl SpaceNormalizerInner {
     }
 }
 
+impl Default for SpaceNormalizerSettings {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub struct SpaceNormalizer {
-    inner: RwLock<SpaceNormalizerInner>,
+    inner: RwLock<SpaceNormalizerSettings>,
 }
 
 impl Default for SpaceNormalizer {
@@ -63,7 +85,7 @@ impl Default for SpaceNormalizer {
 impl SpaceNormalizer {
     pub fn new() -> Self {
         Self {
-            inner: RwLock::new(SpaceNormalizerInner::new()),
+            inner: RwLock::new(SpaceNormalizerSettings::new()),
         }
     }
 }
@@ -96,27 +118,18 @@ impl Configurable for SpaceNormalizer {
                 "是否对所有已累积的关键词进行优化，而非仅对原始名称优化",
             )
             .order(1)
-            .default(false)
+            .default(true)
             .build(),
         ]
     }
 
     fn get_settings(&self) -> serde_json::Value {
-        let inner = self.inner.read();
-        serde_json::json!({
-            "priority": inner.priority,
-            "uses_context": inner.uses_context
-        })
+        serde_json::to_value(self.inner.read().clone()).unwrap_or_default()
     }
 
     fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
-        let mut inner = self.inner.write();
-        if let Some(priority) = settings.get("priority").and_then(|v| v.as_f64()) {
-            inner.priority = priority as i32;
-        }
-        if let Some(uses_context) = settings.get("uses_context").and_then(|v| v.as_bool()) {
-            inner.uses_context = uses_context;
-        }
+        let parsed: SpaceNormalizerSettings = serde_json::from_value(settings).unwrap_or_default();
+        *self.inner.write() = parsed;
         Ok(())
     }
 }

@@ -3,13 +3,27 @@ use crate::plugin_system::types::{
     ComponentType, ConfigError, Configurable, KeywordOptimizer, SettingDefinition,
 };
 use parking_lot::RwLock;
+use serde::{Deserialize, Serialize};
 
-struct LowerCaseConverterInner {
+/// Default priority value for LowerCaseConverterSettings.
+fn default_priority_30() -> i32 {
+    30
+}
+
+/// Default uses_context value for LowerCaseConverterSettings.
+fn default_uses_context_false() -> bool {
+    false
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct LowerCaseConverterSettings {
+    #[serde(rename = "priority", default = "default_priority_30")]
     priority: i32,
+    #[serde(rename = "uses_context", default = "default_uses_context_false")]
     uses_context: bool,
 }
 
-impl LowerCaseConverterInner {
+impl LowerCaseConverterSettings {
     fn new() -> Self {
         Self {
             priority: 30,
@@ -17,6 +31,7 @@ impl LowerCaseConverterInner {
         }
     }
 
+    /// Converts the keyword to lowercase. Returns an empty Vec if the result equals the original.
     fn optimize(&self, keyword: &str) -> Vec<String> {
         let result = keyword.to_lowercase();
         if result == keyword {
@@ -27,8 +42,14 @@ impl LowerCaseConverterInner {
     }
 }
 
+impl Default for LowerCaseConverterSettings {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub struct LowerCaseConverter {
-    inner: RwLock<LowerCaseConverterInner>,
+    inner: RwLock<LowerCaseConverterSettings>,
 }
 
 impl Default for LowerCaseConverter {
@@ -40,7 +61,7 @@ impl Default for LowerCaseConverter {
 impl LowerCaseConverter {
     pub fn new() -> Self {
         Self {
-            inner: RwLock::new(LowerCaseConverterInner::new()),
+            inner: RwLock::new(LowerCaseConverterSettings::new()),
         }
     }
 }
@@ -79,21 +100,13 @@ impl Configurable for LowerCaseConverter {
     }
 
     fn get_settings(&self) -> serde_json::Value {
-        let inner = self.inner.read();
-        serde_json::json!({
-            "priority": inner.priority,
-            "uses_context": inner.uses_context
-        })
+        serde_json::to_value(self.inner.read().clone()).unwrap_or_default()
     }
 
     fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
-        let mut inner = self.inner.write();
-        if let Some(priority) = settings.get("priority").and_then(|v| v.as_f64()) {
-            inner.priority = priority as i32;
-        }
-        if let Some(uses_context) = settings.get("uses_context").and_then(|v| v.as_bool()) {
-            inner.uses_context = uses_context;
-        }
+        let parsed: LowerCaseConverterSettings =
+            serde_json::from_value(settings).unwrap_or_default();
+        *self.inner.write() = parsed;
         Ok(())
     }
 }

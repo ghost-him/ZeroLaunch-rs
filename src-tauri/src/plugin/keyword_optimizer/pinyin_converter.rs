@@ -12,13 +12,32 @@ struct PinyinItem {
     word: String,
 }
 
-struct PinyinConverterInner {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct PinyinConverterSettings {
+    #[serde(rename = "priority", default = "default_priority_25")]
     priority: i32,
+    #[serde(rename = "uses_context", default = "default_uses_context_false")]
     uses_context: bool,
+    /// 预加载的汉字到拼音映射表，不属于用户配置，序列化时跳过。
+    #[serde(skip)]
     pinyin: HashMap<char, String>,
 }
 
-impl PinyinConverterInner {
+fn default_priority_25() -> i32 {
+    25
+}
+
+fn default_uses_context_false() -> bool {
+    false
+}
+
+impl Default for PinyinConverterSettings {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl PinyinConverterSettings {
     const PINYIN_DATA: &'static str = include_str!("./pinyin.json");
 
     fn new() -> Self {
@@ -34,11 +53,13 @@ impl PinyinConverterInner {
 
         Self {
             priority: 25,
-            uses_context: true,
+            uses_context: false,
             pinyin: char_to_pinyin,
         }
     }
 
+    /// 将输入字符串中的汉字转换为拼音。
+    /// 连续汉字用空格分隔，非汉字原样保留。
     fn convert_to_pinyin(&self, input: &str) -> String {
         let mut result = String::new();
         let mut prev_is_han = false;
@@ -60,6 +81,7 @@ impl PinyinConverterInner {
         result.trim_end().to_string()
     }
 
+    /// 对关键词执行拼音转换优化。
     fn optimize(&self, keyword: &str) -> Vec<String> {
         let result = self.convert_to_pinyin(keyword);
         vec![result]
@@ -67,7 +89,7 @@ impl PinyinConverterInner {
 }
 
 pub struct PinyinConverter {
-    inner: RwLock<PinyinConverterInner>,
+    inner: RwLock<PinyinConverterSettings>,
 }
 
 impl Default for PinyinConverter {
@@ -79,7 +101,7 @@ impl Default for PinyinConverter {
 impl PinyinConverter {
     pub fn new() -> Self {
         PinyinConverter {
-            inner: RwLock::new(PinyinConverterInner::new()),
+            inner: RwLock::new(PinyinConverterSettings::new()),
         }
     }
 }
@@ -112,27 +134,21 @@ impl Configurable for PinyinConverter {
                 "是否对所有已累积的关键词进行拼音转换",
             )
             .order(1)
-            .default(true)
+            .default(false)
             .build(),
         ]
     }
 
     fn get_settings(&self) -> serde_json::Value {
-        let inner = self.inner.read();
-        serde_json::json!({
-            "priority": inner.priority,
-            "uses_context": inner.uses_context
-        })
+        serde_json::to_value(self.inner.read().clone()).unwrap_or_default()
     }
 
     fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
-        let mut inner = self.inner.write();
-        if let Some(priority) = settings.get("priority").and_then(|v| v.as_f64()) {
-            inner.priority = priority as i32;
-        }
-        if let Some(uses_context) = settings.get("uses_context").and_then(|v| v.as_bool()) {
-            inner.uses_context = uses_context;
-        }
+        let mut parsed: PinyinConverterSettings =
+            serde_json::from_value(settings).unwrap_or_default();
+        // 保留预加载的拼音字典，该字段不属于用户配置
+        parsed.pinyin = self.inner.read().pinyin.clone();
+        *self.inner.write() = parsed;
         Ok(())
     }
 }

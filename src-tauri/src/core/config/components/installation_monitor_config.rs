@@ -3,8 +3,37 @@ use crate::core::types::setting_def::SettingDefinition;
 use crate::core::types::{ComponentType, ConfigError, Configurable};
 use crate::sdk::host_api::HostApi;
 use parking_lot::RwLock;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::{info, warn};
+
+/// 安装监控设置的强类型配置结构。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InstallationMonitorSettings {
+    #[serde(rename = "enable_installation_monitor", default)]
+    pub enable_installation_monitor: bool,
+    #[serde(
+        rename = "monitor_debounce_secs",
+        default = "default_monitor_debounce_secs"
+    )]
+    pub monitor_debounce_secs: f64,
+    #[serde(rename = "monitor_watch_paths", default)]
+    pub monitor_watch_paths: String,
+}
+
+impl Default for InstallationMonitorSettings {
+    fn default() -> Self {
+        Self {
+            enable_installation_monitor: false,
+            monitor_debounce_secs: default_monitor_debounce_secs(),
+            monitor_watch_paths: String::new(),
+        }
+    }
+}
+
+fn default_monitor_debounce_secs() -> f64 {
+    5.0
+}
 
 /// 安装监控配置组件。
 /// 管理安装监控的启用/禁用、监控路径及 debounce 时间。
@@ -13,7 +42,7 @@ pub struct InstallationMonitorConfigComponent {
     /// HostApi 引用，用于控制安装监控服务
     host_api: Arc<HostApi>,
     /// 当前配置状态
-    settings: RwLock<serde_json::Value>,
+    settings: RwLock<InstallationMonitorSettings>,
 }
 
 impl InstallationMonitorConfigComponent {
@@ -22,7 +51,7 @@ impl InstallationMonitorConfigComponent {
     pub fn new(host_api: Arc<HostApi>) -> Self {
         Self {
             host_api,
-            settings: RwLock::new(serde_json::Value::Null),
+            settings: RwLock::new(InstallationMonitorSettings::default()),
         }
     }
 }
@@ -76,11 +105,13 @@ impl Configurable for InstallationMonitorConfigComponent {
     }
 
     fn get_settings(&self) -> serde_json::Value {
-        self.settings.read().clone()
+        serde_json::to_value(self.settings.read().clone()).unwrap_or_default()
     }
 
     fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
-        *self.settings.write() = settings;
+        let parsed: InstallationMonitorSettings =
+            serde_json::from_value(settings).unwrap_or_default();
+        *self.settings.write() = parsed;
         Ok(())
     }
 
@@ -99,23 +130,16 @@ impl Configurable for InstallationMonitorConfigComponent {
     }
 
     fn on_settings_changed(&self) {
-        let settings = self.settings.read().clone();
-        let enabled = settings
-            .get("enable_installation_monitor")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
+        let s = self.settings.read().clone();
+        let enabled = s.enable_installation_monitor;
 
         // 解析监控路径
-        let paths: Vec<String> = settings
-            .get("monitor_watch_paths")
-            .and_then(|v| v.as_str())
-            .map(|s| {
-                s.lines()
-                    .map(|line| line.trim().to_string())
-                    .filter(|line| !line.is_empty())
-                    .collect()
-            })
-            .unwrap_or_default();
+        let paths: Vec<String> = s
+            .monitor_watch_paths
+            .lines()
+            .map(|line| line.trim().to_string())
+            .filter(|line| !line.is_empty())
+            .collect();
 
         let host_api = self.host_api.clone();
 

@@ -3,20 +3,37 @@ use crate::plugin_system::types::{
     ComponentType, ConfigError, Configurable, KeywordOptimizer, SettingDefinition,
 };
 use parking_lot::RwLock;
+use serde::{Deserialize, Serialize};
 
-struct UpperCaseLetterExtractorInner {
+/// 大写字母提取器的可持久化配置
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct UpperCaseLetterExtractorSettings {
+    #[serde(rename = "priority", default = "default_priority_40")]
     priority: i32,
+    #[serde(rename = "uses_context", default = "default_uses_context_true")]
     uses_context: bool,
 }
 
-impl UpperCaseLetterExtractorInner {
-    fn new() -> Self {
+fn default_priority_40() -> i32 {
+    40
+}
+
+fn default_uses_context_true() -> bool {
+    true
+}
+
+impl Default for UpperCaseLetterExtractorSettings {
+    fn default() -> Self {
         Self {
-            priority: 40,
-            uses_context: false,
+            priority: default_priority_40(),
+            uses_context: default_uses_context_true(),
         }
     }
+}
 
+impl UpperCaseLetterExtractorSettings {
+    /// 提取输入字符串中的所有 ASCII 大写字母并转为小写。
+    /// 若包含非 ASCII 字符则返回空字符串（仅对纯英文输入生效）。
     fn get_upper_case_latter(&self, input_text: &str) -> String {
         let mut result = String::new();
 
@@ -33,6 +50,7 @@ impl UpperCaseLetterExtractorInner {
         result.to_lowercase()
     }
 
+    /// 对关键词执行优化：提取大写字母作为缩写关键词
     fn optimize(&self, keyword: &str) -> Vec<String> {
         let result = self.get_upper_case_latter(keyword);
         if result.is_empty() {
@@ -44,7 +62,7 @@ impl UpperCaseLetterExtractorInner {
 }
 
 pub struct UpperCaseLetterExtractor {
-    inner: RwLock<UpperCaseLetterExtractorInner>,
+    inner: RwLock<UpperCaseLetterExtractorSettings>,
 }
 
 impl Default for UpperCaseLetterExtractor {
@@ -56,7 +74,7 @@ impl Default for UpperCaseLetterExtractor {
 impl UpperCaseLetterExtractor {
     pub fn new() -> Self {
         Self {
-            inner: RwLock::new(UpperCaseLetterExtractorInner::new()),
+            inner: RwLock::new(UpperCaseLetterExtractorSettings::default()),
         }
     }
 }
@@ -89,27 +107,19 @@ impl Configurable for UpperCaseLetterExtractor {
                 "是否对所有已累积的关键词进行优化，而非仅对原始名称优化",
             )
             .order(1)
-            .default(false)
+            .default(true)
             .build(),
         ]
     }
 
     fn get_settings(&self) -> serde_json::Value {
-        let inner = self.inner.read();
-        serde_json::json!({
-            "priority": inner.priority,
-            "uses_context": inner.uses_context
-        })
+        serde_json::to_value(self.inner.read().clone()).unwrap_or_default()
     }
 
     fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
-        let mut inner = self.inner.write();
-        if let Some(priority) = settings.get("priority").and_then(|v| v.as_f64()) {
-            inner.priority = priority as i32;
-        }
-        if let Some(uses_context) = settings.get("uses_context").and_then(|v| v.as_bool()) {
-            inner.uses_context = uses_context;
-        }
+        let parsed: UpperCaseLetterExtractorSettings =
+            serde_json::from_value(settings).unwrap_or_default();
+        *self.inner.write() = parsed;
         Ok(())
     }
 }

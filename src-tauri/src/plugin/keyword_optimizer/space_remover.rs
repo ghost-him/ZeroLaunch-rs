@@ -3,24 +3,41 @@ use crate::plugin_system::types::{
     ComponentType, ConfigError, Configurable, KeywordOptimizer, SettingDefinition,
 };
 use parking_lot::RwLock;
+use serde::{Deserialize, Serialize};
 
-struct SpaceRemoverInner {
+/// 空格移除器的可持久化配置
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct SpaceRemoverSettings {
+    #[serde(rename = "priority", default = "default_priority_60")]
     priority: i32,
+    #[serde(rename = "uses_context", default = "default_uses_context_true")]
     uses_context: bool,
 }
 
-impl SpaceRemoverInner {
-    fn new() -> Self {
+fn default_priority_60() -> i32 {
+    60
+}
+
+fn default_uses_context_true() -> bool {
+    true
+}
+
+impl Default for SpaceRemoverSettings {
+    fn default() -> Self {
         Self {
-            priority: 60,
-            uses_context: true,
+            priority: default_priority_60(),
+            uses_context: default_uses_context_true(),
         }
     }
+}
 
+impl SpaceRemoverSettings {
+    /// 移除输入字符串中的所有空格字符
     fn remove_string_space(&self, input_text: &str) -> String {
         input_text.chars().filter(|&c| c != ' ').collect()
     }
 
+    /// 对关键词执行优化：移除空格，生成去空格后的变体
     fn optimize(&self, keyword: &str) -> Vec<String> {
         let result = self.remove_string_space(keyword);
         if result.is_empty() || result == keyword {
@@ -32,7 +49,7 @@ impl SpaceRemoverInner {
 }
 
 pub struct SpaceRemover {
-    inner: RwLock<SpaceRemoverInner>,
+    inner: RwLock<SpaceRemoverSettings>,
 }
 
 impl Default for SpaceRemover {
@@ -44,7 +61,7 @@ impl Default for SpaceRemover {
 impl SpaceRemover {
     pub fn new() -> Self {
         Self {
-            inner: RwLock::new(SpaceRemoverInner::new()),
+            inner: RwLock::new(SpaceRemoverSettings::default()),
         }
     }
 }
@@ -83,21 +100,12 @@ impl Configurable for SpaceRemover {
     }
 
     fn get_settings(&self) -> serde_json::Value {
-        let inner = self.inner.read();
-        serde_json::json!({
-            "priority": inner.priority,
-            "uses_context": inner.uses_context
-        })
+        serde_json::to_value(self.inner.read().clone()).unwrap_or_default()
     }
 
     fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
-        let mut inner = self.inner.write();
-        if let Some(priority) = settings.get("priority").and_then(|v| v.as_f64()) {
-            inner.priority = priority as i32;
-        }
-        if let Some(uses_context) = settings.get("uses_context").and_then(|v| v.as_bool()) {
-            inner.uses_context = uses_context;
-        }
+        let parsed: SpaceRemoverSettings = serde_json::from_value(settings).unwrap_or_default();
+        *self.inner.write() = parsed;
         Ok(())
     }
 }

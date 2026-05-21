@@ -76,26 +76,23 @@ fn default_query_affinity_cooldown() -> f64 {
 struct QueryAffinityBoosterInner {
     /// 查询亲和度映射: (查询词, launch_method_text) -> QueryAffinityData
     query_affinity_map: DashMap<(String, String), QueryAffinityData>,
-    /// 查询亲和权重系数
-    query_affinity_weight: f64,
-    /// 查询亲和时间衰减常数（秒）
-    query_affinity_time_decay: i64,
-    /// 查询亲和冷却时间（秒）
-    query_affinity_cooldown: i64,
 }
 
 impl QueryAffinityBoosterInner {
     fn new() -> Self {
         QueryAffinityBoosterInner {
             query_affinity_map: DashMap::new(),
-            query_affinity_weight: 3.0,
-            query_affinity_time_decay: 259200,
-            query_affinity_cooldown: 15,
         }
     }
 
     /// 记录查询-程序启动关联（衰减累积 + 冷却机制）
-    fn record_query_launch(&mut self, query: &str, method_text: &str) {
+    fn record_query_launch(
+        &mut self,
+        query: &str,
+        method_text: &str,
+        cooldown: i64,
+        time_decay: i64,
+    ) {
         let query = query.to_lowercase();
         let current_time = get_current_time();
         let key = (query, method_text.to_string());
@@ -105,11 +102,10 @@ impl QueryAffinityBoosterInner {
             .and_modify(|data| {
                 // 冷却机制：检查距离上次记录是否超过冷却时间
                 let time_since_last_record = current_time - data.last_record_time;
-                if time_since_last_record >= self.query_affinity_cooldown {
+                if time_since_last_record >= cooldown {
                     // 衰减累积：先对旧的有效次数进行衰减，再加上新的一次
                     let time_diff = current_time - data.last_launch_time;
-                    let decay =
-                        (-(time_diff as f64) / (self.query_affinity_time_decay as f64 + 1.0)).exp();
+                    let decay = (-(time_diff as f64) / (time_decay as f64 + 1.0)).exp();
 
                     data.effective_count = data.effective_count * decay + 1.0;
                     data.last_record_time = current_time;
@@ -121,7 +117,12 @@ impl QueryAffinityBoosterInner {
     }
 
     /// 计算查询亲和分数（对数缩放 + 时间衰减）
-    fn calculate_query_affinity_score(&self, query: &str, method_text: &str) -> f64 {
+    fn calculate_query_affinity_score(
+        &self,
+        query: &str,
+        method_text: &str,
+        time_decay: i64,
+    ) -> f64 {
         let key = (query.to_string(), method_text.to_string());
 
         if let Some(data) = self.query_affinity_map.get(&key) {
@@ -129,8 +130,7 @@ impl QueryAffinityBoosterInner {
             let time_diff = current_time - data.last_launch_time;
 
             // 时间衰减因子: exp(-(时间差/时间常数))
-            let decay_factor =
-                (-(time_diff as f64) / (self.query_affinity_time_decay as f64 + 1.0)).exp();
+            let decay_factor = (-(time_diff as f64) / (time_decay as f64 + 1.0)).exp();
 
             // 计算当前有效次数（应用衰减）
             let current_effective_count = data.effective_count * decay_factor;
@@ -225,10 +225,6 @@ impl Configurable for QueryAffinityBooster {
 
     fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
         let parsed: QueryAffinitySettings = serde_json::from_value(settings).unwrap_or_default();
-        let mut inner = self.inner.write();
-        inner.query_affinity_weight = parsed.query_affinity_weight;
-        inner.query_affinity_time_decay = parsed.query_affinity_time_decay as i64;
-        inner.query_affinity_cooldown = parsed.query_affinity_cooldown as i64;
         *self.settings.write() = parsed;
         Ok(())
     }
@@ -242,7 +238,13 @@ impl ScoreBooster for QueryAffinityBooster {
         }
         if let Some(search_candidate) = data.get_candidate(candidate_id) {
             let method_text = search_candidate.target.payload();
-            self.inner.write().record_query_launch(query, method_text);
+            let settings = self.settings.read();
+            self.inner.write().record_query_launch(
+                query,
+                method_text,
+                settings.query_affinity_cooldown as i64,
+                settings.query_affinity_time_decay as i64,
+            );
         } else {
             error!(
                 "[QueryAffinityBooster] 无法找到候选项数据，无法记录查询启动关联，candidate_id: {}",
@@ -263,6 +265,7 @@ impl ScoreBooster for QueryAffinityBooster {
         }
 
         let inner = self.inner.read();
+        let settings = self.settings.read();
 
         for candidate in candidates.iter_mut() {
             let method_text = match data.get_candidate(candidate.candidate_id) {
@@ -270,13 +273,17 @@ impl ScoreBooster for QueryAffinityBooster {
                 None => continue,
             };
 
-            let affinity_score = inner.calculate_query_affinity_score(query, method_text);
-            let boost_value = inner.query_affinity_weight * affinity_score;
+            let affinity_score = inner.calculate_query_affinity_score(
+                query,
+                method_text,
+                settings.query_affinity_time_decay as i64,
+            );
+            let boost_value = settings.query_affinity_weight * affinity_score;
             candidate.score += boost_value;
 
             candidate.detailed_score.push(ScoreDetail {
                 score: affinity_score,
-                weight: inner.query_affinity_weight,
+                weight: settings.query_affinity_weight,
                 description: "查询亲和分数".to_string(),
             });
         }

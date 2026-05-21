@@ -76,30 +76,6 @@ paths:
 - Store 文件使用 `kebab-case` + `-store` 后缀（如 `config-store.ts`）
 - Composable 文件使用 `camelCase` + `use` 前缀（如 `useKeyboard.ts`）
 
-## Serde 序列化规范
-
-- **必须** 使用字段级 `#[serde(rename = "xxx")]` 显式标注每个字段和 variant 的 JSON 键名。即使 Rust 字段名与 JSON 键名相同，也必须显式标注以保持风格统一和可读性。`rename_all` 在 externally tagged enum 上只会重命名 variant 标签名，**不会** 重命名 variant 内部的字段名，导致前后端字段名不一致。
-- **正确**：
-  ```rust
-  #[derive(Serialize, Deserialize)]
-  pub enum MyEnum {
-      // 1. 显式标注变体标签名
-      #[serde(rename = "myVariant")]
-      MyVariant {
-          // 2. 显式标注变体内部的每一个字段
-          #[serde(rename = "innerField")]
-          inner_field: String,
-          #[serde(rename = "count")]
-          count: u32,
-      },
-      
-      // 无内部字段的变体也需标注
-      #[serde(rename = "unitVariant")]
-      UnitVariant, 
-  }
-  ```
-- 对于 enum unit variant：每个 variant 加 `#[serde(rename = "...")]`。
-- 对于 enum variant with fields：variant 标签和内部字段都需要分别标注。
 
 ## 日志规范
 

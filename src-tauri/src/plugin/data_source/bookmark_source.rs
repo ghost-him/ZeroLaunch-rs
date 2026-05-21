@@ -390,19 +390,23 @@ impl Configurable for BookmarkSource {
 impl DataSource for BookmarkSource {
     async fn fetch_candidates(&self) -> CachedCandidateData {
         let mut result = CachedCandidateData::new();
-        let s = self.settings.read();
+
+        // Clone data and release the lock guard before any I/O operations.
+        let (sources, overrides) = {
+            let s = self.settings.read();
+            (s.sources.clone(), s.overrides.clone())
+        };
 
         // 过滤出已启用的书签源
         let enabled_sources: Vec<&BookmarkSourceConfig> =
-            s.sources.iter().filter(|src| src.enabled).collect();
+            sources.iter().filter(|src| src.enabled).collect();
 
         if enabled_sources.is_empty() {
             return result;
         }
 
         // 构建规范化的 URL → Override 映射
-        let override_map: HashMap<String, &BookmarkOverride> = s
-            .overrides
+        let override_map: HashMap<String, &BookmarkOverride> = overrides
             .iter()
             .map(|o| (normalize_url(&o.url), o))
             .collect();

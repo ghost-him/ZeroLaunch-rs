@@ -62,14 +62,6 @@ struct HistoryBoosterInner {
     last_update_data: String,
     /// 最近一次启动时间（时间戳）
     latest_launch_time: DashMap<String, i64>,
-    /// 历史总分权重系数
-    history_weight: f64,
-    /// 近期习惯权重系数
-    recent_habit_weight: f64,
-    /// 短期热度权重系数
-    temporal_weight: f64,
-    /// 短期热度衰减常数（秒）
-    temporal_decay: i64,
 }
 
 impl HistoryBoosterInner {
@@ -81,10 +73,6 @@ impl HistoryBoosterInner {
             history_launch_time: DashMap::new(),
             last_update_data: generate_current_date(),
             latest_launch_time: DashMap::new(),
-            history_weight: 0.8,
-            recent_habit_weight: 1.5,
-            temporal_weight: 0.5,
-            temporal_decay: 10800,
         }
     }
 
@@ -135,12 +123,12 @@ impl HistoryBoosterInner {
     }
 
     /// 计算近期热度分数
-    fn calculate_temporal_score(&self, method_text: &str) -> f64 {
+    fn calculate_temporal_score(&self, method_text: &str, temporal_decay: i64) -> f64 {
         if let Some(last_launch_time) = self.latest_launch_time.get(method_text) {
             let current_time = get_current_time();
             let time_diff = current_time - *last_launch_time;
             let k = 6.0;
-            k / (1.0 + (time_diff as f64) / (self.temporal_decay as f64 + 1.0))
+            k / (1.0 + (time_diff as f64) / (temporal_decay as f64 + 1.0))
         } else {
             0.0
         }
@@ -243,11 +231,6 @@ impl Configurable for HistoryBooster {
 
     fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
         let parsed: HistoryBoosterSettings = serde_json::from_value(settings).unwrap_or_default();
-        let mut inner = self.inner.write();
-        inner.history_weight = parsed.history_weight;
-        inner.recent_habit_weight = parsed.recent_habit_weight;
-        inner.temporal_weight = parsed.temporal_weight;
-        inner.temporal_decay = parsed.temporal_decay as i64;
         *self.settings.write() = parsed;
         Ok(())
     }
@@ -275,6 +258,7 @@ impl ScoreBooster for HistoryBooster {
         query: &str,
     ) {
         let inner = self.inner.read();
+        let settings = self.settings.read();
 
         for candidate in candidates.iter_mut() {
             let method_text = match data.get_candidate(candidate.candidate_id) {
@@ -284,12 +268,13 @@ impl ScoreBooster for HistoryBooster {
 
             let history_score = inner.calculate_history_score(method_text);
             let recent_habit_score = inner.calculate_recent_habit_score(method_text);
-            let temporal_score = inner.calculate_temporal_score(method_text);
+            let temporal_score =
+                inner.calculate_temporal_score(method_text, settings.temporal_decay as i64);
 
             // 动态权重总和
-            let dynamic_score = inner.history_weight * history_score
-                + inner.recent_habit_weight * recent_habit_score
-                + inner.temporal_weight * temporal_score;
+            let dynamic_score = settings.history_weight * history_score
+                + settings.recent_habit_weight * recent_habit_score
+                + settings.temporal_weight * temporal_score;
 
             // 基础分抑制因子：基础匹配分过低时抑制动态权重加成
             // 避免高频使用的无关程序挤占低频使用的精准匹配程序
@@ -306,17 +291,17 @@ impl ScoreBooster for HistoryBooster {
 
             candidate.detailed_score.push(ScoreDetail {
                 score: history_score,
-                weight: inner.history_weight,
+                weight: settings.history_weight,
                 description: "历史启动分数".to_string(),
             });
             candidate.detailed_score.push(ScoreDetail {
                 score: recent_habit_score,
-                weight: inner.recent_habit_weight,
+                weight: settings.recent_habit_weight,
                 description: "近期习惯分数".to_string(),
             });
             candidate.detailed_score.push(ScoreDetail {
                 score: temporal_score,
-                weight: inner.temporal_weight,
+                weight: settings.temporal_weight,
                 description: "短期热度分数".to_string(),
             });
             candidate.detailed_score.push(ScoreDetail {

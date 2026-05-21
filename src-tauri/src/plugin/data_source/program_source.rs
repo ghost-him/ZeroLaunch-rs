@@ -25,19 +25,19 @@ enum SymlinkMode {
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 struct DirectoryConfig {
-    #[serde(default)]
+    #[serde(rename = "root_path", default)]
     root_path: String,
-    #[serde(default = "default_max_depth")]
+    #[serde(rename = "max_depth", default = "default_max_depth")]
     max_depth: u32,
-    #[serde(default)]
+    #[serde(rename = "pattern", default)]
     pattern: Vec<String>,
-    #[serde(default)]
+    #[serde(rename = "pattern_type", default)]
     pattern_type: String,
-    #[serde(default)]
+    #[serde(rename = "excluded_keywords", default)]
     excluded_keywords: Vec<String>,
-    #[serde(default)]
+    #[serde(rename = "forbidden_paths", default)]
     forbidden_paths: Vec<String>,
-    #[serde(default)]
+    #[serde(rename = "symlink_mode", default)]
     symlink_mode: SymlinkMode,
 }
 

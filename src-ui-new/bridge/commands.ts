@@ -66,6 +66,10 @@ export function bridgeGetCandidatesCount(): Promise<number> {
   return invokeCommand<number>('bridge_get_candidates_count')
 }
 
+export function bridgeSaveWindowPosition(x: number, y: number): Promise<void> {
+  return invokeCommand<void>('bridge_save_window_position', { x, y })
+}
+
 // ---- 配置管理 ----
 
 export function configGetAllComponents(): Promise<ComponentInfo[]> {

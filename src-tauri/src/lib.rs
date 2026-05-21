@@ -1,7 +1,6 @@
 pub mod commands;
 pub mod core;
 pub mod logging;
-pub mod modules;
 pub mod plugin;
 pub mod plugin_system;
 pub mod sdk;
@@ -54,9 +53,11 @@ use crate::sdk::platform::WindowsSelectionProvider;
 use crate::sdk::platform::WindowsShellExecutor;
 use crate::sdk::platform::WindowsWindowHandleProvider;
 use crate::sdk::platform::WindowsWindowManager;
+use crate::sdk::platform::WindowsWindowPositioner;
 use crate::sdk::storage::local_storage::LocalStorageService;
 use crate::sdk::storage::storage_service::StorageService;
 use crate::sdk::timer::TokioTimerManager;
+use crate::sdk::window::{MonitorInfo, PositionRequest, WindowPosition};
 use crate::sdk::AppResourceService;
 use crate::sdk::PathResolver;
 use crate::state::app_state::AppState;
@@ -181,6 +182,7 @@ pub fn run() {
             crate::commands::bridge::bridge_get_session_mode,
             crate::commands::bridge::bridge_refresh_candidates,
             crate::commands::bridge::bridge_get_candidates_count,
+            crate::commands::bridge::bridge_save_window_position,
             // Bridge: 配置管理
             crate::commands::config_file::config_get_all_components,
             crate::commands::config_file::config_get_schema,
@@ -271,6 +273,7 @@ async fn init_app_state(
     let app_handle_for_show = app_handle.clone();
     let app_handle_for_is_visible = app_handle.clone();
     let app_handle_for_focus_monitor = app_handle.clone();
+    let app_handle_for_set_pos = app_handle.clone();
 
     let host_api = Arc::new(
         crate::sdk::HostApi::builder(icon_cache_dir)
@@ -302,6 +305,12 @@ async fn init_app_state(
             .focus_monitor(Arc::new(WindowsFocusMonitor::new(
                 app_handle_for_focus_monitor,
             )))
+            .window_positioner(Arc::new(WindowsWindowPositioner::new()))
+            .set_window_position_callback(move |x, y| {
+                if let Some(window) = app_handle_for_set_pos.get_webview_window("main") {
+                    let _ = window.set_position(tauri::PhysicalPosition::new(x, y));
+                }
+            })
             .notify_callback(move |title: String, message: String| {
                 use tauri_plugin_notification::NotificationExt;
                 let _ = app_handle_for_notify
@@ -535,6 +544,7 @@ async fn init_plugin_system(state: &Arc<AppState>) {
     let host_api_for_hotkey = host_api.clone();
     let session_router_for_hotkey = session_router.clone();
     let config_manager_for_hotkey = config_manager.clone();
+    let app_handle_for_hotkey = state.get_main_handle();
     core_handle_for_hotkey.register_hotkey_callback(
         "search_bar_toggle",
         HotkeyEventFilter::All,
@@ -543,8 +553,10 @@ async fn init_plugin_system(state: &Arc<AppState>) {
             let host_api = host_api_for_hotkey.clone();
             let session_router = session_router_for_hotkey.clone();
             let config_manager = config_manager_for_hotkey.clone();
+            let app_handle = app_handle_for_hotkey.clone();
             tauri::async_runtime::spawn(async move {
                 if host_api.is_window_visible() {
+                    save_window_position_if_drag(&config_manager, &app_handle);
                     host_api.hide_window().await;
                 } else {
                     let wake_on_fullscreen = config_manager
@@ -554,6 +566,62 @@ async fn init_plugin_system(state: &Arc<AppState>) {
                     if !wake_on_fullscreen && crate::utils::windows::is_foreground_fullscreen() {
                         return;
                     }
+
+                    // Read window positioning config
+                    let enable_drag = config_manager
+                        .get_component_setting("window-behavior", "is_enable_drag_window")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false);
+                    let follow_mouse = config_manager
+                        .get_component_setting("window-behavior", "show_pos_follow_mouse")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false);
+
+                    let vertical_ratio = config_manager
+                        .get_component_setting("appearance", "vertical_position_ratio")
+                        .and_then(|v| v.as_f64())
+                        .unwrap_or(0.28);
+                    let window_width = config_manager
+                        .get_component_setting("appearance", "window_width")
+                        .and_then(|v| v.as_f64())
+                        .unwrap_or(800.0) as i32;
+
+                    // Read saved position for drag mode
+                    let saved_position = if enable_drag {
+                        let x = config_manager
+                            .get_component_setting("window-behavior", "window_position_x")
+                            .and_then(|v| v.as_f64())
+                            .map(|v| v as i32)
+                            .unwrap_or(0);
+                        let y = config_manager
+                            .get_component_setting("window-behavior", "window_position_y")
+                            .and_then(|v| v.as_f64())
+                            .map(|v| v as i32)
+                            .unwrap_or(0);
+                        if x != 0 || y != 0 {
+                            Some(WindowPosition { x, y })
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    };
+
+                    // Collect monitor info and compute position
+                    let monitors = collect_monitor_info(&app_handle);
+                    let request = PositionRequest {
+                        enable_drag_window: enable_drag,
+                        saved_position,
+                        follow_mouse,
+                        vertical_position_ratio: vertical_ratio,
+                        window_width,
+                        monitors,
+                    };
+
+                    if let Ok(pos) = host_api.compute_window_position(request).await {
+                        host_api.set_window_position(pos);
+                    }
+
                     let _ = session_router.on_search_bar_wake().await;
                     host_api.show_window().await;
                 }
@@ -625,29 +693,86 @@ async fn init_plugin_system(state: &Arc<AppState>) {
 /// 初始化搜索栏窗口。
 ///
 /// 注册焦点丢失回调（隐藏窗口 + 重置会话）。
-/// 窗口位置由前端 useWindowResize 负责居中。
+/// 窗口位置由后端热键回调在 show_window() 前统一计算和设置。
 ///
 /// 窗口失焦检测由 FocusMonitor（push-based）统一管理，
 /// 本函数仅负责注册业务层回调，不直接处理窗口事件。
+/// Persist the current window position to ConfigManager if drag mode is enabled.
+fn save_window_position_if_drag(
+    config_manager: &Arc<ConfigManager>,
+    app_handle: &tauri::AppHandle,
+) {
+    let enable_drag = config_manager
+        .get_component_setting("window-behavior", "is_enable_drag_window")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    if !enable_drag {
+        return;
+    }
+    if let Some(window) = app_handle.get_webview_window("main") {
+        if let Ok(pos) = window.outer_position() {
+            let mut current = config_manager
+                .get_settings("window-behavior")
+                .unwrap_or_else(|| serde_json::json!({}));
+            if let Some(obj) = current.as_object_mut() {
+                obj.insert("window_position_x".to_string(), serde_json::json!(pos.x));
+                obj.insert("window_position_y".to_string(), serde_json::json!(pos.y));
+            }
+            let _ = config_manager.apply_settings("window-behavior", current);
+        }
+    }
+}
+
 fn init_search_bar_window(app: &mut App) {
     let state = app.state::<Arc<AppState>>();
     let host_api = state.get_host_api();
     let session_router = state.get_session_router().clone();
+    let config_manager = state.get_config_manager();
+    let app_handle = state.get_main_handle();
 
-    // 注册焦点丢失回调：隐藏窗口 + 重置会话
+    // 注册焦点丢失回调：保存拖拽位置 → 隐藏窗口 → 重置会话
     let core_handle = state.get_core_handle();
     let host_api_for_cb = host_api.clone();
+    let config_manager_for_cb = config_manager.clone();
+    let app_handle_for_cb = app_handle.clone();
     core_handle.register_focus_callback(
         "main_window_focus",
         Arc::new(move |_event| {
             let host_api = host_api_for_cb.clone();
             let session_router = session_router.clone();
+            let config_manager = config_manager_for_cb.clone();
+            let app_handle = app_handle_for_cb.clone();
             tauri::async_runtime::spawn(async move {
+                save_window_position_if_drag(&config_manager, &app_handle);
                 host_api.hide_window().await;
                 session_router.reset_session();
             });
         }),
     );
+}
+
+/// Collect available monitor info from the Tauri AppHandle for window positioning.
+fn collect_monitor_info(app_handle: &tauri::AppHandle) -> Vec<MonitorInfo> {
+    app_handle
+        .get_webview_window("main")
+        .and_then(|w| w.available_monitors().ok())
+        .map(|monitors| {
+            monitors
+                .iter()
+                .map(|m| {
+                    let pos = m.position();
+                    let size = m.size();
+                    MonitorInfo {
+                        x: pos.x,
+                        y: pos.y,
+                        width: size.width,
+                        height: size.height,
+                        scale_factor: m.scale_factor(),
+                    }
+                })
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 fn init_setting_window(app: tauri::AppHandle) {

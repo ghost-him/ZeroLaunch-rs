@@ -11,6 +11,7 @@ mod path_resolver;
 mod resource_loader;
 mod shell;
 mod window;
+mod window_positioner;
 
 pub use app_enumerator::WindowsAppEnumerator;
 pub use app_launcher::WindowsAppLauncher;
@@ -27,3 +28,4 @@ pub use path_resolver::WindowsPathResolver;
 pub use resource_loader::WindowsResourceLoader;
 pub use shell::WindowsShellExecutor;
 pub use window::WindowsWindowManager;
+pub use window_positioner::WindowsWindowPositioner;

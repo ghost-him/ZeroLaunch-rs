@@ -22,7 +22,7 @@ use crate::sdk::shell::ShellExecutor;
 use crate::sdk::storage::storage_service::StorageService;
 use crate::sdk::timer::types::{TimerCallback, TimerId, TimerMode};
 use crate::sdk::timer::TimerManager;
-use crate::sdk::window::WindowManager;
+use crate::sdk::window::{WindowManager, WindowPosition, WindowPositioner};
 use dashmap::DashMap;
 use parking_lot::RwLock;
 
@@ -601,6 +601,10 @@ pub struct HostApi {
     shell_executor: Arc<dyn ShellExecutor>,
     /// 窗口管理器（平台实现）
     window_manager: Arc<dyn WindowManager>,
+    /// 窗口位置计算器（平台实现）
+    window_positioner: Arc<dyn WindowPositioner>,
+    /// 设置窗口位置回调（宿主级）
+    set_window_position_callback: RwLock<Arc<dyn Fn(i32, i32) + Send + Sync + 'static>>,
     /// 路径解析器（平台实现）
     path_resolver: Arc<dyn PathResolver>,
     /// 应用枚举器（平台实现）
@@ -730,6 +734,20 @@ impl HostApi {
     /// 直接查询窗口真实状态，不依赖缓存变量。
     pub fn is_window_visible(&self) -> bool {
         self.is_window_visible_callback.read()()
+    }
+
+    /// 计算窗口最优显示位置。
+    /// 委托给平台 WindowPositioner 实现，根据配置和系统状态返回物理像素坐标。
+    pub async fn compute_window_position(
+        &self,
+        request: crate::sdk::window::PositionRequest,
+    ) -> Result<WindowPosition, HostApiError> {
+        self.window_positioner.compute_position(request).await
+    }
+
+    /// 设置搜索栏窗口位置（物理像素坐标）。
+    pub fn set_window_position(&self, position: WindowPosition) {
+        self.set_window_position_callback.read()(position.x, position.y);
     }
 
     /// 捕获当前系统参数快照
@@ -896,6 +914,8 @@ pub struct HostApiBuilder {
     hide_window_callback: Option<Arc<dyn Fn() + Send + Sync + 'static>>,
     show_window_callback: Option<Arc<dyn Fn() + Send + Sync + 'static>>,
     is_window_visible_callback: Option<Arc<dyn Fn() -> bool + Send + Sync + 'static>>,
+    window_positioner: Option<Arc<dyn WindowPositioner>>,
+    set_window_position_callback: Option<Arc<dyn Fn(i32, i32) + Send + Sync + 'static>>,
 }
 
 impl HostApiBuilder {
@@ -928,6 +948,8 @@ impl HostApiBuilder {
             hide_window_callback: None,
             show_window_callback: None,
             is_window_visible_callback: None,
+            window_positioner: None,
+            set_window_position_callback: None,
         }
     }
 
@@ -1121,6 +1143,25 @@ impl HostApiBuilder {
         self
     }
 
+    /// 设置窗口位置计算器。
+    /// 参数：positioner - 平台 WindowPositioner 实现。
+    /// 返回：Self（支持链式调用）。
+    pub fn window_positioner(mut self, positioner: Arc<dyn WindowPositioner>) -> Self {
+        self.window_positioner = Some(positioner);
+        self
+    }
+
+    /// 设置窗口位置回调，宿主层在初始化时注入 Tauri set_position 实现。
+    /// 参数：callback - 接收 (x, y) 物理像素坐标的回调。
+    /// 返回：Self（支持链式调用）。
+    pub fn set_window_position_callback<F>(mut self, callback: F) -> Self
+    where
+        F: Fn(i32, i32) + Send + Sync + 'static,
+    {
+        self.set_window_position_callback = Some(Arc::new(callback));
+        self
+    }
+
     /// 构建 HostApi 实例。
     /// 参数：无。
     /// 返回：构建完成的 HostApi 实例，如果缺少必需组件则 panic。
@@ -1169,6 +1210,11 @@ impl HostApiBuilder {
             is_window_visible_callback: RwLock::new(
                 self.is_window_visible_callback
                     .expect("missing is_window_visible_callback"),
+            ),
+            window_positioner: self.window_positioner.expect("missing window_positioner"),
+            set_window_position_callback: RwLock::new(
+                self.set_window_position_callback
+                    .expect("missing set_window_position_callback"),
             ),
         }
     }

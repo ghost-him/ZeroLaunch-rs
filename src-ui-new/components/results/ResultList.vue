@@ -1,5 +1,5 @@
 <template>
-  <div class="result-list">
+  <div class="result-list" data-no-drag>
     <ResultItem
       v-for="(item, index) in results"
       :key="item.id"

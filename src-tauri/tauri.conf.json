@@ -13,6 +13,7 @@
     "windows": [
       {
         "title": "zerolaunch-rs",
+        "visible": false,
         "fullscreen": false,
         "resizable": false,
         "decorations": false,

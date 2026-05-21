@@ -40,7 +40,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick } from 'vue'
+import { provide, ref, nextTick } from 'vue'
 import { onMounted, onUnmounted } from 'vue'
 import { useNotification } from 'naive-ui'
 import WindowFrame from '../components/layout/WindowFrame.vue'
@@ -56,7 +56,7 @@ import { useKeyboard } from '../composables/useKeyboard'
 import { useWindowResize } from '../composables/useWindowResize'
 import { useSearch } from '../composables/useSearch'
 import { onConfigChanged, onInstallationEvent } from '../bridge/events'
-import { registerErrorHandler } from '../bridge/commands'
+import { registerErrorHandler, configGetSettings } from '../bridge/commands'
 import type { BridgeError } from '../bridge/commands'
 
 const searchStore = useSearchStore()
@@ -71,6 +71,19 @@ const ctxVisible = ref(false)
 const ctxX = ref(0)
 const ctxY = ref(0)
 const ctxItems = ref<CtxItem[]>([])
+
+const isDragEnabled = ref(false)
+provide('isDragEnabled', isDragEnabled)
+
+async function loadDragSetting() {
+  try {
+    const settings = (await configGetSettings('window-behavior')) as Record<string, unknown> | null
+    isDragEnabled.value = (settings?.is_enable_drag_window as boolean) ?? false
+    console.log('[SearchView] Drag setting loaded:', isDragEnabled.value)
+  } catch (e) {
+    console.warn('[SearchView] Failed to load drag setting:', e)
+  }
+}
 
 const searchBarRef = ref<InstanceType<typeof SearchBar> | null>(null)
 
@@ -103,6 +116,7 @@ onMounted(async () => {
   })
 
   searchStore.fetchCandidatesCount()
+  await loadDragSetting()
 
   unlistenConfig = await onConfigChanged((payload) => {
     // DataSource/KeywordOptimizer 变更时刷新候选项
@@ -112,6 +126,10 @@ onMounted(async () => {
     // 外观配置变更时重新计算窗口尺寸（宽度/高度/字体可能变化）
     if (payload.componentId === 'appearance') {
       nextTick(() => resizeWindow())
+    }
+    // 窗口行为变更时重新加载拖动设置
+    if (payload.componentId === 'window-behavior') {
+      loadDragSetting()
     }
   })
 

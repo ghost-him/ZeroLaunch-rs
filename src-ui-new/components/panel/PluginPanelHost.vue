@@ -1,5 +1,5 @@
 <template>
-  <div class="plugin-panel-host">
+  <div class="plugin-panel-host" data-no-drag>
     <component
       :is="panelComponent"
       v-if="panelComponent"

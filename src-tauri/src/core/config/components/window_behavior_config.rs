@@ -15,6 +15,14 @@ pub struct WindowBehaviorSettings {
     pub is_wake_on_fullscreen: bool,
     #[serde(rename = "launch_new_on_failure", default = "default_true")]
     pub launch_new_on_failure: bool,
+    #[serde(rename = "is_enable_drag_window", default)]
+    pub is_enable_drag_window: bool,
+    #[serde(rename = "show_pos_follow_mouse", default)]
+    pub show_pos_follow_mouse: bool,
+    #[serde(rename = "window_position_x", default)]
+    pub window_position_x: i32,
+    #[serde(rename = "window_position_y", default)]
+    pub window_position_y: i32,
 }
 
 impl Default for WindowBehaviorSettings {
@@ -24,6 +32,10 @@ impl Default for WindowBehaviorSettings {
             space_is_enter: false,
             is_wake_on_fullscreen: false,
             launch_new_on_failure: true,
+            is_enable_drag_window: false,
+            show_pos_follow_mouse: false,
+            window_position_x: 0,
+            window_position_y: 0,
         }
     }
 }
@@ -33,7 +45,8 @@ fn default_true() -> bool {
 }
 
 /// 窗口交互行为配置组件。
-/// 管理 ESC 键行为、空格确认、全屏唤醒和窗口激活失败降级策略。
+/// 管理 ESC 键行为、空格确认、全屏唤醒、窗口激活失败降级策略、
+/// 拖动窗口记忆、鼠标跟随定位以及窗口位置持久化。
 /// 所有配置项均为被动设置（read-at-use），无 on_settings_changed 副作用。
 pub struct WindowBehaviorConfigComponent {
     settings: RwLock<WindowBehaviorSettings>,
@@ -104,6 +117,24 @@ impl Configurable for WindowBehaviorConfigComponent {
             .group("窗口行为")
             .order(3)
             .default(true)
+            .build(),
+            SchemaBuilder::boolean(
+                "is_enable_drag_window",
+                "启用窗口拖动",
+                "启用后，可拖动搜索栏窗口并记住位置。下次唤醒时恢复到上次拖动的位置",
+            )
+            .group("窗口行为")
+            .order(10)
+            .default(false)
+            .build(),
+            SchemaBuilder::boolean(
+                "show_pos_follow_mouse",
+                "跟随鼠标显示器",
+                "启用后，唤醒搜索栏时自动定位到鼠标所在的显示器（多显示器环境有效）。优先级低于「启用窗口拖动」",
+            )
+            .group("窗口行为")
+            .order(11)
+            .default(false)
             .build(),
         ]
     }

@@ -1,8 +1,31 @@
 <template>
-  <div class="window-frame">
+  <div
+    class="window-frame"
+    :data-tauri-drag-region="dragEnabled ? '' : null"
+    @mousedown="onMouseDown"
+  >
     <slot />
   </div>
 </template>
+
+<script setup lang="ts">
+import { inject } from 'vue'
+import { getCurrentWindow } from '@tauri-apps/api/window'
+
+const dragEnabled = inject<boolean>('isDragEnabled', false)
+
+function onMouseDown(e: MouseEvent) {
+  if (!dragEnabled) return
+  if (e.button !== 0) return
+  // Skip interactive elements where the user needs to type or click
+  const target = e.target as HTMLElement
+  const tag = target.tagName.toLowerCase()
+  if (tag === 'input' || tag === 'textarea' || tag === 'button' || tag === 'select') return
+  // Skip elements explicitly marked as no-drag (result items, panels, etc.)
+  if (target.closest('[data-no-drag]')) return
+  getCurrentWindow().startDragging()
+}
+</script>
 
 <style scoped>
 .window-frame {

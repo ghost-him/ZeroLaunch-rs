@@ -14,7 +14,9 @@
       "Bash(git cherry-pick *)",
       "Bash(git stash *)",
       "Bash(ls *)",
-      "Bash(xargs grep -l \"error\")"
+      "Bash(xargs grep -l \"error\")",
+      "Bash(./node_modules/.bin/tsc --noEmit)",
+      "Bash(bunx tsc *)"
     ]
   }
 }

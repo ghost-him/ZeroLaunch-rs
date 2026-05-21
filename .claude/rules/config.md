@@ -11,8 +11,14 @@ paths:
 `ConfigManager::apply_settings()` 按以下固定顺序执行，不可重排、不可跳过、不可合并：
 
 1. `validate_settings(&settings)?` — 纯校验，不得修改状态
+   - **禁止**：修改 `self` 内部状态、执行文件/网络 I/O、调用 HostApi、注册/注销回调、spawn async task
+   - **允许**：检查字段值范围、验证必填项、检查字段间约束、返回 `Err(ConfigError)` 拒绝无效输入
 2. `apply_settings(settings)` — 仅写入内部 `RwLock`
+   - **禁止**：重建外部服务、启动/停止监听器、注册热键、调用 HostApi、spawn async task、执行 I/O
+   - **允许**：反序列化 settings JSON、写入 `self.settings`（或等价的内部 RwLock）
 3. `on_settings_changed()` — 副作用（重建服务、注册回调）
+   - **禁止**：修改配置值（此时配置已生效，再改会造成不一致）
+   - **允许**：spawn async task 注册热键、重启监听器、发送通知等
 4. 通过广播通道发布 `ConfigEvent`
 5. `save_to_storage()` — 持久化到本地 JSON，然后可选远程同步
 

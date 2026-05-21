@@ -23,20 +23,11 @@ paths:
 - 插件 **必须** 通过 `PluginHandle`（从 `HostApi::register()` 获取）访问平台能力。可用方法列表见 `PluginHandle` 源码（`src-tauri/src/sdk/host_api.rs`）
 - 如果某平台操作没有 `PluginHandle` 方法，**必须** 先添加到 `PluginHandle` 再使用
 
-## 配置存储模式（RwLock\<Value\> 组件）
+## 配置存储模式
 
-- 插件组件（DataSource、Executor 等）使用 `RwLock<serde_json::Value>` 存储配置
-- `apply_settings()` 仅做一件事：`*self.settings.write() = settings;`
-- 读取配置时，通过 helper 方法从 JSON 反序列化：
-  ```rust
-  fn parse_xxx(&self) -> Vec<XxxConfig> {
-      self.settings.read().get("key")
-          .and_then(|v| v.as_array())
-          .map(|arr| arr.iter().filter_map(|item| serde_json::from_value(item.clone()).ok()).collect())
-          .unwrap_or_default()
-  }
-  ```
-- **禁止** 在 `apply_settings()` 中做任何解析、校验或副作用。仅存储 raw JSON
+所有 `Configurable` 实现 **必须** 使用强类型 `Settings` struct（带 `#[derive(Serialize, Deserialize)]` + 每个字段标注 `#[serde(rename, default)]`），通过 `RwLock<Settings>` 存储。详细规范见 [config.md](config.md) 的 Serde 默认值强制规范。
+
+`apply_settings()` 中 **必须** 使用 `serde_json::from_value::<Settings>(settings).unwrap_or_default()` 反序列化，然后写入 `RwLock`。**禁止** 在 `apply_settings()` 中做解析、校验或副作用。
 
 ## 核心配置组件模式（core/config/components/ 中的组件）
 

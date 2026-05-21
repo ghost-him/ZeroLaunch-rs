@@ -22,13 +22,11 @@ paths:
   - **正确**：`fn bridge_query(raw_query: String)`
 - 3 个及以上参数的命令：使用单个反序列化结构体
   - **正确**：`fn bridge_confirm(payload: ConfirmPayload)`
-- 所有结构体参数 **必须** `#[derive(Deserialize)]`。每个字段 **必须** 显式标注 `#[serde(rename = "camelCaseKey")]`（见Serde 序列化规范）
+- 所有结构体参数 **必须** `#[derive(Deserialize)]`
 
 ## 序列化契约
 
-- 所有 IPC 类型（双向）的 JSON 键名使用 **camelCase**
-- Rust 侧：跨 IPC 边界的每个结构体/枚举字段 **必须** 显式标注 `#[serde(rename = "camelCaseKey")]`。详细规则见 Serde 序列化规范
-- TypeScript 侧：interface/type 字段使用与 Rust `#[serde(rename = "...")]` 匹配的 camelCase
+- IPC 类型 JSON 键名统一使用 **camelCase**，Rust 与 TypeScript 两侧 **必须** 一致。详细标注规则见 Serde 序列化规范
 - 前端类型在 `bridge/contract.ts` 中 **必须** 与 Rust 类型 `commands/bridge.rs` 和 `commands/config_file.rs` 保持同步
 - 新增/重命名 Rust IPC 类型字段时：**同一 commit** 中更新 `bridge/contract.ts`
 
@@ -54,8 +52,7 @@ paths:
       UnitVariant, 
   }
   ```
-- 对于 enum unit variant：每个 variant 加 `#[serde(rename = "...")]`。
-- 对于 enum variant with fields：variant 标签和内部字段都需要分别标注。
+- enum unit variant 和 variant with fields 均需显式标注：variant 标签加 `#[serde(rename = "...")]`，有内部字段的 variant 还需对每个内部字段标注。
 
 
 ## 命令注册

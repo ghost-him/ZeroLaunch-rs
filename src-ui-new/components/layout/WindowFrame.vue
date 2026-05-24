@@ -9,13 +9,13 @@
 </template>
 
 <script setup lang="ts">
-import { inject } from 'vue'
+import { inject, ref, type Ref } from 'vue'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 
-const dragEnabled = inject<boolean>('isDragEnabled', false)
+const dragEnabled = inject<Ref<boolean>>('isDragEnabled', ref(false))
 
 function onMouseDown(e: MouseEvent) {
-  if (!dragEnabled) return
+  if (!dragEnabled.value) return
   if (e.button !== 0) return
   // Skip interactive elements where the user needs to type or click
   const target = e.target as HTMLElement

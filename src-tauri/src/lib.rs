@@ -59,6 +59,7 @@ use crate::sdk::storage::storage_service::StorageService;
 use crate::sdk::timer::TokioTimerManager;
 use crate::sdk::window::{MonitorInfo, PositionRequest, WindowPosition};
 use crate::sdk::AppResourceService;
+use crate::sdk::HostApi;
 use crate::sdk::PathResolver;
 use crate::state::app_state::AppState;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -182,7 +183,6 @@ pub fn run() {
             crate::commands::bridge::bridge_get_session_mode,
             crate::commands::bridge::bridge_refresh_candidates,
             crate::commands::bridge::bridge_get_candidates_count,
-            crate::commands::bridge::bridge_save_window_position,
             // Bridge: 配置管理
             crate::commands::config_file::config_get_all_components,
             crate::commands::config_file::config_get_schema,
@@ -559,69 +559,9 @@ async fn init_plugin_system(state: &Arc<AppState>) {
                     save_window_position_if_drag(&config_manager, &app_handle);
                     host_api.hide_window().await;
                 } else {
-                    let wake_on_fullscreen = config_manager
-                        .get_component_setting("window-behavior", "is_wake_on_fullscreen")
-                        .and_then(|v| v.as_bool())
-                        .unwrap_or(false);
-                    if !wake_on_fullscreen && crate::utils::windows::is_foreground_fullscreen() {
+                    if !prepare_window_position(&config_manager, &host_api, &app_handle).await {
                         return;
                     }
-
-                    // Read window positioning config
-                    let enable_drag = config_manager
-                        .get_component_setting("window-behavior", "is_enable_drag_window")
-                        .and_then(|v| v.as_bool())
-                        .unwrap_or(false);
-                    let follow_mouse = config_manager
-                        .get_component_setting("window-behavior", "show_pos_follow_mouse")
-                        .and_then(|v| v.as_bool())
-                        .unwrap_or(false);
-
-                    let vertical_ratio = config_manager
-                        .get_component_setting("appearance", "vertical_position_ratio")
-                        .and_then(|v| v.as_f64())
-                        .unwrap_or(0.28);
-                    let window_width = config_manager
-                        .get_component_setting("appearance", "window_width")
-                        .and_then(|v| v.as_f64())
-                        .unwrap_or(800.0) as i32;
-
-                    // Read saved position for drag mode
-                    let saved_position = if enable_drag {
-                        let x = config_manager
-                            .get_component_setting("window-behavior", "window_position_x")
-                            .and_then(|v| v.as_f64())
-                            .map(|v| v as i32)
-                            .unwrap_or(0);
-                        let y = config_manager
-                            .get_component_setting("window-behavior", "window_position_y")
-                            .and_then(|v| v.as_f64())
-                            .map(|v| v as i32)
-                            .unwrap_or(0);
-                        if x != 0 || y != 0 {
-                            Some(WindowPosition { x, y })
-                        } else {
-                            None
-                        }
-                    } else {
-                        None
-                    };
-
-                    // Collect monitor info and compute position
-                    let monitors = collect_monitor_info(&app_handle);
-                    let request = PositionRequest {
-                        enable_drag_window: enable_drag,
-                        saved_position,
-                        follow_mouse,
-                        vertical_position_ratio: vertical_ratio,
-                        window_width,
-                        monitors,
-                    };
-
-                    if let Ok(pos) = host_api.compute_window_position(request).await {
-                        host_api.set_window_position(pos);
-                    }
-
                     let _ = session_router.on_search_bar_wake().await;
                     host_api.show_window().await;
                 }
@@ -697,7 +637,81 @@ async fn init_plugin_system(state: &Arc<AppState>) {
 ///
 /// 窗口失焦检测由 FocusMonitor（push-based）统一管理，
 /// 本函数仅负责注册业务层回调，不直接处理窗口事件。
-/// Persist the current window position to ConfigManager if drag mode is enabled.
+/// 准备搜索栏窗口位置：全屏检查 → 读取定位配置 → 计算并设置窗口坐标。
+///
+/// 返回 `true` 表示定位成功可继续唤醒；
+/// 返回 `false` 表示被阻拦（全屏应用且未开启全屏唤醒）。
+async fn prepare_window_position(
+    config_manager: &Arc<ConfigManager>,
+    host_api: &Arc<HostApi>,
+    app_handle: &tauri::AppHandle,
+) -> bool {
+    let wake_on_fullscreen = config_manager
+        .get_component_setting("window-behavior", "is_wake_on_fullscreen")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    if !wake_on_fullscreen && crate::utils::windows::is_foreground_fullscreen() {
+        return false;
+    }
+
+    // 读取窗口定位配置
+    let enable_drag = config_manager
+        .get_component_setting("window-behavior", "is_enable_drag_window")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    let follow_mouse = config_manager
+        .get_component_setting("window-behavior", "show_pos_follow_mouse")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    let vertical_ratio = config_manager
+        .get_component_setting("appearance", "vertical_position_ratio")
+        .and_then(|v| v.as_f64())
+        .unwrap_or(0.28);
+    let window_width = config_manager
+        .get_component_setting("appearance", "window_width")
+        .and_then(|v| v.as_f64())
+        .unwrap_or(800.0) as i32;
+
+    // 读取拖拽模式保存的位置
+    let saved_position = if enable_drag {
+        let x = config_manager
+            .get_component_setting("window-behavior", "window_position_x")
+            .and_then(|v| v.as_f64())
+            .map(|v| v as i32)
+            .unwrap_or(0);
+        let y = config_manager
+            .get_component_setting("window-behavior", "window_position_y")
+            .and_then(|v| v.as_f64())
+            .map(|v| v as i32)
+            .unwrap_or(0);
+        if x != 0 || y != 0 {
+            Some(WindowPosition { x, y })
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    // 收集显示器信息并计算窗口位置
+    let monitors = collect_monitor_info(app_handle);
+    let request = PositionRequest {
+        enable_drag_window: enable_drag,
+        saved_position,
+        follow_mouse,
+        vertical_position_ratio: vertical_ratio,
+        window_width,
+        monitors,
+    };
+
+    if let Ok(pos) = host_api.compute_window_position(request).await {
+        host_api.set_window_position(pos);
+    }
+
+    true
+}
+
+/// 若拖拽模式已启用，将当前窗口位置持久化到 ConfigManager。
 fn save_window_position_if_drag(
     config_manager: &Arc<ConfigManager>,
     app_handle: &tauri::AppHandle,
@@ -718,7 +732,9 @@ fn save_window_position_if_drag(
                 obj.insert("window_position_x".to_string(), serde_json::json!(pos.x));
                 obj.insert("window_position_y".to_string(), serde_json::json!(pos.y));
             }
-            let _ = config_manager.apply_settings("window-behavior", current);
+            if let Err(e) = config_manager.apply_settings("window-behavior", current) {
+                warn!("[save_window_position] 持久化窗口位置失败: {}", e);
+            }
         }
     }
 }
@@ -751,7 +767,7 @@ fn init_search_bar_window(app: &mut App) {
     );
 }
 
-/// Collect available monitor info from the Tauri AppHandle for window positioning.
+/// 从 Tauri AppHandle 收集可用显示器信息，供窗口定位使用。
 fn collect_monitor_info(app_handle: &tauri::AppHandle) -> Vec<MonitorInfo> {
     app_handle
         .get_webview_window("main")

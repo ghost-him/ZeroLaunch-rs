@@ -272,28 +272,3 @@ pub fn bridge_get_candidates_count(state: tauri::State<'_, Arc<AppState>>) -> us
 // ============================================================================
 // 窗口位置持久化
 // ============================================================================
-
-/// 保存窗口拖动后的位置。
-/// 由前端在窗口 moved 事件后调用（仅在拖动结束时触发一次）。
-/// 内部通过 ConfigManager 统一流水线持久化。
-#[tauri::command]
-pub async fn bridge_save_window_position(
-    state: tauri::State<'_, Arc<AppState>>,
-    x: i32,
-    y: i32,
-) -> Result<(), String> {
-    let config_manager = state.get_config_manager();
-
-    let mut current = config_manager
-        .get_settings("window-behavior")
-        .unwrap_or_else(|| serde_json::json!({}));
-
-    if let Some(obj) = current.as_object_mut() {
-        obj.insert("window_position_x".to_string(), serde_json::json!(x));
-        obj.insert("window_position_y".to_string(), serde_json::json!(y));
-    }
-
-    config_manager
-        .apply_settings("window-behavior", current)
-        .map_err(|e| format!("保存窗口位置失败: {}", e))
-}

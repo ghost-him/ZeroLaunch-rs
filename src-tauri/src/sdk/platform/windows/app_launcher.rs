@@ -1,10 +1,10 @@
 use crate::sdk::app::app_launcher::AppLauncher;
+use crate::sdk::common::ComGuard;
 use crate::sdk::host_api::HostApiError;
-use crate::utils::defer::defer;
 use crate::utils::windows::get_u16_vec;
 use async_trait::async_trait;
-use tracing::{debug, warn};
-use windows::Win32::System::Com::{CoCreateInstance, CoInitialize, CoUninitialize, CLSCTX_ALL};
+use tracing::debug;
+use windows::Win32::System::Com::{CoCreateInstance, CLSCTX_ALL};
 use windows::Win32::UI::Shell::{
     ApplicationActivationManager, IApplicationActivationManager, AO_NONE,
 };
@@ -38,15 +38,7 @@ impl AppLauncher for WindowsAppLauncher {
         _args: Option<&[String]>,
     ) -> Result<u32, HostApiError> {
         unsafe {
-            let com_init = CoInitialize(None);
-            if com_init.is_err() {
-                warn!("初始化COM库失败：{:?}", com_init);
-            }
-            defer(move || {
-                if com_init.is_ok() {
-                    CoUninitialize();
-                }
-            });
+            let _com_guard = ComGuard::init();
 
             let manager: IApplicationActivationManager =
                 CoCreateInstance(&ApplicationActivationManager, None, CLSCTX_ALL).map_err(|e| {

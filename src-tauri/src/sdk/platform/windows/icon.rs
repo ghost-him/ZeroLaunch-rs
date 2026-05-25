@@ -1,7 +1,7 @@
 use crate::sdk::common::image_utils::ImageUtils;
+use crate::sdk::common::ComGuard;
 use crate::sdk::host_api::HostApiError;
 use crate::sdk::icon::icon_extractor::IconExtractor;
-use crate::utils::defer::defer;
 use crate::utils::windows::get_u16_vec;
 use async_trait::async_trait;
 use base64::prelude::*;
@@ -193,15 +193,7 @@ impl WindowsIconExtractor {
             let result = tauri::async_runtime::spawn_blocking({
                 let file_path = file_path.clone();
                 move || {
-                    let com_init = unsafe { windows::Win32::System::Com::CoInitialize(None) };
-                    if com_init.is_err() {
-                        warn!("初始化com库失败：{:?}", com_init);
-                    }
-                    defer(move || unsafe {
-                        if com_init.is_ok() {
-                            windows::Win32::System::Com::CoUninitialize();
-                        }
-                    });
+                    let _com_guard = unsafe { ComGuard::init() };
 
                     let wide_file_path = get_u16_vec(file_path.clone());
 
@@ -283,15 +275,7 @@ impl WindowsIconExtractor {
             let result = tauri::async_runtime::spawn_blocking({
                 let file_path = file_path.clone();
                 move || {
-                    let com_init = unsafe { windows::Win32::System::Com::CoInitialize(None) };
-                    if com_init.is_err() {
-                        warn!("初始化com库失败：{:?}", com_init);
-                    }
-                    defer(move || unsafe {
-                        if com_init.is_ok() {
-                            windows::Win32::System::Com::CoUninitialize();
-                        }
-                    });
+                    let _com_guard = unsafe { ComGuard::init() };
 
                     let wide_file_path = get_u16_vec(file_path.clone());
                     let mut sh_file_info: SHFILEINFOW = unsafe { std::mem::zeroed() };
@@ -424,15 +408,7 @@ impl WindowsIconExtractor {
             let result = tauri::async_runtime::spawn_blocking({
                 let file_path = file_path.clone();
                 move || {
-                    let com_init = unsafe { windows::Win32::System::Com::CoInitialize(None) };
-                    if com_init.is_err() {
-                        warn!("初始化com库失败：{:?}", com_init);
-                    }
-                    defer(move || unsafe {
-                        if com_init.is_ok() {
-                            windows::Win32::System::Com::CoUninitialize();
-                        }
-                    });
+                    let _com_guard = unsafe { ComGuard::init() };
 
                     let wide_file_path = get_u16_vec(file_path.clone());
                     let mut large_icon: HICON = HICON::default();
@@ -502,12 +478,7 @@ impl WindowsIconExtractor {
         let ext = ext.to_string();
         let ext_for_error = ext.clone();
         let image_buffer = tauri::async_runtime::spawn_blocking(move || {
-            let com_init = unsafe { windows::Win32::System::Com::CoInitialize(None) };
-            defer(move || unsafe {
-                if com_init.is_ok() {
-                    windows::Win32::System::Com::CoUninitialize();
-                }
-            });
+            let _com_guard = unsafe { ComGuard::init() };
 
             let mut sh_file_info: SHFILEINFOW = unsafe { std::mem::zeroed() };
             let flags = SHGFI_ICON | SHGFI_LARGEICON | SHGFI_USEFILEATTRIBUTES;

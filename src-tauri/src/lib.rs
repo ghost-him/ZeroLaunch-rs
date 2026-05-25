@@ -36,6 +36,7 @@ use crate::plugin::triggerable::calculator_plugin::CalculatorPlugin;
 use crate::plugin_system::types::{Plugin, ScoreBooster, SearchEngine};
 
 use crate::plugin_system::{CandidatePipeline, SearchPipeline};
+use crate::sdk::common::ComGuard;
 use crate::sdk::hotkey::types::HotkeyEventFilter;
 use crate::sdk::path::KnownPath;
 use crate::sdk::platform::WindowsAppEnumerator;
@@ -95,11 +96,9 @@ pub fn run() {
     let _log_guard = init_logging(&log_dir, None);
     log_application_start();
 
-    // 初始化 COM 库
-    let com_init = unsafe { windows::Win32::System::Com::CoInitialize(None) };
-    if com_init.is_err() {
-        warn!("初始化COM库失败：{:?}", com_init);
-    }
+    // 初始化 COM 库（主线程常驻，不释放）
+    let _com_guard = unsafe { ComGuard::init() };
+    std::mem::forget(_com_guard);
 
     // ========================================================================
     // 阶段 3: 构建 Tauri 应用

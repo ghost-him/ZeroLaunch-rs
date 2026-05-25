@@ -1,7 +1,7 @@
 use crate::sdk::app::app_enumerator::AppEnumerator;
 use crate::sdk::app::AppInfo;
+use crate::sdk::common::ComGuard;
 use crate::sdk::IconRequest;
-use crate::utils::defer::defer;
 use crate::utils::windows::get_u16_vec;
 use async_trait::async_trait;
 use image::ImageReader;
@@ -157,16 +157,7 @@ impl AppEnumerator for WindowsAppEnumerator {
         let mut result = Vec::new();
 
         unsafe {
-            let com_init = windows::Win32::System::Com::CoInitialize(None);
-            if com_init.is_err() {
-                warn!("初始化COM库失败：{:?}", com_init);
-            }
-
-            let _defer = defer(move || {
-                if com_init.is_ok() {
-                    windows::Win32::System::Com::CoUninitialize();
-                }
-            });
+            let _com_guard = ComGuard::init();
 
             // Create Shell item for AppsFolder
             let tmp = get_u16_vec("shell:AppsFolder");

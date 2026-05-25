@@ -1,5 +1,4 @@
 pub mod access_policy;
-pub mod defer;
 pub mod font_database;
 pub mod locale;
 pub mod service_locator;

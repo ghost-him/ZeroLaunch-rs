@@ -630,13 +630,6 @@ async fn init_plugin_system(state: &Arc<AppState>) {
     );
 }
 
-/// 初始化搜索栏窗口。
-///
-/// 注册焦点丢失回调（隐藏窗口 + 重置会话）。
-/// 窗口位置由后端热键回调在 show_window() 前统一计算和设置。
-///
-/// 窗口失焦检测由 FocusMonitor（push-based）统一管理，
-/// 本函数仅负责注册业务层回调，不直接处理窗口事件。
 /// 准备搜索栏窗口位置：全屏检查 → 读取定位配置 → 计算并设置窗口坐标。
 ///
 /// 返回 `true` 表示定位成功可继续唤醒；
@@ -739,6 +732,13 @@ fn save_window_position_if_drag(
     }
 }
 
+/// 初始化搜索栏窗口。
+///
+/// 注册焦点丢失回调（隐藏窗口 + 重置会话）。
+/// 窗口位置由后端热键回调在 show_window() 前统一计算和设置。
+///
+/// 窗口失焦检测由 FocusMonitor（push-based）统一管理，
+/// 本函数仅负责注册业务层回调，不直接处理窗口事件。
 fn init_search_bar_window(app: &mut App) {
     let state = app.state::<Arc<AppState>>();
     let host_api = state.get_host_api();

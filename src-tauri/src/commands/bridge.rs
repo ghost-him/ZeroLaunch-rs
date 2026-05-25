@@ -268,7 +268,3 @@ pub async fn bridge_refresh_candidates(
 pub fn bridge_get_candidates_count(state: tauri::State<'_, Arc<AppState>>) -> usize {
     state.get_session_router().get_cached_candidates_count()
 }
-
-// ============================================================================
-// 窗口位置持久化
-// ============================================================================

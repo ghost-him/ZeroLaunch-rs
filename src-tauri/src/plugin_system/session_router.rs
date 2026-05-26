@@ -6,6 +6,7 @@ use super::service::PluginService;
 use super::types::*;
 use crate::core::config::{ConfigEvent, ConfigManager};
 use crate::plugin_system::Configurable;
+use crate::sdk::parameter::template_parser::TemplateParser;
 use crate::sdk::HostApi;
 use crate::sdk::ParameterSnapshot;
 use parking_lot::{Mutex, RwLock};
@@ -15,18 +16,41 @@ use tracing::{debug, info};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SessionMode {
+    /// 空闲状态
     None,
-    Plugin(String),
+    /// 普通搜索模式
     Search,
+    /// 行内参数输入模式：精确匹配触发词+空格后，用户在搜索栏内直接输入参数
+    InlineParam {
+        candidate_id: CandidateId,
+        trigger_keyword: String,
+    },
+    /// 参数面板模式：用户按 Enter 后弹出参数面板，逐个填写
+    ParamPanel { candidate_id: CandidateId },
+    /// 行内插件模式：插件保留搜索栏，控制结果区域（如计算器）
+    InlinePlugin(String),
+    /// 全页面插件模式：插件接管整个窗口，管理所有按键
+    FullPagePlugin(String),
 }
 
 impl SessionMode {
     pub fn as_str(&self) -> &'static str {
         match self {
             SessionMode::None => "none",
-            SessionMode::Plugin(_) => "plugin",
             SessionMode::Search => "search",
+            SessionMode::InlineParam { .. } => "inline_param",
+            SessionMode::ParamPanel { .. } => "param_panel",
+            SessionMode::InlinePlugin(_) => "inline_plugin",
+            SessionMode::FullPagePlugin(_) => "full_page_plugin",
         }
+    }
+
+    /// 是否为插件模式（行内或全页面）
+    pub fn is_plugin_mode(&self) -> bool {
+        matches!(
+            self,
+            SessionMode::InlinePlugin(_) | SessionMode::FullPagePlugin(_)
+        )
     }
 }
 
@@ -147,7 +171,20 @@ impl SessionRouter {
         let results = self.plugin_service.query(&ctx, query).await;
 
         if let Some((plugin_id, results)) = results {
-            *self.current_mode.write() = SessionMode::Plugin(plugin_id);
+            // 根据插件的 keep_search_bar 选择行内或全页面模式
+            let mode = match &results {
+                QueryResponse::CustomPanel {
+                    keep_search_bar, ..
+                } => {
+                    if *keep_search_bar {
+                        SessionMode::InlinePlugin(plugin_id)
+                    } else {
+                        SessionMode::FullPagePlugin(plugin_id)
+                    }
+                }
+                _ => SessionMode::InlinePlugin(plugin_id),
+            };
+            *self.current_mode.write() = mode;
             return results;
         }
 
@@ -177,6 +214,11 @@ impl SessionRouter {
                     .read()
                     .get_actions(search_candidate.target.target_type());
 
+                let template_str = search_candidate.target.payload();
+                let user_arg_count = TemplateParser::count_user_args(template_str);
+                let has_system_params = TemplateParser::has_system_params(template_str);
+                let trigger_keywords = search_candidate.trigger_keywords.clone();
+
                 ListItem {
                     id: search_candidate.id,
                     title: search_candidate.name.clone(),
@@ -185,6 +227,9 @@ impl SessionRouter {
                     score: candidate.score,
                     actions,
                     target_type: search_candidate.target.target_type().as_str().to_string(),
+                    user_arg_count,
+                    has_system_params,
+                    trigger_keywords,
                 }
             })
             .collect();
@@ -201,12 +246,31 @@ impl SessionRouter {
         let mut ctx = PluginContext::new(trace_id);
 
         match mode {
-            SessionMode::Plugin(plugin_id) => {
+            SessionMode::InlinePlugin(ref plugin_id)
+            | SessionMode::FullPagePlugin(ref plugin_id) => {
                 ctx.with_plugin_id(plugin_id.clone());
                 self.plugin_service
-                    .execute_action(&ctx, &plugin_id, action_id, payload)
+                    .execute_action(&ctx, plugin_id, action_id, payload)
                     .await
                     .map_err(|e| e.to_string())
+            }
+            SessionMode::InlineParam { candidate_id, .. } => {
+                let user_args = Self::extract_user_args(&payload);
+                let query_text = payload
+                    .get("query_text")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                self.execute_candidate(candidate_id, action_id, user_args, query_text)
+                    .await
+            }
+            SessionMode::ParamPanel { candidate_id } => {
+                let user_args = Self::extract_user_args(&payload);
+                let query_text = payload
+                    .get("query_text")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                self.execute_candidate(candidate_id, action_id, user_args, query_text)
+                    .await
             }
             SessionMode::Search => {
                 let candidate_id = payload["candidate_id"]
@@ -215,78 +279,93 @@ impl SessionRouter {
                     as CandidateId;
                 let query_text = payload["query_text"].as_str().unwrap_or("").to_string();
 
-                let user_args: Vec<String> = payload
-                    .get("user_args")
-                    .and_then(|v| v.as_array())
-                    .map(|arr| {
-                        arr.iter()
-                            .filter_map(|v| v.as_str().map(String::from))
-                            .collect()
-                    })
-                    .unwrap_or_default();
+                let user_args = Self::extract_user_args(&payload);
 
-                // Build ExecutionContext and record in a block — guard must be dropped before .await
-                let exec_ctx = {
-                    let cached_candidate = self.cached_candidates.read();
-                    let candidate = cached_candidate
-                        .get_candidate(candidate_id)
-                        .ok_or_else(|| "Candidate not found".to_string())?;
-
-                    let snapshot = self.parameter_snapshot.lock().clone();
-
-                    let exec_ctx = ExecutionContext {
-                        target: candidate.target.clone(),
-                        display_name: candidate.name.clone(),
-                        user_args,
-                        parameter_snapshot: snapshot,
-                    };
-
-                    if let Some(pipeline) = self.search_pipeline.read().as_ref() {
-                        pipeline.record(candidate_id, &cached_candidate, &query_text);
-                    }
-
-                    exec_ctx
-                };
-                // All RwLock/Mutex guards dropped here — safe to .await
-
-                let executor = {
-                    let registry = self.executor_registry.read();
-                    registry
-                        .resolve(&exec_ctx, action_id)
-                        .map_err(|e| e.to_string())?
-                };
-
-                match executor.execute(&exec_ctx, action_id).await {
-                    Ok(()) => {}
-                    Err(ExecutionError::ActivationFailed { fallback_action }) => {
-                        let launch_new = self
-                            .config_manager
-                            .read()
-                            .as_ref()
-                            .and_then(|cm| {
-                                cm.get_component_setting("window-behavior", "launch_new_on_failure")
-                            })
-                            .and_then(|v| v.as_bool())
-                            .unwrap_or(true);
-                        if launch_new {
-                            let fallback_executor = {
-                                let registry = self.executor_registry.read();
-                                registry
-                                    .resolve_fallback(&exec_ctx, &fallback_action)
-                                    .map_err(|e| e.to_string())?
-                            };
-                            fallback_executor
-                                .execute(&exec_ctx, &fallback_action)
-                                .await
-                                .map_err(|e| e.to_string())?;
-                        }
-                    }
-                    Err(e) => return Err(e.to_string()),
-                }
-
-                Ok(())
+                self.execute_candidate(candidate_id, action_id, user_args, &query_text)
+                    .await
             }
             SessionMode::None => Err("No active session".to_string()),
+        }
+    }
+
+    /// 从 payload 中提取 user_args
+    fn extract_user_args(payload: &serde_json::Value) -> Vec<String> {
+        payload
+            .get("user_args")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(String::from))
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// 统一的候选项执行逻辑，被 InlineParam/ParamPanel/Search 模式共用
+    async fn execute_candidate(
+        &self,
+        candidate_id: CandidateId,
+        action_id: &str,
+        user_args: Vec<String>,
+        query_text: &str,
+    ) -> Result<(), String> {
+        let exec_ctx = {
+            let cached_candidate = self.cached_candidates.read();
+            let candidate = cached_candidate
+                .get_candidate(candidate_id)
+                .ok_or_else(|| "Candidate not found".to_string())?;
+
+            let snapshot = self.parameter_snapshot.lock().clone();
+
+            let exec_ctx = ExecutionContext {
+                target: candidate.target.clone(),
+                display_name: candidate.name.clone(),
+                user_args,
+                parameter_snapshot: snapshot,
+            };
+
+            if let Some(pipeline) = self.search_pipeline.read().as_ref() {
+                pipeline.record(candidate_id, &cached_candidate, query_text);
+            }
+
+            exec_ctx
+        };
+        // All RwLock/Mutex guards dropped here — safe to .await
+
+        let executor = {
+            let registry = self.executor_registry.read();
+            registry
+                .resolve(&exec_ctx, action_id)
+                .map_err(|e| e.to_string())?
+        };
+
+        match executor.execute(&exec_ctx, action_id).await {
+            Ok(()) => Ok(()),
+            Err(ExecutionError::ActivationFailed { fallback_action }) => {
+                let launch_new = self
+                    .config_manager
+                    .read()
+                    .as_ref()
+                    .and_then(|cm| {
+                        cm.get_component_setting("window-behavior", "launch_new_on_failure")
+                    })
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(true);
+                if launch_new {
+                    let fallback_executor = {
+                        let registry = self.executor_registry.read();
+                        registry
+                            .resolve_fallback(&exec_ctx, &fallback_action)
+                            .map_err(|e| e.to_string())?
+                    };
+                    fallback_executor
+                        .execute(&exec_ctx, &fallback_action)
+                        .await
+                        .map_err(|e| e.to_string())?;
+                }
+                Ok(())
+            }
+            Err(e) => Err(e.to_string()),
         }
     }
 
@@ -301,6 +380,38 @@ impl SessionRouter {
 
     pub fn plugin_service(&self) -> &Arc<PluginService> {
         &self.plugin_service
+    }
+
+    /// 进入行内参数输入模式
+    /// 前端检测到精确匹配+空格后调用
+    pub fn enter_inline_param_mode(&self, candidate_id: CandidateId, trigger_keyword: String) {
+        *self.current_mode.write() = SessionMode::InlineParam {
+            candidate_id,
+            trigger_keyword,
+        };
+    }
+
+    /// 进入参数面板模式
+    /// 前端按 Enter 且候选项有必填参数时调用
+    pub fn enter_param_panel_mode(&self, candidate_id: CandidateId) {
+        *self.current_mode.write() = SessionMode::ParamPanel { candidate_id };
+    }
+
+    /// 退出当前非搜索模式，回到搜索或空闲状态
+    pub fn exit_current_mode(&self) {
+        let current = self.current_mode.read().clone();
+        match current {
+            SessionMode::InlineParam { .. } | SessionMode::ParamPanel { .. } => {
+                *self.current_mode.write() = SessionMode::Search;
+            }
+            SessionMode::InlinePlugin(_) => {
+                *self.current_mode.write() = SessionMode::Search;
+            }
+            SessionMode::FullPagePlugin(_) => {
+                *self.current_mode.write() = SessionMode::None;
+            }
+            _ => {}
+        }
     }
 
     pub async fn on_search_bar_wake(&self) -> Result<(), String> {

@@ -17,6 +17,9 @@ pub struct UrlEntry {
     pub name: String,
     #[serde(rename = "url", default)]
     pub url: String,
+    /// 触发关键词，逗号分隔。为空时使用 name 作为默认触发词
+    #[serde(rename = "triggerKeywords", default)]
+    pub trigger_keywords: String,
 }
 
 /// 网页数据源的强类型配置结构。
@@ -67,6 +70,13 @@ impl Configurable for UrlSource {
                     SchemaBuilder::text("url", "URL", "网页的完整网址")
                         .default("")
                         .build_field(),
+                    SchemaBuilder::text(
+                        "triggerKeywords",
+                        "触发关键词",
+                        "逗号分隔的触发词列表。输入触发词+空格进入参数模式。为空时默认使用名称。",
+                    )
+                    .default("")
+                    .build_field(),
                 ])
                 .table_ui()
                 .default(serde_json::json!([]))
@@ -96,6 +106,17 @@ impl DataSource for UrlSource {
                 continue;
             }
 
+            // 解析触发关键词：逗号分隔，去空白，过滤空值；为空时默认使用名称
+            let trigger_keywords: Vec<String> = if entry.trigger_keywords.is_empty() {
+                vec![entry.name.to_lowercase()]
+            } else {
+                entry
+                    .trigger_keywords
+                    .split(',')
+                    .map(|s| s.trim().to_lowercase())
+                    .filter(|s| !s.is_empty())
+                    .collect()
+            };
             let candidate = SearchCandidate {
                 id: 0,
                 name: entry.name.clone(),
@@ -103,6 +124,7 @@ impl DataSource for UrlSource {
                 target: ExecutionTarget::Url(entry.url.clone()),
                 keywords: Vec::new(),
                 bias: 0.0,
+                trigger_keywords,
             };
 
             debug!("UrlSource: 加载网页候选项: {} -> {}", entry.name, entry.url);

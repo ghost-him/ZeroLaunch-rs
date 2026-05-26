@@ -1,32 +1,50 @@
 <template>
   <WindowFrame>
-    <SearchBar v-if="searchStore.keepSearchBar" ref="searchBarRef" @contextmenu="onShowCtxMenu" />
+    <!-- 全页面插件模式：隐藏所有默认 UI -->
+    <template v-if="uiMode === 'full_page_plugin'">
+      <!-- 全页面插件内容由插件自定义面板渲染 -->
+      <PluginPanelHost
+        v-if="searchStore.panelType"
+        :panel-type="searchStore.panelType"
+        :panel-data="searchStore.panelData"
+      />
+    </template>
 
-    <ResultList
-      v-if="searchStore.sessionMode === 'search' && !searchStore.isIdle"
-      :results="searchStore.results"
-      :selected-index="searchStore.selectedIndex"
-      @select="searchStore.selectedIndex = $event"
-      @confirm="(idx: number) => searchStore.doConfirm(idx)"
-      @context-action="(idx: number, actionId: string) => searchStore.doConfirm(idx, actionId)"
-      @contextmenu="onShowCtxMenu"
-    />
+    <!-- 其他模式：显示搜索栏 + 结果 -->
+    <template v-else>
+      <SearchBar v-if="searchStore.keepSearchBar" ref="searchBarRef" @contextmenu="onShowCtxMenu" />
 
-    <PluginPanelHost
-      v-else-if="searchStore.sessionMode === 'plugin' && searchStore.panelType"
-      :panel-type="searchStore.panelType"
-      :panel-data="searchStore.panelData"
-    />
+      <!-- 参数面板模式 -->
+      <ParamPanel v-if="uiMode === 'param_panel'" />
 
-    <Footer
-      v-if="!searchStore.isIdle && searchStore.keepSearchBar"
-      :result-count="searchStore.results.length"
-      :session-mode="searchStore.sessionMode"
-      :panel-type="searchStore.panelType"
-      :actions="searchStore.selectedItem?.actions ?? []"
-      :selected-action-index="searchStore.selectedActionIndex"
-      @action-execute="(actionId: string) => searchStore.doConfirm(undefined, actionId)"
-    />
+      <!-- 搜索结果列表（搜索模式或行内参数模式） -->
+      <ResultList
+        v-if="(uiMode === 'search' || uiMode === 'inline_param') && !searchStore.isIdle"
+        :results="searchStore.results"
+        :selected-index="searchStore.selectedIndex"
+        @select="searchStore.selectedIndex = $event"
+        @confirm="(idx: number) => searchStore.doConfirm(idx)"
+        @context-action="(idx: number, actionId: string) => searchStore.doConfirm(idx, actionId)"
+        @contextmenu="onShowCtxMenu"
+      />
+
+      <!-- 行内插件模式 -->
+      <PluginPanelHost
+        v-if="uiMode === 'inline_plugin' && searchStore.panelType"
+        :panel-type="searchStore.panelType"
+        :panel-data="searchStore.panelData"
+      />
+
+      <Footer
+        v-if="!searchStore.isIdle && searchStore.keepSearchBar"
+        :result-count="searchStore.results.length"
+        :session-mode="searchStore.sessionMode"
+        :panel-type="searchStore.panelType"
+        :actions="searchStore.selectedItem?.actions ?? []"
+        :selected-action-index="searchStore.selectedActionIndex"
+        @action-execute="(actionId: string) => searchStore.doConfirm(undefined, actionId)"
+      />
+    </template>
   </WindowFrame>
 
   <!-- 集中管理的唯一 ContextMenu 实例 -->
@@ -52,9 +70,10 @@ import ContextMenu from '../components/layout/ContextMenu.vue'
 import type { CtxItem } from '../components/layout/ContextMenu.vue'
 
 import { useSearchStore } from '../stores/search-store'
-import { useKeyboard } from '../composables/useKeyboard'
+import { useKeyboardRouter } from '../composables/useKeyboardRouter'
 import { useWindowResize } from '../composables/useWindowResize'
 import { useSearch } from '../composables/useSearch'
+import ParamPanel from '../components/search/ParamPanel.vue'
 import { onConfigChanged, onInstallationEvent } from '../bridge/events'
 import { registerErrorHandler, configGetSettings } from '../bridge/commands'
 import type { BridgeError } from '../bridge/commands'
@@ -63,7 +82,7 @@ const searchStore = useSearchStore()
 useSearch()
 const notification = useNotification()
 
-useKeyboard()
+const { uiMode } = useKeyboardRouter()
 const { resizeWindow } = useWindowResize()
 
 // ---- 集中管理的右键菜单状态 ----

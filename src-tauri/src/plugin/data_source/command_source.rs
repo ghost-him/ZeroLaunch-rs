@@ -18,6 +18,9 @@ pub struct CommandEntry {
     pub name: String,
     #[serde(rename = "command", default)]
     pub command: String,
+    /// 触发关键词，逗号分隔。为空时使用 name 作为默认触发词
+    #[serde(rename = "triggerKeywords", default)]
+    pub trigger_keywords: String,
 }
 
 /// 自定义命令数据源的强类型配置结构。
@@ -109,6 +112,13 @@ impl Configurable for CommandSource {
                     SchemaBuilder::text("command", "命令", "要执行的命令或程序路径")
                         .default("")
                         .build_field(),
+                    SchemaBuilder::text(
+                        "triggerKeywords",
+                        "触发关键词",
+                        "逗号分隔的触发词列表。输入触发词+空格进入参数模式。为空时默认使用名称。",
+                    )
+                    .default("")
+                    .build_field(),
                 ])
                 .table_ui()
                 .default(serde_json::json!([]))
@@ -139,6 +149,17 @@ impl DataSource for CommandSource {
             }
 
             let icon = self.resolve_icon(&entry.command);
+            // 解析触发关键词：逗号分隔，去空白，过滤空值；为空时默认使用名称
+            let trigger_keywords: Vec<String> = if entry.trigger_keywords.is_empty() {
+                vec![entry.name.to_lowercase()]
+            } else {
+                entry
+                    .trigger_keywords
+                    .split(',')
+                    .map(|s| s.trim().to_lowercase())
+                    .filter(|s| !s.is_empty())
+                    .collect()
+            };
             let candidate = SearchCandidate {
                 id: 0,
                 name: entry.name.clone(),
@@ -146,6 +167,7 @@ impl DataSource for CommandSource {
                 target: ExecutionTarget::Command(entry.command.clone()),
                 keywords: Vec::new(),
                 bias: 0.0,
+                trigger_keywords,
             };
 
             debug!(

@@ -66,8 +66,8 @@ impl ActionExecutor for UrlExecutor {
     }
 
     async fn execute(&self, ctx: &ExecutionContext, action_id: &str) -> Result<(), ExecutionError> {
-        let url = match &ctx.target {
-            ExecutionTarget::Url(u) => u,
+        let url_template = match &ctx.target {
+            ExecutionTarget::Url(u) => u.as_str(),
             _ => {
                 return Err(ExecutionError::Failed(
                     "Invalid target type for UrlExecutor".into(),
@@ -76,7 +76,16 @@ impl ActionExecutor for UrlExecutor {
         };
 
         match action_id {
-            "execute" => self.execute_url(url).await,
+            "execute" => {
+                // 解析模板，替换 {} 用户参数和 {clip}/{hwnd}/{selection} 系统参数
+                let resolved = self
+                    .plugin_handle
+                    .resolve_parameters(url_template, &ctx.user_args, &ctx.parameter_snapshot)
+                    .await
+                    .map_err(|e| ExecutionError::Failed(format!("URL参数解析失败: {}", e)))?;
+
+                self.execute_url(&resolved).await
+            }
             _ => Err(ExecutionError::UnsupportedAction(
                 TargetType::Url,
                 action_id.to_string(),

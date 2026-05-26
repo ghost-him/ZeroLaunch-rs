@@ -1,10 +1,34 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { bridgeQuery, bridgeConfirm, bridgeWake, bridgeReset, bridgeRefreshCandidates, bridgeGetCandidatesCount } from '../bridge/commands'
+import {
+  bridgeQuery, bridgeConfirm, bridgeWake, bridgeReset,
+  bridgeRefreshCandidates, bridgeGetCandidatesCount,
+  bridgeEnterInlineMode, bridgeEnterParamPanel, bridgeExitMode,
+} from '../bridge/commands'
 import type { ListItem, ResultAction, BridgeQueryResponse } from '../bridge/contract'
 
-export type SessionMode = 'none' | 'search' | 'plugin'
+export type SessionMode = 'none' | 'search' | 'inline_plugin' | 'full_page_plugin'
+
+export interface InlineParamState {
+  candidateId: number
+  triggerKeyword: string
+  paramInput: string
+  userArgCount: number
+}
+
+export interface ParamField {
+  index: number
+  label: string
+  value: string
+}
+
+export interface ParamPanelState {
+  candidateId: number
+  candidateItem: ListItem
+  fields: ParamField[]
+  focusedFieldIndex: number
+}
 
 export const useSearchStore = defineStore('search', () => {
   // ---- 状态 ----
@@ -21,6 +45,12 @@ export const useSearchStore = defineStore('search', () => {
   const panelActions = ref<ResultAction[]>([])
   const keepSearchBar = ref(true)
 
+  // 行内参数模式
+  const inlineParamState = ref<InlineParamState | null>(null)
+
+  // 参数面板模式
+  const paramPanelState = ref<ParamPanelState | null>(null)
+
   // ---- 派生 ----
   const isIdle = computed(() => query.value === '')
 
@@ -30,7 +60,50 @@ export const useSearchStore = defineStore('search', () => {
     return results.value[idx]
   })
 
+  // ---- 转义序列解析 ----
+
+  /**
+   * 解析行内参数输入，支持转义：
+   * - 未转义空格 = 参数分隔符
+   * - \空格 = 字面空格
+   * - \\ = 字面反斜杠
+   */
+  function parseInlineArgs(input: string): string[] {
+    const args: string[] = []
+    let current = ''
+    let i = 0
+
+    while (i < input.length) {
+      if (input[i] === '\\' && i + 1 < input.length) {
+        if (input[i + 1] === ' ') {
+          current += ' '
+          i += 2
+        } else if (input[i + 1] === '\\') {
+          current += '\\'
+          i += 2
+        } else {
+          current += input[i]
+          i++
+        }
+      } else if (input[i] === ' ') {
+        if (current.length > 0) {
+          args.push(current)
+          current = ''
+        }
+        i++
+      } else {
+        current += input[i]
+        i++
+      }
+    }
+    if (current.length > 0) {
+      args.push(current)
+    }
+    return args
+  }
+
   // ---- 动作 ----
+
   async function doQuery(raw: string) {
     query.value = raw
 
@@ -38,6 +111,8 @@ export const useSearchStore = defineStore('search', () => {
       results.value = []
       sessionMode.value = 'none'
       panelType.value = null
+      inlineParamState.value = null
+      paramPanelState.value = null
       selectedIndex.value = 0
       selectedActionIndex.value = 0
       return
@@ -62,7 +137,7 @@ export const useSearchStore = defineStore('search', () => {
         case 'plugin_panel':
         case 'plugin_immersive':
           results.value = []
-          sessionMode.value = 'plugin'
+          sessionMode.value = resp.mode === 'plugin_panel' ? 'inline_plugin' : 'full_page_plugin'
           panelType.value = resp.panelType
           panelData.value = resp.panelData
           panelActions.value = resp.panelActions
@@ -76,8 +151,8 @@ export const useSearchStore = defineStore('search', () => {
   }
 
   async function doConfirm(index?: number, actionId?: string) {
-    // 插件模式：使用虚拟 candidate_id=0（插件模式下后端按 plugin_id 路由，不依赖 candidate_id）
-    if (sessionMode.value === 'plugin') {
+    // 全页面插件模式
+    if (sessionMode.value === 'full_page_plugin') {
       let targetActionId = actionId
       if (!targetActionId) {
         const action = panelActions.value[selectedActionIndex.value]
@@ -104,6 +179,35 @@ export const useSearchStore = defineStore('search', () => {
       return
     }
 
+    // 行内插件模式
+    if (sessionMode.value === 'inline_plugin') {
+      let targetActionId = actionId
+      if (!targetActionId) {
+        const action = panelActions.value[selectedActionIndex.value]
+        targetActionId = action?.id ?? panelActions.value.find((a) => a.isDefault)?.id
+      }
+      if (!targetActionId) return
+
+      try {
+        await bridgeConfirm({
+          candidateId: 0,
+          actionId: targetActionId,
+          queryText: query.value,
+        })
+      } catch (e) {
+        console.error('[doConfirm] Plugin action failed:', e)
+        return
+      }
+
+      query.value = ''
+      results.value = []
+      sessionMode.value = 'none'
+      panelType.value = null
+      getCurrentWindow().hide()
+      return
+    }
+
+    // Search mode
     const idx = index ?? selectedIndex.value
     const item = results.value[idx]
     if (!item) return
@@ -127,12 +231,192 @@ export const useSearchStore = defineStore('search', () => {
       return
     }
 
-    // 执行成功后才清空输入
     query.value = ''
     results.value = []
     sessionMode.value = 'none'
     getCurrentWindow().hide()
   }
+
+  // ---- 行内参数模式 ----
+
+  function tryEnterInlineParamMode(): boolean {
+    const selectedItemVal = results.value[selectedIndex.value]
+    if (!selectedItemVal) return false
+    if (selectedItemVal.userArgCount === 0) return false
+
+    const currentQuery = query.value.trim().toLowerCase()
+
+    const matchedKeyword = selectedItemVal.triggerKeywords
+      .find((kw) => kw.toLowerCase() === currentQuery)
+
+    if (!matchedKeyword) return false
+
+    inlineParamState.value = {
+      candidateId: selectedItemVal.id,
+      triggerKeyword: matchedKeyword,
+      paramInput: '',
+      userArgCount: selectedItemVal.userArgCount,
+    }
+
+    bridgeEnterInlineMode(selectedItemVal.id, matchedKeyword)
+    return true
+  }
+
+  function exitInlineParamMode() {
+    inlineParamState.value = null
+    bridgeExitMode()
+    // 清空查询回到搜索模式
+    query.value = ''
+    results.value = []
+    sessionMode.value = 'none'
+  }
+
+  async function confirmInlineParam() {
+    if (!inlineParamState.value) return
+
+    const { candidateId, paramInput, userArgCount } = inlineParamState.value
+    const args = parseInlineArgs(paramInput)
+
+    if (args.length < userArgCount) {
+      console.warn(`需要 ${userArgCount} 个参数，实际输入 ${args.length} 个`)
+      return
+    }
+
+    try {
+      await bridgeConfirm({
+        candidateId,
+        actionId: 'execute',
+        queryText: inlineParamState.value.triggerKeyword,
+        userArgs: args,
+      })
+    } catch (e) {
+      console.error('[confirmInlineParam] failed:', e)
+      return
+    }
+
+    inlineParamState.value = null
+    query.value = ''
+    results.value = []
+    sessionMode.value = 'none'
+    getCurrentWindow().hide()
+  }
+
+  // ---- 参数面板模式 ----
+
+  function handleEnterInSearchMode() {
+    const selectedItemVal = results.value[selectedIndex.value]
+    if (!selectedItemVal) return
+
+    if (selectedItemVal.userArgCount > 0) {
+      enterParamPanelMode(selectedItemVal)
+    } else {
+      doConfirm()
+    }
+  }
+
+  function enterParamPanelMode(item: ListItem) {
+    const fields: ParamField[] = Array.from({ length: item.userArgCount }, (_, i) => ({
+      index: i,
+      label: `参数 ${i + 1}`,
+      value: '',
+    }))
+
+    paramPanelState.value = {
+      candidateId: item.id,
+      candidateItem: item,
+      fields,
+      focusedFieldIndex: 0,
+    }
+
+    bridgeEnterParamPanel(item.id)
+  }
+
+  function exitParamPanelMode() {
+    paramPanelState.value = null
+    bridgeExitMode()
+  }
+
+  async function confirmParamPanel() {
+    if (!paramPanelState.value) return
+
+    const { candidateId, fields } = paramPanelState.value
+    const userArgs = fields.map((f) => f.value)
+
+    if (userArgs.some((arg) => arg.trim() === '')) {
+      return
+    }
+
+    try {
+      await bridgeConfirm({
+        candidateId,
+        actionId: 'execute',
+        queryText: query.value,
+        userArgs,
+      })
+    } catch (e) {
+      console.error('[confirmParamPanel] failed:', e)
+      return
+    }
+
+    paramPanelState.value = null
+    query.value = ''
+    results.value = []
+    sessionMode.value = 'none'
+    getCurrentWindow().hide()
+  }
+
+  function paramPanelFocusNext() {
+    if (!paramPanelState.value) return
+    const { fields, focusedFieldIndex } = paramPanelState.value
+    paramPanelState.value = {
+      ...paramPanelState.value,
+      focusedFieldIndex: Math.min(focusedFieldIndex + 1, fields.length - 1),
+    }
+  }
+
+  function paramPanelFocusPrev() {
+    if (!paramPanelState.value) return
+    paramPanelState.value = {
+      ...paramPanelState.value,
+      focusedFieldIndex: Math.max(paramPanelState.value.focusedFieldIndex - 1, 0),
+    }
+  }
+
+  // ---- Escape 处理 ----
+
+  function handleEscape() {
+    const wb: Record<string, boolean> = {}
+    if (wb['is_esc_hide_window_priority']) {
+      getCurrentWindow().hide()
+    } else if (query.value !== '') {
+      query.value = ''
+      results.value = []
+      sessionMode.value = 'none'
+    } else {
+      getCurrentWindow().hide()
+    }
+  }
+
+  // ---- 插件模式 ----
+
+  function exitPluginMode() {
+    sessionMode.value = 'search'
+    panelType.value = null
+    bridgeExitMode()
+  }
+
+  function confirmPluginAction() {
+    doConfirm()
+  }
+
+  function exitFullPagePlugin() {
+    sessionMode.value = 'none'
+    panelType.value = null
+    panelData.value = null
+    bridgeExitMode()
+  }
+
+  // ---- 会话管理 ----
 
   async function doWake() {
     await bridgeWake()
@@ -140,6 +424,8 @@ export const useSearchStore = defineStore('search', () => {
     results.value = []
     sessionMode.value = 'none'
     panelType.value = null
+    inlineParamState.value = null
+    paramPanelState.value = null
   }
 
   function doReset() {
@@ -148,6 +434,8 @@ export const useSearchStore = defineStore('search', () => {
     results.value = []
     sessionMode.value = 'none'
     panelType.value = null
+    inlineParamState.value = null
+    paramPanelState.value = null
     selectedIndex.value = 0
   }
 
@@ -172,8 +460,16 @@ export const useSearchStore = defineStore('search', () => {
   return {
     query, results, selectedIndex, selectedActionIndex, sessionMode, cachedCount,
     panelType, panelData, panelActions, keepSearchBar,
+    inlineParamState, paramPanelState,
     isIdle, selectedItem,
     doQuery, doConfirm, doWake, doReset, selectNext, selectPrev,
     refreshCandidates, fetchCandidatesCount,
+    // 行内参数模式
+    tryEnterInlineParamMode, exitInlineParamMode, confirmInlineParam,
+    // 参数面板模式
+    handleEnterInSearchMode, enterParamPanelMode, exitParamPanelMode,
+    confirmParamPanel, paramPanelFocusNext, paramPanelFocusPrev,
+    // Escape / 插件模式
+    handleEscape, exitPluginMode, confirmPluginAction, exitFullPagePlugin,
   }
 })

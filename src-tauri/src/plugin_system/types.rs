@@ -145,6 +145,9 @@ pub struct SearchCandidate {
     // 固定的权重偏移，用于在计算分数时考虑该候选项的固定权重。由每个数据源来控制各自的权重
     #[serde(rename = "bias")]
     pub bias: f64,
+    /// 触发关键词列表，用于行内模式的精确匹配
+    #[serde(rename = "triggerKeywords")]
+    pub trigger_keywords: Vec<String>,
 }
 
 // 这个是一个搜索候选项的详细分数
@@ -323,6 +326,15 @@ pub struct ListItem {
     /// 目标类型字符串，供前端 ResultItemProvider/ActionInjector 匹配使用
     #[serde(rename = "targetType")]
     pub target_type: String,
+    /// 用户参数 {} 的数量
+    #[serde(rename = "userArgCount")]
+    pub user_arg_count: usize,
+    /// 是否包含系统参数（{clip}, {hwnd}, {selection}）
+    #[serde(rename = "hasSystemParams")]
+    pub has_system_params: bool,
+    /// 触发关键词列表
+    #[serde(rename = "triggerKeywords")]
+    pub trigger_keywords: Vec<String>,
 }
 
 /// 挂载在查询结果上的动作项。

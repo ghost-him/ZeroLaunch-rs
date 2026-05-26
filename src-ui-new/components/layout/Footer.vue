@@ -1,7 +1,7 @@
 <template>
   <div class="footer">
     <div class="footer-left">
-      <span v-if="sessionMode === 'plugin' && panelType">{{ panelType }}</span>
+      <span v-if="(sessionMode === 'inline_plugin' || sessionMode === 'full_page_plugin') && panelType">{{ panelType }}</span>
       <span v-else-if="resultCount > 0">{{ resultCount }} 个结果</span>
       <span v-else>就绪</span>
     </div>

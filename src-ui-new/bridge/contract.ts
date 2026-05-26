@@ -13,6 +13,9 @@ export interface ListItem {
   score: number
   actions: ResultAction[]
   targetType: string
+  userArgCount: number
+  hasSystemParams: boolean
+  triggerKeywords: string[]
 }
 
 export interface ResultAction {
@@ -136,4 +139,21 @@ export interface ConfigErrorPayload {
 export interface InstallationEventPayload {
   eventType: 'install' | 'uninstall'
   appName: string
+}
+
+// ---- 插件键盘事件 ----
+
+export interface PluginKeyEvent {
+  key: string
+  code: string
+  ctrlKey: boolean
+  shiftKey: boolean
+  altKey: boolean
+  metaKey: boolean
+}
+
+export interface PluginKeyEventResponse {
+  handled: boolean
+  exitPlugin: boolean
+  panelUpdate: unknown | null
 }

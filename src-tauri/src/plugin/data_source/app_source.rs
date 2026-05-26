@@ -62,6 +62,7 @@ impl DataSource for AppSource {
                 target: ExecutionTarget::App(app_info.app_id),
                 keywords: Vec::new(),
                 bias: 0.0,
+                trigger_keywords: Vec::new(),
             };
 
             result.add_candidate(candidate);

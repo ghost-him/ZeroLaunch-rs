@@ -27,6 +27,12 @@ pub struct BridgeSearchResult {
     pub actions: Vec<BridgeResultAction>,
     #[serde(rename = "targetType")]
     pub target_type: String,
+    #[serde(rename = "userArgCount")]
+    pub user_arg_count: usize,
+    #[serde(rename = "hasSystemParams")]
+    pub has_system_params: bool,
+    #[serde(rename = "triggerKeywords")]
+    pub trigger_keywords: Vec<String>,
 }
 
 #[derive(Serialize, Debug)]
@@ -129,6 +135,9 @@ pub async fn bridge_query(
                     score: item.score,
                     actions: item.actions.into_iter().map(|a| a.into()).collect(),
                     target_type: item.target_type,
+                    user_arg_count: item.user_arg_count,
+                    has_system_params: item.has_system_params,
+                    trigger_keywords: item.trigger_keywords,
                 });
             }
 
@@ -267,4 +276,39 @@ pub async fn bridge_refresh_candidates(
 #[tauri::command]
 pub fn bridge_get_candidates_count(state: tauri::State<'_, Arc<AppState>>) -> usize {
     state.get_session_router().get_cached_candidates_count()
+}
+
+// ============================================================================
+// 参数模式接口
+// ============================================================================
+
+/// 进入行内参数模式。
+/// 前端检测到精确匹配触发词+空格后调用。
+#[tauri::command]
+pub fn bridge_enter_inline_mode(
+    state: tauri::State<'_, Arc<AppState>>,
+    candidate_id: u64,
+    trigger_keyword: String,
+) {
+    debug!("[Bridge] 进入行内参数模式: candidate_id={}", candidate_id);
+    state
+        .get_session_router()
+        .enter_inline_param_mode(candidate_id, trigger_keyword);
+}
+
+/// 进入参数面板模式。
+/// 前端按 Enter 且候选项有必填参数时调用。
+#[tauri::command]
+pub fn bridge_enter_param_panel(state: tauri::State<'_, Arc<AppState>>, candidate_id: u64) {
+    debug!("[Bridge] 进入参数面板模式: candidate_id={}", candidate_id);
+    state
+        .get_session_router()
+        .enter_param_panel_mode(candidate_id);
+}
+
+/// 退出当前模式，回到 Search 或 None。
+#[tauri::command]
+pub fn bridge_exit_mode(state: tauri::State<'_, Arc<AppState>>) {
+    debug!("[Bridge] 退出当前模式");
+    state.get_session_router().exit_current_mode();
 }

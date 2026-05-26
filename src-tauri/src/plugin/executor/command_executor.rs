@@ -50,8 +50,8 @@ impl ActionExecutor for CommandExecutor {
     }
 
     async fn execute(&self, ctx: &ExecutionContext, action_id: &str) -> Result<(), ExecutionError> {
-        let command = match &ctx.target {
-            ExecutionTarget::Command(cmd) => cmd,
+        let template = match &ctx.target {
+            ExecutionTarget::Command(cmd) => cmd.as_str(),
             _ => {
                 return Err(ExecutionError::Failed(
                     "Invalid target type for CommandExecutor".into(),
@@ -61,12 +61,18 @@ impl ActionExecutor for CommandExecutor {
 
         match action_id {
             "execute" => {
+                // 解析模板，替换 {} 用户参数和 {clip}/{hwnd}/{selection} 系统参数
+                let resolved = self
+                    .plugin_handle
+                    .resolve_parameters(template, &ctx.user_args, &ctx.parameter_snapshot)
+                    .await
+                    .map_err(|e| ExecutionError::Failed(format!("命令参数解析失败: {}", e)))?;
+
                 let handle = self.plugin_handle.clone();
-                let command = command.to_string();
-                match handle.shell_execute_command(&command).await {
-                    Ok(_) => Ok(()),
-                    Err(e) => Err(ExecutionError::Failed(format!("命令执行失败: {}", e))),
-                }
+                handle
+                    .shell_execute_command(&resolved)
+                    .await
+                    .map_err(|e| ExecutionError::Failed(format!("命令执行失败: {}", e)))
             }
             _ => Err(ExecutionError::UnsupportedAction(
                 TargetType::Command,

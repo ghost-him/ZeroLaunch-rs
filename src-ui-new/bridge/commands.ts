@@ -66,6 +66,20 @@ export function bridgeGetCandidatesCount(): Promise<number> {
   return invokeCommand<number>('bridge_get_candidates_count')
 }
 
+// ---- 参数模式 ----
+
+export function bridgeEnterInlineMode(candidateId: number, triggerKeyword: string): Promise<void> {
+  return invokeCommand<void>('bridge_enter_inline_mode', { candidateId, triggerKeyword })
+}
+
+export function bridgeEnterParamPanel(candidateId: number): Promise<void> {
+  return invokeCommand<void>('bridge_enter_param_panel', { candidateId })
+}
+
+export function bridgeExitMode(): Promise<void> {
+  return invokeCommand<void>('bridge_exit_mode')
+}
+
 
 // ---- 配置管理 ----
 

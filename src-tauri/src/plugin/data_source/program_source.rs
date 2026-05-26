@@ -501,6 +501,7 @@ impl DataSource for ProgramSource {
                         target,
                         keywords: Vec::new(), //  这个值的内容由 KeywordOptimizer 负责填充
                         bias: 0.0,
+                        trigger_keywords: Vec::new(),
                     };
 
                     result.add_candidate(candidate);

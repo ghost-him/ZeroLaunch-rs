@@ -444,6 +444,7 @@ impl DataSource for BookmarkSource {
                             target: ExecutionTarget::Url(url),
                             keywords: Vec::new(),
                             bias: 0.0,
+                            trigger_keywords: Vec::new(),
                         };
 
                         result.add_candidate(candidate);

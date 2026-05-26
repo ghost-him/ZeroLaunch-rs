@@ -151,36 +151,8 @@ export const useSearchStore = defineStore('search', () => {
   }
 
   async function doConfirm(index?: number, actionId?: string) {
-    // 全页面插件模式
-    if (sessionMode.value === 'full_page_plugin') {
-      let targetActionId = actionId
-      if (!targetActionId) {
-        const action = panelActions.value[selectedActionIndex.value]
-        targetActionId = action?.id ?? panelActions.value.find((a) => a.isDefault)?.id
-      }
-      if (!targetActionId) return
-
-      try {
-        await bridgeConfirm({
-          candidateId: 0,
-          actionId: targetActionId,
-          queryText: query.value,
-        })
-      } catch (e) {
-        console.error('[doConfirm] Plugin action failed:', e)
-        return
-      }
-
-      query.value = ''
-      results.value = []
-      sessionMode.value = 'none'
-      panelType.value = null
-      getCurrentWindow().hide()
-      return
-    }
-
-    // 行内插件模式
-    if (sessionMode.value === 'inline_plugin') {
+    // 插件模式（行内或全页面）
+    if (sessionMode.value === 'inline_plugin' || sessionMode.value === 'full_page_plugin') {
       let targetActionId = actionId
       if (!targetActionId) {
         const action = panelActions.value[selectedActionIndex.value]
@@ -251,6 +223,8 @@ export const useSearchStore = defineStore('search', () => {
 
     if (!matchedKeyword) return false
 
+    // 进入行内参数模式，清空搜索栏内容
+    query.value = ''
     inlineParamState.value = {
       candidateId: selectedItemVal.id,
       triggerKeyword: matchedKeyword,
@@ -263,12 +237,19 @@ export const useSearchStore = defineStore('search', () => {
   }
 
   function exitInlineParamMode() {
+    const kw = inlineParamState.value?.triggerKeyword ?? ''
     inlineParamState.value = null
     bridgeExitMode()
-    // 清空查询回到搜索模式
-    query.value = ''
-    results.value = []
-    sessionMode.value = 'none'
+    if (kw) {
+      // 恢复触发关键词查询，回到搜索模式并显示结果
+      query.value = kw
+      sessionMode.value = 'search'
+      doQuery(kw)
+    } else {
+      query.value = ''
+      results.value = []
+      sessionMode.value = 'none'
+    }
   }
 
   async function confirmInlineParam() {
@@ -382,21 +363,6 @@ export const useSearchStore = defineStore('search', () => {
     }
   }
 
-  // ---- Escape 处理 ----
-
-  function handleEscape() {
-    const wb: Record<string, boolean> = {}
-    if (wb['is_esc_hide_window_priority']) {
-      getCurrentWindow().hide()
-    } else if (query.value !== '') {
-      query.value = ''
-      results.value = []
-      sessionMode.value = 'none'
-    } else {
-      getCurrentWindow().hide()
-    }
-  }
-
   // ---- 插件模式 ----
 
   function exitPluginMode() {
@@ -469,7 +435,7 @@ export const useSearchStore = defineStore('search', () => {
     // 参数面板模式
     handleEnterInSearchMode, enterParamPanelMode, exitParamPanelMode,
     confirmParamPanel, paramPanelFocusNext, paramPanelFocusPrev,
-    // Escape / 插件模式
-    handleEscape, exitPluginMode, confirmPluginAction, exitFullPagePlugin,
+    // 插件模式
+    exitPluginMode, confirmPluginAction, exitFullPagePlugin,
   }
 })

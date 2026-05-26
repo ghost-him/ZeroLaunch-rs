@@ -16,10 +16,6 @@
           :ref="(el: unknown) => setFieldRef(el as HTMLInputElement | null, field.index)"
           v-model="field.value"
           :placeholder="'输入第 ' + (field.index + 1) + ' 个参数'"
-          @keydown.tab.prevent="store.paramPanelFocusNext()"
-          @keydown.shift.tab.prevent="store.paramPanelFocusPrev()"
-          @keydown.enter.prevent="store.confirmParamPanel()"
-          @keydown.escape.prevent="store.exitParamPanelMode()"
         />
       </div>
     </div>
@@ -42,7 +38,7 @@ function setFieldRef(el: HTMLInputElement | null, index: number) {
   }
 }
 
-// 自动聚焦第一个字段
+// 进入面板时自动聚焦第一个字段
 watch(
   () => store.paramPanelState,
   (state) => {

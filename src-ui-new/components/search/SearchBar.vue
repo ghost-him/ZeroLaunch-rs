@@ -1,33 +1,24 @@
 <template>
   <div class="search-bar-wrapper" @contextmenu.prevent="onContextMenu">
-    <!-- 行内参数模式：显示触发词前缀 + 参数输入 -->
-    <div v-if="searchStore.inlineParamState" class="inline-param-bar">
-      <span class="trigger-prefix">{{ searchStore.inlineParamState.triggerKeyword }}</span>
-      <input
-        ref="paramInputRef"
-        v-model="searchStore.inlineParamState.paramInput"
-        class="param-input"
-        :placeholder="'输入 ' + searchStore.inlineParamState.userArgCount + ' 个参数（空格分隔，\\ 转义空格）'"
-        autofocus
-      />
-    </div>
-
-    <!-- 正常搜索模式 -->
     <n-input
-      v-else
       ref="inputRef"
-      v-model:value="searchStore.query"
+      v-model:value="inputValue"
       type="text"
-      :placeholder="themeStore.searchBarPlaceholder"
+      :placeholder="inputPlaceholder"
       :autofocus="true"
+      :disabled="searchStore.paramPanelState !== null"
       size="large"
-      @update:value="onInput"
-    />
+    >
+      <!-- 行内参数模式：触发词作为前缀 chip -->
+      <template #prefix v-if="searchStore.inlineParamState">
+        <span class="trigger-prefix">{{ searchStore.inlineParamState.triggerKeyword }}</span>
+      </template>
+    </n-input>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { NInput } from 'naive-ui'
 import { useSearch } from '../../composables/useSearch'
 import { useSettings } from '../../composables/useSettings'
@@ -41,11 +32,33 @@ const themeStore = useThemeStore()
 const searchStore = useSearchStore()
 
 const inputRef = ref<InstanceType<typeof NInput> | null>(null)
-const paramInputRef = ref<HTMLInputElement | null>(null)
 
-function onInput(value: string) {
-  handleInput(value)
-}
+/// 根据当前模式路由到正确的读写源
+const inputValue = computed({
+  get: () => {
+    if (searchStore.inlineParamState) {
+      return searchStore.inlineParamState.paramInput
+    }
+    return searchStore.query
+  },
+  set: (val: string) => {
+    if (searchStore.inlineParamState) {
+      searchStore.inlineParamState.paramInput = val
+    } else {
+      searchStore.query = val
+      handleInput(val)
+    }
+  },
+})
+
+/// 根据当前模式切换 placeholder
+const inputPlaceholder = computed(() => {
+  if (searchStore.inlineParamState) {
+    const n = searchStore.inlineParamState.userArgCount
+    return `输入 ${n} 个参数（空格分隔，\\ 转义空格）`
+  }
+  return themeStore.searchBarPlaceholder
+})
 
 // ---- 右键菜单（事件委托给 SearchView） ----
 const emit = defineEmits<{
@@ -63,14 +76,20 @@ function onContextMenu(e: MouseEvent) {
   emit('contextmenu', e.clientX, e.clientY, items)
 }
 
-// 暴露 focusInput 方法供外部恢复焦点
+/// 暴露 focusInput 方法供外部恢复焦点
 function focusInput() {
-  if (paramInputRef.value) {
-    paramInputRef.value.focus()
-  } else {
-    inputRef.value?.focus()
-  }
+  inputRef.value?.focus()
 }
+
+// 退出参数面板时恢复搜索栏焦点
+watch(
+  () => searchStore.paramPanelState,
+  (state, prev) => {
+    if (prev && !state) {
+      nextTick(() => inputRef.value?.focus())
+    }
+  },
+)
 
 onMounted(async () => {
   await nextTick()
@@ -89,43 +108,18 @@ defineExpose({ focusInput })
   align-items: center;
   position: relative;
   z-index: 10;
-  /* Soft hierarchical shadow indicating separation without hard lines */
   box-shadow: var(--shadow-header);
 }
 
-/* 行内参数模式 */
-.inline-param-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-}
-
 .trigger-prefix {
-  font-size: var(--font-size-xl);
+  font-size: var(--font-size-md);
   font-weight: 600;
   color: var(--accent-color);
   white-space: nowrap;
   padding: 2px 8px;
-  background: var(--accent-bg-subtle);
+  background: var(--primary-color-alpha);
   border-radius: 4px;
-}
-
-.param-input {
-  flex: 1;
-  height: 100%;
-  border: none;
-  background: transparent;
-  color: var(--text-primary);
-  font-size: var(--font-size-xl);
-  font-family: var(--search-bar-font-family);
-  outline: none;
-  caret-color: var(--accent-color);
-}
-
-.param-input::placeholder {
-  color: var(--text-secondary);
-  font-size: var(--font-size-md);
+  user-select: none;
 }
 
 .search-bar-wrapper :deep(.n-input) {
@@ -140,7 +134,7 @@ defineExpose({ focusInput })
   --n-font-size: var(--font-size-xl) !important;
   --n-height: 100% !important;
   --n-caret-color: var(--accent-color) !important;
-  --n-padding-left: 0 !important; /* Flush with wrapper padding */
+  --n-padding-left: 0 !important;
   --n-font-family: var(--search-bar-font-family) !important;
 }
 .search-bar-wrapper :deep(.n-input .n-input-wrapper) {

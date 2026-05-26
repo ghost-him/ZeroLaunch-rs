@@ -1,6 +1,12 @@
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import type { useSearchStore } from '@/stores/search-store'
 
-export function handleSearchModeKey(e: KeyboardEvent, store: ReturnType<typeof useSearchStore>, spaceIsEnter: boolean) {
+interface SearchKeyOptions {
+  spaceIsEnter: boolean
+  isEscHideWindowPriority: boolean
+}
+
+export function handleSearchModeKey(e: KeyboardEvent, store: ReturnType<typeof useSearchStore>, opts: SearchKeyOptions) {
   const ctrl = e.ctrlKey || e.metaKey
 
   switch (e.key) {
@@ -17,7 +23,7 @@ export function handleSearchModeKey(e: KeyboardEvent, store: ReturnType<typeof u
       store.handleEnterInSearchMode()
       break
     case ' ':
-      if (spaceIsEnter) {
+      if (opts.spaceIsEnter) {
         e.preventDefault()
         store.doConfirm()
       } else if (store.tryEnterInlineParamMode()) {
@@ -26,7 +32,15 @@ export function handleSearchModeKey(e: KeyboardEvent, store: ReturnType<typeof u
       break
     case 'Escape':
       e.preventDefault()
-      store.handleEscape()
+      if (opts.isEscHideWindowPriority) {
+        getCurrentWindow().hide()
+      } else if (store.query !== '') {
+        store.query = ''
+        store.results = []
+        store.sessionMode = 'none'
+      } else {
+        getCurrentWindow().hide()
+      }
       break
     case 'Tab': {
       e.preventDefault()

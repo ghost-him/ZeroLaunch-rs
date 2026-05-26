@@ -31,7 +31,7 @@ export function useKeyboardRouter() {
 
     switch (uiMode.value) {
       case 'search':
-        handleSearchModeKey(e, store, spaceIsEnter)
+        handleSearchModeKey(e, store, { spaceIsEnter, isEscHideWindowPriority: wb?.is_esc_hide_window_priority ?? false })
         break
       case 'inline_param':
         handleInlineParamKey(e, store)

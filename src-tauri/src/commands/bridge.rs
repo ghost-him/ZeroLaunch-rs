@@ -1,5 +1,5 @@
 use crate::core::types::BridgeError;
-use crate::plugin_system::types::{Query, QueryResponse};
+use crate::plugin_system::types::{ConfirmResult, Query, QueryResponse};
 use crate::state::app_state::AppState;
 use base64::{engine::general_purpose::STANDARD, Engine};
 use serde::{Deserialize, Serialize};
@@ -73,6 +73,20 @@ pub struct BridgeQueryResponse {
     pub panel_data: Option<serde_json::Value>,
     #[serde(rename = "panelActions")]
     pub panel_actions: Option<Vec<BridgeResultAction>>,
+    /// 行内参数模式数据（仅 mode="inline_param" 时有值）
+    #[serde(rename = "inlineParam")]
+    pub inline_param: Option<BridgeInlineParamData>,
+}
+
+/// 行内参数模式携带的数据。
+#[derive(Serialize, Debug)]
+pub struct BridgeInlineParamData {
+    #[serde(rename = "candidateId")]
+    pub candidate_id: u64,
+    #[serde(rename = "triggerKeyword")]
+    pub trigger_keyword: String,
+    #[serde(rename = "userArgCount")]
+    pub user_arg_count: usize,
 }
 
 /// 确认执行负载
@@ -86,6 +100,37 @@ pub struct ConfirmPayload {
     pub query_text: String,
     #[serde(rename = "userArgs")]
     pub user_args: Option<Vec<String>>,
+}
+
+/// 确认执行响应。
+/// Executed 表示已执行完成；EnterParamPanel 表示应进入参数面板。
+#[derive(Serialize, Debug)]
+#[serde(tag = "status")]
+pub enum BridgeConfirmResponse {
+    #[serde(rename = "executed")]
+    Executed,
+    #[serde(rename = "enterParamPanel")]
+    EnterParamPanel {
+        #[serde(rename = "candidateId")]
+        candidate_id: u64,
+        #[serde(rename = "userArgCount")]
+        user_arg_count: usize,
+    },
+}
+
+impl From<ConfirmResult> for BridgeConfirmResponse {
+    fn from(result: ConfirmResult) -> Self {
+        match result {
+            ConfirmResult::Executed => BridgeConfirmResponse::Executed,
+            ConfirmResult::EnterParamPanel {
+                candidate_id,
+                user_arg_count,
+            } => BridgeConfirmResponse::EnterParamPanel {
+                candidate_id,
+                user_arg_count,
+            },
+        }
+    }
 }
 
 /// 将 PNG 图标字节数据转换为前端可直接使用的 base64 data URL。
@@ -153,6 +198,7 @@ pub async fn bridge_query(
                 panel_type: None,
                 panel_data: None,
                 panel_actions: None,
+                inline_param: None,
             })
         }
         QueryResponse::Empty => {
@@ -163,6 +209,7 @@ pub async fn bridge_query(
                 panel_type: None,
                 panel_data: None,
                 panel_actions: None,
+                inline_param: None,
             })
         }
         QueryResponse::CustomPanel {
@@ -186,6 +233,29 @@ pub async fn bridge_query(
                 panel_type: Some(panel_type),
                 panel_data: Some(data),
                 panel_actions: Some(actions.into_iter().map(|a| a.into()).collect()),
+                inline_param: None,
+            })
+        }
+        QueryResponse::InlineParam {
+            candidate_id,
+            trigger_keyword,
+            user_arg_count,
+        } => {
+            info!(
+                "[Bridge] 进入行内参数模式: candidate_id={}, trigger='{}'",
+                candidate_id, trigger_keyword
+            );
+            Ok(BridgeQueryResponse {
+                mode: "inline_param".to_string(),
+                results: Vec::new(),
+                panel_type: None,
+                panel_data: None,
+                panel_actions: None,
+                inline_param: Some(BridgeInlineParamData {
+                    candidate_id,
+                    trigger_keyword,
+                    user_arg_count,
+                }),
             })
         }
     }
@@ -193,11 +263,12 @@ pub async fn bridge_query(
 
 /// 通用执行入口。
 /// 用户选择一个候选项并触发动作时调用。
+/// 后端判断是否执行或需要进入参数面板，返回对应状态。
 #[tauri::command]
 pub async fn bridge_confirm(
     state: tauri::State<'_, Arc<AppState>>,
     payload: ConfirmPayload,
-) -> Result<(), BridgeError> {
+) -> Result<BridgeConfirmResponse, BridgeError> {
     debug!(
         "[Bridge] 执行: candidate_id={}, action='{}', query='{}'",
         payload.candidate_id, payload.action_id, payload.query_text
@@ -212,13 +283,12 @@ pub async fn bridge_confirm(
         "user_args": payload.user_args.unwrap_or_default(),
     });
 
-    session_router
+    let result = session_router
         .route_confirm(&trace_id, &payload.action_id, json_payload)
         .await
         .map_err(BridgeError::internal)?;
 
-    info!("[Bridge] 执行成功: candidate_id={}", payload.candidate_id);
-    Ok(())
+    Ok(BridgeConfirmResponse::from(result))
 }
 
 // ============================================================================
@@ -278,37 +348,10 @@ pub fn bridge_get_candidates_count(state: tauri::State<'_, Arc<AppState>>) -> us
     state.get_session_router().get_cached_candidates_count()
 }
 
-// ============================================================================
-// 参数模式接口
-// ============================================================================
-
-/// 进入行内参数模式。
-/// 前端检测到精确匹配触发词+空格后调用。
+/// 隐藏搜索栏窗口。
+/// 前端确认执行、Esc 退出等场景统一通过此命令委托后端隐藏窗口。
 #[tauri::command]
-pub fn bridge_enter_inline_mode(
-    state: tauri::State<'_, Arc<AppState>>,
-    candidate_id: u64,
-    trigger_keyword: String,
-) {
-    debug!("[Bridge] 进入行内参数模式: candidate_id={}", candidate_id);
-    state
-        .get_session_router()
-        .enter_inline_param_mode(candidate_id, trigger_keyword);
-}
-
-/// 进入参数面板模式。
-/// 前端按 Enter 且候选项有必填参数时调用。
-#[tauri::command]
-pub fn bridge_enter_param_panel(state: tauri::State<'_, Arc<AppState>>, candidate_id: u64) {
-    debug!("[Bridge] 进入参数面板模式: candidate_id={}", candidate_id);
-    state
-        .get_session_router()
-        .enter_param_panel_mode(candidate_id);
-}
-
-/// 退出当前模式，回到 Search 或 None。
-#[tauri::command]
-pub fn bridge_exit_mode(state: tauri::State<'_, Arc<AppState>>) {
-    debug!("[Bridge] 退出当前模式");
-    state.get_session_router().exit_current_mode();
+pub async fn bridge_hide_window(state: tauri::State<'_, Arc<AppState>>) -> Result<(), BridgeError> {
+    state.get_host_api().hide_window().await;
+    Ok(())
 }

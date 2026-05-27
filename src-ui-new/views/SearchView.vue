@@ -12,7 +12,7 @@
 
     <!-- 其他模式：显示搜索栏 + 结果 -->
     <template v-else>
-      <SearchBar v-if="searchStore.keepSearchBar" ref="searchBarRef" @contextmenu="onShowCtxMenu" />
+      <SearchBar v-if="searchStore.sessionMode !== 'full_page_plugin'" ref="searchBarRef" @contextmenu="onShowCtxMenu" />
 
       <!-- 参数面板模式 -->
       <ParamPanel v-if="uiMode === 'param_panel'" />
@@ -36,7 +36,7 @@
       />
 
       <Footer
-        v-if="!searchStore.isIdle && searchStore.keepSearchBar"
+        v-if="!searchStore.isIdle && searchStore.sessionMode !== 'full_page_plugin'"
         :result-count="searchStore.results.length"
         :session-mode="searchStore.sessionMode"
         :panel-type="searchStore.panelType"

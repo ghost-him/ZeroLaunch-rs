@@ -1,14 +1,13 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { getCurrentWindow } from '@tauri-apps/api/window'
 import {
   bridgeQuery, bridgeConfirm, bridgeWake, bridgeReset,
   bridgeRefreshCandidates, bridgeGetCandidatesCount,
-  bridgeEnterInlineMode, bridgeEnterParamPanel, bridgeExitMode,
+  bridgeHideWindow,
 } from '../bridge/commands'
-import type { ListItem, ResultAction, BridgeQueryResponse } from '../bridge/contract'
+import type { ListItem, ResultAction, BridgeQueryResponse, ConfirmResponse } from '../bridge/contract'
 
-export type SessionMode = 'none' | 'search' | 'inline_plugin' | 'full_page_plugin'
+export type SessionMode = 'none' | 'search' | 'inline_param' | 'param_panel' | 'inline_plugin' | 'full_page_plugin'
 
 export interface InlineParamState {
   candidateId: number
@@ -43,7 +42,6 @@ export const useSearchStore = defineStore('search', () => {
   const panelType = ref<string | null>(null)
   const panelData = ref<unknown>(null)
   const panelActions = ref<ResultAction[]>([])
-  const keepSearchBar = ref(true)
 
   // 行内参数模式
   const inlineParamState = ref<InlineParamState | null>(null)
@@ -134,6 +132,17 @@ export const useSearchStore = defineStore('search', () => {
           sessionMode.value = 'search'
           selectedIndex.value = 0
           break
+        case 'inline_param':
+          results.value = []
+          sessionMode.value = 'inline_param'
+          inlineParamState.value = {
+            candidateId: resp.inlineParam.candidateId,
+            triggerKeyword: resp.inlineParam.triggerKeyword,
+            paramInput: '',
+            userArgCount: resp.inlineParam.userArgCount,
+          }
+          query.value = ''
+          break
         case 'plugin_panel':
         case 'plugin_immersive':
           results.value = []
@@ -141,7 +150,6 @@ export const useSearchStore = defineStore('search', () => {
           panelType.value = resp.panelType
           panelData.value = resp.panelData
           panelActions.value = resp.panelActions
-          keepSearchBar.value = resp.mode === 'plugin_panel'
           selectedIndex.value = 0
           break
       }
@@ -171,11 +179,8 @@ export const useSearchStore = defineStore('search', () => {
         return
       }
 
-      query.value = ''
-      results.value = []
-      sessionMode.value = 'none'
       panelType.value = null
-      getCurrentWindow().hide()
+      resetSessionAndHide()
       return
     }
 
@@ -192,8 +197,9 @@ export const useSearchStore = defineStore('search', () => {
     }
     if (!targetActionId) return
 
+    let resp: ConfirmResponse
     try {
-      await bridgeConfirm({
+      resp = await bridgeConfirm({
         candidateId: item.id,
         actionId: targetActionId,
         queryText: query.value,
@@ -203,52 +209,40 @@ export const useSearchStore = defineStore('search', () => {
       return
     }
 
-    query.value = ''
-    results.value = []
-    sessionMode.value = 'none'
-    getCurrentWindow().hide()
+    // 后端判定需要参数面板
+    if (resp.status === 'enterParamPanel') {
+      const fields: ParamField[] = Array.from({ length: resp.userArgCount }, (_, i) => ({
+        index: i,
+        label: `参数 ${i + 1}`,
+        value: '',
+      }))
+      sessionMode.value = 'param_panel'
+      paramPanelState.value = {
+        candidateId: resp.candidateId,
+        candidateItem: item,
+        fields,
+        focusedFieldIndex: 0,
+      }
+      return
+    }
+
+    // status === 'executed'
+    resetSessionAndHide()
   }
 
   // ---- 行内参数模式 ----
 
-  function tryEnterInlineParamMode(): boolean {
-    const selectedItemVal = results.value[selectedIndex.value]
-    if (!selectedItemVal) return false
-    if (selectedItemVal.userArgCount === 0) return false
-
-    const currentQuery = query.value.trim().toLowerCase()
-
-    const matchedKeyword = selectedItemVal.triggerKeywords
-      .find((kw) => kw.toLowerCase() === currentQuery)
-
-    if (!matchedKeyword) return false
-
-    // 进入行内参数模式，清空搜索栏内容
-    query.value = ''
-    inlineParamState.value = {
-      candidateId: selectedItemVal.id,
-      triggerKeyword: matchedKeyword,
-      paramInput: '',
-      userArgCount: selectedItemVal.userArgCount,
-    }
-
-    bridgeEnterInlineMode(selectedItemVal.id, matchedKeyword)
-    return true
-  }
-
+  /// 退出行内参数模式（纯前端清理，后端模式由下一次 bridge_query 自然重置）。
+  /// 有触发关键词时恢复搜索；无关键词时调用 bridge_query("") 通知后端重置。
   function exitInlineParamMode() {
     const kw = inlineParamState.value?.triggerKeyword ?? ''
     inlineParamState.value = null
-    bridgeExitMode()
+
     if (kw) {
-      // 恢复触发关键词查询，回到搜索模式并显示结果
       query.value = kw
-      sessionMode.value = 'search'
       doQuery(kw)
     } else {
-      query.value = ''
-      results.value = []
-      sessionMode.value = 'none'
+      doQuery('')
     }
   }
 
@@ -276,45 +270,22 @@ export const useSearchStore = defineStore('search', () => {
     }
 
     inlineParamState.value = null
-    query.value = ''
-    results.value = []
-    sessionMode.value = 'none'
-    getCurrentWindow().hide()
+    resetSessionAndHide()
   }
 
   // ---- 参数面板模式 ----
 
+  /// 搜索模式下按 Enter：统一走 bridge_confirm。
+  /// 后端自行判断是执行还是进入参数面板，前端根据响应渲染。
   function handleEnterInSearchMode() {
-    const selectedItemVal = results.value[selectedIndex.value]
-    if (!selectedItemVal) return
-
-    if (selectedItemVal.userArgCount > 0) {
-      enterParamPanelMode(selectedItemVal)
-    } else {
-      doConfirm()
-    }
+    doConfirm()
   }
 
-  function enterParamPanelMode(item: ListItem) {
-    const fields: ParamField[] = Array.from({ length: item.userArgCount }, (_, i) => ({
-      index: i,
-      label: `参数 ${i + 1}`,
-      value: '',
-    }))
-
-    paramPanelState.value = {
-      candidateId: item.id,
-      candidateItem: item,
-      fields,
-      focusedFieldIndex: 0,
-    }
-
-    bridgeEnterParamPanel(item.id)
-  }
-
+  /// 退出参数面板模式（纯前端清理）。
+  /// 后端模式由下一次 bridge_query 自然重置。
   function exitParamPanelMode() {
     paramPanelState.value = null
-    bridgeExitMode()
+    doQuery('')
   }
 
   async function confirmParamPanel() {
@@ -340,10 +311,7 @@ export const useSearchStore = defineStore('search', () => {
     }
 
     paramPanelState.value = null
-    query.value = ''
-    results.value = []
-    sessionMode.value = 'none'
-    getCurrentWindow().hide()
+    resetSessionAndHide()
   }
 
   function paramPanelFocusNext() {
@@ -365,24 +333,38 @@ export const useSearchStore = defineStore('search', () => {
 
   // ---- 插件模式 ----
 
+  /// 退出行内插件模式（纯前端清理）。
+  /// 后端模式由下一次 bridge_query 自然重置。
   function exitPluginMode() {
-    sessionMode.value = 'search'
     panelType.value = null
-    bridgeExitMode()
+    panelData.value = null
+    panelActions.value = []
+    doQuery('')
   }
 
   function confirmPluginAction() {
     doConfirm()
   }
 
+  /// 退出全页面插件模式（纯前端清理）。
   function exitFullPagePlugin() {
-    sessionMode.value = 'none'
     panelType.value = null
     panelData.value = null
-    bridgeExitMode()
+    doQuery('')
   }
 
   // ---- 会话管理 ----
+
+  function hideWindow() {
+    bridgeHideWindow()
+  }
+
+  function resetSessionAndHide() {
+    query.value = ''
+    results.value = []
+    sessionMode.value = 'none'
+    hideWindow()
+  }
 
   async function doWake() {
     await bridgeWake()
@@ -425,15 +407,15 @@ export const useSearchStore = defineStore('search', () => {
 
   return {
     query, results, selectedIndex, selectedActionIndex, sessionMode, cachedCount,
-    panelType, panelData, panelActions, keepSearchBar,
+    panelType, panelData, panelActions,
     inlineParamState, paramPanelState,
     isIdle, selectedItem,
     doQuery, doConfirm, doWake, doReset, selectNext, selectPrev,
-    refreshCandidates, fetchCandidatesCount,
+    refreshCandidates, fetchCandidatesCount, hideWindow,
     // 行内参数模式
-    tryEnterInlineParamMode, exitInlineParamMode, confirmInlineParam,
+    exitInlineParamMode, confirmInlineParam,
     // 参数面板模式
-    handleEnterInSearchMode, enterParamPanelMode, exitParamPanelMode,
+    handleEnterInSearchMode, exitParamPanelMode,
     confirmParamPanel, paramPanelFocusNext, paramPanelFocusPrev,
     // 插件模式
     exitPluginMode, confirmPluginAction, exitFullPagePlugin,

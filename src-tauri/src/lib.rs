@@ -182,9 +182,7 @@ pub fn run() {
             crate::commands::bridge::bridge_get_session_mode,
             crate::commands::bridge::bridge_refresh_candidates,
             crate::commands::bridge::bridge_get_candidates_count,
-            crate::commands::bridge::bridge_enter_inline_mode,
-            crate::commands::bridge::bridge_enter_param_panel,
-            crate::commands::bridge::bridge_exit_mode,
+            crate::commands::bridge::bridge_hide_window,
             // Bridge: 配置管理
             crate::commands::config_file::config_get_all_components,
             crate::commands::config_file::config_get_schema,

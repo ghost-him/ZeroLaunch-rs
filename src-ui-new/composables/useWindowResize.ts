@@ -37,7 +37,8 @@ export function useWindowResize() {
       mode: store.sessionMode,
       isIdle: store.isIdle,
       resultCount: store.results.length,
-      keepSearchBar: store.keepSearchBar,
+
+
     }),
     async () => {
       await nextTick()

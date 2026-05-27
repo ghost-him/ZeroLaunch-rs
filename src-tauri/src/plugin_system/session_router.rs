@@ -6,7 +6,7 @@ use super::service::PluginService;
 use super::types::*;
 use crate::core::config::{ConfigEvent, ConfigManager};
 use crate::plugin_system::Configurable;
-use crate::sdk::parameter::template_parser::TemplateParser;
+use crate::sdk::parameter::template_parser::{Placeholder, TemplateParser};
 use crate::sdk::HostApi;
 use crate::sdk::ParameterSnapshot;
 use parking_lot::{Mutex, RwLock};
@@ -202,7 +202,35 @@ impl SessionRouter {
         };
         let scored_candidates = pipeline.search(&cached_candidate, &query.search_term);
 
-        let results = scored_candidates
+        // 检测行内参数模式入口：查询以空格结尾 + 去掉空格后精确匹配某候选项的触发关键词。
+        // 在 ListItem 映射之前检查，避免匹配时废弃已映射的结果。
+        if query.raw_query.ends_with(' ') {
+            let trimmed = query.search_term.trim();
+            for candidate in &scored_candidates {
+                let sc = cached_candidate
+                    .get_candidate(candidate.candidate_id)
+                    .unwrap();
+                let user_arg_count = TemplateParser::count_user_args(sc.target.payload());
+                if user_arg_count > 0
+                    && sc
+                        .trigger_keywords
+                        .iter()
+                        .any(|kw| kw.to_lowercase() == trimmed)
+                {
+                    *self.current_mode.write() = SessionMode::InlineParam {
+                        candidate_id: sc.id,
+                        trigger_keyword: trimmed.to_string(),
+                    };
+                    return QueryResponse::InlineParam {
+                        candidate_id: sc.id,
+                        trigger_keyword: trimmed.to_string(),
+                        user_arg_count,
+                    };
+                }
+            }
+        }
+
+        let results: Vec<ListItem> = scored_candidates
             .into_iter()
             .map(|candidate| {
                 let search_candidate = cached_candidate
@@ -215,8 +243,14 @@ impl SessionRouter {
                     .get_actions(search_candidate.target.target_type());
 
                 let template_str = search_candidate.target.payload();
-                let user_arg_count = TemplateParser::count_user_args(template_str);
-                let has_system_params = TemplateParser::has_system_params(template_str);
+                let placeholders = TemplateParser::parse(template_str);
+                let user_arg_count = placeholders
+                    .iter()
+                    .filter(|p| matches!(p, Placeholder::UserArg))
+                    .count();
+                let has_system_params = placeholders
+                    .iter()
+                    .any(|p| matches!(p, Placeholder::System(_)));
                 let trigger_keywords = search_candidate.trigger_keywords.clone();
 
                 ListItem {
@@ -233,6 +267,7 @@ impl SessionRouter {
                 }
             })
             .collect();
+
         QueryResponse::List { results }
     }
 
@@ -241,7 +276,7 @@ impl SessionRouter {
         trace_id: &str,
         action_id: &str,
         payload: serde_json::Value,
-    ) -> Result<(), String> {
+    ) -> Result<ConfirmResult, String> {
         let mode = self.current_mode.read().clone();
         let mut ctx = PluginContext::new(trace_id);
 
@@ -252,7 +287,8 @@ impl SessionRouter {
                 self.plugin_service
                     .execute_action(&ctx, plugin_id, action_id, payload)
                     .await
-                    .map_err(|e| e.to_string())
+                    .map_err(|e| e.to_string())?;
+                Ok(ConfirmResult::Executed)
             }
             SessionMode::InlineParam { candidate_id, .. } => {
                 let user_args = Self::extract_user_args(&payload);
@@ -261,7 +297,8 @@ impl SessionRouter {
                     .and_then(|v| v.as_str())
                     .unwrap_or("");
                 self.execute_candidate(candidate_id, action_id, user_args, query_text)
-                    .await
+                    .await?;
+                Ok(ConfirmResult::Executed)
             }
             SessionMode::ParamPanel { candidate_id } => {
                 let user_args = Self::extract_user_args(&payload);
@@ -270,7 +307,8 @@ impl SessionRouter {
                     .and_then(|v| v.as_str())
                     .unwrap_or("");
                 self.execute_candidate(candidate_id, action_id, user_args, query_text)
-                    .await
+                    .await?;
+                Ok(ConfirmResult::Executed)
             }
             SessionMode::Search => {
                 let candidate_id = payload["candidate_id"]
@@ -278,11 +316,26 @@ impl SessionRouter {
                     .ok_or_else(|| "Missing or invalid candidate_id in payload".to_string())?
                     as CandidateId;
                 let query_text = payload["query_text"].as_str().unwrap_or("").to_string();
-
                 let user_args = Self::extract_user_args(&payload);
 
+                // 候选项需要参数但用户未提供 → 引导进入参数面板
+                let user_arg_count = {
+                    let cc = self.cached_candidates.read();
+                    cc.get_candidate(candidate_id)
+                        .map(|c| TemplateParser::count_user_args(c.target.payload()))
+                        .unwrap_or(0)
+                };
+                if user_arg_count > 0 && user_args.is_empty() {
+                    *self.current_mode.write() = SessionMode::ParamPanel { candidate_id };
+                    return Ok(ConfirmResult::EnterParamPanel {
+                        candidate_id,
+                        user_arg_count,
+                    });
+                }
+
                 self.execute_candidate(candidate_id, action_id, user_args, &query_text)
-                    .await
+                    .await?;
+                Ok(ConfirmResult::Executed)
             }
             SessionMode::None => Err("No active session".to_string()),
         }
@@ -380,38 +433,6 @@ impl SessionRouter {
 
     pub fn plugin_service(&self) -> &Arc<PluginService> {
         &self.plugin_service
-    }
-
-    /// 进入行内参数输入模式
-    /// 前端检测到精确匹配+空格后调用
-    pub fn enter_inline_param_mode(&self, candidate_id: CandidateId, trigger_keyword: String) {
-        *self.current_mode.write() = SessionMode::InlineParam {
-            candidate_id,
-            trigger_keyword,
-        };
-    }
-
-    /// 进入参数面板模式
-    /// 前端按 Enter 且候选项有必填参数时调用
-    pub fn enter_param_panel_mode(&self, candidate_id: CandidateId) {
-        *self.current_mode.write() = SessionMode::ParamPanel { candidate_id };
-    }
-
-    /// 退出当前非搜索模式，回到搜索或空闲状态
-    pub fn exit_current_mode(&self) {
-        let current = self.current_mode.read().clone();
-        match current {
-            SessionMode::InlineParam { .. } | SessionMode::ParamPanel { .. } => {
-                *self.current_mode.write() = SessionMode::Search;
-            }
-            SessionMode::InlinePlugin(_) => {
-                *self.current_mode.write() = SessionMode::Search;
-            }
-            SessionMode::FullPagePlugin(_) => {
-                *self.current_mode.write() = SessionMode::None;
-            }
-            _ => {}
-        }
     }
 
     pub async fn on_search_bar_wake(&self) -> Result<(), String> {

@@ -276,33 +276,56 @@ impl PluginContext {
 /// 服务于查询分发和插件侧搜索逻辑。
 #[derive(Debug, Clone)]
 pub struct Query {
+    /// 本次查询的唯一标识，取自 bridge_query 中生成的 trace_id，用于日志关联和插件上下文。
     pub id: String,
+    /// 用户在搜索栏中输入的原始字符串，未经任何处理，用于触发器匹配和日志记录。
     pub raw_query: String,
+    /// 派生自 raw_query 的搜索词。普通搜索为全小写形式，插件模式为剥离触发关键词后的剩余部分。
     pub search_term: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum QueryResponse {
-    // 目前先实现该内容
     #[serde(rename = "list")]
     List {
         #[serde(rename = "results")]
         results: Vec<ListItem>,
     },
-    // 该内容暂时先不实现，后续如果有需要了再来实现它
     #[serde(rename = "customPanel")]
     CustomPanel {
         #[serde(rename = "panelType")]
-        panel_type: String, // "notebook", "todo", etc.
+        panel_type: String,
         #[serde(rename = "data")]
-        data: serde_json::Value, // 插件自定义数据
+        data: serde_json::Value,
         #[serde(rename = "actions")]
-        actions: Vec<ResultAction>, // 可选的全局动作
+        actions: Vec<ResultAction>,
         #[serde(rename = "keepSearchBar")]
-        keep_search_bar: bool, // true=保留搜索框, false=沉浸态
+        keep_search_bar: bool,
     },
     #[serde(rename = "empty")]
     Empty,
+    /// 行内参数模式：后端检测到触发关键词+空格后自动进入。
+    /// 前端据此清空搜索栏并展示参数输入 UI。
+    #[serde(rename = "inlineParam")]
+    InlineParam {
+        #[serde(rename = "candidateId")]
+        candidate_id: CandidateId,
+        #[serde(rename = "triggerKeyword")]
+        trigger_keyword: String,
+        #[serde(rename = "userArgCount")]
+        user_arg_count: usize,
+    },
+}
+
+/// route_confirm 的执行结果。
+/// Executed 表示已执行完成；EnterParamPanel 表示候选项需要参数但未提供。
+#[derive(Debug, Clone)]
+pub enum ConfirmResult {
+    Executed,
+    EnterParamPanel {
+        candidate_id: CandidateId,
+        user_arg_count: usize,
+    },
 }
 
 /// 插件返回给宿主的搜索结果项。

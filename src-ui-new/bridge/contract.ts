@@ -26,11 +26,18 @@ export interface ResultAction {
   shortcutKey: string
 }
 
+export interface InlineParamData {
+  candidateId: number
+  triggerKeyword: string
+  userArgCount: number
+}
+
 export type BridgeQueryResponse =
-  | { mode: 'search'; results: ListItem[]; panelType?: never; panelData?: never; panelActions?: never }
-  | { mode: 'empty'; results: ListItem[]; panelType?: never; panelData?: never; panelActions?: never }
-  | { mode: 'plugin_panel'; results: ListItem[]; panelType: string; panelData: unknown; panelActions: ResultAction[] }
-  | { mode: 'plugin_immersive'; results: ListItem[]; panelType: string; panelData: unknown; panelActions: ResultAction[] }
+  | { mode: 'search'; results: ListItem[]; panelType?: never; panelData?: never; panelActions?: never; inlineParam?: never }
+  | { mode: 'empty'; results: ListItem[]; panelType?: never; panelData?: never; panelActions?: never; inlineParam?: never }
+  | { mode: 'plugin_panel'; results: ListItem[]; panelType: string; panelData: unknown; panelActions: ResultAction[]; inlineParam?: never }
+  | { mode: 'plugin_immersive'; results: ListItem[]; panelType: string; panelData: unknown; panelActions: ResultAction[]; inlineParam?: never }
+  | { mode: 'inline_param'; results: never[]; inlineParam: InlineParamData }
 
 export interface ConfirmPayload {
   candidateId: number
@@ -38,6 +45,10 @@ export interface ConfirmPayload {
   queryText: string
   userArgs?: string[]
 }
+
+export type ConfirmResponse =
+  | { status: 'executed' }
+  | { status: 'enterParamPanel'; candidateId: number; userArgCount: number }
 
 // ---- 配置相关 ----
 

@@ -1,4 +1,3 @@
-import { getCurrentWindow } from '@tauri-apps/api/window'
 import type { useSearchStore } from '@/stores/search-store'
 
 interface SearchKeyOptions {
@@ -23,23 +22,18 @@ export function handleSearchModeKey(e: KeyboardEvent, store: ReturnType<typeof u
       store.handleEnterInSearchMode()
       break
     case ' ':
+      // 空格不拦截，自然进入输入框文本，由 bridge_query 后端判断是否触发 inline_param
       if (opts.spaceIsEnter) {
         e.preventDefault()
         store.doConfirm()
-      } else if (store.tryEnterInlineParamMode()) {
-        e.preventDefault()
       }
       break
     case 'Escape':
       e.preventDefault()
-      if (opts.isEscHideWindowPriority) {
-        getCurrentWindow().hide()
-      } else if (store.query !== '') {
-        store.query = ''
-        store.results = []
-        store.sessionMode = 'none'
+      if (opts.isEscHideWindowPriority || store.query === '') {
+        store.hideWindow()
       } else {
-        getCurrentWindow().hide()
+        store.doQuery('')
       }
       break
     case 'Tab': {

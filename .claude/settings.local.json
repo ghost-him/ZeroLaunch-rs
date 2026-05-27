@@ -17,7 +17,8 @@
       "Bash(xargs grep -l \"error\")",
       "Bash(./node_modules/.bin/tsc --noEmit)",
       "Bash(bunx tsc *)",
-      "Bash(git show *)"
+      "Bash(git show *)",
+      "Read(//c/Users/ghost/ZeroLaunch/Wox/**)"
     ]
   }
 }

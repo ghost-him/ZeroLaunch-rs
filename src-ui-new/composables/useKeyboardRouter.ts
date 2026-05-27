@@ -1,5 +1,5 @@
 import { computed, onMounted, onUnmounted } from 'vue'
-import { useSearchStore } from '@/stores/search-store'
+import { useSearchStore, type SessionMode } from '@/stores/search-store'
 import { useConfigStore } from '@/stores/config-store'
 import { handleSearchModeKey } from './keyboard/searchHandler'
 import { handleInlineParamKey } from './keyboard/inlineParamHandler'
@@ -7,20 +7,11 @@ import { handleParamPanelKey } from './keyboard/paramPanelHandler'
 import { handleInlinePluginKey } from './keyboard/inlinePluginHandler'
 import { handleFullPagePluginKey } from './keyboard/fullPagePluginHandler'
 
-export type UIMode = 'none' | 'search' | 'inline_param' | 'param_panel' | 'inline_plugin' | 'full_page_plugin'
-
 export function useKeyboardRouter() {
   const store = useSearchStore()
   const configStore = useConfigStore()
 
-  const uiMode = computed<UIMode>(() => {
-    if (store.inlineParamState) return 'inline_param'
-    if (store.paramPanelState) return 'param_panel'
-    if (store.sessionMode === 'full_page_plugin') return 'full_page_plugin'
-    if (store.sessionMode === 'inline_plugin') return 'inline_plugin'
-    if (store.sessionMode === 'search') return 'search'
-    return 'none'
-  })
+  const uiMode = computed<SessionMode>(() => store.sessionMode)
 
   function onKeyDown(e: KeyboardEvent) {
     // Alt+Space 始终保留给系统（唤醒/隐藏窗口）

@@ -17,6 +17,8 @@ pub struct GeneralSettings {
     pub is_debug_mode: bool,
     #[serde(rename = "log_level", default = "default_log_level")]
     pub log_level: String,
+    #[serde(rename = "reset_session_on_wake", default = "default_true")]
+    pub reset_session_on_wake: bool,
 }
 
 impl Default for GeneralSettings {
@@ -25,12 +27,17 @@ impl Default for GeneralSettings {
             is_auto_start: false,
             is_debug_mode: false,
             log_level: "info".to_string(),
+            reset_session_on_wake: true,
         }
     }
 }
 
 fn default_log_level() -> String {
     "info".to_string()
+}
+
+fn default_true() -> bool {
+    true
 }
 
 /// 通用设置配置组件。
@@ -93,6 +100,15 @@ impl Configurable for GeneralConfigComponent {
                 .options(&["debug", "info", "warn", "error"])
                 .default("info")
                 .build(),
+            SchemaBuilder::boolean(
+                "reset_session_on_wake",
+                "唤醒时重置会话",
+                "启用后，每次显示启动器时恢复初始搜索界面（参数面板和行内参数模式始终恢复）。关闭后，插件面板状态可在隐藏/显示间保持。",
+            )
+            .group("通用")
+            .order(3)
+            .default(true)
+            .build(),
         ]
     }
 
@@ -123,7 +139,7 @@ impl Configurable for GeneralConfigComponent {
 
         let is_auto_start = s.is_auto_start;
         let host_api = self.host_api.clone();
-        tokio::spawn(async move {
+        tauri::async_runtime::spawn(async move {
             if let Err(e) = host_api.apply_autostart_setting(is_auto_start).await {
                 warn!("应用自启动配置失败: {}", e);
             } else {

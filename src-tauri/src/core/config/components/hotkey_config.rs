@@ -198,7 +198,7 @@ impl Configurable for HotkeyConfigComponent {
 
         // 异步应用快捷键配置到 HostApi
         let host_api = self.host_api.clone();
-        tokio::spawn(async move {
+        tauri::async_runtime::spawn(async move {
             if let Err(e) = host_api.apply_hotkey_config(&hotkey_config).await {
                 warn!("应用快捷键配置失败: {}", e);
             } else {

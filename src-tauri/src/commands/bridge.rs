@@ -312,7 +312,7 @@ pub async fn bridge_wake(state: tauri::State<'_, Arc<AppState>>) -> Result<(), B
 #[tauri::command]
 pub fn bridge_reset(state: tauri::State<'_, Arc<AppState>>) {
     debug!("🔄 [Bridge] 重置会话");
-    state.get_session_router().reset_session();
+    state.get_session_router().reset_session(true);
 }
 
 /// 获取当前会话模式。

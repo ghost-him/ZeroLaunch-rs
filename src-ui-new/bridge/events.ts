@@ -24,3 +24,11 @@ export function onInstallationEvent(
     callback(event.payload)
   })
 }
+
+export function onSessionReset(
+  callback: () => void,
+): Promise<UnlistenFn> {
+  return listen('session-reset', () => {
+    callback()
+  })
+}

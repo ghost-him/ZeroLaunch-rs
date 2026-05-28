@@ -143,7 +143,7 @@ impl Configurable for InstallationMonitorConfigComponent {
 
         let host_api = self.host_api.clone();
 
-        tokio::spawn(async move {
+        tauri::async_runtime::spawn(async move {
             if enabled {
                 // 更新监控路径
                 if !paths.is_empty() {

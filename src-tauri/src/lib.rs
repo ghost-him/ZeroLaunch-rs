@@ -746,7 +746,7 @@ fn init_search_bar_window(app: &mut App) {
     let config_manager = state.get_config_manager();
     let app_handle = state.get_main_handle();
 
-    // 注册焦点丢失回调：保存拖拽位置 → 隐藏窗口 → 重置会话
+    // 注册焦点丢失回调：保存拖拽位置 → 隐藏窗口 → 重置会话 → 通知前端
     let core_handle = state.get_core_handle();
     let host_api_for_cb = host_api.clone();
     let config_manager_for_cb = config_manager.clone();
@@ -761,7 +761,14 @@ fn init_search_bar_window(app: &mut App) {
             tauri::async_runtime::spawn(async move {
                 save_window_position_if_drag(&config_manager, &app_handle);
                 host_api.hide_window().await;
-                session_router.reset_session();
+
+                let reset_plugins = config_manager
+                    .get_component_setting("general", "reset_session_on_wake")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(true);
+                if session_router.reset_session(reset_plugins) {
+                    let _ = app_handle.emit("session-reset", ());
+                }
             });
         }),
     );

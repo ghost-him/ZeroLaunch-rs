@@ -6,6 +6,7 @@ import {
   bridgeHideWindow,
 } from '../bridge/commands'
 import type { ListItem, ResultAction, BridgeQueryResponse, ConfirmResponse } from '../bridge/contract'
+import { onSessionReset } from '../bridge/events'
 
 export type SessionMode = 'none' | 'search' | 'inline_param' | 'param_panel' | 'inline_plugin' | 'full_page_plugin'
 
@@ -179,7 +180,6 @@ export const useSearchStore = defineStore('search', () => {
         return
       }
 
-      panelType.value = null
       resetSessionAndHide()
       return
     }
@@ -269,7 +269,6 @@ export const useSearchStore = defineStore('search', () => {
       return
     }
 
-    inlineParamState.value = null
     resetSessionAndHide()
   }
 
@@ -310,7 +309,6 @@ export const useSearchStore = defineStore('search', () => {
       return
     }
 
-    paramPanelState.value = null
     resetSessionAndHide()
   }
 
@@ -359,32 +357,32 @@ export const useSearchStore = defineStore('search', () => {
     bridgeHideWindow().catch((e) => console.warn('[hideWindow] Failed to hide window:', e))
   }
 
-  function resetSessionAndHide() {
+  function resetLocalSession() {
     query.value = ''
     results.value = []
     sessionMode.value = 'none'
+    panelType.value = null
+    panelData.value = null
+    panelActions.value = []
+    inlineParamState.value = null
+    paramPanelState.value = null
+    selectedIndex.value = 0
+    selectedActionIndex.value = 0
+  }
+
+  function resetSessionAndHide() {
+    resetLocalSession()
     hideWindow()
   }
 
   async function doWake() {
+    resetLocalSession()
     await bridgeWake()
-    query.value = ''
-    results.value = []
-    sessionMode.value = 'none'
-    panelType.value = null
-    inlineParamState.value = null
-    paramPanelState.value = null
   }
 
   function doReset() {
     bridgeReset()
-    query.value = ''
-    results.value = []
-    sessionMode.value = 'none'
-    panelType.value = null
-    inlineParamState.value = null
-    paramPanelState.value = null
-    selectedIndex.value = 0
+    resetLocalSession()
   }
 
   function selectNext() {
@@ -404,6 +402,11 @@ export const useSearchStore = defineStore('search', () => {
   async function fetchCandidatesCount() {
     cachedCount.value = await bridgeGetCandidatesCount()
   }
+
+  // 监听后端 session-reset 事件，同步前端状态
+  onSessionReset(() => {
+    resetLocalSession()
+  })
 
   return {
     query, results, selectedIndex, selectedActionIndex, sessionMode, cachedCount,

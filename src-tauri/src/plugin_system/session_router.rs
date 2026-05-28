@@ -433,9 +433,21 @@ impl SessionRouter {
         }
     }
 
-    pub fn reset_session(&self) {
-        *self.current_mode.write() = SessionMode::None;
-        *self.parameter_snapshot.lock() = ParameterSnapshot::empty();
+    /// 参数面板和行内参数模式始终重置；插件模式仅在 `reset_plugins` 为 true 时重置，
+    /// 以支持在隐藏/显示间保持插件面板状态。
+    /// 返回 true 表示实际执行了重置操作。
+    pub fn reset_session(&self, reset_plugins: bool) -> bool {
+        let mut mode = self.current_mode.write();
+        let should_reset = match &*mode {
+            SessionMode::None => false,
+            _ if mode.is_plugin_mode() => reset_plugins,
+            _ => true,
+        };
+        if should_reset {
+            *mode = SessionMode::None;
+            *self.parameter_snapshot.lock() = ParameterSnapshot::empty();
+        }
+        should_reset
     }
 
     pub fn current_mode(&self) -> SessionMode {

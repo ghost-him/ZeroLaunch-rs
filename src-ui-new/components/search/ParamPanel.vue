@@ -12,10 +12,11 @@
         class="param-field"
       >
         <label>{{ field.label }}</label>
-        <input
-          :ref="(el: unknown) => setFieldRef(el as HTMLInputElement | null, field.index)"
-          v-model="field.value"
+        <n-input
+          :ref="(el: any) => setFieldRef(el, field.index)"
+          v-model:value="field.value"
           :placeholder="'输入第 ' + (field.index + 1) + ' 个参数'"
+          size="large"
         />
       </div>
     </div>
@@ -23,14 +24,15 @@
 </template>
 
 <script setup lang="ts">
-import { watch, nextTick } from 'vue'
+import { watch, nextTick, onMounted } from 'vue'
+import { NInput } from 'naive-ui'
 import { useSearchStore } from '@/stores/search-store'
 
 const store = useSearchStore()
 
-const fieldRefs = new Map<number, HTMLInputElement>()
+const fieldRefs = new Map<number, InstanceType<typeof NInput>>()
 
-function setFieldRef(el: HTMLInputElement | null, index: number) {
+function setFieldRef(el: any, index: number) {
   if (el) {
     fieldRefs.set(index, el)
   } else {
@@ -38,20 +40,18 @@ function setFieldRef(el: HTMLInputElement | null, index: number) {
   }
 }
 
-// 进入面板时自动聚焦第一个字段
-watch(
-  () => store.paramPanelState,
-  (state) => {
-    if (state) {
-      nextTick(() => {
-        const firstField = fieldRefs.get(0)
-        firstField?.focus()
-      })
-    }
-  },
-)
+// 进入面板时自动聚焦第一个字段。
+// 不能放在 setFieldRef 中，因为内联 :ref 回调在每次组件重渲染时都会被 Vue 重新调用
+//（新旧函数引用不同），导致打字时焦点被错误地抢回第一个字段。
+// onMounted 只在首次挂载时执行一次，不受后续 v-model 触发的重渲染影响。
+onMounted(() => {
+  nextTick(() => {
+    const el = fieldRefs.get(store.paramPanelState?.focusedFieldIndex ?? 0)
+    el?.focus()
+  })
+})
 
-// 聚焦变化时自动 focus 对应字段
+// Tab 切换字段时重新聚焦（此时元素已在 DOM 中，单次 nextTick 足够）
 watch(
   () => store.paramPanelState?.focusedFieldIndex,
   (idx) => {
@@ -99,27 +99,12 @@ watch(
 .param-field {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
 }
 
 .param-field label {
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
-}
-
-.param-field input {
-  height: 36px;
-  padding: 0 12px;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  background: var(--input-bg);
-  color: var(--text-primary);
-  font-size: var(--font-size-md);
-  outline: none;
-  transition: border-color 0.2s;
-}
-
-.param-field input:focus {
-  border-color: var(--accent-color);
+  padding-left: 2px;
 }
 </style>

@@ -2,10 +2,16 @@ import type { useSearchStore } from '@/stores/search-store'
 
 export function handleParamPanelKey(e: KeyboardEvent, store: ReturnType<typeof useSearchStore>) {
   switch (e.key) {
-    case 'Enter':
+    case 'Enter': {
       e.preventDefault()
-      store.confirmParamPanel()
+      const state = store.paramPanelState
+      if (state && state.focusedFieldIndex < state.fields.length - 1) {
+        store.paramPanelFocusNext()
+      } else {
+        store.confirmParamPanel()
+      }
       break
+    }
     case 'Escape':
       e.preventDefault()
       store.exitParamPanelMode()

@@ -130,6 +130,10 @@ defineExpose({ focusInput })
   --n-color: transparent !important;
   --n-color-focus: transparent !important;
   --n-text-color: var(--text-primary);
+  --n-text-color-disabled: var(--text-secondary) !important;
+  --n-color-disabled: transparent !important;
+  --n-border-disabled: transparent !important;
+  --n-opacity-disabled: 1 !important;
   --n-placeholder-color: var(--text-secondary);
   --n-font-size: var(--font-size-xl) !important;
   --n-height: 100% !important;

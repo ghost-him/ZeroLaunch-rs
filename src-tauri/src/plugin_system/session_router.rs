@@ -188,6 +188,8 @@ impl SessionRouter {
             return results;
         }
 
+        // 任何新查询隐式重置会话模式为 Search，
+        // 这是前端 exitInlineParamMode / exitParamPanelMode / exitPluginMode 通过 doQuery('') 退出模式的契约基础。
         *self.current_mode.write() = SessionMode::Search;
 
         let cached_candidate = self.cached_candidates.read();
@@ -207,9 +209,13 @@ impl SessionRouter {
         if query.raw_query.ends_with(' ') {
             let trimmed = query.search_term.trim();
             for candidate in &scored_candidates {
-                let sc = cached_candidate
-                    .get_candidate(candidate.candidate_id)
-                    .unwrap();
+                let Some(sc) = cached_candidate.get_candidate(candidate.candidate_id) else {
+                    tracing::warn!(
+                        "Inline param check: candidate {} not found in cache, skipping",
+                        candidate.candidate_id
+                    );
+                    continue;
+                };
                 let user_arg_count = TemplateParser::count_user_args(sc.target.payload());
                 if user_arg_count > 0
                     && sc
@@ -232,10 +238,15 @@ impl SessionRouter {
 
         let results: Vec<ListItem> = scored_candidates
             .into_iter()
-            .map(|candidate| {
-                let search_candidate = cached_candidate
-                    .get_candidate(candidate.candidate_id)
-                    .unwrap();
+            .filter_map(|candidate| {
+                let Some(search_candidate) = cached_candidate.get_candidate(candidate.candidate_id)
+                else {
+                    tracing::warn!(
+                        "List mapping: candidate {} not found in cache, skipping",
+                        candidate.candidate_id
+                    );
+                    return None;
+                };
 
                 let actions = self
                     .executor_registry
@@ -253,7 +264,7 @@ impl SessionRouter {
                     .any(|p| matches!(p, Placeholder::System(_)));
                 let trigger_keywords = search_candidate.trigger_keywords.clone();
 
-                ListItem {
+                Some(ListItem {
                     id: search_candidate.id,
                     title: search_candidate.name.clone(),
                     subtitle: search_candidate.name.clone(),
@@ -264,7 +275,7 @@ impl SessionRouter {
                     user_arg_count,
                     has_system_params,
                     trigger_keywords,
-                }
+                })
             })
             .collect();
 

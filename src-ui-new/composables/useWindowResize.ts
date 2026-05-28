@@ -38,7 +38,6 @@ export function useWindowResize() {
       isIdle: store.isIdle,
       resultCount: store.results.length,
 
-
     }),
     async () => {
       await nextTick()

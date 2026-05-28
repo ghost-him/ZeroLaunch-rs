@@ -356,7 +356,7 @@ export const useSearchStore = defineStore('search', () => {
   // ---- 会话管理 ----
 
   function hideWindow() {
-    bridgeHideWindow()
+    bridgeHideWindow().catch((e) => console.warn('[hideWindow] Failed to hide window:', e))
   }
 
   function resetSessionAndHide() {

@@ -440,8 +440,10 @@ impl SessionRouter {
         let mut mode = self.current_mode.write();
         let should_reset = match &*mode {
             SessionMode::None => false,
-            _ if mode.is_plugin_mode() => reset_plugins,
-            _ => true,
+            SessionMode::InlinePlugin(_) | SessionMode::FullPagePlugin(_) => reset_plugins,
+            SessionMode::Search
+            | SessionMode::InlineParam { .. }
+            | SessionMode::ParamPanel { .. } => true,
         };
         if should_reset {
             *mode = SessionMode::None;

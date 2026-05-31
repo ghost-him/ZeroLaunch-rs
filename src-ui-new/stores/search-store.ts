@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import {
-  bridgeQuery, bridgeConfirm, bridgeWake, bridgeReset,
+  bridgeQuery, bridgeConfirm,
   bridgeRefreshCandidates, bridgeGetCandidatesCount,
   bridgeHideWindow,
 } from '../bridge/commands'
@@ -375,16 +375,6 @@ export const useSearchStore = defineStore('search', () => {
     hideWindow()
   }
 
-  async function doWake() {
-    resetLocalSession()
-    await bridgeWake()
-  }
-
-  function doReset() {
-    bridgeReset()
-    resetLocalSession()
-  }
-
   function selectNext() {
     if (results.value.length === 0) return
     selectedIndex.value = Math.min(selectedIndex.value + 1, results.value.length - 1)
@@ -413,7 +403,7 @@ export const useSearchStore = defineStore('search', () => {
     panelType, panelData, panelActions,
     inlineParamState, paramPanelState,
     isIdle, selectedItem,
-    doQuery, doConfirm, doWake, doReset, selectNext, selectPrev,
+    doQuery, doConfirm, selectNext, selectPrev,
     refreshCandidates, fetchCandidatesCount, hideWindow,
     // 行内参数模式
     exitInlineParamMode, confirmInlineParam,

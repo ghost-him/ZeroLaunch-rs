@@ -13,7 +13,7 @@
       >
         <label>{{ field.label }}</label>
         <n-input
-          :ref="(el: any) => setFieldRef(el, field.index)"
+          :ref="(el) => setFieldRef(el, field.index)"
           v-model:value="field.value"
           :placeholder="'输入第 ' + (field.index + 1) + ' 个参数'"
           size="large"
@@ -32,9 +32,9 @@ const store = useSearchStore()
 
 const fieldRefs = new Map<number, InstanceType<typeof NInput>>()
 
-function setFieldRef(el: any, index: number) {
+function setFieldRef(el: unknown, index: number) {
   if (el) {
-    fieldRefs.set(index, el)
+    fieldRefs.set(index, el as InstanceType<typeof NInput>)
   } else {
     fieldRefs.delete(index)
   }

@@ -30,7 +30,6 @@ use super::sdk_config::PluginSdkConfig;
 /// 插件通过 HostApi::register() 获取此句柄，后续所有服务调用通过句柄完成。
 /// 句柄自动应用注册时的插件配置（如缓存等级），插件无需在每次调用时传递配置。
 pub struct PluginHandle {
-    #[allow(dead_code)]
     plugin_id: String,
     config: RwLock<PluginSdkConfig>,
     capabilities: PlatformCapabilities,

@@ -17,7 +17,7 @@ use std::collections::HashSet;
 /// 用于插件的单元测试场景。
 pub fn mock_plugin_handle() -> Arc<PluginHandle> {
     let icon_cache = IconCacheService::new("mock_cache".to_string());
-    icon_cache.init();
+    // skip init() to avoid touching the filesystem in tests
     let storage: Arc<dyn crate::services::storage::storage_service::StorageService> =
         Arc::new(StubStorageService);
 

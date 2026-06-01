@@ -77,3 +77,17 @@ paths:
 
 - 新增能力 **必须** 在此表中登记
 - 表中的方法名是简化表示，以 `HostApi` 源码和 `PluginHandle` 源码为准
+
+## Crate 边界规范（workspace 拆分后）
+
+SDK 已拆分为多 crate workspace：
+
+| Crate | 路径 | 内容 |
+|-------|------|------|
+| `zerolaunch-plugin-api` | `crates/plugin-api/` | traits、数据类型、HostApi error types、PluginHandle、Plugin trait |
+| `zerolaunch-platform-windows` | `crates/platform-windows/` | Windows 平台实现 + `build_windows_host_api_builder()` |
+| `zerolaunch-rs` | `src-tauri/` | 主程序：ConfigManager、SessionRouter、内置插件、IPC 命令 |
+
+- **新增 SDK trait**：在 `crates/plugin-api/src/services/<domain>/` 定义，在 `crates/platform-windows/src/` 实现
+- **插件作者只依赖** `zerolaunch-plugin-api`，不需要 Tauri / Windows / 主程序源码
+- **src-tauri 中的 sdk/** 现为 re-export 桥，类型本体在 plugin-api

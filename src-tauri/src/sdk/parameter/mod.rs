@@ -6,13 +6,13 @@
 //! - `{hwnd}` - 当前活动窗口句柄
 //! - `{selection}` - 唤醒前活动窗口的选中文本
 
-pub mod default_resolver;
 pub mod provider;
 pub mod resolver;
 pub mod template_parser;
 pub mod types;
 
-pub use default_resolver::DefaultParameterResolver;
 pub use provider::SystemParameterProvider;
 pub use resolver::ParameterResolver;
+pub use template_parser::{Placeholder, TemplateParser};
 pub use types::{ParameterError, ParameterSnapshot};
+pub use zerolaunch_plugin_api::services::parameter::DefaultParameterResolver;

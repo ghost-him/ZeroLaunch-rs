@@ -5,6 +5,41 @@ paths:
 
 # 目录结构与文件放置规范
 
+## Workspace 结构（crate 维度）
+
+```
+ZeroLaunch-rs/                          ← Cargo workspace 根
+├── Cargo.toml                          ← [workspace] 定义 + [workspace.dependencies]
+├── crates/
+│   ├── plugin-api/                     ← zerolaunch-plugin-api
+│   │   └── src/
+│   │       ├── config/                 ← Configurable trait, SettingDefinition, ComponentType 等
+│   │       ├── host/                   ← HostApiError, OpenTarget, CacheLevel, PluginHandle, PluginSdkConfig
+│   │       ├── platform/               ← PlatformCapability, PlatformCapabilities
+│   │       ├── plugin/                 ← Plugin trait, Query/QueryResponse, 5 个组件 trait, CachedCandidateData
+│   │       ├── services/               ← 15 个能力域（shell, icon, storage, hotkey 等）的 trait + 纯 Rust 实现
+│   │       ├── common/                 ← DirUtils, ImageUtils
+│   │       └── mock/                   ← Stub 实现 + mock_plugin_handle()（feature = "mock"）
+│   └── platform-windows/               ← zerolaunch-platform-windows
+│       └── src/                        ← 14 个 Windows 平台 trait 实现 + windows_capabilities()
+└── src-tauri/                          ← zerolaunch-rs（主程序）
+    └── src/
+        ├── sdk/                        ← re-export 桥（类型本体在 plugin-api / platform-windows）
+        ├── core/                       ← ConfigManager, ConfigStore, 核心配置组件
+        ├── plugin/                     ← 23 个内置插件实现
+        ├── plugin_system/              ← SessionRouter, Pipeline, Registry, Dispatcher
+        ├── commands/                   ← IPC 命令薄代理
+        ├── state/                      ← AppState
+        └── utils/                      ← 通用工具
+```
+
+**依赖方向**: `plugin-api ← platform-windows ← src-tauri` — 禁止反向依赖。
+
+- **第三方插件作者**只依赖 `zerolaunch-plugin-api`，不需要 Tauri / Windows / 主程序源码
+- **新增 SDK trait**：在 `crates/plugin-api/src/services/<domain>/` 定义
+- **新增 Windows 实现**：在 `crates/platform-windows/src/` 实现对应的 trait
+- **src-tauri 中的 sdk/** 现为 re-export 桥，类型本体已迁至 plugin-api
+
 ## 后端 (src-tauri/src/)
 
 ### 顶层目录职责

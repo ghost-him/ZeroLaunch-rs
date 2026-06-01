@@ -1,55 +1,52 @@
 pub mod capabilities;
 
 #[cfg(target_os = "windows")]
-mod windows;
+pub use zerolaunch_platform_windows::WindowsAppEnumerator;
 
 #[cfg(target_os = "windows")]
-pub use windows::WindowsAppEnumerator;
+pub use zerolaunch_platform_windows::WindowsAppLauncher;
 
 #[cfg(target_os = "windows")]
-pub use windows::WindowsAutoStartManager;
+pub use zerolaunch_platform_windows::WindowsAutoStartManager;
 
 #[cfg(target_os = "windows")]
-pub use windows::WindowsHotkeyManager;
+pub use zerolaunch_platform_windows::WindowsClipboardProvider;
 
 #[cfg(target_os = "windows")]
-pub use windows::WindowsAppLauncher;
+pub use zerolaunch_platform_windows::WindowsFocusMonitor;
 
 #[cfg(target_os = "windows")]
-pub use windows::WindowsClipboardProvider;
+pub use zerolaunch_platform_windows::WindowsHotkeyManager;
 
 #[cfg(target_os = "windows")]
-pub use windows::WindowsIconExtractor;
+pub use zerolaunch_platform_windows::WindowsIconExtractor;
 
 #[cfg(target_os = "windows")]
-pub use windows::WindowsFocusMonitor;
+pub use zerolaunch_platform_windows::WindowsInstallationMonitor;
 
 #[cfg(target_os = "windows")]
-pub use windows::WindowsInstallationMonitor;
+pub use zerolaunch_platform_windows::WindowsLnkResolver;
 
 #[cfg(target_os = "windows")]
-pub use windows::WindowsLnkResolver;
+pub use zerolaunch_platform_windows::WindowsPathResolver;
 
 #[cfg(target_os = "windows")]
-pub use windows::WindowsPathResolver;
+pub use zerolaunch_platform_windows::WindowsResourceLoader;
 
 #[cfg(target_os = "windows")]
-pub use windows::WindowsResourceLoader;
+pub use zerolaunch_platform_windows::WindowsSelectionProvider;
 
 #[cfg(target_os = "windows")]
-pub use windows::WindowsSelectionProvider;
+pub use zerolaunch_platform_windows::WindowsShellExecutor;
 
 #[cfg(target_os = "windows")]
-pub use windows::WindowsShellExecutor;
+pub use zerolaunch_platform_windows::WindowsWindowHandleProvider;
 
 #[cfg(target_os = "windows")]
-pub use windows::WindowsWindowHandleProvider;
+pub use zerolaunch_platform_windows::WindowsWindowManager;
 
 #[cfg(target_os = "windows")]
-pub use windows::WindowsWindowManager;
-
-#[cfg(target_os = "windows")]
-pub use windows::WindowsWindowPositioner;
+pub use zerolaunch_platform_windows::WindowsWindowPositioner;
 
 #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
 compile_error!("Plugin SDK 暂不支持当前平台");

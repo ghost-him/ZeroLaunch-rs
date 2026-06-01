@@ -42,7 +42,9 @@ impl PluginService {
         let ctx = PluginContext::new(&trace_id);
 
         for plugin in self.registry.get_all() {
-            plugin.init(&ctx, host_api.clone()).await?;
+            let plugin_id = plugin.metadata().id.clone();
+            let handle = host_api.register(&plugin_id, crate::sdk::PluginSdkConfig::default());
+            plugin.init(&ctx, handle).await?;
         }
 
         Ok(())

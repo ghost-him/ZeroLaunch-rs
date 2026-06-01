@@ -61,6 +61,7 @@ use crate::sdk::timer::TokioTimerManager;
 use crate::sdk::window::{MonitorInfo, PositionRequest, WindowPosition};
 use crate::sdk::AppResourceService;
 use crate::sdk::HostApi;
+use crate::sdk::HostApiBuilder;
 use crate::sdk::PathResolver;
 use crate::state::app_state::AppState;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -230,6 +231,45 @@ pub fn run() {
         });
 }
 
+/// 配置 HostApiBuilder，注入所有 Windows 平台实现以及平台无关的默认组件。
+/// 返回预配置的 HostApiBuilder，调用方继续添加 Tauri 相关回调后调用 build()。
+fn build_windows_host_api_builder(
+    icon_cache_dir: String,
+    default_app_icon_path: String,
+    default_web_icon_path: String,
+    path_resolver: Arc<dyn PathResolver>,
+    default_storage: Arc<dyn StorageService>,
+    app_resource: Arc<AppResourceService>,
+) -> HostApiBuilder {
+    crate::sdk::HostApi::builder(icon_cache_dir)
+        .capabilities(crate::sdk::platform::capabilities::windows_capabilities())
+        .icon_extractor(Arc::new(WindowsIconExtractor::new(
+            default_app_icon_path,
+            default_web_icon_path,
+        )))
+        .shell_executor(Arc::new(WindowsShellExecutor::new()))
+        .window_manager(Arc::new(WindowsWindowManager::new()))
+        .path_resolver(path_resolver)
+        .app_enumerator(Arc::new(WindowsAppEnumerator::new()))
+        .app_launcher(Arc::new(WindowsAppLauncher::new()))
+        .lnk_resolver(Arc::new(WindowsLnkResolver::new()))
+        .resource_loader(Arc::new(WindowsResourceLoader::new()))
+        .parameter_resolver(Arc::new(
+            crate::sdk::parameter::DefaultParameterResolver::new(),
+        ))
+        .parameter_providers(
+            Arc::new(WindowsClipboardProvider),
+            Arc::new(WindowsWindowHandleProvider),
+            Arc::new(WindowsSelectionProvider),
+        )
+        .autostart_manager(Arc::new(WindowsAutoStartManager::new()))
+        .installation_monitor(Arc::new(WindowsInstallationMonitor::new()))
+        .timer_manager(Arc::new(TokioTimerManager::new()))
+        .storage_service(default_storage)
+        .app_resource(app_resource)
+        .window_positioner(Arc::new(WindowsWindowPositioner::new()))
+}
+
 async fn init_app_state(
     app: &mut App,
     path_resolver: Arc<WindowsPathResolver>,
@@ -276,70 +316,53 @@ async fn init_app_state(
     let app_handle_for_set_pos = app_handle.clone();
 
     let host_api = Arc::new(
-        crate::sdk::HostApi::builder(icon_cache_dir)
-            .icon_extractor(Arc::new(WindowsIconExtractor::new(
-                default_app_icon_path,
-                default_web_icon_path,
-            )))
-            .shell_executor(Arc::new(WindowsShellExecutor::new()))
-            .window_manager(Arc::new(WindowsWindowManager::new()))
-            .path_resolver(path_resolver)
-            .app_enumerator(Arc::new(WindowsAppEnumerator::new()))
-            .app_launcher(Arc::new(WindowsAppLauncher::new()))
-            .lnk_resolver(Arc::new(WindowsLnkResolver::new()))
-            .resource_loader(Arc::new(WindowsResourceLoader::new()))
-            .parameter_resolver(Arc::new(
-                crate::sdk::parameter::DefaultParameterResolver::new(),
-            ))
-            .parameter_providers(
-                Arc::new(WindowsClipboardProvider),
-                Arc::new(WindowsWindowHandleProvider),
-                Arc::new(WindowsSelectionProvider),
-            )
-            .autostart_manager(Arc::new(WindowsAutoStartManager::new()))
-            .hotkey_manager(Arc::new(WindowsHotkeyManager::new(app_handle)))
-            .installation_monitor(Arc::new(WindowsInstallationMonitor::new()))
-            .timer_manager(Arc::new(TokioTimerManager::new()))
-            .storage_service(default_storage)
-            .app_resource(app_resource)
-            .focus_monitor(Arc::new(WindowsFocusMonitor::new(
-                app_handle_for_focus_monitor,
-            )))
-            .window_positioner(Arc::new(WindowsWindowPositioner::new()))
-            .set_window_position_callback(move |x, y| {
-                if let Some(window) = app_handle_for_set_pos.get_webview_window("main") {
-                    let _ = window.set_position(tauri::PhysicalPosition::new(x, y));
-                }
-            })
-            .notify_callback(move |title: String, message: String| {
-                use tauri_plugin_notification::NotificationExt;
-                let _ = app_handle_for_notify
-                    .notification()
-                    .builder()
-                    .title(title)
-                    .body(message)
-                    .show();
-            })
-            .hide_window_callback(move || {
-                if let Some(window) = app_handle_for_hide.get_webview_window("main") {
-                    let _ = window.hide();
-                    let _ = window.emit("handle_focus_lost", ());
-                }
-            })
-            .show_window_callback(move || {
-                if let Some(window) = app_handle_for_show.get_webview_window("main") {
-                    let _ = window.show();
-                    let _ = window.set_focus();
-                    let _ = window.emit("show_window", ());
-                }
-            })
-            .is_window_visible_callback(move || {
-                app_handle_for_is_visible
-                    .get_webview_window("main")
-                    .map(|w| w.is_visible().unwrap_or(false))
-                    .unwrap_or(false)
-            })
-            .build(),
+        build_windows_host_api_builder(
+            icon_cache_dir,
+            default_app_icon_path,
+            default_web_icon_path,
+            path_resolver,
+            default_storage,
+            app_resource,
+        )
+        .hotkey_manager(Arc::new(WindowsHotkeyManager::new(app_handle)))
+        .focus_monitor(Arc::new(WindowsFocusMonitor::new(
+            app_handle_for_focus_monitor,
+        )))
+        .set_window_position_callback(move |x, y| {
+            if let Some(window) = app_handle_for_set_pos.get_webview_window("main") {
+                let _ = window.set_position(tauri::PhysicalPosition::new(x, y));
+            }
+        })
+        .notify_callback(move |title: String, message: String| {
+            use tauri_plugin_notification::NotificationExt;
+            let _ = app_handle_for_notify
+                .notification()
+                .builder()
+                .title(title)
+                .body(message)
+                .show();
+        })
+        .hide_window_callback(move || {
+            if let Some(window) = app_handle_for_hide.get_webview_window("main") {
+                let _ = window.hide();
+                let _ = window.emit("handle_focus_lost", ());
+            }
+        })
+        .show_window_callback(move || {
+            if let Some(window) = app_handle_for_show.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.set_focus();
+                let _ = window.emit("show_window", ());
+            }
+        })
+        .is_window_visible_callback(move || {
+            app_handle_for_is_visible
+                .get_webview_window("main")
+                .map(|w| w.is_visible().unwrap_or(false))
+                .unwrap_or(false)
+        })
+        .build()
+        .expect("Failed to build HostApi"),
     );
     state.set_host_api(host_api.clone());
     info!("HostApi 初始化完成");

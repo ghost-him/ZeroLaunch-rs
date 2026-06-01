@@ -1,5 +1,5 @@
 use crate::core::config::setting_builders::SchemaBuilder;
-use crate::core::types::setting_def::SettingDefinition;
+use crate::core::types::SettingDefinition;
 use crate::core::types::{ComponentType, ConfigError, Configurable};
 use crate::sdk::host_api::HostApi;
 use crate::sdk::hotkey::types::{Hotkey, HotkeyConfig, HotkeyRegistration};

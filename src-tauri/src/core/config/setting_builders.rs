@@ -24,11 +24,11 @@
 //!     .master_detail().default(serde_json::json!([])).build()
 //! ```
 
-use crate::core::types::setting_def::{
+use crate::core::types::PrimitiveType;
+use crate::core::types::{
     ArrayItem, ArrayUiHint, DetailActionDef, FieldDefinition, PathMode, SettingDefinition,
     SettingType,
 };
-use crate::core::types::PrimitiveType;
 use serde_json::Value;
 
 pub struct SchemaBuilder {

@@ -1,0 +1,55 @@
+[package]
+name = "zerolaunch-platform-windows"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Windows platform implementations of zerolaunch-plugin-api traits."
+
+[features]
+default = []
+portable = []
+
+[dependencies]
+zerolaunch-plugin-api.workspace = true
+async-trait.workspace = true
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+parking_lot.workspace = true
+once_cell.workspace = true
+backtrace.workspace = true
+widestring.workspace = true
+scraper.workspace = true
+dashmap.workspace = true
+encoding_rs.workspace = true
+image.workspace = true
+rand.workspace = true
+url.workspace = true
+ini.workspace = true
+reqwest.workspace = true
+
+# Windows-specific
+windows.workspace = true
+windows-core.workspace = true
+winreg.workspace = true
+uiautomation.workspace = true
+rdev.workspace = true
+arboard.workspace = true
+whoami.workspace = true
+lnk.workspace = true
+
+# Tauri-specific (needed by focus_monitor and hotkey)
+tauri = { version = "^2", features = ["tray-icon"] }
+tauri-plugin-global-shortcut = "^2.3.1"
+
+# Additional non-workspace deps
+base64 = "^0.22.1"
+tempfile = "3.27.0"
+notify = "8.2.0"
+
+[target.'cfg(target_arch = "x86_64")'.dependencies]
+everything-rs = "0.1.10"
+everything-sys-bindgen = "0.1.5"

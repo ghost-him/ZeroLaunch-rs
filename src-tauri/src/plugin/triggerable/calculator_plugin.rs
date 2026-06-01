@@ -111,7 +111,7 @@ impl Plugin for CalculatorPlugin {
     async fn init(
         &self,
         _ctx: &PluginContext,
-        _host_api: Arc<crate::sdk::HostApi>,
+        _handle: Arc<crate::sdk::PluginHandle>,
     ) -> Result<(), PluginError> {
         Ok(())
     }

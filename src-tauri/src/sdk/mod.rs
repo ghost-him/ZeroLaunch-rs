@@ -19,7 +19,8 @@ pub use app::{AppEnumerator, AppInfo, AppLauncher};
 pub use autostart::AutoStartManager;
 pub use focus_monitor::{FocusCallback, FocusEvent, FocusMonitor};
 pub use host_api::{
-    CacheLevel, HostApi, HostApiBuilder, HostApiError, OpenTarget, PluginHandle, PluginSdkConfig,
+    CacheLevel, HostApi, HostApiBuildError, HostApiBuilder, HostApiError, OpenTarget, PluginHandle,
+    PluginSdkConfig,
 };
 pub use hotkey::{
     Hotkey, HotkeyConfig, HotkeyEvent, HotkeyEventFilter, HotkeyManager, HotkeyRegistration,

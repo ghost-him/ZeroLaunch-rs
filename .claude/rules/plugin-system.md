@@ -59,6 +59,7 @@ paths:
 
 ## Plugin Trait Init
 
-- `Plugin::init()` 接收 `&PluginContext`（请求级上下文）和 `Arc<HostApi>`（平台服务）
-- 用 `host_api` 参数执行平台操作。用 `ctx` 参数获取 trace_id、query_id 等请求级信息
-- **禁止** 在插件内部状态中存储 `HostApi`；通过 `init` 参数或 `PluginContext` 访问
+- `Plugin::init()` 接收 `&PluginContext`（请求级上下文）和 `Arc<PluginHandle>`（插件服务句柄）
+- `PluginHandle` 从 `HostApi::register(plugin_id, config)` 获取，绑定插件身份与配置
+- 用 `handle` 参数执行平台操作。用 `ctx` 参数获取 trace_id、query_id 等请求级信息
+- **禁止** 在插件内部状态中存储 `PluginHandle`；通过 `init` 参数或 `PluginContext` 访问

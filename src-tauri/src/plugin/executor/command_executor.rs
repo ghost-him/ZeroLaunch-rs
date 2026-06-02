@@ -2,10 +2,10 @@ use crate::core::types::{ComponentType, Configurable};
 use crate::plugin_system::types::{
     ActionExecutor, ExecutionContext, ExecutionError, ExecutionTarget, ResultAction, TargetType,
 };
-use crate::sdk::host_api::PluginHandle;
-use crate::sdk::IconRequest;
 use async_trait::async_trait;
 use std::sync::Arc;
+use zerolaunch_plugin_api::host::PluginHandle;
+use zerolaunch_plugin_api::services::IconRequest;
 
 /// 命令执行器 - 负责执行自定义命令
 /// 通过 PluginHandle::shell_execute_command 委托 SDK 层执行，不直接调用平台 API

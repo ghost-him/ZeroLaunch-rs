@@ -6,13 +6,13 @@ use super::service::PluginService;
 use super::types::*;
 use crate::core::config::{ConfigEvent, ConfigManager};
 use crate::plugin_system::Configurable;
-use crate::sdk::parameter::template_parser::{Placeholder, TemplateParser};
 use crate::sdk::HostApi;
-use crate::sdk::ParameterSnapshot;
 use parking_lot::{Mutex, RwLock};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{debug, info};
+use zerolaunch_plugin_api::services::parameter::template_parser::{Placeholder, TemplateParser};
+use zerolaunch_plugin_api::services::ParameterSnapshot;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SessionMode {

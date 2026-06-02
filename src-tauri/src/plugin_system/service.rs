@@ -1,8 +1,10 @@
 use super::dispatcher::QueryDispatcher;
 use super::registry::PluginRegistry;
 use super::types::{Plugin, PluginContext, PluginError, Query, QueryResponse};
+use crate::sdk::HostApi;
 use rand::distr::{Alphanumeric, SampleString};
 use std::sync::Arc;
+use zerolaunch_plugin_api::host::PluginSdkConfig;
 
 pub struct PluginService {
     registry: Arc<PluginRegistry>,
@@ -36,14 +38,14 @@ impl PluginService {
     /// 初始化当前已注册的所有插件。
     /// 参数：host_api - 宿主 API 句柄，用于插件访问平台能力。
     /// 返回：成功返回 ()，失败返回 PluginError。
-    pub async fn init_all(&self, host_api: Arc<crate::sdk::HostApi>) -> Result<(), PluginError> {
+    pub async fn init_all(&self, host_api: Arc<HostApi>) -> Result<(), PluginError> {
         let mut rng = rand::rng();
         let trace_id = Alphanumeric.sample_string(&mut rng, 8);
         let ctx = PluginContext::new(&trace_id);
 
         for plugin in self.registry.get_all() {
             let plugin_id = plugin.metadata().id.clone();
-            let handle = host_api.register(&plugin_id, crate::sdk::PluginSdkConfig::default());
+            let handle = host_api.register(&plugin_id, PluginSdkConfig::default());
             plugin.init(&ctx, handle).await?;
         }
 

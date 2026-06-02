@@ -2,12 +2,13 @@ use crate::core::types::{ComponentType, ConfigError, Configurable};
 use crate::plugin_system::types::{
     Plugin, PluginContext, PluginError, PluginMetadata, Query, QueryResponse, ResultAction,
 };
-use crate::sdk::IconRequest;
 use async_trait::async_trait;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::sync::Arc;
+use zerolaunch_plugin_api::host::PluginHandle;
+use zerolaunch_plugin_api::services::IconRequest;
 
 pub struct CalculatorPlugin {
     metadata: PluginMetadata,
@@ -111,7 +112,7 @@ impl Plugin for CalculatorPlugin {
     async fn init(
         &self,
         _ctx: &PluginContext,
-        _handle: Arc<crate::sdk::PluginHandle>,
+        _handle: Arc<PluginHandle>,
     ) -> Result<(), PluginError> {
         Ok(())
     }

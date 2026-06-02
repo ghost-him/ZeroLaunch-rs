@@ -36,33 +36,8 @@ use crate::plugin::triggerable::calculator_plugin::CalculatorPlugin;
 use crate::plugin_system::types::{Plugin, ScoreBooster, SearchEngine};
 
 use crate::plugin_system::{CandidatePipeline, SearchPipeline};
-use crate::sdk::common::ComGuard;
-use crate::sdk::hotkey::types::HotkeyEventFilter;
-use crate::sdk::path::KnownPath;
-use crate::sdk::platform::WindowsAppEnumerator;
-use crate::sdk::platform::WindowsAppLauncher;
-use crate::sdk::platform::WindowsAutoStartManager;
-use crate::sdk::platform::WindowsClipboardProvider;
-use crate::sdk::platform::WindowsFocusMonitor;
-use crate::sdk::platform::WindowsHotkeyManager;
-use crate::sdk::platform::WindowsIconExtractor;
-use crate::sdk::platform::WindowsInstallationMonitor;
-use crate::sdk::platform::WindowsLnkResolver;
-use crate::sdk::platform::WindowsPathResolver;
-use crate::sdk::platform::WindowsResourceLoader;
-use crate::sdk::platform::WindowsSelectionProvider;
-use crate::sdk::platform::WindowsShellExecutor;
-use crate::sdk::platform::WindowsWindowHandleProvider;
-use crate::sdk::platform::WindowsWindowManager;
-use crate::sdk::platform::WindowsWindowPositioner;
-use crate::sdk::storage::local_storage::LocalStorageService;
-use crate::sdk::storage::storage_service::StorageService;
-use crate::sdk::timer::TokioTimerManager;
-use crate::sdk::window::{MonitorInfo, PositionRequest, WindowPosition};
-use crate::sdk::AppResourceService;
-use crate::sdk::HostApi;
+use crate::sdk::host_api::HostApi;
 use crate::sdk::HostApiBuilder;
-use crate::sdk::PathResolver;
 use crate::state::app_state::AppState;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -74,7 +49,33 @@ use tauri::WebviewUrl;
 use tauri_plugin_deep_link::DeepLinkExt;
 use tracing::{debug, error, info, warn};
 use utils::service_locator::ServiceLocator;
-
+use zerolaunch_platform_windows::windows_capabilities;
+use zerolaunch_platform_windows::ComGuard;
+use zerolaunch_platform_windows::WindowsAppEnumerator;
+use zerolaunch_platform_windows::WindowsAppLauncher;
+use zerolaunch_platform_windows::WindowsAutoStartManager;
+use zerolaunch_platform_windows::WindowsClipboardProvider;
+use zerolaunch_platform_windows::WindowsFocusMonitor;
+use zerolaunch_platform_windows::WindowsHotkeyManager;
+use zerolaunch_platform_windows::WindowsIconExtractor;
+use zerolaunch_platform_windows::WindowsInstallationMonitor;
+use zerolaunch_platform_windows::WindowsLnkResolver;
+use zerolaunch_platform_windows::WindowsPathResolver;
+use zerolaunch_platform_windows::WindowsResourceLoader;
+use zerolaunch_platform_windows::WindowsSelectionProvider;
+use zerolaunch_platform_windows::WindowsShellExecutor;
+use zerolaunch_platform_windows::WindowsWindowHandleProvider;
+use zerolaunch_platform_windows::WindowsWindowManager;
+use zerolaunch_platform_windows::WindowsWindowPositioner;
+use zerolaunch_plugin_api::services::hotkey::types::HotkeyEventFilter;
+use zerolaunch_plugin_api::services::path::KnownPath;
+use zerolaunch_plugin_api::services::storage::local_storage::LocalStorageService;
+use zerolaunch_plugin_api::services::storage::storage_service::StorageService;
+use zerolaunch_plugin_api::services::timer::TokioTimerManager;
+use zerolaunch_plugin_api::services::window::{MonitorInfo, PositionRequest, WindowPosition};
+use zerolaunch_plugin_api::services::AppResourceService;
+use zerolaunch_plugin_api::services::PathResolver;
+pub use zerolaunch_plugin_api::{PlatformCapabilities, PlatformCapability};
 static IS_EXITING: AtomicBool = AtomicBool::new(false);
 
 pub async fn do_cleanup_before_exit() {
@@ -241,8 +242,8 @@ fn build_windows_host_api_builder(
     default_storage: Arc<dyn StorageService>,
     app_resource: Arc<AppResourceService>,
 ) -> HostApiBuilder {
-    crate::sdk::HostApi::builder(icon_cache_dir)
-        .capabilities(crate::sdk::platform::capabilities::windows_capabilities())
+    HostApi::builder(icon_cache_dir)
+        .capabilities(windows_capabilities())
         .icon_extractor(Arc::new(WindowsIconExtractor::new(
             default_app_icon_path,
             default_web_icon_path,
@@ -255,7 +256,7 @@ fn build_windows_host_api_builder(
         .lnk_resolver(Arc::new(WindowsLnkResolver::new()))
         .resource_loader(Arc::new(WindowsResourceLoader::new()))
         .parameter_resolver(Arc::new(
-            crate::sdk::parameter::DefaultParameterResolver::new(),
+            zerolaunch_plugin_api::services::parameter::DefaultParameterResolver::new(),
         ))
         .parameter_providers(
             Arc::new(WindowsClipboardProvider),

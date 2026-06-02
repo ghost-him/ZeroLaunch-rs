@@ -2,10 +2,10 @@ use crate::core::types::{ComponentType, Configurable};
 use crate::plugin_system::types::{
     ActionExecutor, ExecutionContext, ExecutionError, ExecutionTarget, ResultAction, TargetType,
 };
-use crate::sdk::host_api::{OpenTarget, PluginHandle};
-use crate::sdk::IconRequest;
 use async_trait::async_trait;
 use std::sync::Arc;
+use zerolaunch_plugin_api::host::{OpenTarget, PluginHandle};
+use zerolaunch_plugin_api::services::IconRequest;
 
 /// URL 执行器 - 负责使用系统默认浏览器打开 URL
 /// 委托 PluginHandle 的 shell_open 方法打开 URL

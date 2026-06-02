@@ -2,10 +2,10 @@ use crate::core::types::{ComponentType, Configurable};
 use crate::plugin_system::types::{
     ActionExecutor, ExecutionContext, ExecutionError, ExecutionTarget, ResultAction, TargetType,
 };
-use crate::sdk::host_api::{OpenTarget, PluginHandle};
-use crate::sdk::IconRequest;
 use async_trait::async_trait;
 use std::sync::Arc;
+use zerolaunch_plugin_api::host::{OpenTarget, PluginHandle};
+use zerolaunch_plugin_api::services::IconRequest;
 
 /// 文件执行器 - 负责使用系统默认方式打开文件
 /// 支持打开文件和打开所在文件夹

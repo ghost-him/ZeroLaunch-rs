@@ -1,26 +1,26 @@
-use crate::sdk::app::app_enumerator::AppEnumerator;
-use crate::sdk::app::app_launcher::AppLauncher;
-use crate::sdk::autostart::AutoStartManager;
-use crate::sdk::focus_monitor::FocusMonitor;
-use crate::sdk::hotkey::types::HotkeyConfig;
-use crate::sdk::hotkey::HotkeyManager;
-use crate::sdk::icon::icon_cache::IconCacheService;
-use crate::sdk::icon::icon_extractor::IconExtractor;
-use crate::sdk::installation_monitor::InstallationMonitor;
-use crate::sdk::parameter::provider::SystemParameterProvider;
-use crate::sdk::parameter::resolver::ParameterResolver;
-use crate::sdk::parameter::types::ParameterSnapshot;
-use crate::sdk::path::path_resolver::PathResolver;
-use crate::sdk::platform::capabilities::PlatformCapabilities;
-use crate::sdk::resource::AppResourceService;
-use crate::sdk::shell::lnk_resolver::LnkResolver;
-use crate::sdk::shell::resource_loader::ResourceLoader;
-use crate::sdk::shell::ShellExecutor;
-use crate::sdk::storage::storage_service::StorageService;
-use crate::sdk::timer::TimerManager;
-use crate::sdk::window::{WindowManager, WindowPosition, WindowPositioner};
 use dashmap::DashMap;
 use parking_lot::RwLock;
+use zerolaunch_plugin_api::platform::capabilities::PlatformCapabilities;
+use zerolaunch_plugin_api::services::app::app_enumerator::AppEnumerator;
+use zerolaunch_plugin_api::services::app::app_launcher::AppLauncher;
+use zerolaunch_plugin_api::services::autostart::AutoStartManager;
+use zerolaunch_plugin_api::services::focus_monitor::FocusMonitor;
+use zerolaunch_plugin_api::services::hotkey::types::HotkeyConfig;
+use zerolaunch_plugin_api::services::hotkey::HotkeyManager;
+use zerolaunch_plugin_api::services::icon::icon_cache::IconCacheService;
+use zerolaunch_plugin_api::services::icon::icon_extractor::IconExtractor;
+use zerolaunch_plugin_api::services::installation_monitor::InstallationMonitor;
+use zerolaunch_plugin_api::services::parameter::provider::SystemParameterProvider;
+use zerolaunch_plugin_api::services::parameter::resolver::ParameterResolver;
+use zerolaunch_plugin_api::services::path::path_resolver::PathResolver;
+use zerolaunch_plugin_api::services::resource::AppResourceService;
+use zerolaunch_plugin_api::services::shell::lnk_resolver::LnkResolver;
+use zerolaunch_plugin_api::services::shell::resource_loader::ResourceLoader;
+use zerolaunch_plugin_api::services::shell::ShellExecutor;
+use zerolaunch_plugin_api::services::storage::storage_service::StorageService;
+use zerolaunch_plugin_api::services::timer::TimerManager;
+use zerolaunch_plugin_api::services::window::{WindowManager, WindowPosition, WindowPositioner};
+use zerolaunch_plugin_api::services::ParameterSnapshot;
 
 use std::sync::Arc;
 
@@ -183,7 +183,7 @@ impl HostApi {
     /// 委托给平台 WindowPositioner 实现，根据配置和系统状态返回物理像素坐标。
     pub async fn compute_window_position(
         &self,
-        request: crate::sdk::window::PositionRequest,
+        request: zerolaunch_plugin_api::services::window::PositionRequest,
     ) -> Result<WindowPosition, HostApiError> {
         self.window_positioner.compute_position(request).await
     }

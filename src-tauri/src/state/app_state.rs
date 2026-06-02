@@ -2,12 +2,12 @@ use crate::core::config::ConfigManager;
 use crate::core::tray::TrayManager;
 use crate::plugin_system::service::PluginService;
 use crate::plugin_system::SessionRouter;
-use crate::sdk::host_api::PluginHandle;
 use crate::sdk::HostApi;
 use crate::utils::waiting_hashmap::AsyncWaitingHashMap;
 use parking_lot::RwLock;
 use std::sync::Arc;
 use tauri::AppHandle;
+use zerolaunch_plugin_api::host::PluginHandle;
 
 pub struct AppState {
     session_router: Arc<SessionRouter>,

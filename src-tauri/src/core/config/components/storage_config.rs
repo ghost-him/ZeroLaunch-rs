@@ -2,13 +2,15 @@ use crate::core::config::setting_builders::SchemaBuilder;
 use crate::core::types::SettingDefinition;
 use crate::core::types::{ComponentType, ConfigError, Configurable};
 use crate::sdk::host_api::HostApi;
-use crate::sdk::storage::local_storage::LocalStorageService;
-use crate::sdk::storage::storage_service::StorageService;
-use crate::sdk::storage::webdav_storage::{WebDAVConfig, WebDAVStorageService};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::info;
+use zerolaunch_plugin_api::services::storage::local_storage::LocalStorageService;
+use zerolaunch_plugin_api::services::storage::storage_service::StorageService;
+use zerolaunch_plugin_api::services::storage::webdav_storage::{
+    WebDAVConfig, WebDAVStorageService,
+};
 
 /// 存储设置的强类型配置结构。
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -4,8 +4,6 @@ use crate::plugin_system::types::{ConfigActionDef, DataSource, ExecutionTarget, 
 use crate::plugin_system::{
     ComponentType, ConfigError, Configurable, DetailActionDef, SettingDefinition,
 };
-use crate::sdk::host_api::PluginHandle;
-use crate::sdk::IconRequest;
 use async_trait::async_trait;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
@@ -14,6 +12,8 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::{debug, warn};
+use zerolaunch_plugin_api::host::PluginHandle;
+use zerolaunch_plugin_api::services::IconRequest;
 
 // ============ Chrome 书签解析相关结构 ============
 

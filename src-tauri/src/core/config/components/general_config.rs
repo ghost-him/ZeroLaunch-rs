@@ -168,3 +168,17 @@ impl Configurable for GeneralConfigComponent {
         true
     }
 }
+
+use crate::plugin_system::builtin_registry::CoreComponentEntry;
+
+fn build_general_config(host_api: Arc<crate::sdk::HostApi>) -> Arc<dyn Configurable> {
+    Arc::new(GeneralConfigComponent::new(host_api))
+}
+
+::inventory::submit! {
+    CoreComponentEntry {
+        component_id: "general",
+        priority: 30,
+        factory: build_general_config,
+    }
+}

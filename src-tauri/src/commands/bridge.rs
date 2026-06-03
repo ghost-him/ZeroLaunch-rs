@@ -162,7 +162,30 @@ pub async fn bridge_query(
         search_term: raw_query.to_lowercase(),
     };
 
+    #[cfg(feature = "inspector")]
+    let query_start = std::time::Instant::now();
     let response = session_router.route_query(&trace_id, &query).await;
+
+    #[cfg(feature = "inspector")]
+    {
+        use crate::plugin_system::inspector::InspectedQueryEvent;
+        let (mode, result_count) = match &response {
+            QueryResponse::List { results } => ("search", results.len()),
+            QueryResponse::Empty => ("empty", 0),
+            QueryResponse::CustomPanel { .. } => ("plugin_panel", 1),
+            QueryResponse::InlineParam { .. } => ("inline_param", 0),
+        };
+        if let Some(inspector) = state.get_inspector() {
+            inspector.record(InspectedQueryEvent {
+                timestamp: chrono::Utc::now().to_rfc3339(),
+                trace_id: trace_id.clone(),
+                raw_query: raw_query.clone(),
+                mode: mode.to_string(),
+                result_count,
+                duration_ms: query_start.elapsed().as_millis() as u64,
+            });
+        }
+    }
 
     match response {
         QueryResponse::List { results } => {

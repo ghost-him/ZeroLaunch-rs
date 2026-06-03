@@ -192,3 +192,20 @@ mod tests {
         assert_eq!(result, vec!["chrome"]);
     }
 }
+
+use crate::plugin_system::builtin_registry::KeywordOptimizerEntry;
+use std::sync::Arc;
+
+pub(crate) fn build_pinyin_converter() -> (Arc<dyn Configurable>, Arc<dyn KeywordOptimizer>) {
+    let opt: Arc<dyn KeywordOptimizer> = Arc::new(PinyinConverter::new());
+    let configurable: Arc<dyn Configurable> = opt.clone();
+    (configurable, opt)
+}
+
+::inventory::submit! {
+    KeywordOptimizerEntry {
+        component_id: "pinyin-converter",
+        priority: 50,
+        factory: build_pinyin_converter,
+    }
+}

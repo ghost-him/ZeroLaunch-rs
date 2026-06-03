@@ -6,6 +6,21 @@ paths:
 
 # 插件系统规范
 
+## 内置组件自动注册 (inventory)
+
+- 内置组件通过 `inventory` crate 实现编译期自动发现。新增组件 **无需** 修改 `lib.rs`
+- 每个组件文件底部通过 `::inventory::submit!` 块注册。`lib.rs` 的 `init_plugin_system` 在启动时通过 `builtin_registry::register_all_builtin_components()` 遍历所有条目并统一注册
+- 7 种 Entry 类型对应 7 种组件类别：`ExecutorEntry`、`DataSourceEntry`、`KeywordOptimizerEntry`、`SearchEngineEntry`、`ScoreBoosterEntry`、`PluginEntry`、`CoreComponentEntry`
+- `InventoryContext` 负责懒创建并缓存 `PluginHandle`，相同 `handle_key` 的组件共享同一个 handle
+- 新增组件的步骤：在对应目录创建 .rs 文件 → 实现 trait → 添加 `inventory::submit!` 块 → `cargo build` 即自动生效
+
+## Plugin Inspector (feature = "inspector")
+
+- 开发用调试面板，**仅** 在 `cargo build --features inspector` 时启用
+- 后端：`plugin_system/inspector.rs` 维护 ring buffer (容量 200)，记录每次 `bridge_query` 的 trace_id、raw_query、mode、耗时
+- IPC：`inspector_get_state` 返回已注册组件清单 + 最近查询日志；`inspector_simulate_query` 手动模拟查询返回原始 QueryResponse
+- 前端：设置页 > 插件检查器 tab，包含组件清单表格、查询日志、模拟器
+
 ## Configurable 生命周期
 
 配置变更的 5 步流水线及各方法的职责边界见 [config.md](config.md) 的 Configurable 生命周期规范。参照实现：`HotkeyConfigComponent`、`InstallationMonitorConfigComponent`。

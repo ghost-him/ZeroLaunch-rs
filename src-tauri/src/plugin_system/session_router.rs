@@ -480,7 +480,7 @@ impl SessionRouter {
 
     /// 动态重建搜索管道。
     /// 根据当前已注册且启用的 SearchEngine 和 ScoreBooster 重建 SearchPipeline。
-    fn rebuild_search_pipeline(&self) {
+    pub fn rebuild_search_pipeline(&self) {
         let cm_guard = self.config_manager.read();
         let cm = match cm_guard.as_ref() {
             Some(cm) => cm,

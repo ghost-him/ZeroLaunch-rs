@@ -98,6 +98,7 @@ core/
 #### `plugin/` — 插件实现
 ```
 plugin/
+├── _template/            ← 内置插件模板（不被编译或 glob 扫描）
 ├── data_source/         ← 数据源（5个）
 ├── executor/            ← 执行器（6个）
 ├── keyword_optimizer/   ← 关键词优化器（8个）
@@ -107,10 +108,13 @@ plugin/
 ```
 
 - 每个插件实现 `Configurable` trait（配置）+ 对应的领域 trait（如 `DataSource`、`ActionExecutor`）。**必须** 通过 `PluginHandle` 访问平台能力（见 [plugin-system.md](plugin-system.md)）
+- 新增插件在对应目录添加 .rs 文件 + `inventory::submit!` 块即自动注册，**无需** 修改 `lib.rs`
 
 #### `plugin_system/` — 插件框架
 ```
 plugin_system/
+├── builtin_registry.rs   ← inventory 自动发现与注册编排器
+├── inspector.rs          ← Plugin Inspector 调试面板 (feature = "inspector")
 ├── session_router.rs    ← 搜索会话路由（核心调度器）
 ├── candidate_pipeline.rs← 候选项采集管道
 ├── search_pipeline.rs   ← 搜索排序管道
@@ -123,6 +127,7 @@ plugin_system/
 ```
 
 - **SessionRouter** 是运行时的中枢。所有 bridge 命令通过它路由
+- **builtin_registry** 通过 `inventory` 在编译期收集所有内置组件，启动时统一注册
 - **禁止** 在此层定义配置 schema 或持久化逻辑（那属于 core/）
 
 #### `commands/` — IPC 命令层
@@ -146,7 +151,8 @@ commands/
 | `components/` | UI 组件 | 按功能域子目录组织 |
 | `components/settings/fields/` | 设置字段渲染器 | 每种 SettingType 一个组件 |
 | `components/settings/fields/array/` | 数组 UI 策略 | 每种 ArrayUiHint 一个组件 |
-| `plugins/` | 前端插件系统 | FrontendPlugin 接口实现 |
+| `plugins/built-in/` | 内置前端插件 | `import.meta.glob` 自动发现，目录约定 `built-in/<id>/index.ts` |
+| `plugins/built-in/_template/` | 前端插件模板 | 参考实现，不被 glob 扫描 |
 | `utils/` | 纯工具函数 | 无副作用的工具 |
 | `styles/` | 全局样式 | CSS 变量定义 |
 | `i18n/` | 国际化 | 语言文件 |

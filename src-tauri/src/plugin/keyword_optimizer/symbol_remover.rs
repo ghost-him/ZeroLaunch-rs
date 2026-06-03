@@ -123,3 +123,20 @@ impl KeywordOptimizer for SymbolRemover {
         self.inner.read().priority
     }
 }
+
+use crate::plugin_system::builtin_registry::KeywordOptimizerEntry;
+use std::sync::Arc;
+
+pub(crate) fn build_symbol_remover() -> (Arc<dyn Configurable>, Arc<dyn KeywordOptimizer>) {
+    let opt: Arc<dyn KeywordOptimizer> = Arc::new(SymbolRemover::new());
+    let configurable: Arc<dyn Configurable> = opt.clone();
+    (configurable, opt)
+}
+
+::inventory::submit! {
+    KeywordOptimizerEntry {
+        component_id: "symbol-remover",
+        priority: 10,
+        factory: build_symbol_remover,
+    }
+}

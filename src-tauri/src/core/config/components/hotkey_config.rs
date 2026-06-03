@@ -275,3 +275,17 @@ mod tests {
         assert!(config.double_ctrl_enabled);
     }
 }
+
+use crate::plugin_system::builtin_registry::CoreComponentEntry;
+
+fn build_hotkey_config(host_api: Arc<crate::sdk::HostApi>) -> Arc<dyn Configurable> {
+    Arc::new(HotkeyConfigComponent::new(host_api))
+}
+
+::inventory::submit! {
+    CoreComponentEntry {
+        component_id: "hotkey-config",
+        priority: 10,
+        factory: build_hotkey_config,
+    }
+}

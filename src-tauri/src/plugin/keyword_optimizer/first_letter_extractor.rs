@@ -132,3 +132,20 @@ impl KeywordOptimizer for FirstLetterExtractor {
         self.inner.read().priority
     }
 }
+
+use crate::plugin_system::builtin_registry::KeywordOptimizerEntry;
+use std::sync::Arc;
+
+pub(crate) fn build_first_letter_extractor() -> (Arc<dyn Configurable>, Arc<dyn KeywordOptimizer>) {
+    let opt: Arc<dyn KeywordOptimizer> = Arc::new(FirstLetterExtractor::new());
+    let configurable: Arc<dyn Configurable> = opt.clone();
+    (configurable, opt)
+}
+
+::inventory::submit! {
+    KeywordOptimizerEntry {
+        component_id: "first-letter-extractor",
+        priority: 60,
+        factory: build_first_letter_extractor,
+    }
+}

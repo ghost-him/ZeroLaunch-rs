@@ -137,3 +137,21 @@ impl KeywordOptimizer for UpperCaseLetterExtractor {
         self.inner.read().priority
     }
 }
+
+use crate::plugin_system::builtin_registry::KeywordOptimizerEntry;
+use std::sync::Arc;
+
+pub(crate) fn build_upper_case_letter_extractor(
+) -> (Arc<dyn Configurable>, Arc<dyn KeywordOptimizer>) {
+    let opt: Arc<dyn KeywordOptimizer> = Arc::new(UpperCaseLetterExtractor::new());
+    let configurable: Arc<dyn Configurable> = opt.clone();
+    (configurable, opt)
+}
+
+::inventory::submit! {
+    KeywordOptimizerEntry {
+        component_id: "upper-case-letter-extractor",
+        priority: 70,
+        factory: build_upper_case_letter_extractor,
+    }
+}

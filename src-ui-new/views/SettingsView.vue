@@ -21,6 +21,9 @@
           <n-button size="small" @click="init">{{ $t('settings.saveFailed') }}</n-button>
         </div>
         
+        <!-- Plugin Inspector -->
+        <PluginInspector v-else-if="selectedId === 'category_inspector'" />
+
         <!-- About -->
         <div v-else-if="selectedId === 'category_about'" class="static-panel">
           <h3>{{ $t('settings.about') }}</h3>
@@ -75,6 +78,7 @@ import SettingsSidebar from '../components/settings/SettingsSidebar.vue'
 import CategoryViewList from '../components/settings/CategoryViewList.vue'
 import CategoryViewPipeline from '../components/settings/CategoryViewPipeline.vue'
 import CategoryViewTabs from '../components/settings/CategoryViewTabs.vue'
+import PluginInspector from './PluginInspector.vue'
 import { useConfigStore } from '../stores/config-store'
 import { buildSidebarItems } from '../utils/settingsSidebar'
 import { registerErrorHandler } from '../bridge/commands'

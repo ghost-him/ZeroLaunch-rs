@@ -81,3 +81,23 @@ impl ActionExecutor for CommandExecutor {
         }
     }
 }
+
+use crate::plugin_system::builtin_registry::{ExecutorEntry, InventoryContext};
+
+pub(crate) fn build_command_executor(
+    ctx: &InventoryContext,
+) -> (Arc<dyn Configurable>, Arc<dyn ActionExecutor>) {
+    let handle = ctx.get_handle("command-executor");
+    let exec: Arc<dyn ActionExecutor> = Arc::new(CommandExecutor::new(handle));
+    let configurable: Arc<dyn Configurable> = exec.clone();
+    (configurable, exec)
+}
+
+::inventory::submit! {
+    ExecutorEntry {
+        component_id: "command-executor",
+        handle_key: "command-executor",
+        priority: 40,
+        factory: build_command_executor,
+    }
+}

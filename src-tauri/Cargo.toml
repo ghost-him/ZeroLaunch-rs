@@ -114,10 +114,13 @@ notify = "8.2.0"
 uiautomation = "0.25.0"
 
 
+inventory = "0.3"
+
 [features]
-default = ["custom-protocol"]
+default = ["custom-protocol", "inspector"]
 custom-protocol = ["tauri/custom-protocol"]
 portable = []
+inspector = []
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }

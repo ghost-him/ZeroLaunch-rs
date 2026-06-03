@@ -180,3 +180,23 @@ impl DataSource for CommandSource {
         result
     }
 }
+
+use crate::plugin_system::builtin_registry::{DataSourceEntry, InventoryContext};
+
+pub(crate) fn build_command_source(
+    ctx: &InventoryContext,
+) -> (Arc<dyn Configurable>, Arc<dyn DataSource>) {
+    let handle = ctx.get_handle("command-source");
+    let source: Arc<dyn DataSource> = Arc::new(CommandSource::new(handle));
+    let configurable: Arc<dyn Configurable> = source.clone();
+    (configurable, source)
+}
+
+::inventory::submit! {
+    DataSourceEntry {
+        component_id: "command-source",
+        handle_key: "command-source",
+        priority: 40,
+        factory: build_command_source,
+    }
+}

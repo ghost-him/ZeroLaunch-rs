@@ -21,6 +21,8 @@ pub struct AppState {
     previous_selection: RwLock<Option<String>>,
     host_api: RwLock<Option<Arc<HostApi>>>,
     core_handle: RwLock<Option<Arc<PluginHandle>>>,
+    #[cfg(feature = "inspector")]
+    inspector: RwLock<Option<Arc<crate::plugin_system::inspector::Inspector>>>,
 }
 
 impl Default for AppState {
@@ -46,6 +48,8 @@ impl AppState {
             previous_selection: RwLock::new(None),
             host_api: RwLock::new(None),
             core_handle: RwLock::new(None),
+            #[cfg(feature = "inspector")]
+            inspector: RwLock::new(None),
         }
     }
 
@@ -143,6 +147,16 @@ impl AppState {
 
     pub fn set_core_handle(&self, handle: Arc<PluginHandle>) {
         *self.core_handle.write() = Some(handle);
+    }
+
+    #[cfg(feature = "inspector")]
+    pub fn get_inspector(&self) -> Option<Arc<crate::plugin_system::inspector::Inspector>> {
+        self.inspector.read().clone()
+    }
+
+    #[cfg(feature = "inspector")]
+    pub fn set_inspector(&self, inspector: Arc<crate::plugin_system::inspector::Inspector>) {
+        *self.inspector.write() = Some(inspector);
     }
 }
 

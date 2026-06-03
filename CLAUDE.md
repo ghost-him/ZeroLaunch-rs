@@ -35,15 +35,19 @@ plugin_system/→ 插件框架（SessionRouter, PluginRegistry, CandidatePipelin
 | SessionRouter      | `src-tauri/src/plugin_system/session_router.rs`     |
 | ConfigManager      | `src-tauri/src/core/config/manager.rs`              |
 | HostApi + Builder  | `src-tauri/src/sdk/host_api.rs`                     |
+| 内置组件注册表     | `src-tauri/src/plugin_system/builtin_registry.rs`   |
+| Plugin Inspector   | `src-tauri/src/plugin_system/inspector.rs` (feature = "inspector") |
 | 前端类型契约       | `src-ui-new/bridge/contract.ts`                     |
 | 前端命令封装       | `src-ui-new/bridge/commands.ts`                     |
 | 前端事件监听       | `src-ui-new/bridge/events.ts`                       |
 
-## IPC 命令清单（15个）
+## IPC 命令清单（17个）
 
 搜索/会话（`bridge_` 前缀）：`bridge_query`, `bridge_confirm`, `bridge_wake`, `bridge_reset`, `bridge_get_session_mode`, `bridge_refresh_candidates`, `bridge_get_candidates_count`
 
 配置（`config_` 前缀）：`config_get_all_components`, `config_get_schema`, `config_get_settings`, `config_apply_settings`, `config_reset_settings`, `config_set_enabled`, `config_get_actions`, `config_execute_action`
+
+检查器（`inspector_` 前缀，feature = "inspector"）：`inspector_get_state`, `inspector_simulate_query`
 
 ## 从哪里开始
 
@@ -51,3 +55,4 @@ plugin_system/→ 插件框架（SessionRouter, PluginRegistry, CandidatePipelin
 - **设计哲学与架构** → `docs/design/`
 - **前端架构与需求** → `docs/frontend/`
 - **第三方插件开发** → `crates/plugin-api/README.md`
+- **内置插件开发** → `docs/dev/built-in-plugin-guide.md`

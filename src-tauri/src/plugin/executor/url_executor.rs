@@ -93,3 +93,23 @@ impl ActionExecutor for UrlExecutor {
         }
     }
 }
+
+use crate::plugin_system::builtin_registry::{ExecutorEntry, InventoryContext};
+
+pub(crate) fn build_url_executor(
+    ctx: &InventoryContext,
+) -> (Arc<dyn Configurable>, Arc<dyn ActionExecutor>) {
+    let handle = ctx.get_handle("shell-executor");
+    let exec: Arc<dyn ActionExecutor> = Arc::new(UrlExecutor::new(handle));
+    let configurable: Arc<dyn Configurable> = exec.clone();
+    (configurable, exec)
+}
+
+::inventory::submit! {
+    ExecutorEntry {
+        component_id: "url-executor",
+        handle_key: "shell-executor",
+        priority: 20,
+        factory: build_url_executor,
+    }
+}

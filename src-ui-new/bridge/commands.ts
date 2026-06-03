@@ -118,3 +118,13 @@ export function resourceGet(resourceId: string): Promise<string> {
 export function resourceUpload(filePath: string, purpose: string, maxSize?: number): Promise<string> {
   return invokeCommand<string>('resource_upload', { payload: { filePath, purpose, maxSize } })
 }
+
+// ---- Plugin Inspector ----
+
+export function inspectorGetState(): Promise<import('./contract').InspectorStateResponse> {
+  return invokeCommand('inspector_get_state')
+}
+
+export function inspectorSimulateQuery(rawQuery: string): Promise<unknown> {
+  return invokeCommand('inspector_simulate_query', { rawQuery })
+}

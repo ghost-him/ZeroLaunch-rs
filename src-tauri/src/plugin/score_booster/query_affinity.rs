@@ -289,3 +289,20 @@ impl ScoreBooster for QueryAffinityBooster {
         }
     }
 }
+
+use crate::plugin_system::builtin_registry::ScoreBoosterEntry;
+use std::sync::Arc;
+
+pub(crate) fn build_query_affinity_booster() -> (Arc<dyn Configurable>, Arc<dyn ScoreBooster>) {
+    let booster: Arc<dyn ScoreBooster> = Arc::new(QueryAffinityBooster::new());
+    let configurable: Arc<dyn Configurable> = booster.clone();
+    (configurable, booster)
+}
+
+::inventory::submit! {
+    ScoreBoosterEntry {
+        component_id: "query-affinity-booster",
+        priority: 10,
+        factory: build_query_affinity_booster,
+    }
+}

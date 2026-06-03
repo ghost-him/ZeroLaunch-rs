@@ -1,7 +1,10 @@
+pub mod builtin_registry;
 pub mod cached_candidate;
 mod candidate_pipeline;
 mod dispatcher;
 mod executor_registry;
+#[cfg(feature = "inspector")]
+pub mod inspector;
 mod registry;
 mod search_pipeline;
 pub mod service;

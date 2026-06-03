@@ -312,3 +312,20 @@ impl ScoreBooster for HistoryBooster {
         }
     }
 }
+
+use crate::plugin_system::builtin_registry::ScoreBoosterEntry;
+use std::sync::Arc;
+
+pub(crate) fn build_history_booster() -> (Arc<dyn Configurable>, Arc<dyn ScoreBooster>) {
+    let booster: Arc<dyn ScoreBooster> = Arc::new(HistoryBooster::new());
+    let configurable: Arc<dyn Configurable> = booster.clone();
+    (configurable, booster)
+}
+
+::inventory::submit! {
+    ScoreBoosterEntry {
+        component_id: "history-booster",
+        priority: 0,
+        factory: build_history_booster,
+    }
+}

@@ -359,3 +359,22 @@ impl ExprParser {
             .map_err(|_| format!("Invalid number: {}", num_str))
     }
 }
+
+use crate::plugin_system::builtin_registry::PluginEntry;
+
+fn build_calculator_plugin() -> (
+    Arc<dyn crate::plugin_system::types::Configurable>,
+    Arc<dyn Plugin>,
+) {
+    let plugin: Arc<dyn Plugin> = Arc::new(CalculatorPlugin::new());
+    let configurable: Arc<dyn Configurable> = plugin.clone();
+    (configurable, plugin)
+}
+
+::inventory::submit! {
+    PluginEntry {
+        component_id: "calculator",
+        priority: 0,
+        factory: build_calculator_plugin,
+    }
+}

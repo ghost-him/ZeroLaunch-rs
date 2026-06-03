@@ -155,3 +155,23 @@ impl ActionExecutor for WindowActivateExecutor {
         }
     }
 }
+
+use crate::plugin_system::builtin_registry::{ExecutorEntry, InventoryContext};
+
+pub(crate) fn build_window_activate_executor(
+    ctx: &InventoryContext,
+) -> (Arc<dyn Configurable>, Arc<dyn ActionExecutor>) {
+    let handle = ctx.get_handle("window-activator");
+    let exec: Arc<dyn ActionExecutor> = Arc::new(WindowActivateExecutor::new(handle));
+    let configurable: Arc<dyn Configurable> = exec.clone();
+    (configurable, exec)
+}
+
+::inventory::submit! {
+    ExecutorEntry {
+        component_id: "window-activate-executor",
+        handle_key: "window-activator",
+        priority: 50,
+        factory: build_window_activate_executor,
+    }
+}

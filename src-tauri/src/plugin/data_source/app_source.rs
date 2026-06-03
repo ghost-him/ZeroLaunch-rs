@@ -71,3 +71,23 @@ impl DataSource for AppSource {
         result
     }
 }
+
+use crate::plugin_system::builtin_registry::{DataSourceEntry, InventoryContext};
+
+pub(crate) fn build_app_source(
+    ctx: &InventoryContext,
+) -> (Arc<dyn Configurable>, Arc<dyn DataSource>) {
+    let handle = ctx.get_handle("app-source");
+    let source: Arc<dyn DataSource> = Arc::new(AppSource::new(handle));
+    let configurable: Arc<dyn Configurable> = source.clone();
+    (configurable, source)
+}
+
+::inventory::submit! {
+    DataSourceEntry {
+        component_id: "app-source",
+        handle_key: "app-source",
+        priority: 10,
+        factory: build_app_source,
+    }
+}

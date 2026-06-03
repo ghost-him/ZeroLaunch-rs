@@ -210,3 +210,17 @@ impl Configurable for StorageConfigComponent {
         info!("存储配置已变更，当前后端: {}", s.storage_destination);
     }
 }
+
+use crate::plugin_system::builtin_registry::CoreComponentEntry;
+
+fn build_storage_config(host_api: Arc<crate::sdk::HostApi>) -> Arc<dyn Configurable> {
+    Arc::new(StorageConfigComponent::new(host_api))
+}
+
+::inventory::submit! {
+    CoreComponentEntry {
+        component_id: "storage-config",
+        priority: 0,
+        factory: build_storage_config,
+    }
+}

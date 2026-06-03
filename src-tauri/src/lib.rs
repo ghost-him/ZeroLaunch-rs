@@ -7,35 +7,11 @@ pub mod sdk;
 pub mod state;
 pub mod utils;
 
-use crate::core::config::components::appearance_config::AppearanceConfigComponent;
-use crate::core::config::components::general_config::GeneralConfigComponent;
-use crate::core::config::components::hotkey_config::HotkeyConfigComponent;
-use crate::core::config::components::storage_config::StorageConfigComponent;
-use crate::core::config::components::window_behavior_config::WindowBehaviorConfigComponent;
 use crate::core::config::{ConfigEvent, ConfigManager};
 use crate::core::tray::TrayManager;
 use crate::logging::{init_logging, log_application_shutdown, log_application_start};
-use crate::plugin::data_source::app_source::AppSource;
-use crate::plugin::data_source::bookmark_source::BookmarkSource;
-use crate::plugin::data_source::command_source::CommandSource;
-use crate::plugin::data_source::program_source::ProgramSource;
-use crate::plugin::data_source::url_source::UrlSource;
-use crate::plugin::executor::{
-    AppExecutor, CommandExecutor, FileExecutor, PathExecutor, UrlExecutor, WindowActivateExecutor,
-};
-use crate::plugin::keyword_optimizer::{
-    FirstLetterExtractor, LowerCaseConverter, PinyinConverter, SpaceNormalizer, SpaceRemover,
-    SymbolRemover, UpperCaseLetterExtractor, VersionNumberRemover,
-};
-use crate::plugin::score_booster::history_booster::HistoryBooster;
-use crate::plugin::score_booster::query_affinity::QueryAffinityBooster;
-use crate::plugin::search_engine::launchy_search_model::LaunchySearchModel;
-use crate::plugin::search_engine::skim_search_model::SkimSearchModel;
-use crate::plugin::search_engine::standard_search_model::StandardSearchModel;
-use crate::plugin::triggerable::calculator_plugin::CalculatorPlugin;
-use crate::plugin_system::types::{Plugin, ScoreBooster, SearchEngine};
 
-use crate::plugin_system::{CandidatePipeline, SearchPipeline};
+use crate::plugin_system::CandidatePipeline;
 use crate::sdk::host_api::HostApi;
 use crate::sdk::HostApiBuilder;
 use crate::state::app_state::AppState;
@@ -196,6 +172,9 @@ pub fn run() {
             // 资源管理
             crate::commands::resource::resource_get,
             crate::commands::resource::resource_upload,
+            // Plugin Inspector
+            crate::commands::inspector::inspector_get_state,
+            crate::commands::inspector::inspector_simulate_query,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
@@ -371,6 +350,13 @@ async fn init_app_state(
     state.set_core_handle(core_handle.clone());
     info!("Core PluginHandle 注册完成");
 
+    #[cfg(feature = "inspector")]
+    {
+        use crate::plugin_system::inspector::Inspector;
+        state.set_inspector(Arc::new(Inspector::new(200)));
+        info!("Plugin Inspector 已启用 (容量: 200)");
+    }
+
     let tray_manager = Arc::new(TrayManager::new(host_api.clone()));
     state.set_tray_manager(tray_manager);
     info!("TrayManager 创建完成");
@@ -379,8 +365,6 @@ async fn init_app_state(
 
     let config_manager = Arc::new(ConfigManager::new(std::path::PathBuf::from(&config_dir)));
     config_manager.set_host_api(host_api.clone());
-    let storage_config_component = Arc::new(StorageConfigComponent::new(host_api.clone()));
-    config_manager.register(storage_config_component);
     state.set_config_manager(config_manager);
     info!("ConfigManager 初始化完成");
 
@@ -439,128 +423,22 @@ async fn init_plugin_system(state: &Arc<AppState>) {
     session_router.set_host_api(host_api.clone());
 
     // ========================================================================
-    // Phase A: 创建并注册所有组件到 ConfigManager
+    // Phase A: inventory 自动发现并注册所有内置组件
     // ========================================================================
-    info!("=== Phase A: 创建并注册所有组件 ===");
+    info!("=== Phase A: inventory 自动发现并注册所有内置组件 ===");
 
-    let shell_service_handle = host_api.register("shell-executors", Default::default());
-    let window_service_handle = host_api.register("window-activator", Default::default());
-    let program_source_handle = host_api.register("program-source", Default::default());
-    let app_source_handle = host_api.register("app-source", Default::default());
-    let app_executor_handle = host_api.register("app-executor", Default::default());
-    let command_executor_handle = host_api.register("command-executor", Default::default());
-    let url_source_handle = host_api.register("url-source", Default::default());
-    let bookmark_source_handle = host_api.register("bookmark-source", Default::default());
-    let command_source_handle = host_api.register("command-source", Default::default());
+    let ctx = crate::plugin_system::builtin_registry::InventoryContext::new(host_api.clone());
+    let (data_sources, keyword_optimizers) =
+        crate::plugin_system::builtin_registry::register_all_builtin_components(
+            &ctx,
+            &config_manager,
+            session_router,
+        );
 
-    // -- 执行器 --
-    info!("正在注册执行器...");
-    let path_executor: Arc<dyn crate::plugin_system::types::ActionExecutor> =
-        Arc::new(PathExecutor::new(shell_service_handle.clone()));
-    let file_executor: Arc<dyn crate::plugin_system::types::ActionExecutor> =
-        Arc::new(FileExecutor::new(shell_service_handle.clone()));
-    let url_executor: Arc<dyn crate::plugin_system::types::ActionExecutor> =
-        Arc::new(UrlExecutor::new(shell_service_handle.clone()));
-    let app_executor: Arc<dyn crate::plugin_system::types::ActionExecutor> =
-        Arc::new(AppExecutor::new(app_executor_handle));
-    let command_executor: Arc<dyn crate::plugin_system::types::ActionExecutor> =
-        Arc::new(CommandExecutor::new(command_executor_handle));
-    let window_activate_executor: Arc<dyn crate::plugin_system::types::ActionExecutor> =
-        Arc::new(WindowActivateExecutor::new(window_service_handle));
-
-    config_manager.register(path_executor.clone());
-    config_manager.register(file_executor.clone());
-    config_manager.register(url_executor.clone());
-    config_manager.register(app_executor.clone());
-    config_manager.register(command_executor.clone());
-    config_manager.register(window_activate_executor.clone());
-
-    session_router.register_executor(path_executor);
-    session_router.register_executor(file_executor);
-    session_router.register_executor(url_executor);
-    session_router.register_executor(app_executor);
-    session_router.register_executor(command_executor);
-    session_router.register_executor(window_activate_executor);
-    info!("执行器注册完成");
-
-    // -- 数据源 --
-    info!("正在注册数据源...");
-    let program_source = Arc::new(ProgramSource::new(program_source_handle));
-    let app_source = Arc::new(AppSource::new(app_source_handle));
-    let url_source = Arc::new(UrlSource::new(url_source_handle));
-    let bookmark_source = Arc::new(BookmarkSource::new(bookmark_source_handle));
-    let command_source = Arc::new(CommandSource::new(command_source_handle));
-    config_manager.register(program_source.clone());
-    config_manager.register(app_source.clone());
-    config_manager.register(url_source.clone());
-    config_manager.register(bookmark_source.clone());
-    config_manager.register(command_source.clone());
-    info!("数据源注册完成");
-
-    // -- 关键词优化器 --
-    info!("正在注册关键词优化器...");
-    let version_number_remover = Arc::new(VersionNumberRemover::new());
-    let symbol_remover = Arc::new(SymbolRemover::new());
-    let space_remover = Arc::new(SpaceRemover::new());
-    let space_normalizer = Arc::new(SpaceNormalizer::new());
-    let lower_case_converter = Arc::new(LowerCaseConverter::new());
-    let pinyin_converter = Arc::new(PinyinConverter::new());
-    let first_letter_extractor = Arc::new(FirstLetterExtractor::new());
-    let upper_case_letter_extractor = Arc::new(UpperCaseLetterExtractor::new());
-
-    config_manager.register(version_number_remover.clone());
-    config_manager.register(symbol_remover.clone());
-    config_manager.register(space_remover.clone());
-    config_manager.register(space_normalizer.clone());
-    config_manager.register(lower_case_converter.clone());
-    config_manager.register(pinyin_converter.clone());
-    config_manager.register(first_letter_extractor.clone());
-    config_manager.register(upper_case_letter_extractor.clone());
-    info!("关键词优化器注册完成");
-
-    // -- 搜索引擎 --
-    info!("正在注册搜索引擎...");
-    let search_engine: Arc<dyn SearchEngine> = Arc::new(StandardSearchModel {});
-    let launchy_search_engine: Arc<dyn SearchEngine> = Arc::new(LaunchySearchModel {});
-    let skim_search_engine: Arc<dyn SearchEngine> = Arc::new(SkimSearchModel::new());
-    config_manager.register(search_engine.clone());
-    config_manager.register(launchy_search_engine.clone());
-    config_manager.register(skim_search_engine.clone());
-    session_router.register_search_engine(search_engine.clone());
-    session_router.register_search_engine(launchy_search_engine);
-    session_router.register_search_engine(skim_search_engine);
-    info!("搜索引擎注册完成");
-
-    // -- 分数增强器 --
-    info!("正在注册分数增强器...");
-    let history_booster: Arc<dyn ScoreBooster> = Arc::new(HistoryBooster::new());
-    let query_affinity_booster: Arc<dyn ScoreBooster> = Arc::new(QueryAffinityBooster::new());
-    config_manager.register(history_booster.clone());
-    config_manager.register(query_affinity_booster.clone());
-    session_router.register_score_booster(history_booster.clone());
-    session_router.register_score_booster(query_affinity_booster.clone());
-    info!("分数增强器注册完成");
-
-    // -- 核心配置组件 --
-    info!("正在注册核心配置组件...");
-    let hotkey_config_component = Arc::new(HotkeyConfigComponent::new(host_api.clone()));
-    config_manager.register(hotkey_config_component);
-    let appearance_config_component = Arc::new(AppearanceConfigComponent::new());
-    config_manager.register(appearance_config_component);
-    let general_config_component = Arc::new(GeneralConfigComponent::new(host_api.clone()));
-    config_manager.register(general_config_component);
-    let window_behavior_component = Arc::new(WindowBehaviorConfigComponent::new());
-    config_manager.register(window_behavior_component);
-    info!("核心配置组件注册完成");
-
-    // -- Plugin 组件 --
-    info!("正在注册 Plugin 组件...");
-    let calculator_plugin: Arc<dyn Plugin> = Arc::new(CalculatorPlugin::new());
-    config_manager.register(calculator_plugin.clone());
-    session_router
-        .plugin_service()
-        .register(calculator_plugin.clone());
-    info!("Plugin 组件注册完成");
+    info!(
+        "Phase A 完成: 共注册 {} 个组件",
+        config_manager.get_all_components().len(),
+    );
 
     // 注册快捷键回调：按下全局快捷键时切换搜索栏显示/隐藏
     let core_handle_for_hotkey = state.get_core_handle();
@@ -592,11 +470,6 @@ async fn init_plugin_system(state: &Arc<AppState>) {
         }),
     );
 
-    info!(
-        "Phase A 完成: 共注册 {} 个组件",
-        config_manager.get_all_components().len(),
-    );
-
     // ========================================================================
     // Phase B: 加载持久化配置
     // ========================================================================
@@ -610,23 +483,14 @@ async fn init_plugin_system(state: &Arc<AppState>) {
     // ========================================================================
     info!("=== Phase C: 构建业务管道 ===");
 
-    info!("构建候选管道 (5 数据源 + 8 关键词优化器)...");
+    info!("构建候选管道...");
     let mut candidate_pipeline = CandidatePipeline::new();
-
-    candidate_pipeline.add_source(program_source);
-    candidate_pipeline.add_source(app_source);
-    candidate_pipeline.add_source(url_source);
-    candidate_pipeline.add_source(bookmark_source);
-    candidate_pipeline.add_source(command_source);
-
-    candidate_pipeline.add_keyword_optimizer(version_number_remover);
-    candidate_pipeline.add_keyword_optimizer(symbol_remover);
-    candidate_pipeline.add_keyword_optimizer(space_remover);
-    candidate_pipeline.add_keyword_optimizer(space_normalizer);
-    candidate_pipeline.add_keyword_optimizer(lower_case_converter);
-    candidate_pipeline.add_keyword_optimizer(pinyin_converter);
-    candidate_pipeline.add_keyword_optimizer(first_letter_extractor);
-    candidate_pipeline.add_keyword_optimizer(upper_case_letter_extractor);
+    for source in &data_sources {
+        candidate_pipeline.add_source(source.clone());
+    }
+    for optimizer in &keyword_optimizers {
+        candidate_pipeline.add_keyword_optimizer(optimizer.clone());
+    }
 
     info!("正在收集候选项（此时各组件已持有用户持久化配置）...");
     let candidates = candidate_pipeline.collect().await;
@@ -635,15 +499,13 @@ async fn init_plugin_system(state: &Arc<AppState>) {
         candidates.get_candidates().len()
     );
 
-    info!("构建搜索管道 (搜索引擎: StandardSearchModel, 增强器: 2, 结果上限: 10)...");
-    let boosters: Vec<Arc<dyn ScoreBooster>> = vec![history_booster, query_affinity_booster];
-    let search_pipeline = SearchPipeline::new(search_engine, boosters, 10);
+    info!("根据已注册且启用的搜索引擎与增强器重建搜索管道...");
+    session_router.rebuild_search_pipeline();
 
     info!("更新 SessionRouter 状态...");
     session_router
         .set_candidate_pipeline(candidate_pipeline)
         .await;
-    session_router.set_search_pipeline(search_pipeline);
     session_router.set_cached_candidates(candidates);
 
     info!(

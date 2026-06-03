@@ -75,3 +75,23 @@ impl ActionExecutor for AppExecutor {
         }
     }
 }
+
+use crate::plugin_system::builtin_registry::{ExecutorEntry, InventoryContext};
+
+pub(crate) fn build_app_executor(
+    ctx: &InventoryContext,
+) -> (Arc<dyn Configurable>, Arc<dyn ActionExecutor>) {
+    let handle = ctx.get_handle("app-executor");
+    let exec: Arc<dyn ActionExecutor> = Arc::new(AppExecutor::new(handle));
+    let configurable: Arc<dyn Configurable> = exec.clone();
+    (configurable, exec)
+}
+
+::inventory::submit! {
+    ExecutorEntry {
+        component_id: "app-executor",
+        handle_key: "app-executor",
+        priority: 30,
+        factory: build_app_executor,
+    }
+}

@@ -4,7 +4,7 @@ export interface SidebarCategory {
   key: string
   label: string
   icon: string
-  type: 'category' | 'pipeline' | 'plugins' | 'tabs' | 'static' | 'plugin'
+  type: 'category' | 'pipeline' | 'plugins' | 'tabs' | 'static' | 'plugin' | 'inspector'
   components?: ComponentInfo[]
   items?: SidebarCategory[]
 }
@@ -37,6 +37,12 @@ export function buildSidebarItems(components: ComponentInfo[]): SidebarCategory[
         type: 'plugin' as const,
         components: [p]
       }))
+    },
+    {
+      key: 'category_inspector',
+      label: '插件检查器',
+      icon: 'bug',
+      type: 'inspector' as const,
     },
     { key: 'category_about', label: '关于', icon: 'info', type: 'static' },
   ]

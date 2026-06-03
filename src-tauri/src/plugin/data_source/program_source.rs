@@ -512,3 +512,23 @@ impl DataSource for ProgramSource {
         result
     }
 }
+
+use crate::plugin_system::builtin_registry::{DataSourceEntry, InventoryContext};
+
+pub(crate) fn build_program_source(
+    ctx: &InventoryContext,
+) -> (Arc<dyn Configurable>, Arc<dyn DataSource>) {
+    let handle = ctx.get_handle("program-source");
+    let source: Arc<dyn DataSource> = Arc::new(ProgramSource::new(handle));
+    let configurable: Arc<dyn Configurable> = source.clone();
+    (configurable, source)
+}
+
+::inventory::submit! {
+    DataSourceEntry {
+        component_id: "program-source",
+        handle_key: "program-source",
+        priority: 0,
+        factory: build_program_source,
+    }
+}

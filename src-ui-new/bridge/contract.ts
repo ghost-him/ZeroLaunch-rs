@@ -168,3 +168,29 @@ export interface PluginKeyEventResponse {
   exitPlugin: boolean
   panelUpdate: unknown | null
 }
+
+// ---- Plugin Inspector ----
+
+export interface InspectorStateResponse {
+  available?: boolean
+  message?: string
+  registeredPlugins?: PluginInspectorInfo[]
+  recentQueries?: InspectedQueryEvent[]
+  totalQueriesLogged?: number
+}
+
+export interface PluginInspectorInfo {
+  componentId: string
+  componentName: string
+  componentType: string
+  enabled: boolean
+}
+
+export interface InspectedQueryEvent {
+  timestamp: string
+  traceId: string
+  rawQuery: string
+  mode: string
+  resultCount: number
+  durationMs: number
+}

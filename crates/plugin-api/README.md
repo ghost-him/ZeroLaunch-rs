@@ -113,6 +113,8 @@ mod tests {
 | `Query` / `QueryResponse` | 查询输入/输出类型 |
 | `PluginError` | 插件层统一错误类型 |
 
+> **注意：** `HostApi` 与 `HostApiBuilder` 是宿主（zl 主程序）内部类型，负责管理插件注册、存储重配置等全局操作，**插件作者不需要也不会接触到它们**。插件只需通过 `Plugin::init()` 获取 `Arc<PluginHandle>`，所有平台能力调用都通过句柄完成。
+
 ## 集成到主程序
 
 1. 在 `src-tauri/Cargo.toml` 添加依赖

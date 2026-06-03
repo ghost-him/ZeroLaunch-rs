@@ -1,7 +1,7 @@
 use crate::config::Configurable;
 use crate::plugin::cached_candidate::CachedCandidateData;
 use crate::services::icon_request::IconRequest;
-use crate::services::parameter_types::ParameterSnapshot;
+use crate::services::parameter::types::ParameterSnapshot;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 

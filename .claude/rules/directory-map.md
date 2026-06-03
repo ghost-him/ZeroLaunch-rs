@@ -46,7 +46,7 @@ ZeroLaunch-rs/                          ← Cargo workspace 根
 
 | 目录 | 职责 | 可引用 | 禁止 |
 |------|------|--------|------|
-| `sdk/` | 平台抽象层：trait 定义 + 平台实现 | 无外部依赖 | 引用 core/、plugin/、plugin_system/ |
+| `sdk/` | re-export 桥（类型本体在 plugin-api / platform-windows） | 无外部依赖 | 引用 core/、plugin/、plugin_system/ |
 | `core/` | 业务核心：ConfigManager、Configurable trait、类型定义 | sdk/ | 引用 plugin/、plugin_system/ |
 | `plugin/` | 插件实现：DataSource、Executor、SearchEngine 等 | sdk/、core/ | 引用 plugin_system/ |
 | `plugin_system/` | 插件框架：SessionRouter、Pipeline、Registry | sdk/、core/、plugin/ | 被其他层反向引用 |
@@ -56,30 +56,20 @@ ZeroLaunch-rs/                          ← Cargo workspace 根
 
 ### 各目录详细说明
 
-#### `sdk/` — 平台抽象层
+#### `sdk/` — re-export 桥
+
+sdk/ 现为轻量 re-export 桥，只包含两个文件：
+
 ```
 sdk/
-├── host_api.rs          ← HostApi 结构体（唯一出口）
-├── app/                 ← 应用枚举与启动能力
-├── autostart/           ← 开机自启管理
-├── common/              ← 通用工具（image_utils, dir_utils）
-├── focus_monitor/       ← 窗口焦点监控
-├── hotkey/              ← 全局热键管理
-├── icon/                ← 图标提取与缓存
-├── installation_monitor/← 软件安装检测
-├── parameter/           ← 参数解析（剪贴板、选中文本等）
-├── path/                ← 路径解析（KnownPath）
-├── platform/            ← 平台特定实现（windows/）
-├── resource/            ← 应用内置资源
-├── shell/               ← Shell 执行与 .lnk 解析
-├── storage/             ← 存储后端（本地 + WebDAV）
-├── timer/               ← 定时器管理
-└── window/              ← 窗口管理
+├── host_api.rs          ← HostApi + HostApiBuilder（宿主内部类型）
+└── mod.rs               ← re-export 导出
 ```
 
-- 每个能力域包含：`mod.rs`（导出）、一个 trait 文件、可选 `types.rs`
-- 平台实现放入 `sdk/platform/<os>/`
-- **禁止** 在 sdk/ 中定义调用逻辑（何时调用）— 那属于 core/
+类型本体已迁至 `crates/plugin-api/src/`：
+- **trait + 数据类型** → `crates/plugin-api/src/services/<domain>/`
+- **HostApi 错误/配置类型** → `crates/plugin-api/src/host/`
+- **Windows 平台实现** → `crates/platform-windows/src/`
 
 #### `core/` — 业务核心
 ```
@@ -98,13 +88,8 @@ core/
 │       ├── hotkey_config.rs
 │       ├── installation_monitor_config.rs
 │       └── storage_config.rs
-└── types/               ← 核心类型定义
-    ├── configurable.rs  ← Configurable trait
-    ├── setting_def.rs   ← SettingType/FieldDefinition/SettingDefinition
-    ├── bridge_error.rs  ← BridgeError（IPC 错误）
-    ├── config_action.rs ← ConfigActionDef
-    ├── config_error.rs  ← ConfigError
-    └── component_type.rs← ComponentType 枚举
+└── types/               ← 核心类型定义（仅保留 BridgeError，其余已迁至 crates/plugin-api/src/config/）
+    └── bridge_error.rs  ← BridgeError（IPC 错误）
 ```
 
 - **核心配置组件**（core/config/components/）：不属于任何插件的系统级配置
@@ -171,7 +156,8 @@ commands/
 ```
 新增一个功能 →
 ├─ 需要平台 API？
-│  └─ 是 → 在 sdk/ 定义 trait，在 sdk/platform/windows/ 实现
+│  └─ 是 → 在 crates/plugin-api/src/services/ 定义 trait
+│         → 在 crates/platform-windows/src/ 实现
 │         → 在 HostApi 添加方法，通过 PluginHandle 暴露
 ├─ 是系统级配置（非插件）？
 │  └─ 是 → 放 core/config/components/

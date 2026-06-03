@@ -6,7 +6,6 @@ pub mod icon;
 pub mod icon_request;
 pub mod installation_monitor;
 pub mod parameter;
-pub mod parameter_types;
 pub mod path;
 pub mod resource;
 pub mod shell;
@@ -27,8 +26,8 @@ pub use icon_request::IconRequest;
 pub use installation_monitor::{
     InstallationCallback, InstallationEvent, InstallationEventKind, InstallationMonitor,
 };
+pub use parameter::types::{ParameterError, ParameterSnapshot};
 pub use parameter::*;
-pub use parameter_types::{ParameterError, ParameterSnapshot};
 pub use path::*;
 pub use resource::*;
 pub use shell::*;

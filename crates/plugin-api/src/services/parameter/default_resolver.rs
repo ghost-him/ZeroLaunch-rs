@@ -1,8 +1,8 @@
 //! 默认参数解析器实现
 
+use super::types::{ParameterError, ParameterSnapshot};
 use crate::services::parameter::resolver::ParameterResolver;
 use crate::services::parameter::template_parser::{Placeholder, TemplateParser};
-use crate::services::parameter_types::{ParameterError, ParameterSnapshot};
 
 /// 默认参数解析器实现
 ///

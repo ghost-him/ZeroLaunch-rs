@@ -20,7 +20,7 @@ use crate::services::icon::icon_extractor::IconExtractor;
 use crate::services::installation_monitor::{InstallationCallback, InstallationMonitor};
 use crate::services::parameter::provider::{ProviderError, SystemParameterProvider};
 use crate::services::parameter::resolver::ParameterResolver;
-use crate::services::parameter_types::{ParameterError, ParameterSnapshot};
+use crate::services::parameter::types::{ParameterError, ParameterSnapshot};
 use crate::services::path::{KnownPath, PathResolver};
 use crate::services::shell::lnk_resolver::LnkResolver;
 use crate::services::shell::resource_loader::ResourceLoader;

@@ -1,6 +1,6 @@
 //! 参数解析器 trait 定义
 
-use crate::services::parameter_types::{ParameterError, ParameterSnapshot};
+use super::types::{ParameterError, ParameterSnapshot};
 
 /// 参数解析器 trait
 ///

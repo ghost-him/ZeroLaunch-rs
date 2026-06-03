@@ -16,4 +16,4 @@ pub use default_resolver::DefaultParameterResolver;
 pub use provider::SystemParameterProvider;
 pub use resolver::ParameterResolver;
 pub use template_parser::{Placeholder, TemplateParser};
-pub use types::SystemParameter;
+pub use types::{ParameterError, ParameterSnapshot, SystemParameter};

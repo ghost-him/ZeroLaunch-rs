@@ -9,7 +9,7 @@ use crate::services::icon::icon_extractor::IconExtractor;
 use crate::services::installation_monitor::types::InstallationCallback;
 use crate::services::installation_monitor::InstallationMonitor;
 use crate::services::parameter::resolver::ParameterResolver;
-use crate::services::parameter_types::ParameterSnapshot;
+use crate::services::parameter::types::ParameterSnapshot;
 use crate::services::path::path_resolver::{KnownPath, PathResolver};
 use crate::services::resource::AppResourceService;
 use crate::services::shell::lnk_resolver::LnkResolver;

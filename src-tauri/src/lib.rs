@@ -75,7 +75,6 @@ use zerolaunch_plugin_api::services::timer::TokioTimerManager;
 use zerolaunch_plugin_api::services::window::{MonitorInfo, PositionRequest, WindowPosition};
 use zerolaunch_plugin_api::services::AppResourceService;
 use zerolaunch_plugin_api::services::PathResolver;
-pub use zerolaunch_plugin_api::{PlatformCapabilities, PlatformCapability};
 static IS_EXITING: AtomicBool = AtomicBool::new(false);
 
 pub async fn do_cleanup_before_exit() {

@@ -8,6 +8,7 @@ use parking_lot::RwLock;
 use std::sync::Arc;
 use tauri::AppHandle;
 use zerolaunch_plugin_api::host::PluginHandle;
+use zerolaunch_plugin_host::manager::PluginHostManager;
 
 pub struct AppState {
     session_router: Arc<SessionRouter>,
@@ -23,6 +24,7 @@ pub struct AppState {
     core_handle: RwLock<Option<Arc<PluginHandle>>>,
     #[cfg(feature = "inspector")]
     inspector: RwLock<Option<Arc<crate::plugin_system::inspector::Inspector>>>,
+    plugin_host_manager: RwLock<Option<Arc<PluginHostManager>>>,
 }
 
 impl Default for AppState {
@@ -50,6 +52,7 @@ impl AppState {
             core_handle: RwLock::new(None),
             #[cfg(feature = "inspector")]
             inspector: RwLock::new(None),
+            plugin_host_manager: RwLock::new(None),
         }
     }
 
@@ -157,6 +160,14 @@ impl AppState {
     #[cfg(feature = "inspector")]
     pub fn set_inspector(&self, inspector: Arc<crate::plugin_system::inspector::Inspector>) {
         *self.inspector.write() = Some(inspector);
+    }
+
+    pub fn get_plugin_host_manager(&self) -> Option<Arc<PluginHostManager>> {
+        self.plugin_host_manager.read().clone()
+    }
+
+    pub fn set_plugin_host_manager(&self, manager: Arc<PluginHostManager>) {
+        *self.plugin_host_manager.write() = Some(manager);
     }
 }
 

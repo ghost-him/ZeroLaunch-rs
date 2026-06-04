@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 pub type CandidateId = u64;
 
 /// 执行目标类型枚举，用于 ActionExecutor 注册和查找
-#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, Serialize, Deserialize)]
 pub enum TargetType {
     Path,
     App,
@@ -242,7 +242,7 @@ pub trait ActionExecutor: Configurable {
 
 /// 请求级上下文，在宿主与插件之间共享。
 /// 服务于插件生命周期/查询/动作调用，并携带日志关联 ID。
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PluginContext {
     // 当前的请求 ID
     pub trace_id: String,
@@ -272,7 +272,7 @@ impl PluginContext {
 
 /// 发送给插件查询处理器的标准化查询载荷。
 /// 服务于查询分发和插件侧搜索逻辑。
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Query {
     /// 本次查询的唯一标识，取自 bridge_query 中生成的 trace_id，用于日志关联和插件上下文。
     pub id: String,
@@ -317,7 +317,7 @@ pub enum QueryResponse {
 
 /// route_confirm 的执行结果。
 /// Executed 表示已执行完成；EnterParamPanel 表示候选项需要参数但未提供。
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ConfirmResult {
     Executed,
     EnterParamPanel {

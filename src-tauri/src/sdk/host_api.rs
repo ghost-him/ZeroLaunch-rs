@@ -128,6 +128,18 @@ impl HostApi {
         handle
     }
 
+    /// 获取已注册插件的句柄。
+    pub fn get_plugin_handle(&self, plugin_id: &str) -> Option<Arc<PluginHandle>> {
+        self.handles
+            .get(plugin_id)
+            .map(|entry| entry.value().clone())
+    }
+
+    /// 注销插件句柄。
+    pub fn unregister(&self, plugin_id: &str) {
+        self.handles.remove(plugin_id);
+    }
+
     /// 更新图标缓存目录路径（宿主级操作，不暴露给插件）。
     /// 参数：new_icon_cache_dir - 新的图标文件缓存目录路径。
     /// 返回：成功返回 Ok(())，失败返回 HostApiError。

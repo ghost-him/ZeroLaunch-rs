@@ -5,7 +5,6 @@ use super::search_pipeline::SearchPipeline;
 use super::service::PluginService;
 use super::types::*;
 use crate::core::config::{ConfigEvent, ConfigManager};
-use crate::plugin_system::Configurable;
 use crate::sdk::HostApi;
 use parking_lot::{Mutex, RwLock};
 use std::collections::HashMap;
@@ -113,6 +112,34 @@ impl SessionRouter {
             .write()
             .register(executor)
             .expect("Failed to register executor");
+    }
+
+    /// 注册一个第三方数据源（供 plugin_loader 调用）
+    pub async fn register_data_source(&self, source: Arc<dyn DataSource>) {
+        self.candidate_pipeline.write().await.add_source(source);
+    }
+
+    /// 注册一个第三方插件（供 plugin_loader 调用）
+    pub fn register_remote_plugin(&self, plugin: Arc<dyn Plugin>) {
+        self.plugin_service.register(plugin);
+    }
+
+    /// 注销一个数据源（按 component_id）
+    pub async fn unregister_data_source(&self, component_id: &str) {
+        self.candidate_pipeline
+            .write()
+            .await
+            .remove_source(component_id);
+    }
+
+    /// 注销一个执行器（按 component_id）
+    pub fn unregister_executor(&self, component_id: &str) {
+        self.executor_registry.write().unregister(component_id);
+    }
+
+    /// 注销一个插件（按 plugin_id）
+    pub fn unregister_plugin(&self, plugin_id: &str) {
+        self.plugin_service.unregister(plugin_id);
     }
 
     /// 设置 HostApi 引用
@@ -564,29 +591,5 @@ impl SessionRouter {
             }
             ConfigEvent::Registered { .. } | ConfigEvent::Unregistered { .. } => {}
         }
-    }
-
-    pub(crate) fn find_configurable(&self, component_id: &str) -> Option<Arc<dyn Configurable>> {
-        self.config_manager
-            .read()
-            .as_ref()
-            .and_then(|cm| cm.find_configurable(component_id))
-    }
-
-    pub fn get_config_actions(&self, component_id: &str) -> Vec<ConfigActionDef> {
-        self.find_configurable(component_id)
-            .map(|c| c.config_actions())
-            .unwrap_or_default()
-    }
-
-    pub fn execute_config_action(
-        &self,
-        component_id: &str,
-        action: &str,
-        params: &serde_json::Value,
-    ) -> Result<serde_json::Value, String> {
-        self.find_configurable(component_id)
-            .ok_or_else(|| format!("Component not found: {}", component_id))?
-            .execute_config_action(action, params)
     }
 }

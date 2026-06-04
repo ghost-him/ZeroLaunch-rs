@@ -128,3 +128,43 @@ export function inspectorGetState(): Promise<import('./contract').InspectorState
 export function inspectorSimulateQuery(rawQuery: string): Promise<unknown> {
   return invokeCommand('inspector_simulate_query', { rawQuery })
 }
+
+// ---- Third-Party Plugin Management ----
+
+export interface InstalledPluginInfo {
+  pluginId: string
+  name: string
+  version: string
+  description: string
+  author: string
+  state: string
+  enabled: boolean
+}
+
+export function pluginList(): Promise<InstalledPluginInfo[]> {
+  return invokeCommand<InstalledPluginInfo[]>('plugin_list')
+}
+
+export function pluginGetManifest(pluginId: string): Promise<unknown> {
+  return invokeCommand<unknown>('plugin_get_manifest', { pluginId })
+}
+
+export function pluginReload(pluginId: string): Promise<void> {
+  return invokeCommand<void>('plugin_reload', { pluginId })
+}
+
+export function pluginUninstall(pluginId: string): Promise<void> {
+  return invokeCommand<void>('plugin_uninstall', { pluginId })
+}
+
+export function pluginInstallLocal(filePath: string): Promise<InstalledPluginInfo> {
+  return invokeCommand<InstalledPluginInfo>('plugin_install_local', { filePath })
+}
+
+export function pluginSetEnabled(pluginId: string, enabled: boolean): Promise<void> {
+  return invokeCommand<void>('plugin_set_enabled', { pluginId, enabled })
+}
+
+export function pluginGetLogs(pluginId: string, tailLines?: number): Promise<string[]> {
+  return invokeCommand<string[]>('plugin_get_logs', { pluginId, tailLines })
+}

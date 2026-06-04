@@ -1,7 +1,10 @@
+pub mod cli_server;
 pub mod commands;
 pub mod core;
 pub mod logging;
 pub mod plugin;
+pub mod plugin_loader;
+pub mod plugin_protocol_assets;
 pub mod plugin_system;
 pub mod sdk;
 pub mod state;
@@ -51,6 +54,7 @@ use zerolaunch_plugin_api::services::timer::TokioTimerManager;
 use zerolaunch_plugin_api::services::window::{MonitorInfo, PositionRequest, WindowPosition};
 use zerolaunch_plugin_api::services::AppResourceService;
 use zerolaunch_plugin_api::services::PathResolver;
+use zerolaunch_plugin_host::manager::PluginHostManager;
 static IS_EXITING: AtomicBool = AtomicBool::new(false);
 
 pub async fn do_cleanup_before_exit() {
@@ -95,6 +99,26 @@ pub fn run() {
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
+        .register_uri_scheme_protocol("zlplugin", move |_app, request| {
+            let uri = request.uri().to_string();
+            match crate::plugin_protocol_assets::handler::handle(&uri) {
+                Ok((bytes, mime)) => {
+                    let mut response = http::Response::new(bytes);
+                    response.headers_mut().insert(
+                        http::header::CONTENT_TYPE,
+                        http::HeaderValue::from_str(&mime).unwrap(),
+                    );
+                    response
+                }
+                Err(e) => {
+                    let msg = format!("zlplugin error: {}", e);
+                    http::Response::builder()
+                        .status(http::StatusCode::FORBIDDEN)
+                        .body(msg.into_bytes())
+                        .unwrap()
+                }
+            }
+        })
         .manage(Arc::new(AppState::new()))
         .setup(move |app| {
             let app_data_dir = path_resolver.resolve_path(KnownPath::AppDataDir).unwrap();
@@ -175,6 +199,14 @@ pub fn run() {
             // Plugin Inspector
             crate::commands::inspector::inspector_get_state,
             crate::commands::inspector::inspector_simulate_query,
+            // Third-party Plugin Management
+            crate::commands::plugin::plugin_list,
+            crate::commands::plugin::plugin_get_manifest,
+            crate::commands::plugin::plugin_install_local,
+            crate::commands::plugin::plugin_reload,
+            crate::commands::plugin::plugin_uninstall,
+            crate::commands::plugin::plugin_set_enabled,
+            crate::commands::plugin::plugin_get_logs,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
@@ -370,6 +402,37 @@ async fn init_app_state(
 
     info!("=== Phase 3: Plugin 初始化 ===");
     init_plugin_system(&state).await;
+
+    info!("=== Phase 4: 第三方插件加载 ===");
+    let plugins_dir = std::path::PathBuf::from(&app_data_dir).join("plugins");
+    let plugin_data_dir = std::path::PathBuf::from(&app_data_dir).join("plugin-data");
+    let plugin_log_dir = std::path::PathBuf::from(&app_data_dir).join("plugin-logs");
+
+    // Set plugins dir for zlplugin:// protocol handler
+    crate::plugin_protocol_assets::handler::set_plugins_dir(plugins_dir.clone());
+
+    let plugin_host_manager = Arc::new(PluginHostManager::new(plugin_data_dir, plugin_log_dir));
+    state.set_plugin_host_manager(plugin_host_manager.clone());
+
+    crate::plugin_loader::loader::load_all(
+        &plugins_dir,
+        state.get_config_manager(),
+        state.get_session_router().clone(),
+        plugin_host_manager,
+        state.get_host_api(),
+    )
+    .await;
+
+    // Start CLI HTTP server
+    info!("启动 CLI HTTP 服务器...");
+    let cli_handle =
+        crate::cli_server::server::start(state.clone(), &std::path::PathBuf::from(&app_data_dir))
+            .await;
+    match cli_handle {
+        Ok(handle) => info!("CLI HTTP 服务器已启动于 127.0.0.1:{}", handle.port),
+        Err(e) => tracing::warn!("CLI HTTP 服务器启动失败: {}", e),
+    }
+
     info!(
         "应用状态初始化完成 (HostApi, ConfigManager, {} 个已注册组件)",
         state.get_config_manager().get_all_components().len()

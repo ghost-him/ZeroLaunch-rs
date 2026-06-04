@@ -29,10 +29,13 @@ impl PluginService {
     }
 
     /// 注册一个插件到服务中。
-    /// 参数：plugin - 要注册的插件实例。
-    /// 返回：无。
     pub fn register(&self, plugin: Arc<dyn Plugin>) {
         self.registry.register(plugin);
+    }
+
+    /// 注销指定插件（按 plugin_id）。
+    pub fn unregister(&self, plugin_id: &str) {
+        self.registry.unregister(plugin_id);
     }
 
     /// 初始化当前已注册的所有插件。

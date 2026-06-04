@@ -1,0 +1,14 @@
+[package]
+name = "zerolaunch-hello-world-plugin"
+version = "0.1.0"
+edition = "2021"
+description = "Hello-world example for ZeroLaunch third-party plugins."
+
+[dependencies]
+zerolaunch-plugin-sdk-rust = { path = "../crates/plugin-sdk-rust" }
+zerolaunch-plugin-api = { path = "../crates/plugin-api" }
+zerolaunch-plugin-protocol = { path = "../crates/plugin-protocol" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+async-trait = "0.1"
+tokio = { version = "1", features = ["full"] }

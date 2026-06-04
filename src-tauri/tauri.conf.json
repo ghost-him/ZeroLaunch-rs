@@ -25,7 +25,7 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self' zlplugin:; script-src 'self' zlplugin: 'unsafe-inline'; connect-src 'self' http://127.0.0.1:* zlplugin:; frame-src zlplugin: data:; img-src 'self' data: zlplugin:;"
     }
   },
   "bundle": {

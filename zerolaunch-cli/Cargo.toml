@@ -1,0 +1,13 @@
+[package]
+name = "zerolaunch-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Command-line interface for ZeroLaunch (talks to local HTTP API)."
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+reqwest = { version = "0.13.3", features = ["json", "blocking"] }
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true

@@ -137,6 +137,30 @@ impl ConfigManager {
         self.registry.get(component_id)
     }
 
+    /// 获取指定组件的配置动作列表。
+    pub fn get_config_actions(
+        &self,
+        component_id: &str,
+    ) -> Vec<zerolaunch_plugin_api::config::ConfigActionDef> {
+        self.registry
+            .get(component_id)
+            .map(|c| c.config_actions())
+            .unwrap_or_default()
+    }
+
+    /// 执行指定组件的配置动作。
+    pub fn execute_config_action(
+        &self,
+        component_id: &str,
+        action: &str,
+        params: &serde_json::Value,
+    ) -> Result<serde_json::Value, String> {
+        self.registry
+            .get(component_id)
+            .ok_or_else(|| format!("Component not found: {}", component_id))?
+            .execute_config_action(action, params)
+    }
+
     /// 按 ComponentType 查找所有组件
     pub fn get_by_type(&self, component_type: ComponentType) -> Vec<Arc<dyn Configurable>> {
         self.registry.get_by_type(component_type)

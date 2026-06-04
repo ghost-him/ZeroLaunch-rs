@@ -22,7 +22,8 @@
       "Bash(cargo build *)",
       "Bash(cargo new *)",
       "Bash(chmod +w *)",
-      "Bash(cargo search *)"
+      "Bash(cargo search *)",
+      "Bash(git *)"
     ]
   }
 }

@@ -1,8 +1,10 @@
+use serde::{Deserialize, Serialize};
+
 use crate::services::icon_request::IconRequest;
 
 /// 应用信息，跨平台统一结构。
 /// 各平台实现将平台特定的应用数据映射到此结构，插件层无需关心平台差异。
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppInfo {
     /// 应用唯一标识。
     /// - Windows: AppUserModelID (UWP) 或 exe 路径

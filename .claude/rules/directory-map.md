@@ -20,8 +20,16 @@ ZeroLaunch-rs/                          ← Cargo workspace 根
 │   │       ├── services/               ← 15 个能力域（shell, icon, storage, hotkey 等）的 trait + 纯 Rust 实现
 │   │       ├── common/                 ← DirUtils, ImageUtils
 │   │       └── mock/                   ← Stub 实现 + mock_plugin_handle()（feature = "mock"）
+│   ├── plugin-protocol/                ← zerolaunch-plugin-protocol
+│   │   └── src/                        ← JSON-RPC 消息体, 方法名常量, manifest schema, 错误码
+│   ├── plugin-host/                    ← zerolaunch-plugin-host
+│   │   └── src/                        ← 子进程管理, transport/codec, JsonRpcClient, RemotePluginAdapter
+│   ├── plugin-sdk-rust/                ← zerolaunch-plugin-sdk-rust
+│   │   └── src/                        ← Rust 第三方插件 SDK (run() + HostProxy)
 │   └── platform-windows/               ← zerolaunch-platform-windows
 │       └── src/                        ← 14 个 Windows 平台 trait 实现 + windows_capabilities()
+├── zerolaunch-cli/                     ← zerolaunch-cli (独立 bin crate)
+├── plugin-template/                    ← Rust 第三方插件项目模板
 └── src-tauri/                          ← zerolaunch-rs（主程序）
     └── src/
         ├── sdk/                        ← re-export 桥（类型本体在 plugin-api / platform-windows）
@@ -33,7 +41,7 @@ ZeroLaunch-rs/                          ← Cargo workspace 根
         └── utils/                      ← 通用工具
 ```
 
-**依赖方向**: `plugin-api ← platform-windows ← src-tauri` — 禁止反向依赖。
+**依赖方向**: `plugin-api ← plugin-protocol ← plugin-host ← src-tauri`、`plugin-api ← platform-windows ← src-tauri`、`plugin-api ← plugin-sdk-rust` — 禁止反向依赖。
 
 - **第三方插件作者**只依赖 `zerolaunch-plugin-api`，不需要 Tauri / Windows / 主程序源码
 - **新增 SDK trait**：在 `crates/plugin-api/src/services/<domain>/` 定义

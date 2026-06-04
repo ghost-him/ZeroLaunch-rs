@@ -21,6 +21,11 @@ impl CandidatePipeline {
         self.data_sources.push(source);
     }
 
+    pub fn remove_source(&mut self, component_id: &str) {
+        self.data_sources
+            .retain(|s| s.component_id() != component_id);
+    }
+
     pub fn add_keyword_optimizer(&mut self, optimizer: Arc<dyn KeywordOptimizer>) {
         self.keyword_optimizers.push(optimizer);
     }

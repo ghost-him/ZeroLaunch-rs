@@ -1,6 +1,10 @@
 [workspace]
 resolver = "2"
 members = ["crates/platform-windows","crates/plugin-api",
+    "crates/plugin-protocol",
+    "crates/plugin-host",
+    "crates/plugin-sdk-rust",
+    "zerolaunch-cli",
     "src-tauri",
 ]
 
@@ -47,6 +51,9 @@ kmeans_colors = "0.7.1"
 palette = "0.7.6"
 rand = "0.10.1"
 rayon = "1.12.0"
+toml = "0.8"
+semver = "1"
+futures = "0.3"
 mockall = "0.13"
 # Windows
 windows = "0.62.2"
@@ -64,6 +71,9 @@ everything-rs = "0.1.10"
 everything-sys-bindgen = "0.1.5"
 # Internal
 zerolaunch-plugin-api = { path = "crates/plugin-api" }
+zerolaunch-plugin-host = { path = "crates/plugin-host" }
+zerolaunch-plugin-protocol = { path = "crates/plugin-protocol" }
+zerolaunch-plugin-sdk-rust = { path = "crates/plugin-sdk-rust" }
 zerolaunch-platform-windows = { path = "crates/platform-windows" }
 
 [profile.release]

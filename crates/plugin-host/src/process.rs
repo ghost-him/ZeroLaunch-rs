@@ -48,17 +48,24 @@ pub struct PluginProcess {
     pub data_dir: PathBuf,
     /// Handle to the child process for health monitoring.
     child_handle: Arc<parking_lot::Mutex<Option<tokio::process::Child>>>,
+    /// Channel to notify PluginHostManager when the process crashes and needs restart.
+    crash_tx: mpsc::Sender<String>,
 }
 
 impl PluginProcess {
     /// Spawn the plugin subprocess, complete the initialize handshake,
     /// and start stderr log collection.
+    ///
+    /// `crash_tx` is a channel sender owned by the `PluginHostManager`.
+    /// When the watchdog detects a crash, it sends the `plugin_id` on this
+    /// channel so the manager can trigger a re-spawn.
     pub async fn spawn(
         manifest: &Manifest,
         plugin_dir: &Path,
         data_dir: &Path,
         log_dir: &Path,
         host_call_handler: Arc<dyn HostCallHandler>,
+        crash_tx: mpsc::Sender<String>,
     ) -> Result<Self, ProtocolError> {
         let plugin_id = manifest.plugin.id.clone();
 
@@ -186,6 +193,7 @@ impl PluginProcess {
             client,
             data_dir: data_dir.to_path_buf(),
             child_handle,
+            crash_tx,
         };
 
         // Start health monitoring
@@ -274,14 +282,16 @@ impl PluginProcess {
     }
 
     /// Spawn a watchdog task that monitors the child process.
-    /// If the process exits and `auto_restart=true`, attempts to restart up to `max_restart` times.
-    /// When max_restart is exceeded, marks the process as crashed permanently.
+    /// If the process exits and `auto_restart=true`, sends the `plugin_id`
+    /// on `crash_tx` so `PluginHostManager` can trigger a re-spawn.
+    /// When max_restart is exceeded, marks the process as permanently errored.
     pub fn spawn_watchdog(&self) {
         let plugin_id = self.plugin_id.clone();
         let state = self.state.clone();
         let child_handle = self.child_handle.clone();
         let auto_restart = self.manifest.runtime.auto_restart;
         let max_restart = self.manifest.runtime.max_restart;
+        let crash_tx = self.crash_tx.clone();
 
         tokio::spawn(async move {
             loop {
@@ -318,12 +328,12 @@ impl PluginProcess {
 
                 // Process exited — check restart policy
                 if !auto_restart {
-                    state.write().clone_from(&ProcessState::Stopped);
+                    *state.write() = ProcessState::Stopped;
                     info!("Plugin {} auto-restart disabled, stopped", plugin_id);
                     return;
                 }
 
-                let restarts = {
+                let should_restart = {
                     let mut s = state.write();
                     match &*s {
                         ProcessState::Crashed { restarts, .. } => {
@@ -337,7 +347,7 @@ impl PluginProcess {
                                     "Plugin {} crashed, restart {}/{}",
                                     plugin_id, new_count, max_restart
                                 );
-                                Some(new_count)
+                                true
                             } else {
                                 *s = ProcessState::Error(format!(
                                     "max restarts ({}) exceeded",
@@ -347,7 +357,7 @@ impl PluginProcess {
                                     "Plugin {} exceeded max restarts ({})",
                                     plugin_id, max_restart
                                 );
-                                None // Don't restart
+                                false // Don't restart
                             }
                         }
                         _ => {
@@ -356,26 +366,21 @@ impl PluginProcess {
                                 last_error: "process exited unexpectedly".into(),
                             };
                             info!("Plugin {} crashed, restart 1/{}", plugin_id, max_restart);
-                            Some(1)
+                            true
                         }
                     }
                 };
 
-                if restarts.is_none() {
-                    return; // Max restarts exceeded, stop
-                }
-
-                // Note: actual restart requires re-spawning, which needs the full context.
-                // For now, we mark the state and signal that a restart should happen.
-                // The PluginHostManager handles the actual re-spawn.
-                // We mark as Error to signal the manager.
-                if restarts.unwrap() >= max_restart {
-                    state.write().clone_from(&ProcessState::Error(format!(
-                        "max restarts exceeded ({})",
-                        max_restart
-                    )));
+                if should_restart {
+                    // Notify the manager to trigger a re-spawn
+                    if crash_tx.send(plugin_id.clone()).await.is_err() {
+                        debug!("Plugin {} crash notification channel closed", plugin_id);
+                    }
                     return;
                 }
+
+                // Max restarts exceeded or auto_restart disabled
+                return;
             }
         });
     }

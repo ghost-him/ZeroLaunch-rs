@@ -105,12 +105,14 @@ pub async fn handle_reload(
 
     // Reload
     let host_api = state.get_host_api();
+    let app_handle = state.get_main_handle();
     match crate::plugin_loader::loader::load_plugin(
         &plugin_dir,
         &config_manager,
         session_router,
         &host_manager,
         host_api,
+        (*app_handle).clone(),
     )
     .await
     {

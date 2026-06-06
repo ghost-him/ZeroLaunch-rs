@@ -38,7 +38,10 @@ pub struct PluginInspectorInfo {
 pub struct Inspector {
     events: RwLock<VecDeque<InspectedQueryEvent>>,
     total_count: parking_lot::Mutex<u64>,
-    /// 缓存的组件清单（id/name/type 为静态信息，启动时初始化一次）。
+    /// 缓存的组件清单。
+    ///
+    /// **假设**：组件清单在启动后不变（当前不支持运行时动态注册/卸载组件）。
+    /// 若未来引入运行时注册，调用 `invalidate_cache()` 可强制下次 snapshot 重建清单。
     cached_plugins: parking_lot::Mutex<Option<Vec<PluginInspectorInfo>>>,
     capacity: usize,
 }
@@ -61,6 +64,12 @@ impl Inspector {
         }
         events.push_back(event);
         *self.total_count.lock() += 1;
+    }
+
+    /// 清除缓存的组件清单，强制下次 `snapshot()` 从 ConfigManager 重建。
+    /// 仅在运行时动态注册/卸载组件后需要调用。
+    pub fn invalidate_cache(&self) {
+        *self.cached_plugins.lock() = None;
     }
 
     /// 生成当前快照，包含所有已注册插件和最近事件日志。

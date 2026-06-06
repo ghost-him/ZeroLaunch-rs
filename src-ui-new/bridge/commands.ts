@@ -168,3 +168,13 @@ export function pluginSetEnabled(pluginId: string, enabled: boolean): Promise<vo
 export function pluginGetLogs(pluginId: string, tailLines?: number): Promise<string[]> {
   return invokeCommand<string[]>('plugin_get_logs', { pluginId, tailLines })
 }
+
+export interface CliInfo {
+  host: string
+  port: number
+  token: string
+}
+
+export function cliGetInfo(): Promise<CliInfo> {
+  return invokeCommand<CliInfo>('cli_get_info')
+}

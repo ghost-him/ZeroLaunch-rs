@@ -7,7 +7,7 @@ import {
 import type { DataTableColumn } from 'naive-ui'
 import {
   pluginList, pluginReload, pluginUninstall,
-  pluginInstallLocal, pluginGetLogs,
+  pluginInstallLocal, pluginGetLogs, pluginSetEnabled,
 } from '@/bridge/commands'
 import type { InstalledPluginInfo } from '@/bridge/commands'
 
@@ -41,12 +41,26 @@ const columns: DataTableColumn<InstalledPluginInfo>[] = [
     },
   },
   {
+    title: '启用',
+    key: 'enabled',
+    width: 70,
+    render(row) {
+      const type = row.enabled ? 'success' : 'default'
+      const label = row.enabled ? '已启用' : '已禁用'
+      return h(NTag, { type: type as never }, { default: () => label })
+    },
+  },
+  {
     title: '操作',
     key: 'actions',
-    width: 280,
+    width: 340,
     render(row) {
       return h(NSpace, {}, {
         default: () => [
+          h(NButton, {
+            size: 'small',
+            onClick: () => handleToggleEnabled(row.pluginId, !row.enabled),
+          }, { default: () => row.enabled ? '禁用' : '启用' }),
           h(NButton, {
             size: 'small',
             onClick: () => handleViewLogs(row.pluginId),
@@ -110,6 +124,16 @@ async function handleInstall() {
     await loadPlugins()
   } catch (e) {
     message.error('安装失败: ' + String(e))
+  }
+}
+
+async function handleToggleEnabled(pluginId: string, enabled: boolean) {
+  try {
+    await pluginSetEnabled(pluginId, enabled)
+    message.success(enabled ? '插件已启用' : '插件已禁用')
+    await loadPlugins()
+  } catch (e) {
+    message.error('切换状态失败: ' + String(e))
   }
 }
 

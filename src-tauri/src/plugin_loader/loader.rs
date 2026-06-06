@@ -1,5 +1,7 @@
+use parking_lot;
 use std::path::Path;
 use std::sync::Arc;
+use tauri::Emitter;
 use tracing::{error, info};
 
 use crate::core::config::ConfigManager;
@@ -174,6 +176,12 @@ impl HostCallHandler for TauriHostCallHandler {
             host::RESOURCE_GET => {
                 let p: zerolaunch_plugin_protocol::ResourceGetParams = from_value(params)
                     .map_err(|e| JsonRpcError::new(codes::INVALID_PARAMS, e.to_string()))?;
+                if p.plugin_id != self.plugin_id {
+                    return Err(JsonRpcError::new(
+                        codes::INVALID_PARAMS,
+                        "plugin_id mismatch",
+                    ));
+                }
                 let data = handle
                     .resource_get(&p.key)
                     .await
@@ -184,6 +192,12 @@ impl HostCallHandler for TauriHostCallHandler {
             host::RESOURCE_DELETE => {
                 let p: zerolaunch_plugin_protocol::ResourceDeleteParams = from_value(params)
                     .map_err(|e| JsonRpcError::new(codes::INVALID_PARAMS, e.to_string()))?;
+                if p.plugin_id != self.plugin_id {
+                    return Err(JsonRpcError::new(
+                        codes::INVALID_PARAMS,
+                        "plugin_id mismatch",
+                    ));
+                }
                 handle
                     .resource_delete(&p.key)
                     .await
@@ -214,12 +228,15 @@ impl HostCallHandler for TauriHostCallHandler {
 }
 
 /// Load a single third-party plugin from a directory and register it.
+/// Emits the `plugin-installed` Tauri event on success so the frontend can
+/// dynamically register panel/settings providers.
 pub async fn load_plugin(
     plugin_dir: &Path,
     config_manager: &Arc<ConfigManager>,
     session_router: &Arc<SessionRouter>,
     host_manager: &Arc<PluginHostManager>,
     host_api: Arc<crate::sdk::HostApi>,
+    app_handle: tauri::AppHandle,
 ) -> Result<(), String> {
     // Read manifest first to get plugin_id
     let manifest_path = plugin_dir.join("manifest.toml");
@@ -236,20 +253,69 @@ pub async fn load_plugin(
     );
 
     // Build the host call handler
-    let app_handle = crate::utils::service_locator::ServiceLocator::get_state().get_main_handle();
     let handler: Arc<dyn HostCallHandler> = Arc::new(TauriHostCallHandler {
         host_api: host_api.clone(),
         plugin_id: plugin_id.clone(),
-        app_handle: Some((*app_handle).clone()),
+        app_handle: Some(app_handle.clone()),
     });
+
+    // Build the restart callback: when the plugin-host manager re-spawns a
+    // crashed process, this callback unregisters the old adapters from
+    // ConfigManager/SessionRouter and registers the new ones.
+    let restart_cm = config_manager.clone();
+    let restart_sr = session_router.clone();
+    let old_adapters_ref: Arc<
+        parking_lot::Mutex<Option<zerolaunch_plugin_host::manager::RegisteredAdapters>>,
+    > = Arc::new(parking_lot::Mutex::new(None));
+    let old_for_cb = old_adapters_ref.clone();
+
+    let on_restart: Arc<dyn Fn(zerolaunch_plugin_host::manager::RegisteredAdapters) + Send + Sync> =
+        Arc::new(move |new_adapters| {
+            let handle = tokio::runtime::Handle::current();
+            // Unregister old adapters if any
+            let mut old = old_for_cb.lock();
+            if let Some(prev) = old.take() {
+                handle.block_on(async {
+                    for ds in &prev.data_sources {
+                        restart_sr.unregister_data_source(&ds.component_id).await;
+                    }
+                });
+                for ex in &prev.executors {
+                    restart_sr.unregister_executor(&ex.component_id);
+                }
+                if prev.plugin.is_some() {
+                    restart_sr.unregister_plugin(&prev.plugin_id);
+                }
+                for c in &prev.configurables {
+                    restart_cm.unregister(&c.component_id);
+                }
+            }
+            // Register new adapters
+            for c in &new_adapters.configurables {
+                restart_cm.register(c.clone());
+            }
+            handle.block_on(async {
+                for ds in &new_adapters.data_sources {
+                    restart_sr.register_data_source(ds.clone()).await;
+                }
+            });
+            for ex in &new_adapters.executors {
+                restart_sr.register_executor(ex.clone());
+            }
+            if let Some(p) = &new_adapters.plugin {
+                restart_sr.register_remote_plugin(p.clone());
+            }
+            // Store new as old for the next restart cycle
+            *old = Some(new_adapters);
+        });
 
     // Delegate to plugin-host for loading
     let registered = host_manager
-        .load(plugin_dir, handler)
+        .load(plugin_dir, handler, on_restart)
         .await
         .map_err(|e| format!("plugin-host load: {}", e))?;
 
-    // Register adapters
+    // Register adapters for the first time
     for c in &registered.configurables {
         config_manager.register(c.clone());
     }
@@ -263,7 +329,21 @@ pub async fn load_plugin(
         session_router.register_remote_plugin(p.clone());
     }
 
+    // Store for restart callback use
+    *old_adapters_ref.lock() = Some(registered.clone());
+
     info!("Loaded third-party plugin: {}", plugin_id);
+
+    // Notify frontend so it can dynamically register panel/settings providers
+    let _ = app_handle.emit(
+        "plugin-installed",
+        serde_json::json!({
+            "pluginId": plugin_id,
+            "name": manifest.plugin.name,
+            "version": manifest.plugin.version,
+        }),
+    );
+
     Ok(())
 }
 
@@ -274,6 +354,7 @@ pub async fn load_all(
     session_router: Arc<SessionRouter>,
     host_manager: Arc<PluginHostManager>,
     host_api: Arc<crate::sdk::HostApi>,
+    app_handle: tauri::AppHandle,
 ) {
     let dirs = super::discovery::scan_plugins_dir(plugins_dir);
 
@@ -291,6 +372,7 @@ pub async fn load_all(
             &session_router,
             &host_manager,
             host_api.clone(),
+            app_handle.clone(),
         )
         .await
         {

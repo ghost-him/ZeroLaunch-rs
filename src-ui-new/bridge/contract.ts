@@ -194,3 +194,11 @@ export interface InspectedQueryEvent {
   resultCount: number
   durationMs: number
 }
+
+// ---- Third-party Plugin Events ----
+
+export interface PluginEventPayload {
+  pluginId: string
+  name?: string
+  version?: string
+}

@@ -82,7 +82,7 @@
 
 Priority 值决定注册顺序。数值越小越先注册。建议间隔 10 以便插入。
 
-各组件类型的 priority 范围：
+各组件类型的 priority 当前已用范围（非硬上限，新增组件建议取当前最大值 + 10）：
 - Executor: 0–50
 - DataSource: 0–40
 - KeywordOptimizer: 0–70

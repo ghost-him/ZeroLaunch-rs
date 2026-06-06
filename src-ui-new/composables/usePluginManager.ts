@@ -1,6 +1,7 @@
 import { usePluginStore } from '@/stores/plugin-store'
 import type { FrontendPlugin } from '@/plugins/types'
 import { pluginList, pluginGetManifest } from '@/bridge/commands'
+import { onPluginInstalled, onPluginUninstalled } from '@/bridge/events'
 import ThirdPartyPanelHost from '@/plugins/third-party-host/ThirdPartyPanelHost.vue'
 import ThirdPartySettingsHost from '@/plugins/third-party-host/ThirdPartySettingsHost.vue'
 import { h } from 'vue'
@@ -11,6 +12,10 @@ interface GlobEntry {
 
 let builtinsLoaded = false
 let thirdPartyLoaded = false
+let eventsRegistered = false
+/// Tracks already-registered third-party plugin IDs to prevent duplicate
+/// registrations on reload or duplicate events.
+const registeredThirdPartyIds = new Set<string>()
 
 export function usePluginManager() {
   const pluginStore = usePluginStore()
@@ -19,7 +24,7 @@ export function usePluginManager() {
     if (builtinsLoaded) return
 
     const modules = import.meta.glob<GlobEntry>(
-      '@/plugins/built-in/*/index.ts',
+      '@/plugins/built-in/!(_*)/index.ts',
       { eager: true },
     )
 
@@ -52,6 +57,10 @@ export function usePluginManager() {
     if (!ui) return
 
     const pluginId = info.pluginId
+
+    // Dedup: skip if already registered
+    if (registeredThirdPartyIds.has(pluginId)) return
+    registeredThirdPartyIds.add(pluginId)
 
     if (ui.panelEntry) {
       const panelEntryUrl = `zlplugin://${pluginId}/ui/${ui.panelEntry}`
@@ -107,8 +116,51 @@ export function usePluginManager() {
     }
   }
 
+  /// Unregister all frontend providers for a third-party plugin.
+  async function unregisterThirdPartyPlugin(pluginId: string): Promise<void> {
+    registeredThirdPartyIds.delete(pluginId)
+    await pluginStore.unregisterPlugin(`third-party-${pluginId}-panel`)
+    await pluginStore.unregisterPlugin(`third-party-${pluginId}-settings`)
+  }
+
+  /// Register event listeners for runtime plugin install / uninstall.
+  function setupEventListeners(): void {
+    if (eventsRegistered) return
+    eventsRegistered = true
+
+    onPluginInstalled(async (payload) => {
+      try {
+        // If we already registered this one, skip
+        const manifest = await pluginGetManifest(payload.pluginId) as Record<string, unknown>
+        await registerThirdPartyPlugin(
+          { pluginId: payload.pluginId, name: payload.name ?? '', version: payload.version ?? '' },
+          manifest,
+        )
+      } catch (err) {
+        console.error(
+          `[PluginManager] Failed to register new plugin ${payload.pluginId}:`,
+          err,
+        )
+      }
+    })
+
+    onPluginUninstalled(async (payload) => {
+      try {
+        await unregisterThirdPartyPlugin(payload.pluginId)
+      } catch (err) {
+        console.error(
+          `[PluginManager] Failed to unregister plugin ${payload.pluginId}:`,
+          err,
+        )
+      }
+    })
+  }
+
   async function loadThirdPartyPlugins(): Promise<void> {
     if (thirdPartyLoaded) return
+
+    // Set up event listeners for dynamic plugin install/uninstall
+    setupEventListeners()
 
     try {
       const installed = await pluginList()

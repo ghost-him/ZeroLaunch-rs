@@ -5,7 +5,7 @@ use std::time::Duration;
 use dashmap::DashMap;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::io::{AsyncBufRead, AsyncWrite};
 use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, error, warn};
 
@@ -47,7 +47,7 @@ impl JsonRpcClient {
         incoming_notification_tx: mpsc::Sender<(String, serde_json::Value)>,
     ) -> Arc<Self>
     where
-        R: AsyncRead + Send + Unpin + 'static,
+        R: AsyncBufRead + Send + Unpin + 'static,
         W: AsyncWrite + Send + Unpin + 'static,
     {
         let pending: Arc<DashMap<u64, oneshot::Sender<Result<serde_json::Value, JsonRpcError>>>> =

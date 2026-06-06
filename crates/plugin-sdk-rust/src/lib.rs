@@ -16,4 +16,4 @@ pub mod host_proxy;
 pub mod runtime;
 
 pub use host_proxy::HostProxy;
-pub use runtime::run;
+pub use runtime::{host, run};

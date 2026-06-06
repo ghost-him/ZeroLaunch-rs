@@ -2,7 +2,8 @@
 
 use dashmap::DashMap;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
+use tokio::sync::mpsc;
 use tracing::{error, info, warn};
 
 use zerolaunch_plugin_protocol::manifest::Manifest;
@@ -17,6 +18,7 @@ use crate::host_dispatch::HostCallHandler;
 use crate::process::PluginProcess;
 
 /// All adapters registered for a single plugin instance.
+#[derive(Clone)]
 pub struct RegisteredAdapters {
     pub plugin_id: String,
     pub manifest: Manifest,
@@ -26,12 +28,28 @@ pub struct RegisteredAdapters {
     pub configurables: Vec<Arc<RemoteConfigurableAdapter>>,
 }
 
+/// Context needed to restart a crashed plugin.
+struct PluginRestartContext {
+    manifest: Manifest,
+    plugin_dir: PathBuf,
+    host_call_handler: Arc<dyn HostCallHandler>,
+    /// Clone of the crash notification channel sender, so re-spawned
+    /// processes can use the same channel.
+    crash_tx: mpsc::Sender<String>,
+    /// Called after a successful restart so src-tauri can re-register
+    /// the new adapters with ConfigManager and SessionRouter.
+    on_restart: Arc<dyn Fn(RegisteredAdapters) + Send + Sync>,
+}
+
 /// Top-level manager for all third-party plugin processes.
 pub struct PluginHostManager {
     pub processes: DashMap<String, Arc<PluginProcess>>,
     pub adapters: DashMap<String, RegisteredAdapters>,
     pub data_dir_root: PathBuf,
     pub log_dir_root: PathBuf,
+    /// Stores the plugin directory and handler for each loaded plugin,
+    /// so the manager can re-spawn them on crash.
+    restart_contexts: DashMap<String, Arc<PluginRestartContext>>,
 }
 
 /// Error type for plugin loading operations.
@@ -54,14 +72,19 @@ impl PluginHostManager {
             adapters: DashMap::new(),
             data_dir_root,
             log_dir_root,
+            restart_contexts: DashMap::new(),
         }
     }
 
     /// Load a plugin from a directory containing manifest.toml.
+    ///
+    /// `on_restart` is stored and called after a successful crash re-spawn
+    /// so the caller (src-tauri) can re-register the new adapters.
     pub async fn load(
         &self,
         plugin_dir: &Path,
         host_call_handler: Arc<dyn HostCallHandler>,
+        on_restart: Arc<dyn Fn(RegisteredAdapters) + Send + Sync>,
     ) -> Result<RegisteredAdapters, PluginLoadError> {
         let manifest_path = plugin_dir.join("manifest.toml");
         let manifest_bytes = std::fs::read_to_string(&manifest_path)
@@ -101,15 +124,42 @@ impl PluginHostManager {
 
         info!("Loading plugin {} from {}", plugin_id, plugin_dir.display());
 
+        // Create a persistent crash notification channel.
+        // The manager owns the receiver; the sender is shared across re-spawns.
+        let (crash_tx, crash_rx) = mpsc::channel::<String>(4);
+
         // Spawn process and run handshake
         let process = PluginProcess::spawn(
             &manifest,
             plugin_dir,
             &data_dir,
             &log_dir,
-            host_call_handler,
+            host_call_handler.clone(),
+            crash_tx.clone(),
         )
         .await?;
+
+        // Store restart context for crash recovery
+        self.restart_contexts.insert(
+            plugin_id.clone(),
+            Arc::new(PluginRestartContext {
+                manifest: manifest.clone(),
+                plugin_dir: plugin_dir.to_path_buf(),
+                host_call_handler,
+                crash_tx,
+                on_restart,
+            }),
+        );
+
+        // Spawn a listener task that re-loads the plugin on crash notification
+        let data_root = self.data_dir_root.clone();
+        let log_root = self.log_dir_root.clone();
+        let processes = Arc::new(self.processes.clone());
+        let adapters = Arc::new(self.adapters.clone());
+        let contexts = Arc::new(self.restart_contexts.clone());
+        tokio::spawn(async move {
+            restart_loop(crash_rx, processes, adapters, contexts, data_root, log_root).await;
+        });
 
         // Discover components
         let init_result = process.discover_components().await?;
@@ -163,9 +213,10 @@ impl PluginHostManager {
         plugin_id: &str,
         plugin_dir: &Path,
         host_call_handler: Arc<dyn HostCallHandler>,
+        on_restart: Arc<dyn Fn(RegisteredAdapters) + Send + Sync>,
     ) -> Result<RegisteredAdapters, PluginLoadError> {
         self.unload(plugin_id).await?;
-        self.load(plugin_dir, host_call_handler).await
+        self.load(plugin_dir, host_call_handler, on_restart).await
     }
 }
 
@@ -193,8 +244,11 @@ pub struct InstalledPluginInfo {
 fn validate_manifest(manifest: &Manifest, plugin_dir: &Path) -> Result<(), PluginLoadError> {
     let id = &manifest.plugin.id;
 
-    // Validate plugin ID format
-    let re = regex::Regex::new(zerolaunch_plugin_protocol::manifest::PLUGIN_ID_RE).unwrap();
+    // Validate plugin ID format (regex compiled once)
+    static PLUGIN_ID_RE: OnceLock<regex::Regex> = OnceLock::new();
+    let re = PLUGIN_ID_RE.get_or_init(|| {
+        regex::Regex::new(zerolaunch_plugin_protocol::manifest::PLUGIN_ID_RE).unwrap()
+    });
     if !re.is_match(id) {
         return Err(PluginLoadError::Manifest(format!(
             "invalid plugin id '{}': must match reverse domain",
@@ -224,6 +278,18 @@ fn validate_manifest(manifest: &Manifest, plugin_dir: &Path) -> Result<(), Plugi
                 p
             )));
         }
+    }
+
+    // Validate min_host_version
+    let host_version = semver::Version::parse(env!("CARGO_PKG_VERSION"))
+        .map_err(|e| PluginLoadError::Manifest(format!("host version parse: {}", e)))?;
+    let min_required = semver::Version::parse(&manifest.plugin.min_host_version)
+        .map_err(|e| PluginLoadError::Manifest(format!("min_host_version parse: {}", e)))?;
+    if host_version < min_required {
+        return Err(PluginLoadError::Manifest(format!(
+            "plugin requires host >= {}, current is {}",
+            min_required, host_version
+        )));
     }
 
     // Validate command exists
@@ -345,5 +411,72 @@ fn build_adapters(
         data_sources,
         executors,
         configurables,
+    }
+}
+
+/// Background task that listens for crash notifications on `crash_rx`
+/// and triggers a re-spawn of the crashed plugin. This keeps restart
+/// logic contained within the manager.
+async fn restart_loop(
+    mut crash_rx: tokio::sync::mpsc::Receiver<String>,
+    processes: Arc<DashMap<String, Arc<PluginProcess>>>,
+    adapters: Arc<DashMap<String, RegisteredAdapters>>,
+    contexts: Arc<DashMap<String, Arc<PluginRestartContext>>>,
+    data_dir_root: PathBuf,
+    log_dir_root: PathBuf,
+) {
+    while let Some(plugin_id) = crash_rx.recv().await {
+        warn!("Watchdog triggered restart for plugin: {}", plugin_id);
+
+        // Remove old process and adapters
+        processes.remove(&plugin_id);
+        adapters.remove(&plugin_id);
+
+        if let Some(ctx_ref) = contexts.get(&plugin_id) {
+            let ctx = ctx_ref.value();
+            let data_dir = data_dir_root.join(&plugin_id);
+            let log_dir = log_dir_root.clone();
+            let _ = std::fs::create_dir_all(&data_dir);
+
+            match PluginProcess::spawn(
+                &ctx.manifest,
+                &ctx.plugin_dir,
+                &data_dir,
+                &log_dir,
+                ctx.host_call_handler.clone(),
+                ctx.crash_tx.clone(),
+            )
+            .await
+            {
+                Ok(new_process) => {
+                    // Discover components and rebuild adapters
+                    match new_process.discover_components().await {
+                        Ok(init_result) => {
+                            let new_adapters = build_adapters(
+                                &plugin_id,
+                                &ctx.manifest,
+                                new_process.client.clone(),
+                                &init_result,
+                            );
+                            processes.insert(plugin_id.clone(), Arc::new(new_process));
+                            adapters.insert(plugin_id.clone(), new_adapters.clone());
+                            // Notify src-tauri so it can re-register the new adapters
+                            // with ConfigManager and SessionRouter.
+                            (ctx.on_restart)(new_adapters);
+                            info!("Plugin {} successfully restarted", plugin_id);
+                        }
+                        Err(e) => {
+                            error!(
+                                "Failed to discover components after restart of {}: {}",
+                                plugin_id, e
+                            );
+                        }
+                    }
+                }
+                Err(e) => {
+                    error!("Failed to restart plugin {}: {}", plugin_id, e);
+                }
+            }
+        }
     }
 }

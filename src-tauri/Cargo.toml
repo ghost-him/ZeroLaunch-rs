@@ -124,7 +124,7 @@ uiautomation = "0.25.0"
 inventory = "0.3"
 
 [features]
-default = ["custom-protocol", "inspector"]
+default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
 portable = []
 inspector = []

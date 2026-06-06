@@ -52,6 +52,9 @@ pub async fn start(
     };
     persist_cli_token(&cli_token, data_dir)?;
 
+    // Cache the token in AppState so the `cli_get_info` IPC command can serve it.
+    state.set_cli_token(cli_token);
+
     let app_state = state.clone();
 
     let app = Router::new()

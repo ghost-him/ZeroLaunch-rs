@@ -14,6 +14,19 @@
     const pluginId = params.get('plugin');
     const entry = params.get('entry');
 
+    // CLI connection info, injected by the parent window via postMessage.
+    let cliInfo = null;
+    let cliInfoReady = new Promise((resolve) => {
+      window.addEventListener('message', function onCliInfo(e) {
+        if (e.data?.type === 'cli-info') {
+          cliInfo = e.data.cliInfo;
+          cliInfoReady = Promise.resolve(cliInfo);
+          window.removeEventListener('message', onCliInfo);
+          resolve(cliInfo);
+        }
+      });
+    });
+
     window.__zl_host__ = {
       pluginId,
 
@@ -30,8 +43,10 @@
       },
 
       async callHost(method, params) {
-        const resp = await fetch('/cli-token');
-        const cliInfo = await resp.json();
+        await cliInfoReady;
+        if (!cliInfo) {
+          throw new Error('CLI connection info not available');
+        }
         const res = await fetch(`http://${cliInfo.host}:${cliInfo.port}/v1/${method}`, {
           method: 'POST',
           headers: {

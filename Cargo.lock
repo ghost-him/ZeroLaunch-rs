@@ -8858,6 +8858,7 @@ name = "zerolaunch-plugin-sdk-rust"
 version = "0.6.12"
 dependencies = [
  "async-trait",
+ "dashmap",
  "serde",
  "serde_json",
  "tokio",

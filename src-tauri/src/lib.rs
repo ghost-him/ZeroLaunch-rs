@@ -207,6 +207,7 @@ pub fn run() {
             crate::commands::plugin::plugin_uninstall,
             crate::commands::plugin::plugin_set_enabled,
             crate::commands::plugin::plugin_get_logs,
+            crate::commands::cli::cli_get_info,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
@@ -420,6 +421,7 @@ async fn init_app_state(
         state.get_session_router().clone(),
         plugin_host_manager,
         state.get_host_api(),
+        app.handle().clone(),
     )
     .await;
 

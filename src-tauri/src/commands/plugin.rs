@@ -4,7 +4,7 @@ use crate::plugin_loader::installer;
 use crate::state::app_state::AppState;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tauri::State;
+use tauri::{Emitter, State};
 use tracing::{error, info};
 use zerolaunch_plugin_api::config::Configurable;
 use zerolaunch_plugin_host::manager::{InstalledPluginInfo, RegisteredAdapters};
@@ -53,9 +53,9 @@ pub async fn plugin_list(
             // Check if all plugin components are enabled in ConfigManager
             let enabled = adapters
                 .configurables
-                .first()
-                .map(|c| config_manager.is_enabled(c.component_id()))
-                .unwrap_or(true);
+                .iter()
+                .all(|c| config_manager.is_enabled(c.component_id()))
+                && !adapters.configurables.is_empty();
 
             InstalledPluginInfo {
                 plugin_id: adapters.plugin_id.clone(),
@@ -119,10 +119,12 @@ pub async fn plugin_get_manifest(
 }
 
 /// Install a plugin from a local .zip file or directory.
+/// Emits `plugin-installed` on success so the frontend can detect the new plugin.
 #[tauri::command]
 pub async fn plugin_install_local(
     file_path: String,
     state: State<'_, Arc<AppState>>,
+    app_handle: tauri::AppHandle,
 ) -> Result<InstalledPluginInfo, String> {
     let path = PathBuf::from(&file_path);
     if !path.exists() {
@@ -155,10 +157,12 @@ pub async fn plugin_install_local(
         session_router,
         &host_manager,
         host_api,
+        app_handle.clone(),
     )
     .await
     .map_err(|e| format!("Failed to load plugin: {}", e))?;
 
+    // Note: load_plugin already emits the `plugin-installed` event.
     // Get info from the newly loaded adapter (avoids re-parsing manifest from disk)
     let plugin_id = installed_dir
         .file_name()
@@ -181,10 +185,12 @@ pub async fn plugin_install_local(
 }
 
 /// Reload a third-party plugin.
+/// Emits `plugin-installed` on success so the frontend can re-register providers.
 #[tauri::command]
 pub async fn plugin_reload(
     plugin_id: String,
     state: State<'_, Arc<AppState>>,
+    app_handle: tauri::AppHandle,
 ) -> Result<(), String> {
     info!("Reloading plugin: {}", plugin_id);
 
@@ -219,19 +225,30 @@ pub async fn plugin_reload(
         session_router,
         &host_manager,
         host_api,
+        app_handle.clone(),
     )
     .await
     .map_err(|e| format!("Reload failed: {}", e))?;
+
+    // Emit plugin-installed (load_plugin already emits, but ensuring the event is sent for reloads too)
+    let _ = app_handle.emit(
+        "plugin-installed",
+        serde_json::json!({
+            "pluginId": plugin_id,
+        }),
+    );
 
     info!("Plugin {} reloaded successfully", plugin_id);
     Ok(())
 }
 
 /// Uninstall a third-party plugin.
+/// Emits `plugin-uninstalled` on success so the frontend can remove providers.
 #[tauri::command]
 pub async fn plugin_uninstall(
     plugin_id: String,
     state: State<'_, Arc<AppState>>,
+    app_handle: tauri::AppHandle,
 ) -> Result<(), String> {
     info!("Uninstalling plugin: {}", plugin_id);
 
@@ -263,11 +280,19 @@ pub async fn plugin_uninstall(
     // Notify host API
     state.get_host_api().unregister(&plugin_id);
 
+    // Notify frontend
+    let _ = app_handle.emit(
+        "plugin-uninstalled",
+        serde_json::json!({
+            "pluginId": plugin_id,
+        }),
+    );
+
     info!("Plugin {} uninstalled successfully", plugin_id);
     Ok(())
 }
 
-/// Enable or disable a plugin.
+/// Enable or disable a plugin (all of its components).
 #[tauri::command]
 pub async fn plugin_set_enabled(
     plugin_id: String,
@@ -275,12 +300,24 @@ pub async fn plugin_set_enabled(
     state: State<'_, Arc<AppState>>,
 ) -> Result<(), String> {
     info!("Setting plugin {} enabled={}", plugin_id, enabled);
-    // Enable/disable is handled through ConfigManager.
     let config_manager = state.get_config_manager();
+
+    // Apply to all the plugin's registered configurables, not just one.
+    if let Some(host_manager) = state.get_plugin_host_manager() {
+        if let Some(adapters) = host_manager.adapters.get(&plugin_id) {
+            for c in &adapters.configurables {
+                config_manager
+                    .set_enabled(c.component_id(), enabled)
+                    .map_err(|e| e.to_string())?;
+            }
+            return Ok(());
+        }
+    }
+
+    // Fallback: treat plugin_id itself as the component id
     config_manager
         .set_enabled(&plugin_id, enabled)
-        .map_err(|e| e.to_string())?;
-    Ok(())
+        .map_err(|e| e.to_string())
 }
 
 /// Get recent log lines from a plugin's stderr log.

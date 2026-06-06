@@ -1,173 +1,180 @@
 //! HostProxy — provides methods for third-party plugins to call host/* APIs.
 //!
-//! Internally sends JSON-RPC requests to the host via stdout.
+//! Each method sends an LSP-framed JSON-RPC request via the shared outbound
+//! channel and awaits the response via a oneshot registered in the shared
+//! pending map. This design avoids the deadlock of the old synchronous
+//! stdin-lock approach by centralizing stdin reads and stdout writes into
+//! dedicated async tasks in `runtime.rs`.
 
-use std::io::{BufRead, Write};
+use dashmap::DashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::sync::{mpsc, oneshot};
 
 /// Proxy for calling host-side APIs from a plugin subprocess.
-/// Each method sends a `host/*` JSON-RPC request to stdout.
+/// Does NOT access stdin/stdout directly — uses channel-based I/O.
 pub struct HostProxy {
-    next_id: std::sync::atomic::AtomicU64,
+    next_id: AtomicU64,
+    pending: Arc<DashMap<u64, oneshot::Sender<serde_json::Value>>>,
+    outbound_tx: mpsc::Sender<Vec<u8>>,
 }
 
 impl HostProxy {
-    pub fn new() -> Self {
+    pub fn new(
+        pending: Arc<DashMap<u64, oneshot::Sender<serde_json::Value>>>,
+        outbound_tx: mpsc::Sender<Vec<u8>>,
+    ) -> Self {
         Self {
-            next_id: std::sync::atomic::AtomicU64::new(1),
+            next_id: AtomicU64::new(1),
+            pending,
+            outbound_tx,
         }
     }
 
-    /// Send a host/* request and read the response from stdin.
-    fn send_request(
+    /// Send a host/* request via the shared stdout channel and await the response
+    /// through the shared pending map.
+    async fn send_request(
         &self,
         method: &str,
         params: serde_json::Value,
     ) -> Result<serde_json::Value, String> {
-        let id = self
-            .next_id
-            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let id = self.next_id.fetch_add(1, Ordering::SeqCst);
         let request = serde_json::json!({
             "jsonrpc": "2.0",
             "id": id,
             "method": method,
             "params": params,
         });
+
         let payload = serde_json::to_vec(&request).map_err(|e| e.to_string())?;
         let header = format!("Content-Length: {}\r\n\r\n", payload.len());
 
-        let stdout = std::io::stdout();
-        let mut handle = stdout.lock();
-        handle
-            .write_all(header.as_bytes())
-            .map_err(|e| e.to_string())?;
-        handle.write_all(&payload).map_err(|e| e.to_string())?;
-        handle.flush().map_err(|e| e.to_string())?;
+        // Combine header + payload into one write to avoid interleaving
+        let mut frame = header.into_bytes();
+        frame.extend_from_slice(&payload);
 
-        // Read response from stdin (LSP-framed)
-        let stdin = std::io::stdin();
-        let mut reader = std::io::BufReader::new(stdin.lock());
-        let mut content_length: Option<usize> = None;
-        loop {
-            let mut line = String::new();
-            reader.read_line(&mut line).map_err(|e| e.to_string())?;
-            let trimmed = line.trim();
-            if trimmed.is_empty() {
-                break;
-            }
-            if let Some(v) = trimmed.strip_prefix("Content-Length:") {
-                content_length = v.trim().parse().ok();
-            }
-        }
-        let len = content_length.ok_or("no Content-Length in response")?;
-        let mut body = vec![0u8; len];
-        use std::io::Read;
-        reader.read_exact(&mut body).map_err(|e| e.to_string())?;
+        // Register pending response
+        let (tx, rx) = oneshot::channel();
+        self.pending.insert(id, tx);
 
-        let response: serde_json::Value =
-            serde_json::from_slice(&body).map_err(|e| e.to_string())?;
-        if let Some(err) = response.get("error") {
-            Err(format!("host error: {:?}", err))
-        } else {
-            Ok(response
-                .get("result")
-                .cloned()
-                .unwrap_or(serde_json::Value::Null))
-        }
+        // Send via the shared channel (write_task writes to stdout)
+        self.outbound_tx
+            .send(frame)
+            .await
+            .map_err(|_| "write channel closed".to_string())?;
+
+        // Await the response (read_task completes the oneshot with resp.result).
+        // Apply a 30-second timeout so the plugin doesn't hang forever if
+        // the host crashes during request processing.
+        tokio::time::timeout(Duration::from_secs(30), rx)
+            .await
+            .map_err(|_| "host call timed out".to_string())?
+            .map_err(|_| "response channel closed".to_string())
     }
 
-    pub fn log(&self, level: &str, message: &str) -> Result<(), String> {
+    pub async fn log(&self, level: &str, message: &str) -> Result<(), String> {
         self.send_request(
             "host/log",
             serde_json::json!({ "level": level, "message": message }),
-        )?;
+        )
+        .await?;
         Ok(())
     }
 
-    pub fn shell_open(&self, target: &str) -> Result<(), String> {
-        self.send_request("host/shell.open", serde_json::json!({ "target": target }))?;
+    pub async fn shell_open(&self, target: &str) -> Result<(), String> {
+        self.send_request("host/shell.open", serde_json::json!({ "target": target }))
+            .await?;
         Ok(())
     }
 
-    pub fn get_icon(&self, path: &str) -> Result<String, String> {
-        let result = self.send_request(
-            "host/icon.get",
-            serde_json::json!({ "request": { "path": path }, "level": "Full" }),
-        )?;
+    pub async fn get_icon(&self, path: &str) -> Result<String, String> {
+        let result = self
+            .send_request(
+                "host/icon.get",
+                serde_json::json!({ "request": { "path": path }, "level": "Full" }),
+            )
+            .await?;
         Ok(result.as_str().unwrap_or("").to_string())
     }
 
-    pub fn shell_execute_command(&self, cmd: &str) -> Result<(), String> {
+    pub async fn shell_execute_command(&self, cmd: &str) -> Result<(), String> {
         self.send_request(
             "host/shell.execute_command",
             serde_json::json!({ "cmd": cmd }),
-        )?;
+        )
+        .await?;
         Ok(())
     }
 
-    pub fn shell_open_folder(&self, path: &str) -> Result<(), String> {
+    pub async fn shell_open_folder(&self, path: &str) -> Result<(), String> {
         self.send_request(
             "host/shell.open_folder",
             serde_json::json!({ "path": path }),
-        )?;
+        )
+        .await?;
         Ok(())
     }
 
-    pub fn shell_execute_elevation(&self, path: &str) -> Result<(), String> {
+    pub async fn shell_execute_elevation(&self, path: &str) -> Result<(), String> {
         self.send_request(
             "host/shell.execute_elevation",
             serde_json::json!({ "path": path }),
-        )?;
+        )
+        .await?;
         Ok(())
     }
 
-    pub fn notify(&self, title: &str, message: &str) -> Result<(), String> {
+    pub async fn notify(&self, title: &str, message: &str) -> Result<(), String> {
         self.send_request(
             "host/notify",
             serde_json::json!({ "title": title, "message": message }),
-        )?;
+        )
+        .await?;
         Ok(())
     }
 
-    pub fn enumerate_apps(&self) -> Result<serde_json::Value, String> {
+    pub async fn enumerate_apps(&self) -> Result<serde_json::Value, String> {
         self.send_request("host/app.enumerate", serde_json::json!(null))
+            .await
     }
 
-    pub fn resolve_path(&self, kind: &str) -> Result<String, String> {
-        let result = self.send_request("host/path.resolve", serde_json::json!({ "kind": kind }))?;
+    pub async fn resolve_path(&self, kind: &str) -> Result<String, String> {
+        let result = self
+            .send_request("host/path.resolve", serde_json::json!({ "kind": kind }))
+            .await?;
         Ok(result.as_str().unwrap_or("").to_string())
     }
 
-    pub fn resource_upload(
+    pub async fn resource_upload(
         &self,
         plugin_id: &str,
         key: &str,
         bytes_b64: &str,
     ) -> Result<String, String> {
-        let result = self.send_request(
-            "host/resource.upload",
-            serde_json::json!({
-                "pluginId": plugin_id,
-                "key": key,
-                "bytesB64": bytes_b64,
-            }),
-        )?;
+        let result = self
+            .send_request(
+                "host/resource.upload",
+                serde_json::json!({
+                    "pluginId": plugin_id,
+                    "key": key,
+                    "bytesB64": bytes_b64,
+                }),
+            )
+            .await?;
         Ok(result.as_str().unwrap_or("").to_string())
     }
 
-    pub fn resource_get(&self, plugin_id: &str, key: &str) -> Result<String, String> {
-        let result = self.send_request(
-            "host/resource.get",
-            serde_json::json!({
-                "pluginId": plugin_id,
-                "key": key,
-            }),
-        )?;
+    pub async fn resource_get(&self, plugin_id: &str, key: &str) -> Result<String, String> {
+        let result = self
+            .send_request(
+                "host/resource.get",
+                serde_json::json!({
+                    "pluginId": plugin_id,
+                    "key": key,
+                }),
+            )
+            .await?;
         Ok(result.as_str().unwrap_or("").to_string())
-    }
-}
-
-impl Default for HostProxy {
-    fn default() -> Self {
-        Self::new()
     }
 }

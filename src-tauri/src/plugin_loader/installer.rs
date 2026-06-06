@@ -50,20 +50,45 @@ pub fn install_from_zip(zip_path: &Path, plugins_dir: &Path) -> Result<PathBuf, 
     // Create target directory
     std::fs::create_dir_all(&target_dir)?;
 
+    // Collect all entry names for common-prefix detection
+    let names: Vec<String> = (0..archive.len())
+        .filter_map(|i| archive.by_index(i).ok().map(|e| e.name().to_string()))
+        .collect();
+
+    // Find the common directory prefix across all entries.
+    // This handles both single-top-level-dir zips and flat zips correctly.
+    let common_prefix = find_common_prefix(&names);
+
     // Extract all files
     for i in 0..archive.len() {
         let mut entry = archive.by_index(i)?;
         let name = entry.name().to_string();
 
-        // Strip top-level directory prefix if present
-        let relative = if let Some(idx) = name.find('/') {
-            &name[idx + 1..]
+        // Strip the common prefix directory if present
+        let relative = if let Some(rest) = name.strip_prefix(&common_prefix) {
+            let trimmed = rest.trim_start_matches('/');
+            if trimmed.is_empty() {
+                continue; // skip the top-level directory entry itself
+            }
+            trimmed
         } else {
+            // No common prefix to strip — use the name as-is (flat zip)
             &name
         };
 
         if relative.is_empty() {
             continue;
+        }
+
+        // Reject path traversal: absolute paths or ParentDir components.
+        let normalized = std::path::Path::new(relative);
+        if normalized.is_absolute() {
+            return Err(InstallError::Manifest("absolute path in zip".into()));
+        }
+        for c in normalized.components() {
+            if matches!(c, std::path::Component::ParentDir) {
+                return Err(InstallError::Manifest("parent-dir traversal in zip".into()));
+            }
         }
 
         let out_path = target_dir.join(relative);
@@ -112,6 +137,34 @@ pub fn install_from_dir(source_dir: &Path, plugins_dir: &Path) -> Result<PathBuf
     copy_dir_recursive(source_dir, &target_dir)?;
 
     Ok(target_dir)
+}
+
+/// Find the common path prefix among all entry names in a zip archive.
+/// For a well-formed zip with a single top-level directory (e.g. `my-plugin/...`),
+/// returns `"my-plugin"`. For a flat zip with entries at root, returns `""`.
+fn find_common_prefix(names: &[String]) -> String {
+    if names.is_empty() {
+        return String::new();
+    }
+
+    // Use the first entry as the candidate prefix
+    let first = &names[0];
+    // Take only the directory part of the first entry (if it has a slash)
+    let first_dir = match first.find('/') {
+        Some(idx) => &first[..idx],
+        None => return String::new(), // first entry has no directory → flat zip
+    };
+
+    // Verify that all other entries start with this prefix
+    let prefix_with_slash = format!("{}/", first_dir);
+    for name in &names[1..] {
+        if !name.starts_with(&prefix_with_slash) {
+            // Not all entries share this prefix → no common prefix to strip
+            return String::new();
+        }
+    }
+
+    first_dir.to_string()
 }
 
 /// Recursively copy a directory.

@@ -14,12 +14,20 @@ paths:
   2. `crates/platform-windows/src/` 中的平台实现（如 `WindowsIconExtractor`）
   3. `HostApi` 中的 `Arc<dyn Trait>` 字段
 
-## HostApi — 唯一跨模块出口
+## HostApi / PluginHandle — 权限隔离模型
 
-- `HostApi` 是所有平台操作的 **唯一** 出口，位于 `src-tauri/src/sdk/host_api.rs`（宿主内部类型，插件不可见）
+`HostApi` 和 `PluginHandle` 是**两个独立对象**，各自持有 `Arc<dyn Trait>` 引用。权限隔离在编译期由 Rust 类型系统保证，无运行时检查。
+
+| | HostApi（特权对象） | PluginHandle（通用句柄） |
+|---|---|---|
+| **位置** | `src-tauri/src/sdk/host_api.rs` | `crates/plugin-api/src/host/plugin_handle.rs` |
+| **可见性** | 宿主内部，插件不可见 | 通过 `HostApi::register()` 获取 |
+| **职责** | 窗口控制、全局生命周期管理 | 图标、shell、路径、回调注册等通用服务 |
+| **典型方法** | `hide_window`, `show_window`, `compute_window_position`, `update_icon_cache_dir`, `capture_parameter_snapshot`, `apply_autostart_setting` | `get_icon`, `shell_open`, `resolve_path`, `enumerate_apps`, `register_hotkey_callback` |
+
 - `HostApi` 方法体 **必须** 委托给注入的 `Arc<dyn Trait>` 实现
-- 新增 `HostApi` 方法时：**必须** 先加到 `HostApi` 结构体，再考虑 `PluginHandle` 是否也要暴露
-- 核心程序也通过 `PluginHandle` 调用 `HostApi`（插件名字为 `core`），`HostApi` 只暴露只对核心程序开放的方法。对于插件与核心程序都可以使用的方法，**必须** 只在 `PluginHandle` 上暴露，不需要在 `HostApi` 上实现，以减少重复的代码。
+- 核心程序在 `lib.rs` 中同时持有两者：以 `"core"` 为 ID 注册 `PluginHandle` 复用通用服务，特权操作直接调 `HostApi`
+- **新增方法决策**：特权方法（仅核心调用）→ 只在 `HostApi` 上实现；通用方法（插件也需要）→ 只在 `PluginHandle` 上实现。如需新 trait 依赖，则在 `HostApi` 上添加 `Arc<dyn NewTrait>` 字段，再在 `register()` 中 clone 给 `PluginHandle`
 
 ## 新增平台能力的流程
 

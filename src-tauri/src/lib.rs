@@ -14,10 +14,13 @@ use crate::core::config::{ConfigEvent, ConfigManager};
 use crate::core::tray::TrayManager;
 use crate::logging::{init_logging, log_application_shutdown, log_application_start};
 
+use crate::plugin_manager::manager::PluginManager;
+use crate::plugin_protocol_assets::handler::set_plugins_dir;
 use crate::plugin_system::CandidatePipeline;
 use crate::sdk::host_api::HostApi;
 use crate::sdk::HostApiBuilder;
 use crate::state::app_state::AppState;
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tauri::App;
@@ -379,6 +382,7 @@ async fn init_app_state(
     state.set_host_api(host_api.clone());
     info!("HostApi 初始化完成");
 
+    // 将核心程序对于平台的操作也视为是一个插件，共用同一套pluginhandle
     let core_handle = host_api.register("core", Default::default());
     state.set_core_handle(core_handle.clone());
     info!("Core PluginHandle 注册完成");
@@ -396,7 +400,7 @@ async fn init_app_state(
 
     info!("=== Phase 2: Core 初始化 - 创建 ConfigManager ===");
 
-    let config_manager = Arc::new(ConfigManager::new(std::path::PathBuf::from(&config_dir)));
+    let config_manager = Arc::new(ConfigManager::new(PathBuf::from(&config_dir)));
     config_manager.set_host_api(host_api.clone());
     info!("ConfigManager 初始化完成");
 
@@ -404,7 +408,7 @@ async fn init_app_state(
 
     // 创建 PluginManager 并注入 ConfigManager / SessionRouter 引用
     let session_router = state.get_session_router().clone();
-    let plugin_manager = Arc::new(crate::plugin_manager::manager::PluginManager::new());
+    let plugin_manager = Arc::new(PluginManager::new());
     plugin_manager.set_config_manager(config_manager.clone());
     plugin_manager.set_session_router(session_router);
     state.set_plugin_manager(plugin_manager.clone());
@@ -416,12 +420,12 @@ async fn init_app_state(
     init_plugin_system(&state).await;
 
     info!("=== Phase 4: 第三方插件加载 ===");
-    let plugins_dir = std::path::PathBuf::from(&app_data_dir).join("plugins");
-    let plugin_data_dir = std::path::PathBuf::from(&app_data_dir).join("plugin-data");
-    let plugin_log_dir = std::path::PathBuf::from(&app_data_dir).join("plugin-logs");
+    let plugins_dir = PathBuf::from(&app_data_dir).join("plugins");
+    let plugin_data_dir = PathBuf::from(&app_data_dir).join("plugin-data");
+    let plugin_log_dir = PathBuf::from(&app_data_dir).join("plugin-logs");
 
     // Set plugins dir for zlplugin:// protocol handler
-    crate::plugin_protocol_assets::handler::set_plugins_dir(plugins_dir.clone());
+    set_plugins_dir(plugins_dir.clone());
 
     let plugin_host_manager = Arc::new(PluginHostManager::new(
         plugins_dir.clone(),
@@ -441,10 +445,9 @@ async fn init_app_state(
     .await;
 
     // Start CLI HTTP server
-    info!("启动 CLI HTTP 服务器...");
+    info!("=== Phase 5: 启动 CLI HTTP 服务器... ===");
     let cli_handle =
-        crate::cli_server::server::start(state.clone(), &std::path::PathBuf::from(&app_data_dir))
-            .await;
+        crate::cli_server::server::start(state.clone(), &PathBuf::from(&app_data_dir)).await;
     match cli_handle {
         Ok(handle) => info!("CLI HTTP 服务器已启动于 127.0.0.1:{}", handle.port),
         Err(e) => tracing::warn!("CLI HTTP 服务器启动失败: {}", e),

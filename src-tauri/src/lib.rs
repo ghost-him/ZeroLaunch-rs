@@ -3,7 +3,7 @@ pub mod commands;
 pub mod core;
 pub mod logging;
 pub mod plugin;
-pub mod plugin_loader;
+pub mod plugin_manager;
 pub mod plugin_protocol_assets;
 pub mod plugin_system;
 pub mod sdk;
@@ -398,10 +398,21 @@ async fn init_app_state(
 
     let config_manager = Arc::new(ConfigManager::new(std::path::PathBuf::from(&config_dir)));
     config_manager.set_host_api(host_api.clone());
-    state.set_config_manager(config_manager);
     info!("ConfigManager 初始化完成");
 
-    info!("=== Phase 3: Plugin 初始化 ===");
+    info!("=== Phase 3: PluginManager 初始化 ===");
+
+    // 创建 PluginManager 并注入 ConfigManager / SessionRouter 引用
+    let session_router = state.get_session_router().clone();
+    let plugin_manager = Arc::new(crate::plugin_manager::manager::PluginManager::new());
+    plugin_manager.set_config_manager(config_manager.clone());
+    plugin_manager.set_session_router(session_router);
+    state.set_plugin_manager(plugin_manager.clone());
+
+    // 将 config_manager 保存到 AppState（必须在 PluginManager 之后，因为 clone 语义）
+    state.set_config_manager(config_manager);
+
+    // 初始化内置 + 第三方插件
     init_plugin_system(&state).await;
 
     info!("=== Phase 4: 第三方插件加载 ===");
@@ -412,13 +423,17 @@ async fn init_app_state(
     // Set plugins dir for zlplugin:// protocol handler
     crate::plugin_protocol_assets::handler::set_plugins_dir(plugins_dir.clone());
 
-    let plugin_host_manager = Arc::new(PluginHostManager::new(plugin_data_dir, plugin_log_dir));
+    let plugin_host_manager = Arc::new(PluginHostManager::new(
+        plugins_dir.clone(),
+        plugin_data_dir,
+        plugin_log_dir,
+    ));
     state.set_plugin_host_manager(plugin_host_manager.clone());
+    plugin_manager.set_host_manager(plugin_host_manager.clone());
 
-    crate::plugin_loader::loader::load_all(
+    crate::plugin_manager::third_party::loader::load_all(
         &plugins_dir,
-        state.get_config_manager(),
-        state.get_session_router().clone(),
+        &plugin_manager,
         plugin_host_manager,
         state.get_host_api(),
         app.handle().clone(),
@@ -444,6 +459,7 @@ async fn init_app_state(
 async fn init_plugin_system(state: &Arc<AppState>) {
     let session_router = state.get_session_router();
     let config_manager = state.get_config_manager();
+    let plugin_manager = state.get_plugin_manager();
 
     session_router.set_config_manager(config_manager.clone());
 
@@ -492,17 +508,12 @@ async fn init_plugin_system(state: &Arc<AppState>) {
     // ========================================================================
     info!("=== Phase A: inventory 自动发现并注册所有内置组件 ===");
 
-    let ctx = crate::plugin_system::builtin_registry::InventoryContext::new(host_api.clone());
-    let (data_sources, keyword_optimizers) =
-        crate::plugin_system::builtin_registry::register_all_builtin_components(
-            &ctx,
-            &config_manager,
-            session_router,
-        );
+    let (data_sources, keyword_optimizers) = plugin_manager.init_builtins(&host_api);
 
     info!(
-        "Phase A 完成: 共注册 {} 个组件",
+        "Phase A 完成: 共注册 {} 个组件（其中内置 {} 个）",
         config_manager.get_all_components().len(),
+        plugin_manager.list_builtins().len(),
     );
 
     // 注册快捷键回调：按下全局快捷键时切换搜索栏显示/隐藏

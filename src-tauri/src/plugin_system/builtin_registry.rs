@@ -32,6 +32,20 @@ pub type PluginFactory = fn() -> (Arc<dyn Configurable>, Arc<dyn Plugin>);
 pub type CoreComponentFactory = fn(Arc<HostApi>) -> Arc<dyn Configurable>;
 type RegistrationResult = (Vec<Arc<dyn DataSource>>, Vec<Arc<dyn KeywordOptimizer>>);
 
+/// inventory 收集结果：所有内置组件的已构造 trait 对象。
+///
+/// 该 struct 由 `collect_all_builtin_entries()` 返回，
+/// 调用方负责将各部分注册到 ConfigManager / SessionRouter。
+pub struct CollectedBuiltins {
+    pub executors: Vec<(Arc<dyn Configurable>, Arc<dyn ActionExecutor>)>,
+    pub data_sources: Vec<(Arc<dyn Configurable>, Arc<dyn DataSource>)>,
+    pub keyword_optimizers: Vec<(Arc<dyn Configurable>, Arc<dyn KeywordOptimizer>)>,
+    pub search_engines: Vec<(Arc<dyn Configurable>, Arc<dyn SearchEngine>)>,
+    pub score_boosters: Vec<(Arc<dyn Configurable>, Arc<dyn ScoreBooster>)>,
+    pub plugins: Vec<(Arc<dyn Configurable>, Arc<dyn Plugin>)>,
+    pub core_components: Vec<Arc<dyn Configurable>>,
+}
+
 /// 执行器条目。
 pub struct ExecutorEntry {
     pub component_id: &'static str,
@@ -132,81 +146,130 @@ impl InventoryContext {
 }
 
 // ============================================================================
-// 统一注册编排器
+// 统一收集 — 纯收集，不做注册
+// ============================================================================
+
+/// 收集所有 inventory 条目，调用工厂构造 trait 对象，但不注册到任何管理器。
+///
+/// 调用方负责将返回的 `CollectedBuiltins` 各部分注册到 ConfigManager / SessionRouter。
+/// 这样设计的目的是将「有哪些组件」与「组件注册到哪里」解耦，
+/// 让 PluginManager 成为注册编排的唯一权威。
+pub fn collect_all_builtin_entries(ctx: &InventoryContext) -> CollectedBuiltins {
+    // -- 执行器 --
+    let mut exec_entries: Vec<&ExecutorEntry> = ::inventory::iter::<ExecutorEntry>().collect();
+    exec_entries.sort_by_key(|e| e.priority);
+    let executors: Vec<_> = exec_entries.iter().map(|e| (e.factory)(ctx)).collect();
+
+    // -- 数据源 --
+    let mut src_entries: Vec<&DataSourceEntry> = ::inventory::iter::<DataSourceEntry>().collect();
+    src_entries.sort_by_key(|e| e.priority);
+    let data_sources: Vec<_> = src_entries.iter().map(|e| (e.factory)(ctx)).collect();
+
+    // -- 关键词优化器 --
+    let mut opt_entries: Vec<&KeywordOptimizerEntry> =
+        ::inventory::iter::<KeywordOptimizerEntry>().collect();
+    opt_entries.sort_by_key(|e| e.priority);
+    let keyword_optimizers: Vec<_> = opt_entries.iter().map(|e| (e.factory)()).collect();
+
+    // -- 搜索引擎 --
+    let mut eng_entries: Vec<&SearchEngineEntry> =
+        ::inventory::iter::<SearchEngineEntry>().collect();
+    eng_entries.sort_by_key(|e| e.priority);
+    let search_engines: Vec<_> = eng_entries.iter().map(|e| (e.factory)()).collect();
+
+    // -- 分数增强器 --
+    let mut boo_entries: Vec<&ScoreBoosterEntry> =
+        ::inventory::iter::<ScoreBoosterEntry>().collect();
+    boo_entries.sort_by_key(|e| e.priority);
+    let score_boosters: Vec<_> = boo_entries.iter().map(|e| (e.factory)()).collect();
+
+    // -- Plugins --
+    let mut plug_entries: Vec<&PluginEntry> = ::inventory::iter::<PluginEntry>().collect();
+    plug_entries.sort_by_key(|e| e.priority);
+    let plugins: Vec<_> = plug_entries.iter().map(|e| (e.factory)()).collect();
+
+    // -- 核心配置组件 --
+    let mut core_entries: Vec<&CoreComponentEntry> =
+        ::inventory::iter::<CoreComponentEntry>().collect();
+    core_entries.sort_by_key(|e| e.priority);
+    let core_components: Vec<_> = core_entries
+        .iter()
+        .map(|e| (e.factory)(ctx.host_api().clone()))
+        .collect();
+
+    CollectedBuiltins {
+        executors,
+        data_sources,
+        keyword_optimizers,
+        search_engines,
+        score_boosters,
+        plugins,
+        core_components,
+    }
+}
+
+// ============================================================================
+// 统一注册编排器（兼容旧接口，内部委托给 collect_all_builtin_entries + 注册）
 // ============================================================================
 
 /// 收集所有 inventory 条目并注册到 ConfigManager / SessionRouter。
 ///
 /// 返回 DataSource 和 KeywordOptimizer 列表供构建 CandidatePipeline。
+/// 新代码应优先使用 `collect_all_builtin_entries()` + PluginManager 的注册方法。
 pub fn register_all_builtin_components(
     ctx: &InventoryContext,
     config_manager: &Arc<ConfigManager>,
     session_router: &Arc<SessionRouter>,
 ) -> RegistrationResult {
+    let collected = collect_all_builtin_entries(ctx);
+
     // -- 执行器 --
-    let mut executors: Vec<&ExecutorEntry> = ::inventory::iter::<ExecutorEntry>().collect();
-    executors.sort_by_key(|e| e.priority);
-    for entry in executors {
-        let (configurable, executor) = (entry.factory)(ctx);
-        config_manager.register(configurable);
-        session_router.register_executor(executor);
+    for (configurable, executor) in &collected.executors {
+        config_manager.register(configurable.clone());
+        session_router.register_executor(executor.clone());
     }
 
     // -- 数据源 --
-    let mut sources: Vec<&DataSourceEntry> = ::inventory::iter::<DataSourceEntry>().collect();
-    sources.sort_by_key(|e| e.priority);
-    let mut source_list = Vec::new();
-    for entry in sources {
-        let (configurable, source) = (entry.factory)(ctx);
-        config_manager.register(configurable);
-        source_list.push(source);
-    }
+    let source_list: Vec<Arc<dyn DataSource>> = collected
+        .data_sources
+        .iter()
+        .map(|(configurable, source)| {
+            config_manager.register(configurable.clone());
+            source.clone()
+        })
+        .collect();
 
     // -- 关键词优化器 --
-    let mut optimizers: Vec<&KeywordOptimizerEntry> =
-        ::inventory::iter::<KeywordOptimizerEntry>().collect();
-    optimizers.sort_by_key(|e| e.priority);
-    let mut optimizer_list = Vec::new();
-    for entry in optimizers {
-        let (configurable, optimizer) = (entry.factory)();
-        config_manager.register(configurable);
-        optimizer_list.push(optimizer);
-    }
+    let optimizer_list: Vec<Arc<dyn KeywordOptimizer>> = collected
+        .keyword_optimizers
+        .iter()
+        .map(|(configurable, optimizer)| {
+            config_manager.register(configurable.clone());
+            optimizer.clone()
+        })
+        .collect();
 
     // -- 搜索引擎 --
-    let mut engines: Vec<&SearchEngineEntry> = ::inventory::iter::<SearchEngineEntry>().collect();
-    engines.sort_by_key(|e| e.priority);
-    for entry in engines {
-        let (configurable, engine) = (entry.factory)();
-        config_manager.register(configurable);
-        session_router.register_search_engine(engine);
+    for (configurable, engine) in &collected.search_engines {
+        config_manager.register(configurable.clone());
+        session_router.register_search_engine(engine.clone());
     }
 
     // -- 分数增强器 --
-    let mut boosters: Vec<&ScoreBoosterEntry> = ::inventory::iter::<ScoreBoosterEntry>().collect();
-    boosters.sort_by_key(|e| e.priority);
-    for entry in boosters {
-        let (configurable, booster) = (entry.factory)();
-        config_manager.register(configurable);
-        session_router.register_score_booster(booster);
+    for (configurable, booster) in &collected.score_boosters {
+        config_manager.register(configurable.clone());
+        session_router.register_score_booster(booster.clone());
     }
 
     // -- Plugins --
-    let mut plugins: Vec<&PluginEntry> = ::inventory::iter::<PluginEntry>().collect();
-    plugins.sort_by_key(|e| e.priority);
-    for entry in plugins {
-        let (configurable, plugin) = (entry.factory)();
+    for (configurable, plugin) in &collected.plugins {
         config_manager.register(configurable.clone());
-        session_router.plugin_service().register(plugin);
+        session_router.plugin_service().register(plugin.clone());
     }
 
     // -- 核心配置组件 --
-    let mut core_components: Vec<&CoreComponentEntry> =
-        ::inventory::iter::<CoreComponentEntry>().collect();
-    core_components.sort_by_key(|e| e.priority);
-    for entry in core_components {
-        let configurable = (entry.factory)(ctx.host_api().clone());
-        config_manager.register(configurable);
+    for configurable in &collected.core_components {
+        config_manager.register(configurable.clone());
     }
 
     (source_list, optimizer_list)

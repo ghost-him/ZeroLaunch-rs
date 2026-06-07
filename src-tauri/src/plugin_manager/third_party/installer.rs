@@ -114,6 +114,9 @@ pub fn install_from_zip(zip_path: &Path, plugins_dir: &Path) -> Result<PathBuf, 
         }
     }
 
+    // Post-extraction verification: reject symlinks and path traversal
+    verify_install_dir(&target_dir)?;
+
     info!(
         "Installed plugin {} from {} to {}",
         plugin_id,
@@ -146,7 +149,52 @@ pub fn install_from_dir(source_dir: &Path, plugins_dir: &Path) -> Result<PathBuf
 
     copy_dir_recursive(source_dir, &target_dir)?;
 
+    // Post-copy verification: reject symlinks and path traversal
+    verify_install_dir(&target_dir)?;
+
     Ok(target_dir)
+}
+
+/// Verify that the installed directory contains no symlinks and no path traversal.
+fn verify_install_dir(target_dir: &Path) -> Result<(), InstallError> {
+    let canonical_target = target_dir
+        .canonicalize()
+        .map_err(|e| InstallError::Manifest(format!("cannot canonicalize target dir: {}", e)))?;
+
+    verify_dir_recursive(target_dir, &canonical_target)
+}
+
+/// Recursively verify a directory: no symlinks, all paths within canonical_target.
+fn verify_dir_recursive(dir: &Path, canonical_target: &Path) -> Result<(), InstallError> {
+    for entry in std::fs::read_dir(dir).map_err(InstallError::Io)? {
+        let entry = entry.map_err(InstallError::Io)?;
+        let path = entry.path();
+
+        // Reject symlinks (including junctions on Windows)
+        let meta = entry.metadata().map_err(InstallError::Io)?;
+        if meta.file_type().is_symlink() {
+            return Err(InstallError::Manifest(format!(
+                "symlinks not allowed: {}",
+                path.display()
+            )));
+        }
+
+        // Verify path is within target directory
+        let canonical = path.canonicalize().map_err(|e| {
+            InstallError::Manifest(format!("cannot canonicalize {}: {}", path.display(), e))
+        })?;
+        if !canonical.starts_with(canonical_target) {
+            return Err(InstallError::Manifest(format!(
+                "path traversal detected: {}",
+                path.display()
+            )));
+        }
+
+        if path.is_dir() {
+            verify_dir_recursive(&path, canonical_target)?;
+        }
+    }
+    Ok(())
 }
 
 /// Find the common path prefix among all entry names in a zip archive.

@@ -1,6 +1,7 @@
 use crate::cli_server::token::CliToken;
 use crate::core::config::ConfigManager;
 use crate::core::tray::TrayManager;
+use crate::plugin_manager::manager::PluginManager;
 use crate::plugin_system::service::PluginService;
 use crate::plugin_system::SessionRouter;
 use crate::sdk::HostApi;
@@ -23,6 +24,8 @@ pub struct AppState {
     #[cfg(feature = "inspector")]
     inspector: RwLock<Option<Arc<crate::plugin_system::inspector::Inspector>>>,
     plugin_host_manager: RwLock<Option<Arc<PluginHostManager>>>,
+    /// PluginManager — 插件身份与生命周期的统一入口
+    plugin_manager: RwLock<Option<Arc<PluginManager>>>,
     /// CLI server token (cached for the `cli_get_info` IPC command).
     cli_token: RwLock<Option<CliToken>>,
 }
@@ -50,6 +53,7 @@ impl AppState {
             #[cfg(feature = "inspector")]
             inspector: RwLock::new(None),
             plugin_host_manager: RwLock::new(None),
+            plugin_manager: RwLock::new(None),
             cli_token: RwLock::new(None),
         }
     }
@@ -142,6 +146,18 @@ impl AppState {
 
     pub fn set_plugin_host_manager(&self, manager: Arc<PluginHostManager>) {
         *self.plugin_host_manager.write() = Some(manager);
+    }
+
+    pub fn get_plugin_manager(&self) -> Arc<PluginManager> {
+        self.plugin_manager
+            .read()
+            .as_ref()
+            .cloned()
+            .expect("plugin_manager not initialized")
+    }
+
+    pub fn set_plugin_manager(&self, manager: Arc<PluginManager>) {
+        *self.plugin_manager.write() = Some(manager);
     }
 
     pub fn get_cli_token(&self) -> Option<CliToken> {

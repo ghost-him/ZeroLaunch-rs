@@ -45,8 +45,12 @@ struct PluginRestartContext {
 pub struct PluginHostManager {
     pub processes: DashMap<String, Arc<PluginProcess>>,
     pub adapters: DashMap<String, RegisteredAdapters>,
+    /// Root directory where plugin data subdirectories are stored.
     pub data_dir_root: PathBuf,
+    /// Root directory where plugin stderr logs are stored.
     pub log_dir_root: PathBuf,
+    /// Directory where plugin installations live (explicit, not derived from data_dir_root).
+    plugins_dir: PathBuf,
     /// Stores the plugin directory and handler for each loaded plugin,
     /// so the manager can re-spawn them on crash.
     restart_contexts: DashMap<String, Arc<PluginRestartContext>>,
@@ -66,12 +70,13 @@ pub enum PluginLoadError {
 }
 
 impl PluginHostManager {
-    pub fn new(data_dir_root: PathBuf, log_dir_root: PathBuf) -> Self {
+    pub fn new(plugins_dir: PathBuf, data_dir_root: PathBuf, log_dir_root: PathBuf) -> Self {
         Self {
             processes: DashMap::new(),
             adapters: DashMap::new(),
             data_dir_root,
             log_dir_root,
+            plugins_dir,
             restart_contexts: DashMap::new(),
         }
     }
@@ -139,6 +144,9 @@ impl PluginHostManager {
         )
         .await?;
 
+        // Extract the client before moving process into the Arc
+        let client = process.client.clone();
+
         // Store restart context for crash recovery
         self.restart_contexts.insert(
             plugin_id.clone(),
@@ -161,13 +169,27 @@ impl PluginHostManager {
             restart_loop(crash_rx, processes, adapters, contexts, data_root, log_root).await;
         });
 
-        // Discover components
-        let init_result = process.discover_components().await?;
+        // Insert process into registry BEFORE discovery.
+        // This closes the restart window: if the plugin crashes during
+        // discover_components(), the watchdog can find the process entry
+        // and restart_loop will correctly handle the re-spawn.
+        let process = Arc::new(process);
+        self.processes.insert(plugin_id.clone(), process.clone());
+
+        // Discover components (through the Arc — discover_components takes &self)
+        let init_result = match process.discover_components().await {
+            Ok(result) => result,
+            Err(e) => {
+                // Clean up on discovery failure
+                self.processes.remove(&plugin_id);
+                self.restart_contexts.remove(&plugin_id);
+                return Err(PluginLoadError::Protocol(e));
+            }
+        };
 
         // Build adapters from discovered components
-        let adapters = build_adapters(&plugin_id, &manifest, process.client.clone(), &init_result);
+        let adapters = build_adapters(&plugin_id, &manifest, client, &init_result);
 
-        self.processes.insert(plugin_id.clone(), Arc::new(process));
         self.adapters.insert(plugin_id.clone(), adapters);
 
         let registered = self.adapters.get(&plugin_id).unwrap();
@@ -181,21 +203,30 @@ impl PluginHostManager {
         })
     }
 
-    /// Returns the plugins directory (parent of data_dir_root).
-    pub fn plugins_dir(&self) -> PathBuf {
-        self.data_dir_root
-            .parent()
-            .map(|p| p.join("plugins"))
-            .unwrap_or_else(|| PathBuf::from("."))
+    /// Returns the plugins installation directory (explicitly stored, not derived).
+    pub fn plugins_dir(&self) -> &Path {
+        &self.plugins_dir
     }
 
     /// Unload a plugin: shutdown process and remove from registries.
     pub async fn unload(&self, plugin_id: &str) -> Result<(), PluginLoadError> {
         info!("Unloading plugin {}", plugin_id);
 
+        // shutdown() takes self (ownership), so we must unwrap the Arc.
+        // If try_unwrap fails (Arc refcount > 1), log a warning — this
+        // indicates the process Arc was cloned elsewhere, which shouldn't
+        // happen in normal operation.
         if let Some((_, proc)) = self.processes.remove(plugin_id) {
-            if let Ok(process) = Arc::try_unwrap(proc) {
-                process.shutdown(std::time::Duration::from_secs(5)).await;
+            match Arc::try_unwrap(proc) {
+                Ok(process) => process.shutdown(std::time::Duration::from_secs(5)).await,
+                Err(arc) => {
+                    warn!(
+                        "Plugin {} process Arc has {} strong references; shutdown skipped. \
+                         This may indicate a leaked clone of the process handle.",
+                        plugin_id,
+                        Arc::strong_count(&arc)
+                    );
+                }
             }
         }
         self.adapters.remove(plugin_id);

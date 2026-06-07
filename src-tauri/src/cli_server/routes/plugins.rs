@@ -46,13 +46,10 @@ pub async fn handle_install(
     let host_manager = state.get_plugin_host_manager();
     match host_manager {
         Some(mgr) => {
-            let plugins_dir = mgr
-                .data_dir_root
-                .parent()
-                .map(|p| p.join("plugins"))
-                .unwrap_or_default();
+            let plugins_dir = mgr.plugins_dir();
             let path = std::path::PathBuf::from(file_path);
-            let result = crate::plugin_loader::installer::install_from_zip(&path, &plugins_dir);
+            let result =
+                crate::plugin_manager::third_party::installer::install_from_zip(&path, plugins_dir);
             match result {
                 Ok(dir) => Json(serde_json::json!({ "installed": dir.to_string_lossy() })),
                 Err(e) => Json(serde_json::json!({ "error": e.to_string() })),
@@ -73,43 +70,27 @@ pub async fn handle_reload(
     };
 
     // Find the plugin directory
-    let plugins_dir = host_manager
-        .data_dir_root
-        .parent()
-        .map(|p| p.join("plugins"))
-        .unwrap_or_default();
+    let plugins_dir = host_manager.plugins_dir();
     let plugin_dir = plugins_dir.join(&id);
 
     if !plugin_dir.exists() {
         return Json(serde_json::json!({ "error": "Plugin directory not found" }));
     }
 
-    // Unregister and unload
-    let session_router = state.get_session_router();
-    let config_manager = state.get_config_manager();
+    // Unregister via PluginManager and unload subprocess
+    let plugin_manager = state.get_plugin_manager();
     if let Some(adapters) = host_manager.adapters.get(&id) {
-        session_router.unregister_plugin(&id);
-        for ds in &adapters.data_sources {
-            session_router
-                .unregister_data_source(&ds.component_id)
-                .await;
-        }
-        for ex in &adapters.executors {
-            session_router.unregister_executor(&ex.component_id);
-        }
-        for c in &adapters.configurables {
-            config_manager.unregister(&c.component_id);
-        }
+        plugin_manager.unregister_adapters(&adapters).await;
     }
+    plugin_manager.forget_adapters(&id);
     let _ = host_manager.unload(&id).await;
 
     // Reload
     let host_api = state.get_host_api();
     let app_handle = state.get_main_handle();
-    match crate::plugin_loader::loader::load_plugin(
+    match crate::plugin_manager::third_party::loader::load_plugin(
         &plugin_dir,
-        &config_manager,
-        session_router,
+        &plugin_manager,
         &host_manager,
         host_api,
         (*app_handle).clone(),
@@ -131,33 +112,19 @@ pub async fn handle_uninstall(
         None => return Json(serde_json::json!({ "error": "PluginHostManager not initialized" })),
     };
 
-    let session_router = state.get_session_router();
-    let config_manager = state.get_config_manager();
+    let plugin_manager = state.get_plugin_manager();
 
     if let Some(adapters) = host_manager.adapters.get(&id) {
-        session_router.unregister_plugin(&id);
-        for ds in &adapters.data_sources {
-            session_router
-                .unregister_data_source(&ds.component_id)
-                .await;
-        }
-        for ex in &adapters.executors {
-            session_router.unregister_executor(&ex.component_id);
-        }
-        for c in &adapters.configurables {
-            config_manager.unregister(&c.component_id);
-        }
+        plugin_manager.unregister_adapters(&adapters).await;
     }
+    plugin_manager.forget_adapters(&id);
+    plugin_manager.remove_third_party_info(&id);
 
     let _ = host_manager.unload(&id).await;
     state.get_host_api().unregister(&id);
 
     // Remove from filesystem
-    let plugins_dir = host_manager
-        .data_dir_root
-        .parent()
-        .map(|p| p.join("plugins"))
-        .unwrap_or_default();
+    let plugins_dir = host_manager.plugins_dir();
     let plugin_dir = plugins_dir.join(&id);
     if plugin_dir.exists() {
         let _ = std::fs::remove_dir_all(&plugin_dir);

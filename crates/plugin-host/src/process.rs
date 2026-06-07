@@ -404,8 +404,22 @@ impl PluginProcess {
     }
 }
 
+/// Maximum size of a plugin stderr log file (10 MB).
+const MAX_LOG_SIZE: u64 = 10 * 1024 * 1024;
+
 async fn append_to_log(log_path: &Path, text: &str) {
     use tokio::io::AsyncWriteExt;
+
+    // Rotate log if it exceeds the size cap
+    if let Ok(meta) = tokio::fs::metadata(log_path).await {
+        if meta.len() > MAX_LOG_SIZE {
+            // Simple rotation: keep only one old file
+            let rotated = log_path.with_extension("log.1");
+            let _ = tokio::fs::remove_file(&rotated).await;
+            let _ = tokio::fs::rename(log_path, &rotated).await;
+        }
+    }
+
     if let Ok(mut file) = tokio::fs::OpenOptions::new()
         .create(true)
         .append(true)

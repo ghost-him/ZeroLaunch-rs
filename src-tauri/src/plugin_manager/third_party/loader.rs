@@ -1,12 +1,18 @@
-use parking_lot;
+//! 第三方插件加载器。
+//!
+//! 负责：读取 manifest、创建 PluginHandle、构建 HostCallHandler、
+//! 委托 PluginHostManager 管理子进程，通过 PluginManager 完成注册编排。
+
 use std::path::Path;
 use std::sync::Arc;
 use tauri::Emitter;
 use tracing::{error, info};
 
-use crate::core::config::ConfigManager;
-use crate::plugin_system::SessionRouter;
+use crate::plugin_manager::manager::PluginManager;
+use crate::plugin_manager::types::PluginInfo;
+use crate::sdk::HostApi;
 use base64::Engine;
+use zerolaunch_plugin_api::config::Configurable;
 use zerolaunch_plugin_api::host::OpenTarget;
 use zerolaunch_plugin_host::host_dispatch::HostCallHandler;
 use zerolaunch_plugin_host::manager::PluginHostManager;
@@ -14,7 +20,7 @@ use zerolaunch_plugin_protocol::{codes, JsonRpcError};
 
 /// A HostCallHandler that dispatches host/* calls to the local PluginHandle.
 struct TauriHostCallHandler {
-    host_api: Arc<crate::sdk::HostApi>,
+    host_api: Arc<HostApi>,
     plugin_id: String,
     app_handle: Option<tauri::AppHandle>,
 }
@@ -162,7 +168,6 @@ impl HostCallHandler for TauriHostCallHandler {
                     &p.bytes_b64,
                 )
                 .map_err(|e| JsonRpcError::new(codes::INVALID_PARAMS, e.to_string()))?;
-                // Write temp file and upload
                 let tmp = std::env::temp_dir().join(format!("zl_upload_{}", p.key));
                 std::fs::write(&tmp, &bytes)
                     .map_err(|e| JsonRpcError::new(codes::PLUGIN_ERROR, e.to_string()))?;
@@ -227,15 +232,15 @@ impl HostCallHandler for TauriHostCallHandler {
     }
 }
 
-/// Load a single third-party plugin from a directory and register it.
-/// Emits the `plugin-installed` Tauri event on success so the frontend can
-/// dynamically register panel/settings providers.
+/// Load a single third-party plugin from a directory.
+///
+/// Delegates registration orchestration to PluginManager (register_adapters / make_restart_callback).
+/// Emits the `plugin-installed` Tauri event on success.
 pub async fn load_plugin(
     plugin_dir: &Path,
-    config_manager: &Arc<ConfigManager>,
-    session_router: &Arc<SessionRouter>,
+    plugin_manager: &PluginManager,
     host_manager: &Arc<PluginHostManager>,
-    host_api: Arc<crate::sdk::HostApi>,
+    host_api: Arc<HostApi>,
     app_handle: tauri::AppHandle,
 ) -> Result<(), String> {
     // Read manifest first to get plugin_id
@@ -259,55 +264,9 @@ pub async fn load_plugin(
         app_handle: Some(app_handle.clone()),
     });
 
-    // Build the restart callback: when the plugin-host manager re-spawns a
-    // crashed process, this callback unregisters the old adapters from
-    // ConfigManager/SessionRouter and registers the new ones.
-    let restart_cm = config_manager.clone();
-    let restart_sr = session_router.clone();
-    let old_adapters_ref: Arc<
-        parking_lot::Mutex<Option<zerolaunch_plugin_host::manager::RegisteredAdapters>>,
-    > = Arc::new(parking_lot::Mutex::new(None));
-    let old_for_cb = old_adapters_ref.clone();
-
-    let on_restart: Arc<dyn Fn(zerolaunch_plugin_host::manager::RegisteredAdapters) + Send + Sync> =
-        Arc::new(move |new_adapters| {
-            let handle = tokio::runtime::Handle::current();
-            // Unregister old adapters if any
-            let mut old = old_for_cb.lock();
-            if let Some(prev) = old.take() {
-                handle.block_on(async {
-                    for ds in &prev.data_sources {
-                        restart_sr.unregister_data_source(&ds.component_id).await;
-                    }
-                });
-                for ex in &prev.executors {
-                    restart_sr.unregister_executor(&ex.component_id);
-                }
-                if prev.plugin.is_some() {
-                    restart_sr.unregister_plugin(&prev.plugin_id);
-                }
-                for c in &prev.configurables {
-                    restart_cm.unregister(&c.component_id);
-                }
-            }
-            // Register new adapters
-            for c in &new_adapters.configurables {
-                restart_cm.register(c.clone());
-            }
-            handle.block_on(async {
-                for ds in &new_adapters.data_sources {
-                    restart_sr.register_data_source(ds.clone()).await;
-                }
-            });
-            for ex in &new_adapters.executors {
-                restart_sr.register_executor(ex.clone());
-            }
-            if let Some(p) = &new_adapters.plugin {
-                restart_sr.register_remote_plugin(p.clone());
-            }
-            // Store new as old for the next restart cycle
-            *old = Some(new_adapters);
-        });
+    // Build the restart callback via PluginManager.
+    // PluginManager encapsulates the unregister-old → register-new logic.
+    let on_restart = plugin_manager.make_restart_callback(plugin_id.clone());
 
     // Delegate to plugin-host for loading
     let registered = host_manager
@@ -315,22 +274,26 @@ pub async fn load_plugin(
         .await
         .map_err(|e| format!("plugin-host load: {}", e))?;
 
-    // Register adapters for the first time
-    for c in &registered.configurables {
-        config_manager.register(c.clone());
-    }
-    for ds in &registered.data_sources {
-        session_router.register_data_source(ds.clone()).await;
-    }
-    for ex in &registered.executors {
-        session_router.register_executor(ex.clone());
-    }
-    if let Some(p) = &registered.plugin {
-        session_router.register_remote_plugin(p.clone());
-    }
+    // Register adapters via PluginManager (single authority for registration orchestration)
+    plugin_manager.register_adapters(&registered).await;
 
-    // Store for restart callback use
-    *old_adapters_ref.lock() = Some(registered.clone());
+    // Cache adapters for future restart cycles
+    plugin_manager.cache_adapters(&plugin_id, registered.clone());
+
+    // Register PluginInfo
+    let enabled = !registered.configurables.is_empty()
+        && registered.configurables.iter().all(|c| c.default_enabled());
+    let component_count = registered.configurables.len();
+    plugin_manager.register_third_party_info(PluginInfo::third_party(
+        plugin_id.clone(),
+        manifest.plugin.name.clone(),
+        manifest.plugin.version.clone(),
+        manifest.plugin.description.clone(),
+        manifest.plugin.author.clone(),
+        component_count,
+        enabled,
+        true, // is_running
+    ));
 
     info!("Loaded third-party plugin: {}", plugin_id);
 
@@ -350,10 +313,9 @@ pub async fn load_plugin(
 /// Load all third-party plugins from the given directory.
 pub async fn load_all(
     plugins_dir: &Path,
-    config_manager: Arc<ConfigManager>,
-    session_router: Arc<SessionRouter>,
+    plugin_manager: &PluginManager,
     host_manager: Arc<PluginHostManager>,
-    host_api: Arc<crate::sdk::HostApi>,
+    host_api: Arc<HostApi>,
     app_handle: tauri::AppHandle,
 ) {
     let dirs = super::discovery::scan_plugins_dir(plugins_dir);
@@ -368,8 +330,7 @@ pub async fn load_all(
     for dir in &dirs {
         if let Err(e) = load_plugin(
             dir,
-            &config_manager,
-            &session_router,
+            plugin_manager,
             &host_manager,
             host_api.clone(),
             app_handle.clone(),
@@ -381,5 +342,8 @@ pub async fn load_all(
     }
 
     // Rebuild search pipeline with newly added data sources
-    session_router.refresh_candidates().await;
+    plugin_manager
+        .get_session_router()
+        .refresh_candidates()
+        .await;
 }

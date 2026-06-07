@@ -56,8 +56,12 @@ pub async fn write_frame<W: AsyncWrite + Unpin>(
     payload: &[u8],
 ) -> Result<(), ProtocolError> {
     let header = format!("Content-Length: {}\r\n\r\n", payload.len());
-    writer.write_all(header.as_bytes()).await?;
-    writer.write_all(payload).await?;
+    // Merge header and payload into a single buffer to avoid potential
+    // framing issues where OS-level buffer flushes split the frame.
+    let mut frame = Vec::with_capacity(header.len() + payload.len());
+    frame.extend_from_slice(header.as_bytes());
+    frame.extend_from_slice(payload);
+    writer.write_all(&frame).await?;
     writer.flush().await?;
     Ok(())
 }

@@ -27,14 +27,24 @@ pub fn install_from_zip(zip_path: &Path, plugins_dir: &Path) -> Result<PathBuf, 
     // First pass: find manifest.toml to get the plugin id
     let mut manifest_content = String::new();
 
+    let mut find_manifest = false;
     for i in 0..archive.len() {
         let mut entry = archive.by_index(i)?;
         let name = entry.name().to_string();
-        if name == "manifest.toml" || name.ends_with("/manifest.toml") {
+        if name == "manifest.toml" {
             use std::io::Read;
             entry.read_to_string(&mut manifest_content)?;
+            find_manifest = true;
             break;
         }
+    }
+
+    // 这里还要判断是不是空的，如果当前目录下没有这个，那么需要报错
+    if !find_manifest {
+        return Err(InstallError::Manifest(format!(
+            "manifest 的内容是空的或找不到对应的manifest: {}",
+            zip_path.to_string_lossy()
+        )));
     }
 
     let manifest: Manifest = toml::from_str(&manifest_content)

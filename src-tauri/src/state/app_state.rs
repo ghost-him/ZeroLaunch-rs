@@ -18,9 +18,6 @@ pub struct AppState {
     waiting_hashmap: Arc<AsyncWaitingHashMap<String, Vec<(String, String)>>>,
     tray_manager: RwLock<Option<Arc<TrayManager>>>,
     game_mode: RwLock<bool>,
-    is_keyboard_blocked: RwLock<bool>,
-    previous_foreground_window: RwLock<Option<isize>>,
-    previous_selection: RwLock<Option<String>>,
     host_api: RwLock<Option<Arc<HostApi>>>,
     core_handle: RwLock<Option<Arc<PluginHandle>>>,
     #[cfg(feature = "inspector")]
@@ -48,9 +45,6 @@ impl AppState {
             waiting_hashmap: Arc::new(AsyncWaitingHashMap::new()),
             tray_manager: RwLock::new(None),
             game_mode: RwLock::new(false),
-            is_keyboard_blocked: RwLock::new(false),
-            previous_foreground_window: RwLock::new(None),
-            previous_selection: RwLock::new(None),
             host_api: RwLock::new(None),
             core_handle: RwLock::new(None),
             #[cfg(feature = "inspector")]
@@ -106,30 +100,6 @@ impl AppState {
 
     pub fn get_game_mode(&self) -> bool {
         *self.game_mode.read()
-    }
-
-    pub fn set_is_keyboard_blocked(&self, is_keyboard_blocked: bool) {
-        *self.is_keyboard_blocked.write() = is_keyboard_blocked;
-    }
-
-    pub fn get_is_keyboard_blocked(&self) -> bool {
-        *self.is_keyboard_blocked.read()
-    }
-
-    pub fn set_previous_foreground_window(&self, hwnd: Option<isize>) {
-        *self.previous_foreground_window.write() = hwnd;
-    }
-
-    pub fn get_previous_foreground_window(&self) -> Option<isize> {
-        *self.previous_foreground_window.read()
-    }
-
-    pub fn set_previous_selection(&self, selection: Option<String>) {
-        *self.previous_selection.write() = selection;
-    }
-
-    pub fn get_previous_selection(&self) -> Option<String> {
-        self.previous_selection.read().clone()
     }
 
     pub fn get_host_api(&self) -> Arc<HostApi> {

@@ -39,10 +39,9 @@ pub fn install_from_zip(zip_path: &Path, plugins_dir: &Path) -> Result<PathBuf, 
         }
     }
 
-    // 这里还要判断是不是空的，如果当前目录下没有这个，那么需要报错
     if !find_manifest {
         return Err(InstallError::Manifest(format!(
-            "manifest 的内容是空的或找不到对应的manifest: {}",
+            "manifest.toml not found in zip: {}",
             zip_path.to_string_lossy()
         )));
     }

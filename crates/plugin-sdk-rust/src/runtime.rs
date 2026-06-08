@@ -109,7 +109,7 @@ async fn run_async(mut plugin: impl Plugin + 'static) {
                                         .await;
                                 }
                                 Message::Notification(_) => {
-                                    // Ignored for now.
+                                    tracing::trace!("ignored notification");
                                 }
                             }
                         }

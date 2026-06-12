@@ -126,10 +126,10 @@ impl CliClient {
     }
 }
 
-/// Resolve the ZeroLaunch app data directory from %APPDATA%.
+/// 解析 ZeroLaunch 应用数据目录（$HOME/.ZeroLaunch-rs）。
 fn dirs_data() -> Result<std::path::PathBuf> {
-    let appdata = std::env::var("APPDATA").context("APPDATA environment variable not set")?;
-    Ok(std::path::PathBuf::from(appdata).join("ZeroLaunch"))
+    let home = dirs::home_dir().context("无法获取用户 Home 目录（dirs::home_dir() 返回 None）")?;
+    Ok(home.join(".ZeroLaunch-rs"))
 }
 
 fn main() -> Result<()> {

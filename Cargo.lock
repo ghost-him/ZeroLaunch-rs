@@ -8744,6 +8744,7 @@ version = "0.6.12"
 dependencies = [
  "anyhow",
  "clap 4.6.1",
+ "dirs",
  "reqwest",
  "serde",
  "serde_json",
@@ -8759,6 +8760,7 @@ dependencies = [
  "backtrace",
  "base64 0.22.1",
  "dashmap",
+ "dirs",
  "encoding_rs",
  "everything-rs",
  "everything-sys-bindgen",

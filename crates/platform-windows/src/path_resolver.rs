@@ -7,9 +7,9 @@ use windows::Win32::UI::Shell::{
 use zerolaunch_plugin_api::host::HostApiError;
 use zerolaunch_plugin_api::services::path::{KnownPath, PathResolver};
 
-/// 应用名称，用于构建应用数据目录
-#[allow(dead_code)]
-const APP_NAME: &str = "ZeroLaunch-rs";
+/// 应用数据文件夹名称（跨平台统一：Unix 惯例 . 前缀表示隐藏目录）。
+/// 标准模式解析为 `$HOME/<APP_DATA_DIR_NAME>`，便携模式为 exe 同级目录。
+const APP_DATA_DIR_NAME: &str = ".ZeroLaunch-rs";
 
 /// Windows 路径解析器实现。
 /// 通过 SHGetKnownFolderPath 将 KnownPath 枚举映射为 Windows 文件系统路径。
@@ -56,8 +56,8 @@ impl WindowsPathResolver {
 
     /// 解析应用数据根目录。
     /// 便携模式（feature="portable"）：可执行文件所在目录。
-    /// 标准模式：FOLDERID_RoamingAppData/ZeroLaunch-rs。
-    /// 参数：path_label - 路径标签，用于错误信息。
+    /// 标准模式：$HOME/.ZeroLaunch-rs（通过 dirs::home_dir() 跨平台获取）。
+    /// 参数：无。
     /// 返回：解析后的路径字符串，失败返回 HostApiError。
     fn resolve_app_data_dir(&self) -> Result<String, HostApiError> {
         let path_label = format!("{:?}", KnownPath::AppDataDir);
@@ -77,31 +77,20 @@ impl WindowsPathResolver {
 
         #[cfg(not(feature = "portable"))]
         {
-            unsafe {
-                let pwstr = SHGetKnownFolderPath(&FOLDERID_RoamingAppData, KF_FLAG_DEFAULT, None)
-                    .map_err(|e| {
-                    warn!("获取 RoamingAppData 路径失败: {}", e);
-                    HostApiError::PathResolutionFailed {
-                        path: path_label.to_string(),
-                        reason: format!("SHGetKnownFolderPath 调用失败: {}", e),
-                    }
-                })?;
-                let roaming = pwstr.to_string().map_err(|e| {
-                    warn!("RoamingAppData 路径转换失败: {}", e);
-                    HostApiError::PathResolutionFailed {
-                        path: path_label.to_string(),
-                        reason: format!("路径字符串转换失败: {}", e),
-                    }
-                })?;
-                Path::new(&roaming)
-                    .join(APP_NAME)
-                    .to_str()
-                    .map(|s| s.to_string())
-                    .ok_or_else(|| HostApiError::PathResolutionFailed {
-                        path: path_label.to_string(),
-                        reason: "应用数据目录路径转换失败".to_string(),
-                    })
-            }
+            let home = dirs::home_dir().ok_or_else(|| {
+                warn!("无法获取用户 Home 目录");
+                HostApiError::PathResolutionFailed {
+                    path: path_label.to_string(),
+                    reason: "无法获取用户 Home 目录（dirs::home_dir() 返回 None）".to_string(),
+                }
+            })?;
+            home.join(APP_DATA_DIR_NAME)
+                .to_str()
+                .map(|s| s.to_string())
+                .ok_or_else(|| HostApiError::PathResolutionFailed {
+                    path: path_label.to_string(),
+                    reason: "应用数据目录路径转换失败".to_string(),
+                })
         }
     }
 }

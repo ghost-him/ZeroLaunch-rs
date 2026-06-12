@@ -45,6 +45,9 @@ lnk.workspace = true
 tauri = { version = "^2", features = ["tray-icon"] }
 tauri-plugin-global-shortcut = "^2.3.1"
 
+# Cross-platform home directory resolution
+dirs = "6"
+
 # Additional non-workspace deps
 base64 = "^0.22.1"
 tempfile = "3.27.0"

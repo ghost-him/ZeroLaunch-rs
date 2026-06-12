@@ -20,7 +20,7 @@ pub enum KnownPath {
     // 应用路径（ZeroLaunch-rs 专用）
     // ========================================================================
     /// 应用数据根目录
-    /// 标准模式：FOLDERID_RoamingAppData/ZeroLaunch-rs
+    /// 标准模式：$HOME/.ZeroLaunch-rs（跨平台统一，通过 dirs::home_dir() 获取）
     /// 便携模式（feature="portable"）：可执行文件所在目录
     AppDataDir,
     /// 日志目录（AppDataDir/logs）

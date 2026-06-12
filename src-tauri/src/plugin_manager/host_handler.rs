@@ -1,28 +1,19 @@
-//! 第三方插件加载器。
-//!
-//! 负责：读取 manifest、创建 PluginHandle、构建 HostCallHandler、
-//! 委托 PluginHostManager 管理子进程，通过 PluginManager 完成注册编排。
+//! TauriHostCallHandler — 将插件的 `host/*` RPC 调用分发给本地 PluginHandle。
 
-use std::path::Path;
-use std::sync::Arc;
-use tauri::Emitter;
-use tracing::{error, info};
-
-use crate::plugin_manager::manager::PluginManager;
-use crate::plugin_manager::types::PluginInfo;
-use crate::sdk::HostApi;
 use base64::Engine;
-use zerolaunch_plugin_api::config::Configurable;
+use std::sync::Arc;
+use tauri::AppHandle;
 use zerolaunch_plugin_api::host::OpenTarget;
 use zerolaunch_plugin_host::host_dispatch::HostCallHandler;
-use zerolaunch_plugin_host::manager::PluginHostManager;
 use zerolaunch_plugin_protocol::{codes, JsonRpcError};
 
-/// A HostCallHandler that dispatches host/* calls to the local PluginHandle.
-struct TauriHostCallHandler {
-    host_api: Arc<HostApi>,
-    plugin_id: String,
-    app_handle: Option<tauri::AppHandle>,
+use crate::sdk::HostApi;
+
+/// 将插件的 `host/*` RPC 调用分发给本地的 PluginHandle。
+pub(crate) struct TauriHostCallHandler {
+    pub(crate) host_api: Arc<HostApi>,
+    pub(crate) plugin_id: String,
+    pub(crate) app_handle: Option<Arc<AppHandle>>,
 }
 
 #[async_trait::async_trait]
@@ -230,120 +221,4 @@ impl HostCallHandler for TauriHostCallHandler {
             )),
         }
     }
-}
-
-/// Load a single third-party plugin from a directory.
-///
-/// Delegates registration orchestration to PluginManager (register_adapters / make_restart_callback).
-/// Emits the `plugin-installed` Tauri event on success.
-pub async fn load_plugin(
-    plugin_dir: &Path,
-    plugin_manager: &PluginManager,
-    host_manager: &Arc<PluginHostManager>,
-    host_api: Arc<HostApi>,
-    app_handle: tauri::AppHandle,
-) -> Result<(), String> {
-    // Read manifest first to get plugin_id
-    let manifest_path = plugin_dir.join("manifest.toml");
-    let manifest_bytes =
-        std::fs::read_to_string(&manifest_path).map_err(|e| format!("read manifest: {}", e))?;
-    let manifest: zerolaunch_plugin_protocol::manifest::Manifest =
-        toml::from_str(&manifest_bytes).map_err(|e| format!("parse manifest: {}", e))?;
-    let plugin_id = manifest.plugin.id.clone();
-
-    // Create PluginHandle via HostApi
-    let _handle = host_api.register(
-        &plugin_id,
-        zerolaunch_plugin_api::host::PluginSdkConfig::default(),
-    );
-
-    // Build the host call handler
-    let handler: Arc<dyn HostCallHandler> = Arc::new(TauriHostCallHandler {
-        host_api: host_api.clone(),
-        plugin_id: plugin_id.clone(),
-        app_handle: Some(app_handle.clone()),
-    });
-
-    // Build the restart callback via PluginManager.
-    // PluginManager encapsulates the unregister-old → register-new logic.
-    let on_restart = plugin_manager.make_restart_callback(plugin_id.clone());
-
-    // Delegate to plugin-host for loading
-    let registered = host_manager
-        .load(plugin_dir, handler, on_restart)
-        .await
-        .map_err(|e| format!("plugin-host load: {}", e))?;
-
-    // Register adapters via PluginManager (single authority for registration orchestration)
-    plugin_manager.register_adapters(&registered).await;
-
-    // Cache adapters for future restart cycles
-    plugin_manager.cache_adapters(&plugin_id, registered.clone());
-
-    // Register PluginInfo
-    let enabled = !registered.configurables.is_empty()
-        && registered.configurables.iter().all(|c| c.default_enabled());
-    let component_count = registered.configurables.len();
-    plugin_manager.register_third_party_info(PluginInfo::third_party(
-        plugin_id.clone(),
-        manifest.plugin.name.clone(),
-        manifest.plugin.version.clone(),
-        manifest.plugin.description.clone(),
-        manifest.plugin.author.clone(),
-        component_count,
-        enabled,
-        true, // is_running
-    ));
-
-    info!("Loaded third-party plugin: {}", plugin_id);
-
-    // Notify frontend so it can dynamically register panel/settings providers
-    let _ = app_handle.emit(
-        "plugin-installed",
-        serde_json::json!({
-            "pluginId": plugin_id,
-            "name": manifest.plugin.name,
-            "version": manifest.plugin.version,
-        }),
-    );
-
-    Ok(())
-}
-
-/// Load all third-party plugins from the given directory.
-pub async fn load_all(
-    plugins_dir: &Path,
-    plugin_manager: &PluginManager,
-    host_manager: Arc<PluginHostManager>,
-    host_api: Arc<HostApi>,
-    app_handle: tauri::AppHandle,
-) {
-    let dirs = super::discovery::scan_plugins_dir(plugins_dir);
-
-    if dirs.is_empty() {
-        info!("No third-party plugins found in {}", plugins_dir.display());
-        return;
-    }
-
-    info!("Found {} third-party plugin(s)", dirs.len());
-
-    for dir in &dirs {
-        if let Err(e) = load_plugin(
-            dir,
-            plugin_manager,
-            &host_manager,
-            host_api.clone(),
-            app_handle.clone(),
-        )
-        .await
-        {
-            error!("Failed to load plugin from {}: {}", dir.display(), e);
-        }
-    }
-
-    // Rebuild search pipeline with newly added data sources
-    plugin_manager
-        .get_session_router()
-        .refresh_candidates()
-        .await;
 }

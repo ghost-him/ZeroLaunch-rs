@@ -3,34 +3,31 @@ use axum::Json;
 use std::sync::Arc;
 
 use crate::state::app_state::AppState;
+use zerolaunch_plugin_protocol::Manifest;
 
-/// GET /v1/plugins — list all installed plugins.
+/// GET /v1/plugins — 列出所有已安装插件。
 pub async fn handle_list(State(state): State<Arc<AppState>>) -> Json<Vec<serde_json::Value>> {
-    let infos: Vec<serde_json::Value> = state
-        .get_plugin_host_manager()
-        .map(|mgr| {
-            mgr.adapters
-                .iter()
-                .map(|entry| {
-                    let a = entry.value();
-                    serde_json::json!({
-                        "pluginId": a.plugin_id,
-                        "name": a.manifest.plugin.name,
-                        "version": a.manifest.plugin.version,
-                        "description": a.manifest.plugin.description,
-                        "author": a.manifest.plugin.author,
-                        "state": "running",
-                        "enabled": true,
-                    })
-                })
-                .collect()
+    let pm = state.get_plugin_manager();
+    let infos: Vec<serde_json::Value> = pm
+        .list_third_party_details()
+        .iter()
+        .map(|info| {
+            serde_json::json!({
+                "pluginId": info.plugin_id,
+                "name": info.name,
+                "version": info.version,
+                "description": info.description,
+                "author": info.author,
+                "state": info.state,
+                "enabled": info.enabled,
+            })
         })
-        .unwrap_or_default();
+        .collect();
 
     Json(infos)
 }
 
-/// POST /v1/plugins/install — install from local file.
+/// POST /v1/plugins/install — 从本地文件安装。
 pub async fn handle_install(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<serde_json::Value>,
@@ -43,19 +40,16 @@ pub async fn handle_install(
         return Json(serde_json::json!({ "error": "filePath is required" }));
     }
 
-    let host_manager = state.get_plugin_host_manager();
-    match host_manager {
-        Some(mgr) => {
-            let plugins_dir = mgr.plugins_dir();
-            let path = std::path::PathBuf::from(file_path);
-            let result =
-                crate::plugin_manager::third_party::installer::install_from_zip(&path, plugins_dir);
-            match result {
-                Ok(dir) => Json(serde_json::json!({ "installed": dir.to_string_lossy() })),
-                Err(e) => Json(serde_json::json!({ "error": e.to_string() })),
-            }
-        }
-        None => Json(serde_json::json!({ "error": "PluginHostManager not initialized" })),
+    let pm = state.get_plugin_manager();
+    let path = std::path::PathBuf::from(file_path);
+    let app_handle = state.get_main_handle();
+    match pm.install(&path, app_handle).await {
+        Ok(info) => Json(serde_json::json!({
+            "installed": info.plugin_id,
+            "name": info.name,
+            "version": info.version,
+        })),
+        Err(e) => Json(serde_json::json!({ "error": e })),
     }
 }
 
@@ -64,39 +58,10 @@ pub async fn handle_reload(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> Json<serde_json::Value> {
-    let host_manager = match state.get_plugin_host_manager() {
-        Some(m) => m,
-        None => return Json(serde_json::json!({ "error": "PluginHostManager not initialized" })),
-    };
-
-    // Find the plugin directory
-    let plugins_dir = host_manager.plugins_dir();
-    let plugin_dir = plugins_dir.join(&id);
-
-    if !plugin_dir.exists() {
-        return Json(serde_json::json!({ "error": "Plugin directory not found" }));
-    }
-
-    // Unregister via PluginManager and unload subprocess
-    let plugin_manager = state.get_plugin_manager();
-    if let Some(adapters) = host_manager.adapters.get(&id) {
-        plugin_manager.unregister_adapters(&adapters).await;
-    }
-    plugin_manager.forget_adapters(&id);
-    let _ = host_manager.unload(&id).await;
-
-    // Reload
-    let host_api = state.get_host_api();
+    let pm = state.get_plugin_manager();
     let app_handle = state.get_main_handle();
-    match crate::plugin_manager::third_party::loader::load_plugin(
-        &plugin_dir,
-        &plugin_manager,
-        &host_manager,
-        host_api,
-        (*app_handle).clone(),
-    )
-    .await
-    {
+
+    match pm.reload(&id, app_handle.clone()).await {
         Ok(()) => Json(serde_json::json!({ "status": "reloaded", "pluginId": id })),
         Err(e) => Json(serde_json::json!({ "error": e })),
     }
@@ -107,59 +72,22 @@ pub async fn handle_uninstall(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> Json<serde_json::Value> {
-    let host_manager = match state.get_plugin_host_manager() {
-        Some(m) => m,
-        None => return Json(serde_json::json!({ "error": "PluginHostManager not initialized" })),
-    };
+    let pm = state.get_plugin_manager();
+    let app_handle = state.get_main_handle();
 
-    let plugin_manager = state.get_plugin_manager();
-
-    if let Some(adapters) = host_manager.adapters.get(&id) {
-        plugin_manager.unregister_adapters(&adapters).await;
+    match pm.uninstall(&id, app_handle.clone()).await {
+        Ok(()) => Json(serde_json::json!({ "status": "uninstalled", "pluginId": id })),
+        Err(e) => Json(serde_json::json!({ "error": e })),
     }
-    plugin_manager.forget_adapters(&id);
-    plugin_manager.remove_third_party_info(&id);
-
-    let _ = host_manager.unload(&id).await;
-    state.get_host_api().unregister(&id);
-
-    // Remove from filesystem
-    let plugins_dir = host_manager.plugins_dir();
-    let plugin_dir = plugins_dir.join(&id);
-    if plugin_dir.exists() {
-        let _ = std::fs::remove_dir_all(&plugin_dir);
-    }
-
-    Json(serde_json::json!({ "status": "uninstalled", "pluginId": id }))
 }
 
 /// GET /v1/plugins/:id/manifest
 pub async fn handle_get_manifest(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
-) -> Json<serde_json::Value> {
-    let manifest_json = state
-        .get_plugin_host_manager()
-        .and_then(|mgr| {
-            let entry = mgr.adapters.get(&id)?;
-            let m = &entry.value().manifest;
-            Some(serde_json::json!({
-                "pluginId": m.plugin.id,
-                "name": m.plugin.name,
-                "version": m.plugin.version,
-                "description": m.plugin.description,
-                "author": m.plugin.author,
-                "homepage": m.plugin.homepage,
-                "minHostVersion": m.plugin.min_host_version,
-                "ui": m.ui.as_ref().map(|ui| serde_json::json!({
-                    "panelEntry": ui.panel_entry,
-                    "settingsEntry": ui.settings_entry,
-                })),
-            }))
-        })
-        .unwrap_or(serde_json::Value::Null);
-
-    Json(manifest_json)
+) -> Json<Option<Manifest>> {
+    let pm = state.get_plugin_manager();
+    Json(pm.get_manifest(&id))
 }
 
 /// GET /v1/plugins/:id/logs
@@ -167,17 +95,7 @@ pub async fn handle_get_logs(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> Json<serde_json::Value> {
-    let logs = state
-        .get_plugin_host_manager()
-        .map(|mgr| {
-            let log_file = mgr.log_dir_root.join(format!("{}.log", id));
-            if log_file.exists() {
-                std::fs::read_to_string(&log_file).unwrap_or_default()
-            } else {
-                String::new()
-            }
-        })
-        .unwrap_or_default();
-
+    let pm = state.get_plugin_manager();
+    let logs = pm.get_logs(&id, 50).unwrap_or_default();
     Json(serde_json::json!({ "logs": logs }))
 }

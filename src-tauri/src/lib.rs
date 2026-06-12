@@ -4,7 +4,6 @@ pub mod core;
 pub mod logging;
 pub mod plugin;
 pub mod plugin_manager;
-pub mod plugin_protocol_assets;
 pub mod plugin_system;
 pub mod sdk;
 pub mod state;
@@ -15,11 +14,11 @@ use crate::core::tray::TrayManager;
 use crate::logging::{init_logging, log_application_shutdown, log_application_start};
 
 use crate::plugin_manager::manager::PluginManager;
-use crate::plugin_protocol_assets::handler::set_plugins_dir;
 use crate::plugin_system::CandidatePipeline;
 use crate::sdk::host_api::HostApi;
 use crate::sdk::HostApiBuilder;
 use crate::state::app_state::AppState;
+use std::path::Path;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -57,7 +56,6 @@ use zerolaunch_plugin_api::services::timer::TokioTimerManager;
 use zerolaunch_plugin_api::services::window::{MonitorInfo, PositionRequest, WindowPosition};
 use zerolaunch_plugin_api::services::AppResourceService;
 use zerolaunch_plugin_api::services::PathResolver;
-use zerolaunch_plugin_host::manager::PluginHostManager;
 static IS_EXITING: AtomicBool = AtomicBool::new(false);
 
 pub async fn do_cleanup_before_exit() {
@@ -102,9 +100,11 @@ pub fn run() {
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
-        .register_uri_scheme_protocol("zlplugin", move |_app, request| {
+        .register_uri_scheme_protocol("zlplugin", move |app, request| {
             let uri = request.uri().to_string();
-            match crate::plugin_protocol_assets::handler::handle(&uri) {
+            let state = app.app_handle().state::<Arc<AppState>>();
+            let pm = state.get_plugin_manager();
+            match pm.handle_zlplugin_uri(&uri) {
                 Ok((bytes, mime)) => {
                     let mut response = http::Response::new(bytes);
                     response.headers_mut().insert(
@@ -329,6 +329,7 @@ async fn init_app_state(
     let app_handle_for_is_visible = app_handle.clone();
     let app_handle_for_focus_monitor = app_handle.clone();
     let app_handle_for_set_pos = app_handle.clone();
+    let app_handle_for_third_party_plugins = app_handle.clone();
 
     let host_api = Arc::new(
         build_windows_host_api_builder(
@@ -411,6 +412,7 @@ async fn init_app_state(
     let plugin_manager = Arc::new(PluginManager::new());
     plugin_manager.set_config_manager(config_manager.clone());
     plugin_manager.set_session_router(session_router);
+    plugin_manager.set_host_api(host_api.clone());
     state.set_plugin_manager(plugin_manager.clone());
 
     // 将 config_manager 保存到 AppState（必须在 PluginManager 之后，因为 clone 语义）
@@ -420,29 +422,11 @@ async fn init_app_state(
     init_plugin_system(&state).await;
 
     info!("=== Phase 4: 第三方插件加载 ===");
-    let plugins_dir = PathBuf::from(&app_data_dir).join("plugins");
-    let plugin_data_dir = PathBuf::from(&app_data_dir).join("plugin-data");
-    let plugin_log_dir = PathBuf::from(&app_data_dir).join("plugin-logs");
 
-    // Set plugins dir for zlplugin:// protocol handler
-    set_plugins_dir(plugins_dir.clone());
-
-    let plugin_host_manager = Arc::new(PluginHostManager::new(
-        plugins_dir.clone(),
-        plugin_data_dir,
-        plugin_log_dir,
-    ));
-    state.set_plugin_host_manager(plugin_host_manager.clone());
-    plugin_manager.set_host_manager(plugin_host_manager.clone());
-
-    crate::plugin_manager::third_party::loader::load_all(
-        &plugins_dir,
-        &plugin_manager,
-        plugin_host_manager,
-        state.get_host_api(),
-        app.handle().clone(),
-    )
-    .await;
+    plugin_manager.init_host_manager(Path::new(&app_data_dir));
+    plugin_manager
+        .load_all_third_party(app_handle_for_third_party_plugins)
+        .await;
 
     // Start CLI HTTP server
     info!("=== Phase 5: 启动 CLI HTTP 服务器... ===");
@@ -511,7 +495,7 @@ async fn init_plugin_system(state: &Arc<AppState>) {
     // ========================================================================
     info!("=== Phase A: inventory 自动发现并注册所有内置组件 ===");
 
-    let (data_sources, keyword_optimizers) = plugin_manager.init_builtins(&host_api);
+    let (data_sources, keyword_optimizers) = plugin_manager.init_builtins();
 
     info!(
         "Phase A 完成: 共注册 {} 个组件（其中内置 {} 个）",

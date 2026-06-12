@@ -99,3 +99,18 @@ impl PluginInfo {
         self.enabled = enabled;
     }
 }
+
+// ── InstallError ──────────────────────────────────────────────────
+
+/// 插件安装错误类型。
+#[derive(Debug, thiserror::Error)]
+pub enum InstallError {
+    #[error("IO 错误: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("Zip 错误: {0}")]
+    Zip(#[from] zip::result::ZipError),
+    #[error("Manifest 错误: {0}")]
+    Manifest(String),
+    #[error("插件已安装: {0}")]
+    AlreadyInstalled(String),
+}

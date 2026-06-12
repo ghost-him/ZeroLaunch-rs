@@ -176,7 +176,7 @@ impl PluginProcess {
             locale: "zh-CN".to_string(),
         };
 
-        let _init_result: InitializeResult = client
+        let init_result: InitializeResult = client
             .call(
                 plugin_methods::INITIALIZE,
                 init_params,
@@ -184,7 +184,10 @@ impl PluginProcess {
             )
             .await?;
 
-        info!("Plugin {} initialized (pid={:?})", plugin_id, pid);
+        info!(
+            "Plugin {} initialized (pid={:?}), result: {:?}",
+            plugin_id, pid, init_result
+        );
 
         let process = Self {
             plugin_id: plugin_id.clone(),

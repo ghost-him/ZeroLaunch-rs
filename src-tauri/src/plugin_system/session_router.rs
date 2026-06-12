@@ -195,6 +195,7 @@ impl SessionRouter {
         let mut ctx = PluginContext::new(trace_id);
         ctx.with_query(query.raw_query.clone());
 
+        // 这里的查询路由逻辑是：优先让插件处理查询（如果匹配），否则走内置搜索管道。
         let results = self.plugin_service.query(&ctx, query).await;
 
         if let Some((plugin_id, results)) = results {

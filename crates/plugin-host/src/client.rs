@@ -53,6 +53,7 @@ impl JsonRpcClient {
         let pending: Arc<DashMap<u64, oneshot::Sender<Result<serde_json::Value, JsonRpcError>>>> =
             Arc::new(DashMap::new());
 
+        // 串行写入：防止多线程并发写入导致 JSON-RPC 帧交错
         let (outbound_tx, outbound_rx) = mpsc::channel::<Message>(256);
 
         // Read loop
@@ -90,6 +91,7 @@ impl JsonRpcClient {
                             };
                             let _ = tx.send(result);
                         } else {
+                            // 正常不应该走到这
                             debug!("Response for unknown id: {}", resp.id);
                         }
                     }

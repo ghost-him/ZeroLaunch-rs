@@ -4,18 +4,18 @@
 //! 并在 PluginManager 中创建对应的 PluginInfo 条目。
 
 use crate::core::config::ConfigManager;
-use crate::plugin_system::builtin_registry::{self, CollectedBuiltins, InventoryContext};
-use crate::plugin_system::SessionRouter;
 use crate::sdk::HostApi;
 use std::sync::Arc;
 
-use super::types::{PluginInfo, PluginKind, PluginStatus};
+use super::builtin_registry::{self, CollectedBuiltins, InventoryContext};
+use super::plugin_info::{PluginInfo, PluginKind, PluginStatus};
+use super::SessionRouter;
 
 /// Return type for builtin component initialization:
 /// (data sources for CandidatePipeline, keyword optimizers for CandidatePipeline).
 pub type BuiltinInitResult = (
-    Vec<Arc<dyn crate::plugin_system::types::DataSource>>,
-    Vec<Arc<dyn crate::plugin_system::types::KeywordOptimizer>>,
+    Vec<Arc<dyn super::types::DataSource>>,
+    Vec<Arc<dyn super::types::KeywordOptimizer>>,
 );
 
 /// 内置组件提供者。

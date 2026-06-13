@@ -28,7 +28,7 @@ use crate::sdk::HostApi;
 
 use super::builtin::{BuiltinInitResult, BuiltinProvider};
 use super::host_handler::TauriHostCallHandler;
-use super::types::{InstallError, PluginInfo, PluginStatus};
+use super::plugin_info::{InstallError, PluginInfo, PluginStatus};
 
 /// 插件管理器，统一管理内置组件和第三方插件。
 ///

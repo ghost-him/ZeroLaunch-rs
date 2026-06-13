@@ -1,7 +1,7 @@
 use crate::cli_server::token::CliToken;
 use crate::core::config::ConfigManager;
 use crate::core::tray::TrayManager;
-use crate::plugin_manager::manager::PluginManager;
+use crate::plugin_system::manager::PluginManager;
 use crate::plugin_system::service::PluginService;
 use crate::plugin_system::SessionRouter;
 use crate::sdk::HostApi;

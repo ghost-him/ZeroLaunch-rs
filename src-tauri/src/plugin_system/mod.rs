@@ -1,10 +1,13 @@
+pub mod builtin;
 pub mod builtin_registry;
 pub mod cached_candidate;
 mod candidate_pipeline;
-mod dispatcher;
 mod executor_registry;
+pub mod host_handler;
 #[cfg(feature = "inspector")]
 pub mod inspector;
+pub mod manager;
+pub mod plugin_info;
 mod registry;
 mod search_pipeline;
 pub mod service;
@@ -13,7 +16,6 @@ pub mod types;
 
 pub use crate::core::types::DetailActionDef;
 pub use candidate_pipeline::CandidatePipeline;
-pub use dispatcher::QueryDispatcher;
 pub use executor_registry::ExecutorRegistry;
 pub use registry::PluginRegistry;
 pub use search_pipeline::*;

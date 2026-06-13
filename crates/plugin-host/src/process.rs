@@ -54,6 +54,9 @@ pub struct PluginProcess {
     child_handle: Arc<parking_lot::Mutex<Option<tokio::process::Child>>>,
     /// Channel to notify PluginHostManager when the process crashes and needs restart.
     crash_tx: mpsc::Sender<String>,
+    /// 该插件已重启的次数（0 = 初次启动）。
+    /// 仅用于观测；权威的重启计数器在 PluginRestartContext 中。
+    pub restart_count: u32,
 }
 
 impl PluginProcess {
@@ -70,6 +73,8 @@ impl PluginProcess {
         log_dir: &Path,
         host_call_handler: Arc<dyn HostCallHandler>,
         crash_tx: mpsc::Sender<String>,
+        // 该插件已重启的次数（0 = 初次加载）。
+        restart_count: u32,
     ) -> Result<Self, ProtocolError> {
         let plugin_id = manifest.plugin.id.clone();
 
@@ -201,6 +206,7 @@ impl PluginProcess {
             data_dir: data_dir.to_path_buf(),
             child_handle,
             crash_tx,
+            restart_count,
         };
 
         // Start health monitoring
@@ -332,106 +338,79 @@ impl PluginProcess {
         })
     }
 
-    /// Spawn a watchdog task that monitors the child process.
-    /// If the process exits and `auto_restart=true`, sends the `plugin_id`
-    /// on `crash_tx` so `PluginHostManager` can trigger a re-spawn.
-    /// When max_restart is exceeded, marks the process as permanently errored.
+    /// 生成一个看门狗任务，监控子进程的生命周期。
+    /// 使用事件驱动的等待（`child.wait().await`）——**没有轮询循环**。
+    ///
+    /// 当进程退出时：
+    /// - 如果状态已经是 `Stopped`（优雅关闭），静默返回。
+    /// - 如果 `auto_restart=false`，将状态设为 `Stopped` 并返回。
+    /// - 否则，将 `plugin_id` 发到 `crash_tx` 上，通知 `PluginHostManager`
+    ///   重新拉起。管理者（`restart_loop`）负责追踪重启次数和强制
+    ///   `max_restart` 上限。
     pub fn spawn_watchdog(&self) {
         let plugin_id = self.plugin_id.clone();
         let state = self.state.clone();
         let child_handle = self.child_handle.clone();
         let auto_restart = self.manifest.runtime.auto_restart;
-        let max_restart = self.manifest.runtime.max_restart;
+        let restart_count = self.restart_count;
         let crash_tx = self.crash_tx.clone();
 
         tokio::spawn(async move {
-            loop {
-                // Check if the child is still alive
-                let exited = {
-                    let mut guard = child_handle.lock();
-                    if let Some(ref mut child) = *guard {
-                        match child.try_wait() {
-                            Ok(Some(status)) => {
-                                info!(
-                                    "Plugin {} process exited with status: {:?}",
-                                    plugin_id, status
-                                );
-                                *guard = None; // Take the child handle
-                                true
-                            }
-                            Ok(None) => false, // Still running
-                            Err(e) => {
-                                warn!("Plugin {} try_wait error: {}", plugin_id, e);
-                                *guard = None;
-                                true
-                            }
-                        }
-                    } else {
-                        // Child already taken
-                        return;
-                    }
-                };
-
-                if !exited {
-                    tokio::time::sleep(Duration::from_secs(3)).await;
-                    continue;
+            // 从 Mutex 中取出子进程句柄，然后立即释放锁。
+            // 关键：parking_lot::Mutex 绝对不能在 .await 期间持有。
+            let mut child = {
+                let mut guard = child_handle.lock();
+                match guard.take() {
+                    Some(c) => c,
+                    None => return, // 已被取走（例如被先前的 shutdown 取走）
                 }
+            };
 
-                // Process exited — check restart policy
-                if !auto_restart {
-                    *state.write() = ProcessState::Stopped;
-                    info!("Plugin {} auto-restart disabled, stopped", plugin_id);
+            // 事件驱动等待：tokio 挂起此任务，直到进程退出。
+            // 零轮询——运行时只在 OS 通知进程终止时唤醒我们。
+            let status = match child.wait().await {
+                Ok(s) => s,
+                Err(e) => {
+                    warn!("Plugin {} wait error: {}", plugin_id, e);
                     return;
                 }
+            };
 
-                let should_restart = {
-                    let mut s = state.write();
-                    match &*s {
-                        ProcessState::Crashed { restarts, .. } => {
-                            let new_count = restarts + 1;
-                            if new_count < max_restart {
-                                *s = ProcessState::Crashed {
-                                    restarts: new_count,
-                                    last_error: "process exited unexpectedly".into(),
-                                };
-                                info!(
-                                    "Plugin {} crashed, restart {}/{}",
-                                    plugin_id, new_count, max_restart
-                                );
-                                true
-                            } else {
-                                *s = ProcessState::Error(format!(
-                                    "max restarts ({}) exceeded",
-                                    max_restart
-                                ));
-                                warn!(
-                                    "Plugin {} exceeded max restarts ({})",
-                                    plugin_id, max_restart
-                                );
-                                false // Don't restart
-                            }
-                        }
-                        _ => {
-                            *s = ProcessState::Crashed {
-                                restarts: 1,
-                                last_error: "process exited unexpectedly".into(),
-                            };
-                            info!("Plugin {} crashed, restart 1/{}", plugin_id, max_restart);
-                            true
-                        }
-                    }
-                };
+            info!(
+                "Plugin {} process exited with status: {:?}",
+                plugin_id, status
+            );
 
-                if should_restart {
-                    // Notify the manager to trigger a re-spawn
-                    if crash_tx.send(plugin_id.clone()).await.is_err() {
-                        debug!("Plugin {} crash notification channel closed", plugin_id);
-                    }
-                    return;
-                }
-
-                // Max restarts exceeded or auto_restart disabled
+            // 如果是优雅关闭（PluginProcess::shutdown 已将状态设为 Stopped），不重启。
+            if matches!(*state.read(), ProcessState::Stopped) {
+                debug!(
+                    "Plugin {} was gracefully stopped, not restarting",
+                    plugin_id
+                );
                 return;
+            }
+
+            if !auto_restart {
+                *state.write() = ProcessState::Stopped;
+                info!("Plugin {} auto-restart disabled, stopped", plugin_id);
+                return;
+            }
+
+            // 记录崩溃（仅用于观测）并通知管理者。
+            // restart_loop 通过 PluginRestartContext 追踪持久化计数
+            // 并强制 max_restart 上限——看门狗只负责检测。
+            *state.write() = ProcessState::Crashed {
+                restarts: restart_count + 1,
+                last_error: "process exited unexpectedly".into(),
+            };
+            info!(
+                "Plugin {} crashed (restart #{} so far), notifying manager",
+                plugin_id,
+                restart_count + 1
+            );
+
+            if crash_tx.send(plugin_id.clone()).await.is_err() {
+                debug!("Plugin {} crash notification channel closed", plugin_id);
             }
         });
     }

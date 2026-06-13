@@ -2,6 +2,7 @@
 
 use dashmap::DashMap;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, OnceLock};
 use tokio::sync::mpsc;
 use tracing::{error, info, warn};
@@ -39,6 +40,9 @@ struct PluginRestartContext {
     /// Called after a successful restart so src-tauri can re-register
     /// the new adapters with ConfigManager and SessionRouter.
     on_restart: Arc<dyn Fn(RegisteredAdapters) + Send + Sync>,
+    /// 持久化的重启计数器。每次重新生成前原子递增；
+    /// 当达到 manifest.runtime.max_restart 时不再尝试重启。
+    restart_count: AtomicU32,
 }
 
 /// Top-level manager for all third-party plugin processes.
@@ -141,6 +145,7 @@ impl PluginHostManager {
             &log_dir,
             host_call_handler.clone(),
             crash_tx.clone(),
+            0, // 初次启动，无先前重启记录
         )
         .await?;
 
@@ -156,6 +161,7 @@ impl PluginHostManager {
                 host_call_handler,
                 crash_tx,
                 on_restart,
+                restart_count: AtomicU32::new(0),
             }),
         );
 
@@ -469,6 +475,7 @@ async fn restart_loop(
     data_dir_root: PathBuf,
     log_dir_root: PathBuf,
 ) {
+    // 这个循环处理的是全已所有的崩溃事件。每当有插件崩溃时，watchdog 会通过 crash_tx 发送该插件的 ID 到 crash_rx。restart_loop 监听这个 channel，一旦收到崩溃通知，就会执行以下步骤：
     while let Some(plugin_id) = crash_rx.recv().await {
         warn!("Watchdog triggered restart for plugin: {}", plugin_id);
 
@@ -478,6 +485,20 @@ async fn restart_loop(
 
         if let Some(ctx_ref) = contexts.get(&plugin_id) {
             let ctx = ctx_ref.value();
+
+            // 原子递增持久化的重启计数器，并检查是否超出 max_restart。
+            // 这是**唯一**追踪重启次数的地方——不在看门狗或
+            // PluginProcess 中（它们每次重启都会被替换）。
+            let new_count = ctx.restart_count.fetch_add(1, Ordering::SeqCst) + 1;
+            let max_restart = ctx.manifest.runtime.max_restart;
+            if new_count >= max_restart {
+                error!(
+                    "Plugin {} exceeded max restarts ({}/{}) — not restarting",
+                    plugin_id, new_count, max_restart
+                );
+                continue;
+            }
+
             let data_dir = data_dir_root.join(&plugin_id);
             let log_dir = log_dir_root.clone();
             let _ = std::fs::create_dir_all(&data_dir);
@@ -489,6 +510,7 @@ async fn restart_loop(
                 &log_dir,
                 ctx.host_call_handler.clone(),
                 ctx.crash_tx.clone(),
+                new_count,
             )
             .await
             {

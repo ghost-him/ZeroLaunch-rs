@@ -7,7 +7,7 @@ use tokio::sync::mpsc;
 use tracing::{error, info, warn};
 
 use zerolaunch_plugin_protocol::manifest::Manifest;
-use zerolaunch_plugin_protocol::messages::ComponentKind;
+use zerolaunch_plugin_protocol::messages::{ComponentDescriptor, ComponentKind};
 use zerolaunch_plugin_protocol::ProtocolError;
 
 use crate::adapter::remote_configurable::RemoteConfigurableAdapter;
@@ -335,6 +335,41 @@ fn validate_manifest(manifest: &Manifest, plugin_dir: &Path) -> Result<(), Plugi
     Ok(())
 }
 
+// ─── 辅助函数：按 component_id 从 Vec<(String, T)> 中查找值 ───
+
+/// 从 `Vec<(String, T)>` 中按 component_id 查找值，找不到返回 default。
+fn find_by_id<T: Clone + Default>(map: &[(String, T)], component_id: &str) -> T {
+    map.iter()
+        .find(|(id, _)| id == component_id)
+        .map(|(_, v)| v.clone())
+        .unwrap_or_default()
+}
+
+/// 从 settings_values 中查找，找不到返回 Null（区别于 default）。
+fn find_settings_value(
+    values: &[(String, serde_json::Value)],
+    component_id: &str,
+) -> serde_json::Value {
+    values
+        .iter()
+        .find(|(id, _)| id == component_id)
+        .map(|(_, v)| v.clone())
+        .unwrap_or(serde_json::Value::Null)
+}
+
+// ─── build_adapters ─────────────────────────────────────────────────
+
+/// 中间产物：统一提取的公共配置 + 组件描述符引用。
+struct ComponentBuildInfo<'a> {
+    desc: &'a ComponentDescriptor,
+    configurable: Arc<RemoteConfigurableAdapter>,
+}
+
+/// 从 InitResult 构建所有 Remote*Adapter。
+///
+/// 分两步：
+/// 1. 统一提取所有组件的 schema/settings/config_actions → RemoteConfigurableAdapter
+/// 2. 按 ComponentKind 差异化构造领域 adapter（Plugin / DataSource / ActionExecutor）
 fn build_adapters(
     plugin_id: &str,
     manifest: &Manifest,
@@ -346,87 +381,65 @@ fn build_adapters(
     let mut executors = Vec::new();
     let mut configurables = Vec::new();
 
-    for comp in &init_result.components {
-        let schema = init_result
-            .settings_schemas
-            .iter()
-            .find(|(id, _)| id == &comp.component_id)
-            .map(|(_, s)| s.clone())
-            .unwrap_or_default();
+    // ── 步骤一：统一提取公共配置 ──
+    let infos: Vec<ComponentBuildInfo> = init_result
+        .components
+        .iter()
+        .map(|comp| {
+            let schema = find_by_id(&init_result.settings_schemas, &comp.component_id);
+            let settings = find_settings_value(&init_result.settings_values, &comp.component_id);
+            let config_actions = find_by_id(&init_result.config_actions_map, &comp.component_id);
 
-        let settings = init_result
-            .settings_values
-            .iter()
-            .find(|(id, _)| id == &comp.component_id)
-            .map(|(_, s)| s.clone())
-            .unwrap_or(serde_json::Value::Null);
+            let configurable = Arc::new(RemoteConfigurableAdapter::new(
+                comp.component_id.clone(),
+                comp.component_name.clone(),
+                comp.component_type,
+                client.clone(),
+                schema,
+                settings,
+                config_actions,
+            ));
+            configurables.push(configurable.clone());
 
-        let actions = init_result
-            .config_actions_map
-            .iter()
-            .find(|(id, _)| id == &comp.component_id)
-            .map(|(_, a)| a.clone())
-            .unwrap_or_default();
+            ComponentBuildInfo {
+                desc: comp,
+                configurable,
+            }
+        })
+        .collect();
 
-        let config = Arc::new(RemoteConfigurableAdapter::new(
-            comp.component_id.clone(),
-            comp.component_name.clone(),
-            comp.component_type,
-            client.clone(),
-            schema,
-            settings,
-            actions,
-        ));
-        configurables.push(config.clone());
-
-        match &comp.kind {
-            ComponentKind::Plugin { trigger_keywords } => {
-                // Create a RemotePluginAdapter
-                let metadata = zerolaunch_plugin_api::PluginMetadata {
-                    id: plugin_id.to_string(),
-                    name: comp.component_name.clone(),
-                    version: manifest.plugin.version.clone(),
-                    description: manifest.plugin.description.clone(),
-                    author: manifest.plugin.author.clone(),
-                    trigger_keywords: trigger_keywords.clone(),
-                    supported_os: vec!["windows".to_string()],
-                    priority: comp.priority,
-                };
+    // ── 步骤二：按 kind 差异化构造领域 adapter ──
+    for info in &infos {
+        match &info.desc.kind {
+            ComponentKind::Plugin { .. } => {
+                // 以插件自声明的 metadata 为基础，仅覆盖需宿主保证一致性的字段
+                let mut metadata = init_result.metadata.clone();
+                metadata.id = plugin_id.to_string();
+                metadata.version = manifest.plugin.version.clone();
+                metadata.author = manifest.plugin.author.clone();
+                // name, description, supported_os, trigger_keywords, priority
+                // 保留插件通过 plugin/get_metadata 自声明的值
 
                 plugin_adapter = Some(Arc::new(RemotePluginAdapter {
                     metadata,
                     client: client.clone(),
-                    configurable: config.clone(),
+                    configurable: info.configurable.clone(),
                 }));
             }
             ComponentKind::DataSource => {
                 data_sources.push(Arc::new(RemoteDataSourceAdapter {
-                    component_id: comp.component_id.clone(),
-                    configurable: config.clone(),
+                    component_id: info.desc.component_id.clone(),
+                    configurable: info.configurable.clone(),
                     client: client.clone(),
                 }));
             }
             ComponentKind::ActionExecutor { target_types } => {
-                let cached_actions = init_result
-                    .config_actions_map
-                    .iter()
-                    .find(|(id, _)| id == &comp.component_id)
-                    .map(|(_, a)| {
-                        a.iter()
-                            .map(|ca| zerolaunch_plugin_api::ResultAction {
-                                id: ca.action.clone(),
-                                label: ca.label.clone(),
-                                icon: zerolaunch_plugin_api::services::icon_request::IconRequest::Path(String::new()),
-                                is_default: false,
-                                shortcut_key: String::new(),
-                            })
-                            .collect()
-                    })
-                    .unwrap_or_default();
+                let cached_actions =
+                    find_by_id(&init_result.executor_actions_map, &info.desc.component_id);
 
                 executors.push(Arc::new(RemoteExecutorAdapter {
-                    component_id: comp.component_id.clone(),
-                    configurable: config.clone(),
+                    component_id: info.desc.component_id.clone(),
+                    configurable: info.configurable.clone(),
                     client: client.clone(),
                     cached_target_types: target_types.clone(),
                     cached_actions,
@@ -508,6 +521,12 @@ async fn restart_loop(
                     error!("Failed to restart plugin {}: {}", plugin_id, e);
                 }
             }
+        } else {
+            warn!(
+                "Crash notification for plugin '{}' but no restart context found — \
+                 plugin may have been unloaded concurrently",
+                plugin_id
+            );
         }
     }
 }

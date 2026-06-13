@@ -44,6 +44,11 @@ pub struct ComponentDescriptor {
     pub priority: i32,
 }
 
+/// 第三方插件可声明的组件种类。
+///
+/// 第一版只开放 Plugin / DataSource / ActionExecutor。
+/// TODO: 后续版本开放 KeywordOptimizer / SearchEngine / ScoreBooster，
+/// 届时在此枚举中新增对应 variant，并同步更新 REQUIRED_PROVIDES_VALUES。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", tag = "type")]
 pub enum ComponentKind {

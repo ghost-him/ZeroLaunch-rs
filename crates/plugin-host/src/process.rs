@@ -37,6 +37,10 @@ pub struct InitResult {
     )>,
     pub settings_values: Vec<(String, serde_json::Value)>,
     pub config_actions_map: Vec<(String, Vec<zerolaunch_plugin_api::config::ConfigActionDef>)>,
+    /// 每个 ActionExecutor 组件的 supported_actions 结果，按 component_id 索引。
+    /// 在 discover_components 期间通过 plugin/supported_actions 获取，
+    /// 供 build_adapters 直接使用，避免 ConfigActionDef → ResultAction 语义错配。
+    pub executor_actions_map: Vec<(String, Vec<zerolaunch_plugin_api::ResultAction>)>,
 }
 
 /// Manages a single plugin subprocess instance.
@@ -208,6 +212,8 @@ impl PluginProcess {
     /// Run the post-initialization discovery sequence:
     /// plugin/get_metadata, plugin/get_components, and for each component:
     /// plugin/get_settings_schema, plugin/get_settings, plugin/config_actions.
+    /// 对 ActionExecutor 组件还会额外调用 plugin/supported_target_types
+    /// 和 plugin/supported_actions，收集真实的 ResultAction 列表。
     pub async fn discover_components(&self) -> Result<InitResult, ProtocolError> {
         let plugin_id = self.plugin_id.clone();
 
@@ -231,10 +237,13 @@ impl PluginProcess {
             )
             .await?;
 
-        // For each component, fetch schema, settings, actions
+        // 为每个组件拉取 schema、settings、config_actions。
+        // 对 ActionExecutor 组件额外拉取 supported_actions。
         let mut settings_schemas = Vec::new();
         let mut settings_values = Vec::new();
         let mut config_actions_map = Vec::new();
+        let mut executor_actions_map: Vec<(String, Vec<zerolaunch_plugin_api::ResultAction>)> =
+            Vec::new();
 
         for comp in &components {
             let schema: Vec<zerolaunch_plugin_api::config::SettingDefinition> = self
@@ -272,6 +281,44 @@ impl PluginProcess {
                 )
                 .await?;
             config_actions_map.push((comp.component_id.clone(), actions));
+
+            // 对 ActionExecutor 组件，遍历每种支持的 target_type 拉取
+            // supported_actions，按 (id, label) 去重后合并。
+            if matches!(comp.kind, ComponentKind::ActionExecutor { .. }) {
+                let target_types: Vec<zerolaunch_plugin_api::TargetType> = self
+                    .client
+                    .call(
+                        plugin_methods::SUPPORTED_TARGET_TYPES,
+                        SupportedTargetTypesParams {
+                            component_id: comp.component_id.clone(),
+                        },
+                        Duration::from_secs(5),
+                    )
+                    .await?;
+
+                let mut all_actions: Vec<zerolaunch_plugin_api::ResultAction> = Vec::new();
+                let mut seen = std::collections::HashSet::new();
+                for tt in &target_types {
+                    let actions: Vec<zerolaunch_plugin_api::ResultAction> = self
+                        .client
+                        .call(
+                            plugin_methods::SUPPORTED_ACTIONS,
+                            SupportedActionsParams {
+                                component_id: comp.component_id.clone(),
+                                target_type: *tt,
+                            },
+                            Duration::from_secs(5),
+                        )
+                        .await?;
+                    for a in actions {
+                        // 按 (id, label) 去重 — 同一动作可能被多个 target_type 返回
+                        if seen.insert((a.id.clone(), a.label.clone())) {
+                            all_actions.push(a);
+                        }
+                    }
+                }
+                executor_actions_map.push((comp.component_id.clone(), all_actions));
+            }
         }
 
         Ok(InitResult {
@@ -281,6 +328,7 @@ impl PluginProcess {
             settings_schemas,
             settings_values,
             config_actions_map,
+            executor_actions_map,
         })
     }
 

@@ -12,6 +12,9 @@ use crate::core::config::{ConfigEvent, ConfigManager};
 use crate::core::tray::TrayManager;
 use crate::logging::{init_logging, log_application_shutdown, log_application_start};
 
+use crate::plugin_system::adapter_registrar::{
+    register_builtin_collected, DefaultAdapterRegistrar,
+};
 use crate::plugin_system::manager::PluginManager;
 use crate::plugin_system::CandidatePipeline;
 use crate::sdk::host_api::HostApi;
@@ -406,11 +409,15 @@ async fn init_app_state(
 
     info!("=== Phase 3: PluginManager 初始化 ===");
 
-    // 创建 PluginManager 并注入 ConfigManager / SessionRouter 引用
+    // 创建 PluginManager 并注入 AdapterRegistrar（注册/解注册逻辑移入 DefaultAdapterRegistrar）
     let session_router = state.get_session_router().clone();
+    let registrar = Arc::new(DefaultAdapterRegistrar::new(
+        config_manager.clone(),
+        session_router.clone(),
+    ));
     let plugin_manager = Arc::new(PluginManager::new());
+    plugin_manager.set_registrar(registrar);
     plugin_manager.set_config_manager(config_manager.clone());
-    plugin_manager.set_session_router(session_router);
     plugin_manager.set_host_api(host_api.clone());
     state.set_plugin_manager(plugin_manager.clone());
 
@@ -494,7 +501,9 @@ async fn init_plugin_system(state: &Arc<AppState>) {
     // ========================================================================
     info!("=== Phase A: inventory 自动发现并注册所有内置组件 ===");
 
-    let (data_sources, keyword_optimizers) = plugin_manager.init_builtins();
+    let collected = plugin_manager.collect_builtins();
+    let (data_sources, keyword_optimizers) =
+        register_builtin_collected(&collected, &config_manager, session_router);
 
     info!(
         "Phase A 完成: 共注册 {} 个组件（其中内置 {} 个）",

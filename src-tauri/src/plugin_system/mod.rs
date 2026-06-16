@@ -1,3 +1,4 @@
+pub mod adapter_registrar;
 pub mod builtin;
 pub mod builtin_registry;
 pub mod cached_candidate;
@@ -15,6 +16,9 @@ mod session_router;
 pub mod types;
 
 pub use crate::core::types::DetailActionDef;
+pub use adapter_registrar::{
+    register_builtin_collected, AdapterRegistrar, DefaultAdapterRegistrar,
+};
 pub use candidate_pipeline::CandidatePipeline;
 pub use executor_registry::ExecutorRegistry;
 pub use registry::PluginRegistry;

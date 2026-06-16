@@ -1,7 +1,9 @@
 //! PluginHostManager — top-level orchestration for third-party plugins.
 
 use dashmap::DashMap;
+use std::future::Future;
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, OnceLock};
 use tokio::sync::mpsc;
@@ -17,6 +19,11 @@ use crate::adapter::remote_executor::RemoteExecutorAdapter;
 use crate::adapter::remote_plugin::RemotePluginAdapter;
 use crate::host_dispatch::HostCallHandler;
 use crate::process::PluginProcess;
+
+/// Type alias for the restart callback: receives newly registered adapters
+/// and returns a future that re-registers them with ConfigManager / SessionRouter.
+pub type RestartCallback =
+    Arc<dyn Fn(RegisteredAdapters) -> Pin<Box<dyn Future<Output = ()> + Send>> + Send + Sync>;
 
 /// All adapters registered for a single plugin instance.
 #[derive(Clone)]
@@ -39,7 +46,8 @@ struct PluginRestartContext {
     crash_tx: mpsc::Sender<String>,
     /// Called after a successful restart so src-tauri can re-register
     /// the new adapters with ConfigManager and SessionRouter.
-    on_restart: Arc<dyn Fn(RegisteredAdapters) + Send + Sync>,
+    /// Returns a future so the caller can avoid `block_on` and its `!Send` risks.
+    on_restart: RestartCallback,
     /// 持久化的重启计数器。每次重新生成前原子递增；
     /// 当达到 manifest.runtime.max_restart 时不再尝试重启。
     restart_count: AtomicU32,
@@ -93,7 +101,7 @@ impl PluginHostManager {
         &self,
         plugin_dir: &Path,
         host_call_handler: Arc<dyn HostCallHandler>,
-        on_restart: Arc<dyn Fn(RegisteredAdapters) + Send + Sync>,
+        on_restart: RestartCallback,
     ) -> Result<RegisteredAdapters, PluginLoadError> {
         let manifest_path = plugin_dir.join("manifest.toml");
         let manifest_bytes = std::fs::read_to_string(&manifest_path)
@@ -250,7 +258,7 @@ impl PluginHostManager {
         plugin_id: &str,
         plugin_dir: &Path,
         host_call_handler: Arc<dyn HostCallHandler>,
-        on_restart: Arc<dyn Fn(RegisteredAdapters) + Send + Sync>,
+        on_restart: RestartCallback,
     ) -> Result<RegisteredAdapters, PluginLoadError> {
         self.unload(plugin_id).await?;
         self.load(plugin_dir, host_call_handler, on_restart).await
@@ -527,8 +535,7 @@ async fn restart_loop(
                             processes.insert(plugin_id.clone(), Arc::new(new_process));
                             adapters.insert(plugin_id.clone(), new_adapters.clone());
                             // Notify src-tauri so it can re-register the new adapters
-                            // with ConfigManager and SessionRouter.
-                            (ctx.on_restart)(new_adapters);
+                            (ctx.on_restart)(new_adapters).await;
                             info!("Plugin {} successfully restarted", plugin_id);
                         }
                         Err(e) => {

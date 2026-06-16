@@ -2,28 +2,15 @@
   "permissions": {
     "allow": [
       "Bash(cargo check *)",
-      "Bash(bun install *)",
-      "Bash(bun run *)",
       "Bash(cargo clippy *)",
-      "Bash(cargo fmt *)",
-      "Bash(cargo test *)",
-      "Bash(npx vue-tsc *)",
-      "Bash(npx tsc *)",
-      "Bash(cargo doc *)",
-      "Bash(git checkout *)",
-      "Bash(git cherry-pick *)",
-      "Bash(git stash *)",
       "Bash(ls *)",
       "Bash(xargs grep -l \"error\")",
       "Bash(./node_modules/.bin/tsc --noEmit)",
-      "Bash(bunx tsc *)",
       "Bash(git show *)",
-      "Read(//c/Users/ghost/ZeroLaunch/Wox/**)",
-      "Bash(cargo build *)",
-      "Bash(cargo new *)",
-      "Bash(chmod +w *)",
-      "Bash(cargo search *)",
-      "Bash(git *)"
+      "Bash(git log *)",
+      "Bash(git diff *)",
+      "Bash(git status *)",
+      "Bash(cargo search *)"
     ]
   }
 }

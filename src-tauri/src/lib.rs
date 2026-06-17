@@ -12,9 +12,7 @@ use crate::core::config::{ConfigEvent, ConfigManager};
 use crate::core::tray::TrayManager;
 use crate::logging::{init_logging, log_application_shutdown, log_application_start};
 
-use crate::plugin_system::adapter_registrar::{
-    register_builtin_collected, DefaultAdapterRegistrar,
-};
+use crate::plugin_system::adapter_registrar::DefaultAdapterRegistrar;
 use crate::plugin_system::manager::PluginManager;
 use crate::plugin_system::CandidatePipeline;
 use crate::sdk::host_api::HostApi;
@@ -501,9 +499,7 @@ async fn init_plugin_system(state: &Arc<AppState>) {
     // ========================================================================
     info!("=== Phase A: inventory 自动发现并注册所有内置组件 ===");
 
-    let collected = plugin_manager.collect_builtins();
-    let (data_sources, keyword_optimizers) =
-        register_builtin_collected(&collected, &config_manager, session_router);
+    let (data_sources, keyword_optimizers) = plugin_manager.init_builtins();
 
     info!(
         "Phase A 完成: 共注册 {} 个组件（其中内置 {} 个）",

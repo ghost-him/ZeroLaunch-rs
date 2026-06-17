@@ -16,9 +16,7 @@ mod session_router;
 pub mod types;
 
 pub use crate::core::types::DetailActionDef;
-pub use adapter_registrar::{
-    register_builtin_collected, AdapterRegistrar, DefaultAdapterRegistrar,
-};
+pub use adapter_registrar::{AdapterRegistrar, DefaultAdapterRegistrar};
 pub use candidate_pipeline::CandidatePipeline;
 pub use executor_registry::ExecutorRegistry;
 pub use registry::PluginRegistry;

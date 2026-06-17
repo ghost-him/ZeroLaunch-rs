@@ -6,8 +6,6 @@
 //! 插件作者只需在 `plugin/<category>/` 下加 .rs 文件并添加 `inventory::submit!` 块，
 //! 无需修改 `lib.rs`。
 
-use crate::core::config::manager::ConfigManager;
-use crate::plugin_system::session_router::SessionRouter;
 use crate::plugin_system::types::{
     ActionExecutor, DataSource, KeywordOptimizer, Plugin, ScoreBooster, SearchEngine,
 };
@@ -30,8 +28,6 @@ pub type SearchEngineFactory = fn() -> (Arc<dyn Configurable>, Arc<dyn SearchEng
 pub type ScoreBoosterFactory = fn() -> (Arc<dyn Configurable>, Arc<dyn ScoreBooster>);
 pub type PluginFactory = fn() -> (Arc<dyn Configurable>, Arc<dyn Plugin>);
 pub type CoreComponentFactory = fn(Arc<HostApi>) -> Arc<dyn Configurable>;
-type RegistrationResult = (Vec<Arc<dyn DataSource>>, Vec<Arc<dyn KeywordOptimizer>>);
-
 /// inventory 收集结果：所有内置组件的已构造 trait 对象。
 ///
 /// 该 struct 由 `collect_all_builtin_entries()` 返回，
@@ -206,71 +202,4 @@ pub fn collect_all_builtin_entries(ctx: &InventoryContext) -> CollectedBuiltins 
         plugins,
         core_components,
     }
-}
-
-// ============================================================================
-// 统一注册编排器（兼容旧接口，内部委托给 collect_all_builtin_entries + 注册）
-// ============================================================================
-
-/// 收集所有 inventory 条目并注册到 ConfigManager / SessionRouter。
-///
-/// 返回 DataSource 和 KeywordOptimizer 列表供构建 CandidatePipeline。
-/// 新代码应优先使用 `collect_all_builtin_entries()` + PluginManager 的注册方法。
-pub fn register_all_builtin_components(
-    ctx: &InventoryContext,
-    config_manager: &Arc<ConfigManager>,
-    session_router: &Arc<SessionRouter>,
-) -> RegistrationResult {
-    let collected = collect_all_builtin_entries(ctx);
-
-    // -- 执行器 --
-    for (configurable, executor) in &collected.executors {
-        config_manager.register(configurable.clone());
-        session_router.register_executor(executor.clone());
-    }
-
-    // -- 数据源 --
-    let source_list: Vec<Arc<dyn DataSource>> = collected
-        .data_sources
-        .iter()
-        .map(|(configurable, source)| {
-            config_manager.register(configurable.clone());
-            source.clone()
-        })
-        .collect();
-
-    // -- 关键词优化器 --
-    let optimizer_list: Vec<Arc<dyn KeywordOptimizer>> = collected
-        .keyword_optimizers
-        .iter()
-        .map(|(configurable, optimizer)| {
-            config_manager.register(configurable.clone());
-            optimizer.clone()
-        })
-        .collect();
-
-    // -- 搜索引擎 --
-    for (configurable, engine) in &collected.search_engines {
-        config_manager.register(configurable.clone());
-        session_router.register_search_engine(engine.clone());
-    }
-
-    // -- 分数增强器 --
-    for (configurable, booster) in &collected.score_boosters {
-        config_manager.register(configurable.clone());
-        session_router.register_score_booster(booster.clone());
-    }
-
-    // -- Plugins --
-    for (configurable, plugin) in &collected.plugins {
-        config_manager.register(configurable.clone());
-        session_router.plugin_service().register(plugin.clone());
-    }
-
-    // -- 核心配置组件 --
-    for configurable in &collected.core_components {
-        config_manager.register(configurable.clone());
-    }
-
-    (source_list, optimizer_list)
 }

@@ -30,8 +30,8 @@ use crate::plugin_system::builtin_registry;
 use crate::plugin_system::builtin_registry::InventoryContext;
 use crate::sdk::HostApi;
 
-use super::adapter_registrar::AdapterRegistrar;
-use super::builtin::{self, CollectedBuiltins};
+use super::adapter_registrar::{AdapterRegistrar, BuiltinPipelineEntries};
+use super::builtin;
 use super::host_handler::TauriHostCallHandler;
 use super::plugin_info::{InstallError, PluginInfo, PluginStatus};
 
@@ -52,9 +52,9 @@ pub struct PluginManager {
     host_api: RwLock<Option<Arc<HostApi>>>,
     /// PluginHostManager（内部构造，管理子进程生命周期）
     host_manager: RwLock<Option<Arc<PluginHostManager>>>,
-    /// 第三方插件旧的 adapters 缓存（用于崩溃恢复时解注册），按 plugin_id 索引。
+    /// 第三方插件 adapters 缓存（用于崩溃恢复时解注册已失效的旧适配器），按 plugin_id 索引。
     /// 使用 DashMap 避免 RwLock 守卫跨 .await 的 !Send 问题。
-    old_adapters: Arc<DashMap<String, RegisteredAdapters>>,
+    adapters_cache: Arc<DashMap<String, RegisteredAdapters>>,
 }
 
 impl PluginManager {
@@ -67,7 +67,7 @@ impl PluginManager {
             registrar: RwLock::new(None),
             host_api: RwLock::new(None),
             host_manager: RwLock::new(None),
-            old_adapters: Arc::new(DashMap::new()),
+            adapters_cache: Arc::new(DashMap::new()),
         }
     }
 
@@ -146,11 +146,11 @@ impl PluginManager {
 
     // ── 初始化 API ──────────────────────────────────────────────
 
-    /// 收集所有内置组件并创建 PluginInfo 条目。
+    /// 收集所有内置组件、创建 PluginInfo 条目、注册到 ConfigManager / SessionRouter。
     ///
-    /// 仅收集，不注册到 ConfigManager / SessionRouter。
-    /// 调用方需调用 `register_builtin_collected()` 完成注册。
-    pub fn collect_builtins(&self) -> CollectedBuiltins {
+    /// 返回 DataSource 和 KeywordOptimizer 列表供调用方构建 CandidatePipeline。
+    /// 注册通过注入的 AdapterRegistrar 完成。
+    pub(crate) fn init_builtins(&self) -> BuiltinPipelineEntries {
         let host_api = self.host_api();
         let ctx = InventoryContext::new(host_api.clone());
         let collected = builtin_registry::collect_all_builtin_entries(&ctx);
@@ -180,7 +180,9 @@ impl PluginManager {
         }
 
         self.builtin_infos.write().append(&mut infos);
-        collected
+
+        // 通过注入的 AdapterRegistrar 注册到各子系统
+        self.registrar().register_builtin(&collected)
     }
 
     // ── 查询 API ────────────────────────────────────────────────
@@ -330,6 +332,8 @@ impl PluginManager {
         self.load_single_plugin(&installed_dir, app_handle.clone())
             .await?;
 
+        self.registrar().refresh().await;
+
         let manifest_bytes = std::fs::read_to_string(installed_dir.join("manifest.toml"))
             .map_err(|e| format!("Failed to read manifest after install: {}", e))?;
         let manifest: Manifest = toml::from_str(&manifest_bytes)
@@ -376,6 +380,8 @@ impl PluginManager {
         self.load_single_plugin(&plugin_dir, app_handle)
             .await
             .map_err(|e| format!("Reload failed: {}", e))?;
+
+        self.registrar().refresh().await;
 
         info!("Plugin {} reloaded successfully", plugin_id);
         Ok(())
@@ -424,8 +430,8 @@ impl PluginManager {
 
     /// 扫描并加载所有第三方插件。
     ///
-    /// 每个插件的注册通过注入的 AdapterRegistrar 完成（含 refresh_candidates），
-    /// 不再需要额外调用 `session_router.refresh_candidates()`。
+    /// 每个插件的注册通过注入的 AdapterRegistrar 完成。
+    /// 所有插件加载完成后统一调用一次 refresh() 重建候选项缓存。
     pub async fn load_all_third_party(&self, app_handle: Arc<AppHandle>) {
         let plugins_dir = self.plugins_dir();
         let dirs = Self::scan_plugins_dir(&plugins_dir);
@@ -442,6 +448,9 @@ impl PluginManager {
                 error!("Failed to load plugin from {}: {}", dir.display(), e);
             }
         }
+
+        // 批量刷新：所有插件加载完成后一次性重建候选项缓存
+        self.registrar().refresh().await;
     }
 
     // ── 内部：第三方插件加载/安装/发现 ─────────────────────────
@@ -660,20 +669,20 @@ impl PluginManager {
     ///
     /// 返回的闭包接收 `RegisteredAdapters` 并返回一个 future，
     /// watchdog 会 `.await` 该 future 以完成重新注册。
-    /// 内部使用 DashMap 缓存旧适配器，避免 `parking_lot::Mutex` 的 `!Send` 问题。
+    /// 内部使用 DashMap 缓存适配器，避免 `parking_lot::Mutex` 的 `!Send` 问题。
     /// 正常注册与崩溃恢复复用同一套 `AdapterRegistrar` 注册逻辑。
     fn make_restart_callback(&self, plugin_id: String) -> RestartCallback {
         let registrar = self.registrar();
-        let old_adapters = self.old_adapters.clone();
+        let adapters_cache = self.adapters_cache.clone();
 
         Arc::new(move |new_adapters: RegisteredAdapters| {
             let registrar = registrar.clone();
-            let old_adapters = old_adapters.clone();
+            let adapters_cache = adapters_cache.clone();
             let pid = plugin_id.clone();
 
             Box::pin(async move {
                 // 解注册旧适配器（如果存在缓存）
-                if let Some((_, prev)) = old_adapters.remove(&pid) {
+                if let Some((_, prev)) = adapters_cache.remove(&pid) {
                     registrar.unregister(&prev).await;
                 }
 
@@ -681,7 +690,10 @@ impl PluginManager {
                 registrar.register(&new_adapters).await;
 
                 // 更新缓存为新适配器
-                old_adapters.insert(pid.clone(), new_adapters);
+                adapters_cache.insert(pid.clone(), new_adapters);
+
+                // 刷新候选项缓存
+                registrar.refresh().await;
 
                 info!(
                     "Restarted third-party plugin: {} (adapters re-registered)",
@@ -693,12 +705,12 @@ impl PluginManager {
 
     /// 存储插件的 adapters 快照，供崩溃恢复时解注册。
     pub fn cache_adapters(&self, plugin_id: &str, adapters: RegisteredAdapters) {
-        self.old_adapters.insert(plugin_id.to_string(), adapters);
+        self.adapters_cache.insert(plugin_id.to_string(), adapters);
     }
 
     /// 清除插件的 adapters 缓存（卸载时调用）。
     pub fn forget_adapters(&self, plugin_id: &str) {
-        self.old_adapters.remove(plugin_id);
+        self.adapters_cache.remove(plugin_id);
     }
 
     // ── 信息管理 ───────────────────────────────────────────────

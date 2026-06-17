@@ -204,17 +204,11 @@ impl PluginHostManager {
         // Build adapters from discovered components
         let adapters = build_adapters(&plugin_id, &manifest, client, &init_result);
 
+        // Clone before insert so the return value is ready without a second
+        // DashMap lookup + 6 individual field clones.
+        let registered = adapters.clone();
         self.adapters.insert(plugin_id.clone(), adapters);
-
-        let registered = self.adapters.get(&plugin_id).unwrap();
-        Ok(RegisteredAdapters {
-            plugin_id: registered.plugin_id.clone(),
-            manifest: registered.manifest.clone(),
-            plugin: registered.plugin.clone(),
-            data_sources: registered.data_sources.clone(),
-            executors: registered.executors.clone(),
-            configurables: registered.configurables.clone(),
-        })
+        Ok(registered)
     }
 
     /// Returns the plugins installation directory (explicitly stored, not derived).

@@ -383,16 +383,11 @@ impl PluginHandle {
     /// 上传资源文件到本插件的资源空间。
     pub async fn resource_upload(
         &self,
-        purpose: &str,
+        resource_id: &str,
         file_path: &str,
         max_size: Option<u64>,
     ) -> Result<String, HostApiError> {
         let path = std::path::Path::new(file_path);
-        let ext = path
-            .extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or("bin")
-            .to_lowercase();
 
         if let Some(limit) = max_size {
             let metadata = tokio::fs::metadata(path).await.map_err(|e| {
@@ -417,9 +412,8 @@ impl PluginHandle {
                     reason: format!("读取文件失败: {}", e),
                 })?;
 
-        let hash = short_hash(&data);
-        let filename = format!("{}_{}.{}", purpose, hash, ext);
-        let storage_path = build_resource_path(&self.plugin_id, Some(&filename));
+        // 直接使用 resource_id 作为存储标识符，避免对用户指定的标识符做额外变换。
+        let storage_path = build_resource_path(&self.plugin_id, Some(resource_id))?;
         let storage = self.storage.read().clone();
         storage.upload(&storage_path, &data).await.map_err(|e| {
             HostApiError::StorageOperationFailed {
@@ -427,12 +421,26 @@ impl PluginHandle {
                 reason: e.to_string(),
             }
         })?;
-        Ok(format!("res://{}", filename))
+        Ok(resource_id.to_string())
+    }
+
+    /// 直接写入资源字节数据，无需先创建临时文件或提供本地路径。
+    /// 参数：resource_id - 资源标识符；data - 资源字节内容。
+    /// 返回：成功返回 Ok(())，失败返回 HostApiError。
+    pub async fn resource_put(&self, resource_id: &str, data: &[u8]) -> Result<(), HostApiError> {
+        let storage_path = build_resource_path(&self.plugin_id, Some(resource_id))?;
+        let storage: Arc<dyn StorageService> = self.storage.read().clone();
+        storage.upload(&storage_path, data).await.map_err(|e| {
+            HostApiError::StorageOperationFailed {
+                file: storage_path,
+                reason: e.to_string(),
+            }
+        })
     }
 
     /// 获取资源文件内容。
     pub async fn resource_get(&self, resource_id: &str) -> Result<Vec<u8>, HostApiError> {
-        let path = build_resource_path(&self.plugin_id, Some(resource_id));
+        let path = build_resource_path(&self.plugin_id, Some(resource_id))?;
         let storage = self.storage.read().clone();
         storage
             .download(&path)
@@ -448,7 +456,7 @@ impl PluginHandle {
 
     /// 删除资源文件。
     pub async fn resource_delete(&self, resource_id: &str) -> Result<(), HostApiError> {
-        let path = build_resource_path(&self.plugin_id, Some(resource_id));
+        let path = build_resource_path(&self.plugin_id, Some(resource_id))?;
         let storage = self.storage.read().clone();
         storage
             .delete(&path)
@@ -461,7 +469,7 @@ impl PluginHandle {
 
     /// 列出本插件的所有资源。
     pub async fn resource_list(&self) -> Result<Vec<String>, HostApiError> {
-        let prefix = build_resource_path(&self.plugin_id, None);
+        let prefix = build_resource_path(&self.plugin_id, None)?;
         let storage = self.storage.read().clone();
         storage
             .list(&prefix)
@@ -529,26 +537,208 @@ impl PluginHandle {
     }
 }
 
-/// 构建资源存储路径。
-/// 使用 PathBuf 确保路径构建的安全性，避免路径遍历攻击。
+/// 构建资源存储路径，校验文件名防止路径遍历攻击。
+/// 使用 PathBuf 确保路径构建的安全性。
 /// 返回 Unix 风格路径（存储后端约定）。
-fn build_resource_path(plugin_id: &str, filename: Option<&str>) -> String {
-    let mut path = std::path::PathBuf::new();
-    path.push("resources");
-    path.push(plugin_id);
+fn build_resource_path(plugin_id: &str, filename: Option<&str>) -> Result<String, HostApiError> {
+    let base = std::path::PathBuf::from_iter(["resources", plugin_id]);
+    let base_normalized = normalize_path(&base);
+
+    let mut path = base.clone();
     if let Some(name) = filename {
+        // 拒绝空字符串以及 "." / ".." 字面量
+        if name.is_empty() || name == "." || name == ".." {
+            return Err(HostApiError::PathTraversalRejected {
+                path: name.to_string(),
+            });
+        }
         path.push(name);
+        let normalized = normalize_path(&path);
+        // Path::starts_with 按组件边界匹配。因此 "resources/test" 不会错误地
+        // 作为 "resources/test_evil/..." 的前缀，无需追加尾部分隔符。
+        let is_valid = normalized == base_normalized || normalized.starts_with(&base_normalized);
+        if !is_valid {
+            return Err(HostApiError::PathTraversalRejected {
+                path: name.to_string(),
+            });
+        }
     }
-    // 统一使用 Unix 风格路径分隔符
-    path.to_string_lossy().replace('\\', "/")
+    Ok(path.to_string_lossy().replace('\\', "/"))
 }
 
-/// 生成数据的短哈希（用于资源文件名去重）。
-fn short_hash(data: &[u8]) -> String {
-    let mut hasher = blake3::Hasher::new();
-    hasher.update(data);
-    let hash = hasher.finalize();
-    // 取前 12 个 hex 字符，足够避免碰撞
-    let hex = hash.to_hex();
-    hex[..12].to_string()
+/// 标准化路径，解析 `.` 和 `..` 组件。
+/// 纯内存操作，不访问文件系统。
+fn normalize_path(path: &std::path::Path) -> std::path::PathBuf {
+    let mut result = std::path::PathBuf::new();
+    for component in path.components() {
+        match component {
+            std::path::Component::ParentDir => {
+                result.pop();
+            }
+            std::path::Component::CurDir => {
+                // 跳过
+            }
+            other => {
+                result.push(other);
+            }
+        }
+    }
+    result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalize_path_removes_cur_dir() {
+        let input = std::path::Path::new("a/./b/./c");
+        let result = normalize_path(input);
+        assert_eq!(result, std::path::PathBuf::from("a/b/c"));
+    }
+
+    #[test]
+    fn normalize_path_resolves_parent_dir() {
+        let input = std::path::Path::new("a/b/../c");
+        let result = normalize_path(input);
+        assert_eq!(result, std::path::PathBuf::from("a/c"));
+    }
+
+    #[test]
+    fn normalize_path_handles_leading_dotdot() {
+        let input = std::path::Path::new("../../../etc/passwd");
+        let result = normalize_path(input);
+        // 前导 .. pop 空栈，最终只剩下 etc/passwd
+        assert_eq!(result, std::path::PathBuf::from("etc/passwd"));
+    }
+
+    #[test]
+    fn build_resource_path_rejects_parent_dir_traversal() {
+        let result = build_resource_path("test-plugin", Some("../../../secret"));
+        assert!(result.is_err());
+        match result {
+            Err(HostApiError::PathTraversalRejected { path }) => {
+                assert!(path.contains(".."));
+            }
+            _ => panic!("expected PathTraversalRejected"),
+        }
+    }
+
+    #[test]
+    fn build_resource_path_rejects_cross_plugin_traversal() {
+        // 插件 "test" 尝试通过 .. 访问插件 "test_evil" 的资源
+        let result = build_resource_path("test", Some("../test_evil/secret.txt"));
+        assert!(matches!(
+            result,
+            Err(HostApiError::PathTraversalRejected { .. })
+        ));
+    }
+
+    #[test]
+    fn build_resource_path_rejects_dot_literal() {
+        let result = build_resource_path("test-plugin", Some("."));
+        assert!(matches!(
+            result,
+            Err(HostApiError::PathTraversalRejected { .. })
+        ));
+    }
+
+    #[test]
+    fn build_resource_path_rejects_dotdot_literal() {
+        let result = build_resource_path("test-plugin", Some(".."));
+        assert!(matches!(
+            result,
+            Err(HostApiError::PathTraversalRejected { .. })
+        ));
+    }
+
+    #[test]
+    fn build_resource_path_accepts_valid_filename() {
+        let result = build_resource_path("test-plugin", Some("icon.png"));
+        assert!(result.is_ok());
+        let path = result.unwrap();
+        assert!(path.starts_with("resources/test-plugin/"));
+        assert!(path.ends_with("icon.png"));
+    }
+
+    #[test]
+    fn build_resource_path_accepts_none_filename() {
+        let result = build_resource_path("test-plugin", None);
+        assert!(result.is_ok());
+        let path = result.unwrap();
+        assert_eq!(path, "resources/test-plugin");
+    }
+
+    #[test]
+    fn build_resource_path_rejects_empty_filename() {
+        let result = build_resource_path("test-plugin", Some(""));
+        assert!(matches!(
+            result,
+            Err(HostApiError::PathTraversalRejected { .. })
+        ));
+    }
+
+    // ── starts_with 组件级匹配验证 ────────────────────────────
+
+    #[test]
+    fn starts_with_component_boundary_prevents_false_prefix_match() {
+        // 验证 Path::starts_with 按组件边界匹配：
+        // "resources/test" 不是 "resources/test_evil/..." 的前缀。
+        // 这意味着 build_resource_path 不需要尾部分隔符来防止误匹配。
+        let base = std::path::Path::new("resources/test");
+        let evil = std::path::Path::new("resources/test_evil/secret.txt");
+        assert!(!evil.starts_with(base));
+    }
+
+    #[test]
+    fn build_resource_path_rejects_same_prefix_traversal() {
+        // 插件 "test" 尝试写 path = "test_evil/secret.txt"，该路径落在
+        // resources/test/test_evil/secret.txt → 应被允许（在自己的空间内）。
+        // 但尝试通过 ../ 逃逸到 test_evil 才被拒绝。
+        let result = build_resource_path("test", Some("../test_evil/secret.txt"));
+        assert!(matches!(
+            result,
+            Err(HostApiError::PathTraversalRejected { .. })
+        ));
+    }
+
+    #[test]
+    fn build_resource_path_allows_subdirectory_with_same_prefix() {
+        // 资源名 "test_data.txt" 在插件 "test" 下 → resources/test/test_data.txt
+        // 这不是路径遍历，应被允许。
+        let result = build_resource_path("test", Some("test_data.txt"));
+        assert!(result.is_ok());
+        let path = result.unwrap();
+        assert_eq!(path, "resources/test/test_data.txt");
+    }
+
+    #[test]
+    fn build_resource_path_allows_nested_subdir() {
+        // 允许 plugin_id/test/subdir/file.png 这种深层嵌套
+        let result = build_resource_path("test", Some("subdir/file.png"));
+        assert!(result.is_ok());
+        let path = result.unwrap();
+        assert_eq!(path, "resources/test/subdir/file.png");
+    }
+
+    #[test]
+    fn pathbuf_push_empty_is_functionally_noop() {
+        // 验证 PathBuf::push("") 在 Eq 和 starts_with 语义上是空操作。
+        // 这确认了 build_resource_path 不需要它来提高安全性。
+        let mut with_trailing = std::path::PathBuf::from("resources/test");
+        with_trailing.push("");
+        let without_trailing = std::path::PathBuf::from("resources/test");
+
+        // Eq: 认为相等
+        assert_eq!(with_trailing, without_trailing);
+
+        // starts_with: 行为一致
+        let child = std::path::Path::new("resources/test/icon.png");
+        assert!(child.starts_with(&with_trailing));
+        assert!(child.starts_with(&without_trailing));
+
+        let unrelated = std::path::Path::new("resources/test_evil/secret.txt");
+        assert!(!unrelated.starts_with(&with_trailing));
+        assert!(!unrelated.starts_with(&without_trailing));
+    }
 }

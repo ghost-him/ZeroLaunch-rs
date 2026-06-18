@@ -12,6 +12,8 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{mpsc, oneshot};
 
+use base64::Engine as _;
+
 /// Proxy for calling host-side APIs from a plugin subprocess.
 /// Does NOT access stdin/stdout directly — uses channel-based I/O.
 pub struct HostProxy {
@@ -146,35 +148,73 @@ impl HostProxy {
         Ok(result.as_str().unwrap_or("").to_string())
     }
 
+    /// 上传插件本地文件到宿主资源空间。
+    /// 直接传递文件路径，由宿主负责读取。
     pub async fn resource_upload(
         &self,
-        plugin_id: &str,
-        key: &str,
-        bytes_b64: &str,
+        resource_id: &str,
+        file_path: &str,
+        max_size: Option<u64>,
     ) -> Result<String, String> {
         let result = self
             .send_request(
                 "host/resource.upload",
                 serde_json::json!({
-                    "pluginId": plugin_id,
-                    "key": key,
-                    "bytesB64": bytes_b64,
+                    "resourceId": resource_id,
+                    "filePath": file_path,
+                    "maxSize": max_size,
                 }),
             )
             .await?;
         Ok(result.as_str().unwrap_or("").to_string())
     }
 
-    pub async fn resource_get(&self, plugin_id: &str, key: &str) -> Result<String, String> {
+    pub async fn resource_get(&self, resource_id: &str) -> Result<Vec<u8>, String> {
         let result = self
             .send_request(
                 "host/resource.get",
                 serde_json::json!({
-                    "pluginId": plugin_id,
-                    "key": key,
+                    "resourceId": resource_id,
                 }),
             )
             .await?;
-        Ok(result.as_str().unwrap_or("").to_string())
+        let b64 = result.as_str().unwrap_or("");
+        base64::engine::general_purpose::STANDARD
+            .decode(b64)
+            .map_err(|e| format!("base64 decode failed: {}", e))
+    }
+
+    /// 直接写入资源字节数据（无需临时文件），base64 编解码由 SDK 内部处理。
+    pub async fn resource_put(&self, resource_id: &str, data: &[u8]) -> Result<(), String> {
+        let b64 = base64::engine::general_purpose::STANDARD.encode(data);
+        self.send_request(
+            "host/resource.put",
+            serde_json::json!({
+                "resourceId": resource_id,
+                "bytesB64": b64,
+            }),
+        )
+        .await?;
+        Ok(())
+    }
+
+    /// 删除资源文件。
+    pub async fn resource_delete(&self, resource_id: &str) -> Result<(), String> {
+        self.send_request(
+            "host/resource.delete",
+            serde_json::json!({
+                "resourceId": resource_id,
+            }),
+        )
+        .await?;
+        Ok(())
+    }
+
+    /// 列出本插件的所有资源标识符。
+    pub async fn resource_list(&self) -> Result<Vec<String>, String> {
+        let result = self
+            .send_request("host/resource.list", serde_json::json!({}))
+            .await?;
+        serde_json::from_value(result).map_err(|e| format!("parse resource list failed: {}", e))
     }
 }

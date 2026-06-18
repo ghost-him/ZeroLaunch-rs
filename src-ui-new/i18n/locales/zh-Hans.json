@@ -30,7 +30,12 @@
     "saveSuccess": "配置已保存",
     "resetSuccess": "已重置为默认值",
     "saveFailed": "配置保存失败",
-    "selectPath": "选择路径"
+    "selectPath": "选择路径",
+    "imageSelect": "选择图片",
+    "imageReselect": "重新选择",
+    "imageClear": "清除",
+    "imageLoadFailed": "图片加载失败",
+    "imageUploadFailed": "图片上传失败"
   },
   "appearance": {
     "theme": "主题",

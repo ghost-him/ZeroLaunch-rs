@@ -31,6 +31,7 @@ pub mod host {
     pub const APP_ENUMERATE: &str = "host/app.enumerate";
     pub const PATH_RESOLVE: &str = "host/path.resolve";
     pub const RESOURCE_UPLOAD: &str = "host/resource.upload";
+    pub const RESOURCE_PUT: &str = "host/resource.put";
     pub const RESOURCE_GET: &str = "host/resource.get";
     pub const RESOURCE_DELETE: &str = "host/resource.delete";
     pub const RESOURCE_LIST: &str = "host/resource.list";

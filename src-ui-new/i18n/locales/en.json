@@ -30,7 +30,12 @@
     "saveSuccess": "Settings saved",
     "resetSuccess": "Reset to defaults",
     "saveFailed": "Failed to save settings",
-    "selectPath": "Select Path"
+    "selectPath": "Select Path",
+    "imageSelect": "Select Image",
+    "imageReselect": "Re-select",
+    "imageClear": "Clear",
+    "imageLoadFailed": "Image load failed",
+    "imageUploadFailed": "Image upload failed"
   },
   "appearance": {
     "theme": "Theme",

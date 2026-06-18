@@ -115,8 +115,8 @@ export function resourceGet(resourceId: string): Promise<string> {
   return invokeCommand<string>('resource_get', { resourceId })
 }
 
-export function resourceUpload(filePath: string, purpose: string, maxSize?: number): Promise<string> {
-  return invokeCommand<string>('resource_upload', { payload: { filePath, purpose, maxSize } })
+export function resourceUpload(filePath: string, resourceId: string, maxSize?: number): Promise<string> {
+  return invokeCommand<string>('resource_upload', { payload: { filePath, resourceId, maxSize } })
 }
 
 // ---- Plugin Inspector ----

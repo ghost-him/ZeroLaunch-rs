@@ -145,70 +145,56 @@ impl HostCallHandler for TauriHostCallHandler {
                     .map_err(|e| JsonRpcError::new(codes::PLUGIN_ERROR, e.to_string()))?;
                 Ok(serde_json::to_value(result).unwrap_or_default())
             }
+            //
+            // 插件                           JSON-RPC 线上              宿主
+            // ────                          ────────────              ────
+            // upload:        传文件路径 → host/resource.upload ──→ resource_upload(file_path) → 读文件 → 存储
+            // put:           raw bytes ──(encode)──→ base64 ──(decode)──→ resource_put(bytes) → 存储
+            // get:           raw bytes ←──(decode)── base64 ←──(encode)── resource_get(id)
+            //
             host::RESOURCE_UPLOAD => {
                 let p: zerolaunch_plugin_protocol::ResourceUploadParams = from_value(params)
                     .map_err(|e| JsonRpcError::new(codes::INVALID_PARAMS, e.to_string()))?;
-                if p.plugin_id != self.plugin_id {
-                    return Err(JsonRpcError::new(
-                        codes::INVALID_PARAMS,
-                        "plugin_id mismatch",
-                    ));
-                }
-                let bytes = base64::Engine::decode(
-                    &base64::engine::general_purpose::STANDARD,
-                    &p.bytes_b64,
-                )
-                .map_err(|e| JsonRpcError::new(codes::INVALID_PARAMS, e.to_string()))?;
-                let tmp = std::env::temp_dir().join(format!("zl_upload_{}", p.key));
-                std::fs::write(&tmp, &bytes)
-                    .map_err(|e| JsonRpcError::new(codes::PLUGIN_ERROR, e.to_string()))?;
-                let uri = handle
-                    .resource_upload(&p.key, &tmp.to_string_lossy(), p.max_size.map(|s| s as u64))
+                let result = handle
+                    .resource_upload(&p.resource_id, &p.file_path, p.max_size.map(|s| s as u64))
                     .await
                     .map_err(|e| JsonRpcError::new(codes::PLUGIN_ERROR, e.to_string()))?;
-                let _ = std::fs::remove_file(&tmp);
-                Ok(serde_json::Value::String(uri))
+                Ok(serde_json::Value::String(result))
+            }
+            host::RESOURCE_PUT => {
+                let p: zerolaunch_plugin_protocol::ResourcePutParams = from_value(params)
+                    .map_err(|e| JsonRpcError::new(codes::INVALID_PARAMS, e.to_string()))?;
+                let bytes = base64::engine::general_purpose::STANDARD
+                    .decode(&p.bytes_b64)
+                    .map_err(|e| JsonRpcError::new(codes::INVALID_PARAMS, e.to_string()))?;
+                handle
+                    .resource_put(&p.resource_id, &bytes)
+                    .await
+                    .map_err(|e| JsonRpcError::new(codes::PLUGIN_ERROR, e.to_string()))?;
+                Ok(serde_json::Value::Null)
             }
             host::RESOURCE_GET => {
                 let p: zerolaunch_plugin_protocol::ResourceGetParams = from_value(params)
                     .map_err(|e| JsonRpcError::new(codes::INVALID_PARAMS, e.to_string()))?;
-                if p.plugin_id != self.plugin_id {
-                    return Err(JsonRpcError::new(
-                        codes::INVALID_PARAMS,
-                        "plugin_id mismatch",
-                    ));
-                }
                 let data = handle
-                    .resource_get(&p.key)
+                    .resource_get(&p.resource_id)
                     .await
                     .map_err(|e| JsonRpcError::new(codes::PLUGIN_ERROR, e.to_string()))?;
-                let b64 = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &data);
+                let b64 = base64::engine::general_purpose::STANDARD.encode(&data);
                 Ok(serde_json::Value::String(b64))
             }
             host::RESOURCE_DELETE => {
                 let p: zerolaunch_plugin_protocol::ResourceDeleteParams = from_value(params)
                     .map_err(|e| JsonRpcError::new(codes::INVALID_PARAMS, e.to_string()))?;
-                if p.plugin_id != self.plugin_id {
-                    return Err(JsonRpcError::new(
-                        codes::INVALID_PARAMS,
-                        "plugin_id mismatch",
-                    ));
-                }
                 handle
-                    .resource_delete(&p.key)
+                    .resource_delete(&p.resource_id)
                     .await
                     .map_err(|e| JsonRpcError::new(codes::PLUGIN_ERROR, e.to_string()))?;
                 Ok(serde_json::Value::Null)
             }
             host::RESOURCE_LIST => {
-                let p: zerolaunch_plugin_protocol::ResourceListParams = from_value(params)
+                let _p: zerolaunch_plugin_protocol::ResourceListParams = from_value(params)
                     .map_err(|e| JsonRpcError::new(codes::INVALID_PARAMS, e.to_string()))?;
-                if p.plugin_id != self.plugin_id {
-                    return Err(JsonRpcError::new(
-                        codes::INVALID_PARAMS,
-                        "plugin_id mismatch",
-                    ));
-                }
                 let keys = handle
                     .resource_list()
                     .await

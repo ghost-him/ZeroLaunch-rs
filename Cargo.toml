@@ -67,6 +67,7 @@ whoami = "2.1.2"
 lnk = "0.6.4"
 scraper = "0.27.0"
 backtrace = "0.3.76"
+base64 = "0.22"
 everything-rs = "0.1.10"
 everything-sys-bindgen = "0.1.5"
 # Internal

@@ -59,4 +59,8 @@ pub enum HostApiError {
     /// 资源未找到
     #[error("资源未找到: {id}")]
     ResourceNotFound { id: String },
+
+    /// 资源路径包含路径遍历字符 (如 "..")
+    #[error("路径遍历被拒绝: {path}")]
+    PathTraversalRejected { path: String },
 }

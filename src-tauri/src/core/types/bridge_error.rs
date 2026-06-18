@@ -78,11 +78,19 @@ impl From<crate::core::types::ConfigError> for BridgeError {
 
 impl From<HostApiError> for BridgeError {
     fn from(e: HostApiError) -> Self {
-        BridgeError {
-            code: ErrorCode::InternalError,
-            message: e.to_string(),
-            details: None,
-            component_id: None,
+        match &e {
+            HostApiError::PathTraversalRejected { .. } => BridgeError {
+                code: ErrorCode::ValidationFailed,
+                message: e.to_string(),
+                details: None,
+                component_id: None,
+            },
+            _ => BridgeError {
+                code: ErrorCode::InternalError,
+                message: e.to_string(),
+                details: None,
+                component_id: None,
+            },
         }
     }
 }

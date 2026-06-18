@@ -309,44 +309,45 @@ pub struct PathResolveParams {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResourceUploadParams {
-    #[serde(rename = "pluginId")]
-    pub plugin_id: String,
-    #[serde(rename = "key")]
-    pub key: String,
-    #[serde(rename = "bytesB64")]
-    pub bytes_b64: String,
+    #[serde(rename = "resourceId")]
+    pub resource_id: String,
+    #[serde(rename = "filePath")]
+    pub file_path: String,
     #[serde(rename = "maxSize")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_size: Option<usize>,
+}
+
+// ─── host/resource.put ────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResourcePutParams {
+    #[serde(rename = "resourceId")]
+    pub resource_id: String,
+    #[serde(rename = "bytesB64")]
+    pub bytes_b64: String,
 }
 
 // ─── host/resource.get ───────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResourceGetParams {
-    #[serde(rename = "pluginId")]
-    pub plugin_id: String,
-    #[serde(rename = "key")]
-    pub key: String,
+    #[serde(rename = "resourceId")]
+    pub resource_id: String,
 }
 
 // ─── host/resource.delete ────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResourceDeleteParams {
-    #[serde(rename = "pluginId")]
-    pub plugin_id: String,
-    #[serde(rename = "key")]
-    pub key: String,
+    #[serde(rename = "resourceId")]
+    pub resource_id: String,
 }
 
 // ─── host/resource.list ──────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ResourceListParams {
-    #[serde(rename = "pluginId")]
-    pub plugin_id: String,
-}
+pub struct ResourceListParams {}
 
 // ─── host/parameter.resolve ──────────────────────────────────────
 

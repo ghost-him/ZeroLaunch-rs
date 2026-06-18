@@ -33,25 +33,25 @@ commands/           → IPC 命令（bridge, config, plugin, resource, inspector
 
 ## 关键文件
 
-| 类别             | 路径                                                   |
-| ---------------- | ------------------------------------------------------ |
-| Plugin SDK (traits) | `crates/plugin-api/src/services/`                   |
-| Plugin SDK (host)  | `crates/plugin-api/src/host/`                       |
-| Windows 平台实现   | `crates/platform-windows/src/`                      |
-| 后端 Bridge 命令   | `src-tauri/src/commands/bridge.rs`                  |
-| 后端 Config 命令   | `src-tauri/src/commands/config_file.rs`             |
-| 后端类型定义       | `src-tauri/src/plugin_system/types.rs` (re-export)  |
-| SessionRouter      | `src-tauri/src/plugin_system/session_router.rs`     |
-| ConfigManager      | `src-tauri/src/core/config/manager.rs`              |
-| HostApi + Builder  | `src-tauri/src/sdk/host_api.rs`                     |
-| 内置组件注册表     | `src-tauri/src/plugin_system/builtin_registry.rs`   |
-| Plugin Inspector   | `src-tauri/src/plugin_system/inspector.rs` (feature = "inspector") |
-| PluginHostManager  | `crates/plugin-host/src/manager.rs`                |
-| 第三方插件加载器   | `src-tauri/src/plugin_loader/loader.rs`            |
-| CLI HTTP 服务器    | `src-tauri/src/cli_server/server.rs`               |
-| 前端类型契约       | `src-ui-new/bridge/contract.ts`                     |
-| 前端命令封装       | `src-ui-new/bridge/commands.ts`                     |
-| 前端事件监听       | `src-ui-new/bridge/events.ts`                       |
+| 类别                | 路径                                                               |
+| ------------------- | ------------------------------------------------------------------ |
+| Plugin SDK (traits) | `crates/plugin-api/src/services/`                                  |
+| Plugin SDK (host)   | `crates/plugin-api/src/host/`                                      |
+| Windows 平台实现    | `crates/platform-windows/src/`                                     |
+| 后端 Bridge 命令    | `src-tauri/src/commands/bridge.rs`                                 |
+| 后端 Config 命令    | `src-tauri/src/commands/config_file.rs`                            |
+| 后端类型定义        | `src-tauri/src/plugin_system/types.rs` (re-export)                 |
+| SessionRouter       | `src-tauri/src/plugin_system/session_router.rs`                    |
+| ConfigManager       | `src-tauri/src/core/config/manager.rs`                             |
+| HostApi + Builder   | `src-tauri/src/sdk/host_api.rs`                                    |
+| 内置组件注册表      | `src-tauri/src/plugin_system/builtin_registry.rs`                  |
+| Plugin Inspector    | `src-tauri/src/plugin_system/inspector.rs` (feature = "inspector") |
+| PluginHostManager   | `crates/plugin-host/src/manager.rs`                                |
+| 第三方插件加载器    | `src-tauri/src/plugin_loader/loader.rs`                            |
+| CLI HTTP 服务器     | `src-tauri/src/cli_server/server.rs`                               |
+| 前端类型契约        | `src-ui-new/bridge/contract.ts`                                    |
+| 前端命令封装        | `src-ui-new/bridge/commands.ts`                                    |
+| 前端事件监听        | `src-ui-new/bridge/events.ts`                                      |
 
 ## IPC 命令清单（21个）
 
@@ -72,3 +72,14 @@ commands/           → IPC 命令（bridge, config, plugin, resource, inspector
 - **前端架构与需求** → `docs/frontend/`
 - **第三方插件开发** → `crates/plugin-api/README.md`
 - **内置插件开发** → `docs/dev/built-in-plugin-guide.md`
+
+<!-- CODEGRAPH_START -->
+## CodeGraph
+
+In repositories indexed by CodeGraph (a `.codegraph/` directory exists at the repo root), reach for it BEFORE grep/find or reading files when you need to understand or locate code:
+
+- **MCP tools** (when available): `codegraph_explore` answers most code questions in one call — the relevant symbols' verbatim source plus the call paths between them. `codegraph_node` returns one symbol's source + callers, or reads a whole file with line numbers. If the tools are listed but deferred, load them by name via tool search.
+- **Shell** (always works): `codegraph explore "<symbol names or question>"` and `codegraph node <symbol-or-file>` print the same output.
+
+If there is no `.codegraph/` directory, skip CodeGraph entirely — indexing is the user's decision.
+<!-- CODEGRAPH_END -->

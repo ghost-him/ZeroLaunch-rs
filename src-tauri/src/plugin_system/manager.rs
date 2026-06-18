@@ -403,6 +403,7 @@ impl PluginManager {
             self.registrar().unregister(&adapters).await;
         }
         self.forget_adapters(plugin_id);
+        self.registrar().refresh().await;
         self.remove_third_party_info(plugin_id);
 
         if let Err(e) = hm.unload(plugin_id).await {

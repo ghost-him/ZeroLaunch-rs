@@ -5,7 +5,8 @@ use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
+use std::sync::OnceLock;
 use tokio::sync::mpsc;
 use tracing::{error, info, warn};
 
@@ -26,7 +27,7 @@ pub type RestartCallback =
     Arc<dyn Fn(RegisteredAdapters) -> Pin<Box<dyn Future<Output = ()> + Send>> + Send + Sync>;
 
 /// All adapters registered for a single plugin instance.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct RegisteredAdapters {
     pub plugin_id: String,
     pub manifest: Manifest,
@@ -51,6 +52,19 @@ struct PluginRestartContext {
     /// 持久化的重启计数器。每次重新生成前原子递增；
     /// 当达到 manifest.runtime.max_restart 时不再尝试重启。
     restart_count: AtomicU32,
+}
+
+impl std::fmt::Debug for PluginRestartContext {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PluginRestartContext")
+            .field("manifest", &self.manifest)
+            .field("plugin_dir", &self.plugin_dir)
+            .field("host_call_handler", &self.host_call_handler)
+            .field("crash_tx", &self.crash_tx)
+            .field("on_restart", &"<RestartCallback>")
+            .field("restart_count", &self.restart_count)
+            .finish()
+    }
 }
 
 /// Top-level manager for all third-party plugin processes.
@@ -256,6 +270,36 @@ impl PluginHostManager {
     ) -> Result<RegisteredAdapters, PluginLoadError> {
         self.unload(plugin_id).await?;
         self.load(plugin_dir, host_call_handler, on_restart).await
+    }
+
+    /// Build `InstalledPluginInfo` for all loaded adapters.
+    ///
+    /// `enabled_fn` is called per-adapter to determine the `enabled` field;
+    /// callers pass a closure that queries `ConfigManager::is_enabled`.
+    pub fn list_plugin_info(
+        &self,
+        enabled_fn: impl Fn(&RegisteredAdapters) -> bool,
+    ) -> Vec<InstalledPluginInfo> {
+        self.adapters
+            .iter()
+            .map(|entry| {
+                let adapters = entry.value();
+                let process_state = self
+                    .processes
+                    .get(&adapters.plugin_id)
+                    .map(|p| format!("{:?}", *p.state.read()))
+                    .unwrap_or_else(|| "unknown".to_string());
+                InstalledPluginInfo {
+                    plugin_id: adapters.plugin_id.clone(),
+                    name: adapters.manifest.plugin.name.clone(),
+                    version: adapters.manifest.plugin.version.clone(),
+                    description: adapters.manifest.plugin.description.clone(),
+                    author: adapters.manifest.plugin.author.clone(),
+                    state: process_state,
+                    enabled: enabled_fn(adapters),
+                }
+            })
+            .collect()
     }
 }
 

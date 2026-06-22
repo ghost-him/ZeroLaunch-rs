@@ -3,28 +3,22 @@ use axum::Json;
 use std::sync::Arc;
 
 use crate::state::app_state::AppState;
+use zerolaunch_plugin_api::config::Configurable;
+use zerolaunch_plugin_host::manager::InstalledPluginInfo;
 use zerolaunch_plugin_protocol::Manifest;
 
 /// GET /v1/plugins — 列出所有已安装插件。
-pub async fn handle_list(State(state): State<Arc<AppState>>) -> Json<Vec<serde_json::Value>> {
+pub async fn handle_list(State(state): State<Arc<AppState>>) -> Json<Vec<InstalledPluginInfo>> {
     let pm = state.get_plugin_manager();
-    let infos: Vec<serde_json::Value> = pm
-        .list_third_party_details()
-        .iter()
-        .map(|info| {
-            serde_json::json!({
-                "pluginId": info.plugin_id,
-                "name": info.name,
-                "version": info.version,
-                "description": info.description,
-                "author": info.author,
-                "state": info.state,
-                "enabled": info.enabled,
-            })
-        })
-        .collect();
+    let cm = state.get_config_manager();
+    let hm = pm.host_manager();
 
-    Json(infos)
+    Json(hm.list_plugin_info(|a| {
+        a.configurables
+            .iter()
+            .all(|c| cm.is_enabled(c.component_id()))
+            && !a.configurables.is_empty()
+    }))
 }
 
 /// POST /v1/plugins/install — 从本地文件安装。

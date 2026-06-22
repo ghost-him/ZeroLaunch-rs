@@ -42,6 +42,33 @@ pub struct CollectedBuiltins {
     pub core_components: Vec<Arc<dyn Configurable>>,
 }
 
+impl CollectedBuiltins {
+    /// 遍历所有类别中的 Configurable 并调用 `f`。
+    pub fn for_each_configurable(&self, mut f: impl FnMut(&Arc<dyn Configurable>)) {
+        for (c, _) in &self.executors {
+            f(c);
+        }
+        for (c, _) in &self.data_sources {
+            f(c);
+        }
+        for (c, _) in &self.keyword_optimizers {
+            f(c);
+        }
+        for (c, _) in &self.search_engines {
+            f(c);
+        }
+        for (c, _) in &self.score_boosters {
+            f(c);
+        }
+        for (c, _) in &self.plugins {
+            f(c);
+        }
+        for c in &self.core_components {
+            f(c);
+        }
+    }
+}
+
 /// 执行器条目。
 pub struct ExecutorEntry {
     pub component_id: &'static str,

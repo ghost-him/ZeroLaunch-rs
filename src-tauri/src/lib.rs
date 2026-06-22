@@ -8,11 +8,11 @@ pub mod sdk;
 pub mod state;
 pub mod utils;
 
+use crate::core::config::event::create_plugin_event_bus;
 use crate::core::config::{ConfigEvent, ConfigManager};
 use crate::core::tray::TrayManager;
 use crate::logging::{init_logging, log_application_shutdown, log_application_start};
 
-use crate::plugin_system::adapter_registrar::DefaultAdapterRegistrar;
 use crate::plugin_system::manager::PluginManager;
 use crate::plugin_system::CandidatePipeline;
 use crate::sdk::host_api::HostApi;
@@ -407,15 +407,13 @@ async fn init_app_state(
 
     info!("=== Phase 3: PluginManager 初始化 ===");
 
-    // 创建 PluginManager 并注入 AdapterRegistrar（注册/解注册逻辑移入 DefaultAdapterRegistrar）
-    let session_router = state.get_session_router().clone();
-    let registrar = Arc::new(DefaultAdapterRegistrar::new(
-        config_manager.clone(),
-        session_router.clone(),
-    ));
+    // 创建 PluginRuntimeEvent 通道（PM → CM 解耦管道）。
+    // 接收端在 init_plugin_system 中通过 subscribe() 创建，与 ConfigEvent 模式一致。
+    let (plugin_event_tx, _plugin_event_rx) = create_plugin_event_bus(256);
+
+    // 创建 PluginManager（通过 PluginRuntimeEvent 广播通道与 CM 通信，不再直接依赖 CM）
     let plugin_manager = Arc::new(PluginManager::new());
-    plugin_manager.set_registrar(registrar);
-    plugin_manager.set_config_manager(config_manager.clone());
+    plugin_manager.set_plugin_event_tx(plugin_event_tx);
     plugin_manager.set_host_api(host_api.clone());
     state.set_plugin_manager(plugin_manager.clone());
 
@@ -431,6 +429,11 @@ async fn init_app_state(
     plugin_manager
         .load_all_third_party(app_handle_for_third_party_plugins)
         .await;
+
+    // 批量加载后刷新候选项缓存，确保第三方插件的数据源被纳入。
+    // 各插件的 PluginRegistered 事件也会触发独立 refresh，但批量场景下
+    // 可能存在事件尚未处理完的竞态，此处作为最终兜底保证缓存完整。
+    state.get_session_router().refresh_candidates().await;
 
     // Start CLI HTTP server
     info!("=== Phase 5: 启动 CLI HTTP 服务器... ===");
@@ -491,6 +494,24 @@ async fn init_plugin_system(state: &Arc<AppState>) {
         }
     });
 
+    // 订阅 PluginRuntimeEvent（PM → CM 解耦管道）
+    let cm_listener = config_manager.clone();
+    let mut plugin_event_rx = plugin_manager.plugin_event_tx().subscribe();
+    tauri::async_runtime::spawn(async move {
+        loop {
+            match plugin_event_rx.recv().await {
+                Ok(event) => cm_listener.handle_plugin_event(&event),
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(count)) => {
+                    warn!("PluginRuntimeEvent 接收器落后 {} 条消息", count);
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                    info!("PluginRuntimeEvent 通道已关闭，退出监听");
+                    break;
+                }
+            }
+        }
+    });
+
     let host_api = state.get_host_api();
     session_router.set_host_api(host_api.clone());
 
@@ -499,7 +520,25 @@ async fn init_plugin_system(state: &Arc<AppState>) {
     // ========================================================================
     info!("=== Phase A: inventory 自动发现并注册所有内置组件 ===");
 
-    let (data_sources, keyword_optimizers) = plugin_manager.init_builtins();
+    let collected = plugin_manager.init_builtins();
+
+    collected.for_each_configurable(|c| {
+        config_manager.register(c.clone());
+    });
+
+    // 注册内置运行时组件到 SessionRouter
+    for (_, ex) in &collected.executors {
+        session_router.register_executor(ex.clone());
+    }
+    for (_, se) in &collected.search_engines {
+        session_router.register_search_engine(se.clone());
+    }
+    for (_, sb) in &collected.score_boosters {
+        session_router.register_score_booster(sb.clone());
+    }
+    for (_, p) in &collected.plugins {
+        session_router.plugin_service().register(p.clone());
+    }
 
     info!(
         "Phase A 完成: 共注册 {} 个组件（其中内置 {} 个）",
@@ -552,11 +591,11 @@ async fn init_plugin_system(state: &Arc<AppState>) {
 
     info!("构建候选管道...");
     let mut candidate_pipeline = CandidatePipeline::new();
-    for source in &data_sources {
-        candidate_pipeline.add_source(source.clone());
+    for (_, ds) in &collected.data_sources {
+        candidate_pipeline.add_source(ds.clone());
     }
-    for optimizer in &keyword_optimizers {
-        candidate_pipeline.add_keyword_optimizer(optimizer.clone());
+    for (_, ko) in &collected.keyword_optimizers {
+        candidate_pipeline.add_keyword_optimizer(ko.clone());
     }
 
     info!("正在收集候选项（此时各组件已持有用户持久化配置）...");

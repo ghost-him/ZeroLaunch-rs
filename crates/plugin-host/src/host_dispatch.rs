@@ -17,6 +17,12 @@ pub trait HostCallHandler: Send + Sync {
     ) -> Result<serde_json::Value, JsonRpcError>;
 }
 
+impl std::fmt::Debug for dyn HostCallHandler {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "HostCallHandler")
+    }
+}
+
 /// Helper for creating "method not found" errors.
 pub fn method_not_found(method: &str) -> JsonRpcError {
     JsonRpcError::new(

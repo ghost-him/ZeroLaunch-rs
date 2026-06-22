@@ -15,6 +15,7 @@ use crate::client::JsonRpcClient;
 use zerolaunch_plugin_protocol::messages::*;
 use zerolaunch_plugin_protocol::methods::plugin as plugin_methods;
 
+#[derive(Debug, Clone)]
 pub struct RemotePluginAdapter {
     pub metadata: PluginMetadata,
     pub client: Arc<JsonRpcClient>,

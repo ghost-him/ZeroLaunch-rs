@@ -591,6 +591,30 @@ impl SessionRouter {
                 }
             }
             ConfigEvent::Registered { .. } | ConfigEvent::Unregistered { .. } => {}
+            ConfigEvent::PluginRegistered(adapters) => {
+                info!("第三方插件运行时组件已注册: {}", adapters.plugin_id);
+                for ds in &adapters.data_sources {
+                    self.register_data_source(ds.clone()).await;
+                }
+                for ex in &adapters.executors {
+                    self.register_executor(ex.clone());
+                }
+                if let Some(p) = &adapters.plugin {
+                    self.register_remote_plugin(p.clone());
+                }
+                self.refresh_candidates().await;
+            }
+            ConfigEvent::PluginUnregistered(adapters) => {
+                info!("第三方插件运行时组件已解注册: {}", adapters.plugin_id);
+                self.unregister_plugin(&adapters.plugin_id);
+                for ds in &adapters.data_sources {
+                    self.unregister_data_source(&ds.component_id).await;
+                }
+                for ex in &adapters.executors {
+                    self.unregister_executor(&ex.component_id);
+                }
+                self.refresh_candidates().await;
+            }
         }
     }
 }

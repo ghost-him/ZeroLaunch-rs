@@ -1,4 +1,6 @@
-use crate::core::config::event::{create_event_bus, ConfigEvent, ConfigEventSender};
+use crate::core::config::event::{
+    create_event_bus, ConfigEvent, ConfigEventSender, PluginRuntimeEvent,
+};
 use crate::core::config::models::{
     ComponentInfo, ComponentPersistentState, ComponentSchema, PersistentConfig,
 };
@@ -387,6 +389,35 @@ impl ConfigManager {
         }
 
         Ok(())
+    }
+
+    // endregion
+
+    // region: PluginRuntimeEvent 处理（PluginManager → ConfigManager 解耦管道）
+
+    /// 处理 PluginManager 发来的 PluginRuntimeEvent。
+    ///
+    /// 纯业务逻辑：注册/解注册 Configurable，转发 ConfigEvent 通知 SessionRouter。
+    /// 事件循环由 lib.rs 负责（与 SR 的 ConfigEvent 监听模式一致）。
+    pub fn handle_plugin_event(&self, event: &PluginRuntimeEvent) {
+        match event {
+            PluginRuntimeEvent::PluginLoaded(adapters) => {
+                for c in &adapters.configurables {
+                    self.register(c.clone());
+                }
+                self.event_sender
+                    .send(ConfigEvent::PluginRegistered(adapters.clone()))
+                    .ok();
+            }
+            PluginRuntimeEvent::PluginUnloaded(adapters) => {
+                for c in &adapters.configurables {
+                    self.unregister(c.component_id());
+                }
+                self.event_sender
+                    .send(ConfigEvent::PluginUnregistered(adapters.clone()))
+                    .ok();
+            }
+        }
     }
 
     // endregion

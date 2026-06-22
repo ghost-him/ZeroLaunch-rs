@@ -23,6 +23,7 @@ pub struct IncomingRequest {
 }
 
 /// Bidirectional JSON-RPC 2.0 client over a framed stdio transport.
+#[derive(Debug)]
 pub struct JsonRpcClient {
     next_id: AtomicU64,
     pending: Arc<DashMap<u64, oneshot::Sender<Result<serde_json::Value, JsonRpcError>>>>,

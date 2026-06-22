@@ -12,5 +12,9 @@
       "Bash(git status *)",
       "Bash(cargo search *)"
     ]
-  }
+  },
+  "enabledMcpjsonServers": [
+    "codegraph"
+  ],
+  "enableAllProjectMcpServers": true
 }

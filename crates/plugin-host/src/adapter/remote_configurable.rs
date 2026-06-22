@@ -22,6 +22,19 @@ pub struct RemoteConfigurableAdapter {
     pub cached_actions: RwLock<Vec<ConfigActionDef>>,
 }
 
+impl std::fmt::Debug for RemoteConfigurableAdapter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RemoteConfigurableAdapter")
+            .field("component_id", &self.component_id)
+            .field("component_name", &self.component_name)
+            .field("component_type", &self.component_type)
+            .field("cached_schema", &self.cached_schema.read())
+            .field("cached_settings", &self.cached_settings.read())
+            .field("cached_actions", &self.cached_actions.read())
+            .finish()
+    }
+}
+
 /// Helper: convert a ProtocolError to a ConfigError.
 fn to_config_error(e: ProtocolError) -> ConfigError {
     ConfigError::ApplyFailed(e.to_string())

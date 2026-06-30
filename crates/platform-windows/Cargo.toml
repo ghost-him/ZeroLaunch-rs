@@ -42,17 +42,12 @@ whoami.workspace = true
 lnk.workspace = true
 
 # Tauri-specific (needed by focus_monitor and hotkey)
-tauri = { version = "^2", features = ["tray-icon"] }
-tauri-plugin-global-shortcut = "^2.3.1"
+tauri.workspace = true
+tauri-plugin-global-shortcut.workspace = true
 
-# Cross-platform home directory resolution
-dirs = "6"
+dirs.workspace = true
+base64.workspace = true
+tempfile.workspace = true
+notify.workspace = true
 
-# Additional non-workspace deps
-base64 = "^0.22.1"
-tempfile = "3.27.0"
-notify = "8.2.0"
 
-[target.'cfg(target_arch = "x86_64")'.dependencies]
-everything-rs = "0.1.10"
-everything-sys-bindgen = "0.1.5"

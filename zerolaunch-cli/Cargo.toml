@@ -7,8 +7,8 @@ description = "Command-line interface for ZeroLaunch (talks to local HTTP API)."
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
-reqwest = { version = "0.13.3", features = ["json", "blocking"] }
+reqwest = { workspace = true, features = ["blocking"] }
 serde.workspace = true
 serde_json.workspace = true
 anyhow.workspace = true
-dirs = "6"
+dirs.workspace = true

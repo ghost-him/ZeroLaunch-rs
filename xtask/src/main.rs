@@ -484,16 +484,6 @@ async fn create_portable_zip(exe_path: &Path, zip_name: &str, arch: TargetArch) 
         add_directory_to_zip(&mut zip, locale_dir, "locales", &options)?;
     }
 
-    // 添加 Everything64.dll（仅限 x64 架构，因为 everything-rs 不支持 ARM64）
-    if arch == TargetArch::X86_64 {
-        let dll_path = Path::new("src-tauri/Everything64.dll");
-        if dll_path.exists() {
-            zip.start_file("Everything64.dll", options)?;
-            let dll_data = fs::read(dll_path)?;
-            std::io::copy(&mut dll_data.as_slice(), &mut zip)?;
-        }
-    }
-
     zip.finish()?;
     Ok(())
 }

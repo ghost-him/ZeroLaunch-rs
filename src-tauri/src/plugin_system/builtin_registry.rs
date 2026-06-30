@@ -106,7 +106,7 @@ pub struct ScoreBoosterEntry {
     pub factory: ScoreBoosterFactory,
 }
 
-/// Plugin 条目 (calculator；everything 已转为第三方插件)。
+/// Plugin 条目。
 pub struct PluginEntry {
     pub component_id: &'static str,
     pub priority: u32,

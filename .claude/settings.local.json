@@ -10,11 +10,12 @@
       "Bash(git log *)",
       "Bash(git diff *)",
       "Bash(git status *)",
-      "Bash(cargo search *)"
+      "Bash(cargo search *)",
+      "Bash(bash .claude/skills/summarize-changes/check-changes.sh)"
     ]
   },
+  "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
     "codegraph"
-  ],
-  "enableAllProjectMcpServers": true
+  ]
 }

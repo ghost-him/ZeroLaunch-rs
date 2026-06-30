@@ -8740,7 +8740,7 @@ checksum = "b97154e67e32c85465826e8bcc1c59429aaaf107c1e4a9e53c8d8ccd5eff88d0"
 
 [[package]]
 name = "zerolaunch-cli"
-version = "0.6.12"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "clap 4.6.1",
@@ -8752,7 +8752,7 @@ dependencies = [
 
 [[package]]
 name = "zerolaunch-platform-windows"
-version = "0.6.12"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "arboard",
@@ -8794,7 +8794,7 @@ dependencies = [
 
 [[package]]
 name = "zerolaunch-plugin-api"
-version = "0.6.12"
+version = "1.0.0"
 dependencies = [
  "async-trait",
  "bincode-next",
@@ -8823,7 +8823,7 @@ dependencies = [
 
 [[package]]
 name = "zerolaunch-plugin-host"
-version = "0.6.12"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8845,7 +8845,7 @@ dependencies = [
 
 [[package]]
 name = "zerolaunch-plugin-protocol"
-version = "0.6.12"
+version = "1.0.0"
 dependencies = [
  "semver",
  "serde",
@@ -8857,7 +8857,7 @@ dependencies = [
 
 [[package]]
 name = "zerolaunch-plugin-sdk-rust"
-version = "0.6.12"
+version = "1.0.0"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -8873,7 +8873,7 @@ dependencies = [
 
 [[package]]
 name = "zerolaunch-rs"
-version = "0.6.12"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "arboard",

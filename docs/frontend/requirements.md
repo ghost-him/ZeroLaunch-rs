@@ -118,7 +118,7 @@ async function openSettingsWindow(): Promise<void> {
 ### 2.2 目录结构
 
 ```
-src-ui-new/
+src-ui/
 ├── App.vue                          # 根组件（视图路由 + 主题注入）
 ├── main.ts                          # 入口
 ├── styles/                          # 全局样式
@@ -1264,7 +1264,7 @@ plugins/                          # 用户可配置的第三方插件目录
 
 | 维度     | 内置插件                              | 第三方插件                           |
 | -------- | ------------------------------------- | ------------------------------------ |
-| 位置     | `src-ui-new/plugins/built-in/`        | 用户配置的插件目录                   |
+| 位置     | `src-ui/plugins/built-in/`        | 用户配置的插件目录                   |
 | 加载时机 | 应用启动时 `pluginManager.register()` | 启动后 `loadThirdPartyPlugins(path)` |
 | 打包     | 编译进 bundle                         | 运行时动态加载                       |
 | 安全审查 | 代码审查                              | 用户自行承担风险                     |
@@ -1648,7 +1648,7 @@ pub async fn bridge_confirm(
 
 ```
 阶段 1: 基础设施搭建
-├── 创建 src-ui-new 目录
+├── 创建 src-ui 目录
 ├── 配置 Vite + Vue 3 + TypeScript + Naive UI + Pinia
 ├── 实现 bridge/contract.ts（共享类型定义）
 ├── 实现 bridge/commands.ts（Tauri invoke 封装）
@@ -1721,7 +1721,7 @@ use serde::Serialize;
 
 #[derive(Serialize, TS)]
 #[serde(rename_all = "camelCase")]
-#[ts(export, export_to = "src-ui-new/bridge/generated.ts")]
+#[ts(export, export_to = "src-ui/bridge/generated.ts")]
 pub struct ListItem {
     pub id: u32,
     pub title: String,
@@ -1733,7 +1733,7 @@ pub struct ListItem {
 
 #[derive(Serialize, TS)]
 #[serde(rename_all = "camelCase")]
-#[ts(export, export_to = "src-ui-new/bridge/generated.ts")]
+#[ts(export, export_to = "src-ui/bridge/generated.ts")]
 pub enum BridgeQueryResponse {
     Search { results: Vec<ListItem> },
     Empty,
@@ -1755,7 +1755,7 @@ pub enum BridgeQueryResponse {
 #### 生成的 TypeScript 类型
 
 ```typescript
-// src-ui-new/bridge/generated.ts (自动生成，请勿手动修改)
+// src-ui/bridge/generated.ts (自动生成，请勿手动修改)
 
 export interface ListItem {
   id: number;
@@ -1803,7 +1803,7 @@ export interface FrontendPlugin {
 
 - name: Check for changes
   run: |
-    if git diff --exit-code src-ui-new/bridge/generated.ts; then
+    if git diff --exit-code src-ui/bridge/generated.ts; then
       echo "Type definitions are up to date"
     else
       echo "Type definitions are out of date. Please run 'cargo build' to regenerate."
@@ -1818,7 +1818,7 @@ export interface FrontendPlugin {
    ↓
 2. cargo build 触发 ts-rs 生成 TypeScript 类型
    ↓
-3. 生成的类型写入 src-ui-new/bridge/generated.ts
+3. 生成的类型写入 src-ui/bridge/generated.ts
    ↓
 4. 前端从 generated.ts 导入类型
    ↓

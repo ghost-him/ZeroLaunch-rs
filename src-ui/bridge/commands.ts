@@ -73,6 +73,10 @@ export function bridgeHideWindow(): Promise<void> {
 
 // ---- 配置管理 ----
 
+export function configGetVersion(): Promise<string> {
+  return invokeCommand<string>('config_get_version')
+}
+
 export function configGetAllComponents(): Promise<ComponentInfo[]> {
   return invokeCommand<ComponentInfo[]>('config_get_all_components')
 }

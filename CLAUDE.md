@@ -51,15 +51,15 @@ logging/            → 日志初始化
 | PluginHostManager   | `crates/plugin-host/src/manager.rs`                                |
 | 第三方插件加载器    | `src-tauri/src/plugin_system/manager.rs`                           |
 | CLI HTTP 服务器     | `src-tauri/src/cli_server/server.rs`                               |
-| 前端类型契约        | `src-ui-new/bridge/contract.ts`                                    |
-| 前端命令封装        | `src-ui-new/bridge/commands.ts`                                    |
-| 前端事件监听        | `src-ui-new/bridge/events.ts`                                      |
+| 前端类型契约        | `src-ui/bridge/contract.ts`                                    |
+| 前端命令封装        | `src-ui/bridge/commands.ts`                                    |
+| 前端事件监听        | `src-ui/bridge/events.ts`                                      |
 
 ## IPC 命令清单
 
 搜索/会话（`bridge_` 前缀，8个）：`bridge_query`, `bridge_confirm`, `bridge_wake`, `bridge_reset`, `bridge_get_session_mode`, `bridge_refresh_candidates`, `bridge_get_candidates_count`, `bridge_hide_window`
 
-配置（`config_` 前缀，8个）：`config_get_all_components`, `config_get_schema`, `config_get_settings`, `config_apply_settings`, `config_reset_settings`, `config_set_enabled`, `config_get_actions`, `config_execute_action`
+配置（`config_` 前缀，9个）：`config_get_version`, `config_get_all_components`, `config_get_schema`, `config_get_settings`, `config_apply_settings`, `config_reset_settings`, `config_set_enabled`, `config_get_actions`, `config_execute_action`
 
 插件管理（`plugin_` 前缀，7个）：`plugin_list`, `plugin_get_manifest`, `plugin_install_local`, `plugin_reload`, `plugin_uninstall`, `plugin_set_enabled`, `plugin_get_logs`
 

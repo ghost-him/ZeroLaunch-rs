@@ -66,10 +66,10 @@ ZeroLaunch-rs 是一个基于 **Tauri 2.x** 的 Windows 应用启动器。前端
 
 ## 2. 项目结构与关键文件
 
-前端代码全部位于 `src-ui-new/` 目录（旧的 `src-ui/` 已删除）。
+前端代码全部位于 `src-ui/` 目录。
 
 ```
-src-ui-new/
+src-ui/
 ├── main.ts                       # 主窗口入口
 ├── settings-main.ts              # 设置窗口入口
 ├── App.vue                       # 主窗口根组件
@@ -219,7 +219,7 @@ NConfigProvider              ← 主题感知（naiveTheme）
 
 ## 4. 路由设计
 
-定义在 `src-ui-new/router/index.ts`，使用 **Hash 模式**（`createWebHashHistory`）：
+定义在 `src-ui/router/index.ts`，使用 **Hash 模式**（`createWebHashHistory`）：
 
 | 路径        | 组件               | 加载方式                   | 说明                           |
 | ----------- | ------------------ | -------------------------- | ------------------------------ |
@@ -912,7 +912,7 @@ configGetSchema("program-source") 返回:
     copyI18nPlugin()  // 将 i18n JSON 复制到 src-tauri/locales/ 供 Rust 使用
   ],
   resolve: {
-    alias: { '@': 'src-ui-new/' }
+    alias: { '@': 'src-ui/' }
   },
   server: {
     port: 12345,       // 固定端口（Tauri 需要）

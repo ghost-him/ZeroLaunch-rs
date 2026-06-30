@@ -95,8 +95,8 @@ jobs:
         shell: pwsh
         run: |
           cd xtask
-          # 构建所有架构和 AI 变体
-          cargo run --bin xtask build-all --arch all --ai both
+          # 构建所有架构的所有变体
+          cargo run --bin xtask build-all --arch all
           cd ..
 
       - name: List build artifacts
@@ -286,21 +286,6 @@ jobs:
           - **安装版 (`.exe`/`.msi`)**: 提供传统的安装体验。
           - **便携版 (`.zip`)**: 无需安装，解压即用，适合移动或绿色版爱好者。
           - **`.exe` 与 `.msi`**: 推荐使用 `.msi` 安装。`.exe` 安装包受平台限制，没有进行深层签名。
-
-          > **完整版**包含 AI 智能搜索功能，而 **精简版 (lite)** 不含 AI 功能，体积更小。
-
-          ---
-
-          ### 🤖 关于 AI 功能
-
-          > **重要提示**：AI 智能搜索功能需要单独下载模型权重文件才能使用。
-
-          **模型下载地址**：
-          - GitHub: https://github.com/$repoPath/releases/tag/model
-          - Gitee: https://gitee.com/$repoPath/releases/tag/model
-          - GitCode: https://gitcode.com/$repoPath/releases/model
-
-          请根据模型发布页中的说明进行配置。
           "@
 
           # 构建最终的 Release Notes

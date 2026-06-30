@@ -1,15 +1,18 @@
 [workspace]
 resolver = "2"
-members = ["crates/platform-windows","crates/plugin-api",
+members = [
+    "crates/platform-windows",
+    "crates/plugin-api",
     "crates/plugin-protocol",
     "crates/plugin-host",
     "crates/plugin-sdk-rust",
     "zerolaunch-cli",
     "src-tauri",
 ]
+exclude = ["xtask", "plugin-template"]
 
 [workspace.package]
-version = "0.6.12"
+version = "1.0.0"
 edition = "2021"
 authors = ["ghost-him"]
 license = "GPLv3"

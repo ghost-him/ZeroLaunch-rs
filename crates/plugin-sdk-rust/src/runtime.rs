@@ -81,54 +81,49 @@ async fn run_async(mut plugin: impl Plugin + 'static) {
             let read_handle = tokio::spawn(async move {
                 let reader = BufReader::new(stdin);
                 let mut stdin = reader;
-                loop {
-                    match read_frame(&mut stdin).await {
-                        Ok(body) => {
-                            let msg: Message = match serde_json::from_slice(&body) {
-                                Ok(m) => m,
-                                Err(_) => continue,
-                            };
-                            match msg {
-                                Message::Response(resp) => {
-                                    if let Some((_, tx)) = pending_r.remove(&resp.id) {
-                                        let result = resp
-                                            .result
-                                            .or(resp
-                                                .error
-                                                .map(|e| serde_json::Value::String(e.message)))
-                                            .unwrap_or(serde_json::Value::Null);
-                                        let _ = tx.send(result);
-                                    } else {
-                                        // 如果没有对应的 pending channel，说明响应已经超时或被取消，忽略。同时打印一下被忽略的信息
-                                        tracing::warn!(
-                                            "收到未知的响应 id={}，可能已超时或被取消: {:?}",
-                                            resp.id,
-                                            resp
-                                        );
-                                    }
-                                }
-                                Message::Request(req) => {
-                                    let ret = request_tx_clone
-                                        .send(IncomingRequest {
-                                            id: req.id,
-                                            method: req.method,
-                                            params: req.params,
-                                        })
-                                        .await;
-                                    // 如果 dispatch task 已退出，说明插件可能已经崩溃或被关闭，无法处理请求。打印警告信息。
-                                    if ret.is_err() {
-                                        tracing::warn!(
-                                            "无法将请求发送到 dispatch task，可能 dispatch task 已退出: {:?}",
-                                            ret
-                                        );
-                                    }
-                                }
-                                Message::Notification(_) => {
-                                    tracing::trace!("忽略通知");
-                                }
+                while let Ok(body) = read_frame(&mut stdin).await {
+                    let msg: Message = match serde_json::from_slice(&body) {
+                        Ok(m) => m,
+                        Err(_) => continue,
+                    };
+                    match msg {
+                        Message::Response(resp) => {
+                            if let Some((_, tx)) = pending_r.remove(&resp.id) {
+                                let result = resp
+                                    .result
+                                    .or(resp
+                                        .error
+                                        .map(|e| serde_json::Value::String(e.message)))
+                                    .unwrap_or(serde_json::Value::Null);
+                                let _ = tx.send(result);
+                            } else {
+                                // 如果没有对应的 pending channel，说明响应已经超时或被取消，忽略。同时打印一下被忽略的信息
+                                tracing::warn!(
+                                    "收到未知的响应 id={}，可能已超时或被取消: {:?}",
+                                    resp.id,
+                                    resp
+                                );
                             }
                         }
-                        Err(_) => break,
+                        Message::Request(req) => {
+                            let ret = request_tx_clone
+                                .send(IncomingRequest {
+                                    id: req.id,
+                                    method: req.method,
+                                    params: req.params,
+                                })
+                                .await;
+                            // 如果 dispatch task 已退出，说明插件可能已经崩溃或被关闭，无法处理请求。打印警告信息。
+                            if ret.is_err() {
+                                tracing::warn!(
+                                    "无法将请求发送到 dispatch task，可能 dispatch task 已退出: {:?}",
+                                    ret
+                                );
+                            }
+                        }
+                        Message::Notification(_) => {
+                            tracing::trace!("忽略通知");
+                        }
                     }
                 }
             });

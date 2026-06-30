@@ -51,9 +51,9 @@ logging/            → 日志初始化
 | PluginHostManager   | `crates/plugin-host/src/manager.rs`                                |
 | 第三方插件加载器    | `src-tauri/src/plugin_system/manager.rs`                           |
 | CLI HTTP 服务器     | `src-tauri/src/cli_server/server.rs`                               |
-| 前端类型契约        | `src-ui-new/bridge/contract.ts`                                    |
-| 前端命令封装        | `src-ui-new/bridge/commands.ts`                                    |
-| 前端事件监听        | `src-ui-new/bridge/events.ts`                                      |
+| 前端类型契约        | `src-ui/bridge/contract.ts`                                    |
+| 前端命令封装        | `src-ui/bridge/commands.ts`                                    |
+| 前端事件监听        | `src-ui/bridge/events.ts`                                      |
 
 ## IPC 命令清单（28个）
 

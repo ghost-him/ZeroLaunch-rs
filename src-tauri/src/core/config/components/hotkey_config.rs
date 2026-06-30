@@ -31,7 +31,7 @@ fn default_open_search_bar() -> String {
 }
 
 /// 快捷键配置组件。
-/// 管理全局快捷键（打开搜索栏、切换 Everything 等）和双击 Ctrl 开关。
+/// 管理全局快捷键（打开搜索栏）和双击 Ctrl 开关。
 /// 配置变更时异步应用快捷键到 HostApi。
 pub struct HotkeyConfigComponent {
     /// HostApi 引用，用于应用快捷键配置
@@ -172,7 +172,7 @@ impl Configurable for HotkeyConfigComponent {
     }
 
     fn validate_settings(&self, settings: &serde_json::Value) -> Result<(), ConfigError> {
-        let hotkey_fields = ["open_search_bar", "switch_to_everything"];
+        let hotkey_fields = ["open_search_bar"];
         for field in &hotkey_fields {
             if let Some(hotkey_str) = settings.get(field).and_then(|v| v.as_str()) {
                 if !hotkey_str.is_empty() && parse_hotkey_string(hotkey_str).is_none() {

@@ -1,7 +1,7 @@
 ---
 paths:
   - "src-tauri/src/commands/**"
-  - "src-ui-new/bridge/**"
+  - "src-ui/bridge/**"
   - "src-tauri/src/cli_server/**"
 ---
 

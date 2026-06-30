@@ -3,6 +3,12 @@ use crate::plugin_system::ConfigActionDef;
 use crate::state::app_state::AppState;
 use std::sync::Arc;
 
+/// 获取应用版本号（从 Cargo.toml 编译时注入）
+#[tauri::command]
+pub fn config_get_version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
+}
+
 /// 获取指定组件的配置动作列表
 #[tauri::command]
 pub fn config_get_actions(

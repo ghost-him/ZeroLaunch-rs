@@ -280,8 +280,8 @@ async fn build_single_portable(target: BuildTarget, version: &str) -> Result<()>
 
 fn move_installer_to_root(target_arch: TargetArch) -> Result<()> {
     let root_dir = env::current_dir()?;
-    let bundle_dir = Path::new("src-tauri")
-        .join("target")
+    // Cargo workspace 模式下 target 目录在项目根，而非 src-tauri/target。
+    let bundle_dir = Path::new("target")
         .join(target_arch.triple())
         .join("release")
         .join("bundle");
@@ -346,7 +346,8 @@ async fn run_command(args: Vec<String>) -> Result<()> {
 
 /// 打包便携版本
 async fn package_portable_variant(target: BuildTarget, version: &str) -> Result<()> {
-    let target_dir = Path::new("src-tauri/target");
+    // Cargo workspace 模式下 target 目录在项目根。
+    let target_dir = Path::new("target");
     let zip_name = format!(
         "ZeroLaunch-portable-{}-{}.zip",
         version,
@@ -470,7 +471,8 @@ fn add_directory_to_zip(
 
 /// 清理构建产物
 fn clean_build_artifacts() -> Result<()> {
-    let target_dir = Path::new("src-tauri/target");
+    // Cargo workspace 模式下 target 目录在项目根。
+    let target_dir = Path::new("target");
 
     // 在删除 target 目录前，先清理根目录下的安装包副本
     let targets = ["x86_64-pc-windows-msvc", "aarch64-pc-windows-msvc"];

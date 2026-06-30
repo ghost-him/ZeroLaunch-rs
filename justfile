@@ -1,6 +1,21 @@
-set shell := ["powershell.exe", "-ExecutionPolicy", "Bypass", "-Command"]
+set shell := ["cmd.exe", "/C"]
 
+# Cargo workspace 模式 — 所有 cargo 命令从项目根运行
+
+# 代码风格检查与自动修复
 style:
-    @Write-Host "start style the rust code"
-    cd src-tauri; cargo clippy --fix --allow-dirty; cargo fmt --all
-    @Write-Host "style finished"
+    cargo fmt --all
+    cargo clippy --workspace --fix --allow-dirty --allow-staged
+
+# 快速编译检查（全 workspace）
+check:
+    cargo check --workspace
+
+# 运行测试（全 workspace）
+test:
+    cargo test --workspace
+
+# 构建前端 + release 编译
+build:
+    bun run build
+    cargo build --release

@@ -183,6 +183,7 @@ pub fn run() {
             crate::commands::bridge::bridge_get_candidates_count,
             crate::commands::bridge::bridge_hide_window,
             // Bridge: 配置管理
+            crate::commands::config_file::config_get_version,
             crate::commands::config_file::config_get_all_components,
             crate::commands::config_file::config_get_schema,
             crate::commands::config_file::config_get_settings,

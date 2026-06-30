@@ -11,7 +11,7 @@ const copyI18nPlugin = () => {
   return {
     name: 'copy-i18n-locales',
     buildStart() {
-      const srcLocalesDir = join(process.cwd(), 'src-ui-new', 'i18n', 'locales');
+      const srcLocalesDir = join(process.cwd(), 'src-ui', 'i18n', 'locales');
       const destDir = join(process.cwd(), 'src-tauri', 'locales');
 
       if (!existsSync(srcLocalesDir)) return;
@@ -39,7 +39,7 @@ export default defineConfig(async () => ({
 
   resolve: {
     alias: {
-      '@': resolve(__dirname, 'src-ui-new'),
+      '@': resolve(__dirname, 'src-ui'),
     },
   },
 

@@ -264,7 +264,6 @@ pub trait Plugin: Configurable {
 | 实现类             | 触发词 | 功能     |
 | ------------------ | ------ | -------- |
 | `CalculatorPlugin` | `=`    | 计算器   |
-| `EverythingPlugin` | `f`    | 文件搜索 |
 
 ---
 

@@ -162,7 +162,7 @@ commands/
 - 命令处理器是 **薄代理**：接收参数 → 委托给 SessionRouter/ConfigManager → 返回结果。详细规范见 [commands.md](commands.md)
 - IPC 命令按前缀分散在 `commands/` 子文件中，前缀 → 文件对应关系见 [commands.md](commands.md)
 
-### 前端 (src-ui-new/)
+### 前端 (src-ui/)
 
 | 目录 | 职责 | 放置规则 |
 |------|------|---------|

@@ -29,7 +29,7 @@
           <h3>{{ $t('settings.about') }}</h3>
           <div class="static-row">
             <span>ZeroLaunch-rs</span>
-            <n-text depth="3">v0.6.12</n-text>
+            <n-text depth="3">v{{ version }}</n-text>
           </div>
         </div>
 
@@ -82,6 +82,7 @@ import PluginInspector from './PluginInspector.vue'
 import { useConfigStore } from '../stores/config-store'
 import { buildSidebarItems } from '../utils/settingsSidebar'
 import { registerErrorHandler } from '../bridge/commands'
+import { configGetVersion } from '../bridge/commands'
 import type { BridgeError } from '../bridge/commands'
 import type { ComponentInfo } from '../bridge/contract'
 
@@ -91,6 +92,7 @@ const notification = useNotification()
 const loading = ref(true)
 const loadErr = ref<string | null>(null)
 const selectedId = ref<string | null>('category_core')
+const version = ref('')
 
 function getComponentsList(): ComponentInfo[] {
   return Object.values(configStore.components)
@@ -118,7 +120,11 @@ async function init() {
   loading.value = true
   loadErr.value = null
   try {
-    await configStore.loadAllComponents()
+    const [ loadedVersion ] = await Promise.all([
+      configGetVersion(),
+      configStore.loadAllComponents(),
+    ])
+    version.value = loadedVersion
   } catch (e) {
     loadErr.value = String(e)
   } finally {

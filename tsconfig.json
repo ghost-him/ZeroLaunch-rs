@@ -16,7 +16,7 @@
 
     /* Path aliases */
     "paths": {
-      "@/*": ["./src-ui-new/*"]
+      "@/*": ["./src-ui/*"]
     },
 
     /* Linting */
@@ -25,6 +25,6 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src-ui-new/**/*.ts", "src-ui-new/**/*.d.ts", "src-ui-new/**/*.tsx", "src-ui-new/**/*.vue"],
+  "include": ["src-ui/**/*.ts", "src-ui/**/*.d.ts", "src-ui/**/*.tsx", "src-ui/**/*.vue"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

@@ -7,11 +7,13 @@ pub mod host_handler;
 pub mod inspector;
 pub mod manager;
 pub mod plugin_info;
+pub(crate) mod plugin_installer;
 mod registry;
 mod search_pipeline;
 pub mod service;
 mod session_router;
 pub mod types;
+pub(crate) mod zlplugin_protocol;
 
 pub use candidate_pipeline::CandidatePipeline;
 pub use executor_registry::ExecutorRegistry;

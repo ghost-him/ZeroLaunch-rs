@@ -169,7 +169,7 @@ impl Configurable for GeneralConfigComponent {
     }
 }
 
-use crate::plugin_system::builtin_registry::CoreComponentEntry;
+use crate::core::config::core_registry::CoreComponentEntry;
 
 fn build_general_config(host_api: Arc<crate::sdk::HostApi>) -> Arc<dyn Configurable> {
     Arc::new(GeneralConfigComponent::new(host_api))

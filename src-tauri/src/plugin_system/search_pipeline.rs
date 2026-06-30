@@ -1,5 +1,5 @@
 use super::types::*;
-use crate::plugin_system::cached_candidate::CachedCandidateData;
+use crate::plugin_system::CachedCandidateData;
 use std::sync::Arc;
 pub struct SearchPipeline {
     engine: Arc<dyn SearchEngine>,

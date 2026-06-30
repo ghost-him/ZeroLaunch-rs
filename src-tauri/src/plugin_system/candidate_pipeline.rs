@@ -1,6 +1,6 @@
 use super::types::DataSource;
-use crate::plugin_system::cached_candidate::CachedCandidateData;
 use crate::plugin_system::types::{Configurable, KeywordOptimizer};
+use crate::plugin_system::CachedCandidateData;
 use std::collections::HashSet;
 use std::sync::Arc;
 

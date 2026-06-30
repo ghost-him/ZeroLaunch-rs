@@ -1,9 +1,9 @@
 use crate::core::config::setting_builders::SchemaBuilder;
-use crate::plugin_system::cached_candidate::CachedCandidateData;
 use crate::plugin_system::types::{
     CandidateId, ComponentType, ConfigError, Configurable, ScoreBooster, ScoreDetail,
     ScoredCandidate, SettingDefinition,
 };
+use crate::plugin_system::CachedCandidateData;
 use crate::utils::get_current_time;
 use dashmap::DashMap;
 use parking_lot::RwLock;

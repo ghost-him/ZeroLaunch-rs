@@ -1,6 +1,6 @@
 use crate::core::config::setting_builders::SchemaBuilder;
-use crate::plugin_system::cached_candidate::CachedCandidateData;
 use crate::plugin_system::types::{ConfigActionDef, DataSource, ExecutionTarget, SearchCandidate};
+use crate::plugin_system::CachedCandidateData;
 use crate::plugin_system::{
     ComponentType, ConfigError, Configurable, DetailActionDef, SettingDefinition,
 };

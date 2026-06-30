@@ -6,6 +6,7 @@
 //! 插件作者只需在 `plugin/<category>/` 下加 .rs 文件并添加 `inventory::submit!` 块，
 //! 无需修改 `lib.rs`。
 
+use crate::core::config::core_registry::CoreComponentEntry;
 use crate::plugin_system::types::{
     ActionExecutor, DataSource, KeywordOptimizer, Plugin, ScoreBooster, SearchEngine,
 };
@@ -27,7 +28,6 @@ pub type KeywordOptimizerFactory = fn() -> (Arc<dyn Configurable>, Arc<dyn Keywo
 pub type SearchEngineFactory = fn() -> (Arc<dyn Configurable>, Arc<dyn SearchEngine>);
 pub type ScoreBoosterFactory = fn() -> (Arc<dyn Configurable>, Arc<dyn ScoreBooster>);
 pub type PluginFactory = fn() -> (Arc<dyn Configurable>, Arc<dyn Plugin>);
-pub type CoreComponentFactory = fn(Arc<HostApi>) -> Arc<dyn Configurable>;
 /// inventory 收集结果：所有内置组件的已构造 trait 对象。
 ///
 /// 该 struct 由 `collect_all_builtin_entries()` 返回，
@@ -113,13 +113,6 @@ pub struct PluginEntry {
     pub factory: PluginFactory,
 }
 
-/// 核心配置组件条目。
-pub struct CoreComponentEntry {
-    pub component_id: &'static str,
-    pub priority: u32,
-    pub factory: CoreComponentFactory,
-}
-
 // ============================================================================
 // Inventory 收集器 — 每种条目一个 collector
 // ============================================================================
@@ -130,7 +123,6 @@ pub struct CoreComponentEntry {
 ::inventory::collect!(SearchEngineEntry);
 ::inventory::collect!(ScoreBoosterEntry);
 ::inventory::collect!(PluginEntry);
-::inventory::collect!(CoreComponentEntry);
 
 // ============================================================================
 // InventoryContext — 组件工厂的服务定位器

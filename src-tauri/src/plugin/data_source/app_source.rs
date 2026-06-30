@@ -1,5 +1,5 @@
-use crate::plugin_system::cached_candidate::CachedCandidateData;
 use crate::plugin_system::types::{DataSource, ExecutionTarget, SearchCandidate};
+use crate::plugin_system::CachedCandidateData;
 use crate::plugin_system::{ComponentType, ConfigError, Configurable};
 use async_trait::async_trait;
 use parking_lot::RwLock;

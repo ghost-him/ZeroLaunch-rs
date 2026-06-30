@@ -1,9 +1,9 @@
-use super::cached_candidate::CachedCandidateData;
 use super::candidate_pipeline::CandidatePipeline;
 use super::executor_registry::ExecutorRegistry;
 use super::search_pipeline::SearchPipeline;
 use super::service::PluginService;
 use super::types::*;
+use super::CachedCandidateData;
 use crate::core::config::{ConfigEvent, ConfigManager};
 use crate::sdk::HostApi;
 use parking_lot::{Mutex, RwLock};

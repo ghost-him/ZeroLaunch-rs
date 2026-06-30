@@ -1,4 +1,5 @@
 pub mod components;
+pub mod core_registry;
 pub mod event;
 pub mod manager;
 pub mod models;

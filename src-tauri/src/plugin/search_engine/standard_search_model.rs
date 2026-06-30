@@ -1,8 +1,8 @@
 #![allow(dead_code)]
-use crate::plugin_system::cached_candidate::CachedCandidateData;
 use crate::plugin_system::types::{
     ComponentType, Configurable, ScoreDetail, ScoredCandidate, SearchCandidate, SearchEngine,
 };
+use crate::plugin_system::CachedCandidateData;
 use std::collections::HashMap;
 
 /// 标准搜索引擎

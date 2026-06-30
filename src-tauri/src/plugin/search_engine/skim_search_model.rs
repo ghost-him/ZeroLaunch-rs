@@ -1,7 +1,7 @@
-use crate::plugin_system::cached_candidate::CachedCandidateData;
 use crate::plugin_system::types::{
     ComponentType, Configurable, ScoreDetail, ScoredCandidate, SearchEngine,
 };
+use crate::plugin_system::CachedCandidateData;
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
 use parking_lot::RwLock;

@@ -764,7 +764,7 @@ impl Configurable for AppearanceConfigComponent {
     }
 }
 
-use crate::plugin_system::builtin_registry::CoreComponentEntry;
+use crate::core::config::core_registry::CoreComponentEntry;
 
 fn build_appearance_config(
     _host_api: std::sync::Arc<crate::sdk::HostApi>,

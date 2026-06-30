@@ -276,7 +276,7 @@ mod tests {
     }
 }
 
-use crate::plugin_system::builtin_registry::CoreComponentEntry;
+use crate::core::config::core_registry::CoreComponentEntry;
 
 fn build_hotkey_config(host_api: Arc<crate::sdk::HostApi>) -> Arc<dyn Configurable> {
     Arc::new(HotkeyConfigComponent::new(host_api))

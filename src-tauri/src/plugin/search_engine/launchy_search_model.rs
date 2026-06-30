@@ -1,7 +1,7 @@
-use crate::plugin_system::cached_candidate::CachedCandidateData;
 use crate::plugin_system::types::{
     ComponentType, Configurable, ScoreDetail, ScoredCandidate, SearchEngine,
 };
+use crate::plugin_system::CachedCandidateData;
 use std::collections::HashMap;
 
 /// 这个文件是以LaunchyQT的搜索模型为基础进行的改造

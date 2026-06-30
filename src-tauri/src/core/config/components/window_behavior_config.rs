@@ -154,7 +154,7 @@ impl Configurable for WindowBehaviorConfigComponent {
     }
 }
 
-use crate::plugin_system::builtin_registry::CoreComponentEntry;
+use crate::core::config::core_registry::CoreComponentEntry;
 
 fn build_window_behavior_config(
     _host_api: std::sync::Arc<crate::sdk::HostApi>,

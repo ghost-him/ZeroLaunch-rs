@@ -1,13 +1,15 @@
+use crate::cli_server::token::CliToken;
 use crate::core::config::ConfigManager;
 use crate::core::tray::TrayManager;
+use crate::plugin_system::manager::PluginManager;
 use crate::plugin_system::service::PluginService;
 use crate::plugin_system::SessionRouter;
-use crate::sdk::host_api::PluginHandle;
 use crate::sdk::HostApi;
 use crate::utils::waiting_hashmap::AsyncWaitingHashMap;
 use parking_lot::RwLock;
 use std::sync::Arc;
 use tauri::AppHandle;
+use zerolaunch_plugin_api::host::PluginHandle;
 
 pub struct AppState {
     session_router: Arc<SessionRouter>,
@@ -16,11 +18,14 @@ pub struct AppState {
     waiting_hashmap: Arc<AsyncWaitingHashMap<String, Vec<(String, String)>>>,
     tray_manager: RwLock<Option<Arc<TrayManager>>>,
     game_mode: RwLock<bool>,
-    is_keyboard_blocked: RwLock<bool>,
-    previous_foreground_window: RwLock<Option<isize>>,
-    previous_selection: RwLock<Option<String>>,
     host_api: RwLock<Option<Arc<HostApi>>>,
     core_handle: RwLock<Option<Arc<PluginHandle>>>,
+    #[cfg(feature = "inspector")]
+    inspector: RwLock<Option<Arc<crate::plugin_system::inspector::Inspector>>>,
+    /// PluginManager — 插件身份与生命周期的统一入口
+    plugin_manager: RwLock<Option<Arc<PluginManager>>>,
+    /// CLI server token (cached for the `cli_get_info` IPC command).
+    cli_token: RwLock<Option<CliToken>>,
 }
 
 impl Default for AppState {
@@ -41,11 +46,12 @@ impl AppState {
             waiting_hashmap: Arc::new(AsyncWaitingHashMap::new()),
             tray_manager: RwLock::new(None),
             game_mode: RwLock::new(false),
-            is_keyboard_blocked: RwLock::new(false),
-            previous_foreground_window: RwLock::new(None),
-            previous_selection: RwLock::new(None),
             host_api: RwLock::new(None),
             core_handle: RwLock::new(None),
+            #[cfg(feature = "inspector")]
+            inspector: RwLock::new(None),
+            plugin_manager: RwLock::new(None),
+            cli_token: RwLock::new(None),
         }
     }
 
@@ -97,30 +103,6 @@ impl AppState {
         *self.game_mode.read()
     }
 
-    pub fn set_is_keyboard_blocked(&self, is_keyboard_blocked: bool) {
-        *self.is_keyboard_blocked.write() = is_keyboard_blocked;
-    }
-
-    pub fn get_is_keyboard_blocked(&self) -> bool {
-        *self.is_keyboard_blocked.read()
-    }
-
-    pub fn set_previous_foreground_window(&self, hwnd: Option<isize>) {
-        *self.previous_foreground_window.write() = hwnd;
-    }
-
-    pub fn get_previous_foreground_window(&self) -> Option<isize> {
-        *self.previous_foreground_window.read()
-    }
-
-    pub fn set_previous_selection(&self, selection: Option<String>) {
-        *self.previous_selection.write() = selection;
-    }
-
-    pub fn get_previous_selection(&self) -> Option<String> {
-        self.previous_selection.read().clone()
-    }
-
     pub fn get_host_api(&self) -> Arc<HostApi> {
         self.host_api
             .read()
@@ -143,6 +125,36 @@ impl AppState {
 
     pub fn set_core_handle(&self, handle: Arc<PluginHandle>) {
         *self.core_handle.write() = Some(handle);
+    }
+
+    #[cfg(feature = "inspector")]
+    pub fn get_inspector(&self) -> Option<Arc<crate::plugin_system::inspector::Inspector>> {
+        self.inspector.read().clone()
+    }
+
+    #[cfg(feature = "inspector")]
+    pub fn set_inspector(&self, inspector: Arc<crate::plugin_system::inspector::Inspector>) {
+        *self.inspector.write() = Some(inspector);
+    }
+
+    pub fn get_plugin_manager(&self) -> Arc<PluginManager> {
+        self.plugin_manager
+            .read()
+            .as_ref()
+            .cloned()
+            .expect("plugin_manager not initialized")
+    }
+
+    pub fn set_plugin_manager(&self, manager: Arc<PluginManager>) {
+        *self.plugin_manager.write() = Some(manager);
+    }
+
+    pub fn get_cli_token(&self) -> Option<CliToken> {
+        self.cli_token.read().clone()
+    }
+
+    pub fn set_cli_token(&self, token: CliToken) {
+        *self.cli_token.write() = Some(token);
     }
 }
 

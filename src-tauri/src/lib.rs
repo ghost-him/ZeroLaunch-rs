@@ -1,3 +1,5 @@
+pub mod bootstrap;
+pub mod cli_server;
 pub mod commands;
 pub mod core;
 pub mod logging;
@@ -7,62 +9,11 @@ pub mod sdk;
 pub mod state;
 pub mod utils;
 
-use crate::core::config::components::appearance_config::AppearanceConfigComponent;
-use crate::core::config::components::general_config::GeneralConfigComponent;
-use crate::core::config::components::hotkey_config::HotkeyConfigComponent;
-use crate::core::config::components::storage_config::StorageConfigComponent;
-use crate::core::config::components::window_behavior_config::WindowBehaviorConfigComponent;
-use crate::core::config::{ConfigEvent, ConfigManager};
-use crate::core::tray::TrayManager;
 use crate::logging::{init_logging, log_application_shutdown, log_application_start};
-use crate::plugin::data_source::app_source::AppSource;
-use crate::plugin::data_source::bookmark_source::BookmarkSource;
-use crate::plugin::data_source::command_source::CommandSource;
-use crate::plugin::data_source::program_source::ProgramSource;
-use crate::plugin::data_source::url_source::UrlSource;
-use crate::plugin::executor::{
-    AppExecutor, CommandExecutor, FileExecutor, PathExecutor, UrlExecutor, WindowActivateExecutor,
-};
-use crate::plugin::keyword_optimizer::{
-    FirstLetterExtractor, LowerCaseConverter, PinyinConverter, SpaceNormalizer, SpaceRemover,
-    SymbolRemover, UpperCaseLetterExtractor, VersionNumberRemover,
-};
-use crate::plugin::score_booster::history_booster::HistoryBooster;
-use crate::plugin::score_booster::query_affinity::QueryAffinityBooster;
-use crate::plugin::search_engine::launchy_search_model::LaunchySearchModel;
-use crate::plugin::search_engine::skim_search_model::SkimSearchModel;
-use crate::plugin::search_engine::standard_search_model::StandardSearchModel;
-use crate::plugin::triggerable::calculator_plugin::CalculatorPlugin;
-use crate::plugin_system::types::{Plugin, ScoreBooster, SearchEngine};
-
-use crate::plugin_system::{CandidatePipeline, SearchPipeline};
-use crate::sdk::common::ComGuard;
-use crate::sdk::hotkey::types::HotkeyEventFilter;
-use crate::sdk::path::KnownPath;
-use crate::sdk::platform::WindowsAppEnumerator;
-use crate::sdk::platform::WindowsAppLauncher;
-use crate::sdk::platform::WindowsAutoStartManager;
-use crate::sdk::platform::WindowsClipboardProvider;
-use crate::sdk::platform::WindowsFocusMonitor;
-use crate::sdk::platform::WindowsHotkeyManager;
-use crate::sdk::platform::WindowsIconExtractor;
-use crate::sdk::platform::WindowsInstallationMonitor;
-use crate::sdk::platform::WindowsLnkResolver;
-use crate::sdk::platform::WindowsPathResolver;
-use crate::sdk::platform::WindowsResourceLoader;
-use crate::sdk::platform::WindowsSelectionProvider;
-use crate::sdk::platform::WindowsShellExecutor;
-use crate::sdk::platform::WindowsWindowHandleProvider;
-use crate::sdk::platform::WindowsWindowManager;
-use crate::sdk::platform::WindowsWindowPositioner;
-use crate::sdk::storage::local_storage::LocalStorageService;
-use crate::sdk::storage::storage_service::StorageService;
-use crate::sdk::timer::TokioTimerManager;
-use crate::sdk::window::{MonitorInfo, PositionRequest, WindowPosition};
-use crate::sdk::AppResourceService;
-use crate::sdk::HostApi;
-use crate::sdk::PathResolver;
+use crate::sdk::host_api::HostApi;
+use crate::sdk::HostApiBuilder;
 use crate::state::app_state::AppState;
+use crate::utils::service_locator::ServiceLocator;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tauri::App;
@@ -71,9 +22,28 @@ use tauri::LogicalSize;
 use tauri::Manager;
 use tauri::WebviewUrl;
 use tauri_plugin_deep_link::DeepLinkExt;
-use tracing::{debug, error, info, warn};
-use utils::service_locator::ServiceLocator;
-
+use tracing::{debug, info, warn};
+use zerolaunch_platform_windows::windows_capabilities;
+use zerolaunch_platform_windows::ComGuard;
+use zerolaunch_platform_windows::WindowsAppEnumerator;
+use zerolaunch_platform_windows::WindowsAppLauncher;
+use zerolaunch_platform_windows::WindowsAutoStartManager;
+use zerolaunch_platform_windows::WindowsClipboardProvider;
+use zerolaunch_platform_windows::WindowsIconExtractor;
+use zerolaunch_platform_windows::WindowsInstallationMonitor;
+use zerolaunch_platform_windows::WindowsLnkResolver;
+use zerolaunch_platform_windows::WindowsPathResolver;
+use zerolaunch_platform_windows::WindowsResourceLoader;
+use zerolaunch_platform_windows::WindowsSelectionProvider;
+use zerolaunch_platform_windows::WindowsShellExecutor;
+use zerolaunch_platform_windows::WindowsWindowHandleProvider;
+use zerolaunch_platform_windows::WindowsWindowManager;
+use zerolaunch_platform_windows::WindowsWindowPositioner;
+use zerolaunch_plugin_api::services::path::KnownPath;
+use zerolaunch_plugin_api::services::storage::storage_service::StorageService;
+use zerolaunch_plugin_api::services::timer::TokioTimerManager;
+use zerolaunch_plugin_api::services::AppResourceService;
+use zerolaunch_plugin_api::services::PathResolver;
 static IS_EXITING: AtomicBool = AtomicBool::new(false);
 
 pub async fn do_cleanup_before_exit() {
@@ -118,6 +88,28 @@ pub fn run() {
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
+        .register_uri_scheme_protocol("zlplugin", move |app, request| {
+            let uri = request.uri().to_string();
+            let state = app.app_handle().state::<Arc<AppState>>();
+            let pm = state.get_plugin_manager();
+            match pm.handle_zlplugin_uri(&uri) {
+                Ok((bytes, mime)) => {
+                    let mut response = http::Response::new(bytes);
+                    response.headers_mut().insert(
+                        http::header::CONTENT_TYPE,
+                        http::HeaderValue::from_str(&mime).unwrap(),
+                    );
+                    response
+                }
+                Err(e) => {
+                    let msg = format!("zlplugin error: {}", e);
+                    http::Response::builder()
+                        .status(http::StatusCode::FORBIDDEN)
+                        .body(msg.into_bytes())
+                        .unwrap()
+                }
+            }
+        })
         .manage(Arc::new(AppState::new()))
         .setup(move |app| {
             let app_data_dir = path_resolver.resolve_path(KnownPath::AppDataDir).unwrap();
@@ -132,7 +124,14 @@ pub fn run() {
 
             tauri::async_runtime::block_on(async move {
                 info!("=== 核心服务初始化 ===");
-                init_app_state(app, path_resolver, app_data_dir, icon_cache_dir, config_dir).await;
+                bootstrap::init_app_state(
+                    app,
+                    path_resolver,
+                    app_data_dir,
+                    icon_cache_dir,
+                    config_dir,
+                )
+                .await;
 
                 info!("=== UI 组件初始化 ===");
                 info!("正在初始化搜索栏窗口");
@@ -195,6 +194,18 @@ pub fn run() {
             // 资源管理
             crate::commands::resource::resource_get,
             crate::commands::resource::resource_upload,
+            // Plugin Inspector
+            crate::commands::inspector::inspector_get_state,
+            crate::commands::inspector::inspector_simulate_query,
+            // Third-party Plugin Management
+            crate::commands::plugin::plugin_list,
+            crate::commands::plugin::plugin_get_manifest,
+            crate::commands::plugin::plugin_install_local,
+            crate::commands::plugin::plugin_reload,
+            crate::commands::plugin::plugin_uninstall,
+            crate::commands::plugin::plugin_set_enabled,
+            crate::commands::plugin::plugin_get_logs,
+            crate::commands::cli::cli_get_info,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
@@ -230,506 +241,43 @@ pub fn run() {
         });
 }
 
-async fn init_app_state(
-    app: &mut App,
-    path_resolver: Arc<WindowsPathResolver>,
-    app_data_dir: String,
+/// 配置 HostApiBuilder，注入所有 Windows 平台实现以及平台无关的默认组件。
+/// 返回预配置的 HostApiBuilder，调用方继续添加 Tauri 相关回调后调用 build()。
+fn build_windows_host_api_builder(
     icon_cache_dir: String,
-    config_dir: String,
-) {
-    debug!("开始初始化应用状态");
-
-    let state = app.state::<Arc<AppState>>();
-    ServiceLocator::init((*state).clone());
-    debug!("ServiceLocator初始化完成");
-
-    let state = ServiceLocator::get_state();
-
-    state.set_main_handle(Arc::new(app.app_handle().clone()));
-    debug!("应用句柄设置完成");
-
-    // 初始化应用资源服务（图标等内置资源）
-    let resource_dir = app.path().resource_dir().expect("无法获取资源目录");
-    let icons_dir = resource_dir.join("icons");
-    let app_resource = Arc::new(AppResourceService::new(
-        icons_dir.to_string_lossy().to_string(),
-    ));
-
-    info!("=== Phase 1: SDK 初始化 - 创建 HostApi ===");
-
-    let default_storage: Arc<dyn StorageService> =
-        Arc::new(LocalStorageService::new(&app_data_dir));
-
-    let default_app_icon_path = app_resource
-        .get_icon_path("tips")
-        .unwrap_or_else(|| ".".to_string());
-    let default_web_icon_path = app_resource
-        .get_icon_path("web_pages")
-        .unwrap_or_else(|| ".".to_string());
-
-    let app_handle = state.get_main_handle();
-    let app_handle_for_notify = app_handle.clone();
-    let app_handle_for_hide = app_handle.clone();
-    let app_handle_for_show = app_handle.clone();
-    let app_handle_for_is_visible = app_handle.clone();
-    let app_handle_for_focus_monitor = app_handle.clone();
-    let app_handle_for_set_pos = app_handle.clone();
-
-    let host_api = Arc::new(
-        crate::sdk::HostApi::builder(icon_cache_dir)
-            .icon_extractor(Arc::new(WindowsIconExtractor::new(
-                default_app_icon_path,
-                default_web_icon_path,
-            )))
-            .shell_executor(Arc::new(WindowsShellExecutor::new()))
-            .window_manager(Arc::new(WindowsWindowManager::new()))
-            .path_resolver(path_resolver)
-            .app_enumerator(Arc::new(WindowsAppEnumerator::new()))
-            .app_launcher(Arc::new(WindowsAppLauncher::new()))
-            .lnk_resolver(Arc::new(WindowsLnkResolver::new()))
-            .resource_loader(Arc::new(WindowsResourceLoader::new()))
-            .parameter_resolver(Arc::new(
-                crate::sdk::parameter::DefaultParameterResolver::new(),
-            ))
-            .parameter_providers(
-                Arc::new(WindowsClipboardProvider),
-                Arc::new(WindowsWindowHandleProvider),
-                Arc::new(WindowsSelectionProvider),
-            )
-            .autostart_manager(Arc::new(WindowsAutoStartManager::new()))
-            .hotkey_manager(Arc::new(WindowsHotkeyManager::new(app_handle)))
-            .installation_monitor(Arc::new(WindowsInstallationMonitor::new()))
-            .timer_manager(Arc::new(TokioTimerManager::new()))
-            .storage_service(default_storage)
-            .app_resource(app_resource)
-            .focus_monitor(Arc::new(WindowsFocusMonitor::new(
-                app_handle_for_focus_monitor,
-            )))
-            .window_positioner(Arc::new(WindowsWindowPositioner::new()))
-            .set_window_position_callback(move |x, y| {
-                if let Some(window) = app_handle_for_set_pos.get_webview_window("main") {
-                    let _ = window.set_position(tauri::PhysicalPosition::new(x, y));
-                }
-            })
-            .notify_callback(move |title: String, message: String| {
-                use tauri_plugin_notification::NotificationExt;
-                let _ = app_handle_for_notify
-                    .notification()
-                    .builder()
-                    .title(title)
-                    .body(message)
-                    .show();
-            })
-            .hide_window_callback(move || {
-                if let Some(window) = app_handle_for_hide.get_webview_window("main") {
-                    let _ = window.hide();
-                    let _ = window.emit("handle_focus_lost", ());
-                }
-            })
-            .show_window_callback(move || {
-                if let Some(window) = app_handle_for_show.get_webview_window("main") {
-                    let _ = window.show();
-                    let _ = window.set_focus();
-                    let _ = window.emit("show_window", ());
-                }
-            })
-            .is_window_visible_callback(move || {
-                app_handle_for_is_visible
-                    .get_webview_window("main")
-                    .map(|w| w.is_visible().unwrap_or(false))
-                    .unwrap_or(false)
-            })
-            .build(),
-    );
-    state.set_host_api(host_api.clone());
-    info!("HostApi 初始化完成");
-
-    let core_handle = host_api.register("core", Default::default());
-    state.set_core_handle(core_handle.clone());
-    info!("Core PluginHandle 注册完成");
-
-    let tray_manager = Arc::new(TrayManager::new(host_api.clone()));
-    state.set_tray_manager(tray_manager);
-    info!("TrayManager 创建完成");
-
-    info!("=== Phase 2: Core 初始化 - 创建 ConfigManager ===");
-
-    let config_manager = Arc::new(ConfigManager::new(std::path::PathBuf::from(&config_dir)));
-    config_manager.set_host_api(host_api.clone());
-    let storage_config_component = Arc::new(StorageConfigComponent::new(host_api.clone()));
-    config_manager.register(storage_config_component);
-    state.set_config_manager(config_manager);
-    info!("ConfigManager 初始化完成");
-
-    info!("=== Phase 3: Plugin 初始化 ===");
-    init_plugin_system(&state).await;
-    info!(
-        "应用状态初始化完成 (HostApi, ConfigManager, {} 个已注册组件)",
-        state.get_config_manager().get_all_components().len()
-    );
-}
-
-async fn init_plugin_system(state: &Arc<AppState>) {
-    let session_router = state.get_session_router();
-    let config_manager = state.get_config_manager();
-
-    session_router.set_config_manager(config_manager.clone());
-
-    // 订阅配置事件
-    let event_router = session_router.clone();
-    let app_handle = state.get_main_handle();
-    let mut event_receiver = config_manager.event_sender().subscribe();
-    tauri::async_runtime::spawn(async move {
-        loop {
-            match event_receiver.recv().await {
-                Ok(event) => {
-                    event_router.handle_config_event(&event).await;
-                    // 将 SettingsChanged 事件桥接到 Tauri 前端，实现跨窗口同步。
-                    // 注：Registered/Unregistered 仅启动时触发（前端窗口未创建），
-                    // EnabledChanged 暂无前端消费者，故暂不转发。
-                    if let ConfigEvent::SettingsChanged {
-                        component_id,
-                        component_type,
-                    } = &event
-                    {
-                        let _ = app_handle.emit(
-                            "config-changed",
-                            serde_json::json!({
-                                "componentId": component_id,
-                                "componentType": format!("{:?}", component_type),
-                            }),
-                        );
-                    }
-                }
-                Err(tokio::sync::broadcast::error::RecvError::Lagged(count)) => {
-                    warn!("配置事件接收器落后 {} 条消息", count);
-                }
-                Err(tokio::sync::broadcast::error::RecvError::Closed) => {
-                    info!("配置事件通道已关闭，退出监听");
-                    break;
-                }
-            }
-        }
-    });
-
-    let host_api = state.get_host_api();
-    session_router.set_host_api(host_api.clone());
-
-    // ========================================================================
-    // Phase A: 创建并注册所有组件到 ConfigManager
-    // ========================================================================
-    info!("=== Phase A: 创建并注册所有组件 ===");
-
-    let shell_service_handle = host_api.register("shell-executors", Default::default());
-    let window_service_handle = host_api.register("window-activator", Default::default());
-    let program_source_handle = host_api.register("program-source", Default::default());
-    let app_source_handle = host_api.register("app-source", Default::default());
-    let app_executor_handle = host_api.register("app-executor", Default::default());
-    let command_executor_handle = host_api.register("command-executor", Default::default());
-    let url_source_handle = host_api.register("url-source", Default::default());
-    let bookmark_source_handle = host_api.register("bookmark-source", Default::default());
-    let command_source_handle = host_api.register("command-source", Default::default());
-
-    // -- 执行器 --
-    info!("正在注册执行器...");
-    let path_executor: Arc<dyn crate::plugin_system::types::ActionExecutor> =
-        Arc::new(PathExecutor::new(shell_service_handle.clone()));
-    let file_executor: Arc<dyn crate::plugin_system::types::ActionExecutor> =
-        Arc::new(FileExecutor::new(shell_service_handle.clone()));
-    let url_executor: Arc<dyn crate::plugin_system::types::ActionExecutor> =
-        Arc::new(UrlExecutor::new(shell_service_handle.clone()));
-    let app_executor: Arc<dyn crate::plugin_system::types::ActionExecutor> =
-        Arc::new(AppExecutor::new(app_executor_handle));
-    let command_executor: Arc<dyn crate::plugin_system::types::ActionExecutor> =
-        Arc::new(CommandExecutor::new(command_executor_handle));
-    let window_activate_executor: Arc<dyn crate::plugin_system::types::ActionExecutor> =
-        Arc::new(WindowActivateExecutor::new(window_service_handle));
-
-    config_manager.register(path_executor.clone());
-    config_manager.register(file_executor.clone());
-    config_manager.register(url_executor.clone());
-    config_manager.register(app_executor.clone());
-    config_manager.register(command_executor.clone());
-    config_manager.register(window_activate_executor.clone());
-
-    session_router.register_executor(path_executor);
-    session_router.register_executor(file_executor);
-    session_router.register_executor(url_executor);
-    session_router.register_executor(app_executor);
-    session_router.register_executor(command_executor);
-    session_router.register_executor(window_activate_executor);
-    info!("执行器注册完成");
-
-    // -- 数据源 --
-    info!("正在注册数据源...");
-    let program_source = Arc::new(ProgramSource::new(program_source_handle));
-    let app_source = Arc::new(AppSource::new(app_source_handle));
-    let url_source = Arc::new(UrlSource::new(url_source_handle));
-    let bookmark_source = Arc::new(BookmarkSource::new(bookmark_source_handle));
-    let command_source = Arc::new(CommandSource::new(command_source_handle));
-    config_manager.register(program_source.clone());
-    config_manager.register(app_source.clone());
-    config_manager.register(url_source.clone());
-    config_manager.register(bookmark_source.clone());
-    config_manager.register(command_source.clone());
-    info!("数据源注册完成");
-
-    // -- 关键词优化器 --
-    info!("正在注册关键词优化器...");
-    let version_number_remover = Arc::new(VersionNumberRemover::new());
-    let symbol_remover = Arc::new(SymbolRemover::new());
-    let space_remover = Arc::new(SpaceRemover::new());
-    let space_normalizer = Arc::new(SpaceNormalizer::new());
-    let lower_case_converter = Arc::new(LowerCaseConverter::new());
-    let pinyin_converter = Arc::new(PinyinConverter::new());
-    let first_letter_extractor = Arc::new(FirstLetterExtractor::new());
-    let upper_case_letter_extractor = Arc::new(UpperCaseLetterExtractor::new());
-
-    config_manager.register(version_number_remover.clone());
-    config_manager.register(symbol_remover.clone());
-    config_manager.register(space_remover.clone());
-    config_manager.register(space_normalizer.clone());
-    config_manager.register(lower_case_converter.clone());
-    config_manager.register(pinyin_converter.clone());
-    config_manager.register(first_letter_extractor.clone());
-    config_manager.register(upper_case_letter_extractor.clone());
-    info!("关键词优化器注册完成");
-
-    // -- 搜索引擎 --
-    info!("正在注册搜索引擎...");
-    let search_engine: Arc<dyn SearchEngine> = Arc::new(StandardSearchModel {});
-    let launchy_search_engine: Arc<dyn SearchEngine> = Arc::new(LaunchySearchModel {});
-    let skim_search_engine: Arc<dyn SearchEngine> = Arc::new(SkimSearchModel::new());
-    config_manager.register(search_engine.clone());
-    config_manager.register(launchy_search_engine.clone());
-    config_manager.register(skim_search_engine.clone());
-    session_router.register_search_engine(search_engine.clone());
-    session_router.register_search_engine(launchy_search_engine);
-    session_router.register_search_engine(skim_search_engine);
-    info!("搜索引擎注册完成");
-
-    // -- 分数增强器 --
-    info!("正在注册分数增强器...");
-    let history_booster: Arc<dyn ScoreBooster> = Arc::new(HistoryBooster::new());
-    let query_affinity_booster: Arc<dyn ScoreBooster> = Arc::new(QueryAffinityBooster::new());
-    config_manager.register(history_booster.clone());
-    config_manager.register(query_affinity_booster.clone());
-    session_router.register_score_booster(history_booster.clone());
-    session_router.register_score_booster(query_affinity_booster.clone());
-    info!("分数增强器注册完成");
-
-    // -- 核心配置组件 --
-    info!("正在注册核心配置组件...");
-    let hotkey_config_component = Arc::new(HotkeyConfigComponent::new(host_api.clone()));
-    config_manager.register(hotkey_config_component);
-    let appearance_config_component = Arc::new(AppearanceConfigComponent::new());
-    config_manager.register(appearance_config_component);
-    let general_config_component = Arc::new(GeneralConfigComponent::new(host_api.clone()));
-    config_manager.register(general_config_component);
-    let window_behavior_component = Arc::new(WindowBehaviorConfigComponent::new());
-    config_manager.register(window_behavior_component);
-    info!("核心配置组件注册完成");
-
-    // -- Plugin 组件 --
-    info!("正在注册 Plugin 组件...");
-    let calculator_plugin: Arc<dyn Plugin> = Arc::new(CalculatorPlugin::new());
-    config_manager.register(calculator_plugin.clone());
-    session_router
-        .plugin_service()
-        .register(calculator_plugin.clone());
-    info!("Plugin 组件注册完成");
-
-    // 注册快捷键回调：按下全局快捷键时切换搜索栏显示/隐藏
-    let core_handle_for_hotkey = state.get_core_handle();
-    let host_api_for_hotkey = host_api.clone();
-    let session_router_for_hotkey = session_router.clone();
-    let config_manager_for_hotkey = config_manager.clone();
-    let app_handle_for_hotkey = state.get_main_handle();
-    core_handle_for_hotkey.register_hotkey_callback(
-        "search_bar_toggle",
-        HotkeyEventFilter::All,
-        Arc::new(move |event| {
-            debug!("收到快捷键事件: {:?}", event);
-            let host_api = host_api_for_hotkey.clone();
-            let session_router = session_router_for_hotkey.clone();
-            let config_manager = config_manager_for_hotkey.clone();
-            let app_handle = app_handle_for_hotkey.clone();
-            tauri::async_runtime::spawn(async move {
-                if host_api.is_window_visible() {
-                    save_window_position_if_drag(&config_manager, &app_handle);
-                    host_api.hide_window().await;
-                } else {
-                    if !prepare_window_position(&config_manager, &host_api, &app_handle).await {
-                        return;
-                    }
-                    let _ = session_router.on_search_bar_wake().await;
-                    host_api.show_window().await;
-                }
-            });
-        }),
-    );
-
-    info!(
-        "Phase A 完成: 共注册 {} 个组件",
-        config_manager.get_all_components().len(),
-    );
-
-    // ========================================================================
-    // Phase B: 加载持久化配置
-    // ========================================================================
-    info!("=== Phase B: 加载持久化配置 ===");
-    if let Err(e) = config_manager.load_from_storage(true).await {
-        warn!("加载持久化配置失败: {}", e);
-    }
-
-    // ========================================================================
-    // Phase C: 构建管道
-    // ========================================================================
-    info!("=== Phase C: 构建业务管道 ===");
-
-    info!("构建候选管道 (5 数据源 + 8 关键词优化器)...");
-    let mut candidate_pipeline = CandidatePipeline::new();
-
-    candidate_pipeline.add_source(program_source);
-    candidate_pipeline.add_source(app_source);
-    candidate_pipeline.add_source(url_source);
-    candidate_pipeline.add_source(bookmark_source);
-    candidate_pipeline.add_source(command_source);
-
-    candidate_pipeline.add_keyword_optimizer(version_number_remover);
-    candidate_pipeline.add_keyword_optimizer(symbol_remover);
-    candidate_pipeline.add_keyword_optimizer(space_remover);
-    candidate_pipeline.add_keyword_optimizer(space_normalizer);
-    candidate_pipeline.add_keyword_optimizer(lower_case_converter);
-    candidate_pipeline.add_keyword_optimizer(pinyin_converter);
-    candidate_pipeline.add_keyword_optimizer(first_letter_extractor);
-    candidate_pipeline.add_keyword_optimizer(upper_case_letter_extractor);
-
-    info!("正在收集候选项（此时各组件已持有用户持久化配置）...");
-    let candidates = candidate_pipeline.collect().await;
-    info!(
-        "候选项收集完成，共 {} 个",
-        candidates.get_candidates().len()
-    );
-
-    info!("构建搜索管道 (搜索引擎: StandardSearchModel, 增强器: 2, 结果上限: 10)...");
-    let boosters: Vec<Arc<dyn ScoreBooster>> = vec![history_booster, query_affinity_booster];
-    let search_pipeline = SearchPipeline::new(search_engine, boosters, 10);
-
-    info!("更新 SessionRouter 状态...");
-    session_router
-        .set_candidate_pipeline(candidate_pipeline)
-        .await;
-    session_router.set_search_pipeline(search_pipeline);
-    session_router.set_cached_candidates(candidates);
-
-    info!(
-        "插件系统初始化完成，已注册 {} 个组件，缓存 {} 个候选项",
-        config_manager.get_all_components().len(),
-        session_router.get_cached_candidates_count()
-    );
-}
-
-/// 准备搜索栏窗口位置：全屏检查 → 读取定位配置 → 计算并设置窗口坐标。
-///
-/// 返回 `true` 表示定位成功可继续唤醒；
-/// 返回 `false` 表示被阻拦（全屏应用且未开启全屏唤醒）。
-async fn prepare_window_position(
-    config_manager: &Arc<ConfigManager>,
-    host_api: &Arc<HostApi>,
-    app_handle: &tauri::AppHandle,
-) -> bool {
-    let wake_on_fullscreen = config_manager
-        .get_component_setting("window-behavior", "is_wake_on_fullscreen")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
-    if !wake_on_fullscreen && crate::utils::windows::is_foreground_fullscreen() {
-        return false;
-    }
-
-    // 读取窗口定位配置
-    let enable_drag = config_manager
-        .get_component_setting("window-behavior", "is_enable_drag_window")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
-    let follow_mouse = config_manager
-        .get_component_setting("window-behavior", "show_pos_follow_mouse")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
-    let vertical_ratio = config_manager
-        .get_component_setting("appearance", "vertical_position_ratio")
-        .and_then(|v| v.as_f64())
-        .unwrap_or(0.28);
-    let window_width = config_manager
-        .get_component_setting("appearance", "window_width")
-        .and_then(|v| v.as_f64())
-        .unwrap_or(800.0) as i32;
-
-    // 读取拖拽模式保存的位置
-    let saved_position = if enable_drag {
-        let x = config_manager
-            .get_component_setting("window-behavior", "window_position_x")
-            .and_then(|v| v.as_f64())
-            .map(|v| v as i32)
-            .unwrap_or(0);
-        let y = config_manager
-            .get_component_setting("window-behavior", "window_position_y")
-            .and_then(|v| v.as_f64())
-            .map(|v| v as i32)
-            .unwrap_or(0);
-        if x != 0 || y != 0 {
-            Some(WindowPosition { x, y })
-        } else {
-            None
-        }
-    } else {
-        None
-    };
-
-    // 收集显示器信息并计算窗口位置
-    let monitors = collect_monitor_info(app_handle);
-    let request = PositionRequest {
-        enable_drag_window: enable_drag,
-        saved_position,
-        follow_mouse,
-        vertical_position_ratio: vertical_ratio,
-        window_width,
-        monitors,
-    };
-
-    if let Ok(pos) = host_api.compute_window_position(request).await {
-        host_api.set_window_position(pos);
-    }
-
-    true
-}
-
-/// 若拖拽模式已启用，将当前窗口位置持久化到 ConfigManager。
-fn save_window_position_if_drag(
-    config_manager: &Arc<ConfigManager>,
-    app_handle: &tauri::AppHandle,
-) {
-    let enable_drag = config_manager
-        .get_component_setting("window-behavior", "is_enable_drag_window")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
-    if !enable_drag {
-        return;
-    }
-    if let Some(window) = app_handle.get_webview_window("main") {
-        if let Ok(pos) = window.outer_position() {
-            let mut current = config_manager
-                .get_settings("window-behavior")
-                .unwrap_or_else(|| serde_json::json!({}));
-            if let Some(obj) = current.as_object_mut() {
-                obj.insert("window_position_x".to_string(), serde_json::json!(pos.x));
-                obj.insert("window_position_y".to_string(), serde_json::json!(pos.y));
-            }
-            if let Err(e) = config_manager.apply_settings("window-behavior", current) {
-                warn!("[save_window_position] 持久化窗口位置失败: {}", e);
-            }
-        }
-    }
+    default_app_icon_path: String,
+    default_web_icon_path: String,
+    path_resolver: Arc<dyn PathResolver>,
+    default_storage: Arc<dyn StorageService>,
+    app_resource: Arc<AppResourceService>,
+) -> HostApiBuilder {
+    HostApi::builder(icon_cache_dir)
+        .capabilities(windows_capabilities())
+        .icon_extractor(Arc::new(WindowsIconExtractor::new(
+            default_app_icon_path,
+            default_web_icon_path,
+        )))
+        .shell_executor(Arc::new(WindowsShellExecutor::new()))
+        .window_manager(Arc::new(WindowsWindowManager::new()))
+        .path_resolver(path_resolver)
+        .app_enumerator(Arc::new(WindowsAppEnumerator::new()))
+        .app_launcher(Arc::new(WindowsAppLauncher::new()))
+        .lnk_resolver(Arc::new(WindowsLnkResolver::new()))
+        .resource_loader(Arc::new(WindowsResourceLoader::new()))
+        .parameter_resolver(Arc::new(
+            zerolaunch_plugin_api::services::parameter::DefaultParameterResolver::new(),
+        ))
+        .parameter_providers(
+            Arc::new(WindowsClipboardProvider),
+            Arc::new(WindowsWindowHandleProvider),
+            Arc::new(WindowsSelectionProvider),
+        )
+        .autostart_manager(Arc::new(WindowsAutoStartManager::new()))
+        .installation_monitor(Arc::new(WindowsInstallationMonitor::new()))
+        .timer_manager(Arc::new(TokioTimerManager::new()))
+        .storage_service(default_storage)
+        .app_resource(app_resource)
+        .window_positioner(Arc::new(WindowsWindowPositioner::new()))
 }
 
 /// 初始化搜索栏窗口。
@@ -759,7 +307,10 @@ fn init_search_bar_window(app: &mut App) {
             let config_manager = config_manager_for_cb.clone();
             let app_handle = app_handle_for_cb.clone();
             tauri::async_runtime::spawn(async move {
-                save_window_position_if_drag(&config_manager, &app_handle);
+                crate::core::window_utils::save_window_position_if_drag(
+                    &config_manager,
+                    &app_handle,
+                );
                 host_api.hide_window().await;
 
                 let reset_plugins = config_manager
@@ -772,30 +323,6 @@ fn init_search_bar_window(app: &mut App) {
             });
         }),
     );
-}
-
-/// 从 Tauri AppHandle 收集可用显示器信息，供窗口定位使用。
-fn collect_monitor_info(app_handle: &tauri::AppHandle) -> Vec<MonitorInfo> {
-    app_handle
-        .get_webview_window("main")
-        .and_then(|w| w.available_monitors().ok())
-        .map(|monitors| {
-            monitors
-                .iter()
-                .map(|m| {
-                    let pos = m.position();
-                    let size = m.size();
-                    MonitorInfo {
-                        x: pos.x,
-                        y: pos.y,
-                        width: size.width,
-                        height: size.height,
-                        scale_factor: m.scale_factor(),
-                    }
-                })
-                .collect()
-        })
-        .unwrap_or_default()
 }
 
 fn init_setting_window(app: tauri::AppHandle) {

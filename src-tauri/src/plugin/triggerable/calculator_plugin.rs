@@ -2,12 +2,13 @@ use crate::core::types::{ComponentType, ConfigError, Configurable};
 use crate::plugin_system::types::{
     Plugin, PluginContext, PluginError, PluginMetadata, Query, QueryResponse, ResultAction,
 };
-use crate::sdk::IconRequest;
 use async_trait::async_trait;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::sync::Arc;
+use zerolaunch_plugin_api::host::PluginHandle;
+use zerolaunch_plugin_api::services::IconRequest;
 
 pub struct CalculatorPlugin {
     metadata: PluginMetadata,
@@ -111,7 +112,7 @@ impl Plugin for CalculatorPlugin {
     async fn init(
         &self,
         _ctx: &PluginContext,
-        _host_api: Arc<crate::sdk::HostApi>,
+        _handle: Arc<PluginHandle>,
     ) -> Result<(), PluginError> {
         Ok(())
     }
@@ -356,5 +357,24 @@ impl ExprParser {
         num_str
             .parse::<f64>()
             .map_err(|_| format!("Invalid number: {}", num_str))
+    }
+}
+
+use crate::plugin_system::builtin_registry::PluginEntry;
+
+fn build_calculator_plugin() -> (
+    Arc<dyn crate::plugin_system::types::Configurable>,
+    Arc<dyn Plugin>,
+) {
+    let plugin: Arc<dyn Plugin> = Arc::new(CalculatorPlugin::new());
+    let configurable: Arc<dyn Configurable> = plugin.clone();
+    (configurable, plugin)
+}
+
+::inventory::submit! {
+    PluginEntry {
+        component_id: "calculator",
+        priority: 0,
+        factory: build_calculator_plugin,
     }
 }

@@ -5,13 +5,56 @@ paths:
 
 # 目录结构与文件放置规范
 
+## Workspace 结构（crate 维度）
+
+```
+ZeroLaunch-rs/                          ← Cargo workspace 根
+├── Cargo.toml                          ← [workspace] 定义 + [workspace.dependencies]
+├── crates/
+│   ├── plugin-api/                     ← zerolaunch-plugin-api
+│   │   └── src/
+│   │       ├── config/                 ← Configurable trait, SettingDefinition, ComponentType 等
+│   │       ├── host/                   ← HostApiError, OpenTarget, CacheLevel, PluginHandle, PluginSdkConfig
+│   │       ├── platform/               ← PlatformCapability, PlatformCapabilities
+│   │       ├── plugin/                 ← Plugin trait, Query/QueryResponse, 5 个组件 trait, CachedCandidateData
+│   │       ├── services/               ← 15 个能力域（shell, icon, storage, hotkey 等）的 trait + 纯 Rust 实现
+│   │       ├── common/                 ← DirUtils, ImageUtils
+│   │       └── mock/                   ← Stub 实现 + mock_plugin_handle()（feature = "mock"）
+│   ├── plugin-protocol/                ← zerolaunch-plugin-protocol
+│   │   └── src/                        ← JSON-RPC 消息体, 方法名常量, manifest schema, 错误码
+│   ├── plugin-host/                    ← zerolaunch-plugin-host
+│   │   └── src/                        ← 子进程管理, transport/codec, JsonRpcClient, RemotePluginAdapter
+│   ├── plugin-sdk-rust/                ← zerolaunch-plugin-sdk-rust
+│   │   └── src/                        ← Rust 第三方插件 SDK (run() + HostProxy)
+│   └── platform-windows/               ← zerolaunch-platform-windows
+│       └── src/                        ← 14 个 Windows 平台 trait 实现 + windows_capabilities()
+├── zerolaunch-cli/                     ← zerolaunch-cli (独立 bin crate)
+├── plugin-template/                    ← Rust 第三方插件项目模板
+└── src-tauri/                          ← zerolaunch-rs（主程序）
+    └── src/
+        ├── sdk/                        ← re-export 桥（类型本体在 plugin-api / platform-windows）
+        ├── core/                       ← ConfigManager, ConfigStore, 核心配置组件
+        ├── plugin/                     ← 23 个内置插件实现
+        ├── plugin_system/              ← SessionRouter, Pipeline, Registry, Dispatcher
+        ├── commands/                   ← IPC 命令薄代理
+        ├── state/                      ← AppState
+        └── utils/                      ← 通用工具
+```
+
+**依赖方向**: `plugin-api ← plugin-protocol ← plugin-host ← src-tauri`、`plugin-api ← platform-windows ← src-tauri`、`plugin-api ← plugin-sdk-rust` — 禁止反向依赖。
+
+- **第三方插件作者**只依赖 `zerolaunch-plugin-api`，不需要 Tauri / Windows / 主程序源码
+- **新增 SDK trait**：在 `crates/plugin-api/src/services/<domain>/` 定义
+- **新增 Windows 实现**：在 `crates/platform-windows/src/` 实现对应的 trait
+- **src-tauri 中的 sdk/** 现为 re-export 桥，类型本体已迁至 plugin-api
+
 ## 后端 (src-tauri/src/)
 
 ### 顶层目录职责
 
 | 目录 | 职责 | 可引用 | 禁止 |
 |------|------|--------|------|
-| `sdk/` | 平台抽象层：trait 定义 + 平台实现 | 无外部依赖 | 引用 core/、plugin/、plugin_system/ |
+| `sdk/` | re-export 桥（类型本体在 plugin-api / platform-windows） | 无外部依赖 | 引用 core/、plugin/、plugin_system/ |
 | `core/` | 业务核心：ConfigManager、Configurable trait、类型定义 | sdk/ | 引用 plugin/、plugin_system/ |
 | `plugin/` | 插件实现：DataSource、Executor、SearchEngine 等 | sdk/、core/ | 引用 plugin_system/ |
 | `plugin_system/` | 插件框架：SessionRouter、Pipeline、Registry | sdk/、core/、plugin/ | 被其他层反向引用 |
@@ -21,30 +64,20 @@ paths:
 
 ### 各目录详细说明
 
-#### `sdk/` — 平台抽象层
+#### `sdk/` — re-export 桥
+
+sdk/ 现为轻量 re-export 桥，只包含两个文件：
+
 ```
 sdk/
-├── host_api.rs          ← HostApi 结构体（唯一出口）
-├── app/                 ← 应用枚举与启动能力
-├── autostart/           ← 开机自启管理
-├── common/              ← 通用工具（image_utils, dir_utils）
-├── focus_monitor/       ← 窗口焦点监控
-├── hotkey/              ← 全局热键管理
-├── icon/                ← 图标提取与缓存
-├── installation_monitor/← 软件安装检测
-├── parameter/           ← 参数解析（剪贴板、选中文本等）
-├── path/                ← 路径解析（KnownPath）
-├── platform/            ← 平台特定实现（windows/）
-├── resource/            ← 应用内置资源
-├── shell/               ← Shell 执行与 .lnk 解析
-├── storage/             ← 存储后端（本地 + WebDAV）
-├── timer/               ← 定时器管理
-└── window/              ← 窗口管理
+├── host_api.rs          ← HostApi + HostApiBuilder（宿主内部类型）
+└── mod.rs               ← re-export 导出
 ```
 
-- 每个能力域包含：`mod.rs`（导出）、一个 trait 文件、可选 `types.rs`
-- 平台实现放入 `sdk/platform/<os>/`
-- **禁止** 在 sdk/ 中定义调用逻辑（何时调用）— 那属于 core/
+类型本体已迁至 `crates/plugin-api/src/`：
+- **trait + 数据类型** → `crates/plugin-api/src/services/<domain>/`
+- **HostApi 错误/配置类型** → `crates/plugin-api/src/host/`
+- **Windows 平台实现** → `crates/platform-windows/src/`
 
 #### `core/` — 业务核心
 ```
@@ -63,13 +96,8 @@ core/
 │       ├── hotkey_config.rs
 │       ├── installation_monitor_config.rs
 │       └── storage_config.rs
-└── types/               ← 核心类型定义
-    ├── configurable.rs  ← Configurable trait
-    ├── setting_def.rs   ← SettingType/FieldDefinition/SettingDefinition
-    ├── bridge_error.rs  ← BridgeError（IPC 错误）
-    ├── config_action.rs ← ConfigActionDef
-    ├── config_error.rs  ← ConfigError
-    └── component_type.rs← ComponentType 枚举
+└── types/               ← 核心类型定义（仅保留 BridgeError，其余已迁至 crates/plugin-api/src/config/）
+    └── bridge_error.rs  ← BridgeError（IPC 错误）
 ```
 
 - **核心配置组件**（core/config/components/）：不属于任何插件的系统级配置
@@ -78,6 +106,7 @@ core/
 #### `plugin/` — 插件实现
 ```
 plugin/
+├── _template/            ← 内置插件模板（不被编译或 glob 扫描）
 ├── data_source/         ← 数据源（5个）
 ├── executor/            ← 执行器（6个）
 ├── keyword_optimizer/   ← 关键词优化器（8个）
@@ -87,10 +116,13 @@ plugin/
 ```
 
 - 每个插件实现 `Configurable` trait（配置）+ 对应的领域 trait（如 `DataSource`、`ActionExecutor`）。**必须** 通过 `PluginHandle` 访问平台能力（见 [plugin-system.md](plugin-system.md)）
+- 新增插件在对应目录添加 .rs 文件 + `inventory::submit!` 块即自动注册，**无需** 修改 `lib.rs`
 
 #### `plugin_system/` — 插件框架
 ```
 plugin_system/
+├── builtin_registry.rs   ← inventory 自动发现与注册编排器
+├── inspector.rs          ← Plugin Inspector 调试面板 (feature = "inspector")
 ├── session_router.rs    ← 搜索会话路由（核心调度器）
 ├── candidate_pipeline.rs← 候选项采集管道
 ├── search_pipeline.rs   ← 搜索排序管道
@@ -103,6 +135,7 @@ plugin_system/
 ```
 
 - **SessionRouter** 是运行时的中枢。所有 bridge 命令通过它路由
+- **builtin_registry** 通过 `inventory` 在编译期收集所有内置组件，启动时统一注册
 - **禁止** 在此层定义配置 schema 或持久化逻辑（那属于 core/）
 
 #### `commands/` — IPC 命令层
@@ -126,7 +159,8 @@ commands/
 | `components/` | UI 组件 | 按功能域子目录组织 |
 | `components/settings/fields/` | 设置字段渲染器 | 每种 SettingType 一个组件 |
 | `components/settings/fields/array/` | 数组 UI 策略 | 每种 ArrayUiHint 一个组件 |
-| `plugins/` | 前端插件系统 | FrontendPlugin 接口实现 |
+| `plugins/built-in/` | 内置前端插件 | `import.meta.glob` 自动发现，目录约定 `built-in/<id>/index.ts` |
+| `plugins/built-in/_template/` | 前端插件模板 | 参考实现，不被 glob 扫描 |
 | `utils/` | 纯工具函数 | 无副作用的工具 |
 | `styles/` | 全局样式 | CSS 变量定义 |
 | `i18n/` | 国际化 | 语言文件 |
@@ -136,7 +170,8 @@ commands/
 ```
 新增一个功能 →
 ├─ 需要平台 API？
-│  └─ 是 → 在 sdk/ 定义 trait，在 sdk/platform/windows/ 实现
+│  └─ 是 → 在 crates/plugin-api/src/services/ 定义 trait
+│         → 在 crates/platform-windows/src/ 实现
 │         → 在 HostApi 添加方法，通过 PluginHandle 暴露
 ├─ 是系统级配置（非插件）？
 │  └─ 是 → 放 core/config/components/

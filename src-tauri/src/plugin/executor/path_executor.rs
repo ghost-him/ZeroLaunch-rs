@@ -2,11 +2,11 @@ use crate::core::types::{ComponentType, Configurable};
 use crate::plugin_system::types::{
     ActionExecutor, ExecutionContext, ExecutionError, ExecutionTarget, ResultAction, TargetType,
 };
-use crate::sdk::host_api::{OpenTarget, PluginHandle};
-use crate::sdk::IconRequest;
 use async_trait::async_trait;
 use std::sync::Arc;
 use tracing::warn;
+use zerolaunch_plugin_api::host::{OpenTarget, PluginHandle};
+use zerolaunch_plugin_api::services::IconRequest;
 
 /// 路径执行器 - 负责通过文件路径启动程序
 /// 支持普通启动、管理员启动和打开所在文件夹
@@ -125,5 +125,25 @@ impl ActionExecutor for PathExecutor {
                 action_id.to_string(),
             )),
         }
+    }
+}
+
+use crate::plugin_system::builtin_registry::{ExecutorEntry, InventoryContext};
+
+pub(crate) fn build_path_executor(
+    ctx: &InventoryContext,
+) -> (Arc<dyn Configurable>, Arc<dyn ActionExecutor>) {
+    let handle = ctx.get_handle("shell-executor");
+    let exec: Arc<dyn ActionExecutor> = Arc::new(PathExecutor::new(handle));
+    let configurable: Arc<dyn Configurable> = exec.clone();
+    (configurable, exec)
+}
+
+::inventory::submit! {
+    ExecutorEntry {
+        component_id: "path-executor",
+        handle_key: "shell-executor",
+        priority: 0,
+        factory: build_path_executor,
     }
 }

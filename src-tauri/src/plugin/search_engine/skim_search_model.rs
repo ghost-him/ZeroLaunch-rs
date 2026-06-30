@@ -1,7 +1,7 @@
-use crate::plugin_system::cached_candidate::CachedCandidateData;
 use crate::plugin_system::types::{
     ComponentType, Configurable, ScoreDetail, ScoredCandidate, SearchEngine,
 };
+use crate::plugin_system::CachedCandidateData;
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
 use parking_lot::RwLock;
@@ -129,5 +129,22 @@ fn calculate_skim_score(
         candidate_id: candidate.id,
         score: best_score,
         detailed_score: best_details,
+    }
+}
+
+use crate::plugin_system::builtin_registry::SearchEngineEntry;
+use std::sync::Arc;
+
+pub(crate) fn build_skim_search_model() -> (Arc<dyn Configurable>, Arc<dyn SearchEngine>) {
+    let engine: Arc<dyn SearchEngine> = Arc::new(SkimSearchModel::new());
+    let configurable: Arc<dyn Configurable> = engine.clone();
+    (configurable, engine)
+}
+
+::inventory::submit! {
+    SearchEngineEntry {
+        component_id: "skim-search-model",
+        priority: 20,
+        factory: build_skim_search_model,
     }
 }

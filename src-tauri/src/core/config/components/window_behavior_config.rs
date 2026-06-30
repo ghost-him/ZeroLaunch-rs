@@ -1,5 +1,5 @@
 use crate::core::config::setting_builders::SchemaBuilder;
-use crate::core::types::setting_def::SettingDefinition;
+use crate::core::types::SettingDefinition;
 use crate::core::types::{ComponentType, ConfigError, Configurable};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
@@ -151,5 +151,21 @@ impl Configurable for WindowBehaviorConfigComponent {
 
     fn default_enabled(&self) -> bool {
         true
+    }
+}
+
+use crate::core::config::core_registry::CoreComponentEntry;
+
+fn build_window_behavior_config(
+    _host_api: std::sync::Arc<crate::sdk::HostApi>,
+) -> std::sync::Arc<dyn Configurable> {
+    std::sync::Arc::new(WindowBehaviorConfigComponent::new())
+}
+
+::inventory::submit! {
+    CoreComponentEntry {
+        component_id: "window-behavior",
+        priority: 40,
+        factory: build_window_behavior_config,
     }
 }

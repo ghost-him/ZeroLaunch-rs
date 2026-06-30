@@ -2,10 +2,10 @@ use crate::core::types::{ComponentType, Configurable};
 use crate::plugin_system::types::{
     ActionExecutor, ExecutionContext, ExecutionError, ExecutionTarget, ResultAction, TargetType,
 };
-use crate::sdk::host_api::{OpenTarget, PluginHandle};
-use crate::sdk::IconRequest;
 use async_trait::async_trait;
 use std::sync::Arc;
+use zerolaunch_plugin_api::host::{OpenTarget, PluginHandle};
+use zerolaunch_plugin_api::services::IconRequest;
 
 /// 文件执行器 - 负责使用系统默认方式打开文件
 /// 支持打开文件和打开所在文件夹
@@ -102,5 +102,25 @@ impl ActionExecutor for FileExecutor {
                 action_id.to_string(),
             )),
         }
+    }
+}
+
+use crate::plugin_system::builtin_registry::{ExecutorEntry, InventoryContext};
+
+pub(crate) fn build_file_executor(
+    ctx: &InventoryContext,
+) -> (Arc<dyn Configurable>, Arc<dyn ActionExecutor>) {
+    let handle = ctx.get_handle("shell-executor");
+    let exec: Arc<dyn ActionExecutor> = Arc::new(FileExecutor::new(handle));
+    let configurable: Arc<dyn Configurable> = exec.clone();
+    (configurable, exec)
+}
+
+::inventory::submit! {
+    ExecutorEntry {
+        component_id: "file-executor",
+        handle_key: "shell-executor",
+        priority: 10,
+        factory: build_file_executor,
     }
 }

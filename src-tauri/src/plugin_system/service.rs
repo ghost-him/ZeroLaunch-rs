@@ -1,12 +1,12 @@
-use super::dispatcher::QueryDispatcher;
 use super::registry::PluginRegistry;
 use super::types::{Plugin, PluginContext, PluginError, Query, QueryResponse};
+use crate::sdk::HostApi;
 use rand::distr::{Alphanumeric, SampleString};
 use std::sync::Arc;
+use zerolaunch_plugin_api::host::PluginSdkConfig;
 
 pub struct PluginService {
     registry: Arc<PluginRegistry>,
-    dispatcher: Arc<QueryDispatcher>,
 }
 
 impl Default for PluginService {
@@ -18,37 +18,38 @@ impl Default for PluginService {
 impl PluginService {
     pub fn new() -> Self {
         let registry = Arc::new(PluginRegistry::new());
-        let dispatcher = Arc::new(QueryDispatcher::new(registry.clone()));
-
-        Self {
-            registry,
-            dispatcher,
-        }
+        Self { registry }
     }
 
     /// 注册一个插件到服务中。
-    /// 参数：plugin - 要注册的插件实例。
-    /// 返回：无。
     pub fn register(&self, plugin: Arc<dyn Plugin>) {
         self.registry.register(plugin);
+    }
+
+    /// 注销指定插件（按 plugin_id）。
+    pub fn unregister(&self, plugin_id: &str) {
+        self.registry.unregister(plugin_id);
     }
 
     /// 初始化当前已注册的所有插件。
     /// 参数：host_api - 宿主 API 句柄，用于插件访问平台能力。
     /// 返回：成功返回 ()，失败返回 PluginError。
-    pub async fn init_all(&self, host_api: Arc<crate::sdk::HostApi>) -> Result<(), PluginError> {
+    pub async fn init_all(&self, host_api: Arc<HostApi>) -> Result<(), PluginError> {
         let mut rng = rand::rng();
         let trace_id = Alphanumeric.sample_string(&mut rng, 8);
         let ctx = PluginContext::new(&trace_id);
 
         for plugin in self.registry.get_all() {
-            plugin.init(&ctx, host_api.clone()).await?;
+            let plugin_id = plugin.metadata().id.clone();
+            let handle = host_api.register(&plugin_id, PluginSdkConfig::default());
+            plugin.init(&ctx, handle).await?;
         }
 
         Ok(())
     }
 
     /// 执行一次查询并返回结果。
+    /// 如果当前击中了插件的触发器，则返回 (插件ID, 查询结果)，否则返回 None。
     /// 参数：ctx - 当前插件上下文；query - 查询内容。
     /// 返回：命中触发器时返回 (插件ID, 查询结果)，否则返回 None。
     pub async fn query(
@@ -56,7 +57,24 @@ impl PluginService {
         ctx: &PluginContext,
         query: &Query,
     ) -> Option<(String, QueryResponse)> {
-        self.dispatcher.dispatch_plugin(ctx, query).await
+        let (trigger, search_term) = self.registry.parse_trigger(&query.raw_query);
+
+        if let Some(trigger) = trigger {
+            if let Some(plugin) = self.registry.get_by_trigger(&trigger) {
+                let plugin_id = plugin.metadata().id.clone();
+                let query = Query {
+                    id: query.id.clone(),
+                    raw_query: query.raw_query.clone(),
+                    search_term: search_term.to_string(),
+                };
+                let response = plugin.query(ctx, &query).await.unwrap();
+                return Some((plugin_id, response));
+            } else {
+                tracing::error!("当前已成功解析 trigger 但是没找到对应的插件 '{}'", trigger);
+            }
+        }
+
+        None
     }
 
     /// 执行指定插件的动作。
@@ -69,9 +87,12 @@ impl PluginService {
         action_id: &str,
         payload: serde_json::Value,
     ) -> Result<(), PluginError> {
-        self.dispatcher
-            .execute_action(ctx, plugin_id, action_id, payload)
-            .await
+        let plugin = self
+            .registry
+            .get(plugin_id)
+            .ok_or_else(|| PluginError::NotFound(plugin_id.to_string()))?;
+
+        plugin.execute_action(ctx, action_id, payload).await
     }
 
     /// 获取插件注册中心引用。
@@ -79,12 +100,5 @@ impl PluginService {
     /// 返回：注册中心的共享引用。
     pub fn registry(&self) -> &Arc<PluginRegistry> {
         &self.registry
-    }
-
-    /// 获取查询分发器引用。
-    /// 参数：无。
-    /// 返回：查询分发器的共享引用。
-    pub fn dispatcher(&self) -> &Arc<QueryDispatcher> {
-        &self.dispatcher
     }
 }

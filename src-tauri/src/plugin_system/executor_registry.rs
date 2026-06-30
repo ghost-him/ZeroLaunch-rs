@@ -102,6 +102,32 @@ impl ExecutorRegistry {
             .unwrap_or_default()
     }
 
+    /// 注销指定 component_id 的执行器及其所有 action 映射
+    pub fn unregister(&mut self, component_id: &str) {
+        let cid = component_id.to_string();
+        // Collect keys to remove
+        let keys: Vec<(TargetType, String)> = self
+            .executor_map
+            .iter()
+            .filter(|(_, executor)| executor.component_id() == cid)
+            .map(|(key, _)| key.clone())
+            .collect();
+
+        for key in &keys {
+            self.executor_map.remove(key);
+        }
+
+        // Clean up target_actions entries (best effort: rebuild)
+        let mut new_target_actions: HashMap<TargetType, Vec<ResultAction>> = HashMap::new();
+        for ((target_type, _), executor) in &self.executor_map {
+            new_target_actions
+                .entry(*target_type)
+                .or_default()
+                .extend(executor.supported_actions());
+        }
+        self.target_actions = new_target_actions;
+    }
+
     /// 检查是否已注册指定类型的执行器
     pub fn has_executor(&self, target_type: TargetType) -> bool {
         self.target_actions.contains_key(&target_type)

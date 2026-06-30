@@ -123,3 +123,20 @@ impl KeywordOptimizer for SpaceRemover {
         self.inner.read().priority
     }
 }
+
+use crate::plugin_system::builtin_registry::KeywordOptimizerEntry;
+use std::sync::Arc;
+
+pub(crate) fn build_space_remover() -> (Arc<dyn Configurable>, Arc<dyn KeywordOptimizer>) {
+    let opt: Arc<dyn KeywordOptimizer> = Arc::new(SpaceRemover::new());
+    let configurable: Arc<dyn Configurable> = opt.clone();
+    (configurable, opt)
+}
+
+::inventory::submit! {
+    KeywordOptimizerEntry {
+        component_id: "space-remover",
+        priority: 20,
+        factory: build_space_remover,
+    }
+}

@@ -1,4 +1,6 @@
-use crate::core::config::event::{create_event_bus, ConfigEvent, ConfigEventSender};
+use crate::core::config::event::{
+    create_event_bus, ConfigEvent, ConfigEventSender, PluginRuntimeEvent,
+};
 use crate::core::config::models::{
     ComponentInfo, ComponentPersistentState, ComponentSchema, PersistentConfig,
 };
@@ -135,6 +137,30 @@ impl ConfigManager {
     /// 按 component_id 查找已注册的 Configurable 组件
     pub fn find_configurable(&self, component_id: &str) -> Option<Arc<dyn Configurable>> {
         self.registry.get(component_id)
+    }
+
+    /// 获取指定组件的配置动作列表。
+    pub fn get_config_actions(
+        &self,
+        component_id: &str,
+    ) -> Vec<zerolaunch_plugin_api::config::ConfigActionDef> {
+        self.registry
+            .get(component_id)
+            .map(|c| c.config_actions())
+            .unwrap_or_default()
+    }
+
+    /// 执行指定组件的配置动作。
+    pub fn execute_config_action(
+        &self,
+        component_id: &str,
+        action: &str,
+        params: &serde_json::Value,
+    ) -> Result<serde_json::Value, String> {
+        self.registry
+            .get(component_id)
+            .ok_or_else(|| format!("Component not found: {}", component_id))?
+            .execute_config_action(action, params)
     }
 
     /// 按 ComponentType 查找所有组件
@@ -363,6 +389,35 @@ impl ConfigManager {
         }
 
         Ok(())
+    }
+
+    // endregion
+
+    // region: PluginRuntimeEvent 处理（PluginManager → ConfigManager 解耦管道）
+
+    /// 处理 PluginManager 发来的 PluginRuntimeEvent。
+    ///
+    /// 纯业务逻辑：注册/解注册 Configurable，转发 ConfigEvent 通知 SessionRouter。
+    /// 事件循环由 lib.rs 负责（与 SR 的 ConfigEvent 监听模式一致）。
+    pub fn handle_plugin_event(&self, event: &PluginRuntimeEvent) {
+        match event {
+            PluginRuntimeEvent::PluginLoaded(adapters) => {
+                for c in &adapters.configurables {
+                    self.register(c.clone());
+                }
+                self.event_sender
+                    .send(ConfigEvent::PluginRegistered(adapters.clone()))
+                    .ok();
+            }
+            PluginRuntimeEvent::PluginUnloaded(adapters) => {
+                for c in &adapters.configurables {
+                    self.unregister(c.component_id());
+                }
+                self.event_sender
+                    .send(ConfigEvent::PluginUnregistered(adapters.clone()))
+                    .ok();
+            }
+        }
     }
 
     // endregion

@@ -9,7 +9,7 @@ pub fn config_get_actions(
     state: tauri::State<'_, Arc<AppState>>,
     component_id: String,
 ) -> Vec<ConfigActionDef> {
-    state.get_session_router().get_config_actions(&component_id)
+    state.get_config_manager().get_config_actions(&component_id)
 }
 
 /// 执行指定组件的配置动作
@@ -22,7 +22,7 @@ pub fn config_execute_action(
 ) -> Result<serde_json::Value, BridgeError> {
     let params = params.unwrap_or(serde_json::Value::Null);
     state
-        .get_session_router()
+        .get_config_manager()
         .execute_config_action(&component_id, &action, &params)
         .map_err(BridgeError::internal)
 }

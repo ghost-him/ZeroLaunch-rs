@@ -1,7 +1,7 @@
-use crate::plugin_system::cached_candidate::CachedCandidateData;
 use crate::plugin_system::types::{
     ComponentType, Configurable, ScoreDetail, ScoredCandidate, SearchEngine,
 };
+use crate::plugin_system::CachedCandidateData;
 use std::collections::HashMap;
 
 /// 这个文件是以LaunchyQT的搜索模型为基础进行的改造
@@ -174,5 +174,22 @@ fn calculate_launchy_score(
         candidate_id: candidate.id,
         score: best_score,
         detailed_score: best_details,
+    }
+}
+
+use crate::plugin_system::builtin_registry::SearchEngineEntry;
+use std::sync::Arc;
+
+pub(crate) fn build_launchy_search_model() -> (Arc<dyn Configurable>, Arc<dyn SearchEngine>) {
+    let engine: Arc<dyn SearchEngine> = Arc::new(LaunchySearchModel {});
+    let configurable: Arc<dyn Configurable> = engine.clone();
+    (configurable, engine)
+}
+
+::inventory::submit! {
+    SearchEngineEntry {
+        component_id: "launchy-search-model",
+        priority: 10,
+        factory: build_launchy_search_model,
     }
 }

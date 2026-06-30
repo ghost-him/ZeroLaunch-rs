@@ -2,10 +2,10 @@ use crate::core::types::{ComponentType, Configurable};
 use crate::plugin_system::types::{
     ActionExecutor, ExecutionContext, ExecutionError, ExecutionTarget, ResultAction, TargetType,
 };
-use crate::sdk::host_api::PluginHandle;
-use crate::sdk::IconRequest;
 use async_trait::async_trait;
 use std::sync::Arc;
+use zerolaunch_plugin_api::host::PluginHandle;
+use zerolaunch_plugin_api::services::IconRequest;
 
 /// 应用执行器 - 负责通过 PluginHandle 启动系统应用（UWP 等）。
 /// 不再直接调用 Win32 API，而是委托 PluginHandle::launch_app() 由 SDK 层处理平台差异。
@@ -73,5 +73,25 @@ impl ActionExecutor for AppExecutor {
                 action_id.to_string(),
             )),
         }
+    }
+}
+
+use crate::plugin_system::builtin_registry::{ExecutorEntry, InventoryContext};
+
+pub(crate) fn build_app_executor(
+    ctx: &InventoryContext,
+) -> (Arc<dyn Configurable>, Arc<dyn ActionExecutor>) {
+    let handle = ctx.get_handle("app-executor");
+    let exec: Arc<dyn ActionExecutor> = Arc::new(AppExecutor::new(handle));
+    let configurable: Arc<dyn Configurable> = exec.clone();
+    (configurable, exec)
+}
+
+::inventory::submit! {
+    ExecutorEntry {
+        component_id: "app-executor",
+        handle_key: "app-executor",
+        priority: 30,
+        factory: build_app_executor,
     }
 }

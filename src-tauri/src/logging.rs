@@ -86,12 +86,13 @@ pub fn init_logging(
     // 打印系统信息
     print_system_info(&log_dir);
 
-    // 创建按日期滚动的日志文件
-    let file_appender = RollingFileAppender::new(
-        Rotation::DAILY,
-        log_dir.clone(),
-        format!("{}.log", config.log_file_prefix),
-    );
+    // 创建按日期滚动的日志文件（prefix=前缀, suffix=后缀 → {prefix}.{date}.{suffix}）
+    let file_appender = RollingFileAppender::builder()
+        .rotation(Rotation::DAILY)
+        .filename_prefix(config.log_file_prefix.as_str())
+        .filename_suffix("log")
+        .build(log_dir.clone())
+        .expect("初始化日志文件 appender 失败");
 
     // 创建非阻塞的日志写入器
     let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);

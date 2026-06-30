@@ -1,9 +1,9 @@
 use crate::core::config::setting_builders::SchemaBuilder;
-use crate::plugin_system::cached_candidate::CachedCandidateData;
 use crate::plugin_system::types::{
     CandidateId, ComponentType, ConfigError, Configurable, ScoreBooster, ScoreDetail,
     ScoredCandidate, SettingDefinition,
 };
+use crate::plugin_system::CachedCandidateData;
 use crate::utils::{generate_current_date, get_current_time, is_date_current};
 use dashmap::DashMap;
 use parking_lot::RwLock;
@@ -310,5 +310,22 @@ impl ScoreBooster for HistoryBooster {
                 description: "基础分抑制因子".to_string(),
             });
         }
+    }
+}
+
+use crate::plugin_system::builtin_registry::ScoreBoosterEntry;
+use std::sync::Arc;
+
+pub(crate) fn build_history_booster() -> (Arc<dyn Configurable>, Arc<dyn ScoreBooster>) {
+    let booster: Arc<dyn ScoreBooster> = Arc::new(HistoryBooster::new());
+    let configurable: Arc<dyn Configurable> = booster.clone();
+    (configurable, booster)
+}
+
+::inventory::submit! {
+    ScoreBoosterEntry {
+        component_id: "history-booster",
+        priority: 0,
+        factory: build_history_booster,
     }
 }

@@ -115,6 +115,66 @@ export function resourceGet(resourceId: string): Promise<string> {
   return invokeCommand<string>('resource_get', { resourceId })
 }
 
-export function resourceUpload(filePath: string, purpose: string, maxSize?: number): Promise<string> {
-  return invokeCommand<string>('resource_upload', { payload: { filePath, purpose, maxSize } })
+export function resourceUpload(filePath: string, resourceId: string, maxSize?: number): Promise<string> {
+  return invokeCommand<string>('resource_upload', { payload: { filePath, resourceId, maxSize } })
+}
+
+// ---- Plugin Inspector ----
+
+export function inspectorGetState(): Promise<import('./contract').InspectorStateResponse> {
+  return invokeCommand('inspector_get_state')
+}
+
+export function inspectorSimulateQuery(rawQuery: string): Promise<unknown> {
+  return invokeCommand('inspector_simulate_query', { rawQuery })
+}
+
+// ---- Third-Party Plugin Management ----
+
+export interface InstalledPluginInfo {
+  pluginId: string
+  name: string
+  version: string
+  description: string
+  author: string
+  state: string
+  enabled: boolean
+}
+
+export function pluginList(): Promise<InstalledPluginInfo[]> {
+  return invokeCommand<InstalledPluginInfo[]>('plugin_list')
+}
+
+export function pluginGetManifest(pluginId: string): Promise<unknown> {
+  return invokeCommand<unknown>('plugin_get_manifest', { pluginId })
+}
+
+export function pluginReload(pluginId: string): Promise<void> {
+  return invokeCommand<void>('plugin_reload', { pluginId })
+}
+
+export function pluginUninstall(pluginId: string): Promise<void> {
+  return invokeCommand<void>('plugin_uninstall', { pluginId })
+}
+
+export function pluginInstallLocal(filePath: string): Promise<InstalledPluginInfo> {
+  return invokeCommand<InstalledPluginInfo>('plugin_install_local', { filePath })
+}
+
+export function pluginSetEnabled(pluginId: string, enabled: boolean): Promise<void> {
+  return invokeCommand<void>('plugin_set_enabled', { pluginId, enabled })
+}
+
+export function pluginGetLogs(pluginId: string, tailLines?: number): Promise<string[]> {
+  return invokeCommand<string[]>('plugin_get_logs', { pluginId, tailLines })
+}
+
+export interface CliInfo {
+  host: string
+  port: number
+  token: string
+}
+
+export function cliGetInfo(): Promise<CliInfo> {
+  return invokeCommand<CliInfo>('cli_get_info')
 }

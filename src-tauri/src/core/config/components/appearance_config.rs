@@ -1,5 +1,5 @@
 use crate::core::config::setting_builders::SchemaBuilder;
-use crate::core::types::setting_def::SettingDefinition;
+use crate::core::types::SettingDefinition;
 use crate::core::types::{ComponentType, ConfigError, Configurable};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
@@ -761,5 +761,21 @@ impl Configurable for AppearanceConfigComponent {
 
     fn default_enabled(&self) -> bool {
         true
+    }
+}
+
+use crate::core::config::core_registry::CoreComponentEntry;
+
+fn build_appearance_config(
+    _host_api: std::sync::Arc<crate::sdk::HostApi>,
+) -> std::sync::Arc<dyn Configurable> {
+    std::sync::Arc::new(AppearanceConfigComponent::new())
+}
+
+::inventory::submit! {
+    CoreComponentEntry {
+        component_id: "appearance",
+        priority: 20,
+        factory: build_appearance_config,
     }
 }

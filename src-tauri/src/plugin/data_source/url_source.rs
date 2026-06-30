@@ -1,14 +1,14 @@
 use crate::core::config::setting_builders::SchemaBuilder;
-use crate::plugin_system::cached_candidate::CachedCandidateData;
 use crate::plugin_system::types::{DataSource, ExecutionTarget, SearchCandidate};
+use crate::plugin_system::CachedCandidateData;
 use crate::plugin_system::{ComponentType, ConfigError, Configurable, SettingDefinition};
-use crate::sdk::host_api::PluginHandle;
-use crate::sdk::IconRequest;
 use async_trait::async_trait;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::debug;
+use zerolaunch_plugin_api::host::PluginHandle;
+use zerolaunch_plugin_api::services::IconRequest;
 
 /// 单个网页快捷方式的配置项。
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -132,5 +132,25 @@ impl DataSource for UrlSource {
         }
 
         result
+    }
+}
+
+use crate::plugin_system::builtin_registry::{DataSourceEntry, InventoryContext};
+
+pub(crate) fn build_url_source(
+    ctx: &InventoryContext,
+) -> (Arc<dyn Configurable>, Arc<dyn DataSource>) {
+    let handle = ctx.get_handle("url-source");
+    let source: Arc<dyn DataSource> = Arc::new(UrlSource::new(handle));
+    let configurable: Arc<dyn Configurable> = source.clone();
+    (configurable, source)
+}
+
+::inventory::submit! {
+    DataSourceEntry {
+        component_id: "url-source",
+        handle_key: "url-source",
+        priority: 20,
+        factory: build_url_source,
     }
 }

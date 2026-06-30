@@ -1,6 +1,6 @@
 use serde::Serialize;
 use std::fmt;
-
+use zerolaunch_plugin_api::HostApiError;
 /// 前后端通信统一错误类型。
 /// 用于所有 Tauri command 的 Err 变体，前端可据此展示用户友好的错误提示。
 #[derive(Debug, Clone, Serialize)]
@@ -76,13 +76,21 @@ impl From<crate::core::types::ConfigError> for BridgeError {
     }
 }
 
-impl From<crate::sdk::host_api::HostApiError> for BridgeError {
-    fn from(e: crate::sdk::host_api::HostApiError) -> Self {
-        BridgeError {
-            code: ErrorCode::InternalError,
-            message: e.to_string(),
-            details: None,
-            component_id: None,
+impl From<HostApiError> for BridgeError {
+    fn from(e: HostApiError) -> Self {
+        match &e {
+            HostApiError::PathTraversalRejected { .. } => BridgeError {
+                code: ErrorCode::ValidationFailed,
+                message: e.to_string(),
+                details: None,
+                component_id: None,
+            },
+            _ => BridgeError {
+                code: ErrorCode::InternalError,
+                message: e.to_string(),
+                details: None,
+                component_id: None,
+            },
         }
     }
 }

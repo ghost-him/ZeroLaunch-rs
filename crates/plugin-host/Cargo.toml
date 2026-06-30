@@ -1,0 +1,24 @@
+[package]
+name = "zerolaunch-plugin-host"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "ZeroLaunch third-party plugin host — subprocess management and RemotePluginAdapter."
+
+[dependencies]
+zerolaunch-plugin-api.workspace = true
+zerolaunch-plugin-protocol.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["full"] }
+async-trait.workspace = true
+tracing.workspace = true
+parking_lot.workspace = true
+dashmap.workspace = true
+once_cell.workspace = true
+anyhow.workspace = true
+futures.workspace = true
+regex.workspace = true
+toml.workspace = true
+semver.workspace = true

@@ -1,18 +1,17 @@
-use super::cached_candidate::CachedCandidateData;
 use super::candidate_pipeline::CandidatePipeline;
 use super::executor_registry::ExecutorRegistry;
 use super::search_pipeline::SearchPipeline;
 use super::service::PluginService;
 use super::types::*;
+use super::CachedCandidateData;
 use crate::core::config::{ConfigEvent, ConfigManager};
-use crate::plugin_system::Configurable;
-use crate::sdk::parameter::template_parser::{Placeholder, TemplateParser};
 use crate::sdk::HostApi;
-use crate::sdk::ParameterSnapshot;
 use parking_lot::{Mutex, RwLock};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{debug, info};
+use zerolaunch_plugin_api::services::parameter::template_parser::{Placeholder, TemplateParser};
+use zerolaunch_plugin_api::services::ParameterSnapshot;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SessionMode {
@@ -115,6 +114,34 @@ impl SessionRouter {
             .expect("Failed to register executor");
     }
 
+    /// 注册一个第三方数据源（供 plugin_loader 调用）
+    pub async fn register_data_source(&self, source: Arc<dyn DataSource>) {
+        self.candidate_pipeline.write().await.add_source(source);
+    }
+
+    /// 注册一个第三方插件（供 plugin_loader 调用）
+    pub fn register_remote_plugin(&self, plugin: Arc<dyn Plugin>) {
+        self.plugin_service.register(plugin);
+    }
+
+    /// 注销一个数据源（按 component_id）
+    pub async fn unregister_data_source(&self, component_id: &str) {
+        self.candidate_pipeline
+            .write()
+            .await
+            .remove_source(component_id);
+    }
+
+    /// 注销一个执行器（按 component_id）
+    pub fn unregister_executor(&self, component_id: &str) {
+        self.executor_registry.write().unregister(component_id);
+    }
+
+    /// 注销一个插件（按 plugin_id）
+    pub fn unregister_plugin(&self, plugin_id: &str) {
+        self.plugin_service.unregister(plugin_id);
+    }
+
     /// 设置 HostApi 引用
     pub fn set_host_api(&self, host_api: Arc<HostApi>) {
         *self.host_api.write() = Some(host_api);
@@ -168,6 +195,7 @@ impl SessionRouter {
         let mut ctx = PluginContext::new(trace_id);
         ctx.with_query(query.raw_query.clone());
 
+        // 这里的查询路由逻辑是：优先让插件处理查询（如果匹配），否则走内置搜索管道。
         let results = self.plugin_service.query(&ctx, query).await;
 
         if let Some((plugin_id, results)) = results {
@@ -480,7 +508,7 @@ impl SessionRouter {
 
     /// 动态重建搜索管道。
     /// 根据当前已注册且启用的 SearchEngine 和 ScoreBooster 重建 SearchPipeline。
-    fn rebuild_search_pipeline(&self) {
+    pub fn rebuild_search_pipeline(&self) {
         let cm_guard = self.config_manager.read();
         let cm = match cm_guard.as_ref() {
             Some(cm) => cm,
@@ -563,30 +591,30 @@ impl SessionRouter {
                 }
             }
             ConfigEvent::Registered { .. } | ConfigEvent::Unregistered { .. } => {}
+            ConfigEvent::PluginRegistered(adapters) => {
+                info!("第三方插件运行时组件已注册: {}", adapters.plugin_id);
+                for ds in &adapters.data_sources {
+                    self.register_data_source(ds.clone()).await;
+                }
+                for ex in &adapters.executors {
+                    self.register_executor(ex.clone());
+                }
+                if let Some(p) = &adapters.plugin {
+                    self.register_remote_plugin(p.clone());
+                }
+                self.refresh_candidates().await;
+            }
+            ConfigEvent::PluginUnregistered(adapters) => {
+                info!("第三方插件运行时组件已解注册: {}", adapters.plugin_id);
+                self.unregister_plugin(&adapters.plugin_id);
+                for ds in &adapters.data_sources {
+                    self.unregister_data_source(&ds.component_id).await;
+                }
+                for ex in &adapters.executors {
+                    self.unregister_executor(&ex.component_id);
+                }
+                self.refresh_candidates().await;
+            }
         }
-    }
-
-    pub(crate) fn find_configurable(&self, component_id: &str) -> Option<Arc<dyn Configurable>> {
-        self.config_manager
-            .read()
-            .as_ref()
-            .and_then(|cm| cm.find_configurable(component_id))
-    }
-
-    pub fn get_config_actions(&self, component_id: &str) -> Vec<ConfigActionDef> {
-        self.find_configurable(component_id)
-            .map(|c| c.config_actions())
-            .unwrap_or_default()
-    }
-
-    pub fn execute_config_action(
-        &self,
-        component_id: &str,
-        action: &str,
-        params: &serde_json::Value,
-    ) -> Result<serde_json::Value, String> {
-        self.find_configurable(component_id)
-            .ok_or_else(|| format!("Component not found: {}", component_id))?
-            .execute_config_action(action, params)
     }
 }

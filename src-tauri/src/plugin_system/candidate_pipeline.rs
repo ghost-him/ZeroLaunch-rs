@@ -1,6 +1,6 @@
 use super::types::DataSource;
-use crate::plugin_system::cached_candidate::CachedCandidateData;
 use crate::plugin_system::types::{Configurable, KeywordOptimizer};
+use crate::plugin_system::CachedCandidateData;
 use std::collections::HashSet;
 use std::sync::Arc;
 
@@ -19,6 +19,11 @@ impl CandidatePipeline {
 
     pub fn add_source(&mut self, source: Arc<dyn DataSource>) {
         self.data_sources.push(source);
+    }
+
+    pub fn remove_source(&mut self, component_id: &str) {
+        self.data_sources
+            .retain(|s| s.component_id() != component_id);
     }
 
     pub fn add_keyword_optimizer(&mut self, optimizer: Arc<dyn KeywordOptimizer>) {

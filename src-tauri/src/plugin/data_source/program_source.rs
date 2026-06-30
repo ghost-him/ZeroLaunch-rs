@@ -1,10 +1,7 @@
 use crate::core::config::setting_builders::SchemaBuilder;
-use crate::plugin_system::cached_candidate::CachedCandidateData;
 use crate::plugin_system::types::{DataSource, ExecutionTarget, PrimitiveType, SearchCandidate};
+use crate::plugin_system::CachedCandidateData;
 use crate::plugin_system::{ComponentType, ConfigError, Configurable, SettingDefinition};
-use crate::sdk::host_api::PluginHandle;
-use crate::sdk::path::path_resolver::KnownPath;
-use crate::sdk::IconRequest;
 use async_trait::async_trait;
 use globset::GlobSetBuilder;
 use parking_lot::RwLock;
@@ -15,6 +12,9 @@ use std::path::Path;
 use std::sync::Arc;
 use tracing::{debug, warn};
 use walkdir::WalkDir;
+use zerolaunch_plugin_api::host::PluginHandle;
+use zerolaunch_plugin_api::services::path::path_resolver::KnownPath;
+use zerolaunch_plugin_api::services::IconRequest;
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, Default)]
 enum SymlinkMode {
@@ -510,5 +510,25 @@ impl DataSource for ProgramSource {
         }
 
         result
+    }
+}
+
+use crate::plugin_system::builtin_registry::{DataSourceEntry, InventoryContext};
+
+pub(crate) fn build_program_source(
+    ctx: &InventoryContext,
+) -> (Arc<dyn Configurable>, Arc<dyn DataSource>) {
+    let handle = ctx.get_handle("program-source");
+    let source: Arc<dyn DataSource> = Arc::new(ProgramSource::new(handle));
+    let configurable: Arc<dyn Configurable> = source.clone();
+    (configurable, source)
+}
+
+::inventory::submit! {
+    DataSourceEntry {
+        component_id: "program-source",
+        handle_key: "program-source",
+        priority: 0,
+        factory: build_program_source,
     }
 }

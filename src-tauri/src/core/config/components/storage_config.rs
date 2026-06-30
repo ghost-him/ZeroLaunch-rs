@@ -1,14 +1,16 @@
 use crate::core::config::setting_builders::SchemaBuilder;
-use crate::core::types::setting_def::SettingDefinition;
+use crate::core::types::SettingDefinition;
 use crate::core::types::{ComponentType, ConfigError, Configurable};
 use crate::sdk::host_api::HostApi;
-use crate::sdk::storage::local_storage::LocalStorageService;
-use crate::sdk::storage::storage_service::StorageService;
-use crate::sdk::storage::webdav_storage::{WebDAVConfig, WebDAVStorageService};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::info;
+use zerolaunch_plugin_api::services::storage::local_storage::LocalStorageService;
+use zerolaunch_plugin_api::services::storage::storage_service::StorageService;
+use zerolaunch_plugin_api::services::storage::webdav_storage::{
+    WebDAVConfig, WebDAVStorageService,
+};
 
 /// 存储设置的强类型配置结构。
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -206,5 +208,19 @@ impl Configurable for StorageConfigComponent {
 
         self.host_api.reconfigure_storage(new_service);
         info!("存储配置已变更，当前后端: {}", s.storage_destination);
+    }
+}
+
+use crate::core::config::core_registry::CoreComponentEntry;
+
+fn build_storage_config(host_api: Arc<crate::sdk::HostApi>) -> Arc<dyn Configurable> {
+    Arc::new(StorageConfigComponent::new(host_api))
+}
+
+::inventory::submit! {
+    CoreComponentEntry {
+        component_id: "storage-config",
+        priority: 0,
+        factory: build_storage_config,
     }
 }

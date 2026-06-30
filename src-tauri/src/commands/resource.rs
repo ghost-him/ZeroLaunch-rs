@@ -9,8 +9,8 @@ use std::sync::Arc;
 pub struct ResourceUploadPayload {
     #[serde(rename = "filePath")]
     pub file_path: String,
-    #[serde(rename = "purpose")]
-    pub purpose: String,
+    #[serde(rename = "resourceId")]
+    pub resource_id: String,
     #[serde(rename = "maxSize")]
     pub max_size: Option<u64>,
 }
@@ -26,7 +26,7 @@ pub async fn resource_get(
     Ok(to_data_url(&data, &resource_id))
 }
 
-/// 上传资源文件，返回 "res://filename" 标识符。
+/// 上传资源文件，返回存储标识符。
 #[tauri::command]
 pub async fn resource_upload(
     state: tauri::State<'_, Arc<AppState>>,
@@ -34,7 +34,7 @@ pub async fn resource_upload(
 ) -> Result<String, BridgeError> {
     let core_handle = state.get_core_handle();
     core_handle
-        .resource_upload(&payload.purpose, &payload.file_path, payload.max_size)
+        .resource_upload(&payload.resource_id, &payload.file_path, payload.max_size)
         .await
         .map_err(Into::into)
 }

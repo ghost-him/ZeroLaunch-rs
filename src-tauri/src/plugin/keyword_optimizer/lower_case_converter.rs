@@ -124,3 +124,20 @@ impl KeywordOptimizer for LowerCaseConverter {
         self.inner.read().priority
     }
 }
+
+use crate::plugin_system::builtin_registry::KeywordOptimizerEntry;
+use std::sync::Arc;
+
+pub(crate) fn build_lower_case_converter() -> (Arc<dyn Configurable>, Arc<dyn KeywordOptimizer>) {
+    let opt: Arc<dyn KeywordOptimizer> = Arc::new(LowerCaseConverter::new());
+    let configurable: Arc<dyn Configurable> = opt.clone();
+    (configurable, opt)
+}
+
+::inventory::submit! {
+    KeywordOptimizerEntry {
+        component_id: "lower-case-converter",
+        priority: 40,
+        factory: build_lower_case_converter,
+    }
+}

@@ -15,7 +15,7 @@
         :disabled="!definition.field.editable"
         @click="selectImage"
       >
-        {{ modelValue ? '重新选择' : '选择图片' }}
+        {{ modelValue ? $t('settings.imageReselect') : $t('settings.imageSelect') }}
       </n-button>
       <n-button
         v-if="modelValue"
@@ -23,7 +23,7 @@
         :disabled="!definition.field.editable"
         @click="clearImage"
       >
-        清除
+        {{ $t('settings.imageClear') }}
       </n-button>
     </div>
     <ConfigActionButton
@@ -40,6 +40,7 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { NImage, NButton, useMessage } from 'naive-ui'
 import { open } from '@tauri-apps/plugin-dialog'
 import ConfigActionButton from '../ConfigActionButton.vue'
@@ -57,22 +58,22 @@ const emit = defineEmits<{
   (e: 'update:modelValue', value: unknown): void
 }>()
 
+const { t } = useI18n()
 const message = useMessage()
 const config = getImageConfig(props.definition.field.settingType)
 const previewUrl = ref<string>('')
 
 async function loadPreview() {
   const val = props.modelValue
-  if (typeof val !== 'string' || !val.startsWith('res://')) {
+  if (typeof val !== 'string' || val.length === 0) {
     previewUrl.value = ''
     return
   }
-  const resourceId = val.slice(6)
   try {
-    previewUrl.value = await resourceGet(resourceId)
+    previewUrl.value = await resourceGet(val)
   } catch (e) {
     console.error('[ImageField] Failed to load preview:', e)
-    message.error('图片加载失败')
+    message.error(t('settings.imageLoadFailed'))
     previewUrl.value = ''
   }
 }
@@ -96,7 +97,7 @@ async function selectImage() {
     emit('update:modelValue', resId)
   } catch (e) {
     console.error('[ImageField] Upload failed:', e)
-    message.error('图片上传失败')
+    message.error(t('settings.imageUploadFailed'))
   }
 }
 

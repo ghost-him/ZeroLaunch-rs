@@ -1,11 +1,9 @@
 use crate::core::config::setting_builders::SchemaBuilder;
-use crate::plugin_system::cached_candidate::CachedCandidateData;
 use crate::plugin_system::types::{ConfigActionDef, DataSource, ExecutionTarget, SearchCandidate};
+use crate::plugin_system::CachedCandidateData;
 use crate::plugin_system::{
     ComponentType, ConfigError, Configurable, DetailActionDef, SettingDefinition,
 };
-use crate::sdk::host_api::PluginHandle;
-use crate::sdk::IconRequest;
 use async_trait::async_trait;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
@@ -14,6 +12,8 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::{debug, warn};
+use zerolaunch_plugin_api::host::PluginHandle;
+use zerolaunch_plugin_api::services::IconRequest;
 
 // ============ Chrome 书签解析相关结构 ============
 
@@ -457,5 +457,25 @@ impl DataSource for BookmarkSource {
         }
 
         result
+    }
+}
+
+use crate::plugin_system::builtin_registry::{DataSourceEntry, InventoryContext};
+
+pub(crate) fn build_bookmark_source(
+    ctx: &InventoryContext,
+) -> (Arc<dyn Configurable>, Arc<dyn DataSource>) {
+    let handle = ctx.get_handle("bookmark-source");
+    let source: Arc<dyn DataSource> = Arc::new(BookmarkSource::new(handle));
+    let configurable: Arc<dyn Configurable> = source.clone();
+    (configurable, source)
+}
+
+::inventory::submit! {
+    DataSourceEntry {
+        component_id: "bookmark-source",
+        handle_key: "bookmark-source",
+        priority: 30,
+        factory: build_bookmark_source,
     }
 }

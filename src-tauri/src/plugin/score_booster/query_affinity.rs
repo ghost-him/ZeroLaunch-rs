@@ -1,9 +1,9 @@
 use crate::core::config::setting_builders::SchemaBuilder;
-use crate::plugin_system::cached_candidate::CachedCandidateData;
 use crate::plugin_system::types::{
     CandidateId, ComponentType, ConfigError, Configurable, ScoreBooster, ScoreDetail,
     ScoredCandidate, SettingDefinition,
 };
+use crate::plugin_system::CachedCandidateData;
 use crate::utils::get_current_time;
 use dashmap::DashMap;
 use parking_lot::RwLock;
@@ -287,5 +287,22 @@ impl ScoreBooster for QueryAffinityBooster {
                 description: "查询亲和分数".to_string(),
             });
         }
+    }
+}
+
+use crate::plugin_system::builtin_registry::ScoreBoosterEntry;
+use std::sync::Arc;
+
+pub(crate) fn build_query_affinity_booster() -> (Arc<dyn Configurable>, Arc<dyn ScoreBooster>) {
+    let booster: Arc<dyn ScoreBooster> = Arc::new(QueryAffinityBooster::new());
+    let configurable: Arc<dyn Configurable> = booster.clone();
+    (configurable, booster)
+}
+
+::inventory::submit! {
+    ScoreBoosterEntry {
+        component_id: "query-affinity-booster",
+        priority: 10,
+        factory: build_query_affinity_booster,
     }
 }

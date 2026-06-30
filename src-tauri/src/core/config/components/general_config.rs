@@ -1,5 +1,5 @@
 use crate::core::config::setting_builders::SchemaBuilder;
-use crate::core::types::setting_def::SettingDefinition;
+use crate::core::types::SettingDefinition;
 use crate::core::types::{ComponentType, ConfigError, Configurable};
 use crate::sdk::host_api::HostApi;
 use parking_lot::RwLock;
@@ -166,5 +166,19 @@ impl Configurable for GeneralConfigComponent {
 
     fn default_enabled(&self) -> bool {
         true
+    }
+}
+
+use crate::core::config::core_registry::CoreComponentEntry;
+
+fn build_general_config(host_api: Arc<crate::sdk::HostApi>) -> Arc<dyn Configurable> {
+    Arc::new(GeneralConfigComponent::new(host_api))
+}
+
+::inventory::submit! {
+    CoreComponentEntry {
+        component_id: "general",
+        priority: 30,
+        factory: build_general_config,
     }
 }

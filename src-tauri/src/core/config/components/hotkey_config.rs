@@ -1,12 +1,12 @@
 use crate::core::config::setting_builders::SchemaBuilder;
-use crate::core::types::setting_def::SettingDefinition;
+use crate::core::types::SettingDefinition;
 use crate::core::types::{ComponentType, ConfigError, Configurable};
 use crate::sdk::host_api::HostApi;
-use crate::sdk::hotkey::types::{Hotkey, HotkeyConfig, HotkeyRegistration};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::{info, warn};
+use zerolaunch_plugin_api::services::hotkey::types::{Hotkey, HotkeyConfig, HotkeyRegistration};
 
 /// 快捷键设置的强类型配置结构。
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -273,5 +273,19 @@ mod tests {
         let config = settings_to_hotkey_config(&settings);
         assert_eq!(config.hotkeys.len(), 1);
         assert!(config.double_ctrl_enabled);
+    }
+}
+
+use crate::core::config::core_registry::CoreComponentEntry;
+
+fn build_hotkey_config(host_api: Arc<crate::sdk::HostApi>) -> Arc<dyn Configurable> {
+    Arc::new(HotkeyConfigComponent::new(host_api))
+}
+
+::inventory::submit! {
+    CoreComponentEntry {
+        component_id: "hotkey-config",
+        priority: 10,
+        factory: build_hotkey_config,
     }
 }

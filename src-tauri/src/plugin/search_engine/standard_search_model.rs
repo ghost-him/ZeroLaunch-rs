@@ -1,8 +1,8 @@
 #![allow(dead_code)]
-use crate::plugin_system::cached_candidate::CachedCandidateData;
 use crate::plugin_system::types::{
     ComponentType, Configurable, ScoreDetail, ScoredCandidate, SearchCandidate, SearchEngine,
 };
+use crate::plugin_system::CachedCandidateData;
 use std::collections::HashMap;
 
 /// 标准搜索引擎
@@ -279,4 +279,21 @@ fn kmp(compare_name: &str, input_name: &str) -> f64 {
     }
 
     ret
+}
+
+use crate::plugin_system::builtin_registry::SearchEngineEntry;
+use std::sync::Arc;
+
+pub(crate) fn build_standard_search_model() -> (Arc<dyn Configurable>, Arc<dyn SearchEngine>) {
+    let engine: Arc<dyn SearchEngine> = Arc::new(StandardSearchModel {});
+    let configurable: Arc<dyn Configurable> = engine.clone();
+    (configurable, engine)
+}
+
+::inventory::submit! {
+    SearchEngineEntry {
+        component_id: "standard-search-model",
+        priority: 0,
+        factory: build_standard_search_model,
+    }
 }

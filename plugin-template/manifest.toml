@@ -1,0 +1,23 @@
+[plugin]
+id = "com.example.hello-world"
+name = "Hello World 插件"
+version = "0.1.0"
+description = "一个简单的 ZeroLaunch 第三方插件示例"
+author = "Your Name <you@example.com>"
+min_host_version = "0.7.0"
+
+[runtime]
+command = "target/release/zerolaunch-hello-world-plugin.exe"
+args = []
+startup_timeout = 10
+auto_restart = true
+max_restart = 3
+
+[components]
+provides = ["plugin"]
+
+[ui]
+panel_entry = "ui/panel.mjs"
+
+[icon]
+path = "icon.png"

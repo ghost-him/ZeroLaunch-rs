@@ -4,6 +4,7 @@
 //! This crate defines all message bodies, method name constants,
 //! manifest schema, and error codes.
 
+pub mod codec;
 pub mod error;
 pub mod jsonrpc;
 pub mod manifest;

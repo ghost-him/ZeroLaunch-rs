@@ -12,6 +12,8 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{mpsc, oneshot};
 
+use zerolaunch_plugin_protocol::codec::encode_frame;
+
 use base64::Engine as _;
 
 /// Proxy for calling host-side APIs from a plugin subprocess.
@@ -50,11 +52,9 @@ impl HostProxy {
         });
 
         let payload = serde_json::to_vec(&request).map_err(|e| e.to_string())?;
-        let header = format!("Content-Length: {}\r\n\r\n", payload.len());
 
-        // Combine header + payload into one write to avoid interleaving
-        let mut frame = header.into_bytes();
-        frame.extend_from_slice(&payload);
+        // 编码为完整的 LSP Content-Length 帧，避免 header 和 body 交错
+        let frame = encode_frame(&payload);
 
         // Register pending response
         let (tx, rx) = oneshot::channel();

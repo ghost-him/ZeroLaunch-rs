@@ -1,4 +1,5 @@
 use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use zerolaunch_plugin_protocol::codec::{encode_frame, MAX_FRAME_SIZE, MAX_HEADER_SIZE};
 use zerolaunch_plugin_protocol::ProtocolError;
 
 /// Read the next LSP-style Content-Length framed message from the reader.
@@ -16,7 +17,7 @@ pub async fn read_frame<R: AsyncBufRead + Unpin>(reader: &mut R) -> Result<Vec<u
             return Err(ProtocolError::TransportClosed);
         }
         total_header_len += n;
-        if total_header_len > 512 {
+        if total_header_len > MAX_HEADER_SIZE {
             return Err(ProtocolError::InvalidFrame("header too long".into()));
         }
 
@@ -38,7 +39,7 @@ pub async fn read_frame<R: AsyncBufRead + Unpin>(reader: &mut R) -> Result<Vec<u
     let len = content_length
         .ok_or_else(|| ProtocolError::InvalidFrame("missing Content-Length".into()))?;
 
-    if len > 16 * 1024 * 1024 {
+    if len > MAX_FRAME_SIZE {
         return Err(ProtocolError::InvalidFrame(format!(
             "Content-Length too large: {}",
             len
@@ -50,17 +51,13 @@ pub async fn read_frame<R: AsyncBufRead + Unpin>(reader: &mut R) -> Result<Vec<u
     Ok(body)
 }
 
-/// Write an LSP-style Content-Length framed message to the writer.
+/// 向 writer 写入一条 LSP Content-Length 帧。
+/// 帧字节由 `plugin-protocol::codec::encode_frame` 生成。
 pub async fn write_frame<W: AsyncWrite + Unpin>(
     writer: &mut W,
     payload: &[u8],
 ) -> Result<(), ProtocolError> {
-    let header = format!("Content-Length: {}\r\n\r\n", payload.len());
-    // Merge header and payload into a single buffer to avoid potential
-    // framing issues where OS-level buffer flushes split the frame.
-    let mut frame = Vec::with_capacity(header.len() + payload.len());
-    frame.extend_from_slice(header.as_bytes());
-    frame.extend_from_slice(payload);
+    let frame = encode_frame(payload);
     writer.write_all(&frame).await?;
     writer.flush().await?;
     Ok(())

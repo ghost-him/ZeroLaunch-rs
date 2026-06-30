@@ -47,14 +47,13 @@ paths:
           #[serde(rename = "count")]
           count: u32,
       },
-      
+
       // 无内部字段的变体也需标注
       #[serde(rename = "unitVariant")]
-      UnitVariant, 
+      UnitVariant,
   }
   ```
 - enum unit variant 和 variant with fields 均需显式标注：variant 标签加 `#[serde(rename = "...")]`，有内部字段的 variant 还需对每个内部字段标注。
-
 
 ## 命令注册
 
@@ -83,3 +82,11 @@ paths:
 - **正确**：`BridgeError::internal(error_string)` — 内部错误
 - **必须** 使用 `BridgeError` 包装错误，**必须** 避免返回裸 `String`
 - 无数据返回的命令 **必须** 使用 `Result<(), BridgeError>`
+- 返回类型 **必须** 是命名结构体（`#[derive(Serialize)]`）。**禁止** 直接返回 `serde_json::Value` 或 `serde_json::json!()` 手动构造的 JSON。
+  - **正确**：`fn config_get_actions() -> Result<Vec<ConfigActionDef>, BridgeError>`
+  - **错误**：`fn config_get_settings() -> Result<serde_json::Value, BridgeError>`
+- 命名结构体 **必须** 在 Rust 中定义，前端在 `bridge/contract.ts` 中声明对应 TypeScript 类型。**禁止** 使用 `serde_json::json!({})` 局部构造返回值。
+- 已知例外（返回值形状由动态 schema 或组件定义决定）：
+  - `config_get_settings` — 返回值由组件的 schema 定义，形状不固定
+  - `config_execute_action` — 每个组件可定义自己的 action 结果类型
+  - `inspector_get_state` / `inspector_simulate_query` — 调试工具，输出随 feature flag 和插件状态变化

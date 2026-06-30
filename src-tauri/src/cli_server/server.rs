@@ -60,19 +60,12 @@ pub async fn start(
     let app = Router::new()
         // Search & Session
         .route("/v1/query", post(routes::query::handle))
-        .route("/v1/confirm", post(routes::confirm::handle))
-        .route("/v1/wake", post(routes::session::wake))
-        .route("/v1/reset", post(routes::session::reset))
         .route("/v1/session/mode", get(routes::session::get_mode))
-        .route(
-            "/v1/candidates/refresh",
-            post(routes::session::refresh_candidates),
-        )
         .route(
             "/v1/candidates/count",
             get(routes::session::get_candidates_count),
         )
-        // Config
+        // Config — read only
         .route(
             "/v1/config/components",
             get(routes::config::list_components),
@@ -82,31 +75,9 @@ pub async fn start(
             "/v1/config/{id}/settings",
             get(routes::config::get_settings),
         )
-        .route(
-            "/v1/config/{id}/settings",
-            post(routes::config::apply_settings),
-        )
-        .route(
-            "/v1/config/{id}/reset",
-            post(routes::config::reset_settings),
-        )
-        .route("/v1/config/{id}/enabled", post(routes::config::set_enabled))
         .route("/v1/config/{id}/actions", get(routes::config::get_actions))
-        .route(
-            "/v1/config/{id}/actions/{action}",
-            post(routes::config::execute_action),
-        )
-        // Plugin Management
+        // Plugin Management — read only
         .route("/v1/plugins", get(routes::plugins::handle_list))
-        .route("/v1/plugins/install", post(routes::plugins::handle_install))
-        .route(
-            "/v1/plugins/{id}/reload",
-            post(routes::plugins::handle_reload),
-        )
-        .route(
-            "/v1/plugins/{id}/uninstall",
-            post(routes::plugins::handle_uninstall),
-        )
         .route(
             "/v1/plugins/{id}/manifest",
             get(routes::plugins::handle_get_manifest),

@@ -15,19 +15,6 @@ struct Cli {
 enum Commands {
     /// Search for items
     Query { text: String },
-    /// Confirm and execute an action
-    Confirm {
-        #[arg(long, default_value = "0")]
-        candidate_id: u64,
-        #[arg(long, default_value = "execute")]
-        action_id: String,
-        #[arg(long, default_value = "")]
-        query_text: String,
-    },
-    /// Wake the search bar
-    Wake,
-    /// Reset the session
-    Reset,
     /// Get session mode
     Session,
     /// Plugin management
@@ -46,12 +33,6 @@ enum Commands {
 enum PluginCmd {
     /// List all installed plugins
     List,
-    /// Install a plugin from a local .zip file
-    Install { path: String },
-    /// Reload a plugin
-    Reload { id: String },
-    /// Uninstall a plugin
-    Uninstall { id: String },
     /// Get plugin info
     Info { id: String },
     /// Get plugin logs
@@ -70,10 +51,6 @@ enum ConfigCmd {
     Schema { id: String },
     /// Get settings for a component
     Get { id: String },
-    /// Set settings for a component
-    Set { id: String, json: String },
-    /// Reset a component to defaults
-    Reset { id: String },
 }
 
 struct CliClient {
@@ -141,32 +118,6 @@ fn main() -> Result<()> {
             let result = client.post("/v1/query", serde_json::json!({ "rawQuery": text }))?;
             println!("{}", serde_json::to_string_pretty(&result)?);
         }
-        Commands::Confirm {
-            candidate_id,
-            action_id,
-            query_text,
-        } => {
-            let client = CliClient::load()?;
-            let result = client.post(
-                "/v1/confirm",
-                serde_json::json!({
-                    "candidateId": candidate_id,
-                    "actionId": action_id,
-                    "queryText": query_text,
-                }),
-            )?;
-            println!("{}", serde_json::to_string_pretty(&result)?);
-        }
-        Commands::Wake => {
-            let client = CliClient::load()?;
-            client.post("/v1/wake", serde_json::json!(null))?;
-            println!("Woke");
-        }
-        Commands::Reset => {
-            let client = CliClient::load()?;
-            client.post("/v1/reset", serde_json::json!(null))?;
-            println!("Session reset");
-        }
         Commands::Session => {
             let client = CliClient::load()?;
             let result = client.get("/v1/session/mode")?;
@@ -177,27 +128,6 @@ fn main() -> Result<()> {
             match sub {
                 PluginCmd::List => {
                     let result = client.get("/v1/plugins")?;
-                    println!("{}", serde_json::to_string_pretty(&result)?);
-                }
-                PluginCmd::Install { path } => {
-                    let result = client.post(
-                        "/v1/plugins/install",
-                        serde_json::json!({ "filePath": path }),
-                    )?;
-                    println!("{}", serde_json::to_string_pretty(&result)?);
-                }
-                PluginCmd::Reload { id } => {
-                    let result = client.post(
-                        &format!("/v1/plugins/{}/reload", id),
-                        serde_json::json!(null),
-                    )?;
-                    println!("{}", serde_json::to_string_pretty(&result)?);
-                }
-                PluginCmd::Uninstall { id } => {
-                    let result = client.post(
-                        &format!("/v1/plugins/{}/uninstall", id),
-                        serde_json::json!(null),
-                    )?;
                     println!("{}", serde_json::to_string_pretty(&result)?);
                 }
                 PluginCmd::Info { id } => {
@@ -232,16 +162,6 @@ fn main() -> Result<()> {
                 }
                 ConfigCmd::Get { id } => {
                     let result = client.get(&format!("/v1/config/{}/settings", id))?;
-                    println!("{}", serde_json::to_string_pretty(&result)?);
-                }
-                ConfigCmd::Set { id, json } => {
-                    let settings: Value = serde_json::from_str(&json).context("Invalid JSON")?;
-                    let result = client.post(&format!("/v1/config/{}/settings", id), settings)?;
-                    println!("{}", serde_json::to_string_pretty(&result)?);
-                }
-                ConfigCmd::Reset { id } => {
-                    let result = client
-                        .post(&format!("/v1/config/{}/reset", id), serde_json::json!(null))?;
                     println!("{}", serde_json::to_string_pretty(&result)?);
                 }
             }

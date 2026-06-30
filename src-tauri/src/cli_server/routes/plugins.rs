@@ -21,60 +21,6 @@ pub async fn handle_list(State(state): State<Arc<AppState>>) -> Json<Vec<Install
     }))
 }
 
-/// POST /v1/plugins/install — 从本地文件安装。
-pub async fn handle_install(
-    State(state): State<Arc<AppState>>,
-    Json(payload): Json<serde_json::Value>,
-) -> Json<serde_json::Value> {
-    let file_path = payload
-        .get("filePath")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
-    if file_path.is_empty() {
-        return Json(serde_json::json!({ "error": "filePath is required" }));
-    }
-
-    let pm = state.get_plugin_manager();
-    let path = std::path::PathBuf::from(file_path);
-    let app_handle = state.get_main_handle();
-    match pm.install(&path, app_handle).await {
-        Ok(info) => Json(serde_json::json!({
-            "installed": info.plugin_id,
-            "name": info.name,
-            "version": info.version,
-        })),
-        Err(e) => Json(serde_json::json!({ "error": e })),
-    }
-}
-
-/// POST /v1/plugins/:id/reload
-pub async fn handle_reload(
-    State(state): State<Arc<AppState>>,
-    Path(id): Path<String>,
-) -> Json<serde_json::Value> {
-    let pm = state.get_plugin_manager();
-    let app_handle = state.get_main_handle();
-
-    match pm.reload(&id, app_handle.clone()).await {
-        Ok(()) => Json(serde_json::json!({ "status": "reloaded", "pluginId": id })),
-        Err(e) => Json(serde_json::json!({ "error": e })),
-    }
-}
-
-/// POST /v1/plugins/:id/uninstall
-pub async fn handle_uninstall(
-    State(state): State<Arc<AppState>>,
-    Path(id): Path<String>,
-) -> Json<serde_json::Value> {
-    let pm = state.get_plugin_manager();
-    let app_handle = state.get_main_handle();
-
-    match pm.uninstall(&id, app_handle.clone()).await {
-        Ok(()) => Json(serde_json::json!({ "status": "uninstalled", "pluginId": id })),
-        Err(e) => Json(serde_json::json!({ "error": e })),
-    }
-}
-
 /// GET /v1/plugins/:id/manifest
 pub async fn handle_get_manifest(
     State(state): State<Arc<AppState>>,

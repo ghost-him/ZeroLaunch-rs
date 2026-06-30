@@ -77,36 +77,42 @@ pub async fn start(
             "/v1/config/components",
             get(routes::config::list_components),
         )
-        .route("/v1/config/:id/schema", get(routes::config::get_schema))
-        .route("/v1/config/:id/settings", get(routes::config::get_settings))
+        .route("/v1/config/{id}/schema", get(routes::config::get_schema))
         .route(
-            "/v1/config/:id/settings",
+            "/v1/config/{id}/settings",
+            get(routes::config::get_settings),
+        )
+        .route(
+            "/v1/config/{id}/settings",
             post(routes::config::apply_settings),
         )
-        .route("/v1/config/:id/reset", post(routes::config::reset_settings))
-        .route("/v1/config/:id/enabled", post(routes::config::set_enabled))
-        .route("/v1/config/:id/actions", get(routes::config::get_actions))
         .route(
-            "/v1/config/:id/actions/:action",
+            "/v1/config/{id}/reset",
+            post(routes::config::reset_settings),
+        )
+        .route("/v1/config/{id}/enabled", post(routes::config::set_enabled))
+        .route("/v1/config/{id}/actions", get(routes::config::get_actions))
+        .route(
+            "/v1/config/{id}/actions/{action}",
             post(routes::config::execute_action),
         )
         // Plugin Management
         .route("/v1/plugins", get(routes::plugins::handle_list))
         .route("/v1/plugins/install", post(routes::plugins::handle_install))
         .route(
-            "/v1/plugins/:id/reload",
+            "/v1/plugins/{id}/reload",
             post(routes::plugins::handle_reload),
         )
         .route(
-            "/v1/plugins/:id/uninstall",
+            "/v1/plugins/{id}/uninstall",
             post(routes::plugins::handle_uninstall),
         )
         .route(
-            "/v1/plugins/:id/manifest",
+            "/v1/plugins/{id}/manifest",
             get(routes::plugins::handle_get_manifest),
         )
         .route(
-            "/v1/plugins/:id/logs",
+            "/v1/plugins/{id}/logs",
             get(routes::plugins::handle_get_logs),
         )
         .with_state(app_state)

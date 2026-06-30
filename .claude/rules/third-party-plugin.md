@@ -3,9 +3,8 @@ paths:
   - "crates/plugin-protocol/**"
   - "crates/plugin-host/**"
   - "crates/plugin-sdk-rust/**"
-  - "src-tauri/src/plugin_loader/**"
+  - "src-tauri/src/plugin_system/**"
   - "src-tauri/src/cli_server/**"
-  - "src-tauri/src/plugin_protocol_assets/**"
   - "src-tauri/src/commands/plugin.rs"
 ---
 
@@ -15,9 +14,16 @@ paths:
 
 第三方插件以**子进程 + stdio JSON-RPC 2.0** 方式运行。宿主通过 `plugin-host` crate 管理子进程生命周期，通过 `RemotePluginAdapter` 将 JSON-RPC 调用适配为 Plugin/DataSource/ActionExecutor trait。
 
+**宿主侧入口**集中在 `src-tauri/src/plugin_system/`：
+- `manager.rs` — 第三方插件生命周期管理（加载、卸载、发现、崩溃恢复），唯一入口
+- `host_handler.rs` — 子进程 Host 管理（spawn、健康监控、优雅关闭）
+- `plugin_installer.rs` — 插件安装/卸载逻辑（从 manager.rs 提取）
+- `plugin_info.rs` — 插件信息类型
+- `zlplugin_protocol.rs` — `zlplugin://` 自定义协议处理（原 `plugin_protocol_assets/` 已合并至此）
+
 ## 协议规范
 
-- **传输帧**：LSP 风格 `Content-Length: N\r\n\r\n{json}` 帧，编码 UTF-8
+- **传输帧**：LSP 风格 `Content-Length: N\r\n\r\n{json}` 帧，编码 UTF-8。编解码实现在 `crates/plugin-protocol/src/codec.rs`（由 plugin-host 和 plugin-sdk-rust 共享）
 - **双工**：宿主→插件（`plugin/*` 命名空间）和 插件→宿主（`host/*` 命名空间）均可发起 RPC
 - **超时**：query / execute_action 默认 30s，其他 5s
 - **错误码**：遵循 JSON-RPC 2.0 标准码 + 自定义码（-32000 ~ -32003）
@@ -47,7 +53,7 @@ paths:
 ## HostDispatch（反向调用）
 
 - 插件通过 `host/*` RPC 调宿主 API
-- 在 src-tauri 侧实现 `HostCallHandler` trait，路由到 `PluginHandle` 方法
+- 在 src-tauri 侧由 `plugin_system/host_handler.rs` 实现 `HostCallHandler` trait，路由到 `PluginHandle` 方法
 - `host/resource.*` 调用 **必须** 校验 `plugin_id` 命名空间
 
 ## CLI HTTP 服务器
@@ -58,6 +64,7 @@ paths:
 
 ## 自定义协议 zlplugin://
 
+- 处理入口：`src-tauri/src/plugin_system/zlplugin_protocol.rs`
 - 仅允许 `ui/` 子路径
 - **必须** canonicalize 后校验在 plugin 目录内（防路径遍历）
 - MIME 推断基于文件扩展名

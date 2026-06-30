@@ -2,18 +2,19 @@
 paths:
   - "src-tauri/src/commands/**"
   - "src-ui-new/bridge/**"
+  - "src-tauri/src/cli_server/**"
 ---
 
 # Tauri Command 规范
 
 ## 命名前缀
 
-- 搜索/会话命令：**必须** 用 `bridge_` 前缀
-  - `bridge_query`、`bridge_confirm`、`bridge_wake`、`bridge_reset`、`bridge_get_session_mode`、`bridge_refresh_candidates`、`bridge_get_candidates_count`
-- 配置命令：**必须** 用 `config_` 前缀
-  - `config_get_all_components`、`config_get_schema`、`config_get_settings`、`config_apply_settings`、`config_reset_settings`、`config_set_enabled`、`config_get_actions`、`config_execute_action`
-- 资源命令：**必须** 用 `resource_` 前缀
-  - `resource_get`、`resource_upload`
+- 搜索/会话命令：**必须** 用 `bridge_` 前缀（具体命令以 `commands/bridge.rs` 中 `#[tauri::command]` 标注为准）
+- 配置命令：**必须** 用 `config_` 前缀（具体命令以 `commands/config_file.rs` 中 `#[tauri::command]` 标注为准）
+- 资源命令：**必须** 用 `resource_` 前缀（具体命令以 `commands/resource.rs` 中 `#[tauri::command]` 标注为准）
+- 插件管理命令：**必须** 用 `plugin_` 前缀（具体命令以 `commands/plugin.rs` 中 `#[tauri::command]` 标注为准）
+- 检查器命令：**必须** 用 `inspector_` 前缀（具体命令以 `commands/inspector.rs` 中 `#[tauri::command]` 标注为准）
+- CLI 命令：**必须** 用 `cli_` 前缀（具体命令以 `commands/cli.rs` 中 `#[tauri::command]` 标注为准）
 - **必须** 使用正确前缀。引入新前缀时 **必须** 同步更新此规则文件
 
 ## 参数约定
@@ -61,6 +62,9 @@ paths:
 - Bridge 命令 **必须** 放在 `commands/bridge.rs` 中
 - Config 命令 **必须** 放在 `commands/config_file.rs` 中
 - 资源命令 **必须** 放在 `commands/resource.rs` 中
+- 插件管理命令 **必须** 放在 `commands/plugin.rs` 中
+- 检查器命令 **必须** 放在 `commands/inspector.rs` 中
+- CLI 命令 **必须** 放在 `commands/cli.rs` 中
 
 ## 错误处理
 

@@ -78,7 +78,8 @@ paths:
 | 路径解析 | `crates/plugin-api/src/services/path/` | `WindowsPathResolver` | `resolve_path()` |
 | Shell 执行 | `crates/plugin-api/src/services/shell/` | `WindowsShellExecutor` | `shell_open()` / `shell_execute_elevation()` |
 | .lnk 解析 | `crates/plugin-api/src/services/shell/` | `WindowsLnkResolver` | `resolve_lnk()` |
-| 资源加载 | `crates/plugin-api/src/services/resource/` | `WindowsResourceLoader` | `parse_localized_names_from_dir()` |
+| 资源加载 (trait) | `crates/plugin-api/src/services/resource/` | `WindowsResourceLoader` (`AppResourceService`) | `get_icon_path()` |
+| 资源加载 (shell) | `crates/plugin-api/src/services/shell/` | `WindowsResourceLoader` (`ResourceLoader`) | `parse_localized_names_from_dir()` |
 | 存储服务 | `crates/plugin-api/src/services/storage/` | `LocalStorageService` / `WebDavStorageService` | `storage()` |
 | 定时器 | `crates/plugin-api/src/services/timer/` | `TokioTimerManager` | `set_interval()` / `set_timeout()` |
 | 窗口管理 | `crates/plugin-api/src/services/window/` | `WindowsWindowManager` | `show_window()` / `hide_window()` |
@@ -99,3 +100,4 @@ SDK 已拆分为多 crate workspace：
 - **新增 SDK trait**：在 `crates/plugin-api/src/services/<domain>/` 定义，在 `crates/platform-windows/src/` 实现
 - **插件作者只依赖** `zerolaunch-plugin-api`，不需要 Tauri / Windows / 主程序源码
 - **src-tauri 中的 sdk/** 现为 re-export 桥，类型本体在 plugin-api
+- **共享编解码器**：LSP `Content-Length` 帧编解码在 `crates/plugin-protocol/src/codec.rs` 中定义，由 `plugin-host` 和 `plugin-sdk-rust` 共享，避免重复实现

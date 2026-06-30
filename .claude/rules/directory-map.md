@@ -16,26 +16,27 @@ ZeroLaunch-rs/                          ← Cargo workspace 根
 │   │       ├── config/                 ← Configurable trait, SettingDefinition, ComponentType 等
 │   │       ├── host/                   ← HostApiError, OpenTarget, CacheLevel, PluginHandle, PluginSdkConfig
 │   │       ├── platform/               ← PlatformCapability, PlatformCapabilities
-│   │       ├── plugin/                 ← Plugin trait, Query/QueryResponse, 5 个组件 trait, CachedCandidateData
-│   │       ├── services/               ← 15 个能力域（shell, icon, storage, hotkey 等）的 trait + 纯 Rust 实现
+│   │       ├── plugin/                 ← Plugin trait, Query/QueryResponse, 组件 trait, CachedCandidateData
+│   │       ├── services/               ← 能力域 trait（具体数量以代码为准；新增域时**必须**在此登记 + sdk.md 同步更新）
 │   │       ├── common/                 ← DirUtils, ImageUtils
 │   │       └── mock/                   ← Stub 实现 + mock_plugin_handle()（feature = "mock"）
 │   ├── plugin-protocol/                ← zerolaunch-plugin-protocol
-│   │   └── src/                        ← JSON-RPC 消息体, 方法名常量, manifest schema, 错误码
+│   │   └── src/                        ← JSON-RPC 消息体, 方法名常量, manifest schema, 错误码, codec (LSP Content-Length 帧编解码)
 │   ├── plugin-host/                    ← zerolaunch-plugin-host
-│   │   └── src/                        ← 子进程管理, transport/codec, JsonRpcClient, RemotePluginAdapter
+│   │   └── src/                        ← 子进程管理, transport, JsonRpcClient, RemotePluginAdapter
 │   ├── plugin-sdk-rust/                ← zerolaunch-plugin-sdk-rust
 │   │   └── src/                        ← Rust 第三方插件 SDK (run() + HostProxy)
 │   └── platform-windows/               ← zerolaunch-platform-windows
-│       └── src/                        ← 14 个 Windows 平台 trait 实现 + windows_capabilities()
+│       └── src/                        ← Windows 平台 trait 实现 + windows_capabilities()
 ├── zerolaunch-cli/                     ← zerolaunch-cli (独立 bin crate)
 ├── plugin-template/                    ← Rust 第三方插件项目模板
 └── src-tauri/                          ← zerolaunch-rs（主程序）
     └── src/
+        ├── bootstrap.rs               ← 应用启动初始化（从 lib.rs 提取）
         ├── sdk/                        ← re-export 桥（类型本体在 plugin-api / platform-windows）
         ├── core/                       ← ConfigManager, ConfigStore, 核心配置组件
-        ├── plugin/                     ← 23 个内置插件实现
-        ├── plugin_system/              ← SessionRouter, Pipeline, Registry, Dispatcher
+        ├── plugin/                     ← 内置插件实现（具体数量以代码为准）
+        ├── plugin_system/              ← SessionRouter, Pipeline, Registry, PluginManager
         ├── commands/                   ← IPC 命令薄代理
         ├── state/                      ← AppState
         └── utils/                      ← 通用工具
@@ -57,7 +58,7 @@ ZeroLaunch-rs/                          ← Cargo workspace 根
 | `sdk/` | re-export 桥（类型本体在 plugin-api / platform-windows） | 无外部依赖 | 引用 core/、plugin/、plugin_system/ |
 | `core/` | 业务核心：ConfigManager、Configurable trait、类型定义 | sdk/ | 引用 plugin/、plugin_system/ |
 | `plugin/` | 插件实现：DataSource、Executor、SearchEngine 等 | sdk/、core/ | 引用 plugin_system/ |
-| `plugin_system/` | 插件框架：SessionRouter、Pipeline、Registry | sdk/、core/、plugin/ | 被其他层反向引用 |
+| `plugin_system/` | 插件框架：SessionRouter、Pipeline、Registry、PluginManager | sdk/、core/、plugin/ | 被其他层反向引用 |
 | `commands/` | IPC 命令：薄代理层，仅委托 | 全部 | 包含业务逻辑 |
 | `state/` | AppState 定义 | core/、plugin_system/ | 包含业务方法 |
 | `utils/` | 通用工具（service_locator 等） | 无限制 | 包含业务逻辑 |
@@ -84,18 +85,22 @@ sdk/
 core/
 ├── constants.rs         ← 应用常量
 ├── tray/                ← 系统托盘管理
+├── window_utils.rs      ← 窗口工具函数（从 lib.rs 提取）
 ├── config/              ← 配置系统
 │   ├── manager.rs       ← ConfigManager 主调度器
 │   ├── store.rs         ← ConfigStore（JSON 持久化）
 │   ├── models.rs        ← 配置数据模型
 │   ├── registry.rs      ← ConfigurableRegistry
+│   ├── core_registry.rs ← CoreComponentEntry（打破 core/config/components → plugin_system 循环依赖）
 │   ├── event.rs         ← ConfigEvent 广播
 │   ├── setting_builders.rs ← SchemaBuilder API
 │   └── components/      ← 核心配置组件（非插件）
 │       ├── appearance_config.rs
+│       ├── general_config.rs
 │       ├── hotkey_config.rs
 │       ├── installation_monitor_config.rs
-│       └── storage_config.rs
+│       ├── storage_config.rs
+│       └── window_behavior_config.rs
 └── types/               ← 核心类型定义（仅保留 BridgeError，其余已迁至 crates/plugin-api/src/config/）
     └── bridge_error.rs  ← BridgeError（IPC 错误）
 ```
@@ -107,12 +112,12 @@ core/
 ```
 plugin/
 ├── _template/            ← 内置插件模板（不被编译或 glob 扫描）
-├── data_source/         ← 数据源（5个）
-├── executor/            ← 执行器（6个）
-├── keyword_optimizer/   ← 关键词优化器（8个）
-├── score_booster/       ← 分数增强器（2个）
-├── search_engine/       ← 搜索引擎（3个）
-└── triggerable/         ← 可触发插件（计算器等）
+├── data_source/         ← 数据源（具体以代码为准）
+├── executor/            ← 执行器（具体以代码为准）
+├── keyword_optimizer/   ← 关键词优化器（具体以代码为准）
+├── score_booster/       ← 分数增强器（具体以代码为准）
+├── search_engine/       ← 搜索引擎（具体以代码为准）
+└── triggerable/         ← 可触发插件（具体以代码为准）
 ```
 
 - 每个插件实现 `Configurable` trait（配置）+ 对应的领域 trait（如 `DataSource`、`ActionExecutor`）。**必须** 通过 `PluginHandle` 访问平台能力（见 [plugin-system.md](plugin-system.md)）
@@ -122,31 +127,40 @@ plugin/
 ```
 plugin_system/
 ├── builtin_registry.rs   ← inventory 自动发现与注册编排器
+├── builtin.rs            ← 内置插件定义
 ├── inspector.rs          ← Plugin Inspector 调试面板 (feature = "inspector")
-├── session_router.rs    ← 搜索会话路由（核心调度器）
-├── candidate_pipeline.rs← 候选项采集管道
-├── search_pipeline.rs   ← 搜索排序管道
-├── executor_registry.rs ← 执行器注册表
-├── dispatcher.rs        ← Plugin 触发分发
-├── service.rs           ← PluginService
-├── registry.rs          ← PluginRegistry
-├── cached_candidate.rs  ← 缓存候选项
-└── types.rs             ← 所有运行时类型定义
+├── session_router.rs     ← 搜索会话路由（核心调度器）
+├── candidate_pipeline.rs ← 候选项采集管道
+├── search_pipeline.rs    ← 搜索排序管道
+├── executor_registry.rs  ← 执行器注册表
+├── manager.rs            ← 第三方插件生命周期管理（单入口）
+├── host_handler.rs       ← 子进程 Host 管理
+├── plugin_installer.rs   ← 插件安装/卸载逻辑（从 manager.rs 提取）
+├── plugin_info.rs        ← 插件信息类型
+├── zlplugin_protocol.rs  ← zlplugin:// 自定义协议处理（从 manager.rs 提取）
+├── service.rs            ← PluginService
+├── registry.rs           ← PluginRegistry
+└── types.rs              ← 所有运行时类型定义
 ```
 
 - **SessionRouter** 是运行时的中枢。所有 bridge 命令通过它路由
 - **builtin_registry** 通过 `inventory` 在编译期收集所有内置组件，启动时统一注册
+- **manager.rs** 是第三方插件生命周期的唯一入口，通过 `PluginRuntimeEvent` 广播通道与 ConfigManager/SessionRouter 事件驱动解耦
 - **禁止** 在此层定义配置 schema 或持久化逻辑（那属于 core/）
 
 #### `commands/` — IPC 命令层
 ```
 commands/
-├── bridge.rs     ← bridge_ 前缀（搜索/会话）7个命令
-├── config_file.rs← config_ 前缀（配置管理）8个命令
-└── resource.rs   ← resource_ 前缀（资源管理）2个命令
+├── bridge.rs     ← bridge_ 前缀（搜索/会话，具体命令数见 commands.md）
+├── config_file.rs← config_ 前缀（配置管理，具体命令数见 commands.md）
+├── resource.rs   ← resource_ 前缀（资源管理，具体命令数见 commands.md）
+├── plugin.rs     ← plugin_ 前缀（第三方插件管理，具体命令数见 commands.md）
+├── inspector.rs  ← inspector_ 前缀（插件检查器，具体命令数见 commands.md）
+└── cli.rs        ← cli_ 前缀（CLI HTTP 服务器，具体命令数见 commands.md）
 ```
 
 - 命令处理器是 **薄代理**：接收参数 → 委托给 SessionRouter/ConfigManager → 返回结果。详细规范见 [commands.md](commands.md)
+- IPC 命令按前缀分散在 `commands/` 子文件中，前缀 → 文件对应关系见 [commands.md](commands.md)
 
 ### 前端 (src-ui-new/)
 
@@ -155,14 +169,16 @@ commands/
 | `bridge/` | IPC 契约层 | 类型定义 + 命令封装 + 事件监听 |
 | `stores/` | Pinia 状态管理 | 每个关注点一个 store |
 | `composables/` | 可复用逻辑 Hook | 有副作用的逻辑封装 |
+| `router/` | Vue Router 配置 | 路由定义 |
 | `views/` | 页面级组件 | 每个窗口入口对应一个 View |
 | `components/` | UI 组件 | 按功能域子目录组织 |
 | `components/settings/fields/` | 设置字段渲染器 | 每种 SettingType 一个组件 |
 | `components/settings/fields/array/` | 数组 UI 策略 | 每种 ArrayUiHint 一个组件 |
 | `plugins/built-in/` | 内置前端插件 | `import.meta.glob` 自动发现，目录约定 `built-in/<id>/index.ts` |
+| `plugins/third-party-host/` | 第三方插件宿主 | iframe 宿主 + PostMessage 通信桥 |
 | `plugins/built-in/_template/` | 前端插件模板 | 参考实现，不被 glob 扫描 |
 | `utils/` | 纯工具函数 | 无副作用的工具 |
-| `styles/` | 全局样式 | CSS 变量定义 |
+| `styles/` | 全局样式 | CSS 变量定义（variables.css + transitions.css） |
 | `i18n/` | 国际化 | 语言文件 |
 
 ### 新文件放置决策树

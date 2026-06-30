@@ -48,7 +48,7 @@ paths:
 
 - 所有外观配置（颜色、尺寸、字体）由后端 `appearance` 组件管理
 - 后端设置变更 → 前端 `applyAppearanceSettings()` 更新 CSS 变量 → 组件自动响应
-- `styles/variables.css` 定义所有 CSS 变量的 **静态默认值**
+- `styles/variables.css` 定义所有 CSS 变量的 **静态默认值**。`styles/transitions.css` 定义全局过渡动画
 - **必须** 通过 `setProperty('--var', val)` 操作 CSS 变量
 - 暗色模式通过 `html.dark` class 切换。**禁止** 使用 `@media (prefers-color-scheme)`
 
@@ -61,7 +61,7 @@ paths:
 
 ### 键盘快捷键
 
-- 搜索窗口的键盘处理集中在 `composables/useKeyboard.ts`
+- 搜索窗口的键盘处理集中在 `composables/useKeyboardRouter.ts`，具体处理器在 `composables/keyboard/` 子目录（`searchHandler.ts`、`inlineParamHandler.ts`、`inlinePluginHandler.ts`、`fullPagePluginHandler.ts`、`paramPanelHandler.ts`）
 - **禁止** 在子组件中添加全局 `keydown` 监听器。由 composable 统一管理
 - 插件面板激活时（immersive mode），搜索快捷键 **必须** 被抑制
 

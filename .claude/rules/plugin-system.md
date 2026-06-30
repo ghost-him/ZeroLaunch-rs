@@ -68,6 +68,12 @@ paths:
 - 当前搜索引擎通过 `config_set_enabled` 切换。**仅** 允许一个搜索引擎同时启用
 - ScoreBooster 在搜索引擎打分后追加分数修正（历史频率、查询亲和度）
 
+## 事件驱动解耦
+
+- `PluginManager`（`plugin_system/manager.rs`）不再持有 `ConfigManager` 直接引用。通过 `PluginRuntimeEvent` 广播通道与 `ConfigManager`、`SessionRouter` 事件驱动解耦
+- `PluginRuntimeEvent` 替代了已删除的 `AdapterRegistrar`（`plugin_system/adapter_registrar.rs`）
+- `CoreComponentEntry` 定义在 `core/config/core_registry.rs`（非 `plugin_system/builtin_registry.rs`），打破 `core/config/components` → `plugin_system` 反向依赖循环
+
 ## 依赖方向
 
 见 [directory-map.md](directory-map.md) 的顶层目录职责表。

@@ -30,7 +30,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["msi"],
     "resources": [
       "icons/",
       "locales/",

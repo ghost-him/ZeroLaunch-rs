@@ -33,6 +33,3 @@ package-lock.json
 *.zip
 
 target
-
-# CodeGraph 代码知识图谱索引（各开发者本地生成）
-.codegraph/

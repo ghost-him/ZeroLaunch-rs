@@ -107,14 +107,10 @@ fn print_build_plan(kind: BuildKind, targets: &[BuildTarget], version: &str) {
 
         match kind {
             BuildKind::Installer => {
-                let nsis_name = format!(
-                    "zerolaunch-rs_{}_{}-setup.exe",
-                    version,
-                    target.arch.label()
-                );
                 let msi_name = format!("ZeroLaunch_{}_{}_en-US.msi", version, target.arch.label());
-                println!("      • {}", nsis_name);
+                let cli_name = format!("zerolaunch-cli_{}_{}.exe", version, target.arch.label());
                 println!("      • {}", msi_name);
+                println!("      • {}", cli_name);
             }
             BuildKind::Portable => {
                 let zip_name = format!(
@@ -219,7 +215,7 @@ async fn build_installer_versions(arch: &Architecture, version: &str) -> Result<
     Ok(())
 }
 
-async fn build_single_installer(target: BuildTarget, _version: &str) -> Result<()> {
+async fn build_single_installer(target: BuildTarget, version: &str) -> Result<()> {
     println!("📦 构建安装包 -> 架构: {}", target.arch.display());
 
     let args = vec![
@@ -237,6 +233,60 @@ async fn build_single_installer(target: BuildTarget, _version: &str) -> Result<(
 
     move_installer_to_root(target.arch)?;
 
+    build_cli_binary(target.arch).await?;
+    collect_cli_binary(target.arch, version)?;
+
+    Ok(())
+}
+
+/// 收集 zerolaunch-cli 二进制文件到项目根目录（带版本和架构信息）
+fn collect_cli_binary(target_arch: TargetArch, version: &str) -> Result<()> {
+    let cli_path = Path::new("target")
+        .join(target_arch.triple())
+        .join("release")
+        .join("zerolaunch-cli.exe");
+
+    if cli_path.exists() {
+        let dest_name = format!("zerolaunch-cli_{}_{}.exe", version, target_arch.label());
+        let root_dir = env::current_dir()?;
+        let dest_path = root_dir.join(&dest_name);
+        if dest_path.exists() {
+            fs::remove_file(&dest_path)
+                .context(format!("删除已存在的 {} 失败", dest_name))?;
+        }
+        fs::copy(&cli_path, &dest_path)
+            .context(format!("无法将 {:?} 复制到根目录", cli_path))?;
+        println!("✅ 已将 {} 移动到根目录", dest_name);
+    } else {
+        println!(
+            "⚠️  未找到 {} ({}) 的 zerolaunch-cli.exe",
+            target_arch.triple(),
+            target_arch.display()
+        );
+    }
+
+    Ok(())
+}
+
+/// 构建 zerolaunch-cli 二进制文件
+async fn build_cli_binary(target_arch: TargetArch) -> Result<()> {
+    println!("🔨 构建 zerolaunch-cli -> 架构: {}", target_arch.display());
+
+    let args = vec![
+        "cargo".to_string(),
+        "build".to_string(),
+        "-p".to_string(),
+        "zerolaunch-cli".to_string(),
+        "--release".to_string(),
+        "--target".to_string(),
+        target_arch.triple().to_string(),
+    ];
+
+    run_command(args).await.with_context(|| {
+        format!("构建 zerolaunch-cli 失败: 架构 {}", target_arch.display())
+    })?;
+
+    println!("✅ zerolaunch-cli 构建完成: {}", target_arch.display());
     Ok(())
 }
 
@@ -275,6 +325,9 @@ async fn build_single_portable(target: BuildTarget, version: &str) -> Result<()>
 
     package_portable_variant(target, version).await?;
 
+    build_cli_binary(target.arch).await?;
+    collect_cli_binary(target.arch, version)?;
+
     Ok(())
 }
 
@@ -295,7 +348,7 @@ fn move_installer_to_root(target_arch: TargetArch) -> Result<()> {
         return Ok(());
     }
 
-    let installer_subdirs = ["msi", "nsis"];
+    let installer_subdirs = ["msi"];
 
     for subdir_name in installer_subdirs {
         let subdir_path = bundle_dir.join(subdir_name);
@@ -476,7 +529,7 @@ fn clean_build_artifacts() -> Result<()> {
 
     // 在删除 target 目录前，先清理根目录下的安装包副本
     let targets = ["x86_64-pc-windows-msvc", "aarch64-pc-windows-msvc"];
-    let installer_subdirs = ["msi", "nsis"];
+    let installer_subdirs = ["msi"];
 
     for target in targets {
         let bundle_dir = target_dir.join(target).join("release").join("bundle");
@@ -506,6 +559,22 @@ fn clean_build_artifacts() -> Result<()> {
     if target_dir.exists() {
         fs::remove_dir_all(target_dir).context("删除 target 目录失败")?;
         println!("🧹 已清理 {}", target_dir.display());
+    }
+
+    // 删除根目录下所有 zerolaunch-cli_* 文件
+    let current_dir = env::current_dir()?;
+    for entry in fs::read_dir(&current_dir)? {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        if file_type.is_file() {
+            let name = entry.file_name();
+            if let Some(name_str) = name.to_str() {
+                if name_str.starts_with("zerolaunch-cli_") && name_str.ends_with(".exe") {
+                    fs::remove_file(entry.path()).context(format!("删除 {} 失败", name_str))?;
+                    println!("🧹 已清理 {}", name_str);
+                }
+            }
+        }
     }
 
     // 删除生成的 ZIP 文件

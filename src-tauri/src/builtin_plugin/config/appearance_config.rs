@@ -1,9 +1,8 @@
 use crate::core::config::setting_builders::SchemaBuilder;
-use crate::core::types::SettingDefinition;
-use crate::core::types::{ComponentType, ConfigError, Configurable};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use tracing::info;
+use zerolaunch_plugin_api::config::{ComponentType, ConfigError, Configurable, SettingDefinition};
 
 // ============ 默认值函数 ============
 // 为所有非类型原生的业务默认值提供函数，供 #[serde(default = "...")] 引用。

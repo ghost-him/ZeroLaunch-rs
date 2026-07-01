@@ -1,6 +1,6 @@
 use zerolaunch_plugin_host::manager::RegisteredAdapters;
 
-use crate::core::types::ComponentType;
+use zerolaunch_plugin_api::config::ComponentType;
 
 /// 配置变更事件。也承载第三方插件的运行时组件注册/解注册事件，
 /// 通过 broadcast 通道传递给 SessionRouter。

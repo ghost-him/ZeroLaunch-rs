@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::core::types::{ComponentType, SettingDefinition};
+use zerolaunch_plugin_api::config::{ComponentType, SettingDefinition};
 
 /// 组件概览信息，用于前端展示组件列表
 #[derive(Debug, Clone, Serialize, Deserialize)]

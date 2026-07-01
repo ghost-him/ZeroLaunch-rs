@@ -1,7 +1,7 @@
 use crate::core::config::models::{ComponentPersistentState, PersistentConfig};
-use crate::core::types::ConfigError;
 use std::path::PathBuf;
 use tracing::{debug, warn};
+use zerolaunch_plugin_api::config::ConfigError;
 
 /// 配置持久化层。
 /// 负责将配置序列化为 JSON 并读写文件。

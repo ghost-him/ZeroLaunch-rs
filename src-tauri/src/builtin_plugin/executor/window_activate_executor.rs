@@ -1,7 +1,7 @@
-use crate::core::types::{ComponentType, Configurable};
 use async_trait::async_trait;
 use std::sync::Arc;
 use tracing::warn;
+use zerolaunch_plugin_api::config::{ComponentType, Configurable};
 use zerolaunch_plugin_api::host::PluginHandle;
 use zerolaunch_plugin_api::services::IconRequest;
 use zerolaunch_plugin_api::{

@@ -8,7 +8,7 @@ use tauri::{
 };
 use tracing::{debug, error, info, warn};
 
-use crate::sdk::host_api::HostApi;
+use crate::sdk::HostApi;
 
 const MENU_ID_SHOW_SETTINGS: &str = "show_setting_window";
 const MENU_ID_EXIT_PROGRAM: &str = "exit_program";

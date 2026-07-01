@@ -24,12 +24,12 @@
 //!     .master_detail().default(serde_json::json!([])).build()
 //! ```
 
-use crate::core::types::PrimitiveType;
-use crate::core::types::{
+use serde_json::Value;
+use zerolaunch_plugin_api::config::PrimitiveType;
+use zerolaunch_plugin_api::config::{
     ArrayItem, ArrayUiHint, DetailActionDef, FieldDefinition, PathMode, SettingDefinition,
     SettingType,
 };
-use serde_json::Value;
 
 pub struct SchemaBuilder {
     field_def: FieldDefinition,

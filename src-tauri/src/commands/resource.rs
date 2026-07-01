@@ -1,4 +1,4 @@
-use crate::core::types::BridgeError;
+use crate::core::BridgeError;
 use crate::state::app_state::AppState;
 use base64::{engine::general_purpose::STANDARD, Engine};
 use serde::Deserialize;

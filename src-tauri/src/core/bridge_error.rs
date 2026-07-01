@@ -1,6 +1,8 @@
 use serde::Serialize;
 use std::fmt;
+use zerolaunch_plugin_api::config::ConfigError;
 use zerolaunch_plugin_api::HostApiError;
+
 /// 前后端通信统一错误类型。
 /// 用于所有 Tauri command 的 Err 变体，前端可据此展示用户友好的错误提示。
 #[derive(Debug, Clone, Serialize)]
@@ -60,11 +62,11 @@ impl fmt::Display for BridgeError {
 
 impl std::error::Error for BridgeError {}
 
-impl From<crate::core::types::ConfigError> for BridgeError {
-    fn from(e: crate::core::types::ConfigError) -> Self {
+impl From<ConfigError> for BridgeError {
+    fn from(e: ConfigError) -> Self {
         let code = match &e {
-            crate::core::types::ConfigError::NotFound(_) => ErrorCode::ComponentNotFound,
-            crate::core::types::ConfigError::ValidationFailed(_) => ErrorCode::ValidationFailed,
+            ConfigError::NotFound(_) => ErrorCode::ComponentNotFound,
+            ConfigError::ValidationFailed(_) => ErrorCode::ValidationFailed,
             _ => ErrorCode::ConfigError,
         };
         BridgeError {

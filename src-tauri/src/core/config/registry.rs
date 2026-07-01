@@ -1,6 +1,6 @@
-use crate::core::types::{ComponentType, Configurable};
 use dashmap::DashMap;
 use std::sync::Arc;
+use zerolaunch_plugin_api::config::{ComponentType, Configurable};
 
 /// 所有 Configurable 组件的注册中心。
 /// 提供按 component_id 和 ComponentType 的查找能力。

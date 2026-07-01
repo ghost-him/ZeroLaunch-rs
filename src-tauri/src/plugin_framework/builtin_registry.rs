@@ -7,7 +7,7 @@
 //! 无需修改 `lib.rs`。
 
 use crate::plugin_framework::Configurable;
-use crate::sdk::host_api::HostApi;
+use crate::sdk::HostApi;
 use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::sync::Arc;

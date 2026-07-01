@@ -1,6 +1,6 @@
 /// Plugin Inspector IPC 命令。
 /// 仅在 `inspector` feature 启用时提供完整功能；否则返回 disabled 响应。
-use crate::core::types::bridge_error::BridgeError;
+use crate::core::BridgeError;
 use crate::state::app_state::AppState;
 use std::sync::Arc;
 

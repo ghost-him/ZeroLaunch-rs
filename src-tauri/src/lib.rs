@@ -12,7 +12,7 @@ pub mod utils;
 pub mod window;
 
 use crate::logging::{init_logging, log_application_shutdown, log_application_start};
-use crate::sdk::host_api::HostApi;
+use crate::sdk::HostApi;
 use crate::sdk::HostApiBuilder;
 use crate::state::app_state::AppState;
 use std::sync::atomic::{AtomicBool, Ordering};

@@ -1,11 +1,10 @@
 use crate::core::config::setting_builders::SchemaBuilder;
-use crate::core::types::SettingDefinition;
-use crate::core::types::{ComponentType, ConfigError, Configurable};
-use crate::sdk::host_api::HostApi;
+use crate::sdk::HostApi;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::{info, warn};
+use zerolaunch_plugin_api::config::{ComponentType, ConfigError, Configurable, SettingDefinition};
 
 /// 安装监控设置的强类型配置结构。
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -6,12 +6,12 @@ use crate::core::config::models::{
 };
 use crate::core::config::registry::ConfigurableRegistry;
 use crate::core::config::store::ConfigStore;
-use crate::core::types::{ComponentType, ConfigError, Configurable};
 use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::{debug, info, warn};
+use zerolaunch_plugin_api::config::{ComponentType, ConfigError, Configurable};
 
 /// 配置管理中枢。
 /// 负责所有可配置组件的注册、配置 CRUD、持久化和事件发布。

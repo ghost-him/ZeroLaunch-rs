@@ -1,3 +1,5 @@
+pub mod bridge_error;
 pub mod config;
 pub mod constants;
-pub mod types;
+
+pub use bridge_error::{BridgeError, ErrorCode};

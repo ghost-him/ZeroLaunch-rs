@@ -3,7 +3,7 @@
 //! 业务协调逻辑：组合 PluginManager（生命周期）与 ConfigManager（配置），
 //! 不新增中间层，直接在命令处理器中编排两个管理器的调用。
 
-use crate::core::types::BridgeError;
+use crate::core::BridgeError;
 use crate::state::app_state::AppState;
 use std::sync::Arc;
 use tauri::State;

@@ -7,7 +7,7 @@
 //! 4. 实现 ActionExecutor trait
 //! 5. 底部的 inventory::submit! 块会自动注册
 
-use crate::core::types::{ComponentType, Configurable};
+use zerolaunch_plugin_api::config::{ComponentType, Configurable};
 use zerolaunch_plugin_api::{
     ActionExecutor, ExecutionContext, ExecutionError, ResultAction, TargetType,
 };

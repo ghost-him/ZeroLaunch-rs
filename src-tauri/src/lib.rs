@@ -13,7 +13,6 @@ use crate::logging::{init_logging, log_application_shutdown, log_application_sta
 use crate::sdk::host_api::HostApi;
 use crate::sdk::HostApiBuilder;
 use crate::state::app_state::AppState;
-use crate::utils::service_locator::ServiceLocator;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tauri::App;
@@ -46,9 +45,8 @@ use zerolaunch_plugin_api::services::AppResourceService;
 use zerolaunch_plugin_api::services::PathResolver;
 static IS_EXITING: AtomicBool = AtomicBool::new(false);
 
-pub async fn do_cleanup_before_exit() {
+pub async fn do_cleanup_before_exit(state: Arc<AppState>) {
     info!("执行退出前清理工作...");
-    let state = ServiceLocator::get_state();
     if let Err(e) = state.get_config_manager().save_to_storage() {
         warn!("退出前配置保存失败: {}", e);
     }
@@ -151,11 +149,12 @@ pub fn run() {
                 app.deep_link().register_all().expect("无法注册深度链接");
                 info!("深度链接注册成功");
 
-                app.deep_link().on_open_url(|event| {
+                let state_for_deeplink = app.state::<Arc<AppState>>().inner().clone();
+                app.deep_link().on_open_url(move |event| {
                     let urls = event.urls();
                     debug!("收到深度链接事件: {:?}", urls);
+                    let state = state_for_deeplink.clone();
                     tauri::async_runtime::spawn(async move {
-                        let state = ServiceLocator::get_state();
                         let waiting_hashmap = state.get_waiting_hashmap();
                         for url in urls {
                             let domain = url.domain().expect("URL缺少域名").to_string();
@@ -217,8 +216,9 @@ pub fn run() {
                 IS_EXITING.store(true, Ordering::Relaxed);
 
                 let app_handle = app_handle.clone();
+                let state = app_handle.state::<Arc<AppState>>().inner().clone();
                 tauri::async_runtime::spawn(async move {
-                    do_cleanup_before_exit().await;
+                    do_cleanup_before_exit(state).await;
                     info!("清理完成，正在退出程序...");
                     app_handle.exit(0);
                 });

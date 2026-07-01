@@ -61,7 +61,7 @@ ZeroLaunch-rs/                          ← Cargo workspace 根
 | `plugin_system/` | 插件框架：SessionRouter、Pipeline、Registry、PluginManager | sdk/、core/、plugin/ | 被其他层反向引用 |
 | `commands/` | IPC 命令：薄代理层，仅委托 | 全部 | 包含业务逻辑 |
 | `state/` | AppState 定义 | core/、plugin_system/ | 包含业务方法 |
-| `utils/` | 通用工具（service_locator 等） | 无限制 | 包含业务逻辑 |
+| `utils/` | 通用工具（locale、font_database 等） | 无限制 | 包含业务逻辑 |
 
 ### 各目录详细说明
 

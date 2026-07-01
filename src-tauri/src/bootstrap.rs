@@ -24,8 +24,6 @@ use crate::core::window_utils::{prepare_window_position, save_window_position_if
 use crate::plugin_framework::manager::PluginManager;
 use crate::plugin_framework::CandidatePipeline;
 use crate::state::app_state::AppState;
-use crate::utils::service_locator::ServiceLocator;
-
 /// 初始化应用状态（HostApi、ConfigManager、PluginManager）。
 ///
 /// 调用方（lib.rs 的 `run()`）将 `init_app_state` 置于 `setup` 闭包的
@@ -39,11 +37,7 @@ pub(crate) async fn init_app_state(
 ) {
     debug!("开始初始化应用状态");
 
-    let state = app.state::<Arc<AppState>>();
-    ServiceLocator::init((*state).clone());
-    debug!("ServiceLocator初始化完成");
-
-    let state = ServiceLocator::get_state();
+    let state: Arc<AppState> = app.state::<Arc<AppState>>().inner().clone();
 
     state.set_main_handle(Arc::new(app.app_handle().clone()));
     debug!("应用句柄设置完成");

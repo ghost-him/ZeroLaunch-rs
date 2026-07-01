@@ -60,13 +60,12 @@ paths:
 
 - 任何涉及 `sdk/`、`core/`、`plugin_system/` 或 `commands/` 的改动后，至少验证 `cargo check` 零错误通过。
 
-## ServiceLocator 规范
+## AppState 访问规范
 
-- `ServiceLocator` 是 `OnceLock<Arc<AppState>>` 全局单例。**仅** 在 `lib.rs` 的 `init_app_state` 中通过 `ServiceLocator::init()` 初始化一次
-- `ServiceLocator::get_state()` 返回 `Arc<AppState>` 的 clone。在异步代码中 **必须** 先 `let state = ServiceLocator::get_state()`，再使用 `state.xxx()`
-- **禁止** 在 `commands/` 层使用 `ServiceLocator`。命令处理器通过 `tauri::State<Arc<AppState>>` 注入状态
-- `ServiceLocator` 的合法使用场景：回调闭包中（如 hotkey callback、focus callback、deep-link handler）、`window_effect.rs` 等不在 Tauri 命令上下文的代码
-- **禁止** 在测试代码中依赖 `ServiceLocator`。测试应直接构造所需状态
+- `Arc<AppState>` **必须** 通过 Tauri 的 `app.state::<Arc<AppState>>()` 或 `app_handle.state::<Arc<AppState>>()` 获取
+- 在 `commands/` 层通过 `tauri::State<Arc<AppState>>` 注入
+- 在回调闭包（如 hotkey callback、focus callback、deep-link handler）中使用 `move` 闭包捕获预先获取的 `Arc<AppState>` clone
+- **禁止** 通过全局静态访问 `AppState`
 
 ## 文件命名约定
 

@@ -1,9 +1,8 @@
 #![allow(dead_code)]
-use crate::plugin_system::types::{
-    ComponentType, Configurable, ScoreDetail, ScoredCandidate, SearchCandidate, SearchEngine,
-};
 use crate::plugin_system::CachedCandidateData;
 use std::collections::HashMap;
+use zerolaunch_plugin_api::config::{ComponentType, Configurable};
+use zerolaunch_plugin_api::{ScoreDetail, ScoredCandidate, SearchCandidate, SearchEngine};
 
 /// 标准搜索引擎
 ///

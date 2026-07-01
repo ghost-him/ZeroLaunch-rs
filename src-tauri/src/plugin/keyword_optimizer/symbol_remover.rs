@@ -1,9 +1,8 @@
 use crate::core::config::setting_builders::SchemaBuilder;
-use crate::plugin_system::types::{
-    ComponentType, ConfigError, Configurable, KeywordOptimizer, SettingDefinition,
-};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
+use zerolaunch_plugin_api::config::{ComponentType, ConfigError, Configurable, SettingDefinition};
+use zerolaunch_plugin_api::KeywordOptimizer;
 
 /// 符号移除器的可持久化配置
 #[derive(Debug, Clone, Serialize, Deserialize)]

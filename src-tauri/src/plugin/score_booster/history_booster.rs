@@ -1,8 +1,4 @@
 use crate::core::config::setting_builders::SchemaBuilder;
-use crate::plugin_system::types::{
-    CandidateId, ComponentType, ConfigError, Configurable, ScoreBooster, ScoreDetail,
-    ScoredCandidate, SettingDefinition,
-};
 use crate::plugin_system::CachedCandidateData;
 use crate::utils::{generate_current_date, get_current_time, is_date_current};
 use dashmap::DashMap;
@@ -10,6 +6,8 @@ use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use tracing::error;
+use zerolaunch_plugin_api::config::{ComponentType, ConfigError, Configurable, SettingDefinition};
+use zerolaunch_plugin_api::{CandidateId, ScoreBooster, ScoreDetail, ScoredCandidate};
 
 /// 历史记录增强器的强类型配置结构。
 #[derive(Debug, Clone, Serialize, Deserialize)]

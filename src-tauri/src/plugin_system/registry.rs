@@ -1,8 +1,8 @@
-use super::types::{Plugin, PluginMetadata};
 use dashmap::DashMap;
 use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::sync::Arc;
+use zerolaunch_plugin_api::{Plugin, PluginMetadata};
 
 pub struct PluginRegistry {
     // 当前已经注册的插件列表，key是插件ID，value是插件实例

@@ -1,8 +1,7 @@
-use crate::plugin_system::types::{
-    ComponentType, Configurable, ScoreDetail, ScoredCandidate, SearchEngine,
-};
 use crate::plugin_system::CachedCandidateData;
 use std::collections::HashMap;
+use zerolaunch_plugin_api::config::{ComponentType, Configurable};
+use zerolaunch_plugin_api::{ScoreDetail, ScoredCandidate, SearchCandidate, SearchEngine};
 
 /// 这个文件是以LaunchyQT的搜索模型为基础进行的改造
 /// 项目地址如下：https://github.com/samsonwang/LaunchyQt
@@ -65,10 +64,7 @@ impl SearchEngine for LaunchySearchModel {
 /// # Arguments
 /// * `candidate` - 搜索候选项
 /// * `user_input` - 用户输入的搜索字符串
-fn calculate_launchy_score(
-    candidate: &crate::plugin_system::types::SearchCandidate,
-    user_input: &str,
-) -> ScoredCandidate {
+fn calculate_launchy_score(candidate: &SearchCandidate, user_input: &str) -> ScoredCandidate {
     let mut best_score: f64 = -1.0;
     let mut best_details: Vec<ScoreDetail> = Vec::new();
 

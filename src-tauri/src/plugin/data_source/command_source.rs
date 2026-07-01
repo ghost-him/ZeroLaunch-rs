@@ -1,15 +1,15 @@
 use crate::core::config::setting_builders::SchemaBuilder;
-use crate::plugin_system::types::{DataSource, ExecutionTarget, SearchCandidate};
 use crate::plugin_system::CachedCandidateData;
-use crate::plugin_system::{ComponentType, ConfigError, Configurable, SettingDefinition};
 use async_trait::async_trait;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::sync::Arc;
 use tracing::debug;
+use zerolaunch_plugin_api::config::{ComponentType, ConfigError, Configurable, SettingDefinition};
 use zerolaunch_plugin_api::host::PluginHandle;
 use zerolaunch_plugin_api::services::IconRequest;
+use zerolaunch_plugin_api::{DataSource, ExecutionTarget, SearchCandidate};
 
 /// 单条自定义命令的配置项。
 #[derive(Debug, Clone, Serialize, Deserialize)]

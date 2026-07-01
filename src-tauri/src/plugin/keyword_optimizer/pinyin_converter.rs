@@ -1,10 +1,9 @@
 use crate::core::config::setting_builders::SchemaBuilder;
-use crate::plugin_system::types::{
-    ComponentType, ConfigError, Configurable, KeywordOptimizer, SettingDefinition,
-};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use zerolaunch_plugin_api::config::{ComponentType, ConfigError, Configurable, SettingDefinition};
+use zerolaunch_plugin_api::KeywordOptimizer;
 
 #[derive(Serialize, Deserialize, Debug)]
 struct PinyinItem {

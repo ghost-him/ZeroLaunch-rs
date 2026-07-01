@@ -1,7 +1,5 @@
 use crate::core::config::setting_builders::SchemaBuilder;
-use crate::plugin_system::types::{DataSource, ExecutionTarget, PrimitiveType, SearchCandidate};
 use crate::plugin_system::CachedCandidateData;
-use crate::plugin_system::{ComponentType, ConfigError, Configurable, SettingDefinition};
 use async_trait::async_trait;
 use globset::GlobSetBuilder;
 use parking_lot::RwLock;
@@ -12,9 +10,13 @@ use std::path::Path;
 use std::sync::Arc;
 use tracing::{debug, warn};
 use walkdir::WalkDir;
+use zerolaunch_plugin_api::config::{
+    ComponentType, ConfigError, Configurable, PrimitiveType, SettingDefinition,
+};
 use zerolaunch_plugin_api::host::PluginHandle;
 use zerolaunch_plugin_api::services::path::path_resolver::KnownPath;
 use zerolaunch_plugin_api::services::IconRequest;
+use zerolaunch_plugin_api::{DataSource, ExecutionTarget, SearchCandidate};
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, Default)]
 enum SymlinkMode {

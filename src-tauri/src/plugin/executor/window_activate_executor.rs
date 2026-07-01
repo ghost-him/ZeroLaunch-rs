@@ -1,12 +1,12 @@
 use crate::core::types::{ComponentType, Configurable};
-use crate::plugin_system::types::{
-    ActionExecutor, ExecutionContext, ExecutionError, ExecutionTarget, ResultAction, TargetType,
-};
 use async_trait::async_trait;
 use std::sync::Arc;
 use tracing::warn;
 use zerolaunch_plugin_api::host::PluginHandle;
 use zerolaunch_plugin_api::services::IconRequest;
+use zerolaunch_plugin_api::{
+    ActionExecutor, ExecutionContext, ExecutionError, ExecutionTarget, ResultAction, TargetType,
+};
 
 /// 窗口激活执行器 - 负责唤醒已存在的程序窗口。
 /// 通过 PluginHandle 委托给 SDK 层的 WindowManager 实现窗口激活。

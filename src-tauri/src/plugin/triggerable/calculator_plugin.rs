@@ -1,14 +1,14 @@
-use crate::core::types::{ComponentType, ConfigError, Configurable};
-use crate::plugin_system::types::{
-    Plugin, PluginContext, PluginError, PluginMetadata, Query, QueryResponse, ResultAction,
-};
 use async_trait::async_trait;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::sync::Arc;
+use zerolaunch_plugin_api::config::{ComponentType, ConfigError, Configurable};
 use zerolaunch_plugin_api::host::PluginHandle;
 use zerolaunch_plugin_api::services::IconRequest;
+use zerolaunch_plugin_api::{
+    Plugin, PluginContext, PluginError, PluginMetadata, Query, QueryResponse, ResultAction,
+};
 
 pub struct CalculatorPlugin {
     metadata: PluginMetadata,
@@ -362,10 +362,7 @@ impl ExprParser {
 
 use crate::plugin_system::builtin_registry::PluginEntry;
 
-fn build_calculator_plugin() -> (
-    Arc<dyn crate::plugin_system::types::Configurable>,
-    Arc<dyn Plugin>,
-) {
+fn build_calculator_plugin() -> (Arc<dyn Configurable>, Arc<dyn Plugin>) {
     let plugin: Arc<dyn Plugin> = Arc::new(CalculatorPlugin::new());
     let configurable: Arc<dyn Configurable> = plugin.clone();
     (configurable, plugin)

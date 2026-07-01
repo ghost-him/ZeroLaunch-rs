@@ -7,15 +7,15 @@
 //! 无需修改 `lib.rs`。
 
 use crate::core::config::core_registry::CoreComponentEntry;
-use crate::plugin_system::types::{
-    ActionExecutor, DataSource, KeywordOptimizer, Plugin, ScoreBooster, SearchEngine,
-};
 use crate::plugin_system::Configurable;
 use crate::sdk::host_api::HostApi;
 use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::sync::Arc;
 use zerolaunch_plugin_api::host::PluginHandle;
+use zerolaunch_plugin_api::{
+    ActionExecutor, DataSource, KeywordOptimizer, Plugin, ScoreBooster, SearchEngine,
+};
 
 // ============================================================================
 // Entry 类型定义 — 每种组件类别一个

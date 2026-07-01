@@ -95,8 +95,8 @@ impl From<HostApiError> for BridgeError {
     }
 }
 
-impl From<crate::plugin_system::types::PluginError> for BridgeError {
-    fn from(e: crate::plugin_system::types::PluginError) -> Self {
+impl From<zerolaunch_plugin_api::PluginError> for BridgeError {
+    fn from(e: zerolaunch_plugin_api::PluginError) -> Self {
         BridgeError {
             code: ErrorCode::PluginError,
             message: e.to_string(),

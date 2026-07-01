@@ -1,12 +1,12 @@
 use crate::core::types::{ComponentType, Configurable};
-use crate::plugin_system::types::{
-    ActionExecutor, ExecutionContext, ExecutionError, ExecutionTarget, ResultAction, TargetType,
-};
 use async_trait::async_trait;
 use std::sync::Arc;
 use tracing::warn;
 use zerolaunch_plugin_api::host::{OpenTarget, PluginHandle};
 use zerolaunch_plugin_api::services::IconRequest;
+use zerolaunch_plugin_api::{
+    ActionExecutor, ExecutionContext, ExecutionError, ExecutionTarget, ResultAction, TargetType,
+};
 
 /// 路径执行器 - 负责通过文件路径启动程序
 /// 支持普通启动、管理员启动和打开所在文件夹

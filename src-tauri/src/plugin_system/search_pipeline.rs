@@ -1,6 +1,6 @@
-use super::types::*;
 use crate::plugin_system::CachedCandidateData;
 use std::sync::Arc;
+use zerolaunch_plugin_api::{CandidateId, ScoreBooster, ScoredCandidate, SearchEngine};
 pub struct SearchPipeline {
     engine: Arc<dyn SearchEngine>,
     boosters: Vec<Arc<dyn ScoreBooster>>,

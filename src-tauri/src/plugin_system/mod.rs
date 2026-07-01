@@ -12,8 +12,18 @@ mod registry;
 mod search_pipeline;
 pub mod service;
 mod session_router;
-pub mod types;
 pub(crate) mod zlplugin_protocol;
+
+// 类型 re-export（消除冗余 types.rs shim，所有使用者直接从 zerolaunch_plugin_api 导入）
+pub use zerolaunch_plugin_api::config::{
+    ComponentType, ConfigActionDef, ConfigError, Configurable, DetailActionDef, PathMode,
+    SettingDefinition, SettingType,
+};
+pub use zerolaunch_plugin_api::{
+    ActionExecutor, CachedCandidateData, ExecutionContext, ExecutionError, ExecutionTarget,
+    ListItem, Plugin, PluginContext, PluginError, PluginMetadata, Query, RegistrationError,
+    ResultAction, TargetType,
+};
 
 pub use candidate_pipeline::CandidatePipeline;
 pub use executor_registry::ExecutorRegistry;
@@ -21,9 +31,3 @@ pub use registry::PluginRegistry;
 pub use search_pipeline::*;
 pub use service::PluginService;
 pub use session_router::{SessionMode, SessionRouter};
-pub use types::{
-    ActionExecutor, CachedCandidateData, ComponentType, ConfigActionDef, ConfigError, Configurable,
-    DetailActionDef, ExecutionContext, ExecutionError, ExecutionTarget, ListItem, PathMode, Plugin,
-    PluginContext, PluginError, PluginMetadata, Query, RegistrationError, ResultAction,
-    SettingDefinition, SettingType, TargetType,
-};

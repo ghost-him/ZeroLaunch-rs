@@ -2,7 +2,6 @@ use super::candidate_pipeline::CandidatePipeline;
 use super::executor_registry::ExecutorRegistry;
 use super::search_pipeline::SearchPipeline;
 use super::service::PluginService;
-use super::types::*;
 use super::CachedCandidateData;
 use crate::core::config::{ConfigEvent, ConfigManager};
 use crate::sdk::HostApi;
@@ -10,8 +9,14 @@ use parking_lot::{Mutex, RwLock};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{debug, info};
+use zerolaunch_plugin_api::config::ComponentType;
 use zerolaunch_plugin_api::services::parameter::template_parser::{Placeholder, TemplateParser};
 use zerolaunch_plugin_api::services::ParameterSnapshot;
+use zerolaunch_plugin_api::{
+    ActionExecutor, CandidateId, ConfirmResult, DataSource, ExecutionContext, ExecutionError,
+    ListItem, Plugin, PluginContext, Query, QueryResponse, ScoreBooster, SearchCandidate,
+    SearchEngine,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SessionMode {

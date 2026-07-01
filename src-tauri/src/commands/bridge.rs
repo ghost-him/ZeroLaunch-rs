@@ -1,11 +1,11 @@
 use crate::core::types::BridgeError;
-use crate::plugin_system::types::{ConfirmResult, Query, QueryResponse};
 use crate::state::app_state::AppState;
 use base64::{engine::general_purpose::STANDARD, Engine};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::{debug, info};
 use uuid::Uuid;
+use zerolaunch_plugin_api::{ConfirmResult, Query, QueryResponse, ResultAction};
 
 // ============================================================================
 // 搜索接口
@@ -49,8 +49,8 @@ pub struct BridgeResultAction {
     pub shortcut_key: String,
 }
 
-impl From<crate::plugin_system::types::ResultAction> for BridgeResultAction {
-    fn from(action: crate::plugin_system::types::ResultAction) -> Self {
+impl From<ResultAction> for BridgeResultAction {
+    fn from(action: ResultAction) -> Self {
         BridgeResultAction {
             id: action.id,
             label: action.label,

@@ -1,9 +1,9 @@
 use super::registry::PluginRegistry;
-use super::types::{Plugin, PluginContext, PluginError, Query, QueryResponse};
 use crate::sdk::HostApi;
 use rand::distr::{Alphanumeric, SampleString};
 use std::sync::Arc;
 use zerolaunch_plugin_api::host::PluginSdkConfig;
+use zerolaunch_plugin_api::{Plugin, PluginContext, PluginError, Query, QueryResponse};
 
 pub struct PluginService {
     registry: Arc<PluginRegistry>,

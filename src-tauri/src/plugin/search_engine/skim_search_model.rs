@@ -1,10 +1,9 @@
-use crate::plugin_system::types::{
-    ComponentType, Configurable, ScoreDetail, ScoredCandidate, SearchEngine,
-};
 use crate::plugin_system::CachedCandidateData;
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
 use parking_lot::RwLock;
+use zerolaunch_plugin_api::config::{ComponentType, Configurable};
+use zerolaunch_plugin_api::{ScoreDetail, ScoredCandidate, SearchCandidate, SearchEngine};
 
 /// Skim 搜索引擎
 ///
@@ -76,7 +75,7 @@ impl SearchEngine for SkimSearchModel {
 /// * `user_input` - 用户输入的搜索字符串
 fn calculate_skim_score(
     matcher: &RwLock<SkimMatcherV2>,
-    candidate: &crate::plugin_system::types::SearchCandidate,
+    candidate: &SearchCandidate,
     user_input: &str,
 ) -> ScoredCandidate {
     let mut best_score: f64 = -10000.0;

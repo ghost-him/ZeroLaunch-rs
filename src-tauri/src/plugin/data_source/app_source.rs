@@ -1,10 +1,10 @@
-use crate::plugin_system::types::{DataSource, ExecutionTarget, SearchCandidate};
 use crate::plugin_system::CachedCandidateData;
-use crate::plugin_system::{ComponentType, ConfigError, Configurable};
 use async_trait::async_trait;
 use parking_lot::RwLock;
 use std::sync::Arc;
+use zerolaunch_plugin_api::config::{ComponentType, ConfigError, Configurable};
 use zerolaunch_plugin_api::host::PluginHandle;
+use zerolaunch_plugin_api::{DataSource, ExecutionTarget, SearchCandidate};
 
 /// 应用数据源 - 通过 PluginHandle 枚举系统应用（UWP 等）。
 /// 不再直接调用 Win32 API，而是委托 PluginHandle::enumerate_apps() 由 SDK 层处理平台差异。

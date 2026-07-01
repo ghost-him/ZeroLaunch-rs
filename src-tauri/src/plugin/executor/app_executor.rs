@@ -1,11 +1,11 @@
 use crate::core::types::{ComponentType, Configurable};
-use crate::plugin_system::types::{
-    ActionExecutor, ExecutionContext, ExecutionError, ExecutionTarget, ResultAction, TargetType,
-};
 use async_trait::async_trait;
 use std::sync::Arc;
 use zerolaunch_plugin_api::host::PluginHandle;
 use zerolaunch_plugin_api::services::IconRequest;
+use zerolaunch_plugin_api::{
+    ActionExecutor, ExecutionContext, ExecutionError, ExecutionTarget, ResultAction, TargetType,
+};
 
 /// 应用执行器 - 负责通过 PluginHandle 启动系统应用（UWP 等）。
 /// 不再直接调用 Win32 API，而是委托 PluginHandle::launch_app() 由 SDK 层处理平台差异。

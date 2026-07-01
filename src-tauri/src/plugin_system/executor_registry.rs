@@ -1,8 +1,8 @@
-use super::types::{
-    ActionExecutor, ExecutionContext, ExecutionError, RegistrationError, ResultAction, TargetType,
-};
 use std::collections::HashMap;
 use std::sync::Arc;
+use zerolaunch_plugin_api::{
+    ActionExecutor, ExecutionContext, ExecutionError, RegistrationError, ResultAction, TargetType,
+};
 
 /// 执行器注册中心
 /// 使用 (TargetType, action_id) 作为复合主键定位 Executor

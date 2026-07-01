@@ -1,9 +1,5 @@
 use crate::core::config::setting_builders::SchemaBuilder;
-use crate::plugin_system::types::{ConfigActionDef, DataSource, ExecutionTarget, SearchCandidate};
 use crate::plugin_system::CachedCandidateData;
-use crate::plugin_system::{
-    ComponentType, ConfigError, Configurable, DetailActionDef, SettingDefinition,
-};
 use async_trait::async_trait;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
@@ -12,8 +8,12 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::{debug, warn};
+use zerolaunch_plugin_api::config::{
+    ComponentType, ConfigActionDef, ConfigError, Configurable, DetailActionDef, SettingDefinition,
+};
 use zerolaunch_plugin_api::host::PluginHandle;
 use zerolaunch_plugin_api::services::IconRequest;
+use zerolaunch_plugin_api::{DataSource, ExecutionTarget, SearchCandidate};
 
 // ============ Chrome 书签解析相关结构 ============
 

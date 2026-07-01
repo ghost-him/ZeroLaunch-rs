@@ -7,7 +7,9 @@ pub mod logging;
 pub mod plugin_framework;
 pub mod sdk;
 pub mod state;
+pub mod tray;
 pub mod utils;
+pub mod window;
 
 use crate::logging::{init_logging, log_application_shutdown, log_application_start};
 use crate::sdk::host_api::HostApi;
@@ -47,9 +49,13 @@ static IS_EXITING: AtomicBool = AtomicBool::new(false);
 
 pub async fn do_cleanup_before_exit(state: Arc<AppState>) {
     info!("执行退出前清理工作...");
-    if let Err(e) = state.get_config_manager().save_to_storage() {
+    let config_manager = state.get_config_manager();
+    if let Err(e) = config_manager.save_to_storage() {
         warn!("退出前配置保存失败: {}", e);
     }
+    // 退出前同步到远程存储
+    let host_api = state.get_host_api();
+    crate::bootstrap::sync_config_to_remote(&config_manager, &host_api).await;
     log_application_shutdown();
     info!("退出前清理工作完成");
 }
@@ -308,10 +314,7 @@ fn init_search_bar_window(app: &mut App) {
             let config_manager = config_manager_for_cb.clone();
             let app_handle = app_handle_for_cb.clone();
             tauri::async_runtime::spawn(async move {
-                crate::core::window_utils::save_window_position_if_drag(
-                    &config_manager,
-                    &app_handle,
-                );
+                crate::window::save_window_position_if_drag(&config_manager, &app_handle);
                 host_api.hide_window().await;
 
                 let reset_plugins = config_manager

@@ -177,3 +177,19 @@ impl Configurable for InstallationMonitorConfigComponent {
         true
     }
 }
+
+use crate::plugin_framework::builtin_registry::{ConfigEntry, InventoryContext};
+
+fn build_installation_monitor_config(ctx: &InventoryContext) -> std::sync::Arc<dyn Configurable> {
+    std::sync::Arc::new(InstallationMonitorConfigComponent::new(
+        ctx.host_api().clone(),
+    ))
+}
+
+::inventory::submit! {
+    ConfigEntry {
+        component_id: "installation-monitor",
+        priority: 50,
+        factory: build_installation_monitor_config,
+    }
+}

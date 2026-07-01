@@ -7,7 +7,6 @@ use crate::core::config::models::{
 use crate::core::config::registry::ConfigurableRegistry;
 use crate::core::config::store::ConfigStore;
 use crate::core::types::{ComponentType, ConfigError, Configurable};
-use crate::sdk::host_api::HostApi;
 use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -21,8 +20,6 @@ pub struct ConfigManager {
     registry: ConfigurableRegistry,
     /// 配置持久化层（始终使用本地存储）
     store: ConfigStore,
-    /// 可选的 HostApi 引用（设置后启用远程同步）
-    host_api: RwLock<Option<Arc<HostApi>>>,
     /// enabled 状态持久化
     enabled_map: RwLock<HashMap<String, bool>>,
     /// 配置变更事件发送端
@@ -39,18 +36,9 @@ impl ConfigManager {
         Self {
             registry: ConfigurableRegistry::new(),
             store,
-            host_api: RwLock::new(None),
             enabled_map: RwLock::new(HashMap::new()),
             event_sender,
         }
-    }
-
-    /// 设置 HostApi 引用，启用远程同步。
-    /// 参数：host_api - HostApi 实例。
-    /// 返回：无。
-    /// 特性：设置后，配置保存时会同步到远程存储后端。
-    pub fn set_host_api(&self, host_api: Arc<HostApi>) {
-        *self.host_api.write() = Some(host_api);
     }
 
     /// 获取事件发送端的引用，用于订阅配置变更事件
@@ -274,40 +262,9 @@ impl ConfigManager {
 
     // region: 持久化
 
-    /// 从持久化文件加载配置，应用到所有已注册组件。
-    /// 参数：local_only - true 时仅从本地文件加载，跳过远程存储。
-    ///         初始化阶段应传 true，远程存储可能尚未配置。
-    pub async fn load_from_storage(&self, local_only: bool) -> Result<(), ConfigError> {
-        let maybe_host_api = self.host_api.read().clone(); // guard dropped here
-        let config = if local_only {
-            self.store.load().unwrap_or_default()
-        } else if let Some(host_api) = maybe_host_api {
-            match host_api.storage().download("zerolaunch_config.json").await {
-                Ok(Some(data)) => match serde_json::from_slice::<PersistentConfig>(&data) {
-                    Ok(remote_config) => {
-                        info!("从远程存储加载配置成功");
-                        if let Err(e) = self.store.save(&remote_config) {
-                            warn!("远程配置本地备份失败: {}", e);
-                        }
-                        remote_config
-                    }
-                    Err(e) => {
-                        warn!("远程配置解析失败: {}, 回退到本地", e);
-                        self.store.load().unwrap_or_default()
-                    }
-                },
-                Ok(None) => {
-                    debug!("远程存储无配置文件，使用本地配置");
-                    self.store.load().unwrap_or_default()
-                }
-                Err(e) => {
-                    warn!("远程配置加载失败: {}, 回退到本地", e);
-                    self.store.load().unwrap_or_default()
-                }
-            }
-        } else {
-            self.store.load().unwrap_or_default()
-        };
+    /// 从本地持久化文件加载配置，应用到所有已注册组件。
+    pub fn load_from_storage(&self) -> Result<(), ConfigError> {
+        let config = self.store.load().unwrap_or_default();
 
         for (component_id, state) in &config.components {
             self.enabled_map
@@ -350,10 +307,11 @@ impl ConfigManager {
         Ok(())
     }
 
-    /// 将当前所有组件的配置保存到持久化文件。
-    /// 如果设置了 HostApi，同时异步同步到远程存储后端。
-    /// 返回：保存成功返回 Ok，本地持久化失败返回 Err（远程同步失败仅记日志不阻断）。
-    pub fn save_to_storage(&self) -> Result<(), ConfigError> {
+    /// 构建包含所有已注册组件当前配置的 PersistentConfig 对象。
+    ///
+    /// 此方法仅读取状态、构建数据结构，不执行任何 I/O。
+    /// 返回的 PersistentConfig 可供本地持久化或远程同步使用。
+    pub fn build_persistent_config(&self) -> PersistentConfig {
         let mut config = PersistentConfig::default();
 
         for component in self.registry.get_all() {
@@ -366,29 +324,15 @@ impl ConfigManager {
                 .insert(component_id, ComponentPersistentState { enabled, settings });
         }
 
-        // 本地持久化失败则向上传播
-        self.store.save(&config)?;
+        config
+    }
 
-        // 远程同步：fire-and-forget，失败仅记日志（本地已保存成功）
-        if let Some(host_api) = self.host_api.read().as_ref() {
-            if let Ok(handle) = tokio::runtime::Handle::try_current() {
-                let json_bytes = match serde_json::to_vec(&config) {
-                    Ok(bytes) => bytes,
-                    Err(e) => {
-                        warn!("配置序列化失败，跳过远程同步: {}", e);
-                        return Ok(());
-                    }
-                };
-                let storage = host_api.storage();
-                handle.spawn(async move {
-                    if let Err(e) = storage.upload("zerolaunch_config.json", &json_bytes).await {
-                        warn!("配置远程同步失败: {}", e);
-                    }
-                });
-            }
-        }
-
-        Ok(())
+    /// 将当前所有组件的配置保存到本地持久化文件。
+    /// 返回：保存成功返回 Ok，失败返回 Err。
+    /// 远程同步已提取到 bootstrap.rs 中，由 ConfigEvent 监听器负责触发。
+    pub fn save_to_storage(&self) -> Result<(), ConfigError> {
+        let config = self.build_persistent_config();
+        self.store.save(&config)
     }
 
     // endregion

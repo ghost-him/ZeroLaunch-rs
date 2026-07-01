@@ -276,14 +276,14 @@ mod tests {
     }
 }
 
-use crate::core::config::core_registry::CoreComponentEntry;
+use crate::plugin_framework::builtin_registry::{ConfigEntry, InventoryContext};
 
-fn build_hotkey_config(host_api: Arc<crate::sdk::HostApi>) -> Arc<dyn Configurable> {
-    Arc::new(HotkeyConfigComponent::new(host_api))
+fn build_hotkey_config(ctx: &InventoryContext) -> std::sync::Arc<dyn Configurable> {
+    std::sync::Arc::new(HotkeyConfigComponent::new(ctx.host_api().clone()))
 }
 
 ::inventory::submit! {
-    CoreComponentEntry {
+    ConfigEntry {
         component_id: "hotkey-config",
         priority: 10,
         factory: build_hotkey_config,

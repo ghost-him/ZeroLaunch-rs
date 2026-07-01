@@ -1,3 +1,4 @@
+pub mod config;
 pub mod data_source;
 pub mod executor;
 pub mod keyword_optimizer;

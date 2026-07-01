@@ -764,16 +764,14 @@ impl Configurable for AppearanceConfigComponent {
     }
 }
 
-use crate::core::config::core_registry::CoreComponentEntry;
+use crate::plugin_framework::builtin_registry::{ConfigEntry, InventoryContext};
 
-fn build_appearance_config(
-    _host_api: std::sync::Arc<crate::sdk::HostApi>,
-) -> std::sync::Arc<dyn Configurable> {
+fn build_appearance_config(_ctx: &InventoryContext) -> std::sync::Arc<dyn Configurable> {
     std::sync::Arc::new(AppearanceConfigComponent::new())
 }
 
 ::inventory::submit! {
-    CoreComponentEntry {
+    ConfigEntry {
         component_id: "appearance",
         priority: 20,
         factory: build_appearance_config,

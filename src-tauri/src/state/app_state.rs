@@ -1,10 +1,10 @@
 use crate::cli_server::token::CliToken;
 use crate::core::config::ConfigManager;
-use crate::core::tray::TrayManager;
 use crate::plugin_framework::manager::PluginManager;
 use crate::plugin_framework::service::PluginService;
 use crate::plugin_framework::SessionRouter;
 use crate::sdk::HostApi;
+use crate::tray::TrayManager;
 use crate::utils::waiting_hashmap::AsyncWaitingHashMap;
 use parking_lot::RwLock;
 use std::sync::Arc;

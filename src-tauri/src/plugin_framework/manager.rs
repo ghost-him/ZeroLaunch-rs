@@ -151,7 +151,7 @@ impl PluginManager {
         for (c, _) in &collected.plugins {
             infos.push(builtin::make_builtin_info(c, c.default_enabled()));
         }
-        for c in &collected.core_components {
+        for c in &collected.config_components {
             infos.push(builtin::make_builtin_info(c, c.default_enabled()));
         }
 

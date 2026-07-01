@@ -6,7 +6,6 @@
 //! 插件作者只需在 `plugin/<category>/` 下加 .rs 文件并添加 `inventory::submit!` 块，
 //! 无需修改 `lib.rs`。
 
-use crate::core::config::core_registry::CoreComponentEntry;
 use crate::plugin_framework::Configurable;
 use crate::sdk::host_api::HostApi;
 use parking_lot::RwLock;
@@ -28,6 +27,9 @@ pub type KeywordOptimizerFactory = fn() -> (Arc<dyn Configurable>, Arc<dyn Keywo
 pub type SearchEngineFactory = fn() -> (Arc<dyn Configurable>, Arc<dyn SearchEngine>);
 pub type ScoreBoosterFactory = fn() -> (Arc<dyn Configurable>, Arc<dyn ScoreBooster>);
 pub type PluginFactory = fn() -> (Arc<dyn Configurable>, Arc<dyn Plugin>);
+/// 纯配置组件工厂（仅实现 Configurable，不附带其他 trait）。
+pub type ConfigComponentFactory = fn(&InventoryContext) -> Arc<dyn Configurable>;
+
 /// inventory 收集结果：所有内置组件的已构造 trait 对象。
 ///
 /// 该 struct 由 `collect_all_builtin_entries()` 返回，
@@ -39,7 +41,7 @@ pub struct CollectedBuiltins {
     pub search_engines: Vec<(Arc<dyn Configurable>, Arc<dyn SearchEngine>)>,
     pub score_boosters: Vec<(Arc<dyn Configurable>, Arc<dyn ScoreBooster>)>,
     pub plugins: Vec<(Arc<dyn Configurable>, Arc<dyn Plugin>)>,
-    pub core_components: Vec<Arc<dyn Configurable>>,
+    pub config_components: Vec<Arc<dyn Configurable>>,
 }
 
 impl CollectedBuiltins {
@@ -63,7 +65,7 @@ impl CollectedBuiltins {
         for (c, _) in &self.plugins {
             f(c);
         }
-        for c in &self.core_components {
+        for c in &self.config_components {
             f(c);
         }
     }
@@ -113,6 +115,13 @@ pub struct PluginEntry {
     pub factory: PluginFactory,
 }
 
+/// 纯配置组件条目（仅实现 Configurable，不附带其他 trait）。
+pub struct ConfigEntry {
+    pub component_id: &'static str,
+    pub priority: u32,
+    pub factory: ConfigComponentFactory,
+}
+
 // ============================================================================
 // Inventory 收集器 — 每种条目一个 collector
 // ============================================================================
@@ -123,6 +132,7 @@ pub struct PluginEntry {
 ::inventory::collect!(SearchEngineEntry);
 ::inventory::collect!(ScoreBoosterEntry);
 ::inventory::collect!(PluginEntry);
+::inventory::collect!(ConfigEntry);
 
 // ============================================================================
 // InventoryContext — 组件工厂的服务定位器
@@ -203,14 +213,10 @@ pub fn collect_all_builtin_entries(ctx: &InventoryContext) -> CollectedBuiltins 
     plug_entries.sort_by_key(|e| e.priority);
     let plugins: Vec<_> = plug_entries.iter().map(|e| (e.factory)()).collect();
 
-    // -- 核心配置组件 --
-    let mut core_entries: Vec<&CoreComponentEntry> =
-        ::inventory::iter::<CoreComponentEntry>().collect();
-    core_entries.sort_by_key(|e| e.priority);
-    let core_components: Vec<_> = core_entries
-        .iter()
-        .map(|e| (e.factory)(ctx.host_api().clone()))
-        .collect();
+    // -- 纯配置组件 --
+    let mut cfg_entries: Vec<&ConfigEntry> = ::inventory::iter::<ConfigEntry>().collect();
+    cfg_entries.sort_by_key(|e| e.priority);
+    let config_components: Vec<_> = cfg_entries.iter().map(|e| (e.factory)(ctx)).collect();
 
     CollectedBuiltins {
         executors,
@@ -219,6 +225,6 @@ pub fn collect_all_builtin_entries(ctx: &InventoryContext) -> CollectedBuiltins 
         search_engines,
         score_boosters,
         plugins,
-        core_components,
+        config_components,
     }
 }

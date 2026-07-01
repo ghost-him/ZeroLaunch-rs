@@ -169,14 +169,14 @@ impl Configurable for GeneralConfigComponent {
     }
 }
 
-use crate::core::config::core_registry::CoreComponentEntry;
+use crate::plugin_framework::builtin_registry::{ConfigEntry, InventoryContext};
 
-fn build_general_config(host_api: Arc<crate::sdk::HostApi>) -> Arc<dyn Configurable> {
-    Arc::new(GeneralConfigComponent::new(host_api))
+fn build_general_config(ctx: &InventoryContext) -> std::sync::Arc<dyn Configurable> {
+    std::sync::Arc::new(GeneralConfigComponent::new(ctx.host_api().clone()))
 }
 
 ::inventory::submit! {
-    CoreComponentEntry {
+    ConfigEntry {
         component_id: "general",
         priority: 30,
         factory: build_general_config,

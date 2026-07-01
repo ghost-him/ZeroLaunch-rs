@@ -154,16 +154,14 @@ impl Configurable for WindowBehaviorConfigComponent {
     }
 }
 
-use crate::core::config::core_registry::CoreComponentEntry;
+use crate::plugin_framework::builtin_registry::{ConfigEntry, InventoryContext};
 
-fn build_window_behavior_config(
-    _host_api: std::sync::Arc<crate::sdk::HostApi>,
-) -> std::sync::Arc<dyn Configurable> {
+fn build_window_behavior_config(_ctx: &InventoryContext) -> std::sync::Arc<dyn Configurable> {
     std::sync::Arc::new(WindowBehaviorConfigComponent::new())
 }
 
 ::inventory::submit! {
-    CoreComponentEntry {
+    ConfigEntry {
         component_id: "window-behavior",
         priority: 40,
         factory: build_window_behavior_config,

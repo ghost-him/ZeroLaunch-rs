@@ -19,11 +19,34 @@ use zerolaunch_plugin_api::services::AppResourceService;
 
 use crate::core::config::event::create_plugin_event_bus;
 use crate::core::config::{ConfigEvent, ConfigManager};
-use crate::core::tray::TrayManager;
-use crate::core::window_utils::{prepare_window_position, save_window_position_if_drag};
 use crate::plugin_framework::manager::PluginManager;
 use crate::plugin_framework::CandidatePipeline;
 use crate::state::app_state::AppState;
+use crate::tray::TrayManager;
+use crate::window::{prepare_window_position, save_window_position_if_drag};
+
+/// 将当前配置序列化并同步到远程存储后端（fire-and-forget）。
+///
+/// 从 ConfigManager 构建 PersistentConfig，序列化为 JSON 字节，
+/// 通过 HostApi 的 StorageService 上传。失败仅记日志，不阻断。
+pub(crate) async fn sync_config_to_remote(
+    config_manager: &ConfigManager,
+    host_api: &crate::sdk::HostApi,
+) {
+    let config = config_manager.build_persistent_config();
+    let json_bytes = match serde_json::to_vec(&config) {
+        Ok(bytes) => bytes,
+        Err(e) => {
+            tracing::warn!("配置序列化失败，跳过远程同步: {}", e);
+            return;
+        }
+    };
+    let storage = host_api.storage();
+    if let Err(e) = storage.upload("zerolaunch_config.json", &json_bytes).await {
+        tracing::warn!("配置远程同步失败: {}", e);
+    }
+}
+
 /// 初始化应用状态（HostApi、ConfigManager、PluginManager）。
 ///
 /// 调用方（lib.rs 的 `run()`）将 `init_app_state` 置于 `setup` 闭包的
@@ -141,7 +164,6 @@ pub(crate) async fn init_app_state(
     info!("=== Phase 2: Core 初始化 - 创建 ConfigManager ===");
 
     let config_manager = Arc::new(ConfigManager::new(PathBuf::from(&config_dir)));
-    config_manager.set_host_api(host_api.clone());
     info!("ConfigManager 初始化完成");
 
     info!("=== Phase 3: PluginManager 初始化 ===");
@@ -205,6 +227,8 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
     // 订阅配置事件
     let event_router = session_router.clone();
     let app_handle = state.get_main_handle();
+    let cm_for_events = config_manager.clone();
+    let host_api_for_events = state.get_host_api();
     let mut event_receiver = config_manager.event_sender().subscribe();
     tauri::async_runtime::spawn(async move {
         loop {
@@ -226,6 +250,14 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
                                 "componentType": format!("{:?}", component_type),
                             }),
                         );
+                    }
+                    // 配置变更后自动触发远程同步（fire-and-forget）
+                    match &event {
+                        ConfigEvent::SettingsChanged { .. }
+                        | ConfigEvent::EnabledChanged { .. } => {
+                            sync_config_to_remote(&cm_for_events, &host_api_for_events).await;
+                        }
+                        _ => {}
                     }
                 }
                 Err(tokio::sync::broadcast::error::RecvError::Lagged(count)) => {
@@ -325,7 +357,7 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
     // Phase B: 加载持久化配置
     // ========================================================================
     info!("=== Phase B: 加载持久化配置 ===");
-    if let Err(e) = config_manager.load_from_storage(true).await {
+    if let Err(e) = config_manager.load_from_storage() {
         warn!("加载持久化配置失败: {}", e);
     }
 

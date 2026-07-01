@@ -211,14 +211,14 @@ impl Configurable for StorageConfigComponent {
     }
 }
 
-use crate::core::config::core_registry::CoreComponentEntry;
+use crate::plugin_framework::builtin_registry::{ConfigEntry, InventoryContext};
 
-fn build_storage_config(host_api: Arc<crate::sdk::HostApi>) -> Arc<dyn Configurable> {
-    Arc::new(StorageConfigComponent::new(host_api))
+fn build_storage_config(ctx: &InventoryContext) -> std::sync::Arc<dyn Configurable> {
+    std::sync::Arc::new(StorageConfigComponent::new(ctx.host_api().clone()))
 }
 
 ::inventory::submit! {
-    CoreComponentEntry {
+    ConfigEntry {
         component_id: "storage-config",
         priority: 0,
         factory: build_storage_config,

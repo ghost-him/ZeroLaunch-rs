@@ -168,7 +168,7 @@ pub async fn bridge_query(
 
     #[cfg(feature = "inspector")]
     {
-        use crate::plugin_system::inspector::InspectedQueryEvent;
+        use crate::plugin_framework::inspector::InspectedQueryEvent;
         let (mode, result_count) = match &response {
             QueryResponse::List { results } => ("search", results.len()),
             QueryResponse::Empty => ("empty", 0),

@@ -1,10 +1,10 @@
 pub mod bootstrap;
+pub mod builtin_plugin;
 pub mod cli_server;
 pub mod commands;
 pub mod core;
 pub mod logging;
-pub mod plugin;
-pub mod plugin_system;
+pub mod plugin_framework;
 pub mod sdk;
 pub mod state;
 pub mod utils;

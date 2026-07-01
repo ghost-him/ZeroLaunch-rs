@@ -21,8 +21,8 @@ use crate::core::config::event::create_plugin_event_bus;
 use crate::core::config::{ConfigEvent, ConfigManager};
 use crate::core::tray::TrayManager;
 use crate::core::window_utils::{prepare_window_position, save_window_position_if_drag};
-use crate::plugin_system::manager::PluginManager;
-use crate::plugin_system::CandidatePipeline;
+use crate::plugin_framework::manager::PluginManager;
+use crate::plugin_framework::CandidatePipeline;
 use crate::state::app_state::AppState;
 use crate::utils::service_locator::ServiceLocator;
 
@@ -135,7 +135,7 @@ pub(crate) async fn init_app_state(
 
     #[cfg(feature = "inspector")]
     {
-        use crate::plugin_system::inspector::Inspector;
+        use crate::plugin_framework::inspector::Inspector;
         state.set_inspector(Arc::new(Inspector::new(200)));
         info!("Plugin Inspector 已启用 (容量: 200)");
     }

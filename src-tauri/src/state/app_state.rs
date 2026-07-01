@@ -1,9 +1,9 @@
 use crate::cli_server::token::CliToken;
 use crate::core::config::ConfigManager;
 use crate::core::tray::TrayManager;
-use crate::plugin_system::manager::PluginManager;
-use crate::plugin_system::service::PluginService;
-use crate::plugin_system::SessionRouter;
+use crate::plugin_framework::manager::PluginManager;
+use crate::plugin_framework::service::PluginService;
+use crate::plugin_framework::SessionRouter;
 use crate::sdk::HostApi;
 use crate::utils::waiting_hashmap::AsyncWaitingHashMap;
 use parking_lot::RwLock;
@@ -21,7 +21,7 @@ pub struct AppState {
     host_api: RwLock<Option<Arc<HostApi>>>,
     core_handle: RwLock<Option<Arc<PluginHandle>>>,
     #[cfg(feature = "inspector")]
-    inspector: RwLock<Option<Arc<crate::plugin_system::inspector::Inspector>>>,
+    inspector: RwLock<Option<Arc<crate::plugin_framework::inspector::Inspector>>>,
     /// PluginManager — 插件身份与生命周期的统一入口
     plugin_manager: RwLock<Option<Arc<PluginManager>>>,
     /// CLI server token (cached for the `cli_get_info` IPC command).
@@ -128,12 +128,12 @@ impl AppState {
     }
 
     #[cfg(feature = "inspector")]
-    pub fn get_inspector(&self) -> Option<Arc<crate::plugin_system::inspector::Inspector>> {
+    pub fn get_inspector(&self) -> Option<Arc<crate::plugin_framework::inspector::Inspector>> {
         self.inspector.read().clone()
     }
 
     #[cfg(feature = "inspector")]
-    pub fn set_inspector(&self, inspector: Arc<crate::plugin_system::inspector::Inspector>) {
+    pub fn set_inspector(&self, inspector: Arc<crate::plugin_framework::inspector::Inspector>) {
         *self.inspector.write() = Some(inspector);
     }
 

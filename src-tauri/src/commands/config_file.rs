@@ -1,5 +1,5 @@
 use crate::core::types::BridgeError;
-use crate::plugin_system::ConfigActionDef;
+use crate::plugin_framework::ConfigActionDef;
 use crate::state::app_state::AppState;
 use std::sync::Arc;
 

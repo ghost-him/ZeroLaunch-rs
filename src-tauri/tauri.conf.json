@@ -25,7 +25,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' zlplugin:; script-src 'self' zlplugin: 'unsafe-inline'; connect-src 'self' http://127.0.0.1:* zlplugin:; frame-src zlplugin: data:; img-src 'self' data: zlplugin:;"
+      "csp": "default-src 'self' zlplugin:; script-src 'self' zlplugin: 'unsafe-inline'; style-src 'self' 'unsafe-inline' zlplugin:; connect-src 'self' http://127.0.0.1:* zlplugin:; frame-src zlplugin: data:; img-src 'self' data: zlplugin:; font-src 'self' data: zlplugin:;"
     }
   },
   "bundle": {

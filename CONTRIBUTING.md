@@ -22,7 +22,7 @@
 | 设施 | 路径 | 用途 |
 | ---- | ---- | ---- |
 | 规则文件 | `.claude/rules/` (9 个域规则文件) | 为 Claude Code 提供架构、编码规范、目录结构、数据流等上下文 |
-| 技能 | `.claude/skills/` (3 个技能) | 自动化常见开发任务（详见下方） |
+| 技能 | `.claude/skills/` (4 个技能) | 自动化常见开发任务（详见下方） |
 | CodeGraph | `.codegraph/` (代码知识图谱索引) | 毫秒级符号级代码检索，支撑 Claude Code 精准定位与理解代码 |
 | 项目导航 | `CLAUDE.md` | 项目入口文档，提供架构速览与关键文件清单 |
 | 权限配置 | `.claude/settings.json` | 预配置常用命令权限，减少交互式授权弹窗 |
@@ -82,6 +82,30 @@ codegraph init
 - 输出结构化的 commit message（含中文 body 说明）
 
 > **注意**：此技能仅生成 commit message，不会执行 `git commit`。
+
+#### 2. `/code-review` — 代码审查
+
+利用多 agent 并行审查机制，对您的代码变更进行深度的多维度审查。它会从逻辑正确性、回归风险、架构边界耦合、以及项目规则一致性等多个方面分析代码变更。
+
+以下是支持审核的范围，个人更推荐使用自然语言来描述审查的范围：
+
+```
+/code-review                       # 审查当前工作区所有未提交的变更（默认）
+/code-review --staged              # 仅审查暂存区变更
+/code-review --range <ref>..<ref>  # 审查指定 git range 的变更
+/code-review --count <N>           # 审查最近 N 次 commit 的变更
+/code-review --branch              # 审查当前分支下的全部变更
+```
+
+技能会自动：
+- 对变更文件按模块分组，并行分发给多个 reviewer agent
+- 每个 reviewer 独立审查，覆盖逻辑正确性、回归风险、架构边界、规则一致性
+- 对审查发现进行对抗性验证，过滤误报
+- 汇报分级结果，标注严重性与影响范围
+
+> **注意**：审查结果是辅助工具，请根据实际情况**选择性接受建议**，**避免过度优化**。代码审查可能会指出一些潜在的改进点，但并非必须全部修复——请结合代码的上下文和实际需求做出判断。
+
+> **💡 最佳实践**：建议在独立分支上完成代码变更，然后使用 `/code-review 审核本分支下的所有更改` 对整个分支的全部更改进行一站式审查。相比逐一审查工作区未提交的零散变更，分支级别的审查能提供更完整的上下文，也方便在审查后统一迭代修复。
 
 ---
 
@@ -151,19 +175,21 @@ cargo run --bin xtask clean                         # 清理构建产物
 使用 Claude Code 时，推荐的开发流程为：
 
 ```
-1. 编写/修改代码
+1. 创建功能分支     → 基于 main 创建独立分支（如 feature/my-change）
        ↓
-2. just style          → 自动格式化 Rust 代码 + Clippy 修复
+2. 编写/修改代码
        ↓
-3. cargo check         → 确保编译通过
+3. just style          → 自动格式化 Rust 代码 + Clippy 修复
        ↓
-4. /summarize-changes  → 生成规范的 commit message
+4. /code-review        → 多 agent 并行审查代码变更（建议选择性接受，避免过度优化）
        ↓
-5. git commit          → 使用步骤 4 生成的信息提交
+5. /summarize-changes  → 生成规范的 commit message
        ↓
-6. git push            → 推送到远程分支
+6. git commit          → 使用步骤 5 生成的信息提交
        ↓
-7. 创建 Pull Request   → 在 GitHub 上提 PR
+7. git push            → 推送到远程分支
+       ↓
+8. 创建 Pull Request   → 在 GitHub 上提 PR
 ```
 
 ### 传统工作流
@@ -173,9 +199,10 @@ cargo run --bin xtask clean                         # 清理构建产物
 3. 编写/修改代码
 4. 运行 `just style` 格式化代码（等效于 `cargo fmt --all` + `cargo clippy --workspace --fix --allow-dirty --allow-staged`）
 5. 运行 `cargo check` 确保编译通过
-6. 提交您的更改（建议遵循 Conventional Commits 规范，如 `feat: Add some AmazingFeature`）
-7. 推送到您的 Fork 分支 (`git push origin feature/AmazingFeature`)
-8. 在 GitHub 上创建 Pull Request
+6. 运行 `/code-review` skill 审查代码变更（使用方式看上文的 skill 介绍）
+7. 提交您的更改，推荐使用 `/summarize-changes` skill 来一键生成 commit 信息
+8. 推送到您的 Fork 分支 (`git push origin feature/AmazingFeature`)
+9. 在 GitHub 上创建 Pull Request
 
 ### 代码风格
 

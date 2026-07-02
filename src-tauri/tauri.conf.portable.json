@@ -39,8 +39,7 @@
     "resources": [
       "icons/",
       "locales/",
-      "models/readme.md",
-      "Everything64.dll"
+      "models/readme.md"
     ],
     "targets": "all"
   },
@@ -55,5 +54,5 @@
     }
   },
   "productName": "zerolaunch-rs_portable",
-  "version": "0.6.13"
+  "version": "1.0.0"
 }

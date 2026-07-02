@@ -1,6 +1,6 @@
 [package]
 name = "zerolaunch-rs"
-version = "0.6.13"
+version = "1.0.0"
 description = "🚀 Lightning-fast, accurate, lightweight & pure Windows application launcher!"
 authors = ["ghost-him"]
 edition = "2021"
@@ -15,10 +15,11 @@ name = "zerolaunch_rs_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "^2", features = [] }
+tauri-build.workspace = true
 
 [dependencies]
-windows = { version = "0.61.3", features = [
+# Windows platform (features extend workspace base)
+windows = { workspace = true, features = [
     "Win32_UI_WindowsAndMessaging",
     "Win32_Foundation",
     "Win32_Graphics_Gdi",
@@ -48,81 +49,96 @@ windows = { version = "0.61.3", features = [
     "Win32_System_Environment",
 ] }
 
-tauri = { version = "^2", features = ["tray-icon", "image-ico", "image-png"] }
-serde = { version = "^1", features = ["derive"] }
-serde_json = "^1"
-lazy_static = "^1.5.0"
-rdev = { version = "^0.5.3", features = ["unstable_grab"] }
-widestring = "^1.2.1"
-windows-core = "^0.61.2"
-rayon = "^1.11.0"
-base64 = "^0.22.1"
-dashmap = { version = "^6.1.0", features = ["serde"] }
-image = "^0.25.9"
-tracing = "^0.1.43"
-tracing-subscriber = { version = "^0.3.22", features = ["env-filter"] }
-tracing-appender = "^0.2.4"
-chrono = "^0.4.42"
-parking_lot = "^0.12.5"
-tauri-plugin-global-shortcut = "^2.3.1"
-tauri-plugin-dialog = "2"
-timer = "^0.2.0"
-backtrace = "^0.3.76"
-tauri-plugin-notification = "^2"
-kmeans_colors = "^0.7.1"
-palette = "^0.7.6"
-rand = "^0.9.2"
-anyhow = "1.0.100"
-reqwest = { version = "0.12.25", features = ["json"] }
-lnk = "0.6.3"
-async-trait = "0.1.89"
-tokio = { version = "1.48.0", features = ["full"] }
-reqwest_dav = "0.2.2"
-tauri-plugin-deep-link = "2"
-winreg = "0.55.0"
-tauri-utils = { version = "2.8.1", features = ["schema"] }
-globset = "0.4.18"
-regex = "1.12.2"
-scraper = "0.24.0"
-url = "2.5.7"
-fnv = "1.0.7"
-fontdb = "0.23.0"
-time = "0.3.44"
-resvg = "0.45.1"
-usvg = "0.45.1"
-tiny-skia = "0.11.4"
-encoding_rs = "0.8.35"
-tauri-plugin-shell = "2"
-fuzzy-matcher = "0.3.7"
-ini = "1.3.0"
-thiserror = "2.0.17"
-tempfile = "3.23.0"
-tokio-util = "0.7.17"
-walkdir = "2.5.0"
-ort = { version = "2.0.0-rc.10", features = ["xnnpack"], optional = true }
-tokenizers = { version = "0.22.2", default-features = false, features = [
-    "onig",
-], optional = true }
-ndarray = { version = "0.16.1", optional = true }
-once_cell = "1.21.3"
-lru = "0.16.2"
-bincode = "2.0.1"
-arboard = "3.6.1"
-zip = "6.0.0"
-whoami = "1.6.1"
-blake3 = "1.8.2"
-notify = "8.2.0"
-uiautomation = "0.24.2"
+# Tauri (adds features on top of workspace base)
+tauri = { workspace = true, features = ["image-ico", "image-png"] }
+
+# Tauri plugins
+tauri-plugin-global-shortcut.workspace = true
+tauri-plugin-dialog.workspace = true
+tauri-plugin-notification.workspace = true
+tauri-plugin-deep-link.workspace = true
+tauri-plugin-shell.workspace = true
+tauri-utils.workspace = true
+
+# HTTP server
+axum.workspace = true
+tower.workspace = true
+tower-http.workspace = true
+http.workspace = true
+
+# Logging & observability
+tracing-subscriber.workspace = true
+tracing-appender.workspace = true
+inventory.workspace = true
+
+# Standalone utility deps
+lazy_static.workspace = true
+timer.workspace = true
+globset.workspace = true
+fuzzy-matcher.workspace = true
+tempfile.workspace = true
+notify.workspace = true
+
+# Workspace-managed common deps
+serde.workspace = true
+serde_json.workspace = true
+rdev.workspace = true
+widestring.workspace = true
+windows-core.workspace = true
+rayon.workspace = true
+dashmap.workspace = true
+image.workspace = true
+tracing.workspace = true
+chrono.workspace = true
+parking_lot.workspace = true
+backtrace.workspace = true
+kmeans_colors.workspace = true
+palette.workspace = true
+anyhow.workspace = true
+reqwest.workspace = true
+lnk.workspace = true
+async-trait.workspace = true
+tokio.workspace = true
+reqwest_dav.workspace = true
+winreg.workspace = true
+scraper.workspace = true
+url.workspace = true
+fnv.workspace = true
+fontdb.workspace = true
+resvg.workspace = true
+usvg.workspace = true
+tiny-skia.workspace = true
+encoding_rs.workspace = true
+ini.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+tokio-util.workspace = true
+walkdir.workspace = true
+once_cell.workspace = true
+lru.workspace = true
+bincode-next.workspace = true
+arboard.workspace = true
+zip.workspace = true
+whoami.workspace = true
+blake3.workspace = true
+uiautomation.workspace = true
+toml.workspace = true
+rand.workspace = true
+regex.workspace = true
+base64.workspace = true
+time.workspace = true
+
+# Internal crates
+zerolaunch-plugin-api.workspace = true
+zerolaunch-plugin-host.workspace = true
+zerolaunch-plugin-protocol.workspace = true
+zerolaunch-platform-windows.workspace = true
 
 [features]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
 portable = []
-ai = ["dep:ort", "dep:tokenizers", "dep:ndarray"]
+inspector = []
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
-tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
-
-[target.'cfg(target_arch = "x86_64")'.dependencies]
-everything-rs = "0.1.10"
-everything-sys-bindgen = "0.1.5"
+tauri-plugin-single-instance.workspace = true

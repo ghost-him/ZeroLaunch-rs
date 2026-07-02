@@ -1,24 +1,68 @@
 <template>
-  <router-view />
+  <n-config-provider :theme="themeStore.naiveTheme" :locale="naiveLocale">
+    <n-notification-provider>
+      <n-message-provider>
+        <n-dialog-provider>
+          <router-view />
+        </n-dialog-provider>
+      </n-message-provider>
+    </n-notification-provider>
+  </n-config-provider>
 </template>
 
 <script setup lang="ts">
-// Root App Component
-</script>
+import { ref, onMounted, onUnmounted } from 'vue'
+import {
+  NConfigProvider,
+  NNotificationProvider,
+  NMessageProvider,
+  NDialogProvider,
+  zhCN,
+  enUS,
+} from 'naive-ui'
+import { useThemeStore } from './stores/theme-store'
+import { useConfigStore } from './stores/config-store'
+import { configGetSettings } from './bridge/commands'
+import { i18n } from './i18n'
+import { onConfigChanged } from './bridge/events'
 
-<style>
-/* Global styles can go here or in src-ui/styles */
-html,
-body {
-  box-sizing: border-box;
-  height: 99.85%;
-  margin: 0;
-  padding: 0;
-  overflow: hidden; /* Prevent scrollbars on the body */
-  background-color: transparent; /* Important for Tauri transparent window */
-}
-#app {
-  width: 100vw;
-  height: 100%;
-}
-</style>
+const themeStore = useThemeStore()
+const configStore = useConfigStore()
+
+const naiveLocale = ref(i18n.global.locale.value === 'en' ? enUS : zhCN)
+
+let unlistenAppearance: (() => void) | null = null
+let unlistenWindowBehavior: (() => void) | null = null
+
+onMounted(async () => {
+  // 监听外观配置变更（跨窗口同步主题/语言/外观CSS变量）
+  unlistenAppearance = await onConfigChanged((payload) => {
+    if (payload.componentId !== 'appearance') return
+    configGetSettings('appearance').then(async (s) => {
+      const settings = s as Record<string, unknown>
+      const result = await themeStore.applyRemoteSettings(settings)
+      if (result.langChanged) {
+        naiveLocale.value = result.newLang === 'en' ? enUS : zhCN
+      }
+    }).catch(() => {})
+  })
+
+  // 加载窗口行为配置（供 useKeyboard 消费）
+  configGetSettings('window-behavior').then(s => {
+    configStore.settings['window-behavior'] = s
+  }).catch(() => {})
+
+  // 监听窗口行为配置变更（跨窗口同步）
+  unlistenWindowBehavior = await onConfigChanged((payload) => {
+    if (payload.componentId !== 'window-behavior') return
+    configGetSettings('window-behavior').then(s => {
+      configStore.settings['window-behavior'] = s
+    }).catch(() => {})
+  })
+})
+
+onUnmounted(() => {
+  unlistenAppearance?.()
+  unlistenWindowBehavior?.()
+})
+</script>

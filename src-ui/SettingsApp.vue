@@ -1,0 +1,51 @@
+<template>
+  <n-config-provider :theme="themeStore.naiveTheme" :locale="naiveLocale">
+    <n-notification-provider>
+      <n-message-provider>
+        <n-dialog-provider>
+          <SettingsView />
+        </n-dialog-provider>
+      </n-message-provider>
+    </n-notification-provider>
+  </n-config-provider>
+</template>
+
+<script setup lang="ts">
+import { ref, onMounted, onUnmounted } from 'vue'
+import {
+  NConfigProvider,
+  NNotificationProvider,
+  NMessageProvider,
+  NDialogProvider,
+  zhCN,
+  enUS,
+} from 'naive-ui'
+import { useThemeStore } from './stores/theme-store'
+import { configGetSettings } from './bridge/commands'
+import { i18n } from './i18n'
+import { onConfigChanged } from './bridge/events'
+import SettingsView from './views/SettingsView.vue'
+
+const themeStore = useThemeStore()
+
+const naiveLocale = ref(i18n.global.locale.value === 'en' ? enUS : zhCN)
+
+let unlistenAppearance: (() => void) | null = null
+
+onMounted(async () => {
+  unlistenAppearance = await onConfigChanged((payload) => {
+    if (payload.componentId !== 'appearance') return
+    configGetSettings('appearance').then(async (s) => {
+      const settings = s as Record<string, unknown>
+      const result = await themeStore.applyRemoteSettings(settings)
+      if (result.langChanged) {
+        naiveLocale.value = result.newLang === 'en' ? enUS : zhCN
+      }
+    }).catch(() => {})
+  })
+})
+
+onUnmounted(() => {
+  unlistenAppearance?.()
+})
+</script>

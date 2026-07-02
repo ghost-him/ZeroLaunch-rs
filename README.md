@@ -41,11 +41,11 @@
 
 ## 📕 一句话介绍
 
-ZeroLaunch 是一款懂你输入习惯的 Windows 智能启动器。它精通拼音与模糊搜索，还能选配本地 AI 语义理解，让错字、搜词都能秒速响应。纯净、离线，一切为高效而生。
+ZeroLaunch 是一款懂你输入习惯的 Windows 智能启动器。它精通拼音与模糊搜索，让错字、搜词都能秒速响应。纯净、离线，一切为高效而生。
 
 > 市面上现有的启动器总有点不合我心意，索性自己造了一个。现在它已是我每天工作的得力助手，所以请放心，我不会跑路的～（最多是更新慢点 (～￣▽￣)～）
 
-> ⚠️ **重构进行中**：项目正在进行架构升级与重构，欢迎在 [refactor/plugin-system](https://github.com/ghost-him/ZeroLaunch-rs/tree/refactor/plugin-system) 分支关注最新的开发进展。
+> ⚠️ **大规模重构中**：项目正在进行架构升级与插件系统重构，AI 语义搜索与 Everything 模式暂不可用，未来将以插件形式回归。当前版本功能尚不稳定，请谨慎使用。如使用最新代码构建时发现缺陷，欢迎提交 Issue（注意版本标识为 v1.0.0，而非已正式发布的 v0.x 版本）。
 
 ## 🖥️ 软件界面
 
@@ -62,19 +62,17 @@ ZeroLaunch 是一款懂你输入习惯的 Windows 智能启动器。它精通拼
 所有搜索与匹配均在本地完成，无需网络连接，坚持零数据采集。你的数据，永远只留在你的设备里。
 
 ### ⚡ 智能搜索，毫秒响应
-- **可选 AI 语义搜索**：集成 EmbeddingGemma-300m 本地模型，支持自然语言、多语言意图检索，理解更智能。
-- **强大传统算法**：基于自研匹配算法，支持全称、拼音、首字母三重匹配与拼写纠错，高效且容错性高。
+- **强大匹配算法**：基于自研匹配算法，支持全称、拼音、首字母三重匹配与拼写纠错，高效且容错性高。
 - **极致性能优化**：通过数据结构优化、分层缓存、按需加载与并发处理，确保即使在中低配设备上也能获得毫秒级响应体验。
 
 > 💡 **想要深入了解搜索算法的实现原理？** 请参考 GitHub Wiki：[搜索介绍](https://github.com/ghost-him/ZeroLaunch-rs/wiki/%E6%90%9C%E7%B4%A2%E4%BB%8B%E7%BB%8D)
 
 ### 🌐 轻巧纯粹，开箱即用
-专注于“快速、准确地启动”这一核心需求。默认设置已覆盖大多数使用场景，上手零成本；同时也为进阶用户提供了丰富的外观、行为与索引策略自定义选项，不加任何冗余功能。
+专注于"快速、准确地启动"这一核心需求。默认设置已覆盖大多数使用场景，上手零成本；同时也为进阶用户提供了丰富的外观、行为与索引策略自定义选项，不加任何冗余功能。
 
 ## 🔧 核心功能一览
 
 ### 🎯 核心搜索与启动
-*   **AI 语义检索（可选）**：基于轻量高效的 EmbeddingGemma-300m 本地模型，支持用自然语言（如“音乐软件”）查找应用，隐私安全。
 *   **应用程序搜索**：快速检索并启动传统应用及 UWP 应用，支持备注与别名，识别本地化名称。
 *   **应用程序唤醒**：智能将已运行程序的窗口置前，快速切换任务。
 *   **打开文件所在目录**：通过右键菜单快速定位文件位置。
@@ -94,7 +92,6 @@ ZeroLaunch 是一款懂你输入习惯的 Windows 智能启动器。它精通拼
 *   **游戏模式**：可手动禁用快捷键，避免游戏时误触。
 *   **最近启动程序**：按住 `Alt` 键可查看并快速打开最近使用的程序。
 *   **结果显示优化**：可设置数量阈值，超出后自动切换为滚动显示。
-*   **Everything 模式**：按 `Ctrl + e` 切换到更广泛的文件系统路径搜索模式，快速定位任意文件。（注意：Everything 模式目前仅支持 x86_64 架构，不支持 arm64 架构。）
 
 
 ## 🚀 快速入门
@@ -111,7 +108,6 @@ ZeroLaunch 是一款懂你输入习惯的 Windows 智能启动器。它精通拼
 | 隐藏搜索界面                 | 点击搜索框外部区域        |
 | 切换到已打开的窗口           | `Shift + Enter`           |
 | 按最近启动时间排序           | 按住 `Alt` 键             |
-| 进入/退出Everything模式      | `Ctrl + e`                |
 
 ### 常见功能的实现
 
@@ -132,21 +128,17 @@ winget install ghost-him.ZeroLaunch-rs
 ```
 
 ### 手动下载安装包
-本项目采用 CI/CD 自动构建。新版本发布时，会自动构建 AI 版与 Lite 版（x64/arm64），并同步至以下镜像，请选择访问最快的源下载：
+本项目采用 CI/CD 自动构建。新版本发布时，会自动构建 x64/arm64 版本，并同步至以下镜像，请选择访问最快的源下载：
 
 *   **GitHub Releases** (全球用户推荐): [https://github.com/ghost-him/ZeroLaunch-rs/releases](https://github.com/ghost-him/ZeroLaunch-rs/releases)
 *   **Codeberg Releases** (推荐): [https://codeberg.org/ghost-him/ZeroLaunch-rs/releases](https://codeberg.org/ghost-him/ZeroLaunch-rs/releases)
 *   **Gitee Releases** (中国大陆用户推荐): [https://gitee.com/ghost-him/ZeroLaunch-rs/releases](https://gitee.com/ghost-him/ZeroLaunch-rs/releases)
 *   **GitCode Releases** (中国大陆用户推荐): [https://gitcode.com/ghost-him/ZeroLaunch-rs/releases](https://gitcode.com/ghost-him/ZeroLaunch-rs/releases)
 
-### 🧩 版本说明：AI 版 vs Lite 版
-| 特性            | **含 AI 版 (默认/推荐)**                                           | **Lite 版 (轻量)**                                                      |
-| :-------------- | :----------------------------------------------------------------- | :---------------------------------------------------------------------- |
-| **AI 语义搜索** | ✅ 支持 (需额外下载模型)                                            | ❌ 不支持                                                                |
-| **内存占用**    | 启用 AI 时 ~500-550 MB<br>仅传统搜索时同 Lite 版                   | ~60-70 MB                                                               |
-| **安装包标识**  | 文件名**不含** `lite`，如：<br>`zerolaunch-rs_0.x.x_x64-setup.exe` | 文件名**包含** `lite`，如：<br>`zerolaunch-rs_lite_0.x.x_x64-setup.exe` |
-
-**开发者提示**：构建 AI 版需启用 `ai` 特性；构建 Lite 版则移除该特性。使用 `xtask` 时，默认构建 AI 版，构建 Lite 版请添加 `--ai disabled` 参数。
+### 功能预告
+以下功能正在进行插件化重构，将在后续版本中以插件形式回归：
+- **AI 语义搜索** — 基于本地模型的自然语言检索
+- **Everything 模式** — 文件系统路径快速搜索
 
 ## 🛠️ 开发者指南
 
@@ -208,16 +200,6 @@ winget install ghost-him.ZeroLaunch-rs
 4.  提交 Pull Request。
 
 感谢你帮助 ZeroLaunch 走向世界！🙏
-
-## 📄 第三方条款 — EmbeddingGemma
-
-*   本项目可选集成 Google 的 EmbeddingGemma 模型，仅用于离线语义检索。
-*   使用与再分发须遵守 [Gemma 使用条款](https://ai.google.dev/gemma/terms) 及 [禁止用途政策](https://ai.google.dev/gemma/prohibited_use_policy)。
-*   如再分发该模型或其衍生物，需：
-    1.  在您的协议中传递上述限制；
-    2.  向接收方提供 Gemma 条款副本；
-    3.  标注被修改的文件；
-    4.  随附名为 `NOTICE` 的文本文件，内容为：`"Gemma is provided under and subject to the Gemma Terms of Use found at ai.google.dev/gemma/terms"`。
 
 ## ✍️ 代码签名
 

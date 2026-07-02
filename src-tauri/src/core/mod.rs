@@ -1,4 +1,5 @@
-#[cfg(feature = "ai")]
-pub mod ai;
-pub mod image_processor;
-pub mod storage;
+pub mod bridge_error;
+pub mod config;
+pub mod constants;
+
+pub use bridge_error::{BridgeError, ErrorCode};

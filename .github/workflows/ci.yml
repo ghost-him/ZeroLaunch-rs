@@ -42,8 +42,8 @@ jobs:
       - name: Copy i18n locales to src-tauri
         shell: pwsh
         run: |
-          $srcLocalesDir = "src-ui\i18n\locales"
-          $destDir = "src-tauri\locales"
+          $srcLocalesDir = "src-ui/i18n/locales"
+          $destDir = "src-tauri/locales"
           if (-not (Test-Path $destDir)) {
             New-Item -Path $destDir -ItemType Directory -Force | Out-Null
           }
@@ -53,7 +53,7 @@ jobs:
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: src-tauri -> target
+          workspaces: . -> target
 
       - name: Validate commit messages
         if: github.event_name == 'pull_request'
@@ -62,15 +62,12 @@ jobs:
           bun x commitlint --from origin/${{ github.base_ref }} --to HEAD --verbose
 
       - name: Check formatting
-        working-directory: src-tauri
         run: cargo fmt --all -- --check
 
       - name: Clippy
-        working-directory: src-tauri
         run: cargo clippy --all-targets --all-features -- -D warnings
 
       - name: Run tests
-        working-directory: src-tauri
         run: cargo test --all-features
 
   build-test:
@@ -99,8 +96,8 @@ jobs:
       - name: Copy i18n locales to src-tauri
         shell: pwsh
         run: |
-          $srcLocalesDir = "src-ui\i18n\locales"
-          $destDir = "src-tauri\locales"
+          $srcLocalesDir = "src-ui/i18n/locales"
+          $destDir = "src-tauri/locales"
           if (-not (Test-Path $destDir)) {
             New-Item -Path $destDir -ItemType Directory -Force | Out-Null
           }
@@ -110,13 +107,13 @@ jobs:
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: src-tauri -> target
+          workspaces: . -> target
 
-      - name: Build x64 installer (AI enabled)
+      - name: Build x64 installer
         shell: pwsh
         run: |
           cd xtask
-          cargo run --bin xtask build-installer --arch x64 --ai enabled
+          cargo run --bin xtask build-installer --arch x64
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

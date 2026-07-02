@@ -1,63 +1,20 @@
+pub mod bootstrap;
+pub mod builtin_plugin;
+pub mod cli_server;
 pub mod commands;
 pub mod core;
-pub mod error;
 pub mod logging;
-pub mod modules;
+pub mod plugin_framework;
+pub mod sdk;
 pub mod state;
 pub mod tray;
 pub mod utils;
-pub mod window_effect;
-pub mod window_position;
-use crate::commands::browser_bookmarks::*;
-use crate::commands::config_file::*;
-use crate::commands::debug::*;
-use crate::commands::program_service::*;
-use crate::commands::shortcut::*;
-use crate::commands::ui_command::*;
-use crate::commands::utils::*;
-#[cfg(feature = "ai")]
-use crate::core::ai::model_manager::ModelManager;
-use crate::error::{OptionExt, ResultExt};
-use crate::logging::{
-    init_logging, log_application_shutdown, log_application_start, update_log_level,
-};
-use crate::modules::config::config_manager::PartialRuntimeConfig;
-use crate::modules::config::default::LOCAL_CONFIG_PATH;
-use crate::modules::config::default::REMOTE_CONFIG_DEFAULT;
-use crate::modules::config::default::SEMANTIC_DESCRIPTION_FILE_NAME;
-use crate::modules::config::{Height, Width};
-use crate::modules::icon_manager::config::RuntimeIconManagerConfig;
-use crate::modules::icon_manager::IconManager;
-use crate::modules::ui_controller::controller::get_window_render_origin;
+pub mod window;
+
+use crate::logging::{init_logging, log_application_shutdown, log_application_start};
+use crate::sdk::HostApi;
+use crate::sdk::HostApiBuilder;
 use crate::state::app_state::AppState;
-use crate::tray::init_system_tray;
-use crate::tray::update_tray_menu_language;
-use crate::utils::i18n::{current_language, switch_language};
-use crate::utils::ui_controller::handle_focus_lost;
-use crate::utils::ui_controller::handle_pressed;
-use crate::window_position::update_window_size_and_position;
-use core::storage;
-use core::storage::storage_manager::StorageManager;
-use modules::bookmark_loader::BookmarkLoader;
-use modules::config::app_config::{AppConfig, PartialAppConfig};
-use modules::config::config_manager::RuntimeConfig;
-use modules::config::default::{
-    APP_PIC_PATH, REMOTE_CONFIG_NAME, SEMANTIC_EMBEDDING_CACHE_FILE_NAME,
-};
-use modules::config::load_string_to_runtime_config_;
-use modules::config::save_runtime_config_to_string;
-use modules::config::ui_config::PartialUiConfig;
-use modules::config::window_state::PartialWindowState;
-use modules::program_manager::config::program_manager_config::RuntimeProgramConfig;
-use modules::program_manager::semantic_backend;
-use modules::program_manager::{self, ProgramManager};
-use modules::shortcut_manager::start_shortcut_manager;
-use modules::shortcut_manager::update_shortcut_manager;
-use modules::ui_controller::controller::recommend_footer_height;
-use modules::ui_controller::controller::recommend_result_item_height;
-use modules::ui_controller::controller::recommend_search_bar_height;
-use modules::ui_controller::controller::recommend_window_width;
-use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tauri::App;
@@ -66,101 +23,147 @@ use tauri::LogicalSize;
 use tauri::Manager;
 use tauri::WebviewUrl;
 use tauri_plugin_deep_link::DeepLinkExt;
-use tracing::{debug, error, info, warn};
-use utils::notify::notify_i18n;
-use utils::service_locator::ServiceLocator;
-use window_effect::enable_window_effect;
-use windows::Win32::Foundation::POINT;
-use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
-
+use tracing::{debug, info, warn};
+use zerolaunch_platform_windows::windows_capabilities;
+use zerolaunch_platform_windows::ComGuard;
+use zerolaunch_platform_windows::WindowsAppEnumerator;
+use zerolaunch_platform_windows::WindowsAppLauncher;
+use zerolaunch_platform_windows::WindowsAutoStartManager;
+use zerolaunch_platform_windows::WindowsClipboardProvider;
+use zerolaunch_platform_windows::WindowsIconExtractor;
+use zerolaunch_platform_windows::WindowsInstallationMonitor;
+use zerolaunch_platform_windows::WindowsLnkResolver;
+use zerolaunch_platform_windows::WindowsPathResolver;
+use zerolaunch_platform_windows::WindowsResourceLoader;
+use zerolaunch_platform_windows::WindowsSelectionProvider;
+use zerolaunch_platform_windows::WindowsShellExecutor;
+use zerolaunch_platform_windows::WindowsWindowHandleProvider;
+use zerolaunch_platform_windows::WindowsWindowManager;
+use zerolaunch_platform_windows::WindowsWindowPositioner;
+use zerolaunch_plugin_api::services::path::KnownPath;
+use zerolaunch_plugin_api::services::storage::storage_service::StorageService;
+use zerolaunch_plugin_api::services::timer::TokioTimerManager;
+use zerolaunch_plugin_api::services::AppResourceService;
+use zerolaunch_plugin_api::services::PathResolver;
 static IS_EXITING: AtomicBool = AtomicBool::new(false);
 
-pub async fn do_cleanup_before_exit() {
+pub async fn do_cleanup_before_exit(state: Arc<AppState>) {
     info!("执行退出前清理工作...");
-    save_config_to_file(false).await;
-    ServiceLocator::get_state()
-        .get_storage_manager()
-        .upload_all_file_force()
-        .await;
+    let config_manager = state.get_config_manager();
+    if let Err(e) = config_manager.save_to_storage() {
+        warn!("退出前配置保存失败: {}", e);
+    }
+    // 退出前同步到远程存储
+    let host_api = state.get_host_api();
+    crate::bootstrap::sync_config_to_remote(&config_manager, &host_api).await;
     log_application_shutdown();
     info!("退出前清理工作完成");
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // 初始化日志系统
-    let _log_guard = init_logging(None);
-
-    // 记录应用启动信息
+    // ========================================================================
+    // 阶段 1: 初始化日志系统
+    // ========================================================================
+    let path_resolver = Arc::new(WindowsPathResolver::new());
+    let log_dir = path_resolver.resolve_path(KnownPath::AppLogDir).unwrap();
+    let _log_guard = init_logging(&log_dir, None);
     log_application_start();
 
-    let com_init = unsafe { windows::Win32::System::Com::CoInitialize(None) };
-    if com_init.is_err() {
-        warn!("初始化com库失败：{:?}", com_init);
-    }
+    // 初始化 COM 库（主线程常驻，不释放）
+    let _com_guard = unsafe { ComGuard::init() };
+    std::mem::forget(_com_guard);
+
+    // ========================================================================
+    // 阶段 3: 构建 Tauri 应用
+    // ========================================================================
 
     let builder = tauri::Builder::default().plugin(tauri_plugin_shell::init());
     builder
-        .plugin(tauri_plugin_single_instance::init(|_app, _argv, _cwd| {
-            error!("当前已经运行了一个实例");
-            notify_i18n("zerolaunch-rs", "notifications.already_running");
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            use tauri_plugin_notification::NotificationExt;
+            let _ = app
+                .notification()
+                .builder()
+                .title("ZeroLaunch")
+                .body("程序已在运行中，无需重复启动")
+                .show();
         }))
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
+        .register_uri_scheme_protocol("zlplugin", move |app, request| {
+            let uri = request.uri().to_string();
+            let state = app.app_handle().state::<Arc<AppState>>();
+            let pm = state.get_plugin_manager();
+            match pm.handle_zlplugin_uri(&uri) {
+                Ok((bytes, mime)) => {
+                    let mut response = http::Response::new(bytes);
+                    response.headers_mut().insert(
+                        http::header::CONTENT_TYPE,
+                        http::HeaderValue::from_str(&mime).unwrap(),
+                    );
+                    response
+                }
+                Err(e) => {
+                    let msg = format!("zlplugin error: {}", e);
+                    http::Response::builder()
+                        .status(http::StatusCode::FORBIDDEN)
+                        .body(msg.into_bytes())
+                        .unwrap()
+                }
+            }
+        })
         .manage(Arc::new(AppState::new()))
-        .setup(|app| {
+        .setup(move |app| {
+            let app_data_dir = path_resolver.resolve_path(KnownPath::AppDataDir).unwrap();
+            let icon_cache_dir = path_resolver
+                .resolve_path(KnownPath::AppIconCacheDir)
+                .unwrap();
+            let config_dir = path_resolver.resolve_path(KnownPath::AppConfigDir).unwrap();
+
+            info!("应用数据目录: {}", app_data_dir);
+            info!("图标缓存目录: {}", icon_cache_dir);
+            info!("配置目录: {}", config_dir);
+
             tauri::async_runtime::block_on(async move {
-                // 阶段1: 基础资源初始化（无依赖）
-                info!("=== 阶段1: 基础资源初始化 ===");
+                info!("=== 核心服务初始化 ===");
+                bootstrap::init_app_state(
+                    app,
+                    path_resolver,
+                    app_data_dir,
+                    icon_cache_dir,
+                    config_dir,
+                )
+                .await;
 
-                info!("正在注册图标路径");
-                register_icon_path(app);
-
-                // 阶段2: 核心状态初始化（依赖基础资源）
-                info!("=== 阶段2: 核心状态初始化 ===");
-
-                info!("正在初始化应用状态和配置系统");
-                init_app_state(app).await;
-
-                // 阶段3: UI组件初始化（依赖核心状态）
-                info!("=== 阶段3: UI组件初始化 ===");
-
+                info!("=== UI 组件初始化 ===");
                 info!("正在初始化搜索栏窗口");
                 init_search_bar_window(app);
 
                 info!("正在初始化设置窗口");
                 init_setting_window(app.app_handle().clone());
 
-                info!("正在初始化系统托盘服务");
-                init_system_tray(app).await;
-
-                // 阶段4: 交互服务初始化（依赖UI组件）
-                info!("=== 阶段4: 交互服务初始化 ===");
-
-                info!("正在启动快捷键管理器");
-                start_shortcut_manager(app);
-
-                // 阶段5: 配置应用和外部服务（依赖所有核心组件）
-                info!("=== 阶段5: 配置应用和外部服务 ===");
-
-                info!("正在更新应用设置");
-                update_app_setting().await;
+                info!("正在初始化系统托盘");
+                let tray_manager = app
+                    .state::<Arc<AppState>>()
+                    .get_tray_manager()
+                    .expect("TrayManager not initialized");
+                tray_manager.init(app).await;
 
                 info!("正在注册深度链接");
-                app.deep_link()
-                    .register_all()
-                    .expect_programming("无法注册深度链接");
+                app.deep_link().register_all().expect("无法注册深度链接");
                 info!("深度链接注册成功");
 
-                app.deep_link().on_open_url(|event| {
+                let state_for_deeplink = app.state::<Arc<AppState>>().inner().clone();
+                app.deep_link().on_open_url(move |event| {
                     let urls = event.urls();
                     debug!("收到深度链接事件: {:?}", urls);
+                    let state = state_for_deeplink.clone();
                     tauri::async_runtime::spawn(async move {
-                        let state = ServiceLocator::get_state();
                         let waiting_hashmap = state.get_waiting_hashmap();
                         for url in urls {
-                            let domain = url.domain().expect_programming("URL缺少域名").to_string();
+                            let domain = url.domain().expect("URL缺少域名").to_string();
                             let mut pairs = Vec::new();
                             url.query_pairs().into_iter().for_each(|(key, value)| {
                                 pairs.push((key.to_string(), value.to_string()));
@@ -169,385 +172,161 @@ pub fn run() {
                         }
                     });
                 });
+
+                info!("应用启动完成");
             });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            command_save_remote_config,
-            load_program_icon,
-            get_program_count,
-            command_get_program_url_status,
-            launch_program,
-            get_program_info,
-            refresh_program,
-            handle_search_text,
-            handle_everything_search,
-            launch_everything_item,
-            everything_open_with_notepad,
-            everything_open_file_location,
-            everything_enable_path_match,
-            get_launch_template_info,
-            update_search_bar_window,
-            get_background_picture,
-            get_remote_config_dir,
-            select_background_picture,
-            hide_window,
-            show_setting_window,
-            show_welcome_window,
-            command_load_remote_config,
-            get_dominant_color,
-            command_get_latest_release_version,
-            test_search_algorithm,
-            test_search_algorithm_time,
-            test_index_app_time,
-            get_search_keys,
-            command_get_default_remote_data_dir_path,
-            command_load_local_config,
-            detect_installed_browsers,
-            read_browser_bookmarks,
-            get_bookmark_sources,
-            update_bookmark_sources,
-            get_bookmark_overrides,
-            update_bookmark_overrides,
-            command_save_local_config,
-            command_check_validation,
-            open_target_folder,
-            command_unregister_all_shortcut,
-            command_register_all_shortcut,
-            command_is_system_dark_mode,
-            command_open_icon_cache_dir,
-            command_get_system_fonts,
-            command_get_path_info,
-            command_get_latest_launch_program, //command_get_onedrive_refresh_token
-            command_read_file,
-            command_open_models_dir,
-            command_get_search_status_tip,
-            command_export_logs,
-            command_search_programs_lightweight,
-            command_update_program_icon,
-            command_add_forbidden_path,
-            command_get_program_path,
-            command_get_arch,
-            command_download_model,
-            get_everything_icon,
+            // Bridge: 搜索与会话管理
+            crate::commands::bridge::bridge_query,
+            crate::commands::bridge::bridge_confirm,
+            crate::commands::bridge::bridge_wake,
+            crate::commands::bridge::bridge_reset,
+            crate::commands::bridge::bridge_get_session_mode,
+            crate::commands::bridge::bridge_refresh_candidates,
+            crate::commands::bridge::bridge_get_candidates_count,
+            crate::commands::bridge::bridge_hide_window,
+            // Bridge: 配置管理
+            crate::commands::config_file::config_get_version,
+            crate::commands::config_file::config_get_all_components,
+            crate::commands::config_file::config_get_schema,
+            crate::commands::config_file::config_get_settings,
+            crate::commands::config_file::config_apply_settings,
+            crate::commands::config_file::config_reset_settings,
+            crate::commands::config_file::config_set_enabled,
+            crate::commands::config_file::config_get_actions,
+            crate::commands::config_file::config_execute_action,
+            // 资源管理
+            crate::commands::resource::resource_get,
+            crate::commands::resource::resource_upload,
+            // Plugin Inspector
+            crate::commands::inspector::inspector_get_state,
+            crate::commands::inspector::inspector_simulate_query,
+            // Third-party Plugin Management
+            crate::commands::plugin::plugin_list,
+            crate::commands::plugin::plugin_get_manifest,
+            crate::commands::plugin::plugin_install_local,
+            crate::commands::plugin::plugin_reload,
+            crate::commands::plugin::plugin_uninstall,
+            crate::commands::plugin::plugin_set_enabled,
+            crate::commands::plugin::plugin_get_logs,
+            crate::commands::cli::cli_get_info,
         ])
         .build(tauri::generate_context!())
-        .expect_programming("error while building tauri application")
+        .expect("error while building tauri application")
         .run(|app_handle, event| match event {
-            tauri::RunEvent::ExitRequested { api, .. } => {
-                if !IS_EXITING.load(Ordering::Relaxed) {
-                    info!("检测到退出请求，开始清理...");
-                    api.prevent_exit();
-                    IS_EXITING.store(true, Ordering::Relaxed);
+            tauri::RunEvent::ExitRequested { api, .. } if !IS_EXITING.load(Ordering::Relaxed) => {
+                info!("检测到退出请求，开始清理...");
+                api.prevent_exit();
+                IS_EXITING.store(true, Ordering::Relaxed);
 
-                    let app_handle = app_handle.clone();
-                    tauri::async_runtime::spawn(async move {
-                        do_cleanup_before_exit().await;
-                        info!("清理完成，正在退出程序...");
-                        app_handle.exit(0);
-                    });
-                }
+                let app_handle = app_handle.clone();
+                let state = app_handle.state::<Arc<AppState>>().inner().clone();
+                tauri::async_runtime::spawn(async move {
+                    do_cleanup_before_exit(state).await;
+                    info!("清理完成，正在退出程序...");
+                    app_handle.exit(0);
+                });
             }
-            tauri::RunEvent::WindowEvent { label, event, .. } => {
-                if label == "main" {
-                    if let tauri::WindowEvent::ThemeChanged(theme) = event {
-                        crate::tray::update_tray_icon_theme();
-                        let theme_str = match theme {
-                            tauri::Theme::Dark => "dark",
-                            tauri::Theme::Light => "light",
-                            _ => "light",
-                        };
-                        let _ = app_handle.emit("system-theme-changed", theme_str);
-                    }
+            tauri::RunEvent::WindowEvent {
+                label,
+                event: tauri::WindowEvent::ThemeChanged(theme),
+                ..
+            } if label == "main" => {
+                if let Some(tray_manager) = app_handle.state::<Arc<AppState>>().get_tray_manager() {
+                    tray_manager.update_icon_theme();
                 }
+                let theme_str = match theme {
+                    tauri::Theme::Dark => "dark",
+                    tauri::Theme::Light => "light",
+                    _ => "light",
+                };
+                let _ = app_handle.emit("system-theme-changed", theme_str);
             }
             _ => {}
         });
 }
 
-/// 初始化的流程-> 初始化程序的状态
-async fn init_app_state(app: &mut App) {
-    debug!("开始初始化应用状态");
-
-    // === 阶段1: 核心状态初始化 ===
-    let state = app.state::<Arc<AppState>>();
-    ServiceLocator::init((*state).clone());
-    debug!("ServiceLocator初始化完成");
-
-    let state = ServiceLocator::get_state();
-
-    // 立即设置app_handle，确保后续组件可以使用
-    state.set_main_handle(Arc::new(app.app_handle().clone()));
-    debug!("应用句柄设置完成");
-
-    // === 阶段2: 存储管理器初始化 ===
-    let create_and_show_welcome_page = move || {
-        info!("第一次启动程序或者更新程序，创建欢迎页面");
-        // 创建欢迎页面
-        let welcome_result =
-            tauri::WebviewWindowBuilder::new(app, "welcome", WebviewUrl::App("/welcome".into()))
-                .title("欢迎下载ZeroLaunch-rs! 此页面只会出现一次，用于提供基础的使用说明╰(*°▽°*)╯")
-                .visible(true)
-                .drag_and_drop(false)
-                .build();
-        let welcome = Arc::new(match welcome_result {
-            Err(e) => {
-                error!("创建welcome页面失败: {:?}", e);
-                return;
-            }
-            Ok(w) => w,
-        });
-        welcome
-            .set_size(LogicalSize::new(950, 500))
-            .expect_programming("无法设置欢迎窗口大小");
-        // 监听welcome页面关闭事件，更新welcome页面版本
-        welcome.on_window_event(move |event| {
-            if let tauri::WindowEvent::CloseRequested { .. } = event {
-                // 页面关闭时更新welcome页面版本
-                update_welcome_page_version_on_close();
-            }
-        });
-    };
-
-    let storage_manager = StorageManager::new(create_and_show_welcome_page).await;
-    // 立即设置存储管理器到状态中，使其可被其他组件使用
-    state.set_storage_manager(Arc::new(storage_manager));
-    debug!("存储管理器初始化并设置完成");
-
-    // === 阶段3: 配置系统初始化 ===
-    let storage_manager = state.get_storage_manager(); // 重新获取以使用Arc包装的版本
-    let remote_config_data = {
-        if let Some(data) = storage_manager
-            .download_file_str(REMOTE_CONFIG_NAME.to_string())
-            .await
-        {
-            data
-        } else {
-            storage_manager
-                .upload_file_str(
-                    REMOTE_CONFIG_NAME.to_string(),
-                    REMOTE_CONFIG_DEFAULT.clone(),
-                )
-                .await;
-            REMOTE_CONFIG_DEFAULT.clone()
-        }
-    };
-
-    let partial_config = load_string_to_runtime_config_(&remote_config_data);
-    let runtime_config = RuntimeConfig::new();
-    runtime_config.update(partial_config);
-
-    // 立即设置配置到状态中
-    state.set_runtime_config(Arc::new(runtime_config));
-    debug!("运行时配置初始化并设置完成");
-
-    // 立即应用日志级别配置
-    let runtime_config = state.get_runtime_config();
-    let app_config = runtime_config.get_app_config();
-    let log_level = app_config.get_log_level();
-    let tracing_level = tracing::Level::from(log_level);
-    if let Err(e) = update_log_level(tracing_level) {
-        warn!("更新日志级别失败: {}", e);
-    } else {
-        info!("日志级别已根据配置更新为: {:?}", tracing_level);
-    }
-
-    // 初始化翻译系统
-    let language = app_config.get_language();
-    utils::i18n::init_translator(&language);
-    info!("翻译系统已初始化，语言: {}", language);
-
-    // === 阶段4: 程序管理器初始化 ===
-    #[cfg(feature = "ai")]
-    let model_manager = Arc::new(ModelManager::new());
-
-    #[cfg(feature = "ai")]
-    let embedding_backend = semantic_backend::create_embedding_backend(model_manager.clone());
-
-    #[cfg(not(feature = "ai"))]
-    let embedding_backend = semantic_backend::create_embedding_backend();
-
-    let embedding_cache_bytes = if embedding_backend.is_some() {
-        state
-            .get_storage_manager()
-            .download_file_bytes(SEMANTIC_EMBEDDING_CACHE_FILE_NAME.to_string())
-            .await
-    } else {
-        None
-    };
-
-    // 初始化图标管理器
-    let image_loader_runtime_config = RuntimeIconManagerConfig {
-        default_app_icon_path: APP_PIC_PATH
-            .get("tips")
-            .expect_programming("无法获取默认应用图标路径")
-            .value()
-            .clone(),
-        default_web_icon_path: APP_PIC_PATH
-            .get("web_pages")
-            .expect_programming("无法获取默认网页图标路径")
-            .value()
-            .clone(),
-    };
-
-    let icon_manager = Arc::new(IconManager::new(image_loader_runtime_config));
-    state.set_icon_manager(icon_manager.clone());
-
-    // 初始化书签加载器
-    let bookmark_loader = Arc::new(BookmarkLoader::new());
-    let bookmark_loader_config = runtime_config.get_bookmark_loader_config();
-    bookmark_loader.load_from_config(&bookmark_loader_config);
-    state.set_bookmark_loader(bookmark_loader.clone());
-
-    // 初始化程序管理器
-    let runtime_program_config = RuntimeProgramConfig {
-        embedding_backend,
-        embedding_cache_bytes,
-        icon_manager,
-        bookmark_loader,
-    };
-
-    let program_manager = ProgramManager::new(runtime_program_config);
-    // 立即设置程序管理器到状态中
-    state.set_program_manager(Arc::new(program_manager));
-    debug!("程序管理器初始化并设置完成");
-
-    // 初始化刷新调度器
-    let refresh_scheduler_config = runtime_config.get_refresh_scheduler_config();
-    let refresh_scheduler = Arc::new(modules::refresh_scheduler::RefreshScheduler::new());
-
-    // 启动刷新调度器
-    refresh_scheduler.set_callback(|trigger| {
-        use modules::refresh_scheduler::RefreshTrigger;
-        match trigger {
-            RefreshTrigger::Timer => {
-                info!("定时刷新触发");
-            }
-            RefreshTrigger::InstallationMonitor => {
-                info!("安装监控刷新触发");
-            }
-            RefreshTrigger::Manual => {
-                info!("手动刷新触发");
-            }
-        }
-        tauri::async_runtime::spawn(async {
-            update_app_setting().await;
-        });
-    });
-
-    refresh_scheduler.update_config(refresh_scheduler_config.to_partial());
-
-    state.set_refresh_scheduler(refresh_scheduler);
-    debug!("刷新调度器初始化完成");
-
-    debug!("应用状态初始化完成");
+/// 配置 HostApiBuilder，注入所有 Windows 平台实现以及平台无关的默认组件。
+/// 返回预配置的 HostApiBuilder，调用方继续添加 Tauri 相关回调后调用 build()。
+fn build_windows_host_api_builder(
+    icon_cache_dir: String,
+    default_app_icon_path: String,
+    default_web_icon_path: String,
+    path_resolver: Arc<dyn PathResolver>,
+    default_storage: Arc<dyn StorageService>,
+    app_resource: Arc<AppResourceService>,
+) -> HostApiBuilder {
+    HostApi::builder(icon_cache_dir)
+        .capabilities(windows_capabilities())
+        .icon_extractor(Arc::new(WindowsIconExtractor::new(
+            default_app_icon_path,
+            default_web_icon_path,
+        )))
+        .shell_executor(Arc::new(WindowsShellExecutor::new()))
+        .window_manager(Arc::new(WindowsWindowManager::new()))
+        .path_resolver(path_resolver)
+        .app_enumerator(Arc::new(WindowsAppEnumerator::new()))
+        .app_launcher(Arc::new(WindowsAppLauncher::new()))
+        .lnk_resolver(Arc::new(WindowsLnkResolver::new()))
+        .resource_loader(Arc::new(WindowsResourceLoader::new()))
+        .parameter_resolver(Arc::new(
+            zerolaunch_plugin_api::services::parameter::DefaultParameterResolver::new(),
+        ))
+        .parameter_providers(
+            Arc::new(WindowsClipboardProvider),
+            Arc::new(WindowsWindowHandleProvider),
+            Arc::new(WindowsSelectionProvider),
+        )
+        .autostart_manager(Arc::new(WindowsAutoStartManager::new()))
+        .installation_monitor(Arc::new(WindowsInstallationMonitor::new()))
+        .timer_manager(Arc::new(TokioTimerManager::new()))
+        .storage_service(default_storage)
+        .app_resource(app_resource)
+        .window_positioner(Arc::new(WindowsWindowPositioner::new()))
 }
 
-/// 初始化搜索界面的窗口设置
+/// 初始化搜索栏窗口。
+///
+/// 注册焦点丢失回调（隐藏窗口 + 重置会话）。
+/// 窗口位置由后端热键回调在 show_window() 前统一计算和设置。
+///
+/// 窗口失焦检测由 FocusMonitor（push-based）统一管理，
+/// 本函数仅负责注册业务层回调，不直接处理窗口事件。
 fn init_search_bar_window(app: &mut App) {
-    let main_window = Arc::new(
-        app.get_webview_window("main")
-            .expect_programming("无法获取主窗口"),
-    );
-    // 设置tauri窗口的大小等参数
-    let monitor = main_window
-        .current_monitor()
-        .expect_programming("无法获取当前显示器")
-        .expect_programming("显示器信息为空");
-    // 获得了当前窗口的物理大小
-    let size = monitor.size();
-    let scale_factor = main_window.scale_factor().unwrap_or(1.0);
     let state = app.state::<Arc<AppState>>();
-    let config = state.get_runtime_config();
+    let host_api = state.get_host_api();
+    let session_router = state.get_session_router().clone();
+    let config_manager = state.get_config_manager();
+    let app_handle = state.get_main_handle();
 
-    config.get_window_state().update(PartialWindowState {
-        sys_window_scale_factor: Some(scale_factor),
-        sys_window_width: Some(size.width as Width),
-        sys_window_height: Some(size.height as Height),
-        sys_window_locate_height: Some(0),
-        sys_window_locate_width: Some(0),
-    });
+    // 注册焦点丢失回调：保存拖拽位置 → 隐藏窗口 → 重置会话 → 通知前端
+    let core_handle = state.get_core_handle();
+    let host_api_for_cb = host_api.clone();
+    let config_manager_for_cb = config_manager.clone();
+    let app_handle_for_cb = app_handle.clone();
+    core_handle.register_focus_callback(
+        "main_window_focus",
+        Arc::new(move |_event| {
+            let host_api = host_api_for_cb.clone();
+            let session_router = session_router.clone();
+            let config_manager = config_manager_for_cb.clone();
+            let app_handle = app_handle_for_cb.clone();
+            tauri::async_runtime::spawn(async move {
+                crate::window::save_window_position_if_drag(&config_manager, &app_handle);
+                host_api.hide_window().await;
 
-    update_window_size_and_position();
-    // 设置当窗口被关闭时，忽略
-    let windows_clone = main_window.clone();
-    main_window.on_window_event(move |event| {
-        if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-            // 阻止窗口关闭
-            api.prevent_close();
-            // 隐藏窗口
-            handle_focus_lost(windows_clone.clone());
-            debug!("隐藏设置窗口");
-        }
-        if let tauri::WindowEvent::Focused(focused) = event {
-            if !focused {
-                // 获取当前鼠标位置
-                let mut point = POINT { x: 0, y: 0 };
-                unsafe {
-                    let _ = GetCursorPos(&mut point);
+                let reset_plugins = config_manager
+                    .get_component_setting("general-config", "reset_session_on_wake")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(true);
+                if session_router.reset_session(reset_plugins) {
+                    let _ = app_handle.emit("session-reset", ());
                 }
-                let position = (point.x, point.y);
-                // 获取窗口位置和大小
-                if let Ok(window_position) = windows_clone.inner_position() {
-                    if let Ok(window_size) = windows_clone.inner_size() {
-                        // 检查鼠标是否在窗口内
-                        let in_window = position.0 >= window_position.x
-                            && position.0 <= window_position.x + window_size.width as i32
-                            && position.1 >= window_position.y
-                            && position.1 <= window_position.y + window_size.height as i32;
-                        // 只有当鼠标不在窗口内时才隐藏
-                        if !in_window {
-                            handle_focus_lost(windows_clone.clone());
-                        }
-                    }
-                }
-            }
-        }
-    });
-    // 初始化完成后就隐藏
-    handle_focus_lost(main_window.clone());
-}
-
-///注册图标的路径
-fn register_icon_path(app: &mut App) {
-    let path_resolver = app.path();
-    let resource_icons_dir = path_resolver
-        .resource_dir()
-        .expect_programming("无法获取资源目录")
-        .join("icons");
-
-    // 定义图标的键名和对应的文件名
-    // (键名, 文件名)
-    let icons_to_register = [
-        ("tray_icon", "32x32.png"),
-        ("tray_icon_white", "32x32-white.png"),
-        ("web_pages", "web_pages.png"),
-        ("tips", "tips.png"),
-        ("terminal", "terminal.png"),
-        ("settings", "settings.png"),
-        ("refresh", "refresh.png"),
-        ("register", "register.png"),
-        ("game", "game.png"),
-        ("exit", "exit.png"),
-    ];
-
-    for (key_name, file_name) in icons_to_register.iter() {
-        let icon_path = resource_icons_dir.join(file_name);
-        match icon_path.to_str() {
-            Some(path_str) => {
-                APP_PIC_PATH.insert(key_name.to_string(), path_str.to_string());
-            }
-            None => {
-                // 处理路径无法转换为 UTF-8 字符串的情况
-                // 在这个特定场景下，图标文件名通常是 ASCII/UTF-8，所以 .unwrap() 可能也能接受
-                // 但更健壮的做法是处理 None 的情况
-                warn!(
-                    "警告: 路径 {:?} 无法转换为有效的UTF-8字符串，跳过图标 '{}'",
-                    icon_path, key_name
-                );
-            }
-        }
-    }
+            });
+        }),
+    );
 }
 
 fn init_setting_window(app: tauri::AppHandle) {
@@ -556,318 +335,24 @@ fn init_setting_window(app: tauri::AppHandle) {
             tauri::WebviewWindowBuilder::new(
                 &app,
                 "setting_window",
-                WebviewUrl::App("/setting_window".into()),
+                WebviewUrl::App("/setting_window.html".into()),
             )
             .title("设置")
             .visible(false)
             .drag_and_drop(false)
             .build()
-            .expect_programming("无法创建设置窗口"),
+            .expect("无法创建设置窗口"),
         );
         setting_window
             .set_size(LogicalSize::new(950, 500))
-            .expect_programming("无法设置设置窗口大小");
+            .expect("无法设置设置窗口大小");
         let window_clone = Arc::clone(&setting_window);
         setting_window.on_window_event(move |event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                // 阻止窗口关闭
                 api.prevent_close();
-                // 隐藏窗口
-                window_clone.hide().expect_programming("无法隐藏设置窗口");
+                window_clone.hide().expect("无法隐藏设置窗口");
                 debug!("隐藏设置窗口");
             }
         });
-    });
-}
-
-fn apply_log_level(app_config: &AppConfig) {
-    let log_level = app_config.get_log_level();
-    let tracing_level = tracing::Level::from(log_level);
-    if let Err(e) = update_log_level(tracing_level) {
-        warn!("更新日志级别失败: {}", e);
-    } else {
-        info!("日志级别已根据配置动态更新为: {:?}", tracing_level);
-    }
-}
-
-fn apply_language_and_tray(app_config: &AppConfig) {
-    let language = app_config.get_language();
-    let previous_language = current_language();
-    switch_language(&language);
-    if previous_language != language {
-        update_tray_menu_language();
-    }
-}
-
-async fn load_or_initialize_semantic_store(storage_manager: &StorageManager) -> String {
-    match storage_manager
-        .download_file_str(SEMANTIC_DESCRIPTION_FILE_NAME.to_string())
-        .await
-    {
-        Some(data) => data,
-        None => {
-            let ret = "{}".to_string();
-            storage_manager
-                .upload_file_str(SEMANTIC_DESCRIPTION_FILE_NAME.to_string(), ret.clone())
-                .await;
-            ret
-        }
-    }
-}
-
-async fn reload_program_catalog(state: &AppState, runtime_config: &RuntimeConfig) {
-    let program_manager = state.get_program_manager();
-    let icon_manager = state.get_icon_manager();
-    let bookmark_loader = state.get_bookmark_loader();
-    #[cfg(target_arch = "x86_64")]
-    let everything_manager = state.get_everything_manager();
-    let storage_manager = state.get_storage_manager();
-    let semantic_store_str = load_or_initialize_semantic_store(storage_manager.as_ref()).await;
-
-    // 更新 IconManager 配置
-    let icon_manager_config = runtime_config.get_icon_manager_config();
-    icon_manager.load_from_config(icon_manager_config).await;
-
-    // 更新 EverythingManager 配置
-    #[cfg(target_arch = "x86_64")]
-    {
-        let everything_config = runtime_config.get_everything_config();
-        everything_manager.load_from_config(everything_config);
-    }
-
-    // 更新 BookmarkLoader 配置
-    let bookmark_loader_config = runtime_config.get_bookmark_loader_config();
-    bookmark_loader.load_from_config(&bookmark_loader_config);
-
-    // 重新加载程序目录
-    program_manager
-        .load_from_config(
-            runtime_config.get_program_manager_config(),
-            Some(semantic_store_str),
-        )
-        .await;
-}
-
-/// 更新程序的状态
-async fn update_app_setting() {
-    let state = ServiceLocator::get_state();
-    // 如果当前可见，则忽略更新
-    if state.get_search_bar_visible() {
-        return;
-    }
-
-    // 获取主窗口句柄用于发送事件
-    let handle = state.get_main_handle();
-    if let Err(e) = handle.emit("refresh_program_start", "") {
-        tracing::debug!(
-            "emit refresh_program_start failed (may be expected during startup): {:?}",
-            e
-        );
-    }
-
-    let runtime_config = state.get_runtime_config();
-    let app_config = runtime_config.get_app_config();
-
-    // 1. 动态更新日志级别
-    apply_log_level(app_config.as_ref());
-
-    // 2. 切换语言并刷新托盘
-    apply_language_and_tray(app_config.as_ref());
-
-    // 3. 重新更新程序索引的路径
-    reload_program_catalog(state.as_ref(), runtime_config.as_ref()).await;
-
-    // 4. 判断要不要开机自启动
-    if let Err(e) = handle_auto_start() {
-        // 可以添加错误处理逻辑
-        error!("自启动设置失败: {:?}", e);
-    }
-
-    // 5. 判断要不要静默启动
-    handle_silent_start();
-
-    // 6. 判断要不要更新当前的窗口大小
-    update_window_size_and_position();
-
-    // 7. 更新当前的窗口效果
-    enable_window_effect();
-
-    // 8. 更新快捷键的绑定
-    update_shortcut_manager();
-
-    // 9. 更新刷新调度器配置
-    let refresh_scheduler_config = runtime_config.get_refresh_scheduler_config();
-    state
-        .get_refresh_scheduler()
-        .update_config(refresh_scheduler_config.to_partial());
-
-    // 发送刷新结束事件
-    if let Err(e) = handle.emit("refresh_program_end", "") {
-        tracing::debug!("emit refresh_program_end failed: {:?}", e);
-    }
-
-    // 发送窗口更新事件
-    if let Err(e) = handle.emit("update_search_bar_window", "") {
-        eprintln!("发送窗口更新事件失败: {:?}", e);
-    }
-}
-
-/// 保存程序的配置信息
-/// 1. 将需要保存的东西保到配置信息中
-/// 2. 保存动态数据
-/// 3. 保存到文件中
-/// 4. 重新读取文件并更新配置信息
-pub async fn save_config_to_file(is_update_app: bool) {
-    info!("开始保存配置文件, is_update_app: {}", is_update_app);
-
-    let state = ServiceLocator::get_state();
-    let runtime_config = state.get_runtime_config();
-    debug!("获取运行时配置完成");
-
-    let program_manager_runtime_data = state.get_program_manager().get_runtime_data().await;
-    debug!("获取程序管理器运行时数据完成");
-    let window = state
-        .get_main_handle()
-        .get_webview_window("main")
-        .expect_programming("无法获取主窗口")
-        .inner_position()
-        .expect_programming("无法获取窗口位置");
-
-    let partial_app_config = PartialAppConfig {
-        window_position: Some((window.x, window.y)),
-        ..Default::default()
-    };
-
-    runtime_config.update(PartialRuntimeConfig {
-        app_config: Some(partial_app_config),
-        ui_config: None,
-        shortcut_config: None,
-        program_manager_config: Some(program_manager_runtime_data.runtime_data),
-        window_state: None,
-        icon_manager_config: None,
-        everything_config: None,
-        refresh_scheduler_config: None,
-        bookmark_loader_config: None,
-    });
-    let remote_config = runtime_config.to_partial();
-
-    let data_str = save_runtime_config_to_string(remote_config);
-    debug!("本地配置保存完成");
-
-    let storage_manager = state.get_storage_manager();
-
-    storage_manager
-        .upload_file_str(REMOTE_CONFIG_NAME.to_string(), data_str)
-        .await;
-    //保存一下描述性信息
-    storage_manager
-        .upload_file_str(
-            SEMANTIC_DESCRIPTION_FILE_NAME.to_string(),
-            program_manager_runtime_data.semantic_store_str,
-        )
-        .await;
-    if !program_manager_runtime_data.semantic_cache_bytes.is_empty() {
-        storage_manager
-            .upload_file_bytes(
-                SEMANTIC_EMBEDDING_CACHE_FILE_NAME.to_string(),
-                program_manager_runtime_data.semantic_cache_bytes,
-            )
-            .await;
-    }
-    debug!("远程配置上传完成");
-
-    if is_update_app {
-        let state = ServiceLocator::get_state();
-        state.get_refresh_scheduler().trigger_refresh();
-    }
-}
-
-/// 处理自动开机的逻辑
-pub fn handle_auto_start() -> Result<(), Box<dyn std::error::Error>> {
-    info!("开始处理自动启动配置");
-
-    let state: Arc<AppState> = ServiceLocator::get_state();
-
-    // 获取当前可执行文件的路径
-    let exe_path = std::env::current_exe().map_err(|e| format!("获取可执行文件路径失败: {}", e))?;
-
-    let exe_path_str = exe_path.to_str().ok_or("可执行文件路径包含无效字符")?;
-
-    let username = whoami::username();
-
-    let folder_name = "ZeroLaunch-rs";
-    let task_base_name = format!("autostart ({})", username);
-
-    let full_task_name = format!("{}\\{}", folder_name, task_base_name);
-
-    // 创建任务计划程序管理器
-    use crate::modules::task_scheduler::TaskScheduler;
-    let task_scheduler = TaskScheduler::new(full_task_name, exe_path_str);
-
-    // 获取运行时配置
-    let is_auto_start = {
-        let config = state.get_runtime_config();
-        config.get_app_config().get_is_auto_start()
-    };
-
-    // 根据配置强制更新自动启动状态 (这部分逻辑保持不变)
-    if is_auto_start {
-        info!("启用自动启动功能");
-        task_scheduler
-            .enable()
-            .map_err(|e| format!("启用自动启动失败: {}", e))?;
-        debug!("自动启动已启用");
-    } else {
-        info!("检查并禁用自动启动功能");
-        if task_scheduler
-            .is_enabled()
-            .map_err(|e| format!("检查自动启动状态失败: {}", e))?
-        {
-            debug!("检测到自动启动已启用，正在禁用");
-            task_scheduler
-                .disable()
-                .map_err(|e| format!("禁用自动启动失败: {}", e))?;
-        }
-    }
-
-    Ok(())
-}
-
-/// 处理静默启动
-pub fn handle_silent_start() {
-    use std::sync::Once;
-
-    static ONCE: Once = Once::new();
-
-    ONCE.call_once(|| {
-        let state: Arc<AppState> = ServiceLocator::get_state();
-        let runtime_config = state.get_runtime_config();
-        let app_config = runtime_config.get_app_config();
-        if !app_config.get_is_silent_start() {
-            notify_i18n("ZeroLaunch-rs", "notifications.app_started");
-        }
-    });
-}
-
-/// 当welcome页面关闭时更新welcome页面版本
-fn update_welcome_page_version_on_close() {
-    tauri::async_runtime::spawn(async {
-        let state = ServiceLocator::get_state();
-        let storage_manager = state.get_storage_manager();
-        // 获取当前welcome页面版本
-        let current_version = storage::storage_manager::WELCOME_PAGE_VERSION.to_string();
-
-        // 更新本地配置
-        let partial_config = storage::config::PartialLocalConfig {
-            storage_destination: None,
-            local_save_config: None,
-            webdav_save_config: None,
-            save_to_local_per_update: None,
-            version: None,
-            welcome_page_version: Some(current_version),
-        };
-
-        storage_manager.update(partial_config).await;
-        info!("已更新welcome页面版本到本地配置");
     });
 }

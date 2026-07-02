@@ -1,7 +1,6 @@
-pub mod browser_bookmarks;
+pub mod bridge;
+pub mod cli;
 pub mod config_file;
-pub mod debug;
-pub mod program_service;
-pub mod shortcut;
-pub mod ui_command;
-pub mod utils;
+pub mod inspector;
+pub mod plugin;
+pub mod resource;

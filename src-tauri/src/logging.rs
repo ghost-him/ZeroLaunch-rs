@@ -6,18 +6,29 @@
 //! - Panic处理
 //! - 日志文件清理
 
-use crate::error::OptionExt;
-use crate::modules::config::default::LOG_DIR;
 use backtrace::Backtrace;
 use chrono::{DateTime, Local};
 use std::fs::File;
 use std::io::Write;
 use std::panic;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 use tracing::{debug, error, info, warn, Level};
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_subscriber::{self, reload, EnvFilter};
+
+// ============================================================================
+// 日志系统常量
+// ============================================================================
+
+/// 默认日志文件名前缀
+pub const DEFAULT_LOG_FILE_PREFIX: &str = "info";
+
+/// 默认日志保留天数
+pub const DEFAULT_LOG_RETENTION_DAYS: i64 = 5;
+
+/// 全局日志目录（在初始化时设置）
+static LOG_DIR: OnceLock<PathBuf> = OnceLock::new();
 
 /// 全局日志级别重载句柄
 static LOG_RELOAD_HANDLE: OnceLock<reload::Handle<EnvFilter, tracing_subscriber::Registry>> =
@@ -40,9 +51,9 @@ impl Default for LoggingConfig {
     fn default() -> Self {
         Self {
             level: Level::DEBUG,
-            retention_days: 5,
+            retention_days: DEFAULT_LOG_RETENTION_DAYS,
             enable_console: true,
-            log_file_prefix: "info".to_string(),
+            log_file_prefix: DEFAULT_LOG_FILE_PREFIX.to_string(),
         }
     }
 }
@@ -51,34 +62,42 @@ impl Default for LoggingConfig {
 ///
 /// # Arguments
 ///
+/// * `log_dir` - 日志目录路径
 /// * `config` - 日志配置，如果为None则使用默认配置
 ///
 /// # Returns
 ///
 /// 返回日志守护者，需要保持其生命周期直到程序结束
-pub fn init_logging(config: Option<LoggingConfig>) -> tracing_appender::non_blocking::WorkerGuard {
+pub fn init_logging(
+    log_dir: impl Into<PathBuf>,
+    config: Option<LoggingConfig>,
+) -> tracing_appender::non_blocking::WorkerGuard {
+    let log_dir = log_dir.into();
     let config = config.unwrap_or_default();
 
+    // 设置全局日志目录
+    let _ = LOG_DIR.set(log_dir.clone());
+
     // 确保日志目录存在
-    if let Err(e) = std::fs::create_dir_all(&*LOG_DIR) {
+    if let Err(e) = std::fs::create_dir_all(&log_dir) {
         eprintln!("创建日志目录失败: {}", e);
     }
 
     // 打印系统信息
-    print_system_info();
+    print_system_info(&log_dir);
 
-    // 创建按日期滚动的日志文件
-    let file_appender = RollingFileAppender::new(
-        Rotation::DAILY,
-        LOG_DIR.clone(),
-        format!("{}.log", config.log_file_prefix),
-    );
+    // 创建按日期滚动的日志文件（prefix=前缀, suffix=后缀 → {prefix}.{date}.{suffix}）
+    let file_appender = RollingFileAppender::builder()
+        .rotation(Rotation::DAILY)
+        .filename_prefix(config.log_file_prefix.as_str())
+        .filename_suffix("log")
+        .build(log_dir.clone())
+        .expect("初始化日志文件 appender 失败");
 
     // 创建非阻塞的日志写入器
     let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
 
     // 创建可重载的过滤器
-    // 设置默认级别为 INFO，但对当前软件使用配置的级别
     let level_str = config.level.as_str().to_lowercase();
     let env_filter = EnvFilter::new("info")
         .add_directive(
@@ -98,10 +117,7 @@ pub fn init_logging(config: Option<LoggingConfig>) -> tracing_appender::non_bloc
     let _ = LOG_RELOAD_HANDLE.set(reload_handle);
 
     // 配置订阅者
-    // 在debug模式下，如果启用控制台输出则同时输出到文件和控制台
-    // 在release模式下，仅输出到文件
     if config.enable_console && cfg!(debug_assertions) {
-        // 同时输出到文件和控制台（仅在debug模式下）
         use tracing_subscriber::layer::SubscriberExt;
         use tracing_subscriber::util::SubscriberInitExt;
 
@@ -127,7 +143,6 @@ pub fn init_logging(config: Option<LoggingConfig>) -> tracing_appender::non_bloc
             .with(console_layer)
             .init();
     } else {
-        // 仅输出到文件（release模式或未启用控制台输出）
         use tracing_subscriber::layer::SubscriberExt;
         use tracing_subscriber::util::SubscriberInitExt;
 
@@ -149,15 +164,20 @@ pub fn init_logging(config: Option<LoggingConfig>) -> tracing_appender::non_bloc
     setup_panic_hook();
 
     // 清理旧日志文件
-    cleanup_old_logs(&LOG_DIR, config.retention_days);
+    cleanup_old_logs(&log_dir, config.retention_days);
 
     info!("日志系统初始化完成");
     info!("日志级别: {:?}", config.level);
     info!("日志保留天数: {}", config.retention_days);
-    info!("日志目录: {}", *LOG_DIR);
+    info!("日志目录: {}", log_dir.display());
     info!("启用特性: {}", format_enabled_features());
 
     guard
+}
+
+/// 获取日志目录
+pub fn get_log_dir() -> Option<&'static PathBuf> {
+    LOG_DIR.get()
 }
 
 /// 获取当前启用的 Cargo 特性列表
@@ -170,10 +190,6 @@ fn collect_enabled_features() -> Vec<&'static str> {
 
     if cfg!(feature = "portable") {
         features.push("portable");
-    }
-
-    if cfg!(feature = "ai") {
-        features.push("ai");
     }
 
     features
@@ -211,7 +227,6 @@ fn get_windows_version() -> String {
             let build_num: u32 = current_build.parse().unwrap_or(0);
             let mut os_name = product_name;
 
-            // Windows 11 的内部版本号从 22000 开始
             if build_num >= 22000 {
                 if os_name.contains("Windows 10") {
                     os_name = os_name.replace("Windows 10", "Windows 11");
@@ -236,8 +251,7 @@ fn get_windows_version() -> String {
 }
 
 /// 打印系统信息
-fn print_system_info() {
-    // 由于tracing还未初始化，这里使用println!输出到控制台
+fn print_system_info(log_dir: &Path) {
     println!("=== ZeroLaunch-rs 系统信息 ===");
     println!("应用版本: {}", env!("CARGO_PKG_VERSION"));
     println!(
@@ -251,26 +265,22 @@ fn print_system_info() {
         std::env::var("VERGEN_RUSTC_SEMVER").unwrap_or_else(|_| "未知".to_string())
     );
 
-    // 获取系统时间
     let now = Local::now();
     println!("启动时间: {}", now.format("%Y-%m-%d %H:%M:%S"));
 
-    // 获取工作目录
     if let Ok(current_dir) = std::env::current_dir() {
         println!("工作目录: {:?}", current_dir);
     }
 
-    // 获取可执行文件路径
     if let Ok(exe_path) = std::env::current_exe() {
         println!("可执行文件: {:?}", exe_path);
     }
 
-    // 获取环境变量信息
     if let Ok(user) = std::env::var("USERNAME") {
         println!("当前用户: {}", user);
     }
 
-    println!("日志目录: {}", *LOG_DIR);
+    println!("日志目录: {}", log_dir.display());
     println!("启用特性: {}", format_enabled_features());
     println!("==============================");
 }
@@ -278,9 +288,7 @@ fn print_system_info() {
 /// 设置panic处理钩子
 fn setup_panic_hook() {
     panic::set_hook(Box::new(|panic_info| {
-        let location = panic_info
-            .location()
-            .expect_programming("无法获取panic位置信息");
+        let location = panic_info.location().expect("无法获取panic位置信息");
         let message = match panic_info.payload().downcast_ref::<&str>() {
             Some(s) => *s,
             None => match panic_info.payload().downcast_ref::<String>() {
@@ -289,12 +297,16 @@ fn setup_panic_hook() {
             },
         };
 
-        let log_dir = LOG_DIR.clone();
-        let panic_file_path = Path::new(&log_dir)
-            .join("panic.log")
-            .to_str()
-            .expect_programming("无法转换panic日志路径为字符串")
-            .to_string();
+        // 尝试获取日志目录
+        let log_dir = LOG_DIR.get().cloned().unwrap_or_else(|| {
+            std::env::current_exe()
+                .ok()
+                .and_then(|p| p.parent().map(|d| d.to_path_buf()))
+                .map(|d| d.join("logs"))
+                .unwrap_or_else(|| PathBuf::from("."))
+        });
+
+        let panic_file_path = log_dir.join("panic.log");
 
         // 写入panic日志文件
         if let Ok(mut file) = File::create(&panic_file_path) {
@@ -308,12 +320,10 @@ fn setup_panic_hook() {
                 message
             );
 
-            // 获取并写入堆栈跟踪
             let backtrace = Backtrace::new();
             let _ = writeln!(file, "\n堆栈跟踪:");
             let _ = writeln!(file, "{:?}", backtrace);
 
-            // 写入系统信息
             let _ = writeln!(file, "\n系统信息:");
             let _ = writeln!(file, "应用版本: {}", env!("CARGO_PKG_VERSION"));
             let _ = writeln!(file, "操作系统: {}", get_windows_version());
@@ -324,15 +334,6 @@ fn setup_panic_hook() {
             }
         }
 
-        // 同时记录到tracing日志
-        error!(
-            "Panic发生: {} (位置: {}:{})",
-            message,
-            location.file(),
-            location.line()
-        );
-
-        // 输出到stderr
         eprintln!(
             "[PANIC] {} ({}:{})",
             message,
@@ -343,23 +344,18 @@ fn setup_panic_hook() {
 }
 
 /// 清理旧的日志文件
-///
-/// # Arguments
-///
-/// * `log_dir` - 日志目录路径
-/// * `retention_days` - 保留天数
-pub fn cleanup_old_logs(log_dir: &str, retention_days: i64) {
+pub fn cleanup_old_logs(log_dir: impl AsRef<Path>, retention_days: i64) {
+    let log_dir = log_dir.as_ref();
     debug!("开始清理旧日志文件，保留天数: {}", retention_days);
 
     let now: DateTime<Local> = Local::now();
     let mut cleaned_count = 0;
     let mut total_size_cleaned = 0u64;
 
-    // 读取日志目录中的所有文件
     let entries = match std::fs::read_dir(log_dir) {
         Ok(entries) => entries,
         Err(e) => {
-            error!("无法读取日志目录 '{}': {}", log_dir, e);
+            error!("无法读取日志目录 '{:?}': {}", log_dir, e);
             return;
         }
     };
@@ -367,20 +363,14 @@ pub fn cleanup_old_logs(log_dir: &str, retention_days: i64) {
     for entry in entries.flatten() {
         let path = entry.path();
         if path.is_file() {
-            // 获取文件的元数据
             if let Ok(metadata) = std::fs::metadata(&path) {
-                // 获取文件大小
                 let file_size = metadata.len();
 
-                // 获取文件的修改时间
                 if let Ok(modified) = metadata.modified() {
-                    // 将 SystemTime 转换为 DateTime
                     let modified_datetime: DateTime<Local> = modified.into();
-                    // 计算文件的年龄
                     let age = now.signed_duration_since(modified_datetime);
 
                     if age.num_days() > retention_days {
-                        // 删除文件
                         match std::fs::remove_file(&path) {
                             Ok(_) => {
                                 cleaned_count += 1;
@@ -434,7 +424,9 @@ pub fn log_application_start() {
         info!("当前用户: {}", user);
     }
 
-    info!("日志目录: {}", *LOG_DIR);
+    if let Some(log_dir) = LOG_DIR.get() {
+        info!("日志目录: {}", log_dir.display());
+    }
     info!("启用特性: {}", format_enabled_features());
     info!("==============================");
 }
@@ -460,7 +452,6 @@ pub fn log_performance_metrics(operation: &str, duration_ms: u64) {
 pub fn log_error_with_context(error: &dyn std::error::Error, context: &str) {
     error!("错误发生在 {}: {}", context, error);
 
-    // 记录错误链
     let mut source = error.source();
     let mut level = 1;
     while let Some(err) = source {
@@ -471,14 +462,6 @@ pub fn log_error_with_context(error: &dyn std::error::Error, context: &str) {
 }
 
 /// 动态更新日志级别
-///
-/// # Arguments
-///
-/// * `new_level` - 新的日志级别
-///
-/// # Returns
-///
-/// 如果更新成功返回Ok(())，否则返回错误信息
 pub fn update_log_level(new_level: Level) -> Result<(), String> {
     if let Some(handle) = LOG_RELOAD_HANDLE.get() {
         let level_str = new_level.as_str().to_lowercase();

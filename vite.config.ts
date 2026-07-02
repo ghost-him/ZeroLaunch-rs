@@ -1,7 +1,7 @@
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 import { copyFileSync, mkdirSync, existsSync, readdirSync } from "fs";
-import { join } from "path";
+import { join, resolve } from "path";
 
 const host = process.env.TAURI_DEV_HOST;
 
@@ -13,15 +13,12 @@ const copyI18nPlugin = () => {
     buildStart() {
       const srcLocalesDir = join(process.cwd(), 'src-ui', 'i18n', 'locales');
       const destDir = join(process.cwd(), 'src-tauri', 'locales');
-      
-      // 创建目标目录
+
+      if (!existsSync(srcLocalesDir)) return;
+
       if (!existsSync(destDir)) {
         mkdirSync(destDir, { recursive: true });
       }
-      if (!existsSync(destDir)) {
-        mkdirSync(destDir, { recursive: true });
-      }
-      // 复制locales文件夹中的所有文件
       try {
         const files = readdirSync(srcLocalesDir);
         files.forEach(file => {
@@ -29,7 +26,7 @@ const copyI18nPlugin = () => {
           const destFile = join(destDir, file);
           copyFileSync(srcFile, destFile);
         });
-        console.log(`✓ ${files.length} i18n locales files copied to src-tauri/locales/`);
+        console.log(`${files.length} i18n locales files copied to src-tauri/locales/`);
       } catch (error) {
         console.error('Failed to copy i18n locales:', error);
       }
@@ -39,6 +36,12 @@ const copyI18nPlugin = () => {
 
 export default defineConfig(async () => ({
   plugins: [vue(), copyI18nPlugin()],
+
+  resolve: {
+    alias: {
+      '@': resolve(__dirname, 'src-ui'),
+    },
+  },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
@@ -59,6 +62,15 @@ export default defineConfig(async () => ({
     watch: {
       // 3. tell vite to ignore watching `src-tauri`
       ignored: ["**/src-tauri/**"],
+    },
+  },
+
+  build: {
+    rollupOptions: {
+      input: {
+        main: resolve(__dirname, 'index.html'),
+        setting_window: resolve(__dirname, 'setting_window.html'),
+      },
     },
   },
 }));

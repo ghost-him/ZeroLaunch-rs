@@ -1,26 +1,30 @@
 import { createI18n } from 'vue-i18n'
-import en from './locales/en.json'
 import zhHans from './locales/zh-Hans.json'
-import zhHant from './locales/zh-Hant.json'
+import en from './locales/en.json'
 
-const i18n = createI18n({
+export type Locale = 'zh-Hans' | 'en'
+
+export const i18n = createI18n({
   legacy: false,
   locale: 'zh-Hans',
   fallbackLocale: 'en',
   messages: {
-    en,
     'zh-Hans': zhHans,
-    'zh-Hant': zhHant,
+    en,
   },
 })
 
-export const supportedLanguages = ['zh-Hans', 'zh-Hant', 'en']
-
-export const initializeLanguage = (language: string) => {
-  if (language && supportedLanguages.includes(language)) {
-    // @ts-ignore
-    i18n.global.locale.value = language
+export function getInitialLocale(): Locale {
+  // Will be overridden after backend config loads; system language as fallback
+  try {
+    const navLang = navigator.language
+    if (navLang.startsWith('zh')) return 'zh-Hans'
+    return 'en'
+  } catch {
+    return 'en'
   }
 }
 
-export default i18n
+export function setLocale(locale: Locale) {
+  i18n.global.locale.value = locale
+}

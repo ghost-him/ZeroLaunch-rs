@@ -41,7 +41,7 @@
 
 ## 📕 Introduction
 
-ZeroLaunch is a smart Windows launcher that understands your typing habits. It masters Pinyin and fuzzy search, and supports optional local AI semantic understanding, allowing for instant responses even with typos or vague search terms. Pure, offline, and born for efficiency.
+ZeroLaunch is a smart Windows launcher that understands your typing habits. It masters Pinyin and fuzzy search, allowing for instant responses even with typos or vague search terms. Pure, offline, and born for efficiency.
 
 > Existing launchers on the market didn't quite fit my needs, so I built one myself. It has become my capable assistant for daily work, so rest assured, I won't abandon this project~ (Updates might just be a bit slow sometimes (～￣▽￣)～).
 
@@ -59,7 +59,6 @@ ZeroLaunch is a smart Windows launcher that understands your typing habits. It m
 All searching and matching are done locally without any network connection. We adhere to zero data collection. Your data stays on your device forever.
 
 ### ⚡ Smart Search, Millisecond Response
-- **Optional AI Semantic Search**: Integrated with the EmbeddingGemma-300m local model, supporting natural language and multi-language intent retrieval for smarter understanding.
 - **Powerful Traditional Algorithms**: Based on self-developed matching algorithms, supporting full name, Pinyin, initial letter matching, and typo correction. Highly efficient with high fault tolerance.
 - **Extreme Performance Optimization**: Through data structure optimization, layered caching, on-demand loading, and concurrent processing, it ensures a millisecond-level response experience even on low-to-mid-range devices.
 
@@ -71,7 +70,6 @@ Focused on the core need of "launching quickly and accurately." Default settings
 ## 🔧 Core Features Overview
 
 ### 🎯 Core Search & Launch
-*   **AI Semantic Retrieval (Optional)**: Based on the lightweight and efficient EmbeddingGemma-300m local model, supports finding apps using natural language (e.g., "music software") while keeping privacy secure.
 *   **Application Search**: Quickly retrieve and launch traditional apps and UWP apps, supporting remarks, aliases, and localized name recognition.
 *   **Application Awake**: Smartly brings the windows of running programs to the front for quick task switching.
 *   **Open File Location**: Quickly locate files via the right-click menu.
@@ -135,15 +133,6 @@ This project uses CI/CD for automatic builds. When a new version is released, AI
 *   **Gitee Releases** (Mainland China): [https://gitee.com/ghost-him/ZeroLaunch-rs/releases](https://gitee.com/ghost-him/ZeroLaunch-rs/releases)
 *   **GitCode Releases** (Mainland China): [https://gitcode.com/ghost-him/ZeroLaunch-rs/releases](https://gitcode.com/ghost-him/ZeroLaunch-rs/releases)
 
-### 🧩 Version Explanation: AI Version vs Lite Version
-| Feature                | **AI Version (Default/Recommended)**                                               | **Lite Version**                                                                |
-| :--------------------- | :--------------------------------------------------------------------------------- | :------------------------------------------------------------------------------ |
-| **AI Semantic Search** | ✅ Supported (requires extra model download)                                        | ❌ Not Supported                                                                 |
-| **RAM Usage**          | ~500-550 MB when AI is enabled<br>Same as Lite when using only traditional search  | ~60-70 MB                                                                       |
-| **Installer ID**       | Filename **does not** contain `lite`, e.g.:<br>`zerolaunch-rs_0.x.x_x64-setup.exe` | Filename **contains** `lite`, e.g.:<br>`zerolaunch-rs_lite_0.x.x_x64-setup.exe` |
-
-**Developer Note**: Building the AI version requires enabling the `ai` feature; building the Lite version removes this feature. When using `xtask`, it defaults to building the AI version. To build the Lite version, add the `--ai disabled` argument.
-
 ## 🛠️ Developer Guide
 
 For detailed development guides, environment configuration, build steps, and contribution guidelines, please refer to [CONTRIBUTING.md](CONTRIBUTING.md).
@@ -204,16 +193,6 @@ We welcome the community to help translate more languages! Translation files are
 4.  Submit a Pull Request.
 
 Thank you for helping ZeroLaunch go global! 🙏
-
-## 📄 Third-Party Terms — EmbeddingGemma
-
-*   This project optionally integrates Google's EmbeddingGemma model, solely for offline semantic retrieval.
-*   Use and redistribution must comply with the [Gemma Terms of Use](https://ai.google.dev/gemma/terms) and [Prohibited Use Policy](https://ai.google.dev/gemma/prohibited_use_policy).
-*   If you redistribute this model or its derivatives, you must:
-    1.  Pass on the above restrictions in your agreement;
-    2.  Provide the recipient with a copy of the Gemma Terms;
-    3.  Mark modified files;
-    4.  Include a text file named `NOTICE` containing: `"Gemma is provided under and subject to the Gemma Terms of Use found at ai.google.dev/gemma/terms"`.
 
 ## ✍️ Code Signing
 

@@ -1,144 +1,104 @@
-//use crate::core::storage::onedrive::get_onedrive_refresh_token;
-use crate::core::storage::storage_manager::check_validation;
-use crate::modules::config::config_manager::PartialRuntimeConfig;
-use crate::modules::config::default::REMOTE_CONFIG_DEFAULT;
-use crate::modules::config::load_string_to_runtime_config_;
-use crate::save_config_to_file;
-use crate::storage::config::PartialLocalConfig;
-use crate::tray::update_tray_icon_theme;
-use crate::utils::service_locator::ServiceLocator;
-use crate::AppState;
-use crate::REMOTE_CONFIG_NAME;
+use crate::core::BridgeError;
+use crate::state::app_state::AppState;
 use std::sync::Arc;
-use tauri::Emitter;
-use tauri::Manager;
-use tauri::Runtime;
-use tracing::error;
+use zerolaunch_plugin_api::config::ConfigActionDef;
 
-/// 更新程序管理器的路径配置
+/// 获取应用版本号（从 Cargo.toml 编译时注入）
 #[tauri::command]
-pub async fn command_save_remote_config<R: Runtime>(
-    _app: tauri::AppHandle<R>,
+pub fn config_get_version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
+}
+
+/// 获取指定组件的配置动作列表
+#[tauri::command]
+pub fn config_get_actions(
     state: tauri::State<'_, Arc<AppState>>,
-    partial_config: PartialRuntimeConfig,
-) -> Result<(), String> {
-    use tracing::info;
-
-    info!("💾 开始保存远程配置");
-    println!("收到的远程配置: {:?}", partial_config);
-
-    let runtime_config = state.get_runtime_config();
-
-    runtime_config.update(partial_config);
-    info!("✅ 运行时配置已更新");
-
-    // Update tray icon if needed
-    update_tray_icon_theme();
-
-    save_config_to_file(true).await;
-    info!("💾 远程配置保存完成");
-
-    Ok(())
+    component_id: String,
+) -> Vec<ConfigActionDef> {
+    state.get_config_manager().get_config_actions(&component_id)
 }
 
+/// 执行指定组件的配置动作
 #[tauri::command]
-pub async fn command_load_local_config<R: Runtime>(
-    _app: tauri::AppHandle<R>,
-    _window: tauri::Window<R>,
+pub fn config_execute_action(
     state: tauri::State<'_, Arc<AppState>>,
-) -> Result<PartialLocalConfig, String> {
-    use tracing::info;
-
-    info!("📂 开始加载本地配置");
-
-    let storage_manager = state.get_storage_manager();
-
-    let config = storage_manager.to_partial().await;
-    info!("✅ 本地配置加载完成");
-
-    Ok(config)
+    component_id: String,
+    action: String,
+    params: Option<serde_json::Value>,
+) -> Result<serde_json::Value, BridgeError> {
+    let params = params.unwrap_or(serde_json::Value::Null);
+    state
+        .get_config_manager()
+        .execute_config_action(&component_id, &action, &params)
+        .map_err(BridgeError::internal)
 }
 
+/// 获取所有可配置组件的概览信息
 #[tauri::command]
-pub async fn command_save_local_config<R: Runtime>(
-    app: tauri::AppHandle<R>,
-    _window: tauri::Window<R>,
+pub fn config_get_all_components(
     state: tauri::State<'_, Arc<AppState>>,
-    partial_config: PartialLocalConfig,
-) -> Result<(), String> {
-    use tracing::{debug, info, warn};
-
-    info!("💾 开始保存本地配置");
-
-    let storage_manager = state.get_storage_manager();
-
-    debug!("📤 强制上传所有文件");
-    storage_manager.upload_all_file_force().await;
-
-    debug!("🔄 更新存储管理器配置");
-    storage_manager.update(partial_config).await;
-
-    let runtime_config = state.get_runtime_config();
-
-    debug!("📥 获取远程配置数据");
-    let remote_config_data = {
-        if let Some(data) = storage_manager
-            .download_file_str(REMOTE_CONFIG_NAME.to_string())
-            .await
-        {
-            debug!("✅ 从远程下载配置成功");
-            data
-        } else {
-            debug!("📤 远程配置不存在，上传默认配置");
-            storage_manager
-                .upload_file_str(
-                    REMOTE_CONFIG_NAME.to_string(),
-                    REMOTE_CONFIG_DEFAULT.clone(),
-                )
-                .await;
-            REMOTE_CONFIG_DEFAULT.clone()
-        }
-    };
-
-    debug!("🔄 加载并更新运行时配置");
-    let partial_config = load_string_to_runtime_config_(&remote_config_data);
-    runtime_config.update(partial_config);
-
-    debug!("⚙️ 更新应用设置");
-    let state = ServiceLocator::get_state();
-    state.get_refresh_scheduler().trigger_refresh();
-
-    let setting_window = match app.get_webview_window("setting_window") {
-        Some(window) => window,
-        None => {
-            warn!("❌ 获取设置窗口失败");
-            return Err("Failed to get setting window".to_string());
-        }
-    };
-
-    if let Err(e) = setting_window.emit("emit_update_setting_window_config", "") {
-        error!("向 setting_window 发送信号失败: {:?}", e);
-    } else {
-        debug!("📡 设置窗口更新信号发送成功");
-    }
-
-    info!("✅ 本地配置保存完成");
-    Ok(())
+) -> Vec<crate::core::config::ComponentInfo> {
+    state.get_config_manager().get_all_components()
 }
 
+/// 获取指定组件的配置 Schema
 #[tauri::command]
-pub async fn command_check_validation<R: Runtime>(
-    _app: tauri::AppHandle<R>,
-    _window: tauri::Window<R>,
-    partial_config: PartialLocalConfig,
-) -> Result<Option<PartialLocalConfig>, String> {
-    Ok(check_validation(partial_config).await)
+pub fn config_get_schema(
+    state: tauri::State<'_, Arc<AppState>>,
+    component_id: String,
+) -> Result<crate::core::config::ComponentSchema, BridgeError> {
+    state
+        .get_config_manager()
+        .get_component_schema(&component_id)
+        .ok_or_else(|| BridgeError::not_found(&component_id))
 }
 
-// #[tauri::command]
-// pub async fn command_get_onedrive_refresh_token<R: Runtime>(
-//     app: tauri::AppHandle<R>,
-//     window: tauri::Window<R>,
-// ) -> Result<String, String> {
-//     get_onedrive_refresh_token(window).await
-// }
+/// 获取指定组件的当前配置值
+#[tauri::command]
+pub fn config_get_settings(
+    state: tauri::State<'_, Arc<AppState>>,
+    component_id: String,
+) -> Result<serde_json::Value, BridgeError> {
+    state
+        .get_config_manager()
+        .get_settings(&component_id)
+        .ok_or_else(|| BridgeError::not_found(&component_id))
+}
+
+/// 应用配置到指定组件
+#[tauri::command]
+pub fn config_apply_settings(
+    state: tauri::State<'_, Arc<AppState>>,
+    component_id: String,
+    settings: serde_json::Value,
+) -> Result<(), BridgeError> {
+    state
+        .get_config_manager()
+        .apply_settings(&component_id, settings)
+        .map_err(BridgeError::from)
+}
+
+/// 重置组件配置为默认值
+#[tauri::command]
+pub fn config_reset_settings(
+    state: tauri::State<'_, Arc<AppState>>,
+    component_id: String,
+) -> Result<(), BridgeError> {
+    state
+        .get_config_manager()
+        .reset_to_default(&component_id)
+        .map_err(BridgeError::from)
+}
+
+/// 设置组件启用状态
+#[tauri::command]
+pub fn config_set_enabled(
+    state: tauri::State<'_, Arc<AppState>>,
+    component_id: String,
+    enabled: bool,
+) -> Result<(), BridgeError> {
+    state
+        .get_config_manager()
+        .set_enabled(&component_id, enabled)
+        .map_err(BridgeError::from)
+}

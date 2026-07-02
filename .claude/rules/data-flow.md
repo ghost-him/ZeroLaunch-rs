@@ -1,9 +1,10 @@
 ---
 paths:
   - "src-tauri/src/commands/**"
-  - "src-tauri/src/plugin_system/**"
+  - "src-tauri/src/plugin_framework/**"
   - "src-tauri/src/core/**"
-  - "src-tauri/src/plugin/**"
+  - "src-tauri/src/builtin_plugin/**"
+  - "src-ui/bridge/**"
 ---
 
 # 数据流规范

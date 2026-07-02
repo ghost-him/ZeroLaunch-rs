@@ -76,7 +76,7 @@ paths:
 
 ## 返回类型约定
 
-- 命令返回 `Result<T, BridgeError>`。`BridgeError` 在 `core/types/bridge_error.rs` 中定义
+- 命令返回 `Result<T, BridgeError>`。`BridgeError` 在 `core/bridge_error.rs` 中定义
 - `BridgeError` 包含 `code`（ErrorCode 枚举）和 `message`（人类可读描述）
 - **正确**：`BridgeError::not_found(&component_id)` — 组件未找到
 - **正确**：`BridgeError::internal(error_string)` — 内部错误

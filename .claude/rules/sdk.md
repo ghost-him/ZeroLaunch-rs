@@ -1,14 +1,16 @@
 ---
 paths:
-  - "src-tauri/src/sdk/**"
+  - "src-tauri/src/sdk.rs"
+  - "crates/plugin-api/src/**"
+  - "crates/platform-windows/src/**"
 ---
 
 # SDK / 平台抽象层规范
 
 ## 平台抽象
 
-- SDK 层 **只** 提供平台能力（trait 定义 + 平台实现），**不** 关心用户配置。用户配置的读取、校验、持久化由 Configurable 组件（`core/config/components/` 或 `plugin/`）负责
-- SDK 定义 **能力契约**（trait），调用逻辑（何时/如何调用平台服务）属于 `core/config/components/`（业务配置组件）
+- SDK 层 **只** 提供平台能力（trait 定义 + 平台实现），**不** 关心用户配置。用户配置的读取、校验、持久化由 Configurable 组件（`builtin_plugin/config/` 或 `builtin_plugin/`）负责
+- SDK 定义 **能力契约**（trait），调用逻辑（何时/如何调用平台服务）属于 `builtin_plugin/config/`（业务配置组件）
 - 每个平台能力包含三部分：
   1. `crates/plugin-api/src/services/<capability>/` 中的 trait（如 `IconExtractor`、`ShellExecutor`、`HotkeyManager`）
   2. `crates/platform-windows/src/` 中的平台实现（如 `WindowsIconExtractor`）
@@ -20,7 +22,7 @@ paths:
 
 | | HostApi（特权对象） | PluginHandle（通用句柄） |
 |---|---|---|
-| **位置** | `src-tauri/src/sdk/host_api.rs` | `crates/plugin-api/src/host/plugin_handle.rs` |
+| **位置** | `src-tauri/src/sdk.rs` | `crates/plugin-api/src/host/plugin_handle.rs` |
 | **可见性** | 宿主内部，插件不可见 | 通过 `HostApi::register()` 获取 |
 | **职责** | 窗口控制、全局生命周期管理 | 图标、shell、路径、回调注册等通用服务 |
 | **典型方法** | `hide_window`, `show_window`, `compute_window_position`, `update_icon_cache_dir`, `capture_parameter_snapshot`, `apply_autostart_setting` | `get_icon`, `shell_open`, `resolve_path`, `enumerate_apps`, `register_hotkey_callback` |
@@ -61,7 +63,7 @@ paths:
 
 - 能力域 trait 定义在 `crates/plugin-api/src/services/<domain>/`，平台实现在 `crates/platform-windows/src/`
 - 每个能力域包含：`mod.rs`（重新导出）、一个 trait 文件、以及按需的 `types.rs`（共享类型）
-- `src-tauri/src/sdk/` 现为 re-export 桥，类型本体在 plugin-api
+- `src-tauri/src/sdk.rs` 现为 re-export 桥，类型本体在 plugin-api
 
 ## 当前已实现的能力域（以代码为准）
 
@@ -99,5 +101,5 @@ SDK 已拆分为多 crate workspace：
 
 - **新增 SDK trait**：在 `crates/plugin-api/src/services/<domain>/` 定义，在 `crates/platform-windows/src/` 实现
 - **插件作者只依赖** `zerolaunch-plugin-api`，不需要 Tauri / Windows / 主程序源码
-- **src-tauri 中的 sdk/** 现为 re-export 桥，类型本体在 plugin-api
+- **src-tauri 中的 sdk.rs** 现为 re-export 桥，类型本体在 plugin-api
 - **共享编解码器**：LSP `Content-Length` 帧编解码在 `crates/plugin-protocol/src/codec.rs` 中定义，由 `plugin-host` 和 `plugin-sdk-rust` 共享，避免重复实现

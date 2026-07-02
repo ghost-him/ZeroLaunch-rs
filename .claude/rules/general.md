@@ -58,7 +58,7 @@ paths:
 
 ## 冒烟测试
 
-- 任何涉及 `sdk/`、`core/`、`plugin_system/` 或 `commands/` 的改动后，至少验证 `cargo check` 零错误通过。
+- 任何涉及 `sdk.rs`、`core/`、`plugin_framework/` 或 `commands/` 的改动后，至少验证 `cargo check` 零错误通过。
 
 ## AppState 访问规范
 
@@ -69,7 +69,6 @@ paths:
 
 ## 文件命名约定
 
-- Rust 文件名 **必须** 使用 `snake_case`
 - Vue 组件文件名使用 `PascalCase`（如 `DynamicForm.vue`）
 - TypeScript 工具文件使用 `camelCase`（如 `schemaTypes.ts`）
 - Store 文件使用 `kebab-case` + `-store` 后缀（如 `config-store.ts`）

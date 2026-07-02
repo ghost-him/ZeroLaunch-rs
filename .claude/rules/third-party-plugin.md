@@ -3,9 +3,11 @@ paths:
   - "crates/plugin-protocol/**"
   - "crates/plugin-host/**"
   - "crates/plugin-sdk-rust/**"
-  - "src-tauri/src/plugin_system/**"
+  - "src-tauri/src/plugin_framework/**"
   - "src-tauri/src/cli_server/**"
   - "src-tauri/src/commands/plugin.rs"
+  - "crates/plugin-api/src/plugin/**"
+  - "crates/plugin-api/src/host/**"
 ---
 
 # 第三方插件运行时规范
@@ -14,7 +16,7 @@ paths:
 
 第三方插件以**子进程 + stdio JSON-RPC 2.0** 方式运行。宿主通过 `plugin-host` crate 管理子进程生命周期，通过 `RemotePluginAdapter` 将 JSON-RPC 调用适配为 Plugin/DataSource/ActionExecutor trait。
 
-**宿主侧入口**集中在 `src-tauri/src/plugin_system/`：
+**宿主侧入口**集中在 `src-tauri/src/plugin_framework/`：
 - `manager.rs` — 第三方插件生命周期管理（加载、卸载、发现、崩溃恢复），唯一入口
 - `host_handler.rs` — 子进程 Host 管理（spawn、健康监控、优雅关闭）
 - `plugin_installer.rs` — 插件安装/卸载逻辑（从 manager.rs 提取）
@@ -53,7 +55,7 @@ paths:
 ## HostDispatch（反向调用）
 
 - 插件通过 `host/*` RPC 调宿主 API
-- 在 src-tauri 侧由 `plugin_system/host_handler.rs` 实现 `HostCallHandler` trait，路由到 `PluginHandle` 方法
+- 在 src-tauri 侧由 `plugin_framework/host_handler.rs` 实现 `HostCallHandler` trait，路由到 `PluginHandle` 方法
 - `host/resource.*` 调用 **必须** 校验 `plugin_id` 命名空间
 
 ## CLI HTTP 服务器
@@ -61,10 +63,11 @@ paths:
 - 监听 `127.0.0.1:0`（随机端口），Bearer token 认证
 - Token 持久化到 `cli-token.json`
 - 路由前缀 `/v1`，共享 plugin-api 数据模型
+- **只读约束**：CLI HTTP API **仅** 提供只读查询端点（`zl query`）。可写端点已移除。新增端点也 **必须** 保持只读
 
 ## 自定义协议 zlplugin://
 
-- 处理入口：`src-tauri/src/plugin_system/zlplugin_protocol.rs`
+- 处理入口：`src-tauri/src/plugin_framework/zlplugin_protocol.rs`
 - 仅允许 `ui/` 子路径
 - **必须** canonicalize 后校验在 plugin 目录内（防路径遍历）
 - MIME 推断基于文件扩展名

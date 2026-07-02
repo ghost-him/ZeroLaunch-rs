@@ -1,7 +1,9 @@
 ---
 paths:
-  - "src-tauri/src/plugin/**"
-  - "src-tauri/src/plugin_system/**"
+  - "src-tauri/src/builtin_plugin/**"
+  - "src-tauri/src/plugin_framework/**"
+  - "crates/plugin-api/src/plugin/**"
+  - "crates/plugin-api/src/host/**"
 ---
 
 # 插件系统规范
@@ -10,14 +12,15 @@ paths:
 
 - 内置组件通过 `inventory` crate 实现编译期自动发现。新增组件 **无需** 修改 `lib.rs`
 - 每个组件文件底部通过 `::inventory::submit!` 块注册。`lib.rs` 的 `init_plugin_system` 在启动时通过 `builtin_registry::register_all_builtin_components()` 遍历所有条目并统一注册
-- 7 种 Entry 类型对应 7 种组件类别：`ExecutorEntry`、`DataSourceEntry`、`KeywordOptimizerEntry`、`SearchEngineEntry`、`ScoreBoosterEntry`、`PluginEntry`、`CoreComponentEntry`
+- 7 种 Entry 类型对应 7 种组件类别：`ExecutorEntry`、`DataSourceEntry`、`KeywordOptimizerEntry`、`SearchEngineEntry`、`ScoreBoosterEntry`、`PluginEntry`、`ConfigEntry`
 - `InventoryContext` 负责懒创建并缓存 `PluginHandle`，相同 `handle_key` 的组件共享同一个 handle
+- `ConfigEntry` 配合 `ConfigComponentFactory` 用于纯配置组件（仅实现 `Configurable`，无其他领域 trait）
 - 新增组件的步骤：在对应目录创建 .rs 文件 → 实现 trait → 添加 `inventory::submit!` 块 → `cargo build` 即自动生效
 
 ## Plugin Inspector (feature = "inspector")
 
 - 开发用调试面板，**仅** 在 `cargo build --features inspector` 时启用
-- 后端：`plugin_system/inspector.rs` 维护 ring buffer (容量 200)，记录每次 `bridge_query` 的 trace_id、raw_query、mode、耗时
+- 后端：`plugin_framework/inspector.rs` 维护 ring buffer (容量 200)，记录每次 `bridge_query` 的 trace_id、raw_query、mode、耗时
 - IPC：`inspector_get_state` 返回已注册组件清单 + 最近查询日志；`inspector_simulate_query` 手动模拟查询返回原始 QueryResponse
 - 前端：设置页 > 插件检查器 tab，包含组件清单表格、查询日志、模拟器
 
@@ -35,7 +38,7 @@ paths:
 
 ## PluginHandle 使用
 
-- 插件 **必须** 通过 `PluginHandle`（从 `HostApi::register()` 获取）访问平台能力。可用方法列表见 `PluginHandle` 源码（`src-tauri/src/sdk/host_api.rs`）
+- 插件 **必须** 通过 `PluginHandle`（从 `HostApi::register()` 获取）访问平台能力。可用方法列表见 `PluginHandle` 源码（`src-tauri/src/sdk.rs`）
 - 如果某平台操作没有 `PluginHandle` 方法，**必须** 先添加到 `PluginHandle` 再使用
 
 ## 配置存储模式
@@ -44,7 +47,7 @@ paths:
 
 `apply_settings()` 中 **必须** 使用 `serde_json::from_value::<Settings>(settings).unwrap_or_default()` 反序列化，然后写入 `RwLock`。**禁止** 在 `apply_settings()` 中做解析、校验或副作用。
 
-## 核心配置组件模式（core/config/components/ 中的组件）
+## 核心配置组件模式（builtin_plugin/config/ 中的组件）
 
 - 核心配置组件（HotkeyConfig、AppearanceConfig 等）可使用更复杂的内部状态
 - 可持有 `Arc<HostApi>` 用于在 `on_settings_changed()` 中调用平台服务
@@ -70,9 +73,12 @@ paths:
 
 ## 事件驱动解耦
 
-- `PluginManager`（`plugin_system/manager.rs`）不再持有 `ConfigManager` 直接引用。通过 `PluginRuntimeEvent` 广播通道与 `ConfigManager`、`SessionRouter` 事件驱动解耦
-- `PluginRuntimeEvent` 替代了已删除的 `AdapterRegistrar`（`plugin_system/adapter_registrar.rs`）
-- `CoreComponentEntry` 定义在 `core/config/core_registry.rs`（非 `plugin_system/builtin_registry.rs`），打破 `core/config/components` → `plugin_system` 反向依赖循环
+- `PluginManager`（`plugin_framework/manager.rs`）不再持有 `ConfigManager` 直接引用。通过双通道事件总线与 `ConfigManager`、`SessionRouter` 事件驱动解耦：
+  1. `PluginRuntimeEvent` 通道 — `PluginManager` 发布插件生命周期事件（加载/卸载/崩溃）
+  2. `ConfigEvent` 通道 — `ConfigManager` 发布配置变更事件
+  3. 三层解耦：`PluginManager` → `PluginRuntimeEvent` → `ConfigManager`（监听并同步注册/解注册） → `ConfigEvent` → `SessionRouter`（监听并重建管道）
+- `PluginRuntimeEvent` 替代了已删除的 `AdapterRegistrar`（`plugin_framework/adapter_registrar.rs`）
+- `ConfigEntry` 通过 `builtin_plugin/config/` 中的纯配置组件在 `builtin_registry.rs` 中注册（无需单独的 `core_registry.rs`），内置组件的所有 Entry 类型统一在 `builtin_registry` 中管理，消除循环依赖
 
 ## 依赖方向
 

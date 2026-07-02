@@ -2,6 +2,7 @@
 paths:
   - "src-tauri/src/core/config/**"
   - "src-tauri/src/commands/config_file.rs"
+  - "crates/plugin-api/src/config/**"
 ---
 
 # Config 系统规范
@@ -21,6 +22,8 @@ paths:
    - **允许**：spawn async task 注册热键、重启监听器、发送通知等
 4. 通过广播通道发布 `ConfigEvent`
 5. `save_to_storage()` — 持久化到本地 JSON，然后可选远程同步
+
+双通道事件总线：`ConfigManager` 同时是 `PluginRuntimeEvent` 的监听端，接收来自 `PluginManager` 的插件生命周期事件（加载/卸载），自动同步注册或解注册对应组件配置，再通过 `ConfigEvent` 通知 `SessionRouter` 重建管道。三层解耦：`PluginManager → PluginRuntimeEvent → ConfigManager → ConfigEvent → SessionRouter`。
 
 如果校验（步骤 1）失败，后续步骤 **不得** 执行。
 广播事件（步骤 4）**无论** 持久化成功与否都会触发。

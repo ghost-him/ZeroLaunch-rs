@@ -29,14 +29,16 @@ ZeroLaunch-rs/                          ← Cargo workspace 根
 │   └── platform-windows/               ← zerolaunch-platform-windows
 │       └── src/                        ← Windows 平台 trait 实现 + windows_capabilities()
 ├── zerolaunch-cli/                     ← zerolaunch-cli (独立 bin crate)
-├── plugin-template/                    ← Rust 第三方插件项目模板
+├── plugin-template/                    ← Rust 第三方插件项目模板（不在 workspace，显式 exclude）
 └── src-tauri/                          ← zerolaunch-rs（主程序）
     └── src/
         ├── bootstrap.rs               ← 应用启动初始化（从 lib.rs 提取）
-        ├── sdk/                        ← re-export 桥（类型本体在 plugin-api / platform-windows）
+        ├── sdk.rs                      ← re-export 桥（类型本体在 plugin-api / platform-windows）
         ├── core/                       ← ConfigManager, ConfigStore, 核心配置组件
-        ├── plugin/                     ← 内置插件实现（具体数量以代码为准）
-        ├── plugin_system/              ← SessionRouter, Pipeline, Registry, PluginManager
+        ├── builtin_plugin/             ← 内置插件实现（具体数量以代码为准）
+        ├── plugin_framework/           ← SessionRouter, Pipeline, Registry, PluginManager
+        ├── tray/                       ← 系统托盘管理
+        ├── window/                     ← 窗口位置工具函数
         ├── commands/                   ← IPC 命令薄代理
         ├── state/                      ← AppState
         └── utils/                      ← 通用工具
@@ -47,7 +49,7 @@ ZeroLaunch-rs/                          ← Cargo workspace 根
 - **第三方插件作者**只依赖 `zerolaunch-plugin-api`，不需要 Tauri / Windows / 主程序源码
 - **新增 SDK trait**：在 `crates/plugin-api/src/services/<domain>/` 定义
 - **新增 Windows 实现**：在 `crates/platform-windows/src/` 实现对应的 trait
-- **src-tauri 中的 sdk/** 现为 re-export 桥，类型本体已迁至 plugin-api
+- **src-tauri 中的 sdk.rs** 现为 re-export 桥，类型本体已迁至 plugin-api
 
 ## 后端 (src-tauri/src/)
 
@@ -55,27 +57,21 @@ ZeroLaunch-rs/                          ← Cargo workspace 根
 
 | 目录 | 职责 | 可引用 | 禁止 |
 |------|------|--------|------|
-| `sdk/` | re-export 桥（类型本体在 plugin-api / platform-windows） | 无外部依赖 | 引用 core/、plugin/、plugin_system/ |
-| `core/` | 业务核心：ConfigManager、Configurable trait、类型定义 | sdk/ | 引用 plugin/、plugin_system/ |
-| `plugin/` | 插件实现：DataSource、Executor、SearchEngine 等 | sdk/、core/ | 引用 plugin_system/ |
-| `plugin_system/` | 插件框架：SessionRouter、Pipeline、Registry、PluginManager | sdk/、core/、plugin/ | 被其他层反向引用 |
+| `sdk.rs` | re-export 桥（类型本体在 plugin-api / platform-windows） | 无外部依赖 | 引用 core/、builtin_plugin/、plugin_framework/ |
+| `core/` | 业务核心：ConfigManager、Configurable trait、类型定义 | sdk.rs | 引用 builtin_plugin/、plugin_framework/ |
+| `builtin_plugin/` | 内置插件实现：DataSource、Executor、SearchEngine 等 | sdk.rs、core/ | 引用 plugin_framework/ |
+| `plugin_framework/` | 插件框架：SessionRouter、Pipeline、Registry、PluginManager | sdk.rs、core/、builtin_plugin/ | 被其他层反向引用 |
+| `tray/` | 系统托盘管理 | state/ | 包含业务逻辑 |
+| `window/` | 窗口位置工具函数 | 无外部依赖 | 包含业务逻辑 |
 | `commands/` | IPC 命令：薄代理层，仅委托 | 全部 | 包含业务逻辑 |
-| `state/` | AppState 定义 | core/、plugin_system/ | 包含业务方法 |
+| `state/` | AppState 定义 | core/、plugin_framework/ | 包含业务方法 |
 | `utils/` | 通用工具（locale、font_database 等） | 无限制 | 包含业务逻辑 |
 
 ### 各目录详细说明
 
-#### `sdk/` — re-export 桥
+#### `sdk.rs` — re-export 桥
 
-sdk/ 现为轻量 re-export 桥，只包含两个文件：
-
-```
-sdk/
-├── host_api.rs          ← HostApi + HostApiBuilder（宿主内部类型）
-└── mod.rs               ← re-export 导出
-```
-
-类型本体已迁至 `crates/plugin-api/src/`：
+`sdk.rs` 是单文件的轻量 re-export 桥，类型本体已迁至 `crates/plugin-api/src/`：
 - **trait + 数据类型** → `crates/plugin-api/src/services/<domain>/`
 - **HostApi 错误/配置类型** → `crates/plugin-api/src/host/`
 - **Windows 平台实现** → `crates/platform-windows/src/`
@@ -84,48 +80,45 @@ sdk/
 ```
 core/
 ├── constants.rs         ← 应用常量
-├── tray/                ← 系统托盘管理
-├── window_utils.rs      ← 窗口工具函数（从 lib.rs 提取）
+├── bridge_error.rs      ← BridgeError（IPC 错误）
 ├── config/              ← 配置系统
 │   ├── manager.rs       ← ConfigManager 主调度器
 │   ├── store.rs         ← ConfigStore（JSON 持久化）
 │   ├── models.rs        ← 配置数据模型
 │   ├── registry.rs      ← ConfigurableRegistry
-│   ├── core_registry.rs ← CoreComponentEntry（打破 core/config/components → plugin_system 循环依赖）
-│   ├── event.rs         ← ConfigEvent 广播
+│   ├── event.rs         ← ConfigEvent + PluginRuntimeEvent 广播
 │   ├── setting_builders.rs ← SchemaBuilder API
-│   └── components/      ← 核心配置组件（非插件）
-│       ├── appearance_config.rs
-│       ├── general_config.rs
-│       ├── hotkey_config.rs
-│       ├── installation_monitor_config.rs
-│       ├── storage_config.rs
-│       └── window_behavior_config.rs
-└── types/               ← 核心类型定义（仅保留 BridgeError，其余已迁至 crates/plugin-api/src/config/）
-    └── bridge_error.rs  ← BridgeError（IPC 错误）
+│   └── mod.rs           ← 模块入口
 ```
 
-- **核心配置组件**（core/config/components/）：不属于任何插件的系统级配置
-- **新增核心配置组件** 时放这里。**新增插件** 时放 plugin/
+- **核心配置组件**（`builtin_plugin/config/` 下的组件，如 AppearanceConfig、HotkeyConfig 等）：不属于任何插件的系统级配置
+- **新增核心配置组件** 时放 `builtin_plugin/config/`。**新增插件** 时放 `builtin_plugin/` 对应子目录
 
-#### `plugin/` — 插件实现
+#### `builtin_plugin/` — 内置插件实现
 ```
-plugin/
+builtin_plugin/
+├── config/               ← 核心配置组件（非插件系统级配置）
+│   ├── appearance_config.rs
+│   ├── general_config.rs
+│   ├── hotkey_config.rs
+│   ├── installation_monitor_config.rs
+│   ├── storage_config.rs
+│   └── window_behavior_config.rs
 ├── _template/            ← 内置插件模板（不被编译或 glob 扫描）
-├── data_source/         ← 数据源（具体以代码为准）
-├── executor/            ← 执行器（具体以代码为准）
-├── keyword_optimizer/   ← 关键词优化器（具体以代码为准）
-├── score_booster/       ← 分数增强器（具体以代码为准）
-├── search_engine/       ← 搜索引擎（具体以代码为准）
-└── triggerable/         ← 可触发插件（具体以代码为准）
+├── data_source/          ← 数据源（具体数量以代码为准）
+├── executor/             ← 执行器（具体数量以代码为准）
+├── keyword_optimizer/    ← 关键词优化器（具体数量以代码为准）
+├── score_booster/        ← 分数增强器（具体数量以代码为准）
+├── search_engine/        ← 搜索引擎（具体数量以代码为准）
+└── triggerable/          ← 可触发插件（具体数量以代码为准）
 ```
 
 - 每个插件实现 `Configurable` trait（配置）+ 对应的领域 trait（如 `DataSource`、`ActionExecutor`）。**必须** 通过 `PluginHandle` 访问平台能力（见 [plugin-system.md](plugin-system.md)）
 - 新增插件在对应目录添加 .rs 文件 + `inventory::submit!` 块即自动注册，**无需** 修改 `lib.rs`
 
-#### `plugin_system/` — 插件框架
+#### `plugin_framework/` — 插件框架
 ```
-plugin_system/
+plugin_framework/
 ├── builtin_registry.rs   ← inventory 自动发现与注册编排器
 ├── builtin.rs            ← 内置插件定义
 ├── inspector.rs          ← Plugin Inspector 调试面板 (feature = "inspector")
@@ -140,13 +133,25 @@ plugin_system/
 ├── zlplugin_protocol.rs  ← zlplugin:// 自定义协议处理（从 manager.rs 提取）
 ├── service.rs            ← PluginService
 ├── registry.rs           ← PluginRegistry
-└── types.rs              ← 所有运行时类型定义
+└── mod.rs                ← 模块入口（含 re-export，类型定义在各自模块内，已消除冗余 types.rs shim）
 ```
 
 - **SessionRouter** 是运行时的中枢。所有 bridge 命令通过它路由
 - **builtin_registry** 通过 `inventory` 在编译期收集所有内置组件，启动时统一注册
 - **manager.rs** 是第三方插件生命周期的唯一入口，通过 `PluginRuntimeEvent` 广播通道与 ConfigManager/SessionRouter 事件驱动解耦
 - **禁止** 在此层定义配置 schema 或持久化逻辑（那属于 core/）
+
+#### `tray/` — 系统托盘
+```
+tray/
+└── mod.rs                ← TrayManager 实现
+```
+
+#### `window/` — 窗口工具函数
+```
+window/
+└── mod.rs                ← 窗口位置计算、多显示器支持
+```
 
 #### `commands/` — IPC 命令层
 ```
@@ -190,9 +195,9 @@ commands/
 │         → 在 crates/platform-windows/src/ 实现
 │         → 在 HostApi 添加方法，通过 PluginHandle 暴露
 ├─ 是系统级配置（非插件）？
-│  └─ 是 → 放 core/config/components/
+│  └─ 是 → 放 builtin_plugin/config/
 ├─ 是新的数据源/执行器/搜索引擎？
-│  └─ 是 → 放 plugin/ 对应子目录
+│  └─ 是 → 放 builtin_plugin/ 对应子目录
 ├─ 需要新的 IPC 命令？
 │  └─ 是 → 放 commands/ 对应文件（按前缀规则）
 ├─ 需要前端新页面？

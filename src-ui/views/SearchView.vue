@@ -96,7 +96,7 @@ provide('isDragEnabled', isDragEnabled)
 
 async function loadDragSetting() {
   try {
-    const settings = (await configGetSettings('window-behavior')) as Record<string, unknown> | null
+    const settings = (await configGetSettings('window-behavior-config')) as Record<string, unknown> | null
     isDragEnabled.value = (settings?.is_enable_drag_window as boolean) ?? false
     console.log('[SearchView] Drag setting loaded:', isDragEnabled.value)
   } catch (e) {
@@ -143,11 +143,11 @@ onMounted(async () => {
       searchStore.refreshCandidates()
     }
     // 外观配置变更时重新计算窗口尺寸（宽度/高度/字体可能变化）
-    if (payload.componentId === 'appearance') {
+    if (payload.componentId === 'appearance-config') {
       nextTick(() => resizeWindow())
     }
     // 窗口行为变更时重新加载拖动设置
-    if (payload.componentId === 'window-behavior') {
+    if (payload.componentId === 'window-behavior-config') {
       loadDragSetting()
     }
   })

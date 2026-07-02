@@ -37,8 +37,8 @@ let unlistenWindowBehavior: (() => void) | null = null
 onMounted(async () => {
   // 监听外观配置变更（跨窗口同步主题/语言/外观CSS变量）
   unlistenAppearance = await onConfigChanged((payload) => {
-    if (payload.componentId !== 'appearance') return
-    configGetSettings('appearance').then(async (s) => {
+    if (payload.componentId !== 'appearance-config') return
+    configGetSettings('appearance-config').then(async (s) => {
       const settings = s as Record<string, unknown>
       const result = await themeStore.applyRemoteSettings(settings)
       if (result.langChanged) {
@@ -48,15 +48,15 @@ onMounted(async () => {
   })
 
   // 加载窗口行为配置（供 useKeyboard 消费）
-  configGetSettings('window-behavior').then(s => {
-    configStore.settings['window-behavior'] = s
+  configGetSettings('window-behavior-config').then(s => {
+    configStore.settings['window-behavior-config'] = s
   }).catch(() => {})
 
   // 监听窗口行为配置变更（跨窗口同步）
   unlistenWindowBehavior = await onConfigChanged((payload) => {
-    if (payload.componentId !== 'window-behavior') return
-    configGetSettings('window-behavior').then(s => {
-      configStore.settings['window-behavior'] = s
+    if (payload.componentId !== 'window-behavior-config') return
+    configGetSettings('window-behavior-config').then(s => {
+      configStore.settings['window-behavior-config'] = s
     }).catch(() => {})
   })
 })

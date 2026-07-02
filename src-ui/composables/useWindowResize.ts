@@ -31,14 +31,14 @@ export function useWindowResize() {
     }
   }
 
-  // 当内容产生变化时，等待 DOM 渲染后测算尺寸
+  // 当内容产生变化时，等待 DOM 渲染后测算尺寸。
+  // 使用数组形式分别监听每个依赖，避免每次创建新对象导致 watch 无条件触发。
   watch(
-    () => ({
-      mode: store.sessionMode,
-      isIdle: store.isIdle,
-      resultCount: store.results.length,
-
-    }),
+    [
+      () => store.sessionMode,
+      () => store.isIdle,
+      () => store.results.length,
+    ],
     async () => {
       await nextTick()
       await resizeWindow()

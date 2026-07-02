@@ -183,6 +183,7 @@ pub(crate) async fn init_app_state(
 
     // 初始化内置 + 第三方插件
     init_plugin_system(&state).await;
+    info!("Phase 3 完成: 插件系统初始化就绪");
 
     info!("=== Phase 4: 第三方插件加载 ===");
 
@@ -195,6 +196,10 @@ pub(crate) async fn init_app_state(
     // 各插件的 PluginRegistered 事件也会触发独立 refresh，但批量场景下
     // 可能存在事件尚未处理完的竞态，此处作为最终兜底保证缓存完整。
     state.get_session_router().refresh_candidates().await;
+    info!(
+        "Phase 4 完成: 第三方插件加载完成，共 {} 个候选项",
+        state.get_session_router().get_cached_candidates_count()
+    );
 
     // Start CLI HTTP server
     info!("=== Phase 5: 启动 CLI HTTP 服务器... ===");
@@ -291,6 +296,7 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
 
     let host_api = state.get_host_api();
     session_router.set_host_api(host_api.clone());
+    info!("事件订阅循环已启动（ConfigEvent + PluginRuntimeEvent）");
 
     // ========================================================================
     // Phase A: inventory 自动发现并注册所有内置组件
@@ -324,6 +330,7 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
     );
 
     // 注册快捷键回调：按下全局快捷键时切换搜索栏显示/隐藏
+    info!("正在注册快捷键回调（search_bar_toggle）...");
     let core_handle_for_hotkey = state.get_core_handle();
     let host_api_for_hotkey = host_api.clone();
     let session_router_for_hotkey = session_router.clone();

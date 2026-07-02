@@ -34,8 +34,8 @@ let unlistenAppearance: (() => void) | null = null
 
 onMounted(async () => {
   unlistenAppearance = await onConfigChanged((payload) => {
-    if (payload.componentId !== 'appearance') return
-    configGetSettings('appearance').then(async (s) => {
+    if (payload.componentId !== 'appearance-config') return
+    configGetSettings('appearance-config').then(async (s) => {
       const settings = s as Record<string, unknown>
       const result = await themeStore.applyRemoteSettings(settings)
       if (result.langChanged) {

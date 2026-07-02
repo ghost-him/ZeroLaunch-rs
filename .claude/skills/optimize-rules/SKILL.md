@@ -14,16 +14,37 @@ argument-hint: "[范围: all | <规则文件名>]"
 
 ## 执行流程
 
-### 第一阶段：并行发现（4 个 agent）
+### 第一阶段：并行发现（5 个 agent）
 
 如果传入了 `args`（如 `"general.md"` 或 `"plugin-system.md"`），则所有 Agent **只分析指定的规则文件**。如果 `args` 为 `"all"` 或未传入，则分析全部 `.claude/rules/*.md` 文件。
 
-同时启动四个 Explore agent，各负责一个维度：
+同时启动五个 Explore agent，各负责一个维度：
+
+**Agent 0 — Paths Frontmatter 覆盖分析**
+- 逐一分析每个规则文件的 `paths:` frontmatter，用 Glob 展开所有通配符得到当前实际覆盖的文件集合
+- 通读规则正文，提取所有**被规则约束或指导的代码位置**：
+  - 明确引用的文件路径（如 `core/config/manager.rs`）
+  - 明确引用的目录（如 `builtin_plugin/config/`）
+  - 明确引用的 crate（如 `plugin-api`、`plugin-protocol`、`platform-windows`）
+  - **主题隐含范围**：从规则标题和核心内容推断该规则所约束的代码领域（如 `sdk.md` 主题是整个 SDK 层，约束范围 = trait 定义 `crates/plugin-api/src/` + 平台实现 `crates/platform-windows/src/` + re-export 桥 `src-tauri/src/sdk.rs`）
+- **核心检验**：如果规则说"X 定义在 Y"或"在 Z 目录下添加"但 Y/Z 不在 `paths:` frontmatter 里 → 编辑 Y/Z 时该规则**不会被加载** → 覆盖缺失
+- 报告：(a) `paths:` 条目覆盖不足的路径，(b) 规则约束的整个域完全不在 `paths:` 中，(c) 过宽或过窄的 glob 模式
+- 严重程度分级：
+  - **高**：规则约束的核心域超过 50% 不在 `paths:` 内（如只覆盖了 re-export 桥但漏了整个 trait 定义目录）
+  - **中**：规则引用了次要依赖但未覆盖（如 plugin-system.md 引用 PluginHandle 但未覆盖 plugin-api）
+  - **低**：单一边缘路径遗漏
+- 报告格式：
+  ```
+  ## Agent 0 报告 — Paths Frontmatter 覆盖分析
+  ### 发现
+  - **<严重程度: 高/中/低>** | <规则文件> | <当前 paths> | <缺失覆盖> | <建议添加的 paths 条目>
+  ```
 
 **Agent 1 — 结构覆盖**
 - 通读目标规则文件的全部内容
 - 对规则中声称的每个文件路径、目录树和模块清单，通过 Glob 验证磁盘上是否存在
-- 报告：(a) 规则中存在但磁盘上 **不存在** 的路径，(b) 磁盘上存在但规则中 **缺失** 的路径，(c) 数值声明（文件数/插件数/命令数）与实际情况不符的地方
+- 报告：(a) 规则**正文**中存在的路径在磁盘上 **不存在**，(b) 磁盘上存在但规则**正文**中 **缺失** 的路径，(c) 数值声明（文件数/插件数/命令数）与实际情况不符的地方
+- **注意**：此 Agent 只检查规则**正文**中提到的路径是否正确，**不**检查 `paths:` frontmatter 的覆盖范围（由 Agent 0 专门负责）
 - 报告格式：
   ```
   ## Agent 1 报告 — 结构覆盖
@@ -93,7 +114,7 @@ argument-hint: "[范围: all | <规则文件名>]"
 
 ### 第二阶段：综合发现
 
-阅读四份 agent 报告，产出一份合并差异清单：
+阅读五份 agent 报告，产出一份合并差异清单：
 
 1. **需要修改的文件** — 按严重程度排序（最严重排最前）
 2. **每个文件的具体改动** — 增、删、改的具体内容

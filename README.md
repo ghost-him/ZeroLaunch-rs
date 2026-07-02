@@ -45,6 +45,8 @@ ZeroLaunch 是一款懂你输入习惯的 Windows 智能启动器。它精通拼
 
 > 市面上现有的启动器总有点不合我心意，索性自己造了一个。现在它已是我每天工作的得力助手，所以请放心，我不会跑路的～（最多是更新慢点 (～￣▽￣)～）
 
+> ⚠️ **重构进行中**：项目正在进行架构升级与重构，欢迎在 [refactor/plugin-system](https://github.com/ghost-him/ZeroLaunch-rs/tree/refactor/plugin-system) 分支关注最新的开发进展。
+
 ## 🖥️ 软件界面
 
 [![主界面预览](asset/主界面.png)](asset/picture.md)

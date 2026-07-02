@@ -5,7 +5,7 @@ set shell := ["cmd.exe", "/C"]
 # 代码风格检查与自动修复
 style:
     cargo fmt --all
-    cargo clippy --workspace --fix --allow-dirty --allow-staged
+    cargo clippy --workspace --all-targets --all-features --fix --allow-dirty --allow-staged
 
 # 快速编译检查（全 workspace）
 check:

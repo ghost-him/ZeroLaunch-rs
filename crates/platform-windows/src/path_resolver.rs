@@ -9,6 +9,7 @@ use zerolaunch_plugin_api::services::path::{KnownPath, PathResolver};
 
 /// 应用数据文件夹名称（跨平台统一：Unix 惯例 . 前缀表示隐藏目录）。
 /// 标准模式解析为 `$HOME/<APP_DATA_DIR_NAME>`，便携模式为 exe 同级目录。
+#[cfg(not(feature = "portable"))]
 const APP_DATA_DIR_NAME: &str = ".ZeroLaunch-rs";
 
 /// Windows 路径解析器实现。

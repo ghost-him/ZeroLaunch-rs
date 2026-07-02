@@ -1,4 +1,3 @@
-use serde_json;
 use zerolaunch_plugin_protocol::jsonrpc::{Message, Notification, Request, Response};
 use zerolaunch_plugin_protocol::messages::*;
 use zerolaunch_plugin_protocol::{codes, JsonRpcError, PROTOCOL_VERSION};

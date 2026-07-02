@@ -6,8 +6,7 @@
       :item="item"
       :selected="index === selectedIndex"
       :index="index"
-      @click="onItemClick(index)"
-      @dblclick="onItemDblClick(index)"
+      @confirm="handleItemConfirm(index)"
       @context-action="(actionId: string) => emit('context-action', index, actionId)"
       @contextmenu="(x: number, y: number, items: CtxItem[]) => emit('contextmenu', x, y, items)"
     />
@@ -34,11 +33,9 @@ const emit = defineEmits<{
   (e: 'contextmenu', x: number, y: number, items: CtxItem[]): void
 }>()
 
-function onItemClick(index: number) {
+function handleItemConfirm(index: number) {
+  // 单机执行：先更新选中状态，再触发执行
   emit('select', index)
-}
-
-function onItemDblClick(index: number) {
   emit('confirm', index)
 }
 </script>

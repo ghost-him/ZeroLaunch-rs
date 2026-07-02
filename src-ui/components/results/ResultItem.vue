@@ -10,8 +10,7 @@
     v-else
     class="result-item"
     :class="{ selected }"
-    @click="$emit('click')"
-    @dblclick="$emit('dblclick')"
+    @click="$emit('confirm')"
     @contextmenu.prevent="onContextMenu"
   >
     <div class="item-icon">
@@ -45,8 +44,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  (e: 'click'): void
-  (e: 'dblclick'): void
+  (e: 'confirm'): void
   (e: 'context-action', actionId: string): void
   (e: 'contextmenu', x: number, y: number, items: CtxItem[]): void
 }>()

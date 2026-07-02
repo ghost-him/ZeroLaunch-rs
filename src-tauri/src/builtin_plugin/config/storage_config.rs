@@ -3,7 +3,7 @@ use crate::sdk::HostApi;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tracing::info;
+use tracing::{info, warn};
 use zerolaunch_plugin_api::config::{ComponentType, ConfigError, Configurable, SettingDefinition};
 use zerolaunch_plugin_api::services::storage::local_storage::LocalStorageService;
 use zerolaunch_plugin_api::services::storage::storage_service::StorageService;
@@ -143,7 +143,13 @@ impl Configurable for StorageConfigComponent {
     }
 
     fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
-        let parsed: StorageSettings = serde_json::from_value(settings).unwrap_or_default();
+        let parsed: StorageSettings = serde_json::from_value(settings).unwrap_or_else(|e| {
+            warn!(
+                "failed to parse settings for {}, using defaults: {e}",
+                self.component_id()
+            );
+            Default::default()
+        });
         *self.settings.write() = parsed;
         Ok(())
     }

@@ -1,9 +1,7 @@
-use crate::plugin_framework::CachedCandidateData;
 use std::collections::HashSet;
 use std::sync::Arc;
 use zerolaunch_plugin_api::config::Configurable;
-use zerolaunch_plugin_api::DataSource;
-use zerolaunch_plugin_api::KeywordOptimizer;
+use zerolaunch_plugin_api::{CachedCandidateData, DataSource, KeywordOptimizer};
 
 pub struct CandidatePipeline {
     data_sources: Vec<Arc<dyn DataSource>>,

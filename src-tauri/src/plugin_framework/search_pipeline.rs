@@ -1,6 +1,7 @@
-use crate::plugin_framework::CachedCandidateData;
 use std::sync::Arc;
-use zerolaunch_plugin_api::{CandidateId, ScoreBooster, ScoredCandidate, SearchEngine};
+use zerolaunch_plugin_api::{
+    CachedCandidateData, CandidateId, ScoreBooster, ScoredCandidate, SearchEngine,
+};
 pub struct SearchPipeline {
     engine: Arc<dyn SearchEngine>,
     boosters: Vec<Arc<dyn ScoreBooster>>,

@@ -109,7 +109,13 @@ impl Configurable for InstallationMonitorConfigComponent {
 
     fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
         let parsed: InstallationMonitorSettings =
-            serde_json::from_value(settings).unwrap_or_default();
+            serde_json::from_value(settings).unwrap_or_else(|e| {
+                warn!(
+                    "failed to parse settings for {}, using defaults: {e}",
+                    self.component_id()
+                );
+                Default::default()
+            });
         *self.settings.write() = parsed;
         Ok(())
     }
@@ -187,7 +193,7 @@ fn build_installation_monitor_config(ctx: &InventoryContext) -> std::sync::Arc<d
 
 ::inventory::submit! {
     ConfigEntry {
-        component_id: "installation-monitor",
+        component_id: "installation-monitor-config",
         priority: 50,
         factory: build_installation_monitor_config,
     }

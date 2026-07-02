@@ -1,7 +1,8 @@
-use crate::plugin_framework::CachedCandidateData;
 use std::collections::HashMap;
 use zerolaunch_plugin_api::config::{ComponentType, Configurable};
-use zerolaunch_plugin_api::{ScoreDetail, ScoredCandidate, SearchCandidate, SearchEngine};
+use zerolaunch_plugin_api::{
+    CachedCandidateData, ScoreDetail, ScoredCandidate, SearchCandidate, SearchEngine,
+};
 
 /// 这个文件是以LaunchyQT的搜索模型为基础进行的改造
 /// 项目地址如下：https://github.com/samsonwang/LaunchyQt

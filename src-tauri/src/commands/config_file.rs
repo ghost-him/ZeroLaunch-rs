@@ -1,7 +1,7 @@
 use crate::core::BridgeError;
-use crate::plugin_framework::ConfigActionDef;
 use crate::state::app_state::AppState;
 use std::sync::Arc;
+use zerolaunch_plugin_api::config::ConfigActionDef;
 
 /// 获取应用版本号（从 Cargo.toml 编译时注入）
 #[tauri::command]

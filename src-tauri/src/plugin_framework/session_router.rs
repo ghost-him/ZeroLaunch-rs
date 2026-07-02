@@ -2,7 +2,6 @@ use super::candidate_pipeline::CandidatePipeline;
 use super::executor_registry::ExecutorRegistry;
 use super::search_pipeline::SearchPipeline;
 use super::service::PluginService;
-use super::CachedCandidateData;
 use crate::core::config::{ConfigEvent, ConfigManager};
 use crate::sdk::HostApi;
 use parking_lot::{Mutex, RwLock};
@@ -13,9 +12,9 @@ use zerolaunch_plugin_api::config::ComponentType;
 use zerolaunch_plugin_api::services::parameter::template_parser::{Placeholder, TemplateParser};
 use zerolaunch_plugin_api::services::ParameterSnapshot;
 use zerolaunch_plugin_api::{
-    ActionExecutor, CandidateId, ConfirmResult, DataSource, ExecutionContext, ExecutionError,
-    ListItem, Plugin, PluginContext, Query, QueryResponse, ScoreBooster, SearchCandidate,
-    SearchEngine,
+    ActionExecutor, CachedCandidateData, CandidateId, ConfirmResult, DataSource, ExecutionContext,
+    ExecutionError, ListItem, Plugin, PluginContext, Query, QueryResponse, ScoreBooster,
+    SearchCandidate, SearchEngine,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -444,7 +443,7 @@ impl SessionRouter {
                     .read()
                     .as_ref()
                     .and_then(|cm| {
-                        cm.get_component_setting("window-behavior", "launch_new_on_failure")
+                        cm.get_component_setting("window-behavior-config", "launch_new_on_failure")
                     })
                     .and_then(|v| v.as_bool())
                     .unwrap_or(true);

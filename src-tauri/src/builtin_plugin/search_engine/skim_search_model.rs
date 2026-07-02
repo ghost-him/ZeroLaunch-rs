@@ -1,9 +1,10 @@
-use crate::plugin_framework::CachedCandidateData;
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
 use parking_lot::RwLock;
 use zerolaunch_plugin_api::config::{ComponentType, Configurable};
-use zerolaunch_plugin_api::{ScoreDetail, ScoredCandidate, SearchCandidate, SearchEngine};
+use zerolaunch_plugin_api::{
+    CachedCandidateData, ScoreDetail, ScoredCandidate, SearchCandidate, SearchEngine,
+};
 
 /// Skim 搜索引擎
 ///

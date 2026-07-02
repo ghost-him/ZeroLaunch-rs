@@ -11,9 +11,9 @@ export interface SidebarCategory {
 
 export function buildSidebarItems(components: ComponentInfo[]): SidebarCategory[] {
   const core = components.filter(
-    (c) => c.componentType === 'Core' && c.componentId !== 'appearance',
+    (c) => c.componentType === 'Core' && c.componentId !== 'appearance-config',
   )
-  const appearance = components.filter((c) => c.componentId === 'appearance')
+  const appearance = components.filter((c) => c.componentId === 'appearance-config')
   const pipeline = components.filter((c) =>
     ['DataSource', 'KeywordOptimizer', 'SearchEngine', 'ScoreBooster', 'ActionExecutor'].includes(
       c.componentType,

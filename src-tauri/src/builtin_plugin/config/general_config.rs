@@ -62,7 +62,7 @@ impl GeneralConfigComponent {
 
 impl Configurable for GeneralConfigComponent {
     fn component_id(&self) -> &str {
-        "general"
+        "general-config"
     }
 
     fn component_name(&self) -> &str {
@@ -116,7 +116,13 @@ impl Configurable for GeneralConfigComponent {
     }
 
     fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
-        let parsed: GeneralSettings = serde_json::from_value(settings).unwrap_or_default();
+        let parsed: GeneralSettings = serde_json::from_value(settings).unwrap_or_else(|e| {
+            warn!(
+                "failed to parse settings for {}, using defaults: {e}",
+                self.component_id()
+            );
+            Default::default()
+        });
         *self.settings.write() = parsed;
         Ok(())
     }
@@ -176,7 +182,7 @@ fn build_general_config(ctx: &InventoryContext) -> std::sync::Arc<dyn Configurab
 
 ::inventory::submit! {
     ConfigEntry {
-        component_id: "general",
+        component_id: "general-config",
         priority: 30,
         factory: build_general_config,
     }

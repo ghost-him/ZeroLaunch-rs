@@ -17,7 +17,7 @@ export function useKeyboardRouter() {
     // Alt+Space 始终保留给系统（唤醒/隐藏窗口）
     if (e.altKey && e.code === 'Space') return
 
-    const wb = (configStore.settings['window-behavior'] as Record<string, boolean> | undefined)
+    const wb = (configStore.settings['window-behavior-config'] as Record<string, boolean> | undefined)
     const spaceIsEnter = wb?.space_is_enter ?? false
 
     switch (uiMode.value) {

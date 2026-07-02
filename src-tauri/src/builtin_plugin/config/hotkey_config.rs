@@ -165,7 +165,13 @@ impl Configurable for HotkeyConfigComponent {
     }
 
     fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
-        let parsed: HotkeySettings = serde_json::from_value(settings).unwrap_or_default();
+        let parsed: HotkeySettings = serde_json::from_value(settings).unwrap_or_else(|e| {
+            warn!(
+                "failed to parse settings for {}, using defaults: {e}",
+                self.component_id()
+            );
+            Default::default()
+        });
         *self.settings.write() = parsed;
         Ok(())
     }

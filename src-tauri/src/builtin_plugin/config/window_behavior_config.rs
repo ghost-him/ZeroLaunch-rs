@@ -1,6 +1,7 @@
 use crate::core::config::setting_builders::SchemaBuilder;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
+use tracing::warn;
 use zerolaunch_plugin_api::config::{ComponentType, ConfigError, Configurable, SettingDefinition};
 
 /// 窗口行为设置的强类型配置结构。
@@ -68,7 +69,7 @@ impl WindowBehaviorConfigComponent {
 
 impl Configurable for WindowBehaviorConfigComponent {
     fn component_id(&self) -> &str {
-        "window-behavior"
+        "window-behavior-config"
     }
 
     fn component_name(&self) -> &str {
@@ -143,7 +144,13 @@ impl Configurable for WindowBehaviorConfigComponent {
     }
 
     fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
-        let parsed: WindowBehaviorSettings = serde_json::from_value(settings).unwrap_or_default();
+        let parsed: WindowBehaviorSettings = serde_json::from_value(settings).unwrap_or_else(|e| {
+            warn!(
+                "failed to parse settings for {}, using defaults: {e}",
+                self.component_id()
+            );
+            Default::default()
+        });
         *self.settings.write() = parsed;
         Ok(())
     }
@@ -161,7 +168,7 @@ fn build_window_behavior_config(_ctx: &InventoryContext) -> std::sync::Arc<dyn C
 
 ::inventory::submit! {
     ConfigEntry {
-        component_id: "window-behavior",
+        component_id: "window-behavior-config",
         priority: 40,
         factory: build_window_behavior_config,
     }

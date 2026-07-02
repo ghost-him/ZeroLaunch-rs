@@ -6,11 +6,11 @@
 //! 插件作者只需在 `plugin/<category>/` 下加 .rs 文件并添加 `inventory::submit!` 块，
 //! 无需修改 `lib.rs`。
 
-use crate::plugin_framework::Configurable;
 use crate::sdk::HostApi;
 use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::sync::Arc;
+use zerolaunch_plugin_api::config::Configurable;
 use zerolaunch_plugin_api::host::PluginHandle;
 use zerolaunch_plugin_api::{
     ActionExecutor, DataSource, KeywordOptimizer, Plugin, ScoreBooster, SearchEngine,

@@ -1,5 +1,4 @@
 use crate::core::config::setting_builders::SchemaBuilder;
-use crate::plugin_framework::CachedCandidateData;
 use async_trait::async_trait;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
@@ -13,7 +12,7 @@ use zerolaunch_plugin_api::config::{
 };
 use zerolaunch_plugin_api::host::PluginHandle;
 use zerolaunch_plugin_api::services::IconRequest;
-use zerolaunch_plugin_api::{DataSource, ExecutionTarget, SearchCandidate};
+use zerolaunch_plugin_api::{CachedCandidateData, DataSource, ExecutionTarget, SearchCandidate};
 
 // ============ Chrome 书签解析相关结构 ============
 

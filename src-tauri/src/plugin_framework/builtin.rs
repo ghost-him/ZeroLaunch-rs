@@ -10,7 +10,7 @@ pub use super::builtin_registry::CollectedBuiltins;
 
 /// 为标准内置组件创建 PluginInfo。
 pub fn make_builtin_info(
-    configurable: &Arc<dyn crate::plugin_framework::Configurable>,
+    configurable: &Arc<dyn zerolaunch_plugin_api::config::Configurable>,
     enabled: bool,
 ) -> PluginInfo {
     PluginInfo {

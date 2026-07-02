@@ -22,7 +22,7 @@ pub(crate) async fn prepare_window_position(
     app_handle: &tauri::AppHandle,
 ) -> bool {
     let wake_on_fullscreen = config_manager
-        .get_component_setting("window-behavior", "is_wake_on_fullscreen")
+        .get_component_setting("window-behavior-config", "is_wake_on_fullscreen")
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
     if !wake_on_fullscreen && crate::utils::windows::is_foreground_fullscreen() {
@@ -31,31 +31,31 @@ pub(crate) async fn prepare_window_position(
 
     // 读取窗口定位配置
     let enable_drag = config_manager
-        .get_component_setting("window-behavior", "is_enable_drag_window")
+        .get_component_setting("window-behavior-config", "is_enable_drag_window")
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
     let follow_mouse = config_manager
-        .get_component_setting("window-behavior", "show_pos_follow_mouse")
+        .get_component_setting("window-behavior-config", "show_pos_follow_mouse")
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
     let vertical_ratio = config_manager
-        .get_component_setting("appearance", "vertical_position_ratio")
+        .get_component_setting("appearance-config", "vertical_position_ratio")
         .and_then(|v| v.as_f64())
         .unwrap_or(0.28);
     let window_width = config_manager
-        .get_component_setting("appearance", "window_width")
+        .get_component_setting("appearance-config", "window_width")
         .and_then(|v| v.as_f64())
         .unwrap_or(800.0) as i32;
 
     // 读取拖拽模式保存的位置
     let saved_position = if enable_drag {
         let x = config_manager
-            .get_component_setting("window-behavior", "window_position_x")
+            .get_component_setting("window-behavior-config", "window_position_x")
             .and_then(|v| v.as_f64())
             .map(|v| v as i32)
             .unwrap_or(0);
         let y = config_manager
-            .get_component_setting("window-behavior", "window_position_y")
+            .get_component_setting("window-behavior-config", "window_position_y")
             .and_then(|v| v.as_f64())
             .map(|v| v as i32)
             .unwrap_or(0);
@@ -92,7 +92,7 @@ pub(crate) fn save_window_position_if_drag(
     app_handle: &tauri::AppHandle,
 ) {
     let enable_drag = config_manager
-        .get_component_setting("window-behavior", "is_enable_drag_window")
+        .get_component_setting("window-behavior-config", "is_enable_drag_window")
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
     if !enable_drag {
@@ -101,13 +101,13 @@ pub(crate) fn save_window_position_if_drag(
     if let Some(window) = app_handle.get_webview_window("main") {
         if let Ok(pos) = window.outer_position() {
             let mut current = config_manager
-                .get_settings("window-behavior")
+                .get_settings("window-behavior-config")
                 .unwrap_or_else(|| json!({}));
             if let Some(obj) = current.as_object_mut() {
                 obj.insert("window_position_x".to_string(), json!(pos.x));
                 obj.insert("window_position_y".to_string(), json!(pos.y));
             }
-            if let Err(e) = config_manager.apply_settings("window-behavior", current) {
+            if let Err(e) = config_manager.apply_settings("window-behavior-config", current) {
                 warn!("[save_window_position] 持久化窗口位置失败: {}", e);
             }
         }

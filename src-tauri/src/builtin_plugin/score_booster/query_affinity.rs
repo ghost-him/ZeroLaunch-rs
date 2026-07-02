@@ -1,12 +1,13 @@
 use crate::core::config::setting_builders::SchemaBuilder;
-use crate::plugin_framework::CachedCandidateData;
 use crate::utils::get_current_time;
 use dashmap::DashMap;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use tracing::error;
 use zerolaunch_plugin_api::config::{ComponentType, ConfigError, Configurable, SettingDefinition};
-use zerolaunch_plugin_api::{CandidateId, ScoreBooster, ScoreDetail, ScoredCandidate};
+use zerolaunch_plugin_api::{
+    CachedCandidateData, CandidateId, ScoreBooster, ScoreDetail, ScoredCandidate,
+};
 
 /// 查询亲和度数据
 #[derive(Debug, Clone, Serialize, Deserialize)]

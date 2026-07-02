@@ -16,13 +16,11 @@ pub(crate) mod zlplugin_protocol;
 
 // 类型 re-export（消除冗余 types.rs shim，所有使用者直接从 zerolaunch_plugin_api 导入）
 pub use zerolaunch_plugin_api::config::{
-    ComponentType, ConfigActionDef, ConfigError, Configurable, DetailActionDef, PathMode,
-    SettingDefinition, SettingType,
+    ComponentType, ConfigError, DetailActionDef, PathMode, SettingDefinition, SettingType,
 };
 pub use zerolaunch_plugin_api::{
-    ActionExecutor, CachedCandidateData, ExecutionContext, ExecutionError, ExecutionTarget,
-    ListItem, Plugin, PluginContext, PluginError, PluginMetadata, Query, RegistrationError,
-    ResultAction, TargetType,
+    ActionExecutor, ExecutionContext, ExecutionError, ExecutionTarget, ListItem, Plugin,
+    PluginContext, PluginError, PluginMetadata, Query, RegistrationError, ResultAction, TargetType,
 };
 
 pub use candidate_pipeline::CandidatePipeline;

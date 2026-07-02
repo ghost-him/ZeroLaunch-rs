@@ -1,7 +1,7 @@
 use crate::core::config::setting_builders::SchemaBuilder;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use tracing::info;
+use tracing::{info, warn};
 use zerolaunch_plugin_api::config::{ComponentType, ConfigError, Configurable, SettingDefinition};
 
 // ============ 默认值函数 ============
@@ -306,7 +306,7 @@ impl AppearanceConfigComponent {
 
 impl Configurable for AppearanceConfigComponent {
     fn component_id(&self) -> &str {
-        "appearance"
+        "appearance-config"
     }
 
     fn component_name(&self) -> &str {
@@ -644,7 +644,13 @@ impl Configurable for AppearanceConfigComponent {
     }
 
     fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
-        let parsed: AppearanceSettings = serde_json::from_value(settings).unwrap_or_default();
+        let parsed: AppearanceSettings = serde_json::from_value(settings).unwrap_or_else(|e| {
+            warn!(
+                "failed to parse settings for {}, using defaults: {e}",
+                self.component_id()
+            );
+            Default::default()
+        });
         *self.settings.write() = parsed;
         Ok(())
     }
@@ -771,7 +777,7 @@ fn build_appearance_config(_ctx: &InventoryContext) -> std::sync::Arc<dyn Config
 
 ::inventory::submit! {
     ConfigEntry {
-        component_id: "appearance",
+        component_id: "appearance-config",
         priority: 20,
         factory: build_appearance_config,
     }

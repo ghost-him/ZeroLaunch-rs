@@ -60,9 +60,9 @@ export const useThemeStore = defineStore('theme', () => {
     if (syncTimer) clearTimeout(syncTimer)
     syncTimer = setTimeout(async () => {
       try {
-        const current = await configGetSettings('appearance').catch(() => ({}))
+        const current = await configGetSettings('appearance-config').catch(() => ({}))
         const merged = { ...(current as Record<string, unknown>), theme: mode }
-        await configApplySettings('appearance', merged)
+        await configApplySettings('appearance-config', merged)
       } catch (e) {
         console.warn('[theme-store] Failed to sync theme to backend:', e)
       }
@@ -73,7 +73,7 @@ export const useThemeStore = defineStore('theme', () => {
   async function loadFromBackend(): Promise<Locale> {
     let lang: Locale = 'zh-Hans'
     try {
-      const settings = await configGetSettings('appearance')
+      const settings = await configGetSettings('appearance-config')
       const s = settings as Record<string, unknown> | undefined
       const t = (s?.theme as ThemeMode | undefined) ?? 'system'
       themeMode.value = t

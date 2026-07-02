@@ -33,3 +33,6 @@ package-lock.json
 *.zip
 
 target
+
+# 以下文件为代码审查相关的文件，对项目本身无作用
+code-review*.md

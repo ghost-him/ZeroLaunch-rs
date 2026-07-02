@@ -318,7 +318,7 @@ fn init_search_bar_window(app: &mut App) {
                 host_api.hide_window().await;
 
                 let reset_plugins = config_manager
-                    .get_component_setting("general", "reset_session_on_wake")
+                    .get_component_setting("general-config", "reset_session_on_wake")
                     .and_then(|v| v.as_bool())
                     .unwrap_or(true);
                 if session_router.reset_session(reset_plugins) {

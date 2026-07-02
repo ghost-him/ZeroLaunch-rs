@@ -331,6 +331,7 @@ impl SessionRouter {
                     .execute_action(&ctx, plugin_id, action_id, payload)
                     .await
                     .map_err(|e| e.to_string())?;
+                info!("[执行成功] plugin='{}', action='{}'", plugin_id, action_id);
                 Ok(ConfirmResult::Executed)
             }
             SessionMode::InlineParam { candidate_id, .. } => {
@@ -436,7 +437,13 @@ impl SessionRouter {
         };
 
         match executor.execute(&exec_ctx, action_id).await {
-            Ok(()) => Ok(()),
+            Ok(()) => {
+                info!(
+                    "[执行成功] candidate='{}' (id={}), action='{}'",
+                    exec_ctx.display_name, candidate_id, action_id
+                );
+                Ok(())
+            }
             Err(ExecutionError::ActivationFailed { fallback_action }) => {
                 let launch_new = self
                     .config_manager
@@ -458,6 +465,15 @@ impl SessionRouter {
                         .execute(&exec_ctx, &fallback_action)
                         .await
                         .map_err(|e| e.to_string())?;
+                    info!(
+                        "[执行成功] candidate='{}' (id={}), action='{}' (fallback from '{}')",
+                        exec_ctx.display_name, candidate_id, fallback_action, action_id
+                    );
+                } else {
+                    info!(
+                        "[执行忽略] candidate='{}' (id={}), activation failed for '{}', fallback disabled",
+                        exec_ctx.display_name, candidate_id, action_id
+                    );
                 }
                 Ok(())
             }

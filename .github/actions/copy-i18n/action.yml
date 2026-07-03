@@ -1,0 +1,16 @@
+name: Copy i18n locales
+description: 将前端 i18n 语言文件复制到 src-tauri 目录，供 Tauri 后端使用
+
+runs:
+  using: composite
+  steps:
+    - name: Copy i18n locales to src-tauri
+      shell: pwsh
+      run: |
+        $srcLocalesDir = "src-ui/i18n/locales"
+        $destDir = "src-tauri/locales"
+        if (-not (Test-Path $destDir)) {
+          New-Item -Path $destDir -ItemType Directory -Force | Out-Null
+        }
+        Copy-Item -Path "$srcLocalesDir\*" -Destination $destDir -Force
+        Write-Host "✓ i18n locales files copied to src-tauri/locales/"

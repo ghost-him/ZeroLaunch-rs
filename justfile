@@ -15,6 +15,12 @@ check:
 test:
     cargo test --workspace
 
+# 本地模拟 CI（全量检查）
+ci:
+    cargo fmt --all -- --check
+    cargo clippy --workspace --all-targets --all-features -- -D warnings
+    cargo test --workspace
+
 # 构建前端 + release 编译
 build:
     bun run build

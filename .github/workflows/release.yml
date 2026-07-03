@@ -52,15 +52,7 @@ jobs:
         run: bun install
 
       - name: Copy i18n locales to src-tauri
-        shell: pwsh
-        run: |
-          $srcLocalesDir = "src-ui\i18n\locales"
-          $destDir = "src-tauri\locales"
-          if (-not (Test-Path $destDir)) {
-            New-Item -Path $destDir -ItemType Directory -Force | Out-Null
-          }
-          Copy-Item -Path "$srcLocalesDir\*" -Destination $destDir -Force
-          Write-Host "✓ i18n locales files copied to src-tauri/locales/"
+        uses: ./.github/actions/copy-i18n
 
       - name: Get version from tag
         id: get_version

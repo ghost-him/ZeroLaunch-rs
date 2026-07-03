@@ -34,6 +34,7 @@ ZeroLaunch-rs/                          ← Cargo workspace 根
     └── src/
         ├── bootstrap.rs               ← 应用启动初始化（从 lib.rs 提取）
         ├── sdk.rs                      ← re-export 桥（类型本体在 plugin-api / platform-windows）
+        ├── bridge_error.rs            ← BridgeError（IPC 错误）
         ├── core/                       ← ConfigManager, ConfigStore, 核心配置组件
         ├── builtin_plugin/             ← 内置插件实现（具体数量以代码为准）
         ├── plugin_framework/           ← SessionRouter, Pipeline, Registry, PluginManager
@@ -80,7 +81,6 @@ ZeroLaunch-rs/                          ← Cargo workspace 根
 ```
 core/
 ├── constants.rs         ← 应用常量
-├── bridge_error.rs      ← BridgeError（IPC 错误）
 ├── config/              ← 配置系统
 │   ├── manager.rs       ← ConfigManager 主调度器
 │   ├── store.rs         ← ConfigStore（JSON 持久化）
@@ -153,6 +153,18 @@ window/
 └── mod.rs                ← 窗口位置计算、多显示器支持
 ```
 
+#### `utils/` — 通用工具
+```
+utils/
+├── mod.rs                ← 模块入口
+├── trace_id.rs           ← trace_id 生成（generate_trace_id）
+├── locale.rs             ← 本地化支持
+├── font_database.rs      ← 字体数据库
+├── access_policy.rs      ← 访问策略检查
+├── waiting_hashmap.rs    ← 带等待机制的 HashMap
+└── windows.rs            ← Windows 辅助函数
+```
+
 #### `commands/` — IPC 命令层
 ```
 commands/
@@ -167,24 +179,24 @@ commands/
 - 命令处理器是 **薄代理**：接收参数 → 委托给 SessionRouter/ConfigManager → 返回结果。详细规范见 [commands.md](commands.md)
 - IPC 命令按前缀分散在 `commands/` 子文件中，前缀 → 文件对应关系见 [commands.md](commands.md)
 
+#### `cli_server/` — 本地 HTTP API 服务器
+```
+cli_server/
+├── mod.rs                ← 模块入口
+├── server.rs             ← axum 服务器启动与配置
+├── middleware.rs          ← 认证中间件（Bearer token 校验）
+├── token.rs              ← CLI token 管理
+└── routes/
+    ├── mod.rs            ← 路由聚合
+    ├── query.rs          ← /v1/query 查询端点
+    ├── session.rs        ← /v1/session 会话端点
+    ├── plugins.rs        ← /v1/plugins 插件管理端点
+    └── config.rs         ← /v1/config 配置端点
+```
+
 ### 前端 (src-ui/)
 
-| 目录 | 职责 | 放置规则 |
-|------|------|---------|
-| `bridge/` | IPC 契约层 | 类型定义 + 命令封装 + 事件监听 |
-| `stores/` | Pinia 状态管理 | 每个关注点一个 store |
-| `composables/` | 可复用逻辑 Hook | 有副作用的逻辑封装 |
-| `router/` | Vue Router 配置 | 路由定义 |
-| `views/` | 页面级组件 | 每个窗口入口对应一个 View |
-| `components/` | UI 组件 | 按功能域子目录组织 |
-| `components/settings/fields/` | 设置字段渲染器 | 每种 SettingType 一个组件 |
-| `components/settings/fields/array/` | 数组 UI 策略 | 每种 ArrayUiHint 一个组件 |
-| `plugins/built-in/` | 内置前端插件 | `import.meta.glob` 自动发现，目录约定 `built-in/<id>/index.ts` |
-| `plugins/third-party-host/` | 第三方插件宿主 | iframe 宿主 + PostMessage 通信桥 |
-| `plugins/built-in/_template/` | 前端插件模板 | 参考实现，不被 glob 扫描 |
-| `utils/` | 纯工具函数 | 无副作用的工具 |
-| `styles/` | 全局样式 | CSS 变量定义（variables.css + transitions.css） |
-| `i18n/` | 国际化 | 语言文件 |
+前端目录结构详见 [frontend.md](frontend.md)。
 
 ### 新文件放置决策树
 

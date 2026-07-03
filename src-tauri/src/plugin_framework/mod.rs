@@ -25,7 +25,8 @@ pub use zerolaunch_plugin_api::{
 
 pub use candidate_pipeline::CandidatePipeline;
 pub use executor_registry::ExecutorRegistry;
+pub use manager::PluginManagerError;
 pub use registry::PluginRegistry;
 pub use search_pipeline::*;
 pub use service::PluginService;
-pub use session_router::{SessionMode, SessionRouter};
+pub use session_router::{SessionMode, SessionRouter, SessionRouterError};

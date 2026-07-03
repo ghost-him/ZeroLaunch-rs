@@ -8,6 +8,7 @@
 
 use dashmap::DashMap;
 use parking_lot::RwLock;
+use std::fmt;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -32,6 +33,33 @@ use super::builtin;
 use super::host_handler::TauriHostCallHandler;
 use super::plugin_info::{PluginInfo, PluginStatus};
 use super::plugin_installer::PluginInstaller;
+
+/// PluginManager 内部错误类型。
+/// 在 commands/ 层通过 From 转换为 BridgeError。
+#[derive(Debug)]
+pub enum PluginManagerError {
+    /// 插件未找到
+    PluginNotFound(String),
+    /// 文件未找到
+    FileNotFound(String),
+    /// 不支持的文件格式
+    UnsupportedFormat(String),
+    /// 常规内部错误
+    Internal(String),
+}
+
+impl fmt::Display for PluginManagerError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            PluginManagerError::PluginNotFound(msg) => write!(f, "插件未找到: {}", msg),
+            PluginManagerError::FileNotFound(msg) => write!(f, "文件未找到: {}", msg),
+            PluginManagerError::UnsupportedFormat(msg) => write!(f, "不支持的文件格式: {}", msg),
+            PluginManagerError::Internal(msg) => write!(f, "插件管理器内部错误: {}", msg),
+        }
+    }
+}
+
+impl std::error::Error for PluginManagerError {}
 
 /// 插件管理器，统一管理内置组件和第三方插件。
 ///
@@ -199,7 +227,11 @@ impl PluginManager {
     }
 
     /// 获取第三方插件的日志文件最近 N 行。
-    pub fn get_logs(&self, plugin_id: &str, tail_lines: usize) -> Result<Vec<String>, String> {
+    pub fn get_logs(
+        &self,
+        plugin_id: &str,
+        tail_lines: usize,
+    ) -> Result<Vec<String>, PluginManagerError> {
         let hm = self.host_manager();
         let log_file = hm.log_dir_root.join(format!("{}.log", plugin_id));
 
@@ -208,7 +240,10 @@ impl PluginManager {
             Err(_) => return Ok(Vec::new()),
         };
 
-        let file_size = file.metadata().map_err(|e| e.to_string())?.len();
+        let file_size = file
+            .metadata()
+            .map_err(|e| PluginManagerError::Internal(e.to_string()))?
+            .len();
         if file_size == 0 {
             return Ok(Vec::new());
         }
@@ -217,8 +252,9 @@ impl PluginManager {
         let tail_size = (64 * 1024).min(file_size);
         let mut buf = vec![0u8; tail_size as usize];
         file.seek(SeekFrom::End(-(tail_size as i64)))
-            .map_err(|e| e.to_string())?;
-        file.read_exact(&mut buf).map_err(|e| e.to_string())?;
+            .map_err(|e| PluginManagerError::Internal(e.to_string()))?;
+        file.read_exact(&mut buf)
+            .map_err(|e| PluginManagerError::Internal(e.to_string()))?;
 
         let content = String::from_utf8_lossy(&buf);
         let lines: Vec<&str> = if tail_size < file_size {
@@ -260,39 +296,53 @@ impl PluginManager {
         &self,
         source_path: &Path,
         app_handle: Arc<AppHandle>,
-    ) -> Result<InstalledPluginInfo, String> {
+    ) -> Result<InstalledPluginInfo, PluginManagerError> {
         if !source_path.exists() {
-            return Err(format!("File not found: {}", source_path.display()));
+            return Err(PluginManagerError::FileNotFound(format!(
+                "File not found: {}",
+                source_path.display()
+            )));
         }
 
         let plugins_dir = self.plugins_dir();
-        std::fs::create_dir_all(&plugins_dir).map_err(|e| e.to_string())?;
+        std::fs::create_dir_all(&plugins_dir)
+            .map_err(|e| PluginManagerError::Internal(e.to_string()))?;
 
         let installed_dir = if source_path.is_dir() {
             self.installer()
                 .install_from_dir(source_path)
-                .map_err(|e| e.to_string())?
+                .map_err(|e| PluginManagerError::Internal(e.to_string()))?
         } else if source_path.extension().map(|e| e == "zip").unwrap_or(false) {
             self.installer()
                 .install_from_zip(source_path)
-                .map_err(|e| e.to_string())?
+                .map_err(|e| PluginManagerError::Internal(e.to_string()))?
         } else {
-            return Err("Unsupported file format. Use .zip or directory.".into());
+            return Err(PluginManagerError::UnsupportedFormat(
+                "Unsupported file format. Use .zip or directory.".to_string(),
+            ));
         };
 
         self.load_single_plugin(&installed_dir, app_handle.clone())
             .await?;
 
-        let manifest_bytes = std::fs::read_to_string(installed_dir.join("manifest.toml"))
-            .map_err(|e| format!("Failed to read manifest after install: {}", e))?;
-        let manifest: Manifest = toml::from_str(&manifest_bytes)
-            .map_err(|e| format!("Failed to parse manifest: {}", e))?;
+        let manifest_bytes =
+            std::fs::read_to_string(installed_dir.join("manifest.toml")).map_err(|e| {
+                PluginManagerError::Internal(format!(
+                    "Failed to read manifest after install: {}",
+                    e
+                ))
+            })?;
+        let manifest: Manifest = toml::from_str(&manifest_bytes).map_err(|e| {
+            PluginManagerError::Internal(format!("Failed to parse manifest: {}", e))
+        })?;
         let plugin_id = &manifest.plugin.id;
         let hm = self.host_manager();
-        let adapters = hm
-            .adapters
-            .get(plugin_id)
-            .ok_or(format!("Plugin not found after load: {}", plugin_id))?;
+        let adapters = hm.adapters.get(plugin_id).ok_or_else(|| {
+            PluginManagerError::PluginNotFound(format!(
+                "Plugin not found after load: {}",
+                plugin_id
+            ))
+        })?;
 
         Ok(InstalledPluginInfo {
             plugin_id: adapters.plugin_id.clone(),
@@ -307,7 +357,11 @@ impl PluginManager {
 
     /// 重载第三方插件。
     /// 成功时发送 `plugin-installed` 事件。
-    pub async fn reload(&self, plugin_id: &str, app_handle: Arc<AppHandle>) -> Result<(), String> {
+    pub async fn reload(
+        &self,
+        plugin_id: &str,
+        app_handle: Arc<AppHandle>,
+    ) -> Result<(), PluginManagerError> {
         info!("Reloading plugin: {}", plugin_id);
 
         let hm = self.host_manager();
@@ -315,7 +369,9 @@ impl PluginManager {
         let adapters = hm
             .adapters
             .get(plugin_id)
-            .ok_or(format!("Plugin not found: {}", plugin_id))?
+            .ok_or_else(|| {
+                PluginManagerError::PluginNotFound(format!("Plugin not found: {}", plugin_id))
+            })?
             .clone();
         let plugin_dir = hm.plugins_dir().join(plugin_id);
 
@@ -330,7 +386,7 @@ impl PluginManager {
 
         self.load_single_plugin(&plugin_dir, app_handle)
             .await
-            .map_err(|e| format!("Reload failed: {}", e))?;
+            .map_err(|e| PluginManagerError::Internal(format!("Reload failed: {}", e)))?;
 
         info!("Plugin {} reloaded successfully", plugin_id);
         Ok(())
@@ -342,7 +398,7 @@ impl PluginManager {
         &self,
         plugin_id: &str,
         app_handle: Arc<AppHandle>,
-    ) -> Result<(), String> {
+    ) -> Result<(), PluginManagerError> {
         info!("Uninstalling plugin: {}", plugin_id);
 
         let hm = self.host_manager();
@@ -362,8 +418,9 @@ impl PluginManager {
 
         let plugin_dir = hm.plugins_dir().join(plugin_id);
         if plugin_dir.exists() {
-            std::fs::remove_dir_all(&plugin_dir)
-                .map_err(|e| format!("Cannot remove plugin dir: {}", e))?;
+            std::fs::remove_dir_all(&plugin_dir).map_err(|e| {
+                PluginManagerError::Internal(format!("Cannot remove plugin dir: {}", e))
+            })?;
         }
 
         self.host_api().unregister(plugin_id);
@@ -415,15 +472,15 @@ impl PluginManager {
         &self,
         plugin_dir: &Path,
         app_handle: Arc<AppHandle>,
-    ) -> Result<(), String> {
+    ) -> Result<(), PluginManagerError> {
         let host_manager = self.host_manager();
         let host_api = self.host_api();
 
         let manifest_path = plugin_dir.join("manifest.toml");
-        let manifest_bytes =
-            std::fs::read_to_string(&manifest_path).map_err(|e| format!("read manifest: {}", e))?;
-        let manifest: Manifest =
-            toml::from_str(&manifest_bytes).map_err(|e| format!("parse manifest: {}", e))?;
+        let manifest_bytes = std::fs::read_to_string(&manifest_path)
+            .map_err(|e| PluginManagerError::Internal(format!("read manifest: {}", e)))?;
+        let manifest: Manifest = toml::from_str(&manifest_bytes)
+            .map_err(|e| PluginManagerError::Internal(format!("parse manifest: {}", e)))?;
         let plugin_id = manifest.plugin.id.clone();
 
         let _handle = host_api.register(&plugin_id, PluginSdkConfig::default());
@@ -439,7 +496,7 @@ impl PluginManager {
         let registered = host_manager
             .load(plugin_dir, handler, on_restart)
             .await
-            .map_err(|e| format!("plugin-host load: {}", e))?;
+            .map_err(|e| PluginManagerError::Internal(format!("plugin-host load: {}", e)))?;
 
         self.plugin_event_tx()
             .send(PluginRuntimeEvent::PluginLoaded(registered.clone()))

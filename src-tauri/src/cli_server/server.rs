@@ -90,6 +90,9 @@ pub async fn start(
         .layer(middleware::from_fn_with_state(
             token.clone(),
             auth_middleware,
+        ))
+        .layer(middleware::from_fn(
+            crate::cli_server::middleware::trace_middleware,
         ));
 
     info!("CLI HTTP server listening on 127.0.0.1:{}", port);

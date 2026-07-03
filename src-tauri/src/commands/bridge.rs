@@ -1,10 +1,9 @@
-use crate::core::BridgeError;
+use crate::bridge_error::{BridgeError, WithTraceId};
 use crate::state::app_state::AppState;
 use base64::{engine::general_purpose::STANDARD, Engine};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::{debug, info};
-use uuid::Uuid;
 use zerolaunch_plugin_api::{ConfirmResult, Query, QueryResponse, ResultAction};
 
 // ============================================================================
@@ -147,14 +146,16 @@ fn icon_to_data_url(png_data: &[u8]) -> String {
 /// 前端搜索输入变化时调用此命令，后端通过 SessionRouter 路由到搜索引擎或插件。
 /// 图标会被解析为 base64 data URL，前端 IconDisplay 可直接渲染。
 #[tauri::command]
+#[tracing::instrument(skip(state), fields(trace_id))]
 pub async fn bridge_query(
     state: tauri::State<'_, Arc<AppState>>,
     raw_query: String,
 ) -> Result<BridgeQueryResponse, BridgeError> {
+    let trace_id = crate::utils::trace_id::generate_trace_id();
+    tracing::Span::current().record("trace_id", tracing::field::display(&trace_id));
     debug!("[Bridge] 查询: '{}'", raw_query);
 
     let session_router = state.get_session_router();
-    let trace_id = Uuid::new_v4().to_string()[..8].to_string();
 
     let query = Query {
         id: trace_id.clone(),
@@ -288,17 +289,19 @@ pub async fn bridge_query(
 /// 用户选择一个候选项并触发动作时调用。
 /// 后端判断是否执行或需要进入参数面板，返回对应状态。
 #[tauri::command]
+#[tracing::instrument(skip(state, payload), fields(trace_id))]
 pub async fn bridge_confirm(
     state: tauri::State<'_, Arc<AppState>>,
     payload: ConfirmPayload,
 ) -> Result<BridgeConfirmResponse, BridgeError> {
+    let trace_id = crate::utils::trace_id::generate_trace_id();
+    tracing::Span::current().record("trace_id", tracing::field::display(&trace_id));
     debug!(
         "[Bridge] 执行: candidate_id={}, action='{}', query='{}'",
         payload.candidate_id, payload.action_id, payload.query_text
     );
 
     let session_router = state.get_session_router();
-    let trace_id = Uuid::new_v4().to_string()[..8].to_string();
 
     let json_payload = serde_json::json!({
         "candidate_id": payload.candidate_id,
@@ -309,7 +312,7 @@ pub async fn bridge_confirm(
     let result = session_router
         .route_confirm(&trace_id, &payload.action_id, json_payload)
         .await
-        .map_err(BridgeError::internal)?;
+        .with_trace_id(&trace_id)?;
 
     Ok(BridgeConfirmResponse::from(result))
 }
@@ -321,13 +324,17 @@ pub async fn bridge_confirm(
 /// 唤醒搜索栏时调用。
 /// 捕获系统参数快照（选中文本、窗口句柄等）。
 #[tauri::command]
+#[tracing::instrument(skip(state), fields(trace_id))]
 pub async fn bridge_wake(state: tauri::State<'_, Arc<AppState>>) -> Result<(), BridgeError> {
+    let trace_id = crate::utils::trace_id::generate_trace_id();
+    tracing::Span::current().record("trace_id", tracing::field::display(&trace_id));
     debug!("📸 [Bridge] 搜索栏唤醒");
     let session_router = state.get_session_router();
     session_router
         .on_search_bar_wake()
         .await
-        .map_err(BridgeError::internal)
+        .with_trace_id(&trace_id)?;
+    Ok(())
 }
 
 /// 重置当前会话。
@@ -354,9 +361,12 @@ pub fn bridge_get_session_mode(state: tauri::State<'_, Arc<AppState>>) -> String
 
 /// 强制刷新候选项缓存。
 #[tauri::command]
+#[tracing::instrument(skip(state), fields(trace_id))]
 pub async fn bridge_refresh_candidates(
     state: tauri::State<'_, Arc<AppState>>,
 ) -> Result<usize, BridgeError> {
+    let trace_id = crate::utils::trace_id::generate_trace_id();
+    tracing::Span::current().record("trace_id", tracing::field::display(&trace_id));
     debug!("🔄 [Bridge] 刷新候选项缓存");
     let session_router = state.get_session_router();
     session_router.refresh_candidates().await;
@@ -374,7 +384,10 @@ pub fn bridge_get_candidates_count(state: tauri::State<'_, Arc<AppState>>) -> us
 /// 隐藏搜索栏窗口。
 /// 前端确认执行、Esc 退出等场景统一通过此命令委托后端隐藏窗口。
 #[tauri::command]
+#[tracing::instrument(skip(state), fields(trace_id))]
 pub async fn bridge_hide_window(state: tauri::State<'_, Arc<AppState>>) -> Result<(), BridgeError> {
+    let trace_id = crate::utils::trace_id::generate_trace_id();
+    tracing::Span::current().record("trace_id", tracing::field::display(&trace_id));
     state.get_host_api().hide_window().await;
     Ok(())
 }

@@ -6,6 +6,7 @@ use crate::core::config::{ConfigEvent, ConfigManager};
 use crate::sdk::HostApi;
 use parking_lot::{Mutex, RwLock};
 use std::collections::HashMap;
+use std::fmt;
 use std::sync::Arc;
 use tracing::{debug, info};
 use zerolaunch_plugin_api::config::ComponentType;
@@ -56,6 +57,51 @@ impl SessionMode {
         )
     }
 }
+
+/// SessionRouter 内部错误类型。
+/// 仅在 plugin_framework 层内部使用，不暴露到 IPC 边界。
+/// 在 commands/ 层通过 From 转换为 BridgeError。
+#[derive(Debug)]
+pub enum SessionRouterError {
+    /// 服务未初始化
+    NotInitialized(String),
+    /// 候选项未找到
+    CandidateNotFound(u64),
+    /// 请求负载无效
+    InvalidPayload(String),
+    /// 会话状态无效
+    InvalidState(String),
+    /// 插件服务执行错误
+    PluginError(String),
+    /// 执行器错误
+    ExecutionError(String),
+    /// 常规内部错误
+    Internal(String),
+}
+
+impl fmt::Display for SessionRouterError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            SessionRouterError::NotInitialized(msg) => {
+                write!(f, "SessionRouter 未初始化: {}", msg)
+            }
+            SessionRouterError::CandidateNotFound(id) => {
+                write!(f, "候选项未找到: id={}", id)
+            }
+            SessionRouterError::InvalidPayload(msg) => {
+                write!(f, "无效的请求负载: {}", msg)
+            }
+            SessionRouterError::InvalidState(msg) => {
+                write!(f, "会话状态无效: {}", msg)
+            }
+            SessionRouterError::PluginError(msg) => write!(f, "插件错误: {}", msg),
+            SessionRouterError::ExecutionError(msg) => write!(f, "执行错误: {}", msg),
+            SessionRouterError::Internal(msg) => write!(f, "内部错误: {}", msg),
+        }
+    }
+}
+
+impl std::error::Error for SessionRouterError {}
 
 pub struct SessionRouter {
     plugin_service: Arc<PluginService>,
@@ -195,6 +241,7 @@ impl SessionRouter {
         *self.cached_candidates.write() = candidates;
     }
 
+    #[tracing::instrument(skip(self, query), fields(trace_id = %trace_id))]
     pub async fn route_query(&self, trace_id: &str, query: &Query) -> QueryResponse {
         let mut ctx = PluginContext::new(trace_id);
         ctx.with_query(query.raw_query.clone());
@@ -314,12 +361,13 @@ impl SessionRouter {
         QueryResponse::List { results }
     }
 
+    #[tracing::instrument(skip(self, payload), fields(trace_id = %trace_id))]
     pub async fn route_confirm(
         &self,
         trace_id: &str,
         action_id: &str,
         payload: serde_json::Value,
-    ) -> Result<ConfirmResult, String> {
+    ) -> Result<ConfirmResult, SessionRouterError> {
         let mode = self.current_mode.read().clone();
         let mut ctx = PluginContext::new(trace_id);
 
@@ -330,7 +378,7 @@ impl SessionRouter {
                 self.plugin_service
                     .execute_action(&ctx, plugin_id, action_id, payload)
                     .await
-                    .map_err(|e| e.to_string())?;
+                    .map_err(|e| SessionRouterError::PluginError(e.to_string()))?;
                 info!("[执行成功] plugin='{}', action='{}'", plugin_id, action_id);
                 Ok(ConfirmResult::Executed)
             }
@@ -355,10 +403,11 @@ impl SessionRouter {
                 Ok(ConfirmResult::Executed)
             }
             SessionMode::Search => {
-                let candidate_id = payload["candidate_id"]
-                    .as_u64()
-                    .ok_or_else(|| "Missing or invalid candidate_id in payload".to_string())?
-                    as CandidateId;
+                let candidate_id = payload["candidate_id"].as_u64().ok_or_else(|| {
+                    SessionRouterError::InvalidPayload(
+                        "Missing or invalid candidate_id in payload".to_string(),
+                    )
+                })? as CandidateId;
                 let query_text = payload["query_text"].as_str().unwrap_or("").to_string();
                 let user_args = Self::extract_user_args(&payload);
 
@@ -381,7 +430,9 @@ impl SessionRouter {
                     .await?;
                 Ok(ConfirmResult::Executed)
             }
-            SessionMode::None => Err("No active session".to_string()),
+            SessionMode::None => Err(SessionRouterError::InvalidState(
+                "No active session".to_string(),
+            )),
         }
     }
 
@@ -405,12 +456,12 @@ impl SessionRouter {
         action_id: &str,
         user_args: Vec<String>,
         query_text: &str,
-    ) -> Result<(), String> {
+    ) -> Result<(), SessionRouterError> {
         let exec_ctx = {
             let cached_candidate = self.cached_candidates.read();
             let candidate = cached_candidate
                 .get_candidate(candidate_id)
-                .ok_or_else(|| "Candidate not found".to_string())?;
+                .ok_or(SessionRouterError::CandidateNotFound(candidate_id))?;
 
             let snapshot = self.parameter_snapshot.lock().clone();
 
@@ -433,7 +484,7 @@ impl SessionRouter {
             let registry = self.executor_registry.read();
             registry
                 .resolve(&exec_ctx, action_id)
-                .map_err(|e| e.to_string())?
+                .map_err(|e| SessionRouterError::ExecutionError(e.to_string()))?
         };
 
         match executor.execute(&exec_ctx, action_id).await {
@@ -459,12 +510,12 @@ impl SessionRouter {
                         let registry = self.executor_registry.read();
                         registry
                             .resolve_fallback(&exec_ctx, &fallback_action)
-                            .map_err(|e| e.to_string())?
+                            .map_err(|e| SessionRouterError::ExecutionError(e.to_string()))?
                     };
                     fallback_executor
                         .execute(&exec_ctx, &fallback_action)
                         .await
-                        .map_err(|e| e.to_string())?;
+                        .map_err(|e| SessionRouterError::ExecutionError(e.to_string()))?;
                     info!(
                         "[执行成功] candidate='{}' (id={}), action='{}' (fallback from '{}')",
                         exec_ctx.display_name, candidate_id, fallback_action, action_id
@@ -477,7 +528,7 @@ impl SessionRouter {
                 }
                 Ok(())
             }
-            Err(e) => Err(e.to_string()),
+            Err(e) => Err(SessionRouterError::ExecutionError(e.to_string())),
         }
     }
 
@@ -508,12 +559,12 @@ impl SessionRouter {
         &self.plugin_service
     }
 
-    pub async fn on_search_bar_wake(&self) -> Result<(), String> {
-        let host_api = self
-            .host_api
-            .read()
-            .clone()
-            .ok_or_else(|| "HostApi not initialized in SessionRouter".to_string())?;
+    pub async fn on_search_bar_wake(&self) -> Result<(), SessionRouterError> {
+        let host_api = self.host_api.read().clone().ok_or_else(|| {
+            SessionRouterError::NotInitialized(
+                "HostApi not initialized in SessionRouter".to_string(),
+            )
+        })?;
 
         let snapshot = host_api.capture_parameter_snapshot().await;
         *self.parameter_snapshot.lock() = snapshot;

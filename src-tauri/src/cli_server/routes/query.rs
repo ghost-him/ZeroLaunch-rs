@@ -1,9 +1,12 @@
 use axum::extract::State;
+use axum::Extension;
 use axum::Json;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::sync::Arc;
 
+use crate::cli_server::middleware::TraceId;
 use crate::state::app_state::AppState;
+use zerolaunch_plugin_api::QueryResponse;
 
 #[derive(Debug, Deserialize)]
 pub struct QueryRequest {
@@ -11,27 +14,21 @@ pub struct QueryRequest {
     pub raw_query: String,
 }
 
-#[derive(Debug, Serialize)]
-pub struct QueryResponse {
-    #[serde(rename = "results")]
-    pub results: Vec<serde_json::Value>,
-}
-
 pub async fn handle(
     State(state): State<Arc<AppState>>,
+    Extension(trace_id): Extension<TraceId>,
     Json(req): Json<QueryRequest>,
-) -> Json<serde_json::Value> {
-    // Forward to SessionRouter
+) -> Json<QueryResponse> {
     let query = zerolaunch_plugin_api::Query {
-        id: uuid::Uuid::new_v4().to_string(),
+        id: trace_id.0.clone(),
         raw_query: req.raw_query.clone(),
         search_term: req.raw_query.to_lowercase(),
     };
 
     let response = state
         .get_session_router()
-        .route_query(&query.id, &query)
+        .route_query(&trace_id.0, &query)
         .await;
 
-    Json(serde_json::to_value(response).unwrap_or_default())
+    Json(response)
 }

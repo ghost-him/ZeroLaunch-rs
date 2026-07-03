@@ -15,6 +15,8 @@ use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 use tracing::{debug, error, info, warn, Level};
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
+use tracing_subscriber::fmt::format::FmtSpan;
+
 use tracing_subscriber::{self, reload, EnvFilter};
 
 // ============================================================================
@@ -127,7 +129,8 @@ pub fn init_logging(
             .with_target(true)
             .with_thread_ids(true)
             .with_file(true)
-            .with_line_number(true);
+            .with_line_number(true)
+            .with_span_events(FmtSpan::CLOSE);
 
         let console_layer = tracing_subscriber::fmt::layer()
             .with_writer(std::io::stdout)
@@ -135,7 +138,8 @@ pub fn init_logging(
             .with_target(true)
             .with_thread_ids(false)
             .with_file(false)
-            .with_line_number(false);
+            .with_line_number(false)
+            .with_span_events(FmtSpan::CLOSE);
 
         tracing_subscriber::registry()
             .with(filter)
@@ -152,7 +156,8 @@ pub fn init_logging(
             .with_target(true)
             .with_thread_ids(true)
             .with_file(true)
-            .with_line_number(true);
+            .with_line_number(true)
+            .with_span_events(FmtSpan::CLOSE);
 
         tracing_subscriber::registry()
             .with(filter)

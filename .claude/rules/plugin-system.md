@@ -38,7 +38,7 @@ paths:
 
 ## PluginHandle 使用
 
-- 插件 **必须** 通过 `PluginHandle`（从 `HostApi::register()` 获取）访问平台能力。可用方法列表见 `PluginHandle` 源码（`src-tauri/src/sdk.rs`）
+- 插件 **必须** 通过 `PluginHandle`（从 `HostApi::register()` 获取）访问平台能力。可用方法列表见 `PluginHandle` 源码（`crates/plugin-api/src/host/plugin_handle.rs`）
 - 如果某平台操作没有 `PluginHandle` 方法，**必须** 先添加到 `PluginHandle` 再使用
 
 ## 配置存储模式

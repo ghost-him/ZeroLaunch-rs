@@ -1,6 +1,5 @@
 use super::registry::PluginRegistry;
 use crate::sdk::HostApi;
-use rand::distr::{Alphanumeric, SampleString};
 use std::sync::Arc;
 use zerolaunch_plugin_api::host::PluginSdkConfig;
 use zerolaunch_plugin_api::{Plugin, PluginContext, PluginError, Query, QueryResponse};
@@ -35,8 +34,7 @@ impl PluginService {
     /// 参数：host_api - 宿主 API 句柄，用于插件访问平台能力。
     /// 返回：成功返回 ()，失败返回 PluginError。
     pub async fn init_all(&self, host_api: Arc<HostApi>) -> Result<(), PluginError> {
-        let mut rng = rand::rng();
-        let trace_id = Alphanumeric.sample_string(&mut rng, 8);
+        let trace_id = crate::utils::trace_id::generate_trace_id();
         let ctx = PluginContext::new(&trace_id);
 
         for plugin in self.registry.get_all() {

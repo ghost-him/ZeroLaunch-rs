@@ -14,6 +14,8 @@
 
 pub mod host_proxy;
 pub mod runtime;
+pub mod trace;
 
 pub use host_proxy::HostProxy;
 pub use runtime::{host, run};
+pub use trace::{instrument, span_for, with_trace};

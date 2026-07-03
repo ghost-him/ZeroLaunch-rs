@@ -144,11 +144,12 @@ impl ConfigManager {
         component_id: &str,
         action: &str,
         params: &serde_json::Value,
-    ) -> Result<serde_json::Value, String> {
+    ) -> Result<serde_json::Value, ConfigError> {
         self.registry
             .get(component_id)
-            .ok_or_else(|| format!("Component not found: {}", component_id))?
+            .ok_or_else(|| ConfigError::NotFound(component_id.to_string()))?
             .execute_config_action(action, params)
+            .map_err(ConfigError::ApplyFailed)
     }
 
     /// 按 ComponentType 查找所有组件

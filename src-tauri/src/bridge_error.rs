@@ -3,7 +3,10 @@ use std::fmt;
 use zerolaunch_plugin_api::config::ConfigError;
 use zerolaunch_plugin_api::HostApiError;
 
-/// 前后端通信统一错误类型。
+use crate::plugin_framework::PluginManagerError;
+use crate::plugin_framework::SessionRouterError;
+
+/// 前后端通信统一错误类型。这个只可以用于前端后通信，不可以在内部模块使用该错误。内部模块的错误应该自己定义自己的错误。
 /// 用于所有 Tauri command 的 Err 变体，前端可据此展示用户友好的错误提示。
 #[derive(Debug, Clone, Serialize)]
 pub struct BridgeError {
@@ -17,6 +20,23 @@ pub struct BridgeError {
     #[serde(rename = "componentId")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub component_id: Option<String>,
+    #[serde(rename = "traceId", serialize_with = "serialize_trace_id")]
+    pub trace_id: String,
+}
+
+/// 序列化 trace_id，空字符串触发 warning 日志以暴露遗漏（debug 模式额外 panic）。
+fn serialize_trace_id<S>(value: &str, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    if value.is_empty() {
+        debug_assert!(
+            false,
+            "BridgeError 缺少 trace_id，说明错误路径未调用 with_trace_id"
+        );
+        tracing::warn!("BridgeError 缺少 trace_id，某错误路径未调用 with_trace_id");
+    }
+    serializer.serialize_str(value)
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -74,6 +94,7 @@ impl From<ConfigError> for BridgeError {
             message: e.to_string(),
             details: None,
             component_id: None,
+            trace_id: String::new(),
         }
     }
 }
@@ -86,12 +107,14 @@ impl From<HostApiError> for BridgeError {
                 message: e.to_string(),
                 details: None,
                 component_id: None,
+                trace_id: String::new(),
             },
             _ => BridgeError {
                 code: ErrorCode::InternalError,
                 message: e.to_string(),
                 details: None,
                 component_id: None,
+                trace_id: String::new(),
             },
         }
     }
@@ -104,6 +127,38 @@ impl From<zerolaunch_plugin_api::PluginError> for BridgeError {
             message: e.to_string(),
             details: None,
             component_id: None,
+            trace_id: String::new(),
+        }
+    }
+}
+
+/// 将内部 SessionRouterError 转换为 IPC 边界使用的 BridgeError。
+impl From<SessionRouterError> for BridgeError {
+    fn from(e: SessionRouterError) -> Self {
+        match e {
+            SessionRouterError::NotInitialized(msg) | SessionRouterError::InvalidState(msg) => {
+                BridgeError::internal(msg)
+            }
+            SessionRouterError::CandidateNotFound(id) => {
+                BridgeError::not_found(&format!("Candidate {}", id))
+            }
+            SessionRouterError::InvalidPayload(msg) => BridgeError::validation_failed(msg),
+            SessionRouterError::PluginError(msg)
+            | SessionRouterError::ExecutionError(msg)
+            | SessionRouterError::Internal(msg) => BridgeError::internal(msg),
+        }
+    }
+}
+
+/// 将内部 PluginManagerError 转换为 IPC 边界使用的 BridgeError。
+impl From<PluginManagerError> for BridgeError {
+    fn from(e: PluginManagerError) -> Self {
+        match e {
+            PluginManagerError::PluginNotFound(msg) | PluginManagerError::FileNotFound(msg) => {
+                BridgeError::not_found(&msg)
+            }
+            PluginManagerError::UnsupportedFormat(msg) => BridgeError::validation_failed(msg),
+            PluginManagerError::Internal(msg) => BridgeError::internal(msg),
         }
     }
 }
@@ -115,6 +170,7 @@ impl BridgeError {
             message: format!("Component not found: {}", component_id),
             details: None,
             component_id: Some(component_id.to_string()),
+            trace_id: String::new(),
         }
     }
 
@@ -124,6 +180,7 @@ impl BridgeError {
             message: message.into(),
             details: None,
             component_id: None,
+            trace_id: String::new(),
         }
     }
 
@@ -133,6 +190,25 @@ impl BridgeError {
             message: message.into(),
             details: None,
             component_id: None,
+            trace_id: String::new(),
         }
+    }
+
+    /// 注入 trace_id 到当前 BridgeError。
+    pub fn with_trace_id(mut self, trace_id: &str) -> Self {
+        self.trace_id = trace_id.to_string();
+        self
+    }
+}
+
+/// 为 Result<T, E: Into<BridgeError>> 提供链式 trace_id 注入。
+/// 用法: `some_result.with_trace_id(&trace_id)?`
+pub trait WithTraceId<T> {
+    fn with_trace_id(self, trace_id: &str) -> Result<T, BridgeError>;
+}
+
+impl<T, E: Into<BridgeError>> WithTraceId<T> for Result<T, E> {
+    fn with_trace_id(self, trace_id: &str) -> Result<T, BridgeError> {
+        self.map_err(|e| e.into().with_trace_id(trace_id))
     }
 }

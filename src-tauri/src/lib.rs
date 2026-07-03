@@ -1,4 +1,5 @@
 pub mod bootstrap;
+pub mod bridge_error;
 pub mod builtin_plugin;
 pub mod cli_server;
 pub mod commands;

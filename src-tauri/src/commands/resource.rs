@@ -1,4 +1,4 @@
-use crate::core::BridgeError;
+use crate::bridge_error::{BridgeError, WithTraceId};
 use crate::state::app_state::AppState;
 use base64::{engine::general_purpose::STANDARD, Engine};
 use serde::Deserialize;
@@ -17,26 +17,35 @@ pub struct ResourceUploadPayload {
 
 /// 获取资源文件内容，返回 base64 data URL 供前端预览。
 #[tauri::command]
+#[tracing::instrument(skip(state), fields(trace_id))]
 pub async fn resource_get(
     state: tauri::State<'_, Arc<AppState>>,
     resource_id: String,
 ) -> Result<String, BridgeError> {
+    let trace_id = crate::utils::trace_id::generate_trace_id();
+    tracing::Span::current().record("trace_id", tracing::field::display(&trace_id));
     let core_handle = state.get_core_handle();
-    let data = core_handle.resource_get(&resource_id).await?;
+    let data = core_handle
+        .resource_get(&resource_id)
+        .await
+        .with_trace_id(&trace_id)?;
     Ok(to_data_url(&data, &resource_id))
 }
 
 /// 上传资源文件，返回存储标识符。
 #[tauri::command]
+#[tracing::instrument(skip(state, payload), fields(trace_id))]
 pub async fn resource_upload(
     state: tauri::State<'_, Arc<AppState>>,
     payload: ResourceUploadPayload,
 ) -> Result<String, BridgeError> {
+    let trace_id = crate::utils::trace_id::generate_trace_id();
+    tracing::Span::current().record("trace_id", tracing::field::display(&trace_id));
     let core_handle = state.get_core_handle();
     core_handle
         .resource_upload(&payload.resource_id, &payload.file_path, payload.max_size)
         .await
-        .map_err(Into::into)
+        .with_trace_id(&trace_id)
 }
 
 /// 将字节数据转为 base64 data URL。

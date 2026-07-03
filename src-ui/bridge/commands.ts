@@ -8,6 +8,7 @@ export interface BridgeError {
   message: string
   details?: unknown
   componentId?: string
+  traceId: string
 }
 
 let onError: ((error: BridgeError) => void) | null = null
@@ -23,6 +24,7 @@ function tryExtractBridgeError(e: unknown): BridgeError {
   return {
     code: 'INTERNAL_ERROR',
     message: typeof e === 'string' ? e : String(e),
+    traceId: '',
   }
 }
 

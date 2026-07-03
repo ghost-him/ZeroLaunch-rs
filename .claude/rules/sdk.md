@@ -34,7 +34,7 @@ paths:
 ## 新增平台能力的流程
 
 **正确做法：**
-1. 在 `crates/plugin-api/src/services/<capability>/` 中定义 trait
+1. 在 `crates/plugin-api/src/services/<capability>/` 中定义 trait。每个能力域包含 `mod.rs`（重新导出）、一个 trait 文件、以及按需的 `types.rs`（共享类型）
 2. 在 `crates/platform-windows/src/` 中实现
 3. 在 `HostApi` 结构体中添加 `Arc<dyn Trait>` 字段
 4. 通过 `HostApi` 方法暴露（如果是请求-响应模式，再通过 `PluginHandle` 暴露）
@@ -59,47 +59,26 @@ paths:
 - 消费平台服务的代码 **必须** 优雅处理 `UnsupportedCapability` 错误
 - UI **必须** 基于平台能力隐藏/禁用功能
 
-## 模块组织
 
-- 能力域 trait 定义在 `crates/plugin-api/src/services/<domain>/`，平台实现在 `crates/platform-windows/src/`
-- 每个能力域包含：`mod.rs`（重新导出）、一个 trait 文件、以及按需的 `types.rs`（共享类型）
-- `src-tauri/src/sdk.rs` 现为 re-export 桥，类型本体在 plugin-api
+## 当前已实现的能力域
 
-## 当前已实现的能力域（以代码为准）
+所有能力域遵循 `crates/plugin-api/src/services/<domain>/` 模式，平台实现在 `crates/platform-windows/src/`。能力域名与 HostApi/PluginHandle 方法名的对应以源码为准。新增能力 **必须** 在 services 目录下创建对应子目录。
 
-| 能力域 | Trait 位置 | Windows 实现 | HostApi 方法 |
-|--------|-----------|-------------|-------------|
-| 应用枚举 | `crates/plugin-api/src/services/app/` | `WindowsAppEnumerator` | `enumerate_apps()` |
-| 应用启动 | `crates/plugin-api/src/services/app/` | `WindowsAppLauncher` | `launch_app()` |
-| 开机自启 | `crates/plugin-api/src/services/autostart/` | `WindowsAutoStartManager` | `set_autostart()` / `is_autostart_enabled()` |
-| 焦点监控 | `crates/plugin-api/src/services/focus_monitor/` | `WindowsFocusMonitor` | `register_focus_callback()` |
-| 全局热键 | `crates/plugin-api/src/services/hotkey/` | `WindowsHotkeyManager` | `register_hotkey()` / `apply_hotkey_config()` |
-| 图标提取 | `crates/plugin-api/src/services/icon/` | `WindowsIconExtractor` | `get_icon_or_default()` |
-| 安装监控 | `crates/plugin-api/src/services/installation_monitor/` | `WindowsInstallationMonitor` | `start_installation_monitor()` |
-| 参数解析 | `crates/plugin-api/src/services/parameter/` | `DefaultParameterResolver` | `resolve_parameters()` |
-| 路径解析 | `crates/plugin-api/src/services/path/` | `WindowsPathResolver` | `resolve_path()` |
-| Shell 执行 | `crates/plugin-api/src/services/shell/` | `WindowsShellExecutor` | `shell_open()` / `shell_execute_elevation()` |
-| .lnk 解析 | `crates/plugin-api/src/services/shell/` | `WindowsLnkResolver` | `resolve_lnk()` |
-| 资源加载 (trait) | `crates/plugin-api/src/services/resource/` | `WindowsResourceLoader` (`AppResourceService`) | `get_icon_path()` |
-| 资源加载 (shell) | `crates/plugin-api/src/services/shell/` | `WindowsResourceLoader` (`ResourceLoader`) | `parse_localized_names_from_dir()` |
-| 存储服务 | `crates/plugin-api/src/services/storage/` | `LocalStorageService` / `WebDavStorageService` | `storage()` |
-| 定时器 | `crates/plugin-api/src/services/timer/` | `TokioTimerManager` | `set_interval()` / `set_timeout()` |
-| 窗口管理 | `crates/plugin-api/src/services/window/` | `WindowsWindowManager` | `show_window()` / `hide_window()` |
+## Crate 边界规范
 
-- 新增能力 **必须** 在此表中登记
-- 表中的方法名是简化表示，以 `HostApi` 源码和 `PluginHandle` 源码为准
-
-## Crate 边界规范（workspace 拆分后）
-
-SDK 已拆分为多 crate workspace：
-
-| Crate | 路径 | 内容 |
-|-------|------|------|
-| `zerolaunch-plugin-api` | `crates/plugin-api/` | traits、数据类型、HostApi error types、PluginHandle、Plugin trait |
-| `zerolaunch-platform-windows` | `crates/platform-windows/` | Windows 平台实现（14 个 trait impl） |
-| `zerolaunch-rs` | `src-tauri/` | 主程序：ConfigManager、SessionRouter、内置插件、IPC 命令 |
-
-- **新增 SDK trait**：在 `crates/plugin-api/src/services/<domain>/` 定义，在 `crates/platform-windows/src/` 实现
-- **插件作者只依赖** `zerolaunch-plugin-api`，不需要 Tauri / Windows / 主程序源码
-- **src-tauri 中的 sdk.rs** 现为 re-export 桥，类型本体在 plugin-api
+Crate 结构与依赖方向详见 [directory-map.md](directory-map.md) 的 Workspace 结构段。
 - **共享编解码器**：LSP `Content-Length` 帧编解码在 `crates/plugin-protocol/src/codec.rs` 中定义，由 `plugin-host` 和 `plugin-sdk-rust` 共享，避免重复实现
+
+## Trace 模块（第三方插件 SDK）
+
+`crates/plugin-sdk-rust/src/trace.rs` 为第三方插件提供 tracing span 辅助，通过 `PluginContext` 自动注入 trace_id、plugin_id、query_id 等关联字段。
+
+| 函数 | 签名 | 说明 |
+|------|------|------|
+| `span_for` | `fn span_for(ctx: &PluginContext) -> Span` | 根据 `PluginContext` 创建 `tracing::info_span!("plugin", trace_id, plugin_id, query_id)` |
+| `with_trace` | `fn with_trace<R>(ctx: &PluginContext, f: impl FnOnce() -> R) -> R` | 在 span 内执行**同步**闭包。**禁止**在闭包内调用 async 运行时 |
+| `instrument` | `fn instrument<F: Future>(ctx: &PluginContext, fut: F) -> Instrumented<F>` | 为异步 Future 附加 span，用法：`trace::instrument(&ctx, async { ... }).await` |
+
+- trace_id 由宿主在调用 `Plugin::query()` / `Plugin::execute_action()` 时通过 `PluginContext` 传入
+- 插件 **推荐** 在 hot-path 方法（`query`、`execute_action`）中使用 `trace::instrument` 包裹异步逻辑
+- `with_trace` 仅用于纯同步代码，内部使用 `span.enter()` 持有守卫，**禁止** 在闭包内执行 `.await`

@@ -559,6 +559,7 @@ impl SessionRouter {
         &self.plugin_service
     }
 
+    #[tracing::instrument(skip(self))]
     pub async fn on_search_bar_wake(&self) -> Result<(), SessionRouterError> {
         let host_api = self.host_api.read().clone().ok_or_else(|| {
             SessionRouterError::NotInitialized(

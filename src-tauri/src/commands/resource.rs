@@ -23,7 +23,7 @@ pub async fn resource_get(
     resource_id: String,
 ) -> Result<String, BridgeError> {
     let trace_id = crate::utils::trace_id::generate_trace_id();
-    tracing::Span::current().record("trace_id", tracing::field::display(&trace_id));
+    tracing::Span::current().record("trace_id", trace_id.as_str());
     let core_handle = state.get_core_handle();
     let data = core_handle
         .resource_get(&resource_id)
@@ -40,7 +40,7 @@ pub async fn resource_upload(
     payload: ResourceUploadPayload,
 ) -> Result<String, BridgeError> {
     let trace_id = crate::utils::trace_id::generate_trace_id();
-    tracing::Span::current().record("trace_id", tracing::field::display(&trace_id));
+    tracing::Span::current().record("trace_id", trace_id.as_str());
     let core_handle = state.get_core_handle();
     core_handle
         .resource_upload(&payload.resource_id, &payload.file_path, payload.max_size)

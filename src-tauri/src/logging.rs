@@ -15,9 +15,35 @@ use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 use tracing::{debug, error, info, warn, Level};
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
-use tracing_subscriber::fmt::format::FmtSpan;
+use tracing_subscriber::fmt::format::{DefaultFields, DefaultVisitor, FmtSpan};
 
 use tracing_subscriber::{self, reload, EnvFilter};
+
+// ============================================================================
+// 多 Layer 类型隔离包装
+// ============================================================================
+
+/// 包装 `DefaultFields` 以产生不同的泛型类型参数。
+///
+/// 当 file_layer 和 console_layer 都使用默认的 `DefaultFields` 时，
+/// 两个 layer 共享同一个 `FormattedFields<DefaultFields>` span extension。
+/// `on_record` 被两个 layer 各调用一次，导致 trace_id 等运行时记录的字段被重复追加。
+///
+/// 此包装类型委托所有行为到 `DefaultFields`，但作为不同的泛型参数 `N`，
+/// 使 console_layer 的 `FormattedFields<ConsoleFormatFields>` 与 file_layer 的
+/// `FormattedFields<DefaultFields>` 存储在独立的 extension key 下，互不干扰。
+#[derive(Debug, Default)]
+struct ConsoleFormatFields(DefaultFields);
+
+impl<'a> tracing_subscriber::field::MakeVisitor<tracing_subscriber::fmt::format::Writer<'a>>
+    for ConsoleFormatFields
+{
+    type Visitor = DefaultVisitor<'a>;
+
+    fn make_visitor(&self, target: tracing_subscriber::fmt::format::Writer<'a>) -> Self::Visitor {
+        self.0.make_visitor(target)
+    }
+}
 
 // ============================================================================
 // 日志系统常量
@@ -133,6 +159,7 @@ pub fn init_logging(
             .with_span_events(FmtSpan::CLOSE);
 
         let console_layer = tracing_subscriber::fmt::layer()
+            .fmt_fields(ConsoleFormatFields::default())
             .with_writer(std::io::stdout)
             .with_ansi(true)
             .with_target(true)

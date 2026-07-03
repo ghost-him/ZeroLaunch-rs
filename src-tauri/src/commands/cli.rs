@@ -12,7 +12,7 @@ pub async fn cli_get_info(
     state: State<'_, Arc<AppState>>,
 ) -> Result<serde_json::Value, BridgeError> {
     let trace_id = crate::utils::trace_id::generate_trace_id();
-    tracing::Span::current().record("trace_id", tracing::field::display(&trace_id));
+    tracing::Span::current().record("trace_id", trace_id.as_str());
     let token = state
         .get_cli_token()
         .ok_or_else(|| BridgeError::internal("CLI server not started").with_trace_id(&trace_id))?;

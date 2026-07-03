@@ -20,7 +20,7 @@ pub async fn plugin_list(
     state: State<'_, Arc<AppState>>,
 ) -> Result<Vec<InstalledPluginInfo>, BridgeError> {
     let trace_id = crate::utils::trace_id::generate_trace_id();
-    tracing::Span::current().record("trace_id", tracing::field::display(&trace_id));
+    tracing::Span::current().record("trace_id", trace_id.as_str());
     let pm = state.get_plugin_manager();
     let cm = state.get_config_manager();
     let hm = pm.host_manager();
@@ -41,7 +41,7 @@ pub async fn plugin_get_manifest(
     state: State<'_, Arc<AppState>>,
 ) -> Result<Manifest, BridgeError> {
     let trace_id = crate::utils::trace_id::generate_trace_id();
-    tracing::Span::current().record("trace_id", tracing::field::display(&trace_id));
+    tracing::Span::current().record("trace_id", trace_id.as_str());
     let plugin_manager = state.get_plugin_manager();
     plugin_manager
         .get_manifest(&plugin_id)
@@ -57,7 +57,7 @@ pub async fn plugin_install_local(
     state: State<'_, Arc<AppState>>,
 ) -> Result<InstalledPluginInfo, BridgeError> {
     let trace_id = crate::utils::trace_id::generate_trace_id();
-    tracing::Span::current().record("trace_id", tracing::field::display(&trace_id));
+    tracing::Span::current().record("trace_id", trace_id.as_str());
     let plugin_manager = state.get_plugin_manager();
     let path = std::path::PathBuf::from(&file_path);
     let app_handle = state.get_main_handle();
@@ -77,7 +77,7 @@ pub async fn plugin_reload(
     state: State<'_, Arc<AppState>>,
 ) -> Result<(), BridgeError> {
     let trace_id = crate::utils::trace_id::generate_trace_id();
-    tracing::Span::current().record("trace_id", tracing::field::display(&trace_id));
+    tracing::Span::current().record("trace_id", trace_id.as_str());
     let plugin_manager = state.get_plugin_manager();
     let app_handle = state.get_main_handle();
 
@@ -96,7 +96,7 @@ pub async fn plugin_uninstall(
     state: State<'_, Arc<AppState>>,
 ) -> Result<(), BridgeError> {
     let trace_id = crate::utils::trace_id::generate_trace_id();
-    tracing::Span::current().record("trace_id", tracing::field::display(&trace_id));
+    tracing::Span::current().record("trace_id", trace_id.as_str());
     let plugin_manager = state.get_plugin_manager();
     let app_handle = state.get_main_handle();
 
@@ -118,7 +118,7 @@ pub async fn plugin_set_enabled(
     state: State<'_, Arc<AppState>>,
 ) -> Result<(), BridgeError> {
     let trace_id = crate::utils::trace_id::generate_trace_id();
-    tracing::Span::current().record("trace_id", tracing::field::display(&trace_id));
+    tracing::Span::current().record("trace_id", trace_id.as_str());
     let pm = state.get_plugin_manager();
     let cm = state.get_config_manager();
     let hm = pm.host_manager();
@@ -145,7 +145,7 @@ pub async fn plugin_get_logs(
     state: State<'_, Arc<AppState>>,
 ) -> Result<Vec<String>, BridgeError> {
     let trace_id = crate::utils::trace_id::generate_trace_id();
-    tracing::Span::current().record("trace_id", tracing::field::display(&trace_id));
+    tracing::Span::current().record("trace_id", trace_id.as_str());
     let plugin_manager = state.get_plugin_manager();
     plugin_manager
         .get_logs(&plugin_id, tail_lines.unwrap_or(50))

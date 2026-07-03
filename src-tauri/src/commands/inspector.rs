@@ -11,7 +11,7 @@ pub async fn inspector_get_state(
     state: tauri::State<'_, Arc<AppState>>,
 ) -> Result<serde_json::Value, BridgeError> {
     let trace_id = crate::utils::trace_id::generate_trace_id();
-    tracing::Span::current().record("trace_id", tracing::field::display(&trace_id));
+    tracing::Span::current().record("trace_id", trace_id.as_str());
     #[cfg(feature = "inspector")]
     {
         let inspector = state.get_inspector().ok_or_else(|| {
@@ -36,7 +36,7 @@ pub async fn inspector_simulate_query(
     raw_query: String,
 ) -> Result<serde_json::Value, BridgeError> {
     let trace_id = format!("sim-{}", crate::utils::trace_id::generate_trace_id());
-    tracing::Span::current().record("trace_id", tracing::field::display(&trace_id));
+    tracing::Span::current().record("trace_id", trace_id.as_str());
     #[cfg(feature = "inspector")]
     {
         use zerolaunch_plugin_api::plugin::Query;

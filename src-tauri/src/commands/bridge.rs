@@ -152,7 +152,7 @@ pub async fn bridge_query(
     raw_query: String,
 ) -> Result<BridgeQueryResponse, BridgeError> {
     let trace_id = crate::utils::trace_id::generate_trace_id();
-    tracing::Span::current().record("trace_id", tracing::field::display(&trace_id));
+    tracing::Span::current().record("trace_id", trace_id.as_str());
     debug!("[Bridge] 查询: '{}'", raw_query);
 
     let session_router = state.get_session_router();
@@ -295,7 +295,7 @@ pub async fn bridge_confirm(
     payload: ConfirmPayload,
 ) -> Result<BridgeConfirmResponse, BridgeError> {
     let trace_id = crate::utils::trace_id::generate_trace_id();
-    tracing::Span::current().record("trace_id", tracing::field::display(&trace_id));
+    tracing::Span::current().record("trace_id", trace_id.as_str());
     debug!(
         "[Bridge] 执行: candidate_id={}, action='{}', query='{}'",
         payload.candidate_id, payload.action_id, payload.query_text
@@ -327,7 +327,7 @@ pub async fn bridge_confirm(
 #[tracing::instrument(skip(state), fields(trace_id))]
 pub async fn bridge_wake(state: tauri::State<'_, Arc<AppState>>) -> Result<(), BridgeError> {
     let trace_id = crate::utils::trace_id::generate_trace_id();
-    tracing::Span::current().record("trace_id", tracing::field::display(&trace_id));
+    tracing::Span::current().record("trace_id", trace_id.as_str());
     debug!("📸 [Bridge] 搜索栏唤醒");
     let session_router = state.get_session_router();
     session_router
@@ -366,7 +366,7 @@ pub async fn bridge_refresh_candidates(
     state: tauri::State<'_, Arc<AppState>>,
 ) -> Result<usize, BridgeError> {
     let trace_id = crate::utils::trace_id::generate_trace_id();
-    tracing::Span::current().record("trace_id", tracing::field::display(&trace_id));
+    tracing::Span::current().record("trace_id", trace_id.as_str());
     debug!("🔄 [Bridge] 刷新候选项缓存");
     let session_router = state.get_session_router();
     session_router.refresh_candidates().await;
@@ -387,7 +387,7 @@ pub fn bridge_get_candidates_count(state: tauri::State<'_, Arc<AppState>>) -> us
 #[tracing::instrument(skip(state), fields(trace_id))]
 pub async fn bridge_hide_window(state: tauri::State<'_, Arc<AppState>>) -> Result<(), BridgeError> {
     let trace_id = crate::utils::trace_id::generate_trace_id();
-    tracing::Span::current().record("trace_id", tracing::field::display(&trace_id));
+    tracing::Span::current().record("trace_id", trace_id.as_str());
     state.get_host_api().hide_window().await;
     Ok(())
 }

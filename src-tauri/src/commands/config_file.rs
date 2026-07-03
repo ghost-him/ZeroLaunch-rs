@@ -28,7 +28,7 @@ pub fn config_execute_action(
     params: Option<serde_json::Value>,
 ) -> Result<serde_json::Value, BridgeError> {
     let trace_id = crate::utils::trace_id::generate_trace_id();
-    tracing::Span::current().record("trace_id", tracing::field::display(&trace_id));
+    tracing::Span::current().record("trace_id", trace_id.as_str());
     let params = params.unwrap_or(serde_json::Value::Null);
     state
         .get_config_manager()
@@ -52,7 +52,7 @@ pub fn config_get_schema(
     component_id: String,
 ) -> Result<crate::core::config::ComponentSchema, BridgeError> {
     let trace_id = crate::utils::trace_id::generate_trace_id();
-    tracing::Span::current().record("trace_id", tracing::field::display(&trace_id));
+    tracing::Span::current().record("trace_id", trace_id.as_str());
     state
         .get_config_manager()
         .get_component_schema(&component_id)
@@ -67,7 +67,7 @@ pub fn config_get_settings(
     component_id: String,
 ) -> Result<serde_json::Value, BridgeError> {
     let trace_id = crate::utils::trace_id::generate_trace_id();
-    tracing::Span::current().record("trace_id", tracing::field::display(&trace_id));
+    tracing::Span::current().record("trace_id", trace_id.as_str());
     state
         .get_config_manager()
         .get_settings(&component_id)
@@ -83,7 +83,7 @@ pub fn config_apply_settings(
     settings: serde_json::Value,
 ) -> Result<(), BridgeError> {
     let trace_id = crate::utils::trace_id::generate_trace_id();
-    tracing::Span::current().record("trace_id", tracing::field::display(&trace_id));
+    tracing::Span::current().record("trace_id", trace_id.as_str());
     state
         .get_config_manager()
         .apply_settings(&component_id, settings)
@@ -98,7 +98,7 @@ pub fn config_reset_settings(
     component_id: String,
 ) -> Result<(), BridgeError> {
     let trace_id = crate::utils::trace_id::generate_trace_id();
-    tracing::Span::current().record("trace_id", tracing::field::display(&trace_id));
+    tracing::Span::current().record("trace_id", trace_id.as_str());
     state
         .get_config_manager()
         .reset_to_default(&component_id)
@@ -114,7 +114,7 @@ pub fn config_set_enabled(
     enabled: bool,
 ) -> Result<(), BridgeError> {
     let trace_id = crate::utils::trace_id::generate_trace_id();
-    tracing::Span::current().record("trace_id", tracing::field::display(&trace_id));
+    tracing::Span::current().record("trace_id", trace_id.as_str());
     state
         .get_config_manager()
         .set_enabled(&component_id, enabled)

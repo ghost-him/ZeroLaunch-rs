@@ -107,7 +107,6 @@ zerolaunch-plugin-sdk-rust = { path = "crates/plugin-sdk-rust" }
 zerolaunch-platform-windows = { path = "crates/platform-windows" }
 
 [profile.release]
-lto = true
-codegen-units = 1
+codegen-units = 16
 panic = "abort"
 strip = true

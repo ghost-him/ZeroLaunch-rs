@@ -36,3 +36,6 @@ target
 
 # 以下文件为代码审查相关的文件，对项目本身无作用
 code-review*.md
+
+# OMP 旧版配置目录（已迁移至 .omp/）
+.claude/

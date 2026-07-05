@@ -1,5 +1,6 @@
 ---
-paths:
+description: 前端规范：技术栈、目录结构、组件编写、Store 模式、多窗口架构、CSS 变量契约、Schema 驱动 UI、类型安全
+globs:
   - "src-ui/**"
 ---
 
@@ -42,7 +43,7 @@ paths:
 - 所有组件样式 **必须** 使用 `<style scoped>`
 - 颜色、字号、间距 **必须** 使用 CSS 变量（如 `var(--text-primary)`）
 - **必须** 通过 `bridge/commands.ts` 封装所有 Tauri API 调用
-- 所有业务逻辑 **必须** 通过 IPC 委托后端（见 [general.md](general.md) 的前后端职责边界）
+- 所有业务逻辑 **必须** 通过 IPC 委托后端（见 `.omp/RULES.md` 的前后端职责边界）
 
 ### 响应式状态
 

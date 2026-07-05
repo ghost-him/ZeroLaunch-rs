@@ -1,5 +1,6 @@
 ---
-paths:
+description: 配置系统规范：ConfigManager save/load 流水线、ConfigAction、组件粒度、命名规范、Serde 默认值强制规范
+globs:
   - "src-tauri/src/core/config/**"
   - "src-tauri/src/commands/config_file.rs"
   - "crates/plugin-api/src/config/**"
@@ -30,7 +31,7 @@ paths:
 
 ## ConfigAction 用于保存前测试
 
-- 如果副作用必须决定配置能否保存（如 WebDAV 连通性测试）：**必须** 使用 `ConfigAction`。通过 `config_actions()` → `Vec<ConfigActionDef>` 声明，在 `execute_config_action(&self, action: &str)` → `Result<serde_json::Value, String>` 中实现
+- 如果副作用必须决定配置能否保存（如 WebDAV 连通性测试）：**必须** 使用 `ConfigAction`。通过 `config_actions() → Vec<ConfigActionDef>` 声明，在 `execute_config_action(&self, action: &str) → Result<serde_json::Value, String>` 中实现
 - 前端 **必须** 将 `config_execute_action` 作为单独的用户触发操作调用，与保存流程解耦
 
 ## 组件粒度
@@ -42,7 +43,7 @@ paths:
 
 ## 组件位置
 
-- 核心配置组件（非插件）和插件专属配置的放置规则见 [directory-map.md](directory-map.md) 的新文件放置决策树
+- 核心配置组件（非插件）和插件专属配置的放置规则见 `.omp/AGENTS.md` 的新文件放置决策树
 - 配置组件实现 `Configurable` trait，可持有 `Arc<HostApi>` 以在 `on_settings_changed()` 中调用平台服务
 
 ## 命名规范

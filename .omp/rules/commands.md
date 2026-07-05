@@ -1,5 +1,6 @@
 ---
-paths:
+description: IPC 命令规范：命名、参数、序列化、错误处理、trace_id 追踪、返回类型约定
+globs:
   - "src-tauri/src/commands/**"
   - "src-ui/bridge/**"
   - "src-tauri/src/cli_server/**"
@@ -62,7 +63,6 @@ paths:
   ```
 
 - enum unit variant 和 variant with fields 均需显式标注：variant 标签加 `#[serde(rename = "...")]`，有内部字段的 variant 还需对每个内部字段标注。
-
 
 ## 错误处理
 

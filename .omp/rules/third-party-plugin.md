@@ -1,5 +1,6 @@
 ---
-paths:
+description: 第三方插件运行时规范：子进程 JSON-RPC 架构、协议、Manifest 校验、生命周期、RemotePluginAdapter、CLI HTTP、zlplugin:// 协议
+globs:
   - "crates/plugin-protocol/**"
   - "crates/plugin-host/**"
   - "crates/plugin-sdk-rust/**"

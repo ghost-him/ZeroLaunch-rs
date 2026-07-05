@@ -1,12 +1,12 @@
 ---
 name: optimize-rules
-description: 分析并优化 .claude/rules/ 文件，修复过时内容、缺失覆盖、冗余规则和未记录的约束。在重构后规则与代码脱节时使用，或当 Claude 开始忽略/误用规则时使用。
+description: 分析并优化 .omp/rules/ 文件，修复过时内容、缺失覆盖、冗余规则和未记录的约束。在重构后规则与代码脱节时使用，或当 Claude 开始忽略/误用规则时使用。
 argument-hint: "[范围: all | <规则文件名>]"
 ---
 
 ## 用途
 
-审计并更新 `.claude/rules/` 文件，使其保持准确、精准、精简。本技能会在规则文本与实际代码之间进行系统性的交叉比对，然后应用修复。
+审计并更新 `.omp/rules/` 文件，使其保持准确、精准、精简。本技能会在规则文本与实际代码之间进行系统性的交叉比对，然后应用修复。
 
 ## 触发时机
 
@@ -16,21 +16,21 @@ argument-hint: "[范围: all | <规则文件名>]"
 
 ### 第一阶段：并行发现（5 个 agent）
 
-如果传入了 `args`（如 `"general.md"` 或 `"plugin-system.md"`），则所有 Agent **只分析指定的规则文件**。如果 `args` 为 `"all"` 或未传入，则分析全部 `.claude/rules/*.md` 文件。
+如果传入了 `args`（如 `"general.md"` 或 `"plugin-system.md"`），则所有 Agent **只分析指定的规则文件**。如果 `args` 为 `"all"` 或未传入，则分析全部 `.omp/rules/*.md` 文件。
 
 同时启动五个 Explore agent，各负责一个维度：
 
-**Agent 0 — Paths Frontmatter 覆盖分析**
-- 逐一分析每个规则文件的 `paths:` frontmatter，用 Glob 展开所有通配符得到当前实际覆盖的文件集合
+**Agent 0 — Globs Frontmatter 覆盖分析**
+- 逐一分析每个规则文件的 `globs:` frontmatter，用 Glob 展开所有通配符得到当前实际覆盖的文件集合
 - 通读规则正文，提取所有**被规则约束或指导的代码位置**：
   - 明确引用的文件路径（如 `core/config/manager.rs`）
   - 明确引用的目录（如 `builtin_plugin/config/`）
   - 明确引用的 crate（如 `plugin-api`、`plugin-protocol`、`platform-windows`）
   - **主题隐含范围**：从规则标题和核心内容推断该规则所约束的代码领域（如 `sdk.md` 主题是整个 SDK 层，约束范围 = trait 定义 `crates/plugin-api/src/` + 平台实现 `crates/platform-windows/src/` + re-export 桥 `src-tauri/src/sdk.rs`）
-- **核心检验**：如果规则说"X 定义在 Y"或"在 Z 目录下添加"但 Y/Z 不在 `paths:` frontmatter 里 → 编辑 Y/Z 时该规则**不会被加载** → 覆盖缺失
-- 报告：(a) `paths:` 条目覆盖不足的路径，(b) 规则约束的整个域完全不在 `paths:` 中，(c) 过宽或过窄的 glob 模式
+- **核心检验**：如果规则说"X 定义在 Y"或"在 Z 目录下添加"但 Y/Z 不在 `globs:` frontmatter 里 → 编辑 Y/Z 时该规则**不会被触发** → 覆盖缺失
+- 报告：(a) `globs:` 条目覆盖不足的路径，(b) 规则约束的整个域完全不在 `globs:` 中，(c) 过宽或过窄的 glob 模式
 - 严重程度分级：
-  - **高**：规则约束的核心域超过 50% 不在 `paths:` 内（如只覆盖了 re-export 桥但漏了整个 trait 定义目录）
+  - **高**：规则约束的核心域超过 50% 不在 `globs:` 内（如只覆盖了 re-export 桥但漏了整个 trait 定义目录）
   - **中**：规则引用了次要依赖但未覆盖（如 plugin-system.md 引用 PluginHandle 但未覆盖 plugin-api）
   - **低**：单一边缘路径遗漏
 - 报告格式：
@@ -44,7 +44,7 @@ argument-hint: "[范围: all | <规则文件名>]"
 - 通读目标规则文件的全部内容
 - 对规则中声称的每个文件路径、目录树和模块清单，通过 Glob 验证磁盘上是否存在
 - 报告：(a) 规则**正文**中存在的路径在磁盘上 **不存在**，(b) 磁盘上存在但规则**正文**中 **缺失** 的路径，(c) 数值声明（文件数/插件数/命令数）与实际情况不符的地方
-- **注意**：此 Agent 只检查规则**正文**中提到的路径是否正确，**不**检查 `paths:` frontmatter 的覆盖范围（由 Agent 0 专门负责）
+- **注意**：此 Agent 只检查规则**正文**中提到的路径是否正确，**不**检查 `globs:` frontmatter 的覆盖范围（由 Agent 0 专门负责）
 - 报告格式：
   ```
   ## Agent 1 报告 — 结构覆盖
@@ -119,7 +119,7 @@ argument-hint: "[范围: all | <规则文件名>]"
 1. **需要修改的文件** — 按严重程度排序（最严重排最前）
 2. **每个文件的具体改动** — 增、删、改的具体内容
 3. **需要新增的规则** — 重构中产生但尚未文档化的模式
-4. **违反最佳实践** — 按 CLAUDE.md 指南需要收紧、拆分或删除的规则
+4. **违反最佳实践** — 按 `.omp/RULES.md`（工程纪律）和 `.omp/rules/`（条件规则）的最佳实践需要收紧、拆分或删除的规则
 5. **冲突规则** — 两条或多条规则之间存在矛盾，需要再次审查，决定保留哪条、删除哪条
 
 ### 第三阶段：呈现计划
@@ -139,21 +139,21 @@ argument-hint: "[范围: all | <规则文件名>]"
 2. 更新后的规则中提到的每个文件路径在磁盘上确实存在（逐个 Glob 验证）
 3. 快速一致性检查：是否有两条规则现在互相矛盾？
 
-## 核心原则（来自 CLAUDE.md 最佳实践，适用于规则文件）
+## 核心原则（适用于规则文件）
 
 以下原则指导本技能的所有判断：
 
-1. **"如果删掉这条规则，Claude 会不会更容易犯错？"** — 唯一的试金石。如果删掉一条规则不会改变 Claude 的行为，立即删除。
+1. **"如果删掉这条规则，AI agent 会不会更容易犯错？"** — 唯一的试金石。如果删掉一条规则不会改变 agent 的行为，立即删除。
 2. **有原因的规则才具有泛化能力** — 每条约束必须解释为什么。"不要做 X，遇到这种情况应该做 Y"是禁止性规则的标准格式。
 3. **不要记录工具已经能强制执行的内容** — 如果 ESLint/rustfmt/clippy 已经能捕获，就不要写进规则。
 4. **缓慢添加，果断删除** — 每次出错就加一条规则是膨胀之路。等同一类错误重复出现 2-3 次再固化为规则。
-5. **积极使用路径限定作用域** — 如果规则只适用于 `commands/` 或 `plugin_system/`，用 `paths:` 前置元数据限定。不要全局加载。
+5. **积极使用路径限定作用域** — 如果规则只适用于 `commands/` 或 `plugin_system/`，用 `globs:` 前置元数据限定。不要全局加载。
 6. **目标每个文件不超过 200 行** — 超过则按主题或路径拆分。
 7. **具体优于模糊** — 将"注意性能"替换为具体、可验证的标准。
 8. **审计冲突** — 两条规则说相反的话 = 两条都不会被遵循。积极消解冲突。
 
 ## 参考资料
 
-- 官方文档: https://code.claude.com/docs/zh-CN/memory
-- 社区指南: https://javaguide.cn/ai-coding/practices/claude-md-best-practices.html
-- 社区指南 (英文): https://blog.eimoon.com/p/guide-to-writing-the-best-claude-md/
+- OMP 官方文档: https://omp.sh/docs
+- OMP TTSR 规则: https://omp.sh/docs/customization/ttsr-rules
+- 规则文件最佳实践: https://omp.sh/docs/customization/context-files

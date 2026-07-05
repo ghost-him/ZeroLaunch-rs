@@ -1,5 +1,6 @@
 ---
-paths:
+description: SDK/平台抽象层规范：平台能力模型、HostApi/PluginHandle 权限隔离、新增能力流程、推送式回调、Trace 模块
+globs:
   - "src-tauri/src/sdk.rs"
   - "crates/plugin-api/src/**"
   - "crates/platform-windows/src/**"
@@ -59,14 +60,13 @@ paths:
 - 消费平台服务的代码 **必须** 优雅处理 `UnsupportedCapability` 错误
 - UI **必须** 基于平台能力隐藏/禁用功能
 
-
 ## 当前已实现的能力域
 
 所有能力域遵循 `crates/plugin-api/src/services/<domain>/` 模式，平台实现在 `crates/platform-windows/src/`。能力域名与 HostApi/PluginHandle 方法名的对应以源码为准。新增能力 **必须** 在 services 目录下创建对应子目录。
 
 ## Crate 边界规范
 
-Crate 结构与依赖方向详见 [directory-map.md](directory-map.md) 的 Workspace 结构段。
+Crate 结构与依赖方向详见 `.omp/AGENTS.md` 的 Workspace 结构段。
 - **共享编解码器**：LSP `Content-Length` 帧编解码在 `crates/plugin-protocol/src/codec.rs` 中定义，由 `plugin-host` 和 `plugin-sdk-rust` 共享，避免重复实现
 
 ## Trace 模块（第三方插件 SDK）

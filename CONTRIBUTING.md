@@ -15,21 +15,22 @@
 
 ## AI 辅助开发（推荐）
 
-本项目已针对 **Claude Code** 建立了一套完整的 **Harness Engineering** 体系，强烈建议使用 Claude Code 作为日常开发的 AI 辅助工具。
+本项目已针对 **OMP (Oh My Pi)** 建立了一套完整的 **Harness Engineering** 体系，强烈建议使用 OMP 作为日常开发的 AI 辅助工具。
 
 ### Harness 基础设施
 
 | 设施 | 路径 | 用途 |
 | ---- | ---- | ---- |
-| 规则文件 | `.claude/rules/` (9 个域规则文件) | 为 Claude Code 提供架构、编码规范、目录结构、数据流等上下文 |
-| 技能 | `.claude/skills/` (4 个技能) | 自动化常见开发任务（详见下方） |
-| CodeGraph | `.codegraph/` (代码知识图谱索引) | 毫秒级符号级代码检索，支撑 Claude Code 精准定位与理解代码 |
-| 项目导航 | `CLAUDE.md` | 项目入口文档，提供架构速览与关键文件清单 |
-| 权限配置 | `.claude/settings.json` | 预配置常用命令权限，减少交互式授权弹窗 |
+| 工程纪律（粘性规则） | `.omp/RULES.md` | 始终生效的硬性工程纪律，永不滚出上下文 |
+| 条件规则 | `.omp/rules/` (7 个域规则文件) | TTSR 条件触发，按文件路径加载架构、编码规范、数据流等上下文 |
+| 技能 | `.omp/skills/` (4 个技能) | 自动化常见开发任务（详见下方） |
+| CodeGraph | `.codegraph/` (代码知识图谱索引) | 毫秒级符号级代码检索，支撑 OMP 精准定位与理解代码 |
+| 项目导航 | `.omp/AGENTS.md` | 项目入口文档，提供架构速览与关键文件清单 |
+| 权限配置 | `.omp/config.yml` | 预配置常用命令权限，减少交互式授权弹窗 |
 
 #### CodeGraph 安装与初始化
 
-[CodeGraph](https://github.com/colbymchenry/codegraph) 是本项目 Harness 体系的核心组件，它将代码库预计算为 SQLite 知识图谱，提供毫秒级符号级检索能力。Claude Code 通过 CodeGraph MCP Server 可以在单次调用中获取任意符号的完整源码、调用链和被依赖关系，大幅减少文件读取与搜索的 Token 消耗。
+[CodeGraph](https://github.com/colbymchenry/codegraph) 是本项目 Harness 体系的核心组件，它将代码库预计算为 SQLite 知识图谱，提供毫秒级符号级检索能力。OMP 通过 CodeGraph MCP Server 可以在单次调用中获取任意符号的完整源码、调用链和被依赖关系，大幅减少文件读取与搜索的 Token 消耗。
 
 **安装 CodeGraph：**
 
@@ -48,23 +49,25 @@ codegraph init
 
 > **提示**：确保 `.codegraph/` 已添加到 `.gitignore`，该目录不应提交到版本控制。
 
-#### 规则文件 (.claude/rules/) 清单
+#### 工程纪律（粘性规则）
+
+`.omp/RULES.md` — 始终生效的粘性工程纪律：async 契约、RwLock 守卫、死代码、前后端边界、用户交互、日志规范等。始终加载，不随文件路径触发。详见 [`.omp/RULES.md`](.omp/RULES.md)。
+
+#### 条件规则文件 (.omp/rules/) 清单
 
 | 规则文件 | 覆盖域 |
 | -------- | ------ |
-| `general.md` | 通用工程纪律：async 契约、RwLock 守卫、死代码、前后端边界、日志规范等 |
-| `plugin-system.md` | 插件系统架构：SessionRouter、Pipeline、Registry、PluginManager、事件通道 |
-| `sdk.md` | SDK 层规范：PluginHandle、HostApi、trait 定义与实现分离 |
-| `commands.md` | IPC 命令规范：薄代理模式、命令前缀与文件对应关系 |
-| `config.md` | 配置系统规范：ConfigManager、Configurable trait、SchemaBuilder |
-| `frontend.md` | 前端架构规范：组件目录、状态管理、IPC 契约层 |
-| `third-party-plugin.md` | 第三方插件开发与加载规范 |
-| `directory-map.md` | 目录结构与文件放置决策树 |
-| `data-flow.md` | 数据流规范：前端 ↔ IPC ↔ 后端 ↔ 插件 的数据流向 |
+| `rules/plugin-system.md` | 插件系统架构：SessionRouter、Pipeline、Registry、PluginManager、事件通道 |
+| `rules/sdk.md` | SDK 层规范：PluginHandle、HostApi、trait 定义与实现分离 |
+| `rules/commands.md` | IPC 命令规范：薄代理模式、命令前缀与文件对应关系 |
+| `rules/config.md` | 配置系统规范：ConfigManager、Configurable trait、SchemaBuilder |
+| `rules/frontend.md` | 前端架构规范：组件目录、状态管理、IPC 契约层 |
+| `rules/third-party-plugin.md` | 第三方插件开发与加载规范 |
+| `rules/data-flow.md` | 数据流规范：前端 ↔ IPC ↔ 后端 ↔ 插件 的数据流向 |
 
 ### 支持技能（Skills）
 
-在 Claude Code 中通过 `/` 前缀调用，以下是日常开发中会使用到的 skill：
+在 OMP 中通过 `/` 前缀调用，以下是日常开发中会使用到的 skill：
 
 #### 1. `/summarize-changes` — 代码更改总结
 
@@ -170,9 +173,9 @@ cargo run --bin xtask clean                         # 清理构建产物
 
 ## 贡献流程
 
-### 推荐工作流（Claude Code）
+### 推荐工作流（OMP）
 
-使用 Claude Code 时，推荐的开发流程为：
+使用 OMP 时，推荐的开发流程为：
 
 ```
 1. 创建功能分支     → 基于 main 创建独立分支（如 feature/my-change）

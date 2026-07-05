@@ -1,5 +1,6 @@
 ---
-paths:
+description: 插件系统规范：inventory 自动注册、Configurable 生命周期、ExecutorRegistry、PluginHandle、Pipeline、事件驱动解耦
+globs:
   - "src-tauri/src/builtin_plugin/**"
   - "src-tauri/src/plugin_framework/**"
   - "crates/plugin-api/src/plugin/**"
@@ -26,7 +27,7 @@ paths:
 
 ## Configurable 生命周期
 
-配置变更的 5 步流水线及各方法的职责边界见 [config.md](config.md) 的 Configurable 生命周期规范。参照实现：`HotkeyConfigComponent`、`InstallationMonitorConfigComponent`。
+配置变更的 5 步流水线及各方法的职责边界见 `.omp/rules/config.md` 的 Configurable 生命周期规范。参照实现：`HotkeyConfigComponent`、`InstallationMonitorConfigComponent`。
 
 ## ExecutorRegistry
 
@@ -43,7 +44,7 @@ paths:
 
 ## 配置存储模式
 
-所有 `Configurable` 实现 **必须** 使用强类型 `Settings` struct（带 `#[derive(Serialize, Deserialize)]` + 每个字段标注 `#[serde(rename, default)]`），通过 `RwLock<Settings>` 存储。详细规范见 [config.md](config.md) 的 Serde 默认值强制规范。
+所有 `Configurable` 实现 **必须** 使用强类型 `Settings` struct（带 `#[derive(Serialize, Deserialize)]` + 每个字段标注 `#[serde(rename, default)]`），通过 `RwLock<Settings>` 存储。详细规范见 `.omp/rules/config.md` 的 Serde 默认值强制规范。
 
 `apply_settings()` 中 **必须** 使用 `serde_json::from_value::<Settings>(settings).unwrap_or_default()` 反序列化，然后写入 `RwLock`。**禁止** 在 `apply_settings()` 中做解析、校验或副作用。
 
@@ -82,7 +83,7 @@ paths:
 
 ## 依赖方向
 
-见 [directory-map.md](directory-map.md) 的顶层目录职责表。
+见 `.omp/AGENTS.md` 的顶层目录职责表。
 
 ## Plugin Trait Init
 

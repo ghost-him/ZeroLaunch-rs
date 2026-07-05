@@ -1,5 +1,6 @@
 ---
-paths:
+description: 数据流规范：插件生命周期、IPC 关键类型对照、动作分发机制、Executor/TargetType/action_id 映射
+globs:
   - "src-tauri/src/commands/**"
   - "src-tauri/src/plugin_framework/**"
   - "src-tauri/src/core/**"
@@ -10,8 +11,6 @@ paths:
 # 数据流规范
 
 > 以下数据流均基于实际代码验证（`src-tauri/src/`）。当文档与代码不一致时，以代码为准。
-
----
 
 ## 插件生命周期总览
 
@@ -124,8 +123,6 @@ SearchCandidate.icon (存储的是路径字符串)
   → 嵌入 BridgeSearchResult.icon 字段
   → 前端直接用 base64 data URL 渲染 <img src="data:image/png;base64,...">
 ```
-
----
 
 ## 动作分发机制
 

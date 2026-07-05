@@ -128,7 +128,7 @@ classify_subsystem() {
         src-ui/styles/*)               CLASSIFY_SUB="styles" ;;
         # --- config / meta ----------------------------------------------------
         src-tauri/Cargo.toml|Cargo.toml) CLASSIFY_SUB="workspace-config" ;;
-        .claude/rules/*)               CLASSIFY_SUB="rules" ;;
+        .omp/rules/*)               CLASSIFY_SUB="rules" ;;
         *)                             CLASSIFY_SUB="other" ;;
     esac
 }
@@ -142,7 +142,7 @@ is_core_subsystem() {
     return 1
 }
 
-# Map a repo-relative path to the .claude/rules/*.md files that govern it.
+# Map a repo-relative path to the .omp/rules/*.md files that govern it.
 # Sets the global variable MAP_RULES (space-separated filenames, no subshell).
 map_rules_for_path() {
     case "$1" in
@@ -154,9 +154,9 @@ map_rules_for_path() {
         src-ui/*)
             MAP_RULES="frontend.md general.md" ;;
         crates/plugin-api/*|crates/plugin-protocol/*|crates/plugin-host/*|crates/plugin-sdk-rust/*)
-            MAP_RULES="sdk.md directory-map.md" ;;
+            MAP_RULES="sdk.md" ;;
         crates/platform-windows/*)
-            MAP_RULES="directory-map.md" ;;
+            MAP_RULES="general.md" ;;
         src-tauri/src/core/*)
             MAP_RULES="config.md data-flow.md general.md" ;;
         plugin-template/*)

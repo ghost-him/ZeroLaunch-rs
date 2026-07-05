@@ -1,0 +1,23 @@
+# ZeroLaunch-rs OMP 项目配置
+# 权限白名单 — 允许 AI 代理自动执行的命令和 MCP 工具
+
+permissions:
+  allow:
+    - mcp__codegraph__codegraph_explore
+    - mcp__codegraph__codegraph_search
+    - mcp__codegraph__codegraph_node
+    - mcp__codegraph__codegraph_callers
+    - mcp__codegraph__codegraph_callees
+    - mcp__codegraph__codegraph_impact
+    - mcp__codegraph__codegraph_files
+    - mcp__codegraph__codegraph_status
+    - Bash(git log *)
+    - Bash(ls *)
+    - Bash(cargo check *)
+    - Bash(cargo clippy *)
+    - Bash(git status *)
+    - Bash(git diff *)
+    - Bash(git show *)
+    - Bash(bash .omp/skills/summarize-changes/check-changes.sh)
+
+# MCP 配置通过 .omp/mcp.json 独立管理

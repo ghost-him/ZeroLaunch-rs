@@ -17,6 +17,7 @@ use zerolaunch_plugin_api::services::storage::local_storage::LocalStorageService
 use zerolaunch_plugin_api::services::storage::storage_service::StorageService;
 use zerolaunch_plugin_api::services::AppResourceService;
 
+use crate::core::app_command;
 use crate::core::config::event::create_plugin_event_bus;
 use crate::core::config::{ConfigEvent, ConfigManager};
 use crate::plugin_framework::manager::PluginManager;
@@ -157,6 +158,13 @@ pub(crate) async fn init_app_state(
         info!("Plugin Inspector 已启用 (容量: 200)");
     }
 
+    // 创建 AppCommand 通道并初始化全局发送端。
+    // 命令通道是应用基础设施（有且仅有一个消费者），使用全局 OnceLock 而非依赖注入——
+    // 避免将通道穿过 PluginManager、InventoryContext 等不消费它的中间结构体。
+    // 详见 core/app_command.rs 顶部注释。
+    let (cmd_tx, cmd_rx) = tokio::sync::mpsc::channel::<app_command::AppCommand>(32);
+    app_command::init_command_channel(cmd_tx);
+
     let tray_manager = Arc::new(TrayManager::new(host_api.clone()));
     state.set_tray_manager(tray_manager);
     info!("TrayManager 创建完成");
@@ -209,6 +217,11 @@ pub(crate) async fn init_app_state(
         Ok(handle) => info!("CLI HTTP 服务器已启动于 127.0.0.1:{}", handle.port),
         Err(e) => tracing::warn!("CLI HTTP 服务器启动失败: {}", e),
     }
+
+    // 启动 AppCommand 消费者 task
+    info!("=== Phase 6: 启动 AppCommand 消费者 ===");
+    spawn_app_command_consumer(cmd_rx, state.clone());
+    info!("Phase 6 完成: AppCommand 消费者已启动");
 
     info!(
         "应用状态初始化完成 (HostApi, ConfigManager, {} 个已注册组件)",
@@ -403,4 +416,75 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
         config_manager.get_all_components().len(),
         session_router.get_cached_candidates_count()
     );
+}
+
+/// 启动 AppCommand 消费者 task。
+///
+/// 该 task 从 channel 中接收 BuiltinCommandExecutor / TrayManager 发出的应用级命令，
+/// 持有 AppState 访问所有必需的服务（SessionRouter、HostApi、ConfigManager 等）。
+fn spawn_app_command_consumer(
+    mut rx: tokio::sync::mpsc::Receiver<app_command::AppCommand>,
+    state: Arc<AppState>,
+) {
+    tauri::async_runtime::spawn(async move {
+        while let Some(cmd) = rx.recv().await {
+            info!("AppCommand 消费者: 收到命令 {:?}", cmd);
+            match cmd {
+                app_command::AppCommand::ShowSettings => {
+                    let app_handle = state.get_main_handle();
+                    if let Some(window) = app_handle.get_webview_window("setting_window") {
+                        if let Err(e) = window.show() {
+                            warn!("显示设置窗口失败: {:?}", e);
+                        } else {
+                            let _ = window.set_focus();
+                        }
+                    }
+                }
+                app_command::AppCommand::RefreshCandidates => {
+                    let session_router = state.get_session_router();
+                    session_router.refresh_candidates().await;
+                    let count = session_router.get_cached_candidates_count();
+                    info!("AppCommand: 候选项刷新完成，共 {} 个", count);
+                }
+                app_command::AppCommand::ReregisterHotkeys => {
+                    let config_manager = state.get_config_manager();
+                    let host_api = state.get_host_api();
+                    // 从配置管理器读取快捷键配置并重新注册
+                    let hotkey_config =
+                        config_manager.get_settings("hotkey-config").and_then(|v| {
+                            serde_json::from_value::<
+                                zerolaunch_plugin_api::services::hotkey::types::HotkeyConfig,
+                            >(v)
+                            .ok()
+                        });
+                    if let Some(config) = hotkey_config {
+                        if let Err(e) = host_api.apply_hotkey_config(&config).await {
+                            warn!("重新注册快捷键失败: {:?}", e);
+                        } else {
+                            info!("AppCommand: 快捷键重新注册成功");
+                        }
+                    } else {
+                        warn!("AppCommand: 无法读取快捷键配置 (hotkey-config)");
+                    }
+                }
+                app_command::AppCommand::ToggleGameMode => {
+                    let new_state = !state.get_game_mode();
+                    state.set_game_mode(new_state);
+                    // 更新托盘菜单复选框状态
+                    if let Some(tray) = state.get_tray_manager() {
+                        tray.set_game_mode_checked(new_state);
+                    }
+                    info!(
+                        "AppCommand: 游戏模式已{}",
+                        if new_state { "启用" } else { "关闭" }
+                    );
+                }
+                app_command::AppCommand::ExitProgram => {
+                    info!("AppCommand: 退出程序");
+                    let app_handle = state.get_main_handle();
+                    app_handle.exit(0);
+                }
+            }
+        }
+    });
 }

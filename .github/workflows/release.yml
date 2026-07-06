@@ -335,7 +335,7 @@ jobs:
           }
 
           $baseUrl = if ([string]::IsNullOrWhiteSpace($env:AI_BASE_URL)) { "https://api.deepseek.com" } else { $env:AI_BASE_URL.TrimEnd('/') }
-          $model   = if ([string]::IsNullOrWhiteSpace($env:AI_MODEL))    { "deepseek-chat" }           else { $env:AI_MODEL }
+          $model   = if ([string]::IsNullOrWhiteSpace($env:AI_MODEL))    { "deepseek-v4-flash" }       else { $env:AI_MODEL }
           $changelog = $env:CHANGELOG
 
           if ([string]::IsNullOrWhiteSpace($changelog)) {
@@ -347,13 +347,14 @@ jobs:
           $userPrompt   = "以下是本次版本的变更记录：`n`n$changelog"
 
           $payload = @{
-            model       = $model
-            messages    = @(
+            model            = $model
+            messages         = @(
               @{ role = "system"; content = $systemPrompt },
               @{ role = "user";   content = $userPrompt }
             )
-            temperature = 0.3
-            stream      = $false
+            thinking         = @{ type = "enabled" }
+            reasoning_effort = "high"
+            stream           = $false
           } | ConvertTo-Json -Depth 8
 
           $headers = @{ "Authorization" = "Bearer $apiKey" }

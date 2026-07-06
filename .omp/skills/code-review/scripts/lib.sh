@@ -143,25 +143,24 @@ is_core_subsystem() {
 }
 
 # Map a repo-relative path to the .omp/rules/*.md files that govern it.
-# Sets the global variable MAP_RULES (space-separated filenames, no subshell).
+# Sets the global variable MAP_RULES (space-separated paths relative to repo root).
 map_rules_for_path() {
     case "$1" in
-        src-tauri/src/builtin_plugin/*|src-tauri/src/plugin_framework/*|\
-        src-tauri/src/plugin/*|src-tauri/src/plugin_system/*)
-            MAP_RULES="plugin-system.md data-flow.md general.md" ;;
+        src-tauri/src/builtin_plugin/*|src-tauri/src/plugin_framework/*)
+            MAP_RULES=".omp/rules/plugin-system.md .omp/rules/data-flow.md .omp/RULES.md" ;;
         src-tauri/src/commands/*|src-ui/bridge/*|src-tauri/src/cli_server/*)
-            MAP_RULES="commands.md data-flow.md general.md" ;;
+            MAP_RULES=".omp/rules/commands.md .omp/rules/data-flow.md .omp/RULES.md" ;;
         src-ui/*)
-            MAP_RULES="frontend.md general.md" ;;
+            MAP_RULES=".omp/rules/frontend.md .omp/RULES.md" ;;
         crates/plugin-api/*|crates/plugin-protocol/*|crates/plugin-host/*|crates/plugin-sdk-rust/*)
-            MAP_RULES="sdk.md" ;;
+            MAP_RULES=".omp/rules/sdk.md" ;;
         crates/platform-windows/*)
-            MAP_RULES="general.md" ;;
+            MAP_RULES=".omp/RULES.md" ;;
         src-tauri/src/core/*)
-            MAP_RULES="config.md data-flow.md general.md" ;;
+            MAP_RULES=".omp/rules/config.md .omp/rules/data-flow.md .omp/RULES.md" ;;
         plugin-template/*)
-            MAP_RULES="third-party-plugin.md sdk.md" ;;
+            MAP_RULES=".omp/rules/third-party-plugin.md .omp/rules/sdk.md" ;;
         *)
-            MAP_RULES="general.md" ;;
+            MAP_RULES=".omp/RULES.md" ;;
     esac
 }

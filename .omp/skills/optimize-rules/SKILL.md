@@ -16,7 +16,7 @@ argument-hint: "[范围: all | <规则文件名>]"
 
 ### 第一阶段：并行发现（5 个 agent）
 
-如果传入了 `args`（如 `"general.md"` 或 `"plugin-system.md"`），则所有 Agent **只分析指定的规则文件**。如果 `args` 为 `"all"` 或未传入，则分析全部 `.omp/rules/*.md` 文件。
+如果传入了 `args`（如 `".omp/RULES.md"` 或 `"plugin-system.md"`），则所有 Agent **只分析指定的规则文件**。如果 `args` 为 `"all"` 或未传入，则分析全部 `.omp/rules/*.md` 文件。
 
 同时启动五个 Explore agent，各负责一个维度：
 

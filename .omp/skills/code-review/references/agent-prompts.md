@@ -57,7 +57,7 @@
 2. collect-context.sh 的输出
 3. git diff --stat 与 git diff
 4. 与变更直接相关的实现文件、调用方、被调用方
-5. 必要时读取 plugin-system.md / commands.md / frontend.md / data-flow.md / general.md
+5. 必要时读取 plugin-system.md / commands.md / frontend.md / data-flow.md / .omp/RULES.md
 
 重点检查：
 - 控制流是否完整：新增分支、早返回、fallback、异常分支是否都成立
@@ -145,7 +145,7 @@
 1. references/project-review-checklist.md
 2. collect-context.sh 的输出（含依赖方向检查结果）
 3. git diff --stat 与 git diff
-4. 与变更相关的架构规则与关键实现（plugin-system.md, general.md；目录结构见 AGENTS.md）
+4. 与变更相关的架构规则与关键实现（.omp/rules/plugin-system.md, .omp/RULES.md；目录结构见 AGENTS.md）
 
 重点检查：
 - 是否违反 workspace 依赖方向：plugin-api ← plugin-protocol ← plugin-host ← src-tauri，plugin-api ← platform-windows，以及 plugin-api ← plugin-protocol ← plugin-sdk-rust
@@ -193,7 +193,7 @@ A. **代码违反规则** — 代码与规则矛盾，且规则仍然合理 → 
 B. **规则需要更新** — 代码的偏离是有意的设计演进，规则已过时 → 建议更新规则
 
 重点检查项（按规则文件分组）：
-- general.md: RwLock 守卫是否跨 await、前后端职责边界、JSON 数值安全（as_f64）、死代码纪律、文件命名约定、日志规范、AppState 访问规范
+- .omp/RULES.md: RwLock 守卫是否跨 await、前后端职责边界、JSON 数值安全（as_f64）、死代码纪律、文件命名约定、日志规范、AppState 访问规范
 - plugin-system.md: Configurable 生命周期（apply_settings 不做副作用）、ExecutorRegistry 使用、PluginHandle 使用、事件驱动解耦、inventory 注册
 - commands.md: 命名前缀、serde rename 标注、命令注册、返回类型约定（命名结构体而非裸 JSON）、trace_id 由后端生成
 - frontend.md: script setup 语法、CSS 变量使用、Store 模式、Schema 驱动 UI、类型安全（禁止 any）、键盘快捷键集中管理

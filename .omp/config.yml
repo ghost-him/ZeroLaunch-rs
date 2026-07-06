@@ -15,9 +15,25 @@ permissions:
     - Bash(ls *)
     - Bash(cargo check *)
     - Bash(cargo clippy *)
+    - Bash(cargo build *)
+    - Bash(cargo test *)
+    - Bash(cargo metadata *)
+    - Bash(cargo doc *)
     - Bash(git status *)
     - Bash(git diff *)
     - Bash(git show *)
     - Bash(bash .omp/skills/summarize-changes/check-changes.sh)
+
+# 启用代码智能（LSP）
+# rust-analyzer 已经在 PATH 上，omp 自动发现
+lsp:
+  enabled: true
+  lazy: true # 首次使用时启动，而非启动时预热
+  diagnosticsOnWrite: true # 写入后返回诊断
+
+# 启用调试器（DAP）
+# lldb-dap 已安装（通过 LLVM），适用于 Rust 调试
+debug:
+  enabled: true
 
 # MCP 配置通过 .omp/mcp.json 独立管理

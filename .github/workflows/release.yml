@@ -3,16 +3,16 @@ name: Release Build
 on:
   push:
     tags:
-      - 'v*.*.*'  # 当推送 v1.0.0 格式的标签时触发
-  workflow_dispatch:  # 允许手动触发
+      - "v*.*.*" # 当推送 v1.0.0 格式的标签时触发
+  workflow_dispatch: # 允许手动触发
     inputs:
       skip_release:
-        description: '仅构建，不发布 Release'
+        description: "仅构建，不发布 Release"
         required: false
         default: true
         type: boolean
       tag:
-        description: '指定版本标签 (例如: v0.5.4)，留空则自动从 git 提取'
+        description: "指定版本标签 (例如: v0.5.4)，留空则自动从 git 提取"
         required: false
         type: string
 
@@ -22,6 +22,10 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -122,15 +126,15 @@ jobs:
           $skipTestSigning = "${{ secrets.SKIP_TEST_SIGNING_ON_AUTO }}" -eq "true"
           $isTestSigning = "${{ secrets.SIGNPATH_SIGNING_POLICY_SLUG }}" -eq "test-signing"
           $isAutoPush = "${{ github.event_name }}" -eq "push"
-          
+
           echo "Skip Test Signing on Auto: $skipTestSigning"
           echo "Is Test Signing: $isTestSigning"
           echo "Is Auto Push: $isAutoPush"
-          
+
           # 判断是否应该跳过签名
           # 条件：开启了跳过测试签名 AND 当前使用测试签名 AND 是自动触发（push tag）
           $shouldSkipSigning = $skipTestSigning -and $isTestSigning -and $isAutoPush
-          
+
           if ($shouldSkipSigning) {
             echo "🔄 检测到测试签名 + 自动触发，将跳过签名步骤"
             echo "SHOULD_SIGN=false" >> $env:GITHUB_OUTPUT
@@ -178,14 +182,14 @@ jobs:
         id: submit-signing-request
         uses: signpath/github-action-submit-signing-request@v2
         with:
-          api-token: '${{ secrets.SIGNPATH_API_TOKEN }}'
-          organization-id: '${{ secrets.SIGNPATH_ORGANIZATION_ID }}'
-          project-slug: '${{ secrets.SIGNPATH_PROJECT_SLUG }}'
-          signing-policy-slug: '${{ secrets.SIGNPATH_SIGNING_POLICY_SLUG }}'
-          artifact-configuration-slug: 'zerolaunch-rs-release'
-          github-artifact-id: '${{ steps.upload-unsigned-artifacts.outputs.artifact-id }}'
+          api-token: "${{ secrets.SIGNPATH_API_TOKEN }}"
+          organization-id: "${{ secrets.SIGNPATH_ORGANIZATION_ID }}"
+          project-slug: "${{ secrets.SIGNPATH_PROJECT_SLUG }}"
+          signing-policy-slug: "${{ secrets.SIGNPATH_SIGNING_POLICY_SLUG }}"
+          artifact-configuration-slug: "zerolaunch-rs-release"
+          github-artifact-id: "${{ steps.upload-unsigned-artifacts.outputs.artifact-id }}"
           wait-for-completion: true
-          output-artifact-directory: 'signed-artifacts'
+          output-artifact-directory: "signed-artifacts"
           wait-for-completion-timeout-in-seconds: 1800
 
       - name: List signed artifacts
@@ -244,61 +248,182 @@ jobs:
             echo "  📦 $($_.Name) ($sizeMB MB)"
           }
 
-      - name: Generate Release Notes
-        id: release_notes
+      # ==========================================
+      # Release Notes 生成
+      # 1) 计算上一个 tag，用于生成 compare 链接
+      # 2) mikepenz changelog builder：按 commit 前缀分类，作者 @ 由 GitHub API 解析
+      # 3) DeepSeek（OpenAI 兼容）生成中文更新摘要
+      # 4) 组装最终 release_notes.txt（AI 摘要 + 折叠区分类记录）
+      # ==========================================
+      - name: Resolve previous tag
+        id: prev_tag
         shell: pwsh
         run: |
           $version = "${{ steps.get_version.outputs.VERSION }}"
           $tag = "v$version"
-          $repoPath = "${{ github.repository }}"
 
-          # 获取上一个标签
+          # 获取上一个标签（用于 compare 链接与 changelog 起点）
           $previousTag = git describe --tags --abbrev=0 "$tag^" 2>$null
           if ([string]::IsNullOrEmpty($previousTag)) {
             $previousTag = git rev-list --max-parents=0 HEAD
           }
 
-          # 生成格式化的变更日志
-          $commits = (git log "$previousTag..$tag" --pretty=format:"* %s (`%h`)" --no-merges 2>$null) -join "`n"
-          if ([string]::IsNullOrEmpty($commits)) {
-            $commits = (git log -10 --pretty=format:"* %s (`%h`)" --no-merges) -join "`n"
+          echo "TAG=$tag" >> $env:GITHUB_OUTPUT
+          echo "PREVIOUS_TAG=$previousTag" >> $env:GITHUB_OUTPUT
+          echo "Previous tag: $previousTag -> $tag"
+
+      # 使用现成 action 生成按前缀分类的变更日志；
+      # COMMIT 模式下 #{{AUTHOR}} 为 GitHub 用户名（由 GitHub API 依据提交邮箱解析），
+      # 从根本上解决 @ 到错误用户的问题。
+      - name: Build categorized changelog
+        id: build_changelog
+        uses: mikepenz/release-changelog-builder-action@v5
+        with:
+          mode: "COMMIT"
+          fromTag: ${{ steps.prev_tag.outputs.PREVIOUS_TAG }}
+          toTag: ${{ steps.prev_tag.outputs.TAG }}
+          failOnError: false
+          configurationJson: |
+            {
+              "template": "#{{CHANGELOG}}",
+              "categories": [
+                { "title": "### ✨ 新功能", "labels": ["feat"] },
+                { "title": "### 🐛 Bug 修复", "labels": ["fix"] },
+                { "title": "### ⚡ 性能优化", "labels": ["perf"] },
+                { "title": "### ♻️ 重构", "labels": ["refactor"] },
+                { "title": "### 📝 文档", "labels": ["docs"] },
+                { "title": "### 🎨 样式", "labels": ["style"] },
+                { "title": "### 🧪 测试", "labels": ["test"] },
+                { "title": "### 🔧 构建 / CI", "labels": ["build", "ci"] },
+                { "title": "### 🧹 杂项", "labels": ["chore", "revert"] },
+                { "title": "### 💬 其他", "labels": [] }
+              ],
+              "commit_template": "- #{{TITLE}} (`#{{MERGE_SHA}}`) @#{{AUTHOR}}",
+              "transformers": [
+                { "pattern": "\\(`([0-9a-f]{7})[0-9a-f]{33}`\\)", "target": "(`$1`)" },
+                { "pattern": " @$", "target": "" }
+              ],
+              "label_extractor": [
+                {
+                  "pattern": "^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\\([\\w\\-\\.]+\\))?(!)?:.*",
+                  "on_property": "title",
+                  "target": "$1"
+                }
+              ],
+              "sort": { "order": "ASC", "on_property": "mergedAt" }
+            }
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 调用 OpenAI 兼容接口（默认 DeepSeek）生成中文更新摘要。
+      # 需要配置：secret AI_API_KEY；可选 variable AI_BASE_URL、AI_MODEL。
+      # 变更内容通过环境变量传入（不拼接进脚本），避免脚本注入。
+      - name: Generate AI summary
+        id: ai_summary
+        continue-on-error: true
+        shell: pwsh
+        env:
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          AI_BASE_URL: ${{ vars.AI_BASE_URL }}
+          AI_MODEL: ${{ vars.AI_MODEL }}
+          CHANGELOG: ${{ steps.build_changelog.outputs.changelog }}
+        run: |
+          $apiKey = $env:AI_API_KEY
+          if ([string]::IsNullOrWhiteSpace($apiKey)) {
+            Write-Host "⚠️ 未配置 AI_API_KEY，跳过 AI 摘要生成"
+            exit 0
           }
 
-          # 获取贡献者列表
-          $contributors = (git log "$previousTag..$tag" --pretty=format:"%an" --no-merges 2>$null | Sort-Object -Unique)
-          if ($contributors.Count -eq 0) {
-            $contributors = (git log -10 --pretty=format:"%an" --no-merges | Sort-Object -Unique)
+          $baseUrl = if ([string]::IsNullOrWhiteSpace($env:AI_BASE_URL)) { "https://api.deepseek.com" } else { $env:AI_BASE_URL.TrimEnd('/') }
+          $model   = if ([string]::IsNullOrWhiteSpace($env:AI_MODEL))    { "deepseek-chat" }           else { $env:AI_MODEL }
+          $changelog = $env:CHANGELOG
+
+          if ([string]::IsNullOrWhiteSpace($changelog)) {
+            Write-Host "⚠️ 变更日志为空，跳过 AI 摘要生成"
+            exit 0
           }
-          $contributorsList = ($contributors | ForEach-Object { "* @$_" }) -join "`n"
 
-          # 构建精简后的版本说明
-          $versionGuide = @"
-          ## 📦 版本说明
+          $systemPrompt = "你是 ZeroLaunch-rs 的发布助手。请根据提供的变更记录，用简体中文写一段面向普通用户的版本更新摘要。要求：突出重点功能与修复，2-3 段，语气自然专业，不要逐条罗列 commit，不要使用 Markdown 标题，直接输出正文。"
+          $userPrompt   = "以下是本次版本的变更记录：`n`n$changelog"
 
-          - **安装版 (`.msi`)**: 提供传统的安装体验，支持深层代码签名。
-          - **便携版 (`.zip`)**: 无需安装，解压即用，适合移动或绿色版爱好者。
-          - **命令行工具 (`zerolaunch-cli_*.exe`)**: `zl` 命令行客户端，可通过本地 HTTP API 与 ZeroLaunch 交互（文件名含版本和架构信息）。
-          "@
+          $payload = @{
+            model       = $model
+            messages    = @(
+              @{ role = "system"; content = $systemPrompt },
+              @{ role = "user";   content = $userPrompt }
+            )
+            temperature = 0.3
+            stream      = $false
+          } | ConvertTo-Json -Depth 8
 
-          # 构建最终的 Release Notes
+          $headers = @{ "Authorization" = "Bearer $apiKey" }
+          $bytes = [System.Text.Encoding]::UTF8.GetBytes($payload)
+
+          try {
+            $resp = Invoke-RestMethod -Uri "$baseUrl/chat/completions" -Method Post -Headers $headers -ContentType "application/json; charset=utf-8" -Body $bytes -ErrorAction Stop
+            $summary = $resp.choices[0].message.content
+            if (-not [string]::IsNullOrWhiteSpace($summary)) {
+              [System.IO.File]::WriteAllText((Join-Path (Get-Location) "ai_summary.md"), $summary.Trim(), (New-Object System.Text.UTF8Encoding($false)))
+              Write-Host "✅ AI 摘要生成成功"
+            } else {
+              Write-Host "⚠️ AI 返回内容为空"
+            }
+          } catch {
+            Write-Host "⚠️ AI 摘要生成失败: $($_.Exception.Message)"
+          }
+
+      - name: Assemble release notes
+        id: release_notes
+        shell: pwsh
+        env:
+          CHANGELOG: ${{ steps.build_changelog.outputs.changelog }}
+        run: |
+          $version = "${{ steps.get_version.outputs.VERSION }}"
+          $tag = "${{ steps.prev_tag.outputs.TAG }}"
+          $previousTag = "${{ steps.prev_tag.outputs.PREVIOUS_TAG }}"
+          $repoPath = "${{ github.repository }}"
+
+          $changelog = $env:CHANGELOG
+          if ([string]::IsNullOrWhiteSpace($changelog)) {
+            $changelog = "_本次版本无可用的分类变更记录。_"
+          }
+
+          # AI 摘要（若生成失败则使用回退文案）
+          $aiSummary = "本次更新包含若干改进与修复，详见下方完整更新记录。"
+          if (Test-Path "ai_summary.md") {
+            $content = Get-Content "ai_summary.md" -Raw
+            if (-not [string]::IsNullOrWhiteSpace($content)) {
+              $aiSummary = $content.Trim()
+            }
+          }
+
           $changelogUrl = "https://github.com/$repoPath/compare/$previousTag...$tag"
-          $releaseNotes = @"
 
-          ## What's Changed
+          # 使用数组拼接，避免 here-string 在 YAML 块中的缩进/闭合歧义
+          $lines = @(
+            "## 🤖 更新摘要",
+            "",
+            $aiSummary,
+            "",
+            "<details>",
+            "<summary>📋 完整更新记录（按类型分类）</summary>",
+            "",
+            $changelog,
+            "",
+            "</details>",
+            "",
+            "**Full Changelog**: $changelogUrl",
+            "",
+            "## 📦 版本说明",
+            "",
+            '- **安装版 (`.msi`)**: 提供传统的安装体验，支持深层代码签名。',
+            '- **便携版 (`.zip`)**: 无需安装，解压即用，适合移动或绿色版爱好者。',
+            '- **命令行工具 (`zerolaunch-cli_*.exe`)**: `zl` 命令行客户端，可通过本地 HTTP API 与 ZeroLaunch 交互（文件名含版本和架构信息）。'
+          )
+          $releaseNotes = $lines -join "`n"
 
-          $commits
-
-          ## Contributors
-
-          $contributorsList
-
-          **Full Changelog**: $changelogUrl
-
-          $versionGuide
-          "@
-
-          # 输出到文件
-          $releaseNotes | Out-File -FilePath "release_notes.txt" -Encoding UTF8
+          # 使用无 BOM 的 UTF-8 写入，避免 Gitee / GitCode 显示乱码
+          [System.IO.File]::WriteAllText((Join-Path (Get-Location) "release_notes.txt"), $releaseNotes, (New-Object System.Text.UTF8Encoding($false)))
           echo "RELEASE_NOTES_FILE=release_notes.txt" >> $env:GITHUB_OUTPUT
           echo "Generated release notes"
 
@@ -320,7 +445,7 @@ jobs:
   release-github:
     name: Publish to GitHub
     needs: build
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.skip_release == 'false')
     steps:
       - name: Download all artifacts
@@ -349,7 +474,7 @@ jobs:
   release-gitee:
     name: Publish to Gitee
     needs: build
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.skip_release == 'false')
     steps:
       - name: Checkout repository
@@ -422,7 +547,7 @@ jobs:
 
               foreach ($file in $files) {
                 Write-Host "📦 正在上传 $($file.Name) 到 Gitee Release..."
-                curl.exe -X POST "https://gitee.com/api/v5/repos/$owner/$repo/releases/$releaseId/attach_files" -F "access_token=$env:GITEE_TOKEN" -F "file=@$($file.FullName)"
+                curl --fail -sS -X POST "https://gitee.com/api/v5/repos/$owner/$repo/releases/$releaseId/attach_files" -F "access_token=$env:GITEE_TOKEN" -F "file=@$($file.FullName)"
                 if ($LASTEXITCODE -ne 0) {
                   throw "上传文件 $($file.Name) 到 Gitee 失败"
                 }
@@ -449,7 +574,7 @@ jobs:
   release-gitcode:
     name: Publish to GitCode
     needs: build
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.skip_release == 'false')
     steps:
       - name: Checkout repository
@@ -501,11 +626,20 @@ jobs:
               $releaseNotes = Get-Content -Path "release_notes.txt" -Raw -Encoding UTF8
               $headers = @{"Private-Token" = $token}
 
-              # 1. 创建 Release
+              # 1. 创建或更新 Release（保证幂等：tag 已存在时改用 PATCH 更新）
               $createReleaseUri = "https://gitcode.com/api/v5/repos/$owner/$repo/releases"
-              $releaseBody = @{tag_name = $tag; name = $releaseTitle; body = $releaseNotes} | ConvertTo-Json -Depth 5
-              Invoke-RestMethod -Uri $createReleaseUri -Method Post -Headers $headers -ContentType "application/json" -Body $releaseBody -ErrorAction Stop
-              Write-Host "✅ GitCode Release 创建成功"
+              $updateReleaseUri = "https://gitcode.com/api/v5/repos/$owner/$repo/releases/$tag"
+              $createBody = @{tag_name = $tag; name = $releaseTitle; body = $releaseNotes} | ConvertTo-Json -Depth 5
+              $updateBody = @{name = $releaseTitle; body = $releaseNotes} | ConvertTo-Json -Depth 5
+              try {
+                Invoke-RestMethod -Uri $createReleaseUri -Method Post -Headers $headers -ContentType "application/json" -Body $createBody -ErrorAction Stop
+                Write-Host "✅ GitCode Release 创建成功"
+              } catch {
+                # 创建失败（大概率 tag 已存在），回退到 PATCH 更新
+                Write-Host "⚠️ GitCode Release 创建失败，尝试更新已有 Release: $($_.Exception.Message)"
+                Invoke-RestMethod -Uri $updateReleaseUri -Method Patch -Headers $headers -ContentType "application/json" -Body $updateBody -ErrorAction Stop
+                Write-Host "✅ GitCode Release 更新成功"
+              }
 
               # 2. 上传文件
               $files = Get-ChildItem -Path . -Recurse -Include *.exe,*.msi,*.zip -File
@@ -513,7 +647,7 @@ jobs:
 
               foreach ($file in $files) {
                 Write-Host "📦 正在上传 $($file.Name) 到 GitCode Release..."
-                $encodedFileName = [System.Web.HttpUtility]::UrlEncode($file.Name)
+                $encodedFileName = [Uri]::EscapeDataString($file.Name)
                 $getUploadUrlEndpoint = "https://gitcode.com/api/v5/repos/$owner/$repo/releases/$tag/upload_url?access_token=$token&file_name=$encodedFileName"
                 $uploadInfo = Invoke-RestMethod -Uri $getUploadUrlEndpoint -Method Get -ErrorAction Stop
 
@@ -552,17 +686,17 @@ jobs:
       - release-gitee
       - release-gitcode
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.skip_release == 'false')
-    # 无论成功失败都运行,但手动触发时不运行
+    # 无论上游 release job 成功或失败都运行（手动触发且跳过发布时不运行）
+    if: always() && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.skip_release == 'false'))
     steps:
       - name: Check status of all release jobs
         run: |
           echo "🔎 Checking status of all release jobs..."
-          
+
           github_status="${{ needs.release-github.result }}"
           gitee_status="${{ needs.release-gitee.result }}"
           gitcode_status="${{ needs.release-gitcode.result }}"
-          
+
           echo "  - GitHub Release: $github_status"
           echo "  - Gitee Release:  $gitee_status"
           echo "  - GitCode Release: $gitcode_status"

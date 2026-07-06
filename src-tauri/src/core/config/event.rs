@@ -1,4 +1,4 @@
-use zerolaunch_plugin_host::manager::RegisteredAdapters;
+use zerolaunch_plugin_host::manager::PluginRegistration;
 
 use zerolaunch_plugin_api::config::ComponentType;
 
@@ -24,10 +24,10 @@ pub enum ConfigEvent {
     },
     /// 组件注销
     Unregistered { component_id: String },
-    /// 第三方插件运行时组件已注册（携带完整 RegisteredAdapters）
-    PluginRegistered(RegisteredAdapters),
-    /// 第三方插件运行时组件已解注册（携带被解注册的完整 RegisteredAdapters）
-    PluginUnregistered(RegisteredAdapters),
+    /// 第三方插件运行时组件已注册（携带完整 PluginRegistration）
+    PluginRegistered(PluginRegistration),
+    /// 第三方插件运行时组件已解注册（携带被解注册的完整 PluginRegistration）
+    PluginUnregistered(PluginRegistration),
 }
 
 // ── ConfigEvent 通道 ─────────────────────────────────────────────────
@@ -51,9 +51,9 @@ pub fn create_event_bus(capacity: usize) -> (ConfigEventSender, ConfigEventRecei
 #[derive(Clone, Debug)]
 pub enum PluginRuntimeEvent {
     /// 插件组件已加载：CM 应注册所有 Configurable，然后转发 PluginRegistered 到 SR
-    PluginLoaded(RegisteredAdapters),
+    PluginLoaded(PluginRegistration),
     /// 插件组件已卸载：CM 应解注册所有 Configurable，然后转发 PluginUnregistered 到 SR
-    PluginUnloaded(RegisteredAdapters),
+    PluginUnloaded(PluginRegistration),
 }
 
 /// PluginRuntimeEvent 广播通道发送端

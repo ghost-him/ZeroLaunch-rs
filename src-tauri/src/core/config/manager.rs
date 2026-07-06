@@ -83,17 +83,21 @@ impl ConfigManager {
 
     /// 获取所有可配置组件的概览信息
     pub fn get_all_components(&self) -> Vec<ComponentInfo> {
-        self.registry
+        let mut components: Vec<ComponentInfo> = self
+            .registry
             .get_all()
             .iter()
             .map(|c| ComponentInfo {
                 component_id: c.component_id().to_string(),
                 component_name: c.component_name().to_string(),
                 component_type: c.component_type(),
+                priority: c.priority(),
                 enabled: self.is_enabled(c.component_id()),
                 default_enabled: c.default_enabled(),
             })
-            .collect()
+            .collect();
+        components.sort_by_key(|c| (c.priority, c.component_id.clone()));
+        components
     }
 
     /// 获取指定组件的配置 Schema

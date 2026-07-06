@@ -23,5 +23,6 @@ pub fn make_builtin_info(
         author: Some("ZeroLaunch".to_string()),
         component_count: 1,
         enabled,
+        priority: configurable.priority(),
     }
 }

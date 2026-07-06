@@ -25,6 +25,8 @@ pub struct PluginInfo {
     pub component_count: usize,
     /// 是否处于启用状态（所有组件均启用）
     pub enabled: bool,
+    /// 显示排序优先级，数值越小越靠前。默认 50。
+    pub priority: u32,
 }
 
 /// 插件种类。
@@ -49,7 +51,13 @@ pub enum PluginStatus {
 
 impl PluginInfo {
     /// 为内置组件创建 PluginInfo 条目。
-    pub fn builtin(id: &str, name: &str, component_count: usize, enabled: bool) -> Self {
+    pub fn builtin(
+        id: &str,
+        name: &str,
+        component_count: usize,
+        enabled: bool,
+        priority: u32,
+    ) -> Self {
         Self {
             id: id.to_string(),
             name: name.to_string(),
@@ -60,6 +68,7 @@ impl PluginInfo {
             author: Some("ZeroLaunch".to_string()),
             component_count,
             enabled,
+            priority,
         }
     }
 
@@ -74,6 +83,7 @@ impl PluginInfo {
         component_count: usize,
         enabled: bool,
         is_running: bool,
+        priority: u32,
     ) -> Self {
         let status = if is_running {
             PluginStatus::Active
@@ -90,6 +100,7 @@ impl PluginInfo {
             author: Some(author),
             component_count,
             enabled,
+            priority,
         }
     }
 

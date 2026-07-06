@@ -73,6 +73,10 @@ impl Configurable for GeneralConfigComponent {
         ComponentType::Core
     }
 
+    fn priority(&self) -> u32 {
+        10
+    }
+
     fn setting_schema(&self) -> Vec<SettingDefinition> {
         vec![
             SchemaBuilder::boolean(

@@ -124,8 +124,8 @@ pub async fn plugin_set_enabled(
     let hm = pm.host_manager();
 
     // 第三方插件：为每个组件设置 enabled
-    if let Some(adapters) = hm.adapters.get(&plugin_id) {
-        for c in &adapters.configurables {
+    if let Some(plugin) = hm.plugins.get(&plugin_id) {
+        for c in &plugin.configurables {
             cm.set_enabled(c.component_id(), enabled)
                 .with_trace_id(&trace_id)?;
         }

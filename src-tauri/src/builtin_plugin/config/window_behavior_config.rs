@@ -80,6 +80,10 @@ impl Configurable for WindowBehaviorConfigComponent {
         ComponentType::Core
     }
 
+    fn priority(&self) -> u32 {
+        20
+    }
+
     fn setting_schema(&self) -> Vec<SettingDefinition> {
         vec![
             SchemaBuilder::boolean(

@@ -65,6 +65,7 @@ export interface ComponentInfo {
   componentId: string
   componentName: string
   componentType: ComponentType
+  priority: number
   enabled: boolean
   defaultEnabled: boolean
 }

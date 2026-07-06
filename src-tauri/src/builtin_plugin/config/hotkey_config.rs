@@ -137,6 +137,10 @@ impl Configurable for HotkeyConfigComponent {
         ComponentType::Core
     }
 
+    fn priority(&self) -> u32 {
+        40
+    }
+
     fn setting_schema(&self) -> Vec<SettingDefinition> {
         vec![
             SchemaBuilder::text(

@@ -19,7 +19,7 @@ use zerolaunch_plugin_api::config::Configurable;
 use zerolaunch_plugin_api::host::PluginSdkConfig;
 use zerolaunch_plugin_host::host_dispatch::HostCallHandler;
 use zerolaunch_plugin_host::manager::{
-    InstalledPluginInfo, PluginHostManager, RegisteredAdapters, RestartCallback,
+    InstalledPluginInfo, PluginHostManager, PluginRegistration, RestartCallback,
 };
 use zerolaunch_plugin_protocol::Manifest;
 
@@ -80,7 +80,7 @@ pub struct PluginManager {
     host_manager: RwLock<Option<Arc<PluginHostManager>>>,
     /// 第三方插件 adapters 缓存（用于崩溃恢复时解注册已失效的旧适配器），按 plugin_id 索引。
     /// 使用 DashMap 避免 RwLock 守卫跨 .await 的 !Send 问题。
-    adapters_cache: Arc<DashMap<String, RegisteredAdapters>>,
+    adapters_cache: Arc<DashMap<String, PluginRegistration>>,
 }
 
 impl PluginManager {
@@ -195,6 +195,7 @@ impl PluginManager {
         let mut all = Vec::new();
         all.extend(self.builtin_infos.read().iter().cloned());
         all.extend(self.third_party_infos.read().iter().cloned());
+        all.sort_by_key(|p| (p.priority, p.id.clone()));
         all
     }
 
@@ -222,7 +223,7 @@ impl PluginManager {
     /// 获取第三方插件的完整 manifest。
     pub fn get_manifest(&self, plugin_id: &str) -> Option<Manifest> {
         let hm = self.host_manager();
-        let adapters = hm.adapters.get(plugin_id)?;
+        let adapters = hm.plugins.get(plugin_id)?;
         Some(adapters.manifest.clone())
     }
 
@@ -337,12 +338,14 @@ impl PluginManager {
         })?;
         let plugin_id = &manifest.plugin.id;
         let hm = self.host_manager();
-        let adapters = hm.adapters.get(plugin_id).ok_or_else(|| {
+        let adapters = hm.plugins.get(plugin_id).ok_or_else(|| {
             PluginManagerError::PluginNotFound(format!(
                 "Plugin not found after load: {}",
                 plugin_id
             ))
         })?;
+
+        let priority = adapters.compute_priority();
 
         Ok(InstalledPluginInfo {
             plugin_id: adapters.plugin_id.clone(),
@@ -351,7 +354,9 @@ impl PluginManager {
             description: adapters.manifest.plugin.description.clone(),
             author: adapters.manifest.plugin.author.clone(),
             state: "running".to_string(),
-            enabled: true,
+            enabled: !adapters.configurables.is_empty()
+                && adapters.configurables.iter().all(|c| c.default_enabled()),
+            priority,
         })
     }
 
@@ -367,7 +372,7 @@ impl PluginManager {
         let hm = self.host_manager();
 
         let adapters = hm
-            .adapters
+            .plugins
             .get(plugin_id)
             .ok_or_else(|| {
                 PluginManagerError::PluginNotFound(format!("Plugin not found: {}", plugin_id))
@@ -403,7 +408,7 @@ impl PluginManager {
 
         let hm = self.host_manager();
 
-        if let Some(adapters) = hm.adapters.get(plugin_id) {
+        if let Some(adapters) = hm.plugins.get(plugin_id) {
             let adapters = adapters.clone();
             self.plugin_event_tx()
                 .send(PluginRuntimeEvent::PluginUnloaded(adapters))
@@ -506,6 +511,7 @@ impl PluginManager {
         let enabled = !registered.configurables.is_empty()
             && registered.configurables.iter().all(|c| c.default_enabled());
         let component_count = registered.configurables.len();
+        let priority = registered.compute_priority();
         self.register_third_party_info(PluginInfo::third_party(
             plugin_id.clone(),
             manifest.plugin.name.clone(),
@@ -515,6 +521,7 @@ impl PluginManager {
             component_count,
             enabled,
             true,
+            priority,
         ));
 
         info!("Loaded third-party plugin: {}", plugin_id);
@@ -535,14 +542,14 @@ impl PluginManager {
 
     /// 为崩溃恢复场景构建 restart 回调。
     ///
-    /// 返回的闭包接收 `RegisteredAdapters` 并返回一个 future，
+    /// 返回的闭包接收 `PluginRegistration` 并返回一个 future，
     /// watchdog 会 `.await` 该 future 以完成重新注册。
     /// 通过 PluginRuntimeEvent 管道通知 CM 解注册旧组件 + 注册新组件。
     fn make_restart_callback(&self, plugin_id: String) -> RestartCallback {
         let tx = self.plugin_event_tx();
         let adapters_cache = self.adapters_cache.clone();
 
-        Arc::new(move |new_adapters: RegisteredAdapters| {
+        Arc::new(move |new_adapters: PluginRegistration| {
             let tx = tx.clone();
             let adapters_cache = adapters_cache.clone();
             let pid = plugin_id.clone();
@@ -569,7 +576,7 @@ impl PluginManager {
     }
 
     /// 存储插件的 adapters 快照，供崩溃恢复时解注册。
-    pub fn cache_adapters(&self, plugin_id: &str, adapters: RegisteredAdapters) {
+    pub fn cache_adapters(&self, plugin_id: &str, adapters: PluginRegistration) {
         self.adapters_cache.insert(plugin_id.to_string(), adapters);
     }
 

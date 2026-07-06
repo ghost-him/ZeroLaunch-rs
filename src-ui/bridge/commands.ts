@@ -145,6 +145,7 @@ export interface InstalledPluginInfo {
   author: string
   state: string
   enabled: boolean
+  priority: number
 }
 
 export function pluginList(): Promise<InstalledPluginInfo[]> {

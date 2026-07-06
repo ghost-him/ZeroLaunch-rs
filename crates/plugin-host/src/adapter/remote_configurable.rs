@@ -16,6 +16,7 @@ pub struct RemoteConfigurableAdapter {
     pub component_id: String,
     pub component_name: String,
     pub component_type: ComponentType,
+    pub priority: u32,
     pub client: Arc<JsonRpcClient>,
     pub cached_schema: RwLock<Vec<SettingDefinition>>,
     pub cached_settings: RwLock<serde_json::Value>,
@@ -28,6 +29,7 @@ impl std::fmt::Debug for RemoteConfigurableAdapter {
             .field("component_id", &self.component_id)
             .field("component_name", &self.component_name)
             .field("component_type", &self.component_type)
+            .field("priority", &self.priority)
             .field("cached_schema", &self.cached_schema.read())
             .field("cached_settings", &self.cached_settings.read())
             .field("cached_actions", &self.cached_actions.read())
@@ -41,10 +43,12 @@ fn to_config_error(e: ProtocolError) -> ConfigError {
 }
 
 impl RemoteConfigurableAdapter {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         component_id: String,
         component_name: String,
         component_type: ComponentType,
+        priority: u32,
         client: Arc<JsonRpcClient>,
         schema: Vec<SettingDefinition>,
         settings: serde_json::Value,
@@ -54,6 +58,7 @@ impl RemoteConfigurableAdapter {
             component_id,
             component_name,
             component_type,
+            priority,
             client,
             cached_schema: RwLock::new(schema),
             cached_settings: RwLock::new(settings),
@@ -82,6 +87,10 @@ impl Configurable for RemoteConfigurableAdapter {
 
     fn component_type(&self) -> ComponentType {
         self.component_type
+    }
+
+    fn priority(&self) -> u32 {
+        self.priority
     }
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {

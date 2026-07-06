@@ -10,6 +10,7 @@ use std::sync::OnceLock;
 use tokio::sync::mpsc;
 use tracing::{error, info, warn};
 
+use zerolaunch_plugin_api::config::Configurable;
 use zerolaunch_plugin_protocol::manifest::Manifest;
 use zerolaunch_plugin_protocol::messages::{ComponentDescriptor, ComponentKind};
 use zerolaunch_plugin_protocol::ProtocolError;
@@ -24,17 +25,49 @@ use crate::process::PluginProcess;
 /// Type alias for the restart callback: receives newly registered adapters
 /// and returns a future that re-registers them with ConfigManager / SessionRouter.
 pub type RestartCallback =
-    Arc<dyn Fn(RegisteredAdapters) -> Pin<Box<dyn Future<Output = ()> + Send>> + Send + Sync>;
+    Arc<dyn Fn(PluginRegistration) -> Pin<Box<dyn Future<Output = ()> + Send>> + Send + Sync>;
 
-/// All adapters registered for a single plugin instance.
+/// 单个第三方插件的完整注册包。
+///
+/// 一个插件可以在 manifest 中声明提供多个组件（例如同时提供 DataSource 和 ActionExecutor），
+/// 每个组件对应一个 `RemoteConfigurableAdapter` 存入 `configurables`；
+/// 再根据每个组件的 `ComponentKind` 分别放入 `data_sources` / `executors` / `plugin`。
 #[derive(Clone, Debug)]
-pub struct RegisteredAdapters {
+pub struct PluginRegistration {
+    /// 插件唯一标识，对应 manifest.toml 中的 plugin.id
     pub plugin_id: String,
+    /// 原始 manifest 全文快照
     pub manifest: Manifest,
+
+    /// 插件类型组件（kind=Plugin）。
+    /// None 表示该插件没有声明 Plugin 类型的组件（仅提供 DataSource/ActionExecutor 等）。
     pub plugin: Option<Arc<RemotePluginAdapter>>,
+
+    /// 数据源组件列表（kind=DataSource）。
+    /// 一个插件可以声明多个数据源（如 "浏览器书签" + "系统命令"），各自独立。
     pub data_sources: Vec<Arc<RemoteDataSourceAdapter>>,
+
+    /// 执行器组件列表（kind=ActionExecutor）。
+    /// 一个插件可以声明多个执行器，各自处理不同的 target_type。
     pub executors: Vec<Arc<RemoteExecutorAdapter>>,
+
+    /// 所有组件的统一可配置接口。
+    /// **每个组件**（无论它是 Plugin / DataSource / ActionExecutor）都有一个
+    /// `RemoteConfigurableAdapter` 放入此列表，因此长度 = 组件总数。
+    /// ConfigManager 通过这个列表管理每个组件的独立配置项、Schema 和启用状态。
     pub configurables: Vec<Arc<RemoteConfigurableAdapter>>,
+}
+
+impl PluginRegistration {
+    /// 计算该插件的全局排序优先级，取所有组件 `priority()` 的最小值。
+    /// 没有任何组件时返回默认值 50。
+    pub fn compute_priority(&self) -> u32 {
+        self.configurables
+            .iter()
+            .map(|c| c.priority())
+            .min()
+            .unwrap_or(50)
+    }
 }
 
 /// Context needed to restart a crashed plugin.
@@ -70,7 +103,7 @@ impl std::fmt::Debug for PluginRestartContext {
 /// Top-level manager for all third-party plugin processes.
 pub struct PluginHostManager {
     pub processes: DashMap<String, Arc<PluginProcess>>,
-    pub adapters: DashMap<String, RegisteredAdapters>,
+    pub plugins: DashMap<String, PluginRegistration>,
     /// Root directory where plugin data subdirectories are stored.
     pub data_dir_root: PathBuf,
     /// Root directory where plugin stderr logs are stored.
@@ -99,7 +132,7 @@ impl PluginHostManager {
     pub fn new(plugins_dir: PathBuf, data_dir_root: PathBuf, log_dir_root: PathBuf) -> Self {
         Self {
             processes: DashMap::new(),
-            adapters: DashMap::new(),
+            plugins: DashMap::new(),
             data_dir_root,
             log_dir_root,
             plugins_dir,
@@ -116,7 +149,7 @@ impl PluginHostManager {
         plugin_dir: &Path,
         host_call_handler: Arc<dyn HostCallHandler>,
         on_restart: RestartCallback,
-    ) -> Result<RegisteredAdapters, PluginLoadError> {
+    ) -> Result<PluginRegistration, PluginLoadError> {
         let manifest_path = plugin_dir.join("manifest.toml");
         let manifest_bytes = std::fs::read_to_string(&manifest_path)
             .map_err(|e| PluginLoadError::Manifest(format!("cannot read manifest.toml: {}", e)))?;
@@ -191,10 +224,10 @@ impl PluginHostManager {
         let data_root = self.data_dir_root.clone();
         let log_root = self.log_dir_root.clone();
         let processes = Arc::new(self.processes.clone());
-        let adapters = Arc::new(self.adapters.clone());
+        let plugins = Arc::new(self.plugins.clone());
         let contexts = Arc::new(self.restart_contexts.clone());
         tokio::spawn(async move {
-            restart_loop(crash_rx, processes, adapters, contexts, data_root, log_root).await;
+            restart_loop(crash_rx, processes, plugins, contexts, data_root, log_root).await;
         });
 
         // Insert process into registry BEFORE discovery.
@@ -221,7 +254,7 @@ impl PluginHostManager {
         // Clone before insert so the return value is ready without a second
         // DashMap lookup + 6 individual field clones.
         let registered = adapters.clone();
-        self.adapters.insert(plugin_id.clone(), adapters);
+        self.plugins.insert(plugin_id.clone(), adapters);
         Ok(registered)
     }
 
@@ -251,7 +284,7 @@ impl PluginHostManager {
                 }
             }
         }
-        self.adapters.remove(plugin_id);
+        self.plugins.remove(plugin_id);
 
         // Remove log file
         let log_file = self.log_dir_root.join(format!("{}.log", plugin_id));
@@ -267,7 +300,7 @@ impl PluginHostManager {
         plugin_dir: &Path,
         host_call_handler: Arc<dyn HostCallHandler>,
         on_restart: RestartCallback,
-    ) -> Result<RegisteredAdapters, PluginLoadError> {
+    ) -> Result<PluginRegistration, PluginLoadError> {
         self.unload(plugin_id).await?;
         self.load(plugin_dir, host_call_handler, on_restart).await
     }
@@ -278,28 +311,34 @@ impl PluginHostManager {
     /// callers pass a closure that queries `ConfigManager::is_enabled`.
     pub fn list_plugin_info(
         &self,
-        enabled_fn: impl Fn(&RegisteredAdapters) -> bool,
+        enabled_fn: impl Fn(&PluginRegistration) -> bool,
     ) -> Vec<InstalledPluginInfo> {
-        self.adapters
+        let mut result: Vec<InstalledPluginInfo> = self
+            .plugins
             .iter()
             .map(|entry| {
-                let adapters = entry.value();
+                let plugin_registration = entry.value();
                 let process_state = self
                     .processes
-                    .get(&adapters.plugin_id)
+                    .get(&plugin_registration.plugin_id)
                     .map(|p| format!("{:?}", *p.state.read()))
                     .unwrap_or_else(|| "unknown".to_string());
+                let priority = plugin_registration.compute_priority();
+                let enabled = enabled_fn(plugin_registration);
                 InstalledPluginInfo {
-                    plugin_id: adapters.plugin_id.clone(),
-                    name: adapters.manifest.plugin.name.clone(),
-                    version: adapters.manifest.plugin.version.clone(),
-                    description: adapters.manifest.plugin.description.clone(),
-                    author: adapters.manifest.plugin.author.clone(),
+                    plugin_id: plugin_registration.plugin_id.clone(),
+                    name: plugin_registration.manifest.plugin.name.clone(),
+                    version: plugin_registration.manifest.plugin.version.clone(),
+                    description: plugin_registration.manifest.plugin.description.clone(),
+                    author: plugin_registration.manifest.plugin.author.clone(),
                     state: process_state,
-                    enabled: enabled_fn(adapters),
+                    enabled,
+                    priority,
                 }
             })
-            .collect()
+            .collect();
+        result.sort_by_key(|p| (p.priority, p.plugin_id.clone()));
+        result
     }
 }
 
@@ -320,6 +359,8 @@ pub struct InstalledPluginInfo {
     pub state: String,
     #[serde(rename = "enabled")]
     pub enabled: bool,
+    #[serde(rename = "priority")]
+    pub priority: u32,
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────
@@ -427,7 +468,7 @@ fn build_adapters(
     manifest: &Manifest,
     client: Arc<crate::client::JsonRpcClient>,
     init_result: &crate::process::InitResult,
-) -> RegisteredAdapters {
+) -> PluginRegistration {
     let mut plugin_adapter: Option<Arc<RemotePluginAdapter>> = None;
     let mut data_sources = Vec::new();
     let mut executors = Vec::new();
@@ -446,6 +487,15 @@ fn build_adapters(
                 comp.component_id.clone(),
                 comp.component_name.clone(),
                 comp.component_type,
+                {
+                    if comp.priority < 0 {
+                        warn!(
+                            "component {} has negative priority {}; clamping to 0",
+                            comp.component_id, comp.priority
+                        );
+                    }
+                    comp.priority.max(0) as u32
+                },
                 client.clone(),
                 schema,
                 settings,
@@ -500,7 +550,7 @@ fn build_adapters(
         }
     }
 
-    RegisteredAdapters {
+    PluginRegistration {
         plugin_id: plugin_id.to_string(),
         manifest: manifest.clone(),
         plugin: plugin_adapter,
@@ -516,7 +566,7 @@ fn build_adapters(
 async fn restart_loop(
     mut crash_rx: tokio::sync::mpsc::Receiver<String>,
     processes: Arc<DashMap<String, Arc<PluginProcess>>>,
-    adapters: Arc<DashMap<String, RegisteredAdapters>>,
+    plugins: Arc<DashMap<String, PluginRegistration>>,
     contexts: Arc<DashMap<String, Arc<PluginRestartContext>>>,
     data_dir_root: PathBuf,
     log_dir_root: PathBuf,
@@ -525,9 +575,9 @@ async fn restart_loop(
     while let Some(plugin_id) = crash_rx.recv().await {
         warn!("Watchdog triggered restart for plugin: {}", plugin_id);
 
-        // Remove old process and adapters
+        // Remove old process and plugins
         processes.remove(&plugin_id);
-        adapters.remove(&plugin_id);
+        plugins.remove(&plugin_id);
 
         if let Some(ctx_ref) = contexts.get(&plugin_id) {
             let ctx = ctx_ref.value();
@@ -571,7 +621,7 @@ async fn restart_loop(
                                 &init_result,
                             );
                             processes.insert(plugin_id.clone(), Arc::new(new_process));
-                            adapters.insert(plugin_id.clone(), new_adapters.clone());
+                            plugins.insert(plugin_id.clone(), new_adapters.clone());
                             // Notify src-tauri so it can re-register the new adapters
                             (ctx.on_restart)(new_adapters).await;
                             info!("Plugin {} successfully restarted", plugin_id);

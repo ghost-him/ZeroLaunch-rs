@@ -14,6 +14,9 @@ pub struct ComponentInfo {
     /// 组件类型
     #[serde(rename = "componentType")]
     pub component_type: ComponentType,
+    /// 显示排序优先级，数值越小越优先
+    #[serde(rename = "priority")]
+    pub priority: u32,
     /// 组件是否启用
     #[serde(rename = "enabled")]
     pub enabled: bool,

@@ -317,6 +317,10 @@ impl Configurable for AppearanceConfigComponent {
         ComponentType::Core
     }
 
+    fn priority(&self) -> u32 {
+        20
+    }
+
     fn setting_schema(&self) -> Vec<SettingDefinition> {
         vec![
             // ---- 主题 & 语言 ----

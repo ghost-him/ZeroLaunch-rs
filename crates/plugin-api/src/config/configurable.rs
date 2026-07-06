@@ -9,6 +9,11 @@ pub trait Configurable: Send + Sync {
     fn component_id(&self) -> &str;
     fn component_name(&self) -> &str;
     fn component_type(&self) -> ComponentType;
+    /// 组件显示排序优先级，数值越小越靠前。
+    /// 默认值 50，第三方插件未定义时使用该默认值。
+    fn priority(&self) -> u32 {
+        50
+    }
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {
         vec![]

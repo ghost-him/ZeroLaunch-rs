@@ -32,7 +32,7 @@ export function usePluginManager() {
       .map(([path, mod]) => ({ plugin: mod.default, path }))
       .sort(
         (a, b) =>
-          (a.plugin.priority ?? 100) - (b.plugin.priority ?? 100),
+          (a.plugin.priority ?? 50) - (b.plugin.priority ?? 50),
       )
 
     for (const { plugin, path } of entries) {

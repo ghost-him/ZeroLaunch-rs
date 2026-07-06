@@ -88,6 +88,9 @@ impl Configurable for StorageConfigComponent {
     fn component_type(&self) -> ComponentType {
         ComponentType::Core
     }
+    fn priority(&self) -> u32 {
+        30
+    }
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {
         vec![

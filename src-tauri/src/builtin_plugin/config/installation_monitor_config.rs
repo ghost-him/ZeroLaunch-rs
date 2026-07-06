@@ -68,6 +68,10 @@ impl Configurable for InstallationMonitorConfigComponent {
         ComponentType::Core
     }
 
+    fn priority(&self) -> u32 {
+        50
+    }
+
     fn setting_schema(&self) -> Vec<SettingDefinition> {
         vec![
             SchemaBuilder::boolean(

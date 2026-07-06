@@ -39,3 +39,6 @@ code-review*.md
 
 # OMP 旧版配置目录（已迁移至 .omp/）
 .claude/
+
+# CodeGraph 索引目录（自动生成，不提交）
+.codegraph/

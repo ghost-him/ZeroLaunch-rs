@@ -20,7 +20,7 @@ const MENU_ID_EXIT_PROGRAM: &str = "exit_program";
 enum MenuEventId {
     ShowSettingWindow,
     RefreshCandidates,
-    ReregisterHotkey,
+    ReregisterHotkeys,
     ToggleGameMode,
     ExitProgram,
     Unknown(String),
@@ -31,7 +31,7 @@ impl From<&str> for MenuEventId {
         match id {
             MENU_ID_SHOW_SETTINGS => MenuEventId::ShowSettingWindow,
             MENU_ID_REFRESH => MenuEventId::RefreshCandidates,
-            MENU_ID_REREGISTER_HOTKEY => MenuEventId::ReregisterHotkey,
+            MENU_ID_REREGISTER_HOTKEY => MenuEventId::ReregisterHotkeys,
             MENU_ID_TOGGLE_GAME_MODE => MenuEventId::ToggleGameMode,
             MENU_ID_EXIT_PROGRAM => MenuEventId::ExitProgram,
             _ => MenuEventId::Unknown(id.to_string()),
@@ -320,20 +320,19 @@ impl TrayManager {
             .icon(icon)
             .tooltip("zerolaunch-rs")
             .show_menu_on_left_click(false)
-            .on_menu_event(move |app, event| {
+            .on_menu_event(move |_app, event| {
                 let event_id = MenuEventId::from(event.id().as_ref());
                 match event_id {
-                    MenuEventId::ShowSettingWindow => show_setting_window_inner(app),
+                    MenuEventId::ShowSettingWindow => {
+                        app_command::send(app_command::AppCommand::ShowSettings)
+                    }
                     MenuEventId::ExitProgram => {
-                        let app_clone = app.clone();
-                        tauri::async_runtime::spawn(async move {
-                            app_clone.exit(0);
-                        });
+                        app_command::send(app_command::AppCommand::ExitProgram)
                     }
                     MenuEventId::RefreshCandidates => {
                         app_command::send(app_command::AppCommand::RefreshCandidates);
                     }
-                    MenuEventId::ReregisterHotkey => {
+                    MenuEventId::ReregisterHotkeys => {
                         app_command::send(app_command::AppCommand::ReregisterHotkeys);
                     }
                     MenuEventId::ToggleGameMode => {
@@ -404,16 +403,5 @@ fn should_use_white_tray_icon(app_handle: &AppHandle) -> bool {
         }
     } else {
         false
-    }
-}
-
-/// 托盘菜单回调：显示设置窗口（不捕获 TrayManager，供闭包直接使用）。
-fn show_setting_window_inner(app_handle: &AppHandle) {
-    if let Some(window) = app_handle.get_webview_window("setting_window") {
-        if let Err(e) = window.show() {
-            warn!("Failed to show setting window: {:?}", e);
-        } else {
-            let _ = window.set_focus();
-        }
     }
 }

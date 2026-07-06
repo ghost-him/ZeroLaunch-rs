@@ -428,7 +428,7 @@ fn spawn_app_command_consumer(
 ) {
     tauri::async_runtime::spawn(async move {
         while let Some(cmd) = rx.recv().await {
-            info!("AppCommand 消费者: 收到命令 {:?}", cmd);
+            debug!("AppCommand 消费者: 收到命令 {:?}", cmd);
             match cmd {
                 app_command::AppCommand::ShowSettings => {
                     let app_handle = state.get_main_handle();

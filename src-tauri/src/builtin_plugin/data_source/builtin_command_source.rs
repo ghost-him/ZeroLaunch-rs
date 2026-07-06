@@ -32,7 +32,7 @@ const BUILTIN_COMMANDS: &[BuiltinCommandDef] = &[
     },
     BuiltinCommandDef {
         name: "重新注册快捷键",
-        command: "ReregisterShortcut",
+        command: "ReregisterHotkeys",
         trigger_keywords: &["注册", "reshortcut"],
     },
     BuiltinCommandDef {

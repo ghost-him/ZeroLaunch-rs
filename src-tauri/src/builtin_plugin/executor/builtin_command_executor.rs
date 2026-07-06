@@ -78,7 +78,7 @@ impl ActionExecutor for BuiltinCommandExecutor {
                 let app_cmd = match command {
                     "ShowSettings" => app_command::AppCommand::ShowSettings,
                     "RefreshDatabase" => app_command::AppCommand::RefreshCandidates,
-                    "ReregisterShortcut" => app_command::AppCommand::ReregisterHotkeys,
+                    "ReregisterHotkeys" => app_command::AppCommand::ReregisterHotkeys,
                     "ToggleGameMode" => app_command::AppCommand::ToggleGameMode,
                     "ExitProgram" => app_command::AppCommand::ExitProgram,
                     _ => {

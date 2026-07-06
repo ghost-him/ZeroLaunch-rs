@@ -100,19 +100,20 @@ impl std::fmt::Debug for PluginRestartContext {
     }
 }
 
-/// Top-level manager for all third-party plugin processes.
+/// 第三方插件子进程的顶层管理器。
 pub struct PluginHostManager {
-    pub processes: DashMap<String, Arc<PluginProcess>>,
-    pub plugins: DashMap<String, PluginRegistration>,
-    /// Root directory where plugin data subdirectories are stored.
+    /// 已加载插件的子进程映射。
+    pub processes: Arc<DashMap<String, Arc<PluginProcess>>>,
+    /// 已加载插件的组件注册包（含 DataSource / Executor / Plugin 适配器）。
+    pub plugins: Arc<DashMap<String, PluginRegistration>>,
+    /// 插件数据的根目录。
     pub data_dir_root: PathBuf,
-    /// Root directory where plugin stderr logs are stored.
+    /// 插件 stderr 日志的根目录。
     pub log_dir_root: PathBuf,
-    /// Directory where plugin installations live (explicit, not derived from data_dir_root).
+    /// 插件安装目录。
     plugins_dir: PathBuf,
-    /// Stores the plugin directory and handler for each loaded plugin,
-    /// so the manager can re-spawn them on crash.
-    restart_contexts: DashMap<String, Arc<PluginRestartContext>>,
+    /// 每次加载插件时保存重启上下文，崩溃后可重新拉起。
+    restart_contexts: Arc<DashMap<String, Arc<PluginRestartContext>>>,
 }
 
 /// Error type for plugin loading operations.
@@ -131,12 +132,12 @@ pub enum PluginLoadError {
 impl PluginHostManager {
     pub fn new(plugins_dir: PathBuf, data_dir_root: PathBuf, log_dir_root: PathBuf) -> Self {
         Self {
-            processes: DashMap::new(),
-            plugins: DashMap::new(),
+            processes: Arc::new(DashMap::new()),
+            plugins: Arc::new(DashMap::new()),
             data_dir_root,
             log_dir_root,
             plugins_dir,
-            restart_contexts: DashMap::new(),
+            restart_contexts: Arc::new(DashMap::new()),
         }
     }
 
@@ -223,9 +224,9 @@ impl PluginHostManager {
         // Spawn a listener task that re-loads the plugin on crash notification
         let data_root = self.data_dir_root.clone();
         let log_root = self.log_dir_root.clone();
-        let processes = Arc::new(self.processes.clone());
-        let plugins = Arc::new(self.plugins.clone());
-        let contexts = Arc::new(self.restart_contexts.clone());
+        let processes = self.processes.clone();
+        let plugins = self.plugins.clone();
+        let contexts = self.restart_contexts.clone();
         tokio::spawn(async move {
             restart_loop(crash_rx, processes, plugins, contexts, data_root, log_root).await;
         });

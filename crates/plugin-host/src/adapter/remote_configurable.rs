@@ -89,6 +89,8 @@ impl Configurable for RemoteConfigurableAdapter {
         self.component_type
     }
 
+    /// 返回组件优先级。数值越小在设置页面上显示越靠前。
+    /// 此字段从第三方插件 `get_components` 响应反序列化，缺失时默认为 50。
     fn priority(&self) -> u32 {
         self.priority
     }

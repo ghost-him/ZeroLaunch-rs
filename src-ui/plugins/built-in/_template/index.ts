@@ -8,7 +8,7 @@ const templatePlugin: FrontendPlugin = {
   name: '<Plugin 显示名称>',   // ← 改为你的显示名称
   version: '1.0.0',
   description: '<描述>',
-  priority: 100,              // ← 数字越小越先加载
+  priority: 50,               // ← 数字越小越先加载
 
   // ---- 可选扩展点 (取消注释并按需配置) ----
 

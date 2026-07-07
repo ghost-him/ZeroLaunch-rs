@@ -229,26 +229,6 @@ impl TrayManager {
         debug!("Tray menu language updated.");
     }
 
-    /// 显示设置窗口。
-    pub fn show_settings_window(&self) {
-        let inner = self.inner.read();
-        let app_handle = match &inner.app_handle {
-            Some(h) => h,
-            None => {
-                warn!("TrayManager not initialized");
-                return;
-            }
-        };
-
-        if let Some(window) = app_handle.get_webview_window("setting_window") {
-            if let Err(e) = window.show() {
-                warn!("Failed to show setting window: {:?}", e);
-            } else {
-                let _ = window.set_focus();
-            }
-        }
-    }
-
     /// 退出程序。
     pub fn exit_program(&self) {
         let inner = self.inner.read();

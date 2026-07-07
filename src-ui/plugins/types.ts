@@ -8,7 +8,7 @@ export interface FrontendPlugin {
   name: string
   version: string
   description: string
-  /** 加载优先级，数值越小越先加载。默认 100。 */
+  /** 加载优先级，数值越小越先加载。默认 50。 */
   priority?: number
 
   /** 生命周期 */

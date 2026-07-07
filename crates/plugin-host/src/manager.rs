@@ -290,6 +290,7 @@ impl PluginHostManager {
         // Remove log file
         let log_file = self.log_dir_root.join(format!("{}.log", plugin_id));
         let _ = std::fs::remove_file(&log_file);
+        self.restart_contexts.remove(plugin_id);
 
         Ok(())
     }
@@ -580,71 +581,75 @@ async fn restart_loop(
         processes.remove(&plugin_id);
         plugins.remove(&plugin_id);
 
-        if let Some(ctx_ref) = contexts.get(&plugin_id) {
-            let ctx = ctx_ref.value();
-
-            // 原子递增持久化的重启计数器，并检查是否超出 max_restart。
-            // 这是**唯一**追踪重启次数的地方——不在看门狗或
-            // PluginProcess 中（它们每次重启都会被替换）。
-            let new_count = ctx.restart_count.fetch_add(1, Ordering::SeqCst) + 1;
-            let max_restart = ctx.manifest.runtime.max_restart;
-            if new_count >= max_restart {
-                error!(
-                    "Plugin {} exceeded max restarts ({}/{}) — not restarting",
-                    plugin_id, new_count, max_restart
-                );
-                continue;
-            }
-
-            let data_dir = data_dir_root.join(&plugin_id);
-            let log_dir = log_dir_root.clone();
-            let _ = std::fs::create_dir_all(&data_dir);
-
-            match PluginProcess::spawn(
-                &ctx.manifest,
-                &ctx.plugin_dir,
-                &data_dir,
-                &log_dir,
-                ctx.host_call_handler.clone(),
-                ctx.crash_tx.clone(),
-                new_count,
-            )
-            .await
-            {
-                Ok(new_process) => {
-                    // Discover components and rebuild adapters
-                    match new_process.discover_components().await {
-                        Ok(init_result) => {
-                            let new_adapters = build_adapters(
-                                &plugin_id,
-                                &ctx.manifest,
-                                new_process.client.clone(),
-                                &init_result,
-                            );
-                            processes.insert(plugin_id.clone(), Arc::new(new_process));
-                            plugins.insert(plugin_id.clone(), new_adapters.clone());
-                            // Notify src-tauri so it can re-register the new adapters
-                            (ctx.on_restart)(new_adapters).await;
-                            info!("Plugin {} successfully restarted", plugin_id);
-                        }
-                        Err(e) => {
-                            error!(
-                                "Failed to discover components after restart of {}: {}",
-                                plugin_id, e
-                            );
-                        }
-                    }
-                }
-                Err(e) => {
-                    error!("Failed to restart plugin {}: {}", plugin_id, e);
-                }
-            }
-        } else {
+        // 取出 owned Arc：DashMap 读守卫仅在闭包内存活，map 返回即释放，
+        // 不跨后续 spawn / discover / on_restart 的（可能耗时数秒的）.await。
+        let Some(ctx) = contexts.get(&plugin_id).map(|r| Arc::clone(r.value())) else {
             warn!(
                 "Crash notification for plugin '{}' but no restart context found — \
                  plugin may have been unloaded concurrently",
                 plugin_id
             );
+            continue;
+        };
+
+        // 原子递增持久化的重启计数器，并检查是否超出 max_restart。
+        // 这是**唯一**追踪重启次数的地方——不在看门狗或
+        // PluginProcess 中（它们每次重启都会被替换）。
+        let new_count = ctx.restart_count.fetch_add(1, Ordering::SeqCst) + 1;
+        let max_restart = ctx.manifest.runtime.max_restart;
+        if new_count >= max_restart {
+            error!(
+                "Plugin {} exceeded max restarts ({}/{}) — not restarting",
+                plugin_id, new_count, max_restart
+            );
+            contexts.remove(&plugin_id);
+            continue;
+        }
+
+        let data_dir = data_dir_root.join(&plugin_id);
+        let log_dir = log_dir_root.clone();
+        let _ = std::fs::create_dir_all(&data_dir);
+
+        match PluginProcess::spawn(
+            &ctx.manifest,
+            &ctx.plugin_dir,
+            &data_dir,
+            &log_dir,
+            ctx.host_call_handler.clone(),
+            ctx.crash_tx.clone(),
+            new_count,
+        )
+        .await
+        {
+            Ok(new_process) => {
+                // Discover components and rebuild adapters
+                match new_process.discover_components().await {
+                    Ok(init_result) => {
+                        let new_adapters = build_adapters(
+                            &plugin_id,
+                            &ctx.manifest,
+                            new_process.client.clone(),
+                            &init_result,
+                        );
+                        processes.insert(plugin_id.clone(), Arc::new(new_process));
+                        plugins.insert(plugin_id.clone(), new_adapters.clone());
+                        // Notify src-tauri so it can re-register the new adapters
+                        (ctx.on_restart)(new_adapters).await;
+                        info!("Plugin {} successfully restarted", plugin_id);
+                    }
+                    Err(e) => {
+                        error!(
+                            "Failed to discover components after restart of {}: {}",
+                            plugin_id, e
+                        );
+                        contexts.remove(&plugin_id);
+                    }
+                }
+            }
+            Err(e) => {
+                error!("Failed to restart plugin {}: {}", plugin_id, e);
+                contexts.remove(&plugin_id);
+            }
         }
     }
 }

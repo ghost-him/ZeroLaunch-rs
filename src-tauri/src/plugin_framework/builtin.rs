@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use super::plugin_info::{PluginInfo, PluginKind, PluginStatus};
+use super::plugin_info::PluginInfo;
 
 pub use super::builtin_registry::CollectedBuiltins;
 
@@ -13,16 +13,11 @@ pub fn make_builtin_info(
     configurable: &Arc<dyn zerolaunch_plugin_api::config::Configurable>,
     enabled: bool,
 ) -> PluginInfo {
-    PluginInfo {
-        id: configurable.component_id().to_string(),
-        name: configurable.component_name().to_string(),
-        kind: PluginKind::Builtin,
-        status: PluginStatus::Active,
-        version: None,
-        description: None,
-        author: Some("ZeroLaunch".to_string()),
-        component_count: 1,
+    PluginInfo::builtin(
+        configurable.component_id(),
+        configurable.component_name(),
+        1,
         enabled,
-        priority: configurable.priority(),
-    }
+        configurable.priority(),
+    )
 }

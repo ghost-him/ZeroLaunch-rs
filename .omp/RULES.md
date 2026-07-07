@@ -6,13 +6,19 @@
 - 错误 MUST 用 `?` 或 `.map_err()` 传播
 - 调用异步 SDK 方法：MUST 直接用 `.await`
 
-## RwLock 守卫生命周期
+## 同步锁守卫生命周期（跨 `.await`）
 
-- `parking_lot::RwLock*Guard` 是 `!Send`。守卫 MUST 在任何 `.await` 点之前释放。
-- **正确**：`{ let guard = lock.read(); let data = guard.field.clone(); } /* 守卫已释放 */; something().await;`
+本规则只约束**同步锁**，`tokio::sync::*` 异步锁豁免（见末尾）。
+
+- **同步锁**：`parking_lot::Mutex/RwLock`、`std::sync::Mutex/RwLock`，以及内部使用它们的容器（如 `DashMap` 的 `Ref`/`RefMut`）。
+- 这些守卫通常 `!Send`（parking_lot/std），跨 `.await` 会让 future 变 `!Send` → `tokio::spawn` 编译失败或运行时 panic；即便容器手动 `impl Send`（如 `DashMap::Ref`），跨 `.await` 长期持有阻塞式锁会阻塞同锁/同分片的其它任务，且可能死锁。
+- 因此同步锁守卫 MUST 在任何 `.await` 点之前释放。
+- **正确**（块作用域）：`let data = { let guard = lock.read(); guard.field.clone() }; /* 守卫已释放 */; something().await;`
+- **正确**（闭包作用域，推荐用于 `DashMap` 等）：`let data = map.get(&k).map(|r| r.value().clone()); something().await;` —— 守卫仅在闭包内存活，返回即释放，无需手动 `drop`。
 - **错误**：`let guard = lock.read(); something().await; /* 守卫仍存活 → future !Send */`
-- 此规则适用于所有异步代码路径：SessionRouter、ConfigManager、任何持有 `RwLock`/`Mutex` 的异步函数。
-- 当需要读 RwLock 且后面有 `.await`：将数据 clone 到局部变量，释放守卫，然后再 `.await`。
+- 此规则适用于所有异步代码路径：SessionRouter、ConfigManager、任何持有同步 `RwLock`/`Mutex`/`DashMap` 的异步函数。
+- 当需要读锁且后面有 `.await`：把数据 clone 到局部变量（或 owned `Arc`），让守卫在 `.await` 前释放，再 `.await`。
+- **`tokio::sync::*` 异步锁豁免**：`tokio::sync::Mutex/RwLock` 等的守卫是 `Send`，且 `read()`/`write()` 本身是 `.await`，**设计上允许**跨 `.await` 持有，不受本规则约束。但仍应缩短临界区；tokio 官方建议：短临界区优先用同步锁，仅当必须跨 `.await` 持有锁时才用 `tokio::sync` 锁。
 
 ## 死代码纪律
 

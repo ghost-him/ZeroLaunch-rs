@@ -34,6 +34,9 @@ impl Configurable for RemoteExecutorAdapter {
     fn component_type(&self) -> ComponentType {
         self.configurable.component_type()
     }
+    fn priority(&self) -> u32 {
+        self.configurable.priority()
+    }
     fn setting_schema(&self) -> Vec<SettingDefinition> {
         self.configurable.setting_schema()
     }

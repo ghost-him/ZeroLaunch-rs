@@ -9,16 +9,22 @@ export interface SidebarCategory {
   items?: SidebarCategory[]
 }
 
+/** 按 (priority, componentId) 升序排列，确保设置页 tab 顺序稳定。 */
+function sortByPriority(a: ComponentInfo, b: ComponentInfo): number {
+  return (a.priority ?? 50) - (b.priority ?? 50) || a.componentId.localeCompare(b.componentId)
+}
+
+
 export function buildSidebarItems(components: ComponentInfo[]): SidebarCategory[] {
   const core = components.filter(
     (c) => c.componentType === 'Core' && c.componentId !== 'appearance-config',
-  )
-  const appearance = components.filter((c) => c.componentId === 'appearance-config')
+  ).sort(sortByPriority)
+  const appearance = components.filter((c) => c.componentId === 'appearance-config').sort(sortByPriority)
   const pipeline = components.filter((c) =>
     ['DataSource', 'KeywordOptimizer', 'SearchEngine', 'ScoreBooster', 'ActionExecutor'].includes(
       c.componentType,
     ),
-  )
+  ).sort(sortByPriority)
   const plugins = components.filter((c) => c.componentType === 'Plugin')
 
   return [

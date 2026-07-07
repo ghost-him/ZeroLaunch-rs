@@ -40,8 +40,13 @@ pub struct ComponentDescriptor {
     pub component_type: ComponentType,
     #[serde(rename = "kind")]
     pub kind: ComponentKind,
-    #[serde(rename = "priority")]
+    #[serde(rename = "priority", default = "default_component_priority")]
     pub priority: i32,
+}
+
+/// 默认组件优先级，与 `Configurable::priority()` 的默认值（50）一致。
+fn default_component_priority() -> i32 {
+    50
 }
 
 /// 第三方插件可声明的组件种类。

@@ -140,7 +140,7 @@ impl HostCallHandler for TauriHostCallHandler {
                     .map_err(|e| JsonRpcError::new(codes::INVALID_PARAMS, e.to_string()))?;
                 let snapshot = zerolaunch_plugin_api::services::ParameterSnapshot::empty();
                 let result = handle
-                    .resolve_parameters(&p.plugin_id, &p.user_args, &snapshot)
+                    .resolve_parameters(&p.template, &p.user_args, &snapshot)
                     .await
                     .map_err(|e| JsonRpcError::new(codes::PLUGIN_ERROR, e.to_string()))?;
                 Ok(serde_json::to_value(result).unwrap_or_default())

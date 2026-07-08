@@ -24,7 +24,6 @@ use parking_lot::RwLock;
 use std::sync::Arc;
 
 use super::sdk_config::PluginSdkConfig;
-
 /// 插件服务句柄，绑定插件身份与配置。
 /// 跨平台 struct，通过 Arc<dyn IconExtractor> 等平台 trait 注入平台代码。
 /// 插件通过 HostApi::register() 获取此句柄，后续所有服务调用通过句柄完成。
@@ -379,7 +378,6 @@ impl PluginHandle {
     }
 
     // ===== 资源管理 =====
-
     /// 上传资源文件到本插件的资源空间。
     pub async fn resource_upload(
         &self,

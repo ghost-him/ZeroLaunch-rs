@@ -20,7 +20,7 @@ use crate::adapter::remote_data_source::RemoteDataSourceAdapter;
 use crate::adapter::remote_executor::RemoteExecutorAdapter;
 use crate::adapter::remote_plugin::RemotePluginAdapter;
 use crate::host_dispatch::HostCallHandler;
-use crate::process::PluginProcess;
+use crate::process::{PluginProcess, ProcessState};
 
 /// Type alias for the restart callback: receives newly registered adapters
 /// and returns a future that re-registers them with ConfigManager / SessionRouter.
@@ -277,11 +277,18 @@ impl PluginHostManager {
                 Ok(process) => process.shutdown(std::time::Duration::from_secs(5)).await,
                 Err(arc) => {
                     warn!(
-                        "Plugin {} process Arc has {} strong references; shutdown skipped. \
+                        "Plugin {} process Arc has {} strong references; forcing kill. \
                          This may indicate a leaked clone of the process handle.",
                         plugin_id,
                         Arc::strong_count(&arc)
                     );
+                    // 通过 PID 强制终止子进程，防止孤儿进程泄漏。
+                    // 进程被外部终止后，watchdog 的 child.wait() 会返回，
+                    // 然后检测到 Stopped 状态并退出（不触发重启）。
+                    if let Some(pid) = arc.pid {
+                        crate::process::force_kill_process(pid);
+                    }
+                    arc.state.write().clone_from(&ProcessState::Stopped);
                 }
             }
         }
@@ -418,13 +425,18 @@ fn validate_manifest(manifest: &Manifest, plugin_dir: &Path) -> Result<(), Plugi
         )));
     }
 
-    // Validate command exists
+    // Validate command path does not escape the plugin directory
     let cmd_path = plugin_dir.join(&manifest.runtime.command);
-    if !cmd_path.exists() {
-        return Err(PluginLoadError::Manifest(format!(
-            "command not found: {}",
-            cmd_path.display()
-        )));
+    let canonical_cmd = cmd_path
+        .canonicalize()
+        .map_err(|e| PluginLoadError::Manifest(format!("command not found: {}", e)))?;
+    let canonical_plugin_dir = plugin_dir
+        .canonicalize()
+        .map_err(|e| PluginLoadError::Manifest(format!("plugin dir canonicalize: {}", e)))?;
+    if !canonical_cmd.starts_with(&canonical_plugin_dir) {
+        return Err(PluginLoadError::Manifest(
+            "command path escapes plugin directory".into(),
+        ));
     }
 
     Ok(())
@@ -597,7 +609,7 @@ async fn restart_loop(
         // PluginProcess 中（它们每次重启都会被替换）。
         let new_count = ctx.restart_count.fetch_add(1, Ordering::SeqCst) + 1;
         let max_restart = ctx.manifest.runtime.max_restart;
-        if new_count >= max_restart {
+        if new_count > max_restart {
             error!(
                 "Plugin {} exceeded max restarts ({}/{}) — not restarting",
                 plugin_id, new_count, max_restart

@@ -13,13 +13,14 @@ use zerolaunch_plugin_protocol::{codes, JsonRpcError, Message, ProtocolError, Re
 
 use crate::transport::codec;
 
-/// Incoming request with a channel to send the response back.
+/// Incoming request from a plugin subprocess.
+///
+/// Responses are sent via `JsonRpcClient::respond_ok` / `respond_err`,
+/// which write through the outbound channel.
 pub struct IncomingRequest {
     pub id: u64,
     pub method: String,
     pub params: serde_json::Value,
-    /// Send the response through this channel.
-    pub response_tx: oneshot::Sender<Result<serde_json::Value, JsonRpcError>>,
 }
 
 /// Bidirectional JSON-RPC 2.0 client over a framed stdio transport.
@@ -97,12 +98,10 @@ impl JsonRpcClient {
                         }
                     }
                     Message::Request(req) => {
-                        let (resp_tx, _) = oneshot::channel();
                         let incoming = IncomingRequest {
                             id: req.id,
                             method: req.method,
                             params: req.params,
-                            response_tx: resp_tx,
                         };
                         if incoming_request_tx.send(incoming).await.is_err() {
                             debug!("Incoming request channel closed");

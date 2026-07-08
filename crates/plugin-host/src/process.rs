@@ -57,6 +57,8 @@ pub struct PluginProcess {
     /// 该插件已重启的次数（0 = 初次启动）。
     /// 仅用于观测；权威的重启计数器在 PluginRestartContext 中。
     pub restart_count: u32,
+    /// 子进程的 PID，用于强制终止（当优雅关闭超时时兜底）。
+    pub pid: Option<u32>,
 }
 
 impl PluginProcess {
@@ -207,6 +209,7 @@ impl PluginProcess {
             child_handle,
             crash_tx,
             restart_count,
+            pid,
         };
 
         // Start health monitoring
@@ -415,11 +418,13 @@ impl PluginProcess {
         });
     }
 
-    /// Graceful shutdown: send plugin/shutdown, wait, then kill.
+    /// Graceful shutdown: send plugin/shutdown, wait, then force-kill if needed.
     pub async fn shutdown(self, timeout: Duration) {
         let plugin_id = self.plugin_id.clone();
+        let pid = self.pid;
         info!("Shutting down plugin {}", plugin_id);
 
+        // Step 1: send graceful shutdown RPC
         let _ = self
             .client
             .call::<serde_json::Value, serde_json::Value>(
@@ -429,8 +434,34 @@ impl PluginProcess {
             )
             .await;
 
+        // Step 2: force-kill (in case the RPC was ignored).
+        // The watchdog is blocked on child.wait(). It will unblock once
+        // the OS process terminates (killed by PID here), then detect
+        // Stopped state and exit without restarting.
+        if let Some(pid) = pid {
+            force_kill_process(pid);
+        }
+
+        // Step 3: mark as Stopped so watchdog won't restart
         self.state.write().clone_from(&ProcessState::Stopped);
         info!("Plugin {} shut down", plugin_id);
+    }
+}
+
+/// 强制终止指定 PID 的进程。
+/// 使用平台原生的 kill 命令（Windows: taskkill, Unix: kill -9）。
+pub(crate) fn force_kill_process(pid: u32) {
+    #[cfg(target_os = "windows")]
+    {
+        let _ = std::process::Command::new("taskkill")
+            .args(["/F", "/PID", &pid.to_string()])
+            .output();
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = std::process::Command::new("kill")
+            .args(["-9", &pid.to_string()])
+            .output();
     }
 }
 

@@ -360,6 +360,8 @@ pub struct ResourceListParams {}
 pub struct ParameterResolveParams {
     #[serde(rename = "userArgs")]
     pub user_args: Vec<String>,
-    #[serde(rename = "pluginId")]
-    pub plugin_id: String,
+    /// 参数模板字符串（如 "https://google.com/search?q={query}"）。
+    /// 命名注意：此字段是模板，不是插件 ID。字段曾名为 pluginId 但造成混淆，已更正。
+    #[serde(rename = "template")]
+    pub template: String,
 }

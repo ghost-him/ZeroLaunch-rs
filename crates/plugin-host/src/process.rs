@@ -424,8 +424,13 @@ impl PluginProcess {
         let pid = self.pid;
         info!("Shutting down plugin {}", plugin_id);
 
-        // Step 1: send graceful shutdown RPC
-        let _ = self
+        // Step 1: 先标记 Stopped，让 watchdog 检测到后不触发重启。
+        // 必须早于 force_kill_process，消除进程被杀到状态更新之间的 TOCTOU 窗口。
+        *self.state.write() = ProcessState::Stopped;
+
+        // Step 2: 发送优雅关闭 RPC。
+        // 插件正常退出后连接断开，call() 返回 TransportClosed 错误——属于预期行为。
+        let rpc_result = self
             .client
             .call::<serde_json::Value, serde_json::Value>(
                 plugin_methods::SHUTDOWN,
@@ -434,16 +439,19 @@ impl PluginProcess {
             )
             .await;
 
-        // Step 2: force-kill (in case the RPC was ignored).
-        // The watchdog is blocked on child.wait(). It will unblock once
-        // the OS process terminates (killed by PID here), then detect
-        // Stopped state and exit without restarting.
-        if let Some(pid) = pid {
-            force_kill_process(pid);
+        // Step 3: force-kill 兜底。
+        // 仅在 RPC 超时或返回错误时执行（此时进程可能仍存活，PID 有效）；
+        // 若 TransportClosed（进程已退出），跳过 force-kill 以消除 PID 复用风险。
+        let should_force_kill = matches!(
+            rpc_result,
+            Err(ProtocolError::Timeout) | Err(ProtocolError::Rpc { .. })
+        );
+        if should_force_kill {
+            if let Some(pid) = pid {
+                force_kill_process(pid);
+            }
         }
 
-        // Step 3: mark as Stopped so watchdog won't restart
-        self.state.write().clone_from(&ProcessState::Stopped);
         info!("Plugin {} shut down", plugin_id);
     }
 }

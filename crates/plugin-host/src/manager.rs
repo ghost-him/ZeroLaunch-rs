@@ -282,13 +282,12 @@ impl PluginHostManager {
                         plugin_id,
                         Arc::strong_count(&arc)
                     );
-                    // 通过 PID 强制终止子进程，防止孤儿进程泄漏。
-                    // 进程被外部终止后，watchdog 的 child.wait() 会返回，
-                    // 然后检测到 Stopped 状态并退出（不触发重启）。
+                    // 先标记 Stopped，让 watchdog 在进程退出后检测到此状态而不触发重启
+                    arc.state.write().clone_from(&ProcessState::Stopped);
+                    // 通过 PID 强制终止子进程，防止孤儿进程泄漏
                     if let Some(pid) = arc.pid {
                         crate::process::force_kill_process(pid);
                     }
-                    arc.state.write().clone_from(&ProcessState::Stopped);
                 }
             }
         }

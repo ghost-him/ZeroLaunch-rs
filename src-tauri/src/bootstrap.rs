@@ -182,19 +182,6 @@ pub(crate) async fn init_app_state(
     plugin_manager.set_host_api(host_api.clone());
     state.set_plugin_manager(plugin_manager.clone());
 
-    // 根据 is_debug_mode 配置开启/关闭 Inspector 录制。
-    // 必须在 set_config_manager 之前读取，因为 set_config_manager 会 move config_manager。
-    let is_debug = config_manager
-        .get_settings("general-config")
-        .and_then(|v| v.get("is_debug_mode")?.as_bool())
-        .unwrap_or(false);
-    if let Some(inspector) = state.get_inspector() {
-        inspector.set_recording(is_debug);
-    }
-    if is_debug {
-        info!("调试模式已开启，Plugin Inspector 录制已启用");
-    }
-
     // 将 config_manager 保存到 AppState（必须在 PluginManager 之后，因为 clone 语义）
     state.set_config_manager(config_manager);
     // 初始化内置 + 第三方插件
@@ -403,6 +390,19 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
     info!("=== Phase B: 加载持久化配置 ===");
     if let Err(e) = config_manager.load_from_storage() {
         warn!("加载持久化配置失败: {}", e);
+    }
+
+    // Phase B.5: 同步 Inspector 录制状态到用户配置。
+    // 必须在 load_from_storage() 之后执行（此时组件已注册、用户配置已加载）。
+    if let Some(inspector) = state.get_inspector() {
+        let is_debug = config_manager
+            .get_settings("general-config")
+            .and_then(|v| v.get("is_debug_mode")?.as_bool())
+            .unwrap_or(false);
+        inspector.set_recording(is_debug);
+        if is_debug {
+            info!("调试模式已开启，Plugin Inspector 录制已启用");
+        }
     }
 
     // ========================================================================

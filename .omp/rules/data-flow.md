@@ -23,10 +23,10 @@ interruptMode: never
 │     ├─ ConfigManager   ← 配置管理（schema、持久化）                    │
 │     ├─ SessionRouter   ← 运行时调度（executor、engine、booster、plugin）│
 │     └─ CandidatePipeline ← 候选采集（data_source、keyword_optimizer）  │
-│  3. load_from_storage() — 从磁盘恢复用户配置                           │
-│  4. candidate_pipeline.collect() — 全量采集候选人 → 缓存               │
-│  5. SearchPipeline 构建 — 默认引擎 + boosters + top_k=10              │
-│                                                                      │
+│  3. load_from_storage() — 从磁盘恢复用户配置                            │
+│  4. Inspector 录制同步 — 读取 general-config.is_debug_mode，设置录制状态│
+│  5. candidate_pipeline.collect() — 全量采集候选人 → 缓存               │
+│  6. SearchPipeline 构建 — 默认引擎 + boosters + top_k=10              │
 └─────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼

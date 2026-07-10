@@ -409,8 +409,8 @@ pub trait Configurable: Send + Sync {
 3. 用户点击按钮后，前端调用 `execute_config_action(component_id, action)`
 4. 返回的 JSON 数据由前端根据配置项类型自行解析并填入对应设置项
 5. 对于 BookmarkSource 的 `detect_browsers` 场景：
-   - 返回 `Vec<BrowserInfo>`，每项包含 `{ name, bookmarks_path }`
-   - 前端将每项转为 `{ name, bookmarks_path, enabled: true }` 对象填入 sources 数组
+   - 返回 `{ sources: [{ name, bookmarks_path, enabled: false }] }`，其中 `enabled` 默认为 `false`
+   - 前端将 `sources` 数组直接填入对应设置项，用户可手动启用需要的书签源
 
 ### 调用链路
 

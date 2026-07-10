@@ -366,7 +366,7 @@ impl Configurable for BookmarkSource {
                         serde_json::json!({
                             "name": b.name,
                             "bookmarks_path": b.bookmarks_path,
-                            "enabled": true,
+                            "enabled": false,
                         })
                     })
                     .collect();

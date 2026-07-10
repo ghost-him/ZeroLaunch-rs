@@ -3,53 +3,38 @@
     <PipelineFlowDiagram />
 
     <!-- 详尽配置 -->
-    <n-tabs type="line" default-value="datasource" display-directive="show">
+    <n-tabs type="line" default-value="datasource" display-directive="show" class="pipeline-tabs">
       <n-tab-pane name="datasource" tab="数据源">
-        <div class="card-list">
-          <CollapsibleComponentCard
-            v-for="comp in getComponentsByType('DataSource')"
-            :key="comp.componentId"
-            :component="comp"
-          />
-        </div>
+        <ListDetailPanel
+          :items="getComponentsByType('DataSource')"
+          title="数据源"
+        />
       </n-tab-pane>
       <n-tab-pane name="processor" tab="内容处理器">
-        <div class="card-list">
-          <CollapsibleComponentCard
-            v-for="comp in getComponentsByType('KeywordOptimizer')"
-            :key="comp.componentId"
-            :component="comp"
-          />
-        </div>
+        <ListDetailPanel
+          :items="getComponentsByType('KeywordOptimizer')"
+          title="内容处理器"
+        />
       </n-tab-pane>
       <n-tab-pane name="searchengine" tab="检索引擎">
-        <div class="card-list">
-          <CollapsibleComponentCard
-            v-for="comp in getComponentsByType('SearchEngine')"
-            :key="comp.componentId"
-            :component="comp"
-            custom-toggle
-            @toggle="onSearchEngineToggle"
-          />
-        </div>
+        <ListDetailPanel
+          :items="getComponentsByType('SearchEngine')"
+          title="检索引擎"
+          custom-toggle
+          @toggle="onSearchEngineToggle"
+        />
       </n-tab-pane>
       <n-tab-pane name="scorebooster" tab="评分增强器">
-        <div class="card-list">
-          <CollapsibleComponentCard
-            v-for="comp in getComponentsByType('ScoreBooster')"
-            :key="comp.componentId"
-            :component="comp"
-          />
-        </div>
+        <ListDetailPanel
+          :items="getComponentsByType('ScoreBooster')"
+          title="评分增强器"
+        />
       </n-tab-pane>
       <n-tab-pane name="executor" tab="执行器">
-        <div class="card-list">
-          <CollapsibleComponentCard
-            v-for="comp in getComponentsByType('ActionExecutor')"
-            :key="comp.componentId"
-            :component="comp"
-          />
-        </div>
+        <ListDetailPanel
+          :items="getComponentsByType('ActionExecutor')"
+          title="执行器"
+        />
       </n-tab-pane>
     </n-tabs>
   </div>
@@ -59,7 +44,7 @@
 import { NTabs, NTabPane } from 'naive-ui'
 import type { ComponentInfo } from '../../bridge/contract'
 import PipelineFlowDiagram from './PipelineFlowDiagram.vue'
-import CollapsibleComponentCard from './CollapsibleComponentCard.vue'
+import ListDetailPanel from './ListDetailPanel.vue'
 import { useSearchEngineToggle } from '../../composables/useSearchEngineToggle'
 
 const props = defineProps<{
@@ -80,11 +65,16 @@ const { onToggle: onSearchEngineToggle } = useSearchEngineToggle(
   height: 100%;
 }
 
-.card-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+.pipeline-tabs {
+  height: calc(100% - 100px);
+}
+
+.pipeline-tabs :deep(.n-tabs-nav--line) {
+  margin-bottom: 0;
+}
+
+.pipeline-tabs :deep(.n-tab-pane) {
   padding-top: 16px;
-  padding-bottom: 32px;
+  height: calc(100% - 44px);
 }
 </style>

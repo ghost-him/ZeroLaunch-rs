@@ -26,6 +26,8 @@
     "searchEngine": "Search Engines",
     "scoreBooster": "Score Boosters",
     "actionExecutor": "Action Executors",
+    "noComponents": "No available components",
+    "selectComponent": "Select a component from the left to view settings",
     "core": "Core",
     "saveSuccess": "Settings saved",
     "resetSuccess": "Reset to defaults",

@@ -26,6 +26,8 @@
     "searchEngine": "搜索引擎",
     "scoreBooster": "分数提升器",
     "actionExecutor": "动作执行器",
+    "noComponents": "无可用组件",
+    "selectComponent": "从左侧选择一个组件查看配置",
     "core": "核心",
     "saveSuccess": "配置已保存",
     "resetSuccess": "已重置为默认值",

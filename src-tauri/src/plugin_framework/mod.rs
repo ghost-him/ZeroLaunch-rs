@@ -3,7 +3,6 @@ pub mod builtin_registry;
 mod candidate_pipeline;
 mod executor_registry;
 pub mod host_handler;
-#[cfg(feature = "inspector")]
 pub mod inspector;
 pub mod manager;
 pub mod plugin_info;

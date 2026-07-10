@@ -138,7 +138,6 @@ zerolaunch-platform-windows.workspace = true
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
 portable = []
-inspector = []
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-single-instance.workspace = true

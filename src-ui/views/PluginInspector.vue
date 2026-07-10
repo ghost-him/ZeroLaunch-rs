@@ -3,7 +3,7 @@
     <div class="inspector-header">
       <h3>插件检查器</h3>
       <n-tag v-if="!available" type="warning">
-        检查器已禁用 (需启用 cargo feature "inspector")
+        检查器已禁用 (需在设置中开启调试模式)
       </n-tag>
       <n-button v-else size="small" @click="refresh" :loading="refreshing">
         刷新

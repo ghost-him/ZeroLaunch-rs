@@ -7,7 +7,6 @@
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
-
 use tauri::{App, Emitter, Manager};
 use tracing::{debug, info, warn};
 use zerolaunch_platform_windows::WindowsFocusMonitor;
@@ -20,6 +19,7 @@ use zerolaunch_plugin_api::services::AppResourceService;
 use crate::core::app_command;
 use crate::core::config::event::create_plugin_event_bus;
 use crate::core::config::{ConfigEvent, ConfigManager};
+use crate::plugin_framework::inspector::Inspector;
 use crate::plugin_framework::manager::PluginManager;
 use crate::plugin_framework::CandidatePipeline;
 use crate::state::app_state::AppState;
@@ -151,12 +151,8 @@ pub(crate) async fn init_app_state(
     state.set_core_handle(core_handle.clone());
     info!("Core PluginHandle 注册完成");
 
-    #[cfg(feature = "inspector")]
-    {
-        use crate::plugin_framework::inspector::Inspector;
-        state.set_inspector(Arc::new(Inspector::new(200)));
-        info!("Plugin Inspector 已启用 (容量: 200)");
-    }
+    state.set_inspector(Arc::new(Inspector::new(200)));
+    info!("Plugin Inspector 已创建 (容量: 200，录制默认关闭)");
 
     // 创建 AppCommand 通道并初始化全局发送端。
     // 命令通道是应用基础设施（有且仅有一个消费者），使用全局 OnceLock 而非依赖注入——
@@ -186,9 +182,21 @@ pub(crate) async fn init_app_state(
     plugin_manager.set_host_api(host_api.clone());
     state.set_plugin_manager(plugin_manager.clone());
 
+    // 根据 is_debug_mode 配置开启/关闭 Inspector 录制。
+    // 必须在 set_config_manager 之前读取，因为 set_config_manager 会 move config_manager。
+    let is_debug = config_manager
+        .get_settings("general-config")
+        .and_then(|v| v.get("is_debug_mode")?.as_bool())
+        .unwrap_or(false);
+    if let Some(inspector) = state.get_inspector() {
+        inspector.set_recording(is_debug);
+    }
+    if is_debug {
+        info!("调试模式已开启，Plugin Inspector 录制已启用");
+    }
+
     // 将 config_manager 保存到 AppState（必须在 PluginManager 之后，因为 clone 语义）
     state.set_config_manager(config_manager);
-
     // 初始化内置 + 第三方插件
     init_plugin_system(&state).await;
     info!("Phase 3 完成: 插件系统初始化就绪");
@@ -247,6 +255,7 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
     let app_handle = state.get_main_handle();
     let cm_for_events = config_manager.clone();
     let host_api_for_events = state.get_host_api();
+    let state_for_inspector = state.clone();
     let mut event_receiver = config_manager.event_sender().subscribe();
     tauri::async_runtime::spawn(async move {
         loop {
@@ -268,6 +277,21 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
                                 "componentType": format!("{:?}", component_type),
                             }),
                         );
+                        // 若通用设置变更（含调试模式开关），同步 Inspector 录制状态
+                        if component_id == "general-config" {
+                            if let Some(inspector) = state_for_inspector.get_inspector() {
+                                let cm = state_for_inspector.get_config_manager();
+                                let is_debug = cm
+                                    .get_settings("general-config")
+                                    .and_then(|v| v.get("is_debug_mode")?.as_bool())
+                                    .unwrap_or(false);
+                                inspector.set_recording(is_debug);
+                                debug!(
+                                    "Inspector 录制已{}",
+                                    if is_debug { "开启" } else { "关闭" }
+                                );
+                            }
+                        }
                     }
                     // 配置变更后自动触发远程同步（fire-and-forget）
                     match &event {

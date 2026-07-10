@@ -20,7 +20,6 @@ pub struct AppState {
     game_mode: RwLock<bool>,
     host_api: RwLock<Option<Arc<HostApi>>>,
     core_handle: RwLock<Option<Arc<PluginHandle>>>,
-    #[cfg(feature = "inspector")]
     inspector: RwLock<Option<Arc<crate::plugin_framework::inspector::Inspector>>>,
     /// PluginManager — 插件身份与生命周期的统一入口
     plugin_manager: RwLock<Option<Arc<PluginManager>>>,
@@ -48,7 +47,6 @@ impl AppState {
             game_mode: RwLock::new(false),
             host_api: RwLock::new(None),
             core_handle: RwLock::new(None),
-            #[cfg(feature = "inspector")]
             inspector: RwLock::new(None),
             plugin_manager: RwLock::new(None),
             cli_token: RwLock::new(None),
@@ -127,12 +125,10 @@ impl AppState {
         *self.core_handle.write() = Some(handle);
     }
 
-    #[cfg(feature = "inspector")]
     pub fn get_inspector(&self) -> Option<Arc<crate::plugin_framework::inspector::Inspector>> {
         self.inspector.read().clone()
     }
 
-    #[cfg(feature = "inspector")]
     pub fn set_inspector(&self, inspector: Arc<crate::plugin_framework::inspector::Inspector>) {
         *self.inspector.write() = Some(inspector);
     }

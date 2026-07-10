@@ -1,9 +1,8 @@
 ---
 description: 配置系统规范：ConfigManager save/load 流水线、ConfigAction、组件粒度、命名规范、Serde 默认值强制规范
-globs:
-  - "src-tauri/src/core/config/**"
-  - "src-tauri/src/commands/config_file.rs"
-  - "crates/plugin-api/src/config/**"
+condition: ".*"
+scope: "tool:read(src-tauri/src/core/config/**), tool:edit(src-tauri/src/core/config/**), tool:write(src-tauri/src/core/config/**), tool:read(src-tauri/src/commands/config_file.rs), tool:edit(src-tauri/src/commands/config_file.rs), tool:write(src-tauri/src/commands/config_file.rs), tool:read(crates/plugin-api/src/config/**), tool:edit(crates/plugin-api/src/config/**), tool:write(crates/plugin-api/src/config/**), tool:read(src-tauri/src/builtin_plugin/**), tool:edit(src-tauri/src/builtin_plugin/**), tool:write(src-tauri/src/builtin_plugin/**)"
+interruptMode: never
 ---
 
 # Config 系统规范

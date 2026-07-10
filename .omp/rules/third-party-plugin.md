@@ -1,14 +1,8 @@
 ---
 description: 第三方插件运行时规范：子进程 JSON-RPC 架构、协议、Manifest 校验、生命周期、RemotePluginAdapter、CLI HTTP、zlplugin:// 协议
-globs:
-  - "crates/plugin-protocol/**"
-  - "crates/plugin-host/**"
-  - "crates/plugin-sdk-rust/**"
-  - "src-tauri/src/plugin_framework/**"
-  - "src-tauri/src/cli_server/**"
-  - "src-tauri/src/commands/plugin.rs"
-  - "crates/plugin-api/src/plugin/**"
-  - "crates/plugin-api/src/host/**"
+condition: ".*"
+scope: "tool:read(crates/plugin-protocol/**), tool:edit(crates/plugin-protocol/**), tool:write(crates/plugin-protocol/**), tool:read(crates/plugin-host/**), tool:edit(crates/plugin-host/**), tool:write(crates/plugin-host/**), tool:read(crates/plugin-sdk-rust/**), tool:edit(crates/plugin-sdk-rust/**), tool:write(crates/plugin-sdk-rust/**), tool:read(src-tauri/src/plugin_framework/**), tool:edit(src-tauri/src/plugin_framework/**), tool:write(src-tauri/src/plugin_framework/**), tool:read(src-tauri/src/cli_server/**), tool:edit(src-tauri/src/cli_server/**), tool:write(src-tauri/src/cli_server/**), tool:read(src-tauri/src/commands/plugin.rs), tool:edit(src-tauri/src/commands/plugin.rs), tool:write(src-tauri/src/commands/plugin.rs), tool:read(crates/plugin-api/src/plugin/**), tool:edit(crates/plugin-api/src/plugin/**), tool:write(crates/plugin-api/src/plugin/**), tool:read(crates/plugin-api/src/host/**), tool:edit(crates/plugin-api/src/host/**), tool:write(crates/plugin-api/src/host/**)"
+interruptMode: never
 ---
 
 # 第三方插件运行时规范

@@ -1,10 +1,8 @@
 ---
 description: 插件系统规范：inventory 自动注册、Configurable 生命周期、ExecutorRegistry、PluginHandle、Pipeline、事件驱动解耦
-globs:
-  - "src-tauri/src/builtin_plugin/**"
-  - "src-tauri/src/plugin_framework/**"
-  - "crates/plugin-api/src/plugin/**"
-  - "crates/plugin-api/src/host/**"
+condition: ".*"
+scope: "tool:read(src-tauri/src/builtin_plugin/**), tool:edit(src-tauri/src/builtin_plugin/**), tool:write(src-tauri/src/builtin_plugin/**), tool:read(src-tauri/src/plugin_framework/**), tool:edit(src-tauri/src/plugin_framework/**), tool:write(src-tauri/src/plugin_framework/**), tool:read(crates/plugin-api/src/plugin/**), tool:edit(crates/plugin-api/src/plugin/**), tool:write(crates/plugin-api/src/plugin/**), tool:read(crates/plugin-api/src/host/**), tool:edit(crates/plugin-api/src/host/**), tool:write(crates/plugin-api/src/host/**)"
+interruptMode: never
 ---
 
 # 插件系统规范
@@ -27,7 +25,7 @@ globs:
 
 ## Configurable 生命周期
 
-配置变更的 5 步流水线及各方法的职责边界见 `.omp/rules/config.md` 的 Configurable 生命周期规范。参照实现：`HotkeyConfigComponent`、`InstallationMonitorConfigComponent`。
+配置变更遵循 5 步流水线：校验（validate_settings）→ 写入（apply_settings）→ 副作用（on_settings_changed）→ 广播 ConfigEvent → 持久化。
 
 ## ExecutorRegistry
 

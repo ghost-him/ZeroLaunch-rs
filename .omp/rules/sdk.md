@@ -1,9 +1,8 @@
 ---
 description: SDK/平台抽象层规范：平台能力模型、HostApi/PluginHandle 权限隔离、新增能力流程、推送式回调、Trace 模块
-globs:
-  - "src-tauri/src/sdk.rs"
-  - "crates/plugin-api/src/**"
-  - "crates/platform-windows/src/**"
+condition: ".*"
+scope: "tool:read(src-tauri/src/sdk.rs), tool:edit(src-tauri/src/sdk.rs), tool:write(src-tauri/src/sdk.rs), tool:read(crates/plugin-api/src/**), tool:edit(crates/plugin-api/src/**), tool:write(crates/plugin-api/src/**), tool:read(crates/platform-windows/src/**), tool:edit(crates/platform-windows/src/**), tool:write(crates/platform-windows/src/**)"
+interruptMode: never
 ---
 
 # SDK / 平台抽象层规范

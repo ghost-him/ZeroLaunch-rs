@@ -238,7 +238,7 @@ cli_server/
 
 ## 从哪里开始
 
-- **AI 约束规则** → `.omp/RULES.md`（始终生效的工程纪律）+ `.omp/rules/`（TTSR 条件规则，按领域触发）
+- **AI 约束规则** → `.omp/RULES.md`（始终生效的工程纪律，常驻 system prompt）+ `.omp/rules/`（TTSR 条件规则：领域规范在首次访问相关文件时自动注入，编码规则在检测到坏模式时中断纠正）
 - **设计哲学与架构** → `docs/design/`
 - **前端架构与需求** → `docs/frontend/`
 - **第三方插件开发** → `crates/plugin-api/README.md`

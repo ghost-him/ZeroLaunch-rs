@@ -1,7 +1,8 @@
 ---
 description: 前端规范：技术栈、目录结构、组件编写、Store 模式、多窗口架构、CSS 变量契约、Schema 驱动 UI、类型安全
-globs:
-  - "src-ui/**"
+condition: ".*"
+scope: "tool:read(src-ui/**), tool:edit(src-ui/**), tool:write(src-ui/**)"
+interruptMode: never
 ---
 
 # 前端规范

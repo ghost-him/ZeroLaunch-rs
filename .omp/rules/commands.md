@@ -1,9 +1,8 @@
 ---
 description: IPC 命令规范：命名、参数、序列化、错误处理、trace_id 追踪、返回类型约定
-globs:
-  - "src-tauri/src/commands/**"
-  - "src-ui/bridge/**"
-  - "src-tauri/src/cli_server/**"
+condition: ".*"
+scope: "tool:read(src-tauri/src/commands/**), tool:edit(src-tauri/src/commands/**), tool:write(src-tauri/src/commands/**), tool:read(src-ui/bridge/**), tool:edit(src-ui/bridge/**), tool:write(src-ui/bridge/**), tool:read(src-tauri/src/cli_server/**), tool:edit(src-tauri/src/cli_server/**), tool:write(src-tauri/src/cli_server/**)"
+interruptMode: never
 ---
 
 # Tauri Command 规范

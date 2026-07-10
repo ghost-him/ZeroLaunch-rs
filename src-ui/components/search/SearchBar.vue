@@ -19,7 +19,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
-import { NInput } from 'naive-ui'
+import { NInput, useNotification } from 'naive-ui'
 import { useSearch } from '../../composables/useSearch'
 import { useSettings } from '../../composables/useSettings'
 import { useThemeStore } from '../../stores/theme-store'
@@ -30,6 +30,7 @@ const { handleInput } = useSearch()
 const { openSettings } = useSettings()
 const themeStore = useThemeStore()
 const searchStore = useSearchStore()
+const notification = useNotification()
 
 const inputRef = ref<InstanceType<typeof NInput> | null>(null)
 
@@ -67,6 +68,18 @@ const emit = defineEmits<{
 
 function onContextMenu(e: MouseEvent) {
   const items: CtxItem[] = [
+    {
+      key: 'refresh-database',
+      label: '刷新数据库',
+      action: async () => {
+        const count = await searchStore.refreshCandidates()
+        notification.success({
+          title: '数据库已刷新',
+          content: `共 ${count} 个候选项`,
+          duration: 2000,
+        })
+      },
+    },
     {
       key: 'open-settings',
       label: '打开设置',

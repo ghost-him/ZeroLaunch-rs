@@ -84,6 +84,32 @@ impl HostProxy {
         Ok(())
     }
 
+    /// 发送 host/log 请求但不等待响应（fire-and-forget）。
+    ///
+    /// pending 条目在宿主响应到达时由 read_task 自动清理。
+    /// 若 outbound 通道已满，日志被静默丢弃并从 pending 中移除，
+    /// 避免阻塞调用者（通常来自 tracing subscriber 的回调）。
+    pub fn log_no_wait(&self, level: &str, message: &str) {
+        let id = self.next_id.fetch_add(1, Ordering::SeqCst);
+        let Ok(payload) = serde_json::to_vec(&serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "method": "host/log",
+            "params": { "level": level, "message": message },
+        })) else {
+            return;
+        };
+
+        let frame = encode_frame(&payload);
+        let (tx, _rx) = oneshot::channel(); // _rx 立即 drop → fire-and-forget
+        self.pending.insert(id, tx);
+
+        // 非阻塞投递：通道满了则丢弃并清理 pending
+        if self.outbound_tx.try_send(frame).is_err() {
+            self.pending.remove(&id);
+        }
+    }
+
     pub async fn shell_open(&self, target: &str) -> Result<(), String> {
         self.send_request("host/shell.open", serde_json::json!({ "target": target }))
             .await?;

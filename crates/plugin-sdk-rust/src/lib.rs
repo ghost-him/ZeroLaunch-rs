@@ -13,7 +13,9 @@
 //! ```
 
 pub mod host_proxy;
+pub mod logging;
 pub mod runtime;
+
 pub mod trace;
 
 pub use host_proxy::HostProxy;

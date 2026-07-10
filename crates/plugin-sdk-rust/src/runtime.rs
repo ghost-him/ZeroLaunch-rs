@@ -23,6 +23,7 @@ use zerolaunch_plugin_protocol::methods::plugin as plugin_methods;
 use zerolaunch_plugin_protocol::{codes, JsonRpcError, PROTOCOL_VERSION};
 
 use crate::host_proxy::HostProxy;
+use crate::logging;
 
 // Tokio task-local HostProxy，由 `run()` 初始化。
 // 在 `run_async` scope 内 spawn 的所有任务都继承该值。
@@ -57,6 +58,8 @@ pub fn run(plugin: impl Plugin + 'static) {
 }
 
 async fn run_async(mut plugin: impl Plugin + 'static) {
+    // 初始化日志系统（双写：stderr → 文件 + WARN/ERROR → host/log 转发）
+    let mut log_rx = logging::init_logging();
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();
 
@@ -69,11 +72,20 @@ async fn run_async(mut plugin: impl Plugin + 'static) {
     // 从而释放 outbound_tx 的最后一个 clone，让 write task
     // 通过 channel 关闭优雅退出。
     let host_proxy = Arc::new(HostProxy::new(pending.clone(), outbound_tx.clone()));
+    let hp_for_logs = host_proxy.clone();
 
     HOST_PROXY
         .scope(host_proxy, async move {
             // 插件状态
             let mut plugin_context: Option<zerolaunch_plugin_api::PluginContext> = None;
+
+            // --- 日志转发后台任务：将 WARN/ERROR 非阻塞转发到宿主 ---
+            tokio::spawn(async move {
+                while let Some(entry) = log_rx.recv().await {
+                    hp_for_logs.log_no_wait(&entry.level, &entry.message);
+                }
+            });
+
 
             // --- 读任务：stdin → pending_map（响应）或 request_tx（新请求）---
             let pending_r = pending.clone();

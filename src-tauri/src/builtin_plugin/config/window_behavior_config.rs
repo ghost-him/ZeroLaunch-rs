@@ -2,7 +2,9 @@ use crate::core::config::setting_builders::SchemaBuilder;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use tracing::warn;
-use zerolaunch_plugin_api::config::{ComponentType, ConfigError, Configurable, SettingDefinition};
+use zerolaunch_plugin_api::config::{
+    ComponentCore, ComponentType, ConfigError, Configurable, SettingDefinition,
+};
 
 /// 窗口行为设置的强类型配置结构。
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -49,6 +51,7 @@ fn default_true() -> bool {
 /// 拖动窗口记忆、鼠标跟随定位以及窗口位置持久化。
 /// 所有配置项均为被动设置（read-at-use），无 on_settings_changed 副作用。
 pub struct WindowBehaviorConfigComponent {
+    core: ComponentCore,
     settings: RwLock<WindowBehaviorSettings>,
 }
 
@@ -62,30 +65,21 @@ impl WindowBehaviorConfigComponent {
     /// 创建 WindowBehaviorConfigComponent。
     pub fn new() -> Self {
         Self {
+            core: ComponentCore::new(
+                "window-behavior-config".to_string(),
+                "窗口行为".to_string(),
+                "定制搜索窗口的打开、隐藏和焦点行为".to_string(),
+                ComponentType::Core,
+                20,
+            ),
             settings: RwLock::new(WindowBehaviorSettings::default()),
         }
     }
 }
 
 impl Configurable for WindowBehaviorConfigComponent {
-    fn component_id(&self) -> &str {
-        "window-behavior-config"
-    }
-
-    fn component_name(&self) -> &str {
-        "窗口行为"
-    }
-
-    fn component_description(&self) -> &str {
-        "定制搜索窗口的打开、隐藏和焦点行为"
-    }
-
-    fn component_type(&self) -> ComponentType {
-        ComponentType::Core
-    }
-
-    fn priority(&self) -> u32 {
-        20
+    fn core(&self) -> &ComponentCore {
+        &self.core
     }
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {

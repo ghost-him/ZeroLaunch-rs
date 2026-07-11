@@ -5,7 +5,9 @@ use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use tracing::error;
-use zerolaunch_plugin_api::config::{ComponentType, ConfigError, Configurable, SettingDefinition};
+use zerolaunch_plugin_api::config::{
+    ComponentCore, ComponentType, ConfigError, Configurable, SettingDefinition,
+};
 use zerolaunch_plugin_api::{
     CachedCandidateData, CandidateId, ScoreBooster, ScoreDetail, ScoredCandidate,
 };
@@ -147,6 +149,7 @@ impl HistoryBoosterInner {
 /// 历史记录增强器 - 基于历史启动次数、近期习惯和热度对候选项进行分数增强
 #[derive(Debug)]
 pub struct HistoryBooster {
+    core: ComponentCore,
     inner: RwLock<HistoryBoosterInner>,
     settings: RwLock<HistoryBoosterSettings>,
 }
@@ -160,6 +163,13 @@ impl Default for HistoryBooster {
 impl HistoryBooster {
     pub fn new() -> Self {
         HistoryBooster {
+            core: ComponentCore::new(
+                "history-booster".to_string(),
+                "历史记录增强器".to_string(),
+                "根据历史选择频率提升常用候选项的排名".to_string(),
+                ComponentType::ScoreBooster,
+                0,
+            ),
             inner: RwLock::new(HistoryBoosterInner::new()),
             settings: RwLock::new(HistoryBoosterSettings::default()),
         }
@@ -167,20 +177,8 @@ impl HistoryBooster {
 }
 
 impl Configurable for HistoryBooster {
-    fn component_id(&self) -> &str {
-        "history-booster"
-    }
-
-    fn component_name(&self) -> &str {
-        "历史记录增强器"
-    }
-
-    fn component_description(&self) -> &str {
-        "根据历史选择频率提升常用候选项的排名"
-    }
-
-    fn component_type(&self) -> ComponentType {
-        ComponentType::ScoreBooster
+    fn core(&self) -> &ComponentCore {
+        &self.core
     }
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {

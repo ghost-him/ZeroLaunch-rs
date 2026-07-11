@@ -14,10 +14,7 @@ pub async fn handle_list(State(state): State<Arc<AppState>>) -> Json<Vec<Install
     let hm = pm.host_manager();
 
     Json(hm.list_plugin_info(|a| {
-        a.configurables
-            .iter()
-            .all(|c| cm.is_enabled(c.component_id()))
-            && !a.configurables.is_empty()
+        a.components.iter().all(|c| cm.is_enabled(c.component_id())) && !a.components.is_empty()
     }))
 }
 

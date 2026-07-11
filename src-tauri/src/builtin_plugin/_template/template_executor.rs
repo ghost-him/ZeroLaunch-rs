@@ -7,7 +7,7 @@
 //! 4. 实现 ActionExecutor trait
 //! 5. 底部的 inventory::submit! 块会自动注册
 
-use zerolaunch_plugin_api::config::{ComponentType, Configurable};
+use zerolaunch_plugin_api::config::{ComponentCore, ComponentType, Configurable};
 use zerolaunch_plugin_api::{
     ActionExecutor, ExecutionContext, ExecutionError, ResultAction, TargetType,
 };
@@ -16,26 +16,28 @@ use std::sync::Arc;
 use zerolaunch_plugin_api::host::PluginHandle;
 
 pub struct TemplateExecutor {
+    core: ComponentCore,
     plugin_handle: Arc<PluginHandle>,
 }
 
 impl TemplateExecutor {
     pub fn new(plugin_handle: Arc<PluginHandle>) -> Self {
-        Self { plugin_handle }
+        Self {
+            core: ComponentCore::new(
+                "template-executor".to_string(), // ← 改为你的唯一 ID (kebab-case)
+                "模板执行器".to_string(),           // ← 改为你的显示名称
+                "模板执行器的功能描述".to_string(),  // ← 改为你的功能描述
+                ComponentType::ActionExecutor,
+                60, // ← 数字越小越优先 (留间隔 10 方便插入)
+            ),
+            plugin_handle,
+        }
     }
 }
 
 impl Configurable for TemplateExecutor {
-    fn component_id(&self) -> &str {
-        "template-executor" // ← 改为你的唯一 ID (kebab-case)
-    }
-
-    fn component_name(&self) -> &str {
-        "模板执行器" // ← 改为你的显示名称
-    }
-
-    fn component_type(&self) -> ComponentType {
-        ComponentType::ActionExecutor
+    fn core(&self) -> &ComponentCore {
+        &self.core
     }
 
     fn setting_schema(&self) -> Vec<crate::plugin_framework::SettingDefinition> {
@@ -104,7 +106,7 @@ fn build_template_executor(
 
 ::inventory::submit! {
     ExecutorEntry {
-        component_id: "template-executor", // ← 与 Configurable::component_id() 一致
+        component_id: "template-executor", // ← 与 ComponentCore::new() 的第一个参数一致
         handle_key: "shell-executor",
         priority: 60, // ← 数字越小越优先注册 (留间隔 10 方便插入)
         factory: build_template_executor,

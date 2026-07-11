@@ -4,7 +4,9 @@ use dashmap::DashMap;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use tracing::error;
-use zerolaunch_plugin_api::config::{ComponentType, ConfigError, Configurable, SettingDefinition};
+use zerolaunch_plugin_api::config::{
+    ComponentCore, ComponentType, ConfigError, Configurable, SettingDefinition,
+};
 use zerolaunch_plugin_api::{
     CachedCandidateData, CandidateId, ScoreBooster, ScoreDetail, ScoredCandidate,
 };
@@ -145,6 +147,7 @@ impl QueryAffinityBoosterInner {
 /// 查询亲和度增强器 - 基于查询词与候选项的关联关系对候选项进行分数增强
 #[derive(Debug)]
 pub struct QueryAffinityBooster {
+    core: ComponentCore,
     inner: RwLock<QueryAffinityBoosterInner>,
     settings: RwLock<QueryAffinitySettings>,
 }
@@ -158,6 +161,13 @@ impl Default for QueryAffinityBooster {
 impl QueryAffinityBooster {
     pub fn new() -> Self {
         QueryAffinityBooster {
+            core: ComponentCore::new(
+                "query-affinity-booster".to_string(),
+                "查询亲和度增强器".to_string(),
+                "根据查询关键词与候选项的匹配程度调整分数".to_string(),
+                ComponentType::ScoreBooster,
+                10,
+            ),
             inner: RwLock::new(QueryAffinityBoosterInner::new()),
             settings: RwLock::new(QueryAffinitySettings::default()),
         }
@@ -165,20 +175,8 @@ impl QueryAffinityBooster {
 }
 
 impl Configurable for QueryAffinityBooster {
-    fn component_id(&self) -> &str {
-        "query-affinity-booster"
-    }
-
-    fn component_name(&self) -> &str {
-        "查询亲和度增强器"
-    }
-
-    fn component_description(&self) -> &str {
-        "根据查询关键词与候选项的匹配程度调整分数"
-    }
-
-    fn component_type(&self) -> ComponentType {
-        ComponentType::ScoreBooster
+    fn core(&self) -> &ComponentCore {
+        &self.core
     }
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {

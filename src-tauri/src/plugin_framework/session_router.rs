@@ -665,25 +665,29 @@ impl SessionRouter {
             ConfigEvent::Registered { .. } | ConfigEvent::Unregistered { .. } => {}
             ConfigEvent::PluginRegistered(adapters) => {
                 info!("第三方插件运行时组件已注册: {}", adapters.plugin_id);
-                for ds in &adapters.data_sources {
-                    self.register_data_source(ds.clone()).await;
-                }
-                for ex in &adapters.executors {
-                    self.register_executor(ex.clone());
-                }
-                if let Some(p) = &adapters.plugin {
-                    self.register_remote_plugin(p.clone());
+                for comp in &adapters.components {
+                    if let Some(ds) = comp.clone().as_data_source() {
+                        self.register_data_source(ds).await;
+                    }
+                    if let Some(ex) = comp.clone().as_action_executor() {
+                        self.register_executor(ex);
+                    }
+                    if let Some(p) = comp.clone().as_plugin() {
+                        self.register_remote_plugin(p);
+                    }
                 }
                 self.refresh_candidates().await;
             }
             ConfigEvent::PluginUnregistered(adapters) => {
                 info!("第三方插件运行时组件已解注册: {}", adapters.plugin_id);
                 self.unregister_plugin(&adapters.plugin_id);
-                for ds in &adapters.data_sources {
-                    self.unregister_data_source(&ds.component_id).await;
-                }
-                for ex in &adapters.executors {
-                    self.unregister_executor(&ex.component_id);
+                for comp in &adapters.components {
+                    if comp.is_data_source() {
+                        self.unregister_data_source(comp.core.component_id()).await;
+                    }
+                    if comp.is_action_executor() {
+                        self.unregister_executor(comp.core.component_id());
+                    }
                 }
                 self.refresh_candidates().await;
             }

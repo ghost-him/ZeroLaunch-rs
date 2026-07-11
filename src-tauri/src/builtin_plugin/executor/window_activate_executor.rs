@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use std::sync::Arc;
 use tracing::warn;
-use zerolaunch_plugin_api::config::{ComponentType, Configurable};
+use zerolaunch_plugin_api::config::{ComponentCore, ComponentType, Configurable};
 use zerolaunch_plugin_api::host::PluginHandle;
 use zerolaunch_plugin_api::services::IconRequest;
 use zerolaunch_plugin_api::{
@@ -11,12 +11,22 @@ use zerolaunch_plugin_api::{
 /// 窗口激活执行器 - 负责唤醒已存在的程序窗口。
 /// 通过 PluginHandle 委托给 SDK 层的 WindowManager 实现窗口激活。
 pub struct WindowActivateExecutor {
+    core: ComponentCore,
     plugin_handle: Arc<PluginHandle>,
 }
 
 impl WindowActivateExecutor {
     pub fn new(plugin_handle: Arc<PluginHandle>) -> Self {
-        Self { plugin_handle }
+        Self {
+            core: ComponentCore::new(
+                "window-activate-executor".to_string(),
+                "窗口唤醒执行器".to_string(),
+                "激活或切换到已打开的窗口".to_string(),
+                ComponentType::ActionExecutor,
+                50,
+            ),
+            plugin_handle,
+        }
     }
 
     /// 尝试激活已存在的程序窗口。
@@ -108,19 +118,8 @@ impl WindowActivateExecutor {
 }
 
 impl Configurable for WindowActivateExecutor {
-    fn component_id(&self) -> &str {
-        "window-activate-executor"
-    }
-
-    fn component_name(&self) -> &str {
-        "窗口唤醒执行器"
-    }
-    fn component_description(&self) -> &str {
-        "激活或切换到已打开的窗口"
-    }
-
-    fn component_type(&self) -> ComponentType {
-        ComponentType::ActionExecutor
+    fn core(&self) -> &ComponentCore {
+        &self.core
     }
 }
 

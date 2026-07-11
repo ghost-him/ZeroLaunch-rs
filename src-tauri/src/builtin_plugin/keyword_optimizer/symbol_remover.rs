@@ -1,7 +1,9 @@
 use crate::core::config::setting_builders::SchemaBuilder;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use zerolaunch_plugin_api::config::{ComponentType, ConfigError, Configurable, SettingDefinition};
+use zerolaunch_plugin_api::config::{
+    ComponentCore, ComponentType, ConfigError, Configurable, SettingDefinition,
+};
 use zerolaunch_plugin_api::KeywordOptimizer;
 
 /// 符号移除器的可持久化配置
@@ -48,6 +50,7 @@ impl SymbolRemoverSettings {
 }
 
 pub struct SymbolRemover {
+    core: ComponentCore,
     inner: RwLock<SymbolRemoverSettings>,
 }
 
@@ -60,26 +63,21 @@ impl Default for SymbolRemover {
 impl SymbolRemover {
     pub fn new() -> Self {
         Self {
+            core: ComponentCore::new(
+                "symbol-remover".to_string(),
+                "符号移除器".to_string(),
+                "移除关键词中的符号以纯净匹配".to_string(),
+                ComponentType::KeywordOptimizer,
+                10,
+            ),
             inner: RwLock::new(SymbolRemoverSettings::default()),
         }
     }
 }
 
 impl Configurable for SymbolRemover {
-    fn component_id(&self) -> &str {
-        "symbol-remover"
-    }
-
-    fn component_name(&self) -> &str {
-        "符号移除器"
-    }
-
-    fn component_description(&self) -> &str {
-        "移除关键词中的符号以纯净匹配"
-    }
-
-    fn component_type(&self) -> ComponentType {
-        ComponentType::KeywordOptimizer
+    fn core(&self) -> &ComponentCore {
+        &self.core
     }
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {

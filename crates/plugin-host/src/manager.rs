@@ -12,13 +12,10 @@ use tracing::{error, info, warn};
 
 use zerolaunch_plugin_api::config::Configurable;
 use zerolaunch_plugin_protocol::manifest::Manifest;
-use zerolaunch_plugin_protocol::messages::{ComponentDescriptor, ComponentKind};
+use zerolaunch_plugin_protocol::messages::ComponentKind;
 use zerolaunch_plugin_protocol::ProtocolError;
 
-use crate::adapter::remote_configurable::RemoteConfigurableAdapter;
-use crate::adapter::remote_data_source::RemoteDataSourceAdapter;
-use crate::adapter::remote_executor::RemoteExecutorAdapter;
-use crate::adapter::remote_plugin::RemotePluginAdapter;
+use crate::adapter::remote_component::{RemoteComponent, RemoteComponentKind};
 use crate::host_dispatch::HostCallHandler;
 use crate::process::{PluginProcess, ProcessState};
 
@@ -30,8 +27,8 @@ pub type RestartCallback =
 /// 单个第三方插件的完整注册包。
 ///
 /// 一个插件可以在 manifest 中声明提供多个组件（例如同时提供 DataSource 和 ActionExecutor），
-/// 每个组件对应一个 `RemoteConfigurableAdapter` 存入 `configurables`；
-/// 再根据每个组件的 `ComponentKind` 分别放入 `data_sources` / `executors` / `plugin`。
+/// 所有组件统一存放在 `components` 中，由消费者按 `RemoteComponent::kind` 过滤后注册到
+/// 对应的子系统（Configurable / DataSource / ActionExecutor / Plugin）。
 #[derive(Clone, Debug)]
 pub struct PluginRegistration {
     /// 插件唯一标识，对应 manifest.toml 中的 plugin.id
@@ -39,30 +36,17 @@ pub struct PluginRegistration {
     /// 原始 manifest 全文快照
     pub manifest: Manifest,
 
-    /// 插件类型组件（kind=Plugin）。
-    /// None 表示该插件没有声明 Plugin 类型的组件（仅提供 DataSource/ActionExecutor 等）。
-    pub plugin: Option<Arc<RemotePluginAdapter>>,
-
-    /// 数据源组件列表（kind=DataSource）。
-    /// 一个插件可以声明多个数据源（如 "浏览器书签" + "系统命令"），各自独立。
-    pub data_sources: Vec<Arc<RemoteDataSourceAdapter>>,
-
-    /// 执行器组件列表（kind=ActionExecutor）。
-    /// 一个插件可以声明多个执行器，各自处理不同的 target_type。
-    pub executors: Vec<Arc<RemoteExecutorAdapter>>,
-
-    /// 所有组件的统一可配置接口。
-    /// **每个组件**（无论它是 Plugin / DataSource / ActionExecutor）都有一个
-    /// `RemoteConfigurableAdapter` 放入此列表，因此长度 = 组件总数。
-    /// ConfigManager 通过这个列表管理每个组件的独立配置项、Schema 和启用状态。
-    pub configurables: Vec<Arc<RemoteConfigurableAdapter>>,
+    /// 该插件的所有远程组件。
+    /// 每个组件都是一个 `RemoteComponent`，同时实现多个 trait；
+    /// 消费者通过 `as_data_source()` / `as_action_executor()` / `as_plugin()` 按需转换。
+    pub components: Vec<Arc<RemoteComponent>>,
 }
 
 impl PluginRegistration {
     /// 计算该插件的全局排序优先级，取所有组件 `priority()` 的最小值。
     /// 没有任何组件时返回默认值 50。
     pub fn compute_priority(&self) -> u32 {
-        self.configurables
+        self.components
             .iter()
             .map(|c| c.priority())
             .min()
@@ -249,8 +233,8 @@ impl PluginHostManager {
             }
         };
 
-        // Build adapters from discovered components
-        let adapters = build_adapters(&plugin_id, &manifest, client, &init_result);
+        // Build components from discovered components
+        let adapters = build_components(&plugin_id, &manifest, client, &init_result);
 
         // Clone before insert so the return value is ready without a second
         // DashMap lookup + 6 individual field clones.
@@ -463,32 +447,19 @@ fn find_settings_value(
         .unwrap_or(serde_json::Value::Null)
 }
 
-// ─── build_adapters ─────────────────────────────────────────────────
+// ─── build_components ───────────────────────────────────────────────
 
-/// 中间产物：统一提取的公共配置 + 组件描述符引用。
-struct ComponentBuildInfo<'a> {
-    desc: &'a ComponentDescriptor,
-    configurable: Arc<RemoteConfigurableAdapter>,
-}
-
-/// 从 InitResult 构建所有 Remote*Adapter。
+/// 从 InitResult 构建所有 `RemoteComponent`。
 ///
-/// 分两步：
-/// 1. 统一提取所有组件的 schema/settings/config_actions → RemoteConfigurableAdapter
-/// 2. 按 ComponentKind 差异化构造领域 adapter（Plugin / DataSource / ActionExecutor）
-fn build_adapters(
+/// 每个组件统一构造为 `RemoteComponent`；种类专属数据（target_types、result_actions、
+/// metadata）根据 `ComponentKind` 放入 `RemoteComponentKind` 对应变体。
+fn build_components(
     plugin_id: &str,
     manifest: &Manifest,
     client: Arc<crate::client::JsonRpcClient>,
     init_result: &crate::process::InitResult,
 ) -> PluginRegistration {
-    let mut plugin_adapter: Option<Arc<RemotePluginAdapter>> = None;
-    let mut data_sources = Vec::new();
-    let mut executors = Vec::new();
-    let mut configurables = Vec::new();
-
-    // ── 步骤一：统一提取公共配置 ──
-    let infos: Vec<ComponentBuildInfo> = init_result
+    let components: Vec<Arc<RemoteComponent>> = init_result
         .components
         .iter()
         .map(|comp| {
@@ -496,81 +467,57 @@ fn build_adapters(
             let settings = find_settings_value(&init_result.settings_values, &comp.component_id);
             let config_actions = find_by_id(&init_result.config_actions_map, &comp.component_id);
 
-            let configurable = Arc::new(RemoteConfigurableAdapter::new(
+            let priority = {
+                if comp.priority < 0 {
+                    warn!(
+                        "component {} has negative priority {}; clamping to 0",
+                        comp.component_id, comp.priority
+                    );
+                }
+                comp.priority.max(0) as u32
+            };
+
+            let kind = match &comp.kind {
+                ComponentKind::Plugin { .. } => {
+                    // 以插件自声明的 metadata 为基础，仅覆盖需宿主保证一致性的字段
+                    let mut metadata = init_result.metadata.clone();
+                    metadata.id = plugin_id.to_string();
+                    metadata.version = manifest.plugin.version.clone();
+                    metadata.author = manifest.plugin.author.clone();
+                    // name, description, supported_os, trigger_keywords, priority
+                    // 保留插件通过 plugin/get_metadata 自声明的值
+                    RemoteComponentKind::Plugin { metadata }
+                }
+                ComponentKind::DataSource => RemoteComponentKind::DataSource,
+                ComponentKind::ActionExecutor { target_types } => {
+                    let result_actions =
+                        find_by_id(&init_result.executor_actions_map, &comp.component_id);
+                    RemoteComponentKind::ActionExecutor {
+                        target_types: target_types.clone(),
+                        result_actions,
+                    }
+                }
+            };
+
+            Arc::new(RemoteComponent::new(
                 comp.component_id.clone(),
                 comp.component_name.clone(),
                 comp.component_description.clone(),
                 comp.component_type,
-                {
-                    if comp.priority < 0 {
-                        warn!(
-                            "component {} has negative priority {}; clamping to 0",
-                            comp.component_id, comp.priority
-                        );
-                    }
-                    comp.priority.max(0) as u32
-                },
+                priority,
                 client.clone(),
                 schema,
                 settings,
                 config_actions,
-            ));
-            configurables.push(configurable.clone());
-
-            ComponentBuildInfo {
-                desc: comp,
-                configurable,
-            }
+                kind,
+            ))
         })
         .collect();
-
-    // ── 步骤二：按 kind 差异化构造领域 adapter ──
-    for info in &infos {
-        match &info.desc.kind {
-            ComponentKind::Plugin { .. } => {
-                // 以插件自声明的 metadata 为基础，仅覆盖需宿主保证一致性的字段
-                let mut metadata = init_result.metadata.clone();
-                metadata.id = plugin_id.to_string();
-                metadata.version = manifest.plugin.version.clone();
-                metadata.author = manifest.plugin.author.clone();
-                // name, description, supported_os, trigger_keywords, priority
-                // 保留插件通过 plugin/get_metadata 自声明的值
-
-                plugin_adapter = Some(Arc::new(RemotePluginAdapter {
-                    metadata,
-                    client: client.clone(),
-                    configurable: info.configurable.clone(),
-                }));
-            }
-            ComponentKind::DataSource => {
-                data_sources.push(Arc::new(RemoteDataSourceAdapter {
-                    component_id: info.desc.component_id.clone(),
-                    configurable: info.configurable.clone(),
-                    client: client.clone(),
-                }));
-            }
-            ComponentKind::ActionExecutor { target_types } => {
-                let cached_actions =
-                    find_by_id(&init_result.executor_actions_map, &info.desc.component_id);
-
-                executors.push(Arc::new(RemoteExecutorAdapter {
-                    component_id: info.desc.component_id.clone(),
-                    configurable: info.configurable.clone(),
-                    client: client.clone(),
-                    cached_target_types: target_types.clone(),
-                    cached_actions,
-                }));
-            }
-        }
-    }
 
     PluginRegistration {
         plugin_id: plugin_id.to_string(),
         manifest: manifest.clone(),
-        plugin: plugin_adapter,
-        data_sources,
-        executors,
-        configurables,
+        components,
     }
 }
 
@@ -637,7 +584,7 @@ async fn restart_loop(
                 // Discover components and rebuild adapters
                 match new_process.discover_components().await {
                     Ok(init_result) => {
-                        let new_adapters = build_adapters(
+                        let new_adapters = build_components(
                             &plugin_id,
                             &ctx.manifest,
                             new_process.client.clone(),

@@ -4,7 +4,9 @@ use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::{info, warn};
-use zerolaunch_plugin_api::config::{ComponentType, ConfigError, Configurable, SettingDefinition};
+use zerolaunch_plugin_api::config::{
+    ComponentCore, ComponentType, ConfigError, Configurable, SettingDefinition,
+};
 use zerolaunch_plugin_api::services::hotkey::types::{Hotkey, HotkeyConfig, HotkeyRegistration};
 
 /// 快捷键设置的强类型配置结构。
@@ -33,6 +35,8 @@ fn default_open_search_bar() -> String {
 /// 管理全局快捷键（打开搜索栏）和双击 Ctrl 开关。
 /// 配置变更时异步应用快捷键到 HostApi。
 pub struct HotkeyConfigComponent {
+    /// 组件身份核心
+    core: ComponentCore,
     /// HostApi 引用，用于应用快捷键配置
     host_api: Arc<HostApi>,
     /// 当前配置状态
@@ -44,6 +48,13 @@ impl HotkeyConfigComponent {
     /// 参数：host_api - HostApi 实例，用于应用快捷键配置。
     pub fn new(host_api: Arc<HostApi>) -> Self {
         Self {
+            core: ComponentCore::new(
+                "hotkey-config".to_string(),
+                "快捷键配置".to_string(),
+                "设置全局快捷键，快速唤醒搜索窗口".to_string(),
+                ComponentType::Core,
+                40,
+            ),
             host_api,
             settings: RwLock::new(HotkeySettings::default()),
         }
@@ -125,24 +136,8 @@ fn settings_to_hotkey_config(settings: &HotkeySettings) -> HotkeyConfig {
 }
 
 impl Configurable for HotkeyConfigComponent {
-    fn component_id(&self) -> &str {
-        "hotkey-config"
-    }
-
-    fn component_name(&self) -> &str {
-        "快捷键配置"
-    }
-
-    fn component_description(&self) -> &str {
-        "设置全局快捷键，快速唤醒搜索窗口"
-    }
-
-    fn component_type(&self) -> ComponentType {
-        ComponentType::Core
-    }
-
-    fn priority(&self) -> u32 {
-        40
+    fn core(&self) -> &ComponentCore {
+        &self.core
     }
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {

@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use std::sync::Arc;
-use zerolaunch_plugin_api::config::{ComponentType, Configurable};
+use zerolaunch_plugin_api::config::{ComponentCore, ComponentType, Configurable};
 use zerolaunch_plugin_api::services::IconRequest;
 use zerolaunch_plugin_api::{
     ActionExecutor, ExecutionContext, ExecutionError, ExecutionTarget, ResultAction, TargetType,
@@ -18,12 +18,22 @@ use crate::core::app_command;
 /// - 通过 `InventoryContext` 层层传递会让 PluginManager 等中间人承载不相关的依赖；
 /// - 命令通道是应用基础设施，有且仅有一个消费者，`OnceLock` 是最小耦合面。
 ///   详细设计讨论见 `core/app_command.rs` 顶部注释。
-pub struct BuiltinCommandExecutor;
+pub struct BuiltinCommandExecutor {
+    core: ComponentCore,
+}
 
 impl BuiltinCommandExecutor {
     /// 创建内置命令执行器。无参数——命令通道通过全局 `app_command::send()` 访问。
     pub fn new() -> Self {
-        Self
+        Self {
+            core: ComponentCore::new(
+                "builtin-command-executor".to_string(),
+                "内置命令执行器".to_string(),
+                "执行 ZeroLaunch 内置命令".to_string(),
+                ComponentType::ActionExecutor,
+                10,
+            ),
+        }
     }
 }
 
@@ -34,19 +44,8 @@ impl Default for BuiltinCommandExecutor {
 }
 
 impl Configurable for BuiltinCommandExecutor {
-    fn component_id(&self) -> &str {
-        "builtin-command-executor"
-    }
-
-    fn component_name(&self) -> &str {
-        "内置命令执行器"
-    }
-    fn component_description(&self) -> &str {
-        "执行 ZeroLaunch 内置命令"
-    }
-
-    fn component_type(&self) -> ComponentType {
-        ComponentType::ActionExecutor
+    fn core(&self) -> &ComponentCore {
+        &self.core
     }
 }
 

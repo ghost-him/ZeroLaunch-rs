@@ -8,7 +8,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::{debug, warn};
 use zerolaunch_plugin_api::config::{
-    ComponentType, ConfigActionDef, ConfigError, Configurable, DetailActionDef, SettingDefinition,
+    ComponentCore, ComponentType, ConfigActionDef, ConfigError, Configurable, DetailActionDef,
+    SettingDefinition,
 };
 use zerolaunch_plugin_api::host::PluginHandle;
 use zerolaunch_plugin_api::services::IconRequest;
@@ -110,6 +111,7 @@ fn normalize_url(url: &str) -> String {
 // ============ BookmarkSource 实现 ============
 
 pub struct BookmarkSource {
+    core: ComponentCore,
     settings: RwLock<BookmarkSourceSettings>,
     #[allow(dead_code)]
     handle: Arc<PluginHandle>,
@@ -118,6 +120,13 @@ pub struct BookmarkSource {
 impl BookmarkSource {
     pub fn new(handle: Arc<PluginHandle>) -> Self {
         BookmarkSource {
+            core: ComponentCore::new(
+                "bookmark-source".to_string(),
+                "书签数据源".to_string(),
+                "从浏览器书签中搜索网址".to_string(),
+                ComponentType::DataSource,
+                30,
+            ),
             settings: RwLock::new(BookmarkSourceSettings::default()),
             handle,
         }
@@ -253,19 +262,8 @@ impl BookmarkSource {
 }
 
 impl Configurable for BookmarkSource {
-    fn component_id(&self) -> &str {
-        "bookmark-source"
-    }
-
-    fn component_name(&self) -> &str {
-        "书签数据源"
-    }
-    fn component_description(&self) -> &str {
-        "从浏览器书签中搜索网址"
-    }
-
-    fn component_type(&self) -> ComponentType {
-        ComponentType::DataSource
+    fn core(&self) -> &ComponentCore {
+        &self.core
     }
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {

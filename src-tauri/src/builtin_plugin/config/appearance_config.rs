@@ -2,7 +2,9 @@ use crate::core::config::setting_builders::SchemaBuilder;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
-use zerolaunch_plugin_api::config::{ComponentType, ConfigError, Configurable, SettingDefinition};
+use zerolaunch_plugin_api::config::{
+    ComponentCore, ComponentType, ConfigError, Configurable, SettingDefinition,
+};
 
 // ============ 默认值函数 ============
 // 为所有非类型原生的业务默认值提供函数，供 #[serde(default = "...")] 引用。
@@ -287,6 +289,7 @@ impl Default for AppearanceSettings {
 /// 外观配置组件。
 /// 管理主题（浅色/深色/跟随系统）、语言偏好、搜索栏/结果栏/底栏尺寸与字体、窗口参数、配色方案。
 pub struct AppearanceConfigComponent {
+    core: ComponentCore,
     settings: RwLock<AppearanceSettings>,
 }
 
@@ -299,30 +302,21 @@ impl Default for AppearanceConfigComponent {
 impl AppearanceConfigComponent {
     pub fn new() -> Self {
         Self {
+            core: ComponentCore::new(
+                "appearance-config".to_string(),
+                "外观".to_string(),
+                "自定义应用的外观主题和界面语言".to_string(),
+                ComponentType::Core,
+                20,
+            ),
             settings: RwLock::new(AppearanceSettings::default()),
         }
     }
 }
 
 impl Configurable for AppearanceConfigComponent {
-    fn component_id(&self) -> &str {
-        "appearance-config"
-    }
-
-    fn component_name(&self) -> &str {
-        "外观"
-    }
-
-    fn component_description(&self) -> &str {
-        "自定义应用的外观主题和界面语言"
-    }
-
-    fn component_type(&self) -> ComponentType {
-        ComponentType::Core
-    }
-
-    fn priority(&self) -> u32 {
-        20
+    fn core(&self) -> &ComponentCore {
+        &self.core
     }
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {

@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use std::sync::Arc;
-use zerolaunch_plugin_api::config::{ComponentType, Configurable};
+use zerolaunch_plugin_api::config::{ComponentCore, ComponentType, Configurable};
 use zerolaunch_plugin_api::host::PluginHandle;
 use zerolaunch_plugin_api::services::IconRequest;
 use zerolaunch_plugin_api::{
@@ -10,29 +10,28 @@ use zerolaunch_plugin_api::{
 /// 应用执行器 - 负责通过 PluginHandle 启动系统应用（UWP 等）。
 /// 不再直接调用 Win32 API，而是委托 PluginHandle::launch_app() 由 SDK 层处理平台差异。
 pub struct AppExecutor {
+    core: ComponentCore,
     plugin_handle: Arc<PluginHandle>,
 }
 
 impl AppExecutor {
     pub fn new(plugin_handle: Arc<PluginHandle>) -> Self {
-        Self { plugin_handle }
+        Self {
+            core: ComponentCore::new(
+                "app-executor".to_string(),
+                "应用执行器".to_string(),
+                "启动搜索到的应用程序".to_string(),
+                ComponentType::ActionExecutor,
+                30,
+            ),
+            plugin_handle,
+        }
     }
 }
 
 impl Configurable for AppExecutor {
-    fn component_id(&self) -> &str {
-        "app-executor"
-    }
-
-    fn component_name(&self) -> &str {
-        "应用执行器"
-    }
-    fn component_description(&self) -> &str {
-        "启动搜索到的应用程序"
-    }
-
-    fn component_type(&self) -> ComponentType {
-        ComponentType::ActionExecutor
+    fn core(&self) -> &ComponentCore {
+        &self.core
     }
 }
 

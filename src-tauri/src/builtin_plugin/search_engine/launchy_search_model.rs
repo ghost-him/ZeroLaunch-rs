@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use zerolaunch_plugin_api::config::{ComponentType, Configurable};
+use zerolaunch_plugin_api::config::{ComponentCore, ComponentType, Configurable};
 use zerolaunch_plugin_api::{
     CachedCandidateData, ScoreDetail, ScoredCandidate, SearchCandidate, SearchEngine,
 };
@@ -18,23 +18,33 @@ use zerolaunch_plugin_api::{
 /// 2. 连续子串匹配：获得次高的基础分，匹配位置越靠前分数越高
 /// 3. 子集匹配：用户输入的字符是程序名称的子集，获得较低的基础分
 /// 4. 名称长度惩罚：作为微小的调整项，用于打破平局
-pub struct LaunchySearchModel {}
+pub struct LaunchySearchModel {
+    core: ComponentCore,
+}
+
+impl LaunchySearchModel {
+    pub fn new() -> Self {
+        Self {
+            core: ComponentCore::new(
+                "launchy-search-model".to_string(),
+                "Launchy 搜索引擎".to_string(),
+                "兼容 Launchy 风格的搜索算法".to_string(),
+                ComponentType::SearchEngine,
+                10,
+            ),
+        }
+    }
+}
+
+impl Default for LaunchySearchModel {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl Configurable for LaunchySearchModel {
-    fn component_id(&self) -> &str {
-        "launchy-search-model"
-    }
-
-    fn component_name(&self) -> &str {
-        "Launchy 搜索引擎"
-    }
-
-    fn component_description(&self) -> &str {
-        "兼容 Launchy 风格的搜索算法"
-    }
-
-    fn component_type(&self) -> ComponentType {
-        ComponentType::SearchEngine
+    fn core(&self) -> &ComponentCore {
+        &self.core
     }
 
     fn default_enabled(&self) -> bool {
@@ -182,7 +192,7 @@ use crate::plugin_framework::builtin_registry::SearchEngineEntry;
 use std::sync::Arc;
 
 pub(crate) fn build_launchy_search_model() -> (Arc<dyn Configurable>, Arc<dyn SearchEngine>) {
-    let engine: Arc<dyn SearchEngine> = Arc::new(LaunchySearchModel {});
+    let engine: Arc<dyn SearchEngine> = Arc::new(LaunchySearchModel::new());
     let configurable: Arc<dyn Configurable> = engine.clone();
     (configurable, engine)
 }

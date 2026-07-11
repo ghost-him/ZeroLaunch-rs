@@ -1,7 +1,7 @@
 //! ZeroLaunch third-party plugin host.
 //!
 //! Manages subprocess lifecycle, JSON-RPC transport (LSP-style framed stdio),
-//! bidirectional RPC client, and RemotePluginAdapter implementations.
+//! bidirectional RPC client, and `RemoteComponent` implementations.
 
 pub mod adapter;
 pub mod client;

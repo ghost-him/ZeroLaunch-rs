@@ -3,7 +3,7 @@ use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::sync::Arc;
-use zerolaunch_plugin_api::config::{ComponentType, ConfigError, Configurable};
+use zerolaunch_plugin_api::config::{ComponentCore, ComponentType, ConfigError, Configurable};
 use zerolaunch_plugin_api::host::PluginHandle;
 use zerolaunch_plugin_api::services::IconRequest;
 use zerolaunch_plugin_api::{
@@ -11,6 +11,7 @@ use zerolaunch_plugin_api::{
 };
 
 pub struct CalculatorPlugin {
+    core: ComponentCore,
     metadata: PluginMetadata,
     inner: RwLock<CalculatorSettings>,
 }
@@ -40,6 +41,13 @@ impl Default for CalculatorPlugin {
 impl CalculatorPlugin {
     pub fn new() -> Self {
         Self {
+            core: ComponentCore::new(
+                "calculator".to_string(),
+                "计算器".to_string(),
+                "在搜索栏中直接进行数学计算".to_string(),
+                ComponentType::Plugin,
+                0,
+            ),
             metadata: PluginMetadata {
                 id: "calculator".to_string(),
                 name: "计算器".to_string(),
@@ -69,20 +77,8 @@ impl CalculatorPlugin {
 // ---- Configurable impl ----
 
 impl Configurable for CalculatorPlugin {
-    fn component_id(&self) -> &str {
-        "calculator"
-    }
-
-    fn component_name(&self) -> &str {
-        "计算器"
-    }
-
-    fn component_description(&self) -> &str {
-        "在搜索栏中直接进行数学计算"
-    }
-
-    fn component_type(&self) -> ComponentType {
-        ComponentType::Plugin
+    fn core(&self) -> &ComponentCore {
+        &self.core
     }
 
     fn get_settings(&self) -> serde_json::Value {

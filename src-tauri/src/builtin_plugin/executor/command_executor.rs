@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use std::sync::Arc;
-use zerolaunch_plugin_api::config::{ComponentType, Configurable};
+use zerolaunch_plugin_api::config::{ComponentCore, ComponentType, Configurable};
 use zerolaunch_plugin_api::host::PluginHandle;
 use zerolaunch_plugin_api::services::IconRequest;
 use zerolaunch_plugin_api::{
@@ -10,29 +10,28 @@ use zerolaunch_plugin_api::{
 /// 命令执行器 - 负责执行自定义命令
 /// 通过 PluginHandle::shell_execute_command 委托 SDK 层执行，不直接调用平台 API
 pub struct CommandExecutor {
+    core: ComponentCore,
     plugin_handle: Arc<PluginHandle>,
 }
 
 impl CommandExecutor {
     pub fn new(plugin_handle: Arc<PluginHandle>) -> Self {
-        Self { plugin_handle }
+        Self {
+            core: ComponentCore::new(
+                "command-executor".to_string(),
+                "命令执行器".to_string(),
+                "执行用户自定义的 Shell 命令".to_string(),
+                ComponentType::ActionExecutor,
+                40,
+            ),
+            plugin_handle,
+        }
     }
 }
 
 impl Configurable for CommandExecutor {
-    fn component_id(&self) -> &str {
-        "command-executor"
-    }
-
-    fn component_name(&self) -> &str {
-        "命令执行器"
-    }
-    fn component_description(&self) -> &str {
-        "执行用户自定义的 Shell 命令"
-    }
-
-    fn component_type(&self) -> ComponentType {
-        ComponentType::ActionExecutor
+    fn core(&self) -> &ComponentCore {
+        &self.core
     }
 }
 

@@ -4,7 +4,9 @@ use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::{info, warn};
-use zerolaunch_plugin_api::config::{ComponentType, ConfigError, Configurable, SettingDefinition};
+use zerolaunch_plugin_api::config::{
+    ComponentCore, ComponentType, ConfigError, Configurable, SettingDefinition,
+};
 use zerolaunch_plugin_api::services::storage::local_storage::LocalStorageService;
 use zerolaunch_plugin_api::services::storage::storage_service::StorageService;
 use zerolaunch_plugin_api::services::storage::webdav_storage::{
@@ -59,6 +61,8 @@ fn default_webdav_destination_dir() -> String {
 /// 管理存储后端类型、自定义保存路径、WebDAV 连接配置。
 /// 配置变更时自动重配置 HostApi 的 StorageService。
 pub struct StorageConfigComponent {
+    /// 组件身份核心
+    core: ComponentCore,
     /// HostApi 引用，用于运行时重配置存储服务
     host_api: Arc<HostApi>,
     /// 当前配置状态
@@ -70,6 +74,13 @@ impl StorageConfigComponent {
     /// 参数：host_api - HostApi 实例，用于重配置存储服务。
     pub fn new(host_api: Arc<HostApi>) -> Self {
         Self {
+            core: ComponentCore::new(
+                "storage-config".to_string(),
+                "存储配置".to_string(),
+                "管理数据存储位置和 WebDAV 远程同步".to_string(),
+                ComponentType::Core,
+                30,
+            ),
             host_api,
             settings: RwLock::new(StorageSettings::default()),
         }
@@ -77,23 +88,8 @@ impl StorageConfigComponent {
 }
 
 impl Configurable for StorageConfigComponent {
-    fn component_id(&self) -> &str {
-        "storage-config"
-    }
-
-    fn component_name(&self) -> &str {
-        "存储配置"
-    }
-
-    fn component_description(&self) -> &str {
-        "管理数据存储位置和 WebDAV 远程同步"
-    }
-
-    fn component_type(&self) -> ComponentType {
-        ComponentType::Core
-    }
-    fn priority(&self) -> u32 {
-        30
+    fn core(&self) -> &ComponentCore {
+        &self.core
     }
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {

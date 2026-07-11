@@ -2,7 +2,9 @@ use async_trait::async_trait;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use zerolaunch_plugin_api::config::{ComponentType, ConfigError, Configurable, SettingDefinition};
+use zerolaunch_plugin_api::config::{
+    ComponentCore, ComponentType, ConfigError, Configurable, SettingDefinition,
+};
 use zerolaunch_plugin_api::host::PluginHandle;
 use zerolaunch_plugin_api::services::IconRequest;
 use zerolaunch_plugin_api::{CachedCandidateData, DataSource, ExecutionTarget, SearchCandidate};
@@ -49,31 +51,28 @@ const BUILTIN_COMMANDS: &[BuiltinCommandDef] = &[
 
 /// 内置命令数据源插件，产出 5 个系统级操作候选项。
 pub struct BuiltinCommandSource {
+    core: ComponentCore,
     settings: RwLock<BuiltinCommandSourceSettings>,
 }
 
 impl BuiltinCommandSource {
     pub fn new(_handle: Arc<PluginHandle>) -> Self {
         BuiltinCommandSource {
+            core: ComponentCore::new(
+                "builtin-command-source".to_string(),
+                "内置命令数据源".to_string(),
+                "提供 ZeroLaunch 内置命令，如打开设置、清空缓存".to_string(),
+                ComponentType::DataSource,
+                10,
+            ),
             settings: RwLock::new(BuiltinCommandSourceSettings),
         }
     }
 }
 
 impl Configurable for BuiltinCommandSource {
-    fn component_id(&self) -> &str {
-        "builtin-command-source"
-    }
-
-    fn component_name(&self) -> &str {
-        "内置命令数据源"
-    }
-    fn component_description(&self) -> &str {
-        "提供 ZeroLaunch 内置命令，如打开设置、清空缓存"
-    }
-
-    fn component_type(&self) -> ComponentType {
-        ComponentType::DataSource
+    fn core(&self) -> &ComponentCore {
+        &self.core
     }
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {

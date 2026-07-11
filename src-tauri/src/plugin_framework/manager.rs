@@ -354,8 +354,8 @@ impl PluginManager {
             description: adapters.manifest.plugin.description.clone(),
             author: adapters.manifest.plugin.author.clone(),
             state: "running".to_string(),
-            enabled: !adapters.configurables.is_empty()
-                && adapters.configurables.iter().all(|c| c.default_enabled()),
+            enabled: !adapters.components.is_empty()
+                && adapters.components.iter().all(|c| c.default_enabled()),
             priority,
         })
     }
@@ -508,9 +508,9 @@ impl PluginManager {
             .ok();
         self.cache_adapters(&plugin_id, registered.clone());
 
-        let enabled = !registered.configurables.is_empty()
-            && registered.configurables.iter().all(|c| c.default_enabled());
-        let component_count = registered.configurables.len();
+        let enabled = !registered.components.is_empty()
+            && registered.components.iter().all(|c| c.default_enabled());
+        let component_count = registered.components.len();
         let priority = registered.compute_priority();
         self.register_third_party_info(PluginInfo::third_party(
             plugin_id.clone(),

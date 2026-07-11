@@ -2,7 +2,9 @@ use crate::core::config::setting_builders::SchemaBuilder;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use zerolaunch_plugin_api::config::{ComponentType, ConfigError, Configurable, SettingDefinition};
+use zerolaunch_plugin_api::config::{
+    ComponentCore, ComponentType, ConfigError, Configurable, SettingDefinition,
+};
 use zerolaunch_plugin_api::KeywordOptimizer;
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -88,6 +90,7 @@ impl PinyinConverterSettings {
 }
 
 pub struct PinyinConverter {
+    core: ComponentCore,
     inner: RwLock<PinyinConverterSettings>,
 }
 
@@ -100,26 +103,21 @@ impl Default for PinyinConverter {
 impl PinyinConverter {
     pub fn new() -> Self {
         PinyinConverter {
+            core: ComponentCore::new(
+                "pinyin-converter".to_string(),
+                "拼音转换器".to_string(),
+                "将中文关键词转换为拼音以支持拼音搜索".to_string(),
+                ComponentType::KeywordOptimizer,
+                50,
+            ),
             inner: RwLock::new(PinyinConverterSettings::new()),
         }
     }
 }
 
 impl Configurable for PinyinConverter {
-    fn component_id(&self) -> &str {
-        "pinyin-converter"
-    }
-
-    fn component_name(&self) -> &str {
-        "拼音转换器"
-    }
-
-    fn component_description(&self) -> &str {
-        "将中文关键词转换为拼音以支持拼音搜索"
-    }
-
-    fn component_type(&self) -> ComponentType {
-        ComponentType::KeywordOptimizer
+    fn core(&self) -> &ComponentCore {
+        &self.core
     }
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {

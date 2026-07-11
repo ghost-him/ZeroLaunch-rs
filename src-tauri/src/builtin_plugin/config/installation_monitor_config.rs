@@ -4,7 +4,9 @@ use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::{info, warn};
-use zerolaunch_plugin_api::config::{ComponentType, ConfigError, Configurable, SettingDefinition};
+use zerolaunch_plugin_api::config::{
+    ComponentCore, ComponentType, ConfigError, Configurable, SettingDefinition,
+};
 
 /// 安装监控设置的强类型配置结构。
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -38,6 +40,7 @@ fn default_monitor_debounce_secs() -> f64 {
 /// 管理安装监控的启用/禁用、监控路径及 debounce 时间。
 /// 配置变更时自动启动/停止 HostApi 的安装监控服务。
 pub struct InstallationMonitorConfigComponent {
+    core: ComponentCore,
     /// HostApi 引用，用于控制安装监控服务
     host_api: Arc<HostApi>,
     /// 当前配置状态
@@ -49,6 +52,13 @@ impl InstallationMonitorConfigComponent {
     /// 参数：host_api - HostApi 实例，用于控制安装监控服务。
     pub fn new(host_api: Arc<HostApi>) -> Self {
         Self {
+            core: ComponentCore::new(
+                "installation-monitor-config".to_string(),
+                "安装监控配置".to_string(),
+                "监控软件安装并自动更新搜索索引".to_string(),
+                ComponentType::Core,
+                50,
+            ),
             host_api,
             settings: RwLock::new(InstallationMonitorSettings::default()),
         }
@@ -56,24 +66,8 @@ impl InstallationMonitorConfigComponent {
 }
 
 impl Configurable for InstallationMonitorConfigComponent {
-    fn component_id(&self) -> &str {
-        "installation-monitor-config"
-    }
-
-    fn component_name(&self) -> &str {
-        "安装监控配置"
-    }
-
-    fn component_description(&self) -> &str {
-        "监控软件安装并自动更新搜索索引"
-    }
-
-    fn component_type(&self) -> ComponentType {
-        ComponentType::Core
-    }
-
-    fn priority(&self) -> u32 {
-        50
+    fn core(&self) -> &ComponentCore {
+        &self.core
     }
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {

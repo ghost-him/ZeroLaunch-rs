@@ -4,7 +4,9 @@ use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::{info, warn};
-use zerolaunch_plugin_api::config::{ComponentType, ConfigError, Configurable, SettingDefinition};
+use zerolaunch_plugin_api::config::{
+    ComponentCore, ComponentType, ConfigError, Configurable, SettingDefinition,
+};
 
 /// 通用设置的强类型配置结构。
 /// 每个字段标注 `#[serde(default)]`，确保老 JSON 缺失新字段时回退到业务默认值。
@@ -43,6 +45,8 @@ fn default_true() -> bool {
 /// 管理开机自启动、调试模式和日志级别。
 /// 配置变更时自动应用自启动设置和日志级别。
 pub struct GeneralConfigComponent {
+    /// 组件身份核心
+    core: ComponentCore,
     /// HostApi 引用，用于应用自启动配置
     host_api: Arc<HostApi>,
     /// 当前配置状态
@@ -54,6 +58,13 @@ impl GeneralConfigComponent {
     /// 参数：host_api - HostApi 实例，用于应用自启动配置。
     pub fn new(host_api: Arc<HostApi>) -> Self {
         Self {
+            core: ComponentCore::new(
+                "general-config".to_string(),
+                "通用".to_string(),
+                "应用通用行为设置，包括调试模式等".to_string(),
+                ComponentType::Core,
+                10,
+            ),
             host_api,
             settings: RwLock::new(GeneralSettings::default()),
         }
@@ -61,24 +72,8 @@ impl GeneralConfigComponent {
 }
 
 impl Configurable for GeneralConfigComponent {
-    fn component_id(&self) -> &str {
-        "general-config"
-    }
-
-    fn component_name(&self) -> &str {
-        "通用"
-    }
-
-    fn component_description(&self) -> &str {
-        "应用通用行为设置，包括调试模式等"
-    }
-
-    fn component_type(&self) -> ComponentType {
-        ComponentType::Core
-    }
-
-    fn priority(&self) -> u32 {
-        10
+    fn core(&self) -> &ComponentCore {
+        &self.core
     }
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {

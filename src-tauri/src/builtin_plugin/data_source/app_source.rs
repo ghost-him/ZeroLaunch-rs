@@ -1,13 +1,14 @@
 use async_trait::async_trait;
 use parking_lot::RwLock;
 use std::sync::Arc;
-use zerolaunch_plugin_api::config::{ComponentType, ConfigError, Configurable};
+use zerolaunch_plugin_api::config::{ComponentCore, ComponentType, ConfigError, Configurable};
 use zerolaunch_plugin_api::host::PluginHandle;
 use zerolaunch_plugin_api::{CachedCandidateData, DataSource, ExecutionTarget, SearchCandidate};
 
 /// 应用数据源 - 通过 PluginHandle 枚举系统应用（UWP 等）。
 /// 不再直接调用 Win32 API，而是委托 PluginHandle::enumerate_apps() 由 SDK 层处理平台差异。
 pub struct AppSource {
+    core: ComponentCore,
     plugin_handle: Arc<PluginHandle>,
     settings: RwLock<serde_json::Value>,
 }
@@ -15,6 +16,13 @@ pub struct AppSource {
 impl AppSource {
     pub fn new(plugin_handle: Arc<PluginHandle>) -> Self {
         AppSource {
+            core: ComponentCore::new(
+                "app-source".to_string(),
+                "应用数据源".to_string(),
+                "从开始菜单和已安装应用列表中搜索应用".to_string(),
+                ComponentType::DataSource,
+                10,
+            ),
             plugin_handle,
             settings: RwLock::new(serde_json::Value::Null),
         }
@@ -22,19 +30,8 @@ impl AppSource {
 }
 
 impl Configurable for AppSource {
-    fn component_id(&self) -> &str {
-        "app-source"
-    }
-
-    fn component_name(&self) -> &str {
-        "应用数据源"
-    }
-    fn component_description(&self) -> &str {
-        "从开始菜单和已安装应用列表中搜索应用"
-    }
-
-    fn component_type(&self) -> ComponentType {
-        ComponentType::DataSource
+    fn core(&self) -> &ComponentCore {
+        &self.core
     }
 
     fn get_settings(&self) -> serde_json::Value {

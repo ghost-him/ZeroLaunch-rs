@@ -4,7 +4,9 @@ use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::debug;
-use zerolaunch_plugin_api::config::{ComponentType, ConfigError, Configurable, SettingDefinition};
+use zerolaunch_plugin_api::config::{
+    ComponentCore, ComponentType, ConfigError, Configurable, SettingDefinition,
+};
 use zerolaunch_plugin_api::host::PluginHandle;
 use zerolaunch_plugin_api::services::IconRequest;
 use zerolaunch_plugin_api::{CachedCandidateData, DataSource, ExecutionTarget, SearchCandidate};
@@ -30,6 +32,7 @@ pub struct UrlSourceSettings {
 
 /// 网页数据源插件，负责从用户配置的网页列表中加载数据源候选项。
 pub struct UrlSource {
+    core: ComponentCore,
     settings: RwLock<UrlSourceSettings>,
     #[allow(dead_code)]
     handle: Arc<PluginHandle>,
@@ -38,6 +41,13 @@ pub struct UrlSource {
 impl UrlSource {
     pub fn new(handle: Arc<PluginHandle>) -> Self {
         UrlSource {
+            core: ComponentCore::new(
+                "url-source".to_string(),
+                "网页数据源".to_string(),
+                "使用关键字快速打开预设网页".to_string(),
+                ComponentType::DataSource,
+                20,
+            ),
             settings: RwLock::new(UrlSourceSettings::default()),
             handle,
         }
@@ -45,19 +55,8 @@ impl UrlSource {
 }
 
 impl Configurable for UrlSource {
-    fn component_id(&self) -> &str {
-        "url-source"
-    }
-
-    fn component_name(&self) -> &str {
-        "网页数据源"
-    }
-    fn component_description(&self) -> &str {
-        "使用关键字快速打开预设网页"
-    }
-
-    fn component_type(&self) -> ComponentType {
-        ComponentType::DataSource
+    fn core(&self) -> &ComponentCore {
+        &self.core
     }
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {

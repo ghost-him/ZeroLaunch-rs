@@ -1,7 +1,9 @@
 use crate::core::config::setting_builders::SchemaBuilder;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use zerolaunch_plugin_api::config::{ComponentType, ConfigError, Configurable, SettingDefinition};
+use zerolaunch_plugin_api::config::{
+    ComponentCore, ComponentType, ConfigError, Configurable, SettingDefinition,
+};
 use zerolaunch_plugin_api::KeywordOptimizer;
 
 /// Default priority value for LowerCaseConverterSettings.
@@ -48,6 +50,7 @@ impl Default for LowerCaseConverterSettings {
 }
 
 pub struct LowerCaseConverter {
+    core: ComponentCore,
     inner: RwLock<LowerCaseConverterSettings>,
 }
 
@@ -60,26 +63,21 @@ impl Default for LowerCaseConverter {
 impl LowerCaseConverter {
     pub fn new() -> Self {
         Self {
+            core: ComponentCore::new(
+                "lower-case-converter".to_string(),
+                "小写转换器".to_string(),
+                "将关键词转换为小写以忽略大小写".to_string(),
+                ComponentType::KeywordOptimizer,
+                40,
+            ),
             inner: RwLock::new(LowerCaseConverterSettings::new()),
         }
     }
 }
 
 impl Configurable for LowerCaseConverter {
-    fn component_id(&self) -> &str {
-        "lower-case-converter"
-    }
-
-    fn component_name(&self) -> &str {
-        "小写转换器"
-    }
-
-    fn component_description(&self) -> &str {
-        "将关键词转换为小写以忽略大小写"
-    }
-
-    fn component_type(&self) -> ComponentType {
-        ComponentType::KeywordOptimizer
+    fn core(&self) -> &ComponentCore {
+        &self.core
     }
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {

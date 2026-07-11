@@ -26,10 +26,7 @@ pub async fn plugin_list(
     let hm = pm.host_manager();
 
     Ok(hm.list_plugin_info(|a| {
-        a.configurables
-            .iter()
-            .all(|c| cm.is_enabled(c.component_id()))
-            && !a.configurables.is_empty()
+        a.components.iter().all(|c| cm.is_enabled(c.component_id())) && !a.components.is_empty()
     }))
 }
 
@@ -125,7 +122,7 @@ pub async fn plugin_set_enabled(
 
     // 第三方插件：为每个组件设置 enabled
     if let Some(plugin) = hm.plugins.get(&plugin_id) {
-        for c in &plugin.configurables {
+        for c in &plugin.components {
             cm.set_enabled(c.component_id(), enabled)
                 .with_trace_id(&trace_id)?;
         }

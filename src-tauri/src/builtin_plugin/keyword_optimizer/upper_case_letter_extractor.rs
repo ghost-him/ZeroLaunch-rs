@@ -1,7 +1,9 @@
 use crate::core::config::setting_builders::SchemaBuilder;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use zerolaunch_plugin_api::config::{ComponentType, ConfigError, Configurable, SettingDefinition};
+use zerolaunch_plugin_api::config::{
+    ComponentCore, ComponentType, ConfigError, Configurable, SettingDefinition,
+};
 use zerolaunch_plugin_api::KeywordOptimizer;
 
 /// 大写字母提取器的可持久化配置
@@ -61,6 +63,7 @@ impl UpperCaseLetterExtractorSettings {
 }
 
 pub struct UpperCaseLetterExtractor {
+    core: ComponentCore,
     inner: RwLock<UpperCaseLetterExtractorSettings>,
 }
 
@@ -73,26 +76,21 @@ impl Default for UpperCaseLetterExtractor {
 impl UpperCaseLetterExtractor {
     pub fn new() -> Self {
         Self {
+            core: ComponentCore::new(
+                "upper-case-letter-extractor".to_string(),
+                "大写字母提取器".to_string(),
+                "提取大写字母以支持缩写搜索".to_string(),
+                ComponentType::KeywordOptimizer,
+                70,
+            ),
             inner: RwLock::new(UpperCaseLetterExtractorSettings::default()),
         }
     }
 }
 
 impl Configurable for UpperCaseLetterExtractor {
-    fn component_id(&self) -> &str {
-        "upper-case-letter-extractor"
-    }
-
-    fn component_name(&self) -> &str {
-        "大写字母提取器"
-    }
-
-    fn component_description(&self) -> &str {
-        "提取大写字母以支持缩写搜索"
-    }
-
-    fn component_type(&self) -> ComponentType {
-        ComponentType::KeywordOptimizer
+    fn core(&self) -> &ComponentCore {
+        &self.core
     }
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {

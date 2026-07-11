@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use std::sync::Arc;
 use tracing::warn;
-use zerolaunch_plugin_api::config::{ComponentType, Configurable};
+use zerolaunch_plugin_api::config::{ComponentCore, ComponentType, Configurable};
 use zerolaunch_plugin_api::host::{OpenTarget, PluginHandle};
 use zerolaunch_plugin_api::services::IconRequest;
 use zerolaunch_plugin_api::{
@@ -11,12 +11,22 @@ use zerolaunch_plugin_api::{
 /// 路径执行器 - 负责通过文件路径启动程序
 /// 支持普通启动、管理员启动和打开所在文件夹
 pub struct PathExecutor {
+    core: ComponentCore,
     plugin_handle: Arc<PluginHandle>,
 }
 
 impl PathExecutor {
     pub fn new(plugin_handle: Arc<PluginHandle>) -> Self {
-        Self { plugin_handle }
+        Self {
+            core: ComponentCore::new(
+                "path-executor".to_string(),
+                "路径执行器".to_string(),
+                "使用系统默认程序打开文件或路径".to_string(),
+                ComponentType::ActionExecutor,
+                0,
+            ),
+            plugin_handle,
+        }
     }
 
     /// 普通启动程序。
@@ -49,19 +59,8 @@ impl PathExecutor {
 }
 
 impl Configurable for PathExecutor {
-    fn component_id(&self) -> &str {
-        "path-executor"
-    }
-
-    fn component_name(&self) -> &str {
-        "路径执行器"
-    }
-    fn component_description(&self) -> &str {
-        "使用系统默认程序打开文件或路径"
-    }
-
-    fn component_type(&self) -> ComponentType {
-        ComponentType::ActionExecutor
+    fn core(&self) -> &ComponentCore {
+        &self.core
     }
 }
 

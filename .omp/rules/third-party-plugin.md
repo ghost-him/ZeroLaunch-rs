@@ -1,5 +1,5 @@
 ---
-description: 第三方插件运行时规范：子进程 JSON-RPC 架构、协议、Manifest 校验、生命周期、RemotePluginAdapter、CLI HTTP、zlplugin:// 协议
+description: 第三方插件运行时规范：子进程 JSON-RPC 架构、协议、Manifest 校验、生命周期、RemoteComponent、CLI HTTP、zlplugin:// 协议
 condition: ".*"
 scope: "tool:read(crates/plugin-protocol/**), tool:edit(crates/plugin-protocol/**), tool:write(crates/plugin-protocol/**), tool:read(crates/plugin-host/**), tool:edit(crates/plugin-host/**), tool:write(crates/plugin-host/**), tool:read(crates/plugin-sdk-rust/**), tool:edit(crates/plugin-sdk-rust/**), tool:write(crates/plugin-sdk-rust/**), tool:read(src-tauri/src/plugin_framework/**), tool:edit(src-tauri/src/plugin_framework/**), tool:write(src-tauri/src/plugin_framework/**), tool:read(src-tauri/src/cli_server/**), tool:edit(src-tauri/src/cli_server/**), tool:write(src-tauri/src/cli_server/**), tool:read(src-tauri/src/commands/plugin.rs), tool:edit(src-tauri/src/commands/plugin.rs), tool:write(src-tauri/src/commands/plugin.rs), tool:read(crates/plugin-api/src/plugin/**), tool:edit(crates/plugin-api/src/plugin/**), tool:write(crates/plugin-api/src/plugin/**), tool:read(crates/plugin-api/src/host/**), tool:edit(crates/plugin-api/src/host/**), tool:write(crates/plugin-api/src/host/**)"
 interruptMode: never
@@ -9,7 +9,7 @@ interruptMode: never
 
 ## 架构概览
 
-第三方插件以**子进程 + stdio JSON-RPC 2.0** 方式运行。宿主通过 `plugin-host` crate 管理子进程生命周期，通过 `RemotePluginAdapter` 将 JSON-RPC 调用适配为 Plugin/DataSource/ActionExecutor trait。
+第三方插件以**子进程 + stdio JSON-RPC 2.0** 方式运行。宿主通过 `plugin-host` crate 管理子进程生命周期，通过 `RemoteComponent` 将 JSON-RPC 调用适配为 Plugin/DataSource/ActionExecutor trait。
 
 **宿主侧入口**集中在 `src-tauri/src/plugin_framework/`：
 - `manager.rs` — 第三方插件生命周期管理（加载、卸载、发现、崩溃恢复），唯一入口
@@ -41,10 +41,10 @@ interruptMode: never
 - **优雅关闭**：`plugin/shutdown` → 等 5s → SIGKILL
 - **stderr 日志**：收集到 `plugin-logs/<plugin-id>.log`
 
-## RemotePluginAdapter
+## RemoteComponent
 
-- 每个远程组件对应一个 adapter，将 trait 方法翻译为 JSON-RPC 调用
-- `Configurable` trait 是同步的，adapter 用 `block_in_place` 桥接异步 RPC
+- 每个远程组件对应一个 `RemoteComponent`，将 trait 方法翻译为 JSON-RPC 调用
+- `Configurable` trait 是同步的，`RemoteComponent` 用 `block_in_place` 桥接异步 RPC
 - Schema / settings / actions 在加载时一次性拉取并缓存
 
 ## HostDispatch（反向调用）

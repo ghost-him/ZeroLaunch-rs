@@ -1,7 +1,7 @@
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
 use parking_lot::RwLock;
-use zerolaunch_plugin_api::config::{ComponentType, Configurable};
+use zerolaunch_plugin_api::config::{ComponentCore, ComponentType, Configurable};
 use zerolaunch_plugin_api::{
     CachedCandidateData, ScoreDetail, ScoredCandidate, SearchCandidate, SearchEngine,
 };
@@ -11,12 +11,20 @@ use zerolaunch_plugin_api::{
 /// 基于 Skim 模糊匹配算法的评分策略，使用 SkimMatcherV2 进行模糊匹配。
 /// 适用于需要灵活模糊匹配的场景。
 pub struct SkimSearchModel {
+    core: ComponentCore,
     matcher: RwLock<SkimMatcherV2>,
 }
 
 impl SkimSearchModel {
     pub fn new() -> Self {
         SkimSearchModel {
+            core: ComponentCore::new(
+                "skim-search-model".to_string(),
+                "Skim 搜索引擎".to_string(),
+                "基于 Skim 的高性能模糊匹配引擎".to_string(),
+                ComponentType::SearchEngine,
+                20,
+            ),
             matcher: RwLock::new(SkimMatcherV2::default()),
         }
     }
@@ -29,20 +37,8 @@ impl Default for SkimSearchModel {
 }
 
 impl Configurable for SkimSearchModel {
-    fn component_id(&self) -> &str {
-        "skim-search-model"
-    }
-
-    fn component_name(&self) -> &str {
-        "Skim 搜索引擎"
-    }
-
-    fn component_description(&self) -> &str {
-        "基于 Skim 的高性能模糊匹配引擎"
-    }
-
-    fn component_type(&self) -> ComponentType {
-        ComponentType::SearchEngine
+    fn core(&self) -> &ComponentCore {
+        &self.core
     }
 
     fn default_enabled(&self) -> bool {

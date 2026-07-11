@@ -1,7 +1,9 @@
 use crate::core::config::setting_builders::SchemaBuilder;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use zerolaunch_plugin_api::config::{ComponentType, ConfigError, Configurable, SettingDefinition};
+use zerolaunch_plugin_api::config::{
+    ComponentCore, ComponentType, ConfigError, Configurable, SettingDefinition,
+};
 use zerolaunch_plugin_api::KeywordOptimizer;
 
 /// 空格移除器的可持久化配置
@@ -48,6 +50,7 @@ impl SpaceRemoverSettings {
 }
 
 pub struct SpaceRemover {
+    core: ComponentCore,
     inner: RwLock<SpaceRemoverSettings>,
 }
 
@@ -60,26 +63,21 @@ impl Default for SpaceRemover {
 impl SpaceRemover {
     pub fn new() -> Self {
         Self {
+            core: ComponentCore::new(
+                "space-remover".to_string(),
+                "空格移除器".to_string(),
+                "移除关键词中的空格以支持紧凑匹配".to_string(),
+                ComponentType::KeywordOptimizer,
+                20,
+            ),
             inner: RwLock::new(SpaceRemoverSettings::default()),
         }
     }
 }
 
 impl Configurable for SpaceRemover {
-    fn component_id(&self) -> &str {
-        "space-remover"
-    }
-
-    fn component_name(&self) -> &str {
-        "空格移除器"
-    }
-
-    fn component_description(&self) -> &str {
-        "移除关键词中的空格以支持紧凑匹配"
-    }
-
-    fn component_type(&self) -> ComponentType {
-        ComponentType::KeywordOptimizer
+    fn core(&self) -> &ComponentCore {
+        &self.core
     }
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {

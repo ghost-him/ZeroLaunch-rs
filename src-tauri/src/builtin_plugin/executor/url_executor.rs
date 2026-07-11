@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use std::sync::Arc;
-use zerolaunch_plugin_api::config::{ComponentType, Configurable};
+use zerolaunch_plugin_api::config::{ComponentCore, ComponentType, Configurable};
 use zerolaunch_plugin_api::host::{OpenTarget, PluginHandle};
 use zerolaunch_plugin_api::services::IconRequest;
 use zerolaunch_plugin_api::{
@@ -10,12 +10,22 @@ use zerolaunch_plugin_api::{
 /// URL 执行器 - 负责使用系统默认浏览器打开 URL
 /// 委托 PluginHandle 的 shell_open 方法打开 URL
 pub struct UrlExecutor {
+    core: ComponentCore,
     plugin_handle: Arc<PluginHandle>,
 }
 
 impl UrlExecutor {
     pub fn new(plugin_handle: Arc<PluginHandle>) -> Self {
-        Self { plugin_handle }
+        Self {
+            core: ComponentCore::new(
+                "url-executor".to_string(),
+                "URL执行器".to_string(),
+                "在默认浏览器中打开网址".to_string(),
+                ComponentType::ActionExecutor,
+                20,
+            ),
+            plugin_handle,
+        }
     }
 
     /// 使用系统默认浏览器打开 URL
@@ -30,19 +40,8 @@ impl UrlExecutor {
 }
 
 impl Configurable for UrlExecutor {
-    fn component_id(&self) -> &str {
-        "url-executor"
-    }
-
-    fn component_name(&self) -> &str {
-        "URL执行器"
-    }
-    fn component_description(&self) -> &str {
-        "在默认浏览器中打开网址"
-    }
-
-    fn component_type(&self) -> ComponentType {
-        ComponentType::ActionExecutor
+    fn core(&self) -> &ComponentCore {
+        &self.core
     }
 }
 

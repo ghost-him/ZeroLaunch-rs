@@ -1,7 +1,9 @@
 use crate::core::config::setting_builders::SchemaBuilder;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use zerolaunch_plugin_api::config::{ComponentType, ConfigError, Configurable, SettingDefinition};
+use zerolaunch_plugin_api::config::{
+    ComponentCore, ComponentType, ConfigError, Configurable, SettingDefinition,
+};
 use zerolaunch_plugin_api::KeywordOptimizer;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -92,6 +94,7 @@ impl VersionNumberRemoverSettings {
 }
 
 pub struct VersionNumberRemover {
+    core: ComponentCore,
     inner: RwLock<VersionNumberRemoverSettings>,
 }
 
@@ -104,26 +107,21 @@ impl Default for VersionNumberRemover {
 impl VersionNumberRemover {
     pub fn new() -> Self {
         Self {
+            core: ComponentCore::new(
+                "version-number-remover".to_string(),
+                "版本号移除器".to_string(),
+                "移除版本号以提高匹配准确度".to_string(),
+                ComponentType::KeywordOptimizer,
+                0,
+            ),
             inner: RwLock::new(VersionNumberRemoverSettings::new()),
         }
     }
 }
 
 impl Configurable for VersionNumberRemover {
-    fn component_id(&self) -> &str {
-        "version-number-remover"
-    }
-
-    fn component_name(&self) -> &str {
-        "版本号移除器"
-    }
-
-    fn component_description(&self) -> &str {
-        "移除版本号以提高匹配准确度"
-    }
-
-    fn component_type(&self) -> ComponentType {
-        ComponentType::KeywordOptimizer
+    fn core(&self) -> &ComponentCore {
+        &self.core
     }
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {

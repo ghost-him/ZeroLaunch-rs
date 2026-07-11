@@ -353,7 +353,7 @@ impl ConfigManager {
     pub fn handle_plugin_event(&self, event: &PluginRuntimeEvent) {
         match event {
             PluginRuntimeEvent::PluginLoaded(adapters) => {
-                for c in &adapters.configurables {
+                for c in &adapters.components {
                     self.register(c.clone());
                 }
                 self.event_sender
@@ -361,7 +361,7 @@ impl ConfigManager {
                     .ok();
             }
             PluginRuntimeEvent::PluginUnloaded(adapters) => {
-                for c in &adapters.configurables {
+                for c in &adapters.components {
                     self.unregister(c.component_id());
                 }
                 self.event_sender

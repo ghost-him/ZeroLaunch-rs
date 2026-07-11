@@ -227,3 +227,201 @@
 
 - 使用单一锁或避免嵌套
 - 使用 `DashMap` 进行细粒度锁
+
+
+## 7. 远程适配器统一为 RemoteComponent（取消多 adapter 委托）
+
+### 背景
+
+第三方插件以子进程 + JSON-RPC 方式运行。构造插件组件时，当前实现会为一个逻辑组件生成**两个 struct 实例**：
+
+```
+RemoteConfigurableAdapter  → 处理 Configurable（身份、配置项、Schema）
+RemoteDataSourceAdapter    → 处理 DataSource（fetch_candidates）
+                             ↑ 内含 Arc<RemoteConfigurableAdapter>，手动委托所有 Configurable 方法
+```
+
+`RemoteExecutorAdapter`、`RemotePluginAdapter` 同理，各含一个 `Arc<RemoteConfigurableAdapter>` 并逐一手写委托。
+
+### 问题
+
+同一个逻辑组件的 identity 被分散在多个 struct 中：
+
+- `component_id` 在 `RemoteConfigurableAdapter` 和 `RemoteDataSourceAdapter` 中各存一份（值完全相同）
+- 向 `Configurable` trait 新增一个方法，需要同步修改 4 个 adapter 文件，且每个 domain adapter 都要加一行机械委托
+- 上次 commit `4bd1838` 仅新增一个 `component_description` 字段就触达 **46 个文件**，其中 Remote*Adapter 的委托是纯样板代码
+
+更根本的矛盾：**内置插件是「一个 struct 实现多个 trait」**（同一个 `Arc<AppSource>` 可同时作为 `Arc<dyn Configurable>` 和 `Arc<dyn DataSource>`），而远程插件被迫用**多 struct 委托**来模拟同一行为，与内置架构不一致。
+
+### 决策：用单一 `RemoteComponent` 取代分散的 Remote*Adapter
+
+**核心思想**：让远程插件组件回归内置插件的模式——一个 struct 同时实现 `Configurable`、`DataSource`、`ActionExecutor`、`Plugin`。
+
+#### 7.1 基础模型
+
+远程组件由通用身份/通信字段 + `kind` enum 组成。种类专属数据应放在 enum 变体中，而不是摊平成 struct 上的 `Option<T>` 或空 Vec。
+
+```rust
+/// 远程插件的单个组件。无论 ComponentKind 是什么，都由同一个 struct 承载。
+pub struct RemoteComponent {
+    // ── 身份（Configurable）──
+    pub component_id: String,
+    pub component_name: String,
+    pub component_description: String,
+    pub component_type: ComponentType,
+    pub priority: u32,
+
+    // ── 通信 ──
+    pub client: Arc<JsonRpcClient>,
+
+    // ── 私有缓存 ──
+    cached_schema: RwLock<Vec<SettingDefinition>>,
+    cached_settings: RwLock<serde_json::Value>,
+    /// 配置动作缓存。config_actions() 是 Configurable trait 的通用方法，
+    /// 所有组件类型（DataSource / ActionExecutor / Plugin）均可能使用
+    /// （例：BookmarkSource 提供了"自动检测浏览器"和"读取书签"两个动作），
+    /// 因此放在 struct 层面而非 kind variant 内部。
+    cached_actions: RwLock<Vec<ConfigActionDef>>,
+
+    // ── 种类与专属数据 ──
+    pub kind: RemoteComponentKind,
+}
+
+pub enum RemoteComponentKind {
+    DataSource,
+    ActionExecutor {
+        target_types: Vec<TargetType>,
+        result_actions: Vec<ResultAction>,
+    },
+    Plugin {
+        metadata: PluginMetadata,
+    },
+}
+
+impl Configurable for RemoteComponent { /* 从通用字段/缓存读取 */ }
+impl DataSource for RemoteComponent { /* match DataSource => RPC */ }
+impl ActionExecutor for RemoteComponent { /* match ActionExecutor { ... } */ }
+impl Plugin for RemoteComponent { /* match Plugin { ... } */ }
+```
+
+设计要点：
+
+1. **用 enum payload 表达种类差异**：`RemoteComponentKind` 的每个变体携带该种类**专属**的数据。所有种类共享的数据（如 `cached_actions`）保留在 struct 层面。判断标准：字段只有一个变体需要→入 variant；所有变体都需要→入 struct。
+2. **缓存字段私有**：`cached_schema`、`cached_settings`、`cached_actions` 是内部优化，不是组件的公开契约。`Configurable` 通过方法暴露，外部不直接读写缓存。
+3. **kind 不匹配时返回错误，不 panic**：各 trait 实现中先 `match` `self.kind`，若种类错误则返回 `PluginError::InvalidComponentKind`，保证运行时安全。
+
+#### 7.2 构造与注册
+
+`build_adapters()` 从两步（先建 ConfigurableAdapter、再包一层 DomainAdapter）简化为一步：
+
+```rust
+fn build_components(
+    init_result: &InitResult,
+    client: Arc<JsonRpcClient>,
+) -> Vec<Arc<RemoteComponent>> {
+    init_result
+        .components
+        .iter()
+        .map(|comp| {
+            Arc::new(RemoteComponent {
+                component_id: comp.component_id.clone(),
+                component_name: comp.component_name.clone(),
+                component_description: comp.component_description.clone(),
+                component_type: comp.component_type,
+                priority: comp.priority,
+                client: client.clone(),
+                cached_schema: RwLock::new(comp.setting_schema.clone()),
+                cached_settings: RwLock::new(comp.default_settings.clone()),
+                cached_actions: RwLock::new(comp.config_actions.clone()),
+                kind: comp.kind.clone(),
+            })
+        })
+        .collect()
+}
+```
+
+`PluginRegistration` 从四个独立 Vec 简化为一个：
+
+```rust
+pub struct PluginRegistration {
+    pub plugin_id: String,
+    pub manifest: Manifest,
+    pub components: Vec<Arc<RemoteComponent>>,
+}
+```
+
+消费者通过显式转换方法注册，避免 `as` 散落在业务代码中：
+
+```rust
+impl RemoteComponent {
+    pub fn as_data_source(self: Arc<Self>) -> Option<Arc<dyn DataSource>> {
+        matches!(self.kind, RemoteComponentKind::DataSource)
+            .then(|| self as Arc<dyn DataSource>)
+    }
+
+    pub fn as_action_executor(self: Arc<Self>) -> Option<Arc<dyn ActionExecutor>> {
+        matches!(self.kind, RemoteComponentKind::ActionExecutor { .. })
+            .then(|| self as Arc<dyn ActionExecutor>)
+    }
+
+    pub fn as_plugin(self: Arc<Self>) -> Option<Arc<dyn Plugin>> {
+        matches!(self.kind, RemoteComponentKind::Plugin { .. })
+            .then(|| self as Arc<dyn Plugin>)
+    }
+}
+
+for comp in &registration.components {
+    if let Some(ds) = comp.clone().as_data_source() {
+        router.register_data_source(ds).await;
+    }
+    if let Some(ex) = comp.clone().as_action_executor() {
+        router.register_executor(ex);
+    }
+    if let Some(pl) = comp.clone().as_plugin() {
+        router.register_remote_plugin(pl);
+    }
+}
+```
+
+#### 7.3 可选进阶：统一内置/远程的 `ComponentCore`
+
+上述模型已经能让远程插件与内置插件采用同一模式（一个 struct 多 trait）。如果想进一步统一两者的**身份与配置存储**，可以抽出一个共用的 `ComponentCore`：
+
+```rust
+pub struct ComponentCore {
+    pub component_id: String,
+    pub component_name: String,
+    pub component_description: String,
+    pub component_type: ComponentType,
+    pub priority: u32,
+    cached_settings: RwLock<serde_json::Value>,
+}
+```
+
+- 远程：`RemoteComponent { core: ComponentCore, client, kind }`
+- 内置：`AppSource { core: ComponentCore, plugin_handle }` 等
+
+**影响范围**：需要修改 20+ 内置组件 struct 的定义、`Configurable` impl 以及工厂函数。改动机械但文件多，建议作为第二阶段独立进行，不要与远程重构混在一起。
+
+**建议**：
+
+- **第一阶段**：只做远程端的 `RemoteComponent` + `RemoteComponentKind` 重构，解决当前痛点；
+- **第二阶段**：评估是否值得抽 `ComponentCore`。如果目标是「内置/远程代码完全同构」，则做；否则方向 1 已足够。
+
+### 收益
+
+| 维度                   | 当前                                         | 优化后                                             |
+| ---------------------- | -------------------------------------------- | -------------------------------------------------- |
+| 新增 Configurable 方法 | 改 trait + 4 个 adapter 各加委托             | 改 trait + 1 个 `RemoteComponent` impl             |
+| component_id 存储      | 两处（configurable + domain adapter 各一份） | 一处                                               |
+| 种类专属数据表达       | 摊平成 struct 上的 `Option`/空 Vec           | 收拢到 enum 变体                                   |
+| 架构一致性             | 内置/远程模式不同                            | **相同模式**（一个 struct 多 trait）               |
+| 可删除文件             | —                                            | 4 个 adapter 文件合并为 1 个 `remote_component.rs` |
+
+### 此前讨论过的其他方案
+
+1. **宏消除委托样板**：写一个 `delegate_configurable!(self.configurable)` 宏，每个 domain adapter 一行。最轻量，但不解决多 struct 的架构不一致问题。
+2. **`HasConfigurable` + blanket impl**：分离 `Configurable` 与领域 trait 的继承关系，用 blanket impl 自动生成委托。改动较大，会波及所有调用点。
+3. **彻底拆开继承关系**：让 `DataSource` 等不再继承 `Configurable`，消费者通过 registry 分别获取两个 trait object。与方案 2 类似但更彻底。
+
+上述方案都是在**修补**现有的多 struct 架构，而本方案是**消除**多 struct 本身，从根源上让远程架构与内置架构统一。

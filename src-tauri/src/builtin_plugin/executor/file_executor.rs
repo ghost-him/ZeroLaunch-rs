@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use std::sync::Arc;
-use zerolaunch_plugin_api::config::{ComponentType, Configurable};
+use zerolaunch_plugin_api::config::{ComponentCore, ComponentType, Configurable};
 use zerolaunch_plugin_api::host::{OpenTarget, PluginHandle};
 use zerolaunch_plugin_api::services::IconRequest;
 use zerolaunch_plugin_api::{
@@ -10,12 +10,22 @@ use zerolaunch_plugin_api::{
 /// 文件执行器 - 负责使用系统默认方式打开文件
 /// 支持打开文件和打开所在文件夹
 pub struct FileExecutor {
+    core: ComponentCore,
     plugin_handle: Arc<PluginHandle>,
 }
 
 impl FileExecutor {
     pub fn new(plugin_handle: Arc<PluginHandle>) -> Self {
-        Self { plugin_handle }
+        Self {
+            core: ComponentCore::new(
+                "file-executor".to_string(),
+                "文件执行器".to_string(),
+                "使用系统默认程序打开文件或目录".to_string(),
+                ComponentType::ActionExecutor,
+                10,
+            ),
+            plugin_handle,
+        }
     }
 
     /// 使用系统默认程序打开文件
@@ -40,19 +50,8 @@ impl FileExecutor {
 }
 
 impl Configurable for FileExecutor {
-    fn component_id(&self) -> &str {
-        "file-executor"
-    }
-
-    fn component_name(&self) -> &str {
-        "文件执行器"
-    }
-    fn component_description(&self) -> &str {
-        "使用系统默认程序打开文件或目录"
-    }
-
-    fn component_type(&self) -> ComponentType {
-        ComponentType::ActionExecutor
+    fn core(&self) -> &ComponentCore {
+        &self.core
     }
 }
 

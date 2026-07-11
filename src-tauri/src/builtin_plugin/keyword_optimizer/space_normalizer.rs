@@ -1,7 +1,9 @@
 use crate::core::config::setting_builders::SchemaBuilder;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use zerolaunch_plugin_api::config::{ComponentType, ConfigError, Configurable, SettingDefinition};
+use zerolaunch_plugin_api::config::{
+    ComponentCore, ComponentType, ConfigError, Configurable, SettingDefinition,
+};
 use zerolaunch_plugin_api::KeywordOptimizer;
 
 /// Default priority value for SpaceNormalizerSettings.
@@ -72,6 +74,7 @@ impl Default for SpaceNormalizerSettings {
 }
 
 pub struct SpaceNormalizer {
+    core: ComponentCore,
     inner: RwLock<SpaceNormalizerSettings>,
 }
 
@@ -84,26 +87,21 @@ impl Default for SpaceNormalizer {
 impl SpaceNormalizer {
     pub fn new() -> Self {
         Self {
+            core: ComponentCore::new(
+                "space-normalizer".to_string(),
+                "空格规范化器".to_string(),
+                "规范化关键词中的空白字符".to_string(),
+                ComponentType::KeywordOptimizer,
+                30,
+            ),
             inner: RwLock::new(SpaceNormalizerSettings::new()),
         }
     }
 }
 
 impl Configurable for SpaceNormalizer {
-    fn component_id(&self) -> &str {
-        "space-normalizer"
-    }
-
-    fn component_name(&self) -> &str {
-        "空格规范化器"
-    }
-
-    fn component_description(&self) -> &str {
-        "规范化关键词中的空白字符"
-    }
-
-    fn component_type(&self) -> ComponentType {
-        ComponentType::KeywordOptimizer
+    fn core(&self) -> &ComponentCore {
+        &self.core
     }
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {

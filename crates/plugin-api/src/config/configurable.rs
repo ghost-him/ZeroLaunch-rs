@@ -1,4 +1,5 @@
 use crate::config::action::ConfigActionDef;
+use crate::config::component_core::ComponentCore;
 use crate::config::component_type::ComponentType;
 use crate::config::error::ConfigError;
 use crate::config::setting_def::SettingDefinition;
@@ -6,18 +7,31 @@ use crate::config::setting_def::SettingDefinition;
 /// 所有可配置组件都需实现的核心契约。
 /// 提供组件标识、配置定义、配置读写和配置变更回调能力。
 pub trait Configurable: Send + Sync {
-    fn component_id(&self) -> &str;
-    fn component_name(&self) -> &str;
-    fn component_type(&self) -> ComponentType;
-    /// 组件显示排序优先级，数值越小越靠前。
-    /// 默认值 50，第三方插件未定义时使用该默认值。
-    fn priority(&self) -> u32 {
-        50
+    /// 返回组件身份核心。
+    ///
+    /// 实现者只需提供对 `ComponentCore` 的引用，identity 相关方法即可使用默认实现。
+    fn core(&self) -> &ComponentCore;
+
+    fn component_id(&self) -> &str {
+        self.core().component_id()
     }
+
+    fn component_name(&self) -> &str {
+        self.core().component_name()
+    }
+
+    fn component_type(&self) -> ComponentType {
+        self.core().component_type()
+    }
+
+    /// 组件显示排序优先级，数值越小越靠前。
+    fn priority(&self) -> u32 {
+        self.core().priority()
+    }
+
     /// 组件的功能描述文本，用于设置面板中向用户解释该组件的用途。
-    /// 第三方插件实现 Plugin trait 时，应返回插件自身的描述信息。
     fn component_description(&self) -> &str {
-        ""
+        self.core().component_description()
     }
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {

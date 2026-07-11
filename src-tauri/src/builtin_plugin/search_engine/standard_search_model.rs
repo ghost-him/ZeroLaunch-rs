@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 use std::collections::HashMap;
-use zerolaunch_plugin_api::config::{ComponentType, Configurable};
+use zerolaunch_plugin_api::config::{ComponentCore, ComponentType, Configurable};
 use zerolaunch_plugin_api::{
     CachedCandidateData, ScoreDetail, ScoredCandidate, SearchCandidate, SearchEngine,
 };
@@ -9,23 +9,33 @@ use zerolaunch_plugin_api::{
 ///
 /// 综合使用最短编辑距离、子集匹配、KMP 首字符/子串匹配等算法，
 /// 计算每个候选项与用户查询的匹配分数。
-pub struct StandardSearchModel {}
+pub struct StandardSearchModel {
+    core: ComponentCore,
+}
+
+impl StandardSearchModel {
+    pub fn new() -> Self {
+        Self {
+            core: ComponentCore::new(
+                "standard-search-model".to_string(),
+                "标准搜索引擎".to_string(),
+                "默认的标准模糊搜索算法".to_string(),
+                ComponentType::SearchEngine,
+                0,
+            ),
+        }
+    }
+}
+
+impl Default for StandardSearchModel {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl Configurable for StandardSearchModel {
-    fn component_id(&self) -> &str {
-        "standard-search-model"
-    }
-
-    fn component_name(&self) -> &str {
-        "标准搜索引擎"
-    }
-
-    fn component_description(&self) -> &str {
-        "默认的标准模糊搜索算法"
-    }
-
-    fn component_type(&self) -> ComponentType {
-        ComponentType::SearchEngine
+    fn core(&self) -> &ComponentCore {
+        &self.core
     }
 }
 
@@ -289,7 +299,7 @@ use crate::plugin_framework::builtin_registry::SearchEngineEntry;
 use std::sync::Arc;
 
 pub(crate) fn build_standard_search_model() -> (Arc<dyn Configurable>, Arc<dyn SearchEngine>) {
-    let engine: Arc<dyn SearchEngine> = Arc::new(StandardSearchModel {});
+    let engine: Arc<dyn SearchEngine> = Arc::new(StandardSearchModel::new());
     let configurable: Arc<dyn Configurable> = engine.clone();
     (configurable, engine)
 }

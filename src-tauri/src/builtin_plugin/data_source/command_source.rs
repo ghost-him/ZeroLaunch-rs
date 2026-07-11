@@ -5,7 +5,9 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::sync::Arc;
 use tracing::debug;
-use zerolaunch_plugin_api::config::{ComponentType, ConfigError, Configurable, SettingDefinition};
+use zerolaunch_plugin_api::config::{
+    ComponentCore, ComponentType, ConfigError, Configurable, SettingDefinition,
+};
 use zerolaunch_plugin_api::host::PluginHandle;
 use zerolaunch_plugin_api::services::IconRequest;
 use zerolaunch_plugin_api::{CachedCandidateData, DataSource, ExecutionTarget, SearchCandidate};
@@ -31,6 +33,7 @@ pub struct CommandSourceSettings {
 
 /// 自定义命令数据源插件，负责从用户配置的命令列表中加载数据源候选项。
 pub struct CommandSource {
+    core: ComponentCore,
     settings: RwLock<CommandSourceSettings>,
     handle: Arc<PluginHandle>,
 }
@@ -38,6 +41,13 @@ pub struct CommandSource {
 impl CommandSource {
     pub fn new(handle: Arc<PluginHandle>) -> Self {
         CommandSource {
+            core: ComponentCore::new(
+                "command-source".to_string(),
+                "自定义命令数据源".to_string(),
+                "执行用户自定义的快捷命令".to_string(),
+                ComponentType::DataSource,
+                40,
+            ),
             settings: RwLock::new(CommandSourceSettings::default()),
             handle,
         }
@@ -87,19 +97,8 @@ impl CommandSource {
 }
 
 impl Configurable for CommandSource {
-    fn component_id(&self) -> &str {
-        "command-source"
-    }
-
-    fn component_name(&self) -> &str {
-        "自定义命令数据源"
-    }
-    fn component_description(&self) -> &str {
-        "执行用户自定义的快捷命令"
-    }
-
-    fn component_type(&self) -> ComponentType {
-        ComponentType::DataSource
+    fn core(&self) -> &ComponentCore {
+        &self.core
     }
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {

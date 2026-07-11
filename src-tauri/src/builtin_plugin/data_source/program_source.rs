@@ -10,7 +10,7 @@ use std::sync::Arc;
 use tracing::{debug, warn};
 use walkdir::WalkDir;
 use zerolaunch_plugin_api::config::{
-    ComponentType, ConfigError, Configurable, PrimitiveType, SettingDefinition,
+    ComponentCore, ComponentType, ConfigError, Configurable, PrimitiveType, SettingDefinition,
 };
 use zerolaunch_plugin_api::host::PluginHandle;
 use zerolaunch_plugin_api::services::path::path_resolver::KnownPath;
@@ -133,6 +133,7 @@ impl PathChecker {
 }
 
 pub struct ProgramSource {
+    core: ComponentCore,
     settings: RwLock<ProgramSourceSettings>,
     handle: Arc<PluginHandle>,
 }
@@ -140,6 +141,13 @@ pub struct ProgramSource {
 impl ProgramSource {
     pub fn new(handle: Arc<PluginHandle>) -> Self {
         ProgramSource {
+            core: ComponentCore::new(
+                "program-source".to_string(),
+                "路径程序数据源".to_string(),
+                "扫描用户指定路径中的应用程序".to_string(),
+                ComponentType::DataSource,
+                0,
+            ),
             settings: RwLock::new(ProgramSourceSettings::default()),
             handle,
         }
@@ -256,19 +264,8 @@ impl ProgramSource {
 }
 
 impl Configurable for ProgramSource {
-    fn component_id(&self) -> &str {
-        "program-source"
-    }
-
-    fn component_name(&self) -> &str {
-        "路径程序数据源"
-    }
-    fn component_description(&self) -> &str {
-        "扫描用户指定路径中的应用程序"
-    }
-
-    fn component_type(&self) -> ComponentType {
-        ComponentType::DataSource
+    fn core(&self) -> &ComponentCore {
+        &self.core
     }
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {

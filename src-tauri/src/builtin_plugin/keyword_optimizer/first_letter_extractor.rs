@@ -1,7 +1,9 @@
 use crate::core::config::setting_builders::SchemaBuilder;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use zerolaunch_plugin_api::config::{ComponentType, ConfigError, Configurable, SettingDefinition};
+use zerolaunch_plugin_api::config::{
+    ComponentCore, ComponentType, ConfigError, Configurable, SettingDefinition,
+};
 use zerolaunch_plugin_api::KeywordOptimizer;
 
 /// Default priority value for FirstLetterExtractorSettings.
@@ -56,6 +58,7 @@ impl Default for FirstLetterExtractorSettings {
 }
 
 pub struct FirstLetterExtractor {
+    core: ComponentCore,
     inner: RwLock<FirstLetterExtractorSettings>,
 }
 
@@ -68,26 +71,21 @@ impl Default for FirstLetterExtractor {
 impl FirstLetterExtractor {
     pub fn new() -> Self {
         Self {
+            core: ComponentCore::new(
+                "first-letter-extractor".to_string(),
+                "首字母提取器".to_string(),
+                "提取拼音首字母用于模糊匹配".to_string(),
+                ComponentType::KeywordOptimizer,
+                60,
+            ),
             inner: RwLock::new(FirstLetterExtractorSettings::new()),
         }
     }
 }
 
 impl Configurable for FirstLetterExtractor {
-    fn component_id(&self) -> &str {
-        "first-letter-extractor"
-    }
-
-    fn component_name(&self) -> &str {
-        "首字母提取器"
-    }
-
-    fn component_description(&self) -> &str {
-        "提取拼音首字母用于模糊匹配"
-    }
-
-    fn component_type(&self) -> ComponentType {
-        ComponentType::KeywordOptimizer
+    fn core(&self) -> &ComponentCore {
+        &self.core
     }
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {

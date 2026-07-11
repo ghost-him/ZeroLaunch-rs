@@ -2,7 +2,7 @@
 description: 禁止用 serde rename_all 替代字段级 rename — 在 enum 上不重命名内部字段
 condition: "rename_all\\s*="
 scope: "tool:edit(*.rs), tool:write(*.rs)"
-interruptMode: never
+interruptMode: tool-only
 ---
 
 你用了 `#[serde(rename_all = "...")]`。本项目要求字段级 `#[serde(rename = "...")]` 显式标注。

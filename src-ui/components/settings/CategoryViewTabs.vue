@@ -37,9 +37,32 @@ watch(() => props.components, (newVal) => {
 <style scoped>
 .category-view-tabs {
   height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
+
+.category-view-tabs :deep(.n-tabs) {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.category-view-tabs :deep(.n-tabs-pane-wrapper) {
+  flex: 1;
+  overflow: hidden;
+}
+
+.category-view-tabs :deep(.n-tab-pane) {
+  height: 100%;
+  overflow: hidden;
+}
+
 .tab-content {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   padding-top: 16px;
-  padding-bottom: 32px;
 }
 </style>

@@ -63,18 +63,38 @@ const { onToggle: onSearchEngineToggle } = useSearchEngineToggle(
 <style scoped>
 .category-view-pipeline {
   height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .pipeline-tabs {
-  height: calc(100% - 100px);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-bottom: 16px;
+}
+
+/* n-tabs 根元素同时带有 .n-tabs 类，需要更高优先级覆盖其 display: block */
+.pipeline-tabs.n-tabs {
+  display: flex;
+  flex-direction: column;
 }
 
 .pipeline-tabs :deep(.n-tabs-nav--line) {
   margin-bottom: 0;
+  flex-shrink: 0;
+}
+
+.pipeline-tabs :deep(.n-tabs-pane-wrapper) {
+  flex: 1;
+  overflow: hidden;
 }
 
 .pipeline-tabs :deep(.n-tab-pane) {
+  height: 100%;
+  overflow: hidden;
   padding-top: 16px;
-  height: calc(100% - 44px);
 }
 </style>

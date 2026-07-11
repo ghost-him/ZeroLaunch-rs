@@ -1,5 +1,5 @@
 <template>
-  <div class="component-config-loader">
+  <div class="component-config-loader" :class="{ 'is-loaded': schema && settings && !loading && !loadErr }">
     <div v-if="loading" class="loading-state">
       <n-spin :size="20" />
     </div>
@@ -71,9 +71,19 @@ onUnmounted(() => {
 
 <style scoped>
 .component-config-loader {
+  display: flex;
+  flex-direction: column;
   padding: 8px 0;
 }
-.loading-state, .error-state {
+
+.component-config-loader.is-loaded {
+  flex: 1;
+  min-height: 0;
+  padding: 0;
+}
+
+.loading-state,
+.error-state {
   padding: 16px;
   display: flex;
   align-items: center;

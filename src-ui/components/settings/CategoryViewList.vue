@@ -38,19 +38,21 @@ defineProps<{
   display: flex;
   flex-direction: column;
   gap: 24px;
+  padding-bottom: 24px;
 }
 .config-section {
   background: var(--bg-color-secondary);
-  padding: 20px;
+  padding: 0;
   border-radius: 8px;
   border: 1px solid var(--border-color);
+  overflow: hidden;
 }
 .section-title {
   font-size: 16px;
   font-weight: 600;
-  margin-bottom: 16px;
+  margin-bottom: 0;
   color: var(--text-color);
-  padding-bottom: 8px;
+  padding: 16px 20px;
   border-bottom: 1px solid var(--border-color);
 }
 </style>

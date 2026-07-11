@@ -136,7 +136,7 @@ async function onItemToggle(item: ComponentInfo, val: boolean) {
   display: flex;
   gap: 0;
   height: 100%;
-  min-height: 400px;
+  min-height: 0;
   border: 1px solid var(--border-color);
   border-radius: 8px;
   overflow: hidden;
@@ -254,16 +254,18 @@ async function onItemToggle(item: ComponentInfo, val: boolean) {
 /* ===== 右侧详情 ===== */
 .panel-detail {
   flex: 1;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   min-width: 0;
 }
 
 .detail-empty {
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 100%;
   gap: 12px;
   color: var(--text-color-secondary);
   padding: 32px;

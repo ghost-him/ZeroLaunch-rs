@@ -153,7 +153,7 @@ async function onToggle(val: boolean) {
 }
 
 .card-body {
-  padding: 0 16px 16px;
+  padding: 0 0 16px;
   border-top: 1px solid var(--border-color);
   background-color: var(--bg-color);
 }

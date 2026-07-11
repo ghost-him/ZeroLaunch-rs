@@ -125,7 +125,11 @@ async function onReset() {
 
 <style scoped>
 .dynamic-form {
-  padding: 16px 24px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1 1 auto;
+  padding: 16px 24px 0;
 }
 
 .form-header {
@@ -133,6 +137,7 @@ async function onReset() {
   align-items: center;
   gap: 10px;
   margin-bottom: 4px;
+  flex-shrink: 0;
 }
 
 .form-header h3 {
@@ -144,19 +149,25 @@ async function onReset() {
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
   margin-bottom: 16px;
+  flex-shrink: 0;
 }
 
 .form-groups {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  margin-bottom: 20px;
+  padding-bottom: 16px;
 }
 
 .form-actions {
   display: flex;
   gap: 8px;
-  padding-top: 8px;
+  padding: 12px 0 16px;
   border-top: 1px solid var(--border-color);
+  background-color: var(--bg-color);
+  flex-shrink: 0;
 }
 </style>

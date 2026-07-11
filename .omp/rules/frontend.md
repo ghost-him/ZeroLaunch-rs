@@ -42,7 +42,7 @@ interruptMode: never
 - **必须** 使用 `<script setup lang="ts">`。**禁止** 使用 Options API
 - **必须** 使用 `defineProps<T>()` 和 `defineEmits<T>()` 的泛型形式
 - 所有组件样式 **必须** 使用 `<style scoped>`
-- 颜色、字号、间距 **必须** 使用 CSS 变量（如 `var(--text-primary)`）
+- 颜色、字号 **必须** 使用 CSS 变量（如 `var(--text-primary)`、`var(--font-size-sm)`）。**禁止** 在颜色和字号上使用硬编码值。
 - **必须** 通过 `bridge/commands.ts` 封装所有 Tauri API 调用
 - 所有业务逻辑 **必须** 通过 IPC 委托后端（见 `.omp/RULES.md` 的前后端职责边界）
 
@@ -100,3 +100,15 @@ interruptMode: never
 
 - 外观主题 **必须** 在 app.mount() 之前加载并应用（防止白屏闪烁）
 - 顺序：createPinia → createApp → useThemeStore().loadFromBackend() → app.mount()
+
+## 弹性填充布局
+
+在 flex 列容器中，用 `flex: 1` + 内层 `overflow-y: auto` 替代 `height: calc(100% - Npx)` + 外层 `overflow-y: auto`，实现内容区自适应填充。
+
+**关键约束**：
+- 所有参与伸缩的中间节点**必须**设置 `min-height: 0`，否则内层 `overflow-y: auto` 不会生效
+- 不希望压缩的区域（标题、操作栏）**必须**添加 `flex-shrink: 0`
+- 滚动所有权归最内层：外层 `overflow: hidden`，内层 `overflow-y: auto`
+- 嵌套 flex 容器必须每层传播 `flex: 1` + `min-height: 0`
+
+详见 [`flex-layout.md`](flex-layout.md)。

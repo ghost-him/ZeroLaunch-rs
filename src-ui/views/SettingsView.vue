@@ -201,8 +201,10 @@ onMounted(async () => {
 
 .category-scroll-area {
   flex: 1;
+  display: flex;
+  flex-direction: column;
   overflow-y: auto;
-  padding: 16px 24px 24px;
+  padding: 16px 24px 0;
 }
 
 .loading-state,

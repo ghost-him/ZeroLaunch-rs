@@ -4,6 +4,7 @@ use crate::state::app_state::AppState;
 use base64::{engine::general_purpose::STANDARD, Engine};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use tauri::Emitter;
 use tracing::{debug, info};
 use zerolaunch_plugin_api::{ConfirmResult, Query, QueryResponse, ResultAction};
 // ============================================================================
@@ -176,7 +177,7 @@ pub async fn bridge_query(
         QueryResponse::InlineParam { .. } => ("inline_param", 0),
     };
     if let Some(inspector) = state.get_inspector() {
-        inspector.record(InspectedQueryEvent {
+        let recorded = inspector.record(InspectedQueryEvent {
             timestamp: chrono::Utc::now().to_rfc3339(),
             trace_id: trace_id.clone(),
             raw_query: raw_query.clone(),
@@ -184,6 +185,9 @@ pub async fn bridge_query(
             result_count,
             duration_ms: query_start.elapsed().as_millis() as u64,
         });
+        if recorded {
+            let _ = state.get_main_handle().emit("inspector-state-updated", ());
+        }
     }
 
     match response {

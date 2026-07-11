@@ -75,7 +75,9 @@ import {
   inspectorGetState,
   inspectorSimulateQuery,
 } from '@/bridge/commands'
+import { onInspectorStateUpdated } from '@/bridge/events'
 import type { InspectorStateResponse, PluginInspectorInfo, InspectedQueryEvent } from '@/bridge/contract'
+import type { UnlistenFn } from '@tauri-apps/api/event'
 
 const plugins = ref<PluginInspectorInfo[]>([])
 const queries = ref<InspectedQueryEvent[]>([])
@@ -87,8 +89,7 @@ const simInput = ref('')
 const simResult = ref<string | null>(null)
 const simulating = ref(false)
 
-let pollTimer: ReturnType<typeof setInterval> | null = null
-
+let unlistenInspector: UnlistenFn | null = null
 const pluginColumns: DataTableColumns<PluginInspectorInfo> = [
   { title: 'ID', key: 'componentId', width: 160, ellipsis: { tooltip: true } },
   { title: '名称', key: 'componentName', width: 140 },
@@ -146,14 +147,15 @@ async function simulate() {
     simulating.value = false
   }
 }
-
 onMounted(async () => {
   await refresh()
-  pollTimer = setInterval(refresh, 2000)
+  unlistenInspector = await onInspectorStateUpdated(() => {
+    refresh()
+  })
 })
 
 onUnmounted(() => {
-  if (pollTimer) clearInterval(pollTimer)
+  unlistenInspector?.()
 })
 </script>
 

@@ -3,6 +3,8 @@ use crate::core::config::ConfigManager;
 /// 维护一个 ring buffer 记录最近的查询和执行事件。
 /// 录制开关由 `is_debug_mode` 配置项控制（`recording_enabled` AtomicBool）。
 /// 前端通过 `inspector_get_state` / `inspector_simulate_query` IPC 命令查询。
+/// 当录制开启时，每次 `record()` 调用将新事件写入 ring buffer 并返回 true。
+/// 调用方收到 true 后可决定是否向前端广播通知。
 use parking_lot::RwLock;
 use serde::Serialize;
 use std::collections::VecDeque;
@@ -70,16 +72,15 @@ impl Inspector {
         self.recording_enabled.store(enabled, Ordering::Relaxed);
     }
 
-    /// 查询当前录制是否开启。
     pub fn is_recording(&self) -> bool {
         self.recording_enabled.load(Ordering::Relaxed)
     }
-
-    /// 记录一条查询事件。若录制未开启，直接返回。
+    /// 记录一条查询事件。若录制未开启，直接返回 false。
     /// 若 buffer 已满，从头部弹出最早的事件。
-    pub fn record(&self, event: InspectedQueryEvent) {
+    /// 返回 true 表示有新的记录写入，调用方可根据返回值决定是否通知前端。
+    pub fn record(&self, event: InspectedQueryEvent) -> bool {
         if !self.recording_enabled.load(Ordering::Relaxed) {
-            return;
+            return false;
         }
         let mut events = self.events.write();
         if events.len() >= self.capacity {
@@ -87,6 +88,7 @@ impl Inspector {
         }
         events.push_back(event);
         *self.total_count.lock() += 1;
+        true
     }
 
     /// 清除缓存的组件清单，强制下次 `snapshot()` 从 ConfigManager 重建。

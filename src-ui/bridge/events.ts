@@ -48,3 +48,11 @@ export function onPluginUninstalled(
     callback(event.payload)
   })
 }
+
+export function onInspectorStateUpdated(
+  callback: () => void,
+): Promise<UnlistenFn> {
+  return listen('inspector-state-updated', () => {
+    callback()
+  })
+}

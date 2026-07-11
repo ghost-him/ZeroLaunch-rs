@@ -262,15 +262,30 @@ jobs:
           $version = "${{ steps.get_version.outputs.VERSION }}"
           $tag = "v$version"
 
+          # 检查目标 tag 是否在 git 中存在。
+          # 手动触发 (workflow_dispatch) 时 tag 尚未创建，此时应使用 HEAD
+          # 作为比较目标，避免 GitHub API compare 返回 404。
+          $tagRef = "refs/tags/$tag"
+          $tagExists = git rev-parse --verify "$tagRef" 2>$null
+          if ($tagExists) {
+            $compareTo = $tag
+            Write-Host "✅ Tag $tag 存在于 git 中"
+          } else {
+            $compareTo = "HEAD"
+            Write-Host "⚠️ Tag $tag 在 git 中不存在（手动触发），使用 HEAD 作为比较目标"
+          }
+
           # 获取上一个标签（用于 compare 链接与 changelog 起点）
-          $previousTag = git describe --tags --abbrev=0 "$tag^" 2>$null
+          $previousTag = git describe --tags --abbrev=0 "$compareTo^" 2>$null
           if ([string]::IsNullOrEmpty($previousTag)) {
             $previousTag = git rev-list --max-parents=0 HEAD
           }
 
           echo "TAG=$tag" >> $env:GITHUB_OUTPUT
+          echo "COMPARE_TO=$compareTo" >> $env:GITHUB_OUTPUT
           echo "PREVIOUS_TAG=$previousTag" >> $env:GITHUB_OUTPUT
-          echo "Previous tag: $previousTag -> $tag"
+          echo "Tag: $tag (compare target: $compareTo)"
+          echo "Previous tag: $previousTag"
 
       # 使用现成 action 生成按前缀分类的变更日志；
       # COMMIT 模式下 #{{AUTHOR}} 为 GitHub 用户名（由 GitHub API 依据提交邮箱解析），
@@ -281,7 +296,7 @@ jobs:
         with:
           mode: "COMMIT"
           fromTag: ${{ steps.prev_tag.outputs.PREVIOUS_TAG }}
-          toTag: ${{ steps.prev_tag.outputs.TAG }}
+          toTag: ${{ steps.prev_tag.outputs.COMPARE_TO }}
           failOnError: false
           configurationJson: |
             {

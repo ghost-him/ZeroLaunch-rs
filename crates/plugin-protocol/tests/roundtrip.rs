@@ -95,6 +95,7 @@ fn test_component_descriptor_roundtrip() {
     let comp = ComponentDescriptor {
         component_id: "com.example.test".into(),
         component_name: "Test".into(),
+        component_description: "A test plugin".into(),
         component_type: zerolaunch_plugin_api::config::ComponentType::Plugin,
         kind: ComponentKind::Plugin {
             trigger_keywords: vec!["test".into()],

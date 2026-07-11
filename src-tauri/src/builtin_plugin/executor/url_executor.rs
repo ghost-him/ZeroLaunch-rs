@@ -37,6 +37,9 @@ impl Configurable for UrlExecutor {
     fn component_name(&self) -> &str {
         "URL执行器"
     }
+    fn component_description(&self) -> &str {
+        "在默认浏览器中打开网址"
+    }
 
     fn component_type(&self) -> ComponentType {
         ComponentType::ActionExecutor

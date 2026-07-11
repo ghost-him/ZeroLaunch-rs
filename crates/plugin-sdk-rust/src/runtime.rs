@@ -277,6 +277,7 @@ async fn dispatch(
             let components = vec![ComponentDescriptor {
                 component_id: plugin.component_id().to_string(),
                 component_name: plugin.component_name().to_string(),
+                component_description: plugin.metadata().description.clone(),
                 component_type: plugin.component_type(),
                 kind: ComponentKind::Plugin {
                     trigger_keywords: plugin.metadata().trigger_keywords.clone(),

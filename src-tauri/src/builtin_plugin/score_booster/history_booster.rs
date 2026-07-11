@@ -175,6 +175,10 @@ impl Configurable for HistoryBooster {
         "历史记录增强器"
     }
 
+    fn component_description(&self) -> &str {
+        "根据历史选择频率提升常用候选项的排名"
+    }
+
     fn component_type(&self) -> ComponentType {
         ComponentType::ScoreBooster
     }

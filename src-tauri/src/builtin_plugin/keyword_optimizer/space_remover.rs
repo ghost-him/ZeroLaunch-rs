@@ -74,6 +74,10 @@ impl Configurable for SpaceRemover {
         "空格移除器"
     }
 
+    fn component_description(&self) -> &str {
+        "移除关键词中的空格以支持紧凑匹配"
+    }
+
     fn component_type(&self) -> ComponentType {
         ComponentType::KeywordOptimizer
     }

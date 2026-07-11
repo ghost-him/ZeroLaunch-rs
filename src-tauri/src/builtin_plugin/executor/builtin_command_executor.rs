@@ -41,6 +41,9 @@ impl Configurable for BuiltinCommandExecutor {
     fn component_name(&self) -> &str {
         "内置命令执行器"
     }
+    fn component_description(&self) -> &str {
+        "执行 ZeroLaunch 内置命令"
+    }
 
     fn component_type(&self) -> ComponentType {
         ComponentType::ActionExecutor

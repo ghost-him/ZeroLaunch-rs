@@ -114,6 +114,10 @@ impl Configurable for PinyinConverter {
         "拼音转换器"
     }
 
+    fn component_description(&self) -> &str {
+        "将中文关键词转换为拼音以支持拼音搜索"
+    }
+
     fn component_type(&self) -> ComponentType {
         ComponentType::KeywordOptimizer
     }

@@ -31,6 +31,9 @@ impl Configurable for RemoteExecutorAdapter {
     fn component_name(&self) -> &str {
         self.configurable.component_name()
     }
+    fn component_description(&self) -> &str {
+        self.configurable.component_description()
+    }
     fn component_type(&self) -> ComponentType {
         self.configurable.component_type()
     }

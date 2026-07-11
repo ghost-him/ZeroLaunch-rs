@@ -77,6 +77,10 @@ impl Configurable for CalculatorPlugin {
         "计算器"
     }
 
+    fn component_description(&self) -> &str {
+        "在搜索栏中直接进行数学计算"
+    }
+
     fn component_type(&self) -> ComponentType {
         ComponentType::Plugin
     }

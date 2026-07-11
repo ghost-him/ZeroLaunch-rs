@@ -15,6 +15,7 @@ use zerolaunch_plugin_protocol::ProtocolError;
 pub struct RemoteConfigurableAdapter {
     pub component_id: String,
     pub component_name: String,
+    pub component_description: String,
     pub component_type: ComponentType,
     pub priority: u32,
     pub client: Arc<JsonRpcClient>,
@@ -28,6 +29,7 @@ impl std::fmt::Debug for RemoteConfigurableAdapter {
         f.debug_struct("RemoteConfigurableAdapter")
             .field("component_id", &self.component_id)
             .field("component_name", &self.component_name)
+            .field("component_description", &self.component_description)
             .field("component_type", &self.component_type)
             .field("priority", &self.priority)
             .field("cached_schema", &self.cached_schema.read())
@@ -47,6 +49,7 @@ impl RemoteConfigurableAdapter {
     pub fn new(
         component_id: String,
         component_name: String,
+        component_description: String,
         component_type: ComponentType,
         priority: u32,
         client: Arc<JsonRpcClient>,
@@ -57,6 +60,7 @@ impl RemoteConfigurableAdapter {
         Self {
             component_id,
             component_name,
+            component_description,
             component_type,
             priority,
             client,
@@ -87,6 +91,11 @@ impl Configurable for RemoteConfigurableAdapter {
 
     fn component_type(&self) -> ComponentType {
         self.component_type
+    }
+
+    /// 组件的功能描述文本，显示在设置面板中向用户解释该组件的用途。
+    fn component_description(&self) -> &str {
+        &self.component_description
     }
 
     /// 返回组件优先级。数值越小在设置页面上显示越靠前。

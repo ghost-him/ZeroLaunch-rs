@@ -118,6 +118,10 @@ impl Configurable for VersionNumberRemover {
         "版本号移除器"
     }
 
+    fn component_description(&self) -> &str {
+        "移除版本号以提高匹配准确度"
+    }
+
     fn component_type(&self) -> ComponentType {
         ComponentType::KeywordOptimizer
     }

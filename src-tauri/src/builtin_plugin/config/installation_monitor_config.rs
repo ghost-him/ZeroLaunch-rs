@@ -64,6 +64,10 @@ impl Configurable for InstallationMonitorConfigComponent {
         "安装监控配置"
     }
 
+    fn component_description(&self) -> &str {
+        "监控软件安装并自动更新搜索索引"
+    }
+
     fn component_type(&self) -> ComponentType {
         ComponentType::Core
     }

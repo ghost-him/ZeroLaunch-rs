@@ -4,7 +4,7 @@
       <h3>{{ schema.componentName }}</h3>
       <n-tag :bordered="false" size="small">{{ schema.componentType }}</n-tag>
     </div>
-    <p class="form-desc" v-if="schema.componentId">{{ schema.componentId }}</p>
+    <p class="form-desc" v-if="schema.componentDescription">{{ schema.componentDescription }}</p>
 
     <div class="form-groups">
       <FormSection

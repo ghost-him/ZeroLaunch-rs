@@ -68,6 +68,9 @@ impl Configurable for BuiltinCommandSource {
     fn component_name(&self) -> &str {
         "内置命令数据源"
     }
+    fn component_description(&self) -> &str {
+        "提供 ZeroLaunch 内置命令，如打开设置、清空缓存"
+    }
 
     fn component_type(&self) -> ComponentType {
         ComponentType::DataSource

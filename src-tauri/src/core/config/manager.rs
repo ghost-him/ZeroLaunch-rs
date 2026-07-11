@@ -90,6 +90,7 @@ impl ConfigManager {
             .map(|c| ComponentInfo {
                 component_id: c.component_id().to_string(),
                 component_name: c.component_name().to_string(),
+                component_description: c.component_description().to_string(),
                 component_type: c.component_type(),
                 priority: c.priority(),
                 enabled: self.is_enabled(c.component_id()),
@@ -105,6 +106,7 @@ impl ConfigManager {
         self.registry.get(component_id).map(|c| ComponentSchema {
             component_id: c.component_id().to_string(),
             component_name: c.component_name().to_string(),
+            component_description: c.component_description().to_string(),
             component_type: c.component_type(),
             settings: c.setting_schema(),
         })

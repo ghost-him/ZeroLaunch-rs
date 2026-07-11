@@ -69,6 +69,10 @@ impl Configurable for GeneralConfigComponent {
         "通用"
     }
 
+    fn component_description(&self) -> &str {
+        "应用通用行为设置，包括调试模式等"
+    }
+
     fn component_type(&self) -> ComponentType {
         ComponentType::Core
     }

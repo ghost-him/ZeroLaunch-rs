@@ -29,6 +29,10 @@ impl Configurable for RemotePluginAdapter {
     fn component_name(&self) -> &str {
         self.configurable.component_name()
     }
+    /// 插件组件的描述直接使用插件自身的 metadata 描述。
+    fn component_description(&self) -> &str {
+        &self.metadata.description
+    }
     fn component_type(&self) -> ComponentType {
         self.configurable.component_type()
     }

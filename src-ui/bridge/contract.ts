@@ -64,6 +64,7 @@ export type ComponentType =
 export interface ComponentInfo {
   componentId: string
   componentName: string
+  componentDescription: string
   componentType: ComponentType
   priority: number
   enabled: boolean
@@ -73,6 +74,7 @@ export interface ComponentInfo {
 export interface ComponentSchema {
   componentId: string
   componentName: string
+  componentDescription: string
   componentType: ComponentType
   settings: SettingDefinition[]
 }

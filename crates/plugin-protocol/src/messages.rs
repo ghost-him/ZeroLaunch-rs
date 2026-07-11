@@ -36,6 +36,8 @@ pub struct ComponentDescriptor {
     pub component_id: String,
     #[serde(rename = "componentName")]
     pub component_name: String,
+    #[serde(rename = "componentDescription", default)]
+    pub component_description: String,
     #[serde(rename = "componentType")]
     pub component_type: ComponentType,
     #[serde(rename = "kind")]

@@ -52,6 +52,9 @@ impl Configurable for UrlSource {
     fn component_name(&self) -> &str {
         "网页数据源"
     }
+    fn component_description(&self) -> &str {
+        "使用关键字快速打开预设网页"
+    }
 
     fn component_type(&self) -> ComponentType {
         ComponentType::DataSource

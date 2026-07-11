@@ -115,6 +115,9 @@ impl Configurable for WindowActivateExecutor {
     fn component_name(&self) -> &str {
         "窗口唤醒执行器"
     }
+    fn component_description(&self) -> &str {
+        "激活或切换到已打开的窗口"
+    }
 
     fn component_type(&self) -> ComponentType {
         ComponentType::ActionExecutor

@@ -74,6 +74,10 @@ impl Configurable for LowerCaseConverter {
         "小写转换器"
     }
 
+    fn component_description(&self) -> &str {
+        "将关键词转换为小写以忽略大小写"
+    }
+
     fn component_type(&self) -> ComponentType {
         ComponentType::KeywordOptimizer
     }

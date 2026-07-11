@@ -20,6 +20,10 @@ impl Configurable for StandardSearchModel {
         "标准搜索引擎"
     }
 
+    fn component_description(&self) -> &str {
+        "默认的标准模糊搜索算法"
+    }
+
     fn component_type(&self) -> ComponentType {
         ComponentType::SearchEngine
     }

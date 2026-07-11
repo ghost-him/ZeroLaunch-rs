@@ -29,6 +29,10 @@ impl Configurable for LaunchySearchModel {
         "Launchy 搜索引擎"
     }
 
+    fn component_description(&self) -> &str {
+        "兼容 Launchy 风格的搜索算法"
+    }
+
     fn component_type(&self) -> ComponentType {
         ComponentType::SearchEngine
     }

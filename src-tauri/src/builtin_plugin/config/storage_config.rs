@@ -85,6 +85,10 @@ impl Configurable for StorageConfigComponent {
         "存储配置"
     }
 
+    fn component_description(&self) -> &str {
+        "管理数据存储位置和 WebDAV 远程同步"
+    }
+
     fn component_type(&self) -> ComponentType {
         ComponentType::Core
     }

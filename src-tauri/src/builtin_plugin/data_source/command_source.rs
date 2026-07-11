@@ -94,6 +94,9 @@ impl Configurable for CommandSource {
     fn component_name(&self) -> &str {
         "自定义命令数据源"
     }
+    fn component_description(&self) -> &str {
+        "执行用户自定义的快捷命令"
+    }
 
     fn component_type(&self) -> ComponentType {
         ComponentType::DataSource

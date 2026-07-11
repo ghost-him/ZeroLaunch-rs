@@ -82,6 +82,10 @@ impl Configurable for FirstLetterExtractor {
         "首字母提取器"
     }
 
+    fn component_description(&self) -> &str {
+        "提取拼音首字母用于模糊匹配"
+    }
+
     fn component_type(&self) -> ComponentType {
         ComponentType::KeywordOptimizer
     }

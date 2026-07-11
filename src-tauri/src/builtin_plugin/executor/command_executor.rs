@@ -27,6 +27,9 @@ impl Configurable for CommandExecutor {
     fn component_name(&self) -> &str {
         "命令执行器"
     }
+    fn component_description(&self) -> &str {
+        "执行用户自定义的 Shell 命令"
+    }
 
     fn component_type(&self) -> ComponentType {
         ComponentType::ActionExecutor

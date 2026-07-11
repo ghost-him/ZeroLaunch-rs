@@ -29,6 +29,9 @@ impl Configurable for AppSource {
     fn component_name(&self) -> &str {
         "应用数据源"
     }
+    fn component_description(&self) -> &str {
+        "从开始菜单和已安装应用列表中搜索应用"
+    }
 
     fn component_type(&self) -> ComponentType {
         ComponentType::DataSource

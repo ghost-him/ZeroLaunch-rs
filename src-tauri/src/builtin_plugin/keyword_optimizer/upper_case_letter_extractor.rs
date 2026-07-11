@@ -87,6 +87,10 @@ impl Configurable for UpperCaseLetterExtractor {
         "大写字母提取器"
     }
 
+    fn component_description(&self) -> &str {
+        "提取大写字母以支持缩写搜索"
+    }
+
     fn component_type(&self) -> ComponentType {
         ComponentType::KeywordOptimizer
     }

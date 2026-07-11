@@ -76,6 +76,10 @@ impl Configurable for WindowBehaviorConfigComponent {
         "窗口行为"
     }
 
+    fn component_description(&self) -> &str {
+        "定制搜索窗口的打开、隐藏和焦点行为"
+    }
+
     fn component_type(&self) -> ComponentType {
         ComponentType::Core
     }

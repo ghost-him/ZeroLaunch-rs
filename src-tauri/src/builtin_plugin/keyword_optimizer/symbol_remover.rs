@@ -74,6 +74,10 @@ impl Configurable for SymbolRemover {
         "符号移除器"
     }
 
+    fn component_description(&self) -> &str {
+        "移除关键词中的符号以纯净匹配"
+    }
+
     fn component_type(&self) -> ComponentType {
         ComponentType::KeywordOptimizer
     }

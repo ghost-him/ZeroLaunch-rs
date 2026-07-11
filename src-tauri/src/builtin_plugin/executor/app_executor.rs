@@ -27,6 +27,9 @@ impl Configurable for AppExecutor {
     fn component_name(&self) -> &str {
         "应用执行器"
     }
+    fn component_description(&self) -> &str {
+        "启动搜索到的应用程序"
+    }
 
     fn component_type(&self) -> ComponentType {
         ComponentType::ActionExecutor

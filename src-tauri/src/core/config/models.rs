@@ -11,6 +11,9 @@ pub struct ComponentInfo {
     /// 组件显示名称
     #[serde(rename = "componentName")]
     pub component_name: String,
+    /// 组件描述文本
+    #[serde(rename = "componentDescription")]
+    pub component_description: String,
     /// 组件类型
     #[serde(rename = "componentType")]
     pub component_type: ComponentType,
@@ -34,6 +37,9 @@ pub struct ComponentSchema {
     /// 组件显示名称
     #[serde(rename = "componentName")]
     pub component_name: String,
+    /// 组件描述文本
+    #[serde(rename = "componentDescription")]
+    pub component_description: String,
     /// 组件类型
     #[serde(rename = "componentType")]
     pub component_type: ComponentType,

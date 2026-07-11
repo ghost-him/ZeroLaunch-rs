@@ -14,6 +14,11 @@ pub trait Configurable: Send + Sync {
     fn priority(&self) -> u32 {
         50
     }
+    /// 组件的功能描述文本，用于设置面板中向用户解释该组件的用途。
+    /// 第三方插件实现 Plugin trait 时，应返回插件自身的描述信息。
+    fn component_description(&self) -> &str {
+        ""
+    }
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {
         vec![]

@@ -37,6 +37,10 @@ impl Configurable for SkimSearchModel {
         "Skim 搜索引擎"
     }
 
+    fn component_description(&self) -> &str {
+        "基于 Skim 的高性能模糊匹配引擎"
+    }
+
     fn component_type(&self) -> ComponentType {
         ComponentType::SearchEngine
     }

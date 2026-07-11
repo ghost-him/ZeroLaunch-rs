@@ -56,6 +56,9 @@ impl Configurable for PathExecutor {
     fn component_name(&self) -> &str {
         "路径执行器"
     }
+    fn component_description(&self) -> &str {
+        "使用系统默认程序打开文件或路径"
+    }
 
     fn component_type(&self) -> ComponentType {
         ComponentType::ActionExecutor

@@ -499,6 +499,7 @@ fn build_adapters(
             let configurable = Arc::new(RemoteConfigurableAdapter::new(
                 comp.component_id.clone(),
                 comp.component_name.clone(),
+                comp.component_description.clone(),
                 comp.component_type,
                 {
                     if comp.priority < 0 {

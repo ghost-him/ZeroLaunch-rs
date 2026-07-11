@@ -173,6 +173,10 @@ impl Configurable for QueryAffinityBooster {
         "查询亲和度增强器"
     }
 
+    fn component_description(&self) -> &str {
+        "根据查询关键词与候选项的匹配程度调整分数"
+    }
+
     fn component_type(&self) -> ComponentType {
         ComponentType::ScoreBooster
     }

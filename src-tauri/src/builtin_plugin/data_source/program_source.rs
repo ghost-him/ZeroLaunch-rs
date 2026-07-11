@@ -263,6 +263,9 @@ impl Configurable for ProgramSource {
     fn component_name(&self) -> &str {
         "路径程序数据源"
     }
+    fn component_description(&self) -> &str {
+        "扫描用户指定路径中的应用程序"
+    }
 
     fn component_type(&self) -> ComponentType {
         ComponentType::DataSource

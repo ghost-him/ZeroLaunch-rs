@@ -98,6 +98,10 @@ impl Configurable for SpaceNormalizer {
         "空格规范化器"
     }
 
+    fn component_description(&self) -> &str {
+        "规范化关键词中的空白字符"
+    }
+
     fn component_type(&self) -> ComponentType {
         ComponentType::KeywordOptimizer
     }

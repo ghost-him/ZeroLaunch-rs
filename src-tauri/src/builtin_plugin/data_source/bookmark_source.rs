@@ -260,6 +260,9 @@ impl Configurable for BookmarkSource {
     fn component_name(&self) -> &str {
         "书签数据源"
     }
+    fn component_description(&self) -> &str {
+        "从浏览器书签中搜索网址"
+    }
 
     fn component_type(&self) -> ComponentType {
         ComponentType::DataSource

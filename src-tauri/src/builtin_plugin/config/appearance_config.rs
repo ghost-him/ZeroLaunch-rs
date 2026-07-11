@@ -313,6 +313,10 @@ impl Configurable for AppearanceConfigComponent {
         "外观"
     }
 
+    fn component_description(&self) -> &str {
+        "自定义应用的外观主题和界面语言"
+    }
+
     fn component_type(&self) -> ComponentType {
         ComponentType::Core
     }

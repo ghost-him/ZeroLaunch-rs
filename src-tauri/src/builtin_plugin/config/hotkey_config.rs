@@ -133,6 +133,10 @@ impl Configurable for HotkeyConfigComponent {
         "快捷键配置"
     }
 
+    fn component_description(&self) -> &str {
+        "设置全局快捷键，快速唤醒搜索窗口"
+    }
+
     fn component_type(&self) -> ComponentType {
         ComponentType::Core
     }

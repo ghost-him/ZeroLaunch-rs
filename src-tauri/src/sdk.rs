@@ -285,6 +285,15 @@ impl HostApi {
         Ok(())
     }
 
+    /// 注销所有已注册的快捷键并禁用双击 Ctrl。
+    /// 用于游戏模式等场景，临时禁用所有全局快捷键。
+    /// 返回：成功返回 Ok(())，失败返回 HostApiError。
+    pub async fn unregister_all_hotkeys(&self) -> Result<(), HostApiError> {
+        self.hotkey_manager.unregister_all().await?;
+        self.hotkey_manager.set_double_ctrl_enabled(false).await?;
+        Ok(())
+    }
+
     /// 初始化按键监听。
     /// 将已注册的回调注入到 HotkeyManager，开始接收按键事件。
     /// 返回：成功返回 Ok(())，失败返回 HostApiError。

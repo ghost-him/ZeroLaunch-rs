@@ -498,10 +498,35 @@ fn spawn_app_command_consumer(
                     if let Some(tray) = state.get_tray_manager() {
                         tray.set_game_mode_checked(new_state);
                     }
-                    info!(
-                        "AppCommand: 游戏模式已{}",
-                        if new_state { "启用" } else { "关闭" }
-                    );
+
+                    let host_api = state.get_host_api();
+                    if new_state {
+                        // 游戏模式启用：注销所有快捷键，避免游戏中被弹出干扰
+                        if let Err(e) = host_api.unregister_all_hotkeys().await {
+                            warn!("AppCommand: 游戏模式启用时注销快捷键失败: {:?}", e);
+                        } else {
+                            info!("AppCommand: 游戏模式已启用，快捷键已注销");
+                        }
+                    } else {
+                        // 游戏模式关闭：从配置读取快捷键并重新注册
+                        let config_manager = state.get_config_manager();
+                        let hotkey_config =
+                            config_manager.get_settings("hotkey-config").and_then(|v| {
+                                serde_json::from_value::<
+                                    zerolaunch_plugin_api::services::hotkey::types::HotkeyConfig,
+                                >(v)
+                                .ok()
+                            });
+                        if let Some(config) = hotkey_config {
+                            if let Err(e) = host_api.apply_hotkey_config(&config).await {
+                                warn!("AppCommand: 游戏模式关闭时重新注册快捷键失败: {:?}", e);
+                            } else {
+                                info!("AppCommand: 游戏模式已关闭，快捷键已恢复");
+                            }
+                        } else {
+                            warn!("AppCommand: 游戏模式关闭: 无法读取快捷键配置 (hotkey-config)");
+                        }
+                    }
                 }
                 app_command::AppCommand::ExitProgram => {
                     info!("AppCommand: 退出程序");

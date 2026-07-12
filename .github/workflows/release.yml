@@ -358,7 +358,7 @@ jobs:
             exit 0
           }
 
-          $systemPrompt = "你是 ZeroLaunch-rs 的发布助手。请根据提供的变更记录，用简体中文写一段面向普通用户的版本更新摘要。要求：突出重点功能与修复，2-3 段，语气自然专业，不要逐条罗列 commit，不要使用 Markdown 标题，直接输出正文。"
+          $systemPrompt = "你是 ZeroLaunch-rs 的版本更新摘要助手。`n`n输出结构（直接输出正文，不要使用 Markdown 标题）：`n1. **一句话版本定位**：概括本次版本的核心主题。`n2. **用户可见亮点**：2-4 条 bullet，只写用户能感知的功能改进。`n3. **稳定性与体验改进**：1-2 句概括 bug 修复和体验优化。`n4. **开发者备注**（如有架构级变化）：以 > 格式的 blockquote 附在末尾。`n`n规则：`n- 只基于 commit 事实写，不预测、不夸大。`n- 内部重构、CI、文档、杂项——除非架构级变化，否则不写入摘要。`n- 总长度不超过 300 字。`n- 语气简洁准确，面向中文最终用户。"
           $userPrompt   = "以下是本次版本的变更记录：`n`n$changelog"
 
           $payload = @{
@@ -404,12 +404,17 @@ jobs:
             $changelog = "_本次版本无可用的分类变更记录。_"
           }
 
+          # 精简 commit 哈希值为前 7 位
+          $changelog = $changelog -replace '\(`([0-9a-f]{7})[0-9a-f]{33}`\)', '(`$1`)'
+
           # AI 摘要（若生成失败则使用回退文案）
           $aiSummary = "本次更新包含若干改进与修复，详见下方完整更新记录。"
+          $aiUsed = $false
           if (Test-Path "ai_summary.md") {
             $content = Get-Content "ai_summary.md" -Raw
             if (-not [string]::IsNullOrWhiteSpace($content)) {
               $aiSummary = $content.Trim()
+              $aiUsed = $true
             }
           }
 
@@ -418,7 +423,13 @@ jobs:
           # 使用数组拼接，避免 here-string 在 YAML 块中的缩进/闭合歧义
           $lines = @(
             "## 🤖 更新摘要",
-            "",
+            ""
+          )
+          if ($aiUsed) {
+            $lines += "> 🧑‍🔧 此更新摘要由 AI 基于 commit 历史自动生成"
+            $lines += ""
+          }
+          $lines += @(
             $aiSummary,
             "",
             "<details>",

@@ -103,17 +103,6 @@ impl RemoteComponent {
         }
     }
 
-    // TODO: 当 Configurable trait 的方法（apply_settings、validate_settings、execute_config_action）
-    //       改为 async 后，可删除此函数，直接在 impl 中 .await RPC 调用。
-    //       调用点见控制台输出。
-    fn block_on_rpc<F, T, E>(f: F) -> Result<T, E>
-    where
-        F: std::future::Future<Output = Result<T, E>>,
-        E: std::fmt::Display,
-    {
-        tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(f))
-    }
-
     /// 将自身转换为 `DataSource` trait object，仅在 kind 为 DataSource 时成功。
     pub fn as_data_source(self: Arc<Self>) -> Option<Arc<dyn DataSource>> {
         matches!(self.kind, RemoteComponentKind::DataSource).then(|| self as Arc<dyn DataSource>)
@@ -163,7 +152,7 @@ impl Configurable for RemoteComponent {
         let client = self.client.clone();
         let component_id = self.core.component_id().to_string();
         let settings_clone = settings.clone();
-        Self::block_on_rpc(async move {
+        tokio::runtime::Handle::current().block_on(async move {
             client
                 .call::<_, serde_json::Value>(
                     plugin_methods::APPLY_SETTINGS,
@@ -184,19 +173,20 @@ impl Configurable for RemoteComponent {
         let client = self.client.clone();
         let component_id = self.core.component_id().to_string();
         let settings_clone = settings.clone();
-        let result: ValidateSettingsResult = Self::block_on_rpc(async move {
-            client
-                .call(
-                    plugin_methods::VALIDATE_SETTINGS,
-                    ValidateSettingsParams {
-                        component_id,
-                        settings: settings_clone,
-                    },
-                    Duration::from_secs(5),
-                )
-                .await
-                .map_err(to_config_error)
-        })?;
+        let result: ValidateSettingsResult =
+            tokio::runtime::Handle::current().block_on(async move {
+                client
+                    .call(
+                        plugin_methods::VALIDATE_SETTINGS,
+                        ValidateSettingsParams {
+                            component_id,
+                            settings: settings_clone,
+                        },
+                        Duration::from_secs(5),
+                    )
+                    .await
+                    .map_err(to_config_error)
+            })?;
         if let Some(error) = result.error {
             Err(ConfigError::ValidationFailed(error))
         } else {
@@ -213,19 +203,20 @@ impl Configurable for RemoteComponent {
         let component_id = self.core.component_id().to_string();
         let action = action.to_string();
         let params = params.clone();
-        let result: Result<serde_json::Value, ProtocolError> = Self::block_on_rpc(async move {
-            client
-                .call::<_, serde_json::Value>(
-                    plugin_methods::EXECUTE_CONFIG_ACTION,
-                    ExecuteConfigActionParams {
-                        component_id,
-                        action,
-                        params,
-                    },
-                    Duration::from_secs(10),
-                )
-                .await
-        });
+        let result: Result<serde_json::Value, ProtocolError> = tokio::runtime::Handle::current()
+            .block_on(async move {
+                client
+                    .call::<_, serde_json::Value>(
+                        plugin_methods::EXECUTE_CONFIG_ACTION,
+                        ExecuteConfigActionParams {
+                            component_id,
+                            action,
+                            params,
+                        },
+                        Duration::from_secs(10),
+                    )
+                    .await
+            });
         result.map_err(|e| e.to_string())
     }
 }

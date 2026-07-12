@@ -15,7 +15,7 @@
 
 ## AI 辅助开发（推荐）
 
-本项目已针对 **OMP (Oh My Pi)** 建立了一套完整的 **Harness Engineering** 体系，强烈建议使用 OMP 作为日常开发的 AI 辅助工具。
+本项目已针对 **OMP (Oh My Pi)** 建立了一套完整的 **Harness Engineering** 体系，建议使用 OMP 作为开发本项目的 AI 辅助工具。
 
 ### Harness 基础设施
 

@@ -105,9 +105,6 @@ const openSettingsWindow = () => openSettings()
   transition: all 0.2s ease;
 }
 
-.action-btn.is-default {
-  color: var(--accent-color);
-}
 
 .action-btn.is-selected {
   color: var(--accent-color);

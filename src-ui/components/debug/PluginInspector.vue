@@ -73,7 +73,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { NButton, NCode, NDataTable, NInput, NTag, type DataTableColumns } from 'naive-ui'
 import {
   inspectorGetState,
-  inspectorSimulateQuery,
+  debugSimulateQuery,
 } from '@/bridge/commands'
 import { onInspectorStateUpdated } from '@/bridge/events'
 import type { InspectorStateResponse, PluginInspectorInfo, InspectedQueryEvent } from '@/bridge/contract'
@@ -139,7 +139,7 @@ async function simulate() {
   if (!input) return
   simulating.value = true
   try {
-    const result = await inspectorSimulateQuery(input)
+    const result = await debugSimulateQuery(input)
     simResult.value = JSON.stringify(result, null, 2)
   } catch (e) {
     simResult.value = `Error: ${e}`
@@ -161,44 +161,50 @@ onUnmounted(() => {
 
 <style scoped>
 .inspector-panel {
+  height: 100%;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 0 4px;
 }
 .inspector-header {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 .inspector-header h3 {
   margin: 0;
-  font-size: 16px;
 }
 .inspector-body {
   display: flex;
   gap: 16px;
   flex: 1;
-  min-height: 0;
+  overflow: auto;
 }
 .inspector-left {
-  flex: 0 0 340px;
-  overflow: auto;
+  flex: 1;
+  min-width: 0;
 }
 .inspector-right {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  min-width: 0;
+  gap: 16px;
+}
+.inspector-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 .inspector-section h4 {
-  margin: 0 0 6px;
-  font-size: 14px;
+  margin: 0;
 }
 .simulate-row {
   display: flex;
   gap: 8px;
-  margin-bottom: 8px;
+  align-items: center;
+}
+.simulate-row .n-input {
+  flex: 1;
 }
 </style>

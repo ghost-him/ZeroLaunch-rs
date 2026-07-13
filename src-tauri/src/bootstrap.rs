@@ -242,7 +242,6 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
     let app_handle = state.get_main_handle();
     let cm_for_events = config_manager.clone();
     let host_api_for_events = state.get_host_api();
-    let state_for_inspector = state.clone();
     let mut event_receiver = config_manager.event_sender().subscribe();
     tauri::async_runtime::spawn(async move {
         loop {
@@ -264,21 +263,6 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
                                 "componentType": format!("{:?}", component_type),
                             }),
                         );
-                        // 若通用设置变更（含调试模式开关），同步 Inspector 录制状态
-                        if component_id == "general-config" {
-                            if let Some(inspector) = state_for_inspector.get_inspector() {
-                                let cm = state_for_inspector.get_config_manager();
-                                let is_debug = cm
-                                    .get_settings("general-config")
-                                    .and_then(|v| v.get("is_debug_mode")?.as_bool())
-                                    .unwrap_or(false);
-                                inspector.set_recording(is_debug);
-                                debug!(
-                                    "Inspector 录制已{}",
-                                    if is_debug { "开启" } else { "关闭" }
-                                );
-                            }
-                        }
                     }
                     // 配置变更后自动触发远程同步（fire-and-forget）
                     match &event {
@@ -392,17 +376,14 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
         warn!("加载持久化配置失败: {}", e);
     }
 
-    // Phase B.5: 同步 Inspector 录制状态到用户配置。
-    // 必须在 load_from_storage() 之后执行（此时组件已注册、用户配置已加载）。
-    if let Some(inspector) = state.get_inspector() {
-        let is_debug = config_manager
-            .get_settings("general-config")
-            .and_then(|v| v.get("is_debug_mode")?.as_bool())
-            .unwrap_or(false);
-        inspector.set_recording(is_debug);
-        if is_debug {
-            info!("调试模式已开启，Plugin Inspector 录制已启用");
-        }
+    // Phase B.5: 调试模式日志
+    // 读取 general-config.is_debug_mode 并输出日志（不再需要同步 Inspector 录制状态）。
+    let is_debug = config_manager
+        .get_settings("general-config")
+        .and_then(|v| v.get("is_debug_mode")?.as_bool())
+        .unwrap_or(false);
+    if is_debug {
+        info!("调试模式已开启");
     }
 
     // ========================================================================

@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import type { BridgeQueryResponse, ConfirmPayload, ConfirmResponse, ComponentInfo, ComponentSchema, ConfigActionDef } from './contract'
+import type { BridgeQueryResponse, ConfirmPayload, ConfirmResponse, ComponentInfo, ComponentSchema, ConfigActionDef, SearchTimingResult, IndexTimingResult, SearchDetailItem } from './contract'
 
 // ---- 错误类型 ----
 
@@ -131,8 +131,8 @@ export function inspectorGetState(): Promise<import('./contract').InspectorState
   return invokeCommand('inspector_get_state')
 }
 
-export function inspectorSimulateQuery(rawQuery: string): Promise<unknown> {
-  return invokeCommand('inspector_simulate_query', { rawQuery })
+export function debugSimulateQuery(rawQuery: string): Promise<unknown> {
+  return invokeCommand('debug_simulate_query', { rawQuery })
 }
 
 // ---- Third-Party Plugin Management ----
@@ -184,4 +184,22 @@ export interface CliInfo {
 
 export function cliGetInfo(): Promise<CliInfo> {
   return invokeCommand<CliInfo>('cli_get_info')
+}
+
+// ---- Debug Tools ----
+
+export function debugTestSearchTime(query: string): Promise<SearchTimingResult> {
+  return invokeCommand('debug_test_search_time', { query })
+}
+
+export function debugTestIndexTime(): Promise<IndexTimingResult> {
+  return invokeCommand('debug_test_index_time')
+}
+
+export function debugGetSearchKeys(name: string): Promise<string[]> {
+  return invokeCommand('debug_get_search_keys', { name })
+}
+
+export function debugSearchDetail(query: string): Promise<SearchDetailItem[]> {
+  return invokeCommand('debug_search_detail', { query })
 }

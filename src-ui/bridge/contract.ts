@@ -205,3 +205,25 @@ export interface PluginEventPayload {
   name?: string
   version?: string
 }
+
+// ---- Debug Tools ----
+
+export interface SearchTimingResult {
+  durationMs: number
+  resultCount: number
+  totalCandidates: number
+}
+
+export interface IndexTimingResult {
+  durationMs: number
+  candidateCount: number
+}
+
+export interface SearchDetailItem {
+  rank: number
+  candidateId: number
+  name: string
+  score: number
+  targetType: string
+  keywords: string[]
+}

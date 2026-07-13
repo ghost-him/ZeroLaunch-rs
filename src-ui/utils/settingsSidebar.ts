@@ -4,7 +4,7 @@ export interface SidebarCategory {
   key: string
   label: string
   icon: string
-  type: 'category' | 'pipeline' | 'plugins' | 'tabs' | 'static' | 'plugin' | 'inspector'
+  type: 'category' | 'pipeline' | 'plugins' | 'tabs' | 'static' | 'plugin' | 'debug'
   components?: ComponentInfo[]
   items?: SidebarCategory[]
 }
@@ -15,7 +15,10 @@ function sortByPriority(a: ComponentInfo, b: ComponentInfo): number {
 }
 
 
-export function buildSidebarItems(components: ComponentInfo[]): SidebarCategory[] {
+export function buildSidebarItems(
+  components: ComponentInfo[],
+  isDebugMode: boolean,
+): SidebarCategory[] {
   const core = components.filter(
     (c) => c.componentType === 'Core' && c.componentId !== 'appearance-config',
   ).sort(sortByPriority)
@@ -27,7 +30,7 @@ export function buildSidebarItems(components: ComponentInfo[]): SidebarCategory[
   ).sort(sortByPriority)
   const plugins = components.filter((c) => c.componentType === 'Plugin')
 
-  return [
+  const items: SidebarCategory[] = [
     { key: 'category_core', label: '常规设置', icon: 'settings', type: 'tabs', components: core },
     { key: 'category_appearance', label: '外观设置', icon: 'palette', type: 'tabs', components: appearance },
     { key: 'category_pipeline', label: '搜索管道', icon: 'search', type: 'pipeline', components: pipeline },
@@ -44,12 +47,18 @@ export function buildSidebarItems(components: ComponentInfo[]): SidebarCategory[
         components: [p]
       }))
     },
-    {
-      key: 'category_inspector',
-      label: '插件检查器',
-      icon: 'bug',
-      type: 'inspector' as const,
-    },
-    { key: 'category_about', label: '关于', icon: 'info', type: 'static' },
   ]
+
+  // 仅在调试模式开启时显示
+  if (isDebugMode) {
+    items.push({
+      key: 'category_debug',
+      label: '调试工具',
+      icon: 'bug',
+      type: 'debug' as const,
+    })
+  }
+
+  items.push({ key: 'category_about', label: '关于', icon: 'info', type: 'static' })
+  return items
 }

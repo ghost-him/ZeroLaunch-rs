@@ -167,25 +167,23 @@ pub async fn bridge_query(
     let query_start = std::time::Instant::now();
     let response = session_router.route_query(&trace_id, &query).await;
 
-    // 录制查询事件到 Inspector。
-    // Inspector::record() 内部通过 AtomicBool 判断是否录制，无需外部检查。
-
+    // 录制查询事件到 Inspector（仅在调试模式开启时）
     let (mode, result_count) = match &response {
         QueryResponse::List { results } => ("search", results.len()),
         QueryResponse::Empty => ("empty", 0),
         QueryResponse::CustomPanel { .. } => ("plugin_panel", 1),
         QueryResponse::InlineParam { .. } => ("inline_param", 0),
     };
-    if let Some(inspector) = state.get_inspector() {
-        let recorded = inspector.record(InspectedQueryEvent {
-            timestamp: chrono::Utc::now().to_rfc3339(),
-            trace_id: trace_id.clone(),
-            raw_query: raw_query.clone(),
-            mode: mode.to_string(),
-            result_count,
-            duration_ms: query_start.elapsed().as_millis() as u64,
-        });
-        if recorded {
+    if state.is_debug_mode() {
+        if let Some(inspector) = state.get_inspector() {
+            inspector.record(InspectedQueryEvent {
+                timestamp: chrono::Utc::now().to_rfc3339(),
+                trace_id: trace_id.clone(),
+                raw_query: raw_query.clone(),
+                mode: mode.to_string(),
+                result_count,
+                duration_ms: query_start.elapsed().as_millis() as u64,
+            });
             let _ = state.get_main_handle().emit("inspector-state-updated", ());
         }
     }

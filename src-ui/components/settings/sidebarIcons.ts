@@ -42,6 +42,13 @@ function pluginIcon() {
   ])
 }
 
+function bugIcon() {
+  return h('svg', { xmlns: 'http://www.w3.org/2000/svg', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2' }, [
+    h('rect', { x: '8', y: '6', width: '8', height: '13', rx: '4' }),
+    h('path', { d: 'M19 7l-3 2M5 7l3 2M19 13h-3M5 13h3M19 19l-3-2M5 19l3-2M12 6V3' })
+  ])
+}
+
 const iconMap: Record<string, () => ReturnType<typeof h>> = {
   settings: settingsIcon,
   search: searchIcon,
@@ -49,6 +56,7 @@ const iconMap: Record<string, () => ReturnType<typeof h>> = {
   palette: paletteIcon,
   info: infoIcon,
   plugin: pluginIcon,
+  bug: bugIcon,
 }
 
 export function renderSidebarIcon(icon: string) {

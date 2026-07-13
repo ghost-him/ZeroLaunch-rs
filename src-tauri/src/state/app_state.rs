@@ -133,6 +133,19 @@ impl AppState {
         *self.inspector.write() = Some(inspector);
     }
 
+    /// 检查调试模式是否开启。
+    /// 直接从 ConfigManager 读取 general-config.is_debug_mode，无需维护独立状态。
+    pub fn is_debug_mode(&self) -> bool {
+        self.config_manager
+            .read()
+            .as_ref()
+            .and_then(|cm| {
+                cm.get_settings("general-config")
+                    .and_then(|v| v.get("is_debug_mode")?.as_bool())
+            })
+            .unwrap_or(false)
+    }
+
     pub fn get_plugin_manager(&self) -> Arc<PluginManager> {
         self.plugin_manager
             .read()

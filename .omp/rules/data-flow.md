@@ -24,7 +24,7 @@ interruptMode: never
 │     ├─ SessionRouter   ← 运行时调度（executor、engine、booster、plugin）│
 │     └─ CandidatePipeline ← 候选采集（data_source、keyword_optimizer）  │
 │  3. load_from_storage() — 从磁盘恢复用户配置                            │
-│  4. Inspector 录制同步 — 读取 general-config.is_debug_mode，设置录制状态│
+│  4. Inspector 初始化（ring buffer）— 录制由调用方通过 is_debug_mode() 动态控制      │
 │  5. candidate_pipeline.collect() — 全量采集候选人 → 缓存               │
 │  6. SearchPipeline 构建 — 默认引擎 + boosters + top_k=10              │
 └─────────────────────────────────────────────────────────────────────┘
@@ -196,3 +196,42 @@ SearchCandidate.icon (存储的是路径字符串)
 - **TargetType 是路由键**：每个 executor 声明支持的 `TargetType`，ExecutorRegistry 按 `(TargetType, action_id)` 复合键查表
 - **shortcut_key 是前端绑定依据**：executor 声明动作时携带 `shortcut_key`（如 `"Ctrl+Enter"`），前端据此绑定键盘快捷键，用户按键时自动选择对应的 action_id
 - **Fallback 是容错机制**：executor 可通过 `ActivationFailed` 错误声明降级策略，由 SessionRouter 统一处理回退
+
+## 调试命令数据流
+
+调试命令（`debug_*` 前缀）仅**在调试模式开启时**可用（通过 `AppState::is_debug_mode()` 检查）：
+
+```
+debug_test_search_time(query)
+  └─ state.is_debug_mode()
+  └─ session_router.debug_search(&query)
+        ├─ cached_candidates.read() [parking_lot read]
+        ├─ search_pipeline.read() [parking_lot read]
+        └─ pipeline.search(&cached, &lowered_query)
+
+debug_test_index_time()
+  └─ state.is_debug_mode()
+  └─ session_router.debug_index_with_timing().await
+        └─ refresh_candidates().await
+              └─ candidate_pipeline.collect().await
+
+debug_get_search_keys(name)
+  └─ state.is_debug_mode()
+  └─ session_router.debug_generate_keywords(name)
+        └─ candidate_pipeline.read().await
+              └─ generate_keywords_for_name(name)
+
+debug_search_detail(query)
+  └─ state.is_debug_mode()
+  └─ session_router.debug_search(&query)
+  └─ session_router.get_cached_candidate_by_id(id) [per item]
+
+debug_simulate_query(raw_query)
+  └─ state.is_debug_mode()
+  └─ session_router.route_query(&trace_id, &query).await
+```
+
+**与常规搜索数据流的区别**：
+1. 调试命令**不经过**正常的查询路由流程——不检查 trigger keyword、不进入 Plugin 模式
+2. 调试命令**不触发** Inspector 录制
+3. 所有调试命令直接调用 SessionRouter 的内部方法

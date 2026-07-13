@@ -63,7 +63,9 @@ logging/            → 日志初始化
 
 插件管理（`plugin_` 前缀，7个）：`plugin_list`, `plugin_get_manifest`, `plugin_install_local`, `plugin_reload`, `plugin_uninstall`, `plugin_set_enabled`, `plugin_get_logs`
 
-检查器（`inspector_` 前缀，2个）：`inspector_get_state`, `inspector_simulate_query`
+检查器（`inspector_` 前缀，1个）：`inspector_get_state`
+
+调试工具（`debug_` 前缀，5个）：`debug_test_search_time`, `debug_test_index_time`, `debug_get_search_keys`, `debug_search_detail`, `debug_simulate_query`
 
 资源（`resource_` 前缀，2个）：`resource_get`, `resource_upload`
 

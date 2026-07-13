@@ -20,5 +20,5 @@ interruptMode: never
 | `plugin_` | `commands/plugin.rs` | 插件管理 |
 | `inspector_` | `commands/inspector.rs` | 插件检查器 |
 | `cli_` | `commands/cli.rs` | CLI HTTP 服务器 |
-
+| `debug_` | `commands/debug.rs` | 调试工具 |
 - 引入新前缀时 **必须** 同步更新此表

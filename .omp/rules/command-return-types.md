@@ -19,6 +19,6 @@ interruptMode: tool-only
 - 已知例外（返回值形状由动态 schema 或组件定义决定）：
   - `config_get_settings` — 返回值由组件的 schema 定义，形状不固定
   - `config_execute_action` — 每个组件可定义自己的 action 结果类型
-  - `inspector_get_state` / `inspector_simulate_query` — 调试工具，输出随 feature flag 和插件状态变化
+  - `inspector_get_state` — 调试工具，输出随 feature flag 和插件状态变化
   - `cli_get_info` — CLI HTTP 服务器连接信息，形状由 token 文件结构决定
 - 以上 exception 列表中，**凡返回 `Result<T, BridgeError>` 的命令**（如 `config_get_settings`、`config_execute_action`、`inspector_get_state` 等）**必须** 遵循 trace_id 追踪规范（生成 trace_id、`#[tracing::instrument]`、`.with_trace_id()`）。exception 仅豁免"禁止直接返回 `serde_json::Value`"这一项，**不豁免** trace_id 要求

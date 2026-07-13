@@ -12,5 +12,5 @@ scope: "tool:edit(src-tauri/src/commands/**), tool:write(src-tauri/src/commands/
 已知例外（返回值形状由动态 schema 决定，允许返回 `serde_json::Value`）：
 - `config_get_settings` — 返回值由组件 schema 定义
 - `config_execute_action` — 每个组件可定义自己的 action 结果类型
-- `inspector_get_state` / `inspector_simulate_query` — 调试工具
+- `inspector_get_state` — 调试工具，输出随 feature flag 和插件状态变化
 - `cli_get_info` — CLI 连接信息

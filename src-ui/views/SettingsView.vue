@@ -22,7 +22,7 @@
         </div>
         
         <!-- Plugin Inspector -->
-        <PluginInspector v-else-if="selectedId === 'category_inspector'" />
+        <DebugView v-else-if="selectedId === 'category_debug'" />
 
         <!-- About -->
         <div v-else-if="selectedId === 'category_about'" class="static-panel">
@@ -78,7 +78,7 @@ import SettingsSidebar from '../components/settings/SettingsSidebar.vue'
 import CategoryViewList from '../components/settings/CategoryViewList.vue'
 import CategoryViewPipeline from '../components/settings/CategoryViewPipeline.vue'
 import CategoryViewTabs from '../components/settings/CategoryViewTabs.vue'
-import PluginInspector from './PluginInspector.vue'
+import DebugView from './DebugView.vue'
 import { useConfigStore } from '../stores/config-store'
 import { buildSidebarItems } from '../utils/settingsSidebar'
 import { registerErrorHandler } from '../bridge/commands'
@@ -98,7 +98,12 @@ function getComponentsList(): ComponentInfo[] {
   return Object.values(configStore.components)
 }
 
-const sidebarItems = computed(() => buildSidebarItems(getComponentsList()))
+const isDebugMode = computed(() => {
+  const settings = configStore.settings['general-config'] as Record<string, unknown> | undefined
+  return (settings?.is_debug_mode as boolean) ?? false
+})
+
+const sidebarItems = computed(() => buildSidebarItems(getComponentsList(), isDebugMode.value))
 
 const selectedCategory = computed(() => {
   if (!selectedId.value) return null
@@ -123,6 +128,7 @@ async function init() {
     const [ loadedVersion ] = await Promise.all([
       configGetVersion(),
       configStore.loadAllComponents(),
+      configStore.getSettings('general-config'),
     ])
     version.value = loadedVersion
   } catch (e) {

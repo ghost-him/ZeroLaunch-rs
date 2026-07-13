@@ -15,7 +15,7 @@ use zerolaunch_plugin_api::services::ParameterSnapshot;
 use zerolaunch_plugin_api::{
     ActionExecutor, CachedCandidateData, CandidateId, ConfirmResult, DataSource, ExecutionContext,
     ExecutionError, ListItem, Plugin, PluginContext, Query, QueryResponse, ScoreBooster,
-    SearchCandidate, SearchEngine,
+    ScoredCandidate, SearchCandidate, SearchEngine,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -239,6 +239,33 @@ impl SessionRouter {
         let pipeline = self.candidate_pipeline.read().await;
         let candidates = pipeline.collect().await;
         *self.cached_candidates.write() = candidates;
+    }
+
+    /// 调试用：运行搜索并返回评分结果（已排序 top_k）。
+    /// 内部自动小写化查询词，与 route_query 行为一致。
+    pub fn debug_search(&self, query: &str) -> Vec<ScoredCandidate> {
+        let cached = self.cached_candidates.read();
+        let pipeline_guard = self.search_pipeline.read();
+        let Some(pipeline) = pipeline_guard.as_ref() else {
+            return Vec::new();
+        };
+        pipeline.search(&cached, &query.to_lowercase())
+    }
+
+    /// 调试用：对给定名称生成关键字列表。
+    pub async fn debug_generate_keywords(&self, name: &str) -> Vec<String> {
+        self.candidate_pipeline
+            .read()
+            .await
+            .generate_keywords_for_name(name)
+    }
+
+    /// 调试用：运行索引采集并返回（耗时ms, 候选总数）。
+    pub async fn debug_index_with_timing(&self) -> (u64, usize) {
+        let start = std::time::Instant::now();
+        self.refresh_candidates().await;
+        let ms = start.elapsed().as_millis() as u64;
+        (ms, self.get_cached_candidates_count())
     }
 
     #[tracing::instrument(skip(self, query), fields(trace_id = %trace_id))]

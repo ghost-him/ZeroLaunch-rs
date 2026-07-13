@@ -36,29 +36,33 @@ impl CandidatePipeline {
             candidates.add_candidates(source.fetch_candidates().await);
         }
 
-        let mut sorted_optimizers: Vec<_> = self.keyword_optimizers.iter().collect();
-        sorted_optimizers.sort_by_key(|op| op.get_priority());
+        let mut sorted: Vec<&dyn KeywordOptimizer> =
+            self.keyword_optimizers.iter().map(|a| a.as_ref()).collect();
+        sorted.sort_by_key(|op| op.get_priority());
 
         for candidate in candidates.get_candidates_mut() {
-            let mut accumulated_keywords: Vec<String> = vec![candidate.name.clone()];
-
-            for optimizer in &sorted_optimizers {
-                let new_keywords = if optimizer.uses_context() {
-                    accumulated_keywords
-                        .iter()
-                        .flat_map(|kw| optimizer.optimize(kw))
-                        .collect()
-                } else {
-                    optimizer.optimize(&candidate.name)
-                };
-
-                accumulated_keywords.extend(new_keywords);
-            }
-
-            candidate.keywords = Self::deduplicate_keywords(accumulated_keywords);
+            candidate.keywords = Self::apply_keyword_optimizers(&candidate.name, &sorted);
         }
 
         candidates
+    }
+
+    /// 对单个名称运行优化器链，返回去重后的关键字列表。
+    /// 参数 `sorted` 必须已按 `get_priority()` 升序排列。
+    fn apply_keyword_optimizers(name: &str, sorted: &[&dyn KeywordOptimizer]) -> Vec<String> {
+        let mut accumulated: Vec<String> = vec![name.to_string()];
+        for optimizer in sorted {
+            let new_keywords = if optimizer.uses_context() {
+                accumulated
+                    .iter()
+                    .flat_map(|kw| optimizer.optimize(kw))
+                    .collect()
+            } else {
+                optimizer.optimize(name)
+            };
+            accumulated.extend(new_keywords);
+        }
+        Self::deduplicate_keywords(accumulated)
     }
 
     fn deduplicate_keywords(keywords: Vec<String>) -> Vec<String> {
@@ -67,6 +71,14 @@ impl CandidatePipeline {
             .into_iter()
             .filter(|k| seen.insert(k.clone()))
             .collect()
+    }
+    /// 调试用：对单个名称运行关键字优化器链，返回所有生成的关键字。
+    /// 不修改候选项缓存。内部自行排序后调用共享逻辑。
+    pub fn generate_keywords_for_name(&self, name: &str) -> Vec<String> {
+        let mut sorted: Vec<&dyn KeywordOptimizer> =
+            self.keyword_optimizers.iter().map(|a| a.as_ref()).collect();
+        sorted.sort_by_key(|op| op.get_priority());
+        Self::apply_keyword_optimizers(name, &sorted)
     }
 
     /// 根据 component_id 查找已注册的 Configurable 组件。

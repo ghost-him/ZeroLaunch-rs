@@ -20,7 +20,7 @@ interruptMode: never
 
 - 开发用调试面板，**仅** 在 `cargo build --features inspector` 时启用
 - 后端：`plugin_framework/inspector.rs` 维护 ring buffer (容量 200)，记录每次 `bridge_query` 的 trace_id、raw_query、mode、耗时
-- IPC：`inspector_get_state` 返回已注册组件清单 + 最近查询日志；`inspector_simulate_query` 手动模拟查询返回原始 QueryResponse
+IPC：`inspector_get_state` 返回已注册组件清单 + 最近查询日志；`debug_simulate_query` 手动模拟查询返回原始 QueryResponse
 - 前端：设置页 > 插件检查器 tab，包含组件清单表格、查询日志、模拟器
 
 ## Configurable 生命周期

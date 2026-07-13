@@ -1,11 +1,11 @@
 ---
-description: 插件系统规范：inventory 自动注册、Configurable 生命周期、ExecutorRegistry、PluginHandle、Pipeline、事件驱动解耦
+description: 插件系统总览：inventory 自动注册、Configurable 生命周期、CandidatePipeline、SearchPipeline、事件驱动解耦
 condition: ".*"
 scope: "tool:read(src-tauri/src/builtin_plugin/**), tool:edit(src-tauri/src/builtin_plugin/**), tool:write(src-tauri/src/builtin_plugin/**), tool:read(src-tauri/src/plugin_framework/**), tool:edit(src-tauri/src/plugin_framework/**), tool:write(src-tauri/src/plugin_framework/**), tool:read(crates/plugin-api/src/plugin/**), tool:edit(crates/plugin-api/src/plugin/**), tool:write(crates/plugin-api/src/plugin/**), tool:read(crates/plugin-api/src/host/**), tool:edit(crates/plugin-api/src/host/**), tool:write(crates/plugin-api/src/host/**)"
 interruptMode: never
 ---
 
-# 插件系统规范
+# 插件系统总览
 
 ## 内置组件自动注册 (inventory)
 
@@ -26,37 +26,6 @@ interruptMode: never
 ## Configurable 生命周期
 
 配置变更遵循 5 步流水线：校验（validate_settings）→ 写入（apply_settings）→ 副作用（on_settings_changed）→ 广播 ConfigEvent → 持久化。
-
-## ExecutorRegistry
-
-- `ExecutorRegistry::resolve(ctx, action_id)` 是动作执行器的 **唯一** 查找入口，返回 `Arc<dyn ActionExecutor>`
-- `ExecutorRegistry::resolve_fallback(ctx, fallback_action)` 用于窗口唤醒失败时的回退执行器查找
-- `ExecutorRegistry::get_actions(target_type)` 用于查询某 `TargetType` 的可用动作，仅用于查询，**禁止** 用于执行路由
-- 调用方从 `resolve()` / `resolve_fallback()` 获取 executor 后，再调用 `executor.execute(ctx, action_id).await`
-- 参照实现：`session_router.rs` 的 `route_confirm()` — 先 resolve 再 execute，含 fallback 处理
-
-## PluginHandle 使用
-
-- 插件 **必须** 通过 `PluginHandle`（从 `HostApi::register()` 获取）访问平台能力。可用方法列表见 `PluginHandle` 源码（`crates/plugin-api/src/host/plugin_handle.rs`）
-- 如果某平台操作没有 `PluginHandle` 方法，**必须** 先添加到 `PluginHandle` 再使用
-
-## 配置存储模式
-
-所有 `Configurable` 实现 **必须** 使用强类型 `Settings` struct（带 `#[derive(Serialize, Deserialize)]` + 每个字段标注 `#[serde(rename, default)]`），通过 `RwLock<Settings>` 存储。详细规范见 `.omp/rules/config.md` 的 Serde 默认值强制规范。
-
-`apply_settings()` 中 **必须** 使用 `serde_json::from_value::<Settings>(settings).unwrap_or_default()` 反序列化，然后写入 `RwLock`。**禁止** 在 `apply_settings()` 中做解析、校验或副作用。
-
-## 核心配置组件模式（builtin_plugin/config/ 中的组件）
-
-- 核心配置组件（HotkeyConfig、AppearanceConfig 等）可使用更复杂的内部状态
-- 可持有 `Arc<HostApi>` 用于在 `on_settings_changed()` 中调用平台服务
-- `on_settings_changed()` 中 **允许** spawn async task 执行副作用（如注册热键、启动监控）
-- **禁止** 在 `apply_settings()` 中 spawn async task。副作用 **必须** 在 `on_settings_changed()` 中
-
-## PluginHandle 回调 ID 规范
-
-- 通过 PluginHandle 注册回调时，ID 自动被 plugin_id 前缀化（如 `"core:search_bar_toggle"`），**必须** 避免手动添加前缀
-- 回调注销 **必须** 在 `on_settings_changed()` 或组件 drop 时执行
 
 ## 候选项管道（CandidatePipeline）
 
@@ -82,10 +51,3 @@ interruptMode: never
 ## 依赖方向
 
 见 `.omp/AGENTS.md` 的顶层目录职责表。
-
-## Plugin Trait Init
-
-- `Plugin::init()` 接收 `&PluginContext`（请求级上下文）和 `Arc<PluginHandle>`（插件服务句柄）
-- `PluginHandle` 从 `HostApi::register(plugin_id, config)` 获取，绑定插件身份与配置
-- 用 `handle` 参数执行平台操作。用 `ctx` 参数获取 trace_id、query_id 等请求级信息
-- **禁止** 在插件内部状态中存储 `PluginHandle`；通过 `init` 参数或 `PluginContext` 访问

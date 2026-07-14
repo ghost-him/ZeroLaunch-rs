@@ -16,6 +16,12 @@
           title="内容处理器"
         />
       </n-tab-pane>
+      <n-tab-pane name="injector" tab="关键字注入器">
+        <ListDetailPanel
+          :items="getComponentsByType('KeywordInjector')"
+          title="关键字注入器"
+        />
+      </n-tab-pane>
       <n-tab-pane name="searchengine" tab="检索引擎">
         <ListDetailPanel
           :items="getComponentsByType('SearchEngine')"
@@ -51,8 +57,12 @@ const props = defineProps<{
   components: ComponentInfo[]
 }>()
 
+function getComponentsByTypes(types: string[]): ComponentInfo[] {
+  return props.components.filter(c => types.includes(c.componentType))
+}
+
 function getComponentsByType(type: string): ComponentInfo[] {
-  return props.components.filter(c => c.componentType === type)
+  return getComponentsByTypes([type])
 }
 
 const { onToggle: onSearchEngineToggle } = useSearchEngineToggle(

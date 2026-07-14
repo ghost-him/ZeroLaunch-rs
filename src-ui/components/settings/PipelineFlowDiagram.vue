@@ -16,18 +16,24 @@
       <div class="flow-arrow">➔</div>
       <div class="flow-step">
         <div class="step-num">3</div>
+        <div class="step-label">关键字注入器</div>
+        <div class="step-desc">注入别名等</div>
+      </div>
+      <div class="flow-arrow">➔</div>
+      <div class="flow-step">
+        <div class="step-num">4</div>
         <div class="step-label">检索引擎</div>
         <div class="step-desc">初筛与算分</div>
       </div>
       <div class="flow-arrow">➔</div>
       <div class="flow-step">
-        <div class="step-num">4</div>
+        <div class="step-num">5</div>
         <div class="step-label">评分增强器</div>
         <div class="step-desc">加权与排序</div>
       </div>
       <div class="flow-arrow">➔</div>
       <div class="flow-step">
-        <div class="step-num">5</div>
+        <div class="step-num">6</div>
         <div class="step-label">执行器</div>
         <div class="step-desc">回车执行动作</div>
       </div>

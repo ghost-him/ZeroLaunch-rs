@@ -20,11 +20,14 @@ export function buildSidebarItems(
   isDebugMode: boolean,
 ): SidebarCategory[] {
   const core = components.filter(
-    (c) => c.componentType === 'Core' && c.componentId !== 'appearance-config',
+    (c) =>
+      c.componentType === 'Core' &&
+      c.componentId !== 'appearance-config' &&
+      c.componentId !== 'candidate-registry',
   ).sort(sortByPriority)
   const appearance = components.filter((c) => c.componentId === 'appearance-config').sort(sortByPriority)
   const pipeline = components.filter((c) =>
-    ['DataSource', 'KeywordOptimizer', 'SearchEngine', 'ScoreBooster', 'ActionExecutor'].includes(
+    ['DataSource', 'KeywordOptimizer', 'KeywordInjector', 'SearchEngine', 'ScoreBooster', 'ActionExecutor'].includes(
       c.componentType,
     ),
   ).sort(sortByPriority)

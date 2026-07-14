@@ -111,6 +111,13 @@ pub enum ArrayUiHint {
     MasterDetail,
     #[serde(rename = "tags")]
     Tags,
+    #[serde(rename = "searchTable")]
+    SearchTable {
+        #[serde(rename = "sourceComponent")]
+        source_component: String,
+        #[serde(rename = "sourceAction")]
+        source_action: String,
+    },
 }
 
 /// 原始类型枚举，用于数组元素的类型定义。

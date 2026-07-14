@@ -1,11 +1,11 @@
 use super::candidate_pipeline::CandidatePipeline;
+use super::component_registry::PluginComponentRegistry;
 use super::executor_registry::ExecutorRegistry;
 use super::search_pipeline::SearchPipeline;
 use super::service::PluginService;
 use crate::core::config::{ConfigEvent, ConfigManager};
 use crate::sdk::HostApi;
 use parking_lot::{Mutex, RwLock};
-use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
 use tracing::{debug, info};
@@ -13,9 +13,9 @@ use zerolaunch_plugin_api::config::ComponentType;
 use zerolaunch_plugin_api::services::parameter::template_parser::{Placeholder, TemplateParser};
 use zerolaunch_plugin_api::services::ParameterSnapshot;
 use zerolaunch_plugin_api::{
-    ActionExecutor, CachedCandidateData, CandidateId, ConfirmResult, DataSource, ExecutionContext,
-    ExecutionError, ListItem, Plugin, PluginContext, Query, QueryResponse, ScoreBooster,
-    ScoredCandidate, SearchCandidate, SearchEngine,
+    ActionExecutor, CachedCandidateData, CandidateId, ConfirmResult, ExecutionContext,
+    ExecutionError, ListItem, Plugin, PluginContext, Query, QueryResponse, ScoredCandidate,
+    SearchCandidate,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -116,10 +116,8 @@ pub struct SessionRouter {
     /// 当前会话的系统参数快照
     /// 在唤醒搜索栏时捕获，执行动作时消费
     parameter_snapshot: Mutex<ParameterSnapshot>,
-    /// 搜索引擎注册表（按 component_id 索引），用于动态重建管道
-    search_engines: RwLock<HashMap<String, Arc<dyn SearchEngine>>>,
-    /// 分数增强器注册表（按 component_id 索引），用于动态重建管道
-    score_boosters: RwLock<HashMap<String, Arc<dyn ScoreBooster>>>,
+    /// 插件运行时组件注册中心，统一管理所有领域 trait 引用和管道重建
+    components: PluginComponentRegistry,
     /// 上次构建管道时的 top_k 值
     last_top_k: RwLock<usize>,
 }
@@ -136,24 +134,9 @@ impl SessionRouter {
             config_manager: RwLock::new(None),
             host_api: RwLock::new(None),
             parameter_snapshot: Mutex::new(ParameterSnapshot::empty()),
-            search_engines: RwLock::new(HashMap::new()),
-            score_boosters: RwLock::new(HashMap::new()),
+            components: PluginComponentRegistry::new(),
             last_top_k: RwLock::new(10),
         }
-    }
-
-    /// 注册一个搜索引擎引用，用于配置变更时动态重建管道
-    pub fn register_search_engine(&self, engine: Arc<dyn SearchEngine>) {
-        self.search_engines
-            .write()
-            .insert(engine.component_id().to_string(), engine);
-    }
-
-    /// 注册一个分数增强器引用，用于配置变更时动态重建管道
-    pub fn register_score_booster(&self, booster: Arc<dyn ScoreBooster>) {
-        self.score_boosters
-            .write()
-            .insert(booster.component_id().to_string(), booster);
     }
 
     /// 注册一个执行器
@@ -164,22 +147,9 @@ impl SessionRouter {
             .expect("Failed to register executor");
     }
 
-    /// 注册一个第三方数据源（供 plugin_loader 调用）
-    pub async fn register_data_source(&self, source: Arc<dyn DataSource>) {
-        self.candidate_pipeline.write().await.add_source(source);
-    }
-
     /// 注册一个第三方插件（供 plugin_loader 调用）
     pub fn register_remote_plugin(&self, plugin: Arc<dyn Plugin>) {
         self.plugin_service.register(plugin);
-    }
-
-    /// 注销一个数据源（按 component_id）
-    pub async fn unregister_data_source(&self, component_id: &str) {
-        self.candidate_pipeline
-            .write()
-            .await
-            .remove_source(component_id);
     }
 
     /// 注销一个执行器（按 component_id）
@@ -586,6 +556,10 @@ impl SessionRouter {
         &self.plugin_service
     }
 
+    pub fn components(&self) -> &PluginComponentRegistry {
+        &self.components
+    }
+
     #[tracing::instrument(skip(self))]
     pub async fn on_search_bar_wake(&self) -> Result<(), SessionRouterError> {
         let host_api = self.host_api.read().clone().ok_or_else(|| {
@@ -605,8 +579,7 @@ impl SessionRouter {
         *self.config_manager.write() = Some(config_manager);
     }
 
-    /// 动态重建搜索管道。
-    /// 根据当前已注册且启用的 SearchEngine 和 ScoreBooster 重建 SearchPipeline。
+    /// 根据当前注册的搜索引擎和分数增强器重建搜索管道。
     pub fn rebuild_search_pipeline(&self) {
         let cm_guard = self.config_manager.read();
         let cm = match cm_guard.as_ref() {
@@ -614,32 +587,15 @@ impl SessionRouter {
             None => return,
         };
 
-        // 收集启用的搜索引擎（取第一个）
-        let engines = self.search_engines.read();
-        let enabled_engine = engines
-            .values()
-            .find(|e| cm.is_enabled(e.component_id()))
-            .cloned();
-
-        // 收集启用的分数增强器（保持注册顺序）
-        let boosters = self.score_boosters.read();
-        let enabled_boosters: Vec<Arc<dyn ScoreBooster>> = boosters
-            .values()
-            .filter(|b| cm.is_enabled(b.component_id()))
-            .cloned()
-            .collect();
-
-        if let Some(engine) = enabled_engine {
-            let top_k = *self.last_top_k.read();
-            let pipeline = SearchPipeline::new(engine, enabled_boosters, top_k);
-            *self.search_pipeline.write() = Some(pipeline);
-            info!(
-                "搜索管道已重建 (搜索引擎: 1, 增强器: {}, top_k: {})",
-                boosters.len(),
-                top_k
-            );
-        } else {
-            tracing::warn!("没有启用的搜索引擎，无法重建搜索管道");
+        let top_k = *self.last_top_k.read();
+        match self.components.build_search_pipeline(cm, top_k) {
+            Some(pipeline) => {
+                info!("搜索管道已重建 (top_k: {})", pipeline.top_k());
+                *self.search_pipeline.write() = Some(pipeline);
+            }
+            None => {
+                tracing::warn!("没有启用的搜索引擎，无法重建搜索管道");
+            }
         }
     }
 
@@ -653,7 +609,9 @@ impl SessionRouter {
             } => {
                 debug!("配置变更事件: {} ({:?})", component_id, component_type);
                 match component_type {
-                    ComponentType::DataSource | ComponentType::KeywordOptimizer => {
+                    ComponentType::DataSource
+                    | ComponentType::KeywordOptimizer
+                    | ComponentType::KeywordInjector => {
                         info!("数据源/关键词优化器配置变更，刷新候选项缓存");
                         self.refresh_candidates().await;
                     }
@@ -675,9 +633,15 @@ impl SessionRouter {
                     "启用状态变更事件: {} ({:?}), enabled={}",
                     component_id, component_type, enabled
                 );
+
                 match component_type {
-                    ComponentType::DataSource | ComponentType::KeywordOptimizer => {
-                        info!("数据源启用状态变更，刷新候选项缓存");
+                    ComponentType::DataSource
+                    | ComponentType::KeywordOptimizer
+                    | ComponentType::KeywordInjector => {
+                        // 重建候选管道（可用组件集合已变化）
+                        let cm = self.config_manager.read().clone().unwrap();
+                        let new_pipeline = self.components.build_candidate_pipeline(cm.as_ref());
+                        *self.candidate_pipeline.write().await = new_pipeline;
                         self.refresh_candidates().await;
                     }
                     ComponentType::SearchEngine | ComponentType::ScoreBooster => {
@@ -694,7 +658,7 @@ impl SessionRouter {
                 info!("第三方插件运行时组件已注册: {}", adapters.plugin_id);
                 for comp in &adapters.components {
                     if let Some(ds) = comp.clone().as_data_source() {
-                        self.register_data_source(ds).await;
+                        self.components.register_data_source(ds);
                     }
                     if let Some(ex) = comp.clone().as_action_executor() {
                         self.register_executor(ex);
@@ -703,6 +667,10 @@ impl SessionRouter {
                         self.register_remote_plugin(p);
                     }
                 }
+                // 重建候选管道以包含新组件
+                let cm = self.config_manager.read().clone().unwrap();
+                let new_pipeline = self.components.build_candidate_pipeline(cm.as_ref());
+                *self.candidate_pipeline.write().await = new_pipeline;
                 self.refresh_candidates().await;
             }
             ConfigEvent::PluginUnregistered(adapters) => {
@@ -710,12 +678,17 @@ impl SessionRouter {
                 self.unregister_plugin(&adapters.plugin_id);
                 for comp in &adapters.components {
                     if comp.is_data_source() {
-                        self.unregister_data_source(comp.core.component_id()).await;
+                        self.components
+                            .unregister_data_source(comp.core.component_id());
                     }
                     if comp.is_action_executor() {
                         self.unregister_executor(comp.core.component_id());
                     }
                 }
+                // 重建候选管道以移除已解注册的组件
+                let cm = self.config_manager.read().clone().unwrap();
+                let new_pipeline = self.components.build_candidate_pipeline(cm.as_ref());
+                *self.candidate_pipeline.write().await = new_pipeline;
                 self.refresh_candidates().await;
             }
         }

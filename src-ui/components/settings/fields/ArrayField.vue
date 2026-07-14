@@ -43,6 +43,15 @@
       @update:model-value="emit('update:modelValue', $event)"
     />
 
+    <SearchTableArray
+      v-else-if="isObject && isSearchTableUiHint(uiHint)"
+      :definition="definition"
+      :component-id="componentId"
+      :model-value="arrayValue"
+      :item="arrayItem"
+      @update:model-value="emit('update:modelValue', $event)"
+    />
+
     <ObjectCardsArray
       v-else-if="isObject"
       :definition="definition"
@@ -60,13 +69,14 @@
 import { computed } from 'vue'
 import { NText } from 'naive-ui'
 import ConfigActionButton from '../ConfigActionButton.vue'
-import { isPrimitiveArray, isObjectArray } from '../../../utils/schemaTypes'
+import { isPrimitiveArray, isObjectArray, isSearchTableUiHint } from '../../../utils/schemaTypes'
 import type { SettingDefinition, ArrayItem, ArrayUiHint } from '../../../bridge/contract'
 import PrimitiveTagsArray from './array/PrimitiveTagsArray.vue'
 import PrimitiveListArray from './array/PrimitiveListArray.vue'
 import ObjectCardsArray from './array/ObjectCardsArray.vue'
 import ObjectTableArray from './array/ObjectTableArray.vue'
 import ObjectMasterDetailArray from './array/ObjectMasterDetailArray.vue'
+import SearchTableArray from './array/SearchTableArray.vue'
 
 const props = defineProps<{
   definition: SettingDefinition

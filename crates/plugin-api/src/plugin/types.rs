@@ -194,6 +194,15 @@ pub trait KeywordOptimizer: Configurable {
     fn get_priority(&self) -> i32;
 }
 
+/// 根据候选项的完整上下文注入额外关键字。
+/// 与 KeywordOptimizer 不同，此方法可以访问候选项的 target、icon 等完整信息，
+/// 用于实现"基于候选身份的关键字注入"（如别名）。
+pub trait KeywordInjector: Configurable {
+    /// 根据候选项的完整上下文注入额外关键字。
+    /// 返回注入的关键字列表。
+    fn inject_keywords(&self, candidate: &SearchCandidate) -> Vec<String>;
+}
+
 // 表示一个搜索引擎，用于计算搜索候选项的分数
 // 用于根据搜索候选项的分数进行排序
 // 搜索引擎通常计算的是一个候选项与用户输入之间的关系

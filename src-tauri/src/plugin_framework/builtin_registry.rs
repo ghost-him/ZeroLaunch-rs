@@ -13,7 +13,8 @@ use std::sync::Arc;
 use zerolaunch_plugin_api::config::Configurable;
 use zerolaunch_plugin_api::host::PluginHandle;
 use zerolaunch_plugin_api::{
-    ActionExecutor, DataSource, KeywordOptimizer, Plugin, ScoreBooster, SearchEngine,
+    ActionExecutor, DataSource, KeywordInjector, KeywordOptimizer, Plugin, ScoreBooster,
+    SearchEngine,
 };
 
 // ============================================================================
@@ -26,6 +27,8 @@ pub type DataSourceFactory = fn(&InventoryContext) -> (Arc<dyn Configurable>, Ar
 pub type KeywordOptimizerFactory = fn() -> (Arc<dyn Configurable>, Arc<dyn KeywordOptimizer>);
 pub type SearchEngineFactory = fn() -> (Arc<dyn Configurable>, Arc<dyn SearchEngine>);
 pub type ScoreBoosterFactory = fn() -> (Arc<dyn Configurable>, Arc<dyn ScoreBooster>);
+pub type KeywordInjectorFactory =
+    fn(&InventoryContext) -> (Arc<dyn Configurable>, Arc<dyn KeywordInjector>);
 pub type PluginFactory = fn() -> (Arc<dyn Configurable>, Arc<dyn Plugin>);
 /// 纯配置组件工厂（仅实现 Configurable，不附带其他 trait）。
 pub type ConfigComponentFactory = fn(&InventoryContext) -> Arc<dyn Configurable>;
@@ -38,6 +41,7 @@ pub struct CollectedBuiltins {
     pub executors: Vec<(Arc<dyn Configurable>, Arc<dyn ActionExecutor>)>,
     pub data_sources: Vec<(Arc<dyn Configurable>, Arc<dyn DataSource>)>,
     pub keyword_optimizers: Vec<(Arc<dyn Configurable>, Arc<dyn KeywordOptimizer>)>,
+    pub keyword_injectors: Vec<(Arc<dyn Configurable>, Arc<dyn KeywordInjector>)>,
     pub search_engines: Vec<(Arc<dyn Configurable>, Arc<dyn SearchEngine>)>,
     pub score_boosters: Vec<(Arc<dyn Configurable>, Arc<dyn ScoreBooster>)>,
     pub plugins: Vec<(Arc<dyn Configurable>, Arc<dyn Plugin>)>,
@@ -54,6 +58,9 @@ impl CollectedBuiltins {
             f(c);
         }
         for (c, _) in &self.keyword_optimizers {
+            f(c);
+        }
+        for (c, _) in &self.keyword_injectors {
             f(c);
         }
         for (c, _) in &self.search_engines {
@@ -94,6 +101,13 @@ pub struct KeywordOptimizerEntry {
     pub factory: KeywordOptimizerFactory,
 }
 
+/// 关键词注入器条目。
+pub struct KeywordInjectorEntry {
+    pub component_id: &'static str,
+    pub priority: u32,
+    pub factory: KeywordInjectorFactory,
+}
+
 /// 搜索引擎条目。
 pub struct SearchEngineEntry {
     pub component_id: &'static str,
@@ -132,6 +146,7 @@ pub struct ConfigEntry {
 ::inventory::collect!(SearchEngineEntry);
 ::inventory::collect!(ScoreBoosterEntry);
 ::inventory::collect!(PluginEntry);
+::inventory::collect!(KeywordInjectorEntry);
 ::inventory::collect!(ConfigEntry);
 
 // ============================================================================
@@ -141,15 +156,21 @@ pub struct ConfigEntry {
 /// 提供给组件工厂的上下文，负责懒创建和缓存 `PluginHandle`。
 pub struct InventoryContext {
     host_api: Arc<HostApi>,
+    session_router: Arc<super::SessionRouter>,
     handle_cache: RwLock<HashMap<&'static str, Arc<PluginHandle>>>,
 }
 
 impl InventoryContext {
-    pub fn new(host_api: Arc<HostApi>) -> Self {
+    pub fn new(host_api: Arc<HostApi>, session_router: Arc<super::SessionRouter>) -> Self {
         Self {
             host_api,
+            session_router,
             handle_cache: RwLock::new(HashMap::new()),
         }
+    }
+
+    pub fn session_router(&self) -> &Arc<super::SessionRouter> {
+        &self.session_router
     }
 
     /// 获取或创建指定 key 的 PluginHandle。相同 key 的组件共享同一个 handle。
@@ -196,6 +217,12 @@ pub fn collect_all_builtin_entries(ctx: &InventoryContext) -> CollectedBuiltins 
     opt_entries.sort_by_key(|e| e.priority);
     let keyword_optimizers: Vec<_> = opt_entries.iter().map(|e| (e.factory)()).collect();
 
+    // -- 关键词注入器 --
+    let mut inj_entries: Vec<&KeywordInjectorEntry> =
+        ::inventory::iter::<KeywordInjectorEntry>().collect();
+    inj_entries.sort_by_key(|e| e.priority);
+    let keyword_injectors: Vec<_> = inj_entries.iter().map(|e| (e.factory)(ctx)).collect();
+
     // -- 搜索引擎 --
     let mut eng_entries: Vec<&SearchEngineEntry> =
         ::inventory::iter::<SearchEngineEntry>().collect();
@@ -225,6 +252,7 @@ pub fn collect_all_builtin_entries(ctx: &InventoryContext) -> CollectedBuiltins 
         search_engines,
         score_boosters,
         plugins,
+        keyword_injectors,
         config_components,
     }
 }

@@ -27,6 +27,7 @@ use crate::core::config::event::{PluginEventSender, PluginRuntimeEvent};
 use crate::plugin_framework::builtin_registry;
 use crate::plugin_framework::builtin_registry::{CollectedBuiltins, InventoryContext};
 use crate::plugin_framework::zlplugin_protocol::ZlpluginProtocolHandler;
+use crate::plugin_framework::SessionRouter;
 use crate::sdk::HostApi;
 
 use super::builtin;
@@ -153,10 +154,11 @@ impl PluginManager {
 
     /// 收集所有内置组件、创建 PluginInfo 条目。
     ///
+    /// 参数 `session_router` 用于传递给 InventoryContext，供需要 SessionRouter 的组件工厂使用。
     /// 返回 `CollectedBuiltins`，调用方负责将各部分注册到 ConfigManager / SessionRouter。
-    pub(crate) fn init_builtins(&self) -> CollectedBuiltins {
+    pub(crate) fn init_builtins(&self, session_router: Arc<SessionRouter>) -> CollectedBuiltins {
         let host_api = self.host_api();
-        let ctx = InventoryContext::new(host_api.clone());
+        let ctx = InventoryContext::new(host_api.clone(), session_router);
         let collected = builtin_registry::collect_all_builtin_entries(&ctx);
 
         // 为所有内置组件创建 PluginInfo 条目
@@ -168,6 +170,9 @@ impl PluginManager {
             infos.push(builtin::make_builtin_info(c, c.default_enabled()));
         }
         for (c, _) in &collected.keyword_optimizers {
+            infos.push(builtin::make_builtin_info(c, c.default_enabled()));
+        }
+        for (c, _) in &collected.keyword_injectors {
             infos.push(builtin::make_builtin_info(c, c.default_enabled()));
         }
         for (c, _) in &collected.search_engines {

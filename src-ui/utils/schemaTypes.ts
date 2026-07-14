@@ -202,3 +202,36 @@ export function getDefaultArrayItem(
   }
   return ''
 }
+
+// ---- ArrayUiHint 类型守卫 ----
+
+export function isDefaultUiHint(hint: ArrayUiHint): hint is 'default' {
+  return hint === 'default'
+}
+
+export function isTableUiHint(hint: ArrayUiHint): hint is 'table' {
+  return hint === 'table'
+}
+
+export function isMasterDetailUiHint(hint: ArrayUiHint): hint is 'masterDetail' {
+  return hint === 'masterDetail'
+}
+
+export function isTagsUiHint(hint: ArrayUiHint): hint is 'tags' {
+  return hint === 'tags'
+}
+
+export function isSearchTableUiHint(
+  hint: ArrayUiHint,
+): hint is { searchTable: { sourceComponent: string; sourceAction: string } } {
+  return typeof hint === 'object' && hint !== null && 'searchTable' in hint
+}
+
+export function getSearchTableSource(
+  hint: ArrayUiHint,
+): { sourceComponent: string; sourceAction: string } | null {
+  if (isSearchTableUiHint(hint)) {
+    return hint.searchTable
+  }
+  return null
+}

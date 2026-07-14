@@ -21,7 +21,6 @@ use crate::core::config::event::create_plugin_event_bus;
 use crate::core::config::{ConfigEvent, ConfigManager};
 use crate::plugin_framework::inspector::Inspector;
 use crate::plugin_framework::manager::PluginManager;
-use crate::plugin_framework::CandidatePipeline;
 use crate::state::app_state::AppState;
 use crate::tray::TrayManager;
 use crate::window::{prepare_window_position, save_window_position_if_drag};
@@ -311,21 +310,38 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
     // ========================================================================
     info!("=== Phase A: inventory 自动发现并注册所有内置组件 ===");
 
-    let collected = plugin_manager.init_builtins();
+    let collected = plugin_manager.init_builtins(session_router.clone());
 
     collected.for_each_configurable(|c| {
         config_manager.register(c.clone());
     });
 
-    // 注册内置运行时组件到 SessionRouter
+    // 注册内置运行时组件到 PluginComponentRegistry 和 SessionRouter
     for (_, ex) in &collected.executors {
         session_router.register_executor(ex.clone());
     }
     for (_, se) in &collected.search_engines {
-        session_router.register_search_engine(se.clone());
+        session_router
+            .components()
+            .register_search_engine(se.clone());
     }
     for (_, sb) in &collected.score_boosters {
-        session_router.register_score_booster(sb.clone());
+        session_router
+            .components()
+            .register_score_booster(sb.clone());
+    }
+    for (_, ds) in &collected.data_sources {
+        session_router.components().register_data_source(ds.clone());
+    }
+    for (_, ko) in &collected.keyword_optimizers {
+        session_router
+            .components()
+            .register_keyword_optimizer(ko.clone());
+    }
+    for (_, ki) in &collected.keyword_injectors {
+        session_router
+            .components()
+            .register_keyword_injector(ki.clone());
     }
     for (_, p) in &collected.plugins {
         session_router.plugin_service().register(p.clone());
@@ -376,29 +392,10 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
         warn!("加载持久化配置失败: {}", e);
     }
 
-    // Phase B.5: 调试模式日志
-    // 读取 general-config.is_debug_mode 并输出日志（不再需要同步 Inspector 录制状态）。
-    let is_debug = config_manager
-        .get_settings("general-config")
-        .and_then(|v| v.get("is_debug_mode")?.as_bool())
-        .unwrap_or(false);
-    if is_debug {
-        info!("调试模式已开启");
-    }
-
-    // ========================================================================
-    // Phase C: 构建管道
-    // ========================================================================
-    info!("=== Phase C: 构建业务管道 ===");
-
     info!("构建候选管道...");
-    let mut candidate_pipeline = CandidatePipeline::new();
-    for (_, ds) in &collected.data_sources {
-        candidate_pipeline.add_source(ds.clone());
-    }
-    for (_, ko) in &collected.keyword_optimizers {
-        candidate_pipeline.add_keyword_optimizer(ko.clone());
-    }
+    let candidate_pipeline = session_router
+        .components()
+        .build_candidate_pipeline(&config_manager);
 
     info!("正在收集候选项（此时各组件已持有用户持久化配置）...");
     let candidates = candidate_pipeline.collect().await;

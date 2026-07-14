@@ -7,6 +7,8 @@ pub enum ComponentType {
     DataSource,
     #[serde(rename = "KeywordOptimizer")]
     KeywordOptimizer,
+    #[serde(rename = "KeywordInjector")]
+    KeywordInjector,
     #[serde(rename = "SearchEngine")]
     SearchEngine,
     #[serde(rename = "ScoreBooster")]

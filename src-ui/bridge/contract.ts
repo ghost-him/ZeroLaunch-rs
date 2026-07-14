@@ -55,12 +55,12 @@ export type ConfirmResponse =
 export type ComponentType =
   | 'DataSource'
   | 'KeywordOptimizer'
+  | 'KeywordInjector'
   | 'SearchEngine'
   | 'ScoreBooster'
   | 'ActionExecutor'
   | 'Plugin'
   | 'Core'
-
 export interface ComponentInfo {
   componentId: string
   componentName: string
@@ -130,12 +130,26 @@ export type PrimitiveType =
   | { path: { mode: 'file' | 'directory' } }
   | 'color'
 
-export type ArrayUiHint = 'default' | 'table' | 'masterDetail' | 'tags'
+export type ArrayUiHint =
+  | 'default'
+  | 'table'
+  | 'masterDetail'
+  | 'tags'
+  | { searchTable: { sourceComponent: string; sourceAction: string } }
 
 export interface ConfigActionDef {
   action: string
   label: string
   description: string
+}
+
+// ---- 候选项摘要（用于 SearchTable 搜索结果） ----
+
+export interface CandidateSummary {
+  name: string
+  target: string
+  targetType: string
+  icon: string
 }
 
 // ---- 事件载荷 ----

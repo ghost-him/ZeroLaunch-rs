@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+use async_trait::async_trait;
 use std::collections::HashMap;
 use zerolaunch_plugin_api::config::{ComponentCore, ComponentType, Configurable};
 use zerolaunch_plugin_api::{
@@ -33,6 +34,7 @@ impl Default for StandardSearchModel {
     }
 }
 
+#[async_trait]
 impl Configurable for StandardSearchModel {
     fn core(&self) -> &ComponentCore {
         &self.core

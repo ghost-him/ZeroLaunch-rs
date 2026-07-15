@@ -70,6 +70,7 @@ impl BuiltinCommandSource {
     }
 }
 
+#[async_trait]
 impl Configurable for BuiltinCommandSource {
     fn core(&self) -> &ComponentCore {
         &self.core

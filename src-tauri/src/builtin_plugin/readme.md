@@ -55,7 +55,7 @@ pub trait Configurable: Send + Sync {
 
     // === 配置动作 ===
     fn config_actions(&self) -> Vec<ConfigActionDef> { vec![] }  // 声明配置动作列表
-    fn execute_config_action(&self, action: &str, params: &serde_json::Value) -> Result<serde_json::Value, String> { ... }  // 执行配置动作
+    async fn execute_config_action(&self, action: &str, params: &serde_json::Value) -> Result<serde_json::Value, String> { ... }  // 执行配置动作
 }
 ```
 
@@ -388,7 +388,7 @@ pub trait Configurable: Send + Sync {
     /// 参数：action - 动作标识符，对应 ConfigActionDef.action
     ///       params - 前端传递的附加参数（如书签文件路径）
     /// 返回：动作执行结果（JSON 格式），由前端根据配置项类型解析并填充
-    fn execute_config_action(&self, action: &str, params: &serde_json::Value) -> Result<serde_json::Value, String> {
+    async fn execute_config_action(&self, action: &str, params: &serde_json::Value) -> Result<serde_json::Value, String> {
         let _ = params;
         Err(format!("Unknown config action: {}", action))
     }
@@ -457,7 +457,7 @@ impl Configurable for BookmarkSource {
         }]
     }
 
-    fn execute_config_action(&self, action: &str, params: &serde_json::Value) -> Result<serde_json::Value, String> {
+    async fn execute_config_action(&self, action: &str, params: &serde_json::Value) -> Result<serde_json::Value, String> {
         match action {
             "detect_browsers" => serde_json::to_value(Self::detect_installed_browsers())
                 .map_err(|e| e.to_string()),

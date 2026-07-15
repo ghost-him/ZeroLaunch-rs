@@ -1,5 +1,6 @@
 use crate::core::config::setting_builders::SchemaBuilder;
 use crate::utils::get_current_time;
+use async_trait::async_trait;
 use dashmap::DashMap;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
@@ -174,6 +175,7 @@ impl QueryAffinityBooster {
     }
 }
 
+#[async_trait]
 impl Configurable for QueryAffinityBooster {
     fn core(&self) -> &ComponentCore {
         &self.core

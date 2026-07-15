@@ -1,4 +1,5 @@
 use crate::core::config::setting_builders::SchemaBuilder;
+use async_trait::async_trait;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use tracing::warn;
@@ -77,6 +78,7 @@ impl WindowBehaviorConfigComponent {
     }
 }
 
+#[async_trait]
 impl Configurable for WindowBehaviorConfigComponent {
     fn core(&self) -> &ComponentCore {
         &self.core

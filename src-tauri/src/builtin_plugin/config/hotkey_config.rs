@@ -1,5 +1,6 @@
 use crate::core::config::setting_builders::SchemaBuilder;
 use crate::sdk::HostApi;
+use async_trait::async_trait;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -135,6 +136,7 @@ fn settings_to_hotkey_config(settings: &HotkeySettings) -> HotkeyConfig {
     }
 }
 
+#[async_trait]
 impl Configurable for HotkeyConfigComponent {
     fn core(&self) -> &ComponentCore {
         &self.core

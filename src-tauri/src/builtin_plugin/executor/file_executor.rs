@@ -49,6 +49,7 @@ impl FileExecutor {
     }
 }
 
+#[async_trait]
 impl Configurable for FileExecutor {
     fn core(&self) -> &ComponentCore {
         &self.core

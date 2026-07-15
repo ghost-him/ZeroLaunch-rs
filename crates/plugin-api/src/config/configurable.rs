@@ -3,9 +3,12 @@ use crate::config::component_core::ComponentCore;
 use crate::config::component_type::ComponentType;
 use crate::config::error::ConfigError;
 use crate::config::setting_def::SettingDefinition;
+use async_trait::async_trait;
 
 /// 所有可配置组件都需实现的核心契约。
+///
 /// 提供组件标识、配置定义、配置读写和配置变更回调能力。
+#[async_trait]
 pub trait Configurable: Send + Sync {
     /// 返回组件身份核心。
     ///
@@ -78,7 +81,7 @@ pub trait Configurable: Send + Sync {
     /// 参数：action - 动作标识符，对应 ConfigActionDef.action。
     ///       params - 前端传递的附加参数（如书签文件路径）。
     /// 返回：动作执行结果（JSON 格式），由前端根据配置项类型解析并填充。
-    fn execute_config_action(
+    async fn execute_config_action(
         &self,
         action: &str,
         params: &serde_json::Value,

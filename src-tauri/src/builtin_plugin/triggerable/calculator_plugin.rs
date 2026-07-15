@@ -76,6 +76,7 @@ impl CalculatorPlugin {
 
 // ---- Configurable impl ----
 
+#[async_trait]
 impl Configurable for CalculatorPlugin {
     fn core(&self) -> &ComponentCore {
         &self.core

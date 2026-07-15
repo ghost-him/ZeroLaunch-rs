@@ -261,6 +261,7 @@ impl BookmarkSource {
     }
 }
 
+#[async_trait]
 impl Configurable for BookmarkSource {
     fn core(&self) -> &ComponentCore {
         &self.core
@@ -353,7 +354,7 @@ impl Configurable for BookmarkSource {
         ]
     }
 
-    fn execute_config_action(
+    async fn execute_config_action(
         &self,
         action: &str,
         params: &serde_json::Value,

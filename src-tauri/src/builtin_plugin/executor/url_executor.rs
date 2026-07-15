@@ -39,6 +39,7 @@ impl UrlExecutor {
     }
 }
 
+#[async_trait]
 impl Configurable for UrlExecutor {
     fn core(&self) -> &ComponentCore {
         &self.core

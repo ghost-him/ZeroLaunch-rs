@@ -96,6 +96,7 @@ impl CommandSource {
     }
 }
 
+#[async_trait]
 impl Configurable for CommandSource {
     fn core(&self) -> &ComponentCore {
         &self.core

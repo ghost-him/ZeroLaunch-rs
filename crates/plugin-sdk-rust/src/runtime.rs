@@ -322,6 +322,7 @@ async fn dispatch(
                 .map_err(|e| JsonRpcError::new(codes::INVALID_PARAMS, e.to_string()))?;
             plugin
                 .execute_config_action(&p.action, &p.params)
+                .await
                 .map_err(|e| JsonRpcError::new(codes::PLUGIN_ERROR, e.to_string()))
         }
         plugin_methods::QUERY => {

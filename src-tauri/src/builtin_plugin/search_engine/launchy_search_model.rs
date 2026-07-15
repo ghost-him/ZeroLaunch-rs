@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use std::collections::HashMap;
 use zerolaunch_plugin_api::config::{ComponentCore, ComponentType, Configurable};
 use zerolaunch_plugin_api::{
@@ -42,6 +43,7 @@ impl Default for LaunchySearchModel {
     }
 }
 
+#[async_trait]
 impl Configurable for LaunchySearchModel {
     fn core(&self) -> &ComponentCore {
         &self.core

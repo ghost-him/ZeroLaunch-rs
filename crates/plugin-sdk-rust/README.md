@@ -5,14 +5,16 @@ Rust SDK for writing ZeroLaunch third-party plugins.
 ## Usage
 
 ```rust
+use async_trait::async_trait;
 use zerolaunch_plugin_sdk_rust::run;
 use zerolaunch_plugin_api::*;
 
 struct MyPlugin;
 
+#[async_trait]
 impl Configurable for MyPlugin { /* ... */ }
 
-#[async_trait::async_trait]
+#[async_trait]
 impl Plugin for MyPlugin {
     fn metadata(&self) -> &PluginMetadata { /* ... */ }
     async fn init(&self, ctx: &PluginContext, handle: Arc<PluginHandle>) -> Result<(), PluginError> { Ok(()) }

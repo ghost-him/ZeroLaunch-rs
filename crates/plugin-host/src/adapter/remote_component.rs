@@ -131,6 +131,7 @@ impl RemoteComponent {
         matches!(self.kind, RemoteComponentKind::Plugin { .. })
     }
 }
+#[async_trait]
 impl Configurable for RemoteComponent {
     fn core(&self) -> &ComponentCore {
         &self.core
@@ -194,7 +195,7 @@ impl Configurable for RemoteComponent {
         }
     }
 
-    fn execute_config_action(
+    async fn execute_config_action(
         &self,
         action: &str,
         params: &serde_json::Value,
@@ -203,20 +204,17 @@ impl Configurable for RemoteComponent {
         let component_id = self.core.component_id().to_string();
         let action = action.to_string();
         let params = params.clone();
-        let result: Result<serde_json::Value, ProtocolError> = tokio::runtime::Handle::current()
-            .block_on(async move {
-                client
-                    .call::<_, serde_json::Value>(
-                        plugin_methods::EXECUTE_CONFIG_ACTION,
-                        ExecuteConfigActionParams {
-                            component_id,
-                            action,
-                            params,
-                        },
-                        Duration::from_secs(10),
-                    )
-                    .await
-            });
+        let result: Result<serde_json::Value, ProtocolError> = client
+            .call::<_, serde_json::Value>(
+                plugin_methods::EXECUTE_CONFIG_ACTION,
+                ExecuteConfigActionParams {
+                    component_id,
+                    action,
+                    params,
+                },
+                Duration::from_secs(10),
+            )
+            .await;
         result.map_err(|e| e.to_string())
     }
 }

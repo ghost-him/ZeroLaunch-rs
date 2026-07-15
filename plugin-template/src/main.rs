@@ -27,6 +27,7 @@ impl HelloWorldPlugin {
     }
 }
 
+#[async_trait]
 impl Configurable for HelloWorldPlugin {
     fn component_id(&self) -> &str { "com.example.hello-world" }
     fn component_name(&self) -> &str { "Hello World" }

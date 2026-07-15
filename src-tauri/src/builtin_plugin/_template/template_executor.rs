@@ -35,6 +35,7 @@ impl TemplateExecutor {
     }
 }
 
+#[async_trait]
 impl Configurable for TemplateExecutor {
     fn core(&self) -> &ComponentCore {
         &self.core

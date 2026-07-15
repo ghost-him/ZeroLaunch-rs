@@ -29,6 +29,7 @@ impl CommandExecutor {
     }
 }
 
+#[async_trait]
 impl Configurable for CommandExecutor {
     fn core(&self) -> &ComponentCore {
         &self.core

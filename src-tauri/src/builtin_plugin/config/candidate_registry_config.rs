@@ -1,5 +1,6 @@
 use crate::plugin_framework::SessionRouter;
 use crate::sdk::HostApi;
+use async_trait::async_trait;
 use base64::Engine;
 use serde::Serialize;
 use std::sync::Arc;
@@ -7,7 +8,6 @@ use zerolaunch_plugin_api::config::{
     ComponentCore, ComponentType, ConfigActionDef, Configurable, SettingDefinition,
 };
 use zerolaunch_plugin_api::host::PluginHandle;
-
 // ============================================================================
 // CandidateSummary — 返回给前端的搜索结果结构
 // ============================================================================
@@ -66,6 +66,7 @@ impl CandidateRegistryConfig {
     }
 }
 
+#[async_trait]
 impl Configurable for CandidateRegistryConfig {
     fn core(&self) -> &ComponentCore {
         &self.core
@@ -95,7 +96,7 @@ impl Configurable for CandidateRegistryConfig {
         }]
     }
 
-    fn execute_config_action(
+    async fn execute_config_action(
         &self,
         action: &str,
         params: &serde_json::Value,
@@ -107,40 +108,36 @@ impl Configurable for CandidateRegistryConfig {
                 let query_lower = query.to_lowercase();
                 let plugin_handle = self.plugin_handle.clone();
 
-                // 同步上下文中执行异步图标提取
-                // Tauri 使用 tokio 多线程运行时，block_in_place 安全
-                let results: Vec<CandidateSummary> = tauri::async_runtime::block_on(async {
-                    let mut results = Vec::new();
-                    for c in candidates
-                        .into_iter()
-                        .filter(|c| {
-                            if query.is_empty() {
-                                true
-                            } else {
-                                c.name.to_lowercase().contains(&query_lower)
-                                    || c.target.payload().to_lowercase().contains(&query_lower)
-                            }
-                        })
-                        .take(50)
-                    {
-                        let icon_data = plugin_handle.get_icon_or_default(c.icon.clone()).await;
-                        let icon_url = if icon_data.is_empty() {
-                            String::new()
+                // 现在已是 async 上下文，直接 await
+                let mut results: Vec<CandidateSummary> = Vec::new();
+                for c in candidates
+                    .into_iter()
+                    .filter(|c| {
+                        if query.is_empty() {
+                            true
                         } else {
-                            format!(
-                                "data:image/png;base64,{}",
-                                base64::engine::general_purpose::STANDARD.encode(&icon_data)
-                            )
-                        };
-                        results.push(CandidateSummary {
-                            name: c.name,
-                            target: c.target.payload().to_string(),
-                            target_type: c.target.target_type().as_str().to_string(),
-                            icon: icon_url,
-                        });
-                    }
-                    results
-                });
+                            c.name.to_lowercase().contains(&query_lower)
+                                || c.target.payload().to_lowercase().contains(&query_lower)
+                        }
+                    })
+                    .take(50)
+                {
+                    let icon_data = plugin_handle.get_icon_or_default(c.icon.clone()).await;
+                    let icon_url = if icon_data.is_empty() {
+                        String::new()
+                    } else {
+                        format!(
+                            "data:image/png;base64,{}",
+                            base64::engine::general_purpose::STANDARD.encode(&icon_data)
+                        )
+                    };
+                    results.push(CandidateSummary {
+                        name: c.name,
+                        target: c.target.payload().to_string(),
+                        target_type: c.target.target_type().as_str().to_string(),
+                        icon: icon_url,
+                    });
+                }
 
                 serde_json::to_value(results).map_err(|e| e.to_string())
             }

@@ -1,4 +1,5 @@
 use crate::core::config::setting_builders::SchemaBuilder;
+use async_trait::async_trait;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
@@ -314,6 +315,7 @@ impl AppearanceConfigComponent {
     }
 }
 
+#[async_trait]
 impl Configurable for AppearanceConfigComponent {
     fn core(&self) -> &ComponentCore {
         &self.core

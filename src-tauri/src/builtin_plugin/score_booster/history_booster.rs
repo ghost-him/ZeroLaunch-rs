@@ -1,5 +1,6 @@
 use crate::core::config::setting_builders::SchemaBuilder;
 use crate::utils::{generate_current_date, get_current_time, is_date_current};
+use async_trait::async_trait;
 use dashmap::DashMap;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
@@ -176,6 +177,7 @@ impl HistoryBooster {
     }
 }
 
+#[async_trait]
 impl Configurable for HistoryBooster {
     fn core(&self) -> &ComponentCore {
         &self.core

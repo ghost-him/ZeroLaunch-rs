@@ -117,6 +117,7 @@ impl WindowActivateExecutor {
     }
 }
 
+#[async_trait]
 impl Configurable for WindowActivateExecutor {
     fn core(&self) -> &ComponentCore {
         &self.core

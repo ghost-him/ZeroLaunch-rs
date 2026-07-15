@@ -29,6 +29,7 @@ impl AppExecutor {
     }
 }
 
+#[async_trait]
 impl Configurable for AppExecutor {
     fn core(&self) -> &ComponentCore {
         &self.core

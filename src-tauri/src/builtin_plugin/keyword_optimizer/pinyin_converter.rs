@@ -1,4 +1,5 @@
 use crate::core::config::setting_builders::SchemaBuilder;
+use async_trait::async_trait;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -115,6 +116,7 @@ impl PinyinConverter {
     }
 }
 
+#[async_trait]
 impl Configurable for PinyinConverter {
     fn core(&self) -> &ComponentCore {
         &self.core

@@ -1,4 +1,5 @@
 use crate::core::config::setting_builders::SchemaBuilder;
+use async_trait::async_trait;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use zerolaunch_plugin_api::config::{
@@ -99,6 +100,7 @@ impl SpaceNormalizer {
     }
 }
 
+#[async_trait]
 impl Configurable for SpaceNormalizer {
     fn core(&self) -> &ComponentCore {
         &self.core

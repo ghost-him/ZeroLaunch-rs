@@ -1,4 +1,5 @@
 use crate::core::config::setting_builders::SchemaBuilder;
+use async_trait::async_trait;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -68,6 +69,7 @@ impl Default for AliasOptimizer {
     }
 }
 
+#[async_trait]
 impl Configurable for AliasOptimizer {
     fn core(&self) -> &ComponentCore {
         &self.core

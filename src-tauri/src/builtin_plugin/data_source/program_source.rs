@@ -263,6 +263,7 @@ impl ProgramSource {
     }
 }
 
+#[async_trait]
 impl Configurable for ProgramSource {
     fn core(&self) -> &ComponentCore {
         &self.core

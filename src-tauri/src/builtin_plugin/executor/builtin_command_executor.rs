@@ -43,6 +43,7 @@ impl Default for BuiltinCommandExecutor {
     }
 }
 
+#[async_trait]
 impl Configurable for BuiltinCommandExecutor {
     fn core(&self) -> &ComponentCore {
         &self.core

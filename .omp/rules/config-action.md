@@ -9,13 +9,13 @@ interruptMode: never
 
 ## 用途：保存前测试
 
-如果副作用必须决定配置能否保存（如 WebDAV 连通性测试）：**必须** 使用 `ConfigAction`。通过 `config_actions() → Vec<ConfigActionDef>` 声明，在 `execute_config_action(&self, action: &str, params: &serde_json::Value) -> Result<serde_json::Value, String>` 中实现。
+如果副作用必须决定配置能否保存（如 WebDAV 连通性测试）：**必须** 使用 `ConfigAction`。通过 `config_actions() → Vec<ConfigActionDef>` 声明，在 `async fn execute_config_action(&self, action: &str, params: &serde_json::Value) -> Result<serde_json::Value, String>` 中实现。
 
 前端 **必须** 将 `config_execute_action` 作为单独的用户触发操作调用，与保存流程解耦。
 
 ## 参数传递
 
-- `execute_config_action(&self, action: &str, params: &serde_json::Value) -> Result<serde_json::Value, String>` 签名支持参数
+- `async fn execute_config_action(&self, action: &str, params: &serde_json::Value) -> Result<serde_json::Value, String>` 签名支持参数
 - 无参数的动作（如 `detect_browsers`）：前端不传 params，后端收到 `Value::Null`
 - 有参数的动作（如 `read_bookmarks`）：前端传 `{ paramKey: value }`，后端从 params 中提取
 - **禁止** 在 `execute_config_action` 中修改组件内部状态。它是 **纯查询/计算** 操作

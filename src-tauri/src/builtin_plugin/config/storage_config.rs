@@ -1,5 +1,6 @@
 use crate::core::config::setting_builders::SchemaBuilder;
 use crate::sdk::HostApi;
+use async_trait::async_trait;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -87,6 +88,7 @@ impl StorageConfigComponent {
     }
 }
 
+#[async_trait]
 impl Configurable for StorageConfigComponent {
     fn core(&self) -> &ComponentCore {
         &self.core

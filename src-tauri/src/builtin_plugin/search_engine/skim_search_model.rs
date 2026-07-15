@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
 use parking_lot::RwLock;
@@ -36,6 +37,7 @@ impl Default for SkimSearchModel {
     }
 }
 
+#[async_trait]
 impl Configurable for SkimSearchModel {
     fn core(&self) -> &ComponentCore {
         &self.core

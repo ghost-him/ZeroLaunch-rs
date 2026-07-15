@@ -29,6 +29,7 @@ impl AppSource {
     }
 }
 
+#[async_trait]
 impl Configurable for AppSource {
     fn core(&self) -> &ComponentCore {
         &self.core

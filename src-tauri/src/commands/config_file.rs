@@ -21,7 +21,7 @@ pub fn config_get_actions(
 /// 执行指定组件的配置动作
 #[tauri::command]
 #[tracing::instrument(skip(state), fields(trace_id))]
-pub fn config_execute_action(
+pub async fn config_execute_action(
     state: tauri::State<'_, Arc<AppState>>,
     component_id: String,
     action: String,
@@ -33,6 +33,7 @@ pub fn config_execute_action(
     state
         .get_config_manager()
         .execute_config_action(&component_id, &action, &params)
+        .await
         .with_trace_id(&trace_id)
 }
 

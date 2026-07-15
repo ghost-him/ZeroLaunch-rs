@@ -54,6 +54,7 @@ impl UrlSource {
     }
 }
 
+#[async_trait]
 impl Configurable for UrlSource {
     fn core(&self) -> &ComponentCore {
         &self.core

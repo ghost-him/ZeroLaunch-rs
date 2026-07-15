@@ -145,16 +145,19 @@ impl ConfigManager {
     }
 
     /// 执行指定组件的配置动作。
-    pub fn execute_config_action(
+    pub async fn execute_config_action(
         &self,
         component_id: &str,
         action: &str,
         params: &serde_json::Value,
     ) -> Result<serde_json::Value, ConfigError> {
-        self.registry
+        let component = self
+            .registry
             .get(component_id)
-            .ok_or_else(|| ConfigError::NotFound(component_id.to_string()))?
+            .ok_or_else(|| ConfigError::NotFound(component_id.to_string()))?;
+        component
             .execute_config_action(action, params)
+            .await
             .map_err(ConfigError::ApplyFailed)
     }
 

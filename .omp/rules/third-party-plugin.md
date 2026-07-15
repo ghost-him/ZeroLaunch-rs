@@ -44,7 +44,7 @@ interruptMode: never
 ## RemoteComponent
 
 - 每个远程组件对应一个 `RemoteComponent`，将 trait 方法翻译为 JSON-RPC 调用
-- `Configurable` trait 是同步的，`RemoteComponent` 用 `block_in_place` 桥接异步 RPC
+- `Configurable` trait 已支持 async（`#[async_trait]`），`execute_config_action` 使用直接 `.await` 调用 RPC；`validate_settings` / `apply_settings` 仍保持同步，通过 `block_on` 桥接异步 RPC
 - Schema / settings / actions 在加载时一次性拉取并缓存
 
 ## HostDispatch（反向调用）

@@ -58,6 +58,7 @@ impl PathExecutor {
     }
 }
 
+#[async_trait]
 impl Configurable for PathExecutor {
     fn core(&self) -> &ComponentCore {
         &self.core

@@ -44,6 +44,7 @@ impl EchoPlugin {
     }
 }
 
+#[async_trait]
 impl Configurable for EchoPlugin {
     fn component_id(&self) -> &str { "echo" }
     fn component_name(&self) -> &str { "Echo" }

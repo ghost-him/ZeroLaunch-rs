@@ -9,9 +9,7 @@
         :loading="searching"
         @update:value="onSearchInput"
       />
-      <n-button size="small" :disabled="!query" @click="query = ''; searchResults = []">
-        显示全部
-      </n-button>
+      <n-button @click="doSearch(query)">搜索</n-button>
     </div>
 
     <!-- 搜索结果表格 -->
@@ -54,7 +52,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h, reactive, ref } from 'vue'
+import { computed, h, onMounted, reactive, ref } from 'vue'
 import {
   NButton,
   NDataTable,
@@ -106,6 +104,9 @@ function onSearchInput() {
   }
   debounceTimer = setTimeout(() => doSearch(query.value), 300)
 }
+
+// 挂载时自动搜索一次，初始加载显示所有候选项
+onMounted(() => doSearch(''))
 
 async function doSearch(q: string) {
   const source = searchSource.value
@@ -169,6 +170,12 @@ function onSaveEdit() {
     if (val !== '' && val !== undefined && !(Array.isArray(val) && val.length === 0)) {
       savedEntry[fd.key] = val
     }
+  }
+
+  // 只有 target 字段说明没有有效数据，不保存
+  if (Object.keys(savedEntry).length <= 1) {
+    showModal.value = false
+    return
   }
 
   if (existingIdx >= 0) {

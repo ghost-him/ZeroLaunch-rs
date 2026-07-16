@@ -20,7 +20,7 @@ pub struct WindowBehaviorSettings {
     pub launch_new_on_failure: bool,
     #[serde(rename = "is_enable_drag_window", default)]
     pub is_enable_drag_window: bool,
-    #[serde(rename = "show_pos_follow_mouse", default)]
+    #[serde(rename = "show_pos_follow_mouse", default = "default_true")]
     pub show_pos_follow_mouse: bool,
     #[serde(rename = "window_position_x", default)]
     pub window_position_x: i32,
@@ -36,7 +36,7 @@ impl Default for WindowBehaviorSettings {
             is_wake_on_fullscreen: false,
             launch_new_on_failure: true,
             is_enable_drag_window: false,
-            show_pos_follow_mouse: false,
+            show_pos_follow_mouse: true,
             window_position_x: 0,
             window_position_y: 0,
         }

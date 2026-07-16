@@ -37,6 +37,10 @@ export function useKeyboardRouter() {
         handleFullPagePluginKey(e, store)
         break
       case 'none':
+        if (e.key === 'Escape') {
+          e.preventDefault()
+          store.hideWindow()
+        }
         break
     }
   }

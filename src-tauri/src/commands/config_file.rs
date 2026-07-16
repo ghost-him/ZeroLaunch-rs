@@ -1,4 +1,4 @@
-use crate::bridge_error::{BridgeError, WithTraceId};
+use crate::commands::bridge_error::{BridgeError, WithTraceId};
 use crate::state::app_state::AppState;
 use std::sync::Arc;
 use zerolaunch_plugin_api::config::ConfigActionDef;

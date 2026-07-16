@@ -1,4 +1,4 @@
-use crate::cli_server::token::CliToken;
+use crate::core::cli_token::CliToken;
 use crate::core::config::ConfigManager;
 use crate::plugin_framework::manager::PluginManager;
 use crate::plugin_framework::service::PluginService;

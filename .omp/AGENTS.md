@@ -102,7 +102,6 @@ ZeroLaunch-rs/                          ← Cargo workspace 根
     └── src/
         ├── bootstrap.rs               ← 应用启动初始化（从 lib.rs 提取）
         ├── sdk.rs                      ← re-export 桥（类型本体在 plugin-api / platform-windows）
-        ├── bridge_error.rs            ← BridgeError（IPC 错误）
         ├── core/                       ← ConfigManager, ConfigStore, 核心配置组件
         ├── builtin_plugin/             ← 内置插件实现（具体数量以代码为准）
         ├── plugin_framework/           ← SessionRouter, Pipeline, Registry, PluginManager
@@ -140,6 +139,7 @@ ZeroLaunch-rs/                          ← Cargo workspace 根
 ```
 core/
 ├── constants.rs         ← 应用常量
+├── cli_token.rs          ← CLI token 管理
 ├── config/              ← 配置系统
 │   ├── manager.rs       ← ConfigManager 主调度器
 │   ├── store.rs         ← ConfigStore（JSON 持久化）
@@ -200,7 +200,6 @@ cli_server/
 ├── mod.rs                ← 模块入口
 ├── server.rs             ← axum 服务器启动与配置
 ├── middleware.rs          ← 认证中间件（Bearer token 校验）
-├── token.rs              ← CLI token 管理
 └── routes/
     ├── mod.rs            ← 路由聚合
     ├── query.rs          ← /v1/query 查询端点

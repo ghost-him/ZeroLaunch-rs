@@ -1,5 +1,5 @@
 //! CLI infrastructure commands — e.g. token access for iframe integration.
-use crate::bridge_error::BridgeError;
+use crate::commands::bridge_error::BridgeError;
 use crate::state::app_state::AppState;
 use std::sync::Arc;
 use tauri::State;

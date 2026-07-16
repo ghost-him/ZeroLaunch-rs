@@ -8,7 +8,7 @@ use tokio::net::TcpListener;
 use tracing::info;
 
 use super::routes;
-use super::token::{generate_token_string, persist_cli_token, CliToken};
+use crate::core::cli_token::{generate_token_string, persist_cli_token, CliToken};
 use crate::state::app_state::AppState;
 
 pub struct CliServerHandle {

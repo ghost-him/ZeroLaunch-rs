@@ -2,7 +2,7 @@
 //! 所有命令仅在调试模式开启时可用（通过 AppState::is_debug_mode() 检查）。
 //! 返回类型遵循 serde-rename 规范，每个字段显式标注 `#[serde(rename)]`。
 
-use crate::bridge_error::BridgeError;
+use crate::commands::bridge_error::BridgeError;
 use crate::state::app_state::AppState;
 use serde::Serialize;
 use std::sync::Arc;

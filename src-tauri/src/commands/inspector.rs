@@ -1,7 +1,7 @@
 /// Plugin Inspector IPC 命令。
 /// Inspector 始终初始化，录制开关由 `is_debug_mode` 配置控制。
 /// 模拟查询已移至 `debug_simulate_query`（`commands/debug.rs`）。
-use crate::bridge_error::BridgeError;
+use crate::commands::bridge_error::BridgeError;
 use crate::state::app_state::AppState;
 use std::sync::Arc;
 

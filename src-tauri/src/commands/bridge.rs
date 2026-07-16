@@ -1,4 +1,4 @@
-use crate::bridge_error::{BridgeError, WithTraceId};
+use crate::commands::bridge_error::{BridgeError, WithTraceId};
 use crate::plugin_framework::inspector::InspectedQueryEvent;
 use crate::state::app_state::AppState;
 use base64::{engine::general_purpose::STANDARD, Engine};

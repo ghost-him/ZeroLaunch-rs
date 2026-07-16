@@ -55,6 +55,22 @@ extract_deps() {
     ' "$toml_file" | sort -u
 }
 
+# Internal module layer mapping (src-tauri/src/).
+# Levels derived from the actual `use crate::` dependency graph.
+# See references/architecture-principles.md P3 for the full table and rationale.
+get_internal_level() {
+    case "$1" in
+        utils|logging)                    echo 0 ;;
+        sdk)                              echo 1 ;;
+        core)                             echo 2 ;;
+        plugin_framework|tray|window)     echo 3 ;;
+        builtin_plugin|state)             echo 4 ;;
+        commands|cli_server|bridge_error) echo 5 ;;
+        bootstrap|lib|main)               echo 6 ;;
+        *)                                echo "" ;;
+    esac
+}
+
 VIOLATIONS=0
 CHECKED=0
 
@@ -101,9 +117,76 @@ echo "---"
 echo "Checked $CHECKED workspace crates"
 
 if [ "$VIOLATIONS" -gt 0 ]; then
-    echo "[FAIL] Found $VIOLATIONS dependency direction violation(s)"
+    echo "[FAIL] Found $VIOLATIONS workspace dependency direction violation(s)"
+else
+    echo "[OK] All workspace dependency directions are compliant"
+fi
+
+# --- Internal Module Layer Check (src-tauri/src/) ---------------------------
+# Checks that `use crate::X` follows the internal layering: high → low only.
+# See references/architecture-principles.md P3 for the layer table.
+INTERNAL_VIOLATIONS=0
+INTERNAL_CHECKED=0
+
+echo ""
+echo "=== Internal Module Layer Check (src-tauri/src/) ==="
+echo ""
+
+SRC_DIR="src-tauri/src"
+if [ -d "$SRC_DIR" ]; then
+    while IFS= read -r f; do
+        # Determine the top-level module of this file from its path.
+        rel="${f#$SRC_DIR/}"
+        if [[ "$rel" == */* ]]; then
+            caller_mod="${rel%%/*}"
+        else
+            caller_mod="${rel%.rs}"
+        fi
+
+        caller_level=$(get_internal_level "$caller_mod")
+        [ -z "$caller_level" ] && continue
+        INTERNAL_CHECKED=$((INTERNAL_CHECKED + 1))
+
+        # Extract all crate::X first-segment references (use + fully-qualified).
+        # LIMITATION: only `crate::X` patterns are checked. `super::` imports
+        # (e.g. `use super::super::commands::BridgeError`) are NOT detected.
+        # This is acceptable because super:: is typically used for sibling
+        # modules within the same layer; cross-layer super:: chains are rare
+        # and would be caught by the type-scope check (check-type-scope.sh).
+        deps=$(grep -oE 'crate::[a-z_]+' "$f" 2>/dev/null | sed 's/crate:://' | sort -u || true)
+
+        for dep in $deps; do
+            # Skip self-references (module referencing its own sub-modules).
+            [ "$dep" = "$caller_mod" ] && continue
+
+            dep_level=$(get_internal_level "$dep")
+            [ -z "$dep_level" ] && continue  # unknown top-level module
+
+            if [ "$dep_level" -gt "$caller_level" ]; then
+                INTERNAL_VIOLATIONS=$((INTERNAL_VIOLATIONS + 1))
+                echo "[FAIL] $caller_mod (L$caller_level) -> $dep (L$dep_level) — reverse dependency"
+                echo "       File: $f"
+            fi
+        done
+    done < <(find "$SRC_DIR" -name '*.rs' -type f 2>/dev/null)
+fi
+
+echo "---"
+echo "Checked $INTERNAL_CHECKED internal source files"
+
+if [ "$INTERNAL_VIOLATIONS" -gt 0 ]; then
+    echo "[FAIL] Found $INTERNAL_VIOLATIONS internal module layer violation(s)"
+else
+    echo "[OK] All internal module layers are compliant"
+fi
+
+# --- Combined exit code -----------------------------------------------------
+TOTAL_VIOLATIONS=$((VIOLATIONS + INTERNAL_VIOLATIONS))
+echo ""
+if [ "$TOTAL_VIOLATIONS" -gt 0 ]; then
+    echo "[FAIL] Total: $VIOLATIONS workspace + $INTERNAL_VIOLATIONS internal = $TOTAL_VIOLATIONS violation(s)"
     exit 1
 else
-    echo "[OK] All dependency directions are compliant"
+    echo "[OK] All dependency directions (workspace + internal) are compliant"
     exit 0
 fi

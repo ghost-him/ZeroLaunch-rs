@@ -142,25 +142,150 @@ is_core_subsystem() {
     return 1
 }
 
+# --- Rule file selection (frontmatter-driven) -----------------------------
+# Rule files in .omp/rules/ declare their own applicability via the `scope`
+# field in their YAML frontmatter — the SAME frontmatter omp (oh-my-pi)
+# parses natively via its TS parseFrontmatter + buildRuleFromMarkdown.
+#
+# Each scope token has the form `tool:ACTION(glob)`; the glob inside the
+# parentheses names the repo-relative paths the rule governs, e.g.
+#   scope: "tool:edit(*.rs), tool:write(*.rs)"
+#   scope: "tool:read(src-tauri/src/commands/**), tool:edit(...)"
+#
+# For a changed path P, a rule is loaded when P matches any of its scope
+# globs. Rules with no `scope` field (or `alwaysApply: true`) are loaded for
+# every review — a safety net so a rule is never silently dropped.
+#
+# This bash code is a READ-ONLY consumer of the same .md files omp uses; it
+# does not modify them, so omp's parsing is completely unaffected. Adding a
+# new rule file needs NO script change — just declare its `scope` frontmatter.
+#
+# Glob → bash case-pattern conversion (bash case `*` already spans `/`):
+#   dir/**        → dir/*      (matches the whole subtree)
+#   dir/**/*.ext  → dir/*.ext
+#   *.rs          → *.rs       (unchanged)
+
+declare -A _RULE_GLOBS=()    # rulepath → space-separated bash case-globs
+_RULE_GLOB_ORDER=()          # rulepaths with globs, in sorted discovery order
+_RULE_ALWAYS=""              # space-separated rulepaths loaded for every review
+_RULES_INITIALIZED=0
+
+# Read a rule file's frontmatter once and classify it.
+# Echoes "ALWAYS" when the rule should load for every review (alwaysApply:true
+# or no usable scope), otherwise echoes the space-separated bash case-globs
+# distilled from the `scope` field.
+_classify_rule_file() {
+    local file="$1" in_fm=0 scope_val="" always_apply=0 line av token glob globs=""
+    while IFS= read -r line || [ -n "$line" ]; do
+        if [ "$in_fm" = "0" ]; then
+            case "$line" in ---) in_fm=1;; esac
+            continue
+        fi
+        case "$line" in
+            ---) break ;;
+            alwaysApply:*)
+                av="${line#alwaysApply:}"
+                av="${av#"${av%%[![:space:]]*}"}"
+                av="${av%"${av##*[![:space:]]}"}"
+                case "$av" in true|True|TRUE|yes|Yes|1) always_apply=1;; esac
+                ;;
+            scope:*)
+                scope_val="${line#scope:}"
+                scope_val="${scope_val#"${scope_val%%[![:space:]]*}"}"
+                scope_val="${scope_val%"${scope_val##*[![:space:]]}"}"
+                case "$scope_val" in
+                    \"*\"|\'*\') scope_val="${scope_val#?}"; scope_val="${scope_val%?}";;
+                esac
+                ;;
+        esac
+    done < "$file"
+
+    [ "$always_apply" = "1" ] && { printf 'ALWAYS'; return 0; }
+    [ -z "$scope_val" ] && { printf 'ALWAYS'; return 0; }
+
+    # Normalize `**` for bash case matching (case `*` spans `/`):
+    #   `**/` → ``  (so dir/**/*.ext becomes dir/*.ext)
+    #   `**`  → `*` (so dir/** becomes dir/*)
+    scope_val=$(printf '%s' "$scope_val" | sed 's#\*\*/##g; s#\*\*#*#g')
+
+    # Split on comma via `read -ra` (NOT bare `for ... in $scope_val`) so the
+    # glob characters inside each token are NOT subjected to pathname expansion.
+    local -a tokens
+    IFS=',' read -ra tokens <<< "$scope_val"
+    for token in "${tokens[@]}"; do
+        token="${token#"${token%%[![:space:]]*}"}"
+        token="${token%"${token##*[![:space:]]}"}"
+        case "$token" in
+            tool:*'('*')'*)
+                glob="${token#*(}"
+                glob="${glob%)*}"
+                ;;
+            *) continue ;;
+        esac
+        [ -n "$glob" ] || continue
+        case " $globs " in *" $glob "*) ;; *) globs="$globs $glob";; esac
+    done
+
+    [ -z "$globs" ] && { printf 'ALWAYS'; return 0; }
+    printf '%s' "$globs"
+}
+
+# Initialize the rule cache by scanning .omp/rules/ once (lazy, idempotent).
+_init_rule_cache() {
+    [ "$_RULES_INITIALIZED" = "1" ] && return 0
+    _RULES_INITIALIZED=1
+
+    local lib_dir rules_dir f relpath cls
+    lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    rules_dir="$lib_dir/../../../rules"
+    [ ! -d "$rules_dir" ] && return 0
+
+    while IFS= read -r f; do
+        [ -z "$f" ] && continue
+        relpath=".omp/rules/${f##*/}"
+        cls="$(_classify_rule_file "$f")"
+        if [ "$cls" = "ALWAYS" ]; then
+            _RULE_ALWAYS="${_RULE_ALWAYS:+$_RULE_ALWAYS }$relpath"
+        else
+            _RULE_GLOBS[$relpath]="$cls"
+            _RULE_GLOB_ORDER+=("$relpath")
+        fi
+    done < <(find "$rules_dir" -maxdepth 1 -name '*.md' -type f 2>/dev/null | sort)
+}
+
 # Map a repo-relative path to the .omp/rules/*.md files that govern it.
 # Sets the global variable MAP_RULES (space-separated paths relative to repo root).
 map_rules_for_path() {
-    case "$1" in
-        src-tauri/src/builtin_plugin/*|src-tauri/src/plugin_framework/*)
-            MAP_RULES=".omp/rules/plugin-system.md .omp/rules/data-flow.md .omp/RULES.md" ;;
-        src-tauri/src/commands/*|src-ui/bridge/*|src-tauri/src/cli_server/*)
-            MAP_RULES=".omp/rules/commands.md .omp/rules/data-flow.md .omp/RULES.md" ;;
-        src-ui/*)
-            MAP_RULES=".omp/rules/frontend.md .omp/RULES.md" ;;
-        crates/plugin-api/*|crates/plugin-protocol/*|crates/plugin-host/*|crates/plugin-sdk-rust/*)
-            MAP_RULES=".omp/rules/sdk.md" ;;
-        crates/platform-windows/*)
-            MAP_RULES=".omp/RULES.md" ;;
-        src-tauri/src/core/*)
-            MAP_RULES=".omp/rules/config.md .omp/rules/data-flow.md .omp/RULES.md" ;;
-        plugin-template/*)
-            MAP_RULES=".omp/rules/third-party-plugin.md .omp/rules/sdk.md" ;;
-        *)
-            MAP_RULES=".omp/RULES.md" ;;
-    esac
+    _init_rule_cache
+
+    # .omp/RULES.md and .omp/AGENTS.md are always attached (project-wide
+    # engineering discipline + directory/dependency conventions).
+    local result=" .omp/RULES.md .omp/AGENTS.md"
+    local seen=" .omp/RULES.md .omp/AGENTS.md"
+    local r g
+    local -a garr
+
+    # Rules declared always (no scope, or alwaysApply: true).
+    # Filenames carry no glob chars, but split via read -ra for safety.
+    IFS=' ' read -ra garr <<< "$_RULE_ALWAYS"
+    for r in "${garr[@]}"; do
+        case " $seen " in *" $r "*) ;; *) seen="$seen $r"; result="$result $r";; esac
+    done
+
+    # Rules whose declared scope globs match the changed path. The globs are
+    # split into garr via read -ra (NOT bare `for g in ${...}`) so the glob
+    # characters survive unexpanded and reach the case pattern intact.
+    for r in "${_RULE_GLOB_ORDER[@]}"; do
+        case " $seen " in *" $r "*) continue;; esac
+        IFS=' ' read -ra garr <<< "${_RULE_GLOBS[$r]}"
+        for g in "${garr[@]}"; do
+            case "$1" in $g)
+                seen="$seen $r"; result="$result $r"
+                break
+                ;;
+            esac
+        done
+    done
+
+    MAP_RULES="$result"
 }

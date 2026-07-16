@@ -240,14 +240,21 @@ echo "## 4. Rule Files to Load"
 printf '%s' "$RULE_LIST" | sort | sed 's/^/- /'
 echo ""
 
-# --- 5. Dependency direction check (if Rust files changed) ------------------
+# --- 5. Architecture checks (if Rust files changed) ------------------------
 # HAS_RUST pre-computed in the single-pass loop above.
+# Includes: dependency direction (P3) + boundary type scope (P2).
 if [ "$HAS_RUST" -gt 0 ]; then
-    echo "## 5. Workspace Dependency Direction Check"
+    echo "## 5. Architecture Checks (Dependency Direction + Type Scope)"
     if [ -f "$SCRIPT_DIR/check-deps-direction.sh" ]; then
-        bash "$SCRIPT_DIR/check-deps-direction.sh" 2>/dev/null || echo "(dep direction check failed)"
+        bash "$SCRIPT_DIR/check-deps-direction.sh" 2>/dev/null || true
     else
         echo "(check-deps-direction.sh not found, skipped)"
+    fi
+    echo ""
+    if [ -f "$SCRIPT_DIR/check-type-scope.sh" ]; then
+        bash "$SCRIPT_DIR/check-type-scope.sh" 2>/dev/null || true
+    else
+        echo "(check-type-scope.sh not found, skipped)"
     fi
     echo ""
 fi

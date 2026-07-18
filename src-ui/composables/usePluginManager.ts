@@ -24,7 +24,7 @@ export function usePluginManager() {
     if (builtinsLoaded) return
 
     const modules = import.meta.glob<GlobEntry>(
-      '@/plugins/built-in/!(_*)/index.ts',
+      '/src-ui/plugins/built-in/*/index.ts',
       { eager: true },
     )
 

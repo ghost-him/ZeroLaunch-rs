@@ -1,4 +1,5 @@
 pub mod appearance_config;
+pub mod bias_config;
 pub mod candidate_registry_config;
 pub mod general_config;
 pub mod hotkey_config;

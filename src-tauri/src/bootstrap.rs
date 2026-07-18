@@ -17,6 +17,7 @@ use zerolaunch_plugin_api::services::storage::storage_service::StorageService;
 use zerolaunch_plugin_api::services::AppResourceService;
 
 use crate::core::app_command;
+use crate::core::bias_rule::BiasRule;
 use crate::core::config::event::create_plugin_event_bus;
 use crate::core::config::{ConfigEvent, ConfigManager};
 use crate::plugin_framework::inspector::Inspector;
@@ -393,9 +394,21 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
     }
 
     info!("构建候选管道...");
-    let candidate_pipeline = session_router
+    let mut candidate_pipeline = session_router
         .components()
         .build_candidate_pipeline(&config_manager);
+
+    // 从 BiasConfig 组件加载固定偏移量规则并注入到候选管道
+    if let Some(bias_comp) = config_manager.find_configurable("bias-config") {
+        let settings = bias_comp.get_settings();
+        let rules = BiasRule::from_settings_json(&settings);
+        if !rules.is_empty() {
+            info!("从持久化配置加载 {} 条偏置偏移量规则", rules.len());
+        }
+        candidate_pipeline.set_bias_rules(rules);
+    } else {
+        debug!("BiasConfig 组件未找到，跳过偏置规则注入");
+    }
 
     info!("正在收集候选项（此时各组件已持有用户持久化配置）...");
     let candidates = candidate_pipeline.collect().await;

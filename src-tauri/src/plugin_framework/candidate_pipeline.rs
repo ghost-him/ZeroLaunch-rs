@@ -1,3 +1,5 @@
+use crate::core::bias_rule::BiasRule;
+use std::collections::HashMap;
 use std::sync::Arc;
 use zerolaunch_plugin_api::config::Configurable;
 use zerolaunch_plugin_api::{CachedCandidateData, DataSource, KeywordInjector, KeywordOptimizer};
@@ -6,6 +8,7 @@ pub struct CandidatePipeline {
     data_sources: Vec<Arc<dyn DataSource>>,
     keyword_optimizers: Vec<Arc<dyn KeywordOptimizer>>,
     keyword_injectors: Vec<Arc<dyn KeywordInjector>>,
+    bias_rules: HashMap<String, f64>,
 }
 
 impl CandidatePipeline {
@@ -14,7 +17,14 @@ impl CandidatePipeline {
             data_sources: Vec::new(),
             keyword_optimizers: Vec::new(),
             keyword_injectors: Vec::new(),
+            bias_rules: HashMap::new(),
         }
+    }
+
+    /// 设置固定偏移量规则列表，内部转换为 HashMap 以支持 O(1) 查找。
+    /// 规则按 target 精确匹配（target 已预归一化为 lowercase）。
+    pub fn set_bias_rules(&mut self, rules: Vec<BiasRule>) {
+        self.bias_rules = rules.into_iter().map(|r| (r.target, r.bias)).collect();
     }
 
     pub fn add_source(&mut self, source: Arc<dyn DataSource>) {
@@ -75,6 +85,14 @@ impl CandidatePipeline {
             }
 
             candidate.keywords = Self::deduplicate_keywords(candidate.keywords.clone());
+        }
+
+        // 3. 固定偏移量注入（在关键字注入之后、检索引擎之前）
+        for candidate in candidates.get_candidates_mut() {
+            let target = candidate.target.payload().to_ascii_lowercase();
+            if let Some(bias) = self.bias_rules.get(&target) {
+                candidate.bias += bias;
+            }
         }
 
         candidates

@@ -22,6 +22,12 @@
           title="关键字注入器"
         />
       </n-tab-pane>
+      <n-tab-pane name="bias" tab="固定偏移量">
+        <ListDetailPanel
+          :items="getComponentsByType('BiasRule')"
+          title="固定偏移量"
+        />
+      </n-tab-pane>
       <n-tab-pane name="searchengine" tab="检索引擎">
         <ListDetailPanel
           :items="getComponentsByType('SearchEngine')"
@@ -64,6 +70,7 @@ function getComponentsByTypes(types: string[]): ComponentInfo[] {
 function getComponentsByType(type: string): ComponentInfo[] {
   return getComponentsByTypes([type])
 }
+
 
 const { onToggle: onSearchEngineToggle } = useSearchEngineToggle(
   () => getComponentsByType('SearchEngine')

@@ -195,14 +195,18 @@ function onDelete(candidate: CandidateSummary) {
   )
   updateEntries(newEntries)
 }
+// ---- 通用摘要列：根据 schema 的第一个 visible 字段动态生成 ----
+const primaryField = computed(() => visibleFields.value[0] ?? null)
 
-// ---- 表格列定义 ----
-function getAliasesSummary(entry: Record<string, unknown> | undefined): string {
+function getSummaryValue(entry: Record<string, unknown> | undefined): string {
   if (!entry) return '—'
-  const aliases = entry.aliases
-  if (Array.isArray(aliases) && aliases.length > 0) {
-    return aliases.join(', ')
-  }
+  const field = primaryField.value
+  if (!field) return '—'
+  const val = entry[field.key]
+  if (Array.isArray(val) && (val as unknown[]).length > 0)
+    return (val as unknown[]).join(', ')
+  if (val !== undefined && val !== null && val !== '')
+    return String(val)
   return '—'
 }
 
@@ -232,13 +236,13 @@ const columns = computed<DataTableColumn<CandidateSummary>[]>(() => [
     ellipsis: { tooltip: true },
   },
   {
-    title: '别名',
-    key: 'aliases',
+    title: primaryField.value?.label ?? '值',
+    key: 'summary',
     width: 150,
     render(row: CandidateSummary) {
       const entry = getEntry(row.target)
       return h(NText, { depth: entry ? undefined : 3 }, {
-        default: () => getAliasesSummary(entry),
+        default: () => getSummaryValue(entry),
       })
     },
   },

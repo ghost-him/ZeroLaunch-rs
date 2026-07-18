@@ -17,6 +17,8 @@ pub enum ComponentType {
     ActionExecutor,
     #[serde(rename = "Plugin")]
     Plugin,
+    #[serde(rename = "BiasRule")]
+    BiasRule,
     #[serde(rename = "Core")]
     Core,
 }

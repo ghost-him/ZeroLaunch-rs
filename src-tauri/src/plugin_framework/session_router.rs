@@ -3,6 +3,7 @@ use super::component_registry::PluginComponentRegistry;
 use super::executor_registry::ExecutorRegistry;
 use super::search_pipeline::SearchPipeline;
 use super::service::PluginService;
+use crate::core::bias_rule::BiasRule;
 use crate::core::config::{ConfigEvent, ConfigManager};
 use crate::sdk::HostApi;
 use parking_lot::{Mutex, RwLock};
@@ -176,6 +177,26 @@ impl SessionRouter {
     pub fn set_search_pipeline(&self, pipeline: SearchPipeline) {
         *self.last_top_k.write() = pipeline.top_k();
         *self.search_pipeline.write() = Some(pipeline);
+    }
+
+    /// 重建候选管道：从 ConfigManager 构建 → 注入偏置规则 → 替换管道 → 刷新候选项。
+    async fn rebuild_candidate_pipeline(&self) {
+        let cm = {
+            let guard = self.config_manager.read();
+            guard.as_ref().map(|cm| cm.clone())
+        };
+        let Some(cm) = cm else { return };
+        let mut new_pipeline = self.components.build_candidate_pipeline(&cm);
+        // 从 BiasConfig 注入固定偏移量规则
+        if let Some(bias_comp) = cm.find_configurable("bias-config") {
+            let settings = bias_comp.get_settings();
+            let rules = BiasRule::from_settings_json(&settings);
+            new_pipeline.set_bias_rules(rules);
+        } else {
+            debug!("BiasConfig 组件未找到，跳过偏置规则注入");
+        }
+        *self.candidate_pipeline.write().await = new_pipeline;
+        self.refresh_candidates().await;
     }
 
     /// 设置缓存的候选项
@@ -619,8 +640,15 @@ impl SessionRouter {
                         info!("搜索引擎/分数增强器配置变更，重建搜索管道");
                         self.rebuild_search_pipeline();
                     }
-                    ComponentType::ActionExecutor | ComponentType::Plugin | ComponentType::Core => {
-                        debug!("ActionExecutor/Plugin/Core 配置变更，无需响应");
+                    ComponentType::Core => {
+                        debug!("Core 组件({})配置变更，无需响应", component_id);
+                    }
+                    ComponentType::BiasRule => {
+                        info!("偏置规则配置变更，重建候选管道");
+                        self.rebuild_candidate_pipeline().await;
+                    }
+                    _ => {
+                        debug!("{:?} 配置变更，无需响应", component_type);
                     }
                 }
             }
@@ -633,16 +661,13 @@ impl SessionRouter {
                     "启用状态变更事件: {} ({:?}), enabled={}",
                     component_id, component_type, enabled
                 );
-
                 match component_type {
                     ComponentType::DataSource
                     | ComponentType::KeywordOptimizer
-                    | ComponentType::KeywordInjector => {
-                        // 重建候选管道（可用组件集合已变化）
-                        let cm = self.config_manager.read().clone().unwrap();
-                        let new_pipeline = self.components.build_candidate_pipeline(cm.as_ref());
-                        *self.candidate_pipeline.write().await = new_pipeline;
-                        self.refresh_candidates().await;
+                    | ComponentType::KeywordInjector
+                    | ComponentType::BiasRule => {
+                        info!("组件或偏置规则启用状态变更，重建候选管道");
+                        self.rebuild_candidate_pipeline().await;
                     }
                     ComponentType::SearchEngine | ComponentType::ScoreBooster => {
                         info!("搜索引擎/分数增强器启用状态变更，重建搜索管道");
@@ -668,10 +693,7 @@ impl SessionRouter {
                     }
                 }
                 // 重建候选管道以包含新组件
-                let cm = self.config_manager.read().clone().unwrap();
-                let new_pipeline = self.components.build_candidate_pipeline(cm.as_ref());
-                *self.candidate_pipeline.write().await = new_pipeline;
-                self.refresh_candidates().await;
+                self.rebuild_candidate_pipeline().await;
             }
             ConfigEvent::PluginUnregistered(adapters) => {
                 info!("第三方插件运行时组件已解注册: {}", adapters.plugin_id);
@@ -686,10 +708,7 @@ impl SessionRouter {
                     }
                 }
                 // 重建候选管道以移除已解注册的组件
-                let cm = self.config_manager.read().clone().unwrap();
-                let new_pipeline = self.components.build_candidate_pipeline(cm.as_ref());
-                *self.candidate_pipeline.write().await = new_pipeline;
-                self.refresh_candidates().await;
+                self.rebuild_candidate_pipeline().await;
             }
         }
     }

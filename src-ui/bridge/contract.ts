@@ -60,7 +60,9 @@ export type ComponentType =
   | 'ScoreBooster'
   | 'ActionExecutor'
   | 'Plugin'
+  | 'BiasRule'
   | 'Core'
+
 export interface ComponentInfo {
   componentId: string
   componentName: string
@@ -70,7 +72,6 @@ export interface ComponentInfo {
   enabled: boolean
   defaultEnabled: boolean
 }
-
 export interface ComponentSchema {
   componentId: string
   componentName: string

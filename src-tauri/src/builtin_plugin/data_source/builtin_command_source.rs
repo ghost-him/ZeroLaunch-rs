@@ -11,7 +11,7 @@ use zerolaunch_plugin_api::{CachedCandidateData, DataSource, ExecutionTarget, Se
 
 /// 内置命令数据源的强类型配置结构（当前无用户可配置项，仅用于占位）。
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct BuiltinCommandSourceSettings;
+pub struct BuiltinCommandSourceSettings {}
 
 /// 单条内置命令的定义。
 struct BuiltinCommandDef {
@@ -65,7 +65,7 @@ impl BuiltinCommandSource {
                 ComponentType::DataSource,
                 10,
             ),
-            settings: RwLock::new(BuiltinCommandSourceSettings),
+            settings: RwLock::new(BuiltinCommandSourceSettings::default()),
         }
     }
 }

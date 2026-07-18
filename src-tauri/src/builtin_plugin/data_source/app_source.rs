@@ -1,16 +1,21 @@
 use async_trait::async_trait;
 use parking_lot::RwLock;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use zerolaunch_plugin_api::config::{ComponentCore, ComponentType, ConfigError, Configurable};
 use zerolaunch_plugin_api::host::PluginHandle;
 use zerolaunch_plugin_api::{CachedCandidateData, DataSource, ExecutionTarget, SearchCandidate};
+
+/// 应用数据源的强类型配置结构（当前无用户可配置项，仅用于占位）。
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct AppSourceSettings {}
 
 /// 应用数据源 - 通过 PluginHandle 枚举系统应用（UWP 等）。
 /// 不再直接调用 Win32 API，而是委托 PluginHandle::enumerate_apps() 由 SDK 层处理平台差异。
 pub struct AppSource {
     core: ComponentCore,
     plugin_handle: Arc<PluginHandle>,
-    settings: RwLock<serde_json::Value>,
+    settings: RwLock<AppSourceSettings>,
 }
 
 impl AppSource {
@@ -24,7 +29,7 @@ impl AppSource {
                 10,
             ),
             plugin_handle,
-            settings: RwLock::new(serde_json::Value::Null),
+            settings: RwLock::new(AppSourceSettings::default()),
         }
     }
 }
@@ -34,13 +39,13 @@ impl Configurable for AppSource {
     fn core(&self) -> &ComponentCore {
         &self.core
     }
-
     fn get_settings(&self) -> serde_json::Value {
-        self.settings.read().clone()
+        serde_json::to_value(self.settings.read().clone()).unwrap_or_default()
     }
 
     fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
-        *self.settings.write() = settings;
+        let parsed: AppSourceSettings = serde_json::from_value(settings).unwrap_or_default();
+        *self.settings.write() = parsed;
         Ok(())
     }
 }

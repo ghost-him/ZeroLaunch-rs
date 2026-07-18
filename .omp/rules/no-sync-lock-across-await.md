@@ -2,7 +2,6 @@
 description: 锁守卫生命周期 — 分离式加锁导致 TOCTOU 脏读（sync/async 锁均受影响）
 condition: "(Mutex|RwLock)"
 scope: "tool:edit(*.rs), tool:write(*.rs)"
-interruptMode: never
 ---
 
 这段代码使用了 `Mutex`/`RwLock`。最隐蔽的陷阱是 **分离式加锁 TOCTOU** —— 编译器无法捕获：

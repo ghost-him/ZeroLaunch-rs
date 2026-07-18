@@ -2,7 +2,6 @@
 description: Schema 驱动设置 UI — 后端 SettingDefinition 定义 → 前端通用渲染，禁止为特定组件创建专用设置页
 condition: "SettingDefinition|SchemaBuilder|DynamicFormField|SettingType|ArrayUiHint"
 scope: "tool:edit(*.vue), tool:edit(*.ts), tool:write(*.vue), tool:write(*.ts)"
-interruptMode: tool-only
 ---
 
 # Schema 驱动的设置 UI

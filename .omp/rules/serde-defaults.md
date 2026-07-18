@@ -2,7 +2,6 @@
 description: Serde 反序列化默认值强制规范 — 所有 from_str/from_value 反序列化的 struct 必须标注 #[serde(default)]，防止老配置缺失字段导致整体反序列化失败
 condition: "#\\[derive\\(.*Deserialize|serde_json::from_str|serde_json::from_value"
 scope: "tool:edit(*.rs), tool:write(*.rs)"
-interruptMode: tool-only
 ---
 
 # Serde 默认值强制规范

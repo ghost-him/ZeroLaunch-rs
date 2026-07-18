@@ -2,7 +2,6 @@
 description: IPC 命令参数约定 — 0-2个简单参数用扁平参数，3个及以上用单个反序列化结构体
 condition: "#\\[tauri::command\\]"
 scope: "tool:edit(src-tauri/src/commands/**), tool:write(src-tauri/src/commands/**)"
-interruptMode: tool-only
 ---
 
 # IPC 命令参数约定

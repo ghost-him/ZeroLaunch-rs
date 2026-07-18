@@ -2,7 +2,6 @@
 description: :deep() 选择器使用规范 — 允许覆盖 UI 库样式以适配布局，但避免穿透业务组件
 condition: ":deep("
 scope: "tool:read(*.vue), tool:edit(*.vue), tool:write(*.vue)"
-interruptMode: never
 ---
 
 # :deep() 选择器使用规范

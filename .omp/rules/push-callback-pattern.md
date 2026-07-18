@@ -2,7 +2,6 @@
 description: 推送式回调模式 — register_callback 注册，DashMap 存储，start/stop_watching 管理生命周期，全局启停保留在 HostApi
 condition: "register_callback|unregister_callback|start_watching|stop_watching|start_listening|stop_listening|DashMap"
 scope: "tool:edit(crates/plugin-api/src/**), tool:write(crates/plugin-api/src/**), tool:edit(crates/platform-windows/src/**), tool:write(crates/platform-windows/src/**), tool:edit(src-tauri/src/sdk.rs), tool:write(src-tauri/src/sdk.rs)"
-interruptMode: tool-only
 ---
 
 # 推送式回调模式

@@ -2,7 +2,6 @@
 description: apply_keyword_optimizers 的 sorted 参数必须由调用方按 priority 升序排列，禁止在函数内部排序
 condition: "apply_keyword_optimizers"
 scope: "tool:edit(*.rs), tool:write(*.rs)"
-interruptMode: tool-only
 ---
 
 # apply_keyword_optimizers 调用规范

@@ -2,7 +2,6 @@
 description: SDK/平台抽象层总览：平台能力模型、HostApi/PluginHandle 权限隔离、当前已实现能力域、Crate 边界
 condition: ".*"
 scope: "tool:read(src-tauri/src/sdk.rs), tool:edit(src-tauri/src/sdk.rs), tool:write(src-tauri/src/sdk.rs), tool:read(crates/plugin-api/src/**), tool:edit(crates/plugin-api/src/**), tool:write(crates/plugin-api/src/**), tool:read(crates/platform-windows/src/**), tool:edit(crates/platform-windows/src/**), tool:write(crates/platform-windows/src/**)"
-interruptMode: never
 ---
 
 # SDK / 平台抽象层总览

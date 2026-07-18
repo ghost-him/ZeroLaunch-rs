@@ -2,7 +2,6 @@
 description: 前端总览：技术栈、目录结构、多窗口架构
 condition: ".*"
 scope: "tool:read(src-ui/**), tool:edit(src-ui/**), tool:write(src-ui/**)"
-interruptMode: never
 ---
 
 # 前端总览

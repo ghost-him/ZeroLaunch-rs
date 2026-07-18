@@ -2,7 +2,6 @@
 description: 数据流规范：插件生命周期、IPC 关键类型对照、动作分发机制、Executor/TargetType/action_id 映射
 condition: ".*"
 scope: "tool:read(src-tauri/src/commands/**), tool:edit(src-tauri/src/commands/**), tool:write(src-tauri/src/commands/**), tool:read(src-tauri/src/plugin_framework/**), tool:edit(src-tauri/src/plugin_framework/**), tool:write(src-tauri/src/plugin_framework/**), tool:read(src-tauri/src/core/**), tool:edit(src-tauri/src/core/**), tool:write(src-tauri/src/core/**), tool:read(src-tauri/src/builtin_plugin/**), tool:edit(src-tauri/src/builtin_plugin/**), tool:write(src-tauri/src/builtin_plugin/**), tool:read(src-ui/bridge/**), tool:edit(src-ui/bridge/**), tool:write(src-ui/bridge/**)"
-interruptMode: never
 ---
 
 # 数据流规范

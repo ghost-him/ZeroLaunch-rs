@@ -2,7 +2,6 @@
 description: IPC 命令错误处理 — 返回 Result<T, BridgeError>，用 ? 或 map_err 传播，禁止 unwrap/expect，内部错误通过 From 转换
 condition: "BridgeError|map_err|\\.with_trace_id|\\.unwrap\\(|\\.expect\\("
 scope: "tool:edit(src-tauri/src/commands/**), tool:write(src-tauri/src/commands/**)"
-interruptMode: tool-only
 ---
 
 # IPC 命令错误处理

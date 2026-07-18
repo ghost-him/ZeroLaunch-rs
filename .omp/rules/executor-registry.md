@@ -2,7 +2,6 @@
 description: ExecutorRegistry 使用 — resolve/resolve_fallback 是动作执行器唯一查找入口，get_actions 仅查询不执行
 condition: "ExecutorRegistry|resolve\\(|resolve_fallback|get_actions"
 scope: "tool:edit(src-tauri/src/**), tool:write(src-tauri/src/**), tool:edit(crates/plugin-api/src/**), tool:write(crates/plugin-api/src/**)"
-interruptMode: tool-only
 ---
 
 # ExecutorRegistry

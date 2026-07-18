@@ -2,7 +2,6 @@
 description: IPC 命令返回类型约定 — 必须用命名结构体，禁止 serde_json::Value/json! 手动构造，列出已知例外
 condition: "serde_json::json!|serde_json::Value|-> Result<"
 scope: "tool:edit(src-tauri/src/commands/**), tool:write(src-tauri/src/commands/**)"
-interruptMode: tool-only
 ---
 
 # IPC 命令返回类型约定

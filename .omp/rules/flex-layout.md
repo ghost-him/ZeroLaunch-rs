@@ -2,7 +2,6 @@
 description: 弹性填充布局规范 — 在 flex 列容器中用 flex:1 替代 height:100% 实现自适应
 condition: "flex: 1|height: calc\\(|height: 100%"
 scope: "tool:read(*.vue), tool:edit(*.vue), tool:write(*.vue)"
-interruptMode: never
 ---
 
 # 弹性填充布局规范

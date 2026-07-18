@@ -2,7 +2,6 @@
 description: Vue 组件编写规范 — script setup + Composition API，defineProps/defineEmits 泛型，style scoped，CSS 变量
 condition: "<script setup|defineProps|defineEmits|<style"
 scope: "tool:edit(*.vue), tool:write(*.vue)"
-interruptMode: tool-only
 ---
 
 # Vue 组件编写规范

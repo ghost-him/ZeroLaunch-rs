@@ -2,7 +2,6 @@
 description: Vue 响应式状态更新 — 必须用展开运算符创建新引用，禁止直接 mutate
 condition: "\\.value\\s*=|state\\.value"
 scope: "tool:edit(*.vue), tool:edit(*.ts), tool:write(*.vue), tool:write(*.ts)"
-interruptMode: tool-only
 ---
 
 # 响应式状态更新

@@ -2,7 +2,6 @@
 description: ConfigAction 规范 — 配置保存前的副作用测试（如 WebDAV 连通性），纯查询/计算操作，禁止修改组件状态
 condition: "execute_config_action|config_actions|ConfigActionDef|ConfigAction"
 scope: "tool:edit(*.rs), tool:write(*.rs)"
-interruptMode: never
 ---
 
 # ConfigAction 规范

@@ -2,7 +2,6 @@
 description: 核心配置组件模式 — apply_settings 禁止 spawn async，副作用必须在 on_settings_changed 中
 condition: "on_settings_changed|apply_settings|spawn"
 scope: "tool:edit(src-tauri/src/builtin_plugin/**), tool:write(src-tauri/src/builtin_plugin/**)"
-interruptMode: tool-only
 ---
 
 # 核心配置组件模式（builtin_plugin/config/ 中的组件）

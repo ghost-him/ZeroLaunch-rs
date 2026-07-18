@@ -2,7 +2,6 @@
 description: Pinia Store 模式 — setup 语法 defineStore，每个 store 管理一个关注点，在 mount 前初始化
 condition: "defineStore"
 scope: "tool:edit(*.vue), tool:edit(*.ts), tool:write(*.vue), tool:write(*.ts)"
-interruptMode: tool-only
 ---
 
 # Store 模式

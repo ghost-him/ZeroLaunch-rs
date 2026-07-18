@@ -2,7 +2,6 @@
 description: IPC 命令总览：命名与文件放置、前缀对照表
 condition: ".*"
 scope: "tool:read(src-tauri/src/commands/**), tool:edit(src-tauri/src/commands/**), tool:write(src-tauri/src/commands/**), tool:read(src-ui/bridge/**), tool:edit(src-ui/bridge/**), tool:write(src-ui/bridge/**), tool:read(src-tauri/src/cli_server/**), tool:edit(src-tauri/src/cli_server/**), tool:write(src-tauri/src/cli_server/**)"
-interruptMode: never
 ---
 
 # Tauri Command 总览

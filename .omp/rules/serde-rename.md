@@ -2,7 +2,6 @@
 description: Serde 序列化规范 — 必须用字段级 #[serde(rename)] 显式标注每个字段和 variant，禁止用 rename_all
 condition: "#\\[serde\\(rename|rename_all|derive\\(.*Serialize"
 scope: "tool:edit(*.rs), tool:write(*.rs)"
-interruptMode: tool-only
 ---
 
 # Serde 序列化规范

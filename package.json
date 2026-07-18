@@ -16,6 +16,7 @@
     "@tauri-apps/plugin-dialog": "~2.7.1",
     "@tauri-apps/plugin-notification": "~2.3.3",
     "@tauri-apps/plugin-shell": "~2.3.5",
+    "lucide-vue-next": "^1.0.0",
     "naive-ui": "^2.44.1",
     "pinia": "^3.0.4",
     "vue": "^3.5.34",

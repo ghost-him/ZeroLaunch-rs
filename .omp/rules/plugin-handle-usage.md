@@ -2,7 +2,6 @@
 description: PluginHandle 使用 — 插件必须通过 PluginHandle 访问平台能力，无对应方法时必须先添加到 PluginHandle
 condition: "PluginHandle|HostApi::register"
 scope: "tool:edit(src-tauri/src/**), tool:write(src-tauri/src/**), tool:edit(crates/plugin-api/src/**), tool:write(crates/plugin-api/src/**)"
-interruptMode: tool-only
 ---
 
 # PluginHandle 使用

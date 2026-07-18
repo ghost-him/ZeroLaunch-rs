@@ -2,7 +2,6 @@
 description: 前端类型安全 — IPC 类型在 contract.ts 定义，类型守卫集中在 schemaTypes.ts，禁止 any 用 unknown+守卫
 condition: ": any|as any|contract\\.ts|schemaTypes|isMyType"
 scope: "tool:edit(*.ts), tool:edit(*.vue), tool:write(*.ts), tool:write(*.vue)"
-interruptMode: tool-only
 ---
 
 # 前端类型安全

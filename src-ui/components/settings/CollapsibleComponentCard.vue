@@ -4,10 +4,7 @@
       <div class="header-left">
         <div class="icon-box">
           <n-icon :size="18">
-            <!-- fallback icon when specific icon isn't available -->
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-            </svg>
+            <DollarSign />
           </n-icon>
         </div>
         <div class="title-details">
@@ -24,9 +21,8 @@
         />
         <div class="expand-icon">
           <n-icon :size="16">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline :points="isExpanded ? '18 15 12 9 6 15' : '6 9 12 15 18 9'" />
-            </svg>
+            <ChevronDown v-if="isExpanded" />
+            <ChevronUp v-else />
           </n-icon>
         </div>
       </div>
@@ -44,6 +40,7 @@ import { NIcon, NSwitch } from 'naive-ui'
 import type { ComponentInfo } from '../../bridge/contract'
 import ComponentConfigLoader from './ComponentConfigLoader.vue'
 import { useConfigStore } from '../../stores/config-store'
+import { ChevronDown, ChevronUp, DollarSign } from 'lucide-vue-next'
 
 const props = defineProps<{
   component: ComponentInfo

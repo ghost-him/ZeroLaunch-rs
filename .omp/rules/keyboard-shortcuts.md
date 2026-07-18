@@ -2,7 +2,6 @@
 description: 键盘快捷键规范 — 搜索窗口键盘处理集中在 useKeyboardRouter，禁止子组件添加全局 keydown
 condition: "useKeyboardRouter|keydown|addEventListener.*key|keyboard/"
 scope: "tool:edit(*.vue), tool:edit(*.ts), tool:write(*.vue), tool:write(*.ts)"
-interruptMode: tool-only
 ---
 
 # 键盘快捷键

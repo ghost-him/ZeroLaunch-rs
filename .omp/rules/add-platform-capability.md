@@ -2,7 +2,6 @@
 description: 新增平台能力流程 — trait 定义在 services/<capability>/，平台实现在 platform-windows/，通过 HostApi Arc<dyn Trait> 暴露
 condition: "services/|platform-windows|Arc<dyn|pub trait|HostApi|PluginHandle"
 scope: "tool:edit(crates/plugin-api/src/**), tool:write(crates/plugin-api/src/**), tool:edit(crates/platform-windows/src/**), tool:write(crates/platform-windows/src/**), tool:edit(src-tauri/src/sdk.rs), tool:write(src-tauri/src/sdk.rs)"
-interruptMode: tool-only
 ---
 
 # 新增平台能力的流程

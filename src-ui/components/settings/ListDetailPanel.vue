@@ -19,17 +19,7 @@
         >
           <div class="item-icon">
             <n-icon :size="16">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <path
-                  d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"
-                />
-              </svg>
+              <Layers />
             </n-icon>
           </div>
           <div class="item-info">
@@ -58,18 +48,7 @@
       <div v-else class="detail-empty">
         <div class="empty-icon">
           <n-icon :size="32">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.5"
-            >
-              <path
-                d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
-              />
-              <polyline points="14 2 14 8 20 8" />
-            </svg>
+            <File />
           </n-icon>
         </div>
         <n-text depth="3">{{ $t('settings.selectComponent') }}</n-text>
@@ -85,6 +64,7 @@ import { useI18n } from 'vue-i18n'
 import type { ComponentInfo } from '../../bridge/contract'
 import ComponentConfigLoader from './ComponentConfigLoader.vue'
 import { useConfigStore } from '../../stores/config-store'
+import { Layers, File } from 'lucide-vue-next'
 
 const props = withDefaults(
   defineProps<{

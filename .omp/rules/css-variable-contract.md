@@ -2,7 +2,6 @@
 description: CSS 变量契约 — 外观由后端 appearance 组件管理，通过 setProperty 操作，暗色模式用 html.dark class 切换
 condition: "var\\(--|setProperty|prefers-color-scheme|html\\.dark|applyAppearanceSettings"
 scope: "tool:edit(*.vue), tool:edit(*.css), tool:edit(*.ts), tool:write(*.vue), tool:write(*.css), tool:write(*.ts)"
-interruptMode: tool-only
 ---
 
 # CSS 变量契约

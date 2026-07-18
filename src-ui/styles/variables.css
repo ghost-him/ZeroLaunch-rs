@@ -49,6 +49,8 @@
   --window-border-color: var(--border-color);
   /* Cancel physical borders -> soft shadows usually handle it, or we rely on border radius */
   --max-visible-results: 8;
+  /* 副标题显示开关（1=显示，0=隐藏） */
+  --show-subtitle: 1;
   --min-content-height: 80px;
 
   /* Window geometry — can be overridden by appearance config */

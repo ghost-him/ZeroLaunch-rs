@@ -18,7 +18,7 @@
     </div>
     <div class="item-text">
       <div class="item-title">{{ item.title }}</div>
-      <div class="item-subtitle" v-if="item.subtitle">{{ item.subtitle }}</div>
+      <div class="item-subtitle" v-if="showSubtitle && item.subtitle">{{ item.subtitle }}</div>
     </div>
   </div>
 </template>
@@ -35,6 +35,11 @@ const iconSize = computed(() => {
   const raw = getComputedStyle(document.documentElement).getPropertyValue('--result-item-icon-size').trim()
   const num = parseFloat(raw)
   return isNaN(num) ? 32 : num
+})
+
+const showSubtitle = computed(() => {
+  const raw = getComputedStyle(document.documentElement).getPropertyValue('--show-subtitle').trim()
+  return raw !== '0'
 })
 
 const props = defineProps<{

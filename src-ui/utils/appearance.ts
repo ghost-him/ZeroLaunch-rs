@@ -55,6 +55,9 @@ export async function applyAppearanceSettings(settings: AppearanceSettings): Pro
   if ('max_visible_results' in settings) {
     root.setProperty('--max-visible-results', String(Math.round(asNum(settings.max_visible_results))))
   }
+  if ('show_subtitle' in settings) {
+    root.setProperty('--show-subtitle', settings.show_subtitle ? '1' : '0')
+  }
 
   // ---- 底栏 ----
   if ('footer_height' in settings) {

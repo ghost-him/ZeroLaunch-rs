@@ -34,6 +34,9 @@ fn default_result_item_font_ratio() -> f64 {
 fn default_result_item_subtitle_font_ratio() -> f64 {
     0.24
 }
+fn default_show_subtitle() -> bool {
+    true
+}
 fn default_result_item_icon_ratio() -> f64 {
     0.72
 }
@@ -166,6 +169,8 @@ pub struct AppearanceSettings {
     pub max_visible_results: f64,
     #[serde(rename = "show_launch_command", default)]
     pub show_launch_command: bool,
+    #[serde(rename = "show_subtitle", default = "default_show_subtitle")]
+    pub show_subtitle: bool,
 
     // ---- 底栏 ----
     #[serde(rename = "footer_height", default = "default_footer_height")]
@@ -255,6 +260,7 @@ impl Default for AppearanceSettings {
             result_item_font_family: String::new(),
             max_visible_results: default_max_visible_results(),
             show_launch_command: false,
+            show_subtitle: true,
             footer_height: default_footer_height(),
             footer_font_ratio: default_footer_font_ratio(),
             footer_font_family: String::new(),
@@ -446,6 +452,11 @@ impl Configurable for AppearanceConfigComponent {
             .order(26)
             .default(false)
             .build(),
+            SchemaBuilder::boolean("show_subtitle", "显示副标题", "在结果项中显示副标题信息")
+                .group("resultList")
+                .order(27)
+                .default(true)
+                .build(),
             // ---- 底栏 ----
             SchemaBuilder::number("footer_height", "底栏高度", "底栏的高度(px)，设为0则隐藏")
                 .group("footer")

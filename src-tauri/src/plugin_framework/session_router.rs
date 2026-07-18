@@ -364,7 +364,7 @@ impl SessionRouter {
                 Some(ListItem {
                     id: search_candidate.id,
                     title: search_candidate.name.clone(),
-                    subtitle: search_candidate.name.clone(),
+                    subtitle: search_candidate.target.payload().to_string(),
                     icon: search_candidate.icon.clone(),
                     score: candidate.score,
                     actions,

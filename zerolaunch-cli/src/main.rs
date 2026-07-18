@@ -1,28 +1,38 @@
-//! ZeroLaunch CLI — talks to the local HTTP API server.
+//! ZeroLaunch CLI — 通过本地 HTTP API 与 ZeroLaunch 主进程通信。
 
-use anyhow::{Context, Result};
+mod client;
+mod output;
+
+use anyhow::Result;
 use clap::{Parser, Subcommand};
 use serde_json::Value;
 
+use client::CliClient;
+use output::*;
+
 #[derive(Parser)]
-#[command(name = "zl", about = "ZeroLaunch CLI")]
+#[command(name = "zl", about = "ZeroLaunch CLI 工具")]
 struct Cli {
+    /// 以 JSON 格式输出（默认输出人可读格式）
+    #[arg(short = 'j', long = "json")]
+    json: bool,
+
     #[command(subcommand)]
     command: Commands,
 }
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Search for items
+    /// 搜索项目
     Query { text: String },
-    /// Get session mode
+    /// 获取当前会话模式
     Session,
-    /// Plugin management
+    /// 已安装插件管理
     Plugins {
         #[command(subcommand)]
         sub: PluginCmd,
     },
-    /// Configuration management
+    /// 配置组件管理
     Config {
         #[command(subcommand)]
         sub: ConfigCmd,
@@ -31,142 +41,106 @@ enum Commands {
 
 #[derive(Subcommand)]
 enum PluginCmd {
-    /// List all installed plugins
+    /// 列出所有已安装的插件
     List,
-    /// Get plugin info
+    /// 获取插件详细信息
     Info { id: String },
-    /// Get plugin logs
+    /// 获取插件日志
     Logs {
         id: String,
-        #[arg(long, default_value = "50")]
+        #[arg(long, default_value = "50", help = "显示最后 N 行日志")]
         tail: usize,
     },
 }
 
 #[derive(Subcommand)]
 enum ConfigCmd {
-    /// List all config components
+    /// 列出所有配置组件
     List,
-    /// Get config schema for a component
+    /// 获取配置组件的 Schema
     Schema { id: String },
-    /// Get settings for a component
+    /// 获取配置组件的当前设置
     Get { id: String },
-}
-
-struct CliClient {
-    host: String,
-    port: u16,
-    token: String,
-}
-
-impl CliClient {
-    fn load() -> Result<Self> {
-        let app_data = dirs_data()?;
-        let token_path = app_data.join("cli-token.json");
-        let content = std::fs::read_to_string(&token_path).with_context(|| {
-            format!(
-                "Cannot read CLI token at {:?}. Is ZeroLaunch running?",
-                token_path
-            )
-        })?;
-        let token_data: Value = serde_json::from_str(&content)?;
-        Ok(Self {
-            host: token_data["host"]
-                .as_str()
-                .unwrap_or("127.0.0.1")
-                .to_string(),
-            port: token_data["port"].as_u64().unwrap_or(51429) as u16,
-            token: token_data["token"].as_str().unwrap_or("").to_string(),
-        })
-    }
-
-    fn get(&self, path: &str) -> Result<Value> {
-        let url = format!("http://{}:{}{}", self.host, self.port, path);
-        let client = reqwest::blocking::Client::new();
-        let resp = client
-            .get(&url)
-            .header("Authorization", format!("Bearer {}", self.token))
-            .send()?;
-        Ok(resp.json()?)
-    }
-
-    fn post(&self, path: &str, body: Value) -> Result<Value> {
-        let url = format!("http://{}:{}{}", self.host, self.port, path);
-        let client = reqwest::blocking::Client::new();
-        let resp = client
-            .post(&url)
-            .header("Authorization", format!("Bearer {}", self.token))
-            .header("Content-Type", "application/json")
-            .json(&body)
-            .send()?;
-        Ok(resp.json()?)
-    }
-}
-
-/// 解析 ZeroLaunch 应用数据目录（$HOME/.ZeroLaunch-rs）。
-fn dirs_data() -> Result<std::path::PathBuf> {
-    let home = dirs::home_dir().context("无法获取用户 Home 目录（dirs::home_dir() 返回 None）")?;
-    Ok(home.join(".ZeroLaunch-rs"))
 }
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
+    let client = CliClient::load()?;
 
-    match cli.command {
-        Commands::Query { text } => {
-            let client = CliClient::load()?;
-            let result = client.post("/v1/query", serde_json::json!({ "rawQuery": text }))?;
-            println!("{}", serde_json::to_string_pretty(&result)?);
-        }
-        Commands::Session => {
-            let client = CliClient::load()?;
-            let result = client.get("/v1/session/mode")?;
-            println!("{}", serde_json::to_string_pretty(&result)?);
-        }
-        Commands::Plugins { sub } => {
-            let client = CliClient::load()?;
-            match sub {
-                PluginCmd::List => {
-                    let result = client.get("/v1/plugins")?;
-                    println!("{}", serde_json::to_string_pretty(&result)?);
-                }
-                PluginCmd::Info { id } => {
-                    let result = client.get(&format!("/v1/plugins/{}/manifest", id))?;
-                    println!("{}", serde_json::to_string_pretty(&result)?);
-                }
-                PluginCmd::Logs { id, tail } => {
-                    let result = client.get(&format!("/v1/plugins/{}/logs", id))?;
-                    let logs = result["logs"].as_str().unwrap_or("");
-                    let lines: Vec<&str> = logs.lines().collect();
-                    let start = if lines.len() > tail {
-                        lines.len() - tail
-                    } else {
-                        0
-                    };
-                    for line in &lines[start..] {
-                        println!("{}", line);
-                    }
-                }
-            }
-        }
-        Commands::Config { sub } => {
-            let client = CliClient::load()?;
-            match sub {
-                ConfigCmd::List => {
-                    let result = client.get("/v1/config/components")?;
-                    println!("{}", serde_json::to_string_pretty(&result)?);
-                }
-                ConfigCmd::Schema { id } => {
-                    let result = client.get(&format!("/v1/config/{}/schema", id))?;
-                    println!("{}", serde_json::to_string_pretty(&result)?);
-                }
-                ConfigCmd::Get { id } => {
-                    let result = client.get(&format!("/v1/config/{}/settings", id))?;
-                    println!("{}", serde_json::to_string_pretty(&result)?);
-                }
-            }
-        }
+    let result = dispatch(&cli, &client)?;
+
+    if cli.json {
+        // --json: 输出 raw JSON
+        println!("{}", serde_json::to_string_pretty(&result)?);
+    } else {
+        // 默认：人可读格式
+        let text = format_human(&cli.command, &result);
+        print!("{}", text);
     }
 
     Ok(())
+}
+
+/// 根据 CLI 命令调用 HTTP 接口，返回 JSON 响应。
+fn dispatch(cli: &Cli, client: &CliClient) -> Result<Value> {
+    match &cli.command {
+        Commands::Query { text } => {
+            client.post("/v1/query", serde_json::json!({ "rawQuery": text }))
+        }
+        Commands::Session => client.get("/v1/session/mode"),
+        Commands::Plugins { sub } => dispatch_plugins(sub, client),
+        Commands::Config { sub } => dispatch_config(sub, client),
+    }
+}
+
+fn dispatch_plugins(sub: &PluginCmd, client: &CliClient) -> Result<Value> {
+    match sub {
+        PluginCmd::List => client.get("/v1/plugins"),
+        PluginCmd::Info { id } => client.get(&format!("/v1/plugins/{}/manifest", id)),
+        PluginCmd::Logs { id, .. } => client.get(&format!("/v1/plugins/{}/logs", id)),
+    }
+}
+
+fn dispatch_config(sub: &ConfigCmd, client: &CliClient) -> Result<Value> {
+    match sub {
+        ConfigCmd::List => client.get("/v1/config/components"),
+        ConfigCmd::Schema { id } => client.get(&format!("/v1/config/{}/schema", id)),
+        ConfigCmd::Get { id } => client.get(&format!("/v1/config/{}/settings", id)),
+    }
+}
+
+/// 根据命令类型选择对应的格式化函数。
+fn format_human(cmd: &Commands, value: &Value) -> String {
+    match cmd {
+        Commands::Query { .. } => format_query(value),
+        Commands::Session => format_session(value),
+        Commands::Plugins { sub } => match sub {
+            PluginCmd::List => format_plugins_list(value),
+            PluginCmd::Info { .. } => format_plugin_info(value),
+            PluginCmd::Logs { tail, .. } => {
+                let full = format_plugin_logs(value);
+                // 如果原始格式化未处理 tail，在此截取
+                if full.is_empty() {
+                    return full;
+                }
+                let lines: Vec<&str> = full.lines().collect();
+                let start = if lines.len() > *tail {
+                    lines.len() - tail
+                } else {
+                    0
+                };
+                let mut out = String::new();
+                for line in &lines[start..] {
+                    out.push_str(line);
+                    out.push('\n');
+                }
+                out
+            }
+        },
+        Commands::Config { sub } => match sub {
+            ConfigCmd::List => format_config_list(value),
+            ConfigCmd::Schema { .. } => format_config_schema(value),
+            ConfigCmd::Get { .. } => format_config_get(value),
+        },
+    }
 }

@@ -4,6 +4,7 @@
 //! - `init_app_state` — 创建 HostApi、ConfigManager、PluginManager 并编排初始化顺序
 //! - `init_plugin_system` — inventory 自动发现、管道构建、事件订阅
 
+use crate::builtin_plugin::config::hotkey_config::{settings_to_hotkey_config, HotkeySettings};
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -16,8 +17,8 @@ use zerolaunch_plugin_api::services::storage::local_storage::LocalStorageService
 use zerolaunch_plugin_api::services::storage::storage_service::StorageService;
 use zerolaunch_plugin_api::services::AppResourceService;
 
+use crate::builtin_plugin::config::bias_config::{bias_settings_to_rules, BiasSettings};
 use crate::core::app_command;
-use crate::core::bias_rule::BiasRule;
 use crate::core::config::event::create_plugin_event_bus;
 use crate::core::config::{ConfigEvent, ConfigManager};
 use crate::plugin_framework::inspector::Inspector;
@@ -399,16 +400,15 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
         .build_candidate_pipeline(&config_manager);
 
     // 从 BiasConfig 组件加载固定偏移量规则并注入到候选管道
-    if let Some(bias_comp) = config_manager.find_configurable("bias-config") {
-        let settings = bias_comp.get_settings();
-        let rules = BiasRule::from_settings_json(&settings);
-        if !rules.is_empty() {
-            info!("从持久化配置加载 {} 条偏置偏移量规则", rules.len());
-        }
-        candidate_pipeline.set_bias_rules(rules);
-    } else {
-        debug!("BiasConfig 组件未找到，跳过偏置规则注入");
+    let rules = config_manager
+        .get_settings("bias-config")
+        .and_then(|v| serde_json::from_value::<BiasSettings>(v).ok())
+        .map(|settings| bias_settings_to_rules(&settings))
+        .unwrap_or_default();
+    if !rules.is_empty() {
+        info!("从持久化配置加载 {} 条偏置偏移量规则", rules.len());
     }
+    candidate_pipeline.set_bias_rules(rules);
 
     info!("正在收集候选项（此时各组件已持有用户持久化配置）...");
     let candidates = candidate_pipeline.collect().await;
@@ -465,13 +465,10 @@ fn spawn_app_command_consumer(
                     let config_manager = state.get_config_manager();
                     let host_api = state.get_host_api();
                     // 从配置管理器读取快捷键配置并重新注册
-                    let hotkey_config =
-                        config_manager.get_settings("hotkey-config").and_then(|v| {
-                            serde_json::from_value::<
-                                zerolaunch_plugin_api::services::hotkey::types::HotkeyConfig,
-                            >(v)
-                            .ok()
-                        });
+                    let hotkey_config = config_manager
+                        .get_settings("hotkey-config")
+                        .and_then(|v| serde_json::from_value::<HotkeySettings>(v).ok())
+                        .map(|settings| settings_to_hotkey_config(&settings));
                     if let Some(config) = hotkey_config {
                         if let Err(e) = host_api.apply_hotkey_config(&config).await {
                             warn!("重新注册快捷键失败: {:?}", e);
@@ -501,13 +498,10 @@ fn spawn_app_command_consumer(
                     } else {
                         // 游戏模式关闭：从配置读取快捷键并重新注册
                         let config_manager = state.get_config_manager();
-                        let hotkey_config =
-                            config_manager.get_settings("hotkey-config").and_then(|v| {
-                                serde_json::from_value::<
-                                    zerolaunch_plugin_api::services::hotkey::types::HotkeyConfig,
-                                >(v)
-                                .ok()
-                            });
+                        let hotkey_config = config_manager
+                            .get_settings("hotkey-config")
+                            .and_then(|v| serde_json::from_value::<HotkeySettings>(v).ok())
+                            .map(|settings| settings_to_hotkey_config(&settings));
                         if let Some(config) = hotkey_config {
                             if let Err(e) = host_api.apply_hotkey_config(&config).await {
                                 warn!("AppCommand: 游戏模式关闭时重新注册快捷键失败: {:?}", e);

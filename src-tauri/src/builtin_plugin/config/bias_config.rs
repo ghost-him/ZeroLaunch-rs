@@ -7,6 +7,7 @@ use zerolaunch_plugin_api::config::{
     SettingType,
 };
 
+use crate::core::bias_rule::BiasRule;
 use crate::core::config::setting_builders::SchemaBuilder;
 
 // ============================================================================
@@ -15,32 +16,43 @@ use crate::core::config::setting_builders::SchemaBuilder;
 
 /// 固定偏移量配置的根结构
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-struct BiasSettings {
+pub struct BiasSettings {
     /// 偏移量规则条目列表
     #[serde(rename = "entries", default)]
-    entries: Vec<BiasEntry>,
+    pub entries: Vec<BiasEntry>,
 }
 
 /// 单条固定偏移量规则
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct BiasEntry {
+pub struct BiasEntry {
     /// 目标程序标识，匹配 candidate.target.payload()
     /// 由前端 SearchTable UI 自动填充，visible: false
     /// apply_settings 时归一化为 to_ascii_lowercase()
     #[serde(rename = "target", default)]
-    target: String,
+    pub target: String,
     /// 权重偏移值，正值提升搜索结果位置，负值降低
     #[serde(rename = "bias", default = "BiasEntry::default_bias")]
-    bias: f64,
+    pub bias: f64,
     /// 备注信息（可选）
     #[serde(rename = "note", default)]
-    note: String,
+    pub note: String,
 }
 
 impl BiasEntry {
     fn default_bias() -> f64 {
         0.0
     }
+}
+
+pub(crate) fn bias_settings_to_rules(settings: &BiasSettings) -> Vec<BiasRule> {
+    settings
+        .entries
+        .iter()
+        .map(|e| BiasRule {
+            target: e.target.to_ascii_lowercase(),
+            bias: e.bias,
+        })
+        .collect()
 }
 
 // ============================================================================

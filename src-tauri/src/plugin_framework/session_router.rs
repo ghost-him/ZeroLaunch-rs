@@ -3,7 +3,7 @@ use super::component_registry::PluginComponentRegistry;
 use super::executor_registry::ExecutorRegistry;
 use super::search_pipeline::SearchPipeline;
 use super::service::PluginService;
-use crate::core::bias_rule::BiasRule;
+use crate::builtin_plugin::config::bias_config::{bias_settings_to_rules, BiasSettings};
 use crate::core::config::{ConfigEvent, ConfigManager};
 use crate::sdk::HostApi;
 use parking_lot::{Mutex, RwLock};
@@ -188,13 +188,12 @@ impl SessionRouter {
         let Some(cm) = cm else { return };
         let mut new_pipeline = self.components.build_candidate_pipeline(&cm);
         // 从 BiasConfig 注入固定偏移量规则
-        if let Some(bias_comp) = cm.find_configurable("bias-config") {
-            let settings = bias_comp.get_settings();
-            let rules = BiasRule::from_settings_json(&settings);
-            new_pipeline.set_bias_rules(rules);
-        } else {
-            debug!("BiasConfig 组件未找到，跳过偏置规则注入");
-        }
+        let rules = cm
+            .get_settings("bias-config")
+            .and_then(|v| serde_json::from_value::<BiasSettings>(v).ok())
+            .map(|settings| bias_settings_to_rules(&settings))
+            .unwrap_or_default();
+        new_pipeline.set_bias_rules(rules);
         *self.candidate_pipeline.write().await = new_pipeline;
         self.refresh_candidates().await;
     }

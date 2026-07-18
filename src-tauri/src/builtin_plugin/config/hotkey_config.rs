@@ -115,7 +115,7 @@ fn format_hotkey_string(hotkey: &Hotkey) -> String {
 /// 从语义化的配置项（open_search_bar 等）映射到 SDK 的 HotkeyConfig。
 /// 参数：settings - 当前热键配置。
 /// 返回：HotkeyConfig 实例。
-fn settings_to_hotkey_config(settings: &HotkeySettings) -> HotkeyConfig {
+pub(crate) fn settings_to_hotkey_config(settings: &HotkeySettings) -> HotkeyConfig {
     let mut hotkeys = Vec::new();
 
     let hotkey_strs = [&settings.open_search_bar];

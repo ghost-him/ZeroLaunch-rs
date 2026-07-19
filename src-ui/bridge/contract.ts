@@ -106,6 +106,8 @@ export interface FieldDefinition {
   defaultValue: unknown
   visible: boolean
   editable: boolean
+  /** 关联的配置动作名称，有此值的字段在 SearchTableArray 保存时自动触发后丢弃 */
+  configAction?: string
 }
 
 export type SettingType =
@@ -136,7 +138,7 @@ export type ArrayUiHint =
   | 'table'
   | 'masterDetail'
   | 'tags'
-  | { searchTable: { sourceComponent: string; sourceAction: string } }
+  | { searchTable: { sourceComponent: string; sourceAction: string; fieldMapping?: [string, string][] } }
 
 export interface ConfigActionDef {
   action: string
@@ -151,9 +153,9 @@ export interface CandidateSummary {
   target: string
   targetType: string
   icon: string
+  /** 原始 IconRequest 的 JSON 序列化 */
+  iconRequestJson?: string
 }
-
-// ---- 事件载荷 ----
 
 export interface ConfigChangedPayload {
   componentId: string

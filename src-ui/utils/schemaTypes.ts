@@ -223,7 +223,7 @@ export function isTagsUiHint(hint: ArrayUiHint): hint is 'tags' {
 
 export function isSearchTableUiHint(
   hint: ArrayUiHint,
-): hint is { searchTable: { sourceComponent: string; sourceAction: string } } {
+): hint is { searchTable: { sourceComponent: string; sourceAction: string; fieldMapping?: [string, string][] } } {
   return typeof hint === 'object' && hint !== null && 'searchTable' in hint
 }
 
@@ -232,6 +232,15 @@ export function getSearchTableSource(
 ): { sourceComponent: string; sourceAction: string } | null {
   if (isSearchTableUiHint(hint)) {
     return hint.searchTable
+  }
+  return null
+}
+
+export function getSearchTableFieldMapping(
+  hint: ArrayUiHint,
+): [string, string][] | null {
+  if (isSearchTableUiHint(hint)) {
+    return hint.searchTable.fieldMapping ?? null
   }
   return null
 }

@@ -65,6 +65,13 @@ impl IconCacheService {
         self.memory_cache.clear();
     }
 
+    /// 移除 L1 内存缓存中的指定键（用于图标覆盖后强制刷新缓存）。
+    /// 参数：key - 缓存键（文件名，如 "abc123.png"）。
+    /// 返回：无。
+    pub fn remove_l1(&self, key: &str) {
+        self.memory_cache.remove(key);
+    }
+
     // ===== L2 文件缓存操作 =====
 
     /// 检查 L2 文件缓存中是否包含指定键。

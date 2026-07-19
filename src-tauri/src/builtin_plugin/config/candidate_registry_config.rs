@@ -27,6 +27,11 @@ struct CandidateSummary {
     /// 图标 base64 data URL（如 "data:image/png;base64,..."）
     #[serde(rename = "icon")]
     icon: String,
+    /// 原始 IconRequest 的 JSON 序列化（由 zerolaunch_plugin_api::services::IconRequest 序列化得来）
+    /// 供其他组件（如 icon-override-config）重建缓存键/异步加载
+    /// 注意：此为 JSON 字符串嵌套，前端收到后需 parse 才能获取结构化数据
+    #[serde(rename = "iconRequestJson")]
+    icon_request_json: String,
 }
 
 // ============================================================================
@@ -123,6 +128,7 @@ impl Configurable for CandidateRegistryConfig {
                     .take(50)
                 {
                     let icon_data = plugin_handle.get_icon_or_default(c.icon.clone()).await;
+
                     let icon_url = if icon_data.is_empty() {
                         String::new()
                     } else {
@@ -136,9 +142,9 @@ impl Configurable for CandidateRegistryConfig {
                         target: c.target.payload().to_string(),
                         target_type: c.target.target_type().as_str().to_string(),
                         icon: icon_url,
+                        icon_request_json: serde_json::to_string(&c.icon).unwrap_or_default(),
                     });
                 }
-
                 serde_json::to_value(results).map_err(|e| e.to_string())
             }
             _ => Err(format!("未知动作: {}", action)),

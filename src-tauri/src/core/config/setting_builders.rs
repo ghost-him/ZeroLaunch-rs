@@ -122,6 +122,7 @@ impl SchemaBuilder {
                 default_value: Value::Null,
                 visible: true,
                 editable: true,
+                config_action: None,
             },
             group: None,
             order: 0,
@@ -297,11 +298,21 @@ impl SchemaBuilder {
     /// 切换到 SearchTable UI。用于搜索已索引程序并配置别名的数组。
     /// `source_component` 是提供搜索服务的组件 ID（如 "candidate-registry"），
     /// `source_action` 是搜索动作名（如 "search_candidates"）。
-    pub fn search_table_ui(mut self, source_component: &str, source_action: &str) -> Self {
+    /// `field_mapping` 是候选结果字段到编辑表单字段的映射，每项 `(candidateField, formField)`。
+    pub fn search_table_ui(
+        mut self,
+        source_component: &str,
+        source_action: &str,
+        field_mapping: &[(&str, &str)],
+    ) -> Self {
         if let SettingType::Array { ui_hint, .. } = &mut self.field_def.setting_type {
             *ui_hint = ArrayUiHint::SearchTable {
                 source_component: source_component.to_string(),
                 source_action: source_action.to_string(),
+                field_mapping: field_mapping
+                    .iter()
+                    .map(|(k, v)| (k.to_string(), v.to_string()))
+                    .collect(),
             };
         }
         self

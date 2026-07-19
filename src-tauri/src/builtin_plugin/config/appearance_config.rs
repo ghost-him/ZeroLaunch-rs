@@ -314,7 +314,7 @@ impl AppearanceConfigComponent {
                 "外观".to_string(),
                 "自定义应用的外观主题和界面语言".to_string(),
                 ComponentType::Core,
-                20,
+                0,
             ),
             settings: RwLock::new(AppearanceSettings::default()),
         }

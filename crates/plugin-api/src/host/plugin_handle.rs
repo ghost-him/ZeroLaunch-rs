@@ -161,6 +161,31 @@ impl PluginHandle {
             .await
     }
 
+    /// 覆盖指定 IconRequest 的缓存图标为自定义图标文件。
+    /// 参数：original_request - 需要覆盖图标的原始 IconRequest
+    ///       custom_icon_path - 用户选择的自定义图标文件路径
+    /// 返回：成功返回 Ok(()), 失败返回 HostApiError
+    pub async fn override_icon_cache(
+        &self,
+        original_request: &IconRequest,
+        custom_icon_path: &str,
+    ) -> Result<(), HostApiError> {
+        let hash_key = original_request.get_hash_string() + ".png";
+
+        // 从自定义文件提取并处理图标
+        let custom_request = IconRequest::Path(custom_icon_path.to_string());
+        let data = self
+            .icon_extractor
+            .extract_and_process(&custom_request)
+            .await?;
+
+        // 覆盖写入 L1 + L2 缓存
+        self.icon_cache.set_l1(&hash_key, data.clone());
+        self.icon_cache.set_l2(&hash_key, data).await;
+
+        Ok(())
+    }
+
     // ===== Shell 服务 =====
 
     /// 使用系统默认方式打开目标（文件/网址/文件夹）。

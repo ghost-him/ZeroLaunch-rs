@@ -116,6 +116,7 @@ impl Configurable for BiasConfig {
                 default_value: serde_json::json!(""),
                 visible: false,
                 editable: false,
+                config_action: None,
             },
             SchemaBuilder::number("bias", "偏移量", "正值提升排名，负值降低排名")
                 .default(0.0)
@@ -127,7 +128,7 @@ impl Configurable for BiasConfig {
                 .default("")
                 .build_field(),
         ])
-        .search_table_ui("candidate-registry", "search_candidates")
+        .search_table_ui("candidate-registry", "search_candidates", &[])
         .min_items(0)
         .default(serde_json::json!([]))
         .build()]

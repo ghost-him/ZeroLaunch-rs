@@ -44,7 +44,7 @@
       <template #footer>
         <n-space justify="end">
           <n-button size="small" @click="showModal = false">取消</n-button>
-          <n-button size="small" type="primary" @click="onSaveEdit">保存</n-button>
+          <n-button size="small" type="primary" :loading="saving" :disabled="saving" @click="onSaveEdit">保存</n-button>
         </n-space>
       </template>
     </n-modal>
@@ -61,11 +61,12 @@ import {
   NModal,
   NSpace,
   NText,
+  useMessage,
 } from 'naive-ui'
 import type { DataTableColumn } from 'naive-ui'
 import DynamicFormField from '../../DynamicFormField.vue'
 import { configExecuteAction } from '../../../../bridge/commands'
-import { getVisibleObjectFields, getSearchTableSource } from '../../../../utils/schemaTypes'
+import { getVisibleObjectFields, getSearchTableSource, getSearchTableFieldMapping } from '../../../../utils/schemaTypes'
 import type { SettingDefinition, ArrayItem, CandidateSummary } from '../../../../bridge/contract'
 
 const props = defineProps<{
@@ -78,6 +79,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'update:modelValue', value: unknown): void
 }>()
+
+const message = useMessage()
 
 // ---- 从 schema 中提取 SearchTable 源信息 ----
 const searchSource = computed(() => {
@@ -142,50 +145,85 @@ function updateEntries(newEntries: Record<string, unknown>[]) {
 // ---- 编辑弹窗 ----
 const showModal = ref(false)
 const editingTarget = ref('')
+const saving = ref(false)
 const editingValues = reactive<Record<string, unknown>>({})
 
 function onEdit(candidate: CandidateSummary) {
+  // 清空旧编辑状态，防止跨编辑会话残留旧属性
+  Object.keys(editingValues).forEach(k => delete editingValues[k])
   editingTarget.value = candidate.name
   const entry = getEntry(candidate.target)
   editingValues.target = candidate.target
+
+  // schema 驱动的字段映射：将候选项结果字段自动注入到编辑表单
+  const st = props.definition.field.settingType
+  const uiHint = typeof st === 'object' && st !== null && 'array' in st ? st.array.uiHint : null
+  const mapping = uiHint ? getSearchTableFieldMapping(uiHint) : null
+  if (mapping) {
+    for (const [candidateField, formField] of mapping) {
+      const val = (candidate as unknown as Record<string, unknown>)[candidateField]
+      if (val !== undefined && val !== null) {
+        editingValues[formField] = val
+      }
+    }
+  }
+
   for (const fd of visibleFields.value) {
     editingValues[fd.key] = entry?.[fd.key] ?? fd.defaultValue
   }
   showModal.value = true
 }
 
-function onSaveEdit() {
-  const newEntries = [...entries.value]
-  const target = String(editingValues.target ?? '')
-  const lowerTarget = target.toLowerCase()
-  const existingIdx = newEntries.findIndex(
-    (e) => String(e.target ?? '').toLowerCase() === lowerTarget,
-  )
+async function onSaveEdit() {
+  saving.value = true
+  try {
+    const target = String(editingValues.target ?? '')
 
-  // 构建保存的条目（排除 target 字段，由搜索栏自动关联）
-  const savedEntry: Record<string, unknown> = { target }
-  for (const fd of visibleFields.value) {
-    const val = editingValues[fd.key]
-    // 跳过空值，避免存储无意义的默认值
-    if (val !== '' && val !== undefined && !(Array.isArray(val) && val.length === 0)) {
-      savedEntry[fd.key] = val
+    // 处理 transient 字段：有 configAction 的字段在保存时触发对应动作后丢弃
+    for (const fd of visibleFields.value) {
+      if (fd.configAction) {
+        const val = editingValues[fd.key]
+        if (val !== '' && val !== undefined && val !== null) {
+          try {
+            await configExecuteAction(props.componentId, fd.configAction, {
+              ...editingValues,
+            })
+          } catch (e) {
+            console.error(`ConfigAction ${fd.configAction} 失败:`, e)
+            message.error(`操作 "${fd.label ?? fd.configAction}" 执行失败，请重试`)
+          }
+        }
+      }
     }
-  }
 
-  // 只有 target 字段说明没有有效数据，不保存
-  if (Object.keys(savedEntry).length <= 1) {
+    const newEntries = [...entries.value]
+    const lowerTarget = target.toLowerCase()
+    const existingIdx = newEntries.findIndex(
+      (e) => String(e.target ?? '').toLowerCase() === lowerTarget,
+    )
+
+    // 构建保存的条目（排除 configAction 字段）
+    const savedEntry: Record<string, unknown> = { target }
+    for (const fd of visibleFields.value) {
+      if (fd.configAction) continue
+      const val = editingValues[fd.key]
+      // 跳过空值，避免存储无意义的默认值
+      if (val !== '' && val !== undefined && !(Array.isArray(val) && val.length === 0)) {
+        savedEntry[fd.key] = val
+      }
+    }
+    // 保存条目（即使只有 target 也需要保存，用于标识已覆盖的项）
+    if (existingIdx >= 0) {
+      newEntries[existingIdx] = savedEntry
+    } else {
+      newEntries.push(savedEntry)
+    }
+
+    updateEntries(newEntries)
     showModal.value = false
-    return
+  } finally {
+    saving.value = false
   }
-
-  if (existingIdx >= 0) {
-    newEntries[existingIdx] = savedEntry
-  } else {
-    newEntries.push(savedEntry)
-  }
-
-  updateEntries(newEntries)
-  showModal.value = false
 }
 
 function onDelete(candidate: CandidateSummary) {

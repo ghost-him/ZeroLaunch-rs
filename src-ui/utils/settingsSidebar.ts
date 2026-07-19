@@ -24,9 +24,12 @@ export function buildSidebarItems(
       c.componentType === 'Core' &&
       c.componentId !== 'candidate-registry' &&
       c.componentId !== 'bias-config' &&
-      c.componentId !== 'appearance-config',
+      c.componentId !== 'appearance-config' &&
+      c.componentId !== 'icon-override-config',
   ).sort(sortByPriority)
-  const appearance = components.filter((c) => c.componentId === 'appearance-config').sort(sortByPriority)
+  const appearance = components.filter(
+    (c) => c.componentId === 'appearance-config' || c.componentId === 'icon-override-config',
+  ).sort(sortByPriority)
   const pipeline = components.filter((c) =>
     ['DataSource', 'KeywordOptimizer', 'KeywordInjector', 'SearchEngine', 'ScoreBooster', 'ActionExecutor', 'BiasRule'].includes(
       c.componentType,

@@ -90,6 +90,7 @@ impl Configurable for AliasOptimizer {
                         default_value: serde_json::json!(""),
                         visible: false,
                         editable: false,
+                        config_action: None,
                     },
                     SchemaBuilder::array("aliases", "别名", "别名列表，输入回车添加")
                         .primitive_item(zerolaunch_plugin_api::config::PrimitiveType::Text)
@@ -101,7 +102,7 @@ impl Configurable for AliasOptimizer {
                         .default("")
                         .build_field(),
                 ])
-                .search_table_ui("candidate-registry", "search_candidates")
+                .search_table_ui("candidate-registry", "search_candidates", &[])
                 .min_items(0)
                 .default(serde_json::json!([]))
                 .build(),

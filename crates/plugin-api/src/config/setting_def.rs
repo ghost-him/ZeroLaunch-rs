@@ -18,6 +18,15 @@ pub struct FieldDefinition {
     pub visible: bool,
     #[serde(rename = "editable")]
     pub editable: bool,
+    /// 关联的配置动作名称（对应 ConfigActionDef.action）。
+    /// 设置此值后，SearchTableArray 在编辑弹窗保存时将调用对应 ConfigAction，
+    /// 然后排除此字段（不持久化），实现"瞬态选择 → 立即触发动作"模式。
+    #[serde(
+        rename = "configAction",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub config_action: Option<String>,
 }
 
 impl Default for FieldDefinition {
@@ -30,6 +39,7 @@ impl Default for FieldDefinition {
             default_value: serde_json::Value::Null,
             visible: true,
             editable: true,
+            config_action: None,
         }
     }
 }
@@ -117,6 +127,14 @@ pub enum ArrayUiHint {
         source_component: String,
         #[serde(rename = "sourceAction")]
         source_action: String,
+        /// 候选结果字段到编辑表单字段的映射，每项为 (candidateField, formField)。
+        /// 用于自动将搜索结果中的额外字段注入到隐藏 schema 字段。
+        #[serde(
+            rename = "fieldMapping",
+            default,
+            skip_serializing_if = "Vec::is_empty"
+        )]
+        field_mapping: Vec<(String, String)>,
     },
 }
 

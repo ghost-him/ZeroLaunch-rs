@@ -47,15 +47,15 @@ fn format_query_list(list: &Value) -> String {
     out.push_str(&"-".repeat(70));
     out.push('\n');
     for (i, item) in results.iter().enumerate() {
-        let title = item["title"].as_str().unwrap_or("?");
-        let subtitle = item["subtitle"].as_str().unwrap_or("");
-        let target_type = item["targetType"].as_str().unwrap_or("?");
+        let title = escape_text(item["title"].as_str().unwrap_or("?"));
+        let subtitle = escape_text(item["subtitle"].as_str().unwrap_or(""));
+        let target_type = escape_text(item["targetType"].as_str().unwrap_or("?"));
         let score = item["score"].as_f64().unwrap_or(0.0);
 
         out.push_str(&format!(
             "  {:<4} {:<28} {:<10} {:>6.1}  {}\n",
             format!("{}.", i + 1),
-            truncate(title, 26),
+            truncate(&title, 26),
             target_type,
             score,
             subtitle,
@@ -65,7 +65,7 @@ fn format_query_list(list: &Value) -> String {
 }
 
 fn format_query_panel(panel: &Value) -> String {
-    let panel_type = panel["panelType"].as_str().unwrap_or("?");
+    let panel_type = escape_text(panel["panelType"].as_str().unwrap_or("?"));
     let data = panel.get("data").unwrap_or(&Value::Null);
     let actions = panel["actions"].as_array().map(|a| a.len()).unwrap_or(0);
 
@@ -73,7 +73,7 @@ fn format_query_panel(panel: &Value) -> String {
     out.push_str(&format!("  动作数量: {}\n", actions));
     if !data.is_null() && data.is_object() {
         for (k, v) in data.as_object().unwrap() {
-            out.push_str(&format!("    {}: {}\n", k, val_to_line(v)));
+            out.push_str(&format!("    {}: {}\n", escape_text(k), val_to_line(v)));
         }
     }
     out
@@ -119,19 +119,28 @@ pub fn format_plugins_list(value: &Value) -> String {
     out.push('\n');
 
     for item in arr {
-        let id = item["pluginId"].as_str().unwrap_or("?");
-        let ver = item["version"].as_str().unwrap_or("?");
-        let name = item["name"].as_str().unwrap_or("?");
-        let state = if item["enabled"].as_bool().unwrap_or(false) {
-            "enabled"
-        } else {
-            "disabled"
+        let id = escape_text(item["pluginId"].as_str().unwrap_or("?"));
+        let ver = escape_text(item["version"].as_str().unwrap_or("?"));
+        let name = escape_text(item["name"].as_str().unwrap_or("?"));
+        let state = match item["state"].as_str() {
+            Some("Running") => "Running",
+            Some("Crashed") => "Crashed",
+            Some("Stopped") => "Stopped",
+            Some("Starting") => "Starting",
+            _ => {
+                // 降级为 enabled/disabled 判断
+                if item["enabled"].as_bool().unwrap_or(false) {
+                    "enabled"
+                } else {
+                    "disabled"
+                }
+            }
         };
         out.push_str(&format!(
             "  {:<36} {:<10} {:<30} {:<10}\n",
-            truncate(id, 34),
+            truncate(&id, 34),
             ver,
-            truncate(name, 28),
+            truncate(&name, 28),
             state,
         ));
     }
@@ -170,7 +179,11 @@ pub fn format_plugin_info(value: &Value) -> String {
         let args = r["args"].as_array();
         if let Some(args) = args {
             if !args.is_empty() {
-                let args_str: Vec<&str> = args.iter().filter_map(|v| v.as_str()).collect();
+                let args_str: Vec<String> = args
+                    .iter()
+                    .filter_map(|v| v.as_str())
+                    .map(escape_text)
+                    .collect();
                 out.push_str(&format!("    参数: {}\n", args_str.join(" ")));
             }
         }
@@ -178,13 +191,16 @@ pub fn format_plugin_info(value: &Value) -> String {
         out.push_str(&fmt_field(r, "自动重启", "autoRestart"));
         out.push_str(&fmt_field(r, "最大重启次数", "maxRestart"));
     }
-
     // 组件声明
     if let Some(c) = components {
         out.push_str("  ── 组件声明 ──\n");
         let provides = c["provides"].as_array();
         if let Some(provides) = provides {
-            let list: Vec<&str> = provides.iter().filter_map(|v| v.as_str()).collect();
+            let list: Vec<String> = provides
+                .iter()
+                .filter_map(|v| v.as_str())
+                .map(escape_text)
+                .collect();
             out.push_str(&format!("    能力: {}\n", list.join(", ")));
         } else {
             out.push_str("    能力: (无)\n");
@@ -198,7 +214,7 @@ pub fn format_plugin_info(value: &Value) -> String {
                 out.push_str("  ── 前端 UI ──\n");
                 for (k, v) in obj {
                     if let Some(s) = v.as_str() {
-                        out.push_str(&format!("    {}: {}\n", k, s));
+                        out.push_str(&format!("    {}: {}\n", escape_text(k), escape_text(s)));
                     }
                 }
             }
@@ -209,7 +225,7 @@ pub fn format_plugin_info(value: &Value) -> String {
     if let Some(icon) = value.get("icon") {
         if let Some(path) = icon["path"].as_str() {
             out.push_str("  ── Icon ──\n");
-            out.push_str(&format!("    路径: {}\n", path));
+            out.push_str(&format!("    路径: {}\n", escape_text(path)));
         }
     }
 
@@ -222,10 +238,9 @@ pub fn format_plugin_logs(value: &Value) -> String {
     if logs.is_empty() {
         return "  (无日志)\n".into();
     }
-    // 日志已经是行文本，直接返回
     let mut out = String::new();
     for line in logs.lines() {
-        out.push_str(&format!("  {}\n", line));
+        out.push_str(&format!("  {}\n", escape_text(line)));
     }
     out
 }
@@ -251,15 +266,15 @@ pub fn format_config_list(value: &Value) -> String {
     out.push('\n');
 
     for item in arr {
-        let id = item["componentId"].as_str().unwrap_or("?");
-        let name = item["componentName"].as_str().unwrap_or("?");
-        let ctype = item["componentType"].as_str().unwrap_or("?");
+        let id = escape_text(item["componentId"].as_str().unwrap_or("?"));
+        let name = escape_text(item["componentName"].as_str().unwrap_or("?"));
+        let ctype = escape_text(item["componentType"].as_str().unwrap_or("?"));
         let enabled = item["enabled"].as_bool().unwrap_or(false);
         let state = if enabled { "enabled" } else { "disabled" };
         out.push_str(&format!(
             "  {:<28} {:<28} {:<10} {:<10}\n",
-            truncate(id, 26),
-            truncate(name, 26),
+            truncate(&id, 26),
+            truncate(&name, 26),
             ctype,
             state,
         ));
@@ -267,15 +282,14 @@ pub fn format_config_list(value: &Value) -> String {
     out
 }
 
-/// 格式化配置组件 schema。
 pub fn format_config_schema(value: &Value) -> String {
     if value.is_null() {
         return "  组件不存在\n".into();
     }
 
-    let component_id = value["componentId"].as_str().unwrap_or("?");
-    let component_name = value["componentName"].as_str().unwrap_or("?");
-    let component_type = value["componentType"].as_str().unwrap_or("?");
+    let component_id = escape_text(value["componentId"].as_str().unwrap_or("?"));
+    let component_name = escape_text(value["componentName"].as_str().unwrap_or("?"));
+    let component_type = escape_text(value["componentType"].as_str().unwrap_or("?"));
 
     let mut out = format!(
         "  Schema — {} ({}, {})\n\n",
@@ -305,16 +319,16 @@ pub fn format_config_schema(value: &Value) -> String {
     for setting in settings {
         let field = setting.get("field");
         if let Some(field) = field {
-            let name = field["name"].as_str().unwrap_or("?");
-            let ftype = field["fieldType"].as_str().unwrap_or("?");
+            let name = escape_text(field["name"].as_str().unwrap_or("?"));
+            let ftype = escape_text(field["fieldType"].as_str().unwrap_or("?"));
             let default = field.get("defaultValue");
-            let description = field["description"].as_str().unwrap_or("");
+            let description = escape_text(field["description"].as_str().unwrap_or(""));
 
             let default_str = default.map_or_else(|| "-".to_string(), val_compact);
 
             out.push_str(&format!(
                 "  {:<24} {:<12} {:<16}  {}\n",
-                truncate(name, 22),
+                truncate(&name, 22),
                 ftype,
                 truncate(&default_str, 14),
                 description,
@@ -337,7 +351,7 @@ pub fn format_config_get(value: &Value) -> String {
             }
             let mut out = String::new();
             for (k, v) in obj {
-                out.push_str(&format!("  {}: {}\n", k, val_to_line(v)));
+                out.push_str(&format!("  {}: {}\n", escape_text(k), val_to_line(v)));
             }
             out
         }
@@ -347,23 +361,61 @@ pub fn format_config_get(value: &Value) -> String {
     }
 }
 
-// ─── 辅助函数 ──────────────────────────────────────────────────────
+// ─── 辅助函数 ─────────────────────────────────────────────────────────
 
 /// 截断字符串到最大长度（超过时末尾加 `…`）。
 fn truncate(s: &str, max: usize) -> String {
     if s.len() <= max {
         s.to_string()
     } else {
+        // 找到不超过 max-1 的字符边界，避免在多字节字符中间截断
         let end = max.saturating_sub(1);
-        format!("{}…", &s[..end])
+        let char_end = s
+            .char_indices()
+            .take_while(|(i, _)| *i < end)
+            .last()
+            .map(|(i, c)| i + c.len_utf8())
+            .unwrap_or(0);
+        format!("{}…", &s[..char_end])
     }
+}
+
+/// 转义字符串中的终端控制字符为可见表示。
+/// 防止 C0 控制字符（ESC、BEL、CR 等）被终端解释。
+fn escape_text(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            // 保留 tab 和换行
+            '\t' => out.push('\t'),
+            '\n' => out.push('\n'),
+            // C0 控制字符用 caret notation（含 ESC → ^[）
+            '\x00'..='\x08' | '\x0b'..='\x0c' | '\x0e'..='\x1f' => {
+                out.push('^');
+                out.push((c as u8 + 64) as char);
+            }
+            '\x7f' => {
+                out.push('^');
+                out.push('?');
+            }
+            // 其他 Unicode 控制字符
+            c if c.is_control() => {
+                use std::fmt::Write;
+                let _ = write!(out, "[U+{:04X}]", c as u32);
+            }
+            _ => out.push(c),
+        }
+    }
+    out
 }
 
 /// 从 JSON 对象中提取字段值并格式化。
 fn fmt_field(obj: &Value, label: &str, key: &str) -> String {
     let val = obj.get(key);
     match val {
-        Some(Value::String(s)) => format!("  {}: {}\n", pad_label(label), s),
+        Some(Value::String(s)) => {
+            format!("  {}: {}\n", pad_label(label), escape_text(s))
+        }
         Some(v) => format!("  {}: {}\n", pad_label(label), val_compact(v)),
         None => String::new(),
     }
@@ -374,7 +426,9 @@ fn fmt_field_opt(obj: &Value, label: &str, key: &str) -> String {
     let val = obj.get(key);
     match val {
         Some(Value::Null) | None => String::new(),
-        Some(Value::String(s)) => format!("  {}: {}\n", pad_label(label), s),
+        Some(Value::String(s)) => {
+            format!("  {}: {}\n", pad_label(label), escape_text(s))
+        }
         Some(v) => format!("  {}: {}\n", pad_label(label), val_compact(v)),
     }
 }
@@ -390,7 +444,7 @@ fn val_compact(v: &Value) -> String {
         Value::Null => "null".into(),
         Value::Bool(b) => b.to_string(),
         Value::Number(n) => n.to_string(),
-        Value::String(s) => format!("\"{}\"", s),
+        Value::String(s) => format!("\"{}\"", escape_text(s)),
         Value::Array(arr) => {
             let items: Vec<String> = arr.iter().map(val_compact).collect();
             format!("[{}]", items.join(", "))
@@ -401,7 +455,7 @@ fn val_compact(v: &Value) -> String {
             } else {
                 let items: Vec<String> = obj
                     .iter()
-                    .map(|(k, v)| format!("{}: {}", k, val_compact(v)))
+                    .map(|(k, v)| format!("{}: {}", escape_text(k), val_compact(v)))
                     .collect();
                 format!("{{{}}}", items.join(", "))
             }
@@ -413,16 +467,17 @@ fn val_compact(v: &Value) -> String {
 fn val_to_line(v: &Value) -> String {
     match v {
         Value::String(s) => {
+            let escaped = escape_text(s);
             // 多行字符串缩进显示
-            if s.contains('\n') {
-                let indented = s
+            if escaped.contains('\n') {
+                let indented = escaped
                     .lines()
                     .map(|l| format!("    {}", l))
                     .collect::<Vec<_>>()
                     .join("\n");
                 format!("\n{}", indented)
             } else {
-                format!("\"{}\"", s)
+                format!("\"{}\"", escaped)
             }
         }
         Value::Array(arr) => {
@@ -446,7 +501,7 @@ fn val_to_line(v: &Value) -> String {
             } else {
                 let mut out = String::new();
                 for (k, v2) in obj {
-                    out.push_str(&format!("    {}: {}\n", k, val_compact(v2)));
+                    out.push_str(&format!("    {}: {}\n", escape_text(k), val_compact(v2)));
                 }
                 out
             }

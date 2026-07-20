@@ -2,8 +2,14 @@
 //!
 //! 每个命令对应一个 `format_*` 函数，接收 HTTP 响应的 JSON Value，
 //! 返回格式化后的纯文本字符串。加 `--json` 参数时跳过此模块直接输出 raw JSON。
+//!
+//! 所有来自外部输入（HTTP 响应、插件元数据、日志等）的动态文本经过处理顺序：
+//!   转义 → 按显示宽度截断 → 按显示宽度补齐
+//! 确保终端控制字符不会被解释，且表格列对齐不受 CJK/emoji 影响。
 
 use serde_json::Value;
+use unicode_segmentation::UnicodeSegmentation;
+use unicode_width::UnicodeWidthStr;
 
 // ─── Query ──────────────────────────────────────────────────────────
 
@@ -27,6 +33,7 @@ pub fn format_query(value: &Value) -> String {
     }
 }
 
+/// 格式化查询列表结果。使用 Unicode 显示宽度对齐表格列。
 fn format_query_list(list: &Value) -> String {
     let results = list.get("results").and_then(|v| v.as_array());
     let Some(results) = results else {
@@ -36,36 +43,58 @@ fn format_query_list(list: &Value) -> String {
         return "  无结果\n".into();
     }
 
-    let mut out = String::new();
-    out.push_str(&format!("  找到 {} 个结果:\n\n", results.len()));
+    const IDX_W: usize = 4;
+    const TITLE_W: usize = 28;
+    const TYPE_W: usize = 10;
+    const SCORE_W: usize = 6;
+
+    let mut out = format!("  找到 {} 个结果:\n\n", results.len());
     // 列头
-    out.push_str(&format!(
-        "  {:<4} {:<28} {:<10} {:>6}  目标路径\n",
-        "#", "标题", "类型", "得分"
-    ));
+    out.push_str("  ");
+    out.push_str(&pad_display_width("#", IDX_W, Align::Right));
+    out.push(' ');
+    out.push_str(&pad_display_width("标题", TITLE_W, Align::Left));
+    out.push(' ');
+    out.push_str(&pad_display_width("类型", TYPE_W, Align::Left));
+    out.push(' ');
+    out.push_str(&pad_display_width("得分", SCORE_W, Align::Right));
+    out.push_str("  目标路径\n");
     out.push_str("  ");
     out.push_str(&"-".repeat(70));
     out.push('\n');
+
     for (i, item) in results.iter().enumerate() {
-        let title = escape_text(item["title"].as_str().unwrap_or("?"));
-        let subtitle = escape_text(item["subtitle"].as_str().unwrap_or(""));
-        let target_type = escape_text(item["targetType"].as_str().unwrap_or("?"));
+        let title = escape_terminal_text(item["title"].as_str().unwrap_or("?"));
+        let subtitle = escape_terminal_text(item["subtitle"].as_str().unwrap_or(""));
+        let target_type = escape_terminal_text(item["targetType"].as_str().unwrap_or("?"));
         let score = item["score"].as_f64().unwrap_or(0.0);
 
-        out.push_str(&format!(
-            "  {:<4} {:<28} {:<10} {:>6.1}  {}\n",
-            format!("{}.", i + 1),
-            truncate(&title, 26),
-            target_type,
-            score,
-            subtitle,
+        out.push_str("  ");
+        out.push_str(&pad_display_width(
+            &format!("{}.", i + 1),
+            IDX_W,
+            Align::Right,
         ));
+        out.push(' ');
+        out.push_str(&pad_display_width(&title, TITLE_W, Align::Left));
+        out.push(' ');
+        out.push_str(&pad_display_width(&target_type, TYPE_W, Align::Left));
+        out.push(' ');
+        out.push_str(&pad_display_width(
+            &format!("{:.1}", score),
+            SCORE_W,
+            Align::Right,
+        ));
+        out.push_str("  ");
+        out.push_str(&subtitle);
+        out.push('\n');
     }
     out
 }
 
+/// 格式化自定义面板查询结果。
 fn format_query_panel(panel: &Value) -> String {
-    let panel_type = escape_text(panel["panelType"].as_str().unwrap_or("?"));
+    let panel_type = escape_terminal_text(panel["panelType"].as_str().unwrap_or("?"));
     let data = panel.get("data").unwrap_or(&Value::Null);
     let actions = panel["actions"].as_array().map(|a| a.len()).unwrap_or(0);
 
@@ -73,14 +102,19 @@ fn format_query_panel(panel: &Value) -> String {
     out.push_str(&format!("  动作数量: {}\n", actions));
     if !data.is_null() && data.is_object() {
         for (k, v) in data.as_object().unwrap() {
-            out.push_str(&format!("    {}: {}\n", escape_text(k), val_to_line(v)));
+            out.push_str(&format!(
+                "    {}: {}\n",
+                escape_terminal_text(k),
+                val_to_line(v)
+            ));
         }
     }
     out
 }
 
+/// 格式化行内参数模式查询结果。
 fn format_query_inline_param(param: &Value) -> String {
-    let keyword = param["triggerKeyword"].as_str().unwrap_or("?");
+    let keyword = escape_terminal_text(param["triggerKeyword"].as_str().unwrap_or("?"));
     let arg_count = param["userArgCount"].as_u64().unwrap_or(0);
     let candidate_id = param["candidateId"].as_u64().unwrap_or(0);
     format!(
@@ -93,13 +127,13 @@ fn format_query_inline_param(param: &Value) -> String {
 
 /// 格式化会话模式查询结果。
 pub fn format_session(value: &Value) -> String {
-    let mode = value["mode"].as_str().unwrap_or("?");
+    let mode = escape_terminal_text(value["mode"].as_str().unwrap_or("?"));
     format!("  会话模式: {}\n", mode)
 }
 
 // ─── Plugins ─────────────────────────────────────────────────────────
 
-/// 格式化插件列表。
+/// 格式化插件列表。使用 Unicode 显示宽度对齐，分别展示 State 和 Enabled 列。
 pub fn format_plugins_list(value: &Value) -> String {
     let Some(arr) = value.as_array() else {
         return "  无法解析插件列表\n".into();
@@ -108,41 +142,57 @@ pub fn format_plugins_list(value: &Value) -> String {
         return "  没有已安装的插件\n".into();
     }
 
+    const ID_W: usize = 36;
+    const VER_W: usize = 10;
+    const NAME_W: usize = 30;
+    const STATE_W: usize = 12;
+    const ENABLED_W: usize = 9;
+
     let mut out = format!("  已安装插件 ({}):\n\n", arr.len());
     // 表头
-    out.push_str(&format!(
-        "  {:<36} {:<10} {:<30} {:<10}\n",
-        "ID", "Version", "Name", "State"
-    ));
     out.push_str("  ");
-    out.push_str(&"-".repeat(90));
+    out.push_str(&pad_display_width("ID", ID_W, Align::Left));
+    out.push(' ');
+    out.push_str(&pad_display_width("Version", VER_W, Align::Left));
+    out.push(' ');
+    out.push_str(&pad_display_width("Name", NAME_W, Align::Left));
+    out.push(' ');
+    out.push_str(&pad_display_width("State", STATE_W, Align::Left));
+    out.push(' ');
+    out.push_str(&pad_display_width("Enabled", ENABLED_W, Align::Left));
+    out.push('\n');
+    out.push_str("  ");
+    out.push_str(&"-".repeat(100));
     out.push('\n');
 
     for item in arr {
-        let id = escape_text(item["pluginId"].as_str().unwrap_or("?"));
-        let ver = escape_text(item["version"].as_str().unwrap_or("?"));
-        let name = escape_text(item["name"].as_str().unwrap_or("?"));
+        let id = escape_terminal_text(item["pluginId"].as_str().unwrap_or("?"));
+        let ver = escape_terminal_text(item["version"].as_str().unwrap_or("?"));
+        let name = escape_terminal_text(item["name"].as_str().unwrap_or("?"));
         let state = match item["state"].as_str() {
             Some("Running") => "Running",
             Some("Crashed") => "Crashed",
             Some("Stopped") => "Stopped",
             Some("Starting") => "Starting",
-            _ => {
-                // 降级为 enabled/disabled 判断
-                if item["enabled"].as_bool().unwrap_or(false) {
-                    "enabled"
-                } else {
-                    "disabled"
-                }
-            }
+            _ => "?",
         };
-        out.push_str(&format!(
-            "  {:<36} {:<10} {:<30} {:<10}\n",
-            truncate(&id, 34),
-            ver,
-            truncate(&name, 28),
-            state,
+        let enabled = item["enabled"].as_bool().unwrap_or(false);
+
+        out.push_str("  ");
+        out.push_str(&pad_display_width(&id, ID_W, Align::Left));
+        out.push(' ');
+        out.push_str(&pad_display_width(&ver, VER_W, Align::Left));
+        out.push(' ');
+        out.push_str(&pad_display_width(&name, NAME_W, Align::Left));
+        out.push(' ');
+        out.push_str(&pad_display_width(state, STATE_W, Align::Left));
+        out.push(' ');
+        out.push_str(&pad_display_width(
+            if enabled { "✓" } else { "✗" },
+            ENABLED_W,
+            Align::Left,
         ));
+        out.push('\n');
     }
     out
 }
@@ -182,7 +232,7 @@ pub fn format_plugin_info(value: &Value) -> String {
                 let args_str: Vec<String> = args
                     .iter()
                     .filter_map(|v| v.as_str())
-                    .map(escape_text)
+                    .map(escape_terminal_text)
                     .collect();
                 out.push_str(&format!("    参数: {}\n", args_str.join(" ")));
             }
@@ -199,7 +249,7 @@ pub fn format_plugin_info(value: &Value) -> String {
             let list: Vec<String> = provides
                 .iter()
                 .filter_map(|v| v.as_str())
-                .map(escape_text)
+                .map(escape_terminal_text)
                 .collect();
             out.push_str(&format!("    能力: {}\n", list.join(", ")));
         } else {
@@ -214,7 +264,11 @@ pub fn format_plugin_info(value: &Value) -> String {
                 out.push_str("  ── 前端 UI ──\n");
                 for (k, v) in obj {
                     if let Some(s) = v.as_str() {
-                        out.push_str(&format!("    {}: {}\n", escape_text(k), escape_text(s)));
+                        out.push_str(&format!(
+                            "    {}: {}\n",
+                            escape_terminal_text(k),
+                            escape_terminal_text(s)
+                        ));
                     }
                 }
             }
@@ -225,14 +279,14 @@ pub fn format_plugin_info(value: &Value) -> String {
     if let Some(icon) = value.get("icon") {
         if let Some(path) = icon["path"].as_str() {
             out.push_str("  ── Icon ──\n");
-            out.push_str(&format!("    路径: {}\n", escape_text(path)));
+            out.push_str(&format!("    路径: {}\n", escape_terminal_text(path)));
         }
     }
 
     out
 }
 
-/// 格式化插件日志。
+/// 格式化插件日志。逐行转义控制字符，保持多行可读。
 pub fn format_plugin_logs(value: &Value) -> String {
     let logs = value["logs"].as_str().unwrap_or("");
     if logs.is_empty() {
@@ -240,14 +294,14 @@ pub fn format_plugin_logs(value: &Value) -> String {
     }
     let mut out = String::new();
     for line in logs.lines() {
-        out.push_str(&format!("  {}\n", escape_text(line)));
+        out.push_str(&format!("  {}\n", escape_terminal_text(line)));
     }
     out
 }
 
 // ─── Config ─────────────────────────────────────────────────────────
 
-/// 格式化配置组件列表。
+/// 格式化配置组件列表。使用 Unicode 显示宽度对齐表格列。
 pub fn format_config_list(value: &Value) -> String {
     let Some(arr) = value.as_array() else {
         return "  无法解析配置组件列表\n".into();
@@ -256,40 +310,54 @@ pub fn format_config_list(value: &Value) -> String {
         return "  没有配置组件\n".into();
     }
 
+    const ID_W: usize = 28;
+    const NAME_W: usize = 28;
+    const TYPE_W: usize = 10;
+    const STATE_W: usize = 10;
+
     let mut out = format!("  配置组件 ({}):\n\n", arr.len());
-    out.push_str(&format!(
-        "  {:<28} {:<28} {:<10} {:<10}\n",
-        "ID", "名称", "类型", "状态"
-    ));
+    out.push_str("  ");
+    out.push_str(&pad_display_width("ID", ID_W, Align::Left));
+    out.push(' ');
+    out.push_str(&pad_display_width("名称", NAME_W, Align::Left));
+    out.push(' ');
+    out.push_str(&pad_display_width("类型", TYPE_W, Align::Left));
+    out.push(' ');
+    out.push_str(&pad_display_width("状态", STATE_W, Align::Left));
+    out.push('\n');
     out.push_str("  ");
     out.push_str(&"-".repeat(80));
     out.push('\n');
 
     for item in arr {
-        let id = escape_text(item["componentId"].as_str().unwrap_or("?"));
-        let name = escape_text(item["componentName"].as_str().unwrap_or("?"));
-        let ctype = escape_text(item["componentType"].as_str().unwrap_or("?"));
+        let id = escape_terminal_text(item["componentId"].as_str().unwrap_or("?"));
+        let name = escape_terminal_text(item["componentName"].as_str().unwrap_or("?"));
+        let ctype = escape_terminal_text(item["componentType"].as_str().unwrap_or("?"));
         let enabled = item["enabled"].as_bool().unwrap_or(false);
         let state = if enabled { "enabled" } else { "disabled" };
-        out.push_str(&format!(
-            "  {:<28} {:<28} {:<10} {:<10}\n",
-            truncate(&id, 26),
-            truncate(&name, 26),
-            ctype,
-            state,
-        ));
+
+        out.push_str("  ");
+        out.push_str(&pad_display_width(&id, ID_W, Align::Left));
+        out.push(' ');
+        out.push_str(&pad_display_width(&name, NAME_W, Align::Left));
+        out.push(' ');
+        out.push_str(&pad_display_width(&ctype, TYPE_W, Align::Left));
+        out.push(' ');
+        out.push_str(&pad_display_width(state, STATE_W, Align::Left));
+        out.push('\n');
     }
     out
 }
 
+/// 格式化配置组件的 Schema。使用 Unicode 显示宽度对齐表格列。
 pub fn format_config_schema(value: &Value) -> String {
     if value.is_null() {
         return "  组件不存在\n".into();
     }
 
-    let component_id = escape_text(value["componentId"].as_str().unwrap_or("?"));
-    let component_name = escape_text(value["componentName"].as_str().unwrap_or("?"));
-    let component_type = escape_text(value["componentType"].as_str().unwrap_or("?"));
+    let component_id = escape_terminal_text(value["componentId"].as_str().unwrap_or("?"));
+    let component_name = escape_terminal_text(value["componentName"].as_str().unwrap_or("?"));
+    let component_type = escape_terminal_text(value["componentType"].as_str().unwrap_or("?"));
 
     let mut out = format!(
         "  Schema — {} ({}, {})\n\n",
@@ -307,11 +375,18 @@ pub fn format_config_schema(value: &Value) -> String {
         return out;
     }
 
+    const FIELD_W: usize = 24;
+    const TYPE_W: usize = 12;
+    const DEFAULT_W: usize = 16;
+
     // 表头
-    out.push_str(&format!(
-        "  {:<24} {:<12} {:<16}  {}\n",
-        "字段", "类型", "默认值", "描述"
-    ));
+    out.push_str("  ");
+    out.push_str(&pad_display_width("字段", FIELD_W, Align::Left));
+    out.push(' ');
+    out.push_str(&pad_display_width("类型", TYPE_W, Align::Left));
+    out.push(' ');
+    out.push_str(&pad_display_width("默认值", DEFAULT_W, Align::Left));
+    out.push_str("  描述\n");
     out.push_str("  ");
     out.push_str(&"-".repeat(80));
     out.push('\n');
@@ -319,26 +394,28 @@ pub fn format_config_schema(value: &Value) -> String {
     for setting in settings {
         let field = setting.get("field");
         if let Some(field) = field {
-            let name = escape_text(field["name"].as_str().unwrap_or("?"));
-            let ftype = escape_text(field["fieldType"].as_str().unwrap_or("?"));
+            let name = escape_terminal_text(field["name"].as_str().unwrap_or("?"));
+            let ftype = escape_terminal_text(field["fieldType"].as_str().unwrap_or("?"));
             let default = field.get("defaultValue");
-            let description = escape_text(field["description"].as_str().unwrap_or(""));
+            let description = escape_terminal_text(field["description"].as_str().unwrap_or(""));
 
             let default_str = default.map_or_else(|| "-".to_string(), val_compact);
 
-            out.push_str(&format!(
-                "  {:<24} {:<12} {:<16}  {}\n",
-                truncate(&name, 22),
-                ftype,
-                truncate(&default_str, 14),
-                description,
-            ));
+            out.push_str("  ");
+            out.push_str(&pad_display_width(&name, FIELD_W, Align::Left));
+            out.push(' ');
+            out.push_str(&pad_display_width(&ftype, TYPE_W, Align::Left));
+            out.push(' ');
+            out.push_str(&pad_display_width(&default_str, DEFAULT_W, Align::Left));
+            out.push_str("  ");
+            out.push_str(&description);
+            out.push('\n');
         }
     }
     out
 }
 
-/// 格式化配置设置值。
+/// 格式化配置设置值（key: value 对）。
 pub fn format_config_get(value: &Value) -> String {
     if value.is_null() {
         return "  (空设置)\n".into();
@@ -351,7 +428,11 @@ pub fn format_config_get(value: &Value) -> String {
             }
             let mut out = String::new();
             for (k, v) in obj {
-                out.push_str(&format!("  {}: {}\n", escape_text(k), val_to_line(v)));
+                out.push_str(&format!(
+                    "  {}: {}\n",
+                    escape_terminal_text(k),
+                    val_to_line(v)
+                ));
             }
             out
         }
@@ -363,45 +444,33 @@ pub fn format_config_get(value: &Value) -> String {
 
 // ─── 辅助函数 ─────────────────────────────────────────────────────────
 
-/// 截断字符串到最大长度（超过时末尾加 `…`）。
-fn truncate(s: &str, max: usize) -> String {
-    if s.len() <= max {
-        s.to_string()
-    } else {
-        // 找到不超过 max-1 的字符边界，避免在多字节字符中间截断
-        let end = max.saturating_sub(1);
-        let char_end = s
-            .char_indices()
-            .take_while(|(i, _)| *i < end)
-            .last()
-            .map(|(i, c)| i + c.len_utf8())
-            .unwrap_or(0);
-        format!("{}…", &s[..char_end])
-    }
+/// 对齐方向。
+enum Align {
+    Left,
+    Right,
 }
 
 /// 转义字符串中的终端控制字符为可见表示。
-/// 防止 C0 控制字符（ESC、BEL、CR 等）被终端解释。
-fn escape_text(s: &str) -> String {
+///
+/// 将所有 C0 控制字符（U+0000–U+001F）和 DEL（U+007F）替换为可见转义形式，
+/// 防止它们被终端解释。按规范顺序：先转义再测宽再截断。
+fn escape_terminal_text(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for c in s.chars() {
         match c {
-            // 保留 tab 和换行
-            '\t' => out.push('\t'),
-            '\n' => out.push('\n'),
-            // C0 控制字符用 caret notation（含 ESC → ^[）
+            '\x1b' => out.push_str("\\x1b"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
             '\x00'..='\x08' | '\x0b'..='\x0c' | '\x0e'..='\x1f' => {
-                out.push('^');
-                out.push((c as u8 + 64) as char);
+                use std::fmt::Write;
+                let _ = write!(out, "\\u{{{:04X}}}", c as u32);
             }
-            '\x7f' => {
-                out.push('^');
-                out.push('?');
-            }
-            // 其他 Unicode 控制字符
+            '\x7f' => out.push_str("\\u{007F}"),
+            // 其他 Unicode 控制字符（如 U+0085、U+200E 等）
             c if c.is_control() => {
                 use std::fmt::Write;
-                let _ = write!(out, "[U+{:04X}]", c as u32);
+                let _ = write!(out, "\\u{{{:04X}}}", c as u32);
             }
             _ => out.push(c),
         }
@@ -409,12 +478,72 @@ fn escape_text(s: &str) -> String {
     out
 }
 
+/// 返回字符串在终端中的显示宽度（列数）。
+///
+#[allow(dead_code)]
+fn display_width(s: &str) -> usize {
+    UnicodeWidthStr::width(s)
+}
+
+/// 按终端显示宽度截断字符串，超限时末尾追加省略号 `…`。
+///
+/// 调用方传入的文本应当已经过 `escape_terminal_text` 转义。
+/// 使用 grapheme 分割避免从组合字符或 emoji 序列中间截断。
+///
+/// `max_width` 为 0 时返回空字符串；任何输入都不会 panic。
+fn truncate_display_width(text: &str, max_width: usize) -> String {
+    if max_width == 0 {
+        return String::new();
+    }
+    let text_width = UnicodeWidthStr::width(text);
+    if text_width <= max_width {
+        return text.to_string();
+    }
+
+    // 预留省略号宽度
+    let ellipsis = "…";
+    let ellipsis_w = UnicodeWidthStr::width(ellipsis);
+    let available = max_width.saturating_sub(ellipsis_w);
+
+    let mut result = String::new();
+    let mut cur_w = 0;
+    for grapheme in UnicodeSegmentation::graphemes(text, true) {
+        let g_w = UnicodeWidthStr::width(grapheme);
+        if cur_w + g_w > available {
+            break;
+        }
+        result.push_str(grapheme);
+        cur_w += g_w;
+    }
+    result.push_str(ellipsis);
+    result
+}
+
+/// 按终端显示宽度补齐或截断字符串到目标宽度。
+///
+/// 1. 文本显示宽度超过 `target_width` 时，先按 `truncate_display_width` 截断。
+/// 2. 计算剩余列数，按指定对齐方向补齐空格。
+///
+/// 字符串列使用左对齐，数字列使用右对齐。
+fn pad_display_width(text: &str, target_width: usize, align: Align) -> String {
+    let text_w = UnicodeWidthStr::width(text);
+    if text_w >= target_width {
+        return truncate_display_width(text, target_width);
+    }
+    let padding = target_width - text_w;
+    let spaces = " ".repeat(padding);
+    match align {
+        Align::Left => format!("{}{}", text, spaces),
+        Align::Right => format!("{}{}", spaces, text),
+    }
+}
+
 /// 从 JSON 对象中提取字段值并格式化。
 fn fmt_field(obj: &Value, label: &str, key: &str) -> String {
     let val = obj.get(key);
     match val {
         Some(Value::String(s)) => {
-            format!("  {}: {}\n", pad_label(label), escape_text(s))
+            format!("  {}: {}\n", pad_label(label), escape_terminal_text(s))
         }
         Some(v) => format!("  {}: {}\n", pad_label(label), val_compact(v)),
         None => String::new(),
@@ -427,7 +556,7 @@ fn fmt_field_opt(obj: &Value, label: &str, key: &str) -> String {
     match val {
         Some(Value::Null) | None => String::new(),
         Some(Value::String(s)) => {
-            format!("  {}: {}\n", pad_label(label), escape_text(s))
+            format!("  {}: {}\n", pad_label(label), escape_terminal_text(s))
         }
         Some(v) => format!("  {}: {}\n", pad_label(label), val_compact(v)),
     }
@@ -444,7 +573,7 @@ fn val_compact(v: &Value) -> String {
         Value::Null => "null".into(),
         Value::Bool(b) => b.to_string(),
         Value::Number(n) => n.to_string(),
-        Value::String(s) => format!("\"{}\"", escape_text(s)),
+        Value::String(s) => format!("\"{}\"", escape_terminal_text(s)),
         Value::Array(arr) => {
             let items: Vec<String> = arr.iter().map(val_compact).collect();
             format!("[{}]", items.join(", "))
@@ -455,7 +584,7 @@ fn val_compact(v: &Value) -> String {
             } else {
                 let items: Vec<String> = obj
                     .iter()
-                    .map(|(k, v)| format!("{}: {}", escape_text(k), val_compact(v)))
+                    .map(|(k, v)| format!("{}: {}", escape_terminal_text(k), val_compact(v)))
                     .collect();
                 format!("{{{}}}", items.join(", "))
             }
@@ -467,17 +596,16 @@ fn val_compact(v: &Value) -> String {
 fn val_to_line(v: &Value) -> String {
     match v {
         Value::String(s) => {
-            let escaped = escape_text(s);
-            // 多行字符串缩进显示
-            if escaped.contains('\n') {
-                let indented = escaped
+            // 先检查原始字符串是否有换行，决定是否多行展示
+            if s.contains('\n') || s.contains('\r') {
+                let indented = s
                     .lines()
-                    .map(|l| format!("    {}", l))
+                    .map(|l| format!("    {}", escape_terminal_text(l)))
                     .collect::<Vec<_>>()
                     .join("\n");
                 format!("\n{}", indented)
             } else {
-                format!("\"{}\"", escaped)
+                format!("\"{}\"", escape_terminal_text(s))
             }
         }
         Value::Array(arr) => {
@@ -501,7 +629,11 @@ fn val_to_line(v: &Value) -> String {
             } else {
                 let mut out = String::new();
                 for (k, v2) in obj {
-                    out.push_str(&format!("    {}: {}\n", escape_text(k), val_compact(v2)));
+                    out.push_str(&format!(
+                        "    {}: {}\n",
+                        escape_terminal_text(k),
+                        val_compact(v2)
+                    ));
                 }
                 out
             }
@@ -513,4 +645,255 @@ fn val_to_line(v: &Value) -> String {
 /// 兜底：将值作为多行 JSON 输出（缩进 2 空格）。
 fn pretty_raw(v: &Value) -> String {
     serde_json::to_string_pretty(v).unwrap_or_else(|_| "? (序列化失败)".to_string())
+}
+
+// ─── 单元测试 ─────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── display_width ──
+
+    #[test]
+    fn test_display_width_ascii() {
+        assert_eq!(display_width("hello"), 5);
+    }
+
+    #[test]
+    fn test_display_width_cjk() {
+        assert_eq!(display_width("中文"), 4);
+        assert_eq!(display_width("A中B"), 4);
+    }
+
+    #[test]
+    fn test_display_width_emoji() {
+        // 常见 emoji 宽度 2
+        assert_eq!(display_width("🙂"), 2);
+    }
+
+    // ── escape_terminal_text ──
+
+    #[test]
+    fn test_escape_normal_text() {
+        assert_eq!(escape_terminal_text("hello"), "hello");
+    }
+
+    #[test]
+    fn test_escape_esc() {
+        assert_eq!(escape_terminal_text("\x1b[2J"), "\\x1b[2J");
+    }
+
+    #[test]
+    fn test_escape_newline() {
+        assert_eq!(escape_terminal_text("a\nb"), "a\\nb");
+    }
+
+    #[test]
+    fn test_escape_cr() {
+        assert_eq!(escape_terminal_text("a\rb"), "a\\rb");
+    }
+
+    #[test]
+    fn test_escape_tab() {
+        assert_eq!(escape_terminal_text("a\tb"), "a\\tb");
+    }
+
+    #[test]
+    fn test_escape_bel() {
+        assert_eq!(escape_terminal_text("\u{0007}"), "\\u{0007}");
+    }
+
+    #[test]
+    fn test_escape_del() {
+        assert_eq!(escape_terminal_text("\u{007f}"), "\\u{007F}");
+    }
+
+    #[test]
+    fn test_escape_mixed() {
+        assert_eq!(
+            escape_terminal_text("hello\x1bworld\n"),
+            "hello\\x1bworld\\n"
+        );
+    }
+
+    #[test]
+    fn test_escape_no_control_left() {
+        let inputs = ["\x1b", "\n", "\r", "\t", "\u{0007}", "\u{007f}", "\u{0000}"];
+        for input in inputs {
+            let escaped = escape_terminal_text(input);
+            assert!(
+                !escaped.chars().any(|c| c.is_control()),
+                "escape_terminal_text({:?}) still contains control char: {:?}",
+                input,
+                escaped
+            );
+        }
+    }
+
+    // ── truncate_display_width ──
+
+    #[test]
+    fn test_truncate_ascii_no_truncate() {
+        assert_eq!(truncate_display_width("hello", 5), "hello");
+    }
+
+    #[test]
+    fn test_truncate_ascii_truncate() {
+        let result = truncate_display_width("hello world", 5);
+        assert_eq!(display_width(&result), 5);
+        assert!(result.ends_with('…'));
+    }
+
+    #[test]
+    fn test_truncate_cjk_no_truncate() {
+        let text = "你好";
+        assert_eq!(truncate_display_width(text, 4), text);
+    }
+
+    #[test]
+    fn test_truncate_cjk_truncate() {
+        let result = truncate_display_width("你好世界", 5);
+        assert!(display_width(&result) <= 5);
+        assert!(result.ends_with('…'));
+    }
+
+    #[test]
+    fn test_truncate_zero() {
+        assert_eq!(truncate_display_width("hello", 0), "");
+    }
+
+    #[test]
+    fn test_truncate_emoji_no_panic() {
+        let result = truncate_display_width("🙂emoji混合中文测试", 10);
+        assert!(display_width(&result) <= 10);
+    }
+
+    #[test]
+    fn test_truncate_boundary_equals() {
+        let text = "hi";
+        assert_eq!(truncate_display_width(text, 2), text);
+    }
+
+    // ── pad_display_width ──
+
+    #[test]
+    fn test_pad_left() {
+        let result = pad_display_width("hello", 8, Align::Left);
+        assert_eq!(display_width(&result), 8);
+        assert!(result.starts_with("hello"));
+    }
+
+    #[test]
+    fn test_pad_right() {
+        let result = pad_display_width("hello", 8, Align::Right);
+        assert_eq!(display_width(&result), 8);
+        assert!(result.ends_with("hello"));
+    }
+
+    #[test]
+    fn test_pad_cjk_left() {
+        let result = pad_display_width("中文", 6, Align::Left);
+        assert_eq!(display_width(&result), 6);
+    }
+
+    #[test]
+    fn test_pad_over_width_truncates() {
+        let result = pad_display_width("hello world", 5, Align::Left);
+        assert!(display_width(&result) <= 5);
+    }
+
+    // ── format_plugins_list State/Enabled semantics ──
+
+    #[test]
+    fn test_plugins_list_state_enabled() {
+        let json = serde_json::json!([
+            {
+                "pluginId": "test-plugin",
+                "version": "1.0.0",
+                "name": "测试插件",
+                "state": "Running",
+                "enabled": true
+            },
+            {
+                "pluginId": "broken-plugin",
+                "version": "0.5.0",
+                "name": "Broken",
+                "state": "Crashed",
+                "enabled": true
+            }
+        ]);
+        let output = format_plugins_list(&json);
+        assert!(output.contains("Running"));
+        assert!(output.contains("Crashed"));
+        // State 列不应再显示 enabled/disabled
+        assert!(
+            !output.contains("enabled"),
+            "State column should not show enabled/disabled"
+        );
+        // Enabled 列应有标记
+        assert!(output.contains("✓"));
+    }
+
+    // ── --json output unaffected ──
+
+    #[test]
+    fn test_json_output_not_affected() {
+        let val = serde_json::json!({"key": "value\nwith\x1besc"});
+        let json_str = serde_json::to_string_pretty(&val).unwrap();
+        // JSON 输出应保留原始编码
+        assert!(json_str.contains("\\n"), "JSON should keep literal \\n");
+    }
+
+    // ── format_config_list ──
+
+    #[test]
+    fn test_config_list() {
+        let json = serde_json::json!([
+            {
+                "componentId": "appearance",
+                "componentName": "外观设置",
+                "componentType": "config",
+                "enabled": true
+            }
+        ]);
+        let output = format_config_list(&json);
+        assert!(output.contains("appearance"));
+        assert!(output.contains("外观设置"));
+        assert!(output.contains("enabled"));
+    }
+
+    // ── format_config_schema object-type default value ──
+
+    #[test]
+    fn test_config_schema_object_default() {
+        let json = serde_json::json!({
+            "componentId": "test",
+            "componentName": "Test",
+            "componentType": "config",
+            "settings": [
+                {
+                    "field": {
+                        "name": "colors",
+                        "fieldType": "object",
+                        "defaultValue": {"bg": "#000", "fg": "#fff"},
+                        "description": "颜色配置"
+                    }
+                }
+            ]
+        });
+        // 不应 panic
+        let output = format_config_schema(&json);
+        assert!(output.contains("colors"));
+    }
+
+    // ── format_config_get multi-line string ──
+
+    #[test]
+    fn test_config_get_multiline() {
+        let json = serde_json::json!({"description": "line1\nline2\nline3"});
+        // 不应 panic
+        let output = format_config_get(&json);
+        assert!(output.contains("description"));
+    }
 }

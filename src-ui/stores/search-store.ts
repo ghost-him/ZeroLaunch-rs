@@ -50,6 +50,9 @@ export const useSearchStore = defineStore('search', () => {
   // 参数面板模式
   const paramPanelState = ref<ParamPanelState | null>(null)
 
+  /** 递增序号，丢弃过期的 bridge_query 响应，避免慢请求盖写新输入。 */
+  let querySeq = 0
+
   // ---- 派生 ----
   const isIdle = computed(() => query.value === '')
 
@@ -105,11 +108,14 @@ export const useSearchStore = defineStore('search', () => {
 
   async function doQuery(raw: string) {
     query.value = raw
+    const seq = ++querySeq
 
     if (raw === '') {
       results.value = []
       sessionMode.value = 'none'
       panelType.value = null
+      panelData.value = null
+      panelActions.value = []
       inlineParamState.value = null
       paramPanelState.value = null
       selectedIndex.value = 0
@@ -119,6 +125,7 @@ export const useSearchStore = defineStore('search', () => {
 
     try {
       const resp: BridgeQueryResponse = await bridgeQuery(raw)
+      if (seq !== querySeq) return
 
       selectedActionIndex.value = 0
 
@@ -155,6 +162,7 @@ export const useSearchStore = defineStore('search', () => {
           break
       }
     } catch (e) {
+      if (seq !== querySeq) return
       console.error('[doQuery] Query failed:', e)
     }
   }
@@ -341,6 +349,17 @@ export const useSearchStore = defineStore('search', () => {
   }
 
   function confirmPluginAction() {
+    // 面板 status=ready：再查一次同文，由插件内部门控提交
+    const data = panelData.value
+    if (
+      data &&
+      typeof data === 'object' &&
+      'status' in data &&
+      (data as { status?: string }).status === 'ready'
+    ) {
+      void doQuery(query.value)
+      return
+    }
     doConfirm()
   }
 

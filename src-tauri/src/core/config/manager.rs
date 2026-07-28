@@ -54,6 +54,17 @@ impl ConfigManager {
             error!("拒绝注册（配置 schema 无效）: {} - {}", id, error);
             return;
         }
+
+        // 应用 schema 默认值作为初始状态，确保校验时的值符合 schema 约束。
+        // 此时组件尚未加载持久化配置，其内存中的值为 struct 零值，可能与 schema 约束冲突
+        //（如 min_items(1) 的数组字段初始为空）。
+        // `load_from_storage()` 稍后会覆盖这些默认值。
+        let defaults = component.get_default_settings();
+        if let Err(e) = component.apply_settings(defaults) {
+            error!("拒绝注册（应用 schema 默认值失败）: {} - {}", id, e);
+            return;
+        }
+
         if let Err(error) = component.validate_settings(&component.get_settings()) {
             error!("拒绝注册（当前配置值无效）: {} - {}", id, error);
             return;

@@ -48,9 +48,15 @@ description: 总结当前代码更改，生成结构化的 commit message 或变
    2–4 个要点，描述高阶解决方案和核心影响。
    ```
 
-   - 首行, body ≤70 字符，精简展示。
+   - **header ≤72 字符**（conventional commit 标准），且不含标点结尾。
+   - **body 每行 ≤100 字符**（commitlint `body-max-line-length`）。
    - 使用中文 body，**不含**双引号 `"`。
    - **每节要点 ≤4 个**，用抽象概括代替逐项枚举（不列函数名、文件数、测试数）。
+   - **禁止在 body 中嵌入超过 50 字符的代码/路径/符号引用**。必须用自然语言描述行为，而非复现代码符号：
+     - ❌ `在 validate_settings() 之前调用 component.apply_settings(component.get_default_settings())`
+     - ✅ `在注册时预置 schema 默认值，使校验前已持有符合约束的初始状态`
+     - ❌ `src-tauri/src/core/config/manager.rs:54-64`
+     - ✅ 只描述「在哪层做了什么」即可，不列具体行号
    - **Scope 规则**：取变更文件最多的顶级目录为 scope；均匀分布在 3+ 互不相关目录则省略 scope；禁止组合型 scope。
 
 7. **输出结果**：展示给用户，不执行 `git commit`。
@@ -58,15 +64,15 @@ description: 总结当前代码更改，生成结构化的 commit message 或变
 ## 输出示例
 
 ```
-fix(cli_server): 将 axum 路由参数语法从 `:param` 迁移到 `{param}`
+fix(core): 在注册时预置 schema 默认值避免零值与约束冲突
 
 **🤔 背景与动机 (Why)**
-- axum 0.8 废弃了 `:param` 语法，旧路由定义导致含参数的路由全部 panic。
-- CLI HTTP 服务器 `/v1/plugins/{id}` 等端点不可用。
+- 组件注册先于持久化配置加载，校验时读取的是 struct 零值而非 schema 默认值。
+- min_items(1) 等约束下的空数组等零值导致「当前配置值无效」错误。
 
 **✨ 解决方案与影响 (What & Impact)**
-- 将所有路由定义从 `/:param` 批量替换为 `/{param}`，共涉及 11 处。
-- 服务器恢复正常启动，所有含参数路由恢复可用。
+- 注册流程中先应用 schema 默认值作为初始状态，再执行校验。
+- 持久化配置随后加载覆盖，不影响用户已保存的值。
 ```
 
 ## 注意事项

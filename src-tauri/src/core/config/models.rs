@@ -1,51 +1,26 @@
 use serde::{Deserialize, Serialize};
+use zerolaunch_plugin_api::config::{ComponentType, SettingsContribution};
 
-use zerolaunch_plugin_api::config::{ComponentType, SettingDefinition};
-
-/// 组件概览信息，用于前端展示组件列表
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ComponentInfo {
-    /// 组件唯一标识
-    #[serde(rename = "componentId")]
+/// 配置管理器向 IPC 边界提供的组件概览快照，不携带序列化职责。
+#[derive(Debug, Clone)]
+pub struct ComponentInfoSnapshot {
     pub component_id: String,
-    /// 组件显示名称
-    #[serde(rename = "componentName")]
     pub component_name: String,
-    /// 组件描述文本
-    #[serde(rename = "componentDescription")]
     pub component_description: String,
-    /// 组件类型
-    #[serde(rename = "componentType")]
     pub component_type: ComponentType,
-    /// 显示排序优先级，数值越小越优先
-    #[serde(rename = "priority")]
     pub priority: u32,
-    /// 组件是否启用
-    #[serde(rename = "enabled")]
     pub enabled: bool,
-    /// 组件默认是否启用
-    #[serde(rename = "defaultEnabled")]
     pub default_enabled: bool,
 }
 
-/// 组件配置 Schema，用于前端渲染配置表单
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ComponentSchema {
-    /// 组件唯一标识
-    #[serde(rename = "componentId")]
+/// 配置管理器向 IPC 边界提供的组件 schema 快照，不携带序列化职责。
+#[derive(Debug, Clone)]
+pub struct ComponentSchemaSnapshot {
     pub component_id: String,
-    /// 组件显示名称
-    #[serde(rename = "componentName")]
     pub component_name: String,
-    /// 组件描述文本
-    #[serde(rename = "componentDescription")]
     pub component_description: String,
-    /// 组件类型
-    #[serde(rename = "componentType")]
     pub component_type: ComponentType,
-    /// 配置项定义列表
-    #[serde(rename = "settings")]
-    pub settings: Vec<SettingDefinition>,
+    pub contribution: SettingsContribution,
 }
 
 /// 持久化配置文件格式（config_v3.json）

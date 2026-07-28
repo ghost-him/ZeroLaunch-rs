@@ -1,13 +1,10 @@
 import { invoke } from '@tauri-apps/api/core'
-import type { BridgeQueryResponse, ConfirmPayload, ConfirmResponse, ComponentInfo, ComponentSchema, ConfigActionDef, SearchTimingResult, IndexTimingResult, SearchDetailItem } from './contract'
-
-// ---- 错误类型 ----
-
+import type { BridgeQueryResponse, ConfirmPayload, ConfirmResponse, ComponentInfo, ComponentSchema, ConfigActionDef, ConfigActionPayload, SearchTimingResult, IndexTimingResult, SearchDetailItem } from './contract'
 export interface BridgeError {
   code: string
   message: string
-  details?: unknown
-  componentId?: string
+  details: unknown | null
+  componentId: string | null
   traceId: string
 }
 
@@ -25,6 +22,8 @@ function tryExtractBridgeError(e: unknown): BridgeError {
     code: 'INTERNAL_ERROR',
     message: typeof e === 'string' ? e : String(e),
     traceId: '',
+    details: null,
+    componentId: null,
   }
 }
 
@@ -112,7 +111,8 @@ export function configExecuteAction(
   action: string,
   params?: unknown,
 ): Promise<unknown> {
-  return invokeCommand<unknown>('config_execute_action', { componentId, action, params })
+  const payload: ConfigActionPayload = { componentId, action, params }
+  return invokeCommand<unknown>('config_execute_action', { payload })
 }
 
 // ---- 资源管理 ----

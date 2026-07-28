@@ -2,11 +2,16 @@ use axum::extract::{Path, State};
 use axum::Json;
 use std::sync::Arc;
 
+use crate::commands::config_file::{ComponentInfoDto, ComponentSchemaDto};
 use crate::state::app_state::AppState;
 
 pub async fn list_components(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let cm = state.get_config_manager();
-    let components = cm.get_all_components();
+    let components: Vec<ComponentInfoDto> = cm
+        .get_all_components()
+        .into_iter()
+        .map(ComponentInfoDto::from)
+        .collect();
     Json(serde_json::to_value(components).unwrap_or_default())
 }
 
@@ -15,7 +20,7 @@ pub async fn get_schema(
     Path(id): Path<String>,
 ) -> Json<serde_json::Value> {
     let cm = state.get_config_manager();
-    let schema = cm.get_component_schema(&id);
+    let schema = cm.get_component_schema(&id).map(ComponentSchemaDto::from);
     Json(serde_json::to_value(schema).unwrap_or_default())
 }
 

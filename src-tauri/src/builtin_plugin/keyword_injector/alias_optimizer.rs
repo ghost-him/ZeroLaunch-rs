@@ -4,7 +4,7 @@ use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use zerolaunch_plugin_api::config::{
-    ComponentCore, ComponentType, ConfigError, Configurable, SettingDefinition,
+    ComponentCore, ComponentType, ConfigError, Configurable, DataActionBinding, SettingDefinition,
 };
 use zerolaunch_plugin_api::KeywordInjector;
 use zerolaunch_plugin_api::SearchCandidate;
@@ -81,17 +81,11 @@ impl Configurable for AliasOptimizer {
                 .group("别名")
                 .order(1)
                 .object_items(vec![
-                    // target 字段：程序标识，由搜索栏自动关联，不在弹窗中编辑
-                    zerolaunch_plugin_api::config::FieldDefinition {
-                        key: "target".to_string(),
-                        label: "程序".to_string(),
-                        description: "目标程序路径".to_string(),
-                        setting_type: zerolaunch_plugin_api::config::SettingType::Text,
-                        default_value: serde_json::json!(""),
-                        visible: false,
-                        editable: false,
-                        config_action: None,
-                    },
+                    SchemaBuilder::text("target", "程序", "目标程序路径")
+                        .visible(false)
+                        .editable(false)
+                        .default("")
+                        .build(),
                     SchemaBuilder::array("aliases", "别名", "别名列表，输入回车添加")
                         .primitive_item(zerolaunch_plugin_api::config::PrimitiveType::Text)
                         .tags_ui()
@@ -102,8 +96,14 @@ impl Configurable for AliasOptimizer {
                         .default("")
                         .build_field(),
                 ])
-                .search_table_ui("candidate-registry", "search_candidates", &[])
-                .min_items(0)
+                .search_table_ui()
+                .data_action(DataActionBinding {
+                    action: "search_candidates".into(),
+                    component: Some("candidate-registry".into()),
+                    label_field: "name".into(),
+                    value_field: "target".into(),
+                    field_mapping: vec![],
+                })
                 .default(serde_json::json!([]))
                 .build(),
         ]

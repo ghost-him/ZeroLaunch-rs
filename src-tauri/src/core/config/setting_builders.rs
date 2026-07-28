@@ -1,352 +1,618 @@
 //! Schema 构建器 — 链式调用 API。
 //!
-//! 提供统一的 `SchemaBuilder` 来构建 `SettingDefinition` 和 `FieldDefinition`，
-//! 覆盖全部 8 种 SettingType，消除旧自由函数的位置参数混乱。
+//! 提供统一的 `SchemaBuilder` 来构建 `SettingDefinition`，
+//! 覆盖所有 SchemaKind + WidgetHint 组合。
 //!
 //! # 使用示例
 //!
 //! ```ignore
 //! // 简单文本字段
 //! SchemaBuilder::text("key", "Label", "Description")
-//!     .group("Group").order(0).default("default").build()
+//!     .group("Group").order(0).default("value").build()
 //!
 //! // 带约束的数值字段
 //! SchemaBuilder::number("height", "Height", "Height in px")
 //!     .group("Layout").order(1).default(72.0)
 //!     .min(40.0).max(120.0).step(1.0).build()
 //!
-//! // Array + Object + config_action
+//! // Array + Object + action
 //! SchemaBuilder::array("sources", "Sources", "Browser sources")
-//!     .group("Sources").order(2).config_action("detect_browsers")
+//!     .group("Sources").order(2)
+//!     .data_action(DataActionBinding { ... })
 //!     .object_items(vec![
-//!         SchemaBuilder::text("name", "Name", "Name").default("").build_field(),
+//!         SchemaBuilder::text("name", "Name", "Name").default("").build(),
 //!     ])
-//!     .master_detail().default(serde_json::json!([])).build()
+//!     .table_ui().default(serde_json::json!([])).build()
 //! ```
 
 use serde_json::Value;
-use zerolaunch_plugin_api::config::PrimitiveType;
+use std::collections::{BTreeMap, BTreeSet};
 use zerolaunch_plugin_api::config::{
-    ArrayItem, ArrayUiHint, DetailActionDef, FieldDefinition, PathMode, SettingDefinition,
-    SettingType,
+    DataActionBinding, EffectActionBinding, FieldAction, FieldUiMetadata, PathMode, PrimitiveType,
+    SchemaKind, SchemaNode, SettingDefinition, WidgetHint,
 };
 
+/// Schema 构建器 —— 链式构建 `SettingDefinition`。
+///
+/// 每个构造器方法（`text()`、`number()`、`boolean()` 等）创建对应的 schema 类型，
+/// 后续可通过链式方法添加约束、UI 提示和 action 绑定。
+/// 最终通过 `build()` 输出 `SettingDefinition`。
 pub struct SchemaBuilder {
-    field_def: FieldDefinition,
-    group: Option<String>,
-    order: u32,
-    config_action: Option<String>,
-    detail_action: Option<DetailActionDef>,
+    key: String,
+    schema: SchemaNode,
+    ui: FieldUiMetadata,
 }
 
 impl SchemaBuilder {
     // ── constructors ──────────────────────────────────────────────
 
+    /// 创建字符串类型字段。
     pub fn text(key: &str, label: &str, desc: &str) -> Self {
-        Self::new(key, label, desc, SettingType::Text)
+        Self::new(key, label, desc, SchemaNode::string(), WidgetHint::Text)
     }
 
+    /// 创建浮点数类型字段。
     pub fn number(key: &str, label: &str, desc: &str) -> Self {
-        Self::new(
-            key,
-            label,
-            desc,
-            SettingType::Number {
-                min: None,
-                max: None,
-                step: None,
-            },
-        )
+        Self::new(key, label, desc, SchemaNode::number(), WidgetHint::Number)
     }
 
+    /// 创建整数类型字段。
+    pub fn integer(key: &str, label: &str, desc: &str) -> Self {
+        Self::new(key, label, desc, SchemaNode::integer(), WidgetHint::Number)
+    }
+
+    /// 创建布尔类型字段。
     pub fn boolean(key: &str, label: &str, desc: &str) -> Self {
-        Self::new(key, label, desc, SettingType::Boolean)
+        Self::new(key, label, desc, SchemaNode::boolean(), WidgetHint::Toggle)
     }
 
+    /// 创建下拉选择字段（string + Select widget）。
     pub fn select(key: &str, label: &str, desc: &str) -> Self {
-        Self::new(key, label, desc, SettingType::Select { options: vec![] })
+        Self::new(key, label, desc, SchemaNode::string(), WidgetHint::Select)
     }
 
+    /// 创建颜色选择字段（string + Color widget）。
     pub fn color(key: &str, label: &str, desc: &str) -> Self {
-        Self::new(key, label, desc, SettingType::Color)
+        Self::new(key, label, desc, SchemaNode::string(), WidgetHint::Color)
     }
 
+    /// 创建路径选择字段（string + Path widget）。
     pub fn path(key: &str, label: &str, desc: &str) -> Self {
         Self::new(
             key,
             label,
             desc,
-            SettingType::Path {
+            SchemaNode::string(),
+            WidgetHint::Path {
                 mode: PathMode::File,
             },
         )
     }
 
-    pub fn json(key: &str, label: &str, desc: &str) -> Self {
-        Self::new(key, label, desc, SettingType::Json)
-    }
-
+    /// 创建数组类型字段。
     pub fn array(key: &str, label: &str, desc: &str) -> Self {
         Self::new(
             key,
             label,
             desc,
-            SettingType::Array {
-                item: ArrayItem::Primitive(PrimitiveType::Text),
-                min_items: None,
-                max_items: None,
-                ui_hint: ArrayUiHint::Default,
+            SchemaNode {
+                kind: SchemaKind::Array {
+                    items: Box::new(SchemaNode::string()),
+                    item_widget: None,
+                    min_items: None,
+                    max_items: None,
+                },
+                default: None,
             },
+            WidgetHint::List,
         )
     }
 
+    /// 创建图片选择字段（string + Image widget）。
     pub fn image(key: &str, label: &str, desc: &str) -> Self {
         Self::new(
             key,
             label,
             desc,
-            SettingType::Image {
-                accept: vec!["png".into(), "jpg".into(), "jpeg".into(), "webp".into()],
+            SchemaNode::string(),
+            WidgetHint::Image {
+                accept: vec![
+                    "png".into(),
+                    "jpg".into(),
+                    "jpeg".into(),
+                    "webp".into(),
+                    "ico".into(),
+                ],
                 max_size: Some(2 * 1024 * 1024),
             },
         )
     }
 
-    fn new(key: &str, label: &str, desc: &str, setting_type: SettingType) -> Self {
+    fn new(key: &str, label: &str, desc: &str, schema: SchemaNode, widget: WidgetHint) -> Self {
         Self {
-            field_def: FieldDefinition {
-                key: key.to_string(),
+            key: key.to_string(),
+            schema,
+            ui: FieldUiMetadata {
+                pointer: format!("/{}", key.replace('~', "~0").replace('/', "~1")),
                 label: label.to_string(),
                 description: desc.to_string(),
-                setting_type,
-                default_value: Value::Null,
+                group: None,
+                order: 0,
                 visible: true,
-                editable: true,
-                config_action: None,
+                read_only: false,
+                widget: Some(widget),
+                action: None,
+                detail_action: None,
             },
-            group: None,
-            order: 0,
-            config_action: None,
-            detail_action: None,
         }
     }
 
     // ── universal methods ─────────────────────────────────────────
 
+    /// 设置分组名称。相同 group 的字段在前端渲染在一起。
     pub fn group(mut self, group: &str) -> Self {
-        self.group = Some(group.to_string());
+        self.ui.group = Some(group.to_string());
         self
     }
 
+    /// 设置组内排序序号（越小越靠前）。
     pub fn order(mut self, order: u32) -> Self {
-        self.order = order;
+        self.ui.order = order;
         self
     }
 
-    pub fn config_action(mut self, action: &str) -> Self {
-        self.config_action = Some(action.to_string());
-        self
-    }
-
-    /// 为 MasterDetail 数组配置详情面板联动动作。
-    /// 选中列表项时，前端将调用指定的 config_action，
-    /// 并从选中项中提取指定字段作为参数，将用户编辑结果写入指定的兄弟设置字段。
-    pub fn detail_action(mut self, def: DetailActionDef) -> Self {
-        self.detail_action = Some(def);
-        self
-    }
-
+    /// 设置默认值。
     pub fn default(mut self, value: impl Into<Value>) -> Self {
-        self.field_def.default_value = value.into();
+        self.schema.default = Some(value.into());
         self
     }
 
-    pub fn visible(mut self, v: bool) -> Self {
-        self.field_def.visible = v;
+    /// 设置字段可见性。
+    pub fn visible(mut self, visible: bool) -> Self {
+        self.ui.visible = visible;
         self
     }
 
-    pub fn editable(mut self, v: bool) -> Self {
-        self.field_def.editable = v;
+    /// 设置字段可否编辑。
+    pub fn editable(mut self, editable: bool) -> Self {
+        self.ui.read_only = !editable;
         self
     }
 
-    // ── Number ────────────────────────────────────────────────────
+    /// 绑定数据注入 action，前端据此渲染搜索/检测按钮并填充字段。
+    pub fn data_action(mut self, action: DataActionBinding) -> Self {
+        self.ui.action = Some(FieldAction::Data(action));
+        self
+    }
 
-    pub fn min(mut self, v: f64) -> Self {
-        if let SettingType::Number { min, .. } = &mut self.field_def.setting_type {
-            *min = Some(v);
+    /// 绑定用户显式触发的副作用 action，不参与配置保存。
+    pub fn effect_action(mut self, action: EffectActionBinding) -> Self {
+        self.ui.action = Some(FieldAction::Effect(action));
+        self
+    }
+
+    // ── Number / Integer ──────────────────────────────────────────
+
+    /// 设置数值最小值。
+    pub fn min(mut self, value: f64) -> Self {
+        match &mut self.schema.kind {
+            SchemaKind::Number { minimum, .. } => *minimum = Some(value),
+            SchemaKind::Integer { minimum, .. } => *minimum = Some(value as i64),
+            other => {
+                debug_assert!(
+                    false,
+                    "SchemaBuilder::min() 只能在数字或整数类型的字段上调用。\
+                     字段 '{}' 的类型为 {other:?}，不是数字类型",
+                    self.key
+                );
+                tracing::warn!(
+                    "SchemaBuilder::min() 只能在数字或整数类型的字段上调用。\
+                     字段 '{}' 的类型为 {other:?}，不是数字类型",
+                    self.key
+                );
+                return self;
+            }
         }
         self
     }
 
-    pub fn max(mut self, v: f64) -> Self {
-        if let SettingType::Number { max, .. } = &mut self.field_def.setting_type {
-            *max = Some(v);
+    /// 设置数值最大值。
+    pub fn max(mut self, value: f64) -> Self {
+        match &mut self.schema.kind {
+            SchemaKind::Number { maximum, .. } => *maximum = Some(value),
+            SchemaKind::Integer { maximum, .. } => *maximum = Some(value as i64),
+            other => {
+                debug_assert!(
+                    false,
+                    "SchemaBuilder::max() 只能在数字或整数类型的字段上调用。\
+                     字段 '{}' 的类型为 {other:?}，不是数字类型",
+                    self.key
+                );
+                tracing::warn!(
+                    "SchemaBuilder::max() 只能在数字或整数类型的字段上调用。\
+                     字段 '{}' 的类型为 {other:?}，不是数字类型",
+                    self.key
+                );
+                return self;
+            }
         }
         self
     }
 
-    pub fn step(mut self, v: f64) -> Self {
-        if let SettingType::Number { step, .. } = &mut self.field_def.setting_type {
-            *step = Some(v);
+    /// 设置数值步长。
+    pub fn step(mut self, value: f64) -> Self {
+        match &mut self.schema.kind {
+            SchemaKind::Number { multiple_of, .. } => *multiple_of = Some(value),
+            SchemaKind::Integer { multiple_of, .. } => *multiple_of = Some(value as i64),
+            other => {
+                debug_assert!(
+                    false,
+                    "SchemaBuilder::step() 只能在数字或整数类型的字段上调用。\
+                     字段 '{}' 的类型为 {other:?}，不是数字类型",
+                    self.key
+                );
+                tracing::warn!(
+                    "SchemaBuilder::step() 只能在数字或整数类型的字段上调用。\
+                     字段 '{}' 的类型为 {other:?}，不是数字类型",
+                    self.key
+                );
+                return self;
+            }
         }
         self
     }
 
     // ── Select ────────────────────────────────────────────────────
-
+    /// 设置下拉选项（写入 schema 的 enum 约束）。
     pub fn options(mut self, options: &[&str]) -> Self {
-        if let SettingType::Select { options: opts } = &mut self.field_def.setting_type {
-            *opts = options.iter().map(|s| s.to_string()).collect();
+        match &mut self.schema.kind {
+            SchemaKind::String { enum_values, .. } => {
+                *enum_values = options.iter().map(|s| s.to_string()).collect();
+            }
+            other => {
+                debug_assert!(
+                    false,
+                    "SchemaBuilder::options() 只能在字符串类型的字段上调用。\
+                     字段 '{}' 的类型为 {other:?}，不是字符串类型",
+                    self.key
+                );
+                tracing::warn!(
+                    "SchemaBuilder::options() 只能在字符串类型的字段上调用。\
+                     字段 '{}' 的类型为 {other:?}，不是字符串类型",
+                    self.key
+                );
+                return self;
+            }
         }
         self
     }
-
     // ── Path ──────────────────────────────────────────────────────
 
+    /// 切换为文件选择模式。
     pub fn file(mut self) -> Self {
-        if let SettingType::Path { mode } = &mut self.field_def.setting_type {
-            *mode = PathMode::File;
+        match &mut self.ui.widget {
+            Some(WidgetHint::Path { mode }) => *mode = PathMode::File,
+            other => {
+                debug_assert!(
+                    false,
+                    "SchemaBuilder::file() 只能在路径选择器上调用。\
+                     字段 '{}' 的控件为 {other:?}，请使用 path() 构造器或先调用 path_ui()",
+                    self.key
+                );
+                tracing::warn!(
+                    "SchemaBuilder::file() 只能在路径选择器上调用。\
+                     字段 '{}' 的控件为 {other:?}，请使用 path() 构造器或先调用 path_ui()",
+                    self.key
+                );
+                return self;
+            }
         }
         self
     }
 
+    /// 切换为目录选择模式。
     pub fn directory(mut self) -> Self {
-        if let SettingType::Path { mode } = &mut self.field_def.setting_type {
-            *mode = PathMode::Directory;
+        match &mut self.ui.widget {
+            Some(WidgetHint::Path { mode }) => *mode = PathMode::Directory,
+            other => {
+                debug_assert!(
+                    false,
+                    "SchemaBuilder::directory() 只能在路径选择器上调用。\
+                     字段 '{}' 的控件为 {other:?}，请使用 path() 构造器或先调用 path_ui()",
+                    self.key
+                );
+                tracing::warn!(
+                    "SchemaBuilder::directory() 只能在路径选择器上调用。\
+                     字段 '{}' 的控件为 {other:?}，请使用 path() 构造器或先调用 path_ui()",
+                    self.key
+                );
+                return self;
+            }
         }
         self
     }
 
     // ── Array ─────────────────────────────────────────────────────
 
+    /// 设置数组元素为原始类型（如 `PrimitiveType::Text`）。
     pub fn primitive_item(mut self, item: PrimitiveType) -> Self {
-        if let SettingType::Array {
-            item: arr_item,
-            ui_hint,
-            ..
-        } = &mut self.field_def.setting_type
-        {
-            if matches!(ui_hint, ArrayUiHint::Tags) {
-                debug_assert!(
-                    matches!(item, PrimitiveType::Text),
-                    "tags_ui is only supported for Text primitive arrays, cannot set primitive_item to {:?}",
-                    item
-                );
+        match &mut self.schema.kind {
+            SchemaKind::Array {
+                items, item_widget, ..
+            } => {
+                let (schema, widget) = primitive_schema(item);
+                **items = schema;
+                *item_widget = Some(widget);
             }
-            *arr_item = ArrayItem::Primitive(item);
+            other => {
+                debug_assert!(
+                    false,
+                    "SchemaBuilder::primitive_item() 只能在数组类型的字段上调用。\
+                     字段 '{}' 的类型为 {other:?}，不是数组类型",
+                    self.key
+                );
+                tracing::warn!(
+                    "SchemaBuilder::primitive_item() 只能在数组类型的字段上调用。\
+                     字段 '{}' 的类型为 {other:?}，不是数组类型",
+                    self.key
+                );
+                return self;
+            }
         }
         self
     }
 
-    pub fn object_items(mut self, items: Vec<FieldDefinition>) -> Self {
-        if let SettingType::Array { item: arr_item, .. } = &mut self.field_def.setting_type {
-            *arr_item = ArrayItem::Object(items);
+    /// 设置数组元素为对象类型，由 `SettingDefinition` 列表定义字段。
+    pub fn object_items(mut self, fields: Vec<SettingDefinition>) -> Self {
+        match &mut self.schema.kind {
+            SchemaKind::Array {
+                items, item_widget, ..
+            } => {
+                let mut properties = BTreeMap::new();
+                let mut ui = Vec::with_capacity(fields.len());
+                for field in fields {
+                    ui.push(field.ui);
+                    properties.insert(field.key, field.schema);
+                }
+                **items = SchemaNode {
+                    kind: SchemaKind::Object {
+                        properties,
+                        ui,
+                        required: BTreeSet::new(),
+                    },
+                    default: None,
+                };
+                *item_widget = None;
+            }
+            other => {
+                debug_assert!(
+                    false,
+                    "SchemaBuilder::object_items() 只能在数组类型的字段上调用。\
+                     字段 '{}' 的类型为 {other:?}，不是数组类型",
+                    self.key
+                );
+                tracing::warn!(
+                    "SchemaBuilder::object_items() 只能在数组类型的字段上调用。\
+                     字段 '{}' 的类型为 {other:?}，不是数组类型",
+                    self.key
+                );
+                return self;
+            }
         }
         self
     }
 
+    /// 设置最小元素数量。
     pub fn min_items(mut self, n: usize) -> Self {
-        if let SettingType::Array { min_items, .. } = &mut self.field_def.setting_type {
-            *min_items = Some(n);
+        match &mut self.schema.kind {
+            SchemaKind::Array { min_items, .. } => *min_items = Some(n),
+            other => {
+                debug_assert!(
+                    false,
+                    "SchemaBuilder::min_items() 只能在数组类型的字段上调用。\
+                     字段 '{}' 的类型为 {other:?}，不是数组类型",
+                    self.key
+                );
+                tracing::warn!(
+                    "SchemaBuilder::min_items() 只能在数组类型的字段上调用。\
+                     字段 '{}' 的类型为 {other:?}，不是数组类型",
+                    self.key
+                );
+                return self;
+            }
         }
         self
     }
 
+    /// 设置最大元素数量。
     pub fn max_items(mut self, n: usize) -> Self {
-        if let SettingType::Array { max_items, .. } = &mut self.field_def.setting_type {
-            *max_items = Some(n);
+        match &mut self.schema.kind {
+            SchemaKind::Array { max_items, .. } => *max_items = Some(n),
+            other => {
+                debug_assert!(
+                    false,
+                    "SchemaBuilder::max_items() 只能在数组类型的字段上调用。\
+                     字段 '{}' 的类型为 {other:?}，不是数组类型",
+                    self.key
+                );
+                tracing::warn!(
+                    "SchemaBuilder::max_items() 只能在数组类型的字段上调用。\
+                     字段 '{}' 的类型为 {other:?}，不是数组类型",
+                    self.key
+                );
+                return self;
+            }
         }
         self
     }
 
+    // ── Widget hints ──────────────────────────────────────────────
+
+    /// 使用默认列表 UI。
     pub fn default_ui(mut self) -> Self {
-        if let SettingType::Array { ui_hint, .. } = &mut self.field_def.setting_type {
-            *ui_hint = ArrayUiHint::Default;
-        }
+        self.ui.widget = Some(WidgetHint::List);
         self
     }
 
+    /// 使用表格 UI。
     pub fn table_ui(mut self) -> Self {
-        if let SettingType::Array { ui_hint, .. } = &mut self.field_def.setting_type {
-            *ui_hint = ArrayUiHint::Table;
-        }
+        self.ui.widget = Some(WidgetHint::Table);
         self
     }
 
-    pub fn master_detail(mut self) -> Self {
-        if let SettingType::Array { ui_hint, .. } = &mut self.field_def.setting_type {
-            *ui_hint = ArrayUiHint::MasterDetail;
-        }
-        self
-    }
-
-    /// 切换到 Tags UI。仅支持 Text 类型的 primitive array，
-    /// 因为 Naive UI 的 n-dynamic-tags 组件本质上是基于字符串的。
+    /// 使用标签式 UI。
     pub fn tags_ui(mut self) -> Self {
-        if let SettingType::Array { item, ui_hint, .. } = &mut self.field_def.setting_type {
-            debug_assert!(
-                matches!(item, ArrayItem::Primitive(PrimitiveType::Text)),
-                "tags_ui is only supported for Text primitive arrays"
-            );
-            *ui_hint = ArrayUiHint::Tags;
-        }
+        self.ui.widget = Some(WidgetHint::Tags);
         self
     }
 
-    /// 切换到 SearchTable UI。用于搜索已索引程序并配置别名的数组。
-    /// `source_component` 是提供搜索服务的组件 ID（如 "candidate-registry"），
-    /// `source_action` 是搜索动作名（如 "search_candidates"）。
-    /// `field_mapping` 是候选结果字段到编辑表单字段的映射，每项 `(candidateField, formField)`。
-    pub fn search_table_ui(
-        mut self,
-        source_component: &str,
-        source_action: &str,
-        field_mapping: &[(&str, &str)],
-    ) -> Self {
-        if let SettingType::Array { ui_hint, .. } = &mut self.field_def.setting_type {
-            *ui_hint = ArrayUiHint::SearchTable {
-                source_component: source_component.to_string(),
-                source_action: source_action.to_string(),
-                field_mapping: field_mapping
-                    .iter()
-                    .map(|(k, v)| (k.to_string(), v.to_string()))
-                    .collect(),
-            };
-        }
+    /// 使用卡片式 UI。
+    pub fn cards_ui(mut self) -> Self {
+        self.ui.widget = Some(WidgetHint::Cards);
         self
     }
 
-    // ── Image ──────────────────────────────────────────────────────
+    /// 使用搜索弹窗表格 UI。
+    pub fn search_table_ui(mut self) -> Self {
+        self.ui.widget = Some(WidgetHint::SearchTable);
+        self
+    }
 
+    /// 使用主从详情面板 UI。
+    pub fn master_detail_ui(mut self) -> Self {
+        self.ui.widget = Some(WidgetHint::MasterDetail);
+        self
+    }
+
+    /// 设置 MasterDetail 详情面板联动动作。
+    /// 选中列表项时，前端调用指定的 config_action 获取预览数据，
+    /// 用户编辑结果写入 `detail_action.targetField` 指定的兄弟设置字段。
+    pub fn detail_action(mut self, def: zerolaunch_plugin_api::config::DetailActionDef) -> Self {
+        self.ui.detail_action = Some(def);
+        self
+    }
+
+    // ── Image ─────────────────────────────────────────────────────
+
+    /// 设置允许的文件格式。
     pub fn accept(mut self, formats: &[&str]) -> Self {
-        if let SettingType::Image { accept, .. } = &mut self.field_def.setting_type {
-            *accept = formats.iter().map(|s| s.to_string()).collect();
+        match &mut self.ui.widget {
+            Some(WidgetHint::Image { accept, .. }) => {
+                *accept = formats.iter().map(|s| s.to_string()).collect();
+            }
+            other => {
+                debug_assert!(
+                    false,
+                    "SchemaBuilder::accept() 只能在图片选择器上调用。\
+                     字段 '{}' 的控件为 {other:?}，不是图片选择器",
+                    self.key
+                );
+                tracing::warn!(
+                    "SchemaBuilder::accept() 只能在图片选择器上调用。\
+                     字段 '{}' 的控件为 {other:?}，不是图片选择器",
+                    self.key
+                );
+                return self;
+            }
         }
         self
     }
 
+    /// 设置最大文件大小（字节）。
     pub fn max_image_size(mut self, bytes: u64) -> Self {
-        if let SettingType::Image { max_size, .. } = &mut self.field_def.setting_type {
-            *max_size = Some(bytes);
+        match &mut self.ui.widget {
+            Some(WidgetHint::Image { max_size, .. }) => *max_size = Some(bytes),
+            other => {
+                debug_assert!(
+                    false,
+                    "SchemaBuilder::max_image_size() 只能在图片选择器上调用。\
+                     字段 '{}' 的控件为 {other:?}，不是图片选择器",
+                    self.key
+                );
+                tracing::warn!(
+                    "SchemaBuilder::max_image_size() 只能在图片选择器上调用。\
+                     字段 '{}' 的控件为 {other:?}，不是图片选择器",
+                    self.key
+                );
+                return self;
+            }
         }
         self
     }
-
     // ── build ─────────────────────────────────────────────────────
 
+    /// 构建为 `SettingDefinition`。构建前校验字段完整性，不匹配时 panic。
     pub fn build(self) -> SettingDefinition {
+        // detail_action 只能在 masterDetail widget 上使用
+        if self.ui.detail_action.is_some() {
+            let is_master_detail = matches!(self.ui.widget, Some(WidgetHint::MasterDetail));
+            if !is_master_detail {
+                debug_assert!(
+                    false,
+                    "字段 '{}' 设置了 detail_action，但控件不是 masterDetail（当前控件为 {:?}）。\
+                     detail_action 仅适用于 masterDetail 数组字段",
+                    self.key, self.ui.widget
+                );
+                tracing::warn!(
+                    "字段 '{}' 设置了 detail_action，但控件不是 masterDetail（当前控件为 {:?}）。\
+                     detail_action 仅适用于 masterDetail 数组字段",
+                    self.key,
+                    self.ui.widget
+                );
+            }
+        }
         SettingDefinition {
-            field: self.field_def,
-            group: self.group,
-            order: self.order,
-            config_action: self.config_action,
-            detail_action: self.detail_action,
+            key: self.key,
+            schema: self.schema,
+            ui: self.ui,
         }
     }
 
-    pub fn build_field(self) -> FieldDefinition {
-        self.field_def
+    /// 构建为 `SettingDefinition`（仅用于 object_items 内部，与 build() 行为一致）。
+    pub fn build_field(self) -> SettingDefinition {
+        self.build()
+    }
+}
+/// 将 PrimitiveType 转换为数组 item schema 及对应 itemWidget。
+fn primitive_schema(item: PrimitiveType) -> (SchemaNode, WidgetHint) {
+    match item {
+        PrimitiveType::Text => (SchemaNode::string(), WidgetHint::Text),
+        PrimitiveType::Path { mode } => (SchemaNode::string(), WidgetHint::Path { mode }),
+        PrimitiveType::Color => (SchemaNode::string(), WidgetHint::Color),
+        PrimitiveType::Boolean => (SchemaNode::boolean(), WidgetHint::Toggle),
+        PrimitiveType::Integer { min, max, step } => (
+            SchemaNode {
+                kind: SchemaKind::Integer {
+                    minimum: min,
+                    maximum: max,
+                    multiple_of: step,
+                },
+                default: None,
+            },
+            WidgetHint::Number,
+        ),
+        PrimitiveType::Select { options } => (
+            SchemaNode {
+                kind: SchemaKind::String {
+                    enum_values: options,
+                    min_length: None,
+                    max_length: None,
+                    pattern: None,
+                },
+                default: None,
+            },
+            WidgetHint::Select,
+        ),
+        PrimitiveType::Number { min, max, step } => (
+            SchemaNode {
+                kind: SchemaKind::Number {
+                    minimum: min,
+                    maximum: max,
+                    multiple_of: step,
+                },
+                default: None,
+            },
+            WidgetHint::Number,
+        ),
     }
 }

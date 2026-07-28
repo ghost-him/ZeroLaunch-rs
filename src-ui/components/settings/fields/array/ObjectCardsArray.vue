@@ -5,74 +5,95 @@
         <span class="card-index">#{{ idx + 1 }}</span>
         <n-button
           text type="error" size="tiny"
-          :disabled="!definition.field.editable"
+          :disabled="field.readOnly || !canRemoveArrayItem(field.schema, listValue.length)"
           @click="onRemove(idx)"
         >
-          删除
+          {{ $t('common.delete') }}
         </n-button>
       </div>
-      <div v-for="fd in fields" :key="fd.key" class="object-card-field">
+      <div v-for="fd in subFields" :key="fd.key" class="object-card-field">
         <DynamicFormField
-          :definition="{ field: fd, order: 0 }"
+          :field="fdToConfig(fd, field.readOnly)"
           :component-id="componentId"
           :model-value="getField(idx, fd.key)"
           @update:model-value="(val: unknown) => setField(idx, fd.key, val)"
         />
       </div>
     </div>
-    <n-button size="small" :disabled="!definition.field.editable" @click="onAdd">
-      添加
+    <n-button
+      size="small"
+      :disabled="field.readOnly || !canAddArrayItem(field.schema, listValue.length)"
+      @click="onAdd"
+    >
+      {{ $t('common.add') }}
     </n-button>
   </div>
 </template>
-
 <script setup lang="ts">
 import { computed } from 'vue'
 import { NButton } from 'naive-ui'
 import DynamicFormField from '../../DynamicFormField.vue'
-import { getVisibleObjectFields, getDefaultArrayItem } from '../../../../utils/schemaTypes'
-import type { SettingDefinition, ArrayItem } from '../../../../bridge/contract'
+import {
+  canAddArrayItem,
+  canRemoveArrayItem,
+  getArrayItemSchema,
+  getDefaultArrayItem,
+  getObjectFieldDefs,
+  fieldDefToConfig,
+} from '../../../../utils/schemaTypes'
+import type { FieldConfig } from '../../../../utils/schemaTypes'
 
 const props = defineProps<{
-  definition: SettingDefinition
+  field: FieldConfig
   componentId: string
   modelValue: unknown
-  item: ArrayItem
 }>()
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: unknown): void
 }>()
 
-const fields = computed(() => getVisibleObjectFields(props.item))
+const itemSchema = computed(() => getArrayItemSchema(props.field.schema))
+
+const subFields = computed(() => itemSchema.value ? getObjectFieldDefs(itemSchema.value) : [])
+const fdToConfig = fieldDefToConfig
 
 const listValue = computed<unknown[]>(() => {
   if (Array.isArray(props.modelValue)) return props.modelValue as unknown[]
   return []
 })
 
+/** 读取对象数组中的字段值；缺失值保持 undefined，由后端决定最终语义。 */
 function getField(idx: number, key: string): unknown {
   const item = listValue.value[idx]
-  if (item && typeof item === 'object') return (item as Record<string, unknown>)[key]
-  return ''
+  if (item && typeof item === 'object' && !Array.isArray(item)) {
+    return (item as Record<string, unknown>)[key]
+  }
+  return undefined
 }
 
-function setField(idx: number, key: string, val: unknown) {
+/** 更新对象数组中的字段并保持数组引用不可变。 */
+function setField(idx: number, key: string, val: unknown): void {
+  if (props.field.readOnly) return
   const arr = [...listValue.value]
   const item = arr[idx]
-  if (item && typeof item === 'object') {
+  if (item && typeof item === 'object' && !Array.isArray(item)) {
     arr[idx] = { ...(item as Record<string, unknown>), [key]: val }
   }
   emit('update:modelValue', arr)
 }
 
-function onAdd() {
+/** 添加一个符合 item schema 默认值的对象。 */
+function onAdd(): void {
+  if (!canAddArrayItem(props.field.schema, listValue.value.length) || props.field.readOnly || !itemSchema.value) return
   const arr = [...listValue.value]
-  arr.push(getDefaultArrayItem(props.item, props.definition.field.defaultValue))
+  arr.push(getDefaultArrayItem(itemSchema.value))
   emit('update:modelValue', arr)
 }
 
-function onRemove(idx: number) {
+/** 删除对象数组中的指定项，并遵守 minItems 约束。 */
+function onRemove(idx: number): void {
+  if (!canRemoveArrayItem(props.field.schema, listValue.value.length) || props.field.readOnly) return
   const arr = [...listValue.value]
   arr.splice(idx, 1)
   emit('update:modelValue', arr)
@@ -87,21 +108,20 @@ function onRemove(idx: number) {
 }
 .object-card {
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-  padding: 8px 10px;
+  border-radius: 6px;
+  padding: 8px 12px;
 }
 .object-card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 .card-index {
+  font-weight: 600;
   font-size: var(--font-size-sm);
-  color: var(--text-secondary);
-  font-weight: 500;
 }
 .object-card-field {
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 </style>

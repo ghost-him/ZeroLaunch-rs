@@ -5,7 +5,7 @@ import {
   configApplySettings, configResetSettings, configSetEnabled,
   configGetActions, configExecuteAction,
 } from '../bridge/commands'
-import type { ComponentInfo, ComponentSchema, ConfigActionDef } from '../bridge/contract'
+import type { ComponentInfo, ConfigActionDef, ComponentSchema } from '../bridge/contract'
 
 export const useConfigStore = defineStore('config', () => {
   const components = ref<Record<string, ComponentInfo>>({})

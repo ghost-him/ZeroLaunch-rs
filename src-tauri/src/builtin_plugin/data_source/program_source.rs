@@ -346,7 +346,7 @@ impl Configurable for ProgramSource {
                         .build_field(),
                 ])
                 .min_items(1)
-                .master_detail()
+                .master_detail_ui()
                 .default(serde_json::json!([
                     {
                         "root_path": common_start_menu,

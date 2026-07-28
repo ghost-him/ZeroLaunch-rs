@@ -11,69 +11,78 @@
         <span>{{ summary(idx) }}</span>
         <n-button
           text type="error" size="tiny"
-          :disabled="!definition.field.editable"
+          :disabled="field.readOnly || !canRemoveArrayItem(field.schema, listValue.length)"
           @click.stop="onRemove(idx)"
         >
-          删除
+          {{ $t('common.delete') }}
         </n-button>
       </div>
       <n-button
         size="small"
-        :disabled="!definition.field.editable"
-        @click="onAdd()"
+        :disabled="field.readOnly || !canAddArrayItem(field.schema, listValue.length)"
+        @click="onAdd"
       >
-        添加
+        {{ $t('common.add') }}
       </n-button>
     </div>
     <div class="md-detail">
       <template v-if="selectedIndex < listValue.length">
-        <div v-for="fd in fields" :key="fd.key" class="md-field">
+        <div v-for="fd in subFields" :key="fd.key" class="md-field">
           <DynamicFormField
-            :definition="{ field: fd, order: 0 }"
+            :field="fdToConfig(fd, field.readOnly)"
             :component-id="componentId"
             :model-value="getField(selectedIndex, fd.key)"
             @update:model-value="(val: unknown) => setField(selectedIndex, fd.key, val)"
           />
         </div>
         <DetailPreviewPanel
-          v-if="definition.detailAction && selectedParamValue"
+          v-if="field.detailAction && selectedParamValue"
           :component-id="componentId"
-          :detail-action="definition.detailAction"
+          :detail-action="field.detailAction"
           :param-value="selectedParamValue"
+          :read-only="field.readOnly"
         />
       </template>
-      <n-text v-else depth="3">选择一个项目</n-text>
+      <n-text v-else depth="3">{{ $t('common.selectItem') }}</n-text>
     </div>
   </div>
 </template>
-
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { NButton, NText } from 'naive-ui'
 import DynamicFormField from '../../DynamicFormField.vue'
 import DetailPreviewPanel from './DetailPreviewPanel.vue'
-import { getVisibleObjectFields, getDefaultArrayItem } from '../../../../utils/schemaTypes'
-import type { SettingDefinition, ArrayItem } from '../../../../bridge/contract'
+import {
+  canAddArrayItem,
+  canRemoveArrayItem,
+  getArrayItemSchema,
+  getDefaultArrayItem,
+  getObjectFieldDefs,
+  fieldDefToConfig,
+} from '../../../../utils/schemaTypes'
+import type { FieldConfig } from '../../../../utils/schemaTypes'
 
 const props = defineProps<{
-  definition: SettingDefinition
+  field: FieldConfig
   componentId: string
   modelValue: unknown
-  item: ArrayItem
 }>()
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: unknown): void
 }>()
 
-const fields = computed(() => getVisibleObjectFields(props.item))
+const itemSchema = computed(() => getArrayItemSchema(props.field.schema))
+
+const subFields = computed(() => itemSchema.value ? getObjectFieldDefs(itemSchema.value) : [])
+const fdToConfig = fieldDefToConfig
 const selectedIndex = ref(0)
 
 const selectedParamValue = computed<string | undefined>(() => {
-  const da = props.definition.detailAction
+  const da = props.field.detailAction
   if (!da) return undefined
   const item = listValue.value[selectedIndex.value]
-  if (!item || typeof item !== 'object') return undefined
+  if (!item || typeof item !== 'object' || Array.isArray(item)) return undefined
   const val = (item as Record<string, unknown>)[da.paramField]
   return typeof val === 'string' && val.length > 0 ? val : undefined
 })
@@ -83,36 +92,47 @@ const listValue = computed<unknown[]>(() => {
   return []
 })
 
+/** 读取主从条目字段值；缺失值保持 undefined，由后端决定最终语义。 */
 function getField(idx: number, key: string): unknown {
   const item = listValue.value[idx]
-  if (item && typeof item === 'object') return (item as Record<string, unknown>)[key]
-  return ''
+  if (item && typeof item === 'object' && !Array.isArray(item)) {
+    return (item as Record<string, unknown>)[key]
+  }
+  return undefined
 }
 
-function setField(idx: number, key: string, val: unknown) {
+/** 更新主从条目字段并保持父级只读约束。 */
+function setField(idx: number, key: string, val: unknown): void {
+  if (props.field.readOnly) return
   const arr = [...listValue.value]
   const item = arr[idx]
-  if (item && typeof item === 'object') {
+  if (item && typeof item === 'object' && !Array.isArray(item)) {
     arr[idx] = { ...(item as Record<string, unknown>), [key]: val }
   }
   emit('update:modelValue', arr)
 }
 
+/** 生成左侧条目的摘要文本。 */
 function summary(idx: number): string {
   const item = listValue.value[idx]
-  if (!item || typeof item !== 'object') return `#${idx + 1}`
-  if (fields.value.length === 0) return `#${idx + 1}`
-  return String((item as Record<string, unknown>)[fields.value[0].key] ?? `#${idx + 1}`)
+  if (!item || typeof item !== 'object' || Array.isArray(item)) return `#${idx + 1}`
+  const firstField = subFields.value[0]
+  if (!firstField) return `#${idx + 1}`
+  return String((item as Record<string, unknown>)[firstField.key] ?? `#${idx + 1}`)
 }
 
-function onAdd() {
+/** 添加一个符合 item schema 默认值的条目。 */
+function onAdd(): void {
+  if (!canAddArrayItem(props.field.schema, listValue.value.length) || props.field.readOnly || !itemSchema.value) return
   const arr = [...listValue.value]
-  arr.push(getDefaultArrayItem(props.item, props.definition.field.defaultValue))
+  arr.push(getDefaultArrayItem(itemSchema.value))
   selectedIndex.value = arr.length - 1
   emit('update:modelValue', arr)
 }
 
-function onRemove(idx: number) {
+/** 删除条目并遵守 minItems 约束。 */
+function onRemove(idx: number): void {
+  if (!canRemoveArrayItem(props.field.schema, listValue.value.length) || props.field.readOnly) return
   const arr = [...listValue.value]
   arr.splice(idx, 1)
   selectedIndex.value = Math.min(selectedIndex.value, Math.max(0, arr.length - 1))
@@ -123,42 +143,42 @@ function onRemove(idx: number) {
 <style scoped>
 .array-master-detail {
   display: flex;
-  gap: 8px;
+  gap: 12px;
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
+  border-radius: 6px;
   overflow: hidden;
 }
 .md-list {
-  width: 160px;
-  flex-shrink: 0;
+  width: 200px;
   border-right: 1px solid var(--border-color);
-  padding: 6px;
+  padding: 8px;
   display: flex;
   flex-direction: column;
   gap: 4px;
-  max-height: 300px;
   overflow-y: auto;
 }
 .md-list-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 4px 6px;
-  font-size: var(--font-size-sm);
+  padding: 4px 8px;
   border-radius: 4px;
   cursor: pointer;
+  font-size: var(--font-size-sm);
 }
-.md-list-item:hover,
+.md-list-item:hover {
+  background-color: var(--hover-bg);
+}
 .md-list-item.active {
-  background: var(--bg-secondary);
+  background-color: var(--primary-color);
+  color: white;
 }
 .md-detail {
   flex: 1;
-  padding: 8px;
-  overflow-y: auto;
-  max-height: 300px;
+  padding: 12px;
+  min-height: 0;
 }
 .md-field {
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 </style>

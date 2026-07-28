@@ -1,27 +1,14 @@
 <template>
   <div class="field-input-row">
-    <div class="path-input-row">
-      <n-input
-        :value="modelValue as string"
-        :disabled="!definition.field.editable"
-        :placeholder="placeholder"
-        @update:value="emit('update:modelValue', $event)"
-      />
-      <n-button
-        size="small"
-        :disabled="!definition.field.editable"
-        @click="browsePath"
-      >
-        浏览
-      </n-button>
-    </div>
+    <n-button :disabled="field.readOnly" @click="openPicker">{{ field.label }}</n-button>
+    <span class="path-display" v-if="modelValue">{{ modelValue as string }}</span>
+    <span class="path-display path-placeholder" v-else>{{ $t('settings.pathNotSelected') }}</span>
     <ConfigActionButton
-      v-if="definition.configAction"
+      v-if="field.action"
       :component-id="componentId"
-      :config-action="definition.configAction"
-      :field-key="definition.field.key"
-      :editable="definition.field.editable"
-      :model-value="modelValue"
+      :field-action="field.action"
+      :field-key="field.key"
+      :editable="!field.readOnly"
       @update:model-value="emit('update:modelValue', $event)"
     />
   </div>
@@ -29,14 +16,13 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { NInput, NButton } from 'naive-ui'
-import { open } from '@tauri-apps/plugin-dialog'
+import { NButton } from 'naive-ui'
 import ConfigActionButton from '../ConfigActionButton.vue'
-import { getPathMode } from '../../../utils/schemaTypes'
-import type { SettingDefinition } from '../../../bridge/contract'
+import { getSchemaPathMode } from '../../../utils/schemaTypes'
+import type { FieldConfig } from '../../../utils/schemaTypes'
 
 const props = defineProps<{
-  definition: SettingDefinition
+  field: FieldConfig
   componentId: string
   modelValue: unknown
 }>()
@@ -45,27 +31,22 @@ const emit = defineEmits<{
   (e: 'update:modelValue', value: unknown): void
 }>()
 
-const mode = computed(() => getPathMode(props.definition.field.settingType))
+const mode = computed(() => getSchemaPathMode(props.field.widget))
 
-const placeholder = computed(() =>
-  mode.value === 'directory' ? '选择目录...' : '选择文件...',
-)
-
-async function browsePath() {
+/** 直接调用 Tauri dialog 仅负责选择路径并回传值，不承载业务逻辑。 */
+async function openPicker() {
+  if (props.field.readOnly) return
   try {
-    if (mode.value === 'directory') {
-      const selected = await open({ directory: true, multiple: false })
-      if (selected && typeof selected === 'string') {
-        emit('update:modelValue', selected)
-      }
-    } else {
-      const selected = await open({ multiple: false })
-      if (selected && typeof selected === 'string') {
-        emit('update:modelValue', selected)
-      }
+    const { open } = await import('@tauri-apps/plugin-dialog')
+    const selected = await open({
+      directory: mode.value === 'directory',
+      multiple: false,
+    })
+    if (selected) {
+      emit('update:modelValue', selected)
     }
-  } catch (e) {
-    console.error('[PathField] Browse failed:', e)
+  } catch {
+    // Fallback for non-Tauri environment
   }
 }
 </script>
@@ -76,16 +57,15 @@ async function browsePath() {
   gap: 8px;
   align-items: center;
 }
-.field-input-row > :first-child {
-  flex: 1;
+.path-display {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.path-input-row {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex: 1;
-}
-.path-input-row > :deep(.n-input) {
-  flex: 1;
+.path-placeholder {
+  color: var(--text-disabled);
 }
 </style>

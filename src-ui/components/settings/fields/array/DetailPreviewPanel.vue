@@ -7,7 +7,7 @@
 
     <n-input
       v-model:value="filterText"
-      placeholder="搜索..."
+      :placeholder="$t('settings.detailSearchPlaceholder')"
       clearable
       size="small"
       class="preview-filter"
@@ -30,52 +30,53 @@
       >
         <n-checkbox
           :checked="!item.excluded"
+          :disabled="readOnly"
           @update:checked="(checked: boolean) => toggleExcluded(item.key, !checked)"
         />
         <div class="preview-item-content">
           <div class="preview-item-label">
             {{ item.displayLabel }}
             <n-tag v-if="item.hasCustomTitle" size="tiny" :bordered="false" type="info">
-              自定义
+              {{ $t('settings.detailCustomLabel') }}
             </n-tag>
           </div>
           <div class="preview-item-key">{{ item.key }}</div>
         </div>
-        <n-button text size="tiny" @click="openEdit(item)">
-          编辑
+        <n-button text size="tiny" :disabled="readOnly" @click="openEdit(item)">
+          {{ $t('common.edit') }}
         </n-button>
       </div>
 
       <div v-if="enrichedItems.length === 0 && previewItems.length > 0" class="preview-empty">
-        无匹配结果
+        {{ $t('settings.detailNoMatches') }}
       </div>
       <div v-if="previewItems.length === 0 && !loading" class="preview-empty">
-        暂无数据
+        {{ $t('settings.detailNoData') }}
       </div>
     </n-scrollbar>
 
-    <n-modal v-model:show="editDialogVisible" preset="dialog" title="编辑覆盖" style="width: 450px;">
+    <n-modal v-model:show="editDialogVisible" preset="dialog" :title="$t('settings.detailEditOverride')" style="width: 450px;">
       <div v-if="editingItem" class="edit-form">
         <div class="edit-row">
-          <span class="edit-label">URL:</span>
+          <span class="edit-label">{{ $t('settings.detailUrl') }}:</span>
           <n-text>{{ editingItem.key }}</n-text>
         </div>
         <div class="edit-row">
-          <span class="edit-label">原始标题:</span>
+          <span class="edit-label">{{ $t('settings.detailOriginalTitle') }}:</span>
           <n-text>{{ editingItem.label }}</n-text>
         </div>
         <div class="edit-row">
-          <span class="edit-label">自定义标题:</span>
-          <n-input v-model:value="editCustomTitle" placeholder="留空则使用原始标题" clearable />
+          <span class="edit-label">{{ $t('settings.detailCustomTitle') }}:</span>
+          <n-input v-model:value="editCustomTitle" :disabled="readOnly" :placeholder="$t('settings.detailCustomTitlePlaceholder')" clearable />
         </div>
         <div class="edit-row">
-          <span class="edit-label">排除:</span>
-          <n-switch v-model:value="editExcluded" />
+          <span class="edit-label">{{ $t('settings.detailExcluded') }}:</span>
+          <n-switch v-model:value="editExcluded" :disabled="readOnly" />
         </div>
       </div>
       <template #action>
-        <n-button @click="editDialogVisible = false">取消</n-button>
-        <n-button type="primary" @click="saveEdit">保存</n-button>
+        <n-button @click="editDialogVisible = false">{{ $t('common.cancel') }}</n-button>
+        <n-button type="primary" :disabled="readOnly" @click="saveEdit">{{ $t('common.save') }}</n-button>
       </template>
     </n-modal>
   </div>
@@ -95,6 +96,7 @@ const props = defineProps<{
   detailAction: DetailActionDef
   paramValue: string
   title?: string
+  readOnly: boolean
 }>()
 
 const configStore = useConfigStore()
@@ -233,6 +235,7 @@ function hasCustomTitleInOverride(override: Record<string, unknown>): boolean {
 }
 
 function toggleExcluded(key: string, excluded: boolean) {
+  if (props.readOnly) return
   const matchKey = props.detailAction.targetMatchKey
   const overrides = [...getOverrides()]
   const nk = normalizeKey(key)
@@ -258,6 +261,7 @@ function toggleExcluded(key: string, excluded: boolean) {
 }
 
 function openEdit(item: PreviewItem) {
+  if (props.readOnly) return
   editingItem.value = item
   const matchKey = props.detailAction.targetMatchKey
   const nk = normalizeKey(item.key)
@@ -271,7 +275,7 @@ function openEdit(item: PreviewItem) {
 }
 
 function saveEdit() {
-  if (!editingItem.value) return
+  if (props.readOnly || !editingItem.value) return
 
   const key = editingItem.value.key
   const matchKey = props.detailAction.targetMatchKey

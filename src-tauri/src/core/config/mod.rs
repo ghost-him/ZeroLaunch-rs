@@ -7,6 +7,6 @@ pub mod store;
 
 pub use event::{ConfigEvent, ConfigEventReceiver, ConfigEventSender};
 pub use manager::ConfigManager;
-pub use models::{ComponentInfo, ComponentPersistentState, ComponentSchema, PersistentConfig};
+pub use models::{ComponentPersistentState, PersistentConfig};
 pub use registry::ConfigurableRegistry;
 pub use store::ConfigStore;

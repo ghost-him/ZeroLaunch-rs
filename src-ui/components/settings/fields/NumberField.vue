@@ -2,19 +2,19 @@
   <div class="field-input-row">
     <n-input-number
       :value="modelValue as number"
-      :min="config.min"
-      :max="config.max"
-      :step="config.step"
-      :disabled="!definition.field.editable"
+      :min="config.min ?? undefined"
+      :max="config.max ?? undefined"
+      :step="config.step ?? undefined"
+      :precision="config.precision"
+      :disabled="field.readOnly"
       @update:value="(val: number | null) => emit('update:modelValue', val ?? 0)"
     />
     <ConfigActionButton
-      v-if="definition.configAction"
+      v-if="field.action"
       :component-id="componentId"
-      :config-action="definition.configAction"
-      :field-key="definition.field.key"
-      :editable="definition.field.editable"
-      :model-value="modelValue"
+      :field-action="field.action"
+      :field-key="field.key"
+      :editable="!field.readOnly"
       @update:model-value="emit('update:modelValue', $event)"
     />
   </div>
@@ -24,11 +24,11 @@
 import { computed } from 'vue'
 import { NInputNumber } from 'naive-ui'
 import ConfigActionButton from '../ConfigActionButton.vue'
-import { getNumberConfig } from '../../../utils/schemaTypes'
-import type { SettingDefinition } from '../../../bridge/contract'
+import { getSchemaNumberConfig } from '../../../utils/schemaTypes'
+import type { FieldConfig } from '../../../utils/schemaTypes'
 
 const props = defineProps<{
-  definition: SettingDefinition
+  field: FieldConfig
   componentId: string
   modelValue: unknown
 }>()
@@ -37,7 +37,7 @@ const emit = defineEmits<{
   (e: 'update:modelValue', value: unknown): void
 }>()
 
-const config = computed(() => getNumberConfig(props.definition.field.settingType))
+const config = computed(() => getSchemaNumberConfig(props.field.schema))
 </script>
 
 <style scoped>

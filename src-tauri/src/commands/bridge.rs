@@ -67,14 +67,14 @@ pub struct BridgeQueryResponse {
     pub mode: String,
     #[serde(rename = "results")]
     pub results: Vec<BridgeSearchResult>,
-    #[serde(rename = "panelType")]
+    #[serde(rename = "panelType", default)]
     pub panel_type: Option<String>,
-    #[serde(rename = "panelData")]
+    #[serde(rename = "panelData", default)]
     pub panel_data: Option<serde_json::Value>,
-    #[serde(rename = "panelActions")]
+    #[serde(rename = "panelActions", default)]
     pub panel_actions: Option<Vec<BridgeResultAction>>,
     /// 行内参数模式数据（仅 mode="inline_param" 时有值）
-    #[serde(rename = "inlineParam")]
+    #[serde(rename = "inlineParam", default)]
     pub inline_param: Option<BridgeInlineParamData>,
 }
 

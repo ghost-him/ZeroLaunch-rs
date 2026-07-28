@@ -114,7 +114,7 @@ pub struct ValidateSettingsParams {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ValidateSettingsResult {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub error: Option<String>,
 }
 
@@ -230,7 +230,7 @@ pub struct ExecutorExecuteParams {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecutorExecuteResult {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub error: Option<String>,
 }
 
@@ -321,7 +321,7 @@ pub struct ResourceUploadParams {
     #[serde(rename = "filePath")]
     pub file_path: String,
     #[serde(rename = "maxSize")]
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub max_size: Option<usize>,
 }
 

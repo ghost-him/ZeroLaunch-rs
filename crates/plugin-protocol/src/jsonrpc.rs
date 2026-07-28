@@ -35,9 +35,9 @@ impl Request {
 pub struct Response {
     pub jsonrpc: String,
     pub id: u64,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub result: Option<serde_json::Value>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub error: Option<JsonRpcError>,
 }
 

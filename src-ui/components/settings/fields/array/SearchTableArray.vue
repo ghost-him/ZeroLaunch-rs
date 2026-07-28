@@ -1,18 +1,32 @@
 <template>
   <div class="search-table-array">
-    <!-- 搜索栏 -->
+    <n-alert v-if="!searchSource" type="warning">
+      {{ $t('settings.searchActionMissing') }}
+    </n-alert>
+    <n-alert v-else-if="searchError" type="warning">
+      {{ searchError }}
+    </n-alert>
+
     <div class="search-bar">
       <n-input
         v-model:value="query"
-        placeholder="搜索程序..."
+        :placeholder="field.description || $t('search.placeholder')"
+        size="small"
         clearable
-        :loading="searching"
+        :disabled="field.readOnly || !searchSource"
         @update:value="onSearchInput"
+        @keydown.enter="doSearch(query)"
       />
-      <n-button @click="doSearch(query)">搜索</n-button>
+      <n-button
+        size="small"
+        :loading="searching"
+        :disabled="field.readOnly || !searchSource"
+        @click="doSearch(query)"
+      >
+        {{ $t('common.search') }}
+      </n-button>
     </div>
 
-    <!-- 搜索结果表格 -->
     <n-data-table
       v-if="searchResults.length > 0 || query.length > 0"
       :columns="columns"
@@ -23,28 +37,35 @@
       :max-height="400"
     />
 
-    <n-empty v-else-if="!searching" description="输入关键词搜索程序" />
+    <n-empty v-else-if="!searching" :description="$t('search.noResults')" />
 
-    <!-- 编辑弹窗 -->
     <n-modal
       v-model:show="showModal"
-      :title="editingTarget"
+      :title="$t('settings.editEntry', { label: editingTarget })"
       preset="card"
-      style="width: 500px"
+      style="width: 480px"
       :mask-closable="false"
     >
       <div v-for="fd in visibleFields" :key="fd.key" class="modal-field">
+        <label>{{ fd.label }}</label>
         <DynamicFormField
-          :definition="{ field: fd, order: 0 }"
+          :field="fdToConfig(fd, field.readOnly)"
           :component-id="componentId"
           :model-value="editingValues[fd.key]"
-          @update:model-value="(val: unknown) => { editingValues[fd.key] = val }"
+          @update:model-value="(value: unknown) => setEditingValue(fd.key, value)"
         />
       </div>
       <template #footer>
         <n-space justify="end">
-          <n-button size="small" @click="showModal = false">取消</n-button>
-          <n-button size="small" type="primary" :loading="saving" :disabled="saving" @click="onSaveEdit">保存</n-button>
+          <n-button @click="showModal = false">{{ $t('common.cancel') }}</n-button>
+          <n-button
+            type="primary"
+            :loading="saving"
+            :disabled="field.readOnly || !canSaveEdit"
+            @click="onSaveEdit"
+          >
+            {{ $t('common.save') }}
+          </n-button>
         </n-space>
       </template>
     </n-modal>
@@ -52,268 +73,306 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h, onMounted, reactive, ref } from 'vue'
+import { computed, h, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
 import {
+  NAlert,
   NButton,
   NDataTable,
   NEmpty,
   NInput,
   NModal,
   NSpace,
-  NText,
-  useMessage,
 } from 'naive-ui'
+import { useI18n } from 'vue-i18n'
 import type { DataTableColumn } from 'naive-ui'
 import DynamicFormField from '../../DynamicFormField.vue'
-import { configExecuteAction } from '../../../../bridge/commands'
-import { getVisibleObjectFields, getSearchTableSource, getSearchTableFieldMapping } from '../../../../utils/schemaTypes'
-import type { SettingDefinition, ArrayItem, CandidateSummary } from '../../../../bridge/contract'
+import { useConfigStore } from '../../../../stores/config-store'
+import {
+  canAddArrayItem,
+  canRemoveArrayItem,
+  getArrayItemSchema,
+  getObjectFieldDefs,
+  fieldDefToConfig,
+  isObjectSchema,
+} from '../../../../utils/schemaTypes'
+import type { FieldConfig } from '../../../../utils/schemaTypes'
+import { FORM_VALUES_KEY } from '../../../../utils/formInjection'
+
+type SearchResult = Record<string, unknown>
 
 const props = defineProps<{
-  definition: SettingDefinition
+  field: FieldConfig
   componentId: string
   modelValue: unknown
-  item: ArrayItem
 }>()
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: unknown): void
 }>()
 
-const message = useMessage()
+const { t } = useI18n()
+const configStore = useConfigStore()
 
-// ---- 从 schema 中提取 SearchTable 源信息 ----
 const searchSource = computed(() => {
-  const st = props.definition.field.settingType
-  if (typeof st === 'object' && st !== null && 'array' in st) {
-    return getSearchTableSource(st.array.uiHint)
+  const action = props.field.action
+  if (!action || action.kind !== 'data') return null
+  const binding = action.binding
+  return {
+    sourceComponent: binding.component ?? props.componentId,
+    sourceAction: binding.action,
+    labelField: binding.labelField,
+    valueField: binding.valueField,
+    fieldMapping: binding.fieldMapping ?? [],
   }
-  return null
+})
+/** 将缺失或无效的搜索 action 记录到控制台。 */
+watch(searchSource, (source) => {
+  if (!source) console.warn(`[settings] ${props.field.key}: search action is missing`)
+}, { immediate: true })
+
+const itemSchema = computed(() => getArrayItemSchema(props.field.schema))
+const objectItemSchema = computed(() => {
+  const schema = itemSchema.value
+  return schema && isObjectSchema(schema) ? schema : null
 })
 
-const visibleFields = computed(() => getVisibleObjectFields(props.item))
+const allFields = computed(() => objectItemSchema.value ? getObjectFieldDefs(objectItemSchema.value, true) : [])
+const visibleFields = computed(() => allFields.value.filter((field) => field.visible))
+const fdToConfig = fieldDefToConfig
 
-// ---- 搜索状态 ----
 const query = ref('')
-const searchResults = ref<CandidateSummary[]>([])
+const searchResults = ref<SearchResult[]>([])
 const searching = ref(false)
+const searchError = ref<string | null>(null)
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
+/** 记录搜索 action 返回或执行失败的警告。 */
+watch(searchError, (error) => {
+  if (error) console.warn(`[settings] ${props.field.key}: ${error}`)
+})
 
-function onSearchInput() {
+const entries = computed<Record<string, unknown>[]>(() => {
+  if (Array.isArray(props.modelValue)) {
+    return props.modelValue.filter(isRecord)
+  }
+  return []
+})
+
+const showModal = ref(false)
+const editingTarget = ref('')
+const saving = ref(false)
+const editingValues = ref<Record<string, unknown>>({})
+
+const canSaveEdit = computed(() => {
+  const source = searchSource.value
+  if (!source) return false
+  const value = editingValues.value[source.valueField]
+  return value !== undefined && value !== null && String(value).trim().length > 0
+})
+
+/** 判断未知 action 返回值是否为普通对象。 */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/** 从当前 schema 的 valueField 查找已保存条目。 */
+function getEntry(value: unknown): Record<string, unknown> | undefined {
+  const source = searchSource.value
+  if (!source) return undefined
+  const normalized = String(value ?? '').toLowerCase()
+  return entries.value.find(
+    (entry) => String(entry[source.valueField] ?? '').toLowerCase() === normalized,
+  )
+}
+
+/** 更新编辑弹窗中的字段值并保持响应式引用不可变。 */
+function setEditingValue(key: string, value: unknown): void {
+  editingValues.value = { ...editingValues.value, [key]: value }
+}
+
+provide(FORM_VALUES_KEY, {
+  getValue: (key: string) => editingValues.value[key],
+  setValue: setEditingValue,
+  values: editingValues,
+})
+
+/** 在输入变化后延迟执行 schema action 搜索。 */
+function onSearchInput(): void {
+  if (props.field.readOnly) return
   if (debounceTimer) clearTimeout(debounceTimer)
   if (!query.value) {
     searchResults.value = []
+    searchError.value = null
     return
   }
   debounceTimer = setTimeout(() => doSearch(query.value), 300)
 }
 
-// 挂载时自动搜索一次，初始加载显示所有候选项
-onMounted(() => doSearch(''))
-
-async function doSearch(q: string) {
+/** 执行配置 data action，并验证返回值满足 SearchTable 数据契约。 */
+async function doSearch(searchQuery: string): Promise<void> {
   const source = searchSource.value
+  if (props.field.readOnly) return
   if (!source) return
+  const schema = objectItemSchema.value
+  if (
+    !schema
+    || !(source.valueField in schema.properties)
+    || source.fieldMapping.some(([, toField]) => !(toField in schema.properties))
+  ) {
+    searchError.value = t('settings.searchActionInvalid')
+    return
+  }
+  searchError.value = null
   searching.value = true
   try {
-    const result = await configExecuteAction(source.sourceComponent, source.sourceAction, { query: q })
-    if (Array.isArray(result)) {
-      searchResults.value = result as CandidateSummary[]
+    const result = await configStore.executeAction(
+      source.sourceComponent,
+      source.sourceAction,
+      { query: searchQuery },
+    )
+    if (!Array.isArray(result) || !result.every(isRecord)) {
+      searchResults.value = []
+      searchError.value = t('settings.searchActionInvalid')
+      return
     }
-  } catch {
+    if (!result.every((row) => {
+      const value = row[source.valueField]
+      return value !== undefined && value !== null && String(value).trim().length > 0
+    })) {
+      searchResults.value = []
+      searchError.value = t('settings.searchValueRequired')
+      return
+    }
+    searchResults.value = result
+  } catch (error) {
     searchResults.value = []
+    searchError.value = t('settings.searchActionFailed', { message: String(error) })
   } finally {
     searching.value = false
   }
 }
 
-// ---- 条目管理 ----
-const entries = computed<Record<string, unknown>[]>(() => {
-  if (Array.isArray(props.modelValue)) return props.modelValue as Record<string, unknown>[]
-  return []
-})
-
-function getEntry(target: string): Record<string, unknown> | undefined {
-  const lowerTarget = target.toLowerCase()
-  return entries.value.find((e) => String(e.target ?? '').toLowerCase() === lowerTarget)
-}
-
-function updateEntries(newEntries: Record<string, unknown>[]) {
-  emit('update:modelValue', newEntries)
-}
-
-// ---- 编辑弹窗 ----
-const showModal = ref(false)
-const editingTarget = ref('')
-const saving = ref(false)
-const editingValues = reactive<Record<string, unknown>>({})
-
-function onEdit(candidate: CandidateSummary) {
-  // 清空旧编辑状态，防止跨编辑会话残留旧属性
-  Object.keys(editingValues).forEach(k => delete editingValues[k])
-  editingTarget.value = candidate.name
-  const entry = getEntry(candidate.target)
-  editingValues.target = candidate.target
-
-  // schema 驱动的字段映射：将候选项结果字段自动注入到编辑表单
-  const st = props.definition.field.settingType
-  const uiHint = typeof st === 'object' && st !== null && 'array' in st ? st.array.uiHint : null
-  const mapping = uiHint ? getSearchTableFieldMapping(uiHint) : null
-  if (mapping) {
-    for (const [candidateField, formField] of mapping) {
-      const val = (candidate as unknown as Record<string, unknown>)[candidateField]
-      if (val !== undefined && val !== null) {
-        editingValues[formField] = val
-      }
+/** 将搜索结果映射到 schema entry 编辑值，并优先保留已有条目。 */
+function onEdit(candidate: SearchResult): void {
+  if (props.field.readOnly) return
+  const source = searchSource.value
+  if (!source) return
+  const existing = getEntry(candidate[source.valueField])
+  const values: Record<string, unknown> = {}
+  for (const field of allFields.value) {
+    values[field.key] = existing?.[field.key]
+  }
+  values[source.valueField] = existing?.[source.valueField] ?? candidate[source.valueField]
+  for (const [fromField, toField] of source.fieldMapping) {
+    if (existing?.[toField] === undefined && candidate[fromField] !== undefined) {
+      values[toField] = candidate[fromField]
     }
   }
-
-  for (const fd of visibleFields.value) {
-    editingValues[fd.key] = entry?.[fd.key] ?? fd.defaultValue
-  }
+  editingValues.value = values
+  editingTarget.value = String(candidate[source.labelField] ?? candidate[source.valueField] ?? '')
   showModal.value = true
 }
 
-async function onSaveEdit() {
-  saving.value = true
-  try {
-    const target = String(editingValues.target ?? '')
-
-    // 处理 transient 字段：有 configAction 的字段在保存时触发对应动作后丢弃
-    for (const fd of visibleFields.value) {
-      if (fd.configAction) {
-        const val = editingValues[fd.key]
-        if (val !== '' && val !== undefined && val !== null) {
-          try {
-            await configExecuteAction(props.componentId, fd.configAction, {
-              ...editingValues,
-            })
-          } catch (e) {
-            console.error(`ConfigAction ${fd.configAction} 失败:`, e)
-            message.error(`操作 "${fd.label ?? fd.configAction}" 执行失败，请重试`)
-          }
-        }
-      }
-    }
-
-    const newEntries = [...entries.value]
-    const lowerTarget = target.toLowerCase()
-    const existingIdx = newEntries.findIndex(
-      (e) => String(e.target ?? '').toLowerCase() === lowerTarget,
-    )
-
-    // 构建保存的条目（排除 configAction 字段）
-    const savedEntry: Record<string, unknown> = { target }
-    for (const fd of visibleFields.value) {
-      if (fd.configAction) continue
-      const val = editingValues[fd.key]
-      // 跳过空值，避免存储无意义的默认值
-      if (val !== '' && val !== undefined && !(Array.isArray(val) && val.length === 0)) {
-        savedEntry[fd.key] = val
-      }
-    }
-    // 保存条目（即使只有 target 也需要保存，用于标识已覆盖的项）
-    if (existingIdx >= 0) {
-      newEntries[existingIdx] = savedEntry
-    } else {
-      newEntries.push(savedEntry)
-    }
-
-    updateEntries(newEntries)
-    showModal.value = false
-  } finally {
-    saving.value = false
+/** 保存当前 schema entry，并遵守数组容量与父级 readOnly 约束。 */
+function onSaveEdit(): void {
+  if (props.field.readOnly || !canSaveEdit.value) return
+  const source = searchSource.value
+  if (!source || !objectItemSchema.value) return
+  const value = editingValues.value[source.valueField]
+  const existing = getEntry(value)
+  const newEntries = [...entries.value]
+  const existingIndex = existing ? newEntries.indexOf(existing) : -1
+  if (existingIndex < 0 && !canAddArrayItem(props.field.schema, newEntries.length)) {
+    searchError.value = t('settings.searchMaxItems')
+    return
   }
+
+  const savedEntry: Record<string, unknown> = {}
+  for (const field of allFields.value) {
+    if (field.action?.kind === 'effect' && field.action.binding.transient) continue
+    const fieldValue = editingValues.value[field.key]
+    if (fieldValue !== undefined) savedEntry[field.key] = fieldValue
+  }
+  if (savedEntry[source.valueField] === undefined) {
+    savedEntry[source.valueField] = value
+  }
+  if (existingIndex >= 0) {
+    newEntries[existingIndex] = savedEntry
+  } else {
+    newEntries.push(savedEntry)
+  }
+  emit('update:modelValue', newEntries)
+  showModal.value = false
 }
 
-function onDelete(candidate: CandidateSummary) {
-  const lowerTarget = candidate.target.toLowerCase()
-  const newEntries = entries.value.filter(
-    (e) => String(e.target ?? '').toLowerCase() !== lowerTarget,
+/** 删除搜索结果对应的 schema entry，并遵守 minItems 约束。 */
+function onDelete(candidate: SearchResult): void {
+  if (props.field.readOnly || !canRemoveArrayItem(props.field.schema, entries.value.length)) return
+  const source = searchSource.value
+  if (!source) return
+  const value = candidate[source.valueField]
+  emit(
+    'update:modelValue',
+    entries.value.filter((entry) => String(entry[source.valueField] ?? '').toLowerCase() !== String(value ?? '').toLowerCase()),
   )
-  updateEntries(newEntries)
-}
-// ---- 通用摘要列：根据 schema 的第一个 visible 字段动态生成 ----
-const primaryField = computed(() => visibleFields.value[0] ?? null)
-
-function getSummaryValue(entry: Record<string, unknown> | undefined): string {
-  if (!entry) return '—'
-  const field = primaryField.value
-  if (!field) return '—'
-  const val = entry[field.key]
-  if (Array.isArray(val) && (val as unknown[]).length > 0)
-    return (val as unknown[]).join(', ')
-  if (val !== undefined && val !== null && val !== '')
-    return String(val)
-  return '—'
 }
 
-const columns = computed<DataTableColumn<CandidateSummary>[]>(() => [
-  {
-    title: '',
-    key: 'icon',
-    width: 40,
-    render(row: CandidateSummary) {
-      if (row.icon) {
-        return h('img', {
-          src: row.icon,
-          style: { width: '24px', height: '24px', objectFit: 'contain' },
-        })
-      }
-      return h('div', { style: { width: '24px', height: '24px' } })
+
+const columns = computed<DataTableColumn<SearchResult>[]>(() => {
+  const source = searchSource.value
+  if (!source) return []
+  const labelField = allFields.value.find((field) => field.key === source.labelField)
+  const valueField = allFields.value.find((field) => field.key === source.valueField)
+  const resultColumns: DataTableColumn<SearchResult>[] = [
+    {
+      title: labelField?.label ?? source.labelField,
+      key: 'label',
+      ellipsis: { tooltip: true },
+      render: (row) => String(row[source.labelField] ?? row[source.valueField] ?? '—'),
     },
-  },
-  {
-    title: '程序名',
-    key: 'name',
-    ellipsis: { tooltip: true },
-  },
-  {
-    title: '路径',
-    key: 'target',
-    ellipsis: { tooltip: true },
-  },
-  {
-    title: primaryField.value?.label ?? '值',
-    key: 'summary',
-    width: 150,
-    render(row: CandidateSummary) {
-      const entry = getEntry(row.target)
-      return h(NText, { depth: entry ? undefined : 3 }, {
-        default: () => getSummaryValue(entry),
-      })
-    },
-  },
-  {
-    title: '操作',
+  ]
+  if (source.valueField !== source.labelField) {
+    resultColumns.push({
+      title: valueField?.label ?? source.valueField,
+      key: 'value',
+      ellipsis: { tooltip: true },
+      render: (row) => String(row[source.valueField] ?? '—'),
+    })
+  }
+  resultColumns.push({
+    title: t('common.actions'),
     key: 'actions',
-    width: 120,
-    render(row: CandidateSummary) {
+    width: 140,
+    render: (row) => {
+      const value = row[source.valueField]
+      const existing = getEntry(value)
       return h('div', { style: { display: 'flex', gap: '4px' } }, [
-        h(
-          NButton,
-          {
-            size: 'tiny',
-            onClick: () => onEdit(row),
-          },
-          { default: () => '编辑' },
-        ),
-        getEntry(row.target)
-          ? h(
-              NButton,
-              {
-                size: 'tiny',
-                type: 'error',
-                quaternary: true,
-                onClick: () => onDelete(row),
-              },
-              { default: () => '删除' },
-            )
+        h(NButton, {
+          size: 'tiny',
+          disabled: props.field.readOnly,
+          onClick: () => onEdit(row),
+        }, { default: () => t('common.edit') }),
+        existing && !props.field.readOnly
+          ? h(NButton, {
+              size: 'tiny',
+              type: 'error',
+              quaternary: true,
+              disabled: !canRemoveArrayItem(props.field.schema, entries.value.length),
+              onClick: () => onDelete(row),
+            }, { default: () => t('common.delete') })
           : null,
       ])
     },
-  },
-])
+  })
+  return resultColumns
+})
+
+onMounted(() => {
+  if (searchSource.value && !props.field.readOnly) void doSearch('')
+})
+
+onBeforeUnmount(() => {
+  if (debounceTimer) clearTimeout(debounceTimer)
+})
 </script>
 
 <style scoped>
@@ -322,17 +381,14 @@ const columns = computed<DataTableColumn<CandidateSummary>[]>(() => [
   flex-direction: column;
   gap: 12px;
 }
-
 .search-bar {
   display: flex;
   gap: 8px;
   align-items: center;
 }
-
 .search-bar .n-input {
   flex: 1;
 }
-
 .modal-field {
   margin-bottom: 12px;
 }

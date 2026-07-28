@@ -72,14 +72,12 @@ import type { CtxItem } from '../components/layout/ContextMenu.vue'
 import { useSearchStore } from '../stores/search-store'
 import { useKeyboardRouter } from '../composables/useKeyboardRouter'
 import { useWindowResize } from '../composables/useWindowResize'
-import { useSearch } from '../composables/useSearch'
 import ParamPanel from '../components/search/ParamPanel.vue'
 import { onConfigChanged, onInstallationEvent } from '../bridge/events'
 import { registerErrorHandler, configGetSettings } from '../bridge/commands'
 import type { BridgeError } from '../bridge/commands'
 
 const searchStore = useSearchStore()
-useSearch()
 const notification = useNotification()
 
 const { uiMode } = useKeyboardRouter()

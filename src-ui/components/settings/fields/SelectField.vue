@@ -3,16 +3,15 @@
     <n-select
       :value="modelValue as string"
       :options="options"
-      :disabled="!definition.field.editable"
+      :disabled="field.readOnly"
       @update:value="emit('update:modelValue', $event)"
     />
     <ConfigActionButton
-      v-if="definition.configAction"
+      v-if="field.action"
       :component-id="componentId"
-      :config-action="definition.configAction"
-      :field-key="definition.field.key"
-      :editable="definition.field.editable"
-      :model-value="modelValue"
+      :field-action="field.action"
+      :field-key="field.key"
+      :editable="!field.readOnly"
       @update:model-value="emit('update:modelValue', $event)"
     />
   </div>
@@ -22,11 +21,11 @@
 import { computed } from 'vue'
 import { NSelect } from 'naive-ui'
 import ConfigActionButton from '../ConfigActionButton.vue'
-import { getSelectOptions } from '../../../utils/schemaTypes'
-import type { SettingDefinition } from '../../../bridge/contract'
+import { getSchemaEnumOptions } from '../../../utils/schemaTypes'
+import type { FieldConfig } from '../../../utils/schemaTypes'
 
 const props = defineProps<{
-  definition: SettingDefinition
+  field: FieldConfig
   componentId: string
   modelValue: unknown
 }>()
@@ -35,7 +34,7 @@ const emit = defineEmits<{
   (e: 'update:modelValue', value: unknown): void
 }>()
 
-const options = computed(() => getSelectOptions(props.definition.field.settingType))
+const options = computed(() => getSchemaEnumOptions(props.field.schema))
 </script>
 
 <style scoped>

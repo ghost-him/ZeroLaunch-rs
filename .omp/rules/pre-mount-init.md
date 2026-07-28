@@ -7,4 +7,4 @@ scope: "tool:edit(*.ts), tool:edit(*.vue), tool:write(*.ts), tool:write(*.vue)"
 # Pre-mount 初始化
 
 - 外观主题 **必须** 在 app.mount() 之前加载并应用（防止白屏闪烁）
-- 顺序：createPinia → createApp → useThemeStore().loadFromBackend() → app.mount()
+- 顺序：createApp → createPinia → useThemeStore().loadFromBackend() → app.mount()

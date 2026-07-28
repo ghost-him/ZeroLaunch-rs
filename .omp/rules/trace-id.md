@@ -1,7 +1,7 @@
 ---
 description: trace_id 追踪规范 — 所有返回 Result<T, BridgeError> 的命令必须生成 trace_id 并建立 tracing span，核心热路径推荐使用
-condition: ".*"
-scope: "tool:read(src-tauri/src/commands/**), tool:edit(src-tauri/src/commands/**), tool:write(src-tauri/src/commands/**), tool:read(src-tauri/src/cli_server/**), tool:edit(src-tauri/src/cli_server/**), tool:write(src-tauri/src/cli_server/**), tool:read(src-tauri/src/core/**), tool:edit(src-tauri/src/core/**), tool:write(src-tauri/src/core/**)"
+condition: "trace_id|BridgeError|with_trace_id|generate_trace_id|instrument"
+scope: "tool:read(src-tauri/src/commands/**), tool:edit(src-tauri/src/commands/**), tool:write(src-tauri/src/commands/**), tool:read(src-tauri/src/cli_server/**), tool:edit(src-tauri/src/cli_server/**), tool:write(src-tauri/src/cli_server/**), tool:read(src-tauri/src/core/**), tool:edit(src-tauri/src/core/**), tool:write(src-tauri/src/core/**), tool:read(src-tauri/src/utils/**), tool:edit(src-tauri/src/utils/**), tool:write(src-tauri/src/utils/**)"
 ---
 
 # trace_id 追踪规范
@@ -26,7 +26,7 @@ scope: "tool:read(src-tauri/src/commands/**), tool:edit(src-tauri/src/commands/*
 - async 函数 **必须** 用 `#[tracing::instrument]`，**禁止** `span.enter()` 跨 `.await`
 - trace_id **必须** 排除在命令签名之外（不在参数中暴露，由命令内部生成）
 - CLI HTTP 服务器 **必须** 通过 `X-Trace-Id` 请求头/响应头传递 trace_id
-- **trace_id 适用范围**：所有返回 `Result<T, BridgeError>` 的命令 **必须** 生成 trace_id（无论是否真的有错误路径；trace_id 同时用于 span 日志关联，如查看操作耗时与事件顺序），**禁止** 因"无错误路径"而省略模板代码。不返回 `Result<T, BridgeError>` 的命令（如返回 `String`、`usize`、`Vec<T>`、`()` 等）不需要 trace_id。需 trace_id 的示例：`bridge_query`、`bridge_refresh_candidates`、`bridge_hide_window`。无需 trace_id 的示例：`config_get_version() -> String`、`config_get_actions() -> Vec<ConfigActionDef>`、`bridge_get_session_mode() -> String`
+- **trace_id 适用范围**：所有返回 `Result<T, BridgeError>` 的命令 **必须** 生成 trace_id（无论是否真的有错误路径；trace_id 同时用于 span 日志关联，如查看操作耗时与事件顺序），**禁止** 因"无错误路径"而省略模板代码。不返回 `Result<T, BridgeError>` 的命令（如返回 `String`、`usize`、`Vec<T>`、`()` 等）不需要 trace_id。需 trace_id 的示例：`bridge_query`、`bridge_refresh_candidates`、`bridge_hide_window`。无需 trace_id 的示例：`config_get_actions() -> Vec<ConfigActionDef>`、`bridge_get_session_mode() -> String`
 
 ## 核心热路径（推荐）
 

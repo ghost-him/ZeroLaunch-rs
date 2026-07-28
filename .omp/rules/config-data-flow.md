@@ -1,7 +1,7 @@
 ---
 description: 配置数据流分层规范 — 运行时类型、存储类型、转换函数的三层职责分离
 condition: "get_settings"
-scope: "tool:read(src-tauri/src/builtin_plugin/config/**), tool:edit(src-tauri/src/builtin_plugin/config/**), tool:write(src-tauri/src/builtin_plugin/config/**), tool:read(src-tauri/src/core/bias_rule.rs), tool:edit(src-tauri/src/core/bias_rule.rs), tool:write(src-tauri/src/core/bias_rule.rs), tool:read(src-tauri/src/bootstrap.rs), tool:edit(src-tauri/src/bootstrap.rs), tool:write(src-tauri/src/bootstrap.rs), tool:read(src-tauri/src/plugin_framework/session_router.rs), tool:edit(src-tauri/src/plugin_framework/session_router.rs), tool:write(src-tauri/src/plugin_framework/session_router.rs), tool:read(src-tauri/src/plugin_framework/candidate_pipeline.rs), tool:edit(src-tauri/src/plugin_framework/candidate_pipeline.rs), tool:write(src-tauri/src/plugin_framework/candidate_pipeline.rs)"
+scope: "tool:read(src-tauri/src/builtin_plugin/config/**), tool:edit(src-tauri/src/builtin_plugin/config/**), tool:write(src-tauri/src/builtin_plugin/config/**), tool:read(src-tauri/src/core/bias_rule.rs), tool:edit(src-tauri/src/core/bias_rule.rs), tool:write(src-tauri/src/core/bias_rule.rs), tool:read(src-tauri/src/bootstrap.rs), tool:edit(src-tauri/src/bootstrap.rs), tool:write(src-tauri/src/bootstrap.rs), tool:read(src-tauri/src/plugin_framework/session_router.rs), tool:edit(src-tauri/src/plugin_framework/session_router.rs), tool:write(src-tauri/src/plugin_framework/session_router.rs), tool:read(src-tauri/src/plugin_framework/candidate_pipeline.rs), tool:edit(src-tauri/src/plugin_framework/candidate_pipeline.rs), tool:write(src-tauri/src/plugin_framework/candidate_pipeline.rs), tool:read(src-tauri/src/plugin_framework/executor_registry.rs), tool:edit(src-tauri/src/plugin_framework/executor_registry.rs), tool:write(src-tauri/src/plugin_framework/executor_registry.rs), tool:read(crates/plugin-api/src/services/**), tool:edit(crates/plugin-api/src/services/**), tool:write(crates/plugin-api/src/services/**), tool:read(src-ui/bridge/contract.ts), tool:edit(src-ui/bridge/contract.ts), tool:write(src-ui/bridge/contract.ts)"
 ---
 
 # 配置数据流分层规范
@@ -47,3 +47,5 @@ let hotkey_config = config_manager
 | 固定偏移（bias） | `core/bias_rule.rs` (BiasRule) | `bias_config.rs` (BiasSettings) | `bias_config.rs` |
 
 新增类似组件时**必须**按此表创建对应的三件套。
+
+> 注意：上表仅为示例（hotkey、bias），其他配置组件（appearance、storage、icon_override、general、window_behavior、candidate_registry 等）同样遵循三层分离原则：运行时类型在 `core/` 或 `crates/plugin-api/src/services/<domain>/types.rs`，存储类型和转换函数在 `builtin_plugin/config/<component>.rs`。

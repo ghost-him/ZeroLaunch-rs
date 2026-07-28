@@ -57,13 +57,16 @@ fn default_component_priority() -> i32 {
 /// TODO: 后续版本开放 KeywordOptimizer / SearchEngine / ScoreBooster，
 /// 届时在此枚举中新增对应 variant，并同步更新 REQUIRED_PROVIDES_VALUES。
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case", tag = "type")]
+#[serde(tag = "type")]
 pub enum ComponentKind {
+    #[serde(rename = "plugin")]
     Plugin {
         #[serde(rename = "triggerKeywords")]
         trigger_keywords: Vec<String>,
     },
+    #[serde(rename = "data_source")]
     DataSource,
+    #[serde(rename = "action_executor")]
     ActionExecutor {
         #[serde(rename = "targetTypes")]
         target_types: Vec<TargetType>,

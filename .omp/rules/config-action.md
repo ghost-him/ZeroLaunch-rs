@@ -1,7 +1,7 @@
 ---
 description: ConfigAction 规范 — 配置保存前的副作用测试（如 WebDAV 连通性），纯查询/计算操作，field-level 可含有限副作用
 condition: "execute_config_action|config_actions|ConfigActionDef|ConfigAction"
-scope: "tool:edit(*.rs), tool:write(*.rs)"
+scope: "tool:edit(src-tauri/src/builtin_plugin/**), tool:write(src-tauri/src/builtin_plugin/**), tool:edit(crates/plugin-api/src/config/**), tool:write(crates/plugin-api/src/config/**)"
 ---
 
 # ConfigAction 规范
@@ -14,9 +14,9 @@ scope: "tool:edit(*.rs), tool:write(*.rs)"
 
 ## field-level ConfigAction 例外
 
-`FieldDefinition.config_action` 标记的字段级动作 **允许** 有限副作用，但受以下约束：
+`FieldUiMetadata.action` 标记的字段级动作 **允许** 有限副作用，但受以下约束：
 
-1. **必须** 在 `FieldDefinition` 的文档注释中说明副作用（如"立即写入缓存，不持久化字段值"）
+1. **必须** 在 `FieldUiMetadata` 的文档注释中说明副作用（如"立即写入缓存，不持久化字段值"）
 2. **必须** 是异常安全的：失败时不得留下不一致状态，`execute_config_action` 返回 `Err` 后前端可重试
 3. **禁止** 修改组件内部配置状态（`self.settings`）
 4. **禁止** 调用 ConfigManager、SessionRouter 等框架层方法

@@ -1,6 +1,8 @@
 use async_trait::async_trait;
 use std::sync::Arc;
-use zerolaunch_plugin_api::config::{ComponentCore, ComponentType, Configurable};
+use zerolaunch_plugin_api::config::{
+    ComponentCore, ComponentType, Configurable, SettingDefinition,
+};
 use zerolaunch_plugin_api::host::PluginHandle;
 use zerolaunch_plugin_api::services::IconRequest;
 use zerolaunch_plugin_api::{
@@ -33,6 +35,10 @@ impl CommandExecutor {
 impl Configurable for CommandExecutor {
     fn core(&self) -> &ComponentCore {
         &self.core
+    }
+
+    fn setting_schema(&self) -> Vec<SettingDefinition> {
+        vec![]
     }
 }
 

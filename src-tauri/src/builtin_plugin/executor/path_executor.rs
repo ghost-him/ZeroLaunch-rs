@@ -1,7 +1,9 @@
 use async_trait::async_trait;
 use std::sync::Arc;
 use tracing::warn;
-use zerolaunch_plugin_api::config::{ComponentCore, ComponentType, Configurable};
+use zerolaunch_plugin_api::config::{
+    ComponentCore, ComponentType, Configurable, SettingDefinition,
+};
 use zerolaunch_plugin_api::host::{OpenTarget, PluginHandle};
 use zerolaunch_plugin_api::services::IconRequest;
 use zerolaunch_plugin_api::{
@@ -62,6 +64,10 @@ impl PathExecutor {
 impl Configurable for PathExecutor {
     fn core(&self) -> &ComponentCore {
         &self.core
+    }
+
+    fn setting_schema(&self) -> Vec<SettingDefinition> {
+        vec![]
     }
 }
 

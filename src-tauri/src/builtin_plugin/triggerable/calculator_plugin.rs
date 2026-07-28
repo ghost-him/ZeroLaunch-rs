@@ -3,6 +3,7 @@ use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::sync::Arc;
+use zerolaunch_plugin_api::config::SettingDefinition;
 use zerolaunch_plugin_api::config::{ComponentCore, ComponentType, ConfigError, Configurable};
 use zerolaunch_plugin_api::host::PluginHandle;
 use zerolaunch_plugin_api::services::IconRequest;
@@ -16,21 +17,8 @@ pub struct CalculatorPlugin {
     inner: RwLock<CalculatorSettings>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct CalculatorSettings {
-    #[serde(rename = "enabled", default = "default_enabled_true")]
-    enabled: bool,
-}
-
-fn default_enabled_true() -> bool {
-    true
-}
-
-impl Default for CalculatorSettings {
-    fn default() -> Self {
-        Self { enabled: true }
-    }
-}
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+struct CalculatorSettings {}
 
 impl Default for CalculatorPlugin {
     fn default() -> Self {
@@ -82,6 +70,10 @@ impl Configurable for CalculatorPlugin {
         &self.core
     }
 
+    fn setting_schema(&self) -> Vec<SettingDefinition> {
+        vec![]
+    }
+
     fn get_settings(&self) -> serde_json::Value {
         serde_json::to_value(self.inner.read().clone()).unwrap_or_default()
     }
@@ -90,10 +82,6 @@ impl Configurable for CalculatorPlugin {
         let parsed: CalculatorSettings = serde_json::from_value(settings).unwrap_or_default();
         *self.inner.write() = parsed;
         Ok(())
-    }
-
-    fn get_default_settings(&self) -> serde_json::Value {
-        json!({ "enabled": true })
     }
 
     fn default_enabled(&self) -> bool {

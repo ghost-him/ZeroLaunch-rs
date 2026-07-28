@@ -38,10 +38,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { NButton, NImage, useMessage } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
-import { resourceUpload } from '../../../bridge/commands'
+import { resourceGet, resourceUpload } from '../../../bridge/commands'
 import ConfigActionButton from '../ConfigActionButton.vue'
 import { getSchemaImageConfig } from '../../../utils/schemaTypes'
 import type { FieldConfig } from '../../../utils/schemaTypes'
@@ -61,13 +61,19 @@ const { t } = useI18n()
 const imageConfig = computed(() => getSchemaImageConfig(props.field.widget))
 const editable = computed(() => !props.field.readOnly)
 
-const imageSrc = computed(() => {
-  if (!props.modelValue) return ''
-  const rid = String(props.modelValue)
-  if (rid.startsWith('http://') || rid.startsWith('https://')) return rid
-  if (rid.startsWith('data:')) return rid
-  return `/api/resource/${encodeURIComponent(rid)}`
-})
+const imageSrc = ref('')
+
+watch(() => props.modelValue, async (val) => {
+  if (!val) { imageSrc.value = ''; return }
+  const rid = String(val)
+  if (rid.startsWith('http://') || rid.startsWith('https://')) { imageSrc.value = rid; return }
+  if (rid.startsWith('data:')) { imageSrc.value = rid; return }
+  try {
+    imageSrc.value = await resourceGet(rid)
+  } catch {
+    imageSrc.value = ''
+  }
+}, { immediate: true })
 
 /** 直接调用 Tauri dialog 选择文件，再通过 IPC 上传资源，不承载业务逻辑。 */
 async function uploadImage() {

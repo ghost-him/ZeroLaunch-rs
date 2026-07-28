@@ -41,9 +41,7 @@ pub trait Configurable: Send + Sync {
     ///
     /// 组件实现者在此方法中通过 `SchemaBuilder` 声明所有配置字段。
     /// 默认返回空列表。
-    fn setting_schema(&self) -> Vec<SettingDefinition> {
-        Vec::new()
-    }
+    fn setting_schema(&self) -> Vec<SettingDefinition>;
 
     /// 将 `setting_schema()` 的输出编译为 `SettingsContribution`。
     ///

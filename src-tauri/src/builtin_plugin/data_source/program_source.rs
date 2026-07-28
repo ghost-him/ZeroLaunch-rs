@@ -302,7 +302,7 @@ impl Configurable for ProgramSource {
                         .directory()
                         .default("")
                         .build_field(),
-                    SchemaBuilder::number("max_depth", "扫描深度", "子目录递归深度")
+                    SchemaBuilder::integer("max_depth", "扫描深度", "子目录递归深度")
                         .default(3.0)
                         .min(1.0)
                         .max(10.0)
@@ -315,7 +315,7 @@ impl Configurable for ProgramSource {
                     )
                     .primitive_item(PrimitiveType::Text)
                     .tags_ui()
-                    .min_items(1)
+                    .min_items(0)
                     .default(serde_json::json!(["*.exe", "*.lnk", "*.url"]))
                     .build_field(),
                     SchemaBuilder::select("pattern_type", "匹配方式", "通配符或正则表达式")
@@ -329,6 +329,7 @@ impl Configurable for ProgramSource {
                     )
                     .primitive_item(PrimitiveType::Text)
                     .tags_ui()
+                    .min_items(0)
                     .default(serde_json::json!(["uninstall", "帮助", "help", "卸载"]))
                     .build_field(),
                     SchemaBuilder::array(
@@ -338,6 +339,7 @@ impl Configurable for ProgramSource {
                     )
                     .primitive_item(PrimitiveType::Text)
                     .tags_ui()
+                    .min_items(0)
                     .default(serde_json::json!([]))
                     .build_field(),
                     SchemaBuilder::select("symlink_mode", "符号链接模式", "如何处理符号链接")
@@ -345,7 +347,7 @@ impl Configurable for ProgramSource {
                         .default("ExplicitOnly")
                         .build_field(),
                 ])
-                .min_items(1)
+                .min_items(0)
                 .master_detail_ui()
                 .default(serde_json::json!([
                     {

@@ -1,6 +1,6 @@
 // ============================================================
 // ZeroLaunch 前后端共享类型定义
-// 与 Rust 侧 serde(rename_all = "camelCase") 对齐
+// 与 Rust 侧 serde 对齐
 // ============================================================
 
 // ---- 搜索 & 会话 ----
@@ -33,11 +33,11 @@ export interface InlineParamData {
 }
 
 export type BridgeQueryResponse =
-  | { mode: 'search'; results: ListItem[]; panelType?: never; panelData?: never; panelActions?: never; inlineParam?: never }
-  | { mode: 'empty'; results: ListItem[]; panelType?: never; panelData?: never; panelActions?: never; inlineParam?: never }
-  | { mode: 'plugin_panel'; results: ListItem[]; panelType: string; panelData: unknown; panelActions: ResultAction[]; inlineParam?: never }
-  | { mode: 'plugin_immersive'; results: ListItem[]; panelType: string; panelData: unknown; panelActions: ResultAction[]; inlineParam?: never }
-  | { mode: 'inline_param'; results: never[]; inlineParam: InlineParamData }
+  | { mode: 'search'; results: ListItem[]; panelType: null; panelData: null; panelActions: null; inlineParam: null }
+  | { mode: 'empty'; results: ListItem[]; panelType: null; panelData: null; panelActions: null; inlineParam: null }
+  | { mode: 'plugin_panel'; results: ListItem[]; panelType: string; panelData: unknown; panelActions: ResultAction[]; inlineParam: null }
+  | { mode: 'plugin_immersive'; results: ListItem[]; panelType: string; panelData: unknown; panelActions: ResultAction[]; inlineParam: null }
+  | { mode: 'inline_param'; results: never[]; panelType: null; panelData: null; panelActions: null; inlineParam: InlineParamData }
 
 export interface ConfirmPayload {
   candidateId: number
@@ -50,7 +50,7 @@ export type ConfirmResponse =
   | { status: 'executed' }
   | { status: 'enterParamPanel'; candidateId: number; userArgCount: number }
 
-// ---- 配置相关 ----
+// ---- 配置相关新类型（SchemaKind 驱动） ----
 
 export type ComponentType =
   | 'DataSource'
@@ -72,21 +72,58 @@ export interface ComponentInfo {
   enabled: boolean
   defaultEnabled: boolean
 }
-export interface ComponentSchema {
-  componentId: string
-  componentName: string
-  componentDescription: string
-  componentType: ComponentType
-  settings: SettingDefinition[]
+
+
+// ── Schema 类型系统 ──
+
+export type SchemaNode =
+  | { type: 'string'; enum: string[]; minLength: number | null; maxLength: number | null; pattern: string | null; default: unknown | null }
+  | { type: 'number'; minimum: number | null; maximum: number | null; multipleOf: number | null; default: unknown | null }
+  | { type: 'integer'; minimum: number | null; maximum: number | null; multipleOf: number | null; default: unknown | null }
+  | { type: 'boolean'; default: unknown | null }
+  | { type: 'array'; items: SchemaNode; itemWidget: WidgetHint | null; minItems: number | null; maxItems: number | null; default: unknown | null }
+  | { type: 'object'; properties: Record<string, SchemaNode>; ui: FieldUiMetadata[]; required: string[]; default: unknown | null }
+
+// ── UI 控件提示 ──
+
+export type WidgetHint =
+  | { kind: 'text' }
+  | { kind: 'textarea' }
+  | { kind: 'number' }
+  | { kind: 'toggle' }
+  | { kind: 'select' }
+  | { kind: 'path'; mode: 'file' | 'directory' }
+  | { kind: 'color' }
+  | { kind: 'image'; accept: string[]; maxSize: number | null }
+  | { kind: 'list' }
+  | { kind: 'tags' }
+  | { kind: 'table' }
+  | { kind: 'cards' }
+  | { kind: 'masterDetail' }
+  | { kind: 'searchTable' }
+
+// ── 数据注入 Action 绑定 ──
+
+export interface DataActionBinding {
+  action: string
+  component: string | null
+  labelField: string
+  valueField: string
+  fieldMapping: [string, string][]
 }
 
-export interface SettingDefinition {
-  field: FieldDefinition
-  group?: string
-  order: number
-  configAction?: string
-  detailAction?: DetailActionDef
+export interface EffectActionBinding {
+  action: string
+  component: string | null
+  fieldMapping: [string, string][]
+  transient: boolean
 }
+
+export type FieldAction =
+  | { kind: 'data'; binding: DataActionBinding }
+  | { kind: 'effect'; binding: EffectActionBinding }
+
+// ── 详情面板联动动作 ──
 
 export interface DetailActionDef {
   action: string
@@ -98,47 +135,42 @@ export interface DetailActionDef {
   targetMatchKey: string
 }
 
-export interface FieldDefinition {
-  key: string
+// ── 字段 UI 元数据 ──
+
+export interface FieldUiMetadata {
+  pointer: string
   label: string
   description: string
-  settingType: SettingType
-  defaultValue: unknown
+  group: string | null
+  order: number
   visible: boolean
-  editable: boolean
-  /** 关联的配置动作名称，有此值的字段在 SearchTableArray 保存时自动触发后丢弃 */
-  configAction?: string
+  readOnly: boolean
+  widget: WidgetHint | null
+  action: FieldAction | null
+  detailAction: DetailActionDef | null
 }
 
-export type SettingType =
-  | 'text'
-  | { number: { min?: number; max?: number; step?: number } }
-  | 'boolean'
-  | { select: { options: string[] } }
-  | { path: { mode: 'file' | 'directory' } }
-  | 'color'
-  | 'json'
-  | { array: { item: ArrayItem; minItems?: number; maxItems?: number; uiHint: ArrayUiHint } }
-  | { image: { accept: string[]; maxSize?: number } }
 
-export type ArrayItem =
-  | { primitive: PrimitiveType }
-  | { object: FieldDefinition[] }
+// ── 配置贡献 ──
 
-export type PrimitiveType =
-  | 'text'
-  | { number: { min?: number; max?: number; step?: number } }
-  | 'boolean'
-  | { select: { options: string[] } }
-  | { path: { mode: 'file' | 'directory' } }
-  | 'color'
+export interface SettingsContribution {
+  schemaVersion: number
+  properties: Record<string, SchemaNode>
+  ui: FieldUiMetadata[]
+  commitPolicy: 'staged' | 'immediateAllowed'
+}
 
-export type ArrayUiHint =
-  | 'default'
-  | 'table'
-  | 'masterDetail'
-  | 'tags'
-  | { searchTable: { sourceComponent: string; sourceAction: string; fieldMapping?: [string, string][] } }
+
+/** 组件 Schema — IPC `config_get_schema` 的返回值包装。 */
+export interface ComponentSchema {
+  componentId: string
+  componentName: string
+  componentDescription: string
+  componentType: ComponentType
+  contribution: SettingsContribution
+}
+
+// ── 配置动作 ──
 
 export interface ConfigActionDef {
   action: string
@@ -146,15 +178,10 @@ export interface ConfigActionDef {
   description: string
 }
 
-// ---- 候选项摘要（用于 SearchTable 搜索结果） ----
-
-export interface CandidateSummary {
-  name: string
-  target: string
-  targetType: string
-  icon: string
-  /** 原始 IconRequest 的 JSON 序列化 */
-  iconRequestJson?: string
+export interface ConfigActionPayload {
+  componentId: string
+  action: string
+  params?: unknown
 }
 
 export interface ConfigChangedPayload {

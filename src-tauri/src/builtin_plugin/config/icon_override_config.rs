@@ -4,8 +4,8 @@ use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use zerolaunch_plugin_api::config::{
-    ComponentCore, ComponentType, ConfigActionDef, ConfigError, Configurable, FieldDefinition,
-    SettingDefinition, SettingType,
+    ComponentCore, ComponentType, ConfigActionDef, ConfigError, Configurable, DataActionBinding,
+    EffectActionBinding, SettingDefinition,
 };
 use zerolaunch_plugin_api::host::PluginHandle;
 use zerolaunch_plugin_api::services::IconRequest;
@@ -31,8 +31,8 @@ struct IconOverrideEntry {
     /// 目标类型（Path, Url, App 等），用于重建 IconRequest
     #[serde(rename = "targetType", default)]
     target_type: String,
-    /// 备注（可选，为空时跳过序列化）
-    #[serde(rename = "note", default, skip_serializing_if = "String::is_empty")]
+    /// 备注
+    #[serde(rename = "note", default)]
     note: String,
 }
 
@@ -82,69 +82,58 @@ impl Configurable for IconOverrideConfig {
         .group("图标覆盖")
         .order(1)
         .object_items(vec![
-            // target 字段：程序标识，由搜索栏自动关联，不在弹窗中编辑
-            FieldDefinition {
-                key: "target".to_string(),
-                label: "程序".to_string(),
-                description: "目标程序路径".to_string(),
-                setting_type: SettingType::Text,
-                default_value: serde_json::json!(""),
-                visible: false,
-                editable: false,
-                config_action: None,
-            },
-            // target_type 字段：目标类型，用于重建 IconRequest
-            // visible = false，由 SearchTableArray 从搜索结果自动填充
-            FieldDefinition {
-                key: "target_type".to_string(),
-                label: "目标类型".to_string(),
-                description: "目标类型（Path, Url 等）".to_string(),
-                setting_type: SettingType::Text,
-                default_value: serde_json::json!(""),
-                visible: false,
-                editable: false,
-                config_action: None,
-            },
-            // icon_request_json 字段：原始 IconRequest 的 JSON 序列化
-            // visible = false，由 SearchTableArray 从搜索结果自动填充
-            FieldDefinition {
-                key: "icon_request_json".to_string(),
-                label: "图标请求".to_string(),
-                description: "原始图标请求的 JSON 序列化".to_string(),
-                setting_type: SettingType::Text,
-                default_value: serde_json::json!(""),
-                visible: false,
-                editable: false,
-                config_action: None,
-            },
-            // custom_icon_path 字段：用户选择的图标文件（临时字段，不持久化）
-            // configAction 标记该字段由 ConfigAction 处理，SearchTableArray 保存时
-            // 调用 apply_override 处理图标后排除此字段
-            FieldDefinition {
-                key: "custom_icon_path".to_string(),
-                label: "图标文件".to_string(),
-                description: "选择新的图标文件（支持 .exe、.lnk、.png、.ico 等格式）".to_string(),
-                setting_type: SettingType::Path {
-                    mode: zerolaunch_plugin_api::config::PathMode::File,
-                },
-                default_value: serde_json::json!(""),
-                visible: true,
-                editable: true,
-                config_action: Some("apply_override".to_string()),
-            },
+            SchemaBuilder::text("target", "程序", "目标程序路径")
+                .visible(false)
+                .editable(false)
+                .default("")
+                .build(),
+            SchemaBuilder::text("target_type", "目标类型", "目标类型（Path, Url 等）")
+                .visible(false)
+                .editable(false)
+                .default("")
+                .build(),
+            SchemaBuilder::text(
+                "icon_request_json",
+                "图标请求",
+                "原始图标请求的 JSON 序列化",
+            )
+            .visible(false)
+            .editable(false)
+            .default("")
+            .build(),
+            SchemaBuilder::path(
+                "custom_icon_path",
+                "图标文件",
+                "选择新的图标文件（支持 .exe、.lnk、.png、.ico 等格式）",
+            )
+            .file()
+            .default("")
+            .effect_action(EffectActionBinding {
+                action: "apply_override".into(),
+                component: None,
+                field_mapping: vec![
+                    ("custom_icon_path".into(), "custom_icon_path".into()),
+                    ("icon_request_json".into(), "icon_request_json".into()),
+                ],
+                transient: true,
+            })
+            .build(),
             // note 字段：可选备注
             SchemaBuilder::text("note", "备注", "可选备注信息")
                 .default("")
                 .build_field(),
         ])
-        .search_table_ui(
-            "candidate-registry",
-            "search_candidates",
-            &[
-                ("iconRequestJson", "icon_request_json"),
-                ("targetType", "target_type"),
+        .search_table_ui()
+        .data_action(DataActionBinding {
+            action: "search_candidates".into(),
+            component: Some("candidate-registry".into()),
+            label_field: "name".into(),
+            value_field: "target".into(),
+            field_mapping: vec![
+                ("iconRequestJson".into(), "icon_request_json".into()),
+                ("targetType".into(), "target_type".into()),
             ],
-        )
+        })
         .min_items(0)
         .default(serde_json::json!([]))
         .build()]

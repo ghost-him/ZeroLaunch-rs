@@ -5,7 +5,7 @@ use base64::Engine;
 use serde::Serialize;
 use std::sync::Arc;
 use zerolaunch_plugin_api::config::{
-    ComponentCore, ComponentType, ConfigActionDef, Configurable, SettingDefinition,
+    ComponentCore, ComponentType, ConfigActionDef, ConfigError, Configurable, SettingDefinition,
 };
 use zerolaunch_plugin_api::host::PluginHandle;
 // ============================================================================
@@ -84,6 +84,11 @@ impl Configurable for CandidateRegistryConfig {
 
     fn get_settings(&self) -> serde_json::Value {
         serde_json::Value::Null
+    }
+
+    fn validate_settings(&self, _settings: &serde_json::Value) -> Result<(), ConfigError> {
+        // CandidateRegistryConfig 无用户可配置项，settings 始终为 Null，跳过校验
+        Ok(())
     }
 
     fn apply_settings(

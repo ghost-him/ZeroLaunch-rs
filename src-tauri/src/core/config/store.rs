@@ -48,7 +48,10 @@ impl ConfigStore {
         }
     }
 
-    /// 将配置保存到文件
+    /// 将配置保存到文件。
+    ///
+    /// 使用原子写入策略：先写入临时文件，再 rename 替换目标文件。
+    /// 避免写入过程中崩溃导致文件截断或损坏。
     pub fn save(&self, config: &PersistentConfig) -> Result<(), ConfigError> {
         let path: PathBuf = self.config_file_path();
 
@@ -58,8 +61,36 @@ impl ConfigStore {
         }
 
         let content = serde_json::to_string_pretty(config)?;
-        std::fs::write(&path, content)?;
+
+        // 原子写入：先写 .tmp 文件，再 rename 替换目标
+        let tmp_path = path.with_extension("tmp");
+        std::fs::write(&tmp_path, &content)?;
+        // 同步文件数据到磁盘
+        if let Ok(file) = std::fs::File::open(&tmp_path) {
+            file.sync_all().ok();
+        }
+        // 在 Windows 上，rename 在同一卷内是原子操作
+        std::fs::rename(&tmp_path, &path)?;
+
         debug!("配置已保存到: {:?}", path);
+        Ok(())
+    }
+
+    /// 备份损坏的配置文件。
+    /// 将当前配置文件重命名为 .json.bak 后缀，保留现场便于排查。
+    pub fn backup_corrupted(&self) -> Result<(), ConfigError> {
+        let path = self.config_file_path();
+        if !path.exists() {
+            return Ok(());
+        }
+
+        let backup_path = path.with_extension("json.bak");
+        // 如果已存在备份，先移除旧备份
+        if backup_path.exists() {
+            std::fs::remove_file(&backup_path).ok();
+        }
+        std::fs::rename(&path, &backup_path)?;
+        warn!("已备份损坏配置文件: {:?} → {:?}", path, backup_path);
         Ok(())
     }
 

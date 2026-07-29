@@ -1,7 +1,7 @@
 ---
 description: 插件系统总览：inventory 自动注册、Configurable 生命周期、CandidatePipeline、SearchPipeline、事件驱动解耦
-condition: ".*"
-scope: "tool:read(src-tauri/src/builtin_plugin/**), tool:edit(src-tauri/src/builtin_plugin/**), tool:write(src-tauri/src/builtin_plugin/**), tool:read(src-tauri/src/plugin_framework/**), tool:edit(src-tauri/src/plugin_framework/**), tool:write(src-tauri/src/plugin_framework/**), tool:read(crates/plugin-api/src/plugin/**), tool:edit(crates/plugin-api/src/plugin/**), tool:write(crates/plugin-api/src/plugin/**), tool:read(crates/plugin-api/src/host/**), tool:edit(crates/plugin-api/src/host/**), tool:write(crates/plugin-api/src/host/**)"
+condition: "inventory::submit|Entry|PluginRuntimeEvent|Inspector|Configurable|CandidatePipeline|SearchPipeline"
+scope: "tool:read(src-tauri/src/builtin_plugin/**), tool:edit(src-tauri/src/builtin_plugin/**), tool:write(src-tauri/src/builtin_plugin/**), tool:read(src-tauri/src/plugin_framework/**), tool:edit(src-tauri/src/plugin_framework/**), tool:write(src-tauri/src/plugin_framework/**), tool:read(src-tauri/src/core/**), tool:edit(src-tauri/src/core/**), tool:write(src-tauri/src/core/**), tool:read(src-tauri/src/commands/**), tool:edit(src-tauri/src/commands/**), tool:write(src-tauri/src/commands/**), tool:read(src-ui/**), tool:edit(src-ui/**), tool:write(src-ui/**), tool:read(crates/plugin-api/src/plugin/**), tool:edit(crates/plugin-api/src/plugin/**), tool:write(crates/plugin-api/src/plugin/**), tool:read(crates/plugin-api/src/host/**), tool:edit(crates/plugin-api/src/host/**), tool:write(crates/plugin-api/src/host/**)"
 ---
 
 # 插件系统总览
@@ -10,14 +10,14 @@ scope: "tool:read(src-tauri/src/builtin_plugin/**), tool:edit(src-tauri/src/buil
 
 - 内置组件通过 `inventory` crate 实现编译期自动发现。新增组件 **无需** 修改 `lib.rs`
 - 每个组件文件底部通过 `::inventory::submit!` 块注册。`lib.rs` 的 `init_plugin_system` 在启动时通过 `builtin_registry::register_all_builtin_components()` 遍历所有条目并统一注册
-- 7 种 Entry 类型对应 7 种组件类别：`ExecutorEntry`、`DataSourceEntry`、`KeywordOptimizerEntry`、`SearchEngineEntry`、`ScoreBoosterEntry`、`PluginEntry`、`ConfigEntry`
+- 8 种 Entry 类型对应 8 种组件类别：`ExecutorEntry`、`DataSourceEntry`、`KeywordOptimizerEntry`、`KeywordInjectorEntry`、`SearchEngineEntry`、`ScoreBoosterEntry`、`PluginEntry`、`ConfigEntry`
 - `InventoryContext` 负责懒创建并缓存 `PluginHandle`，相同 `handle_key` 的组件共享同一个 handle
 - `ConfigEntry` 配合 `ConfigComponentFactory` 用于纯配置组件（仅实现 `Configurable`，无其他领域 trait）
 - 新增组件的步骤：在对应目录创建 .rs 文件 → 实现 trait → 添加 `inventory::submit!` 块 → `cargo build` 即自动生效
 
-## Plugin Inspector (feature = "inspector")
+## Plugin Inspector
 
-- 开发用调试面板，**仅** 在 `cargo build --features inspector` 时启用
+- 开发用调试面板，**始终编译**，录制开关由 `AppState::is_debug_mode()` 运行时控制
 - 后端：`plugin_framework/inspector.rs` 维护 ring buffer (容量 200)，记录每次 `bridge_query` 的 trace_id、raw_query、mode、耗时
 IPC：`inspector_get_state` 返回已注册组件清单 + 最近查询日志；`debug_simulate_query` 手动模拟查询返回原始 QueryResponse
 - 前端：设置页 > 插件检查器 tab，包含组件清单表格、查询日志、模拟器

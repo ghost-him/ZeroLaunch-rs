@@ -8,8 +8,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::{debug, warn};
 use zerolaunch_plugin_api::config::{
-    ComponentCore, ComponentType, ConfigActionDef, ConfigError, Configurable, DetailActionDef,
-    SettingDefinition,
+    ComponentCore, ComponentType, ConfigActionDef, ConfigError, Configurable, DataActionBinding,
+    DetailActionDef, SettingDefinition,
 };
 use zerolaunch_plugin_api::host::PluginHandle;
 use zerolaunch_plugin_api::services::IconRequest;
@@ -271,8 +271,13 @@ impl Configurable for BookmarkSource {
         vec![
             SchemaBuilder::array("sources", "书签源", "配置要索引的浏览器书签来源")
                 .group("书签源")
-                .order(1)
-                .config_action("detect_browsers")
+                .data_action(DataActionBinding {
+                    action: "detect_browsers".into(),
+                    component: None,
+                    label_field: "name".into(),
+                    value_field: "bookmarks_path".into(),
+                    field_mapping: vec![],
+                })
                 .detail_action(DetailActionDef {
                     action: "read_bookmarks".to_string(),
                     param_field: "bookmarks_path".to_string(),
@@ -300,7 +305,7 @@ impl Configurable for BookmarkSource {
                         .default(true)
                         .build_field(),
                 ])
-                .master_detail()
+                .master_detail_ui()
                 .default(serde_json::json!([]))
                 .build(),
             SchemaBuilder::array("overrides", "覆盖配置", "对特定书签进行排除或自定义标题")

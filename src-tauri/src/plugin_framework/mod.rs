@@ -15,9 +15,7 @@ mod session_router;
 pub(crate) mod zlplugin_protocol;
 
 // 类型 re-export（消除冗余 types.rs shim，所有使用者直接从 zerolaunch_plugin_api 导入）
-pub use zerolaunch_plugin_api::config::{
-    ComponentType, ConfigError, DetailActionDef, PathMode, SettingDefinition, SettingType,
-};
+pub use zerolaunch_plugin_api::config::{ComponentType, ConfigError, PathMode, SettingDefinition};
 pub use zerolaunch_plugin_api::{
     ActionExecutor, ExecutionContext, ExecutionError, ExecutionTarget, ListItem, Plugin,
     PluginContext, PluginError, PluginMetadata, Query, RegistrationError, ResultAction, TargetType,

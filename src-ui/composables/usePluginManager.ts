@@ -29,6 +29,8 @@ export function usePluginManager() {
     )
 
     const entries = Object.entries(modules)
+      // 排除 _template 模板目录
+      .filter(([path]) => !path.includes('/_template/'))
       .map(([path, mod]) => ({ plugin: mod.default, path }))
       .sort(
         (a, b) =>
@@ -37,12 +39,9 @@ export function usePluginManager() {
 
     for (const { plugin, path } of entries) {
       try {
-        await pluginStore.registerPlugin(plugin)
+        pluginStore.registerPlugin(plugin)
       } catch (err) {
-        console.error(
-          `[PluginManager] Failed to load built-in plugin from ${path}:`,
-          err,
-        )
+        console.error(`[PluginManager] 注册内置插件失败: ${path}`, err)
       }
     }
 

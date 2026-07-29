@@ -76,6 +76,7 @@ struct ChatMessage {
 }
 
 /// 解析 LLM 返回的 JSON 正文（支持 camelCase 字段名）。
+#[allow(clippy::type_complexity)]
 pub fn parse_llm_content(
     content: &str,
 ) -> Result<(String, Option<String>, Option<String>, Vec<SenseEntry>), String> {
@@ -109,10 +110,7 @@ fn strip_markdown_fence(s: &str) -> &str {
         return s;
     }
     let inner = s.trim_start_matches('`').trim_start_matches("json").trim();
-    inner
-        .strip_suffix("```")
-        .map(str::trim)
-        .unwrap_or(inner)
+    inner.strip_suffix("```").map(str::trim).unwrap_or(inner)
 }
 
 fn missing_config_error() -> String {

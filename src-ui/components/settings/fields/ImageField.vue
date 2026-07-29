@@ -1,55 +1,53 @@
 <template>
-  <div class="image-field">
-    <div class="image-preview" v-if="previewUrl">
+  <div class="field-input-row">
+    <div class="image-preview" v-if="modelValue">
       <n-image
-        :src="previewUrl"
-        :width="160"
-        :height="120"
+        :src="imageSrc"
+        :preview-disabled="!editable"
+        :alt="field.label"
         object-fit="cover"
-        show-toolbar-tooltip
+        height="64"
+        width="64"
       />
-    </div>
-    <div class="image-actions">
       <n-button
-        size="small"
-        :disabled="!definition.field.editable"
-        @click="selectImage"
-      >
-        {{ modelValue ? $t('settings.imageReselect') : $t('settings.imageSelect') }}
-      </n-button>
-      <n-button
-        v-if="modelValue"
-        size="small"
-        :disabled="!definition.field.editable"
-        @click="clearImage"
+        v-if="editable"
+        text
+        type="error"
+        size="tiny"
+        @click="emit('update:modelValue', null)"
       >
         {{ $t('settings.imageClear') }}
       </n-button>
     </div>
+    <n-button
+      v-else
+      :disabled="!editable"
+      @click="uploadImage"
+    >
+      {{ $t('settings.imageSelect') }}
+    </n-button>
     <ConfigActionButton
-      v-if="definition.configAction"
+      v-if="field.action"
       :component-id="componentId"
-      :config-action="definition.configAction"
-      :field-key="definition.field.key"
-      :editable="definition.field.editable"
-      :model-value="modelValue"
+      :field-action="field.action"
+      :field-key="field.key"
+      :editable="!field.readOnly"
       @update:model-value="emit('update:modelValue', $event)"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { NButton, NImage, useMessage } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
-import { NImage, NButton, useMessage } from 'naive-ui'
-import { open } from '@tauri-apps/plugin-dialog'
-import ConfigActionButton from '../ConfigActionButton.vue'
-import { getImageConfig } from '../../../utils/schemaTypes'
 import { resourceGet, resourceUpload } from '../../../bridge/commands'
-import type { SettingDefinition } from '../../../bridge/contract'
+import ConfigActionButton from '../ConfigActionButton.vue'
+import { getSchemaImageConfig } from '../../../utils/schemaTypes'
+import type { FieldConfig } from '../../../utils/schemaTypes'
 
 const props = defineProps<{
-  definition: SettingDefinition
+  field: FieldConfig
   componentId: string
   modelValue: unknown
 }>()
@@ -58,70 +56,54 @@ const emit = defineEmits<{
   (e: 'update:modelValue', value: unknown): void
 }>()
 
-const { t } = useI18n()
 const message = useMessage()
-const config = getImageConfig(props.definition.field.settingType)
-const previewUrl = ref<string>('')
+const { t } = useI18n()
+const imageConfig = computed(() => getSchemaImageConfig(props.field.widget))
+const editable = computed(() => !props.field.readOnly)
 
-async function loadPreview() {
-  const val = props.modelValue
-  if (typeof val !== 'string' || val.length === 0) {
-    previewUrl.value = ''
-    return
-  }
+const imageSrc = ref('')
+
+watch(() => props.modelValue, async (val) => {
+  if (!val) { imageSrc.value = ''; return }
+  const rid = String(val)
+  if (rid.startsWith('http://') || rid.startsWith('https://')) { imageSrc.value = rid; return }
+  if (rid.startsWith('data:')) { imageSrc.value = rid; return }
   try {
-    previewUrl.value = await resourceGet(val)
-  } catch (e) {
-    console.error('[ImageField] Failed to load preview:', e)
-    message.error(t('settings.imageLoadFailed'))
-    previewUrl.value = ''
+    imageSrc.value = await resourceGet(rid)
+  } catch {
+    imageSrc.value = ''
   }
-}
+}, { immediate: true })
 
-watch(() => props.modelValue, loadPreview, { immediate: true })
-
-async function selectImage() {
+/** 直接调用 Tauri dialog 选择文件，再通过 IPC 上传资源，不承载业务逻辑。 */
+async function uploadImage() {
+  if (!editable.value) return
   try {
+    const { open } = await import('@tauri-apps/plugin-dialog')
     const selected = await open({
       multiple: false,
-      filters: [
-        {
-          name: 'Images',
-          extensions: config.accept,
-        },
-      ],
+      filters: [{ name: props.field.label, extensions: imageConfig.value.accept }],
     })
-    if (!selected || typeof selected !== 'string') return
-
-    const resId = await resourceUpload(selected, props.definition.field.key, config.maxSize)
-    emit('update:modelValue', resId)
-  } catch (e) {
-    console.error('[ImageField] Upload failed:', e)
+    if (selected) {
+      const rid = await resourceUpload(selected, props.field.key, imageConfig.value.maxSize ?? undefined)
+      emit('update:modelValue', rid)
+      message.success(t('settings.imageUploadSuccess'))
+    }
+  } catch {
     message.error(t('settings.imageUploadFailed'))
   }
-}
-
-function clearImage() {
-  emit('update:modelValue', '')
 }
 </script>
 
 <style scoped>
-.image-field {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.image-preview {
-  border-radius: 6px;
-  overflow: hidden;
-  border: 1px solid var(--border-color);
-}
-
-.image-actions {
+.field-input-row {
   display: flex;
   gap: 8px;
   align-items: center;
+}
+.image-preview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 </style>

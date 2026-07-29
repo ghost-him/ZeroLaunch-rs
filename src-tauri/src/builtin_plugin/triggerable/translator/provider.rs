@@ -120,11 +120,7 @@ impl LanguageSupport {
     }
 
     pub fn supports_source(&self, code: &str) -> bool {
-        eq_ignore_ascii(code, "auto")
-            || self
-                .sources
-                .iter()
-                .any(|c| eq_ignore_ascii(c, code))
+        eq_ignore_ascii(code, "auto") || self.sources.iter().any(|c| eq_ignore_ascii(c, code))
     }
 
     pub fn supports_target(&self, code: &str) -> bool {
@@ -153,14 +149,10 @@ impl LanguageSupport {
         let mut target_map: HashMap<String, String> = HashMap::new();
         for item in items {
             for s in item.sources {
-                source_map
-                    .entry(s.to_ascii_lowercase())
-                    .or_insert(s);
+                source_map.entry(s.to_ascii_lowercase()).or_insert(s);
             }
             for t in item.targets {
-                target_map
-                    .entry(t.to_ascii_lowercase())
-                    .or_insert(t);
+                target_map.entry(t.to_ascii_lowercase()).or_insert(t);
             }
         }
         let mut sources: Vec<_> = source_map.into_values().collect();
@@ -211,8 +203,8 @@ mod tests {
                 label: None,
             })
             .collect();
-        let r = TranslationResult::ok("p", "P", "主译", None, None, senses, None)
-            .normalize_senses();
+        let r =
+            TranslationResult::ok("p", "P", "主译", None, None, senses, None).normalize_senses();
         assert_eq!(r.more_senses.len(), 4);
     }
 

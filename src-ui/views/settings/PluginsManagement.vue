@@ -180,7 +180,7 @@ onMounted(loadPlugins)
           style="margin-top: 12px;"
         />
         <NSpace style="margin-top: 16px;" justify="end">
-          <NButton @click="showInstall = false">取消</NButton>
+          <NButton @click="showInstall = false">{{ $t('common.cancel') }}</NButton>
           <NButton type="primary" @click="handleInstall">安装</NButton>
         </NSpace>
       </div>

@@ -1,7 +1,7 @@
 ---
 description: 配置组件命名规范 — component_id 用 kebab-case + -config 后缀，setting key 用 snake_case，前后端同一 commit 同步
 condition: "component_id|kebab|snake_case|setting_key"
-scope: "tool:edit(*.rs), tool:write(*.rs), tool:edit(*.ts), tool:write(*.ts)"
+scope: "tool:edit(src-tauri/src/builtin_plugin/**), tool:write(src-tauri/src/builtin_plugin/**), tool:edit(src-ui/**), tool:write(src-ui/**)"
 ---
 
 # 配置组件命名规范

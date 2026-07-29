@@ -140,6 +140,18 @@ impl Configurable for WindowBehaviorConfigComponent {
             .order(11)
             .default(false)
             .build(),
+            SchemaBuilder::integer("window_position_x", "窗口位置 X", "上次拖动后的窗口水平位置")
+                .group("窗口位置")
+                .order(99)
+                .default(0)
+                .editable(false)
+                .build(),
+            SchemaBuilder::integer("window_position_y", "窗口位置 Y", "上次拖动后的窗口垂直位置")
+                .group("窗口位置")
+                .order(100)
+                .default(0)
+                .editable(false)
+                .build(),
         ]
     }
 

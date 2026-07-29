@@ -26,7 +26,7 @@ pub struct InstallationMonitorSettings {
 impl Default for InstallationMonitorSettings {
     fn default() -> Self {
         Self {
-            enable_installation_monitor: false,
+            enable_installation_monitor: true,
             monitor_debounce_secs: default_monitor_debounce_secs(),
             monitor_watch_paths: String::new(),
         }

@@ -44,11 +44,7 @@ struct OnEnterGate {
 }
 
 fn search_fingerprint(search_term: &str) -> String {
-    search_term
-        .trim()
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
+    search_term.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 enum OnEnterDecision {
@@ -257,8 +253,7 @@ impl TranslatorSettings {
     }
 
     fn is_on_enter_mode(&self) -> bool {
-        self.translate_mode == MODE_ON_ENTER_LABEL
-            || self.translate_mode == TRANSLATE_MODE_ON_ENTER
+        self.translate_mode == MODE_ON_ENTER_LABEL || self.translate_mode == TRANSLATE_MODE_ON_ENTER
     }
 
     /// 供 DynamicForm 展示的中文选项视图（不改动内存中的规范存储前请先 clone）。
@@ -467,11 +462,8 @@ impl TranslatorPlugin {
             .map(Self::result_to_json)
             .unwrap_or(json!(null));
 
-        let alternatives: Vec<serde_json::Value> = agg
-            .alternatives
-            .iter()
-            .map(Self::result_to_json)
-            .collect();
+        let alternatives: Vec<serde_json::Value> =
+            agg.alternatives.iter().map(Self::result_to_json).collect();
 
         let message = if has_primary {
             json!(null)
@@ -480,11 +472,7 @@ impl TranslatorPlugin {
                 .primary
                 .as_ref()
                 .and_then(|p| p.error.clone())
-                .or_else(|| {
-                    agg.alternatives
-                        .iter()
-                        .find_map(|a| a.error.clone())
-                });
+                .or_else(|| agg.alternatives.iter().find_map(|a| a.error.clone()));
             json!(detail.unwrap_or_else(|| "翻译失败，请稍后重试".into()))
         };
 
@@ -526,10 +514,7 @@ impl Configurable for TranslatorPlugin {
         self.sync_llm_config(&settings);
         let targets = self.active_language_support(&settings).targets;
         let lang_options: Vec<String> = if targets.is_empty() {
-            vec![
-                language_option_label("zh"),
-                language_option_label("en"),
-            ]
+            vec![language_option_label("zh"), language_option_label("en")]
         } else {
             targets.iter().map(|c| language_option_label(c)).collect()
         };
@@ -568,14 +553,18 @@ impl Configurable for TranslatorPlugin {
             .order(2)
             .default(json!([PROVIDER_LABEL_OPENAI]))
             .build(),
-            SchemaBuilder::number("request_timeout_ms", "超时（毫秒）", "单个引擎的请求超时时间")
-                .min(1000.0)
-                .max(60000.0)
-                .step(500.0)
-                .group("引擎")
-                .order(3)
-                .default(15000.0)
-                .build(),
+            SchemaBuilder::number(
+                "request_timeout_ms",
+                "超时（毫秒）",
+                "单个引擎的请求超时时间",
+            )
+            .min(1000.0)
+            .max(60000.0)
+            .step(500.0)
+            .group("引擎")
+            .order(3)
+            .default(15000.0)
+            .build(),
             SchemaBuilder::select(
                 "llm_vendor",
                 "厂商预设",
@@ -834,9 +823,7 @@ mod tests {
         let resp = plugin.query(&ctx, &q).await.unwrap();
 
         match resp {
-            QueryResponse::CustomPanel {
-                data, actions, ..
-            } => {
+            QueryResponse::CustomPanel { data, actions, .. } => {
                 assert_eq!(data["status"], "empty");
                 assert!(actions.is_empty());
             }
@@ -848,10 +835,7 @@ mod tests {
     async fn query_invalid_lang_returns_error() {
         let plugin = TranslatorPlugin::new();
         let ctx = PluginContext::new("test");
-        let resp = plugin
-            .query(&ctx, &sample_query("xx hello"))
-            .await
-            .unwrap();
+        let resp = plugin.query(&ctx, &sample_query("xx hello")).await.unwrap();
 
         match resp {
             QueryResponse::CustomPanel { data, .. } => {
@@ -952,5 +936,4 @@ mod tests {
         .normalize();
         assert_eq!(settings.llm_base_url, "https://example.com/v1");
     }
-
 }

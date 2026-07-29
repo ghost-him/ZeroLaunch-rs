@@ -14,11 +14,9 @@ pub struct BridgeError {
     pub code: ErrorCode,
     #[serde(rename = "message")]
     pub message: String,
-    #[serde(rename = "details")]
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "details", default)]
     pub details: Option<serde_json::Value>,
-    #[serde(rename = "componentId")]
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "componentId", default)]
     pub component_id: Option<String>,
     #[serde(rename = "traceId", serialize_with = "serialize_trace_id")]
     pub trace_id: String,

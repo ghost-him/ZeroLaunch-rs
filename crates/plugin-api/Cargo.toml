@@ -12,9 +12,11 @@ mock = ["dep:mockall"]
 
 [dependencies]
 async-trait.workspace = true
+once_cell.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
+regex.workspace = true
 tracing.workspace = true
 blake3.workspace = true
 bincode-next.workspace = true

@@ -101,7 +101,7 @@ export async function applyAppearanceSettings(settings: AppearanceSettings): Pro
     root.setProperty('--bg-image-opacity', String(asNum(settings.bg_opacity, 1)))
   }
 
-  // 异步解析背景图片 res:// 标识为 base64 data URL
+  // 异步解析背景图片 resource_id 为 base64 data URL
   // 深色模式下优先使用 bgImageDark，未设置则回退到 bgImage
   if ('bg_image' in settings || 'bg_image_dark' in settings) {
     const darkBg = asStr(settings.bg_image_dark)
@@ -124,11 +124,11 @@ export function extractPlaceholder(settings: AppearanceSettings): string {
 
 // ---- 内部工具 ----
 
-/** 将 res:// 资源标识解析为 CSS url() 值；空字符串返回 "none" */
+/** 将 resource_id 解析为 CSS url() 值；空字符串返回 "none" */
 async function resolveBgUrl(resId: string): Promise<string> {
-  if (!resId || !resId.startsWith('res://')) return 'none'
+  if (!resId) return 'none'
   try {
-    const dataUrl = await resourceGet(resId.slice(6))
+    const dataUrl = await resourceGet(resId)
     return `url(${dataUrl})`
   } catch {
     console.warn('[appearance] Failed to resolve background image:', resId)

@@ -3,8 +3,7 @@ use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use zerolaunch_plugin_api::config::{
-    ComponentCore, ComponentType, ConfigError, Configurable, FieldDefinition, SettingDefinition,
-    SettingType,
+    ComponentCore, ComponentType, ConfigError, Configurable, DataActionBinding, SettingDefinition,
 };
 
 use crate::core::bias_rule::BiasRule;
@@ -107,17 +106,11 @@ impl Configurable for BiasConfig {
         .group("固定偏移量")
         .order(1)
         .object_items(vec![
-            // target 字段：程序标识，由搜索栏自动关联，不在弹窗中编辑
-            FieldDefinition {
-                key: "target".to_string(),
-                label: "程序".to_string(),
-                description: "目标程序标识".to_string(),
-                setting_type: SettingType::Text,
-                default_value: serde_json::json!(""),
-                visible: false,
-                editable: false,
-                config_action: None,
-            },
+            SchemaBuilder::text("target", "程序", "目标程序标识")
+                .visible(false)
+                .editable(false)
+                .default("")
+                .build(),
             SchemaBuilder::number("bias", "偏移量", "正值提升排名，负值降低排名")
                 .default(0.0)
                 .min(-10.0)
@@ -128,7 +121,14 @@ impl Configurable for BiasConfig {
                 .default("")
                 .build_field(),
         ])
-        .search_table_ui("candidate-registry", "search_candidates", &[])
+        .search_table_ui()
+        .data_action(DataActionBinding {
+            action: "search_candidates".into(),
+            component: Some("candidate-registry".into()),
+            label_field: "name".into(),
+            value_field: "target".into(),
+            field_mapping: vec![],
+        })
         .min_items(0)
         .default(serde_json::json!([]))
         .build()]

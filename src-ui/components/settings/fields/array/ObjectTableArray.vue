@@ -3,157 +3,110 @@
     <table class="array-table">
       <thead>
         <tr>
-          <th v-for="fd in fields" :key="fd.key">{{ fd.label }}</th>
-          <th v-if="fields.length > 0 && definition.field.editable" class="col-action">操作</th>
+          <th v-for="fd in subFields" :key="fd.key">{{ fd.label }}</th>
+          <th v-if="subFields.length > 0 && !field.readOnly" class="col-action">{{ $t('common.actions') }}</th>
         </tr>
       </thead>
       <tbody>
         <tr v-for="(_item, idx) in listValue" :key="idx">
-          <td v-for="fd in fields" :key="fd.key">
-            <n-input
-              v-if="isTextType(fd.settingType)"
-              :value="getField(idx, fd.key) as string"
-              size="small"
-              :disabled="!definition.field.editable || !fd.editable"
-              @update:value="(val: string) => setField(idx, fd.key, val)"
+          <td v-for="fd in subFields" :key="fd.key">
+            <DynamicFormField
+              :field="fieldDefToConfig(fd, field.readOnly)"
+              :component-id="componentId"
+              :show-label="false"
+              :model-value="getField(idx, fd.key)"
+              @update:model-value="(val: unknown) => setField(idx, fd.key, val)"
             />
-            <n-input-number
-              v-else-if="isFieldNumber(fd)"
-              :value="getField(idx, fd.key) as number"
-              size="small"
-              :min="fieldNumConfig(fd).min"
-              :max="fieldNumConfig(fd).max"
-              :step="fieldNumConfig(fd).step"
-              :disabled="!definition.field.editable || !fd.editable"
-              @update:value="(val: number | null) => setField(idx, fd.key, val ?? 0)"
-            />
-            <n-switch
-              v-else-if="isBooleanType(fd.settingType)"
-              :value="getField(idx, fd.key) as boolean"
-              size="small"
-              :disabled="!definition.field.editable || !fd.editable"
-              @update:value="(val: boolean) => setField(idx, fd.key, val)"
-            />
-            <n-select
-              v-else-if="isFieldSelect(fd)"
-              :value="getField(idx, fd.key) as string"
-              :options="fieldSelectOpts(fd)"
-              size="small"
-              :disabled="!definition.field.editable || !fd.editable"
-              @update:value="(val: string) => setField(idx, fd.key, val)"
-            />
-            <div v-else-if="isFieldPath(fd)" class="table-path-row">
-              <n-input
-                :value="getField(idx, fd.key) as string"
-                size="small"
-                :disabled="!definition.field.editable || !fd.editable"
-                @update:value="(val: string) => setField(idx, fd.key, val)"
-              />
-              <n-button
-                size="tiny"
-                :disabled="!definition.field.editable || !fd.editable"
-                @click="browsePath(idx, fd.key, fd)"
-              >
-                浏览
-              </n-button>
-            </div>
-            <span v-else>{{ getField(idx, fd.key) }}</span>
           </td>
-          <td v-if="fields.length > 0 && definition.field.editable" class="col-action">
-            <n-button text type="error" size="tiny" @click="onRemove(idx)">
-              删除
+          <td v-if="subFields.length > 0 && !field.readOnly" class="col-action">
+            <n-button
+              text type="error" size="tiny"
+              :disabled="!canRemoveArrayItem(field.schema, listValue.length)"
+              @click="onRemove(idx)"
+            >
+              {{ $t('common.delete') }}
             </n-button>
           </td>
         </tr>
       </tbody>
     </table>
-    <n-button size="small" :disabled="!definition.field.editable" @click="onAdd">
-      添加
+    <n-button
+      size="small"
+      :disabled="field.readOnly || !canAddArrayItem(field.schema, listValue.length)"
+      @click="onAdd"
+    >
+      {{ $t('common.add') }}
     </n-button>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { NInput, NInputNumber, NSwitch, NSelect, NButton } from 'naive-ui'
-import { open } from '@tauri-apps/plugin-dialog'
+import { NButton } from 'naive-ui'
+import DynamicFormField from '../../DynamicFormField.vue'
 import {
-  getVisibleObjectFields,
+  canAddArrayItem,
+  canRemoveArrayItem,
+  getArrayItemSchema,
   getDefaultArrayItem,
-  isTextType,
-  isBooleanType,
-  isFieldNumber,
-  isFieldSelect,
-  isFieldPath,
-  getNumberConfig,
-  getSelectOptions,
-  getPathMode,
+  getObjectFieldDefs,
+  fieldDefToConfig,
 } from '../../../../utils/schemaTypes'
-import type { SettingDefinition, ArrayItem, FieldDefinition } from '../../../../bridge/contract'
+import type { FieldConfig } from '../../../../utils/schemaTypes'
 
 const props = defineProps<{
-  definition: SettingDefinition
+  field: FieldConfig
+  componentId: string
   modelValue: unknown
-  item: ArrayItem
 }>()
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: unknown): void
 }>()
 
-const fields = computed(() => getVisibleObjectFields(props.item))
+const itemSchema = computed(() => getArrayItemSchema(props.field.schema))
+
+const subFields = computed(() => itemSchema.value ? getObjectFieldDefs(itemSchema.value) : [])
 
 const listValue = computed<unknown[]>(() => {
   if (Array.isArray(props.modelValue)) return props.modelValue as unknown[]
   return []
 })
 
+/** 读取表格字段值；缺失值保持 undefined，由后端决定最终语义。 */
 function getField(idx: number, key: string): unknown {
   const item = listValue.value[idx]
-  if (item && typeof item === 'object') return (item as Record<string, unknown>)[key]
-  return ''
+  if (item && typeof item === 'object' && !Array.isArray(item)) {
+    return (item as Record<string, unknown>)[key]
+  }
+  return undefined
 }
 
-function setField(idx: number, key: string, val: unknown) {
+/** 更新表格字段并保持父级只读约束。 */
+function setField(idx: number, key: string, val: unknown): void {
+  if (props.field.readOnly) return
   const arr = [...listValue.value]
   const item = arr[idx]
-  if (item && typeof item === 'object') {
+  if (item && typeof item === 'object' && !Array.isArray(item)) {
     arr[idx] = { ...(item as Record<string, unknown>), [key]: val }
   }
   emit('update:modelValue', arr)
 }
 
-function fieldNumConfig(fd: FieldDefinition) {
-  return getNumberConfig(fd.settingType)
-}
-
-function fieldSelectOpts(fd: FieldDefinition) {
-  return getSelectOptions(fd.settingType)
-}
-
-function onAdd() {
+/** 添加一个符合 item schema 默认值的条目。 */
+function onAdd(): void {
+  if (!canAddArrayItem(props.field.schema, listValue.value.length) || props.field.readOnly || !itemSchema.value) return
   const arr = [...listValue.value]
-  arr.push(getDefaultArrayItem(props.item, props.definition.field.defaultValue))
+  arr.push(getDefaultArrayItem(itemSchema.value))
   emit('update:modelValue', arr)
 }
 
-function onRemove(idx: number) {
+/** 删除条目并遵守 minItems 约束。 */
+function onRemove(idx: number): void {
+  if (!canRemoveArrayItem(props.field.schema, listValue.value.length) || props.field.readOnly) return
   const arr = [...listValue.value]
   arr.splice(idx, 1)
   emit('update:modelValue', arr)
-}
-
-async function browsePath(idx: number, key: string, fd: FieldDefinition) {
-  try {
-    const mode = getPathMode(fd.settingType)
-    const selected = await open({
-      directory: mode === 'directory',
-      multiple: false,
-    })
-    if (selected && typeof selected === 'string') setField(idx, key, selected)
-  } catch (e) {
-    console.error('[ObjectTableArray] Browse path failed:', e)
-  }
 }
 </script>
 
@@ -161,23 +114,21 @@ async function browsePath(idx: number, key: string, fd: FieldDefinition) {
 .array-table-wrap {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 .array-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: var(--font-size-sm);
 }
 .array-table th,
 .array-table td {
-  padding: 4px 6px;
   border: 1px solid var(--border-color);
-  text-align: left;
+  padding: 4px 8px;
+  font-size: var(--font-size-sm);
 }
 .array-table th {
-  background: var(--bg-secondary);
+  background-color: var(--table-header-bg);
   font-weight: 600;
-  white-space: nowrap;
 }
 .col-action {
   width: 50px;
@@ -186,6 +137,5 @@ async function browsePath(idx: number, key: string, fd: FieldDefinition) {
 .table-path-row {
   display: flex;
   gap: 4px;
-  align-items: center;
 }
 </style>

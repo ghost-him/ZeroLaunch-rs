@@ -2,7 +2,9 @@ use async_trait::async_trait;
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
 use parking_lot::RwLock;
-use zerolaunch_plugin_api::config::{ComponentCore, ComponentType, Configurable};
+use zerolaunch_plugin_api::config::{
+    ComponentCore, ComponentType, Configurable, SettingDefinition,
+};
 use zerolaunch_plugin_api::{
     CachedCandidateData, ScoreDetail, ScoredCandidate, SearchCandidate, SearchEngine,
 };
@@ -41,6 +43,10 @@ impl Default for SkimSearchModel {
 impl Configurable for SkimSearchModel {
     fn core(&self) -> &ComponentCore {
         &self.core
+    }
+
+    fn setting_schema(&self) -> Vec<SettingDefinition> {
+        vec![]
     }
 
     fn default_enabled(&self) -> bool {

@@ -2,7 +2,9 @@ use async_trait::async_trait;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use zerolaunch_plugin_api::config::{ComponentCore, ComponentType, ConfigError, Configurable};
+use zerolaunch_plugin_api::config::{
+    ComponentCore, ComponentType, ConfigError, Configurable, SettingDefinition,
+};
 use zerolaunch_plugin_api::host::PluginHandle;
 use zerolaunch_plugin_api::{CachedCandidateData, DataSource, ExecutionTarget, SearchCandidate};
 
@@ -39,6 +41,11 @@ impl Configurable for AppSource {
     fn core(&self) -> &ComponentCore {
         &self.core
     }
+
+    fn setting_schema(&self) -> Vec<SettingDefinition> {
+        vec![]
+    }
+
     fn get_settings(&self) -> serde_json::Value {
         serde_json::to_value(self.settings.read().clone()).unwrap_or_default()
     }

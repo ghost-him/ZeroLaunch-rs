@@ -1,8 +1,5 @@
 <template>
-  <div
-    class="component-config-loader"
-    :class="{ 'is-loaded': ready }"
-  >
+  <div class="component-config-loader">
     <div v-if="loading" class="loading-state">
       <n-spin :size="20" />
     </div>
@@ -11,11 +8,10 @@
       <n-button size="small" @click="init">{{ $t('settings.saveFailed') }}</n-button>
     </div>
     <component
-      :is="customSettings"
-      v-else-if="customSettings && settings"
-      :key="component.componentId + '-custom'"
+      v-else-if="settingsComponent && settings"
+      :is="settingsComponent"
       :current-settings="settings"
-      @save="onCustomSave"
+      @save="onThirdPartySave"
     />
     <DynamicForm
       v-else-if="schema && settings"
@@ -28,12 +24,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted } from 'vue'
-import { NSpin, NText, NButton, useMessage } from 'naive-ui'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { NSpin, NText, NButton } from 'naive-ui'
 import DynamicForm from './DynamicForm.vue'
 import { useConfigStore } from '../../stores/config-store'
 import { usePluginStore } from '../../stores/plugin-store'
 import { onConfigChanged } from '../../bridge/events'
+import { configApplySettings } from '../../bridge/commands'
 import type { ComponentInfo, ComponentSchema } from '../../bridge/contract'
 
 const props = defineProps<{
@@ -42,33 +39,34 @@ const props = defineProps<{
 
 const configStore = useConfigStore()
 const pluginStore = usePluginStore()
-const message = useMessage()
+
 
 const loading = ref(true)
 const loadErr = ref<string | null>(null)
 const schema = ref<ComponentSchema | null>(null)
 const settings = ref<Record<string, unknown> | null>(null)
 
-const customSettings = computed(() =>
+// 第三方插件自定义设置页组件
+const settingsComponent = computed(() =>
   pluginStore.getSettingsComponent(props.component.componentId),
 )
-
-const ready = computed(
-  () =>
-    !loading.value &&
-    !loadErr.value &&
-    !!settings.value &&
-    (!!customSettings.value || !!schema.value),
-)
-
 let unlistenConfig: (() => void) | null = null
+
+async function onThirdPartySave(newSettings: unknown) {
+  try {
+    await configApplySettings(props.component.componentId, newSettings)
+    await init()
+  } catch (e) {
+    loadErr.value = String(e)
+  }
+}
 
 async function init() {
   loading.value = true
   loadErr.value = null
   try {
     // 有自定义设置页时仍拉 settings；schema 仅 DynamicForm 需要
-    if (customSettings.value) {
+    if (settingsComponent.value) {
       const cfg = await configStore.getSettings(props.component.componentId)
       settings.value = cfg as Record<string, unknown>
       schema.value = null
@@ -87,16 +85,6 @@ async function init() {
   }
 }
 
-async function onCustomSave(next: unknown) {
-  try {
-    await configStore.applySettings(props.component.componentId, next)
-    const cfg = await configStore.getSettings(props.component.componentId)
-    settings.value = cfg as Record<string, unknown>
-    message.success('配置已保存')
-  } catch (e) {
-    message.error('保存失败: ' + String(e))
-  }
-}
 
 onMounted(async () => {
   await init()

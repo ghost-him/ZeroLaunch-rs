@@ -108,11 +108,9 @@ pub fn init_logging(
 
     // 确保日志目录存在
     if let Err(e) = std::fs::create_dir_all(&log_dir) {
+        // tracing 尚未初始化，此处只能用 eprintln
         eprintln!("创建日志目录失败: {}", e);
     }
-
-    // 打印系统信息
-    print_system_info(&log_dir);
 
     // 创建按日期滚动的日志文件（prefix=前缀, suffix=后缀 → {prefix}.{date}.{suffix}）
     let file_appender = RollingFileAppender::builder()
@@ -192,7 +190,9 @@ pub fn init_logging(
             .init();
     }
 
-    // 设置panic hook
+    // tracing 已初始化，后续日志使用 info!/error! 等宏
+    print_system_info(&log_dir);
+
     setup_panic_hook();
 
     // 清理旧日志文件
@@ -284,37 +284,37 @@ fn get_windows_version() -> String {
 
 /// 打印系统信息
 fn print_system_info(log_dir: &Path) {
-    println!("=== ZeroLaunch-rs 系统信息 ===");
-    println!("应用版本: {}", env!("CARGO_PKG_VERSION"));
-    println!(
+    info!("=== ZeroLaunch-rs 系统信息 ===");
+    info!("应用版本: {}", env!("CARGO_PKG_VERSION"));
+    info!(
         "构建时间: {}",
         std::env::var("VERGEN_BUILD_TIMESTAMP").unwrap_or_else(|_| "未知".to_string())
     );
-    println!("操作系统: {}", get_windows_version());
-    println!("系统架构: {}", std::env::consts::ARCH);
-    println!(
+    info!("操作系统: {}", get_windows_version());
+    info!("系统架构: {}", std::env::consts::ARCH);
+    info!(
         "Rust版本: {}",
         std::env::var("VERGEN_RUSTC_SEMVER").unwrap_or_else(|_| "未知".to_string())
     );
 
     let now = Local::now();
-    println!("启动时间: {}", now.format("%Y-%m-%d %H:%M:%S"));
+    info!("启动时间: {}", now.format("%Y-%m-%d %H:%M:%S"));
 
     if let Ok(current_dir) = std::env::current_dir() {
-        println!("工作目录: {:?}", current_dir);
+        info!("工作目录: {:?}", current_dir);
     }
 
     if let Ok(exe_path) = std::env::current_exe() {
-        println!("可执行文件: {:?}", exe_path);
+        info!("可执行文件: {:?}", exe_path);
     }
 
     if let Ok(user) = std::env::var("USERNAME") {
-        println!("当前用户: {}", user);
+        info!("当前用户: {}", user);
     }
 
-    println!("日志目录: {}", log_dir.display());
-    println!("启用特性: {}", format_enabled_features());
-    println!("==============================");
+    info!("日志目录: {}", log_dir.display());
+    info!("启用特性: {}", format_enabled_features());
+    info!("==============================");
 }
 
 /// 设置panic处理钩子
@@ -366,7 +366,7 @@ fn setup_panic_hook() {
             }
         }
 
-        eprintln!(
+        error!(
             "[PANIC] {} ({}:{})",
             message,
             location.file(),

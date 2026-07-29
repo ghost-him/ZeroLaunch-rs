@@ -57,13 +57,16 @@ fn default_component_priority() -> i32 {
 /// TODO: 后续版本开放 KeywordOptimizer / SearchEngine / ScoreBooster，
 /// 届时在此枚举中新增对应 variant，并同步更新 REQUIRED_PROVIDES_VALUES。
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case", tag = "type")]
+#[serde(tag = "type")]
 pub enum ComponentKind {
+    #[serde(rename = "plugin")]
     Plugin {
         #[serde(rename = "triggerKeywords")]
         trigger_keywords: Vec<String>,
     },
+    #[serde(rename = "data_source")]
     DataSource,
+    #[serde(rename = "action_executor")]
     ActionExecutor {
         #[serde(rename = "targetTypes")]
         target_types: Vec<TargetType>,
@@ -114,7 +117,7 @@ pub struct ValidateSettingsParams {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ValidateSettingsResult {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub error: Option<String>,
 }
 
@@ -230,7 +233,7 @@ pub struct ExecutorExecuteParams {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecutorExecuteResult {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub error: Option<String>,
 }
 
@@ -321,7 +324,7 @@ pub struct ResourceUploadParams {
     #[serde(rename = "filePath")]
     pub file_path: String,
     #[serde(rename = "maxSize")]
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub max_size: Option<usize>,
 }
 

@@ -2,16 +2,15 @@
   <div class="field-input-row">
     <n-color-picker
       :value="modelValue as string"
-      :disabled="!definition.field.editable"
+      :disabled="field.readOnly"
       @update:value="emit('update:modelValue', $event)"
     />
     <ConfigActionButton
-      v-if="definition.configAction"
+      v-if="field.action"
       :component-id="componentId"
-      :config-action="definition.configAction"
-      :field-key="definition.field.key"
-      :editable="definition.field.editable"
-      :model-value="modelValue"
+      :field-action="field.action"
+      :field-key="field.key"
+      :editable="!field.readOnly"
       @update:model-value="emit('update:modelValue', $event)"
     />
   </div>
@@ -20,10 +19,10 @@
 <script setup lang="ts">
 import { NColorPicker } from 'naive-ui'
 import ConfigActionButton from '../ConfigActionButton.vue'
-import type { SettingDefinition } from '../../../bridge/contract'
+import type { FieldConfig } from '../../../utils/schemaTypes'
 
 defineProps<{
-  definition: SettingDefinition
+  field: FieldConfig
   componentId: string
   modelValue: unknown
 }>()
@@ -38,8 +37,5 @@ const emit = defineEmits<{
   display: flex;
   gap: 8px;
   align-items: center;
-}
-.field-input-row > :first-child {
-  flex: 1;
 }
 </style>

@@ -601,6 +601,7 @@ impl Configurable for AppearanceConfigComponent {
             .group("background")
             .order(70)
             .default("")
+            .max_image_size(20 * 1024 * 1024) // 限制最大图片大小为 20MB
             .build(),
             SchemaBuilder::image(
                 "bg_image_dark",
@@ -610,6 +611,7 @@ impl Configurable for AppearanceConfigComponent {
             .group("background")
             .order(71)
             .default("")
+            .max_image_size(20 * 1024 * 1024) // 限制最大图片大小为 20MB
             .build(),
             SchemaBuilder::select("bg_size", "背景尺寸", "CSS background-size 属性")
                 .group("background")

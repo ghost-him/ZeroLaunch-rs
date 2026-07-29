@@ -3,9 +3,7 @@ use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
-use super::provider::{
-    LanguageSupport, TranslateRequest, TranslationProvider, TranslationResult,
-};
+use super::provider::{LanguageSupport, TranslateRequest, TranslationProvider, TranslationResult};
 use super::providers::{mock_mirror_from, mock_placeholder_result, MOCK_PROVIDER_ID};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -55,12 +53,7 @@ impl ProviderRegistry {
         // 按用户启用顺序选取（拖拽调序依赖此顺序）
         let selected: Vec<_> = enabled
             .iter()
-            .filter_map(|id| {
-                self.providers
-                    .iter()
-                    .find(|p| p.id() == id)
-                    .cloned()
-            })
+            .filter_map(|id| self.providers.iter().find(|p| p.id() == id).cloned())
             .collect();
         let selected_ids: Vec<String> = selected.iter().map(|p| p.id().to_string()).collect();
 
@@ -98,11 +91,7 @@ impl ProviderRegistry {
                 Ok(r) => {
                     by_id.insert(r.provider_id.clone(), r);
                 }
-                Err(e) => orphans.push(TranslationResult::err(
-                    "unknown",
-                    "未知",
-                    e.to_string(),
-                )),
+                Err(e) => orphans.push(TranslationResult::err("unknown", "未知", e.to_string())),
             }
         }
 
@@ -387,10 +376,7 @@ mod tests {
         }
 
         let registry = ProviderRegistry::new(vec![
-            Arc::new(OkProvider {
-                id: "a",
-                text: "x",
-            }),
+            Arc::new(OkProvider { id: "a", text: "x" }),
             Arc::new(JaOnly),
         ]);
         let support = registry.language_support_for(&enabled(&["a", "ja"]));

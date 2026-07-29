@@ -1,7 +1,7 @@
 ---
 description: Serde 序列化规范 — 必须用字段级 #[serde(rename)] 显式标注每个字段和 variant，禁止用 rename_all
 condition: "#\\[serde\\(rename|rename_all|derive\\(.*Serialize"
-scope: "tool:edit(src-tauri/src/commands/**), tool:write(src-tauri/src/commands/**), tool:edit(src-tauri/src/builtin_plugin/**), tool:write(src-tauri/src/builtin_plugin/**), tool:edit(crates/plugin-api/src/**), tool:write(crates/plugin-api/src/**)"
+scope: "tool:edit(src-tauri/src/commands/**), tool:write(src-tauri/src/commands/**), tool:edit(src-tauri/src/builtin_plugin/**), tool:write(src-tauri/src/builtin_plugin/**), tool:edit(crates/plugin-api/src/**), tool:write(crates/plugin-api/src/**), tool:edit(crates/plugin-protocol/src/**), tool:write(crates/plugin-protocol/src/**)"
 ---
 
 # Serde 序列化规范

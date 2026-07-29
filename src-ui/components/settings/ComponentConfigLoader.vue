@@ -7,6 +7,12 @@
       <n-text type="error">{{ loadErr }}</n-text>
       <n-button size="small" @click="init">{{ $t('settings.saveFailed') }}</n-button>
     </div>
+    <component
+      v-else-if="settingsComponent && settings"
+      :is="settingsComponent"
+      :current-settings="settings"
+      @save="onThirdPartySave"
+    />
     <DynamicForm
       v-else-if="schema && settings"
       :key="component.componentId"
@@ -18,11 +24,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { NSpin, NText, NButton } from 'naive-ui'
 import DynamicForm from './DynamicForm.vue'
 import { useConfigStore } from '../../stores/config-store'
+import { usePluginStore } from '../../stores/plugin-store'
 import { onConfigChanged } from '../../bridge/events'
+import { configApplySettings } from '../../bridge/commands'
 import type { ComponentInfo, ComponentSchema } from '../../bridge/contract'
 
 const props = defineProps<{
@@ -30,13 +38,28 @@ const props = defineProps<{
 }>()
 
 const configStore = useConfigStore()
+const pluginStore = usePluginStore()
 
 const loading = ref(true)
 const loadErr = ref<string | null>(null)
 const schema = ref<ComponentSchema | null>(null)
 const settings = ref<Record<string, unknown> | null>(null)
 
+// 第三方插件自定义设置页组件
+const settingsComponent = computed(() =>
+  pluginStore.getSettingsComponent(props.component.componentId),
+)
+
 let unlistenConfig: (() => void) | null = null
+
+async function onThirdPartySave(newSettings: unknown) {
+  try {
+    await configApplySettings(props.component.componentId, newSettings)
+    await init()
+  } catch (e) {
+    loadErr.value = String(e)
+  }
+}
 
 async function init() {
   loading.value = true

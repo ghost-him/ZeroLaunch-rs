@@ -24,6 +24,10 @@ pub struct ConfigManager {
     enabled_map: RwLock<HashMap<String, bool>>,
     /// 配置变更事件发送端
     event_sender: ConfigEventSender,
+    /// 最近一次从持久化存储加载的配置快照。
+    /// 用于第三方插件延迟注册（在 load_from_storage 之后）时恢复其已保存配置。
+    /// None 表示尚未执行 load_from_storage（首次运行或启动初期）。
+    loaded_config: RwLock<Option<PersistentConfig>>,
 }
 
 impl ConfigManager {
@@ -34,6 +38,7 @@ impl ConfigManager {
             enabled_map: RwLock::new(HashMap::new()),
             store: ConfigStore::new(config_dir),
             event_sender,
+            loaded_config: RwLock::new(None),
         }
     }
 
@@ -46,6 +51,11 @@ impl ConfigManager {
 
     /// 注册一个可配置组件。
     /// 同时将其信息写入类型索引，并发布 Registered 事件。
+    ///
+    /// 如果已通过 `load_from_storage()` 加载了持久化配置且该组件有已保存状态，
+    /// 则优先恢复已保存配置（用于第三方插件在启动后延迟注册的场景）。
+    /// 否则应用 schema 默认值。
+    /// 应用初始值后执行校验，校验失败则拒绝注册。
     pub fn register(&self, component: Arc<dyn Configurable>) {
         let id = component.component_id().to_string();
         let component_type = component.component_type();
@@ -55,22 +65,50 @@ impl ConfigManager {
             return;
         }
 
-        // 应用 schema 默认值作为初始状态，确保校验时的值符合 schema 约束。
-        // 此时组件尚未加载持久化配置，其内存中的值为 struct 零值，可能与 schema 约束冲突
-        //（如 min_items(1) 的数组字段初始为空）。
-        // `load_from_storage()` 稍后会覆盖这些默认值。
-        let defaults = component.get_default_settings();
-        if let Err(e) = component.apply_settings(defaults) {
-            error!("拒绝注册（应用 schema 默认值失败）: {} - {}", id, e);
-            return;
+        // 检查是否有已加载的持久化配置适用于此组件
+        // 用于 load_from_storage 之后注册的第三方插件恢复其已保存配置
+        let saved_state = self
+            .loaded_config
+            .read()
+            .as_ref()
+            .and_then(|config| config.components.get(&id).cloned());
+
+        let initialized = if let Some(state) = &saved_state {
+            // 存在已保存配置：验证通过后应用，失败则回退默认值
+            if component.validate_settings(&state.settings).is_err() {
+                warn!("组件 {} 的已保存配置校验失败，回退默认值", id);
+                false
+            } else if let Err(e) = component.apply_settings(state.settings.clone()) {
+                error!("组件 {} 的已保存配置应用失败: {}, 回退默认值", id, e);
+                false
+            } else {
+                info!("注册（恢复已保存配置）: {} ({:?})", id, component_type);
+                true
+            }
+        } else {
+            // 无已保存配置，需应用 schema 默认值
+            false
+        };
+
+        if !initialized {
+            // 应用 defaults 作为回退或初始值
+            let defaults = component.get_default_settings();
+            if let Err(e) = component.apply_settings(defaults) {
+                error!("拒绝注册（应用 schema 默认值失败）: {} - {}", id, e);
+                return;
+            }
+            if let Err(error) = component.validate_settings(&component.get_settings()) {
+                error!("拒绝注册（默认配置值无效）: {} - {}", id, error);
+                return;
+            }
+            info!("注册可配置组件: {} ({:?})", id, component_type);
+        } else {
+            info!(
+                "恢复已保存配置并注册可配置组件: {} ({:?})",
+                id, component_type
+            );
         }
 
-        if let Err(error) = component.validate_settings(&component.get_settings()) {
-            error!("拒绝注册（当前配置值无效）: {} - {}", id, error);
-            return;
-        }
-
-        info!("注册可配置组件: {} ({:?})", id, component_type);
         self.registry.register(component);
         self.event_sender
             .send(ConfigEvent::Registered {
@@ -189,7 +227,9 @@ impl ConfigManager {
     }
 
     /// 应用配置到指定组件。
-    /// 流程：验证 → 剔除 transient 字段 → 应用 → 回调 → 事件 → 持久化
+    /// 流程：验证 → 剔除 transient 字段 → 应用 → 持久化（成功后才发事件）
+    ///
+    /// 持久化失败时回滚内存状态，保证运行时状态与持久化状态一致。
     pub fn apply_settings(
         &self,
         component_id: &str,
@@ -206,9 +246,20 @@ impl ConfigManager {
         // transient 字段仅用于 UI 动作参数传递，不应写入 settings。
         let cleaned = strip_transient_fields(&*component, settings);
 
-        component.apply_settings(cleaned)?;
-        component.on_settings_changed();
+        // 备份旧配置，以便持久化失败时回滚
+        let old_settings = component.get_settings();
 
+        component.apply_settings(cleaned)?;
+
+        // 先持久化，成功后才发布事件
+        if let Err(e) = self.save_to_storage() {
+            // 持久化失败，回滚内存状态
+            let _ = component.apply_settings(old_settings);
+            return Err(e);
+        }
+
+        // 持久化成功后，触发回调和事件
+        component.on_settings_changed();
         self.event_sender
             .send(ConfigEvent::SettingsChanged {
                 component_id: component_id.to_string(),
@@ -216,7 +267,7 @@ impl ConfigManager {
             })
             .ok();
 
-        self.save_to_storage()
+        Ok(())
     }
 
     pub fn reset_to_default(&self, component_id: &str) -> Result<(), ConfigError> {
@@ -225,10 +276,18 @@ impl ConfigManager {
             .get(component_id)
             .ok_or_else(|| ConfigError::NotFound(component_id.to_string()))?;
 
+        let old_settings = component.get_settings();
         let default_settings = component.get_default_settings();
         component.apply_settings(default_settings.clone())?;
-        component.on_settings_changed();
 
+        // 先持久化，成功后才发布事件
+        if let Err(e) = self.save_to_storage() {
+            // 持久化失败，回滚内存状态
+            let _ = component.apply_settings(old_settings);
+            return Err(e);
+        }
+
+        component.on_settings_changed();
         self.event_sender
             .send(ConfigEvent::SettingsChanged {
                 component_id: component_id.to_string(),
@@ -236,7 +295,7 @@ impl ConfigManager {
             })
             .ok();
 
-        self.save_to_storage()
+        Ok(())
     }
 
     /// 查询组件是否启用。
@@ -254,16 +313,27 @@ impl ConfigManager {
             })
     }
 
-    /// 设置组件启用状态
+    /// 设置组件启用状态。
+    /// 先持久化，成功后才发布事件。
     pub fn set_enabled(&self, component_id: &str, enabled: bool) -> Result<(), ConfigError> {
         let component = self
             .registry
             .get(component_id)
             .ok_or_else(|| ConfigError::NotFound(component_id.to_string()))?;
 
+        let old_enabled = self.is_enabled(component_id);
         self.enabled_map
             .write()
             .insert(component_id.to_string(), enabled);
+
+        // 先持久化，成功后才发布事件
+        if let Err(e) = self.save_to_storage() {
+            // 持久化失败，回滚内存状态
+            self.enabled_map
+                .write()
+                .insert(component_id.to_string(), old_enabled);
+            return Err(e);
+        }
 
         self.event_sender
             .send(ConfigEvent::EnabledChanged {
@@ -273,12 +343,26 @@ impl ConfigManager {
             })
             .ok();
 
-        self.save_to_storage()
+        Ok(())
     }
 
     /// 从本地持久化文件加载配置，应用到所有已注册组件。
+    ///
+    /// 加载前先校验每个组件的已保存配置是否符合当前 schema，校验失败时回退到默认值。
+    /// 配置文件损坏时自动备份并继续使用空配置。
+    /// 加载完成后保存配置快照供后续延迟注册的组件（如第三方插件）恢复。
     pub fn load_from_storage(&self) -> Result<(), ConfigError> {
-        let config = self.store.load().unwrap_or_default();
+        let config = match self.store.load() {
+            Ok(config) => config,
+            Err(e) => {
+                warn!("加载持久化配置失败: {}，将使用默认配置", e);
+                // 备份损坏的配置文件，保留现场便于排查
+                if let Err(backup_err) = self.store.backup_corrupted() {
+                    warn!("备份损坏配置文件失败: {}", backup_err);
+                }
+                PersistentConfig::default()
+            }
+        };
 
         for (component_id, state) in &config.components {
             self.enabled_map
@@ -286,6 +370,15 @@ impl ConfigManager {
                 .insert(component_id.clone(), state.enabled);
 
             if let Some(component) = self.registry.get(component_id) {
+                // 先校验已保存配置是否符合当前 schema
+                if let Err(e) = component.validate_settings(&state.settings) {
+                    warn!(
+                        "组件 {} 的已保存配置校验失败，跳过加载: {}",
+                        component_id, e
+                    );
+                    continue;
+                }
+
                 if let Err(e) = component.apply_settings(state.settings.clone()) {
                     warn!("加载组件配置失败: {}, 错误: {}", component_id, e);
                 } else {
@@ -311,6 +404,9 @@ impl ConfigManager {
                 }
             }
         }
+
+        // 保存配置快照，供后续 register() 恢复延迟注册组件的配置
+        *self.loaded_config.write() = Some(config.clone());
 
         info!(
             "配置加载完成，已加载 {} 个持久化配置，共 {} 个已注册组件",
@@ -342,9 +438,13 @@ impl ConfigManager {
     /// 将当前所有组件的配置保存到本地持久化文件。
     /// 返回：保存成功返回 Ok，失败返回 Err。
     /// 远程同步已提取到 bootstrap.rs 中，由 ConfigEvent 监听器负责触发。
+    /// 保存成功后更新内存中的配置快照，供后续 register() 恢复延迟注册组件使用。
     pub fn save_to_storage(&self) -> Result<(), ConfigError> {
         let config = self.build_persistent_config();
-        self.store.save(&config)
+        self.store.save(&config)?;
+        // 保存成功后更新内存快照
+        *self.loaded_config.write() = Some(config);
+        Ok(())
     }
 
     /// 处理 PluginManager 发来的 PluginRuntimeEvent。

@@ -171,6 +171,14 @@ impl Configurable for RemoteComponent {
     }
 
     fn validate_settings(&self, settings: &serde_json::Value) -> Result<(), ConfigError> {
+        // 1. 宿主侧 Schema 校验（key 合法性、类型、对象结构、数值/数组约束等）
+        //    宿主 Schema 是最终权威，插件校验只能补充不能取代。
+        let contribution = self.settings_contribution()?;
+        contribution
+            .validate_values(settings)
+            .map_err(ConfigError::ValidationFailed)?;
+
+        // 2. 插件侧业务校验（通过 RPC 委托远程插件）
         let client = self.client.clone();
         let component_id = self.core.component_id().to_string();
         let settings_clone = settings.clone();

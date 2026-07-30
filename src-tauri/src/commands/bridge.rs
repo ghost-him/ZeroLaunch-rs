@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tauri::Emitter;
 use tracing::{debug, info};
-use zerolaunch_plugin_api::{ConfirmResult, Query, QueryResponse, ResultAction};
+use zerolaunch_plugin_api::{ConfirmResult, PanelInteraction, Query, QueryResponse, ResultAction};
 // ============================================================================
 // 搜索接口
 // ============================================================================
@@ -76,6 +76,9 @@ pub struct BridgeQueryResponse {
     /// 行内参数模式数据（仅 mode="inline_param" 时有值）
     #[serde(rename = "inlineParam", default)]
     pub inline_param: Option<BridgeInlineParamData>,
+    /// 插件面板携带的通用交互策略，仅对 plugin_panel / plugin_immersive 生效。
+    #[serde(rename = "panelInteraction", default)]
+    pub panel_interaction: Option<PanelInteraction>,
 }
 
 /// 行内参数模式携带的数据。
@@ -223,6 +226,7 @@ pub async fn bridge_query(
                 panel_data: None,
                 panel_actions: None,
                 inline_param: None,
+                panel_interaction: None,
             })
         }
         QueryResponse::Empty => {
@@ -234,6 +238,7 @@ pub async fn bridge_query(
                 panel_data: None,
                 panel_actions: None,
                 inline_param: None,
+                panel_interaction: None,
             })
         }
         QueryResponse::CustomPanel {
@@ -241,6 +246,7 @@ pub async fn bridge_query(
             data,
             actions,
             keep_search_bar,
+            interaction,
         } => {
             let mode = if keep_search_bar {
                 "plugin_panel"
@@ -258,6 +264,7 @@ pub async fn bridge_query(
                 panel_data: Some(data),
                 panel_actions: Some(actions.into_iter().map(|a| a.into()).collect()),
                 inline_param: None,
+                panel_interaction: Some(interaction),
             })
         }
         QueryResponse::InlineParam {
@@ -280,6 +287,7 @@ pub async fn bridge_query(
                     trigger_keyword,
                     user_arg_count,
                 }),
+                panel_interaction: None,
             })
         }
     }

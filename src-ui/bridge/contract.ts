@@ -32,12 +32,19 @@ export interface InlineParamData {
   userArgCount: number
 }
 
+export type PanelSubmitBehavior = 'execute' | 'requery'
+
+export interface PanelInteraction {
+  submitBehavior: PanelSubmitBehavior
+  queryDebounceMs: number
+}
+
 export type BridgeQueryResponse =
-  | { mode: 'search'; results: ListItem[]; panelType: null; panelData: null; panelActions: null; inlineParam: null }
-  | { mode: 'empty'; results: ListItem[]; panelType: null; panelData: null; panelActions: null; inlineParam: null }
-  | { mode: 'plugin_panel'; results: ListItem[]; panelType: string; panelData: unknown; panelActions: ResultAction[]; inlineParam: null }
-  | { mode: 'plugin_immersive'; results: ListItem[]; panelType: string; panelData: unknown; panelActions: ResultAction[]; inlineParam: null }
-  | { mode: 'inline_param'; results: never[]; panelType: null; panelData: null; panelActions: null; inlineParam: InlineParamData }
+  | { mode: 'search'; results: ListItem[]; panelType: null; panelData: null; panelActions: null; inlineParam: null; panelInteraction: null }
+  | { mode: 'empty'; results: ListItem[]; panelType: null; panelData: null; panelActions: null; inlineParam: null; panelInteraction: null }
+  | { mode: 'plugin_panel'; results: ListItem[]; panelType: string; panelData: unknown; panelActions: ResultAction[]; inlineParam: null; panelInteraction: PanelInteraction }
+  | { mode: 'plugin_immersive'; results: ListItem[]; panelType: string; panelData: unknown; panelActions: ResultAction[]; inlineParam: null; panelInteraction: PanelInteraction }
+  | { mode: 'inline_param'; results: never[]; panelType: null; panelData: null; panelActions: null; inlineParam: InlineParamData; panelInteraction: null }
 
 export interface ConfirmPayload {
   candidateId: number
@@ -77,7 +84,7 @@ export interface ComponentInfo {
 // ── Schema 类型系统 ──
 
 export type SchemaNode =
-  | { type: 'string'; enum: string[]; minLength: number | null; maxLength: number | null; pattern: string | null; default: unknown | null }
+  | { type: 'string'; enum: string[]; enumLabels: string[]; minLength: number | null; maxLength: number | null; pattern: string | null; default: unknown | null }
   | { type: 'number'; minimum: number | null; maximum: number | null; multipleOf: number | null; default: unknown | null }
   | { type: 'integer'; minimum: number | null; maximum: number | null; multipleOf: number | null; default: unknown | null }
   | { type: 'boolean'; default: unknown | null }

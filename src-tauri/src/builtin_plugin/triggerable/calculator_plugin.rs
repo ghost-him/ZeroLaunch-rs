@@ -123,6 +123,7 @@ impl Plugin for CalculatorPlugin {
                 }),
                 actions: vec![],
                 keep_search_bar: true,
+                interaction: Default::default(),
             });
         }
 
@@ -150,6 +151,7 @@ impl Plugin for CalculatorPlugin {
                         shortcut_key: "Enter".to_string(),
                     }],
                     keep_search_bar: true,
+                    interaction: Default::default(),
                 })
             }
             Err(error) => Ok(QueryResponse::CustomPanel {
@@ -161,6 +163,7 @@ impl Plugin for CalculatorPlugin {
                 }),
                 actions: vec![],
                 keep_search_bar: true,
+                interaction: Default::default(),
             }),
         }
     }

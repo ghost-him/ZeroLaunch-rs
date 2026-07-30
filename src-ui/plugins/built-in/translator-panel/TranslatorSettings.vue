@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, reactive, ref, watch, onMounted } from 'vue'
+import { configGetSchema } from '@/bridge/commands'
 import {
   NButton,
   NCheckbox,
@@ -47,48 +48,6 @@ const LLM_BASE_URL_PRESETS = [
 
 const CUSTOM_PRESET_ID = 'custom'
 
-const SUPPORTED_LANGUAGES = [
-  'zh',
-  'zh-TR',
-  'yue',
-  'en',
-  'fr',
-  'pt',
-  'es',
-  'ja',
-  'tr',
-  'ru',
-  'ar',
-  'ko',
-  'th',
-  'it',
-  'de',
-  'vi',
-  'ms',
-  'id',
-] as const
-
-const LANG_LABELS: Record<string, string> = {
-  zh: '简体中文',
-  'zh-TR': '繁体中文',
-  yue: '粤语',
-  en: '英语',
-  fr: '法语',
-  pt: '葡萄牙语',
-  es: '西班牙语',
-  ja: '日语',
-  tr: '土耳其语',
-  ru: '俄语',
-  ar: '阿拉伯语',
-  ko: '韩语',
-  th: '泰语',
-  it: '意大利语',
-  de: '德语',
-  vi: '越南语',
-  ms: '马来语',
-  id: '印尼语',
-}
-
 type TranslatorLocalSettings = {
   translate_mode: 'live' | 'on_enter'
   default_target: string
@@ -112,23 +71,9 @@ const saving = ref(false)
 const dragFromIndex = ref<number | null>(null)
 const dragOverIndex = ref<number | null>(null)
 
-function labelForLang(code: string): string {
-  const name = LANG_LABELS[code]
-  return name ? `${name} (${code})` : code
-}
-
-function langCodeFromOption(opt: string): string {
-  const t = opt.trim()
-  const start = t.lastIndexOf('(')
-  const end = t.lastIndexOf(')')
-  if (start >= 0 && end > start + 1) {
-    return t.slice(start + 1, end).trim()
-  }
-  return t
-}
-
 function modeFromRaw(raw: unknown): 'live' | 'on_enter' {
-  if (raw === 'on_enter' || raw === '按 Enter 翻译') return 'on_enter'
+  // get_settings 当前直接返回代码值（如 "live"），不包含标签
+  if (raw === 'on_enter') return 'on_enter'
   return 'live'
 }
 
@@ -145,8 +90,7 @@ function vendorIdFromLabel(label: string): string {
 }
 
 function providerIdFromRaw(raw: string): string {
-  if (raw === 'OpenAI 兼容' || raw === OPENAI_COMPATIBLE_ID) return OPENAI_COMPATIBLE_ID
-  if (raw === '模拟示例' || raw === MOCK_PROVIDER_ID) return MOCK_PROVIDER_ID
+  // get_settings 当前直接返回引擎 ID（如 "openai-compatible"），不包含标签
   return raw
 }
 
@@ -207,7 +151,7 @@ function fromProps(raw: unknown): TranslatorLocalSettings {
     translate_mode: modeFromRaw(o.translate_mode),
     default_target:
       typeof o.default_target === 'string'
-        ? langCodeFromOption(o.default_target)
+        ? o.default_target.trim()
         : base.default_target,
     enabled_providers: enabledProviders,
     request_timeout_ms:
@@ -261,8 +205,32 @@ watch(
   },
 )
 
-const targetOptions = computed(() =>
-  SUPPORTED_LANGUAGES.map((value) => ({ label: labelForLang(value), value })),
+/** 由后端 schema default_target 的 enumLabels 填充。 */
+const languageOptions = ref<{ label: string; value: string }[]>([])
+
+onMounted(async () => {
+  try {
+    const schema = await configGetSchema('translator')
+    const field = schema.contribution.properties?.['default_target']
+    if (field?.type === 'string' && field.enum) {
+      languageOptions.value = field.enum.map((v, i) => ({
+        label: field.enumLabels?.[i] ?? v,
+        value: v,
+      }))
+    }
+  } catch {
+    // schema 加载失败时语言选项为空列表，由 watch 回退到默认值
+  }
+})
+
+watch(
+  languageOptions,
+  (opts) => {
+    if (opts.length > 0 && !opts.some((o) => o.value === local.default_target)) {
+      local.default_target = opts[0].value
+    }
+  },
+  { immediate: true },
 )
 
 const translateModeOptions = [
@@ -282,16 +250,6 @@ const orderedProviders = computed(() =>
 )
 
 const openaiEnabled = computed(() => enabledSet.value.has(OPENAI_COMPATIBLE_ID))
-
-watch(
-  targetOptions,
-  (opts) => {
-    if (!opts.some((o) => o.value === local.default_target)) {
-      local.default_target = opts[0]?.value ?? 'zh'
-    }
-  },
-  { immediate: true },
-)
 
 function isProviderEnabled(id: string): boolean {
   return enabledSet.value.has(id)
@@ -386,7 +344,7 @@ async function onSave() {
           <div class="field-control">
             <n-select
               v-model:value="local.default_target"
-              :options="targetOptions"
+              :options="languageOptions"
               filterable
               class="control-full"
             />

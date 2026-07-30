@@ -9,7 +9,8 @@ use zerolaunch_plugin_api::config::{
 use zerolaunch_plugin_api::host::PluginHandle;
 use zerolaunch_plugin_api::services::IconRequest;
 use zerolaunch_plugin_api::{
-    Plugin, PluginContext, PluginError, PluginMetadata, Query, QueryResponse, ResultAction,
+    PanelInteraction, PanelSubmitBehavior, Plugin, PluginContext, PluginError, PluginMetadata,
+    Query, QueryResponse, ResultAction,
 };
 
 use crate::core::config::setting_builders::SchemaBuilder;
@@ -17,8 +18,7 @@ use crate::plugin_framework::builtin_registry::PluginEntry;
 
 use super::provider::{LanguageSupport, SenseEntry, TranslateRequest, TranslationResult};
 use super::providers::{
-    LlmConfig, MockProvider, OpenAiCompatibleProvider, MOCK_PROVIDER_ID, MOCK_PROVIDER_NAME,
-    PROVIDER_ID,
+    LlmConfig, MockProvider, OpenAiCompatibleProvider, MOCK_PROVIDER_ID, PROVIDER_ID,
 };
 use super::query_parser::{parse_search_term, LangCatalog, ParseError, ParsedQuery};
 use super::registry::{AggregateResult, AggregateStatus, ProviderRegistry};
@@ -45,6 +45,30 @@ struct OnEnterGate {
 
 fn search_fingerprint(search_term: &str) -> String {
     search_term.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// 语言代码 → 展示名称映射。
+/// 服务于 schema select 选项的标签展示。
+fn language_display_name(code: &str) -> String {
+    match code {
+        "zh" => "简体中文".into(),
+        "en" => "English".into(),
+        "ja" => "日本語".into(),
+        "ko" => "한국어".into(),
+        "fr" => "Français".into(),
+        "de" => "Deutsch".into(),
+        "es" => "Español".into(),
+        "pt" => "Português".into(),
+        "ru" => "Русский".into(),
+        "ar" => "العربية".into(),
+        "th" => "ไทย".into(),
+        "vi" => "Tiếng Việt".into(),
+        "it" => "Italiano".into(),
+        "nl" => "Nederlands".into(),
+        "pl" => "Polski".into(),
+        "tr" => "Türkçe".into(),
+        _ => code.to_string(),
+    }
 }
 
 enum OnEnterDecision {
@@ -79,8 +103,6 @@ struct TranslatorSettings {
 
 const TRANSLATE_MODE_LIVE: &str = "live";
 const TRANSLATE_MODE_ON_ENTER: &str = "on_enter";
-const MODE_LIVE_LABEL: &str = "即时翻译";
-const MODE_ON_ENTER_LABEL: &str = "按 Enter 翻译";
 
 const LLM_VENDOR_CUSTOM: &str = "自定义";
 const LLM_VENDOR_OPTIONS: &[&str] = &[
@@ -95,14 +117,12 @@ const LLM_VENDOR_OPTIONS: &[&str] = &[
     LLM_VENDOR_CUSTOM,
 ];
 
-const PROVIDER_LABEL_OPENAI: &str = "OpenAI 兼容";
-
 fn default_enabled_true() -> bool {
     true
 }
 
 fn default_translate_mode() -> String {
-    MODE_LIVE_LABEL.into()
+    TRANSLATE_MODE_LIVE.into()
 }
 
 fn default_target() -> String {
@@ -135,77 +155,6 @@ fn vendor_base_url(vendor: &str) -> Option<&'static str> {
     }
 }
 
-fn language_option_label(code: &str) -> String {
-    let name = match code {
-        "zh" => "简体中文",
-        "zh-TR" => "繁体中文",
-        "yue" => "粤语",
-        "en" => "英语",
-        "fr" => "法语",
-        "pt" => "葡萄牙语",
-        "es" => "西班牙语",
-        "ja" => "日语",
-        "tr" => "土耳其语",
-        "ru" => "俄语",
-        "ar" => "阿拉伯语",
-        "ko" => "韩语",
-        "th" => "泰语",
-        "it" => "意大利语",
-        "de" => "德语",
-        "vi" => "越南语",
-        "ms" => "马来语",
-        "id" => "印尼语",
-        other => other,
-    };
-    if name == code {
-        code.to_string()
-    } else {
-        format!("{name} ({code})")
-    }
-}
-
-fn language_code_from_option(opt: &str) -> String {
-    let t = opt.trim();
-    if let Some(start) = t.rfind('(') {
-        if let Some(end) = t.rfind(')') {
-            if end > start + 1 {
-                return t[start + 1..end].trim().to_string();
-            }
-        }
-    }
-    t.to_string()
-}
-
-fn mode_to_label(mode: &str) -> String {
-    if mode == MODE_ON_ENTER_LABEL || mode == TRANSLATE_MODE_ON_ENTER {
-        MODE_ON_ENTER_LABEL.into()
-    } else {
-        // 兼容旧值 "live" 与中文标签
-        let _ = TRANSLATE_MODE_LIVE;
-        MODE_LIVE_LABEL.into()
-    }
-}
-
-fn provider_label(id: &str) -> &str {
-    if id == PROVIDER_ID || id == "openai-compatible" {
-        PROVIDER_LABEL_OPENAI
-    } else if id == MOCK_PROVIDER_ID || id == "mock" {
-        MOCK_PROVIDER_NAME
-    } else {
-        id
-    }
-}
-
-fn provider_id_from_label(label: &str) -> String {
-    if label == PROVIDER_LABEL_OPENAI || label == "openai-compatible" {
-        PROVIDER_ID.into()
-    } else if label == MOCK_PROVIDER_NAME || label == "mock" {
-        MOCK_PROVIDER_ID.into()
-    } else {
-        label.to_string()
-    }
-}
-
 impl Default for TranslatorSettings {
     fn default() -> Self {
         Self {
@@ -223,16 +172,8 @@ impl Default for TranslatorSettings {
 }
 
 impl TranslatorSettings {
-    /// 规范化：引擎 id、触发模式、语言码；非自定义厂商写入 Base URL。
+    /// 规范化：校验厂商预设，写入 Base URL。
     fn normalize(mut self) -> Self {
-        self.translate_mode = mode_to_label(&self.translate_mode);
-        self.default_target = language_code_from_option(&self.default_target);
-        self.enabled_providers = self
-            .enabled_providers
-            .iter()
-            .map(|p| provider_id_from_label(p))
-            .filter(|p| !p.is_empty())
-            .collect();
         if self.enabled_providers.is_empty() {
             self.enabled_providers = default_enabled_providers();
         }
@@ -253,19 +194,7 @@ impl TranslatorSettings {
     }
 
     fn is_on_enter_mode(&self) -> bool {
-        self.translate_mode == MODE_ON_ENTER_LABEL || self.translate_mode == TRANSLATE_MODE_ON_ENTER
-    }
-
-    /// 供 DynamicForm 展示的中文选项视图（不改动内存中的规范存储前请先 clone）。
-    fn for_ui_display(mut self) -> Self {
-        self.translate_mode = mode_to_label(&self.translate_mode);
-        self.default_target = language_option_label(&self.default_target);
-        self.enabled_providers = self
-            .enabled_providers
-            .iter()
-            .map(|id| provider_label(id).to_string())
-            .collect();
-        self
+        self.translate_mode == TRANSLATE_MODE_ON_ENTER
     }
 }
 
@@ -376,6 +305,7 @@ impl TranslatorPlugin {
             }),
             actions: vec![],
             keep_search_bar: true,
+            interaction: PanelInteraction::default(),
         }
     }
 
@@ -391,6 +321,10 @@ impl TranslatorPlugin {
             }),
             actions: vec![],
             keep_search_bar: true,
+            interaction: PanelInteraction {
+                submit_behavior: PanelSubmitBehavior::Requery,
+                query_debounce_ms: 0,
+            },
         }
     }
 
@@ -407,6 +341,7 @@ impl TranslatorPlugin {
             }),
             actions: vec![],
             keep_search_bar: true,
+            interaction: PanelInteraction::default(),
         }
     }
 
@@ -449,7 +384,11 @@ impl TranslatorPlugin {
         }
     }
 
-    fn aggregate_to_panel(parsed: &ParsedQuery, agg: AggregateResult) -> QueryResponse {
+    fn aggregate_to_panel(
+        parsed: &ParsedQuery,
+        agg: AggregateResult,
+        debounce_ms: u64,
+    ) -> QueryResponse {
         let has_primary = agg
             .primary
             .as_ref()
@@ -499,6 +438,10 @@ impl TranslatorPlugin {
             }),
             actions,
             keep_search_bar: true,
+            interaction: PanelInteraction {
+                submit_behavior: PanelSubmitBehavior::Execute,
+                query_debounce_ms: debounce_ms,
+            },
         }
     }
 }
@@ -511,14 +454,23 @@ impl Configurable for TranslatorPlugin {
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {
         let settings = self.inner.read().clone();
-        self.sync_llm_config(&settings);
         let targets = self.active_language_support(&settings).targets;
-        let lang_options: Vec<String> = if targets.is_empty() {
-            vec![language_option_label("zh"), language_option_label("en")]
+        let lang_options: Vec<(String, String)> = if targets.is_empty() {
+            vec![
+                ("zh".into(), "简体中文".into()),
+                ("en".into(), "English".into()),
+            ]
         } else {
-            targets.iter().map(|c| language_option_label(c)).collect()
+            targets
+                .iter()
+                .map(|s| (s.clone(), language_display_name(s)))
+                .collect()
         };
-        let lang_refs: Vec<&str> = lang_options.iter().map(|s| s.as_str()).collect();
+
+        let lang_refs: Vec<(&str, &str)> = lang_options
+            .iter()
+            .map(|(v, l)| (v.as_str(), l.as_str()))
+            .collect();
 
         vec![
             SchemaBuilder::select(
@@ -526,20 +478,20 @@ impl Configurable for TranslatorPlugin {
                 "翻译触发",
                 "即时：输入即翻译；按 Enter：确认后才请求，节省 token",
             )
-            .options(&[MODE_LIVE_LABEL, MODE_ON_ENTER_LABEL])
+            .options(&[TRANSLATE_MODE_LIVE, TRANSLATE_MODE_ON_ENTER])
             .group("基础")
             .order(0)
-            .default(MODE_LIVE_LABEL)
+            .default(TRANSLATE_MODE_LIVE)
             .build(),
             SchemaBuilder::select(
                 "default_target",
                 "默认目标语言",
                 "未写语言码时的目标语（源语自动检测；若与源语相同则回退到另一常用语）",
             )
-            .options(&lang_refs)
+            .options_with_labels(&lang_refs)
             .group("基础")
             .order(1)
-            .default(language_option_label("zh"))
+            .default("zh")
             .build(),
             SchemaBuilder::array(
                 "enabled_providers",
@@ -547,11 +499,11 @@ impl Configurable for TranslatorPlugin {
                 "参与并行翻译的引擎；列表顺序即结果优先顺序",
             )
             .primitive_item(PrimitiveType::Select {
-                options: vec![PROVIDER_LABEL_OPENAI.into(), MOCK_PROVIDER_NAME.into()],
+                options: vec![PROVIDER_ID.into(), MOCK_PROVIDER_ID.into()],
             })
             .group("引擎")
             .order(2)
-            .default(json!([PROVIDER_LABEL_OPENAI]))
+            .default(json!([PROVIDER_ID]))
             .build(),
             SchemaBuilder::number(
                 "request_timeout_ms",
@@ -606,7 +558,7 @@ impl Configurable for TranslatorPlugin {
     }
 
     fn get_settings(&self) -> serde_json::Value {
-        serde_json::to_value(self.inner.read().clone().for_ui_display()).unwrap_or_default()
+        serde_json::to_value(self.inner.read().clone()).unwrap_or_default()
     }
 
     fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
@@ -620,7 +572,7 @@ impl Configurable for TranslatorPlugin {
     }
 
     fn get_default_settings(&self) -> serde_json::Value {
-        serde_json::to_value(TranslatorSettings::default().for_ui_display()).unwrap_or_default()
+        serde_json::to_value(TranslatorSettings::default()).unwrap_or_default()
     }
 
     fn default_enabled(&self) -> bool {
@@ -723,7 +675,9 @@ impl Plugin for TranslatorPlugin {
             )
             .await;
 
-        let panel = Self::aggregate_to_panel(&parsed, agg);
+        // live 模式 300ms 防抖，on_enter 模式不防抖
+        let debounce_ms = if settings.is_on_enter_mode() { 0 } else { 300 };
+        let panel = Self::aggregate_to_panel(&parsed, agg, debounce_ms);
         if settings.is_on_enter_mode() {
             self.remember_on_enter_result(&fingerprint, &panel);
         }
@@ -777,7 +731,7 @@ mod tests {
     fn apply_on_enter(plugin: &TranslatorPlugin) {
         plugin
             .apply_settings(json!({
-                "translate_mode": MODE_ON_ENTER_LABEL,
+                "translate_mode": TRANSLATE_MODE_ON_ENTER,
                 "default_target": "zh",
                 "enabled_providers": [PROVIDER_ID],
                 "request_timeout_ms": 15000,
@@ -797,10 +751,15 @@ mod tests {
 
         match resp {
             QueryResponse::CustomPanel {
-                panel_type, data, ..
+                panel_type,
+                data,
+                interaction,
+                ..
             } => {
                 assert_eq!(panel_type, "translator");
                 assert_eq!(data["status"], "error");
+                assert_eq!(interaction.submit_behavior, PanelSubmitBehavior::Execute);
+                assert_eq!(interaction.query_debounce_ms, 300);
                 let msg = data["message"].as_str().unwrap_or("");
                 assert!(
                     msg.contains("设置") || msg.contains("填写"),
@@ -823,9 +782,16 @@ mod tests {
         let resp = plugin.query(&ctx, &q).await.unwrap();
 
         match resp {
-            QueryResponse::CustomPanel { data, actions, .. } => {
+            QueryResponse::CustomPanel {
+                data,
+                actions,
+                interaction,
+                ..
+            } => {
                 assert_eq!(data["status"], "empty");
                 assert!(actions.is_empty());
+                assert_eq!(interaction.submit_behavior, PanelSubmitBehavior::Execute);
+                assert_eq!(interaction.query_debounce_ms, 0);
             }
             other => panic!("期望 CustomPanel，实际 {:?}", other),
         }
@@ -854,11 +820,18 @@ mod tests {
         let resp = plugin.query(&ctx, &sample_query("hello")).await.unwrap();
 
         match resp {
-            QueryResponse::CustomPanel { data, actions, .. } => {
+            QueryResponse::CustomPanel {
+                data,
+                actions,
+                interaction,
+                ..
+            } => {
                 assert_eq!(data["status"], "ready");
                 assert_eq!(data["query"]["text"], "hello");
                 assert_eq!(data["message"], "按 Enter 翻译");
                 assert!(actions.is_empty());
+                assert_eq!(interaction.submit_behavior, PanelSubmitBehavior::Requery);
+                assert_eq!(interaction.query_debounce_ms, 0);
             }
             other => panic!("期望 CustomPanel，实际 {:?}", other),
         }
@@ -873,13 +846,21 @@ mod tests {
         let q = sample_query("hello");
         let first = plugin.query(&ctx, &q).await.unwrap();
         match &first {
-            QueryResponse::CustomPanel { data, .. } => assert_eq!(data["status"], "ready"),
+            QueryResponse::CustomPanel {
+                data, interaction, ..
+            } => {
+                assert_eq!(data["status"], "ready");
+                assert_eq!(interaction.submit_behavior, PanelSubmitBehavior::Requery);
+                assert_eq!(interaction.query_debounce_ms, 0);
+            }
             other => panic!("首次应 ready，实际 {:?}", other),
         }
 
         let second = plugin.query(&ctx, &q).await.unwrap();
         match second {
-            QueryResponse::CustomPanel { data, .. } => {
+            QueryResponse::CustomPanel {
+                data, interaction, ..
+            } => {
                 // 无凭据时应进入翻译路径并返回 error（而非 ready）
                 assert_eq!(data["status"], "error");
                 let msg = data["message"].as_str().unwrap_or("");
@@ -887,6 +868,8 @@ mod tests {
                     msg.contains("设置") || msg.contains("填写"),
                     "期望进入 LLM 路径的配置错误，实际: {msg}"
                 );
+                assert_eq!(interaction.submit_behavior, PanelSubmitBehavior::Execute);
+                assert_eq!(interaction.query_debounce_ms, 0);
             }
             other => panic!("期望 CustomPanel，实际 {:?}", other),
         }
@@ -901,18 +884,16 @@ mod tests {
         let _ = plugin.query(&ctx, &sample_query("hello")).await.unwrap();
         let resp = plugin.query(&ctx, &sample_query("world")).await.unwrap();
         match resp {
-            QueryResponse::CustomPanel { data, .. } => {
+            QueryResponse::CustomPanel {
+                data, interaction, ..
+            } => {
                 assert_eq!(data["status"], "ready");
                 assert_eq!(data["query"]["text"], "world");
+                assert_eq!(interaction.submit_behavior, PanelSubmitBehavior::Requery);
+                assert_eq!(interaction.query_debounce_ms, 0);
             }
             other => panic!("期望 ready，实际 {:?}", other),
         }
-    }
-
-    #[test]
-    fn language_option_roundtrip() {
-        assert_eq!(language_code_from_option("简体中文 (zh)"), "zh");
-        assert_eq!(language_option_label("zh"), "简体中文 (zh)");
     }
 
     #[test]

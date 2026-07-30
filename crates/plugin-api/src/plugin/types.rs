@@ -291,6 +291,31 @@ pub struct Query {
     pub search_term: String,
 }
 
+/// 插件面板确认操作的通用语义。
+/// 服务于宿主判断默认确认操作是执行动作还是重新发起同文查询。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum PanelSubmitBehavior {
+    /// 执行当前面板的默认动作或选中动作。
+    #[default]
+    #[serde(rename = "execute")]
+    Execute,
+    /// 使用当前查询文本再次发起查询。
+    #[serde(rename = "requery")]
+    Requery,
+}
+
+/// 插件面板响应携带的通用交互策略。
+/// 服务于宿主处理确认操作与后续输入查询，不属于插件持久化配置。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct PanelInteraction {
+    /// 默认确认操作的语义。
+    #[serde(rename = "submitBehavior", default)]
+    pub submit_behavior: PanelSubmitBehavior,
+    /// 后续输入触发查询前的防抖延迟，单位为毫秒。
+    #[serde(rename = "queryDebounceMs", default)]
+    pub query_debounce_ms: u64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum QueryResponse {
     #[serde(rename = "list")]
@@ -308,6 +333,9 @@ pub enum QueryResponse {
         actions: Vec<ResultAction>,
         #[serde(rename = "keepSearchBar")]
         keep_search_bar: bool,
+        /// 当前面板的通用交互策略。
+        #[serde(rename = "interaction", default)]
+        interaction: PanelInteraction,
     },
     #[serde(rename = "empty")]
     Empty,
@@ -429,4 +457,31 @@ pub enum PluginError {
 
     #[error("Invalid setting: {0}")]
     InvalidSetting(String),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{PanelInteraction, PanelSubmitBehavior};
+    use serde_json::json;
+
+    #[test]
+    /// 验证面板交互策略的 JSON 字段名、枚举值和默认值。
+    fn panel_interaction_serializes_with_stable_contract() {
+        let interaction = PanelInteraction {
+            submit_behavior: PanelSubmitBehavior::Requery,
+            query_debounce_ms: 300,
+        };
+        let value = serde_json::to_value(&interaction).expect("交互策略应可序列化");
+        assert_eq!(
+            value,
+            json!({
+                "submitBehavior": "requery",
+                "queryDebounceMs": 300,
+            })
+        );
+
+        let default_value: PanelInteraction =
+            serde_json::from_value(json!({})).expect("缺失交互策略字段时应使用默认值");
+        assert_eq!(default_value, PanelInteraction::default());
+    }
 }

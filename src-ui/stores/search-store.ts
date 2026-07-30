@@ -5,7 +5,7 @@ import {
   bridgeRefreshCandidates, bridgeGetCandidatesCount,
   bridgeHideWindow,
 } from '../bridge/commands'
-import type { ListItem, ResultAction, BridgeQueryResponse, ConfirmResponse } from '../bridge/contract'
+import type { ListItem, ResultAction, BridgeQueryResponse, ConfirmResponse, PanelInteraction } from '../bridge/contract'
 import { onSessionReset } from '../bridge/events'
 
 export type SessionMode = 'none' | 'search' | 'inline_param' | 'param_panel' | 'inline_plugin' | 'full_page_plugin'
@@ -43,6 +43,10 @@ export const useSearchStore = defineStore('search', () => {
   const panelType = ref<string | null>(null)
   const panelData = ref<unknown>(null)
   const panelActions = ref<ResultAction[]>([])
+  /** 当前插件面板的通用交互策略。 */
+  const panelInteraction = ref<PanelInteraction | null>(null)
+  /** 防抖定时器 */
+  let debounceTimer: number | null = null
 
   // 行内参数模式
   const inlineParamState = ref<InlineParamState | null>(null)
@@ -116,6 +120,7 @@ export const useSearchStore = defineStore('search', () => {
       panelType.value = null
       panelData.value = null
       panelActions.value = []
+      panelInteraction.value = null
       inlineParamState.value = null
       paramPanelState.value = null
       selectedIndex.value = 0
@@ -123,6 +128,26 @@ export const useSearchStore = defineStore('search', () => {
       return
     }
 
+    // 清空上个防抖
+    if (debounceTimer !== null) {
+      clearTimeout(debounceTimer)
+      debounceTimer = null
+    }
+
+    // 插件模式下已有防抖延迟则延迟实际 IPC 调用
+    const dm = panelInteraction.value?.queryDebounceMs ?? 0
+    if ((sessionMode.value === 'inline_plugin' || sessionMode.value === 'full_page_plugin') && dm > 0) {
+      debounceTimer = window.setTimeout(() => {
+        debounceTimer = null
+        doQueryImpl(raw, seq)
+      }, dm)
+      return
+    }
+
+    doQueryImpl(raw, seq)
+  }
+
+  async function doQueryImpl(raw: string, seq: number) {
     try {
       const resp: BridgeQueryResponse = await bridgeQuery(raw)
       if (seq !== querySeq) return
@@ -132,16 +157,19 @@ export const useSearchStore = defineStore('search', () => {
       switch (resp.mode) {
         case 'search':
           results.value = resp.results
+          panelInteraction.value = null
           sessionMode.value = 'search'
           selectedIndex.value = 0
           break
         case 'empty':
           results.value = []
+          panelInteraction.value = null
           sessionMode.value = 'search'
           selectedIndex.value = 0
           break
         case 'inline_param':
           results.value = []
+          panelInteraction.value = null
           sessionMode.value = 'inline_param'
           inlineParamState.value = {
             candidateId: resp.inlineParam.candidateId,
@@ -158,6 +186,7 @@ export const useSearchStore = defineStore('search', () => {
           panelType.value = resp.panelType
           panelData.value = resp.panelData
           panelActions.value = resp.panelActions
+          panelInteraction.value = resp.panelInteraction
           selectedIndex.value = 0
           break
       }
@@ -349,14 +378,8 @@ export const useSearchStore = defineStore('search', () => {
   }
 
   function confirmPluginAction() {
-    // 面板 status=ready：再查一次同文，由插件内部门控提交
-    const data = panelData.value
-    if (
-      data &&
-      typeof data === 'object' &&
-      'status' in data &&
-      (data as { status?: string }).status === 'ready'
-    ) {
+    // 面板标识需要再次查询同文以触发执行（如翻译插件的 on_enter 模式）
+    if (panelInteraction.value?.submitBehavior === 'requery') {
       void doQuery(query.value)
       return
     }
@@ -383,6 +406,7 @@ export const useSearchStore = defineStore('search', () => {
     panelType.value = null
     panelData.value = null
     panelActions.value = []
+    panelInteraction.value = null
     inlineParamState.value = null
     paramPanelState.value = null
     selectedIndex.value = 0
@@ -419,7 +443,7 @@ export const useSearchStore = defineStore('search', () => {
 
   return {
     query, results, selectedIndex, selectedActionIndex, sessionMode, cachedCount,
-    panelType, panelData, panelActions,
+    panelType, panelData, panelActions, panelInteraction,
     inlineParamState, paramPanelState,
     isIdle, selectedItem,
     doQuery, doConfirm, selectNext, selectPrev,

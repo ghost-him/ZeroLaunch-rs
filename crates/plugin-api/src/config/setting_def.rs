@@ -110,6 +110,10 @@ pub enum SchemaKind {
         /// 枚举值列表，非空时限定输入只能从这些值中选择。
         #[serde(rename = "enum", default)]
         enum_values: Vec<String>,
+        /// 枚举值对应的可选展示标签，与 enum_values 等长。
+        /// 前端优先使用标签展示，缺失时回退到 enum_values 本身。
+        #[serde(rename = "enumLabels", default)]
+        enum_labels: Vec<String>,
         /// 最小长度。
         #[serde(rename = "minLength", default)]
         min_length: Option<usize>,
@@ -197,6 +201,7 @@ impl SchemaNode {
         Self {
             kind: SchemaKind::String {
                 enum_values: Vec::new(),
+                enum_labels: Vec::new(),
                 min_length: None,
                 max_length: None,
                 pattern: None,
@@ -444,6 +449,7 @@ fn validate_schema_node(
             min_length,
             max_length,
             pattern,
+            ..
         } => {
             if enum_values.len() > 256 || enum_values.iter().any(|v| v.len() > 4096) {
                 return Err("string enum exceeds limit".to_string());
@@ -547,6 +553,7 @@ fn validate_node(
             min_length,
             max_length,
             pattern,
+            ..
         } => {
             let text = value
                 .as_str()
@@ -841,6 +848,7 @@ mod tests {
             schema: SchemaNode {
                 kind: SchemaKind::String {
                     enum_values: vec!["light".into(), "dark".into()],
+                    enum_labels: Vec::new(),
                     min_length: None,
                     max_length: None,
                     pattern: None,

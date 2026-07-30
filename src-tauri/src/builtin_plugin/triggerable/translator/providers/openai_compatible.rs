@@ -3,6 +3,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use parking_lot::RwLock;
 use serde::Deserialize;
+use tracing::error;
 
 use super::super::provider::{
     LanguageSupport, SenseEntry, TranslateRequest, TranslationProvider, TranslationResult,
@@ -32,13 +33,24 @@ const SUPPORTED_LANGUAGES: &[&str] = &[
     "vi", "ms", "id",
 ];
 
+/// OpenAI 兼容 LLM 翻译引擎 Provider。
+///
+/// 通过 `{base_url}/chat/completions` 调用兼容 API，将模型输出解析为统一翻译结果。
+/// 仅在 TranslatorPlugin 内部使用，通过 ProviderRegistry 管理。
 pub struct OpenAiCompatibleProvider {
+    /// LLM 连接配置（Base URL / API Key / Model），通过 Arc<RwLock> 由 TranslatorPlugin 注入。
     config: Arc<RwLock<LlmConfig>>,
+    /// 复用的 HTTP 客户端，在构造时创建一次，避免每次翻译请求新建连接池。
+    client: reqwest::Client,
 }
 
 impl OpenAiCompatibleProvider {
+    /// 创建新的 Provider 实例。
     pub fn new(config: Arc<RwLock<LlmConfig>>) -> Self {
-        Self { config }
+        Self {
+            config,
+            client: reqwest::Client::new(),
+        }
     }
 }
 
@@ -109,8 +121,16 @@ fn strip_markdown_fence(s: &str) -> &str {
     if !s.starts_with("```") {
         return s;
     }
-    let inner = s.trim_start_matches('`').trim_start_matches("json").trim();
-    inner.strip_suffix("```").map(str::trim).unwrap_or(inner)
+    // 去掉尾部 ```
+    let s = s.strip_suffix("```").unwrap_or(s).trim();
+    // 去掉前导 ```
+    let after_fence = s.trim_start_matches('`').trim();
+    // 去掉可选的 json 标记（大小写不敏感）
+    if after_fence.to_lowercase().starts_with("json") {
+        after_fence[4..].trim()
+    } else {
+        after_fence
+    }
 }
 
 fn missing_config_error() -> String {
@@ -160,10 +180,17 @@ impl TranslationProvider for OpenAiCompatibleProvider {
             return TranslationResult::err(PROVIDER_ID, "OpenAI 兼容", missing_config_error());
         }
 
-        let url = format!(
-            "{}/chat/completions",
-            config.base_url.trim().trim_end_matches('/')
-        );
+        let base_url = config.base_url.trim().trim_end_matches('/');
+        // P0-2: 校验 scheme，防止 file:///etc/passwd 等危险输入
+        if !base_url.starts_with("http://") && !base_url.starts_with("https://") {
+            return TranslationResult::err(
+                PROVIDER_ID,
+                "OpenAI 兼容",
+                "LLM Base URL 必须以 http:// 或 https:// 开头",
+            );
+        }
+
+        let url = format!("{base_url}/chat/completions");
         let body = serde_json::json!({
             "model": config.model,
             "stream": false,
@@ -173,18 +200,8 @@ impl TranslationProvider for OpenAiCompatibleProvider {
             ],
         });
 
-        let client = match reqwest::Client::builder().build() {
-            Ok(c) => c,
-            Err(e) => {
-                return TranslationResult::err(
-                    PROVIDER_ID,
-                    "OpenAI 兼容",
-                    format!("创建 HTTP 客户端失败: {e}"),
-                );
-            }
-        };
-
-        let response = match client
+        let response = match self
+            .client
             .post(&url)
             .bearer_auth(config.api_key.trim())
             .json(&body)
@@ -203,11 +220,13 @@ impl TranslationProvider for OpenAiCompatibleProvider {
 
         if !response.status().is_success() {
             let status = response.status();
+            // P0-3: 服务端错误详情只记日志，不暴露给前端
             let detail = response.text().await.unwrap_or_default();
+            error!("LLM 服务返回错误 ({}): {}", status, detail);
             return TranslationResult::err(
                 PROVIDER_ID,
                 "OpenAI 兼容",
-                format!("LLM 服务返回错误 ({status}): {detail}"),
+                format!("LLM 服务返回错误 ({status})"),
             );
         }
 

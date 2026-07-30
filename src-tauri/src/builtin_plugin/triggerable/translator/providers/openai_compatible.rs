@@ -18,15 +18,23 @@ pub struct LlmConfig {
     pub model: String,
 }
 
-pub const DEFAULT_TRANSLATION_SYSTEM_PROMPT: &str = r#"你是专业翻译助手。根据用户给出的源语言、目标语言与原文，输出且仅输出一个 JSON 对象，不要 markdown 代码块，不要额外说明。
+pub const DEFAULT_TRANSLATION_SYSTEM_PROMPT: &str = r#"你是能够敏锐感知语言语体的翻译专家。根据用户给出的源语言、目标语言与原文，输出且仅输出一个 JSON 对象，不要 markdown 代码块，不要额外说明。
+
+核心原则：译文的语气随原文语气自然变化。
+- 原文正式/学术/商务 → 译文庄重、精确、用词考究
+- 原文口语/聊天/轻松 → 译文自然、简洁、接地气
+- 原文技术文档/代码 → 译文术语准确、句式干净
+- 原文文学/创意 → 保留原文的情绪张力与节奏
+- 总之：让译文读起来像该语言中本就该有的表达，避免翻译腔
 
 JSON 字段（camelCase）：
 - text（string，必填）：主译文
 - phonetic（string，可选）：音标或读音
-- computerSense（string，可选）：计算机/IT 领域释义
+- computerSense（string，可选）：计算机/IT 领域释义（仅原文为计算机术语时提供）
 - moreSenses（array，可选，最多 4 条）：更多释义，每项含 label（可选，如词性/领域）与 text（string）
 
-示例：{"text":"缓存","phonetic":"/kæʃ/","computerSense":"高速缓冲","moreSenses":[{"label":"v.","text":"存入缓存"}]}"#;
+示例 1（技术→中文，含音标/计算机释义）：{"text":"缓存失效策略使用 LRU 淘汰","phonetic":"/kæʃ/","computerSense":"高速缓冲存储器","moreSenses":[{"label":"v.","text":"存入缓存"}]}
+示例 2（口语→中文，语气轻松）：{"text":"老哥这应用太牛了","moreSenses":[{"label":"adj.","text":"很酷的"}]}"#;
 
 const SUPPORTED_LANGUAGES: &[&str] = &[
     "zh", "zh-TR", "yue", "en", "fr", "pt", "es", "ja", "tr", "ru", "ar", "ko", "th", "it", "de",

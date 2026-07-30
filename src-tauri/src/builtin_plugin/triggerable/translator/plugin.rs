@@ -79,8 +79,6 @@ enum OnEnterDecision {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct TranslatorSettings {
-    #[serde(default = "default_enabled_true")]
-    enabled: bool,
     #[serde(default = "default_translate_mode")]
     translate_mode: String,
     #[serde(default = "default_target")]
@@ -116,10 +114,6 @@ const LLM_VENDOR_OPTIONS: &[&str] = &[
     "小米 MiMo",
     LLM_VENDOR_CUSTOM,
 ];
-
-fn default_enabled_true() -> bool {
-    true
-}
 
 fn default_translate_mode() -> String {
     TRANSLATE_MODE_LIVE.into()
@@ -158,7 +152,6 @@ fn vendor_base_url(vendor: &str) -> Option<&'static str> {
 impl Default for TranslatorSettings {
     fn default() -> Self {
         Self {
-            enabled: true,
             translate_mode: default_translate_mode(),
             default_target: default_target(),
             enabled_providers: default_enabled_providers(),

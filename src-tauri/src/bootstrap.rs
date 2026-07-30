@@ -319,34 +319,83 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
     });
 
     // 注册内置运行时组件到 PluginComponentRegistry 和 SessionRouter
-    for (_, ex) in &collected.executors {
-        session_router.register_executor(ex.clone());
+    for (c, ex) in &collected.executors {
+        if config_manager.find_configurable(c.component_id()).is_some() {
+            session_router.register_executor(ex.clone());
+        } else {
+            warn!(
+                "组件 {} 的 Configurable 注册失败，跳过 Executor 注册",
+                c.component_id()
+            );
+        }
     }
-    for (_, se) in &collected.search_engines {
-        session_router
-            .components()
-            .register_search_engine(se.clone());
+    for (c, se) in &collected.search_engines {
+        if config_manager.find_configurable(c.component_id()).is_some() {
+            session_router
+                .components()
+                .register_search_engine(se.clone());
+        } else {
+            warn!(
+                "组件 {} 的 Configurable 注册失败，跳过 SearchEngine 注册",
+                c.component_id()
+            );
+        }
     }
-    for (_, sb) in &collected.score_boosters {
-        session_router
-            .components()
-            .register_score_booster(sb.clone());
+    for (c, sb) in &collected.score_boosters {
+        if config_manager.find_configurable(c.component_id()).is_some() {
+            session_router
+                .components()
+                .register_score_booster(sb.clone());
+        } else {
+            warn!(
+                "组件 {} 的 Configurable 注册失败，跳过 ScoreBooster 注册",
+                c.component_id()
+            );
+        }
     }
-    for (_, ds) in &collected.data_sources {
-        session_router.components().register_data_source(ds.clone());
+    for (c, ds) in &collected.data_sources {
+        if config_manager.find_configurable(c.component_id()).is_some() {
+            session_router.components().register_data_source(ds.clone());
+        } else {
+            warn!(
+                "组件 {} 的 Configurable 注册失败，跳过 DataSource 注册",
+                c.component_id()
+            );
+        }
     }
-    for (_, ko) in &collected.keyword_optimizers {
-        session_router
-            .components()
-            .register_keyword_optimizer(ko.clone());
+    for (c, ko) in &collected.keyword_optimizers {
+        if config_manager.find_configurable(c.component_id()).is_some() {
+            session_router
+                .components()
+                .register_keyword_optimizer(ko.clone());
+        } else {
+            warn!(
+                "组件 {} 的 Configurable 注册失败，跳过 KeywordOptimizer 注册",
+                c.component_id()
+            );
+        }
     }
-    for (_, ki) in &collected.keyword_injectors {
-        session_router
-            .components()
-            .register_keyword_injector(ki.clone());
+    for (c, ki) in &collected.keyword_injectors {
+        if config_manager.find_configurable(c.component_id()).is_some() {
+            session_router
+                .components()
+                .register_keyword_injector(ki.clone());
+        } else {
+            warn!(
+                "组件 {} 的 Configurable 注册失败，跳过 KeywordInjector 注册",
+                c.component_id()
+            );
+        }
     }
-    for (_, p) in &collected.plugins {
-        session_router.plugin_service().register(p.clone());
+    for (c, p) in &collected.plugins {
+        if config_manager.find_configurable(c.component_id()).is_some() {
+            session_router.plugin_service().register(p.clone());
+        } else {
+            warn!(
+                "组件 {} 的 Configurable 注册失败，跳过 Plugin 注册",
+                c.component_id()
+            );
+        }
     }
 
     info!(

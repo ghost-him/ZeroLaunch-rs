@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import type { BridgeQueryResponse, ConfirmPayload, ConfirmResponse, ComponentInfo, ComponentSchema, ConfigActionDef, ConfigActionPayload, SearchTimingResult, IndexTimingResult, SearchDetailItem } from './contract'
+import type { BridgeQueryResponse, ConfirmPayload, ConfirmResponse, ComponentInfo, ComponentSchema, ConfigActionDef, ConfigActionPayload, PanelInteraction, SearchTimingResult, IndexTimingResult, SearchDetailItem } from './contract'
 export interface BridgeError {
   code: string
   message: string
@@ -69,6 +69,11 @@ export function bridgeGetCandidatesCount(): Promise<number> {
 
 export function bridgeHideWindow(): Promise<void> {
   return invokeCommand<void>('bridge_hide_window')
+}
+
+/** 获取指定插件的交互策略（防抖延迟等），独立于查询响应。 */
+export function pluginInteraction(pluginId: string): Promise<PanelInteraction> {
+  return invokeCommand<PanelInteraction>('bridge_plugin_interaction', { pluginId })
 }
 
 

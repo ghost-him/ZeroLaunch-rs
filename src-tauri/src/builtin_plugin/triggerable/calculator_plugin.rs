@@ -8,7 +8,8 @@ use zerolaunch_plugin_api::config::{ComponentCore, ComponentType, ConfigError, C
 use zerolaunch_plugin_api::host::PluginHandle;
 use zerolaunch_plugin_api::services::IconRequest;
 use zerolaunch_plugin_api::{
-    Plugin, PluginContext, PluginError, PluginMetadata, Query, QueryResponse, ResultAction,
+    PanelInteraction, Plugin, PluginContext, PluginError, PluginMetadata, Query, QueryResponse,
+    ResultAction,
 };
 
 pub struct CalculatorPlugin {
@@ -106,6 +107,10 @@ impl Plugin for CalculatorPlugin {
         Ok(())
     }
 
+    fn interaction_policy(&self) -> PanelInteraction {
+        PanelInteraction::default()
+    }
+
     async fn query(
         &self,
         _ctx: &PluginContext,
@@ -123,7 +128,6 @@ impl Plugin for CalculatorPlugin {
                 }),
                 actions: vec![],
                 keep_search_bar: true,
-                interaction: Default::default(),
             });
         }
 
@@ -151,7 +155,6 @@ impl Plugin for CalculatorPlugin {
                         shortcut_key: "Enter".to_string(),
                     }],
                     keep_search_bar: true,
-                    interaction: Default::default(),
                 })
             }
             Err(error) => Ok(QueryResponse::CustomPanel {
@@ -163,7 +166,6 @@ impl Plugin for CalculatorPlugin {
                 }),
                 actions: vec![],
                 keep_search_bar: true,
-                interaction: Default::default(),
             }),
         }
     }

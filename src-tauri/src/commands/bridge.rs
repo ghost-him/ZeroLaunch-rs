@@ -246,7 +246,7 @@ pub async fn bridge_query(
             data,
             actions,
             keep_search_bar,
-            interaction,
+            ..
         } => {
             let mode = if keep_search_bar {
                 "plugin_panel"
@@ -264,7 +264,7 @@ pub async fn bridge_query(
                 panel_data: Some(data),
                 panel_actions: Some(actions.into_iter().map(|a| a.into()).collect()),
                 inline_param: None,
-                panel_interaction: Some(interaction),
+                panel_interaction: None,
             })
         }
         QueryResponse::InlineParam {
@@ -361,6 +361,16 @@ pub fn bridge_get_session_mode(state: tauri::State<'_, Arc<AppState>>) -> String
         .current_mode()
         .as_str()
         .to_string()
+}
+
+/// 获取指定插件的交互策略（防抖延迟等）。
+/// 由前端在首次收到插件面板响应后主动查询，不依附于查询响应。
+#[tauri::command]
+pub fn bridge_plugin_interaction(
+    state: tauri::State<'_, Arc<AppState>>,
+    plugin_id: String,
+) -> PanelInteraction {
+    state.get_session_router().route_interaction(&plugin_id)
 }
 
 // ============================================================================

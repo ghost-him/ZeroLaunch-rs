@@ -1,6 +1,8 @@
 use crate::config::configurable::Configurable;
 use crate::host::plugin_handle::PluginHandle;
-use crate::plugin::types::{PluginContext, PluginError, PluginMetadata, Query, QueryResponse};
+use crate::plugin::types::{
+    PanelInteraction, PluginContext, PluginError, PluginMetadata, Query, QueryResponse,
+};
 use async_trait::async_trait;
 use std::sync::Arc;
 
@@ -23,4 +25,11 @@ pub trait Plugin: Configurable {
         action_id: &str,
         payload: serde_json::Value,
     ) -> Result<(), PluginError>;
+
+    /// 返回插件当前生效的交互策略（防抖延迟、提交行为等）。
+    /// 这是一次快速、同步的调用，不涉及 IO 或网络。
+    /// 默认返回无防抖、Execute 提交的交互策略。
+    fn interaction_policy(&self) -> PanelInteraction {
+        PanelInteraction::default()
+    }
 }

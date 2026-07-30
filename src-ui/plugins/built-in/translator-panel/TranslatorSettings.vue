@@ -53,6 +53,7 @@ type TranslatorLocalSettings = {
   default_target: string
   enabled_providers: string[]
   request_timeout_ms: number
+  live_debounce_secs: number
   llm_vendor: string
   llm_base_url: string
   llm_api_key: string
@@ -124,6 +125,7 @@ function defaults(): TranslatorLocalSettings {
     default_target: 'zh',
     enabled_providers: [OPENAI_COMPATIBLE_ID],
     request_timeout_ms: 15000,
+    live_debounce_secs: 1.0,
     llm_vendor: '自定义',
     llm_base_url: '',
     llm_api_key: '',
@@ -158,6 +160,10 @@ function fromProps(raw: unknown): TranslatorLocalSettings {
       typeof o.request_timeout_ms === 'number'
         ? o.request_timeout_ms
         : base.request_timeout_ms,
+    live_debounce_secs:
+      typeof o.live_debounce_secs === 'number'
+        ? o.live_debounce_secs
+        : base.live_debounce_secs,
     llm_vendor: vendorRaw,
     llm_base_url: typeof o.llm_base_url === 'string' ? o.llm_base_url : base.llm_base_url,
     llm_api_key: typeof o.llm_api_key === 'string' ? o.llm_api_key : base.llm_api_key,
@@ -313,6 +319,7 @@ async function onSave() {
       default_target: local.default_target,
       enabled_providers: enabled,
       request_timeout_ms: local.request_timeout_ms,
+      live_debounce_secs: local.live_debounce_secs,
       llm_vendor: local.llm_vendor,
       llm_base_url: local.llm_base_url.trim(),
       llm_api_key: local.llm_api_key,
@@ -360,6 +367,19 @@ async function onSave() {
               :step="500"
               class="control-full"
             />
+          </div>
+        </div>
+        <div class="form-field">
+          <label class="field-label">即时翻译防抖（秒）</label>
+          <div class="field-control">
+            <n-input-number
+              v-model:value="local.live_debounce_secs"
+              :min="0.1"
+              :max="5.0"
+              :step="0.1"
+              class="control-full"
+            />
+            <p class="field-hint">即时模式下输入后的防抖等待时间，减少冗余请求</p>
           </div>
         </div>
       </FormSection>

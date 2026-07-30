@@ -15,8 +15,8 @@ use zerolaunch_plugin_api::services::parameter::template_parser::{Placeholder, T
 use zerolaunch_plugin_api::services::ParameterSnapshot;
 use zerolaunch_plugin_api::{
     ActionExecutor, CachedCandidateData, CandidateId, ConfirmResult, ExecutionContext,
-    ExecutionError, ListItem, Plugin, PluginContext, Query, QueryResponse, ScoredCandidate,
-    SearchCandidate,
+    ExecutionError, ListItem, PanelInteraction, Plugin, PluginContext, Query, QueryResponse,
+    ScoredCandidate, SearchCandidate,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -451,6 +451,12 @@ impl SessionRouter {
                 "No active session".to_string(),
             )),
         }
+    }
+
+    /// 获取指定插件的交互策略（防抖延迟、提交行为等）。
+    /// 不涉及 IO，直接读取插件配置后同步返回。
+    pub fn route_interaction(&self, plugin_id: &str) -> PanelInteraction {
+        self.plugin_service.interaction_policy(plugin_id)
     }
 
     /// 从 payload 中提取 user_args

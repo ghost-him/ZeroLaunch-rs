@@ -31,6 +31,8 @@ pub struct TranslatorPlugin {
     registry: ProviderRegistry,
     /// `on_enter` 模式：同一正文连续第二次 query 才真正请求 LLM。
     on_enter_gate: RwLock<OnEnterGate>,
+    /// 最近一次成功翻译的译文文本，供 execute_action 写入剪贴板。
+    last_result_text: RwLock<Option<String>>,
 }
 
 /// 手动确认门控状态（仅插件内部，不扩展框架 Query）。
@@ -88,6 +90,9 @@ struct TranslatorSettings {
     enabled_providers: Vec<String>,
     #[serde(default = "default_request_timeout_ms")]
     request_timeout_ms: u64,
+    /// 即时翻译模式下的防抖等待时间（秒），减少冗余请求。
+    #[serde(default = "default_live_debounce_secs")]
+    live_debounce_secs: f64,
     /// 厂商预设；选非「自定义」时在 normalize 中写入对应 Base URL。
     #[serde(default = "default_llm_vendor")]
     llm_vendor: String,
@@ -131,6 +136,10 @@ fn default_request_timeout_ms() -> u64 {
     15000
 }
 
+fn default_live_debounce_secs() -> f64 {
+    1.0
+}
+
 fn default_llm_vendor() -> String {
     LLM_VENDOR_CUSTOM.into()
 }
@@ -156,6 +165,7 @@ impl Default for TranslatorSettings {
             default_target: default_target(),
             enabled_providers: default_enabled_providers(),
             request_timeout_ms: default_request_timeout_ms(),
+            live_debounce_secs: default_live_debounce_secs(),
             llm_vendor: default_llm_vendor(),
             llm_base_url: String::new(),
             llm_api_key: String::new(),
@@ -231,6 +241,7 @@ impl TranslatorPlugin {
             llm_config,
             registry,
             on_enter_gate: RwLock::new(OnEnterGate::default()),
+            last_result_text: RwLock::new(None),
         }
     }
 
@@ -298,7 +309,6 @@ impl TranslatorPlugin {
             }),
             actions: vec![],
             keep_search_bar: true,
-            interaction: PanelInteraction::default(),
         }
     }
 
@@ -314,10 +324,6 @@ impl TranslatorPlugin {
             }),
             actions: vec![],
             keep_search_bar: true,
-            interaction: PanelInteraction {
-                submit_behavior: PanelSubmitBehavior::Requery,
-                query_debounce_ms: 0,
-            },
         }
     }
 
@@ -334,7 +340,6 @@ impl TranslatorPlugin {
             }),
             actions: vec![],
             keep_search_bar: true,
-            interaction: PanelInteraction::default(),
         }
     }
 
@@ -377,11 +382,7 @@ impl TranslatorPlugin {
         }
     }
 
-    fn aggregate_to_panel(
-        parsed: &ParsedQuery,
-        agg: AggregateResult,
-        debounce_ms: u64,
-    ) -> QueryResponse {
+    fn aggregate_to_panel(parsed: &ParsedQuery, agg: AggregateResult) -> QueryResponse {
         let has_primary = agg
             .primary
             .as_ref()
@@ -431,10 +432,6 @@ impl TranslatorPlugin {
             }),
             actions,
             keep_search_bar: true,
-            interaction: PanelInteraction {
-                submit_behavior: PanelSubmitBehavior::Execute,
-                query_debounce_ms: debounce_ms,
-            },
         }
     }
 }
@@ -510,6 +507,18 @@ impl Configurable for TranslatorPlugin {
             .order(3)
             .default(15000.0)
             .build(),
+            SchemaBuilder::number(
+                "live_debounce_secs",
+                "即时翻译防抖（秒）",
+                "即时模式下输入后的防抖等待时间，减少冗余请求",
+            )
+            .min(0.1)
+            .max(5.0)
+            .step(0.1)
+            .group("基础")
+            .order(2)
+            .default(1.0)
+            .build(),
             SchemaBuilder::select(
                 "llm_vendor",
                 "厂商预设",
@@ -577,6 +586,21 @@ impl Configurable for TranslatorPlugin {
 impl Plugin for TranslatorPlugin {
     fn metadata(&self) -> &PluginMetadata {
         &self.metadata
+    }
+
+    fn interaction_policy(&self) -> PanelInteraction {
+        let settings = self.inner.read();
+        if settings.is_on_enter_mode() {
+            PanelInteraction {
+                submit_behavior: PanelSubmitBehavior::Execute,
+                query_debounce_ms: 0,
+            }
+        } else {
+            PanelInteraction {
+                submit_behavior: PanelSubmitBehavior::Execute,
+                query_debounce_ms: (settings.live_debounce_secs * 1000.0) as u64,
+            }
+        }
     }
 
     async fn init(
@@ -668,9 +692,14 @@ impl Plugin for TranslatorPlugin {
             )
             .await;
 
-        // live 模式 300ms 防抖，on_enter 模式不防抖
-        let debounce_ms = if settings.is_on_enter_mode() { 0 } else { 300 };
-        let panel = Self::aggregate_to_panel(&parsed, agg, debounce_ms);
+        // 缓存译文文本，供 execute_action 写入剪贴板
+        *self.last_result_text.write() = agg
+            .primary
+            .as_ref()
+            .filter(|r| r.is_success())
+            .map(|r| r.text.clone());
+
+        let panel = Self::aggregate_to_panel(&parsed, agg);
         if settings.is_on_enter_mode() {
             self.remember_on_enter_result(&fingerprint, &panel);
         }
@@ -684,7 +713,14 @@ impl Plugin for TranslatorPlugin {
         _payload: serde_json::Value,
     ) -> Result<(), PluginError> {
         if action_id == "copy_primary" || action_id.starts_with("copy_alt:") {
-            // 剪贴板由前端写入
+            let text = self.last_result_text.read().clone();
+            if let Some(text) = text {
+                let mut clipboard = arboard::Clipboard::new()
+                    .map_err(|e| PluginError::ActionFailed(format!("剪贴板初始化失败: {}", e)))?;
+                clipboard
+                    .set_text(&text)
+                    .map_err(|e| PluginError::ActionFailed(format!("剪贴板写入失败: {}", e)))?;
+            }
             Ok(())
         } else {
             Err(PluginError::ActionFailed(format!(
@@ -742,17 +778,15 @@ mod tests {
         let ctx = PluginContext::new("test");
         let resp = plugin.query(&ctx, &sample_query("hello")).await.unwrap();
 
+        let policy = plugin.interaction_policy();
         match resp {
             QueryResponse::CustomPanel {
-                panel_type,
-                data,
-                interaction,
-                ..
+                panel_type, data, ..
             } => {
                 assert_eq!(panel_type, "translator");
                 assert_eq!(data["status"], "error");
-                assert_eq!(interaction.submit_behavior, PanelSubmitBehavior::Execute);
-                assert_eq!(interaction.query_debounce_ms, 300);
+                assert_eq!(policy.submit_behavior, PanelSubmitBehavior::Execute);
+                assert_eq!(policy.query_debounce_ms, 1000);
                 let msg = data["message"].as_str().unwrap_or("");
                 assert!(
                     msg.contains("设置") || msg.contains("填写"),
@@ -774,17 +808,13 @@ mod tests {
         };
         let resp = plugin.query(&ctx, &q).await.unwrap();
 
+        let policy = plugin.interaction_policy();
         match resp {
-            QueryResponse::CustomPanel {
-                data,
-                actions,
-                interaction,
-                ..
-            } => {
+            QueryResponse::CustomPanel { data, actions, .. } => {
                 assert_eq!(data["status"], "empty");
                 assert!(actions.is_empty());
-                assert_eq!(interaction.submit_behavior, PanelSubmitBehavior::Execute);
-                assert_eq!(interaction.query_debounce_ms, 0);
+                assert_eq!(policy.submit_behavior, PanelSubmitBehavior::Execute);
+                assert_eq!(policy.query_debounce_ms, 1000);
             }
             other => panic!("期望 CustomPanel，实际 {:?}", other),
         }
@@ -812,19 +842,15 @@ mod tests {
         let ctx = PluginContext::new("test");
         let resp = plugin.query(&ctx, &sample_query("hello")).await.unwrap();
 
+        let policy = plugin.interaction_policy();
         match resp {
-            QueryResponse::CustomPanel {
-                data,
-                actions,
-                interaction,
-                ..
-            } => {
+            QueryResponse::CustomPanel { data, actions, .. } => {
                 assert_eq!(data["status"], "ready");
                 assert_eq!(data["query"]["text"], "hello");
                 assert_eq!(data["message"], "按 Enter 翻译");
                 assert!(actions.is_empty());
-                assert_eq!(interaction.submit_behavior, PanelSubmitBehavior::Requery);
-                assert_eq!(interaction.query_debounce_ms, 0);
+                assert_eq!(policy.submit_behavior, PanelSubmitBehavior::Execute);
+                assert_eq!(policy.query_debounce_ms, 0);
             }
             other => panic!("期望 CustomPanel，实际 {:?}", other),
         }
@@ -838,22 +864,19 @@ mod tests {
         let ctx = PluginContext::new("test");
         let q = sample_query("hello");
         let first = plugin.query(&ctx, &q).await.unwrap();
+        let policy = plugin.interaction_policy();
         match &first {
-            QueryResponse::CustomPanel {
-                data, interaction, ..
-            } => {
+            QueryResponse::CustomPanel { data, .. } => {
                 assert_eq!(data["status"], "ready");
-                assert_eq!(interaction.submit_behavior, PanelSubmitBehavior::Requery);
-                assert_eq!(interaction.query_debounce_ms, 0);
+                assert_eq!(policy.submit_behavior, PanelSubmitBehavior::Execute);
+                assert_eq!(policy.query_debounce_ms, 0);
             }
             other => panic!("首次应 ready，实际 {:?}", other),
         }
 
         let second = plugin.query(&ctx, &q).await.unwrap();
         match second {
-            QueryResponse::CustomPanel {
-                data, interaction, ..
-            } => {
+            QueryResponse::CustomPanel { data, .. } => {
                 // 无凭据时应进入翻译路径并返回 error（而非 ready）
                 assert_eq!(data["status"], "error");
                 let msg = data["message"].as_str().unwrap_or("");
@@ -861,8 +884,8 @@ mod tests {
                     msg.contains("设置") || msg.contains("填写"),
                     "期望进入 LLM 路径的配置错误，实际: {msg}"
                 );
-                assert_eq!(interaction.submit_behavior, PanelSubmitBehavior::Execute);
-                assert_eq!(interaction.query_debounce_ms, 0);
+                assert_eq!(policy.submit_behavior, PanelSubmitBehavior::Execute);
+                assert_eq!(policy.query_debounce_ms, 0);
             }
             other => panic!("期望 CustomPanel，实际 {:?}", other),
         }
@@ -876,14 +899,13 @@ mod tests {
 
         let _ = plugin.query(&ctx, &sample_query("hello")).await.unwrap();
         let resp = plugin.query(&ctx, &sample_query("world")).await.unwrap();
+        let policy = plugin.interaction_policy();
         match resp {
-            QueryResponse::CustomPanel {
-                data, interaction, ..
-            } => {
+            QueryResponse::CustomPanel { data, .. } => {
                 assert_eq!(data["status"], "ready");
                 assert_eq!(data["query"]["text"], "world");
-                assert_eq!(interaction.submit_behavior, PanelSubmitBehavior::Requery);
-                assert_eq!(interaction.query_debounce_ms, 0);
+                assert_eq!(policy.submit_behavior, PanelSubmitBehavior::Execute);
+                assert_eq!(policy.query_debounce_ms, 0);
             }
             other => panic!("期望 ready，实际 {:?}", other),
         }

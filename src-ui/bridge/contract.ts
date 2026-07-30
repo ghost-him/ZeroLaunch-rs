@@ -40,11 +40,11 @@ export interface PanelInteraction {
 }
 
 export type BridgeQueryResponse =
-  | { mode: 'search'; results: ListItem[]; panelType: null; panelData: null; panelActions: null; inlineParam: null; panelInteraction: null }
-  | { mode: 'empty'; results: ListItem[]; panelType: null; panelData: null; panelActions: null; inlineParam: null; panelInteraction: null }
-  | { mode: 'plugin_panel'; results: ListItem[]; panelType: string; panelData: unknown; panelActions: ResultAction[]; inlineParam: null; panelInteraction: PanelInteraction }
-  | { mode: 'plugin_immersive'; results: ListItem[]; panelType: string; panelData: unknown; panelActions: ResultAction[]; inlineParam: null; panelInteraction: PanelInteraction }
-  | { mode: 'inline_param'; results: never[]; panelType: null; panelData: null; panelActions: null; inlineParam: InlineParamData; panelInteraction: null }
+  | { mode: 'search'; results: ListItem[]; panelType: null; panelData: null; panelActions: null; inlineParam: null }
+  | { mode: 'empty'; results: ListItem[]; panelType: null; panelData: null; panelActions: null; inlineParam: null }
+  | { mode: 'plugin_panel'; results: ListItem[]; panelType: string; panelData: unknown; panelActions: ResultAction[]; inlineParam: null }
+  | { mode: 'plugin_immersive'; results: ListItem[]; panelType: string; panelData: unknown; panelActions: ResultAction[]; inlineParam: null }
+  | { mode: 'inline_param'; results: never[]; panelType: null; panelData: null; panelActions: null; inlineParam: InlineParamData }
 
 export interface ConfirmPayload {
   candidateId: number

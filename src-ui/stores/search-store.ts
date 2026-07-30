@@ -4,6 +4,7 @@ import {
   bridgeQuery, bridgeConfirm,
   bridgeRefreshCandidates, bridgeGetCandidatesCount,
   bridgeHideWindow,
+  pluginInteraction,
 } from '../bridge/commands'
 import type { ListItem, ResultAction, BridgeQueryResponse, ConfirmResponse, PanelInteraction } from '../bridge/contract'
 import { onSessionReset } from '../bridge/events'
@@ -134,9 +135,9 @@ export const useSearchStore = defineStore('search', () => {
       debounceTimer = null
     }
 
-    // 插件模式下已有防抖延迟则延迟实际 IPC 调用
+    // 防抖：未达间隔前不发送 IPC（首次或 dm=0 时直发）
     const dm = panelInteraction.value?.queryDebounceMs ?? 0
-    if ((sessionMode.value === 'inline_plugin' || sessionMode.value === 'full_page_plugin') && dm > 0) {
+    if (dm > 0) {
       debounceTimer = window.setTimeout(() => {
         debounceTimer = null
         doQueryImpl(raw, seq)
@@ -149,7 +150,9 @@ export const useSearchStore = defineStore('search', () => {
 
   async function doQueryImpl(raw: string, seq: number) {
     try {
+      console.log(`[doQuery] Sending query: "${raw}" (seq=${seq})`)
       const resp: BridgeQueryResponse = await bridgeQuery(raw)
+
       if (seq !== querySeq) return
 
       selectedActionIndex.value = 0
@@ -186,7 +189,15 @@ export const useSearchStore = defineStore('search', () => {
           panelType.value = resp.panelType
           panelData.value = resp.panelData
           panelActions.value = resp.panelActions
-          panelInteraction.value = resp.panelInteraction
+          // 面板交互策略已从 QueryResponse 剥离，改为独立 IPC 查询。
+          // 后端同步返回，在下次用户输入前即可完成。
+          pluginInteraction(resp.panelType).then((interaction) => {
+            console.log(`[doQuery] Plugin interaction policy for ${resp.panelType}:`, interaction)
+            panelInteraction.value = interaction
+          }).catch((e) => {
+            console.warn('[doQuery] 获取插件交互策略失败:', e)
+            panelInteraction.value = null
+          })
           selectedIndex.value = 0
           break
       }
@@ -400,6 +411,13 @@ export const useSearchStore = defineStore('search', () => {
   }
 
   function resetLocalSession() {
+    // 取消未触发的防抖定时器
+    if (debounceTimer !== null) {
+      clearTimeout(debounceTimer)
+      debounceTimer = null
+    }
+    // 递增序号使所有在途响应的 seq 失效，防止慢请求盖写新状态
+    querySeq++
     query.value = ''
     results.value = []
     sessionMode.value = 'none'

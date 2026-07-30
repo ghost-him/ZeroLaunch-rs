@@ -333,9 +333,6 @@ pub enum QueryResponse {
         actions: Vec<ResultAction>,
         #[serde(rename = "keepSearchBar")]
         keep_search_bar: bool,
-        /// 当前面板的通用交互策略。
-        #[serde(rename = "interaction", default)]
-        interaction: PanelInteraction,
     },
     #[serde(rename = "empty")]
     Empty,

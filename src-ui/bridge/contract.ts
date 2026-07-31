@@ -39,6 +39,13 @@ export interface PanelInteraction {
   queryDebounceMs: number
 }
 
+/** 后端路由确定插件面板时推送的交互策略事件 payload。 */
+export interface PanelInteractionEvent {
+  pluginId: string
+  submitBehavior: PanelSubmitBehavior
+  queryDebounceMs: number
+}
+
 export type BridgeQueryResponse =
   | { mode: 'search'; results: ListItem[]; panelType: null; panelData: null; panelActions: null; inlineParam: null }
   | { mode: 'empty'; results: ListItem[]; panelType: null; panelData: null; panelActions: null; inlineParam: null }

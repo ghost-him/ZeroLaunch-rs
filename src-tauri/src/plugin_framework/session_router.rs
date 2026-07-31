@@ -7,6 +7,7 @@ use crate::builtin_plugin::config::bias_config::{bias_settings_to_rules, BiasSet
 use crate::core::config::{ConfigEvent, ConfigManager};
 use crate::sdk::HostApi;
 use parking_lot::{Mutex, RwLock};
+use serde::Serialize;
 use std::fmt;
 use std::sync::Arc;
 use tracing::{debug, info};
@@ -104,6 +105,27 @@ impl fmt::Display for SessionRouterError {
 
 impl std::error::Error for SessionRouterError {}
 
+/// 面板交互策略推送事件 —— 后端路由确定/切换插件面板时发送给前端的 payload。
+///
+/// 由 SessionRouter 在路由阶段构造（进入或切换到不同插件面板时），
+/// 经 bootstrap 注入的 emitter 回调通过 Tauri 事件通道 `panel-interaction` 推送；
+/// CLI 等无窗口场景不注入 emitter，不产生此事件。
+/// `interaction` 字段使用 `#[serde(flatten)]` 内嵌，复用 `PanelInteraction` 的稳定序列化契约。
+#[derive(Debug, Clone, Serialize)]
+pub struct PanelInteractionEvent {
+    /// 面板所属插件 ID（如 "translator"、"calculator"）。
+    plugin_id: String,
+    /// 交互策略：确认动作语义（execute/requery）与输入防抖延迟。
+    #[serde(flatten)]
+    interaction: PanelInteraction,
+}
+
+/// 面板交互策略推送回调 —— 接收路由阶段构造的交互策略事件，经 Tauri 事件通道推送给前端。
+///
+/// 仅 SessionRouter 内部使用：路由确定/切换插件面板及配置变更时调用。
+/// 由 bootstrap 在拿到 AppHandle 后注入；CLI 等无窗口场景不注入。
+type InteractionEmitter = Arc<dyn Fn(PanelInteractionEvent) + Send + Sync>;
+
 pub struct SessionRouter {
     plugin_service: Arc<PluginService>,
     search_pipeline: Arc<RwLock<Option<SearchPipeline>>>,
@@ -121,6 +143,9 @@ pub struct SessionRouter {
     components: PluginComponentRegistry,
     /// 上次构建管道时的 top_k 值
     last_top_k: RwLock<usize>,
+    /// 面板交互策略推送回调（进入/切换插件面板时调用）。
+    /// None 表示未注入（如 CLI 无窗口场景）；内部可变性仅由 set_interaction_emitter 写入。
+    interaction_emitter: RwLock<Option<InteractionEmitter>>,
 }
 
 impl SessionRouter {
@@ -137,6 +162,7 @@ impl SessionRouter {
             parameter_snapshot: Mutex::new(ParameterSnapshot::empty()),
             components: PluginComponentRegistry::new(),
             last_top_k: RwLock::new(10),
+            interaction_emitter: RwLock::new(None),
         }
     }
 
@@ -273,14 +299,35 @@ impl SessionRouter {
                     keep_search_bar, ..
                 } => {
                     if *keep_search_bar {
-                        SessionMode::InlinePlugin(plugin_id)
+                        SessionMode::InlinePlugin(plugin_id.clone())
                     } else {
-                        SessionMode::FullPagePlugin(plugin_id)
+                        SessionMode::FullPagePlugin(plugin_id.clone())
                     }
                 }
-                _ => SessionMode::InlinePlugin(plugin_id),
+                _ => SessionMode::InlinePlugin(plugin_id.clone()),
+            };
+            // 面板切换检测：仅当进入或切换到不同插件面板时推送交互策略。
+            // 面板内重复查询不重复推送；退出面板由前端在响应分支中自行清空。
+            let old_plugin = match &*self.current_mode.read() {
+                SessionMode::InlinePlugin(id) | SessionMode::FullPagePlugin(id) => Some(id.clone()),
+                _ => None,
+            };
+            let new_plugin = match &mode {
+                SessionMode::InlinePlugin(id) | SessionMode::FullPagePlugin(id) => Some(id.clone()),
+                _ => None,
             };
             *self.current_mode.write() = mode;
+            if old_plugin != new_plugin {
+                if let Some(plugin_id) = new_plugin {
+                    let policy = self.plugin_service.interaction_policy(&plugin_id);
+                    if let Some(emitter) = self.interaction_emitter.read().clone() {
+                        emitter(PanelInteractionEvent {
+                            plugin_id,
+                            interaction: policy,
+                        });
+                    }
+                }
+            }
             return results;
         }
 
@@ -453,10 +500,26 @@ impl SessionRouter {
         }
     }
 
-    /// 获取指定插件的交互策略（防抖延迟、提交行为等）。
-    /// 不涉及 IO，直接读取插件配置后同步返回。
-    pub fn route_interaction(&self, plugin_id: &str) -> PanelInteraction {
-        self.plugin_service.interaction_policy(plugin_id)
+    /// 注入面板交互策略推送回调。
+    /// 由 bootstrap 在拿到 AppHandle 后注入；不注入时（如 CLI 场景）策略仅随查询路由使用。
+    pub fn set_interaction_emitter(&self, emitter: InteractionEmitter) {
+        *self.interaction_emitter.write() = Some(emitter);
+    }
+
+    /// 重新推送当前面板的交互策略。
+    /// 配置变更后调用，保证面板内调整防抖等设置即时生效（面板内查询不会触发重新推送）。
+    pub fn reemit_current_interaction(&self) {
+        let plugin_id = match &*self.current_mode.read() {
+            SessionMode::InlinePlugin(id) | SessionMode::FullPagePlugin(id) => id.clone(),
+            _ => return,
+        };
+        let policy = self.plugin_service.interaction_policy(&plugin_id);
+        if let Some(emitter) = self.interaction_emitter.read().clone() {
+            emitter(PanelInteractionEvent {
+                plugin_id,
+                interaction: policy,
+            });
+        }
     }
 
     /// 从 payload 中提取 user_args

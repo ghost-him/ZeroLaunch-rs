@@ -4,10 +4,9 @@ import {
   bridgeQuery, bridgeConfirm,
   bridgeRefreshCandidates, bridgeGetCandidatesCount,
   bridgeHideWindow,
-  pluginInteraction,
 } from '../bridge/commands'
-import type { ListItem, ResultAction, BridgeQueryResponse, ConfirmResponse, PanelInteraction } from '../bridge/contract'
-import { onSessionReset } from '../bridge/events'
+import type { ListItem, ResultAction, BridgeQueryResponse, ConfirmResponse, PanelInteraction, PanelInteractionEvent } from '../bridge/contract'
+import { onSessionReset, onPanelInteraction } from '../bridge/events'
 
 export type SessionMode = 'none' | 'search' | 'inline_param' | 'param_panel' | 'inline_plugin' | 'full_page_plugin'
 
@@ -189,15 +188,6 @@ export const useSearchStore = defineStore('search', () => {
           panelType.value = resp.panelType
           panelData.value = resp.panelData
           panelActions.value = resp.panelActions
-          // 面板交互策略已从 QueryResponse 剥离，改为独立 IPC 查询。
-          // 后端同步返回，在下次用户输入前即可完成。
-          pluginInteraction(resp.panelType).then((interaction) => {
-            console.log(`[doQuery] Plugin interaction policy for ${resp.panelType}:`, interaction)
-            panelInteraction.value = interaction
-          }).catch((e) => {
-            console.warn('[doQuery] 获取插件交互策略失败:', e)
-            panelInteraction.value = null
-          })
           selectedIndex.value = 0
           break
       }
@@ -457,6 +447,12 @@ export const useSearchStore = defineStore('search', () => {
   // 监听后端 session-reset 事件，同步前端状态
   onSessionReset(() => {
     resetLocalSession()
+  })
+
+  // 监听后端推送的面板交互策略：路由确定插件面板时推送一次，面板内不再重复。
+  // 事件总是描述当前会话最新路由的面板，无条件接受即可；退出面板由各响应分支清空。
+  onPanelInteraction((payload: PanelInteractionEvent) => {
+    panelInteraction.value = payload
   })
 
   return {

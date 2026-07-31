@@ -238,6 +238,14 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
 
     session_router.set_config_manager(config_manager.clone());
 
+    // 注入面板交互策略推送回调：路由确定插件后立即推送，不等慢查询响应，
+    // 保证慢查询期间的新输入也能正确应用防抖（见 zerolaunch-panel-interaction 设计）。
+    let app_handle_for_policy = state.get_main_handle();
+    let policy_emitter = Arc::new(move |event| {
+        let _ = app_handle_for_policy.emit("panel-interaction", event);
+    });
+    session_router.set_interaction_emitter(policy_emitter);
+
     // 订阅配置事件
     let event_router = session_router.clone();
     let app_handle = state.get_main_handle();
@@ -264,6 +272,8 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
                                 "componentType": format!("{:?}", component_type),
                             }),
                         );
+                        // 面板交互策略随配置变更重新推送（如面板内调整防抖延迟）
+                        event_router.reemit_current_interaction();
                     }
                     // 配置变更后自动触发远程同步（fire-and-forget）
                     match &event {

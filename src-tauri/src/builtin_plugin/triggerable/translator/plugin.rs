@@ -3,6 +3,7 @@ use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::sync::Arc;
+use tracing::info;
 use zerolaunch_plugin_api::config::{
     ComponentCore, ComponentType, ConfigError, Configurable, PrimitiveType, SettingDefinition,
 };
@@ -562,7 +563,7 @@ impl Plugin for TranslatorPlugin {
 
     async fn query(
         &self,
-        _ctx: &PluginContext,
+        ctx: &PluginContext,
         query: &Query,
     ) -> Result<QueryResponse, PluginError> {
         let search_term = query.search_term.trim();
@@ -624,15 +625,28 @@ impl Plugin for TranslatorPlugin {
                 &settings.enabled_providers,
                 settings.preferred_provider_id(),
                 settings.request_timeout_ms,
+                &ctx.trace_id,
+                ctx.query_revision(),
             )
             .await;
 
-        // 缓存译文文本，供 execute_action 写入剪贴板
-        *self.last_result_text.write() = agg
-            .primary
-            .as_ref()
-            .filter(|r| r.is_success())
-            .map(|r| r.text.clone());
+        // 缓存译文文本，供 execute_action 写入剪贴板。
+        // 仅当查询仍为最新时写入，避免过期查询的慢响应覆盖新结果
+        // （复制动作始终拿到与面板一致的最新译文）。
+        if ctx.is_query_current() {
+            *self.last_result_text.write() = agg
+                .primary
+                .as_ref()
+                .filter(|r| r.is_success())
+                .map(|r| r.text.clone());
+        } else {
+            info!(
+                trace_id = %ctx.trace_id,
+                query_revision = ctx.query_revision(),
+                site = "plugin_cache",
+                "查询过期，丢弃翻译结果缓存写入"
+            );
+        }
 
         Ok(Self::aggregate_to_panel(&parsed, agg))
     }
@@ -859,6 +873,64 @@ mod tests {
             }
             other => panic!("期望 CustomPanel，实际 {:?}", other),
         }
+    }
+
+    #[tokio::test]
+    /// 过期查询（更新的查询已进入后端）不得覆盖共享译文缓存。
+    async fn stale_query_does_not_overwrite_result_cache() {
+        use std::sync::atomic::AtomicU64;
+        use std::sync::Arc;
+        use zerolaunch_plugin_api::QueryRevisionGate;
+
+        let plugin = TranslatorPlugin::new();
+        plugin
+            .apply_settings(json!({
+                "translate_mode": TRANSLATE_MODE_LIVE,
+                "default_target": "zh",
+                "enabled_providers": [MOCK_PROVIDER_ID],
+            }))
+            .unwrap();
+
+        let latest = Arc::new(AtomicU64::new(2));
+
+        // 当前查询（revision=2，与最新一致）：正常写入译文缓存。
+        let mut ctx = PluginContext::new("test");
+        ctx.set_query_revision_gate(QueryRevisionGate::new(2, latest.clone()));
+        plugin.query(&ctx, &sample_query("hello")).await.unwrap();
+        assert!(
+            plugin.last_result_text.read().is_some(),
+            "最新查询应写入译文缓存"
+        );
+
+        // 过期查询（revision=1，最新已推进到 2）：翻译照常执行，但不得覆盖缓存。
+        let mut stale_ctx = PluginContext::new("test");
+        stale_ctx.set_query_revision_gate(QueryRevisionGate::new(1, latest));
+        let resp = plugin
+            .query(&stale_ctx, &sample_query("world"))
+            .await
+            .unwrap();
+        match resp {
+            QueryResponse::CustomPanel { data, .. } => {
+                assert_eq!(data["status"], "ok");
+            }
+            other => panic!("期望 CustomPanel，实际 {:?}", other),
+        }
+        assert_eq!(
+            plugin.last_result_text.read().as_deref(),
+            Some("模拟示例占位译文"),
+            "过期查询不得覆盖最新译文缓存"
+        );
+
+        // 无门控上下文（远端插件/测试默认）：恒为最新，正常写入。
+        let plain_ctx = PluginContext::new("test");
+        plugin
+            .query(&plain_ctx, &sample_query("again"))
+            .await
+            .unwrap();
+        assert!(
+            plugin.last_result_text.read().is_some(),
+            "无门控上下文应视为最新并写入缓存"
+        );
     }
 
     #[tokio::test]

@@ -310,6 +310,8 @@ impl ActionExecutor for RemoteComponent {
                         trace_id: "exec".into(),
                         query_id: None,
                         plugin_id: Some(self.core.component_id().to_string()),
+                        // 远端插件无宿主查询版本门控，恒视为最新。
+                        query_revision_gate: None,
                     },
                     action_id: action_id.to_string(),
                 },

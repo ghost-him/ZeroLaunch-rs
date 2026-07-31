@@ -9,6 +9,7 @@ use crate::sdk::HostApi;
 use parking_lot::{Mutex, RwLock};
 use serde::Serialize;
 use std::fmt;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tracing::{debug, info};
 use zerolaunch_plugin_api::config::ComponentType;
@@ -17,7 +18,7 @@ use zerolaunch_plugin_api::services::ParameterSnapshot;
 use zerolaunch_plugin_api::{
     ActionExecutor, CachedCandidateData, CandidateId, ConfirmResult, ExecutionContext,
     ExecutionError, ListItem, PanelInteraction, Plugin, PluginContext, Query, QueryResponse,
-    ScoredCandidate, SearchCandidate,
+    QueryRevisionGate, ScoredCandidate, SearchCandidate,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -151,6 +152,10 @@ pub struct SessionRouter {
     /// 面板交互策略推送回调（进入/切换插件面板时调用）。
     /// None 表示未注入（如 CLI 无窗口场景）；内部可变性仅由 set_interaction_emitter 写入。
     interaction_emitter: RwLock<Option<InteractionEmitter>>,
+    /// 查询版本计数器：route_query 入口为每次查询分配单调递增版本号，
+    /// 提交门控据此丢弃过期查询的副作用写入（会话模式、面板交互事件、插件共享缓存）。
+    /// Arc 共享给插件侧 QueryRevisionGate 使用。
+    next_query_revision: Arc<AtomicU64>,
 }
 
 impl SessionRouter {
@@ -168,6 +173,7 @@ impl SessionRouter {
             components: PluginComponentRegistry::new(),
             last_top_k: RwLock::new(10),
             interaction_emitter: RwLock::new(None),
+            next_query_revision: Arc::new(AtomicU64::new(0)),
         }
     }
 
@@ -289,13 +295,56 @@ impl SessionRouter {
         (ms, self.get_cached_candidates_count())
     }
 
-    #[tracing::instrument(skip(self, query), fields(trace_id = %trace_id))]
+    /// 日志脱敏辅助：返回（字符长度, 截断预览），避免 INFO 日志暴露完整用户输入。
+    /// 预览取前 24 个字符，超长以省略号结尾；DEBUG 日志仍可输出完整原文。
+    /// 参数：raw - 用户原始输入。
+    fn log_query_preview(raw: &str) -> (usize, String) {
+        const PREVIEW_LEN: usize = 24;
+        let len = raw.chars().count();
+        let preview: String = raw.chars().take(PREVIEW_LEN).collect();
+        if len > PREVIEW_LEN {
+            (len, format!("{preview}…"))
+        } else {
+            (len, preview)
+        }
+    }
+
+    #[tracing::instrument(skip(self, query), fields(trace_id = %trace_id, query_revision))]
     pub async fn route_query(&self, trace_id: &str, query: &Query) -> QueryResponse {
+        // 分配单调递增查询版本号：任何新查询进入后端即视为取代先前查询。
+        let revision = self.next_query_revision.fetch_add(1, Ordering::Relaxed) + 1;
+        tracing::Span::current().record("query_revision", revision);
+        let (query_len, query_preview) = Self::log_query_preview(&query.raw_query);
+        info!(
+            query_revision = revision,
+            raw_query_len = query_len,
+            raw_query_preview = %query_preview,
+            confirm = query.confirm,
+            "查询开始"
+        );
+
         let mut ctx = PluginContext::new(trace_id);
         ctx.with_query(query.raw_query.clone());
+        ctx.set_query_revision_gate(QueryRevisionGate::new(
+            revision,
+            self.next_query_revision.clone(),
+        ));
 
         // 这里的查询路由逻辑是：优先让插件处理查询（如果匹配），否则走内置搜索管道。
         let results = self.plugin_service.query(&ctx, query).await;
+
+        // 提交门控：查询执行期间若有更新的查询进入后端，本查询已过期（判定单调，
+        // 过期后不会再变回最新），直接丢弃本次结果并返回空响应——
+        // 前端按 seq 丢弃过期响应；CLI 无 seq 时，过期查询返回空结果也优于返回过期数据。
+        if self.next_query_revision.load(Ordering::Relaxed) != revision {
+            info!(
+                query_revision = revision,
+                latest_query_revision = self.next_query_revision.load(Ordering::Relaxed),
+                site = "route",
+                "查询过期，丢弃查询结果"
+            );
+            return QueryResponse::Empty;
+        }
 
         if let Some((plugin_id, results)) = results {
             // 根据插件的 keep_search_bar 选择行内或全页面模式
@@ -321,6 +370,12 @@ impl SessionRouter {
                 SessionMode::InlinePlugin(id) | SessionMode::FullPagePlugin(id) => Some(id.clone()),
                 _ => None,
             };
+            info!(
+                query_revision = revision,
+                target = %plugin_id,
+                mode = %mode.as_str(),
+                "路由命中插件"
+            );
             *self.current_mode.write() = mode;
             if old_plugin != new_plugin {
                 if let Some(plugin_id) = new_plugin {
@@ -340,6 +395,8 @@ impl SessionRouter {
         // 任何新查询隐式重置会话模式为 Search，
         // 这是前端 exitInlineParamMode / exitParamPanelMode / exitPluginMode 通过 doQuery('') 退出模式的契约基础。
         *self.current_mode.write() = SessionMode::Search;
+
+        info!(query_revision = revision, target = "search", "路由命中搜索");
 
         let cached_candidate = self.cached_candidates.read();
 

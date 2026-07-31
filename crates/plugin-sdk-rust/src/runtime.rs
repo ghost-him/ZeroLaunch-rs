@@ -259,6 +259,8 @@ async fn dispatch(
                 trace_id: "init".into(),
                 query_id: None,
                 plugin_id: Some(p.plugin_id),
+                // 远端插件无宿主查询版本门控，恒视为最新。
+                query_revision_gate: None,
             });
             let result = InitializeResult {
                 plugin_version: plugin.metadata().version.clone(),

@@ -8,6 +8,6 @@ pub use types::{
     ActionExecutor, CandidateId, ConfirmResult, DataSource, ExecutionContext, ExecutionError,
     ExecutionTarget, KeywordInjector, KeywordOptimizer, ListItem, PanelInteraction,
     PanelQueryTrigger, PluginContext, PluginError, PluginMetadata, Query, QueryResponse,
-    RegistrationError, ResultAction, ScoreBooster, ScoreDetail, ScoredCandidate, SearchCandidate,
-    SearchEngine, TargetType,
+    QueryRevisionGate, RegistrationError, ResultAction, ScoreBooster, ScoreDetail, ScoredCandidate,
+    SearchCandidate, SearchEngine, TargetType,
 };

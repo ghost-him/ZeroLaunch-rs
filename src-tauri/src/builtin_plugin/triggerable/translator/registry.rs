@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
+use tracing::info;
 
 use super::provider::{LanguageSupport, TranslateRequest, TranslationProvider, TranslationResult};
 use super::providers::{mock_mirror_from, mock_placeholder_result, MOCK_PROVIDER_ID};
@@ -43,12 +44,15 @@ impl ProviderRegistry {
     /// 对已启用引擎并行翻译，并按 **enabled 顺序**聚合主结果与备选。
     /// 不支持当前语言对的引擎会直接返回错误结果，不发起网络请求。
     /// 启用 mock 时：优先镜像其它引擎的成功结果，否则使用固定占位。
+    /// 参数：trace_id/query_revision - 链路追踪与查询版本号，随 Provider 日志输出。
     pub async fn translate_all(
         &self,
         req: &TranslateRequest,
         enabled: &[String],
         primary_id: &str,
         timeout_ms: u64,
+        trace_id: &str,
+        query_revision: u64,
     ) -> AggregateResult {
         // 按用户启用顺序选取（拖拽调序依赖此顺序）
         let selected: Vec<_> = enabled
@@ -60,6 +64,7 @@ impl ProviderRegistry {
         let mut set = tokio::task::JoinSet::new();
         for provider in selected {
             let req = req.clone();
+            let trace_id = trace_id.to_string();
             set.spawn(async move {
                 let id = provider.id().to_string();
                 let name = provider.name().to_string();
@@ -71,15 +76,33 @@ impl ProviderRegistry {
                         format!("不支持语言对 {}→{}", req.source, req.target),
                     );
                 }
-                match tokio::time::timeout(
+                info!(
+                    trace_id,
+                    query_revision,
+                    provider_id = %id,
+                    "翻译开始"
+                );
+                let start = std::time::Instant::now();
+                let result = match tokio::time::timeout(
                     std::time::Duration::from_millis(timeout_ms),
                     provider.translate(&req),
                 )
                 .await
                 {
                     Ok(result) => result,
-                    Err(_) => TranslationResult::err(id, name, "超时"),
-                }
+                    Err(_) => TranslationResult::err(id.clone(), name, "超时"),
+                };
+                let duration_ms = start.elapsed().as_millis() as u64;
+                let status = if result.is_success() { "ok" } else { "error" };
+                info!(
+                    trace_id,
+                    query_revision,
+                    provider_id = %id,
+                    duration_ms,
+                    status,
+                    "翻译结束"
+                );
+                result
             });
         }
 
@@ -255,7 +278,7 @@ mod tests {
         let req = sample_request();
 
         let result = registry
-            .translate_all(&req, &enabled(&["a", "b"]), "a", 1000)
+            .translate_all(&req, &enabled(&["a", "b"]), "a", 1000, "test", 0)
             .await;
 
         assert_eq!(result.status, AggregateStatus::Ok);
@@ -279,7 +302,14 @@ mod tests {
         let req = sample_request();
 
         let result = registry
-            .translate_all(&req, &enabled(&["primary", "fallback"]), "primary", 1000)
+            .translate_all(
+                &req,
+                &enabled(&["primary", "fallback"]),
+                "primary",
+                1000,
+                "test",
+                0,
+            )
             .await;
 
         assert_eq!(result.status, AggregateStatus::Partial);
@@ -300,7 +330,7 @@ mod tests {
         let req = sample_request();
 
         let result = registry
-            .translate_all(&req, &enabled(&["a", "b"]), "a", 1000)
+            .translate_all(&req, &enabled(&["a", "b"]), "a", 1000, "test", 0)
             .await;
 
         assert_eq!(result.status, AggregateStatus::Error);
@@ -321,7 +351,7 @@ mod tests {
         let req = sample_request();
 
         let result = registry
-            .translate_all(&req, &enabled(&["slow", "fast"]), "slow", 1)
+            .translate_all(&req, &enabled(&["slow", "fast"]), "slow", 1, "test", 0)
             .await;
 
         let slow = result
@@ -346,7 +376,7 @@ mod tests {
         };
 
         let result = registry
-            .translate_all(&req, &enabled(&["a"]), "a", 1000)
+            .translate_all(&req, &enabled(&["a"]), "a", 1000, "test", 0)
             .await;
 
         assert_eq!(result.status, AggregateStatus::Error);
@@ -399,7 +429,14 @@ mod tests {
         let req = sample_request();
 
         let result = registry
-            .translate_all(&req, &enabled(&["a", MOCK_PROVIDER_ID]), "a", 1000)
+            .translate_all(
+                &req,
+                &enabled(&["a", MOCK_PROVIDER_ID]),
+                "a",
+                1000,
+                "test",
+                0,
+            )
             .await;
 
         assert_eq!(result.status, AggregateStatus::Ok);
@@ -425,7 +462,14 @@ mod tests {
         let req = sample_request();
 
         let result = registry
-            .translate_all(&req, &enabled(&[MOCK_PROVIDER_ID]), MOCK_PROVIDER_ID, 1000)
+            .translate_all(
+                &req,
+                &enabled(&[MOCK_PROVIDER_ID]),
+                MOCK_PROVIDER_ID,
+                1000,
+                "test",
+                0,
+            )
             .await;
 
         assert_eq!(result.status, AggregateStatus::Ok);
@@ -449,7 +493,7 @@ mod tests {
         let req = sample_request();
 
         let result = registry
-            .translate_all(&req, &enabled(&["b", "a"]), "b", 1000)
+            .translate_all(&req, &enabled(&["b", "a"]), "b", 1000, "test", 0)
             .await;
 
         let primary = result.primary.expect("primary");

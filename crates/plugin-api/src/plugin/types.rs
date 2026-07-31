@@ -4,6 +4,8 @@ use crate::services::icon_request::IconRequest;
 use crate::services::parameter::types::ParameterSnapshot;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 
 pub type CandidateId = u64;
 
@@ -249,6 +251,37 @@ pub trait ActionExecutor: Configurable {
     async fn execute(&self, ctx: &ExecutionContext, action_id: &str) -> Result<(), ExecutionError>;
 }
 
+/// 查询版本门控：宿主在每次查询入口分配单调递增版本号，
+/// 供插件在写入跨查询共享状态（如翻译结果缓存）前判断自身查询
+/// 是否已被更新的查询取代。
+///
+/// 仅宿主进程内使用（内置插件经 PluginContext 注入）；不跨 RPC 传输，
+/// 远端插件或直接构造的上下文无门控，此时视为始终为最新。
+#[derive(Debug, Clone)]
+pub struct QueryRevisionGate {
+    /// 当前查询被分配的版本号。
+    revision: u64,
+    /// 宿主侧「最新已分配版本」计数器（每次查询入口 fetch_add）。
+    latest: Arc<AtomicU64>,
+}
+
+impl QueryRevisionGate {
+    /// 创建门控：revision 为当前查询的版本号，latest 为共享的最新版本计数器。
+    pub fn new(revision: u64, latest: Arc<AtomicU64>) -> Self {
+        Self { revision, latest }
+    }
+
+    /// 当前查询的版本号，供日志与追踪使用。
+    pub fn revision(&self) -> u64 {
+        self.revision
+    }
+
+    /// 当前查询是否仍是最新：成立才允许写入跨查询共享状态。
+    pub fn is_current(&self) -> bool {
+        self.latest.load(Ordering::Relaxed) == self.revision
+    }
+}
+
 /// 请求级上下文，在宿主与插件之间共享。
 /// 服务于插件生命周期/查询/动作调用，并携带日志关联 ID。
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -259,6 +292,10 @@ pub struct PluginContext {
     pub query_id: Option<String>,
     // 处理当前请求的插件 ID
     pub plugin_id: Option<String>,
+    /// 查询版本门控（宿主注入；#[serde(skip)] 不跨 RPC 传输，
+    /// 远端插件或直接构造的上下文为 None，此时视为始终为最新）。
+    #[serde(skip)]
+    pub query_revision_gate: Option<QueryRevisionGate>,
 }
 
 impl PluginContext {
@@ -267,6 +304,7 @@ impl PluginContext {
             trace_id: trace_id.to_string(),
             query_id: None,
             plugin_id: None,
+            query_revision_gate: None,
         }
     }
 
@@ -276,6 +314,25 @@ impl PluginContext {
 
     pub fn with_plugin_id(&mut self, plugin_id: String) {
         self.plugin_id = Some(plugin_id);
+    }
+
+    /// 注入查询版本门控（宿主查询入口调用）。
+    pub fn set_query_revision_gate(&mut self, gate: QueryRevisionGate) {
+        self.query_revision_gate = Some(gate);
+    }
+
+    /// 当前查询是否仍是最新；无门控（远端插件、测试、mock）恒为 true。
+    pub fn is_query_current(&self) -> bool {
+        self.query_revision_gate
+            .as_ref()
+            .is_none_or(|g| g.is_current())
+    }
+
+    /// 当前查询的版本号；无门控时为 0，仅供日志使用。
+    pub fn query_revision(&self) -> u64 {
+        self.query_revision_gate
+            .as_ref()
+            .map_or(0, |g| g.revision())
     }
 }
 
@@ -462,8 +519,54 @@ pub enum PluginError {
 
 #[cfg(test)]
 mod tests {
-    use super::{PanelInteraction, PanelQueryTrigger};
+    use super::{PanelInteraction, PanelQueryTrigger, PluginContext, QueryRevisionGate};
     use serde_json::json;
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::Arc;
+
+    #[test]
+    /// 验证门控：计数器未越过时当前查询仍有效，越过后失效。
+    fn query_revision_gate_tracks_latest() {
+        let latest = Arc::new(AtomicU64::new(2));
+        let gate = QueryRevisionGate::new(2, latest.clone());
+        assert!(gate.is_current(), "版本号与最新一致时应有效");
+        assert_eq!(gate.revision(), 2);
+
+        latest.fetch_add(1, Ordering::Relaxed);
+        assert!(!gate.is_current(), "更新的查询到达后应失效");
+    }
+
+    #[test]
+    /// 验证 PluginContext 门控默认行为与注入行为。
+    fn plugin_context_gate_defaults_to_current() {
+        let mut ctx = PluginContext::new("trace-1");
+        assert!(ctx.is_query_current(), "无门控时应恒为最新");
+        assert_eq!(ctx.query_revision(), 0);
+
+        let latest = Arc::new(AtomicU64::new(1));
+        ctx.set_query_revision_gate(QueryRevisionGate::new(1, latest));
+        assert!(ctx.is_query_current());
+    }
+
+    #[test]
+    /// 验证门控字段不参与序列化（不跨 RPC 传输），反序列化后为 None。
+    fn plugin_context_skips_gate_in_serialization() {
+        let mut ctx = PluginContext::new("trace-2");
+        ctx.set_query_revision_gate(QueryRevisionGate::new(1, Arc::new(AtomicU64::new(1))));
+        let json = serde_json::to_string(&ctx).expect("上下文应可序列化");
+        assert!(
+            !json.contains("revision") && !json.contains("gate"),
+            "门控字段不应出现在序列化结果中: {}",
+            json
+        );
+
+        let roundtrip: PluginContext = serde_json::from_str(&json).expect("上下文应可反序列化");
+        assert!(
+            roundtrip.query_revision_gate.is_none(),
+            "反序列化后门控应为 None"
+        );
+        assert!(roundtrip.is_query_current());
+    }
 
     #[test]
     /// 验证面板交互策略的 JSON 字段名、枚举值和默认值。

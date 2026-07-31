@@ -23,6 +23,7 @@ pub async fn handle(
         id: trace_id.0.clone(),
         raw_query: req.raw_query.clone(),
         search_term: req.raw_query.to_lowercase(),
+        confirm: false,
     };
 
     let response = state

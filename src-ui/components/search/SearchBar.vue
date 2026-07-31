@@ -20,13 +20,11 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { NInput, useNotification } from 'naive-ui'
-import { useSearch } from '../../composables/useSearch'
 import { useSettings } from '../../composables/useSettings'
 import { useThemeStore } from '../../stores/theme-store'
 import { useSearchStore } from '../../stores/search-store'
 import type { CtxItem } from '../layout/ContextMenu.vue'
 
-const { handleInput } = useSearch()
 const { openSettings } = useSettings()
 const themeStore = useThemeStore()
 const searchStore = useSearchStore()
@@ -47,7 +45,11 @@ const inputValue = computed({
       searchStore.inlineParamState.paramInput = val
     } else {
       searchStore.query = val
-      handleInput(val)
+      // 输入变化始终触发查询（confirm=false）：
+      // - 自动模式（onInput）：后端正常翻译；
+      // - 手动模式（onEnter）：后端返回 ready 预览，翻译仅由 Enter 确认查询触发。
+      // 查询同时承担路由职责：文本回退到插件触发词之外时，后端回落搜索，前端据此退出面板。
+      searchStore.doQuery(val)
     }
   },
 })

@@ -289,29 +289,33 @@ pub struct Query {
     pub raw_query: String,
     /// 派生自 raw_query 的搜索词。普通搜索为全小写形式，插件模式为剥离触发关键词后的剩余部分。
     pub search_term: String,
+    /// 是否由用户显式确认（如按 Enter）触发的查询。
+    /// 行内插件手动模式（PanelQueryTrigger::OnEnter）用它区分确认查询与预览查询；默认 false。
+    #[serde(rename = "confirm", default)]
+    pub confirm: bool,
 }
 
-/// 插件面板确认操作的通用语义。
-/// 服务于宿主判断默认确认操作是执行动作还是重新发起同文查询。
+/// 插件面板查询触发方式的通用语义。
+/// 服务于宿主判断行内插件模式下输入后是否自动发起查询。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-pub enum PanelSubmitBehavior {
-    /// 执行当前面板的默认动作或选中动作。
+pub enum PanelQueryTrigger {
+    /// 输入后自动触发查询（默认；配合 query_debounce_ms 防抖）。
     #[default]
-    #[serde(rename = "execute")]
-    Execute,
-    /// 使用当前查询文本再次发起查询。
-    #[serde(rename = "requery")]
-    Requery,
+    #[serde(rename = "onInput")]
+    OnInput,
+    /// 输入不自动触发查询，由用户按 Enter 手动触发。
+    #[serde(rename = "onEnter")]
+    OnEnter,
 }
 
 /// 插件面板响应携带的通用交互策略。
-/// 服务于宿主处理确认操作与后续输入查询，不属于插件持久化配置。
+/// 服务于宿主处理输入查询触发时机，不属于插件持久化配置。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct PanelInteraction {
-    /// 默认确认操作的语义。
-    #[serde(rename = "submitBehavior", default)]
-    pub submit_behavior: PanelSubmitBehavior,
-    /// 后续输入触发查询前的防抖延迟，单位为毫秒。
+    /// 查询触发方式：onInput 输入自动触发 / onEnter 由用户按 Enter 手动触发。
+    #[serde(rename = "queryTrigger", default)]
+    pub query_trigger: PanelQueryTrigger,
+    /// 后续输入触发查询前的防抖延迟，单位为毫秒（仅 onInput 模式生效）。
     #[serde(rename = "queryDebounceMs", default)]
     pub query_debounce_ms: u64,
 }
@@ -458,21 +462,21 @@ pub enum PluginError {
 
 #[cfg(test)]
 mod tests {
-    use super::{PanelInteraction, PanelSubmitBehavior};
+    use super::{PanelInteraction, PanelQueryTrigger};
     use serde_json::json;
 
     #[test]
     /// 验证面板交互策略的 JSON 字段名、枚举值和默认值。
     fn panel_interaction_serializes_with_stable_contract() {
         let interaction = PanelInteraction {
-            submit_behavior: PanelSubmitBehavior::Requery,
+            query_trigger: PanelQueryTrigger::OnEnter,
             query_debounce_ms: 300,
         };
         let value = serde_json::to_value(&interaction).expect("交互策略应可序列化");
         assert_eq!(
             value,
             json!({
-                "submitBehavior": "requery",
+                "queryTrigger": "onEnter",
                 "queryDebounceMs": 300,
             })
         );

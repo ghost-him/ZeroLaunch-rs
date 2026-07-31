@@ -58,9 +58,10 @@
 </template>
 
 <script setup lang="ts">
-import { provide, ref, nextTick } from 'vue'
+import { provide, ref, nextTick, watch } from 'vue'
 import { onMounted, onUnmounted } from 'vue'
 import { useNotification } from 'naive-ui'
+import { useI18n } from 'vue-i18n'
 import WindowFrame from '../components/layout/WindowFrame.vue'
 import SearchBar from '../components/search/SearchBar.vue'
 import ResultList from '../components/results/ResultList.vue'
@@ -79,6 +80,29 @@ import type { BridgeError } from '../bridge/commands'
 
 const searchStore = useSearchStore()
 const notification = useNotification()
+const { t } = useI18n()
+
+// 重复 Enter 拦截提示（onEnter 模式同文本已确认）：瞬态状态 → 弹通知后复位
+watch(() => searchStore.confirmBlockedHint, (blocked) => {
+  if (blocked) {
+    notification.info({
+      title: t('search.duplicateEnter'),
+      duration: 2000,
+    })
+    searchStore.confirmBlockedHint = false
+  }
+})
+
+// 确认查询已发出提示（onEnter 模式按 Enter 开始翻译）：瞬态状态 → 弹通知后复位
+watch(() => searchStore.confirmStartedHint, (started) => {
+  if (started) {
+    notification.info({
+      title: t('search.translationStarted'),
+      duration: 2000,
+    })
+    searchStore.confirmStartedHint = false
+  }
+})
 
 const { uiMode } = useKeyboardRouter()
 const { resizeWindow } = useWindowResize()

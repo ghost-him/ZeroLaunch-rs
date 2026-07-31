@@ -14,7 +14,9 @@
     "placeholder": "Type to search...",
     "noResults": "No results",
     "ready": "Ready",
-    "candidates": "{count} candidates"
+    "candidates": "{count} candidates",
+    "duplicateEnter": "Do not press Enter repeatedly; edit the text to confirm again",
+    "translationStarted": "Translation started, please wait..."
   },
   "footer": {
     "settings": "Settings",

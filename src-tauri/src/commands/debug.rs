@@ -182,6 +182,7 @@ pub async fn debug_simulate_query(
         id: trace_id.clone(),
         raw_query: raw_query.clone(),
         search_term: raw_query.to_lowercase(),
+        confirm: false,
     };
     let response = session_router.route_query(&trace_id, &query).await;
     Ok(serde_json::to_value(&response).unwrap_or_default())

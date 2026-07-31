@@ -9,8 +9,8 @@ use zerolaunch_plugin_api::config::{
 use zerolaunch_plugin_api::host::PluginHandle;
 use zerolaunch_plugin_api::services::IconRequest;
 use zerolaunch_plugin_api::{
-    PanelInteraction, PanelSubmitBehavior, Plugin, PluginContext, PluginError, PluginMetadata,
-    Query, QueryResponse, ResultAction,
+    PanelInteraction, PanelQueryTrigger, Plugin, PluginContext, PluginError, PluginMetadata, Query,
+    QueryResponse, ResultAction,
 };
 
 use crate::core::config::setting_builders::SchemaBuilder;
@@ -29,24 +29,8 @@ pub struct TranslatorPlugin {
     inner: RwLock<TranslatorSettings>,
     llm_config: Arc<RwLock<LlmConfig>>,
     registry: ProviderRegistry,
-    /// `on_enter` 模式：同一正文连续第二次 query 才真正请求 LLM。
-    on_enter_gate: RwLock<OnEnterGate>,
     /// 最近一次成功翻译的译文文本，供 execute_action 写入剪贴板。
     last_result_text: RwLock<Option<String>>,
-}
-
-/// 手动确认门控状态（仅插件内部，不扩展框架 Query）。
-#[derive(Default)]
-struct OnEnterGate {
-    /// 已展示 ready、等待 Enter 再查的正文指纹
-    pending: Option<String>,
-    /// 上次已完成翻译的正文指纹 + 面板（同文再次非确认查询时复用，避免结果被 ready 盖掉）
-    last_done: Option<String>,
-    last_panel: Option<QueryResponse>,
-}
-
-fn search_fingerprint(search_term: &str) -> String {
-    search_term.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 /// 语言代码 → 展示名称映射。
@@ -71,12 +55,6 @@ fn language_display_name(code: &str) -> String {
         "tr" => "Türkçe".into(),
         _ => code.to_string(),
     }
-}
-
-enum OnEnterDecision {
-    Ready,
-    Commit,
-    Reuse(QueryResponse),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -240,38 +218,8 @@ impl TranslatorPlugin {
             inner: RwLock::new(TranslatorSettings::default()),
             llm_config,
             registry,
-            on_enter_gate: RwLock::new(OnEnterGate::default()),
             last_result_text: RwLock::new(None),
         }
-    }
-
-    fn clear_on_enter_gate(&self) {
-        *self.on_enter_gate.write() = OnEnterGate::default();
-    }
-
-    /// `on_enter` 下：首次同文 → Ready；连续第二次 → Commit；已完成同文 → 复用面板。
-    fn on_enter_decision(&self, fingerprint: &str) -> OnEnterDecision {
-        let mut gate = self.on_enter_gate.write();
-        if gate.pending.as_deref() == Some(fingerprint) {
-            gate.pending = None;
-            return OnEnterDecision::Commit;
-        }
-        if gate.last_done.as_deref() == Some(fingerprint) {
-            if let Some(panel) = gate.last_panel.clone() {
-                return OnEnterDecision::Reuse(panel);
-            }
-        }
-        gate.pending = Some(fingerprint.to_string());
-        gate.last_done = None;
-        gate.last_panel = None;
-        OnEnterDecision::Ready
-    }
-
-    fn remember_on_enter_result(&self, fingerprint: &str, panel: &QueryResponse) {
-        let mut gate = self.on_enter_gate.write();
-        gate.pending = None;
-        gate.last_done = Some(fingerprint.to_string());
-        gate.last_panel = Some(panel.clone());
     }
 
     fn sync_llm_config(&self, settings: &TranslatorSettings) {
@@ -568,7 +516,6 @@ impl Configurable for TranslatorPlugin {
             .unwrap_or_default()
             .normalize();
         self.sync_llm_config(&parsed);
-        self.clear_on_enter_gate();
         *self.inner.write() = parsed;
         Ok(())
     }
@@ -592,12 +539,12 @@ impl Plugin for TranslatorPlugin {
         let settings = self.inner.read();
         if settings.is_on_enter_mode() {
             PanelInteraction {
-                submit_behavior: PanelSubmitBehavior::Execute,
+                query_trigger: PanelQueryTrigger::OnEnter,
                 query_debounce_ms: 0,
             }
         } else {
             PanelInteraction {
-                submit_behavior: PanelSubmitBehavior::Execute,
+                query_trigger: PanelQueryTrigger::OnInput,
                 query_debounce_ms: (settings.live_debounce_secs * 1000.0) as u64,
             }
         }
@@ -620,7 +567,6 @@ impl Plugin for TranslatorPlugin {
     ) -> Result<QueryResponse, PluginError> {
         let search_term = query.search_term.trim();
         if search_term.is_empty() {
-            self.clear_on_enter_gate();
             return Ok(Self::empty_panel(Self::usage_message()));
         }
 
@@ -637,7 +583,6 @@ impl Plugin for TranslatorPlugin {
         let parsed = match parse_search_term(search_term, &settings.default_target, &catalog) {
             Ok(p) => p,
             Err(ParseError::EmptyText) => {
-                self.clear_on_enter_gate();
                 return Ok(Self::empty_panel(Self::usage_message()));
             }
             Err(ParseError::InvalidLanguageCode(code)) => {
@@ -659,21 +604,11 @@ impl Plugin for TranslatorPlugin {
             ));
         }
 
-        let fingerprint = search_fingerprint(search_term);
-
-        // 手动模式：同一正文首次 → ready；Enter 再查同文 → 真正翻译（不扩展框架协议）。
-        if settings.is_on_enter_mode() {
-            match self.on_enter_decision(&fingerprint) {
-                OnEnterDecision::Ready => {
-                    return Ok(Self::ready_panel(&parsed));
-                }
-                OnEnterDecision::Reuse(panel) => {
-                    return Ok(panel);
-                }
-                OnEnterDecision::Commit => {}
-            }
-        } else {
-            self.clear_on_enter_gate();
+        // 手动模式（onEnter）：非确认查询（输入/路由触发）只返回 ready 提示；
+        // 确认查询（用户按 Enter，Query.confirm=true）走翻译路径。
+        // 重复 Enter 拦截由前端实现（确认查询在途/同文本已确认时不发查询），后端无跨查询状态。
+        if settings.is_on_enter_mode() && !query.confirm {
+            return Ok(Self::ready_panel(&parsed));
         }
 
         let req = TranslateRequest {
@@ -699,11 +634,7 @@ impl Plugin for TranslatorPlugin {
             .filter(|r| r.is_success())
             .map(|r| r.text.clone());
 
-        let panel = Self::aggregate_to_panel(&parsed, agg);
-        if settings.is_on_enter_mode() {
-            self.remember_on_enter_result(&fingerprint, &panel);
-        }
-        Ok(panel)
+        Ok(Self::aggregate_to_panel(&parsed, agg))
     }
 
     async fn execute_action(
@@ -750,10 +681,16 @@ mod tests {
     use super::*;
 
     fn sample_query(search_term: &str) -> Query {
+        sample_query_with_confirm(search_term, false)
+    }
+
+    /// 构造带确认标志的查询：confirm=true 模拟用户按 Enter 触发。
+    fn sample_query_with_confirm(search_term: &str, confirm: bool) -> Query {
         Query {
             id: "1".into(),
             raw_query: format!("fy {search_term}"),
             search_term: search_term.into(),
+            confirm,
         }
     }
 
@@ -785,7 +722,7 @@ mod tests {
             } => {
                 assert_eq!(panel_type, "translator");
                 assert_eq!(data["status"], "error");
-                assert_eq!(policy.submit_behavior, PanelSubmitBehavior::Execute);
+                assert_eq!(policy.query_trigger, PanelQueryTrigger::OnInput);
                 assert_eq!(policy.query_debounce_ms, 1000);
                 let msg = data["message"].as_str().unwrap_or("");
                 assert!(
@@ -805,6 +742,7 @@ mod tests {
             id: "2".into(),
             raw_query: "fy".into(),
             search_term: "".into(),
+            confirm: false,
         };
         let resp = plugin.query(&ctx, &q).await.unwrap();
 
@@ -813,7 +751,7 @@ mod tests {
             QueryResponse::CustomPanel { data, actions, .. } => {
                 assert_eq!(data["status"], "empty");
                 assert!(actions.is_empty());
-                assert_eq!(policy.submit_behavior, PanelSubmitBehavior::Execute);
+                assert_eq!(policy.query_trigger, PanelQueryTrigger::OnInput);
                 assert_eq!(policy.query_debounce_ms, 1000);
             }
             other => panic!("期望 CustomPanel，实际 {:?}", other),
@@ -849,7 +787,7 @@ mod tests {
                 assert_eq!(data["query"]["text"], "hello");
                 assert_eq!(data["message"], "按 Enter 翻译");
                 assert!(actions.is_empty());
-                assert_eq!(policy.submit_behavior, PanelSubmitBehavior::Execute);
+                assert_eq!(policy.query_trigger, PanelQueryTrigger::OnEnter);
                 assert_eq!(policy.query_debounce_ms, 0);
             }
             other => panic!("期望 CustomPanel，实际 {:?}", other),
@@ -857,34 +795,37 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn on_enter_second_same_query_enters_translate_path() {
+    async fn on_enter_confirm_query_enters_translate_path() {
         let plugin = TranslatorPlugin::new();
         apply_on_enter(&plugin);
 
         let ctx = PluginContext::new("test");
-        let q = sample_query("hello");
-        let first = plugin.query(&ctx, &q).await.unwrap();
+        // 非确认查询（输入/路由触发）→ ready
+        let first = plugin.query(&ctx, &sample_query("hello")).await.unwrap();
         let policy = plugin.interaction_policy();
         match &first {
             QueryResponse::CustomPanel { data, .. } => {
                 assert_eq!(data["status"], "ready");
-                assert_eq!(policy.submit_behavior, PanelSubmitBehavior::Execute);
+                assert_eq!(policy.query_trigger, PanelQueryTrigger::OnEnter);
                 assert_eq!(policy.query_debounce_ms, 0);
             }
             other => panic!("首次应 ready，实际 {:?}", other),
         }
 
-        let second = plugin.query(&ctx, &q).await.unwrap();
+        // 确认查询（Enter 触发，confirm=true）→ 翻译路径（无凭据 → error）
+        let second = plugin
+            .query(&ctx, &sample_query_with_confirm("hello", true))
+            .await
+            .unwrap();
         match second {
             QueryResponse::CustomPanel { data, .. } => {
-                // 无凭据时应进入翻译路径并返回 error（而非 ready）
                 assert_eq!(data["status"], "error");
                 let msg = data["message"].as_str().unwrap_or("");
                 assert!(
                     msg.contains("设置") || msg.contains("填写"),
                     "期望进入 LLM 路径的配置错误，实际: {msg}"
                 );
-                assert_eq!(policy.submit_behavior, PanelSubmitBehavior::Execute);
+                assert_eq!(policy.query_trigger, PanelQueryTrigger::OnEnter);
                 assert_eq!(policy.query_debounce_ms, 0);
             }
             other => panic!("期望 CustomPanel，实际 {:?}", other),
@@ -892,27 +833,36 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn on_enter_edit_text_resets_to_ready() {
+    async fn on_enter_edit_then_confirm_translates_directly() {
         let plugin = TranslatorPlugin::new();
         apply_on_enter(&plugin);
         let ctx = PluginContext::new("test");
 
-        let _ = plugin.query(&ctx, &sample_query("hello")).await.unwrap();
+        // 面板内改文本后非确认查询 → ready（展示最新文本）
         let resp = plugin.query(&ctx, &sample_query("world")).await.unwrap();
-        let policy = plugin.interaction_policy();
-        match resp {
+        match &resp {
             QueryResponse::CustomPanel { data, .. } => {
                 assert_eq!(data["status"], "ready");
                 assert_eq!(data["query"]["text"], "world");
-                assert_eq!(policy.submit_behavior, PanelSubmitBehavior::Execute);
-                assert_eq!(policy.query_debounce_ms, 0);
             }
             other => panic!("期望 ready，实际 {:?}", other),
         }
+
+        // 随后确认（Enter）→ 直接翻译路径，与文本改动历史无关（不再需要二次 Enter）
+        let confirm = plugin
+            .query(&ctx, &sample_query_with_confirm("world", true))
+            .await
+            .unwrap();
+        match confirm {
+            QueryResponse::CustomPanel { data, .. } => {
+                assert_eq!(data["status"], "error");
+            }
+            other => panic!("期望 CustomPanel，实际 {:?}", other),
+        }
     }
 
-    #[test]
-    fn kimi_vendor_fills_moonshot_base_url() {
+    #[tokio::test]
+    async fn kimi_vendor_fills_moonshot_base_url() {
         let settings = TranslatorSettings {
             llm_vendor: "Kimi".into(),
             llm_base_url: String::new(),

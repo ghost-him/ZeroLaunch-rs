@@ -32,18 +32,20 @@ export interface InlineParamData {
   userArgCount: number
 }
 
-export type PanelSubmitBehavior = 'execute' | 'requery'
+export type PanelQueryTrigger = 'onInput' | 'onEnter'
 
 export interface PanelInteraction {
-  submitBehavior: PanelSubmitBehavior
+  queryTrigger: PanelQueryTrigger
   queryDebounceMs: number
 }
 
 /** 后端路由确定插件面板时推送的交互策略事件 payload。 */
 export interface PanelInteractionEvent {
   pluginId: string
-  submitBehavior: PanelSubmitBehavior
-  queryDebounceMs: number
+  /** 交互策略：查询触发方式与防抖延迟（与 PanelInteraction 保持单一维护点）。 */
+  interaction: PanelInteraction
+  /** 插件触发词列表，用于判定输入是否仍属于当前插件（退出防抖豁免）。 */
+  triggerKeywords: string[]
 }
 
 export type BridgeQueryResponse =

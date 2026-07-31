@@ -499,7 +499,7 @@ impl From<ConfigError> for BridgeError {
 
 | Command                       | 参数                      | 返回                  | 说明                                               |
 | ----------------------------- | ------------------------- | --------------------- | -------------------------------------------------- |
-| `bridge_query`                | `raw_query: string`       | `BridgeQueryResponse` | 查询入口。输入变化时调用，后端路由到搜索管道或插件 |
+| `bridge_query`                | `raw_query: string, confirm: boolean` | `BridgeQueryResponse` | 查询入口。输入变化时调用（confirm=false）；onEnter 模式 Enter 确认时调用（confirm=true），后端路由到搜索管道或插件 |
 | `bridge_confirm`              | `payload: ConfirmPayload` | `void`                | 执行动作。用户选择候选项并触发动作时调用           |
 | `bridge_wake`                 | —                         | `void`                | 搜索栏唤醒。捕获系统参数快照（剪贴板、窗口句柄等） |
 | `bridge_reset`                | —                         | `void`                | 重置会话。窗口隐藏/关闭时调用                      |

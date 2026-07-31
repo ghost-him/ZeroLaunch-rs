@@ -66,6 +66,7 @@ impl PluginService {
                     id: query.id.clone(),
                     raw_query: query.raw_query.clone(),
                     search_term: search_term.to_string(),
+                    confirm: query.confirm,
                 };
                 let response = plugin.query(ctx, &query).await.unwrap();
                 return Some((plugin_id, response));
@@ -102,6 +103,17 @@ impl PluginService {
         self.registry
             .get(plugin_id)
             .map(|p| p.interaction_policy())
+            .unwrap_or_default()
+    }
+
+    /// 获取指定插件的触发词列表。
+    /// 随面板交互策略事件推送给前端，用于"输入是否仍属于当前插件"的退出判定。
+    /// 参数：plugin_id - 插件 ID。
+    /// 返回：触发词列表，找不到插件时返回空列表。
+    pub fn trigger_keywords(&self, plugin_id: &str) -> Vec<String> {
+        self.registry
+            .get(plugin_id)
+            .map(|p| p.metadata().trigger_keywords.clone())
             .unwrap_or_default()
     }
 

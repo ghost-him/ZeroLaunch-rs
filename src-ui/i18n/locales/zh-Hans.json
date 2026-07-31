@@ -14,7 +14,9 @@
     "placeholder": "输入关键词搜索...",
     "noResults": "无结果",
     "ready": "就绪",
-    "candidates": "{count} 个候选项"
+    "candidates": "{count} 个候选项",
+    "duplicateEnter": "请勿重复按 Enter，修改文本后重新确认",
+    "translationStarted": "已开始翻译，请稍候…"
   },
   "footer": {
     "settings": "设置",

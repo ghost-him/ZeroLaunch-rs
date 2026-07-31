@@ -39,8 +39,12 @@ async function invokeCommand<T>(cmd: string, args?: Record<string, unknown>): Pr
 
 // ---- 搜索 & 会话 ----
 
-export function bridgeQuery(rawQuery: string): Promise<BridgeQueryResponse> {
-  return invokeCommand<BridgeQueryResponse>('bridge_query', { rawQuery })
+/**
+ * 发起查询。
+ * @param confirm 是否由用户显式确认（Enter）触发：false=预览/路由查询（OnEnter 模式返回 ready），true=确认查询（OnEnter 模式执行动作）。
+ */
+export function bridgeQuery(rawQuery: string, confirm: boolean): Promise<BridgeQueryResponse> {
+  return invokeCommand<BridgeQueryResponse>('bridge_query', { rawQuery, confirm })
 }
 
 export function bridgeConfirm(payload: ConfirmPayload): Promise<ConfirmResponse> {

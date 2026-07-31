@@ -7,7 +7,7 @@ pub use plugin_trait::Plugin;
 pub use types::{
     ActionExecutor, CandidateId, ConfirmResult, DataSource, ExecutionContext, ExecutionError,
     ExecutionTarget, KeywordInjector, KeywordOptimizer, ListItem, PanelInteraction,
-    PanelSubmitBehavior, PluginContext, PluginError, PluginMetadata, Query, QueryResponse,
+    PanelQueryTrigger, PluginContext, PluginError, PluginMetadata, Query, QueryResponse,
     RegistrationError, ResultAction, ScoreBooster, ScoreDetail, ScoredCandidate, SearchCandidate,
     SearchEngine, TargetType,
 };

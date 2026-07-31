@@ -110,14 +110,19 @@ impl std::error::Error for SessionRouterError {}
 /// 由 SessionRouter 在路由阶段构造（进入或切换到不同插件面板时），
 /// 经 bootstrap 注入的 emitter 回调通过 Tauri 事件通道 `panel-interaction` 推送；
 /// CLI 等无窗口场景不注入 emitter，不产生此事件。
-/// `interaction` 字段使用 `#[serde(flatten)]` 内嵌，复用 `PanelInteraction` 的稳定序列化契约。
+/// `interaction` 嵌套携带 `PanelInteraction`（单一维护点：策略新增字段时事件与前端自动跟随），
+/// 字段 JSON 键名与前端 `PanelInteractionEvent`（contract.ts）一一对应，显式 camelCase。
 #[derive(Debug, Clone, Serialize)]
 pub struct PanelInteractionEvent {
     /// 面板所属插件 ID（如 "translator"、"calculator"）。
+    #[serde(rename = "pluginId")]
     plugin_id: String,
-    /// 交互策略：确认动作语义（execute/requery）与输入防抖延迟。
-    #[serde(flatten)]
+    /// 交互策略：查询触发方式（onInput/onEnter）与输入防抖延迟。
+    #[serde(rename = "interaction")]
     interaction: PanelInteraction,
+    /// 插件触发词列表，供前端判定"输入是否仍属于当前插件"（退出防抖豁免）。
+    #[serde(rename = "triggerKeywords", default)]
+    trigger_keywords: Vec<String>,
 }
 
 /// 面板交互策略推送回调 —— 接收路由阶段构造的交互策略事件，经 Tauri 事件通道推送给前端。
@@ -322,8 +327,9 @@ impl SessionRouter {
                     let policy = self.plugin_service.interaction_policy(&plugin_id);
                     if let Some(emitter) = self.interaction_emitter.read().clone() {
                         emitter(PanelInteractionEvent {
-                            plugin_id,
+                            trigger_keywords: self.plugin_service.trigger_keywords(&plugin_id),
                             interaction: policy,
+                            plugin_id,
                         });
                     }
                 }
@@ -516,8 +522,9 @@ impl SessionRouter {
         let policy = self.plugin_service.interaction_policy(&plugin_id);
         if let Some(emitter) = self.interaction_emitter.read().clone() {
             emitter(PanelInteractionEvent {
-                plugin_id,
+                trigger_keywords: self.plugin_service.trigger_keywords(&plugin_id),
                 interaction: policy,
+                plugin_id,
             });
         }
     }

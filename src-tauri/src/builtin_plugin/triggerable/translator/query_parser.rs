@@ -57,11 +57,12 @@ impl LangCatalog {
 /// 解析插件模式下的 search_term（触发词已剥离）。
 ///
 /// `catalog` 来自当前启用引擎的语言并集；语言码识别以目录成员为准，
-/// 从而支持 `zh-TR` 等较长码，并避免把普通英文词误判为语言码。
+/// 从而支持 `zh-TR` 等较长码。语言码一律以 `@` 前缀显式标记，
+/// 裸首词始终按正文处理，避免 `it`、`go` 等英文词被误判为语言码。
 ///
 /// - 无语言码：自动检测源语，目标为 `default_target`；若与源语相同则回退到另一常用语（zh↔en）
-/// - 单语言码：该码为目标语，源语自动检测
-/// - 双语言码：源 + 目标
+/// - 单语言码（`@目标`）：该码为目标语，源语自动检测
+/// - 双语言码（`@源 @目标`）：源 + 目标；`@auto` 表示源语自动检测
 pub fn parse_search_term(
     search_term: &str,
     default_target: &str,
@@ -75,75 +76,50 @@ pub fn parse_search_term(
 
     let tokens: Vec<&str> = trimmed.split_whitespace().collect();
 
-    // 尝试双语言码
-    if tokens.len() >= 3 && is_lang_token(tokens[0], catalog) && is_lang_token(tokens[1], catalog) {
-        let src = resolve_source_code(tokens[0], catalog)?;
-        let tgt = resolve_target_code(tokens[1], catalog)?;
-        let text = tokens[2..].join(" ");
-        if text.is_empty() {
-            return Err(ParseError::EmptyText);
+    // 收集开头的 @ 语言码（最多两个，其余归入正文）
+    let mut codes: Vec<&str> = Vec::new();
+    let mut text_start = 0usize;
+    for tok in tokens.iter() {
+        match tok.strip_prefix('@') {
+            Some(code) if codes.len() < 2 => {
+                codes.push(code);
+                text_start += 1;
+            }
+            _ => break,
         }
-        let source = if src == "auto" {
-            detect_source(&text)
-        } else {
-            src
-        };
-        return Ok(ParsedQuery {
-            text,
-            source,
-            target: tgt,
-            raw,
-        });
     }
 
-    // 双语言码无正文
-    if tokens.len() == 2 && is_lang_token(tokens[0], catalog) && is_lang_token(tokens[1], catalog) {
-        let _src = resolve_source_code(tokens[0], catalog)?;
-        let _tgt = resolve_target_code(tokens[1], catalog)?;
+    let text = tokens[text_start..].join(" ");
+    if text.is_empty() {
         return Err(ParseError::EmptyText);
     }
 
-    // 尝试单语言码（目标语）
-    if tokens.len() >= 2 && is_lang_token(tokens[0], catalog) {
-        let tgt = resolve_target_code(tokens[0], catalog)?;
-        let text = tokens[1..].join(" ");
-        if text.is_empty() {
-            return Err(ParseError::EmptyText);
+    let (source, target) = match codes.as_slice() {
+        [] => {
+            let source = detect_source(&text);
+            let target = resolve_auto_target(&source, default_target, catalog);
+            (source, target)
         }
-        let source = detect_source(&text);
-        return Ok(ParsedQuery {
-            text,
-            source,
-            target: tgt,
-            raw,
-        });
-    }
+        [tgt] => (detect_source(&text), resolve_target_code(tgt, catalog)?),
+        [src, tgt] => {
+            let src = resolve_source_code(src, catalog)?;
+            let tgt = resolve_target_code(tgt, catalog)?;
+            let source = if src == "auto" {
+                detect_source(&text)
+            } else {
+                src
+            };
+            (source, tgt)
+        }
+        _ => unreachable!("@ 语言码最多收集两个"),
+    };
 
-    // 形似语言码但不在目录中 → 非法语言码（如 xx）
-    if tokens.len() >= 2 && looks_like_lang_token(tokens[0]) && !catalog.contains(tokens[0]) {
-        return Err(ParseError::InvalidLanguageCode(
-            tokens[0].to_ascii_lowercase(),
-        ));
-    }
-
-    // 纯文本 / 单 token 语言码无正文
-    if tokens.len() == 1 && is_lang_token(tokens[0], catalog) {
-        return Err(ParseError::EmptyText);
-    }
-
-    let text = trimmed.to_string();
-    let source = detect_source(&text);
-    let target = resolve_auto_target(&source, default_target, catalog);
     Ok(ParsedQuery {
         text,
         source,
         target,
         raw,
     })
-}
-
-fn is_lang_token(token: &str, catalog: &LangCatalog) -> bool {
-    eq_ignore_ascii(token, "auto") || catalog.contains(token)
 }
 
 fn resolve_source_code(token: &str, catalog: &LangCatalog) -> Result<String, ParseError> {
@@ -162,22 +138,6 @@ fn resolve_target_code(token: &str, catalog: &LangCatalog) -> Result<String, Par
     catalog
         .canonicalize(token)
         .ok_or_else(|| ParseError::InvalidLanguageCode(token.to_ascii_lowercase()))
-}
-
-/// 语言码形态：2–3 位字母，可选 `-{2,8}` 后缀（如 zh-TR）。
-fn looks_like_lang_token(token: &str) -> bool {
-    let t = token.to_ascii_lowercase();
-    let parts: Vec<&str> = t.split('-').collect();
-    match parts.as_slice() {
-        [a] => (2..=3).contains(&a.len()) && a.chars().all(|c| c.is_ascii_alphabetic()),
-        [a, b] => {
-            (2..=3).contains(&a.len())
-                && a.chars().all(|c| c.is_ascii_alphabetic())
-                && (2..=8).contains(&b.len())
-                && b.chars().all(|c| c.is_ascii_alphabetic())
-        }
-        _ => false,
-    }
 }
 
 fn detect_source(text: &str) -> LanguageCode {
@@ -259,7 +219,7 @@ mod tests {
 
     #[test]
     fn single_lang_is_target() {
-        let p = parse_search_term("en 你好", "zh", &basic_catalog()).unwrap();
+        let p = parse_search_term("@en 你好", "zh", &basic_catalog()).unwrap();
         assert_eq!(p.target, "en");
         assert_eq!(p.source, "zh");
         assert_eq!(p.text, "你好");
@@ -267,7 +227,7 @@ mod tests {
 
     #[test]
     fn dual_lang() {
-        let p = parse_search_term("zh en hello", "zh", &basic_catalog()).unwrap();
+        let p = parse_search_term("@zh @en hello", "zh", &basic_catalog()).unwrap();
         assert_eq!(p.source, "zh");
         assert_eq!(p.target, "en");
         assert_eq!(p.text, "hello");
@@ -275,9 +235,34 @@ mod tests {
 
     #[test]
     fn zh_tr_canonical() {
-        let p = parse_search_term("zh-tr hello", "zh", &basic_catalog()).unwrap();
+        let p = parse_search_term("@zh-tr hello", "zh", &basic_catalog()).unwrap();
         assert_eq!(p.target, "zh-TR");
         assert_eq!(p.text, "hello");
+    }
+
+    #[test]
+    fn auto_source_explicit() {
+        let p = parse_search_term("@auto @en 你好", "zh", &basic_catalog()).unwrap();
+        assert_eq!(p.source, "zh");
+        assert_eq!(p.target, "en");
+        assert_eq!(p.text, "你好");
+    }
+
+    #[test]
+    fn auto_as_target_rejected() {
+        match parse_search_term("@auto hello", "zh", &basic_catalog()) {
+            Err(ParseError::InvalidLanguageCode(code)) => assert_eq!(code, "auto"),
+            other => panic!("未预期结果: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn at_most_two_lang_codes() {
+        // 第三个 @ token 归入正文
+        let p = parse_search_term("@zh @en @fr hello", "zh", &basic_catalog()).unwrap();
+        assert_eq!(p.source, "zh");
+        assert_eq!(p.target, "en");
+        assert_eq!(p.text, "@fr hello");
     }
 
     #[test]
@@ -289,21 +274,56 @@ mod tests {
             Err(ParseError::EmptyText)
         );
         assert_eq!(
-            parse_search_term("en", "zh", &c),
+            parse_search_term("@en", "zh", &c),
             Err(ParseError::EmptyText)
         );
         assert_eq!(
-            parse_search_term("zh en", "zh", &c),
+            parse_search_term("@zh @en", "zh", &c),
+            Err(ParseError::EmptyText)
+        );
+        assert_eq!(
+            parse_search_term("@auto @en", "zh", &c),
             Err(ParseError::EmptyText)
         );
     }
 
     #[test]
     fn invalid_lang_code() {
-        match parse_search_term("xx hello", "zh", &basic_catalog()) {
+        match parse_search_term("@xx hello", "zh", &basic_catalog()) {
             Err(ParseError::InvalidLanguageCode(code)) => assert_eq!(code, "xx"),
             other => panic!("未预期结果: {:?}", other),
         }
+    }
+
+    /// 回归：含 it/id 等语言码的完整引擎目录下，英文句首词必须按正文处理。
+    fn realistic_catalog() -> LangCatalog {
+        LangCatalog::from_codes([
+            "zh", "zh-TR", "yue", "en", "fr", "pt", "es", "ja", "tr", "ru", "ar", "ko", "th", "it",
+            "de", "vi", "ms", "id",
+        ])
+    }
+
+    #[test]
+    fn english_first_word_it_not_lang_code() {
+        let p = parse_search_term("it works", "zh", &realistic_catalog()).unwrap();
+        assert_eq!(p.text, "it works");
+        assert_eq!(p.source, "en");
+        assert_eq!(p.target, "zh");
+    }
+
+    #[test]
+    fn english_first_word_go_home_not_error() {
+        let p = parse_search_term("go home", "zh", &realistic_catalog()).unwrap();
+        assert_eq!(p.text, "go home");
+        assert_eq!(p.target, "zh");
+    }
+
+    #[test]
+    fn at_prefix_target_still_works() {
+        let p = parse_search_term("@it works", "zh", &realistic_catalog()).unwrap();
+        assert_eq!(p.target, "it");
+        assert_eq!(p.text, "works");
+        assert_eq!(p.source, "en");
     }
 
     #[test]
@@ -324,7 +344,7 @@ mod tests {
 
     #[test]
     fn unsupported_lang_not_in_catalog() {
-        match parse_search_term("ko hello", "zh", &basic_catalog()) {
+        match parse_search_term("@ko hello", "zh", &basic_catalog()) {
             Err(ParseError::InvalidLanguageCode(code)) => assert_eq!(code, "ko"),
             other => panic!("未预期结果: {:?}", other),
         }

@@ -156,9 +156,11 @@ cargo test -p zerolaunch-rs translator
 | 输入 | 含义 |
 | ---- | ---- |
 | `hello` | 源语自动检测，目标为默认目标语（相同则回退） |
-| `en 你好` | 目标 `en`，源自动检测 |
-| `zh en hello` | 源 `zh` → 目标 `en` |
-| `zh-TR hello` | 目标繁体（需启用引擎支持） |
+| `@en 你好` | 目标 `en`，源自动检测 |
+| `@zh @en hello` | 源 `zh` → 目标 `en` |
+| `@zh-TR hello` | 目标繁体（需启用引擎支持） |
+
+> 语言码一律以 `@` 前缀显式标记；裸首词（如 `it works`、`go home`）始终按正文翻译，不会被误判为语言码。
 
 ## 检查清单
 

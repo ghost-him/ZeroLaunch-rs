@@ -77,8 +77,8 @@ async function executeAction(action: ResultAction) {
       <div class="tr-empty-hint">用法示例：</div>
       <ul class="tr-usage-list">
         <li><code>fy hello</code> — 自动检测源语</li>
-        <li><code>fy en 你好</code> — 指定目标语</li>
-        <li><code>fy zh en hello</code> — 指定源语与目标语</li>
+        <li><code>fy @en 你好</code> — 指定目标语</li>
+        <li><code>fy @zh @en hello</code> — 指定源语与目标语</li>
       </ul>
     </div>
 

@@ -243,7 +243,7 @@ impl TranslatorPlugin {
     }
 
     fn usage_message() -> &'static str {
-        "用法: fy hello | fy en 你好 | fy zh en hello"
+        "用法: fy hello | fy @en 你好 | fy @zh @en hello"
     }
 
     fn empty_panel(message: &str) -> QueryResponse {
@@ -776,7 +776,10 @@ mod tests {
     async fn query_invalid_lang_returns_error() {
         let plugin = TranslatorPlugin::new();
         let ctx = PluginContext::new("test");
-        let resp = plugin.query(&ctx, &sample_query("xx hello")).await.unwrap();
+        let resp = plugin
+            .query(&ctx, &sample_query("@xx hello"))
+            .await
+            .unwrap();
 
         match resp {
             QueryResponse::CustomPanel { data, .. } => {

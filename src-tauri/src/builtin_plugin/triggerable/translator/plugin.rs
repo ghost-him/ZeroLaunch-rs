@@ -116,7 +116,7 @@ fn default_request_timeout_ms() -> u64 {
 }
 
 fn default_live_debounce_secs() -> f64 {
-    1.0
+    0.5
 }
 
 fn default_llm_vendor() -> String {
@@ -466,7 +466,7 @@ impl Configurable for TranslatorPlugin {
             .step(0.1)
             .group("基础")
             .order(2)
-            .default(1.0)
+            .default(0.5)
             .build(),
             SchemaBuilder::select(
                 "llm_vendor",
@@ -737,7 +737,7 @@ mod tests {
                 assert_eq!(panel_type, "translator");
                 assert_eq!(data["status"], "error");
                 assert_eq!(policy.query_trigger, PanelQueryTrigger::OnInput);
-                assert_eq!(policy.query_debounce_ms, 1000);
+                assert_eq!(policy.query_debounce_ms, 500);
                 let msg = data["message"].as_str().unwrap_or("");
                 assert!(
                     msg.contains("设置") || msg.contains("填写"),
@@ -766,7 +766,7 @@ mod tests {
                 assert_eq!(data["status"], "empty");
                 assert!(actions.is_empty());
                 assert_eq!(policy.query_trigger, PanelQueryTrigger::OnInput);
-                assert_eq!(policy.query_debounce_ms, 1000);
+                assert_eq!(policy.query_debounce_ms, 500);
             }
             other => panic!("期望 CustomPanel，实际 {:?}", other),
         }

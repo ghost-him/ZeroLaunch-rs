@@ -61,6 +61,7 @@
 import { provide, ref, nextTick, watch } from 'vue'
 import { onMounted, onUnmounted } from 'vue'
 import { useNotification } from 'naive-ui'
+import type { NotificationReactive } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import WindowFrame from '../components/layout/WindowFrame.vue'
 import SearchBar from '../components/search/SearchBar.vue'
@@ -93,14 +94,17 @@ watch(() => searchStore.confirmBlockedHint, (blocked) => {
   }
 })
 
-// 确认查询已发出提示（onEnter 模式按 Enter 开始翻译）：瞬态状态 → 弹通知后复位
-watch(() => searchStore.confirmStartedHint, (started) => {
+// 翻译查询已发出提示（onEnter 按 Enter / 即时模式防抖查询发出）：瞬态状态 → 弹通知后复位。
+// 保留上次通知句柄：新提示先销毁旧通知，避免连续查询时堆叠。
+let translationStartedToast: NotificationReactive | null = null
+watch(() => searchStore.translationStartedHint, (started) => {
   if (started) {
-    notification.info({
+    translationStartedToast?.destroy()
+    translationStartedToast = notification.info({
       title: t('search.translationStarted'),
       duration: 2000,
     })
-    searchStore.confirmStartedHint = false
+    searchStore.translationStartedHint = false
   }
 })
 

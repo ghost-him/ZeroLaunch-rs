@@ -125,7 +125,7 @@ function defaults(): TranslatorLocalSettings {
     default_target: 'zh',
     enabled_providers: [OPENAI_COMPATIBLE_ID],
     request_timeout_ms: 15000,
-    live_debounce_secs: 1.0,
+    live_debounce_secs: 0.5,
     llm_vendor: '自定义',
     llm_base_url: '',
     llm_api_key: '',

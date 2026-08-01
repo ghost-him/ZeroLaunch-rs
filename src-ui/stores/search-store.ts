@@ -63,8 +63,10 @@ export const useSearchStore = defineStore('search', () => {
   let lastConfirmedText: string | null = null
   /** 重复 Enter 拦截提示（瞬态，SearchView 监听后弹出 notification 并复位）。 */
   const confirmBlockedHint = ref(false)
-  /** 确认查询已发出提示（瞬态，仅 onEnter 模式，SearchView 监听后弹出 notification 并复位）。 */
-  const confirmStartedHint = ref(false)
+  /** 翻译查询已发出提示（瞬态：onEnter 确认由 confirmPluginAction 置位，即时模式由翻译面板置位；SearchView 监听后弹出 notification 并复位）。 */
+  const translationStartedHint = ref(false)
+  /** 面板查询在途标志：查询已发出且仍属于当前插件面板（未退出），响应到达后清除。供插件面板感知「查询处理中」。 */
+  const panelQueryInFlight = ref(false)
 
   // ---- 派生 ----
   const isIdle = computed(() => query.value === '')
@@ -124,6 +126,14 @@ export const useSearchStore = defineStore('search', () => {
   /// 退出操作独立于插件防抖配置（如从 "fy hello" 回退到 "fy" 不受防抖延迟）。
   let panelTriggerKeywords: string[] = []
 
+  /// 查询文本是否仍属于当前插件面板：首词为空格分隔的触发词（镜像后端 parse_trigger）。
+  /// 供防抖退出判定（shouldExit）与面板查询在途状态（panelQueryInFlight）共用。
+  function queryStillInPanel(raw: string): boolean {
+    if (panelTriggerKeywords.length === 0) return false
+    const firstWord = raw.split(' ')[0]
+    return raw.includes(' ') && panelTriggerKeywords.includes(firstWord)
+  }
+
   async function doQuery(raw: string, confirm = false) {
     query.value = raw
     const seq = ++querySeq
@@ -142,6 +152,7 @@ export const useSearchStore = defineStore('search', () => {
       paramPanelState.value = null
       selectedIndex.value = 0
       selectedActionIndex.value = 0
+      panelQueryInFlight.value = false
       return
     }
 
@@ -160,9 +171,7 @@ export const useSearchStore = defineStore('search', () => {
     // 退出判定（优先于防抖）：行内插件面板内，输入不再匹配当前插件触发词
     // （无空格或首词不在触发词集合）→ 立即查询退出，不受插件防抖延迟。
     // 判定结果仍由后端路由裁决，正确性无损。
-    const isInPanel = panelTriggerKeywords.length > 0
-    const firstWord = raw.split(' ')[0]
-    const shouldExit = isInPanel && (!raw.includes(' ') || !panelTriggerKeywords.includes(firstWord))
+    const shouldExit = panelTriggerKeywords.length > 0 && !queryStillInPanel(raw)
     // 防抖：未达间隔前不发送 IPC（首次或 dm=0 时直发；onEnter 手动模式忽略防抖）
     const dm = shouldExit
       ? 0
@@ -181,6 +190,9 @@ export const useSearchStore = defineStore('search', () => {
   }
 
   async function doQueryImpl(raw: string, seq: number, confirm: boolean) {
+    // 面板查询在途（通用状态）：查询仍属于当前插件面板时置位，响应到达后清除。
+    // 供插件面板感知「查询处理中」（如翻译面板据此提示「已开始翻译」）。
+    panelQueryInFlight.value = queryStillInPanel(raw)
     try {
       console.log(`[doQuery] Sending query: "${raw}" (seq=${seq})`)
       const resp: BridgeQueryResponse = await bridgeQuery(raw, confirm)
@@ -235,6 +247,11 @@ export const useSearchStore = defineStore('search', () => {
       // 查询失败同样解除在途标志，避免后续 Enter 被永久拦截。
       confirmInFlight = false
       console.error('[doQuery] Query failed:', e)
+    } finally {
+      // 仅当前查询可清除在途标志：过期响应不得覆盖新查询的在途状态。
+      if (seq === querySeq) {
+        panelQueryInFlight.value = false
+      }
     }
   }
 
@@ -432,7 +449,7 @@ export const useSearchStore = defineStore('search', () => {
       }
       confirmInFlight = true
       lastConfirmedText = query.value
-      confirmStartedHint.value = true
+      translationStartedHint.value = true
       void doQuery(query.value, true)
       return
     }
@@ -475,6 +492,7 @@ export const useSearchStore = defineStore('search', () => {
     paramPanelState.value = null
     selectedIndex.value = 0
     selectedActionIndex.value = 0
+    panelQueryInFlight.value = false
   }
 
   function resetSessionAndHide() {
@@ -516,7 +534,8 @@ export const useSearchStore = defineStore('search', () => {
     query, results, selectedIndex, selectedActionIndex, sessionMode, cachedCount,
     panelType, panelData, panelActions, panelInteraction,
     confirmBlockedHint,
-    confirmStartedHint,
+    translationStartedHint,
+    panelQueryInFlight,
     inlineParamState, paramPanelState,
     isIdle, selectedItem,
     doQuery, doConfirm, selectNext, selectPrev,

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import { NButton, NCollapse, NCollapseItem, NTag } from 'naive-ui'
 import type { ResultAction } from '@/bridge/contract'
 import { useSearchStore } from '@/stores/search-store'
@@ -39,6 +39,28 @@ const props = defineProps<{
 }>()
 
 const searchStore = useSearchStore()
+
+// ---- 即时模式「已开始翻译」提示 ----
+// 判定属翻译插件专属逻辑，保留在本面板组件；通用 store 仅暴露查询在途状态。
+
+/// 查询是否包含待翻译文本：剥离触发词与 @ 语言码后仍有非空内容（镜像后端 parse_search_term）。
+function hasTranslateContent(raw: string): boolean {
+  return raw.split(' ').slice(1).some((tok) => tok.trim() !== '' && !tok.startsWith('@'))
+}
+
+// 即时模式（onInput）下翻译查询发出时置位提示标志，由 SearchView 弹出「已开始翻译」通知；
+// onEnter 模式的提示由 store 的 confirmPluginAction 置位，两者共用同一通知通道。
+let prevInFlight = searchStore.panelQueryInFlight
+watch(() => searchStore.panelQueryInFlight, (inFlight) => {
+  const justStarted = inFlight && !prevInFlight
+  prevInFlight = inFlight
+  if (!justStarted) return
+  // 仅即时模式提示；onEnter 模式编辑查询不发翻译请求，Enter 确认时另有提示。
+  if (searchStore.panelInteraction?.queryTrigger !== 'onInput') return
+  // 无文本内容（如 "fy " / "fy @en"）只回 usage 面板，不提示。
+  if (!hasTranslateContent(searchStore.query)) return
+  searchStore.translationStartedHint = true
+})
 
 const status = computed(() => props.data?.status ?? 'empty')
 const message = computed(() => props.data?.message ?? null)

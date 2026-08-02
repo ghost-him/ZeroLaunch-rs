@@ -48,6 +48,15 @@ export const useSearchStore = defineStore('search', () => {
   /** 防抖定时器 */
   let debounceTimer: number | null = null
 
+  /// 取消挂起中的防抖查询。输入清空、退出面板、隐藏窗口等「放弃输入」的路径必须调用，
+  /// 否则定时器到期仍会发出 IPC，造成后端真实执行查询（如消耗 LLM 配额的幽灵翻译）。
+  function cancelPendingDebounce() {
+    if (debounceTimer !== null) {
+      clearTimeout(debounceTimer)
+      debounceTimer = null
+    }
+  }
+
   // 行内参数模式
   const inlineParamState = ref<InlineParamState | null>(null)
 
@@ -138,6 +147,9 @@ export const useSearchStore = defineStore('search', () => {
     query.value = raw
     const seq = ++querySeq
 
+    // 任何新查询（含清空/退出）都取代挂起的防抖定时器
+    cancelPendingDebounce()
+
     if (raw === '') {
       results.value = []
       sessionMode.value = 'none'
@@ -162,12 +174,6 @@ export const useSearchStore = defineStore('search', () => {
       lastConfirmedText = null
     }
 
-    // 清空上个防抖
-    if (debounceTimer !== null) {
-      clearTimeout(debounceTimer)
-      debounceTimer = null
-    }
-
     // 退出判定（优先于防抖）：行内插件面板内，输入不再匹配当前插件触发词
     // （无空格或首词不在触发词集合）→ 立即查询退出，不受插件防抖延迟。
     // 判定结果仍由后端路由裁决，正确性无损。
@@ -181,6 +187,8 @@ export const useSearchStore = defineStore('search', () => {
     if (dm > 0) {
       debounceTimer = window.setTimeout(() => {
         debounceTimer = null
+        // 兜底：期间已有新查询（seq 已递增）则不再发 IPC
+        if (seq !== querySeq) return
         doQueryImpl(raw, seq, confirm)
       }, dm)
       return
@@ -467,15 +475,14 @@ export const useSearchStore = defineStore('search', () => {
   // ---- 会话管理 ----
 
   function hideWindow() {
+    // 隐藏窗口视为放弃当前输入：取消挂起防抖，避免窗口隐藏后仍触发查询
+    cancelPendingDebounce()
     bridgeHideWindow().catch((e) => console.warn('[hideWindow] Failed to hide window:', e))
   }
 
   function resetLocalSession() {
     // 取消未触发的防抖定时器
-    if (debounceTimer !== null) {
-      clearTimeout(debounceTimer)
-      debounceTimer = null
-    }
+    cancelPendingDebounce()
     // 递增序号使所有在途响应的 seq 失效，防止慢请求盖写新状态
     querySeq++
     query.value = ''

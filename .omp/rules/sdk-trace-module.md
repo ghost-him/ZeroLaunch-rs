@@ -1,7 +1,7 @@
 ---
 description: 第三方插件 SDK Trace 模块 — span_for/with_trace/instrument 通过 PluginContext 注入 trace_id，禁止 with_trace 内 .await
 condition: "trace::|span_for|with_trace|instrument|PluginContext"
-scope: "tool:edit(crates/plugin-sdk-rust/**), tool:write(crates/plugin-sdk-rust/**), tool:edit(crates/plugin-api/src/plugin/**), tool:write(crates/plugin-api/src/plugin/**)"
+scope: "tool:edit(crates/plugin-sdk-rust/src/trace.rs), tool:write(crates/plugin-sdk-rust/src/trace.rs), tool:edit(crates/plugin-sdk-rust/src/lib.rs), tool:write(crates/plugin-sdk-rust/src/lib.rs), tool:edit(plugin-template/src/**), tool:write(plugin-template/src/**)"
 ---
 
 # Trace 模块（第三方插件 SDK）

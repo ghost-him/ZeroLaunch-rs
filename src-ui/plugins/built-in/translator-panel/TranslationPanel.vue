@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue'
 import { NButton, NCollapse, NCollapseItem, NTag } from 'naive-ui'
+import { useI18n } from 'vue-i18n'
 import type { ResultAction } from '@/bridge/contract'
 import { useSearchStore } from '@/stores/search-store'
 
@@ -38,6 +39,7 @@ const props = defineProps<{
   actions: ResultAction[]
 }>()
 
+const { t } = useI18n()
 const searchStore = useSearchStore()
 
 // ---- 即时模式「已开始翻译」提示 ----
@@ -95,12 +97,12 @@ async function executeAction(action: ResultAction) {
   <div class="translator-panel">
     <!-- 空引导态 -->
     <div v-if="status === 'empty'" class="tr-empty">
-      <div class="tr-empty-title">翻译</div>
-      <div class="tr-empty-hint">用法示例：</div>
+      <div class="tr-empty-title">{{ $t('translator.title') }}</div>
+      <div class="tr-empty-hint">{{ $t('translator.usageHint') }}</div>
       <ul class="tr-usage-list">
-        <li><code>fy hello</code> — 自动检测源语</li>
-        <li><code>fy @en 你好</code> — 指定目标语</li>
-        <li><code>fy @zh @en hello</code> — 指定源语与目标语</li>
+        <li><code>fy hello</code> — {{ $t('translator.usageAutoDetect') }}</li>
+        <li><code>fy @en 你好</code> — {{ $t('translator.usageSpecifyTarget') }}</li>
+        <li><code>fy @zh @en hello</code> — {{ $t('translator.usageSpecifyBoth') }}</li>
       </ul>
     </div>
 
@@ -111,13 +113,13 @@ async function executeAction(action: ResultAction) {
         <span v-if="queryText" class="tr-meta-text">{{ queryText }}</span>
       </div>
       <div class="tr-primary tr-ready-hint">
-        {{ message || '按 Enter 翻译' }}
+        {{ message || t('translator.pressEnterToTranslate') }}
       </div>
     </div>
 
     <!-- 错误态 -->
     <div v-else-if="status === 'error' && !primaryText" class="tr-display tr-error">
-      {{ message || '翻译失败，请稍后重试' }}
+      {{ message || t('translator.translateFailed') }}
     </div>
 
     <!-- 正常 / 部分成功 -->
@@ -137,7 +139,7 @@ async function executeAction(action: ResultAction) {
         </div>
 
         <div v-if="primaryComputerSense" class="tr-computer">
-          <n-tag size="small" :bordered="false">计算机</n-tag>
+          <n-tag size="small" :bordered="false">{{ $t('translator.computerSense') }}</n-tag>
           <span class="tr-computer-text">{{ primaryComputerSense }}</span>
         </div>
 
@@ -155,7 +157,7 @@ async function executeAction(action: ResultAction) {
 
       <div v-if="alternatives.length > 0" class="tr-alts">
         <n-collapse>
-          <n-collapse-item title="其他引擎" name="alts">
+          <n-collapse-item :title="$t('translator.otherEngines')" name="alts">
             <div
               v-for="alt in alternatives"
               :key="alt.providerId"

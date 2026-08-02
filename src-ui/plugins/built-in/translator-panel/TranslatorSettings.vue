@@ -8,42 +8,49 @@ import {
   NInputNumber,
   NSelect,
 } from 'naive-ui'
+import { useI18n } from 'vue-i18n'
 import FormSection from '@/components/settings/FormSection.vue'
+
+const { t } = useI18n()
 
 const OPENAI_COMPATIBLE_ID = 'openai-compatible'
 const MOCK_PROVIDER_ID = 'mock'
 
+// 引擎目录：labelKey 仅用于展示；引擎 ID（id）为持久化值。
 const PROVIDER_CATALOG = [
   {
     id: OPENAI_COMPATIBLE_ID,
-    label: 'OpenAI 兼容',
-    hint: null as string | null,
+    labelKey: 'translator.providerOpenaiCompatible',
+    hintKey: null as string | null,
   },
   {
     id: MOCK_PROVIDER_ID,
-    label: '模拟示例',
-    hint: '联调用：有其它引擎成功结果时复制其一，否则显示占位文案',
+    labelKey: 'translator.providerMock',
+    hintKey: 'translator.providerMockHint',
   },
 ] as const
 
+// 厂商预设：label 为持久化值（与后端 LLM_VENDOR_OPTIONS 枚举一致，禁止翻译），labelKey 仅用于展示。
 const LLM_BASE_URL_PRESETS = [
-  { label: 'DeepSeek', id: 'deepseek', url: 'https://api.deepseek.com' },
-  { label: '智谱 GLM', id: 'glm', url: 'https://open.bigmodel.cn/api/paas/v4' },
-  { label: 'OpenAI', id: 'openai', url: 'https://api.openai.com/v1' },
-  { label: '硅基流动', id: 'siliconflow', url: 'https://api.siliconflow.cn/v1' },
+  { label: 'DeepSeek', labelKey: 'translator.vendorDeepSeek', id: 'deepseek', url: 'https://api.deepseek.com' },
+  { label: '智谱 GLM', labelKey: 'translator.vendorZhipu', id: 'glm', url: 'https://open.bigmodel.cn/api/paas/v4' },
+  { label: 'OpenAI', labelKey: 'translator.vendorOpenAI', id: 'openai', url: 'https://api.openai.com/v1' },
+  { label: '硅基流动', labelKey: 'translator.vendorSiliconFlow', id: 'siliconflow', url: 'https://api.siliconflow.cn/v1' },
   {
     label: '阿里云百炼',
+    labelKey: 'translator.vendorBailian',
     id: 'dashscope',
     url: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
   },
   {
     label: '腾讯云 TokenHub',
+    labelKey: 'translator.vendorTokenHub',
     id: 'tokenhub',
     url: 'https://tokenhub.tencentmaas.com/v1',
   },
-  { label: 'Kimi', id: 'kimi', url: 'https://api.moonshot.cn/v1' },
-  { label: '小米 MiMo', id: 'mimo', url: 'https://api.xiaomimimo.com/v1' },
-  { label: '自定义', id: 'custom', url: null },
+  { label: 'Kimi', labelKey: 'translator.vendorKimi', id: 'kimi', url: 'https://api.moonshot.cn/v1' },
+  { label: '小米 MiMo', labelKey: 'translator.vendorMiMo', id: 'mimo', url: 'https://api.xiaomimimo.com/v1' },
+  { label: '自定义', labelKey: 'translator.vendorCustom', id: 'custom', url: null },
 ] as const
 
 const CUSTOM_PRESET_ID = 'custom'
@@ -79,6 +86,7 @@ function modeFromRaw(raw: unknown): 'live' | 'on_enter' {
 }
 
 function vendorLabelFromUrl(url: string): string {
+  // 返回持久化枚举值（与后端 LLM_VENDOR_OPTIONS 一致），非展示文本。
   const trimmed = url.trim()
   if (!trimmed) return '自定义'
   const match = LLM_BASE_URL_PRESETS.find((p) => p.url === trimmed)
@@ -239,15 +247,18 @@ watch(
   { immediate: true },
 )
 
-const translateModeOptions = [
-  { label: '即时翻译', value: 'live' },
-  { label: '按 Enter 翻译', value: 'on_enter' },
-]
+// 选项数组用 computed：随界面语言切换（t 响应 locale）重新求值。
+const translateModeOptions = computed(() => [
+  { label: t('translator.modeLive'), value: 'live' },
+  { label: t('translator.modeOnEnter'), value: 'on_enter' },
+])
 
-const presetOptions = LLM_BASE_URL_PRESETS.map((p) => ({
-  label: p.label,
-  value: p.id,
-}))
+const presetOptions = computed(() =>
+  LLM_BASE_URL_PRESETS.map((p) => ({
+    label: t(p.labelKey),
+    value: p.id,
+  })),
+)
 
 const orderedProviders = computed(() =>
   providerOrder.value
@@ -334,20 +345,20 @@ async function onSave() {
 <template>
   <div class="translator-settings">
     <div class="form-groups">
-      <FormSection title="基础" :collapsible="true">
+      <FormSection :title="$t('translator.sectionBasic')" :collapsible="true">
         <div class="form-field">
-          <label class="field-label">翻译触发</label>
+          <label class="field-label">{{ $t('translator.translateTrigger') }}</label>
           <div class="field-control">
             <n-select
               v-model:value="local.translate_mode"
               :options="translateModeOptions"
               class="control-full"
             />
-            <p class="field-hint">即时：输入即翻译；按 Enter：确认后才请求，节省 token</p>
+            <p class="field-hint">{{ $t('translator.triggerHint') }}</p>
           </div>
         </div>
         <div class="form-field">
-          <label class="field-label">默认目标语言</label>
+          <label class="field-label">{{ $t('translator.defaultTargetLanguage') }}</label>
           <div class="field-control">
             <n-select
               v-model:value="local.default_target"
@@ -358,7 +369,7 @@ async function onSave() {
           </div>
         </div>
         <div class="form-field">
-          <label class="field-label">超时（毫秒）</label>
+          <label class="field-label">{{ $t('translator.timeoutMs') }}</label>
           <div class="field-control">
             <n-input-number
               v-model:value="local.request_timeout_ms"
@@ -370,7 +381,7 @@ async function onSave() {
           </div>
         </div>
         <div class="form-field">
-          <label class="field-label">即时翻译防抖（秒）</label>
+          <label class="field-label">{{ $t('translator.liveDebounceSecs') }}</label>
           <div class="field-control">
             <n-input-number
               v-model:value="local.live_debounce_secs"
@@ -379,16 +390,16 @@ async function onSave() {
               :step="0.1"
               class="control-full"
             />
-            <p class="field-hint">即时模式下输入后的防抖等待时间，减少冗余请求</p>
+            <p class="field-hint">{{ $t('translator.liveDebounceHint') }}</p>
           </div>
         </div>
       </FormSection>
 
-      <FormSection title="引擎" :collapsible="true">
+      <FormSection :title="$t('translator.sectionEngine')" :collapsible="true">
         <div class="form-field">
-          <label class="field-label">翻译引擎</label>
+          <label class="field-label">{{ $t('translator.translateEngine') }}</label>
           <div class="field-control">
-            <p class="field-hint">拖拽调整顺序，靠前的引擎优先作为主结果</p>
+            <p class="field-hint">{{ $t('translator.engineOrderHint') }}</p>
             <ul class="provider-list">
               <li
                 v-for="(provider, index) in orderedProviders"
@@ -406,23 +417,23 @@ async function onSave() {
                 @dragend="onDragEnd"
               >
                 <div class="provider-row">
-                  <span class="drag-handle" title="拖拽调序" aria-hidden="true">⠿</span>
+                  <span class="drag-handle" :title="$t('translator.dragToReorder')" aria-hidden="true">⠿</span>
                   <n-checkbox
                     :checked="isProviderEnabled(provider.id)"
                     @update:checked="(v: boolean) => setProviderEnabled(provider.id, v)"
                   >
-                    {{ provider.label }}
+                    {{ $t(provider.labelKey) }}
                   </n-checkbox>
                 </div>
-                <p v-if="provider.hint && isProviderEnabled(provider.id)" class="provider-hint">
-                  {{ provider.hint }}
+                <p v-if="provider.hintKey && isProviderEnabled(provider.id)" class="provider-hint">
+                  {{ $t(provider.hintKey) }}
                 </p>
                 <div
                   v-if="provider.id === OPENAI_COMPATIBLE_ID && openaiEnabled"
                   class="provider-settings"
                 >
                   <div class="form-field">
-                    <label class="field-label">厂商预设</label>
+                    <label class="field-label">{{ $t('translator.vendorPreset') }}</label>
                     <div class="field-control">
                       <n-select
                         v-model:value="selectedPreset"
@@ -430,40 +441,40 @@ async function onSave() {
                         class="control-full"
                       />
                       <p class="field-hint">
-                        选择预设将立刻填入 Base URL；选「自定义」不会覆盖当前地址
+                        {{ $t('translator.vendorPresetHint') }}
                       </p>
                     </div>
                   </div>
                   <div class="form-field">
-                    <label class="field-label">Base URL</label>
+                    <label class="field-label">{{ $t('translator.baseUrl') }}</label>
                     <div class="field-control">
                       <n-input
                         v-model:value="local.llm_base_url"
-                        placeholder="例如 https://api.deepseek.com"
+                        :placeholder="$t('translator.baseUrlPlaceholder')"
                         clearable
                         class="control-full"
                       />
                     </div>
                   </div>
                   <div class="form-field">
-                    <label class="field-label">API Key</label>
+                    <label class="field-label">{{ $t('translator.apiKey') }}</label>
                     <div class="field-control">
                       <n-input
                         v-model:value="local.llm_api_key"
                         type="password"
                         show-password-on="click"
-                        placeholder="请输入 API Key"
+                        :placeholder="$t('translator.apiKeyPlaceholder')"
                         clearable
                         class="control-full"
                       />
                     </div>
                   </div>
                   <div class="form-field">
-                    <label class="field-label">Model</label>
+                    <label class="field-label">{{ $t('translator.model') }}</label>
                     <div class="field-control">
                       <n-input
                         v-model:value="local.llm_model"
-                        placeholder="例如 deepseek-chat、moonshot-v1-8k"
+                        :placeholder="$t('translator.modelPlaceholder')"
                         clearable
                         class="control-full"
                       />
@@ -478,7 +489,7 @@ async function onSave() {
     </div>
 
     <div class="form-actions">
-      <n-button type="primary" :loading="saving" @click="onSave">应用</n-button>
+      <n-button type="primary" :loading="saving" @click="onSave">{{ $t('translator.apply') }}</n-button>
     </div>
   </div>
 </template>

@@ -66,12 +66,8 @@ export const useSearchStore = defineStore('search', () => {
   /** 递增序号，丢弃过期的 bridge_query 响应，避免慢请求盖写新输入。 */
   let querySeq = 0
 
-  /** onEnter 模式确认查询在途标志：在途时忽略重复 Enter（不发查询=不加序号）。 */
+  /** 确认查询在途标志：在途时忽略重复 Enter（不发查询=不加序号）。 */
   let confirmInFlight = false
-  /** onEnter 模式上次确认查询的文本：同文本再次 Enter（结果已显示）→ 提示不重复按。 */
-  let lastConfirmedText: string | null = null
-  /** 重复 Enter 拦截提示（瞬态，SearchView 监听后弹出 notification 并复位）。 */
-  const confirmBlockedHint = ref(false)
   /** 翻译查询已发出提示（瞬态：onEnter 确认由 confirmPluginAction 置位，即时模式由翻译面板置位；SearchView 监听后弹出 notification 并复位）。 */
   const translationStartedHint = ref(false)
   /** 面板查询在途标志：查询已发出且仍属于当前插件面板（未退出），响应到达后清除。供插件面板感知「查询处理中」。 */
@@ -159,7 +155,6 @@ export const useSearchStore = defineStore('search', () => {
       panelInteraction.value = null
       panelTriggerKeywords = []
       confirmInFlight = false
-      lastConfirmedText = null
       inlineParamState.value = null
       paramPanelState.value = null
       selectedIndex.value = 0
@@ -168,10 +163,9 @@ export const useSearchStore = defineStore('search', () => {
       return
     }
 
-    // 非确认查询（输入/路由变化）：文本已变化，解除确认状态，允许后续重新确认。
+    // 非确认查询（输入/路由变化）：解除确认在途状态（文本已变化，之后 Enter 可重新确认）。
     if (!confirm) {
       confirmInFlight = false
-      lastConfirmedText = null
     }
 
     // 退出判定（优先于防抖）：行内插件面板内，输入不再匹配当前插件触发词
@@ -445,18 +439,18 @@ export const useSearchStore = defineStore('search', () => {
   }
 
   function confirmPluginAction() {
-    // 手动查询模式（queryTrigger=onEnter）：Enter 触发一次确认查询（confirm=true），
-    // 后端据此直接执行面板动作（如翻译插件 on_enter 模式翻译）。
+    // 手动查询模式（queryTrigger=onEnter）：Enter 按面板状态分流——
+    // 面板已有可执行动作（如翻译成功）→ 执行默认动作（复制译文）；
+    // 否则（ready/失败/空）→ 发起确认查询（翻译或失败后重试）。
+    // 约定：插件仅在结果可执行时返回非空动作列表（translator 成功含 copy_primary，失败/ready 为空）。
     if (panelInteraction.value?.queryTrigger === 'onEnter') {
       // 确认查询在途：忽略重复 Enter（不发查询=不加序号），首次结果返回后自然显示。
       if (confirmInFlight) return
-      // 同文本已确认过（结果已显示）：提示不重复按，避免重复 LLM 调用。
-      if (lastConfirmedText === query.value) {
-        confirmBlockedHint.value = true
+      if (panelActions.value.length > 0) {
+        doConfirm()
         return
       }
       confirmInFlight = true
-      lastConfirmedText = query.value
       translationStartedHint.value = true
       void doQuery(query.value, true)
       return
@@ -494,7 +488,6 @@ export const useSearchStore = defineStore('search', () => {
     panelInteraction.value = null
     panelTriggerKeywords = []
     confirmInFlight = false
-    lastConfirmedText = null
     inlineParamState.value = null
     paramPanelState.value = null
     selectedIndex.value = 0
@@ -540,7 +533,6 @@ export const useSearchStore = defineStore('search', () => {
   return {
     query, results, selectedIndex, selectedActionIndex, sessionMode, cachedCount,
     panelType, panelData, panelActions, panelInteraction,
-    confirmBlockedHint,
     translationStartedHint,
     panelQueryInFlight,
     inlineParamState, paramPanelState,

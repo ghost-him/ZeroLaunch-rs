@@ -15,7 +15,6 @@
     "noResults": "No results",
     "ready": "Ready",
     "candidates": "{count} candidates",
-    "duplicateEnter": "Do not press Enter repeatedly; edit the text to confirm again",
     "translationStarted": "Translation started, please wait..."
   },
   "translator": {

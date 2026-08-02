@@ -83,17 +83,6 @@ const searchStore = useSearchStore()
 const notification = useNotification()
 const { t } = useI18n()
 
-// 重复 Enter 拦截提示（onEnter 模式同文本已确认）：瞬态状态 → 弹通知后复位
-watch(() => searchStore.confirmBlockedHint, (blocked) => {
-  if (blocked) {
-    notification.info({
-      title: t('search.duplicateEnter'),
-      duration: 2000,
-    })
-    searchStore.confirmBlockedHint = false
-  }
-})
-
 // 翻译查询已发出提示（onEnter 按 Enter / 即时模式防抖查询发出）：瞬态状态 → 弹通知后复位。
 // 保留上次通知句柄：新提示先销毁旧通知，避免连续查询时堆叠。
 let translationStartedToast: NotificationReactive | null = null

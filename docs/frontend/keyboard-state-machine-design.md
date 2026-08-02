@@ -114,7 +114,7 @@ PanelState =
 行内插件（`InlinePlugin`）有**唯一的强制退出路径**，宿主强制执行、插件不可拦截：
 
 - **输入文本回退到插件触发词之外**（如从 `fy hello` 回退到 `fy`）时，下一次输入查询（`confirm=false`）由 `parse_trigger` 判定不再命中触发词，路由回落默认搜索，前端据响应退出面板。
-- 该退出方式的机制基础：**输入变化始终触发非确认查询**（承担路由职责），手动模式下翻译动作仅由 Enter 确认查询（`confirm=true`）触发——输入查询与确认查询在后端以 `Query.confirm` 区分。
+- 该退出方式的机制基础：**输入变化始终触发非确认查询**（承担路由职责），手动模式下翻译动作由 Enter 触发——面板无动作（ready/失败）时 Enter 发起确认查询（`confirm=true`，翻译或失败后重试），面板已有动作（翻译成功）时 Enter 直接执行默认动作（复制译文）；输入查询与确认查询在后端以 `Query.confirm` 区分。
 - 语义保证：手动模式下用户输入任意文本，面板要么显示 ready 预览（仍匹配触发词），要么退出面板回到默认搜索（不再匹配）——不存在"文本已不属于插件但界面仍停留"的状态。
 - **退出防抖豁免（退出优先于防抖）**：宿主在进入面板时记录插件**全部触发词**（随 `panel-interaction` 事件推送）。输入时先判定是否退出：无空格，或首词不在触发词集合 → 判定退出 → 立即查询（不受插件防抖延迟）；否则按插件配置防抖。退出判定独立于防抖配置，如 live 模式从 `fy hello` 回退到 `fy` 即时退出；`fy hello → tr hello`（`tr` 同为翻译插件触发词）则正常防抖。
 
@@ -160,7 +160,7 @@ pub enum PanelKeyAction {
 
 ### 4.5 与 `PanelQueryTrigger` 的关系
 
-- `PanelQueryTrigger` 是按键契约的**最小内置子集**：`OnEnter` ≈ `bindings = [Enter → TriggerQuery]`，`OnInput` ≈ 默认自动查询（无按键映射需求）
+- `PanelQueryTrigger` 是按键契约的**最小内置子集**：`OnEnter` ≈ `bindings = [Enter → 面板已有动作 ? ExecuteAction(默认) : TriggerQuery]`（宿主当前实现 `confirmPluginAction`：动作列表非空则执行默认动作，否则发起确认查询；失败面板可重试，成功面板 Enter 即复制译文），`OnInput` ≈ 默认自动查询（无按键映射需求）
 - 过渡策略：未实现完整按键契约前，`PanelQueryTrigger` 保留为行内插件模式的主通道（事一已落地）；完整契约实现后作为其默认展开
 
 ### 4.6 实现阶段划分

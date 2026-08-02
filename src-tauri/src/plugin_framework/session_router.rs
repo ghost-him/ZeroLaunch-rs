@@ -40,6 +40,21 @@ pub enum SessionMode {
     FullPagePlugin(String),
 }
 
+/// 查询来源通道 — 标识查询进入后端的入口，用于通道间隔离。
+///
+/// 仅供 SessionRouter::route_query 使用：各通道独立维护查询版本计数器，
+/// 跨通道查询互不使对方过期；且仅 UI 通道允许改写会话状态
+/// （会话模式、面板交互事件），CLI/调试查询为只读辅助路径。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum QueryChannel {
+    /// 主窗口 GUI 查询（bridge_query）。
+    Ui,
+    /// 本地 CLI HTTP 查询（/v1/query）。
+    Cli,
+    /// 调试模拟查询（debug_simulate_query）。
+    Debug,
+}
+
 impl SessionMode {
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -152,10 +167,15 @@ pub struct SessionRouter {
     /// 面板交互策略推送回调（进入/切换插件面板时调用）。
     /// None 表示未注入（如 CLI 无窗口场景）；内部可变性仅由 set_interaction_emitter 写入。
     interaction_emitter: RwLock<Option<InteractionEmitter>>,
-    /// 查询版本计数器：route_query 入口为每次查询分配单调递增版本号，
-    /// 提交门控据此丢弃过期查询的副作用写入（会话模式、面板交互事件、插件共享缓存）。
+    /// UI 通道查询版本计数器：route_query 入口为所属通道的查询分配单调递增版本号，
+    /// 提交门控据此丢弃同通道过期查询的副作用写入（会话模式、面板交互事件、插件共享缓存）。
+    /// 各通道独立计数，CLI/调试查询不得使 GUI 在途查询过期（反之亦然）。
     /// Arc 共享给插件侧 QueryRevisionGate 使用。
-    next_query_revision: Arc<AtomicU64>,
+    ui_query_revision: Arc<AtomicU64>,
+    /// CLI 通道查询版本计数器，语义同 ui_query_revision。
+    cli_query_revision: Arc<AtomicU64>,
+    /// 调试通道查询版本计数器，语义同 ui_query_revision。
+    debug_query_revision: Arc<AtomicU64>,
 }
 
 impl SessionRouter {
@@ -173,7 +193,9 @@ impl SessionRouter {
             components: PluginComponentRegistry::new(),
             last_top_k: RwLock::new(10),
             interaction_emitter: RwLock::new(None),
-            next_query_revision: Arc::new(AtomicU64::new(0)),
+            ui_query_revision: Arc::new(AtomicU64::new(0)),
+            cli_query_revision: Arc::new(AtomicU64::new(0)),
+            debug_query_revision: Arc::new(AtomicU64::new(0)),
         }
     }
 
@@ -309,10 +331,26 @@ impl SessionRouter {
         }
     }
 
+    /// 返回指定通道的版本计数器：各通道独立计数，互不干扰。
+    fn revision_counter(&self, channel: QueryChannel) -> &Arc<AtomicU64> {
+        match channel {
+            QueryChannel::Ui => &self.ui_query_revision,
+            QueryChannel::Cli => &self.cli_query_revision,
+            QueryChannel::Debug => &self.debug_query_revision,
+        }
+    }
+
     #[tracing::instrument(skip(self, query), fields(trace_id = %trace_id, query_revision))]
-    pub async fn route_query(&self, trace_id: &str, query: &Query) -> QueryResponse {
-        // 分配单调递增查询版本号：任何新查询进入后端即视为取代先前查询。
-        let revision = self.next_query_revision.fetch_add(1, Ordering::Relaxed) + 1;
+    pub async fn route_query(
+        &self,
+        trace_id: &str,
+        query: &Query,
+        channel: QueryChannel,
+    ) -> QueryResponse {
+        // 从所属通道计数器分配单调递增版本号：同通道新查询取代先前查询；
+        // 跨通道（CLI/调试）查询互不使对方过期。
+        let counter = self.revision_counter(channel);
+        let revision = counter.fetch_add(1, Ordering::Relaxed) + 1;
         tracing::Span::current().record("query_revision", revision);
         let (query_len, query_preview) = Self::log_query_preview(&query.raw_query);
         info!(
@@ -325,21 +363,18 @@ impl SessionRouter {
 
         let mut ctx = PluginContext::new(trace_id);
         ctx.with_query(query.raw_query.clone());
-        ctx.set_query_revision_gate(QueryRevisionGate::new(
-            revision,
-            self.next_query_revision.clone(),
-        ));
+        ctx.set_query_revision_gate(QueryRevisionGate::new(revision, counter.clone()));
 
         // 这里的查询路由逻辑是：优先让插件处理查询（如果匹配），否则走内置搜索管道。
         let results = self.plugin_service.query(&ctx, query).await;
 
-        // 提交门控：查询执行期间若有更新的查询进入后端，本查询已过期（判定单调，
+        // 提交门控：查询执行期间若有同通道更新的查询进入后端，本查询已过期（判定单调，
         // 过期后不会再变回最新），直接丢弃本次结果并返回空响应——
         // 前端按 seq 丢弃过期响应；CLI 无 seq 时，过期查询返回空结果也优于返回过期数据。
-        if self.next_query_revision.load(Ordering::Relaxed) != revision {
+        if counter.load(Ordering::Relaxed) != revision {
             info!(
                 query_revision = revision,
-                latest_query_revision = self.next_query_revision.load(Ordering::Relaxed),
+                latest_query_revision = counter.load(Ordering::Relaxed),
                 site = "route",
                 "查询过期，丢弃查询结果"
             );
@@ -360,32 +395,40 @@ impl SessionRouter {
                 }
                 _ => SessionMode::InlinePlugin(plugin_id.clone()),
             };
-            // 面板切换检测：仅当进入或切换到不同插件面板时推送交互策略。
-            // 面板内重复查询不重复推送；退出面板由前端在响应分支中自行清空。
-            let old_plugin = match &*self.current_mode.read() {
-                SessionMode::InlinePlugin(id) | SessionMode::FullPagePlugin(id) => Some(id.clone()),
-                _ => None,
-            };
-            let new_plugin = match &mode {
-                SessionMode::InlinePlugin(id) | SessionMode::FullPagePlugin(id) => Some(id.clone()),
-                _ => None,
-            };
             info!(
                 query_revision = revision,
                 target = %plugin_id,
                 mode = %mode.as_str(),
                 "路由命中插件"
             );
-            *self.current_mode.write() = mode;
-            if old_plugin != new_plugin {
-                if let Some(plugin_id) = new_plugin {
-                    let policy = self.plugin_service.interaction_policy(&plugin_id);
-                    if let Some(emitter) = self.interaction_emitter.read().clone() {
-                        emitter(PanelInteractionEvent {
-                            trigger_keywords: self.plugin_service.trigger_keywords(&plugin_id),
-                            interaction: policy,
-                            plugin_id,
-                        });
+            // 会话状态仅由 UI 通道维护：CLI/调试查询为只读辅助路径，
+            // 不得改写 GUI 会话模式或向窗口推送面板交互事件。
+            if channel == QueryChannel::Ui {
+                // 面板切换检测：仅当进入或切换到不同插件面板时推送交互策略。
+                // 面板内重复查询不重复推送；退出面板由前端在响应分支中自行清空。
+                let old_plugin = match &*self.current_mode.read() {
+                    SessionMode::InlinePlugin(id) | SessionMode::FullPagePlugin(id) => {
+                        Some(id.clone())
+                    }
+                    _ => None,
+                };
+                let new_plugin = match &mode {
+                    SessionMode::InlinePlugin(id) | SessionMode::FullPagePlugin(id) => {
+                        Some(id.clone())
+                    }
+                    _ => None,
+                };
+                *self.current_mode.write() = mode;
+                if old_plugin != new_plugin {
+                    if let Some(plugin_id) = new_plugin {
+                        let policy = self.plugin_service.interaction_policy(&plugin_id);
+                        if let Some(emitter) = self.interaction_emitter.read().clone() {
+                            emitter(PanelInteractionEvent {
+                                trigger_keywords: self.plugin_service.trigger_keywords(&plugin_id),
+                                interaction: policy,
+                                plugin_id,
+                            });
+                        }
                     }
                 }
             }
@@ -394,7 +437,10 @@ impl SessionRouter {
 
         // 任何新查询隐式重置会话模式为 Search，
         // 这是前端 exitInlineParamMode / exitParamPanelMode / exitPluginMode 通过 doQuery('') 退出模式的契约基础。
-        *self.current_mode.write() = SessionMode::Search;
+        // 仅 UI 通道重置：CLI/调试查询不得改写 GUI 会话模式。
+        if channel == QueryChannel::Ui {
+            *self.current_mode.write() = SessionMode::Search;
+        }
 
         info!(query_revision = revision, target = "search", "路由命中搜索");
 
@@ -429,10 +475,13 @@ impl SessionRouter {
                         .iter()
                         .any(|kw| kw.to_lowercase() == trimmed)
                 {
-                    *self.current_mode.write() = SessionMode::InlineParam {
-                        candidate_id: sc.id,
-                        trigger_keyword: trimmed.to_string(),
-                    };
+                    // 仅 UI 通道进入行内参数模式：CLI/调试查询返回响应但不改写会话模式。
+                    if channel == QueryChannel::Ui {
+                        *self.current_mode.write() = SessionMode::InlineParam {
+                            candidate_id: sc.id,
+                            trigger_keyword: trimmed.to_string(),
+                        };
+                    }
                     return QueryResponse::InlineParam {
                         candidate_id: sc.id,
                         trigger_keyword: trimmed.to_string(),

@@ -3,6 +3,7 @@
 //! 返回类型遵循 serde-rename 规范，每个字段显式标注 `#[serde(rename)]`。
 
 use crate::commands::bridge_error::BridgeError;
+use crate::plugin_framework::QueryChannel;
 use crate::state::app_state::AppState;
 use serde::Serialize;
 use std::sync::Arc;
@@ -184,6 +185,8 @@ pub async fn debug_simulate_query(
         search_term: raw_query.to_lowercase(),
         confirm: false,
     };
-    let response = session_router.route_query(&trace_id, &query).await;
+    let response = session_router
+        .route_query(&trace_id, &query, QueryChannel::Debug)
+        .await;
     Ok(serde_json::to_value(&response).unwrap_or_default())
 }

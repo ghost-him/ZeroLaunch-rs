@@ -1,5 +1,5 @@
 use crate::commands::bridge_error::{BridgeError, WithTraceId};
-use crate::plugin_framework::inspector::InspectedQueryEvent;
+use crate::plugin_framework::{inspector::InspectedQueryEvent, QueryChannel};
 use crate::state::app_state::AppState;
 use base64::{engine::general_purpose::STANDARD, Engine};
 use serde::{Deserialize, Serialize};
@@ -173,7 +173,9 @@ pub async fn bridge_query(
     };
 
     let query_start = std::time::Instant::now();
-    let response = session_router.route_query(&trace_id, &query).await;
+    let response = session_router
+        .route_query(&trace_id, &query, QueryChannel::Ui)
+        .await;
 
     // 录制查询事件到 Inspector（仅在调试模式开启时）
     let (mode, result_count) = match &response {

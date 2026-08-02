@@ -5,6 +5,7 @@ use serde::Deserialize;
 use std::sync::Arc;
 
 use crate::cli_server::middleware::TraceId;
+use crate::plugin_framework::QueryChannel;
 use crate::state::app_state::AppState;
 use zerolaunch_plugin_api::QueryResponse;
 
@@ -28,7 +29,7 @@ pub async fn handle(
 
     let response = state
         .get_session_router()
-        .route_query(&trace_id.0, &query)
+        .route_query(&trace_id.0, &query, QueryChannel::Cli)
         .await;
 
     Json(response)

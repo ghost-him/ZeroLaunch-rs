@@ -29,6 +29,7 @@ use zerolaunch_platform_windows::ComGuard;
 use zerolaunch_platform_windows::WindowsAppEnumerator;
 use zerolaunch_platform_windows::WindowsAppLauncher;
 use zerolaunch_platform_windows::WindowsAutoStartManager;
+use zerolaunch_platform_windows::WindowsClipboardManager;
 use zerolaunch_platform_windows::WindowsClipboardProvider;
 use zerolaunch_platform_windows::WindowsIconExtractor;
 use zerolaunch_platform_windows::WindowsInstallationMonitor;
@@ -293,6 +294,7 @@ fn build_windows_host_api_builder(
         .timer_manager(Arc::new(TokioTimerManager::new()))
         .storage_service(default_storage)
         .app_resource(app_resource)
+        .clipboard_manager(Arc::new(WindowsClipboardManager::new()))
         .window_positioner(Arc::new(WindowsWindowPositioner::new()))
 }
 

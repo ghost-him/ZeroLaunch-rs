@@ -549,7 +549,7 @@ mod tests {
     }
 
     #[test]
-    /// 验证门控字段不参与序列化（不跨 RPC 传输），反序列化后为 None。
+    /// 验证门控与句柄字段不参与序列化（不跨 RPC 传输），反序列化后为 None。
     fn plugin_context_skips_gate_in_serialization() {
         let mut ctx = PluginContext::new("trace-2");
         ctx.set_query_revision_gate(QueryRevisionGate::new(1, Arc::new(AtomicU64::new(1))));
@@ -557,6 +557,11 @@ mod tests {
         assert!(
             !json.contains("revision") && !json.contains("gate"),
             "门控字段不应出现在序列化结果中: {}",
+            json
+        );
+        assert!(
+            !json.contains("handle"),
+            "句柄字段不应出现在序列化结果中: {}",
             json
         );
 

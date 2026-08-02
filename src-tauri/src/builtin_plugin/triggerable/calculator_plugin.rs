@@ -16,6 +16,10 @@ pub struct CalculatorPlugin {
     core: ComponentCore,
     metadata: PluginMetadata,
     inner: RwLock<CalculatorSettings>,
+    /// 最近一次计算的结果文本，供 execute_action 写入剪贴板。
+    last_result: RwLock<Option<String>>,
+    /// PluginHandle（init 时发放），供 execute_action 经句柄访问平台能力。
+    handle: RwLock<Option<Arc<PluginHandle>>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -52,6 +56,8 @@ impl CalculatorPlugin {
                 priority: 100,
             },
             inner: RwLock::new(CalculatorSettings::default()),
+            last_result: RwLock::new(None),
+            handle: RwLock::new(None),
         }
     }
 
@@ -98,12 +104,14 @@ impl Plugin for CalculatorPlugin {
         &self.metadata
     }
 
-    /// CalculatorPlugin 无需异步初始化，所有状态在构造时已就绪
+    /// CalculatorPlugin 无需异步初始化，所有状态在构造时已就绪；
+    /// 仅保存 init 发放的服务句柄，供 execute_action 访问平台能力。
     async fn init(
         &self,
         _ctx: &PluginContext,
-        _handle: Arc<PluginHandle>,
+        handle: Arc<PluginHandle>,
     ) -> Result<(), PluginError> {
+        *self.handle.write() = Some(handle);
         Ok(())
     }
 
@@ -113,7 +121,7 @@ impl Plugin for CalculatorPlugin {
 
     async fn query(
         &self,
-        _ctx: &PluginContext,
+        ctx: &PluginContext,
         query: &Query,
     ) -> Result<QueryResponse, PluginError> {
         let expr = query.search_term.trim().to_string();
@@ -139,6 +147,11 @@ impl Plugin for CalculatorPlugin {
                 } else {
                     format!("{}", result)
                 };
+
+                // 缓存结果文本，供 execute_action 写入剪贴板；仅最新查询可写入。
+                if ctx.is_query_current() {
+                    *self.last_result.write() = Some(result_str.clone());
+                }
 
                 Ok(QueryResponse::CustomPanel {
                     panel_type: "calculator".to_string(),
@@ -178,7 +191,16 @@ impl Plugin for CalculatorPlugin {
     ) -> Result<(), PluginError> {
         match action_id {
             "copy_result" => {
-                // The frontend handles clipboard access via Tauri APIs
+                let text = self.last_result.read().clone();
+                if let Some(text) = text {
+                    // 经 PluginHandle 访问剪贴板能力（init 时发放）。
+                    let handle = self.handle.read().clone().ok_or_else(|| {
+                        PluginError::ActionFailed("插件服务句柄不可用".to_string())
+                    })?;
+                    handle
+                        .set_clipboard_text(&text)
+                        .map_err(|e| PluginError::ActionFailed(format!("剪贴板写入失败: {}", e)))?;
+                }
                 Ok(())
             }
             _ => Err(PluginError::ActionFailed(format!(

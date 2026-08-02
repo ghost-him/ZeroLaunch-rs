@@ -45,7 +45,9 @@ const searchStore = useSearchStore()
 // ---- 即时模式「已开始翻译」提示 ----
 // 判定属翻译插件专属逻辑，保留在本面板组件；通用 store 仅暴露查询在途状态。
 
-/// 查询是否包含待翻译文本：剥离触发词与 @ 语言码后仍有非空内容（镜像后端 parse_search_term）。
+/// 查询是否包含待翻译文本：剥离触发词与 @ 语言码后仍有非空内容。
+/// 输入交互层判定（RULES.md 前后端职责边界）：仅用于派发时刻「已开始翻译」提示时序，
+/// 权威解析仍由后端 parse_search_term 裁决；镜像变更须与后端同步（frontend-input-interaction 规则）。
 function hasTranslateContent(raw: string): boolean {
   return raw.split(' ').slice(1).some((tok) => tok.trim() !== '' && !tok.startsWith('@'))
 }
@@ -77,18 +79,9 @@ const primaryComputerSense = computed(() => primary.value?.computerSense?.trim()
 const primaryMoreSenses = computed(() => (primary.value?.moreSenses ?? []).slice(0, 4))
 const alternatives = computed(() => props.data?.alternatives ?? [])
 
-async function copyToClipboard(text: string) {
-  try {
-    await navigator.clipboard.writeText(text)
-  } catch (error) {
-    console.warn('[翻译面板] 剪贴板写入失败:', error)
-  }
-}
-
+// 所有面板动作（含复制译文）统一经 bridge_confirm 委托后端执行：
+// 剪贴板写入由后端经 PluginHandle 完成，前端不做平台操作（RULES.md 前后端职责边界）。
 async function executeAction(action: ResultAction) {
-  if (action.id === 'copy_primary' && primaryText.value) {
-    await copyToClipboard(primaryText.value)
-  }
   await searchStore.doConfirm(0, action.id)
 }
 </script>

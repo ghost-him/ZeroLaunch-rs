@@ -31,7 +31,7 @@ translator/
 | `inventory::submit!` | `component_id: "translator"`，与 metadata id 一致 |
 | 触发词注册期固定 | `fy` / `tr` / `翻译` |
 | CustomPanel | `panel_type: "translator"` |
-| 平台能力 | HTTP 直连或经 `PluginHandle`；勿反向依赖 `plugin_framework` |
+| 平台能力 | 剪贴板经 `PluginHandle`（`set_clipboard_text`）；LLM HTTP 调用为插件自身职责（直连）；勿反向依赖 `plugin_framework` |
 
 ## 统一结果契约
 

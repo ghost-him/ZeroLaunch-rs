@@ -4,6 +4,7 @@ use zerolaunch_plugin_api::platform::capabilities::PlatformCapabilities;
 use zerolaunch_plugin_api::services::app::app_enumerator::AppEnumerator;
 use zerolaunch_plugin_api::services::app::app_launcher::AppLauncher;
 use zerolaunch_plugin_api::services::autostart::AutoStartManager;
+use zerolaunch_plugin_api::services::clipboard::ClipboardManager;
 use zerolaunch_plugin_api::services::focus_monitor::FocusMonitor;
 use zerolaunch_plugin_api::services::hotkey::types::HotkeyConfig;
 use zerolaunch_plugin_api::services::hotkey::HotkeyManager;
@@ -74,6 +75,8 @@ pub struct HostApi {
     installation_monitor: Arc<dyn InstallationMonitor>,
     /// 聚焦监控器（平台实现，可选，由 init_search_bar_window 设置）
     focus_monitor: Arc<dyn FocusMonitor>,
+    /// 剪贴板管理器（平台实现）
+    clipboard_manager: Arc<dyn ClipboardManager>,
     /// 定时器管理器
     timer_manager: Arc<dyn TimerManager>,
     /// 存储服务（可运行时重配置：Local ↔ WebDAV）
@@ -123,6 +126,7 @@ impl HostApi {
             self.hotkey_manager.clone(),
             self.installation_monitor.clone(),
             self.focus_monitor.clone(),
+            self.clipboard_manager.clone(),
         ));
         self.handles.insert(plugin_id.to_string(), handle.clone());
         handle
@@ -375,6 +379,7 @@ pub struct HostApiBuilder {
     storage_service: Option<Arc<dyn StorageService>>,
     app_resource: Option<Arc<AppResourceService>>,
     focus_monitor: Option<Arc<dyn FocusMonitor>>,
+    clipboard_manager: Option<Arc<dyn ClipboardManager>>,
     notify_callback: Option<Arc<dyn Fn(String, String) + Send + Sync + 'static>>,
     hide_window_callback: Option<Arc<dyn Fn() + Send + Sync + 'static>>,
     show_window_callback: Option<Arc<dyn Fn() + Send + Sync + 'static>>,
@@ -410,6 +415,7 @@ impl HostApiBuilder {
             storage_service: None,
             app_resource: None,
             focus_monitor: None,
+            clipboard_manager: None,
             notify_callback: None,
             hide_window_callback: None,
             show_window_callback: None,
@@ -573,6 +579,14 @@ impl HostApiBuilder {
         self
     }
 
+    /// 设置剪贴板管理器。
+    /// 参数：clipboard_manager - 剪贴板管理器实例。
+    /// 返回：Self（支持链式调用）。
+    pub fn clipboard_manager(mut self, clipboard_manager: Arc<dyn ClipboardManager>) -> Self {
+        self.clipboard_manager = Some(clipboard_manager);
+        self
+    }
+
     /// 设置通知回调，宿主层在初始化时注入平台通知实现。
     /// 参数：callback - 接收 (title, message) 的通知回调。
     /// 返回：Self（支持链式调用）。
@@ -706,6 +720,9 @@ impl HostApiBuilder {
             focus_monitor: self
                 .focus_monitor
                 .ok_or(HostApiBuildError::MissingComponent("focus_monitor"))?,
+            clipboard_manager: self
+                .clipboard_manager
+                .ok_or(HostApiBuildError::MissingComponent("clipboard_manager"))?,
             notify_callback: RwLock::new(
                 self.notify_callback
                     .ok_or(HostApiBuildError::MissingComponent("notify_callback"))?,

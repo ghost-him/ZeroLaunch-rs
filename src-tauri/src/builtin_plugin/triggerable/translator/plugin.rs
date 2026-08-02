@@ -32,6 +32,8 @@ pub struct TranslatorPlugin {
     registry: ProviderRegistry,
     /// 最近一次成功翻译的译文文本，供 execute_action 写入剪贴板。
     last_result_text: RwLock<Option<String>>,
+    /// PluginHandle（init 时发放），供 execute_action 经句柄访问平台能力。
+    handle: RwLock<Option<Arc<PluginHandle>>>,
 }
 
 /// 语言代码 → 展示名称映射。
@@ -220,6 +222,7 @@ impl TranslatorPlugin {
             llm_config,
             registry,
             last_result_text: RwLock::new(None),
+            handle: RwLock::new(None),
         }
     }
 
@@ -554,8 +557,10 @@ impl Plugin for TranslatorPlugin {
     async fn init(
         &self,
         _ctx: &PluginContext,
-        _handle: Arc<PluginHandle>,
+        handle: Arc<PluginHandle>,
     ) -> Result<(), PluginError> {
+        // 保存服务句柄，供 execute_action 经 PluginHandle 访问平台能力（如剪贴板）。
+        *self.handle.write() = Some(handle);
         let settings = self.inner.read().clone();
         self.sync_llm_config(&settings);
         Ok(())
@@ -660,10 +665,13 @@ impl Plugin for TranslatorPlugin {
         if action_id == "copy_primary" || action_id.starts_with("copy_alt:") {
             let text = self.last_result_text.read().clone();
             if let Some(text) = text {
-                let mut clipboard = arboard::Clipboard::new()
-                    .map_err(|e| PluginError::ActionFailed(format!("剪贴板初始化失败: {}", e)))?;
-                clipboard
-                    .set_text(&text)
+                // 经 PluginHandle 访问剪贴板能力（init 时发放）。
+                let handle =
+                    self.handle.read().clone().ok_or_else(|| {
+                        PluginError::ActionFailed("插件服务句柄不可用".to_string())
+                    })?;
+                handle
+                    .set_clipboard_text(&text)
                     .map_err(|e| PluginError::ActionFailed(format!("剪贴板写入失败: {}", e)))?;
             }
             Ok(())

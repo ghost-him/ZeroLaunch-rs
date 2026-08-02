@@ -1,5 +1,6 @@
 pub mod app;
 pub mod autostart;
+pub mod clipboard;
 pub mod focus_monitor;
 pub mod hotkey;
 pub mod icon;
@@ -15,6 +16,7 @@ pub mod window;
 
 pub use app::*;
 pub use autostart::*;
+pub use clipboard::*;
 pub use focus_monitor::{FocusCallback, FocusEvent, FocusMonitor};
 pub use hotkey::types::CallbackRegistration;
 pub use hotkey::{

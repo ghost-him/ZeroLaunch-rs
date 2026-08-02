@@ -408,6 +408,16 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
         }
     }
 
+    // 内置插件全部注册后统一执行 init：向插件发放绑定身份的 PluginHandle
+    // （插件在 init 中保存句柄，供 query/execute_action 访问平台能力）。
+    // 远端插件适配器的 init 为 no-op，不会被重复初始化。
+    session_router
+        .plugin_service()
+        .init_all(host_api.clone())
+        .await
+        .expect("内置插件初始化失败");
+    info!("内置插件 init 完成（PluginHandle 已发放）");
+
     info!(
         "Phase A 完成: 共注册 {} 个组件（其中内置 {} 个）",
         config_manager.get_all_components().len(),

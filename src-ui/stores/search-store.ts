@@ -131,8 +131,10 @@ export const useSearchStore = defineStore('search', () => {
   /// 退出操作独立于插件防抖配置（如从 "fy hello" 回退到 "fy" 不受防抖延迟）。
   let panelTriggerKeywords: string[] = []
 
-  /// 查询文本是否仍属于当前插件面板：首词为空格分隔的触发词（镜像后端 parse_trigger）。
-  /// 供防抖退出判定（shouldExit）与面板查询在途状态（panelQueryInFlight）共用。
+  /// 查询文本是否仍属于当前插件面板：首词为空格分隔的触发词（镜像后端 PluginRegistry::parse_trigger）。
+  /// 输入交互层判定（RULES.md 前后端职责边界）：仅用于 IPC 前时序决策（防抖豁免、在途提示），
+  /// 权威路由仍由后端 route_query 裁决；判定参数（触发词）来自后端 panel-interaction 事件，
+  /// 镜像变更须与后端同步（frontend-input-interaction 规则）。
   function queryStillInPanel(raw: string): boolean {
     if (panelTriggerKeywords.length === 0) return false
     const firstWord = raw.split(' ')[0]

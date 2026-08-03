@@ -1,12 +1,12 @@
 use crate::commands::bridge_error::{BridgeError, WithTraceId};
-use crate::plugin_framework::{inspector::InspectedQueryEvent, QueryChannel};
+use crate::plugin_framework::inspector::InspectedQueryEvent;
 use crate::state::app_state::AppState;
 use base64::{engine::general_purpose::STANDARD, Engine};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tauri::Emitter;
 use tracing::{debug, info};
-use zerolaunch_plugin_api::{ConfirmResult, Query, QueryResponse, ResultAction};
+use zerolaunch_plugin_api::{ConfirmResult, Query, QueryChannel, QueryResponse, ResultAction};
 // ============================================================================
 // 搜索接口
 // ============================================================================

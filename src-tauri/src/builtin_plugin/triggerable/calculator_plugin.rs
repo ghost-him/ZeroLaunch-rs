@@ -8,8 +8,8 @@ use zerolaunch_plugin_api::config::{ComponentCore, ComponentType, ConfigError, C
 use zerolaunch_plugin_api::host::PluginHandle;
 use zerolaunch_plugin_api::services::IconRequest;
 use zerolaunch_plugin_api::{
-    PanelInteraction, Plugin, PluginContext, PluginError, PluginMetadata, Query, QueryResponse,
-    ResultAction,
+    PanelInteraction, Plugin, PluginContext, PluginError, PluginMetadata, Query, QueryChannel,
+    QueryResponse, ResultAction,
 };
 
 pub struct CalculatorPlugin {
@@ -148,8 +148,10 @@ impl Plugin for CalculatorPlugin {
                     format!("{}", result)
                 };
 
-                // 缓存结果文本，供 execute_action 写入剪贴板；仅最新查询可写入。
-                if ctx.is_query_current() {
+                // 缓存结果文本，供 execute_action 写入剪贴板。
+                // 仅 GUI 通道且查询仍最新可写入：CLI/调试查询为只读辅助路径，
+                // 不得改写 GUI 剪贴板缓存（复制动作无通道区分）。
+                if ctx.is_query_current() && ctx.query_channel == QueryChannel::Ui {
                     *self.last_result.write() = Some(result_str.clone());
                 }
 

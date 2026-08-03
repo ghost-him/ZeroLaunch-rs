@@ -13,8 +13,8 @@ use zerolaunch_plugin_api::config::{
 };
 use zerolaunch_plugin_api::{
     ActionExecutor, CachedCandidateData, DataSource, ExecutionContext, ExecutionError, Plugin,
-    PluginContext, PluginError, PluginHandle, PluginMetadata, Query, QueryResponse, ResultAction,
-    TargetType,
+    PluginContext, PluginError, PluginHandle, PluginMetadata, Query, QueryChannel, QueryResponse,
+    ResultAction, TargetType,
 };
 
 use crate::client::JsonRpcClient;
@@ -312,6 +312,8 @@ impl ActionExecutor for RemoteComponent {
                         plugin_id: Some(self.core.component_id().to_string()),
                         // 远端插件无宿主查询版本门控，恒视为最新。
                         query_revision_gate: None,
+                        // 远端插件会话由宿主经 RPC 下发通道，未收到时缺省视为 GUI 通道。
+                        query_channel: QueryChannel::Ui,
                     },
                     action_id: action_id.to_string(),
                 },

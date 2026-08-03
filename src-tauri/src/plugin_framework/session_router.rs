@@ -17,8 +17,8 @@ use zerolaunch_plugin_api::services::parameter::template_parser::{Placeholder, T
 use zerolaunch_plugin_api::services::ParameterSnapshot;
 use zerolaunch_plugin_api::{
     ActionExecutor, CachedCandidateData, CandidateId, ConfirmResult, ExecutionContext,
-    ExecutionError, ListItem, PanelInteraction, Plugin, PluginContext, Query, QueryResponse,
-    QueryRevisionGate, ScoredCandidate, SearchCandidate,
+    ExecutionError, ListItem, PanelInteraction, Plugin, PluginContext, Query, QueryChannel,
+    QueryResponse, QueryRevisionGate, ScoredCandidate, SearchCandidate,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -38,21 +38,6 @@ pub enum SessionMode {
     InlinePlugin(String),
     /// 全页面插件模式：插件接管整个窗口，管理所有按键
     FullPagePlugin(String),
-}
-
-/// 查询来源通道 — 标识查询进入后端的入口，用于通道间隔离。
-///
-/// 仅供 SessionRouter::route_query 使用：各通道独立维护查询版本计数器，
-/// 跨通道查询互不使对方过期；且仅 UI 通道允许改写会话状态
-/// （会话模式、面板交互事件），CLI/调试查询为只读辅助路径。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum QueryChannel {
-    /// 主窗口 GUI 查询（bridge_query）。
-    Ui,
-    /// 本地 CLI HTTP 查询（/v1/query）。
-    Cli,
-    /// 调试模拟查询（debug_simulate_query）。
-    Debug,
 }
 
 impl SessionMode {
@@ -364,6 +349,8 @@ impl SessionRouter {
         let mut ctx = PluginContext::new(trace_id);
         ctx.with_query(query.raw_query.clone());
         ctx.set_query_revision_gate(QueryRevisionGate::new(revision, counter.clone()));
+        // 通道注入上下文：插件可据此区分 GUI/CLI/调试查询（如仅 GUI 通道可写剪贴板缓存）。
+        ctx.query_channel = channel;
 
         // 这里的查询路由逻辑是：优先让插件处理查询（如果匹配），否则走内置搜索管道。
         let results = self.plugin_service.query(&ctx, query).await;
@@ -404,32 +391,19 @@ impl SessionRouter {
             // 会话状态仅由 UI 通道维护：CLI/调试查询为只读辅助路径，
             // 不得改写 GUI 会话模式或向窗口推送面板交互事件。
             if channel == QueryChannel::Ui {
-                // 面板切换检测：仅当进入或切换到不同插件面板时推送交互策略。
-                // 面板内重复查询不重复推送；退出面板由前端在响应分支中自行清空。
-                let old_plugin = match &*self.current_mode.read() {
-                    SessionMode::InlinePlugin(id) | SessionMode::FullPagePlugin(id) => {
-                        Some(id.clone())
-                    }
-                    _ => None,
-                };
-                let new_plugin = match &mode {
-                    SessionMode::InlinePlugin(id) | SessionMode::FullPagePlugin(id) => {
-                        Some(id.clone())
-                    }
-                    _ => None,
-                };
+                // 路由命中插件面板：无条件推送交互策略（事件幂等，前端无条件接受，
+                // 面板内重复查询重复推送无害且同步最新策略）。
+                // 不可按「面板切换」条件推送：Esc 退出走前端 doQuery('') 短路（不发 IPC），
+                // current_mode 滞留旧面板；同面板重入时切换条件不成立，
+                // panelInteraction 永久丢失（onEnter 模式 Enter 无可执行动作、onInput 模式防抖失效）。
                 *self.current_mode.write() = mode;
-                if old_plugin != new_plugin {
-                    if let Some(plugin_id) = new_plugin {
-                        let policy = self.plugin_service.interaction_policy(&plugin_id);
-                        if let Some(emitter) = self.interaction_emitter.read().clone() {
-                            emitter(PanelInteractionEvent {
-                                trigger_keywords: self.plugin_service.trigger_keywords(&plugin_id),
-                                interaction: policy,
-                                plugin_id,
-                            });
-                        }
-                    }
+                let policy = self.plugin_service.interaction_policy(&plugin_id);
+                if let Some(emitter) = self.interaction_emitter.read().clone() {
+                    emitter(PanelInteractionEvent {
+                        trigger_keywords: self.plugin_service.trigger_keywords(&plugin_id),
+                        interaction: policy,
+                        plugin_id,
+                    });
                 }
             }
             return results;

@@ -251,6 +251,22 @@ pub trait ActionExecutor: Configurable {
     async fn execute(&self, ctx: &ExecutionContext, action_id: &str) -> Result<(), ExecutionError>;
 }
 
+/// 查询来源通道 — 标识查询进入后端的入口，用于通道间隔离。
+///
+/// 各通道独立维护查询版本计数器，跨通道查询互不使对方过期；
+/// 且仅 GUI 通道允许改写会话状态（会话模式、面板交互事件）与
+/// 插件侧跨查询共享状态（如剪贴板缓存），CLI/调试查询为只读辅助路径。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum QueryChannel {
+    /// 主窗口 GUI 查询（bridge_query）。
+    #[default]
+    Ui,
+    /// 本地 CLI HTTP 查询（/v1/query）。
+    Cli,
+    /// 调试模拟查询（debug_simulate_query）。
+    Debug,
+}
+
 /// 查询版本门控：宿主在每次查询入口分配单调递增版本号，
 /// 供插件在写入跨查询共享状态（如翻译结果缓存）前判断自身查询
 /// 是否已被更新的查询取代。
@@ -296,6 +312,9 @@ pub struct PluginContext {
     /// 远端插件或直接构造的上下文为 None，此时视为始终为最新）。
     #[serde(skip)]
     pub query_revision_gate: Option<QueryRevisionGate>,
+    /// 查询来源通道（宿主注入；远端插件经 RPC 反序列化时缺省视为 GUI 通道）。
+    #[serde(default)]
+    pub query_channel: QueryChannel,
 }
 
 impl PluginContext {
@@ -305,6 +324,7 @@ impl PluginContext {
             query_id: None,
             plugin_id: None,
             query_revision_gate: None,
+            query_channel: QueryChannel::Ui,
         }
     }
 
@@ -519,7 +539,9 @@ pub enum PluginError {
 
 #[cfg(test)]
 mod tests {
-    use super::{PanelInteraction, PanelQueryTrigger, PluginContext, QueryRevisionGate};
+    use super::{
+        PanelInteraction, PanelQueryTrigger, PluginContext, QueryChannel, QueryRevisionGate,
+    };
     use serde_json::json;
     use std::sync::atomic::{AtomicU64, Ordering};
     use std::sync::Arc;
@@ -542,6 +564,11 @@ mod tests {
         let mut ctx = PluginContext::new("trace-1");
         assert!(ctx.is_query_current(), "无门控时应恒为最新");
         assert_eq!(ctx.query_revision(), 0);
+        assert_eq!(
+            ctx.query_channel,
+            QueryChannel::Ui,
+            "未显式注入时应缺省为 GUI 通道"
+        );
 
         let latest = Arc::new(AtomicU64::new(1));
         ctx.set_query_revision_gate(QueryRevisionGate::new(1, latest));
@@ -571,6 +598,11 @@ mod tests {
             "反序列化后门控应为 None"
         );
         assert!(roundtrip.is_query_current());
+        assert_eq!(
+            roundtrip.query_channel,
+            QueryChannel::Ui,
+            "通道字段应参与序列化且缺省为 GUI 通道"
+        );
     }
 
     #[test]

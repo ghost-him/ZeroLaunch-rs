@@ -3,10 +3,10 @@
 //! 返回类型遵循 serde-rename 规范，每个字段显式标注 `#[serde(rename)]`。
 
 use crate::commands::bridge_error::BridgeError;
-use crate::plugin_framework::QueryChannel;
 use crate::state::app_state::AppState;
 use serde::Serialize;
 use std::sync::Arc;
+use zerolaunch_plugin_api::QueryChannel;
 
 // ---- 响应类型 ----
 

@@ -4,6 +4,8 @@ import { configGetSchema } from '@/bridge/commands'
 import {
   NButton,
   NCheckbox,
+  NCollapse,
+  NCollapseItem,
   NInput,
   NInputNumber,
   NSelect,
@@ -30,30 +32,24 @@ const PROVIDER_CATALOG = [
   },
 ] as const
 
-// 厂商预设：label 为持久化值（与后端 LLM_VENDOR_OPTIONS 枚举一致，禁止翻译），labelKey 仅用于展示。
-const LLM_BASE_URL_PRESETS = [
-  { label: 'DeepSeek', labelKey: 'translator.vendorDeepSeek', id: 'deepseek', url: 'https://api.deepseek.com' },
-  { label: '智谱 GLM', labelKey: 'translator.vendorZhipu', id: 'glm', url: 'https://open.bigmodel.cn/api/paas/v4' },
-  { label: 'OpenAI', labelKey: 'translator.vendorOpenAI', id: 'openai', url: 'https://api.openai.com/v1' },
-  { label: '硅基流动', labelKey: 'translator.vendorSiliconFlow', id: 'siliconflow', url: 'https://api.siliconflow.cn/v1' },
-  {
-    label: '阿里云百炼',
-    labelKey: 'translator.vendorBailian',
-    id: 'dashscope',
-    url: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-  },
-  {
-    label: '腾讯云 TokenHub',
-    labelKey: 'translator.vendorTokenHub',
-    id: 'tokenhub',
-    url: 'https://tokenhub.tencentmaas.com/v1',
-  },
-  { label: 'Kimi', labelKey: 'translator.vendorKimi', id: 'kimi', url: 'https://api.moonshot.cn/v1' },
-  { label: '小米 MiMo', labelKey: 'translator.vendorMiMo', id: 'mimo', url: 'https://api.xiaomimimo.com/v1' },
-  { label: '自定义', labelKey: 'translator.vendorCustom', id: 'custom', url: null },
-] as const
+// 厂商预设展示名：label 为持久化值（与后端默认预设一致，禁止翻译），labelKey 仅用于展示；
+// 用户新增的厂商无对应 key 时直接显示原始 label。
+// 预设列表（label → Base URL）为持久化设置 llm_vendor_options（用户可增删改），
+// 由后端下发并在应用时经 normalize 校验；前端不再维护 URL 镜像。
+const VENDOR_LABEL_KEYS: Record<string, string> = {
+  DeepSeek: 'translator.vendorDeepSeek',
+  '智谱 GLM': 'translator.vendorZhipu',
+  OpenAI: 'translator.vendorOpenAI',
+  '硅基流动': 'translator.vendorSiliconFlow',
+  '阿里云百炼': 'translator.vendorBailian',
+  '腾讯云 TokenHub': 'translator.vendorTokenHub',
+  Kimi: 'translator.vendorKimi',
+  '小米 MiMo': 'translator.vendorMiMo',
+  自定义: 'translator.vendorCustom',
+}
 
-const CUSTOM_PRESET_ID = 'custom'
+/** 厂商预设（label → Base URL）；url 为空串表示无预设地址（schema 校验不接受 null）。 */
+type VendorOption = { label: string; url: string }
 
 type TranslatorLocalSettings = {
   translate_mode: 'live' | 'on_enter'
@@ -62,6 +58,7 @@ type TranslatorLocalSettings = {
   request_timeout_ms: number
   live_debounce_secs: number
   llm_vendor: string
+  llm_vendor_options: VendorOption[]
   llm_base_url: string
   llm_api_key: string
   llm_model: string
@@ -85,17 +82,30 @@ function modeFromRaw(raw: unknown): 'live' | 'on_enter' {
   return 'live'
 }
 
-function vendorLabelFromUrl(url: string): string {
-  // 返回持久化枚举值（与后端 LLM_VENDOR_OPTIONS 一致），非展示文本。
-  const trimmed = url.trim()
-  if (!trimmed) return '自定义'
-  const match = LLM_BASE_URL_PRESETS.find((p) => p.url === trimmed)
-  return match?.label ?? '自定义'
+/** 从设置 DTO 读取厂商预设（持久化字段，用户可编辑）；非法条目剔除，URL 缺省为空串。 */
+function parseVendorOptions(raw: unknown): VendorOption[] {
+  const arr = (raw as Record<string, unknown> | null)?.['llm_vendor_options']
+  if (!Array.isArray(arr)) return []
+  return arr
+    .filter(
+      (x): x is { label: unknown; url?: unknown } =>
+        typeof x === 'object' &&
+        x !== null &&
+        typeof (x as { label: unknown }).label === 'string',
+    )
+    .map((x) => ({
+      label: (x.label as string).trim(),
+      url: typeof x.url === 'string' ? x.url.trim() : '',
+    }))
+    .filter((p) => p.label.length > 0)
 }
 
-function vendorIdFromLabel(label: string): string {
-  const match = LLM_BASE_URL_PRESETS.find((p) => p.label === label || p.id === label)
-  return match?.id ?? CUSTOM_PRESET_ID
+function vendorLabelFromUrl(url: string, options: VendorOption[]): string {
+  // 返回持久化枚举值（厂商 label），非展示文本。
+  const trimmed = url.trim()
+  if (!trimmed) return '自定义'
+  const match = options.find((p) => p.url === trimmed)
+  return match?.label ?? '自定义'
 }
 
 function providerIdFromRaw(raw: string): string {
@@ -135,6 +145,7 @@ function defaults(): TranslatorLocalSettings {
     request_timeout_ms: 15000,
     live_debounce_secs: 0.5,
     llm_vendor: '自定义',
+    llm_vendor_options: [],
     llm_base_url: '',
     llm_api_key: '',
     llm_model: '',
@@ -154,8 +165,11 @@ function fromProps(raw: unknown): TranslatorLocalSettings {
     if (enabledProviders.length === 0) enabledProviders = base.enabled_providers
   }
 
+  const vendorOptions = parseVendorOptions(o)
   const vendorRaw =
-    typeof o.llm_vendor === 'string' ? o.llm_vendor : vendorLabelFromUrl(String(o.llm_base_url ?? ''))
+    typeof o.llm_vendor === 'string'
+      ? o.llm_vendor
+      : vendorLabelFromUrl(String(o.llm_base_url ?? ''), vendorOptions)
 
   return {
     translate_mode: modeFromRaw(o.translate_mode),
@@ -173,6 +187,7 @@ function fromProps(raw: unknown): TranslatorLocalSettings {
         ? o.live_debounce_secs
         : base.live_debounce_secs,
     llm_vendor: vendorRaw,
+    llm_vendor_options: vendorOptions,
     llm_base_url: typeof o.llm_base_url === 'string' ? o.llm_base_url : base.llm_base_url,
     llm_api_key: typeof o.llm_api_key === 'string' ? o.llm_api_key : base.llm_api_key,
     llm_model: typeof o.llm_model === 'string' ? o.llm_model : base.llm_model,
@@ -180,7 +195,7 @@ function fromProps(raw: unknown): TranslatorLocalSettings {
 }
 
 const local = reactive(fromProps(props.currentSettings))
-const selectedPreset = ref(vendorIdFromLabel(local.llm_vendor))
+const selectedPreset = ref(local.llm_vendor)
 const providerOrder = ref(buildProviderOrder(local.enabled_providers))
 const enabledSet = ref(new Set(local.enabled_providers))
 
@@ -194,13 +209,13 @@ watch(
   (v) => {
     const next = fromProps(v)
     Object.assign(local, next)
-    selectedPreset.value = vendorIdFromLabel(local.llm_vendor)
+    selectedPreset.value = local.llm_vendor
     syncProviderUiFromSettings(next)
   },
 )
 
-watch(selectedPreset, (id) => {
-  const preset = LLM_BASE_URL_PRESETS.find((p) => p.id === id)
+watch(selectedPreset, (label) => {
+  const preset = local.llm_vendor_options.find((p) => p.label === label)
   if (!preset) return
   local.llm_vendor = preset.label
   if (preset.url) {
@@ -211,10 +226,10 @@ watch(selectedPreset, (id) => {
 watch(
   () => local.llm_base_url,
   (url) => {
-    const detected = vendorIdFromLabel(vendorLabelFromUrl(url))
+    const detected = vendorLabelFromUrl(url, local.llm_vendor_options)
     if (detected !== selectedPreset.value) {
       selectedPreset.value = detected
-      local.llm_vendor = vendorLabelFromUrl(url)
+      local.llm_vendor = detected
     }
   },
 )
@@ -253,12 +268,13 @@ const translateModeOptions = computed(() => [
   { label: t('translator.modeOnEnter'), value: 'on_enter' },
 ])
 
-const presetOptions = computed(() =>
-  LLM_BASE_URL_PRESETS.map((p) => ({
-    label: t(p.labelKey),
-    value: p.id,
+const presetOptions = computed(() => [
+  ...local.llm_vendor_options.map((p) => ({
+    label: t(VENDOR_LABEL_KEYS[p.label] ?? p.label),
+    value: p.label,
   })),
-)
+  { label: t('translator.vendorCustom'), value: '自定义' },
+])
 
 const orderedProviders = computed(() =>
   providerOrder.value
@@ -319,6 +335,21 @@ function onDragEnd() {
   dragOverIndex.value = null
 }
 
+/** 新增一条空白厂商预设（label 留待用户填写）。 */
+function addVendorPreset() {
+  local.llm_vendor_options = [...local.llm_vendor_options, { label: '', url: '' }]
+}
+
+/** 删除指定厂商预设；若删除的是当前选中厂商，立即回落「自定义」。 */
+function removeVendorPreset(index: number) {
+  const removed = local.llm_vendor_options[index]
+  local.llm_vendor_options = local.llm_vendor_options.filter((_, i) => i !== index)
+  if (removed && local.llm_vendor === removed.label) {
+    local.llm_vendor = '自定义'
+    selectedPreset.value = '自定义'
+  }
+}
+
 async function onSave() {
   saving.value = true
   try {
@@ -332,6 +363,10 @@ async function onSave() {
       request_timeout_ms: local.request_timeout_ms,
       live_debounce_secs: local.live_debounce_secs,
       llm_vendor: local.llm_vendor,
+      // 空 label 条目由后端 normalize 剔除；空 URL 以空串持久化（schema 不接受 null）。
+      llm_vendor_options: local.llm_vendor_options
+        .map((p) => ({ label: p.label.trim(), url: p.url.trim() }))
+        .filter((p) => p.label.length > 0),
       llm_base_url: local.llm_base_url.trim(),
       llm_api_key: local.llm_api_key,
       llm_model: local.llm_model.trim(),
@@ -443,6 +478,45 @@ async function onSave() {
                       <p class="field-hint">
                         {{ $t('translator.vendorPresetHint') }}
                       </p>
+                    </div>
+                  </div>
+                  <div class="form-field">
+                    <div class="field-control">
+                      <!-- 预设列表可折叠，默认折叠：列表较长，展开仅在需要编辑时 -->
+                      <n-collapse>
+                        <n-collapse-item
+                          :title="$t('translator.vendorPresets')"
+                          name="vendor-presets"
+                        >
+                          <div
+                            v-for="(preset, index) in local.llm_vendor_options"
+                            :key="index"
+                            class="preset-row"
+                          >
+                            <n-input
+                              v-model:value="preset.label"
+                              :placeholder="$t('translator.vendorPresetLabelPlaceholder')"
+                              class="preset-label-input"
+                            />
+                            <n-input
+                              v-model:value="preset.url"
+                              :placeholder="$t('translator.vendorPresetUrlPlaceholder')"
+                              class="preset-url-input"
+                            />
+                            <n-button
+                              size="small"
+                              quaternary
+                              type="error"
+                              @click="removeVendorPreset(index)"
+                            >
+                              {{ $t('translator.removeVendorPreset') }}
+                            </n-button>
+                          </div>
+                          <n-button size="small" @click="addVendorPreset">
+                            {{ $t('translator.addVendorPreset') }}
+                          </n-button>
+                        </n-collapse-item>
+                      </n-collapse>
                     </div>
                   </div>
                   <div class="form-field">
@@ -600,6 +674,22 @@ async function onSave() {
   gap: 10px;
   padding-top: 8px;
   border-top: 1px dashed var(--border-color);
+}
+
+.preset-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.preset-label-input {
+  width: 160px;
+  flex-shrink: 0;
+}
+
+.preset-url-input {
+  flex: 1;
+  min-width: 0;
 }
 
 .form-actions {

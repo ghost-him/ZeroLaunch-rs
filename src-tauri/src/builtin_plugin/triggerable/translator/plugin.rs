@@ -5,17 +5,19 @@ use serde_json::json;
 use std::sync::Arc;
 use tracing::info;
 use zerolaunch_plugin_api::config::{
-    ComponentCore, ComponentType, ConfigError, Configurable, PrimitiveType, SettingDefinition,
+    ComponentCore, ComponentType, ConfigError, Configurable, FieldUiMetadata, PrimitiveType,
+    SchemaKind, SchemaNode, SettingDefinition,
 };
 use zerolaunch_plugin_api::host::PluginHandle;
 use zerolaunch_plugin_api::services::IconRequest;
 use zerolaunch_plugin_api::{
     PanelInteraction, PanelQueryTrigger, Plugin, PluginContext, PluginError, PluginMetadata, Query,
-    QueryResponse, ResultAction,
+    QueryChannel, QueryResponse, ResultAction,
 };
 
 use crate::core::config::setting_builders::SchemaBuilder;
 use crate::plugin_framework::builtin_registry::PluginEntry;
+use std::collections::{BTreeMap, BTreeSet};
 
 use super::provider::{LanguageSupport, SenseEntry, TranslateRequest, TranslationResult};
 use super::providers::{
@@ -93,6 +95,10 @@ struct TranslatorSettings {
     /// 厂商预设；选非「自定义」时在 normalize 中写入对应 Base URL。
     #[serde(rename = "llm_vendor", default = "default_llm_vendor")]
     llm_vendor: String,
+    /// 厂商预设列表（label → Base URL），用户可增删改；
+    /// 选非「自定义」厂商时 normalize 依据本列表写入对应 Base URL。
+    #[serde(rename = "llm_vendor_options", default = "default_llm_vendor_options")]
+    llm_vendor_options: Vec<VendorPreset>,
     /// LLM 服务 Base URL。
     #[serde(rename = "llm_base_url", default)]
     llm_base_url: String,
@@ -108,17 +114,58 @@ const TRANSLATE_MODE_LIVE: &str = "live";
 const TRANSLATE_MODE_ON_ENTER: &str = "on_enter";
 
 const LLM_VENDOR_CUSTOM: &str = "自定义";
-const LLM_VENDOR_OPTIONS: &[&str] = &[
-    "DeepSeek",
-    "智谱 GLM",
-    "OpenAI",
-    "硅基流动",
-    "阿里云百炼",
-    "腾讯云 TokenHub",
-    "Kimi",
-    "小米 MiMo",
-    LLM_VENDOR_CUSTOM,
-];
+
+/// 厂商预设（label → Base URL），随 llm_vendor_options 设置持久化，用户可增删改；
+/// 「自定义」为隐式哨兵，不在此列表中。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct VendorPreset {
+    /// 厂商名称（持久化值，与 llm_vendor 字段一致）。
+    #[serde(rename = "label")]
+    label: String,
+    /// 对应 Base URL；空串或 null 表示无预设地址
+    /// （schema 的 string 类型不接受 null，统一以空串编码）。
+    #[serde(rename = "url")]
+    url: Option<String>,
+}
+
+/// 默认厂商预设（开箱即用的 OpenAI 兼容服务）。
+/// 旧配置 JSON 无 llm_vendor_options 字段时经 serde default 自动播种。
+fn default_llm_vendor_options() -> Vec<VendorPreset> {
+    vec![
+        VendorPreset {
+            label: "DeepSeek".into(),
+            url: Some("https://api.deepseek.com".into()),
+        },
+        VendorPreset {
+            label: "智谱 GLM".into(),
+            url: Some("https://open.bigmodel.cn/api/paas/v4".into()),
+        },
+        VendorPreset {
+            label: "OpenAI".into(),
+            url: Some("https://api.openai.com/v1".into()),
+        },
+        VendorPreset {
+            label: "硅基流动".into(),
+            url: Some("https://api.siliconflow.cn/v1".into()),
+        },
+        VendorPreset {
+            label: "阿里云百炼".into(),
+            url: Some("https://dashscope.aliyuncs.com/compatible-mode/v1".into()),
+        },
+        VendorPreset {
+            label: "腾讯云 TokenHub".into(),
+            url: Some("https://tokenhub.tencentmaas.com/v1".into()),
+        },
+        VendorPreset {
+            label: "Kimi".into(),
+            url: Some("https://api.moonshot.cn/v1".into()),
+        },
+        VendorPreset {
+            label: "小米 MiMo".into(),
+            url: Some("https://api.xiaomimimo.com/v1".into()),
+        },
+    ]
+}
 
 fn default_translate_mode() -> String {
     TRANSLATE_MODE_LIVE.into()
@@ -144,20 +191,6 @@ fn default_llm_vendor() -> String {
     LLM_VENDOR_CUSTOM.into()
 }
 
-fn vendor_base_url(vendor: &str) -> Option<&'static str> {
-    match vendor {
-        "DeepSeek" => Some("https://api.deepseek.com"),
-        "智谱 GLM" => Some("https://open.bigmodel.cn/api/paas/v4"),
-        "OpenAI" => Some("https://api.openai.com/v1"),
-        "硅基流动" => Some("https://api.siliconflow.cn/v1"),
-        "阿里云百炼" => Some("https://dashscope.aliyuncs.com/compatible-mode/v1"),
-        "腾讯云 TokenHub" => Some("https://tokenhub.tencentmaas.com/v1"),
-        "Kimi" => Some("https://api.moonshot.cn/v1"),
-        "小米 MiMo" => Some("https://api.xiaomimimo.com/v1"),
-        _ => None,
-    }
-}
-
 impl Default for TranslatorSettings {
     fn default() -> Self {
         Self {
@@ -167,6 +200,7 @@ impl Default for TranslatorSettings {
             request_timeout_ms: default_request_timeout_ms(),
             live_debounce_secs: default_live_debounce_secs(),
             llm_vendor: default_llm_vendor(),
+            llm_vendor_options: default_llm_vendor_options(),
             llm_base_url: String::new(),
             llm_api_key: String::new(),
             llm_model: String::new(),
@@ -175,16 +209,33 @@ impl Default for TranslatorSettings {
 }
 
 impl TranslatorSettings {
-    /// 规范化：校验厂商预设，写入 Base URL。
+    /// 规范化：校验厂商预设列表与厂商选择，写入 Base URL。
     fn normalize(mut self) -> Self {
         if self.enabled_providers.is_empty() {
             self.enabled_providers = default_enabled_providers();
         }
-        if !LLM_VENDOR_OPTIONS.contains(&self.llm_vendor.as_str()) {
+        // 清理空 label 条目，避免产生无法选中的脏数据。
+        self.llm_vendor_options
+            .retain(|p| !p.label.trim().is_empty());
+        // 厂商不在预设列表且非「自定义」（如对应预设被用户删除）→ 回落自定义。
+        let vendor_known = self.llm_vendor == LLM_VENDOR_CUSTOM
+            || self
+                .llm_vendor_options
+                .iter()
+                .any(|p| p.label == self.llm_vendor);
+        if !vendor_known {
             self.llm_vendor = default_llm_vendor();
         }
-        if let Some(url) = vendor_base_url(&self.llm_vendor) {
-            self.llm_base_url = url.to_string();
+        // 选中预设厂商时写入对应 Base URL（用户预设列表为权威数据源）。
+        // 空串（无预设地址）不写入，避免清空用户手填地址。
+        if let Some(url) = self
+            .llm_vendor_options
+            .iter()
+            .find(|p| p.label == self.llm_vendor)
+            .and_then(|p| p.url.clone())
+            .filter(|url| !url.is_empty())
+        {
+            self.llm_base_url = url;
         }
         self
     }
@@ -433,6 +484,103 @@ impl Configurable for TranslatorPlugin {
             .map(|(v, l)| (v.as_str(), l.as_str()))
             .collect();
 
+        // 厂商预设 schema 选项：默认预设 label + 「自定义」。
+        // translator 使用自定义设置面板（DynamicForm 不渲染此字段），此处仅作静态文档；
+        // 运行时选项以持久化 llm_vendor_options 为准（用户可增删改）。
+        let vendor_labels: Vec<String> = default_llm_vendor_options()
+            .into_iter()
+            .map(|p| p.label)
+            .chain(std::iter::once(LLM_VENDOR_CUSTOM.to_string()))
+            .collect();
+        let vendor_refs: Vec<&str> = vendor_labels.iter().map(String::as_str).collect();
+
+        // llm_vendor_options 字段声明：注册期 validate_settings 按键名校验 settings，
+        // 未在 schema 声明的键会被拒绝（曾导致 translator 注册失败）。
+        // 数组元素为 { label: string, url: string }；「无 URL」以空串编码（schema 无可空字符串类型）。
+        let mut preset_item_properties = BTreeMap::new();
+        preset_item_properties.insert(
+            "label".to_string(),
+            SchemaNode {
+                kind: SchemaKind::String {
+                    enum_values: Vec::new(),
+                    enum_labels: Vec::new(),
+                    min_length: Some(1),
+                    max_length: None,
+                    pattern: None,
+                },
+                default: None,
+            },
+        );
+        preset_item_properties.insert(
+            "url".to_string(),
+            SchemaNode {
+                kind: SchemaKind::String {
+                    enum_values: Vec::new(),
+                    enum_labels: Vec::new(),
+                    min_length: None,
+                    max_length: None,
+                    pattern: None,
+                },
+                default: None,
+            },
+        );
+        let llm_vendor_options_definition = SettingDefinition {
+            key: "llm_vendor_options".to_string(),
+            schema: SchemaNode {
+                kind: SchemaKind::Array {
+                    items: Box::new(SchemaNode {
+                        kind: SchemaKind::Object {
+                            properties: preset_item_properties,
+                            ui: vec![
+                                FieldUiMetadata {
+                                    pointer: "/label".to_string(),
+                                    label: "厂商名称".to_string(),
+                                    description: "预设厂商名称（持久化值）".to_string(),
+                                    group: None,
+                                    order: 0,
+                                    visible: true,
+                                    read_only: false,
+                                    widget: None,
+                                    action: None,
+                                    detail_action: None,
+                                },
+                                FieldUiMetadata {
+                                    pointer: "/url".to_string(),
+                                    label: "Base URL".to_string(),
+                                    description: "预设厂商的 Base URL".to_string(),
+                                    group: None,
+                                    order: 1,
+                                    visible: true,
+                                    read_only: false,
+                                    widget: None,
+                                    action: None,
+                                    detail_action: None,
+                                },
+                            ],
+                            required: BTreeSet::from(["label".to_string()]),
+                        },
+                        default: None,
+                    }),
+                    item_widget: None,
+                    min_items: None,
+                    max_items: None,
+                },
+                default: None,
+            },
+            ui: FieldUiMetadata {
+                pointer: "/llm_vendor_options".to_string(),
+                label: "厂商预设列表".to_string(),
+                description: "用户可增删改的厂商预设（label → Base URL）".to_string(),
+                group: Some("LLM 服务".to_string()),
+                order: 13,
+                visible: true,
+                read_only: false,
+                widget: None,
+                action: None,
+                detail_action: None,
+            },
+        };
+
         vec![
             SchemaBuilder::select(
                 "translate_mode",
@@ -495,7 +643,7 @@ impl Configurable for TranslatorPlugin {
                 "厂商预设",
                 "点「应用」后写入对应 Base URL；选「自定义」不改写地址",
             )
-            .options(LLM_VENDOR_OPTIONS)
+            .options(&vendor_refs)
             .group("LLM 服务")
             .order(9)
             .default(LLM_VENDOR_CUSTOM)
@@ -527,6 +675,7 @@ impl Configurable for TranslatorPlugin {
             .order(12)
             .default("")
             .build(),
+            llm_vendor_options_definition,
         ]
     }
 
@@ -655,9 +804,10 @@ impl Plugin for TranslatorPlugin {
             .await;
 
         // 缓存译文文本，供 execute_action 写入剪贴板。
-        // 仅当查询仍为最新时写入，避免过期查询的慢响应覆盖新结果
-        // （复制动作始终拿到与面板一致的最新译文）。
-        if ctx.is_query_current() {
+        // 仅 GUI 通道且查询仍最新时写入：CLI/调试查询为只读辅助路径，
+        // 不得改写 GUI 剪贴板缓存（execute_action 无通道区分，
+        // 复制动作必须始终拿到与 GUI 面板一致的译文）。
+        if ctx.is_query_current() && ctx.query_channel == QueryChannel::Ui {
             *self.last_result_text.write() = agg
                 .primary
                 .as_ref()
@@ -964,6 +1114,50 @@ mod tests {
     }
 
     #[tokio::test]
+    /// CLI 通道查询（只读辅助路径）不得写入 GUI 剪贴板缓存：
+    /// execute_action 复制动作无通道区分，缓存必须始终对应 GUI 面板译文。
+    async fn cli_channel_query_does_not_write_result_cache() {
+        use zerolaunch_plugin_api::QueryChannel;
+
+        let plugin = TranslatorPlugin::new();
+        plugin
+            .apply_settings(json!({
+                "translate_mode": TRANSLATE_MODE_LIVE,
+                "default_target": "zh",
+                "enabled_providers": [MOCK_PROVIDER_ID],
+            }))
+            .unwrap();
+
+        // CLI 查询：翻译照常执行，但不得创建/改写剪贴板缓存。
+        let cli_ctx = PluginContext {
+            query_channel: QueryChannel::Cli,
+            ..PluginContext::new("test")
+        };
+        let resp = plugin
+            .query(&cli_ctx, &sample_query("hello"))
+            .await
+            .unwrap();
+        match resp {
+            QueryResponse::CustomPanel { data, .. } => {
+                assert_eq!(data["status"], "ok");
+            }
+            other => panic!("期望 CustomPanel，实际 {:?}", other),
+        }
+        assert!(
+            plugin.last_result_text.read().is_none(),
+            "CLI 通道查询不得写入剪贴板缓存"
+        );
+
+        // GUI 查询：正常写入缓存（复制动作的数据来源）。
+        let ui_ctx = PluginContext::new("test");
+        plugin.query(&ui_ctx, &sample_query("hello")).await.unwrap();
+        assert!(
+            plugin.last_result_text.read().is_some(),
+            "GUI 通道查询应写入剪贴板缓存"
+        );
+    }
+
+    #[tokio::test]
     async fn kimi_vendor_fills_moonshot_base_url() {
         let settings = TranslatorSettings {
             llm_vendor: "Kimi".into(),
@@ -983,5 +1177,93 @@ mod tests {
         }
         .normalize();
         assert_eq!(settings.llm_base_url, "https://example.com/v1");
+    }
+
+    #[test]
+    /// 用户新增预设：选中后 normalize 写入对应 Base URL（预设列表为权威数据源）。
+    fn user_defined_preset_writes_base_url() {
+        let settings = TranslatorSettings {
+            llm_vendor: "MyVendor".into(),
+            llm_base_url: String::new(),
+            llm_vendor_options: vec![VendorPreset {
+                label: "MyVendor".into(),
+                url: Some("https://my.example.com/v1".into()),
+            }],
+            ..TranslatorSettings::default()
+        }
+        .normalize();
+        assert_eq!(settings.llm_base_url, "https://my.example.com/v1");
+        assert_eq!(settings.llm_vendor, "MyVendor");
+    }
+
+    #[test]
+    /// 预设被用户删除后，已选厂商回落「自定义」，不写入地址也不清空手填 URL。
+    fn deleted_preset_falls_back_to_custom() {
+        let settings = TranslatorSettings {
+            llm_vendor: "Kimi".into(),
+            llm_base_url: "https://example.com/v1".into(),
+            llm_vendor_options: vec![],
+            ..TranslatorSettings::default()
+        }
+        .normalize();
+        assert_eq!(settings.llm_vendor, LLM_VENDOR_CUSTOM);
+        assert_eq!(settings.llm_base_url, "https://example.com/v1");
+    }
+
+    #[test]
+    /// 旧配置 JSON 无 llm_vendor_options 字段：serde default 自动播种默认预设。
+    fn missing_vendor_options_field_seeds_defaults() {
+        let settings: TranslatorSettings =
+            serde_json::from_value(json!({ "llm_vendor": "Kimi" })).unwrap();
+        assert_eq!(settings.llm_vendor_options.len(), 8);
+        assert_eq!(settings.llm_vendor_options[0].label, "DeepSeek");
+        assert_eq!(
+            settings.llm_vendor_options[0].url.as_deref(),
+            Some("https://api.deepseek.com")
+        );
+    }
+
+    #[test]
+    /// 用户预设随设置持久化往返：apply_settings 保存后 get_settings 原样下发。
+    fn vendor_options_persist_through_apply_and_get() {
+        let plugin = TranslatorPlugin::new();
+        plugin
+            .apply_settings(json!({
+                "llm_vendor": "MyVendor",
+                "llm_vendor_options": [
+                    { "label": "MyVendor", "url": "https://my.example.com/v1" },
+                ],
+            }))
+            .unwrap();
+        let value = plugin.get_settings();
+        assert_eq!(value["llm_vendor"], "MyVendor");
+        assert_eq!(value["llm_vendor_options"][0]["label"], "MyVendor");
+        assert_eq!(
+            value["llm_vendor_options"][0]["url"],
+            "https://my.example.com/v1"
+        );
+        // normalize 依据用户预设写入 Base URL
+        assert_eq!(value["llm_base_url"], "https://my.example.com/v1");
+    }
+
+    #[test]
+    /// 空 label 预设条目在 normalize 中被清理，避免产生无法选中的脏数据。
+    fn empty_label_presets_are_cleaned() {
+        let settings = TranslatorSettings {
+            llm_vendor_options: vec![
+                VendorPreset {
+                    label: "  ".into(),
+                    url: Some("https://x.example.com".into()),
+                },
+                VendorPreset {
+                    label: "OK".into(),
+                    url: None,
+                },
+            ],
+            ..TranslatorSettings::default()
+        }
+        .normalize();
+        assert_eq!(settings.llm_vendor_options.len(), 1);
+        assert_eq!(settings.llm_vendor_options[0].label, "OK");
     }
 }

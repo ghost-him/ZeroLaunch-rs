@@ -27,6 +27,4 @@ pub use manager::PluginManagerError;
 pub use registry::PluginRegistry;
 pub use search_pipeline::*;
 pub use service::PluginService;
-pub use session_router::{
-    PanelInteractionEvent, QueryChannel, SessionMode, SessionRouter, SessionRouterError,
-};
+pub use session_router::{PanelInteractionEvent, SessionMode, SessionRouter, SessionRouterError};

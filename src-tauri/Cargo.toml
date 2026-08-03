@@ -140,3 +140,7 @@ portable = []
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-single-instance.workspace = true
+
+[dev-dependencies]
+# mock 特性提供插件 API 的桩实现，供内置组件全量注册测试构造测试用 HostApi。
+zerolaunch-plugin-api = { workspace = true, features = ["mock"] }

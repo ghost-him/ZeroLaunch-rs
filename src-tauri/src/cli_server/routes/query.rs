@@ -5,8 +5,8 @@ use serde::Deserialize;
 use std::sync::Arc;
 
 use crate::cli_server::middleware::TraceId;
-use crate::plugin_framework::QueryChannel;
 use crate::state::app_state::AppState;
+use zerolaunch_plugin_api::QueryChannel;
 use zerolaunch_plugin_api::QueryResponse;
 
 #[derive(Debug, Deserialize)]

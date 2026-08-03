@@ -7,21 +7,38 @@ use tracing::info;
 use super::provider::{LanguageSupport, TranslateRequest, TranslationProvider, TranslationResult};
 use super::providers::{mock_mirror_from, mock_placeholder_result, MOCK_PROVIDER_ID};
 
+/// 聚合翻译状态：全部引擎成功 / 部分成功 / 全部失败。
+///
+/// 仅 TranslatorPlugin 内部使用，不跨 IPC。
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum AggregateStatus {
+    /// 全部启用引擎均成功。
     Ok,
+    /// 部分引擎成功（主结果可用，但存在失败引擎）。
     Partial,
+    /// 全部引擎失败。
     Error,
 }
 
+/// 聚合翻译结果：主结果 + 备选列表 + 整体状态。
+///
+/// 仅 TranslatorPlugin 内部使用，不跨 IPC；
+/// 面板 JSON 由 plugin.rs 的 result_to_json 另行构造，键名为 camelCase。
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AggregateResult {
+    /// 主结果（enabled 顺序中首个成功的引擎）；全失败时为 None。
     pub primary: Option<TranslationResult>,
+    /// 其余引擎的备选结果（失败的引擎同样以 TranslationResult::err 占位）。
     pub alternatives: Vec<TranslationResult>,
+    /// 整体聚合状态。
     pub status: AggregateStatus,
 }
 
+/// 翻译引擎注册表 — 汇总各引擎语言能力并并行分发翻译请求。
+///
+/// 仅 TranslatorPlugin 内部使用，由 plugin.rs 构造并持有。
 pub struct ProviderRegistry {
+    /// 全部可用引擎（含未启用的），按注册顺序排列。
     providers: Vec<Arc<dyn TranslationProvider>>,
 }
 

@@ -11,10 +11,17 @@ use super::super::provider::{
 
 pub const PROVIDER_ID: &str = "openai-compatible";
 
+/// OpenAI 兼容 LLM 引擎的连接配置（Base URL / API Key / Model）。
+///
+/// 仅 TranslatorPlugin 内部使用，不跨 IPC；
+/// 由 apply_settings 从 TranslatorSettings 的 llm_* 字段同步而来。
 #[derive(Debug, Clone, Default)]
 pub struct LlmConfig {
+    /// API Base URL（如 `https://api.deepseek.com`）。
     pub base_url: String,
+    /// API Key。
     pub api_key: String,
+    /// 模型名（如 `deepseek-chat`）。
     pub model: String,
 }
 
@@ -62,36 +69,60 @@ impl OpenAiCompatibleProvider {
     }
 }
 
+/// LLM 返回 JSON 的主负载（camelCase 字段与提示词约定一致）。
+///
+/// 仅限本文件内使用；用于解析 chat/completions 的 model 输出。
 #[derive(Debug, Deserialize)]
 struct LlmTranslationPayload {
+    /// 主译文。
     text: String,
+    /// 音标/读音（可选）。
     #[serde(default)]
     phonetic: Option<String>,
+    /// 计算机/IT 领域释义（可选）。
     #[serde(default, rename = "computerSense")]
     computer_sense: Option<String>,
+    /// 更多释义条目（可选，最多 4 条）。
     #[serde(default, rename = "moreSenses")]
     more_senses: Vec<LlmSenseEntry>,
 }
 
+/// LLM 返回 JSON 中的单条更多释义。
+///
+/// 仅限本文件内使用。
 #[derive(Debug, Deserialize)]
 struct LlmSenseEntry {
+    /// 释义文本。
     text: String,
+    /// 领域/词性标签（可选）。
     #[serde(default)]
     label: Option<String>,
 }
 
+/// chat/completions 响应（仅取 choices 字段）。
+///
+/// 仅限本文件内使用。
 #[derive(Debug, Deserialize)]
 struct ChatCompletionResponse {
+    /// 候选回复列表。
     choices: Vec<ChatChoice>,
 }
 
+/// 单个候选回复。
+///
+/// 仅限本文件内使用。
 #[derive(Debug, Deserialize)]
 struct ChatChoice {
+    /// 回复消息。
     message: ChatMessage,
 }
 
+/// 回复消息（仅取 content 字段）。
+///
+/// 仅限本文件内使用。
 #[derive(Debug, Deserialize)]
 struct ChatMessage {
+    /// 回复正文（应为 JSON 字符串）。
     content: String,
 }
 

@@ -4,18 +4,28 @@ use std::collections::{HashMap, HashSet};
 
 use super::query_parser::LanguageCode;
 
-/// 一次翻译请求。
+/// 一次翻译请求（待翻译文本 + 源/目标语言码）。
+///
+/// 仅 TranslatorPlugin 内部使用，不跨 IPC；
+/// 由 plugin.rs 解析查询后构造，分发给已启用引擎。
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TranslateRequest {
+    /// 待翻译的原文。
     pub text: String,
+    /// 源语言码（`auto` 表示自动检测）。
     pub source: LanguageCode,
+    /// 目标语言码。
     pub target: LanguageCode,
 }
 
 /// 更多释义条目（含可选领域标签）。
+///
+/// 仅 TranslatorPlugin 内部使用，不跨 IPC。
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SenseEntry {
+    /// 释义文本。
     pub text: String,
+    /// 可选领域/词性标签（如 `v.`、`adj.`）；None 表示无标签。
     pub label: Option<String>,
 }
 
@@ -23,15 +33,26 @@ pub struct SenseEntry {
 pub const MAX_MORE_SENSES: usize = 4;
 
 /// 单个引擎的翻译结果（成功或失败均用同一结构表示）。
+///
+/// 仅 TranslatorPlugin 内部使用，不跨 IPC；
+/// 面板 JSON 由 plugin.rs 的 result_to_json 另行构造，键名为 camelCase。
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TranslationResult {
+    /// 引擎 id（如 `openai-compatible`、`mock`）。
     pub provider_id: String,
+    /// 引擎展示名。
     pub provider_name: String,
+    /// 译文文本；失败时为空字符串。
     pub text: String,
+    /// 音标/读音；None 表示无。
     pub phonetic: Option<String>,
+    /// 计算机/IT 领域释义；None 表示无。
     pub computer_sense: Option<String>,
+    /// 更多释义条目（最多 MAX_MORE_SENSES 条）。
     pub more_senses: Vec<SenseEntry>,
+    /// 实际检测到的源语言码；None 表示未检测。
     pub detected_source: Option<LanguageCode>,
+    /// 错误信息；Some 表示翻译失败（此时 text 为空）。
     pub error: Option<String>,
 }
 

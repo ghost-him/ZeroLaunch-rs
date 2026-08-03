@@ -1,18 +1,31 @@
 use std::collections::HashSet;
 
+/// 解析后的翻译查询：正文 + 源/目标语言码。
+///
+/// 仅 TranslatorPlugin 内部使用，不跨 IPC；
+/// 面板 JSON 由 plugin.rs 的 query_to_json 另行构造，键名为 camelCase。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedQuery {
+    /// 待翻译的正文（触发词与语言码前缀已剥离）。
     pub text: String,
+    /// 源语言码（`auto` 表示自动检测）。
     pub source: LanguageCode,
+    /// 目标语言码。
     pub target: LanguageCode,
+    /// 解析前的原始输入（用于面板回显）。
     pub raw: String,
 }
 
 pub type LanguageCode = String;
 
+/// 翻译查询解析失败原因。
+///
+/// 仅 TranslatorPlugin 内部使用，不跨 IPC。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ParseError {
+    /// 输入为空。
     EmptyText,
+    /// 语言码不在当前启用引擎的能力目录中（携带非法码）。
     InvalidLanguageCode(String),
 }
 

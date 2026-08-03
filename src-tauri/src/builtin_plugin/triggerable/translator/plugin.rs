@@ -24,11 +24,20 @@ use super::providers::{
 use super::query_parser::{parse_search_term, LangCatalog, ParseError, ParsedQuery};
 use super::registry::{AggregateResult, AggregateStatus, ProviderRegistry};
 
+/// 翻译插件 — 解析带 `@语言码` 前缀的查询并调用已启用翻译引擎，将结果渲染为面板。
+///
+/// 仅在 triggerable 插件管道中使用，由 builtin_registry 注册；
+/// 面板复制等动作统一经 execute_action 委托后端执行。
 pub struct TranslatorPlugin {
+    /// 组件 ID、名称、类型等基础元数据。
     core: ComponentCore,
+    /// 插件元数据（id、名称、触发词等）。
     metadata: PluginMetadata,
+    /// 翻译设置（内部可变性：apply_settings 时写入，query 时读取）。
     inner: RwLock<TranslatorSettings>,
+    /// LLM 引擎连接配置（内部可变性：apply_settings 同步 llm_* 字段时写入）。
     llm_config: Arc<RwLock<LlmConfig>>,
+    /// 已注册翻译引擎的聚合注册表，负责语言能力汇总与并行翻译分发。
     registry: ProviderRegistry,
     /// 最近一次成功翻译的译文文本，供 execute_action 写入剪贴板。
     last_result_text: RwLock<Option<String>>,
@@ -60,28 +69,38 @@ fn language_display_name(code: &str) -> String {
     }
 }
 
+/// 翻译插件的持久化设置（Configurable 数据模型）。
+///
+/// 由 ConfigManager 序列化为 JSON 存储，经 config_get_settings / config_apply_settings
+/// 与前端 TranslatorSettings.vue 双向同步；键名使用 snake_case 与前端契约一致。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct TranslatorSettings {
-    #[serde(default = "default_translate_mode")]
+    /// 翻译模式：live（即时翻译）/ on_enter（回车触发）。
+    #[serde(rename = "translate_mode", default = "default_translate_mode")]
     translate_mode: String,
-    #[serde(default = "default_target")]
+    /// 默认目标语言码（无显式 `@目标` 前缀时使用）。
+    #[serde(rename = "default_target", default = "default_target")]
     default_target: String,
     /// 参与并行翻译的引擎 id 列表；列表顺序即展示优先顺序（首个成功结果作为主结果）。
-    #[serde(default = "default_enabled_providers")]
+    #[serde(rename = "enabled_providers", default = "default_enabled_providers")]
     enabled_providers: Vec<String>,
-    #[serde(default = "default_request_timeout_ms")]
+    /// 单次翻译请求超时（毫秒）。
+    #[serde(rename = "request_timeout_ms", default = "default_request_timeout_ms")]
     request_timeout_ms: u64,
     /// 即时翻译模式下的防抖等待时间（秒），减少冗余请求。
-    #[serde(default = "default_live_debounce_secs")]
+    #[serde(rename = "live_debounce_secs", default = "default_live_debounce_secs")]
     live_debounce_secs: f64,
     /// 厂商预设；选非「自定义」时在 normalize 中写入对应 Base URL。
-    #[serde(default = "default_llm_vendor")]
+    #[serde(rename = "llm_vendor", default = "default_llm_vendor")]
     llm_vendor: String,
-    #[serde(default)]
+    /// LLM 服务 Base URL。
+    #[serde(rename = "llm_base_url", default)]
     llm_base_url: String,
-    #[serde(default)]
+    /// LLM API Key。
+    #[serde(rename = "llm_api_key", default)]
     llm_api_key: String,
-    #[serde(default)]
+    /// LLM 模型名。
+    #[serde(rename = "llm_model", default)]
     llm_model: String,
 }
 

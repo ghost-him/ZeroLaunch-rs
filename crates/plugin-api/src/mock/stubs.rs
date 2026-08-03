@@ -13,6 +13,7 @@ use crate::services::app::app_enumerator::AppEnumerator;
 use crate::services::app::app_launcher::AppLauncher;
 use crate::services::app::AppInfo;
 use crate::services::autostart::AutoStartManager;
+use crate::services::clipboard::ClipboardManager;
 use crate::services::focus_monitor::{FocusCallback, FocusMonitor};
 use crate::services::hotkey::types::{Hotkey, HotkeyCallback, HotkeyEventFilter};
 use crate::services::hotkey::HotkeyManager;
@@ -78,6 +79,16 @@ impl ShellExecutor for StubShellExecutor {
         Ok(())
     }
     async fn shell_execute_command(&self, _cmd: &str) -> Result<(), HostApiError> {
+        Ok(())
+    }
+}
+
+// ===== Clipboard Manager =====
+
+pub struct StubClipboardManager;
+
+impl ClipboardManager for StubClipboardManager {
+    fn set_text(&self, _text: &str) -> Result<(), HostApiError> {
         Ok(())
     }
 }

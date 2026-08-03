@@ -45,14 +45,9 @@ const expression = computed(() => props.data?.expression ?? '')
 const result = computed(() => props.data?.result ?? null)
 const error = computed(() => props.data?.error ?? null)
 
+// 所有面板动作（含复制结果）统一经 bridge_confirm 委托后端执行：
+// 剪贴板写入由后端经 PluginHandle 完成，前端不做平台操作（RULES.md 前后端职责边界）。
 async function executeAction(action: ResultAction) {
-  if (action.id === 'copy_result' && props.data?.result) {
-    try {
-      await navigator.clipboard.writeText(props.data.result)
-    } catch (error) {
-      console.warn('[CalculatorPanel] Clipboard access failed:', error)
-    }
-  }
   // 通知后端执行动作（插件模式下 candidate_id=0 为虚拟值，后端按 plugin_id 路由）
   await searchStore.doConfirm(0, action.id)
 }

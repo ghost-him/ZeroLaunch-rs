@@ -7,7 +7,9 @@ use crate::builtin_plugin::config::bias_config::{bias_settings_to_rules, BiasSet
 use crate::core::config::{ConfigEvent, ConfigManager};
 use crate::sdk::HostApi;
 use parking_lot::{Mutex, RwLock};
+use serde::Serialize;
 use std::fmt;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tracing::{debug, info};
 use zerolaunch_plugin_api::config::ComponentType;
@@ -15,8 +17,8 @@ use zerolaunch_plugin_api::services::parameter::template_parser::{Placeholder, T
 use zerolaunch_plugin_api::services::ParameterSnapshot;
 use zerolaunch_plugin_api::{
     ActionExecutor, CachedCandidateData, CandidateId, ConfirmResult, ExecutionContext,
-    ExecutionError, ListItem, Plugin, PluginContext, Query, QueryResponse, ScoredCandidate,
-    SearchCandidate,
+    ExecutionError, ListItem, PanelInteraction, Plugin, PluginContext, Query, QueryChannel,
+    QueryResponse, QueryRevisionGate, ScoredCandidate, SearchCandidate,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -104,6 +106,32 @@ impl fmt::Display for SessionRouterError {
 
 impl std::error::Error for SessionRouterError {}
 
+/// 面板交互策略推送事件 —— 后端路由确定/切换插件面板时发送给前端的 payload。
+///
+/// 由 SessionRouter 在路由阶段构造（进入或切换到不同插件面板时），
+/// 经 bootstrap 注入的 emitter 回调通过 Tauri 事件通道 `panel-interaction` 推送；
+/// CLI 等无窗口场景不注入 emitter，不产生此事件。
+/// `interaction` 嵌套携带 `PanelInteraction`（单一维护点：策略新增字段时事件与前端自动跟随），
+/// 字段 JSON 键名与前端 `PanelInteractionEvent`（contract.ts）一一对应，显式 camelCase。
+#[derive(Debug, Clone, Serialize)]
+pub struct PanelInteractionEvent {
+    /// 面板所属插件 ID（如 "translator"、"calculator"）。
+    #[serde(rename = "pluginId")]
+    plugin_id: String,
+    /// 交互策略：查询触发方式（onInput/onEnter）与输入防抖延迟。
+    #[serde(rename = "interaction")]
+    interaction: PanelInteraction,
+    /// 插件触发词列表，供前端判定"输入是否仍属于当前插件"（退出防抖豁免）。
+    #[serde(rename = "triggerKeywords", default)]
+    trigger_keywords: Vec<String>,
+}
+
+/// 面板交互策略推送回调 —— 接收路由阶段构造的交互策略事件，经 Tauri 事件通道推送给前端。
+///
+/// 仅 SessionRouter 内部使用：路由确定/切换插件面板及配置变更时调用。
+/// 由 bootstrap 在拿到 AppHandle 后注入；CLI 等无窗口场景不注入。
+type InteractionEmitter = Arc<dyn Fn(PanelInteractionEvent) + Send + Sync>;
+
 pub struct SessionRouter {
     plugin_service: Arc<PluginService>,
     search_pipeline: Arc<RwLock<Option<SearchPipeline>>>,
@@ -121,6 +149,18 @@ pub struct SessionRouter {
     components: PluginComponentRegistry,
     /// 上次构建管道时的 top_k 值
     last_top_k: RwLock<usize>,
+    /// 面板交互策略推送回调（进入/切换插件面板时调用）。
+    /// None 表示未注入（如 CLI 无窗口场景）；内部可变性仅由 set_interaction_emitter 写入。
+    interaction_emitter: RwLock<Option<InteractionEmitter>>,
+    /// UI 通道查询版本计数器：route_query 入口为所属通道的查询分配单调递增版本号，
+    /// 提交门控据此丢弃同通道过期查询的副作用写入（会话模式、面板交互事件、插件共享缓存）。
+    /// 各通道独立计数，CLI/调试查询不得使 GUI 在途查询过期（反之亦然）。
+    /// Arc 共享给插件侧 QueryRevisionGate 使用。
+    ui_query_revision: Arc<AtomicU64>,
+    /// CLI 通道查询版本计数器，语义同 ui_query_revision。
+    cli_query_revision: Arc<AtomicU64>,
+    /// 调试通道查询版本计数器，语义同 ui_query_revision。
+    debug_query_revision: Arc<AtomicU64>,
 }
 
 impl SessionRouter {
@@ -137,6 +177,10 @@ impl SessionRouter {
             parameter_snapshot: Mutex::new(ParameterSnapshot::empty()),
             components: PluginComponentRegistry::new(),
             last_top_k: RwLock::new(10),
+            interaction_emitter: RwLock::new(None),
+            ui_query_revision: Arc::new(AtomicU64::new(0)),
+            cli_query_revision: Arc::new(AtomicU64::new(0)),
+            debug_query_revision: Arc::new(AtomicU64::new(0)),
         }
     }
 
@@ -258,13 +302,71 @@ impl SessionRouter {
         (ms, self.get_cached_candidates_count())
     }
 
-    #[tracing::instrument(skip(self, query), fields(trace_id = %trace_id))]
-    pub async fn route_query(&self, trace_id: &str, query: &Query) -> QueryResponse {
+    /// 日志脱敏辅助：返回（字符长度, 截断预览），避免 INFO 日志暴露完整用户输入。
+    /// 预览取前 24 个字符，超长以省略号结尾；DEBUG 日志仍可输出完整原文。
+    /// 参数：raw - 用户原始输入。
+    fn log_query_preview(raw: &str) -> (usize, String) {
+        const PREVIEW_LEN: usize = 24;
+        let len = raw.chars().count();
+        let preview: String = raw.chars().take(PREVIEW_LEN).collect();
+        if len > PREVIEW_LEN {
+            (len, format!("{preview}…"))
+        } else {
+            (len, preview)
+        }
+    }
+
+    /// 返回指定通道的版本计数器：各通道独立计数，互不干扰。
+    fn revision_counter(&self, channel: QueryChannel) -> &Arc<AtomicU64> {
+        match channel {
+            QueryChannel::Ui => &self.ui_query_revision,
+            QueryChannel::Cli => &self.cli_query_revision,
+            QueryChannel::Debug => &self.debug_query_revision,
+        }
+    }
+
+    #[tracing::instrument(skip(self, query), fields(trace_id = %trace_id, query_revision))]
+    pub async fn route_query(
+        &self,
+        trace_id: &str,
+        query: &Query,
+        channel: QueryChannel,
+    ) -> QueryResponse {
+        // 从所属通道计数器分配单调递增版本号：同通道新查询取代先前查询；
+        // 跨通道（CLI/调试）查询互不使对方过期。
+        let counter = self.revision_counter(channel);
+        let revision = counter.fetch_add(1, Ordering::Relaxed) + 1;
+        tracing::Span::current().record("query_revision", revision);
+        let (query_len, query_preview) = Self::log_query_preview(&query.raw_query);
+        info!(
+            query_revision = revision,
+            raw_query_len = query_len,
+            raw_query_preview = %query_preview,
+            confirm = query.confirm,
+            "查询开始"
+        );
+
         let mut ctx = PluginContext::new(trace_id);
         ctx.with_query(query.raw_query.clone());
+        ctx.set_query_revision_gate(QueryRevisionGate::new(revision, counter.clone()));
+        // 通道注入上下文：插件可据此区分 GUI/CLI/调试查询（如仅 GUI 通道可写剪贴板缓存）。
+        ctx.query_channel = channel;
 
         // 这里的查询路由逻辑是：优先让插件处理查询（如果匹配），否则走内置搜索管道。
         let results = self.plugin_service.query(&ctx, query).await;
+
+        // 提交门控：查询执行期间若有同通道更新的查询进入后端，本查询已过期（判定单调，
+        // 过期后不会再变回最新），直接丢弃本次结果并返回空响应——
+        // 前端按 seq 丢弃过期响应；CLI 无 seq 时，过期查询返回空结果也优于返回过期数据。
+        if counter.load(Ordering::Relaxed) != revision {
+            info!(
+                query_revision = revision,
+                latest_query_revision = counter.load(Ordering::Relaxed),
+                site = "route",
+                "查询过期，丢弃查询结果"
+            );
+            return QueryResponse::Empty;
+        }
 
         if let Some((plugin_id, results)) = results {
             // 根据插件的 keep_search_bar 选择行内或全页面模式
@@ -273,20 +375,48 @@ impl SessionRouter {
                     keep_search_bar, ..
                 } => {
                     if *keep_search_bar {
-                        SessionMode::InlinePlugin(plugin_id)
+                        SessionMode::InlinePlugin(plugin_id.clone())
                     } else {
-                        SessionMode::FullPagePlugin(plugin_id)
+                        SessionMode::FullPagePlugin(plugin_id.clone())
                     }
                 }
-                _ => SessionMode::InlinePlugin(plugin_id),
+                _ => SessionMode::InlinePlugin(plugin_id.clone()),
             };
-            *self.current_mode.write() = mode;
+            info!(
+                query_revision = revision,
+                target = %plugin_id,
+                mode = %mode.as_str(),
+                "路由命中插件"
+            );
+            // 会话状态仅由 UI 通道维护：CLI/调试查询为只读辅助路径，
+            // 不得改写 GUI 会话模式或向窗口推送面板交互事件。
+            if channel == QueryChannel::Ui {
+                // 路由命中插件面板：无条件推送交互策略（事件幂等，前端无条件接受，
+                // 面板内重复查询重复推送无害且同步最新策略）。
+                // 不可按「面板切换」条件推送：Esc 退出走前端 doQuery('') 短路（不发 IPC），
+                // current_mode 滞留旧面板；同面板重入时切换条件不成立，
+                // panelInteraction 永久丢失（onEnter 模式 Enter 无可执行动作、onInput 模式防抖失效）。
+                *self.current_mode.write() = mode;
+                let policy = self.plugin_service.interaction_policy(&plugin_id);
+                if let Some(emitter) = self.interaction_emitter.read().clone() {
+                    emitter(PanelInteractionEvent {
+                        trigger_keywords: self.plugin_service.trigger_keywords(&plugin_id),
+                        interaction: policy,
+                        plugin_id,
+                    });
+                }
+            }
             return results;
         }
 
         // 任何新查询隐式重置会话模式为 Search，
         // 这是前端 exitInlineParamMode / exitParamPanelMode / exitPluginMode 通过 doQuery('') 退出模式的契约基础。
-        *self.current_mode.write() = SessionMode::Search;
+        // 仅 UI 通道重置：CLI/调试查询不得改写 GUI 会话模式。
+        if channel == QueryChannel::Ui {
+            *self.current_mode.write() = SessionMode::Search;
+        }
+
+        info!(query_revision = revision, target = "search", "路由命中搜索");
 
         let cached_candidate = self.cached_candidates.read();
 
@@ -319,10 +449,13 @@ impl SessionRouter {
                         .iter()
                         .any(|kw| kw.to_lowercase() == trimmed)
                 {
-                    *self.current_mode.write() = SessionMode::InlineParam {
-                        candidate_id: sc.id,
-                        trigger_keyword: trimmed.to_string(),
-                    };
+                    // 仅 UI 通道进入行内参数模式：CLI/调试查询返回响应但不改写会话模式。
+                    if channel == QueryChannel::Ui {
+                        *self.current_mode.write() = SessionMode::InlineParam {
+                            candidate_id: sc.id,
+                            trigger_keyword: trimmed.to_string(),
+                        };
+                    }
                     return QueryResponse::InlineParam {
                         candidate_id: sc.id,
                         trigger_keyword: trimmed.to_string(),
@@ -450,6 +583,29 @@ impl SessionRouter {
             SessionMode::None => Err(SessionRouterError::InvalidState(
                 "No active session".to_string(),
             )),
+        }
+    }
+
+    /// 注入面板交互策略推送回调。
+    /// 由 bootstrap 在拿到 AppHandle 后注入；不注入时（如 CLI 场景）策略仅随查询路由使用。
+    pub fn set_interaction_emitter(&self, emitter: InteractionEmitter) {
+        *self.interaction_emitter.write() = Some(emitter);
+    }
+
+    /// 重新推送当前面板的交互策略。
+    /// 配置变更后调用，保证面板内调整防抖等设置即时生效（面板内查询不会触发重新推送）。
+    pub fn reemit_current_interaction(&self) {
+        let plugin_id = match &*self.current_mode.read() {
+            SessionMode::InlinePlugin(id) | SessionMode::FullPagePlugin(id) => id.clone(),
+            _ => return,
+        };
+        let policy = self.plugin_service.interaction_policy(&plugin_id);
+        if let Some(emitter) = self.interaction_emitter.read().clone() {
+            emitter(PanelInteractionEvent {
+                trigger_keywords: self.plugin_service.trigger_keywords(&plugin_id),
+                interaction: policy,
+                plugin_id,
+            });
         }
     }
 

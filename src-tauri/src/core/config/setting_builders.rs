@@ -263,11 +263,50 @@ impl SchemaBuilder {
     }
 
     // ── Select ────────────────────────────────────────────────────
+    /// 设置下拉选项（值 + 标签）。
+    /// 前端展示时优先使用标签，value 用于设置持久化值。
+    pub fn options_with_labels(mut self, items: &[(&str, &str)]) -> Self {
+        match &mut self.schema.kind {
+            SchemaKind::String {
+                enum_values,
+                enum_labels,
+                ..
+            } => {
+                enum_values.clear();
+                enum_labels.clear();
+                for (value, label) in items {
+                    enum_values.push(value.to_string());
+                    enum_labels.push(label.to_string());
+                }
+            }
+            other => {
+                debug_assert!(
+                    false,
+                    "SchemaBuilder::options_with_labels() 只能在字符串类型的字段上调用。\
+                     字段 '{}' 的类型为 {other:?}，不是字符串类型",
+                    self.key
+                );
+                tracing::warn!(
+                    "SchemaBuilder::options_with_labels() 只能在字符串类型的字段上调用。\
+                     字段 '{}' 的类型为 {other:?}，不是字符串类型",
+                    self.key
+                );
+                return self;
+            }
+        }
+        self
+    }
+
     /// 设置下拉选项（写入 schema 的 enum 约束）。
     pub fn options(mut self, options: &[&str]) -> Self {
         match &mut self.schema.kind {
-            SchemaKind::String { enum_values, .. } => {
+            SchemaKind::String {
+                enum_values,
+                enum_labels,
+                ..
+            } => {
                 *enum_values = options.iter().map(|s| s.to_string()).collect();
+                enum_labels.clear();
             }
             other => {
                 debug_assert!(
@@ -595,6 +634,7 @@ fn primitive_schema(item: PrimitiveType) -> (SchemaNode, WidgetHint) {
             SchemaNode {
                 kind: SchemaKind::String {
                     enum_values: options,
+                    enum_labels: Vec::new(),
                     min_length: None,
                     max_length: None,
                     pattern: None,

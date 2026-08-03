@@ -8496,7 +8496,6 @@ name = "zerolaunch-rs"
 version = "1.0.0"
 dependencies = [
  "anyhow",
- "arboard",
  "async-trait",
  "axum",
  "backtrace",

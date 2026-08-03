@@ -259,6 +259,10 @@ async fn dispatch(
                 trace_id: "init".into(),
                 query_id: None,
                 plugin_id: Some(p.plugin_id),
+                // 远端插件无宿主查询版本门控，恒视为最新。
+                query_revision_gate: None,
+                // 远端插件会话由宿主经 RPC 下发通道，未收到时缺省视为 GUI 通道。
+                query_channel: zerolaunch_plugin_api::QueryChannel::Ui,
             });
             let result = InitializeResult {
                 plugin_version: plugin.metadata().version.clone(),

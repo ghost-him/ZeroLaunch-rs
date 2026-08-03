@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use crate::cli_server::middleware::TraceId;
 use crate::state::app_state::AppState;
+use zerolaunch_plugin_api::QueryChannel;
 use zerolaunch_plugin_api::QueryResponse;
 
 #[derive(Debug, Deserialize)]
@@ -23,11 +24,12 @@ pub async fn handle(
         id: trace_id.0.clone(),
         raw_query: req.raw_query.clone(),
         search_term: req.raw_query.to_lowercase(),
+        confirm: false,
     };
 
     let response = state
         .get_session_router()
-        .route_query(&trace_id.0, &query)
+        .route_query(&trace_id.0, &query, QueryChannel::Cli)
         .await;
 
     Json(response)

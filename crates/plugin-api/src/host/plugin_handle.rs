@@ -1,6 +1,7 @@
 use crate::host::{CacheLevel, HostApiError, OpenTarget};
 use crate::platform::capabilities::PlatformCapabilities;
 use crate::services::app::{AppEnumerator, AppInfo, AppLauncher};
+use crate::services::clipboard::ClipboardManager;
 use crate::services::focus_monitor::{FocusCallback, FocusMonitor};
 use crate::services::hotkey::types::{HotkeyCallback, HotkeyEventFilter};
 use crate::services::hotkey::HotkeyManager;
@@ -64,6 +65,8 @@ pub struct PluginHandle {
     installation_monitor: Arc<dyn InstallationMonitor>,
     /// 聚焦监控器，由 HostApi 注入
     focus_monitor: Arc<dyn FocusMonitor>,
+    /// 剪贴板管理器，由 HostApi 注入
+    clipboard_manager: Arc<dyn ClipboardManager>,
 }
 
 impl PluginHandle {
@@ -89,6 +92,7 @@ impl PluginHandle {
         hotkey_manager: Arc<dyn HotkeyManager>,
         installation_monitor: Arc<dyn InstallationMonitor>,
         focus_monitor: Arc<dyn FocusMonitor>,
+        clipboard_manager: Arc<dyn ClipboardManager>,
     ) -> Self {
         Self {
             plugin_id,
@@ -110,6 +114,7 @@ impl PluginHandle {
             hotkey_manager,
             installation_monitor,
             focus_monitor,
+            clipboard_manager,
         }
     }
 
@@ -244,6 +249,15 @@ impl PluginHandle {
     /// 返回：解析后的路径字符串，失败返回 HostApiError。
     pub fn resolve_path(&self, path: KnownPath) -> Result<String, HostApiError> {
         self.path_resolver.resolve_path(path)
+    }
+
+    // ===== 剪贴板服务 =====
+
+    /// 将文本写入系统剪贴板。
+    /// 参数：text - 要写入的文本内容。
+    /// 返回：成功返回 Ok(())，失败返回 HostApiError。
+    pub fn set_clipboard_text(&self, text: &str) -> Result<(), HostApiError> {
+        self.clipboard_manager.set_text(text)
     }
 
     // ===== 应用服务 =====

@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tauri::Emitter;
 use tracing::{debug, info};
-use zerolaunch_plugin_api::{ConfirmResult, Query, QueryResponse, ResultAction};
+use zerolaunch_plugin_api::{ConfirmResult, Query, QueryChannel, QueryResponse, ResultAction};
 // ============================================================================
 // 搜索接口
 // ============================================================================
@@ -146,11 +146,18 @@ fn icon_to_data_url(png_data: &[u8]) -> String {
 /// 通用查询入口。
 /// 前端搜索输入变化时调用此命令，后端通过 SessionRouter 路由到搜索引擎或插件。
 /// 图标会被解析为 base64 data URL，前端 IconDisplay 可直接渲染。
+///
+/// `confirm`：查询是否由用户显式确认（如按 Enter）触发，前端必须显式传入：
+/// - `false`：输入/路由触发的预览查询。行内插件手动模式（OnEnter）下返回 ready 提示
+///   （不执行面板动作），并承担路由职责——文本回退到插件触发词之外时回落搜索、退出面板。
+/// - `true`：用户按 Enter 触发的确认查询。OnEnter 模式下插件据此直接执行动作（如翻译）。
+/// 自动模式（OnInput）与普通搜索忽略该标志，行为与旧版一致。
 #[tauri::command]
 #[tracing::instrument(skip(state), fields(trace_id))]
 pub async fn bridge_query(
     state: tauri::State<'_, Arc<AppState>>,
     raw_query: String,
+    confirm: bool,
 ) -> Result<BridgeQueryResponse, BridgeError> {
     let trace_id = crate::utils::trace_id::generate_trace_id();
     tracing::Span::current().record("trace_id", trace_id.as_str());
@@ -162,10 +169,13 @@ pub async fn bridge_query(
         id: trace_id.clone(),
         raw_query: raw_query.clone(),
         search_term: raw_query.to_lowercase(),
+        confirm,
     };
 
     let query_start = std::time::Instant::now();
-    let response = session_router.route_query(&trace_id, &query).await;
+    let response = session_router
+        .route_query(&trace_id, &query, QueryChannel::Ui)
+        .await;
 
     // 录制查询事件到 Inspector（仅在调试模式开启时）
     let (mode, result_count) = match &response {
@@ -241,6 +251,7 @@ pub async fn bridge_query(
             data,
             actions,
             keep_search_bar,
+            ..
         } => {
             let mode = if keep_search_bar {
                 "plugin_panel"

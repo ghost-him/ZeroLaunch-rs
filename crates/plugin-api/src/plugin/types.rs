@@ -4,6 +4,8 @@ use crate::services::icon_request::IconRequest;
 use crate::services::parameter::types::ParameterSnapshot;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 
 pub type CandidateId = u64;
 
@@ -249,6 +251,53 @@ pub trait ActionExecutor: Configurable {
     async fn execute(&self, ctx: &ExecutionContext, action_id: &str) -> Result<(), ExecutionError>;
 }
 
+/// 查询来源通道 — 标识查询进入后端的入口，用于通道间隔离。
+///
+/// 各通道独立维护查询版本计数器，跨通道查询互不使对方过期；
+/// 且仅 GUI 通道允许改写会话状态（会话模式、面板交互事件）与
+/// 插件侧跨查询共享状态（如剪贴板缓存），CLI/调试查询为只读辅助路径。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum QueryChannel {
+    /// 主窗口 GUI 查询（bridge_query）。
+    #[default]
+    Ui,
+    /// 本地 CLI HTTP 查询（/v1/query）。
+    Cli,
+    /// 调试模拟查询（debug_simulate_query）。
+    Debug,
+}
+
+/// 查询版本门控：宿主在每次查询入口分配单调递增版本号，
+/// 供插件在写入跨查询共享状态（如翻译结果缓存）前判断自身查询
+/// 是否已被更新的查询取代。
+///
+/// 仅宿主进程内使用（内置插件经 PluginContext 注入）；不跨 RPC 传输，
+/// 远端插件或直接构造的上下文无门控，此时视为始终为最新。
+#[derive(Debug, Clone)]
+pub struct QueryRevisionGate {
+    /// 当前查询被分配的版本号。
+    revision: u64,
+    /// 宿主侧「最新已分配版本」计数器（每次查询入口 fetch_add）。
+    latest: Arc<AtomicU64>,
+}
+
+impl QueryRevisionGate {
+    /// 创建门控：revision 为当前查询的版本号，latest 为共享的最新版本计数器。
+    pub fn new(revision: u64, latest: Arc<AtomicU64>) -> Self {
+        Self { revision, latest }
+    }
+
+    /// 当前查询的版本号，供日志与追踪使用。
+    pub fn revision(&self) -> u64 {
+        self.revision
+    }
+
+    /// 当前查询是否仍是最新：成立才允许写入跨查询共享状态。
+    pub fn is_current(&self) -> bool {
+        self.latest.load(Ordering::Relaxed) == self.revision
+    }
+}
+
 /// 请求级上下文，在宿主与插件之间共享。
 /// 服务于插件生命周期/查询/动作调用，并携带日志关联 ID。
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -259,6 +308,13 @@ pub struct PluginContext {
     pub query_id: Option<String>,
     // 处理当前请求的插件 ID
     pub plugin_id: Option<String>,
+    /// 查询版本门控（宿主注入；#[serde(skip)] 不跨 RPC 传输，
+    /// 远端插件或直接构造的上下文为 None，此时视为始终为最新）。
+    #[serde(skip)]
+    pub query_revision_gate: Option<QueryRevisionGate>,
+    /// 查询来源通道（宿主注入；远端插件经 RPC 反序列化时缺省视为 GUI 通道）。
+    #[serde(default)]
+    pub query_channel: QueryChannel,
 }
 
 impl PluginContext {
@@ -267,6 +323,8 @@ impl PluginContext {
             trace_id: trace_id.to_string(),
             query_id: None,
             plugin_id: None,
+            query_revision_gate: None,
+            query_channel: QueryChannel::Ui,
         }
     }
 
@@ -276,6 +334,25 @@ impl PluginContext {
 
     pub fn with_plugin_id(&mut self, plugin_id: String) {
         self.plugin_id = Some(plugin_id);
+    }
+
+    /// 注入查询版本门控（宿主查询入口调用）。
+    pub fn set_query_revision_gate(&mut self, gate: QueryRevisionGate) {
+        self.query_revision_gate = Some(gate);
+    }
+
+    /// 当前查询是否仍是最新；无门控（远端插件、测试、mock）恒为 true。
+    pub fn is_query_current(&self) -> bool {
+        self.query_revision_gate
+            .as_ref()
+            .is_none_or(|g| g.is_current())
+    }
+
+    /// 当前查询的版本号；无门控时为 0，仅供日志使用。
+    pub fn query_revision(&self) -> u64 {
+        self.query_revision_gate
+            .as_ref()
+            .map_or(0, |g| g.revision())
     }
 }
 
@@ -289,6 +366,35 @@ pub struct Query {
     pub raw_query: String,
     /// 派生自 raw_query 的搜索词。普通搜索为全小写形式，插件模式为剥离触发关键词后的剩余部分。
     pub search_term: String,
+    /// 是否由用户显式确认（如按 Enter）触发的查询。
+    /// 行内插件手动模式（PanelQueryTrigger::OnEnter）用它区分确认查询与预览查询；默认 false。
+    #[serde(rename = "confirm", default)]
+    pub confirm: bool,
+}
+
+/// 插件面板查询触发方式的通用语义。
+/// 服务于宿主判断行内插件模式下输入后是否自动发起查询。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum PanelQueryTrigger {
+    /// 输入后自动触发查询（默认；配合 query_debounce_ms 防抖）。
+    #[default]
+    #[serde(rename = "onInput")]
+    OnInput,
+    /// 输入不自动触发查询，由用户按 Enter 手动触发。
+    #[serde(rename = "onEnter")]
+    OnEnter,
+}
+
+/// 插件面板响应携带的通用交互策略。
+/// 服务于宿主处理输入查询触发时机，不属于插件持久化配置。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct PanelInteraction {
+    /// 查询触发方式：onInput 输入自动触发 / onEnter 由用户按 Enter 手动触发。
+    #[serde(rename = "queryTrigger", default)]
+    pub query_trigger: PanelQueryTrigger,
+    /// 后续输入触发查询前的防抖延迟，单位为毫秒（仅 onInput 模式生效）。
+    #[serde(rename = "queryDebounceMs", default)]
+    pub query_debounce_ms: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -429,4 +535,94 @@ pub enum PluginError {
 
     #[error("Invalid setting: {0}")]
     InvalidSetting(String),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        PanelInteraction, PanelQueryTrigger, PluginContext, QueryChannel, QueryRevisionGate,
+    };
+    use serde_json::json;
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::Arc;
+
+    #[test]
+    /// 验证门控：计数器未越过时当前查询仍有效，越过后失效。
+    fn query_revision_gate_tracks_latest() {
+        let latest = Arc::new(AtomicU64::new(2));
+        let gate = QueryRevisionGate::new(2, latest.clone());
+        assert!(gate.is_current(), "版本号与最新一致时应有效");
+        assert_eq!(gate.revision(), 2);
+
+        latest.fetch_add(1, Ordering::Relaxed);
+        assert!(!gate.is_current(), "更新的查询到达后应失效");
+    }
+
+    #[test]
+    /// 验证 PluginContext 门控默认行为与注入行为。
+    fn plugin_context_gate_defaults_to_current() {
+        let mut ctx = PluginContext::new("trace-1");
+        assert!(ctx.is_query_current(), "无门控时应恒为最新");
+        assert_eq!(ctx.query_revision(), 0);
+        assert_eq!(
+            ctx.query_channel,
+            QueryChannel::Ui,
+            "未显式注入时应缺省为 GUI 通道"
+        );
+
+        let latest = Arc::new(AtomicU64::new(1));
+        ctx.set_query_revision_gate(QueryRevisionGate::new(1, latest));
+        assert!(ctx.is_query_current());
+    }
+
+    #[test]
+    /// 验证门控与句柄字段不参与序列化（不跨 RPC 传输），反序列化后为 None。
+    fn plugin_context_skips_gate_in_serialization() {
+        let mut ctx = PluginContext::new("trace-2");
+        ctx.set_query_revision_gate(QueryRevisionGate::new(1, Arc::new(AtomicU64::new(1))));
+        let json = serde_json::to_string(&ctx).expect("上下文应可序列化");
+        assert!(
+            !json.contains("revision") && !json.contains("gate"),
+            "门控字段不应出现在序列化结果中: {}",
+            json
+        );
+        assert!(
+            !json.contains("handle"),
+            "句柄字段不应出现在序列化结果中: {}",
+            json
+        );
+
+        let roundtrip: PluginContext = serde_json::from_str(&json).expect("上下文应可反序列化");
+        assert!(
+            roundtrip.query_revision_gate.is_none(),
+            "反序列化后门控应为 None"
+        );
+        assert!(roundtrip.is_query_current());
+        assert_eq!(
+            roundtrip.query_channel,
+            QueryChannel::Ui,
+            "通道字段应参与序列化且缺省为 GUI 通道"
+        );
+    }
+
+    #[test]
+    /// 验证面板交互策略的 JSON 字段名、枚举值和默认值。
+    fn panel_interaction_serializes_with_stable_contract() {
+        let interaction = PanelInteraction {
+            query_trigger: PanelQueryTrigger::OnEnter,
+            query_debounce_ms: 300,
+        };
+        let value = serde_json::to_value(&interaction).expect("交互策略应可序列化");
+        assert_eq!(
+            value,
+            json!({
+                "queryTrigger": "onEnter",
+                "queryDebounceMs": 300,
+            })
+        );
+
+        let default_value: PanelInteraction =
+            serde_json::from_value(json!({})).expect("缺失交互策略字段时应使用默认值");
+        assert_eq!(default_value, PanelInteraction::default());
+    }
 }

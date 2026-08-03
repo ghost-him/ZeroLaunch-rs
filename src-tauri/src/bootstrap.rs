@@ -238,6 +238,14 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
 
     session_router.set_config_manager(config_manager.clone());
 
+    // 注入面板交互策略推送回调：路由确定插件后立即推送，不等慢查询响应，
+    // 保证慢查询期间的新输入也能正确应用防抖（见 zerolaunch-panel-interaction 设计）。
+    let app_handle_for_policy = state.get_main_handle();
+    let policy_emitter = Arc::new(move |event| {
+        let _ = app_handle_for_policy.emit("panel-interaction", event);
+    });
+    session_router.set_interaction_emitter(policy_emitter);
+
     // 订阅配置事件
     let event_router = session_router.clone();
     let app_handle = state.get_main_handle();
@@ -264,6 +272,8 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
                                 "componentType": format!("{:?}", component_type),
                             }),
                         );
+                        // 面板交互策略随配置变更重新推送（如面板内调整防抖延迟）
+                        event_router.reemit_current_interaction();
                     }
                     // 配置变更后自动触发远程同步（fire-and-forget）
                     match &event {
@@ -319,35 +329,94 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
     });
 
     // 注册内置运行时组件到 PluginComponentRegistry 和 SessionRouter
-    for (_, ex) in &collected.executors {
-        session_router.register_executor(ex.clone());
+    for (c, ex) in &collected.executors {
+        if config_manager.find_configurable(c.component_id()).is_some() {
+            session_router.register_executor(ex.clone());
+        } else {
+            warn!(
+                "组件 {} 的 Configurable 注册失败，跳过 Executor 注册",
+                c.component_id()
+            );
+        }
     }
-    for (_, se) in &collected.search_engines {
-        session_router
-            .components()
-            .register_search_engine(se.clone());
+    for (c, se) in &collected.search_engines {
+        if config_manager.find_configurable(c.component_id()).is_some() {
+            session_router
+                .components()
+                .register_search_engine(se.clone());
+        } else {
+            warn!(
+                "组件 {} 的 Configurable 注册失败，跳过 SearchEngine 注册",
+                c.component_id()
+            );
+        }
     }
-    for (_, sb) in &collected.score_boosters {
-        session_router
-            .components()
-            .register_score_booster(sb.clone());
+    for (c, sb) in &collected.score_boosters {
+        if config_manager.find_configurable(c.component_id()).is_some() {
+            session_router
+                .components()
+                .register_score_booster(sb.clone());
+        } else {
+            warn!(
+                "组件 {} 的 Configurable 注册失败，跳过 ScoreBooster 注册",
+                c.component_id()
+            );
+        }
     }
-    for (_, ds) in &collected.data_sources {
-        session_router.components().register_data_source(ds.clone());
+    for (c, ds) in &collected.data_sources {
+        if config_manager.find_configurable(c.component_id()).is_some() {
+            session_router.components().register_data_source(ds.clone());
+        } else {
+            warn!(
+                "组件 {} 的 Configurable 注册失败，跳过 DataSource 注册",
+                c.component_id()
+            );
+        }
     }
-    for (_, ko) in &collected.keyword_optimizers {
-        session_router
-            .components()
-            .register_keyword_optimizer(ko.clone());
+    for (c, ko) in &collected.keyword_optimizers {
+        if config_manager.find_configurable(c.component_id()).is_some() {
+            session_router
+                .components()
+                .register_keyword_optimizer(ko.clone());
+        } else {
+            warn!(
+                "组件 {} 的 Configurable 注册失败，跳过 KeywordOptimizer 注册",
+                c.component_id()
+            );
+        }
     }
-    for (_, ki) in &collected.keyword_injectors {
-        session_router
-            .components()
-            .register_keyword_injector(ki.clone());
+    for (c, ki) in &collected.keyword_injectors {
+        if config_manager.find_configurable(c.component_id()).is_some() {
+            session_router
+                .components()
+                .register_keyword_injector(ki.clone());
+        } else {
+            warn!(
+                "组件 {} 的 Configurable 注册失败，跳过 KeywordInjector 注册",
+                c.component_id()
+            );
+        }
     }
-    for (_, p) in &collected.plugins {
-        session_router.plugin_service().register(p.clone());
+    for (c, p) in &collected.plugins {
+        if config_manager.find_configurable(c.component_id()).is_some() {
+            session_router.plugin_service().register(p.clone());
+        } else {
+            warn!(
+                "组件 {} 的 Configurable 注册失败，跳过 Plugin 注册",
+                c.component_id()
+            );
+        }
     }
+
+    // 内置插件全部注册后统一执行 init：向插件发放绑定身份的 PluginHandle
+    // （插件在 init 中保存句柄，供 query/execute_action 访问平台能力）。
+    // 远端插件适配器的 init 为 no-op，不会被重复初始化。
+    session_router
+        .plugin_service()
+        .init_all(host_api.clone())
+        .await
+        .expect("内置插件初始化失败");
+    info!("内置插件 init 完成（PluginHandle 已发放）");
 
     info!(
         "Phase A 完成: 共注册 {} 个组件（其中内置 {} 个）",

@@ -1,5 +1,5 @@
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
-import type { ConfigChangedPayload, ConfigErrorPayload, InstallationEventPayload, PluginEventPayload } from './contract'
+import type { ConfigChangedPayload, ConfigErrorPayload, InstallationEventPayload, PanelInteractionEvent, PluginEventPayload } from './contract'
 
 export function onConfigChanged(
   callback: (payload: ConfigChangedPayload) => void,
@@ -30,6 +30,15 @@ export function onSessionReset(
 ): Promise<UnlistenFn> {
   return listen('session-reset', () => {
     callback()
+  })
+}
+
+/** 后端路由确定/切换插件面板时推送交互策略（防抖延迟、确认行为）。 */
+export function onPanelInteraction(
+  callback: (payload: PanelInteractionEvent) => void,
+): Promise<UnlistenFn> {
+  return listen<PanelInteractionEvent>('panel-interaction', (event) => {
+    callback(event.payload)
   })
 }
 

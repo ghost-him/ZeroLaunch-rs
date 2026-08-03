@@ -961,7 +961,7 @@ Tauri 的 `frontendDist` 指向 `dist/`，打包时将前端资源嵌入二进�
 
 | 前端函数                     | 后端命令                      | 功能                       |
 | ---------------------------- | ----------------------------- | -------------------------- |
-| `bridgeQuery(rawQuery)`      | `bridge_query`                | 核心搜索/查询分发          |
+| `bridgeQuery(rawQuery, confirm)` | `bridge_query`             | 核心搜索/查询分发（confirm：Enter 确认查询标志） |
 | `bridgeConfirm(payload)`     | `bridge_confirm`              | 执行选中操作               |
 | `bridgeWake()`               | `bridge_wake`                 | 窗口显示，捕获系统参数快照 |
 | `bridgeReset()`              | `bridge_reset`                | 窗口隐藏，重置会话         |

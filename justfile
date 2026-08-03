@@ -4,8 +4,8 @@ set shell := ["cmd.exe", "/C"]
 
 # 代码风格检查与自动修复
 style:
-    cargo fmt --all
     cargo clippy --workspace --all-targets --all-features --fix --allow-dirty --allow-staged
+    cargo fmt --all
 
 # 快速编译检查（全 workspace）
 check:
@@ -17,8 +17,8 @@ test:
 
 # 本地模拟 CI（全量检查）
 ci:
-    cargo fmt --all -- --check
     cargo clippy --workspace --all-targets --all-features -- -D warnings
+    cargo fmt --all -- --check
     cargo test --workspace
 
 # 构建前端 + release 编译

@@ -91,8 +91,10 @@ mod tests {
         plugin.init(&ctx, handle).await.unwrap();
 
         let q = Query {
-            id: "q1".into(), raw_query: "echo hello".into(),
+            id: "q1".into(),
+            raw_query: "echo hello".into(),
             search_term: "hello".into(),
+            confirm: false,
         };
         let resp = plugin.query(&ctx, &q).await.unwrap();
         match resp {

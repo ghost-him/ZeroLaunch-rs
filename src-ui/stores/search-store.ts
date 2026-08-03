@@ -5,8 +5,8 @@ import {
   bridgeRefreshCandidates, bridgeGetCandidatesCount,
   bridgeHideWindow,
 } from '../bridge/commands'
-import type { ListItem, ResultAction, BridgeQueryResponse, ConfirmResponse } from '../bridge/contract'
-import { onSessionReset } from '../bridge/events'
+import type { ListItem, ResultAction, BridgeQueryResponse, ConfirmResponse, PanelInteraction, PanelInteractionEvent } from '../bridge/contract'
+import { onSessionReset, onPanelInteraction } from '../bridge/events'
 
 export type SessionMode = 'none' | 'search' | 'inline_param' | 'param_panel' | 'inline_plugin' | 'full_page_plugin'
 
@@ -43,12 +43,35 @@ export const useSearchStore = defineStore('search', () => {
   const panelType = ref<string | null>(null)
   const panelData = ref<unknown>(null)
   const panelActions = ref<ResultAction[]>([])
+  /** 当前插件面板的通用交互策略。 */
+  const panelInteraction = ref<PanelInteraction | null>(null)
+  /** 防抖定时器 */
+  let debounceTimer: number | null = null
+
+  /// 取消挂起中的防抖查询。输入清空、退出面板、隐藏窗口等「放弃输入」的路径必须调用，
+  /// 否则定时器到期仍会发出 IPC，造成后端真实执行查询（如消耗 LLM 配额的幽灵翻译）。
+  function cancelPendingDebounce() {
+    if (debounceTimer !== null) {
+      clearTimeout(debounceTimer)
+      debounceTimer = null
+    }
+  }
 
   // 行内参数模式
   const inlineParamState = ref<InlineParamState | null>(null)
 
   // 参数面板模式
   const paramPanelState = ref<ParamPanelState | null>(null)
+
+  /** 递增序号，丢弃过期的 bridge_query 响应，避免慢请求盖写新输入。 */
+  let querySeq = 0
+
+  /** 确认查询在途标志：在途时忽略重复 Enter（不发查询=不加序号）。 */
+  let confirmInFlight = false
+  /** 翻译查询已发出提示（瞬态：onEnter 确认由 confirmPluginAction 置位，即时模式由翻译面板置位；SearchView 监听后弹出 notification 并复位）。 */
+  const translationStartedHint = ref(false)
+  /** 面板查询在途标志：查询已发出且仍属于当前插件面板（未退出），响应到达后清除。供插件面板感知「查询处理中」。 */
+  const panelQueryInFlight = ref(false)
 
   // ---- 派生 ----
   const isIdle = computed(() => query.value === '')
@@ -103,38 +126,107 @@ export const useSearchStore = defineStore('search', () => {
 
   // ---- 动作 ----
 
-  async function doQuery(raw: string) {
+  /// 当前行内插件面板的触发词列表（来自 panel-interaction 事件）。
+  /// 用于退出判定：输入不再匹配任何触发词（无空格或首词不在集合中）时立即查询退出，
+  /// 退出操作独立于插件防抖配置（如从 "fy hello" 回退到 "fy" 不受防抖延迟）。
+  let panelTriggerKeywords: string[] = []
+
+  /// 查询文本是否仍属于当前插件面板：首词为空格分隔的触发词（镜像后端 PluginRegistry::parse_trigger）。
+  /// 输入交互层判定（RULES.md 前后端职责边界）：仅用于 IPC 前时序决策（防抖豁免、在途提示），
+  /// 权威路由仍由后端 route_query 裁决；判定参数（触发词）来自后端 panel-interaction 事件，
+  /// 镜像变更须与后端同步（frontend-input-interaction 规则）。
+  function queryStillInPanel(raw: string): boolean {
+    if (panelTriggerKeywords.length === 0) return false
+    const firstWord = raw.split(' ')[0]
+    return raw.includes(' ') && panelTriggerKeywords.includes(firstWord)
+  }
+
+  async function doQuery(raw: string, confirm = false) {
     query.value = raw
+    const seq = ++querySeq
+
+    // 任何新查询（含清空/退出）都取代挂起的防抖定时器
+    cancelPendingDebounce()
 
     if (raw === '') {
       results.value = []
       sessionMode.value = 'none'
       panelType.value = null
+      panelData.value = null
+      panelActions.value = []
+      panelInteraction.value = null
+      panelTriggerKeywords = []
+      confirmInFlight = false
       inlineParamState.value = null
       paramPanelState.value = null
       selectedIndex.value = 0
       selectedActionIndex.value = 0
+      panelQueryInFlight.value = false
       return
     }
 
+    // 非确认查询（输入/路由变化）：解除确认在途状态（文本已变化，之后 Enter 可重新确认）。
+    if (!confirm) {
+      confirmInFlight = false
+    }
+
+    // 退出判定（优先于防抖）：行内插件面板内，输入不再匹配当前插件触发词
+    // （无空格或首词不在触发词集合）→ 立即查询退出，不受插件防抖延迟。
+    // 判定结果仍由后端路由裁决，正确性无损。
+    const shouldExit = panelTriggerKeywords.length > 0 && !queryStillInPanel(raw)
+    // 防抖：未达间隔前不发送 IPC（首次或 dm=0 时直发；onEnter 手动模式忽略防抖）
+    const dm = shouldExit
+      ? 0
+      : (panelInteraction.value?.queryTrigger === 'onEnter'
+        ? 0
+        : (panelInteraction.value?.queryDebounceMs ?? 0))
+    if (dm > 0) {
+      debounceTimer = window.setTimeout(() => {
+        debounceTimer = null
+        // 兜底：期间已有新查询（seq 已递增）则不再发 IPC
+        if (seq !== querySeq) return
+        doQueryImpl(raw, seq, confirm)
+      }, dm)
+      return
+    }
+
+    doQueryImpl(raw, seq, confirm)
+  }
+
+  async function doQueryImpl(raw: string, seq: number, confirm: boolean) {
+    // 面板查询在途（通用状态）：查询仍属于当前插件面板时置位，响应到达后清除。
+    // 供插件面板感知「查询处理中」（如翻译面板据此提示「已开始翻译」）。
+    panelQueryInFlight.value = queryStillInPanel(raw)
     try {
-      const resp: BridgeQueryResponse = await bridgeQuery(raw)
+      console.log(`[doQuery] Sending query: "${raw}" (seq=${seq})`)
+      const resp: BridgeQueryResponse = await bridgeQuery(raw, confirm)
+
+      if (seq !== querySeq) return
+
+      // 确认查询响应已到达（无论结果如何），解除在途标志，允许下一次确认。
+      confirmInFlight = false
 
       selectedActionIndex.value = 0
 
       switch (resp.mode) {
         case 'search':
           results.value = resp.results
+          panelInteraction.value = null
+          panelTriggerKeywords = []
           sessionMode.value = 'search'
           selectedIndex.value = 0
           break
         case 'empty':
           results.value = []
+          panelInteraction.value = null
+          panelTriggerKeywords = []
           sessionMode.value = 'search'
           selectedIndex.value = 0
           break
         case 'inline_param':
           results.value = []
+          panelInteraction.value = null
+          panelTriggerKeywords = []
           sessionMode.value = 'inline_param'
           inlineParamState.value = {
             candidateId: resp.inlineParam.candidateId,
@@ -155,7 +247,15 @@ export const useSearchStore = defineStore('search', () => {
           break
       }
     } catch (e) {
+      if (seq !== querySeq) return
+      // 查询失败同样解除在途标志，避免后续 Enter 被永久拦截。
+      confirmInFlight = false
       console.error('[doQuery] Query failed:', e)
+    } finally {
+      // 仅当前查询可清除在途标志：过期响应不得覆盖新查询的在途状态。
+      if (seq === querySeq) {
+        panelQueryInFlight.value = false
+      }
     }
   }
 
@@ -341,6 +441,23 @@ export const useSearchStore = defineStore('search', () => {
   }
 
   function confirmPluginAction() {
+    // 手动查询模式（queryTrigger=onEnter）：Enter 按面板状态分流——
+    // 面板已有可执行动作（如翻译成功）→ 执行默认动作（复制译文）；
+    // 否则（ready/失败/空）→ 发起确认查询（翻译或失败后重试）。
+    // 约定：插件仅在结果可执行时返回非空动作列表（translator 成功含 copy_primary，失败/ready 为空）。
+    if (panelInteraction.value?.queryTrigger === 'onEnter') {
+      // 确认查询在途：忽略重复 Enter（不发查询=不加序号），首次结果返回后自然显示。
+      if (confirmInFlight) return
+      if (panelActions.value.length > 0) {
+        doConfirm()
+        return
+      }
+      confirmInFlight = true
+      translationStartedHint.value = true
+      void doQuery(query.value, true)
+      return
+    }
+    // 自动查询模式（onInput）：Enter 执行面板默认动作。
     doConfirm()
   }
 
@@ -354,20 +471,30 @@ export const useSearchStore = defineStore('search', () => {
   // ---- 会话管理 ----
 
   function hideWindow() {
+    // 隐藏窗口视为放弃当前输入：取消挂起防抖，避免窗口隐藏后仍触发查询
+    cancelPendingDebounce()
     bridgeHideWindow().catch((e) => console.warn('[hideWindow] Failed to hide window:', e))
   }
 
   function resetLocalSession() {
+    // 取消未触发的防抖定时器
+    cancelPendingDebounce()
+    // 递增序号使所有在途响应的 seq 失效，防止慢请求盖写新状态
+    querySeq++
     query.value = ''
     results.value = []
     sessionMode.value = 'none'
     panelType.value = null
     panelData.value = null
     panelActions.value = []
+    panelInteraction.value = null
+    panelTriggerKeywords = []
+    confirmInFlight = false
     inlineParamState.value = null
     paramPanelState.value = null
     selectedIndex.value = 0
     selectedActionIndex.value = 0
+    panelQueryInFlight.value = false
   }
 
   function resetSessionAndHide() {
@@ -398,9 +525,18 @@ export const useSearchStore = defineStore('search', () => {
     resetLocalSession()
   })
 
+  // 监听后端推送的面板交互策略：路由确定插件面板时推送一次，面板内不再重复。
+  // 事件总是描述当前会话最新路由的面板，无条件接受即可；退出面板由各响应分支清空。
+  onPanelInteraction((payload: PanelInteractionEvent) => {
+    panelInteraction.value = payload.interaction
+    panelTriggerKeywords = payload.triggerKeywords ?? []
+  })
+
   return {
     query, results, selectedIndex, selectedActionIndex, sessionMode, cachedCount,
-    panelType, panelData, panelActions,
+    panelType, panelData, panelActions, panelInteraction,
+    translationStartedHint,
+    panelQueryInFlight,
     inlineParamState, paramPanelState,
     isIdle, selectedItem,
     doQuery, doConfirm, selectNext, selectPrev,

@@ -41,5 +41,6 @@ pub fn mock_plugin_handle() -> Arc<PluginHandle> {
         Arc::new(StubHotkeyManager),
         Arc::new(StubInstallationMonitor),
         Arc::new(StubFocusMonitor),
+        Arc::new(StubClipboardManager),
     ))
 }

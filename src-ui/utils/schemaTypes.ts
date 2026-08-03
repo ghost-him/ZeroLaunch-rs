@@ -342,7 +342,10 @@ export function getSchemaStringConfig(schema: SchemaNode): { minLength: number |
 /** 从 SchemaNode 中获取下拉选项。 */
 export function getSchemaEnumOptions(schema: SchemaNode): { label: string; value: string }[] {
   if (schema.type === 'string' && schema.enum) {
-    return schema.enum.map((v) => ({ label: v, value: v }))
+    return schema.enum.map((v, i) => ({
+      label: schema.enumLabels[i] ?? v,
+      value: v,
+    }))
   }
   return []
 }

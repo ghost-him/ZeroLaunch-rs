@@ -1,5 +1,5 @@
 <template>
-  <div class="component-config-loader" :class="{ 'is-loaded': schema && settings && !loading && !loadErr }">
+  <div class="component-config-loader">
     <div v-if="loading" class="loading-state">
       <n-spin :size="20" />
     </div>
@@ -40,6 +40,7 @@ const props = defineProps<{
 const configStore = useConfigStore()
 const pluginStore = usePluginStore()
 
+
 const loading = ref(true)
 const loadErr = ref<string | null>(null)
 const schema = ref<ComponentSchema | null>(null)
@@ -49,7 +50,6 @@ const settings = ref<Record<string, unknown> | null>(null)
 const settingsComponent = computed(() =>
   pluginStore.getSettingsComponent(props.component.componentId),
 )
-
 let unlistenConfig: (() => void) | null = null
 
 async function onThirdPartySave(newSettings: unknown) {
@@ -65,18 +65,26 @@ async function init() {
   loading.value = true
   loadErr.value = null
   try {
-    const [s, cfg] = await Promise.all([
-      configStore.getSchema(props.component.componentId),
-      configStore.getSettings(props.component.componentId),
-    ])
-    schema.value = s
-    settings.value = cfg as Record<string, unknown>
+    // 有自定义设置页时仍拉 settings；schema 仅 DynamicForm 需要
+    if (settingsComponent.value) {
+      const cfg = await configStore.getSettings(props.component.componentId)
+      settings.value = cfg as Record<string, unknown>
+      schema.value = null
+    } else {
+      const [s, cfg] = await Promise.all([
+        configStore.getSchema(props.component.componentId),
+        configStore.getSettings(props.component.componentId),
+      ])
+      schema.value = s
+      settings.value = cfg as Record<string, unknown>
+    }
   } catch (e) {
     loadErr.value = String(e)
   } finally {
     loading.value = false
   }
 }
+
 
 onMounted(async () => {
   await init()

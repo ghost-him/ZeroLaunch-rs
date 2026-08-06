@@ -144,3 +144,8 @@ tauri-plugin-single-instance.workspace = true
 [dev-dependencies]
 # mock 特性提供插件 API 的桩实现，供内置组件全量注册测试构造测试用 HostApi。
 zerolaunch-plugin-api = { workspace = true, features = ["mock"] }
+
+[lints.rust]
+# MSVC 链接器把 "正在创建库 ... .lib 和对象 ... .exp" 这类正常提示写到 stdout，
+# rustc 1.84+ 通过 linker_messages lint 上报；纯 Windows 链接期噪音，静默处理。
+linker_messages = "allow"

@@ -11,8 +11,8 @@ use zerolaunch_plugin_api::config::{
 use zerolaunch_plugin_api::host::PluginHandle;
 use zerolaunch_plugin_api::services::IconRequest;
 use zerolaunch_plugin_api::{
-    PanelInteraction, PanelQueryTrigger, Plugin, PluginContext, PluginError, PluginMetadata, Query,
-    QueryChannel, QueryResponse, ResultAction,
+    PanelInteraction, PanelKeyAction, PanelKeyBinding, PanelQueryTrigger, Plugin, PluginContext,
+    PluginError, PluginMetadata, Query, QueryChannel, QueryResponse, ResultAction,
 };
 
 use crate::core::config::setting_builders::SchemaBuilder;
@@ -713,11 +713,53 @@ impl Plugin for TranslatorPlugin {
             PanelInteraction {
                 query_trigger: PanelQueryTrigger::OnEnter,
                 query_debounce_ms: 0,
+                // 面板按键契约（声明即接管，状态转换经显式动作触发）：
+                // - Enter：Confirm —— 面板已有可执行动作（翻译成功）时执行默认动作（复制译文），
+                //   否则发起确认查询（翻译或失败后重试）（宿主 confirmQuery 三分支语义）；
+                // - Escape：GoBack —— 返回默认面板（退出翻译面板）；
+                // - Ctrl+Enter：直接复制译文（走既有 copy_primary 动作，不触发翻译）。
+                bindings: vec![
+                    PanelKeyBinding {
+                        key: "Enter".to_string(),
+                        action: PanelKeyAction::Confirm,
+                    },
+                    PanelKeyBinding {
+                        key: "Escape".to_string(),
+                        action: PanelKeyAction::GoBack,
+                    },
+                    PanelKeyBinding {
+                        key: "Ctrl+Enter".to_string(),
+                        action: PanelKeyAction::ExecuteAction {
+                            action_id: Some("copy_primary".to_string()),
+                        },
+                    },
+                ],
             }
         } else {
             PanelInteraction {
                 query_trigger: PanelQueryTrigger::OnInput,
                 query_debounce_ms: (settings.live_debounce_secs * 1000.0) as u64,
+                // live 模式按键契约（翻译由输入防抖自动触发，Enter 不再承担触发翻译的角色）：
+                // - Enter：Confirm —— 面板已有可执行动作（翻译成功）时执行默认动作（复制译文）；
+                //   否则（在途/失败/空）由宿主 confirmQuery 裁决（在途防重 no-op、失败重试）；
+                // - Ctrl+Enter：直接复制当前已有译文（走 copy_primary，不触发新翻译）；
+                // - Escape：GoBack —— 返回默认面板（退出翻译面板）。
+                bindings: vec![
+                    PanelKeyBinding {
+                        key: "Enter".to_string(),
+                        action: PanelKeyAction::Confirm,
+                    },
+                    PanelKeyBinding {
+                        key: "Ctrl+Enter".to_string(),
+                        action: PanelKeyAction::ExecuteAction {
+                            action_id: Some("copy_primary".to_string()),
+                        },
+                    },
+                    PanelKeyBinding {
+                        key: "Escape".to_string(),
+                        action: PanelKeyAction::GoBack,
+                    },
+                ],
             }
         }
     }

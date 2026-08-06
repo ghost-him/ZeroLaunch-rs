@@ -19,7 +19,7 @@ scope: "tool:edit(src-tauri/src/builtin_plugin/**), tool:write(src-tauri/src/bui
 1. **必须** 在 `FieldUiMetadata` 的文档注释中说明副作用（如"立即写入缓存，不持久化字段值"）
 2. **必须** 是异常安全的：失败时不得留下不一致状态，`execute_config_action` 返回 `Err` 后前端可重试
 3. **禁止** 修改组件内部配置状态（`self.settings`）
-4. **禁止** 调用 ConfigManager、SessionRouter 等框架层方法
+4. **禁止** 调用 ConfigManager、SessionDispatcher 等框架层方法
 5. **允许** 的副作用类型：
    - 写入插件层缓存（如图标缓存）
    - 文件系统写入（不超过 100ms）

@@ -188,7 +188,6 @@ pub fn run() {
             crate::commands::bridge::bridge_confirm,
             crate::commands::bridge::bridge_wake,
             crate::commands::bridge::bridge_reset,
-            crate::commands::bridge::bridge_get_session_mode,
             crate::commands::bridge::bridge_refresh_candidates,
             crate::commands::bridge::bridge_get_candidates_count,
             crate::commands::bridge::bridge_hide_window,
@@ -308,20 +307,19 @@ fn build_windows_host_api_builder(
 fn init_search_bar_window(app: &mut App) {
     let state = app.state::<Arc<AppState>>();
     let host_api = state.get_host_api();
-    let session_router = state.get_session_router().clone();
+    let session_dispatcher = state.get_session_dispatcher().clone();
     let config_manager = state.get_config_manager();
-    let app_handle = state.get_main_handle();
 
-    // 注册焦点丢失回调：保存拖拽位置 → 隐藏窗口 → 重置会话 → 通知前端
+    // 注册焦点丢失回调：保存拖拽位置 → 隐藏窗口 → 重置会话（Dispatcher 内部推送会话事件）
     let core_handle = state.get_core_handle();
     let host_api_for_cb = host_api.clone();
     let config_manager_for_cb = config_manager.clone();
-    let app_handle_for_cb = app_handle.clone();
+    let app_handle_for_cb = state.get_main_handle().clone();
     core_handle.register_focus_callback(
         "main_window_focus",
         Arc::new(move |_event| {
             let host_api = host_api_for_cb.clone();
-            let session_router = session_router.clone();
+            let session_dispatcher = session_dispatcher.clone();
             let config_manager = config_manager_for_cb.clone();
             let app_handle = app_handle_for_cb.clone();
             tauri::async_runtime::spawn(async move {
@@ -332,9 +330,9 @@ fn init_search_bar_window(app: &mut App) {
                     .get_component_setting("general-config", "reset_session_on_wake")
                     .and_then(|v| v.as_bool())
                     .unwrap_or(true);
-                if session_router.reset_session(reset_plugins) {
-                    let _ = app_handle.emit("session-reset", ());
-                }
+                // 会话重置由 Dispatcher 内部推送 session-state（presentation: 'none'），
+                // 原 session-reset 事件已删除（统一会话事件通道，见设计 §4.4）。
+                session_dispatcher.reset_session(reset_plugins);
             });
         }),
     );

@@ -1,12 +1,13 @@
 use crate::commands::bridge_error::{BridgeError, WithTraceId};
 use crate::plugin_framework::inspector::InspectedQueryEvent;
+use crate::plugin_framework::{ConfirmOutcome, ConfirmRequest};
 use crate::state::app_state::AppState;
 use base64::{engine::general_purpose::STANDARD, Engine};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tauri::Emitter;
 use tracing::{debug, info};
-use zerolaunch_plugin_api::{ConfirmResult, Query, QueryChannel, QueryResponse, ResultAction};
+use zerolaunch_plugin_api::{CandidateId, Query, QueryChannel, QueryResponse, ResultAction};
 // ============================================================================
 // 搜索接口
 // ============================================================================
@@ -65,6 +66,8 @@ impl From<ResultAction> for BridgeResultAction {
 pub struct BridgeQueryResponse {
     #[serde(rename = "mode")]
     pub mode: String,
+    #[serde(rename = "generation")]
+    pub generation: u64,
     #[serde(rename = "results")]
     pub results: Vec<BridgeSearchResult>,
     #[serde(rename = "panelType", default)]
@@ -89,48 +92,74 @@ pub struct BridgeInlineParamData {
     pub user_arg_count: usize,
 }
 
-/// 确认执行负载
+/// 确认请求载荷 —— `bridge_confirm` 的 IPC 请求契约（Deserialize 侧），
+/// 与 Dispatcher 的 `ConfirmRequest` 一一对应（命令层构造后透传，无 JSON 载荷往返）。
+///
+/// 由前端构造并经 `bridge_confirm` 下发；两种载荷对应两条确认语义：
+/// - `candidate`：宿主候选确认（默认搜索执行 / 插件面板默认动作）；
+/// - `pluginAction`：插件面板动作（面板按键契约 Custom / GotoPanel 回插件）。
 #[derive(Deserialize, Debug)]
-pub struct ConfirmPayload {
-    #[serde(rename = "candidateId")]
-    pub candidate_id: u64,
-    #[serde(rename = "actionId")]
-    pub action_id: String,
-    #[serde(rename = "queryText")]
-    pub query_text: String,
-    #[serde(rename = "userArgs")]
-    pub user_args: Option<Vec<String>>,
+#[serde(tag = "kind")]
+pub enum ConfirmRequestPayload {
+    /// 宿主候选确认：执行候选项（缺参数时引导参数面板）。
+    #[serde(rename = "candidate")]
+    Candidate {
+        /// 目标候选项 ID。
+        #[serde(rename = "candidateId")]
+        candidate_id: u64,
+        /// 动作 ID。
+        #[serde(rename = "actionId")]
+        action_id: String,
+        /// 发起确认时的查询文本。
+        #[serde(rename = "queryText")]
+        query_text: String,
+        /// 用户参数（行内参数/参数面板场景；缺省为未提供）。
+        #[serde(rename = "userArgs")]
+        user_args: Option<Vec<String>>,
+        /// 会话代际：前端最后一次观测到的代际，后端据此拒绝过期确认（必填，见设计 §5.4）。
+        #[serde(rename = "generation")]
+        generation: u64,
+    },
+    /// 插件面板动作：自定义能力调用（面板按键契约 Custom / GotoPanel 回插件）。
+    #[serde(rename = "pluginAction")]
+    PluginAction {
+        /// 声明发起动作的插件（Dispatcher 路由时校验归属，须与活动会话一致）。
+        #[serde(rename = "pluginId")]
+        plugin_id: String,
+        /// 插件动作 ID（插件 `execute_action` 的分支名）。
+        #[serde(rename = "action")]
+        action: String,
+        /// 插件自定义载荷（自由 JSON）。
+        #[serde(rename = "args", default)]
+        args: serde_json::Value,
+        /// 会话代际：前端最后一次观测到的代际，后端据此拒绝过期面板动作（必填，见设计 §5.4）。
+        #[serde(rename = "generation")]
+        generation: u64,
+    },
 }
 
-/// 确认执行响应。
-/// Executed 表示已执行完成；EnterParamPanel 表示应进入参数面板。
+/// 确认执行响应 —— 由 `route_confirm` 返回的 `RoutedConfirm` 映射而来（IPC 序列化契约）。
+/// Executed 表示动作已执行完成；EnterParamPanel 表示确认后需要更多用户输入
+/// （参数面板，核心程序专属形态——载荷自包含：候选 ID + 参数个数，
+/// 前端据此构造输入字段，无需依赖列表项）。
+/// 两个变体均携带当前会话代际：投影转换后前端无需等下一次查询即可更新投影。
 #[derive(Serialize, Debug)]
 #[serde(tag = "status")]
 pub enum BridgeConfirmResponse {
     #[serde(rename = "executed")]
-    Executed,
+    Executed {
+        #[serde(rename = "generation")]
+        generation: u64,
+    },
     #[serde(rename = "enterParamPanel")]
     EnterParamPanel {
         #[serde(rename = "candidateId")]
-        candidate_id: u64,
+        candidate_id: CandidateId,
         #[serde(rename = "userArgCount")]
         user_arg_count: usize,
+        #[serde(rename = "generation")]
+        generation: u64,
     },
-}
-
-impl From<ConfirmResult> for BridgeConfirmResponse {
-    fn from(result: ConfirmResult) -> Self {
-        match result {
-            ConfirmResult::Executed => BridgeConfirmResponse::Executed,
-            ConfirmResult::EnterParamPanel {
-                candidate_id,
-                user_arg_count,
-            } => BridgeConfirmResponse::EnterParamPanel {
-                candidate_id,
-                user_arg_count,
-            },
-        }
-    }
 }
 
 /// 将 PNG 图标字节数据转换为前端可直接使用的 base64 data URL。
@@ -144,7 +173,7 @@ fn icon_to_data_url(png_data: &[u8]) -> String {
 }
 
 /// 通用查询入口。
-/// 前端搜索输入变化时调用此命令，后端通过 SessionRouter 路由到搜索引擎或插件。
+/// 前端搜索输入变化时调用此命令，后端经 SessionDispatcher 路由到搜索引擎或插件。
 /// 图标会被解析为 base64 data URL，前端 IconDisplay 可直接渲染。
 ///
 /// `confirm`：查询是否由用户显式确认（如按 Enter）触发，前端必须显式传入：
@@ -163,7 +192,7 @@ pub async fn bridge_query(
     tracing::Span::current().record("trace_id", trace_id.as_str());
     debug!("[Bridge] 查询: '{}'", raw_query);
 
-    let session_router = state.get_session_router();
+    let session_dispatcher = state.get_session_dispatcher();
 
     let query = Query {
         id: trace_id.clone(),
@@ -173,14 +202,16 @@ pub async fn bridge_query(
     };
 
     let query_start = std::time::Instant::now();
-    let response = session_router
+    let routed = session_dispatcher
         .route_query(&trace_id, &query, QueryChannel::Ui)
-        .await;
+        .await
+        .with_trace_id(&trace_id)?;
 
     // 录制查询事件到 Inspector（仅在调试模式开启时）
-    let (mode, result_count) = match &response {
+    // 统一词表：空结果合并为 search（展示形态层面不区分 List/Empty）。
+    let (mode, result_count) = match &routed.response {
         QueryResponse::List { results } => ("search", results.len()),
-        QueryResponse::Empty => ("empty", 0),
+        QueryResponse::Empty => ("search", 0),
         QueryResponse::CustomPanel { .. } => ("plugin_panel", 1),
         QueryResponse::InlineParam { .. } => ("inline_param", 0),
     };
@@ -193,12 +224,16 @@ pub async fn bridge_query(
                 mode: mode.to_string(),
                 result_count,
                 duration_ms: query_start.elapsed().as_millis() as u64,
+                owner_id: routed
+                    .plugin_id
+                    .clone()
+                    .unwrap_or_else(|| "default-search".to_string()),
             });
             let _ = state.get_main_handle().emit("inspector-state-updated", ());
         }
     }
 
-    match response {
+    match routed.response {
         QueryResponse::List { results } => {
             let core_handle = state.get_core_handle();
 
@@ -228,6 +263,7 @@ pub async fn bridge_query(
 
             Ok(BridgeQueryResponse {
                 mode: "search".to_string(),
+                generation: routed.generation,
                 results: bridge_results,
                 panel_type: None,
                 panel_data: None,
@@ -237,8 +273,10 @@ pub async fn bridge_query(
         }
         QueryResponse::Empty => {
             info!("[Bridge] 查询完成: '{}' -> 0 个结果", raw_query);
+            // 统一词表：空结果合并入 search（前端行为与原 'empty' 分支相同）。
             Ok(BridgeQueryResponse {
-                mode: "empty".to_string(),
+                mode: "search".to_string(),
+                generation: routed.generation,
                 results: Vec::new(),
                 panel_type: None,
                 panel_data: None,
@@ -264,6 +302,7 @@ pub async fn bridge_query(
             );
             Ok(BridgeQueryResponse {
                 mode: mode.to_string(),
+                generation: routed.generation,
                 results: Vec::new(),
                 panel_type: Some(panel_type),
                 panel_data: Some(data),
@@ -282,6 +321,7 @@ pub async fn bridge_query(
             );
             Ok(BridgeQueryResponse {
                 mode: "inline_param".to_string(),
+                generation: routed.generation,
                 results: Vec::new(),
                 panel_type: None,
                 panel_data: None,
@@ -303,29 +343,65 @@ pub async fn bridge_query(
 #[tracing::instrument(skip(state, payload), fields(trace_id))]
 pub async fn bridge_confirm(
     state: tauri::State<'_, Arc<AppState>>,
-    payload: ConfirmPayload,
+    payload: ConfirmRequestPayload,
 ) -> Result<BridgeConfirmResponse, BridgeError> {
     let trace_id = crate::utils::trace_id::generate_trace_id();
     tracing::Span::current().record("trace_id", trace_id.as_str());
-    debug!(
-        "[Bridge] 执行: candidate_id={}, action='{}', query='{}'",
-        payload.candidate_id, payload.action_id, payload.query_text
-    );
+    let kind = match &payload {
+        ConfirmRequestPayload::Candidate { .. } => "candidate",
+        ConfirmRequestPayload::PluginAction { .. } => "pluginAction",
+    };
+    debug!("[Bridge] 确认请求: kind={}", kind);
 
-    let session_router = state.get_session_router();
+    let session_dispatcher = state.get_session_dispatcher();
 
-    let json_payload = serde_json::json!({
-        "candidate_id": payload.candidate_id,
-        "query_text": payload.query_text,
-        "user_args": payload.user_args.unwrap_or_default(),
-    });
+    // 请求全程类型化：载荷与 Dispatcher 的 ConfirmRequest 一一对应，直接透传（无 JSON 往返）。
+    // 归属校验（插件动作须属于活动会话插件）与代际校验在 Dispatcher 路由层完成（薄命令层）。
+    let req = match payload {
+        ConfirmRequestPayload::Candidate {
+            candidate_id,
+            action_id,
+            query_text,
+            user_args,
+            generation,
+        } => ConfirmRequest::Candidate {
+            candidate_id: candidate_id as CandidateId,
+            action_id,
+            query_text,
+            user_args: user_args.unwrap_or_default(),
+            generation,
+        },
+        ConfirmRequestPayload::PluginAction {
+            plugin_id,
+            action,
+            args,
+            generation,
+        } => ConfirmRequest::PluginAction {
+            plugin_id,
+            action,
+            args,
+            generation,
+        },
+    };
 
-    let result = session_router
-        .route_confirm(&trace_id, &payload.action_id, json_payload)
+    let routed = session_dispatcher
+        .route_confirm(&trace_id, req)
         .await
         .with_trace_id(&trace_id)?;
 
-    Ok(BridgeConfirmResponse::from(result))
+    Ok(match routed.outcome {
+        ConfirmOutcome::Executed => BridgeConfirmResponse::Executed {
+            generation: routed.generation,
+        },
+        ConfirmOutcome::EnterParamPanel {
+            candidate_id,
+            user_arg_count,
+        } => BridgeConfirmResponse::EnterParamPanel {
+            candidate_id,
+            user_arg_count,
+            generation: routed.generation,
+        },
+    })
 }
 
 // ============================================================================
@@ -340,8 +416,8 @@ pub async fn bridge_wake(state: tauri::State<'_, Arc<AppState>>) -> Result<(), B
     let trace_id = crate::utils::trace_id::generate_trace_id();
     tracing::Span::current().record("trace_id", trace_id.as_str());
     debug!("📸 [Bridge] 搜索栏唤醒");
-    let session_router = state.get_session_router();
-    session_router
+    let session_dispatcher = state.get_session_dispatcher();
+    session_dispatcher
         .on_search_bar_wake()
         .await
         .with_trace_id(&trace_id)?;
@@ -353,17 +429,7 @@ pub async fn bridge_wake(state: tauri::State<'_, Arc<AppState>>) -> Result<(), B
 #[tauri::command]
 pub fn bridge_reset(state: tauri::State<'_, Arc<AppState>>) {
     debug!("🔄 [Bridge] 重置会话");
-    state.get_session_router().reset_session(true);
-}
-
-/// 获取当前会话模式。
-#[tauri::command]
-pub fn bridge_get_session_mode(state: tauri::State<'_, Arc<AppState>>) -> String {
-    state
-        .get_session_router()
-        .current_mode()
-        .as_str()
-        .to_string()
+    state.get_session_dispatcher().reset_session(true);
 }
 
 // ============================================================================
@@ -379,9 +445,9 @@ pub async fn bridge_refresh_candidates(
     let trace_id = crate::utils::trace_id::generate_trace_id();
     tracing::Span::current().record("trace_id", trace_id.as_str());
     debug!("🔄 [Bridge] 刷新候选项缓存");
-    let session_router = state.get_session_router();
-    session_router.refresh_candidates().await;
-    let count = session_router.get_cached_candidates_count();
+    let session_dispatcher = state.get_session_dispatcher();
+    session_dispatcher.refresh_candidates().await;
+    let count = session_dispatcher.get_cached_candidates_count();
     info!("🔄 [Bridge] 刷新完成，共 {} 个候选项", count);
     Ok(count)
 }
@@ -389,7 +455,7 @@ pub async fn bridge_refresh_candidates(
 /// 获取缓存的候选项数量。
 #[tauri::command]
 pub fn bridge_get_candidates_count(state: tauri::State<'_, Arc<AppState>>) -> usize {
-    state.get_session_router().get_cached_candidates_count()
+    state.get_session_dispatcher().get_cached_candidates_count()
 }
 
 /// 隐藏搜索栏窗口。

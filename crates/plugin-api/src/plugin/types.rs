@@ -385,6 +385,53 @@ pub enum PanelQueryTrigger {
     OnEnter,
 }
 
+/// 插件面板按键绑定 —— 声明式按键契约的最小单元。
+/// 服务于宿主解释执行：插件声明按键 → 宿主翻译为动作语义。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PanelKeyBinding {
+    /// 按键格式："Enter" | "Ctrl+Enter" | "Escape" | "Tab" | "a"。
+    #[serde(rename = "key")]
+    pub key: String,
+    /// 按键触发的动作。
+    #[serde(rename = "action")]
+    pub action: PanelKeyAction,
+}
+
+/// 面板按键动作 —— 宿主解释执行的动作语义。
+/// 服务于插件面板的完整按键权声明（键盘状态机契约）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind")]
+pub enum PanelKeyAction {
+    /// 确认当前面板状态（Enter 标准语义，宿主 confirmQuery 三分支）：
+    /// 面板有可执行动作时执行默认动作（如复制结果），否则发起确认查询（翻译/计算/失败重试等）。
+    #[serde(rename = "confirm")]
+    Confirm,
+    /// 执行面板动作：None = 执行面板默认动作（不指定）；Some(id) = 执行指定动作。
+    #[serde(rename = "executeAction")]
+    ExecuteAction {
+        /// 动作 ID：None = 执行面板默认动作；Some = 执行指定动作。
+        #[serde(rename = "actionId")]
+        action_id: Option<String>,
+    },
+    /// 返回默认面板。
+    #[serde(rename = "goBack")]
+    GoBack,
+    /// 跳转到同一插件内的子面板。
+    #[serde(rename = "gotoPanel")]
+    GotoPanel {
+        #[serde(rename = "panelId")]
+        panel_id: String,
+    },
+    /// 触发插件自定义动作（经面板动作通道回插件，action 即插件动作 ID）。
+    #[serde(rename = "custom")]
+    Custom {
+        #[serde(rename = "action")]
+        action: String,
+        #[serde(rename = "args")]
+        args: serde_json::Value,
+    },
+}
+
 /// 插件面板响应携带的通用交互策略。
 /// 服务于宿主处理输入查询触发时机，不属于插件持久化配置。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -395,48 +442,68 @@ pub struct PanelInteraction {
     /// 后续输入触发查询前的防抖延迟，单位为毫秒（仅 onInput 模式生效）。
     #[serde(rename = "queryDebounceMs", default)]
     pub query_debounce_ms: u64,
+    /// 面板按键绑定列表 —— 声明式按键契约（声明即接管：命中绑定由宿主解释执行，
+    /// 未声明的键一律交还浏览器/输入框，宿主不做兜底）。
+    /// 反序列化缺省为空列表（旧插件未声明时按键全部放行）。
+    #[serde(rename = "bindings", default)]
+    pub bindings: Vec<PanelKeyBinding>,
 }
 
+/// 插件查询响应 —— 一次查询的展示结果契约（跨 IPC 序列化，字段键名与前端
+/// `BridgeQueryResponse.mode` 词表对齐）。
+///
+/// 由 `Plugin::query` / 宿主流程返回，经 SessionDispatcher 路由后包装为
+/// `BridgeQueryResponse` 下发前端；四种变体对应前端不同的展示形态。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum QueryResponse {
+    /// 候选列表结果 —— 默认搜索与插件均可返回，前端按列表渲染。
+    ///
+    /// 空列表即空结果（前端映射 mode "search" + 空数组，展示形态层面
+    /// 不区分 List/Empty）。
     #[serde(rename = "list")]
     List {
+        /// 排序后的候选项列表（含动作、占位符统计、触发关键词等展示元数据）。
         #[serde(rename = "results")]
         results: Vec<ListItem>,
     },
+    /// 插件自定义面板 —— 触发式插件接管会话时的渲染结果。
+    ///
+    /// `keep_search_bar` 决定面板形态：true 为行内面板（保留搜索栏，前端
+    /// mode "plugin_panel"），false 为全页面接管（mode "plugin_immersive"）。
     #[serde(rename = "customPanel")]
     CustomPanel {
+        /// 面板类型标识，前端按此选择面板组件渲染。
         #[serde(rename = "panelType")]
         panel_type: String,
+        /// 面板数据（自由 JSON，面板自行定义结构）。
         #[serde(rename = "data")]
         data: serde_json::Value,
+        /// 面板动作列表（供 Enter 执行默认动作 / 面板内动作切换）。
         #[serde(rename = "actions")]
         actions: Vec<ResultAction>,
+        /// 是否保留搜索栏（true = 行内面板；false = 全页面接管）。
         #[serde(rename = "keepSearchBar")]
         keep_search_bar: bool,
     },
+    /// 空结果 —— 无任何展示内容。
+    ///
+    /// 前端映射 mode "search" + 空数组（与 `List` 空列表行为一致）。
+    /// 注意：插件命中触发词后即使返回 Empty 也是「已处理」，
+    /// 不得继续 fallback 到默认搜索。
     #[serde(rename = "empty")]
     Empty,
     /// 行内参数模式：后端检测到触发关键词+空格后自动进入。
     /// 前端据此清空搜索栏并展示参数输入 UI。
     #[serde(rename = "inlineParam")]
     InlineParam {
+        /// 目标候选项 ID（确认时回传执行）。
         #[serde(rename = "candidateId")]
         candidate_id: CandidateId,
+        /// 命中的触发关键词（前端展示 + 退出判定镜像使用）。
         #[serde(rename = "triggerKeyword")]
         trigger_keyword: String,
+        /// 该候选项要求的用户参数个数（前端据此校验输入完整性）。
         #[serde(rename = "userArgCount")]
-        user_arg_count: usize,
-    },
-}
-
-/// route_confirm 的执行结果。
-/// Executed 表示已执行完成；EnterParamPanel 表示候选项需要参数但未提供。
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum ConfirmResult {
-    Executed,
-    EnterParamPanel {
-        candidate_id: CandidateId,
         user_arg_count: usize,
     },
 }
@@ -540,7 +607,8 @@ pub enum PluginError {
 #[cfg(test)]
 mod tests {
     use super::{
-        PanelInteraction, PanelQueryTrigger, PluginContext, QueryChannel, QueryRevisionGate,
+        PanelInteraction, PanelKeyAction, PanelKeyBinding, PanelQueryTrigger, PluginContext,
+        QueryChannel, QueryRevisionGate,
     };
     use serde_json::json;
     use std::sync::atomic::{AtomicU64, Ordering};
@@ -611,6 +679,10 @@ mod tests {
         let interaction = PanelInteraction {
             query_trigger: PanelQueryTrigger::OnEnter,
             query_debounce_ms: 300,
+            bindings: vec![PanelKeyBinding {
+                key: "Enter".to_string(),
+                action: PanelKeyAction::Confirm,
+            }],
         };
         let value = serde_json::to_value(&interaction).expect("交互策略应可序列化");
         assert_eq!(
@@ -618,6 +690,8 @@ mod tests {
             json!({
                 "queryTrigger": "onEnter",
                 "queryDebounceMs": 300,
+                // 完整传输契约：bindings 始终序列化（no-skip-serializing-if），缺省为空列表
+                "bindings": [{"key": "Enter", "action": {"kind": "confirm"}}],
             })
         );
 

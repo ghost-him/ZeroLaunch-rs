@@ -30,7 +30,7 @@ IPC：`inspector_get_state` 返回已注册组件清单 + 最近查询日志；`
 
 - `CandidatePipeline::collect()` 是异步方法，按注册顺序调用每个 DataSource 的 `fetch_candidates()`
 - 采集后的候选项经过 KeywordOptimizer 链处理关键词
-- 候选项缓存在 `SessionRouter` 中，通过 `bridge_refresh_candidates` 命令触发重新采集。搜索 **必须** 使用缓存数据
+- 候选项缓存在 `SessionDispatcher` 中，通过 `bridge_refresh_candidates` 命令触发重新采集。搜索 **必须** 使用缓存数据
 
 ## SearchPipeline
 
@@ -40,10 +40,10 @@ IPC：`inspector_get_state` 返回已注册组件清单 + 最近查询日志；`
 
 ## 事件驱动解耦
 
-- `PluginManager`（`plugin_framework/manager.rs`）不再持有 `ConfigManager` 直接引用。通过双通道事件总线与 `ConfigManager`、`SessionRouter` 事件驱动解耦：
+- `PluginManager`（`plugin_framework/manager.rs`）不再持有 `ConfigManager` 直接引用。通过双通道事件总线与 `ConfigManager`、`SessionDispatcher` 事件驱动解耦：
   1. `PluginRuntimeEvent` 通道 — `PluginManager` 发布插件生命周期事件（加载/卸载/崩溃）
   2. `ConfigEvent` 通道 — `ConfigManager` 发布配置变更事件
-  3. 三层解耦：`PluginManager` → `PluginRuntimeEvent` → `ConfigManager`（监听并同步注册/解注册） → `ConfigEvent` → `SessionRouter`（监听并重建管道）
+  3. 三层解耦：`PluginManager` → `PluginRuntimeEvent` → `ConfigManager`（监听并同步注册/解注册） → `ConfigEvent` → `SessionDispatcher`（监听并重建管道）
 - `PluginRuntimeEvent` 替代了已删除的 `AdapterRegistrar`（`plugin_framework/adapter_registrar.rs`）
 - `ConfigEntry` 通过 `builtin_plugin/config/` 中的纯配置组件在 `builtin_registry.rs` 中注册（无需单独的 `core_registry.rs`），内置组件的所有 Entry 类型统一在 `builtin_registry` 中管理，消除循环依赖
 

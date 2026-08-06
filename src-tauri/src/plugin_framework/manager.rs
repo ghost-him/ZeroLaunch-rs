@@ -4,7 +4,7 @@
 //! 它管理 PluginInfo[] 统一视图，连接内置组件提供者和第三方插件提供者。
 //!
 //! 注册/解注册通过 PluginRuntimeEvent 广播通道（PM → CM 解耦管道）完成，
-//! ConfigManager 处理配置侧（Configurable）+ 转发 ConfigEvent 到 SessionRouter。
+//! ConfigManager 处理配置侧（Configurable）+ 转发 ConfigEvent 到 SessionDispatcher。
 
 use dashmap::DashMap;
 use parking_lot::RwLock;
@@ -27,7 +27,7 @@ use crate::core::config::event::{PluginEventSender, PluginRuntimeEvent};
 use crate::plugin_framework::builtin_registry;
 use crate::plugin_framework::builtin_registry::{CollectedBuiltins, InventoryContext};
 use crate::plugin_framework::zlplugin_protocol::ZlpluginProtocolHandler;
-use crate::plugin_framework::SessionRouter;
+use crate::plugin_framework::SessionDispatcher;
 use crate::sdk::HostApi;
 
 use super::builtin;
@@ -65,7 +65,7 @@ impl std::error::Error for PluginManagerError {}
 /// 插件管理器，统一管理内置组件和第三方插件。
 ///
 /// 所有方法使用 `&self`（内部 RwLock 实现可变性），
-/// 与 SessionRouter / ConfigManager 的模式一致。
+/// 与 SessionDispatcher / ConfigManager 的模式一致。
 ///
 /// 不再直接依赖 ConfigManager，通过 PluginRuntimeEvent 广播通道与 CM 通信。
 pub struct PluginManager {
@@ -154,11 +154,14 @@ impl PluginManager {
 
     /// 收集所有内置组件、创建 PluginInfo 条目。
     ///
-    /// 参数 `session_router` 用于传递给 InventoryContext，供需要 SessionRouter 的组件工厂使用。
-    /// 返回 `CollectedBuiltins`，调用方负责将各部分注册到 ConfigManager / SessionRouter。
-    pub(crate) fn init_builtins(&self, session_router: Arc<SessionRouter>) -> CollectedBuiltins {
+    /// 参数 `session_dispatcher` 用于传递给 InventoryContext，供需要 SessionDispatcher 的组件工厂使用。
+    /// 返回 `CollectedBuiltins`，调用方负责将各部分注册到 ConfigManager / SessionDispatcher。
+    pub(crate) fn init_builtins(
+        &self,
+        session_dispatcher: Arc<SessionDispatcher>,
+    ) -> CollectedBuiltins {
         let host_api = self.host_api();
-        let ctx = InventoryContext::new(host_api.clone(), session_router);
+        let ctx = InventoryContext::new(host_api.clone(), session_dispatcher);
         let collected = builtin_registry::collect_all_builtin_entries(&ctx);
 
         // 为所有内置组件创建 PluginInfo 条目
@@ -449,7 +452,7 @@ impl PluginManager {
     /// 扫描并加载所有第三方插件。
     ///
     /// 每个插件的注册通过 PluginRuntimeEvent 广播通道（PM → CM）完成，
-    /// CM 收到后注册 Configurable 并转发 ConfigEvent 到 SessionRouter。
+    /// CM 收到后注册 Configurable 并转发 ConfigEvent 到 SessionDispatcher。
     pub async fn load_all_third_party(&self, app_handle: Arc<AppHandle>) {
         let dirs = self.installer().scan_plugins_dir();
 

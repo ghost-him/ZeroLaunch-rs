@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import type { BridgeQueryResponse, ConfirmPayload, ConfirmResponse, ComponentInfo, ComponentSchema, ConfigActionDef, ConfigActionPayload, SearchTimingResult, IndexTimingResult, SearchDetailItem } from './contract'
+import type { BridgeQueryResponse, ConfirmRequest, ConfirmResponse, ComponentInfo, ComponentSchema, ConfigActionDef, ConfigActionPayload, SearchTimingResult, IndexTimingResult, SearchDetailItem } from './contract'
 export interface BridgeError {
   code: string
   message: string
@@ -47,7 +47,7 @@ export function bridgeQuery(rawQuery: string, confirm: boolean): Promise<BridgeQ
   return invokeCommand<BridgeQueryResponse>('bridge_query', { rawQuery, confirm })
 }
 
-export function bridgeConfirm(payload: ConfirmPayload): Promise<ConfirmResponse> {
+export function bridgeConfirm(payload: ConfirmRequest): Promise<ConfirmResponse> {
   return invokeCommand<ConfirmResponse>('bridge_confirm', { payload })
 }
 
@@ -57,10 +57,6 @@ export function bridgeWake(): Promise<void> {
 
 export function bridgeReset(): Promise<void> {
   return invokeCommand<void>('bridge_reset')
-}
-
-export function bridgeGetSessionMode(): Promise<string> {
-  return invokeCommand<string>('bridge_get_session_mode')
 }
 
 export function bridgeRefreshCandidates(): Promise<number> {

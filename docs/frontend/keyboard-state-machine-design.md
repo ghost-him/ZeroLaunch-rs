@@ -128,25 +128,19 @@ keydown
       └─ PluginPanel：插件声明式按键映射 → 宿主翻译为动作
 ```
 
-### 4.4 插件 API 契约草案（plugin-api）
+### 4.4 插件 API 契约（终态，2026-08-05 定稿）
 
 ```rust
-/// 插件面板按键映射声明（随 CustomPanel 响应或独立接口返回）。
-pub struct PanelKeyMap {
-    /// 按键 → 动作。键格式 "Enter" / "Ctrl+Enter" / "Escape" / "a"。
-    pub bindings: Vec<PanelKeyBinding>,
-    /// 未声明的按键是否由宿主默认处理（默认 false：全部交给插件解释）。
-    pub claim_all: bool,
-}
-
+/// 插件面板按键绑定 —— 声明式按键契约的最小单元。
 pub struct PanelKeyBinding {
-    pub key: String,
+    pub key: String,        // "Enter" / "Ctrl+Enter" / "Escape" / "a"
     pub action: PanelKeyAction,
 }
 
 pub enum PanelKeyAction {
-    /// 用当前查询文本发起一次查询（等效 PanelQueryTrigger::OnEnter 的 Enter）。
-    TriggerQuery,
+    /// 确认当前面板状态（Enter 标准语义，宿主 confirmQuery 三分支）：
+    /// 有可执行动作时执行默认动作，否则发起确认查询。
+    Confirm,
     /// 执行面板的默认动作或指定动作。
     ExecuteAction { action_id: Option<String> },
     /// 返回默认面板。
@@ -158,23 +152,27 @@ pub enum PanelKeyAction {
 }
 ```
 
+- 按键契约挂在 `PanelInteraction.bindings: Vec<PanelKeyBinding>`（随 session-state 事件下发；`PanelKeyMap` 包装结构与 `claim_all` 已删除——**声明即接管，无宿主兜底**：命中绑定由宿主解释执行，未声明的键一律放行交还浏览器/输入框，插件必须声明全部所需按键）
+- `PanelKeyAction` 为 internally-tagged 枚举（`serde tag = "kind"`，逐变体 camelCase rename）
+
 ### 4.5 与 `PanelQueryTrigger` 的关系
 
-- `PanelQueryTrigger` 是按键契约的**最小内置子集**：`OnEnter` ≈ `bindings = [Enter → 面板已有动作 ? ExecuteAction(默认) : TriggerQuery]`（宿主当前实现 `confirmPluginAction`：动作列表非空则执行默认动作，否则发起确认查询；失败面板可重试，成功面板 Enter 即复制译文），`OnInput` ≈ 默认自动查询（无按键映射需求）
-- 过渡策略：未实现完整按键契约前，`PanelQueryTrigger` 保留为行内插件模式的主通道（事一已落地）；完整契约实现后作为其默认展开
+- `PanelQueryTrigger` 决定**查询触发时机**（onInput 自动 / onEnter 手动），与按键契约正交；两种模式均须声明自己的按键绑定
+- `OnEnter` ≈ `bindings = [Enter → Confirm]`（宿主解释：动作列表非空则执行默认动作，否则发起确认查询；失败面板可重试，成功面板 Enter 即复制译文）
+- `OnInput` ≈ `bindings = [Enter → Confirm, Escape → GoBack]`（翻译由输入防抖自动触发；Enter 仅在有结果时执行复制、失败时重试；宿主 confirmQuery 对在途查询做防重，不会重复触发 LLM）
+- 过渡策略已终止：`PanelQueryTrigger` 不再承担按键语义，全部面板按键经声明式 bindings 表达
 
 ### 4.6 实现阶段划分
 
 | 阶段 | 内容 | 依赖 |
 |---|---|---|
 | 1（已完成） | `PanelQueryTrigger` 语义修正（OnInput/OnEnter + 事件推送） | — |
-| 2 | 状态机重构：`PanelState` 抽象替换 sessionMode 分发判断，宿主面板行为不变 | 阶段 1 |
-| 3 | 插件按键契约：`PanelKeyMap` API + 宿主翻译执行 + 前端绑定 | 阶段 2 |
-| 4 | 插件内部子面板支持：`goto_panel` + 面板状态生命周期（进入/退出回调） | 阶段 3 |
+| 2（已完成） | 统一会话重构：session 分发 + 声明式按键绑定（bindings）随 session-state 下发 | 阶段 1 |
+| 3 | 插件内部子面板支持：`goto_panel` + 面板状态生命周期（进入/退出回调） | 阶段 2 |
 
 ## 5. 待决问题
 
 1. 全页面插件是否统一纳入 `PanelState`（作为"物理接管"特例），还是保持独立路径？
-2. 按键契约的返回时机：随 `CustomPanel` 响应内嵌，还是独立接口（类似 `interaction_policy`）？
-3. `claim_all` 默认值：未声明映射的按键交给插件（异步往返）还是宿主兜底？涉及 IPC 延迟，默认宿主兜底更稳妥。
+2. 按键契约的返回时机：随 `CustomPanel` 响应内嵌，还是独立接口（类似 `interaction_policy`）？（已决：`interaction_policy` 随 session-state 事件下发）
+3. ~~`claim_all` 默认值~~（已决：删除 `claim_all`，声明即接管、未声明即放行，宿主不做任何兜底）
 4. 第三方插件按键映射的校验：未知按键格式、未知动作的降级策略（忽略 + 日志）。

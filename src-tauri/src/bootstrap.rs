@@ -12,19 +12,22 @@ use tauri::{App, Emitter, Manager};
 use tracing::{debug, info, warn};
 use zerolaunch_platform_windows::WindowsFocusMonitor;
 use zerolaunch_platform_windows::WindowsHotkeyManager;
+use zerolaunch_plugin_api::host::PluginSdkConfig;
 use zerolaunch_plugin_api::services::hotkey::types::HotkeyEventFilter;
 use zerolaunch_plugin_api::services::storage::local_storage::LocalStorageService;
 use zerolaunch_plugin_api::services::storage::storage_service::StorageService;
 use zerolaunch_plugin_api::services::AppResourceService;
+use zerolaunch_plugin_api::PluginContext;
 
-use crate::builtin_plugin::config::bias_config::{bias_settings_to_rules, BiasSettings};
 use crate::core::app_command;
+use crate::core::config::bias_settings::{bias_settings_to_rules, BiasSettings};
 use crate::core::config::event::create_plugin_event_bus;
 use crate::core::config::{ConfigEvent, ConfigManager};
 use crate::plugin_framework::inspector::Inspector;
 use crate::plugin_framework::manager::PluginManager;
 use crate::state::app_state::AppState;
 use crate::tray::TrayManager;
+use crate::utils::trace_id::generate_trace_id;
 use crate::window::{prepare_window_position, save_window_position_if_drag};
 
 /// 将当前配置序列化并同步到远程存储后端（fire-and-forget）。
@@ -199,10 +202,10 @@ pub(crate) async fn init_app_state(
     // 批量加载后刷新候选项缓存，确保第三方插件的数据源被纳入。
     // 各插件的 PluginRegistered 事件也会触发独立 refresh，但批量场景下
     // 可能存在事件尚未处理完的竞态，此处作为最终兜底保证缓存完整。
-    state.get_session_router().refresh_candidates().await;
+    state.get_session_dispatcher().refresh_candidates().await;
     info!(
         "Phase 4 完成: 第三方插件加载完成，共 {} 个候选项",
-        state.get_session_router().get_cached_candidates_count()
+        state.get_session_dispatcher().get_cached_candidates_count()
     );
 
     // Start CLI HTTP server
@@ -232,22 +235,23 @@ pub(crate) async fn init_app_state(
 /// - Phase B: 加载持久化配置
 /// - Phase C: 构建候选项管道和搜索管道
 pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
-    let session_router = state.get_session_router();
+    let session_dispatcher = state.get_session_dispatcher();
     let config_manager = state.get_config_manager();
     let plugin_manager = state.get_plugin_manager();
 
-    session_router.set_config_manager(config_manager.clone());
+    session_dispatcher.set_config_manager(config_manager.clone());
 
-    // 注入面板交互策略推送回调：路由确定插件后立即推送，不等慢查询响应，
-    // 保证慢查询期间的新输入也能正确应用防抖（见 zerolaunch-panel-interaction 设计）。
+    // 注入会话状态推送回调：路由确定插件后立即推送，不等慢查询响应，
+    // 保证慢查询期间的新输入也能正确应用防抖（原 panel-interaction 无条件推送不变式，
+    // 事件统一为 session-state）。
     let app_handle_for_policy = state.get_main_handle();
     let policy_emitter = Arc::new(move |event| {
-        let _ = app_handle_for_policy.emit("panel-interaction", event);
+        let _ = app_handle_for_policy.emit("session-state", event);
     });
-    session_router.set_interaction_emitter(policy_emitter);
+    session_dispatcher.set_session_emitter(policy_emitter);
 
     // 订阅配置事件
-    let event_router = session_router.clone();
+    let event_router = session_dispatcher.clone();
     let app_handle = state.get_main_handle();
     let cm_for_events = config_manager.clone();
     let host_api_for_events = state.get_host_api();
@@ -272,8 +276,8 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
                                 "componentType": format!("{:?}", component_type),
                             }),
                         );
-                        // 面板交互策略随配置变更重新推送（如面板内调整防抖延迟）
-                        event_router.reemit_current_interaction();
+                        // 会话投影随配置变更重新推送（如面板内调整防抖延迟）
+                        event_router.reemit_current_session();
                     }
                     // 配置变更后自动触发远程同步（fire-and-forget）
                     match &event {
@@ -314,7 +318,7 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
     });
 
     let host_api = state.get_host_api();
-    session_router.set_host_api(host_api.clone());
+    session_dispatcher.set_host_api(host_api.clone());
     info!("事件订阅循环已启动（ConfigEvent + PluginRuntimeEvent）");
 
     // ========================================================================
@@ -322,16 +326,16 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
     // ========================================================================
     info!("=== Phase A: inventory 自动发现并注册所有内置组件 ===");
 
-    let collected = plugin_manager.init_builtins(session_router.clone());
+    let collected = plugin_manager.init_builtins(session_dispatcher.clone());
 
     collected.for_each_configurable(|c| {
         config_manager.register(c.clone());
     });
 
-    // 注册内置运行时组件到 PluginComponentRegistry 和 SessionRouter
+    // 注册内置运行时组件到 PluginComponentRegistry 和 SessionDispatcher
     for (c, ex) in &collected.executors {
         if config_manager.find_configurable(c.component_id()).is_some() {
-            session_router.register_executor(ex.clone());
+            session_dispatcher.register_executor(ex.clone());
         } else {
             warn!(
                 "组件 {} 的 Configurable 注册失败，跳过 Executor 注册",
@@ -341,7 +345,7 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
     }
     for (c, se) in &collected.search_engines {
         if config_manager.find_configurable(c.component_id()).is_some() {
-            session_router
+            session_dispatcher
                 .components()
                 .register_search_engine(se.clone());
         } else {
@@ -353,7 +357,7 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
     }
     for (c, sb) in &collected.score_boosters {
         if config_manager.find_configurable(c.component_id()).is_some() {
-            session_router
+            session_dispatcher
                 .components()
                 .register_score_booster(sb.clone());
         } else {
@@ -365,7 +369,9 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
     }
     for (c, ds) in &collected.data_sources {
         if config_manager.find_configurable(c.component_id()).is_some() {
-            session_router.components().register_data_source(ds.clone());
+            session_dispatcher
+                .components()
+                .register_data_source(ds.clone());
         } else {
             warn!(
                 "组件 {} 的 Configurable 注册失败，跳过 DataSource 注册",
@@ -375,7 +381,7 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
     }
     for (c, ko) in &collected.keyword_optimizers {
         if config_manager.find_configurable(c.component_id()).is_some() {
-            session_router
+            session_dispatcher
                 .components()
                 .register_keyword_optimizer(ko.clone());
         } else {
@@ -387,7 +393,7 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
     }
     for (c, ki) in &collected.keyword_injectors {
         if config_manager.find_configurable(c.component_id()).is_some() {
-            session_router
+            session_dispatcher
                 .components()
                 .register_keyword_injector(ki.clone());
         } else {
@@ -399,7 +405,10 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
     }
     for (c, p) in &collected.plugins {
         if config_manager.find_configurable(c.component_id()).is_some() {
-            session_router.plugin_service().register(p.clone());
+            // 必须走 register_plugin_with_triggers（统一入口）：
+            // 仅调用 plugin_registry().register 不会建立触发词索引，
+            // 会导致内置触发式插件（translator/calculator）路由失效。
+            session_dispatcher.register_plugin_with_triggers(p.clone());
         } else {
             warn!(
                 "组件 {} 的 Configurable 注册失败，跳过 Plugin 注册",
@@ -411,11 +420,17 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
     // 内置插件全部注册后统一执行 init：向插件发放绑定身份的 PluginHandle
     // （插件在 init 中保存句柄，供 query/execute_action 访问平台能力）。
     // 远端插件适配器的 init 为 no-op，不会被重复初始化。
-    session_router
-        .plugin_service()
-        .init_all(host_api.clone())
-        .await
-        .expect("内置插件初始化失败");
+    let trace_id = generate_trace_id();
+    let init_ctx = PluginContext::new(&trace_id);
+    for plugin in session_dispatcher.plugin_registry().get_all() {
+        let plugin_id = plugin.metadata().id.clone();
+        // todo!: 这里是直接使用的默认的权限来注册的。之后可以优化成，让插件支持自己设置需要的权限
+        let handle = host_api.register(&plugin_id, PluginSdkConfig::default());
+        plugin
+            .init(&init_ctx, handle)
+            .await
+            .expect("内置插件初始化失败");
+    }
     info!("内置插件 init 完成（PluginHandle 已发放）");
 
     info!(
@@ -428,7 +443,7 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
     info!("正在注册快捷键回调（search_bar_toggle）...");
     let core_handle_for_hotkey = state.get_core_handle();
     let host_api_for_hotkey = host_api.clone();
-    let session_router_for_hotkey = session_router.clone();
+    let session_router_for_hotkey = session_dispatcher.clone();
     let config_manager_for_hotkey = config_manager.clone();
     let app_handle_for_hotkey = state.get_main_handle();
     core_handle_for_hotkey.register_hotkey_callback(
@@ -437,7 +452,7 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
         Arc::new(move |event| {
             debug!("收到快捷键事件: {:?}", event);
             let host_api = host_api_for_hotkey.clone();
-            let session_router = session_router_for_hotkey.clone();
+            let session_dispatcher = session_router_for_hotkey.clone();
             let config_manager = config_manager_for_hotkey.clone();
             let app_handle = app_handle_for_hotkey.clone();
             tauri::async_runtime::spawn(async move {
@@ -448,7 +463,7 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
                     if !prepare_window_position(&config_manager, &host_api, &app_handle).await {
                         return;
                     }
-                    let _ = session_router.on_search_bar_wake().await;
+                    let _ = session_dispatcher.on_search_bar_wake().await;
                     host_api.show_window().await;
                 }
             });
@@ -464,7 +479,7 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
     }
 
     info!("构建候选管道...");
-    let mut candidate_pipeline = session_router
+    let mut candidate_pipeline = session_dispatcher
         .components()
         .build_candidate_pipeline(&config_manager);
 
@@ -487,25 +502,25 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
     );
 
     info!("根据已注册且启用的搜索引擎与增强器重建搜索管道...");
-    session_router.rebuild_search_pipeline();
+    session_dispatcher.rebuild_search_pipeline();
 
-    info!("更新 SessionRouter 状态...");
-    session_router
+    info!("更新 SessionDispatcher 状态...");
+    session_dispatcher
         .set_candidate_pipeline(candidate_pipeline)
         .await;
-    session_router.set_cached_candidates(candidates);
+    session_dispatcher.set_cached_candidates(candidates);
 
     info!(
         "插件系统初始化完成，已注册 {} 个组件，缓存 {} 个候选项",
         config_manager.get_all_components().len(),
-        session_router.get_cached_candidates_count()
+        session_dispatcher.get_cached_candidates_count()
     );
 }
 
 /// 启动 AppCommand 消费者 task。
 ///
 /// 该 task 从 channel 中接收 BuiltinCommandExecutor / TrayManager 发出的应用级命令，
-/// 持有 AppState 访问所有必需的服务（SessionRouter、HostApi、ConfigManager 等）。
+/// 持有 AppState 访问所有必需的服务（SessionDispatcher、HostApi、ConfigManager 等）。
 fn spawn_app_command_consumer(
     mut rx: tokio::sync::mpsc::Receiver<app_command::AppCommand>,
     state: Arc<AppState>,
@@ -525,9 +540,9 @@ fn spawn_app_command_consumer(
                     }
                 }
                 app_command::AppCommand::RefreshCandidates => {
-                    let session_router = state.get_session_router();
-                    session_router.refresh_candidates().await;
-                    let count = session_router.get_cached_candidates_count();
+                    let session_dispatcher = state.get_session_dispatcher();
+                    session_dispatcher.refresh_candidates().await;
+                    let count = session_dispatcher.get_cached_candidates_count();
                     info!("AppCommand: 候选项刷新完成，共 {} 个", count);
                 }
                 app_command::AppCommand::ReregisterHotkeys => {

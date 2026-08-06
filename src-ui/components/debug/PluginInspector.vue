@@ -78,6 +78,9 @@ import {
 import { onInspectorStateUpdated } from '@/bridge/events'
 import type { InspectorStateResponse, PluginInspectorInfo, InspectedQueryEvent } from '@/bridge/contract'
 import type { UnlistenFn } from '@tauri-apps/api/event'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 const plugins = ref<PluginInspectorInfo[]>([])
 const queries = ref<InspectedQueryEvent[]>([])
@@ -103,11 +106,16 @@ const pluginColumns: DataTableColumns<PluginInspectorInfo> = [
 ]
 
 const queryColumns: DataTableColumns<InspectedQueryEvent> = [
-  { title: '时间', key: 'timestamp', width: 160, ellipsis: { tooltip: true } },
-  { title: '查询', key: 'rawQuery', width: 160, ellipsis: { tooltip: true } },
-  { title: '模式', key: 'mode', width: 90 },
-  { title: '结果数', key: 'resultCount', width: 60 },
-  { title: '耗时(ms)', key: 'durationMs', width: 70 },
+  { title: t('inspector.time'), key: 'timestamp', width: 160, ellipsis: { tooltip: true } },
+  { title: t('inspector.query'), key: 'rawQuery', width: 160, ellipsis: { tooltip: true } },
+  { title: t('inspector.mode'), key: 'mode', width: 90 },
+  { title: t('inspector.resultCount'), key: 'resultCount', width: 60 },
+  { title: t('inspector.durationMs'), key: 'durationMs', width: 70 },
+  {
+    title: t('inspector.owner'),
+    key: 'ownerId',
+    width: 100,
+  },
 ]
 
 async function refresh() {

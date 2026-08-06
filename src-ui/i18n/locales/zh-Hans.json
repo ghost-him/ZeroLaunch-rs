@@ -166,5 +166,13 @@
     "configError": "配置错误",
     "networkError": "网络错误",
     "internalError": "内部错误"
+  },
+  "inspector": {
+    "time": "时间",
+    "query": "查询",
+    "mode": "模式",
+    "resultCount": "结果数",
+    "durationMs": "耗时(ms)",
+    "owner": "归属"
   }
 }

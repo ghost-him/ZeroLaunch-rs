@@ -34,37 +34,87 @@ export interface InlineParamData {
 
 export type PanelQueryTrigger = 'onInput' | 'onEnter'
 
+/** 面板按键动作 —— 宿主解释执行的动作语义（与 Rust PanelKeyAction 对齐）。 */
+export type PanelKeyAction =
+  | { kind: 'confirm'; /** Enter 标准语义：有可执行动作→执行默认动作；无动作→确认查询（宿主 confirmQuery 三分支）。 */ }
+  | { kind: 'executeAction'; /** null = 执行面板默认动作；字符串 = 执行指定动作。 */ actionId: string | null }
+  | { kind: 'goBack' }
+  | { kind: 'gotoPanel'; panelId: string }
+  | { kind: 'custom'; action: string; args: unknown }
+
+export interface PanelKeyBinding {
+  /** 按键格式："Enter" | "Ctrl+Enter" | "Escape" | "Tab" | "a"。 */
+  key: string
+  action: PanelKeyAction
+}
+
 export interface PanelInteraction {
   queryTrigger: PanelQueryTrigger
   queryDebounceMs: number
+  /** 面板按键绑定列表 —— 声明即接管：命中绑定由宿主解释执行，未声明的键交还浏览器/输入框（宿主不做兜底）。 */
+  bindings: PanelKeyBinding[]
 }
 
-/** 后端路由确定插件面板时推送的交互策略事件 payload。 */
-export interface PanelInteractionEvent {
-  pluginId: string
-  /** 交互策略：查询触发方式与防抖延迟（与 PanelInteraction 保持单一维护点）。 */
-  interaction: PanelInteraction
-  /** 插件触发词列表，用于判定输入是否仍属于当前插件（退出防抖豁免）。 */
+/** 会话展示形态（session-state 事件 presentation 字段，camelCase 序列化，与后端 PresentationMode 对齐）。 */
+export type PresentationMode =
+  | 'none'
+  | 'search'
+  | 'inlineParam'
+  | 'paramPanel'
+  | 'pluginPanel'
+  | 'pluginImmersive'
+
+/** 会话状态事件 payload —— 整个会话系统的唯一事件（后端 Dispatcher 推送）。 */
+export interface SessionStateEvent {
+  /** 会话代际：归属/形态变化时递增（前端单调递增更新，随 confirm 回传校验）。 */
+  generation: number
+  presentation: PresentationMode
+  /** 插件面板信息：对象 = 插件的面板元数据（pluginId 即会话归属）；null = 宿主面板（默认搜索归属）。 */
+  panel: { pluginId: string; panelId: string } | null
+  /** 插件面板交互契约（含按键映射）：对象 = 插件的按键声明；null = 宿主面板（default-search 归属），由宿主提供默认键。 */
+  interaction: PanelInteraction | null
+  /** 插件触发词列表，供「输入是否仍属于当前面板」的 IPC 前判定（镜像参数唯一来源）。 */
   triggerKeywords: string[]
 }
 
 export type BridgeQueryResponse =
-  | { mode: 'search'; results: ListItem[]; panelType: null; panelData: null; panelActions: null; inlineParam: null }
-  | { mode: 'empty'; results: ListItem[]; panelType: null; panelData: null; panelActions: null; inlineParam: null }
-  | { mode: 'plugin_panel'; results: ListItem[]; panelType: string; panelData: unknown; panelActions: ResultAction[]; inlineParam: null }
-  | { mode: 'plugin_immersive'; results: ListItem[]; panelType: string; panelData: unknown; panelActions: ResultAction[]; inlineParam: null }
-  | { mode: 'inline_param'; results: never[]; panelType: null; panelData: null; panelActions: null; inlineParam: InlineParamData }
+  | { mode: 'search'; generation: number; results: ListItem[]; panelType: null; panelData: null; panelActions: null; inlineParam: null }
+  | { mode: 'plugin_panel'; generation: number; results: ListItem[]; panelType: string; panelData: unknown; panelActions: ResultAction[]; inlineParam: null }
+  | { mode: 'plugin_immersive'; generation: number; results: ListItem[]; panelType: string; panelData: unknown; panelActions: ResultAction[]; inlineParam: null }
+  | { mode: 'inline_param'; generation: number; results: never[]; panelType: null; panelData: null; panelActions: null; inlineParam: InlineParamData }
 
-export interface ConfirmPayload {
-  candidateId: number
-  actionId: string
-  queryText: string
-  userArgs?: string[]
-}
+/**
+ * 确认请求 —— `bridge_confirm` 的 IPC 载荷（与后端 ConfirmRequestPayload tagged union 对齐）：
+ * - `candidate`：宿主候选确认（默认搜索执行 / 插件面板默认动作）；
+ * - `pluginAction`：插件面板动作（面板按键契约 Custom / GotoPanel 回插件）。
+ */
+export type ConfirmRequest =
+  | {
+      kind: 'candidate'
+      candidateId: number
+      actionId: string
+      queryText: string
+      userArgs?: string[]
+      /** 会话代际：最后一次观测到的代际，后端据此拒绝过期确认（必填）。 */
+      generation: number
+    }
+  | {
+      kind: 'pluginAction'
+      pluginId: string
+      action: string
+      args: unknown
+      /** 会话代际：最后一次观测到的代际，后端据此拒绝过期面板动作（必填）。 */
+      generation: number
+    }
 
 export type ConfirmResponse =
-  | { status: 'executed' }
-  | { status: 'enterParamPanel'; candidateId: number; userArgCount: number }
+  | { status: 'executed'; generation: number }
+  | {
+      status: 'enterParamPanel'
+      candidateId: number
+      userArgCount: number
+      generation: number
+    }
 
 // ---- 配置相关新类型（SchemaKind 驱动） ----
 
@@ -256,6 +306,8 @@ export interface InspectedQueryEvent {
   mode: string
   resultCount: number
   durationMs: number
+  /** 后端会话归属标识（"default-search" | pluginId）。 */
+  ownerId: string
 }
 
 // ---- Third-party Plugin Events ----

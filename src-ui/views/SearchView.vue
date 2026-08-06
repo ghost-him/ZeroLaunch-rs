@@ -1,7 +1,7 @@
 <template>
   <WindowFrame>
     <!-- 全页面插件模式：隐藏所有默认 UI -->
-    <template v-if="uiMode === 'full_page_plugin'">
+    <template v-if="uiMode === 'plugin_immersive'">
       <!-- 全页面插件内容由插件自定义面板渲染 -->
       <PluginPanelHost
         v-if="searchStore.panelType"
@@ -12,7 +12,7 @@
 
     <!-- 其他模式：显示搜索栏 + 结果 -->
     <template v-else>
-      <SearchBar v-if="searchStore.sessionMode !== 'full_page_plugin'" ref="searchBarRef" @contextmenu="onShowCtxMenu" />
+      <SearchBar v-if="searchStore.sessionMode !== 'plugin_immersive'" ref="searchBarRef" @contextmenu="onShowCtxMenu" />
 
       <!-- 参数面板模式 -->
       <ParamPanel v-if="uiMode === 'param_panel'" />
@@ -30,13 +30,13 @@
 
       <!-- 行内插件模式 -->
       <PluginPanelHost
-        v-if="uiMode === 'inline_plugin' && searchStore.panelType"
+        v-if="uiMode === 'plugin_panel' && searchStore.panelType"
         :panel-type="searchStore.panelType"
         :panel-data="searchStore.panelData"
       />
 
       <Footer
-        v-if="!searchStore.isIdle && searchStore.sessionMode !== 'full_page_plugin'"
+        v-if="!searchStore.isIdle && searchStore.sessionMode !== 'plugin_immersive'"
         :result-count="searchStore.results.length"
         :session-mode="searchStore.sessionMode"
         :panel-type="searchStore.panelType"
@@ -58,11 +58,9 @@
 </template>
 
 <script setup lang="ts">
-import { provide, ref, nextTick, watch } from 'vue'
+import { provide, ref, nextTick } from 'vue'
 import { onMounted, onUnmounted } from 'vue'
 import { useNotification } from 'naive-ui'
-import type { NotificationReactive } from 'naive-ui'
-import { useI18n } from 'vue-i18n'
 import WindowFrame from '../components/layout/WindowFrame.vue'
 import SearchBar from '../components/search/SearchBar.vue'
 import ResultList from '../components/results/ResultList.vue'
@@ -81,21 +79,6 @@ import type { BridgeError } from '../bridge/commands'
 
 const searchStore = useSearchStore()
 const notification = useNotification()
-const { t } = useI18n()
-
-// 翻译查询已发出提示（onEnter 按 Enter / 即时模式防抖查询发出）：瞬态状态 → 弹通知后复位。
-// 保留上次通知句柄：新提示先销毁旧通知，避免连续查询时堆叠。
-let translationStartedToast: NotificationReactive | null = null
-watch(() => searchStore.translationStartedHint, (started) => {
-  if (started) {
-    translationStartedToast?.destroy()
-    translationStartedToast = notification.info({
-      title: t('search.translationStarted'),
-      duration: 2000,
-    })
-    searchStore.translationStartedHint = false
-  }
-})
 
 const { uiMode } = useKeyboardRouter()
 const { resizeWindow } = useWindowResize()

@@ -22,6 +22,9 @@ pub struct InspectedQueryEvent {
     pub result_count: usize,
     #[serde(rename = "durationMs")]
     pub duration_ms: u64,
+    /// 处理后端会话归属标识（"default-search" | plugin_id），调试字段不进展示契约。
+    #[serde(rename = "ownerId")]
+    pub owner_id: String,
 }
 
 /// 完整的 Inspector 状态，由 inspector_get_state 返回。

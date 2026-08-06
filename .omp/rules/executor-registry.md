@@ -10,4 +10,6 @@ scope: "tool:edit(src-tauri/src/**), tool:write(src-tauri/src/**), tool:edit(cra
 - `ExecutorRegistry::resolve_fallback(ctx, fallback_action)` 用于窗口唤醒失败时的回退执行器查找
 - `ExecutorRegistry::get_actions(target_type)` 用于查询某 `TargetType` 的可用动作，仅用于查询，**禁止** 用于执行路由
 - 调用方从 `resolve()` / `resolve_fallback()` 获取 executor 后，再调用 `executor.execute(ctx, action_id).await`
-- 参照实现：`session_router.rs` 的 `route_confirm()` — 先 resolve 再 execute，含 fallback 处理
+- 参照实现：`plugin_framework/session_dispatcher.rs` 的 `execute_candidate`（先
+  `ExecutorRegistry::resolve` 再 `executor.execute`；`ActivationFailed { fallback_action }`
+  时按配置走 `resolve_fallback` 回退执行）

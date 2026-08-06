@@ -36,7 +36,7 @@ pub type ConfigComponentFactory = fn(&InventoryContext) -> Arc<dyn Configurable>
 /// inventory 收集结果：所有内置组件的已构造 trait 对象。
 ///
 /// 该 struct 由 `collect_all_builtin_entries()` 返回，
-/// 调用方负责将各部分注册到 ConfigManager / SessionRouter。
+/// 调用方负责将各部分注册到 ConfigManager / SessionDispatcher。
 pub struct CollectedBuiltins {
     pub executors: Vec<(Arc<dyn Configurable>, Arc<dyn ActionExecutor>)>,
     pub data_sources: Vec<(Arc<dyn Configurable>, Arc<dyn DataSource>)>,
@@ -156,21 +156,21 @@ pub struct ConfigEntry {
 /// 提供给组件工厂的上下文，负责懒创建和缓存 `PluginHandle`。
 pub struct InventoryContext {
     host_api: Arc<HostApi>,
-    session_router: Arc<super::SessionRouter>,
+    session_dispatcher: Arc<super::SessionDispatcher>,
     handle_cache: RwLock<HashMap<&'static str, Arc<PluginHandle>>>,
 }
 
 impl InventoryContext {
-    pub fn new(host_api: Arc<HostApi>, session_router: Arc<super::SessionRouter>) -> Self {
+    pub fn new(host_api: Arc<HostApi>, session_dispatcher: Arc<super::SessionDispatcher>) -> Self {
         Self {
             host_api,
-            session_router,
+            session_dispatcher,
             handle_cache: RwLock::new(HashMap::new()),
         }
     }
 
-    pub fn session_router(&self) -> &Arc<super::SessionRouter> {
-        &self.session_router
+    pub fn session_dispatcher(&self) -> &Arc<super::SessionDispatcher> {
+        &self.session_dispatcher
     }
 
     /// 获取或创建指定 key 的 PluginHandle。相同 key 的组件共享同一个 handle。
@@ -197,7 +197,7 @@ impl InventoryContext {
 
 /// 收集所有 inventory 条目，调用工厂构造 trait 对象，但不注册到任何管理器。
 ///
-/// 调用方负责将返回的 `CollectedBuiltins` 各部分注册到 ConfigManager / SessionRouter。
+/// 调用方负责将返回的 `CollectedBuiltins` 各部分注册到 ConfigManager / SessionDispatcher。
 /// 这样设计的目的是将「有哪些组件」与「组件注册到哪里」解耦，
 /// 让 PluginManager 成为注册编排的唯一权威。
 pub fn collect_all_builtin_entries(ctx: &InventoryContext) -> CollectedBuiltins {
@@ -261,7 +261,7 @@ pub fn collect_all_builtin_entries(ctx: &InventoryContext) -> CollectedBuiltins 
 mod tests {
     use super::*;
     use crate::core::config::ConfigManager;
-    use crate::plugin_framework::{PluginService, SessionRouter};
+    use crate::plugin_framework::{PluginRegistry, SessionDispatcher};
     use std::collections::HashSet;
     use zerolaunch_plugin_api::config::Configurable;
     use zerolaunch_plugin_api::mock::*;
@@ -381,8 +381,8 @@ mod tests {
     fn all_builtin_components_register_with_valid_defaults() {
         let config_manager =
             ConfigManager::new(std::env::temp_dir().join("zl-builtin-register-test"));
-        let session_router = Arc::new(SessionRouter::new(Arc::new(PluginService::new())));
-        let ctx = InventoryContext::new(test_host_api(), session_router);
+        let session_dispatcher = Arc::new(SessionDispatcher::new(Arc::new(PluginRegistry::new())));
+        let ctx = InventoryContext::new(test_host_api(), session_dispatcher);
         let collected = collect_all_builtin_entries(&ctx);
 
         let mut total = 0usize;

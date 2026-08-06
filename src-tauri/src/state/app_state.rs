@@ -1,8 +1,8 @@
 use crate::core::cli_token::CliToken;
 use crate::core::config::ConfigManager;
 use crate::plugin_framework::manager::PluginManager;
-use crate::plugin_framework::service::PluginService;
-use crate::plugin_framework::SessionRouter;
+use crate::plugin_framework::PluginRegistry;
+use crate::plugin_framework::SessionDispatcher;
 use crate::sdk::HostApi;
 use crate::tray::TrayManager;
 use crate::utils::waiting_hashmap::AsyncWaitingHashMap;
@@ -12,7 +12,7 @@ use tauri::AppHandle;
 use zerolaunch_plugin_api::host::PluginHandle;
 
 pub struct AppState {
-    session_router: Arc<SessionRouter>,
+    session_dispatcher: Arc<SessionDispatcher>,
     config_manager: RwLock<Option<Arc<ConfigManager>>>,
     main_handle: RwLock<Option<Arc<AppHandle>>>,
     waiting_hashmap: Arc<AsyncWaitingHashMap<String, Vec<(String, String)>>>,
@@ -35,11 +35,11 @@ impl Default for AppState {
 
 impl AppState {
     pub fn new() -> Self {
-        let plugin_service = Arc::new(PluginService::new());
-        let session_router = Arc::new(SessionRouter::new(plugin_service));
+        let plugin_registry = Arc::new(PluginRegistry::new());
+        let session_dispatcher = Arc::new(SessionDispatcher::new(plugin_registry));
 
         AppState {
-            session_router,
+            session_dispatcher,
             config_manager: RwLock::new(None),
             main_handle: RwLock::new(None),
             waiting_hashmap: Arc::new(AsyncWaitingHashMap::new()),
@@ -53,8 +53,8 @@ impl AppState {
         }
     }
 
-    pub fn get_session_router(&self) -> &Arc<SessionRouter> {
-        &self.session_router
+    pub fn get_session_dispatcher(&self) -> &Arc<SessionDispatcher> {
+        &self.session_dispatcher
     }
 
     pub fn get_config_manager(&self) -> Arc<ConfigManager> {

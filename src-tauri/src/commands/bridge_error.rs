@@ -4,7 +4,7 @@ use zerolaunch_plugin_api::config::ConfigError;
 use zerolaunch_plugin_api::HostApiError;
 
 use crate::plugin_framework::PluginManagerError;
-use crate::plugin_framework::SessionRouterError;
+use crate::plugin_framework::SessionDispatcherError;
 
 /// 前后端通信统一错误类型。这个只可以用于前端后通信，不可以在内部模块使用该错误。内部模块的错误应该自己定义自己的错误。
 /// 用于所有 Tauri command 的 Err 变体，前端可据此展示用户友好的错误提示。
@@ -130,20 +130,19 @@ impl From<zerolaunch_plugin_api::PluginError> for BridgeError {
     }
 }
 
-/// 将内部 SessionRouterError 转换为 IPC 边界使用的 BridgeError。
-impl From<SessionRouterError> for BridgeError {
-    fn from(e: SessionRouterError) -> Self {
+/// 将内部 SessionDispatcherError 转换为 IPC 边界使用的 BridgeError。
+impl From<SessionDispatcherError> for BridgeError {
+    fn from(e: SessionDispatcherError) -> Self {
         match e {
-            SessionRouterError::NotInitialized(msg) | SessionRouterError::InvalidState(msg) => {
-                BridgeError::internal(msg)
-            }
-            SessionRouterError::CandidateNotFound(id) => {
+            SessionDispatcherError::NotInitialized(msg)
+            | SessionDispatcherError::InvalidState(msg) => BridgeError::internal(msg),
+            SessionDispatcherError::CandidateNotFound(id) => {
                 BridgeError::not_found(&format!("Candidate {}", id))
             }
-            SessionRouterError::InvalidPayload(msg) => BridgeError::validation_failed(msg),
-            SessionRouterError::PluginError(msg)
-            | SessionRouterError::ExecutionError(msg)
-            | SessionRouterError::Internal(msg) => BridgeError::internal(msg),
+            SessionDispatcherError::InvalidPayload(msg) => BridgeError::validation_failed(msg),
+            SessionDispatcherError::PluginError(msg)
+            | SessionDispatcherError::ExecutionError(msg)
+            | SessionDispatcherError::Internal(msg) => BridgeError::internal(msg),
         }
     }
 }

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue'
-import { NButton, NCollapse, NCollapseItem, NTag } from 'naive-ui'
+import { NButton, NCollapse, NCollapseItem, NTag, useNotification } from 'naive-ui'
+import type { NotificationReactive } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import type { ResultAction } from '@/bridge/contract'
 import { useSearchStore } from '@/stores/search-store'
@@ -52,18 +53,26 @@ function hasTranslateContent(raw: string): boolean {
   return raw.split(' ').slice(1).some((tok) => tok.trim() !== '' && !tok.startsWith('@'))
 }
 
-// 即时模式（onInput）下翻译查询发出时置位提示标志，由 SearchView 弹出「已开始翻译」通知；
-// onEnter 模式的提示由 store 的 confirmPluginAction 置位，两者共用同一通知通道。
+// ---- 「已开始翻译」提示 ----
+// 提示语义统一归面板：自监听查询在途状态（onEnter 确认查询 / onInput 防抖查询发出时置位），
+// 弹 notification 即完成，提示不再经 store 标志中转。
+const notification = useNotification()
+let toast: NotificationReactive | null = null
 let prevInFlight = searchStore.panelQueryInFlight
 watch(() => searchStore.panelQueryInFlight, (inFlight) => {
   const justStarted = inFlight && !prevInFlight
   prevInFlight = inFlight
   if (!justStarted) return
-  // 仅即时模式提示；onEnter 模式编辑查询不发翻译请求，Enter 确认时另有提示。
-  if (searchStore.panelInteraction?.queryTrigger !== 'onInput') return
+  // 模式区分（queryTrigger 来自后端 session-state 事件交互契约）：
+  // - onEnter 手动模式：仅确认查询（按 Enter 触发翻译，confirmInFlight 在途）才提示，
+  //   普通输入查询（输入路由预览，无 LLM 调用）不弹「已开始翻译」；
+  // - onInput 自动模式：防抖自动查询即提示。
+  const isOnEnter = searchStore.panelInteraction?.queryTrigger === 'onEnter'
+  if (isOnEnter && !searchStore.confirmInFlight) return
   // 无文本内容（如 "fy " / "fy @en"）只回 usage 面板，不提示。
   if (!hasTranslateContent(searchStore.query)) return
-  searchStore.translationStartedHint = true
+  toast?.destroy()
+  toast = notification.info({ title: t('search.translationStarted'), duration: 2000 })
 })
 
 const status = computed(() => props.data?.status ?? 'empty')

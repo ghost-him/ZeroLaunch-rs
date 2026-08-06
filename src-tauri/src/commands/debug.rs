@@ -2,7 +2,7 @@
 //! 所有命令仅在调试模式开启时可用（通过 AppState::is_debug_mode() 检查）。
 //! 返回类型遵循 serde-rename 规范，每个字段显式标注 `#[serde(rename)]`。
 
-use crate::commands::bridge_error::BridgeError;
+use crate::commands::bridge_error::{BridgeError, WithTraceId};
 use crate::state::app_state::AppState;
 use serde::Serialize;
 use std::sync::Arc;
@@ -65,15 +65,15 @@ pub async fn debug_test_search_time(
         );
     }
 
-    let session_router = state.get_session_router();
+    let session_dispatcher = state.get_session_dispatcher();
     let start = std::time::Instant::now();
-    let scored = session_router.debug_search(&query);
+    let scored = session_dispatcher.debug_search(&query);
     let duration_ms = start.elapsed().as_millis() as u64;
 
     Ok(SearchTimingResult {
         duration_ms,
         result_count: scored.len(),
-        total_candidates: session_router.get_cached_candidates_count(),
+        total_candidates: session_dispatcher.get_cached_candidates_count(),
     })
 }
 
@@ -92,8 +92,8 @@ pub async fn debug_test_index_time(
         );
     }
 
-    let session_router = state.get_session_router();
-    let (duration_ms, candidate_count) = session_router.debug_index_with_timing().await;
+    let session_dispatcher = state.get_session_dispatcher();
+    let (duration_ms, candidate_count) = session_dispatcher.debug_index_with_timing().await;
 
     Ok(IndexTimingResult {
         duration_ms,
@@ -117,8 +117,8 @@ pub async fn debug_get_search_keys(
         );
     }
 
-    let session_router = state.get_session_router();
-    let keywords = session_router.debug_generate_keywords(&name).await;
+    let session_dispatcher = state.get_session_dispatcher();
+    let keywords = session_dispatcher.debug_generate_keywords(&name).await;
     Ok(keywords)
 }
 
@@ -138,14 +138,14 @@ pub async fn debug_search_detail(
         );
     }
 
-    let session_router = state.get_session_router();
-    let scored = session_router.debug_search(&query);
+    let session_dispatcher = state.get_session_dispatcher();
+    let scored = session_dispatcher.debug_search(&query);
 
     let items: Vec<SearchDetailItem> = scored
         .into_iter()
         .enumerate()
         .filter_map(|(i, sc)| {
-            let candidate = session_router.get_cached_candidate_by_id(sc.candidate_id)?;
+            let candidate = session_dispatcher.get_cached_candidate_by_id(sc.candidate_id)?;
             Some(SearchDetailItem {
                 rank: i + 1,
                 candidate_id: sc.candidate_id,
@@ -178,15 +178,16 @@ pub async fn debug_simulate_query(
 
     use zerolaunch_plugin_api::plugin::Query;
 
-    let session_router = state.get_session_router();
+    let session_dispatcher = state.get_session_dispatcher();
     let query = Query {
         id: trace_id.clone(),
         raw_query: raw_query.clone(),
         search_term: raw_query.to_lowercase(),
         confirm: false,
     };
-    let response = session_router
+    let routed = session_dispatcher
         .route_query(&trace_id, &query, QueryChannel::Debug)
-        .await;
-    Ok(serde_json::to_value(&response).unwrap_or_default())
+        .await
+        .with_trace_id(&trace_id)?;
+    Ok(serde_json::to_value(&routed.response).unwrap_or_default())
 }

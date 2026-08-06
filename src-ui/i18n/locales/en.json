@@ -166,5 +166,13 @@
     "configError": "Config Error",
     "networkError": "Network Error",
     "internalError": "Internal Error"
+  },
+  "inspector": {
+    "time": "Time",
+    "query": "Query",
+    "mode": "Mode",
+    "resultCount": "Results",
+    "durationMs": "Duration (ms)",
+    "owner": "Owner"
   }
 }

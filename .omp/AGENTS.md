@@ -23,7 +23,7 @@ bootstrap/          → 应用启动初始化
 sdk.rs              → 平台抽象层 re-export 桥（单文件）
 core/               → 核心层（ConfigManager, Configurable trait, types）
 builtin_plugin/     → 内置插件实现
-plugin_framework/   → 插件框架（SessionRouter, Pipeline, Registry, PluginManager, zlplugin:// 协议）
+plugin_framework/   → 插件框架（SessionDispatcher, Registry, PluginManager, zlplugin:// 协议）
 cli_server/         → 本地 HTTP API 服务器（axum）
 commands/           → IPC 命令（bridge, config, plugin, resource, inspector, cli）
 state/              → AppState 定义
@@ -43,7 +43,8 @@ logging/            → 日志初始化
 | 后端 Bridge 命令    | `src-tauri/src/commands/bridge.rs`                                 |
 | 后端 Config 命令    | `src-tauri/src/commands/config_file.rs`                            |
 | 后端类型定义        | `src-tauri/src/plugin_framework/mod.rs` (re-export)               |
-| SessionRouter       | `src-tauri/src/plugin_framework/session_router.rs`                |
+| SessionDispatcher   | `src-tauri/src/plugin_framework/session_dispatcher.rs`          |
+| 会话投影类型        | `src-tauri/src/plugin_framework/session_state.rs`               |
 | ConfigManager       | `src-tauri/src/core/config/manager.rs`                             |
 | HostApi + Builder   | `src-tauri/src/sdk.rs`                                             |
 | 内置组件注册表      | `src-tauri/src/plugin_framework/builtin_registry.rs`              |
@@ -57,7 +58,7 @@ logging/            → 日志初始化
 
 ## IPC 命令清单
 
-搜索/会话（`bridge_` 前缀，8个）：`bridge_query`, `bridge_confirm`, `bridge_wake`, `bridge_reset`, `bridge_get_session_mode`, `bridge_refresh_candidates`, `bridge_get_candidates_count`, `bridge_hide_window`
+搜索/会话（`bridge_` 前缀，7个）：`bridge_query`, `bridge_confirm`, `bridge_wake`, `bridge_reset`, `bridge_refresh_candidates`, `bridge_get_candidates_count`, `bridge_hide_window`
 
 配置（`config_` 前缀，9个）：`config_get_version`, `config_get_all_components`, `config_get_schema`, `config_get_settings`, `config_apply_settings`, `config_reset_settings`, `config_set_enabled`, `config_get_actions`, `config_execute_action`
 
@@ -104,7 +105,7 @@ ZeroLaunch-rs/                          ← Cargo workspace 根
         ├── sdk.rs                      ← re-export 桥（类型本体在 plugin-api / platform-windows）
         ├── core/                       ← ConfigManager, ConfigStore, 核心配置组件
         ├── builtin_plugin/             ← 内置插件实现（具体数量以代码为准）
-        ├── plugin_framework/           ← SessionRouter, Pipeline, Registry, PluginManager
+        ├── plugin_framework/           ← SessionDispatcher, Registry, PluginManager
         ├── tray/                       ← 系统托盘管理
         ├── window/                     ← 窗口位置工具函数
         ├── commands/                   ← IPC 命令薄代理
@@ -126,7 +127,7 @@ ZeroLaunch-rs/                          ← Cargo workspace 根
 | `sdk.rs` | re-export 桥（类型本体在 plugin-api / platform-windows） | 无外部依赖 | 引用 core/、builtin_plugin/、plugin_framework/ |
 | `core/` | 业务核心：ConfigManager、Configurable trait、类型定义 | sdk.rs | 引用 builtin_plugin/、plugin_framework/ |
 | `builtin_plugin/` | 内置插件实现：DataSource、Executor、SearchEngine 等 | sdk.rs、core/ | 引用 plugin_framework/ |
-| `plugin_framework/` | 插件框架：SessionRouter、Pipeline、Registry、PluginManager | sdk.rs、core/、builtin_plugin/ | 被其他层反向引用 |
+| `plugin_framework/` | 插件框架：SessionDispatcher、Registry、PluginManager | sdk.rs、core/、builtin_plugin/ | 被其他层反向引用 |
 | `tray/` | 系统托盘管理 | state/ | 包含业务逻辑 |
 | `window/` | 窗口位置工具函数 | 无外部依赖 | 包含业务逻辑 |
 | `commands/` | IPC 命令：薄代理层，仅委托 | 全部 | 包含业务逻辑 |
@@ -175,7 +176,8 @@ plugin_framework/
 ├── builtin_registry.rs   ← inventory 自动发现与注册编排器
 ├── builtin.rs            ← 内置插件定义
 ├── inspector.rs          ← Plugin Inspector 调试面板 (feature = "inspector")
-├── session_router.rs     ← 搜索会话路由（核心调度器）
+├── session_dispatcher.rs ← 会话调度（横切：路由/确认/代际/事件推送）
+├── session_state.rs      ← 会话投影类型（PresentationMode/SessionOwner/SessionStateEvent）
 ├── candidate_pipeline.rs ← 候选项采集管道
 ├── search_pipeline.rs    ← 搜索排序管道
 ├── executor_registry.rs  ← 执行器注册表
@@ -184,14 +186,13 @@ plugin_framework/
 ├── plugin_installer.rs   ← 插件安装/卸载逻辑（从 manager.rs 提取）
 ├── plugin_info.rs        ← 插件信息类型
 ├── zlplugin_protocol.rs  ← zlplugin:// 自定义协议处理（从 manager.rs 提取）
-├── service.rs            ← PluginService
-├── registry.rs           ← PluginRegistry
+├── registry.rs           ← PluginRegistry（插件注册；init 发放归 bootstrap）
 └── mod.rs                ← 模块入口（含 re-export，类型定义在各自模块内，已消除冗余 types.rs shim）
 ```
 
-- **SessionRouter** 是运行时的中枢。所有 bridge 命令通过它路由
+- **SessionDispatcher** 是运行时的中枢。所有 bridge 命令通过它路由
 - **builtin_registry** 通过 `inventory` 在编译期收集所有内置组件，启动时统一注册
-- **manager.rs** 是第三方插件生命周期的唯一入口，通过 `PluginRuntimeEvent` 广播通道与 ConfigManager/SessionRouter 事件驱动解耦
+- **manager.rs** 是第三方插件生命周期的唯一入口，通过 `PluginRuntimeEvent` 广播通道与 ConfigManager/SessionDispatcher 事件驱动解耦
 - **禁止** 在此层定义配置 schema 或持久化逻辑（那属于 core/）
 
 #### `cli_server/` — 本地 HTTP API 服务器

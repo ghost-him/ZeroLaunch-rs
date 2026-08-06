@@ -8,8 +8,8 @@ use zerolaunch_plugin_api::config::{ComponentCore, ComponentType, ConfigError, C
 use zerolaunch_plugin_api::host::PluginHandle;
 use zerolaunch_plugin_api::services::IconRequest;
 use zerolaunch_plugin_api::{
-    PanelInteraction, Plugin, PluginContext, PluginError, PluginMetadata, Query, QueryChannel,
-    QueryResponse, ResultAction,
+    PanelInteraction, PanelKeyAction, PanelKeyBinding, Plugin, PluginContext, PluginError,
+    PluginMetadata, Query, QueryChannel, QueryResponse, ResultAction,
 };
 
 pub struct CalculatorPlugin {
@@ -116,7 +116,23 @@ impl Plugin for CalculatorPlugin {
     }
 
     fn interaction_policy(&self) -> PanelInteraction {
-        PanelInteraction::default()
+        PanelInteraction {
+            // 计算面板为行内形态（保留搜索栏），按键声明即接管：
+            // - Enter：Confirm —— 宿主三分支：面板有可执行动作（计算成功，actions=[复制结果]）
+            //   时执行默认动作（复制结果写入剪贴板）；无动作（空/错误面板）时发起确认查询（重新计算）；
+            // - Escape：GoBack —— 退出计算面板（返回默认搜索）。
+            bindings: vec![
+                PanelKeyBinding {
+                    key: "Enter".to_string(),
+                    action: PanelKeyAction::Confirm,
+                },
+                PanelKeyBinding {
+                    key: "Escape".to_string(),
+                    action: PanelKeyAction::GoBack,
+                },
+            ],
+            ..Default::default()
+        }
     }
 
     async fn query(

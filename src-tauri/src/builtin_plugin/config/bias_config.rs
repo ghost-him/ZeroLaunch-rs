@@ -1,58 +1,12 @@
 use async_trait::async_trait;
 use parking_lot::RwLock;
-use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use zerolaunch_plugin_api::config::{
     ComponentCore, ComponentType, ConfigError, Configurable, DataActionBinding, SettingDefinition,
 };
 
-use crate::core::bias_rule::BiasRule;
+use crate::core::config::bias_settings::BiasSettings;
 use crate::core::config::setting_builders::SchemaBuilder;
-
-// ============================================================================
-// 配置数据结构
-// ============================================================================
-
-/// 固定偏移量配置的根结构
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct BiasSettings {
-    /// 偏移量规则条目列表
-    #[serde(rename = "entries", default)]
-    pub entries: Vec<BiasEntry>,
-}
-
-/// 单条固定偏移量规则
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BiasEntry {
-    /// 目标程序标识，匹配 candidate.target.payload()
-    /// 由前端 SearchTable UI 自动填充，visible: false
-    /// apply_settings 时归一化为 to_ascii_lowercase()
-    #[serde(rename = "target", default)]
-    pub target: String,
-    /// 权重偏移值，正值提升搜索结果位置，负值降低
-    #[serde(rename = "bias", default = "BiasEntry::default_bias")]
-    pub bias: f64,
-    /// 备注信息（可选）
-    #[serde(rename = "note", default)]
-    pub note: String,
-}
-
-impl BiasEntry {
-    fn default_bias() -> f64 {
-        0.0
-    }
-}
-
-pub(crate) fn bias_settings_to_rules(settings: &BiasSettings) -> Vec<BiasRule> {
-    settings
-        .entries
-        .iter()
-        .map(|e| BiasRule {
-            target: e.target.to_ascii_lowercase(),
-            bias: e.bias,
-        })
-        .collect()
-}
 
 // ============================================================================
 // BiasConfig — 纯配置组件（ConfigEntry）

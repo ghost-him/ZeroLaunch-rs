@@ -1,4 +1,4 @@
-use crate::plugin_framework::SessionRouter;
+use crate::plugin_framework::SessionDispatcher;
 use crate::sdk::HostApi;
 use async_trait::async_trait;
 use base64::Engine;
@@ -44,7 +44,7 @@ struct CandidateSummary {
 /// 不出现在设置页的 Tab 列表中（由 settingsSidebar.ts 排除）。
 pub struct CandidateRegistryConfig {
     core: ComponentCore,
-    session_router: Arc<SessionRouter>,
+    session_dispatcher: Arc<SessionDispatcher>,
     _host_api: Arc<HostApi>,
     plugin_handle: Arc<PluginHandle>,
 }
@@ -54,7 +54,7 @@ impl CandidateRegistryConfig {
     ///
     /// plugin_handle 通过 host_api.register("candidate-registry") 创建，
     /// 用于异步提取图标。
-    pub fn new(session_router: Arc<SessionRouter>, host_api: Arc<HostApi>) -> Self {
+    pub fn new(session_dispatcher: Arc<SessionDispatcher>, host_api: Arc<HostApi>) -> Self {
         let plugin_handle = host_api.register("candidate-registry", Default::default());
         Self {
             core: ComponentCore::new(
@@ -64,7 +64,7 @@ impl CandidateRegistryConfig {
                 ComponentType::Core,
                 5,
             ),
-            session_router,
+            session_dispatcher,
             _host_api: host_api,
             plugin_handle,
         }
@@ -114,7 +114,7 @@ impl Configurable for CandidateRegistryConfig {
         match action {
             "search_candidates" => {
                 let query = params.get("query").and_then(|v| v.as_str()).unwrap_or("");
-                let candidates = self.session_router.get_cached_candidates();
+                let candidates = self.session_dispatcher.get_cached_candidates();
                 let query_lower = query.to_lowercase();
                 let plugin_handle = self.plugin_handle.clone();
 
@@ -169,7 +169,7 @@ use crate::plugin_framework::builtin_registry::{ConfigEntry, InventoryContext};
 
 fn build_candidate_registry(ctx: &InventoryContext) -> Arc<dyn Configurable> {
     Arc::new(CandidateRegistryConfig::new(
-        ctx.session_router().clone(),
+        ctx.session_dispatcher().clone(),
         ctx.host_api().clone(),
     ))
 }

@@ -26,8 +26,8 @@ scope: "tool:read(src-tauri/src/commands/**), tool:edit(src-tauri/src/commands/*
 - async 函数 **必须** 用 `#[tracing::instrument]`，**禁止** `span.enter()` 跨 `.await`
 - trace_id **必须** 排除在命令签名之外（不在参数中暴露，由命令内部生成）
 - CLI HTTP 服务器 **必须** 通过 `X-Trace-Id` 请求头/响应头传递 trace_id
-- **trace_id 适用范围**：所有返回 `Result<T, BridgeError>` 的命令 **必须** 生成 trace_id（无论是否真的有错误路径；trace_id 同时用于 span 日志关联，如查看操作耗时与事件顺序），**禁止** 因"无错误路径"而省略模板代码。不返回 `Result<T, BridgeError>` 的命令（如返回 `String`、`usize`、`Vec<T>`、`()` 等）不需要 trace_id。需 trace_id 的示例：`bridge_query`、`bridge_refresh_candidates`、`bridge_hide_window`。无需 trace_id 的示例：`config_get_actions() -> Vec<ConfigActionDef>`、`bridge_get_session_mode() -> String`
+- **trace_id 适用范围**：所有返回 `Result<T, BridgeError>` 的命令 **必须** 生成 trace_id（无论是否真的有错误路径；trace_id 同时用于 span 日志关联，如查看操作耗时与事件顺序），**禁止** 因"无错误路径"而省略模板代码。不返回 `Result<T, BridgeError>` 的命令（如返回 `String`、`usize`、`Vec<T>`、`()` 等）不需要 trace_id。需 trace_id 的示例：`bridge_query`、`bridge_refresh_candidates`、`bridge_hide_window`。无需 trace_id 的示例：`config_get_actions() -> Vec<ConfigActionDef>`、`bridge_get_candidates_count() -> usize`
 
 ## 核心热路径（推荐）
 
-核心热路径中的 async 方法（如 `SessionRouter::route_query`、`route_confirm`、`execute_candidate` 等）**推荐** 使用 `#[tracing::instrument]`，以便在 spans 中捕获 trace_id 实现端到端追踪。trace_id 来自参数时用 `fields(trace_id = %trace_id)`；不需要 trace_id 的方法（如 `on_search_bar_wake`）用 `#[tracing::instrument(skip(self))]` 即可，trace_id 由父 span 继承。
+核心热路径中的 async 方法（如 `SessionDispatcher::route_query`、`route_confirm`、`execute_candidate` 等）**推荐** 使用 `#[tracing::instrument]`，以便在 spans 中捕获 trace_id 实现端到端追踪。trace_id 来自参数时用 `fields(trace_id = %trace_id)`；不需要 trace_id 的方法（如 `on_search_bar_wake`）用 `#[tracing::instrument(skip(self))]` 即可，trace_id 由父 span 继承。

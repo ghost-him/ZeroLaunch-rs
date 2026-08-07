@@ -1,12 +1,14 @@
 ---
 description: Serde 序列化规范 — 必须用字段级 #[serde(rename)] 显式标注每个字段和 variant，禁止用 rename_all
 condition: "#\\[serde\\(rename|rename_all|pub(\\([^)]*\\))? struct|pub(\\([^)]*\\))? enum"
-scope: "tool:edit(src-tauri/src/commands/**), tool:write(src-tauri/src/commands/**), tool:edit(src-tauri/src/builtin_plugin/**), tool:write(src-tauri/src/builtin_plugin/**), tool:edit(crates/plugin-api/src/**), tool:write(crates/plugin-api/src/**), tool:edit(crates/plugin-protocol/src/**), tool:write(crates/plugin-protocol/src/**)"
+scope: "tool:edit(src-tauri/src/commands/**), tool:write(src-tauri/src/commands/**), tool:edit(crates/plugin-api/src/**), tool:write(crates/plugin-api/src/**), tool:edit(crates/plugin-protocol/src/**), tool:write(crates/plugin-protocol/src/**)"
 ---
 
 # Serde 序列化规范
 
 IPC 类型 JSON 键名统一使用 **camelCase**，Rust 与 TypeScript 两侧 **必须** 一致。
+
+> **例外**：配置存储类型（`builtin_plugin/config/` 的 Settings struct）的键名使用 **snake_case**（见 config-naming 规则），本规则仅约束跨 IPC 的类型。
 
 ## 字段级 rename 强制
 

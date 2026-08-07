@@ -1,7 +1,7 @@
 ---
 description: Plugin Trait Init — init 接收 PluginContext 和 Arc<PluginHandle>，禁止在插件内部状态存储 PluginHandle
-condition: "impl Plugin for|PluginContext|Arc<PluginHandle>"
-scope: "tool:edit(src-tauri/src/**), tool:write(src-tauri/src/**), tool:edit(crates/plugin-api/src/plugin/**), tool:write(crates/plugin-api/src/plugin/**), tool:edit(crates/plugin-api/src/host/**), tool:write(crates/plugin-api/src/host/**), tool:edit(plugin-template/**), tool:write(plugin-template/**)"
+condition: "impl Plugin for|fn init\\("
+scope: "tool:edit(src-tauri/src/builtin_plugin/**), tool:write(src-tauri/src/builtin_plugin/**), tool:edit(crates/plugin-api/src/plugin/**), tool:write(crates/plugin-api/src/plugin/**), tool:edit(crates/plugin-api/src/host/**), tool:write(crates/plugin-api/src/host/**), tool:edit(plugin-template/**), tool:write(plugin-template/**)"
 ---
 
 # Plugin Trait Init

@@ -26,7 +26,8 @@ pub struct InstallationMonitorSettings {
 impl Default for InstallationMonitorSettings {
     fn default() -> Self {
         Self {
-            enable_installation_monitor: true,
+            // 默认关闭：与 schema 默认值（false）及设计文档一致，由用户在设置页显式开启
+            enable_installation_monitor: false,
             monitor_debounce_secs: default_monitor_debounce_secs(),
             monitor_watch_paths: String::new(),
         }
@@ -142,7 +143,7 @@ impl Configurable for InstallationMonitorConfigComponent {
         let s = self.settings.read().clone();
         let enabled = s.enable_installation_monitor;
 
-        // 解析监控路径
+        // 解析监控路径（每行一个，空列表表示使用平台默认开始菜单路径）
         let paths: Vec<String> = s
             .monitor_watch_paths
             .lines()
@@ -153,30 +154,32 @@ impl Configurable for InstallationMonitorConfigComponent {
         let host_api = self.host_api.clone();
 
         tauri::async_runtime::spawn(async move {
-            if enabled {
-                // 更新监控路径
-                if !paths.is_empty() {
-                    host_api.update_installation_monitor_paths(paths);
-                }
+            // 无条件下发路径与去抖配置：空路径让平台层回退默认开始菜单路径，
+            // 清空配置也能恢复默认行为（此前仅在非空时更新，导致清空不生效）。
+            host_api.update_installation_monitor_paths(paths.clone());
+            host_api.update_installation_monitor_debounce(s.monitor_debounce_secs);
 
-                // 启动监控（已启动则忽略）
-                if !host_api.is_installation_monitor_running() {
-                    if let Err(e) = host_api.start_installation_monitor().await {
-                        warn!("启动安装监控失败: {}", e);
-                    } else {
-                        info!("安装监控已启动");
-                    }
-                } else {
-                    info!("安装监控已在运行中，配置已更新（需重启监控以应用路径变更）");
-                }
-            } else {
-                // 停止监控
+            if enabled {
+                // 路径/去抖变更后重启 watcher 使配置生效（stop 幂等，未运行则直接启动）
                 if host_api.is_installation_monitor_running() {
                     if let Err(e) = host_api.stop_installation_monitor().await {
                         warn!("停止安装监控失败: {}", e);
-                    } else {
-                        info!("安装监控已停止");
+                        return;
                     }
+                }
+                match host_api.start_installation_monitor().await {
+                    Ok(()) => info!(
+                        "安装监控已启动（监控路径 {} 条，去抖 {}s）",
+                        paths.len(),
+                        s.monitor_debounce_secs
+                    ),
+                    Err(e) => warn!("启动安装监控失败: {}", e),
+                }
+            } else if host_api.is_installation_monitor_running() {
+                if let Err(e) = host_api.stop_installation_monitor().await {
+                    warn!("停止安装监控失败: {}", e);
+                } else {
+                    info!("安装监控已停止");
                 }
             }
         });

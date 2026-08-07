@@ -4,6 +4,7 @@
 //! - `init_app_state` — 创建 HostApi、ConfigManager、PluginManager 并编排初始化顺序
 //! - `init_plugin_system` — inventory 自动发现、管道构建、事件订阅
 
+use crate::builtin_plugin::config::auto_refresh_config::AutoRefreshSettings;
 use crate::builtin_plugin::config::hotkey_config::{settings_to_hotkey_config, HotkeySettings};
 use std::path::Path;
 use std::path::PathBuf;
@@ -14,6 +15,7 @@ use zerolaunch_platform_windows::WindowsFocusMonitor;
 use zerolaunch_platform_windows::WindowsHotkeyManager;
 use zerolaunch_plugin_api::host::PluginSdkConfig;
 use zerolaunch_plugin_api::services::hotkey::types::HotkeyEventFilter;
+use zerolaunch_plugin_api::services::installation_monitor::InstallationEventKind;
 use zerolaunch_plugin_api::services::storage::local_storage::LocalStorageService;
 use zerolaunch_plugin_api::services::storage::storage_service::StorageService;
 use zerolaunch_plugin_api::services::AppResourceService;
@@ -29,6 +31,40 @@ use crate::state::app_state::AppState;
 use crate::tray::TrayManager;
 use crate::utils::trace_id::generate_trace_id;
 use crate::window::{prepare_window_position, save_window_position_if_drag};
+
+/// 启动定时自动刷新任务。
+///
+/// 每分钟醒来一次，读取 auto-refresh-config 的间隔配置（分钟，0=禁用）；
+/// 距上次刷新（SessionDispatcher.last_refresh，所有触发源共享的单一时间基准）
+/// 达到间隔时触发 refresh_candidates —— 监控/手动/配置联动刷新后自动重置基准，
+/// 天然避免短时间重复刷新，无需老版 RefreshScheduler 的调度线程与条件变量。
+fn spawn_auto_refresh_task(state: Arc<AppState>) {
+    tokio::spawn(async move {
+        let mut ticker = tokio::time::interval(std::time::Duration::from_secs(60));
+        loop {
+            ticker.tick().await;
+            // 读取定时刷新配置；组件缺失或解析失败按禁用处理
+            let interval_mins = state
+                .get_config_manager()
+                .get_settings("auto-refresh-config")
+                .and_then(|v| serde_json::from_value::<AutoRefreshSettings>(v).ok())
+                .map(|s| s.auto_refresh_interval_mins)
+                .unwrap_or(0.0);
+            if interval_mins <= 0.0 {
+                continue;
+            }
+            let dispatcher = state.get_session_dispatcher();
+            let interval = std::time::Duration::from_secs_f64(interval_mins * 60.0);
+            if dispatcher.last_refresh_elapsed() >= interval {
+                dispatcher.refresh_candidates().await;
+                info!(
+                    "定时刷新完成，共 {} 个候选项",
+                    dispatcher.get_cached_candidates_count()
+                );
+            }
+        }
+    });
+}
 
 /// 将当前配置序列化并同步到远程存储后端（fire-and-forget）。
 ///
@@ -155,6 +191,45 @@ pub(crate) async fn init_app_state(
     state.set_core_handle(core_handle.clone());
     info!("Core PluginHandle 注册完成");
 
+    // 注册安装监控刷新回调：开始菜单变化（平台层去抖合并后）自动刷新候选项缓存。
+    // 必须在 init_plugin_system 加载持久化配置（可能触发监控启动）之前注册，
+    // 否则监控启动后的事件窗口期内回调缺失，事件到达无人处理。
+    let state_for_install_callback = state.clone();
+    let install_event_handle = state.get_main_handle();
+    core_handle.register_installation_callback(
+        "host:refresh_candidates",
+        Arc::new(move |event| {
+            let state = state_for_install_callback.clone();
+            let app_handle = install_event_handle.clone();
+            tauri::async_runtime::spawn(async move {
+                let dispatcher = state.get_session_dispatcher();
+                dispatcher.refresh_candidates().await;
+                info!(
+                    "安装监控事件（{:?}，{} 个路径）触发自动刷新，共 {} 个候选项",
+                    event.kind,
+                    event.changed_paths.len(),
+                    dispatcher.get_cached_candidates_count()
+                );
+                // 推送安装事件给前端：形状与后端 InstallationEvent 对齐
+                // （kind + changedPaths），前端按需自行判断，不做启发式映射。
+                let kind_str = match event.kind {
+                    InstallationEventKind::Created => "created",
+                    InstallationEventKind::Modified => "modified",
+                    InstallationEventKind::Removed => "removed",
+                    InstallationEventKind::Other => "other",
+                };
+                let _ = app_handle.emit(
+                    "installation-event",
+                    serde_json::json!({
+                        "kind": kind_str,
+                        "changedPaths": event.changed_paths,
+                    }),
+                );
+            });
+        }),
+    );
+    info!("安装监控刷新回调已注册");
+
     state.set_inspector(Arc::new(Inspector::new(200)));
     info!("Plugin Inspector 已创建 (容量: 200，录制默认关闭)");
 
@@ -221,6 +296,10 @@ pub(crate) async fn init_app_state(
     info!("=== Phase 6: 启动 AppCommand 消费者 ===");
     spawn_app_command_consumer(cmd_rx, state.clone());
     info!("Phase 6 完成: AppCommand 消费者已启动");
+
+    // 启动定时自动刷新任务（兜底：安装监控关闭或漏掉的变化时，索引仍会定期更新）
+    spawn_auto_refresh_task(state.clone());
+    info!("定时自动刷新任务已启动");
 
     info!(
         "应用状态初始化完成 (HostApi, ConfigManager, {} 个已注册组件)",

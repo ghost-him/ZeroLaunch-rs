@@ -332,9 +332,15 @@ impl HostApi {
     }
 
     /// 更新安装监控路径。
-    /// 参数：paths - 要监控的目录路径列表。
+    /// 参数：paths - 要监控的目录路径列表（为空时平台层回退默认开始菜单路径）。
     pub fn update_installation_monitor_paths(&self, paths: Vec<String>) {
         self.installation_monitor.update_watch_paths(paths);
+    }
+
+    /// 更新安装监控去抖时间。
+    /// 参数：secs - 事件静默满该秒数后才触发回调（配置组件 monitor_debounce_secs，范围 1-60）。
+    pub fn update_installation_monitor_debounce(&self, secs: f64) {
+        self.installation_monitor.update_debounce_secs(secs);
     }
 
     // ===== 存储服务（宿主级） =====

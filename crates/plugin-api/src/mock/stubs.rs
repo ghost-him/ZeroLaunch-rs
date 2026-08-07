@@ -279,6 +279,7 @@ impl InstallationMonitor for StubInstallationMonitor {
     fn register_callback(&self, _id: &str, _callback: InstallationCallback) {}
     fn unregister_callback(&self, _id: &str) {}
     fn update_watch_paths(&self, _paths: Vec<String>) {}
+    fn update_debounce_secs(&self, _secs: f64) {}
 }
 
 // ===== Focus Monitor =====

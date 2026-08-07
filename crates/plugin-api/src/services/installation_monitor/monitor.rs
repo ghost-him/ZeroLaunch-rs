@@ -29,6 +29,10 @@ pub trait InstallationMonitor: Send + Sync {
     fn unregister_callback(&self, id: &str);
 
     /// 更新监控路径列表。
-    /// 参数：paths - 要监控的目录路径列表。
+    /// 参数：paths - 要监控的目录路径列表（为空时平台实现应回退到默认路径）。
     fn update_watch_paths(&self, paths: Vec<String>);
+
+    /// 更新事件去抖时间（秒）。
+    /// 参数：secs - 事件静默满该时长后才分发回调（合并去抖窗口内的事件）。
+    fn update_debounce_secs(&self, secs: f64);
 }

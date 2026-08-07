@@ -260,9 +260,12 @@ export interface ConfigErrorPayload {
   error: string
 }
 
+/** 安装监控事件 —— 与后端 InstallationEvent 对齐：一次去抖合并后的文件系统变化。 */
 export interface InstallationEventPayload {
-  eventType: 'install' | 'uninstall'
-  appName: string
+  /** 变化类型，与后端 InstallationEventKind 一一对应 */
+  kind: 'created' | 'modified' | 'removed' | 'other'
+  /** 发生变化的路径列表（可能为空） */
+  changedPaths: string[]
 }
 
 // ---- 插件键盘事件 ----

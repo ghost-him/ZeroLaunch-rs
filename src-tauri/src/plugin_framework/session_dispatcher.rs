@@ -13,6 +13,7 @@ use parking_lot::{Mutex, RwLock};
 use std::fmt;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 use tracing::{debug, error, info, warn};
 use zerolaunch_plugin_api::config::ComponentType;
 use zerolaunch_plugin_api::services::parameter::template_parser::{Placeholder, TemplateParser};
@@ -211,6 +212,10 @@ pub struct SessionDispatcher {
     components: PluginComponentRegistry,
     /// 上次构建管道时的 top_k 值。
     last_top_k: RwLock<usize>,
+    /// 最近一次候选项刷新的时间点（所有触发源共用：定时/监控/手动/配置联动）。
+    /// None 表示从未刷新过（定时任务应视为超期立即刷新）；
+    /// 每次 refresh_candidates 成功更新，供 auto-refresh 周期任务判断是否到达间隔。
+    last_refresh: Mutex<Option<Instant>>,
 
     /// 会话状态推送回调（bootstrap 注入；CLI 无窗口场景不注入）。
     session_emitter: RwLock<Option<SessionStateEmitter>>,
@@ -242,6 +247,7 @@ impl SessionDispatcher {
             parameter_snapshot: Arc::new(Mutex::new(ParameterSnapshot::empty())),
             components: PluginComponentRegistry::new(),
             last_top_k: RwLock::new(10),
+            last_refresh: Mutex::new(None),
             session_emitter: RwLock::new(None),
             ui_query_revision: Arc::new(AtomicU64::new(0)),
             cli_query_revision: Arc::new(AtomicU64::new(0)),
@@ -367,10 +373,22 @@ impl SessionDispatcher {
     }
 
     /// 刷新候选项缓存。
+    /// 所有触发源（定时/监控/手动/配置联动）共用本入口；刷新成功后记录时间戳，
+    /// 供 auto-refresh 周期任务判断"距上次刷新是否已达间隔"（天然去重，避免重复刷新）。
     pub async fn refresh_candidates(&self) {
         let pipeline = self.candidate_pipeline.read().await;
         let candidates = pipeline.collect().await;
         *self.cached_candidates.write() = candidates;
+        *self.last_refresh.lock() = Some(Instant::now());
+    }
+
+    /// 距最近一次刷新已过去的时长。
+    /// 从未刷新过时返回 Duration::MAX（定时任务视为立即到期）。
+    pub fn last_refresh_elapsed(&self) -> Duration {
+        match *self.last_refresh.lock() {
+            Some(t) => t.elapsed(),
+            None => Duration::MAX,
+        }
     }
 
     // ==================== 调试入口 ====================

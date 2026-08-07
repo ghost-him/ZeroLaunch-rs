@@ -150,8 +150,10 @@ onMounted(async () => {
     }
   })
 
+  // 安装监控事件：后端已自动刷新候选项缓存（权威刷新在后端），
+  // 前端仅同步缓存计数，避免经 IPC 重复触发刷新。
   unlistenInstall = await onInstallationEvent(() => {
-    searchStore.refreshCandidates()
+    searchStore.fetchCandidatesCount()
   })
 })
 

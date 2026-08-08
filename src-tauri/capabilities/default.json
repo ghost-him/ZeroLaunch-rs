@@ -23,6 +23,8 @@
     "core:window:allow-set-focus",
     "core:window:allow-hide",
     "core:window:allow-set-position",
+    "core:window:allow-unminimize",
+    "core:window:allow-set-always-on-top",
     "shell:allow-open"
   ]
 }

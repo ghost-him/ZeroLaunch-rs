@@ -115,6 +115,23 @@ pub(crate) fn save_window_position_if_drag(
 }
 
 /// 从 Tauri AppHandle 收集可用显示器信息，供窗口定位使用。
+/// 显示并激活设置窗口（含被遮挡时的强制提升）。
+///
+/// Windows 前台锁限制下 `set_focus`（SetForegroundWindow）可能失败：
+/// 设置窗口已打开但被其他窗口遮挡时，`show()` 不会提升 Z 序。
+/// 置顶闪切（set_always_on_top true→false）通过 SetWindowPos(HWND_TOPMOST)
+/// 强制把窗口提升到前台，再取消置顶使其保持在普通窗口最上层。
+pub(crate) fn show_and_focus_settings_window(window: &tauri::WebviewWindow) {
+    let _ = window.unminimize();
+    if let Err(e) = window.show() {
+        warn!("显示设置窗口失败: {e}");
+        return;
+    }
+    let _ = window.set_always_on_top(true);
+    let _ = window.set_always_on_top(false);
+    let _ = window.set_focus();
+}
+
 pub(crate) fn collect_monitor_info(app_handle: &tauri::AppHandle) -> Vec<MonitorInfo> {
     app_handle
         .get_webview_window("main")

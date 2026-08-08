@@ -613,11 +613,7 @@ fn spawn_app_command_consumer(
                 app_command::AppCommand::ShowSettings => {
                     let app_handle = state.get_main_handle();
                     if let Some(window) = app_handle.get_webview_window("setting_window") {
-                        if let Err(e) = window.show() {
-                            warn!("显示设置窗口失败: {:?}", e);
-                        } else {
-                            let _ = window.set_focus();
-                        }
+                        crate::window::show_and_focus_settings_window(&window);
                     }
                 }
                 app_command::AppCommand::RefreshCandidates => {

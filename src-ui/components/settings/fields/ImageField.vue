@@ -14,7 +14,7 @@
         text
         type="error"
         size="tiny"
-        @click="emit('update:modelValue', null)"
+        @click="emit('update:modelValue', '')"
       >
         {{ $t('settings.imageClear') }}
       </n-button>

@@ -19,7 +19,8 @@ use zerolaunch_plugin_api::config::Configurable;
 use zerolaunch_plugin_api::host::PluginSdkConfig;
 use zerolaunch_plugin_host::host_dispatch::HostCallHandler;
 use zerolaunch_plugin_host::manager::{
-    InstalledPluginInfo, PluginHostManager, PluginRegistration, RestartCallback,
+    ComponentIdPrecheck, ComponentIdTaken, InstalledPluginInfo, PluginHostManager, PluginLoadError,
+    PluginRegistration, RestartAbandonedCallback, RestartCallback,
 };
 use zerolaunch_plugin_protocol::Manifest;
 
@@ -47,6 +48,8 @@ pub enum PluginManagerError {
     UnsupportedFormat(String),
     /// 同名插件已安装
     AlreadyInstalled(String),
+    /// 组件 id 与已注册组件冲突（加载被拒，插件未加载）
+    ComponentIdCollision(String),
     /// 常规内部错误
     Internal(String),
 }
@@ -58,6 +61,9 @@ impl fmt::Display for PluginManagerError {
             PluginManagerError::FileNotFound(msg) => write!(f, "文件未找到: {}", msg),
             PluginManagerError::UnsupportedFormat(msg) => write!(f, "不支持的文件格式: {}", msg),
             PluginManagerError::AlreadyInstalled(id) => write!(f, "插件已安装: {}", id),
+            PluginManagerError::ComponentIdCollision(id) => {
+                write!(f, "组件 id 已被其他已注册组件占用: {}", id)
+            }
             PluginManagerError::Internal(msg) => write!(f, "插件管理器内部错误: {}", msg),
         }
     }
@@ -82,6 +88,10 @@ pub struct PluginManager {
     host_api: RwLock<Option<Arc<HostApi>>>,
     /// PluginHostManager（内部构造，管理子进程生命周期）
     host_manager: RwLock<Option<Arc<PluginHostManager>>>,
+    /// 组件 id 占用查询：返回 true 表示该 id 已被 ConfigManager 注册。
+    /// 由 bootstrap 装配（闭包捕获 ConfigManager 引用），供第三方插件
+    /// 加载/重启前做组件 id 冲突预检——仅查询、不写入，保持 PM→CM 事件解耦。
+    component_id_checker: RwLock<Option<ComponentIdTaken>>,
     /// 第三方插件 adapters 缓存（用于崩溃恢复时解注册已失效的旧适配器），按 plugin_id 索引。
     /// 使用 DashMap 避免 RwLock 守卫跨 .await 的 !Send 问题。
     adapters_cache: Arc<DashMap<String, PluginRegistration>>,
@@ -96,6 +106,7 @@ impl PluginManager {
             plugin_event_tx: RwLock::new(None),
             host_api: RwLock::new(None),
             host_manager: RwLock::new(None),
+            component_id_checker: RwLock::new(None),
             adapters_cache: Arc::new(DashMap::new()),
         }
     }
@@ -110,6 +121,11 @@ impl PluginManager {
     /// 设置 HostApi 引用。
     pub fn set_host_api(&self, api: Arc<HostApi>) {
         *self.host_api.write() = Some(api);
+    }
+
+    /// 设置组件 id 占用查询（bootstrap 装配，闭包捕获 ConfigManager）。
+    pub fn set_component_id_checker(&self, checker: ComponentIdTaken) {
+        *self.component_id_checker.write() = Some(checker);
     }
 
     /// 初始化 PluginHostManager（PluginManager 内部构造，不从外部注入）。
@@ -143,6 +159,14 @@ impl PluginManager {
             .as_ref()
             .cloned()
             .expect("HostApi not set in PluginManager")
+    }
+
+    fn component_id_checker(&self) -> ComponentIdTaken {
+        self.component_id_checker
+            .read()
+            .as_ref()
+            .cloned()
+            .expect("component id checker not set in PluginManager")
     }
 
     pub(crate) fn host_manager(&self) -> Arc<PluginHostManager> {
@@ -334,8 +358,15 @@ impl PluginManager {
             ));
         };
 
-        self.load_single_plugin(&installed_dir, app_handle.clone())
-            .await?;
+        if let Err(e) = self
+            .load_single_plugin(&installed_dir, app_handle.clone(), vec![])
+            .await
+        {
+            // 回滚：加载失败（如组件 id 冲突）时删除已落盘的插件目录，
+            // 避免 UI 不可见、不可卸载、每次启动重试加载的残留目录。
+            let _ = std::fs::remove_dir_all(&installed_dir);
+            return Err(e);
+        }
 
         let manifest_bytes =
             std::fs::read_to_string(installed_dir.join("manifest.toml")).map_err(|e| {
@@ -405,9 +436,21 @@ impl PluginManager {
             error!("Unload during reload failed: {}", e);
         }
 
-        self.load_single_plugin(&plugin_dir, app_handle)
+        // 热重载豁免集：旧组件 id 在 PluginUnloaded 被 CM 异步消费前仍注册其中，
+        // 预检须排除自身（自身解注册与预检之间无顺序保证）。
+        let exempt_component_ids: Vec<String> = adapters
+            .components
+            .iter()
+            .map(|c| c.component_id().to_string())
+            .collect();
+        self.load_single_plugin(&plugin_dir, app_handle, exempt_component_ids)
             .await
-            .map_err(|e| PluginManagerError::Internal(format!("Reload failed: {}", e)))?;
+            .map_err(|e| match e {
+                PluginManagerError::ComponentIdCollision(id) => {
+                    PluginManagerError::ComponentIdCollision(id)
+                }
+                other => PluginManagerError::Internal(format!("Reload failed: {}", other)),
+            })?;
 
         info!("Plugin {} reloaded successfully", plugin_id);
         Ok(())
@@ -475,7 +518,10 @@ impl PluginManager {
         info!("Found {} third-party plugin(s)", dirs.len());
 
         for dir in &dirs {
-            if let Err(e) = self.load_single_plugin(dir, app_handle.clone()).await {
+            if let Err(e) = self
+                .load_single_plugin(dir, app_handle.clone(), vec![])
+                .await
+            {
                 error!("Failed to load plugin from {}: {}", dir.display(), e);
             }
         }
@@ -489,10 +535,15 @@ impl PluginManager {
     /// CM 收到后注册 Configurable + 转发 ConfigEvent::PluginRegistered 到 SR。
     /// 崩溃恢复回调通过 adapters_cache 解注册旧组件。
     /// 成功时发送 `plugin-installed` Tauri 事件。
+    ///
+    /// `exempt_component_ids`：本次加载插件自身的组件 id 豁免集
+    /// （热重载时旧组件可能尚未从 CM 解注册，预检须排除自身），
+    /// 初次加载/安装场景传空。
     async fn load_single_plugin(
         &self,
         plugin_dir: &Path,
         app_handle: Arc<AppHandle>,
+        exempt_component_ids: Vec<String>,
     ) -> Result<(), PluginManagerError> {
         let host_manager = self.host_manager();
         let host_api = self.host_api();
@@ -513,11 +564,26 @@ impl PluginManager {
         });
 
         let on_restart = self.make_restart_callback(plugin_id.clone());
+        let on_restart_abandoned = self.make_restart_abandoned_callback(plugin_id.clone());
 
         let registered = host_manager
-            .load(plugin_dir, handler, on_restart)
+            .load(
+                plugin_dir,
+                handler,
+                on_restart,
+                on_restart_abandoned,
+                ComponentIdPrecheck {
+                    component_id_taken: self.component_id_checker(),
+                    exempt_component_ids,
+                },
+            )
             .await
-            .map_err(|e| PluginManagerError::Internal(format!("plugin-host load: {}", e)))?;
+            .map_err(|e| match e {
+                PluginLoadError::ComponentIdCollision { component_id, .. } => {
+                    PluginManagerError::ComponentIdCollision(component_id)
+                }
+                other => PluginManagerError::Internal(format!("plugin-host load: {}", other)),
+            })?;
 
         self.plugin_event_tx()
             .send(PluginRuntimeEvent::PluginLoaded(registered.clone()))
@@ -599,6 +665,31 @@ impl PluginManager {
     /// 清除插件的 adapters 缓存（卸载时调用）。
     pub fn forget_adapters(&self, plugin_id: &str) {
         self.adapters_cache.remove(plugin_id);
+    }
+
+    /// 为崩溃恢复构建「放弃重启」回调。
+    ///
+    /// 在 restart_loop 因 max_restart 超限或组件 id 冲突拒绝重启时调用：
+    /// 从 adapters_cache 取旧快照发送 PluginUnloaded，让 CM 解注册残留组件、
+    /// SR 移除触发词/数据源路由，避免僵尸组件占用 id 空间。
+    fn make_restart_abandoned_callback(&self, plugin_id: String) -> RestartAbandonedCallback {
+        let tx = self.plugin_event_tx();
+        let adapters_cache = self.adapters_cache.clone();
+
+        Arc::new(move || {
+            let tx = tx.clone();
+            let adapters_cache = adapters_cache.clone();
+            let pid = plugin_id.clone();
+
+            // 解注册旧适配器（如果存在缓存）
+            if let Some((_, prev)) = adapters_cache.remove(&pid) {
+                tx.send(PluginRuntimeEvent::PluginUnloaded(prev)).ok();
+                info!(
+                    "Plugin {} restart abandoned — stale adapters unregistered",
+                    pid
+                );
+            }
+        })
     }
 
     // ── 信息管理 ───────────────────────────────────────────────

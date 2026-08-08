@@ -52,6 +52,9 @@ pub enum ErrorCode {
     /// 插件已存在（安装时同名插件已安装）——由 PluginManagerError::AlreadyInstalled 经 From 转换产生，前端按 code 展示「该插件已安装」。
     #[serde(rename = "ALREADY_INSTALLED")]
     AlreadyInstalled,
+    /// 组件 id 与已注册组件冲突（插件加载被拒）——由 PluginManagerError::ComponentIdCollision 经 From 转换产生，前端按 code 展示冲突提示。
+    #[serde(rename = "COMPONENT_ID_COLLISION")]
+    ComponentIdCollision,
     #[serde(rename = "CONFIG_ERROR")]
     ConfigError,
     #[serde(rename = "NETWORK_ERROR")]
@@ -69,6 +72,7 @@ impl fmt::Display for ErrorCode {
             ErrorCode::ActionFailed => write!(f, "ACTION_FAILED"),
             ErrorCode::PluginError => write!(f, "PLUGIN_ERROR"),
             ErrorCode::AlreadyInstalled => write!(f, "ALREADY_INSTALLED"),
+            ErrorCode::ComponentIdCollision => write!(f, "COMPONENT_ID_COLLISION"),
             ErrorCode::ConfigError => write!(f, "CONFIG_ERROR"),
             ErrorCode::NetworkError => write!(f, "NETWORK_ERROR"),
             ErrorCode::InternalError => write!(f, "INTERNAL_ERROR"),
@@ -164,6 +168,13 @@ impl From<PluginManagerError> for BridgeError {
                 message: format!("插件已安装: {}", id),
                 details: None,
                 component_id: None,
+                trace_id: String::new(),
+            },
+            PluginManagerError::ComponentIdCollision(id) => BridgeError {
+                code: ErrorCode::ComponentIdCollision,
+                message: format!("组件 id 已被其他已注册组件占用: {}", id),
+                details: None,
+                component_id: Some(id),
                 trace_id: String::new(),
             },
             PluginManagerError::Internal(msg) => BridgeError::internal(msg),

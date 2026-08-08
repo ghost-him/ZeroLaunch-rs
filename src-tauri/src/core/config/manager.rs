@@ -466,9 +466,11 @@ impl ConfigManager {
     pub fn handle_plugin_event(&self, event: &PluginRuntimeEvent) {
         match event {
             PluginRuntimeEvent::PluginLoaded(adapters) => {
-                // 整包预检组件 id 冲突：任一组件与已注册组件撞 id 则拒绝整个插件，
-                // 避免「部分组件注册成功、路由已建但配置缺失」的半提交状态
-                // （与注册触发词时的全量冲突预检同一模式）。
+                // 兜底防线：主冲突预检已下沉到 plugin-host 的 load/restart_loop
+                // （组件清单到手后、登记前拒绝并关进程）。此处防的是未来新增的
+                // 加载路径漏检，或插件间竞态（预检与注册之间插入其他插件）。
+                // 任一组件与已注册组件撞 id 则拒绝整个插件，避免
+                // 「部分组件注册成功、路由已建但配置缺失」的半提交状态。
                 for c in &adapters.components {
                     if let Some(existing) = self.registry.get(c.component_id()) {
                         error!(

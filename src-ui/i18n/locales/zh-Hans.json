@@ -165,6 +165,7 @@
       "installSuccess": "插件安装成功",
       "installFailed": "安装失败",
       "alreadyInstalled": "该插件已安装",
+      "componentIdCollision": "组件 ID 与已注册组件冲突",
       "reloadSuccess": "插件已重新加载",
       "reloadFailed": "重载失败",
       "uninstallSuccess": "插件已卸载",

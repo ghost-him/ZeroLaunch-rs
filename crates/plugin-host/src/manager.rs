@@ -17,12 +17,32 @@ use zerolaunch_plugin_protocol::ProtocolError;
 
 use crate::adapter::remote_component::{RemoteComponent, RemoteComponentKind};
 use crate::host_dispatch::HostCallHandler;
+use crate::process::force_kill_process;
 use crate::process::{PluginProcess, ProcessState};
 
 /// Type alias for the restart callback: receives newly registered adapters
 /// and returns a future that re-registers them with ConfigManager / SessionRouter.
 pub type RestartCallback =
     Arc<dyn Fn(PluginRegistration) -> Pin<Box<dyn Future<Output = ()> + Send>> + Send + Sync>;
+
+/// 放弃重启时的回调（无参、同步）：通知 src-tauri 从 adapters_cache 取旧快照
+/// 解注册 CM/SR 中的残留组件。在 max_restart 超限或组件冲突拒绝重启时调用。
+pub type RestartAbandonedCallback = Arc<dyn Fn() + Send + Sync>;
+
+/// 组件 id 占用查询：返回 true 表示该 id 已被已注册组件占用。
+pub type ComponentIdTaken = Arc<dyn Fn(&str) -> bool + Send + Sync>;
+
+/// 组件 id 冲突预检输入（load / reload 共用）。
+///
+/// 由 src-tauri 构造后传入；重启路径的豁免集由 restart_loop 从旧注册快照自行计算，
+/// 不经过本结构体。
+pub struct ComponentIdPrecheck {
+    /// 占用查询：返回 true 表示该 id 已被已注册组件占用。
+    pub component_id_taken: ComponentIdTaken,
+    /// 豁免集：本次加载插件自身的组件 id（热重载时旧组件可能尚未从 CM 解注册，
+    /// 预检须排除自身，否则必然自碰撞误判）。初次加载/安装场景传空。
+    pub exempt_component_ids: Vec<String>,
+}
 
 /// 单个第三方插件的完整注册包。
 ///
@@ -59,6 +79,9 @@ struct PluginRestartContext {
     manifest: Manifest,
     plugin_dir: PathBuf,
     host_call_handler: Arc<dyn HostCallHandler>,
+    /// 组件 id 占用查询：返回 true 表示该 id 已被已注册组件占用。
+    /// 重启前用于冲突预检（与初次加载同一规则），避免重启后才发现碰撞。
+    component_id_taken: ComponentIdTaken,
     /// Clone of the crash notification channel sender, so re-spawned
     /// processes can use the same channel.
     crash_tx: mpsc::Sender<String>,
@@ -66,6 +89,8 @@ struct PluginRestartContext {
     /// the new adapters with ConfigManager and SessionRouter.
     /// Returns a future so the caller can avoid `block_on` and its `!Send` risks.
     on_restart: RestartCallback,
+    /// 放弃重启时调用：通知 src-tauri 解注册旧适配器（清理 CM/SR 残留）。
+    on_restart_abandoned: RestartAbandonedCallback,
     /// 持久化的重启计数器。每次重新生成前原子递增；
     /// 当达到 manifest.runtime.max_restart 时不再尝试重启。
     restart_count: AtomicU32,
@@ -111,6 +136,16 @@ pub enum PluginLoadError {
     AlreadyLoaded(String),
     #[error("plugin not found: {0}")]
     NotFound(String),
+    /// 组件 id 与已注册组件（内置或其他插件）冲突，插件加载被拒。
+    #[error(
+        "component id collision for plugin {plugin_id}: '{component_id}' is already registered"
+    )]
+    ComponentIdCollision {
+        /// 被拒绝加载的插件 id。
+        plugin_id: String,
+        /// 与已注册组件冲突的组件 id。
+        component_id: String,
+    },
 }
 
 impl PluginHostManager {
@@ -134,6 +169,8 @@ impl PluginHostManager {
         plugin_dir: &Path,
         host_call_handler: Arc<dyn HostCallHandler>,
         on_restart: RestartCallback,
+        on_restart_abandoned: RestartAbandonedCallback,
+        precheck: ComponentIdPrecheck,
     ) -> Result<PluginRegistration, PluginLoadError> {
         let manifest_path = plugin_dir.join("manifest.toml");
         let manifest_bytes = std::fs::read_to_string(&manifest_path)
@@ -199,8 +236,10 @@ impl PluginHostManager {
                 manifest: manifest.clone(),
                 plugin_dir: plugin_dir.to_path_buf(),
                 host_call_handler,
+                component_id_taken: precheck.component_id_taken.clone(),
                 crash_tx,
                 on_restart,
+                on_restart_abandoned,
                 restart_count: AtomicU32::new(0),
             }),
         );
@@ -236,6 +275,31 @@ impl PluginHostManager {
         // Build components from discovered components
         let adapters = build_components(&plugin_id, &manifest, client, &init_result);
 
+        // 冲突预检：组件 id 清单来自插件运行时自报（get_components RPC），
+        // 只能在 spawn 之后获得。这里在登记 hm.plugins 之前校验，
+        // 任一组件 id 与已注册组件冲突（排除 exempt_component_ids 中的自身 id）
+        // 则整包拒绝：关闭子进程并清理全部登记，避免「进程残留 + 半提交注册」。
+        let component_ids = adapters
+            .components
+            .iter()
+            .map(|c| c.component_id().to_string())
+            .collect::<Vec<_>>();
+        if let Some(collision) = find_component_id_collision(
+            &component_ids,
+            &precheck.exempt_component_ids,
+            precheck.component_id_taken.as_ref(),
+        ) {
+            error!(
+                "拒绝加载插件 {}：组件 id '{}' 已被其他已注册组件占用，清理进程并放弃加载",
+                plugin_id, collision
+            );
+            self.teardown(&plugin_id).await;
+            return Err(PluginLoadError::ComponentIdCollision {
+                plugin_id,
+                component_id: collision,
+            });
+        }
+
         // Clone before insert so the return value is ready without a second
         // DashMap lookup + 6 individual field clones.
         let registered = adapters.clone();
@@ -251,7 +315,15 @@ impl PluginHostManager {
     /// Unload a plugin: shutdown process and remove from registries.
     pub async fn unload(&self, plugin_id: &str) -> Result<(), PluginLoadError> {
         info!("Unloading plugin {}", plugin_id);
+        self.teardown(plugin_id).await;
+        Ok(())
+    }
 
+    /// 关闭插件子进程并从全部注册表移除（卸载与加载失败清理共用）。
+    ///
+    /// 若进程 Arc 无法独占（有泄漏的 clone），先标记 Stopped 让 watchdog
+    /// 不触发重启，再通过 PID 强制终止子进程，防止孤儿进程泄漏。
+    async fn teardown(&self, plugin_id: &str) {
         // shutdown() takes self (ownership), so we must unwrap the Arc.
         // If try_unwrap fails (Arc refcount > 1), log a warning — this
         // indicates the process Arc was cloned elsewhere, which shouldn't
@@ -270,7 +342,7 @@ impl PluginHostManager {
                     arc.state.write().clone_from(&ProcessState::Stopped);
                     // 通过 PID 强制终止子进程，防止孤儿进程泄漏
                     if let Some(pid) = arc.pid {
-                        crate::process::force_kill_process(pid);
+                        force_kill_process(pid);
                     }
                 }
             }
@@ -281,8 +353,6 @@ impl PluginHostManager {
         let log_file = self.log_dir_root.join(format!("{}.log", plugin_id));
         let _ = std::fs::remove_file(&log_file);
         self.restart_contexts.remove(plugin_id);
-
-        Ok(())
     }
 
     /// Reload a plugin (unload + load).
@@ -292,9 +362,18 @@ impl PluginHostManager {
         plugin_dir: &Path,
         host_call_handler: Arc<dyn HostCallHandler>,
         on_restart: RestartCallback,
+        on_restart_abandoned: RestartAbandonedCallback,
+        precheck: ComponentIdPrecheck,
     ) -> Result<PluginRegistration, PluginLoadError> {
         self.unload(plugin_id).await?;
-        self.load(plugin_dir, host_call_handler, on_restart).await
+        self.load(
+            plugin_dir,
+            host_call_handler,
+            on_restart,
+            on_restart_abandoned,
+            precheck,
+        )
+        .await
     }
 
     /// Build `InstalledPluginInfo` for all loaded adapters.
@@ -457,6 +536,26 @@ fn find_settings_value(
 
 // ─── build_components ───────────────────────────────────────────────
 
+/// 从组件 id 列表中找出第一个已被占用（与已注册组件冲突）的 id。
+///
+/// 仅在本模块加载（load）与崩溃重启（restart_loop）预检中使用；
+/// 返回 None 表示全部 id 可用。独立成纯函数便于单测。
+///
+/// `exempt_ids` 是本次加载插件自身的组件 id 豁免集：崩溃重启/热重载时
+/// 插件自身组件仍注册在 CM 中（解注册事件尚未到达或不会到达），
+/// 预检必须排除自身，否则必然自碰撞误判。
+fn find_component_id_collision(
+    component_ids: &[String],
+    exempt_ids: &[String],
+    component_id_taken: &dyn Fn(&str) -> bool,
+) -> Option<String> {
+    component_ids
+        .iter()
+        .filter(|id| !exempt_ids.contains(id))
+        .find(|id| component_id_taken(id))
+        .cloned()
+}
+
 /// 从 InitResult 构建所有 `RemoteComponent`。
 ///
 /// 每个组件统一构造为 `RemoteComponent`；种类专属数据（target_types、result_actions、
@@ -546,7 +645,17 @@ async fn restart_loop(
 
         // Remove old process and plugins
         processes.remove(&plugin_id);
-        plugins.remove(&plugin_id);
+        // 保留旧注册快照：崩溃时 CM 中插件自身组件尚未解注册（无 PluginUnloaded 发送点），
+        // 其组件 id 集作为预检豁免，避免「自身僵尸注册」被误判为他人占用。
+        let prev_component_ids: Vec<String> = plugins
+            .remove(&plugin_id)
+            .map(|(_, prev)| {
+                prev.components
+                    .iter()
+                    .map(|c| c.component_id().to_string())
+                    .collect()
+            })
+            .unwrap_or_default();
 
         // 取出 owned Arc：DashMap 读守卫仅在闭包内存活，map 返回即释放，
         // 不跨后续 spawn / discover / on_restart 的（可能耗时数秒的）.await。
@@ -569,6 +678,8 @@ async fn restart_loop(
                 "Plugin {} exceeded max restarts ({}/{}) — not restarting",
                 plugin_id, new_count, max_restart
             );
+            // 放弃重启：通知 src-tauri 解注册旧适配器，避免 CM/SR 残留僵尸组件
+            (ctx.on_restart_abandoned)();
             contexts.remove(&plugin_id);
             continue;
         }
@@ -598,6 +709,31 @@ async fn restart_loop(
                             new_process.client.clone(),
                             &init_result,
                         );
+                        // 冲突预检：重启前组件 id 可能已被其他插件占用
+                        // （崩溃窗口内新装的插件）；自身旧组件 id 在豁免集中，
+                        // 不会被误判。冲突则放弃重启并关闭刚 spawn 的进程，
+                        // 经 on_restart_abandoned 解注册 CM/SR 中的旧适配器。
+                        if let Some(collision) = find_component_id_collision(
+                            &new_adapters
+                                .components
+                                .iter()
+                                .map(|c| c.component_id().to_string())
+                                .collect::<Vec<_>>(),
+                            &prev_component_ids,
+                            ctx.component_id_taken.as_ref(),
+                        ) {
+                            error!(
+                                "插件 {} 重启被拒：组件 id '{}' 已被其他已注册组件占用，关闭进程并放弃重启",
+                                plugin_id, collision
+                            );
+                            new_process
+                                .shutdown(std::time::Duration::from_secs(5))
+                                .await;
+                            // 放弃重启：通知 src-tauri 解注册旧适配器，避免 CM/SR 残留僵尸组件
+                            (ctx.on_restart_abandoned)();
+                            contexts.remove(&plugin_id);
+                            continue;
+                        }
                         processes.insert(plugin_id.clone(), Arc::new(new_process));
                         plugins.insert(plugin_id.clone(), new_adapters.clone());
                         // Notify src-tauri so it can re-register the new adapters
@@ -609,14 +745,62 @@ async fn restart_loop(
                             "Failed to discover components after restart of {}: {}",
                             plugin_id, e
                         );
+                        // 关闭刚 spawn 的进程（防止孤儿进程存活），并解注册旧适配器
+                        new_process
+                            .shutdown(std::time::Duration::from_secs(5))
+                            .await;
+                        (ctx.on_restart_abandoned)();
                         contexts.remove(&plugin_id);
                     }
                 }
             }
             Err(e) => {
                 error!("Failed to restart plugin {}: {}", plugin_id, e);
+                // 进程未起来：仅需解注册旧适配器（CM/SR 残留清理）
+                (ctx.on_restart_abandoned)();
                 contexts.remove(&plugin_id);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::find_component_id_collision;
+
+    /// 冲突预检契约：返回第一个被占用的组件 id；全部可用时返回 None。
+    #[test]
+    fn collision_check_finds_first_taken_id() {
+        let ids = vec!["free".to_string(), "taken".to_string(), "other".to_string()];
+        let taken = |id: &str| id == "taken";
+        assert_eq!(
+            find_component_id_collision(&ids, &[], &taken),
+            Some("taken".to_string())
+        );
+    }
+
+    /// 无冲突时返回 None，加载/重启预检可放行。
+    #[test]
+    fn collision_check_returns_none_when_all_free() {
+        let ids = vec!["a".to_string(), "b".to_string()];
+        assert_eq!(find_component_id_collision(&ids, &[], &|_| false), None);
+    }
+
+    /// 豁免集契约：自身旧组件 id 在豁免集中时不被误判为他人占用
+    /// （崩溃重启/热重载时 CM 中自身组件尚未解注册）。
+    #[test]
+    fn collision_check_exempts_own_ids() {
+        let ids = vec!["own".to_string(), "other_taken".to_string()];
+        let taken = |id: &str| id == "own" || id == "other_taken";
+        // 自身 id 豁免 → 只报告他人占用
+        assert_eq!(
+            find_component_id_collision(&ids, &["own".to_string()], &taken),
+            Some("other_taken".to_string())
+        );
+        // 全部自身 id 豁免 → 无冲突
+        assert_eq!(
+            find_component_id_collision(&ids, &ids.clone(), &taken),
+            None
+        );
     }
 }

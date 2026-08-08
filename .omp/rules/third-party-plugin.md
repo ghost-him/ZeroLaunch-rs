@@ -37,6 +37,8 @@ scope: "tool:read(crates/plugin-protocol/**), tool:edit(crates/plugin-protocol/*
 
 - **spawn**：启动子进程 → `plugin/initialize` 握手 → `plugin/get_metadata` → `plugin/get_components`
 - **健康监控**：watchdog task 检测退出，`auto_restart=true` 时自动重启，上限 `max_restart`
+  - **重启前同样做组件 id 冲突预检**，且预检必须**豁免插件自身组件 id**（崩溃时 CM 中旧组件尚未解注册，自身僵尸注册 ≠ 他人占用，否则必然自碰撞误判）
+  - 放弃重启（max_restart 超限 / 冲突 / spawn / discover 失败）时必须调用 `on_restart_abandoned` 解注册 CM/SR 旧组件，并 shutdown 已 spawn 的进程
 - **优雅关闭**：`plugin/shutdown` → 等 5s → SIGKILL
 - **stderr 日志**：收集到 `plugin-logs/<plugin-id>.log`
 

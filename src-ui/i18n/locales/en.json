@@ -165,6 +165,7 @@
       "installSuccess": "Plugin installed successfully",
       "installFailed": "Install failed",
       "alreadyInstalled": "This plugin is already installed",
+      "componentIdCollision": "Component ID conflicts with an already registered component",
       "reloadSuccess": "Plugin reloaded",
       "reloadFailed": "Reload failed",
       "uninstallSuccess": "Plugin uninstalled",

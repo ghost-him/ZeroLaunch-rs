@@ -310,6 +310,8 @@ async function handleInstall() {
     const err = e as BridgeError
     if (err.code === 'ALREADY_INSTALLED') {
       message.warning(t('settings.thirdPartyPlugins.alreadyInstalled'))
+    } else if (err.code === 'COMPONENT_ID_COLLISION') {
+      message.error(t('settings.thirdPartyPlugins.componentIdCollision') + ': ' + err.componentId)
     } else {
       message.error(t('settings.thirdPartyPlugins.installFailed') + ': ' + errorText(e))
     }

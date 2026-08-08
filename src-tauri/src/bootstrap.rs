@@ -259,6 +259,12 @@ pub(crate) async fn init_app_state(
     let plugin_manager = Arc::new(PluginManager::new());
     plugin_manager.set_plugin_event_tx(plugin_event_tx);
     plugin_manager.set_host_api(host_api.clone());
+    // 装配组件 id 占用查询：第三方插件加载/重启前在 plugin-host 内做冲突预检
+    // （只读查询 CM，不破坏 PM→CM 事件解耦）。
+    let config_manager_for_checker = config_manager.clone();
+    plugin_manager.set_component_id_checker(Arc::new(move |id| {
+        config_manager_for_checker.find_configurable(id).is_some()
+    }));
     state.set_plugin_manager(plugin_manager.clone());
 
     // 将 config_manager 保存到 AppState（必须在 PluginManager 之后，因为 clone 语义）

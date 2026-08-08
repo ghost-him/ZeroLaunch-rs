@@ -1,6 +1,7 @@
 # 插件管理模型重写目标
 
-> 状态：目标文档（重写蓝图）。当前实现（2026-08-08 冲突预检下沉版）功能正确但复杂度失控，本文档记录"同等功能与职责、更简单实现"的重写目标与验收标准。重写落地前，当前实现按现状维护（含已修复项）。
+> 状态：**已落地（2026-08-08）**。本文档从蓝图转为落地记录；验收标准第 6/7 条已在代码中实现并验证（见末尾「落地记录」）。
+> 历史：本文档最初为重写蓝图（动机见 2026-08-08 审查报告），落地过程中按现状实现演进。
 
 ---
 
@@ -126,3 +127,21 @@
 - `third-party-plugin-architecture.md` — 第三方插件整体架构设想（本文档是其生命周期管理部分的演进目标）
 - `../dev/` 内置插件指南与 `.omp/rules/third-party-plugin.md` — 重写落地后需同步更新（自动重启契约、冲突预检描述、`zerolaunch-component-id-collision-terminal-state` 技能）
 - 审查报告 `.omp/skills/code-review/reports/code-review-2026-08-08-component-id-collision-precheck.md` — 本目标的动机与问题证据
+
+---
+
+## 9. 落地记录（2026-08-08）
+
+按本文档蓝图完成化简，验收标准全部达成：
+
+**动作 A（崩溃即解注册）**：`handle_crash`（`crates/plugin-host/src/manager.rs`）在崩溃处理第一步移除旧注册包并交还 src-tauri（`CrashCallback` → 发 `PluginUnloaded` + `host_api.unregister`），之后无论重启成败无残留。删除：`adapters_cache`、`RestartAbandonedCallback`/`on_restart_abandoned`/`make_restart_abandoned_callback`、放弃清理分支（max_restart/冲突/spawn/discover 失败路径不再需要单独清理）。
+
+**动作 B（预检数据源下沉）**：预检改查 `hm.plugins`（已加载第三方插件组件）+ 启动时注入的内置组件 id 快照（`set_builtin_component_ids`，src-tauri `init_host_manager` 从 `builtin_infos` 收集）。删除：`ComponentIdPrecheck`/`ComponentIdTaken`/`component_id_checker` 三件套、bootstrap 装配闭包、豁免集机制（reload/重启路径）。自碰撞在结构上不可能（自身组件预检时未登记）。
+
+**崩溃恢复复用 load()**：`restart_loop` 自由函数（含复制 spawn/discover/预检/登记逻辑）替换为 `crash_loop` + `handle_crash`——只保留解注册、计数/上限、触发，重启流程全部复用 `load()`（新增 `restart_count` 参数延续计数）。`PluginHostManager::new` 返回 `Arc<Self>` 并内置 `self_arc`（OnceLock）供内部任务调用。`spawn_crash_loop` 为同步包装：避免 load 的 future 状态机保守保留 async 闭包（load → crash_loop → handle_crash → load 间接递归）导致 Send 推断失败。
+
+**保留**：CM 整包预检兜底（并发竞态最终防线）、`register()` 查重、`PluginRuntimeEvent` 事件解耦、`ComponentIdCollision` 错误语义（保形映射）。
+
+**验证**：`cargo check --workspace` 零警告（含 clippy）；plugin-host 6 测试（3 单测 + 3 崩溃重启集成测试）、src-tauri 63 测试全绿；`check-deps-direction.sh`/`check-type-scope.sh` 通过。预存并发窗口（崩溃处理与 reload/install 并发操作 maps）未在本轮处理，与变更前同级别。
+
+**崩溃重启集成测试（新增）**：`crates/plugin-host/tests/crash_restart.rs` + `src/bin/fixture_plugin.rs`（最小 JSON-RPC fixture 插件）。用 taskkill 模拟崩溃走完整链路，覆盖：崩溃→重启成功且组件重注册（可重复）、max_restart 超限→放弃且登记清空、组件 id 冲突→load 被预检拒绝。**测试捕获并修复了一个化简引入的回归**：`handle_crash` 重构时丢失了重启成功后的 `on_restart(new_adapters)` 调用（旧 restart_loop 有此调用），导致崩溃重启后 src-tauri 收不到重注册通知——已恢复。

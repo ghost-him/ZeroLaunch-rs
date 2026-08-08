@@ -1,12 +1,12 @@
 //! PluginHostManager — top-level orchestration for third-party plugins.
 
 use dashmap::DashMap;
+use std::collections::HashSet;
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::Arc;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock, RwLock};
 use tokio::sync::mpsc;
 use tracing::{error, info, warn};
 
@@ -20,29 +20,15 @@ use crate::host_dispatch::HostCallHandler;
 use crate::process::force_kill_process;
 use crate::process::{PluginProcess, ProcessState};
 
-/// Type alias for the restart callback: receives newly registered adapters
-/// and returns a future that re-registers them with ConfigManager / SessionRouter.
+/// 重启回调类型别名：接收重新注册的适配器，
+/// 返回一个 future 用于把它们重新注册进 ConfigManager / SessionRouter。
 pub type RestartCallback =
     Arc<dyn Fn(PluginRegistration) -> Pin<Box<dyn Future<Output = ()> + Send>> + Send + Sync>;
 
-/// 放弃重启时的回调（无参、同步）：通知 src-tauri 从 adapters_cache 取旧快照
-/// 解注册 CM/SR 中的残留组件。在 max_restart 超限或组件冲突拒绝重启时调用。
-pub type RestartAbandonedCallback = Arc<dyn Fn() + Send + Sync>;
-
-/// 组件 id 占用查询：返回 true 表示该 id 已被已注册组件占用。
-pub type ComponentIdTaken = Arc<dyn Fn(&str) -> bool + Send + Sync>;
-
-/// 组件 id 冲突预检输入（load / reload 共用）。
-///
-/// 由 src-tauri 构造后传入；重启路径的豁免集由 restart_loop 从旧注册快照自行计算，
-/// 不经过本结构体。
-pub struct ComponentIdPrecheck {
-    /// 占用查询：返回 true 表示该 id 已被已注册组件占用。
-    pub component_id_taken: ComponentIdTaken,
-    /// 豁免集：本次加载插件自身的组件 id（热重载时旧组件可能尚未从 CM 解注册，
-    /// 预检须排除自身，否则必然自碰撞误判）。初次加载/安装场景传空。
-    pub exempt_component_ids: Vec<String>,
-}
+/// 崩溃即解注册回调：接收崩溃插件的旧注册包，通知 src-tauri 立即解注册
+/// CM/SR 中的组件并清理 HostApi 句柄。在崩溃处理的第一步调用，
+/// 与后续重启成败无关——放弃重启时不需要任何额外清理。
+pub type CrashCallback = Arc<dyn Fn(PluginRegistration) + Send + Sync>;
 
 /// 单个第三方插件的完整注册包。
 ///
@@ -79,18 +65,14 @@ struct PluginRestartContext {
     manifest: Manifest,
     plugin_dir: PathBuf,
     host_call_handler: Arc<dyn HostCallHandler>,
-    /// 组件 id 占用查询：返回 true 表示该 id 已被已注册组件占用。
-    /// 重启前用于冲突预检（与初次加载同一规则），避免重启后才发现碰撞。
-    component_id_taken: ComponentIdTaken,
-    /// Clone of the crash notification channel sender, so re-spawned
-    /// processes can use the same channel.
+    /// 崩溃通知通道发送端副本：重新拉起的进程沿用同一通道。
     crash_tx: mpsc::Sender<String>,
-    /// Called after a successful restart so src-tauri can re-register
-    /// the new adapters with ConfigManager and SessionRouter.
-    /// Returns a future so the caller can avoid `block_on` and its `!Send` risks.
+    /// 重启成功后调用：供 src-tauri 用新适配器重新注册
+    /// ConfigManager 与 SessionRouter。
+    /// 返回 future 使调用方可避免 `block_on` 及其 `!Send` 风险。
     on_restart: RestartCallback,
-    /// 放弃重启时调用：通知 src-tauri 解注册旧适配器（清理 CM/SR 残留）。
-    on_restart_abandoned: RestartAbandonedCallback,
+    /// 崩溃即解注册回调：崩溃处理第一步调用（旧注册包交还 src-tauri 清理 CM/SR）。
+    on_crash: CrashCallback,
     /// 持久化的重启计数器。每次重新生成前原子递增；
     /// 当达到 manifest.runtime.max_restart 时不再尝试重启。
     restart_count: AtomicU32,
@@ -123,6 +105,17 @@ pub struct PluginHostManager {
     plugins_dir: PathBuf,
     /// 每次加载插件时保存重启上下文，崩溃后可重新拉起。
     restart_contexts: Arc<DashMap<String, Arc<PluginRestartContext>>>,
+    /// 内置组件 id 集合（冲突预检数据源之一）。
+    ///
+    /// 由 src-tauri 在启动时注入一次（内置组件注册完毕、第三方加载之前）；
+    /// 前提是内置组件集合启动后稳定。RwLock 仅用于装配期一次性写入，
+    /// 预检读取为短临界区同步查询，不跨 .await。
+    builtin_component_ids: RwLock<HashSet<String>>,
+    /// 自引用 Arc：供内部崩溃处理任务（crash_loop/handle_crash）复用 load() 等 &self 方法。
+    ///
+    /// new() 构造时一次性写入，之后只读；不使用 RwLock 的原子自引模式
+    /// （AsyncDrop 竞态），OnceLock 在构造完成前无并发访问。
+    self_arc: OnceLock<Arc<Self>>,
 }
 
 /// Error type for plugin loading operations.
@@ -149,28 +142,60 @@ pub enum PluginLoadError {
 }
 
 impl PluginHostManager {
-    pub fn new(plugins_dir: PathBuf, data_dir_root: PathBuf, log_dir_root: PathBuf) -> Self {
-        Self {
+    pub fn new(plugins_dir: PathBuf, data_dir_root: PathBuf, log_dir_root: PathBuf) -> Arc<Self> {
+        let mgr = Arc::new(Self {
             processes: Arc::new(DashMap::new()),
             plugins: Arc::new(DashMap::new()),
             data_dir_root,
             log_dir_root,
             plugins_dir,
             restart_contexts: Arc::new(DashMap::new()),
+            builtin_component_ids: RwLock::new(HashSet::new()),
+            self_arc: OnceLock::new(),
+        });
+        if mgr.self_arc.set(Arc::clone(&mgr)).is_err() {
+            panic!("PluginHostManager self arc already set");
         }
+        mgr
     }
 
-    /// Load a plugin from a directory containing manifest.toml.
+    /// 注入内置组件 id 集合（冲突预检数据源）。
     ///
-    /// `on_restart` is stored and called after a successful crash re-spawn
-    /// so the caller (src-tauri) can re-register the new adapters.
+    /// 由 src-tauri 在内置组件注册完毕后调用一次；此后内置组件集合
+    /// 启动期稳定，不再更新。预检据此识别「与内置组件撞 id」。
+    pub fn set_builtin_component_ids(&self, ids: HashSet<String>) {
+        *self
+            .builtin_component_ids
+            .write()
+            .expect("builtin ids lock poisoned") = ids;
+    }
+
+    /// 启动崩溃处理任务。
+    ///
+    /// 同步包装：async 闭包在独立函数中构造并立即 move 进 tokio::spawn，
+    /// 避免 load 的 future 状态机保守保留该闭包（其内部 await crash_loop →
+    /// handle_crash → load 形成间接递归），导致 Send 推断失败。
+    fn spawn_crash_loop(&self, crash_rx: mpsc::Receiver<String>) {
+        let mgr = Arc::clone(self.self_arc.get().expect("self arc set in load"));
+        tokio::spawn(async move {
+            crash_loop(mgr, crash_rx).await;
+        });
+    }
+
+    /// 从包含 manifest.toml 的目录加载一个插件。
+    ///
+    /// `on_restart` 存入重启上下文，崩溃重启成功后被调用，
+    /// 供调用方（src-tauri）重新注册新适配器。
+    /// `on_crash` 在崩溃检测到的那一刻（任何重启尝试之前）以旧注册包调用，
+    /// 供调用方解注册 CM/SR 中的过期组件。
+    /// `restart_count` 为已发生的重启次数（初次加载传 0），用于延续崩溃恢复计数。
     pub async fn load(
         &self,
         plugin_dir: &Path,
         host_call_handler: Arc<dyn HostCallHandler>,
         on_restart: RestartCallback,
-        on_restart_abandoned: RestartAbandonedCallback,
-        precheck: ComponentIdPrecheck,
+        on_crash: CrashCallback,
+        restart_count: u32,
     ) -> Result<PluginRegistration, PluginLoadError> {
         let manifest_path = plugin_dir.join("manifest.toml");
         let manifest_bytes = std::fs::read_to_string(&manifest_path)
@@ -184,7 +209,7 @@ impl PluginHostManager {
 
         let plugin_id = manifest.plugin.id.clone();
 
-        // Check for duplicate
+        // 查重：已加载则拒绝
         if self.processes.contains_key(&plugin_id) {
             return Err(PluginLoadError::AlreadyLoaded(plugin_id));
         }
@@ -192,7 +217,7 @@ impl PluginHostManager {
         let data_dir = self.data_dir_root.join(&plugin_id);
         let log_dir = self.log_dir_root.clone();
 
-        // Ensure data directory exists
+        // 确保数据目录存在
         if let Err(e) = std::fs::create_dir_all(&data_dir) {
             warn!(
                 "Failed to create plugin data dir {}: {}",
@@ -210,11 +235,10 @@ impl PluginHostManager {
 
         info!("Loading plugin {} from {}", plugin_id, plugin_dir.display());
 
-        // Create a persistent crash notification channel.
-        // The manager owns the receiver; the sender is shared across re-spawns.
+        // 创建持久崩溃通知通道：管理器持有接收端，发送端跨多次重启共享。
         let (crash_tx, crash_rx) = mpsc::channel::<String>(4);
 
-        // Spawn process and run handshake
+        // 启动子进程并完成握手
         let process = PluginProcess::spawn(
             &manifest,
             plugin_dir,
@@ -222,73 +246,63 @@ impl PluginHostManager {
             &log_dir,
             host_call_handler.clone(),
             crash_tx.clone(),
-            0, // 初次启动，无先前重启记录
+            restart_count,
         )
         .await?;
 
-        // Extract the client before moving process into the Arc
+        // 在把进程移入 Arc 之前取出 client
         let client = process.client.clone();
 
-        // Store restart context for crash recovery
+        // 保存重启上下文，供崩溃恢复使用
         self.restart_contexts.insert(
             plugin_id.clone(),
             Arc::new(PluginRestartContext {
                 manifest: manifest.clone(),
                 plugin_dir: plugin_dir.to_path_buf(),
                 host_call_handler,
-                component_id_taken: precheck.component_id_taken.clone(),
                 crash_tx,
                 on_restart,
-                on_restart_abandoned,
-                restart_count: AtomicU32::new(0),
+                on_crash,
+                restart_count: AtomicU32::new(restart_count),
             }),
         );
 
-        // Spawn a listener task that re-loads the plugin on crash notification
-        let data_root = self.data_dir_root.clone();
-        let log_root = self.log_dir_root.clone();
-        let processes = self.processes.clone();
-        let plugins = self.plugins.clone();
-        let contexts = self.restart_contexts.clone();
-        tokio::spawn(async move {
-            restart_loop(crash_rx, processes, plugins, contexts, data_root, log_root).await;
-        });
+        // 启动崩溃监听任务：崩溃时重新加载该插件
+        self.spawn_crash_loop(crash_rx);
 
-        // Insert process into registry BEFORE discovery.
-        // This closes the restart window: if the plugin crashes during
-        // discover_components(), the watchdog can find the process entry
-        // and restart_loop will correctly handle the re-spawn.
+        // 在发现组件之前先登记进程，闭合重启窗口：
+        // 若插件在 discover_components() 期间崩溃，watchdog 能找到进程条目，
+        // 且 crash_loop 会正确处理重新拉起。
         let process = Arc::new(process);
         self.processes.insert(plugin_id.clone(), process.clone());
 
-        // Discover components (through the Arc — discover_components takes &self)
+        // 发现组件（经 Arc 调用——discover_components 取 &self）
         let init_result = match process.discover_components().await {
             Ok(result) => result,
             Err(e) => {
-                // Clean up on discovery failure
+                // 发现失败时清理登记
                 self.processes.remove(&plugin_id);
                 self.restart_contexts.remove(&plugin_id);
                 return Err(PluginLoadError::Protocol(e));
             }
         };
 
-        // Build components from discovered components
+        // 从发现的组件构建适配器
         let adapters = build_components(&plugin_id, &manifest, client, &init_result);
 
         // 冲突预检：组件 id 清单来自插件运行时自报（get_components RPC），
         // 只能在 spawn 之后获得。这里在登记 hm.plugins 之前校验，
-        // 任一组件 id 与已注册组件冲突（排除 exempt_component_ids 中的自身 id）
-        // 则整包拒绝：关闭子进程并清理全部登记，避免「进程残留 + 半提交注册」。
+        // 任一组件 id 与已加载插件或内置组件冲突则整包拒绝：
+        // 关闭子进程并清理全部登记，避免「进程残留 + 半提交注册」。
+        // 自身组件尚未登记进 plugins map，自碰撞在结构上不可能。
         let component_ids = adapters
             .components
             .iter()
             .map(|c| c.component_id().to_string())
             .collect::<Vec<_>>();
-        if let Some(collision) = find_component_id_collision(
-            &component_ids,
-            &precheck.exempt_component_ids,
-            precheck.component_id_taken.as_ref(),
-        ) {
+        if let Some(collision) =
+            find_component_id_collision(&component_ids, |id| self.component_id_is_taken(id))
+        {
             error!(
                 "拒绝加载插件 {}：组件 id '{}' 已被其他已注册组件占用，清理进程并放弃加载",
                 plugin_id, collision
@@ -300,16 +314,32 @@ impl PluginHostManager {
             });
         }
 
-        // Clone before insert so the return value is ready without a second
-        // DashMap lookup + 6 individual field clones.
+        // 先 clone 再登记，返回值无需二次 DashMap 查找 + 6 次字段克隆。
         let registered = adapters.clone();
         self.plugins.insert(plugin_id.clone(), adapters);
         Ok(registered)
     }
 
-    /// Returns the plugins installation directory (explicitly stored, not derived).
+    /// 返回插件安装目录（显式存储，非派生）。
     pub fn plugins_dir(&self) -> &Path {
         &self.plugins_dir
+    }
+
+    /// 组件 id 占用查询：已加载第三方插件的组件 或 内置组件集合命中即视为占用。
+    ///
+    /// 仅用于 load 冲突预检（同步短临界区，不跨 .await）；
+    /// 查询时自身组件尚未登记进 plugins map，故不会误判自碰撞。
+    fn component_id_is_taken(&self, id: &str) -> bool {
+        let taken_by_plugin = self
+            .plugins
+            .iter()
+            .any(|e| e.value().components.iter().any(|c| c.component_id() == id));
+        taken_by_plugin
+            || self
+                .builtin_component_ids
+                .read()
+                .map(|s| s.contains(id))
+                .unwrap_or(false)
     }
 
     /// Unload a plugin: shutdown process and remove from registries.
@@ -353,27 +383,6 @@ impl PluginHostManager {
         let log_file = self.log_dir_root.join(format!("{}.log", plugin_id));
         let _ = std::fs::remove_file(&log_file);
         self.restart_contexts.remove(plugin_id);
-    }
-
-    /// Reload a plugin (unload + load).
-    pub async fn reload(
-        &self,
-        plugin_id: &str,
-        plugin_dir: &Path,
-        host_call_handler: Arc<dyn HostCallHandler>,
-        on_restart: RestartCallback,
-        on_restart_abandoned: RestartAbandonedCallback,
-        precheck: ComponentIdPrecheck,
-    ) -> Result<PluginRegistration, PluginLoadError> {
-        self.unload(plugin_id).await?;
-        self.load(
-            plugin_dir,
-            host_call_handler,
-            on_restart,
-            on_restart_abandoned,
-            precheck,
-        )
-        .await
     }
 
     /// Build `InstalledPluginInfo` for all loaded adapters.
@@ -536,22 +545,16 @@ fn find_settings_value(
 
 // ─── build_components ───────────────────────────────────────────────
 
-/// 从组件 id 列表中找出第一个已被占用（与已注册组件冲突）的 id。
+/// 从组件 id 列表中找出第一个已被占用（与已加载插件或内置组件冲突）的 id。
 ///
-/// 仅在本模块加载（load）与崩溃重启（restart_loop）预检中使用；
-/// 返回 None 表示全部 id 可用。独立成纯函数便于单测。
-///
-/// `exempt_ids` 是本次加载插件自身的组件 id 豁免集：崩溃重启/热重载时
-/// 插件自身组件仍注册在 CM 中（解注册事件尚未到达或不会到达），
-/// 预检必须排除自身，否则必然自碰撞误判。
+/// 仅在本模块加载（load）预检中使用；返回 None 表示全部 id 可用。
+/// 独立成纯函数便于单测。
 fn find_component_id_collision(
     component_ids: &[String],
-    exempt_ids: &[String],
-    component_id_taken: &dyn Fn(&str) -> bool,
+    component_id_taken: impl Fn(&str) -> bool,
 ) -> Option<String> {
     component_ids
         .iter()
-        .filter(|id| !exempt_ids.contains(id))
         .find(|id| component_id_taken(id))
         .cloned()
 }
@@ -628,138 +631,81 @@ fn build_components(
     }
 }
 
-/// Background task that listens for crash notifications on `crash_rx`
-/// and triggers a re-spawn of the crashed plugin. This keeps restart
-/// logic contained within the manager.
-async fn restart_loop(
-    mut crash_rx: tokio::sync::mpsc::Receiver<String>,
-    processes: Arc<DashMap<String, Arc<PluginProcess>>>,
-    plugins: Arc<DashMap<String, PluginRegistration>>,
-    contexts: Arc<DashMap<String, Arc<PluginRestartContext>>>,
-    data_dir_root: PathBuf,
-    log_dir_root: PathBuf,
-) {
-    // 这个循环处理的是全已所有的崩溃事件。每当有插件崩溃时，watchdog 会通过 crash_tx 发送该插件的 ID 到 crash_rx。restart_loop 监听这个 channel，一旦收到崩溃通知，就会执行以下步骤：
+/// 崩溃处理主循环：监听 crash channel，串行处理每个崩溃事件。
+///
+/// 每次 load 创建新 channel 时 spawn 一个；channel 关闭（进程与上下文均销毁）即退出。
+async fn crash_loop(mgr: Arc<PluginHostManager>, mut crash_rx: mpsc::Receiver<String>) {
     while let Some(plugin_id) = crash_rx.recv().await {
-        warn!("Watchdog triggered restart for plugin: {}", plugin_id);
+        handle_crash(&mgr, &plugin_id).await;
+    }
+}
 
-        // Remove old process and plugins
-        processes.remove(&plugin_id);
-        // 保留旧注册快照：崩溃时 CM 中插件自身组件尚未解注册（无 PluginUnloaded 发送点），
-        // 其组件 id 集作为预检豁免，避免「自身僵尸注册」被误判为他人占用。
-        let prev_component_ids: Vec<String> = plugins
-            .remove(&plugin_id)
-            .map(|(_, prev)| {
-                prev.components
-                    .iter()
-                    .map(|c| c.component_id().to_string())
-                    .collect()
-            })
-            .unwrap_or_default();
+/// 处理单个插件崩溃：崩溃即解注册 → 计数/上限检查 → 复用 load() 重启。
+///
+/// 旧注册包在第一步交还 src-tauri 解注册（CM/SR/host_api），
+/// 之后无论重启成败都不再有残留，无需任何「放弃清理」路径。
+async fn handle_crash(mgr: &PluginHostManager, plugin_id: &str) {
+    warn!("Watchdog triggered restart for plugin: {}", plugin_id);
 
-        // 取出 owned Arc：DashMap 读守卫仅在闭包内存活，map 返回即释放，
-        // 不跨后续 spawn / discover / on_restart 的（可能耗时数秒的）.await。
-        let Some(ctx) = contexts.get(&plugin_id).map(|r| Arc::clone(r.value())) else {
-            warn!(
-                "Crash notification for plugin '{}' but no restart context found — \
-                 plugin may have been unloaded concurrently",
-                plugin_id
-            );
-            continue;
-        };
+    // 崩溃即解注册：从登记中移除旧进程与旧注册包，并把旧注册包
+    // 立即交还 src-tauri 清理 CM/SR/host_api。自身组件因此不再
+    // 出现在预检数据源中，后续 load 的重启预检不会自碰撞。
+    let prev = mgr.plugins.remove(plugin_id);
+    mgr.processes.remove(plugin_id);
 
-        // 原子递增持久化的重启计数器，并检查是否超出 max_restart。
-        // 这是**唯一**追踪重启次数的地方——不在看门狗或
-        // PluginProcess 中（它们每次重启都会被替换）。
-        let new_count = ctx.restart_count.fetch_add(1, Ordering::SeqCst) + 1;
-        let max_restart = ctx.manifest.runtime.max_restart;
-        if new_count > max_restart {
-            error!(
-                "Plugin {} exceeded max restarts ({}/{}) — not restarting",
-                plugin_id, new_count, max_restart
-            );
-            // 放弃重启：通知 src-tauri 解注册旧适配器，避免 CM/SR 残留僵尸组件
-            (ctx.on_restart_abandoned)();
-            contexts.remove(&plugin_id);
-            continue;
-        }
+    // 取出 owned Arc：DashMap 读守卫仅在闭包内存活，map 返回即释放，
+    // 不跨后续 load（可能耗时数秒）的 .await。
+    let Some(ctx) = mgr
+        .restart_contexts
+        .get(plugin_id)
+        .map(|r| Arc::clone(r.value()))
+    else {
+        warn!(
+            "Crash notification for plugin '{}' but no restart context found — \
+             plugin may have been unloaded concurrently",
+            plugin_id
+        );
+        return;
+    };
+    if let Some((_, prev)) = prev {
+        (ctx.on_crash)(prev);
+    }
 
-        let data_dir = data_dir_root.join(&plugin_id);
-        let log_dir = log_dir_root.clone();
-        let _ = std::fs::create_dir_all(&data_dir);
+    // 原子递增持久化的重启计数器，并检查是否超出 max_restart。
+    // 这是**唯一**追踪重启次数的地方——不在看门狗或
+    // PluginProcess 中（它们每次重启都会被替换）。
+    let new_count = ctx.restart_count.fetch_add(1, Ordering::SeqCst) + 1;
+    let max_restart = ctx.manifest.runtime.max_restart;
+    if new_count > max_restart {
+        error!(
+            "Plugin {} exceeded max restarts ({}/{}) — not restarting",
+            plugin_id, new_count, max_restart
+        );
+        mgr.restart_contexts.remove(plugin_id);
+        return;
+    }
 
-        match PluginProcess::spawn(
-            &ctx.manifest,
+    // 复用 load()：spawn/discover/预检/登记与初次加载同一路径，
+    // 失败路径由 load 自行清理（冲突/discover 失败会 teardown），
+    // 此处只需在 load 失败时移除旧上下文。
+    match mgr
+        .load(
             &ctx.plugin_dir,
-            &data_dir,
-            &log_dir,
             ctx.host_call_handler.clone(),
-            ctx.crash_tx.clone(),
+            ctx.on_restart.clone(),
+            ctx.on_crash.clone(),
             new_count,
         )
         .await
-        {
-            Ok(new_process) => {
-                // Discover components and rebuild adapters
-                match new_process.discover_components().await {
-                    Ok(init_result) => {
-                        let new_adapters = build_components(
-                            &plugin_id,
-                            &ctx.manifest,
-                            new_process.client.clone(),
-                            &init_result,
-                        );
-                        // 冲突预检：重启前组件 id 可能已被其他插件占用
-                        // （崩溃窗口内新装的插件）；自身旧组件 id 在豁免集中，
-                        // 不会被误判。冲突则放弃重启并关闭刚 spawn 的进程，
-                        // 经 on_restart_abandoned 解注册 CM/SR 中的旧适配器。
-                        if let Some(collision) = find_component_id_collision(
-                            &new_adapters
-                                .components
-                                .iter()
-                                .map(|c| c.component_id().to_string())
-                                .collect::<Vec<_>>(),
-                            &prev_component_ids,
-                            ctx.component_id_taken.as_ref(),
-                        ) {
-                            error!(
-                                "插件 {} 重启被拒：组件 id '{}' 已被其他已注册组件占用，关闭进程并放弃重启",
-                                plugin_id, collision
-                            );
-                            new_process
-                                .shutdown(std::time::Duration::from_secs(5))
-                                .await;
-                            // 放弃重启：通知 src-tauri 解注册旧适配器，避免 CM/SR 残留僵尸组件
-                            (ctx.on_restart_abandoned)();
-                            contexts.remove(&plugin_id);
-                            continue;
-                        }
-                        processes.insert(plugin_id.clone(), Arc::new(new_process));
-                        plugins.insert(plugin_id.clone(), new_adapters.clone());
-                        // Notify src-tauri so it can re-register the new adapters
-                        (ctx.on_restart)(new_adapters).await;
-                        info!("Plugin {} successfully restarted", plugin_id);
-                    }
-                    Err(e) => {
-                        error!(
-                            "Failed to discover components after restart of {}: {}",
-                            plugin_id, e
-                        );
-                        // 关闭刚 spawn 的进程（防止孤儿进程存活），并解注册旧适配器
-                        new_process
-                            .shutdown(std::time::Duration::from_secs(5))
-                            .await;
-                        (ctx.on_restart_abandoned)();
-                        contexts.remove(&plugin_id);
-                    }
-                }
-            }
-            Err(e) => {
-                error!("Failed to restart plugin {}: {}", plugin_id, e);
-                // 进程未起来：仅需解注册旧适配器（CM/SR 残留清理）
-                (ctx.on_restart_abandoned)();
-                contexts.remove(&plugin_id);
-            }
+    {
+        Ok(registered) => {
+            // 重启成功：通知 src-tauri 注册新适配器（旧组件已在崩溃第一步解注册）
+            (ctx.on_restart)(registered).await;
+            info!("Plugin {} successfully restarted", plugin_id);
+        }
+        Err(e) => {
+            error!("Failed to restart plugin {}: {}", plugin_id, e);
+            mgr.restart_contexts.remove(plugin_id);
         }
     }
 }
@@ -774,33 +720,15 @@ mod tests {
         let ids = vec!["free".to_string(), "taken".to_string(), "other".to_string()];
         let taken = |id: &str| id == "taken";
         assert_eq!(
-            find_component_id_collision(&ids, &[], &taken),
+            find_component_id_collision(&ids, taken),
             Some("taken".to_string())
         );
     }
 
-    /// 无冲突时返回 None，加载/重启预检可放行。
+    /// 无冲突时返回 None，加载预检可放行。
     #[test]
     fn collision_check_returns_none_when_all_free() {
         let ids = vec!["a".to_string(), "b".to_string()];
-        assert_eq!(find_component_id_collision(&ids, &[], &|_| false), None);
-    }
-
-    /// 豁免集契约：自身旧组件 id 在豁免集中时不被误判为他人占用
-    /// （崩溃重启/热重载时 CM 中自身组件尚未解注册）。
-    #[test]
-    fn collision_check_exempts_own_ids() {
-        let ids = vec!["own".to_string(), "other_taken".to_string()];
-        let taken = |id: &str| id == "own" || id == "other_taken";
-        // 自身 id 豁免 → 只报告他人占用
-        assert_eq!(
-            find_component_id_collision(&ids, &["own".to_string()], &taken),
-            Some("other_taken".to_string())
-        );
-        // 全部自身 id 豁免 → 无冲突
-        assert_eq!(
-            find_component_id_collision(&ids, &ids.clone(), &taken),
-            None
-        );
+        assert_eq!(find_component_id_collision(&ids, |_| false), None);
     }
 }

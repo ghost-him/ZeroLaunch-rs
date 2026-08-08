@@ -348,7 +348,7 @@ impl PluginProcess {
     /// - 如果状态已经是 `Stopped`（优雅关闭），静默返回。
     /// - 如果 `auto_restart=false`，将状态设为 `Stopped` 并返回。
     /// - 否则，将 `plugin_id` 发到 `crash_tx` 上，通知 `PluginHostManager`
-    ///   重新拉起。管理者（`restart_loop`）负责追踪重启次数和强制
+    ///   重新拉起。管理者（crash_loop）负责追踪重启次数和强制
     ///   `max_restart` 上限。
     pub fn spawn_watchdog(&self) {
         let plugin_id = self.plugin_id.clone();
@@ -400,7 +400,7 @@ impl PluginProcess {
             }
 
             // 记录崩溃（仅用于观测）并通知管理者。
-            // restart_loop 通过 PluginRestartContext 追踪持久化计数
+            // crash_loop 通过 PluginRestartContext 追踪持久化计数
             // 并强制 max_restart 上限——看门狗只负责检测。
             *state.write() = ProcessState::Crashed {
                 restarts: restart_count + 1,

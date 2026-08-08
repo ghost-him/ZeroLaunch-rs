@@ -466,15 +466,20 @@ impl ConfigManager {
     pub fn handle_plugin_event(&self, event: &PluginRuntimeEvent) {
         match event {
             PluginRuntimeEvent::PluginLoaded(adapters) => {
-                // 兜底防线：主冲突预检已下沉到 plugin-host 的 load/restart_loop
+                // 兜底防线：主冲突预检已下沉到 plugin-host 的 load/crash_loop
                 // （组件清单到手后、登记前拒绝并关进程）。此处防的是未来新增的
                 // 加载路径漏检，或插件间竞态（预检与注册之间插入其他插件）。
                 // 任一组件与已注册组件撞 id 则拒绝整个插件，避免
                 // 「部分组件注册成功、路由已建但配置缺失」的半提交状态。
+                //
+                // 注意：命中此处**不必然**表示预检有缺陷——预检是同步快照、
+                // 注册是异步事件，两者之间并发加载同 id 插件会正常触发本分支；
+                // 排查时应先排除「并发安装/重载同 id 插件」再怀疑预检漏检。
                 for c in &adapters.components {
                     if let Some(existing) = self.registry.get(c.component_id()) {
                         error!(
-                            "拒绝注册插件 {}：组件 id '{}' 与已注册组件（{}）冲突，插件整体跳过",
+                            "拒绝注册插件 {}：组件 id '{}' 与已注册组件（{}）冲突，插件整体跳过\
+                             （兜底命中：竞态窗口或预检漏检，见 handle_plugin_event 注释）",
                             adapters.plugin_id,
                             c.component_id(),
                             existing.component_name()

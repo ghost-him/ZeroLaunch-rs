@@ -22,3 +22,9 @@ futures.workspace = true
 regex.workspace = true
 toml.workspace = true
 semver.workspace = true
+
+# 崩溃重启集成测试插件（fixture）：源码随插件目录存放，
+# 产物名 fixture_plugin，测试经 env!("CARGO_BIN_EXE_fixture_plugin") 引用。
+[[bin]]
+name = "fixture_plugin"
+path = "tests/fixtures/crash-restart-plugin/src/main.rs"

@@ -1,0 +1,23 @@
+# ZeroLaunch 第三方插件 manifest —— 崩溃重启集成测试插件
+#
+# 完整插件布局（源码态）：manifest.toml + src/main.rs（cargo [[bin]] 编译，
+# 见 Cargo.toml）。运行时（tests/crash_restart.rs）把编译产物复制为
+# bin/fixture_plugin.exe（发布态布局），并改写 plugin.id / runtime.maxRestart。
+# 其余字段保持原样。
+
+[plugin]
+id = "com.example.crash-restart-fixture"
+name = "Crash Restart Fixture"
+version = "1.0.0"
+description = "崩溃重启集成测试插件：声明一个 Plugin 组件，无配置项"
+author = "zerolaunch"
+minHostVersion = "1.0.0"
+
+[runtime]
+command = "./bin/fixture_plugin.exe"
+startupTimeout = 10
+autoRestart = true
+maxRestart = 3
+
+[components]
+provides = ["plugin"]

@@ -1,5 +1,5 @@
 <template>
-  <div class="component-config-loader">
+  <div class="component-config-loader" :class="{ 'is-loaded': isLoaded }">
     <div v-if="loading" class="loading-state">
       <n-spin :size="20" />
     </div>
@@ -51,6 +51,13 @@ const settingsComponent = computed(() =>
   pluginStore.getSettingsComponent(props.component.componentId),
 )
 let unlistenConfig: (() => void) | null = null
+
+/** 已渲染出可配置内容（DynamicForm 或第三方设置页）时撑满父容器，
+ *  使 DynamicForm 内部的 .form-groups 在高度受限时能滚动，而不是被父级裁剪。 */
+const isLoaded = computed(
+  () => !loading.value && !loadErr.value && !!settings.value
+    && (!!settingsComponent.value || !!schema.value),
+)
 
 async function onThirdPartySave(newSettings: unknown) {
   try {

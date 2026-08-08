@@ -42,3 +42,6 @@ code-review*.md
 
 # CodeGraph 索引目录（自动生成，不提交）
 .codegraph/
+
+tmp_edge_profile
+tmp_resultlist_repro.html

@@ -201,9 +201,7 @@
     "themeSystem": "Follow System",
     "themeLight": "Light",
     "themeDark": "Dark",
-    "language": "Language",
-    "languageZh": "简体中文",
-    "languageEn": "English"
+    "language": "Language"
   },
   "contextMenu": {
     "execute": "Execute",

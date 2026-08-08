@@ -5,7 +5,12 @@ import { configGetSettings, configApplySettings } from '@/bridge/commands'
 import { applyAppearanceSettings, extractPlaceholder } from '@/utils/appearance'
 
 export type ThemeMode = 'system' | 'light' | 'dark'
-export type Locale = 'zh-Hans' | 'en'
+export type Locale = 'zh-Hans' | 'zh-Hant' | 'en'
+
+/** 将后端下发的语言值归一化为受支持的语言代码（后端已校验合法值，此处仅兜底） */
+function normalizeLocale(lang: unknown): Locale {
+  return lang === 'en' || lang === 'zh-Hant' ? lang : 'zh-Hans'
+}
 
 function detectSystemPreference(): boolean {
   try {
@@ -77,9 +82,7 @@ export const useThemeStore = defineStore('theme', () => {
       const s = settings as Record<string, unknown> | undefined
       const t = (s?.theme as ThemeMode | undefined) ?? 'system'
       themeMode.value = t
-      if (s?.language === 'en') {
-        lang = 'en'
-      }
+      lang = normalizeLocale(s?.language)
       locale.value = lang
 
       // 应用外观 CSS 变量并同步响应式状态
@@ -113,7 +116,7 @@ export const useThemeStore = defineStore('theme', () => {
       await applyNaiveTheme()
     }
 
-    const l = settings.language === 'en' ? 'en' : 'zh-Hans'
+    const l = normalizeLocale(settings.language)
     const langChanged = l !== locale.value
     if (langChanged) {
       locale.value = l

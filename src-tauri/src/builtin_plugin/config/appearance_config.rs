@@ -339,7 +339,12 @@ impl Configurable for AppearanceConfigComponent {
             SchemaBuilder::select("language", "语言", "界面显示语言")
                 .group("theme")
                 .order(1)
-                .options(&["zh-Hans", "zh-Hant", "en"])
+                // 语言选项固定显示各语言自身名称（符合语言选择器惯例，不随界面语言翻译）
+                .options_with_labels(&[
+                    ("zh-Hans", "简体中文"),
+                    ("zh-Hant", "繁體中文"),
+                    ("en", "English"),
+                ])
                 .default("zh-Hans")
                 .build(),
             // ---- 搜索栏 ----

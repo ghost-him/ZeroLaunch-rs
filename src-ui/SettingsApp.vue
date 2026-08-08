@@ -22,7 +22,7 @@ import {
 } from 'naive-ui'
 import { useThemeStore } from './stores/theme-store'
 import { configGetSettings } from './bridge/commands'
-import { i18n } from './i18n'
+import { i18n, setLocale } from './i18n'
 import { onConfigChanged } from './bridge/events'
 import SettingsView from './views/SettingsView.vue'
 
@@ -39,6 +39,7 @@ onMounted(async () => {
       const settings = s as Record<string, unknown>
       const result = await themeStore.applyRemoteSettings(settings)
       if (result.langChanged) {
+        setLocale(result.newLang)
         naiveLocale.value = result.newLang === 'en' ? enUS : zhCN
       }
     }).catch(() => {})

@@ -23,7 +23,7 @@ import {
 import { useThemeStore } from './stores/theme-store'
 import { useConfigStore } from './stores/config-store'
 import { configGetSettings } from './bridge/commands'
-import { i18n } from './i18n'
+import { i18n, setLocale } from './i18n'
 import { onConfigChanged } from './bridge/events'
 
 const themeStore = useThemeStore()
@@ -42,6 +42,7 @@ onMounted(async () => {
       const settings = s as Record<string, unknown>
       const result = await themeStore.applyRemoteSettings(settings)
       if (result.langChanged) {
+        setLocale(result.newLang)
         naiveLocale.value = result.newLang === 'en' ? enUS : zhCN
       }
     }).catch(() => {})

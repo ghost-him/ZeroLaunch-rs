@@ -57,3 +57,10 @@ export function onInspectorStateUpdated(
     callback()
   })
 }
+
+/** 后端唤出搜索栏窗口时推送（热键/托盘）。前端据此恢复输入焦点——窗口隐藏再显示时 DOM 焦点保留在旧元素上，需显式归还给搜索框。 */
+export function onShowWindow(callback: () => void): Promise<UnlistenFn> {
+  return listen('show_window', () => {
+    callback()
+  })
+}

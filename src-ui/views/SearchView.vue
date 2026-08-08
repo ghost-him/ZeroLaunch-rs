@@ -73,7 +73,7 @@ import { useSearchStore } from '../stores/search-store'
 import { useKeyboardRouter } from '../composables/useKeyboardRouter'
 import { useWindowResize } from '../composables/useWindowResize'
 import ParamPanel from '../components/search/ParamPanel.vue'
-import { onConfigChanged, onInstallationEvent } from '../bridge/events'
+import { onConfigChanged, onInstallationEvent, onShowWindow } from '../bridge/events'
 import { registerErrorHandler, configGetSettings } from '../bridge/commands'
 import type { BridgeError } from '../bridge/commands'
 
@@ -121,6 +121,7 @@ function onCtxClose() {
 
 let unlistenConfig: (() => void) | null = null
 let unlistenInstall: (() => void) | null = null
+let unlistenShowWindow: (() => void) | null = null
 
 onMounted(async () => {
   // 注册全局错误处理器（必须在 n-notification-provider 后代中调用）
@@ -155,11 +156,20 @@ onMounted(async () => {
   unlistenInstall = await onInstallationEvent(() => {
     searchStore.fetchCandidatesCount()
   })
+
+  // 窗口每次被唤出时恢复输入框焦点：隐藏再显示时 DOM 焦点保留在旧元素（如 footer），
+  // 不恢复则键盘输入无效，必须手动点击输入框。
+  unlistenShowWindow = await onShowWindow(() => {
+    nextTick(() => {
+      searchBarRef.value?.focusInput()
+    })
+  })
 })
 
 onUnmounted(() => {
   unlistenConfig?.()
   unlistenInstall?.()
+  unlistenShowWindow?.()
 })
 </script>
 

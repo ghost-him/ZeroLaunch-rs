@@ -4,7 +4,7 @@ use tauri::{
     image::Image,
     menu::{CheckMenuItem, Menu, MenuBuilder, MenuItem},
     tray::{TrayIcon, TrayIconBuilder, TrayIconEvent},
-    App, AppHandle, Manager, Runtime,
+    App, AppHandle, Emitter, Manager, Runtime,
 };
 use tracing::{debug, error, info, warn};
 
@@ -89,6 +89,7 @@ impl TrayManager {
                     } else {
                         let _ = window.show();
                         let _ = window.set_focus();
+                        let _ = window.emit("show_window", ());
                     }
                 }
             }

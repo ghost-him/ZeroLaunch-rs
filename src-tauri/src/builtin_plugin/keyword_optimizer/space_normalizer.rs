@@ -1,4 +1,5 @@
 use crate::core::config::setting_builders::SchemaBuilder;
+use crate::utils::collapse_repeated_spaces;
 use async_trait::async_trait;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
@@ -34,32 +35,8 @@ impl SpaceNormalizerSettings {
     }
 
     /// Removes leading spaces and collapses consecutive spaces into a single space.
-    fn remove_repeated_space(&self, input_text: &str) -> String {
-        let mut result = String::new();
-        let mut is_space = false;
-
-        for c in input_text.chars() {
-            if c != ' ' {
-                result.push(c);
-                is_space = false;
-            } else if !is_space && !result.is_empty() {
-                result.push(c);
-                is_space = true;
-            } else {
-                is_space = true;
-            }
-        }
-
-        if result.ends_with(' ') {
-            result.pop();
-        }
-
-        result
-    }
-
-    /// Normalizes whitespace in the keyword. Returns an empty Vec if the result equals the original.
     fn optimize(&self, keyword: &str) -> Vec<String> {
-        let result = self.remove_repeated_space(keyword);
+        let result = collapse_repeated_spaces(keyword);
         if result.is_empty() || result == keyword {
             Vec::new()
         } else {

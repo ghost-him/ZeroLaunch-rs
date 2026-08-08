@@ -5,7 +5,8 @@ use zerolaunch_plugin_api::config::{
     ComponentCore, ComponentType, Configurable, SettingDefinition,
 };
 use zerolaunch_plugin_api::{
-    CachedCandidateData, ScoreDetail, ScoredCandidate, SearchCandidate, SearchEngine,
+    CachedCandidateData, ScoreDetail, ScoreDetailKind, ScoredCandidate, SearchCandidate,
+    SearchEngine,
 };
 
 /// 标准搜索引擎
@@ -96,6 +97,7 @@ fn calculate_candidate_score(candidate: &SearchCandidate, user_input: &str) -> S
             score: edit_distance_score,
             weight: 1.0,
             description: "编辑距离基础分".to_string(),
+            kind: ScoreDetailKind::Add,
         });
 
         let mut score = edit_distance_score;
@@ -115,6 +117,7 @@ fn calculate_candidate_score(candidate: &SearchCandidate, user_input: &str) -> S
             score: length_ratio_adjustment,
             weight: 1.0,
             description: "长度比率调整".to_string(),
+            kind: ScoreDetailKind::Multiply,
         });
 
         // 3. 动态溢出惩罚
@@ -130,6 +133,7 @@ fn calculate_candidate_score(candidate: &SearchCandidate, user_input: &str) -> S
             score: overflow_penalty,
             weight: 1.0,
             description: "溢出惩罚".to_string(),
+            kind: ScoreDetailKind::Multiply,
         });
 
         // 4. 子集匹配分
@@ -139,6 +143,7 @@ fn calculate_candidate_score(candidate: &SearchCandidate, user_input: &str) -> S
             score: subset_score,
             weight: 1.0,
             description: "子集匹配分".to_string(),
+            kind: ScoreDetailKind::Add,
         });
 
         // 5. KMP 首字符+子串匹配分
@@ -148,6 +153,7 @@ fn calculate_candidate_score(candidate: &SearchCandidate, user_input: &str) -> S
             score: kmp_score,
             weight: 1.0,
             description: "KMP匹配分".to_string(),
+            kind: ScoreDetailKind::Add,
         });
 
         // 6. 固定偏移
@@ -156,6 +162,7 @@ fn calculate_candidate_score(candidate: &SearchCandidate, user_input: &str) -> S
                 score: candidate.bias,
                 weight: 1.0,
                 description: "固定偏移".to_string(),
+                kind: ScoreDetailKind::Add,
             });
         }
         score += candidate.bias;
@@ -173,6 +180,7 @@ fn calculate_candidate_score(candidate: &SearchCandidate, user_input: &str) -> S
             score: candidate.bias,
             weight: 1.0,
             description: "固定偏移(无匹配)".to_string(),
+            kind: ScoreDetailKind::Add,
         }];
     }
 

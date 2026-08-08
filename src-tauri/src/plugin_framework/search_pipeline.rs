@@ -21,19 +21,32 @@ impl SearchPipeline {
         }
     }
 
+    /// 执行搜索并截断到 top_k。
+    /// 参数：candidates - 候选项缓存；query - 已预处理的查询词。
+    /// 返回：按分数降序排列、截断后的 ScoredCandidate 列表。
     pub fn search(&self, candidates: &CachedCandidateData, query: &str) -> Vec<ScoredCandidate> {
-        let mut scored = self.engine.calculate_scores(candidates, query);
+        self.search_all(candidates, query)
+            .into_iter()
+            .take(self.top_k)
+            .collect()
+    }
 
-        if scored.is_empty() {
-            return Vec::new();
-        }
+    /// 执行全量搜索（不截断 top_k），供调试详情等需要观察完整排序的场景使用。
+    /// 参数：candidates - 候选项缓存；query - 已预处理的查询词。
+    /// 返回：按分数降序排列的完整 ScoredCandidate 列表。
+    pub fn search_all(
+        &self,
+        candidates: &CachedCandidateData,
+        query: &str,
+    ) -> Vec<ScoredCandidate> {
+        let mut scored = self.engine.calculate_scores(candidates, query);
 
         for booster in &self.boosters {
             booster.boost(&mut scored, candidates, query);
         }
 
         scored.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap());
-        scored.into_iter().take(self.top_k).collect()
+        scored
     }
 
     /// 获取当前 top_k 值

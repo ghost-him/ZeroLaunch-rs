@@ -150,6 +150,22 @@ pub struct SearchCandidate {
     pub trigger_keywords: Vec<String>,
 }
 
+/// 分数明细的计入方式 —— 标识该项是加权加分还是乘法系数。
+///
+/// 跨 IPC 序列化，由引擎/增强器构造，前端按 kind 渲染明细形态：
+/// 加法项显示 `score × weight = 乘积`，乘法项显示 `× 系数`，
+/// 避免把乘法系数误读为加分项导致总分无法核对。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum ScoreDetailKind {
+    /// 加权加分项：该项的 score × weight 计入总分（默认）。
+    #[default]
+    #[serde(rename = "add")]
+    Add,
+    /// 乘法系数项：该项的 score 乘到当前累计分数上（如长度比率、溢出惩罚、抑制因子）。
+    #[serde(rename = "multiply")]
+    Multiply,
+}
+
 // 这个是一个搜索候选项的详细分数
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScoreDetail {
@@ -162,6 +178,9 @@ pub struct ScoreDetail {
     // 这个是什么分，以及这个分的来源
     #[serde(rename = "description")]
     pub description: String,
+    // 该项的计入方式：add = 加权加分，multiply = 乘法系数
+    #[serde(rename = "kind", default)]
+    pub kind: ScoreDetailKind,
 }
 
 // 这个是一个搜索候选项的分数
@@ -173,7 +192,8 @@ pub struct ScoredCandidate {
     // 表示该候选项的分数
     #[serde(rename = "score")]
     pub score: f64,
-    //表示该候选项得来的详细的分数, score = sum(detailed_score * detailed_weight)
+    //表示该候选项得来的详细的分数：加法项按 sum(score × weight) 计入，
+    //乘法项按系数乘入（引擎先乘系数再加加法项，增强器仅产出加法项）
     #[serde(rename = "detailedScore")]
     pub detailed_score: Vec<ScoreDetail>,
 }

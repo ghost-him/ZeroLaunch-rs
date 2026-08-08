@@ -6,7 +6,7 @@ use crate::commands::bridge_error::{BridgeError, WithTraceId};
 use crate::state::app_state::AppState;
 use serde::Serialize;
 use std::sync::Arc;
-use zerolaunch_plugin_api::QueryChannel;
+use zerolaunch_plugin_api::{QueryChannel, ScoreDetail};
 
 // ---- 响应类型 ----
 
@@ -43,8 +43,14 @@ pub struct SearchDetailItem {
     pub score: f64,
     #[serde(rename = "targetType")]
     pub target_type: String,
+    /// 启动目标文本（路径/命令等），用于调试页识别具体候选项。
+    #[serde(rename = "targetText")]
+    pub target_text: String,
     #[serde(rename = "keywords")]
     pub keywords: Vec<String>,
+    /// 分数分解明细（引擎 + 各 ScoreBooster 填充），逐条含分数、权重与描述。
+    #[serde(rename = "detailedScore")]
+    pub detailed_score: Vec<ScoreDetail>,
 }
 
 // ---- 命令 ----
@@ -139,7 +145,8 @@ pub async fn debug_search_detail(
     }
 
     let session_dispatcher = state.get_session_dispatcher();
-    let scored = session_dispatcher.debug_search(&query);
+    // 全量评分（不截断 top_k），复现旧版调试页"观察所有候选分数分解"的能力
+    let scored = session_dispatcher.debug_search_all(&query);
 
     let items: Vec<SearchDetailItem> = scored
         .into_iter()
@@ -152,7 +159,9 @@ pub async fn debug_search_detail(
                 name: candidate.name.clone(),
                 score: sc.score,
                 target_type: candidate.target.target_type().as_str().to_string(),
+                target_text: candidate.target.payload().to_string(),
                 keywords: candidate.keywords.clone(),
+                detailed_score: sc.detailed_score,
             })
         })
         .collect();

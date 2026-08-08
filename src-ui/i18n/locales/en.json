@@ -228,5 +228,29 @@
     "resultCount": "Results",
     "durationMs": "Duration (ms)",
     "owner": "Owner"
+  },
+  "debug": {
+    "searchTime": "Search Performance Test",
+    "searchTimePlaceholder": "Enter query...",
+    "run": "Run",
+    "duration": "Duration",
+    "totalCandidates": "Total Candidates",
+    "resultCount": "Result Count",
+    "indexTime": "Index Performance Test",
+    "runIndex": "Run Index",
+    "keywordGen": "Keyword Generation",
+    "namePlaceholder": "Enter program name...",
+    "generate": "Generate",
+    "searchDetail": "Search Detail",
+    "search": "Search",
+    "colRank": "#",
+    "colId": "ID",
+    "colName": "Name",
+    "colScore": "Total Score",
+    "colType": "Type",
+    "colTarget": "Target",
+    "colKeywords": "Keywords",
+    "detailExpandTitle": "Score Breakdown ({count} items, total {score})",
+    "detailHint": "× is a multiplier applied to the accumulated result of the additive terms above"
   }
 }

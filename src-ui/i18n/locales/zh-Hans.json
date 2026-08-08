@@ -228,5 +228,29 @@
     "resultCount": "结果数",
     "durationMs": "耗时(ms)",
     "owner": "归属"
+  },
+  "debug": {
+    "searchTime": "搜索性能测试",
+    "searchTimePlaceholder": "输入查询词...",
+    "run": "运行",
+    "duration": "耗时",
+    "totalCandidates": "候选总数",
+    "resultCount": "结果数",
+    "indexTime": "索引性能测试",
+    "runIndex": "运行索引",
+    "keywordGen": "搜索关键字生成",
+    "namePlaceholder": "输入程序名称...",
+    "generate": "生成",
+    "searchDetail": "搜索匹配详情",
+    "search": "搜索",
+    "colRank": "#",
+    "colId": "ID",
+    "colName": "名称",
+    "colScore": "总分",
+    "colType": "类型",
+    "colTarget": "目标",
+    "colKeywords": "关键词",
+    "detailExpandTitle": "分数分解（共 {count} 项，总分 {score}）",
+    "detailHint": "× 为乘法系数：乘到上方加分项的累计结果上"
   }
 }

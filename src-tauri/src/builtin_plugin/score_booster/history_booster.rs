@@ -10,7 +10,7 @@ use zerolaunch_plugin_api::config::{
     ComponentCore, ComponentType, ConfigError, Configurable, SettingDefinition,
 };
 use zerolaunch_plugin_api::{
-    CachedCandidateData, CandidateId, ScoreBooster, ScoreDetail, ScoredCandidate,
+    CachedCandidateData, CandidateId, ScoreBooster, ScoreDetail, ScoreDetailKind, ScoredCandidate,
 };
 
 /// 历史记录增强器的强类型配置结构。
@@ -296,21 +296,25 @@ impl ScoreBooster for HistoryBooster {
                 score: history_score,
                 weight: settings.history_weight,
                 description: "历史启动分数".to_string(),
+                kind: ScoreDetailKind::Add,
             });
             candidate.detailed_score.push(ScoreDetail {
                 score: recent_habit_score,
                 weight: settings.recent_habit_weight,
                 description: "近期习惯分数".to_string(),
+                kind: ScoreDetailKind::Add,
             });
             candidate.detailed_score.push(ScoreDetail {
                 score: temporal_score,
                 weight: settings.temporal_weight,
                 description: "短期热度分数".to_string(),
+                kind: ScoreDetailKind::Add,
             });
             candidate.detailed_score.push(ScoreDetail {
                 score: suppression_factor,
                 weight: 1.0,
                 description: "基础分抑制因子".to_string(),
+                kind: ScoreDetailKind::Multiply,
             });
         }
     }

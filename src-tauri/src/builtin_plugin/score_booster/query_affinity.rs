@@ -9,7 +9,7 @@ use zerolaunch_plugin_api::config::{
     ComponentCore, ComponentType, ConfigError, Configurable, SettingDefinition,
 };
 use zerolaunch_plugin_api::{
-    CachedCandidateData, CandidateId, ScoreBooster, ScoreDetail, ScoredCandidate,
+    CachedCandidateData, CandidateId, ScoreBooster, ScoreDetail, ScoreDetailKind, ScoredCandidate,
 };
 
 /// 查询亲和度数据
@@ -288,6 +288,7 @@ impl ScoreBooster for QueryAffinityBooster {
                 score: affinity_score,
                 weight: settings.query_affinity_weight,
                 description: "查询亲和分数".to_string(),
+                kind: ScoreDetailKind::Add,
             });
         }
     }

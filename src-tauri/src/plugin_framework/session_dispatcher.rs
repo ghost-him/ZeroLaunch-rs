@@ -34,6 +34,7 @@ use super::session_state::{
 use crate::core::config::bias_settings::{bias_settings_to_rules, BiasSettings};
 use crate::core::config::{ConfigEvent, ConfigManager};
 use crate::sdk::HostApi;
+use crate::utils::collapse_repeated_spaces;
 
 /// 调度器内部错误类型。
 /// 仅在 plugin_framework 层内部使用，不暴露到 IPC 边界；
@@ -450,7 +451,7 @@ impl SessionDispatcher {
     // ==================== 调试入口 ====================
 
     /// 调试用：对缓存候选项运行搜索并返回评分结果（已排序 top_k）。
-    /// 参数：query - 原始查询文本（内部转为小写匹配）。
+    /// 参数：query - 原始查询文本（内部转为小写并折叠连续空格后匹配）。
     /// 返回：评分排序后的候选项列表；搜索管道未初始化时为空。
     pub fn debug_search(&self, query: &str) -> Vec<zerolaunch_plugin_api::ScoredCandidate> {
         let cached = self.cached_candidates.read();
@@ -458,7 +459,21 @@ impl SessionDispatcher {
         let Some(pipeline) = pipeline_guard.as_ref() else {
             return Vec::new();
         };
-        pipeline.search(&cached, &query.to_lowercase())
+        let normalized = collapse_repeated_spaces(&query.to_lowercase());
+        pipeline.search(&cached, &normalized)
+    }
+
+    /// 调试用：对缓存候选项运行全量搜索（不截断 top_k），供分数分解观察。
+    /// 参数：query - 原始查询文本（内部转为小写并折叠连续空格后匹配）。
+    /// 返回：完整评分排序后的候选项列表；搜索管道未初始化时为空。
+    pub fn debug_search_all(&self, query: &str) -> Vec<zerolaunch_plugin_api::ScoredCandidate> {
+        let cached = self.cached_candidates.read();
+        let pipeline_guard = self.search_pipeline.read();
+        let Some(pipeline) = pipeline_guard.as_ref() else {
+            return Vec::new();
+        };
+        let normalized = collapse_repeated_spaces(&query.to_lowercase());
+        pipeline.search_all(&cached, &normalized)
     }
 
     /// 调试用：对给定名称生成关键字列表（采集管道 DataSource 能力）。
@@ -648,7 +663,8 @@ impl SessionDispatcher {
                     plugin_id: None,
                 });
             };
-            let scored_candidates = pipeline.search(&cached, &query.search_term);
+            let normalized = collapse_repeated_spaces(&query.search_term);
+            let scored_candidates = pipeline.search(&cached, &normalized);
 
             // 提交门控（与插件分支一致）：搜索计算期间若有同通道更新的查询进入后端，
             // 本查询已过期，丢弃结果——过期返回空结果优于返回过期数据（CLI 并发/排队

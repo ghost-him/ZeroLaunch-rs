@@ -9,5 +9,5 @@ pub use types::{
     KeywordInjector, KeywordOptimizer, ListItem, PanelInteraction, PanelKeyAction, PanelKeyBinding,
     PanelQueryTrigger, PluginContext, PluginError, PluginMetadata, Query, QueryChannel,
     QueryResponse, QueryRevisionGate, RegistrationError, ResultAction, ScoreBooster, ScoreDetail,
-    ScoredCandidate, SearchCandidate, SearchEngine, TargetType,
+    ScoreDetailKind, ScoredCandidate, SearchCandidate, SearchEngine, TargetType,
 };

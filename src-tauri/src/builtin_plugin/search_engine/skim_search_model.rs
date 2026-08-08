@@ -6,7 +6,8 @@ use zerolaunch_plugin_api::config::{
     ComponentCore, ComponentType, Configurable, SettingDefinition,
 };
 use zerolaunch_plugin_api::{
-    CachedCandidateData, ScoreDetail, ScoredCandidate, SearchCandidate, SearchEngine,
+    CachedCandidateData, ScoreDetail, ScoreDetailKind, ScoredCandidate, SearchCandidate,
+    SearchEngine,
 };
 
 /// Skim 搜索引擎
@@ -108,6 +109,7 @@ fn calculate_skim_score(
                 score: fuzzy_score,
                 weight: 1.0,
                 description: "Skim 模糊匹配分".to_string(),
+                kind: ScoreDetailKind::Add,
             });
 
             if fuzzy_score > best_score {
@@ -123,12 +125,14 @@ fn calculate_skim_score(
             score: candidate.bias,
             weight: 1.0,
             description: "固定偏移(无匹配)".to_string(),
+            kind: ScoreDetailKind::Add,
         }];
     } else if candidate.bias.abs() > f64::EPSILON {
         best_details.push(ScoreDetail {
             score: candidate.bias,
             weight: 1.0,
             description: "固定偏移".to_string(),
+            kind: ScoreDetailKind::Add,
         });
         best_score += candidate.bias;
     }

@@ -4,7 +4,8 @@ use zerolaunch_plugin_api::config::{
     ComponentCore, ComponentType, Configurable, SettingDefinition,
 };
 use zerolaunch_plugin_api::{
-    CachedCandidateData, ScoreDetail, ScoredCandidate, SearchCandidate, SearchEngine,
+    CachedCandidateData, ScoreDetail, ScoreDetailKind, ScoredCandidate, SearchCandidate,
+    SearchEngine,
 };
 
 /// 这个文件是以LaunchyQT的搜索模型为基础进行的改造
@@ -99,6 +100,7 @@ fn calculate_launchy_score(candidate: &SearchCandidate, user_input: &str) -> Sco
                 score: 0.0,
                 weight: 1.0,
                 description: "空输入".to_string(),
+                kind: ScoreDetailKind::Add,
             }],
         };
     }
@@ -114,6 +116,7 @@ fn calculate_launchy_score(candidate: &SearchCandidate, user_input: &str) -> Sco
                 score: EXACT_MATCH_BASE_SCORE,
                 weight: 1.0,
                 description: "精确匹配".to_string(),
+                kind: ScoreDetailKind::Add,
             });
         } else if let Some(start_index) = keyword.to_lowercase().find(&user_input.to_lowercase()) {
             const CONTIGUOUS_MATCH_BASE_SCORE: f64 = 10_000.0;
@@ -123,11 +126,13 @@ fn calculate_launchy_score(candidate: &SearchCandidate, user_input: &str) -> Sco
                 score: CONTIGUOUS_MATCH_BASE_SCORE,
                 weight: 1.0,
                 description: "连续子串匹配".to_string(),
+                kind: ScoreDetailKind::Add,
             });
             details.push(ScoreDetail {
                 score: -position_penalty,
                 weight: 1.0,
                 description: "位置惩罚".to_string(),
+                kind: ScoreDetailKind::Add,
             });
         } else {
             let mut compare_chars = HashMap::with_capacity(keyword.len());
@@ -153,6 +158,7 @@ fn calculate_launchy_score(candidate: &SearchCandidate, user_input: &str) -> Sco
                     score: SUBSET_MATCH_BASE_SCORE,
                     weight: 1.0,
                     description: "子集匹配".to_string(),
+                    kind: ScoreDetailKind::Add,
                 });
             }
         }
@@ -164,6 +170,7 @@ fn calculate_launchy_score(candidate: &SearchCandidate, user_input: &str) -> Sco
                 score: length_bonus,
                 weight: 1.0,
                 description: "名称长度加成".to_string(),
+                kind: ScoreDetailKind::Add,
             });
         }
 
@@ -179,12 +186,14 @@ fn calculate_launchy_score(candidate: &SearchCandidate, user_input: &str) -> Sco
             score: candidate.bias,
             weight: 1.0,
             description: "固定偏移(无匹配)".to_string(),
+            kind: ScoreDetailKind::Add,
         }];
     } else if candidate.bias.abs() > f64::EPSILON {
         best_details.push(ScoreDetail {
             score: candidate.bias,
             weight: 1.0,
             description: "固定偏移".to_string(),
+            kind: ScoreDetailKind::Add,
         });
         best_score += candidate.bias;
     }

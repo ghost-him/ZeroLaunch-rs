@@ -340,5 +340,19 @@ export interface SearchDetailItem {
   name: string
   score: number
   targetType: string
+  targetText: string
   keywords: string[]
+  detailedScore: ScoreDetail[]
+}
+
+/** 单条分数分解明细：引擎或 ScoreBooster 计算的一项分数及其权重。 */
+export interface ScoreDetail {
+  /** 该项的原始分数（未乘权重）。 */
+  score: number
+  /** 该项的权重系数（add 项与 score 相乘后计入总分；multiply 项为乘到累计分上的系数）。 */
+  weight: number
+  /** 该项分数来源描述（如"编辑距离基础分"、"查询亲和分数"）。 */
+  description: string
+  /** 计入方式：add = 加权加分项；multiply = 乘法系数项（如长度比率、溢出惩罚、抑制因子）。 */
+  kind: 'add' | 'multiply'
 }

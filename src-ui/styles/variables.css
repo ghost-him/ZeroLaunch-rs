@@ -42,6 +42,10 @@
   /* Increased for breathing room */
   --result-item-height: 54px;
   --result-item-icon-size: 32px;
+  /* 结果项底部间距：ResultItem margin-bottom 与 ResultList 高度公式共用，防止两者失配 */
+  --result-item-gap: 2px;
+  /* 单条结果占位（高 + 间距）：ResultList 高度公式与滚动网格的单一真源，随上两者自动派生 */
+  --result-item-pitch: calc(var(--result-item-height) + var(--result-item-gap));
   /* Slightly taller for breathing room */
   --footer-height: 48px;
   /* Increased for breathing room */

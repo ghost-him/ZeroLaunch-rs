@@ -78,7 +78,7 @@ function onContextMenu(e: MouseEvent) {
   align-items: center;
   gap: 16px; /* Increased gap for breathing room */
   padding: 8px 16px; /* Larger padding */
-  margin-bottom: 2px; /* Slight separation */
+  margin-bottom: var(--result-item-gap); /* Slight separation */
   border-radius: var(--radius-md); /* Softer corners */
   cursor: pointer;
   transition: all 0.2s ease; /* Smoother transition */

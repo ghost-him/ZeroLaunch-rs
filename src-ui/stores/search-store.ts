@@ -518,12 +518,17 @@ export const useSearchStore = defineStore('search', () => {
   }
 
   function selectNext() {
-    if (results.value.length === 0) return
-    selectedIndex.value = Math.min(selectedIndex.value + 1, results.value.length - 1)
+    const n = results.value.length
+    if (n === 0) return
+    // 循环导航：到底自动回到开头（对齐老版 main_search_shortcut_handler 的取模语义）
+    selectedIndex.value = (selectedIndex.value + 1) % n
   }
 
   function selectPrev() {
-    selectedIndex.value = Math.max(selectedIndex.value - 1, 0)
+    const n = results.value.length
+    if (n === 0) return
+    // 循环导航：到顶自动回到末尾
+    selectedIndex.value = (selectedIndex.value - 1 + n) % n
   }
 
   async function refreshCandidates(): Promise<number> {

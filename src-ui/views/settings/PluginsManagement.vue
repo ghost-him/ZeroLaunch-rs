@@ -2,11 +2,10 @@
 import { h, ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
-  NButton, NDataTable, NTag, NSpace, NText, NModal, NSwitch, NIcon, NTooltip,
-  NCode, NSpin, NEmpty, useMessage,
+  NButton, NDataTable, NTag, NSpace, NText, NModal, NSwitch,
+  NCode, NSpin, NEmpty, NAlert, useMessage,
 } from 'naive-ui'
 import type { DataTableColumn } from 'naive-ui'
-import { CircleHelp } from 'lucide-vue-next'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import {
@@ -119,25 +118,12 @@ const columns: DataTableColumn<PluginRow>[] = [
     },
   },
   { title: () => t('settings.thirdPartyPlugins.colName'), key: 'name' },
-  { title: () => t('settings.thirdPartyPlugins.colVersion'), key: 'version', width: 90, align: 'right' },
-  { title: () => t('settings.thirdPartyPlugins.colAuthor'), key: 'author', width: 120, align: 'right' },
+  { title: () => t('settings.thirdPartyPlugins.colVersion'), key: 'version', width: 90 },
+  { title: () => t('settings.thirdPartyPlugins.colAuthor'), key: 'author', width: 120 },
   {
-    title: () =>
-      h(
-        'div',
-        { style: 'display: flex; align-items: center; justify-content: flex-end; gap: 4px;' },
-        [
-          t('settings.thirdPartyPlugins.colState'),
-          h(NTooltip, { placement: 'top' }, {
-            trigger: () =>
-              h(NIcon, { size: 14, style: 'cursor: help;' }, { default: () => h(CircleHelp) }),
-            default: () => t('settings.thirdPartyPlugins.stateHint'),
-          }),
-        ],
-      ),
+    title: () => t('settings.thirdPartyPlugins.colState'),
     key: 'state',
     width: 90,
-    align: 'right',
     render(row) {
       if (row.kind === 'builtin') {
         // 内置插件编译在程序内，运行状态恒为运行中；启用开关独立反映组件的 enabled 状态
@@ -158,6 +144,7 @@ const columns: DataTableColumn<PluginRow>[] = [
     title: () => t('settings.thirdPartyPlugins.colEnabled'),
     key: 'enabled',
     width: 70,
+    align: 'center',
     render(row) {
       return h(NSwitch, {
         value: row.enabled,
@@ -187,6 +174,7 @@ const columns: DataTableColumn<PluginRow>[] = [
           }, { default: () => t('settings.thirdPartyPlugins.logs') }),
           h(NButton, {
             size: 'small',
+            disabled: true,
             onClick: () => handleReload(row.plugin!.pluginId),
           }, { default: () => t('settings.thirdPartyPlugins.reload') }),
           h(NButton, {
@@ -255,6 +243,10 @@ async function setupDragDrop() {
 
 /** 校验拖入路径：多文件时优先取第一个 .zip，其余忽略；单个目录直接放行（后端校验 manifest）。 */
 function handleDroppedPaths(paths: string[]) {
+  // 当前版本暂不支持第三方插件安装，拦截拖入；恢复安装时删除下面两行守卫即可
+  message.warning(t('settings.thirdPartyPlugins.installNotSupported'))
+  return
+
   const zipPaths = paths.filter((p) => p.toLowerCase().endsWith('.zip'))
   const chosen = zipPaths[0] ?? (paths.length === 1 ? paths[0] : null)
   if (!chosen) {
@@ -392,12 +384,21 @@ onUnmounted(() => {
 
 <template>
   <div class="plugins-management">
+    <!-- 当前版本暂不支持第三方插件安装：入口置灰 + 拖拽拦截，仅保留已装插件管理 -->
+    <NAlert
+      type="warning"
+      style="margin-bottom: 16px;"
+      :show-icon="true"
+    >
+      {{ t('settings.thirdPartyPlugins.installNotSupported') }}
+    </NAlert>
+
     <NSpace style="margin-bottom: 16px;" align="center">
       <NText tag="h2" style="margin: 0;">{{ t('settings.thirdPartyPlugins.title') }}</NText>
-      <NButton type="primary" @click="handleChooseZip">
+      <NButton type="primary" disabled @click="handleChooseZip">
         {{ t('settings.thirdPartyPlugins.installFromFile') }}
       </NButton>
-      <NButton secondary @click="handleChooseDir">
+      <NButton secondary disabled @click="handleChooseDir">
         {{ t('settings.thirdPartyPlugins.installFromDir') }}
       </NButton>
     </NSpace>
@@ -405,7 +406,7 @@ onUnmounted(() => {
     <!-- 拖拽安装区（拖放事件为 webview 级，仅本组件挂载期间监听） -->
     <div class="drop-zone" :class="{ dragging: isDragging }">
       <NText depth="3">{{ t('settings.thirdPartyPlugins.dropHint') }}</NText>
-      <NButton size="small" secondary @click="handleChooseZip">
+      <NButton size="small" secondary disabled @click="handleChooseZip">
         {{ t('settings.thirdPartyPlugins.chooseFile') }}
       </NButton>
     </div>

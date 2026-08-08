@@ -151,6 +151,7 @@
     "detailExcluded": "排除",
     "thirdPartyPlugins": {
       "title": "插件管理",
+      "installNotSupported": "当前版本暂时不支持第三方插件的安装，还需要后续的调试与优化",
       "installFromFile": "从本地文件安装",
       "installDialogTitle": "安装插件",
       "dropHint": "将 .zip 插件包或插件目录拖到此处",
@@ -184,7 +185,6 @@
       "colVersion": "版本",
       "colAuthor": "作者",
       "colState": "状态",
-      "stateHint": "内置插件编译在程序内，始终处于运行状态；第三方插件显示其子进程的实时状态",
       "colEnabled": "启用",
       "colActions": "操作",
       "stateRunning": "运行中",

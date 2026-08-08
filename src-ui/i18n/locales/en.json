@@ -151,6 +151,7 @@
     "detailExcluded": "Exclude",
     "thirdPartyPlugins": {
       "title": "Plugins",
+      "installNotSupported": "Third-party plugin installation is not supported in this version; it requires further debugging and optimization",
       "installFromFile": "Install from local file",
       "installDialogTitle": "Install Plugin",
       "dropHint": "Drop a .zip plugin package or plugin directory here",
@@ -184,7 +185,6 @@
       "colVersion": "Version",
       "colAuthor": "Author",
       "colState": "State",
-      "stateHint": "Built-in plugins are compiled into the app and always running; third-party plugins show their live child-process status",
       "colEnabled": "Enabled",
       "colActions": "Actions",
       "stateRunning": "Running",

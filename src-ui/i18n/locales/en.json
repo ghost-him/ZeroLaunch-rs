@@ -99,6 +99,7 @@
     "scoreBooster": "Score Boosters",
     "actionExecutor": "Action Executors",
     "noComponents": "No available components",
+    "noConfigurableFields": "This component has no configurable settings",
     "selectComponent": "Select a component from the left to view settings",
     "core": "Core",
     "saveSuccess": "Settings saved",

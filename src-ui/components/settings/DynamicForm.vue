@@ -12,7 +12,7 @@
     <n-alert v-else-if="schemaError" type="warning">
       {{ $t('settings.schemaBuildFailed', { error: schemaError }) }}
     </n-alert>
-    <div v-else class="form-groups">
+    <div v-else-if="hasFields" class="form-groups">
       <FormSection
         v-for="group in groupedFields"
         :key="group.name"
@@ -29,8 +29,11 @@
         />
       </FormSection>
     </div>
+    <div v-else class="empty-hint">
+      <n-text depth="3">{{ $t('settings.noConfigurableFields') }}</n-text>
+    </div>
 
-    <div v-if="schemaSupported && !schemaError" class="form-actions">
+    <div v-if="schemaSupported && !schemaError && hasFields" class="form-actions">
       <n-button
         v-if="commitPolicy === 'staged'"
         type="primary"
@@ -106,6 +109,9 @@ const fieldConfigResult = computed<{ fields: FieldConfig[]; error: string | null
 })
 const fields = computed(() => fieldConfigResult.value.fields)
 const schemaError = computed(() => fieldConfigResult.value.error)
+
+/** 是否存在可见的可配置字段；无字段时展示空态提示并隐藏操作按钮。 */
+const hasFields = computed(() => fields.value.length > 0)
 
 /** 记录无法构建字段配置的 schema 错误。 */
 watch(schemaError, (error) => {
@@ -256,5 +262,13 @@ onUnmounted(() => {
   border-top: 1px solid var(--border-color);
   background-color: var(--bg-color);
   flex-shrink: 0;
+}
+.empty-hint {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 0;
 }
 </style>

@@ -49,6 +49,9 @@ pub enum ErrorCode {
     ActionFailed,
     #[serde(rename = "PLUGIN_ERROR")]
     PluginError,
+    /// 插件已存在（安装时同名插件已安装）——由 PluginManagerError::AlreadyInstalled 经 From 转换产生，前端按 code 展示「该插件已安装」。
+    #[serde(rename = "ALREADY_INSTALLED")]
+    AlreadyInstalled,
     #[serde(rename = "CONFIG_ERROR")]
     ConfigError,
     #[serde(rename = "NETWORK_ERROR")]
@@ -65,6 +68,7 @@ impl fmt::Display for ErrorCode {
             ErrorCode::ValidationFailed => write!(f, "VALIDATION_FAILED"),
             ErrorCode::ActionFailed => write!(f, "ACTION_FAILED"),
             ErrorCode::PluginError => write!(f, "PLUGIN_ERROR"),
+            ErrorCode::AlreadyInstalled => write!(f, "ALREADY_INSTALLED"),
             ErrorCode::ConfigError => write!(f, "CONFIG_ERROR"),
             ErrorCode::NetworkError => write!(f, "NETWORK_ERROR"),
             ErrorCode::InternalError => write!(f, "INTERNAL_ERROR"),
@@ -155,6 +159,13 @@ impl From<PluginManagerError> for BridgeError {
                 BridgeError::not_found(&msg)
             }
             PluginManagerError::UnsupportedFormat(msg) => BridgeError::validation_failed(msg),
+            PluginManagerError::AlreadyInstalled(id) => BridgeError {
+                code: ErrorCode::AlreadyInstalled,
+                message: format!("插件已安装: {}", id),
+                details: None,
+                component_id: None,
+                trace_id: String::new(),
+            },
             PluginManagerError::Internal(msg) => BridgeError::internal(msg),
         }
     }

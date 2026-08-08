@@ -326,6 +326,11 @@ impl PluginHostManager {
                     state: process_state,
                     enabled,
                     priority,
+                    component_ids: plugin_registration
+                        .components
+                        .iter()
+                        .map(|c| c.component_id().to_string())
+                        .collect(),
                 }
             })
             .collect();
@@ -353,6 +358,9 @@ pub struct InstalledPluginInfo {
     pub enabled: bool,
     #[serde(rename = "priority")]
     pub priority: u32,
+    /// 该插件注册的组件 id 列表（前端据此关联 ConfigManager 中的组件配置）。
+    #[serde(rename = "componentIds", default)]
+    pub component_ids: Vec<String>,
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────

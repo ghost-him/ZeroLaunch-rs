@@ -118,19 +118,29 @@ pub async fn plugin_set_enabled(
     tracing::Span::current().record("trace_id", trace_id.as_str());
     let pm = state.get_plugin_manager();
     let cm = state.get_config_manager();
+    let dispatcher = state.get_session_dispatcher();
     let hm = pm.host_manager();
 
-    // 第三方插件：为每个组件设置 enabled
+    // 先持久化全部组件，全部成功后才同步触发词索引：
+    // 任一步持久化失败时命令返回 Err 且路由索引零变更（配置与路由不分叉）。
     if let Some(plugin) = hm.plugins.get(&plugin_id) {
+        // 第三方插件：遍历其所有 Configurable 逐个调用 CM.set_enabled()。
         for c in &plugin.components {
             cm.set_enabled(c.component_id(), enabled)
                 .with_trace_id(&trace_id)?;
         }
-        return Ok(());
+    } else {
+        // 内置组件：直接按 plugin_id 调用 CM.set_enabled()。
+        cm.set_enabled(&plugin_id, enabled)
+            .with_trace_id(&trace_id)?;
     }
 
-    // 内置组件：直接按 ID 设置
-    cm.set_enabled(&plugin_id, enabled).with_trace_id(&trace_id)
+    // 全部持久化成功后同步触发词索引（第三方组件 id 可能与 plugin_id 不一致，
+    // EnabledChanged 事件按组件 id 处理无法命中，这里按 plugin_id 直调兜底；
+    // 内置组件 component_id == plugin_id，事件异步到达后为幂等重入）。
+    dispatcher.set_plugin_enabled(&plugin_id, enabled);
+
+    Ok(())
 }
 
 /// 获取插件 stderr 日志的最近 N 行。

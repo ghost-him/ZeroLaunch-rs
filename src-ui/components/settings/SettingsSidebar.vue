@@ -3,14 +3,13 @@
     <n-menu
       :options="menuOptions"
       :value="selectedId"
-      :default-expanded-keys="expandedKeys"
       @update:value="onSelect"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { NMenu } from 'naive-ui'
 import type { MenuOption } from 'naive-ui'
 import type { SidebarCategory } from '../../utils/settingsSidebar'
@@ -25,24 +24,12 @@ const emit = defineEmits<{
   (e: 'select', key: string): void
 }>()
 
-const expandedKeys = ref<string[]>(['category_plugins'])
-
 const menuOptions = computed<MenuOption[]>(() => {
-  return props.sidebarItems.map(item => {
-    const opt: MenuOption = {
-      label: item.label,
-      key: item.key,
-      icon: renderSidebarIcon(item.icon)
-    }
-    if (item.items && item.items.length > 0) {
-      opt.children = item.items.map(subItem => ({
-        label: subItem.label,
-        key: subItem.key,
-        icon: renderSidebarIcon(subItem.icon)
-      }))
-    }
-    return opt
-  })
+  return props.sidebarItems.map(item => ({
+    label: item.label,
+    key: item.key,
+    icon: renderSidebarIcon(item.icon)
+  }))
 })
 
 function onSelect(key: string) {

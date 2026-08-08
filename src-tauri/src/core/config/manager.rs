@@ -60,6 +60,18 @@ impl ConfigManager {
         let id = component.component_id().to_string();
         let component_type = component.component_type();
 
+        // 查重：同一 component_id 只允许注册一次。跨插件组件 id 碰撞时，
+        // 直接 insert 会静默覆盖先注册者的配置（settings/enabled 键同 id），
+        // 这里拒绝并报错；第三方插件加载路径在 handle_plugin_event 中整包预检，
+        // 此处为兜底防线（内置注册、自声明重复 id 等所有路径统一生效）。
+        if self.registry.get(&id).is_some() {
+            error!(
+                "拒绝注册重复组件 id: {}（已存在同名组件，跳过本次注册）",
+                id
+            );
+            return;
+        }
+
         if let Err(error) = component.settings_contribution() {
             error!("拒绝注册（配置 schema 无效）: {} - {}", id, error);
             return;
@@ -454,6 +466,20 @@ impl ConfigManager {
     pub fn handle_plugin_event(&self, event: &PluginRuntimeEvent) {
         match event {
             PluginRuntimeEvent::PluginLoaded(adapters) => {
+                // 整包预检组件 id 冲突：任一组件与已注册组件撞 id 则拒绝整个插件，
+                // 避免「部分组件注册成功、路由已建但配置缺失」的半提交状态
+                // （与注册触发词时的全量冲突预检同一模式）。
+                for c in &adapters.components {
+                    if let Some(existing) = self.registry.get(c.component_id()) {
+                        error!(
+                            "拒绝注册插件 {}：组件 id '{}' 与已注册组件（{}）冲突，插件整体跳过",
+                            adapters.plugin_id,
+                            c.component_id(),
+                            existing.component_name()
+                        );
+                        return;
+                    }
+                }
                 for c in &adapters.components {
                     self.register(c.clone());
                 }
@@ -520,4 +546,155 @@ fn strip_transient_fields(
     }
 
     serde_json::Value::Object(object)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+    use zerolaunch_plugin_api::config::{ComponentCore, SettingDefinition};
+    use zerolaunch_plugin_api::plugin::PluginMetadata;
+    use zerolaunch_plugin_host::adapter::remote_component::{RemoteComponent, RemoteComponentKind};
+    use zerolaunch_plugin_host::client::JsonRpcClient;
+    use zerolaunch_plugin_host::manager::PluginRegistration;
+    use zerolaunch_plugin_protocol::manifest::{Manifest, PluginSection};
+
+    /// 测试用最小 Configurable —— 仅承载身份元数据，空 schema 与空设置。
+    ///
+    /// 仅限本文件（manager.rs 测试模块）内使用，
+    /// 用于验证注册查重与第三方插件整包拒绝逻辑。
+    struct StubComponent {
+        /// 组件 ID、名称、类型等元数据。
+        core: ComponentCore,
+    }
+    impl Configurable for StubComponent {
+        fn core(&self) -> &ComponentCore {
+            &self.core
+        }
+        fn setting_schema(&self) -> Vec<SettingDefinition> {
+            vec![]
+        }
+        fn get_settings(&self) -> serde_json::Value {
+            json!({})
+        }
+    }
+
+    /// 注册查重契约：同一 component_id 第二次注册被拒绝，先注册者不被覆盖。
+    #[test]
+    fn register_rejects_duplicate_component_id() {
+        let cm = ConfigManager::new(std::env::temp_dir().join("zl-duplicate-register-test"));
+        let first: Arc<dyn Configurable> = Arc::new(StubComponent {
+            core: ComponentCore::new(
+                "dup".into(),
+                "先注册".into(),
+                "第一个".into(),
+                ComponentType::Plugin,
+                0,
+            ),
+        });
+        let second: Arc<dyn Configurable> = Arc::new(StubComponent {
+            core: ComponentCore::new(
+                "dup".into(),
+                "后注册".into(),
+                "第二个".into(),
+                ComponentType::Plugin,
+                0,
+            ),
+        });
+
+        cm.register(first);
+        cm.register(second);
+
+        let registered = cm.find_configurable("dup").expect("先注册组件应保留");
+        assert_eq!(
+            registered.component_name(),
+            "先注册",
+            "后注册者不得覆盖先注册者"
+        );
+    }
+
+    /// 第三方插件整包拒绝契约：任一组件 id 与已注册组件冲突时，
+    /// 整个插件不注册任何组件（含无冲突组件），避免「路由已建但配置缺失」的半提交状态。
+    #[tokio::test]
+    async fn handle_plugin_event_rejects_plugin_with_colliding_component() {
+        let cm = ConfigManager::new(std::env::temp_dir().join("zl-plugin-collision-test"));
+        cm.register(Arc::new(StubComponent {
+            core: ComponentCore::new(
+                "shared".into(),
+                "内置组件".into(),
+                "宿主占位".into(),
+                ComponentType::Plugin,
+                0,
+            ),
+        }));
+
+        // 构造第三方插件注册包：组件 shared（与宿主冲突）+ unique（无冲突）。
+        let (req_tx, _req_rx) = tokio::sync::mpsc::channel(16);
+        let (notif_tx, _notif_rx) = tokio::sync::mpsc::channel(16);
+        let (reader, writer) = tokio::io::duplex(64);
+        let client =
+            JsonRpcClient::new(tokio::io::BufReader::new(reader), writer, req_tx, notif_tx);
+        let metadata = PluginMetadata {
+            id: "com.example.collide".into(),
+            name: "碰撞测试".into(),
+            version: "1.0.0".into(),
+            description: String::new(),
+            author: String::new(),
+            trigger_keywords: vec![],
+            supported_os: vec![],
+            priority: 0,
+        };
+        let make_component = |component_id: &str, name: &str| {
+            Arc::new(RemoteComponent::new(
+                component_id.into(),
+                name.into(),
+                String::new(),
+                ComponentType::Plugin,
+                50,
+                client.clone(),
+                vec![],
+                json!({}),
+                vec![],
+                RemoteComponentKind::Plugin {
+                    metadata: metadata.clone(),
+                },
+            ))
+        };
+        let registration = PluginRegistration {
+            plugin_id: "com.example.collide".into(),
+            manifest: Manifest {
+                plugin: PluginSection {
+                    id: "com.example.collide".into(),
+                    name: "碰撞测试".into(),
+                    version: "1.0.0".into(),
+                    description: String::new(),
+                    author: String::new(),
+                    homepage: None,
+                    license: None,
+                    min_host_version: "0.0.0".into(),
+                },
+                runtime: Default::default(),
+                components: Default::default(),
+                ui: None,
+                icon: None,
+            },
+            components: vec![
+                make_component("shared", "冲突组件"),
+                make_component("unique", "独立组件"),
+            ],
+        };
+
+        cm.handle_plugin_event(&PluginRuntimeEvent::PluginLoaded(registration));
+
+        assert!(
+            cm.find_configurable("unique").is_none(),
+            "冲突插件应整包拒绝，无冲突组件也不得注册"
+        );
+        let shared = cm.find_configurable("shared").expect("宿主组件应保留");
+        assert_eq!(
+            shared.component_name(),
+            "内置组件",
+            "插件组件不得覆盖宿主组件"
+        );
+    }
 }

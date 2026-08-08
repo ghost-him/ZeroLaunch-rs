@@ -272,8 +272,12 @@ impl SessionDispatcher {
 
     /// 注册一个插件（内置/第三方统一入口）：注册服务 + 建立触发词索引。
     /// 触发词冲突时拒绝并记录错误（不覆盖既有绑定）。
-    /// 注意：这是触发词索引的唯一写入入口，注册内置插件时也必须走此方法。
-    pub fn register_plugin_with_triggers(&self, plugin: Arc<dyn Plugin>) {
+    /// `enabled` 为当前持久化启用状态：禁用状态的插件（如用户上次关闭后重启）注册时不写入触发词，
+    /// 与运行时 set_plugin_enabled 的「禁用即不路由」语义保持一致。
+    /// 注意：这是触发词索引的写入入口之一，注册内置插件时也必须走此方法。
+    /// 触发词索引的完整写入路径：register_plugin_with_triggers（注册时按 enabled 建立）、
+    /// unregister_plugin（注销时清理）、set_plugin_enabled（启用恢复/禁用清理）。
+    pub fn register_plugin_with_triggers(&self, plugin: Arc<dyn Plugin>, enabled: bool) {
         // 先校验全部触发词无冲突，再注册与写入，避免半提交状态。
         let keywords = plugin.metadata().trigger_keywords.clone();
         let conflicts: Vec<&str> = keywords
@@ -290,17 +294,64 @@ impl SessionDispatcher {
             return;
         }
         self.plugin_registry.register(plugin.clone());
-        for kw in keywords {
-            self.trigger_index.insert(kw, plugin.metadata().id.clone());
+        if enabled {
+            self.try_insert_trigger_keywords(&plugin.metadata().id, &keywords);
+        } else {
+            info!(
+                "插件 '{}' 处于禁用状态，跳过触发词写入（启用时恢复）",
+                plugin.metadata().id
+            );
         }
     }
 
-    /// 注销一个插件：清理触发词索引；活动会话属于该插件时先执行会话重置。
-    pub fn unregister_plugin(&self, plugin_id: &str) {
-        self.plugin_registry.unregister(plugin_id);
+    /// 写入触发词：逐词校验，被其他插件占用的词跳过并记录错误（不覆盖既有绑定）。
+    /// 用于 set_plugin_enabled 的启用恢复——注册与启停两条路径共用同一冲突规则。
+    fn try_insert_trigger_keywords(&self, plugin_id: &str, keywords: &[String]) {
+        for kw in keywords {
+            if let Some(owner) = self.trigger_index.get(kw) {
+                if owner.as_str() != plugin_id {
+                    error!(
+                        "恢复触发词 '{}' 冲突：已被插件 '{}' 占用，跳过（插件 '{}' 的该词不恢复）",
+                        kw,
+                        owner.as_str(),
+                        plugin_id
+                    );
+                    continue;
+                }
+            }
+            self.trigger_index.insert(kw.clone(), plugin_id.to_string());
+        }
+    }
+
+    /// 移除插件的全部触发词路由；活动会话属于该插件时先执行会话重置。
+    /// 注销与禁用共用：两者语义都是「该插件不再可路由」。
+    fn remove_plugin_routes(&self, plugin_id: &str) {
         self.trigger_index.retain(|_, v| v != plugin_id);
         if self.active_session.read().plugin_id.as_deref() == Some(plugin_id) {
             self.reset_session(true);
+        }
+    }
+
+    /// 注销一个插件：移除注册 + 触发词路由；活动会话属于该插件时先执行会话重置。
+    pub fn unregister_plugin(&self, plugin_id: &str) {
+        self.plugin_registry.unregister(plugin_id);
+        self.remove_plugin_routes(plugin_id);
+    }
+
+    /// 插件启用状态变更时同步触发词索引：
+    /// 禁用 → 移除该插件全部触发词（搜索不再路由到它）；启用 → 恢复注册时的触发词
+    /// （逐词冲突检查：期间被其他插件占用的词跳过并记录错误，不覆盖既有绑定）。
+    /// 插件实例仍保留在 registry 中，不销毁（区别于 unregister_plugin）。
+    pub fn set_plugin_enabled(&self, plugin_id: &str, enabled: bool) {
+        if enabled {
+            let Some(plugin) = self.plugin_registry.get(plugin_id) else {
+                debug!("启用插件 {} 不在注册表中，跳过触发词恢复", plugin_id);
+                return;
+            };
+            let keywords = plugin.metadata().trigger_keywords.clone();
+            self.try_insert_trigger_keywords(plugin_id, &keywords);
+        } else {
+            self.remove_plugin_routes(plugin_id);
         }
     }
 
@@ -328,6 +379,11 @@ impl SessionDispatcher {
     /// 设置配置管理器。
     pub fn set_config_manager(&self, config_manager: Arc<ConfigManager>) {
         *self.config_manager.write() = Some(config_manager);
+    }
+
+    /// 读取 ConfigManager 引用（未注入时为 None——CLI 场景不注入，相关逻辑直接降级）。
+    fn config_manager(&self) -> Option<Arc<ConfigManager>> {
+        self.config_manager.read().as_ref().cloned()
     }
 
     /// 注入会话状态推送回调（bootstrap 拿到 AppHandle 后调用；CLI 场景不注入）。
@@ -908,9 +964,7 @@ impl SessionDispatcher {
             Err(ExecutionError::ActivationFailed { fallback_action }) => {
                 // 窗口唤醒失败：按配置决定是否回退执行。
                 let launch_new = self
-                    .config_manager
-                    .read()
-                    .as_ref()
+                    .config_manager()
                     .and_then(|cm| {
                         cm.get_component_setting("window-behavior-config", "launch_new_on_failure")
                     })
@@ -1099,11 +1153,9 @@ impl SessionDispatcher {
 
     /// 重建候选管道：从 ConfigManager 构建 → 注入偏置规则 → 替换管道 → 刷新候选项。
     async fn rebuild_candidate_pipeline(&self) {
-        let cm = {
-            let guard = self.config_manager.read();
-            guard.as_ref().map(|cm| cm.clone())
+        let Some(cm) = self.config_manager() else {
+            return;
         };
-        let Some(cm) = cm else { return };
         let mut new_pipeline = self.components.build_candidate_pipeline(&cm);
         // 从 BiasConfig 注入固定偏移量规则
         let rules = cm
@@ -1118,13 +1170,11 @@ impl SessionDispatcher {
 
     /// 根据当前注册的搜索引擎和分数增强器重建搜索管道。
     pub fn rebuild_search_pipeline(&self) {
-        let cm_guard = self.config_manager.read();
-        let cm = match cm_guard.as_ref() {
-            Some(cm) => cm,
-            None => return,
+        let Some(cm) = self.config_manager() else {
+            return;
         };
         let top_k = *self.last_top_k.read();
-        match self.components.build_search_pipeline(cm, top_k) {
+        match self.components.build_search_pipeline(&cm, top_k) {
             Some(pipeline) => {
                 info!("搜索管道已重建 (top_k: {})", pipeline.top_k());
                 *self.search_pipeline.write() = Some(pipeline);
@@ -1187,8 +1237,17 @@ impl SessionDispatcher {
                         info!("搜索引擎/分数增强器启用状态变更，重建搜索管道");
                         self.rebuild_search_pipeline();
                     }
-                    ComponentType::ActionExecutor | ComponentType::Plugin | ComponentType::Core => {
-                        debug!("ActionExecutor/Plugin/Core 启用状态变更，无需响应");
+                    ComponentType::Plugin => {
+                        info!(
+                            "插件启用状态变更，更新触发词索引: {} enabled={}",
+                            component_id, enabled
+                        );
+                        // 内置插件 component_id 即 plugin_id；第三方插件组件 id 等于 plugin_id 时同样命中，
+                        // 不相等时由 plugin_set_enabled 命令按 plugin_id 直调兜底。
+                        self.set_plugin_enabled(component_id, *enabled);
+                    }
+                    ComponentType::ActionExecutor | ComponentType::Core => {
+                        debug!("ActionExecutor/Core 启用状态变更，无需响应");
                     }
                 }
             }
@@ -1203,7 +1262,12 @@ impl SessionDispatcher {
                         self.register_executor(ex);
                     }
                     if let Some(p) = comp.clone().as_plugin() {
-                        self.register_plugin_with_triggers(p);
+                        // 按组件持久化启用状态决定是否建立触发词路由（禁用插件重启后不路由）
+                        let enabled = self
+                            .config_manager()
+                            .map(|cm| cm.is_enabled(comp.core.component_id()))
+                            .unwrap_or(true);
+                        self.register_plugin_with_triggers(p, enabled);
                     }
                 }
                 // 重建候选管道以包含新组件
@@ -1246,9 +1310,14 @@ mod tests {
 
     impl TriggerStubPlugin {
         fn with_trigger(trigger: &str) -> Self {
+            Self::with_trigger_and_id(trigger, &format!("test.{}", trigger))
+        }
+
+        /// 指定插件 id 的构造器：允许两个插件声明相同触发词（用于冲突路径测试）。
+        fn with_trigger_and_id(trigger: &str, id: &str) -> Self {
             Self {
                 metadata: PluginMetadata {
-                    id: format!("test.{}", trigger),
+                    id: id.to_string(),
                     name: format!("stub-{}", trigger),
                     version: "0.1.0".to_string(),
                     description: "测试桩".to_string(),
@@ -1258,7 +1327,7 @@ mod tests {
                     priority: 0,
                 },
                 core: ComponentCore::new(
-                    format!("test.{}", trigger),
+                    id.to_string(),
                     "测试桩".to_string(),
                     "触发词路由测试".to_string(),
                     ComponentType::Plugin,
@@ -1317,7 +1386,7 @@ mod tests {
     fn register_plugin_with_triggers_enables_match_trigger() {
         let dispatcher = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
         let plugin: Arc<dyn Plugin> = Arc::new(TriggerStubPlugin::with_trigger("="));
-        dispatcher.register_plugin_with_triggers(plugin);
+        dispatcher.register_plugin_with_triggers(plugin, true);
 
         // 触发词 + 空格分隔 → 命中并切出搜索词
         assert_eq!(
@@ -1326,5 +1395,94 @@ mod tests {
         );
         // 无空格分隔 → 不命中（与前端 queryStillInPanel 镜像判定一致）
         assert_eq!(dispatcher.match_trigger("=1+1"), (None, "=1+1"));
+    }
+
+    /// 禁用插件后触发词不再命中；重新启用后恢复。
+    /// 回归：config_set_enabled 对 Plugin 类型组件曾「无需响应」，禁用后插件仍可路由使用。
+    #[test]
+    fn set_plugin_enabled_toggles_trigger_index() {
+        let dispatcher = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
+        let plugin: Arc<dyn Plugin> = Arc::new(TriggerStubPlugin::with_trigger("="));
+        let plugin_id = plugin.metadata().id.clone();
+        dispatcher.register_plugin_with_triggers(plugin, true);
+
+        // 注册后命中
+        assert_eq!(
+            dispatcher.match_trigger("= 1+1"),
+            (Some("=".to_string()), "1+1")
+        );
+
+        // 禁用 → 触发词移除，不再路由到该插件
+        dispatcher.set_plugin_enabled(&plugin_id, false);
+        assert_eq!(dispatcher.match_trigger("= 1+1"), (None, "= 1+1"));
+
+        // 启用 → 触发词恢复
+        dispatcher.set_plugin_enabled(&plugin_id, true);
+        assert_eq!(
+            dispatcher.match_trigger("= 1+1"),
+            (Some("=".to_string()), "1+1")
+        );
+
+        // 对未注册插件启用：无害（无触发词可恢复）
+        dispatcher.set_plugin_enabled("not-registered", true);
+        assert_eq!(
+            dispatcher.match_trigger("= 1+1"),
+            (Some("=".to_string()), "1+1")
+        );
+    }
+
+    /// 持久化为禁用的插件注册时不建立触发词路由（重启后保持禁用语义）。
+    #[test]
+    fn register_disabled_plugin_skips_trigger_index() {
+        let dispatcher = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
+        let plugin: Arc<dyn Plugin> = Arc::new(TriggerStubPlugin::with_trigger("="));
+        let plugin_id = plugin.metadata().id.clone();
+        dispatcher.register_plugin_with_triggers(plugin, false);
+
+        // 注册了但触发词未写入：不路由
+        assert_eq!(dispatcher.match_trigger("= 1+1"), (None, "= 1+1"));
+
+        // 启用后恢复路由
+        dispatcher.set_plugin_enabled(&plugin_id, true);
+        assert_eq!(
+            dispatcher.match_trigger("= 1+1"),
+            (Some("=".to_string()), "1+1")
+        );
+    }
+
+    /// 启用恢复触发词时遇到被其他插件占用的词：跳过并保留既有绑定（不覆盖）。
+    #[test]
+    fn enable_recovery_skips_conflicting_keyword() {
+        let dispatcher = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
+        // 插件 A 与 B 声明相同触发词但 id 不同
+        let plugin_a: Arc<dyn Plugin> =
+            Arc::new(TriggerStubPlugin::with_trigger_and_id("=", "plugin-a"));
+        let plugin_b: Arc<dyn Plugin> =
+            Arc::new(TriggerStubPlugin::with_trigger_and_id("=", "plugin-b"));
+        // A 注册并占用 "="
+        dispatcher.register_plugin_with_triggers(plugin_a, true);
+        assert_eq!(
+            dispatcher.trigger_index.get("=").map(|r| r.clone()),
+            Some("plugin-a".to_string())
+        );
+
+        // A 禁用（释放 "="）→ B 注册（无冲突，占用 "="）
+        dispatcher.set_plugin_enabled("plugin-a", false);
+        dispatcher.register_plugin_with_triggers(plugin_b, true);
+        assert_eq!(
+            dispatcher.trigger_index.get("=").map(|r| r.clone()),
+            Some("plugin-b".to_string())
+        );
+
+        // A 重新启用："=" 已被 B 占用 → 跳过恢复，B 绑定不被覆盖
+        dispatcher.set_plugin_enabled("plugin-a", true);
+        assert_eq!(
+            dispatcher.match_trigger("= 1+1"),
+            (Some("=".to_string()), "1+1")
+        );
+        assert_eq!(
+            dispatcher.trigger_index.get("=").map(|r| r.clone()),
+            Some("plugin-b".to_string())
+        );
     }
 }

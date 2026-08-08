@@ -1,35 +1,24 @@
 <template>
   <div class="category-view-list">
-    <template v-if="showToggle">
-      <CollapsibleComponentCard
-        v-for="comp in components"
-        :key="comp.componentId"
-        :component="comp"
-      />
-    </template>
-    <template v-else>
-      <div
-        v-for="comp in components"
-        :key="comp.componentId"
-        class="config-section"
-      >
-        <div v-if="components.length > 1" class="section-title">
-          {{ comp.componentName }}
-        </div>
-        <ComponentConfigLoader :component="comp" />
+    <div
+      v-for="comp in components"
+      :key="comp.componentId"
+      class="config-section"
+    >
+      <div v-if="components.length > 1" class="section-title">
+        {{ comp.componentName }}
       </div>
-    </template>
+      <ComponentConfigLoader :component="comp" />
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import type { ComponentInfo } from '../../bridge/contract'
 import ComponentConfigLoader from './ComponentConfigLoader.vue'
-import CollapsibleComponentCard from './CollapsibleComponentCard.vue'
 
 defineProps<{
   components: ComponentInfo[]
-  showToggle?: boolean
 }>()
 </script>
 

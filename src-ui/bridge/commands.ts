@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
+import { open } from '@tauri-apps/plugin-dialog'
 import type { BridgeQueryResponse, ConfirmRequest, ConfirmResponse, ComponentInfo, ComponentSchema, ConfigActionDef, ConfigActionPayload, SearchTimingResult, IndexTimingResult, SearchDetailItem } from './contract'
 export interface BridgeError {
   code: string
@@ -146,6 +147,35 @@ export interface InstalledPluginInfo {
   state: string
   enabled: boolean
   priority: number
+  componentIds: string[]
+}
+
+/**
+ * 弹出 .zip 文件选择框（第三方插件安装用）。
+ * 注意：tauri-plugin-dialog 的 directory 模式忽略 filters（Windows 文件夹选择器不可选文件），
+ * 文件与目录选择必须拆成两个入口。
+ * @param filterLabel 文件过滤器的显示名称（由调用方传入 i18n 文案）
+ * @returns 选中的路径；用户取消时为 null
+ */
+export function pickPluginZip(filterLabel: string): Promise<string | null> {
+  return open({
+    multiple: false,
+    directory: false,
+    filters: [{ name: filterLabel, extensions: ['zip'] }],
+  })
+}
+
+/**
+ * 弹出插件目录选择框（第三方插件安装用，开发期未打包插件）。
+ * @param filterLabel 对话框标题文案（由调用方传入 i18n 文案）
+ * @returns 选中的目录；用户取消时为 null
+ */
+export function pickPluginDir(filterLabel: string): Promise<string | null> {
+  return open({
+    multiple: false,
+    directory: true,
+    title: filterLabel,
+  })
 }
 
 export function pluginList(): Promise<InstalledPluginInfo[]> {

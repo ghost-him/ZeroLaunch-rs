@@ -24,6 +24,9 @@
         <!-- Plugin Inspector -->
         <DebugView v-else-if="selectedId === 'category_debug'" />
 
+        <!-- Unified plugin management (builtin + third-party) -->
+        <PluginsManagement v-else-if="selectedCategory?.type === 'plugins-page'" />
+
         <!-- About -->
         <div v-else-if="selectedId === 'category_about'" class="static-panel">
           <h3>{{ $t('settings.about') }}</h3>
@@ -47,11 +50,6 @@
             <CategoryViewTabs
               v-else-if="selectedCategory.type === 'tabs' && selectedCategory.components"
               :components="selectedCategory.components"
-            />
-            <CategoryViewList
-              v-else-if="selectedCategory.type === 'plugin' && selectedCategory.components"
-              :components="selectedCategory.components"
-              :show-toggle="true"
             />
             <CategoryViewList
               v-else-if="selectedCategory.components"
@@ -79,8 +77,10 @@ import CategoryViewList from '../components/settings/CategoryViewList.vue'
 import CategoryViewPipeline from '../components/settings/CategoryViewPipeline.vue'
 import CategoryViewTabs from '../components/settings/CategoryViewTabs.vue'
 import DebugView from './DebugView.vue'
+import PluginsManagement from './settings/PluginsManagement.vue'
 import { useConfigStore } from '../stores/config-store'
 import { buildSidebarItems } from '../utils/settingsSidebar'
+import { useI18n } from 'vue-i18n'
 import { registerErrorHandler } from '../bridge/commands'
 import { configGetVersion } from '../bridge/commands'
 import type { BridgeError } from '../bridge/commands'
@@ -88,6 +88,7 @@ import type { ComponentInfo } from '../bridge/contract'
 
 const configStore = useConfigStore()
 const notification = useNotification()
+const { t } = useI18n()
 
 const loading = ref(true)
 const loadErr = ref<string | null>(null)
@@ -103,22 +104,11 @@ const isDebugMode = computed(() => {
   return (settings?.is_debug_mode as boolean) ?? false
 })
 
-const sidebarItems = computed(() => buildSidebarItems(getComponentsList(), isDebugMode.value))
+const sidebarItems = computed(() => buildSidebarItems(getComponentsList(), isDebugMode.value, t))
 
 const selectedCategory = computed(() => {
   if (!selectedId.value) return null
-  
-  // Find in top level
-  for (const item of sidebarItems.value) {
-    if (item.key === selectedId.value) return item
-    
-    // Find in nested plugins
-    if (item.items) {
-      const found = item.items.find(sub => sub.key === selectedId.value)
-      if (found) return found
-    }
-  }
-  return null
+  return sidebarItems.value.find((item) => item.key === selectedId.value) ?? null
 })
 
 async function init() {

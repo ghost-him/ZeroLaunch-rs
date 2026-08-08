@@ -4,9 +4,8 @@ export interface SidebarCategory {
   key: string
   label: string
   icon: string
-  type: 'category' | 'pipeline' | 'plugins' | 'tabs' | 'static' | 'plugin' | 'debug'
+  type: 'pipeline' | 'tabs' | 'static' | 'debug' | 'plugins-page'
   components?: ComponentInfo[]
-  items?: SidebarCategory[]
 }
 
 /** 按 (priority, componentId) 升序排列，确保设置页 tab 顺序稳定。 */
@@ -18,6 +17,7 @@ function sortByPriority(a: ComponentInfo, b: ComponentInfo): number {
 export function buildSidebarItems(
   components: ComponentInfo[],
   isDebugMode: boolean,
+  t: (key: string) => string,
 ): SidebarCategory[] {
   const core = components.filter(
     (c) =>
@@ -35,37 +35,25 @@ export function buildSidebarItems(
       c.componentType,
     ),
   ).sort(sortByPriority)
-  const plugins = components.filter((c) => c.componentType === 'Plugin')
 
   const items: SidebarCategory[] = [
-    { key: 'category_core', label: '常规设置', icon: 'settings', type: 'tabs', components: core },
-    { key: 'category_appearance', label: '外观设置', icon: 'palette', type: 'tabs', components: appearance },
-    { key: 'category_pipeline', label: '搜索管道', icon: 'search', type: 'pipeline', components: pipeline },
-    {
-      key: 'category_plugins',
-      label: '扩展插件',
-      icon: 'extension',
-      type: 'plugins',
-      items: plugins.map(p => ({
-        key: `plugin_${p.componentId}`,
-        label: p.componentName,
-        icon: 'plugin',
-        type: 'plugin' as const,
-        components: [p]
-      }))
-    },
+    { key: 'category_core', label: t('settings.sidebar.general'), icon: 'settings', type: 'tabs', components: core },
+    { key: 'category_appearance', label: t('settings.sidebar.appearance'), icon: 'palette', type: 'tabs', components: appearance },
+    { key: 'category_pipeline', label: t('settings.sidebar.pipeline'), icon: 'search', type: 'pipeline', components: pipeline },
+    // 统一插件管理页（内置 + 第三方）：安装、运行状态与配置入口都在此页，不占侧边栏子项
+    { key: 'category_plugins', label: t('settings.sidebar.plugins'), icon: 'extension', type: 'plugins-page' as const },
   ]
 
   // 仅在调试模式开启时显示
   if (isDebugMode) {
     items.push({
       key: 'category_debug',
-      label: '调试工具',
+      label: t('settings.sidebar.debug'),
       icon: 'bug',
       type: 'debug' as const,
     })
   }
 
-  items.push({ key: 'category_about', label: '关于', icon: 'info', type: 'static' })
+  items.push({ key: 'category_about', label: t('settings.sidebar.about'), icon: 'info', type: 'static' })
   return items
 }

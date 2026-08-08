@@ -32,7 +32,7 @@ use crate::sdk::HostApi;
 
 use super::builtin;
 use super::host_handler::TauriHostCallHandler;
-use super::plugin_info::{PluginInfo, PluginStatus};
+use super::plugin_info::{InstallError, PluginInfo, PluginStatus};
 use super::plugin_installer::PluginInstaller;
 
 /// PluginManager 内部错误类型。
@@ -45,6 +45,8 @@ pub enum PluginManagerError {
     FileNotFound(String),
     /// 不支持的文件格式
     UnsupportedFormat(String),
+    /// 同名插件已安装
+    AlreadyInstalled(String),
     /// 常规内部错误
     Internal(String),
 }
@@ -55,6 +57,7 @@ impl fmt::Display for PluginManagerError {
             PluginManagerError::PluginNotFound(msg) => write!(f, "插件未找到: {}", msg),
             PluginManagerError::FileNotFound(msg) => write!(f, "文件未找到: {}", msg),
             PluginManagerError::UnsupportedFormat(msg) => write!(f, "不支持的文件格式: {}", msg),
+            PluginManagerError::AlreadyInstalled(id) => write!(f, "插件已安装: {}", id),
             PluginManagerError::Internal(msg) => write!(f, "插件管理器内部错误: {}", msg),
         }
     }
@@ -320,11 +323,11 @@ impl PluginManager {
         let installed_dir = if source_path.is_dir() {
             self.installer()
                 .install_from_dir(source_path)
-                .map_err(|e| PluginManagerError::Internal(e.to_string()))?
+                .map_err(install_error_to_manager)?
         } else if source_path.extension().map(|e| e == "zip").unwrap_or(false) {
             self.installer()
                 .install_from_zip(source_path)
-                .map_err(|e| PluginManagerError::Internal(e.to_string()))?
+                .map_err(install_error_to_manager)?
         } else {
             return Err(PluginManagerError::UnsupportedFormat(
                 "Unsupported file format. Use .zip or directory.".to_string(),
@@ -365,6 +368,11 @@ impl PluginManager {
             enabled: !adapters.components.is_empty()
                 && adapters.components.iter().all(|c| c.default_enabled()),
             priority,
+            component_ids: adapters
+                .components
+                .iter()
+                .map(|c| c.component_id().to_string())
+                .collect(),
         })
     }
 
@@ -653,6 +661,14 @@ impl PluginManager {
     /// 返回一个临时安装器实例（创建轻量，每次从 PluginManager 的 plugins_dir 新鲜构造）。
     fn installer(&self) -> PluginInstaller {
         PluginInstaller::new(self.plugins_dir())
+    }
+}
+
+/// 将安装器错误转换为 PluginManagerError，保留「已安装」语义供 IPC 层区分。
+fn install_error_to_manager(e: InstallError) -> PluginManagerError {
+    match e {
+        InstallError::AlreadyInstalled(id) => PluginManagerError::AlreadyInstalled(id),
+        other => PluginManagerError::Internal(other.to_string()),
     }
 }
 

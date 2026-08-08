@@ -348,7 +348,8 @@ fn init_setting_window(app: tauri::AppHandle) {
             )
             .title("设置")
             .visible(false)
-            .drag_and_drop(false)
+            // 开启拖放以支持「第三方插件管理」页拖拽安装插件（webview 级 onDragDropEvent 接收真实路径）
+            .drag_and_drop(true)
             .build()
             .expect("无法创建设置窗口"),
         );

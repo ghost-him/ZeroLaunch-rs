@@ -17,7 +17,6 @@ const iconMap: Record<string, Component> = {
   extension: Puzzle,
   palette: Palette,
   info: Info,
-  plugin: Box,
   bug: Bug,
 }
 

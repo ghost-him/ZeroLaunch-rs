@@ -487,7 +487,9 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
             // 必须走 register_plugin_with_triggers（统一入口）：
             // 仅调用 plugin_registry().register 不会建立触发词索引，
             // 会导致内置触发式插件（translator/calculator）路由失效。
-            session_dispatcher.register_plugin_with_triggers(p.clone());
+            // 按持久化启用状态注册：用户禁用过的组件重启后不建立路由（与运行时开关语义一致）。
+            let enabled = config_manager.is_enabled(c.component_id());
+            session_dispatcher.register_plugin_with_triggers(p.clone(), enabled);
         } else {
             warn!(
                 "组件 {} 的 Configurable 注册失败，跳过 Plugin 注册",

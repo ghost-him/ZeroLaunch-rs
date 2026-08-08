@@ -1,81 +1,75 @@
 <template>
   <div class="debug-tools">
-    <!-- 搜索性能测试 -->
-    <div class="debug-section">
-      <h4 class="section-title">{{ t('debug.searchTime') }}</h4>
-      <div class="action-row">
+    <DebugCard :title="t('debug.searchTime')" :description="t('debug.descSearchTime')" class="wide">
+      <div class="tool-row">
         <n-input
-          v-model:value="searchTimeInput"
+          v-model:value="searchTime.input"
           :placeholder="t('debug.searchTimePlaceholder')"
-          @keyup.enter="runSearchTime"
           clearable
+          @keyup.enter="searchTime.run"
         />
-        <n-button type="primary" size="small" :loading="searchTimeLoading" @click="runSearchTime">
+        <n-button type="primary" size="small" :loading="searchTime.loading" @click="searchTime.run">
           {{ t('debug.run') }}
         </n-button>
       </div>
-      <n-descriptions v-if="searchTimeResult" :column="3" size="small" bordered>
-        <n-descriptions-item :label="t('debug.duration')">{{ searchTimeResult.durationMs }}ms</n-descriptions-item>
-        <n-descriptions-item :label="t('debug.totalCandidates')">{{ searchTimeResult.totalCandidates }}</n-descriptions-item>
-        <n-descriptions-item :label="t('debug.resultCount')">{{ searchTimeResult.resultCount }}</n-descriptions-item>
-      </n-descriptions>
-    </div>
+      <div v-if="searchTime.result" class="stat-row">
+        <n-statistic :label="t('debug.duration')">{{ searchTime.result.durationMs }} ms</n-statistic>
+        <n-statistic :label="t('debug.totalCandidates')">{{ searchTime.result.totalCandidates }}</n-statistic>
+        <n-statistic :label="t('debug.resultCount')">{{ searchTime.result.resultCount }}</n-statistic>
+      </div>
+    </DebugCard>
 
-    <!-- 索引性能测试 -->
-    <div class="debug-section">
-      <h4 class="section-title">{{ t('debug.indexTime') }}</h4>
-      <n-button type="primary" size="small" :loading="indexTimeLoading" @click="runIndexTime">
-        {{ t('debug.runIndex') }}
-      </n-button>
-      <n-descriptions v-if="indexTimeResult" :column="2" size="small" bordered>
-        <n-descriptions-item :label="t('debug.duration')">{{ indexTimeResult.durationMs }}ms</n-descriptions-item>
-        <n-descriptions-item :label="t('debug.totalCandidates')">{{ indexTimeResult.candidateCount }}</n-descriptions-item>
-      </n-descriptions>
-    </div>
+    <DebugCard :title="t('debug.indexTime')" :description="t('debug.descIndexTime')">
+      <div class="tool-row">
+        <n-button type="primary" size="small" :loading="indexLoading" @click="runIndexTime">
+          {{ t('debug.runIndex') }}
+        </n-button>
+      </div>
+      <div v-if="indexResult" class="stat-row">
+        <n-statistic :label="t('debug.duration')">{{ indexResult.durationMs }} ms</n-statistic>
+        <n-statistic :label="t('debug.totalCandidates')">{{ indexResult.candidateCount }}</n-statistic>
+      </div>
+    </DebugCard>
 
-    <!-- 搜索关键字生成 -->
-    <div class="debug-section">
-      <h4 class="section-title">{{ t('debug.keywordGen') }}</h4>
-      <div class="action-row">
+    <DebugCard :title="t('debug.keywordGen')" :description="t('debug.descKeywordGen')">
+      <div class="tool-row">
         <n-input
-          v-model:value="keywordsInput"
+          v-model:value="keywords.input"
           :placeholder="t('debug.namePlaceholder')"
-          @keyup.enter="runKeywords"
           clearable
+          @keyup.enter="keywords.run"
         />
-        <n-button type="primary" size="small" :loading="keywordsLoading" @click="runKeywords">
+        <n-button type="primary" size="small" :loading="keywords.loading" @click="keywords.run">
           {{ t('debug.generate') }}
         </n-button>
       </div>
-      <div v-if="keywordsResult" class="keywords-result">
-        <n-tag v-for="kw in keywordsResult" :key="kw" size="small" style="margin: 2px">
+      <div v-if="keywords.result" class="tag-list">
+        <n-tag v-for="kw in keywords.result" :key="kw" size="small">
           {{ kw }}
         </n-tag>
       </div>
-    </div>
+    </DebugCard>
 
-    <!-- 搜索匹配详情 -->
-    <div class="debug-section">
-      <h4 class="section-title">{{ t('debug.searchDetail') }}</h4>
-      <div class="action-row">
+    <DebugCard :title="t('debug.searchDetail')" :description="t('debug.descSearchDetail')" class="wide">
+      <div class="tool-row">
         <n-input
-          v-model:value="detailInput"
+          v-model:value="detail.input"
           :placeholder="t('debug.searchTimePlaceholder')"
-          @keyup.enter="runDetail"
           clearable
+          @keyup.enter="detail.run"
         />
-        <n-button type="primary" size="small" :loading="detailLoading" @click="runDetail">
+        <n-button type="primary" size="small" :loading="detail.loading" @click="detail.run">
           {{ t('debug.search') }}
         </n-button>
       </div>
       <n-data-table
-        v-if="detailResult"
+        v-if="detail.result"
         :columns="detailColumns"
-        :data="detailResult"
+        :data="detail.result"
         size="small"
-        :max-height="300"
+        :max-height="420"
       />
-    </div>
+    </DebugCard>
   </div>
 </template>
 
@@ -83,10 +77,12 @@
 import { h, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
-  NButton, NDataTable, NDescriptions, NDescriptionsItem,
-  NInput, NTag,
+  NButton, NDataTable, NInput, NStatistic, NTag,
+  useMessage,
   type DataTableColumns,
 } from 'naive-ui'
+import DebugCard from './DebugCard.vue'
+import { useQueryTool } from '../../composables/useQueryTool'
 import {
   debugTestSearchTime,
   debugTestIndexTime,
@@ -94,69 +90,33 @@ import {
   debugSearchDetail,
 } from '@/bridge/commands'
 import type {
-  SearchTimingResult,
   IndexTimingResult,
   SearchDetailItem,
   ScoreDetail,
 } from '@/bridge/contract'
 
 const { t } = useI18n()
+const message = useMessage()
 
-// ---- 搜索性能测试 ----
-const searchTimeInput = ref('')
-const searchTimeLoading = ref(false)
-const searchTimeResult = ref<SearchTimingResult | null>(null)
+// ---- 查询型工具：输入 + 执行 + 结果由 useQueryTool 统一管理 ----
+const searchTime = useQueryTool(debugTestSearchTime)
+const keywords = useQueryTool(debugGetSearchKeys)
+const detail = useQueryTool(debugSearchDetail)
 
-async function runSearchTime() {
-  const input = searchTimeInput.value.trim()
-  if (!input) return
-  searchTimeLoading.value = true
-  try {
-    searchTimeResult.value = await debugTestSearchTime(input)
-  } catch (e) {
-    console.error('[Debug] 搜索性能测试失败:', e)
-  } finally {
-    searchTimeLoading.value = false
-  }
-}
-
-// ---- 索引性能测试 ----
-const indexTimeLoading = ref(false)
-const indexTimeResult = ref<IndexTimingResult | null>(null)
+// ---- 索引性能测试（无输入，独立状态） ----
+const indexLoading = ref(false)
+const indexResult = ref<IndexTimingResult | null>(null)
 
 async function runIndexTime() {
-  indexTimeLoading.value = true
+  indexLoading.value = true
   try {
-    indexTimeResult.value = await debugTestIndexTime()
-  } catch (e) {
-    console.error('[Debug] 索引性能测试失败:', e)
+    indexResult.value = await debugTestIndexTime()
+  } catch {
+    message.error(t('debug.queryFailed'))
   } finally {
-    indexTimeLoading.value = false
+    indexLoading.value = false
   }
 }
-
-// ---- 搜索关键字生成 ----
-const keywordsInput = ref('')
-const keywordsLoading = ref(false)
-const keywordsResult = ref<string[] | null>(null)
-
-async function runKeywords() {
-  const input = keywordsInput.value.trim()
-  if (!input) return
-  keywordsLoading.value = true
-  try {
-    keywordsResult.value = await debugGetSearchKeys(input)
-  } catch (e) {
-    console.error('[Debug] 关键字生成失败:', e)
-  } finally {
-    keywordsLoading.value = false
-  }
-}
-
-// ---- 搜索匹配详情 ----
-const detailInput = ref('')
-const detailLoading = ref(false)
-const detailResult = ref<SearchDetailItem[] | null>(null)
 
 /**
  * 渲染展开行的分数分解明细，按引擎/增强器产出的顺序保序展示：
@@ -216,52 +176,44 @@ const detailColumns: DataTableColumns<SearchDetailItem> = [
     ellipsis: { tooltip: true },
   },
 ]
-
-async function runDetail() {
-  const input = detailInput.value.trim()
-  if (!input) return
-  detailLoading.value = true
-  try {
-    detailResult.value = await debugSearchDetail(input)
-  } catch (e) {
-    console.error('[Debug] 搜索详情失败:', e)
-  } finally {
-    detailLoading.value = false
-  }
-}
 </script>
 
 <style scoped>
 .debug-tools {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  padding-bottom: 16px;
 }
-.debug-section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+
+.wide {
+  grid-column: 1 / -1;
 }
-.section-title {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-  border-bottom: 1px solid var(--border-color);
-  padding-bottom: 4px;
-}
-.action-row {
+
+.tool-row {
   display: flex;
   gap: 8px;
   align-items: center;
+  flex-shrink: 0;
 }
-.action-row .n-input {
+
+.tool-row .n-input {
   flex: 1;
 }
-.keywords-result {
+
+.stat-row {
+  display: flex;
+  gap: 32px;
+  align-items: flex-start;
+  flex-shrink: 0;
+}
+
+.tag-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 2px;
+  gap: 6px;
 }
+
 .score-detail-expand {
   display: flex;
   flex-direction: column;

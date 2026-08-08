@@ -1,84 +1,80 @@
 <template>
   <div class="inspector-panel">
-    <div class="inspector-header">
-      <h3>插件检查器</h3>
-      <n-tag v-if="!available" type="warning">
-        检查器已禁用 (需在设置中开启调试模式)
-      </n-tag>
-      <n-button v-else size="small" @click="refresh" :loading="refreshing">
-        刷新
-      </n-button>
-    </div>
+    <n-alert v-if="!available" type="warning" :title="t('inspector.disabledTag')" />
 
-    <template v-if="available">
-      <div class="inspector-body">
-        <div class="inspector-left">
-          <h4>已注册插件 ({{ plugins.length }})</h4>
-          <n-data-table
-            :columns="pluginColumns"
-            :data="plugins"
-            :max-height="400"
-            :row-key="(row: PluginInspectorInfo) => row.componentId"
-            size="small"
-            virtual-scroll
+    <template v-else>
+      <DebugCard :title="t('inspector.pluginsTitle', { count: plugins.length })">
+        <template #actions>
+          <n-button size="small" :loading="refreshing" @click="refresh">
+            {{ t('inspector.refresh') }}
+          </n-button>
+        </template>
+        <n-data-table
+          :columns="pluginColumns"
+          :data="plugins"
+          :max-height="300"
+          :row-key="(row: PluginInspectorInfo) => row.componentId"
+          :empty-text="t('inspector.emptyPlugins')"
+          size="small"
+          virtual-scroll
+        />
+      </DebugCard>
+
+      <DebugCard :title="t('inspector.queriesTitle', { count: queries.length, total: totalQueries })">
+        <n-data-table
+          :columns="queryColumns"
+          :data="queries"
+          :max-height="240"
+          :row-key="(row: InspectedQueryEvent) => row.traceId + row.timestamp"
+          :empty-text="t('inspector.emptyQueries')"
+          size="small"
+          virtual-scroll
+        />
+      </DebugCard>
+
+      <DebugCard :title="t('inspector.simulateTitle')">
+        <div class="simulate-row">
+          <n-input
+            v-model:value="simInput"
+            :placeholder="t('inspector.simulatePlaceholder')"
+            clearable
+            @keyup.enter="simulate"
           />
+          <n-button type="primary" size="small" :loading="simulating" @click="simulate">
+            {{ t('inspector.simulate') }}
+          </n-button>
         </div>
-
-        <div class="inspector-right">
-          <div class="inspector-section">
-            <h4>最近查询 ({{ queries.length }} / {{ totalQueries }})</h4>
-            <n-data-table
-              :columns="queryColumns"
-              :data="queries"
-              :max-height="250"
-              :row-key="(row: InspectedQueryEvent) => row.traceId + row.timestamp"
-              size="small"
-              virtual-scroll
-            />
-          </div>
-
-          <div class="inspector-section">
-            <h4>手动模拟查询</h4>
-            <div class="simulate-row">
-              <n-input
-                v-model:value="simInput"
-                placeholder="输入查询文本..."
-                @keyup.enter="simulate"
-                clearable
-              />
-              <n-button
-                type="primary"
-                size="small"
-                @click="simulate"
-                :loading="simulating"
-              >
-                模拟
-              </n-button>
-            </div>
-            <n-code
-              v-if="simResult !== null"
-              :code="simResult"
-              language="json"
-              word-wrap
-            />
-          </div>
-        </div>
-      </div>
+        <n-code
+          v-if="simResult !== null"
+          :code="simResult"
+          language="json"
+          word-wrap
+          class="sim-result"
+        />
+      </DebugCard>
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
-import { NButton, NCode, NDataTable, NInput, NTag, type DataTableColumns } from 'naive-ui'
+import { ref, h, onMounted, onUnmounted } from 'vue'
+import {
+  NAlert, NButton, NCode, NDataTable, NInput, NTag,
+  type DataTableColumns,
+} from 'naive-ui'
+import { useI18n } from 'vue-i18n'
+import DebugCard from './DebugCard.vue'
 import {
   inspectorGetState,
   debugSimulateQuery,
 } from '@/bridge/commands'
 import { onInspectorStateUpdated } from '@/bridge/events'
-import type { InspectorStateResponse, PluginInspectorInfo, InspectedQueryEvent } from '@/bridge/contract'
+import type {
+  InspectorStateResponse,
+  PluginInspectorInfo,
+  InspectedQueryEvent,
+} from '@/bridge/contract'
 import type { UnlistenFn } from '@tauri-apps/api/event'
-import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
 
@@ -93,29 +89,29 @@ const simResult = ref<string | null>(null)
 const simulating = ref(false)
 
 let unlistenInspector: UnlistenFn | null = null
+
 const pluginColumns: DataTableColumns<PluginInspectorInfo> = [
-  { title: 'ID', key: 'componentId', width: 160, ellipsis: { tooltip: true } },
-  { title: '名称', key: 'componentName', width: 140 },
-  { title: '类型', key: 'componentType', width: 120 },
+  { title: t('inspector.colId'), key: 'componentId', width: 180, ellipsis: { tooltip: true } },
+  { title: t('inspector.colName'), key: 'componentName', width: 160 },
+  { title: t('inspector.colType'), key: 'componentType', width: 130 },
   {
-    title: '状态',
+    title: t('inspector.colStatus'),
     key: 'enabled',
-    width: 60,
-    render: (row) => (row.enabled ? '启用' : '禁用'),
+    width: 70,
+    render: (row) => (
+      h(NTag, { size: 'small', type: row.enabled ? 'success' : 'default', bordered: false },
+        () => row.enabled ? t('inspector.enabled') : t('inspector.disabled'))
+    ),
   },
 ]
 
 const queryColumns: DataTableColumns<InspectedQueryEvent> = [
   { title: t('inspector.time'), key: 'timestamp', width: 160, ellipsis: { tooltip: true } },
-  { title: t('inspector.query'), key: 'rawQuery', width: 160, ellipsis: { tooltip: true } },
+  { title: t('inspector.query'), key: 'rawQuery', width: 180, ellipsis: { tooltip: true } },
   { title: t('inspector.mode'), key: 'mode', width: 90 },
-  { title: t('inspector.resultCount'), key: 'resultCount', width: 60 },
-  { title: t('inspector.durationMs'), key: 'durationMs', width: 70 },
-  {
-    title: t('inspector.owner'),
-    key: 'ownerId',
-    width: 100,
-  },
+  { title: t('inspector.resultCount'), key: 'resultCount', width: 70 },
+  { title: t('inspector.durationMs'), key: 'durationMs', width: 90 },
+  { title: t('inspector.owner'), key: 'ownerId', width: 120 },
 ]
 
 async function refresh() {
@@ -155,6 +151,7 @@ async function simulate() {
     simulating.value = false
   }
 }
+
 onMounted(async () => {
   await refresh()
   unlistenInspector = await onInspectorStateUpdated(() => {
@@ -169,50 +166,28 @@ onUnmounted(() => {
 
 <style scoped>
 .inspector-panel {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.inspector-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.inspector-header h3 {
-  margin: 0;
-}
-.inspector-body {
-  display: flex;
-  gap: 16px;
-  flex: 1;
-  overflow: auto;
-}
-.inspector-left {
-  flex: 1;
-  min-width: 0;
-}
-.inspector-right {
-  flex: 1;
-  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 16px;
+  padding-bottom: 16px;
 }
-.inspector-section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.inspector-section h4 {
-  margin: 0;
-}
+
 .simulate-row {
   display: flex;
   gap: 8px;
   align-items: center;
+  flex-shrink: 0;
 }
+
 .simulate-row .n-input {
   flex: 1;
+}
+
+.sim-result {
+  max-height: 320px;
+  overflow: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 8px;
 }
 </style>

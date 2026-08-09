@@ -108,3 +108,97 @@ impl ConfigStore {
         self.save(&config)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn temp_store() -> (ConfigStore, tempfile::TempDir) {
+        let dir = tempfile::tempdir().expect("创建临时目录失败");
+        (ConfigStore::new(dir.path().to_path_buf()), dir)
+    }
+
+    #[test]
+    fn load_missing_file_returns_default() {
+        let (store, _dir) = temp_store();
+        let config = store.load().expect("加载缺失文件应返回默认配置");
+        assert_eq!(config.version, "3");
+        assert!(config.components.is_empty());
+    }
+
+    #[test]
+    fn load_empty_file_returns_default() {
+        let (store, dir) = temp_store();
+        std::fs::write(dir.path().join("zerolaunch_config.json"), "").unwrap();
+        let config = store.load().expect("空文件应返回默认配置");
+        assert!(config.components.is_empty());
+    }
+
+    #[test]
+    fn save_writes_atomic_file_without_tmp_leftover() {
+        let (store, dir) = temp_store();
+        let config = PersistentConfig {
+            version: "3".to_string(),
+            components: Default::default(),
+        };
+        store.save(&config).expect("保存失败");
+        let path = dir.path().join("zerolaunch_config.json");
+        assert!(path.exists(), "保存后配置文件应存在于配置目录");
+        assert!(
+            !dir.path().join("zerolaunch_config.tmp").exists(),
+            "原子写入不应残留 .tmp 文件"
+        );
+        let content = std::fs::read_to_string(&path).unwrap();
+        let parsed: serde_json::Value =
+            serde_json::from_str(&content).expect("配置文件应为合法 JSON");
+        assert_eq!(parsed["version"], "3");
+    }
+
+    #[test]
+    fn save_then_load_roundtrip_preserves_settings() {
+        let (store, _dir) = temp_store();
+        let state = ComponentPersistentState {
+            enabled: true,
+            settings: json!({ "theme": "dark", "log_level": "warn" }),
+        };
+        store
+            .save_component("appearance-config", &state)
+            .expect("保存失败");
+        let loaded = store.load().expect("加载失败");
+        let loaded_state = loaded
+            .components
+            .get("appearance-config")
+            .expect("组件应存在");
+        assert!(loaded_state.enabled);
+        assert_eq!(loaded_state.settings["theme"], "dark");
+        assert_eq!(loaded_state.settings["log_level"], "warn");
+    }
+
+    #[test]
+    fn load_corrupted_file_returns_serialization_error() {
+        let (store, dir) = temp_store();
+        std::fs::write(dir.path().join("zerolaunch_config.json"), "{not json").unwrap();
+        let err = store.load().expect_err("损坏文件应报错");
+        assert!(matches!(err, ConfigError::SerializationError(_)));
+    }
+
+    #[test]
+    fn backup_corrupted_renames_to_bak() {
+        let (store, dir) = temp_store();
+        let path = dir.path().join("zerolaunch_config.json");
+        std::fs::write(&path, "corrupted").unwrap();
+        store.backup_corrupted().expect("备份失败");
+        assert!(!path.exists(), "损坏文件应被移走");
+        assert!(
+            dir.path().join("zerolaunch_config.json.bak").exists(),
+            "应生成 .json.bak 备份"
+        );
+    }
+
+    #[test]
+    fn backup_corrupted_noop_when_missing() {
+        let (store, _dir) = temp_store();
+        store.backup_corrupted().expect("缺失文件备份应幂等");
+    }
+}

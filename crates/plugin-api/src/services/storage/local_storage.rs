@@ -147,3 +147,100 @@ impl StorageService for LocalStorageService {
         true
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 创建指向临时目录的 LocalStorageService（测试目录自动清理）。
+    fn temp_service() -> (LocalStorageService, tempfile::TempDir) {
+        let dir = tempfile::tempdir().expect("创建临时目录失败");
+        let service = LocalStorageService::new(dir.path());
+        (service, dir)
+    }
+
+    #[tokio::test]
+    async fn upload_creates_file_with_content() {
+        let (service, dir) = temp_service();
+        service
+            .upload("config.json", br#"{"a":1}"#)
+            .await
+            .expect("上传失败");
+        let path = dir.path().join("config.json");
+        assert!(path.exists(), "上传后文件应存在于目标目录");
+        assert_eq!(std::fs::read_to_string(path).unwrap(), r#"{"a":1}"#);
+    }
+
+    #[tokio::test]
+    async fn upload_creates_nested_parent_dirs() {
+        let (service, dir) = temp_service();
+        service
+            .upload("sub/dir/config.json", b"data")
+            .await
+            .expect("上传失败");
+        assert!(dir.path().join("sub/dir/config.json").exists());
+    }
+
+    #[tokio::test]
+    async fn download_returns_content_when_exists() {
+        let (service, dir) = temp_service();
+        std::fs::create_dir_all(dir.path()).unwrap();
+        std::fs::write(dir.path().join("a.txt"), "hello").unwrap();
+        let data = service.download("a.txt").await.expect("下载失败");
+        assert_eq!(data, Some(b"hello".to_vec()));
+    }
+
+    #[tokio::test]
+    async fn download_returns_none_when_missing() {
+        let (service, _dir) = temp_service();
+        let data = service.download("missing.txt").await.expect("下载失败");
+        assert_eq!(data, None, "不存在的文件应返回 None 而非错误");
+    }
+
+    #[tokio::test]
+    async fn delete_removes_file_and_is_idempotent() {
+        let (service, dir) = temp_service();
+        std::fs::write(dir.path().join("d.txt"), "x").unwrap();
+        service.delete("d.txt").await.expect("删除失败");
+        assert!(!dir.path().join("d.txt").exists());
+        // 再次删除不存在文件应幂等成功
+        service.delete("d.txt").await.expect("重复删除应幂等");
+    }
+
+    #[tokio::test]
+    async fn list_filters_by_prefix_and_files_only() {
+        let (service, dir) = temp_service();
+        std::fs::create_dir_all(dir.path().join("a")).unwrap();
+        std::fs::write(dir.path().join("a/1.txt"), "").unwrap();
+        std::fs::write(dir.path().join("a/2.txt"), "").unwrap();
+        std::fs::write(dir.path().join("a/sub"), "").unwrap();
+        let files = service.list("a").await.expect("列表失败");
+        assert_eq!(files.len(), 3);
+        assert!(files.contains(&"1.txt".to_string()));
+        assert!(files.contains(&"2.txt".to_string()));
+        // 不存在的前缀返回空列表
+        let empty = service.list("nonexistent").await.expect("列表失败");
+        assert!(empty.is_empty());
+    }
+
+    #[tokio::test]
+    async fn validate_roundtrip_and_cleanup() {
+        let (service, dir) = temp_service();
+        assert!(service.validate().await, "本地上传下载往返应成功");
+        assert!(
+            !dir.path().join("__zerolaunch_storage_test__.txt").exists(),
+            "validate 应清理测试文件"
+        );
+    }
+
+    #[tokio::test]
+    async fn target_dir_path_matches() {
+        let dir = tempfile::tempdir().expect("创建临时目录失败");
+        let service = LocalStorageService::new(dir.path());
+        assert_eq!(
+            service.target_dir_path(),
+            dir.path().to_str().unwrap(),
+            "target_dir_path 应返回存储目标目录"
+        );
+    }
+}

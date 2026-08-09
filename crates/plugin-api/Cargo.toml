@@ -36,3 +36,6 @@ rand.workspace = true
 rayon.workspace = true
 walkdir.workspace = true
 mockall = { workspace = true, optional = true }
+
+[dev-dependencies]
+tempfile.workspace = true

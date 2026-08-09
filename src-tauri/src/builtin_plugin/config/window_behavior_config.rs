@@ -138,7 +138,7 @@ impl Configurable for WindowBehaviorConfigComponent {
             )
             .group("窗口行为")
             .order(11)
-            .default(false)
+            .default(true)
             .build(),
             SchemaBuilder::integer("window_position_x", "窗口位置 X", "上次拖动后的窗口水平位置")
                 .group("窗口位置")

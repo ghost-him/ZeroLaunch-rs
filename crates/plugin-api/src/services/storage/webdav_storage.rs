@@ -203,3 +203,158 @@ impl StorageService for WebDAVStorageService {
         true
     }
 }
+
+#[cfg(all(test, feature = "webdav"))]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+    use std::process::{Child, Stdio};
+    use std::time::Duration;
+
+    /// WebDAV 集成测试服务器地址（bun fixture 固定监听端口）。
+    const SERVER_URL: &str = "http://127.0.0.1:18080";
+
+    /// 启动 bun WebDAV 测试服务器（tests/fixtures/webdav_server.ts）。
+    /// 轮询 OPTIONS 直至就绪，超时 panic。
+    fn start_server() -> Child {
+        let script =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/webdav_server.ts");
+        let child = std::process::Command::new("bun")
+            .arg("run")
+            .arg(&script)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("启动 WebDAV 测试服务器失败（需要 bun 可执行文件）");
+        child
+    }
+
+    /// 轮询等待服务器就绪（OPTIONS 返回 200），单次请求 2 秒超时。
+    async fn wait_ready() {
+        for _ in 0..25 {
+            let client = reqwest::Client::builder()
+                .timeout(Duration::from_secs(2))
+                .build()
+                .expect("创建 reqwest 客户端失败");
+            if client
+                .request(reqwest::Method::OPTIONS, SERVER_URL)
+                .send()
+                .await
+                .map(|r| r.status().is_success())
+                .unwrap_or(false)
+            {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(200)).await;
+        }
+        panic!("WebDAV 测试服务器启动超时（5 秒）");
+    }
+
+    /// 构造指向测试服务器的 WebDAVStorageService（目标目录为根）。
+    fn make_service() -> WebDAVStorageService {
+        WebDAVStorageService::new(&WebDAVConfig {
+            host_url: SERVER_URL.into(),
+            account: "test".into(),
+            password: "test".into(),
+            destination_dir: "/".into(),
+        })
+    }
+
+    /// WebDAV 存储服务端到端契约：upload/download/delete/list/validate 全链路。
+    ///
+    /// 依赖 bun 与 tests/fixtures/webdav_server.ts；整体 30 秒超时保护，
+    /// 服务器进程通过 shutdown 端点优雅退出（兜底 kill 进程树）。
+    #[tokio::test]
+    async fn webdav_storage_full_roundtrip() {
+        let mut child = start_server();
+
+        let assertions = tokio::time::timeout(Duration::from_secs(30), async {
+            wait_ready().await;
+
+            let svc = make_service();
+            assert_eq!(svc.target_dir_path(), "/", "目标目录应返回 destination_dir");
+
+            // 上传 → 下载往返，内容一致
+            svc.upload("remote/config.json", br#"{"a":1}"#)
+                .await
+                .expect("上传失败");
+            let data = svc
+                .download("remote/config.json")
+                .await
+                .expect("下载失败")
+                .expect("上传的文件应可下载");
+            assert_eq!(data, br#"{"a":1}"#);
+
+            // 不存在文件 → Ok(None) 而非错误（404 语义）
+            assert_eq!(
+                svc.download("not-exist.json").await.expect("下载失败"),
+                None,
+                "不存在的文件应返回 None"
+            );
+
+            // 删除 → 再下载为 None
+            svc.delete("remote/config.json").await.expect("删除失败");
+            assert_eq!(
+                svc.download("remote/config.json").await.expect("下载失败"),
+                None,
+                "删除后文件应不可下载"
+            );
+
+            // 列表：前缀目录下仅返回文件（过滤目录）
+            svc.upload("dir/a.txt", b"a").await.expect("上传失败");
+            svc.upload("dir/b.txt", b"b").await.expect("上传失败");
+            let files = svc.list("dir").await.expect("列表失败");
+            assert!(
+                files.contains(&"a.txt".to_string()),
+                "列表应含 a.txt: {:?}",
+                files
+            );
+            assert!(
+                files.contains(&"b.txt".to_string()),
+                "列表应含 b.txt: {:?}",
+                files
+            );
+
+            // validate：上传+下载测试文件往返成功
+            assert!(svc.validate().await, "validate 上传下载往返应成功");
+
+            // 清理服务器端残留
+            svc.delete("dir/a.txt").await.expect("清理失败");
+            svc.delete("dir/b.txt").await.expect("清理失败");
+
+            // 优雅关闭测试服务器（避免 bun 进程树残留）
+            let _ = reqwest::Client::builder()
+                .timeout(Duration::from_secs(2))
+                .build()
+                .expect("创建 reqwest 客户端失败")
+                .post(format!("{SERVER_URL}/__shutdown"))
+                .send()
+                .await;
+            Ok::<(), ()>(())
+        })
+        .await
+        .expect("WebDAV 端到端断言超时（30 秒）");
+
+        // 等待服务器退出（轮询最多 5 秒），兜底杀进程树
+        for _ in 0..50 {
+            if child.try_wait().ok().flatten().is_some() {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+        if child.try_wait().ok().flatten().is_none() {
+            #[cfg(windows)]
+            {
+                let _ = std::process::Command::new("taskkill")
+                    .args(["/PID", &child.id().to_string(), "/T", "/F"])
+                    .output();
+            }
+            #[cfg(not(windows))]
+            {
+                let _ = child.kill();
+            }
+        }
+
+        assertions.expect("WebDAV 端到端断言失败");
+    }
+}

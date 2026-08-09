@@ -174,6 +174,8 @@ export interface DataActionBinding {
   action: string
   component: string | null
   labelField: string
+  /** labelField 列的表头显示文本；labelField 在条目 schema 中无对应字段时使用。 */
+  labelFieldLabel: string
   valueField: string
   fieldMapping: [string, string][]
 }

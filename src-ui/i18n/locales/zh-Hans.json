@@ -132,6 +132,7 @@
     "searchActionInvalid": "搜索 action 返回了非数组数据",
     "searchValueRequired": "搜索结果缺少 schema 要求的值字段",
     "searchMaxItems": "已达到数组允许的最大条目数",
+    "icon": "图标",
     "editEntry": "编辑 {label}",
     "schemaValidationFailed": "配置不符合 schema：{path}",
     "resetConfirmTitle": "确认重置",

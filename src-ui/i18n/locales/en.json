@@ -132,6 +132,7 @@
     "searchActionInvalid": "The search action returned non-array data",
     "searchValueRequired": "The search result has no value required by the schema",
     "searchMaxItems": "The array has reached its maximum item count",
+    "icon": "Icon",
     "editEntry": "Edit {label}",
     "schemaValidationFailed": "The settings do not match the schema: {path}",
     "resetConfirmTitle": "Reset settings",

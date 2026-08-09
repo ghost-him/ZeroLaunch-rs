@@ -275,6 +275,7 @@ impl Configurable for BookmarkSource {
                     action: "detect_browsers".into(),
                     component: None,
                     label_field: "name".into(),
+                    label_field_label: "浏览器名称".into(),
                     value_field: "bookmarks_path".into(),
                     field_mapping: vec![],
                 })

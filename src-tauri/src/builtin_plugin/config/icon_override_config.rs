@@ -128,6 +128,7 @@ impl Configurable for IconOverrideConfig {
             action: "search_candidates".into(),
             component: Some("candidate-registry".into()),
             label_field: "name".into(),
+            label_field_label: "名称".into(),
             value_field: "target".into(),
             field_mapping: vec![
                 ("iconRequestJson".into(), "icon_request_json".into()),

@@ -86,6 +86,7 @@ import {
 import { useI18n } from 'vue-i18n'
 import type { DataTableColumn } from 'naive-ui'
 import DynamicFormField from '../../DynamicFormField.vue'
+import IconDisplay from '../../../common/IconDisplay.vue'
 import { useConfigStore } from '../../../../stores/config-store'
 import {
   canAddArrayItem,
@@ -121,6 +122,7 @@ const searchSource = computed(() => {
     sourceComponent: binding.component ?? props.componentId,
     sourceAction: binding.action,
     labelField: binding.labelField,
+    labelFieldLabel: binding.labelFieldLabel,
     valueField: binding.valueField,
     fieldMapping: binding.fieldMapping ?? [],
   }
@@ -142,6 +144,11 @@ const fdToConfig = fieldDefToConfig
 
 const query = ref('')
 const searchResults = ref<SearchResult[]>([])
+
+/** 搜索结果是否携带 icon 字段（如候选注册表返回的 base64 图标），决定是否渲染图标列。 */
+const hasIconColumn = computed(() =>
+  searchResults.value.some((row) => typeof row['icon'] === 'string' && row['icon'].length > 0),
+)
 const searching = ref(false)
 const searchError = ref<string | null>(null)
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
@@ -324,12 +331,23 @@ const columns = computed<DataTableColumn<SearchResult>[]>(() => {
   const valueField = allFields.value.find((field) => field.key === source.valueField)
   const resultColumns: DataTableColumn<SearchResult>[] = [
     {
-      title: labelField?.label ?? source.labelField,
+      title: labelField?.label ?? (source.labelFieldLabel || source.labelField),
       key: 'label',
       ellipsis: { tooltip: true },
       render: (row) => String(row[source.labelField] ?? row[source.valueField] ?? '—'),
     },
   ]
+  if (hasIconColumn.value) {
+    resultColumns.unshift({
+      title: t('settings.icon'),
+      key: 'icon',
+      width: 60,
+      render: (row) => {
+        const src = typeof row['icon'] === 'string' ? row['icon'] : ''
+        return src ? h(IconDisplay, { src, size: 28 }) : null
+      },
+    })
+  }
   if (source.valueField !== source.labelField) {
     resultColumns.push({
       title: valueField?.label ?? source.valueField,
@@ -341,7 +359,7 @@ const columns = computed<DataTableColumn<SearchResult>[]>(() => {
   resultColumns.push({
     title: t('common.actions'),
     key: 'actions',
-    width: 140,
+    width: 80,
     render: (row) => {
       const value = row[source.valueField]
       const existing = getEntry(value)

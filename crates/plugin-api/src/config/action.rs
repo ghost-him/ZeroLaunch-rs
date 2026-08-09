@@ -43,6 +43,9 @@ pub struct DataActionBinding {
     /// action 返回结果中用作显示标签的字段名。
     #[serde(rename = "labelField", default)]
     pub label_field: String,
+    /// labelField 列的表头显示文本；labelField 在条目 schema 中无对应字段时使用。
+    #[serde(rename = "labelFieldLabel", default)]
+    pub label_field_label: String,
     /// action 返回结果中用作字段值的字段名。
     #[serde(rename = "valueField", default)]
     pub value_field: String,
@@ -110,12 +113,14 @@ mod tests {
             action: "search_candidates".into(),
             component: Some("candidate-registry".into()),
             label_field: "name".into(),
+            label_field_label: "名称".into(),
             value_field: "target".into(),
             field_mapping: vec![("iconRequestJson".into(), "icon_request_json".into())],
         }))
         .expect("Data action must serialize");
         assert_eq!(data["kind"], "data");
         assert_eq!(data["binding"]["labelField"], "name");
+        assert_eq!(data["binding"]["labelFieldLabel"], "名称");
         assert_eq!(data["binding"]["valueField"], "target");
         assert_eq!(data["binding"]["fieldMapping"][0][0], "iconRequestJson");
 

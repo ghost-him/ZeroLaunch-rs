@@ -1,10 +1,10 @@
 <template>
   <div class="dynamic-form">
     <div class="form-header">
-      <h3>{{ schema.componentName }}</h3>
+      <h3>{{ resolveText(schema.componentName) }}</h3>
       <n-tag :bordered="false" size="small">{{ schema.componentType }}</n-tag>
     </div>
-    <p class="form-desc" v-if="schema.componentDescription">{{ schema.componentDescription }}</p>
+    <p class="form-desc" v-if="schema.componentDescription">{{ resolveText(schema.componentDescription) }}</p>
 
     <n-alert v-if="!schemaSupported" type="warning">
       {{ $t('settings.unsupportedSchemaVersion', { version: schema.contribution.schemaVersion }) }}
@@ -16,7 +16,7 @@
       <FormSection
         v-for="group in groupedFields"
         :key="group.name"
-        :title="group.name"
+        :title="resolveText(group.name)"
         :collapsible="group.name !== ''"
       >
         <DynamicFormField
@@ -54,6 +54,7 @@
 import { ref, computed, watch, provide, onUnmounted } from 'vue'
 import { NAlert, NButton, NTag, NText, useMessage, useDialog } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
+import { resolveText } from '../../i18n'
 import DynamicFormField from './DynamicFormField.vue'
 import FormSection from './FormSection.vue'
 import { useConfigStore } from '../../stores/config-store'

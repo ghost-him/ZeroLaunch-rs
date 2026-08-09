@@ -1,5 +1,6 @@
 use crate::core::cli_token::CliToken;
 use crate::core::config::ConfigManager;
+use crate::core::i18n::I18nManager;
 use crate::plugin_framework::manager::PluginManager;
 use crate::plugin_framework::PluginRegistry;
 use crate::plugin_framework::SessionDispatcher;
@@ -25,6 +26,8 @@ pub struct AppState {
     plugin_manager: RwLock<Option<Arc<PluginManager>>>,
     /// CLI server token (cached for the `cli_get_info` IPC command).
     cli_token: RwLock<Option<CliToken>>,
+    /// 后端翻译服务（内置语言包 + 插件翻译目录）
+    i18n_manager: RwLock<Option<Arc<I18nManager>>>,
 }
 
 impl Default for AppState {
@@ -50,6 +53,7 @@ impl AppState {
             inspector: RwLock::new(None),
             plugin_manager: RwLock::new(None),
             cli_token: RwLock::new(None),
+            i18n_manager: RwLock::new(None),
         }
     }
 
@@ -164,6 +168,18 @@ impl AppState {
 
     pub fn set_cli_token(&self, token: CliToken) {
         *self.cli_token.write() = Some(token);
+    }
+
+    pub fn get_i18n_manager(&self) -> Arc<I18nManager> {
+        self.i18n_manager
+            .read()
+            .as_ref()
+            .cloned()
+            .expect("i18n manager not initialized")
+    }
+
+    pub fn set_i18n_manager(&self, i18n_manager: Arc<I18nManager>) {
+        *self.i18n_manager.write() = Some(i18n_manager);
     }
 }
 

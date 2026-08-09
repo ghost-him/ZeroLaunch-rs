@@ -68,8 +68,8 @@ impl WindowBehaviorConfigComponent {
         Self {
             core: ComponentCore::new(
                 "window-behavior-config".to_string(),
-                "窗口行为".to_string(),
-                "定制搜索窗口的打开、隐藏和焦点行为".to_string(),
+                t_key!("window-behavior-config", "name").to_string(),
+                t_key!("window-behavior-config", "description").to_string(),
                 ComponentType::Core,
                 20,
             ),
@@ -88,70 +88,108 @@ impl Configurable for WindowBehaviorConfigComponent {
         vec![
             SchemaBuilder::boolean(
                 "is_esc_hide_window_priority",
-                "ESC 优先隐藏",
-                "启用后，按下 ESC 键直接隐藏窗口，不再先清空输入内容",
+                t_key!(
+                    "window-behavior-config",
+                    "fields.is_esc_hide_window_priority.label"
+                ),
+                t_key!(
+                    "window-behavior-config",
+                    "fields.is_esc_hide_window_priority.desc"
+                ),
             )
-            .group("窗口行为")
+            .group(t_key!("window-behavior-config", "groups.windowBehavior"))
             .order(0)
             .default(false)
             .build(),
             SchemaBuilder::boolean(
                 "space_is_enter",
-                "空格键确认",
-                "启用后，按下空格键等同于回车键，直接启动选中项",
+                t_key!("window-behavior-config", "fields.space_is_enter.label"),
+                t_key!("window-behavior-config", "fields.space_is_enter.desc"),
             )
-            .group("窗口行为")
+            .group(t_key!("window-behavior-config", "groups.windowBehavior"))
             .order(1)
             .default(false)
             .build(),
             SchemaBuilder::boolean(
                 "is_wake_on_fullscreen",
-                "全屏时允许弹出",
-                "启用后，前台程序全屏时仍可弹出搜索栏（会打断全屏体验）",
+                t_key!(
+                    "window-behavior-config",
+                    "fields.is_wake_on_fullscreen.label"
+                ),
+                t_key!(
+                    "window-behavior-config",
+                    "fields.is_wake_on_fullscreen.desc"
+                ),
             )
-            .group("窗口行为")
+            .group(t_key!("window-behavior-config", "groups.windowBehavior"))
             .order(2)
             .default(false)
             .build(),
             SchemaBuilder::boolean(
                 "launch_new_on_failure",
-                "激活失败时启动新实例",
-                "启用后，窗口激活失败时自动启动程序新实例作为降级方案",
+                t_key!(
+                    "window-behavior-config",
+                    "fields.launch_new_on_failure.label"
+                ),
+                t_key!(
+                    "window-behavior-config",
+                    "fields.launch_new_on_failure.desc"
+                ),
             )
-            .group("窗口行为")
+            .group(t_key!("window-behavior-config", "groups.windowBehavior"))
             .order(3)
             .default(true)
             .build(),
             SchemaBuilder::boolean(
                 "is_enable_drag_window",
-                "启用窗口拖动",
-                "启用后，可拖动搜索栏窗口并记住位置。下次唤醒时恢复到上次拖动的位置",
+                t_key!(
+                    "window-behavior-config",
+                    "fields.is_enable_drag_window.label"
+                ),
+                t_key!(
+                    "window-behavior-config",
+                    "fields.is_enable_drag_window.desc"
+                ),
             )
-            .group("窗口行为")
+            .group(t_key!("window-behavior-config", "groups.windowBehavior"))
             .order(10)
             .default(false)
             .build(),
             SchemaBuilder::boolean(
                 "show_pos_follow_mouse",
-                "跟随鼠标显示器",
-                "启用后，唤醒搜索栏时自动定位到鼠标所在的显示器（多显示器环境有效）。优先级低于「启用窗口拖动」",
+                t_key!(
+                    "window-behavior-config",
+                    "fields.show_pos_follow_mouse.label"
+                ),
+                t_key!(
+                    "window-behavior-config",
+                    "fields.show_pos_follow_mouse.desc"
+                ),
             )
-            .group("窗口行为")
+            .group(t_key!("window-behavior-config", "groups.windowBehavior"))
             .order(11)
             .default(true)
             .build(),
-            SchemaBuilder::integer("window_position_x", "窗口位置 X", "上次拖动后的窗口水平位置")
-                .group("窗口位置")
-                .order(99)
-                .default(0)
-                .editable(false)
-                .build(),
-            SchemaBuilder::integer("window_position_y", "窗口位置 Y", "上次拖动后的窗口垂直位置")
-                .group("窗口位置")
-                .order(100)
-                .default(0)
-                .editable(false)
-                .build(),
+            SchemaBuilder::integer(
+                "window_position_x",
+                t_key!("window-behavior-config", "fields.window_position_x.label"),
+                t_key!("window-behavior-config", "fields.window_position_x.desc"),
+            )
+            .group(t_key!("window-behavior-config", "groups.windowPosition"))
+            .order(99)
+            .default(0)
+            .editable(false)
+            .build(),
+            SchemaBuilder::integer(
+                "window_position_y",
+                t_key!("window-behavior-config", "fields.window_position_y.label"),
+                t_key!("window-behavior-config", "fields.window_position_y.desc"),
+            )
+            .group(t_key!("window-behavior-config", "groups.windowPosition"))
+            .order(100)
+            .default(0)
+            .editable(false)
+            .build(),
         ]
     }
 
@@ -159,7 +197,7 @@ impl Configurable for WindowBehaviorConfigComponent {
         serde_json::to_value(self.settings.read().clone()).unwrap_or_default()
     }
 
-    fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
+    async fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
         let parsed: WindowBehaviorSettings = serde_json::from_value(settings).unwrap_or_else(|e| {
             warn!(
                 "failed to parse settings for {}, using defaults: {e}",

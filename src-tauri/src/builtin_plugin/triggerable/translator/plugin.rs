@@ -269,8 +269,8 @@ impl TranslatorPlugin {
         Self {
             core: ComponentCore::new(
                 "translator".to_string(),
-                "翻译".to_string(),
-                "在搜索栏中进行多引擎翻译".to_string(),
+                t_key!("translator", "name").to_string(),
+                t_key!("translator", "description").to_string(),
                 ComponentType::Plugin,
                 0,
             ),
@@ -584,94 +584,94 @@ impl Configurable for TranslatorPlugin {
         vec![
             SchemaBuilder::select(
                 "translate_mode",
-                "翻译触发",
-                "即时：输入即翻译；按 Enter：确认后才请求，节省 token",
+                t_key!("translator", "fields.translate_mode.label"),
+                t_key!("translator", "fields.translate_mode.desc"),
             )
             .options(&[TRANSLATE_MODE_LIVE, TRANSLATE_MODE_ON_ENTER])
-            .group("基础")
+            .group(t_key!("translator", "groups.basic"))
             .order(0)
             .default(TRANSLATE_MODE_LIVE)
             .build(),
             SchemaBuilder::select(
                 "default_target",
-                "默认目标语言",
-                "未写语言码时的目标语（源语自动检测；若与源语相同则回退到另一常用语）",
+                t_key!("translator", "fields.default_target.label"),
+                t_key!("translator", "fields.default_target.desc"),
             )
             .options_with_labels(&lang_refs)
-            .group("基础")
+            .group(t_key!("translator", "groups.basic"))
             .order(1)
             .default("zh")
             .build(),
             SchemaBuilder::array(
                 "enabled_providers",
-                "翻译引擎",
-                "参与并行翻译的引擎；列表顺序即结果优先顺序",
+                t_key!("translator", "fields.enabled_providers.label"),
+                t_key!("translator", "fields.enabled_providers.desc"),
             )
             .primitive_item(PrimitiveType::Select {
                 options: vec![PROVIDER_ID.into(), MOCK_PROVIDER_ID.into()],
             })
-            .group("引擎")
+            .group(t_key!("translator", "groups.engine"))
             .order(2)
             .default(json!([PROVIDER_ID]))
             .build(),
             SchemaBuilder::number(
                 "request_timeout_ms",
-                "超时（毫秒）",
-                "单个引擎的请求超时时间",
+                t_key!("translator", "fields.request_timeout_ms.label"),
+                t_key!("translator", "fields.request_timeout_ms.desc"),
             )
             .min(1000.0)
             .max(60000.0)
             .step(500.0)
-            .group("引擎")
+            .group(t_key!("translator", "groups.engine"))
             .order(3)
             .default(15000.0)
             .build(),
             SchemaBuilder::number(
                 "live_debounce_secs",
-                "即时翻译防抖（秒）",
-                "即时模式下输入后的防抖等待时间，减少冗余请求",
+                t_key!("translator", "fields.live_debounce_secs.label"),
+                t_key!("translator", "fields.live_debounce_secs.desc"),
             )
             .min(0.1)
             .max(5.0)
             .step(0.1)
-            .group("基础")
+            .group(t_key!("translator", "groups.basic"))
             .order(2)
             .default(0.5)
             .build(),
             SchemaBuilder::select(
                 "llm_vendor",
-                "厂商预设",
-                "点「应用」后写入对应 Base URL；选「自定义」不改写地址",
+                t_key!("translator", "fields.llm_vendor.label"),
+                t_key!("translator", "fields.llm_vendor.desc"),
             )
             .options(&vendor_refs)
-            .group("LLM 服务")
+            .group(t_key!("translator", "groups.llmService"))
             .order(9)
             .default(LLM_VENDOR_CUSTOM)
             .build(),
             SchemaBuilder::text(
                 "llm_base_url",
-                "Base URL",
-                "OpenAI 兼容 API 根地址（如 https://api.deepseek.com）",
+                t_key!("translator", "fields.llm_base_url.label"),
+                t_key!("translator", "fields.llm_base_url.desc"),
             )
-            .group("LLM 服务")
+            .group(t_key!("translator", "groups.llmService"))
             .order(10)
             .default("")
             .build(),
             SchemaBuilder::text(
                 "llm_api_key",
-                "API Key",
-                "LLM 服务的 API 密钥（请妥善保管）",
+                t_key!("translator", "fields.llm_api_key.label"),
+                t_key!("translator", "fields.llm_api_key.desc"),
             )
-            .group("LLM 服务")
+            .group(t_key!("translator", "groups.llmService"))
             .order(11)
             .default("")
             .build(),
             SchemaBuilder::text(
                 "llm_model",
-                "Model",
-                "模型名称（如 deepseek-chat、moonshot-v1-8k）",
+                t_key!("translator", "fields.llm_model.label"),
+                t_key!("translator", "fields.llm_model.desc"),
             )
-            .group("LLM 服务")
+            .group(t_key!("translator", "groups.llmService"))
             .order(12)
             .default("")
             .build(),
@@ -683,7 +683,7 @@ impl Configurable for TranslatorPlugin {
         serde_json::to_value(self.inner.read().clone()).unwrap_or_default()
     }
 
-    fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
+    async fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
         let parsed = serde_json::from_value::<TranslatorSettings>(settings)
             .unwrap_or_default()
             .normalize();
@@ -927,7 +927,7 @@ mod tests {
         }
     }
 
-    fn apply_on_enter(plugin: &TranslatorPlugin) {
+    async fn apply_on_enter(plugin: &TranslatorPlugin) {
         plugin
             .apply_settings(json!({
                 "translate_mode": TRANSLATE_MODE_ON_ENTER,
@@ -939,6 +939,7 @@ mod tests {
                 "llm_api_key": "",
                 "llm_model": "",
             }))
+            .await
             .unwrap();
     }
 
@@ -1011,7 +1012,7 @@ mod tests {
     #[tokio::test]
     async fn on_enter_first_query_returns_ready() {
         let plugin = TranslatorPlugin::new();
-        apply_on_enter(&plugin);
+        apply_on_enter(&plugin).await;
 
         let ctx = PluginContext::new("test");
         let resp = plugin.query(&ctx, &sample_query("hello")).await.unwrap();
@@ -1033,7 +1034,7 @@ mod tests {
     #[tokio::test]
     async fn on_enter_confirm_query_enters_translate_path() {
         let plugin = TranslatorPlugin::new();
-        apply_on_enter(&plugin);
+        apply_on_enter(&plugin).await;
 
         let ctx = PluginContext::new("test");
         // 非确认查询（输入/路由触发）→ ready
@@ -1071,7 +1072,7 @@ mod tests {
     #[tokio::test]
     async fn on_enter_edit_then_confirm_translates_directly() {
         let plugin = TranslatorPlugin::new();
-        apply_on_enter(&plugin);
+        apply_on_enter(&plugin).await;
         let ctx = PluginContext::new("test");
 
         // 面板内改文本后非确认查询 → ready（展示最新文本）
@@ -1111,6 +1112,7 @@ mod tests {
                 "default_target": "zh",
                 "enabled_providers": [MOCK_PROVIDER_ID],
             }))
+            .await
             .unwrap();
 
         let latest = Arc::new(AtomicU64::new(2));
@@ -1168,6 +1170,7 @@ mod tests {
                 "default_target": "zh",
                 "enabled_providers": [MOCK_PROVIDER_ID],
             }))
+            .await
             .unwrap();
 
         // CLI 查询：翻译照常执行，但不得创建/改写剪贴板缓存。
@@ -1265,9 +1268,9 @@ mod tests {
         );
     }
 
-    #[test]
+    #[tokio::test]
     /// 用户预设随设置持久化往返：apply_settings 保存后 get_settings 原样下发。
-    fn vendor_options_persist_through_apply_and_get() {
+    async fn vendor_options_persist_through_apply_and_get() {
         let plugin = TranslatorPlugin::new();
         plugin
             .apply_settings(json!({
@@ -1276,6 +1279,7 @@ mod tests {
                     { "label": "MyVendor", "url": "https://my.example.com/v1" },
                 ],
             }))
+            .await
             .unwrap();
         let value = plugin.get_settings();
         assert_eq!(value["llm_vendor"], "MyVendor");

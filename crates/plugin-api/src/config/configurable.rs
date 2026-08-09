@@ -59,12 +59,15 @@ pub trait Configurable: Send + Sync {
 
     /// 应用配置到组件。
     /// 使用 &self 签名，组件内部通过 RwLock 等实现可变性。
-    fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
+    /// async：远端插件（RemoteComponent）实现需经 RPC 下发配置到插件进程。
+    async fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
         let _ = settings;
         Ok(())
     }
 
-    fn validate_settings(&self, settings: &serde_json::Value) -> Result<(), ConfigError> {
+    /// 校验一组配置值是否合法（不会实际应用）。
+    /// async：远端插件实现需经 RPC 委托插件进程补充业务校验。
+    async fn validate_settings(&self, settings: &serde_json::Value) -> Result<(), ConfigError> {
         let contribution = self.settings_contribution()?;
         // 组件无 schema 字段时，允许 settings 为 null（等价于空对象）。
         if contribution.properties.is_empty() && settings.is_null() {

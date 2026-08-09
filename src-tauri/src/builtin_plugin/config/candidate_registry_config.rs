@@ -59,8 +59,8 @@ impl CandidateRegistryConfig {
         Self {
             core: ComponentCore::new(
                 "candidate-registry".to_string(),
-                "候选项注册表".to_string(),
-                "提供已索引程序的搜索服务，供设置页面使用".to_string(),
+                t_key!("candidate-registry", "name").to_string(),
+                t_key!("candidate-registry", "description").to_string(),
                 ComponentType::Core,
                 5,
             ),
@@ -86,12 +86,12 @@ impl Configurable for CandidateRegistryConfig {
         serde_json::Value::Null
     }
 
-    fn validate_settings(&self, _settings: &serde_json::Value) -> Result<(), ConfigError> {
+    async fn validate_settings(&self, _settings: &serde_json::Value) -> Result<(), ConfigError> {
         // CandidateRegistryConfig 无用户可配置项，settings 始终为 Null，跳过校验
         Ok(())
     }
 
-    fn apply_settings(
+    async fn apply_settings(
         &self,
         _settings: serde_json::Value,
     ) -> Result<(), zerolaunch_plugin_api::config::ConfigError> {
@@ -101,8 +101,12 @@ impl Configurable for CandidateRegistryConfig {
     fn config_actions(&self) -> Vec<ConfigActionDef> {
         vec![ConfigActionDef {
             action: "search_candidates".to_string(),
-            label: "搜索程序".to_string(),
-            description: "按名称或路径搜索已索引的程序".to_string(),
+            label: t_key!("candidate-registry", "actions.search_candidates.label").to_string(),
+            description: t_key!(
+                "candidate-registry",
+                "actions.search_candidates.description"
+            )
+            .to_string(),
         }]
     }
 

@@ -43,8 +43,8 @@ impl UrlSource {
         UrlSource {
             core: ComponentCore::new(
                 "url-source".to_string(),
-                "网页数据源".to_string(),
-                "使用关键字快速打开预设网页".to_string(),
+                t_key!("url-source", "name").to_string(),
+                t_key!("url-source", "description").to_string(),
                 ComponentType::DataSource,
                 20,
             ),
@@ -61,36 +61,46 @@ impl Configurable for UrlSource {
     }
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {
-        vec![
-            SchemaBuilder::array("web_pages", "索引网页", "配置要索引的网页快捷方式")
-                .group("网页索引")
-                .order(1)
-                .object_items(vec![
-                    SchemaBuilder::text("name", "名称", "网页的显示名称")
-                        .default("")
-                        .build_field(),
-                    SchemaBuilder::text("url", "URL", "网页的完整网址")
-                        .default("")
-                        .build_field(),
-                    SchemaBuilder::text(
-                        "triggerKeywords",
-                        "触发关键词",
-                        "逗号分隔的触发词列表。输入触发词+空格进入参数模式。为空时默认使用名称。",
-                    )
-                    .default("")
-                    .build_field(),
-                ])
-                .table_ui()
-                .default(serde_json::json!([]))
-                .build(),
-        ]
+        vec![SchemaBuilder::array(
+            "web_pages",
+            t_key!("url-source", "fields.web_pages.label"),
+            t_key!("url-source", "fields.web_pages.desc"),
+        )
+        .group(t_key!("url-source", "groups.webIndex"))
+        .order(1)
+        .object_items(vec![
+            SchemaBuilder::text(
+                "name",
+                t_key!("url-source", "fields.name.label"),
+                t_key!("url-source", "fields.name.desc"),
+            )
+            .default("")
+            .build_field(),
+            SchemaBuilder::text(
+                "url",
+                t_key!("url-source", "fields.url.label"),
+                t_key!("url-source", "fields.url.desc"),
+            )
+            .default("")
+            .build_field(),
+            SchemaBuilder::text(
+                "triggerKeywords",
+                t_key!("url-source", "fields.triggerKeywords.label"),
+                t_key!("url-source", "fields.triggerKeywords.desc"),
+            )
+            .default("")
+            .build_field(),
+        ])
+        .table_ui()
+        .default(serde_json::json!([]))
+        .build()]
     }
 
     fn get_settings(&self) -> serde_json::Value {
         serde_json::to_value(self.settings.read().clone()).unwrap_or_default()
     }
 
-    fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
+    async fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
         let parsed: UrlSourceSettings = serde_json::from_value(settings).unwrap_or_default();
         *self.settings.write() = parsed;
         Ok(())

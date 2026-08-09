@@ -2,6 +2,7 @@
 // Schema 类型工具 — 字段配置合并 + 工具函数
 // ============================================================
 
+import { resolveText } from '../i18n'
 import type {
   SchemaNode,
   WidgetHint,
@@ -343,7 +344,7 @@ export function getSchemaStringConfig(schema: SchemaNode): { minLength: number |
 export function getSchemaEnumOptions(schema: SchemaNode): { label: string; value: string }[] {
   if (schema.type === 'string' && schema.enum) {
     return schema.enum.map((v, i) => ({
-      label: schema.enumLabels[i] ?? v,
+      label: resolveText(schema.enumLabels[i] ?? v),
       value: v,
     }))
   }

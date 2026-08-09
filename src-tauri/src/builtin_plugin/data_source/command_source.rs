@@ -43,8 +43,8 @@ impl CommandSource {
         CommandSource {
             core: ComponentCore::new(
                 "command-source".to_string(),
-                "自定义命令数据源".to_string(),
-                "执行用户自定义的快捷命令".to_string(),
+                t_key!("command-source", "name").to_string(),
+                t_key!("command-source", "description").to_string(),
                 ComponentType::DataSource,
                 40,
             ),
@@ -103,36 +103,46 @@ impl Configurable for CommandSource {
     }
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {
-        vec![
-            SchemaBuilder::array("commands", "自定义命令", "配置要索引的自定义命令快捷方式")
-                .group("命令配置")
-                .order(1)
-                .object_items(vec![
-                    SchemaBuilder::text("name", "名称", "命令的显示名称")
-                        .default("")
-                        .build_field(),
-                    SchemaBuilder::text("command", "命令", "要执行的命令或程序路径")
-                        .default("")
-                        .build_field(),
-                    SchemaBuilder::text(
-                        "triggerKeywords",
-                        "触发关键词",
-                        "逗号分隔的触发词列表。输入触发词+空格进入参数模式。为空时默认使用名称。",
-                    )
-                    .default("")
-                    .build_field(),
-                ])
-                .table_ui()
-                .default(serde_json::json!([]))
-                .build(),
-        ]
+        vec![SchemaBuilder::array(
+            "commands",
+            t_key!("command-source", "fields.commands.label"),
+            t_key!("command-source", "fields.commands.desc"),
+        )
+        .group(t_key!("command-source", "groups.commandConfig"))
+        .order(1)
+        .object_items(vec![
+            SchemaBuilder::text(
+                "name",
+                t_key!("command-source", "fields.name.label"),
+                t_key!("command-source", "fields.name.desc"),
+            )
+            .default("")
+            .build_field(),
+            SchemaBuilder::text(
+                "command",
+                t_key!("command-source", "fields.command.label"),
+                t_key!("command-source", "fields.command.desc"),
+            )
+            .default("")
+            .build_field(),
+            SchemaBuilder::text(
+                "triggerKeywords",
+                t_key!("command-source", "fields.triggerKeywords.label"),
+                t_key!("command-source", "fields.triggerKeywords.desc"),
+            )
+            .default("")
+            .build_field(),
+        ])
+        .table_ui()
+        .default(serde_json::json!([]))
+        .build()]
     }
 
     fn get_settings(&self) -> serde_json::Value {
         serde_json::to_value(self.settings.read().clone()).unwrap_or_default()
     }
 
-    fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
+    async fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
         let parsed: CommandSourceSettings = serde_json::from_value(settings).unwrap_or_default();
         *self.settings.write() = parsed;
         Ok(())

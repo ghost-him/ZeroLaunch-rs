@@ -23,8 +23,9 @@ import {
 import { useThemeStore } from './stores/theme-store'
 import { useConfigStore } from './stores/config-store'
 import { configGetSettings } from './bridge/commands'
-import { i18n, setLocale } from './i18n'
-import { onConfigChanged } from './bridge/events'
+import { i18n, setLocale, type Locale } from './i18n'
+import { refreshPluginTranslations } from './stores/i18n-store'
+import { onConfigChanged, onPluginInstalled, onPluginUninstalled } from './bridge/events'
 
 const themeStore = useThemeStore()
 const configStore = useConfigStore()
@@ -33,8 +34,16 @@ const naiveLocale = ref(i18n.global.locale.value === 'en' ? enUS : zhCN)
 
 let unlistenAppearance: (() => void) | null = null
 let unlistenWindowBehavior: (() => void) | null = null
+let unlistenPluginEvents: (() => void)[] = []
 
 onMounted(async () => {
+  // 拉取第三方插件翻译目录（内置语言包已静态打包）
+  refreshPluginTranslations(i18n.global.locale.value as Locale)
+  // 插件安装/卸载后刷新合并目录（跨窗口：设置窗口安装的插件主窗口也要生效）
+  unlistenPluginEvents = [
+    await onPluginInstalled(() => refreshPluginTranslations(i18n.global.locale.value as Locale)),
+    await onPluginUninstalled(() => refreshPluginTranslations(i18n.global.locale.value as Locale)),
+  ]
   // 监听外观配置变更（跨窗口同步主题/语言/外观CSS变量）
   unlistenAppearance = await onConfigChanged((payload) => {
     if (payload.componentId !== 'appearance-config') return
@@ -43,6 +52,7 @@ onMounted(async () => {
       const result = await themeStore.applyRemoteSettings(settings)
       if (result.langChanged) {
         setLocale(result.newLang)
+        refreshPluginTranslations(result.newLang)
         naiveLocale.value = result.newLang === 'en' ? enUS : zhCN
       }
     }).catch(() => {})
@@ -65,5 +75,6 @@ onMounted(async () => {
 onUnmounted(() => {
   unlistenAppearance?.()
   unlistenWindowBehavior?.()
+  unlistenPluginEvents.forEach((fn) => fn())
 })
 </script>

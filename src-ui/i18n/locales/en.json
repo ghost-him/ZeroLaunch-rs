@@ -274,5 +274,785 @@
     "colKeywords": "Keywords",
     "detailExpandTitle": "Score Breakdown ({count} items, total {score})",
     "detailHint": "× is a multiplier applied to the accumulated result of the additive terms above"
+  },
+  "tray": {
+    "showSettings": "Settings",
+    "refreshDatabase": "Refresh Database",
+    "reregisterHotkeys": "Reregister Hotkeys",
+    "gameMode": "Game Mode",
+    "exitProgram": "Exit"
+  },
+  "components": {
+    "appearance-config": {
+      "name": "Appearance",
+      "description": "Customize the app theme and UI language",
+      "groups": {
+        "theme": "Theme",
+        "searchBar": "Search Bar",
+        "resultList": "Result List",
+        "footer": "Footer",
+        "window": "Window",
+        "colorsLight": "Light Colors",
+        "colorsDark": "Dark Colors",
+        "background": "Background"
+      },
+      "fields": {
+        "theme": {
+          "label": "Theme",
+          "desc": "Choose light, dark or follow system theme"
+        },
+        "language": {
+          "label": "Language",
+          "desc": "UI display language"
+        },
+        "search_bar_height": {
+          "label": "Search bar height",
+          "desc": "Height of the search bar (px)"
+        },
+        "search_bar_font_ratio": {
+          "label": "Search bar font ratio",
+          "desc": "Font size = search bar height × this ratio"
+        },
+        "search_bar_font_family": {
+          "label": "Search bar font",
+          "desc": "Font family name; empty follows system"
+        },
+        "search_bar_placeholder": {
+          "label": "Search bar placeholder",
+          "desc": "Placeholder text of the search bar"
+        },
+        "result_item_height": {
+          "label": "Result item height",
+          "desc": "Height of a single result (px)"
+        },
+        "result_item_font_ratio": {
+          "label": "Title font ratio",
+          "desc": "Title font size = result item height × this ratio"
+        },
+        "result_item_subtitle_font_ratio": {
+          "label": "Subtitle font ratio",
+          "desc": "Subtitle font size = result item height × this ratio"
+        },
+        "result_item_icon_ratio": {
+          "label": "Icon size ratio",
+          "desc": "Icon size = result item height × this ratio"
+        },
+        "result_item_font_family": {
+          "label": "Result list font",
+          "desc": "Font family name; empty follows system"
+        },
+        "max_visible_results": {
+          "label": "Max visible results",
+          "desc": "Maximum results shown without scrolling"
+        },
+        "show_launch_command": {
+          "label": "Show launch command",
+          "desc": "Show the launch command path in result items"
+        },
+        "show_subtitle": {
+          "label": "Show subtitle",
+          "desc": "Show subtitle info in result items"
+        },
+        "footer_height": {
+          "label": "Footer height",
+          "desc": "Footer height (px); 0 hides it"
+        },
+        "footer_font_ratio": {
+          "label": "Footer font ratio",
+          "desc": "Font size = footer height × this ratio"
+        },
+        "footer_font_family": {
+          "label": "Footer font",
+          "desc": "Font family name; empty follows system"
+        },
+        "window_width": {
+          "label": "Window width",
+          "desc": "Width of the search window (px)"
+        },
+        "window_corner_radius": {
+          "label": "Window corner radius",
+          "desc": "Window corner radius (px)"
+        },
+        "vertical_position_ratio": {
+          "label": "Vertical position ratio",
+          "desc": "Window vertical position ratio (0=top, 1=bottom)"
+        },
+        "bg_primary": {
+          "label": "Primary background",
+          "desc": "Primary background color in light mode"
+        },
+        "bg_secondary": {
+          "label": "Secondary background",
+          "desc": "Secondary background color in light mode"
+        },
+        "text_primary": {
+          "label": "Primary text",
+          "desc": "Primary text color in light mode"
+        },
+        "text_secondary": {
+          "label": "Secondary text",
+          "desc": "Secondary text color in light mode"
+        },
+        "border_color": {
+          "label": "Border",
+          "desc": "Border color in light mode"
+        },
+        "accent_color": {
+          "label": "Accent",
+          "desc": "Accent/link color in light mode"
+        },
+        "hover_color": {
+          "label": "Hover",
+          "desc": "Mouse hover background color in light mode"
+        },
+        "dark_bg_primary": {
+          "label": "Primary background",
+          "desc": "Primary background color in dark mode"
+        },
+        "dark_bg_secondary": {
+          "label": "Secondary background",
+          "desc": "Secondary background color in dark mode"
+        },
+        "dark_text_primary": {
+          "label": "Primary text",
+          "desc": "Primary text color in dark mode"
+        },
+        "dark_text_secondary": {
+          "label": "Secondary text",
+          "desc": "Secondary text color in dark mode"
+        },
+        "dark_border_color": {
+          "label": "Border",
+          "desc": "Border color in dark mode"
+        },
+        "dark_accent_color": {
+          "label": "Accent",
+          "desc": "Accent/link color in dark mode"
+        },
+        "dark_hover_color": {
+          "label": "Hover",
+          "desc": "Mouse hover background color in dark mode"
+        },
+        "bg_image": {
+          "label": "Background image",
+          "desc": "Background image in light mode; empty disables it"
+        },
+        "bg_image_dark": {
+          "label": "Dark background image",
+          "desc": "Background image in dark mode; empty falls back to the light one"
+        },
+        "bg_size": {
+          "label": "Background size",
+          "desc": "CSS background-size property"
+        },
+        "bg_position": {
+          "label": "Background position",
+          "desc": "CSS background-position property"
+        },
+        "bg_repeat": {
+          "label": "Background repeat",
+          "desc": "CSS background-repeat property"
+        },
+        "bg_opacity": {
+          "label": "Background opacity",
+          "desc": "Background image opacity (0.0 ~ 1.0)"
+        }
+      }
+    },
+    "auto-refresh-config": {
+      "name": "Auto Refresh",
+      "description": "Refresh the search index at a fixed interval (0 disables)",
+      "groups": {
+        "scheduledRefresh": "Scheduled Refresh"
+      },
+      "fields": {
+        "auto_refresh_interval_mins": {
+          "label": "Auto refresh interval (min)",
+          "desc": "Refresh the search index at a fixed interval; 0 disables scheduled refresh"
+        }
+      }
+    },
+    "bias-config": {
+      "name": "Fixed Offset",
+      "description": "Set fixed weight offsets for programs to adjust their position in search results",
+      "groups": {
+        "fixedOffset": "Fixed Offset"
+      },
+      "fields": {
+        "entries": {
+          "label": "Fixed offsets",
+          "desc": "Set fixed weight offsets for programs; positive boosts ranking, negative lowers it"
+        },
+        "target": {
+          "label": "Program",
+          "desc": "Target program identifier"
+        },
+        "bias": {
+          "label": "Offset",
+          "desc": "Positive boosts ranking, negative lowers it"
+        },
+        "note": {
+          "label": "Note",
+          "desc": "Optional note"
+        }
+      }
+    },
+    "candidate-registry": {
+      "name": "Candidate Registry",
+      "description": "Provides search services over indexed programs for the settings page",
+      "actions": {
+        "search_candidates": {
+          "label": "Search programs",
+          "description": "Search indexed programs by name or path"
+        }
+      }
+    },
+    "general-config": {
+      "name": "General",
+      "description": "General app behavior, including debug mode",
+      "groups": {
+        "general": "General"
+      },
+      "fields": {
+        "is_auto_start": {
+          "label": "Start on boot",
+          "desc": "When enabled, ZeroLaunch auto-starts with the system"
+        },
+        "is_debug_mode": {
+          "label": "Debug mode",
+          "desc": "When enabled, show extra debug info and dev tools"
+        },
+        "log_level": {
+          "label": "Log level",
+          "desc": "Controls the verbosity of log output"
+        },
+        "reset_session_on_wake": {
+          "label": "Reset session on wake",
+          "desc": "When enabled, each launcher show restores the initial search UI (parameter panel and inline parameter mode always reset). When disabled, plugin panel state persists across hide/show."
+        }
+      }
+    },
+    "hotkey-config": {
+      "name": "Hotkey Config",
+      "description": "Set global hotkeys to quickly wake the search window",
+      "groups": {
+        "globalHotkeys": "Global Hotkeys"
+      },
+      "fields": {
+        "open_search_bar": {
+          "label": "Open search bar",
+          "desc": "Global hotkey to show/hide the search bar"
+        },
+        "double_click_ctrl": {
+          "label": "Double-click Ctrl to open",
+          "desc": "When enabled, quickly double-pressing Ctrl opens the search bar (the open hotkey above is then ignored)"
+        }
+      }
+    },
+    "icon-override-config": {
+      "name": "Icon Override",
+      "description": "Replace icons for specific programs",
+      "groups": {
+        "iconOverride": "Icon Override"
+      },
+      "fields": {
+        "entries": {
+          "label": "Icon overrides",
+          "desc": "Custom icons for specific programs; supports .exe, .png, .ico and more"
+        },
+        "target": {
+          "label": "Program",
+          "desc": "Target program path"
+        },
+        "target_type": {
+          "label": "Target type",
+          "desc": "Target type (Path, Url, etc.)"
+        },
+        "icon_request_json": {
+          "label": "Icon request",
+          "desc": "JSON serialization of the original icon request"
+        },
+        "custom_icon_path": {
+          "label": "Icon file",
+          "desc": "Choose a new icon file (.exe, .lnk, .png, .ico, etc.)"
+        },
+        "note": {
+          "label": "Note",
+          "desc": "Optional note"
+        }
+      },
+      "actions": {
+        "apply_override": {
+          "label": "Apply icon",
+          "description": "Immediately process the chosen icon file into the cache without saving the path"
+        }
+      }
+    },
+    "installation-monitor-config": {
+      "name": "Installation Monitor",
+      "description": "Monitor software installs and auto-update the search index",
+      "groups": {
+        "installationMonitor": "Installation Monitor"
+      },
+      "fields": {
+        "enable_installation_monitor": {
+          "label": "Enable install monitor",
+          "desc": "When enabled, watch filesystem changes (e.g. Start Menu) to detect program installs and uninstalls"
+        },
+        "monitor_debounce_secs": {
+          "label": "Debounce wait (seconds)",
+          "desc": "Wait time after filesystem changes to avoid frequent refreshes"
+        },
+        "monitor_watch_paths": {
+          "label": "Watch paths",
+          "desc": "Directory paths to watch (one per line); empty uses platform defaults (Windows Start Menu)"
+        }
+      }
+    },
+    "storage-config": {
+      "name": "Storage Config",
+      "description": "Manage data storage location and WebDAV remote sync",
+      "groups": {
+        "storage": "Storage",
+        "webdav": "WebDAV"
+      },
+      "fields": {
+        "storage_destination": {
+          "label": "Storage backend",
+          "desc": "Choose how config files are stored"
+        },
+        "custom_save_path": {
+          "label": "Custom save path",
+          "desc": "Override the default app data directory (empty uses the default path)"
+        },
+        "webdav_host_url": {
+          "label": "WebDAV server URL",
+          "desc": "Full URL of the WebDAV server"
+        },
+        "webdav_account": {
+          "label": "WebDAV account",
+          "desc": "Authentication account of the WebDAV service"
+        },
+        "webdav_password": {
+          "label": "WebDAV password",
+          "desc": "Authentication password of the WebDAV service"
+        },
+        "webdav_destination_dir": {
+          "label": "WebDAV remote directory",
+          "desc": "Target storage directory on the WebDAV server"
+        }
+      }
+    },
+    "window-behavior-config": {
+      "name": "Window Behavior",
+      "description": "Customize search window open, hide and focus behavior",
+      "groups": {
+        "windowBehavior": "Window Behavior",
+        "windowPosition": "Window Position"
+      },
+      "fields": {
+        "is_esc_hide_window_priority": {
+          "label": "ESC hides window first",
+          "desc": "When enabled, pressing ESC hides the window directly instead of clearing input first"
+        },
+        "space_is_enter": {
+          "label": "Space acts as Enter",
+          "desc": "When enabled, pressing Space equals Enter and launches the selected item"
+        },
+        "is_wake_on_fullscreen": {
+          "label": "Allow popup in fullscreen",
+          "desc": "When enabled, the search bar can still pop up over a fullscreen foreground app"
+        },
+        "launch_new_on_failure": {
+          "label": "Launch new instance on activation failure",
+          "desc": "When enabled, auto-launch a new program instance as fallback if window activation fails"
+        },
+        "is_enable_drag_window": {
+          "label": "Enable window dragging",
+          "desc": "When enabled, the search bar window can be dragged and its position remembered for next wake"
+        },
+        "show_pos_follow_mouse": {
+          "label": "Follow mouse display",
+          "desc": "When enabled, the search bar appears on the display under the mouse on wake (multi-display). Lower priority than window dragging."
+        },
+        "window_position_x": {
+          "label": "Window position X",
+          "desc": "Horizontal window position after last drag"
+        },
+        "window_position_y": {
+          "label": "Window position Y",
+          "desc": "Vertical window position after last drag"
+        }
+      }
+    },
+    "bookmark-source": {
+      "name": "Bookmark Source",
+      "description": "Search URLs from browser bookmarks",
+      "fields": {
+        "sources": {
+          "label": "Bookmark sources",
+          "desc": "Configure browser bookmark sources to index"
+        },
+        "name": {
+          "label": "Browser name",
+          "desc": "Browser name of this bookmark source"
+        },
+        "bookmarks_path": {
+          "label": "Bookmark file path",
+          "desc": "Full path of the browser bookmark file"
+        },
+        "enabled": {
+          "label": "Enabled",
+          "desc": "Whether this bookmark source is enabled"
+        },
+        "overrides": {
+          "label": "Override configs",
+          "desc": "Exclude or retitle specific bookmarks"
+        },
+        "url": {
+          "label": "URL",
+          "desc": "Bookmark URL to match"
+        },
+        "excluded": {
+          "label": "Excluded",
+          "desc": "Whether to exclude this bookmark"
+        },
+        "custom_title": {
+          "label": "Custom title",
+          "desc": "Custom title replacing the original; empty keeps the original"
+        }
+      },
+      "groups": {
+        "bookmarkSource": "Bookmark Sources"
+      }
+    },
+    "command-source": {
+      "name": "Custom Command Source",
+      "description": "Execute user-defined quick commands",
+      "fields": {
+        "commands": {
+          "label": "Custom commands",
+          "desc": "Configure custom command shortcuts to index"
+        },
+        "name": {
+          "label": "Name",
+          "desc": "Display name of the command"
+        },
+        "command": {
+          "label": "Command",
+          "desc": "Command or program path to execute"
+        },
+        "triggerKeywords": {
+          "label": "Trigger keywords",
+          "desc": "Comma-separated trigger words. Enter trigger + space to enter parameter mode. Empty defaults to the name."
+        }
+      },
+      "groups": {
+        "commandConfig": "Command Config"
+      }
+    },
+    "program-source": {
+      "name": "Path Program Source",
+      "description": "Scan applications in user-specified paths",
+      "fields": {
+        "directories": {
+          "label": "Scan directories",
+          "desc": "Configure program directories to scan"
+        },
+        "root_path": {
+          "label": "Directory path",
+          "desc": "Root directory to scan"
+        },
+        "max_depth": {
+          "label": "Scan depth",
+          "desc": "Subdirectory recursion depth"
+        },
+        "pattern": {
+          "label": "File patterns",
+          "desc": "File types to match, e.g. *.exe, *.lnk"
+        },
+        "pattern_type": {
+          "label": "Match mode",
+          "desc": "Wildcard or regular expression"
+        },
+        "excluded_keywords": {
+          "label": "Excluded keywords",
+          "desc": "Paths containing these keywords are ignored"
+        },
+        "forbidden_paths": {
+          "label": "Forbidden paths",
+          "desc": "These paths and their subtrees are not scanned"
+        },
+        "symlink_mode": {
+          "label": "Symlink mode",
+          "desc": "How symlinks are handled"
+        }
+      },
+      "groups": {
+        "directoryScan": "Directory Scan"
+      }
+    },
+    "url-source": {
+      "name": "Web Page Source",
+      "description": "Open preset web pages with keywords",
+      "fields": {
+        "web_pages": {
+          "label": "Indexed web pages",
+          "desc": "Configure web page shortcuts to index"
+        },
+        "name": {
+          "label": "Name",
+          "desc": "Display name of the web page"
+        },
+        "url": {
+          "label": "URL",
+          "desc": "Full URL of the web page"
+        },
+        "triggerKeywords": {
+          "label": "Trigger keywords",
+          "desc": "Comma-separated trigger words. Enter trigger + space to enter parameter mode. Empty defaults to the name."
+        }
+      },
+      "groups": {
+        "webIndex": "Web Index"
+      }
+    },
+    "alias-optimizer": {
+      "name": "Alias",
+      "description": "Set aliases for programs to add search match paths",
+      "groups": {
+        "alias": "Alias"
+      },
+      "fields": {
+        "entries": {
+          "label": "Alias config",
+          "desc": "Set aliases for programs to add search match paths"
+        },
+        "target": {
+          "label": "Program",
+          "desc": "Target program path"
+        },
+        "aliases": {
+          "label": "Aliases",
+          "desc": "Alias list; press Enter to add"
+        },
+        "note": {
+          "label": "Note",
+          "desc": "Optional note"
+        }
+      }
+    },
+    "first-letter-extractor": {
+      "name": "First-letter Extractor",
+      "description": "Extract pinyin initials for fuzzy matching",
+      "fields": {
+        "priority": {
+          "label": "Priority",
+          "desc": "Optimizer execution priority; smaller runs first"
+        },
+        "uses_context": {
+          "label": "Use context",
+          "desc": "Whether to optimize all accumulated keywords rather than only the original name"
+        }
+      }
+    },
+    "lower-case-converter": {
+      "name": "Lower-case Converter",
+      "description": "Lowercase keywords to ignore case",
+      "fields": {
+        "priority": {
+          "label": "Priority",
+          "desc": "Optimizer execution priority; smaller runs first"
+        },
+        "uses_context": {
+          "label": "Use context",
+          "desc": "Whether to optimize all accumulated keywords rather than only the original name"
+        }
+      }
+    },
+    "pinyin-converter": {
+      "name": "Pinyin Converter",
+      "description": "Convert Chinese keywords to pinyin for pinyin search",
+      "fields": {
+        "priority": {
+          "label": "Priority",
+          "desc": "Optimizer execution priority; smaller runs first"
+        },
+        "uses_context": {
+          "label": "Context optimization",
+          "desc": "Whether to run pinyin conversion on all accumulated keywords"
+        }
+      }
+    },
+    "space-normalizer": {
+      "name": "Space Normalizer",
+      "description": "Normalize whitespace in keywords",
+      "fields": {
+        "priority": {
+          "label": "Priority",
+          "desc": "Optimizer execution priority; smaller runs first"
+        },
+        "uses_context": {
+          "label": "Use context",
+          "desc": "Whether to optimize all accumulated keywords rather than only the original name"
+        }
+      }
+    },
+    "space-remover": {
+      "name": "Space Remover",
+      "description": "Remove spaces for compact matching",
+      "fields": {
+        "priority": {
+          "label": "Priority",
+          "desc": "Optimizer execution priority; smaller runs first"
+        },
+        "uses_context": {
+          "label": "Use context",
+          "desc": "Whether to optimize all accumulated keywords rather than only the original name"
+        }
+      }
+    },
+    "symbol-remover": {
+      "name": "Symbol Remover",
+      "description": "Remove symbols for clean matching",
+      "fields": {
+        "priority": {
+          "label": "Priority",
+          "desc": "Optimizer execution priority; smaller runs first"
+        },
+        "uses_context": {
+          "label": "Use context",
+          "desc": "Whether to optimize all accumulated keywords rather than only the original name"
+        }
+      }
+    },
+    "upper-case-letter-extractor": {
+      "name": "Uppercase Letter Extractor",
+      "description": "Extract uppercase letters for abbreviation search",
+      "fields": {
+        "priority": {
+          "label": "Priority",
+          "desc": "Optimizer execution priority; smaller runs first"
+        },
+        "uses_context": {
+          "label": "Use context",
+          "desc": "Whether to optimize all accumulated keywords rather than only the original name"
+        }
+      }
+    },
+    "version-number-remover": {
+      "name": "Version Number Remover",
+      "description": "Remove version numbers for better matching",
+      "fields": {
+        "priority": {
+          "label": "Priority",
+          "desc": "Optimizer execution priority; smaller runs first"
+        },
+        "uses_context": {
+          "label": "Use context",
+          "desc": "Whether to optimize all accumulated keywords rather than only the original name"
+        }
+      }
+    },
+    "history-booster": {
+      "name": "History Booster",
+      "description": "Boost frequently-used candidates by historical selection frequency",
+      "groups": {
+        "weight": "Weight",
+        "decay": "Decay"
+      },
+      "fields": {
+        "history_weight": {
+          "label": "History weight",
+          "desc": "Weight of total historical launch count"
+        },
+        "recent_habit_weight": {
+          "label": "Recent habit weight",
+          "desc": "Weight of launch habits in the last 7 days"
+        },
+        "temporal_weight": {
+          "label": "Short-term heat weight",
+          "desc": "Weight of short-term heat"
+        },
+        "temporal_decay": {
+          "label": "Heat decay constant (s)",
+          "desc": "Time constant of short-term heat decay; default 10800s (3h)"
+        }
+      }
+    },
+    "query-affinity-booster": {
+      "name": "Query Affinity Booster",
+      "description": "Adjust scores by how well query keywords match candidates",
+      "groups": {
+        "weight": "Weight",
+        "decay": "Decay",
+        "cooldown": "Cooldown"
+      },
+      "fields": {
+        "query_affinity_weight": {
+          "label": "Query affinity weight",
+          "desc": "Weight of query affinity"
+        },
+        "query_affinity_time_decay": {
+          "label": "Affinity decay constant (s)",
+          "desc": "Time decay constant of query affinity; default 259200s (3d)"
+        },
+        "query_affinity_cooldown": {
+          "label": "Affinity cooldown (s)",
+          "desc": "Cooldown of query affinity to avoid repeated counting in short bursts; default 15s"
+        }
+      }
+    },
+    "translator": {
+      "name": "Translate",
+      "description": "Translate with multiple engines in the search bar",
+      "groups": {
+        "basic": "Basic",
+        "engine": "Engines",
+        "llmService": "LLM Service"
+      },
+      "fields": {
+        "translate_mode": {
+          "label": "Trigger mode",
+          "desc": "Instant: translate on input; Enter: request only after confirm to save tokens"
+        },
+        "default_target": {
+          "label": "Default target language",
+          "desc": "Target language when no code is given (source auto-detected; falls back to another common language if equal to source)"
+        },
+        "enabled_providers": {
+          "label": "Translation engines",
+          "desc": "Engines for parallel translation; list order is result priority"
+        },
+        "request_timeout_ms": {
+          "label": "Timeout (ms)",
+          "desc": "Request timeout of a single engine"
+        },
+        "live_debounce_secs": {
+          "label": "Live debounce (s)",
+          "desc": "Debounce wait after input in instant mode to reduce redundant requests"
+        },
+        "llm_vendor": {
+          "label": "Vendor preset",
+          "desc": "Click \"Apply\" to write the preset Base URL; \"Custom\" keeps the address untouched"
+        },
+        "llm_base_url": {
+          "label": "Base URL",
+          "desc": "OpenAI-compatible API root URL (e.g. https://api.deepseek.com)"
+        },
+        "llm_api_key": {
+          "label": "API Key",
+          "desc": "API key of the LLM service (keep it safe)"
+        },
+        "llm_model": {
+          "label": "Model",
+          "desc": "Model name (e.g. deepseek-chat, moonshot-v1-8k)"
+        }
+      }
+    },
+    "calculator": {
+      "name": "Calculator",
+      "description": "Evaluate math expressions right in the search bar"
+    }
   }
 }

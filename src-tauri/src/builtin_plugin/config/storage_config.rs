@@ -77,8 +77,8 @@ impl StorageConfigComponent {
         Self {
             core: ComponentCore::new(
                 "storage-config".to_string(),
-                "存储配置".to_string(),
-                "管理数据存储位置和 WebDAV 远程同步".to_string(),
+                t_key!("storage-config", "name").to_string(),
+                t_key!("storage-config", "description").to_string(),
                 ComponentType::Core,
                 30,
             ),
@@ -96,47 +96,59 @@ impl Configurable for StorageConfigComponent {
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {
         vec![
-            SchemaBuilder::select("storage_destination", "存储后端", "选择配置文件的存储方式")
-                .group("存储设置")
-                .order(0)
-                .options(&["Local", "WebDAV"])
-                .default("Local")
-                .build(),
+            SchemaBuilder::select(
+                "storage_destination",
+                t_key!("storage-config", "fields.storage_destination.label"),
+                t_key!("storage-config", "fields.storage_destination.desc"),
+            )
+            .group(t_key!("storage-config", "groups.storage"))
+            .order(0)
+            .options(&["Local", "WebDAV"])
+            .default("Local")
+            .build(),
             SchemaBuilder::path(
                 "custom_save_path",
-                "自定义保存路径",
-                "覆盖默认的应用数据目录（留空使用默认路径）",
+                t_key!("storage-config", "fields.custom_save_path.label"),
+                t_key!("storage-config", "fields.custom_save_path.desc"),
             )
-            .group("存储设置")
+            .group(t_key!("storage-config", "groups.storage"))
             .order(1)
             .directory()
             .default("")
             .build(),
             SchemaBuilder::text(
                 "webdav_host_url",
-                "WebDAV 服务器地址",
-                "WebDAV 服务器的完整 URL",
+                t_key!("storage-config", "fields.webdav_host_url.label"),
+                t_key!("storage-config", "fields.webdav_host_url.desc"),
             )
-            .group("WebDAV 配置")
+            .group(t_key!("storage-config", "groups.webdav"))
             .order(2)
             .default("")
             .build(),
-            SchemaBuilder::text("webdav_account", "WebDAV 账号", "WebDAV 服务的认证账号")
-                .group("WebDAV 配置")
-                .order(3)
-                .default("")
-                .build(),
-            SchemaBuilder::text("webdav_password", "WebDAV 密码", "WebDAV 服务的认证密码")
-                .group("WebDAV 配置")
-                .order(4)
-                .default("")
-                .build(),
+            SchemaBuilder::text(
+                "webdav_account",
+                t_key!("storage-config", "fields.webdav_account.label"),
+                t_key!("storage-config", "fields.webdav_account.desc"),
+            )
+            .group(t_key!("storage-config", "groups.webdav"))
+            .order(3)
+            .default("")
+            .build(),
+            SchemaBuilder::text(
+                "webdav_password",
+                t_key!("storage-config", "fields.webdav_password.label"),
+                t_key!("storage-config", "fields.webdav_password.desc"),
+            )
+            .group(t_key!("storage-config", "groups.webdav"))
+            .order(4)
+            .default("")
+            .build(),
             SchemaBuilder::text(
                 "webdav_destination_dir",
-                "WebDAV 远程目录",
-                "WebDAV 服务器上的目标存储目录",
+                t_key!("storage-config", "fields.webdav_destination_dir.label"),
+                t_key!("storage-config", "fields.webdav_destination_dir.desc"),
             )
-            .group("WebDAV 配置")
+            .group(t_key!("storage-config", "groups.webdav"))
             .order(5)
             .default("/ZeroLaunch-rs/")
             .build(),
@@ -147,7 +159,7 @@ impl Configurable for StorageConfigComponent {
         serde_json::to_value(self.settings.read().clone()).unwrap_or_default()
     }
 
-    fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
+    async fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
         let parsed: StorageSettings = serde_json::from_value(settings).unwrap_or_else(|e| {
             warn!(
                 "failed to parse settings for {}, using defaults: {e}",
@@ -159,7 +171,7 @@ impl Configurable for StorageConfigComponent {
         Ok(())
     }
 
-    fn validate_settings(&self, settings: &serde_json::Value) -> Result<(), ConfigError> {
+    async fn validate_settings(&self, settings: &serde_json::Value) -> Result<(), ConfigError> {
         let destination = settings
             .get("storage_destination")
             .and_then(|v| v.as_str())

@@ -10,7 +10,7 @@
     <div class="search-bar">
       <n-input
         v-model:value="query"
-        :placeholder="field.description || $t('search.placeholder')"
+        :placeholder="resolveText(field.description) || $t('search.placeholder')"
         size="small"
         clearable
         :disabled="field.readOnly || !searchSource"
@@ -47,7 +47,7 @@
       :mask-closable="false"
     >
       <div v-for="fd in visibleFields" :key="fd.key" class="modal-field">
-        <label>{{ fd.label }}</label>
+        <label>{{ resolveText(fd.label) }}</label>
         <DynamicFormField
           :field="fdToConfig(fd, field.readOnly)"
           :component-id="componentId"
@@ -84,6 +84,7 @@ import {
   NSpace,
 } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
+import { resolveText } from '../../../../i18n'
 import type { DataTableColumn } from 'naive-ui'
 import DynamicFormField from '../../DynamicFormField.vue'
 import IconDisplay from '../../../common/IconDisplay.vue'
@@ -331,7 +332,7 @@ const columns = computed<DataTableColumn<SearchResult>[]>(() => {
   const valueField = allFields.value.find((field) => field.key === source.valueField)
   const resultColumns: DataTableColumn<SearchResult>[] = [
     {
-      title: labelField?.label ?? (source.labelFieldLabel || source.labelField),
+      title: resolveText(labelField?.label ?? (source.labelFieldLabel || source.labelField)),
       key: 'label',
       ellipsis: { tooltip: true },
       render: (row) => String(row[source.labelField] ?? row[source.valueField] ?? '—'),

@@ -56,8 +56,8 @@ impl IconOverrideConfig {
         Self {
             core: ComponentCore::new(
                 "icon-override-config".to_string(),
-                "图标覆盖".to_string(),
-                "为指定程序替换图标".to_string(),
+                t_key!("icon-override-config", "name").to_string(),
+                t_key!("icon-override-config", "description").to_string(),
                 ComponentType::Core,
                 10,
             ),
@@ -76,26 +76,34 @@ impl Configurable for IconOverrideConfig {
     fn setting_schema(&self) -> Vec<SettingDefinition> {
         vec![SchemaBuilder::array(
             "entries",
-            "图标覆盖",
-            "为指定程序自定义图标，支持选择 .exe、.png、.ico 等文件",
+            t_key!("icon-override-config", "fields.entries.label"),
+            t_key!("icon-override-config", "fields.entries.desc"),
         )
-        .group("图标覆盖")
+        .group(t_key!("icon-override-config", "groups.iconOverride"))
         .order(1)
         .object_items(vec![
-            SchemaBuilder::text("target", "程序", "目标程序路径")
-                .visible(false)
-                .editable(false)
-                .default("")
-                .build(),
-            SchemaBuilder::text("target_type", "目标类型", "目标类型（Path, Url 等）")
-                .visible(false)
-                .editable(false)
-                .default("")
-                .build(),
+            SchemaBuilder::text(
+                "target",
+                t_key!("icon-override-config", "fields.target.label"),
+                t_key!("icon-override-config", "fields.target.desc"),
+            )
+            .visible(false)
+            .editable(false)
+            .default("")
+            .build(),
+            SchemaBuilder::text(
+                "target_type",
+                t_key!("icon-override-config", "fields.target_type.label"),
+                t_key!("icon-override-config", "fields.target_type.desc"),
+            )
+            .visible(false)
+            .editable(false)
+            .default("")
+            .build(),
             SchemaBuilder::text(
                 "icon_request_json",
-                "图标请求",
-                "原始图标请求的 JSON 序列化",
+                t_key!("icon-override-config", "fields.icon_request_json.label"),
+                t_key!("icon-override-config", "fields.icon_request_json.desc"),
             )
             .visible(false)
             .editable(false)
@@ -103,8 +111,8 @@ impl Configurable for IconOverrideConfig {
             .build(),
             SchemaBuilder::path(
                 "custom_icon_path",
-                "图标文件",
-                "选择新的图标文件（支持 .exe、.lnk、.png、.ico 等格式）",
+                t_key!("icon-override-config", "fields.custom_icon_path.label"),
+                t_key!("icon-override-config", "fields.custom_icon_path.desc"),
             )
             .file()
             .default("")
@@ -119,9 +127,13 @@ impl Configurable for IconOverrideConfig {
             })
             .build(),
             // note 字段：可选备注
-            SchemaBuilder::text("note", "备注", "可选备注信息")
-                .default("")
-                .build_field(),
+            SchemaBuilder::text(
+                "note",
+                t_key!("icon-override-config", "fields.note.label"),
+                t_key!("icon-override-config", "fields.note.desc"),
+            )
+            .default("")
+            .build_field(),
         ])
         .search_table_ui()
         .data_action(DataActionBinding {
@@ -144,8 +156,9 @@ impl Configurable for IconOverrideConfig {
     fn config_actions(&self) -> Vec<ConfigActionDef> {
         vec![ConfigActionDef {
             action: "apply_override".to_string(),
-            label: "应用图标".to_string(),
-            description: "立即将选择的图标文件处理后写入缓存，不保存文件路径".to_string(),
+            label: t_key!("icon-override-config", "actions.apply_override.label").to_string(),
+            description: t_key!("icon-override-config", "actions.apply_override.description")
+                .to_string(),
         }]
     }
 
@@ -190,7 +203,7 @@ impl Configurable for IconOverrideConfig {
         serde_json::to_value(self.settings.read().clone()).unwrap_or_default()
     }
 
-    fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
+    async fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
         let parsed: IconOverrideSettings = serde_json::from_value(settings).unwrap_or_default();
         *self.settings.write() = parsed;
         Ok(())

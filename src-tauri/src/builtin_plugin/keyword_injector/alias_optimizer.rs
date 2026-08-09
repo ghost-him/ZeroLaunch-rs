@@ -53,8 +53,8 @@ impl AliasOptimizer {
         Self {
             core: ComponentCore::new(
                 "alias-optimizer".to_string(),
-                "别名".to_string(),
-                "为程序设置别名，增加搜索匹配路径".to_string(),
+                t_key!("alias-optimizer", "name").to_string(),
+                t_key!("alias-optimizer", "description").to_string(),
                 ComponentType::KeywordInjector,
                 50,
             ),
@@ -76,46 +76,60 @@ impl Configurable for AliasOptimizer {
     }
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {
-        vec![
-            SchemaBuilder::array("entries", "别名配置", "为程序设置别名，增加搜索匹配路径")
-                .group("别名")
-                .order(1)
-                .object_items(vec![
-                    SchemaBuilder::text("target", "程序", "目标程序路径")
-                        .visible(false)
-                        .editable(false)
-                        .default("")
-                        .build(),
-                    SchemaBuilder::array("aliases", "别名", "别名列表，输入回车添加")
-                        .primitive_item(zerolaunch_plugin_api::config::PrimitiveType::Text)
-                        .tags_ui()
-                        .min_items(1)
-                        .default(serde_json::json!([]))
-                        .build_field(),
-                    SchemaBuilder::text("note", "备注", "可选备注信息")
-                        .default("")
-                        .build_field(),
-                ])
-                .search_table_ui()
-                .data_action(DataActionBinding {
-                    action: "search_candidates".into(),
-                    component: Some("candidate-registry".into()),
-                    label_field: "name".into(),
-                    label_field_label: "名称".into(),
-                    value_field: "target".into(),
-                    merge_key: None,
-                    field_mapping: vec![],
-                })
-                .default(serde_json::json!([]))
-                .build(),
-        ]
+        vec![SchemaBuilder::array(
+            "entries",
+            t_key!("alias-optimizer", "fields.entries.label"),
+            t_key!("alias-optimizer", "fields.entries.desc"),
+        )
+        .group(t_key!("alias-optimizer", "groups.alias"))
+        .order(1)
+        .object_items(vec![
+            SchemaBuilder::text(
+                "target",
+                t_key!("alias-optimizer", "fields.target.label"),
+                t_key!("alias-optimizer", "fields.target.desc"),
+            )
+            .visible(false)
+            .editable(false)
+            .default("")
+            .build(),
+            SchemaBuilder::array(
+                "aliases",
+                t_key!("alias-optimizer", "fields.aliases.label"),
+                t_key!("alias-optimizer", "fields.aliases.desc"),
+            )
+            .primitive_item(zerolaunch_plugin_api::config::PrimitiveType::Text)
+            .tags_ui()
+            .min_items(1)
+            .default(serde_json::json!([]))
+            .build_field(),
+            SchemaBuilder::text(
+                "note",
+                t_key!("alias-optimizer", "fields.note.label"),
+                t_key!("alias-optimizer", "fields.note.desc"),
+            )
+            .default("")
+            .build_field(),
+        ])
+        .search_table_ui()
+        .data_action(DataActionBinding {
+            action: "search_candidates".into(),
+            component: Some("candidate-registry".into()),
+            label_field: "name".into(),
+            label_field_label: "名称".into(),
+            value_field: "target".into(),
+            merge_key: None,
+            field_mapping: vec![],
+        })
+        .default(serde_json::json!([]))
+        .build()]
     }
 
     fn get_settings(&self) -> serde_json::Value {
         serde_json::to_value(self.settings.read().clone()).unwrap_or_default()
     }
 
-    fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
+    async fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
         let mut parsed: AliasSettings = serde_json::from_value(settings).unwrap_or_default();
         // 归一化 target 为小写，避免 Windows 路径大小写不一致导致匹配失败
         for entry in &mut parsed.entries {

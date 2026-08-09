@@ -274,5 +274,785 @@
     "colKeywords": "关键词",
     "detailExpandTitle": "分数分解（共 {count} 项，总分 {score}）",
     "detailHint": "× 为乘法系数：乘到上方加分项的累计结果上"
+  },
+  "tray": {
+    "showSettings": "设置窗口",
+    "refreshDatabase": "刷新数据库",
+    "reregisterHotkeys": "重新注册快捷键",
+    "gameMode": "游戏模式",
+    "exitProgram": "退出程序"
+  },
+  "components": {
+    "appearance-config": {
+      "name": "外观",
+      "description": "自定义应用的外观主题和界面语言",
+      "groups": {
+        "theme": "主题",
+        "searchBar": "搜索栏",
+        "resultList": "结果列表",
+        "footer": "底栏",
+        "window": "窗口",
+        "colorsLight": "浅色配色",
+        "colorsDark": "深色配色",
+        "background": "背景"
+      },
+      "fields": {
+        "theme": {
+          "label": "主题",
+          "desc": "选择浅色、深色或跟随系统主题"
+        },
+        "language": {
+          "label": "语言",
+          "desc": "界面显示语言"
+        },
+        "search_bar_height": {
+          "label": "搜索栏高度",
+          "desc": "搜索栏的高度(px)"
+        },
+        "search_bar_font_ratio": {
+          "label": "搜索栏字体比例",
+          "desc": "字体大小 = 搜索栏高度 × 此比例"
+        },
+        "search_bar_font_family": {
+          "label": "搜索栏字体",
+          "desc": "字体族名称，留空则跟随系统"
+        },
+        "search_bar_placeholder": {
+          "label": "搜索栏占位符",
+          "desc": "搜索栏的提示文本"
+        },
+        "result_item_height": {
+          "label": "结果项高度",
+          "desc": "单条结果的高度(px)"
+        },
+        "result_item_font_ratio": {
+          "label": "结果标题字体比例",
+          "desc": "标题字体大小 = 结果项高度 × 此比例"
+        },
+        "result_item_subtitle_font_ratio": {
+          "label": "结果副标题字体比例",
+          "desc": "副标题字体大小 = 结果项高度 × 此比例"
+        },
+        "result_item_icon_ratio": {
+          "label": "图标大小比例",
+          "desc": "图标大小 = 结果项高度 × 此比例"
+        },
+        "result_item_font_family": {
+          "label": "结果栏字体",
+          "desc": "字体族名称，留空则跟随系统"
+        },
+        "max_visible_results": {
+          "label": "最大可见结果数",
+          "desc": "不滚动时最多显示的结果条数"
+        },
+        "show_launch_command": {
+          "label": "显示启动命令",
+          "desc": "在结果项中显示启动命令路径"
+        },
+        "show_subtitle": {
+          "label": "显示副标题",
+          "desc": "在结果项中显示副标题信息"
+        },
+        "footer_height": {
+          "label": "底栏高度",
+          "desc": "底栏的高度(px)，设为0则隐藏"
+        },
+        "footer_font_ratio": {
+          "label": "底栏字体比例",
+          "desc": "字体大小 = 底栏高度 × 此比例"
+        },
+        "footer_font_family": {
+          "label": "底栏字体",
+          "desc": "字体族名称，留空则跟随系统"
+        },
+        "window_width": {
+          "label": "窗口宽度",
+          "desc": "搜索窗口的宽度(px)"
+        },
+        "window_corner_radius": {
+          "label": "窗口圆角",
+          "desc": "窗口圆角大小(px)"
+        },
+        "vertical_position_ratio": {
+          "label": "垂直位置比例",
+          "desc": "窗口在屏幕垂直方向的位置比例(0=顶部, 1=底部)"
+        },
+        "bg_primary": {
+          "label": "主背景色",
+          "desc": "浅色模式下的主背景颜色"
+        },
+        "bg_secondary": {
+          "label": "副背景色",
+          "desc": "浅色模式下的次要背景颜色"
+        },
+        "text_primary": {
+          "label": "主文字色",
+          "desc": "浅色模式下的主要文字颜色"
+        },
+        "text_secondary": {
+          "label": "副文字色",
+          "desc": "浅色模式下的次要文字颜色"
+        },
+        "border_color": {
+          "label": "边框色",
+          "desc": "浅色模式下的边框颜色"
+        },
+        "accent_color": {
+          "label": "强调色",
+          "desc": "浅色模式下的强调/链接颜色"
+        },
+        "hover_color": {
+          "label": "悬停色",
+          "desc": "浅色模式下鼠标悬停的背景颜色"
+        },
+        "dark_bg_primary": {
+          "label": "主背景色",
+          "desc": "深色模式下的主背景颜色"
+        },
+        "dark_bg_secondary": {
+          "label": "副背景色",
+          "desc": "深色模式下的次要背景颜色"
+        },
+        "dark_text_primary": {
+          "label": "主文字色",
+          "desc": "深色模式下的主要文字颜色"
+        },
+        "dark_text_secondary": {
+          "label": "副文字色",
+          "desc": "深色模式下的次要文字颜色"
+        },
+        "dark_border_color": {
+          "label": "边框色",
+          "desc": "深色模式下的边框颜色"
+        },
+        "dark_accent_color": {
+          "label": "强调色",
+          "desc": "深色模式下的强调/链接颜色"
+        },
+        "dark_hover_color": {
+          "label": "悬停色",
+          "desc": "深色模式下鼠标悬停的背景颜色"
+        },
+        "bg_image": {
+          "label": "背景图片",
+          "desc": "浅色模式下的背景图片，留空则不使用背景图"
+        },
+        "bg_image_dark": {
+          "label": "深色背景图片",
+          "desc": "深色模式下的背景图片，留空则回退到浅色背景图"
+        },
+        "bg_size": {
+          "label": "背景尺寸",
+          "desc": "CSS background-size 属性"
+        },
+        "bg_position": {
+          "label": "背景位置",
+          "desc": "CSS background-position 属性"
+        },
+        "bg_repeat": {
+          "label": "背景重复",
+          "desc": "CSS background-repeat 属性"
+        },
+        "bg_opacity": {
+          "label": "背景不透明度",
+          "desc": "背景图片的不透明度 (0.0 ~ 1.0)"
+        }
+      }
+    },
+    "auto-refresh-config": {
+      "name": "定时刷新",
+      "description": "按固定间隔自动刷新搜索索引（0 表示禁用）",
+      "groups": {
+        "scheduledRefresh": "定时刷新"
+      },
+      "fields": {
+        "auto_refresh_interval_mins": {
+          "label": "自动刷新间隔（分钟）",
+          "desc": "按固定间隔自动刷新搜索索引，0 表示禁用定时刷新"
+        }
+      }
+    },
+    "bias-config": {
+      "name": "固定偏移量",
+      "description": "为程序设置固定权重偏移，调整其在搜索结果中的位置",
+      "groups": {
+        "fixedOffset": "固定偏移量"
+      },
+      "fields": {
+        "entries": {
+          "label": "固定偏移量",
+          "desc": "为程序设置固定权重偏移，正值提升排名，负值降低排名"
+        },
+        "target": {
+          "label": "程序",
+          "desc": "目标程序标识"
+        },
+        "bias": {
+          "label": "偏移量",
+          "desc": "正值提升排名，负值降低排名"
+        },
+        "note": {
+          "label": "备注",
+          "desc": "可选备注信息"
+        }
+      }
+    },
+    "candidate-registry": {
+      "name": "候选项注册表",
+      "description": "提供已索引程序的搜索服务，供设置页面使用",
+      "actions": {
+        "search_candidates": {
+          "label": "搜索程序",
+          "description": "按名称或路径搜索已索引的程序"
+        }
+      }
+    },
+    "general-config": {
+      "name": "通用",
+      "description": "应用通用行为设置，包括调试模式等",
+      "groups": {
+        "general": "通用"
+      },
+      "fields": {
+        "is_auto_start": {
+          "label": "开机自启动",
+          "desc": "启用后，系统启动时自动运行 ZeroLaunch"
+        },
+        "is_debug_mode": {
+          "label": "调试模式",
+          "desc": "启用后，显示额外的调试信息和开发工具"
+        },
+        "log_level": {
+          "label": "日志级别",
+          "desc": "控制日志输出的详细程度"
+        },
+        "reset_session_on_wake": {
+          "label": "唤醒时重置会话",
+          "desc": "启用后，每次显示启动器时恢复初始搜索界面（参数面板和行内参数模式始终恢复）。关闭后，插件面板状态可在隐藏/显示间保持。"
+        }
+      }
+    },
+    "hotkey-config": {
+      "name": "快捷键配置",
+      "description": "设置全局快捷键，快速唤醒搜索窗口",
+      "groups": {
+        "globalHotkeys": "全局快捷键"
+      },
+      "fields": {
+        "open_search_bar": {
+          "label": "打开搜索栏",
+          "desc": "全局快捷键，用于显示/隐藏搜索栏"
+        },
+        "double_click_ctrl": {
+          "label": "双击 Ctrl 打开搜索栏",
+          "desc": "启用后，快速双击 Ctrl 键可打开搜索栏（此时将忽略打开搜索栏的快捷键）"
+        }
+      }
+    },
+    "icon-override-config": {
+      "name": "图标覆盖",
+      "description": "为指定程序替换图标",
+      "groups": {
+        "iconOverride": "图标覆盖"
+      },
+      "fields": {
+        "entries": {
+          "label": "图标覆盖",
+          "desc": "为指定程序自定义图标，支持选择 .exe、.png、.ico 等文件"
+        },
+        "target": {
+          "label": "程序",
+          "desc": "目标程序路径"
+        },
+        "target_type": {
+          "label": "目标类型",
+          "desc": "目标类型（Path, Url 等）"
+        },
+        "icon_request_json": {
+          "label": "图标请求",
+          "desc": "原始图标请求的 JSON 序列化"
+        },
+        "custom_icon_path": {
+          "label": "图标文件",
+          "desc": "选择新的图标文件（支持 .exe、.lnk、.png、.ico 等格式）"
+        },
+        "note": {
+          "label": "备注",
+          "desc": "可选备注信息"
+        }
+      },
+      "actions": {
+        "apply_override": {
+          "label": "应用图标",
+          "description": "立即将选择的图标文件处理后写入缓存，不保存文件路径"
+        }
+      }
+    },
+    "installation-monitor-config": {
+      "name": "安装监控配置",
+      "description": "监控软件安装并自动更新搜索索引",
+      "groups": {
+        "installationMonitor": "安装监控"
+      },
+      "fields": {
+        "enable_installation_monitor": {
+          "label": "启用安装监控",
+          "desc": "启用后，自动监控文件系统变化（如开始菜单），检测程序的安装和卸载"
+        },
+        "monitor_debounce_secs": {
+          "label": "去抖等待时间（秒）",
+          "desc": "检测到文件变化后等待的时间，避免频繁触发刷新"
+        },
+        "monitor_watch_paths": {
+          "label": "监控路径",
+          "desc": "要监控的目录路径列表（每行一个），留空使用平台默认路径（Windows 开始菜单）"
+        }
+      }
+    },
+    "storage-config": {
+      "name": "存储配置",
+      "description": "管理数据存储位置和 WebDAV 远程同步",
+      "groups": {
+        "storage": "存储设置",
+        "webdav": "WebDAV 配置"
+      },
+      "fields": {
+        "storage_destination": {
+          "label": "存储后端",
+          "desc": "选择配置文件的存储方式"
+        },
+        "custom_save_path": {
+          "label": "自定义保存路径",
+          "desc": "覆盖默认的应用数据目录（留空使用默认路径）"
+        },
+        "webdav_host_url": {
+          "label": "WebDAV 服务器地址",
+          "desc": "WebDAV 服务器的完整 URL"
+        },
+        "webdav_account": {
+          "label": "WebDAV 账号",
+          "desc": "WebDAV 服务的认证账号"
+        },
+        "webdav_password": {
+          "label": "WebDAV 密码",
+          "desc": "WebDAV 服务的认证密码"
+        },
+        "webdav_destination_dir": {
+          "label": "WebDAV 远程目录",
+          "desc": "WebDAV 服务器上的目标存储目录"
+        }
+      }
+    },
+    "window-behavior-config": {
+      "name": "窗口行为",
+      "description": "定制搜索窗口的打开、隐藏和焦点行为",
+      "groups": {
+        "windowBehavior": "窗口行为",
+        "windowPosition": "窗口位置"
+      },
+      "fields": {
+        "is_esc_hide_window_priority": {
+          "label": "ESC 优先隐藏",
+          "desc": "启用后，按下 ESC 键直接隐藏窗口，不再先清空输入内容"
+        },
+        "space_is_enter": {
+          "label": "空格键确认",
+          "desc": "启用后，按下空格键等同于回车键，直接启动选中项"
+        },
+        "is_wake_on_fullscreen": {
+          "label": "全屏时允许弹出",
+          "desc": "启用后，前台程序全屏时仍可弹出搜索栏（会打断全屏体验）"
+        },
+        "launch_new_on_failure": {
+          "label": "激活失败时启动新实例",
+          "desc": "启用后，窗口激活失败时自动启动程序新实例作为降级方案"
+        },
+        "is_enable_drag_window": {
+          "label": "启用窗口拖动",
+          "desc": "启用后，可拖动搜索栏窗口并记住位置。下次唤醒时恢复到上次拖动的位置"
+        },
+        "show_pos_follow_mouse": {
+          "label": "跟随鼠标显示器",
+          "desc": "启用后，唤醒搜索栏时自动定位到鼠标所在的显示器（多显示器环境有效）。优先级低于「启用窗口拖动」"
+        },
+        "window_position_x": {
+          "label": "窗口位置 X",
+          "desc": "上次拖动后的窗口水平位置"
+        },
+        "window_position_y": {
+          "label": "窗口位置 Y",
+          "desc": "上次拖动后的窗口垂直位置"
+        }
+      }
+    },
+    "bookmark-source": {
+      "name": "书签数据源",
+      "description": "从浏览器书签中搜索网址",
+      "fields": {
+        "sources": {
+          "label": "书签源",
+          "desc": "配置要索引的浏览器书签来源"
+        },
+        "name": {
+          "label": "浏览器名称",
+          "desc": "书签来源的浏览器名称"
+        },
+        "bookmarks_path": {
+          "label": "书签文件路径",
+          "desc": "浏览器书签文件的完整路径"
+        },
+        "enabled": {
+          "label": "启用",
+          "desc": "是否启用此书签源"
+        },
+        "overrides": {
+          "label": "覆盖配置",
+          "desc": "对特定书签进行排除或自定义标题"
+        },
+        "url": {
+          "label": "URL",
+          "desc": "要匹配的书签 URL"
+        },
+        "excluded": {
+          "label": "排除",
+          "desc": "是否排除此书签"
+        },
+        "custom_title": {
+          "label": "自定义标题",
+          "desc": "替换原始标题的自定义标题，留空则使用原始标题"
+        }
+      },
+      "groups": {
+        "bookmarkSource": "书签源"
+      }
+    },
+    "command-source": {
+      "name": "自定义命令数据源",
+      "description": "执行用户自定义的快捷命令",
+      "fields": {
+        "commands": {
+          "label": "自定义命令",
+          "desc": "配置要索引的自定义命令快捷方式"
+        },
+        "name": {
+          "label": "名称",
+          "desc": "命令的显示名称"
+        },
+        "command": {
+          "label": "命令",
+          "desc": "要执行的命令或程序路径"
+        },
+        "triggerKeywords": {
+          "label": "触发关键词",
+          "desc": "逗号分隔的触发词列表。输入触发词+空格进入参数模式。为空时默认使用名称。"
+        }
+      },
+      "groups": {
+        "commandConfig": "命令配置"
+      }
+    },
+    "program-source": {
+      "name": "路径程序数据源",
+      "description": "扫描用户指定路径中的应用程序",
+      "fields": {
+        "directories": {
+          "label": "扫描目录",
+          "desc": "配置要扫描的程序目录"
+        },
+        "root_path": {
+          "label": "目录路径",
+          "desc": "要扫描的根目录"
+        },
+        "max_depth": {
+          "label": "扫描深度",
+          "desc": "子目录递归深度"
+        },
+        "pattern": {
+          "label": "文件模式",
+          "desc": "要匹配的文件类型，如 *.exe, *.lnk"
+        },
+        "pattern_type": {
+          "label": "匹配方式",
+          "desc": "通配符或正则表达式"
+        },
+        "excluded_keywords": {
+          "label": "排除关键字",
+          "desc": "包含这些关键字的路径将被忽略"
+        },
+        "forbidden_paths": {
+          "label": "禁止路径",
+          "desc": "这些路径及其子路径将不会被扫描"
+        },
+        "symlink_mode": {
+          "label": "符号链接模式",
+          "desc": "如何处理符号链接"
+        }
+      },
+      "groups": {
+        "directoryScan": "目录扫描"
+      }
+    },
+    "url-source": {
+      "name": "网页数据源",
+      "description": "使用关键字快速打开预设网页",
+      "fields": {
+        "web_pages": {
+          "label": "索引网页",
+          "desc": "配置要索引的网页快捷方式"
+        },
+        "name": {
+          "label": "名称",
+          "desc": "网页的显示名称"
+        },
+        "url": {
+          "label": "URL",
+          "desc": "网页的完整网址"
+        },
+        "triggerKeywords": {
+          "label": "触发关键词",
+          "desc": "逗号分隔的触发词列表。输入触发词+空格进入参数模式。为空时默认使用名称。"
+        }
+      },
+      "groups": {
+        "webIndex": "网页索引"
+      }
+    },
+    "alias-optimizer": {
+      "name": "别名",
+      "description": "为程序设置别名，增加搜索匹配路径",
+      "groups": {
+        "alias": "别名"
+      },
+      "fields": {
+        "entries": {
+          "label": "别名配置",
+          "desc": "为程序设置别名，增加搜索匹配路径"
+        },
+        "target": {
+          "label": "程序",
+          "desc": "目标程序路径"
+        },
+        "aliases": {
+          "label": "别名",
+          "desc": "别名列表，输入回车添加"
+        },
+        "note": {
+          "label": "备注",
+          "desc": "可选备注信息"
+        }
+      }
+    },
+    "first-letter-extractor": {
+      "name": "首字母提取器",
+      "description": "提取拼音首字母用于模糊匹配",
+      "fields": {
+        "priority": {
+          "label": "优先级",
+          "desc": "优化器执行优先级，数值越小越先执行"
+        },
+        "uses_context": {
+          "label": "使用上下文",
+          "desc": "是否对所有已累积的关键词进行优化，而非仅对原始名称优化"
+        }
+      }
+    },
+    "lower-case-converter": {
+      "name": "小写转换器",
+      "description": "将关键词转换为小写以忽略大小写",
+      "fields": {
+        "priority": {
+          "label": "优先级",
+          "desc": "优化器执行优先级，数值越小越先执行"
+        },
+        "uses_context": {
+          "label": "使用上下文",
+          "desc": "是否对所有已累积的关键词进行优化，而非仅对原始名称优化"
+        }
+      }
+    },
+    "pinyin-converter": {
+      "name": "拼音转换器",
+      "description": "将中文关键词转换为拼音以支持拼音搜索",
+      "fields": {
+        "priority": {
+          "label": "优先级",
+          "desc": "优化器执行优先级，数值越小越先执行"
+        },
+        "uses_context": {
+          "label": "上下文优化",
+          "desc": "是否对所有已累积的关键词进行拼音转换"
+        }
+      }
+    },
+    "space-normalizer": {
+      "name": "空格规范化器",
+      "description": "规范化关键词中的空白字符",
+      "fields": {
+        "priority": {
+          "label": "优先级",
+          "desc": "优化器执行优先级，数值越小越先执行"
+        },
+        "uses_context": {
+          "label": "使用上下文",
+          "desc": "是否对所有已累积的关键词进行优化，而非仅对原始名称优化"
+        }
+      }
+    },
+    "space-remover": {
+      "name": "空格移除器",
+      "description": "移除关键词中的空格以支持紧凑匹配",
+      "fields": {
+        "priority": {
+          "label": "优先级",
+          "desc": "优化器执行优先级，数值越小越先执行"
+        },
+        "uses_context": {
+          "label": "使用上下文",
+          "desc": "是否对所有已累积的关键词进行优化，而非仅对原始名称优化"
+        }
+      }
+    },
+    "symbol-remover": {
+      "name": "符号移除器",
+      "description": "移除关键词中的符号以纯净匹配",
+      "fields": {
+        "priority": {
+          "label": "优先级",
+          "desc": "优化器执行优先级，数值越小越先执行"
+        },
+        "uses_context": {
+          "label": "使用上下文",
+          "desc": "是否对所有已累积的关键词进行优化，而非仅对原始名称优化"
+        }
+      }
+    },
+    "upper-case-letter-extractor": {
+      "name": "大写字母提取器",
+      "description": "提取大写字母以支持缩写搜索",
+      "fields": {
+        "priority": {
+          "label": "优先级",
+          "desc": "优化器执行优先级，数值越小越先执行"
+        },
+        "uses_context": {
+          "label": "使用上下文",
+          "desc": "是否对所有已累积的关键词进行优化，而非仅对原始名称优化"
+        }
+      }
+    },
+    "version-number-remover": {
+      "name": "版本号移除器",
+      "description": "移除版本号以提高匹配准确度",
+      "fields": {
+        "priority": {
+          "label": "优先级",
+          "desc": "优化器执行优先级，数值越小越先执行"
+        },
+        "uses_context": {
+          "label": "使用上下文",
+          "desc": "是否对所有已累积的关键词进行优化，而非仅对原始名称优化"
+        }
+      }
+    },
+    "history-booster": {
+      "name": "历史记录增强器",
+      "description": "根据历史选择频率提升常用候选项的排名",
+      "groups": {
+        "weight": "权重配置",
+        "decay": "衰减配置"
+      },
+      "fields": {
+        "history_weight": {
+          "label": "历史权重",
+          "desc": "历史总启动次数的权重系数"
+        },
+        "recent_habit_weight": {
+          "label": "近期习惯权重",
+          "desc": "最近7天启动习惯的权重系数"
+        },
+        "temporal_weight": {
+          "label": "短期热度权重",
+          "desc": "短期热度的权重系数"
+        },
+        "temporal_decay": {
+          "label": "热度衰减常数(秒)",
+          "desc": "短期热度的衰减时间常数，默认10800秒(3小时)"
+        }
+      }
+    },
+    "query-affinity-booster": {
+      "name": "查询亲和度增强器",
+      "description": "根据查询关键词与候选项的匹配程度调整分数",
+      "groups": {
+        "weight": "权重配置",
+        "decay": "衰减配置",
+        "cooldown": "冷却配置"
+      },
+      "fields": {
+        "query_affinity_weight": {
+          "label": "查询亲和权重",
+          "desc": "查询亲和度的权重系数"
+        },
+        "query_affinity_time_decay": {
+          "label": "亲和衰减常数(秒)",
+          "desc": "查询亲和度的时间衰减常数，默认259200秒(3天)"
+        },
+        "query_affinity_cooldown": {
+          "label": "亲和冷却时间(秒)",
+          "desc": "查询亲和度的冷却时间，防止短时间重复计数，默认15秒"
+        }
+      }
+    },
+    "translator": {
+      "name": "翻译",
+      "description": "在搜索栏中进行多引擎翻译",
+      "groups": {
+        "basic": "基础",
+        "engine": "引擎",
+        "llmService": "LLM 服务"
+      },
+      "fields": {
+        "translate_mode": {
+          "label": "翻译触发",
+          "desc": "即时：输入即翻译；按 Enter：确认后才请求，节省 token"
+        },
+        "default_target": {
+          "label": "默认目标语言",
+          "desc": "未写语言码时的目标语（源语自动检测；若与源语相同则回退到另一常用语）"
+        },
+        "enabled_providers": {
+          "label": "翻译引擎",
+          "desc": "参与并行翻译的引擎；列表顺序即结果优先顺序"
+        },
+        "request_timeout_ms": {
+          "label": "超时（毫秒）",
+          "desc": "单个引擎的请求超时时间"
+        },
+        "live_debounce_secs": {
+          "label": "即时翻译防抖（秒）",
+          "desc": "即时模式下输入后的防抖等待时间，减少冗余请求"
+        },
+        "llm_vendor": {
+          "label": "厂商预设",
+          "desc": "点「应用」后写入对应 Base URL；选「自定义」不改写地址"
+        },
+        "llm_base_url": {
+          "label": "Base URL",
+          "desc": "OpenAI 兼容 API 根地址（如 https://api.deepseek.com）"
+        },
+        "llm_api_key": {
+          "label": "API Key",
+          "desc": "LLM 服务的 API 密钥（请妥善保管）"
+        },
+        "llm_model": {
+          "label": "Model",
+          "desc": "模型名称（如 deepseek-chat、moonshot-v1-8k）"
+        }
+      }
+    },
+    "calculator": {
+      "name": "计算器",
+      "description": "在搜索栏中直接进行数学计算"
+    }
   }
 }

@@ -1,6 +1,7 @@
 use crate::commands::bridge_error::{BridgeError, WithTraceId};
 use crate::core::config::models::{ComponentInfoSnapshot, ComponentSchemaSnapshot};
 use crate::state::app_state::AppState;
+use crate::utils::trace_id::generate_trace_id;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use zerolaunch_plugin_api::config::{ComponentType, ConfigActionDef, SettingsContribution};
@@ -168,31 +169,33 @@ pub fn config_get_settings(
 /// 应用配置到指定组件
 #[tauri::command]
 #[tracing::instrument(skip(state, settings), fields(trace_id))]
-pub fn config_apply_settings(
+pub async fn config_apply_settings(
     state: tauri::State<'_, Arc<AppState>>,
     component_id: String,
     settings: serde_json::Value,
 ) -> Result<(), BridgeError> {
-    let trace_id = crate::utils::trace_id::generate_trace_id();
+    let trace_id = generate_trace_id();
     tracing::Span::current().record("trace_id", trace_id.as_str());
     state
         .get_config_manager()
         .apply_settings(&component_id, settings)
+        .await
         .with_trace_id(&trace_id)
 }
 
 /// 重置组件配置为默认值
 #[tauri::command]
 #[tracing::instrument(skip(state), fields(trace_id))]
-pub fn config_reset_settings(
+pub async fn config_reset_settings(
     state: tauri::State<'_, Arc<AppState>>,
     component_id: String,
 ) -> Result<(), BridgeError> {
-    let trace_id = crate::utils::trace_id::generate_trace_id();
+    let trace_id = generate_trace_id();
     tracing::Span::current().record("trace_id", trace_id.as_str());
     state
         .get_config_manager()
         .reset_to_default(&component_id)
+        .await
         .with_trace_id(&trace_id)
 }
 

@@ -274,5 +274,785 @@
     "colKeywords": "關鍵詞",
     "detailExpandTitle": "分數分解（共 {count} 項，總分 {score}）",
     "detailHint": "× 為乘法系數：乘到上方加分項的累計結果上"
+  },
+  "tray": {
+    "showSettings": "設定視窗",
+    "refreshDatabase": "重新整理資料庫",
+    "reregisterHotkeys": "重新註冊快速鍵",
+    "gameMode": "遊戲模式",
+    "exitProgram": "結束程式"
+  },
+  "components": {
+    "appearance-config": {
+      "name": "外觀",
+      "description": "自定義應用的外觀主題和介面語言",
+      "groups": {
+        "theme": "主題",
+        "searchBar": "搜尋欄",
+        "resultList": "結果列表",
+        "footer": "底欄",
+        "window": "視窗",
+        "colorsLight": "淺色配色",
+        "colorsDark": "深色配色",
+        "background": "背景"
+      },
+      "fields": {
+        "theme": {
+          "label": "主題",
+          "desc": "選擇淺色、深色或跟隨系統主題"
+        },
+        "language": {
+          "label": "語言",
+          "desc": "介面顯示語言"
+        },
+        "search_bar_height": {
+          "label": "搜尋欄高度",
+          "desc": "搜尋欄的高度(px)"
+        },
+        "search_bar_font_ratio": {
+          "label": "搜尋欄字型比例",
+          "desc": "字型大小 = 搜尋欄高度 × 此比例"
+        },
+        "search_bar_font_family": {
+          "label": "搜尋欄字型",
+          "desc": "字型族名稱，留空則跟隨系統"
+        },
+        "search_bar_placeholder": {
+          "label": "搜尋欄佔位符",
+          "desc": "搜尋欄的提示文本"
+        },
+        "result_item_height": {
+          "label": "結果項高度",
+          "desc": "單條結果的高度(px)"
+        },
+        "result_item_font_ratio": {
+          "label": "結果標題字型比例",
+          "desc": "標題字型大小 = 結果項高度 × 此比例"
+        },
+        "result_item_subtitle_font_ratio": {
+          "label": "結果副標題字型比例",
+          "desc": "副標題字型大小 = 結果項高度 × 此比例"
+        },
+        "result_item_icon_ratio": {
+          "label": "圖示大小比例",
+          "desc": "圖示大小 = 結果項高度 × 此比例"
+        },
+        "result_item_font_family": {
+          "label": "結果欄字型",
+          "desc": "字型族名稱，留空則跟隨系統"
+        },
+        "max_visible_results": {
+          "label": "最大可見結果數",
+          "desc": "不滾動時最多顯示的結果條數"
+        },
+        "show_launch_command": {
+          "label": "顯示啟動命令",
+          "desc": "在結果項中顯示啟動命令路徑"
+        },
+        "show_subtitle": {
+          "label": "顯示副標題",
+          "desc": "在結果項中顯示副標題資訊"
+        },
+        "footer_height": {
+          "label": "底欄高度",
+          "desc": "底欄的高度(px)，設為0則隱藏"
+        },
+        "footer_font_ratio": {
+          "label": "底欄字型比例",
+          "desc": "字型大小 = 底欄高度 × 此比例"
+        },
+        "footer_font_family": {
+          "label": "底欄字型",
+          "desc": "字型族名稱，留空則跟隨系統"
+        },
+        "window_width": {
+          "label": "視窗寬度",
+          "desc": "搜尋視窗的寬度(px)"
+        },
+        "window_corner_radius": {
+          "label": "視窗圓角",
+          "desc": "視窗圓角大小(px)"
+        },
+        "vertical_position_ratio": {
+          "label": "垂直位置比例",
+          "desc": "視窗在螢幕垂直方向的位置比例(0=頂部, 1=底部)"
+        },
+        "bg_primary": {
+          "label": "主背景色",
+          "desc": "淺色模式下的主背景顏色"
+        },
+        "bg_secondary": {
+          "label": "副背景色",
+          "desc": "淺色模式下的次要背景顏色"
+        },
+        "text_primary": {
+          "label": "主文字色",
+          "desc": "淺色模式下的主要文字顏色"
+        },
+        "text_secondary": {
+          "label": "副文字色",
+          "desc": "淺色模式下的次要文字顏色"
+        },
+        "border_color": {
+          "label": "邊框色",
+          "desc": "淺色模式下的邊框顏色"
+        },
+        "accent_color": {
+          "label": "強調色",
+          "desc": "淺色模式下的強調/連結顏色"
+        },
+        "hover_color": {
+          "label": "懸停色",
+          "desc": "淺色模式下滑鼠懸停的背景顏色"
+        },
+        "dark_bg_primary": {
+          "label": "主背景色",
+          "desc": "深色模式下的主背景顏色"
+        },
+        "dark_bg_secondary": {
+          "label": "副背景色",
+          "desc": "深色模式下的次要背景顏色"
+        },
+        "dark_text_primary": {
+          "label": "主文字色",
+          "desc": "深色模式下的主要文字顏色"
+        },
+        "dark_text_secondary": {
+          "label": "副文字色",
+          "desc": "深色模式下的次要文字顏色"
+        },
+        "dark_border_color": {
+          "label": "邊框色",
+          "desc": "深色模式下的邊框顏色"
+        },
+        "dark_accent_color": {
+          "label": "強調色",
+          "desc": "深色模式下的強調/連結顏色"
+        },
+        "dark_hover_color": {
+          "label": "懸停色",
+          "desc": "深色模式下滑鼠懸停的背景顏色"
+        },
+        "bg_image": {
+          "label": "背景圖片",
+          "desc": "淺色模式下的背景圖片，留空則不使用背景圖"
+        },
+        "bg_image_dark": {
+          "label": "深色背景圖片",
+          "desc": "深色模式下的背景圖片，留空則回退到淺色背景圖"
+        },
+        "bg_size": {
+          "label": "背景尺寸",
+          "desc": "CSS background-size 屬性"
+        },
+        "bg_position": {
+          "label": "背景位置",
+          "desc": "CSS background-position 屬性"
+        },
+        "bg_repeat": {
+          "label": "背景重複",
+          "desc": "CSS background-repeat 屬性"
+        },
+        "bg_opacity": {
+          "label": "背景不透明度",
+          "desc": "背景圖片的不透明度 (0.0 ~ 1.0)"
+        }
+      }
+    },
+    "auto-refresh-config": {
+      "name": "定時重新整理",
+      "description": "按固定間隔自動重新整理搜尋索引（0 表示停用）",
+      "groups": {
+        "scheduledRefresh": "定時重新整理"
+      },
+      "fields": {
+        "auto_refresh_interval_mins": {
+          "label": "自動重新整理間隔（分鐘）",
+          "desc": "按固定間隔自動重新整理搜尋索引，0 表示停用定時重新整理"
+        }
+      }
+    },
+    "bias-config": {
+      "name": "固定偏移量",
+      "description": "為程式設定固定權重偏移，調整其在搜尋結果中的位置",
+      "groups": {
+        "fixedOffset": "固定偏移量"
+      },
+      "fields": {
+        "entries": {
+          "label": "固定偏移量",
+          "desc": "為程式設定固定權重偏移，正值提升排名，負值降低排名"
+        },
+        "target": {
+          "label": "程式",
+          "desc": "目標程式標識"
+        },
+        "bias": {
+          "label": "偏移量",
+          "desc": "正值提升排名，負值降低排名"
+        },
+        "note": {
+          "label": "備註",
+          "desc": "可選備註資訊"
+        }
+      }
+    },
+    "candidate-registry": {
+      "name": "候選項登錄檔",
+      "description": "提供已索引程式的搜尋服務，供設定頁面使用",
+      "actions": {
+        "search_candidates": {
+          "label": "搜尋程式",
+          "description": "按名稱或路徑搜尋已索引的程式"
+        }
+      }
+    },
+    "general-config": {
+      "name": "通用",
+      "description": "應用通用行為設定，包括除錯模式等",
+      "groups": {
+        "general": "通用"
+      },
+      "fields": {
+        "is_auto_start": {
+          "label": "開機自啟動",
+          "desc": "啟用後，系統啟動時自動執行 ZeroLaunch"
+        },
+        "is_debug_mode": {
+          "label": "除錯模式",
+          "desc": "啟用後，顯示額外的除錯資訊和開發工具"
+        },
+        "log_level": {
+          "label": "日誌級別",
+          "desc": "控制日誌輸出的詳細程度"
+        },
+        "reset_session_on_wake": {
+          "label": "喚醒時重置會話",
+          "desc": "啟用後，每次顯示啟動器時恢復初始搜尋介面（引數面板和行內參數模式始終恢復）。關閉後，插件面板狀態可在隱藏/顯示間保持。"
+        }
+      }
+    },
+    "hotkey-config": {
+      "name": "快速鍵設定",
+      "description": "設定全域性快速鍵，快速喚醒搜尋視窗",
+      "groups": {
+        "globalHotkeys": "全域性快速鍵"
+      },
+      "fields": {
+        "open_search_bar": {
+          "label": "開啟搜尋欄",
+          "desc": "全域性快速鍵，用於顯示/隱藏搜尋欄"
+        },
+        "double_click_ctrl": {
+          "label": "雙擊 Ctrl 開啟搜尋欄",
+          "desc": "啟用後，快速雙擊 Ctrl 鍵可開啟搜尋欄（此時將忽略開啟搜尋欄的快速鍵）"
+        }
+      }
+    },
+    "icon-override-config": {
+      "name": "圖示覆蓋",
+      "description": "為指定程式替換圖示",
+      "groups": {
+        "iconOverride": "圖示覆蓋"
+      },
+      "fields": {
+        "entries": {
+          "label": "圖示覆蓋",
+          "desc": "為指定程式自定義圖示，支援選擇 .exe、.png、.ico 等檔案"
+        },
+        "target": {
+          "label": "程式",
+          "desc": "目標程式路徑"
+        },
+        "target_type": {
+          "label": "目標型別",
+          "desc": "目標型別（Path, Url 等）"
+        },
+        "icon_request_json": {
+          "label": "圖示請求",
+          "desc": "原始圖示請求的 JSON 序列化"
+        },
+        "custom_icon_path": {
+          "label": "圖示檔案",
+          "desc": "選擇新的圖示檔案（支援 .exe、.lnk、.png、.ico 等格式）"
+        },
+        "note": {
+          "label": "備註",
+          "desc": "可選備註資訊"
+        }
+      },
+      "actions": {
+        "apply_override": {
+          "label": "應用圖示",
+          "description": "立即將選擇的圖示檔案處理後寫入快取，不儲存檔案路徑"
+        }
+      }
+    },
+    "installation-monitor-config": {
+      "name": "安裝監控設定",
+      "description": "監控軟體安裝並自動更新搜尋索引",
+      "groups": {
+        "installationMonitor": "安裝監控"
+      },
+      "fields": {
+        "enable_installation_monitor": {
+          "label": "啟用安裝監控",
+          "desc": "啟用後，自動監控檔案系統變化（如開始選單），檢測程式的安裝和解除安裝"
+        },
+        "monitor_debounce_secs": {
+          "label": "去抖等待時間（秒）",
+          "desc": "檢測到檔案變化後等待的時間，避免頻繁觸發重新整理"
+        },
+        "monitor_watch_paths": {
+          "label": "監控路徑",
+          "desc": "要監控的目錄路徑列表（每行一個），留空使用平臺預設路徑（Windows 開始選單）"
+        }
+      }
+    },
+    "storage-config": {
+      "name": "儲存設定",
+      "description": "管理資料儲存位置和 WebDAV 遠端同步",
+      "groups": {
+        "storage": "儲存設定",
+        "webdav": "WebDAV 設定"
+      },
+      "fields": {
+        "storage_destination": {
+          "label": "儲存後端",
+          "desc": "選擇設定檔案的儲存方式"
+        },
+        "custom_save_path": {
+          "label": "自定義儲存路徑",
+          "desc": "覆蓋預設的應用資料目錄（留空使用預設路徑）"
+        },
+        "webdav_host_url": {
+          "label": "WebDAV 伺服器地址",
+          "desc": "WebDAV 伺服器的完整 URL"
+        },
+        "webdav_account": {
+          "label": "WebDAV 帳號",
+          "desc": "WebDAV 服務的認證帳號"
+        },
+        "webdav_password": {
+          "label": "WebDAV 密碼",
+          "desc": "WebDAV 服務的認證密碼"
+        },
+        "webdav_destination_dir": {
+          "label": "WebDAV 遠端目錄",
+          "desc": "WebDAV 伺服器上的目標儲存目錄"
+        }
+      }
+    },
+    "window-behavior-config": {
+      "name": "視窗行為",
+      "description": "定製搜尋視窗的開啟、隱藏和焦點行為",
+      "groups": {
+        "windowBehavior": "視窗行為",
+        "windowPosition": "視窗位置"
+      },
+      "fields": {
+        "is_esc_hide_window_priority": {
+          "label": "ESC 優先隱藏",
+          "desc": "啟用後，按下 ESC 鍵直接隱藏視窗，不再先清空輸入內容"
+        },
+        "space_is_enter": {
+          "label": "空格鍵確認",
+          "desc": "啟用後，按下空格鍵等同於回車鍵，直接啟動選中項"
+        },
+        "is_wake_on_fullscreen": {
+          "label": "全屏時允許彈出",
+          "desc": "啟用後，前臺程式全屏時仍可彈出搜尋欄（會打斷全屏體驗）"
+        },
+        "launch_new_on_failure": {
+          "label": "啟用失敗時啟動新例項",
+          "desc": "啟用後，視窗啟用失敗時自動啟動程式新例項作為降級方案"
+        },
+        "is_enable_drag_window": {
+          "label": "啟用視窗拖動",
+          "desc": "啟用後，可拖動搜尋欄視窗並記住位置。下次喚醒時恢復到上次拖動的位置"
+        },
+        "show_pos_follow_mouse": {
+          "label": "跟隨滑鼠顯示器",
+          "desc": "啟用後，喚醒搜尋欄時自動定位到滑鼠所在的顯示器（多顯示器環境有效）。優先順序低於「啟用視窗拖動」"
+        },
+        "window_position_x": {
+          "label": "視窗位置 X",
+          "desc": "上次拖動後的視窗水平位置"
+        },
+        "window_position_y": {
+          "label": "視窗位置 Y",
+          "desc": "上次拖動後的視窗垂直位置"
+        }
+      }
+    },
+    "bookmark-source": {
+      "name": "書籤資料來源",
+      "description": "從瀏覽器書籤中搜索網址",
+      "fields": {
+        "sources": {
+          "label": "書籤源",
+          "desc": "設定要索引的瀏覽器書籤來源"
+        },
+        "name": {
+          "label": "瀏覽器名稱",
+          "desc": "書籤來源的瀏覽器名稱"
+        },
+        "bookmarks_path": {
+          "label": "書籤檔案路徑",
+          "desc": "瀏覽器書籤檔案的完整路徑"
+        },
+        "enabled": {
+          "label": "啟用",
+          "desc": "是否啟用此書籤源"
+        },
+        "overrides": {
+          "label": "覆蓋設定",
+          "desc": "對特定書籤進行排除或自定義標題"
+        },
+        "url": {
+          "label": "URL",
+          "desc": "要匹配的書籤 URL"
+        },
+        "excluded": {
+          "label": "排除",
+          "desc": "是否排除此書籤"
+        },
+        "custom_title": {
+          "label": "自定義標題",
+          "desc": "替換原始標題的自定義標題，留空則使用原始標題"
+        }
+      },
+      "groups": {
+        "bookmarkSource": "書籤源"
+      }
+    },
+    "command-source": {
+      "name": "自定義命令資料來源",
+      "description": "執行使用者自定義的快捷命令",
+      "fields": {
+        "commands": {
+          "label": "自定義命令",
+          "desc": "設定要索引的自定義命令快捷方式"
+        },
+        "name": {
+          "label": "名稱",
+          "desc": "命令的顯示名稱"
+        },
+        "command": {
+          "label": "命令",
+          "desc": "要執行的命令或程式路徑"
+        },
+        "triggerKeywords": {
+          "label": "觸發關鍵詞",
+          "desc": "逗號分隔的觸發詞列表。輸入觸發詞+空格進入引數模式。為空時預設使用名稱。"
+        }
+      },
+      "groups": {
+        "commandConfig": "命令設定"
+      }
+    },
+    "program-source": {
+      "name": "路徑程式資料來源",
+      "description": "掃描使用者指定路徑中的應用程式",
+      "fields": {
+        "directories": {
+          "label": "掃描目錄",
+          "desc": "設定要掃描的程式目錄"
+        },
+        "root_path": {
+          "label": "目錄路徑",
+          "desc": "要掃描的根目錄"
+        },
+        "max_depth": {
+          "label": "掃描深度",
+          "desc": "子目錄遞迴深度"
+        },
+        "pattern": {
+          "label": "檔案模式",
+          "desc": "要匹配的檔案型別，如 *.exe, *.lnk"
+        },
+        "pattern_type": {
+          "label": "匹配方式",
+          "desc": "萬用字元或正規表示式"
+        },
+        "excluded_keywords": {
+          "label": "排除關鍵字",
+          "desc": "包含這些關鍵字的路徑將被忽略"
+        },
+        "forbidden_paths": {
+          "label": "禁止路徑",
+          "desc": "這些路徑及其子路徑將不會被掃描"
+        },
+        "symlink_mode": {
+          "label": "符號連結模式",
+          "desc": "如何處理符號連結"
+        }
+      },
+      "groups": {
+        "directoryScan": "目錄掃描"
+      }
+    },
+    "url-source": {
+      "name": "網頁資料來源",
+      "description": "使用關鍵字快速開啟預設網頁",
+      "fields": {
+        "web_pages": {
+          "label": "索引網頁",
+          "desc": "設定要索引的網頁快捷方式"
+        },
+        "name": {
+          "label": "名稱",
+          "desc": "網頁的顯示名稱"
+        },
+        "url": {
+          "label": "URL",
+          "desc": "網頁的完整網址"
+        },
+        "triggerKeywords": {
+          "label": "觸發關鍵詞",
+          "desc": "逗號分隔的觸發詞列表。輸入觸發詞+空格進入引數模式。為空時預設使用名稱。"
+        }
+      },
+      "groups": {
+        "webIndex": "網頁索引"
+      }
+    },
+    "alias-optimizer": {
+      "name": "別名",
+      "description": "為程式設定別名，增加搜尋匹配路徑",
+      "groups": {
+        "alias": "別名"
+      },
+      "fields": {
+        "entries": {
+          "label": "別名設定",
+          "desc": "為程式設定別名，增加搜尋匹配路徑"
+        },
+        "target": {
+          "label": "程式",
+          "desc": "目標程式路徑"
+        },
+        "aliases": {
+          "label": "別名",
+          "desc": "別名列表，輸入回車新增"
+        },
+        "note": {
+          "label": "備註",
+          "desc": "可選備註資訊"
+        }
+      }
+    },
+    "first-letter-extractor": {
+      "name": "首字母提取器",
+      "description": "提取拼音首字母用於模糊匹配",
+      "fields": {
+        "priority": {
+          "label": "優先順序",
+          "desc": "最佳化器執行優先順序，數值越小越先執行"
+        },
+        "uses_context": {
+          "label": "使用上下文",
+          "desc": "是否對所有已累積的關鍵詞進行最佳化，而非僅對原始名稱最佳化"
+        }
+      }
+    },
+    "lower-case-converter": {
+      "name": "小寫轉換器",
+      "description": "將關鍵詞轉換為小寫以忽略大小寫",
+      "fields": {
+        "priority": {
+          "label": "優先順序",
+          "desc": "最佳化器執行優先順序，數值越小越先執行"
+        },
+        "uses_context": {
+          "label": "使用上下文",
+          "desc": "是否對所有已累積的關鍵詞進行最佳化，而非僅對原始名稱最佳化"
+        }
+      }
+    },
+    "pinyin-converter": {
+      "name": "拼音轉換器",
+      "description": "將中文關鍵詞轉換為拼音以支援拼音搜尋",
+      "fields": {
+        "priority": {
+          "label": "優先順序",
+          "desc": "最佳化器執行優先順序，數值越小越先執行"
+        },
+        "uses_context": {
+          "label": "上下文最佳化",
+          "desc": "是否對所有已累積的關鍵詞進行拼音轉換"
+        }
+      }
+    },
+    "space-normalizer": {
+      "name": "空格規範化器",
+      "description": "規範化關鍵詞中的空白字元",
+      "fields": {
+        "priority": {
+          "label": "優先順序",
+          "desc": "最佳化器執行優先順序，數值越小越先執行"
+        },
+        "uses_context": {
+          "label": "使用上下文",
+          "desc": "是否對所有已累積的關鍵詞進行最佳化，而非僅對原始名稱最佳化"
+        }
+      }
+    },
+    "space-remover": {
+      "name": "空格移除器",
+      "description": "移除關鍵詞中的空格以支援緊湊匹配",
+      "fields": {
+        "priority": {
+          "label": "優先順序",
+          "desc": "最佳化器執行優先順序，數值越小越先執行"
+        },
+        "uses_context": {
+          "label": "使用上下文",
+          "desc": "是否對所有已累積的關鍵詞進行最佳化，而非僅對原始名稱最佳化"
+        }
+      }
+    },
+    "symbol-remover": {
+      "name": "符號移除器",
+      "description": "移除關鍵詞中的符號以純淨匹配",
+      "fields": {
+        "priority": {
+          "label": "優先順序",
+          "desc": "最佳化器執行優先順序，數值越小越先執行"
+        },
+        "uses_context": {
+          "label": "使用上下文",
+          "desc": "是否對所有已累積的關鍵詞進行最佳化，而非僅對原始名稱最佳化"
+        }
+      }
+    },
+    "upper-case-letter-extractor": {
+      "name": "大寫字母提取器",
+      "description": "提取大寫字母以支援縮寫搜尋",
+      "fields": {
+        "priority": {
+          "label": "優先順序",
+          "desc": "最佳化器執行優先順序，數值越小越先執行"
+        },
+        "uses_context": {
+          "label": "使用上下文",
+          "desc": "是否對所有已累積的關鍵詞進行最佳化，而非僅對原始名稱最佳化"
+        }
+      }
+    },
+    "version-number-remover": {
+      "name": "版本號移除器",
+      "description": "移除版本號以提高匹配準確度",
+      "fields": {
+        "priority": {
+          "label": "優先順序",
+          "desc": "最佳化器執行優先順序，數值越小越先執行"
+        },
+        "uses_context": {
+          "label": "使用上下文",
+          "desc": "是否對所有已累積的關鍵詞進行最佳化，而非僅對原始名稱最佳化"
+        }
+      }
+    },
+    "history-booster": {
+      "name": "歷史記錄增強器",
+      "description": "根據歷史選擇頻率提升常用候選項的排名",
+      "groups": {
+        "weight": "權重設定",
+        "decay": "衰減設定"
+      },
+      "fields": {
+        "history_weight": {
+          "label": "歷史權重",
+          "desc": "歷史總啟動次數的權重係數"
+        },
+        "recent_habit_weight": {
+          "label": "近期習慣權重",
+          "desc": "最近7天啟動習慣的權重係數"
+        },
+        "temporal_weight": {
+          "label": "短期熱度權重",
+          "desc": "短期熱度的權重係數"
+        },
+        "temporal_decay": {
+          "label": "熱度衰減常數(秒)",
+          "desc": "短期熱度的衰減時間常數，預設10800秒(3小時)"
+        }
+      }
+    },
+    "query-affinity-booster": {
+      "name": "查詢親和度增強器",
+      "description": "根據查詢關鍵詞與候選項的匹配程度調整分數",
+      "groups": {
+        "weight": "權重設定",
+        "decay": "衰減設定",
+        "cooldown": "冷卻設定"
+      },
+      "fields": {
+        "query_affinity_weight": {
+          "label": "查詢親和權重",
+          "desc": "查詢親和度的權重係數"
+        },
+        "query_affinity_time_decay": {
+          "label": "親和衰減常數(秒)",
+          "desc": "查詢親和度的時間衰減常數，預設259200秒(3天)"
+        },
+        "query_affinity_cooldown": {
+          "label": "親和冷卻時間(秒)",
+          "desc": "查詢親和度的冷卻時間，防止短時間重複計數，預設15秒"
+        }
+      }
+    },
+    "translator": {
+      "name": "翻譯",
+      "description": "在搜尋欄中進行多引擎翻譯",
+      "groups": {
+        "basic": "基礎",
+        "engine": "引擎",
+        "llmService": "LLM 服務"
+      },
+      "fields": {
+        "translate_mode": {
+          "label": "翻譯觸發",
+          "desc": "即時：輸入即翻譯；按 Enter：確認後才請求，節省 token"
+        },
+        "default_target": {
+          "label": "預設目標語言",
+          "desc": "未寫語言碼時的目標語（源語自動檢測；若與源語相同則回退到另一常用語）"
+        },
+        "enabled_providers": {
+          "label": "翻譯引擎",
+          "desc": "參與並行翻譯的引擎；列表順序即結果優先順序"
+        },
+        "request_timeout_ms": {
+          "label": "超時（毫秒）",
+          "desc": "單個引擎的請求超時時間"
+        },
+        "live_debounce_secs": {
+          "label": "即時翻譯防抖（秒）",
+          "desc": "即時模式下輸入後的防抖等待時間，減少冗餘請求"
+        },
+        "llm_vendor": {
+          "label": "廠商預設",
+          "desc": "點「應用」後寫入對應 Base URL；選「自定義」不改寫地址"
+        },
+        "llm_base_url": {
+          "label": "Base URL",
+          "desc": "OpenAI 相容 API 根地址（如 https://api.deepseek.com）"
+        },
+        "llm_api_key": {
+          "label": "API Key",
+          "desc": "LLM 服務的 API 金鑰（請妥善保管）"
+        },
+        "llm_model": {
+          "label": "Model",
+          "desc": "模型名稱（如 deepseek-chat、moonshot-v1-8k）"
+        }
+      }
+    },
+    "calculator": {
+      "name": "計算器",
+      "description": "在搜尋欄中直接進行數學計算"
+    }
   }
 }

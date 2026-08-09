@@ -67,8 +67,8 @@ impl SpaceNormalizer {
         Self {
             core: ComponentCore::new(
                 "space-normalizer".to_string(),
-                "空格规范化器".to_string(),
-                "规范化关键词中的空白字符".to_string(),
+                t_key!("space-normalizer", "name").to_string(),
+                t_key!("space-normalizer", "description").to_string(),
                 ComponentType::KeywordOptimizer,
                 30,
             ),
@@ -85,17 +85,21 @@ impl Configurable for SpaceNormalizer {
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {
         vec![
-            SchemaBuilder::number("priority", "优先级", "优化器执行优先级，数值越小越先执行")
-                .order(0)
-                .default(20.0)
-                .min(1.0)
-                .max(100.0)
-                .step(1.0)
-                .build(),
+            SchemaBuilder::number(
+                "priority",
+                t_key!("space-normalizer", "fields.priority.label"),
+                t_key!("space-normalizer", "fields.priority.desc"),
+            )
+            .order(0)
+            .default(20.0)
+            .min(1.0)
+            .max(100.0)
+            .step(1.0)
+            .build(),
             SchemaBuilder::boolean(
                 "uses_context",
-                "使用上下文",
-                "是否对所有已累积的关键词进行优化，而非仅对原始名称优化",
+                t_key!("space-normalizer", "fields.uses_context.label"),
+                t_key!("space-normalizer", "fields.uses_context.desc"),
             )
             .order(1)
             .default(true)
@@ -107,7 +111,7 @@ impl Configurable for SpaceNormalizer {
         serde_json::to_value(self.inner.read().clone()).unwrap_or_default()
     }
 
-    fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
+    async fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
         let parsed: SpaceNormalizerSettings = serde_json::from_value(settings).unwrap_or_default();
         *self.inner.write() = parsed;
         Ok(())

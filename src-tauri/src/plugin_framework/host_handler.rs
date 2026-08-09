@@ -7,6 +7,7 @@ use zerolaunch_plugin_api::host::OpenTarget;
 use zerolaunch_plugin_host::host_dispatch::HostCallHandler;
 use zerolaunch_plugin_protocol::{codes, JsonRpcError};
 
+use crate::core::i18n::I18nManager;
 use crate::sdk::HostApi;
 
 /// 将插件的 `host/*` RPC 调用分发给本地的 PluginHandle。
@@ -14,6 +15,8 @@ pub(crate) struct TauriHostCallHandler {
     pub(crate) host_api: Arc<HostApi>,
     pub(crate) plugin_id: String,
     pub(crate) app_handle: Option<Arc<AppHandle>>,
+    /// 后端翻译服务（host/i18n.get_locale 查询当前语言）
+    pub(crate) i18n: Arc<I18nManager>,
 }
 
 #[async_trait::async_trait]
@@ -201,6 +204,8 @@ impl HostCallHandler for TauriHostCallHandler {
                     .map_err(|e| JsonRpcError::new(codes::PLUGIN_ERROR, e.to_string()))?;
                 Ok(serde_json::to_value(keys).unwrap_or_default())
             }
+            // 查询宿主当前界面语言（如 "zh-Hans"），插件按需本地化动态文本。
+            host::GET_LOCALE => Ok(serde_json::json!(self.i18n.current_language())),
             _ => Err(JsonRpcError::new(
                 codes::METHOD_NOT_FOUND,
                 format!("host method not found: {}", method),

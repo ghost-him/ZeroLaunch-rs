@@ -79,8 +79,8 @@ impl UpperCaseLetterExtractor {
         Self {
             core: ComponentCore::new(
                 "upper-case-letter-extractor".to_string(),
-                "大写字母提取器".to_string(),
-                "提取大写字母以支持缩写搜索".to_string(),
+                t_key!("upper-case-letter-extractor", "name").to_string(),
+                t_key!("upper-case-letter-extractor", "description").to_string(),
                 ComponentType::KeywordOptimizer,
                 70,
             ),
@@ -97,17 +97,21 @@ impl Configurable for UpperCaseLetterExtractor {
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {
         vec![
-            SchemaBuilder::number("priority", "优先级", "优化器执行优先级，数值越小越先执行")
-                .order(0)
-                .default(40.0)
-                .min(1.0)
-                .max(100.0)
-                .step(1.0)
-                .build(),
+            SchemaBuilder::number(
+                "priority",
+                t_key!("upper-case-letter-extractor", "fields.priority.label"),
+                t_key!("upper-case-letter-extractor", "fields.priority.desc"),
+            )
+            .order(0)
+            .default(40.0)
+            .min(1.0)
+            .max(100.0)
+            .step(1.0)
+            .build(),
             SchemaBuilder::boolean(
                 "uses_context",
-                "使用上下文",
-                "是否对所有已累积的关键词进行优化，而非仅对原始名称优化",
+                t_key!("upper-case-letter-extractor", "fields.uses_context.label"),
+                t_key!("upper-case-letter-extractor", "fields.uses_context.desc"),
             )
             .order(1)
             .default(true)
@@ -119,7 +123,7 @@ impl Configurable for UpperCaseLetterExtractor {
         serde_json::to_value(self.inner.read().clone()).unwrap_or_default()
     }
 
-    fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
+    async fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
         let parsed: UpperCaseLetterExtractorSettings =
             serde_json::from_value(settings).unwrap_or_default();
         *self.inner.write() = parsed;

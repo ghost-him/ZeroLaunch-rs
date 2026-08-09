@@ -61,8 +61,8 @@ impl GeneralConfigComponent {
         Self {
             core: ComponentCore::new(
                 "general-config".to_string(),
-                "通用".to_string(),
-                "应用通用行为设置，包括调试模式等".to_string(),
+                t_key!("general-config", "name").to_string(),
+                t_key!("general-config", "description").to_string(),
                 ComponentType::Core,
                 10,
             ),
@@ -82,34 +82,38 @@ impl Configurable for GeneralConfigComponent {
         vec![
             SchemaBuilder::boolean(
                 "is_auto_start",
-                "开机自启动",
-                "启用后，系统启动时自动运行 ZeroLaunch",
+                t_key!("general-config", "fields.is_auto_start.label"),
+                t_key!("general-config", "fields.is_auto_start.desc"),
             )
-            .group("通用")
+            .group(t_key!("general-config", "groups.general"))
             .order(0)
             .default(false)
             .build(),
             SchemaBuilder::boolean(
                 "is_debug_mode",
-                "调试模式",
-                "启用后，显示额外的调试信息和开发工具",
+                t_key!("general-config", "fields.is_debug_mode.label"),
+                t_key!("general-config", "fields.is_debug_mode.desc"),
             )
-            .group("通用")
+            .group(t_key!("general-config", "groups.general"))
             .order(1)
             .default(false)
             .build(),
-            SchemaBuilder::select("log_level", "日志级别", "控制日志输出的详细程度")
-                .group("通用")
-                .order(2)
-                .options(&["debug", "info", "warn", "error"])
-                .default("info")
-                .build(),
+            SchemaBuilder::select(
+                "log_level",
+                t_key!("general-config", "fields.log_level.label"),
+                t_key!("general-config", "fields.log_level.desc"),
+            )
+            .group(t_key!("general-config", "groups.general"))
+            .order(2)
+            .options(&["debug", "info", "warn", "error"])
+            .default("info")
+            .build(),
             SchemaBuilder::boolean(
                 "reset_session_on_wake",
-                "唤醒时重置会话",
-                "启用后，每次显示启动器时恢复初始搜索界面（参数面板和行内参数模式始终恢复）。关闭后，插件面板状态可在隐藏/显示间保持。",
+                t_key!("general-config", "fields.reset_session_on_wake.label"),
+                t_key!("general-config", "fields.reset_session_on_wake.desc"),
             )
-            .group("通用")
+            .group(t_key!("general-config", "groups.general"))
             .order(3)
             .default(true)
             .build(),
@@ -120,7 +124,7 @@ impl Configurable for GeneralConfigComponent {
         serde_json::to_value(self.settings.read().clone()).unwrap_or_default()
     }
 
-    fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
+    async fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
         let parsed: GeneralSettings = serde_json::from_value(settings).unwrap_or_else(|e| {
             warn!(
                 "failed to parse settings for {}, using defaults: {e}",
@@ -132,7 +136,7 @@ impl Configurable for GeneralConfigComponent {
         Ok(())
     }
 
-    fn validate_settings(&self, settings: &serde_json::Value) -> Result<(), ConfigError> {
+    async fn validate_settings(&self, settings: &serde_json::Value) -> Result<(), ConfigError> {
         if let Some(level) = settings.get("log_level").and_then(|v| v.as_str()) {
             if !["debug", "info", "warn", "error"].contains(&level) {
                 return Err(ConfigError::ValidationFailed(format!(

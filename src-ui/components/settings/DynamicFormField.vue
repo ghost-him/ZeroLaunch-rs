@@ -1,14 +1,14 @@
 <template>
   <div class="form-field" v-if="field.visible">
     <label class="field-label" v-if="showLabel">
-      {{ field.label }}
+      {{ resolveText(field.label) }}
       <span class="field-desc" v-if="field.description">
-        — {{ field.description }}
+        — {{ resolveText(field.description) }}
       </span>
     </label>
     <div class="field-control">
       <n-alert v-if="unsupportedReason" type="warning">
-        {{ $t('settings.unsupportedSchema', { field: field.label, reason: unsupportedReason }) }}
+        {{ $t('settings.unsupportedSchema', { field: resolveText(field.label), reason: unsupportedReason }) }}
       </n-alert>
       <component
         v-else-if="fieldComponent"
@@ -26,6 +26,7 @@
 import { computed, watch } from 'vue'
 import type { Component } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { resolveText } from '../../i18n'
 import { NAlert } from 'naive-ui'
 import { getFieldRenderInfo } from '../../utils/schemaTypes'
 import type { FieldConfig } from '../../utils/schemaTypes'

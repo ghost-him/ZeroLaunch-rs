@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
-import type { BridgeQueryResponse, ConfirmRequest, ConfirmResponse, ComponentInfo, ComponentSchema, ConfigActionDef, ConfigActionPayload, SearchTimingResult, IndexTimingResult, SearchDetailItem } from './contract'
+import type { BridgeQueryResponse, ConfirmRequest, ConfirmResponse, ComponentInfo, ComponentSchema, ConfigActionDef, ConfigActionPayload, SearchTimingResult, IndexTimingResult, SearchDetailItem, PluginTranslationCatalog } from './contract'
 export interface BridgeError {
   code: string
   message: string
@@ -232,4 +232,14 @@ export function debugGetSearchKeys(name: string): Promise<string[]> {
 
 export function debugSearchDetail(query: string): Promise<SearchDetailItem[]> {
   return invokeCommand('debug_search_detail', { query })
+}
+
+// ---- i18n ----
+
+/**
+ * 获取指定语言下所有已加载第三方插件的翻译目录（嵌套结构，命名空间 `plugin.<id>.`）。
+ * @param lang 语言码（zh-Hans / zh-Hant / en）
+ */
+export function i18nGetPluginTranslations(lang: string): Promise<PluginTranslationCatalog> {
+  return invokeCommand<PluginTranslationCatalog>('i18n_get_plugin_translations', { lang })
 }

@@ -84,7 +84,7 @@ impl Configurable for BuiltinCommandSource {
         serde_json::to_value(self.settings.read().clone()).unwrap_or_default()
     }
 
-    fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
+    async fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
         let _parsed: BuiltinCommandSourceSettings =
             serde_json::from_value(settings).unwrap_or_default();
         *self.settings.write() = _parsed;

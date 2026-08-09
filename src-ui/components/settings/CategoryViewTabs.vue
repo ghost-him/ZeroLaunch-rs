@@ -5,7 +5,7 @@
         v-for="comp in components"
         :key="comp.componentId"
         :name="comp.componentId"
-        :tab="comp.componentName"
+        :tab="resolveText(comp.componentName)"
       >
         <div class="tab-content">
           <ComponentConfigLoader :component="comp" />
@@ -18,6 +18,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { NTabs, NTabPane } from 'naive-ui'
+import { resolveText } from '../../i18n'
 import type { ComponentInfo } from '../../bridge/contract'
 import ComponentConfigLoader from './ComponentConfigLoader.vue'
 

@@ -66,8 +66,8 @@ impl SymbolRemover {
         Self {
             core: ComponentCore::new(
                 "symbol-remover".to_string(),
-                "符号移除器".to_string(),
-                "移除关键词中的符号以纯净匹配".to_string(),
+                t_key!("symbol-remover", "name").to_string(),
+                t_key!("symbol-remover", "description").to_string(),
                 ComponentType::KeywordOptimizer,
                 10,
             ),
@@ -84,17 +84,21 @@ impl Configurable for SymbolRemover {
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {
         vec![
-            SchemaBuilder::number("priority", "优先级", "优化器执行优先级，数值越小越先执行")
-                .order(0)
-                .default(70.0)
-                .min(1.0)
-                .max(100.0)
-                .step(1.0)
-                .build(),
+            SchemaBuilder::number(
+                "priority",
+                t_key!("symbol-remover", "fields.priority.label"),
+                t_key!("symbol-remover", "fields.priority.desc"),
+            )
+            .order(0)
+            .default(70.0)
+            .min(1.0)
+            .max(100.0)
+            .step(1.0)
+            .build(),
             SchemaBuilder::boolean(
                 "uses_context",
-                "使用上下文",
-                "是否对所有已累积的关键词进行优化，而非仅对原始名称优化",
+                t_key!("symbol-remover", "fields.uses_context.label"),
+                t_key!("symbol-remover", "fields.uses_context.desc"),
             )
             .order(1)
             .default(true)
@@ -106,7 +110,7 @@ impl Configurable for SymbolRemover {
         serde_json::to_value(self.inner.read().clone()).unwrap_or_default()
     }
 
-    fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
+    async fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
         let parsed: SymbolRemoverSettings = serde_json::from_value(settings).unwrap_or_default();
         *self.inner.write() = parsed;
         Ok(())

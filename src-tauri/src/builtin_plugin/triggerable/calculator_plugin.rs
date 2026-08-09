@@ -36,8 +36,8 @@ impl CalculatorPlugin {
         Self {
             core: ComponentCore::new(
                 "calculator".to_string(),
-                "计算器".to_string(),
-                "在搜索栏中直接进行数学计算".to_string(),
+                t_key!("calculator", "name").to_string(),
+                t_key!("calculator", "description").to_string(),
                 ComponentType::Plugin,
                 0,
             ),
@@ -85,7 +85,7 @@ impl Configurable for CalculatorPlugin {
         serde_json::to_value(self.inner.read().clone()).unwrap_or_default()
     }
 
-    fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
+    async fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
         let parsed: CalculatorSettings = serde_json::from_value(settings).unwrap_or_default();
         *self.inner.write() = parsed;
         Ok(())

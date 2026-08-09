@@ -56,7 +56,8 @@ impl ConfigManager {
     /// 则优先恢复已保存配置（用于第三方插件在启动后延迟注册的场景）。
     /// 否则应用 schema 默认值。
     /// 应用初始值后执行校验，校验失败则拒绝注册。
-    pub fn register(&self, component: Arc<dyn Configurable>) {
+    /// async：远端插件组件的 apply_settings/validate_settings 需经 RPC 下发。
+    pub async fn register(&self, component: Arc<dyn Configurable>) {
         let id = component.component_id().to_string();
         let component_type = component.component_type();
 
@@ -87,10 +88,10 @@ impl ConfigManager {
 
         let initialized = if let Some(state) = &saved_state {
             // 存在已保存配置：验证通过后应用，失败则回退默认值
-            if component.validate_settings(&state.settings).is_err() {
+            if component.validate_settings(&state.settings).await.is_err() {
                 warn!("组件 {} 的已保存配置校验失败，回退默认值", id);
                 false
-            } else if let Err(e) = component.apply_settings(state.settings.clone()) {
+            } else if let Err(e) = component.apply_settings(state.settings.clone()).await {
                 error!("组件 {} 的已保存配置应用失败: {}, 回退默认值", id, e);
                 false
             } else {
@@ -105,11 +106,11 @@ impl ConfigManager {
         if !initialized {
             // 应用 defaults 作为回退或初始值
             let defaults = component.get_default_settings();
-            if let Err(e) = component.apply_settings(defaults) {
+            if let Err(e) = component.apply_settings(defaults).await {
                 error!("拒绝注册（应用 schema 默认值失败）: {} - {}", id, e);
                 return;
             }
-            if let Err(error) = component.validate_settings(&component.get_settings()) {
+            if let Err(error) = component.validate_settings(&component.get_settings()).await {
                 error!("拒绝注册（默认配置值无效）: {} - {}", id, error);
                 return;
             }
@@ -242,7 +243,8 @@ impl ConfigManager {
     /// 流程：验证 → 剔除 transient 字段 → 应用 → 持久化（成功后才发事件）
     ///
     /// 持久化失败时回滚内存状态，保证运行时状态与持久化状态一致。
-    pub fn apply_settings(
+    /// async：远端插件组件的 validate/apply 需经 RPC 下发。
+    pub async fn apply_settings(
         &self,
         component_id: &str,
         settings: serde_json::Value,
@@ -252,7 +254,7 @@ impl ConfigManager {
             .get(component_id)
             .ok_or_else(|| ConfigError::NotFound(component_id.to_string()))?;
 
-        component.validate_settings(&settings)?;
+        component.validate_settings(&settings).await?;
 
         // 剔除 transient effect 字段，防止其被持久化。
         // transient 字段仅用于 UI 动作参数传递，不应写入 settings。
@@ -261,12 +263,12 @@ impl ConfigManager {
         // 备份旧配置，以便持久化失败时回滚
         let old_settings = component.get_settings();
 
-        component.apply_settings(cleaned)?;
+        component.apply_settings(cleaned).await?;
 
         // 先持久化，成功后才发布事件
         if let Err(e) = self.save_to_storage() {
             // 持久化失败，回滚内存状态
-            let _ = component.apply_settings(old_settings);
+            let _ = component.apply_settings(old_settings).await;
             return Err(e);
         }
 
@@ -282,7 +284,7 @@ impl ConfigManager {
         Ok(())
     }
 
-    pub fn reset_to_default(&self, component_id: &str) -> Result<(), ConfigError> {
+    pub async fn reset_to_default(&self, component_id: &str) -> Result<(), ConfigError> {
         let component = self
             .registry
             .get(component_id)
@@ -290,12 +292,12 @@ impl ConfigManager {
 
         let old_settings = component.get_settings();
         let default_settings = component.get_default_settings();
-        component.apply_settings(default_settings.clone())?;
+        component.apply_settings(default_settings.clone()).await?;
 
         // 先持久化，成功后才发布事件
         if let Err(e) = self.save_to_storage() {
             // 持久化失败，回滚内存状态
-            let _ = component.apply_settings(old_settings);
+            let _ = component.apply_settings(old_settings).await;
             return Err(e);
         }
 
@@ -363,9 +365,11 @@ impl ConfigManager {
     /// 加载前先校验每个组件的已保存配置是否符合当前 schema，校验失败时回退到默认值。
     /// 配置文件损坏时自动备份并继续使用空配置。
     /// 加载完成后保存配置快照供后续延迟注册的组件（如第三方插件）恢复。
-    pub fn load_from_storage(&self) -> Result<(), ConfigError> {
+    /// 从本地持久化文件加载配置，应用到所有已注册组件。
+    /// async：远端插件组件的 validate/apply 需经 RPC 下发（不得同步 block_on）。
+    pub async fn load_from_storage(&self) -> Result<(), ConfigError> {
         let config = match self.store.load() {
-            Ok(config) => config,
+            Ok(c) => c,
             Err(e) => {
                 warn!("加载持久化配置失败: {}，将使用默认配置", e);
                 // 备份损坏的配置文件，保留现场便于排查
@@ -383,7 +387,7 @@ impl ConfigManager {
 
             if let Some(component) = self.registry.get(component_id) {
                 // 先校验已保存配置是否符合当前 schema
-                if let Err(e) = component.validate_settings(&state.settings) {
+                if let Err(e) = component.validate_settings(&state.settings).await {
                     warn!(
                         "组件 {} 的已保存配置校验失败，跳过加载: {}",
                         component_id, e
@@ -391,7 +395,7 @@ impl ConfigManager {
                     continue;
                 }
 
-                if let Err(e) = component.apply_settings(state.settings.clone()) {
+                if let Err(e) = component.apply_settings(state.settings.clone()).await {
                     warn!("加载组件配置失败: {}, 错误: {}", component_id, e);
                 } else {
                     component.on_settings_changed();
@@ -408,7 +412,7 @@ impl ConfigManager {
                 {
                     continue;
                 }
-                if let Err(e) = component.apply_settings(defaults) {
+                if let Err(e) = component.apply_settings(defaults).await {
                     warn!("应用默认配置失败: {}, 错误: {}", component_id, e);
                 } else {
                     component.on_settings_changed();
@@ -463,7 +467,8 @@ impl ConfigManager {
     ///
     /// 纯业务逻辑：注册/解注册 Configurable，转发 ConfigEvent 通知 SessionRouter。
     /// 事件循环由 lib.rs 负责（与 SR 的 ConfigEvent 监听模式一致）。
-    pub fn handle_plugin_event(&self, event: &PluginRuntimeEvent) {
+    /// async：注册远端插件组件时 apply/validate 需经 RPC 下发（不得同步 block_on）。
+    pub async fn handle_plugin_event(&self, event: &PluginRuntimeEvent) {
         match event {
             PluginRuntimeEvent::PluginLoaded(adapters) => {
                 // 兜底防线：主冲突预检已下沉到 plugin-host 的 load/crash_loop
@@ -488,7 +493,7 @@ impl ConfigManager {
                     }
                 }
                 for c in &adapters.components {
-                    self.register(c.clone());
+                    self.register(c.clone()).await;
                 }
                 self.event_sender
                     .send(ConfigEvent::PluginRegistered(adapters.clone()))
@@ -587,8 +592,8 @@ mod tests {
     }
 
     /// 注册查重契约：同一 component_id 第二次注册被拒绝，先注册者不被覆盖。
-    #[test]
-    fn register_rejects_duplicate_component_id() {
+    #[tokio::test]
+    async fn register_rejects_duplicate_component_id() {
         let cm = ConfigManager::new(std::env::temp_dir().join("zl-duplicate-register-test"));
         let first: Arc<dyn Configurable> = Arc::new(StubComponent {
             core: ComponentCore::new(
@@ -609,8 +614,8 @@ mod tests {
             ),
         });
 
-        cm.register(first);
-        cm.register(second);
+        cm.register(first).await;
+        cm.register(second).await;
 
         let registered = cm.find_configurable("dup").expect("先注册组件应保留");
         assert_eq!(
@@ -633,7 +638,8 @@ mod tests {
                 ComponentType::Plugin,
                 0,
             ),
-        }));
+        }))
+        .await;
 
         // 构造第三方插件注册包：组件 shared（与宿主冲突）+ unique（无冲突）。
         let (req_tx, _req_rx) = tokio::sync::mpsc::channel(16);
@@ -691,7 +697,8 @@ mod tests {
             ],
         };
 
-        cm.handle_plugin_event(&PluginRuntimeEvent::PluginLoaded(registration));
+        cm.handle_plugin_event(&PluginRuntimeEvent::PluginLoaded(registration))
+            .await;
 
         assert!(
             cm.find_configurable("unique").is_none(),

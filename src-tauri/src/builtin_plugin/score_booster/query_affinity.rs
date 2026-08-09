@@ -164,8 +164,8 @@ impl QueryAffinityBooster {
         QueryAffinityBooster {
             core: ComponentCore::new(
                 "query-affinity-booster".to_string(),
-                "查询亲和度增强器".to_string(),
-                "根据查询关键词与候选项的匹配程度调整分数".to_string(),
+                t_key!("query-affinity-booster", "name").to_string(),
+                t_key!("query-affinity-booster", "description").to_string(),
                 ComponentType::ScoreBooster,
                 10,
             ),
@@ -185,10 +185,16 @@ impl Configurable for QueryAffinityBooster {
         vec![
             SchemaBuilder::number(
                 "query_affinity_weight",
-                "查询亲和权重",
-                "查询亲和度的权重系数",
+                t_key!(
+                    "query-affinity-booster",
+                    "fields.query_affinity_weight.label"
+                ),
+                t_key!(
+                    "query-affinity-booster",
+                    "fields.query_affinity_weight.desc"
+                ),
             )
-            .group("权重配置")
+            .group(t_key!("query-affinity-booster", "groups.weight"))
             .order(0)
             .default(3.0)
             .min(0.0)
@@ -197,10 +203,16 @@ impl Configurable for QueryAffinityBooster {
             .build(),
             SchemaBuilder::number(
                 "query_affinity_time_decay",
-                "亲和衰减常数(秒)",
-                "查询亲和度的时间衰减常数，默认259200秒(3天)",
+                t_key!(
+                    "query-affinity-booster",
+                    "fields.query_affinity_time_decay.label"
+                ),
+                t_key!(
+                    "query-affinity-booster",
+                    "fields.query_affinity_time_decay.desc"
+                ),
             )
-            .group("衰减配置")
+            .group(t_key!("query-affinity-booster", "groups.decay"))
             .order(1)
             .default(259200.0)
             .min(60.0)
@@ -209,10 +221,16 @@ impl Configurable for QueryAffinityBooster {
             .build(),
             SchemaBuilder::number(
                 "query_affinity_cooldown",
-                "亲和冷却时间(秒)",
-                "查询亲和度的冷却时间，防止短时间重复计数，默认15秒",
+                t_key!(
+                    "query-affinity-booster",
+                    "fields.query_affinity_cooldown.label"
+                ),
+                t_key!(
+                    "query-affinity-booster",
+                    "fields.query_affinity_cooldown.desc"
+                ),
             )
-            .group("冷却配置")
+            .group(t_key!("query-affinity-booster", "groups.cooldown"))
             .order(2)
             .default(15.0)
             .min(1.0)
@@ -226,7 +244,7 @@ impl Configurable for QueryAffinityBooster {
         serde_json::to_value(self.settings.read().clone()).unwrap_or_default()
     }
 
-    fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
+    async fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
         let parsed: QueryAffinitySettings = serde_json::from_value(settings).unwrap_or_default();
         *self.settings.write() = parsed;
         Ok(())

@@ -18,7 +18,7 @@
     </div>
     <div class="item-text">
       <div class="item-title">{{ item.title }}</div>
-      <div class="item-subtitle" v-if="showSubtitle && item.subtitle">{{ item.subtitle }}</div>
+      <div class="item-subtitle" v-if="showSubtitle && item.subtitle">{{ resolveText(item.subtitle) }}</div>
     </div>
   </div>
 </template>
@@ -26,6 +26,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { Component } from 'vue'
+import { resolveText } from '../../i18n'
 import type { ListItem } from '../../bridge/contract'
 import { usePluginStore } from '../../stores/plugin-store'
 import IconDisplay from '../common/IconDisplay.vue'
@@ -63,7 +64,7 @@ const customRenderer = computed<Component | null>(() =>
 function onContextMenu(e: MouseEvent) {
   const items: CtxItem[] = props.item.actions.map((a) => ({
     key: a.id,
-    label: a.label,
+    label: resolveText(a.label),
     action: () => emit('context-action', a.id),
   }))
   emit('contextmenu', e.clientX, e.clientY, items)

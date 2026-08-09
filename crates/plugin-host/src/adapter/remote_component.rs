@@ -149,28 +149,26 @@ impl Configurable for RemoteComponent {
         self.cached_actions.read().clone()
     }
 
-    fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
+    async fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
         let client = self.client.clone();
         let component_id = self.core.component_id().to_string();
         let settings_clone = settings.clone();
-        tokio::runtime::Handle::current().block_on(async move {
-            client
-                .call::<_, serde_json::Value>(
-                    plugin_methods::APPLY_SETTINGS,
-                    ApplySettingsParams {
-                        component_id,
-                        settings: settings_clone,
-                    },
-                    Duration::from_secs(5),
-                )
-                .await
-                .map_err(to_config_error)
-        })?;
+        client
+            .call::<_, serde_json::Value>(
+                plugin_methods::APPLY_SETTINGS,
+                ApplySettingsParams {
+                    component_id,
+                    settings: settings_clone,
+                },
+                Duration::from_secs(5),
+            )
+            .await
+            .map_err(to_config_error)?;
         *self.cached_settings.write() = settings;
         Ok(())
     }
 
-    fn validate_settings(&self, settings: &serde_json::Value) -> Result<(), ConfigError> {
+    async fn validate_settings(&self, settings: &serde_json::Value) -> Result<(), ConfigError> {
         // 1. 宿主侧 Schema 校验（key 合法性、类型、对象结构、数值/数组约束等）
         //    宿主 Schema 是最终权威，插件校验只能补充不能取代。
         let contribution = self.settings_contribution()?;
@@ -182,25 +180,21 @@ impl Configurable for RemoteComponent {
         let client = self.client.clone();
         let component_id = self.core.component_id().to_string();
         let settings_clone = settings.clone();
-        let result: ValidateSettingsResult =
-            tokio::runtime::Handle::current().block_on(async move {
-                client
-                    .call(
-                        plugin_methods::VALIDATE_SETTINGS,
-                        ValidateSettingsParams {
-                            component_id,
-                            settings: settings_clone,
-                        },
-                        Duration::from_secs(5),
-                    )
-                    .await
-                    .map_err(to_config_error)
-            })?;
+        let result: ValidateSettingsResult = client
+            .call(
+                plugin_methods::VALIDATE_SETTINGS,
+                ValidateSettingsParams {
+                    component_id,
+                    settings: settings_clone,
+                },
+                Duration::from_secs(5),
+            )
+            .await
+            .map_err(to_config_error)?;
         if let Some(error) = result.error {
-            Err(ConfigError::ValidationFailed(error))
-        } else {
-            Ok(())
+            return Err(ConfigError::ValidationFailed(error));
         }
+        Ok(())
     }
 
     async fn execute_config_action(
@@ -289,11 +283,7 @@ impl ActionExecutor for RemoteComponent {
         }
     }
 
-    async fn execute(
-        &self,
-        _ctx: &ExecutionContext,
-        action_id: &str,
-    ) -> Result<(), ExecutionError> {
+    async fn execute(&self, ctx: &ExecutionContext, action_id: &str) -> Result<(), ExecutionError> {
         assert!(
             matches!(self.kind, RemoteComponentKind::ActionExecutor { .. }),
             "RemoteComponent {} is not an ActionExecutor but execute() was called",
@@ -314,6 +304,8 @@ impl ActionExecutor for RemoteComponent {
                         query_revision_gate: None,
                         // 远端插件会话由宿主经 RPC 下发通道，未收到时缺省视为 GUI 通道。
                         query_channel: QueryChannel::Ui,
+                        // 宿主在执行分发时填充（ExecutionContext.locale），透传插件进程
+                        locale: ctx.locale.clone(),
                     },
                     action_id: action_id.to_string(),
                 },

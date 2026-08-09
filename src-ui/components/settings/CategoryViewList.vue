@@ -6,7 +6,7 @@
       class="config-section"
     >
       <div v-if="components.length > 1" class="section-title">
-        {{ comp.componentName }}
+        {{ resolveText(comp.componentName) }}
       </div>
       <ComponentConfigLoader :component="comp" />
     </div>
@@ -14,6 +14,7 @@
 </template>
 
 <script setup lang="ts">
+import { resolveText } from '../../i18n'
 import type { ComponentInfo } from '../../bridge/contract'
 import ComponentConfigLoader from './ComponentConfigLoader.vue'
 

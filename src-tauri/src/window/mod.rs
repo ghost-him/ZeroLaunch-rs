@@ -87,7 +87,8 @@ pub(crate) async fn prepare_window_position(
 }
 
 /// 若拖拽模式已启用，将当前窗口位置持久化到 ConfigManager。
-pub(crate) fn save_window_position_if_drag(
+/// async：ConfigManager::apply_settings 可能下发远端插件组件（RPC）。
+pub(crate) async fn save_window_position_if_drag(
     config_manager: &Arc<ConfigManager>,
     app_handle: &tauri::AppHandle,
 ) {
@@ -107,7 +108,10 @@ pub(crate) fn save_window_position_if_drag(
                 obj.insert("window_position_x".to_string(), json!(pos.x));
                 obj.insert("window_position_y".to_string(), json!(pos.y));
             }
-            if let Err(e) = config_manager.apply_settings("window-behavior-config", current) {
+            if let Err(e) = config_manager
+                .apply_settings("window-behavior-config", current)
+                .await
+            {
                 warn!("[save_window_position] 持久化窗口位置失败: {}", e);
             }
         }

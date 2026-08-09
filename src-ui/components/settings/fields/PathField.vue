@@ -1,6 +1,6 @@
 <template>
   <div class="field-input-row">
-    <n-button :disabled="field.readOnly" @click="openPicker">{{ field.label }}</n-button>
+    <n-button :disabled="field.readOnly" @click="openPicker">{{ resolveText(field.label) }}</n-button>
     <span class="path-display" v-if="modelValue">{{ modelValue as string }}</span>
     <span class="path-display path-placeholder" v-else>{{ $t('settings.pathNotSelected') }}</span>
     <ConfigActionButton
@@ -17,6 +17,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { NButton } from 'naive-ui'
+import { resolveText } from '../../../i18n'
 import ConfigActionButton from '../ConfigActionButton.vue'
 import { getSchemaPathMode } from '../../../utils/schemaTypes'
 import type { FieldConfig } from '../../../utils/schemaTypes'

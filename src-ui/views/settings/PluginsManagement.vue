@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { h, ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { i18n, resolveText, type Locale } from '@/i18n'
+import { refreshPluginTranslations } from '@/stores/i18n-store'
 import {
   NButton, NDataTable, NTag, NSpace, NText, NModal, NSwitch,
   NCode, NSpin, NEmpty, NAlert, useMessage,
@@ -70,7 +72,7 @@ const builtinRows = computed<PluginRow[]>(() =>
     .map((c) => ({
       key: `builtin:${c.componentId}`,
       kind: 'builtin' as const,
-      name: c.componentName,
+      name: resolveText(c.componentName),
       version: '—',
       author: '—',
       enabled: c.enabled,
@@ -85,7 +87,7 @@ const thirdPartyRows = computed<PluginRow[]>(() =>
   thirdPartyPlugins.value.map((p) => ({
     key: `third:${p.pluginId}`,
     kind: 'third-party' as const,
-    name: p.name,
+    name: resolveText(p.name),
     version: p.version,
     author: p.author,
     enabled: p.enabled,
@@ -214,6 +216,8 @@ async function loadPlugins() {
       configStore.loadAllComponents(),
     ])
     thirdPartyPlugins.value = plugins
+    // 插件列表变化（安装/卸载/重载）后刷新合并翻译目录
+    refreshPluginTranslations(i18n.global.locale.value as Locale)
   } catch (e) {
     message.error(t('settings.thirdPartyPlugins.loadListFailed') + ': ' + errorText(e))
   } finally {

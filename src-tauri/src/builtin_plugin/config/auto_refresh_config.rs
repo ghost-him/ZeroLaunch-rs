@@ -48,8 +48,8 @@ impl AutoRefreshConfigComponent {
         Self {
             core: ComponentCore::new(
                 "auto-refresh-config".to_string(),
-                "定时刷新".to_string(),
-                "按固定间隔自动刷新搜索索引（0 表示禁用）".to_string(),
+                t_key!("auto-refresh-config", "name").to_string(),
+                t_key!("auto-refresh-config", "description").to_string(),
                 ComponentType::Core,
                 50,
             ),
@@ -73,10 +73,16 @@ impl Configurable for AutoRefreshConfigComponent {
     fn setting_schema(&self) -> Vec<SettingDefinition> {
         vec![SchemaBuilder::number(
             "auto_refresh_interval_mins",
-            "自动刷新间隔（分钟）",
-            "按固定间隔自动刷新搜索索引，0 表示禁用定时刷新",
+            t_key!(
+                "auto-refresh-config",
+                "fields.auto_refresh_interval_mins.label"
+            ),
+            t_key!(
+                "auto-refresh-config",
+                "fields.auto_refresh_interval_mins.desc"
+            ),
         )
-        .group("定时刷新")
+        .group(t_key!("auto-refresh-config", "groups.scheduledRefresh"))
         .order(0)
         .default(30.0)
         .min(0.0)
@@ -89,7 +95,7 @@ impl Configurable for AutoRefreshConfigComponent {
         serde_json::to_value(self.settings.read().clone()).unwrap_or_default()
     }
 
-    fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
+    async fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
         let parsed: AutoRefreshSettings = serde_json::from_value(settings).unwrap_or_else(|e| {
             warn!(
                 "failed to parse settings for {}, using defaults: {e}",
@@ -101,7 +107,7 @@ impl Configurable for AutoRefreshConfigComponent {
         Ok(())
     }
 
-    fn validate_settings(&self, settings: &serde_json::Value) -> Result<(), ConfigError> {
+    async fn validate_settings(&self, settings: &serde_json::Value) -> Result<(), ConfigError> {
         if let Some(v) = settings
             .get("auto_refresh_interval_mins")
             .and_then(|v| v.as_f64())

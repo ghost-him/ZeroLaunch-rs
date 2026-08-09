@@ -25,6 +25,7 @@ use crate::core::app_command;
 use crate::core::config::bias_settings::{bias_settings_to_rules, BiasSettings};
 use crate::core::config::event::create_plugin_event_bus;
 use crate::core::config::{ConfigEvent, ConfigManager};
+use crate::core::i18n::I18nManager;
 use crate::plugin_framework::inspector::Inspector;
 use crate::plugin_framework::manager::PluginManager;
 use crate::state::app_state::AppState;
@@ -240,7 +241,12 @@ pub(crate) async fn init_app_state(
     let (cmd_tx, cmd_rx) = tokio::sync::mpsc::channel::<app_command::AppCommand>(32);
     app_command::init_command_channel(cmd_tx);
 
-    let tray_manager = Arc::new(TrayManager::new(host_api.clone()));
+    // 后端翻译服务：读取打包进资源的语言包（vite 构建时从 src-ui/i18n/locales 复制）。
+    let i18n_manager = I18nManager::load(resource_dir.join("locales"));
+    state.set_i18n_manager(i18n_manager.clone());
+    info!("I18nManager 初始化完成");
+
+    let tray_manager = Arc::new(TrayManager::new(host_api.clone(), i18n_manager));
     state.set_tray_manager(tray_manager);
     info!("TrayManager 创建完成");
 
@@ -259,6 +265,7 @@ pub(crate) async fn init_app_state(
     let plugin_manager = Arc::new(PluginManager::new());
     plugin_manager.set_plugin_event_tx(plugin_event_tx);
     plugin_manager.set_host_api(host_api.clone());
+    plugin_manager.set_i18n_manager(state.get_i18n_manager());
     state.set_plugin_manager(plugin_manager.clone());
 
     // 将 config_manager 保存到 AppState（必须在 PluginManager 之后，因为 clone 语义）
@@ -307,6 +314,29 @@ pub(crate) async fn init_app_state(
     );
 }
 
+/// 将 appearance-config 的持久化语言同步到 I18nManager 并重建托盘菜单。
+/// 调用点：持久化配置加载完成后、appearance-config 语言变更事件处理时。
+fn sync_backend_language(state: &Arc<AppState>, config_manager: &ConfigManager) {
+    let i18n = state.get_i18n_manager();
+    let lang = config_manager
+        .get_settings("appearance-config")
+        .and_then(|v| {
+            v.get("language")
+                .and_then(|x| x.as_str().map(str::to_string))
+        });
+    // 语言未变化时不重建托盘菜单：appearance-config 的任意设置变更
+    // （主题、搜索栏尺寸等，与语言无关）都会触发本函数，
+    // 全量原生菜单重建仅在语言真正切换时执行。
+    if let Some(lang) = lang {
+        if lang != i18n.current_language() {
+            i18n.set_language(&lang);
+            if let Some(tray) = state.get_tray_manager() {
+                tray.update_menu_language();
+            }
+        }
+    }
+}
+
 /// 初始化插件系统。
 ///
 /// 核心流程：
@@ -319,6 +349,7 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
     let plugin_manager = state.get_plugin_manager();
 
     session_dispatcher.set_config_manager(config_manager.clone());
+    session_dispatcher.set_i18n_manager(state.get_i18n_manager());
 
     // 注入会话状态推送回调：路由确定插件后立即推送，不等慢查询响应，
     // 保证慢查询期间的新输入也能正确应用防抖（原 panel-interaction 无条件推送不变式，
@@ -334,6 +365,7 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
     let app_handle = state.get_main_handle();
     let cm_for_events = config_manager.clone();
     let host_api_for_events = state.get_host_api();
+    let state_for_events = state.clone();
     let mut event_receiver = config_manager.event_sender().subscribe();
     tauri::async_runtime::spawn(async move {
         loop {
@@ -355,6 +387,10 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
                                 "componentType": format!("{:?}", component_type),
                             }),
                         );
+                        // 语言切换时同步后端翻译服务并重建托盘菜单（即时生效）
+                        if component_id == "appearance-config" {
+                            sync_backend_language(&state_for_events, &cm_for_events);
+                        }
                         // 会话投影随配置变更重新推送（如面板内调整防抖延迟）
                         event_router.reemit_current_session();
                     }
@@ -384,7 +420,7 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
     tauri::async_runtime::spawn(async move {
         loop {
             match plugin_event_rx.recv().await {
-                Ok(event) => cm_listener.handle_plugin_event(&event),
+                Ok(event) => cm_listener.handle_plugin_event(&event).await,
                 Err(tokio::sync::broadcast::error::RecvError::Lagged(count)) => {
                     warn!("PluginRuntimeEvent 接收器落后 {} 条消息", count);
                 }
@@ -407,9 +443,9 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
 
     let collected = plugin_manager.init_builtins(session_dispatcher.clone());
 
-    collected.for_each_configurable(|c| {
-        config_manager.register(c.clone());
-    });
+    for c in collected.configurables() {
+        config_manager.register(c.clone()).await;
+    }
 
     // 注册内置运行时组件到 PluginComponentRegistry 和 SessionDispatcher
     for (c, ex) in &collected.executors {
@@ -498,21 +534,8 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
         }
     }
 
-    // 内置插件全部注册后统一执行 init：向插件发放绑定身份的 PluginHandle
-    // （插件在 init 中保存句柄，供 query/execute_action 访问平台能力）。
-    // 远端插件适配器的 init 为 no-op，不会被重复初始化。
-    let trace_id = generate_trace_id();
-    let init_ctx = PluginContext::new(&trace_id);
-    for plugin in session_dispatcher.plugin_registry().get_all() {
-        let plugin_id = plugin.metadata().id.clone();
-        // todo!: 这里是直接使用的默认的权限来注册的。之后可以优化成，让插件支持自己设置需要的权限
-        let handle = host_api.register(&plugin_id, PluginSdkConfig::default());
-        plugin
-            .init(&init_ctx, handle)
-            .await
-            .expect("内置插件初始化失败");
-    }
-    info!("内置插件 init 完成（PluginHandle 已发放）");
+    // 内置插件 init 循环已下移至 Phase B（持久化语言同步之后）：
+    // init_ctx.locale 必须携带持久化语言（Phase A 时 I18nManager.current 还是系统默认语言）。
 
     info!(
         "Phase A 完成: 共注册 {} 个组件（其中内置 {} 个）",
@@ -538,7 +561,7 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
             let app_handle = app_handle_for_hotkey.clone();
             tauri::async_runtime::spawn(async move {
                 if host_api.is_window_visible() {
-                    save_window_position_if_drag(&config_manager, &app_handle);
+                    save_window_position_if_drag(&config_manager, &app_handle).await;
                     host_api.hide_window().await;
                 } else {
                     if !prepare_window_position(&config_manager, &host_api, &app_handle).await {
@@ -555,9 +578,30 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
     // Phase B: 加载持久化配置
     // ========================================================================
     info!("=== Phase B: 加载持久化配置 ===");
-    if let Err(e) = config_manager.load_from_storage() {
+    if let Err(e) = config_manager.load_from_storage().await {
         warn!("加载持久化配置失败: {}", e);
     }
+    // 持久化语言在配置加载后才可知：同步后端翻译服务并重建托盘菜单
+    sync_backend_language(state, &config_manager);
+
+    // 内置插件全部注册后统一执行 init：向插件发放绑定身份的 PluginHandle
+    // （插件在 init 中保存句柄，供 query/execute_action 访问平台能力）。
+    // 远端插件适配器的 init 为 no-op，不会被重复初始化。
+    // 放在持久化语言同步之后：init_ctx.locale 需携带用户持久化语言，
+    // 而非 Phase A 时的系统默认语言。
+    let trace_id = generate_trace_id();
+    let mut init_ctx = PluginContext::new(&trace_id);
+    init_ctx.locale = state.get_i18n_manager().current_language();
+    for plugin in session_dispatcher.plugin_registry().get_all() {
+        let plugin_id = plugin.metadata().id.clone();
+        // todo!: 这里是直接使用的默认的权限来注册的。之后可以优化成，让插件支持自己设置需要的权限
+        let handle = host_api.register(&plugin_id, PluginSdkConfig::default());
+        plugin
+            .init(&init_ctx, handle)
+            .await
+            .expect("内置插件初始化失败");
+    }
+    info!("内置插件 init 完成（PluginHandle 已发放）");
 
     info!("构建候选管道...");
     let mut candidate_pipeline = session_dispatcher

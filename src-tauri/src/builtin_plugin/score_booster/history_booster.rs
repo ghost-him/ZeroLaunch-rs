@@ -166,8 +166,8 @@ impl HistoryBooster {
         HistoryBooster {
             core: ComponentCore::new(
                 "history-booster".to_string(),
-                "历史记录增强器".to_string(),
-                "根据历史选择频率提升常用候选项的排名".to_string(),
+                t_key!("history-booster", "name").to_string(),
+                t_key!("history-booster", "description").to_string(),
                 ComponentType::ScoreBooster,
                 0,
             ),
@@ -185,40 +185,48 @@ impl Configurable for HistoryBooster {
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {
         vec![
-            SchemaBuilder::number("history_weight", "历史权重", "历史总启动次数的权重系数")
-                .group("权重配置")
-                .order(0)
-                .default(0.8)
-                .min(0.0)
-                .max(10.0)
-                .step(0.1)
-                .build(),
+            SchemaBuilder::number(
+                "history_weight",
+                t_key!("history-booster", "fields.history_weight.label"),
+                t_key!("history-booster", "fields.history_weight.desc"),
+            )
+            .group(t_key!("history-booster", "groups.weight"))
+            .order(0)
+            .default(0.8)
+            .min(0.0)
+            .max(10.0)
+            .step(0.1)
+            .build(),
             SchemaBuilder::number(
                 "recent_habit_weight",
-                "近期习惯权重",
-                "最近7天启动习惯的权重系数",
+                t_key!("history-booster", "fields.recent_habit_weight.label"),
+                t_key!("history-booster", "fields.recent_habit_weight.desc"),
             )
-            .group("权重配置")
+            .group(t_key!("history-booster", "groups.weight"))
             .order(1)
             .default(1.5)
             .min(0.0)
             .max(10.0)
             .step(0.1)
             .build(),
-            SchemaBuilder::number("temporal_weight", "短期热度权重", "短期热度的权重系数")
-                .group("权重配置")
-                .order(2)
-                .default(0.5)
-                .min(0.0)
-                .max(10.0)
-                .step(0.1)
-                .build(),
+            SchemaBuilder::number(
+                "temporal_weight",
+                t_key!("history-booster", "fields.temporal_weight.label"),
+                t_key!("history-booster", "fields.temporal_weight.desc"),
+            )
+            .group(t_key!("history-booster", "groups.weight"))
+            .order(2)
+            .default(0.5)
+            .min(0.0)
+            .max(10.0)
+            .step(0.1)
+            .build(),
             SchemaBuilder::number(
                 "temporal_decay",
-                "热度衰减常数(秒)",
-                "短期热度的衰减时间常数，默认10800秒(3小时)",
+                t_key!("history-booster", "fields.temporal_decay.label"),
+                t_key!("history-booster", "fields.temporal_decay.desc"),
             )
-            .group("衰减配置")
+            .group(t_key!("history-booster", "groups.decay"))
             .order(3)
             .default(10800.0)
             .min(60.0)
@@ -232,7 +240,7 @@ impl Configurable for HistoryBooster {
         serde_json::to_value(self.settings.read().clone()).unwrap_or_default()
     }
 
-    fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
+    async fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
         let parsed: HistoryBoosterSettings = serde_json::from_value(settings).unwrap_or_default();
         *self.settings.write() = parsed;
         Ok(())

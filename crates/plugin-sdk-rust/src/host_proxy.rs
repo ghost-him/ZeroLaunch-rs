@@ -162,6 +162,14 @@ impl HostProxy {
         Ok(())
     }
 
+    /// 获取宿主当前界面语言（如 "zh-Hans"），供插件生成本地化文本。
+    pub async fn get_locale(&self) -> Result<String, String> {
+        let result = self
+            .send_request("host/i18n.get_locale", serde_json::json!(null))
+            .await?;
+        Ok(result.as_str().unwrap_or("").to_string())
+    }
+
     pub async fn enumerate_apps(&self) -> Result<serde_json::Value, String> {
         self.send_request("host/app.enumerate", serde_json::json!(null))
             .await

@@ -4,7 +4,7 @@
       <n-image
         :src="imageSrc"
         :preview-disabled="!editable"
-        :alt="field.label"
+        :alt="resolveText(field.label)"
         object-fit="cover"
         height="64"
         width="64"
@@ -41,6 +41,7 @@
 import { computed, ref, watch } from 'vue'
 import { NButton, NImage, useMessage } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
+import { resolveText } from '../../../i18n'
 import { resourceGet, resourceUpload } from '../../../bridge/commands'
 import ConfigActionButton from '../ConfigActionButton.vue'
 import { getSchemaImageConfig } from '../../../utils/schemaTypes'
@@ -82,7 +83,7 @@ async function uploadImage() {
     const { open } = await import('@tauri-apps/plugin-dialog')
     const selected = await open({
       multiple: false,
-      filters: [{ name: props.field.label, extensions: imageConfig.value.accept }],
+      filters: [{ name: resolveText(props.field.label), extensions: imageConfig.value.accept }],
     })
     if (selected) {
       const rid = await resourceUpload(selected, props.field.key, imageConfig.value.maxSize ?? undefined)

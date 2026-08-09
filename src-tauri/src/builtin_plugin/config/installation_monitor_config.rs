@@ -56,8 +56,8 @@ impl InstallationMonitorConfigComponent {
         Self {
             core: ComponentCore::new(
                 "installation-monitor-config".to_string(),
-                "安装监控配置".to_string(),
-                "监控软件安装并自动更新搜索索引".to_string(),
+                t_key!("installation-monitor-config", "name").to_string(),
+                t_key!("installation-monitor-config", "description").to_string(),
                 ComponentType::Core,
                 50,
             ),
@@ -77,19 +77,37 @@ impl Configurable for InstallationMonitorConfigComponent {
         vec![
             SchemaBuilder::boolean(
                 "enable_installation_monitor",
-                "启用安装监控",
-                "启用后，自动监控文件系统变化（如开始菜单），检测程序的安装和卸载",
+                t_key!(
+                    "installation-monitor-config",
+                    "fields.enable_installation_monitor.label"
+                ),
+                t_key!(
+                    "installation-monitor-config",
+                    "fields.enable_installation_monitor.desc"
+                ),
             )
-            .group("安装监控")
+            .group(t_key!(
+                "installation-monitor-config",
+                "groups.installationMonitor"
+            ))
             .order(0)
             .default(false)
             .build(),
             SchemaBuilder::number(
                 "monitor_debounce_secs",
-                "去抖等待时间（秒）",
-                "检测到文件变化后等待的时间，避免频繁触发刷新",
+                t_key!(
+                    "installation-monitor-config",
+                    "fields.monitor_debounce_secs.label"
+                ),
+                t_key!(
+                    "installation-monitor-config",
+                    "fields.monitor_debounce_secs.desc"
+                ),
             )
-            .group("安装监控")
+            .group(t_key!(
+                "installation-monitor-config",
+                "groups.installationMonitor"
+            ))
             .order(1)
             .default(5.0)
             .min(1.0)
@@ -98,10 +116,19 @@ impl Configurable for InstallationMonitorConfigComponent {
             .build(),
             SchemaBuilder::text(
                 "monitor_watch_paths",
-                "监控路径",
-                "要监控的目录路径列表（每行一个），留空使用平台默认路径（Windows 开始菜单）",
+                t_key!(
+                    "installation-monitor-config",
+                    "fields.monitor_watch_paths.label"
+                ),
+                t_key!(
+                    "installation-monitor-config",
+                    "fields.monitor_watch_paths.desc"
+                ),
             )
-            .group("安装监控")
+            .group(t_key!(
+                "installation-monitor-config",
+                "groups.installationMonitor"
+            ))
             .order(2)
             .default("")
             .build(),
@@ -112,7 +139,7 @@ impl Configurable for InstallationMonitorConfigComponent {
         serde_json::to_value(self.settings.read().clone()).unwrap_or_default()
     }
 
-    fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
+    async fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
         let parsed: InstallationMonitorSettings =
             serde_json::from_value(settings).unwrap_or_else(|e| {
                 warn!(
@@ -125,7 +152,7 @@ impl Configurable for InstallationMonitorConfigComponent {
         Ok(())
     }
 
-    fn validate_settings(&self, settings: &serde_json::Value) -> Result<(), ConfigError> {
+    async fn validate_settings(&self, settings: &serde_json::Value) -> Result<(), ConfigError> {
         if let Some(debounce) = settings
             .get("monitor_debounce_secs")
             .and_then(|v| v.as_f64())

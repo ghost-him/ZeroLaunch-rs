@@ -51,8 +51,8 @@ impl HotkeyConfigComponent {
         Self {
             core: ComponentCore::new(
                 "hotkey-config".to_string(),
-                "快捷键配置".to_string(),
-                "设置全局快捷键，快速唤醒搜索窗口".to_string(),
+                t_key!("hotkey-config", "name").to_string(),
+                t_key!("hotkey-config", "description").to_string(),
                 ComponentType::Core,
                 40,
             ),
@@ -146,19 +146,19 @@ impl Configurable for HotkeyConfigComponent {
         vec![
             SchemaBuilder::text(
                 "open_search_bar",
-                "打开搜索栏",
-                "全局快捷键，用于显示/隐藏搜索栏",
+                t_key!("hotkey-config", "fields.open_search_bar.label"),
+                t_key!("hotkey-config", "fields.open_search_bar.desc"),
             )
-            .group("全局快捷键")
+            .group(t_key!("hotkey-config", "groups.globalHotkeys"))
             .order(0)
             .default("Alt+Space")
             .build(),
             SchemaBuilder::boolean(
                 "double_click_ctrl",
-                "双击 Ctrl 打开搜索栏",
-                "启用后，快速双击 Ctrl 键可打开搜索栏（此时将忽略打开搜索栏的快捷键）",
+                t_key!("hotkey-config", "fields.double_click_ctrl.label"),
+                t_key!("hotkey-config", "fields.double_click_ctrl.desc"),
             )
-            .group("全局快捷键")
+            .group(t_key!("hotkey-config", "groups.globalHotkeys"))
             .order(2)
             .default(false)
             .build(),
@@ -169,7 +169,7 @@ impl Configurable for HotkeyConfigComponent {
         serde_json::to_value(self.settings.read().clone()).unwrap_or_default()
     }
 
-    fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
+    async fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
         let parsed: HotkeySettings = serde_json::from_value(settings).unwrap_or_else(|e| {
             warn!(
                 "failed to parse settings for {}, using defaults: {e}",
@@ -181,7 +181,7 @@ impl Configurable for HotkeyConfigComponent {
         Ok(())
     }
 
-    fn validate_settings(&self, settings: &serde_json::Value) -> Result<(), ConfigError> {
+    async fn validate_settings(&self, settings: &serde_json::Value) -> Result<(), ConfigError> {
         let hotkey_fields = ["open_search_bar"];
         for field in &hotkey_fields {
             if let Some(hotkey_str) = settings.get(field).and_then(|v| v.as_str()) {

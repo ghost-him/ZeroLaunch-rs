@@ -143,8 +143,8 @@ impl ProgramSource {
         ProgramSource {
             core: ComponentCore::new(
                 "program-source".to_string(),
-                "路径程序数据源".to_string(),
-                "扫描用户指定路径中的应用程序".to_string(),
+                t_key!("program-source", "name").to_string(),
+                t_key!("program-source", "description").to_string(),
                 ComponentType::DataSource,
                 0,
             ),
@@ -293,100 +293,118 @@ impl Configurable for ProgramSource {
                 String::new()
             });
 
-        vec![
-            SchemaBuilder::array("directories", "扫描目录", "配置要扫描的程序目录")
-                .group("目录扫描")
-                .order(1)
-                .object_items(vec![
-                    SchemaBuilder::path("root_path", "目录路径", "要扫描的根目录")
-                        .directory()
-                        .default("")
-                        .build_field(),
-                    SchemaBuilder::integer("max_depth", "扫描深度", "子目录递归深度")
-                        .default(3.0)
-                        .min(1.0)
-                        .max(10.0)
-                        .step(1.0)
-                        .build_field(),
-                    SchemaBuilder::array(
-                        "pattern",
-                        "文件模式",
-                        "要匹配的文件类型，如 *.exe, *.lnk",
-                    )
-                    .primitive_item(PrimitiveType::Text)
-                    .tags_ui()
-                    .min_items(0)
-                    .default(serde_json::json!(["*.exe", "*.lnk", "*.url"]))
-                    .build_field(),
-                    SchemaBuilder::select("pattern_type", "匹配方式", "通配符或正则表达式")
-                        .options(&["Wildcard", "Regex"])
-                        .default("Wildcard")
-                        .build_field(),
-                    SchemaBuilder::array(
-                        "excluded_keywords",
-                        "排除关键字",
-                        "包含这些关键字的路径将被忽略",
-                    )
-                    .primitive_item(PrimitiveType::Text)
-                    .tags_ui()
-                    .min_items(0)
-                    .default(serde_json::json!(["uninstall", "帮助", "help", "卸载"]))
-                    .build_field(),
-                    SchemaBuilder::array(
-                        "forbidden_paths",
-                        "禁止路径",
-                        "这些路径及其子路径将不会被扫描",
-                    )
-                    .primitive_item(PrimitiveType::Text)
-                    .tags_ui()
-                    .min_items(0)
-                    .default(serde_json::json!([]))
-                    .build_field(),
-                    SchemaBuilder::select("symlink_mode", "符号链接模式", "如何处理符号链接")
-                        .options(&["ExplicitOnly", "Auto"])
-                        .default("ExplicitOnly")
-                        .build_field(),
-                ])
-                .min_items(0)
-                .master_detail_ui()
-                .default(serde_json::json!([
-                    {
-                        "root_path": common_start_menu,
-                        "max_depth": 5,
-                        "pattern": ["*.exe", "*.lnk", "*.url"],
-                        "pattern_type": "Wildcard",
-                        "excluded_keywords": ["uninstall", "帮助", "help", "卸载", "zerolaunch-rs"],
-                        "forbidden_paths": [],
-                        "symlink_mode": "ExplicitOnly"
-                    },
-                    {
-                        "root_path": user_start_menu,
-                        "max_depth": 5,
-                        "pattern": ["*.exe", "*.lnk", "*.url"],
-                        "pattern_type": "Wildcard",
-                        "excluded_keywords": ["uninstall", "帮助", "help", "卸载", "zerolaunch-rs"],
-                        "forbidden_paths": [],
-                        "symlink_mode": "ExplicitOnly"
-                    },
-                    {
-                        "root_path": user_desktop,
-                        "max_depth": 3,
-                        "pattern": ["*.exe", "*.lnk", "*.url"],
-                        "pattern_type": "Wildcard",
-                        "excluded_keywords": ["uninstall", "帮助", "help", "卸载", "zerolaunch-rs"],
-                        "forbidden_paths": [],
-                        "symlink_mode": "ExplicitOnly"
-                    }
-                ]))
-                .build(),
-        ]
+        vec![SchemaBuilder::array(
+            "directories",
+            t_key!("program-source", "fields.directories.label"),
+            t_key!("program-source", "fields.directories.desc"),
+        )
+        .group(t_key!("program-source", "groups.directoryScan"))
+        .order(1)
+        .object_items(vec![
+            SchemaBuilder::path(
+                "root_path",
+                t_key!("program-source", "fields.root_path.label"),
+                t_key!("program-source", "fields.root_path.desc"),
+            )
+            .directory()
+            .default("")
+            .build_field(),
+            SchemaBuilder::integer(
+                "max_depth",
+                t_key!("program-source", "fields.max_depth.label"),
+                t_key!("program-source", "fields.max_depth.desc"),
+            )
+            .default(3.0)
+            .min(1.0)
+            .max(10.0)
+            .step(1.0)
+            .build_field(),
+            SchemaBuilder::array(
+                "pattern",
+                t_key!("program-source", "fields.pattern.label"),
+                t_key!("program-source", "fields.pattern.desc"),
+            )
+            .primitive_item(PrimitiveType::Text)
+            .tags_ui()
+            .min_items(0)
+            .default(serde_json::json!(["*.exe", "*.lnk", "*.url"]))
+            .build_field(),
+            SchemaBuilder::select(
+                "pattern_type",
+                t_key!("program-source", "fields.pattern_type.label"),
+                t_key!("program-source", "fields.pattern_type.desc"),
+            )
+            .options(&["Wildcard", "Regex"])
+            .default("Wildcard")
+            .build_field(),
+            SchemaBuilder::array(
+                "excluded_keywords",
+                t_key!("program-source", "fields.excluded_keywords.label"),
+                t_key!("program-source", "fields.excluded_keywords.desc"),
+            )
+            .primitive_item(PrimitiveType::Text)
+            .tags_ui()
+            .min_items(0)
+            .default(serde_json::json!(["uninstall", "帮助", "help", "卸载"]))
+            .build_field(),
+            SchemaBuilder::array(
+                "forbidden_paths",
+                t_key!("program-source", "fields.forbidden_paths.label"),
+                t_key!("program-source", "fields.forbidden_paths.desc"),
+            )
+            .primitive_item(PrimitiveType::Text)
+            .tags_ui()
+            .min_items(0)
+            .default(serde_json::json!([]))
+            .build_field(),
+            SchemaBuilder::select(
+                "symlink_mode",
+                t_key!("program-source", "fields.symlink_mode.label"),
+                t_key!("program-source", "fields.symlink_mode.desc"),
+            )
+            .options(&["ExplicitOnly", "Auto"])
+            .default("ExplicitOnly")
+            .build_field(),
+        ])
+        .min_items(0)
+        .master_detail_ui()
+        .default(serde_json::json!([
+            {
+                "root_path": common_start_menu,
+                "max_depth": 5,
+                "pattern": ["*.exe", "*.lnk", "*.url"],
+                "pattern_type": "Wildcard",
+                "excluded_keywords": ["uninstall", "帮助", "help", "卸载", "zerolaunch-rs"],
+                "forbidden_paths": [],
+                "symlink_mode": "ExplicitOnly"
+            },
+            {
+                "root_path": user_start_menu,
+                "max_depth": 5,
+                "pattern": ["*.exe", "*.lnk", "*.url"],
+                "pattern_type": "Wildcard",
+                "excluded_keywords": ["uninstall", "帮助", "help", "卸载", "zerolaunch-rs"],
+                "forbidden_paths": [],
+                "symlink_mode": "ExplicitOnly"
+            },
+            {
+                "root_path": user_desktop,
+                "max_depth": 3,
+                "pattern": ["*.exe", "*.lnk", "*.url"],
+                "pattern_type": "Wildcard",
+                "excluded_keywords": ["uninstall", "帮助", "help", "卸载", "zerolaunch-rs"],
+                "forbidden_paths": [],
+                "symlink_mode": "ExplicitOnly"
+            }
+        ]))
+        .build()]
     }
 
     fn get_settings(&self) -> serde_json::Value {
         serde_json::to_value(self.settings.read().clone()).unwrap_or_default()
     }
 
-    fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
+    async fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
         let parsed: ProgramSourceSettings = serde_json::from_value(settings).unwrap_or_default();
         *self.settings.write() = parsed;
         Ok(())

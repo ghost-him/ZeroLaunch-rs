@@ -34,6 +34,7 @@ use super::builtin;
 use super::host_handler::TauriHostCallHandler;
 use super::plugin_info::{InstallError, PluginInfo, PluginStatus};
 use super::plugin_installer::PluginInstaller;
+use crate::core::i18n::I18nManager;
 
 /// PluginManager 内部错误类型。
 /// 在 commands/ 层通过 From 转换为 BridgeError。
@@ -85,6 +86,8 @@ pub struct PluginManager {
     plugin_event_tx: RwLock<Option<PluginEventSender>>,
     /// HostApi 引用
     host_api: RwLock<Option<Arc<HostApi>>>,
+    /// 后端翻译服务（host/i18n.get_locale 与插件翻译目录注册）
+    i18n: RwLock<Option<Arc<I18nManager>>>,
     /// PluginHostManager（内部构造，管理子进程生命周期）
     host_manager: RwLock<Option<Arc<PluginHostManager>>>,
 }
@@ -97,6 +100,7 @@ impl PluginManager {
             third_party_infos: RwLock::new(Vec::new()),
             plugin_event_tx: RwLock::new(None),
             host_api: RwLock::new(None),
+            i18n: RwLock::new(None),
             host_manager: RwLock::new(None),
         }
     }
@@ -111,6 +115,25 @@ impl PluginManager {
     /// 设置 HostApi 引用。
     pub fn set_host_api(&self, api: Arc<HostApi>) {
         *self.host_api.write() = Some(api);
+    }
+
+    /// 注入后端翻译服务（bootstrap 在加载第三方插件前调用）。
+    pub fn set_i18n_manager(&self, i18n: Arc<I18nManager>) {
+        *self.i18n.write() = Some(i18n);
+    }
+
+    /// 读取后端翻译服务引用。
+    ///
+    /// # Panics
+    ///
+    /// 未注入时 panic：bootstrap 顺序不变式保证 `set_i18n_manager` 先于
+    /// 第三方插件加载/卸载路径执行；None 意味着初始化流程被破坏。
+    fn i18n_manager(&self) -> Arc<I18nManager> {
+        self.i18n
+            .read()
+            .as_ref()
+            .cloned()
+            .expect("i18n manager 必须在加载第三方插件前注入（bootstrap 顺序不变式）")
     }
 
     /// 初始化 PluginHostManager（PluginManager 内部构造，不从外部注入）。
@@ -463,6 +486,8 @@ impl PluginManager {
             })?;
         }
 
+        self.i18n_manager().unregister_plugin_catalog(plugin_id);
+
         self.host_api().unregister(plugin_id);
 
         let _ = app_handle.emit(
@@ -523,12 +548,16 @@ impl PluginManager {
             .map_err(|e| PluginManagerError::Internal(format!("parse manifest: {}", e)))?;
         let plugin_id = manifest.plugin.id.clone();
 
+        // 重新加载/重复加载时先移除旧 catalog，避免残留
+        self.i18n_manager().unregister_plugin_catalog(&plugin_id);
+
         let _handle = host_api.register(&plugin_id, PluginSdkConfig::default());
 
         let handler: Arc<dyn HostCallHandler> = Arc::new(TauriHostCallHandler {
             host_api: host_api.clone(),
             plugin_id: plugin_id.clone(),
             app_handle: Some(app_handle.clone()),
+            i18n: self.i18n_manager(),
         });
 
         let on_restart = self.make_restart_callback(plugin_id.clone());
@@ -547,9 +576,12 @@ impl PluginManager {
                 other => PluginManagerError::Internal(format!("plugin-host load: {}", other)),
             })?;
 
-        self.plugin_event_tx()
+        if let Err(e) = self
+            .plugin_event_tx()
             .send(PluginRuntimeEvent::PluginLoaded(registered.clone()))
-            .ok();
+        {
+            error!("广播 PluginLoaded 失败（无接收者？）: {}", e);
+        }
 
         let enabled = !registered.components.is_empty()
             && registered.components.iter().all(|c| c.default_enabled());
@@ -566,6 +598,10 @@ impl PluginManager {
             true,
             priority,
         ));
+
+        // 注册插件翻译目录（<plugin_dir>/i18n/<lang>.json），供前端经 IPC 合并
+        self.i18n_manager()
+            .register_plugin_catalog(&plugin_id, plugin_dir);
 
         info!("Loaded third-party plugin: {}", plugin_id);
 

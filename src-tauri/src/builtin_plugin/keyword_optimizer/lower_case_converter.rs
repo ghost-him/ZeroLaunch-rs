@@ -66,8 +66,8 @@ impl LowerCaseConverter {
         Self {
             core: ComponentCore::new(
                 "lower-case-converter".to_string(),
-                "小写转换器".to_string(),
-                "将关键词转换为小写以忽略大小写".to_string(),
+                t_key!("lower-case-converter", "name").to_string(),
+                t_key!("lower-case-converter", "description").to_string(),
                 ComponentType::KeywordOptimizer,
                 40,
             ),
@@ -84,17 +84,21 @@ impl Configurable for LowerCaseConverter {
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {
         vec![
-            SchemaBuilder::number("priority", "优先级", "优化器执行优先级，数值越小越先执行")
-                .order(0)
-                .default(30.0)
-                .min(1.0)
-                .max(100.0)
-                .step(1.0)
-                .build(),
+            SchemaBuilder::number(
+                "priority",
+                t_key!("lower-case-converter", "fields.priority.label"),
+                t_key!("lower-case-converter", "fields.priority.desc"),
+            )
+            .order(0)
+            .default(30.0)
+            .min(1.0)
+            .max(100.0)
+            .step(1.0)
+            .build(),
             SchemaBuilder::boolean(
                 "uses_context",
-                "使用上下文",
-                "是否对所有已累积的关键词进行优化，而非仅对原始名称优化",
+                t_key!("lower-case-converter", "fields.uses_context.label"),
+                t_key!("lower-case-converter", "fields.uses_context.desc"),
             )
             .order(1)
             .default(false)
@@ -106,7 +110,7 @@ impl Configurable for LowerCaseConverter {
         serde_json::to_value(self.inner.read().clone()).unwrap_or_default()
     }
 
-    fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
+    async fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
         let parsed: LowerCaseConverterSettings =
             serde_json::from_value(settings).unwrap_or_default();
         *self.inner.write() = parsed;

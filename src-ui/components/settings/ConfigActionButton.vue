@@ -6,7 +6,7 @@
     :disabled="!editable"
     @click="execute"
   >
-    {{ actionDef.label }}
+    {{ resolveText(actionDef.label) }}
   </n-button>
 </template>
 
@@ -14,6 +14,7 @@
 import { ref, inject, onMounted } from 'vue'
 import { NButton, useMessage } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
+import { resolveText } from '../../i18n'
 import { useConfigStore } from '../../stores/config-store'
 import { FORM_VALUES_KEY } from '../../utils/formInjection'
 import type { ConfigActionDef, EffectActionBinding, FieldAction } from '../../bridge/contract'
@@ -129,10 +130,10 @@ async function execute(): Promise<void> {
     if (action.kind === 'effect' && isRecord(result) && result.success === false) {
       throw new Error(String(result.message ?? t('settings.actionFailedDefault')))
     }
-    message.success(t('settings.actionSuccess', { label: actionDef.value.label }))
+    message.success(t('settings.actionSuccess', { label: resolveText(actionDef.value.label) }))
   } catch (error) {
     message.error(t('settings.actionFailed', {
-      label: actionDef.value.label,
+      label: resolveText(actionDef.value.label),
       message: String(error),
     }))
   } finally {

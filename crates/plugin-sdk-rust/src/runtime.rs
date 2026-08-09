@@ -255,6 +255,8 @@ async fn dispatch(
         plugin_methods::INITIALIZE => {
             let p: InitializeParams = serde_json::from_value(params.clone())
                 .map_err(|e| JsonRpcError::new(codes::INVALID_PARAMS, e.to_string()))?;
+            // 记录插件 id：t_key() 据此自动补 `plugin.<id>.` 前缀
+            crate::set_plugin_id(&p.plugin_id);
             *plugin_ctx = Some(zerolaunch_plugin_api::PluginContext {
                 trace_id: "init".into(),
                 query_id: None,
@@ -263,6 +265,8 @@ async fn dispatch(
                 query_revision_gate: None,
                 // 远端插件会话由宿主经 RPC 下发通道，未收到时缺省视为 GUI 通道。
                 query_channel: zerolaunch_plugin_api::QueryChannel::Ui,
+                // 宿主语言由宿主在查询上下文下发时填充；初始化场景未知，留空。
+                locale: String::new(),
             });
             let result = InitializeResult {
                 plugin_version: plugin.metadata().version.clone(),
@@ -302,6 +306,7 @@ async fn dispatch(
                 .map_err(|e| JsonRpcError::new(codes::INVALID_PARAMS, e.to_string()))?;
             plugin
                 .apply_settings(p.settings)
+                .await
                 .map_err(|e| JsonRpcError::new(codes::PLUGIN_ERROR, e.to_string()))?;
             Ok(serde_json::Value::Null)
         }
@@ -309,7 +314,7 @@ async fn dispatch(
         plugin_methods::VALIDATE_SETTINGS => {
             let p: ValidateSettingsParams = serde_json::from_value(params.clone())
                 .map_err(|e| JsonRpcError::new(codes::INVALID_PARAMS, e.to_string()))?;
-            let result = match plugin.validate_settings(&p.settings) {
+            let result = match plugin.validate_settings(&p.settings).await {
                 Ok(()) => ValidateSettingsResult { error: None },
                 Err(e) => ValidateSettingsResult {
                     error: Some(e.to_string()),
@@ -317,10 +322,11 @@ async fn dispatch(
             };
             Ok(serde_json::to_value(result).unwrap_or_default())
         }
-        plugin_methods::CONFIG_ACTIONS => Ok(serde_json::to_value(ConfigActionsResult {
-            actions: plugin.config_actions(),
-        })
-        .unwrap_or_default()),
+        // 返回裸数组：宿主 discover 流程以 `Vec<ConfigActionDef>` 反序列化
+        // （与 get_settings_schema 的裸数组约定一致），包装结构会解析失败。
+        plugin_methods::CONFIG_ACTIONS => {
+            Ok(serde_json::to_value(plugin.config_actions()).unwrap_or_default())
+        }
         plugin_methods::EXECUTE_CONFIG_ACTION => {
             let p: ExecuteConfigActionParams = serde_json::from_value(params.clone())
                 .map_err(|e| JsonRpcError::new(codes::INVALID_PARAMS, e.to_string()))?;

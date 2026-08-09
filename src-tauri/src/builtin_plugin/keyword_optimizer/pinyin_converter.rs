@@ -106,8 +106,8 @@ impl PinyinConverter {
         PinyinConverter {
             core: ComponentCore::new(
                 "pinyin-converter".to_string(),
-                "拼音转换器".to_string(),
-                "将中文关键词转换为拼音以支持拼音搜索".to_string(),
+                t_key!("pinyin-converter", "name").to_string(),
+                t_key!("pinyin-converter", "description").to_string(),
                 ComponentType::KeywordOptimizer,
                 50,
             ),
@@ -124,17 +124,21 @@ impl Configurable for PinyinConverter {
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {
         vec![
-            SchemaBuilder::number("priority", "优先级", "优化器执行优先级，数值越小越先执行")
-                .order(0)
-                .default(25.0)
-                .min(1.0)
-                .max(100.0)
-                .step(1.0)
-                .build(),
+            SchemaBuilder::number(
+                "priority",
+                t_key!("pinyin-converter", "fields.priority.label"),
+                t_key!("pinyin-converter", "fields.priority.desc"),
+            )
+            .order(0)
+            .default(25.0)
+            .min(1.0)
+            .max(100.0)
+            .step(1.0)
+            .build(),
             SchemaBuilder::boolean(
                 "uses_context",
-                "上下文优化",
-                "是否对所有已累积的关键词进行拼音转换",
+                t_key!("pinyin-converter", "fields.uses_context.label"),
+                t_key!("pinyin-converter", "fields.uses_context.desc"),
             )
             .order(1)
             .default(false)
@@ -146,7 +150,7 @@ impl Configurable for PinyinConverter {
         serde_json::to_value(self.inner.read().clone()).unwrap_or_default()
     }
 
-    fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
+    async fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
         let mut parsed: PinyinConverterSettings =
             serde_json::from_value(settings).unwrap_or_default();
         // 保留预加载的拼音字典，该字段不属于用户配置

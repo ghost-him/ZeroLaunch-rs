@@ -29,8 +29,8 @@ impl BiasConfig {
         Self {
             core: ComponentCore::new(
                 "bias-config".to_string(),
-                "固定偏移量".to_string(),
-                "为程序设置固定权重偏移，调整其在搜索结果中的位置".to_string(),
+                t_key!("bias-config", "name").to_string(),
+                t_key!("bias-config", "description").to_string(),
                 ComponentType::BiasRule,
                 45,
             ),
@@ -54,26 +54,38 @@ impl Configurable for BiasConfig {
     fn setting_schema(&self) -> Vec<SettingDefinition> {
         vec![SchemaBuilder::array(
             "entries",
-            "固定偏移量",
-            "为程序设置固定权重偏移，正值提升排名，负值降低排名",
+            t_key!("bias-config", "fields.entries.label"),
+            t_key!("bias-config", "fields.entries.desc"),
         )
-        .group("固定偏移量")
+        .group(t_key!("bias-config", "groups.fixedOffset"))
         .order(1)
         .object_items(vec![
-            SchemaBuilder::text("target", "程序", "目标程序标识")
-                .visible(false)
-                .editable(false)
-                .default("")
-                .build(),
-            SchemaBuilder::number("bias", "偏移量", "正值提升排名，负值降低排名")
-                .default(0.0)
-                .min(-10.0)
-                .max(10.0)
-                .step(0.1)
-                .build_field(),
-            SchemaBuilder::text("note", "备注", "可选备注信息")
-                .default("")
-                .build_field(),
+            SchemaBuilder::text(
+                "target",
+                t_key!("bias-config", "fields.target.label"),
+                t_key!("bias-config", "fields.target.desc"),
+            )
+            .visible(false)
+            .editable(false)
+            .default("")
+            .build(),
+            SchemaBuilder::number(
+                "bias",
+                t_key!("bias-config", "fields.bias.label"),
+                t_key!("bias-config", "fields.bias.desc"),
+            )
+            .default(0.0)
+            .min(-10.0)
+            .max(10.0)
+            .step(0.1)
+            .build_field(),
+            SchemaBuilder::text(
+                "note",
+                t_key!("bias-config", "fields.note.label"),
+                t_key!("bias-config", "fields.note.desc"),
+            )
+            .default("")
+            .build_field(),
         ])
         .search_table_ui()
         .data_action(DataActionBinding {
@@ -94,7 +106,7 @@ impl Configurable for BiasConfig {
         serde_json::to_value(self.settings.read().clone()).unwrap_or_default()
     }
 
-    fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
+    async fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
         let mut parsed: BiasSettings = serde_json::from_value(settings).unwrap_or_default();
         // 归一化 target 为小写，避免 Windows 路径大小写不一致导致匹配失败
         for entry in &mut parsed.entries {

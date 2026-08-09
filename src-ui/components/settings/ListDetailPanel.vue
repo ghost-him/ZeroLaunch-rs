@@ -23,7 +23,7 @@
             </n-icon>
           </div>
           <div class="item-info">
-            <span class="item-name">{{ item.componentName }}</span>
+            <span class="item-name">{{ resolveText(item.componentName) }}</span>
             <span class="item-id">{{ item.componentId }}</span>
           </div>
           <div class="item-toggle" @click.stop>
@@ -61,6 +61,7 @@
 import { ref, computed } from 'vue'
 import { NSwitch, NText, NIcon, useMessage } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
+import { resolveText } from '../../i18n'
 import type { ComponentInfo } from '../../bridge/contract'
 import ComponentConfigLoader from './ComponentConfigLoader.vue'
 import { useConfigStore } from '../../stores/config-store'

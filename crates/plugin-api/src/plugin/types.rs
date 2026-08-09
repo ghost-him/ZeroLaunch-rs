@@ -83,6 +83,9 @@ pub struct ExecutionContext {
     pub user_args: Vec<String>,
     /// 系统参数快照（不透明句柄）
     pub parameter_snapshot: ParameterSnapshot,
+    /// 宿主当前界面语言（如 "zh-Hans"）；由宿主在执行分发时填充，
+    /// 远端 ActionExecutor 经 RPC 透传进插件上下文（进程内执行器直接用）。
+    pub locale: String,
 }
 
 impl Default for ExecutionContext {
@@ -92,6 +95,7 @@ impl Default for ExecutionContext {
             display_name: String::new(),
             user_args: Vec::new(),
             parameter_snapshot: ParameterSnapshot::empty(),
+            locale: String::new(),
         }
     }
 }
@@ -335,6 +339,10 @@ pub struct PluginContext {
     /// 查询来源通道（宿主注入；远端插件经 RPC 反序列化时缺省视为 GUI 通道）。
     #[serde(default)]
     pub query_channel: QueryChannel,
+    /// 宿主当前界面语言（如 "zh-Hans"），供插件生成本地化文本；
+    /// 远端插件反序列化缺省为空串，可经 host/i18n.get_locale 主动查询。
+    #[serde(default)]
+    pub locale: String,
 }
 
 impl PluginContext {
@@ -345,6 +353,7 @@ impl PluginContext {
             plugin_id: None,
             query_revision_gate: None,
             query_channel: QueryChannel::Ui,
+            locale: String::new(),
         }
     }
 

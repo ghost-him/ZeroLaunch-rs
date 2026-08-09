@@ -311,8 +311,8 @@ impl AppearanceConfigComponent {
         Self {
             core: ComponentCore::new(
                 "appearance-config".to_string(),
-                "外观".to_string(),
-                "自定义应用的外观主题和界面语言".to_string(),
+                t_key!("appearance-config", "name").to_string(),
+                t_key!("appearance-config", "description").to_string(),
                 ComponentType::Core,
                 0,
             ),
@@ -330,38 +330,50 @@ impl Configurable for AppearanceConfigComponent {
     fn setting_schema(&self) -> Vec<SettingDefinition> {
         vec![
             // ---- 主题 & 语言 ----
-            SchemaBuilder::select("theme", "主题", "选择浅色、深色或跟随系统主题")
-                .group("theme")
-                .order(0)
-                .options(&["system", "light", "dark"])
-                .default("system")
-                .build(),
-            SchemaBuilder::select("language", "语言", "界面显示语言")
-                .group("theme")
-                .order(1)
-                // 语言选项固定显示各语言自身名称（符合语言选择器惯例，不随界面语言翻译）
-                .options_with_labels(&[
-                    ("zh-Hans", "简体中文"),
-                    ("zh-Hant", "繁體中文"),
-                    ("en", "English"),
-                ])
-                .default("zh-Hans")
-                .build(),
+            SchemaBuilder::select(
+                "theme",
+                t_key!("appearance-config", "fields.theme.label"),
+                t_key!("appearance-config", "fields.theme.desc"),
+            )
+            .group(t_key!("appearance-config", "groups.theme"))
+            .order(0)
+            .options(&["system", "light", "dark"])
+            .default("system")
+            .build(),
+            SchemaBuilder::select(
+                "language",
+                t_key!("appearance-config", "fields.language.label"),
+                t_key!("appearance-config", "fields.language.desc"),
+            )
+            .group(t_key!("appearance-config", "groups.theme"))
+            .order(1)
+            // 语言选项固定显示各语言自身名称（符合语言选择器惯例，不随界面语言翻译）
+            .options_with_labels(&[
+                ("zh-Hans", "简体中文"),
+                ("zh-Hant", "繁體中文"),
+                ("en", "English"),
+            ])
+            .default("zh-Hans")
+            .build(),
             // ---- 搜索栏 ----
-            SchemaBuilder::number("search_bar_height", "搜索栏高度", "搜索栏的高度(px)")
-                .group("searchBar")
-                .order(10)
-                .default(72.0)
-                .min(40.0)
-                .max(120.0)
-                .step(1.0)
-                .build(),
+            SchemaBuilder::number(
+                "search_bar_height",
+                t_key!("appearance-config", "fields.search_bar_height.label"),
+                t_key!("appearance-config", "fields.search_bar_height.desc"),
+            )
+            .group(t_key!("appearance-config", "groups.searchBar"))
+            .order(10)
+            .default(72.0)
+            .min(40.0)
+            .max(120.0)
+            .step(1.0)
+            .build(),
             SchemaBuilder::number(
                 "search_bar_font_ratio",
-                "搜索栏字体比例",
-                "字体大小 = 搜索栏高度 × 此比例",
+                t_key!("appearance-config", "fields.search_bar_font_ratio.label"),
+                t_key!("appearance-config", "fields.search_bar_font_ratio.desc"),
             )
-            .group("searchBar")
+            .group(t_key!("appearance-config", "groups.searchBar"))
             .order(11)
             .default(0.56)
             .min(0.3)
@@ -370,33 +382,41 @@ impl Configurable for AppearanceConfigComponent {
             .build(),
             SchemaBuilder::text(
                 "search_bar_font_family",
-                "搜索栏字体",
-                "字体族名称，留空则跟随系统",
+                t_key!("appearance-config", "fields.search_bar_font_family.label"),
+                t_key!("appearance-config", "fields.search_bar_font_family.desc"),
             )
-            .group("searchBar")
+            .group(t_key!("appearance-config", "groups.searchBar"))
             .order(12)
             .default("")
             .build(),
-            SchemaBuilder::text("search_bar_placeholder", "搜索栏占位符", "搜索栏的提示文本")
-                .group("searchBar")
-                .order(13)
-                .default("Hello, ZeroLaunch! ヾ(≧▽≦*)o")
-                .build(),
+            SchemaBuilder::text(
+                "search_bar_placeholder",
+                t_key!("appearance-config", "fields.search_bar_placeholder.label"),
+                t_key!("appearance-config", "fields.search_bar_placeholder.desc"),
+            )
+            .group(t_key!("appearance-config", "groups.searchBar"))
+            .order(13)
+            .default("Hello, ZeroLaunch! ヾ(≧▽≦*)o")
+            .build(),
             // ---- 结果栏 ----
-            SchemaBuilder::number("result_item_height", "结果项高度", "单条结果的高度(px)")
-                .group("resultList")
-                .order(20)
-                .default(54.0)
-                .min(36.0)
-                .max(80.0)
-                .step(1.0)
-                .build(),
+            SchemaBuilder::number(
+                "result_item_height",
+                t_key!("appearance-config", "fields.result_item_height.label"),
+                t_key!("appearance-config", "fields.result_item_height.desc"),
+            )
+            .group(t_key!("appearance-config", "groups.resultList"))
+            .order(20)
+            .default(54.0)
+            .min(36.0)
+            .max(80.0)
+            .step(1.0)
+            .build(),
             SchemaBuilder::number(
                 "result_item_font_ratio",
-                "结果标题字体比例",
-                "标题字体大小 = 结果项高度 × 此比例",
+                t_key!("appearance-config", "fields.result_item_font_ratio.label"),
+                t_key!("appearance-config", "fields.result_item_font_ratio.desc"),
             )
-            .group("resultList")
+            .group(t_key!("appearance-config", "groups.resultList"))
             .order(21)
             .default(0.30)
             .min(0.2)
@@ -405,10 +425,16 @@ impl Configurable for AppearanceConfigComponent {
             .build(),
             SchemaBuilder::number(
                 "result_item_subtitle_font_ratio",
-                "结果副标题字体比例",
-                "副标题字体大小 = 结果项高度 × 此比例",
+                t_key!(
+                    "appearance-config",
+                    "fields.result_item_subtitle_font_ratio.label"
+                ),
+                t_key!(
+                    "appearance-config",
+                    "fields.result_item_subtitle_font_ratio.desc"
+                ),
             )
-            .group("resultList")
+            .group(t_key!("appearance-config", "groups.resultList"))
             .order(22)
             .default(0.24)
             .min(0.15)
@@ -417,10 +443,10 @@ impl Configurable for AppearanceConfigComponent {
             .build(),
             SchemaBuilder::number(
                 "result_item_icon_ratio",
-                "图标大小比例",
-                "图标大小 = 结果项高度 × 此比例",
+                t_key!("appearance-config", "fields.result_item_icon_ratio.label"),
+                t_key!("appearance-config", "fields.result_item_icon_ratio.desc"),
             )
-            .group("resultList")
+            .group(t_key!("appearance-config", "groups.resultList"))
             .order(23)
             .default(0.72)
             .min(0.3)
@@ -429,19 +455,19 @@ impl Configurable for AppearanceConfigComponent {
             .build(),
             SchemaBuilder::text(
                 "result_item_font_family",
-                "结果栏字体",
-                "字体族名称，留空则跟随系统",
+                t_key!("appearance-config", "fields.result_item_font_family.label"),
+                t_key!("appearance-config", "fields.result_item_font_family.desc"),
             )
-            .group("resultList")
+            .group(t_key!("appearance-config", "groups.resultList"))
             .order(24)
             .default("")
             .build(),
             SchemaBuilder::number(
                 "max_visible_results",
-                "最大可见结果数",
-                "不滚动时最多显示的结果条数",
+                t_key!("appearance-config", "fields.max_visible_results.label"),
+                t_key!("appearance-config", "fields.max_visible_results.desc"),
             )
-            .group("resultList")
+            .group(t_key!("appearance-config", "groups.resultList"))
             .order(25)
             .default(8.0)
             .min(3.0)
@@ -450,33 +476,41 @@ impl Configurable for AppearanceConfigComponent {
             .build(),
             SchemaBuilder::boolean(
                 "show_launch_command",
-                "显示启动命令",
-                "在结果项中显示启动命令路径",
+                t_key!("appearance-config", "fields.show_launch_command.label"),
+                t_key!("appearance-config", "fields.show_launch_command.desc"),
             )
-            .group("resultList")
+            .group(t_key!("appearance-config", "groups.resultList"))
             .order(26)
             .default(false)
             .build(),
-            SchemaBuilder::boolean("show_subtitle", "显示副标题", "在结果项中显示副标题信息")
-                .group("resultList")
-                .order(27)
-                .default(true)
-                .build(),
+            SchemaBuilder::boolean(
+                "show_subtitle",
+                t_key!("appearance-config", "fields.show_subtitle.label"),
+                t_key!("appearance-config", "fields.show_subtitle.desc"),
+            )
+            .group(t_key!("appearance-config", "groups.resultList"))
+            .order(27)
+            .default(true)
+            .build(),
             // ---- 底栏 ----
-            SchemaBuilder::number("footer_height", "底栏高度", "底栏的高度(px)，设为0则隐藏")
-                .group("footer")
-                .order(30)
-                .default(48.0)
-                .min(0.0)
-                .max(60.0)
-                .step(1.0)
-                .build(),
+            SchemaBuilder::number(
+                "footer_height",
+                t_key!("appearance-config", "fields.footer_height.label"),
+                t_key!("appearance-config", "fields.footer_height.desc"),
+            )
+            .group(t_key!("appearance-config", "groups.footer"))
+            .order(30)
+            .default(48.0)
+            .min(0.0)
+            .max(60.0)
+            .step(1.0)
+            .build(),
             SchemaBuilder::number(
                 "footer_font_ratio",
-                "底栏字体比例",
-                "字体大小 = 底栏高度 × 此比例",
+                t_key!("appearance-config", "fields.footer_font_ratio.label"),
+                t_key!("appearance-config", "fields.footer_font_ratio.desc"),
             )
-            .group("footer")
+            .group(t_key!("appearance-config", "groups.footer"))
             .order(31)
             .default(0.25)
             .min(0.15)
@@ -485,36 +519,44 @@ impl Configurable for AppearanceConfigComponent {
             .build(),
             SchemaBuilder::text(
                 "footer_font_family",
-                "底栏字体",
-                "字体族名称，留空则跟随系统",
+                t_key!("appearance-config", "fields.footer_font_family.label"),
+                t_key!("appearance-config", "fields.footer_font_family.desc"),
             )
-            .group("footer")
+            .group(t_key!("appearance-config", "groups.footer"))
             .order(32)
             .default("")
             .build(),
             // ---- 窗口 ----
-            SchemaBuilder::number("window_width", "窗口宽度", "搜索窗口的宽度(px)")
-                .group("window")
-                .order(40)
-                .default(800.0)
-                .min(400.0)
-                .max(1200.0)
-                .step(10.0)
-                .build(),
-            SchemaBuilder::number("window_corner_radius", "窗口圆角", "窗口圆角大小(px)")
-                .group("window")
-                .order(41)
-                .default(12.0)
-                .min(0.0)
-                .max(24.0)
-                .step(1.0)
-                .build(),
+            SchemaBuilder::number(
+                "window_width",
+                t_key!("appearance-config", "fields.window_width.label"),
+                t_key!("appearance-config", "fields.window_width.desc"),
+            )
+            .group(t_key!("appearance-config", "groups.window"))
+            .order(40)
+            .default(800.0)
+            .min(400.0)
+            .max(1200.0)
+            .step(10.0)
+            .build(),
+            SchemaBuilder::number(
+                "window_corner_radius",
+                t_key!("appearance-config", "fields.window_corner_radius.label"),
+                t_key!("appearance-config", "fields.window_corner_radius.desc"),
+            )
+            .group(t_key!("appearance-config", "groups.window"))
+            .order(41)
+            .default(12.0)
+            .min(0.0)
+            .max(24.0)
+            .step(1.0)
+            .build(),
             SchemaBuilder::number(
                 "vertical_position_ratio",
-                "垂直位置比例",
-                "窗口在屏幕垂直方向的位置比例(0=顶部, 1=底部)",
+                t_key!("appearance-config", "fields.vertical_position_ratio.label"),
+                t_key!("appearance-config", "fields.vertical_position_ratio.desc"),
             )
-            .group("window")
+            .group(t_key!("appearance-config", "groups.window"))
             .order(42)
             .default(0.28)
             .min(0.0)
@@ -522,136 +564,200 @@ impl Configurable for AppearanceConfigComponent {
             .step(0.01)
             .build(),
             // ---- 浅色配色 ----
-            SchemaBuilder::color("bg_primary", "主背景色", "浅色模式下的主背景颜色")
-                .group("colorsLight")
-                .order(50)
-                .default("#ffffff")
-                .build(),
-            SchemaBuilder::color("bg_secondary", "副背景色", "浅色模式下的次要背景颜色")
-                .group("colorsLight")
-                .order(51)
-                .default("#f5f5f5")
-                .build(),
-            SchemaBuilder::color("text_primary", "主文字色", "浅色模式下的主要文字颜色")
-                .group("colorsLight")
-                .order(52)
-                .default("#1a1a1a")
-                .build(),
-            SchemaBuilder::color("text_secondary", "副文字色", "浅色模式下的次要文字颜色")
-                .group("colorsLight")
-                .order(53)
-                .default("#666666")
-                .build(),
-            SchemaBuilder::color("border_color", "边框色", "浅色模式下的边框颜色")
-                .group("colorsLight")
-                .order(54)
-                .default("#e5e5e5")
-                .build(),
-            SchemaBuilder::color("accent_color", "强调色", "浅色模式下的强调/链接颜色")
-                .group("colorsLight")
-                .order(55)
-                .default("#2080f0")
-                .build(),
-            SchemaBuilder::color("hover_color", "悬停色", "浅色模式下鼠标悬停的背景颜色")
-                .group("colorsLight")
-                .order(56)
-                .default("rgba(0,0,0,0.04)")
-                .build(),
+            SchemaBuilder::color(
+                "bg_primary",
+                t_key!("appearance-config", "fields.bg_primary.label"),
+                t_key!("appearance-config", "fields.bg_primary.desc"),
+            )
+            .group(t_key!("appearance-config", "groups.colorsLight"))
+            .order(50)
+            .default("#ffffff")
+            .build(),
+            SchemaBuilder::color(
+                "bg_secondary",
+                t_key!("appearance-config", "fields.bg_secondary.label"),
+                t_key!("appearance-config", "fields.bg_secondary.desc"),
+            )
+            .group(t_key!("appearance-config", "groups.colorsLight"))
+            .order(51)
+            .default("#f5f5f5")
+            .build(),
+            SchemaBuilder::color(
+                "text_primary",
+                t_key!("appearance-config", "fields.text_primary.label"),
+                t_key!("appearance-config", "fields.text_primary.desc"),
+            )
+            .group(t_key!("appearance-config", "groups.colorsLight"))
+            .order(52)
+            .default("#1a1a1a")
+            .build(),
+            SchemaBuilder::color(
+                "text_secondary",
+                t_key!("appearance-config", "fields.text_secondary.label"),
+                t_key!("appearance-config", "fields.text_secondary.desc"),
+            )
+            .group(t_key!("appearance-config", "groups.colorsLight"))
+            .order(53)
+            .default("#666666")
+            .build(),
+            SchemaBuilder::color(
+                "border_color",
+                t_key!("appearance-config", "fields.border_color.label"),
+                t_key!("appearance-config", "fields.border_color.desc"),
+            )
+            .group(t_key!("appearance-config", "groups.colorsLight"))
+            .order(54)
+            .default("#e5e5e5")
+            .build(),
+            SchemaBuilder::color(
+                "accent_color",
+                t_key!("appearance-config", "fields.accent_color.label"),
+                t_key!("appearance-config", "fields.accent_color.desc"),
+            )
+            .group(t_key!("appearance-config", "groups.colorsLight"))
+            .order(55)
+            .default("#2080f0")
+            .build(),
+            SchemaBuilder::color(
+                "hover_color",
+                t_key!("appearance-config", "fields.hover_color.label"),
+                t_key!("appearance-config", "fields.hover_color.desc"),
+            )
+            .group(t_key!("appearance-config", "groups.colorsLight"))
+            .order(56)
+            .default("rgba(0,0,0,0.04)")
+            .build(),
             // ---- 深色配色 ----
-            SchemaBuilder::color("dark_bg_primary", "主背景色", "深色模式下的主背景颜色")
-                .group("colorsDark")
-                .order(60)
-                .default("#1a1a1a")
-                .build(),
-            SchemaBuilder::color("dark_bg_secondary", "副背景色", "深色模式下的次要背景颜色")
-                .group("colorsDark")
-                .order(61)
-                .default("#2a2a2a")
-                .build(),
-            SchemaBuilder::color("dark_text_primary", "主文字色", "深色模式下的主要文字颜色")
-                .group("colorsDark")
-                .order(62)
-                .default("#e5e5e5")
-                .build(),
+            SchemaBuilder::color(
+                "dark_bg_primary",
+                t_key!("appearance-config", "fields.dark_bg_primary.label"),
+                t_key!("appearance-config", "fields.dark_bg_primary.desc"),
+            )
+            .group(t_key!("appearance-config", "groups.colorsDark"))
+            .order(60)
+            .default("#1a1a1a")
+            .build(),
+            SchemaBuilder::color(
+                "dark_bg_secondary",
+                t_key!("appearance-config", "fields.dark_bg_secondary.label"),
+                t_key!("appearance-config", "fields.dark_bg_secondary.desc"),
+            )
+            .group(t_key!("appearance-config", "groups.colorsDark"))
+            .order(61)
+            .default("#2a2a2a")
+            .build(),
+            SchemaBuilder::color(
+                "dark_text_primary",
+                t_key!("appearance-config", "fields.dark_text_primary.label"),
+                t_key!("appearance-config", "fields.dark_text_primary.desc"),
+            )
+            .group(t_key!("appearance-config", "groups.colorsDark"))
+            .order(62)
+            .default("#e5e5e5")
+            .build(),
             SchemaBuilder::color(
                 "dark_text_secondary",
-                "副文字色",
-                "深色模式下的次要文字颜色",
+                t_key!("appearance-config", "fields.dark_text_secondary.label"),
+                t_key!("appearance-config", "fields.dark_text_secondary.desc"),
             )
-            .group("colorsDark")
+            .group(t_key!("appearance-config", "groups.colorsDark"))
             .order(63)
             .default("#999999")
             .build(),
-            SchemaBuilder::color("dark_border_color", "边框色", "深色模式下的边框颜色")
-                .group("colorsDark")
-                .order(64)
-                .default("#333333")
-                .build(),
-            SchemaBuilder::color("dark_accent_color", "强调色", "深色模式下的强调/链接颜色")
-                .group("colorsDark")
-                .order(65)
-                .default("#4098fc")
-                .build(),
-            SchemaBuilder::color("dark_hover_color", "悬停色", "深色模式下鼠标悬停的背景颜色")
-                .group("colorsDark")
-                .order(66)
-                .default("rgba(255,255,255,0.06)")
-                .build(),
+            SchemaBuilder::color(
+                "dark_border_color",
+                t_key!("appearance-config", "fields.dark_border_color.label"),
+                t_key!("appearance-config", "fields.dark_border_color.desc"),
+            )
+            .group(t_key!("appearance-config", "groups.colorsDark"))
+            .order(64)
+            .default("#333333")
+            .build(),
+            SchemaBuilder::color(
+                "dark_accent_color",
+                t_key!("appearance-config", "fields.dark_accent_color.label"),
+                t_key!("appearance-config", "fields.dark_accent_color.desc"),
+            )
+            .group(t_key!("appearance-config", "groups.colorsDark"))
+            .order(65)
+            .default("#4098fc")
+            .build(),
+            SchemaBuilder::color(
+                "dark_hover_color",
+                t_key!("appearance-config", "fields.dark_hover_color.label"),
+                t_key!("appearance-config", "fields.dark_hover_color.desc"),
+            )
+            .group(t_key!("appearance-config", "groups.colorsDark"))
+            .order(66)
+            .default("rgba(255,255,255,0.06)")
+            .build(),
             // ---- 背景图片 ----
             SchemaBuilder::image(
                 "bg_image",
-                "背景图片",
-                "浅色模式下的背景图片，留空则不使用背景图",
+                t_key!("appearance-config", "fields.bg_image.label"),
+                t_key!("appearance-config", "fields.bg_image.desc"),
             )
-            .group("background")
+            .group(t_key!("appearance-config", "groups.background"))
             .order(70)
             .default("")
             .max_image_size(20 * 1024 * 1024) // 限制最大图片大小为 20MB
             .build(),
             SchemaBuilder::image(
                 "bg_image_dark",
-                "深色背景图片",
-                "深色模式下的背景图片，留空则回退到浅色背景图",
+                t_key!("appearance-config", "fields.bg_image_dark.label"),
+                t_key!("appearance-config", "fields.bg_image_dark.desc"),
             )
-            .group("background")
+            .group(t_key!("appearance-config", "groups.background"))
             .order(71)
             .default("")
             .max_image_size(20 * 1024 * 1024) // 限制最大图片大小为 20MB
             .build(),
-            SchemaBuilder::select("bg_size", "背景尺寸", "CSS background-size 属性")
-                .group("background")
-                .order(72)
-                .options(&["cover", "contain", "auto", "100% auto"])
-                .default("cover")
-                .build(),
-            SchemaBuilder::select("bg_position", "背景位置", "CSS background-position 属性")
-                .group("background")
-                .order(73)
-                .options(&[
-                    "center",
-                    "top",
-                    "bottom",
-                    "left",
-                    "right",
-                    "top left",
-                    "top right",
-                    "bottom left",
-                    "bottom right",
-                ])
-                .default("center")
-                .build(),
-            SchemaBuilder::select("bg_repeat", "背景重复", "CSS background-repeat 属性")
-                .group("background")
-                .order(74)
-                .options(&["no-repeat", "repeat", "repeat-x", "repeat-y"])
-                .default("no-repeat")
-                .build(),
+            SchemaBuilder::select(
+                "bg_size",
+                t_key!("appearance-config", "fields.bg_size.label"),
+                t_key!("appearance-config", "fields.bg_size.desc"),
+            )
+            .group(t_key!("appearance-config", "groups.background"))
+            .order(72)
+            .options(&["cover", "contain", "auto", "100% auto"])
+            .default("cover")
+            .build(),
+            SchemaBuilder::select(
+                "bg_position",
+                t_key!("appearance-config", "fields.bg_position.label"),
+                t_key!("appearance-config", "fields.bg_position.desc"),
+            )
+            .group(t_key!("appearance-config", "groups.background"))
+            .order(73)
+            .options(&[
+                "center",
+                "top",
+                "bottom",
+                "left",
+                "right",
+                "top left",
+                "top right",
+                "bottom left",
+                "bottom right",
+            ])
+            .default("center")
+            .build(),
+            SchemaBuilder::select(
+                "bg_repeat",
+                t_key!("appearance-config", "fields.bg_repeat.label"),
+                t_key!("appearance-config", "fields.bg_repeat.desc"),
+            )
+            .group(t_key!("appearance-config", "groups.background"))
+            .order(74)
+            .options(&["no-repeat", "repeat", "repeat-x", "repeat-y"])
+            .default("no-repeat")
+            .build(),
             SchemaBuilder::number(
                 "bg_opacity",
-                "背景不透明度",
-                "背景图片的不透明度 (0.0 ~ 1.0)",
+                t_key!("appearance-config", "fields.bg_opacity.label"),
+                t_key!("appearance-config", "fields.bg_opacity.desc"),
             )
-            .group("background")
+            .group(t_key!("appearance-config", "groups.background"))
             .order(75)
             .default(1.0)
             .min(0.0)
@@ -665,7 +771,7 @@ impl Configurable for AppearanceConfigComponent {
         serde_json::to_value(self.settings.read().clone()).unwrap_or_default()
     }
 
-    fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
+    async fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
         let parsed: AppearanceSettings = serde_json::from_value(settings).unwrap_or_else(|e| {
             warn!(
                 "failed to parse settings for {}, using defaults: {e}",
@@ -677,7 +783,7 @@ impl Configurable for AppearanceConfigComponent {
         Ok(())
     }
 
-    fn validate_settings(&self, settings: &serde_json::Value) -> Result<(), ConfigError> {
+    async fn validate_settings(&self, settings: &serde_json::Value) -> Result<(), ConfigError> {
         // 主题
         if let Some(theme) = settings.get("theme").and_then(|v| v.as_str()) {
             if !["system", "light", "dark"].contains(&theme) {

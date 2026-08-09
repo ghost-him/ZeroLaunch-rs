@@ -7,13 +7,14 @@
       :class="{ 'is-default': action.isDefault, 'is-selected': i === selectedIndex }"
       @click="$emit('execute', i)"
     >
-      {{ action.label }}
+      {{ resolveText(action.label) }}
       <kbd v-if="action.shortcutKey" class="shortcut">{{ action.shortcutKey }}</kbd>
     </button>
   </div>
 </template>
 
 <script setup lang="ts">
+import { resolveText } from '../../i18n'
 import type { ResultAction } from '../../bridge/contract'
 
 defineProps<{

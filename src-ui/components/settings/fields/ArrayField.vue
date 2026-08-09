@@ -1,7 +1,7 @@
 <template>
   <div class="array-field">
     <n-alert v-if="unsupportedReason" type="warning">
-      {{ $t('settings.unsupportedArray', { field: field.label, reason: unsupportedReason }) }}
+      {{ $t('settings.unsupportedArray', { field: resolveText(field.label), reason: unsupportedReason }) }}
     </n-alert>
 
     <!-- 对象数组：卡片模式或默认列表模式 -->
@@ -72,6 +72,7 @@
 import { computed, watch } from 'vue'
 import { NAlert } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
+import { resolveText } from '../../../i18n'
 import ConfigActionButton from '../ConfigActionButton.vue'
 import PrimitiveRowList from './array/PrimitiveRowList.vue'
 import PrimitiveTagsArray from './array/PrimitiveTagsArray.vue'

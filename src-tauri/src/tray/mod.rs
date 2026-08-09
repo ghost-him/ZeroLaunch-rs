@@ -9,6 +9,7 @@ use tauri::{
 use tracing::{debug, error, info, warn};
 
 use crate::core::app_command;
+use crate::core::i18n::I18nManager;
 use crate::sdk::HostApi;
 
 const MENU_ID_SHOW_SETTINGS: &str = "show_setting_window";
@@ -51,6 +52,8 @@ struct TrayManagerInner {
     tray_icon: Option<TrayIcon>,
     menu: Option<Menu<tauri::Wry>>,
     host_api: Arc<HostApi>,
+    /// 后端翻译服务（菜单文本查表）
+    i18n: Arc<I18nManager>,
     app_handle: Option<AppHandle>,
     /// 游戏模式复选框菜单项，用于在事件处理中切换勾选状态
     game_mode_item: Option<CheckMenuItem<tauri::Wry>>,
@@ -62,12 +65,13 @@ impl TrayManager {
     /// 参数：host_api - 用于解析内置图标路径。
     /// 命令发送通过全局 `app_command::send()` 完成，不再作为参数注入——
     /// 因为命令通道是应用基础设施（有且仅有一个消费者），不应伪装为组件的业务依赖。
-    pub fn new(host_api: Arc<HostApi>) -> Self {
+    pub fn new(host_api: Arc<HostApi>, i18n: Arc<I18nManager>) -> Self {
         Self {
             inner: RwLock::new(TrayManagerInner {
                 tray_icon: None,
                 menu: None,
                 host_api,
+                i18n,
                 app_handle: None,
                 game_mode_item: None,
             }),
@@ -194,7 +198,7 @@ impl TrayManager {
         let toggle_game_mode = match CheckMenuItem::with_id(
             app_handle,
             MENU_ID_TOGGLE_GAME_MODE,
-            "游戏模式",
+            menu_text(&inner.i18n, "tray.gameMode"),
             true,
             game_mode_checked,
             None::<&str>,
@@ -206,7 +210,7 @@ impl TrayManager {
             }
         };
 
-        let menu = match build_tray_menu(app_handle, &toggle_game_mode) {
+        let menu = match build_tray_menu(app_handle, &toggle_game_mode, &inner.i18n) {
             Ok(m) => m,
             Err(e) => {
                 warn!("Failed to rebuild tray menu: {:?}", e);
@@ -247,7 +251,7 @@ impl TrayManager {
         let toggle_game_mode = CheckMenuItem::with_id(
             app_handle,
             MENU_ID_TOGGLE_GAME_MODE,
-            "游戏模式",
+            menu_text(&self.inner.read().i18n, "tray.gameMode"),
             true,
             false,
             None::<&str>,
@@ -256,9 +260,10 @@ impl TrayManager {
             warn!("Failed to create game mode menu item: {:?}", e);
         })?;
 
-        let menu = build_tray_menu(app_handle, &toggle_game_mode).map_err(|e| {
-            warn!("Failed to build tray menu: {:?}", e);
-        })?;
+        let menu = build_tray_menu(app_handle, &toggle_game_mode, &self.inner.read().i18n)
+            .map_err(|e| {
+                warn!("Failed to build tray menu: {:?}", e);
+            })?;
 
         let tray_icon = self.create_tray_icon(app_handle, &menu).map_err(|e| {
             warn!("Failed to create tray icon: {:?}", e);
@@ -335,32 +340,33 @@ impl TrayManager {
 fn build_tray_menu<R: Runtime>(
     app_handle: &AppHandle<R>,
     toggle_game_mode: &CheckMenuItem<R>,
+    i18n: &I18nManager,
 ) -> tauri::Result<Menu<R>> {
     let show_settings = MenuItem::with_id(
         app_handle,
         MENU_ID_SHOW_SETTINGS,
-        "设置窗口",
+        menu_text(i18n, "tray.showSettings"),
         true,
         None::<&str>,
     )?;
     let refresh = MenuItem::with_id(
         app_handle,
         MENU_ID_REFRESH,
-        "刷新数据库",
+        menu_text(i18n, "tray.refreshDatabase"),
         true,
         None::<&str>,
     )?;
     let reregister = MenuItem::with_id(
         app_handle,
         MENU_ID_REREGISTER_HOTKEY,
-        "重新注册快捷键",
+        menu_text(i18n, "tray.reregisterHotkeys"),
         true,
         None::<&str>,
     )?;
     let exit_program = MenuItem::with_id(
         app_handle,
         MENU_ID_EXIT_PROGRAM,
-        "退出程序",
+        menu_text(i18n, "tray.exitProgram"),
         true,
         None::<&str>,
     )?;
@@ -374,6 +380,11 @@ fn build_tray_menu<R: Runtime>(
         .separator()
         .item(&exit_program)
         .build()
+}
+
+/// 按当前界面语言解析托盘菜单文本（未命中时回退 key 原文）。
+fn menu_text(i18n: &I18nManager, key: &str) -> String {
+    i18n.t(&i18n.current_language(), key)
 }
 
 fn should_use_white_tray_icon(app_handle: &AppHandle) -> bool {

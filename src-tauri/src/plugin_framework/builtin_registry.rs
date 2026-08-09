@@ -49,6 +49,36 @@ pub struct CollectedBuiltins {
 }
 
 impl CollectedBuiltins {
+    /// 返回所有类别中的 Configurable 引用（按注册顺序，供 async 注册循环使用）。
+    pub fn configurables(&self) -> Vec<Arc<dyn Configurable>> {
+        let mut out = Vec::with_capacity(64);
+        for (c, _) in &self.executors {
+            out.push(c.clone());
+        }
+        for (c, _) in &self.data_sources {
+            out.push(c.clone());
+        }
+        for (c, _) in &self.keyword_optimizers {
+            out.push(c.clone());
+        }
+        for (c, _) in &self.keyword_injectors {
+            out.push(c.clone());
+        }
+        for (c, _) in &self.search_engines {
+            out.push(c.clone());
+        }
+        for (c, _) in &self.score_boosters {
+            out.push(c.clone());
+        }
+        for (c, _) in &self.plugins {
+            out.push(c.clone());
+        }
+        for c in &self.config_components {
+            out.push(c.clone());
+        }
+        out
+    }
+
     /// 遍历所有类别中的 Configurable 并调用 `f`。
     pub fn for_each_configurable(&self, mut f: impl FnMut(&Arc<dyn Configurable>)) {
         for (c, _) in &self.executors {
@@ -334,7 +364,7 @@ mod tests {
     /// 执行与 ConfigManager::register 等价的注册前检查，捕获精确失败原因（诊断镜像，
     /// 与 manager.rs 的 register 检查顺序一致），随后调用真实 register 并确认注册生效。
     /// 返回：Ok(()) 注册成功；Err 携带组件 ID、失败阶段与底层错误。
-    fn register_and_check(
+    async fn register_and_check(
         config_manager: &ConfigManager,
         component: &Arc<dyn Configurable>,
     ) -> Result<(), RegisterFailure> {
@@ -351,7 +381,7 @@ mod tests {
 
         // 阶段 2：默认配置必须通过校验（对应 register 的 validate_settings(get_settings()) 检查）。
         let settings = component.get_settings();
-        if let Err(e) = component.validate_settings(&settings) {
+        if let Err(e) = component.validate_settings(&settings).await {
             return Err(RegisterFailure {
                 component_id: id,
                 stage: "默认配置校验未通过",
@@ -360,7 +390,7 @@ mod tests {
         }
 
         // 阶段 3：真实注册，确认 registry 接纳（覆盖 apply_settings 等其余失败点）。
-        config_manager.register(component.clone());
+        config_manager.register(component.clone()).await;
         if config_manager.get_component_schema(&id).is_none() {
             return Err(RegisterFailure {
                 component_id: id,
@@ -389,7 +419,9 @@ mod tests {
         let mut failures: Vec<RegisterFailure> = Vec::new();
         collected.for_each_configurable(&mut |component: &Arc<dyn Configurable>| {
             total += 1;
-            if let Err(failure) = register_and_check(&config_manager, component) {
+            if let Err(failure) =
+                tauri::async_runtime::block_on(register_and_check(&config_manager, component))
+            {
                 failures.push(failure);
             }
         });
@@ -448,8 +480,9 @@ mod tests {
         });
         let config_manager = ConfigManager::new(std::env::temp_dir().join("zl-register-diag-test"));
 
-        let failure = register_and_check(&config_manager, &component)
-            .expect_err("含未声明键的伪组件应注册失败");
+        let failure =
+            tauri::async_runtime::block_on(register_and_check(&config_manager, &component))
+                .expect_err("含未声明键的伪组件应注册失败");
         assert_eq!(failure.component_id, "broken", "应指出失败组件 ID");
         assert_eq!(failure.stage, "默认配置校验未通过", "应指出失败阶段");
         assert!(

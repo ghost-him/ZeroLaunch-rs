@@ -360,3 +360,9 @@ export interface ScoreDetail {
   /** 计入方式：add = 加权加分项；multiply = 乘法系数项（如长度比率、溢出惩罚、抑制因子）。 */
   kind: 'add' | 'multiply'
 }
+
+/**
+ * 第三方插件翻译目录：嵌套结构 `{ plugin: { <pluginId>: { … } } }`，
+ * 由 `i18n_get_plugin_translations` 下发，前端以 vue-i18n 命名空间方式合并。
+ */
+export type PluginTranslationCatalog = Record<string, Record<string, unknown>>

@@ -49,7 +49,7 @@ impl Configurable for TemplateExecutor {
         serde_json::Value::Null
     }
 
-    fn apply_settings(
+    async fn apply_settings(
         &self,
         _settings: serde_json::Value,
     ) -> Result<(), crate::plugin_framework::ConfigError> {

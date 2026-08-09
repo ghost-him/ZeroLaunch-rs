@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use zerolaunch_plugin_api::config::{ComponentType, ConfigActionDef, SettingDefinition};
+use zerolaunch_plugin_api::config::{ComponentType, SettingDefinition};
 use zerolaunch_plugin_api::{PluginContext, Query, ResultAction, SearchCandidate, TargetType};
 
 // ─── plugin/initialize ───────────────────────────────────────────
@@ -122,17 +122,14 @@ pub struct ValidateSettingsResult {
 }
 
 // ─── plugin/config_actions ───────────────────────────────────────
+//
+// 响应为裸数组 `Vec<ConfigActionDef>`（宿主 discover 流程以数组反序列化，
+// 与 get_settings_schema 的裸数组约定一致）。
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConfigActionsParams {
     #[serde(rename = "componentId")]
     pub component_id: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ConfigActionsResult {
-    #[serde(rename = "actions")]
-    pub actions: Vec<ConfigActionDef>,
 }
 
 // ─── plugin/execute_config_action ────────────────────────────────

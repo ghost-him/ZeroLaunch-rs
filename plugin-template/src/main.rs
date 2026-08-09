@@ -1,18 +1,37 @@
+use std::sync::Arc;
+
 use async_trait::async_trait;
-use zerolaunch_plugin_api::config::{ComponentType, ConfigError, Configurable};
+use zerolaunch_plugin_api::config::{
+    ComponentCore, ComponentType, Configurable, SettingDefinition,
+};
 use zerolaunch_plugin_api::{
     Plugin, PluginContext, PluginError, PluginHandle, PluginMetadata, Query, QueryResponse,
     ListItem, ResultAction,
 };
-use zerolaunch_plugin_sdk_rust::run;
+use zerolaunch_plugin_sdk_rust::{run, t_key};
 
+/// Hello World 示例插件 — 演示第三方插件的最小骨架与 i18n 用法。
+///
+/// 仅作为插件模板使用；文本经 `t_key()` 生成命名空间翻译键
+/// （`plugin.com.example.hello-world.<key>`），宿主加载插件目录
+/// `i18n/<lang>.json` 语言包后，前端对 key-or-literal 文本自动翻译。
 struct HelloWorldPlugin {
+    /// 组件 ID、名称、类型等基础元数据（`Configurable` trait 默认实现委托于此）。
+    core: ComponentCore,
+    /// 插件静态元数据：id、触发关键词、优先级等。
     metadata: PluginMetadata,
 }
 
 impl HelloWorldPlugin {
     fn new() -> Self {
         Self {
+            core: ComponentCore::new(
+                "com.example.hello-world".to_string(),
+                "Hello World".to_string(),
+                "A simple hello-world plugin".to_string(),
+                ComponentType::Plugin,
+                100,
+            ),
             metadata: PluginMetadata {
                 id: "com.example.hello-world".to_string(),
                 name: "Hello World".to_string(),
@@ -29,9 +48,14 @@ impl HelloWorldPlugin {
 
 #[async_trait]
 impl Configurable for HelloWorldPlugin {
-    fn component_id(&self) -> &str { "com.example.hello-world" }
-    fn component_name(&self) -> &str { "Hello World" }
-    fn component_type(&self) -> ComponentType { ComponentType::Plugin }
+    fn core(&self) -> &ComponentCore {
+        &self.core
+    }
+
+    /// 本示例无设置项；有设置项时在此声明 schema（label 可用 `t_key!`/`t_key` 形式）。
+    fn setting_schema(&self) -> Vec<SettingDefinition> {
+        vec![]
+    }
 }
 
 #[async_trait]
@@ -44,17 +68,22 @@ impl Plugin for HelloWorldPlugin {
         Ok(())
     }
 
-    async fn query(&self, _ctx: &PluginContext, query: &Query) -> Result<QueryResponse, PluginError> {
+    async fn query(&self, ctx: &PluginContext, query: &Query) -> Result<QueryResponse, PluginError> {
+        // ctx.locale 携带宿主当前界面语言（如 "zh-Hans"），可按语言生成本地化文本；
+        // 主动查询可用 host().get_locale().await（经 HostProxy）。
+        tracing::debug!(locale = %ctx.locale, "hello query");
         Ok(QueryResponse::List {
             results: vec![ListItem {
                 id: 1,
                 title: format!("Hello: {}", query.raw_query),
-                subtitle: "来自第三方插件的问候".to_string(),
+                // key-or-literal：前端命中翻译目录则显示译文，否则回退 key 原文。
+                // t_key() 自动带当前插件 id 前缀（plugin.com.example.hello-world.<key>）
+                subtitle: t_key("greeting"),
                 icon: zerolaunch_plugin_api::services::icon_request::IconRequest::Path(String::new()),
                 score: 1.0,
                 actions: vec![ResultAction {
                     id: "hello".to_string(),
-                    label: "打招呼".to_string(),
+                    label: t_key("sayHello"),
                     icon: zerolaunch_plugin_api::services::icon_request::IconRequest::Path(String::new()),
                     is_default: true,
                     shortcut_key: String::new(),
@@ -68,7 +97,7 @@ impl Plugin for HelloWorldPlugin {
     }
 
     async fn execute_action(&self, _ctx: &PluginContext, _action_id: &str, _payload: serde_json::Value) -> Result<(), PluginError> {
-        eprintln!("Hello World action executed!");
+        tracing::info!("Hello World action executed!");
         Ok(())
     }
 }

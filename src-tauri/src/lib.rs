@@ -221,6 +221,8 @@ pub fn run() {
             crate::commands::plugin::plugin_set_enabled,
             crate::commands::plugin::plugin_get_logs,
             crate::commands::cli::cli_get_info,
+            // i18n
+            crate::commands::i18n::i18n_get_plugin_translations,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
@@ -323,7 +325,7 @@ fn init_search_bar_window(app: &mut App) {
             let config_manager = config_manager_for_cb.clone();
             let app_handle = app_handle_for_cb.clone();
             tauri::async_runtime::spawn(async move {
-                crate::window::save_window_position_if_drag(&config_manager, &app_handle);
+                crate::window::save_window_position_if_drag(&config_manager, &app_handle).await;
                 host_api.hide_window().await;
 
                 let reset_plugins = config_manager

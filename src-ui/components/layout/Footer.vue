@@ -13,7 +13,7 @@
         :class="{ 'is-default': action.isDefault, 'is-selected': i === selectedActionIndex }"
         @click="$emit('action-execute', action.id)"
       >
-        {{ action.label }}
+        {{ resolveText(action.label) }}
         <kbd v-if="action.shortcutKey" class="shortcut">{{ action.shortcutKey }}</kbd>
       </button>
     </div>
@@ -33,6 +33,7 @@
 <script setup lang="ts">
 import { NButton, NIcon } from 'naive-ui'
 import { Settings } from 'lucide-vue-next'
+import { resolveText } from '../../i18n'
 import { useSettings } from '../../composables/useSettings'
 import type { SessionMode } from '../../stores/search-store'
 import type { ResultAction } from '../../bridge/contract'

@@ -36,6 +36,7 @@ pub mod host {
     pub const RESOURCE_DELETE: &str = "host/resource.delete";
     pub const RESOURCE_LIST: &str = "host/resource.list";
     pub const PARAMETER_RESOLVE: &str = "host/parameter.resolve";
+    pub const GET_LOCALE: &str = "host/i18n.get_locale";
 }
 
 /// Notification-only method names (fire-and-forget, no response expected).

@@ -22,7 +22,8 @@ import {
 } from 'naive-ui'
 import { useThemeStore } from './stores/theme-store'
 import { configGetSettings } from './bridge/commands'
-import { i18n, setLocale } from './i18n'
+import { i18n, setLocale, type Locale } from './i18n'
+import { refreshPluginTranslations } from './stores/i18n-store'
 import { onConfigChanged } from './bridge/events'
 import SettingsView from './views/SettingsView.vue'
 
@@ -33,6 +34,8 @@ const naiveLocale = ref(i18n.global.locale.value === 'en' ? enUS : zhCN)
 let unlistenAppearance: (() => void) | null = null
 
 onMounted(async () => {
+  // 拉取第三方插件翻译目录（内置语言包已静态打包）
+  refreshPluginTranslations(i18n.global.locale.value as Locale)
   unlistenAppearance = await onConfigChanged((payload) => {
     if (payload.componentId !== 'appearance-config') return
     configGetSettings('appearance-config').then(async (s) => {
@@ -40,6 +43,7 @@ onMounted(async () => {
       const result = await themeStore.applyRemoteSettings(settings)
       if (result.langChanged) {
         setLocale(result.newLang)
+        refreshPluginTranslations(result.newLang)
         naiveLocale.value = result.newLang === 'en' ? enUS : zhCN
       }
     }).catch(() => {})

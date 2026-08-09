@@ -122,8 +122,8 @@ impl BookmarkSource {
         BookmarkSource {
             core: ComponentCore::new(
                 "bookmark-source".to_string(),
-                "书签数据源".to_string(),
-                "从浏览器书签中搜索网址".to_string(),
+                t_key!("bookmark-source", "name").to_string(),
+                t_key!("bookmark-source", "description").to_string(),
                 ComponentType::DataSource,
                 30,
             ),
@@ -269,70 +269,94 @@ impl Configurable for BookmarkSource {
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {
         vec![
-            SchemaBuilder::array("sources", "书签源", "配置要索引的浏览器书签来源")
-                .group("书签源")
-                .data_action(DataActionBinding {
-                    action: "detect_browsers".into(),
-                    component: None,
-                    label_field: "name".into(),
-                    label_field_label: "浏览器名称".into(),
-                    value_field: "sources".into(),
-                    merge_key: Some("bookmarks_path".into()),
-                    field_mapping: vec![],
-                })
-                .detail_action(DetailActionDef {
-                    action: "read_bookmarks".to_string(),
-                    param_field: "bookmarks_path".to_string(),
-                    param_key: "bookmarks_path".to_string(),
-                    preview_item_key: "url".to_string(),
-                    preview_item_label: "title".to_string(),
-                    target_field: "overrides".to_string(),
-                    target_match_key: "url".to_string(),
-                })
-                .object_items(vec![
-                    SchemaBuilder::text("name", "浏览器名称", "书签来源的浏览器名称")
-                        .default("")
-                        .editable(false)
-                        .build_field(),
-                    SchemaBuilder::path(
-                        "bookmarks_path",
-                        "书签文件路径",
-                        "浏览器书签文件的完整路径",
-                    )
-                    .file()
-                    .default("")
-                    .editable(false)
-                    .build_field(),
-                    SchemaBuilder::boolean("enabled", "启用", "是否启用此书签源")
-                        .default(true)
-                        .build_field(),
-                ])
-                .master_detail_ui()
-                .default(serde_json::json!([]))
-                .build(),
-            SchemaBuilder::array("overrides", "覆盖配置", "对特定书签进行排除或自定义标题")
-                .group("书签源")
-                .order(2)
-                .visible(false)
-                .object_items(vec![
-                    SchemaBuilder::text("url", "URL", "要匹配的书签 URL")
-                        .default("")
-                        .editable(false)
-                        .build_field(),
-                    SchemaBuilder::boolean("excluded", "排除", "是否排除此书签")
-                        .default(false)
-                        .build_field(),
-                    SchemaBuilder::text(
-                        "custom_title",
-                        "自定义标题",
-                        "替换原始标题的自定义标题，留空则使用原始标题",
-                    )
-                    .default("")
-                    .build_field(),
-                ])
-                .table_ui()
-                .default(serde_json::json!([]))
-                .build(),
+            SchemaBuilder::array(
+                "sources",
+                t_key!("bookmark-source", "fields.sources.label"),
+                t_key!("bookmark-source", "fields.sources.desc"),
+            )
+            .group(t_key!("bookmark-source", "groups.bookmarkSource"))
+            .data_action(DataActionBinding {
+                action: "detect_browsers".into(),
+                component: None,
+                label_field: "name".into(),
+                label_field_label: "浏览器名称".into(),
+                value_field: "sources".into(),
+                merge_key: Some("bookmarks_path".into()),
+                field_mapping: vec![],
+            })
+            .detail_action(DetailActionDef {
+                action: "read_bookmarks".to_string(),
+                param_field: "bookmarks_path".to_string(),
+                param_key: "bookmarks_path".to_string(),
+                preview_item_key: "url".to_string(),
+                preview_item_label: "title".to_string(),
+                target_field: "overrides".to_string(),
+                target_match_key: "url".to_string(),
+            })
+            .object_items(vec![
+                SchemaBuilder::text(
+                    "name",
+                    t_key!("bookmark-source", "fields.name.label"),
+                    t_key!("bookmark-source", "fields.name.desc"),
+                )
+                .default("")
+                .editable(false)
+                .build_field(),
+                SchemaBuilder::path(
+                    "bookmarks_path",
+                    t_key!("bookmark-source", "fields.bookmarks_path.label"),
+                    t_key!("bookmark-source", "fields.bookmarks_path.desc"),
+                )
+                .file()
+                .default("")
+                .editable(false)
+                .build_field(),
+                SchemaBuilder::boolean(
+                    "enabled",
+                    t_key!("bookmark-source", "fields.enabled.label"),
+                    t_key!("bookmark-source", "fields.enabled.desc"),
+                )
+                .default(true)
+                .build_field(),
+            ])
+            .master_detail_ui()
+            .default(serde_json::json!([]))
+            .build(),
+            SchemaBuilder::array(
+                "overrides",
+                t_key!("bookmark-source", "fields.overrides.label"),
+                t_key!("bookmark-source", "fields.overrides.desc"),
+            )
+            .group(t_key!("bookmark-source", "groups.bookmarkSource"))
+            .order(2)
+            .visible(false)
+            .object_items(vec![
+                SchemaBuilder::text(
+                    "url",
+                    t_key!("bookmark-source", "fields.url.label"),
+                    t_key!("bookmark-source", "fields.url.desc"),
+                )
+                .default("")
+                .editable(false)
+                .build_field(),
+                SchemaBuilder::boolean(
+                    "excluded",
+                    t_key!("bookmark-source", "fields.excluded.label"),
+                    t_key!("bookmark-source", "fields.excluded.desc"),
+                )
+                .default(false)
+                .build_field(),
+                SchemaBuilder::text(
+                    "custom_title",
+                    t_key!("bookmark-source", "fields.custom_title.label"),
+                    t_key!("bookmark-source", "fields.custom_title.desc"),
+                )
+                .default("")
+                .build_field(),
+            ])
+            .table_ui()
+            .default(serde_json::json!([]))
+            .build(),
         ]
     }
 
@@ -340,7 +364,7 @@ impl Configurable for BookmarkSource {
         serde_json::to_value(self.settings.read().clone()).unwrap_or_default()
     }
 
-    fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
+    async fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
         let parsed: BookmarkSourceSettings = serde_json::from_value(settings).unwrap_or_default();
         *self.settings.write() = parsed;
         Ok(())

@@ -33,6 +33,7 @@ use super::session_state::{
 };
 use crate::core::config::bias_settings::{bias_settings_to_rules, BiasSettings};
 use crate::core::config::{ConfigEvent, ConfigManager};
+use crate::core::i18n::I18nManager;
 use crate::sdk::HostApi;
 use crate::utils::collapse_repeated_spaces;
 
@@ -205,6 +206,8 @@ pub struct SessionDispatcher {
     executor_registry: Arc<RwLock<ExecutorRegistry>>,
     config_manager: Arc<RwLock<Option<Arc<ConfigManager>>>>,
     host_api: RwLock<Option<Arc<HostApi>>>,
+    /// 后端翻译服务（查询上下文填充当前语言用；CLI 场景不注入时为空串）。
+    i18n: RwLock<Option<Arc<I18nManager>>>,
     /// 默认搜索子状态（行内参数/参数面板）。
     search_state: RwLock<SearchSubState>,
     /// 当前会话的系统参数快照（唤醒时捕获，执行动作时消费）。
@@ -244,6 +247,7 @@ impl SessionDispatcher {
             executor_registry: Arc::new(RwLock::new(ExecutorRegistry::new())),
             config_manager: Arc::new(RwLock::new(None)),
             host_api: RwLock::new(None),
+            i18n: RwLock::new(None),
             search_state: RwLock::new(SearchSubState::Search),
             parameter_snapshot: Arc::new(Mutex::new(ParameterSnapshot::empty())),
             components: PluginComponentRegistry::new(),
@@ -385,6 +389,20 @@ impl SessionDispatcher {
     /// 读取 ConfigManager 引用（未注入时为 None——CLI 场景不注入，相关逻辑直接降级）。
     fn config_manager(&self) -> Option<Arc<ConfigManager>> {
         self.config_manager.read().as_ref().cloned()
+    }
+
+    /// 注入后端翻译服务（bootstrap 注入；CLI 场景不注入，locale 降级为空串）。
+    pub fn set_i18n_manager(&self, i18n: Arc<I18nManager>) {
+        *self.i18n.write() = Some(i18n);
+    }
+
+    /// 当前界面语言；未注入翻译服务时返回空串（远端插件兼容空串）。
+    fn current_locale(&self) -> String {
+        self.i18n
+            .read()
+            .as_ref()
+            .map(|i| i.current_language())
+            .unwrap_or_default()
     }
 
     /// 注入会话状态推送回调（bootstrap 拿到 AppHandle 后调用；CLI 场景不注入）。
@@ -573,6 +591,7 @@ impl SessionDispatcher {
         ctx.with_query(query.raw_query.clone());
         ctx.set_query_revision_gate(QueryRevisionGate::new(revision, counter.clone()));
         ctx.query_channel = channel;
+        ctx.locale = self.current_locale();
 
         // 触发词调度：首词命中索引且存在空格分隔 → 插件处理；否则 → 默认搜索。
         let (trigger, search_term) = self.match_trigger(&query.raw_query);
@@ -787,6 +806,7 @@ impl SessionDispatcher {
                 })?;
                 let mut plugin_ctx = PluginContext::new(trace_id);
                 plugin_ctx.with_plugin_id(plugin_id.clone());
+                plugin_ctx.locale = self.current_locale();
                 // 两条确认路径的载荷契约（统一经 bridge_confirm 通道）：
                 // - PluginAction：面板动作（面板按键契约 Custom / GotoPanel）的自由 JSON，原样透传插件；
                 // - Candidate：宿主确认的历史形状 {candidate_id, query_text, user_args}——
@@ -955,6 +975,7 @@ impl SessionDispatcher {
                 display_name: candidate.name.clone(),
                 user_args: user_args.to_vec(),
                 parameter_snapshot: snapshot,
+                locale: self.current_locale(),
             };
             if let Some(pipeline) = self.search_pipeline.read().as_ref() {
                 pipeline.record(candidate_id, &cached, query_text);

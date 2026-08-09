@@ -63,6 +63,7 @@ import {
   type DataTableColumns,
 } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
+import { resolveText } from '@/i18n'
 import DebugCard from './DebugCard.vue'
 import {
   inspectorGetState,
@@ -92,7 +93,7 @@ let unlistenInspector: UnlistenFn | null = null
 
 const pluginColumns: DataTableColumns<PluginInspectorInfo> = [
   { title: t('inspector.colId'), key: 'componentId', width: 180, ellipsis: { tooltip: true } },
-  { title: t('inspector.colName'), key: 'componentName', width: 160 },
+  { title: t('inspector.colName'), key: 'componentName', width: 160, render: (row) => resolveText(String(row.componentName ?? '')) },
   { title: t('inspector.colType'), key: 'componentType', width: 130 },
   {
     title: t('inspector.colStatus'),

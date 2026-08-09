@@ -4,7 +4,7 @@
       :type="inputKind"
       :value="modelValue as string"
       :disabled="field.readOnly"
-      :placeholder="field.description"
+      :placeholder="resolveText(field.description)"
       :minlength="stringConfig.minLength ?? undefined"
       :maxlength="stringConfig.maxLength ?? undefined"
       :input-props="stringConfig.pattern ? { pattern: stringConfig.pattern } : undefined"
@@ -25,6 +25,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { NInput } from 'naive-ui'
+import { resolveText } from '../../../i18n'
 import ConfigActionButton from '../ConfigActionButton.vue'
 import { getSchemaStringConfig, getTextInputKind } from '../../../utils/schemaTypes'
 import type { FieldConfig } from '../../../utils/schemaTypes'

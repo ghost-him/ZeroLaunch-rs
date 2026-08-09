@@ -566,6 +566,7 @@ mod tests {
     use serde_json::json;
     use zerolaunch_plugin_api::config::{ComponentCore, SettingDefinition};
     use zerolaunch_plugin_api::plugin::PluginMetadata;
+    use zerolaunch_plugin_api::PanelInteraction;
     use zerolaunch_plugin_host::adapter::remote_component::{RemoteComponent, RemoteComponentKind};
     use zerolaunch_plugin_host::client::JsonRpcClient;
     use zerolaunch_plugin_host::manager::PluginRegistration;
@@ -668,8 +669,10 @@ mod tests {
                 vec![],
                 json!({}),
                 vec![],
+                true,
                 RemoteComponentKind::Plugin {
                     metadata: metadata.clone(),
+                    interaction_policy: parking_lot::RwLock::new(PanelInteraction::default()),
                 },
             ))
         };

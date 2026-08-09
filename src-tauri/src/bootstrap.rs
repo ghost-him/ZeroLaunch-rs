@@ -40,7 +40,7 @@ use crate::window::{prepare_window_position, save_window_position_if_drag};
 /// 达到间隔时触发 refresh_candidates —— 监控/手动/配置联动刷新后自动重置基准，
 /// 天然避免短时间重复刷新，无需老版 RefreshScheduler 的调度线程与条件变量。
 fn spawn_auto_refresh_task(state: Arc<AppState>) {
-    tokio::spawn(async move {
+    tauri::async_runtime::spawn(async move {
         let mut ticker = tokio::time::interval(std::time::Duration::from_secs(60));
         loop {
             ticker.tick().await;
@@ -586,7 +586,9 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
 
     // 内置插件全部注册后统一执行 init：向插件发放绑定身份的 PluginHandle
     // （插件在 init 中保存句柄，供 query/execute_action 访问平台能力）。
-    // 远端插件适配器的 init 为 no-op，不会被重复初始化。
+    // 此处循环仅覆盖 Phase A 已注册的内置组件；远端插件 init 由
+    // SessionDispatcher 在 ConfigEvent::PluginRegistered 处理器经 plugin/init RPC
+    // 调用（注册完成后触发，不重复初始化）。
     // 放在持久化语言同步之后：init_ctx.locale 需携带用户持久化语言，
     // 而非 Phase A 时的系统默认语言。
     let trace_id = generate_trace_id();
@@ -597,7 +599,7 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
         // todo!: 这里是直接使用的默认的权限来注册的。之后可以优化成，让插件支持自己设置需要的权限
         let handle = host_api.register(&plugin_id, PluginSdkConfig::default());
         plugin
-            .init(&init_ctx, handle)
+            .init(&init_ctx, Some(handle))
             .await
             .expect("内置插件初始化失败");
     }

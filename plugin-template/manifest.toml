@@ -7,7 +7,7 @@ author = "Your Name <you@example.com>"
 minHostVersion = "0.7.0"
 
 [runtime]
-command = "target/release/zerolaunch-hello-world-plugin.exe"
+command = "bin/zerolaunch-hello-world-plugin.exe"
 args = []
 startupTimeout = 10
 autoRestart = true

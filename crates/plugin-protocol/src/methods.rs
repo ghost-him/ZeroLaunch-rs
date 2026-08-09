@@ -12,6 +12,9 @@ pub mod plugin {
     pub const EXECUTE_CONFIG_ACTION: &str = "plugin/execute_config_action";
     pub const QUERY: &str = "plugin/query";
     pub const EXECUTE_ACTION: &str = "plugin/execute_action";
+    pub const INIT: &str = "plugin/init";
+    pub const INTERACTION_POLICY: &str = "plugin/interaction_policy";
+    pub const GET_DEFAULT_ENABLED: &str = "plugin/get_default_enabled";
     pub const FETCH_CANDIDATES: &str = "plugin/fetch_candidates";
     pub const SUPPORTED_TARGET_TYPES: &str = "plugin/supported_target_types";
     pub const SUPPORTED_ACTIONS: &str = "plugin/supported_actions";

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
-use zerolaunch_plugin_api::config::{ComponentType, SettingDefinition};
-use zerolaunch_plugin_api::{PluginContext, Query, ResultAction, SearchCandidate, TargetType};
+use zerolaunch_plugin_api::config::ComponentType;
+use zerolaunch_plugin_api::{ExecutionContext, PluginContext, Query, SearchCandidate, TargetType};
 
 // ─── plugin/initialize ───────────────────────────────────────────
 
@@ -79,12 +79,6 @@ pub enum ComponentKind {
 pub struct GetSettingsSchemaParams {
     #[serde(rename = "componentId")]
     pub component_id: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GetSettingsSchemaResult {
-    #[serde(rename = "schema")]
-    pub schema: Vec<SettingDefinition>,
 }
 
 // ─── plugin/get_settings ─────────────────────────────────────────
@@ -194,12 +188,6 @@ pub struct SupportedTargetTypesParams {
     pub component_id: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SupportedTargetTypesResult {
-    #[serde(rename = "targetTypes")]
-    pub target_types: Vec<TargetType>,
-}
-
 // ─── plugin/supported_actions ────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -210,20 +198,16 @@ pub struct SupportedActionsParams {
     pub target_type: TargetType,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SupportedActionsResult {
-    #[serde(rename = "actions")]
-    pub actions: Vec<ResultAction>,
-}
-
 // ─── plugin/executor_execute ─────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecutorExecuteParams {
     #[serde(rename = "componentId")]
     pub component_id: String,
-    #[serde(rename = "ctx")]
-    pub ctx: PluginContext,
+    /// 完整执行上下文原样透传（与进程内 ActionExecutor 拿到的 ExecutionContext 一致：
+    /// target / display_name / user_args / parameter_snapshot / locale）。
+    #[serde(rename = "executionCtx")]
+    pub execution_ctx: ExecutionContext,
     #[serde(rename = "actionId")]
     pub action_id: String,
 }
@@ -232,6 +216,48 @@ pub struct ExecutorExecuteParams {
 pub struct ExecutorExecuteResult {
     #[serde(default)]
     pub error: Option<String>,
+}
+
+// ─── plugin/init ─────────────────────────────────────────────────
+//
+// 插件初始化钩子：宿主在组件注册完成后调用，通知插件进程完成初始化。
+// 与 plugin/initialize（进程级握手）不同层：init 携带真实查询上下文
+// （trace_id / locale），对应内置插件启动期的 Plugin::init。
+
+/// plugin/init 请求参数。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InitParams {
+    /// 目标插件 id（宿主覆盖为 manifest 插件 id）。
+    #[serde(rename = "pluginId")]
+    pub plugin_id: String,
+    /// 宿主构造的初始化上下文（真实 trace_id 与当前语言）。
+    #[serde(rename = "ctx")]
+    pub ctx: PluginContext,
+}
+
+// ─── plugin/interaction_policy ───────────────────────────────────
+//
+// 响应为裸 `PanelInteraction`（与 get_settings_schema 的裸数组约定一致）。
+// 策略为插件级语义：宿主仅对 Plugin 种类组件调用；SDK 恒返回主插件策略。
+
+/// plugin/interaction_policy 请求参数。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InteractionPolicyParams {
+    /// 目标组件 id（仅 Plugin 种类组件会收到该请求）。
+    #[serde(rename = "componentId")]
+    pub component_id: String,
+}
+
+// ─── plugin/get_default_enabled ──────────────────────────────────
+//
+// 响应为裸 `bool`。
+
+/// plugin/get_default_enabled 请求参数。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GetDefaultEnabledParams {
+    /// 目标组件 id。
+    #[serde(rename = "componentId")]
+    pub component_id: String,
 }
 
 // ─── host/log ────────────────────────────────────────────────────

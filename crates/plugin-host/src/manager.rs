@@ -1,12 +1,13 @@
 //! PluginHostManager — top-level orchestration for third-party plugins.
 
 use dashmap::DashMap;
+use parking_lot::RwLock;
 use std::collections::HashSet;
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::{Arc, OnceLock, RwLock};
+use std::sync::{Arc, OnceLock};
 use tokio::sync::mpsc;
 use tracing::{error, info, warn};
 
@@ -76,6 +77,8 @@ struct PluginRestartContext {
     /// 持久化的重启计数器。每次重新生成前原子递增；
     /// 当达到 manifest.runtime.max_restart 时不再尝试重启。
     restart_count: AtomicU32,
+    /// 加载时的宿主界面语言，重启沿用；崩溃时宿主经 update_locale 更新为实时语言。
+    locale: RwLock<String>,
 }
 
 impl std::fmt::Debug for PluginRestartContext {
@@ -164,10 +167,7 @@ impl PluginHostManager {
     /// 由 src-tauri 在内置组件注册完毕后调用一次；此后内置组件集合
     /// 启动期稳定，不再更新。预检据此识别「与内置组件撞 id」。
     pub fn set_builtin_component_ids(&self, ids: HashSet<String>) {
-        *self
-            .builtin_component_ids
-            .write()
-            .expect("builtin ids lock poisoned") = ids;
+        *self.builtin_component_ids.write() = ids;
     }
 
     /// 启动崩溃处理任务。
@@ -189,6 +189,7 @@ impl PluginHostManager {
     /// `on_crash` 在崩溃检测到的那一刻（任何重启尝试之前）以旧注册包调用，
     /// 供调用方解注册 CM/SR 中的过期组件。
     /// `restart_count` 为已发生的重启次数（初次加载传 0），用于延续崩溃恢复计数。
+    /// `locale` 为宿主当前界面语言，随 initialize 握手下发插件进程。
     pub async fn load(
         &self,
         plugin_dir: &Path,
@@ -196,6 +197,7 @@ impl PluginHostManager {
         on_restart: RestartCallback,
         on_crash: CrashCallback,
         restart_count: u32,
+        locale: &str,
     ) -> Result<PluginRegistration, PluginLoadError> {
         let manifest_path = plugin_dir.join("manifest.toml");
         let manifest_bytes = std::fs::read_to_string(&manifest_path)
@@ -247,6 +249,7 @@ impl PluginHostManager {
             host_call_handler.clone(),
             crash_tx.clone(),
             restart_count,
+            locale,
         )
         .await?;
 
@@ -264,6 +267,7 @@ impl PluginHostManager {
                 on_restart,
                 on_crash,
                 restart_count: AtomicU32::new(restart_count),
+                locale: RwLock::new(locale.to_string()),
             }),
         );
 
@@ -334,12 +338,7 @@ impl PluginHostManager {
             .plugins
             .iter()
             .any(|e| e.value().components.iter().any(|c| c.component_id() == id));
-        taken_by_plugin
-            || self
-                .builtin_component_ids
-                .read()
-                .map(|s| s.contains(id))
-                .unwrap_or(false)
+        taken_by_plugin || self.builtin_component_ids.read().contains(id)
     }
 
     /// Unload a plugin: shutdown process and remove from registries.
@@ -383,6 +382,17 @@ impl PluginHostManager {
         let log_file = self.log_dir_root.join(format!("{}.log", plugin_id));
         let _ = std::fs::remove_file(&log_file);
         self.restart_contexts.remove(plugin_id);
+    }
+
+    /// 更新插件重启上下文中的语言快照。
+    ///
+    /// 宿主在崩溃回调中调用（崩溃时刻取最新语言），保证崩溃重启的
+    /// initialize 握手携带最新 locale，而非首次加载时的快照。
+    /// 插件不存在（正常卸载等）时静默。
+    pub fn update_locale(&self, plugin_id: &str, locale: &str) {
+        if let Some(ctx) = self.restart_contexts.get_mut(plugin_id) {
+            *ctx.locale.write() = locale.to_string();
+        }
     }
 
     /// Build `InstalledPluginInfo` for all loaded adapters.
@@ -576,6 +586,7 @@ fn build_components(
             let schema = find_by_id(&init_result.settings_schemas, &comp.component_id);
             let settings = find_settings_value(&init_result.settings_values, &comp.component_id);
             let config_actions = find_by_id(&init_result.config_actions_map, &comp.component_id);
+            let default_enabled = find_by_id(&init_result.default_enabled_map, &comp.component_id);
 
             let priority = {
                 if comp.priority < 0 {
@@ -596,7 +607,12 @@ fn build_components(
                     metadata.author = manifest.plugin.author.clone();
                     // name, description, supported_os, trigger_keywords, priority
                     // 保留插件通过 plugin/get_metadata 自声明的值
-                    RemoteComponentKind::Plugin { metadata }
+                    let interaction_policy =
+                        find_by_id(&init_result.interaction_policy_map, &comp.component_id);
+                    RemoteComponentKind::Plugin {
+                        metadata,
+                        interaction_policy: parking_lot::RwLock::new(interaction_policy),
+                    }
                 }
                 ComponentKind::DataSource => RemoteComponentKind::DataSource,
                 ComponentKind::ActionExecutor { target_types } => {
@@ -619,6 +635,7 @@ fn build_components(
                 schema,
                 settings,
                 config_actions,
+                default_enabled,
                 kind,
             ))
         })
@@ -688,6 +705,9 @@ async fn handle_crash(mgr: &PluginHostManager, plugin_id: &str) {
     // 复用 load()：spawn/discover/预检/登记与初次加载同一路径，
     // 失败路径由 load 自行清理（冲突/discover 失败会 teardown），
     // 此处只需在 load 失败时移除旧上下文。
+    // 读取最新语言并克隆：RwLock guard 不得跨 .await 持有
+    // （load 内部会 await spawn 握手）。
+    let locale = ctx.locale.read().clone();
     match mgr
         .load(
             &ctx.plugin_dir,
@@ -695,6 +715,7 @@ async fn handle_crash(mgr: &PluginHostManager, plugin_id: &str) {
             ctx.on_restart.clone(),
             ctx.on_crash.clone(),
             new_count,
+            &locale,
         )
         .await
     {

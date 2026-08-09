@@ -111,7 +111,14 @@ async fn setup_loaded_plugin(
     };
 
     let reg = mgr
-        .load(&plugin_dir, Arc::new(StubHandler), on_restart, on_crash, 0)
+        .load(
+            &plugin_dir,
+            Arc::new(StubHandler),
+            on_restart,
+            on_crash,
+            0,
+            "zh-CN",
+        )
         .await
         .expect("initial load succeeds");
     assert_eq!(reg.components.len(), 1, "fixture 声明一个组件");
@@ -261,6 +268,7 @@ async fn colliding_component_id_rejected_on_load() {
             on_restart_b,
             on_crash_b,
             0,
+            "zh-CN",
         )
         .await
         .expect_err("冲突插件加载必须被拒绝");

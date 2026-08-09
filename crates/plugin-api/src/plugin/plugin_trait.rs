@@ -13,8 +13,16 @@ use std::sync::Arc;
 pub trait Plugin: Configurable {
     fn metadata(&self) -> &PluginMetadata;
 
-    async fn init(&self, ctx: &PluginContext, handle: Arc<PluginHandle>)
-        -> Result<(), PluginError>;
+    /// 插件初始化钩子。
+    ///
+    /// `handle` 为宿主注入的平台服务句柄：进程内（内置）插件持有
+    /// `Some(Arc<PluginHandle>)`；远端插件进程无宿主句柄（跨进程不可序列化），
+    /// 收到 `None`，平台能力经 SDK `host()` 的 host/* RPC 访问。
+    async fn init(
+        &self,
+        ctx: &PluginContext,
+        handle: Option<Arc<PluginHandle>>,
+    ) -> Result<(), PluginError>;
 
     async fn query(&self, ctx: &PluginContext, query: &Query)
         -> Result<QueryResponse, PluginError>;

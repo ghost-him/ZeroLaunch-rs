@@ -1304,7 +1304,24 @@ impl SessionDispatcher {
                             .config_manager()
                             .map(|cm| cm.is_enabled(comp.core.component_id()))
                             .unwrap_or(true);
-                        self.register_plugin_with_triggers(p, enabled);
+                        self.register_plugin_with_triggers(p.clone(), enabled);
+                        // 远端插件 init（内置 init 在 bootstrap Phase B 统一执行）：
+                        // 通知插件进程完成初始化（无宿主句柄，平台能力经 host RPC）。
+                        // fire-and-forget：init 不阻塞配置事件循环（插件挂起时
+                        // RPC 超时可能达 10s，串行循环内会拖累后续配置事件）；
+                        // 失败仅记 error——注册已完成，进程存活时查询等仍可用。
+                        let mut init_ctx = PluginContext::new("init");
+                        init_ctx.locale = self.current_locale();
+                        let plugin_id = adapters.plugin_id.clone();
+                        let component_id = comp.core.component_id().to_string();
+                        tauri::async_runtime::spawn(async move {
+                            if let Err(e) = p.init(&init_ctx, None).await {
+                                error!(
+                                    "远端插件 {} 组件 {} init 失败: {}",
+                                    plugin_id, component_id, e
+                                );
+                            }
+                        });
                     }
                 }
                 // 重建候选管道以包含新组件
@@ -1393,7 +1410,7 @@ mod tests {
         async fn init(
             &self,
             _ctx: &PluginContext,
-            _handle: Arc<PluginHandle>,
+            _handle: Option<Arc<PluginHandle>>,
         ) -> Result<(), PluginError> {
             Ok(())
         }

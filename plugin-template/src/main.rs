@@ -64,7 +64,11 @@ impl Plugin for HelloWorldPlugin {
         &self.metadata
     }
 
-    async fn init(&self, _ctx: &PluginContext, _handle: Arc<PluginHandle>) -> Result<(), PluginError> {
+    async fn init(
+        &self,
+        _ctx: &PluginContext,
+        _handle: Option<Arc<PluginHandle>>,
+    ) -> Result<(), PluginError> {
         Ok(())
     }
 

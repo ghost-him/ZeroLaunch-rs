@@ -75,7 +75,9 @@ impl ExecutionTarget {
 }
 
 /// 执行上下文
-#[derive(Debug, Clone)]
+///
+/// 可序列化：远端 ActionExecutor 经 RPC 收到完整执行上下文（与进程内一致）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecutionContext {
     pub target: ExecutionTarget,
     pub display_name: String,
@@ -463,6 +465,12 @@ pub enum PanelKeyAction {
 
 /// 插件面板响应携带的通用交互策略。
 /// 服务于宿主处理输入查询触发时机，不属于插件持久化配置。
+///
+/// 形态语义（行内/沉浸式均为同一份策略，宿主无条件推送）：
+/// - `bindings` 对行内与沉浸式**均生效**——沉浸式全屏面板的退出
+///   只能靠插件声明（宿主零兜底），裁剪会导致无法退出；
+/// - `query_trigger` / `query_debounce_ms` 仅行内形态有消费方
+///   （沉浸式隐藏搜索栏，无输入触发路径），闲置时无实害。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct PanelInteraction {
     /// 查询触发方式：onInput 输入自动触发 / onEnter 由用户按 Enter 手动触发。

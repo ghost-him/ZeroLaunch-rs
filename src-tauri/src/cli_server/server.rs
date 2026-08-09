@@ -97,7 +97,7 @@ pub async fn start(
 
     info!("CLI HTTP server listening on 127.0.0.1:{}", port);
 
-    tokio::spawn(async move {
+    tauri::async_runtime::spawn(async move {
         axum::serve(listener, app).await.unwrap();
     });
 

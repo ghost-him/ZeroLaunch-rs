@@ -7,10 +7,12 @@ use std::time::Duration;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 
+use zerolaunch_plugin_api::config::{ConfigActionDef, SettingDefinition};
+use zerolaunch_plugin_api::{PanelInteraction, PluginMetadata, ResultAction};
 use zerolaunch_plugin_protocol::manifest::Manifest;
 use zerolaunch_plugin_protocol::messages::*;
 use zerolaunch_plugin_protocol::methods::plugin as plugin_methods;
-use zerolaunch_plugin_protocol::ProtocolError;
+use zerolaunch_plugin_protocol::{ProtocolError, PROTOCOL_VERSION};
 
 use crate::client::{IncomingRequest, JsonRpcClient};
 use crate::host_dispatch::HostCallHandler;
@@ -29,18 +31,21 @@ pub enum ProcessState {
 /// Result of the initialization handshake with a plugin subprocess.
 pub struct InitResult {
     pub plugin_id: String,
-    pub metadata: zerolaunch_plugin_api::PluginMetadata,
+    pub metadata: PluginMetadata,
     pub components: Vec<ComponentDescriptor>,
-    pub settings_schemas: Vec<(
-        String,
-        Vec<zerolaunch_plugin_api::config::SettingDefinition>,
-    )>,
+    pub settings_schemas: Vec<(String, Vec<SettingDefinition>)>,
     pub settings_values: Vec<(String, serde_json::Value)>,
-    pub config_actions_map: Vec<(String, Vec<zerolaunch_plugin_api::config::ConfigActionDef>)>,
+    pub config_actions_map: Vec<(String, Vec<ConfigActionDef>)>,
     /// 每个 ActionExecutor 组件的 supported_actions 结果，按 component_id 索引。
     /// 在 discover_components 期间通过 plugin/supported_actions 获取，
     /// 供 build_adapters 直接使用，避免 ConfigActionDef → ResultAction 语义错配。
-    pub executor_actions_map: Vec<(String, Vec<zerolaunch_plugin_api::ResultAction>)>,
+    pub executor_actions_map: Vec<(String, Vec<ResultAction>)>,
+    /// 每个组件的默认启用状态（plugin/get_default_enabled），按 component_id 索引。
+    pub default_enabled_map: Vec<(String, bool)>,
+    /// Plugin 组件的交互策略（plugin/interaction_policy）初始值，按 component_id 索引。
+    /// 策略为插件级语义（仅 Plugin 组件有），只对 Plugin 种类拉取；
+    /// 查询/设置变更期间由 RemoteComponent 刷新（策略可随设置动态变化）。
+    pub interaction_policy_map: Vec<(String, PanelInteraction)>,
 }
 
 /// Manages a single plugin subprocess instance.
@@ -68,6 +73,9 @@ impl PluginProcess {
     /// `crash_tx` is a channel sender owned by the `PluginHostManager`.
     /// When the watchdog detects a crash, it sends the `plugin_id` on this
     /// channel so the manager can trigger a re-spawn.
+    /// 启动插件子进程并完成握手与协议版本兼容性校验。
+    /// 参数较多（进程/目录/回调/计数/locale），按先例 allow too_many_arguments。
+    #[allow(clippy::too_many_arguments)]
     pub async fn spawn(
         manifest: &Manifest,
         plugin_dir: &Path,
@@ -77,6 +85,8 @@ impl PluginProcess {
         crash_tx: mpsc::Sender<String>,
         // 该插件已重启的次数（0 = 初次加载）。
         restart_count: u32,
+        // 宿主当前界面语言（如 "zh-Hans"），随 initialize 握手下发。
+        locale: &str,
     ) -> Result<Self, ProtocolError> {
         let plugin_id = manifest.plugin.id.clone();
 
@@ -184,7 +194,7 @@ impl PluginProcess {
             data_dir: data_dir.to_string_lossy().to_string(),
             log_dir: log_dir.to_string_lossy().to_string(),
             plugin_id: plugin_id.clone(),
-            locale: "zh-CN".to_string(),
+            locale: locale.to_string(),
         };
 
         let init_result: InitializeResult = client
@@ -199,6 +209,17 @@ impl PluginProcess {
             "Plugin {} initialized (pid={:?}), result: {:?}",
             plugin_id, pid, init_result
         );
+
+        // 协议版本兼容性闸门：major 相同即兼容（宿主驱动模型下 minor 差异双向兼容——
+        // 宿主只调用自己知道的方法，新方法对旧插件可选且宿主容错 METHOD_NOT_FOUND）。
+        // major 不同 = 破坏性载荷变更，拒绝比半工作状态可诊断。
+        if !protocol_version_compatible(&init_result.protocol_version, PROTOCOL_VERSION) {
+            return Err(ProtocolError::ProtocolVersionIncompatible {
+                plugin: plugin_id.clone(),
+                expected: PROTOCOL_VERSION.to_string(),
+                got: init_result.protocol_version,
+            });
+        }
 
         let process = Self {
             plugin_id: plugin_id.clone(),
@@ -253,6 +274,8 @@ impl PluginProcess {
         let mut config_actions_map = Vec::new();
         let mut executor_actions_map: Vec<(String, Vec<zerolaunch_plugin_api::ResultAction>)> =
             Vec::new();
+        let mut default_enabled_map = Vec::new();
+        let mut interaction_policy_map = Vec::new();
 
         for comp in &components {
             let schema: Vec<zerolaunch_plugin_api::config::SettingDefinition> = self
@@ -290,6 +313,38 @@ impl PluginProcess {
                 )
                 .await?;
             config_actions_map.push((comp.component_id.clone(), actions));
+
+            // 默认启用状态：新协议方法（老 SDK 返回 METHOD_NOT_FOUND 时回退默认 true）。
+            let default_enabled: bool = self
+                .client
+                .call(
+                    plugin_methods::GET_DEFAULT_ENABLED,
+                    GetDefaultEnabledParams {
+                        component_id: comp.component_id.clone(),
+                    },
+                    Duration::from_secs(5),
+                )
+                .await
+                .unwrap_or(true);
+            default_enabled_map.push((comp.component_id.clone(), default_enabled));
+
+            // 交互策略为插件级语义（PanelInteraction 属于 Plugin trait，DataSource/
+            // Executor 组件无策略）：仅对 Plugin 种类拉取一次，避免多组件插件 N 次冗余 RPC。
+            // 初始值供构造缓存，查询/设置变更期间由 RemoteComponent 刷新。
+            if matches!(comp.kind, ComponentKind::Plugin { .. }) {
+                let policy: PanelInteraction = self
+                    .client
+                    .call(
+                        plugin_methods::INTERACTION_POLICY,
+                        InteractionPolicyParams {
+                            component_id: comp.component_id.clone(),
+                        },
+                        Duration::from_secs(5),
+                    )
+                    .await
+                    .unwrap_or_default();
+                interaction_policy_map.push((comp.component_id.clone(), policy));
+            }
 
             // 对 ActionExecutor 组件，遍历每种支持的 target_type 拉取
             // supported_actions，按 (id, label) 去重后合并。
@@ -338,6 +393,8 @@ impl PluginProcess {
             settings_values,
             config_actions_map,
             executor_actions_map,
+            default_enabled_map,
+            interaction_policy_map,
         })
     }
 
@@ -496,5 +553,47 @@ async fn append_to_log(log_path: &Path, text: &str) {
         .await
     {
         let _ = file.write_all(text.as_bytes()).await;
+    }
+}
+
+/// 判定插件协议版本与宿主是否兼容：major 段相同即兼容（semver 兼容语义）。
+///
+/// 宿主驱动模型下 minor 差异双向兼容——宿主只调用自己知道的方法，
+/// 新增方法对旧插件可选且宿主容错 METHOD_NOT_FOUND；major 不同视为
+/// 破坏性载荷变更。无法解析的版本声明视为不兼容（安全默认）。
+fn protocol_version_compatible(plugin_version: &str, host_version: &str) -> bool {
+    let major = |v: &str| v.split('.').next().and_then(|m| m.parse::<u64>().ok());
+    match (major(plugin_version), major(host_version)) {
+        (Some(p), Some(h)) => p == h,
+        _ => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::protocol_version_compatible;
+
+    /// major 相同（含 minor 差异）视为兼容：宿主驱动模型下双向安全。
+    #[test]
+    fn same_major_is_compatible() {
+        assert!(protocol_version_compatible("1.0", "1.0"));
+        assert!(protocol_version_compatible("1.0", "1.2"));
+        assert!(protocol_version_compatible("1.5", "1.0"));
+        assert!(protocol_version_compatible("1.0.3", "1.0"));
+    }
+
+    /// major 不同 = 破坏性变更，拒绝。
+    #[test]
+    fn different_major_is_incompatible() {
+        assert!(!protocol_version_compatible("2.0", "1.0"));
+        assert!(!protocol_version_compatible("1.0", "2.0"));
+    }
+
+    /// 无法解析的版本声明（非数字 major）视为不兼容（安全默认）。
+    #[test]
+    fn unparseable_version_is_incompatible() {
+        assert!(!protocol_version_compatible("dev", "1.0"));
+        assert!(!protocol_version_compatible("", "1.0"));
+        assert!(!protocol_version_compatible("1.0", ""));
     }
 }

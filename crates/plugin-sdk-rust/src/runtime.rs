@@ -11,11 +11,13 @@
 //! 避免了同步 BufReader 造成的死锁问题。
 
 use dashmap::DashMap;
+use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::{mpsc, oneshot};
 
-use zerolaunch_plugin_api::Plugin;
+use zerolaunch_plugin_api::config::Configurable;
+use zerolaunch_plugin_api::{ActionExecutor, DataSource, Plugin};
 use zerolaunch_plugin_protocol::codec::{encode_frame, MAX_FRAME_SIZE, MAX_HEADER_SIZE};
 use zerolaunch_plugin_protocol::jsonrpc::{Message, Request, Response};
 use zerolaunch_plugin_protocol::messages::*;
@@ -44,20 +46,96 @@ struct IncomingRequest {
     params: serde_json::Value,
 }
 
-/// 使用给定的 Plugin 实现运行 JSON-RPC stdio 循环。
-pub fn run(plugin: impl Plugin + 'static) {
-    let rt = tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(2)
-        .enable_all()
-        .build()
-        .expect("failed to build tokio runtime");
-
-    rt.block_on(async move {
-        run_async(plugin).await;
-    });
+/// SDK 组件集合：一个 Plugin 主组件 + 任意个 DataSource / ActionExecutor 附加组件。
+///
+/// 与内置插件完全对等：每个组件都是独立的 Configurable（各自的 component_id、
+/// schema、设置），进程向宿主声明全部组件（GET_COMPONENTS 返回全部）。
+pub struct PluginApp {
+    pub(crate) plugin: Arc<dyn Plugin>,
+    pub(crate) data_sources: Vec<Arc<dyn DataSource>>,
+    pub(crate) executors: Vec<Arc<dyn ActionExecutor>>,
+    /// component_id → 组件统一索引（Plugin / DataSource / ActionExecutor 皆入）。
+    /// dispatch 按 component_id 以 O(1) 路由 Configurable / DataSource / Executor 方法。
+    by_id: HashMap<String, ComponentEntry>,
 }
 
-async fn run_async(mut plugin: impl Plugin + 'static) {
+/// 组件索引条目：统一持有各 trait 对象，按需向上转型。
+enum ComponentEntry {
+    Plugin(Arc<dyn Plugin>),
+    DataSource(Arc<dyn DataSource>),
+    Executor(Arc<dyn ActionExecutor>),
+}
+
+impl PluginApp {
+    /// 以 Plugin 主组件构建应用（必须存在：进程级 metadata/触发词/面板查询属于它）。
+    pub fn new(plugin: impl Plugin + 'static) -> Self {
+        let plugin = Arc::new(plugin);
+        let mut by_id = HashMap::new();
+        by_id.insert(
+            plugin.component_id().to_string(),
+            ComponentEntry::Plugin(plugin.clone()),
+        );
+        Self {
+            plugin,
+            data_sources: Vec::new(),
+            executors: Vec::new(),
+            by_id,
+        }
+    }
+
+    /// 附加 DataSource 组件（候选采集；与内置数据源完全对等）。
+    /// 组件 id 重复属于插件编码错误，直接 panic 暴露。
+    pub fn with_data_source(mut self, ds: impl DataSource + 'static) -> Self {
+        let ds = Arc::new(ds);
+        let component_id = ds.component_id().to_string();
+        assert!(
+            self.by_id
+                .insert(component_id, ComponentEntry::DataSource(ds.clone()))
+                .is_none(),
+            "DataSource 组件 id 重复：{}",
+            ds.component_id()
+        );
+        self.data_sources.push(ds);
+        self
+    }
+
+    /// 附加 ActionExecutor 组件（候选执行；与内置执行器完全对等）。
+    /// 组件 id 重复属于插件编码错误，直接 panic 暴露。
+    pub fn with_executor(mut self, ex: impl ActionExecutor + 'static) -> Self {
+        let ex = Arc::new(ex);
+        let component_id = ex.component_id().to_string();
+        assert!(
+            self.by_id
+                .insert(component_id, ComponentEntry::Executor(ex.clone()))
+                .is_none(),
+            "ActionExecutor 组件 id 重复：{}",
+            ex.component_id()
+        );
+        self.executors.push(ex);
+        self
+    }
+
+    /// 运行 JSON-RPC stdio 循环（阻塞当前线程直到进程退出）。
+    pub fn run(self) {
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()
+            .expect("failed to build tokio runtime");
+
+        rt.block_on(async move {
+            run_async(self).await;
+        });
+    }
+}
+
+/// 使用给定的 Plugin 实现运行 JSON-RPC stdio 循环。
+/// 等价于 `PluginApp::new(plugin).run()`。
+pub fn run(plugin: impl Plugin + 'static) {
+    PluginApp::new(plugin).run()
+}
+
+async fn run_async(mut app: PluginApp) {
     // 初始化日志系统（双写：stderr → 文件 + WARN/ERROR → host/log 转发）
     let mut log_rx = logging::init_logging();
     let stdin = tokio::io::stdin();
@@ -146,7 +224,7 @@ async fn run_async(mut plugin: impl Plugin + 'static) {
                 while let Some(incoming) = request_rx.recv().await {
                     let req = Request::new(incoming.id, &incoming.method, incoming.params);
                     // 收到了一个请求，调用用户实现的 Plugin trait 处理，并将响应发送到 outbound_tx。
-                    let result = handle_request(&mut plugin, &req, &mut plugin_context).await;
+                    let result = handle_request(&mut app, &req, &mut plugin_context).await;
                     if let Ok(payload) = serde_json::to_vec(&result) {
                         if outbound_dispatch.send(payload).await.is_err() {
                             break;
@@ -232,12 +310,12 @@ async fn read_frame<R: tokio::io::AsyncBufRead + Unpin>(reader: &mut R) -> Resul
 
 // / 处理单条 plugin/* 请求，返回响应 Message。
 async fn handle_request(
-    plugin: &mut impl Plugin,
+    app: &mut PluginApp,
     req: &Request,
     plugin_ctx: &mut Option<zerolaunch_plugin_api::PluginContext>,
 ) -> Message {
     let id = req.id;
-    let result = dispatch(plugin, &req.method, &req.params, plugin_ctx).await;
+    let result = dispatch(app, &req.method, &req.params, plugin_ctx).await;
     match result {
         Ok(value) => Message::Response(Response::ok(id, value)),
         Err(err) => Message::Response(Response::err(id, err)),
@@ -245,7 +323,7 @@ async fn handle_request(
 }
 
 async fn dispatch(
-    plugin: &mut impl Plugin,
+    app: &mut PluginApp,
     method: &str,
     params: &serde_json::Value,
     plugin_ctx: &mut Option<zerolaunch_plugin_api::PluginContext>,
@@ -265,11 +343,11 @@ async fn dispatch(
                 query_revision_gate: None,
                 // 远端插件会话由宿主经 RPC 下发通道，未收到时缺省视为 GUI 通道。
                 query_channel: zerolaunch_plugin_api::QueryChannel::Ui,
-                // 宿主语言由宿主在查询上下文下发时填充；初始化场景未知，留空。
-                locale: String::new(),
+                // 宿主语言在握手时下发（InitializeParams.locale），写入会话上下文。
+                locale: p.locale,
             });
             let result = InitializeResult {
-                plugin_version: plugin.metadata().version.clone(),
+                plugin_version: app.plugin.metadata().version.clone(),
                 protocol_version: PROTOCOL_VERSION.to_string(),
             };
             Ok(serde_json::to_value(result).unwrap_or_default())
@@ -278,34 +356,71 @@ async fn dispatch(
         plugin_methods::SHUTDOWN => Ok(serde_json::Value::Null),
         // 返回 metadata
         plugin_methods::GET_METADATA => {
-            Ok(serde_json::to_value(plugin.metadata()).unwrap_or(serde_json::Value::Null))
+            Ok(serde_json::to_value(app.plugin.metadata()).unwrap_or(serde_json::Value::Null))
         }
-        // 返回这个插件实现的components是什么
+        // 返回这个插件实现的全部组件（Plugin + 附加 DataSource / ActionExecutor）
         plugin_methods::GET_COMPONENTS => {
-            let components = vec![ComponentDescriptor {
-                component_id: plugin.component_id().to_string(),
-                component_name: plugin.component_name().to_string(),
-                component_description: plugin.metadata().description.clone(),
-                component_type: plugin.component_type(),
+            let mut components = vec![ComponentDescriptor {
+                component_id: app.plugin.component_id().to_string(),
+                component_name: app.plugin.component_name().to_string(),
+                component_description: app.plugin.metadata().description.clone(),
+                component_type: app.plugin.component_type(),
                 kind: ComponentKind::Plugin {
-                    trigger_keywords: plugin.metadata().trigger_keywords.clone(),
+                    trigger_keywords: app.plugin.metadata().trigger_keywords.clone(),
                 },
-                priority: plugin.metadata().priority,
+                priority: app.plugin.metadata().priority,
             }];
+            for ds in &app.data_sources {
+                components.push(ComponentDescriptor {
+                    component_id: ds.component_id().to_string(),
+                    component_name: ds.component_name().to_string(),
+                    component_description: ds.component_description().to_string(),
+                    component_type: ds.component_type(),
+                    kind: ComponentKind::DataSource,
+                    priority: ds.priority() as i32,
+                });
+            }
+            for ex in &app.executors {
+                components.push(ComponentDescriptor {
+                    component_id: ex.component_id().to_string(),
+                    component_name: ex.component_name().to_string(),
+                    component_description: ex.component_description().to_string(),
+                    component_type: ex.component_type(),
+                    kind: ComponentKind::ActionExecutor {
+                        target_types: ex.supported_target_types(),
+                    },
+                    priority: ex.priority() as i32,
+                });
+            }
             Ok(serde_json::to_value(components).unwrap_or_default())
         }
-        // 返回注册的配置项
+        // 返回指定组件的注册配置项
         plugin_methods::GET_SETTINGS_SCHEMA => {
-            Ok(serde_json::to_value(plugin.setting_schema()).unwrap_or(serde_json::Value::Null))
+            let p: GetSettingsSchemaParams = serde_json::from_value(params.clone())
+                .map_err(|e| JsonRpcError::new(codes::INVALID_PARAMS, e.to_string()))?;
+            let conf = find_configurable(app, &p.component_id)?;
+            Ok(serde_json::to_value(conf.setting_schema()).unwrap_or(serde_json::Value::Null))
         }
-        // 返回插件当前的配置值
-        plugin_methods::GET_SETTINGS => Ok(plugin.get_settings()),
-        // 宿主下发新的配置值，插件据此更新自身行为
+        // 返回指定组件当前的配置值
+        plugin_methods::GET_SETTINGS => {
+            let p: GetSettingsParams = serde_json::from_value(params.clone())
+                .map_err(|e| JsonRpcError::new(codes::INVALID_PARAMS, e.to_string()))?;
+            let conf = find_configurable(app, &p.component_id)?;
+            Ok(conf.get_settings())
+        }
+        // 返回指定组件的默认启用状态
+        plugin_methods::GET_DEFAULT_ENABLED => {
+            let p: GetDefaultEnabledParams = serde_json::from_value(params.clone())
+                .map_err(|e| JsonRpcError::new(codes::INVALID_PARAMS, e.to_string()))?;
+            let conf = find_configurable(app, &p.component_id)?;
+            Ok(serde_json::to_value(conf.default_enabled()).unwrap_or_default())
+        }
+        // 宿主下发新的配置值，指定组件据此更新自身行为
         plugin_methods::APPLY_SETTINGS => {
             let p: ApplySettingsParams = serde_json::from_value(params.clone())
                 .map_err(|e| JsonRpcError::new(codes::INVALID_PARAMS, e.to_string()))?;
-            plugin
-                .apply_settings(p.settings)
+            let conf = find_configurable(app, &p.component_id)?;
+            conf.apply_settings(p.settings)
                 .await
                 .map_err(|e| JsonRpcError::new(codes::PLUGIN_ERROR, e.to_string()))?;
             Ok(serde_json::Value::Null)
@@ -314,7 +429,8 @@ async fn dispatch(
         plugin_methods::VALIDATE_SETTINGS => {
             let p: ValidateSettingsParams = serde_json::from_value(params.clone())
                 .map_err(|e| JsonRpcError::new(codes::INVALID_PARAMS, e.to_string()))?;
-            let result = match plugin.validate_settings(&p.settings).await {
+            let conf = find_configurable(app, &p.component_id)?;
+            let result = match conf.validate_settings(&p.settings).await {
                 Ok(()) => ValidateSettingsResult { error: None },
                 Err(e) => ValidateSettingsResult {
                     error: Some(e.to_string()),
@@ -325,20 +441,24 @@ async fn dispatch(
         // 返回裸数组：宿主 discover 流程以 `Vec<ConfigActionDef>` 反序列化
         // （与 get_settings_schema 的裸数组约定一致），包装结构会解析失败。
         plugin_methods::CONFIG_ACTIONS => {
-            Ok(serde_json::to_value(plugin.config_actions()).unwrap_or_default())
+            let p: ConfigActionsParams = serde_json::from_value(params.clone())
+                .map_err(|e| JsonRpcError::new(codes::INVALID_PARAMS, e.to_string()))?;
+            let conf = find_configurable(app, &p.component_id)?;
+            Ok(serde_json::to_value(conf.config_actions()).unwrap_or_default())
         }
         plugin_methods::EXECUTE_CONFIG_ACTION => {
             let p: ExecuteConfigActionParams = serde_json::from_value(params.clone())
                 .map_err(|e| JsonRpcError::new(codes::INVALID_PARAMS, e.to_string()))?;
-            plugin
-                .execute_config_action(&p.action, &p.params)
+            let conf = find_configurable(app, &p.component_id)?;
+            conf.execute_config_action(&p.action, &p.params)
                 .await
                 .map_err(|e| JsonRpcError::new(codes::PLUGIN_ERROR, e.to_string()))
         }
         plugin_methods::QUERY => {
             let p: QueryParams = serde_json::from_value(params.clone())
                 .map_err(|e| JsonRpcError::new(codes::INVALID_PARAMS, e.to_string()))?;
-            let response = plugin
+            let response = app
+                .plugin
                 .query(&p.ctx, &p.query)
                 .await
                 .map_err(|e| JsonRpcError::new(codes::PLUGIN_ERROR, e.to_string()))?;
@@ -347,15 +467,127 @@ async fn dispatch(
         plugin_methods::EXECUTE_ACTION => {
             let p: ExecuteActionParams = serde_json::from_value(params.clone())
                 .map_err(|e| JsonRpcError::new(codes::INVALID_PARAMS, e.to_string()))?;
-            plugin
+            app.plugin
                 .execute_action(&p.ctx, &p.action_id, p.payload)
                 .await
                 .map_err(|e| JsonRpcError::new(codes::PLUGIN_ERROR, e.to_string()))?;
             Ok(serde_json::Value::Null)
         }
+        // 插件初始化钩子：宿主在注册完成后调用（内置插件在启动期统一 init）。
+        // 远端进程无宿主 PluginHandle（跨进程不可序列化），以 None 传入，
+        // 平台能力经 host() 的 host/* RPC 访问——与内置插件语义对等。
+        plugin_methods::INIT => {
+            let p: InitParams = serde_json::from_value(params.clone())
+                .map_err(|e| JsonRpcError::new(codes::INVALID_PARAMS, e.to_string()))?;
+            app.plugin
+                .init(&p.ctx, None)
+                .await
+                .map_err(|e| JsonRpcError::new(codes::PLUGIN_ERROR, e.to_string()))?;
+            Ok(serde_json::Value::Null)
+        }
+        // 插件交互策略（查询触发方式/防抖/按键绑定）：宿主在会话推送时读取。
+        plugin_methods::INTERACTION_POLICY => {
+            let _p: InteractionPolicyParams = serde_json::from_value(params.clone())
+                .map_err(|e| JsonRpcError::new(codes::INVALID_PARAMS, e.to_string()))?;
+            Ok(serde_json::to_value(app.plugin.interaction_policy()).unwrap_or_default())
+        }
+        // DataSource 组件：采集候选项（与内置数据源对等）
+        plugin_methods::FETCH_CANDIDATES => {
+            let p: FetchCandidatesParams = serde_json::from_value(params.clone())
+                .map_err(|e| JsonRpcError::new(codes::INVALID_PARAMS, e.to_string()))?;
+            let ds = find_data_source(app, &p.component_id)?;
+            let cache = ds.fetch_candidates().await;
+            Ok(serde_json::to_value(FetchCandidatesResult {
+                candidates: cache.get_candidates().clone(),
+            })
+            .unwrap_or_default())
+        }
+        // ActionExecutor 组件：支持的目标类型列表
+        plugin_methods::SUPPORTED_TARGET_TYPES => {
+            let p: SupportedTargetTypesParams = serde_json::from_value(params.clone())
+                .map_err(|e| JsonRpcError::new(codes::INVALID_PARAMS, e.to_string()))?;
+            let ex = find_executor(app, &p.component_id)?;
+            Ok(serde_json::to_value(ex.supported_target_types()).unwrap_or_default())
+        }
+        // ActionExecutor 组件：支持的动作列表（与内置 supported_actions() 语义一致，
+        // 不区分 target_type——宿主按 (id, label) 去重合并）
+        plugin_methods::SUPPORTED_ACTIONS => {
+            let p: SupportedActionsParams = serde_json::from_value(params.clone())
+                .map_err(|e| JsonRpcError::new(codes::INVALID_PARAMS, e.to_string()))?;
+            let ex = find_executor(app, &p.component_id)?;
+            Ok(serde_json::to_value(ex.supported_actions()).unwrap_or_default())
+        }
+        // ActionExecutor 组件：执行动作（完整 ExecutionContext 原样下发）
+        plugin_methods::EXECUTOR_EXECUTE => {
+            let p: ExecutorExecuteParams = serde_json::from_value(params.clone())
+                .map_err(|e| JsonRpcError::new(codes::INVALID_PARAMS, e.to_string()))?;
+            let ex = find_executor(app, &p.component_id)?;
+            let result = match ex.execute(&p.execution_ctx, &p.action_id).await {
+                Ok(()) => ExecutorExecuteResult { error: None },
+                Err(e) => ExecutorExecuteResult {
+                    error: Some(e.to_string()),
+                },
+            };
+            Ok(serde_json::to_value(result).unwrap_or_default())
+        }
         _ => Err(JsonRpcError::new(
             codes::METHOD_NOT_FOUND,
             format!("method not found: {}", method),
+        )),
+    }
+}
+
+/// 按 component_id 查找 Configurable 组件（Plugin / DataSource / ActionExecutor 皆可）。
+/// 组件未注册时返回 METHOD_NOT_FOUND。
+fn find_configurable<'a>(
+    app: &'a PluginApp,
+    component_id: &str,
+) -> Result<&'a dyn Configurable, JsonRpcError> {
+    let entry = app.by_id.get(component_id).ok_or_else(|| {
+        JsonRpcError::new(
+            codes::METHOD_NOT_FOUND,
+            format!("component not found: {component_id}"),
+        )
+    })?;
+    Ok(match entry {
+        ComponentEntry::Plugin(p) => p.as_ref() as &dyn Configurable,
+        ComponentEntry::DataSource(ds) => ds.as_ref() as &dyn Configurable,
+        ComponentEntry::Executor(ex) => ex.as_ref() as &dyn Configurable,
+    })
+}
+
+/// 按 component_id 查找 DataSource 组件。
+fn find_data_source<'a>(
+    app: &'a PluginApp,
+    component_id: &str,
+) -> Result<&'a dyn DataSource, JsonRpcError> {
+    match app.by_id.get(component_id) {
+        Some(ComponentEntry::DataSource(ds)) => Ok(ds.as_ref()),
+        Some(_) => Err(JsonRpcError::new(
+            codes::METHOD_NOT_FOUND,
+            format!("component is not a data source: {component_id}"),
+        )),
+        None => Err(JsonRpcError::new(
+            codes::METHOD_NOT_FOUND,
+            format!("data source not found: {component_id}"),
+        )),
+    }
+}
+
+/// 按 component_id 查找 ActionExecutor 组件。
+fn find_executor<'a>(
+    app: &'a PluginApp,
+    component_id: &str,
+) -> Result<&'a dyn ActionExecutor, JsonRpcError> {
+    match app.by_id.get(component_id) {
+        Some(ComponentEntry::Executor(ex)) => Ok(ex.as_ref()),
+        Some(_) => Err(JsonRpcError::new(
+            codes::METHOD_NOT_FOUND,
+            format!("component is not an executor: {component_id}"),
+        )),
+        None => Err(JsonRpcError::new(
+            codes::METHOD_NOT_FOUND,
+            format!("executor not found: {component_id}"),
         )),
     }
 }

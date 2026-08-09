@@ -109,9 +109,9 @@ impl Plugin for CalculatorPlugin {
     async fn init(
         &self,
         _ctx: &PluginContext,
-        handle: Arc<PluginHandle>,
+        handle: Option<Arc<PluginHandle>>,
     ) -> Result<(), PluginError> {
-        *self.handle.write() = Some(handle);
+        *self.handle.write() = handle;
         Ok(())
     }
 

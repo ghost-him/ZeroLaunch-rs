@@ -767,10 +767,10 @@ impl Plugin for TranslatorPlugin {
     async fn init(
         &self,
         _ctx: &PluginContext,
-        handle: Arc<PluginHandle>,
+        handle: Option<Arc<PluginHandle>>,
     ) -> Result<(), PluginError> {
         // 保存服务句柄，供 execute_action 经 PluginHandle 访问平台能力（如剪贴板）。
-        *self.handle.write() = Some(handle);
+        *self.handle.write() = handle;
         let settings = self.inner.read().clone();
         self.sync_llm_config(&settings);
         Ok(())

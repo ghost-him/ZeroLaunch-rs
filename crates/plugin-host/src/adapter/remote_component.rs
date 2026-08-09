@@ -12,22 +12,22 @@ use zerolaunch_plugin_api::config::{
     ComponentCore, ComponentType, ConfigActionDef, ConfigError, Configurable, SettingDefinition,
 };
 use zerolaunch_plugin_api::{
-    ActionExecutor, CachedCandidateData, DataSource, ExecutionContext, ExecutionError, Plugin,
-    PluginContext, PluginError, PluginHandle, PluginMetadata, Query, QueryChannel, QueryResponse,
-    ResultAction, TargetType,
+    ActionExecutor, CachedCandidateData, DataSource, ExecutionContext, ExecutionError,
+    PanelInteraction, Plugin, PluginContext, PluginError, PluginHandle, PluginMetadata, Query,
+    QueryResponse, ResultAction, TargetType,
 };
 
 use crate::client::JsonRpcClient;
 use zerolaunch_plugin_protocol::messages::*;
 use zerolaunch_plugin_protocol::methods::plugin as plugin_methods;
-use zerolaunch_plugin_protocol::ProtocolError;
+use zerolaunch_plugin_protocol::{codes, ProtocolError};
 
 /// 远程插件组件的种类与专属数据。
 ///
 /// 判断字段归属的标准：
 /// - 只有某个种类需要 → 放入对应 variant；
 /// - 所有种类都需要（如 Configurable 相关的缓存）→ 保留在 `RemoteComponent` struct 层面。
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum RemoteComponentKind {
     DataSource,
     ActionExecutor {
@@ -36,6 +36,10 @@ pub enum RemoteComponentKind {
     },
     Plugin {
         metadata: PluginMetadata,
+        /// 交互策略缓存：discover 拉初始值，查询/设置变更时经 RPC 刷新
+        /// （PanelInteraction 是插件级语义——仅 Plugin 组件持有；
+        /// 内置插件在每次会话推送时同步求值，远端以此对齐）。
+        interaction_policy: RwLock<PanelInteraction>,
     },
 }
 
@@ -52,6 +56,8 @@ pub struct RemoteComponent {
     /// 配置动作缓存。`config_actions()` 是 `Configurable` trait 的通用方法，
     /// 所有组件类型均可能使用，因此放在 struct 层面而非 kind variant 内部。
     cached_actions: RwLock<Vec<ConfigActionDef>>,
+    /// 默认启用状态：discover 时经 RPC 拉取（与内置 `default_enabled()` 语义一致）。
+    cached_default_enabled: RwLock<bool>,
 
     // ── 种类与专属数据 ──
     pub kind: RemoteComponentKind,
@@ -85,6 +91,7 @@ impl RemoteComponent {
         schema: Vec<SettingDefinition>,
         settings: serde_json::Value,
         actions: Vec<ConfigActionDef>,
+        default_enabled: bool,
         kind: RemoteComponentKind,
     ) -> Self {
         Self {
@@ -99,6 +106,7 @@ impl RemoteComponent {
             cached_settings: RwLock::new(settings),
             cached_schema: RwLock::new(schema),
             cached_actions: RwLock::new(actions),
+            cached_default_enabled: RwLock::new(default_enabled),
             kind,
         }
     }
@@ -149,6 +157,11 @@ impl Configurable for RemoteComponent {
         self.cached_actions.read().clone()
     }
 
+    /// 默认启用状态来自插件自声明（discover 时经 RPC 拉取），与内置组件一致。
+    fn default_enabled(&self) -> bool {
+        *self.cached_default_enabled.read()
+    }
+
     async fn apply_settings(&self, settings: serde_json::Value) -> Result<(), ConfigError> {
         let client = self.client.clone();
         let component_id = self.core.component_id().to_string();
@@ -165,6 +178,10 @@ impl Configurable for RemoteComponent {
             .await
             .map_err(to_config_error)?;
         *self.cached_settings.write() = settings;
+        // 设置变更可能改变交互策略（如 on-enter 模式开关）：
+        // 应用成功后立即刷新策略缓存，避免 reemit_current_session 推送旧策略
+        // （内置插件每次推送同步求值，远端以此对齐）。
+        self.refresh_interaction_policy().await;
         Ok(())
     }
 
@@ -290,23 +307,15 @@ impl ActionExecutor for RemoteComponent {
             self.core.component_id()
         );
 
+        // 完整执行上下文原样透传（与进程内 ActionExecutor 一致），
+        // 不再重建伪 PluginContext（旧实现丢弃 target 等字段并伪造 trace_id）。
         let result: Result<ExecutorExecuteResult, _> = self
             .client
             .call(
                 plugin_methods::EXECUTOR_EXECUTE,
                 ExecutorExecuteParams {
                     component_id: self.core.component_id().to_string(),
-                    ctx: PluginContext {
-                        trace_id: "exec".into(),
-                        query_id: None,
-                        plugin_id: Some(self.core.component_id().to_string()),
-                        // 远端插件无宿主查询版本门控，恒视为最新。
-                        query_revision_gate: None,
-                        // 远端插件会话由宿主经 RPC 下发通道，未收到时缺省视为 GUI 通道。
-                        query_channel: QueryChannel::Ui,
-                        // 宿主在执行分发时填充（ExecutionContext.locale），透传插件进程
-                        locale: ctx.locale.clone(),
-                    },
+                    execution_ctx: ctx.clone(),
                     action_id: action_id.to_string(),
                 },
                 Duration::from_secs(30),
@@ -330,7 +339,7 @@ impl ActionExecutor for RemoteComponent {
 impl Plugin for RemoteComponent {
     fn metadata(&self) -> &PluginMetadata {
         match &self.kind {
-            RemoteComponentKind::Plugin { metadata } => metadata,
+            RemoteComponentKind::Plugin { metadata, .. } => metadata,
             _ => panic!(
                 "RemoteComponent {} is not a Plugin but metadata() was called",
                 self.core.component_id()
@@ -340,15 +349,56 @@ impl Plugin for RemoteComponent {
 
     async fn init(
         &self,
-        _ctx: &PluginContext,
-        _handle: Arc<PluginHandle>,
+        ctx: &PluginContext,
+        _handle: Option<Arc<PluginHandle>>,
     ) -> Result<(), PluginError> {
         assert!(
             matches!(self.kind, RemoteComponentKind::Plugin { .. }),
             "RemoteComponent {} is not a Plugin but init() was called",
             self.core.component_id()
         );
-        Ok(())
+        // 远端进程无宿主句柄（跨进程不可序列化），init 语义为通知插件进程完成初始化；
+        // 平台能力由插件侧经 host() 的 host/* RPC 访问。
+        // METHOD_NOT_FOUND（旧 SDK 插件无 init 方法）= 无初始化需求，静默完成
+        // （与引入 init RPC 前的 no-op 行为一致）；其他错误向上传播。
+        let metadata = match &self.kind {
+            RemoteComponentKind::Plugin { metadata, .. } => metadata,
+            _ => unreachable!("kind 已在上面断言为 Plugin"),
+        };
+        let result: Result<serde_json::Value, _> = self
+            .client
+            .call(
+                plugin_methods::INIT,
+                InitParams {
+                    plugin_id: metadata.id.clone(),
+                    ctx: ctx.clone(),
+                },
+                Duration::from_secs(10),
+            )
+            .await;
+        match result {
+            Ok(_) => Ok(()),
+            Err(zerolaunch_plugin_protocol::ProtocolError::Rpc { code, .. })
+                if code == codes::METHOD_NOT_FOUND =>
+            {
+                Ok(())
+            }
+            Err(e) => Err(PluginError::InitFailed(e.to_string())),
+        }
+    }
+
+    /// 交互策略：返回查询时刷新的缓存值（与内置每次查询同步求值语义对齐）。
+    /// 仅 Plugin 组件有策略（kind 已断言为 Plugin）。
+    fn interaction_policy(&self) -> PanelInteraction {
+        match &self.kind {
+            RemoteComponentKind::Plugin {
+                interaction_policy, ..
+            } => interaction_policy.read().clone(),
+            _ => panic!(
+                "RemoteComponent {} is not a Plugin but interaction_policy() was called",
+                self.core.component_id()
+            ),
+        }
     }
 
     async fn query(
@@ -357,12 +407,15 @@ impl Plugin for RemoteComponent {
         query: &Query,
     ) -> Result<QueryResponse, PluginError> {
         let metadata = match &self.kind {
-            RemoteComponentKind::Plugin { metadata } => metadata,
+            RemoteComponentKind::Plugin { metadata, .. } => metadata,
             _ => panic!(
                 "RemoteComponent {} is not a Plugin but query() was called",
                 self.core.component_id()
             ),
         };
+
+        // 每次查询先刷新交互策略缓存（内置插件在会话推送时同步求值，远端以此对齐）。
+        self.refresh_interaction_policy().await;
 
         self.client
             .call::<_, QueryResponse>(
@@ -385,7 +438,7 @@ impl Plugin for RemoteComponent {
         payload: serde_json::Value,
     ) -> Result<(), PluginError> {
         let metadata = match &self.kind {
-            RemoteComponentKind::Plugin { metadata } => metadata,
+            RemoteComponentKind::Plugin { metadata, .. } => metadata,
             _ => panic!(
                 "RemoteComponent {} is not a Plugin but execute_action() was called",
                 self.core.component_id()
@@ -406,5 +459,32 @@ impl Plugin for RemoteComponent {
             .await
             .map_err(|e| PluginError::ActionFailed(e.to_string()))?;
         Ok(())
+    }
+}
+
+impl RemoteComponent {
+    /// 经 RPC 刷新交互策略缓存（宿主在会话推送时同步读取）。
+    /// 策略为插件级语义：非 Plugin 组件（DataSource/Executor）无策略，直接跳过。
+    /// 失败静默：策略保持上次值（新协议方法，老 SDK 插件可能回 METHOD_NOT_FOUND）。
+    async fn refresh_interaction_policy(&self) {
+        let RemoteComponentKind::Plugin {
+            interaction_policy, ..
+        } = &self.kind
+        else {
+            return;
+        };
+        let result: Result<PanelInteraction, _> = self
+            .client
+            .call(
+                plugin_methods::INTERACTION_POLICY,
+                InteractionPolicyParams {
+                    component_id: self.core.component_id().to_string(),
+                },
+                Duration::from_secs(5),
+            )
+            .await;
+        if let Ok(policy) = result {
+            *interaction_policy.write() = policy;
+        }
     }
 }

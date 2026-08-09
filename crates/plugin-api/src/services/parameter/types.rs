@@ -1,5 +1,6 @@
 //! 参数模块公开与内部类型定义
 
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// 参数解析错误类型
@@ -22,7 +23,8 @@ pub enum ParameterError {
 ///
 /// 外部只能持有此句柄，无法访问内部数据。
 /// 由 HostApi::capture_parameter_snapshot() 创建，由 PluginHandle::resolve_parameters() 消费。
-#[derive(Debug, Clone)]
+/// 可序列化：远端插件经 RPC 收到执行上下文时携带快照副本（与进程内快照等价）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ParameterSnapshot {
     /// 私有字段，外部不可访问
     /// 使用 String 作为键，避免暴露 SystemParameter 类型

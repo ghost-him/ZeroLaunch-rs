@@ -565,8 +565,12 @@ impl PluginManager {
 
         let registered = host_manager
             .load(
-                plugin_dir, handler, on_restart, on_crash,
+                plugin_dir,
+                handler,
+                on_restart,
+                on_crash,
                 0, // 初次加载，无先前重启记录
+                &self.i18n_manager().current_language(),
             )
             .await
             .map_err(|e| match e {
@@ -654,10 +658,15 @@ impl PluginManager {
     fn make_crash_callback(&self, plugin_id: String) -> CrashCallback {
         let tx = self.plugin_event_tx();
         let host_api = self.host_api();
+        let host_manager = self.host_manager();
+        let i18n = self.i18n_manager();
 
         Arc::new(move |prev: PluginRegistration| {
             tx.send(PluginRuntimeEvent::PluginUnloaded(prev)).ok();
             host_api.unregister(&plugin_id);
+            // 崩溃时同步最新语言到重启上下文：崩溃重启的 initialize 握手
+            // 携带实时 locale（而非首次加载时的快照）。
+            host_manager.update_locale(&plugin_id, &i18n.current_language());
             info!(
                 "Plugin {} crashed — stale components unregistered",
                 plugin_id

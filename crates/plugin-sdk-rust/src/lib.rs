@@ -21,7 +21,7 @@ pub mod trace;
 use std::sync::OnceLock;
 
 pub use host_proxy::HostProxy;
-pub use runtime::{host, run};
+pub use runtime::{host, run, PluginApp};
 pub use trace::{instrument, span_for, with_trace};
 
 /// 当前插件 id：`plugin/initialize` 握手时由宿主下发并写入，

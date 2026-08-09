@@ -26,6 +26,13 @@ pub enum ProtocolError {
     #[error("transport closed")]
     TransportClosed,
 
+    #[error("protocol version incompatible: plugin {plugin} declares {got}, host expects {expected} (major version must match)")]
+    ProtocolVersionIncompatible {
+        plugin: String,
+        expected: String,
+        got: String,
+    },
+
     #[error("manifest error: {0}")]
     Manifest(String),
 }

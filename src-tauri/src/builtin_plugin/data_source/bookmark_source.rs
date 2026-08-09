@@ -276,7 +276,8 @@ impl Configurable for BookmarkSource {
                     component: None,
                     label_field: "name".into(),
                     label_field_label: "浏览器名称".into(),
-                    value_field: "bookmarks_path".into(),
+                    value_field: "sources".into(),
+                    merge_key: Some("bookmarks_path".into()),
                     field_mapping: vec![],
                 })
                 .detail_action(DetailActionDef {

@@ -41,6 +41,22 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+/** 按去重键合并两个对象数组：保留当前值的顺序与未匹配项，追加新项。 */
+function mergeByKey(current: unknown[], incoming: unknown[], key: string): unknown[] {
+  const seen = new Set<unknown>()
+  for (const item of current) {
+    if (isRecord(item) && item[key] !== undefined) seen.add(item[key])
+  }
+  const merged = [...current]
+  for (const item of incoming) {
+    if (!isRecord(item) || item[key] === undefined || !seen.has(item[key])) {
+      merged.push(item)
+      if (isRecord(item) && item[key] !== undefined) seen.add(item[key])
+    }
+  }
+  return merged
+}
+
 /** 根据 effect action 的字段映射生成后端参数，不生成额外默认值。 */
 function buildEffectParams(binding: EffectActionBinding): Record<string, unknown> {
   const values = formContext?.values.value ?? {}
@@ -84,7 +100,17 @@ async function execute(): Promise<void> {
 
     if (action.kind === 'data' && isRecord(result)) {
       if (action.binding.valueField in result) {
-        emit('update:modelValue', result[action.binding.valueField])
+        const value = result[action.binding.valueField]
+        const current = formContext?.values.value[props.fieldKey]
+        if (
+          Array.isArray(value) &&
+          Array.isArray(current) &&
+          action.binding.mergeKey
+        ) {
+          emit('update:modelValue', mergeByKey(current, value, action.binding.mergeKey))
+        } else {
+          emit('update:modelValue', value)
+        }
       }
       if (action.binding.fieldMapping) {
         for (const [fromField, toField] of action.binding.fieldMapping) {

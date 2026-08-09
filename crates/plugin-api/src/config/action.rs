@@ -49,6 +49,10 @@ pub struct DataActionBinding {
     /// action 返回结果中用作字段值的字段名。
     #[serde(rename = "valueField", default)]
     pub value_field: String,
+    /// 字段级 data action：返回数组结果与当前字段值合并时的去重键；
+    /// 按该键匹配已存在条目，None 时整体替换当前字段值。
+    #[serde(rename = "mergeKey", default)]
+    pub merge_key: Option<String>,
     /// 返回结果字段到设置字段的映射，格式为 source → target。
     #[serde(rename = "fieldMapping", default)]
     pub field_mapping: Vec<(String, String)>,
@@ -115,6 +119,7 @@ mod tests {
             label_field: "name".into(),
             label_field_label: "名称".into(),
             value_field: "target".into(),
+            merge_key: None,
             field_mapping: vec![("iconRequestJson".into(), "icon_request_json".into())],
         }))
         .expect("Data action must serialize");
@@ -122,6 +127,7 @@ mod tests {
         assert_eq!(data["binding"]["labelField"], "name");
         assert_eq!(data["binding"]["labelFieldLabel"], "名称");
         assert_eq!(data["binding"]["valueField"], "target");
+        assert!(data["binding"]["mergeKey"].is_null());
         assert_eq!(data["binding"]["fieldMapping"][0][0], "iconRequestJson");
 
         let effect = serde_json::to_value(FieldAction::Effect(EffectActionBinding {

@@ -177,6 +177,8 @@ export interface DataActionBinding {
   /** labelField 列的表头显示文本；labelField 在条目 schema 中无对应字段时使用。 */
   labelFieldLabel: string
   valueField: string
+  /** 字段级 data action：返回数组结果与当前字段值合并时的去重键；None 时整体替换。 */
+  mergeKey: string | null
   fieldMapping: [string, string][]
 }
 

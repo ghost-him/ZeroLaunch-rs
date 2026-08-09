@@ -103,6 +103,7 @@ impl Configurable for AliasOptimizer {
                     label_field: "name".into(),
                     label_field_label: "名称".into(),
                     value_field: "target".into(),
+                    merge_key: None,
                     field_mapping: vec![],
                 })
                 .default(serde_json::json!([]))

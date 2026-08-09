@@ -130,6 +130,7 @@ impl Configurable for IconOverrideConfig {
             label_field: "name".into(),
             label_field_label: "名称".into(),
             value_field: "target".into(),
+            merge_key: None,
             field_mapping: vec![
                 ("iconRequestJson".into(), "icon_request_json".into()),
                 ("targetType".into(), "target_type".into()),

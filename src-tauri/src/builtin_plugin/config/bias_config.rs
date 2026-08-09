@@ -82,6 +82,7 @@ impl Configurable for BiasConfig {
             label_field: "name".into(),
             label_field_label: "名称".into(),
             value_field: "target".into(),
+            merge_key: None,
             field_mapping: vec![],
         })
         .min_items(0)

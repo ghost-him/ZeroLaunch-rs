@@ -8,7 +8,9 @@
     "cancel": "Cancel",
     "save": "Save",
     "selectItem": "Select an item",
-    "confirm": "Confirm"
+    "confirm": "Confirm",
+    "notAvailable": "—",
+    "secondsShort": "s"
   },
   "search": {
     "placeholder": "Type to search...",
@@ -158,6 +160,7 @@
       "installDialogTitle": "Install Plugin",
       "dropHint": "Drop a .zip plugin package or plugin directory here",
       "chooseFile": "Choose file / directory",
+      "chooseDir": "Select plugin directory",
       "zipFilterLabel": "Plugin packages",
       "installConfirmContent": "Install plugin: {name}",
       "installConfirmPositive": "Install",
@@ -195,7 +198,29 @@
       "installFromDir": "Install from Directory",
       "logs": "Logs",
       "reload": "Reload",
-      "uninstall": "Uninstall"
+      "uninstall": "Uninstall",
+      "details": "Details",
+      "detailTitle": "Plugin Details",
+      "loadDetailFailed": "Failed to load plugin details",
+      "fieldTriggerKeywords": "Trigger Keywords",
+      "noTriggerKeywords": "No trigger keywords",
+      "fieldDescription": "Description",
+      "fieldPluginId": "Plugin ID",
+      "fieldMinHostVersion": "Min Host Version",
+      "fieldLicense": "License",
+      "fieldSupportedOs": "Supported OS",
+      "fieldHomepage": "Homepage",
+      "fieldProvides": "Capabilities",
+      "fieldPriority": "Priority",
+      "fieldRuntime": "Runtime",
+      "fieldCommand": "Command",
+      "fieldArgs": "Arguments",
+      "fieldAutoRestart": "Auto Restart",
+      "fieldStartupTimeout": "Startup Timeout (s)",
+      "fieldMaxRestart": "Max Restarts",
+      "rawManifest": "View raw manifest",
+      "builtin": "Built-in",
+      "openHomepageFailed": "Failed to open homepage"
     }
   },
   "appearance": {

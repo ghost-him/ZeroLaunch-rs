@@ -43,10 +43,13 @@ impl CalculatorPlugin {
             ),
             metadata: PluginMetadata {
                 id: "calculator".to_string(),
-                name: "计算器".to_string(),
-                version: "1.0.0".to_string(),
-                description: "支持基本数学表达式求值的计算器插件".to_string(),
-                author: "ZeroLaunch".to_string(),
+                // name/description 与 ComponentCore 同用 i18n key（key-or-literal），
+                // 消除插件级与组件级元数据的双源硬编码
+                name: t_key!("calculator", "name").to_string(),
+                // 内置插件无独立版本/作者（随应用分发），UI 按内置标识展示
+                version: String::new(),
+                description: t_key!("calculator", "description").to_string(),
+                author: String::new(),
                 trigger_keywords: vec!["=".to_string()],
                 supported_os: vec![
                     "windows".to_string(),

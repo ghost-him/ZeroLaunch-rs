@@ -186,6 +186,58 @@ export function pluginGetManifest(pluginId: string): Promise<unknown> {
   return invokeCommand<unknown>('plugin_get_manifest', { pluginId })
 }
 
+/** 第三方插件 manifest 的完整 JSON 形状（与 plugin-protocol Manifest 序列化结果一致）。
+ *  可选段在 Rust 侧为 Option 且序列化恒为 null（无 skip_serializing_if），故此处用 `| null` 而非可选 `?:`。 */
+export interface PluginManifest {
+  plugin: {
+    id: string
+    name: string
+    version: string
+    description: string
+    author: string
+    homepage: string | null
+    license: string | null
+    minHostVersion: string
+  }
+  runtime: {
+    command: string
+    args: string[]
+    startupTimeout: number
+    autoRestart: boolean
+    maxRestart: number
+  }
+  components: {
+    provides: string[]
+  }
+  ui: {
+    panelEntry: string | null
+    settingsEntry: string | null
+    resultItemEntry: string | null
+  } | null
+  icon: {
+    path: string
+  } | null
+}
+
+/** 插件详情：元数据（内置/第三方通用，含触发词）+ 第三方 manifest（内置为 null）+ 运行状态。 */
+export interface PluginDetail {
+  pluginId: string
+  name: string
+  version: string
+  description: string
+  author: string
+  triggerKeywords: string[]
+  supportedOs: string[]
+  priority: number
+  state: string
+  enabled: boolean
+  manifest: PluginManifest | null
+}
+
+export function pluginGetDetail(pluginId: string): Promise<PluginDetail> {
+  return invokeCommand<PluginDetail>('plugin_get_detail', { pluginId })
+}
+
 export function pluginReload(pluginId: string): Promise<void> {
   return invokeCommand<void>('plugin_reload', { pluginId })
 }

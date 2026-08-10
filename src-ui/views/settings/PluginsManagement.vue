@@ -5,16 +5,18 @@ import { i18n, resolveText, type Locale } from '@/i18n'
 import { refreshPluginTranslations } from '@/stores/i18n-store'
 import {
   NButton, NDataTable, NTag, NSpace, NText, NModal, NSwitch,
-  NCode, NSpin, NEmpty, NAlert, useMessage,
+  NCode, NSpin, NEmpty, NAlert, NDescriptions, NDescriptionsItem, useMessage,
 } from 'naive-ui'
 import type { DataTableColumn } from 'naive-ui'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
+import { open } from '@tauri-apps/plugin-shell'
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import {
   pluginList, pluginReload, pluginUninstall,
-  pluginInstallLocal, pluginGetLogs, pluginSetEnabled, pickPluginZip, pickPluginDir,
+  pluginInstallLocal, pluginGetLogs, pluginSetEnabled, pluginGetDetail,
+  pickPluginZip, pickPluginDir,
 } from '@/bridge/commands'
-import type { InstalledPluginInfo, BridgeError } from '@/bridge/commands'
+import type { InstalledPluginInfo, PluginDetail, BridgeError } from '@/bridge/commands'
 import type { ComponentInfo } from '@/bridge/contract'
 import { useConfigStore } from '@/stores/config-store'
 import ComponentConfigLoader from '@/components/settings/ComponentConfigLoader.vue'
@@ -23,7 +25,7 @@ const { t } = useI18n()
 const message = useMessage()
 const configStore = useConfigStore()
 
-/** 插件管理页统一行：内置插件（组件级）与第三方插件（插件级）合并展示。 */
+/** 插件管理页统一行：内置与第三方插件合并展示，元数据均来自插件级数据（plugin_list）。 */
 interface PluginRow {
   key: string
   kind: 'builtin' | 'third-party'
@@ -31,12 +33,11 @@ interface PluginRow {
   version: string
   author: string
   enabled: boolean
-  component: ComponentInfo | null
-  plugin: InstalledPluginInfo | null
+  plugin: InstalledPluginInfo
   componentIds: string[]
 }
 
-const thirdPartyPlugins = ref<InstalledPluginInfo[]>([])
+const pluginItems = ref<InstalledPluginInfo[]>([])
 const loading = ref(false)
 
 // 安装流程：拖拽 / 文件选择 → 确认弹窗 → pluginInstallLocal
@@ -56,48 +57,28 @@ const logPluginId = ref('')
 const logContent = ref('')
 const logLoading = ref(false)
 
-/** 第三方插件组件 id 集合，用于把配置组件从内置 Plugin 组件中排除。 */
-const thirdPartyComponentIds = computed(() => {
-  const ids = new Set<string>()
-  for (const p of thirdPartyPlugins.value) {
-    for (const id of p.componentIds) ids.add(id)
-  }
-  return ids
-})
-
-/** 内置插件行（组件级，componentType === 'Plugin' 且不属于任何第三方插件）。 */
-const builtinRows = computed<PluginRow[]>(() =>
-  Object.values(configStore.components)
-    .filter((c) => c.componentType === 'Plugin' && !thirdPartyComponentIds.value.has(c.componentId))
-    .map((c) => ({
-      key: `builtin:${c.componentId}`,
-      kind: 'builtin' as const,
-      name: resolveText(c.componentName),
-      version: '—',
-      author: '—',
-      enabled: c.enabled,
-      component: c,
-      plugin: null,
-      componentIds: [c.componentId],
-    })),
+// 详情查看：元数据（触发词）+ manifest
+const showDetail = ref(false)
+const detailLoading = ref(false)
+const detailData = ref<PluginDetail | null>(null)
+const showRawManifest = ref(false)
+const rawManifestText = computed(() =>
+  detailData.value?.manifest ? JSON.stringify(detailData.value.manifest, null, 2) : '',
 )
 
-/** 第三方插件行（插件级）。 */
-const thirdPartyRows = computed<PluginRow[]>(() =>
-  thirdPartyPlugins.value.map((p) => ({
-    key: `third:${p.pluginId}`,
-    kind: 'third-party' as const,
+/** 插件行：内置（state === 'builtin'）与第三方统一，元数据均来自 plugin_list（插件级）。 */
+const rows = computed<PluginRow[]>(() =>
+  pluginItems.value.map((p) => ({
+    key: p.pluginId,
+    kind: p.state === 'builtin' ? 'builtin' as const : 'third-party' as const,
     name: resolveText(p.name),
     version: p.version,
     author: p.author,
     enabled: p.enabled,
-    component: null,
     plugin: p,
     componentIds: p.componentIds,
   })),
 )
-
-const rows = computed(() => [...builtinRows.value, ...thirdPartyRows.value])
 
 const columns: DataTableColumn<PluginRow>[] = [
   {
@@ -105,9 +86,6 @@ const columns: DataTableColumn<PluginRow>[] = [
     type: 'expand',
     width: 32,
     renderExpand(row) {
-      if (row.kind === 'builtin' && row.component) {
-        return h(ComponentConfigLoader, { component: row.component })
-      }
       const comps = row.componentIds
         .map((id) => configStore.components[id])
         .filter((c): c is ComponentInfo => !!c)
@@ -121,7 +99,15 @@ const columns: DataTableColumn<PluginRow>[] = [
   },
   { title: () => t('settings.thirdPartyPlugins.colName'), key: 'name' },
   { title: () => t('settings.thirdPartyPlugins.colVersion'), key: 'version', width: 90 },
-  { title: () => t('settings.thirdPartyPlugins.colAuthor'), key: 'author', width: 120 },
+  {
+    title: () => t('settings.thirdPartyPlugins.colAuthor'),
+    key: 'author',
+    width: 120,
+    render(row) {
+      // 内置插件无外部作者，标注「内置」
+      return row.kind === 'builtin' ? t('settings.thirdPartyPlugins.builtin') : row.author
+    },
+  },
   {
     title: () => t('settings.thirdPartyPlugins.colState'),
     key: 'state',
@@ -129,16 +115,16 @@ const columns: DataTableColumn<PluginRow>[] = [
     render(row) {
       if (row.kind === 'builtin') {
         // 内置插件编译在程序内，运行状态恒为运行中；启用开关独立反映组件的 enabled 状态
-        const on = row.component?.enabled ?? true
+        const on = row.enabled
         return h(
           NTag,
           { type: on ? 'success' : 'default' },
           { default: () => t(on ? 'settings.thirdPartyPlugins.stateEnabled' : 'settings.thirdPartyPlugins.stateDisabled') },
         )
       }
-      const running = row.plugin!.state.includes('Running')
+      const running = row.plugin.state.includes('Running')
       const color = running ? 'success' : 'error'
-      const label = running ? t('settings.thirdPartyPlugins.stateRunning') : row.plugin!.state
+      const label = running ? t('settings.thirdPartyPlugins.stateRunning') : row.plugin.state
       return h(NTag, { type: color as never }, { default: () => label })
     },
   },
@@ -157,12 +143,16 @@ const columns: DataTableColumn<PluginRow>[] = [
   {
     title: () => t('settings.thirdPartyPlugins.colActions'),
     key: 'actions',
-    // 实测 4 个 small 按钮 + 间距约 228px，列 padding 后 260 足够
-    width: 120,
+    // 实测 5 个 small 按钮 + 间距约 285px，列 padding 后 320 足够
+    width: 320,
     fixed: 'right',
     render(row) {
       const buttons: ReturnType<typeof h>[] = []
-      if (row.kind === 'builtin' || row.componentIds.length > 0) {
+      buttons.push(h(NButton, {
+        size: 'small',
+        onClick: () => handleViewDetail(row.plugin.pluginId),
+      }, { default: () => t('settings.thirdPartyPlugins.details') }))
+      if (row.componentIds.length > 0) {
         buttons.push(h(NButton, {
           size: 'small',
           onClick: () => toggleExpand(row.key),
@@ -172,17 +162,17 @@ const columns: DataTableColumn<PluginRow>[] = [
         buttons.push(
           h(NButton, {
             size: 'small',
-            onClick: () => handleViewLogs(row.plugin!.pluginId),
+            onClick: () => handleViewLogs(row.plugin.pluginId),
           }, { default: () => t('settings.thirdPartyPlugins.logs') }),
           h(NButton, {
             size: 'small',
             disabled: true,
-            onClick: () => handleReload(row.plugin!.pluginId),
+            onClick: () => handleReload(row.plugin.pluginId),
           }, { default: () => t('settings.thirdPartyPlugins.reload') }),
           h(NButton, {
             size: 'small',
             type: 'error',
-            onClick: () => handleUninstall(row.plugin!.pluginId),
+            onClick: () => handleUninstall(row.plugin.pluginId),
           }, { default: () => t('settings.thirdPartyPlugins.uninstall') }),
         )
       }
@@ -207,7 +197,7 @@ function errorText(e: unknown): string {
   return err.message + (err.traceId ? ` (trace: ${err.traceId})` : '')
 }
 
-/** 刷新列表：第三方插件 + 配置组件（安装/卸载会增删 ConfigManager 组件）。 */
+/** 刷新列表：插件（内置 + 第三方）+ 配置组件（安装/卸载会增删 ConfigManager 组件）。 */
 async function loadPlugins() {
   loading.value = true
   try {
@@ -215,7 +205,7 @@ async function loadPlugins() {
       pluginList(),
       configStore.loadAllComponents(),
     ])
-    thirdPartyPlugins.value = plugins
+    pluginItems.value = plugins
     // 插件列表变化（安装/卸载/重载）后刷新合并翻译目录
     refreshPluginTranslations(i18n.global.locale.value as Locale)
   } catch (e) {
@@ -341,23 +331,47 @@ async function handleUninstall(pluginId: string) {
 /** 启用/禁用：内置走配置组件开关，第三方走插件启停。 */
 async function handleToggleEnabled(row: PluginRow, enabled: boolean) {
   try {
-    if (row.kind === 'builtin' && row.component) {
-      await configStore.setEnabled(row.component.componentId, enabled)
-    } else if (row.plugin) {
+    if (row.kind === 'builtin') {
+      // 内置插件组件 id 即插件 id
+      await configStore.setEnabled(row.componentIds[0], enabled)
+    } else {
       await pluginSetEnabled(row.plugin.pluginId, enabled)
     }
+    // 行数据来自 plugin_list 快照（不随 configStore 响应式联动），本地同步 enabled 即时回显
+    pluginItems.value = pluginItems.value.map((p) =>
+      p.pluginId === row.plugin.pluginId ? { ...p, enabled } : p,
+    )
     message.success(
       enabled
         ? t('settings.thirdPartyPlugins.toggleEnabledSuccess')
         : t('settings.thirdPartyPlugins.toggleDisabledSuccess'),
     )
-    if (row.kind === 'third-party') {
-      // plugin_list 按启用状态过滤，禁用后行会消失
-      await loadPlugins()
-    }
   } catch (e) {
     message.error(t('settings.thirdPartyPlugins.toggleFailed') + ': ' + errorText(e))
   }
+}
+
+/** 查看插件详情：加载元数据（含触发词）+ 第三方 manifest 并弹出弹窗。 */
+async function handleViewDetail(pluginId: string) {
+  showDetail.value = true
+  detailLoading.value = true
+  detailData.value = null
+  showRawManifest.value = false
+  try {
+    detailData.value = await pluginGetDetail(pluginId)
+  } catch (e) {
+    message.error(t('settings.thirdPartyPlugins.loadDetailFailed') + ': ' + errorText(e))
+    showDetail.value = false
+  } finally {
+    detailLoading.value = false
+  }
+}
+
+/** 用系统浏览器打开插件主页（webview 内 target=_blank 只会开空白窗口，须走 shell 插件）。 */
+function handleOpenHomepage(url: string) {
+  void open(url).catch(() => {
+    message.error(t('settings.thirdPartyPlugins.openHomepageFailed'))
+  })
 }
 
 /** 查看第三方插件日志。 */
@@ -463,6 +477,114 @@ onUnmounted(() => {
         </NSpin>
       </div>
     </NModal>
+
+    <!-- 插件详情弹窗：元数据（含触发词）+ 第三方 manifest -->
+    <NModal
+      v-model:show="showDetail"
+      :title="detailData ? resolveText(detailData.name) : t('settings.thirdPartyPlugins.detailTitle')"
+      preset="card"
+      style="width: 640px; max-width: calc(100vw - 48px);"
+      :mask-closable="false"
+    >
+      <NSpin :show="detailLoading">
+        <div class="plugin-detail-content">
+          <template v-if="detailData">
+            <!-- 触发词：插件如何被唤起 -->
+            <div style="margin-bottom: 12px;">
+              <NText depth="3" style="margin-right: 8px;">{{ t('settings.thirdPartyPlugins.fieldTriggerKeywords') }}</NText>
+              <template v-if="detailData.triggerKeywords.length">
+                <NTag
+                  v-for="kw in detailData.triggerKeywords"
+                  :key="kw"
+                  type="info"
+                  size="small"
+                  style="margin-right: 6px;"
+                >
+                  {{ kw }}
+                </NTag>
+              </template>
+              <NText v-else depth="3">{{ t('settings.thirdPartyPlugins.noTriggerKeywords') }}</NText>
+            </div>
+
+            <NDescriptions :column="2" bordered size="small" label-placement="left">
+              <NDescriptionsItem :label="t('settings.thirdPartyPlugins.fieldDescription')" :span="2">
+                {{ resolveText(detailData.description) || t('common.notAvailable') }}
+              </NDescriptionsItem>
+              <NDescriptionsItem :label="t('settings.thirdPartyPlugins.fieldPluginId')">
+                {{ detailData.pluginId }}
+              </NDescriptionsItem>
+              <NDescriptionsItem :label="t('settings.thirdPartyPlugins.colVersion')">
+                {{ detailData.manifest ? detailData.version : '' }}
+              </NDescriptionsItem>
+              <NDescriptionsItem :label="t('settings.thirdPartyPlugins.colAuthor')">
+                {{ detailData.manifest ? detailData.author : t('settings.thirdPartyPlugins.builtin') }}
+              </NDescriptionsItem>
+              <NDescriptionsItem :label="t('settings.thirdPartyPlugins.fieldMinHostVersion')">
+                {{ detailData.manifest?.plugin.minHostVersion ?? t('common.notAvailable') }}
+              </NDescriptionsItem>
+              <NDescriptionsItem :label="t('settings.thirdPartyPlugins.fieldLicense')">
+                {{ detailData.manifest?.plugin.license || t('common.notAvailable') }}
+              </NDescriptionsItem>
+              <NDescriptionsItem :label="t('settings.thirdPartyPlugins.fieldPriority')">
+                {{ detailData.priority }}
+              </NDescriptionsItem>
+              <NDescriptionsItem :label="t('settings.thirdPartyPlugins.fieldSupportedOs')" :span="2">
+                {{ detailData.supportedOs.join(', ') || t('common.notAvailable') }}
+              </NDescriptionsItem>
+              <NDescriptionsItem v-if="detailData.manifest" :label="t('settings.thirdPartyPlugins.fieldHomepage')" :span="2">
+                <a
+                  v-if="detailData.manifest.plugin.homepage"
+                  :href="detailData.manifest.plugin.homepage"
+                  @click.prevent="handleOpenHomepage(detailData.manifest.plugin.homepage)"
+                  rel="noopener"
+                >
+                  {{ detailData.manifest.plugin.homepage }}
+                </a>
+                <template v-else>{{ t('common.notAvailable') }}</template>
+              </NDescriptionsItem>
+              <NDescriptionsItem v-if="detailData.manifest" :label="t('settings.thirdPartyPlugins.fieldProvides')" :span="2">
+                {{ detailData.manifest.components.provides.join(', ') || t('common.notAvailable') }}
+              </NDescriptionsItem>
+            </NDescriptions>
+
+            <!-- 运行信息（仅第三方插件 manifest 提供） -->
+            <template v-if="detailData.manifest">
+              <NText depth="3" style="display: block; margin: 16px 0 8px;">
+                {{ t('settings.thirdPartyPlugins.fieldRuntime') }}
+              </NText>
+              <NDescriptions :column="2" bordered size="small" label-placement="left">
+                <NDescriptionsItem :label="t('settings.thirdPartyPlugins.fieldCommand')" :span="2">
+                  {{ detailData.manifest.runtime.command || t('common.notAvailable') }}
+                </NDescriptionsItem>
+                <NDescriptionsItem
+                  v-if="detailData.manifest.runtime.args.length"
+                  :label="t('settings.thirdPartyPlugins.fieldArgs')"
+                  :span="2"
+                >
+                  {{ detailData.manifest.runtime.args.join(' ') }}
+                </NDescriptionsItem>
+                <NDescriptionsItem :label="t('settings.thirdPartyPlugins.fieldAutoRestart')">
+                  {{ detailData.manifest.runtime.autoRestart
+                    ? t('settings.thirdPartyPlugins.stateEnabled')
+                    : t('settings.thirdPartyPlugins.stateDisabled') }}
+                </NDescriptionsItem>
+                <NDescriptionsItem :label="t('settings.thirdPartyPlugins.fieldStartupTimeout')">
+                  {{ detailData.manifest.runtime.startupTimeout }}{{ t('common.secondsShort') }}
+                </NDescriptionsItem>
+                <NDescriptionsItem :label="t('settings.thirdPartyPlugins.fieldMaxRestart')">
+                  {{ detailData.manifest.runtime.maxRestart }}
+                </NDescriptionsItem>
+              </NDescriptions>
+              <!-- 原始 manifest（开发者友好，可折叠） -->
+              <NButton quaternary size="small" style="margin-top: 12px;" @click="showRawManifest = !showRawManifest">
+                {{ t('settings.thirdPartyPlugins.rawManifest') }}
+              </NButton>
+              <NCode v-if="showRawManifest" :code="rawManifestText" language="json" />
+            </template>
+          </template>
+        </div>
+      </NSpin>
+    </NModal>
   </div>
 </template>
 
@@ -489,5 +611,10 @@ onUnmounted(() => {
 .drop-zone.dragging {
   border-color: var(--primary-color);
   background-color: var(--primary-color-alpha);
+}
+.plugin-detail-content {
+  box-sizing: border-box;
+  max-height: min(480px, calc(100vh - 160px));
+  overflow-y: auto;
 }
 </style>

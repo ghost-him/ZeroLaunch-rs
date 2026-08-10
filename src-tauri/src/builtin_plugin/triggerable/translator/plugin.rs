@@ -276,10 +276,13 @@ impl TranslatorPlugin {
             ),
             metadata: PluginMetadata {
                 id: "translator".to_string(),
-                name: "翻译".to_string(),
-                version: "1.0.0".to_string(),
-                description: "多引擎翻译插件".to_string(),
-                author: "ZeroLaunch".to_string(),
+                // name/description 与 ComponentCore 同用 i18n key（key-or-literal），
+                // 消除插件级与组件级元数据的双源硬编码
+                name: t_key!("translator", "name").to_string(),
+                // 内置插件无独立版本/作者（随应用分发），UI 按内置标识展示
+                version: String::new(),
+                description: t_key!("translator", "description").to_string(),
+                author: String::new(),
                 trigger_keywords: vec!["fy".into(), "tr".into(), "翻译".into()],
                 supported_os: vec![
                     "windows".to_string(),

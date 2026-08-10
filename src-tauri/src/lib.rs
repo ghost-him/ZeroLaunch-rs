@@ -215,6 +215,7 @@ pub fn run() {
             // Third-party Plugin Management
             crate::commands::plugin::plugin_list,
             crate::commands::plugin::plugin_get_manifest,
+            crate::commands::plugin::plugin_get_detail,
             crate::commands::plugin::plugin_install_local,
             crate::commands::plugin::plugin_reload,
             crate::commands::plugin::plugin_uninstall,

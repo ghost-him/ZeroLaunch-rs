@@ -8,7 +8,9 @@
     "cancel": "取消",
     "save": "保存",
     "selectItem": "选择一个项目",
-    "confirm": "确定"
+    "confirm": "确定",
+    "notAvailable": "—",
+    "secondsShort": "秒"
   },
   "search": {
     "placeholder": "输入关键词搜索...",
@@ -158,6 +160,7 @@
       "installDialogTitle": "安装插件",
       "dropHint": "将 .zip 插件包或插件目录拖到此处",
       "chooseFile": "点击选择文件 / 目录",
+      "chooseDir": "选择插件目录",
       "zipFilterLabel": "插件包",
       "installConfirmContent": "将安装插件：{name}",
       "installConfirmPositive": "安装",
@@ -195,7 +198,29 @@
       "installFromDir": "从目录安装",
       "logs": "日志",
       "reload": "重载",
-      "uninstall": "卸载"
+      "uninstall": "卸载",
+      "details": "详情",
+      "detailTitle": "插件详情",
+      "loadDetailFailed": "加载插件详情失败",
+      "fieldTriggerKeywords": "触发词",
+      "noTriggerKeywords": "无触发词",
+      "fieldDescription": "描述",
+      "fieldPluginId": "插件 ID",
+      "fieldMinHostVersion": "最低宿主版本",
+      "fieldLicense": "许可证",
+      "fieldSupportedOs": "支持平台",
+      "fieldHomepage": "主页",
+      "fieldProvides": "能力",
+      "fieldPriority": "优先级",
+      "fieldRuntime": "运行信息",
+      "fieldCommand": "启动命令",
+      "fieldArgs": "启动参数",
+      "fieldAutoRestart": "自动重启",
+      "fieldStartupTimeout": "启动超时（秒）",
+      "fieldMaxRestart": "最大重启次数",
+      "rawManifest": "查看原始 manifest",
+      "builtin": "内置",
+      "openHomepageFailed": "打开主页失败"
     }
   },
   "appearance": {

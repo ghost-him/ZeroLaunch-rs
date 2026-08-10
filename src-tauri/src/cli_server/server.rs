@@ -58,6 +58,8 @@ pub async fn start(
     let app_state = state.clone();
 
     let app = Router::new()
+        // Health check
+        .route("/v1/ping", get(routes::ping::handle))
         // Search & Session
         .route("/v1/query", post(routes::query::handle))
         .route("/v1/session/mode", get(routes::session::get_mode))

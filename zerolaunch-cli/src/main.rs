@@ -17,12 +17,15 @@ struct Cli {
     #[arg(short = 'j', long = "json")]
     json: bool,
 
+    /// 子命令；不传时默认执行 ping，检查 ZeroLaunch 主程序是否在运行
     #[command(subcommand)]
-    command: Commands,
+    command: Option<Commands>,
 }
 
 #[derive(Subcommand)]
 enum Commands {
+    /// 检查 ZeroLaunch 主程序是否在运行（成功返回 pong）
+    Ping,
     /// 搜索项目
     Query { text: String },
     /// 获取当前会话模式
@@ -65,25 +68,42 @@ enum ConfigCmd {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    let client = CliClient::load()?;
+    // 未传入子命令时默认执行 Ping（健康检查）
+    let command: &Commands = cli.command.as_ref().unwrap_or(&Commands::Ping);
 
-    let result = dispatch(&cli, &client)?;
+    let result = match execute(command) {
+        Ok(v) => v,
+        // 连接失败：给出「请启动主程序」的友好提示，而不是直接抛出报错
+        Err(err) if client::is_connection_error(&err) => {
+            eprintln!("{}", client::CONNECTION_HINT);
+            eprintln!("\n详细信息：{}", err);
+            std::process::exit(1);
+        }
+        Err(err) => return Err(err),
+    };
 
     if cli.json {
         // --json: 输出 raw JSON
         println!("{}", serde_json::to_string_pretty(&result)?);
     } else {
         // 默认：人可读格式
-        let text = format_human(&cli.command, &result);
+        let text = format_human(command, &result);
         print!("{}", text);
     }
 
     Ok(())
 }
 
+/// 加载客户端并执行命令，返回 HTTP 响应的 JSON。
+fn execute(command: &Commands) -> Result<Value> {
+    let client = CliClient::load()?;
+    dispatch(command, &client)
+}
+
 /// 根据 CLI 命令调用 HTTP 接口，返回 JSON 响应。
-fn dispatch(cli: &Cli, client: &CliClient) -> Result<Value> {
-    match &cli.command {
+fn dispatch(command: &Commands, client: &CliClient) -> Result<Value> {
+    match command {
+        Commands::Ping => client.ping(),
         Commands::Query { text } => {
             client.post("/v1/query", serde_json::json!({ "rawQuery": text }))
         }
@@ -112,6 +132,7 @@ fn dispatch_config(sub: &ConfigCmd, client: &CliClient) -> Result<Value> {
 /// 根据命令类型选择对应的格式化函数。
 fn format_human(cmd: &Commands, value: &Value) -> String {
     match cmd {
+        Commands::Ping => format_ping(value),
         Commands::Query { .. } => format_query(value),
         Commands::Session => format_session(value),
         Commands::Plugins { sub } => match sub {

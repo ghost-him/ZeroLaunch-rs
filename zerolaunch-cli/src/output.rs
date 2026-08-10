@@ -442,6 +442,17 @@ pub fn format_config_get(value: &Value) -> String {
     }
 }
 
+// ─── Ping ─────────────────────────────────────────────────────────────
+
+/// 格式化健康检查结果：主程序在线时输出「正在运行」提示。
+pub fn format_ping(value: &Value) -> String {
+    if value.get("pong").and_then(|v| v.as_bool()).unwrap_or(false) {
+        "ZeroLaunch 正在运行。\n".into()
+    } else {
+        pretty_raw(value)
+    }
+}
+
 // ─── 辅助函数 ─────────────────────────────────────────────────────────
 
 /// 对齐方向。
@@ -833,6 +844,22 @@ mod tests {
         );
         // Enabled 列应有标记
         assert!(output.contains("✓"));
+    }
+
+    // ── format_ping ──
+
+    #[test]
+    fn test_ping_pong() {
+        let json = serde_json::json!({ "pong": true });
+        let output = format_ping(&json);
+        assert!(output.contains("正在运行"));
+    }
+
+    #[test]
+    fn test_ping_unexpected_shape() {
+        // 非预期响应形状（如空 JSON）不应 panic，回退为 raw 输出
+        let output = format_ping(&serde_json::json!({}));
+        assert!(output.contains("{"));
     }
 
     // ── --json output unaffected ──

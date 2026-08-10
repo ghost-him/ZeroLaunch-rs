@@ -105,6 +105,7 @@
     "saveSuccess": "Settings saved",
     "resetSuccess": "Reset to defaults",
     "saveFailed": "Failed to save settings",
+    "retry": "Retry",
     "actionSuccess": "Action {label} completed",
     "actionFailed": "Action {label} failed: {message}",
     "actionFailedDefault": "The action reported failure",

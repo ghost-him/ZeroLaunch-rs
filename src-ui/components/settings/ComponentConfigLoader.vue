@@ -5,7 +5,7 @@
     </div>
     <div v-else-if="loadErr" class="error-state">
       <n-text type="error">{{ loadErr }}</n-text>
-      <n-button size="small" @click="init">{{ $t('settings.saveFailed') }}</n-button>
+      <n-button size="small" @click="init">{{ $t('settings.retry') }}</n-button>
     </div>
     <component
       v-else-if="settingsComponent && settings"
@@ -25,7 +25,8 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { NSpin, NText, NButton } from 'naive-ui'
+import { NSpin, NText, NButton, useMessage } from 'naive-ui'
+import { useI18n } from 'vue-i18n'
 import DynamicForm from './DynamicForm.vue'
 import { useConfigStore } from '../../stores/config-store'
 import { usePluginStore } from '../../stores/plugin-store'
@@ -39,6 +40,9 @@ const props = defineProps<{
 
 const configStore = useConfigStore()
 const pluginStore = usePluginStore()
+
+const message = useMessage()
+const { t } = useI18n()
 
 
 const loading = ref(true)
@@ -59,11 +63,14 @@ const isLoaded = computed(
     && (!!settingsComponent.value || !!schema.value),
 )
 
+/** 第三方/自定义设置面板（如翻译插件）保存：成功后弹提示并重取设置，失败弹错误并展示错误态。 */
 async function onThirdPartySave(newSettings: unknown) {
   try {
     await configApplySettings(props.component.componentId, newSettings)
+    message.success(t('settings.saveSuccess'))
     await init()
   } catch (e) {
+    message.error(t('settings.saveFailed'))
     loadErr.value = String(e)
   }
 }

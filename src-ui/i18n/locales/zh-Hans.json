@@ -105,6 +105,7 @@
     "saveSuccess": "配置已保存",
     "resetSuccess": "已重置为默认值",
     "saveFailed": "配置保存失败",
+    "retry": "重试",
     "actionSuccess": "操作“{label}”已完成",
     "actionFailed": "操作“{label}”失败：{message}",
     "actionFailedDefault": "操作返回失败",

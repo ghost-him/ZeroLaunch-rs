@@ -5,9 +5,12 @@
 
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
 
+use regex::Regex;
 use tracing::{debug, info};
 use walkdir::WalkDir;
+use zerolaunch_plugin_protocol::manifest::PLUGIN_ID_RE;
 use zerolaunch_plugin_protocol::Manifest;
 
 use super::plugin_info::InstallError;
@@ -73,6 +76,10 @@ impl PluginInstaller {
             .map_err(|e| InstallError::Manifest(format!("invalid manifest: {}", e)))?;
 
         let plugin_id = &manifest.plugin.id;
+        // 先用反向域名正则校验 ID 再拼装目标目录：恶意 ID（如含 `/`/`..`）会让
+        // join/create_dir_all 逃出 plugins_dir；完整 manifest 校验在 load 阶段
+        // 才执行，届时目录已落盘、回滚还会删除目录外的路径。
+        validate_plugin_id(plugin_id)?;
         let target_dir = self.plugins_dir.join(plugin_id);
 
         if target_dir.exists() {
@@ -151,6 +158,10 @@ impl PluginInstaller {
             .map_err(|e| InstallError::Manifest(format!("invalid manifest: {}", e)))?;
 
         let plugin_id = &manifest.plugin.id;
+        // 先用反向域名正则校验 ID 再拼装目标目录：恶意 ID（如含 `/`/`..`）会让
+        // join/create_dir_all 逃出 plugins_dir；完整 manifest 校验在 load 阶段
+        // 才执行，届时目录已落盘、回滚还会删除目录外的路径。
+        validate_plugin_id(plugin_id)?;
         let target_dir = self.plugins_dir.join(plugin_id);
 
         if target_dir.exists() {
@@ -165,6 +176,20 @@ impl PluginInstaller {
 }
 
 // ── 私有辅助函数 ─────────────────────────────────────────────────
+
+/// 校验插件 ID 符合反向域名正则（与 plugin-host validate_manifest 同源）。
+///
+/// 必须在 `plugins_dir.join(plugin_id)` 之前调用：install 路径在 load 阶段
+/// 之前不会校验 manifest，含 `/`/`..` 的恶意 ID 会让 join/create_dir_all
+/// 逃出 plugins_dir，且回滚 `remove_dir_all` 会删除逃逸目录。
+fn validate_plugin_id(id: &str) -> Result<(), InstallError> {
+    static COMPILED_PLUGIN_ID_RE: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(PLUGIN_ID_RE).expect("PLUGIN_ID_RE 常量必须是合法正则"));
+    if !COMPILED_PLUGIN_ID_RE.is_match(id) {
+        return Err(InstallError::Manifest(format!("插件 ID 格式非法: {id}")));
+    }
+    Ok(())
+}
 
 /// 校验安装目录内无符号链接和路径遍历（使用 walkdir 递归遍历）。
 fn verify_install_dir(target_dir: &Path) -> Result<(), InstallError> {
@@ -245,4 +270,26 @@ fn copy_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_plugin_id;
+
+    #[test]
+    fn validate_plugin_id_accepts_reverse_domain() {
+        assert!(validate_plugin_id("com.example.plugin").is_ok());
+        assert!(validate_plugin_id("io.github.user.my-plugin").is_ok());
+        assert!(validate_plugin_id("a.b").is_ok());
+    }
+
+    #[test]
+    fn validate_plugin_id_rejects_path_traversal() {
+        // 含 `/` 与 `..` 的 ID 会逃出 plugins_dir，必须在 join 前被拒绝
+        assert!(validate_plugin_id("a.b/../../../evil").is_err());
+        assert!(validate_plugin_id("a.b/..").is_err());
+        assert!(validate_plugin_id("..").is_err());
+        assert!(validate_plugin_id("no-dots").is_err());
+        assert!(validate_plugin_id("Uppercase.plugin").is_err());
+    }
 }

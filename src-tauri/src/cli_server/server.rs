@@ -5,7 +5,7 @@ use axum::routing::{get, post};
 use axum::Router;
 use std::sync::Arc;
 use tokio::net::TcpListener;
-use tracing::info;
+use tracing::{error, info};
 
 use super::routes;
 use crate::core::cli_token::{generate_token_string, persist_cli_token, CliToken};
@@ -98,7 +98,11 @@ pub async fn start(
     info!("CLI HTTP server listening on 127.0.0.1:{}", port);
 
     tauri::async_runtime::spawn(async move {
-        axum::serve(listener, app).await.unwrap();
+        // 监听器已提前绑定成功，serve 只在 accept 循环异常时退出。
+        // 失败仅记录日志：unwrap 会静默杀死整条 serve 任务且无法定位原因。
+        if let Err(e) = axum::serve(listener, app).await {
+            error!("CLI HTTP server exited with error: {e}");
+        }
     });
 
     Ok(CliServerHandle { port, token })

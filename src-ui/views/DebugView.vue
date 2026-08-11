@@ -23,8 +23,10 @@ const activeTab = ref('inspector')
 </script>
 
 <style scoped>
+/* 弹性填充链：settings-content(flex column) → debug-view(flex:1) → n-tabs(flex:1) → n-tab-pane(flex:1 + overflow) */
 .debug-view {
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -33,14 +35,18 @@ const activeTab = ref('inspector')
 .debug-view :deep(.n-tabs) {
   display: flex;
   flex-direction: column;
-  height: 100%;
-}
-.debug-view :deep(.n-tabs-pane-wrapper) {
   flex: 1;
-  overflow: auto;
+  min-height: 0;
 }
+.debug-view :deep(.n-tabs-nav) {
+  flex-shrink: 0;
+}
+/* naive-ui 非 animated 分支无 .n-tabs-pane-wrapper 包装层，pane 是 n-tabs 直接子元素，
+   滚动由激活的 pane 接管（display-directive=show 时非激活 pane 为 display:none） */
 .debug-view :deep(.n-tab-pane) {
-  height: 100%;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   padding-top: 16px;
 }
 </style>

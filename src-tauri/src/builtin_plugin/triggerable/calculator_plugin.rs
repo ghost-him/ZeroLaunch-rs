@@ -9,7 +9,7 @@ use zerolaunch_plugin_api::host::PluginHandle;
 use zerolaunch_plugin_api::services::IconRequest;
 use zerolaunch_plugin_api::{
     PanelInteraction, PanelKeyAction, PanelKeyBinding, Plugin, PluginContext, PluginError,
-    PluginMetadata, Query, QueryChannel, QueryResponse, ResultAction,
+    PluginKind, PluginMetadata, Query, QueryChannel, QueryResponse, ResultAction,
 };
 
 pub struct CalculatorPlugin {
@@ -57,6 +57,7 @@ impl CalculatorPlugin {
                     "linux".to_string(),
                 ],
                 priority: 100,
+                kind: PluginKind::Builtin,
             },
             inner: RwLock::new(CalculatorSettings::default()),
             last_result: RwLock::new(None),

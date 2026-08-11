@@ -377,7 +377,7 @@ async fn dispatch(
                     component_description: ds.component_description().to_string(),
                     component_type: ds.component_type(),
                     kind: ComponentKind::DataSource,
-                    priority: ds.priority() as i32,
+                    priority: ds.priority(),
                 });
             }
             for ex in &app.executors {
@@ -389,7 +389,7 @@ async fn dispatch(
                     kind: ComponentKind::ActionExecutor {
                         target_types: ex.supported_target_types(),
                     },
-                    priority: ex.priority() as i32,
+                    priority: ex.priority(),
                 });
             }
             Ok(serde_json::to_value(components).unwrap_or_default())

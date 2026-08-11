@@ -212,6 +212,7 @@
       "fieldHomepage": "Homepage",
       "fieldProvides": "Capabilities",
       "fieldPriority": "Priority",
+      "fieldRuntimeState": "Runtime State",
       "fieldRuntime": "Runtime",
       "fieldCommand": "Command",
       "fieldArgs": "Arguments",

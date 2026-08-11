@@ -165,7 +165,7 @@ export function usePluginManager() {
       const installed = await pluginList()
       for (const info of installed) {
         // 内置插件无 manifest 文件，跳过第三方注册流程
-        if (info.state === 'builtin') continue
+        if (info.kind === 'builtin') continue
         try {
           const manifest = await pluginGetManifest(info.pluginId) as Record<string, unknown>
           await registerThirdPartyPlugin(info, manifest)

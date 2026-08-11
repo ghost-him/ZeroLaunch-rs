@@ -618,7 +618,27 @@ pub struct PluginMetadata {
     #[serde(rename = "supportedOs")]
     pub supported_os: Vec<String>,
     #[serde(rename = "priority")]
-    pub priority: i32,
+    pub priority: u32,
+    /// 插件种类（宿主管辖的运行属性）：内置代码构造恒为 Builtin；
+    /// 第三方由 plugin-host 加载时强制覆盖为 ThirdParty（防插件谎报）。
+    #[serde(rename = "kind", default)]
+    pub kind: PluginKind,
+}
+
+/// 插件种类 —— 区分内置（编译进二进制）与第三方（外部子进程）。
+///
+/// 跨 IPC 序列化（InstalledPluginInfo.kind / 前端行模型），
+/// 也用于 PluginManager 内部统一视图 PluginInfo.kind；
+/// 前端以 JSON 键名 "builtin"/"third-party" 作联合类型判断。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum PluginKind {
+    /// 编译进二进制、由 inventory 自动发现的内置插件。
+    #[serde(rename = "builtin")]
+    Builtin,
+    /// 外部子进程加载的第三方插件（子进程 + stdio JSON-RPC）。
+    #[default]
+    #[serde(rename = "third-party")]
+    ThirdParty,
 }
 
 /// 插件层统一错误类型。

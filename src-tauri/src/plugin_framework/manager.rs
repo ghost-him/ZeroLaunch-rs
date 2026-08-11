@@ -1,12 +1,15 @@
-//! PluginManager — 插件身份与生命周期的统一入口。
+//! PluginManager — 插件生命周期的统一入口。
 //!
-//! PluginManager 是「有哪些插件」的唯一权威来源。
-//! 它管理 PluginInfo[] 统一视图，连接内置组件提供者和第三方插件提供者。
+//! 管理第三方插件的加载/卸载/安装/崩溃恢复（经 PluginHostManager），
+//! 内置组件由 builtin_registry 收集后由调用方（bootstrap）注册。
+//! 插件级视图数据（列表/详情）由 commands 层经 host_runtime_infos + PluginRegistry 组装，
+//! 不经本模块缓存。
 //!
 //! 注册/解注册通过 PluginRuntimeEvent 广播通道（PM → CM 解耦管道）完成，
 //! ConfigManager 处理配置侧（Configurable）+ 转发 ConfigEvent 到 SessionDispatcher。
 
 use parking_lot::RwLock;
+use std::collections::HashSet;
 use std::fmt;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
@@ -16,6 +19,7 @@ use tauri::Emitter;
 use tracing::{error, info};
 use zerolaunch_plugin_api::config::Configurable;
 use zerolaunch_plugin_api::host::PluginSdkConfig;
+use zerolaunch_plugin_api::plugin::{PluginKind, PluginMetadata};
 use zerolaunch_plugin_host::host_dispatch::HostCallHandler;
 use zerolaunch_plugin_host::manager::{
     CrashCallback, InstalledPluginInfo, PluginHostManager, PluginLoadError, PluginRegistration,
@@ -24,15 +28,15 @@ use zerolaunch_plugin_host::manager::{
 use zerolaunch_plugin_protocol::Manifest;
 
 use crate::core::config::event::{PluginEventSender, PluginRuntimeEvent};
+use crate::core::config::manager::ConfigManager;
 use crate::plugin_framework::builtin_registry;
 use crate::plugin_framework::builtin_registry::{CollectedBuiltins, InventoryContext};
 use crate::plugin_framework::zlplugin_protocol::ZlpluginProtocolHandler;
 use crate::plugin_framework::SessionDispatcher;
 use crate::sdk::HostApi;
 
-use super::builtin;
 use super::host_handler::TauriHostCallHandler;
-use super::plugin_info::{InstallError, PluginInfo, PluginStatus};
+use super::plugin_info::InstallError;
 use super::plugin_installer::PluginInstaller;
 use crate::core::i18n::I18nManager;
 
@@ -71,17 +75,13 @@ impl fmt::Display for PluginManagerError {
 
 impl std::error::Error for PluginManagerError {}
 
-/// 插件管理器，统一管理内置组件和第三方插件。
+/// 插件管理器：统一管理内置组件与第三方插件的生命周期与注册编排。
 ///
 /// 所有方法使用 `&self`（内部 RwLock 实现可变性），
 /// 与 SessionDispatcher / ConfigManager 的模式一致。
 ///
 /// 不再直接依赖 ConfigManager，通过 PluginRuntimeEvent 广播通道与 CM 通信。
 pub struct PluginManager {
-    /// 内置组件信息缓存
-    builtin_infos: RwLock<Vec<PluginInfo>>,
-    /// 第三方插件信息缓存
-    third_party_infos: RwLock<Vec<PluginInfo>>,
     /// PluginRuntimeEvent 通道发送端（PM → CM 解耦管道）
     plugin_event_tx: RwLock<Option<PluginEventSender>>,
     /// HostApi 引用
@@ -96,8 +96,6 @@ impl PluginManager {
     /// 创建 PluginManager 实例。
     pub fn new() -> Self {
         Self {
-            builtin_infos: RwLock::new(Vec::new()),
-            third_party_infos: RwLock::new(Vec::new()),
             plugin_event_tx: RwLock::new(None),
             host_api: RwLock::new(None),
             i18n: RwLock::new(None),
@@ -139,21 +137,14 @@ impl PluginManager {
     /// 初始化 PluginHostManager（PluginManager 内部构造，不从外部注入）。
     /// 子目录命名（plugins / plugin-data / plugin-logs）是 PluginManager 的内部实现细节，
     /// 调用方只需提供 app_data_dir。
-    ///
-    /// 同时注入内置组件 id 集合（来自已收集的 builtin_infos），作为
-    /// plugin-host 冲突预检的数据源——内置组件注册完毕后调用，此后集合稳定。
-    pub fn init_host_manager(&self, app_data_dir: &Path) {
+    /// `builtin_component_ids` 为 plugin-host 冲突预检数据源：由调用方在 init_builtins
+    /// 完成后从 CollectedBuiltins 提取传入（内置组件集合启动后稳定，注入一次即可）。
+    pub fn init_host_manager(&self, app_data_dir: &Path, builtin_component_ids: HashSet<String>) {
         let plugins_dir = app_data_dir.join("plugins");
         let plugin_data_dir = app_data_dir.join("plugin-data");
         let plugin_log_dir = app_data_dir.join("plugin-logs");
         let hm = PluginHostManager::new(plugins_dir, plugin_data_dir, plugin_log_dir);
-        let builtin_ids: std::collections::HashSet<String> = self
-            .builtin_infos
-            .read()
-            .iter()
-            .map(|i| i.id.clone())
-            .collect();
-        hm.set_builtin_component_ids(builtin_ids);
+        hm.set_builtin_component_ids(builtin_component_ids);
         *self.host_manager.write() = Some(hm);
     }
 
@@ -185,75 +176,93 @@ impl PluginManager {
 
     // ── 初始化 API ──────────────────────────────────────────────
 
-    /// 收集所有内置组件、创建 PluginInfo 条目。
+    /// 收集所有内置组件（inventory 自动发现）。
     ///
     /// 参数 `session_dispatcher` 用于传递给 InventoryContext，供需要 SessionDispatcher 的组件工厂使用。
-    /// 返回 `CollectedBuiltins`，调用方负责将各部分注册到 ConfigManager / SessionDispatcher。
+    /// 返回 `CollectedBuiltins`，调用方负责将各部分注册到 ConfigManager / SessionDispatcher，
+    /// 并从中提取内置组件 id 集合传给 init_host_manager（plugin-host 冲突预检数据源）。
     pub(crate) fn init_builtins(
         &self,
         session_dispatcher: Arc<SessionDispatcher>,
     ) -> CollectedBuiltins {
         let host_api = self.host_api();
         let ctx = InventoryContext::new(host_api.clone(), session_dispatcher);
-        let collected = builtin_registry::collect_all_builtin_entries(&ctx);
-
-        // 为所有内置组件创建 PluginInfo 条目
-        let mut infos = Vec::new();
-        for (c, _) in &collected.executors {
-            infos.push(builtin::make_builtin_info(c, c.default_enabled()));
-        }
-        for (c, _) in &collected.data_sources {
-            infos.push(builtin::make_builtin_info(c, c.default_enabled()));
-        }
-        for (c, _) in &collected.keyword_optimizers {
-            infos.push(builtin::make_builtin_info(c, c.default_enabled()));
-        }
-        for (c, _) in &collected.keyword_injectors {
-            infos.push(builtin::make_builtin_info(c, c.default_enabled()));
-        }
-        for (c, _) in &collected.search_engines {
-            infos.push(builtin::make_builtin_info(c, c.default_enabled()));
-        }
-        for (c, _) in &collected.score_boosters {
-            infos.push(builtin::make_builtin_info(c, c.default_enabled()));
-        }
-        for (c, _) in &collected.plugins {
-            infos.push(builtin::make_builtin_info(c, c.default_enabled()));
-        }
-        for c in &collected.config_components {
-            infos.push(builtin::make_builtin_info(c, c.default_enabled()));
-        }
-
-        self.builtin_infos.write().append(&mut infos);
-
-        collected
+        builtin_registry::collect_all_builtin_entries(&ctx)
     }
 
     // ── 查询 API ────────────────────────────────────────────────
 
-    /// 返回所有插件的统一列表（内置 + 第三方）。
-    pub fn list_all(&self) -> Vec<PluginInfo> {
-        let mut all = Vec::new();
-        all.extend(self.builtin_infos.read().iter().cloned());
-        all.extend(self.third_party_infos.read().iter().cloned());
-        all.sort_by_key(|p| (p.priority, p.id.clone()));
-        all
+    /// 内置插件条目：以 PluginMetadata 为插件级数据源（插件管理页实体是插件而非组件），
+    /// state 固定 "builtin"，组件 id 即插件 id。
+    pub fn builtin_plugin_info(
+        &self,
+        meta: &PluginMetadata,
+        cm: &ConfigManager,
+    ) -> InstalledPluginInfo {
+        InstalledPluginInfo {
+            plugin_id: meta.id.clone(),
+            name: meta.name.clone(),
+            version: meta.version.clone(),
+            description: meta.description.clone(),
+            author: meta.author.clone(),
+            state: "builtin".to_string(),
+            enabled: cm.is_enabled(&meta.id),
+            kind: PluginKind::Builtin,
+            priority: meta.priority,
+            component_ids: vec![meta.id.clone()],
+        }
     }
 
-    /// 按 plugin_id 查找插件信息。
-    pub fn get(&self, plugin_id: &str) -> Option<PluginInfo> {
-        self.builtin_infos
-            .read()
-            .iter()
-            .find(|i| i.id == plugin_id)
-            .cloned()
-            .or_else(|| {
-                self.third_party_infos
-                    .read()
-                    .iter()
-                    .find(|i| i.id == plugin_id)
-                    .cloned()
-            })
+    /// 单个插件条目（详情用）：内置直接构造，第三方按 id 直查 host 运行时（O(1)）。
+    ///
+    /// 调用方已持有 metadata（registry.get），此处不重复查询；
+    /// 排序口径与 list_plugins 一致（插件声明优先级）。
+    pub fn plugin_info(
+        &self,
+        plugin_id: &str,
+        meta: &PluginMetadata,
+        cm: &ConfigManager,
+    ) -> Option<InstalledPluginInfo> {
+        let hm = self.host_manager();
+        let mut info = if meta.kind == PluginKind::Builtin {
+            self.builtin_plugin_info(meta, cm)
+        } else {
+            hm.get_plugin_info(plugin_id, |a| {
+                a.components.iter().all(|c| cm.is_enabled(c.component_id()))
+            })?
+        };
+        info.priority = meta.priority;
+        Some(info)
+    }
+
+    /// 插件统一列表（IPC / CLI 共用）：第三方运行时信息 + 内置条目合并，
+    /// 排序口径统一为插件声明优先级（PluginMetadata.priority）。
+    ///
+    /// 内置判定以 metadata.kind（宿主管辖的运行属性，插件注册时确定）为准：
+    /// 内置插件由代码构造为 Builtin，第三方由 plugin-host 加载时强制为 ThirdParty。
+    pub fn list_plugins(
+        &self,
+        cm: &ConfigManager,
+        dispatcher: &SessionDispatcher,
+    ) -> Vec<InstalledPluginInfo> {
+        let hm = self.host_manager();
+        let mut list = hm.list_plugin_info(|a| {
+            a.components.iter().all(|c| cm.is_enabled(c.component_id())) && !a.components.is_empty()
+        });
+        for meta in dispatcher.plugin_registry().get_all_metadata() {
+            match list.iter_mut().find(|i| i.plugin_id == meta.id) {
+                // 已在 hm 列表：第三方（内置不会在 hm）。统一排序口径为插件声明优先级。
+                Some(info) => info.priority = meta.priority,
+                None => {
+                    if meta.kind == PluginKind::Builtin {
+                        list.push(self.builtin_plugin_info(&meta, cm));
+                    }
+                    // 非内置且不在 hm：注册/加载时序异常（理论不可达），不产出行，避免误标。
+                }
+            }
+        }
+        list.sort_by_key(|p| (p.priority, p.plugin_id.clone()));
+        list
     }
 
     /// 返回插件安装根目录。
@@ -404,6 +413,7 @@ impl PluginManager {
             state: "running".to_string(),
             enabled: !adapters.components.is_empty()
                 && adapters.components.iter().all(|c| c.default_enabled()),
+            kind: PluginKind::ThirdParty,
             priority,
             component_ids: adapters
                 .components
@@ -473,7 +483,6 @@ impl PluginManager {
                 .send(PluginRuntimeEvent::PluginUnloaded(adapters))
                 .ok();
         }
-        self.remove_third_party_info(plugin_id);
 
         if let Err(e) = hm.unload(plugin_id).await {
             error!("Unload during uninstall failed: {}", e);
@@ -587,22 +596,6 @@ impl PluginManager {
             error!("广播 PluginLoaded 失败（无接收者？）: {}", e);
         }
 
-        let enabled = !registered.components.is_empty()
-            && registered.components.iter().all(|c| c.default_enabled());
-        let component_count = registered.components.len();
-        let priority = registered.compute_priority();
-        self.register_third_party_info(PluginInfo::third_party(
-            plugin_id.clone(),
-            manifest.plugin.name.clone(),
-            manifest.plugin.version.clone(),
-            manifest.plugin.description.clone(),
-            manifest.plugin.author.clone(),
-            component_count,
-            enabled,
-            true,
-            priority,
-        ));
-
         // 注册插件翻译目录（<plugin_dir>/i18n/<lang>.json），供前端经 IPC 合并
         self.i18n_manager()
             .register_plugin_catalog(&plugin_id, plugin_dir);
@@ -672,61 +665,6 @@ impl PluginManager {
                 plugin_id
             );
         })
-    }
-
-    // ── 信息管理 ───────────────────────────────────────────────
-
-    pub fn register_third_party_info(&self, info: PluginInfo) {
-        self.third_party_infos.write().push(info);
-    }
-
-    pub fn remove_third_party_info(&self, plugin_id: &str) {
-        self.third_party_infos.write().retain(|i| i.id != plugin_id);
-    }
-
-    pub fn update_third_party_status(
-        &self,
-        plugin_id: &str,
-        is_running: bool,
-        error_msg: Option<String>,
-    ) {
-        if let Some(info) = self
-            .third_party_infos
-            .write()
-            .iter_mut()
-            .find(|i| i.id == plugin_id)
-        {
-            info.status = if is_running {
-                PluginStatus::Active
-            } else if let Some(msg) = error_msg {
-                PluginStatus::Error(msg)
-            } else {
-                PluginStatus::Inactive
-            };
-        }
-    }
-
-    pub fn list_third_party(&self) -> Vec<PluginInfo> {
-        self.third_party_infos.read().clone()
-    }
-
-    pub fn register_builtin_info(&self, info: PluginInfo) {
-        self.builtin_infos.write().push(info);
-    }
-
-    pub fn list_builtins(&self) -> Vec<PluginInfo> {
-        self.builtin_infos.read().clone()
-    }
-
-    pub fn update_builtin_enabled(&self, component_id: &str, enabled: bool) {
-        if let Some(info) = self
-            .builtin_infos
-            .write()
-            .iter_mut()
-            .find(|i| i.id == component_id)
-        {
-            info.enabled = enabled;
-        }
     }
 
     // ── 安装器（委托至 PluginInstaller） ────────────────────────────

@@ -12,7 +12,7 @@ use zerolaunch_plugin_api::host::PluginHandle;
 use zerolaunch_plugin_api::services::IconRequest;
 use zerolaunch_plugin_api::{
     PanelInteraction, PanelKeyAction, PanelKeyBinding, PanelQueryTrigger, Plugin, PluginContext,
-    PluginError, PluginMetadata, Query, QueryChannel, QueryResponse, ResultAction,
+    PluginError, PluginKind, PluginMetadata, Query, QueryChannel, QueryResponse, ResultAction,
 };
 
 use crate::core::config::setting_builders::SchemaBuilder;
@@ -290,6 +290,7 @@ impl TranslatorPlugin {
                     "linux".to_string(),
                 ],
                 priority: 90,
+                kind: PluginKind::Builtin,
             },
             inner: RwLock::new(TranslatorSettings::default()),
             llm_config,

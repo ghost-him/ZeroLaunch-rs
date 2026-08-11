@@ -146,6 +146,8 @@ export interface InstalledPluginInfo {
   author: string
   state: string
   enabled: boolean
+  /** 插件种类：内置或第三方（内置条目由后端 plugin_list 合并填充）。 */
+  kind: 'builtin' | 'third-party'
   priority: number
   componentIds: string[]
 }
@@ -219,18 +221,10 @@ export interface PluginManifest {
   } | null
 }
 
-/** 插件详情：元数据（内置/第三方通用，含触发词）+ 第三方 manifest（内置为 null）+ 运行状态。 */
-export interface PluginDetail {
-  pluginId: string
-  name: string
-  version: string
-  description: string
-  author: string
+/** 插件详情：插件级基础视图（与 plugin_list 同构，后端 flatten 展开）+ 详情专属字段。 */
+export type PluginDetail = InstalledPluginInfo & {
   triggerKeywords: string[]
   supportedOs: string[]
-  priority: number
-  state: string
-  enabled: boolean
   manifest: PluginManifest | null
 }
 

@@ -1,4 +1,3 @@
-pub mod builtin;
 pub mod builtin_registry;
 mod candidate_pipeline;
 pub mod component_registry;

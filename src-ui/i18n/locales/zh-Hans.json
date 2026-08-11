@@ -212,6 +212,7 @@
       "fieldHomepage": "主页",
       "fieldProvides": "能力",
       "fieldPriority": "优先级",
+      "fieldRuntimeState": "运行状态",
       "fieldRuntime": "运行信息",
       "fieldCommand": "启动命令",
       "fieldArgs": "启动参数",

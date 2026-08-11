@@ -212,6 +212,7 @@
       "fieldHomepage": "主頁",
       "fieldProvides": "能力",
       "fieldPriority": "優先級",
+      "fieldRuntimeState": "運行狀態",
       "fieldRuntime": "執行資訊",
       "fieldCommand": "啟動命令",
       "fieldArgs": "啟動參數",

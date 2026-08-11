@@ -1353,7 +1353,7 @@ mod tests {
     use zerolaunch_plugin_api::config::{
         ComponentCore, ComponentType, Configurable, SettingDefinition,
     };
-    use zerolaunch_plugin_api::{PluginError, PluginHandle, PluginMetadata};
+    use zerolaunch_plugin_api::{PluginError, PluginHandle, PluginKind, PluginMetadata};
 
     /// 触发词路由测试用最小插件桩 —— 仅填充元数据（触发词），其余方法空实现。
     /// 避免测试模块引用内置实现（plugin_framework 层不得依赖 builtin_plugin，P3 层级）。
@@ -1379,6 +1379,7 @@ mod tests {
                     trigger_keywords: vec![trigger.to_string()],
                     supported_os: Vec::new(),
                     priority: 0,
+                    kind: PluginKind::Builtin,
                 },
                 core: ComponentCore::new(
                     id.to_string(),

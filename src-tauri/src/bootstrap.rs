@@ -6,6 +6,7 @@
 
 use crate::builtin_plugin::config::auto_refresh_config::AutoRefreshSettings;
 use crate::builtin_plugin::config::hotkey_config::{settings_to_hotkey_config, HotkeySettings};
+use std::collections::HashSet;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -270,13 +271,13 @@ pub(crate) async fn init_app_state(
 
     // 将 config_manager 保存到 AppState（必须在 PluginManager 之后，因为 clone 语义）
     state.set_config_manager(config_manager);
-    // 初始化内置 + 第三方插件
-    init_plugin_system(&state).await;
+    // 初始化内置 + 第三方插件（返回内置组件 id 集合，供 init_host_manager 注入冲突预检）
+    let builtin_component_ids = init_plugin_system(&state).await;
     info!("Phase 3 完成: 插件系统初始化就绪");
 
     info!("=== Phase 4: 第三方插件加载 ===");
 
-    plugin_manager.init_host_manager(Path::new(&app_data_dir));
+    plugin_manager.init_host_manager(Path::new(&app_data_dir), builtin_component_ids);
     plugin_manager
         .load_all_third_party(app_handle_for_third_party_plugins)
         .await;
@@ -343,7 +344,7 @@ fn sync_backend_language(state: &Arc<AppState>, config_manager: &ConfigManager) 
 /// - Phase A: inventory 自动发现并注册所有内置组件 + 快捷键回调
 /// - Phase B: 加载持久化配置
 /// - Phase C: 构建候选项管道和搜索管道
-pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
+pub(crate) async fn init_plugin_system(state: &Arc<AppState>) -> HashSet<String> {
     let session_dispatcher = state.get_session_dispatcher();
     let config_manager = state.get_config_manager();
     let plugin_manager = state.get_plugin_manager();
@@ -538,9 +539,8 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
     // init_ctx.locale 必须携带持久化语言（Phase A 时 I18nManager.current 还是系统默认语言）。
 
     info!(
-        "Phase A 完成: 共注册 {} 个组件（其中内置 {} 个）",
+        "Phase A 完成: 共注册 {} 个组件",
         config_manager.get_all_components().len(),
-        plugin_manager.list_builtins().len(),
     );
 
     // 注册快捷键回调：按下全局快捷键时切换搜索栏显示/隐藏
@@ -637,11 +637,20 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) {
         .await;
     session_dispatcher.set_cached_candidates(candidates);
 
+    // 收集内置组件 id 集合：plugin-host 冲突预检数据源（第三方组件不得与内置撞 id）。
+    // 由调用方（init_app_state）传给 PluginManager::init_host_manager 注入。
+    let builtin_component_ids: HashSet<String> = collected
+        .configurables()
+        .iter()
+        .map(|c| c.component_id().to_string())
+        .collect();
+
     info!(
         "插件系统初始化完成，已注册 {} 个组件，缓存 {} 个候选项",
         config_manager.get_all_components().len(),
         session_dispatcher.get_cached_candidates_count()
     );
+    builtin_component_ids
 }
 
 /// 启动 AppCommand 消费者 task。

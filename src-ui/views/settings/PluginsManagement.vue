@@ -66,11 +66,11 @@ const rawManifestText = computed(() =>
   detailData.value?.manifest ? JSON.stringify(detailData.value.manifest, null, 2) : '',
 )
 
-/** 插件行：内置（state === 'builtin'）与第三方统一，元数据均来自 plugin_list（插件级）。 */
+/** 插件行：内置与第三方统一，元数据均来自 plugin_list（插件级），kind 由后端显式下发。 */
 const rows = computed<PluginRow[]>(() =>
   pluginItems.value.map((p) => ({
     key: p.pluginId,
-    kind: p.state === 'builtin' ? 'builtin' as const : 'third-party' as const,
+    kind: p.kind,
     name: resolveText(p.name),
     version: p.version,
     author: p.author,
@@ -530,6 +530,17 @@ onUnmounted(() => {
               </NDescriptionsItem>
               <NDescriptionsItem :label="t('settings.thirdPartyPlugins.fieldSupportedOs')" :span="2">
                 {{ detailData.supportedOs.join(', ') || t('common.notAvailable') }}
+              </NDescriptionsItem>
+              <NDescriptionsItem
+                v-if="detailData.kind === 'third-party'"
+                :label="t('settings.thirdPartyPlugins.fieldRuntimeState')"
+                :span="2"
+              >
+                <NTag :type="detailData.state.includes('Running') ? 'success' : 'error'" size="small">
+                  {{ detailData.state.includes('Running')
+                    ? t('settings.thirdPartyPlugins.stateRunning')
+                    : detailData.state }}
+                </NTag>
               </NDescriptionsItem>
               <NDescriptionsItem v-if="detailData.manifest" :label="t('settings.thirdPartyPlugins.fieldHomepage')" :span="2">
                 <a

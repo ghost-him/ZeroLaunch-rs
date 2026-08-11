@@ -12,6 +12,7 @@ use tokio::sync::mpsc;
 use tracing::{error, info, warn};
 
 use zerolaunch_plugin_api::config::Configurable;
+use zerolaunch_plugin_api::plugin::PluginKind;
 use zerolaunch_plugin_protocol::manifest::Manifest;
 use zerolaunch_plugin_protocol::messages::ComponentKind;
 use zerolaunch_plugin_protocol::ProtocolError;
@@ -407,33 +408,64 @@ impl PluginHostManager {
             .plugins
             .iter()
             .map(|entry| {
-                let plugin_registration = entry.value();
+                let registration = entry.value();
                 let process_state = self
                     .processes
-                    .get(&plugin_registration.plugin_id)
+                    .get(&registration.plugin_id)
                     .map(|p| format!("{:?}", *p.state.read()))
                     .unwrap_or_else(|| "unknown".to_string());
-                let priority = plugin_registration.compute_priority();
-                let enabled = enabled_fn(plugin_registration);
-                InstalledPluginInfo {
-                    plugin_id: plugin_registration.plugin_id.clone(),
-                    name: plugin_registration.manifest.plugin.name.clone(),
-                    version: plugin_registration.manifest.plugin.version.clone(),
-                    description: plugin_registration.manifest.plugin.description.clone(),
-                    author: plugin_registration.manifest.plugin.author.clone(),
-                    state: process_state,
-                    enabled,
-                    priority,
-                    component_ids: plugin_registration
-                        .components
-                        .iter()
-                        .map(|c| c.component_id().to_string())
-                        .collect(),
-                }
+                build_plugin_info(registration, process_state, enabled_fn(registration))
             })
             .collect();
         result.sort_by_key(|p| (p.priority, p.plugin_id.clone()));
         result
+    }
+
+    /// 单个插件的运行时信息（按 id 直查 hm.plugins，不遍历全量列表）。
+    ///
+    /// 与 list_plugin_info 共用同一构造逻辑（build_plugin_info）。
+    pub fn get_plugin_info(
+        &self,
+        plugin_id: &str,
+        enabled_fn: impl Fn(&PluginRegistration) -> bool,
+    ) -> Option<InstalledPluginInfo> {
+        let entry = self.plugins.get(plugin_id)?;
+        let registration = entry.value();
+        let process_state = self
+            .processes
+            .get(plugin_id)
+            .map(|p| format!("{:?}", *p.state.read()))
+            .unwrap_or_else(|| "unknown".to_string());
+        Some(build_plugin_info(
+            registration,
+            process_state,
+            enabled_fn(registration),
+        ))
+    }
+}
+
+/// 由 PluginRegistration 构造运行时信息条目（list_plugin_info / get_plugin_info 共用）。
+fn build_plugin_info(
+    registration: &PluginRegistration,
+    process_state: String,
+    enabled: bool,
+) -> InstalledPluginInfo {
+    let priority = registration.compute_priority();
+    InstalledPluginInfo {
+        plugin_id: registration.plugin_id.clone(),
+        name: registration.manifest.plugin.name.clone(),
+        version: registration.manifest.plugin.version.clone(),
+        description: registration.manifest.plugin.description.clone(),
+        author: registration.manifest.plugin.author.clone(),
+        state: process_state,
+        enabled,
+        kind: PluginKind::ThirdParty,
+        priority,
+        component_ids: registration
+            .components
+            .iter()
+            .map(|c| c.component_id().to_string())
+            .collect(),
     }
 }
 
@@ -454,6 +486,9 @@ pub struct InstalledPluginInfo {
     pub state: String,
     #[serde(rename = "enabled")]
     pub enabled: bool,
+    /// 插件种类：内置或第三方（内置条目由 src-tauri 合并时填充）。
+    #[serde(rename = "kind", default)]
+    pub kind: PluginKind,
     #[serde(rename = "priority")]
     pub priority: u32,
     /// 该插件注册的组件 id 列表（前端据此关联 ConfigManager 中的组件配置）。
@@ -588,15 +623,8 @@ fn build_components(
             let config_actions = find_by_id(&init_result.config_actions_map, &comp.component_id);
             let default_enabled = find_by_id(&init_result.default_enabled_map, &comp.component_id);
 
-            let priority = {
-                if comp.priority < 0 {
-                    warn!(
-                        "component {} has negative priority {}; clamping to 0",
-                        comp.component_id, comp.priority
-                    );
-                }
-                comp.priority.max(0) as u32
-            };
+            // 组件优先级为 u32（协议层已统一），无负数可能，无需钳制
+            let priority = comp.priority;
 
             let kind = match &comp.kind {
                 ComponentKind::Plugin { .. } => {
@@ -605,6 +633,8 @@ fn build_components(
                     metadata.id = plugin_id.to_string();
                     metadata.version = manifest.plugin.version.clone();
                     metadata.author = manifest.plugin.author.clone();
+                    // 第三方插件由宿主强制标注，插件自声明的 kind 不可信
+                    metadata.kind = PluginKind::ThirdParty;
                     // name, description, supported_os, trigger_keywords, priority
                     // 保留插件通过 plugin/get_metadata 自声明的值
                     let interaction_policy =

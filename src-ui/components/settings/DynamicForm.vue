@@ -12,22 +12,49 @@
     <n-alert v-else-if="schemaError" type="warning">
       {{ $t('settings.schemaBuildFailed', { error: schemaError }) }}
     </n-alert>
-    <div v-else-if="hasFields" class="form-groups">
-      <FormSection
-        v-for="group in groupedFields"
-        :key="group.name"
-        :title="resolveText(group.name)"
-        :collapsible="group.name !== ''"
+    <div v-else-if="hasFields" class="form-groups" :class="{ 'is-group-tabs': showGroupTabs }">
+      <n-tabs
+        v-if="showGroupTabs"
+        type="line"
+        v-model:value="activeGroup"
+        display-directive="show"
+        class="group-tabs"
       >
-        <DynamicFormField
-          v-for="field in group.items"
-          :key="field.key"
-          :field="field"
-          :component-id="schema.componentId"
-          :model-value="getValue(field.key)"
-          @update:model-value="(val: unknown) => setValue(field.key, val)"
-        />
-      </FormSection>
+        <n-tab-pane
+          v-for="group in groupedFields"
+          :key="group.name"
+          :name="group.name"
+          :tab="resolveText(group.name)"
+        >
+          <div class="group-tab-fields">
+            <DynamicFormField
+              v-for="field in group.items"
+              :key="field.key"
+              :field="field"
+              :component-id="schema.componentId"
+              :model-value="getValue(field.key)"
+              @update:model-value="(val: unknown) => setValue(field.key, val)"
+            />
+          </div>
+        </n-tab-pane>
+      </n-tabs>
+      <template v-else>
+        <FormSection
+          v-for="group in groupedFields"
+          :key="group.name"
+          :title="resolveText(group.name)"
+          :collapsible="group.name !== ''"
+        >
+          <DynamicFormField
+            v-for="field in group.items"
+            :key="field.key"
+            :field="field"
+            :component-id="schema.componentId"
+            :model-value="getValue(field.key)"
+            @update:model-value="(val: unknown) => setValue(field.key, val)"
+          />
+        </FormSection>
+      </template>
     </div>
     <div v-else class="empty-hint">
       <n-text depth="3">{{ $t('settings.noConfigurableFields') }}</n-text>
@@ -52,7 +79,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, provide, onUnmounted } from 'vue'
-import { NAlert, NButton, NTag, NText, useMessage, useDialog } from 'naive-ui'
+import { NAlert, NButton, NTabPane, NTabs, NTag, NText, useMessage, useDialog } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import { resolveText } from '../../i18n'
 import DynamicFormField from './DynamicFormField.vue'
@@ -68,10 +95,14 @@ import {
 import type { ComponentSchema } from '../../bridge/contract'
 import type { FieldConfig } from '../../utils/schemaTypes'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   schema: ComponentSchema
   currentSettings: Record<string, unknown>
-}>()
+  /** 按分组渲染为 tab 页（每分组一个 tab），默认分组纵向堆叠 */
+  groupTabs?: boolean
+}>(), {
+  groupTabs: false,
+})
 
 const emit = defineEmits<{
   (e: 'reload'): void
@@ -132,6 +163,22 @@ const groupedFields = computed(() => {
   }
   return [...groups.entries()].map(([name, items]) => ({ name, items }))
 })
+
+/** groupTabs 模式下渲染 tab 的前提：存在多个分组；单组时直接平铺字段，避免孤立的单 tab。 */
+const showGroupTabs = computed(() => props.groupTabs && groupedFields.value.length > 1)
+
+/** 当前激活的分组 tab；分组变化时回落到第一个分组。 */
+const activeGroup = ref<string>(groupedFields.value[0]?.name ?? '')
+
+watch(
+  groupedFields,
+  (groups) => {
+    if (!groups.some((g) => g.name === activeGroup.value)) {
+      activeGroup.value = groups[0]?.name ?? ''
+    }
+  },
+  { immediate: true },
+)
 
 /** 读取字段当前值，供字段组件注入使用。 */
 function getValue(key: string): unknown {
@@ -255,6 +302,33 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 12px;
   padding-bottom: 16px;
+}
+.form-groups.is-group-tabs {
+  overflow: hidden;
+  gap: 0;
+  padding-bottom: 0;
+}
+.group-tabs {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.group-tabs :deep(.n-tabs-nav) {
+  flex-shrink: 0;
+}
+/* 特异性 (0,4,0) 高于 CategoryViewTabs 的组件级 pane 规则 (0,3,0)，
+   避免 overflow: hidden 覆盖导致分组内容被裁剪无法滚动 */
+.form-groups .group-tabs :deep(.n-tab-pane) {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.group-tab-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 4px 0 16px;
 }
 .form-actions {
   display: flex;

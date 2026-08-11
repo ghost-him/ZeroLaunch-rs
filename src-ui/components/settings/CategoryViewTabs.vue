@@ -8,7 +8,7 @@
         :tab="resolveText(comp.componentName)"
       >
         <div class="tab-content">
-          <ComponentConfigLoader :component="comp" />
+          <ComponentConfigLoader :component="comp" :group-tabs="groupTabs" />
         </div>
       </n-tab-pane>
     </n-tabs>
@@ -22,9 +22,13 @@ import { resolveText } from '../../i18n'
 import type { ComponentInfo } from '../../bridge/contract'
 import ComponentConfigLoader from './ComponentConfigLoader.vue'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   components: ComponentInfo[]
-}>()
+  /** 组件内按分组渲染为 tab 页（透传给 ComponentConfigLoader） */
+  groupTabs?: boolean
+}>(), {
+  groupTabs: false,
+})
 
 const activeTab = ref<string | undefined>(props.components[0]?.componentId)
 

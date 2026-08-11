@@ -50,6 +50,7 @@
             <CategoryViewTabs
               v-else-if="selectedCategory.type === 'tabs' && selectedCategory.components"
               :components="selectedCategory.components"
+              :group-tabs="selectedCategory.groupTabs"
             />
             <CategoryViewList
               v-else-if="selectedCategory.components"

@@ -224,13 +224,6 @@
       "openHomepageFailed": "Failed to open homepage"
     }
   },
-  "appearance": {
-    "theme": "Theme",
-    "themeSystem": "Follow System",
-    "themeLight": "Light",
-    "themeDark": "Dark",
-    "language": "Language"
-  },
   "contextMenu": {
     "execute": "Execute",
     "openLocation": "Open File Location",
@@ -323,14 +316,17 @@
         "colorsDark": "Dark Colors",
         "background": "Background"
       },
+      "options": {
+        "theme": {
+          "system": "Follow System",
+          "light": "Light",
+          "dark": "Dark"
+        }
+      },
       "fields": {
         "theme": {
           "label": "Theme",
           "desc": "Choose light, dark or follow system theme"
-        },
-        "language": {
-          "label": "Language",
-          "desc": "UI display language"
         },
         "search_bar_height": {
           "label": "Search bar height",
@@ -541,6 +537,10 @@
         "general": "General"
       },
       "fields": {
+        "language": {
+          "label": "UI Language",
+          "desc": "UI display language"
+        },
         "is_auto_start": {
           "label": "Start on boot",
           "desc": "When enabled, ZeroLaunch auto-starts with the system"

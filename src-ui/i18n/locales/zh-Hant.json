@@ -224,13 +224,6 @@
       "openHomepageFailed": "開啟主頁失敗"
     }
   },
-  "appearance": {
-    "theme": "主題",
-    "themeSystem": "跟隨系統",
-    "themeLight": "淺色",
-    "themeDark": "深色",
-    "language": "語言"
-  },
   "contextMenu": {
     "execute": "執行",
     "openLocation": "開啟檔案位置",
@@ -323,14 +316,17 @@
         "colorsDark": "深色配色",
         "background": "背景"
       },
+      "options": {
+        "theme": {
+          "system": "跟隨系統",
+          "light": "淺色",
+          "dark": "深色"
+        }
+      },
       "fields": {
         "theme": {
           "label": "主題",
           "desc": "選擇淺色、深色或跟隨系統主題"
-        },
-        "language": {
-          "label": "語言",
-          "desc": "介面顯示語言"
         },
         "search_bar_height": {
           "label": "搜尋欄高度",
@@ -541,6 +537,10 @@
         "general": "通用"
       },
       "fields": {
+        "language": {
+          "label": "介面語言",
+          "desc": "介面顯示語言"
+        },
         "is_auto_start": {
           "label": "開機自啟動",
           "desc": "啟用後，系統啟動時自動執行 ZeroLaunch"

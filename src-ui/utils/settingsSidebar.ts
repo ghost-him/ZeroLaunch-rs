@@ -6,6 +6,8 @@ export interface SidebarCategory {
   icon: string
   type: 'pipeline' | 'tabs' | 'static' | 'debug' | 'plugins-page'
   components?: ComponentInfo[]
+  /** 分类内组件按分组渲染为 tab 页（外观设置使用：每分组一个 tab） */
+  groupTabs?: boolean
 }
 
 /** 按 (priority, componentId) 升序排列，确保设置页 tab 顺序稳定。 */
@@ -38,7 +40,7 @@ export function buildSidebarItems(
 
   const items: SidebarCategory[] = [
     { key: 'category_core', label: t('settings.sidebar.general'), icon: 'settings', type: 'tabs', components: core },
-    { key: 'category_appearance', label: t('settings.sidebar.appearance'), icon: 'palette', type: 'tabs', components: appearance },
+    { key: 'category_appearance', label: t('settings.sidebar.appearance'), icon: 'palette', type: 'tabs', groupTabs: true, components: appearance },
     { key: 'category_pipeline', label: t('settings.sidebar.pipeline'), icon: 'search', type: 'pipeline', components: pipeline },
     // 统一插件管理页（内置 + 第三方）：安装、运行状态与配置入口都在此页，不占侧边栏子项
     { key: 'category_plugins', label: t('settings.sidebar.plugins'), icon: 'extension', type: 'plugins-page' as const },

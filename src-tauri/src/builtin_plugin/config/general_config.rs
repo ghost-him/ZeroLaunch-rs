@@ -21,6 +21,10 @@ pub struct GeneralSettings {
     pub log_level: String,
     #[serde(rename = "reset_session_on_wake", default = "default_true")]
     pub reset_session_on_wake: bool,
+    /// 界面语言，取值 zh-Hans / zh-Hant / en（由 validate_settings 校验）。
+    /// 自 appearance-config 迁移而来，作为全局偏好在常规设置中管理。
+    #[serde(rename = "language", default = "default_language")]
+    pub language: String,
 }
 
 impl Default for GeneralSettings {
@@ -30,12 +34,17 @@ impl Default for GeneralSettings {
             is_debug_mode: false,
             log_level: "info".to_string(),
             reset_session_on_wake: true,
+            language: "zh-Hans".to_string(),
         }
     }
 }
 
 fn default_log_level() -> String {
     "info".to_string()
+}
+
+fn default_language() -> String {
+    "zh-Hans".to_string()
 }
 
 fn default_true() -> bool {
@@ -80,13 +89,28 @@ impl Configurable for GeneralConfigComponent {
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {
         vec![
+            SchemaBuilder::select(
+                "language",
+                t_key!("general-config", "fields.language.label"),
+                t_key!("general-config", "fields.language.desc"),
+            )
+            .group(t_key!("general-config", "groups.general"))
+            .order(0)
+            // 语言选项固定显示各语言自身名称（符合语言选择器惯例，不随界面语言翻译）
+            .options_with_labels(&[
+                ("zh-Hans", "简体中文"),
+                ("zh-Hant", "繁體中文"),
+                ("en", "English"),
+            ])
+            .default("zh-Hans")
+            .build(),
             SchemaBuilder::boolean(
                 "is_auto_start",
                 t_key!("general-config", "fields.is_auto_start.label"),
                 t_key!("general-config", "fields.is_auto_start.desc"),
             )
             .group(t_key!("general-config", "groups.general"))
-            .order(0)
+            .order(1)
             .default(false)
             .build(),
             SchemaBuilder::boolean(
@@ -95,7 +119,7 @@ impl Configurable for GeneralConfigComponent {
                 t_key!("general-config", "fields.is_debug_mode.desc"),
             )
             .group(t_key!("general-config", "groups.general"))
-            .order(1)
+            .order(2)
             .default(false)
             .build(),
             SchemaBuilder::select(
@@ -104,7 +128,7 @@ impl Configurable for GeneralConfigComponent {
                 t_key!("general-config", "fields.log_level.desc"),
             )
             .group(t_key!("general-config", "groups.general"))
-            .order(2)
+            .order(3)
             .options(&["debug", "info", "warn", "error"])
             .default("info")
             .build(),
@@ -114,7 +138,7 @@ impl Configurable for GeneralConfigComponent {
                 t_key!("general-config", "fields.reset_session_on_wake.desc"),
             )
             .group(t_key!("general-config", "groups.general"))
-            .order(3)
+            .order(4)
             .default(true)
             .build(),
         ]
@@ -137,6 +161,15 @@ impl Configurable for GeneralConfigComponent {
     }
 
     async fn validate_settings(&self, settings: &serde_json::Value) -> Result<(), ConfigError> {
+        // 语言
+        if let Some(lang) = settings.get("language").and_then(|v| v.as_str()) {
+            if !["zh-Hans", "zh-Hant", "en"].contains(&lang) {
+                return Err(ConfigError::ValidationFailed(format!(
+                    "Invalid language value: {}",
+                    lang
+                )));
+            }
+        }
         if let Some(level) = settings.get("log_level").and_then(|v| v.as_str()) {
             if !["debug", "info", "warn", "error"].contains(&level) {
                 return Err(ConfigError::ValidationFailed(format!(

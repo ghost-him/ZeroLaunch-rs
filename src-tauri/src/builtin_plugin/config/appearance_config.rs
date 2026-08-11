@@ -13,9 +13,6 @@ use zerolaunch_plugin_api::config::{
 fn default_theme() -> String {
     "system".to_string()
 }
-fn default_language() -> String {
-    "zh-Hans".to_string()
-}
 fn default_search_bar_height() -> f64 {
     72.0
 }
@@ -120,11 +117,9 @@ fn default_bg_opacity() -> f64 {
 /// 且 `get_settings()` 返回的 JSON 始终包含完整字段。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppearanceSettings {
-    // ---- 主题 & 语言 ----
+    // ---- 主题 ----
     #[serde(rename = "theme", default = "default_theme")]
     pub theme: String,
-    #[serde(rename = "language", default = "default_language")]
-    pub language: String,
 
     // ---- 搜索栏 ----
     #[serde(rename = "search_bar_height", default = "default_search_bar_height")]
@@ -248,7 +243,6 @@ impl Default for AppearanceSettings {
     fn default() -> Self {
         Self {
             theme: default_theme(),
-            language: default_language(),
             search_bar_height: default_search_bar_height(),
             search_bar_font_ratio: default_search_bar_font_ratio(),
             search_bar_font_family: String::new(),
@@ -337,23 +331,16 @@ impl Configurable for AppearanceConfigComponent {
             )
             .group(t_key!("appearance-config", "groups.theme"))
             .order(0)
-            .options(&["system", "light", "dark"])
-            .default("system")
-            .build(),
-            SchemaBuilder::select(
-                "language",
-                t_key!("appearance-config", "fields.language.label"),
-                t_key!("appearance-config", "fields.language.desc"),
-            )
-            .group(t_key!("appearance-config", "groups.theme"))
-            .order(1)
-            // 语言选项固定显示各语言自身名称（符合语言选择器惯例，不随界面语言翻译）
+            // 主题选项标签由 i18n 控制（跟随系统/浅色/深色），不直接显示原始枚举值
             .options_with_labels(&[
-                ("zh-Hans", "简体中文"),
-                ("zh-Hant", "繁體中文"),
-                ("en", "English"),
+                (
+                    "system",
+                    t_key!("appearance-config", "options.theme.system"),
+                ),
+                ("light", t_key!("appearance-config", "options.theme.light")),
+                ("dark", t_key!("appearance-config", "options.theme.dark")),
             ])
-            .default("zh-Hans")
+            .default("system")
             .build(),
             // ---- 搜索栏 ----
             SchemaBuilder::number(
@@ -790,15 +777,6 @@ impl Configurable for AppearanceConfigComponent {
                 return Err(ConfigError::ValidationFailed(format!(
                     "Invalid theme value: {}",
                     theme
-                )));
-            }
-        }
-        // 语言
-        if let Some(lang) = settings.get("language").and_then(|v| v.as_str()) {
-            if !["zh-Hans", "zh-Hant", "en"].contains(&lang) {
-                return Err(ConfigError::ValidationFailed(format!(
-                    "Invalid language value: {}",
-                    lang
                 )));
             }
         }

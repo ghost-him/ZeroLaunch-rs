@@ -315,18 +315,16 @@ pub(crate) async fn init_app_state(
     );
 }
 
-/// 将 appearance-config 的持久化语言同步到 I18nManager 并重建托盘菜单。
-/// 调用点：持久化配置加载完成后、appearance-config 语言变更事件处理时。
+/// 将 general-config 的持久化语言同步到 I18nManager 并重建托盘菜单。
+/// 调用点：持久化配置加载完成后、general-config 语言变更事件处理时。
 fn sync_backend_language(state: &Arc<AppState>, config_manager: &ConfigManager) {
     let i18n = state.get_i18n_manager();
-    let lang = config_manager
-        .get_settings("appearance-config")
-        .and_then(|v| {
-            v.get("language")
-                .and_then(|x| x.as_str().map(str::to_string))
-        });
-    // 语言未变化时不重建托盘菜单：appearance-config 的任意设置变更
-    // （主题、搜索栏尺寸等，与语言无关）都会触发本函数，
+    let lang = config_manager.get_settings("general-config").and_then(|v| {
+        v.get("language")
+            .and_then(|x| x.as_str().map(str::to_string))
+    });
+    // 语言未变化时不重建托盘菜单：general-config 的任意设置变更
+    // （自动启动、日志级别等，与语言无关）都会触发本函数，
     // 全量原生菜单重建仅在语言真正切换时执行。
     if let Some(lang) = lang {
         if lang != i18n.current_language() {
@@ -389,7 +387,7 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) -> HashSet<String>
                             }),
                         );
                         // 语言切换时同步后端翻译服务并重建托盘菜单（即时生效）
-                        if component_id == "appearance-config" {
+                        if component_id == "general-config" {
                             sync_backend_language(&state_for_events, &cm_for_events);
                         }
                         // 会话投影随配置变更重新推送（如面板内调整防抖延迟）

@@ -74,15 +74,20 @@ export const useThemeStore = defineStore('theme', () => {
     }, 100)
   }
 
-  /** 从后端加载外观配置（主题 + 语言 + 全部外观设置），在应用挂载前调用 */
+  /** 从后端加载配置（主题 + 语言 + 全部外观设置），在应用挂载前调用。
+   *  语言归属 general-config，主题与外观字段归属 appearance-config。 */
   async function loadFromBackend(): Promise<Locale> {
     let lang: Locale = 'zh-Hans'
     try {
-      const settings = await configGetSettings('appearance-config')
-      const s = settings as Record<string, unknown> | undefined
+      const [appearance, general] = await Promise.all([
+        configGetSettings('appearance-config'),
+        configGetSettings('general-config'),
+      ])
+      const s = appearance as Record<string, unknown> | undefined
+      const g = general as Record<string, unknown> | undefined
       const t = (s?.theme as ThemeMode | undefined) ?? 'system'
       themeMode.value = t
-      lang = normalizeLocale(s?.language)
+      lang = normalizeLocale(g?.language)
       locale.value = lang
 
       // 应用外观 CSS 变量并同步响应式状态
@@ -92,7 +97,7 @@ export const useThemeStore = defineStore('theme', () => {
         searchBarPlaceholder.value = extractPlaceholder(s)
       }
     } catch {
-      console.warn('[theme-store] Failed to load appearance config, using defaults')
+      console.warn('[theme-store] Failed to load config, using defaults')
       themeMode.value = 'system'
     }
     await applyNaiveTheme()
@@ -103,8 +108,8 @@ export const useThemeStore = defineStore('theme', () => {
     return lang
   }
 
-  /** 应用跨窗口同步的外观配置（不写回后端，避免死循环） */
-  async function applyRemoteSettings(settings: Record<string, unknown>) {
+  /** 应用跨窗口同步的外观配置（主题 + 外观字段；语言已归属 general-config） */
+  async function applyRemoteAppearance(settings: Record<string, unknown>) {
     const t = (settings.theme as ThemeMode | undefined) ?? themeMode.value
     const themeChanged = t !== themeMode.value
 
@@ -116,19 +121,23 @@ export const useThemeStore = defineStore('theme', () => {
       await applyNaiveTheme()
     }
 
-    const l = normalizeLocale(settings.language)
-    const langChanged = l !== locale.value
-    if (langChanged) {
-      locale.value = l
-    }
-
     // 重新应用外观 CSS 变量并同步响应式状态（即使主题未变，配置字段也可能有变化）
     if (!themeChanged) {
       await applyAppearanceSettings(settings)
     }
     searchBarPlaceholder.value = extractPlaceholder(settings)
 
-    return { themeChanged, langChanged, newLang: l }
+    return { themeChanged }
+  }
+
+  /** 应用跨窗口同步的常规配置（语言），返回语言是否变化 */
+  async function applyRemoteGeneral(settings: Record<string, unknown>) {
+    const l = normalizeLocale(settings.language)
+    const langChanged = l !== locale.value
+    if (langChanged) {
+      locale.value = l
+    }
+    return { langChanged, newLang: l }
   }
 
   function stopSystemListener() {
@@ -142,7 +151,8 @@ export const useThemeStore = defineStore('theme', () => {
     searchBarPlaceholder,
     setTheme,
     loadFromBackend,
-    applyRemoteSettings,
+    applyRemoteAppearance,
+    applyRemoteGeneral,
     stopSystemListener,
   }
 })

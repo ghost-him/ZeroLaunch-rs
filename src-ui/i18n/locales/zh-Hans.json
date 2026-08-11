@@ -224,13 +224,6 @@
       "openHomepageFailed": "打开主页失败"
     }
   },
-  "appearance": {
-    "theme": "主题",
-    "themeSystem": "跟随系统",
-    "themeLight": "浅色",
-    "themeDark": "深色",
-    "language": "语言"
-  },
   "contextMenu": {
     "execute": "执行",
     "openLocation": "打开文件位置",
@@ -323,14 +316,17 @@
         "colorsDark": "深色配色",
         "background": "背景"
       },
+      "options": {
+        "theme": {
+          "system": "跟随系统",
+          "light": "浅色",
+          "dark": "深色"
+        }
+      },
       "fields": {
         "theme": {
           "label": "主题",
           "desc": "选择浅色、深色或跟随系统主题"
-        },
-        "language": {
-          "label": "语言",
-          "desc": "界面显示语言"
         },
         "search_bar_height": {
           "label": "搜索栏高度",
@@ -541,6 +537,10 @@
         "general": "通用"
       },
       "fields": {
+        "language": {
+          "label": "界面语言",
+          "desc": "界面显示语言"
+        },
         "is_auto_start": {
           "label": "开机自启动",
           "desc": "启用后，系统启动时自动运行 ZeroLaunch"

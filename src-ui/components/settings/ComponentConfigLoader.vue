@@ -18,6 +18,7 @@
       :key="component.componentId"
       :schema="schema"
       :current-settings="settings"
+      :group-tabs="groupTabs"
       @reload="init"
     />
   </div>
@@ -34,9 +35,13 @@ import { onConfigChanged } from '../../bridge/events'
 import { configApplySettings } from '../../bridge/commands'
 import type { ComponentInfo, ComponentSchema } from '../../bridge/contract'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   component: ComponentInfo
-}>()
+  /** 组件内按分组渲染为 tab 页（透传给 DynamicForm） */
+  groupTabs?: boolean
+}>(), {
+  groupTabs: false,
+})
 
 const configStore = useConfigStore()
 const pluginStore = usePluginStore()

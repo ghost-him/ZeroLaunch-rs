@@ -33,6 +33,7 @@ const configStore = useConfigStore()
 const naiveLocale = ref(i18n.global.locale.value === 'en' ? enUS : zhCN)
 
 let unlistenAppearance: (() => void) | null = null
+let unlistenGeneral: (() => void) | null = null
 let unlistenWindowBehavior: (() => void) | null = null
 let unlistenPluginEvents: (() => void)[] = []
 
@@ -44,12 +45,19 @@ onMounted(async () => {
     await onPluginInstalled(() => refreshPluginTranslations(i18n.global.locale.value as Locale)),
     await onPluginUninstalled(() => refreshPluginTranslations(i18n.global.locale.value as Locale)),
   ]
-  // 监听外观配置变更（跨窗口同步主题/语言/外观CSS变量）
+  // 监听外观配置变更（跨窗口同步主题/外观CSS变量）
   unlistenAppearance = await onConfigChanged((payload) => {
     if (payload.componentId !== 'appearance-config') return
     configGetSettings('appearance-config').then(async (s) => {
-      const settings = s as Record<string, unknown>
-      const result = await themeStore.applyRemoteSettings(settings)
+      await themeStore.applyRemoteAppearance(s as Record<string, unknown>)
+    }).catch(() => {})
+  })
+
+  // 监听常规配置变更（跨窗口同步界面语言）
+  unlistenGeneral = await onConfigChanged((payload) => {
+    if (payload.componentId !== 'general-config') return
+    configGetSettings('general-config').then(async (s) => {
+      const result = await themeStore.applyRemoteGeneral(s as Record<string, unknown>)
       if (result.langChanged) {
         setLocale(result.newLang)
         refreshPluginTranslations(result.newLang)
@@ -74,6 +82,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   unlistenAppearance?.()
+  unlistenGeneral?.()
   unlistenWindowBehavior?.()
   unlistenPluginEvents.forEach((fn) => fn())
 })

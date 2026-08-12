@@ -219,7 +219,7 @@ pub trait KeywordOptimizer: Configurable {
         false
     }
     // 获得优先级，优先级小的优化器会先被调用，优先级相同的优化器会按照注册的顺序被调用
-    fn get_priority(&self) -> i32;
+    fn get_priority(&self) -> u32;
 }
 
 /// 根据候选项的完整上下文注入额外关键字。

@@ -23,7 +23,7 @@ use zerolaunch_plugin_api::plugin::{PluginKind, PluginMetadata};
 use zerolaunch_plugin_host::host_dispatch::HostCallHandler;
 use zerolaunch_plugin_host::manager::{
     CrashCallback, InstalledPluginInfo, PluginHostManager, PluginLoadError, PluginRegistration,
-    RestartCallback,
+    PluginRuntimeState, RestartCallback,
 };
 use zerolaunch_plugin_protocol::Manifest;
 
@@ -193,7 +193,7 @@ impl PluginManager {
     // ── 查询 API ────────────────────────────────────────────────
 
     /// 内置插件条目：以 PluginMetadata 为插件级数据源（插件管理页实体是插件而非组件），
-    /// state 固定 "builtin"，组件 id 即插件 id。
+    /// state 恒为 Running（内置编译在程序内运行），种类由 kind 字段表达，组件 id 即插件 id。
     pub fn builtin_plugin_info(
         &self,
         meta: &PluginMetadata,
@@ -205,7 +205,7 @@ impl PluginManager {
             version: meta.version.clone(),
             description: meta.description.clone(),
             author: meta.author.clone(),
-            state: "builtin".to_string(),
+            state: PluginRuntimeState::Running,
             enabled: cm.is_enabled(&meta.id),
             kind: PluginKind::Builtin,
             priority: meta.priority,
@@ -216,7 +216,7 @@ impl PluginManager {
     /// 单个插件条目（详情用）：内置直接构造，第三方按 id 直查 host 运行时（O(1)）。
     ///
     /// 调用方已持有 metadata（registry.get），此处不重复查询；
-    /// 排序口径与 list_plugins 一致（插件声明优先级）。
+    /// priority 由构造方统一取插件声明优先级（内置 meta.priority / 第三方插件级元数据）。
     pub fn plugin_info(
         &self,
         plugin_id: &str,
@@ -224,20 +224,20 @@ impl PluginManager {
         cm: &ConfigManager,
     ) -> Option<InstalledPluginInfo> {
         let hm = self.host_manager();
-        let mut info = if meta.kind == PluginKind::Builtin {
+        let info = if meta.kind == PluginKind::Builtin {
             self.builtin_plugin_info(meta, cm)
         } else {
             hm.get_plugin_info(plugin_id, |a| {
                 a.components.iter().all(|c| cm.is_enabled(c.component_id()))
             })?
         };
-        info.priority = meta.priority;
         Some(info)
     }
 
-    /// 插件统一列表（IPC / CLI 共用）：第三方运行时信息 + 内置条目合并，
-    /// 排序口径统一为插件声明优先级（PluginMetadata.priority）。
+    /// 插件统一列表（IPC / CLI 共用）：第三方运行时信息 + 内置条目合并。
     ///
+    /// priority 统一为插件声明优先级（PluginMetadata.priority）：
+    /// 第三方由 plugin-host 按插件级元数据直接产出，此处仅补充内置条目。
     /// 内置判定以 metadata.kind（宿主管辖的运行属性，插件注册时确定）为准：
     /// 内置插件由代码构造为 Builtin，第三方由 plugin-host 加载时强制为 ThirdParty。
     pub fn list_plugins(
@@ -250,15 +250,11 @@ impl PluginManager {
             a.components.iter().all(|c| cm.is_enabled(c.component_id())) && !a.components.is_empty()
         });
         for meta in dispatcher.plugin_registry().get_all_metadata() {
-            match list.iter_mut().find(|i| i.plugin_id == meta.id) {
-                // 已在 hm 列表：第三方（内置不会在 hm）。统一排序口径为插件声明优先级。
-                Some(info) => info.priority = meta.priority,
-                None => {
-                    if meta.kind == PluginKind::Builtin {
-                        list.push(self.builtin_plugin_info(&meta, cm));
-                    }
-                    // 非内置且不在 hm：注册/加载时序异常（理论不可达），不产出行，避免误标。
-                }
+            // 内置条目不在 hm 列表（内置不经过 plugin-host），按 id 防重后追加；
+            // 第三方 priority 已由 plugin-host 按插件级元数据产出，无需覆盖。
+            // 非内置且不在 hm：注册/加载时序异常（理论不可达），不产出行，避免误标。
+            if meta.kind == PluginKind::Builtin && !list.iter().any(|i| i.plugin_id == meta.id) {
+                list.push(self.builtin_plugin_info(&meta, cm));
             }
         }
         list.sort_by_key(|p| (p.priority, p.plugin_id.clone()));
@@ -402,19 +398,19 @@ impl PluginManager {
             ))
         })?;
 
-        let priority = adapters.compute_priority();
-
+        // priority 与 list_plugins/plugin_info 统一取插件级元数据声明值（不再用组件最小优先级）。
+        // 安装成功即子进程已加载运行，state 恒为 Running。
         Ok(InstalledPluginInfo {
             plugin_id: adapters.plugin_id.clone(),
             name: adapters.manifest.plugin.name.clone(),
             version: adapters.manifest.plugin.version.clone(),
             description: adapters.manifest.plugin.description.clone(),
             author: adapters.manifest.plugin.author.clone(),
-            state: "running".to_string(),
+            state: PluginRuntimeState::Running,
             enabled: !adapters.components.is_empty()
                 && adapters.components.iter().all(|c| c.default_enabled()),
             kind: PluginKind::ThirdParty,
-            priority,
+            priority: adapters.metadata.priority,
             component_ids: adapters
                 .components
                 .iter()

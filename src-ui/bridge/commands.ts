@@ -138,13 +138,22 @@ export function debugSimulateQuery(rawQuery: string): Promise<unknown> {
 
 // ---- Third-Party Plugin Management ----
 
+/** 插件运行状态（对应后端 PluginRuntimeState，snake_case 序列化）。 */
+export type PluginRuntimeState =
+  | 'starting'
+  | 'running'
+  | 'stopped'
+  | 'crashed'
+  | 'error'
+  | 'unknown'
+
 export interface InstalledPluginInfo {
   pluginId: string
   name: string
   version: string
   description: string
   author: string
-  state: string
+  state: PluginRuntimeState
   enabled: boolean
   /** 插件种类：内置或第三方（内置条目由后端 plugin_list 合并填充）。 */
   kind: 'builtin' | 'third-party'

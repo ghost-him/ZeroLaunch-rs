@@ -122,7 +122,7 @@ const columns: DataTableColumn<PluginRow>[] = [
           { default: () => t(on ? 'settings.thirdPartyPlugins.stateEnabled' : 'settings.thirdPartyPlugins.stateDisabled') },
         )
       }
-      const running = row.plugin.state.includes('Running')
+      const running = row.plugin.state === 'running'
       const color = running ? 'success' : 'error'
       const label = running ? t('settings.thirdPartyPlugins.stateRunning') : row.plugin.state
       return h(NTag, { type: color as never }, { default: () => label })
@@ -536,8 +536,8 @@ onUnmounted(() => {
                 :label="t('settings.thirdPartyPlugins.fieldRuntimeState')"
                 :span="2"
               >
-                <NTag :type="detailData.state.includes('Running') ? 'success' : 'error'" size="small">
-                  {{ detailData.state.includes('Running')
+                <NTag :type="detailData.state === 'running' ? 'success' : 'error'" size="small">
+                  {{ detailData.state === 'running'
                     ? t('settings.thirdPartyPlugins.stateRunning')
                     : detailData.state }}
                 </NTag>

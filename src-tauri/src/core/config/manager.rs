@@ -679,6 +679,7 @@ mod tests {
         };
         let registration = PluginRegistration {
             plugin_id: "com.example.collide".into(),
+            metadata: metadata.clone(),
             manifest: Manifest {
                 plugin: PluginSection {
                     id: "com.example.collide".into(),

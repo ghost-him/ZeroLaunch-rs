@@ -7,7 +7,7 @@
 //! （命名空间 `plugin.<id>.`）。
 //!
 //! 当前界面语言由本管理器内部持有：启动时按系统语言初始化，之后由 bootstrap
-//! 在持久化配置加载完成及 appearance-config 语言变更时同步（`set_language`），
+//! 在持久化配置加载完成及 general-config 语言变更时同步（`set_language`），
 //! 消费方（托盘、host_handler、session_dispatcher）仅依赖本管理器，
 //! 无需各自访问 ConfigManager。
 

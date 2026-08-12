@@ -8,7 +8,7 @@ use zerolaunch_plugin_api::config::{
 use zerolaunch_plugin_api::KeywordOptimizer;
 
 /// Default priority value for LowerCaseConverterSettings.
-fn default_priority_30() -> i32 {
+fn default_priority_30() -> u32 {
     30
 }
 
@@ -20,7 +20,7 @@ fn default_uses_context_false() -> bool {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct LowerCaseConverterSettings {
     #[serde(rename = "priority", default = "default_priority_30")]
-    priority: i32,
+    priority: u32,
     #[serde(rename = "uses_context", default = "default_uses_context_false")]
     uses_context: bool,
 }
@@ -127,7 +127,7 @@ impl KeywordOptimizer for LowerCaseConverter {
         self.inner.read().uses_context
     }
 
-    fn get_priority(&self) -> i32 {
+    fn get_priority(&self) -> u32 {
         self.inner.read().priority
     }
 }

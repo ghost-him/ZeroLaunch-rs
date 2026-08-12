@@ -8,7 +8,7 @@ use zerolaunch_plugin_api::config::{
 use zerolaunch_plugin_api::KeywordOptimizer;
 
 /// Default priority value for FirstLetterExtractorSettings.
-fn default_priority_50() -> i32 {
+fn default_priority_50() -> u32 {
     50
 }
 
@@ -20,7 +20,7 @@ fn default_uses_context_true() -> bool {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct FirstLetterExtractorSettings {
     #[serde(rename = "priority", default = "default_priority_50")]
-    priority: i32,
+    priority: u32,
     #[serde(rename = "uses_context", default = "default_uses_context_true")]
     uses_context: bool,
 }
@@ -135,7 +135,7 @@ impl KeywordOptimizer for FirstLetterExtractor {
         self.inner.read().uses_context
     }
 
-    fn get_priority(&self) -> i32 {
+    fn get_priority(&self) -> u32 {
         self.inner.read().priority
     }
 }

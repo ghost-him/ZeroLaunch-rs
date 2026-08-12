@@ -10,12 +10,12 @@ use zerolaunch_plugin_api::KeywordOptimizer;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct VersionNumberRemoverSettings {
     #[serde(rename = "priority", default = "default_priority_10")]
-    priority: i32,
+    priority: u32,
     #[serde(rename = "uses_context", default = "default_uses_context_true")]
     uses_context: bool,
 }
 
-fn default_priority_10() -> i32 {
+fn default_priority_10() -> u32 {
     10
 }
 
@@ -171,7 +171,7 @@ impl KeywordOptimizer for VersionNumberRemover {
         self.inner.read().uses_context
     }
 
-    fn get_priority(&self) -> i32 {
+    fn get_priority(&self) -> u32 {
         self.inner.read().priority
     }
 }

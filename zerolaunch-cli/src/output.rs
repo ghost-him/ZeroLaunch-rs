@@ -170,10 +170,11 @@ pub fn format_plugins_list(value: &Value) -> String {
         let ver = escape_terminal_text(item["version"].as_str().unwrap_or("?"));
         let name = escape_terminal_text(item["name"].as_str().unwrap_or("?"));
         let state = match item["state"].as_str() {
-            Some("Running") => "Running",
-            Some("Crashed") => "Crashed",
-            Some("Stopped") => "Stopped",
-            Some("Starting") => "Starting",
+            Some("running") => "Running",
+            Some("crashed") => "Crashed",
+            Some("stopped") => "Stopped",
+            Some("starting") => "Starting",
+            Some("error") => "Error",
             _ => "?",
         };
         let enabled = item["enabled"].as_bool().unwrap_or(false);
@@ -823,14 +824,14 @@ mod tests {
                 "pluginId": "test-plugin",
                 "version": "1.0.0",
                 "name": "测试插件",
-                "state": "Running",
+                "state": "running",
                 "enabled": true
             },
             {
                 "pluginId": "broken-plugin",
                 "version": "0.5.0",
                 "name": "Broken",
-                "state": "Crashed",
+                "state": "crashed",
                 "enabled": true
             }
         ]);

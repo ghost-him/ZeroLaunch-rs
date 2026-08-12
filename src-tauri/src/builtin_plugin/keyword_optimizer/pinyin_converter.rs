@@ -17,7 +17,7 @@ struct PinyinItem {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct PinyinConverterSettings {
     #[serde(rename = "priority", default = "default_priority_25")]
-    priority: i32,
+    priority: u32,
     #[serde(rename = "uses_context", default = "default_uses_context_false")]
     uses_context: bool,
     /// 预加载的汉字到拼音映射表，不属于用户配置，序列化时跳过。
@@ -25,7 +25,7 @@ struct PinyinConverterSettings {
     pinyin: HashMap<char, String>,
 }
 
-fn default_priority_25() -> i32 {
+fn default_priority_25() -> u32 {
     25
 }
 
@@ -169,7 +169,7 @@ impl KeywordOptimizer for PinyinConverter {
         self.inner.read().uses_context
     }
 
-    fn get_priority(&self) -> i32 {
+    fn get_priority(&self) -> u32 {
         self.inner.read().priority
     }
 }

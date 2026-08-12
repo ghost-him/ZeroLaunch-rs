@@ -106,7 +106,7 @@ pub trait KeywordOptimizer: Configurable {
     fn uses_context(&self) -> bool { false }
     
     // 获得优先级，优先级小的优化器会先被调用
-    fn get_priority(&self) -> i32;
+    fn get_priority(&self) -> u32;
 }
 ```
 

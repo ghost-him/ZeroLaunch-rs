@@ -12,7 +12,7 @@ use tokio::sync::mpsc;
 use tracing::{error, info, warn};
 
 use zerolaunch_plugin_api::config::Configurable;
-use zerolaunch_plugin_api::plugin::PluginKind;
+use zerolaunch_plugin_api::plugin::{PluginKind, PluginMetadata};
 use zerolaunch_plugin_protocol::manifest::Manifest;
 use zerolaunch_plugin_protocol::messages::ComponentKind;
 use zerolaunch_plugin_protocol::ProtocolError;
@@ -43,6 +43,10 @@ pub struct PluginRegistration {
     pub plugin_id: String,
     /// 原始 manifest 全文快照
     pub manifest: Manifest,
+    /// 插件级元数据（插件自声明为基础，宿主覆盖 id/version/author/kind）。
+    /// 与 RemoteComponentKind::Plugin 内持有一致的覆盖后副本；
+    /// 供 build_plugin_info 直接取插件级 priority，避免组件最小优先级的双源。
+    pub metadata: PluginMetadata,
 
     /// 该插件的所有远程组件。
     /// 每个组件都是一个 `RemoteComponent`，同时实现多个 trait；
@@ -50,15 +54,46 @@ pub struct PluginRegistration {
     pub components: Vec<Arc<RemoteComponent>>,
 }
 
-impl PluginRegistration {
-    /// 计算该插件的全局排序优先级，取所有组件 `priority()` 的最小值。
-    /// 没有任何组件时返回默认值 50。
-    pub fn compute_priority(&self) -> u32 {
-        self.components
-            .iter()
-            .map(|c| c.priority())
-            .min()
-            .unwrap_or(50)
+/// 插件运行状态（跨 IPC 序列化的运行状态契约）。
+///
+/// 由 plugin-host 从 `ProcessState` 映射产出，经 `InstalledPluginInfo.state` 下发，
+/// 消费方为前端插件管理页与 CLI 的插件列表展示；序列化为 snake_case 小写字符串
+/// （`starting` / `running` / `stopped` / `crashed` / `error` / `unknown`），
+/// 前端/CLI 按枚举值精确匹配。无负载变体：`ProcessState` 的 restarts/last_error
+/// 属诊断信息，经日志可观测，不进入 IPC 契约（Debug 字符串格式曾直接透传，已废弃）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PluginRuntimeState {
+    /// 子进程启动中 —— 握手/组件发现阶段产生，前端非运行态展示。
+    #[serde(rename = "starting")]
+    Starting,
+    /// 运行中 —— 握手完成、watchdog 存活期间；内置插件恒为该态。
+    #[serde(rename = "running")]
+    Running,
+    /// 已停止 —— 优雅关闭或 auto_restart 关闭后退出。
+    #[serde(rename = "stopped")]
+    Stopped,
+    /// 已崩溃 —— 进程异常退出且重启失败（restarts 细节见日志）。
+    #[serde(rename = "crashed")]
+    Crashed,
+    /// 启动错误 —— 握手/协议失败（具体错误见日志）。
+    #[serde(rename = "error")]
+    Error,
+    /// 状态未知 —— 进程条目不存在（如崩溃重启间隙），默认值。
+    #[serde(rename = "unknown")]
+    #[default]
+    Unknown,
+}
+
+impl From<&ProcessState> for PluginRuntimeState {
+    fn from(state: &ProcessState) -> Self {
+        match state {
+            ProcessState::Starting => Self::Starting,
+            ProcessState::Running => Self::Running,
+            ProcessState::Stopped => Self::Stopped,
+            ProcessState::Crashed { .. } => Self::Crashed,
+            ProcessState::Error(_) => Self::Error,
+        }
     }
 }
 
@@ -412,8 +447,8 @@ impl PluginHostManager {
                 let process_state = self
                     .processes
                     .get(&registration.plugin_id)
-                    .map(|p| format!("{:?}", *p.state.read()))
-                    .unwrap_or_else(|| "unknown".to_string());
+                    .map(|p| PluginRuntimeState::from(&*p.state.read()))
+                    .unwrap_or_default();
                 build_plugin_info(registration, process_state, enabled_fn(registration))
             })
             .collect();
@@ -434,8 +469,8 @@ impl PluginHostManager {
         let process_state = self
             .processes
             .get(plugin_id)
-            .map(|p| format!("{:?}", *p.state.read()))
-            .unwrap_or_else(|| "unknown".to_string());
+            .map(|p| PluginRuntimeState::from(&*p.state.read()))
+            .unwrap_or_default();
         Some(build_plugin_info(
             registration,
             process_state,
@@ -447,10 +482,12 @@ impl PluginHostManager {
 /// 由 PluginRegistration 构造运行时信息条目（list_plugin_info / get_plugin_info 共用）。
 fn build_plugin_info(
     registration: &PluginRegistration,
-    process_state: String,
+    process_state: PluginRuntimeState,
     enabled: bool,
 ) -> InstalledPluginInfo {
-    let priority = registration.compute_priority();
+    // 优先级统一取插件级元数据声明值（上层 list_plugins/plugin_info 不再覆盖，
+    // 此即全部路径的唯一来源），不再取组件 priority 最小值。
+    let priority = registration.metadata.priority;
     InstalledPluginInfo {
         plugin_id: registration.plugin_id.clone(),
         name: registration.manifest.plugin.name.clone(),
@@ -483,7 +520,7 @@ pub struct InstalledPluginInfo {
     #[serde(rename = "author")]
     pub author: String,
     #[serde(rename = "state")]
-    pub state: String,
+    pub state: PluginRuntimeState,
     #[serde(rename = "enabled")]
     pub enabled: bool,
     /// 插件种类：内置或第三方（内置条目由 src-tauri 合并时填充）。
@@ -614,6 +651,17 @@ fn build_components(
     client: Arc<crate::client::JsonRpcClient>,
     init_result: &crate::process::InitResult,
 ) -> PluginRegistration {
+    // 插件级元数据：以插件自声明为基础，仅覆盖需宿主保证一致性的字段。
+    // 与 RemoteComponentKind::Plugin 内持有一致的覆盖后副本。
+    let mut plugin_metadata = init_result.metadata.clone();
+    plugin_metadata.id = plugin_id.to_string();
+    plugin_metadata.version = manifest.plugin.version.clone();
+    plugin_metadata.author = manifest.plugin.author.clone();
+    // 第三方插件由宿主强制标注，插件自声明的 kind 不可信
+    plugin_metadata.kind = PluginKind::ThirdParty;
+    // name, description, supported_os, trigger_keywords, priority
+    // 保留插件通过 plugin/get_metadata 自声明的值
+
     let components: Vec<Arc<RemoteComponent>> = init_result
         .components
         .iter()
@@ -628,19 +676,10 @@ fn build_components(
 
             let kind = match &comp.kind {
                 ComponentKind::Plugin { .. } => {
-                    // 以插件自声明的 metadata 为基础，仅覆盖需宿主保证一致性的字段
-                    let mut metadata = init_result.metadata.clone();
-                    metadata.id = plugin_id.to_string();
-                    metadata.version = manifest.plugin.version.clone();
-                    metadata.author = manifest.plugin.author.clone();
-                    // 第三方插件由宿主强制标注，插件自声明的 kind 不可信
-                    metadata.kind = PluginKind::ThirdParty;
-                    // name, description, supported_os, trigger_keywords, priority
-                    // 保留插件通过 plugin/get_metadata 自声明的值
                     let interaction_policy =
                         find_by_id(&init_result.interaction_policy_map, &comp.component_id);
                     RemoteComponentKind::Plugin {
-                        metadata,
+                        metadata: plugin_metadata.clone(),
                         interaction_policy: parking_lot::RwLock::new(interaction_policy),
                     }
                 }
@@ -674,6 +713,7 @@ fn build_components(
     PluginRegistration {
         plugin_id: plugin_id.to_string(),
         manifest: manifest.clone(),
+        metadata: plugin_metadata,
         components,
     }
 }

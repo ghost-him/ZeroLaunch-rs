@@ -9,7 +9,7 @@ use zerolaunch_plugin_api::config::{
 use zerolaunch_plugin_api::KeywordOptimizer;
 
 /// Default priority value for SpaceNormalizerSettings.
-fn default_priority_20() -> i32 {
+fn default_priority_20() -> u32 {
     20
 }
 
@@ -21,7 +21,7 @@ fn default_uses_context_true() -> bool {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct SpaceNormalizerSettings {
     #[serde(rename = "priority", default = "default_priority_20")]
-    priority: i32,
+    priority: u32,
     #[serde(rename = "uses_context", default = "default_uses_context_true")]
     uses_context: bool,
 }
@@ -127,7 +127,7 @@ impl KeywordOptimizer for SpaceNormalizer {
         self.inner.read().uses_context
     }
 
-    fn get_priority(&self) -> i32 {
+    fn get_priority(&self) -> u32 {
         self.inner.read().priority
     }
 }

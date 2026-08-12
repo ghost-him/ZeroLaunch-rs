@@ -177,7 +177,7 @@ export function widgetToArrayUiKind(widget: WidgetHint | null): ArrayUiKind {
 }
 
 /** 字段渲染器类别，供 DynamicFormField 统一分派。 */
-export type FieldRendererKind = 'text' | 'number' | 'boolean' | 'select' | 'color' | 'path' | 'image' | 'font' | 'array' | 'object'
+export type FieldRendererKind = 'text' | 'number' | 'boolean' | 'select' | 'color' | 'path' | 'image' | 'font' | 'hotkey' | 'array' | 'object'
 
 /** 字段 schema/widget 组合的基础分派结果。 */
 export interface FieldRenderInfo {
@@ -230,6 +230,7 @@ export function getFieldRenderInfo(field: FieldConfig): FieldRenderInfo {
       if (widget.kind === 'path') return { kind: 'path', schemaType: schema.type, widgetKind, error: null }
       if (widget.kind === 'image') return { kind: 'image', schemaType: schema.type, widgetKind, error: null }
       if (widget.kind === 'font') return { kind: 'font', schemaType: schema.type, widgetKind, error: null }
+      if (widget.kind === 'hotkey') return { kind: 'hotkey', schemaType: schema.type, widgetKind, error: null }
       if (widget.kind === 'text' || widget.kind === 'textarea') return { kind: 'text', schemaType: schema.type, widgetKind, error: null }
       return { kind: null, schemaType: schema.type, widgetKind, error: 'unsupportedWidget' }
     case 'number':

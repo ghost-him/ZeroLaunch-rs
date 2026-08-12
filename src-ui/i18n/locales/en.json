@@ -121,6 +121,8 @@
     "imageUploadSuccess": "Image uploaded",
     "fontFollowSystem": "Follow system",
     "fontLoadFailed": "Failed to load font list",
+    "hotkeyPressToRecord": "Press a key combination…",
+    "hotkeyPlaceholder": "Click then press keys to record",
     "unsupportedSchema": "Field \"{field}\" cannot be rendered: {reason}",
     "schemaBuildFailed": "The field schema could not be built: {error}",
     "unsupportedArray": "Array field \"{field}\" cannot be rendered: {reason}",
@@ -576,7 +578,7 @@
       "fields": {
         "open_search_bar": {
           "label": "Open search bar",
-          "desc": "Global hotkey to show/hide the search bar"
+          "desc": "Click then press a key combination to record it; leave empty to disable the global hotkey"
         },
         "double_click_ctrl": {
           "label": "Double-click Ctrl to open",

@@ -87,6 +87,9 @@ pub enum WidgetHint {
         #[serde(rename = "component", default)]
         component: Option<String>,
     },
+    /// 快捷键录制器 — 聚焦后按下组合键进行录制，值格式为修饰键 + 主键（如 "Alt+Space"）。
+    #[serde(rename = "hotkey")]
+    Hotkey,
     /// 普通列表编辑器（默认的数组 UI）。
     #[serde(rename = "list")]
     List,

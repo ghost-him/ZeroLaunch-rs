@@ -162,6 +162,7 @@ export type WidgetHint =
   | { kind: 'color' }
   | { kind: 'image'; accept: string[]; maxSize: number | null }
   | { kind: 'font'; action: string; component: string | null }
+  | { kind: 'hotkey' }
   | { kind: 'list' }
   | { kind: 'tags' }
   | { kind: 'table' }

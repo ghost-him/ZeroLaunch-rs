@@ -121,6 +121,8 @@
     "imageUploadSuccess": "图片已上传",
     "fontFollowSystem": "跟随系统",
     "fontLoadFailed": "字体列表加载失败",
+    "hotkeyPressToRecord": "按下快捷键组合…",
+    "hotkeyPlaceholder": "点击后按下快捷键录制",
     "unsupportedSchema": "字段“{field}”无法渲染：{reason}",
     "schemaBuildFailed": "字段 schema 无法构建：{error}",
     "unsupportedArray": "数组字段“{field}”无法渲染：{reason}",
@@ -576,7 +578,7 @@
       "fields": {
         "open_search_bar": {
           "label": "打开搜索栏",
-          "desc": "全局快捷键，用于显示/隐藏搜索栏"
+          "desc": "点击后按下快捷键组合进行录制，留空则不设置全局快捷键"
         },
         "double_click_ctrl": {
           "label": "双击 Ctrl 打开搜索栏",

@@ -144,7 +144,7 @@ impl Configurable for HotkeyConfigComponent {
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {
         vec![
-            SchemaBuilder::text(
+            SchemaBuilder::hotkey(
                 "open_search_bar",
                 t_key!("hotkey-config", "fields.open_search_bar.label"),
                 t_key!("hotkey-config", "fields.open_search_bar.desc"),

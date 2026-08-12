@@ -121,6 +121,8 @@
     "imageUploadSuccess": "圖片已上傳",
     "fontFollowSystem": "跟隨系統",
     "fontLoadFailed": "字型清單載入失敗",
+    "hotkeyPressToRecord": "按下快速鍵組合…",
+    "hotkeyPlaceholder": "點擊後按下快速鍵錄製",
     "unsupportedSchema": "欄位“{field}”無法渲染：{reason}",
     "schemaBuildFailed": "欄位 schema 無法構建：{error}",
     "unsupportedArray": "陣列欄位“{field}”無法渲染：{reason}",
@@ -576,7 +578,7 @@
       "fields": {
         "open_search_bar": {
           "label": "開啟搜尋欄",
-          "desc": "全域性快速鍵，用於顯示/隱藏搜尋欄"
+          "desc": "點擊後按下快速鍵組合進行錄製，留空則不設定全域快速鍵"
         },
         "double_click_ctrl": {
           "label": "雙擊 Ctrl 開啟搜尋欄",

@@ -145,6 +145,14 @@ impl SchemaBuilder {
         )
     }
 
+    /// 创建快捷键录制字段（string + Hotkey widget）。
+    ///
+    /// 前端聚焦后进入录制态，用户按下组合键（修饰键 + 主键，如 "Alt+Space"）
+    /// 即完成录入；空串表示未设置快捷键。
+    pub fn hotkey(key: &str, label: &str, desc: &str) -> Self {
+        Self::new(key, label, desc, SchemaNode::string(), WidgetHint::Hotkey)
+    }
+
     fn new(key: &str, label: &str, desc: &str, schema: SchemaNode, widget: WidgetHint) -> Self {
         Self {
             key: key.to_string(),

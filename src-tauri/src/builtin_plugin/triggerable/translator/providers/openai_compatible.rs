@@ -168,8 +168,8 @@ pub fn parse_llm_content(
         return Err("LLM 返回空内容".into());
     }
     let after_fence = strip_markdown_fence(trimmed);
-    let extracted = extract_first_json_object(after_fence)
-        .or_else(|| extract_first_json_object(trimmed));
+    let extracted =
+        extract_first_json_object(after_fence).or_else(|| extract_first_json_object(trimmed));
 
     if let Some(json_raw) = extracted {
         let sanitized = escape_control_chars_in_json_strings(json_raw);
@@ -447,10 +447,7 @@ mod tests {
     #[test]
     fn parse_rejects_broken_json_object() {
         let err = parse_llm_content(r#"{"text":"#).unwrap_err();
-        assert!(
-            err.contains("JSON") || err.contains("解析"),
-            "err={err}"
-        );
+        assert!(err.contains("JSON") || err.contains("解析"), "err={err}");
     }
 
     #[test]

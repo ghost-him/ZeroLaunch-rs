@@ -3,7 +3,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use parking_lot::RwLock;
 use serde::Deserialize;
-use tracing::error;
+use tracing::{error, warn};
 
 use super::super::provider::{
     LanguageSupport, SenseEntry, TranslateRequest, TranslationProvider, TranslationResult,
@@ -118,16 +118,25 @@ struct ChatChoice {
 }
 
 /// 回复消息 content：兼容 string / 多段数组 / 已解析的 JSON 对象。
+///
+/// 仅限本文件内使用；用于反序列化 chat/completions 响应的 content 字段。
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
 enum MessageContent {
+    /// 纯文本正文（绝大多数 OpenAI 兼容 API 的返回形式，可能是 JSON 字符串）。
     Text(String),
+    /// 多模态分段正文（部分网关返回 parts 数组），仅拼接各段的 text。
     Array(Vec<ContentPart>),
+    /// 已被网关解析为对象的正文，经 `to_string()` 重新序列化后交给解析层。
     Object(serde_json::Value),
 }
 
+/// 多模态 content 数组中的单段。
+///
+/// 仅限本文件内使用；非文本段（如图片）不含 text，拼接时被忽略。
 #[derive(Debug, Deserialize)]
 struct ContentPart {
+    /// 本段的文本内容；None 表示该段无可拼接文本。
     #[serde(default)]
     text: Option<String>,
 }
@@ -142,11 +151,21 @@ struct ChatMessage {
     content: Option<MessageContent>,
 }
 
+/// 将 `Option<MessageContent>` 归一化为字符串供 `parse_llm_content` 解析。
+///
+/// None 与畸形 JSON 值（数字/布尔/数组）返回空串，由解析层报错；
+/// Object 仅接受 JSON 对象，避免把 `42`/`true` 序列化后当作译文。
 fn message_content_to_string(content: &Option<MessageContent>) -> String {
     match content {
         None => String::new(),
         Some(MessageContent::Text(s)) => s.clone(),
-        Some(MessageContent::Object(v)) => v.to_string(),
+        Some(MessageContent::Object(v)) => {
+            if v.is_object() {
+                v.to_string()
+            } else {
+                String::new()
+            }
+        }
         Some(MessageContent::Array(parts)) => parts
             .iter()
             .filter_map(|p| p.text.as_deref())
@@ -161,34 +180,61 @@ type ParsedLlmFields = (String, Option<String>, Option<String>, Vec<SenseEntry>)
 /// 解析 LLM 返回的 JSON 正文（支持 camelCase 字段名）。
 ///
 /// 容忍常见脏输出：markdown 代码块、`<think>` 前缀、说明文字后夹带 JSON、
-/// 字符串值内未转义的控制字符；若完全没有 JSON 对象则回退为纯文本译文。
+/// 字符串值内未转义的控制字符；若确认无可用 JSON 对象则回退为纯文本译文。
+///
+/// 提取判定（防止把正文中的花括号片段误当 JSON）：
+/// - 只采纳"提取出的 JSON 对象之后无其他内容"的结果，避免静默截断译文；
+/// - 提取成功但解析失败时继续向后扫描下一个对象（防 `<think>` 内的 JSON 毒化）；
+/// - 全部失败时：以 `{` 开头（模型承诺 JSON）或含残缺花括号（半截 JSON）→ 报错，
+///   否则回退纯文本（正文花括号/普通文本），回退时剥离 `<think>` 块。
 pub fn parse_llm_content(content: &str) -> Result<ParsedLlmFields, String> {
     let trimmed = content.trim();
     if trimmed.is_empty() {
         return Err("LLM 返回空内容".into());
     }
     let after_fence = strip_markdown_fence(trimmed);
-    let extracted =
-        extract_first_json_object(after_fence).or_else(|| extract_first_json_object(trimmed));
+    if after_fence.trim().is_empty() {
+        // fence 剥离后为空（如输出恰为 ``` 标记）
+        return Err("LLM 返回空内容".into());
+    }
 
-    if let Some(json_raw) = extracted {
+    // 至多尝试 3 个候选对象：think/前言里的 JSON 片段解析失败后继续向后找真正的 payload
+    let mut scan_from = after_fence;
+    let mut saw_complete_object = false;
+    for _ in 0..3 {
+        let Some((start, end)) = extract_first_json_object(scan_from) else {
+            break;
+        };
+        saw_complete_object = true;
+        let json_raw = &scan_from[start..=end];
+        let rest = &scan_from[end + 1..];
         let sanitized = escape_control_chars_in_json_strings(json_raw);
         match serde_json::from_str::<LlmTranslationPayload>(&sanitized) {
-            Ok(payload) => return payload_to_result(payload),
-            Err(e) => {
-                // 抽到了 `{...}` 但不是合法翻译 JSON → 不回退纯文本，避免把乱码当译文
-                return Err(format!("JSON 解析失败: {e}"));
+            Ok(payload) => {
+                // 仅当对象之后没有其他内容时才采纳，否则视为正文中的 JSON 片段
+                if rest.trim().is_empty() {
+                    return payload_to_result(payload);
+                }
+                break;
             }
+            Err(_) => scan_from = rest,
         }
     }
 
-    // 无 JSON 对象：部分模型忽略格式约定，直接返回纯译文
+    // 无可用 JSON 对象：判定是回退纯文本还是报错
     if after_fence.starts_with('{') {
+        // 模型承诺输出 JSON 却失败 → 不回退，避免把乱码当译文
         return Err("JSON 解析失败: 未找到完整 JSON 对象".into());
     }
-    Ok((after_fence.to_string(), None, None, Vec::new()))
+    if !saw_complete_object && after_fence.contains('{') {
+        // 含 `{` 但从未配对出完整对象 → 半截 JSON，同样报错而非当译文
+        return Err("JSON 解析失败: 未找到完整 JSON 对象".into());
+    }
+    // 正文花括号或纯文本：部分模型忽略格式约定，直接返回纯译文（剥离 think 块）
+    Ok((strip_think_blocks(after_fence), None, None, Vec::new()))
 }
 
+/// 校验解析出的负载并组装为 `ParsedLlmFields`；text 为空时返回中文错误。
 fn payload_to_result(payload: LlmTranslationPayload) -> Result<ParsedLlmFields, String> {
     if payload.text.trim().is_empty() {
         return Err("JSON 缺少有效 text 字段".into());
@@ -210,25 +256,34 @@ fn payload_to_result(payload: LlmTranslationPayload) -> Result<ParsedLlmFields, 
     ))
 }
 
+/// 剥离 markdown 代码块围栏，支持两种形态：
+/// 整段为围栏块（` ```json\n{...}\n``` `）或说明文字后夹带围栏块
+/// （`译文如下：\n```json\n{...}\n``` `，返回围栏内内容）。
+/// 无闭合围栏或仅正文提及 ``` 时原样返回。
 fn strip_markdown_fence(s: &str) -> &str {
     let s = s.trim();
-    if !s.starts_with("```") {
+    let Some(fence_start) = s.find("```") else {
         return s;
-    }
-    // 去掉尾部 ```
-    let s = s.strip_suffix("```").unwrap_or(s).trim();
-    // 去掉前导 ```
-    let after_fence = s.trim_start_matches('`').trim();
-    // 去掉可选的 json 标记（大小写不敏感）
-    if after_fence.to_lowercase().starts_with("json") {
-        after_fence[4..].trim()
-    } else {
-        after_fence
+    };
+    // 围栏起点后的内容：去掉可选语言标记（到行尾）
+    let after_open = &s[fence_start + 3..];
+    let after_open = match after_open.find('\n') {
+        Some(nl) => &after_open[nl + 1..],
+        None => {
+            // ``` 后无换行：整段为裸围栏标记 → 视为空；否则是正文提及，原样返回
+            return if fence_start == 0 { "" } else { s };
+        }
+    };
+    // 去掉尾部 ```（若存在）
+    match after_open.rfind("```") {
+        Some(pos) => after_open[..pos].trim(),
+        None => s,
     }
 }
 
-/// 从混杂文本中抽出第一个完整 JSON 对象（花括号配对，忽略字符串内括号）。
-fn extract_first_json_object(s: &str) -> Option<&str> {
+/// 从混杂文本中抽出第一个完整 JSON 对象（花括号配对，忽略字符串内括号），
+/// 返回 `(起始字节索引, 结束字节索引)`，供调用方切片并继续向后扫描。
+fn extract_first_json_object(s: &str) -> Option<(usize, usize)> {
     let start = s.find('{')?;
     let bytes = s.as_bytes();
     let mut depth = 0i32;
@@ -251,13 +306,34 @@ fn extract_first_json_object(s: &str) -> Option<&str> {
             b'}' => {
                 depth -= 1;
                 if depth == 0 {
-                    return Some(&s[start..=i]);
+                    return Some((start, i));
                 }
             }
             _ => {}
         }
     }
     None
+}
+
+/// 剥离 `<think>...</think>` 块（可多个、可跨行）；未闭合的块保留剩余原文。
+fn strip_think_blocks(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut rest = s;
+    while let Some(start) = rest.find("<think>") {
+        out.push_str(&rest[..start]);
+        rest = &rest[start + "<think>".len()..];
+        match rest.find("</think>") {
+            Some(end) => rest = &rest[end + "</think>".len()..],
+            None => {
+                // 未闭合：保留标签与剩余内容，避免丢失模型输出
+                out.push_str("<think>");
+                out.push_str(rest);
+                return out;
+            }
+        }
+    }
+    out.push_str(rest);
+    out.trim().to_string()
 }
 
 /// 将 JSON 字符串值内的裸控制字符转义为 `\n` / `\r` / `\t` / `\uXXXX`。
@@ -427,11 +503,9 @@ impl TranslationProvider for OpenAiCompatibleProvider {
             )
             .normalize_senses(),
             Err(e) => {
-                let preview: String = content.chars().take(500).collect();
-                error!(
-                    "LLM JSON 解析失败: {}; model={}; base_url={}; raw={:?}",
-                    e, config.model, base_url, preview
-                );
+                // 解析失败属预期高频场景（轻量模型不按格式输出）：只记可定位信息，
+                // 不记录模型输出内容（用户译文）与 base_url（可能内嵌凭据）
+                warn!("LLM JSON 解析失败: {}; model={}", e, config.model);
                 TranslationResult::err(PROVIDER_ID, "OpenAI 兼容", e)
             }
         }
@@ -499,6 +573,84 @@ mod tests {
     fn parse_rejects_empty_content() {
         let err = parse_llm_content("   ").unwrap_err();
         assert!(err.contains("空"), "err={err}");
+    }
+
+    #[test]
+    fn parse_preserves_braces_in_plain_text() {
+        // 纯文本译文含代码花括号：不得因提取到 `{ return 1; }` 而硬报错，应整体回退
+        let (text, _, _, _) = parse_llm_content("fn f() { return 1; }").unwrap();
+        assert_eq!(text, "fn f() { return 1; }");
+    }
+
+    #[test]
+    fn parse_does_not_extract_nested_json_example() {
+        // 说明文字里夹带的 JSON 示例不是译文：不得静默截断为示例中的 text
+        let raw = r#"JSON 格式如 {"text":"abc"} 所示"#;
+        let (text, _, _, _) = parse_llm_content(raw).unwrap();
+        assert_eq!(text, raw);
+    }
+
+    #[test]
+    fn parse_skips_json_fragment_inside_think() {
+        // think 块内的 JSON 片段（缺 text）不得毒化解析，应继续扫描到真正的 payload
+        let raw = r#"<think>{"unfinished": true}</think>
+{"text":"你好"}"#;
+        let (text, _, _, _) = parse_llm_content(raw).unwrap();
+        assert_eq!(text, "你好");
+    }
+
+    #[test]
+    fn parse_rejects_truncated_json_in_text() {
+        // 文本中夹带残缺 JSON（花括号未闭合）：不得把半截 JSON 当译文返回
+        let err = parse_llm_content(r#"译文：{"text":"broken"#).unwrap_err();
+        assert!(err.contains("JSON") || err.contains("解析"), "err={err}");
+    }
+
+    #[test]
+    fn parse_strips_think_tags_in_fallback() {
+        // 纯文本回退路径同样剥离 think 块，思考内容不得混入译文
+        let (text, _, _, _) = parse_llm_content("<think>先分析语气</think>你好").unwrap();
+        assert_eq!(text, "你好");
+    }
+
+    #[test]
+    fn parse_rejects_bare_fence_marker() {
+        // 输出恰为 ``` 标记：fence 剥离后为空，按空内容报错而非返回空译文
+        let err = parse_llm_content("```").unwrap_err();
+        assert!(err.contains("空"), "err={err}");
+    }
+
+    #[test]
+    fn message_content_to_string_handles_all_variants() {
+        assert_eq!(message_content_to_string(&None), "");
+        assert_eq!(
+            message_content_to_string(&Some(MessageContent::Text("hi".into()))),
+            "hi"
+        );
+        assert_eq!(
+            message_content_to_string(&Some(MessageContent::Object(
+                serde_json::json!({"text": "hi"})
+            ))),
+            r#"{"text":"hi"}"#
+        );
+        // 畸形值（数字/布尔/数组）不得被序列化后当作译文：按空串处理交给解析层报错
+        assert_eq!(
+            message_content_to_string(&Some(MessageContent::Object(serde_json::json!(42)))),
+            ""
+        );
+        let parts = vec![
+            ContentPart {
+                text: Some("a".into()),
+            },
+            ContentPart { text: None },
+            ContentPart {
+                text: Some("b".into()),
+            },
+        ];
+        assert_eq!(
+            message_content_to_string(&Some(MessageContent::Array(parts))),
+            "ab"
+        );
     }
 
     #[tokio::test]

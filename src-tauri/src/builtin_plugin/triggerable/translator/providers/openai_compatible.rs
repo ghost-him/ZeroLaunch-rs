@@ -155,14 +155,14 @@ fn message_content_to_string(content: &Option<MessageContent>) -> String {
     }
 }
 
+/// 解析成功时的负载：(text, phonetic, computer_sense, more_senses)。
+type ParsedLlmFields = (String, Option<String>, Option<String>, Vec<SenseEntry>);
+
 /// 解析 LLM 返回的 JSON 正文（支持 camelCase 字段名）。
 ///
 /// 容忍常见脏输出：markdown 代码块、`<think>` 前缀、说明文字后夹带 JSON、
 /// 字符串值内未转义的控制字符；若完全没有 JSON 对象则回退为纯文本译文。
-#[allow(clippy::type_complexity)]
-pub fn parse_llm_content(
-    content: &str,
-) -> Result<(String, Option<String>, Option<String>, Vec<SenseEntry>), String> {
+pub fn parse_llm_content(content: &str) -> Result<ParsedLlmFields, String> {
     let trimmed = content.trim();
     if trimmed.is_empty() {
         return Err("LLM 返回空内容".into());
@@ -189,9 +189,7 @@ pub fn parse_llm_content(
     Ok((after_fence.to_string(), None, None, Vec::new()))
 }
 
-fn payload_to_result(
-    payload: LlmTranslationPayload,
-) -> Result<(String, Option<String>, Option<String>, Vec<SenseEntry>), String> {
+fn payload_to_result(payload: LlmTranslationPayload) -> Result<ParsedLlmFields, String> {
     if payload.text.trim().is_empty() {
         return Err("JSON 缺少有效 text 字段".into());
     }

@@ -117,24 +117,79 @@ struct ChatChoice {
     message: ChatMessage,
 }
 
+/// 回复消息 content：兼容 string / 多段数组 / 已解析的 JSON 对象。
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum MessageContent {
+    Text(String),
+    Array(Vec<ContentPart>),
+    Object(serde_json::Value),
+}
+
+#[derive(Debug, Deserialize)]
+struct ContentPart {
+    #[serde(default)]
+    text: Option<String>,
+}
+
 /// 回复消息（仅取 content 字段）。
 ///
 /// 仅限本文件内使用。
 #[derive(Debug, Deserialize)]
 struct ChatMessage {
-    /// 回复正文（应为 JSON 字符串）。
-    content: String,
+    /// 回复正文（字符串 JSON / 多模态数组 / 已是对象）。
+    #[serde(default)]
+    content: Option<MessageContent>,
 }
 
+fn message_content_to_string(content: &Option<MessageContent>) -> String {
+    match content {
+        None => String::new(),
+        Some(MessageContent::Text(s)) => s.clone(),
+        Some(MessageContent::Object(v)) => v.to_string(),
+        Some(MessageContent::Array(parts)) => parts
+            .iter()
+            .filter_map(|p| p.text.as_deref())
+            .collect::<Vec<_>>()
+            .join(""),
+    }
+}
+
+/// 解析成功时的负载：(text, phonetic, computer_sense, more_senses)。
+type ParsedLlmFields = (String, Option<String>, Option<String>, Vec<SenseEntry>);
+
 /// 解析 LLM 返回的 JSON 正文（支持 camelCase 字段名）。
-#[allow(clippy::type_complexity)]
-pub fn parse_llm_content(
-    content: &str,
-) -> Result<(String, Option<String>, Option<String>, Vec<SenseEntry>), String> {
+///
+/// 容忍常见脏输出：markdown 代码块、`<think>` 前缀、说明文字后夹带 JSON、
+/// 字符串值内未转义的控制字符；若完全没有 JSON 对象则回退为纯文本译文。
+pub fn parse_llm_content(content: &str) -> Result<ParsedLlmFields, String> {
     let trimmed = content.trim();
-    let json_str = strip_markdown_fence(trimmed);
-    let payload: LlmTranslationPayload =
-        serde_json::from_str(json_str).map_err(|e| format!("JSON 解析失败: {e}"))?;
+    if trimmed.is_empty() {
+        return Err("LLM 返回空内容".into());
+    }
+    let after_fence = strip_markdown_fence(trimmed);
+    let extracted =
+        extract_first_json_object(after_fence).or_else(|| extract_first_json_object(trimmed));
+
+    if let Some(json_raw) = extracted {
+        let sanitized = escape_control_chars_in_json_strings(json_raw);
+        match serde_json::from_str::<LlmTranslationPayload>(&sanitized) {
+            Ok(payload) => return payload_to_result(payload),
+            Err(e) => {
+                // 抽到了 `{...}` 但不是合法翻译 JSON → 不回退纯文本，避免把乱码当译文
+                return Err(format!("JSON 解析失败: {e}"));
+            }
+        }
+    }
+
+    // 无 JSON 对象：部分模型忽略格式约定，直接返回纯译文
+    if after_fence.starts_with('{') {
+        return Err("JSON 解析失败: 未找到完整 JSON 对象".into());
+    }
+    Ok((after_fence.to_string(), None, None, Vec::new()))
+}
+
+fn payload_to_result(payload: LlmTranslationPayload) -> Result<ParsedLlmFields, String> {
     if payload.text.trim().is_empty() {
         return Err("JSON 缺少有效 text 字段".into());
     }
@@ -170,6 +225,80 @@ fn strip_markdown_fence(s: &str) -> &str {
     } else {
         after_fence
     }
+}
+
+/// 从混杂文本中抽出第一个完整 JSON 对象（花括号配对，忽略字符串内括号）。
+fn extract_first_json_object(s: &str) -> Option<&str> {
+    let start = s.find('{')?;
+    let bytes = s.as_bytes();
+    let mut depth = 0i32;
+    let mut in_string = false;
+    let mut escape = false;
+    for (i, &b) in bytes.iter().enumerate().skip(start) {
+        if in_string {
+            if escape {
+                escape = false;
+            } else if b == b'\\' {
+                escape = true;
+            } else if b == b'"' {
+                in_string = false;
+            }
+            continue;
+        }
+        match b {
+            b'"' => in_string = true,
+            b'{' => depth += 1,
+            b'}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(&s[start..=i]);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+/// 将 JSON 字符串值内的裸控制字符转义为 `\n` / `\r` / `\t` / `\uXXXX`。
+/// 部分模型会在 `"text": "..."` 里直接换行，导致严格 JSON 解析失败。
+fn escape_control_chars_in_json_strings(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut in_string = false;
+    let mut escape = false;
+    for c in s.chars() {
+        if !in_string {
+            if c == '"' {
+                in_string = true;
+            }
+            out.push(c);
+            continue;
+        }
+        if escape {
+            out.push(c);
+            escape = false;
+            continue;
+        }
+        match c {
+            '\\' => {
+                out.push(c);
+                escape = true;
+            }
+            '"' => {
+                out.push(c);
+                in_string = false;
+            }
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c if c.is_control() => {
+                use std::fmt::Write;
+                let _ = write!(out, "\\u{:04x}", c as u32);
+            }
+            c => out.push(c),
+        }
+    }
+    out
 }
 
 fn missing_config_error() -> String {
@@ -283,10 +412,10 @@ impl TranslationProvider for OpenAiCompatibleProvider {
         let content = completion
             .choices
             .first()
-            .map(|c| c.message.content.as_str())
-            .unwrap_or("");
+            .map(|c| message_content_to_string(&c.message.content))
+            .unwrap_or_default();
 
-        match parse_llm_content(content) {
+        match parse_llm_content(&content) {
             Ok((text, phonetic, computer_sense, more_senses)) => TranslationResult::ok(
                 PROVIDER_ID,
                 "OpenAI 兼容",
@@ -297,7 +426,14 @@ impl TranslationProvider for OpenAiCompatibleProvider {
                 Some(req.source.clone()),
             )
             .normalize_senses(),
-            Err(e) => TranslationResult::err(PROVIDER_ID, "OpenAI 兼容", e),
+            Err(e) => {
+                let preview: String = content.chars().take(500).collect();
+                error!(
+                    "LLM JSON 解析失败: {}; model={}; base_url={}; raw={:?}",
+                    e, config.model, base_url, preview
+                );
+                TranslationResult::err(PROVIDER_ID, "OpenAI 兼容", e)
+            }
         }
     }
 }
@@ -307,8 +443,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parse_rejects_non_json() {
-        assert!(parse_llm_content("不是json").is_err());
+    fn parse_rejects_broken_json_object() {
+        let err = parse_llm_content(r#"{"text":"#).unwrap_err();
+        assert!(err.contains("JSON") || err.contains("解析"), "err={err}");
     }
 
     #[test]
@@ -319,6 +456,49 @@ mod tests {
         assert_eq!(ph.as_deref(), Some("/kæʃ/"));
         assert_eq!(cs.as_deref(), Some("高速缓冲"));
         assert_eq!(more.len(), 1);
+    }
+
+    #[test]
+    fn parse_accepts_json_with_unescaped_newline_in_string() {
+        // 部分模型会在 JSON 字符串值里直接换行，严格解析会报 control character
+        let raw = "{\n  \"text\": \"hello\nworld\",\n  \"phonetic\": \"\"\n}";
+        let (text, _, _, _) = parse_llm_content(raw).unwrap();
+        assert_eq!(text, "hello\nworld");
+    }
+
+    #[test]
+    fn parse_plain_text_fallback_when_no_json_object() {
+        let (text, ph, cs, more) = parse_llm_content("Hello, world").unwrap();
+        assert_eq!(text, "Hello, world");
+        assert!(ph.is_none());
+        assert!(cs.is_none());
+        assert!(more.is_empty());
+    }
+
+    #[test]
+    fn parse_extracts_json_after_think_tags() {
+        let raw = r#"<think>先分析语气</think>
+{"text":"你好","moreSenses":[{"label":"int.","text":"打招呼"}]}"#;
+        let (text, _, _, more) = parse_llm_content(raw).unwrap();
+        assert_eq!(text, "你好");
+        assert_eq!(more.len(), 1);
+    }
+
+    #[test]
+    fn parse_extracts_json_from_preamble_and_fence() {
+        let raw = r#"译文如下：
+```json
+{"text":"缓存失效"}
+```
+"#;
+        let (text, _, _, _) = parse_llm_content(raw).unwrap();
+        assert_eq!(text, "缓存失效");
+    }
+
+    #[test]
+    fn parse_rejects_empty_content() {
+        let err = parse_llm_content("   ").unwrap_err();
+        assert!(err.contains("空"), "err={err}");
     }
 
     #[tokio::test]

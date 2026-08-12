@@ -119,6 +119,8 @@
     "imageLoadFailed": "图片加载失败",
     "imageUploadFailed": "图片上传失败",
     "imageUploadSuccess": "图片已上传",
+    "fontFollowSystem": "跟随系统",
+    "fontLoadFailed": "字体列表加载失败",
     "unsupportedSchema": "字段“{field}”无法渲染：{reason}",
     "schemaBuildFailed": "字段 schema 无法构建：{error}",
     "unsupportedArray": "数组字段“{field}”无法渲染：{reason}",
@@ -338,7 +340,7 @@
         },
         "search_bar_font_family": {
           "label": "搜索栏字体",
-          "desc": "字体族名称，留空则跟随系统"
+          "desc": "从系统已安装字体中选择，留空则跟随系统"
         },
         "search_bar_placeholder": {
           "label": "搜索栏占位符",
@@ -362,7 +364,7 @@
         },
         "result_item_font_family": {
           "label": "结果栏字体",
-          "desc": "字体族名称，留空则跟随系统"
+          "desc": "从系统已安装字体中选择，留空则跟随系统"
         },
         "max_visible_results": {
           "label": "最大可见结果数",
@@ -386,7 +388,7 @@
         },
         "footer_font_family": {
           "label": "底栏字体",
-          "desc": "字体族名称，留空则跟随系统"
+          "desc": "从系统已安装字体中选择，留空则跟随系统"
         },
         "window_width": {
           "label": "窗口宽度",
@@ -479,6 +481,12 @@
         "bg_opacity": {
           "label": "背景不透明度",
           "desc": "背景图片的不透明度 (0.0 ~ 1.0)"
+        }
+      },
+      "actions": {
+        "list_fonts": {
+          "label": "列出系统字体",
+          "description": "扫描当前电脑上已安装的字体"
         }
       }
     },

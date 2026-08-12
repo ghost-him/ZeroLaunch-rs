@@ -77,6 +77,16 @@ pub enum WidgetHint {
         #[serde(default)]
         max_size: Option<u64>,
     },
+    /// 字体选择器 — 通过组件 config action 列出系统字体供用户直接选择。
+    #[serde(rename = "font")]
+    Font {
+        /// 列出系统字体的 config action 名称（如 `list_fonts`）。
+        #[serde(rename = "action")]
+        action: String,
+        /// 提供该 action 的组件 id；None 表示字段所属组件自身。
+        #[serde(rename = "component", default)]
+        component: Option<String>,
+    },
     /// 普通列表编辑器（默认的数组 UI）。
     #[serde(rename = "list")]
     List,

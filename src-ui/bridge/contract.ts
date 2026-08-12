@@ -161,6 +161,7 @@ export type WidgetHint =
   | { kind: 'path'; mode: 'file' | 'directory' }
   | { kind: 'color' }
   | { kind: 'image'; accept: string[]; maxSize: number | null }
+  | { kind: 'font'; action: string; component: string | null }
   | { kind: 'list' }
   | { kind: 'tags' }
   | { kind: 'table' }

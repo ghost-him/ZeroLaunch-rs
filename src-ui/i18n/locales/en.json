@@ -119,6 +119,8 @@
     "imageLoadFailed": "Image load failed",
     "imageUploadFailed": "Image upload failed",
     "imageUploadSuccess": "Image uploaded",
+    "fontFollowSystem": "Follow system",
+    "fontLoadFailed": "Failed to load font list",
     "unsupportedSchema": "Field \"{field}\" cannot be rendered: {reason}",
     "schemaBuildFailed": "The field schema could not be built: {error}",
     "unsupportedArray": "Array field \"{field}\" cannot be rendered: {reason}",
@@ -338,7 +340,7 @@
         },
         "search_bar_font_family": {
           "label": "Search bar font",
-          "desc": "Font family name; empty follows system"
+          "desc": "Select from installed system fonts; empty follows system"
         },
         "search_bar_placeholder": {
           "label": "Search bar placeholder",
@@ -362,7 +364,7 @@
         },
         "result_item_font_family": {
           "label": "Result list font",
-          "desc": "Font family name; empty follows system"
+          "desc": "Select from installed system fonts; empty follows system"
         },
         "max_visible_results": {
           "label": "Max visible results",
@@ -386,7 +388,7 @@
         },
         "footer_font_family": {
           "label": "Footer font",
-          "desc": "Font family name; empty follows system"
+          "desc": "Select from installed system fonts; empty follows system"
         },
         "window_width": {
           "label": "Window width",
@@ -479,6 +481,12 @@
         "bg_opacity": {
           "label": "Background opacity",
           "desc": "Background image opacity (0.0 ~ 1.0)"
+        }
+      },
+      "actions": {
+        "list_fonts": {
+          "label": "List system fonts",
+          "description": "Scan fonts installed on this computer"
         }
       }
     },

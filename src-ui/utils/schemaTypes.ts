@@ -177,7 +177,7 @@ export function widgetToArrayUiKind(widget: WidgetHint | null): ArrayUiKind {
 }
 
 /** 字段渲染器类别，供 DynamicFormField 统一分派。 */
-export type FieldRendererKind = 'text' | 'number' | 'boolean' | 'select' | 'color' | 'path' | 'image' | 'array' | 'object'
+export type FieldRendererKind = 'text' | 'number' | 'boolean' | 'select' | 'color' | 'path' | 'image' | 'font' | 'array' | 'object'
 
 /** 字段 schema/widget 组合的基础分派结果。 */
 export interface FieldRenderInfo {
@@ -229,6 +229,7 @@ export function getFieldRenderInfo(field: FieldConfig): FieldRenderInfo {
       if (widget.kind === 'color') return { kind: 'color', schemaType: schema.type, widgetKind, error: null }
       if (widget.kind === 'path') return { kind: 'path', schemaType: schema.type, widgetKind, error: null }
       if (widget.kind === 'image') return { kind: 'image', schemaType: schema.type, widgetKind, error: null }
+      if (widget.kind === 'font') return { kind: 'font', schemaType: schema.type, widgetKind, error: null }
       if (widget.kind === 'text' || widget.kind === 'textarea') return { kind: 'text', schemaType: schema.type, widgetKind, error: null }
       return { kind: null, schemaType: schema.type, widgetKind, error: 'unsupportedWidget' }
     case 'number':
@@ -355,6 +356,12 @@ export function getSchemaEnumOptions(schema: SchemaNode): { label: string; value
 export function getSchemaPathMode(widget: WidgetHint | null): 'file' | 'directory' {
   if (widget?.kind === 'path') return widget.mode
   return 'file'
+}
+
+/** 字体选择器的字体列表来源（widget 声明的 config action）；非 font widget 返回 null。 */
+export function getSchemaFontSource(widget: WidgetHint | null): { action: string; component: string | null } | null {
+  if (widget?.kind === 'font') return { action: widget.action, component: widget.component }
+  return null
 }
 
 /** 获取文本字段的输入模式。 */

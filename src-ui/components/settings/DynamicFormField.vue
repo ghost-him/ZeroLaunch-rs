@@ -38,6 +38,7 @@ import ColorField from './fields/ColorField.vue'
 import PathField from './fields/PathField.vue'
 import ArrayField from './fields/ArrayField.vue'
 import ImageField from './fields/ImageField.vue'
+import FontField from './fields/FontField.vue'
 import ObjectField from './fields/ObjectField.vue'
 
 const props = withDefaults(defineProps<{
@@ -80,6 +81,7 @@ const fieldComponent = computed<Component | null>(() => {
     case 'color': return ColorField
     case 'path': return PathField
     case 'image': return ImageField
+    case 'font': return FontField
     case 'array': return ArrayField
     case 'object': return ObjectField
     default: return null

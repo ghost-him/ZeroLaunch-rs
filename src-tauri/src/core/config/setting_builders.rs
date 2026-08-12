@@ -128,6 +128,23 @@ impl SchemaBuilder {
         )
     }
 
+    /// 创建字体选择字段（string + Font widget）。
+    ///
+    /// 前端通过声明的 config action（默认 `list_fonts`）拉取系统字体列表，
+    /// 用户从列表中直接选择。字段值持久化为字体族名称，空串表示跟随系统。
+    pub fn font(key: &str, label: &str, desc: &str) -> Self {
+        Self::new(
+            key,
+            label,
+            desc,
+            SchemaNode::string(),
+            WidgetHint::Font {
+                action: "list_fonts".to_string(),
+                component: None,
+            },
+        )
+    }
+
     fn new(key: &str, label: &str, desc: &str, schema: SchemaNode, widget: WidgetHint) -> Self {
         Self {
             key: key.to_string(),
@@ -363,6 +380,56 @@ impl SchemaBuilder {
                 tracing::warn!(
                     "SchemaBuilder::directory() 只能在路径选择器上调用。\
                      字段 '{}' 的控件为 {other:?}，请使用 path() 构造器或先调用 path_ui()",
+                    self.key
+                );
+                return self;
+            }
+        }
+        self
+    }
+
+    // ── Font ─────────────────────────────────────────────────────
+
+    /// 指定列出系统字体的 config action 名称（默认 `list_fonts`）。
+    pub fn font_action(mut self, action: &str) -> Self {
+        match &mut self.ui.widget {
+            Some(WidgetHint::Font { action: target, .. }) => *target = action.to_string(),
+            other => {
+                debug_assert!(
+                    false,
+                    "SchemaBuilder::font_action() 只能在字体选择器上调用。\
+                     字段 '{}' 的控件为 {other:?}，请使用 font() 构造器",
+                    self.key
+                );
+                tracing::warn!(
+                    "SchemaBuilder::font_action() 只能在字体选择器上调用。\
+                     字段 '{}' 的控件为 {other:?}，请使用 font() 构造器",
+                    self.key
+                );
+                return self;
+            }
+        }
+        self
+    }
+
+    /// 指定提供字体的 config 组件 id（默认使用拥有该字段的组件自身）。
+    pub fn font_component(mut self, component: &str) -> Self {
+        match &mut self.ui.widget {
+            Some(WidgetHint::Font {
+                component: target, ..
+            }) => {
+                *target = Some(component.to_string());
+            }
+            other => {
+                debug_assert!(
+                    false,
+                    "SchemaBuilder::font_component() 只能在字体选择器上调用。\
+                     字段 '{}' 的控件为 {other:?}，请使用 font() 构造器",
+                    self.key
+                );
+                tracing::warn!(
+                    "SchemaBuilder::font_component() 只能在字体选择器上调用。\
+                     字段 '{}' 的控件为 {other:?}，请使用 font() 构造器",
                     self.key
                 );
                 return self;

@@ -1,10 +1,11 @@
 use crate::core::config::setting_builders::SchemaBuilder;
+use crate::utils::font_database;
 use async_trait::async_trait;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 use zerolaunch_plugin_api::config::{
-    ComponentCore, ComponentType, ConfigError, Configurable, SettingDefinition,
+    ComponentCore, ComponentType, ConfigActionDef, ConfigError, Configurable, SettingDefinition,
 };
 
 // ============ 默认值函数 ============
@@ -367,7 +368,7 @@ impl Configurable for AppearanceConfigComponent {
             .max(0.8)
             .step(0.01)
             .build(),
-            SchemaBuilder::text(
+            SchemaBuilder::font(
                 "search_bar_font_family",
                 t_key!("appearance-config", "fields.search_bar_font_family.label"),
                 t_key!("appearance-config", "fields.search_bar_font_family.desc"),
@@ -440,7 +441,7 @@ impl Configurable for AppearanceConfigComponent {
             .max(0.9)
             .step(0.01)
             .build(),
-            SchemaBuilder::text(
+            SchemaBuilder::font(
                 "result_item_font_family",
                 t_key!("appearance-config", "fields.result_item_font_family.label"),
                 t_key!("appearance-config", "fields.result_item_font_family.desc"),
@@ -504,7 +505,7 @@ impl Configurable for AppearanceConfigComponent {
             .max(0.35)
             .step(0.01)
             .build(),
-            SchemaBuilder::text(
+            SchemaBuilder::font(
                 "footer_font_family",
                 t_key!("appearance-config", "fields.footer_font_family.label"),
                 t_key!("appearance-config", "fields.footer_font_family.desc"),
@@ -864,6 +865,30 @@ impl Configurable for AppearanceConfigComponent {
             }
         }
         Ok(())
+    }
+
+    fn config_actions(&self) -> Vec<ConfigActionDef> {
+        vec![ConfigActionDef {
+            action: "list_fonts".to_string(),
+            label: t_key!("appearance-config", "actions.list_fonts.label").to_string(),
+            description: t_key!("appearance-config", "actions.list_fonts.description").to_string(),
+        }]
+    }
+
+    async fn execute_config_action(
+        &self,
+        action: &str,
+        _params: &serde_json::Value,
+    ) -> Result<serde_json::Value, String> {
+        match action {
+            // 只读枚举系统字体，供字体选择器填充候选列表，不修改任何状态
+            "list_fonts" => {
+                let mut fonts: Vec<String> = font_database::get_fonts().into_iter().collect();
+                fonts.sort();
+                Ok(serde_json::json!({ "fonts": fonts }))
+            }
+            _ => Err(format!("未知动作: {}", action)),
+        }
     }
 
     fn on_settings_changed(&self) {

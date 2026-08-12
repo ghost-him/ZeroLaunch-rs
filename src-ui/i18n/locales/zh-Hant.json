@@ -119,6 +119,8 @@
     "imageLoadFailed": "圖片載入失敗",
     "imageUploadFailed": "圖片上傳失敗",
     "imageUploadSuccess": "圖片已上傳",
+    "fontFollowSystem": "跟隨系統",
+    "fontLoadFailed": "字型清單載入失敗",
     "unsupportedSchema": "欄位“{field}”無法渲染：{reason}",
     "schemaBuildFailed": "欄位 schema 無法構建：{error}",
     "unsupportedArray": "陣列欄位“{field}”無法渲染：{reason}",
@@ -338,7 +340,7 @@
         },
         "search_bar_font_family": {
           "label": "搜尋欄字型",
-          "desc": "字型族名稱，留空則跟隨系統"
+          "desc": "從系統已安裝字型中選擇，留空則跟隨系統"
         },
         "search_bar_placeholder": {
           "label": "搜尋欄佔位符",
@@ -362,7 +364,7 @@
         },
         "result_item_font_family": {
           "label": "結果欄字型",
-          "desc": "字型族名稱，留空則跟隨系統"
+          "desc": "從系統已安裝字型中選擇，留空則跟隨系統"
         },
         "max_visible_results": {
           "label": "最大可見結果數",
@@ -386,7 +388,7 @@
         },
         "footer_font_family": {
           "label": "底欄字型",
-          "desc": "字型族名稱，留空則跟隨系統"
+          "desc": "從系統已安裝字型中選擇，留空則跟隨系統"
         },
         "window_width": {
           "label": "視窗寬度",
@@ -479,6 +481,12 @@
         "bg_opacity": {
           "label": "背景不透明度",
           "desc": "背景圖片的不透明度 (0.0 ~ 1.0)"
+        }
+      },
+      "actions": {
+        "list_fonts": {
+          "label": "列出系統字型",
+          "description": "掃描目前電腦上已安裝的字型"
         }
       }
     },

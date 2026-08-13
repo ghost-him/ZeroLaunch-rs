@@ -44,9 +44,10 @@ pub struct PluginRegistration {
     /// 原始 manifest 全文快照
     pub manifest: Manifest,
     /// 插件级元数据（插件自声明为基础，宿主覆盖 id/version/author/kind）。
-    /// 与 RemoteComponentKind::Plugin 内持有一致的覆盖后副本；
+    /// **唯一源**：与各 `RemoteComponentKind::Plugin` 共享同一 `Arc`，
+    /// 由 build_components 一次性构造后不可变；任何字段覆盖只能发生在该函数内。
     /// 供 build_plugin_info 直接取插件级 priority，避免组件最小优先级的双源。
-    pub metadata: PluginMetadata,
+    pub metadata: Arc<PluginMetadata>,
 
     /// 该插件的所有远程组件。
     /// 每个组件都是一个 `RemoteComponent`，同时实现多个 trait；
@@ -652,7 +653,8 @@ fn build_components(
     init_result: &crate::process::InitResult,
 ) -> PluginRegistration {
     // 插件级元数据：以插件自声明为基础，仅覆盖需宿主保证一致性的字段。
-    // 与 RemoteComponentKind::Plugin 内持有一致的覆盖后副本。
+    // 构造完成后包 Arc 成为唯一源：registration.metadata 与各 Plugin 组件共享同一数据，
+    // 任何字段覆盖只能发生在此处（覆盖后不再可变）。
     let mut plugin_metadata = init_result.metadata.clone();
     plugin_metadata.id = plugin_id.to_string();
     plugin_metadata.version = manifest.plugin.version.clone();
@@ -661,6 +663,7 @@ fn build_components(
     plugin_metadata.kind = PluginKind::ThirdParty;
     // name, description, supported_os, trigger_keywords, priority
     // 保留插件通过 plugin/get_metadata 自声明的值
+    let plugin_metadata = Arc::new(plugin_metadata);
 
     let components: Vec<Arc<RemoteComponent>> = init_result
         .components
@@ -679,7 +682,7 @@ fn build_components(
                     let interaction_policy =
                         find_by_id(&init_result.interaction_policy_map, &comp.component_id);
                     RemoteComponentKind::Plugin {
-                        metadata: plugin_metadata.clone(),
+                        metadata: Arc::clone(&plugin_metadata),
                         interaction_policy: parking_lot::RwLock::new(interaction_policy),
                     }
                 }
@@ -710,12 +713,28 @@ fn build_components(
         })
         .collect();
 
-    PluginRegistration {
+    let registration = PluginRegistration {
         plugin_id: plugin_id.to_string(),
         manifest: manifest.clone(),
         metadata: plugin_metadata,
         components,
+    };
+
+    #[cfg(debug_assertions)]
+    {
+        // 唯一源断言：所有 Plugin 组件必须与 registration.metadata 共享同一 Arc。
+        // 若未来某处改为独立 clone，此处立即失败，防止两副本单边漂移。
+        for comp in &registration.components {
+            if let RemoteComponentKind::Plugin { metadata, .. } = &comp.kind {
+                debug_assert!(
+                    Arc::ptr_eq(metadata, &registration.metadata),
+                    "组件元数据与 PluginRegistration.metadata 必须同源共享（Arc::clone）"
+                );
+            }
+        }
     }
+
+    registration
 }
 
 /// 崩溃处理主循环：监听 crash channel，串行处理每个崩溃事件。

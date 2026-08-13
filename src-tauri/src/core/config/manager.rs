@@ -648,7 +648,7 @@ mod tests {
         let (reader, writer) = tokio::io::duplex(64);
         let client =
             JsonRpcClient::new(tokio::io::BufReader::new(reader), writer, req_tx, notif_tx);
-        let metadata = PluginMetadata {
+        let metadata = Arc::new(PluginMetadata {
             id: "com.example.collide".into(),
             name: "碰撞测试".into(),
             version: "1.0.0".into(),
@@ -658,7 +658,7 @@ mod tests {
             supported_os: vec![],
             priority: 0,
             kind: PluginKind::ThirdParty,
-        };
+        });
         let make_component = |component_id: &str, name: &str| {
             Arc::new(RemoteComponent::new(
                 component_id.into(),

@@ -75,9 +75,18 @@ function handleKeydown(e: KeyboardEvent): void {
     ;(e.target as HTMLElement).blur()
     return
   }
+  // 长按产生的重复 keydown 不重复处理：组合以首次按下为准（repeat 事件在
+  // normalizeKey 之前拦截，纯修饰键长按也只回显一次等待态）。
   if (e.repeat) return
   const key = normalizeKey(e)
-  if (!key) return
+  if (!key) {
+    // 纯修饰键：回显等待态（如 "Ctrl+…"）提示继续按主键，不提交、不退出录制。
+    const modifiers = formatModifiers(e)
+    if (modifiers) {
+      pendingCombo.value = `${modifiers}+…`
+    }
+    return
+  }
   e.preventDefault()
   pendingCombo.value = formatCombo(e, key)
   emit('update:modelValue', pendingCombo.value)
@@ -98,15 +107,20 @@ function normalizeKey(e: KeyboardEvent): string | null {
   return named.includes(code) ? code : null
 }
 
-/** 按后端格式组合快捷键字符串：修饰键顺序 Ctrl、Alt、Shift、Meta，加号连接。 */
-function formatCombo(e: KeyboardEvent, key: string): string {
+/** 按后端格式组合修饰键前缀：顺序 Ctrl、Alt、Shift、Meta，加号连接（不含主键）。 */
+function formatModifiers(e: KeyboardEvent): string {
   const parts: string[] = []
   if (e.ctrlKey) parts.push('Ctrl')
   if (e.altKey) parts.push('Alt')
   if (e.shiftKey) parts.push('Shift')
   if (e.metaKey) parts.push('Meta')
-  parts.push(key)
   return parts.join('+')
+}
+
+/** 按后端格式组合快捷键字符串：修饰键顺序 Ctrl、Alt、Shift、Meta，加号连接。 */
+function formatCombo(e: KeyboardEvent, key: string): string {
+  const parts = formatModifiers(e)
+  return parts ? `${parts}+${key}` : key
 }
 </script>
 

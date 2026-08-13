@@ -175,6 +175,7 @@ pub fn format_plugins_list(value: &Value) -> String {
             Some("stopped") => "Stopped",
             Some("starting") => "Starting",
             Some("error") => "Error",
+            Some("unknown") => "Unknown",
             _ => "?",
         };
         let enabled = item["enabled"].as_bool().unwrap_or(false);
@@ -845,6 +846,30 @@ mod tests {
         );
         // Enabled 列应有标记
         assert!(output.contains("✓"));
+    }
+
+    #[test]
+    fn test_plugins_list_all_states_mapped() {
+        // 锁定 PluginRuntimeState 序列化值 → CLI 展示的完整映射契约。
+        let json = serde_json::json!([
+            { "pluginId": "p1", "version": "1.0.0", "name": "P1", "state": "starting", "enabled": true },
+            { "pluginId": "p2", "version": "1.0.0", "name": "P2", "state": "running", "enabled": true },
+            { "pluginId": "p3", "version": "1.0.0", "name": "P3", "state": "stopped", "enabled": true },
+            { "pluginId": "p4", "version": "1.0.0", "name": "P4", "state": "crashed", "enabled": true },
+            { "pluginId": "p5", "version": "1.0.0", "name": "P5", "state": "error", "enabled": true },
+            { "pluginId": "p6", "version": "1.0.0", "name": "P6", "state": "unknown", "enabled": true },
+            { "pluginId": "p7", "version": "1.0.0", "name": "P7", "state": "future-state", "enabled": true }
+        ]);
+        let output = format_plugins_list(&json);
+        for display in [
+            "Starting", "Running", "Stopped", "Crashed", "Error", "Unknown",
+        ] {
+            assert!(output.contains(display), "state 展示缺失: {display}");
+        }
+        // 未识别的未来新增态回退为 ?
+        assert!(output.contains("?"), "未知 state 应回退为 ?");
+        // 原始 snake_case 值不应出现在展示中
+        assert!(!output.contains("future-state"));
     }
 
     // ── format_ping ──

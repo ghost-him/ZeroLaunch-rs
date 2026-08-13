@@ -35,7 +35,9 @@ pub enum RemoteComponentKind {
         result_actions: Vec<ResultAction>,
     },
     Plugin {
-        metadata: PluginMetadata,
+        /// 插件级元数据 —— 与 `PluginRegistration.metadata` 共享同一 `Arc`（唯一源），
+        /// 由 build_components 一次性构造后不可变。
+        metadata: Arc<PluginMetadata>,
         /// 交互策略缓存：discover 拉初始值，查询/设置变更时经 RPC 刷新
         /// （PanelInteraction 是插件级语义——仅 Plugin 组件持有；
         /// 内置插件在每次会话推送时同步求值，远端以此对齐）。
@@ -339,7 +341,7 @@ impl ActionExecutor for RemoteComponent {
 impl Plugin for RemoteComponent {
     fn metadata(&self) -> &PluginMetadata {
         match &self.kind {
-            RemoteComponentKind::Plugin { metadata, .. } => metadata,
+            RemoteComponentKind::Plugin { metadata, .. } => metadata.as_ref(),
             _ => panic!(
                 "RemoteComponent {} is not a Plugin but metadata() was called",
                 self.core.component_id()

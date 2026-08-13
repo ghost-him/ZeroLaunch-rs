@@ -2,7 +2,7 @@ import type { useSearchStore } from '@/stores/search-store'
 import { bridgeConfirm } from '@/bridge/commands'
 import type { PanelKeyAction } from '@/bridge/contract'
 import { hostPanels, type HostPanelId } from './hostPanels'
-import type { KeyIntent, KeyOpts } from './types'
+import type { HostKeyBinding, KeyIntent, KeyOpts } from './types'
 
 /// 系统保留键：Alt+Space（唤醒/隐藏窗口）一律不拦截。
 function isSystemReserved(e: KeyboardEvent): boolean {
@@ -10,21 +10,33 @@ function isSystemReserved(e: KeyboardEvent): boolean {
 }
 
 /// 按键说明符匹配（如 "Enter" / "Ctrl+Enter" / "Shift+Tab" / "a"）：
-/// 拆 '+'；修饰键 Ctrl/Shift/Alt/Meta 精确匹配（未声明的修饰键必须为 false）。
-/// 主键：单字符按 e.key 忽略大小写比对；特殊名（Enter/Escape/Tab/Backspace/Home/End/ArrowUp/ArrowDown 等）按 e.key 精确比对；
-/// "Digit" 主键按 e.code 前缀比对（宿主 Ctrl+1..9 快捷动作需区分主键盘数字区与数字小键盘）。
+/// 拆 '+'；修饰键 Ctrl/Shift/Alt/Meta 精确匹配（未声明的修饰键必须为 false，未知 token 直接拒绝）。
+/// 主键格式契约（以 HotkeyField 录制端为权威，按 e.code 规范化、布局无关）：
+/// - 'Space' → 空格键（e.key 为 ' '，与静态表 ' ' 绑定语义一致）；
+/// - 单字符（字母/数字）→ 兼容 e.key 忽略大小写（布局相关）与 e.code 的 KeyX/DigitN（布局无关），
+///   保证非拉丁布局下录制/默认配置键（如 Ctrl+K）仍可命中；
+/// - 特殊名（Enter/Escape/Tab/Backspace/Home/End/ArrowUp/ArrowDown 等）按 e.key 精确比对；
+/// - "Digit" 主键按 e.code 前缀比对（宿主 Ctrl+1..9 快捷动作需区分主键盘数字区与数字小键盘）。
 export function matchesKey(e: KeyboardEvent, spec: string): boolean {
   const parts = spec.split('+')
   const main = parts[parts.length - 1]
   const mods = parts.slice(0, -1)
 
+  if (mods.some((m) => !['Ctrl', 'Shift', 'Alt', 'Meta'].includes(m))) return false
   if (mods.includes('Ctrl') !== e.ctrlKey) return false
   if (mods.includes('Shift') !== e.shiftKey) return false
   if (mods.includes('Alt') !== e.altKey) return false
   if (mods.includes('Meta') !== e.metaKey) return false
 
   if (main === 'Digit') return e.code.startsWith('Digit')
-  if (main.length === 1) return e.key.toLowerCase() === main.toLowerCase()
+  if (main === 'Space') return e.key === ' '
+  if (main.length === 1) {
+    return (
+      e.key.toLowerCase() === main.toLowerCase() ||
+      e.code === 'Key' + main.toUpperCase() ||
+      e.code === 'Digit' + main
+    )
+  }
   return e.key === main
 }
 
@@ -103,7 +115,20 @@ function dispatchPluginPanel(
   // 未命中绑定：放行（不拦截、不 preventDefault）
 }
 
-/// 宿主面板分发：遍历绑定找 matchesKey，命中且 handler 产出意图 → preventDefault + 执行；否则放行。
+/// 绑定匹配：静态 key 或 configKey 配置的键（非空）任一命中即接管（别名并存）。
+function bindingMatches(
+  e: KeyboardEvent,
+  binding: HostKeyBinding,
+  opts: KeyOpts,
+): boolean {
+  if (binding.key && matchesKey(e, binding.key)) return true
+  const cfgKey = binding.configKey ? opts[binding.configKey] : undefined
+  return !!cfgKey && matchesKey(e, cfgKey)
+}
+
+/// 宿主面板分发：遍历绑定表（静态 key 与 configKey 配置键别名统一由
+/// hostPanels.ts 声明、registry 仅解释执行），命中且 handler 产出意图 →
+/// preventDefault + 执行；否则放行。
 function dispatchHost(
   e: KeyboardEvent,
   store: ReturnType<typeof useSearchStore>,
@@ -111,7 +136,7 @@ function dispatchHost(
   panelId: HostPanelId,
 ) {
   for (const binding of hostPanels[panelId].bindings) {
-    if (matchesKey(e, binding.key)) {
+    if (bindingMatches(e, binding, opts)) {
       const intent = binding.handler(e, store, opts)
       if (intent !== null) {
         e.preventDefault()

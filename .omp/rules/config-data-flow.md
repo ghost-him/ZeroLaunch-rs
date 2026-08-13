@@ -11,6 +11,17 @@ scope: "tool:read(src-tauri/src/builtin_plugin/config/**), tool:edit(src-tauri/s
 | **存储类型**（Settings） | `builtin_plugin/config/<component>.rs` | serde struct，`#[derive(Serialize, Deserialize)]`，每字段 `#[serde(rename, default)]` | 引用 `ConfigManager`、包含业务方法 |
 | **转换函数** | `builtin_plugin/config/<component>.rs` | `pub(crate) fn settings_to_xxx(settings: &Settings) -> RuntimeType` | 依赖 `ConfigManager` |
 
+## 配置默认值来源
+
+- 配置默认值**唯一来源是后端**：serde `default` / `default = "fn"` + schema `.default(...)`
+  必须指向同一常量，前端不消费硬编码默认值做业务判断
+- 前端**防御性兜底例外**：`configStore.settings` 加载失败/字段缺失时，前端可对
+  `KeyOpts` 等投影做 `?? '默认值'` 兜底——此时兜底值**必须**注释互指后端
+  default 函数（如 `// 与 Rust default_move_up_key() 一致，变更必须同步`），
+  且仅作展示层投影回退，不参与业务裁决
+- 若后端 schema 下发 `.default` 可被前端消费（schema 驱动 UI），优先消费下发值，
+  不写死字面量
+
 ## 依赖方向
 
 - 运行时类型（core/）→ 无业务依赖，被所有层引用

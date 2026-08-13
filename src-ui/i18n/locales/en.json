@@ -719,6 +719,14 @@
         "window_position_y": {
           "label": "Window position Y",
           "desc": "Vertical window position after last drag"
+        },
+        "move_up_key": {
+          "label": "Move selection up key",
+          "desc": "Moves the selection up (default Ctrl+K, works in search and param panels); clear to keep arrow keys only"
+        },
+        "move_down_key": {
+          "label": "Move selection down key",
+          "desc": "Moves the selection down (default Ctrl+J, works in search and param panels); clear to keep arrow keys only"
         }
       }
     },

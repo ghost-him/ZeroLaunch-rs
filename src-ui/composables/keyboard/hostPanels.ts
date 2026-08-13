@@ -3,6 +3,16 @@ import type { HostKeyBinding, KeyIntent } from './types'
 
 export type HostPanelId = 'default_search' | 'inline_param' | 'param_panel'
 
+/// 向下移动选中项意图（方向键与配置键共用语义）。
+export function moveDownIntent(_e: KeyboardEvent, store: ReturnType<typeof useSearchStore>): KeyIntent {
+  return { kind: 'local', run: () => store.selectNext() }
+}
+
+/// 向上移动选中项意图（方向键与配置键共用语义）。
+export function moveUpIntent(_e: KeyboardEvent, store: ReturnType<typeof useSearchStore>): KeyIntent {
+  return { kind: 'local', run: () => store.selectPrev() }
+}
+
 /// 循环切换选中动作（Shift 反向；与旧 searchHandler Tab 行为一致）。
 function cycleSelectedAction(e: KeyboardEvent, store: ReturnType<typeof useSearchStore>): KeyIntent | null {
   const item = store.selectedItem
@@ -32,8 +42,9 @@ export const hostPanels: Record<HostPanelId, { bindings: HostKeyBinding[] }> = {
   // 搜索模式（sessionMode 'search' 与 'none'）：行为与旧 searchHandler 逐键一致
   default_search: {
     bindings: [
-      { key: 'ArrowDown', handler: (_e, store) => ({ kind: 'local', run: () => store.selectNext() }) },
-      { key: 'ArrowUp', handler: (_e, store) => ({ kind: 'local', run: () => store.selectPrev() }) },
+      // configKey：方向键与用户配置的上下选择键（move_up_key/move_down_key）别名并存
+      { key: 'ArrowDown', configKey: 'moveDownKey', handler: moveDownIntent },
+      { key: 'ArrowUp', configKey: 'moveUpKey', handler: moveUpIntent },
       { key: 'Enter', handler: () => ({ kind: 'confirm' }) },
       {
         key: ' ',
@@ -64,6 +75,9 @@ export const hostPanels: Record<HostPanelId, { bindings: HostKeyBinding[] }> = {
   // 行内参数模式：行为与旧 inlineParamHandler 逐键一致
   inline_param: {
     bindings: [
+      // 仅用户配置的上下选择键（Ctrl+K/J）生效；方向键放行给参数输入框做光标编辑
+      { configKey: 'moveDownKey', handler: moveDownIntent },
+      { configKey: 'moveUpKey', handler: moveUpIntent },
       { key: 'Enter', handler: (_e, store) => ({ kind: 'local', run: () => store.confirmInlineParam() }) },
       { key: 'Escape', handler: (_e, store) => ({ kind: 'local', run: () => store.exitInlineParamMode() }) },
       {
@@ -80,6 +94,9 @@ export const hostPanels: Record<HostPanelId, { bindings: HostKeyBinding[] }> = {
   // 参数面板模式：行为与旧 paramPanelHandler 逐键一致
   param_panel: {
     bindings: [
+      // 仅用户配置的上下选择键（Ctrl+K/J）生效；方向键放行给参数输入框做光标编辑
+      { configKey: 'moveDownKey', handler: moveDownIntent },
+      { configKey: 'moveUpKey', handler: moveUpIntent },
       {
         key: 'Enter',
         // 末字段确认，否则聚焦下一字段

@@ -26,10 +26,20 @@ export function useKeyboardRouter() {
 
   function onKeyDown(e: KeyboardEvent) {
     // 键盘解释选项来自 window-behavior-config 设置（缺省 false）
-    const wb = (configStore.settings['window-behavior-config'] as Record<string, boolean> | undefined)
+    const wb = configStore.settings['window-behavior-config'] as
+      | {
+          space_is_enter?: boolean
+          is_esc_hide_window_priority?: boolean
+          move_up_key?: string
+          move_down_key?: string
+        }
+      | undefined
     const opts: KeyOpts = {
       spaceIsEnter: wb?.space_is_enter ?? false,
       escHideWindowPriority: wb?.is_esc_hide_window_priority ?? false,
+      // 上下选择键缺省 Ctrl+K / Ctrl+J（与配置默认值一致）；显式清空后仅保留方向键
+      moveUpKey: wb?.move_up_key ?? 'Ctrl+K',
+      moveDownKey: wb?.move_down_key ?? 'Ctrl+J',
     }
     dispatchKeyDown(e, store, opts)
   }

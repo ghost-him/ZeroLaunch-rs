@@ -707,7 +707,21 @@ impl Configurable for AppearanceConfigComponent {
             )
             .group(t_key!("appearance-config", "groups.background"))
             .order(72)
-            .options(&["cover", "contain", "auto", "100% auto"])
+            .options_with_labels(&[
+                (
+                    "cover",
+                    t_key!("appearance-config", "options.bg_size.cover"),
+                ),
+                (
+                    "contain",
+                    t_key!("appearance-config", "options.bg_size.contain"),
+                ),
+                ("auto", t_key!("appearance-config", "options.bg_size.auto")),
+                (
+                    "100% auto",
+                    t_key!("appearance-config", "options.bg_size.width100"),
+                ),
+            ])
             .default("cover")
             .build(),
             SchemaBuilder::select(
@@ -717,16 +731,43 @@ impl Configurable for AppearanceConfigComponent {
             )
             .group(t_key!("appearance-config", "groups.background"))
             .order(73)
-            .options(&[
-                "center",
-                "top",
-                "bottom",
-                "left",
-                "right",
-                "top left",
-                "top right",
-                "bottom left",
-                "bottom right",
+            .options_with_labels(&[
+                (
+                    "center",
+                    t_key!("appearance-config", "options.bg_position.center"),
+                ),
+                (
+                    "top",
+                    t_key!("appearance-config", "options.bg_position.top"),
+                ),
+                (
+                    "bottom",
+                    t_key!("appearance-config", "options.bg_position.bottom"),
+                ),
+                (
+                    "left",
+                    t_key!("appearance-config", "options.bg_position.left"),
+                ),
+                (
+                    "right",
+                    t_key!("appearance-config", "options.bg_position.right"),
+                ),
+                (
+                    "top left",
+                    t_key!("appearance-config", "options.bg_position.top_left"),
+                ),
+                (
+                    "top right",
+                    t_key!("appearance-config", "options.bg_position.top_right"),
+                ),
+                (
+                    "bottom left",
+                    t_key!("appearance-config", "options.bg_position.bottom_left"),
+                ),
+                (
+                    "bottom right",
+                    t_key!("appearance-config", "options.bg_position.bottom_right"),
+                ),
             ])
             .default("center")
             .build(),
@@ -737,7 +778,24 @@ impl Configurable for AppearanceConfigComponent {
             )
             .group(t_key!("appearance-config", "groups.background"))
             .order(74)
-            .options(&["no-repeat", "repeat", "repeat-x", "repeat-y"])
+            .options_with_labels(&[
+                (
+                    "no-repeat",
+                    t_key!("appearance-config", "options.bg_repeat.no_repeat"),
+                ),
+                (
+                    "repeat",
+                    t_key!("appearance-config", "options.bg_repeat.repeat"),
+                ),
+                (
+                    "repeat-x",
+                    t_key!("appearance-config", "options.bg_repeat.repeat_x"),
+                ),
+                (
+                    "repeat-y",
+                    t_key!("appearance-config", "options.bg_repeat.repeat_y"),
+                ),
+            ])
             .default("no-repeat")
             .build(),
             SchemaBuilder::number(

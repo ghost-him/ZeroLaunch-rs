@@ -318,13 +318,36 @@
         "window": "視窗",
         "colorsLight": "淺色配色",
         "colorsDark": "深色配色",
-        "background": "背景"
+        "background": "背景圖片"
       },
       "options": {
         "theme": {
           "system": "跟隨系統",
           "light": "淺色",
           "dark": "深色"
+        },
+        "bg_size": {
+          "cover": "覆蓋（鋪滿）",
+          "contain": "完整顯示",
+          "auto": "原始尺寸",
+          "width100": "寬度撐滿"
+        },
+        "bg_position": {
+          "center": "置中",
+          "top": "頂部",
+          "bottom": "底部",
+          "left": "左側",
+          "right": "右側",
+          "top_left": "左上",
+          "top_right": "右上",
+          "bottom_left": "左下",
+          "bottom_right": "右下"
+        },
+        "bg_repeat": {
+          "no_repeat": "不重複",
+          "repeat": "平鋪重複",
+          "repeat_x": "水平重複",
+          "repeat_y": "垂直重複"
         }
       },
       "fields": {

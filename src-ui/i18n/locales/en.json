@@ -318,13 +318,36 @@
         "window": "Window",
         "colorsLight": "Light Colors",
         "colorsDark": "Dark Colors",
-        "background": "Background"
+        "background": "Background Image"
       },
       "options": {
         "theme": {
           "system": "Follow System",
           "light": "Light",
           "dark": "Dark"
+        },
+        "bg_size": {
+          "cover": "Cover (fill)",
+          "contain": "Contain (fit)",
+          "auto": "Original size",
+          "width100": "Full width"
+        },
+        "bg_position": {
+          "center": "Center",
+          "top": "Top",
+          "bottom": "Bottom",
+          "left": "Left",
+          "right": "Right",
+          "top_left": "Top left",
+          "top_right": "Top right",
+          "bottom_left": "Bottom left",
+          "bottom_right": "Bottom right"
+        },
+        "bg_repeat": {
+          "no_repeat": "No repeat",
+          "repeat": "Repeat (tile)",
+          "repeat_x": "Repeat horizontally",
+          "repeat_y": "Repeat vertically"
         }
       },
       "fields": {

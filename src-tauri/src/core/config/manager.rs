@@ -658,6 +658,7 @@ mod tests {
             supported_os: vec![],
             priority: 0,
             kind: PluginKind::ThirdParty,
+            hotkey: None,
         });
         let make_component = |component_id: &str, name: &str| {
             Arc::new(RemoteComponent::new(

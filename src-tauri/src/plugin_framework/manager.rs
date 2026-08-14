@@ -210,6 +210,7 @@ impl PluginManager {
             kind: PluginKind::Builtin,
             priority: meta.priority,
             component_ids: vec![meta.id.clone()],
+            hotkey: meta.hotkey.clone(),
         }
     }
 
@@ -416,6 +417,7 @@ impl PluginManager {
                 .iter()
                 .map(|c| c.component_id().to_string())
                 .collect(),
+            hotkey: adapters.metadata.hotkey.clone(),
         })
     }
 

@@ -41,6 +41,9 @@ impl HelloWorldPlugin {
                 trigger_keywords: vec!["hello".to_string(), "hw".to_string()],
                 supported_os: vec!["windows".to_string()],
                 priority: 100,
+                // None = 行内插件，仅关键词唤醒；
+                // Some("Ctrl+E") = 完全插件模式，宿主注册全局热键唤醒（如 everything 回归）
+                hotkey: None,
             },
         }
     }

@@ -9,6 +9,7 @@
 //! 不改写活动会话、不推送事件（原 SessionRouter 行为保持）。
 
 use dashmap::DashMap;
+use dashmap::DashSet;
 use parking_lot::{Mutex, RwLock};
 use std::fmt;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -29,7 +30,8 @@ use super::executor_registry::ExecutorRegistry;
 use super::registry::PluginRegistry;
 use super::search_pipeline::SearchPipeline;
 use super::session_state::{
-    ActiveSession, PluginPanelInfo, PresentationMode, SessionStateEmitter, SessionStateEvent,
+    ActiveSession, PanelContentAction, PluginPanelContent, PluginPanelInfo, PresentationMode,
+    SessionStateEmitter, SessionStateEvent,
 };
 use crate::core::config::bias_settings::{bias_settings_to_rules, BiasSettings};
 use crate::core::config::{ConfigEvent, ConfigManager};
@@ -196,6 +198,9 @@ pub struct SessionDispatcher {
     plugin_registry: Arc<PluginRegistry>,
     /// 触发词索引：trigger → plugin_id（一个触发词只能绑定一个插件，冲突注册即拒绝）。
     trigger_index: DashMap<String, String>,
+    /// 插件级启用状态集合（注册/启停时同步；wake_plugin 启用校验的权威依据——
+    /// 禁用插件即使前端热键表残留也不得被唤醒）。DashSet 并发安全，免去外部锁。
+    enabled_plugins: DashSet<String>,
     /// 活动会话（权威投影，代际随其写入递增）。
     active_session: RwLock<ActiveSession>,
 
@@ -236,6 +241,7 @@ impl SessionDispatcher {
         Self {
             plugin_registry,
             trigger_index: DashMap::new(),
+            enabled_plugins: DashSet::new(),
             active_session: RwLock::new(ActiveSession {
                 generation: 0,
                 plugin_id: None,
@@ -299,6 +305,7 @@ impl SessionDispatcher {
             return;
         }
         self.plugin_registry.register(plugin.clone());
+        self.set_plugin_enabled_state(&plugin.metadata().id, enabled);
         if enabled {
             self.try_insert_trigger_keywords(&plugin.metadata().id, &keywords);
         } else {
@@ -340,7 +347,22 @@ impl SessionDispatcher {
     /// 注销一个插件：移除注册 + 触发词路由；活动会话属于该插件时先执行会话重置。
     pub fn unregister_plugin(&self, plugin_id: &str) {
         self.plugin_registry.unregister(plugin_id);
+        self.enabled_plugins.remove(plugin_id);
         self.remove_plugin_routes(plugin_id);
+    }
+
+    /// 写入插件级启用状态（触发词索引与 wake_plugin 启用校验共用同一状态源）。
+    fn set_plugin_enabled_state(&self, plugin_id: &str, enabled: bool) {
+        if enabled {
+            self.enabled_plugins.insert(plugin_id.to_string());
+        } else {
+            self.enabled_plugins.remove(plugin_id);
+        }
+    }
+
+    /// 查询插件级启用状态（wake_plugin 启用校验；禁用插件不可被热键唤醒）。
+    pub fn is_plugin_enabled(&self, plugin_id: &str) -> bool {
+        self.enabled_plugins.contains(plugin_id)
     }
 
     /// 插件启用状态变更时同步触发词索引：
@@ -348,6 +370,7 @@ impl SessionDispatcher {
     /// （逐词冲突检查：期间被其他插件占用的词跳过并记录错误，不覆盖既有绑定）。
     /// 插件实例仍保留在 registry 中，不销毁（区别于 unregister_plugin）。
     pub fn set_plugin_enabled(&self, plugin_id: &str, enabled: bool) {
+        self.set_plugin_enabled_state(plugin_id, enabled);
         if enabled {
             let Some(plugin) = self.plugin_registry.get(plugin_id) else {
                 debug!("启用插件 {} 不在注册表中，跳过触发词恢复", plugin_id);
@@ -1055,6 +1078,18 @@ impl SessionDispatcher {
         presentation: PresentationMode,
         always_push: bool,
     ) {
+        self.enter_session_inner(plugin_id, presentation, always_push, None);
+    }
+
+    /// 进入会话投影的内部实现：`content` 为热键唤醒携带的面板渲染载荷，
+    /// 仅唤醒路径非 None（关键词查询路径的载荷随 bridge_query 响应下发）。
+    fn enter_session_inner(
+        &self,
+        plugin_id: Option<String>,
+        presentation: PresentationMode,
+        always_push: bool,
+        content: Option<PluginPanelContent>,
+    ) {
         let mut session = self.active_session.write();
         let changed = session.plugin_id != plugin_id || session.presentation != presentation;
         if !changed && !always_push {
@@ -1074,7 +1109,7 @@ impl SessionDispatcher {
             };
         }
         drop(session);
-        self.push_session_state(generation, &plugin_id, presentation);
+        self.push_session_state(generation, &plugin_id, presentation, content);
     }
 
     /// 推送会话状态事件（无 emitter 的 CLI 场景直接跳过）。
@@ -1083,6 +1118,7 @@ impl SessionDispatcher {
         generation: u64,
         plugin_id: &Option<String>,
         presentation: PresentationMode,
+        content: Option<PluginPanelContent>,
     ) {
         let Some(emitter) = self.session_emitter.read().clone() else {
             return;
@@ -1110,6 +1146,7 @@ impl SessionDispatcher {
             panel,
             interaction,
             trigger_keywords,
+            panel_content: content,
         });
     }
 
@@ -1144,7 +1181,7 @@ impl SessionDispatcher {
         drop(session);
         // 会话结束投影：唯一事件通道推送（原 session-reset 事件已删除）。
         if changed {
-            self.push_session_state(generation, &None, PresentationMode::None);
+            self.push_session_state(generation, &None, PresentationMode::None, None);
         }
         true
     }
@@ -1170,7 +1207,12 @@ impl SessionDispatcher {
         if session.presentation == PresentationMode::None {
             return;
         }
-        self.push_session_state(session.generation, &session.plugin_id, session.presentation);
+        self.push_session_state(
+            session.generation,
+            &session.plugin_id,
+            session.presentation,
+            None,
+        );
     }
 
     /// 搜索栏唤醒：捕获系统参数快照。
@@ -1183,6 +1225,100 @@ impl SessionDispatcher {
         let snapshot = host_api.capture_parameter_snapshot().await;
         *self.parameter_snapshot.lock() = snapshot;
         debug!("📸 搜索栏唤醒，系统参数快照已捕获");
+        Ok(())
+    }
+
+    /// 热键唤醒插件（完全插件模式）：捕获参数快照 → 空查询 → 进入全页面接管会话。
+    /// 响应必须为 CustomPanel 且 keep_search_bar=false（全页面接管契约，断言强制）；
+    /// 载荷经会话事件 panelContent 一并推送（窗口隐藏时前端无查询响应可依赖）。
+    /// 非 CustomPanel 响应（List/Empty）属契约违约，返回错误（前端无载荷可渲染，
+    /// 静默进入会导致前后端投影失步）。
+    pub async fn wake_plugin(&self, plugin_id: &str) -> Result<(), SessionDispatcherError> {
+        // 启用校验：禁用插件不可被热键唤醒（前端热键表可能残留过期条目，
+        // 后端为权威裁决，与触发词路由的「禁用即不路由」语义一致）。
+        if !self.is_plugin_enabled(plugin_id) {
+            return Err(SessionDispatcherError::InvalidState(format!(
+                "热键唤醒的插件未启用: {}",
+                plugin_id
+            )));
+        }
+        let host_api: Arc<HostApi> = self.host_api.read().clone().ok_or_else(|| {
+            SessionDispatcherError::NotInitialized(
+                "HostApi not initialized in SessionDispatcher".to_string(),
+            )
+        })?;
+        let snapshot = host_api.capture_parameter_snapshot().await;
+        *self.parameter_snapshot.lock() = snapshot;
+
+        let plugin = self.plugin_registry.get(plugin_id).ok_or_else(|| {
+            SessionDispatcherError::InvalidState(format!("热键唤醒的插件不存在: {}", plugin_id))
+        })?;
+
+        let trace_id = crate::utils::trace_id::generate_trace_id();
+        let mut ctx = PluginContext::new(&trace_id);
+        ctx.with_query(trace_id.clone());
+        ctx.with_plugin_id(plugin_id.to_string());
+        ctx.locale = self.current_locale();
+        let query = Query {
+            id: trace_id,
+            raw_query: String::new(),
+            search_term: String::new(),
+            confirm: false,
+        };
+
+        let response = plugin.query(&ctx, &query).await.map_err(|e| {
+            error!(
+                target = plugin_id,
+                error = %e,
+                "热键唤醒插件查询失败"
+            );
+            SessionDispatcherError::PluginError(e.to_string())
+        })?;
+
+        // 展示形态与载荷：热键唤醒 = 完全插件模式 = 全页面接管（PluginImmersive）。
+        // keep_search_bar: true（行内面板）在热键唤醒语义下是不存在路径——声明 hotkey
+        // 的插件必须设计为全面板。出现即契约被破坏（插件声明热键却返回行内形态），
+        // 立即 panic 暴露以便定位，不做静默降级（断言为宿主不变量，插件违约即宿主逻辑缺陷）。
+        // 非 CustomPanel 响应（List/Empty）属契约违约，返回错误（前端无载荷可渲染，
+        // 静默进入会导致前后端投影失步）。
+        let (presentation, content) = match response {
+            QueryResponse::CustomPanel {
+                panel_type,
+                data,
+                actions,
+                keep_search_bar,
+            } => {
+                assert!(
+                    !keep_search_bar,
+                    "热键唤醒插件 {} 返回 keep_search_bar=true（行内面板）——热键唤醒仅支持全页面接管（PluginImmersive），插件契约违约",
+                    plugin_id
+                );
+                (
+                    PresentationMode::PluginImmersive,
+                    Some(PluginPanelContent {
+                        panel_type,
+                        data,
+                        actions: actions.into_iter().map(PanelContentAction::from).collect(),
+                    }),
+                )
+            }
+            _ => {
+                warn!(
+                    target = plugin_id,
+                    "热键唤醒插件未返回 CustomPanel 面板响应"
+                );
+                return Err(SessionDispatcherError::PluginError(format!(
+                    "热键唤醒的插件 {} 未返回 CustomPanel 面板响应",
+                    plugin_id
+                )));
+            }
+        };
+        info!(
+            target = plugin_id,
+            presentation = presentation.as_str(),
+            "热键唤醒插件"
+        );
+        self.enter_session_inner(Some(plugin_id.to_string()), presentation, true, content);
         Ok(())
     }
 
@@ -1350,10 +1486,56 @@ impl SessionDispatcher {
 mod tests {
     use super::*;
     use async_trait::async_trait;
+    use std::collections::HashSet;
     use zerolaunch_plugin_api::config::{
         ComponentCore, ComponentType, Configurable, SettingDefinition,
     };
-    use zerolaunch_plugin_api::{PluginError, PluginHandle, PluginKind, PluginMetadata};
+    use zerolaunch_plugin_api::mock::*;
+    use zerolaunch_plugin_api::services::resource::AppResourceService;
+    use zerolaunch_plugin_api::services::storage::storage_service::StorageService;
+    use zerolaunch_plugin_api::services::timer::TokioTimerManager;
+    use zerolaunch_plugin_api::{
+        PlatformCapabilities, PluginError, PluginHandle, PluginKind, PluginMetadata,
+    };
+
+    /// 构建仅含桩组件的 HostApi（测试专用，不触达真实平台能力）。
+    /// 镜像 builtin_registry 测试的组件清单。
+    fn test_host_api() -> Arc<HostApi> {
+        let storage: Arc<dyn StorageService> = Arc::new(StubStorageService);
+        let api = HostApi::builder("mock_icons".to_string())
+            .capabilities(PlatformCapabilities::new(HashSet::new()))
+            .icon_extractor(Arc::new(StubIconExtractor))
+            .shell_executor(Arc::new(StubShellExecutor::default()))
+            .window_manager(Arc::new(StubWindowManager))
+            .path_resolver(Arc::new(StubPathResolver))
+            .app_enumerator(Arc::new(StubAppEnumerator))
+            .app_launcher(Arc::new(StubAppLauncher))
+            .lnk_resolver(Arc::new(StubLnkResolver))
+            .resource_loader(Arc::new(StubResourceLoader))
+            .parameter_resolver(Arc::new(StubParameterResolver))
+            .parameter_providers(
+                Arc::new(StubSystemParameterProvider),
+                Arc::new(StubSystemParameterProvider),
+                Arc::new(StubSystemParameterProvider),
+            )
+            .autostart_manager(Arc::new(StubAutoStartManager))
+            .hotkey_manager(Arc::new(StubHotkeyManager))
+            .installation_monitor(Arc::new(StubInstallationMonitor))
+            .timer_manager(Arc::new(TokioTimerManager::new()))
+            .storage_service(storage)
+            .app_resource(Arc::new(AppResourceService::new("mock_icons".to_string())))
+            .focus_monitor(Arc::new(StubFocusMonitor))
+            .clipboard_manager(Arc::new(StubClipboardManager))
+            .notify_callback(|_, _| {})
+            .hide_window_callback(|| {})
+            .show_window_callback(|| {})
+            .is_window_visible_callback(|| false)
+            .window_positioner(Arc::new(StubWindowPositioner))
+            .set_window_position_callback(|_, _| {})
+            .build()
+            .expect("构建测试 HostApi 失败");
+        Arc::new(api)
+    }
 
     /// 触发词路由测试用最小插件桩 —— 仅填充元数据（触发词），其余方法空实现。
     /// 避免测试模块引用内置实现（plugin_framework 层不得依赖 builtin_plugin，P3 层级）。
@@ -1380,6 +1562,7 @@ mod tests {
                     supported_os: Vec::new(),
                     priority: 0,
                     kind: PluginKind::Builtin,
+                    hotkey: None,
                 },
                 core: ComponentCore::new(
                     id.to_string(),
@@ -1539,5 +1722,178 @@ mod tests {
             dispatcher.trigger_index.get("=").map(|r| r.clone()),
             Some("plugin-b".to_string())
         );
+    }
+
+    /// 热键唤醒测试用面板桩 —— query 返回 CustomPanel（形态由构造参数决定）。
+    struct PanelStubPlugin {
+        metadata: PluginMetadata,
+        core: ComponentCore,
+        keep_search_bar: bool,
+    }
+
+    impl PanelStubPlugin {
+        fn new() -> Self {
+            Self::with_keep_search_bar(false)
+        }
+
+        /// 指定 keep_search_bar 的构造器：false = 全页面接管（合法）；true = 行内面板（契约违约路径测试）。
+        fn with_keep_search_bar(keep_search_bar: bool) -> Self {
+            Self {
+                metadata: PluginMetadata {
+                    id: "test.panel".to_string(),
+                    name: "面板桩".to_string(),
+                    version: "0.1.0".to_string(),
+                    description: "热键唤醒测试".to_string(),
+                    author: "test".to_string(),
+                    trigger_keywords: Vec::new(),
+                    supported_os: Vec::new(),
+                    priority: 0,
+                    kind: PluginKind::Builtin,
+                    hotkey: Some("Ctrl+E".to_string()),
+                },
+                core: ComponentCore::new(
+                    "test.panel".to_string(),
+                    "面板桩".to_string(),
+                    "热键唤醒测试".to_string(),
+                    ComponentType::Plugin,
+                    0,
+                ),
+                keep_search_bar,
+            }
+        }
+    }
+
+    impl Configurable for PanelStubPlugin {
+        fn core(&self) -> &ComponentCore {
+            &self.core
+        }
+
+        fn setting_schema(&self) -> Vec<SettingDefinition> {
+            Vec::new()
+        }
+    }
+
+    #[async_trait]
+    impl Plugin for PanelStubPlugin {
+        fn metadata(&self) -> &PluginMetadata {
+            &self.metadata
+        }
+
+        async fn init(
+            &self,
+            _ctx: &PluginContext,
+            _handle: Option<Arc<PluginHandle>>,
+        ) -> Result<(), PluginError> {
+            Ok(())
+        }
+
+        async fn query(
+            &self,
+            _ctx: &PluginContext,
+            _query: &Query,
+        ) -> Result<QueryResponse, PluginError> {
+            Ok(QueryResponse::CustomPanel {
+                panel_type: "test-panel".to_string(),
+                data: serde_json::json!({ "hello": "world" }),
+                actions: Vec::new(),
+                keep_search_bar: self.keep_search_bar,
+            })
+        }
+
+        async fn execute_action(
+            &self,
+            _ctx: &PluginContext,
+            _action_id: &str,
+            _payload: serde_json::Value,
+        ) -> Result<(), PluginError> {
+            Ok(())
+        }
+    }
+
+    /// 热键唤醒：空查询 → 插件 CustomPanel → 进入全页面会话并推送含载荷的会话事件。
+    #[tokio::test]
+    async fn wake_plugin_enters_immersive_session_with_content() {
+        let dispatcher = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
+        dispatcher.set_host_api(test_host_api());
+        let plugin: Arc<dyn Plugin> = Arc::new(PanelStubPlugin::new());
+        dispatcher.register_plugin_with_triggers(plugin, true);
+
+        // 捕获会话事件（后端权威投影推送的唯一通道）
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let capture = events.clone();
+        dispatcher.set_session_emitter(Arc::new(move |event| {
+            capture.lock().push(event);
+        }));
+
+        dispatcher
+            .wake_plugin("test.panel")
+            .await
+            .expect("热键唤醒应成功");
+
+        let session = dispatcher.current_session();
+        assert_eq!(session.plugin_id.as_deref(), Some("test.panel"));
+        assert_eq!(session.presentation, PresentationMode::PluginImmersive);
+
+        let events = events.lock();
+        let event = events.last().expect("应推送会话事件");
+        assert_eq!(
+            event.panel.as_ref().map(|p| p.plugin_id.as_str()),
+            Some("test.panel")
+        );
+        let content = event
+            .panel_content
+            .as_ref()
+            .expect("唤醒推送应携带面板载荷");
+        assert_eq!(content.panel_type, "test-panel");
+        assert_eq!(content.data, serde_json::json!({ "hello": "world" }));
+    }
+
+    /// 禁用插件不可被热键唤醒（后端权威校验，前端热键表残留过期条目时兜底）。
+    #[tokio::test]
+    async fn wake_plugin_rejects_disabled_plugin() {
+        let dispatcher = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
+        dispatcher.set_host_api(test_host_api());
+        let plugin: Arc<dyn Plugin> = Arc::new(PanelStubPlugin::new());
+        // 禁用状态注册（enabled=false）→ 不在启用集合
+        dispatcher.register_plugin_with_triggers(plugin, false);
+
+        let err = dispatcher.wake_plugin("test.panel").await.unwrap_err();
+        assert!(
+            err.to_string().contains("未启用"),
+            "应拒绝唤醒禁用插件: {}",
+            err
+        );
+    }
+
+    /// 热键唤醒要求 CustomPanel 契约：List/Empty 响应属违约，报错避免前后端投影失步。
+    #[tokio::test]
+    async fn wake_plugin_rejects_non_custom_panel_response() {
+        let dispatcher = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
+        dispatcher.set_host_api(test_host_api());
+        // TriggerStubPlugin 的 query 返回 Empty（非 CustomPanel）
+        let plugin: Arc<dyn Plugin> = Arc::new(TriggerStubPlugin::with_trigger("="));
+        let plugin_id = plugin.metadata().id.clone();
+        dispatcher.register_plugin_with_triggers(plugin, true);
+
+        let err = dispatcher.wake_plugin(&plugin_id).await.unwrap_err();
+        assert!(
+            err.to_string().contains("CustomPanel"),
+            "应拒绝非 CustomPanel 响应: {}",
+            err
+        );
+    }
+
+    /// 热键唤醒 = 全页面接管：keep_search_bar=true（行内面板）是不存在路径，
+    /// 断言强制暴露（契约违约即宿主逻辑缺陷，不做静默降级）。
+    #[tokio::test]
+    #[should_panic(expected = "keep_search_bar=true")]
+    async fn wake_plugin_panics_on_keep_search_bar() {
+        let dispatcher = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
+        dispatcher.set_host_api(test_host_api());
+        let plugin: Arc<dyn Plugin> = Arc::new(PanelStubPlugin::with_keep_search_bar(true));
+        dispatcher.register_plugin_with_triggers(plugin, true);
+
+        // 应 panic（断言消息含 keep_search_bar=true），不返回
+        let _ = dispatcher.wake_plugin("test.panel").await;
     }
 }

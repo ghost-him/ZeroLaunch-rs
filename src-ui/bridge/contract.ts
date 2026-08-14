@@ -64,6 +64,13 @@ export type PresentationMode =
   | 'pluginPanel'
   | 'pluginImmersive'
 
+/** 插件面板渲染载荷（session-state 事件 panelContent；热键唤醒推送携带，关键词查询路径为 null）。 */
+export interface PluginPanelContent {
+  panelType: string
+  data: unknown
+  actions: ResultAction[]
+}
+
 /** 会话状态事件 payload —— 整个会话系统的唯一事件（后端 Dispatcher 推送）。 */
 export interface SessionStateEvent {
   /** 会话代际：归属/形态变化时递增（前端单调递增更新，随 confirm 回传校验）。 */
@@ -75,6 +82,8 @@ export interface SessionStateEvent {
   interaction: PanelInteraction | null
   /** 插件触发词列表，供「输入是否仍属于当前面板」的 IPC 前判定（镜像参数唯一来源）。 */
   triggerKeywords: string[]
+  /** 插件面板渲染载荷：对象 = 热键唤醒推送（含面板类型/数据/动作）；null = 常规路径（载荷随查询响应下发）。 */
+  panelContent: PluginPanelContent | null
 }
 
 export type BridgeQueryResponse =

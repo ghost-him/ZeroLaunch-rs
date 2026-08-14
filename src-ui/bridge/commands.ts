@@ -159,6 +159,8 @@ export interface InstalledPluginInfo {
   kind: 'builtin' | 'third-party'
   priority: number
   componentIds: string[]
+  /** 全局唤醒快捷键（如 "Ctrl+E"）：非 null = 完全插件模式，搜索栏唤起后前端匹配该热键唤醒；null = 行内插件（仅关键词唤醒）。 */
+  hotkey: string | null
 }
 
 /**
@@ -191,6 +193,11 @@ export function pickPluginDir(filterLabel: string): Promise<string | null> {
 
 export function pluginList(): Promise<InstalledPluginInfo[]> {
   return invokeCommand<InstalledPluginInfo[]>('plugin_list')
+}
+
+/** 插件热键唤醒（前端驱动）：搜索栏唤起后前端匹配插件声明热键时调用。 */
+export function bridgeWakePlugin(pluginId: string): Promise<void> {
+  return invokeCommand<void>('bridge_wake_plugin', { pluginId })
 }
 
 export function pluginGetManifest(pluginId: string): Promise<unknown> {

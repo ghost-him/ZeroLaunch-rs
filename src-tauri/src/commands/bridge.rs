@@ -424,6 +424,29 @@ pub async fn bridge_wake(state: tauri::State<'_, Arc<AppState>>) -> Result<(), B
     Ok(())
 }
 
+/// 插件热键唤醒（前端驱动）：搜索栏唤起后由前端匹配插件声明热键并调用。
+/// 空查询进入插件面板会话（载荷经 session-state panelContent 推送），随后确保窗口可见。
+/// 插件热键不注册 OS 全局热键——OS 级只负责搜索栏呼出（Alt+Space），
+/// 本命令是插件唤醒的唯一入口。
+#[tauri::command]
+#[tracing::instrument(skip(state), fields(trace_id))]
+pub async fn bridge_wake_plugin(
+    state: tauri::State<'_, Arc<AppState>>,
+    plugin_id: String,
+) -> Result<(), BridgeError> {
+    let trace_id = crate::utils::trace_id::generate_trace_id();
+    tracing::Span::current().record("trace_id", trace_id.as_str());
+    debug!("📸 [Bridge] 插件热键唤醒: {}", plugin_id);
+    let session_dispatcher = state.get_session_dispatcher();
+    session_dispatcher
+        .wake_plugin(&plugin_id)
+        .await
+        .with_trace_id(&trace_id)?;
+    // 窗口已在搜索栏会话中；此处兜底确保可见（前端驱动场景下通常已可见）
+    state.get_host_api().show_window().await;
+    Ok(())
+}
+
 /// 重置当前会话。
 /// 通常发生在窗口隐藏或关闭时。
 #[tauri::command]

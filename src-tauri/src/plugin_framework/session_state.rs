@@ -6,7 +6,7 @@
 
 use serde::Serialize;
 use std::sync::Arc;
-use zerolaunch_plugin_api::PanelInteraction;
+use zerolaunch_plugin_api::{PanelInteraction, ResultAction};
 
 /// 展示形态 —— 会话投影的 UI 侧描述，序列化键名遵循 serde-rename 规则（camelCase）。
 ///
@@ -60,6 +60,49 @@ pub struct PluginPanelInfo {
     pub panel_id: String,
 }
 
+/// 面板动作的前端形状（icon 字符串化，与 bridge 路径 BridgeResultAction 同构——
+/// 前端 contract.ts ResultAction.icon: string；源数据同为一个 ResultAction，非双轨数据源）。
+#[derive(Debug, Clone, Serialize)]
+pub struct PanelContentAction {
+    #[serde(rename = "id")]
+    pub id: String,
+    #[serde(rename = "label")]
+    pub label: String,
+    #[serde(rename = "icon")]
+    pub icon: String,
+    #[serde(rename = "isDefault")]
+    pub is_default: bool,
+    #[serde(rename = "shortcutKey")]
+    pub shortcut_key: String,
+}
+
+impl From<ResultAction> for PanelContentAction {
+    fn from(action: ResultAction) -> Self {
+        PanelContentAction {
+            id: action.id,
+            label: action.label,
+            icon: action.icon.value().to_string(),
+            is_default: action.is_default,
+            shortcut_key: action.shortcut_key,
+        }
+    }
+}
+
+/// 插件面板渲染载荷 —— 热键唤醒推送时携带（会话事件仅此路径携带内容；
+/// 关键词查询路径的载荷随 bridge_query 响应下发，不重复推送）。
+#[derive(Debug, Clone, Serialize)]
+pub struct PluginPanelContent {
+    /// 面板类型标识，前端按此选择面板组件渲染。
+    #[serde(rename = "panelType")]
+    pub panel_type: String,
+    /// 面板数据（自由 JSON，面板自行定义结构）。
+    #[serde(rename = "data")]
+    pub data: serde_json::Value,
+    /// 面板动作列表（供 Enter 执行默认动作 / 面板内动作切换）。
+    #[serde(rename = "actions")]
+    pub actions: Vec<PanelContentAction>,
+}
+
 /// 会话状态事件载荷 —— 整个会话系统的唯一事件（事件名 `session-state`）。
 ///
 /// 由 Dispatcher 在会话投影变化（路由/确认/reset）或插件面板路由命中时构造，
@@ -83,6 +126,9 @@ pub struct SessionStateEvent {
     /// 插件触发词列表，供前端「输入是否仍属于当前面板」的 IPC 前判定（镜像参数唯一来源）。
     #[serde(rename = "triggerKeywords", default)]
     pub trigger_keywords: Vec<String>,
+    /// 插件面板渲染载荷：仅热键唤醒推送携带（Some）；关键词查询路径为 None（载荷随查询响应下发）。
+    #[serde(rename = "panelContent", default)]
+    pub panel_content: Option<PluginPanelContent>,
 }
 
 /// 活动会话（Dispatcher 内部权威投影）。

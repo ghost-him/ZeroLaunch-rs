@@ -291,6 +291,8 @@ impl TranslatorPlugin {
                 ],
                 priority: 90,
                 kind: PluginKind::Builtin,
+                // 行内插件：仅关键词（fy/tr/翻译）唤醒，无全局热键
+                hotkey: None,
             },
             inner: RwLock::new(TranslatorSettings::default()),
             llm_config,

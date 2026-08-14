@@ -58,6 +58,8 @@ impl CalculatorPlugin {
                 ],
                 priority: 100,
                 kind: PluginKind::Builtin,
+                // 行内插件：仅关键词（=）唤醒，无全局热键
+                hotkey: None,
             },
             inner: RwLock::new(CalculatorSettings::default()),
             last_result: RwLock::new(None),

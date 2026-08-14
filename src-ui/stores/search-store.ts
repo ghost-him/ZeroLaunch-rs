@@ -553,6 +553,24 @@ export const useSearchStore = defineStore('search', () => {
     currentPluginId.value = event.panel?.pluginId ?? null
     if (event.presentation === 'none') {
       resetLocalSession()
+      return
+    }
+    // 热键唤醒推送携带面板渲染载荷（窗口隐藏时无查询响应可依赖）：
+    // 直接按事件重建插件面板会话；常规路径（关键词查询）panelContent 为 null，
+    // 载荷仍由 bridge_query 响应下发，此处不覆盖既有面板状态。
+    if (event.panelContent) {
+      sessionMode.value =
+        event.presentation === 'pluginImmersive' ? 'plugin_immersive' : 'plugin_panel'
+      panelType.value = event.panelContent.panelType
+      panelData.value = event.panelContent.data
+      panelActions.value = event.panelContent.actions
+      query.value = ''
+      results.value = []
+      selectedIndex.value = 0
+      selectedActionIndex.value = 0
+      panelQueryInFlight.value = false
+      inlineParamState.value = null
+      paramPanelState.value = null
     }
   }
 

@@ -623,6 +623,10 @@ pub struct PluginMetadata {
     /// 第三方由 plugin-host 加载时强制覆盖为 ThirdParty（防插件谎报）。
     #[serde(rename = "kind", default)]
     pub kind: PluginKind,
+    /// 全局唤醒快捷键（如 "Ctrl+E"）：Some = 完全插件模式，支持热键唤醒；
+    /// None = 行内插件，仅支持关键词唤醒（宿主不注册热键）。
+    #[serde(rename = "hotkey", default)]
+    pub hotkey: Option<String>,
 }
 
 /// 插件种类 —— 区分内置（编译进二进制）与第三方（外部子进程）。

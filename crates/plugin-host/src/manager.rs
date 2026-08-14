@@ -504,6 +504,7 @@ fn build_plugin_info(
             .iter()
             .map(|c| c.component_id().to_string())
             .collect(),
+        hotkey: registration.metadata.hotkey.clone(),
     }
 }
 
@@ -532,6 +533,10 @@ pub struct InstalledPluginInfo {
     /// 该插件注册的组件 id 列表（前端据此关联 ConfigManager 中的组件配置）。
     #[serde(rename = "componentIds", default)]
     pub component_ids: Vec<String>,
+    /// 全局唤醒快捷键（如 "Ctrl+E"）：Some = 完全插件模式（前端在搜索栏唤起后
+    /// 匹配该热键唤醒插件，不注册 OS 全局热键）；None = 行内插件。
+    #[serde(rename = "hotkey", default)]
+    pub hotkey: Option<String>,
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────

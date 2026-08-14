@@ -40,6 +40,7 @@ impl EchoPlugin {
             description: "回显输入".into(), author: "me".into(),
             trigger_keywords: vec!["echo".into()],
             supported_os: vec!["windows".into()], priority: 50,
+            hotkey: None,
         }}
     }
 }

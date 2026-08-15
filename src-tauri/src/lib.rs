@@ -358,7 +358,7 @@ fn init_setting_window(app: tauri::AppHandle) {
             .expect("无法创建设置窗口"),
         );
         setting_window
-            .set_size(LogicalSize::new(950, 500))
+            .set_size(LogicalSize::new(1150, 650))
             .expect("无法设置设置窗口大小");
         let window_clone = Arc::clone(&setting_window);
         setting_window.on_window_event(move |event| {

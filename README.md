@@ -255,4 +255,4 @@ winget install ghost-him.ZeroLaunch-rs
 
 > 本项目目前**仅主动优化核心搜索启动功能**，其他功能不在优先级之内。如果你有功能需求或发现 bug，欢迎提交 Issue。我会定期查看反馈，并根据实际情况进行优化和修复。感谢你的理解与支持！
 
-[![Star History Chart](https://api.star-history.com/svg?repos=ghost-him/zerolaunch-rs&type=Date)](https://www.star-history.com/#ghost-him/zerolaunch-rs&Date)
+[![Star History Chart](https://star-history.dera.page/svg?repos=ghost-him/zerolaunch-rs&type=Date)](https://star-history.dera.page/#ghost-him/zerolaunch-rs&Date)

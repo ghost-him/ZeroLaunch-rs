@@ -27,7 +27,7 @@ use async_trait::async_trait;
 use std::sync::Arc;
 use zerolaunch_plugin_api::{
     Configurable, ComponentType, ConfigError,
-    Plugin, PluginContext, PluginError, PluginMetadata, PluginHandle,
+    Plugin, PluginContext, PluginError, PluginMetadata, PluginHandle, PluginMode,
     Query, QueryResponse, ListItem, IconRequest,
 };
 
@@ -41,6 +41,10 @@ impl EchoPlugin {
             trigger_keywords: vec!["echo".into()],
             supported_os: vec!["windows".into()], priority: 50,
             hotkey: None,
+            // panel 形态插件图标由宿主从 manifest [icon] 段读取，此处无需填写
+            icon: None,
+            // 插件形态：行内插件填 Inline，完全插件模式（trigger 类型）填 Panel
+            mode: PluginMode::Inline,
         }}
     }
 }

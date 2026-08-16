@@ -17,6 +17,7 @@ use std::sync::Arc;
 use tauri::AppHandle;
 use tauri::Emitter;
 use tracing::{error, info};
+
 use zerolaunch_plugin_api::config::Configurable;
 use zerolaunch_plugin_api::host::PluginSdkConfig;
 use zerolaunch_plugin_api::plugin::{PluginKind, PluginMetadata};
@@ -211,6 +212,9 @@ impl PluginManager {
             priority: meta.priority,
             component_ids: vec![meta.id.clone()],
             hotkey: meta.hotkey.clone(),
+            // icon 恒为 data URL（内置构造期解析、第三方加载期注入），直接透传
+            icon: meta.icon.clone(),
+            mode: meta.mode,
         }
     }
 
@@ -418,6 +422,8 @@ impl PluginManager {
                 .map(|c| c.component_id().to_string())
                 .collect(),
             hotkey: adapters.metadata.hotkey.clone(),
+            icon: adapters.metadata.icon.clone(),
+            mode: adapters.metadata.mode,
         })
     }
 

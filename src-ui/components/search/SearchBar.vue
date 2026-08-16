@@ -13,6 +13,10 @@
       <template #prefix v-if="searchStore.inlineParamState">
         <span class="trigger-prefix">{{ searchStore.inlineParamState.triggerKeyword }}</span>
       </template>
+      <!-- trigger 插件面板模式：当前插件图标作为前缀（仅 panel 形态插件展示图标，行内插件不展示） -->
+      <template #prefix v-else-if="currentPluginMeta?.mode === 'panel' && currentPluginMeta.icon">
+        <img :src="currentPluginMeta.icon" class="plugin-prefix-icon" alt="" />
+      </template>
     </n-input>
   </div>
 </template>
@@ -29,6 +33,13 @@ const { openSettings } = useSettings()
 const themeStore = useThemeStore()
 const searchStore = useSearchStore()
 const notification = useNotification()
+
+/// 当前插件面板元数据：插件面板模式下在搜索栏前缀渲染插件图标（仅 panel 形态）。
+const currentPluginMeta = computed(() => {
+  const id = searchStore.currentPluginId
+  if (!id || searchStore.sessionMode !== 'plugin_panel') return null
+  return searchStore.pluginMeta[id] ?? null
+})
 
 const inputRef = ref<InstanceType<typeof NInput> | null>(null)
 
@@ -134,6 +145,14 @@ defineExpose({ focusInput })
   padding: 2px 8px;
   background: var(--primary-color-alpha);
   border-radius: 4px;
+  user-select: none;
+}
+
+.plugin-prefix-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  object-fit: contain;
   user-select: none;
 }
 

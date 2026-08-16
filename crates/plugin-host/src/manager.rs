@@ -11,8 +11,10 @@ use std::sync::{Arc, OnceLock};
 use tokio::sync::mpsc;
 use tracing::{error, info, warn};
 
+use base64::Engine;
+
 use zerolaunch_plugin_api::config::Configurable;
-use zerolaunch_plugin_api::plugin::{PluginKind, PluginMetadata};
+use zerolaunch_plugin_api::plugin::{PluginKind, PluginMetadata, PluginMode};
 use zerolaunch_plugin_protocol::manifest::Manifest;
 use zerolaunch_plugin_protocol::messages::ComponentKind;
 use zerolaunch_plugin_protocol::ProtocolError;
@@ -329,7 +331,7 @@ impl PluginHostManager {
         };
 
         // 从发现的组件构建适配器
-        let adapters = build_components(&plugin_id, &manifest, client, &init_result);
+        let adapters = build_components(&plugin_id, plugin_dir, &manifest, client, &init_result);
 
         // 冲突预检：组件 id 清单来自插件运行时自报（get_components RPC），
         // 只能在 spawn 之后获得。这里在登记 hm.plugins 之前校验，
@@ -505,6 +507,8 @@ fn build_plugin_info(
             .map(|c| c.component_id().to_string())
             .collect(),
         hotkey: registration.metadata.hotkey.clone(),
+        icon: registration.metadata.icon.clone(),
+        mode: registration.metadata.mode,
     }
 }
 
@@ -533,10 +537,17 @@ pub struct InstalledPluginInfo {
     /// 该插件注册的组件 id 列表（前端据此关联 ConfigManager 中的组件配置）。
     #[serde(rename = "componentIds", default)]
     pub component_ids: Vec<String>,
-    /// 全局唤醒快捷键（如 "Ctrl+E"）：Some = 完全插件模式（前端在搜索栏唤起后
-    /// 匹配该热键唤醒插件，不注册 OS 全局热键）；None = 行内插件。
+    /// 全局唤醒快捷键（如 "Ctrl+E"），可空。
     #[serde(rename = "hotkey", default)]
     pub hotkey: Option<String>,
+    /// 插件显示图标（data URL，如 "data:image/png;base64,..."），可空表示无图标。
+    /// 来源为 manifest [icon] 段，host 层无条件读取。
+    #[serde(rename = "icon", default)]
+    pub icon: Option<String>,
+    /// 插件形态：inline = 行内插件；panel = 完全插件模式（trigger 类型）。
+    /// 行内/trigger 判定以此字段为唯一权威依据。
+    #[serde(rename = "mode", default)]
+    pub mode: PluginMode,
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────
@@ -606,10 +617,62 @@ fn validate_manifest(manifest: &Manifest, plugin_dir: &Path) -> Result<(), Plugi
         ));
     }
 
+    // Validate icon path does not escape the plugin directory (if declared).
+    // 文件缺失/不可读不阻断加载（图标可选，由 read_plugin_icon 降级为 None）；
+    // 仅当文件存在且能解析时校验逃逸（安全项硬拒绝）。
+    if let Some(icon) = &manifest.icon {
+        if let Ok(canonical_icon) = plugin_dir.join(&icon.path).canonicalize() {
+            if !canonical_icon.starts_with(&canonical_plugin_dir) {
+                return Err(PluginLoadError::Manifest(
+                    "icon path escapes plugin directory".into(),
+                ));
+            }
+        }
+    }
+
     Ok(())
 }
 
 // ─── 辅助函数：按 component_id 从 Vec<(String, T)> 中查找值 ───
+
+/// 读取 manifest [icon] 段声明的图标文件（相对插件目录）并转为 data URL。
+/// 路径逃逸插件目录、文件缺失或超过大小上限返回 None（图标缺失不阻断加载）。
+fn read_plugin_icon(plugin_dir: &Path, icon_path: &str) -> Option<String> {
+    const MAX_ICON_BYTES: u64 = 1024 * 1024; // 1MB，避免超大图标膨胀 plugin_list 载荷
+
+    let icon_abs = plugin_dir.join(icon_path);
+    let canonical_icon = icon_abs.canonicalize().ok()?;
+    let canonical_plugin_dir = plugin_dir.canonicalize().ok()?;
+    // 防路径遍历：图标必须位于插件目录内
+    if !canonical_icon.starts_with(&canonical_plugin_dir) {
+        warn!("插件图标路径逃逸插件目录，忽略: {}", icon_path);
+        return None;
+    }
+    let meta = std::fs::metadata(&canonical_icon).ok()?;
+    if meta.len() > MAX_ICON_BYTES {
+        warn!("插件图标超过 1MB 上限，忽略: {}", icon_path);
+        return None;
+    }
+    let bytes = std::fs::read(&canonical_icon).ok()?;
+    let mime = icon_mime_from_extension(&canonical_icon);
+    Some(format!(
+        "data:{};base64,{}",
+        mime,
+        base64::engine::general_purpose::STANDARD.encode(bytes)
+    ))
+}
+
+/// 根据图标文件扩展名推断 MIME 类型，未知扩展名回退 image/png。
+fn icon_mime_from_extension(path: &Path) -> &'static str {
+    match path.extension().and_then(|e| e.to_str()) {
+        Some("svg") => "image/svg+xml",
+        Some("ico") => "image/x-icon",
+        Some("jpg") | Some("jpeg") => "image/jpeg",
+        Some("webp") => "image/webp",
+        Some("gif") => "image/gif",
+        _ => "image/png",
+    }
+}
 
 /// 从 `Vec<(String, T)>` 中按 component_id 查找值，找不到返回 default。
 fn find_by_id<T: Clone + Default>(map: &[(String, T)], component_id: &str) -> T {
@@ -653,6 +716,7 @@ fn find_component_id_collision(
 /// metadata）根据 `ComponentKind` 放入 `RemoteComponentKind` 对应变体。
 fn build_components(
     plugin_id: &str,
+    plugin_dir: &Path,
     manifest: &Manifest,
     client: Arc<crate::client::JsonRpcClient>,
     init_result: &crate::process::InitResult,
@@ -665,7 +729,32 @@ fn build_components(
     plugin_metadata.version = manifest.plugin.version.clone();
     plugin_metadata.author = manifest.plugin.author.clone();
     // 第三方插件由宿主强制标注，插件自声明的 kind 不可信
+    if plugin_metadata.kind != PluginKind::ThirdParty {
+        warn!(
+            plugin_id = plugin_id,
+            declared = ?plugin_metadata.kind,
+            "插件自声明 kind 与宿主强制值不符，已强制为 ThirdParty"
+        );
+    }
     plugin_metadata.kind = PluginKind::ThirdParty;
+    // mode 一致性：声明热键（hotkey 有值）即完全插件模式（panel 形态）——
+    // 热键唤醒契约要求全页面接管，行内形态（keep_search_bar=true）是不存在路径。
+    // 与 kind 同策略由宿主强制，消除插件自报 Inline+hotkey 的矛盾状态。
+    if plugin_metadata.hotkey.is_some() {
+        if plugin_metadata.mode != PluginMode::Panel {
+            warn!(
+                plugin_id = plugin_id,
+                declared = ?plugin_metadata.mode,
+                "插件声明热键但形态非 panel，已强制为 Panel"
+            );
+        }
+        plugin_metadata.mode = PluginMode::Panel;
+    }
+    // 图标：从 manifest [icon] 段读取（宿主唯一源，插件 RPC 自上报不采信）
+    plugin_metadata.icon = manifest
+        .icon
+        .as_ref()
+        .and_then(|icon| read_plugin_icon(plugin_dir, &icon.path));
     // name, description, supported_os, trigger_keywords, priority
     // 保留插件通过 plugin/get_metadata 自声明的值
     let plugin_metadata = Arc::new(plugin_metadata);

@@ -18,6 +18,3 @@ provides = ["plugin"]
 
 [ui]
 panel_entry = "ui/panel.mjs"
-
-[icon]
-path = "icon.png"

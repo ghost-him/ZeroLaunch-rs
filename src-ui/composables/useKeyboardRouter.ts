@@ -26,8 +26,11 @@ export function useKeyboardRouter() {
   async function refreshPluginHotkeys() {
     try {
       const list = await pluginList()
+      // 插件元数据缓存：供 Footer / 搜索栏前缀渲染当前插件标识
+      store.updatePluginMeta(list)
+      // 热键表：仅 panel 形态插件参与热键唤醒（行内插件不注册）
       pluginHotkeys.value = list
-        .filter((p) => p.enabled && p.hotkey)
+        .filter((p) => p.enabled && p.mode === 'panel' && p.hotkey)
         .map((p) => ({ pluginId: p.pluginId, hotkey: p.hotkey as string }))
     } catch (e) {
       console.warn('[keyboard] 刷新插件热键失败:', e)

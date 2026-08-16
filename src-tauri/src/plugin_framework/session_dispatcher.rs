@@ -21,7 +21,7 @@ use zerolaunch_plugin_api::services::parameter::template_parser::{Placeholder, T
 use zerolaunch_plugin_api::services::ParameterSnapshot;
 use zerolaunch_plugin_api::{
     CachedCandidateData, CandidateId, ExecutionContext, ExecutionError, ListItem, Plugin,
-    PluginContext, Query, QueryChannel, QueryResponse, QueryRevisionGate,
+    PluginContext, PluginMode, Query, QueryChannel, QueryResponse, QueryRevisionGate,
 };
 
 use super::candidate_pipeline::CandidatePipeline;
@@ -1242,6 +1242,19 @@ impl SessionDispatcher {
                 plugin_id
             )));
         }
+        // 形态校验：仅 panel 形态插件可热键唤醒（后端权威裁决，行内插件即使声明 hotkey 也被拒绝）
+        let meta = self
+            .plugin_registry
+            .get(plugin_id)
+            .map(|p| p.metadata().clone());
+        if let Some(meta) = meta {
+            if meta.mode != PluginMode::Panel {
+                return Err(SessionDispatcherError::InvalidState(format!(
+                    "热键唤醒的插件 {} 为行内形态（mode=inline），仅 panel 形态插件可热键唤醒",
+                    plugin_id
+                )));
+            }
+        }
         let host_api: Arc<HostApi> = self.host_api.read().clone().ok_or_else(|| {
             SessionDispatcherError::NotInitialized(
                 "HostApi not initialized in SessionDispatcher".to_string(),
@@ -1276,8 +1289,8 @@ impl SessionDispatcher {
         })?;
 
         // 展示形态与载荷：热键唤醒 = 完全插件模式 = 全页面接管（PluginImmersive）。
-        // keep_search_bar: true（行内面板）在热键唤醒语义下是不存在路径——声明 hotkey
-        // 的插件必须设计为全面板。出现即契约被破坏（插件声明热键却返回行内形态），
+        // keep_search_bar: true（行内面板）在热键唤醒语义下是不存在路径——panel 形态
+        // 插件必须设计为全面板。出现即契约被破坏（panel 插件返回行内形态），
         // 立即 panic 暴露以便定位，不做静默降级（断言为宿主不变量，插件违约即宿主逻辑缺陷）。
         // 非 CustomPanel 响应（List/Empty）属契约违约，返回错误（前端无载荷可渲染，
         // 静默进入会导致前后端投影失步）。
@@ -1495,7 +1508,7 @@ mod tests {
     use zerolaunch_plugin_api::services::storage::storage_service::StorageService;
     use zerolaunch_plugin_api::services::timer::TokioTimerManager;
     use zerolaunch_plugin_api::{
-        PlatformCapabilities, PluginError, PluginHandle, PluginKind, PluginMetadata,
+        PlatformCapabilities, PluginError, PluginHandle, PluginKind, PluginMetadata, PluginMode,
     };
 
     /// 构建仅含桩组件的 HostApi（测试专用，不触达真实平台能力）。
@@ -1549,6 +1562,21 @@ mod tests {
             Self::with_trigger_and_id(trigger, &format!("test.{}", trigger))
         }
 
+        /// 以 panel 形态（完全插件模式）构造：query 返回 Empty（非 CustomPanel），
+        /// 供热键唤醒契约违约路径测试（mode 校验通过后仍会因响应非 CustomPanel 被拒）。
+        fn with_panel_trigger(trigger: &str) -> Self {
+            let mut plugin = Self::with_trigger(trigger);
+            plugin.metadata.mode = PluginMode::Panel;
+            plugin
+        }
+
+        /// 以 inline 形态 + 声明热键构造：热键唤醒应被 mode 校验拒绝（行内插件不可热键唤醒）。
+        fn with_inline_hotkey_trigger(trigger: &str) -> Self {
+            let mut plugin = Self::with_trigger(trigger);
+            plugin.metadata.hotkey = Some("Ctrl+E".to_string());
+            plugin
+        }
+
         /// 指定插件 id 的构造器：允许两个插件声明相同触发词（用于冲突路径测试）。
         fn with_trigger_and_id(trigger: &str, id: &str) -> Self {
             Self {
@@ -1563,6 +1591,8 @@ mod tests {
                     priority: 0,
                     kind: PluginKind::Builtin,
                     hotkey: None,
+                    icon: None,
+                    mode: PluginMode::Inline,
                 },
                 core: ComponentCore::new(
                     id.to_string(),
@@ -1750,6 +1780,8 @@ mod tests {
                     priority: 0,
                     kind: PluginKind::Builtin,
                     hotkey: Some("Ctrl+E".to_string()),
+                    icon: None,
+                    mode: PluginMode::Panel,
                 },
                 core: ComponentCore::new(
                     "test.panel".to_string(),
@@ -1870,8 +1902,8 @@ mod tests {
     async fn wake_plugin_rejects_non_custom_panel_response() {
         let dispatcher = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
         dispatcher.set_host_api(test_host_api());
-        // TriggerStubPlugin 的 query 返回 Empty（非 CustomPanel）
-        let plugin: Arc<dyn Plugin> = Arc::new(TriggerStubPlugin::with_trigger("="));
+        // TriggerStubPlugin 的 query 返回 Empty（非 CustomPanel）；panel 形态才能通过 mode 校验
+        let plugin: Arc<dyn Plugin> = Arc::new(TriggerStubPlugin::with_panel_trigger("="));
         let plugin_id = plugin.metadata().id.clone();
         dispatcher.register_plugin_with_triggers(plugin, true);
 
@@ -1879,6 +1911,24 @@ mod tests {
         assert!(
             err.to_string().contains("CustomPanel"),
             "应拒绝非 CustomPanel 响应: {}",
+            err
+        );
+    }
+
+    /// 热键唤醒仅支持 panel 形态：行内插件即使声明热键也被 mode 校验拒绝。
+    #[tokio::test]
+    async fn wake_plugin_rejects_inline_mode() {
+        let dispatcher = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
+        dispatcher.set_host_api(test_host_api());
+        // inline 形态 + 声明热键 → mode 校验拒绝（不进入查询）
+        let plugin: Arc<dyn Plugin> = Arc::new(TriggerStubPlugin::with_inline_hotkey_trigger("="));
+        let plugin_id = plugin.metadata().id.clone();
+        dispatcher.register_plugin_with_triggers(plugin, true);
+
+        let err = dispatcher.wake_plugin(&plugin_id).await.unwrap_err();
+        assert!(
+            err.to_string().contains("行内形态"),
+            "应拒绝 inline 形态热键唤醒: {}",
             err
         );
     }

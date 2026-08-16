@@ -97,7 +97,23 @@ const columns: DataTableColumn<PluginRow>[] = [
       )
     },
   },
-  { title: () => t('settings.thirdPartyPlugins.colName'), key: 'name' },
+  {
+    // 名称列：仅 panel 形态插件显示自定义图标；行内插件不展示
+    title: () => t('settings.thirdPartyPlugins.colName'),
+    key: 'name',
+    render(row) {
+      const icon = row.plugin.mode === 'panel' ? row.plugin.icon : null
+      if (!icon) return row.name
+      return h('span', { style: 'display: inline-flex; align-items: center; gap: 8px;' }, [
+        h('img', {
+          src: icon,
+          alt: '',
+          style: 'width: 20px; height: 20px; border-radius: 4px; object-fit: contain;',
+        }),
+        row.name,
+      ])
+    },
+  },
   { title: () => t('settings.thirdPartyPlugins.colVersion'), key: 'version', width: 90 },
   {
     title: () => t('settings.thirdPartyPlugins.colAuthor'),

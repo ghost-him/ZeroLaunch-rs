@@ -12,7 +12,8 @@ use zerolaunch_plugin_api::host::PluginHandle;
 use zerolaunch_plugin_api::services::IconRequest;
 use zerolaunch_plugin_api::{
     PanelInteraction, PanelKeyAction, PanelKeyBinding, PanelQueryTrigger, Plugin, PluginContext,
-    PluginError, PluginKind, PluginMetadata, Query, QueryChannel, QueryResponse, ResultAction,
+    PluginError, PluginKind, PluginMetadata, PluginMode, Query, QueryChannel, QueryResponse,
+    ResultAction,
 };
 
 use crate::core::config::setting_builders::SchemaBuilder;
@@ -291,8 +292,10 @@ impl TranslatorPlugin {
                 ],
                 priority: 90,
                 kind: PluginKind::Builtin,
-                // 行内插件：仅关键词（fy/tr/翻译）唤醒，无全局热键
+                // 行内插件：仅关键词（fy/tr/翻译）唤醒，无全局热键，不展示图标
                 hotkey: None,
+                icon: None,
+                mode: PluginMode::Inline,
             },
             inner: RwLock::new(TranslatorSettings::default()),
             llm_config,

@@ -59,6 +59,9 @@ export const useSearchStore = defineStore('search', () => {
   const panelInteraction = ref<PanelInteraction | null>(null)
   /** 当前插件面板所属插件 ID（来自 session-state 事件；宿主面板为 null）。供键盘解释器转发面板按键动作。 */
   const currentPluginId = ref<string | null>(null)
+  /** 插件元数据缓存（pluginId → 显示名/图标/形态）：由 useKeyboardRouter 在插件列表刷新时填充，
+   *  供 Footer/搜索栏前缀渲染当前插件标识。 */
+  const pluginMeta = ref<Record<string, { name: string; icon: string | null; mode: 'inline' | 'panel' }>>({})
   /** 会话代际：随 bridge_query / bridge_confirm 响应单调递增更新，确认请求回传校验。 */
   const currentGeneration = ref(0)
   /** 防抖定时器 */
@@ -540,6 +543,18 @@ export const useSearchStore = defineStore('search', () => {
     cachedCount.value = await bridgeGetCandidatesCount()
   }
 
+  /** 全量刷新插件元数据缓存（不可变更新：整体替换为新引用）。
+   *  由 useKeyboardRouter 在插件列表刷新时调用，数据源为后端 plugin_list。 */
+  function updatePluginMeta(
+    list: Array<{ pluginId: string; name: string; icon: string | null; mode: 'inline' | 'panel' }>,
+  ) {
+    const next: Record<string, { name: string; icon: string | null; mode: 'inline' | 'panel' }> = {}
+    for (const p of list) {
+      next[p.pluginId] = { name: p.name, icon: p.icon, mode: p.mode }
+    }
+    pluginMeta.value = next
+  }
+
   /// 应用后端会话状态事件（会话系统唯一事件通道）。
   /// 无条件接受：事件总是描述当前会话最新投影，按事件内容覆盖交互契约/触发词/插件 ID；
   /// 会话结束（presentation 'none'）→ 复位本地会话，但保留 currentGeneration 单调性。
@@ -582,13 +597,13 @@ export const useSearchStore = defineStore('search', () => {
   return {
     query, results, selectedIndex, selectedActionIndex, sessionMode, cachedCount,
     panelType, panelData, panelActions, panelInteraction,
-    currentGeneration, currentPluginId,
+    currentGeneration, currentPluginId, pluginMeta,
     panelQueryInFlight,
     confirmInFlight,
     inlineParamState, paramPanelState,
     isIdle, selectedItem,
     doQuery, doConfirm, selectNext, selectPrev,
-    refreshCandidates, fetchCandidatesCount, hideWindow,
+    refreshCandidates, fetchCandidatesCount, hideWindow, updatePluginMeta,
     // 行内参数模式
     exitInlineParamMode, confirmInlineParam,
     // 参数面板模式

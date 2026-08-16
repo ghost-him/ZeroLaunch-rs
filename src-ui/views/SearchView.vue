@@ -39,7 +39,6 @@
         v-if="!searchStore.isIdle && searchStore.sessionMode !== 'plugin_immersive'"
         :result-count="searchStore.results.length"
         :session-mode="searchStore.sessionMode"
-        :panel-type="searchStore.panelType"
         :actions="searchStore.selectedItem?.actions ?? []"
         :selected-action-index="searchStore.selectedActionIndex"
         @action-execute="(actionId: string) => searchStore.doConfirm(undefined, actionId)"

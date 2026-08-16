@@ -74,6 +74,12 @@ command = "target/release/my-plugin.exe"
 
 [components]
 provides = ["plugin"]
+
+# 可选：插件显示图标（相对插件目录，如 icon.png / icon.svg）。
+# 缺失/超限不阻断加载（该插件无自定义图标）；是否展示由宿主按插件形态决定：
+# panel 形态插件（mode = "panel"）展示，行内插件（mode = "inline"）不展示。
+[icon]
+path = "icon.png"
 ```
 
 ### 4. 安装

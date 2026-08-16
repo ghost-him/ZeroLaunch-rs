@@ -1,9 +1,15 @@
 <template>
   <div class="footer">
     <div class="footer-left">
-      <span v-if="(sessionMode === 'plugin_panel' || sessionMode === 'plugin_immersive') && panelType">{{ panelType }}</span>
-      <span v-else-if="resultCount > 0">{{ resultCount }} 个结果</span>
-      <span v-else>就绪</span>
+      <span
+        v-if="(sessionMode === 'plugin_panel' || sessionMode === 'plugin_immersive') && currentPluginMeta"
+        class="footer-plugin-id"
+      >
+        <img v-if="currentPluginMeta.mode === 'panel' && currentPluginMeta.icon" :src="currentPluginMeta.icon" class="footer-plugin-icon" alt="" />
+        <span>{{ resolveText(currentPluginMeta.name) }}</span>
+      </span>
+      <span v-else-if="resultCount > 0">{{ t('common.candidates', { count: resultCount }) }}</span>
+      <span v-else>{{ t('common.ready') }}</span>
     </div>
     <div class="footer-actions" v-if="actions && actions.length > 0">
       <button
@@ -24,24 +30,25 @@
           <Settings />
         </n-icon>
         </template>
-        设置
+        {{ t('footer.settings') }}
       </n-button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { NButton, NIcon } from 'naive-ui'
 import { Settings } from 'lucide-vue-next'
+import { useI18n } from 'vue-i18n'
 import { resolveText } from '../../i18n'
 import { useSettings } from '../../composables/useSettings'
-import type { SessionMode } from '../../stores/search-store'
+import { useSearchStore, type SessionMode } from '../../stores/search-store'
 import type { ResultAction } from '../../bridge/contract'
 
-defineProps<{
+const props = defineProps<{
   resultCount: number
   sessionMode: SessionMode
-  panelType: string | null
   actions: ResultAction[]
   selectedActionIndex: number
 }>()
@@ -52,6 +59,16 @@ defineEmits<{
 
 const { openSettings } = useSettings()
 const openSettingsWindow = () => openSettings()
+const { t } = useI18n()
+
+const searchStore = useSearchStore()
+
+/// 当前插件面板的元数据（名称/图标）：图标仅 panel 形态插件展示，行内插件不展示。
+const currentPluginMeta = computed(() => {
+  const id = searchStore.currentPluginId
+  if (!id) return null
+  return searchStore.pluginMeta[id] ?? null
+})
 </script>
 
 <style scoped>
@@ -80,6 +97,20 @@ const openSettingsWindow = () => openSettings()
   gap: 8px;
   flex-shrink: 0;
   opacity: 0.8;
+}
+
+.footer-plugin-id {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.footer-plugin-icon {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  object-fit: contain;
 }
 
 .footer-actions {

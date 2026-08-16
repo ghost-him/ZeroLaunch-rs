@@ -159,8 +159,12 @@ export interface InstalledPluginInfo {
   kind: 'builtin' | 'third-party'
   priority: number
   componentIds: string[]
-  /** 全局唤醒快捷键（如 "Ctrl+E"）：非 null = 完全插件模式，搜索栏唤起后前端匹配该热键唤醒；null = 行内插件（仅关键词唤醒）。 */
+  /** 全局唤醒快捷键（如 "Ctrl+E"）：非 null = 声明热键唤醒；null = 未声明。形态判定以 mode 为准。 */
   hotkey: string | null
+  /** 插件显示图标（data URL，如 "data:image/png;base64,..."），null 表示无图标。 */
+  icon: string | null
+  /** 插件形态：'inline' = 行内插件；'panel' = 完全插件模式（trigger 类型）。 */
+  mode: 'inline' | 'panel'
 }
 
 /**

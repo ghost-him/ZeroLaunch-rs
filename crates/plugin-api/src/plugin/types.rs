@@ -623,10 +623,31 @@ pub struct PluginMetadata {
     /// 第三方由 plugin-host 加载时强制覆盖为 ThirdParty（防插件谎报）。
     #[serde(rename = "kind", default)]
     pub kind: PluginKind,
-    /// 全局唤醒快捷键（如 "Ctrl+E"）：Some = 完全插件模式，支持热键唤醒；
-    /// None = 行内插件，仅支持关键词唤醒（宿主不注册热键）。
+    /// 全局唤醒快捷键（如 "Ctrl+E"），可空。
     #[serde(rename = "hotkey", default)]
     pub hotkey: Option<String>,
+    /// 插件显示图标（data URL，如 "data:image/png;base64,..."），可空表示无图标。
+    /// 内置与第三方统一为数据，消费方直接透传。
+    #[serde(rename = "icon", default)]
+    pub icon: Option<String>,
+    /// 插件形态：inline = 行内插件（关键词唤醒，保留搜索栏）；panel = 完全插件模式
+    /// （trigger 类型，唤醒后接管搜索窗口）。决定热键唤醒资格与图标展示门控。
+    /// 缺省 Panel：旧插件无此字段时按 panel 处理（兼容旧热键插件行为）。
+    #[serde(rename = "mode", default)]
+    pub mode: PluginMode,
+}
+
+/// 插件形态 —— 区分完全插件模式（trigger 类型）与行内插件。
+/// 与 PluginKind（内置/第三方）正交；序列化键名 "inline"/"panel"。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum PluginMode {
+    /// 行内插件：仅关键词唤醒，结果/面板嵌入搜索窗口（保留搜索栏）。
+    #[serde(rename = "inline")]
+    Inline,
+    /// 完全插件模式（trigger 类型）：唤醒后接管搜索窗口（可全页面）。
+    #[default]
+    #[serde(rename = "panel")]
+    Panel,
 }
 
 /// 插件种类 —— 区分内置（编译进二进制）与第三方（外部子进程）。

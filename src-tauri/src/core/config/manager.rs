@@ -565,7 +565,7 @@ mod tests {
     use super::*;
     use serde_json::json;
     use zerolaunch_plugin_api::config::{ComponentCore, SettingDefinition};
-    use zerolaunch_plugin_api::plugin::{PluginKind, PluginMetadata};
+    use zerolaunch_plugin_api::plugin::{PluginKind, PluginMetadata, PluginMode};
     use zerolaunch_plugin_api::PanelInteraction;
     use zerolaunch_plugin_host::adapter::remote_component::{RemoteComponent, RemoteComponentKind};
     use zerolaunch_plugin_host::client::JsonRpcClient;
@@ -659,6 +659,8 @@ mod tests {
             priority: 0,
             kind: PluginKind::ThirdParty,
             hotkey: None,
+            icon: None,
+            mode: PluginMode::Panel,
         });
         let make_component = |component_id: &str, name: &str| {
             Arc::new(RemoteComponent::new(

@@ -28,13 +28,7 @@
         <PluginsManagement v-else-if="selectedCategory?.type === 'plugins-page'" />
 
         <!-- About -->
-        <div v-else-if="selectedId === 'category_about'" class="static-panel">
-          <h3>{{ $t('settings.about') }}</h3>
-          <div class="static-row">
-            <span>ZeroLaunch-rs</span>
-            <n-text depth="3">v{{ version }}</n-text>
-          </div>
-        </div>
+        <AboutView v-else-if="selectedId === 'category_about'" :version="version" />
 
         <!-- Dynamic Category Views -->
         <template v-else-if="selectedCategory">
@@ -78,6 +72,7 @@ import CategoryViewList from '../components/settings/CategoryViewList.vue'
 import CategoryViewPipeline from '../components/settings/CategoryViewPipeline.vue'
 import CategoryViewTabs from '../components/settings/CategoryViewTabs.vue'
 import DebugView from './DebugView.vue'
+import AboutView from './AboutView.vue'
 import PluginsManagement from './settings/PluginsManagement.vue'
 import { useConfigStore } from '../stores/config-store'
 import { buildSidebarItems } from '../utils/settingsSidebar'
@@ -206,8 +201,7 @@ onMounted(async () => {
 
 .loading-state,
 .error-state,
-.empty-hint,
-.static-panel {
+.empty-hint {
   padding: 32px;
   height: 100%;
   display: flex;
@@ -215,12 +209,6 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   gap: 16px;
-}
-
-.static-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
 }
 </style>
 

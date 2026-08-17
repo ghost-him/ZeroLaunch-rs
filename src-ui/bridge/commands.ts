@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
+import { open as shellOpen } from '@tauri-apps/plugin-shell'
 import type { BridgeQueryResponse, ConfirmRequest, ConfirmResponse, ComponentInfo, ComponentSchema, ConfigActionDef, ConfigActionPayload, SearchTimingResult, IndexTimingResult, SearchDetailItem, PluginTranslationCatalog } from './contract'
 export interface BridgeError {
   code: string
@@ -308,4 +309,14 @@ export function debugSearchDetail(query: string): Promise<SearchDetailItem[]> {
  */
 export function i18nGetPluginTranslations(lang: string): Promise<PluginTranslationCatalog> {
   return invokeCommand<PluginTranslationCatalog>('i18n_get_plugin_translations', { lang })
+}
+
+// ---- 系统集成 ----
+
+/**
+ * 用系统默认浏览器打开外链。
+ * webview 内 `target=_blank` 只会打开空白窗口，须走 shell 插件；调用失败时 reject。
+ */
+export function openExternal(url: string): Promise<void> {
+  return shellOpen(url)
 }

@@ -1,7 +1,7 @@
 ---
 description: 禁止使用 println!/eprintln! 宏 — 必须用 tracing crate 进行日志记录
 condition: "println!|eprintln!"
-scope: "tool:edit(*.rs), tool:write(*.rs)"
+scope: "tool:edit(src-tauri/**), tool:write(src-tauri/**), tool:edit(crates/**), tool:write(crates/**), tool:edit(zerolaunch-cli/**), tool:write(zerolaunch-cli/**)"
 ---
 
 你在 Rust 代码中使用了 `println!()` 或 `eprintln!()` 宏。本项目必须使用 `tracing` crate 进行日志记录，禁止使用标准库的打印宏。

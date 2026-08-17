@@ -91,11 +91,17 @@ fn collect_build_targets(arch: &Architecture) -> Vec<BuildTarget> {
         .collect()
 }
 
-fn print_build_plan(kind: BuildKind, targets: &[BuildTarget], version: &str) {
+fn print_build_plan(kind: BuildKind, targets: &[BuildTarget], version: &str) -> Result<()> {
     if targets.is_empty() {
         println!("⚠️ 当前命令未匹配到任何 {} 构建目标。", kind.description());
-        return;
+        return Ok(());
     }
+
+    // MSI 文件名由 tauri bundle 按 tauri.conf.json 的 productName 命名，不能凭空构造
+    let product_name = match kind {
+        BuildKind::Installer => Some(get_app_product_name()?),
+        BuildKind::Portable => None,
+    };
 
     println!("📋 将构建以下 {}:", kind.description());
     for target in targets {
@@ -107,7 +113,12 @@ fn print_build_plan(kind: BuildKind, targets: &[BuildTarget], version: &str) {
 
         match kind {
             BuildKind::Installer => {
-                let msi_name = format!("ZeroLaunch_{}_{}_en-US.msi", version, target.arch.label());
+                let msi_name = format!(
+                    "{}_{}_{}_en-US.msi",
+                    product_name.as_deref().expect("Installer 分支已读取 productName"),
+                    version,
+                    target.arch.label()
+                );
                 let cli_name = format!("zerolaunch-cli_{}_{}.exe", version, target.arch.label());
                 println!("      • {}", msi_name);
                 println!("      • {}", cli_name);
@@ -122,6 +133,8 @@ fn print_build_plan(kind: BuildKind, targets: &[BuildTarget], version: &str) {
             }
         }
     }
+
+    Ok(())
 }
 
 #[derive(Parser)]
@@ -206,7 +219,7 @@ async fn main() -> Result<()> {
 /// 构建安装包版本
 async fn build_installer_versions(arch: &Architecture, version: &str) -> Result<()> {
     let targets = collect_build_targets(arch);
-    print_build_plan(BuildKind::Installer, &targets, version);
+    print_build_plan(BuildKind::Installer, &targets, version)?;
 
     for target in targets {
         build_single_installer(target, version).await?;
@@ -293,7 +306,7 @@ async fn build_cli_binary(target_arch: TargetArch) -> Result<()> {
 /// 构建便携版本
 async fn build_portable_versions(arch: &Architecture, version: &str) -> Result<()> {
     let targets = collect_build_targets(arch);
-    print_build_plan(BuildKind::Portable, &targets, version);
+    print_build_plan(BuildKind::Portable, &targets, version)?;
 
     for target in targets {
         build_single_portable(target, version).await?;
@@ -397,6 +410,9 @@ async fn run_command(args: Vec<String>) -> Result<()> {
     Ok(())
 }
 
+/// 主程序可执行文件名（与 src-tauri/Cargo.toml 的 package name 一致）
+const APP_EXE_NAME: &str = "zerolaunch-rs.exe";
+
 /// 打包便携版本
 async fn package_portable_variant(target: BuildTarget, version: &str) -> Result<()> {
     // Cargo workspace 模式下 target 目录在项目根。
@@ -407,56 +423,63 @@ async fn package_portable_variant(target: BuildTarget, version: &str) -> Result<
         target.arch.label()
     );
 
-    if let Some(exe_path) = find_portable_exe(target_dir, target.arch)? {
-        println!(
-            "📦 打包便携版 -> 架构: {} => {}",
-            target.arch.display(),
-            zip_name
-        );
-        create_portable_zip(&exe_path, &zip_name, target.arch).await?;
-        println!("✅ 便携版打包完成: {}", zip_name);
-    } else {
-        println!(
-            "⚠️ 未找到 {} ({}) 的便携版可执行文件，跳过打包。",
-            target.arch.triple(),
-            target.arch.display()
-        );
-    }
+    let exe_path = find_portable_exe(target_dir, target.arch)?;
+    println!(
+        "📦 打包便携版 -> 架构: {} => {}",
+        target.arch.display(),
+        zip_name
+    );
+    create_portable_zip(&exe_path, &zip_name, target.arch).await?;
+    println!("✅ 便携版打包完成: {}", zip_name);
 
     Ok(())
 }
 
 /// 查找便携版可执行文件
-fn find_portable_exe(target_dir: &Path, arch: TargetArch) -> Result<Option<PathBuf>> {
+fn find_portable_exe(target_dir: &Path, arch: TargetArch) -> Result<PathBuf> {
     let release_dir = target_dir.join(arch.triple()).join("release");
 
     if !release_dir.exists() {
-        println!(
-            "⚠️  未找到 {} ({}) 的构建目录",
+        anyhow::bail!(
+            "未找到 {} ({}) 的构建目录 {:?}",
             arch.triple(),
-            arch.display()
+            arch.display(),
+            release_dir
         );
-        return Ok(None);
     }
 
-    for entry in fs::read_dir(&release_dir)? {
-        let entry = entry?;
-        let path = entry.path();
+    // 应用可执行文件名由 src-tauri 的 Cargo package name 决定（zerolaunch-rs），
+    // tauri 构建不会按 tauri.conf.portable.json 的 productName 重命名 release 目录里的
+    // 二进制（productName 只影响窗口标题、deep-link scheme 与 bundle 产物名）。
+    // 必须精确匹配：release 目录里同时存在应用 zerolaunch-rs.exe 与 zerolaunch-cli.exe
+    // （CLI 工具），模糊匹配会按不确定的 read_dir 顺序误选其一，曾导致便携包打进 CLI
+    // （issue #80）。
+    let exe_names: Vec<String> = fs::read_dir(&release_dir)?
+        .filter_map(|entry| entry.ok())
+        .filter(|entry| entry.path().extension().and_then(|s| s.to_str()) == Some("exe"))
+        .filter_map(|entry| entry.file_name().into_string().ok())
+        .collect();
 
-        if path.extension().and_then(|s| s.to_str()) == Some("exe") {
-            let file_name = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
-            if file_name.contains("zero") || file_name.contains("launch") || file_name == "app" {
-                return Ok(Some(path));
-            }
-        }
-    }
+    let portable_exe = pick_portable_exe(&exe_names, APP_EXE_NAME)
+        .map(|name| release_dir.join(name))
+        .with_context(|| {
+            format!(
+                "未找到 {} ({}) 的便携版可执行文件 {}，release 目录内 exe 列表: {:?}",
+                arch.triple(),
+                arch.display(),
+                APP_EXE_NAME,
+                exe_names
+            )
+        })?;
 
-    println!(
-        "⚠️  未找到 {} ({}) 的可执行文件",
-        arch.triple(),
-        arch.display()
-    );
-    Ok(None)
+    Ok(portable_exe)
+}
+
+/// 从 release 目录的 exe 文件名中精确选出应用可执行文件（排除 zerolaunch-cli.exe）
+fn pick_portable_exe<'a>(exe_names: &'a [String], app_exe_name: &str) -> Option<&'a String> {
+    exe_names
+        .iter()
+        .find(|name| name.as_str() == app_exe_name)
 }
 
 /// 创建便携版 ZIP 包
@@ -466,8 +489,12 @@ async fn create_portable_zip(exe_path: &Path, zip_name: &str, arch: TargetArch) 
     let mut zip = ZipWriter::new(file);
     let options = FileOptions::default().compression_method(zip::CompressionMethod::Deflated);
 
-    // 添加可执行文件
-    let exe_name = exe_path.file_name().unwrap().to_str().unwrap();
+    // 添加可执行文件：zip 内名称带架构后缀（如 zerolaunch-rs_x64.exe），
+    // 与 zerolaunch-cli_{version}_{arch}.exe 的命名风格一致，便于区分 x64/arm64 产物。
+    let exe_stem = APP_EXE_NAME
+        .strip_suffix(".exe")
+        .expect("APP_EXE_NAME 必须以 .exe 结尾");
+    let exe_name = format!("{}_{}.exe", exe_stem, arch.label());
     zip.start_file(exe_name, options)?;
     let exe_data = fs::read(exe_path)?;
     std::io::copy(&mut exe_data.as_slice(), &mut zip)?;
@@ -591,6 +618,30 @@ struct VersionConfig {
     version: String,
 }
 
+/// 内部辅助类型：tauri.conf.json 的产品名数据模型。
+///
+/// 仅限本文件（xtask/main.rs）内使用，反序列化自 src-tauri/tauri.conf.json，
+/// 用于准确展示 tauri bundle 生成的 MSI 安装包文件名。
+#[derive(Deserialize)]
+struct ProductConfig {
+    /// tauri 产品名（如 "zerolaunch-rs"），tauri bundle 按它命名 MSI。
+    /// None 表示配置文件中未声明 productName 字段。
+    #[serde(rename = "productName")]
+    product_name: Option<String>,
+}
+
+/// 从 tauri.conf.json 读取应用产品名（tauri bundle 按它命名 MSI 安装包）
+fn get_app_product_name() -> Result<String> {
+    let tauri_config_path = Path::new("src-tauri/tauri.conf.json");
+    let config_content = fs::read_to_string(tauri_config_path)
+        .with_context(|| format!("读取 {} 失败", tauri_config_path.display()))?;
+    let config: ProductConfig =
+        serde_json::from_str(&config_content).context("解析 src-tauri/tauri.conf.json 失败")?;
+    config
+        .product_name
+        .context("src-tauri/tauri.conf.json 缺少 productName 字段")
+}
+
 fn get_app_version() -> Result<String> {
     let tauri_config_path = Path::new("src-tauri/tauri.conf.json");
     if tauri_config_path.exists() {
@@ -620,4 +671,27 @@ fn get_app_version() -> Result<String> {
     }
 
     anyhow::bail!("未找到应用版本号，请确保配置文件中包含 version 字段");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pick_portable_exe_从混合目录中精确选中应用() {
+        // release 目录同时存在应用 exe 与 CLI exe，必须精确选中应用 exe，
+        // 这是 issue #80（便携包打进 CLI）的回归测试。
+        let names = vec![
+            "zerolaunch-cli.exe".to_string(),
+            "zerolaunch-rs.exe".to_string(),
+        ];
+        let picked = pick_portable_exe(&names, APP_EXE_NAME).expect("应找到应用 exe");
+        assert_eq!(picked.as_str(), "zerolaunch-rs.exe");
+    }
+
+    #[test]
+    fn pick_portable_exe_应用缺失时返回_none() {
+        let names = vec!["zerolaunch-cli.exe".to_string()];
+        assert!(pick_portable_exe(&names, APP_EXE_NAME).is_none());
+    }
 }

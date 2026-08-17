@@ -1229,10 +1229,14 @@ impl SessionDispatcher {
     }
 
     /// 热键唤醒插件（完全插件模式）：捕获参数快照 → 空查询 → 进入全页面接管会话。
-    /// 响应必须为 CustomPanel 且 keep_search_bar=false（全页面接管契约，断言强制）；
+    /// 响应必须为 CustomPanel 且 keep_search_bar=false（全页面接管契约；keep_search_bar=true
+    /// 属违约：debug 构建 panic 暴露、release 构建按声明形态降级为 PluginPanel 正常唤醒）；
     /// 载荷经会话事件 panelContent 一并推送（窗口隐藏时前端无查询响应可依赖）。
     /// 非 CustomPanel 响应（List/Empty）属契约违约，返回错误（前端无载荷可渲染，
     /// 静默进入会导致前后端投影失步）。
+    /// 唤醒与 UI 查询共用版本计数器：唤醒开始即递增使在途 UI 查询过期，查询返回后
+    /// 再次校验——期间若有更新的查询/唤醒进入则本唤醒已过期，丢弃结果不进入会话
+    /// （与 route_query 提交门控同构），防止慢唤醒覆盖用户等待期间发起的新会话。
     pub async fn wake_plugin(&self, plugin_id: &str) -> Result<(), SessionDispatcherError> {
         // 启用校验：禁用插件不可被热键唤醒（前端热键表可能残留过期条目，
         // 后端为权威裁决，与触发词路由的「禁用即不路由」语义一致）。
@@ -1255,13 +1259,17 @@ impl SessionDispatcher {
                 )));
             }
         }
+        // 版本门控：唤醒作为 UI 通道请求参与版本竞争——占用版本号使在途 UI 查询过期，
+        // 查询返回后校验自身是否仍为最新，过期则丢弃（不写快照、不进入会话）。
+        let counter = self.revision_counter(QueryChannel::Ui);
+        let revision = counter.fetch_add(1, Ordering::Relaxed) + 1;
+
         let host_api: Arc<HostApi> = self.host_api.read().clone().ok_or_else(|| {
             SessionDispatcherError::NotInitialized(
                 "HostApi not initialized in SessionDispatcher".to_string(),
             )
         })?;
         let snapshot = host_api.capture_parameter_snapshot().await;
-        *self.parameter_snapshot.lock() = snapshot;
 
         let plugin = self.plugin_registry.get(plugin_id).ok_or_else(|| {
             SessionDispatcherError::InvalidState(format!("热键唤醒的插件不存在: {}", plugin_id))
@@ -1272,6 +1280,7 @@ impl SessionDispatcher {
         ctx.with_query(trace_id.clone());
         ctx.with_plugin_id(plugin_id.to_string());
         ctx.locale = self.current_locale();
+        ctx.set_query_revision_gate(QueryRevisionGate::new(revision, counter.clone()));
         let query = Query {
             id: trace_id,
             raw_query: String::new(),
@@ -1288,10 +1297,18 @@ impl SessionDispatcher {
             SessionDispatcherError::PluginError(e.to_string())
         })?;
 
-        // 展示形态与载荷：热键唤醒 = 完全插件模式 = 全页面接管（PluginImmersive）。
-        // keep_search_bar: true（行内面板）在热键唤醒语义下是不存在路径——panel 形态
-        // 插件必须设计为全面板。出现即契约被破坏（panel 插件返回行内形态），
-        // 立即 panic 暴露以便定位，不做静默降级（断言为宿主不变量，插件违约即宿主逻辑缺陷）。
+        // 提交门控：查询期间若有更新的同通道请求进入后端，本唤醒已过期，
+        // 丢弃结果返回成功（前端保持用户最新会话，不推送覆盖事件）。
+        if self.is_query_stale(counter, revision) {
+            return Ok(());
+        }
+        *self.parameter_snapshot.lock() = snapshot;
+
+        // 展示形态与载荷：热键唤醒默认 = 完全插件模式 = 全页面接管（PluginImmersive）。
+        // keep_search_bar=true（行内面板）与热键唤醒契约冲突：debug 构建用 debug_assert
+        // 强制 panic 暴露（契约违约即宿主逻辑缺陷，快速定位）；release 构建正常运行——
+        // 按插件声明形态降级为 PluginPanel（保留搜索栏），与 route_query 的
+        // keep_search_bar → 展示形态映射保持一致，不因插件违约而中止唤醒。
         // 非 CustomPanel 响应（List/Empty）属契约违约，返回错误（前端无载荷可渲染，
         // 静默进入会导致前后端投影失步）。
         let (presentation, content) = match response {
@@ -1301,13 +1318,18 @@ impl SessionDispatcher {
                 actions,
                 keep_search_bar,
             } => {
-                assert!(
+                debug_assert!(
                     !keep_search_bar,
                     "热键唤醒插件 {} 返回 keep_search_bar=true（行内面板）——热键唤醒仅支持全页面接管（PluginImmersive），插件契约违约",
                     plugin_id
                 );
+                let presentation = if keep_search_bar {
+                    PresentationMode::PluginPanel
+                } else {
+                    PresentationMode::PluginImmersive
+                };
                 (
-                    PresentationMode::PluginImmersive,
+                    presentation,
                     Some(PluginPanelContent {
                         panel_type,
                         data,
@@ -1933,8 +1955,10 @@ mod tests {
         );
     }
 
-    /// 热键唤醒 = 全页面接管：keep_search_bar=true（行内面板）是不存在路径，
-    /// 断言强制暴露（契约违约即宿主逻辑缺陷，不做静默降级）。
+    /// 热键唤醒 = 全页面接管：keep_search_bar=true（行内面板）属契约违约，
+    /// debug 构建用 debug_assert 强制 panic 暴露（测试构建即 debug_assertions 开启，
+    /// 故此处应 panic）；release 构建降级为 PluginPanel 正常唤醒（该分支在
+    /// debug_assertions 下不可达，release 路径不在此单测范围内）。
     #[tokio::test]
     #[should_panic(expected = "keep_search_bar=true")]
     async fn wake_plugin_panics_on_keep_search_bar() {

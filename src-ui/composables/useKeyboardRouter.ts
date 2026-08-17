@@ -29,9 +29,22 @@ export function useKeyboardRouter() {
       // 插件元数据缓存：供 Footer / 搜索栏前缀渲染当前插件标识
       store.updatePluginMeta(list)
       // 热键表：仅 panel 形态插件参与热键唤醒（行内插件不注册）
-      pluginHotkeys.value = list
-        .filter((p) => p.enabled && p.mode === 'panel' && p.hotkey)
-        .map((p) => ({ pluginId: p.pluginId, hotkey: p.hotkey as string }))
+      // 同热键多插件冲突：仅保留排序靠前的一个（后端按优先级/ID 排序，确定性），
+      // 其余丢弃并告警——冲突热键不可达是确定行为，避免静默竞争。
+      const seen = new Set<string>()
+      const entries: PluginHotkeyEntry[] = []
+      for (const p of list) {
+        if (!p.enabled || p.mode !== 'panel' || !p.hotkey) continue
+        if (seen.has(p.hotkey)) {
+          console.warn(
+            `[keyboard] 插件 ${p.pluginId} 的热键 ${p.hotkey} 与已启用插件冲突，已忽略（仅排序靠前的插件生效）`,
+          )
+          continue
+        }
+        seen.add(p.hotkey)
+        entries.push({ pluginId: p.pluginId, hotkey: p.hotkey })
+      }
+      pluginHotkeys.value = entries
     } catch (e) {
       console.warn('[keyboard] 刷新插件热键失败:', e)
     }
@@ -51,6 +64,11 @@ export function useKeyboardRouter() {
     }
   }
 
+  /// 插件热键唤醒在途标记（plugin_id → 唤醒 IPC 尚未返回）。
+  /// 按住组合键触发系统自动重复 keydown 时，防止并发重复唤醒同一插件
+  /// （重复 IPC 既浪费，也会放大慢响应乱序覆盖会话的问题）。
+  const wakeInFlight = new Set<string>()
+
   function onKeyDown(e: KeyboardEvent) {
     // 插件热键（窗口级全局，优先于会话面板分发）：命中已启用插件的声明热键 →
     // 唤醒该插件（沉浸式全页面接管）。已在同一插件面板时不重复唤醒，放行给面板绑定。
@@ -60,12 +78,22 @@ export function useKeyboardRouter() {
         store.currentPluginId === p.pluginId &&
         (store.sessionMode === 'plugin_panel' || store.sessionMode === 'plugin_immersive')
       if (inSamePanel) break
+      // 按住自动重复或上次唤醒仍在途：吞掉事件不再发起新唤醒
+      if (e.repeat || wakeInFlight.has(p.pluginId)) {
+        e.preventDefault()
+        return
+      }
       e.preventDefault()
-      void bridgeWakePlugin(p.pluginId).catch((e) => {
-        console.warn('[keyboard] 插件热键唤醒失败:', e)
-        // 自愈：卸载/禁用等场景热键表残留过期条目，失败后刷新
-        void refreshPluginHotkeys()
-      })
+      wakeInFlight.add(p.pluginId)
+      void bridgeWakePlugin(p.pluginId)
+        .catch((e) => {
+          console.warn('[keyboard] 插件热键唤醒失败:', e)
+          // 自愈：卸载/禁用等场景热键表残留过期条目，失败后刷新
+          void refreshPluginHotkeys()
+        })
+        .finally(() => {
+          wakeInFlight.delete(p.pluginId)
+        })
       return
     }
 

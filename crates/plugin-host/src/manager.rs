@@ -737,18 +737,15 @@ fn build_components(
         );
     }
     plugin_metadata.kind = PluginKind::ThirdParty;
-    // mode 一致性：声明热键（hotkey 有值）即完全插件模式（panel 形态）——
-    // 热键唤醒契约要求全页面接管，行内形态（keep_search_bar=true）是不存在路径。
-    // 与 kind 同策略由宿主强制，消除插件自报 Inline+hotkey 的矛盾状态。
-    if plugin_metadata.hotkey.is_some() {
-        if plugin_metadata.mode != PluginMode::Panel {
-            warn!(
-                plugin_id = plugin_id,
-                declared = ?plugin_metadata.mode,
-                "插件声明热键但形态非 panel，已强制为 Panel"
-            );
-        }
-        plugin_metadata.mode = PluginMode::Panel;
+    // mode 是插件形态的权威声明，宿主不覆盖：热键仅对 panel 形态生效——
+    // Inline + hotkey 属插件声明矛盾，前端热键表按 mode 过滤（行内不注册）、
+    // wake_plugin 亦按 mode 拒绝行内唤醒，宿主不静默改写插件自报形态。
+    if plugin_metadata.hotkey.is_some() && plugin_metadata.mode != PluginMode::Panel {
+        warn!(
+            plugin_id = plugin_id,
+            declared = ?plugin_metadata.mode,
+            "插件声明热键但形态非 panel：热键仅对 panel 形态生效，该热键将不注册"
+        );
     }
     // 图标：从 manifest [icon] 段读取（宿主唯一源，插件 RPC 自上报不采信）
     plugin_metadata.icon = manifest

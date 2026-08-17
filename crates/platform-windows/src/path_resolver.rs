@@ -165,3 +165,51 @@ impl WindowsPathResolver {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use zerolaunch_plugin_api::services::path::KnownPath;
+
+    /// 便携模式契约：应用数据目录必须解析到可执行文件所在目录（exe 同级）。
+    /// 回归：portable feature 曾未从 src-tauri 转发到本 crate，导致便携包仍把数据写到
+    /// $HOME/.ZeroLaunch-rs。此测试须用 `cargo test --features portable` 运行。
+    #[test]
+    #[cfg(feature = "portable")]
+    fn portable_mode_resolves_app_data_to_exe_dir() {
+        let resolver = WindowsPathResolver::new();
+        let app_data = resolver
+            .resolve_path(KnownPath::AppDataDir)
+            .expect("便携模式解析应用数据目录应成功");
+        let exe_dir = std::env::current_exe()
+            .expect("测试进程应有可执行文件路径")
+            .parent()
+            .expect("可执行文件路径应有父目录")
+            .to_string_lossy()
+            .to_string();
+        assert_eq!(app_data, exe_dir);
+
+        // 子目录（config / logs / icons）也应基于 exe 目录展开
+        let config_dir = resolver
+            .resolve_path(KnownPath::AppConfigDir)
+            .expect("便携模式解析配置目录应成功");
+        let expected_config = std::path::Path::new(&exe_dir)
+            .join("config")
+            .to_string_lossy()
+            .to_string();
+        assert_eq!(config_dir, expected_config);
+    }
+
+    /// 标准模式契约：应用数据目录为 $HOME/.ZeroLaunch-rs。
+    #[test]
+    #[cfg(not(feature = "portable"))]
+    fn standard_mode_resolves_app_data_to_home() {
+        let resolver = WindowsPathResolver::new();
+        let app_data = resolver
+            .resolve_path(KnownPath::AppDataDir)
+            .expect("标准模式解析应用数据目录应成功");
+        let home = dirs::home_dir().expect("测试环境应有 Home 目录");
+        let expected = home.join(APP_DATA_DIR_NAME).to_string_lossy().to_string();
+        assert_eq!(app_data, expected);
+    }
+}

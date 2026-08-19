@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import {
   bridgeQuery, bridgeConfirm,
   bridgeRefreshCandidates, bridgeGetCandidatesCount,
-  bridgeHideWindow,
+  bridgeHideWindow, configGetSettings,
 } from '../bridge/commands'
 import type { ListItem, ResultAction, BridgeQueryResponse, ConfirmResponse, PanelInteraction, SessionStateEvent } from '../bridge/contract'
 import { onSessionState } from '../bridge/events'
@@ -51,6 +51,10 @@ export const useSearchStore = defineStore('search', () => {
   const sessionMode = ref<SessionMode>('none')
   const cachedCount = ref(0)
 
+  /** 常驻结果框开关：空查询时显示按历史启动排序的常用候选项。
+   *  缓存 window-behavior-config.is_show_home_on_empty_query，配置变更事件时刷新。 */
+  const homeEnabled = ref(false)
+
   // 插件面板
   const panelType = ref<string | null>(null)
   const panelData = ref<unknown>(null)
@@ -92,6 +96,14 @@ export const useSearchStore = defineStore('search', () => {
 
   // ---- 派生 ----
   const isIdle = computed(() => query.value === '')
+
+  /// 主页（空查询常驻结果框）激活：开关开启时，空查询由 doQuery('') 发真实 IPC，
+  /// 后端返回搜索形态（sessionMode='search'）且查询文本保持为空。
+  /// 与 isIdle 并存：isIdle 保持 query==='' 语义（inline_param 等模式沿用），
+  /// 主页渲染在此处额外豁免 isIdle 的抑制。
+  const isHomeActive = computed(
+    () => homeEnabled.value && sessionMode.value === 'search' && query.value === '',
+  )
 
   const selectedItem = computed(() => {
     if (results.value.length === 0) return null
@@ -158,6 +170,37 @@ export const useSearchStore = defineStore('search', () => {
     return raw.includes(' ') && panelTriggerKeywords.includes(firstWord)
   }
 
+  /// 清理所有会话展示状态（结果/面板/参数/选中索引/在途标志）。
+  /// 会话「清空输入」与「本地复位」共用；不处理 query 文本与防抖/序号（调用方负责）。
+  function clearSessionState() {
+    results.value = []
+    sessionMode.value = 'none'
+    panelType.value = null
+    panelData.value = null
+    panelActions.value = []
+    panelInteraction.value = null
+    panelTriggerKeywords = []
+    currentPluginId.value = null
+    confirmInFlight.value = false
+    inlineParamState.value = null
+    paramPanelState.value = null
+    selectedIndex.value = 0
+    selectedActionIndex.value = 0
+    panelQueryInFlight.value = false
+  }
+
+  /// 读取常驻结果框开关（window-behavior-config.is_show_home_on_empty_query）。
+  /// 失败按关闭处理（不影响搜索主流程）。配置变更事件（onConfigChanged）时由视图层调用刷新。
+  async function fetchHomeSetting() {
+    try {
+      const s = (await configGetSettings('window-behavior-config')) as Record<string, unknown> | null
+      homeEnabled.value = s?.is_show_home_on_empty_query === true
+    } catch (e) {
+      console.warn('[search-store] 读取常驻结果框设置失败:', e)
+      homeEnabled.value = false
+    }
+  }
+
   async function doQuery(raw: string, confirm = false) {
     query.value = raw
     const seq = ++querySeq
@@ -166,20 +209,17 @@ export const useSearchStore = defineStore('search', () => {
     cancelPendingDebounce()
 
     if (raw === '') {
-      results.value = []
-      sessionMode.value = 'none'
-      panelType.value = null
-      panelData.value = null
-      panelActions.value = []
-      panelInteraction.value = null
-      panelTriggerKeywords = []
-      currentPluginId.value = null
-      confirmInFlight.value = false
-      inlineParamState.value = null
-      paramPanelState.value = null
-      selectedIndex.value = 0
-      selectedActionIndex.value = 0
-      panelQueryInFlight.value = false
+      // 常驻结果框：开关开启时空查询发真实 IPC 加载主页（后端按历史启动排序返回常用候选项）。
+      // 不清空展示状态——保留当前列表直至响应到达后原子替换，与普通搜索在途语义一致，
+      // 避免「清空 → 空态 → 主页」的闪烁。退出面板/参数会话的清理由调用方
+      // （back / exitInlineParamMode / exitParamPanelMode）先行完成，
+      // 会话归属与形态由 doQueryImpl 响应分支原子改写。
+      if (homeEnabled.value) {
+        doQueryImpl(raw, seq, confirm)
+        return
+      }
+      // 开关关闭：保持旧语义（纯清理，不发查询）。
+      clearSessionState()
       return
     }
 
@@ -499,20 +539,7 @@ export const useSearchStore = defineStore('search', () => {
     // 递增序号使所有在途响应的 seq 失效，防止慢请求盖写新状态
     querySeq++
     query.value = ''
-    results.value = []
-    sessionMode.value = 'none'
-    panelType.value = null
-    panelData.value = null
-    panelActions.value = []
-    panelInteraction.value = null
-    panelTriggerKeywords = []
-    currentPluginId.value = null
-    confirmInFlight.value = false
-    inlineParamState.value = null
-    paramPanelState.value = null
-    selectedIndex.value = 0
-    selectedActionIndex.value = 0
-    panelQueryInFlight.value = false
+    clearSessionState()
   }
 
   function resetSessionAndHide() {
@@ -601,9 +628,9 @@ export const useSearchStore = defineStore('search', () => {
     panelQueryInFlight,
     confirmInFlight,
     inlineParamState, paramPanelState,
-    isIdle, selectedItem,
+    isIdle, isHomeActive, selectedItem,
     doQuery, doConfirm, selectNext, selectPrev,
-    refreshCandidates, fetchCandidatesCount, hideWindow, updatePluginMeta,
+    refreshCandidates, fetchCandidatesCount, fetchHomeSetting, hideWindow, updatePluginMeta,
     // 行内参数模式
     exitInlineParamMode, confirmInlineParam,
     // 参数面板模式

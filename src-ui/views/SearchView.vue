@@ -17,9 +17,9 @@
       <!-- 参数面板模式 -->
       <ParamPanel v-if="uiMode === 'param_panel'" />
 
-      <!-- 搜索结果列表（搜索模式或行内参数模式） -->
+      <!-- 搜索结果列表（搜索模式或行内参数模式；主页为 isIdle 空查询会话，额外豁免） -->
       <ResultList
-        v-if="(uiMode === 'search' || uiMode === 'inline_param') && !searchStore.isIdle"
+        v-if="(uiMode === 'search' || uiMode === 'inline_param') && (!searchStore.isIdle || searchStore.isHomeActive)"
         :results="searchStore.results"
         :selected-index="searchStore.selectedIndex"
         @select="searchStore.selectedIndex = $event"
@@ -36,7 +36,7 @@
       />
 
       <Footer
-        v-if="!searchStore.isIdle && searchStore.sessionMode !== 'plugin_immersive'"
+        v-if="(!searchStore.isIdle || searchStore.isHomeActive) && searchStore.sessionMode !== 'plugin_immersive'"
         :result-count="searchStore.results.length"
         :session-mode="searchStore.sessionMode"
         :actions="searchStore.selectedItem?.actions ?? []"
@@ -133,6 +133,7 @@ onMounted(async () => {
   })
 
   searchStore.fetchCandidatesCount()
+  searchStore.fetchHomeSetting()
   await loadDragSetting()
 
   unlistenConfig = await onConfigChanged((payload) => {
@@ -144,9 +145,10 @@ onMounted(async () => {
     if (payload.componentId === 'appearance-config') {
       nextTick(() => resizeWindow())
     }
-    // 窗口行为变更时重新加载拖动设置
+    // 窗口行为变更时重新加载拖动设置并刷新常驻结果框开关
     if (payload.componentId === 'window-behavior-config') {
       loadDragSetting()
+      searchStore.fetchHomeSetting()
     }
   })
 
@@ -162,6 +164,12 @@ onMounted(async () => {
     nextTick(() => {
       searchBarRef.value?.focusInput()
     })
+    // 常驻结果框：空查询会话（无活动插件/参数面板）唤出时加载常用候选项主页。
+    // 开关关闭时 doQuery('') 保持旧语义（纯清理，不发 IPC）；sessionMode 守卫
+    // 保证插件面板等会话唤醒不被覆盖。
+    if (searchStore.query === '' && searchStore.sessionMode === 'none') {
+      searchStore.doQuery('')
+    }
   })
 })
 

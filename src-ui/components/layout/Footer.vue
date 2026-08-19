@@ -8,7 +8,7 @@
         <img v-if="currentPluginMeta.mode === 'panel' && currentPluginMeta.icon" :src="currentPluginMeta.icon" class="footer-plugin-icon" alt="" />
         <span>{{ resolveText(currentPluginMeta.name) }}</span>
       </span>
-      <span v-else-if="resultCount > 0">{{ t('common.candidates', { count: resultCount }) }}</span>
+      <span v-else-if="resultCount > 0">{{ t('search.candidates', { count: resultCount }) }}</span>
       <span v-else>{{ t('common.ready') }}</span>
     </div>
     <div class="footer-actions" v-if="actions && actions.length > 0">

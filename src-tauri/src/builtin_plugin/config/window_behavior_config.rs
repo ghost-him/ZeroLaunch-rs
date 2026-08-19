@@ -22,6 +22,10 @@ pub struct WindowBehaviorSettings {
     /// 激活失败降级：启用后窗口激活失败时自动启动程序新实例（read-at-use）。
     #[serde(rename = "launch_new_on_failure", default = "default_true")]
     pub launch_new_on_failure: bool,
+    /// 空查询常驻结果框：启用后空查询（唤出窗口/清空输入）显示按历史启动排序的常用候选项
+    /// （read-at-use，前端消费：空查询时发真实 IPC 加载主页）。
+    #[serde(rename = "is_show_home_on_empty_query", default)]
+    pub is_show_home_on_empty_query: bool,
     /// 启用窗口拖动并记忆位置（read-at-use）。
     #[serde(rename = "is_enable_drag_window", default)]
     pub is_enable_drag_window: bool,
@@ -49,6 +53,7 @@ impl Default for WindowBehaviorSettings {
             space_is_enter: false,
             is_wake_on_fullscreen: false,
             launch_new_on_failure: true,
+            is_show_home_on_empty_query: false,
             is_enable_drag_window: false,
             show_pos_follow_mouse: true,
             move_up_key: default_move_up_key(),
@@ -227,6 +232,21 @@ impl Configurable for WindowBehaviorConfigComponent {
             .group(t_key!("window-behavior-config", "groups.windowBehavior"))
             .order(3)
             .default(true)
+            .build(),
+            SchemaBuilder::boolean(
+                "is_show_home_on_empty_query",
+                t_key!(
+                    "window-behavior-config",
+                    "fields.is_show_home_on_empty_query.label"
+                ),
+                t_key!(
+                    "window-behavior-config",
+                    "fields.is_show_home_on_empty_query.desc"
+                ),
+            )
+            .group(t_key!("window-behavior-config", "groups.windowBehavior"))
+            .order(4)
+            .default(false)
             .build(),
             SchemaBuilder::boolean(
                 "is_enable_drag_window",

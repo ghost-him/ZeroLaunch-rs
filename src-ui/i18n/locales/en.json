@@ -743,6 +743,10 @@
           "label": "Launch new instance on activation failure",
           "desc": "When enabled, auto-launch a new program instance as fallback if window activation fails"
         },
+        "is_show_home_on_empty_query": {
+          "label": "Show frequent items on empty query",
+          "desc": "When enabled, an empty search box (window wake or cleared input) shows frequently used candidates ranked by launch history; Enter or click launches directly"
+        },
         "is_enable_drag_window": {
           "label": "Enable window dragging",
           "desc": "When enabled, the search bar window can be dragged and its position remembered for next wake"

@@ -161,6 +161,9 @@ onMounted(async () => {
   // 窗口每次被唤出时恢复输入框焦点：隐藏再显示时 DOM 焦点保留在旧元素（如 footer），
   // 不恢复则键盘输入无效，必须手动点击输入框。
   unlistenShowWindow = await onShowWindow(() => {
+    // 重置右键菜单：窗口失焦隐藏时前端无 hide 事件、菜单状态残留，
+    // 唤醒时先关闭菜单（不触发 onCtxClose，避免重复抢焦点，随后统一恢复输入焦点）。
+    ctxVisible.value = false
     nextTick(() => {
       searchBarRef.value?.focusInput()
     })

@@ -116,6 +116,8 @@ impl HostProxy {
         Ok(())
     }
 
+    /// 获取图标字节（base64 字符串）。
+    /// 返回：WebP 格式字节的 base64；失败为空字符串。
     pub async fn get_icon(&self, path: &str) -> Result<String, String> {
         let result = self
             .send_request(

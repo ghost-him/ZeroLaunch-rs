@@ -4,6 +4,7 @@ use async_trait::async_trait;
 use base64::Engine;
 use serde::Serialize;
 use std::sync::Arc;
+use zerolaunch_plugin_api::common::ImageUtils;
 use zerolaunch_plugin_api::config::{
     ComponentCore, ComponentType, ConfigActionDef, ConfigError, Configurable, SettingDefinition,
 };
@@ -24,7 +25,7 @@ struct CandidateSummary {
     /// 目标类型（Path, App 等）
     #[serde(rename = "targetType")]
     target_type: String,
-    /// 图标 base64 data URL（如 "data:image/png;base64,..."）
+    /// 图标 base64 data URL（如 "data:image/webp;base64,..."，回退路径可能为 PNG）
     #[serde(rename = "icon")]
     icon: String,
     /// 原始 IconRequest 的 JSON 序列化（由 zerolaunch_plugin_api::services::IconRequest 序列化得来）
@@ -142,7 +143,8 @@ impl Configurable for CandidateRegistryConfig {
                         String::new()
                     } else {
                         format!(
-                            "data:image/png;base64,{}",
+                            "{}{}",
+                            ImageUtils::data_url_prefix(&icon_data),
                             base64::engine::general_purpose::STANDARD.encode(&icon_data)
                         )
                     };

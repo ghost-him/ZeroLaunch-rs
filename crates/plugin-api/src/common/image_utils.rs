@@ -115,6 +115,40 @@ impl ImageUtils {
         .map_err(|e| ImageUtilsError::TaskJoinError(format!("Task join error: {}", e)))?
     }
 
+    /// 将 PNG 图片数据编码为 WebP 格式（无损 VP8L）。
+    /// 用于图标缓存压缩：编码开销发生在提取/写缓存路径（一次），查询热路径只读字节。
+    /// 用 image crate 内置的纯 Rust 无损编码器（image-webp），不依赖 libwebp C 库，
+    /// 避免第三方插件编译链引入 C 构建与 wasm 目标阻塞；VP8L 对图标类（扁平色块+alpha）
+    /// 压缩率通常优于 PNG 20-50%。
+    /// 参数：png_data - PNG 格式图片字节数据。
+    /// 返回：WebP 格式字节数据，失败返回 ImageUtilsError。
+    pub fn to_webp(png_data: Vec<u8>) -> Result<Vec<u8>, ImageUtilsError> {
+        let img = image::load_from_memory(&png_data).map_err(|e| {
+            ImageUtilsError::ProcessingError(format!("Failed to load image for webp: {}", e))
+        })?;
+
+        let mut webp_data = Vec::new();
+        let encoder = image::codecs::webp::WebPEncoder::new_lossless(&mut webp_data);
+        img.write_with_encoder(encoder).map_err(|e| {
+            ImageUtilsError::ProcessingError(format!("Failed to encode image as WebP: {}", e))
+        })?;
+        Ok(webp_data)
+    }
+
+    /// 根据图片字节头推断 base64 data URL 前缀。
+    /// 图标缓存统一存 WebP；旧 PNG 缓存未删除（key 后缀变更自动失效），
+    /// 极端回退路径（如 WebP 编码失败返回原始 PNG）仍可能携带 PNG 字节，
+    /// 前端 <img> 的 MIME 必须与字节一致，故按头嗅探而非固定 image/webp。
+    /// 参数：data - 图片字节数据。
+    /// 返回：data URL 前缀（"data:image/webp;base64," / "data:image/png;base64,"），未知回退 PNG。
+    pub fn data_url_prefix(data: &[u8]) -> &'static str {
+        if data.len() >= 12 && &data[0..4] == b"RIFF" && &data[8..12] == b"WEBP" {
+            "data:image/webp;base64,"
+        } else {
+            "data:image/png;base64,"
+        }
+    }
+
     /// 判断数据是否像是 HTML 内容。
     /// 参数：data - 待检测的字节数据。
     /// 返回：true 表示是 HTML 内容。

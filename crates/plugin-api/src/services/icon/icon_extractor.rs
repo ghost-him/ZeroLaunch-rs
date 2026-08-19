@@ -56,38 +56,52 @@ pub trait IconExtractor: Send + Sync {
         }
     }
 
-    /// 提取图标并应用后处理（裁剪白边）。
-    /// 默认实现：提取 → 裁剪透明白边，裁剪失败时返回原始数据。
+    /// 提取图标并应用后处理：裁剪白边 → 超大图等比缩放到上限 → WebP 90% 编码。
+    /// 默认实现：提取 → 裁剪透明白边 → 尺寸超限时缩放 → WebP 编码（质量 90）。
+    /// 每个步骤失败时回退上一步产物，保证始终返回有效图片字节。
     /// 参数：request - 图标请求。
-    /// 返回：处理后的 PNG 格式图标字节数据，提取失败返回 HostApiError。
+    /// 返回：处理后的 WebP 格式图标字节数据，提取失败返回 HostApiError。
     async fn extract_and_process(&self, request: &IconRequest) -> Result<Vec<u8>, HostApiError> {
+        const MAX_ICON_SIZE: u32 = 128;
         let data = self.extract(request).await?;
-        Ok(ImageUtils::trim_transparent_white_border(data.clone()).unwrap_or(data))
+        // 1. 裁剪透明/白边（失败回退原数据）
+        let trimmed = ImageUtils::trim_transparent_white_border(data.clone()).unwrap_or(data);
+        // 2. 超过 128×128 时等比缩放到 128（失败回退裁剪产物）
+        let resized = ImageUtils::resize_image(trimmed.clone(), MAX_ICON_SIZE, MAX_ICON_SIZE)
+            .await
+            .unwrap_or(trimmed);
+        // 3. WebP 无损编码（失败回退 PNG，MIME 侧按字节头嗅探兜底）
+        Ok(ImageUtils::to_webp(resized.clone()).unwrap_or(resized))
     }
 
     /// 加载默认图标。
     /// 默认实现：URL 类型加载默认网址图标，其他类型加载默认应用图标。
     /// 参数：request - 图标请求（用于判断类型）。
-    /// 返回：默认图标的 PNG 字节数据，读取失败返回空 Vec。
+    /// 返回：默认图标的 WebP 字节数据，读取失败返回空 Vec。
     async fn load_default_icon(&self, request: &IconRequest) -> Vec<u8> {
         let default_path = match request {
             IconRequest::Url(_) => self.default_web_icon_path(),
             _ => self.default_app_icon_path(),
         };
-        tokio::fs::read(default_path).await.unwrap_or_default()
+        let png = tokio::fs::read(default_path).await.unwrap_or_default();
+        if png.is_empty() {
+            return png;
+        }
+        // 与提取路径一致编码为 WebP，保证所有返回字节统一格式（MIME 嗅探兜底）
+        ImageUtils::to_webp(png.clone()).unwrap_or(png)
     }
 
     /// 完整的图标获取流程，包含缓存策略。
     /// 默认实现：根据 CacheLevel 执行 L1 → L2 → 提取 → 写回缓存，提取失败返回默认图标。
     /// 参数：cache - 图标缓存服务；request - 图标请求；level - 缓存等级。
-    /// 返回：PNG 格式图标字节数据，失败返回 HostApiError。
+    /// 返回：WebP 格式图标字节数据（回退路径可能为 PNG，消费方按字节头嗅探 MIME），失败返回 HostApiError。
     async fn get_icon(
         &self,
         cache: &IconCacheService,
         request: &IconRequest,
         level: CacheLevel,
     ) -> Result<Vec<u8>, HostApiError> {
-        let hash_key = request.get_hash_string() + ".png";
+        let hash_key = request.get_hash_string() + ".webp";
 
         // 1. 根据缓存等级查缓存
         if level != CacheLevel::SkipAll {
@@ -128,14 +142,14 @@ pub trait IconExtractor: Send + Sync {
     /// 强制从磁盘提取图标并更新缓存（跳过缓存读取）。
     /// 默认实现：直接提取 → 写回缓存。
     /// 参数：cache - 图标缓存服务；request - 图标请求；level - 缓存等级。
-    /// 返回：PNG 格式图标字节数据，提取失败返回 HostApiError。
+    /// 返回：WebP 格式图标字节数据，提取失败返回 HostApiError。
     async fn get_icon_and_update_cache(
         &self,
         cache: &IconCacheService,
         request: &IconRequest,
         level: CacheLevel,
     ) -> Result<Vec<u8>, HostApiError> {
-        let hash_key = request.get_hash_string() + ".png";
+        let hash_key = request.get_hash_string() + ".webp";
         let data = self.extract_and_process(request).await?;
         write_back_cache(cache, &hash_key, &data, level).await;
         Ok(data)

@@ -8,7 +8,7 @@ use tracing::warn;
 /// 本服务是纯缓存工具，不知道图标如何提取，也不知道 IconRequest/CacheLevel 等业务语义。
 /// 业务逻辑由 IconExtractor trait 的默认实现提供，本服务仅提供存取能力。
 pub struct IconCacheService {
-    /// L1: 内存缓存，key 为文件名（如 "abc123.png"），value 为 PNG 字节数据
+    /// L1: 内存缓存，key 为文件名（如 "abc123.webp"），value 为 WebP 字节数据
     memory_cache: DashMap<String, Vec<u8>>,
     /// L2: 文件缓存目录路径
     cache_dir: RwLock<String>,
@@ -43,7 +43,7 @@ impl IconCacheService {
     // ===== L1 内存缓存操作 =====
 
     /// 从 L1 内存缓存获取数据。
-    /// 参数：key - 缓存键（文件名，如 "abc123.png"）。
+    /// 参数：key - 缓存键（文件名，如 "abc123.webp"）。
     /// 返回：命中返回 Some(数据)，未命中返回 None。
     pub fn get_l1(&self, key: &str) -> Option<Vec<u8>> {
         self.memory_cache
@@ -52,7 +52,7 @@ impl IconCacheService {
     }
 
     /// 写入 L1 内存缓存。
-    /// 参数：key - 缓存键；data - 图标 PNG 数据。
+    /// 参数：key - 缓存键；data - 图标 WebP 数据。
     /// 返回：无。
     pub fn set_l1(&self, key: &str, data: Vec<u8>) {
         self.memory_cache.insert(key.to_string(), data);
@@ -66,7 +66,7 @@ impl IconCacheService {
     }
 
     /// 移除 L1 内存缓存中的指定键（用于图标覆盖后强制刷新缓存）。
-    /// 参数：key - 缓存键（文件名，如 "abc123.png"）。
+    /// 参数：key - 缓存键（文件名，如 "abc123.webp"）。
     /// 返回：无。
     pub fn remove_l1(&self, key: &str) {
         self.memory_cache.remove(key);
@@ -91,7 +91,7 @@ impl IconCacheService {
     }
 
     /// 异步写入 L2 文件缓存。
-    /// 参数：key - 缓存键（文件名）；data - 图标 PNG 数据。
+    /// 参数：key - 缓存键（文件名）；data - 图标 WebP 数据。
     /// 返回：无。
     /// 特性：写入操作在后台线程执行，不阻塞调用方；同时更新 cached_file_hashes。
     pub async fn set_l2(&self, key: &str, data: Vec<u8>) {

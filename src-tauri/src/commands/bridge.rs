@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tauri::Emitter;
 use tracing::{debug, info};
+use zerolaunch_plugin_api::common::ImageUtils;
 use zerolaunch_plugin_api::{CandidateId, Query, QueryChannel, QueryResponse, ResultAction};
 // ============================================================================
 // 搜索接口
@@ -162,14 +163,18 @@ pub enum BridgeConfirmResponse {
     },
 }
 
-/// 将 PNG 图标字节数据转换为前端可直接使用的 base64 data URL。
-/// 参数：png_data - PNG 格式图标字节数据。
-/// 返回：data:image/png;base64,... 格式的字符串，空数据返回空字符串。
-fn icon_to_data_url(png_data: &[u8]) -> String {
-    if png_data.is_empty() {
+/// 将图标字节数据转换为前端可直接使用的 base64 data URL。
+/// 参数：icon_data - 图标字节数据（缓存统一 WebP，回退路径可能为 PNG）。
+/// 返回：data:image/webp;base64,...（或 PNG 嗅探结果）格式的字符串，空数据返回空字符串。
+fn icon_to_data_url(icon_data: &[u8]) -> String {
+    if icon_data.is_empty() {
         return String::new();
     }
-    format!("data:image/png;base64,{}", STANDARD.encode(png_data))
+    format!(
+        "{}{}",
+        ImageUtils::data_url_prefix(icon_data),
+        STANDARD.encode(icon_data)
+    )
 }
 
 /// 通用查询入口。

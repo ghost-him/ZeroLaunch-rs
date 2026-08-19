@@ -1,11 +1,11 @@
 use async_trait::async_trait;
-use encoding_rs::{GBK, UTF_16LE};
 use std::io::Write;
 use std::os::windows::process::CommandExt;
 use std::path::Path;
 use std::process::Command;
 use tempfile::Builder;
 use tracing::{debug, info, warn};
+use windows::Win32::Globalization::GetACP;
 use winreg::enums::*;
 use winreg::RegKey;
 use zerolaunch_plugin_api::host::HostApiError;
@@ -66,11 +66,13 @@ impl WindowsAutoStartManager {
                 reason: format!("创建临时 XML 文件失败: {}", e),
             })?;
 
-        let (encoded, _, had_errors) = UTF_16LE.encode(&xml_content);
-        if had_errors {
-            return Err(HostApiError::AutoStartFailed {
-                reason: "生成任务计划 XML 时出现不可编码字符".to_string(),
-            });
+        // 编码为 UTF-16LE 并写入 BOM。
+        // schtasks 仅接受带 BOM 的 UTF-16 XML，否则按系统 ANSI 代码页解析，
+        // 非 ASCII 路径（如中文目录）会乱码，导致任务指向无效路径而无法自启动。
+        let mut encoded: Vec<u8> = Vec::with_capacity(xml_content.len() * 2 + 2);
+        encoded.extend_from_slice(&[0xFF, 0xFE]);
+        for unit in xml_content.encode_utf16() {
+            encoded.extend_from_slice(&unit.to_le_bytes());
         }
 
         temp_file
@@ -209,13 +211,39 @@ impl WindowsAutoStartManager {
         }
     }
 
-    /// 解码系统命令输出（处理 GBK 编码的中文 Windows）
-    fn decode_system_output(bytes: &[u8]) -> String {
+    /// 按指定 Windows ANSI 代码页解码命令输出。
+    /// 系统命令（schtasks 等）的输出按系统 ANSI 代码页编码：
+    /// 简体中文 GBK、日文 Shift-JIS、韩文 EUC-KR、繁体中文 Big5、西欧 CP1252 等。
+    /// UTF-8 字节（如开启了系统 UTF-8 支持）优先识别。
+    fn decode_with_codepage(bytes: &[u8], codepage: u32) -> String {
         if let Ok(s) = std::str::from_utf8(bytes) {
             return s.trim().to_string();
         }
-        let (decoded, _, _) = GBK.decode(bytes);
-        decoded.trim().to_string()
+        match codepage {
+            936 => encoding_rs::GBK.decode(bytes).0.trim().to_string(),
+            932 => encoding_rs::SHIFT_JIS.decode(bytes).0.trim().to_string(),
+            949 => encoding_rs::EUC_KR.decode(bytes).0.trim().to_string(),
+            950 => encoding_rs::BIG5.decode(bytes).0.trim().to_string(),
+            874 => encoding_rs::WINDOWS_874.decode(bytes).0.trim().to_string(),
+            1250 => encoding_rs::WINDOWS_1250.decode(bytes).0.trim().to_string(),
+            1251 => encoding_rs::WINDOWS_1251.decode(bytes).0.trim().to_string(),
+            1252 => encoding_rs::WINDOWS_1252.decode(bytes).0.trim().to_string(),
+            1253 => encoding_rs::WINDOWS_1253.decode(bytes).0.trim().to_string(),
+            1254 => encoding_rs::WINDOWS_1254.decode(bytes).0.trim().to_string(),
+            1255 => encoding_rs::WINDOWS_1255.decode(bytes).0.trim().to_string(),
+            1256 => encoding_rs::WINDOWS_1256.decode(bytes).0.trim().to_string(),
+            1257 => encoding_rs::WINDOWS_1257.decode(bytes).0.trim().to_string(),
+            1258 => encoding_rs::WINDOWS_1258.decode(bytes).0.trim().to_string(),
+            866 => encoding_rs::IBM866.decode(bytes).0.trim().to_string(),
+            _ => encoding_rs::Encoding::for_label(format!("windows-{codepage}").as_bytes())
+                .map(|enc| enc.decode(bytes).0.trim().to_string())
+                .unwrap_or_else(|| String::from_utf8_lossy(bytes).trim().to_string()),
+        }
+    }
+
+    /// 解码系统命令输出（按系统 ANSI 代码页，兼容不同语言系统）
+    fn decode_system_output(bytes: &[u8]) -> String {
+        Self::decode_with_codepage(bytes, unsafe { GetACP() })
     }
 
     /// 生成任务计划的 XML 配置（来自模板替换）
@@ -345,5 +373,71 @@ impl AutoStartManager for WindowsAutoStartManager {
     fn default_task_name(&self) -> String {
         let username = whoami::username().unwrap_or_else(|_| "unknown_user".to_string());
         format!("ZeroLaunch-rs\\autostart ({})", username)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_decode_ascii_output() {
+        let s = "ERROR: The system cannot find the file specified.";
+        assert_eq!(
+            WindowsAutoStartManager::decode_with_codepage(s.as_bytes(), 936),
+            s
+        );
+    }
+
+    #[test]
+    fn test_decode_utf8_output() {
+        // 开启系统 UTF-8 支持（ACP=65001）时命令输出为 UTF-8
+        let s = "错误: 系统找不到指定的路径。";
+        assert_eq!(
+            WindowsAutoStartManager::decode_with_codepage(s.as_bytes(), 65001),
+            s
+        );
+    }
+
+    #[test]
+    fn test_decode_gbk_output() {
+        // 简体中文系统（cp936）
+        let (encoded, _, _) = encoding_rs::GBK.encode("错误: 任务 XML 格式错误。");
+        assert_eq!(
+            WindowsAutoStartManager::decode_with_codepage(&encoded, 936),
+            "错误: 任务 XML 格式错误。"
+        );
+    }
+
+    #[test]
+    fn test_decode_shift_jis_output() {
+        // 日文系统（cp932）
+        let (encoded, _, _) =
+            encoding_rs::SHIFT_JIS.encode("エラー: 指定されたファイルが見つかりません。");
+        assert_eq!(
+            WindowsAutoStartManager::decode_with_codepage(&encoded, 932),
+            "エラー: 指定されたファイルが見つかりません。"
+        );
+    }
+
+    #[test]
+    fn test_decode_big5_output() {
+        // 繁体中文系统（cp950）
+        let (encoded, _, _) = encoding_rs::BIG5.encode("錯誤: 找不到指定的路徑。");
+        assert_eq!(
+            WindowsAutoStartManager::decode_with_codepage(&encoded, 950),
+            "錯誤: 找不到指定的路徑。"
+        );
+    }
+
+    #[test]
+    fn test_decode_windows_1252_output() {
+        // 英文/西欧系统（cp1252）
+        let mut bytes = vec![0x54, 0x61, 0x73, 0x6B]; // "Task"
+        bytes.extend_from_slice(&[0x20, 0xE9, 0x63, 0x68, 0x6F, 0x75]); // " échou"
+        assert_eq!(
+            WindowsAutoStartManager::decode_with_codepage(&bytes, 1252),
+            "Task échou"
+        );
     }
 }

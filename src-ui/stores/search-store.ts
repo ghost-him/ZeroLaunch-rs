@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import {
   bridgeQuery, bridgeConfirm,
   bridgeRefreshCandidates, bridgeGetCandidatesCount,
@@ -48,6 +48,12 @@ export const useSearchStore = defineStore('search', () => {
   const results = ref<ListItem[]>([])
   const selectedIndex = ref(0)
   const selectedActionIndex = ref(0)
+  // 选中项切换时重置动作选择：不同候选项的动作集合互不相同，残留的旧索引
+  // 会让仅支持少量动作的候选项显示为「未选择任何动作」（Footer 高亮无匹配）。
+  // flush: 'sync' 保证点击选中后 doConfirm 读取到的已是重置值。
+  watch(selectedIndex, () => {
+    selectedActionIndex.value = 0
+  }, { flush: 'sync' })
   const sessionMode = ref<SessionMode>('none')
   const cachedCount = ref(0)
 

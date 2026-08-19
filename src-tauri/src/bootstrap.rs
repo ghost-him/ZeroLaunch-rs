@@ -188,6 +188,13 @@ pub(crate) async fn init_app_state(
     state.set_host_api(host_api.clone());
     info!("HostApi 初始化完成");
 
+    // 预载图标文件缓存到内存（L1），消除冷启动后首次查询的磁盘读；
+    // 后台执行不阻塞后续初始化，查询路径 L1 未命中时仍回退按需读 L2。
+    let host_api_for_preload = host_api.clone();
+    tauri::async_runtime::spawn(async move {
+        host_api_for_preload.preload_icon_cache().await;
+    });
+
     // 将核心程序对于平台的操作也视为是一个插件，共用同一套pluginhandle
     let core_handle = host_api.register("core", Default::default());
     state.set_core_handle(core_handle.clone());

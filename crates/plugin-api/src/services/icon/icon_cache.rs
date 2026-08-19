@@ -40,6 +40,46 @@ impl IconCacheService {
         }
     }
 
+    /// 预载 L2 文件缓存到 L1 内存，消除冷启动后首次查询的磁盘读。
+    /// 只预载当前格式（.webp）条目：历史 .png 缓存是旧版未限尺寸产物（可能达数 MB/个），
+    /// key 已迁移后不再被任何查询读取，读入内存纯属浪费。
+    /// 参数：无。
+    /// 返回：无。
+    /// 特性：并行读取，全部完成后返回；失败条目静默跳过（查询路径会回退到按需读 L2）。
+    pub async fn preload_l1(&self) {
+        let cache_dir = self.cache_dir.read().clone();
+        let keys: Vec<String> = self
+            .cached_file_hashes
+            .iter()
+            .map(|entry| entry.clone())
+            .filter(|k| k.ends_with(".webp"))
+            .collect();
+        let mut handles = Vec::with_capacity(keys.len());
+        for key in keys {
+            let dir = cache_dir.clone();
+            let key_clone = key.clone();
+            handles.push(tokio::spawn(async move {
+                let data = tokio::fs::read(Path::new(&dir).join(&key_clone)).await.ok();
+                (key, data)
+            }));
+        }
+        for handle in handles {
+            if let Ok((key, Some(data))) = handle.await {
+                self.memory_cache.insert(key, data);
+            }
+        }
+        let (count, bytes): (usize, usize) = self
+            .memory_cache
+            .iter()
+            .map(|e| (1, e.value().len()))
+            .fold((0, 0), |(c, b), (cc, bb)| (c + cc, b + bb));
+        tracing::info!(
+            "图标缓存预载完成: {} 个, {:.1} KB",
+            count,
+            bytes as f64 / 1024.0
+        );
+    }
+
     // ===== L1 内存缓存操作 =====
 
     /// 从 L1 内存缓存获取数据。

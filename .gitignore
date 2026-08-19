@@ -28,6 +28,10 @@ config.json
 logs
 
 package-lock.json
+
+# Python
+__pycache__/
+*.pyc
 *.msi
 *.exe
 *.zip

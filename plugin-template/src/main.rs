@@ -5,8 +5,8 @@ use zerolaunch_plugin_api::config::{
     ComponentCore, ComponentType, Configurable, SettingDefinition,
 };
 use zerolaunch_plugin_api::{
-    Plugin, PluginContext, PluginError, PluginHandle, PluginMetadata, PluginMode, Query,
-    QueryResponse, ListItem, ResultAction,
+    Plugin, PluginContext, PluginError, PluginHandle, PluginKind, PluginMetadata, PluginMode,
+    Query, QueryResponse, ListItem, ResultAction,
 };
 use zerolaunch_plugin_sdk_rust::{run, t_key};
 
@@ -41,6 +41,8 @@ impl HelloWorldPlugin {
                 trigger_keywords: vec!["hello".to_string(), "hw".to_string()],
                 supported_os: vec!["windows".to_string()],
                 priority: 100,
+                // 第三方插件种类（宿主加载时强制覆盖为 ThirdParty，此处显式声明保持语义一致）
+                kind: PluginKind::ThirdParty,
                 // 声明唤醒热键（如 "Ctrl+E"）可填此字段；是否可热键唤醒取决于 mode（仅 panel 形态注册热键表）
                 hotkey: None,
                 // panel 形态插件图标由宿主从 manifest [icon] 段读取，此处无需填写

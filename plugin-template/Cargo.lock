@@ -3603,7 +3603,7 @@ dependencies = [
 
 [[package]]
 name = "zerolaunch-plugin-api"
-version = "1.0.0"
+version = "1.1.1"
 dependencies = [
  "async-trait",
  "bincode-next",
@@ -3633,7 +3633,7 @@ dependencies = [
 
 [[package]]
 name = "zerolaunch-plugin-protocol"
-version = "1.0.0"
+version = "1.1.1"
 dependencies = [
  "semver",
  "serde",
@@ -3645,7 +3645,7 @@ dependencies = [
 
 [[package]]
 name = "zerolaunch-plugin-sdk-rust"
-version = "1.0.0"
+version = "1.1.1"
 dependencies = [
  "async-trait",
  "base64",

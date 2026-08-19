@@ -17,4 +17,4 @@ maxRestart = 3
 provides = ["plugin"]
 
 [ui]
-panel_entry = "ui/panel.mjs"
+panelEntry = "ui/panel.mjs"

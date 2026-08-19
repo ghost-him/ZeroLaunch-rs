@@ -67,10 +67,11 @@ name = "我的插件"
 version = "0.1.0"
 description = "插件描述"
 author = "Your Name <you@example.com>"
-min_host_version = "0.7.0"
+minHostVersion = "0.7.0"
 
 [runtime]
-command = "target/release/my-plugin.exe"
+# command 相对插件目录（安装后布局：插件目录下的 bin/ 子目录）
+command = "bin/my-plugin.exe"
 
 [components]
 provides = ["plugin"]
@@ -82,6 +83,10 @@ provides = ["plugin"]
 path = "icon.png"
 ```
 
+> 字段名注意：manifest schema 使用 camelCase（`minHostVersion`、`panelEntry`、
+> `startupTimeout` 等）。写成 snake_case 不会报错，但字段会被静默丢弃
+> （如 `panel_entry` → 面板不加载），排查时先核对字段名。
+
 ### 4. 安装
 
 将编译产物和 manifest.toml 放入：
@@ -90,6 +95,15 @@ path = "icon.png"
 ├── manifest.toml
 └── bin/plugin.exe
 ```
+
+也可以使用模板自带的打包脚本 `package.py`（Python 3.11+，跨平台，无需额外依赖）一键构建并打成宿主可安装的 zip：
+
+```bash
+python package.py          # cargo build --release 后打包到 dist/<plugin-id>-<version>.zip
+python package.py --no-build   # 复用已有构建产物
+```
+
+随后在设置 → 插件管理 → 安装本地插件中选择该 zip 即可。
 
 ## Python 插件开发
 
@@ -127,7 +141,7 @@ while True:
 
 ```toml
 [ui]
-panel_entry = "ui/panel.mjs"
+panelEntry = "ui/panel.mjs"
 ```
 
 `panel.mjs` 必须 export default function：

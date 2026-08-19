@@ -642,23 +642,28 @@ name = "My Plugin"
 version = "1.0.0"
 description = "A cool plugin"
 author = "Example Inc."
+minHostVersion = "1.1.0"          # 宿主最低兼容版本（必填，语义化版本）
 
 [runtime]
 command = "my-plugin.exe"        # 可执行文件（相对于插件目录）
 args = ["--flag"]                # 命令行参数
-startup_timeout = 10             # 初始化超时（秒），默认 10
-auto_restart = true              # 崩溃时自动重启，默认 true
-max_restart = 3                  # 最大重启次数，默认 3
+startupTimeout = 10              # 初始化超时（秒），默认 10
+autoRestart = true               # 崩溃时自动重启，默认 true
+maxRestart = 3                   # 最大重启次数，默认 3
 
 [components]
 provides = ["plugin", "data_source"]  # 声明提供的能力
 
 [ui]                              # 可选
-panel_entry = "ui/panel.mjs"      # 前端 UI 入口
+panelEntry = "ui/panel.mjs"       # 前端 UI 入口
 
 [icon]                            # 可选
 path = "icon.png"
 ```
+
+> 字段名必须与 schema 一致（camelCase：`minHostVersion`、`startupTimeout`、
+> `autoRestart`、`maxRestart`、`panelEntry` 等）。snake_case 写法不会报错，
+> 但字段会被 serde 静默丢弃（如 `panel_entry` → 面板不加载），排查时先核对字段名。
 
 ### provides 合法值
 

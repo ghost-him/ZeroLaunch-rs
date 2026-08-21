@@ -281,7 +281,7 @@ pub trait ActionExecutor: Configurable {
 ///
 /// 各通道独立维护查询版本计数器，跨通道查询互不使对方过期；
 /// 且仅 GUI 通道允许改写会话状态（会话模式、面板交互事件）与
-/// 插件侧跨查询共享状态（如剪贴板缓存），CLI/调试查询为只读辅助路径。
+/// 插件侧跨查询共享状态（如剪贴板缓存），CLI 查询为只读辅助路径。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum QueryChannel {
     /// 主窗口 GUI 查询（bridge_query）。
@@ -289,8 +289,6 @@ pub enum QueryChannel {
     Ui,
     /// 本地 CLI HTTP 查询（/v1/query）。
     Cli,
-    /// 调试模拟查询（debug_simulate_query）。
-    Debug,
 }
 
 /// 查询版本门控：宿主在每次查询入口分配单调递增版本号，

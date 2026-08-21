@@ -228,10 +228,9 @@ pub struct SessionDispatcher {
 
     /// 会话状态推送回调（bootstrap 注入；CLI 无窗口场景不注入）。
     session_emitter: RwLock<Option<SessionStateEmitter>>,
-    /// 三通道查询版本计数器（语义见 QueryRevisionGate 注释）。
+    /// 双通道查询版本计数器（语义见 QueryRevisionGate 注释）。
     ui_query_revision: Arc<AtomicU64>,
     cli_query_revision: Arc<AtomicU64>,
-    debug_query_revision: Arc<AtomicU64>,
 }
 
 impl SessionDispatcher {
@@ -262,7 +261,6 @@ impl SessionDispatcher {
             session_emitter: RwLock::new(None),
             ui_query_revision: Arc::new(AtomicU64::new(0)),
             cli_query_revision: Arc::new(AtomicU64::new(0)),
-            debug_query_revision: Arc::new(AtomicU64::new(0)),
         }
     }
 
@@ -552,7 +550,6 @@ impl SessionDispatcher {
         match channel {
             QueryChannel::Ui => &self.ui_query_revision,
             QueryChannel::Cli => &self.cli_query_revision,
-            QueryChannel::Debug => &self.debug_query_revision,
         }
     }
 

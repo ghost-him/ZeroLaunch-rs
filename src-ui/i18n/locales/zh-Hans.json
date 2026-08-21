@@ -267,9 +267,6 @@
     "disabledTag": "检查器已禁用（需在设置中开启调试模式）",
     "pluginsTitle": "已注册插件（{count}）",
     "queriesTitle": "最近查询（{count} / {total}）",
-    "simulateTitle": "手动模拟查询",
-    "simulatePlaceholder": "输入查询文本...",
-    "simulate": "模拟",
     "colId": "ID",
     "colName": "名称",
     "colType": "类型",
@@ -312,8 +309,7 @@
     "colType": "类型",
     "colTarget": "目标",
     "colKeywords": "关键词",
-    "detailExpandTitle": "分数分解（共 {count} 项，总分 {score}）",
-    "detailHint": "× 为乘法系数：乘到上方加分项的累计结果上"
+    "scoreWeight": "× {weight}"
   },
   "tray": {
     "showSettings": "设置窗口",

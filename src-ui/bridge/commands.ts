@@ -133,10 +133,6 @@ export function inspectorGetState(): Promise<import('./contract').InspectorState
   return invokeCommand('inspector_get_state')
 }
 
-export function debugSimulateQuery(rawQuery: string): Promise<unknown> {
-  return invokeCommand('debug_simulate_query', { rawQuery })
-}
-
 // ---- Third-Party Plugin Management ----
 
 /** 插件运行状态（对应后端 PluginRuntimeState，snake_case 序列化）。 */

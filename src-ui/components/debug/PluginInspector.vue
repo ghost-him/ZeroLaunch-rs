@@ -31,44 +31,20 @@
           virtual-scroll
         />
       </DebugCard>
-
-      <DebugCard :title="t('inspector.simulateTitle')">
-        <div class="simulate-row">
-          <n-input
-            v-model:value="simInput"
-            :placeholder="t('inspector.simulatePlaceholder')"
-            clearable
-            @keyup.enter="simulate"
-          />
-          <n-button type="primary" size="small" :loading="simulating" @click="simulate">
-            {{ t('inspector.simulate') }}
-          </n-button>
-        </div>
-        <n-code
-          v-if="simResult !== null"
-          :code="simResult"
-          language="json"
-          word-wrap
-          class="sim-result"
-        />
-      </DebugCard>
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, h, onMounted, onUnmounted } from 'vue'
+import { h, ref, onMounted, onUnmounted } from 'vue'
 import {
-  NAlert, NButton, NCode, NDataTable, NInput, NTag,
+  NAlert, NButton, NDataTable, NTag,
   type DataTableColumns,
 } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import { resolveText } from '@/i18n'
 import DebugCard from './DebugCard.vue'
-import {
-  inspectorGetState,
-  debugSimulateQuery,
-} from '@/bridge/commands'
+import { inspectorGetState } from '@/bridge/commands'
 import { onInspectorStateUpdated } from '@/bridge/events'
 import type {
   InspectorStateResponse,
@@ -84,10 +60,6 @@ const queries = ref<InspectedQueryEvent[]>([])
 const totalQueries = ref(0)
 const available = ref(true)
 const refreshing = ref(false)
-
-const simInput = ref('')
-const simResult = ref<string | null>(null)
-const simulating = ref(false)
 
 let unlistenInspector: UnlistenFn | null = null
 
@@ -139,20 +111,6 @@ async function refresh() {
   }
 }
 
-async function simulate() {
-  const input = simInput.value.trim()
-  if (!input) return
-  simulating.value = true
-  try {
-    const result = await debugSimulateQuery(input)
-    simResult.value = JSON.stringify(result, null, 2)
-  } catch (e) {
-    simResult.value = `Error: ${e}`
-  } finally {
-    simulating.value = false
-  }
-}
-
 onMounted(async () => {
   await refresh()
   unlistenInspector = await onInspectorStateUpdated(() => {
@@ -171,24 +129,5 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 16px;
   padding-bottom: 16px;
-}
-
-.simulate-row {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-shrink: 0;
-}
-
-.simulate-row .n-input {
-  flex: 1;
-}
-
-.sim-result {
-  max-height: 320px;
-  overflow: auto;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  padding: 8px;
 }
 </style>

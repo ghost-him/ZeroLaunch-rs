@@ -224,10 +224,6 @@ debug_search_detail(query)
   └─ state.is_debug_mode()
   └─ session_router.debug_search(&query)
   └─ session_router.get_cached_candidate_by_id(id) [per item]
-
-debug_simulate_query(raw_query)
-  └─ state.is_debug_mode()
-  └─ session_router.route_query(&trace_id, &query).await
 ```
 
 **与常规搜索数据流的区别**：

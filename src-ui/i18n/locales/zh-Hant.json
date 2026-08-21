@@ -267,9 +267,6 @@
     "disabledTag": "檢查器已停用（需在設定中開啟除錯模式）",
     "pluginsTitle": "已註冊插件（{count}）",
     "queriesTitle": "最近查詢（{count} / {total}）",
-    "simulateTitle": "手動模擬查詢",
-    "simulatePlaceholder": "輸入查詢文本...",
-    "simulate": "模擬",
     "colId": "ID",
     "colName": "名稱",
     "colType": "型別",
@@ -312,8 +309,7 @@
     "colType": "型別",
     "colTarget": "目標",
     "colKeywords": "關鍵詞",
-    "detailExpandTitle": "分數分解（共 {count} 項，總分 {score}）",
-    "detailHint": "× 為乘法系數：乘到上方加分項的累計結果上"
+    "scoreWeight": "× {weight}"
   },
   "tray": {
     "showSettings": "設定視窗",

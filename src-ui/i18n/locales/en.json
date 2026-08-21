@@ -267,9 +267,6 @@
     "disabledTag": "Inspector disabled (enable debug mode in settings)",
     "pluginsTitle": "Registered Plugins ({count})",
     "queriesTitle": "Recent Queries ({count} / {total})",
-    "simulateTitle": "Manual Query Simulation",
-    "simulatePlaceholder": "Enter query text...",
-    "simulate": "Simulate",
     "colId": "ID",
     "colName": "Name",
     "colType": "Type",
@@ -312,8 +309,7 @@
     "colType": "Type",
     "colTarget": "Target",
     "colKeywords": "Keywords",
-    "detailExpandTitle": "Score Breakdown ({count} items, total {score})",
-    "detailHint": "× is a multiplier applied to the accumulated result of the additive terms above"
+    "scoreWeight": "× {weight}"
   },
   "tray": {
     "showSettings": "Settings",

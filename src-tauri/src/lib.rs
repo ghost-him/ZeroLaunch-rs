@@ -207,7 +207,6 @@ pub fn run() {
             crate::commands::resource::resource_upload,
             // Plugin Inspector
             crate::commands::inspector::inspector_get_state,
-            crate::commands::debug::debug_simulate_query,
             // Debug Tools
             crate::commands::debug::debug_test_search_time,
             crate::commands::debug::debug_test_index_time,

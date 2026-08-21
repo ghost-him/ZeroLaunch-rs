@@ -2,7 +2,7 @@ use crate::core::config::ConfigManager;
 /// Plugin Inspector — 运行时调试面板。
 /// 维护一个 ring buffer 记录最近的查询和执行事件。
 /// 录制与否由调用方通过 AppState::is_debug_mode() 控制，Inspector 自身不判断。
-/// 前端通过 `inspector_get_state` IPC 命令查询，模拟查询通过 `debug_simulate_query`。
+/// 前端通过 `inspector_get_state` IPC 命令查询组件清单与查询日志。
 use parking_lot::RwLock;
 use serde::Serialize;
 use std::collections::VecDeque;

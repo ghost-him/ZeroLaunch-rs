@@ -2,11 +2,11 @@
 //! 所有命令仅在调试模式开启时可用（通过 AppState::is_debug_mode() 检查）。
 //! 返回类型遵循 serde-rename 规范，每个字段显式标注 `#[serde(rename)]`。
 
-use crate::commands::bridge_error::{BridgeError, WithTraceId};
+use crate::commands::bridge_error::BridgeError;
 use crate::state::app_state::AppState;
 use serde::Serialize;
 use std::sync::Arc;
-use zerolaunch_plugin_api::{QueryChannel, ScoreDetail};
+use zerolaunch_plugin_api::ScoreDetail;
 
 // ---- 响应类型 ----
 
@@ -167,36 +167,4 @@ pub async fn debug_search_detail(
         .collect();
 
     Ok(items)
-}
-
-/// 模拟一次查询，返回原始 QueryResponse（不含图标解析）。
-/// 若调试模式未开启，返回错误。
-#[tauri::command]
-#[tracing::instrument(skip(state), fields(trace_id))]
-pub async fn debug_simulate_query(
-    state: tauri::State<'_, Arc<AppState>>,
-    raw_query: String,
-) -> Result<serde_json::Value, BridgeError> {
-    let trace_id = format!("sim-{}", crate::utils::trace_id::generate_trace_id());
-    tracing::Span::current().record("trace_id", trace_id.as_str());
-    if !state.is_debug_mode() {
-        return Err(
-            BridgeError::internal("调试模式未开启，请在设置中启用").with_trace_id(&trace_id)
-        );
-    }
-
-    use zerolaunch_plugin_api::plugin::Query;
-
-    let session_dispatcher = state.get_session_dispatcher();
-    let query = Query {
-        id: trace_id.clone(),
-        raw_query: raw_query.clone(),
-        search_term: raw_query.to_lowercase(),
-        confirm: false,
-    };
-    let routed = session_dispatcher
-        .route_query(&trace_id, &query, QueryChannel::Debug)
-        .await
-        .with_trace_id(&trace_id)?;
-    Ok(serde_json::to_value(&routed.response).unwrap_or_default())
 }

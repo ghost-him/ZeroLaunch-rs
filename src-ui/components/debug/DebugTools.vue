@@ -68,13 +68,14 @@
         :data="detail.result"
         size="small"
         :max-height="420"
+        :scroll-x="tableScrollX"
       />
     </DebugCard>
   </div>
 </template>
 
 <script setup lang="ts">
-import { h, ref } from 'vue'
+import { computed, h, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   NButton, NDataTable, NInput, NStatistic, NTag,
@@ -118,64 +119,70 @@ async function runIndexTime() {
   }
 }
 
-/**
- * 渲染展开行的分数分解明细，按引擎/增强器产出的顺序保序展示：
- * 乘法项缩进并以 "× 系数" 显示，紧跟在其作用的加分项之后（明细 Vec 保序），
- * 图例行说明乘法语义，使总分可按"加分项累计 × 乘法系数 + 其余加分项"核对。
- */
-function renderScoreDetail(details: ScoreDetail[], totalScore: number) {
-  return h('div', { class: 'score-detail-expand' }, [
-    h(
-      'div',
-      { class: 'score-detail-header' },
-      t('debug.detailExpandTitle', {
-        count: details.length,
-        score: totalScore.toFixed(4),
-      }),
-    ),
-    h('div', { class: 'score-detail-hint' }, t('debug.detailHint')),
-    ...details.map((d) => {
-      if (d.kind === 'multiply') {
-        return h('div', { class: 'score-detail-row score-detail-multiply' }, [
-          h('span', { class: 'score-detail-name' }, d.description),
-          h('span', { class: 'score-detail-value' }, `× ${d.score.toFixed(4)}`),
-        ])
-      }
-      return h('div', { class: 'score-detail-row' }, [
-        h('span', { class: 'score-detail-name' }, d.description),
-        h(
-          'span',
-          { class: 'score-detail-value' },
-          `${d.score.toFixed(4)} × ${d.weight.toFixed(2)} = ${(d.score * d.weight).toFixed(4)}`,
-        ),
-      ])
-    }),
-  ])
-}
+/** 固定列基础宽度之和（含总分列），用于计算表格横向滚动宽度。 */
+const BASE_COLUMN_WIDTH = 40 + 70 + 160 + 80 + 180 + 160 + 90
+/** 单个分数明细列宽度。 */
+const SCORE_COLUMN_WIDTH = 120
 
-const detailColumns: DataTableColumns<SearchDetailItem> = [
-  {
-    type: 'expand',
-    renderExpand: (row) => renderScoreDetail(row.detailedScore ?? [], row.score),
-  },
+/**
+ * 分数明细列：取结果集中出现的全部明细项（按首次出现顺序去重）生成动态列，
+ * 复刻旧版调试页"每项分数一列、末尾总分"的平铺展示。
+ * - add 项：主值 = 未加权分值，副文本 = × 权重（与旧版 历史分 (x权重) 一致）；
+ * - multiply 项：显示 × 系数，传达乘法语义。
+ */
+const scoreColumns = computed<DataTableColumns<SearchDetailItem>>(() => {
+  const rows = detail.result ?? []
+  const seen = new Set<string>()
+  const items: ScoreDetail[] = []
+  for (const row of rows) {
+    for (const d of row.detailedScore ?? []) {
+      if (!seen.has(d.description)) {
+        seen.add(d.description)
+        items.push(d)
+      }
+    }
+  }
+  return items.map((it) => ({
+    title: it.description,
+    key: it.description,
+    width: SCORE_COLUMN_WIDTH,
+    render: (row: SearchDetailItem) => {
+      const d = row.detailedScore?.find((x) => x.description === it.description)
+      if (!d) return '—'
+      if (d.kind === 'multiply') {
+        return h('span', { class: 'score-cell score-cell-multiply' }, `× ${d.score.toFixed(4)}`)
+      }
+      return h('div', { class: 'score-cell' }, [
+        h('div', { class: 'score-cell-value' }, d.score.toFixed(4)),
+        h('div', { class: 'score-cell-sub' }, t('debug.scoreWeight', { weight: d.weight.toFixed(2) })),
+      ])
+    },
+  }))
+})
+
+const tableScrollX = computed(() => BASE_COLUMN_WIDTH + scoreColumns.value.length * SCORE_COLUMN_WIDTH)
+
+const detailColumns = computed<DataTableColumns<SearchDetailItem>>(() => [
   { title: t('debug.colRank'), key: 'rank', width: 40 },
   { title: t('debug.colId'), key: 'candidateId', width: 70 },
-  { title: t('debug.colName'), key: 'name', width: 140, ellipsis: { tooltip: true } },
+  { title: t('debug.colName'), key: 'name', width: 160, ellipsis: { tooltip: true } },
+  { title: t('debug.colType'), key: 'targetType', width: 80 },
+  { title: t('debug.colTarget'), key: 'targetText', width: 180, ellipsis: { tooltip: true } },
+  {
+    title: t('debug.colKeywords'),
+    key: 'keywords',
+    width: 160,
+    render: (row) => row.keywords.join(', '),
+    ellipsis: { tooltip: true },
+  },
+  ...scoreColumns.value,
   {
     title: t('debug.colScore'),
     key: 'score',
     width: 90,
-    render: (row) => row.score.toFixed(4),
+    render: (row) => h('strong', { class: 'score-cell-total' }, row.score.toFixed(4)),
   },
-  { title: t('debug.colType'), key: 'targetType', width: 80 },
-  { title: t('debug.colTarget'), key: 'targetText', ellipsis: { tooltip: true } },
-  {
-    title: t('debug.colKeywords'),
-    key: 'keywords',
-    render: (row) => row.keywords.join(', '),
-    ellipsis: { tooltip: true },
-  },
-]
+])
 </script>
 
 <style scoped>
@@ -214,38 +221,25 @@ const detailColumns: DataTableColumns<SearchDetailItem> = [
   gap: 6px;
 }
 
-.score-detail-expand {
+.score-cell {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 4px 12px;
 }
-.score-detail-header {
-  margin-bottom: 2px;
-  font-weight: 600;
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
-}
-.score-detail-hint {
-  margin-bottom: 4px;
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
-}
-.score-detail-multiply {
-  padding-left: 16px;
-  color: var(--text-secondary);
-}
-.score-detail-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  font-size: var(--font-size-sm);
-}
-.score-detail-name {
+.score-cell-value {
+  font-variant-numeric: tabular-nums;
   color: var(--text-primary);
 }
-.score-detail-value {
+.score-cell-sub {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+.score-cell-multiply {
   font-variant-numeric: tabular-nums;
   color: var(--text-secondary);
+}
+.score-cell-total {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
 }
 </style>

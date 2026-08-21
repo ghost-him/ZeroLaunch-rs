@@ -52,6 +52,11 @@ export default defineConfig(async () => ({
     port: 12345,
     strictPort: true,
     host: host || false,
+    // 显式关闭 forwardConsole：其默认值由 determineAgent()（检测 AI agent 环境变量如
+    // CLAUDECODE/AI_AGENT）决定，会导致 vite:forward-console 插件在不同启动上下文
+    // （agent 终端 vs 普通终端）下有无不同，进而改变 optimizeDeps 的 configHash、
+    // 使依赖预构建缓存互相失效、每次切换上下文都触发 60-130s 全量重优化。
+    forwardConsole: false,
     hmr: host
       ? {
           protocol: "ws",
@@ -61,7 +66,10 @@ export default defineConfig(async () => ({
       : undefined,
     watch: {
       // 3. tell vite to ignore watching `src-tauri`
-      ignored: ["**/src-tauri/**"],
+      // 本仓库为 Cargo workspace，target/（构建产物，当前约 116GB/9.4 万文件）位于仓库根目录，
+      // 不在 src-tauri/ 下；若不排除，chokidar 会递归监听它，启动后 CPU 100%、内存 1GB+、
+      // 事件循环被占死，页面请求排队 60-80s。
+      ignored: ["**/src-tauri/**", "**/target/**"],
     },
   },
 

@@ -246,9 +246,6 @@ pub fn run() {
                 event: tauri::WindowEvent::ThemeChanged(theme),
                 ..
             } if label == "main" => {
-                if let Some(tray_manager) = app_handle.state::<Arc<AppState>>().get_tray_manager() {
-                    tray_manager.update_icon_theme();
-                }
                 let theme_str = match theme {
                     tauri::Theme::Dark => "dark",
                     tauri::Theme::Light => "light",

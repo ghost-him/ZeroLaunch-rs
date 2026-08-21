@@ -136,47 +136,6 @@ impl TrayManager {
         }
     }
 
-    /// 根据当前系统主题更新托盘图标。
-    pub fn update_icon_theme(&self) {
-        let inner = self.inner.read();
-        let app_handle = match &inner.app_handle {
-            Some(h) => h,
-            None => {
-                warn!("TrayManager not initialized, skipping icon theme update");
-                return;
-            }
-        };
-
-        let use_white_icon = should_use_white_tray_icon(app_handle);
-        let icon_key = if use_white_icon {
-            "tray_icon_white"
-        } else {
-            "tray_icon"
-        };
-
-        if let Some(path) = inner.host_api.get_app_icon_path(icon_key) {
-            match Image::from_path(&path) {
-                Ok(icon) => {
-                    if let Some(ref tray_icon) = inner.tray_icon {
-                        if let Err(e) = tray_icon.set_icon(Some(icon)) {
-                            warn!("Failed to update tray icon: {:?}", e);
-                        } else {
-                            debug!("Tray icon updated to {}", icon_key);
-                        }
-                    }
-                }
-                Err(e) => {
-                    warn!("Failed to load tray icon from path {:?}: {:?}", path, e);
-                }
-            }
-        } else {
-            warn!(
-                "Tray icon key '{}' not found in app resource service",
-                icon_key
-            );
-        }
-    }
-
     /// 重建托盘菜单（用于语言切换等场景）。
     pub fn update_menu_language(&self) {
         let inner = self.inner.read();
@@ -284,18 +243,11 @@ impl TrayManager {
         app_handle: &AppHandle,
         menu: &Menu<tauri::Wry>,
     ) -> tauri::Result<TrayIcon> {
-        let use_white_icon = should_use_white_tray_icon(app_handle);
-        let icon_key = if use_white_icon {
-            "tray_icon_white"
-        } else {
-            "tray_icon"
-        };
-
         let inner = self.inner.read();
         let icon_path = inner
             .host_api
-            .get_app_icon_path(icon_key)
-            .unwrap_or_else(|| panic!("Tray icon path '{}' not found in app resources", icon_key));
+            .get_app_icon_path("tray_icon")
+            .unwrap_or_else(|| panic!("Tray icon path 'tray_icon' not found in app resources"));
         drop(inner);
 
         let icon = Image::from_path(&icon_path)
@@ -385,15 +337,4 @@ fn build_tray_menu<R: Runtime>(
 /// 按当前界面语言解析托盘菜单文本（未命中时回退 key 原文）。
 fn menu_text(i18n: &I18nManager, key: &str) -> String {
     i18n.t(&i18n.current_language(), key)
-}
-
-fn should_use_white_tray_icon(app_handle: &AppHandle) -> bool {
-    if let Some(window) = app_handle.get_webview_window("main") {
-        match window.theme() {
-            Ok(theme) => theme == tauri::Theme::Dark,
-            Err(_) => false,
-        }
-    } else {
-        false
-    }
 }

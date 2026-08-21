@@ -25,7 +25,6 @@ impl AppResourceService {
 
         let icons = [
             ("tray_icon", "32x32.png"),
-            ("tray_icon_white", "32x32-white.png"),
             ("web_pages", "web_pages.png"),
             ("tips", "tips.png"),
             ("terminal", "terminal.png"),

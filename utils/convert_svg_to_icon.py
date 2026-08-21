@@ -4,7 +4,6 @@ from PIL import Image
 import subprocess
 import platform
 import sys
-import re
 
 def ensure_directory(directory):
     """确保目录存在，如果不存在则创建"""
@@ -29,29 +28,17 @@ def create_retina_image(png_path, output_path, scale=2):
     print(f"已创建: {output_path} (72 DPI)")
 
 def create_ico(png_path, output_path):
-    """创建 .ico 文件"""
-    # 为每个尺寸创建 72 DPI 的临时 PNG 文件
-    temp_files = []
-    sizes = [ (128, 128)]
+    """创建 .ico 文件（内嵌 16~256 多尺寸，256 由 PIL 以 PNG 压缩写入）"""
+    sizes = [(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
 
     img = Image.open(png_path)
-    for size in sizes:
-        temp_file = f"temp_{size[0]}x{size[1]}.png"
-        temp_img = img.resize(size, Image.LANCZOS)
-        temp_img.save(temp_file, dpi=(72, 72))
-        temp_files.append(temp_file)
-
-    # 使用第一个临时文件作为基础，添加其他尺寸
-    base_img = Image.open(temp_files[0])
-    other_imgs = [Image.open(f) for f in temp_files[1:]]
-
-    # 保存为 ICO
-    base_img.save(output_path, format='ICO', append_images=other_imgs, 
-                 sizes=sizes)
-
-    # 清理临时文件
-    for file in temp_files:
-        os.remove(file)
+    try:
+        # 直接以源图为基准按 sizes 逐尺寸缩放，Pillow 内部生成多帧 ICO。
+        # 不要传入 append_images：Pillow 12 的 ICO 插件只写入不大于主图的尺寸，
+        # 小图为主图时其余尺寸会被跳过（且其句柄不释放，导致后续删除临时文件报 WinError 32）。
+        img.save(output_path, format='ICO', sizes=sizes)
+    finally:
+        img.close()
 
     print(f"已创建: {output_path}")
 
@@ -84,32 +71,6 @@ def create_icns(svg_path, output_path):
     for file in os.listdir(temp_iconset):
         os.remove(os.path.join(temp_iconset, file))
     os.rmdir(temp_iconset)
-
-def create_white_icon(svg_path, output_path, width, height, original_color, new_color="#ffffff"):
-    """创建白色版本的图标"""
-    # 读取SVG文件
-    with open(svg_path, 'r') as file:
-        svg_content = file.read()
-    
-    # 替换颜色
-    white_svg_content = svg_content.replace(original_color, new_color)
-    
-    # 创建临时SVG文件
-    temp_svg_path = "temp_white_icon.svg"
-    with open(temp_svg_path, 'w') as file:
-        file.write(white_svg_content)
-    
-    # 转换为PNG
-    cairosvg.svg2png(url=temp_svg_path, write_to=output_path, output_width=width, output_height=height)
-    
-    # 使用PIL设置DPI为72
-    img = Image.open(output_path)
-    img.save(output_path, dpi=(72, 72))
-    
-    # 删除临时SVG文件
-    os.remove(temp_svg_path)
-    
-    print(f"已创建白色图标: {output_path} (72 DPI)")
 
 def main():
     # 输入 SVG 文件
@@ -159,9 +120,6 @@ def main():
     # 创建 .icns 文件 (仅在 macOS 上)
     icns_path = os.path.join(output_dir, "icon.icns")
     create_icns(svg_file, icns_path)
-
-    white_icon_path = os.path.join(output_dir, "32x32-white.png")
-    create_white_icon(svg_file, white_icon_path, 32, 32, original_color="#231f20")
 
     print("所有图标已成功创建，分辨率均为 72 DPI！")
 

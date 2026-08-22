@@ -2,7 +2,6 @@ use crate::commands::bridge_error::{BridgeError, WithTraceId};
 use crate::plugin_framework::inspector::InspectedQueryEvent;
 use crate::plugin_framework::{ConfirmOutcome, ConfirmRequest};
 use crate::state::app_state::AppState;
-use base64::{engine::general_purpose::STANDARD, Engine};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tauri::Emitter;
@@ -163,20 +162,6 @@ pub enum BridgeConfirmResponse {
     },
 }
 
-/// 将图标字节数据转换为前端可直接使用的 base64 data URL。
-/// 参数：icon_data - 图标字节数据（缓存统一 WebP，回退路径可能为 PNG）。
-/// 返回：data:image/webp;base64,...（或 PNG 嗅探结果）格式的字符串，空数据返回空字符串。
-fn icon_to_data_url(icon_data: &[u8]) -> String {
-    if icon_data.is_empty() {
-        return String::new();
-    }
-    format!(
-        "{}{}",
-        ImageUtils::data_url_prefix(icon_data),
-        STANDARD.encode(icon_data)
-    )
-}
-
 /// 通用查询入口。
 /// 前端搜索输入变化时调用此命令，后端经 SessionDispatcher 路由到搜索引擎或插件。
 /// 图标会被解析为 base64 data URL，前端 IconDisplay 可直接渲染。
@@ -250,7 +235,7 @@ pub async fn bridge_query(
                     id: item.id,
                     title: item.title,
                     subtitle: item.subtitle,
-                    icon: icon_to_data_url(&icon_data),
+                    icon: ImageUtils::to_data_url(&icon_data),
                     score: item.score,
                     actions: item.actions.into_iter().map(|a| a.into()).collect(),
                     target_type: item.target_type,

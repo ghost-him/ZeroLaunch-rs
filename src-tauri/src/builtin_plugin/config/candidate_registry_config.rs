@@ -1,7 +1,6 @@
 use crate::plugin_framework::SessionDispatcher;
 use crate::sdk::HostApi;
 use async_trait::async_trait;
-use base64::Engine;
 use serde::Serialize;
 use std::sync::Arc;
 use zerolaunch_plugin_api::common::ImageUtils;
@@ -139,15 +138,7 @@ impl Configurable for CandidateRegistryConfig {
                 {
                     let icon_data = plugin_handle.get_icon_or_default(c.icon.clone()).await;
 
-                    let icon_url = if icon_data.is_empty() {
-                        String::new()
-                    } else {
-                        format!(
-                            "{}{}",
-                            ImageUtils::data_url_prefix(&icon_data),
-                            base64::engine::general_purpose::STANDARD.encode(&icon_data)
-                        )
-                    };
+                    let icon_url = ImageUtils::to_data_url(&icon_data);
                     results.push(CandidateSummary {
                         name: c.name,
                         target: c.target.payload().to_string(),

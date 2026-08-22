@@ -321,6 +321,8 @@ pub struct WindowActivateParams {
 }
 
 // ─── host/icon.get ───────────────────────────────────────────────
+// 返回值：图标字节的 base64 字符串。字节格式为 WebP（编码失败回退可能为
+// PNG），消费方按字节头嗅探 MIME（RIFF....WEBP → image/webp，否则 image/png）。
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IconGetParams {

@@ -127,7 +127,7 @@ impl PluginHandle {
 
     /// 根据图标请求提取图标数据，行为由注册时的缓存等级决定。
     /// 参数：request - 图标请求（路径/网址/扩展名）。
-    /// 返回：WebP 格式的图标字节数据（缓存统一 WebP 90%，回退路径可能为 PNG），失败返回 HostApiError。
+    /// 返回：WebP 格式的图标字节数据（回退路径可能为 PNG），失败返回 HostApiError。
     pub async fn get_icon(&self, request: IconRequest) -> Result<Vec<u8>, HostApiError> {
         let level = self.icon_cache_level();
         self.icon_extractor
@@ -175,8 +175,7 @@ impl PluginHandle {
         original_request: &IconRequest,
         custom_icon_path: &str,
     ) -> Result<(), HostApiError> {
-        // 缓存键后缀必须与提取/查询链路一致（.webp），否则覆盖条目永不命中：
-        // 设置页「图标覆盖」写入的条目失效，且查询对覆盖候选重复走提取路径。
+        // 缓存键后缀与提取/查询链路一致（.webp）
         let hash_key = original_request.get_hash_string() + ".webp";
 
         // 从自定义文件提取并处理图标

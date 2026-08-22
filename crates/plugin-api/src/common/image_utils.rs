@@ -116,10 +116,7 @@ impl ImageUtils {
     }
 
     /// 将 PNG 图片数据编码为 WebP 格式（无损 VP8L）。
-    /// 用于图标缓存压缩：编码开销发生在提取/写缓存路径（一次），查询热路径只读字节。
-    /// 用 image crate 内置的纯 Rust 无损编码器（image-webp），不依赖 libwebp C 库，
-    /// 避免第三方插件编译链引入 C 构建与 wasm 目标阻塞；VP8L 对图标类（扁平色块+alpha）
-    /// 压缩率通常优于 PNG 20-50%。
+    /// 用 image crate 内置的纯 Rust 无损编码器（image-webp），不依赖 libwebp C 库。
     /// 参数：png_data - PNG 格式图片字节数据。
     /// 返回：WebP 格式字节数据，失败返回 ImageUtilsError。
     pub fn to_webp(png_data: Vec<u8>) -> Result<Vec<u8>, ImageUtilsError> {
@@ -136,9 +133,7 @@ impl ImageUtils {
     }
 
     /// 根据图片字节头推断 base64 data URL 前缀。
-    /// 图标缓存统一存 WebP；旧 PNG 缓存未删除（key 后缀变更自动失效），
-    /// 极端回退路径（如 WebP 编码失败返回原始 PNG）仍可能携带 PNG 字节，
-    /// 前端 <img> 的 MIME 必须与字节一致，故按头嗅探而非固定 image/webp。
+    /// WebP 字节头为 "RIFF....WEBP"，否则按 PNG 处理。
     /// 参数：data - 图片字节数据。
     /// 返回：data URL 前缀（"data:image/webp;base64," / "data:image/png;base64,"），未知回退 PNG。
     pub fn data_url_prefix(data: &[u8]) -> &'static str {
@@ -147,6 +142,21 @@ impl ImageUtils {
         } else {
             "data:image/png;base64,"
         }
+    }
+
+    /// 将图片字节数据转换为 base64 data URL（MIME 按字节头嗅探）。
+    /// 参数：data - 图片字节数据。
+    /// 返回：data URL 字符串；空数据返回空字符串。
+    pub fn to_data_url(data: &[u8]) -> String {
+        if data.is_empty() {
+            return String::new();
+        }
+        use base64::Engine;
+        format!(
+            "{}{}",
+            Self::data_url_prefix(data),
+            base64::engine::general_purpose::STANDARD.encode(data)
+        )
     }
 
     /// 判断数据是否像是 HTML 内容。

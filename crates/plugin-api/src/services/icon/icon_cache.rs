@@ -40,9 +40,7 @@ impl IconCacheService {
         }
     }
 
-    /// 预载 L2 文件缓存到 L1 内存，消除冷启动后首次查询的磁盘读。
-    /// 只预载当前格式（.webp）条目：历史 .png 缓存是旧版未限尺寸产物（可能达数 MB/个），
-    /// key 已迁移后不再被任何查询读取，读入内存纯属浪费。
+    /// 预载 L2 文件缓存到 L1 内存。
     /// 参数：无。
     /// 返回：无。
     /// 特性：并行读取，全部完成后返回；失败条目静默跳过（查询路径会回退到按需读 L2）。
@@ -52,7 +50,6 @@ impl IconCacheService {
             .cached_file_hashes
             .iter()
             .map(|entry| entry.clone())
-            .filter(|k| k.ends_with(".webp"))
             .collect();
         let mut handles = Vec::with_capacity(keys.len());
         for key in keys {
@@ -166,9 +163,9 @@ impl IconCacheService {
         }
     }
 
-    /// 扫描缓存目录，获取所有已缓存图标的文件名集合。
+    /// 扫描缓存目录，收集当前格式（.webp）文件名集合。
     /// 参数：cache_dir - 缓存目录路径。
-    /// 返回：文件名集合。
+    /// 返回：当前格式（.webp）文件名集合。
     fn scan_cached_icons(cache_dir: &str) -> DashSet<String> {
         let result = DashSet::new();
         match DirUtils::read_dir_or_create(cache_dir) {
@@ -176,6 +173,9 @@ impl IconCacheService {
                 for entry in entries.flatten() {
                     let file_name = entry.file_name();
                     let file_name = file_name.to_string_lossy();
+                    if !file_name.ends_with(".webp") {
+                        continue;
+                    }
                     result.insert(file_name.into_owned());
                 }
             }

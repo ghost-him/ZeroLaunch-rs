@@ -56,11 +56,9 @@ pub trait IconExtractor: Send + Sync {
         }
     }
 
-    /// 提取图标并应用后处理：裁剪白边 → 超大图等比缩放到上限 → WebP 90% 编码。
-    /// 默认实现：提取 → 裁剪透明白边 → 尺寸超限时缩放 → WebP 编码（质量 90）。
-    /// 每个步骤失败时回退上一步产物，保证始终返回有效图片字节。
+    /// 提取图标并应用后处理：裁剪白边 → 等比缩放到 128×128 上限 → WebP 无损编码（VP8L）。
     /// 参数：request - 图标请求。
-    /// 返回：处理后的 WebP 格式图标字节数据，提取失败返回 HostApiError。
+    /// 返回：处理后的 WebP 格式图标字节数据（失败回退 PNG，消费方按字节头嗅探），提取失败返回 HostApiError。
     async fn extract_and_process(&self, request: &IconRequest) -> Result<Vec<u8>, HostApiError> {
         const MAX_ICON_SIZE: u32 = 128;
         let data = self.extract(request).await?;
@@ -87,7 +85,7 @@ pub trait IconExtractor: Send + Sync {
         if png.is_empty() {
             return png;
         }
-        // 与提取路径一致编码为 WebP，保证所有返回字节统一格式（MIME 嗅探兜底）
+        // 与提取路径一致编码为 WebP，统一返回字节格式
         ImageUtils::to_webp(png.clone()).unwrap_or(png)
     }
 

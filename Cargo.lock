@@ -8415,6 +8415,7 @@ name = "zerolaunch-plugin-api"
 version = "1.1.1"
 dependencies = [
  "async-trait",
+ "base64 0.22.1",
  "bincode-next",
  "blake3",
  "dashmap",

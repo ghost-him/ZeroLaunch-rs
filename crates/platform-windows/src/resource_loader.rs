@@ -121,12 +121,10 @@ fn parse_localized_names_from_dir(dir_path: &Path) -> HashMap<String, String> {
                 }
 
                 let utf16_values: Vec<u16> = u16_bytes
-                    .chunks_exact(2)
-                    .map(|chunk| {
-                        u16::from_le_bytes(
-                            chunk.try_into().expect("Chunk should be exactly 2 bytes"),
-                        )
-                    })
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
+                    .map(|chunk| u16::from_le_bytes(*chunk))
                     .collect();
 
                 widestring::U16Str::from_slice(&utf16_values).to_string_lossy()

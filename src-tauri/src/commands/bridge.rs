@@ -389,10 +389,17 @@ pub async fn bridge_confirm(
         },
     };
 
-    let routed = session_dispatcher
-        .route_confirm(&trace_id, req)
-        .await
-        .with_trace_id(&trace_id)?;
+    let routed = match session_dispatcher.route_confirm(&trace_id, req).await {
+        Ok(routed) => routed,
+        Err(e) => {
+            // 先隐藏窗口后执行（launcher 瞬时工具语义）：失败时窗口已不可见，
+            // 系统通知是唯一反馈通道（沿用现有硬编码中文通知模式）。
+            let bridge_err: BridgeError = BridgeError::from(e).with_trace_id(&trace_id);
+            let msg = format!("执行失败: {}", bridge_err.message);
+            state.get_host_api().notify("ZeroLaunch", &msg).await;
+            return Err(bridge_err);
+        }
+    };
 
     Ok(match routed.outcome {
         ConfirmOutcome::Executed => BridgeConfirmResponse::Executed {

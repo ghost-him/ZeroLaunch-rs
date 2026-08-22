@@ -333,20 +333,22 @@ export const useSearchStore = defineStore('search', () => {
       }
       if (!targetActionId) return
 
+      // 先隐藏窗口再执行（launcher 瞬时工具语义）：成功路径窗口已消失；
+      // 失败路径由后端弹系统通知兜底，此处仅记录日志。
+      // 载荷先捕获：resetSessionAndHide 会清空 query 与会话状态。
+      const payload = {
+        kind: 'candidate' as const,
+        candidateId: 0,
+        actionId: targetActionId,
+        queryText: query.value,
+        generation: currentGeneration.value,
+      }
+      resetSessionAndHide()
       try {
-        await bridgeConfirm({
-          kind: 'candidate',
-          candidateId: 0,
-          actionId: targetActionId,
-          queryText: query.value,
-          generation: currentGeneration.value,
-        })
+        await bridgeConfirm(payload)
       } catch (e) {
         console.error('[doConfirm] Plugin action failed:', e)
-        return
       }
-
-      resetSessionAndHide()
       return
     }
 
@@ -363,45 +365,61 @@ export const useSearchStore = defineStore('search', () => {
     }
     if (!targetActionId) return
 
-    let resp: ConfirmResponse
+    // 参数候选（userArgCount > 0，本次确认未带参数）→ 后端必返回 enterParamPanel
+    // （镜像 route_confirm：user_arg_count > 0 且 user_args 为空 → 进参数面板）：
+    // 窗口保持可见等待参数输入，不适用先隐藏后执行。判定参数取自后端下发的候选数据。
+    if (item.userArgCount > 0) {
+      let resp: ConfirmResponse
+      try {
+        resp = await bridgeConfirm({
+          kind: 'candidate',
+          candidateId: item.id,
+          actionId: targetActionId,
+          queryText: query.value,
+          generation: currentGeneration.value,
+        })
+      } catch (e) {
+        console.error('[doConfirm] Search action failed:', e)
+        return
+      }
+
+      // 后端确认响应携带最新代际（进入参数面板是新的会话投影），单调递增更新
+      if (resp.status === 'enterParamPanel') {
+        if (resp.generation >= currentGeneration.value) {
+          currentGeneration.value = resp.generation
+        }
+        const fields: ParamField[] = Array.from({ length: resp.userArgCount }, (_, i) => ({
+          index: i,
+          label: `参数 ${i + 1}`,
+          value: '',
+        }))
+        sessionMode.value = 'param_panel'
+        paramPanelState.value = {
+          candidateId: resp.candidateId,
+          candidateItem: item,
+          fields,
+          focusedFieldIndex: 0,
+        }
+      }
+      return
+    }
+
+    // 无需参数的候选：先隐藏窗口再执行（launcher 瞬时工具语义）。
+    // 载荷先捕获：resetSessionAndHide 会清空 query 与会话状态；执行失败由后端
+    // 弹系统通知兜底（窗口已不可见），此处仅记录日志。
+    const payload = {
+      kind: 'candidate' as const,
+      candidateId: item.id,
+      actionId: targetActionId,
+      queryText: query.value,
+      generation: currentGeneration.value,
+    }
+    resetSessionAndHide()
     try {
-      resp = await bridgeConfirm({
-        kind: 'candidate',
-        candidateId: item.id,
-        actionId: targetActionId,
-        queryText: query.value,
-        generation: currentGeneration.value,
-      })
+      await bridgeConfirm(payload)
     } catch (e) {
       console.error('[doConfirm] Search action failed:', e)
-      return
     }
-
-    // 后端裁决进入参数面板（参数缺失判定在 Dispatcher）：响应载荷自包含
-    // candidateId + userArgCount（核心程序专属形态），前端据此构造输入字段，
-    // 无需依赖列表项。
-    if (resp.status === 'enterParamPanel') {
-      // 后端确认响应携带最新代际（进入参数面板是新的会话投影），单调递增更新
-      if (resp.generation >= currentGeneration.value) {
-        currentGeneration.value = resp.generation
-      }
-      const fields: ParamField[] = Array.from({ length: resp.userArgCount }, (_, i) => ({
-        index: i,
-        label: `参数 ${i + 1}`,
-        value: '',
-      }))
-      sessionMode.value = 'param_panel'
-      paramPanelState.value = {
-        candidateId: resp.candidateId,
-        candidateItem: item,
-        fields,
-        focusedFieldIndex: 0,
-      }
-      return
-    }
-
-    // status === 'executed'
-    resetSessionAndHide()
   }
 
   // ---- 行内参数模式 ----
@@ -423,7 +441,7 @@ export const useSearchStore = defineStore('search', () => {
   async function confirmInlineParam() {
     if (!inlineParamState.value) return
 
-    const { candidateId, paramInput, userArgCount } = inlineParamState.value
+    const { candidateId, paramInput, userArgCount, triggerKeyword } = inlineParamState.value
     const args = parseInlineArgs(paramInput)
 
     if (args.length < userArgCount) {
@@ -431,21 +449,22 @@ export const useSearchStore = defineStore('search', () => {
       return
     }
 
+    // 参数已齐、必执行：先隐藏窗口再确认（成功无动作，失败由后端通知兜底）。
+    // 载荷先捕获：resetSessionAndHide 会清空会话状态。
+    const payload = {
+      kind: 'candidate' as const,
+      candidateId,
+      actionId: 'execute',
+      queryText: triggerKeyword,
+      userArgs: args,
+      generation: currentGeneration.value,
+    }
+    resetSessionAndHide()
     try {
-      await bridgeConfirm({
-        kind: 'candidate',
-        candidateId,
-        actionId: 'execute',
-        queryText: inlineParamState.value.triggerKeyword,
-        userArgs: args,
-        generation: currentGeneration.value,
-      })
+      await bridgeConfirm(payload)
     } catch (e) {
       console.error('[confirmInlineParam] failed:', e)
-      return
     }
-
-    resetSessionAndHide()
   }
 
   // ---- 参数面板模式 ----
@@ -467,21 +486,22 @@ export const useSearchStore = defineStore('search', () => {
       return
     }
 
+    // 参数已齐、必执行：先隐藏窗口再确认（成功无动作，失败由后端通知兜底）。
+    // 载荷先捕获：resetSessionAndHide 会清空 query 与会话状态。
+    const payload = {
+      kind: 'candidate' as const,
+      candidateId,
+      actionId: 'execute',
+      queryText: query.value,
+      userArgs,
+      generation: currentGeneration.value,
+    }
+    resetSessionAndHide()
     try {
-      await bridgeConfirm({
-        kind: 'candidate',
-        candidateId,
-        actionId: 'execute',
-        queryText: query.value,
-        userArgs,
-        generation: currentGeneration.value,
-      })
+      await bridgeConfirm(payload)
     } catch (e) {
       console.error('[confirmParamPanel] failed:', e)
-      return
     }
-
-    resetSessionAndHide()
   }
 
   function paramPanelFocusNext() {

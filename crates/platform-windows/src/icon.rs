@@ -640,13 +640,8 @@ impl WindowsIconExtractor {
         }
         DeleteObject(HGDIOBJ(info.hbmColor.0)).expect("Failed to delete color object");
 
-        for chunk in bmp.chunks_exact_mut(4) {
-            let [b, _, r, _] = chunk else {
-                return Err(HostApiError::IconExtractionFailed {
-                    request: "convert_icon_to_image".to_string(),
-                    reason: "Unexpected chunk size in pixel data".to_string(),
-                });
-            };
+        // BGR → RGB：as_chunks_mut 保证每块恰为 4 字节，解构不可反驳（无残缺块）。
+        for [b, _, r, _] in bmp.as_chunks_mut::<4>().0 {
             mem::swap(b, r);
         }
 

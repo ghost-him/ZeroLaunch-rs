@@ -8,6 +8,11 @@ use zerolaunch_plugin_api::config::{
 };
 use zerolaunch_plugin_api::{KeywordInputSource, KeywordOptimizer};
 
+use super::input_source::{
+    resolve_input_source, SOURCE_NORMALIZED_BASE, SOURCE_OPTIMIZER_OUTPUT, SOURCE_ORIGINAL_NAME,
+    SOURCE_REFINED,
+};
+
 #[derive(Serialize, Deserialize, Debug)]
 struct PinyinItem {
     pinyin: String,
@@ -19,9 +24,20 @@ struct PinyinItem {
 struct PinyinConverterSettings {
     #[serde(rename = "priority", default = "default_priority_25")]
     priority: u32,
+    /// 输入来源（KeywordInputSource 的扁平 snake_case 值，见 input_source 模块常量）。
+    /// 决定本优化器消费哪一层关键词产物。
+    #[serde(rename = "input_source", default = "default_input_source")]
+    input_source: String,
+    /// 被引用生产者优化器的 component_id；仅当 input_source = optimizer_output 时生效。
+    #[serde(rename = "producer_id", default)]
+    producer_id: String,
     /// 预加载的汉字到拼音映射表，不属于用户配置，序列化时跳过。
     #[serde(skip)]
     pinyin: HashMap<char, String>,
+}
+
+fn default_input_source() -> String {
+    SOURCE_NORMALIZED_BASE.to_string()
 }
 
 fn default_priority_25() -> u32 {
@@ -50,6 +66,8 @@ impl PinyinConverterSettings {
 
         Self {
             priority: 25,
+            input_source: SOURCE_NORMALIZED_BASE.to_string(),
+            producer_id: String::new(),
             pinyin: char_to_pinyin,
         }
     }
@@ -117,17 +135,54 @@ impl Configurable for PinyinConverter {
     }
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {
-        vec![SchemaBuilder::number(
-            "priority",
-            t_key!("pinyin-converter", "fields.priority.label"),
-            t_key!("pinyin-converter", "fields.priority.desc"),
-        )
-        .order(0)
-        .default(25.0)
-        .min(1.0)
-        .max(100.0)
-        .step(1.0)
-        .build()]
+        vec![
+            SchemaBuilder::number(
+                "priority",
+                t_key!("pinyin-converter", "fields.priority.label"),
+                t_key!("pinyin-converter", "fields.priority.desc"),
+            )
+            .order(0)
+            .default(25.0)
+            .min(1.0)
+            .max(100.0)
+            .step(1.0)
+            .build(),
+            SchemaBuilder::select(
+                "input_source",
+                t_key!("pinyin-converter", "fields.input_source.label"),
+                t_key!("pinyin-converter", "fields.input_source.desc"),
+            )
+            .options_with_labels(&[
+                (
+                    SOURCE_ORIGINAL_NAME,
+                    t_key!("pinyin-converter", "options.input_source.original_name"),
+                ),
+                (
+                    SOURCE_NORMALIZED_BASE,
+                    t_key!("pinyin-converter", "options.input_source.normalized_base"),
+                ),
+                (
+                    SOURCE_REFINED,
+                    t_key!("pinyin-converter", "options.input_source.refined"),
+                ),
+                (
+                    SOURCE_OPTIMIZER_OUTPUT,
+                    t_key!("pinyin-converter", "options.input_source.optimizer_output"),
+                ),
+            ])
+            .default(SOURCE_NORMALIZED_BASE)
+            .order(1)
+            .build(),
+            SchemaBuilder::text(
+                "producer_id",
+                t_key!("pinyin-converter", "fields.producer_id.label"),
+                t_key!("pinyin-converter", "fields.producer_id.desc"),
+            )
+            .default("")
+            .order(2)
+            .visible_when("input_source", SOURCE_OPTIMIZER_OUTPUT)
+            .build(),
+        ]
     }
 
     fn get_settings(&self) -> serde_json::Value {
@@ -151,9 +206,8 @@ impl KeywordOptimizer for PinyinConverter {
     }
 
     fn input_source(&self) -> KeywordInputSource {
-        // 拼音转换只消费归一化小写基（QQ音乐→qq yin le）；输入已小写，
-        // 避免原始名大写泄漏进拼音展开（旧缺陷 QQ yin le 的源头）。
-        KeywordInputSource::NormalizedBase
+        let settings = self.inner.read();
+        resolve_input_source(&settings.input_source, &settings.producer_id)
     }
 
     fn get_priority(&self) -> u32 {

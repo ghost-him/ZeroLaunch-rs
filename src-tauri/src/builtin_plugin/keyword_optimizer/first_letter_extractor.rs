@@ -7,6 +7,11 @@ use zerolaunch_plugin_api::config::{
 };
 use zerolaunch_plugin_api::{KeywordInputSource, KeywordOptimizer};
 
+use super::input_source::{
+    resolve_input_source, SOURCE_NORMALIZED_BASE, SOURCE_OPTIMIZER_OUTPUT, SOURCE_ORIGINAL_NAME,
+    SOURCE_REFINED,
+};
+
 /// Default priority value for FirstLetterExtractorSettings.
 fn default_priority_50() -> u32 {
     50
@@ -17,11 +22,28 @@ fn default_priority_50() -> u32 {
 struct FirstLetterExtractorSettings {
     #[serde(rename = "priority", default = "default_priority_50")]
     priority: u32,
+    /// 输入来源（KeywordInputSource 的扁平 snake_case 值，见 input_source 模块常量）。
+    /// 决定本优化器消费哪一层关键词产物。
+    #[serde(rename = "input_source", default = "default_input_source")]
+    input_source: String,
+    /// 被引用生产者优化器的 component_id；仅当 input_source = optimizer_output 时生效。
+    #[serde(rename = "producer_id", default)]
+    producer_id: String,
+}
+
+fn default_input_source() -> String {
+    // 首字母缩写消费拼音转换器的登记输出（QQ音乐→qq yin le→qyl、VSC→vsc）；
+    // 不直接吃归一化基/派生词，避免对单 token 取首字符产生无意义单字符（vsc→v、qq→q）。
+    SOURCE_OPTIMIZER_OUTPUT.to_string()
 }
 
 impl FirstLetterExtractorSettings {
     fn new() -> Self {
-        Self { priority: 50 }
+        Self {
+            priority: 50,
+            input_source: SOURCE_OPTIMIZER_OUTPUT.to_string(),
+            producer_id: "pinyin-converter".to_string(),
+        }
     }
 
     /// Extracts the first letter of each whitespace-separated word in the input string.
@@ -82,17 +104,63 @@ impl Configurable for FirstLetterExtractor {
     }
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {
-        vec![SchemaBuilder::number(
-            "priority",
-            t_key!("first-letter-extractor", "fields.priority.label"),
-            t_key!("first-letter-extractor", "fields.priority.desc"),
-        )
-        .order(0)
-        .default(50.0)
-        .min(1.0)
-        .max(100.0)
-        .step(1.0)
-        .build()]
+        vec![
+            SchemaBuilder::number(
+                "priority",
+                t_key!("first-letter-extractor", "fields.priority.label"),
+                t_key!("first-letter-extractor", "fields.priority.desc"),
+            )
+            .order(0)
+            .default(50.0)
+            .min(1.0)
+            .max(100.0)
+            .step(1.0)
+            .build(),
+            SchemaBuilder::select(
+                "input_source",
+                t_key!("first-letter-extractor", "fields.input_source.label"),
+                t_key!("first-letter-extractor", "fields.input_source.desc"),
+            )
+            .options_with_labels(&[
+                (
+                    SOURCE_ORIGINAL_NAME,
+                    t_key!(
+                        "first-letter-extractor",
+                        "options.input_source.original_name"
+                    ),
+                ),
+                (
+                    SOURCE_NORMALIZED_BASE,
+                    t_key!(
+                        "first-letter-extractor",
+                        "options.input_source.normalized_base"
+                    ),
+                ),
+                (
+                    SOURCE_REFINED,
+                    t_key!("first-letter-extractor", "options.input_source.refined"),
+                ),
+                (
+                    SOURCE_OPTIMIZER_OUTPUT,
+                    t_key!(
+                        "first-letter-extractor",
+                        "options.input_source.optimizer_output"
+                    ),
+                ),
+            ])
+            .default(SOURCE_OPTIMIZER_OUTPUT)
+            .order(1)
+            .build(),
+            SchemaBuilder::text(
+                "producer_id",
+                t_key!("first-letter-extractor", "fields.producer_id.label"),
+                t_key!("first-letter-extractor", "fields.producer_id.desc"),
+            )
+            .default("pinyin-converter")
+            .order(2)
+            .visible_when("input_source", SOURCE_OPTIMIZER_OUTPUT)
+            .build(),
+        ]
     }
 
     fn get_settings(&self) -> serde_json::Value {
@@ -114,12 +182,8 @@ impl KeywordOptimizer for FirstLetterExtractor {
     }
 
     fn input_source(&self) -> KeywordInputSource {
-        // 首字母缩写消费拼音转换器的登记输出（QQ音乐→qq yin le→qyl、VSC→vsc）；
-        // 不直接吃归一化基/派生词，避免对单 token 取首字符产生无意义单字符（vsc→v、qq→q）。
-        // pinyin-converter 是普通生产者（priority 25 < 本器 50，先于本器执行）。
-        KeywordInputSource::OptimizerOutput {
-            producer_id: "pinyin-converter".to_string(),
-        }
+        let settings = self.inner.read();
+        resolve_input_source(&settings.input_source, &settings.producer_id)
     }
 
     fn get_priority(&self) -> u32 {

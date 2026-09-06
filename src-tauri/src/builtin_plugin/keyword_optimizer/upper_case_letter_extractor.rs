@@ -7,11 +7,27 @@ use zerolaunch_plugin_api::config::{
 };
 use zerolaunch_plugin_api::{KeywordInputSource, KeywordOptimizer};
 
+use super::input_source::{
+    resolve_input_source, SOURCE_NORMALIZED_BASE, SOURCE_OPTIMIZER_OUTPUT, SOURCE_ORIGINAL_NAME,
+    SOURCE_REFINED,
+};
+
 /// 大写字母提取器的可持久化配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct UpperCaseLetterExtractorSettings {
     #[serde(rename = "priority", default = "default_priority_40")]
     priority: u32,
+    /// 输入来源（KeywordInputSource 的扁平 snake_case 值，见 input_source 模块常量）。
+    /// 决定本优化器消费哪一层关键词产物。
+    #[serde(rename = "input_source", default = "default_input_source")]
+    input_source: String,
+    /// 被引用生产者优化器的 component_id；仅当 input_source = optimizer_output 时生效。
+    #[serde(rename = "producer_id", default)]
+    producer_id: String,
+}
+
+fn default_input_source() -> String {
+    SOURCE_ORIGINAL_NAME.to_string()
 }
 
 fn default_priority_40() -> u32 {
@@ -22,6 +38,8 @@ impl Default for UpperCaseLetterExtractorSettings {
     fn default() -> Self {
         Self {
             priority: default_priority_40(),
+            input_source: SOURCE_ORIGINAL_NAME.to_string(),
+            producer_id: String::new(),
         }
     }
 }
@@ -89,17 +107,66 @@ impl Configurable for UpperCaseLetterExtractor {
     }
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {
-        vec![SchemaBuilder::number(
-            "priority",
-            t_key!("upper-case-letter-extractor", "fields.priority.label"),
-            t_key!("upper-case-letter-extractor", "fields.priority.desc"),
-        )
-        .order(0)
-        .default(40.0)
-        .min(1.0)
-        .max(100.0)
-        .step(1.0)
-        .build()]
+        vec![
+            SchemaBuilder::number(
+                "priority",
+                t_key!("upper-case-letter-extractor", "fields.priority.label"),
+                t_key!("upper-case-letter-extractor", "fields.priority.desc"),
+            )
+            .order(0)
+            .default(40.0)
+            .min(1.0)
+            .max(100.0)
+            .step(1.0)
+            .build(),
+            SchemaBuilder::select(
+                "input_source",
+                t_key!("upper-case-letter-extractor", "fields.input_source.label"),
+                t_key!("upper-case-letter-extractor", "fields.input_source.desc"),
+            )
+            .options_with_labels(&[
+                (
+                    SOURCE_ORIGINAL_NAME,
+                    t_key!(
+                        "upper-case-letter-extractor",
+                        "options.input_source.original_name"
+                    ),
+                ),
+                (
+                    SOURCE_NORMALIZED_BASE,
+                    t_key!(
+                        "upper-case-letter-extractor",
+                        "options.input_source.normalized_base"
+                    ),
+                ),
+                (
+                    SOURCE_REFINED,
+                    t_key!(
+                        "upper-case-letter-extractor",
+                        "options.input_source.refined"
+                    ),
+                ),
+                (
+                    SOURCE_OPTIMIZER_OUTPUT,
+                    t_key!(
+                        "upper-case-letter-extractor",
+                        "options.input_source.optimizer_output"
+                    ),
+                ),
+            ])
+            .default(SOURCE_ORIGINAL_NAME)
+            .order(1)
+            .build(),
+            SchemaBuilder::text(
+                "producer_id",
+                t_key!("upper-case-letter-extractor", "fields.producer_id.label"),
+                t_key!("upper-case-letter-extractor", "fields.producer_id.desc"),
+            )
+            .default("")
+            .order(2)
+            .visible_when("input_source", SOURCE_OPTIMIZER_OUTPUT)
+            .build(),
+        ]
     }
 
     fn get_settings(&self) -> serde_json::Value {
@@ -121,9 +188,8 @@ impl KeywordOptimizer for UpperCaseLetterExtractor {
     }
 
     fn input_source(&self) -> KeywordInputSource {
-        // 驼峰缩写必须从保留大小写的原始展示名提取（PowerPoint→pp）；
-        // 对小写归一化基/派生词提取会产生无意义单字符（QQ音乐→qq 污染）。
-        KeywordInputSource::OriginalName
+        let settings = self.inner.read();
+        resolve_input_source(&settings.input_source, &settings.producer_id)
     }
 
     fn get_priority(&self) -> u32 {

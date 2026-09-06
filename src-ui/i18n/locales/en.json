@@ -359,7 +359,164 @@
           "repeat_y": "Repeat vertically"
         }
       },
-      "fields": {},
+      "fields": {
+        "theme": {
+          "label": "Theme",
+          "desc": "Choose light, dark or follow system theme"
+        },
+        "search_bar_height": {
+          "label": "Search bar height",
+          "desc": "Height of the search bar (px)"
+        },
+        "search_bar_font_ratio": {
+          "label": "Search bar font ratio",
+          "desc": "Font size = search bar height × this ratio"
+        },
+        "search_bar_font_family": {
+          "label": "Search bar font",
+          "desc": "Select from installed system fonts; empty follows system"
+        },
+        "search_bar_placeholder": {
+          "label": "Search bar placeholder",
+          "desc": "Placeholder text of the search bar"
+        },
+        "result_item_height": {
+          "label": "Result item height",
+          "desc": "Height of a single result (px)"
+        },
+        "result_item_font_ratio": {
+          "label": "Title font ratio",
+          "desc": "Title font size = result item height × this ratio"
+        },
+        "result_item_subtitle_font_ratio": {
+          "label": "Subtitle font ratio",
+          "desc": "Subtitle font size = result item height × this ratio"
+        },
+        "result_item_icon_ratio": {
+          "label": "Icon size ratio",
+          "desc": "Icon size = result item height × this ratio"
+        },
+        "result_item_font_family": {
+          "label": "Result list font",
+          "desc": "Select from installed system fonts; empty follows system"
+        },
+        "max_visible_results": {
+          "label": "Max visible results",
+          "desc": "Maximum results shown without scrolling"
+        },
+        "show_launch_command": {
+          "label": "Show launch command",
+          "desc": "Show the launch command path in result items"
+        },
+        "show_subtitle": {
+          "label": "Show subtitle",
+          "desc": "Show subtitle info in result items"
+        },
+        "footer_height": {
+          "label": "Footer height",
+          "desc": "Footer height (px); 0 hides it"
+        },
+        "footer_font_ratio": {
+          "label": "Footer font ratio",
+          "desc": "Font size = footer height × this ratio"
+        },
+        "footer_font_family": {
+          "label": "Footer font",
+          "desc": "Select from installed system fonts; empty follows system"
+        },
+        "window_width": {
+          "label": "Window width",
+          "desc": "Width of the search window (px)"
+        },
+        "window_corner_radius": {
+          "label": "Window corner radius",
+          "desc": "Window corner radius (px)"
+        },
+        "vertical_position_ratio": {
+          "label": "Vertical position ratio",
+          "desc": "Window vertical position ratio (0=top, 1=bottom)"
+        },
+        "bg_primary": {
+          "label": "Primary background",
+          "desc": "Primary background color in light mode"
+        },
+        "bg_secondary": {
+          "label": "Secondary background",
+          "desc": "Secondary background color in light mode"
+        },
+        "text_primary": {
+          "label": "Primary text",
+          "desc": "Primary text color in light mode"
+        },
+        "text_secondary": {
+          "label": "Secondary text",
+          "desc": "Secondary text color in light mode"
+        },
+        "border_color": {
+          "label": "Border",
+          "desc": "Border color in light mode"
+        },
+        "accent_color": {
+          "label": "Accent",
+          "desc": "Accent/link color in light mode"
+        },
+        "hover_color": {
+          "label": "Hover",
+          "desc": "Mouse hover background color in light mode"
+        },
+        "dark_bg_primary": {
+          "label": "Primary background",
+          "desc": "Primary background color in dark mode"
+        },
+        "dark_bg_secondary": {
+          "label": "Secondary background",
+          "desc": "Secondary background color in dark mode"
+        },
+        "dark_text_primary": {
+          "label": "Primary text",
+          "desc": "Primary text color in dark mode"
+        },
+        "dark_text_secondary": {
+          "label": "Secondary text",
+          "desc": "Secondary text color in dark mode"
+        },
+        "dark_border_color": {
+          "label": "Border",
+          "desc": "Border color in dark mode"
+        },
+        "dark_accent_color": {
+          "label": "Accent",
+          "desc": "Accent/link color in dark mode"
+        },
+        "dark_hover_color": {
+          "label": "Hover",
+          "desc": "Mouse hover background color in dark mode"
+        },
+        "bg_image": {
+          "label": "Background image",
+          "desc": "Background image in light mode; empty disables it"
+        },
+        "bg_image_dark": {
+          "label": "Dark background image",
+          "desc": "Background image in dark mode; empty falls back to the light one"
+        },
+        "bg_size": {
+          "label": "Background size",
+          "desc": "CSS background-size property"
+        },
+        "bg_position": {
+          "label": "Background position",
+          "desc": "CSS background-position property"
+        },
+        "bg_repeat": {
+          "label": "Background repeat",
+          "desc": "CSS background-repeat property"
+        },
+        "bg_opacity": {
+          "label": "Background opacity",
+          "desc": "Background image opacity (0.0 ~ 1.0)"
+        }
+      },
       "actions": {
         "list_fonts": {
           "label": "List system fonts",
@@ -373,7 +530,12 @@
       "groups": {
         "scheduledRefresh": "Scheduled Refresh"
       },
-      "fields": {}
+      "fields": {
+        "auto_refresh_interval_mins": {
+          "label": "Auto refresh interval (min)",
+          "desc": "Refresh the search index at a fixed interval; 0 disables scheduled refresh"
+        }
+      }
     },
     "bias-config": {
       "name": "Fixed Offset",
@@ -381,7 +543,24 @@
       "groups": {
         "fixedOffset": "Fixed Offset"
       },
-      "fields": {}
+      "fields": {
+        "entries": {
+          "label": "Fixed offsets",
+          "desc": "Set fixed weight offsets for programs; positive boosts ranking, negative lowers it"
+        },
+        "target": {
+          "label": "Program",
+          "desc": "Target program identifier"
+        },
+        "bias": {
+          "label": "Offset",
+          "desc": "Positive boosts ranking, negative lowers it"
+        },
+        "note": {
+          "label": "Note",
+          "desc": "Optional note"
+        }
+      }
     },
     "candidate-registry": {
       "name": "Candidate Registry",
@@ -399,7 +578,28 @@
       "groups": {
         "general": "General"
       },
-      "fields": {}
+      "fields": {
+        "language": {
+          "label": "UI Language",
+          "desc": "UI display language"
+        },
+        "is_auto_start": {
+          "label": "Start on boot",
+          "desc": "When enabled, ZeroLaunch auto-starts with the system"
+        },
+        "is_debug_mode": {
+          "label": "Debug mode",
+          "desc": "When enabled, show extra debug info and dev tools"
+        },
+        "log_level": {
+          "label": "Log level",
+          "desc": "Controls the verbosity of log output"
+        },
+        "reset_session_on_wake": {
+          "label": "Reset session on wake",
+          "desc": "When enabled, each launcher show restores the initial search UI (parameter panel and inline parameter mode always reset). When disabled, plugin panel state persists across hide/show."
+        }
+      }
     },
     "model-openai-config": {
       "name": "OpenAI-compatible models",
@@ -408,7 +608,20 @@
         "connection": "Connection",
         "models": "Models"
       },
-      "fields": {},
+      "fields": {
+        "base_url": {
+          "label": "API base URL",
+          "desc": "OpenAI-compatible endpoint, e.g. https://api.deepseek.com/v1"
+        },
+        "api_key": {
+          "label": "API Key",
+          "desc": "Key used for authentication"
+        },
+        "models": {
+          "label": "Model list",
+          "desc": "Declare available models and set per-model call parameters; use \"Fetch model list\" to pull models from the server"
+        }
+      },
       "actions": {
         "fetch_models": {
           "label": "Fetch model list",
@@ -423,7 +636,16 @@
         "connection": "Connection",
         "models": "Models"
       },
-      "fields": {},
+      "fields": {
+        "base_url": {
+          "label": "Server URL",
+          "desc": "Ollama server address, e.g. http://localhost:11434"
+        },
+        "models": {
+          "label": "Model list",
+          "desc": "Declare available models and set per-model call parameters; empty lists all local models as chat models; use \"Fetch model list\" to pull local models"
+        }
+      },
       "actions": {
         "fetch_models": {
           "label": "Fetch model list",
@@ -433,7 +655,52 @@
     },
     "model-entry": {
       "name": "Model entry",
-      "fields": {},
+      "fields": {
+        "name": {
+          "label": "Model ID",
+          "desc": "Model name as recognized by the provider, e.g. gpt-4o-mini / qwen3:8b"
+        },
+        "kind": {
+          "label": "Role",
+          "desc": "chat: text generation; embedding: vectorization"
+        },
+        "temperature": {
+          "label": "Temperature",
+          "desc": "Sampling randomness, 0-2; defaults to 0.7"
+        },
+        "max_tokens": {
+          "label": "Max output tokens",
+          "desc": "Generation limit per response; defaults to 2048"
+        },
+        "top_p": {
+          "label": "Top-p",
+          "desc": "Sampling probability threshold, 0-1; defaults to 1.0"
+        },
+        "reasoning_effort": {
+          "label": "Reasoning effort",
+          "desc": "Reasoning level; defaults to none"
+        },
+        "context_length": {
+          "label": "Model maximum context length",
+          "desc": "Maximum input context length for chat or embedding, from provider metadata; read-only"
+        },
+        "dimensions": {
+          "label": "Output dimensions",
+          "desc": "Embedding output dimensions; defaults to 768 until provider metadata is available"
+        },
+        "similarity": {
+          "label": "Similarity metric",
+          "desc": "Metric used to compare embedding vectors"
+        },
+        "chat_capabilities": {
+          "label": "Chat capabilities",
+          "desc": "Select the request capabilities supported by this model; only checked capabilities are sent"
+        },
+        "embedding_capabilities": {
+          "label": "Embedding capabilities",
+          "desc": "Select the input and output capabilities supported by this model; only checked capabilities are used"
+        }
+      },
       "kinds": {
         "chat": "Chat",
         "embedding": "Embedding"
@@ -460,7 +727,16 @@
       "groups": {
         "globalHotkeys": "Global Hotkeys"
       },
-      "fields": {}
+      "fields": {
+        "open_search_bar": {
+          "label": "Open search bar",
+          "desc": "Click then press a key combination to record it; leave empty to disable the global hotkey"
+        },
+        "double_click_ctrl": {
+          "label": "Double-click Ctrl to open",
+          "desc": "When enabled, quickly double-pressing Ctrl opens the search bar (the open hotkey above is then ignored)"
+        }
+      }
     },
     "icon-override-config": {
       "name": "Icon Override",
@@ -468,7 +744,32 @@
       "groups": {
         "iconOverride": "Icon Override"
       },
-      "fields": {},
+      "fields": {
+        "entries": {
+          "label": "Icon overrides",
+          "desc": "Custom icons for specific programs; supports .exe, .png, .ico and more"
+        },
+        "target": {
+          "label": "Program",
+          "desc": "Target program path"
+        },
+        "target_type": {
+          "label": "Target type",
+          "desc": "Target type (Path, Url, etc.)"
+        },
+        "icon_request_json": {
+          "label": "Icon request",
+          "desc": "JSON serialization of the original icon request"
+        },
+        "custom_icon_path": {
+          "label": "Icon file",
+          "desc": "Choose a new icon file (.exe, .lnk, .png, .ico, etc.)"
+        },
+        "note": {
+          "label": "Note",
+          "desc": "Optional note"
+        }
+      },
       "actions": {
         "apply_override": {
           "label": "Apply icon",
@@ -482,7 +783,20 @@
       "groups": {
         "installationMonitor": "Installation Monitor"
       },
-      "fields": {}
+      "fields": {
+        "enable_installation_monitor": {
+          "label": "Enable install monitor",
+          "desc": "When enabled, watch filesystem changes (e.g. Start Menu) to detect program installs and uninstalls"
+        },
+        "monitor_debounce_secs": {
+          "label": "Debounce wait (seconds)",
+          "desc": "Wait time after filesystem changes to avoid frequent refreshes"
+        },
+        "monitor_watch_paths": {
+          "label": "Watch paths",
+          "desc": "Directory paths to watch (one per line); empty uses platform defaults (Windows Start Menu)"
+        }
+      }
     },
     "storage-config": {
       "name": "Storage Config",
@@ -491,7 +805,32 @@
         "storage": "Storage",
         "webdav": "WebDAV"
       },
-      "fields": {}
+      "fields": {
+        "storage_destination": {
+          "label": "Storage backend",
+          "desc": "Choose how config files are stored"
+        },
+        "custom_save_path": {
+          "label": "Custom save path",
+          "desc": "Override the default app data directory (empty uses the default path)"
+        },
+        "webdav_host_url": {
+          "label": "WebDAV server URL",
+          "desc": "Full URL of the WebDAV server"
+        },
+        "webdav_account": {
+          "label": "WebDAV account",
+          "desc": "Authentication account of the WebDAV service"
+        },
+        "webdav_password": {
+          "label": "WebDAV password",
+          "desc": "Authentication password of the WebDAV service"
+        },
+        "webdav_destination_dir": {
+          "label": "WebDAV remote directory",
+          "desc": "Target storage directory on the WebDAV server"
+        }
+      }
     },
     "window-behavior-config": {
       "name": "Window Behavior",
@@ -500,12 +839,90 @@
         "windowBehavior": "Window Behavior",
         "windowPosition": "Window Position"
       },
-      "fields": {}
+      "fields": {
+        "is_esc_hide_window_priority": {
+          "label": "ESC hides window first",
+          "desc": "When enabled, pressing ESC hides the window directly instead of clearing input first"
+        },
+        "space_is_enter": {
+          "label": "Space acts as Enter",
+          "desc": "When enabled, pressing Space equals Enter and launches the selected item"
+        },
+        "is_wake_on_fullscreen": {
+          "label": "Allow popup in fullscreen",
+          "desc": "When enabled, the search bar can still pop up over a fullscreen foreground app"
+        },
+        "launch_new_on_failure": {
+          "label": "Launch new instance on activation failure",
+          "desc": "When enabled, auto-launch a new program instance as fallback if window activation fails"
+        },
+        "is_show_home_on_empty_query": {
+          "label": "Show frequent items on empty query",
+          "desc": "When enabled, an empty search box (window wake or cleared input) shows frequently used candidates ranked by launch history; Enter or click launches directly"
+        },
+        "is_enable_drag_window": {
+          "label": "Enable window dragging",
+          "desc": "When enabled, the search bar window can be dragged and its position remembered for next wake"
+        },
+        "show_pos_follow_mouse": {
+          "label": "Follow mouse display",
+          "desc": "When enabled, the search bar appears on the display under the mouse on wake (multi-display). Lower priority than window dragging."
+        },
+        "window_position_x": {
+          "label": "Window position X",
+          "desc": "Horizontal window position after last drag"
+        },
+        "window_position_y": {
+          "label": "Window position Y",
+          "desc": "Vertical window position after last drag"
+        },
+        "move_up_key": {
+          "label": "Move selection up key",
+          "desc": "Moves the selection up (default Ctrl+K, works in search and param panels); clear to keep arrow keys only"
+        },
+        "move_down_key": {
+          "label": "Move selection down key",
+          "desc": "Moves the selection down (default Ctrl+J, works in search and param panels); clear to keep arrow keys only"
+        }
+      }
     },
     "bookmark-source": {
       "name": "Bookmark Source",
       "description": "Search URLs from browser bookmarks",
-      "fields": {},
+      "fields": {
+        "sources": {
+          "label": "Bookmark sources",
+          "desc": "Configure browser bookmark sources to index"
+        },
+        "name": {
+          "label": "Browser name",
+          "desc": "Browser name of this bookmark source"
+        },
+        "bookmarks_path": {
+          "label": "Bookmark file path",
+          "desc": "Full path of the browser bookmark file"
+        },
+        "enabled": {
+          "label": "Enabled",
+          "desc": "Whether this bookmark source is enabled"
+        },
+        "overrides": {
+          "label": "Override configs",
+          "desc": "Exclude or retitle specific bookmarks"
+        },
+        "url": {
+          "label": "URL",
+          "desc": "Bookmark URL to match"
+        },
+        "excluded": {
+          "label": "Excluded",
+          "desc": "Whether to exclude this bookmark"
+        },
+        "custom_title": {
+          "label": "Custom title",
+          "desc": "Custom title replacing the original; empty keeps the original"
+        }
+      },
       "groups": {
         "bookmarkSource": "Bookmark Sources"
       }
@@ -513,7 +930,24 @@
     "command-source": {
       "name": "Custom Command Source",
       "description": "Execute user-defined quick commands",
-      "fields": {},
+      "fields": {
+        "commands": {
+          "label": "Custom commands",
+          "desc": "Configure custom command shortcuts to index"
+        },
+        "name": {
+          "label": "Name",
+          "desc": "Display name of the command"
+        },
+        "command": {
+          "label": "Command",
+          "desc": "Command or program path to execute"
+        },
+        "triggerKeywords": {
+          "label": "Trigger keywords",
+          "desc": "Comma-separated trigger words. Enter trigger + space to enter parameter mode. Empty defaults to the name."
+        }
+      },
       "groups": {
         "commandConfig": "Command Config"
       }
@@ -521,7 +955,40 @@
     "program-source": {
       "name": "Path Program Source",
       "description": "Scan applications in user-specified paths",
-      "fields": {},
+      "fields": {
+        "directories": {
+          "label": "Scan directories",
+          "desc": "Configure program directories to scan"
+        },
+        "root_path": {
+          "label": "Directory path",
+          "desc": "Root directory to scan"
+        },
+        "max_depth": {
+          "label": "Scan depth",
+          "desc": "Subdirectory recursion depth"
+        },
+        "pattern": {
+          "label": "File patterns",
+          "desc": "File types to match, e.g. *.exe, *.lnk"
+        },
+        "pattern_type": {
+          "label": "Match mode",
+          "desc": "Wildcard or regular expression"
+        },
+        "excluded_keywords": {
+          "label": "Excluded keywords",
+          "desc": "Paths containing these keywords are ignored"
+        },
+        "forbidden_paths": {
+          "label": "Forbidden paths",
+          "desc": "These paths and their subtrees are not scanned"
+        },
+        "symlink_mode": {
+          "label": "Symlink mode",
+          "desc": "How symlinks are handled"
+        }
+      },
       "groups": {
         "directoryScan": "Directory Scan"
       }
@@ -529,7 +996,24 @@
     "url-source": {
       "name": "Web Page Source",
       "description": "Open preset web pages with keywords",
-      "fields": {},
+      "fields": {
+        "web_pages": {
+          "label": "Indexed web pages",
+          "desc": "Configure web page shortcuts to index"
+        },
+        "name": {
+          "label": "Name",
+          "desc": "Display name of the web page"
+        },
+        "url": {
+          "label": "URL",
+          "desc": "Full URL of the web page"
+        },
+        "triggerKeywords": {
+          "label": "Trigger keywords",
+          "desc": "Comma-separated trigger words. Enter trigger + space to enter parameter mode. Empty defaults to the name."
+        }
+      },
       "groups": {
         "webIndex": "Web Index"
       }
@@ -540,7 +1024,24 @@
       "groups": {
         "alias": "Alias"
       },
-      "fields": {}
+      "fields": {
+        "entries": {
+          "label": "Alias config",
+          "desc": "Set aliases for programs to add search match paths"
+        },
+        "target": {
+          "label": "Program",
+          "desc": "Target program path"
+        },
+        "aliases": {
+          "label": "Aliases",
+          "desc": "Alias list; press Enter to add"
+        },
+        "note": {
+          "label": "Note",
+          "desc": "Optional note"
+        }
+      }
     },
     "first-letter-extractor": {
       "name": "First-letter Extractor",
@@ -549,6 +1050,22 @@
         "priority": {
           "label": "Priority",
           "desc": "Optimizer execution priority; smaller runs first"
+        },
+        "input_source": {
+          "label": "Input source",
+          "desc": "Which keyword layer this optimizer consumes as input"
+        },
+        "producer_id": {
+          "label": "Producer",
+          "desc": "component_id of the producer optimizer whose output to consume"
+        }
+      },
+      "options": {
+        "input_source": {
+          "original_name": "Original name",
+          "normalized_base": "Normalized lowercase base",
+          "refined": "Refined keyword pool",
+          "optimizer_output": "Another optimizer's output"
         }
       }
     },
@@ -559,6 +1076,22 @@
         "priority": {
           "label": "Priority",
           "desc": "Optimizer execution priority; smaller runs first"
+        },
+        "input_source": {
+          "label": "Input source",
+          "desc": "Which keyword layer this optimizer consumes as input"
+        },
+        "producer_id": {
+          "label": "Producer",
+          "desc": "component_id of the producer optimizer whose output to consume"
+        }
+      },
+      "options": {
+        "input_source": {
+          "original_name": "Original name",
+          "normalized_base": "Normalized lowercase base",
+          "refined": "Refined keyword pool",
+          "optimizer_output": "Another optimizer's output"
         }
       }
     },
@@ -569,6 +1102,22 @@
         "priority": {
           "label": "Priority",
           "desc": "Optimizer execution priority; smaller runs first"
+        },
+        "input_source": {
+          "label": "Input source",
+          "desc": "Which keyword layer this optimizer consumes as input"
+        },
+        "producer_id": {
+          "label": "Producer",
+          "desc": "component_id of the producer optimizer whose output to consume"
+        }
+      },
+      "options": {
+        "input_source": {
+          "original_name": "Original name",
+          "normalized_base": "Normalized lowercase base",
+          "refined": "Refined keyword pool",
+          "optimizer_output": "Another optimizer's output"
         }
       }
     },
@@ -579,6 +1128,22 @@
         "priority": {
           "label": "Priority",
           "desc": "Optimizer execution priority; smaller runs first"
+        },
+        "input_source": {
+          "label": "Input source",
+          "desc": "Which keyword layer this optimizer consumes as input"
+        },
+        "producer_id": {
+          "label": "Producer",
+          "desc": "component_id of the producer optimizer whose output to consume"
+        }
+      },
+      "options": {
+        "input_source": {
+          "original_name": "Original name",
+          "normalized_base": "Normalized lowercase base",
+          "refined": "Refined keyword pool",
+          "optimizer_output": "Another optimizer's output"
         }
       }
     },
@@ -589,6 +1154,22 @@
         "priority": {
           "label": "Priority",
           "desc": "Optimizer execution priority; smaller runs first"
+        },
+        "input_source": {
+          "label": "Input source",
+          "desc": "Which keyword layer this optimizer consumes as input"
+        },
+        "producer_id": {
+          "label": "Producer",
+          "desc": "component_id of the producer optimizer whose output to consume"
+        }
+      },
+      "options": {
+        "input_source": {
+          "original_name": "Original name",
+          "normalized_base": "Normalized lowercase base",
+          "refined": "Refined keyword pool",
+          "optimizer_output": "Another optimizer's output"
         }
       }
     },
@@ -599,6 +1180,22 @@
         "priority": {
           "label": "Priority",
           "desc": "Optimizer execution priority; smaller runs first"
+        },
+        "input_source": {
+          "label": "Input source",
+          "desc": "Which keyword layer this optimizer consumes as input"
+        },
+        "producer_id": {
+          "label": "Producer",
+          "desc": "component_id of the producer optimizer whose output to consume"
+        }
+      },
+      "options": {
+        "input_source": {
+          "original_name": "Original name",
+          "normalized_base": "Normalized lowercase base",
+          "refined": "Refined keyword pool",
+          "optimizer_output": "Another optimizer's output"
         }
       }
     },
@@ -609,6 +1206,22 @@
         "priority": {
           "label": "Priority",
           "desc": "Optimizer execution priority; smaller runs first"
+        },
+        "input_source": {
+          "label": "Input source",
+          "desc": "Which keyword layer this optimizer consumes as input"
+        },
+        "producer_id": {
+          "label": "Producer",
+          "desc": "component_id of the producer optimizer whose output to consume"
+        }
+      },
+      "options": {
+        "input_source": {
+          "original_name": "Original name",
+          "normalized_base": "Normalized lowercase base",
+          "refined": "Refined keyword pool",
+          "optimizer_output": "Another optimizer's output"
         }
       }
     },
@@ -619,7 +1232,24 @@
         "weight": "Weight",
         "decay": "Decay"
       },
-      "fields": {}
+      "fields": {
+        "history_weight": {
+          "label": "History weight",
+          "desc": "Weight of total historical launch count"
+        },
+        "recent_habit_weight": {
+          "label": "Recent habit weight",
+          "desc": "Weight of launch habits in the last 7 days"
+        },
+        "temporal_weight": {
+          "label": "Short-term heat weight",
+          "desc": "Weight of short-term heat"
+        },
+        "temporal_decay": {
+          "label": "Heat decay constant (s)",
+          "desc": "Time constant of short-term heat decay; default 10800s (3h)"
+        }
+      }
     },
     "query-affinity-booster": {
       "name": "Query Affinity Booster",
@@ -629,7 +1259,20 @@
         "decay": "Decay",
         "cooldown": "Cooldown"
       },
-      "fields": {}
+      "fields": {
+        "query_affinity_weight": {
+          "label": "Query affinity weight",
+          "desc": "Weight of query affinity"
+        },
+        "query_affinity_time_decay": {
+          "label": "Affinity decay constant (s)",
+          "desc": "Time decay constant of query affinity; default 259200s (3d)"
+        },
+        "query_affinity_cooldown": {
+          "label": "Affinity cooldown (s)",
+          "desc": "Cooldown of query affinity to avoid repeated counting in short bursts; default 15s"
+        }
+      }
     },
     "translator": {
       "name": "Translate",
@@ -638,7 +1281,28 @@
         "basic": "Basic",
         "engine": "Engines"
       },
-      "fields": {}
+      "fields": {
+        "translate_mode": {
+          "label": "Trigger mode",
+          "desc": "Instant: translate on input; Enter: request only after confirm to save tokens"
+        },
+        "default_target": {
+          "label": "Default target language",
+          "desc": "Target language when no code is given (source auto-detected; falls back to another common language if equal to source)"
+        },
+        "request_timeout_ms": {
+          "label": "Timeout (ms)",
+          "desc": "Request timeout of a single engine"
+        },
+        "live_debounce_secs": {
+          "label": "Live debounce (s)",
+          "desc": "Debounce wait after input in instant mode to reduce redundant requests"
+        },
+        "model_id": {
+          "label": "Translation model",
+          "desc": "Chat model id configured in the host model service"
+        }
+      }
     },
     "calculator": {
       "name": "Calculator",

@@ -239,12 +239,48 @@ pub trait DataSource: Configurable {
 pub trait KeywordOptimizer: Configurable {
     // 根据关键词优化出一组新关键词，通常是对关键词进行分词、扩展或转换
     async fn optimize(&self, keyword: &str) -> Vec<String>;
-    // 是否对所有已累积的关键词进行优化（true），还是只对原始名称优化
-    fn uses_context(&self) -> bool {
-        false
-    }
     // 获得优先级，优先级小的优化器会先被调用，优先级相同的优化器会按照注册的顺序被调用
     fn get_priority(&self) -> u32;
+    // 声明本优化器消费的关键词产物来源。候选管道按 KeywordInputSource 分层执行，
+    // 优化器只读取其声明来源的关键词，输出追加到最终关键词池。
+    // 默认 Refined：对归一化小写基与后续派生词的精化产物全集做变换（安全、幂等）。
+    fn input_source(&self) -> KeywordInputSource {
+        KeywordInputSource::Refined
+    }
+}
+
+/// 关键词优化器输入来源 —— 候选关键词管道中的产物引用。
+///
+/// 候选管道按此枚举确定每个优化器的输入：产物有序累积且不回流到已执行层，
+/// 杜绝缩写器反复作用于派生词的词根污染（如 `QQ yin le`→`QQ`→`qq`）。
+/// 本枚举替代旧 `uses_context: bool`（"跑整个累积池 vs 只跑原始名"的粗糙二分），
+/// 将输入来源显式建模为受控 DAG（DAG-lite）：系统内建产物 + 对其他优化器
+/// 输出的命名引用，第三方优化器可声明消费任意已注册优化器的产物。
+/// 跨 IPC 序列化（keyword_optimizer_info RPC / 设置 schema），键名 camelCase。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum KeywordInputSource {
+    /// 原始展示名（大小写保留，未折叠空格）。
+    /// 仅供依赖原始大小写的缩写器消费（如驼峰缩写）；原始名不进入最终关键词池。
+    #[serde(rename = "originalName")]
+    OriginalName,
+    /// 归一化小写基：原始名小写 + 折叠连续空格。
+    /// 候选管道的公共起点，始终在管道内建生成并进最终关键词池。
+    #[serde(rename = "normalizedBase")]
+    NormalizedBase,
+    /// 精化产物全集：归一化基与所有已产出关键词的累积池。
+    /// 供幂等精化器（版本移除/空格处理/符号移除）与通用转换器消费；默认来源。
+    #[serde(rename = "refined")]
+    Refined,
+    /// 指定生产者优化器的输出：本优化器声明消费另一已注册优化器的产物。
+    /// 例如首字母提取器依赖拼音转换器输出（`qq yin le`→`qyl`）。
+    /// 执行约束：`producer_id` 对应优化器必须已注册且 priority 小于本优化器
+    /// （保证按 priority 升序执行时生产者先运行），违规配置在管道构建时拒绝。
+    #[serde(rename = "optimizerOutput")]
+    OptimizerOutput {
+        /// 被引用产物所属优化器的 component_id。
+        #[serde(rename = "producerId")]
+        producer_id: String,
+    },
 }
 
 #[async_trait]

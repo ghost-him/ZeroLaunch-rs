@@ -5,30 +5,23 @@ use serde::{Deserialize, Serialize};
 use zerolaunch_plugin_api::config::{
     ComponentCore, ComponentType, ConfigError, Configurable, SettingDefinition,
 };
-use zerolaunch_plugin_api::KeywordOptimizer;
+use zerolaunch_plugin_api::{KeywordInputSource, KeywordOptimizer};
 
 /// 大写字母提取器的可持久化配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct UpperCaseLetterExtractorSettings {
     #[serde(rename = "priority", default = "default_priority_40")]
     priority: u32,
-    #[serde(rename = "uses_context", default = "default_uses_context_true")]
-    uses_context: bool,
 }
 
 fn default_priority_40() -> u32 {
     40
 }
 
-fn default_uses_context_true() -> bool {
-    true
-}
-
 impl Default for UpperCaseLetterExtractorSettings {
     fn default() -> Self {
         Self {
             priority: default_priority_40(),
-            uses_context: default_uses_context_true(),
         }
     }
 }
@@ -96,27 +89,17 @@ impl Configurable for UpperCaseLetterExtractor {
     }
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {
-        vec![
-            SchemaBuilder::number(
-                "priority",
-                t_key!("upper-case-letter-extractor", "fields.priority.label"),
-                t_key!("upper-case-letter-extractor", "fields.priority.desc"),
-            )
-            .order(0)
-            .default(40.0)
-            .min(1.0)
-            .max(100.0)
-            .step(1.0)
-            .build(),
-            SchemaBuilder::boolean(
-                "uses_context",
-                t_key!("upper-case-letter-extractor", "fields.uses_context.label"),
-                t_key!("upper-case-letter-extractor", "fields.uses_context.desc"),
-            )
-            .order(1)
-            .default(true)
-            .build(),
-        ]
+        vec![SchemaBuilder::number(
+            "priority",
+            t_key!("upper-case-letter-extractor", "fields.priority.label"),
+            t_key!("upper-case-letter-extractor", "fields.priority.desc"),
+        )
+        .order(0)
+        .default(40.0)
+        .min(1.0)
+        .max(100.0)
+        .step(1.0)
+        .build()]
     }
 
     fn get_settings(&self) -> serde_json::Value {
@@ -137,8 +120,10 @@ impl KeywordOptimizer for UpperCaseLetterExtractor {
         self.inner.read().optimize(keyword)
     }
 
-    fn uses_context(&self) -> bool {
-        self.inner.read().uses_context
+    fn input_source(&self) -> KeywordInputSource {
+        // 驼峰缩写必须从保留大小写的原始展示名提取（PowerPoint→pp）；
+        // 对小写归一化基/派生词提取会产生无意义单字符（QQ音乐→qq 污染）。
+        KeywordInputSource::OriginalName
     }
 
     fn get_priority(&self) -> u32 {

@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 use zerolaunch_plugin_api::config::ComponentType;
 use zerolaunch_plugin_api::{
-    CandidateCacheSnapshot, CandidateId, ExecutionContext, PluginContext, Query, ScoredCandidate,
-    SearchCandidate, TargetType,
+    CandidateCacheSnapshot, CandidateId, ExecutionContext, KeywordInputSource, PluginContext,
+    Query, ScoredCandidate, SearchCandidate, TargetType,
 };
 
 // ─── plugin/initialize ───────────────────────────────────────────
@@ -79,7 +79,7 @@ pub enum ComponentKind {
     #[serde(rename = "score_booster")]
     ScoreBooster,
     /// 关键词优化器 —— 在候选管道中扩展搜索关键词。
-    /// uses_context / priority 为设置可变属性，经 keyword_optimizer_info RPC 拉取。
+    /// input_source / priority 为声明属性，经 keyword_optimizer_info RPC 拉取。
     #[serde(rename = "keyword_optimizer")]
     KeywordOptimizer,
     /// 关键词注入器 —— 基于候选项完整上下文注入额外关键词。
@@ -295,17 +295,17 @@ pub struct BoosterRecordParams {
 
 // ─── plugin/keyword_optimizer_info ───────────────────────────────
 //
-// KeywordOptimizer 组件的动态属性（priority / uses_context 为设置可变字段，
-// 宿主在发现与设置变更时经本方法拉取并缓存）。
+// KeywordOptimizer 组件的声明属性（input_source / priority），
+// 宿主在发现与设置变更时经本方法拉取并缓存。
 //
 // 响应为裸 `KeywordOptimizerInfo`。
 
 /// KeywordOptimizer 组件的优化属性（经 keyword_optimizer_info RPC 拉取）。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KeywordOptimizerInfo {
-    /// 是否对所有已累积的关键词进行优化（true），还是只对原始名称优化。
-    #[serde(rename = "usesContext")]
-    pub uses_context: bool,
+    /// 优化器消费的关键词产物来源（分层 DAG-lite 输入层）。
+    #[serde(rename = "inputSource")]
+    pub input_source: KeywordInputSource,
     /// 链式执行优先级，小者先执行。
     #[serde(rename = "priority")]
     pub priority: u32,
@@ -334,6 +334,9 @@ pub struct KeywordOptimizeParams {
     /// 待优化的关键词。
     #[serde(rename = "keyword")]
     pub keyword: String,
+    /// 本次调用携带的来源层（供第三方优化器决策，宿主按声明来源调用）。
+    #[serde(rename = "inputSource")]
+    pub input_source: KeywordInputSource,
 }
 
 // KeywordInjector 组件：对单个候选注入关键词（与内置逐候选语义一致）。

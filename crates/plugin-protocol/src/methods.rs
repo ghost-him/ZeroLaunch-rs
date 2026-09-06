@@ -43,7 +43,7 @@ pub mod plugin {
     pub const BOOSTER_BOOST: &str = "plugin/booster_boost";
     /// ScoreBooster 组件：记录用户确认（学习用户习惯）。
     pub const BOOSTER_RECORD: &str = "plugin/booster_record";
-    /// KeywordOptimizer 组件：拉取优化属性（uses_context / priority）。
+    /// KeywordOptimizer 组件：拉取声明属性（input_source / priority）。
     pub const KEYWORD_OPTIMIZER_INFO: &str = "plugin/keyword_optimizer_info";
     /// KeywordOptimizer 组件：优化单个关键词。
     pub const KEYWORD_OPTIMIZE: &str = "plugin/keyword_optimize";

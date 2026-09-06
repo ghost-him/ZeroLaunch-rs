@@ -13,8 +13,8 @@ use zerolaunch_plugin_api::config::{
 };
 use zerolaunch_plugin_api::{
     ActionExecutor, CachedCandidateData, CandidateId, DataSource, ExecutionContext, ExecutionError,
-    KeywordInjector, KeywordOptimizer, PanelInteraction, Plugin, PluginContext, PluginError,
-    PluginHandle, PluginMetadata, Query, QueryResponse, ResultAction, ScoreBooster,
+    KeywordInjector, KeywordInputSource, KeywordOptimizer, PanelInteraction, Plugin, PluginContext,
+    PluginError, PluginHandle, PluginMetadata, Query, QueryResponse, ResultAction, ScoreBooster,
     ScoredCandidate, SearchCandidate, SearchEngine, TargetType,
 };
 
@@ -49,7 +49,7 @@ pub enum RemoteComponentKind {
     /// 分数增强器 —— 引擎打分后追加分数修正（多个可同时启用）。
     ScoreBooster,
     /// 关键词优化器 —— 候选管道中扩展关键词。
-    /// 优化属性（uses_context / priority）为设置可变字段，经 keyword_optimizer_info
+    /// 优化属性（input_source / priority）为声明属性，经 keyword_optimizer_info
     /// RPC 拉取缓存（discover 初始值），设置变更时经 RPC 刷新。
     KeywordOptimizer {
         info: RwLock<KeywordOptimizerInfo>,
@@ -547,7 +547,7 @@ impl RemoteComponent {
             *interaction_policy.write() = policy;
         }
     }
-    /// 经 RPC 刷新优化器属性缓存（uses_context / priority 为设置可变字段）。
+    /// 经 RPC 刷新优化器属性缓存（input_source / priority 为声明字段）。
     /// 仅 KeywordOptimizer 组件有属性；失败静默保持上次值。
     async fn refresh_keyword_optimizer_info(&self) {
         let RemoteComponentKind::KeywordOptimizer { info } = &self.kind else {
@@ -698,6 +698,7 @@ impl KeywordOptimizer for RemoteComponent {
                 KeywordOptimizeParams {
                     component_id: self.core.component_id().to_string(),
                     keyword: keyword.to_string(),
+                    input_source: self.input_source(),
                 },
                 Duration::from_secs(10),
             )
@@ -716,11 +717,11 @@ impl KeywordOptimizer for RemoteComponent {
         }
     }
 
-    fn uses_context(&self) -> bool {
+    fn input_source(&self) -> KeywordInputSource {
         match &self.kind {
-            RemoteComponentKind::KeywordOptimizer { info } => info.read().uses_context,
+            RemoteComponentKind::KeywordOptimizer { info } => info.read().input_source.clone(),
             _ => panic!(
-                "RemoteComponent {} is not a KeywordOptimizer but uses_context() was called",
+                "RemoteComponent {} is not a KeywordOptimizer but input_source() was called",
                 self.core.component_id()
             ),
         }

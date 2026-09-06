@@ -5,22 +5,17 @@ use serde::{Deserialize, Serialize};
 use zerolaunch_plugin_api::config::{
     ComponentCore, ComponentType, ConfigError, Configurable, SettingDefinition,
 };
-use zerolaunch_plugin_api::KeywordOptimizer;
+use zerolaunch_plugin_api::{KeywordInputSource, KeywordOptimizer};
 
+/// 版本号移除器的可持久化配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct VersionNumberRemoverSettings {
     #[serde(rename = "priority", default = "default_priority_10")]
     priority: u32,
-    #[serde(rename = "uses_context", default = "default_uses_context_true")]
-    uses_context: bool,
 }
 
 fn default_priority_10() -> u32 {
     10
-}
-
-fn default_uses_context_true() -> bool {
-    true
 }
 
 impl Default for VersionNumberRemoverSettings {
@@ -31,10 +26,7 @@ impl Default for VersionNumberRemoverSettings {
 
 impl VersionNumberRemoverSettings {
     fn new() -> Self {
-        Self {
-            priority: 10,
-            uses_context: true,
-        }
+        Self { priority: 10 }
     }
 
     /// 从输入文本中移除版本号（括号内容及空格后的数字.数字模式）。
@@ -127,27 +119,17 @@ impl Configurable for VersionNumberRemover {
     }
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {
-        vec![
-            SchemaBuilder::number(
-                "priority",
-                t_key!("version-number-remover", "fields.priority.label"),
-                t_key!("version-number-remover", "fields.priority.desc"),
-            )
-            .order(0)
-            .default(10.0)
-            .min(1.0)
-            .max(100.0)
-            .step(1.0)
-            .build(),
-            SchemaBuilder::boolean(
-                "uses_context",
-                t_key!("version-number-remover", "fields.uses_context.label"),
-                t_key!("version-number-remover", "fields.uses_context.desc"),
-            )
-            .order(1)
-            .default(true)
-            .build(),
-        ]
+        vec![SchemaBuilder::number(
+            "priority",
+            t_key!("version-number-remover", "fields.priority.label"),
+            t_key!("version-number-remover", "fields.priority.desc"),
+        )
+        .order(0)
+        .default(10.0)
+        .min(1.0)
+        .max(100.0)
+        .step(1.0)
+        .build()]
     }
 
     fn get_settings(&self) -> serde_json::Value {
@@ -168,8 +150,8 @@ impl KeywordOptimizer for VersionNumberRemover {
         self.inner.read().optimize(keyword)
     }
 
-    fn uses_context(&self) -> bool {
-        self.inner.read().uses_context
+    fn input_source(&self) -> KeywordInputSource {
+        KeywordInputSource::NormalizedBase
     }
 
     fn get_priority(&self) -> u32 {

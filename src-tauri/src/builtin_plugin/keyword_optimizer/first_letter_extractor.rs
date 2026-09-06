@@ -5,32 +5,23 @@ use serde::{Deserialize, Serialize};
 use zerolaunch_plugin_api::config::{
     ComponentCore, ComponentType, ConfigError, Configurable, SettingDefinition,
 };
-use zerolaunch_plugin_api::KeywordOptimizer;
+use zerolaunch_plugin_api::{KeywordInputSource, KeywordOptimizer};
 
 /// Default priority value for FirstLetterExtractorSettings.
 fn default_priority_50() -> u32 {
     50
 }
 
-/// Default uses_context value for FirstLetterExtractorSettings.
-fn default_uses_context_true() -> bool {
-    true
-}
-
+/// 首字母提取器的可持久化配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct FirstLetterExtractorSettings {
     #[serde(rename = "priority", default = "default_priority_50")]
     priority: u32,
-    #[serde(rename = "uses_context", default = "default_uses_context_true")]
-    uses_context: bool,
 }
 
 impl FirstLetterExtractorSettings {
     fn new() -> Self {
-        Self {
-            priority: 50,
-            uses_context: true,
-        }
+        Self { priority: 50 }
     }
 
     /// Extracts the first letter of each whitespace-separated word in the input string.
@@ -91,27 +82,17 @@ impl Configurable for FirstLetterExtractor {
     }
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {
-        vec![
-            SchemaBuilder::number(
-                "priority",
-                t_key!("first-letter-extractor", "fields.priority.label"),
-                t_key!("first-letter-extractor", "fields.priority.desc"),
-            )
-            .order(0)
-            .default(50.0)
-            .min(1.0)
-            .max(100.0)
-            .step(1.0)
-            .build(),
-            SchemaBuilder::boolean(
-                "uses_context",
-                t_key!("first-letter-extractor", "fields.uses_context.label"),
-                t_key!("first-letter-extractor", "fields.uses_context.desc"),
-            )
-            .order(1)
-            .default(true)
-            .build(),
-        ]
+        vec![SchemaBuilder::number(
+            "priority",
+            t_key!("first-letter-extractor", "fields.priority.label"),
+            t_key!("first-letter-extractor", "fields.priority.desc"),
+        )
+        .order(0)
+        .default(50.0)
+        .min(1.0)
+        .max(100.0)
+        .step(1.0)
+        .build()]
     }
 
     fn get_settings(&self) -> serde_json::Value {
@@ -132,8 +113,13 @@ impl KeywordOptimizer for FirstLetterExtractor {
         self.inner.read().optimize(keyword)
     }
 
-    fn uses_context(&self) -> bool {
-        self.inner.read().uses_context
+    fn input_source(&self) -> KeywordInputSource {
+        // 首字母缩写消费拼音转换器的登记输出（QQ音乐→qq yin le→qyl、VSC→vsc）；
+        // 不直接吃归一化基/派生词，避免对单 token 取首字符产生无意义单字符（vsc→v、qq→q）。
+        // pinyin-converter 是普通生产者（priority 25 < 本器 50，先于本器执行）。
+        KeywordInputSource::OptimizerOutput {
+            producer_id: "pinyin-converter".to_string(),
+        }
     }
 
     fn get_priority(&self) -> u32 {

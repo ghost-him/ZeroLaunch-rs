@@ -5,30 +5,23 @@ use serde::{Deserialize, Serialize};
 use zerolaunch_plugin_api::config::{
     ComponentCore, ComponentType, ConfigError, Configurable, SettingDefinition,
 };
-use zerolaunch_plugin_api::KeywordOptimizer;
+use zerolaunch_plugin_api::{KeywordInputSource, KeywordOptimizer};
 
 /// 符号移除器的可持久化配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct SymbolRemoverSettings {
     #[serde(rename = "priority", default = "default_priority_70")]
     priority: u32,
-    #[serde(rename = "uses_context", default = "default_uses_context_true")]
-    uses_context: bool,
 }
 
 fn default_priority_70() -> u32 {
     70
 }
 
-fn default_uses_context_true() -> bool {
-    true
-}
-
 impl Default for SymbolRemoverSettings {
     fn default() -> Self {
         Self {
             priority: default_priority_70(),
-            uses_context: default_uses_context_true(),
         }
     }
 }
@@ -83,27 +76,17 @@ impl Configurable for SymbolRemover {
     }
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {
-        vec![
-            SchemaBuilder::number(
-                "priority",
-                t_key!("symbol-remover", "fields.priority.label"),
-                t_key!("symbol-remover", "fields.priority.desc"),
-            )
-            .order(0)
-            .default(70.0)
-            .min(1.0)
-            .max(100.0)
-            .step(1.0)
-            .build(),
-            SchemaBuilder::boolean(
-                "uses_context",
-                t_key!("symbol-remover", "fields.uses_context.label"),
-                t_key!("symbol-remover", "fields.uses_context.desc"),
-            )
-            .order(1)
-            .default(true)
-            .build(),
-        ]
+        vec![SchemaBuilder::number(
+            "priority",
+            t_key!("symbol-remover", "fields.priority.label"),
+            t_key!("symbol-remover", "fields.priority.desc"),
+        )
+        .order(0)
+        .default(70.0)
+        .min(1.0)
+        .max(100.0)
+        .step(1.0)
+        .build()]
     }
 
     fn get_settings(&self) -> serde_json::Value {
@@ -123,8 +106,8 @@ impl KeywordOptimizer for SymbolRemover {
         self.inner.read().optimize(keyword)
     }
 
-    fn uses_context(&self) -> bool {
-        self.inner.read().uses_context
+    fn input_source(&self) -> KeywordInputSource {
+        KeywordInputSource::Refined
     }
 
     fn get_priority(&self) -> u32 {

@@ -6,32 +6,22 @@ use serde::{Deserialize, Serialize};
 use zerolaunch_plugin_api::config::{
     ComponentCore, ComponentType, ConfigError, Configurable, SettingDefinition,
 };
-use zerolaunch_plugin_api::KeywordOptimizer;
+use zerolaunch_plugin_api::{KeywordInputSource, KeywordOptimizer};
 
-/// Default priority value for SpaceNormalizerSettings.
-fn default_priority_20() -> u32 {
-    20
-}
-
-/// Default uses_context value for SpaceNormalizerSettings.
-fn default_uses_context_true() -> bool {
-    true
-}
-
+/// 空格规范化器的可持久化配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct SpaceNormalizerSettings {
     #[serde(rename = "priority", default = "default_priority_20")]
     priority: u32,
-    #[serde(rename = "uses_context", default = "default_uses_context_true")]
-    uses_context: bool,
+}
+
+fn default_priority_20() -> u32 {
+    20
 }
 
 impl SpaceNormalizerSettings {
     fn new() -> Self {
-        Self {
-            priority: 20,
-            uses_context: true,
-        }
+        Self { priority: 20 }
     }
 
     /// Removes leading spaces and collapses consecutive spaces into a single space.
@@ -84,27 +74,17 @@ impl Configurable for SpaceNormalizer {
     }
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {
-        vec![
-            SchemaBuilder::number(
-                "priority",
-                t_key!("space-normalizer", "fields.priority.label"),
-                t_key!("space-normalizer", "fields.priority.desc"),
-            )
-            .order(0)
-            .default(20.0)
-            .min(1.0)
-            .max(100.0)
-            .step(1.0)
-            .build(),
-            SchemaBuilder::boolean(
-                "uses_context",
-                t_key!("space-normalizer", "fields.uses_context.label"),
-                t_key!("space-normalizer", "fields.uses_context.desc"),
-            )
-            .order(1)
-            .default(true)
-            .build(),
-        ]
+        vec![SchemaBuilder::number(
+            "priority",
+            t_key!("space-normalizer", "fields.priority.label"),
+            t_key!("space-normalizer", "fields.priority.desc"),
+        )
+        .order(0)
+        .default(20.0)
+        .min(1.0)
+        .max(100.0)
+        .step(1.0)
+        .build()]
     }
 
     fn get_settings(&self) -> serde_json::Value {
@@ -124,8 +104,8 @@ impl KeywordOptimizer for SpaceNormalizer {
         self.inner.read().optimize(keyword)
     }
 
-    fn uses_context(&self) -> bool {
-        self.inner.read().uses_context
+    fn input_source(&self) -> KeywordInputSource {
+        KeywordInputSource::NormalizedBase
     }
 
     fn get_priority(&self) -> u32 {

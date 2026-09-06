@@ -1,3 +1,4 @@
+use zerolaunch_plugin_api::KeywordInputSource;
 use zerolaunch_plugin_protocol::jsonrpc::{Message, Notification, Request, Response};
 use zerolaunch_plugin_protocol::messages::*;
 use zerolaunch_plugin_protocol::{codes, JsonRpcError, PROTOCOL_VERSION};
@@ -138,17 +139,27 @@ fn test_component_kind_stable_serde_keys() {
     }
 }
 
-/// KeywordOptimizer 信息跨 RPC 往返（uses_context / priority 为设置可变字段）。
+/// KeywordOptimizer 信息跨 RPC 往返（input_source / priority 为声明字段）。
 #[test]
 fn test_keyword_optimizer_info_roundtrip() {
     let info = KeywordOptimizerInfo {
-        uses_context: true,
+        input_source: KeywordInputSource::OptimizerOutput {
+            producer_id: "pinyin-converter".to_string(),
+        },
         priority: 60,
     };
     let json = serde_json::to_value(&info).unwrap();
-    assert_eq!(json["usesContext"], true);
+    assert_eq!(
+        json["inputSource"],
+        serde_json::json!({"optimizerOutput": {"producerId": "pinyin-converter"}})
+    );
     assert_eq!(json["priority"], 60);
     let round: KeywordOptimizerInfo = serde_json::from_value(json).unwrap();
-    assert!(round.uses_context);
+    assert_eq!(
+        round.input_source,
+        KeywordInputSource::OptimizerOutput {
+            producer_id: "pinyin-converter".to_string(),
+        }
+    );
     assert_eq!(round.priority, 60);
 }

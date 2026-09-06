@@ -727,13 +727,13 @@ async fn dispatch(
             booster.record(p.candidate_id, &cache, &p.query).await;
             Ok(serde_json::Value::Null)
         }
-        // KeywordOptimizer 组件：动态属性（uses_context / priority 为设置可变字段）
+        // KeywordOptimizer 组件：声明属性（input_source / priority 经 info RPC 上报）
         plugin_methods::KEYWORD_OPTIMIZER_INFO => {
             let p: KeywordOptimizerInfoParams = serde_json::from_value(params.clone())
                 .map_err(|e| JsonRpcError::new(codes::INVALID_PARAMS, e.to_string()))?;
             let optimizer = find_keyword_optimizer(app, &p.component_id)?;
             Ok(serde_json::to_value(KeywordOptimizerInfo {
-                uses_context: optimizer.uses_context(),
+                input_source: optimizer.input_source(),
                 priority: optimizer.get_priority(),
             })
             .unwrap_or_default())

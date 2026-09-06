@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use zerolaunch_plugin_api::config::{
     ComponentCore, ComponentType, ConfigError, Configurable, SettingDefinition,
 };
-use zerolaunch_plugin_api::KeywordOptimizer;
+use zerolaunch_plugin_api::{KeywordInputSource, KeywordOptimizer};
 
 #[derive(Serialize, Deserialize, Debug)]
 struct PinyinItem {
@@ -14,12 +14,11 @@ struct PinyinItem {
     word: String,
 }
 
+/// 拼音转换器的可持久化配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct PinyinConverterSettings {
     #[serde(rename = "priority", default = "default_priority_25")]
     priority: u32,
-    #[serde(rename = "uses_context", default = "default_uses_context_false")]
-    uses_context: bool,
     /// 预加载的汉字到拼音映射表，不属于用户配置，序列化时跳过。
     #[serde(skip)]
     pinyin: HashMap<char, String>,
@@ -27,10 +26,6 @@ struct PinyinConverterSettings {
 
 fn default_priority_25() -> u32 {
     25
-}
-
-fn default_uses_context_false() -> bool {
-    false
 }
 
 impl Default for PinyinConverterSettings {
@@ -55,7 +50,6 @@ impl PinyinConverterSettings {
 
         Self {
             priority: 25,
-            uses_context: false,
             pinyin: char_to_pinyin,
         }
     }
@@ -123,27 +117,17 @@ impl Configurable for PinyinConverter {
     }
 
     fn setting_schema(&self) -> Vec<SettingDefinition> {
-        vec![
-            SchemaBuilder::number(
-                "priority",
-                t_key!("pinyin-converter", "fields.priority.label"),
-                t_key!("pinyin-converter", "fields.priority.desc"),
-            )
-            .order(0)
-            .default(25.0)
-            .min(1.0)
-            .max(100.0)
-            .step(1.0)
-            .build(),
-            SchemaBuilder::boolean(
-                "uses_context",
-                t_key!("pinyin-converter", "fields.uses_context.label"),
-                t_key!("pinyin-converter", "fields.uses_context.desc"),
-            )
-            .order(1)
-            .default(false)
-            .build(),
-        ]
+        vec![SchemaBuilder::number(
+            "priority",
+            t_key!("pinyin-converter", "fields.priority.label"),
+            t_key!("pinyin-converter", "fields.priority.desc"),
+        )
+        .order(0)
+        .default(25.0)
+        .min(1.0)
+        .max(100.0)
+        .step(1.0)
+        .build()]
     }
 
     fn get_settings(&self) -> serde_json::Value {
@@ -166,8 +150,10 @@ impl KeywordOptimizer for PinyinConverter {
         self.inner.read().optimize(keyword)
     }
 
-    fn uses_context(&self) -> bool {
-        self.inner.read().uses_context
+    fn input_source(&self) -> KeywordInputSource {
+        // 拼音转换只消费归一化小写基（QQ音乐→qq yin le）；输入已小写，
+        // 避免原始名大写泄漏进拼音展开（旧缺陷 QQ yin le 的源头）。
+        KeywordInputSource::NormalizedBase
     }
 
     fn get_priority(&self) -> u32 {

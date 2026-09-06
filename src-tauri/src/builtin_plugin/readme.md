@@ -101,58 +101,63 @@ pub trait DataSource: Configurable {
 pub trait KeywordOptimizer: Configurable {
     // 根据关键词优化出一组新关键词
     fn optimize(&self, keyword: &str) -> Vec<String>;
-    
-    // 是否对所有已累积的关键词进行优化（true），还是只对原始名称优化
-    fn uses_context(&self) -> bool { false }
-    
-    // 获得优先级，优先级小的优化器会先被调用
+
+    // 声明本优化器消费的关键词产物来源（分层输入）。默认 Refined：
+    // 对归一化小写基与派生词的精化产物全集做变换。
+    fn input_source(&self) -> KeywordInputSource { KeywordInputSource::Refined }
+
+    // 获得优先级，同层内小的优化器会先被调用
     fn get_priority(&self) -> u32;
 }
 ```
 
-**设计目的**：
-- 将"微信"扩展为 ["微信", "wechat", "weixin"]
-- 将拼音 "weixin" 转换为 "微信"
-- 支持多种优化策略组合，按优先级链式调用
-
-**链式优化流程**：
+**输入分层（DAG-lite）**：候选管道先内建归一化小写基（原始名小写 + 折叠空格，
+原始名不进最终关键词池），再按 `input_source()` 分层执行优化器，产物有序累积且
+**永不回流到已执行层**，从结构上杜绝「缩写器反复作用于派生词」的词根污染
+（如旧模型中 `QQ yin le → QQ → qq`）。
 
 ```
-原始名称: "微信"
-    │
+原始名: "QQ音乐"
+    │  (归一化小写基: "qq音乐")
     ▼
-┌─────────────────────────────────┐
-│ Optimizer A (priority=10)        │
-│ uses_context=false               │
-│ optimize("微信")                  │
-│ 输出: ["weixin"]                  │
-└─────────────────────────────────┘
-    │
-    ▼ 累积关键词: ["微信", "weixin"]
-    │
-┌─────────────────────────────────┐
-│ Optimizer B (priority=20)        │
-│ uses_context=true                │
-│ 对每个关键词调用 optimize:        │
-│   optimize("微信") → []           │
-│   optimize("weixin") → ["wx"]    │
-│ 输出: ["wx"]                      │
-└─────────────────────────────────┘
-    │
-    ▼ 最终关键词: ["微信", "weixin", "wx"]
+┌────────────────────────────────────────────────┐
+│ input_source = OriginalName   (仅 upper-case)   │
+│   吃原始展示名一次（PowerPoint→pp；含 CJK 时清空）│
+└────────────────────────────────────────────────┘
+    ▼
+┌────────────────────────────────────────────────┐
+│ input_source = NormalizedBase (version/pinyin…) │
+│   吃归一化基一次：QQ音乐→qq yin le（已小写）      │
+└────────────────────────────────────────────────┘
+    ▼  (各优化器以 component_id 登记自身输出)
+┌────────────────────────────────────────────────┐
+│ input_source = OptimizerOutput{pinyin-converter}│
+│   吃拼音转换器的登记输出：qq yin le→qyl          │
+└────────────────────────────────────────────────┘
+    ▼
+┌────────────────────────────────────────────────┐
+│ input_source = Refined  (space/symbol remover)  │
+│   对精化产物全集做幂等变换（去空格/去符号）        │
+└────────────────────────────────────────────────┘
 ```
 
 **使用场景**：
-| 实现类                     | 功能                      |
-| -------------------------- | ------------------------- |
-| `PinyinConverter`          | 中文转拼音、拼音转中文    |
-| `FirstLetterExtractor`     | 提取拼音首字母（如 "wx"） |
-| `UpperCaseLetterExtractor` | 提取大写字母（如 "ABC"）  |
-| `LowerCaseConverter`       | 全小写转换                |
-| `SpaceNormalizer`          | 空格归一化                |
-| `SpaceRemover`             | 移除空格                  |
-| `SymbolRemover`            | 移除特殊符号              |
-| `VersionNumberRemover`     | 移除版本号                |
+| 实现类                     | input_source                              | 功能                      |
+| -------------------------- | ----------------------------------------- | ------------------------- |
+| `PinyinConverter`          | `NormalizedBase`                          | 中文转拼音（输入已小写）    |
+| `FirstLetterExtractor`     | `OptimizerOutput{pinyin-converter}`       | 提取拼音首字母（如 "qyl"） |
+| `UpperCaseLetterExtractor` | `OriginalName`                            | 提取驼峰缩写（如 "pp"）    |
+| `SpaceNormalizer`          | `NormalizedBase`                          | 空格归一化（折叠连续空格）  |
+| `SpaceRemover`             | `Refined`                                 | 移除空格                  |
+| `SymbolRemover`            | `Refined`                                 | 移除特殊符号              |
+| `VersionNumberRemover`     | `NormalizedBase`                          | 移除版本号                |
+
+> 说明：`KeywordInputSource` 为声明式枚举（`OriginalName` / `NormalizedBase` /
+> `Refined` / `OptimizerOutput{producer_id}`）。每个优化器执行后以自己的 component_id
+> 将产物登记到输出注册表，`OptimizerOutput` 消费者按 producer_id 精确取用——拼音
+> 转换器只是被引用的普通插件，无组件名硬编码，第三方优化器同样可声明消费任意
+> 已注册优化器的产物。执行约束：producer 的 priority 必须小于消费者（保证 producer
+> 先运行）。`priority` 仍是同优先级组内的排序键。
 
 ---
 
@@ -341,7 +346,7 @@ impl DataSource for ProgramSource {
 | 我想写...    | 需要实现的 Trait                      | 核心方法                                                       |
 | ------------ | ------------------------------------- | -------------------------------------------------------------- |
 | 数据源       | `DataSource` (+ `Configurable`)       | `fetch_candidates()`                                           |
-| 关键字优化器 | `KeywordOptimizer` (+ `Configurable`) | `optimize()`, `uses_context()`                                 |
+| 关键字优化器 | `KeywordOptimizer` (+ `Configurable`) | `optimize()`, `input_source()`, `get_priority()` |
 | 搜索引擎     | `SearchEngine` (+ `Configurable`)     | `calculate_scores()`                                           |
 | 分数提升器   | `ScoreBooster` (+ `Configurable`)     | `record()`, `boost()`                                          |
 | 动作执行器   | `ActionExecutor` (+ `Configurable`)   | `supported_target_types()`, `supported_actions()`, `execute()` |

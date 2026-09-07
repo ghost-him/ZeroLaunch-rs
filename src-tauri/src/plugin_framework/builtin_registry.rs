@@ -125,6 +125,11 @@ pub struct DataSourceEntry {
 }
 
 /// 关键词优化器条目。
+///
+/// `priority` 仅用于启动注册序（`collect_all_builtin_entries` 按此排序构造），
+/// 非执行序。执行序权威来自各优化器运行时 `KeywordOptimizer::get_priority()`
+/// （即其 settings 的 priority 默认值）；注册序只影响 ConfigManager 中组件
+/// 的注册/列表顺序，不参与候选管道执行排序。
 pub struct KeywordOptimizerEntry {
     pub component_id: &'static str,
     pub priority: u32,

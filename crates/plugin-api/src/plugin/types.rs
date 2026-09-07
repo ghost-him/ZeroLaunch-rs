@@ -257,24 +257,27 @@ pub trait KeywordOptimizer: Configurable {
 /// 将输入来源显式建模为受控 DAG（DAG-lite）：系统内建产物 + 对其他优化器
 /// 输出的命名引用，第三方优化器可声明消费任意已注册优化器的产物。
 /// 跨 IPC 序列化（keyword_optimizer_info RPC / 设置 schema），键名 camelCase。
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum KeywordInputSource {
     /// 原始展示名（大小写保留，未折叠空格）。
     /// 仅供依赖原始大小写的缩写器消费（如驼峰缩写）；原始名不进入最终关键词池。
     #[serde(rename = "originalName")]
     OriginalName,
-    /// 归一化小写基：原始名小写 + 折叠连续空格。
-    /// 候选管道的公共起点，始终在管道内建生成并进最终关键词池。
+    /// 归一化小写基：去版本号 + 小写 + 折叠连续空格。
+    /// 候选管道的公共起点，始终在管道内建生成并进最终关键词池
+    /// （对齐 legacy original_lower 语义；含版本完整名另作增强关键词进池）。
     #[serde(rename = "normalizedBase")]
     NormalizedBase,
     /// 精化产物全集：归一化基与所有已产出关键词的累积池。
     /// 供幂等精化器（版本移除/空格处理/符号移除）与通用转换器消费；默认来源。
     #[serde(rename = "refined")]
+    #[default]
     Refined,
     /// 指定生产者优化器的输出：本优化器声明消费另一已注册优化器的产物。
     /// 例如首字母提取器依赖拼音转换器输出（`qq yin le`→`qyl`）。
     /// 执行约束：`producer_id` 对应优化器必须已注册且 priority 小于本优化器
-    /// （保证按 priority 升序执行时生产者先运行），违规配置在管道构建时拒绝。
+    /// （保证按 priority 升序执行时生产者先运行）。违反该约束（producer 未注册/
+    /// 未产出/priority 逆序）时消费者静默空输入并记 warn 日志，依赖配置方保证。
     #[serde(rename = "optimizerOutput")]
     OptimizerOutput {
         /// 被引用产物所属优化器的 component_id。

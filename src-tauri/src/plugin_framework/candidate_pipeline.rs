@@ -1,5 +1,5 @@
 use crate::core::bias_rule::BiasRule;
-use crate::utils::collapse_repeated_spaces;
+use crate::utils::{collapse_repeated_spaces, remove_version_number};
 use std::collections::HashMap;
 use std::sync::Arc;
 use zerolaunch_plugin_api::config::Configurable;
@@ -121,30 +121,36 @@ impl CandidatePipeline {
     // 对单个名称运行受控 DAG 关键词优化流水线（DAG-lite），返回去重后的关键词列表。
     //
     // 模型（替代旧「uses_context 布尔 × 单一累积池」的线性链）：
-    // 1. 归一化小写基（小写 + 折叠空格）恒进最终关键词池（原始名不进池）；
+    // 1. 归一化小写基 = 去版本 + 折叠空格的展示名小写，恒进最终关键词池
+    //    （对齐 legacy convert_search_keywords 的 original_lower 公共起点）；
+    //    完整展示名（含版本、折叠空格、小写）作为增强关键词一并进池，
+    //    保证「输含版本完整名」仍可命中（legacy 无此召回，属超集增强）。
+    //    原始大小写名不进池。
     // 2. 逐优化器按 `get_priority()` 升序执行；输入由 `input_source()` 声明：
     //    - `OriginalName`：吃原始展示名（驼峰缩写）；产物进池；
-    //    - `NormalizedBase`：吃归一化基（一次）；
+    //    - `NormalizedBase`：吃归一化小写基（去版本 clean name，一次）；
     //    - `Refined`：吃当前最终池全体（幂等精化）；
     //    - `OptimizerOutput { producer_id }`：吃另一已注册优化器的**登记输出**——
     //      每个优化器执行完以自己的 component_id 将产物登记到输出注册表，
     //      消费者按其声明的 producer_id 精确取用（pinyin-converter 只是普通
     //      被引用生产者，无任何组件名硬编码）；
     // 3. 依赖执行序约束：producer 的 priority 必须小于消费者（升序遍历保证
-    //    producer 先运行）；违反该约束的配置在管道构建期被拒绝。
+    //    producer 先运行）；违反该约束（producer 未注册/未产出/priority 逆序）
+    //    时消费者静默空输入并记 warn 日志，依赖配置方保证约束。
     // 产物永不回流到已执行层，从结构上杜绝「缩写器反复作用于派生词」的污染。
     // 参数 `sorted` 必须已按 `get_priority()` 升序排列（调用方负责排序一次复用）。
     async fn apply_keyword_optimizers(name: &str, sorted: &[&dyn KeywordOptimizer]) -> Vec<String> {
-        // 归一化小写基：所有派生词的公共起点（对齐 legacy original_lower 语义）。
-        let base = collapse_repeated_spaces(&name.to_lowercase());
+        // 归一化小写基：去版本 + 折叠空格的展示名小写。
+        // 与 legacy original_lower（remove_version_number → 折叠空格 → lowercase）一致，
+        // 作为所有派生词的公共起点，保证版本号不进入拼音/首字母等派生（PowerPoint 2024 → p，非 p2）。
+        let base = collapse_repeated_spaces(&remove_version_number(name).to_lowercase());
+        // 完整展示名（含版本号）：保留进池供全名精确召回。
+        let full_lower = collapse_repeated_spaces(&name.to_lowercase());
         // 最终关键词池（会随各层产物增长；作为精化层消费的累积上下文）。
-        let mut final_pool: Vec<String> = vec![base.clone()];
+        let mut final_pool: Vec<String> = vec![base.clone(), full_lower];
         // 各优化器的登记输出：component_id -> 该优化器产出的关键词。
         // OptimizerOutput 消费者按 producer_id 精确取用。
         let mut outputs: HashMap<String, Vec<String>> = HashMap::new();
-        // 归一化基与原始名作为可被引用的内建产物预登记。
-        outputs.insert("__base__".to_string(), vec![base.clone()]);
-        outputs.insert("__original__".to_string(), vec![name.to_string()]);
 
         for optimizer in sorted {
             // 判定输入：按声明的输入来源取词。
@@ -175,8 +181,18 @@ impl CandidatePipeline {
                 KeywordInputSource::OptimizerOutput { producer_id } => {
                     // 引用层：吃指定生产者优化器登记的输出。
                     // 依赖序由 producer 先于消费者执行保证（priority 升序），
-                    // 缺产物视为空输入（producer 未产出或未注册）。
-                    let srcs = outputs.get(&producer_id).cloned().unwrap_or_default();
+                    // 缺产物视为配置错误：producer 未注册、未产出或 priority 逆序。
+                    let srcs = match outputs.get(&producer_id) {
+                        Some(v) => v.clone(),
+                        None => {
+                            tracing::warn!(
+                                "keyword optimizer '{}' 引用 producer '{}' 无登记产物（producer 未注册/未产出/priority 逆序），本次为空输入",
+                                optimizer.component_id(),
+                                producer_id
+                            );
+                            Vec::new()
+                        }
+                    };
                     let mut out = Vec::new();
                     for src in srcs.iter() {
                         out.extend(optimizer.optimize(src).await);
@@ -399,6 +415,47 @@ mod tests {
         assert!(
             !out.iter().any(|k| k.contains("-x-x")),
             "Refined 产物不应回流给自身: {out:?}"
+        );
+    }
+
+    /// 归一化小写基对齐 legacy：base 去版本号（clean name），完整含版本名作增强进池。
+    /// 带版本号名称（PowerPoint 2024）的 NormalizedBase 消费者应作用于
+    /// 去版本 clean 名（powerpoint），而非含版本的 powerpoint 2024——
+    /// 与 legacy convert_search_keywords 的 original_lower 语义一致。
+    #[tokio::test]
+    async fn normalized_base_strips_version_like_legacy() {
+        let opts: Vec<MarkerOptimizer> = vec![
+            marker("base-cons", 10, KeywordInputSource::NormalizedBase, "-nb"),
+            marker("full-cons", 20, KeywordInputSource::Refined, "-ref"),
+        ];
+        let sorted: Vec<&dyn KeywordOptimizer> =
+            opts.iter().map(|o| o as &dyn KeywordOptimizer).collect();
+        let out = CandidatePipeline::apply_keyword_optimizers("PowerPoint 2024", &sorted).await;
+
+        // 归一化基 = 去版本 clean 名（legacy original_lower 语义）
+        assert!(
+            out.contains(&"powerpoint".to_string()),
+            "缺 clean base: {out:?}"
+        );
+        // NormalizedBase 消费者吃 clean 名，不携带版本号
+        assert!(
+            out.contains(&"powerpoint-nb".to_string()),
+            "NormalizedBase 应作用于去版本名: {out:?}"
+        );
+        // 完整含版本名作为增强关键词保留（全名精确召回）
+        assert!(
+            out.contains(&"powerpoint 2024".to_string()),
+            "缺完整含版本名增强关键词: {out:?}"
+        );
+        // Refined 吃全池（含 clean base 与完整名）
+        assert!(
+            out.iter().any(|k| k.ends_with("-ref")),
+            "Refined 应消费全池: {out:?}"
+        );
+        // 防回归：版本号不得混入派生词（legacy 不会产出 p2，此处断言 clean 派生无数字尾缀）
+        assert!(
+            !out.iter().any(|k| k.ends_with("2024-nb")),
+            "NormalizedBase 产物不应携带版本号: {out:?}"
         );
     }
 }

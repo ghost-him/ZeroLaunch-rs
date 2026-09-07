@@ -27,7 +27,8 @@ struct FirstLetterExtractorSettings {
     #[serde(rename = "input_source", default = "default_input_source")]
     input_source: String,
     /// 被引用生产者优化器的 component_id；仅当 input_source = optimizer_output 时生效。
-    #[serde(rename = "producer_id", default)]
+    /// 默认 pinyin-converter（与 new()/schema 默认一致，防止旧配置缺字段时空引用失效）。
+    #[serde(rename = "producer_id", default = "default_producer_id")]
     producer_id: String,
 }
 
@@ -37,12 +38,16 @@ fn default_input_source() -> String {
     SOURCE_OPTIMIZER_OUTPUT.to_string()
 }
 
+fn default_producer_id() -> String {
+    "pinyin-converter".to_string()
+}
+
 impl FirstLetterExtractorSettings {
     fn new() -> Self {
         Self {
             priority: 50,
             input_source: SOURCE_OPTIMIZER_OUTPUT.to_string(),
-            producer_id: "pinyin-converter".to_string(),
+            producer_id: default_producer_id(),
         }
     }
 

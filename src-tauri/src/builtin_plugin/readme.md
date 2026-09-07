@@ -157,7 +157,8 @@ pub trait KeywordOptimizer: Configurable {
 > 将产物登记到输出注册表，`OptimizerOutput` 消费者按 producer_id 精确取用——拼音
 > 转换器只是被引用的普通插件，无组件名硬编码，第三方优化器同样可声明消费任意
 > 已注册优化器的产物。执行约束：producer 的 priority 必须小于消费者（保证 producer
-> 先运行）。`priority` 仍是同优先级组内的排序键。
+> 先运行）。违反该约束（producer 未注册/未产出/priority 逆序）时消费者静默空输入
+> 并记 warn 日志，依赖配置方保证约束。`priority` 仍是同优先级组内的排序键。
 
 ---
 

@@ -34,9 +34,12 @@ pub fn resolve_input_source(input_source: &str, producer_id: &str) -> KeywordInp
     match input_source {
         SOURCE_ORIGINAL_NAME => KeywordInputSource::OriginalName,
         SOURCE_NORMALIZED_BASE => KeywordInputSource::NormalizedBase,
-        SOURCE_OPTIMIZER_OUTPUT => KeywordInputSource::OptimizerOutput {
+        // producer_id 为空（如迁移遗留的旧 JSON 缺该字段）时，
+        // 不构造指向空 id 的引用（查无产物即静默失效），回退 refined。
+        SOURCE_OPTIMIZER_OUTPUT if !producer_id.is_empty() => KeywordInputSource::OptimizerOutput {
             producer_id: producer_id.to_string(),
         },
+        SOURCE_OPTIMIZER_OUTPUT => KeywordInputSource::Refined,
         // refined 与未知值
         _ => KeywordInputSource::Refined,
     }
@@ -76,5 +79,15 @@ mod tests {
         );
         // 空来源也回退 refined，而非 optimizer_output 缺 producer 的空引用
         assert_eq!(resolve_input_source("", ""), KeywordInputSource::Refined);
+    }
+
+    #[test]
+    fn optimizer_output_with_empty_producer_falls_back_to_refined() {
+        // 迁移遗留/畸形配置：optimizer_output 但 producer_id 为空，
+        // 回退 refined，避免构造查无产物的空引用导致优化器静默失效。
+        assert_eq!(
+            resolve_input_source(SOURCE_OPTIMIZER_OUTPUT, ""),
+            KeywordInputSource::Refined
+        );
     }
 }

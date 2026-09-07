@@ -49,55 +49,10 @@ impl VersionNumberRemoverSettings {
         }
     }
 
-    /// 从输入文本中移除版本号（括号内容及空格后的数字.数字模式）。
-    /// 返回清理后的字符串。
-    fn remove_version_number(&self, input_text: &str) -> String {
-        let mut ret = String::new();
-        let mut s = 0;
-        let mut in_version = false;
-        let chars: Vec<char> = input_text.chars().collect();
-        let mut i = 0;
-
-        while i < chars.len() {
-            let ch = chars[i];
-
-            if ch == '(' {
-                s += 1;
-                in_version = true;
-            } else if ch == ')' {
-                if s > 0 {
-                    s -= 1;
-                }
-                in_version = false;
-            } else if s == 0 && !in_version {
-                if (ch.is_ascii_digit() || ch == '.') && i > 0 && chars[i - 1] == ' ' {
-                    while i < chars.len() && (chars[i].is_ascii_digit() || chars[i] == '.') {
-                        i += 1;
-                    }
-                    while i < chars.len() && chars[i] == ' ' {
-                        i += 1;
-                    }
-                    i = i.saturating_sub(1);
-                    i += 1;
-                    continue;
-                }
-                ret.push(ch);
-            }
-
-            i += 1;
-        }
-
-        while ret.ends_with(' ') {
-            ret.pop();
-        }
-
-        ret
-    }
-
     /// 对关键词执行版本号移除优化。
     /// 若结果与原文相同则返回空 Vec。
     fn optimize(&self, keyword: &str) -> Vec<String> {
-        let result = self.remove_version_number(keyword);
+        let result = crate::utils::remove_version_number(keyword);
         if result.is_empty() || result == keyword {
             Vec::new()
         } else {

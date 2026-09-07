@@ -50,6 +50,61 @@ pub fn collapse_repeated_spaces(input_text: &str) -> String {
     result
 }
 
+/// 移除名称中的版本号（括号内容及空格后的「数字.数字」模式）。
+///
+/// 与 legacy 版本的关键词预处理一致：`"PowerPoint 2024" → "PowerPoint"`、
+/// `"Mozilla Firefox 115.0" → "Mozilla Firefox"`、括号内容整体移除。
+/// 供候选管道归一化基与 version-number-remover 优化器复用。
+///
+/// # Arguments
+/// * `input_text` - 原始输入字符串（可为任意大小写）
+///
+/// # Returns
+/// * 清理版本号后的字符串（可能等于原字符串）
+pub fn remove_version_number(input_text: &str) -> String {
+    let mut ret = String::new();
+    let mut s = 0;
+    let mut in_version = false;
+    let chars: Vec<char> = input_text.chars().collect();
+    let mut i = 0;
+
+    while i < chars.len() {
+        let ch = chars[i];
+
+        if ch == '(' {
+            s += 1;
+            in_version = true;
+        } else if ch == ')' {
+            if s > 0 {
+                s -= 1;
+            }
+            in_version = false;
+        } else if s == 0 && !in_version {
+            // 空格后紧跟数字/点视为版本号起始，整体跳过（如 " 2024"、" 115.0"）。
+            if (ch.is_ascii_digit() || ch == '.') && i > 0 && chars[i - 1] == ' ' {
+                while i < chars.len() && (chars[i].is_ascii_digit() || chars[i] == '.') {
+                    i += 1;
+                }
+                while i < chars.len() && chars[i] == ' ' {
+                    i += 1;
+                }
+                i = i.saturating_sub(1);
+                i += 1;
+                continue;
+            }
+            ret.push(ch);
+        }
+
+        i += 1;
+    }
+
+    while ret.ends_with(' ') {
+        ret.pop();
+    }
+
+    ret
+}
+
 /// 比较日期字符串与当前日期的函数
 pub fn is_date_current(date_str: &str) -> bool {
     // 解析输入的日期字符串

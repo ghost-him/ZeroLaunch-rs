@@ -288,6 +288,43 @@ export function pluginGetLogs(pluginId: string, tailLines?: number): Promise<str
   return invokeCommand<string[]>('plugin_get_logs', { pluginId, tailLines })
 }
 
+// ---- 插件市场 ----
+
+/** 插件市场条目（GitHub topic: zerolaunch-plugin 搜索结果，已排除主程序仓库）。 */
+export interface MarketRepo {
+  fullName: string
+  name: string
+  description: string
+  htmlUrl: string
+}
+
+/** 仓库最新发布中的插件包附件。 */
+export interface MarketAsset {
+  name: string
+  downloadUrl: string
+}
+
+/** 仓库最新发布解析结果（asset 恒存在——无匹配 zip 时后端直接报错）。 */
+export interface MarketRelease {
+  tagName: string
+  asset: MarketAsset
+}
+
+/** 拉取插件市场仓库列表。 */
+export function marketList(): Promise<MarketRepo[]> {
+  return invokeCommand<MarketRepo[]>('market_list')
+}
+
+/** 查询仓库最新发布中的插件包附件。 */
+export function marketGetRelease(fullName: string): Promise<MarketRelease> {
+  return invokeCommand<MarketRelease>('market_get_release', { fullName })
+}
+
+/** 安装仓库最新发布中的插件包（解析 → 下载 → 安装一步完成）。 */
+export function marketInstall(fullName: string, overwrite = false): Promise<InstalledPluginInfo> {
+  return invokeCommand<InstalledPluginInfo>('market_install', { fullName, overwrite })
+}
+
 export interface CliInfo {
   host: string
   port: number

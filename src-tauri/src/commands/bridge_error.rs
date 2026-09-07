@@ -6,6 +6,7 @@ use zerolaunch_plugin_api::HostApiError;
 
 use crate::plugin_framework::PluginManagerError;
 use crate::plugin_framework::SessionDispatcherError;
+use crate::plugin_market::MarketError;
 
 /// 前后端通信统一错误类型。这个只可以用于前端后通信，不可以在内部模块使用该错误。内部模块的错误应该自己定义自己的错误。
 /// 用于所有 Tauri command 的 Err 变体，前端可据此展示用户友好的错误提示。
@@ -135,6 +136,26 @@ impl From<zerolaunch_plugin_api::PluginError> for BridgeError {
             details: Box::new(None),
             component_id: None,
             trace_id: String::new(),
+        }
+    }
+}
+
+/// 将市场模块错误转换为 IPC 边界使用的 BridgeError。
+/// 网络/404 → NETWORK_ERROR；解析/IO → 具体 code（ValidationFailed/Internal）。
+impl From<MarketError> for BridgeError {
+    fn from(e: MarketError) -> Self {
+        match e {
+            MarketError::Network(msg) | MarketError::NotFound(msg) => BridgeError {
+                code: ErrorCode::NetworkError,
+                message: msg,
+                details: Box::new(None),
+                component_id: None,
+                trace_id: String::new(),
+            },
+            MarketError::NoRelease(_) | MarketError::NoPluginZip(..) => {
+                BridgeError::validation_failed(e.to_string())
+            }
+            MarketError::Parse(msg) => BridgeError::validation_failed(msg),
         }
     }
 }

@@ -62,6 +62,7 @@
       "models": "模型管理",
       "pipeline": "搜尋管道",
       "plugins": "插件管理",
+      "pluginMarket": "插件市集",
       "debug": "除錯工具",
       "about": "關於"
     },
@@ -236,7 +237,25 @@
     },
     "contentProcessor": "內容處理器",
     "keywordInjector": "關鍵字注入器",
-    "biasRule": "固定偏移量"
+    "biasRule": "固定偏移量",
+    "pluginMarket": {
+      "title": "插件市集",
+      "subtitle": "探索並安裝 GitHub 上帶有 zerolaunch-plugin 標籤的插件",
+      "refresh": "重新整理",
+      "loadFailed": "載入插件市集失敗",
+      "empty": "暫無可用插件",
+      "install": "安裝",
+      "installing": "安裝中…",
+      "installSuccess": "插件安裝成功",
+      "installFailed": "安裝失敗",
+      "alreadyInstalled": "該插件已安裝",
+      "installConfirmContent": "將自動下載並安裝插件：{name}（倉庫 {repo} 的最新版本）",
+      "installConfirmPositive": "安裝",
+      "installRiskTitle": "安全提示",
+      "installRiskContent": "第三方插件以與本應用同等的權限執行，請僅安裝來自可信來源的插件。",
+      "overwriteConfirmContent": "插件 {name} 已安裝，是否覆蓋為新版本？",
+      "overwriteConfirmPositive": "覆蓋安裝"
+    }
   },
   "contextMenu": {
     "execute": "執行",

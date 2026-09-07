@@ -5,6 +5,7 @@ pub mod commands;
 pub mod core;
 pub mod logging;
 pub mod plugin_framework;
+pub mod plugin_market;
 pub mod sdk;
 pub mod state;
 pub mod tray;
@@ -235,6 +236,10 @@ pub fn run() {
             crate::commands::plugin::plugin_uninstall,
             crate::commands::plugin::plugin_set_enabled,
             crate::commands::plugin::plugin_get_logs,
+            // Plugin Market
+            crate::commands::plugin_market::market_list,
+            crate::commands::plugin_market::market_get_release,
+            crate::commands::plugin_market::market_install,
             crate::commands::cli::cli_get_info,
             // i18n
             crate::commands::i18n::i18n_get_plugin_translations,

@@ -62,6 +62,7 @@
       "models": "Model Management",
       "pipeline": "Search Pipeline",
       "plugins": "Plugins",
+      "pluginMarket": "Plugin Market",
       "debug": "Debug Tools",
       "about": "About"
     },
@@ -236,7 +237,25 @@
     },
     "contentProcessor": "Content Processors",
     "keywordInjector": "Keyword Injectors",
-    "biasRule": "Fixed Bias"
+    "biasRule": "Fixed Bias",
+    "pluginMarket": {
+      "title": "Plugin Market",
+      "subtitle": "Discover and install plugins tagged zerolaunch-plugin on GitHub",
+      "refresh": "Refresh",
+      "loadFailed": "Failed to load plugin market",
+      "empty": "No plugins available",
+      "install": "Install",
+      "installing": "Installing…",
+      "installSuccess": "Plugin installed",
+      "installFailed": "Install failed",
+      "alreadyInstalled": "This plugin is already installed",
+      "installConfirmContent": "Automatically download and install plugin: {name} (latest release of {repo})",
+      "installConfirmPositive": "Install",
+      "installRiskTitle": "Security notice",
+      "installRiskContent": "Third-party plugins run with the same permissions as this application. Only install plugins from trusted sources.",
+      "overwriteConfirmContent": "Plugin {name} is already installed. Overwrite with the new version?",
+      "overwriteConfirmPositive": "Overwrite"
+    }
   },
   "contextMenu": {
     "execute": "Execute",

@@ -24,8 +24,9 @@ sdk.rs              → 平台抽象层 re-export 桥（单文件）
 core/               → 核心层（ConfigManager, Configurable trait, types）
 builtin_plugin/     → 内置插件实现
 plugin_framework/   → 插件框架（SessionDispatcher, Registry, PluginManager, zlplugin:// 协议）
+plugin_market/      → 插件市场（GitHub topic 仓库发现 / release 解析 / 插件包下载）
 cli_server/         → 本地 HTTP API 服务器（axum）
-commands/           → IPC 命令（bridge, config, plugin, resource, inspector, cli）
+commands/           → IPC 命令（bridge, config, plugin, plugin_market, resource, inspector, cli）
 state/              → AppState 定义
 utils/              → 通用工具
 logging/            → 日志初始化
@@ -49,6 +50,7 @@ logging/            → 日志初始化
 | HostApi + Builder   | `src-tauri/src/sdk.rs`                                             |
 | 内置组件注册表      | `src-tauri/src/plugin_framework/builtin_registry.rs`              |
 | Plugin Inspector    | `src-tauri/src/plugin_framework/inspector.rs` (feature = "inspector") |
+| 插件市场            | `src-tauri/src/plugin_market/mod.rs` + `src-tauri/src/commands/plugin_market.rs` |
 | PluginHostManager   | `crates/plugin-host/src/manager.rs`                                |
 | 第三方插件加载器    | `src-tauri/src/plugin_framework/manager.rs`                       |
 | CLI HTTP 服务器     | `src-tauri/src/cli_server/server.rs`                               |
@@ -63,6 +65,8 @@ logging/            → 日志初始化
 配置（`config_` 前缀，9个）：`config_get_version`, `config_get_all_components`, `config_get_schema`, `config_get_settings`, `config_apply_settings`, `config_reset_settings`, `config_set_enabled`, `config_get_actions`, `config_execute_action`
 
 插件管理（`plugin_` 前缀，7个）：`plugin_list`, `plugin_get_manifest`, `plugin_install_local`, `plugin_reload`, `plugin_uninstall`, `plugin_set_enabled`, `plugin_get_logs`
+
+插件市场（`market_` 前缀，3个）：`market_list`, `market_get_release`, `market_install`
 
 检查器（`inspector_` 前缀，1个）：`inspector_get_state`
 

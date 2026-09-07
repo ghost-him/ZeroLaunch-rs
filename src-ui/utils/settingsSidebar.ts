@@ -50,6 +50,8 @@ export function buildSidebarItems(
     { key: 'category_pipeline', label: t('settings.sidebar.pipeline'), icon: 'search', type: 'pipeline', components: pipeline },
     // 统一插件管理页（内置 + 第三方）：安装、运行状态与配置入口都在此页，不占侧边栏子项
     { key: 'category_plugins', label: t('settings.sidebar.plugins'), icon: 'extension', type: 'plugins-page' as const },
+    // 插件市场：GitHub topic 发现与一键安装
+    { key: 'category_plugin_market', label: t('settings.sidebar.pluginMarket'), icon: 'store', type: 'static' as const },
   ]
 
   // 仅在调试模式开启时显示

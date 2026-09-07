@@ -27,6 +27,9 @@
         <!-- Unified plugin management (builtin + third-party) -->
         <PluginsManagement v-else-if="selectedCategory?.type === 'plugins-page'" />
 
+        <!-- Plugin Market (GitHub topic discovery) -->
+        <PluginMarket v-else-if="selectedId === 'category_plugin_market'" />
+
         <!-- About -->
         <AboutView v-else-if="selectedId === 'category_about'" :version="version" />
 
@@ -74,6 +77,7 @@ import CategoryViewTabs from '../components/settings/CategoryViewTabs.vue'
 import DebugView from './DebugView.vue'
 import AboutView from './AboutView.vue'
 import PluginsManagement from './settings/PluginsManagement.vue'
+import PluginMarket from './settings/PluginMarket.vue'
 import { useConfigStore } from '../stores/config-store'
 import { buildSidebarItems } from '../utils/settingsSidebar'
 import { useI18n } from 'vue-i18n'

@@ -61,6 +61,7 @@
       "appearance": "外观设置",
       "models": "模型管理",
       "plugins": "插件",
+      "pluginMarket": "插件市场",
       "pipeline": "搜索管道",
       "debug": "调试工具",
       "about": "关于"
@@ -236,7 +237,25 @@
     },
     "contentProcessor": "内容处理器",
     "keywordInjector": "关键字注入器",
-    "biasRule": "固定偏移量"
+    "biasRule": "固定偏移量",
+    "pluginMarket": {
+      "title": "插件市场",
+      "subtitle": "发现并安装 GitHub 上打有 zerolaunch-plugin 标签的插件",
+      "refresh": "刷新",
+      "loadFailed": "加载插件市场失败",
+      "empty": "暂无可用插件",
+      "install": "安装",
+      "installing": "安装中…",
+      "installSuccess": "插件安装成功",
+      "installFailed": "安装失败",
+      "alreadyInstalled": "该插件已安装",
+      "installConfirmContent": "将自动下载并安装插件：{name}（仓库 {repo} 的最新发布）",
+      "installConfirmPositive": "安装",
+      "installRiskTitle": "安全提示",
+      "installRiskContent": "第三方插件以与本应用同等的权限运行，请仅安装来自可信来源的插件。",
+      "overwriteConfirmContent": "插件 {name} 已安装，是否覆盖为新版本？",
+      "overwriteConfirmPositive": "覆盖安装"
+    }
   },
   "contextMenu": {
     "execute": "执行",

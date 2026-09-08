@@ -566,8 +566,8 @@ pub struct InstalledPluginInfo {
     /// 来源为 manifest [icon] 段，host 层无条件读取。
     #[serde(rename = "icon", default)]
     pub icon: Option<String>,
-    /// 插件形态：inline = 行内插件；panel = 完全插件模式（trigger 类型）。
-    /// 行内/trigger 判定以此字段为唯一权威依据。
+    /// 插件形态：inline = 行内插件；panel = 独立插件。
+    /// 行内/独立判定以此字段为唯一权威依据。
     #[serde(rename = "mode", default)]
     pub mode: PluginMode,
 }

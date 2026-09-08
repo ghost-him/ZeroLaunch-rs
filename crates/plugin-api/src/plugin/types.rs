@@ -711,8 +711,8 @@ pub struct PluginMetadata {
     /// 内置与第三方统一为数据，消费方直接透传。
     #[serde(rename = "icon", default)]
     pub icon: Option<String>,
-    /// 插件形态：inline = 行内插件（关键词唤醒，保留搜索栏）；panel = 完全插件模式
-    /// （trigger 类型，唤醒后接管搜索窗口）。决定热键唤醒资格与图标展示门控。
+    /// 插件形态：inline = 行内插件（触发词路由，保留搜索栏）；panel = 独立插件
+    /// （候选/热键唤出，唤醒后接管搜索窗口）。决定热键唤醒资格与图标展示门控。
     /// 缺省 Panel：旧插件无此字段时按 panel 处理（兼容旧热键插件行为）。
     #[serde(rename = "mode", default)]
     pub mode: PluginMode,
@@ -729,7 +729,8 @@ pub enum PluginMode {
     /// 行内插件：仅关键词唤醒，结果/面板嵌入搜索窗口（保留搜索栏）。
     #[serde(rename = "inline")]
     Inline,
-    /// 完全插件模式（trigger 类型）：唤醒后接管搜索窗口（可全页面）。
+    /// 独立插件：触发词转为候选搜索关键字，仅经热键（hotkey）或候选项选中唤醒，
+    /// 响应必须为 `CustomPanel{keep_search_bar: false}`（全窗口接管）。
     #[default]
     #[serde(rename = "panel")]
     Panel,

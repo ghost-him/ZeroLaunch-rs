@@ -1382,7 +1382,7 @@ impl SessionDispatcher {
         Ok(())
     }
 
-    /// 热键唤醒插件（完全插件模式）：捕获参数快照 → 空查询 → 进入全页面接管会话。
+    /// 热键唤醒插件（独立插件）：捕获参数快照 → 空查询 → 进入全页面接管会话。
     /// 响应必须为 CustomPanel 且 keep_search_bar=false（全页面接管契约；keep_search_bar=true
     /// 属违约：debug 构建 panic 暴露、release 构建按声明形态降级为 PluginPanel 正常唤醒）；
     /// 载荷经会话事件 panelContent 一并推送（窗口隐藏时前端无查询响应可依赖）。
@@ -1458,7 +1458,7 @@ impl SessionDispatcher {
         }
         *self.parameter_snapshot.lock() = snapshot;
 
-        // 展示形态与载荷：热键唤醒默认 = 完全插件模式 = 全页面接管（PluginImmersive）。
+        // 展示形态与载荷：热键唤醒默认 = 独立插件 = 全页面接管（PluginImmersive）。
         // keep_search_bar=true（行内面板）与热键唤醒契约冲突：debug 构建用 debug_assert
         // 强制 panic 暴露（契约违约即宿主逻辑缺陷，快速定位）；release 构建正常运行——
         // 按插件声明形态降级为 PluginPanel（保留搜索栏），与 route_query 的
@@ -1830,7 +1830,7 @@ mod tests {
             Self::with_trigger_and_id(trigger, &format!("test.{}", trigger))
         }
 
-        /// 以 panel 形态（完全插件模式）构造：query 返回 Empty（非 CustomPanel），
+        /// 以 panel 形态（独立插件）构造：query 返回 Empty（非 CustomPanel），
         /// 供热键唤醒契约违约路径测试（mode 校验通过后仍会因响应非 CustomPanel 被拒）。
         fn with_panel_trigger(trigger: &str) -> Self {
             let mut plugin = Self::with_trigger(trigger);

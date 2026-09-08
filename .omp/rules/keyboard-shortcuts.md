@@ -27,7 +27,7 @@ scope: "tool:edit(*.vue), tool:edit(*.ts), tool:write(*.vue), tool:write(*.ts)"
 - 已在同一插件面板会话时不重复唤醒（放行给面板绑定）
 - **后端权威校验**：`wake_plugin` 先校验插件启用态（`SessionDispatcher.is_plugin_enabled`，
   禁用插件即使前端热键表残留过期条目也不得被唤醒），且要求响应为 `CustomPanel` 且
-  `keep_search_bar=false`——热键唤醒默认 = 完全插件模式 = 全页面接管；List/Empty 属违约
+  `keep_search_bar=false`——热键唤醒默认 = 独立插件 = 全页面接管；List/Empty 属违约
   直接报错；`keep_search_bar: true`（行内形态）属违约：debug 构建用 `debug_assert!` 强制
   panic 暴露（契约违约即宿主逻辑缺陷，快速定位），release 构建正常运行——按插件声明形态
   降级为 PluginPanel（保留搜索栏），与 `route_query` 的 keep_search_bar → 展示形态映射一致

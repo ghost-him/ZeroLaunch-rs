@@ -179,7 +179,7 @@ export interface InstalledPluginInfo {
   hotkey: string | null
   /** 插件显示图标（data URL，如 "data:image/png;base64,..."），null 表示无图标。 */
   icon: string | null
-  /** 插件形态：'inline' = 行内插件；'panel' = 完全插件模式（trigger 类型）。 */
+  /** 插件形态：'inline' = 行内插件；'panel' = 独立插件（候选/热键唤出，接管搜索窗口）。 */
   mode: 'inline' | 'panel'
 }
 

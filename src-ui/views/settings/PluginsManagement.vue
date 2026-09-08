@@ -20,11 +20,15 @@ import type { InstalledPluginInfo, PluginDetail, BridgeError } from '@/bridge/co
 import type { ComponentInfo } from '@/bridge/contract'
 import { useConfigStore } from '@/stores/config-store'
 import ComponentConfigLoader from '@/components/settings/ComponentConfigLoader.vue'
+import PluginIntroModal from '@/components/settings/PluginIntroModal.vue'
 
 const { t } = useI18n()
 const message = useMessage()
 const dialog = useDialog()
 const configStore = useConfigStore()
+
+/** 插件介绍弹窗（插件形态说明）显隐。 */
+const showIntro = ref(false)
 
 /** 插件管理页统一行：内置与第三方插件合并展示，元数据均来自插件级数据（plugin_list）。 */
 interface PluginRow {
@@ -460,6 +464,9 @@ onUnmounted(() => {
       <NButton secondary @click="handleChooseDir">
         {{ t('settings.thirdPartyPlugins.installFromDir') }}
       </NButton>
+      <NButton secondary @click="showIntro = true">
+        {{ t('settings.thirdPartyPlugins.intro') }}
+      </NButton>
     </NSpace>
 
     <!-- 拖拽安装区（拖放事件为 webview 级，仅本组件挂载期间监听） -->
@@ -564,6 +571,18 @@ onUnmounted(() => {
             </div>
 
             <NDescriptions :column="2" bordered size="small" label-placement="left">
+              <NDescriptionsItem :label="t('settings.thirdPartyPlugins.fieldMode')" :span="2">
+                <NTag :type="detailData.mode === 'panel' ? 'primary' : 'success'" size="small">
+                  {{ detailData.mode === 'panel'
+                    ? t('settings.thirdPartyPlugins.panelName')
+                    : t('settings.thirdPartyPlugins.inlineName') }}
+                </NTag>
+                <NText depth="3" style="margin-left: 8px;">
+                  {{ detailData.mode === 'panel'
+                    ? t('settings.thirdPartyPlugins.modePanelHint')
+                    : t('settings.thirdPartyPlugins.modeInlineHint') }}
+                </NText>
+              </NDescriptionsItem>
               <NDescriptionsItem :label="t('settings.thirdPartyPlugins.fieldDescription')" :span="2">
                 {{ resolveText(detailData.description) || t('common.notAvailable') }}
               </NDescriptionsItem>
@@ -653,6 +672,9 @@ onUnmounted(() => {
         </div>
       </NSpin>
     </NModal>
+
+    <!-- 插件介绍弹窗：插件来源 + 两种形态说明 -->
+    <PluginIntroModal v-model:show="showIntro" />
   </div>
 </template>
 

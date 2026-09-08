@@ -43,7 +43,7 @@ impl EchoPlugin {
             hotkey: None,
             // panel 形态插件图标由宿主从 manifest [icon] 段读取，此处无需填写
             icon: None,
-            // 插件形态：行内插件填 Inline，完全插件模式（trigger 类型）填 Panel
+            // 插件形态：行内插件填 Inline，独立插件填 Panel
             mode: PluginMode::Inline,
         }}
     }

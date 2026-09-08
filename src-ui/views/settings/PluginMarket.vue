@@ -9,6 +9,7 @@ import { open } from '@tauri-apps/plugin-shell'
 import { marketList, marketInstall } from '@/bridge/commands'
 import type { MarketRepo } from '@/bridge/commands'
 import type { BridgeError } from '@/bridge/commands'
+import PluginIntroModal from '@/components/settings/PluginIntroModal.vue'
 
 const { t } = useI18n()
 const message = useMessage()
@@ -17,6 +18,8 @@ const dialog = useDialog()
 const loading = ref(false)
 const repos = ref<MarketRepo[]>([])
 const loadError = ref<string | null>(null)
+/** 插件介绍弹窗（插件形态说明）显隐。 */
+const showIntro = ref(false)
 /** 正在安装的仓库（按 fullName 记录，按钮 loading + 防重入）。 */
 const installingRepo = ref<string | null>(null)
 /** 待确认安装的仓库。 */
@@ -119,6 +122,9 @@ onMounted(() => {
       <NButton secondary size="small" :loading="loading" @click="loadMarket">
         {{ t('settings.pluginMarket.refresh') }}
       </NButton>
+      <NButton secondary size="small" @click="showIntro = true">
+        {{ t('settings.thirdPartyPlugins.intro') }}
+      </NButton>
     </NSpace>
     <NText depth="3" style="display: block; margin-bottom: 16px;">
       {{ t('settings.pluginMarket.subtitle') }}
@@ -207,6 +213,9 @@ onMounted(() => {
         </NSpace>
       </template>
     </NModal>
+
+    <!-- 插件介绍弹窗：插件来源 + 两种形态说明 -->
+    <PluginIntroModal v-model:show="showIntro" />
   </div>
 </template>
 

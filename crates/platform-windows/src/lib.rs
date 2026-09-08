@@ -14,6 +14,7 @@ mod installation_monitor;
 mod lnk_resolver;
 mod parameter_providers;
 mod path_resolver;
+mod platform_services;
 mod resource_loader;
 mod shell;
 mod theme;
@@ -36,6 +37,7 @@ pub use parameter_providers::{
     WindowsClipboardProvider, WindowsSelectionProvider, WindowsWindowHandleProvider,
 };
 pub use path_resolver::WindowsPathResolver;
+pub use platform_services::windows_platform_services;
 pub use resource_loader::WindowsResourceLoader;
 pub use shell::WindowsShellExecutor;
 pub use theme::{start_system_theme_monitor, WindowsThemeProvider};

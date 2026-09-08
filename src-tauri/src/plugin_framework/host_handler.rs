@@ -1,4 +1,6 @@
-//! TauriHostCallHandler — 将插件的 `host/*` RPC 调用分发给本地 PluginHandle。
+//! TauriHostCallHandler — 将插件的 `host/*` RPC 调用分发给插件句柄。
+//! PluginHandle 为插件接口层（薄视图），方法委托宿主契约 PluginHost；
+//! 因此经句柄的调用最终由宿主（HostApi）执行——直接处理或转发平台端口。
 
 use base64::Engine;
 use std::sync::Arc;

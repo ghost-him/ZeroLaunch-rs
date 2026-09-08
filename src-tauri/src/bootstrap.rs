@@ -12,13 +12,14 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::{App, Emitter, Manager};
 use tracing::{debug, info, warn};
-use zerolaunch_platform_windows::WindowsFocusMonitor;
-use zerolaunch_platform_windows::WindowsHotkeyManager;
+use zerolaunch_platform_windows::windows_platform_services;
 use zerolaunch_plugin_api::host::PluginSdkConfig;
 use zerolaunch_plugin_api::services::hotkey::types::HotkeyEventFilter;
 use zerolaunch_plugin_api::services::installation_monitor::InstallationEventKind;
+use zerolaunch_plugin_api::services::parameter::DefaultParameterResolver;
 use zerolaunch_plugin_api::services::storage::local_storage::LocalStorageService;
 use zerolaunch_plugin_api::services::storage::storage_service::StorageService;
+use zerolaunch_plugin_api::services::timer::TokioTimerManager;
 use zerolaunch_plugin_api::services::AppResourceService;
 use zerolaunch_plugin_api::PluginContext;
 
@@ -134,62 +135,63 @@ pub(crate) async fn init_app_state(
     let app_handle_for_hide = app_handle.clone();
     let app_handle_for_show = app_handle.clone();
     let app_handle_for_is_visible = app_handle.clone();
-    let app_handle_for_focus_monitor = app_handle.clone();
     let app_handle_for_set_pos = app_handle.clone();
     let app_handle_for_third_party_plugins = app_handle.clone();
 
     // ModelManager 由 AppState 持有，HostApi 与 core handle 共享同一实例。
     let model_manager = state.get_model_manager();
 
+    // 平台端口：Windows 平台实现的统一工厂（组装权在 platform-windows）。
+    let platform = windows_platform_services(
+        app_handle,
+        path_resolver,
+        default_app_icon_path,
+        default_web_icon_path,
+    );
+
     let host_api = Arc::new(
-        crate::build_windows_host_api_builder(
-            icon_cache_dir,
-            default_app_icon_path,
-            default_web_icon_path,
-            path_resolver,
-            default_storage,
-            app_resource,
-        )
-        .hotkey_manager(Arc::new(WindowsHotkeyManager::new(app_handle)))
-        .focus_monitor(Arc::new(WindowsFocusMonitor::new(
-            app_handle_for_focus_monitor,
-        )))
-        .set_window_position_callback(move |x, y| {
-            if let Some(window) = app_handle_for_set_pos.get_webview_window("main") {
-                let _ = window.set_position(tauri::PhysicalPosition::new(x, y));
-            }
-        })
-        .notify_callback(move |title: String, message: String| {
-            use tauri_plugin_notification::NotificationExt;
-            let _ = app_handle_for_notify
-                .notification()
-                .builder()
-                .title(title)
-                .body(message)
-                .show();
-        })
-        .hide_window_callback(move || {
-            if let Some(window) = app_handle_for_hide.get_webview_window("main") {
-                let _ = window.hide();
-                let _ = window.emit("handle_focus_lost", ());
-            }
-        })
-        .show_window_callback(move || {
-            if let Some(window) = app_handle_for_show.get_webview_window("main") {
-                let _ = window.show();
-                let _ = window.set_focus();
-                let _ = window.emit("show_window", ());
-            }
-        })
-        .is_window_visible_callback(move || {
-            app_handle_for_is_visible
-                .get_webview_window("main")
-                .map(|w| w.is_visible().unwrap_or(false))
-                .unwrap_or(false)
-        })
-        .model_service(model_manager.clone())
-        .build()
-        .expect("Failed to build HostApi"),
+        HostApi::builder(icon_cache_dir)
+            .platform(platform)
+            .parameter_resolver(Arc::new(DefaultParameterResolver::new()))
+            .timer_manager(Arc::new(TokioTimerManager::new()))
+            .storage_service(default_storage)
+            .app_resource(app_resource)
+            .model_service(model_manager.clone())
+            .set_window_position_callback(move |x, y| {
+                if let Some(window) = app_handle_for_set_pos.get_webview_window("main") {
+                    let _ = window.set_position(tauri::PhysicalPosition::new(x, y));
+                }
+            })
+            .notify_callback(move |title: String, message: String| {
+                use tauri_plugin_notification::NotificationExt;
+                let _ = app_handle_for_notify
+                    .notification()
+                    .builder()
+                    .title(title)
+                    .body(message)
+                    .show();
+            })
+            .hide_window_callback(move || {
+                if let Some(window) = app_handle_for_hide.get_webview_window("main") {
+                    let _ = window.hide();
+                    let _ = window.emit("handle_focus_lost", ());
+                }
+            })
+            .show_window_callback(move || {
+                if let Some(window) = app_handle_for_show.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                    let _ = window.emit("show_window", ());
+                }
+            })
+            .is_window_visible_callback(move || {
+                app_handle_for_is_visible
+                    .get_webview_window("main")
+                    .map(|w| w.is_visible().unwrap_or(false))
+                    .unwrap_or(false)
+            })
+            .build()
+            .expect("Failed to build HostApi"),
     );
     state.set_host_api(host_api.clone());
     info!("HostApi 初始化完成");

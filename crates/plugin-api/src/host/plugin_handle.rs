@@ -1,137 +1,54 @@
-use crate::host::{CacheLevel, HostApiError, OpenTarget};
+use std::collections::HashMap;
+use std::path::Path;
+use std::sync::Arc;
+use std::time::Duration;
+
+use parking_lot::RwLock;
+
+use crate::host::plugin_host::PluginHost;
+use crate::host::{CacheLevel, HostApiError, OpenTarget, PluginSdkConfig};
 use crate::platform::capabilities::PlatformCapabilities;
-use crate::services::app::{AppEnumerator, AppInfo, AppLauncher};
-use crate::services::clipboard::ClipboardManager;
-use crate::services::focus_monitor::{FocusCallback, FocusMonitor};
+use crate::services::app::AppInfo;
+use crate::services::focus_monitor::FocusCallback;
 use crate::services::hotkey::types::{HotkeyCallback, HotkeyEventFilter};
-use crate::services::hotkey::HotkeyManager;
-use crate::services::icon::icon_cache::IconCacheService;
-use crate::services::icon::icon_extractor::IconExtractor;
 use crate::services::installation_monitor::types::InstallationCallback;
-use crate::services::installation_monitor::InstallationMonitor;
 use crate::services::model::{
     ModelChatRequest, ModelChatResponse, ModelEmbeddingRequest, ModelEmbeddingResponse, ModelError,
-    ModelInfo, ModelService, ModelSimilarityRequest, ModelSimilarityResponse,
+    ModelInfo, ModelSimilarityRequest, ModelSimilarityResponse,
 };
-use crate::services::parameter::resolver::ParameterResolver;
 use crate::services::parameter::types::ParameterSnapshot;
-use crate::services::path::path_resolver::{KnownPath, PathResolver};
-use crate::services::resource::AppResourceService;
-use crate::services::shell::lnk_resolver::LnkResolver;
-use crate::services::shell::resource_loader::ResourceLoader;
-use crate::services::shell::ShellExecutor;
-use crate::services::storage::storage_service::StorageService;
-use crate::services::theme::{Theme, ThemeProvider};
-use crate::services::timer::types::{TimerCallback, TimerId, TimerMode};
-use crate::services::timer::TimerManager;
-use crate::services::window::WindowManager;
+use crate::services::path::path_resolver::KnownPath;
+use crate::services::theme::Theme;
+use crate::services::timer::types::{TimerCallback, TimerId};
 use crate::services::IconRequest;
-use parking_lot::RwLock;
-use std::sync::Arc;
 
-use super::sdk_config::PluginSdkConfig;
-/// 插件服务句柄，绑定插件身份与配置。
-/// 跨平台 struct，通过 Arc<dyn IconExtractor> 等平台 trait 注入平台代码。
-/// 插件通过 HostApi::register() 获取此句柄，后续所有服务调用通过句柄完成。
-/// 句柄自动应用注册时的插件配置（如缓存等级），插件无需在每次调用时传递配置。
+/// 插件服务句柄（插件接口层）。
+/// 绑定插件身份（plugin_id）、配置（PluginSdkConfig）与能力集，并持有宿主操作契约
+/// `Arc<dyn PluginHost>`；所有服务操作委托宿主执行，宿主内部再决定直接处理或
+/// 转发平台实现。插件通过 HostApi::register() 获取此句柄。
 pub struct PluginHandle {
     plugin_id: String,
     config: RwLock<PluginSdkConfig>,
     capabilities: PlatformCapabilities,
-    /// 图标提取器，由 HostApi 注入的平台实现
-    icon_extractor: Arc<dyn IconExtractor>,
-    /// 图标缓存服务，由 HostApi 共享
-    icon_cache: Arc<IconCacheService>,
-    /// Shell 执行器，由 HostApi 注入的平台实现
-    shell_executor: Arc<dyn ShellExecutor>,
-    /// 窗口管理器，由 HostApi 注入的平台实现
-    window_manager: Arc<dyn WindowManager>,
-    /// 路径解析器，由 HostApi 注入的平台实现
-    path_resolver: Arc<dyn PathResolver>,
-    /// 应用枚举器，由 HostApi 注入的平台实现
-    app_enumerator: Arc<dyn AppEnumerator>,
-    /// 应用启动器，由 HostApi 注入的平台实现
-    app_launcher: Arc<dyn AppLauncher>,
-    /// Lnk 快捷方式解析器，由 HostApi 注入的平台实现
-    lnk_resolver: Arc<dyn LnkResolver>,
-    /// 资源加载器，由 HostApi 注入的平台实现
-    resource_loader: Arc<dyn ResourceLoader>,
-    /// 参数解析器，由 HostApi 注入
-    parameter_resolver: Arc<dyn ParameterResolver>,
-    /// 定时器管理器，由 HostApi 注入
-    timer_manager: Arc<dyn TimerManager>,
-    /// 应用资源服务，由 HostApi 注入
-    app_resource: Arc<AppResourceService>,
-    /// 存储服务，由 HostApi 注入（共享 RwLock，reconfigure 后自动可见）
-    storage: Arc<RwLock<Arc<dyn StorageService>>>,
-    /// 按键管理器，由 HostApi 注入
-    hotkey_manager: Arc<dyn HotkeyManager>,
-    /// 安装监控器，由 HostApi 注入
-    installation_monitor: Arc<dyn InstallationMonitor>,
-    /// 聚焦监控器，由 HostApi 注入
-    focus_monitor: Arc<dyn FocusMonitor>,
-    /// 剪贴板管理器，由 HostApi 注入
-    clipboard_manager: Arc<dyn ClipboardManager>,
-    /// 主题提供器，由 HostApi 注入（system 模式时查询系统主题）
-    theme_provider: Arc<dyn ThemeProvider>,
-    /// 宿主当前主题配置模式（system/light/dark），由 HostApi 共享
-    theme_mode: Arc<RwLock<String>>,
-    /// 模型服务，由 HostApi 注入
-    model_service: Arc<dyn ModelService>,
+    /// 宿主操作契约实现（Arc 共享，所有委托操作的执行节点）。
+    host: Arc<dyn PluginHost>,
 }
 
 impl PluginHandle {
-    /// Creates a new PluginHandle with all the service references injected.
-    #[allow(clippy::too_many_arguments)]
+    /// 绑定插件身份与宿主契约构造句柄。
+    /// 参数：plugin_id - 插件唯一标识；config - 插件 SDK 配置；
+    ///       capabilities - 平台能力集；host - 宿主操作契约实现。
     pub fn new(
         plugin_id: String,
         config: PluginSdkConfig,
         capabilities: PlatformCapabilities,
-        theme_provider: Arc<dyn ThemeProvider>,
-        theme_mode: Arc<RwLock<String>>,
-        icon_extractor: Arc<dyn IconExtractor>,
-        icon_cache: Arc<IconCacheService>,
-        shell_executor: Arc<dyn ShellExecutor>,
-        window_manager: Arc<dyn WindowManager>,
-        path_resolver: Arc<dyn PathResolver>,
-        app_enumerator: Arc<dyn AppEnumerator>,
-        app_launcher: Arc<dyn AppLauncher>,
-        lnk_resolver: Arc<dyn LnkResolver>,
-        resource_loader: Arc<dyn ResourceLoader>,
-        parameter_resolver: Arc<dyn ParameterResolver>,
-        timer_manager: Arc<dyn TimerManager>,
-        app_resource: Arc<AppResourceService>,
-        storage: Arc<RwLock<Arc<dyn StorageService>>>,
-        hotkey_manager: Arc<dyn HotkeyManager>,
-        installation_monitor: Arc<dyn InstallationMonitor>,
-        focus_monitor: Arc<dyn FocusMonitor>,
-        clipboard_manager: Arc<dyn ClipboardManager>,
-        model_service: Arc<dyn ModelService>,
+        host: Arc<dyn PluginHost>,
     ) -> Self {
         Self {
             plugin_id,
             config: RwLock::new(config),
             capabilities,
-            theme_provider,
-            theme_mode,
-            icon_extractor,
-            icon_cache,
-            shell_executor,
-            window_manager,
-            path_resolver,
-            app_enumerator,
-            app_launcher,
-            lnk_resolver,
-            resource_loader,
-            parameter_resolver,
-            timer_manager,
-            app_resource,
-            storage,
-            hotkey_manager,
-            installation_monitor,
-            focus_monitor,
-            clipboard_manager,
-            model_service,
+            host,
         }
     }
 
@@ -145,252 +62,171 @@ impl PluginHandle {
         self.config.read().icon_cache_level.unwrap_or_default()
     }
 
-    // ===== 图标服务 =====
-
-    /// 根据图标请求提取图标数据，行为由注册时的缓存等级决定。
-    /// 参数：request - 图标请求（路径/网址/扩展名）。
-    /// 返回：WebP 格式的图标字节数据（回退路径可能为 PNG），失败返回 HostApiError。
-    pub async fn get_icon(&self, request: IconRequest) -> Result<Vec<u8>, HostApiError> {
-        let level = self.icon_cache_level();
-        self.icon_extractor
-            .get_icon(&self.icon_cache, &request, level)
-            .await
+    /// 更新插件的 SDK 配置，立即生效，影响后续所有服务调用。
+    pub fn update_config(&self, config: PluginSdkConfig) {
+        *self.config.write() = config;
     }
 
-    /// 提取图标数据，失败时回退到默认图标。
-    /// 与 get_icon 不同，此方法永不返回错误，提取失败时返回默认图标数据。
+    /// 查询当前平台支持的能力集合。
+    pub fn capabilities(&self) -> &PlatformCapabilities {
+        &self.capabilities
+    }
+
+    // ===== 图标服务（委托宿主） =====
+
+    /// 根据图标请求提取图标数据，行为由注册时的缓存等级决定。
+    pub async fn get_icon(&self, request: IconRequest) -> Result<Vec<u8>, HostApiError> {
+        let level = self.icon_cache_level();
+        self.host.get_icon(&request, level).await
+    }
+
+    /// 提取图标数据，失败时回退到默认图标（永不返回错误）。
     pub async fn get_icon_or_default(&self, request: IconRequest) -> Vec<u8> {
         let level = self.icon_cache_level();
-        match self
-            .icon_extractor
-            .get_icon(&self.icon_cache, &request, level)
-            .await
-        {
-            Ok(data) if !data.is_empty() => data,
-            _ => {
-                tracing::warn!("图标提取失败，使用默认图标: {:?}", request);
-                self.icon_extractor.load_default_icon(&request).await
-            }
-        }
+        self.host.get_icon_or_default(&request, level).await
     }
 
     /// 强制从磁盘提取图标数据并根据缓存等级更新缓存。
-    /// 与 get_icon 不同，此方法跳过缓存读取，直接提取并更新缓存。
-    /// 参数：request - 图标请求（路径/网址/扩展名）。
-    /// 返回：WebP 格式的图标字节数据（回退路径可能为 PNG），失败返回 HostApiError。
     pub async fn get_icon_and_update_cache(
         &self,
         request: IconRequest,
     ) -> Result<Vec<u8>, HostApiError> {
         let level = self.icon_cache_level();
-        self.icon_extractor
-            .get_icon_and_update_cache(&self.icon_cache, &request, level)
-            .await
+        self.host.get_icon_and_update_cache(&request, level).await
     }
 
     /// 覆盖指定 IconRequest 的缓存图标为自定义图标文件。
-    /// 参数：original_request - 需要覆盖图标的原始 IconRequest
-    ///       custom_icon_path - 用户选择的自定义图标文件路径
-    /// 返回：成功返回 Ok(()), 失败返回 HostApiError
     pub async fn override_icon_cache(
         &self,
         original_request: &IconRequest,
         custom_icon_path: &str,
     ) -> Result<(), HostApiError> {
-        // 缓存键后缀与提取/查询链路一致（.webp）
-        let hash_key = original_request.get_hash_string() + ".webp";
-
-        // 从自定义文件提取并处理图标
-        let custom_request = IconRequest::Path(custom_icon_path.to_string());
-        let data = self
-            .icon_extractor
-            .extract_and_process(&custom_request)
-            .await?;
-
-        // 覆盖写入 L1 + L2 缓存
-        self.icon_cache.set_l1(&hash_key, data.clone());
-        self.icon_cache.set_l2(&hash_key, data).await;
-
-        Ok(())
+        self.host
+            .override_icon_cache(original_request, custom_icon_path)
+            .await
     }
 
-    // ===== Shell 服务 =====
+    // ===== Shell 服务（委托宿主） =====
 
     /// 使用系统默认方式打开目标（文件/网址/文件夹）。
-    /// 参数：target - 打开目标。
-    /// 返回：成功返回 Ok(())，失败返回 HostApiError。
     pub async fn shell_open(&self, target: OpenTarget) -> Result<(), HostApiError> {
-        self.shell_executor.shell_open(&target).await
+        self.host.shell_open(target).await
     }
 
     /// 在文件资源管理器中打开指定路径的父目录并选中该文件。
-    /// 参数：path - 要打开所在位置的文件路径。
-    /// 返回：成功返回 Ok(())，失败返回 HostApiError。
     pub async fn shell_open_folder(&self, path: &str) -> Result<(), HostApiError> {
-        self.shell_executor.shell_open_folder(path).await
+        self.host.shell_open_folder(path).await
     }
 
     /// 以管理员权限启动程序。
-    /// 参数：path - 要以管理员身份运行的程序路径。
-    /// 返回：成功返回 Ok(())，失败返回 HostApiError。
     pub async fn shell_execute_elevation(&self, path: &str) -> Result<(), HostApiError> {
-        self.shell_executor.shell_execute_elevation(path).await
+        self.host.shell_execute_elevation(path).await
     }
 
     /// 执行命令字符串（后台运行，无窗口）。
-    /// 参数：command - 要执行的命令字符串。
-    /// 返回：成功返回 Ok(())，失败返回 HostApiError。
     pub async fn shell_execute_command(&self, command: &str) -> Result<(), HostApiError> {
-        self.shell_executor.shell_execute_command(command).await
+        self.host.shell_execute_command(command).await
     }
 
-    // ===== 窗口服务 =====
+    // ===== 窗口服务（委托宿主） =====
 
     /// 根据进程名（如 "chrome.exe"）激活已存在的窗口。
-    /// 参数：process_name - 进程名（含扩展名）。
-    /// 返回：成功激活返回 Ok(true)，未找到窗口返回 Ok(false)，失败返回 HostApiError。
     pub async fn activate_window_by_process(
         &self,
         process_name: &str,
     ) -> Result<bool, HostApiError> {
-        self.window_manager
-            .activate_window_by_process(process_name)
-            .await
+        self.host.activate_window_by_process(process_name).await
     }
 
     /// 根据窗口标题的部分内容激活已存在的窗口。
-    /// 参数：title - 窗口标题的部分匹配文本。
-    /// 返回：成功激活返回 Ok(true)，未找到窗口返回 Ok(false)，失败返回 HostApiError。
     pub async fn activate_window_by_title(&self, title: &str) -> Result<bool, HostApiError> {
-        self.window_manager.activate_window_by_title(title).await
+        self.host.activate_window_by_title(title).await
     }
 
     /// 根据进程 PID 激活已存在的窗口。
-    /// 参数：pid - 进程标识符。
-    /// 返回：成功激活返回 Ok(true)，未找到窗口返回 Ok(false)，失败返回 HostApiError。
     pub async fn activate_window_by_pid(&self, pid: u32) -> Result<bool, HostApiError> {
-        self.window_manager.activate_window_by_pid(pid).await
+        self.host.activate_window_by_pid(pid).await
     }
 
-    // ===== 路径服务 =====
+    // ===== 路径服务（委托宿主） =====
 
     /// 根据已知路径类型解析实际文件系统路径。
-    /// 参数：path - 已知路径类型枚举。
-    /// 返回：解析后的路径字符串，失败返回 HostApiError。
     pub fn resolve_path(&self, path: KnownPath) -> Result<String, HostApiError> {
-        self.path_resolver.resolve_path(path)
+        self.host.resolve_path(path)
     }
 
-    // ===== 剪贴板服务 =====
+    // ===== 剪贴板服务（委托宿主） =====
 
     /// 将文本写入系统剪贴板。
-    /// 参数：text - 要写入的文本内容。
-    /// 返回：成功返回 Ok(())，失败返回 HostApiError。
     pub fn set_clipboard_text(&self, text: &str) -> Result<(), HostApiError> {
-        self.clipboard_manager.set_text(text)
+        self.host.set_clipboard_text(text)
     }
 
-    // ===== 应用服务 =====
+    // ===== 应用服务（委托宿主） =====
 
     /// 枚举当前平台已安装的应用。
-    /// 参数：无。
-    /// 返回：应用信息列表。
     pub async fn enumerate_apps(&self) -> Vec<AppInfo> {
-        self.app_enumerator.enumerate_apps().await
+        self.host.enumerate_apps().await
     }
 
     /// 启动指定应用。
-    /// 参数：app_id - 应用唯一标识；args - 启动参数（可选）。
-    /// 返回：成功返回 Ok(pid)，失败返回 HostApiError。
     pub async fn launch_app(
         &self,
         app_id: &str,
         args: Option<&[String]>,
     ) -> Result<u32, HostApiError> {
-        self.app_launcher.launch_app(app_id, args).await
+        self.host.launch_app(app_id, args).await
     }
 
-    // ===== 应用资源服务 =====
+    // ===== 应用资源服务（委托宿主） =====
 
     /// 根据名称获取内置图标资源的文件系统路径。
-    /// 参数：name - 图标名称（如 "tray_icon", "web_pages" 等）。
-    /// 返回：图标路径，未注册则返回 None。
     pub fn get_app_icon_path(&self, name: &str) -> Option<String> {
-        self.app_resource.get_icon_path(name)
+        self.host.get_app_icon_path(name)
     }
 
-    // ===== 快捷方式解析 =====
+    // ===== 快捷方式解析（委托宿主） =====
 
     /// 解析 .lnk 快捷方式文件的目标路径。
-    /// 参数：lnk_path - .lnk 文件的路径。
-    /// 返回：解析成功返回目标路径，失败返回 None。
     pub fn resolve_lnk_target(&self, lnk_path: &str) -> Option<String> {
-        self.lnk_resolver.resolve_lnk_target(lnk_path)
+        self.host.resolve_lnk_target(lnk_path)
     }
 
     /// 解析指定目录下的 desktop.ini 文件，提取 [LocalizedFileNames] 部分。
-    /// 参数：dir_path - 要解析的目录路径。
-    /// 返回：从原始文件名到本地化名称的映射。
-    pub fn parse_localized_names_from_dir(
-        &self,
-        dir_path: &std::path::Path,
-    ) -> std::collections::HashMap<String, String> {
-        self.resource_loader
-            .parse_localized_names_from_dir(dir_path)
+    pub fn parse_localized_names_from_dir(&self, dir_path: &Path) -> HashMap<String, String> {
+        self.host.parse_localized_names_from_dir(dir_path)
     }
 
-    // ===== 配置管理 =====
+    // ===== 主题服务（委托宿主） =====
 
-    /// 更新插件的 SDK 配置。
-    /// 参数：config - 新的插件 SDK 配置。
-    /// 返回：无。
-    /// 特性：立即生效，影响后续所有服务调用。
-    pub fn update_config(&self, config: PluginSdkConfig) {
-        *self.config.write() = config;
-    }
-
-    // ===== 能力查询 =====
-
-    /// 查询当前平台支持的能力集合。
-    /// 参数：无。
-    /// 返回：平台能力的不可变引用。
-    pub fn capabilities(&self) -> &PlatformCapabilities {
-        &self.capabilities
-    }
-
-    /// 查询宿主当前实际生效的界面主题。
-    /// 显式 light/dark 配置直接返回；system 模式委托平台读取系统主题。
+    /// 查询宿主当前实际生效的界面主题（system 模式由宿主解析）。
     pub fn get_theme(&self) -> Result<Theme, HostApiError> {
-        match self.theme_mode.read().as_str() {
-            "light" => Ok(Theme::Light),
-            "dark" => Ok(Theme::Dark),
-            _ => self.theme_provider.current_system_theme(),
-        }
+        self.host.get_theme()
     }
 
-    /// 查询系统主题（未应用宿主显式 light/dark 配置），供前端 system 模式跟随。
+    /// 查询系统主题（未应用宿主显式 light/dark 配置）。
     pub fn get_system_theme(&self) -> Result<Theme, HostApiError> {
-        self.theme_provider.current_system_theme()
+        self.host.get_system_theme()
     }
 
-    // ===== 模型服务 =====
+    // ===== 模型服务（委托宿主） =====
 
     /// 全网模型清单（聚合缓存，含所有已注册提供方）。
     pub fn model_list(&self) -> Vec<ModelInfo> {
-        self.model_service.list_models()
+        self.host.model_list()
     }
 
     /// 按 model_id 调用文本生成。
     pub async fn model_chat(&self, req: ModelChatRequest) -> Result<ModelChatResponse, ModelError> {
-        self.model_service.chat(req).await
+        self.host.model_chat(req).await
     }
 
-    /// 按 model_id 调用文本向量化（task_type 必填，宿主对缺失/未知值返回 InvalidRequest）。
+    /// 按 model_id 调用文本向量化（task_type 必填）。
     pub async fn model_embedding(
         &self,
         req: ModelEmbeddingRequest,
     ) -> Result<ModelEmbeddingResponse, ModelError> {
-        self.model_service.embedding(req).await
+        self.host.model_embedding(req).await
     }
 
     /// 按 model_id 计算查询向量与多个目标向量的相似度。
@@ -398,98 +234,65 @@ impl PluginHandle {
         &self,
         req: ModelSimilarityRequest,
     ) -> Result<ModelSimilarityResponse, ModelError> {
-        self.model_service.similarity(req).await
+        self.host.model_similarity(req).await
     }
 
-    // ===== 参数解析服务 =====
+    // ===== 参数解析服务（委托宿主） =====
 
-    /// 解析参数模板
-    ///
-    /// 参数：
-    /// - template: 包含占位符的模板字符串
-    /// - user_args: 用户输入的参数列表
-    /// - snapshot: 系统参数快照（不透明句柄）
-    ///
-    /// 返回：填充后的完整字符串
+    /// 解析参数模板。
     pub async fn resolve_parameters(
         &self,
         template: &str,
         user_args: &[String],
         snapshot: &ParameterSnapshot,
     ) -> Result<String, HostApiError> {
-        self.parameter_resolver
-            .resolve(template, user_args, snapshot)
+        self.host
+            .resolve_parameters(template, user_args, snapshot)
             .await
-            .map_err(|e| HostApiError::ParameterResolutionFailed {
-                reason: e.to_string(),
-            })
     }
 
-    /// 统计模板中需要用户输入的参数数量
-    ///
-    /// 参数：template - 模板字符串
-    /// 返回：位置参数的数量
+    /// 统计模板中需要用户输入的参数数量。
     pub fn count_user_parameters(&self, template: &str) -> usize {
-        self.parameter_resolver.count_user_parameters(template)
+        self.host.count_user_parameters(template)
     }
 
-    /// 检查模板是否包含系统参数
-    ///
-    /// 参数：template - 模板字符串
-    /// 返回：是否包含系统参数
+    /// 检查模板是否包含系统参数。
     pub fn has_system_parameters(&self, template: &str) -> bool {
-        self.parameter_resolver.has_system_parameters(template)
+        self.host.has_system_parameters(template)
     }
 
-    // ===== 定时器服务 =====
+    // ===== 定时器服务（委托宿主） =====
 
     /// 创建一个一次性定时器，在指定延迟后触发回调。
-    ///
-    /// 参数：
-    /// - delay: 触发延迟时长
-    /// - callback: 触发时调用的回调函数
-    ///
-    /// 返回：TimerId，可用于取消定时器。
     pub async fn set_timeout(
         &self,
-        delay: std::time::Duration,
+        delay: Duration,
         callback: TimerCallback,
     ) -> Result<TimerId, HostApiError> {
-        self.timer_manager
-            .set_timer(delay, TimerMode::OneShot, callback)
-            .await
+        self.host.set_timeout(delay, callback).await
     }
 
     /// 创建一个重复定时器，每隔指定间隔触发回调。
-    ///
-    /// 参数：
-    /// - interval: 触发间隔时长
-    /// - callback: 每次触发时调用的回调函数
-    ///
-    /// 返回：TimerId，可用于取消定时器。
     pub async fn set_interval(
         &self,
-        interval: std::time::Duration,
+        interval: Duration,
         callback: TimerCallback,
     ) -> Result<TimerId, HostApiError> {
-        self.timer_manager
-            .set_timer(interval, TimerMode::Interval, callback)
-            .await
+        self.host.set_interval(interval, callback).await
     }
 
     /// 取消指定 ID 的定时器。
-    ///
-    /// 参数：id - 要取消的定时器 ID。
     pub async fn cancel_timer(&self, id: TimerId) -> Result<(), HostApiError> {
-        self.timer_manager.cancel_timer(id).await
+        self.host.cancel_timer(id).await
     }
 
     /// 取消所有定时器。
     pub async fn cancel_all_timers(&self) -> Result<(), HostApiError> {
-        self.timer_manager.cancel_all().await
+        self.host.cancel_all_timers().await
     }
 
-    // ===== 资源管理 =====
+    // ===== 资源管理（委托宿主，插件作用域） =====
+
     /// 上传资源文件到本插件的资源空间。
     pub async fn resource_upload(
         &self,
@@ -497,130 +300,49 @@ impl PluginHandle {
         file_path: &str,
         max_size: Option<u64>,
     ) -> Result<String, HostApiError> {
-        let path = std::path::Path::new(file_path);
-
-        if let Some(limit) = max_size {
-            let metadata = tokio::fs::metadata(path).await.map_err(|e| {
-                HostApiError::StorageOperationFailed {
-                    file: file_path.to_string(),
-                    reason: format!("读取文件元数据失败: {}", e),
-                }
-            })?;
-            if metadata.len() > limit {
-                return Err(HostApiError::StorageOperationFailed {
-                    file: file_path.to_string(),
-                    reason: format!("文件大小 {} 超过限制 {} 字节", metadata.len(), limit),
-                });
-            }
-        }
-
-        let data =
-            tokio::fs::read(path)
-                .await
-                .map_err(|e| HostApiError::StorageOperationFailed {
-                    file: file_path.to_string(),
-                    reason: format!("读取文件失败: {}", e),
-                })?;
-
-        // 直接使用 resource_id 作为存储标识符，避免对用户指定的标识符做额外变换。
-        let storage_path = build_resource_path(&self.plugin_id, Some(resource_id))?;
-        let storage = self.storage.read().clone();
-        storage.upload(&storage_path, &data).await.map_err(|e| {
-            HostApiError::StorageOperationFailed {
-                file: storage_path,
-                reason: e.to_string(),
-            }
-        })?;
-        Ok(resource_id.to_string())
+        self.host
+            .resource_upload(&self.plugin_id, resource_id, file_path, max_size)
+            .await
     }
 
     /// 直接写入资源字节数据，无需先创建临时文件或提供本地路径。
-    /// 参数：resource_id - 资源标识符；data - 资源字节内容。
-    /// 返回：成功返回 Ok(())，失败返回 HostApiError。
     pub async fn resource_put(&self, resource_id: &str, data: &[u8]) -> Result<(), HostApiError> {
-        let storage_path = build_resource_path(&self.plugin_id, Some(resource_id))?;
-        let storage: Arc<dyn StorageService> = self.storage.read().clone();
-        storage.upload(&storage_path, data).await.map_err(|e| {
-            HostApiError::StorageOperationFailed {
-                file: storage_path,
-                reason: e.to_string(),
-            }
-        })
+        self.host
+            .resource_put(&self.plugin_id, resource_id, data)
+            .await
     }
 
     /// 获取资源文件内容。
     pub async fn resource_get(&self, resource_id: &str) -> Result<Vec<u8>, HostApiError> {
-        let path = build_resource_path(&self.plugin_id, Some(resource_id))?;
-        let storage = self.storage.read().clone();
-        storage
-            .download(&path)
-            .await
-            .map_err(|e| HostApiError::StorageOperationFailed {
-                file: path,
-                reason: e.to_string(),
-            })?
-            .ok_or_else(|| HostApiError::ResourceNotFound {
-                id: resource_id.to_string(),
-            })
+        self.host.resource_get(&self.plugin_id, resource_id).await
     }
 
     /// 删除资源文件。
     pub async fn resource_delete(&self, resource_id: &str) -> Result<(), HostApiError> {
-        let path = build_resource_path(&self.plugin_id, Some(resource_id))?;
-        let storage = self.storage.read().clone();
-        storage
-            .delete(&path)
+        self.host
+            .resource_delete(&self.plugin_id, resource_id)
             .await
-            .map_err(|e| HostApiError::StorageOperationFailed {
-                file: path,
-                reason: e.to_string(),
-            })
     }
 
     /// 列出本插件的所有资源。
     pub async fn resource_list(&self) -> Result<Vec<String>, HostApiError> {
-        let prefix = build_resource_path(&self.plugin_id, None)?;
-        let storage = self.storage.read().clone();
-        storage
-            .list(&prefix)
-            .await
-            .map_err(|e| HostApiError::StorageOperationFailed {
-                file: prefix,
-                reason: e.to_string(),
-            })
+        self.host.resource_list(&self.plugin_id).await
     }
 
-    // ===== 本地缓存 =====
+    // ===== 本地缓存（委托宿主，插件作用域） =====
 
     /// 写入插件本地缓存。
-    /// 参数：domain - 缓存域（按用途隔离，如 "model-embedding"）；key - 缓存键；data - 缓存字节内容。
-    /// 返回：成功返回 Ok(())。
     /// 与 resource_* 的区别：缓存存放可再生的本地数据（如模型向量），
-    /// 不经过 StorageService，WebDAV 同步模式不会上传远端；
-    /// 路径为 <app_data>/plugin-cache/<plugin_id>/<domain>/<key>。
+    /// 不经过 StorageService，WebDAV 同步模式不会上传远端。
     pub async fn cache_put(
         &self,
         domain: &str,
         key: &str,
         data: &[u8],
     ) -> Result<(), HostApiError> {
-        let cache_root = self.resolve_path(KnownPath::AppCacheDir)?;
-        let path = build_cache_path(&cache_root, &self.plugin_id, domain, key)?;
-        if let Some(parent) = std::path::Path::new(&path).parent() {
-            tokio::fs::create_dir_all(parent).await.map_err(|e| {
-                HostApiError::StorageOperationFailed {
-                    file: path.clone(),
-                    reason: format!("创建缓存目录失败: {}", e),
-                }
-            })?;
-        }
-        tokio::fs::write(&path, data)
+        self.host
+            .cache_put(&self.plugin_id, domain, key, data)
             .await
-            .map_err(|e| HostApiError::StorageOperationFailed {
-                file: path,
-                reason: format!("写入缓存文件失败: {}", e),
-            })?;
-        Ok(())
     }
 
     /// 读取插件本地缓存；缓存不存在时返回 Ok(None)。
@@ -629,161 +351,75 @@ impl PluginHandle {
         domain: &str,
         key: &str,
     ) -> Result<Option<Vec<u8>>, HostApiError> {
-        let cache_root = self.resolve_path(KnownPath::AppCacheDir)?;
-        let path = build_cache_path(&cache_root, &self.plugin_id, domain, key)?;
-        match tokio::fs::read(&path).await {
-            Ok(data) => Ok(Some(data)),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
-            Err(e) => Err(HostApiError::StorageOperationFailed {
-                file: path,
-                reason: format!("读取缓存文件失败: {}", e),
-            }),
-        }
+        self.host.cache_get(&self.plugin_id, domain, key).await
     }
 
     /// 删除插件本地缓存条目；缓存不存在时视为成功。
     pub async fn cache_delete(&self, domain: &str, key: &str) -> Result<(), HostApiError> {
-        let cache_root = self.resolve_path(KnownPath::AppCacheDir)?;
-        let path = build_cache_path(&cache_root, &self.plugin_id, domain, key)?;
-        match tokio::fs::remove_file(&path).await {
-            Ok(()) => Ok(()),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
-            Err(e) => Err(HostApiError::StorageOperationFailed {
-                file: path,
-                reason: format!("删除缓存文件失败: {}", e),
-            }),
-        }
+        self.host.cache_delete(&self.plugin_id, domain, key).await
     }
 
     /// 容量控制：缓存域条目超过 max_entries 时按修改时间删除最旧条目。
-    /// 目录结构 <cache_root>/<plugin_id>/<domain>/<sha前2>/<sha>.bin（两级分片）。
-    /// 参数：domain - 缓存域；max_entries - 条目数上限。
-    /// 返回：成功返回 Ok(())（目录不存在视为无需清理）。
     pub async fn cache_cleanup(
         &self,
         domain: &str,
         max_entries: usize,
     ) -> Result<(), HostApiError> {
-        let cache_root = self.resolve_path(KnownPath::AppCacheDir)?;
-        let domain_dir = std::path::Path::new(&cache_root)
-            .join(&self.plugin_id)
-            .join(domain);
-        if !domain_dir.exists() {
-            return Ok(());
-        }
-
-        // 收集全部条目（含两级分片目录）及其修改时间
-        let mut entries: Vec<(std::time::SystemTime, std::path::PathBuf)> = Vec::new();
-        for sub in
-            std::fs::read_dir(&domain_dir).map_err(|e| HostApiError::StorageOperationFailed {
-                file: domain_dir.to_string_lossy().to_string(),
-                reason: format!("读取缓存目录失败: {}", e),
-            })?
-        {
-            let sub = sub.map_err(|e| HostApiError::StorageOperationFailed {
-                file: domain_dir.to_string_lossy().to_string(),
-                reason: format!("读取缓存子目录失败: {}", e),
-            })?;
-            if !sub.path().is_dir() {
-                continue;
-            }
-            for file in
-                std::fs::read_dir(sub.path()).map_err(|e| HostApiError::StorageOperationFailed {
-                    file: sub.path().to_string_lossy().to_string(),
-                    reason: format!("读取缓存分片目录失败: {}", e),
-                })?
-            {
-                let file = file.map_err(|e| HostApiError::StorageOperationFailed {
-                    file: sub.path().to_string_lossy().to_string(),
-                    reason: format!("读取缓存条目失败: {}", e),
-                })?;
-                let meta = file
-                    .metadata()
-                    .map_err(|e| HostApiError::StorageOperationFailed {
-                        file: file.path().to_string_lossy().to_string(),
-                        reason: format!("读取缓存条目元数据失败: {}", e),
-                    })?;
-                if meta.is_file() {
-                    entries.push((
-                        meta.modified().unwrap_or(std::time::UNIX_EPOCH),
-                        file.path(),
-                    ));
-                }
-            }
-        }
-
-        if entries.len() <= max_entries {
-            return Ok(());
-        }
-        entries.sort_by_key(|(mtime, _)| *mtime);
-        let excess = entries.len() - max_entries;
-        for (_, path) in entries.into_iter().take(excess) {
-            let _ = std::fs::remove_file(&path);
-        }
-        Ok(())
+        self.host
+            .cache_cleanup(&self.plugin_id, domain, max_entries)
+            .await
     }
 
-    // ===== 推送式回调注册 =====
+    // ===== 推送式回调注册（委托宿主，ID 由宿主按插件前缀化） =====
 
-    /// 为回调 ID 添加插件前缀，避免不同插件间的 ID 冲突。
-    fn prefix_callback_id(&self, id: &str) -> String {
-        format!("{}:{}", self.plugin_id, id)
-    }
-
-    /// 注册按键事件回调。
-    /// 参数：id - 回调标识（自动前缀化为 "{plugin_id}:{id}"）；filter - 事件过滤器；callback - 回调函数。
+    /// 注册按键事件回调。ID 自动前缀化为 "{plugin_id}:{id}"。
     pub fn register_hotkey_callback(
         &self,
         id: &str,
         filter: HotkeyEventFilter,
         callback: HotkeyCallback,
     ) {
-        let prefixed = self.prefix_callback_id(id);
-        self.hotkey_manager
-            .register_callback(&prefixed, filter, callback);
+        self.host
+            .register_hotkey_callback(&self.plugin_id, id, filter, callback);
     }
 
     /// 注销按键事件回调。
-    /// 参数：id - 回调标识（自动前缀化为 "{plugin_id}:{id}"）。
     pub fn unregister_hotkey_callback(&self, id: &str) {
-        let prefixed = self.prefix_callback_id(id);
-        self.hotkey_manager.unregister_callback(&prefixed);
+        self.host.unregister_hotkey_callback(&self.plugin_id, id);
     }
 
-    /// 注册安装事件回调。
-    /// 参数：id - 回调标识（自动前缀化为 "{plugin_id}:{id}"）；callback - 回调函数。
+    /// 注册安装事件回调。ID 自动前缀化为 "{plugin_id}:{id}"。
     pub fn register_installation_callback(&self, id: &str, callback: InstallationCallback) {
-        let prefixed = self.prefix_callback_id(id);
-        self.installation_monitor
-            .register_callback(&prefixed, callback);
+        self.host
+            .register_installation_callback(&self.plugin_id, id, callback);
     }
 
     /// 注销安装事件回调。
-    /// 参数：id - 回调标识（自动前缀化为 "{plugin_id}:{id}"）。
     pub fn unregister_installation_callback(&self, id: &str) {
-        let prefixed = self.prefix_callback_id(id);
-        self.installation_monitor.unregister_callback(&prefixed);
+        self.host
+            .unregister_installation_callback(&self.plugin_id, id);
     }
 
-    /// 注册焦点事件回调。
-    /// 参数：id - 回调标识（自动前缀化为 "{plugin_id}:{id}"）；callback - 回调函数。
+    /// 注册焦点事件回调。ID 自动前缀化为 "{plugin_id}:{id}"。
     pub fn register_focus_callback(&self, id: &str, callback: FocusCallback) {
-        let prefixed = self.prefix_callback_id(id);
-        self.focus_monitor.register_callback(&prefixed, callback);
+        self.host
+            .register_focus_callback(&self.plugin_id, id, callback);
     }
 
     /// 注销焦点事件回调。
-    /// 参数：id - 回调标识（自动前缀化为 "{plugin_id}:{id}"）。
     pub fn unregister_focus_callback(&self, id: &str) {
-        let prefixed = self.prefix_callback_id(id);
-        self.focus_monitor.unregister_callback(&prefixed);
+        self.host.unregister_focus_callback(&self.plugin_id, id);
     }
 }
 
 /// 构建资源存储路径，校验文件名防止路径遍历攻击。
 /// 使用 PathBuf 确保路径构建的安全性。
 /// 返回 Unix 风格路径（存储后端约定）。
-fn build_resource_path(plugin_id: &str, filename: Option<&str>) -> Result<String, HostApiError> {
+/// 供宿主实现 PluginHost 资源操作时使用。
+pub fn build_resource_path(
+    plugin_id: &str,
+    filename: Option<&str>,
+) -> Result<String, HostApiError> {
     let base = std::path::PathBuf::from_iter(["resources", plugin_id]);
     let base_normalized = normalize_path(&base);
 
@@ -832,7 +468,8 @@ fn normalize_path(path: &std::path::Path) -> std::path::PathBuf {
 /// 构建本地缓存文件路径：`<cache_root>/<plugin_id>/<domain>/<key>`。
 /// 校验 domain 与 key（拒绝空串、"."、".." 与路径穿越），策略同 build_resource_path。
 /// 缓存根目录为宿主 app data 下的 plugin-cache/，不经 StorageService。
-fn build_cache_path(
+/// 供宿主实现 PluginHost 缓存操作时使用。
+pub fn build_cache_path(
     cache_root: &str,
     plugin_id: &str,
     domain: &str,

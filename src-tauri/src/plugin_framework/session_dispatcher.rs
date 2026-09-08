@@ -1753,18 +1753,17 @@ impl SessionDispatcher {
 mod tests {
     use super::*;
     use async_trait::async_trait;
-    use std::collections::HashSet;
     use zerolaunch_plugin_api::config::{
         ComponentCore, ComponentType, Configurable, SettingDefinition,
     };
+    use zerolaunch_plugin_api::mock::helpers::mock_platform_services;
     use zerolaunch_plugin_api::mock::*;
     use zerolaunch_plugin_api::services::resource::AppResourceService;
     use zerolaunch_plugin_api::services::storage::storage_service::StorageService;
     use zerolaunch_plugin_api::services::theme::{Theme, ThemeProvider};
     use zerolaunch_plugin_api::services::timer::TokioTimerManager;
     use zerolaunch_plugin_api::{
-        HostApiError, PlatformCapabilities, PluginError, PluginHandle, PluginKind, PluginMetadata,
-        PluginMode,
+        HostApiError, PluginError, PluginHandle, PluginKind, PluginMetadata, PluginMode,
     };
 
     /// 测试主题提供器，固定返回浅色主题。
@@ -1778,40 +1777,22 @@ mod tests {
     }
 
     /// 构建仅含桩组件的 HostApi（测试专用，不触达真实平台能力）。
-    /// 镜像 builtin_registry 测试的组件清单。
+    /// 平台端口用 mock_platform_services() 全桩构造（主题提供器替换为本地固定浅色桩）。
     fn test_host_api() -> Arc<HostApi> {
         let storage: Arc<dyn StorageService> = Arc::new(StubStorageService);
+        let mut platform = mock_platform_services();
+        platform.theme_provider = Arc::new(StubThemeProvider);
         let api = HostApi::builder("mock_icons".to_string())
-            .capabilities(PlatformCapabilities::new(HashSet::new()))
-            .icon_extractor(Arc::new(StubIconExtractor))
-            .shell_executor(Arc::new(StubShellExecutor::default()))
-            .window_manager(Arc::new(StubWindowManager))
-            .path_resolver(Arc::new(StubPathResolver))
-            .app_enumerator(Arc::new(StubAppEnumerator))
-            .app_launcher(Arc::new(StubAppLauncher))
-            .lnk_resolver(Arc::new(StubLnkResolver))
-            .resource_loader(Arc::new(StubResourceLoader))
+            .platform(platform)
             .parameter_resolver(Arc::new(StubParameterResolver))
-            .parameter_providers(
-                Arc::new(StubSystemParameterProvider),
-                Arc::new(StubSystemParameterProvider),
-                Arc::new(StubSystemParameterProvider),
-            )
-            .autostart_manager(Arc::new(StubAutoStartManager))
-            .hotkey_manager(Arc::new(StubHotkeyManager))
-            .installation_monitor(Arc::new(StubInstallationMonitor))
             .timer_manager(Arc::new(TokioTimerManager::new()))
             .storage_service(storage)
             .app_resource(Arc::new(AppResourceService::new("mock_icons".to_string())))
-            .focus_monitor(Arc::new(StubFocusMonitor))
-            .clipboard_manager(Arc::new(StubClipboardManager))
             .model_service(Arc::new(StubModelService))
             .notify_callback(|_, _| {})
-            .theme_provider(Arc::new(StubThemeProvider))
             .hide_window_callback(|| {})
             .show_window_callback(|| {})
             .is_window_visible_callback(|| false)
-            .window_positioner(Arc::new(StubWindowPositioner))
             .set_window_position_callback(|_, _| {})
             .build()
             .expect("构建测试 HostApi 失败");

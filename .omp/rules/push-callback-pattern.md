@@ -12,5 +12,5 @@ scope: "tool:edit(crates/plugin-api/src/services/**), tool:write(crates/plugin-a
 - **正确**：将回调存储在线程安全集合（`DashMap`）中，事件发生时依次调用所有回调
 - **正确**：通过 `start_watching()` / `stop_watching()` 管理生命周期
 - **正确**：回调注册/注销可以通过 `PluginHandle` 暴露，插件通过句柄注册自己的回调
-- **正确**：`PluginHandle` 上的回调注册方法内部用 `plugin_id` 前缀化 callback ID，避免不同插件间的 ID 冲突
+- **正确**：`PluginHost` 宿主实现（`HostApi`）在回调注册方法内部用插件传入的 `plugin_id` 前缀化 callback ID（`"{plugin_id}:{id}"`），避免不同插件间的 ID 冲突
 - **全局生命周期管理**（`start_listening`、`stop_listening`、`start_watching`、`stop_watching`）保留在 `HostApi` 上，插件只能注册/注销自己的回调，不能启停全局服务

@@ -13,8 +13,6 @@ pub mod utils;
 pub mod window;
 
 use crate::logging::{init_logging, log_application_shutdown, log_application_start};
-use crate::sdk::HostApi;
-use crate::sdk::HostApiBuilder;
 use crate::state::app_state::AppState;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -24,29 +22,10 @@ use tauri::Manager;
 use tauri::WebviewUrl;
 use tauri_plugin_deep_link::DeepLinkExt;
 use tracing::{debug, info, warn};
-use zerolaunch_platform_windows::windows_capabilities;
 use zerolaunch_platform_windows::ComGuard;
-use zerolaunch_platform_windows::WindowsAppEnumerator;
-use zerolaunch_platform_windows::WindowsAppLauncher;
-use zerolaunch_platform_windows::WindowsAutoStartManager;
-use zerolaunch_platform_windows::WindowsClipboardManager;
-use zerolaunch_platform_windows::WindowsClipboardProvider;
-use zerolaunch_platform_windows::WindowsIconExtractor;
-use zerolaunch_platform_windows::WindowsInstallationMonitor;
-use zerolaunch_platform_windows::WindowsLnkResolver;
 use zerolaunch_platform_windows::WindowsPathResolver;
-use zerolaunch_platform_windows::WindowsResourceLoader;
-use zerolaunch_platform_windows::WindowsSelectionProvider;
-use zerolaunch_platform_windows::WindowsShellExecutor;
-use zerolaunch_platform_windows::WindowsThemeProvider;
-use zerolaunch_platform_windows::WindowsWindowHandleProvider;
-use zerolaunch_platform_windows::WindowsWindowManager;
-use zerolaunch_platform_windows::WindowsWindowPositioner;
+use zerolaunch_plugin_api::services::path::path_resolver::PathResolver;
 use zerolaunch_plugin_api::services::path::KnownPath;
-use zerolaunch_plugin_api::services::storage::storage_service::StorageService;
-use zerolaunch_plugin_api::services::timer::TokioTimerManager;
-use zerolaunch_plugin_api::services::AppResourceService;
-use zerolaunch_plugin_api::services::PathResolver;
 static IS_EXITING: AtomicBool = AtomicBool::new(false);
 
 pub async fn do_cleanup_before_exit(state: Arc<AppState>) {
@@ -262,47 +241,6 @@ pub fn run() {
             }
             _ => {}
         });
-}
-
-/// 配置 HostApiBuilder，注入所有 Windows 平台实现以及平台无关的默认组件。
-/// 返回预配置的 HostApiBuilder，调用方继续添加 Tauri 相关回调后调用 build()。
-fn build_windows_host_api_builder(
-    icon_cache_dir: String,
-    default_app_icon_path: String,
-    default_web_icon_path: String,
-    path_resolver: Arc<dyn PathResolver>,
-    default_storage: Arc<dyn StorageService>,
-    app_resource: Arc<AppResourceService>,
-) -> HostApiBuilder {
-    HostApi::builder(icon_cache_dir)
-        .capabilities(windows_capabilities())
-        .icon_extractor(Arc::new(WindowsIconExtractor::new(
-            default_app_icon_path,
-            default_web_icon_path,
-        )))
-        .shell_executor(Arc::new(WindowsShellExecutor::new()))
-        .window_manager(Arc::new(WindowsWindowManager::new()))
-        .path_resolver(path_resolver)
-        .app_enumerator(Arc::new(WindowsAppEnumerator::new()))
-        .app_launcher(Arc::new(WindowsAppLauncher::new()))
-        .lnk_resolver(Arc::new(WindowsLnkResolver::new()))
-        .resource_loader(Arc::new(WindowsResourceLoader::new()))
-        .parameter_resolver(Arc::new(
-            zerolaunch_plugin_api::services::parameter::DefaultParameterResolver::new(),
-        ))
-        .parameter_providers(
-            Arc::new(WindowsClipboardProvider),
-            Arc::new(WindowsWindowHandleProvider),
-            Arc::new(WindowsSelectionProvider),
-        )
-        .autostart_manager(Arc::new(WindowsAutoStartManager::new()))
-        .installation_monitor(Arc::new(WindowsInstallationMonitor::new()))
-        .timer_manager(Arc::new(TokioTimerManager::new()))
-        .storage_service(default_storage)
-        .app_resource(app_resource)
-        .clipboard_manager(Arc::new(WindowsClipboardManager::new()))
-        .window_positioner(Arc::new(WindowsWindowPositioner::new()))
-        .theme_provider(Arc::new(WindowsThemeProvider))
 }
 
 /// 初始化搜索栏窗口。

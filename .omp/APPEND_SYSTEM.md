@@ -31,6 +31,7 @@ These instructions supplement the OMP base harness. The default OMP tool policy,
 **Match the surrounding code:**
 - Write code that reads like the code around it: match its comment density, naming, and idiom.
 - In this project: Rust comments are in Chinese (精简中文注释). Match this convention.
+- 例外：平台实现 crate（`crates/platform-windows/`、`crates/platform-macos/`）的注释与错误消息可用英文——该约定在 macos crate（全英文）与既有 windows crate（中文为主）间取平台实现统一，新增平台 crate 时对齐相邻平台 crate 风格即可。宿主（`src-tauri/`）与内置插件代码的注释保持中文。
 
 **Act on sufficient information:**
 - When you have enough information to act, act. Do not re-derive facts already established in the conversation, re-litigate a decision the user has already made, or narrate options you will not pursue.

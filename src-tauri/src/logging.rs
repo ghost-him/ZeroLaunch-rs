@@ -17,6 +17,7 @@ use tracing::{debug, error, info, warn, Level};
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_subscriber::fmt::format::{DefaultFields, DefaultVisitor, FmtSpan};
 
+use crate::platform::os_version;
 use tracing_subscriber::{self, reload, EnvFilter};
 
 // ============================================================================
@@ -237,51 +238,6 @@ fn format_enabled_features() -> String {
     }
 }
 
-/// 获取 Windows 详细版本信息
-fn get_windows_version() -> String {
-    #[cfg(windows)]
-    {
-        use winreg::enums::HKEY_LOCAL_MACHINE;
-        use winreg::RegKey;
-
-        let hk_common = RegKey::predef(HKEY_LOCAL_MACHINE);
-        if let Ok(key) = hk_common.open_subkey("SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion") {
-            let product_name: String = key
-                .get_value("ProductName")
-                .unwrap_or_else(|_| "Windows".to_string());
-            let current_build: String = key
-                .get_value("CurrentBuild")
-                .unwrap_or_else(|_| "".to_string());
-            let display_version: String = key
-                .get_value("DisplayVersion")
-                .unwrap_or_else(|_| "".to_string());
-
-            let build_num: u32 = current_build.parse().unwrap_or(0);
-            let mut os_name = product_name;
-
-            if build_num >= 22000 {
-                if os_name.contains("Windows 10") {
-                    os_name = os_name.replace("Windows 10", "Windows 11");
-                } else if !os_name.contains("Windows 11") {
-                    os_name = format!("Windows 11 ({})", os_name);
-                }
-            }
-
-            if !display_version.is_empty() {
-                format!("{} {} (Build {})", os_name, display_version, current_build)
-            } else {
-                format!("{} (Build {})", os_name, current_build)
-            }
-        } else {
-            "Windows (Unknown)".to_string()
-        }
-    }
-    #[cfg(not(windows))]
-    {
-        std::env::consts::OS.to_string()
-    }
-}
-
 /// 打印系统信息
 fn print_system_info(log_dir: &Path) {
     info!("=== ZeroLaunch-rs 系统信息 ===");
@@ -290,7 +246,7 @@ fn print_system_info(log_dir: &Path) {
         "构建时间: {}",
         std::env::var("VERGEN_BUILD_TIMESTAMP").unwrap_or_else(|_| "未知".to_string())
     );
-    info!("操作系统: {}", get_windows_version());
+    info!("操作系统: {}", os_version());
     info!("系统架构: {}", std::env::consts::ARCH);
     info!(
         "Rust版本: {}",
@@ -358,7 +314,7 @@ fn setup_panic_hook() {
 
             let _ = writeln!(file, "\n系统信息:");
             let _ = writeln!(file, "应用版本: {}", env!("CARGO_PKG_VERSION"));
-            let _ = writeln!(file, "操作系统: {}", get_windows_version());
+            let _ = writeln!(file, "操作系统: {}", os_version());
             let _ = writeln!(file, "系统架构: {}", std::env::consts::ARCH);
 
             if let Ok(current_dir) = std::env::current_dir() {
@@ -438,7 +394,7 @@ pub fn cleanup_old_logs(log_dir: impl AsRef<Path>, retention_days: i64) {
 pub fn log_application_start() {
     info!("=== ZeroLaunch-rs 应用启动 ===");
     info!("应用版本: {}", env!("CARGO_PKG_VERSION"));
-    info!("操作系统: {}", get_windows_version());
+    info!("操作系统: {}", os_version());
     info!("系统架构: {}", std::env::consts::ARCH);
 
     let now = Local::now();

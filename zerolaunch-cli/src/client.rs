@@ -103,6 +103,19 @@ fn parse_response(resp: reqwest::blocking::Response) -> Result<Value> {
 
 /// 解析 ZeroLaunch 应用数据目录（$HOME/.ZeroLaunch-rs）。
 fn dirs_data() -> Result<std::path::PathBuf> {
-    let home = dirs::home_dir().context("无法获取用户 Home 目录")?;
-    Ok(home.join(".ZeroLaunch-rs"))
+    #[cfg(target_os = "macos")]
+    {
+        let home = dirs::home_dir().context("无法获取用户 Home 目录")?;
+        return Ok(home.join("Library/Application Support/ZeroLaunch-rs"));
+    }
+    #[cfg(target_os = "windows")]
+    {
+        let home = dirs::home_dir().context("无法获取用户 Home 目录")?;
+        Ok(home.join(".ZeroLaunch-rs"))
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        let home = dirs::home_dir().context("无法获取用户 Home 目录")?;
+        Ok(home.join(".ZeroLaunch-rs"))
+    }
 }

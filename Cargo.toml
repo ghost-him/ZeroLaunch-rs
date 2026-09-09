@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
+    "crates/platform-macos",
     "crates/platform-windows",
     "crates/plugin-api",
     "crates/plugin-protocol",
@@ -110,12 +111,20 @@ tempfile = "3.27.0"
 notify = "8.2.0"
 inventory = "0.3"
 dirs = "6"
+sys-locale = "0.3.2"
+# macOS-only platform FFI (used by crates/platform-macos/src/fullscreen.rs)
+core-foundation = "0.10"
+core-graphics = { version = "0.25", features = ["link"] }
+core-graphics-types = "0.2"
+foreign-types = "0.5"
+libc = "0.2"
 
 zerolaunch-plugin-api = { path = "crates/plugin-api", version = "0.1.0" }
 zerolaunch-plugin-host = { path = "crates/plugin-host", version = "0.1.1" }
 zerolaunch-plugin-protocol = { path = "crates/plugin-protocol", version = "0.1.0" }
 zerolaunch-plugin-sdk-rust = { path = "crates/plugin-sdk-rust", version = "0.1.0" }
 zerolaunch-platform-windows = { path = "crates/platform-windows", version = "0.1.0" }
+zerolaunch-platform-macos = { path = "crates/platform-macos", version = "0.1.0" }
 
 [profile.release]
 codegen-units = 16

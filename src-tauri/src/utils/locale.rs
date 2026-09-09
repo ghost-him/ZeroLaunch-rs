@@ -1,29 +1,15 @@
 /// 系统区域设置和语言检测工具
-use tracing::{debug, info, warn};
-use windows::Win32::Globalization::GetUserDefaultLocaleName;
+use tracing::{debug, info};
 
-/// 使用 Windows API GetUserDefaultLocaleName 来获取用户的默认区域设置
+/// 获取系统区域设置。
+///
+/// 平台无关实现：经 `sys_locale` crate 查询（Windows 走
+/// GetUserDefaultLocaleName、macOS 走 NSLocale、Linux 走 LANG 等），
+/// GUI 应用下也能拿到真实系统区域，失败返回 None。
 pub fn get_system_locale() -> Option<String> {
-    unsafe {
-        const LOCALE_NAME_MAX_LENGTH: usize = 85;
-        let mut locale_name: [u16; LOCALE_NAME_MAX_LENGTH] = [0; LOCALE_NAME_MAX_LENGTH];
-
-        let result = GetUserDefaultLocaleName(&mut locale_name);
-
-        if result > 0 {
-            // 找到第一个 null 终止符
-            let len = locale_name
-                .iter()
-                .position(|&c| c == 0)
-                .unwrap_or(result as usize);
-            let locale_string = String::from_utf16_lossy(&locale_name[..len]);
-            debug!("检测到系统语言: {}", locale_string);
-            Some(locale_string)
-        } else {
-            warn!("无法获取系统语言设置");
-            None
-        }
-    }
+    let locale = sys_locale::get_locale()?;
+    debug!("检测到系统语言: {}", locale);
+    Some(locale)
 }
 
 pub fn map_locale_to_language(locale: &str) -> String {

@@ -17,37 +17,13 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 [build-dependencies]
 tauri-build.workspace = true
 
+[target.'cfg(target_os = "windows")'.dependencies]
+zerolaunch-platform-windows.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+zerolaunch-platform-macos.workspace = true
+
 [dependencies]
-# Windows platform (features extend workspace base)
-windows = { workspace = true, features = [
-    "Win32_UI_WindowsAndMessaging",
-    "Win32_Foundation",
-    "Win32_Graphics_Gdi",
-    "Management_Deployment",
-    "Win32_System_Threading",
-    "Foundation",
-    "Win32_Security",
-    "Foundation_Collections",
-    "System",
-    "Win32_System_Com",
-    "Win32_System_Com_StructuredStorage",
-    "Win32_UI_Shell",
-    "Storage_Streams",
-    "Win32_UI_Shell_PropertiesSystem",
-    "Win32_System_Variant",
-    "Win32_System_Registry",
-    "Win32_Storage_FileSystem",
-    "Win32_System_Console",
-    "Win32_System_Diagnostics",
-    "Win32_System_Diagnostics_ToolHelp",
-    "Win32_Graphics_Dwm",
-    "Win32_UI_Controls",
-    "Win32_Networking",
-    "Win32_Networking_WinInet",
-    "Win32_Globalization",
-    "Win32_System_LibraryLoader",
-    "Win32_System_Environment",
-] }
 
 # Tauri (adds features on top of workspace base)
 tauri = { workspace = true, features = ["image-ico", "image-png"] }
@@ -84,7 +60,6 @@ serde.workspace = true
 serde_json.workspace = true
 rdev.workspace = true
 widestring.workspace = true
-windows-core.workspace = true
 rayon.workspace = true
 dashmap.workspace = true
 image.workspace = true
@@ -98,12 +73,11 @@ anyhow.workspace = true
  async-openai.workspace = true
  async-trait.workspace = true
  futures-util.workspace = true
- lnk.workspace = true
  ollama-rs.workspace = true
  reqwest.workspace = true
  reqwest_dav.workspace = true
  tokio.workspace = true
-winreg.workspace = true
+sys-locale.workspace = true
 scraper.workspace = true
 url.workspace = true
 fnv.workspace = true
@@ -124,7 +98,6 @@ bincode-next.workspace = true
 zip.workspace = true
 whoami.workspace = true
 blake3.workspace = true
-uiautomation.workspace = true
 toml.workspace = true
 rand.workspace = true
 regex.workspace = true
@@ -135,7 +108,6 @@ time.workspace = true
 zerolaunch-plugin-api.workspace = true
 zerolaunch-plugin-host.workspace = true
 zerolaunch-plugin-protocol.workspace = true
-zerolaunch-platform-windows.workspace = true
 
 [features]
 default = ["custom-protocol"]

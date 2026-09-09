@@ -42,3 +42,12 @@ impl Drop for ComGuard {
         }
     }
 }
+
+/// 以 STA 模式初始化主线程 COM 并保活至进程结束。
+///
+/// 供宿主启动时调用一次：与直接持有 `ComGuard` 后 `mem::forget` 语义一致
+/// （COM 需在整个应用生命周期内保持初始化）。macOS 平台对应函数为 no-op。
+pub fn init_com() {
+    let guard = unsafe { ComGuard::init() };
+    std::mem::forget(guard);
+}

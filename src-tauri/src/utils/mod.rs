@@ -3,7 +3,6 @@ pub mod font_database;
 pub mod locale;
 pub mod trace_id;
 pub mod waiting_hashmap;
-pub mod windows;
 use chrono::{Local, NaiveDate};
 use time::OffsetDateTime;
 /// 生成当前日期的函数

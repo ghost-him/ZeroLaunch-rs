@@ -19,6 +19,13 @@ use zerolaunch_plugin_api::services::{Theme, ThemeProvider};
 #[derive(Default)]
 pub struct WindowsThemeProvider;
 
+impl WindowsThemeProvider {
+    /// 创建主题提供器实例。
+    pub fn new() -> Self {
+        Self
+    }
+}
+
 impl ThemeProvider for WindowsThemeProvider {
     /// 读取 AppsUseLightTheme，将 0 转换为深色，其余有效值转换为浅色。
     fn current_system_theme(&self) -> Result<Theme, HostApiError> {

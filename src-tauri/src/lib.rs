@@ -4,6 +4,7 @@ pub mod cli_server;
 pub mod commands;
 pub mod core;
 pub mod logging;
+pub mod platform;
 pub mod plugin_framework;
 pub mod plugin_market;
 pub mod sdk;
@@ -13,6 +14,7 @@ pub mod utils;
 pub mod window;
 
 use crate::logging::{init_logging, log_application_shutdown, log_application_start};
+use crate::platform::*;
 use crate::sdk::HostApi;
 use crate::sdk::HostApiBuilder;
 use crate::state::app_state::AppState;
@@ -24,24 +26,6 @@ use tauri::Manager;
 use tauri::WebviewUrl;
 use tauri_plugin_deep_link::DeepLinkExt;
 use tracing::{debug, info, warn};
-use zerolaunch_platform_windows::windows_capabilities;
-use zerolaunch_platform_windows::ComGuard;
-use zerolaunch_platform_windows::WindowsAppEnumerator;
-use zerolaunch_platform_windows::WindowsAppLauncher;
-use zerolaunch_platform_windows::WindowsAutoStartManager;
-use zerolaunch_platform_windows::WindowsClipboardManager;
-use zerolaunch_platform_windows::WindowsClipboardProvider;
-use zerolaunch_platform_windows::WindowsIconExtractor;
-use zerolaunch_platform_windows::WindowsInstallationMonitor;
-use zerolaunch_platform_windows::WindowsLnkResolver;
-use zerolaunch_platform_windows::WindowsPathResolver;
-use zerolaunch_platform_windows::WindowsResourceLoader;
-use zerolaunch_platform_windows::WindowsSelectionProvider;
-use zerolaunch_platform_windows::WindowsShellExecutor;
-use zerolaunch_platform_windows::WindowsThemeProvider;
-use zerolaunch_platform_windows::WindowsWindowHandleProvider;
-use zerolaunch_platform_windows::WindowsWindowManager;
-use zerolaunch_platform_windows::WindowsWindowPositioner;
 use zerolaunch_plugin_api::services::path::KnownPath;
 use zerolaunch_plugin_api::services::storage::storage_service::StorageService;
 use zerolaunch_plugin_api::services::timer::TokioTimerManager;
@@ -71,14 +55,13 @@ pub fn run() {
     // ========================================================================
     // 阶段 1: 初始化日志系统
     // ========================================================================
-    let path_resolver = Arc::new(WindowsPathResolver::new());
+    let path_resolver = Arc::new(PlatformPathResolver::new());
     let log_dir = path_resolver.resolve_path(KnownPath::AppLogDir).unwrap();
     let _log_guard = init_logging(&log_dir, None);
     log_application_start();
 
-    // 初始化 COM 库（主线程常驻，不释放）
-    let _com_guard = unsafe { ComGuard::init() };
-    std::mem::forget(_com_guard);
+    // 平台就绪初始化（Windows 主线程 COM 保活；macOS 为空操作）
+    init_com();
 
     // ========================================================================
     // 阶段 3: 构建 Tauri 应用
@@ -166,8 +149,10 @@ pub fn run() {
                 tray_manager.init(app).await;
 
                 info!("正在注册深度链接");
-                app.deep_link().register_all().expect("无法注册深度链接");
-                info!("深度链接注册成功");
+                match app.deep_link().register_all() {
+                    Ok(()) => info!("深度链接注册成功"),
+                    Err(error) => warn!(?error, "深度链接注册失败，继续启动应用"),
+                }
 
                 let state_for_deeplink = app.state::<Arc<AppState>>().inner().clone();
                 app.deep_link().on_open_url(move |event| {
@@ -190,7 +175,7 @@ pub fn run() {
                 info!("应用启动完成");
             });
 
-            // 系统主题监控：平台实现见 platform-windows，宿主注册回调推送前端事件
+            // 系统主题监控：平台实现由编译期平台模块注入，宿主注册回调推送前端事件
             bootstrap::init_system_theme_monitor(app_handle_for_theme);
 
             Ok(())
@@ -264,9 +249,9 @@ pub fn run() {
         });
 }
 
-/// 配置 HostApiBuilder，注入所有 Windows 平台实现以及平台无关的默认组件。
+/// 配置 HostApiBuilder，注入当前平台实现以及平台无关的默认组件。
 /// 返回预配置的 HostApiBuilder，调用方继续添加 Tauri 相关回调后调用 build()。
-fn build_windows_host_api_builder(
+fn build_platform_host_api_builder(
     icon_cache_dir: String,
     default_app_icon_path: String,
     default_web_icon_path: String,
@@ -275,34 +260,34 @@ fn build_windows_host_api_builder(
     app_resource: Arc<AppResourceService>,
 ) -> HostApiBuilder {
     HostApi::builder(icon_cache_dir)
-        .capabilities(windows_capabilities())
-        .icon_extractor(Arc::new(WindowsIconExtractor::new(
+        .capabilities(platform_capabilities())
+        .icon_extractor(Arc::new(PlatformIconExtractor::new(
             default_app_icon_path,
             default_web_icon_path,
         )))
-        .shell_executor(Arc::new(WindowsShellExecutor::new()))
-        .window_manager(Arc::new(WindowsWindowManager::new()))
+        .shell_executor(Arc::new(PlatformShellExecutor::new()))
+        .window_manager(Arc::new(PlatformWindowManager::new()))
         .path_resolver(path_resolver)
-        .app_enumerator(Arc::new(WindowsAppEnumerator::new()))
-        .app_launcher(Arc::new(WindowsAppLauncher::new()))
-        .lnk_resolver(Arc::new(WindowsLnkResolver::new()))
-        .resource_loader(Arc::new(WindowsResourceLoader::new()))
+        .app_enumerator(Arc::new(PlatformAppEnumerator::new()))
+        .app_launcher(Arc::new(PlatformAppLauncher::new()))
+        .lnk_resolver(Arc::new(PlatformLnkResolver::new()))
+        .resource_loader(Arc::new(PlatformResourceLoader::new()))
         .parameter_resolver(Arc::new(
             zerolaunch_plugin_api::services::parameter::DefaultParameterResolver::new(),
         ))
         .parameter_providers(
-            Arc::new(WindowsClipboardProvider),
-            Arc::new(WindowsWindowHandleProvider),
-            Arc::new(WindowsSelectionProvider),
+            Arc::new(PlatformClipboardProvider),
+            Arc::new(PlatformWindowHandleProvider),
+            Arc::new(PlatformSelectionProvider),
         )
-        .autostart_manager(Arc::new(WindowsAutoStartManager::new()))
-        .installation_monitor(Arc::new(WindowsInstallationMonitor::new()))
+        .autostart_manager(Arc::new(PlatformAutoStartManager::new()))
+        .installation_monitor(Arc::new(PlatformInstallationMonitor::new()))
         .timer_manager(Arc::new(TokioTimerManager::new()))
         .storage_service(default_storage)
         .app_resource(app_resource)
-        .clipboard_manager(Arc::new(WindowsClipboardManager::new()))
-        .window_positioner(Arc::new(WindowsWindowPositioner::new()))
-        .theme_provider(Arc::new(WindowsThemeProvider))
+        .clipboard_manager(Arc::new(PlatformClipboardManager::new()))
+        .window_positioner(Arc::new(PlatformWindowPositioner::new()))
+        .theme_provider(Arc::new(PlatformThemeProvider::new()))
 }
 
 /// 初始化搜索栏窗口。
@@ -348,23 +333,19 @@ fn init_search_bar_window(app: &mut App) {
 
 fn init_setting_window(app: tauri::AppHandle) {
     tauri::async_runtime::spawn(async move {
-        let setting_window = Arc::new(
-            tauri::WebviewWindowBuilder::new(
-                &app,
-                "setting_window",
-                WebviewUrl::App("/setting_window.html".into()),
-            )
-            .title("设置")
-            .visible(false)
-            // 开启拖放以支持「第三方插件管理」页拖拽安装插件（webview 级 onDragDropEvent 接收真实路径）
-            .drag_and_drop(true)
-            .build()
-            .expect("无法创建设置窗口"),
-        );
+        let setting_window = tauri::WebviewWindowBuilder::new(
+            &app,
+            "setting_window",
+            WebviewUrl::App("/setting_window.html".into()),
+        )
+        .title("设置")
+        .visible(false)
+        .build()
+        .expect("无法创建设置窗口");
         setting_window
             .set_size(LogicalSize::new(1150, 650))
             .expect("无法设置设置窗口大小");
-        let window_clone = Arc::clone(&setting_window);
+        let window_clone = setting_window.clone();
         setting_window.on_window_event(move |event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();

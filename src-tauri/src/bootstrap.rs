@@ -6,14 +6,13 @@
 
 use crate::builtin_plugin::config::auto_refresh_config::AutoRefreshSettings;
 use crate::builtin_plugin::config::hotkey_config::{settings_to_hotkey_config, HotkeySettings};
+use crate::platform::{PlatformFocusMonitor, PlatformHotkeyManager, PlatformPathResolver};
 use std::collections::HashSet;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::{App, Emitter, Manager};
 use tracing::{debug, info, warn};
-use zerolaunch_platform_windows::WindowsFocusMonitor;
-use zerolaunch_platform_windows::WindowsHotkeyManager;
 use zerolaunch_plugin_api::host::PluginSdkConfig;
 use zerolaunch_plugin_api::services::hotkey::types::HotkeyEventFilter;
 use zerolaunch_plugin_api::services::installation_monitor::InstallationEventKind;
@@ -98,7 +97,7 @@ pub(crate) async fn sync_config_to_remote(
 /// `tauri::async_runtime::block_on` 中执行。
 pub(crate) async fn init_app_state(
     app: &mut App,
-    path_resolver: Arc<zerolaunch_platform_windows::WindowsPathResolver>,
+    path_resolver: Arc<PlatformPathResolver>,
     app_data_dir: String,
     icon_cache_dir: String,
     config_dir: String,
@@ -142,7 +141,7 @@ pub(crate) async fn init_app_state(
     let model_manager = state.get_model_manager();
 
     let host_api = Arc::new(
-        crate::build_windows_host_api_builder(
+        crate::build_platform_host_api_builder(
             icon_cache_dir,
             default_app_icon_path,
             default_web_icon_path,
@@ -150,8 +149,8 @@ pub(crate) async fn init_app_state(
             default_storage,
             app_resource,
         )
-        .hotkey_manager(Arc::new(WindowsHotkeyManager::new(app_handle)))
-        .focus_monitor(Arc::new(WindowsFocusMonitor::new(
+        .hotkey_manager(Arc::new(PlatformHotkeyManager::new(app_handle)))
+        .focus_monitor(Arc::new(PlatformFocusMonitor::new(
             app_handle_for_focus_monitor,
         )))
         .set_window_position_callback(move |x, y| {
@@ -789,10 +788,10 @@ fn spawn_app_command_consumer(
 
 /// 注册系统主题变化监控（宿主侧回调）。
 ///
-/// 平台实现见 `zerolaunch_platform_windows::start_system_theme_monitor`（进程内单例）；
+/// 平台实现通过 `crate::platform::start_system_theme_monitor` 在编译期注入。
 /// 由 setup 在应用启动时调用一次，主题变化时推送前端事件并记录日志。
 pub(crate) fn init_system_theme_monitor(app_handle: tauri::AppHandle) {
-    use zerolaunch_platform_windows::start_system_theme_monitor;
+    use crate::platform::start_system_theme_monitor;
     use zerolaunch_plugin_api::services::Theme;
 
     if let Err(error) = start_system_theme_monitor(move |theme: Theme| {

@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
+    "test:e2e:macos": "bash scripts/e2e-macos.sh",
     "preview": "vite preview",
     "tauri": "tauri",
     "prepare": "bun x husky || echo 'Husky not installed'"

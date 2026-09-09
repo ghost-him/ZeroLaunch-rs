@@ -6278,6 +6278,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "sys-locale"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8eab9a99a024a169fe8a903cf9d4a3b3601109bcc13bd9e3c6fff259138626c4"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "system-configuration"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8741,6 +8750,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "zerolaunch-platform-macos"
+version = "0.1.0"
+dependencies = [
+ "arboard",
+ "async-trait",
+ "core-foundation 0.10.1",
+ "core-graphics 0.25.0",
+ "dashmap",
+ "dirs",
+ "foreign-types 0.5.0",
+ "image",
+ "libc",
+ "notify",
+ "parking_lot",
+ "reqwest 0.13.4",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-plugin-global-shortcut",
+ "tokio",
+ "tracing",
+ "url",
+ "zerolaunch-plugin-api",
+]
+
+[[package]]
 name = "zerolaunch-platform-windows"
 version = "0.1.0"
 dependencies = [
@@ -8892,7 +8927,6 @@ dependencies = [
  "inventory",
  "kmeans_colors",
  "lazy_static",
- "lnk",
  "lru",
  "notify",
  "ollama-rs",
@@ -8910,6 +8944,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.9",
+ "sys-locale",
  "tauri",
  "tauri-build",
  "tauri-plugin-deep-link",
@@ -8932,16 +8967,13 @@ dependencies = [
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
- "uiautomation",
  "url",
  "usvg",
  "uuid",
  "walkdir",
  "whoami",
  "widestring",
- "windows 0.62.2",
- "windows-core 0.62.2",
- "winreg 0.56.0",
+ "zerolaunch-platform-macos",
  "zerolaunch-platform-windows",
  "zerolaunch-plugin-api",
  "zerolaunch-plugin-host",

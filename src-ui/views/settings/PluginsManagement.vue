@@ -13,14 +13,15 @@ import { open } from '@tauri-apps/plugin-shell'
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import {
   pluginList, pluginReload, pluginUninstall,
-  pluginInstallLocal, pluginGetLogs, pluginSetEnabled, pluginGetDetail,
+  pluginInstallLocal, pluginInspectPackage, pluginGetLogs, pluginSetEnabled, pluginGetDetail,
   pickPluginZip, pickPluginDir,
 } from '@/bridge/commands'
-import type { InstalledPluginInfo, PluginDetail, BridgeError } from '@/bridge/commands'
+import type { InstalledPluginInfo, PluginDetail, PluginManifest, BridgeError } from '@/bridge/commands'
 import type { ComponentInfo } from '@/bridge/contract'
 import { useConfigStore } from '@/stores/config-store'
 import ComponentConfigLoader from '@/components/settings/ComponentConfigLoader.vue'
 import PluginIntroModal from '@/components/settings/PluginIntroModal.vue'
+import PluginPackageInfo from '@/components/settings/PluginPackageInfo.vue'
 
 const { t } = useI18n()
 const message = useMessage()
@@ -45,12 +46,16 @@ interface PluginRow {
 const pluginItems = ref<InstalledPluginInfo[]>([])
 const loading = ref(false)
 
-// 安装流程：拖拽 / 文件选择 → 确认弹窗 → pluginInstallLocal
+// 安装流程：拖拽 / 文件选择 → 确认弹窗（manifest 预检）→ pluginInstallLocal
 const isDragging = ref(false)
 const showInstall = ref(false)
 const pendingPath = ref('')
 const pendingFileName = ref('')
 const installing = ref(false)
+/** 安装确认弹窗内 manifest 预检：加载中 / 失败信息 / 包内 manifest（读取成功才可点「安装」）。 */
+const inspectLoading = ref(false)
+const inspectError = ref('')
+const pendingManifest = ref<PluginManifest | null>(null)
 let unlistenDragDrop: UnlistenFn | null = null
 
 // 配置展开
@@ -274,11 +279,34 @@ function handleDroppedPaths(paths: string[]) {
   requestInstall(chosen)
 }
 
-/** 弹出安装确认弹窗（展示文件名，避免误装）。 */
+/** 弹出安装确认弹窗并预检包内 manifest（展示真实插件信息，避免仅凭文件名误装）。 */
 function requestInstall(path: string) {
   pendingPath.value = path
   pendingFileName.value = path.split(/[\\/]/).pop() ?? path
+  pendingManifest.value = null
+  inspectError.value = ''
   showInstall.value = true
+  void inspectPendingPackage()
+}
+
+/** 预检待安装包 manifest：读取成功才允许点「安装」，失败展示原因并可重试。 */
+async function inspectPendingPackage() {
+  const target = pendingPath.value
+  if (!target) return
+  inspectLoading.value = true
+  inspectError.value = ''
+  pendingManifest.value = null
+  try {
+    const manifest = await pluginInspectPackage(target)
+    // 预检期间用户已切换目标：丢弃过期响应
+    if (pendingPath.value !== target) return
+    pendingManifest.value = manifest
+  } catch (e) {
+    if (pendingPath.value !== target) return
+    inspectError.value = errorText(e)
+  } finally {
+    if (pendingPath.value === target) inspectLoading.value = false
+  }
 }
 
 /** 弹出选择框并进入安装确认流程（.zip 文件与插件目录共用同一错误处理）。 */
@@ -305,13 +333,15 @@ function handleChooseDir() {
 
 /** 确认安装：调用后端安装并刷新列表。已安装时询问是否覆盖。 */
 async function handleInstall() {
-  if (!pendingPath.value) return
+  if (!pendingPath.value || !pendingManifest.value) return
   installing.value = true
   try {
     await pluginInstallLocal(pendingPath.value)
     message.success(t('settings.thirdPartyPlugins.installSuccess'))
     showInstall.value = false
     pendingPath.value = ''
+    pendingManifest.value = null
+    inspectError.value = ''
     await loadPlugins()
   } catch (e) {
     const err = e as BridgeError
@@ -329,6 +359,8 @@ async function handleInstall() {
             message.success(t('settings.thirdPartyPlugins.installSuccess'))
             showInstall.value = false
             pendingPath.value = ''
+            pendingManifest.value = null
+            inspectError.value = ''
             await loadPlugins()
           } catch (e2) {
             message.error(t('settings.thirdPartyPlugins.installFailed') + ': ' + errorText(e2))
@@ -491,17 +523,38 @@ onUnmounted(() => {
       </template>
     </NDataTable>
 
-    <!-- 安装确认弹窗 -->
+    <!-- 安装确认弹窗：包内 manifest 预检 + 风险提示 -->
     <NModal
       v-model:show="showInstall"
       :title="t('settings.thirdPartyPlugins.installDialogTitle')"
       preset="card"
-      style="width: 420px; max-width: calc(100vw - 48px);"
+      style="width: 520px; max-width: calc(100vw - 48px);"
+      @after-leave="pendingManifest = null; inspectError = ''"
     >
-      <NText>{{ t('settings.thirdPartyPlugins.installConfirmContent', { name: pendingFileName }) }}</NText>
-      <NText depth="3" style="display: block; margin-top: 8px; word-break: break-all;">
+      <!-- 来源路径：用户拖入/选择的 zip 或目录 -->
+      <NText depth="3" style="word-break: break-all;">
         {{ pendingPath }}
       </NText>
+
+      <div
+        class="install-preview"
+        :style="{ minHeight: inspectLoading ? '72px' : undefined }"
+      >
+        <NSpin :show="inspectLoading">
+          <!-- 读取失败：展示原因并可重试 -->
+          <div v-if="inspectError">
+            <NText type="error" style="word-break: break-all;">
+              {{ t('settings.thirdPartyPlugins.inspectFailed') }}: {{ inspectError }}
+            </NText>
+            <NButton size="small" style="margin-top: 8px;" @click="inspectPendingPackage">
+              {{ t('settings.thirdPartyPlugins.retry') }}
+            </NButton>
+          </div>
+          <!-- 包内 manifest 信息（真实插件身份，供用户判断） -->
+          <PluginPackageInfo v-else-if="pendingManifest" :manifest="pendingManifest" />
+        </NSpin>
+      </div>
+
       <!-- 权限风险提示：第三方插件与宿主同权限执行，UI 仅样式隔离 -->
       <NAlert
         style="margin-top: 16px;"
@@ -514,7 +567,12 @@ onUnmounted(() => {
         <NButton :disabled="installing" @click="showInstall = false">
           {{ t('settings.thirdPartyPlugins.installConfirmNegative') }}
         </NButton>
-        <NButton type="primary" :loading="installing" @click="handleInstall">
+        <NButton
+          type="primary"
+          :loading="installing"
+          :disabled="!pendingManifest"
+          @click="handleInstall"
+        >
           {{ t('settings.thirdPartyPlugins.installConfirmPositive') }}
         </NButton>
       </NSpace>
@@ -705,6 +763,12 @@ onUnmounted(() => {
 .plugin-detail-content {
   box-sizing: border-box;
   max-height: min(480px, calc(100vh - 160px));
+  overflow-y: auto;
+}
+
+/* 安装确认弹窗 manifest 预检区：超高时弹窗内滚动 */
+.install-preview {
+  max-height: min(430px, calc(100vh - 360px));
   overflow-y: auto;
 }
 </style>

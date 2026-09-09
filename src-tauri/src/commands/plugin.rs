@@ -5,6 +5,7 @@
 
 use crate::commands::bridge_error::{BridgeError, WithTraceId};
 use crate::state::app_state::AppState;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::State;
 use zerolaunch_plugin_api::config::Configurable;
@@ -220,5 +221,20 @@ pub async fn plugin_get_logs(
     let plugin_manager = state.get_plugin_manager();
     plugin_manager
         .get_logs(&plugin_id, tail_lines.unwrap_or(50))
+        .with_trace_id(&trace_id)
+}
+
+/// 读取待安装插件包（本地 .zip 或插件目录）的 manifest，供安装确认页预检展示；不执行安装。
+#[tauri::command]
+#[tracing::instrument(skip(state), fields(trace_id))]
+pub async fn plugin_inspect_package(
+    file_path: String,
+    state: State<'_, Arc<AppState>>,
+) -> Result<Manifest, BridgeError> {
+    let trace_id = crate::utils::trace_id::generate_trace_id();
+    tracing::Span::current().record("trace_id", trace_id.as_str());
+    let plugin_manager = state.get_plugin_manager();
+    plugin_manager
+        .inspect_package(&PathBuf::from(&file_path))
         .with_trace_id(&trace_id)
 }

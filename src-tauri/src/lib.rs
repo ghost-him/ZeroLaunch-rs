@@ -211,6 +211,7 @@ pub fn run() {
             crate::commands::plugin::plugin_get_manifest,
             crate::commands::plugin::plugin_get_detail,
             crate::commands::plugin::plugin_install_local,
+            crate::commands::plugin::plugin_inspect_package,
             crate::commands::plugin::plugin_reload,
             crate::commands::plugin::plugin_uninstall,
             crate::commands::plugin::plugin_set_enabled,
@@ -219,6 +220,8 @@ pub fn run() {
             crate::commands::plugin_market::market_list,
             crate::commands::plugin_market::market_get_release,
             crate::commands::plugin_market::market_install,
+            crate::commands::plugin_market::market_preview_package,
+            crate::commands::plugin_market::market_discard_preview,
             crate::commands::cli::cli_get_info,
             // i18n
             crate::commands::i18n::i18n_get_plugin_translations,

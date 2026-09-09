@@ -527,6 +527,25 @@ impl PluginManager {
         })
     }
 
+    /// 读取待安装插件包（.zip 或插件目录）的 manifest，不执行安装。
+    /// 供安装确认页预检展示；入口校验（存在性/格式）与 install 同口径。
+    pub fn inspect_package(&self, source_path: &Path) -> Result<Manifest, PluginManagerError> {
+        if !source_path.exists() {
+            return Err(PluginManagerError::FileNotFound(format!(
+                "File not found: {}",
+                source_path.display()
+            )));
+        }
+        if !source_path.is_dir() && !source_path.extension().map(|e| e == "zip").unwrap_or(false) {
+            return Err(PluginManagerError::UnsupportedFormat(
+                "Unsupported file format. Use .zip or directory.".to_string(),
+            ));
+        }
+        self.installer()
+            .read_package_manifest(source_path)
+            .map_err(install_error_to_manager)
+    }
+
     /// 重载第三方插件。
     /// 成功时发送 `plugin-installed` 事件。
     pub async fn reload(

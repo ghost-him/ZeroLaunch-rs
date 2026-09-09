@@ -33,16 +33,15 @@ dashmap = { version = "6.2.1", features = ["serde"] }
 once_cell = "1.21.4"
 chrono = "0.4.45"
 url = "2.5.8"
-# time 固定在 0.3.47 —— 0.3.48+ 的 Parsable::parse API 变更破坏了 cookie 0.18.1 (tauri 传递依赖) 的兼容性
-time = ">=0.3.47, <0.3.48"
+time = "0.3"
 walkdir = "2.5.0"
 zip = "8.6.0"
 regex = "1.12.4"
-ini = "1.3.0"
-fontdb = "0.23.0"
+ini = "2"
+fontdb = "0.24"
 image = "0.25.10"
-resvg = "0.47.0"
-usvg = "0.47.0"
+resvg = "0.48"
+usvg = "0.48"
 tiny-skia = "0.12.0"
 encoding_rs = "0.8.35"
 async-openai = { version = "0.41", default-features = false, features = [
@@ -58,7 +57,7 @@ reqwest_dav = "0.3.3"
 blake3 = "1.8.5"
 fnv = "1.0.7"
 lru = "0.18.0"
-sha2 = "0.10"
+sha2 = "0.11"
 uuid = { version = "1.23.4", features = ["v4"] }
 bincode-next = "3.1.1"
 kmeans_colors = "0.7.1"
@@ -84,7 +83,7 @@ backtrace = "0.3.76"
 unicode-segmentation = "1"
 unicode-width = "0.2"
 
-base64 = "0.22"
+base64 = "0.23"
 
 # Tauri / HTTP / Server
 tauri = { version = "^2", features = ["tray-icon"] }
@@ -109,7 +108,7 @@ fuzzy-matcher = "0.3.7"
 tempfile = "3.27.0"
 notify = "8.2.0"
 inventory = "0.3"
-dirs = "6"
+dirs = "7"
 
 zerolaunch-plugin-api = { path = "crates/plugin-api", version = "0.1.0" }
 zerolaunch-plugin-host = { path = "crates/plugin-host", version = "0.1.1" }

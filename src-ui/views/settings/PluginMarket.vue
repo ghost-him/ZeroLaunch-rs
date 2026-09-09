@@ -6,10 +6,11 @@ import {
   useDialog, useMessage,
 } from 'naive-ui'
 import { open } from '@tauri-apps/plugin-shell'
-import { marketList, marketInstall } from '@/bridge/commands'
-import type { MarketRepo } from '@/bridge/commands'
+import { marketList, marketInstall, marketPreviewPackage, marketDiscardPreview } from '@/bridge/commands'
+import type { MarketRepo, MarketPackagePreview } from '@/bridge/commands'
 import type { BridgeError } from '@/bridge/commands'
 import PluginIntroModal from '@/components/settings/PluginIntroModal.vue'
+import PluginPackageInfo from '@/components/settings/PluginPackageInfo.vue'
 
 const { t } = useI18n()
 const message = useMessage()
@@ -24,6 +25,10 @@ const showIntro = ref(false)
 const installingRepo = ref<string | null>(null)
 /** 待确认安装的仓库。 */
 const pendingInstall = ref<MarketRepo | null>(null)
+/** 安装确认弹窗内 manifest 预检：加载中 / 失败信息 / 预检结果（读取成功才可点「安装」）。 */
+const previewLoading = ref(false)
+const previewError = ref('')
+const pendingPreview = ref<MarketPackagePreview | null>(null)
 
 /** 错误信息提取（BridgeError message + traceId）。 */
 function errorText(e: unknown): string {
@@ -38,6 +43,50 @@ const showInstallConfirm = computed({
     if (!v) pendingInstall.value = null
   },
 })
+
+/** 点击「安装」：先弹确认（下载并安装仓库最新发布）。 */
+function requestInstall(repo: MarketRepo) {
+  pendingInstall.value = repo
+  pendingPreview.value = null
+  previewError.value = ''
+  void loadMarketPreview(repo.fullName)
+}
+
+/** 预检仓库最新发布插件包 manifest：下载一次并暂存，成功后展示供用户判断。 */
+async function loadMarketPreview(fullName: string) {
+  previewLoading.value = true
+  previewError.value = ''
+  pendingPreview.value = null
+  try {
+    const preview = await marketPreviewPackage(fullName)
+    // 预检期间用户已关闭弹窗/切换目标：暂存包无人消费，立即释放
+    if (pendingInstall.value?.fullName !== fullName) {
+      void marketDiscardPreview(preview.assetName).catch(() => {})
+      return
+    }
+    pendingPreview.value = preview
+  } catch (e) {
+    if (pendingInstall.value?.fullName !== fullName) return
+    previewError.value = errorText(e)
+  } finally {
+    // loading 只归当前弹窗：目标匹配，或弹窗已关闭（无活跃目标）时清理
+    if (pendingInstall.value?.fullName === fullName || !pendingInstall.value) {
+      previewLoading.value = false
+    }
+  }
+}
+
+/** 弹窗关闭（取消/ESC/安装完成）后释放预检暂存；幂等，安装成功路径缓存已由后端删除。 */
+function releasePendingPreview() {
+  if (pendingPreview.value) {
+    const assetName = pendingPreview.value.assetName
+    pendingPreview.value = null
+    previewError.value = ''
+    void marketDiscardPreview(assetName).catch(() => {})
+  } else {
+    previewError.value = ''
+  }
+}
 
 /** 拉取市场仓库列表。 */
 async function loadMarket() {
@@ -64,11 +113,6 @@ function openRepo(url: string) {
   void open(parsed.toString()).catch(() => {
     message.error(t('settings.pluginMarket.installFailed'))
   })
-}
-
-/** 点击「安装」：先弹确认（下载并安装仓库最新发布）。 */
-function requestInstall(repo: MarketRepo) {
-  pendingInstall.value = repo
 }
 
 /** 执行市场安装；已安装时询问覆盖。 */
@@ -179,18 +223,42 @@ onMounted(() => {
       </NCard>
     </div>
 
-    <!-- 安装确认弹窗 -->
+    <!-- 安装确认弹窗：包内 manifest 预检 + 风险提示 -->
     <NModal
       v-model:show="showInstallConfirm"
       :title="t('settings.thirdPartyPlugins.installDialogTitle')"
       preset="card"
-      style="width: 420px; max-width: calc(100vw - 48px);"
+      style="width: 520px; max-width: calc(100vw - 48px);"
+      @after-leave="releasePendingPreview"
     >
       <template v-if="pendingInstall">
-        <NText>{{ t('settings.pluginMarket.installConfirmContent', {
-          name: pendingInstall.name,
-          repo: pendingInstall.fullName,
-        }) }}</NText>
+        <!-- 来源：仓库 + 发布 tag + 插件包附件名 -->
+        <NText depth="3" style="word-break: break-all;">
+          {{ pendingInstall.fullName }}
+        </NText>
+        <NText v-if="pendingPreview" depth="3" style="display: block; word-break: break-all;">
+          {{ pendingPreview.tagName }} · {{ pendingPreview.assetName }}
+        </NText>
+
+        <div
+          class="install-preview"
+          :style="{ minHeight: previewLoading ? '72px' : undefined }"
+        >
+          <NSpin :show="previewLoading">
+            <!-- 预检失败：展示原因并可重试 -->
+            <div v-if="previewError">
+              <NText type="error" style="word-break: break-all;">
+                {{ t('settings.pluginMarket.previewFailed') }}: {{ previewError }}
+              </NText>
+              <NButton size="small" style="margin-top: 8px;" @click="loadMarketPreview(pendingInstall.fullName)">
+                {{ t('settings.thirdPartyPlugins.retry') }}
+              </NButton>
+            </div>
+            <!-- 包内 manifest 信息（真实插件身份，供用户判断） -->
+            <PluginPackageInfo v-else-if="pendingPreview" :manifest="pendingPreview.manifest" />
+          </NSpin>
+        </div>
+
         <!-- 权限风险提示：第三方插件与宿主同权限执行，UI 仅样式隔离 -->
         <NAlert
           style="margin-top: 16px;"
@@ -200,12 +268,13 @@ onMounted(() => {
           {{ t('settings.pluginMarket.installRiskContent') }}
         </NAlert>
         <NSpace style="margin-top: 16px;" justify="end">
-          <NButton @click="pendingInstall = null">
+          <NButton :disabled="installingRepo !== null" @click="pendingInstall = null">
             {{ t('settings.thirdPartyPlugins.installConfirmNegative') }}
           </NButton>
           <NButton
             type="primary"
             :loading="installingRepo !== null"
+            :disabled="!pendingPreview"
             @click="confirmInstall(pendingInstall)"
           >
             {{ t('settings.pluginMarket.installConfirmPositive') }}
@@ -267,6 +336,12 @@ onMounted(() => {
 .repo-main {
   flex: 1;
   min-width: 0;
+}
+
+/* 安装确认弹窗 manifest 预检区：超高时弹窗内滚动（同 PluginsManagement 弹窗） */
+.install-preview {
+  max-height: min(430px, calc(100vh - 360px));
+  overflow-y: auto;
 }
 
 .repo-name {

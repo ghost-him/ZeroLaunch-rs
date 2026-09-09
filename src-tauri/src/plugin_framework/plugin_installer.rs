@@ -130,7 +130,18 @@ impl PluginInstaller {
     /// 返回前校验 id 格式：调用方（覆盖安装预清理）会在完整 manifest 校验
     /// 之前用该 id 拼装目录并删除旧目录，必须在此处先拦截非法 id。
     pub(crate) fn plugin_id_of(&self, source_path: &Path) -> Result<String, InstallError> {
-        let plugin_id = if source_path.is_dir() {
+        let plugin_id = self.read_package_manifest(source_path)?.plugin.id;
+        validate_plugin_id(&plugin_id)?;
+        Ok(plugin_id)
+    }
+
+    /// 读取插件包的 manifest（zip 或插件目录），不执行安装、不校验安装目录。
+    /// 供安装确认页预检展示：目录直接读 manifest.toml，zip 复用 read_zip_manifest 查找根 manifest.toml。
+    pub(crate) fn read_package_manifest(
+        &self,
+        source_path: &Path,
+    ) -> Result<Manifest, InstallError> {
+        let manifest = if source_path.is_dir() {
             let manifest_path = source_path.join("manifest.toml");
             if !manifest_path.exists() {
                 return Err(InstallError::Manifest(
@@ -138,17 +149,14 @@ impl PluginInstaller {
                 ));
             }
             let content = std::fs::read_to_string(&manifest_path)?;
-            let manifest: Manifest = toml::from_str(&content)
-                .map_err(|e| InstallError::Manifest(format!("invalid manifest: {}", e)))?;
-            manifest.plugin.id
+            toml::from_str(&content)
+                .map_err(|e| InstallError::Manifest(format!("invalid manifest: {}", e)))?
         } else {
             let file = std::fs::File::open(source_path)?;
             let mut archive = zip::ZipArchive::new(file)?;
-            let (manifest, _) = read_zip_manifest(source_path, &mut archive)?;
-            manifest.plugin.id
+            read_zip_manifest(source_path, &mut archive)?.0
         };
-        validate_plugin_id(&plugin_id)?;
-        Ok(plugin_id)
+        Ok(manifest)
     }
 
     /// 从目录复制安装插件到 `plugins_dir/<plugin_id>/`。
@@ -314,6 +322,65 @@ fn copy_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::validate_plugin_id;
+    use super::PluginInstaller;
+    use std::fs::File;
+    use std::io::Write as _;
+
+    /// 测试用最小合法 manifest（[plugin] 必需字段；runtime/components/ui/icon 均走默认）。
+    const SAMPLE_MANIFEST: &str = r#"
+[plugin]
+id = "com.example.sample"
+name = "Sample Plugin"
+version = "1.2.3"
+description = "预检测试插件"
+author = "tester"
+minHostVersion = "0.1.0"
+
+[components]
+provides = ["data_source"]
+"#;
+
+    #[test]
+    fn read_package_manifest_from_directory() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("manifest.toml"), SAMPLE_MANIFEST).unwrap();
+        let installer = PluginInstaller::new(dir.path().join("plugins"));
+
+        let manifest = installer.read_package_manifest(dir.path()).unwrap();
+        assert_eq!(manifest.plugin.id, "com.example.sample");
+        assert_eq!(manifest.plugin.name, "Sample Plugin");
+        assert_eq!(manifest.plugin.version, "1.2.3");
+    }
+
+    #[test]
+    fn read_package_manifest_from_zip() {
+        let dir = tempfile::tempdir().unwrap();
+        let zip_path = dir.path().join("sample.zip");
+        let file = File::create(&zip_path).unwrap();
+        let mut writer = zip::ZipWriter::new(file);
+        writer
+            .start_file("manifest.toml", zip::write::SimpleFileOptions::default())
+            .unwrap();
+        writer.write_all(SAMPLE_MANIFEST.as_bytes()).unwrap();
+        writer.finish().unwrap();
+        let installer = PluginInstaller::new(dir.path().join("plugins"));
+
+        let manifest = installer.read_package_manifest(&zip_path).unwrap();
+        assert_eq!(manifest.plugin.id, "com.example.sample");
+        assert_eq!(manifest.plugin.version, "1.2.3");
+    }
+
+    #[test]
+    fn read_package_manifest_reports_missing_manifest() {
+        let dir = tempfile::tempdir().unwrap();
+        let installer = PluginInstaller::new(dir.path().join("plugins"));
+        let err = installer.read_package_manifest(dir.path()).unwrap_err();
+        assert!(
+            err.to_string().contains("manifest.toml not found"),
+            "unexpected error: {}",
+            err
+        );
+    }
 
     #[test]
     fn validate_plugin_id_accepts_reverse_domain() {

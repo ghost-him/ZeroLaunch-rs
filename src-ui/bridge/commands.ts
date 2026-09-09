@@ -280,6 +280,11 @@ export function pluginInstallLocal(filePath: string, overwrite = false): Promise
   return invokeCommand<InstalledPluginInfo>('plugin_install_local', { filePath, overwrite })
 }
 
+/** 读取待安装插件包（.zip 或插件目录）的 manifest，供安装确认页预检展示；不执行安装。 */
+export function pluginInspectPackage(filePath: string): Promise<PluginManifest> {
+  return invokeCommand<PluginManifest>('plugin_inspect_package', { filePath })
+}
+
 export function pluginSetEnabled(pluginId: string, enabled: boolean): Promise<void> {
   return invokeCommand<void>('plugin_set_enabled', { pluginId, enabled })
 }
@@ -310,6 +315,13 @@ export interface MarketRelease {
   asset: MarketAsset
 }
 
+/** 市场安装预检响应：最新发布信息 + 包内 manifest（供安装确认弹窗展示，确认后仍由 marketInstall 下载安装）。 */
+export interface MarketPackagePreview {
+  tagName: string
+  assetName: string
+  manifest: PluginManifest
+}
+
 /** 拉取插件市场仓库列表。 */
 export function marketList(): Promise<MarketRepo[]> {
   return invokeCommand<MarketRepo[]>('market_list')
@@ -323,6 +335,16 @@ export function marketGetRelease(fullName: string): Promise<MarketRelease> {
 /** 安装仓库最新发布中的插件包（解析 → 下载 → 安装一步完成）。 */
 export function marketInstall(fullName: string, overwrite = false): Promise<InstalledPluginInfo> {
   return invokeCommand<InstalledPluginInfo>('market_install', { fullName, overwrite })
+}
+
+/** 预检仓库最新发布插件包：下载并解析其 manifest，供安装确认弹窗展示；暂存供安装复用。 */
+export function marketPreviewPackage(fullName: string): Promise<MarketPackagePreview> {
+  return invokeCommand<MarketPackagePreview>('market_preview_package', { fullName })
+}
+
+/** 释放市场预检暂存的插件包（安装确认弹窗取消/关闭时调用；幂等）。 */
+export function marketDiscardPreview(assetName: string): Promise<void> {
+  return invokeCommand<void>('market_discard_preview', { assetName })
 }
 
 export interface CliInfo {

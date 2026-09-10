@@ -8,7 +8,7 @@
         "@tauri-apps/api": "^2.11.0",
         "@tauri-apps/plugin-deep-link": "~2.4.9",
         "@tauri-apps/plugin-dialog": "~2.7.1",
-        "@tauri-apps/plugin-notification": "~2.3.3",
+        "@tauri-apps/plugin-notification": "~2.4.0",
         "@tauri-apps/plugin-shell": "~2.3.5",
         "lucide-vue-next": "^1.0.0",
         "naive-ui": "^2.44.1",
@@ -181,7 +181,7 @@
 
     "@tauri-apps/plugin-dialog": ["@tauri-apps/plugin-dialog@2.7.1", "https://registry.npmmirror.com/@tauri-apps/plugin-dialog/-/plugin-dialog-2.7.1.tgz", { "dependencies": { "@tauri-apps/api": "^2.11.0" } }, "sha512-OK1UBXYt+ojcmxMktzzuyonYIFta8CmAASpX+CA+DTGK24KlHjhYI6x2iOJ/TjZF4N7/ACK1oFmEOjIY9IhzOQ=="],
 
-    "@tauri-apps/plugin-notification": ["@tauri-apps/plugin-notification@2.3.3", "https://registry.npmmirror.com/@tauri-apps/plugin-notification/-/plugin-notification-2.3.3.tgz", { "dependencies": { "@tauri-apps/api": "^2.8.0" } }, "sha512-Zw+ZH18RJb41G4NrfHgIuofJiymusqN+q8fGUIIV7vyCH+5sSn5coqRv/MWB9qETsUs97vmU045q7OyseCV3Qg=="],
+    "@tauri-apps/plugin-notification": ["@tauri-apps/plugin-notification@2.4.0", "https://registry.npmmirror.com/@tauri-apps/plugin-notification/-/plugin-notification-2.4.0.tgz", { "dependencies": { "@tauri-apps/api": "^2.11.0" } }, "sha512-xlJXMcUoKOjNupzDue5wrEsa1wytf+l/2gCAPhafHyP683Y3N7J/8clUWLZ3vpnwkpT2C1zcLMMQFjjecIG2xg=="],
 
     "@tauri-apps/plugin-shell": ["@tauri-apps/plugin-shell@2.3.5", "https://registry.npmmirror.com/@tauri-apps/plugin-shell/-/plugin-shell-2.3.5.tgz", { "dependencies": { "@tauri-apps/api": "^2.10.1" } }, "sha512-jewtULhiQ7lI7+owCKAjc8tYLJr92U16bPOeAa472LHJdgaibLP83NcfAF2e+wkEcA53FxKQAZ7byDzs2eeizg=="],
 

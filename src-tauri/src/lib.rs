@@ -182,7 +182,6 @@ pub fn run() {
             crate::commands::bridge::bridge_confirm,
             crate::commands::bridge::bridge_wake,
             crate::commands::bridge::bridge_wake_plugin,
-            crate::commands::bridge::bridge_reset,
             crate::commands::bridge::bridge_refresh_candidates,
             crate::commands::bridge::bridge_get_candidates_count,
             crate::commands::bridge::bridge_hide_window,

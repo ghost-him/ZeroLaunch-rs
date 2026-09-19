@@ -8,7 +8,7 @@ use tauri::Emitter;
 use tracing::{debug, info};
 use zerolaunch_plugin_api::common::ImageUtils;
 use zerolaunch_plugin_api::plugin::PluginKind;
-use zerolaunch_plugin_api::{CandidateId, Query, QueryChannel, QueryResponse, ResultAction};
+use zerolaunch_plugin_api::{CandidateId, Query, QueryResponse, ResultAction};
 // ============================================================================
 // 搜索接口
 // ============================================================================
@@ -187,7 +187,7 @@ pub struct QueryPayload {
     #[serde(rename = "confirm")]
     confirm: bool,
     /// 沉浸式面板数据通道：面板内输入查询时显式指定目标插件
-    /// （QueryChannel::Panel 直调其 query()）；None = 统一路由（触发词/默认搜索）。
+    /// （经只读面板入口直调其 query()）；None = 经 UI 入口路由（触发词/默认搜索）。
     #[serde(rename = "panelPluginId")]
     panel_plugin_id: Option<String>,
 }
@@ -203,8 +203,8 @@ pub struct QueryPayload {
 /// 自动模式（OnInput）与普通搜索忽略该标志，行为与旧版一致。
 ///
 /// `payload.panel_plugin_id`：沉浸式面板数据通道（面板内输入查询，显式指定目标插件）。
-/// 有值 → 经 QueryChannel::Panel 直调该插件 query()（只读辅助路径，不改写会话）；
-/// None → 现有路由语义。
+/// 有值 → 经只读面板入口直调该插件 query()（只读辅助路径，不改写会话）；
+/// None → 经 UI 入口路由（触发词/默认搜索）。
 #[tauri::command]
 #[tracing::instrument(skip(state), fields(trace_id))]
 pub async fn bridge_query(
@@ -230,20 +230,16 @@ pub async fn bridge_query(
     };
 
     let query_start = std::time::Instant::now();
-    // 面板查询：显式指定插件直调（QueryChannel::Panel）；否则走统一路由。
-    let routed = session_dispatcher
-        .route_query(
-            &trace_id,
-            &query,
-            if panel_plugin_id.is_some() {
-                QueryChannel::Panel
-            } else {
-                QueryChannel::Ui
-            },
-            panel_plugin_id.as_deref(),
-        )
-        .await
-        .with_trace_id(&trace_id)?;
+    // 面板查询走只读入口（直调指定插件）；否则走 UI 入口（唯一可改写会话的查询入口）。
+    let routed = match panel_plugin_id.as_deref() {
+        Some(plugin_id) => {
+            session_dispatcher
+                .route_query_panel(&trace_id, &query, plugin_id)
+                .await
+        }
+        None => session_dispatcher.route_query_ui(&trace_id, &query).await,
+    }
+    .with_trace_id(&trace_id)?;
 
     // 录制查询事件到 Inspector（仅在调试模式开启时）
     // 统一词表：空结果合并为 search（展示形态层面不区分 List/Empty）。
@@ -515,14 +511,6 @@ pub async fn bridge_wake_plugin(
     // 窗口已在搜索栏会话中；此处兜底确保可见（前端驱动场景下通常已可见）
     state.get_host_api().show_window().await;
     Ok(())
-}
-
-/// 重置当前会话。
-/// 通常发生在窗口隐藏或关闭时。
-#[tauri::command]
-pub fn bridge_reset(state: tauri::State<'_, Arc<AppState>>) {
-    debug!("🔄 [Bridge] 重置会话");
-    state.get_session_dispatcher().reset_session(true);
 }
 
 // ============================================================================

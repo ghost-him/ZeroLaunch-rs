@@ -30,7 +30,7 @@ scope: "tool:edit(*.vue), tool:edit(*.ts), tool:write(*.vue), tool:write(*.ts)"
   `keep_search_bar=false`——热键唤醒默认 = 独立插件 = 全页面接管；List/Empty 属违约
   直接报错；`keep_search_bar: true`（行内形态）属违约：debug 构建用 `debug_assert!` 强制
   panic 暴露（契约违约即宿主逻辑缺陷，快速定位），release 构建正常运行——按插件声明形态
-  降级为 PluginPanel（保留搜索栏），与 `route_query` 的 keep_search_bar → 展示形态映射一致
+  降级为 PluginPanel（保留搜索栏），与 `apply_session_projection` 的 keep_search_bar → 展示形态映射一致
 - 宿主面板绑定与插件热键冲突时插件热键优先（窗口级全局唤醒语义）；插件作者应避免与宿主键冲突
 
 ## 可配置键分发（configKey 别名）

@@ -72,10 +72,6 @@ export function bridgeWake(): Promise<void> {
   return invokeCommand<void>('bridge_wake')
 }
 
-export function bridgeReset(): Promise<void> {
-  return invokeCommand<void>('bridge_reset')
-}
-
 export function bridgeRefreshCandidates(): Promise<number> {
   return invokeCommand<number>('bridge_refresh_candidates')
 }

@@ -19,7 +19,7 @@ scope: "tool:read(src-tauri/src/commands/**), tool:edit(src-tauri/src/commands/*
   ```
 - `fields(trace_id)` **必须** 保留（声明元数据字段）—— 否则 `record()` 无法将值写入元数据，`tracing-subscriber` 格式化时不会显示 `trace_id`，导致并发日志无法按 trace_id 追踪。
 - `record` **必须** 使用 `trace_id.as_str()`，**禁止** 使用 `tracing::field::display(&trace_id)`。原因：`field::display()` 不更新元数据字段，而是把值存入 span 扩展，与 `fields(trace_id)` 声明的空字段并存，导致同一字段格式化时出现两次（`trace_id=xxx trace_id=xxx`）。`as_str()` 则将值正确写入元数据字段，只出现一次。
-- **特例**：当 trace_id 来自**函数参数**而非内部生成时，可使用 `fields(trace_id = %trace_id)` 直接初始化（如 `route_query`、`route_confirm`）。此时无需 `record()` 调用。
+- **特例**：当 trace_id 来自**函数参数**而非内部生成时，可使用 `fields(trace_id = %trace_id)` 直接初始化（如 `evaluate_query`、`route_confirm`）。此时无需 `record()` 调用。
 - **必须** 使用 `crate::utils::trace_id::generate_trace_id()` 统一生成，**禁止** 各处自行用 `Uuid::new_v4()` 或 `rand` 生成
 - `BridgeError` **必须** 包含非空 `trace_id`。所有错误路径 **必须** 调用 `.with_trace_id(&trace_id)`
 - 成功响应 **不携带** trace_id（成功时用户不需要排查）
@@ -30,4 +30,4 @@ scope: "tool:read(src-tauri/src/commands/**), tool:edit(src-tauri/src/commands/*
 
 ## 核心热路径（推荐）
 
-核心热路径中的 async 方法（如 `SessionDispatcher::route_query`、`route_confirm`、`execute_candidate` 等）**推荐** 使用 `#[tracing::instrument]`，以便在 spans 中捕获 trace_id 实现端到端追踪。trace_id 来自参数时用 `fields(trace_id = %trace_id)`；不需要 trace_id 的方法（如 `on_search_bar_wake`）用 `#[tracing::instrument(skip(self))]` 即可，trace_id 由父 span 继承。
+核心热路径中的 async 方法（如 `SessionDispatcher::evaluate_query`、`route_confirm`、`execute_candidate` 等）**推荐** 使用 `#[tracing::instrument]`，以便在 spans 中捕获 trace_id 实现端到端追踪。trace_id 来自参数时用 `fields(trace_id = %trace_id)`；不需要 trace_id 的方法（如 `on_search_bar_wake`）用 `#[tracing::instrument(skip(self))]` 即可，trace_id 由父 span 继承。

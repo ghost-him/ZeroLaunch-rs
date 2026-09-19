@@ -106,7 +106,7 @@ export const useSearchStore = defineStore('search', () => {
   // ---- 派生 ----
   const isIdle = computed(() => query.value === '')
 
-  /// 主页（空查询常驻结果框）激活：开关开启时，空查询由 doQuery('') 发真实 IPC，
+  /// 主页（空查询常驻结果框）激活：开关开启时空查询发真实 IPC 加载主页候选项，
   /// 后端返回搜索形态（sessionMode='search'）且查询文本保持为空。
   /// 与 isIdle 并存：isIdle 保持 query==='' 语义（inline_param 等模式沿用），
   /// 主页渲染在此处额外豁免 isIdle 的抑制。
@@ -171,7 +171,7 @@ export const useSearchStore = defineStore('search', () => {
 
   /// 查询文本是否仍属于当前插件面板：首词为空格分隔的触发词（镜像后端 SessionDispatcher::match_trigger）。
   /// 输入交互层判定（RULES.md 前后端职责边界）：仅用于 IPC 前时序决策（防抖豁免、在途提示），
-  /// 权威路由仍由后端 route_query 裁决；判定参数（触发词）来自后端 session-state 事件，
+  /// 权威路由仍由后端 UI 查询入口（SessionDispatcher::route_query_ui）裁决；判定参数（触发词）来自后端 session-state 事件，
   /// 镜像变更须与后端同步（frontend-input-interaction 规则）。
   function queryStillInPanel(raw: string): boolean {
     if (panelTriggerKeywords.length === 0) return false
@@ -218,17 +218,10 @@ export const useSearchStore = defineStore('search', () => {
     cancelPendingDebounce()
 
     if (raw === '') {
-      // 常驻结果框：开关开启时空查询发真实 IPC 加载主页（后端按历史启动排序返回常用候选项）。
-      // 不清空展示状态——保留当前列表直至响应到达后原子替换，与普通搜索在途语义一致，
-      // 避免「清空 → 空态 → 主页」的闪烁。退出面板/参数会话的清理由调用方
-      // （back / exitInlineParamMode / exitParamPanelMode）先行完成，
-      // 会话归属与形态由 doQueryImpl 响应分支原子改写。
-      if (homeEnabled.value) {
-        doQueryImpl(raw, seq, confirm)
-        return
-      }
-      // 开关关闭：保持旧语义（纯清理，不发查询）。
-      clearSessionState()
+      // 空查询语义由后端裁决（权威）：常驻结果框开启 → 加载主页候选（展示状态保留至响应
+      // 到达后原子替换，避免「清空 → 空态 → 主页」闪烁）；关闭 → 后端结束会话并推送会话
+      // 结束投影（前端据此复位本地状态，无需在此自行拆除会话）。
+      doQueryImpl(raw, seq, confirm)
       return
     }
 

@@ -169,7 +169,7 @@ onMounted(async () => {
       searchBarRef.value?.focusInput()
     })
     // 常驻结果框：空查询会话（无活动插件/参数面板）唤出时加载常用候选项主页。
-    // 开关关闭时 doQuery('') 保持旧语义（纯清理，不发 IPC）；sessionMode 守卫
+    // 空查询语义由后端裁决（开关关闭时后端结束会话）；sessionMode 守卫
     // 保证插件面板等会话唤醒不被覆盖。
     if (searchStore.query === '' && searchStore.sessionMode === 'none') {
       searchStore.doQuery('')

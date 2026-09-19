@@ -5,8 +5,9 @@
 //! （含 ActivationFailed fallback）、插件 execute_action 转发。
 //! 会话系统层保留：代际、session-state 事件、面板动作通道、管道重建。
 //!
-//! 会话状态仅由 UI 通道维护（channel == Ui）；CLI/调试查询为只读辅助路径，
-//! 不改写活动会话、不推送事件（原 SessionRouter 行为保持）。
+//! 查询入口按能力拆分：`evaluate_query` 为无副作用的求值，仅 `route_query_ui`
+//! 具备会话写入能力；CLI（`route_query_cli`）与插件面板（`route_query_panel`）为
+//! 只读辅助路径，结构上不具备改写活动会话、推送事件的能力。
 
 use dashmap::DashMap;
 use dashmap::DashSet;
@@ -102,6 +103,18 @@ pub struct RoutedQuery {
     pub generation: u64,
     /// 实际处理本次查询的会话归属（None = 宿主默认搜索）。
     pub plugin_id: Option<String>,
+}
+
+/// 查询求值结果（无会话副作用）——由 `evaluate_query` 产出，供三个查询入口消费。
+#[derive(Debug)]
+struct EvaluatedQuery {
+    /// 展示响应（`current == false` 时恒为空响应）。
+    response: QueryResponse,
+    /// 实际处理本次查询的会话归属（None = 宿主默认搜索）。
+    owner: Option<String>,
+    /// 本次求值是否为「最新且有效」的结果。false 的两个来源语义一致（均不写会话投影）：
+    /// ① 已被同通道更新的查询取代（过期丢弃）；② 求值前置条件未就绪（搜索管道未初始化）。
+    current: bool,
 }
 
 /// 确认结局 —— Dispatcher 层语义，核心程序专属（无流程抽象）。
@@ -233,10 +246,9 @@ pub struct SessionDispatcher {
 
     /// 会话状态推送回调（bootstrap 注入；CLI 无窗口场景不注入）。
     session_emitter: RwLock<Option<SessionStateEmitter>>,
-    /// 双通道查询版本计数器（语义见 QueryRevisionGate 注释）。
-    ui_query_revision: Arc<AtomicU64>,
-    cli_query_revision: Arc<AtomicU64>,
-    panel_query_revision: Arc<AtomicU64>,
+    /// 查询版本计数器 —— 单一版本域：仅会写会话的入口参与（UI 查询与热键唤醒），
+    /// 只读入口（CLI/面板）不分配版本号、结果不作废。
+    query_revision: Arc<AtomicU64>,
 }
 
 impl SessionDispatcher {
@@ -265,9 +277,7 @@ impl SessionDispatcher {
             last_top_k: RwLock::new(10),
             last_refresh: Mutex::new(None),
             session_emitter: RwLock::new(None),
-            ui_query_revision: Arc::new(AtomicU64::new(0)),
-            cli_query_revision: Arc::new(AtomicU64::new(0)),
-            panel_query_revision: Arc::new(AtomicU64::new(0)),
+            query_revision: Arc::new(AtomicU64::new(0)),
         }
     }
 
@@ -457,6 +467,17 @@ impl SessionDispatcher {
             .unwrap_or_default()
     }
 
+    /// 常驻结果框（空查询主页）是否开启 —— 决定空查询是"加载主页"还是"无会话请求"。
+    /// ConfigManager 未注入（CLI/测试场景）或字段缺失时按开启处理：配置不可读不改变查询语义。
+    fn is_home_enabled(&self) -> bool {
+        let Some(cm) = self.config_manager() else {
+            return true;
+        };
+        cm.get_component_setting("window-behavior-config", "is_show_home_on_empty_query")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true)
+    }
+
     /// 注入会话状态推送回调（bootstrap 拿到 AppHandle 后调用；CLI 场景不注入）。
     pub fn set_session_emitter(&self, emitter: SessionStateEmitter) {
         *self.session_emitter.write() = Some(emitter);
@@ -623,29 +644,31 @@ impl SessionDispatcher {
         }
     }
 
-    /// 返回指定通道的版本计数器：各通道独立计数，互不干扰。
-    fn revision_counter(&self, channel: QueryChannel) -> &Arc<AtomicU64> {
-        match channel {
-            QueryChannel::Ui => &self.ui_query_revision,
-            QueryChannel::Cli => &self.cli_query_revision,
-            QueryChannel::Panel => &self.panel_query_revision,
-        }
+    /// 分配下一个查询版本号并构造门控 —— 仅会写会话的入口调用（UI 查询、热键唤醒）。
+    /// 参数：无。返回：绑定当前版本号与共享计数器的门控（注入 PluginContext 供插件判断）。
+    fn next_gate(&self) -> QueryRevisionGate {
+        let revision = self.query_revision.fetch_add(1, Ordering::Relaxed) + 1;
+        QueryRevisionGate::new(revision, self.query_revision.clone())
     }
 
-    /// 查询过期门控：查询执行期间若有同通道更新的查询进入后端，本查询已过期。
-    /// 判定单调不可逆（过期后不会再变回最新），丢弃本次结果返回空响应
+    /// 查询过期门控：查询执行期间若有更新的同域请求（UI 查询/热键唤醒）进入后端，
+    /// 本查询已过期。判定单调不可逆（过期后不会再变回最新），丢弃本次结果返回空响应
     /// 优于返回过期数据（旧 SessionRouter 语义，仅记录日志，由调用方丢弃结果）。
-    fn is_query_stale(&self, counter: &AtomicU64, revision: u64) -> bool {
-        let latest = counter.load(Ordering::Relaxed);
-        if latest != revision {
-            info!(
-                query_revision = revision,
-                latest_query_revision = latest,
-                site = "route",
-                "查询过期，丢弃查询结果"
-            );
+    /// `gate` 为 None 表示只读入口（无版本域，结果永不作废）。
+    fn is_query_stale(&self, gate: Option<&QueryRevisionGate>) -> bool {
+        let Some(gate) = gate else {
+            return false;
+        };
+        if gate.is_current() {
+            return false;
         }
-        latest != revision
+        info!(
+            query_revision = gate.revision(),
+            latest_query_revision = self.query_revision.load(Ordering::Relaxed),
+            site = "route",
+            "查询过期，丢弃查询结果"
+        );
+        true
     }
     /// 解析触发词与剩余查询内容（首词空格分隔，精确匹配触发词索引）。
     /// 语义：触发词必须带空格分隔（触发词+空格+内容），单独的触发词（无空格）
@@ -663,30 +686,30 @@ impl SessionDispatcher {
         }
     }
 
-    /// 路由一次查询：显式插件直调（面板通道）→ 插件；触发词命中 → 插件；否则 → 默认搜索。
+    /// 查询求值：显式插件直调（面板通道）→ 插件；触发词命中 → 插件；否则 → 默认搜索。
     ///
     /// `explicit_plugin_id` 为 Some 时跳过触发词路由，直接查询指定插件；为 None 时
-    /// 走触发词路由/默认搜索。显式直调仅面板通道使用。
+    /// 走触发词路由/默认搜索。显式直调仅 `route_query_panel` 使用。
+    /// `gate` 为查询版本门控：Some = 会写会话的入口（过期则丢弃结果），
+    /// None = 只读入口（无版本域，结果不作废）。
     /// 返回 `Err(PluginError)` 表示插件匹配成功但处理失败（不落入默认搜索）。
-    /// 会话状态仅由 UI 通道维护：CLI/面板/调试查询为只读辅助路径，不改写活动会话、
-    /// 不推送事件。
+    /// 本函数不产生会话副作用：投影写入由 `apply_session_projection`（仅 UI 入口调用）
+    /// 承担，CLI/面板入口在结构上不具备改写会话的能力。
     #[tracing::instrument(skip(self, query), fields(trace_id = %trace_id, query_revision, owner))]
-    pub async fn route_query(
+    async fn evaluate_query(
         &self,
         trace_id: &str,
         query: &Query,
         channel: QueryChannel,
         explicit_plugin_id: Option<&str>,
-    ) -> Result<RoutedQuery, SessionDispatcherError> {
-        // 显式直调仅面板通道使用。
-        debug_assert!(explicit_plugin_id.is_none() || channel == QueryChannel::Panel);
-        // 从所属通道计数器分配单调递增版本号：同通道新查询取代先前查询。
-        let counter = self.revision_counter(channel);
-        let revision = counter.fetch_add(1, Ordering::Relaxed) + 1;
-        tracing::Span::current().record("query_revision", revision);
+        gate: Option<&QueryRevisionGate>,
+    ) -> Result<EvaluatedQuery, SessionDispatcherError> {
+        if let Some(gate) = gate {
+            tracing::Span::current().record("query_revision", gate.revision());
+        }
         let (query_len, query_preview) = Self::log_query_preview(&query.raw_query);
         info!(
-            query_revision = revision,
+            query_revision = gate.map(|g| g.revision()).unwrap_or(0),
             raw_query_len = query_len,
             raw_query_preview = %query_preview,
             confirm = query.confirm,
@@ -696,7 +719,9 @@ impl SessionDispatcher {
         let mut ctx = PluginContext::new(trace_id);
         // query_id = 查询追踪标识。
         ctx.with_query(trace_id.to_string());
-        ctx.set_query_revision_gate(QueryRevisionGate::new(revision, counter.clone()));
+        if let Some(gate) = gate {
+            ctx.set_query_revision_gate(gate.clone());
+        }
         ctx.query_channel = channel;
         ctx.locale = self.current_locale();
 
@@ -747,48 +772,30 @@ impl SessionDispatcher {
 
             match plugin.query(&plugin_ctx, &plugin_query).await {
                 Ok(response) => {
-                    // 提交门控：查询执行期间若有同通道更新的查询进入后端，本查询已过期
+                    // 提交门控：查询执行期间若有更新的同域请求进入后端，本查询已过期
                     // （判定单调，过期后不会再变回最新），直接丢弃本次结果返回空响应。
-                    if self.is_query_stale(counter, revision) {
-                        return Ok(RoutedQuery {
+                    if self.is_query_stale(gate) {
+                        return Ok(EvaluatedQuery {
                             response: QueryResponse::Empty,
-                            generation: self.current_generation(),
-                            plugin_id: Some(plugin_id),
+                            owner: Some(plugin_id),
+                            current: false,
                         });
                     }
-                    // 展示形态：keep_search_bar 决定行内/全页面。
-                    let presentation = match &response {
-                        QueryResponse::CustomPanel {
-                            keep_search_bar, ..
-                        } => {
-                            if *keep_search_bar {
-                                PresentationMode::PluginPanel
-                            } else {
-                                PresentationMode::PluginImmersive
-                            }
-                        }
-                        _ => PresentationMode::PluginPanel,
-                    };
                     info!(
-                        query_revision = revision,
+                        query_revision = gate.map(|g| g.revision()).unwrap_or(0),
                         target = %plugin_id,
                         "路由命中插件"
                     );
-                    // 插件面板命中时无条件推送交互契约（结构保证：前端 Esc 退出不发 IPC，
-                    // 后端投影滞留旧面板，同面板重入必须重推——原 panel-push 不变式）。
-                    if channel == QueryChannel::Ui {
-                        self.enter_session(Some(plugin_id.clone()), presentation, true);
-                    }
-                    Ok(RoutedQuery {
+                    Ok(EvaluatedQuery {
                         response,
-                        generation: self.current_generation(),
-                        plugin_id: Some(plugin_id),
+                        owner: Some(plugin_id),
+                        current: true,
                     })
                 }
                 Err(e) => {
                     // 插件匹配成功但处理失败：不静默切换默认搜索，沿 IPC 错误通道上报。
                     error!(
-                        query_revision = revision,
+                        query_revision = gate.map(|g| g.revision()).unwrap_or(0),
                         target = %plugin_id,
                         error = %e,
                         "插件查询执行失败"
@@ -802,23 +809,24 @@ impl SessionDispatcher {
             let cached = self.cached_candidates.read().clone();
             let Some(pipeline) = self.search_pipeline.read().clone() else {
                 warn!("SearchPipeline 未初始化，返回空结果");
-                return Ok(RoutedQuery {
+                // 求值未就绪不构成有效交互：不产生会话投影（与既有行为一致）。
+                return Ok(EvaluatedQuery {
                     response: QueryResponse::Empty,
-                    generation: self.current_generation(),
-                    plugin_id: None,
+                    owner: None,
+                    current: false,
                 });
             };
             let normalized = collapse_repeated_spaces(&query.search_term);
             let scored_candidates = pipeline.search(&cached, &normalized).await;
 
-            // 提交门控（与插件分支一致）：搜索计算期间若有同通道更新的查询进入后端，
-            // 本查询已过期，丢弃结果——过期返回空结果优于返回过期数据（CLI 并发/排队
-            // 场景），同时避免过期查询写投影（search_state / enter_session）。
-            if self.is_query_stale(counter, revision) {
-                return Ok(RoutedQuery {
+            // 提交门控（与插件分支一致）：搜索计算期间若有更新的同域请求进入后端，
+            // 本查询已过期，丢弃结果——过期返回空结果优于返回过期数据（并发/排队
+            // 场景），同时避免过期结果被入口写入投影。
+            if self.is_query_stale(gate) {
+                return Ok(EvaluatedQuery {
                     response: QueryResponse::Empty,
-                    generation: self.current_generation(),
-                    plugin_id: None,
+                    owner: None,
+                    current: false,
                 });
             }
 
@@ -841,20 +849,14 @@ impl SessionDispatcher {
                             .iter()
                             .any(|kw| kw.to_lowercase() == trimmed)
                     {
-                        if channel == QueryChannel::Ui {
-                            *self.search_state.write() = SearchSubState::InlineParam {
-                                candidate_id: sc.id,
-                            };
-                            self.enter_session(None, PresentationMode::InlineParam, false);
-                        }
-                        return Ok(RoutedQuery {
+                        return Ok(EvaluatedQuery {
                             response: QueryResponse::InlineParam {
                                 candidate_id: sc.id,
                                 trigger_keyword: trimmed.to_string(),
                                 user_arg_count,
                             },
-                            generation: self.current_generation(),
-                            plugin_id: None,
+                            owner: None,
+                            current: true,
                         });
                     }
                 }
@@ -912,16 +914,117 @@ impl SessionDispatcher {
                 })
                 .collect();
 
-            if channel == QueryChannel::Ui {
-                *self.search_state.write() = SearchSubState::Search;
-                self.enter_session(None, PresentationMode::Search, false);
-            }
-            Ok(RoutedQuery {
+            Ok(EvaluatedQuery {
                 response: QueryResponse::List { results },
-                generation: self.current_generation(),
-                plugin_id: None,
+                owner: None,
+                current: true,
             })
         }
+    }
+
+    /// 组装路由响应：`current == false`（过期/未就绪）时 `evaluate_query` 已给出空响应；
+    /// 会话代际与归属照常回填（过期丢弃仍回填插件 id，供 Inspector 归属可观测）。
+    fn routed_from(&self, evaluated: EvaluatedQuery) -> RoutedQuery {
+        RoutedQuery {
+            response: evaluated.response,
+            generation: self.current_generation(),
+            plugin_id: evaluated.owner,
+        }
+    }
+
+    /// 按求值结果写入会话投影 —— 查询链路上唯一允许改写会话状态的函数。
+    /// 调用方保证仅在 `evaluated.current == true` 时调用（过期/未就绪不写投影）。
+    fn apply_session_projection(&self, evaluated: &EvaluatedQuery) {
+        if let Some(plugin_id) = &evaluated.owner {
+            // 展示形态：keep_search_bar 决定行内/全页面；非面板响应按行内形态进入。
+            let presentation = match &evaluated.response {
+                QueryResponse::CustomPanel {
+                    keep_search_bar, ..
+                } => {
+                    if *keep_search_bar {
+                        PresentationMode::PluginPanel
+                    } else {
+                        PresentationMode::PluginImmersive
+                    }
+                }
+                _ => PresentationMode::PluginPanel,
+            };
+            // 插件面板命中即进入插件会话投影：投递语义（无条件推送，语义见 deliver_session）。
+            self.deliver_session(Some(plugin_id.clone()), presentation, None);
+            return;
+        }
+        match &evaluated.response {
+            QueryResponse::InlineParam { candidate_id, .. } => {
+                *self.search_state.write() = SearchSubState::InlineParam {
+                    candidate_id: *candidate_id,
+                };
+                self.enter_session(None, PresentationMode::InlineParam);
+            }
+            _ => {
+                *self.search_state.write() = SearchSubState::Search;
+                self.enter_session(None, PresentationMode::Search);
+            }
+        }
+    }
+
+    /// UI 查询入口（搜索栏输入）——唯一允许改写会话状态的查询入口。
+    /// 两条路径：空查询且关闭常驻结果框 → 结束会话；其余 → 求值后写入会话投影。
+    /// 参数：trace_id - 追踪标识；query - 查询。
+    /// 返回：路由响应（含会话代际与归属）。
+    pub async fn route_query_ui(
+        &self,
+        trace_id: &str,
+        query: &Query,
+    ) -> Result<RoutedQuery, SessionDispatcherError> {
+        // 版本门控先分配：空查询同样取代在途查询（慢响应不得覆盖退出后的投影）。
+        let gate = self.next_gate();
+        // 空查询 = 前端的"无会话"请求：关闭常驻结果框时无可展示的会话内容，
+        // 直接结束会话（含默认搜索子状态清理），不进入搜索管道。
+        // 前端因此无需在退出/回退路径上显式声明会话结束。
+        if query.search_term.trim().is_empty() && !self.is_home_enabled() {
+            self.reset_session(true);
+            return Ok(RoutedQuery {
+                response: QueryResponse::Empty,
+                generation: self.current_generation(),
+                plugin_id: None,
+            });
+        }
+        let evaluated = self
+            .evaluate_query(trace_id, query, QueryChannel::Ui, None, Some(&gate))
+            .await?;
+        if evaluated.current {
+            self.apply_session_projection(&evaluated);
+        }
+        Ok(self.routed_from(evaluated))
+    }
+
+    /// CLI 查询入口（/v1/query）——只读辅助路径，不改写会话状态、结果不作废。
+    /// 参数：trace_id - 追踪标识；query - 查询。返回：路由响应。
+    pub async fn route_query_cli(
+        &self,
+        trace_id: &str,
+        query: &Query,
+    ) -> Result<RoutedQuery, SessionDispatcherError> {
+        let evaluated = self
+            .evaluate_query(trace_id, query, QueryChannel::Cli, None, None)
+            .await?;
+        Ok(self.routed_from(evaluated))
+    }
+
+    /// 面板查询入口（面板内 bridge_query 显式指定插件）——只读辅助路径，
+    /// 不改写会话状态、结果不作废。
+    /// 参数：trace_id - 追踪标识；query - 查询；plugin_id - 目标插件。
+    /// 返回：路由响应；插件不存在时返回 `InvalidState`。
+    pub async fn route_query_panel(
+        &self,
+        trace_id: &str,
+        query: &Query,
+        plugin_id: &str,
+    ) -> Result<RoutedQuery, SessionDispatcherError> {
+        let evaluated = self
+            .evaluate_query(trace_id, query, QueryChannel::Panel, Some(plugin_id), None)
+            .await?;
+        Ok(self.routed_from(evaluated))
     }
 
     /// 路由一次确认：校验会话代际 → 按活动会话归属分发（插件执行 / 默认搜索执行）。
@@ -1039,7 +1142,7 @@ impl SessionDispatcher {
                             // 参数面板是默认搜索的子形态：子状态自持写入，投影形态自声明。
                             *self.search_state.write() =
                                 SearchSubState::ParamPanel { candidate_id };
-                            self.enter_session(None, PresentationMode::ParamPanel, false);
+                            self.enter_session(None, PresentationMode::ParamPanel);
                             return Ok(RoutedConfirm {
                                 outcome: ConfirmOutcome::EnterParamPanel {
                                     candidate_id,
@@ -1219,40 +1322,46 @@ impl SessionDispatcher {
 
     // ==================== 会话维护 ====================
 
-    /// 进入会话投影：归属/形态变化时递增代际并更新活动会话；
-    /// 投影变化或插件面板路由命中时推送会话事件（幂等，前端无条件接受）。
+    /// 进入会话投影（变更通知语义）：归属/形态变化时递增代际并更新活动会话；
+    /// 投影未变则不推送。
     ///
-    /// `always_push`：插件面板命中时恒为 true——前端 Esc 退出经 doQuery('') 短路
-    /// （不发 IPC），后端投影无从感知退出；同面板重入时若仅按「投影变化」推送，
-    /// 交互契约将永久丢失（原 panel-push-unconditional 不变式，结构保证）。
-    /// 进入会话投影：归属/形态变化时递增代际并更新活动会话；
-    /// 投影变化或插件面板路由命中时推送会话事件（幂等，前端无条件接受）。
+    /// 适用：载荷随 `bridge_query` 响应下发的形态（默认搜索 / 行内参数 / 参数面板）——
+    /// 前端渲染这些形态不依赖事件投递。
     ///
     /// `plugin_id`：None = 宿主默认搜索（含行内参数/参数面板子状态）；Some(id) = 插件。
-    /// `always_push`：插件面板命中时恒为 true——前端 Esc 退出经 doQuery('') 短路
-    /// （不发 IPC），后端投影无从感知退出；同面板重入时若仅按「投影变化」推送，
-    /// 交互契约将永久丢失（原 panel-push-unconditional 不变式，结构保证）。
-    fn enter_session(
+    fn enter_session(&self, plugin_id: Option<String>, presentation: PresentationMode) {
+        self.enter_session_inner(plugin_id, presentation, None, false);
+    }
+
+    /// 投递会话投影（投递语义）：无条件推送，不按投影变化裁剪。
+    ///
+    /// 不变式：插件的归属/交互契约/触发词**只能**经事件送达前端（查询响应不含这些字段），
+    /// 而前端可在不发任何 IPC 的情况下本地退出面板（后端无从观测），故"投影未变"
+    /// 不能作为"前端已持有交互契约"的依据——命中路径必须每次投递，否则同面板重入会
+    /// 丢失交互契约（Escape 等按键失效）。此处不得按投影变化"优化"为变更通知。
+    ///
+    /// 调用方：① UI 查询命中插件；② 热键唤醒（`content` 是唤醒路径唯一的载荷通道）。
+    fn deliver_session(
         &self,
         plugin_id: Option<String>,
         presentation: PresentationMode,
-        always_push: bool,
+        content: Option<PluginPanelContent>,
     ) {
-        self.enter_session_inner(plugin_id, presentation, always_push, None);
+        self.enter_session_inner(plugin_id, presentation, content, true);
     }
 
-    /// 进入会话投影的内部实现：`content` 为热键唤醒携带的面板渲染载荷，
-    /// 仅唤醒路径非 None（关键词查询路径的载荷随 bridge_query 响应下发）。
+    /// 会话投影写入内部实现：`content` 为唤醒路径的面板渲染载荷，`deliver` 为投递语义
+    /// （无条件推送，语义见 `deliver_session`）。
     fn enter_session_inner(
         &self,
         plugin_id: Option<String>,
         presentation: PresentationMode,
-        always_push: bool,
         content: Option<PluginPanelContent>,
+        deliver: bool,
     ) {
         let mut session = self.active_session.write();
         let changed = session.plugin_id != plugin_id || session.presentation != presentation;
-        if !changed && !always_push {
+        if !changed && !deliver {
             return;
         }
         // 代际随会话投影写入递增（单一数据源：ActiveSession.generation）。
@@ -1396,7 +1505,7 @@ impl SessionDispatcher {
     /// 静默进入会导致前后端投影失步）。
     /// 唤醒与 UI 查询共用版本计数器：唤醒开始即递增使在途 UI 查询过期，查询返回后
     /// 再次校验——期间若有更新的查询/唤醒进入则本唤醒已过期，丢弃结果不进入会话
-    /// （与 route_query 提交门控同构），防止慢唤醒覆盖用户等待期间发起的新会话。
+    /// （与 evaluate_query 提交流程同构），防止慢唤醒覆盖用户等待期间发起的新会话。
     pub async fn wake_plugin(&self, plugin_id: &str) -> Result<(), SessionDispatcherError> {
         // 启用校验：禁用插件不可被热键唤醒（前端热键表可能残留过期条目，
         // 后端为权威裁决，与触发词路由的「禁用即不路由」语义一致）。
@@ -1419,10 +1528,9 @@ impl SessionDispatcher {
                 )));
             }
         }
-        // 版本门控：唤醒作为 UI 通道请求参与版本竞争——占用版本号使在途 UI 查询过期，
+        // 版本门控：唤醒与会写会话的查询共用同一版本域——占用版本号使在途 UI 查询过期，
         // 查询返回后校验自身是否仍为最新，过期则丢弃（不写快照、不进入会话）。
-        let counter = self.revision_counter(QueryChannel::Ui);
-        let revision = counter.fetch_add(1, Ordering::Relaxed) + 1;
+        let gate = self.next_gate();
 
         let host_api: Arc<HostApi> = self.host_api.read().clone().ok_or_else(|| {
             SessionDispatcherError::NotInitialized(
@@ -1440,7 +1548,7 @@ impl SessionDispatcher {
         ctx.with_query(trace_id.clone());
         ctx.with_plugin_id(plugin_id.to_string());
         ctx.locale = self.current_locale();
-        ctx.set_query_revision_gate(QueryRevisionGate::new(revision, counter.clone()));
+        ctx.set_query_revision_gate(gate.clone());
         let query = Query {
             id: trace_id,
             raw_query: String::new(),
@@ -1457,9 +1565,9 @@ impl SessionDispatcher {
             SessionDispatcherError::PluginError(e.to_string())
         })?;
 
-        // 提交门控：查询期间若有更新的同通道请求进入后端，本唤醒已过期，
+        // 提交门控：查询期间若有更新的同域请求进入后端，本唤醒已过期，
         // 丢弃结果返回成功（前端保持用户最新会话，不推送覆盖事件）。
-        if self.is_query_stale(counter, revision) {
+        if self.is_query_stale(Some(&gate)) {
             return Ok(());
         }
         *self.parameter_snapshot.lock() = snapshot;
@@ -1467,7 +1575,7 @@ impl SessionDispatcher {
         // 展示形态与载荷：热键唤醒默认 = 独立插件 = 全页面接管（PluginImmersive）。
         // keep_search_bar=true（行内面板）与热键唤醒契约冲突：debug 构建用 debug_assert
         // 强制 panic 暴露（契约违约即宿主逻辑缺陷，快速定位）；release 构建正常运行——
-        // 按插件声明形态降级为 PluginPanel（保留搜索栏），与 route_query 的
+        // 按插件声明形态降级为 PluginPanel（保留搜索栏），与 apply_session_projection 的
         // keep_search_bar → 展示形态映射保持一致，不因插件违约而中止唤醒。
         // 非 CustomPanel 响应（List/Empty）属契约违约，返回错误（前端无载荷可渲染，
         // 静默进入会导致前后端投影失步）。
@@ -1521,7 +1629,7 @@ impl SessionDispatcher {
             presentation = presentation.as_str(),
             "热键唤醒插件"
         );
-        self.enter_session_inner(Some(plugin_id.to_string()), presentation, true, content);
+        self.deliver_session(Some(plugin_id.to_string()), presentation, content);
         // 成功唤醒后统一确保窗口可见（热键与候选项确认两条唤醒路径共用；
         // show_window 幂等，窗口已可见时无副作用）。
         host_api.show_window().await;
@@ -1758,12 +1866,14 @@ impl SessionDispatcher {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::config::setting_builders::SchemaBuilder;
     use async_trait::async_trait;
     use zerolaunch_plugin_api::config::{
         ComponentCore, ComponentType, Configurable, SettingDefinition,
     };
     use zerolaunch_plugin_api::mock::helpers::mock_platform_services;
     use zerolaunch_plugin_api::mock::*;
+    use zerolaunch_plugin_api::plugin::{PanelInteraction, PanelKeyAction, PanelKeyBinding};
     use zerolaunch_plugin_api::services::resource::AppResourceService;
     use zerolaunch_plugin_api::services::storage::storage_service::StorageService;
     use zerolaunch_plugin_api::services::theme::{Theme, ThemeProvider};
@@ -2297,7 +2407,7 @@ mod tests {
                 core: ComponentCore::new(
                     id,
                     "路由测试桩".to_string(),
-                    "route_query 验证".to_string(),
+                    "查询入口验证".to_string(),
                     ComponentType::Plugin,
                     0,
                 ),
@@ -2327,6 +2437,18 @@ mod tests {
     impl Plugin for RecordingStubPlugin {
         fn metadata(&self) -> &PluginMetadata {
             &self.metadata
+        }
+
+        /// 面板按键契约：Escape → 返回。
+        /// 会话投递断链时前端拿不到该声明（面板退出等按键全部失效），供投递不变式测试断言。
+        fn interaction_policy(&self) -> PanelInteraction {
+            PanelInteraction {
+                bindings: vec![PanelKeyBinding {
+                    key: "Escape".to_string(),
+                    action: PanelKeyAction::GoBack,
+                }],
+                ..Default::default()
+            }
         }
 
         async fn init(
@@ -2367,7 +2489,7 @@ mod tests {
     /// 面板直调（explicit_plugin_id + Panel 通道）：search_term 小写化、confirm 固定
     /// false、不改写会话（只读辅助路径）。
     #[tokio::test]
-    async fn route_query_panel_explicit_is_readonly_direct_call() {
+    async fn route_query_panel_is_readonly_direct_call() {
         let dispatcher = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
         let calls = Arc::new(Mutex::new(Vec::new()));
         dispatcher.register_plugin_with_triggers(
@@ -2383,7 +2505,7 @@ mod tests {
             confirm: true,
         };
         let routed = dispatcher
-            .route_query("trace-1", &query, QueryChannel::Panel, Some("test.="))
+            .route_query_panel("trace-1", &query, "test.=")
             .await
             .expect("面板直调应成功");
 
@@ -2406,7 +2528,7 @@ mod tests {
 
     /// 触发词路由（Ui 通道）：search_term 剥离触发词、透传 confirm、命中后写入会话投影。
     #[tokio::test]
-    async fn route_query_trigger_routes_and_enters_session() {
+    async fn route_query_ui_routes_trigger_and_enters_session() {
         let dispatcher = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
         let calls = Arc::new(Mutex::new(Vec::new()));
         dispatcher.register_plugin_with_triggers(
@@ -2421,7 +2543,7 @@ mod tests {
             confirm: true,
         };
         let routed = dispatcher
-            .route_query("trace-1", &query, QueryChannel::Ui, None)
+            .route_query_ui("trace-1", &query)
             .await
             .expect("触发词路由应成功");
 
@@ -2440,7 +2562,7 @@ mod tests {
 
     /// 无触发词命中且未显式指定插件 → 默认搜索（管道未初始化返回空结果，不回填插件）。
     #[tokio::test]
-    async fn route_query_without_plugin_falls_back_to_search() {
+    async fn route_query_ui_without_plugin_falls_back_to_search() {
         let dispatcher = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
         let query = Query {
             id: "trace".to_string(),
@@ -2449,16 +2571,71 @@ mod tests {
             confirm: false,
         };
         let routed = dispatcher
-            .route_query("trace-1", &query, QueryChannel::Ui, None)
+            .route_query_ui("trace-1", &query)
             .await
             .expect("默认搜索应成功");
         assert!(matches!(routed.response, QueryResponse::Empty));
         assert_eq!(routed.plugin_id, None);
     }
 
+    /// UI 入口的行内参数投影：响应为 InlineParam 时写入行内参数子状态与展示形态
+    /// （`apply_session_projection` 从响应推导的唯一语义派生分支）。
+    #[tokio::test]
+    async fn route_query_ui_inline_param_writes_inline_projection() {
+        let dispatcher = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
+        // 无引擎管道：候选零分透传，行内参数检测仍按缓存候选进行。
+        dispatcher.set_search_pipeline(SearchPipeline::without_engine(Vec::new(), 10));
+        let mut cache = CachedCandidateData::new();
+        cache.add_candidate(SearchCandidate {
+            id: 0,
+            name: "回声".to_string(),
+            icon: IconRequest::Path(String::new()),
+            target: ExecutionTarget::Command("echo {}".to_string()),
+            keywords: vec!["echo".to_string()],
+            bias: 0.0,
+            trigger_keywords: vec!["echo".to_string()],
+        });
+        dispatcher.set_cached_candidates(cache);
+
+        let query = Query {
+            id: "trace".to_string(),
+            // 尾随空格 + 触发词精确匹配 → 行内参数入口
+            raw_query: "echo ".to_string(),
+            search_term: "echo ".to_string(),
+            confirm: false,
+        };
+        let routed = dispatcher
+            .route_query_ui("trace-1", &query)
+            .await
+            .expect("行内参数路由应成功");
+
+        let (inline_candidate_id, trigger_keyword, user_arg_count) = match routed.response {
+            QueryResponse::InlineParam {
+                candidate_id,
+                trigger_keyword,
+                user_arg_count,
+            } => (candidate_id, trigger_keyword, user_arg_count),
+            other => panic!("响应应为 InlineParam: {:?}", other),
+        };
+        assert_eq!(trigger_keyword, "echo");
+        assert_eq!(user_arg_count, 1);
+        assert_eq!(
+            dispatcher.current_presentation(),
+            PresentationMode::InlineParam,
+            "InlineParam 响应应写入行内参数展示形态"
+        );
+        assert!(
+            matches!(
+                *dispatcher.search_state.read(),
+                SearchSubState::InlineParam { candidate_id } if candidate_id == inline_candidate_id
+            ),
+            "行内参数子状态应锁定响应中的候选项"
+        );
+    }
+
     /// 显式直调不存在的插件 → InvalidState（错误消息带入口上下文）。
     #[tokio::test]
-    async fn route_query_explicit_unknown_plugin_errors() {
+    async fn route_query_panel_explicit_unknown_plugin_errors() {
         let dispatcher = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
         let query = Query {
             id: "trace".to_string(),
@@ -2467,7 +2644,7 @@ mod tests {
             confirm: false,
         };
         let err = dispatcher
-            .route_query("trace-1", &query, QueryChannel::Panel, Some("ghost"))
+            .route_query_panel("trace-1", &query, "ghost")
             .await
             .unwrap_err();
         assert!(
@@ -2477,11 +2654,13 @@ mod tests {
         );
     }
 
-    /// 提交门控（合并修复）：面板查询执行期间同通道新查询进入 → 旧查询过期丢弃
-    /// 返回空响应；插件 id 仍回填（区别于默认搜索的空结果）。
+    /// 提交门控（仅 UI 入口有版本域）：慢查询执行期间更新的查询进入 → 旧查询过期丢弃
+    /// （空响应 + 仍回填归属），且**不得改写会话投影**（快查询的投影必须保留）。
+    /// 只读入口（CLI/面板）不分配版本号，其查询结果不作废。
     #[tokio::test]
-    async fn route_query_panel_stale_query_discarded() {
+    async fn route_query_ui_stale_query_discarded_without_overwriting_projection() {
         let dispatcher = Arc::new(SessionDispatcher::new(Arc::new(PluginRegistry::new())));
+        dispatcher.set_search_pipeline(SearchPipeline::without_engine(Vec::new(), 10));
         let calls = Arc::new(Mutex::new(Vec::new()));
         dispatcher.register_plugin_with_triggers(
             Arc::new(
@@ -2491,26 +2670,31 @@ mod tests {
             true,
         );
 
-        let query = Query {
+        // 慢查询：触发词命中 → 本应进入 test.= 插件面板会话
+        let slow_query = Query {
+            id: "trace".to_string(),
+            raw_query: "= 1+1".to_string(),
+            search_term: "= 1+1".to_string(),
+            confirm: false,
+        };
+        let spawned = dispatcher.clone();
+        let slow = tauri::async_runtime::spawn(async move {
+            spawned.route_query_ui("trace-1", &slow_query).await
+        });
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+
+        // 快查询：无触发词命中 → 默认搜索投影（搜索形态）
+        let fast_query = Query {
             id: "trace".to_string(),
             raw_query: "hello".to_string(),
             search_term: "hello".to_string(),
             confirm: false,
         };
-        // 并发发起两个同通道查询：慢查询执行期间快查询占用更新版本号
-        let spawned = dispatcher.clone();
-        let slow_query = query.clone();
-        let slow = tauri::async_runtime::spawn(async move {
-            spawned
-                .route_query("trace-1", &slow_query, QueryChannel::Panel, Some("test.="))
-                .await
-        });
-        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
-        let fast_query = query.clone();
         let fast = dispatcher
-            .route_query("trace-2", &fast_query, QueryChannel::Panel, Some("test.="))
+            .route_query_ui("trace-2", &fast_query)
             .await
             .expect("新查询应成功");
+        assert!(matches!(fast.response, QueryResponse::List { .. }));
 
         let slow = slow
             .await
@@ -2525,6 +2709,297 @@ mod tests {
             Some("test.="),
             "过期丢弃仍回填插件 id"
         );
-        assert!(matches!(fast.response, QueryResponse::Empty));
+        assert_eq!(
+            dispatcher.current_session().plugin_id,
+            None,
+            "过期查询不得把会话投影改写为插件归属"
+        );
+        assert_eq!(
+            dispatcher.current_presentation(),
+            PresentationMode::Search,
+            "投影应保留快查询写入的搜索形态"
+        );
+    }
+
+    // ==================== 会话投递不变式 ====================
+
+    /// 测试用窗口行为配置桩：仅承载会话层读取的 `is_show_home_on_empty_query`。
+    ///
+    /// 仅限本测试模块使用（以桩替代内置配置组件，测试不引用 builtin_plugin 实现）。
+    struct WindowBehaviorStub {
+        /// 组件身份元数据（component_id 必须为 "window-behavior-config"）。
+        core: ComponentCore,
+        /// 对外暴露的配置值（会话层经 get_component_setting 读取单字段）。
+        settings: serde_json::Value,
+    }
+
+    impl WindowBehaviorStub {
+        /// 构造常驻结果框开关为 `home_enabled` 的配置桩。
+        fn new(home_enabled: bool) -> Self {
+            Self {
+                core: ComponentCore::new(
+                    "window-behavior-config".to_string(),
+                    "窗口行为配置桩".to_string(),
+                    String::new(),
+                    ComponentType::Core,
+                    0,
+                ),
+                settings: serde_json::json!({ "is_show_home_on_empty_query": home_enabled }),
+            }
+        }
+    }
+
+    impl Configurable for WindowBehaviorStub {
+        fn core(&self) -> &ComponentCore {
+            &self.core
+        }
+
+        /// 声明被读取的单字段（注册时组件默认配置需通过 schema 校验）。
+        fn setting_schema(&self) -> Vec<SettingDefinition> {
+            vec![SchemaBuilder::boolean(
+                "is_show_home_on_empty_query",
+                "常驻结果框",
+                "空查询显示常用候选项",
+            )
+            .build()]
+        }
+
+        fn get_settings(&self) -> serde_json::Value {
+            self.settings.clone()
+        }
+    }
+
+    /// 注入承载常驻结果框开关的 ConfigManager（未注入时会话层按"开启"处理）。
+    async fn set_home_setting(dispatcher: &SessionDispatcher, home_enabled: bool) {
+        let cm = Arc::new(ConfigManager::new(
+            std::env::temp_dir().join("zl-home-setting-test"),
+        ));
+        cm.register(Arc::new(WindowBehaviorStub::new(home_enabled)))
+            .await;
+        dispatcher.set_config_manager(cm);
+    }
+
+    /// 触发词 + 空格分隔内容的插件查询（路由命中 "=" 桩插件）。
+    fn plugin_query() -> Query {
+        Query {
+            id: "trace".to_string(),
+            raw_query: "= 1+1".to_string(),
+            search_term: "= 1+1".to_string(),
+            confirm: false,
+        }
+    }
+
+    /// 空查询（清空输入 / 退出面板路径发出的查询）。
+    fn empty_query() -> Query {
+        Query {
+            id: "trace".to_string(),
+            raw_query: String::new(),
+            search_term: String::new(),
+            confirm: false,
+        }
+    }
+
+    /// 捕获会话事件的 emitter 与事件容器（测试共用）。
+    fn capture_session_events(
+        dispatcher: &SessionDispatcher,
+    ) -> Arc<Mutex<Vec<SessionStateEvent>>> {
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let capture = events.clone();
+        dispatcher.set_session_emitter(Arc::new(move |event| capture.lock().push(event)));
+        events
+    }
+
+    /// 投递不变式：UI 查询每次命中同一插件都必须投递会话投影。
+    ///
+    /// 前端渲染插件面板所需的归属/交互契约/触发词只随 session-state 下发，而前端可在
+    /// 不发任何 IPC 的情况下本地退出面板（后端无从观测）→ 后端不得按"投影未变"裁剪投递。
+    /// 回归：曾按投影变化裁剪，导致同面板重入丢失交互契约（Escape 等按键失效）。
+    #[tokio::test]
+    async fn ui_plugin_hit_delivers_session_on_every_hit() {
+        let dispatcher = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
+        dispatcher.set_host_api(test_host_api());
+        let events = capture_session_events(&dispatcher);
+        dispatcher.register_plugin_with_triggers(
+            Arc::new(RecordingStubPlugin::new(
+                "=",
+                Arc::new(Mutex::new(Vec::new())),
+            )),
+            true,
+        );
+
+        dispatcher
+            .route_query_ui("trace-1", &plugin_query())
+            .await
+            .expect("首次命中应成功");
+        dispatcher
+            .route_query_ui("trace-2", &plugin_query())
+            .await
+            .expect("再次命中应成功");
+
+        let events = events.lock();
+        assert_eq!(events.len(), 2, "每次命中都必须投递会话投影");
+        for event in events.iter() {
+            assert_eq!(
+                event.panel.as_ref().map(|p| p.plugin_id.as_str()),
+                Some("test.="),
+                "投递须携带会话归属（面板动作回传 pluginId 依赖）"
+            );
+            let interaction = event.interaction.as_ref().expect("投递须携带交互契约");
+            assert!(
+                interaction.bindings.iter().any(|b| b.key == "Escape"),
+                "投递须携带按键声明（否则面板无法退出）"
+            );
+            assert!(
+                event.trigger_keywords.contains(&"=".to_string()),
+                "投递须携带触发词（前端退出判定镜像参数）"
+            );
+        }
+        assert_eq!(
+            events[0].generation, events[1].generation,
+            "投影未变：重复投递不递增代际"
+        );
+    }
+
+    /// 变更通知语义：默认搜索查询只在投影变化时推送（载荷随 bridge_query 响应下发）。
+    /// 与插件命中路径的无条件投递构成有意的不对称，防止有人统一改成"每次必推"。
+    #[tokio::test]
+    async fn default_search_query_notifies_only_on_projection_change() {
+        let dispatcher = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
+        dispatcher.set_search_pipeline(SearchPipeline::without_engine(Vec::new(), 10));
+        let events = capture_session_events(&dispatcher);
+
+        let query = Query {
+            id: "trace".to_string(),
+            raw_query: "hello".to_string(),
+            search_term: "hello".to_string(),
+            confirm: false,
+        };
+        for trace in ["trace-1", "trace-2"] {
+            dispatcher
+                .route_query_ui(trace, &query)
+                .await
+                .expect("默认搜索应成功");
+        }
+
+        assert_eq!(events.lock().len(), 1, "投影未变的搜索查询不重复推送");
+    }
+
+    /// 只读入口（面板/CLI）命中插件不写投影、不投递（结构上无会话副作用）。
+    #[tokio::test]
+    async fn readonly_query_entries_do_not_deliver_session() {
+        let dispatcher = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
+        dispatcher.set_host_api(test_host_api());
+        let events = capture_session_events(&dispatcher);
+        dispatcher.register_plugin_with_triggers(
+            Arc::new(RecordingStubPlugin::new(
+                "=",
+                Arc::new(Mutex::new(Vec::new())),
+            )),
+            true,
+        );
+
+        dispatcher
+            .route_query_panel("trace-1", &plugin_query(), "test.=")
+            .await
+            .expect("面板直调应成功");
+        dispatcher
+            .route_query_cli("trace-2", &plugin_query())
+            .await
+            .expect("CLI 查询应成功");
+
+        assert!(events.lock().is_empty(), "只读入口不得投递会话事件");
+        assert_eq!(
+            dispatcher.current_presentation(),
+            PresentationMode::None,
+            "只读入口不得改写会话投影"
+        );
+    }
+
+    /// 空查询 + 关闭常驻结果框 → 结束会话（后端裁决，前端无需显式声明会话结束）。
+    #[tokio::test]
+    async fn empty_ui_query_ends_session_when_home_disabled() {
+        let dispatcher = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
+        dispatcher.set_host_api(test_host_api());
+        set_home_setting(&dispatcher, false).await;
+        let events = capture_session_events(&dispatcher);
+        dispatcher.register_plugin_with_triggers(
+            Arc::new(RecordingStubPlugin::new(
+                "=",
+                Arc::new(Mutex::new(Vec::new())),
+            )),
+            true,
+        );
+
+        dispatcher
+            .route_query_ui("trace-1", &plugin_query())
+            .await
+            .expect("插件命中应成功");
+        assert_eq!(
+            dispatcher.current_presentation(),
+            PresentationMode::PluginPanel,
+            "前置：已进入插件会话"
+        );
+
+        let routed = dispatcher
+            .route_query_ui("trace-2", &empty_query())
+            .await
+            .expect("空查询应成功");
+
+        assert!(
+            matches!(routed.response, QueryResponse::Empty),
+            "空查询应返回空响应"
+        );
+        assert_eq!(
+            dispatcher.current_session().plugin_id,
+            None,
+            "空查询应结束插件会话"
+        );
+        assert_eq!(
+            dispatcher.current_presentation(),
+            PresentationMode::None,
+            "空查询应复位会话投影"
+        );
+        assert_eq!(
+            events
+                .lock()
+                .last()
+                .map(|e| e.presentation)
+                .expect("应推送会话结束投影"),
+            PresentationMode::None,
+            "会话结束经 session-state 投递（前端据此复位本地状态）"
+        );
+    }
+
+    /// 空查询 + 开启常驻结果框 → 走主页搜索（投影为搜索形态，不结束会话）。
+    #[tokio::test]
+    async fn empty_ui_query_loads_home_when_enabled() {
+        let dispatcher = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
+        dispatcher.set_host_api(test_host_api());
+        dispatcher.set_search_pipeline(SearchPipeline::without_engine(Vec::new(), 10));
+        set_home_setting(&dispatcher, true).await;
+        dispatcher.register_plugin_with_triggers(
+            Arc::new(RecordingStubPlugin::new(
+                "=",
+                Arc::new(Mutex::new(Vec::new())),
+            )),
+            true,
+        );
+
+        dispatcher
+            .route_query_ui("trace-1", &plugin_query())
+            .await
+            .expect("插件命中应成功");
+
+        dispatcher
+            .route_query_ui("trace-2", &empty_query())
+            .await
+            .expect("空查询应成功");
+
+        assert_eq!(
+            dispatcher.current_presentation(),
+            PresentationMode::Search,
+            "常驻结果框开启时空查询进入搜索形态（主页）"
+        );
+        assert_eq!(dispatcher.current_session().plugin_id, None);
     }
 }

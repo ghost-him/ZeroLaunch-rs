@@ -26,12 +26,10 @@ scope:
 ## 正确写法
 
 ```rust
-use zerolaunch_plugin_api::plugin::QueryChannel;
 use zerolaunch_plugin_api::config::SettingDefinition;
+use zerolaunch_plugin_api::services::IconRequest;
 
-let response = session_router
-    .route_query(&trace_id, &query, QueryChannel::Ui)
-    .await;
+let icon = IconRequest::Path(path);
 
 fn setting_schema(&self) -> Vec<SettingDefinition> { … }
 ```
@@ -39,9 +37,7 @@ fn setting_schema(&self) -> Vec<SettingDefinition> { … }
 ## 错误写法
 
 ```rust
-let response = session_router
-    .route_query(&trace_id, &query, zerolaunch_plugin_api::plugin::QueryChannel::Ui)
-    .await;
+let icon = zerolaunch_plugin_api::services::IconRequest::Path(path);
 
 fn setting_schema(&self) -> Vec<zerolaunch_plugin_api::config::SettingDefinition> { … }
 ```

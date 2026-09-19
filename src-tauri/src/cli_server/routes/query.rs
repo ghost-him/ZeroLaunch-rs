@@ -6,7 +6,6 @@ use std::sync::Arc;
 
 use crate::cli_server::middleware::TraceId;
 use crate::state::app_state::AppState;
-use zerolaunch_plugin_api::QueryChannel;
 use zerolaunch_plugin_api::QueryResponse;
 
 #[derive(Debug, Deserialize)]
@@ -31,7 +30,7 @@ pub async fn handle(
     // （错误详情经日志可观测；UI 通道的错误语义由 bridge_query 的 IPC 错误通道承担）。
     match state
         .get_session_dispatcher()
-        .route_query(&trace_id.0, &query, QueryChannel::Cli, None)
+        .route_query_cli(&trace_id.0, &query)
         .await
     {
         Ok(routed) => Json(routed.response),

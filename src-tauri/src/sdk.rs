@@ -811,45 +811,47 @@ impl PluginHost for HostApi {
         let domain_dir = std::path::Path::new(&cache_root)
             .join(plugin_id)
             .join(domain);
-        if !domain_dir.exists() {
-            return Ok(());
-        }
+        let domain_dir_display = domain_dir.to_string_lossy().to_string();
 
         // 收集全部条目（含两级分片目录）及其修改时间
         let mut entries: Vec<(std::time::SystemTime, std::path::PathBuf)> = Vec::new();
-        for sub in
-            std::fs::read_dir(&domain_dir).map_err(|e| HostApiError::StorageOperationFailed {
-                file: domain_dir.to_string_lossy().to_string(),
-                reason: format!("读取缓存目录失败: {}", e),
-            })?
+        let mut shards = match tokio::fs::read_dir(&domain_dir).await {
+            Ok(shards) => shards,
+            // 缓存域目录尚未创建：无可淘汰条目
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(e) => return Err(cache_dir_error(&domain_dir_display, e)),
+        };
+        while let Some(shard) = shards
+            .next_entry()
+            .await
+            .map_err(|e| cache_dir_error(&domain_dir_display, e))?
         {
-            let sub = sub.map_err(|e| HostApiError::StorageOperationFailed {
-                file: domain_dir.to_string_lossy().to_string(),
-                reason: format!("读取缓存子目录失败: {}", e),
-            })?;
-            if !sub.path().is_dir() {
+            let file_type = shard
+                .file_type()
+                .await
+                .map_err(|e| cache_dir_error(&domain_dir_display, e))?;
+            if !file_type.is_dir() {
                 continue;
             }
-            for file in
-                std::fs::read_dir(sub.path()).map_err(|e| HostApiError::StorageOperationFailed {
-                    file: sub.path().to_string_lossy().to_string(),
-                    reason: format!("读取缓存分片目录失败: {}", e),
-                })?
+            let shard_dir = shard.path();
+            let shard_dir_display = shard_dir.to_string_lossy().to_string();
+            let mut files = tokio::fs::read_dir(&shard_dir)
+                .await
+                .map_err(|e| cache_dir_error(&shard_dir_display, e))?;
+            while let Some(file) = files
+                .next_entry()
+                .await
+                .map_err(|e| cache_dir_error(&shard_dir_display, e))?
             {
-                let file = file.map_err(|e| HostApiError::StorageOperationFailed {
-                    file: sub.path().to_string_lossy().to_string(),
-                    reason: format!("读取缓存条目失败: {}", e),
-                })?;
-                let meta = file
+                let file_path = file.path();
+                let metadata = file
                     .metadata()
-                    .map_err(|e| HostApiError::StorageOperationFailed {
-                        file: file.path().to_string_lossy().to_string(),
-                        reason: format!("读取缓存条目元数据失败: {}", e),
-                    })?;
-                if meta.is_file() {
+                    .await
+                    .map_err(|e| cache_dir_error(&file_path.to_string_lossy(), e))?;
+                if metadata.is_file() {
                     entries.push((
-                        meta.modified().unwrap_or(std::time::UNIX_EPOCH),
-                        file.path(),
+                        metadata.modified().unwrap_or(std::time::UNIX_EPOCH),
+                        file_path,
                     ));
                 }
             }
@@ -861,7 +863,8 @@ impl PluginHost for HostApi {
         entries.sort_by_key(|(mtime, _)| *mtime);
         let excess = entries.len() - max_entries;
         for (_, path) in entries.into_iter().take(excess) {
-            let _ = std::fs::remove_file(&path);
+            // 淘汰失败不阻断清理：残留条目由下次清理继续处理
+            let _ = tokio::fs::remove_file(&path).await;
         }
         Ok(())
     }
@@ -1107,5 +1110,14 @@ impl HostApiBuilder {
                 HostApiBuildError::MissingComponent("set_window_position_callback"),
             )?),
         })
+    }
+}
+
+/// 将缓存目录操作失败映射为宿主 API 错误。
+/// 参数：file - 用于定位问题的缓存路径；e - 底层 IO 错误。
+fn cache_dir_error(file: &str, e: std::io::Error) -> HostApiError {
+    HostApiError::StorageOperationFailed {
+        file: file.to_string(),
+        reason: e.to_string(),
     }
 }

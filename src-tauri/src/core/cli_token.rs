@@ -2,6 +2,7 @@
 
 use base64::Engine;
 use serde::{Deserialize, Serialize};
+use std::io::Write;
 use std::path::Path;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -20,8 +21,15 @@ pub fn generate_token_string() -> String {
 }
 
 /// Write the CLI token file to disk.
+/// 原子写入：先写同目录临时文件并落盘，再 rename 替换，避免读取方读到半截 JSON。
 pub fn persist_cli_token(token: &CliToken, data_dir: &Path) -> Result<(), std::io::Error> {
     let token_path = data_dir.join("cli-token.json");
     let json = serde_json::to_string_pretty(token)?;
-    std::fs::write(&token_path, json)
+    let tmp_path = token_path.with_extension("tmp");
+    {
+        let mut file = std::fs::File::create(&tmp_path)?;
+        file.write_all(json.as_bytes())?;
+        file.sync_all()?;
+    }
+    std::fs::rename(&tmp_path, &token_path)
 }

@@ -1,5 +1,6 @@
 use crate::core::config::models::{ComponentPersistentState, PersistentConfig};
 use std::collections::HashMap;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use tracing::{debug, warn};
 use zerolaunch_plugin_api::config::ConfigError;
@@ -122,12 +123,13 @@ impl ConfigStore {
             std::fs::create_dir_all(parent)?;
         }
 
-        // 先写临时文件
+        // 先写临时文件：在写入句柄上 sync_all 才会把数据真正刷入磁盘
+        // （只读句柄上的 sync_all 在 Windows 上不生效）。
         let tmp_path = path.with_extension("tmp");
-        std::fs::write(&tmp_path, content)?;
-        // 同步文件数据到磁盘
-        if let Ok(file) = std::fs::File::open(&tmp_path) {
-            file.sync_all().ok();
+        {
+            let mut file = std::fs::File::create(&tmp_path)?;
+            file.write_all(content.as_bytes())?;
+            file.sync_all()?;
         }
         // 在 Windows 上，rename 在同一卷内是原子操作
         std::fs::rename(&tmp_path, path)?;

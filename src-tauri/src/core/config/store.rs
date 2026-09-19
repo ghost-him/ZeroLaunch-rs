@@ -1,5 +1,6 @@
 use crate::core::config::models::{ComponentPersistentState, PersistentConfig};
-use std::path::PathBuf;
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use tracing::{debug, warn};
 use zerolaunch_plugin_api::config::ConfigError;
 
@@ -19,6 +20,11 @@ impl ConfigStore {
     /// 获取配置文件路径
     fn config_file_path(&self) -> PathBuf {
         self.config_dir.join("zerolaunch_config.json")
+    }
+
+    /// 获取运行态文件路径（组件运行数据，与用户配置分离存放）
+    fn runtime_state_file_path(&self) -> PathBuf {
+        self.config_dir.join("runtime_state.json")
     }
 
     /// 从文件加载持久化配置。
@@ -54,25 +60,77 @@ impl ConfigStore {
     /// 避免写入过程中崩溃导致文件截断或损坏。
     pub fn save(&self, config: &PersistentConfig) -> Result<(), ConfigError> {
         let path: PathBuf = self.config_file_path();
+        let content = serde_json::to_string_pretty(config)?;
+        self.write_atomic(&path, &content)?;
+        debug!("配置已保存到: {:?}", path);
+        Ok(())
+    }
 
+    /// 从文件加载各组件运行态快照（component_id → 快照）。
+    ///
+    /// 文件不存在、为空或解析失败时返回空表并告警：运行态是可再生的统计数据，
+    /// 不阻断启动（与配置文件损坏时的处理策略不同）。
+    pub fn load_runtime_state(&self) -> HashMap<String, serde_json::Value> {
+        let path = self.runtime_state_file_path();
+        if !path.exists() {
+            debug!("运行态文件不存在，返回空表: {:?}", path);
+            return HashMap::new();
+        }
+        let content = match std::fs::read_to_string(&path) {
+            Ok(content) => content,
+            Err(e) => {
+                warn!("运行态文件读取失败，返回空表: {:?}, 错误: {}", path, e);
+                return HashMap::new();
+            }
+        };
+        if content.trim().is_empty() {
+            debug!("运行态文件为空，返回空表: {:?}", path);
+            return HashMap::new();
+        }
+        match serde_json::from_str(&content) {
+            Ok(states) => {
+                debug!("成功加载运行态文件: {:?}", path);
+                states
+            }
+            Err(e) => {
+                warn!(
+                    "运行态文件解析失败，忽略并返回空表: {:?}, 错误: {}",
+                    path, e
+                );
+                HashMap::new()
+            }
+        }
+    }
+
+    /// 将各组件运行态快照写入运行态文件（原子写入）。
+    pub fn save_runtime_state(
+        &self,
+        states: &HashMap<String, serde_json::Value>,
+    ) -> Result<(), ConfigError> {
+        let path = self.runtime_state_file_path();
+        let content = serde_json::to_string_pretty(states)?;
+        self.write_atomic(&path, &content)?;
+        debug!("运行态已保存到: {:?}", path);
+        Ok(())
+    }
+
+    /// 原子写入文件：先写 `.tmp` 再 rename 替换目标。
+    /// 避免写入过程中崩溃导致文件截断或损坏。
+    fn write_atomic(&self, path: &Path, content: &str) -> Result<(), ConfigError> {
         // 确保目录存在
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
 
-        let content = serde_json::to_string_pretty(config)?;
-
-        // 原子写入：先写 .tmp 文件，再 rename 替换目标
+        // 先写临时文件
         let tmp_path = path.with_extension("tmp");
-        std::fs::write(&tmp_path, &content)?;
+        std::fs::write(&tmp_path, content)?;
         // 同步文件数据到磁盘
         if let Ok(file) = std::fs::File::open(&tmp_path) {
             file.sync_all().ok();
         }
         // 在 Windows 上，rename 在同一卷内是原子操作
-        std::fs::rename(&tmp_path, &path)?;
-
-        debug!("配置已保存到: {:?}", path);
+        std::fs::rename(&tmp_path, path)?;
         Ok(())
     }
 
@@ -200,5 +258,42 @@ mod tests {
     fn backup_corrupted_noop_when_missing() {
         let (store, _dir) = temp_store();
         store.backup_corrupted().expect("缺失文件备份应幂等");
+    }
+
+    #[test]
+    fn runtime_state_roundtrip_preserves_component_values() {
+        let (store, dir) = temp_store();
+        let mut states = HashMap::new();
+        states.insert(
+            "history-booster".to_string(),
+            json!({ "history_launch_time": { "C:/qq.exe": 3 } }),
+        );
+        store.save_runtime_state(&states).expect("保存运行态失败");
+
+        let path = dir.path().join("runtime_state.json");
+        assert!(path.exists(), "运行态应写入独立文件");
+        assert!(
+            !dir.path().join("zerolaunch_config.json").exists(),
+            "运行态不得混入用户配置文件"
+        );
+        assert!(
+            !dir.path().join("runtime_state.tmp").exists(),
+            "原子写入不应残留 .tmp 文件"
+        );
+
+        let loaded = store.load_runtime_state();
+        assert_eq!(
+            loaded["history-booster"]["history_launch_time"]["C:/qq.exe"],
+            3
+        );
+    }
+
+    #[test]
+    fn load_runtime_state_tolerates_missing_and_corrupted_file() {
+        let (store, dir) = temp_store();
+        assert!(store.load_runtime_state().is_empty(), "缺失文件应返回空表");
+
+        std::fs::write(dir.path().join("runtime_state.json"), "{not json").unwrap();
+        assert!(store.load_runtime_state().is_empty(), "损坏文件应返回空表");
     }
 }

@@ -4,7 +4,8 @@ use async_trait::async_trait;
 use dashmap::DashMap;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use tracing::error;
+use std::collections::HashMap;
+use tracing::{error, warn};
 use zerolaunch_plugin_api::config::{
     ComponentCore, ComponentType, ConfigError, Configurable, SettingDefinition,
 };
@@ -12,15 +13,35 @@ use zerolaunch_plugin_api::{
     CachedCandidateData, CandidateId, ScoreBooster, ScoreDetail, ScoreDetailKind, ScoredCandidate,
 };
 
+/// 每个目标保留的查询关联记录条数上限，超出时淘汰最久未启动的一条。
+/// 约束运行态文件规模：查询串种类随使用时间增长，不设上限将无界膨胀。
+const MAX_AFFINITY_ENTRIES_PER_METHOD: usize = 128;
+
 /// 查询亲和度数据
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct QueryAffinityData {
     /// 衰减后的有效次数（浮点数，支持衰减累积）
+    #[serde(
+        rename = "effective_count",
+        default = "default_affinity_effective_count"
+    )]
     effective_count: f64,
     /// 最后一次启动时间（用于计算时的衰减）
+    #[serde(rename = "last_launch_time", default = "default_affinity_timestamp")]
     last_launch_time: i64,
     /// 最后一次记录计数的时间（用于冷却机制）
+    #[serde(rename = "last_record_time", default = "default_affinity_timestamp")]
     last_record_time: i64,
+}
+
+/// 关联记录缺失有效次数时的默认值：按一次启动计。
+fn default_affinity_effective_count() -> f64 {
+    1.0
+}
+
+/// 关联记录缺失时间戳时的默认值：0（unix 纪元），按"久远"参与衰减。
+fn default_affinity_timestamp() -> i64 {
+    0
 }
 
 impl QueryAffinityData {
@@ -73,6 +94,17 @@ fn default_query_affinity_cooldown() -> f64 {
     15.0
 }
 
+/// 查询亲和度增强器的持久化运行态快照。
+///
+/// 由 `QueryAffinityBoosterInner::snapshot` 产出、`QueryAffinityBoosterInner::restore`
+/// 消费，经 ConfigManager 写入独立的运行态文件（与用户配置分离）。仅限本文件内使用。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct QueryAffinityState {
+    /// 各目标的查询关联记录：目标标识 → 记录列表（每项为该程序的一条查询-启动关联）
+    #[serde(rename = "method_affinity", default)]
+    method_affinity: HashMap<String, Vec<QueryAffinityEntry>>,
+}
+
 /// 查询亲和度增强器内部实现
 #[derive(Debug)]
 struct QueryAffinityBoosterInner {
@@ -82,12 +114,24 @@ struct QueryAffinityBoosterInner {
 }
 
 /// 单个程序的一条查询-启动关联记录
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct QueryAffinityEntry {
     /// 用户启动该程序时输入的完整查询（已归一化小写 + 折叠空格）
+    #[serde(rename = "recorded_query", default)]
     recorded_query: String,
     /// 衰减后的有效次数与时间信息
+    #[serde(rename = "data", default)]
     data: QueryAffinityData,
+}
+
+impl Default for QueryAffinityData {
+    fn default() -> Self {
+        Self {
+            effective_count: default_affinity_effective_count(),
+            last_launch_time: default_affinity_timestamp(),
+            last_record_time: default_affinity_timestamp(),
+        }
+    }
 }
 
 impl QueryAffinityBoosterInner {
@@ -125,6 +169,17 @@ impl QueryAffinityBoosterInner {
                 recorded_query: query.to_string(),
                 data: QueryAffinityData::new(current_time),
             });
+            // 条目上限：淘汰最久未启动的一条（时间戳并列时保留先插入者，不会淘汰刚插入的记录）
+            if bucket.len() > MAX_AFFINITY_ENTRIES_PER_METHOD {
+                let oldest = bucket
+                    .iter()
+                    .enumerate()
+                    .min_by_key(|(_, entry)| entry.data.last_launch_time)
+                    .map(|(index, _)| index);
+                if let Some(index) = oldest {
+                    bucket.remove(index);
+                }
+            }
         }
     }
 
@@ -215,6 +270,24 @@ impl QueryAffinityBoosterInner {
     fn prefix_saturation(ratio: f64) -> f64 {
         let k = 2.2;
         1.0 - (-k * ratio).exp()
+    }
+
+    /// 导出运行态快照（供 ConfigManager 写入运行态文件）
+    fn snapshot(&self) -> QueryAffinityState {
+        QueryAffinityState {
+            method_affinity: self
+                .method_affinity
+                .iter()
+                .map(|e| (e.key().clone(), e.value().clone()))
+                .collect(),
+        }
+    }
+
+    /// 从运行态快照重建内部状态
+    fn restore(state: QueryAffinityState) -> Self {
+        QueryAffinityBoosterInner {
+            method_affinity: state.method_affinity.into_iter().collect(),
+        }
     }
 }
 
@@ -321,6 +394,22 @@ impl Configurable for QueryAffinityBooster {
         let parsed: QueryAffinitySettings = serde_json::from_value(settings).unwrap_or_default();
         *self.settings.write() = parsed;
         Ok(())
+    }
+
+    /// 导出查询亲和运行态（各目标的查询-启动关联历史）
+    fn runtime_state(&self) -> Option<serde_json::Value> {
+        serde_json::to_value(self.inner.read().snapshot()).ok()
+    }
+
+    /// 恢复查询亲和运行态；运行态文件损坏时告警并从空数据开始（不影响配置项）
+    fn restore_runtime_state(&self, state: serde_json::Value) {
+        match serde_json::from_value::<QueryAffinityState>(state) {
+            Ok(snapshot) => *self.inner.write() = QueryAffinityBoosterInner::restore(snapshot),
+            Err(e) => warn!(
+                "[QueryAffinityBooster] 运行态恢复失败，使用空亲和数据: {}",
+                e
+            ),
+        }
     }
 }
 

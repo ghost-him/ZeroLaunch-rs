@@ -166,7 +166,8 @@ cargo run --bin xtask clean                         # 清理构建产物
 ├── logs/                                 # 运行日志
 ├── icons/                                # 程序图标缓存
 └── config/                               # 配置文件目录
-    └── zerolaunch_config.json            # 主配置数据库
+    ├── zerolaunch_config.json            # 主配置数据库（用户配置）
+    └── runtime_state.json                # 组件运行态（启动历史 / 查询亲和，与用户配置分离，不参与远端同步）
 ```
 
 ---

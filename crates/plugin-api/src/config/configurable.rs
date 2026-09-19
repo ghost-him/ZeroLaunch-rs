@@ -88,6 +88,24 @@ pub trait Configurable: Send + Sync {
         }
     }
 
+    /// 返回组件运行态快照（非用户配置：不写入 settings、不下发前端、不参与远端配置同步）。
+    ///
+    /// 适用于需要在重启后延续统计/状态的**宿主内置组件**（写入独立的运行态文件）。
+    /// 默认 None 表示该组件无运行态需要持久化；第三方插件组件（远端进程）不参与
+    /// 本通道——它们经 SDK 的 `resource_*` / `cache_*` / `ZEROLAUNCH_DATA_DIR` 自行持久化。
+    fn runtime_state(&self) -> Option<serde_json::Value> {
+        None
+    }
+
+    /// 从持久化的运行态恢复组件内部状态。
+    ///
+    /// 由 ConfigManager 在 `load_from_storage` 内对**当时已注册**的组件调用一次
+    /// （内置组件在 Phase A 注册，故恢复先于搜索管道构建）；配置加载之后才注册的
+    /// 组件（第三方插件组件）不经过本方法。默认空实现。
+    fn restore_runtime_state(&self, state: serde_json::Value) {
+        let _ = state;
+    }
+
     fn on_settings_changed(&self) {}
 
     /// 返回该组件支持的配置动作定义列表。

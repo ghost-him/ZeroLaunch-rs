@@ -105,20 +105,11 @@ pub fn remove_version_number(input_text: &str) -> String {
     ret
 }
 
-/// 比较日期字符串与当前日期的函数
-pub fn is_date_current(date_str: &str) -> bool {
-    // 解析输入的日期字符串
-    let input_date = match NaiveDate::parse_from_str(date_str, "%Y-%m-%d") {
-        Ok(date) => date,
-        Err(e) => {
-            tracing::warn!("Failed to parse date string '{}': {}", date_str, e);
-            return false; // 如果解析失败,返回false
-        }
-    };
-
-    // 获取当前日期
-    let current_date = Local::now().date_naive();
-
-    // 比较两个日期
-    input_date == current_date
+/// 计算两个 `%Y-%m-%d` 日期相差的天数。
+/// 参数：from - 起始日期；to - 结束日期。
+/// 返回：相差天数；任一日期解析失败或 `to` 早于 `from`（时钟回拨）时返回 None。
+pub fn days_between(from: &str, to: &str) -> Option<usize> {
+    let from = NaiveDate::parse_from_str(from, "%Y-%m-%d").ok()?;
+    let to = NaiveDate::parse_from_str(to, "%Y-%m-%d").ok()?;
+    usize::try_from((to - from).num_days()).ok()
 }

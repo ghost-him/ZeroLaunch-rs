@@ -34,6 +34,8 @@ pub async fn do_cleanup_before_exit(state: Arc<AppState>) {
     if let Err(e) = config_manager.save_to_storage() {
         warn!("退出前配置保存失败: {}", e);
     }
+    // 运行态（启动历史/查询亲和）落在独立文件，与用户配置分开保存
+    config_manager.flush_runtime_state();
     // 退出前同步到远程存储
     let host_api = state.get_host_api();
     crate::bootstrap::sync_config_to_remote(&config_manager, &host_api).await;

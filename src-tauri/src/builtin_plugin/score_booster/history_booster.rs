@@ -1,11 +1,11 @@
 use crate::core::config::setting_builders::SchemaBuilder;
-use crate::utils::{generate_current_date, get_current_time, is_date_current};
+use crate::utils::{days_between, generate_current_date, get_current_time};
 use async_trait::async_trait;
 use dashmap::DashMap;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use std::collections::VecDeque;
-use tracing::error;
+use std::collections::{HashMap, VecDeque};
+use tracing::{error, warn};
 use zerolaunch_plugin_api::config::{
     ComponentCore, ComponentType, ConfigError, Configurable, SettingDefinition,
 };
@@ -53,27 +53,53 @@ fn default_temporal_decay() -> f64 {
     10800.0
 }
 
+/// 历史记录增强器的持久化运行态快照。
+///
+/// 由 `HistoryBoosterInner::snapshot` 产出、`HistoryBoosterInner::restore` 消费，
+/// 经 ConfigManager 写入独立的运行态文件（与用户配置分离）。仅限本文件内使用。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct HistoryBoosterState {
+    /// 最近 7 天启动次数桶，由新到旧排列
+    #[serde(rename = "launch_time", default)]
+    launch_time: Vec<LaunchBucketState>,
+    /// 历史总启动次数：目标标识 → 累计启动次数
+    #[serde(rename = "history_launch_time", default)]
+    history_launch_time: HashMap<String, u64>,
+    /// 最近一次启动时间：目标标识 → unix 秒时间戳
+    #[serde(rename = "latest_launch_time", default)]
+    latest_launch_time: HashMap<String, i64>,
+}
+
+/// 单个日期桶的运行态快照（该日各目标的启动次数）。
+/// 仅限本文件内使用，作为 `HistoryBoosterState::launch_time` 的元素。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct LaunchBucketState {
+    /// 桶所属日期（`%Y-%m-%d`，本地时区）
+    #[serde(rename = "date", default)]
+    date: String,
+    /// 该日各目标的启动次数：目标标识 → 次数
+    #[serde(rename = "counts", default)]
+    counts: HashMap<String, u64>,
+}
+
 /// 历史记录增强器内部实现
 #[derive(Debug)]
 struct HistoryBoosterInner {
-    /// 最近7天的启动次数记录
-    launch_time: VecDeque<DashMap<String, u64>>,
+    /// 最近 7 天的启动次数桶：由新到旧，每桶携带所属日期
+    launch_time: VecDeque<(String, DashMap<String, u64>)>,
     /// 历史总启动次数
     history_launch_time: DashMap<String, u64>,
-    /// 上次更新日期
-    last_update_data: String,
     /// 最近一次启动时间（时间戳）
     latest_launch_time: DashMap<String, i64>,
 }
 
 impl HistoryBoosterInner {
     fn new() -> Self {
-        let mut deque = VecDeque::new();
-        deque.push_front(DashMap::new());
+        let mut launch_time = VecDeque::new();
+        launch_time.push_front((generate_current_date(), DashMap::new()));
         HistoryBoosterInner {
-            launch_time: deque,
+            launch_time,
             history_launch_time: DashMap::new(),
-            last_update_data: generate_current_date(),
             latest_launch_time: DashMap::new(),
         }
     }
@@ -86,8 +112,9 @@ impl HistoryBoosterInner {
         let method_key = method_text.to_string();
         let current_time = get_current_time();
 
-        // 更新今日启动次数
+        // 更新今日启动次数（front 桶恒为今天，见 update_launch_info）
         self.launch_time[0]
+            .1
             .entry(method_key.clone())
             .and_modify(|count| *count += 1)
             .or_insert(1);
@@ -115,7 +142,7 @@ impl HistoryBoosterInner {
     fn calculate_recent_habit_score(&self, method_text: &str) -> f64 {
         let mut result: f64 = 0.0;
         let mut k: f64 = 1.0;
-        self.launch_time.iter().for_each(|day| {
+        self.launch_time.iter().for_each(|(_, day)| {
             if let Some(time) = day.get(method_text) {
                 result += (*time as f64) * k;
             }
@@ -136,13 +163,75 @@ impl HistoryBoosterInner {
         }
     }
 
+    /// 将 7 天桶对齐到今天：按实际天数补齐中间空桶，跨度 ≥7 天时旧桶全部作废。
+    /// 调用方：记录启动前、恢复运行态后。
     fn update_launch_info(&mut self) {
-        if !is_date_current(&self.last_update_data) {
-            self.launch_time.push_front(DashMap::new());
-            if self.launch_time.len() > 7 {
-                self.launch_time.pop_back();
+        let today = generate_current_date();
+        if self.launch_time.front().map(|(date, _)| date.as_str()) == Some(today.as_str()) {
+            return;
+        }
+
+        match self
+            .launch_time
+            .front()
+            .and_then(|(date, _)| days_between(date, &today))
+        {
+            // 与今天相差 1..7 天：逐日补齐空桶
+            Some(days) if days < 7 => {
+                for _ in 0..days {
+                    self.launch_time.push_front((today.clone(), DashMap::new()));
+                }
             }
-            self.last_update_data = generate_current_date();
+            // 跨度 ≥7 天 / 日期无法解析 / 时钟回拨：旧桶全部过期，以今天重建
+            _ => {
+                self.launch_time.clear();
+                self.launch_time.push_front((today, DashMap::new()));
+            }
+        }
+
+        while self.launch_time.len() > 7 {
+            self.launch_time.pop_back();
+        }
+    }
+
+    /// 导出运行态快照（供 ConfigManager 写入运行态文件）
+    fn snapshot(&self) -> HistoryBoosterState {
+        HistoryBoosterState {
+            launch_time: self
+                .launch_time
+                .iter()
+                .map(|(date, counts)| LaunchBucketState {
+                    date: date.clone(),
+                    counts: counts
+                        .iter()
+                        .map(|e| (e.key().clone(), *e.value()))
+                        .collect(),
+                })
+                .collect(),
+            history_launch_time: self
+                .history_launch_time
+                .iter()
+                .map(|e| (e.key().clone(), *e.value()))
+                .collect(),
+            latest_launch_time: self
+                .latest_launch_time
+                .iter()
+                .map(|e| (e.key().clone(), *e.value()))
+                .collect(),
+        }
+    }
+
+    /// 从运行态快照重建内部状态（日期桶对齐由调用方随后执行）
+    fn restore(state: HistoryBoosterState) -> Self {
+        let launch_time = state
+            .launch_time
+            .into_iter()
+            .map(|bucket| (bucket.date, bucket.counts.into_iter().collect()))
+            .collect();
+        HistoryBoosterInner {
+            launch_time,
+            history_launch_time: state.history_launch_time.into_iter().collect(),
+            latest_launch_time: state.latest_launch_time.into_iter().collect(),
         }
     }
 }
@@ -244,6 +333,24 @@ impl Configurable for HistoryBooster {
         let parsed: HistoryBoosterSettings = serde_json::from_value(settings).unwrap_or_default();
         *self.settings.write() = parsed;
         Ok(())
+    }
+
+    /// 导出启动历史运行态（启动次数桶、总次数、最近启动时间）
+    fn runtime_state(&self) -> Option<serde_json::Value> {
+        serde_json::to_value(self.inner.read().snapshot()).ok()
+    }
+
+    /// 恢复启动历史运行态，并按当前日期对齐 7 天桶。
+    /// 运行态文件损坏时告警并从空历史开始（不影响配置项）。
+    fn restore_runtime_state(&self, state: serde_json::Value) {
+        match serde_json::from_value::<HistoryBoosterState>(state) {
+            Ok(snapshot) => {
+                let mut inner = self.inner.write();
+                *inner = HistoryBoosterInner::restore(snapshot);
+                inner.update_launch_info();
+            }
+            Err(e) => warn!("[HistoryBooster] 运行态恢复失败，使用空历史: {}", e),
+        }
     }
 }
 

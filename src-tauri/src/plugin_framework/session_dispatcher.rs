@@ -1152,10 +1152,16 @@ impl SessionDispatcher {
         };
         if let Some(pipeline) = pipeline {
             let query_text = query_text.to_string();
+            let config_manager = self.config_manager();
             tauri::async_runtime::spawn(async move {
                 pipeline
                     .record(candidate_id, candidate_snapshot.as_ref(), &query_text)
                     .await;
+                // 记录后立即落盘组件运行态（启动历史/查询亲和），与用户配置分离，
+                // 避免重启后统计归零；未注入 ConfigManager（CLI 场景）时跳过。
+                if let Some(config_manager) = config_manager {
+                    config_manager.flush_runtime_state();
+                }
             });
         }
         // 锁在 await 前已全部释放；插件候选（ExecutionTarget::Plugin）由宿主内置

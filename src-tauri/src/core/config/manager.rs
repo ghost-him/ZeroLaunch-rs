@@ -424,10 +424,21 @@ impl ConfigManager {
         // 保存配置快照，供后续 register() 恢复延迟注册组件的配置
         *self.loaded_config.write() = Some(config.clone());
 
+        // 恢复各组件运行态（独立文件，与用户配置分离；搜索管道构建前必须就绪）
+        let runtime_states = self.store.load_runtime_state();
+        let mut restored = 0usize;
+        for (component_id, state) in runtime_states {
+            if let Some(component) = self.registry.get(&component_id) {
+                component.restore_runtime_state(state);
+                restored += 1;
+            }
+        }
+
         info!(
-            "配置加载完成，已加载 {} 个持久化配置，共 {} 个已注册组件",
+            "配置加载完成，已加载 {} 个持久化配置，共 {} 个已注册组件，已恢复 {} 个组件运行态",
             config.components.len(),
-            self.registry.len()
+            self.registry.len(),
+            restored
         );
         Ok(())
     }
@@ -461,6 +472,25 @@ impl ConfigManager {
         // 保存成功后更新内存快照
         *self.loaded_config.write() = Some(config);
         Ok(())
+    }
+
+    /// 将各组件运行态写入独立的运行态文件（与用户配置分离）。
+    ///
+    /// 调用方：启动记录后（近实时落盘）与退出前清理。失败仅告警——
+    /// 运行态是可再生的统计数据，写入失败不应影响主流程。
+    pub fn flush_runtime_state(&self) {
+        let mut states: HashMap<String, serde_json::Value> = HashMap::new();
+        for component in self.registry.get_all() {
+            if let Some(state) = component.runtime_state() {
+                states.insert(component.component_id().to_string(), state);
+            }
+        }
+        if states.is_empty() {
+            return;
+        }
+        if let Err(e) = self.store.save_runtime_state(&states) {
+            warn!("运行态保存失败: {}", e);
+        }
     }
 
     /// 处理 PluginManager 发来的 PluginRuntimeEvent。

@@ -1316,6 +1316,21 @@
         }
       }
     },
+    "standard-search-model": {
+      "groups": {
+        "bm25": "BM25 matching"
+      },
+      "fields": {
+        "bm25_k1": {
+          "label": "Term frequency saturation k1",
+          "desc": "Higher values saturate term frequency later; classic value is 1.2"
+        },
+        "bm25_b": {
+          "label": "Length normalization b",
+          "desc": "0 disables length normalization, higher values penalize long keywords more; default 0.3 (below the classic 0.75 because keywords are short and length is already penalized twice)"
+        }
+      }
+    },
     "translator": {
       "name": "Translate",
       "description": "Translate with multiple engines in the search bar",

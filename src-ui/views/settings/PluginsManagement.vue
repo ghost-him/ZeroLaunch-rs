@@ -653,9 +653,6 @@ onUnmounted(() => {
               <NDescriptionsItem :label="t('settings.thirdPartyPlugins.colAuthor')">
                 {{ detailData.manifest ? detailData.author : t('settings.thirdPartyPlugins.builtin') }}
               </NDescriptionsItem>
-              <NDescriptionsItem :label="t('settings.thirdPartyPlugins.fieldMinHostVersion')">
-                {{ detailData.manifest?.plugin.minHostVersion ?? t('common.notAvailable') }}
-              </NDescriptionsItem>
               <NDescriptionsItem :label="t('settings.thirdPartyPlugins.fieldLicense')">
                 {{ detailData.manifest?.plugin.license || t('common.notAvailable') }}
               </NDescriptionsItem>

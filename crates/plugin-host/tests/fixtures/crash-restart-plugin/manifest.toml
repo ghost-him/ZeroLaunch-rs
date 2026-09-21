@@ -11,7 +11,6 @@ name = "Crash Restart Fixture"
 version = "1.0.0"
 description = "崩溃重启集成测试插件：声明一个 Plugin 组件，无配置项"
 author = "zerolaunch"
-minHostVersion = "0.1.0"
 
 [runtime]
 command = "./bin/fixture_plugin.exe"

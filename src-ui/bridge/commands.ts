@@ -231,7 +231,6 @@ export interface PluginManifest {
     author: string
     homepage: string | null
     license: string | null
-    minHostVersion: string
   }
   runtime: {
     command: string

@@ -221,7 +221,6 @@ pub fn format_plugin_info(value: &Value) -> String {
         out.push_str(&fmt_field(p, "描述", "description"));
         out.push_str(&fmt_field_opt(p, "主页", "homepage"));
         out.push_str(&fmt_field_opt(p, "许可证", "license"));
-        out.push_str(&fmt_field(p, "最低宿主版本", "minHostVersion"));
     }
 
     // 运行时配置

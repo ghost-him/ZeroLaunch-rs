@@ -723,7 +723,6 @@ mod tests {
                     author: String::new(),
                     homepage: None,
                     license: None,
-                    min_host_version: "0.0.0".into(),
                 },
                 runtime: Default::default(),
                 components: Default::default(),

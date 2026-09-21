@@ -300,12 +300,8 @@ pub struct BoosterRecordParams {
 //
 // 响应为裸 `KeywordOptimizerInfo`。
 //
-// 协议版本偏离记录：`KeywordOptimizerInfo` 的载荷曾为 `usesContext: bool`，
-// v1.0 迭代中改为 `inputSource: KeywordInputSource`（嵌套对象），属载荷级
-// breaking change。决策：不 bump PROTOCOL_VERSION（bump 会拒绝全部现存旧
-// SDK 插件），采用 1.x 内容忍 —— 老插件响应缺 `inputSource` 时宿主侧回退
-// `Refined`；老宿主向新插件发 info 请求时，新插件响应含 `inputSource` 而
-// 老宿主忽略未知字段。若未来允许载荷级不兼容变更，应 bump major 并拒绝旧版本。
+// 载荷说明：`inputSource`（嵌套对象）取代了 1.x 的 `usesContext: bool`，属载荷级
+// breaking change，已随协议 major 提升到 2.0 —— 1.x 插件在 initialize 握手期被拒绝。
 
 /// KeywordOptimizer 组件的优化属性（经 keyword_optimizer_info RPC 拉取）。
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -342,8 +338,8 @@ pub struct KeywordOptimizeParams {
     #[serde(rename = "keyword")]
     pub keyword: String,
     /// 本次调用携带的来源层（供第三方优化器决策，宿主按声明来源调用）。
-    /// serde default：老宿主（不认识 inputSource 字段）向新 SDK 插件发请求时，
-    /// 缺字段反序列化回退 Refined，避免 INVALID_PARAMS 导致优化器整体跳过。
+    /// serde default：字段缺失时反序列化回退 Refined，避免 INVALID_PARAMS
+    /// 导致优化器整体跳过。
     #[serde(rename = "inputSource", default)]
     pub input_source: KeywordInputSource,
 }

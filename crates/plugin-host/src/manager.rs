@@ -613,18 +613,6 @@ fn validate_manifest(manifest: &Manifest, plugin_dir: &Path) -> Result<(), Plugi
         }
     }
 
-    // Validate min_host_version
-    let host_version = semver::Version::parse(env!("CARGO_PKG_VERSION"))
-        .map_err(|e| PluginLoadError::Manifest(format!("host version parse: {}", e)))?;
-    let min_required = semver::Version::parse(&manifest.plugin.min_host_version)
-        .map_err(|e| PluginLoadError::Manifest(format!("min_host_version parse: {}", e)))?;
-    if host_version < min_required {
-        return Err(PluginLoadError::Manifest(format!(
-            "plugin requires host >= {}, current is {}",
-            min_required, host_version
-        )));
-    }
-
     // Validate command path does not escape the plugin directory
     let cmd_path = plugin_dir.join(&manifest.runtime.command);
     let canonical_cmd = cmd_path

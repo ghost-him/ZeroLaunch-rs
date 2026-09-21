@@ -44,9 +44,6 @@ pub struct PluginSection {
     /// 开源许可证标识（可选），如 `MIT`、`GPL-3.0`
     #[serde(default, rename = "license")]
     pub license: Option<String>,
-    /// 宿主最低兼容版本，如 `"1.2.0"`
-    #[serde(rename = "minHostVersion")]
-    pub min_host_version: String,
 }
 
 /// 运行时配置段。

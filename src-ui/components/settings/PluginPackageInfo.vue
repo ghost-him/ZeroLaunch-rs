@@ -45,9 +45,6 @@ function providesList(): string[] {
       <NDescriptionsItem v-if="manifest.plugin.homepage" :label="t('settings.thirdPartyPlugins.fieldHomepage')">
         {{ manifest.plugin.homepage }}
       </NDescriptionsItem>
-      <NDescriptionsItem :label="t('settings.thirdPartyPlugins.fieldMinHostVersion')">
-        {{ manifest.plugin.minHostVersion }}
-      </NDescriptionsItem>
       <NDescriptionsItem :label="t('settings.thirdPartyPlugins.fieldProvides')">
         <NTag v-for="p in providesList()" :key="p" size="small" type="info" style="margin: 2px 6px 2px 0;">
           {{ p }}

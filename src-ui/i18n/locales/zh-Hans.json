@@ -235,7 +235,6 @@
       "noTriggerKeywords": "无触发词",
       "fieldDescription": "描述",
       "fieldPluginId": "插件 ID",
-      "fieldMinHostVersion": "最低宿主版本",
       "fieldLicense": "许可证",
       "fieldSupportedOs": "支持平台",
       "fieldHomepage": "主页",

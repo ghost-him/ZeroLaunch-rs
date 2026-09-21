@@ -1,6 +1,6 @@
 [package]
 name = "zerolaunch-plugin-host"
-version = "0.1.1"
+version = "0.2.0"
 edition.workspace = true
 license = "Apache-2.0"
 description = "ZeroLaunch third-party plugin host — subprocess management and RemotePluginAdapter."

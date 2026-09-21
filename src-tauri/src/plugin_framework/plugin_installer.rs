@@ -334,7 +334,6 @@ name = "Sample Plugin"
 version = "1.2.3"
 description = "预检测试插件"
 author = "tester"
-minHostVersion = "0.1.0"
 
 [components]
 provides = ["data_source"]

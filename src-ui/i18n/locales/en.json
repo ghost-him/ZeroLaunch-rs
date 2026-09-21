@@ -235,7 +235,6 @@
       "noTriggerKeywords": "No trigger keywords",
       "fieldDescription": "Description",
       "fieldPluginId": "Plugin ID",
-      "fieldMinHostVersion": "Min Host Version",
       "fieldLicense": "License",
       "fieldSupportedOs": "Supported OS",
       "fieldHomepage": "Homepage",

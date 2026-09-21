@@ -23,15 +23,15 @@ scope: "tool:read(crates/plugin-protocol/**), tool:edit(crates/plugin-protocol/*
 - **双工**：宿主→插件（`plugin/*` 命名空间）和 插件→宿主（`host/*` 命名空间）均可发起 RPC
 - **超时**：query / execute_action 默认 30s，其他 5s
 - **错误码**：遵循 JSON-RPC 2.0 标准码 + 自定义码（-32000 ~ -32003）
+- **同 major 内演进**：`host/*` 只允许新增方法；插件把 `host()` 调用失败（`METHOD_NOT_FOUND`）当可恢复错误处理。加载期只有协议 major 闸门，无宿主版本下限校验
 
 ## Manifest 校验
 
 加载时 **必须** 校验：
 1. `plugin.id` 符合反向域名正则
 2. `plugin.version` 符合 SemVer
-3. `plugin.min_host_version` ≤ ZL 版本
-4. `runtime.command` 文件存在
-5. `components.provides` 至少 1 项且在已知集合内
+3. `runtime.command` 文件存在
+4. `components.provides` 至少 1 项且在已知集合内
 
 ## 子进程生命周期
 

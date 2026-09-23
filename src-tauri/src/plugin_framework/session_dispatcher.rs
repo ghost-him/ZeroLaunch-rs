@@ -23,8 +23,8 @@ use zerolaunch_plugin_api::services::parameter::template_parser::{Placeholder, T
 use zerolaunch_plugin_api::services::ParameterSnapshot;
 use zerolaunch_plugin_api::{
     CachedCandidateData, CandidateId, ExecutionContext, ExecutionError, ExecutionTarget, ListItem,
-    Plugin, PluginContext, PluginKind, PluginMode, Query, QueryChannel, QueryResponse,
-    QueryRevisionGate, ScoredCandidate, SearchCandidate,
+    Plugin, PluginContext, PluginKind, PluginMetadata, PluginMode, Query, QueryChannel,
+    QueryResponse, QueryRevisionGate, ScoredCandidate, SearchCandidate,
 };
 
 use super::candidate_pipeline::CandidatePipeline;
@@ -304,16 +304,21 @@ impl SessionDispatcher {
     /// unregister_plugin（注销时清理）、set_plugin_enabled（启用恢复/禁用清理）。
     /// 按形态过滤路由关键字：仅行内插件（Inline）的 trigger_keywords 参与触发词路由；
     /// 沉浸式插件（Panel）不参与路由（仅经热键/候选项唤醒）。注册与启用恢复共用本过滤。
-    fn route_keywords_for(&self, plugin: &dyn Plugin) -> Vec<String> {
-        if plugin.metadata().mode == PluginMode::Panel {
+    fn route_keywords_for(metadata: &PluginMetadata) -> Vec<String> {
+        if metadata.mode == PluginMode::Panel {
             Vec::new()
         } else {
-            plugin.metadata().trigger_keywords.clone()
+            metadata.trigger_keywords.clone()
         }
     }
 
-    pub fn register_plugin_with_triggers(&self, plugin: Arc<dyn Plugin>, enabled: bool) {
-        let keywords = self.route_keywords_for(plugin.as_ref());
+    pub fn register_plugin_with_triggers(
+        &self,
+        plugin: Arc<dyn Plugin>,
+        metadata: Arc<PluginMetadata>,
+        enabled: bool,
+    ) {
+        let keywords = Self::route_keywords_for(&metadata);
         let conflicts: Vec<&str> = keywords
             .iter()
             .filter(|kw| self.trigger_index.contains_key(&kw.to_lowercase()))
@@ -322,19 +327,18 @@ impl SessionDispatcher {
         if !conflicts.is_empty() {
             error!(
                 "注册插件 '{}' 失败：触发词冲突 {:?}",
-                plugin.metadata().id,
-                conflicts
+                metadata.id, conflicts
             );
             return;
         }
-        self.plugin_registry.register(plugin.clone());
-        self.set_plugin_enabled_state(&plugin.metadata().id, enabled);
+        self.plugin_registry.register(plugin, metadata.clone());
+        self.set_plugin_enabled_state(&metadata.id, enabled);
         if enabled {
-            self.try_insert_trigger_keywords(&plugin.metadata().id, &keywords);
+            self.try_insert_trigger_keywords(&metadata.id, &keywords);
         } else {
             info!(
                 "插件 '{}' 处于禁用状态，跳过触发词写入（启用时恢复）",
-                plugin.metadata().id
+                metadata.id
             );
         }
     }
@@ -411,11 +415,11 @@ impl SessionDispatcher {
     pub fn set_plugin_enabled(&self, plugin_id: &str, enabled: bool) {
         self.set_plugin_enabled_state(plugin_id, enabled);
         if enabled {
-            let Some(plugin) = self.plugin_registry.get(plugin_id) else {
+            let Some(metadata) = self.plugin_registry.get_metadata(plugin_id) else {
                 debug!("启用插件 {} 不在注册表中，跳过触发词恢复", plugin_id);
                 return;
             };
-            let keywords = self.route_keywords_for(plugin.as_ref());
+            let keywords = Self::route_keywords_for(&metadata);
             self.try_insert_trigger_keywords(plugin_id, &keywords);
         } else {
             self.remove_plugin_routes(plugin_id);
@@ -884,8 +888,8 @@ impl SessionDispatcher {
                     let subtitle = match &search_candidate.target {
                         ExecutionTarget::Plugin(plugin_id) => self
                             .plugin_registry
-                            .get(plugin_id)
-                            .map(|p| p.metadata().description.clone())
+                            .get_metadata(plugin_id)
+                            .map(|m| m.description.clone())
                             .filter(|d| !d.is_empty())
                             .unwrap_or_else(|| format!("plugin id: {}", plugin_id)),
                         _ => search_candidate.target.payload().to_string(),
@@ -1401,9 +1405,9 @@ impl SessionDispatcher {
                         panel_id: "main".to_string(),
                     }),
                     plugin.as_ref().map(|p| p.interaction_policy()),
-                    plugin
-                        .as_ref()
-                        .map(|p| p.metadata().trigger_keywords.clone())
+                    self.plugin_registry
+                        .get_metadata(id)
+                        .map(|m| m.trigger_keywords.clone())
                         .unwrap_or_default(),
                 )
             }
@@ -1516,10 +1520,7 @@ impl SessionDispatcher {
             )));
         }
         // 形态校验：仅 panel 形态插件可热键唤醒（后端权威裁决，行内插件即使声明 hotkey 也被拒绝）
-        let meta = self
-            .plugin_registry
-            .get(plugin_id)
-            .map(|p| p.metadata().clone());
+        let meta = self.plugin_registry.get_metadata(plugin_id);
         if let Some(ref meta) = meta {
             if meta.mode != PluginMode::Panel {
                 return Err(SessionDispatcherError::InvalidState(format!(
@@ -1801,7 +1802,11 @@ impl SessionDispatcher {
                             .config_manager()
                             .map(|cm| cm.is_enabled(comp.core.component_id()))
                             .unwrap_or(true);
-                        self.register_plugin_with_triggers(p.clone(), enabled);
+                        self.register_plugin_with_triggers(
+                            p.clone(),
+                            adapters.metadata.clone(),
+                            enabled,
+                        );
                         // 远端插件 init（内置 init 在 bootstrap Phase B 统一执行）：
                         // 通知插件进程完成初始化（无宿主句柄，平台能力经 host RPC）。
                         // fire-and-forget：init 不阻塞配置事件循环（插件挂起时
@@ -1923,6 +1928,11 @@ mod tests {
     }
 
     impl TriggerStubPlugin {
+        /// 该桩的插件级元数据副本（注册中心条目数据源）。
+        fn metadata_arc(&self) -> Arc<PluginMetadata> {
+            Arc::new(self.metadata.clone())
+        }
+
         fn with_trigger(trigger: &str) -> Self {
             Self::with_trigger_and_id(trigger, &format!("test.{}", trigger))
         }
@@ -1982,10 +1992,6 @@ mod tests {
 
     #[async_trait]
     impl Plugin for TriggerStubPlugin {
-        fn metadata(&self) -> &PluginMetadata {
-            &self.metadata
-        }
-
         async fn init(
             &self,
             _ctx: &PluginContext,
@@ -2018,8 +2024,8 @@ mod tests {
     #[test]
     fn register_plugin_with_triggers_enables_match_trigger() {
         let dispatcher = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
-        let plugin: Arc<dyn Plugin> = Arc::new(TriggerStubPlugin::with_trigger("="));
-        dispatcher.register_plugin_with_triggers(plugin, true);
+        let plugin = Arc::new(TriggerStubPlugin::with_trigger("="));
+        dispatcher.register_plugin_with_triggers(plugin.clone(), plugin.metadata_arc(), true);
 
         // 触发词 + 空格分隔 → 命中并切出搜索词
         assert_eq!(
@@ -2035,9 +2041,9 @@ mod tests {
     #[test]
     fn set_plugin_enabled_toggles_trigger_index() {
         let dispatcher = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
-        let plugin: Arc<dyn Plugin> = Arc::new(TriggerStubPlugin::with_trigger("="));
-        let plugin_id = plugin.metadata().id.clone();
-        dispatcher.register_plugin_with_triggers(plugin, true);
+        let plugin = Arc::new(TriggerStubPlugin::with_trigger("="));
+        let plugin_id = plugin.metadata.id.clone();
+        dispatcher.register_plugin_with_triggers(plugin.clone(), plugin.metadata_arc(), true);
 
         // 注册后命中
         assert_eq!(
@@ -2068,9 +2074,9 @@ mod tests {
     #[test]
     fn register_disabled_plugin_skips_trigger_index() {
         let dispatcher = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
-        let plugin: Arc<dyn Plugin> = Arc::new(TriggerStubPlugin::with_trigger("="));
-        let plugin_id = plugin.metadata().id.clone();
-        dispatcher.register_plugin_with_triggers(plugin, false);
+        let plugin = Arc::new(TriggerStubPlugin::with_trigger("="));
+        let plugin_id = plugin.metadata.id.clone();
+        dispatcher.register_plugin_with_triggers(plugin.clone(), plugin.metadata_arc(), false);
 
         // 注册了但触发词未写入：不路由
         assert_eq!(dispatcher.match_trigger("= 1+1"), (None, "= 1+1"));
@@ -2088,12 +2094,10 @@ mod tests {
     fn enable_recovery_skips_conflicting_keyword() {
         let dispatcher = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
         // 插件 A 与 B 声明相同触发词但 id 不同
-        let plugin_a: Arc<dyn Plugin> =
-            Arc::new(TriggerStubPlugin::with_trigger_and_id("=", "plugin-a"));
-        let plugin_b: Arc<dyn Plugin> =
-            Arc::new(TriggerStubPlugin::with_trigger_and_id("=", "plugin-b"));
+        let plugin_a = Arc::new(TriggerStubPlugin::with_trigger_and_id("=", "plugin-a"));
+        let plugin_b = Arc::new(TriggerStubPlugin::with_trigger_and_id("=", "plugin-b"));
         // A 注册并占用 "="
-        dispatcher.register_plugin_with_triggers(plugin_a, true);
+        dispatcher.register_plugin_with_triggers(plugin_a.clone(), plugin_a.metadata_arc(), true);
         assert_eq!(
             dispatcher.trigger_index.get("=").map(|r| r.clone()),
             Some("plugin-a".to_string())
@@ -2101,7 +2105,7 @@ mod tests {
 
         // A 禁用（释放 "="）→ B 注册（无冲突，占用 "="）
         dispatcher.set_plugin_enabled("plugin-a", false);
-        dispatcher.register_plugin_with_triggers(plugin_b, true);
+        dispatcher.register_plugin_with_triggers(plugin_b.clone(), plugin_b.metadata_arc(), true);
         assert_eq!(
             dispatcher.trigger_index.get("=").map(|r| r.clone()),
             Some("plugin-b".to_string())
@@ -2127,6 +2131,11 @@ mod tests {
     }
 
     impl PanelStubPlugin {
+        /// 该桩的插件级元数据副本（注册中心条目数据源）。
+        fn metadata_arc(&self) -> Arc<PluginMetadata> {
+            Arc::new(self.metadata.clone())
+        }
+
         fn new() -> Self {
             Self::with_keep_search_bar(false)
         }
@@ -2172,10 +2181,6 @@ mod tests {
 
     #[async_trait]
     impl Plugin for PanelStubPlugin {
-        fn metadata(&self) -> &PluginMetadata {
-            &self.metadata
-        }
-
         async fn init(
             &self,
             _ctx: &PluginContext,
@@ -2212,8 +2217,8 @@ mod tests {
     async fn wake_plugin_enters_immersive_session_with_content() {
         let dispatcher = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
         dispatcher.set_host_api(test_host_api());
-        let plugin: Arc<dyn Plugin> = Arc::new(PanelStubPlugin::new());
-        dispatcher.register_plugin_with_triggers(plugin, true);
+        let plugin = Arc::new(PanelStubPlugin::new());
+        dispatcher.register_plugin_with_triggers(plugin.clone(), plugin.metadata_arc(), true);
 
         // 捕获会话事件（后端权威投影推送的唯一通道）
         let events = Arc::new(Mutex::new(Vec::new()));
@@ -2250,9 +2255,9 @@ mod tests {
     async fn wake_plugin_rejects_disabled_plugin() {
         let dispatcher = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
         dispatcher.set_host_api(test_host_api());
-        let plugin: Arc<dyn Plugin> = Arc::new(PanelStubPlugin::new());
+        let plugin = Arc::new(PanelStubPlugin::new());
         // 禁用状态注册（enabled=false）→ 不在启用集合
-        dispatcher.register_plugin_with_triggers(plugin, false);
+        dispatcher.register_plugin_with_triggers(plugin.clone(), plugin.metadata_arc(), false);
 
         let err = dispatcher.wake_plugin("test.panel").await.unwrap_err();
         assert!(
@@ -2268,9 +2273,9 @@ mod tests {
         let dispatcher = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
         dispatcher.set_host_api(test_host_api());
         // TriggerStubPlugin 的 query 返回 Empty（非 CustomPanel）；panel 形态才能通过 mode 校验
-        let plugin: Arc<dyn Plugin> = Arc::new(TriggerStubPlugin::with_panel_trigger("="));
-        let plugin_id = plugin.metadata().id.clone();
-        dispatcher.register_plugin_with_triggers(plugin, true);
+        let plugin = Arc::new(TriggerStubPlugin::with_panel_trigger("="));
+        let plugin_id = plugin.metadata.id.clone();
+        dispatcher.register_plugin_with_triggers(plugin.clone(), plugin.metadata_arc(), true);
 
         let err = dispatcher.wake_plugin(&plugin_id).await.unwrap_err();
         assert!(
@@ -2286,9 +2291,9 @@ mod tests {
         let dispatcher = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
         dispatcher.set_host_api(test_host_api());
         // inline 形态 + 声明热键 → mode 校验拒绝（不进入查询）
-        let plugin: Arc<dyn Plugin> = Arc::new(TriggerStubPlugin::with_inline_hotkey_trigger("="));
-        let plugin_id = plugin.metadata().id.clone();
-        dispatcher.register_plugin_with_triggers(plugin, true);
+        let plugin = Arc::new(TriggerStubPlugin::with_inline_hotkey_trigger("="));
+        let plugin_id = plugin.metadata.id.clone();
+        dispatcher.register_plugin_with_triggers(plugin.clone(), plugin.metadata_arc(), true);
 
         let err = dispatcher.wake_plugin(&plugin_id).await.unwrap_err();
         assert!(
@@ -2310,9 +2315,9 @@ mod tests {
             )),
         ));
 
-        let plugin: Arc<dyn Plugin> = Arc::new(PanelStubPlugin::new());
-        let plugin_id = plugin.metadata().id.clone();
-        dispatcher.register_plugin_with_triggers(plugin, true);
+        let plugin = Arc::new(PanelStubPlugin::new());
+        let plugin_id = plugin.metadata.id.clone();
+        dispatcher.register_plugin_with_triggers(plugin.clone(), plugin.metadata_arc(), true);
 
         // 构造插件候选并刷新进缓存
         {
@@ -2367,8 +2372,8 @@ mod tests {
     async fn wake_plugin_panics_on_keep_search_bar() {
         let dispatcher = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
         dispatcher.set_host_api(test_host_api());
-        let plugin: Arc<dyn Plugin> = Arc::new(PanelStubPlugin::with_keep_search_bar(true));
-        dispatcher.register_plugin_with_triggers(plugin, true);
+        let plugin = Arc::new(PanelStubPlugin::with_keep_search_bar(true));
+        dispatcher.register_plugin_with_triggers(plugin.clone(), plugin.metadata_arc(), true);
 
         // 应 panic（断言消息含 keep_search_bar=true），不返回
         let _ = dispatcher.wake_plugin("test.panel").await;
@@ -2387,6 +2392,11 @@ mod tests {
     }
 
     impl RecordingStubPlugin {
+        /// 该桩的插件级元数据副本（注册中心条目数据源）。
+        fn metadata_arc(&self) -> Arc<PluginMetadata> {
+            Arc::new(self.metadata.clone())
+        }
+
         fn new(trigger: &str, calls: Arc<Mutex<Vec<RecordedCall>>>) -> Self {
             let id = format!("test.{}", trigger);
             Self {
@@ -2435,10 +2445,6 @@ mod tests {
 
     #[async_trait]
     impl Plugin for RecordingStubPlugin {
-        fn metadata(&self) -> &PluginMetadata {
-            &self.metadata
-        }
-
         /// 面板按键契约：Escape → 返回。
         /// 会话投递断链时前端拿不到该声明（面板退出等按键全部失效），供投递不变式测试断言。
         fn interaction_policy(&self) -> PanelInteraction {
@@ -2492,10 +2498,8 @@ mod tests {
     async fn route_query_panel_is_readonly_direct_call() {
         let dispatcher = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
         let calls = Arc::new(Mutex::new(Vec::new()));
-        dispatcher.register_plugin_with_triggers(
-            Arc::new(RecordingStubPlugin::new("=", calls.clone())),
-            true,
-        );
+        let plugin = Arc::new(RecordingStubPlugin::new("=", calls.clone()));
+        dispatcher.register_plugin_with_triggers(plugin.clone(), plugin.metadata_arc(), true);
 
         // 调用方 confirm=true：面板直调必须强制为 false
         let query = Query {
@@ -2531,10 +2535,8 @@ mod tests {
     async fn route_query_ui_routes_trigger_and_enters_session() {
         let dispatcher = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
         let calls = Arc::new(Mutex::new(Vec::new()));
-        dispatcher.register_plugin_with_triggers(
-            Arc::new(RecordingStubPlugin::new("=", calls.clone())),
-            true,
-        );
+        let plugin = Arc::new(RecordingStubPlugin::new("=", calls.clone()));
+        dispatcher.register_plugin_with_triggers(plugin.clone(), plugin.metadata_arc(), true);
 
         let query = Query {
             id: "trace".to_string(),
@@ -2662,13 +2664,11 @@ mod tests {
         let dispatcher = Arc::new(SessionDispatcher::new(Arc::new(PluginRegistry::new())));
         dispatcher.set_search_pipeline(SearchPipeline::without_engine(Vec::new(), 10));
         let calls = Arc::new(Mutex::new(Vec::new()));
-        dispatcher.register_plugin_with_triggers(
-            Arc::new(
-                RecordingStubPlugin::new("=", calls.clone())
-                    .with_delay(std::time::Duration::from_millis(100)),
-            ),
-            true,
+        let plugin = Arc::new(
+            RecordingStubPlugin::new("=", calls.clone())
+                .with_delay(std::time::Duration::from_millis(100)),
         );
+        dispatcher.register_plugin_with_triggers(plugin.clone(), plugin.metadata_arc(), true);
 
         // 慢查询：触发词命中 → 本应进入 test.= 插件面板会话
         let slow_query = Query {
@@ -2819,13 +2819,11 @@ mod tests {
         let dispatcher = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
         dispatcher.set_host_api(test_host_api());
         let events = capture_session_events(&dispatcher);
-        dispatcher.register_plugin_with_triggers(
-            Arc::new(RecordingStubPlugin::new(
-                "=",
-                Arc::new(Mutex::new(Vec::new())),
-            )),
-            true,
-        );
+        let plugin = Arc::new(RecordingStubPlugin::new(
+            "=",
+            Arc::new(Mutex::new(Vec::new())),
+        ));
+        dispatcher.register_plugin_with_triggers(plugin.clone(), plugin.metadata_arc(), true);
 
         dispatcher
             .route_query_ui("trace-1", &plugin_query())
@@ -2890,13 +2888,11 @@ mod tests {
         let dispatcher = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
         dispatcher.set_host_api(test_host_api());
         let events = capture_session_events(&dispatcher);
-        dispatcher.register_plugin_with_triggers(
-            Arc::new(RecordingStubPlugin::new(
-                "=",
-                Arc::new(Mutex::new(Vec::new())),
-            )),
-            true,
-        );
+        let plugin = Arc::new(RecordingStubPlugin::new(
+            "=",
+            Arc::new(Mutex::new(Vec::new())),
+        ));
+        dispatcher.register_plugin_with_triggers(plugin.clone(), plugin.metadata_arc(), true);
 
         dispatcher
             .route_query_panel("trace-1", &plugin_query(), "test.=")
@@ -2922,13 +2918,11 @@ mod tests {
         dispatcher.set_host_api(test_host_api());
         set_home_setting(&dispatcher, false).await;
         let events = capture_session_events(&dispatcher);
-        dispatcher.register_plugin_with_triggers(
-            Arc::new(RecordingStubPlugin::new(
-                "=",
-                Arc::new(Mutex::new(Vec::new())),
-            )),
-            true,
-        );
+        let plugin = Arc::new(RecordingStubPlugin::new(
+            "=",
+            Arc::new(Mutex::new(Vec::new())),
+        ));
+        dispatcher.register_plugin_with_triggers(plugin.clone(), plugin.metadata_arc(), true);
 
         dispatcher
             .route_query_ui("trace-1", &plugin_query())
@@ -2977,13 +2971,11 @@ mod tests {
         dispatcher.set_host_api(test_host_api());
         dispatcher.set_search_pipeline(SearchPipeline::without_engine(Vec::new(), 10));
         set_home_setting(&dispatcher, true).await;
-        dispatcher.register_plugin_with_triggers(
-            Arc::new(RecordingStubPlugin::new(
-                "=",
-                Arc::new(Mutex::new(Vec::new())),
-            )),
-            true,
-        );
+        let plugin = Arc::new(RecordingStubPlugin::new(
+            "=",
+            Arc::new(Mutex::new(Vec::new())),
+        ));
+        dispatcher.register_plugin_with_triggers(plugin.clone(), plugin.metadata_arc(), true);
 
         dispatcher
             .route_query_ui("trace-1", &plugin_query())

@@ -680,6 +680,7 @@ pub struct ResultAction {
 
 /// 单个插件实例的静态元数据描述。
 /// 服务于注册中心索引、触发词路由与插件发现/展示。
+/// 第三方插件的取值由宿主从 `manifest.toml` 构造，内置插件由代码构造。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PluginMetadata {
     #[serde(rename = "id")]

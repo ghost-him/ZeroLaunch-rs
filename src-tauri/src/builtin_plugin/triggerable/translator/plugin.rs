@@ -445,10 +445,6 @@ impl Configurable for TranslatorPlugin {
 
 #[async_trait]
 impl Plugin for TranslatorPlugin {
-    fn metadata(&self) -> &PluginMetadata {
-        &self.metadata
-    }
-
     fn interaction_policy(&self) -> PanelInteraction {
         let settings = self.inner.read();
         if settings.is_on_enter_mode() {
@@ -640,10 +636,12 @@ impl Plugin for TranslatorPlugin {
     }
 }
 
-fn build_translator_plugin() -> (Arc<dyn Configurable>, Arc<dyn Plugin>) {
-    let plugin: Arc<dyn Plugin> = Arc::new(TranslatorPlugin::new());
+fn build_translator_plugin() -> (Arc<dyn Configurable>, Arc<dyn Plugin>, PluginMetadata) {
+    let plugin = Arc::new(TranslatorPlugin::new());
+    let metadata = plugin.metadata.clone();
     let configurable: Arc<dyn Configurable> = plugin.clone();
-    (configurable, plugin)
+    let plugin: Arc<dyn Plugin> = plugin;
+    (configurable, plugin, metadata)
 }
 
 ::inventory::submit! {

@@ -477,26 +477,19 @@ async fn dispatch(
                 locale: p.locale,
             });
             let result = InitializeResult {
-                plugin_version: app.plugin.metadata().version.clone(),
                 protocol_version: PROTOCOL_VERSION.to_string(),
             };
             Ok(serde_json::to_value(result).unwrap_or_default())
-        }
-        // 返回 metadata
-        plugin_methods::GET_METADATA => {
-            Ok(serde_json::to_value(app.plugin.metadata()).unwrap_or(serde_json::Value::Null))
         }
         // 返回这个插件实现的全部组件（Plugin + 附加 DataSource / ActionExecutor）
         plugin_methods::GET_COMPONENTS => {
             let mut components = vec![ComponentDescriptor {
                 component_id: app.plugin.component_id().to_string(),
                 component_name: app.plugin.component_name().to_string(),
-                component_description: app.plugin.metadata().description.clone(),
+                component_description: app.plugin.component_description().to_string(),
                 component_type: app.plugin.component_type(),
-                kind: ComponentKind::Plugin {
-                    trigger_keywords: app.plugin.metadata().trigger_keywords.clone(),
-                },
-                priority: app.plugin.metadata().priority,
+                kind: ComponentKind::Plugin,
+                priority: app.plugin.priority(),
             }];
             for ds in &app.data_sources {
                 components.push(ComponentDescriptor {

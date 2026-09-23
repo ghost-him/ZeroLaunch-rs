@@ -397,16 +397,6 @@ impl ActionExecutor for RemoteComponent {
 
 #[async_trait]
 impl Plugin for RemoteComponent {
-    fn metadata(&self) -> &PluginMetadata {
-        match &self.kind {
-            RemoteComponentKind::Plugin { metadata, .. } => metadata.as_ref(),
-            _ => panic!(
-                "RemoteComponent {} is not a Plugin but metadata() was called",
-                self.core.component_id()
-            ),
-        }
-    }
-
     async fn init(
         &self,
         ctx: &PluginContext,

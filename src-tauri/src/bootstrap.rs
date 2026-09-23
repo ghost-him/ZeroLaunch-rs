@@ -613,13 +613,17 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) -> HashSet<String>
     // 内置触发式插件（translator/calculator）在持久化启用状态加载后注册：
     // 按 is_enabled 决定是否建立触发词路由（用户禁用过的插件重启后不路由，
     // 与运行时开关语义一致）。放在 Phase B 之后，is_enabled 才能读到持久化结果。
-    for (c, p) in &collected.plugins {
+    for (c, p, m) in &collected.plugins {
         if config_manager.find_configurable(c.component_id()).is_some() {
             // 必须走 register_plugin_with_triggers（统一入口）：
             // 仅调用 plugin_registry().register 不会建立触发词索引，
             // 会导致内置触发式插件（translator/calculator）路由失效。
             let enabled = config_manager.is_enabled(c.component_id());
-            session_dispatcher.register_plugin_with_triggers(p.clone(), enabled);
+            session_dispatcher.register_plugin_with_triggers(
+                p.clone(),
+                Arc::new(m.clone()),
+                enabled,
+            );
         } else {
             warn!(
                 "组件 {} 的 Configurable 注册失败，跳过 Plugin 注册",
@@ -638,8 +642,8 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) -> HashSet<String>
     let trace_id = generate_trace_id();
     let mut init_ctx = PluginContext::new(&trace_id);
     init_ctx.locale = state.get_i18n_manager().current_language();
-    for plugin in session_dispatcher.plugin_registry().get_all() {
-        let plugin_id = plugin.metadata().id.clone();
+    for (plugin, metadata) in session_dispatcher.plugin_registry().get_all_with_metadata() {
+        let plugin_id = metadata.id.clone();
         // todo!: 这里是直接使用的默认的权限来注册的。之后可以优化成，让插件支持自己设置需要的权限
         let handle = host_api.register(&plugin_id, PluginSdkConfig::default());
         plugin

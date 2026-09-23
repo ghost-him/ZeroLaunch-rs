@@ -2,8 +2,6 @@
 pub mod plugin {
     /// 进程级握手：插件初始化（版本协商、目录、locale 下发）。
     pub const INITIALIZE: &str = "plugin/initialize";
-    /// 拉取插件元数据（PluginMetadata）。
-    pub const GET_METADATA: &str = "plugin/get_metadata";
     /// 拉取插件实现的全部组件清单（ComponentDescriptor 列表）。
     pub const GET_COMPONENTS: &str = "plugin/get_components";
     /// 拉取指定组件的设置 schema。

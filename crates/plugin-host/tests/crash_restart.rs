@@ -19,6 +19,7 @@ use serde_json::Value;
 use tokio::time::sleep;
 
 use zerolaunch_plugin_api::config::Configurable;
+use zerolaunch_plugin_api::{PluginKind, PluginMode};
 use zerolaunch_plugin_host::host_dispatch::HostCallHandler;
 use zerolaunch_plugin_host::manager::{
     CrashCallback, PluginHostManager, PluginLoadError, PluginRegistration, RestartCallback,
@@ -124,6 +125,14 @@ async fn setup_loaded_plugin(
         .expect("initial load succeeds");
     assert_eq!(reg.components.len(), 1, "fixture 声明一个组件");
     assert_eq!(reg.components[0].component_id(), FIXTURE_COMPONENT_ID);
+    // 插件级元数据全部取自清单
+    assert_eq!(reg.metadata.id, plugin_id);
+    assert_eq!(reg.metadata.name, "Crash Restart Fixture");
+    assert_eq!(reg.metadata.version, "1.0.0");
+    assert_eq!(reg.metadata.priority, 100);
+    assert_eq!(reg.metadata.mode, PluginMode::Inline);
+    assert_eq!(reg.metadata.kind, PluginKind::ThirdParty);
+    assert_eq!(reg.metadata.supported_os, vec!["windows".to_string()]);
     (mgr, crashed, restarted)
 }
 
@@ -177,6 +186,12 @@ async fn crash_triggers_restart_and_reregisters() {
         Duration::from_secs(15),
     )
     .await;
+    // 计数器由重启回调递增，可能略晚于进程表更新
+    wait_until(
+        || restarted.load(Ordering::SeqCst) >= 1,
+        Duration::from_secs(15),
+    )
+    .await;
     assert_eq!(crashed.load(Ordering::SeqCst), 1, "崩溃即解注册触发一次");
     assert_eq!(restarted.load(Ordering::SeqCst), 1, "重启成功重注册一次");
     assert!(mgr.plugins.get(plugin_id).is_some(), "重启后组件重新登记");
@@ -191,6 +206,11 @@ async fn crash_triggers_restart_and_reregisters() {
                 .map(|p| p.pid != Some(new_pid))
                 .unwrap_or(false)
         },
+        Duration::from_secs(15),
+    )
+    .await;
+    wait_until(
+        || restarted.load(Ordering::SeqCst) >= 2,
         Duration::from_secs(15),
     )
     .await;
@@ -220,6 +240,11 @@ async fn crash_exhausts_max_restart_and_abandons() {
         Duration::from_secs(15),
     )
     .await;
+    wait_until(
+        || restarted.load(Ordering::SeqCst) >= 1,
+        Duration::from_secs(15),
+    )
+    .await;
     assert_eq!(restarted.load(Ordering::SeqCst), 1, "第一次崩溃重启成功");
 
     // 第二次崩溃 → 超出 max_restart，放弃重启：登记清空且不再恢复
@@ -227,6 +252,11 @@ async fn crash_exhausts_max_restart_and_abandons() {
     kill_plugin(new_pid);
     wait_until(
         || mgr.plugins.get(plugin_id).is_none(),
+        Duration::from_secs(15),
+    )
+    .await;
+    wait_until(
+        || crashed.load(Ordering::SeqCst) >= 2,
         Duration::from_secs(15),
     )
     .await;

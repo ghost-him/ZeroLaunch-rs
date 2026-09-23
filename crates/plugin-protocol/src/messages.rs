@@ -25,8 +25,6 @@ pub struct InitializeParams {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InitializeResult {
-    #[serde(rename = "pluginVersion")]
-    pub plugin_version: String,
     #[serde(rename = "protocolVersion")]
     pub protocol_version: String,
 }
@@ -60,11 +58,9 @@ fn default_component_priority() -> u32 {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum ComponentKind {
+    /// 主插件组件（插件级元数据由宿主从清单读取）。
     #[serde(rename = "plugin")]
-    Plugin {
-        #[serde(rename = "triggerKeywords")]
-        trigger_keywords: Vec<String>,
-    },
+    Plugin,
     #[serde(rename = "data_source")]
     DataSource,
     #[serde(rename = "action_executor")]

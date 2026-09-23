@@ -1,8 +1,6 @@
 use crate::config::configurable::Configurable;
 use crate::host::plugin_handle::PluginHandle;
-use crate::plugin::types::{
-    PanelInteraction, PluginContext, PluginError, PluginMetadata, Query, QueryResponse,
-};
+use crate::plugin::types::{PanelInteraction, PluginContext, PluginError, Query, QueryResponse};
 use async_trait::async_trait;
 use std::sync::Arc;
 
@@ -11,8 +9,6 @@ use std::sync::Arc;
 /// 配置管理能力由 Configurable trait 提供。
 #[async_trait]
 pub trait Plugin: Configurable {
-    fn metadata(&self) -> &PluginMetadata;
-
     /// 插件初始化钩子。
     ///
     /// `handle` 为宿主注入的平台服务句柄：进程内（内置）插件持有

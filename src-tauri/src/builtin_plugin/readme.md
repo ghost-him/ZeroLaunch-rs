@@ -249,8 +249,6 @@ pub trait ActionExecutor: Configurable {
 ```rust
 #[async_trait]
 pub trait Plugin: Configurable {
-    fn metadata(&self) -> &PluginMetadata;
-    
     async fn init(
         &self,
         ctx: &PluginContext,

@@ -70,29 +70,14 @@ fn main() {
 fn handle(request: &Request) -> Response {
     let result = match request.method.as_str() {
         plugin_methods::INITIALIZE => serde_json::json!({
-            "pluginVersion": "1.0.0",
             "protocolVersion": PROTOCOL_VERSION,
         }),
-        plugin_methods::GET_METADATA => {
-            let plugin_id =
-                std::env::var("ZEROLAUNCH_PLUGIN_ID").unwrap_or_else(|_| "fixture".to_string());
-            serde_json::json!({
-                "id": plugin_id,
-                "name": "Crash Restart Fixture",
-                "version": "1.0.0",
-                "description": "crash restart integration test fixture",
-                "author": "zerolaunch",
-                "triggerKeywords": [],
-                "supportedOs": ["windows"],
-                "priority": 50,
-            })
-        }
         plugin_methods::GET_COMPONENTS => serde_json::json!([{
             "componentId": FIXTURE_COMPONENT_ID,
             "componentName": "Fixture Hello",
             "componentDescription": "crash restart integration test fixture",
             "componentType": "Plugin",
-            "kind": { "type": "plugin", "triggerKeywords": [] },
+            "kind": { "type": "plugin" },
             "priority": 50,
         }]),
         // Plugin 组件无配置项：schema/settings/actions 一律返回空

@@ -98,9 +98,7 @@ fn test_component_descriptor_roundtrip() {
         component_name: "Test".into(),
         component_description: "A test plugin".into(),
         component_type: zerolaunch_plugin_api::config::ComponentType::Plugin,
-        kind: ComponentKind::Plugin {
-            trigger_keywords: vec!["test".into()],
-        },
+        kind: ComponentKind::Plugin,
         priority: 100,
     };
     let json = serde_json::to_value(&comp).unwrap();
@@ -117,12 +115,7 @@ fn test_component_kind_stable_serde_keys() {
         (ComponentKind::ScoreBooster, "score_booster"),
         (ComponentKind::KeywordOptimizer, "keyword_optimizer"),
         (ComponentKind::KeywordInjector, "keyword_injector"),
-        (
-            ComponentKind::Plugin {
-                trigger_keywords: vec![],
-            },
-            "plugin",
-        ),
+        (ComponentKind::Plugin, "plugin"),
         (
             ComponentKind::ActionExecutor {
                 target_types: vec![],

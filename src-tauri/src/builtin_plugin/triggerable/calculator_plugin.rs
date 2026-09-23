@@ -108,10 +108,6 @@ impl Configurable for CalculatorPlugin {
 
 #[async_trait]
 impl Plugin for CalculatorPlugin {
-    fn metadata(&self) -> &PluginMetadata {
-        &self.metadata
-    }
-
     /// CalculatorPlugin 无需异步初始化，所有状态在构造时已就绪；
     /// 仅保存 init 发放的服务句柄，供 execute_action 访问平台能力。
     async fn init(
@@ -404,10 +400,12 @@ impl ExprParser {
 
 use crate::plugin_framework::builtin_registry::PluginEntry;
 
-fn build_calculator_plugin() -> (Arc<dyn Configurable>, Arc<dyn Plugin>) {
-    let plugin: Arc<dyn Plugin> = Arc::new(CalculatorPlugin::new());
+fn build_calculator_plugin() -> (Arc<dyn Configurable>, Arc<dyn Plugin>, PluginMetadata) {
+    let plugin = Arc::new(CalculatorPlugin::new());
+    let metadata = plugin.metadata.clone();
     let configurable: Arc<dyn Configurable> = plugin.clone();
-    (configurable, plugin)
+    let plugin: Arc<dyn Plugin> = plugin;
+    (configurable, plugin, metadata)
 }
 
 ::inventory::submit! {

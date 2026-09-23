@@ -343,8 +343,8 @@ pub async fn bridge_query(
                 .and_then(|id| {
                     session_dispatcher
                         .plugin_registry()
-                        .get(id)
-                        .map(|p| p.metadata().kind)
+                        .get_metadata(id)
+                        .map(|m| m.kind)
                 })
                 .unwrap_or(PluginKind::Builtin);
             let panel_type =

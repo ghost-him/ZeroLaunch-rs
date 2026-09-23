@@ -13,8 +13,8 @@ use std::sync::Arc;
 use zerolaunch_plugin_api::config::Configurable;
 use zerolaunch_plugin_api::host::PluginHandle;
 use zerolaunch_plugin_api::{
-    ActionExecutor, DataSource, KeywordInjector, KeywordOptimizer, Plugin, ScoreBooster,
-    SearchEngine,
+    ActionExecutor, DataSource, KeywordInjector, KeywordOptimizer, Plugin, PluginMetadata,
+    ScoreBooster, SearchEngine,
 };
 
 // ============================================================================
@@ -29,7 +29,9 @@ pub type SearchEngineFactory = fn() -> (Arc<dyn Configurable>, Arc<dyn SearchEng
 pub type ScoreBoosterFactory = fn() -> (Arc<dyn Configurable>, Arc<dyn ScoreBooster>);
 pub type KeywordInjectorFactory =
     fn(&InventoryContext) -> (Arc<dyn Configurable>, Arc<dyn KeywordInjector>);
-pub type PluginFactory = fn() -> (Arc<dyn Configurable>, Arc<dyn Plugin>);
+/// 内置插件：可配置组件、插件实例与插件级元数据。
+pub type PluginWithMeta = (Arc<dyn Configurable>, Arc<dyn Plugin>, PluginMetadata);
+pub type PluginFactory = fn() -> PluginWithMeta;
 /// 纯配置组件工厂（仅实现 Configurable，不附带其他 trait）。
 pub type ConfigComponentFactory = fn(&InventoryContext) -> Arc<dyn Configurable>;
 
@@ -44,7 +46,7 @@ pub struct CollectedBuiltins {
     pub keyword_injectors: Vec<(Arc<dyn Configurable>, Arc<dyn KeywordInjector>)>,
     pub search_engines: Vec<(Arc<dyn Configurable>, Arc<dyn SearchEngine>)>,
     pub score_boosters: Vec<(Arc<dyn Configurable>, Arc<dyn ScoreBooster>)>,
-    pub plugins: Vec<(Arc<dyn Configurable>, Arc<dyn Plugin>)>,
+    pub plugins: Vec<PluginWithMeta>,
     pub config_components: Vec<Arc<dyn Configurable>>,
 }
 
@@ -70,7 +72,7 @@ impl CollectedBuiltins {
         for (c, _) in &self.score_boosters {
             out.push(c.clone());
         }
-        for (c, _) in &self.plugins {
+        for (c, _, _) in &self.plugins {
             out.push(c.clone());
         }
         for c in &self.config_components {
@@ -99,7 +101,7 @@ impl CollectedBuiltins {
         for (c, _) in &self.score_boosters {
             f(c);
         }
-        for (c, _) in &self.plugins {
+        for (c, _, _) in &self.plugins {
             f(c);
         }
         for c in &self.config_components {

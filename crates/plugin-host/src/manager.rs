@@ -49,10 +49,8 @@ pub struct PluginRegistration {
     /// 插件实际安装目录（load 时的真实路径，不依赖目录名 == plugin_id 的隐式契约）。
     /// 卸载/重载/覆盖安装按此路径定位，而非 plugins_dir.join(plugin_id) 反查。
     pub plugin_dir: PathBuf,
-    /// 插件级元数据（插件自声明为基础，宿主覆盖 id/version/author/kind）。
-    /// **唯一源**：与各 `RemoteComponentKind::Plugin` 共享同一 `Arc`，
-    /// 由 build_components 一次性构造后不可变；任何字段覆盖只能发生在该函数内。
-    /// 供 build_plugin_info 直接取插件级 priority，避免组件最小优先级双源。
+    /// 插件级元数据（宿主从清单构造，与各 Plugin 组件共享同一 Arc）。
+    /// 供 build_plugin_info 取插件级 priority。
     pub metadata: Arc<PluginMetadata>,
 
     /// 该插件的所有远程组件。
@@ -731,39 +729,34 @@ fn build_components(
     client: Arc<crate::client::JsonRpcClient>,
     init_result: &crate::process::InitResult,
 ) -> PluginRegistration {
-    // 插件级元数据：以插件自声明为基础，仅覆盖需宿主保证一致性的字段。
-    // 构造完成后包 Arc 成为唯一源：registration.metadata 与各 Plugin 组件共享同一数据，
-    // 任何字段覆盖只能发生在此处（覆盖后不再可变）。
-    let mut plugin_metadata = init_result.metadata.clone();
-    plugin_metadata.id = plugin_id.to_string();
-    plugin_metadata.version = manifest.plugin.version.clone();
-    plugin_metadata.author = manifest.plugin.author.clone();
-    // 第三方插件由宿主强制标注，插件自声明的 kind 不可信
-    if plugin_metadata.kind != PluginKind::ThirdParty {
-        warn!(
-            plugin_id = plugin_id,
-            declared = ?plugin_metadata.kind,
-            "插件自声明 kind 与宿主强制值不符，已强制为 ThirdParty"
-        );
-    }
-    plugin_metadata.kind = PluginKind::ThirdParty;
-    // mode 是插件形态的权威声明，宿主不覆盖：热键仅对 panel 形态生效——
-    // Inline + hotkey 属插件声明矛盾，前端热键表按 mode 过滤（行内不注册）、
-    // wake_plugin 亦按 mode 拒绝行内唤醒，宿主不静默改写插件自报形态。
+    // 插件级元数据由宿主从清单构造；包 Arc 后与各 Plugin 组件共享同一份。
+    let plugin_metadata = PluginMetadata {
+        id: plugin_id.to_string(),
+        name: manifest.plugin.name.clone(),
+        version: manifest.plugin.version.clone(),
+        description: manifest.plugin.description.clone(),
+        author: manifest.plugin.author.clone(),
+        trigger_keywords: manifest.plugin.trigger_keywords.clone(),
+        supported_os: manifest.plugin.supported_os.clone(),
+        priority: manifest.plugin.priority,
+        // 第三方插件由宿主强制标注
+        kind: PluginKind::ThirdParty,
+        hotkey: manifest.plugin.hotkey.clone(),
+        // 图标：从清单 [icon] 段读取
+        icon: manifest
+            .icon
+            .as_ref()
+            .and_then(|icon| read_plugin_icon(plugin_dir, &icon.path)),
+        mode: manifest.plugin.mode,
+    };
+    // 热键仅对 panel 形态生效（前端热键表与 wake_plugin 均按 mode 过滤）
     if plugin_metadata.hotkey.is_some() && plugin_metadata.mode != PluginMode::Panel {
         warn!(
             plugin_id = plugin_id,
             declared = ?plugin_metadata.mode,
-            "插件声明热键但形态非 panel：热键仅对 panel 形态生效，该热键将不注册"
+            "插件清单声明热键但形态非 panel：热键仅对 panel 形态生效，该热键将不注册"
         );
     }
-    // 图标：从 manifest [icon] 段读取（宿主唯一源，插件 RPC 自上报不采信）
-    plugin_metadata.icon = manifest
-        .icon
-        .as_ref()
-        .and_then(|icon| read_plugin_icon(plugin_dir, &icon.path));
-    // name, description, supported_os, trigger_keywords, priority
-    // 保留插件通过 plugin/get_metadata 自声明的值
     let plugin_metadata = Arc::new(plugin_metadata);
 
     let components: Vec<Arc<RemoteComponent>> = init_result
@@ -779,7 +772,7 @@ fn build_components(
             let priority = comp.priority;
 
             let kind = match &comp.kind {
-                ComponentKind::Plugin { .. } => {
+                ComponentKind::Plugin => {
                     let interaction_policy =
                         find_by_id(&init_result.interaction_policy_map, &comp.component_id);
                     RemoteComponentKind::Plugin {

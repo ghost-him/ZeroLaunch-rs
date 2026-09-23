@@ -22,45 +22,40 @@ tokio = { version = "1", features = ["macros", "rt"] }
 
 ### 插件骨架
 
+插件级元数据（id、名称、版本、描述、作者、触发关键词、支持系统、优先级、形态、热键、图标）由宿主从 `manifest.toml` 的 `[plugin]` / `[icon]` 段读取，**插件代码不声明**，`Plugin` trait 上也不提供元数据方法。插件代码只提供组件级身份：一个 `ComponentCore`（组件 id、名称、描述、类型、优先级）。
+
 ```rust
 use async_trait::async_trait;
 use std::sync::Arc;
+use zerolaunch_plugin_api::config::{
+    ComponentCore, ComponentType, Configurable, SettingDefinition,
+};
+use zerolaunch_plugin_api::services::IconRequest;
 use zerolaunch_plugin_api::{
-    Configurable, ComponentType, ConfigError,
-    Plugin, PluginContext, PluginError, PluginMetadata, PluginHandle, PluginMode,
-    Query, QueryResponse, ListItem, IconRequest,
+    Plugin, PluginContext, PluginError, PluginHandle,
+    Query, QueryResponse, ListItem,
 };
 
-pub struct EchoPlugin { metadata: PluginMetadata }
+pub struct EchoPlugin { core: ComponentCore }
 
 impl EchoPlugin {
     pub fn new() -> Self {
-        Self { metadata: PluginMetadata {
-            id: "echo".into(), name: "Echo".into(), version: "0.1.0".into(),
-            description: "回显输入".into(), author: "me".into(),
-            trigger_keywords: vec!["echo".into()],
-            supported_os: vec!["windows".into()], priority: 50,
-            hotkey: None,
-            // panel 形态插件图标由宿主从 manifest [icon] 段读取，此处无需填写
-            icon: None,
-            // 插件形态：行内插件填 Inline，独立插件填 Panel
-            mode: PluginMode::Inline,
-        }}
+        Self { core: ComponentCore::new(
+            "echo".into(), "Echo".into(), "回显输入".into(),
+            ComponentType::Plugin, 50,
+        )}
     }
 }
 
 #[async_trait]
 impl Configurable for EchoPlugin {
-    fn component_id(&self) -> &str { "echo" }
-    fn component_name(&self) -> &str { "Echo" }
-    fn component_type(&self) -> ComponentType { ComponentType::Plugin }
+    fn core(&self) -> &ComponentCore { &self.core }
+    fn setting_schema(&self) -> Vec<SettingDefinition> { vec![] }
 }
 
 #[async_trait]
 impl Plugin for EchoPlugin {
-    fn metadata(&self) -> &PluginMetadata { &self.metadata }
-
-    async fn init(&self, _ctx: &PluginContext, _handle: Arc<PluginHandle>)
+    async fn init(&self, _ctx: &PluginContext, _handle: Option<Arc<PluginHandle>>)
         -> Result<(), PluginError> { Ok(()) }
 
     async fn query(&self, _ctx: &PluginContext, query: &Query)
@@ -93,7 +88,7 @@ mod tests {
         let handle = mock_plugin_handle();
         let ctx = PluginContext::new("test");
 
-        plugin.init(&ctx, handle).await.unwrap();
+        plugin.init(&ctx, Some(handle)).await.unwrap();
 
         let q = Query {
             id: "q1".into(),
@@ -114,10 +109,11 @@ mod tests {
 
 | 类型 | 说明 |
 |------|------|
-| `Plugin` trait | 插件核心契约：`metadata()` + `init()` + `query()` + `execute_action()` |
-| `PluginHandle` | 平台能力句柄，通过 `init()` 注入，提供 `get_icon()`、`shell_open()` 等服务 |
-| `Configurable` trait | 配置管理契约，提供 `setting_schema()` + `apply_settings()` |
-| `PluginMetadata` | 静态元数据：id、触发关键词、优先级等 |
+| `Plugin` trait | 插件核心契约：`init()` + `query()` + `execute_action()`；插件级元数据不在本 trait 上，由宿主侧持有 |
+| `PluginHandle` | 平台能力句柄，通过 `init()` 注入（`Option<Arc<PluginHandle>>`），提供 `get_icon()`、`shell_open()` 等服务 |
+| `Configurable` trait | 组件契约：`core()`（组件身份）+ `setting_schema()`，配置读写与校验有默认实现 |
+| `ComponentCore` | 组件级身份信息：组件 id、名称、描述、类型、优先级 |
+| `PluginMetadata` | 插件级元数据：宿主从 `manifest.toml` 读取后构造，插件代码不声明 |
 | `Query` / `QueryResponse` | 查询输入/输出类型 |
 | `PluginError` | 插件层统一错误类型 |
 

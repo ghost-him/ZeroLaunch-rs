@@ -8,7 +8,7 @@ use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 
 use zerolaunch_plugin_api::config::{ConfigActionDef, SettingDefinition};
-use zerolaunch_plugin_api::{KeywordInputSource, PanelInteraction, PluginMetadata, ResultAction};
+use zerolaunch_plugin_api::{KeywordInputSource, PanelInteraction, ResultAction};
 use zerolaunch_plugin_protocol::manifest::Manifest;
 use zerolaunch_plugin_protocol::messages::*;
 use zerolaunch_plugin_protocol::methods::plugin as plugin_methods;
@@ -31,7 +31,6 @@ pub enum ProcessState {
 /// Result of the initialization handshake with a plugin subprocess.
 pub struct InitResult {
     pub plugin_id: String,
-    pub metadata: PluginMetadata,
     pub components: Vec<ComponentDescriptor>,
     pub settings_schemas: Vec<(String, Vec<SettingDefinition>)>,
     pub settings_values: Vec<(String, serde_json::Value)>,
@@ -252,22 +251,13 @@ impl PluginProcess {
     }
 
     /// Run the post-initialization discovery sequence:
-    /// plugin/get_metadata, plugin/get_components, and for each component:
+    /// plugin/get_components, and for each component:
     /// plugin/get_settings_schema, plugin/get_settings, plugin/config_actions.
     /// 对 ActionExecutor 组件还会额外调用 plugin/supported_target_types
     /// 和 plugin/supported_actions，收集真实的 ResultAction 列表。
+    /// 插件级元数据由宿主从清单构造，不在本序列。
     pub async fn discover_components(&self) -> Result<InitResult, ProtocolError> {
         let plugin_id = self.plugin_id.clone();
-
-        // plugin/get_metadata
-        let metadata: zerolaunch_plugin_api::PluginMetadata = self
-            .client
-            .call(
-                plugin_methods::GET_METADATA,
-                serde_json::Value::Null,
-                Duration::from_secs(5),
-            )
-            .await?;
 
         // plugin/get_components
         let components: Vec<ComponentDescriptor> = self
@@ -344,7 +334,7 @@ impl PluginProcess {
             // 交互策略为插件级语义（PanelInteraction 属于 Plugin trait，DataSource/
             // Executor 组件无策略）：仅对 Plugin 种类拉取一次，避免多组件插件 N 次冗余 RPC。
             // 初始值供构造缓存，查询/设置变更期间由 RemoteComponent 刷新。
-            if matches!(comp.kind, ComponentKind::Plugin { .. }) {
+            if matches!(comp.kind, ComponentKind::Plugin) {
                 let policy: PanelInteraction = self
                     .client
                     .call(
@@ -419,7 +409,6 @@ impl PluginProcess {
 
         Ok(InitResult {
             plugin_id,
-            metadata,
             components,
             settings_schemas,
             settings_values,
@@ -590,9 +579,9 @@ async fn append_to_log(log_path: &Path, text: &str) {
 /// 宿主驱动模型下 minor 差异双向兼容——宿主只调用自己知道的方法，
 /// 新增方法对旧插件可选且宿主容错 METHOD_NOT_FOUND；major 不同视为
 /// 破坏性载荷变更。无法解析的版本声明视为不兼容（安全默认）。
-fn protocol_version_compatible(plugin_version: &str, host_version: &str) -> bool {
+fn protocol_version_compatible(plugin_protocol: &str, host_protocol: &str) -> bool {
     let major = |v: &str| v.split('.').next().and_then(|m| m.parse::<u64>().ok());
-    match (major(plugin_version), major(host_version)) {
+    match (major(plugin_protocol), major(host_protocol)) {
         (Some(p), Some(h)) => p == h,
         _ => false,
     }

@@ -33,6 +33,10 @@ scope: "tool:read(crates/plugin-protocol/**), tool:edit(crates/plugin-protocol/*
 3. `runtime.command` 文件存在
 4. `components.provides` 至少 1 项且在已知集合内
 
+`[plugin]` 段还是插件元数据的声明处：`mode`（`inline`/`panel`）、`triggerKeywords`、`supportedOs`、`priority` 为
+**必填**（缺一即 manifest 解析失败、插件加载失败），`hotkey` 可选。schema 用 `PluginMode` 枚举，取值非法同样解析失败。
+插件构建 `PluginMetadata` 时直接取这些值，不再在代码里写字面量。
+
 ## 子进程生命周期
 
 - **spawn**：启动子进程 → `plugin/initialize` 握手 → `plugin/get_metadata` → `plugin/get_components`

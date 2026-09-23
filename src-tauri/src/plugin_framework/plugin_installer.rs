@@ -334,6 +334,10 @@ name = "Sample Plugin"
 version = "1.2.3"
 description = "预检测试插件"
 author = "tester"
+mode = "inline"
+triggerKeywords = []
+supportedOs = ["windows"]
+priority = 100
 
 [components]
 provides = ["data_source"]

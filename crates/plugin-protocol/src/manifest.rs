@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use zerolaunch_plugin_api::PluginMode;
 
 /// 顶层插件 manifest，从 `manifest.toml` 反序列化，也可序列化为 JSON 返回给前端。
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -38,6 +39,21 @@ pub struct PluginSection {
     /// 作者名
     #[serde(rename = "author")]
     pub author: String,
+    /// 插件形态：`inline`（行内，触发词路由）或 `panel`（独立插件，候选项/热键唤醒）
+    #[serde(rename = "mode")]
+    pub mode: PluginMode,
+    /// 全局唤醒快捷键（如 `Ctrl+E`）。可空；仅 `panel` 形态注册热键
+    #[serde(default, rename = "hotkey")]
+    pub hotkey: Option<String>,
+    /// 触发关键词；`panel` 形态下作为默认候选项的匹配关键字
+    #[serde(rename = "triggerKeywords")]
+    pub trigger_keywords: Vec<String>,
+    /// 支持的操作系统标识（如 `["windows"]`）
+    #[serde(rename = "supportedOs")]
+    pub supported_os: Vec<String>,
+    /// 默认搜索候选项优先级
+    #[serde(rename = "priority")]
+    pub priority: u32,
     /// 项目主页 URL（可选）
     #[serde(default, rename = "homepage")]
     pub homepage: Option<String>,

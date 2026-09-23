@@ -229,6 +229,12 @@ export interface PluginManifest {
     version: string
     description: string
     author: string
+    /** 插件形态：inline = 触发词路由；panel = 候选项/热键唤醒 */
+    mode: 'inline' | 'panel'
+    hotkey: string | null
+    triggerKeywords: string[]
+    supportedOs: string[]
+    priority: number
     homepage: string | null
     license: string | null
   }

@@ -6,6 +6,7 @@
 pub mod adapter;
 pub mod client;
 pub mod host_dispatch;
+pub mod icon;
 pub mod manager;
 pub mod process;
 pub mod transport;

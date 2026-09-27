@@ -12,8 +12,6 @@ use tokio::sync::mpsc;
 use tokio::sync::Mutex as AsyncMutex;
 use tracing::{error, info, warn};
 
-use base64::Engine;
-
 use zerolaunch_plugin_api::config::Configurable;
 use zerolaunch_plugin_api::plugin::{KeywordInputSource, PluginKind, PluginMetadata, PluginMode};
 use zerolaunch_plugin_protocol::manifest::Manifest;
@@ -646,8 +644,6 @@ fn validate_manifest(manifest: &Manifest, plugin_dir: &Path) -> Result<(), Plugi
 /// 读取 manifest [icon] 段声明的图标文件（相对插件目录）并转为 data URL。
 /// 路径逃逸插件目录、文件缺失或超过大小上限返回 None（图标缺失不阻断加载）。
 fn read_plugin_icon(plugin_dir: &Path, icon_path: &str) -> Option<String> {
-    const MAX_ICON_BYTES: u64 = 1024 * 1024; // 1MB，避免超大图标膨胀 plugin_list 载荷
-
     let icon_abs = plugin_dir.join(icon_path);
     let canonical_icon = icon_abs.canonicalize().ok()?;
     let canonical_plugin_dir = plugin_dir.canonicalize().ok()?;
@@ -656,30 +652,14 @@ fn read_plugin_icon(plugin_dir: &Path, icon_path: &str) -> Option<String> {
         warn!("插件图标路径逃逸插件目录，忽略: {}", icon_path);
         return None;
     }
+    // 上限预检：避免把超大文件整个读进内存（字节级上限由 icon::to_data_url 兜底）
     let meta = std::fs::metadata(&canonical_icon).ok()?;
-    if meta.len() > MAX_ICON_BYTES {
+    if meta.len() > crate::icon::MAX_ICON_BYTES {
         warn!("插件图标超过 1MB 上限，忽略: {}", icon_path);
         return None;
     }
     let bytes = std::fs::read(&canonical_icon).ok()?;
-    let mime = icon_mime_from_extension(&canonical_icon);
-    Some(format!(
-        "data:{};base64,{}",
-        mime,
-        base64::engine::general_purpose::STANDARD.encode(bytes)
-    ))
-}
-
-/// 根据图标文件扩展名推断 MIME 类型，未知扩展名回退 image/png。
-fn icon_mime_from_extension(path: &Path) -> &'static str {
-    match path.extension().and_then(|e| e.to_str()) {
-        Some("svg") => "image/svg+xml",
-        Some("ico") => "image/x-icon",
-        Some("jpg") | Some("jpeg") => "image/jpeg",
-        Some("webp") => "image/webp",
-        Some("gif") => "image/gif",
-        _ => "image/png",
-    }
+    crate::icon::to_data_url(crate::icon::mime_from_extension(&canonical_icon), &bytes)
 }
 
 /// 从 `Vec<(String, T)>` 中按 component_id 查找值，找不到返回 default。

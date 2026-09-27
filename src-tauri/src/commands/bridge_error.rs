@@ -141,13 +141,22 @@ impl From<zerolaunch_plugin_api::PluginError> for BridgeError {
 }
 
 /// 将市场模块错误转换为 IPC 边界使用的 BridgeError。
-/// 网络/404 → NETWORK_ERROR；解析/IO → 具体 code（ValidationFailed/Internal）。
+/// 网络/404/限流 → NETWORK_ERROR；解析/IO → 具体 code（ValidationFailed/Internal）。
 impl From<MarketError> for BridgeError {
     fn from(e: MarketError) -> Self {
-        match e {
+        match &e {
             MarketError::Network(msg) | MarketError::NotFound(msg) => BridgeError {
                 code: ErrorCode::NetworkError,
-                message: msg,
+                message: msg.clone(),
+                details: Box::new(None),
+                component_id: None,
+                trace_id: String::new(),
+            },
+            // 限流是"稍后重试就好"的环境问题，与网络错误同类，不当作校验失败；
+            // 提示已含在 MarketError 的 Display 里，不再重复拼接
+            MarketError::RateLimited(_) => BridgeError {
+                code: ErrorCode::NetworkError,
+                message: e.to_string(),
                 details: Box::new(None),
                 component_id: None,
                 trace_id: String::new(),
@@ -155,7 +164,7 @@ impl From<MarketError> for BridgeError {
             MarketError::NoRelease(_) | MarketError::NoPluginZip(..) => {
                 BridgeError::validation_failed(e.to_string())
             }
-            MarketError::Parse(msg) => BridgeError::validation_failed(msg),
+            MarketError::Parse(msg) => BridgeError::validation_failed(msg.clone()),
         }
     }
 }

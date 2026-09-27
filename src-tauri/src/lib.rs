@@ -218,7 +218,7 @@ pub fn run() {
             crate::commands::plugin::plugin_get_logs,
             // Plugin Market
             crate::commands::plugin_market::market_list,
-            crate::commands::plugin_market::market_get_release,
+            crate::commands::plugin_market::market_get_meta,
             crate::commands::plugin_market::market_install,
             crate::commands::plugin_market::market_preview_package,
             crate::commands::plugin_market::market_discard_preview,

@@ -300,16 +300,21 @@ export interface MarketRepo {
   htmlUrl: string
 }
 
-/** 仓库最新发布中的插件包附件。 */
-export interface MarketAsset {
-  name: string
-  downloadUrl: string
-}
-
-/** 仓库最新发布解析结果（asset 恒存在——无匹配 zip 时后端直接报错）。 */
-export interface MarketRelease {
-  tagName: string
-  asset: MarketAsset
+/** 仓库最新发布的卡片元数据（tag + 清单 + 图标/兜底头像）。
+ *
+ * 由后端走 `github.com` 的 release 网页路由与 CDN 获取，不消耗 GitHub REST API 额度；
+ * manifest/icon 来自发布 CI 随 zip 一并上传的 release 附件（`manifest.toml` 与
+ * 清单 `[icon].path` 同名图标文件），使卡片无需下载整包即可展示插件身份。
+ * tagName 为 null 表示该仓库没有任何发布版本（安装按钮置灰）；manifest 为 null
+ * 且 metadataError 为 null 表示旧版本发布未附带元数据（安装照常可用，icon 退回
+ * ownerAvatar）；metadataError 非 null 表示附件存在但不可用（如清单与该宿主不兼容）。
+ * 安装用的附件下载地址不下发前端（安装由后端完成）。 */
+export interface MarketCardMeta {
+  tagName: string | null
+  manifest: PluginManifest | null
+  metadataError: string | null
+  icon: string | null
+  ownerAvatar: string | null
 }
 
 /** 市场安装预检响应：最新发布信息 + 包内 manifest（供安装确认弹窗展示，确认后仍由 marketInstall 下载安装）。 */
@@ -324,9 +329,9 @@ export function marketList(): Promise<MarketRepo[]> {
   return invokeCommand<MarketRepo[]>('market_list')
 }
 
-/** 查询仓库最新发布中的插件包附件。 */
-export function marketGetRelease(fullName: string): Promise<MarketRelease> {
-  return invokeCommand<MarketRelease>('market_get_release', { fullName })
+/** 查询仓库最新发布的卡片元数据（不下载整包，也不占用 GitHub REST API 额度）。 */
+export function marketGetMeta(fullName: string): Promise<MarketCardMeta> {
+  return invokeCommand<MarketCardMeta>('market_get_meta', { fullName })
 }
 
 /** 安装仓库最新发布中的插件包（解析 → 下载 → 安装一步完成）。 */

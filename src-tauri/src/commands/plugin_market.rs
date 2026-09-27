@@ -4,7 +4,7 @@
 //! 市场模块不直接依赖 plugin_framework，安装编排在此层完成。
 
 use crate::commands::bridge_error::{BridgeError, WithTraceId};
-use crate::plugin_market::{GitHubMarketClient, MarketRelease, MarketRepo};
+use crate::plugin_market::{GitHubMarketClient, MarketCardMeta, MarketRepo};
 use crate::state::app_state::AppState;
 use std::path::Path;
 use std::sync::Arc;
@@ -25,15 +25,18 @@ pub async fn market_list() -> Result<Vec<MarketRepo>, BridgeError> {
     client.list_repos().await.with_trace_id(&trace_id)
 }
 
-/// 查询仓库最新发布中的插件包附件（无发布/无 zip 附件返回对应错误）。
+/// 查询仓库最新发布的卡片元数据（tag + 清单 + 图标/兜底头像）。
+///
+/// 走 github.com 的 release 网页路由与 CDN，不消耗 GitHub REST API 额度；
+/// 元数据缺失（旧版本发布）不是错误，由返回结构里的 None/原因字段表达。
 #[tauri::command]
 #[tracing::instrument(fields(trace_id))]
-pub async fn market_get_release(full_name: String) -> Result<MarketRelease, BridgeError> {
+pub async fn market_get_meta(full_name: String) -> Result<MarketCardMeta, BridgeError> {
     let trace_id = crate::utils::trace_id::generate_trace_id();
     tracing::Span::current().record("trace_id", trace_id.as_str());
     let client = GitHubMarketClient::new();
     client
-        .get_release(&full_name)
+        .get_card_meta(&full_name)
         .await
         .with_trace_id(&trace_id)
 }
@@ -62,7 +65,6 @@ pub async fn market_install(
         .get_release(&full_name)
         .await
         .with_trace_id(&trace_id)?;
-    let asset = &release.asset;
     let core_handle = state.get_core_handle();
     let dest = Path::new(
         &core_handle
@@ -71,13 +73,16 @@ pub async fn market_install(
     )
     .join(core_handle.plugin_id())
     .join("market")
-    .join(&asset.name);
+    .join(&release.asset_name);
 
     // 2. 命中预检暂存则直接复用；未命中才下载（整包入内存后经缓存接口落盘）。
     if !dest.exists() {
-        let bytes = client.download(asset).await.with_trace_id(&trace_id)?;
+        let bytes = client
+            .download(&release.download_url)
+            .await
+            .with_trace_id(&trace_id)?;
         core_handle
-            .cache_put("market", &asset.name, &bytes)
+            .cache_put("market", &release.asset_name, &bytes)
             .await
             .with_trace_id(&trace_id)?;
     } else {
@@ -89,7 +94,10 @@ pub async fn market_install(
     let app_handle = state.get_main_handle();
     let install_result = plugin_manager.install(&dest, overwrite, app_handle).await;
     // 无论安装成败都清理暂存文件。
-    if let Err(e) = core_handle.cache_delete("market", &asset.name).await {
+    if let Err(e) = core_handle
+        .cache_delete("market", &release.asset_name)
+        .await
+    {
         tracing::warn!("清理市场下载暂存文件失败: {}", e);
     }
     install_result.with_trace_id(&trace_id)
@@ -132,14 +140,16 @@ pub async fn market_preview_package(
         .get_release(&full_name)
         .await
         .with_trace_id(&trace_id)?;
-    let asset = &release.asset;
-    let bytes = client.download(asset).await.with_trace_id(&trace_id)?;
+    let bytes = client
+        .download(&release.download_url)
+        .await
+        .with_trace_id(&trace_id)?;
 
     // 2. 经 core PluginHandle 缓存接口暂存后交给 PluginManager 解析
     //    （zip 路径复用与 market_install 相同的解析/建目录逻辑）。
     let core_handle = state.get_core_handle();
     core_handle
-        .cache_put("market", &asset.name, &bytes)
+        .cache_put("market", &release.asset_name, &bytes)
         .await
         .with_trace_id(&trace_id)?;
     let dest = Path::new(
@@ -149,7 +159,7 @@ pub async fn market_preview_package(
     )
     .join(core_handle.plugin_id())
     .join("market")
-    .join(&asset.name);
+    .join(&release.asset_name);
 
     let preview_result = state
         .get_plugin_manager()
@@ -158,7 +168,10 @@ pub async fn market_preview_package(
 
     // 解析失败（包不完整/缺 manifest）时清理暂存，避免坏包残留；成功则保留供安装复用。
     if preview_result.is_err() {
-        if let Err(e) = core_handle.cache_delete("market", &asset.name).await {
+        if let Err(e) = core_handle
+            .cache_delete("market", &release.asset_name)
+            .await
+        {
             tracing::warn!("清理市场预检暂存文件失败: {}", e);
         }
     }
@@ -166,7 +179,7 @@ pub async fn market_preview_package(
     let manifest = preview_result?;
     Ok(MarketPackagePreview {
         tag_name: release.tag_name,
-        asset_name: asset.name.clone(),
+        asset_name: release.asset_name,
         manifest,
     })
 }

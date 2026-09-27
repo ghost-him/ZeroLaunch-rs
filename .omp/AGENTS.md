@@ -64,7 +64,7 @@ logging/            → 日志初始化
 
 插件管理（`plugin_` 前缀，7个）：`plugin_list`, `plugin_get_manifest`, `plugin_install_local`, `plugin_reload`, `plugin_uninstall`, `plugin_set_enabled`, `plugin_get_logs`
 
-插件市场（`market_` 前缀，3个）：`market_list`, `market_get_release`, `market_install`
+插件市场（`market_` 前缀，5个）：`market_list`, `market_get_meta`, `market_install`, `market_preview_package`, `market_discard_preview`
 
 检查器（`inspector_` 前缀，1个）：`inspector_get_state`
 

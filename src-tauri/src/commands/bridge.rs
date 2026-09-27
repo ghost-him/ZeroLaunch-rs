@@ -1,6 +1,9 @@
 use crate::commands::bridge_error::{BridgeError, WithTraceId};
 use crate::plugin_framework::inspector::InspectedQueryEvent;
-use crate::plugin_framework::{ConfirmOutcome, ConfirmRequest, SessionDispatcher};
+use crate::plugin_framework::ResultActionDto;
+use crate::plugin_framework::{
+    ConfirmOutcome, ConfirmRequest, PresentationMode, SessionDispatcher,
+};
 use crate::state::app_state::AppState;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -8,7 +11,7 @@ use tauri::Emitter;
 use tracing::{debug, info};
 use zerolaunch_plugin_api::common::ImageUtils;
 use zerolaunch_plugin_api::plugin::PluginKind;
-use zerolaunch_plugin_api::{CandidateId, Query, QueryResponse, ResultAction};
+use zerolaunch_plugin_api::{CandidateId, Query, QueryResponse};
 // ============================================================================
 // 搜索接口
 // ============================================================================
@@ -26,7 +29,7 @@ pub struct BridgeSearchResult {
     #[serde(rename = "score")]
     pub score: f64,
     #[serde(rename = "actions")]
-    pub actions: Vec<BridgeResultAction>,
+    pub actions: Vec<ResultActionDto>,
     #[serde(rename = "targetType")]
     pub target_type: String,
     #[serde(rename = "userArgCount")]
@@ -35,32 +38,6 @@ pub struct BridgeSearchResult {
     pub has_system_params: bool,
     #[serde(rename = "triggerKeywords")]
     pub trigger_keywords: Vec<String>,
-}
-
-#[derive(Serialize, Debug)]
-pub struct BridgeResultAction {
-    #[serde(rename = "id")]
-    pub id: String,
-    #[serde(rename = "label")]
-    pub label: String,
-    #[serde(rename = "icon")]
-    pub icon: String,
-    #[serde(rename = "isDefault")]
-    pub is_default: bool,
-    #[serde(rename = "shortcutKey")]
-    pub shortcut_key: String,
-}
-
-impl From<ResultAction> for BridgeResultAction {
-    fn from(action: ResultAction) -> Self {
-        BridgeResultAction {
-            id: action.id,
-            label: action.label,
-            icon: action.icon.value().to_string(),
-            is_default: action.is_default,
-            shortcut_key: action.shortcut_key,
-        }
-    }
 }
 
 #[derive(Serialize, Debug)]
@@ -79,7 +56,7 @@ pub struct BridgeQueryResponse {
     #[serde(rename = "panelData", default)]
     pub panel_data: Option<serde_json::Value>,
     #[serde(rename = "panelActions", default)]
-    pub panel_actions: Option<Vec<BridgeResultAction>>,
+    pub panel_actions: Option<Vec<ResultActionDto>>,
     /// 行内参数模式数据（仅 mode="inline_param" 时有值）
     #[serde(rename = "inlineParam", default)]
     pub inline_param: Option<BridgeInlineParamData>,
@@ -244,10 +221,10 @@ pub async fn bridge_query(
     // 录制查询事件到 Inspector（仅在调试模式开启时）
     // 统一词表：空结果合并为 search（展示形态层面不区分 List/Empty）。
     let (mode, result_count) = match &routed.response {
-        QueryResponse::List { results } => ("search", results.len()),
-        QueryResponse::Empty => ("search", 0),
-        QueryResponse::CustomPanel { .. } => ("plugin_panel", 1),
-        QueryResponse::InlineParam { .. } => ("inline_param", 0),
+        QueryResponse::List { results } => (PresentationMode::Search.as_str(), results.len()),
+        QueryResponse::Empty => (PresentationMode::Search.as_str(), 0),
+        QueryResponse::CustomPanel { .. } => (PresentationMode::PluginPanel.as_str(), 1),
+        QueryResponse::InlineParam { .. } => (PresentationMode::InlineParam.as_str(), 0),
     };
     if state.is_debug_mode() {
         if let Some(inspector) = state.get_inspector() {
@@ -285,7 +262,11 @@ pub async fn bridge_query(
                     subtitle: item.subtitle,
                     icon: icon_data,
                     score: item.score,
-                    actions: item.actions.into_iter().map(|a| a.into()).collect(),
+                    actions: item
+                        .actions
+                        .into_iter()
+                        .map(ResultActionDto::from)
+                        .collect(),
                     target_type: item.target_type,
                     user_arg_count: item.user_arg_count,
                     has_system_params: item.has_system_params,
@@ -300,7 +281,7 @@ pub async fn bridge_query(
             );
 
             Ok(BridgeQueryResponse {
-                mode: "search".to_string(),
+                mode: PresentationMode::Search.as_str().to_string(),
                 generation: routed.generation,
                 candidate_generation: session_dispatcher.get_candidates_generation(),
                 results: bridge_results,
@@ -314,7 +295,7 @@ pub async fn bridge_query(
             info!("[Bridge] 查询完成: '{}' -> 0 个结果", raw_query);
             // 统一词表：空结果合并入 search（前端行为与原 'empty' 分支相同）。
             Ok(BridgeQueryResponse {
-                mode: "search".to_string(),
+                mode: PresentationMode::Search.as_str().to_string(),
                 generation: routed.generation,
                 candidate_generation: session_dispatcher.get_candidates_generation(),
                 results: Vec::new(),
@@ -332,9 +313,9 @@ pub async fn bridge_query(
             ..
         } => {
             let mode = if keep_search_bar {
-                "plugin_panel"
+                PresentationMode::PluginPanel.as_str()
             } else {
-                "plugin_immersive"
+                PresentationMode::PluginImmersive.as_str()
             };
             // 第三方插件 panel_type 统一为 third-party:<id>（前端 provider 匹配契约）
             let kind = routed
@@ -360,7 +341,7 @@ pub async fn bridge_query(
                 results: Vec::new(),
                 panel_type: Some(panel_type),
                 panel_data: Some(data),
-                panel_actions: Some(actions.into_iter().map(|a| a.into()).collect()),
+                panel_actions: Some(actions.into_iter().map(ResultActionDto::from).collect()),
                 inline_param: None,
             })
         }
@@ -374,7 +355,7 @@ pub async fn bridge_query(
                 candidate_id, trigger_keyword
             );
             Ok(BridgeQueryResponse {
-                mode: "inline_param".to_string(),
+                mode: PresentationMode::InlineParam.as_str().to_string(),
                 generation: routed.generation,
                 candidate_generation: session_dispatcher.get_candidates_generation(),
                 results: Vec::new(),
@@ -531,12 +512,6 @@ pub async fn bridge_refresh_candidates(
     let count = session_dispatcher.get_cached_candidates_count();
     info!("🔄 [Bridge] 刷新完成，共 {} 个候选项", count);
     Ok(count)
-}
-
-/// 获取缓存的候选项数量。
-#[tauri::command]
-pub fn bridge_get_candidates_count(state: tauri::State<'_, Arc<AppState>>) -> usize {
-    state.get_session_dispatcher().get_cached_candidates_count()
 }
 
 /// 隐藏搜索栏窗口。

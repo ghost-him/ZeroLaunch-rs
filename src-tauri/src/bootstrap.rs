@@ -15,7 +15,6 @@ use tracing::{debug, info, warn};
 use zerolaunch_platform_windows::windows_platform_services;
 use zerolaunch_plugin_api::host::PluginSdkConfig;
 use zerolaunch_plugin_api::services::hotkey::types::HotkeyEventFilter;
-use zerolaunch_plugin_api::services::installation_monitor::InstallationEventKind;
 use zerolaunch_plugin_api::services::parameter::DefaultParameterResolver;
 use zerolaunch_plugin_api::services::storage::local_storage::LocalStorageService;
 use zerolaunch_plugin_api::services::storage::storage_service::StorageService;
@@ -218,12 +217,10 @@ pub(crate) async fn init_app_state(
     // 必须在 init_plugin_system 加载持久化配置（可能触发监控启动）之前注册，
     // 否则监控启动后的事件窗口期内回调缺失，事件到达无人处理。
     let state_for_install_callback = state.clone();
-    let install_event_handle = state.get_main_handle();
     core_handle.register_installation_callback(
         "host:refresh_candidates",
         Arc::new(move |event| {
             let state = state_for_install_callback.clone();
-            let app_handle = install_event_handle.clone();
             tauri::async_runtime::spawn(async move {
                 let dispatcher = state.get_session_dispatcher();
                 dispatcher.refresh_candidates().await;
@@ -232,21 +229,6 @@ pub(crate) async fn init_app_state(
                     event.kind,
                     event.changed_paths.len(),
                     dispatcher.get_cached_candidates_count()
-                );
-                // 推送安装事件给前端：形状与后端 InstallationEvent 对齐
-                // （kind + changedPaths），前端按需自行判断，不做启发式映射。
-                let kind_str = match event.kind {
-                    InstallationEventKind::Created => "created",
-                    InstallationEventKind::Modified => "modified",
-                    InstallationEventKind::Removed => "removed",
-                    InstallationEventKind::Other => "other",
-                };
-                let _ = app_handle.emit(
-                    "installation-event",
-                    serde_json::json!({
-                        "kind": kind_str,
-                        "changedPaths": event.changed_paths,
-                    }),
                 );
             });
         }),

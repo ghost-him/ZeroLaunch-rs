@@ -1,18 +1,10 @@
 import type { Component } from 'vue'
-import type {
-  FrontendPlugin,
-  PanelProvider,
-  ResultItemProvider,
-  ActionInjector,
-  SettingsProvider,
-} from './types'
-import type { ListItem, ResultAction } from '@/bridge/contract'
+import type { FrontendPlugin, PanelProvider, ResultItemProvider, SettingsProvider } from './types'
 
 class PluginManager {
   private plugins: Map<string, FrontendPlugin> = new Map()
   private panelProviders: Map<string, PanelProvider> = new Map()
   private resultItemProviders: ResultItemProvider[] = []
-  private actionInjectors: ActionInjector[] = []
   private settingsProviders: Map<string, SettingsProvider> = new Map()
 
   /** 注册一个前端插件 */
@@ -26,12 +18,6 @@ class PluginManager {
       this.resultItemProviders.push(plugin.resultItemProvider)
       // 保持同优先级时的注册顺序（稳定排序）
       this.resultItemProviders.sort((a, b) =>
-        a.priority !== b.priority ? a.priority - b.priority : 0,
-      )
-    }
-    if (plugin.actionInjector) {
-      this.actionInjectors.push(plugin.actionInjector)
-      this.actionInjectors.sort((a, b) =>
         a.priority !== b.priority ? a.priority - b.priority : 0,
       )
     }
@@ -61,11 +47,6 @@ class PluginManager {
         (p) => p !== plugin.resultItemProvider,
       )
     }
-    if (plugin.actionInjector) {
-      this.actionInjectors = this.actionInjectors.filter(
-        (p) => p !== plugin.actionInjector,
-      )
-    }
     if (plugin.settingsProvider) {
       this.settingsProviders.delete(plugin.settingsProvider.matchComponentId)
     }
@@ -86,25 +67,9 @@ class PluginManager {
     return null
   }
 
-  /** 为给定结果项收集额外动作 */
-  getExtraActions(item: ListItem, targetType: string): ResultAction[] {
-    const actions: ResultAction[] = []
-    for (const injector of this.actionInjectors) {
-      if (injector.matchTypes.includes(targetType)) {
-        actions.push(...injector.getActions(item))
-      }
-    }
-    return actions
-  }
-
   /** 按 component_id 查找自定义设置组件 */
   getSettingsComponent(componentId: string): Component | null {
     return this.settingsProviders.get(componentId)?.component ?? null
-  }
-
-  /** 获取所有已加载插件 */
-  getLoadedPlugins(): FrontendPlugin[] {
-    return Array.from(this.plugins.values())
   }
 }
 

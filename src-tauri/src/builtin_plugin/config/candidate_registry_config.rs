@@ -43,9 +43,11 @@ struct CandidateSummary {
 /// 唯一职责是供设置页面的 SearchTable 字段调用，返回已索引程序的搜索列表。
 /// 不出现在设置页的 Tab 列表中（由 settingsSidebar.ts 排除）。
 pub struct CandidateRegistryConfig {
+    /// 组件 ID、名称、类型等身份元数据。
     core: ComponentCore,
+    /// 会话调度器，用于读取候选缓存并构造搜索结果。
     session_dispatcher: Arc<SessionDispatcher>,
-    _host_api: Arc<HostApi>,
+    /// 该组件身份的插件句柄，用于异步提取候选项图标。
     plugin_handle: Arc<PluginHandle>,
 }
 
@@ -65,7 +67,6 @@ impl CandidateRegistryConfig {
                 5,
             ),
             session_dispatcher,
-            _host_api: host_api,
             plugin_handle,
         }
     }

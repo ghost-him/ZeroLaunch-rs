@@ -642,7 +642,7 @@ pub struct ListItem {
     // 一个动作列表中只可以有一个默认动作，默认动作会在用户直接按下回车时被触发（由程序员保证）
     #[serde(rename = "actions")]
     pub actions: Vec<ResultAction>,
-    /// 目标类型字符串，供前端 ResultItemProvider/ActionInjector 匹配使用
+    /// 目标类型字符串，供前端 ResultItemProvider 匹配使用
     #[serde(rename = "targetType")]
     pub target_type: String,
     /// 用户参数 {} 的数量

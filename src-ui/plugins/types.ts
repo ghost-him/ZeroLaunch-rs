@@ -1,5 +1,4 @@
 import type { Component } from 'vue'
-import type { ListItem, ResultAction } from '@/bridge/contract'
 
 /** 前端插件完整契约 */
 export interface FrontendPlugin {
@@ -21,9 +20,6 @@ export interface FrontendPlugin {
   /** 结果项渲染：自定义特定结果的显示方式 */
   resultItemProvider?: ResultItemProvider
 
-  /** 结果项额外动作：为特定结果类型注入额外操作按钮 */
-  actionInjector?: ActionInjector
-
   /** 自定义设置面板：覆盖 DynamicForm */
   settingsProvider?: SettingsProvider
 }
@@ -43,16 +39,6 @@ export interface ResultItemProvider {
   /** 自定义渲染组件 (props: { item: ListItem, selected: boolean, index: number }) */
   component: Component
   /** 优先级，数字越小越优先（内置默认渲染器优先级 = 100） */
-  priority: number
-}
-
-/** 动作注入器 — 为特定结果类型动态添加操作按钮 */
-export interface ActionInjector {
-  /** 匹配的目标类型 */
-  matchTypes: string[]
-  /** 返回需要注入的额外动作 */
-  getActions: (item: ListItem) => ResultAction[]
-  /** 优先级 */
   priority: number
 }
 

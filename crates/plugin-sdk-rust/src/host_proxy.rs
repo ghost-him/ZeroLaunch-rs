@@ -12,6 +12,7 @@ use zerolaunch_plugin_api::services::model::{
     ModelChatRequest, ModelChatResponse, ModelEmbeddingRequest, ModelEmbeddingResponse, ModelInfo,
     ModelSimilarityRequest, ModelSimilarityResponse,
 };
+use zerolaunch_plugin_protocol::methods::host;
 use zerolaunch_plugin_protocol::JsonRpcError;
 
 use base64::Engine as _;
@@ -107,7 +108,7 @@ impl HostProxy {
 
     pub async fn log(&self, level: &str, message: &str) -> Result<(), String> {
         self.send_request(
-            "host/log",
+            host::LOG,
             serde_json::json!({ "level": level, "message": message }),
         )
         .await?;
@@ -124,7 +125,7 @@ impl HostProxy {
         let Ok(payload) = serde_json::to_vec(&serde_json::json!({
             "jsonrpc": "2.0",
             "id": id,
-            "method": "host/log",
+            "method": host::LOG,
             "params": { "level": level, "message": message },
         })) else {
             return;
@@ -141,7 +142,7 @@ impl HostProxy {
     }
 
     pub async fn shell_open(&self, target: &str) -> Result<(), String> {
-        self.send_request("host/shell.open", serde_json::json!({ "target": target }))
+        self.send_request(host::SHELL_OPEN, serde_json::json!({ "target": target }))
             .await?;
         Ok(())
     }
@@ -151,7 +152,7 @@ impl HostProxy {
     pub async fn get_icon(&self, path: &str) -> Result<String, String> {
         let result = self
             .send_request(
-                "host/icon.get",
+                host::ICON_GET,
                 serde_json::json!({ "request": { "path": path }, "level": "Full" }),
             )
             .await?;
@@ -160,7 +161,7 @@ impl HostProxy {
 
     pub async fn shell_execute_command(&self, cmd: &str) -> Result<(), String> {
         self.send_request(
-            "host/shell.execute_command",
+            host::SHELL_EXECUTE_COMMAND,
             serde_json::json!({ "cmd": cmd }),
         )
         .await?;
@@ -168,17 +169,14 @@ impl HostProxy {
     }
 
     pub async fn shell_open_folder(&self, path: &str) -> Result<(), String> {
-        self.send_request(
-            "host/shell.open_folder",
-            serde_json::json!({ "path": path }),
-        )
-        .await?;
+        self.send_request(host::SHELL_OPEN_FOLDER, serde_json::json!({ "path": path }))
+            .await?;
         Ok(())
     }
 
     pub async fn shell_execute_elevation(&self, path: &str) -> Result<(), String> {
         self.send_request(
-            "host/shell.execute_elevation",
+            host::SHELL_EXECUTE_ELEVATION,
             serde_json::json!({ "path": path }),
         )
         .await?;
@@ -187,7 +185,7 @@ impl HostProxy {
 
     pub async fn notify(&self, title: &str, message: &str) -> Result<(), String> {
         self.send_request(
-            "host/notify",
+            host::NOTIFY,
             serde_json::json!({ "title": title, "message": message }),
         )
         .await?;
@@ -197,7 +195,7 @@ impl HostProxy {
     /// 获取宿主当前界面语言（如 "zh-Hans"），供插件生成本地化文本。
     pub async fn get_locale(&self) -> Result<String, String> {
         let result = self
-            .send_request("host/i18n.get_locale", serde_json::json!(null))
+            .send_request(host::GET_LOCALE, serde_json::json!(null))
             .await?;
         Ok(result.as_str().unwrap_or("").to_string())
     }
@@ -205,7 +203,7 @@ impl HostProxy {
     /// 查询宿主当前实际生效主题，返回 `light` 或 `dark`。
     pub async fn get_theme(&self) -> Result<String, String> {
         let result = self
-            .send_request("host/theme.get", serde_json::Value::Null)
+            .send_request(host::GET_THEME, serde_json::Value::Null)
             .await?;
         result
             .as_str()
@@ -216,7 +214,7 @@ impl HostProxy {
     /// 全网模型清单（聚合所有提供方）。
     pub async fn model_list(&self) -> Result<Vec<ModelInfo>, String> {
         let result = self
-            .send_request("host/model.list", serde_json::Value::Null)
+            .send_request(host::MODEL_LIST, serde_json::Value::Null)
             .await?;
         serde_json::from_value(result).map_err(|e| e.to_string())
     }
@@ -224,7 +222,7 @@ impl HostProxy {
     /// 按 model_id 调用文本生成。
     pub async fn model_chat(&self, req: ModelChatRequest) -> Result<ModelChatResponse, String> {
         let params = serde_json::to_value(req).map_err(|e| e.to_string())?;
-        let result = self.send_request("host/model.chat", params).await?;
+        let result = self.send_request(host::MODEL_CHAT, params).await?;
         serde_json::from_value(result).map_err(|e| e.to_string())
     }
 
@@ -234,7 +232,7 @@ impl HostProxy {
         req: ModelEmbeddingRequest,
     ) -> Result<ModelEmbeddingResponse, String> {
         let params = serde_json::to_value(req).map_err(|e| e.to_string())?;
-        let result = self.send_request("host/model.embedding", params).await?;
+        let result = self.send_request(host::MODEL_EMBEDDING, params).await?;
         serde_json::from_value(result).map_err(|e| e.to_string())
     }
 
@@ -244,18 +242,18 @@ impl HostProxy {
         req: ModelSimilarityRequest,
     ) -> Result<ModelSimilarityResponse, String> {
         let params = serde_json::to_value(req).map_err(|e| e.to_string())?;
-        let result = self.send_request("host/model.similarity", params).await?;
+        let result = self.send_request(host::MODEL_SIMILARITY, params).await?;
         serde_json::from_value(result).map_err(|e| e.to_string())
     }
 
     pub async fn enumerate_apps(&self) -> Result<serde_json::Value, String> {
-        self.send_request("host/app.enumerate", serde_json::json!(null))
+        self.send_request(host::APP_ENUMERATE, serde_json::json!(null))
             .await
     }
 
     pub async fn resolve_path(&self, kind: &str) -> Result<String, String> {
         let result = self
-            .send_request("host/path.resolve", serde_json::json!({ "kind": kind }))
+            .send_request(host::PATH_RESOLVE, serde_json::json!({ "kind": kind }))
             .await?;
         Ok(result.as_str().unwrap_or("").to_string())
     }
@@ -270,7 +268,7 @@ impl HostProxy {
     ) -> Result<String, String> {
         let result = self
             .send_request(
-                "host/resource.upload",
+                host::RESOURCE_UPLOAD,
                 serde_json::json!({
                     "resourceId": resource_id,
                     "filePath": file_path,
@@ -284,7 +282,7 @@ impl HostProxy {
     pub async fn resource_get(&self, resource_id: &str) -> Result<Vec<u8>, String> {
         let result = self
             .send_request(
-                "host/resource.get",
+                host::RESOURCE_GET,
                 serde_json::json!({
                     "resourceId": resource_id,
                 }),
@@ -300,7 +298,7 @@ impl HostProxy {
     pub async fn resource_put(&self, resource_id: &str, data: &[u8]) -> Result<(), String> {
         let b64 = base64::engine::general_purpose::STANDARD.encode(data);
         self.send_request(
-            "host/resource.put",
+            host::RESOURCE_PUT,
             serde_json::json!({
                 "resourceId": resource_id,
                 "bytesB64": b64,
@@ -313,7 +311,7 @@ impl HostProxy {
     /// 删除资源文件。
     pub async fn resource_delete(&self, resource_id: &str) -> Result<(), String> {
         self.send_request(
-            "host/resource.delete",
+            host::RESOURCE_DELETE,
             serde_json::json!({
                 "resourceId": resource_id,
             }),
@@ -325,7 +323,7 @@ impl HostProxy {
     /// 列出本插件的所有资源标识符。
     pub async fn resource_list(&self) -> Result<Vec<String>, String> {
         let result = self
-            .send_request("host/resource.list", serde_json::json!({}))
+            .send_request(host::RESOURCE_LIST, serde_json::json!({}))
             .await?;
         serde_json::from_value(result).map_err(|e| format!("parse resource list failed: {}", e))
     }
@@ -365,7 +363,7 @@ mod tests {
         );
         // 必须是合法 JSON-RPC 消息
         let v: serde_json::Value = serde_json::from_slice(&bytes).expect("干净 JSON 可解析");
-        assert_eq!(v["method"], "host/log");
+        assert_eq!(v["method"], host::LOG);
         assert_eq!(v["params"]["message"], "test message");
     }
 
@@ -389,7 +387,7 @@ mod tests {
             text
         );
         let v: serde_json::Value = serde_json::from_slice(&bytes).expect("干净 JSON 可解析");
-        assert_eq!(v["method"], "host/model.list");
+        assert_eq!(v["method"], host::MODEL_LIST);
         // 清理：中止挂起的任务
         task.abort();
     }

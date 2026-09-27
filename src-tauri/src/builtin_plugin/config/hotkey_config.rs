@@ -89,28 +89,6 @@ fn parse_hotkey_string(hotkey_str: &str) -> Option<Hotkey> {
     Some(hotkey)
 }
 
-/// 将 Hotkey 结构体序列化为快捷键字符串（如 "Alt+Space"）。
-/// 参数：hotkey - Hotkey 实例。
-/// 返回：快捷键字符串。
-#[allow(dead_code)]
-fn format_hotkey_string(hotkey: &Hotkey) -> String {
-    let mut parts = Vec::new();
-    if hotkey.ctrl {
-        parts.push("Ctrl");
-    }
-    if hotkey.alt {
-        parts.push("Alt");
-    }
-    if hotkey.shift {
-        parts.push("Shift");
-    }
-    if hotkey.meta {
-        parts.push("Meta");
-    }
-    parts.push(&hotkey.key);
-    parts.join("+")
-}
-
 /// 将当前配置值转换为 HotkeyConfig。
 /// 从语义化的配置项（open_search_bar 等）映射到 SDK 的 HotkeyConfig。
 /// 参数：settings - 当前热键配置。
@@ -249,23 +227,6 @@ mod tests {
         assert_eq!(hotkey.key, "T");
         assert!(hotkey.ctrl);
         assert!(hotkey.shift);
-    }
-
-    #[test]
-    fn test_format_hotkey_string() {
-        let hotkey = Hotkey::new("Space").with_alt();
-        assert_eq!(format_hotkey_string(&hotkey), "Alt+Space");
-
-        let hotkey = Hotkey::new("E").with_ctrl();
-        assert_eq!(format_hotkey_string(&hotkey), "Ctrl+E");
-    }
-
-    #[test]
-    fn test_parse_roundtrip() {
-        let original = "Ctrl+Shift+Space";
-        let hotkey = parse_hotkey_string(original).unwrap();
-        let formatted = format_hotkey_string(&hotkey);
-        assert_eq!(formatted, original);
     }
 
     #[test]

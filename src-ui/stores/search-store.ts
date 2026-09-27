@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import {
   bridgeQuery, bridgeConfirm,
-  bridgeRefreshCandidates, bridgeGetCandidatesCount,
+  bridgeRefreshCandidates,
   bridgeHideWindow, configGetSettings,
 } from '../bridge/commands'
 import type { ListItem, ResultAction, BridgeQueryResponse, ConfirmResponse, PanelInteraction, SessionStateEvent } from '../bridge/contract'
@@ -56,7 +56,6 @@ export const useSearchStore = defineStore('search', () => {
     selectedActionIndex.value = 0
   }, { flush: 'sync' })
   const sessionMode = ref<SessionMode>('none')
-  const cachedCount = ref(0)
 
   /** 常驻结果框开关：空查询时显示按历史启动排序的常用候选项。
    *  缓存 window-behavior-config.is_show_home_on_empty_query，配置变更事件时刷新。 */
@@ -614,12 +613,7 @@ export const useSearchStore = defineStore('search', () => {
   }
 
   async function refreshCandidates(): Promise<number> {
-    cachedCount.value = await bridgeRefreshCandidates()
-    return cachedCount.value
-  }
-
-  async function fetchCandidatesCount() {
-    cachedCount.value = await bridgeGetCandidatesCount()
+    return bridgeRefreshCandidates()
   }
 
   /** 全量刷新插件元数据缓存（不可变更新：整体替换为新引用）。
@@ -674,7 +668,7 @@ export const useSearchStore = defineStore('search', () => {
   })
 
   return {
-    query, results, selectedIndex, selectedActionIndex, sessionMode, cachedCount,
+    query, results, selectedIndex, selectedActionIndex, sessionMode,
     panelType, panelData, panelActions, panelInteraction,
     currentGeneration, currentCandidateGeneration, currentPluginId, pluginMeta,
     panelQueryInFlight,
@@ -682,7 +676,7 @@ export const useSearchStore = defineStore('search', () => {
     inlineParamState, paramPanelState,
     isIdle, isHomeActive, selectedItem,
     doQuery, doConfirm, selectNext, selectPrev,
-    refreshCandidates, fetchCandidatesCount, fetchHomeSetting, hideWindow, updatePluginMeta,
+    refreshCandidates, fetchHomeSetting, hideWindow, updatePluginMeta,
     // 行内参数模式
     exitInlineParamMode, confirmInlineParam,
     // 参数面板模式

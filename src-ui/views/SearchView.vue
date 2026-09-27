@@ -73,7 +73,7 @@ import { useSearchStore } from '../stores/search-store'
 import { useKeyboardRouter } from '../composables/useKeyboardRouter'
 import { useWindowResize } from '../composables/useWindowResize'
 import ParamPanel from '../components/search/ParamPanel.vue'
-import { onConfigChanged, onInstallationEvent, onShowWindow } from '../bridge/events'
+import { onConfigChanged, onShowWindow } from '../bridge/events'
 import { registerErrorHandler, configGetSettings } from '../bridge/commands'
 import type { BridgeError } from '../bridge/commands'
 
@@ -120,7 +120,6 @@ function onCtxClose() {
 }
 
 let unlistenConfig: (() => void) | null = null
-let unlistenInstall: (() => void) | null = null
 let unlistenShowWindow: (() => void) | null = null
 
 onMounted(async () => {
@@ -133,7 +132,6 @@ onMounted(async () => {
     })
   })
 
-  searchStore.fetchCandidatesCount()
   searchStore.fetchHomeSetting()
   await loadDragSetting()
 
@@ -151,12 +149,6 @@ onMounted(async () => {
       loadDragSetting()
       searchStore.fetchHomeSetting()
     }
-  })
-
-  // 安装监控事件：后端已自动刷新候选项缓存（权威刷新在后端），
-  // 前端仅同步缓存计数，避免经 IPC 重复触发刷新。
-  unlistenInstall = await onInstallationEvent(() => {
-    searchStore.fetchCandidatesCount()
   })
 
   // 窗口每次被唤出时恢复输入框焦点：隐藏再显示时 DOM 焦点保留在旧元素（如 footer），
@@ -179,7 +171,6 @@ onMounted(async () => {
 
 onUnmounted(() => {
   unlistenConfig?.()
-  unlistenInstall?.()
   unlistenShowWindow?.()
 })
 </script>

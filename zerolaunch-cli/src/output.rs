@@ -490,9 +490,8 @@ fn escape_terminal_text(s: &str) -> String {
     out
 }
 
-/// 返回字符串在终端中的显示宽度（列数）。
-///
-#[allow(dead_code)]
+/// 返回字符串在终端中的显示宽度（列数）；仅测试断言使用。
+#[cfg(test)]
 fn display_width(s: &str) -> usize {
     UnicodeWidthStr::width(s)
 }

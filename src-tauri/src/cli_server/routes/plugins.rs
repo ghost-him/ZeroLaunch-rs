@@ -2,6 +2,7 @@ use axum::extract::{Path, State};
 use axum::Json;
 use std::sync::Arc;
 
+use crate::commands::plugin::DEFAULT_LOG_TAIL_LINES;
 use crate::state::app_state::AppState;
 use zerolaunch_plugin_api::plugin::PluginKind;
 use zerolaunch_plugin_host::manager::InstalledPluginInfo;
@@ -39,6 +40,6 @@ pub async fn handle_get_logs(
     Path(id): Path<String>,
 ) -> Json<serde_json::Value> {
     let pm = state.get_plugin_manager();
-    let logs = pm.get_logs(&id, 50).unwrap_or_default();
+    let logs = pm.get_logs(&id, DEFAULT_LOG_TAIL_LINES).unwrap_or_default();
     Json(serde_json::json!({ "logs": logs }))
 }

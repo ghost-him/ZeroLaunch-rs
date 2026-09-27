@@ -208,6 +208,9 @@ pub async fn plugin_set_enabled(
     Ok(())
 }
 
+/// `plugin_get_logs` 与 CLI 日志端点共用的默认返回行数。
+pub(crate) const DEFAULT_LOG_TAIL_LINES: usize = 50;
+
 /// 获取插件 stderr 日志的最近 N 行。
 #[tauri::command]
 #[tracing::instrument(skip(state), fields(trace_id))]
@@ -220,7 +223,7 @@ pub async fn plugin_get_logs(
     tracing::Span::current().record("trace_id", trace_id.as_str());
     let plugin_manager = state.get_plugin_manager();
     plugin_manager
-        .get_logs(&plugin_id, tail_lines.unwrap_or(50))
+        .get_logs(&plugin_id, tail_lines.unwrap_or(DEFAULT_LOG_TAIL_LINES))
         .with_trace_id(&trace_id)
 }
 

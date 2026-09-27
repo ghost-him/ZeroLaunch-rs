@@ -25,19 +25,6 @@ const templatePlugin: FrontendPlugin = {
   //   priority: 50,
   // },
 
-  // 为特定结果类型注入额外操作按钮
-  // actionInjector: {
-  //   matchTypes: ['Path'],
-  //   getActions: (item) => [{
-  //     id: 'my_action',
-  //     label: 'My Action',
-  //     icon: '',
-  //     isDefault: false,
-  //     shortcutKey: '',
-  //   }],
-  //   priority: 50,
-  // },
-
   // 自定义设置面板 (覆盖 DynamicForm)
   // settingsProvider: {
   //   matchComponentId: '<component_id>',

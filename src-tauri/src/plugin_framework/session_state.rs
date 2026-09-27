@@ -12,8 +12,12 @@ use zerolaunch_plugin_api::{PanelInteraction, ResultAction};
 ///
 /// `Search` 合并列表与空结果：空结果由响应 `results` 长度隐式表达，
 /// 展示形态层面不区分。
-/// 注意：序列化键名为 camelCase（跨 IPC 契约，与前端 `PresentationMode` 联合类型一致）；
-/// `as_str()` 为 snake_case（仅服务于 CLI `/v1/session` 输出与日志，不跨 IPC）。
+/// 两套词表，各自唯一来源：
+/// - 序列化键名为 camelCase（跨 IPC 契约，与前端 `PresentationMode` 联合类型一致），
+///   用于 `session-state` 事件的 `presentation` 字段；
+/// - `as_str()` 为 snake_case（`bridge_query` 响应的 `mode` 字段 / CLI `/v1/session` 输出 /
+///   日志；前端 `contract.ts` 的 `BridgeQueryResponse` 联合类型按此词表判别）。
+///
 /// 变体注释中的键名即 `serde(rename)` 后的值。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum PresentationMode {
@@ -38,7 +42,7 @@ pub enum PresentationMode {
 }
 
 impl PresentationMode {
-    /// 展示形态字符串（与前端词表一致；None 时为 "none"）。
+    /// 展示形态字符串（snake_case 词表；`bridge_query.mode` 与 CLI / 日志共用）。
     pub fn as_str(&self) -> &'static str {
         match self {
             PresentationMode::None => "none",
@@ -60,10 +64,10 @@ pub struct PluginPanelInfo {
     pub panel_id: String,
 }
 
-/// 面板动作的前端形状（icon 字符串化，与 bridge 路径 BridgeResultAction 同构——
-/// 前端 contract.ts ResultAction.icon: string；源数据同为一个 ResultAction，非双轨数据源）。
+/// 动作的前端形状 —— 查询响应（列表动作/面板动作）与 `session-state` 事件共用的唯一编码。
+/// icon 字符串化后与前端 `contract.ts` 的 `ResultAction.icon: string` 一致；源数据同为 `ResultAction`。
 #[derive(Debug, Clone, Serialize)]
-pub struct PanelContentAction {
+pub struct ResultActionDto {
     #[serde(rename = "id")]
     pub id: String,
     #[serde(rename = "label")]
@@ -76,9 +80,9 @@ pub struct PanelContentAction {
     pub shortcut_key: String,
 }
 
-impl From<ResultAction> for PanelContentAction {
+impl From<ResultAction> for ResultActionDto {
     fn from(action: ResultAction) -> Self {
-        PanelContentAction {
+        ResultActionDto {
             id: action.id,
             label: action.label,
             icon: action.icon.value().to_string(),
@@ -100,7 +104,7 @@ pub struct PluginPanelContent {
     pub data: serde_json::Value,
     /// 面板动作列表（供 Enter 执行默认动作 / 面板内动作切换）。
     #[serde(rename = "actions")]
-    pub actions: Vec<PanelContentAction>,
+    pub actions: Vec<ResultActionDto>,
 }
 
 /// 会话状态事件载荷 —— 整个会话系统的唯一事件（事件名 `session-state`）。

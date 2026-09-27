@@ -20,5 +20,5 @@ scope: "tool:edit(src-tauri/src/commands/**), tool:write(src-tauri/src/commands/
   - `config_execute_action` — 每个组件可定义自己的 action 结果类型
   - `inspector_get_state` — 调试工具，输出随 is_debug_mode 和插件状态变化
   - `cli_get_info` — CLI HTTP 服务器连接信息，形状由 token 文件结构决定
-  - 简单标量（`String` / `usize` 等原始值）— 如 `config_get_version -> Result<String, BridgeError>`、`bridge_get_candidates_count -> usize`、`bridge_get_system_theme -> Result<String, BridgeError>`；命名结构体约束针对对象载荷，简单标量不适用（其中 `bridge_get_candidates_count` 不返回 `Result`，天然不满足 trace_id 触发条件）
+  - 简单标量（`String` / `usize` 等原始值）— 如 `config_get_version -> Result<String, BridgeError>`、`bridge_get_system_theme -> Result<String, BridgeError>`；命名结构体约束针对对象载荷，简单标量不适用
 - 以上 exception 列表中，**凡返回 `Result<T, BridgeError>` 的命令**（如 `config_get_settings`、`config_execute_action`、`inspector_get_state` 等）**必须** 遵循 trace_id 追踪规范（生成 trace_id、`#[tracing::instrument]`、`.with_trace_id()`）。exception 仅豁免"禁止直接返回 `serde_json::Value`"这一项，**不豁免** trace_id 要求

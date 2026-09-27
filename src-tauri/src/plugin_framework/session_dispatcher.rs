@@ -33,7 +33,7 @@ use super::executor_registry::ExecutorRegistry;
 use super::registry::PluginRegistry;
 use super::search_pipeline::SearchPipeline;
 use super::session_state::{
-    ActiveSession, PanelContentAction, PluginPanelContent, PluginPanelInfo, PresentationMode,
+    ActiveSession, PluginPanelContent, PluginPanelInfo, PresentationMode, ResultActionDto,
     SessionStateEmitter, SessionStateEvent,
 };
 use crate::core::config::bias_settings::{bias_settings_to_rules, BiasSettings};
@@ -1610,7 +1610,7 @@ impl SessionDispatcher {
                     Some(PluginPanelContent {
                         panel_type: normalized,
                         data,
-                        actions: actions.into_iter().map(PanelContentAction::from).collect(),
+                        actions: actions.into_iter().map(ResultActionDto::from).collect(),
                     }),
                 )
             }

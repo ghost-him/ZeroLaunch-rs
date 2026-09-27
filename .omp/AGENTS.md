@@ -58,7 +58,7 @@ logging/            → 日志初始化
 
 ## IPC 命令清单
 
-搜索/会话（`bridge_` 前缀，8个）：`bridge_query`, `bridge_confirm`, `bridge_wake`, `bridge_wake_plugin`, `bridge_refresh_candidates`, `bridge_get_candidates_count`, `bridge_hide_window`, `bridge_get_system_theme`
+搜索/会话（`bridge_` 前缀，7个）：`bridge_query`, `bridge_confirm`, `bridge_wake`, `bridge_wake_plugin`, `bridge_refresh_candidates`, `bridge_hide_window`, `bridge_get_system_theme`
 
 配置（`config_` 前缀，9个）：`config_get_version`, `config_get_all_components`, `config_get_schema`, `config_get_settings`, `config_apply_settings`, `config_reset_settings`, `config_set_enabled`, `config_get_actions`, `config_execute_action`
 
@@ -141,7 +141,6 @@ ZeroLaunch-rs/                          ← Cargo workspace 根
 #### `core/` — 业务核心
 ```
 core/
-├── constants.rs         ← 应用常量
 ├── cli_token.rs          ← CLI token 管理
 ├── config/              ← 配置系统
 │   ├── manager.rs       ← ConfigManager 主调度器

@@ -32,4 +32,4 @@ pub use session_dispatcher::{
     ConfirmError, ConfirmOutcome, ConfirmRequest, RoutedConfirm, RoutedQuery, SessionDispatcher,
     SessionDispatcherError,
 };
-pub use session_state::{ActiveSession, PresentationMode, SessionStateEvent};
+pub use session_state::{ActiveSession, PresentationMode, ResultActionDto, SessionStateEvent};

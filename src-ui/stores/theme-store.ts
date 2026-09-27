@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { darkTheme, type GlobalTheme } from 'naive-ui'
-import { bridgeGetSystemTheme, configGetSettings, configApplySettings } from '@/bridge/commands'
+import { bridgeGetSystemTheme, configGetSettings } from '@/bridge/commands'
 import { onSystemThemeChanged } from '@/bridge/events'
 import { applyAppearanceSettings, extractPlaceholder } from '@/utils/appearance'
 
@@ -40,26 +40,6 @@ export const useThemeStore = defineStore('theme', () => {
 
   /** 系统主题事件解绑函数：loadFromBackend 重复调用时先解绑旧监听再注册，避免监听器叠加。 */
   let unlistenSystemTheme: (() => void) | null = null
-
-  async function setTheme(mode: ThemeMode) {
-    themeMode.value = mode
-    await applyNaiveTheme()
-    syncToBackend(mode)
-  }
-
-  let syncTimer: ReturnType<typeof setTimeout> | null = null
-  function syncToBackend(mode: ThemeMode) {
-    if (syncTimer) clearTimeout(syncTimer)
-    syncTimer = setTimeout(async () => {
-      try {
-        const current = await configGetSettings('appearance-config').catch(() => ({}))
-        const merged = { ...(current as Record<string, unknown>), theme: mode }
-        await configApplySettings('appearance-config', merged)
-      } catch (e) {
-        console.warn('[theme-store] Failed to sync theme to backend:', e)
-      }
-    }, 100)
-  }
 
   /** 从后端加载配置（主题 + 语言 + 全部外观设置），在应用挂载前调用。
    *  语言归属 general-config，主题与外观字段归属 appearance-config。 */
@@ -150,7 +130,6 @@ export const useThemeStore = defineStore('theme', () => {
     naiveTheme,
     locale,
     searchBarPlaceholder,
-    setTheme,
     loadFromBackend,
     applyRemoteAppearance,
     applyRemoteGeneral,

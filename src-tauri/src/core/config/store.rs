@@ -1,4 +1,4 @@
-use crate::core::config::models::{ComponentPersistentState, PersistentConfig};
+use crate::core::config::models::PersistentConfig;
 use std::collections::HashMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -153,25 +153,12 @@ impl ConfigStore {
         warn!("已备份损坏配置文件: {:?} → {:?}", path, backup_path);
         Ok(())
     }
-
-    /// 保存单个组件的状态到持久化配置。
-    /// 读取现有配置、更新指定组件、再写回文件。
-    pub fn save_component(
-        &self,
-        component_id: &str,
-        state: &ComponentPersistentState,
-    ) -> Result<(), ConfigError> {
-        let mut config = self.load().unwrap_or_default();
-        config
-            .components
-            .insert(component_id.to_string(), state.clone());
-        self.save(&config)
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::config::models::ComponentPersistentState;
     use serde_json::json;
 
     fn temp_store() -> (ConfigStore, tempfile::TempDir) {
@@ -218,13 +205,15 @@ mod tests {
     #[test]
     fn save_then_load_roundtrip_preserves_settings() {
         let (store, _dir) = temp_store();
-        let state = ComponentPersistentState {
-            enabled: true,
-            settings: json!({ "theme": "dark", "log_level": "warn" }),
-        };
-        store
-            .save_component("appearance-config", &state)
-            .expect("保存失败");
+        let mut config = PersistentConfig::default();
+        config.components.insert(
+            "appearance-config".to_string(),
+            ComponentPersistentState {
+                enabled: true,
+                settings: json!({ "theme": "dark", "log_level": "warn" }),
+            },
+        );
+        store.save(&config).expect("保存失败");
         let loaded = store.load().expect("加载失败");
         let loaded_state = loaded
             .components

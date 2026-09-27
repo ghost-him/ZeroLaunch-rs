@@ -26,7 +26,7 @@ scope: "tool:read(src-tauri/src/commands/**), tool:edit(src-tauri/src/commands/*
 - async 函数 **必须** 用 `#[tracing::instrument]`，**禁止** `span.enter()` 跨 `.await`
 - trace_id **必须** 排除在命令签名之外（不在参数中暴露，由命令内部生成）
 - CLI HTTP 服务器 **必须** 通过 `X-Trace-Id` 请求头/响应头传递 trace_id
-- **trace_id 适用范围**：所有返回 `Result<T, BridgeError>` 的命令 **必须** 生成 trace_id（无论是否真的有错误路径；trace_id 同时用于 span 日志关联，如查看操作耗时与事件顺序），**禁止** 因"无错误路径"而省略模板代码。判据是签名是否含 `Result`，与载荷形状无关——返回 `Result<Vec<ConfigActionDef>, BridgeError>` 的 `config_get_actions` 同样必须走模板。不返回 `Result<T, BridgeError>` 的命令（如返回 `String`、`usize`、`Vec<T>`、`()` 等）不需要 trace_id。需 trace_id 的示例：`bridge_query`、`bridge_refresh_candidates`、`bridge_hide_window`。无需 trace_id 的示例：`bridge_get_candidates_count() -> usize`（不返回 Result）
+- **trace_id 适用范围**：所有返回 `Result<T, BridgeError>` 的命令 **必须** 生成 trace_id（无论是否真的有错误路径；trace_id 同时用于 span 日志关联，如查看操作耗时与事件顺序），**禁止** 因"无错误路径"而省略模板代码。判据是签名是否含 `Result`，与载荷形状无关——返回 `Result<Vec<ConfigActionDef>, BridgeError>` 的 `config_get_actions` 同样必须走模板。不返回 `Result<T, BridgeError>` 的命令（如返回 `String`、`usize`、`Vec<T>`、`()` 等）不需要 trace_id（当前命令集内已无此类命令，新增时按此判据处理）。需 trace_id 的示例：`bridge_query`、`bridge_refresh_candidates`、`bridge_hide_window`
 
 ## 核心热路径（推荐）
 

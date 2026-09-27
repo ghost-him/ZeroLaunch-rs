@@ -226,24 +226,27 @@ impl AppEnumerator for WindowsAppEnumerator {
             };
 
             // Enumerate Shell Items
-            let mut items: Vec<Option<IShellItem>> = Vec::new();
-            items.resize(300, None);
-
-            let mut fetched: u32 = 0;
-            if let Err(e) = enum_shell_items.Next(&mut items, Some(&mut fetched as *mut u32)) {
-                warn!("WindowsAppEnumerator: error enumerating shell items: {}", e);
-                return result;
+            // 每次 Next 最多填充缓冲区长度，必须循环取完，否则条目数超过单批上限时后续应用被静默丢弃
+            const BATCH_SIZE: usize = 256;
+            let mut shell_items: Vec<IShellItem> = Vec::new();
+            loop {
+                let mut batch: Vec<Option<IShellItem>> = vec![None; BATCH_SIZE];
+                let mut fetched: u32 = 0;
+                if let Err(e) = enum_shell_items.Next(&mut batch, Some(&mut fetched as *mut u32)) {
+                    warn!("WindowsAppEnumerator: error enumerating shell items: {}", e);
+                    break;
+                }
+                // 本次返回 0 条表示枚举已结束（不足一批也可能是末尾，继续调用无副作用）
+                if fetched == 0 {
+                    break;
+                }
+                let filled = (fetched as usize).min(batch.len());
+                for item in batch.into_iter().take(filled).flatten() {
+                    shell_items.push(item);
+                }
             }
 
-            for shell_item in &items {
-                if shell_item.is_none() {
-                    continue;
-                }
-                let shell_item = match shell_item.clone() {
-                    Some(item) => item,
-                    None => continue,
-                };
-
+            for shell_item in &shell_items {
                 // Bind to IPropertyStore
                 let property_store: IPropertyStore =
                     match shell_item.BindToHandler(None, &BHID_PropertyStore) {

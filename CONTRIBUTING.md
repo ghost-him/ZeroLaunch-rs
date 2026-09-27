@@ -51,7 +51,7 @@ codegraph init
 
 #### 工程纪律（粘性规则）
 
-`.omp/RULES.md` — 始终生效的粘性工程纪律：async 契约、RwLock 守卫、死代码、前后端边界、用户交互、日志规范等。始终加载，不随文件路径触发。详见 [`.omp/RULES.md`](.omp/RULES.md)。
+`.omp/RULES.md` — 始终生效的粘性工程纪律：死代码、数据流（KISS / 流程精简）、前后端边界、用户交互、注释与验证纪律。始终加载，不随文件路径触发（async 契约 / 同步锁守卫见 `.omp/rules/no-sync-lock-across-await.md`，日志规范见 `.omp/rules/no-println.md`）。详见 [`.omp/RULES.md`](.omp/RULES.md)。
 
 #### 条件规则文件 (.omp/rules/) 清单
 

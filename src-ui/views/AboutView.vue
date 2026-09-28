@@ -49,7 +49,6 @@ const links = computed(() => [
   { label: t('settings.aboutPage.website'), url: 'https://zerolaunch.ghost-him.com' },
   { label: t('settings.aboutPage.github'), url: 'https://github.com/ghost-him/ZeroLaunch-rs' },
   { label: t('settings.aboutPage.gitee'), url: 'https://gitee.com/ghost-him/ZeroLaunch-rs' },
-  { label: t('settings.aboutPage.gitcode'), url: 'https://gitcode.com/ghost-him/ZeroLaunch-rs' },
   { label: t('settings.aboutPage.wiki'), url: 'https://github.com/ghost-him/ZeroLaunch-rs/wiki' },
   { label: t('settings.aboutPage.issues'), url: 'https://github.com/ghost-him/ZeroLaunch-rs/issues' },
 ])

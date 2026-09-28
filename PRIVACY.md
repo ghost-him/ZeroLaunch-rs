@@ -58,6 +58,5 @@ ZeroLaunch-rs 为您提供了一个完全可选的功能，允许您通过 WebDA
 *   **GitHub Issues 页面：** https://github.com/ghost-him/ZeroLaunch-rs/issues
 *   **Codeberg Issues 页面：** https://codeberg.org/ghost-him/ZeroLaunch-rs/issues
 *   **Gitee Issues 页面：** https://gitee.com/ghost-him/ZeroLaunch-rs/issues
-*   **Gitcode Issues 页面** https://gitcode.com/ghost-him/ZeroLaunch-rs/issues
 
 感谢您的信任与使用！

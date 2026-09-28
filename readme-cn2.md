@@ -18,8 +18,6 @@
 [![GitHub stars](https://img.shields.io/github/stars/ghost-him/ZeroLaunch-rs.svg?style=social)](https://github.com/ghost-him/ZeroLaunch-rs/stargazers)
 [![GitHub forks](https://img.shields.io/github/forks/ghost-him/ZeroLaunch-rs.svg?style=social)](https://github.com/ghost-him/ZeroLaunch-rs/network/members)
 [![Codeberg stars](https://img.shields.io/gitea/stars/ghost-him/ZeroLaunch-rs?gitea_url=https%3A%2F%2Fcodeberg.org&logo=codeberg&style=social)](https://codeberg.org/ghost-him/ZeroLaunch-rs)
-[![GitCode stars](https://gitcode.com/ghost-him/ZeroLaunch-rs/star/badge.svg)](https://gitcode.com/ghost-him/ZeroLaunch-rs/stargazers)
-[![Gitcode 2025](https://atomgit.com/ghost-him/ZeroLaunch-rs/star/2025top.svg)](https://gitcode.com/ghost-him/ZeroLaunch-rs)
 
 </div>
 
@@ -34,7 +32,6 @@
     <a href="https://gitee.com/ghost-him/ZeroLaunch-rs" target="_blank">Gitee</a> •
     <a href="https://github.com/ghost-him/ZeroLaunch-rs" target="_blank">GitHub</a> •
     <a href="https://codeberg.org/ghost-him/ZeroLaunch-rs" target="_blank">Codeberg</a> •
-    <a href="https://gitcode.com/ghost-him/ZeroLaunch-rs" target="_blank">GitCode</a> •
     <a href="https://zerolaunch.ghost-him.com" target="_blank">官網</a> •
     <a href="https://github.com/ghost-him/ZeroLaunch-rs/wiki" target="_blank">Wiki</a>
 </div>
@@ -135,7 +132,6 @@ winget install ghost-him.ZeroLaunch-rs
 *   **GitHub Releases** (全球使用者推薦): [https://github.com/ghost-him/ZeroLaunch-rs/releases](https://github.com/ghost-him/ZeroLaunch-rs/releases)
 *   **Codeberg Releases** (推薦): [https://codeberg.org/ghost-him/ZeroLaunch-rs/releases](https://codeberg.org/ghost-him/ZeroLaunch-rs/releases)
 *   **Gitee Releases** (中國大陸使用者推薦): [https://gitee.com/ghost-him/ZeroLaunch-rs/releases](https://gitee.com/ghost-him/ZeroLaunch-rs/releases)
-*   **GitCode Releases** (中國大陸使用者推薦): [https://gitcode.com/ghost-him/ZeroLaunch-rs/releases](https://gitcode.com/ghost-him/ZeroLaunch-rs/releases)
 
 ### 🧩 版本說明：AI 版 vs Lite 版
 | 特性            | **含 AI 版 (預設/推薦)**                                         | **Lite 版 (輕量)**                                                    |

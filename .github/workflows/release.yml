@@ -449,7 +449,7 @@ jobs:
           )
           $releaseNotes = $lines -join "`n"
 
-          # 使用无 BOM 的 UTF-8 写入，避免 Gitee / GitCode 显示乱码
+          # 使用无 BOM 的 UTF-8 写入，避免 Gitee 显示乱码
           [System.IO.File]::WriteAllText((Join-Path (Get-Location) "release_notes.txt"), $releaseNotes, (New-Object System.Text.UTF8Encoding($false)))
           echo "RELEASE_NOTES_FILE=release_notes.txt" >> $env:GITHUB_OUTPUT
           echo "Generated release notes"
@@ -596,114 +596,6 @@ jobs:
           }
 
   # =======================================================
-  # 独立的 GitCode Release Job (带重试机制)
-  # =======================================================
-  release-gitcode:
-    name: Publish to GitCode
-    needs: build
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.skip_release == 'false')
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      - name: Download all artifacts
-        uses: actions/download-artifact@v8
-        with:
-          name: release-assets
-          path: .
-
-      - name: Push to GitCode
-        shell: pwsh
-        env:
-          GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
-          GITCODE_EMAIL: ${{ secrets.GITCODE_EMAIL }}
-        run: |
-          $owner, $repo = "${{ github.repository }}".Split('/')
-          git config --global user.name "ghost-him"
-          git config --global user.email "$env:GITCODE_EMAIL"
-          git remote add gitcode "https://oauth2:$($env:GITCODE_TOKEN)@gitcode.com/$owner/$repo.git" || true
-          git push gitcode HEAD:main --tags -f
-      - name: Create GitCode Release with Retry
-        shell: pwsh
-        env:
-          VERSION: ${{ needs.build.outputs.version }}
-          RELEASE_TITLE: ${{ needs.build.outputs.release_title }}
-          GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
-        run: |
-          # --- 重试机制配置 ---
-          $maxRetries = 3
-          $retryDelaySeconds = 30 # GitCode API 可能更慢，延迟稍长
-          # --------------------
-
-          # 动态获取仓库所有者和名称
-          $owner, $repo = "${{ github.repository }}".Split('/')
-          Write-Host "Target GitCode Repository: $owner/$repo"
-
-          for ($i = 1; $i -le $maxRetries; $i++) {
-            try {
-              Write-Host "Attempt $i of $maxRetries to create and upload GitCode release..."
-
-              $version = $env:VERSION
-              $releaseTitle = $env:RELEASE_TITLE
-              $tag = "v$version"
-              $token = $env:GITCODE_TOKEN
-              $releaseNotes = Get-Content -Path "release_notes.txt" -Raw -Encoding UTF8
-              $headers = @{"Private-Token" = $token}
-
-              # 1. 创建或更新 Release（保证幂等：tag 已存在时改用 PATCH 更新）
-              $createReleaseUri = "https://gitcode.com/api/v5/repos/$owner/$repo/releases"
-              $updateReleaseUri = "https://gitcode.com/api/v5/repos/$owner/$repo/releases/$tag"
-              $createBody = @{tag_name = $tag; name = $releaseTitle; body = $releaseNotes} | ConvertTo-Json -Depth 5
-              $updateBody = @{name = $releaseTitle; body = $releaseNotes} | ConvertTo-Json -Depth 5
-              try {
-                Invoke-RestMethod -Uri $createReleaseUri -Method Post -Headers $headers -ContentType "application/json" -Body $createBody -ErrorAction Stop
-                Write-Host "✅ GitCode Release 创建成功"
-              } catch {
-                # 创建失败（大概率 tag 已存在），回退到 PATCH 更新
-                Write-Host "⚠️ GitCode Release 创建失败，尝试更新已有 Release: $($_.Exception.Message)"
-                Invoke-RestMethod -Uri $updateReleaseUri -Method Patch -Headers $headers -ContentType "application/json" -Body $updateBody -ErrorAction Stop
-                Write-Host "✅ GitCode Release 更新成功"
-              }
-
-              # 2. 上传文件
-              $files = Get-ChildItem -Path . -Recurse -Include *.exe,*.msi,*.zip -File
-              if ($files.Count -eq 0) { throw "未找到需要上传到 GitCode 的构建产物" }
-
-              foreach ($file in $files) {
-                Write-Host "📦 正在上传 $($file.Name) 到 GitCode Release..."
-                $encodedFileName = [Uri]::EscapeDataString($file.Name)
-                $getUploadUrlEndpoint = "https://gitcode.com/api/v5/repos/$owner/$repo/releases/$tag/upload_url?access_token=$token&file_name=$encodedFileName"
-                $uploadInfo = Invoke-RestMethod -Uri $getUploadUrlEndpoint -Method Get -ErrorAction Stop
-
-                if (-not $uploadInfo.url) { throw "未从 GitCode 获取到上传地址" }
-
-                $putHeaders = @{}
-                if ($uploadInfo.headers) {
-                  foreach ($key in $uploadInfo.headers.PSObject.Properties.Name) { $putHeaders[$key] = $uploadInfo.headers.$key }
-                }
-
-                Invoke-RestMethod -Uri $uploadInfo.url -Method Put -InFile $file.FullName -Headers $putHeaders -ErrorAction Stop
-                Write-Host "✅ 已上传: $($file.Name)"
-              }
-
-              Write-Host "✅ GitCode Release 所有文件上传完成"
-              break # 成功则跳出循环
-            } catch {
-              Write-Host "❌ GitCode Release 操作失败: $($_.Exception.Message)"
-              if ($i -lt $maxRetries) {
-                Write-Host "将在 $retryDelaySeconds 秒后重试..."
-                Start-Sleep -Seconds $retryDelaySeconds
-              } else {
-                Write-Host "❌ 已达到最大重试次数，GitCode 发布失败。"
-                throw # 最后一次失败时，抛出异常以使 job 失败
-              }
-            }
-          }
-
-  # =======================================================
   # 最终的通知 Job,依赖于所有并行的 release job
   # =======================================================
   notify:
@@ -711,7 +603,6 @@ jobs:
     needs:
       - release-github
       - release-gitee
-      - release-gitcode
     runs-on: ubuntu-latest
     # 无论上游 release job 成功或失败都运行（手动触发且跳过发布时不运行）
     if: always() && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.skip_release == 'false'))
@@ -722,13 +613,11 @@ jobs:
 
           github_status="${{ needs.release-github.result }}"
           gitee_status="${{ needs.release-gitee.result }}"
-          gitcode_status="${{ needs.release-gitcode.result }}"
 
           echo "  - GitHub Release: $github_status"
           echo "  - Gitee Release:  $gitee_status"
-          echo "  - GitCode Release: $gitcode_status"
 
-          if [[ "$github_status" == "success" && "$gitee_status" == "success" && "$gitcode_status" == "success" ]]; then
+          if [[ "$github_status" == "success" && "$gitee_status" == "success" ]]; then
             echo "✅ All platforms released successfully!"
           else
             echo "❌ One or more platforms failed to release. Please check the logs."

@@ -132,29 +132,20 @@ impl ImageUtils {
         Ok(webp_data)
     }
 
-    /// 根据图片字节头推断 base64 data URL 前缀。
-    /// WebP 字节头为 "RIFF....WEBP"，否则按 PNG 处理。
+    /// 将图片字节数据转换为 base64 data URL（MIME 由 image crate 的字节头嗅探决定）。
     /// 参数：data - 图片字节数据。
-    /// 返回：data URL 前缀（"data:image/webp;base64," / "data:image/png;base64,"），未知回退 PNG。
-    pub fn data_url_prefix(data: &[u8]) -> &'static str {
-        if data.len() >= 12 && &data[0..4] == b"RIFF" && &data[8..12] == b"WEBP" {
-            "data:image/webp;base64,"
-        } else {
-            "data:image/png;base64,"
-        }
-    }
-
-    /// 将图片字节数据转换为 base64 data URL（MIME 按字节头嗅探）。
-    /// 参数：data - 图片字节数据。
-    /// 返回：data URL 字符串；空数据返回空字符串。
+    /// 返回：data URL 字符串；空数据返回空字符串；无法识别格式时按 PNG 标注。
     pub fn to_data_url(data: &[u8]) -> String {
         if data.is_empty() {
             return String::new();
         }
         use base64::Engine;
+        let mime = image::guess_format(data)
+            .map(|format| format.to_mime_type())
+            .unwrap_or("image/png");
         format!(
-            "{}{}",
-            Self::data_url_prefix(data),
+            "data:{};base64,{}",
+            mime,
             base64::engine::general_purpose::STANDARD.encode(data)
         )
     }
@@ -411,5 +402,44 @@ impl ImageUtils {
         })
         .await
         .map_err(|e| ImageUtilsError::TaskJoinError(format!("Task join error: {}", e)))?
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ImageUtils;
+
+    /// 各格式的字节头（image crate 的 guess_format 只读魔数，不需要完整文件）。
+    #[test]
+    fn to_data_url_labels_bytes_by_guessed_format() {
+        let cases: [(&[u8], &str); 5] = [
+            (b"RIFF\x00\x00\x00\x00WEBPVP8L", "data:image/webp;base64,"),
+            (
+                b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR",
+                "data:image/png;base64,",
+            ),
+            (
+                &[0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10],
+                "data:image/jpeg;base64,",
+            ),
+            (b"GIF89a\x01\x00", "data:image/gif;base64,"),
+            (
+                &[0x00, 0x00, 0x01, 0x00, 0x01, 0x00],
+                "data:image/x-icon;base64,",
+            ),
+        ];
+        for (bytes, prefix) in cases {
+            let url = ImageUtils::to_data_url(bytes);
+            assert!(
+                url.starts_with(prefix),
+                "字节头 {bytes:?} 期望 {prefix}，实际 {url}"
+            );
+        }
+    }
+
+    #[test]
+    fn to_data_url_falls_back_to_png_for_unknown_bytes() {
+        assert!(ImageUtils::to_data_url(b"not an image").starts_with("data:image/png;base64,"));
+        assert_eq!(ImageUtils::to_data_url(b""), "");
     }
 }

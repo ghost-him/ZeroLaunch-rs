@@ -12,16 +12,23 @@ use zerolaunch_plugin_api::config::{
     ComponentCore, ComponentType, ConfigActionDef, ConfigError, Configurable, SettingDefinition,
 };
 use zerolaunch_plugin_api::{
-    ActionExecutor, CachedCandidateData, CandidateId, DataSource, ExecutionContext, ExecutionError,
-    KeywordInjector, KeywordInputSource, KeywordOptimizer, PanelInteraction, Plugin, PluginContext,
-    PluginError, PluginHandle, PluginMetadata, Query, QueryResponse, ResultAction, ScoreBooster,
-    ScoredCandidate, SearchCandidate, SearchEngine, TargetType,
+    keyword_trigger_match, ActionExecutor, CachedCandidateData, CandidateId, DataSource,
+    ExecutionContext, ExecutionError, KeywordInjector, KeywordInputSource, KeywordOptimizer,
+    PanelInteraction, Plugin, PluginContext, PluginError, PluginHandle, PluginMetadata, Query,
+    QueryResponse, ResultAction, ScoreBooster, ScoredCandidate, SearchCandidate, SearchEngine,
+    TargetType,
 };
 
 use crate::client::JsonRpcClient;
 use zerolaunch_plugin_protocol::messages::*;
 use zerolaunch_plugin_protocol::methods::plugin as plugin_methods;
 use zerolaunch_plugin_protocol::{codes, ProtocolError};
+
+/// `plugin/match_query` 的 RPC 超时（宿主路由热路径专用）。
+///
+/// 使用范围：仅 `RemoteComponent::match_query`。故意远小于协议约定的"其他方法 5s"——
+/// 本调用在每次按键的路由阶段执行，超时即输入延迟；超时按"不接管"处理并告警。
+const MATCH_QUERY_TIMEOUT: Duration = Duration::from_millis(100);
 
 /// 远程插件组件的种类与专属数据。
 ///
@@ -479,6 +486,45 @@ impl Plugin for RemoteComponent {
             )
             .await
             .map_err(|e| PluginError::QueryFailed(e.to_string()))
+    }
+
+    /// 查询匹配：经 RPC 询问插件是否接管当前输入（响应为布尔值）。
+    ///
+    /// 超时故意远小于常规 5s 约定——本方法在按键热路径上执行，慢判定直接等于输入延迟。
+    /// - 旧 SDK 未实现该方法（`METHOD_NOT_FOUND`）→ 用同一份框架关键词判定兜底（与改动前行为一致）；
+    /// - 其他错误/超时 → 按不命中处理并告警，不阻塞输入。
+    async fn match_query(&self, raw_query: &str, declared_trigger_keywords: &[String]) -> bool {
+        if !matches!(self.kind, RemoteComponentKind::Plugin { .. }) {
+            panic!(
+                "RemoteComponent {} is not a Plugin but match_query() was called",
+                self.core.component_id()
+            );
+        }
+        let result: Result<bool, _> = self
+            .client
+            .call(
+                plugin_methods::MATCH_QUERY,
+                MatchQueryParams {
+                    raw_query: raw_query.to_string(),
+                    trigger_keywords: declared_trigger_keywords.to_vec(),
+                },
+                MATCH_QUERY_TIMEOUT,
+            )
+            .await;
+        match result {
+            Ok(verdict) => verdict,
+            Err(ProtocolError::Rpc { code, .. }) if code == codes::METHOD_NOT_FOUND => {
+                keyword_trigger_match(declared_trigger_keywords, raw_query).is_some()
+            }
+            Err(e) => {
+                tracing::warn!(
+                    component_id = self.core.component_id(),
+                    error = %e,
+                    "插件查询匹配失败，按不命中处理"
+                );
+                false
+            }
+        }
     }
 
     async fn execute_action(

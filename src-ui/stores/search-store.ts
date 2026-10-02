@@ -11,7 +11,7 @@ import { i18n } from '../i18n'
 
 /**
  * 会话模式 —— 与后端响应 `BridgeQueryResponse.mode` 同词表（snake_case）。
- * 注意：与事件 `session-state.presentation`（camelCase，见 contract.ts PresentationMode）
+ * 注意：与事件 `session-state.view`（camelCase，见 contract.ts HostView/PluginView）
  * 是不同值空间，勿混用；两者 'none'/'search' 拼写恰好相同。
  * 插件面板形态直接透传响应 mode：'plugin_panel'（行内）/ 'plugin_immersive'（全页面）。
  */
@@ -163,19 +163,29 @@ export const useSearchStore = defineStore('search', () => {
 
   // ---- 动作 ----
 
-  /// 当前行内插件面板的触发词列表（来自 session-state 事件）。
+  /// 当前行内插件面板的触发词列表（来自 session-state 事件 inputMatch）。
   /// 用于退出判定：输入不再匹配任何触发词（无空格或首词不在集合中）时立即查询退出，
   /// 退出操作独立于插件防抖配置（如从 "fy hello" 回退到 "fy" 不受防抖延迟）。
   let panelTriggerKeywords: string[] = []
 
-  /// 查询文本是否仍属于当前插件面板：首词为空格分隔的触发词（镜像后端 SessionDispatcher::match_trigger）。
+  /// 当前插件面板的触发模型（来自 session-state 事件 inputMatch 的镜像）。
+  /// 'keywords' = 触发词镜像可本地判定；'custom' = 由插件 match_query 自决，前端无本地谓词；
+  /// null = 宿主面板/无插件会话。
+  let panelMatchModel: 'keywords' | 'custom' | null = null
+
+  /// 查询文本是否仍属于当前插件面板。
   /// 输入交互层判定（RULES.md 前后端职责边界）：仅用于 IPC 前时序决策（防抖豁免、在途提示），
-  /// 权威路由仍由后端 UI 查询入口（SessionDispatcher::route_query_ui）裁决；判定参数（触发词）来自后端 session-state 事件，
+  /// 权威路由仍由后端 UI 查询入口（SessionDispatcher::route_query_ui）裁决；判定参数（触发模型/触发词）来自后端 session-state 事件，
   /// 镜像变更须与后端同步（frontend-input-interaction 规则）。
+  /// - custom 模型：无本地谓词，权威路由在后端（插件 match_query），任一非空输入都视为仍属本面板（粘性），
+  ///   退出由后端推送归属变更（宿主会话事件 kind 'host'，currentPluginId 清空）驱动；
+  /// - keywords 模型：镜像后端 SessionDispatcher::locate_plugin 的关键词判定（keyword_trigger_match）：
+  ///   含空格且首词大小写不敏感命中触发词。
   function queryStillInPanel(raw: string): boolean {
+    if (panelMatchModel === 'custom') return raw.trim().length > 0
     if (panelTriggerKeywords.length === 0) return false
-    const firstWord = raw.split(' ')[0]
-    return raw.includes(' ') && panelTriggerKeywords.includes(firstWord)
+    const firstWord = raw.split(' ')[0].toLowerCase()
+    return raw.includes(' ') && panelTriggerKeywords.some((kw) => kw.toLowerCase() === firstWord)
   }
 
   /// 清理所有会话展示状态（结果/面板/参数/选中索引/在途标志）。
@@ -188,6 +198,7 @@ export const useSearchStore = defineStore('search', () => {
     panelActions.value = []
     panelInteraction.value = null
     panelTriggerKeywords = []
+    panelMatchModel = null
     currentPluginId.value = null
     confirmInFlight.value = false
     inlineParamState.value = null
@@ -272,6 +283,7 @@ export const useSearchStore = defineStore('search', () => {
           results.value = resp.results
           panelInteraction.value = null
           panelTriggerKeywords = []
+          panelMatchModel = null
           currentPluginId.value = null
           sessionMode.value = 'search'
           selectedIndex.value = 0
@@ -280,6 +292,7 @@ export const useSearchStore = defineStore('search', () => {
           results.value = []
           panelInteraction.value = null
           panelTriggerKeywords = []
+          panelMatchModel = null
           sessionMode.value = 'inline_param'
           inlineParamState.value = {
             candidateId: resp.inlineParam.candidateId,
@@ -629,26 +642,38 @@ export const useSearchStore = defineStore('search', () => {
   }
 
   /// 应用后端会话状态事件（会话系统唯一事件通道）。
-  /// 无条件接受：事件总是描述当前会话最新投影，按事件内容覆盖交互契约/触发词/插件 ID；
-  /// 会话结束（presentation 'none'）→ 复位本地会话，但保留 currentGeneration 单调性。
+  /// 无条件接受：事件总是描述当前会话最新投影，按事件内容覆盖交互契约/触发模型/插件归属；
+  /// 宿主会话结束（view 'none'）→ 复位本地会话，但保留 currentGeneration 单调性。
   /// generation 单调递增更新：旧代际事件不倒退。
   function applySessionState(event: SessionStateEvent) {
     if (event.generation >= currentGeneration.value) {
       currentGeneration.value = event.generation
     }
-    panelInteraction.value = event.interaction ?? null
-    panelTriggerKeywords = event.triggerKeywords
-    currentPluginId.value = event.panel?.pluginId ?? null
-    if (event.presentation === 'none') {
-      resetLocalSession()
+    if (event.kind === 'host') {
+      // 宿主会话：无插件归属/交互契约/触发模型，清空插件侧本地状态。
+      panelInteraction.value = null
+      panelTriggerKeywords = []
+      panelMatchModel = null
+      currentPluginId.value = null
+      // 会话结束（view 'none'）→ 复位本地会话；其余宿主子形态（search/inlineParam/paramPanel）
+      // 不做额外副作用，展示状态由 bridge_query 响应下发。
+      if (event.view === 'none') {
+        resetLocalSession()
+      }
       return
     }
+    // 插件会话：交互契约/触发模型/归属均随事件覆盖。
+    panelInteraction.value = event.interaction
+    currentPluginId.value = event.pluginId
+    panelMatchModel = event.inputMatch?.model ?? null
+    panelTriggerKeywords =
+      event.inputMatch?.model === 'keywords' ? event.inputMatch.triggerKeywords : []
     // 热键唤醒推送携带面板渲染载荷（窗口隐藏时无查询响应可依赖）：
-    // 直接按事件重建插件面板会话；常规路径（关键词查询）panelContent 为 null，
+    // 直接按事件重建插件面板会话；常规查询路径不含 panelContent，
     // 载荷仍由 bridge_query 响应下发，此处不覆盖既有面板状态。
     if (event.panelContent) {
       sessionMode.value =
-        event.presentation === 'pluginImmersive' ? 'plugin_immersive' : 'plugin_panel'
+        event.view === 'pluginImmersive' ? 'plugin_immersive' : 'plugin_panel'
       panelType.value = event.panelContent.panelType
       panelData.value = event.panelContent.data
       panelActions.value = event.panelContent.actions

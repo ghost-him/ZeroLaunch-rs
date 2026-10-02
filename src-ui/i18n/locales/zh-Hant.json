@@ -1366,6 +1366,28 @@
     "calculator": {
       "name": "計算器",
       "description": "在搜尋欄中直接進行數學計算"
+    },
+    "path-detect": {
+      "name": "路徑偵測",
+      "description": "輸入形如本機路徑時，提供開啟與開啟所在資料夾的入口"
+    },
+    "url-detect": {
+      "name": "網址偵測",
+      "description": "輸入形如網址時，提供以瀏覽器開啟的入口",
+      "fields": {
+        "bare_domain_enabled": {
+          "label": "辨識裸網域",
+          "desc": "開啟後，形如 github.com 的輸入也會被視為網址"
+        }
+      }
+    },
+    "smart-target": {
+      "openPath": "進入目錄/資料夾…",
+      "openUrl": "在瀏覽器中開啟",
+      "actions": {
+        "open": "開啟",
+        "openFolder": "開啟所在資料夾"
+      }
     }
   },
   "pluginPanel": {

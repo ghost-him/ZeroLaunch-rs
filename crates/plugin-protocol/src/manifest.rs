@@ -45,7 +45,8 @@ pub struct PluginSection {
     /// 全局唤醒快捷键（如 `Ctrl+E`）。可空；仅 `panel` 形态注册热键
     #[serde(default, rename = "hotkey")]
     pub hotkey: Option<String>,
-    /// 触发关键词；`panel` 形态下作为默认候选项的匹配关键字
+    /// 触发关键词；`panel` 形态下作为默认候选项的匹配关键字。
+    /// 行内插件默认按"触发词 + 空格"路由；插件可在代码中覆盖 `Plugin::match_query` 自定义判定。
     #[serde(rename = "triggerKeywords")]
     pub trigger_keywords: Vec<String>,
     /// 支持的操作系统标识（如 `["windows"]`）

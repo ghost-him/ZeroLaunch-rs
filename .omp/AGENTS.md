@@ -178,7 +178,7 @@ plugin_framework/
 ├── builtin.rs            ← 内置插件定义
 ├── inspector.rs          ← Plugin Inspector 调试面板 (feature = "inspector")
 ├── session_dispatcher.rs ← 会话调度（横切：路由/确认/代际/事件推送）
-├── session_state.rs      ← 会话投影类型（PresentationMode/SessionOwner/SessionStateEvent）
+├── session_state.rs      ← 会话投影类型（SessionOwner/HostView/PluginView/InputMatch/SessionStateEvent）
 ├── candidate_pipeline.rs ← 候选项采集管道
 ├── search_pipeline.rs    ← 搜索排序管道
 ├── executor_registry.rs  ← 执行器注册表

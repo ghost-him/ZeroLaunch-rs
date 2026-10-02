@@ -1366,6 +1366,28 @@
     "calculator": {
       "name": "Calculator",
       "description": "Evaluate math expressions right in the search bar"
+    },
+    "path-detect": {
+      "name": "Path detection",
+      "description": "Offers open / open-containing-folder actions when the input looks like a local path"
+    },
+    "url-detect": {
+      "name": "URL detection",
+      "description": "Offers a browser-open action when the input looks like a URL",
+      "fields": {
+        "bare_domain_enabled": {
+          "label": "Recognize bare domains",
+          "desc": "When enabled, inputs like github.com are treated as URLs"
+        }
+      }
+    },
+    "smart-target": {
+      "openPath": "Open folder",
+      "openUrl": "Open in browser",
+      "actions": {
+        "open": "Open",
+        "openFolder": "Open containing folder"
+      }
     }
   },
   "pluginPanel": {

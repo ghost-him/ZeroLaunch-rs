@@ -160,6 +160,23 @@ pub struct QueryParams {
     pub query: Query,
 }
 
+// ─── plugin/match_query ──────────────────────────────────────────
+
+/// `plugin/match_query` 请求参数 —— 宿主路由阶段询问插件是否接管当前输入。
+///
+/// 使用范围：宿主（`RemoteComponent` → SDK 分发）；对全部启用中的行内插件调用。
+/// 响应为布尔值（true = 接管）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MatchQueryParams {
+    /// 用户在搜索栏中输入的原始字符串（未做小写化等预处理）。
+    #[serde(rename = "rawQuery")]
+    pub raw_query: String,
+    /// 该插件声明的触发词（宿主从清单/代码元数据读取后随请求下发）。
+    /// 用途：让插件的默认 `match_query` 实现能就地完成框架关键词判定，无需在插件代码里重复声明。
+    #[serde(rename = "triggerKeywords")]
+    pub trigger_keywords: Vec<String>,
+}
+
 // ─── plugin/execute_action ───────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

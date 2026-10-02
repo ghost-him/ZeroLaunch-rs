@@ -20,6 +20,7 @@ macro_rules! t_key {
 
 pub mod config;
 pub mod data_source;
+pub mod detector;
 pub mod executor;
 pub mod keyword_injector;
 pub mod keyword_optimizer;

@@ -2,7 +2,7 @@ use crate::commands::bridge_error::{BridgeError, WithTraceId};
 use crate::plugin_framework::inspector::InspectedQueryEvent;
 use crate::plugin_framework::ResultActionDto;
 use crate::plugin_framework::{
-    ConfirmOutcome, ConfirmRequest, PresentationMode, SessionDispatcher,
+    ConfirmOutcome, ConfirmRequest, HostView, PluginView, SessionDispatcher,
 };
 use crate::state::app_state::AppState;
 use serde::{Deserialize, Serialize};
@@ -221,10 +221,10 @@ pub async fn bridge_query(
     // 录制查询事件到 Inspector（仅在调试模式开启时）
     // 统一词表：空结果合并为 search（展示形态层面不区分 List/Empty）。
     let (mode, result_count) = match &routed.response {
-        QueryResponse::List { results } => (PresentationMode::Search.as_str(), results.len()),
-        QueryResponse::Empty => (PresentationMode::Search.as_str(), 0),
-        QueryResponse::CustomPanel { .. } => (PresentationMode::PluginPanel.as_str(), 1),
-        QueryResponse::InlineParam { .. } => (PresentationMode::InlineParam.as_str(), 0),
+        QueryResponse::List { results } => (HostView::Search.as_str(), results.len()),
+        QueryResponse::Empty => (HostView::Search.as_str(), 0),
+        QueryResponse::CustomPanel { .. } => (PluginView::Panel.as_str(), 1),
+        QueryResponse::InlineParam { .. } => (HostView::InlineParam.as_str(), 0),
     };
     if state.is_debug_mode() {
         if let Some(inspector) = state.get_inspector() {
@@ -281,7 +281,7 @@ pub async fn bridge_query(
             );
 
             Ok(BridgeQueryResponse {
-                mode: PresentationMode::Search.as_str().to_string(),
+                mode: HostView::Search.as_str().to_string(),
                 generation: routed.generation,
                 candidate_generation: session_dispatcher.get_candidates_generation(),
                 results: bridge_results,
@@ -295,7 +295,7 @@ pub async fn bridge_query(
             info!("[Bridge] 查询完成: '{}' -> 0 个结果", raw_query);
             // 统一词表：空结果合并入 search（前端行为与原 'empty' 分支相同）。
             Ok(BridgeQueryResponse {
-                mode: PresentationMode::Search.as_str().to_string(),
+                mode: HostView::Search.as_str().to_string(),
                 generation: routed.generation,
                 candidate_generation: session_dispatcher.get_candidates_generation(),
                 results: Vec::new(),
@@ -313,9 +313,9 @@ pub async fn bridge_query(
             ..
         } => {
             let mode = if keep_search_bar {
-                PresentationMode::PluginPanel.as_str()
+                PluginView::Panel.as_str()
             } else {
-                PresentationMode::PluginImmersive.as_str()
+                PluginView::Immersive.as_str()
             };
             // 第三方插件 panel_type 统一为 third-party:<id>（前端 provider 匹配契约）
             let kind = routed
@@ -355,7 +355,7 @@ pub async fn bridge_query(
                 candidate_id, trigger_keyword
             );
             Ok(BridgeQueryResponse {
-                mode: PresentationMode::InlineParam.as_str().to_string(),
+                mode: HostView::InlineParam.as_str().to_string(),
                 generation: routed.generation,
                 candidate_generation: session_dispatcher.get_candidates_generation(),
                 results: Vec::new(),

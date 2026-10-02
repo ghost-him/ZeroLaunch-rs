@@ -9,7 +9,6 @@
 //! 具备会话写入能力；CLI（`route_query_cli`）与插件面板（`route_query_panel`）为
 //! 只读辅助路径，结构上不具备改写活动会话、推送事件的能力。
 
-use dashmap::DashMap;
 use dashmap::DashSet;
 use parking_lot::{Mutex, RwLock};
 use std::fmt;
@@ -22,9 +21,10 @@ use zerolaunch_plugin_api::services::icon_request::IconRequest;
 use zerolaunch_plugin_api::services::parameter::template_parser::{Placeholder, TemplateParser};
 use zerolaunch_plugin_api::services::ParameterSnapshot;
 use zerolaunch_plugin_api::{
-    CachedCandidateData, CandidateId, ExecutionContext, ExecutionError, ExecutionTarget, ListItem,
-    Plugin, PluginContext, PluginKind, PluginMetadata, PluginMode, Query, QueryChannel,
-    QueryResponse, QueryRevisionGate, ScoredCandidate, SearchCandidate,
+    keyword_trigger_match, CachedCandidateData, CandidateId, ExecutionContext, ExecutionError,
+    ExecutionTarget, ListItem, PanelInteraction, Plugin, PluginContext, PluginKind, PluginMetadata,
+    PluginMode, Query, QueryChannel, QueryResponse, QueryRevisionGate, ScoredCandidate,
+    SearchCandidate,
 };
 
 use super::candidate_pipeline::CandidatePipeline;
@@ -33,8 +33,8 @@ use super::executor_registry::ExecutorRegistry;
 use super::registry::PluginRegistry;
 use super::search_pipeline::SearchPipeline;
 use super::session_state::{
-    ActiveSession, PluginPanelContent, PluginPanelInfo, PresentationMode, ResultActionDto,
-    SessionStateEmitter, SessionStateEvent,
+    ActiveSession, HostView, InputMatch, PluginIdentity, PluginPanelContent, PluginView,
+    ResultActionDto, SessionOwner, SessionStateEmitter, SessionStateEvent,
 };
 use crate::core::config::bias_settings::{bias_settings_to_rules, BiasSettings};
 use crate::core::config::{ConfigEvent, ConfigManager};
@@ -115,6 +115,9 @@ struct EvaluatedQuery {
     /// 本次求值是否为「最新且有效」的结果。false 的两个来源语义一致（均不写会话投影）：
     /// ① 已被同通道更新的查询取代（过期丢弃）；② 求值前置条件未就绪（搜索管道未初始化）。
     current: bool,
+    /// 命中的插件路由来源（None = 默认搜索或面板直调）：
+    /// 决定会话事件下发给前端的输入匹配模型。
+    match_model: Option<InputMatch>,
 }
 
 /// 确认结局 —— Dispatcher 层语义，核心程序专属（无流程抽象）。
@@ -211,12 +214,29 @@ enum SearchSubState {
     ParamPanel { candidate_id: CandidateId },
 }
 
+/// 路由裁决结果：接管的插件与其派生查询词。
+///
+/// 使用范围：仅 `SessionDispatcher` 路由内部——`locate_plugin` 产出、`evaluate_query` 消费；
+/// 不参与序列化，不进入插件协议。
+struct LocatedPlugin {
+    /// 命中的插件 id（注册表键）。
+    plugin_id: String,
+    /// 传给插件的查询词：框架默认关键词判定为剥离触发词后的原文；插件自定义匹配为原始输入。
+    search_term: String,
+    /// 命中来源（下发前端作为输入匹配模型）；面板直调等无路由裁决的场景为 None。
+    match_model: Option<InputMatch>,
+}
+
+/// 路由阶段询问全部自定义匹配插件的整体截止时间。
+///
+/// 使用范围：仅 `SessionDispatcher::locate_plugin`。单次远程匹配另有 100ms RPC 超时；
+/// 此处是"全部插件收齐"的总兜底——超时后未返回的插件按不接管处理并告警，绝不阻塞输入。
+const ROUTE_DEADLINE: Duration = Duration::from_millis(150);
+
 pub struct SessionDispatcher {
     /// 插件注册中心（插件 init 在 bootstrap 完成）。
     plugin_registry: Arc<PluginRegistry>,
-    /// 触发词索引：trigger → plugin_id（一个触发词只能绑定一个插件，冲突注册即拒绝）。
-    trigger_index: DashMap<String, String>,
-    /// 插件级启用状态集合（注册/启停时同步；wake_plugin 启用校验的权威依据——
+    /// 插件级启用状态集合（注册/启停时同步；路由与 wake_plugin 启用校验的权威依据——
     /// 禁用插件即使前端热键表残留也不得被唤醒）。DashSet 并发安全，免去外部锁。
     enabled_plugins: DashSet<String>,
     /// 活动会话（权威投影，代际随其写入递增）。
@@ -257,12 +277,11 @@ impl SessionDispatcher {
     pub fn new(plugin_registry: Arc<PluginRegistry>) -> Self {
         Self {
             plugin_registry,
-            trigger_index: DashMap::new(),
             enabled_plugins: DashSet::new(),
+
             active_session: RwLock::new(ActiveSession {
                 generation: 0,
-                plugin_id: None,
-                presentation: PresentationMode::None,
+                owner: SessionOwner::Host(HostView::None),
             }),
             search_pipeline: Arc::new(RwLock::new(None)),
             candidate_pipeline: Arc::new(tokio::sync::RwLock::new(CandidatePipeline::new())),
@@ -295,52 +314,25 @@ impl SessionDispatcher {
         self.executor_registry.write().unregister(component_id);
     }
 
-    /// 注册一个插件（内置/第三方统一入口）：注册服务 + 建立触发词索引。
-    /// 触发词冲突时拒绝并记录错误（不覆盖既有绑定）。
-    /// `enabled` 为当前持久化启用状态：禁用状态的插件（如用户上次关闭后重启）注册时不写入触发词，
-    /// 与运行时 set_plugin_enabled 的「禁用即不路由」语义保持一致。
-    /// 注意：这是触发词索引的写入入口之一，注册内置插件时也必须走此方法。
-    /// 触发词索引的完整写入路径：register_plugin_with_triggers（注册时按 enabled 建立）、
-    /// unregister_plugin（注销时清理）、set_plugin_enabled（启用恢复/禁用清理）。
-    /// 按形态过滤路由关键字：仅行内插件（Inline）的 trigger_keywords 参与触发词路由；
-    /// 沉浸式插件（Panel）不参与路由（仅经热键/候选项唤醒）。注册与启用恢复共用本过滤。
-    fn route_keywords_for(metadata: &PluginMetadata) -> Vec<String> {
-        if metadata.mode == PluginMode::Panel {
-            Vec::new()
-        } else {
-            metadata.trigger_keywords.clone()
-        }
-    }
-
-    pub fn register_plugin_with_triggers(
+    /// 注册一个插件（内置/第三方统一入口）。
+    ///
+    /// 不再建立触发词索引：路由在每次查询时按注册表元数据判定（权威来源即 `PluginMetadata`），
+    /// 因此同名触发词可以并存——多个插件同时命中时按 `(priority, plugin_id)` 确定性裁决。
+    /// `enabled` 为当前持久化启用状态：禁用插件仅登记不参与路由（启用恢复即改回该状态位）。
+    pub fn register_plugin(
         &self,
         plugin: Arc<dyn Plugin>,
         metadata: Arc<PluginMetadata>,
         enabled: bool,
     ) {
-        let keywords = Self::route_keywords_for(&metadata);
-        let conflicts: Vec<&str> = keywords
-            .iter()
-            .filter(|kw| self.trigger_index.contains_key(&kw.to_lowercase()))
-            .map(|s| s.as_str())
-            .collect();
-        if !conflicts.is_empty() {
-            error!(
-                "注册插件 '{}' 失败：触发词冲突 {:?}",
-                metadata.id, conflicts
-            );
-            return;
-        }
+        debug!(
+            plugin_id = metadata.id.as_str(),
+            mode = ?metadata.mode,
+            enabled,
+            "插件注册完成"
+        );
         self.plugin_registry.register(plugin, metadata.clone());
         self.set_plugin_enabled_state(&metadata.id, enabled);
-        if enabled {
-            self.try_insert_trigger_keywords(&metadata.id, &keywords);
-        } else {
-            info!(
-                "插件 '{}' 处于禁用状态，跳过触发词写入（启用时恢复）",
-                metadata.id
-            );
-        }
     }
 
     /// 规范化前端面板类型：第三方插件统一为 `third-party:<plugin_id>`
@@ -358,43 +350,26 @@ impl SessionDispatcher {
         }
     }
 
-    /// 写入触发词：逐词校验，被其他插件占用的词跳过并记录错误（不覆盖既有绑定）。
-    /// 用于 set_plugin_enabled 的启用恢复——注册与启停两条路径共用同一冲突规则。
-    fn try_insert_trigger_keywords(&self, plugin_id: &str, keywords: &[String]) {
-        for kw in keywords {
-            let kw_lower = kw.to_lowercase();
-            if let Some(owner) = self.trigger_index.get(&kw_lower) {
-                if owner.as_str() != plugin_id {
-                    error!(
-                        "恢复触发词 '{}' 冲突：已被插件 '{}' 占用，跳过（插件 '{}' 的该词不恢复）",
-                        kw,
-                        owner.as_str(),
-                        plugin_id
-                    );
-                    continue;
-                }
-            }
-            self.trigger_index.insert(kw_lower, plugin_id.to_string());
-        }
-    }
-
-    /// 移除插件的全部触发词路由；活动会话属于该插件时先执行会话重置。
-    /// 注销与禁用共用：两者语义都是「该插件不再可路由」。
-    fn remove_plugin_routes(&self, plugin_id: &str) {
-        self.trigger_index.retain(|_, v| v != plugin_id);
-        if self.active_session.read().plugin_id.as_deref() == Some(plugin_id) {
+    /// 会话归属该插件时结束会话（注销与禁用共用：两者语义都是「该插件不再可路由」）。
+    fn drop_owned_session(&self, plugin_id: &str) {
+        let owned = {
+            let session = self.active_session.read();
+            matches!(&session.owner, SessionOwner::Plugin(identity) if identity.plugin_id == plugin_id)
+        };
+        if owned {
             self.reset_session(true);
         }
     }
 
-    /// 注销一个插件：移除注册 + 触发词路由；活动会话属于该插件时先执行会话重置。
+    /// 注销一个插件：移除注册与启用状态；活动会话属于该插件时先执行会话重置。
     pub fn unregister_plugin(&self, plugin_id: &str) {
         self.plugin_registry.unregister(plugin_id);
         self.enabled_plugins.remove(plugin_id);
-        self.remove_plugin_routes(plugin_id);
+
+        self.drop_owned_session(plugin_id);
     }
 
-    /// 写入插件级启用状态（触发词索引与 wake_plugin 启用校验共用同一状态源）。
+    /// 写入插件级启用状态（路由与 wake_plugin 启用校验共用同一状态源）。
     fn set_plugin_enabled_state(&self, plugin_id: &str, enabled: bool) {
         if enabled {
             self.enabled_plugins.insert(plugin_id.to_string());
@@ -408,21 +383,12 @@ impl SessionDispatcher {
         self.enabled_plugins.contains(plugin_id)
     }
 
-    /// 插件启用状态变更时同步触发词索引：
-    /// 禁用 → 移除该插件全部触发词（搜索不再路由到它）；启用 → 恢复注册时的触发词
-    /// （逐词冲突检查：期间被其他插件占用的词跳过并记录错误，不覆盖既有绑定）。
-    /// 插件实例仍保留在 registry 中，不销毁（区别于 unregister_plugin）。
+    /// 插件启用状态变更：禁用 → 该插件立即退出路由（搜索不再路由到它）并结束其会话；
+    /// 启用 → 恢复路由资格。插件实例仍保留在 registry 中，不销毁。
     pub fn set_plugin_enabled(&self, plugin_id: &str, enabled: bool) {
         self.set_plugin_enabled_state(plugin_id, enabled);
-        if enabled {
-            let Some(metadata) = self.plugin_registry.get_metadata(plugin_id) else {
-                debug!("启用插件 {} 不在注册表中，跳过触发词恢复", plugin_id);
-                return;
-            };
-            let keywords = Self::route_keywords_for(&metadata);
-            self.try_insert_trigger_keywords(plugin_id, &keywords);
-        } else {
-            self.remove_plugin_routes(plugin_id);
+        if !enabled {
+            self.drop_owned_session(plugin_id);
         }
     }
 
@@ -674,20 +640,91 @@ impl SessionDispatcher {
         );
         true
     }
-    /// 解析触发词与剩余查询内容（首词空格分隔，精确匹配触发词索引）。
-    /// 语义：触发词必须带空格分隔（触发词+空格+内容），单独的触发词（无空格）
-    /// 不视为命中——前端 queryStillInPanel 镜像同样要求 raw.includes(' ')。
-    fn match_trigger<'a>(&self, raw_query: &'a str) -> (Option<String>, &'a str) {
-        let mut parts = raw_query.splitn(2, ' ');
-        let first = parts.next().unwrap_or("");
-        match parts.next() {
-            // 触发词索引键统一小写存储（注册时 normalize），查询首词小写化后匹配，
-            // 大小写变体（Translate / translate）均能命中。
-            Some(rest) if self.trigger_index.contains_key(&first.to_lowercase()) => {
-                (Some(first.to_string()), rest)
-            }
-            _ => (None, raw_query),
+    /// 查询路由裁决：返回接管的插件与派生查询词；无插件命中返回 `None`（走默认搜索）。
+    ///
+    /// 裁决规则（确定性，与注册表迭代顺序无关）：
+    /// - 前置：**输入含空格才可能命中**（框架关键词规则与检测器的提交规则都要求空格），
+    ///   无空格的输入直接跳过路由——省掉无谓的跨进程判定；
+    /// - 参与资格：行内形态（Panel 形态仅经热键/候选项唤醒，不参与路由）且处于启用状态；
+    /// - **统一入口**：并发调用每个候选插件的 `Plugin::match_query`（内置进程内、远端经
+    ///   `plugin/match_query` RPC），整体受 `ROUTE_DEADLINE` 兜底（超时/失败按不命中处理）；
+    /// - 命中者按 `priority` 小者优先、同优先级按 `plugin_id` 字典序选唯一赢家；
+    /// - 查询词与输入匹配模型由赢家的触发词推导：同时满足框架关键词规则 → 取其后的剩余
+    ///   （模型 `keywords`，前端可本地镜像）；否则用原始输入（模型 `custom`，前端粘性）。
+    ///
+    /// 并发只用于压缩耗时：裁决在结果收齐后按优先级进行，绝不按响应先后决定，避免路由不可复现。
+    async fn locate_plugin(&self, raw_query: &str) -> Option<LocatedPlugin> {
+        if !raw_query.contains(' ') {
+            return None;
         }
+
+        let candidates: Vec<(u32, Arc<PluginMetadata>, Arc<dyn Plugin>)> = self
+            .plugin_registry
+            .get_all_with_metadata()
+            .into_iter()
+            .filter(|(_, metadata)| {
+                metadata.mode == PluginMode::Inline
+                    && self.enabled_plugins.contains(metadata.id.as_str())
+            })
+            .map(|(plugin, metadata)| (metadata.priority, metadata, plugin))
+            .collect();
+
+        if candidates.is_empty() {
+            return None;
+        }
+
+        let pending = candidates.into_iter().map(|(priority, metadata, plugin)| {
+            Box::pin(async move {
+                let matched = plugin
+                    .match_query(raw_query, &metadata.trigger_keywords)
+                    .await;
+                (priority, metadata, matched)
+            })
+        });
+        let results =
+            match tokio::time::timeout(ROUTE_DEADLINE, futures_util::future::join_all(pending))
+                .await
+            {
+                Ok(results) => results,
+                Err(_) => {
+                    warn!(
+                        raw_query_len = raw_query.chars().count(),
+                        deadline_ms = ROUTE_DEADLINE.as_millis() as u64,
+                        "插件查询匹配未在截止时间内全部返回，未返回的插件按不命中处理"
+                    );
+                    return None;
+                }
+            };
+
+        let mut hits: Vec<(u32, Arc<PluginMetadata>)> = results
+            .into_iter()
+            .filter(|(_, _, matched)| *matched)
+            .map(|(priority, metadata, _)| (priority, metadata))
+            .collect();
+        hits.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.id.cmp(&b.1.id)));
+
+        let (priority, metadata) = hits.into_iter().next()?;
+        let (search_term, match_model) =
+            match keyword_trigger_match(&metadata.trigger_keywords, raw_query) {
+                Some(rest) => (
+                    rest.to_string(),
+                    InputMatch::Keywords {
+                        trigger_keywords: metadata.trigger_keywords.clone(),
+                    },
+                ),
+                None => (raw_query.to_string(), InputMatch::Custom),
+            };
+        debug!(
+            plugin_id = metadata.id.as_str(),
+            priority,
+            ?match_model,
+            "查询路由命中插件"
+        );
+        Some(LocatedPlugin {
+            plugin_id: metadata.id.clone(),
+            search_term,
+            match_model: Some(match_model),
+        })
     }
 
     /// 查询求值：显式插件直调（面板通道）→ 插件；触发词命中 → 插件；否则 → 默认搜索。
@@ -729,31 +766,31 @@ impl SessionDispatcher {
         ctx.query_channel = channel;
         ctx.locale = self.current_locale();
 
-        // 目标插件定位：显式直调或触发词索引路由，均未命中 → 默认搜索；
-        // 面板直调 search_term 为输入小写化，触发词路由为剥离触发词后的原文。
-        let located: Option<(String, String)> = match explicit_plugin_id {
-            Some(pid) => Some((pid.to_string(), query.raw_query.to_lowercase())),
-            None => {
-                let (trigger, search_term) = self.match_trigger(&query.raw_query);
-                trigger.map(|trigger| {
-                    let plugin_id = self
-                        .trigger_index
-                        .get(&trigger)
-                        .map(|e| e.value().clone())
-                        .unwrap_or_default();
-                    (plugin_id, search_term.to_string())
-                })
-            }
+        // 目标插件定位：显式直调或查询路由裁决，均未命中 → 默认搜索；
+        // 面板直调 search_term 为输入小写化，路由命中为关键词剥离结果或原始输入。
+        let located: Option<LocatedPlugin> = match explicit_plugin_id {
+            Some(pid) => Some(LocatedPlugin {
+                plugin_id: pid.to_string(),
+                search_term: query.raw_query.to_lowercase(),
+                // 面板直调查询不参与路由裁决，无输入匹配模型（只读路径不写会话投影）。
+                match_model: None,
+            }),
+            None => self.locate_plugin(&query.raw_query).await,
         };
 
-        if let Some((plugin_id, search_term)) = located {
+        if let Some(LocatedPlugin {
+            plugin_id,
+            search_term,
+            match_model,
+        }) = located
+        {
             let plugin = self.plugin_registry.get(&plugin_id).ok_or_else(|| {
                 SessionDispatcherError::InvalidState(format!(
                     "{}: 插件不存在: {}",
                     if explicit_plugin_id.is_some() {
                         "面板查询"
                     } else {
-                        "触发词索引指向"
+                        "查询路由指向"
                     },
                     plugin_id
                 ))
@@ -783,6 +820,7 @@ impl SessionDispatcher {
                             response: QueryResponse::Empty,
                             owner: Some(plugin_id),
                             current: false,
+                            match_model,
                         });
                     }
                     info!(
@@ -794,6 +832,7 @@ impl SessionDispatcher {
                         response,
                         owner: Some(plugin_id),
                         current: true,
+                        match_model,
                     })
                 }
                 Err(e) => {
@@ -818,6 +857,7 @@ impl SessionDispatcher {
                     response: QueryResponse::Empty,
                     owner: None,
                     current: false,
+                    match_model: None,
                 });
             };
             let normalized = collapse_repeated_spaces(&query.search_term);
@@ -831,6 +871,7 @@ impl SessionDispatcher {
                     response: QueryResponse::Empty,
                     owner: None,
                     current: false,
+                    match_model: None,
                 });
             }
 
@@ -861,6 +902,7 @@ impl SessionDispatcher {
                             },
                             owner: None,
                             current: true,
+                            match_model: None,
                         });
                     }
                 }
@@ -922,6 +964,7 @@ impl SessionDispatcher {
                 response: QueryResponse::List { results },
                 owner: None,
                 current: true,
+                match_model: None,
             })
         }
     }
@@ -941,20 +984,27 @@ impl SessionDispatcher {
     fn apply_session_projection(&self, evaluated: &EvaluatedQuery) {
         if let Some(plugin_id) = &evaluated.owner {
             // 展示形态：keep_search_bar 决定行内/全页面；非面板响应按行内形态进入。
-            let presentation = match &evaluated.response {
+            let view = match &evaluated.response {
                 QueryResponse::CustomPanel {
                     keep_search_bar, ..
                 } => {
                     if *keep_search_bar {
-                        PresentationMode::PluginPanel
+                        PluginView::Panel
                     } else {
-                        PresentationMode::PluginImmersive
+                        PluginView::Immersive
                     }
                 }
-                _ => PresentationMode::PluginPanel,
+                _ => PluginView::Panel,
             };
-            // 插件面板命中即进入插件会话投影：投递语义（无条件推送，语义见 deliver_session）。
-            self.deliver_session(Some(plugin_id.clone()), presentation, None);
+            // 插件面板命中即进入插件会话投影：投递语义（无条件推送，语义见 deliver_plugin_session）。
+            self.deliver_plugin_session(
+                PluginIdentity {
+                    plugin_id: plugin_id.clone(),
+                    view,
+                    input_match: evaluated.match_model.clone(),
+                },
+                None,
+            );
             return;
         }
         match &evaluated.response {
@@ -962,11 +1012,11 @@ impl SessionDispatcher {
                 *self.search_state.write() = SearchSubState::InlineParam {
                     candidate_id: *candidate_id,
                 };
-                self.enter_session(None, PresentationMode::InlineParam);
+                self.enter_host_session(HostView::InlineParam);
             }
             _ => {
                 *self.search_state.write() = SearchSubState::Search;
-                self.enter_session(None, PresentationMode::Search);
+                self.enter_host_session(HostView::Search);
             }
         }
     }
@@ -1043,8 +1093,9 @@ impl SessionDispatcher {
         req: ConfirmRequest,
     ) -> Result<RoutedConfirm, SessionDispatcherError> {
         let session = self.active_session_checked(req.generation())?;
-        match &session.plugin_id {
-            Some(plugin_id) => {
+        match &session.owner {
+            SessionOwner::Plugin(identity) => {
+                let plugin_id = &identity.plugin_id;
                 // 插件面板内执行：面板动作/默认动作统一经 execute_action 转发。
                 let plugin = self.plugin_registry.get(plugin_id).ok_or_else(|| {
                     SessionDispatcherError::InvalidState(format!("插件不存在: {}", plugin_id))
@@ -1098,7 +1149,7 @@ impl SessionDispatcher {
                     Err(e) => Err(SessionDispatcherError::PluginError(e.to_string())),
                 }
             }
-            None => {
+            SessionOwner::Host(_) => {
                 // 默认搜索只处理宿主候选确认；插件面板动作在插件归属分支处理。
                 let ConfirmRequest::Candidate {
                     candidate_id,
@@ -1146,7 +1197,7 @@ impl SessionDispatcher {
                             // 参数面板是默认搜索的子形态：子状态自持写入，投影形态自声明。
                             *self.search_state.write() =
                                 SearchSubState::ParamPanel { candidate_id };
-                            self.enter_session(None, PresentationMode::ParamPanel);
+                            self.enter_host_session(HostView::ParamPanel);
                             return Ok(RoutedConfirm {
                                 outcome: ConfirmOutcome::EnterParamPanel {
                                     candidate_id,
@@ -1177,7 +1228,7 @@ impl SessionDispatcher {
         }
     }
 
-    /// 共享骨架：读取并克隆活动会话，校验存在（presentation 非 None）与请求代际一致。
+    /// 共享骨架：读取并克隆活动会话，校验会话未结束与请求代际一致。
     /// 参数：request_generation - 请求携带的代际。
     /// 返回：校验通过的活动会话快照（确认入口共用）。
     fn active_session_checked(
@@ -1185,7 +1236,7 @@ impl SessionDispatcher {
         request_generation: u64,
     ) -> Result<ActiveSession, SessionDispatcherError> {
         let session = self.active_session.read().clone();
-        if session.presentation == PresentationMode::None {
+        if session.owner.is_ended() {
             return Err(SessionDispatcherError::InvalidState(
                 "No active session".to_string(),
             ));
@@ -1326,45 +1377,46 @@ impl SessionDispatcher {
 
     // ==================== 会话维护 ====================
 
-    /// 进入会话投影（变更通知语义）：归属/形态变化时递增代际并更新活动会话；
+    /// 进入宿主会话投影（变更通知语义）：形态变化时递增代际并更新活动会话；
     /// 投影未变则不推送。
     ///
-    /// 适用：载荷随 `bridge_query` 响应下发的形态（默认搜索 / 行内参数 / 参数面板）——
+    /// 适用：载荷随 `bridge_query` 响应下发的宿主形态（默认搜索 / 行内参数 / 参数面板）——
     /// 前端渲染这些形态不依赖事件投递。
-    ///
-    /// `plugin_id`：None = 宿主默认搜索（含行内参数/参数面板子状态）；Some(id) = 插件。
-    fn enter_session(&self, plugin_id: Option<String>, presentation: PresentationMode) {
-        self.enter_session_inner(plugin_id, presentation, None, false);
+    fn enter_host_session(&self, view: HostView) {
+        self.enter_session_inner(SessionOwner::Host(view), None, false);
     }
 
-    /// 投递会话投影（投递语义）：无条件推送，不按投影变化裁剪。
+    /// 投递插件会话投影（投递语义）：无条件推送，不按投影变化裁剪。
     ///
-    /// 不变式：插件的归属/交互契约/触发词**只能**经事件送达前端（查询响应不含这些字段），
+    /// 不变式：插件的归属/交互契约/输入匹配模型**只能**经事件送达前端（查询响应不含这些字段），
     /// 而前端可在不发任何 IPC 的情况下本地退出面板（后端无从观测），故"投影未变"
     /// 不能作为"前端已持有交互契约"的依据——命中路径必须每次投递，否则同面板重入会
     /// 丢失交互契约（Escape 等按键失效）。此处不得按投影变化"优化"为变更通知。
     ///
-    /// 调用方：① UI 查询命中插件；② 热键唤醒（`content` 是唤醒路径唯一的载荷通道）。
-    fn deliver_session(
+    /// 调用方：① UI 查询命中插件（`content` 为 None，载荷随查询响应下发）；
+    /// ② 热键唤醒（`content` 是唤醒路径唯一的载荷通道）。
+    fn deliver_plugin_session(
         &self,
-        plugin_id: Option<String>,
-        presentation: PresentationMode,
+        identity: PluginIdentity,
         content: Option<PluginPanelContent>,
     ) {
-        self.enter_session_inner(plugin_id, presentation, content, true);
+        self.enter_session_inner(SessionOwner::Plugin(identity), content, true);
     }
 
     /// 会话投影写入内部实现：`content` 为唤醒路径的面板渲染载荷，`deliver` 为投递语义
-    /// （无条件推送，语义见 `deliver_session`）。
+    /// （无条件推送，语义见 `deliver_plugin_session`）。
     fn enter_session_inner(
         &self,
-        plugin_id: Option<String>,
-        presentation: PresentationMode,
+        owner: SessionOwner,
         content: Option<PluginPanelContent>,
         deliver: bool,
     ) {
+        debug_assert!(
+            content.is_none() || matches!(owner, SessionOwner::Plugin(_)),
+            "面板渲染载荷只属于插件会话"
+        );
         let mut session = self.active_session.write();
-        let changed = session.plugin_id != plugin_id || session.presentation != presentation;
+        let changed = session.owner != owner;
         if !changed && !deliver {
             return;
         }
@@ -1377,64 +1429,70 @@ impl SessionDispatcher {
         if changed {
             *session = ActiveSession {
                 generation,
-                plugin_id: plugin_id.clone(),
-                presentation,
+                owner: owner.clone(),
             };
         }
         drop(session);
-        self.push_session_state(generation, &plugin_id, presentation, content);
+        self.push_session_state(generation, &owner, content);
     }
 
     /// 推送会话状态事件（无 emitter 的 CLI 场景直接跳过）。
+    ///
+    /// 事件载荷按 `owner` 分派：宿主会话不带插件字段；插件会话在投递时解析交互契约
+    /// （不入会话身份：配置变更需即时生效，且不参与代际比较）。
     fn push_session_state(
         &self,
         generation: u64,
-        plugin_id: &Option<String>,
-        presentation: PresentationMode,
+        owner: &SessionOwner,
         content: Option<PluginPanelContent>,
     ) {
         let Some(emitter) = self.session_emitter.read().clone() else {
             return;
         };
-        let (panel, interaction, trigger_keywords) = match plugin_id {
-            Some(id) => {
-                let plugin = self.plugin_registry.get(id);
-                (
-                    Some(PluginPanelInfo {
-                        plugin_id: id.clone(),
-                        panel_id: "main".to_string(),
-                    }),
-                    plugin.as_ref().map(|p| p.interaction_policy()),
-                    self.plugin_registry
-                        .get_metadata(id)
-                        .map(|m| m.trigger_keywords.clone())
-                        .unwrap_or_default(),
-                )
-            }
-            None => (None, None, Vec::new()),
+        let event = match owner {
+            SessionOwner::Host(view) => SessionStateEvent::Host {
+                generation,
+                view: *view,
+            },
+            SessionOwner::Plugin(identity) => SessionStateEvent::Plugin {
+                generation,
+                identity: identity.clone(),
+                interaction: self.resolve_interaction(identity),
+                panel_content: content.map(Box::new),
+            },
         };
-        emitter(SessionStateEvent {
-            generation,
-            presentation,
-            panel,
-            interaction,
-            trigger_keywords,
-            panel_content: content,
-        });
+        emitter(event);
+    }
+
+    /// 解析插件交互契约 —— 注册中心查不到时按宿主默认键降级并告警。
+    ///
+    /// 该状态可由用户操作稳定到达（卸载/禁用与在途查询并发：查询返回后写入投影时插件已注销），
+    /// 故只降级不 panic。
+    fn resolve_interaction(&self, identity: &PluginIdentity) -> PanelInteraction {
+        match self.plugin_registry.get(&identity.plugin_id) {
+            Some(plugin) => plugin.interaction_policy(),
+            None => {
+                warn!(
+                    plugin_id = identity.plugin_id.as_str(),
+                    "会话归属的插件不在注册中心，交互契约按宿主默认降级"
+                );
+                PanelInteraction::default()
+            }
+        }
     }
 
     /// 会话重置：参数面板/行内参数/搜索恒重置；插件模式仅当 `reset_plugins` 为 true 时重置
     /// （支持隐藏/显示间保持插件面板状态）。返回 true 表示实际执行了重置。
     pub fn reset_session(&self, reset_plugins: bool) -> bool {
         let mut session = self.active_session.write();
-        let should_reset = match &session.plugin_id {
-            Some(_) => reset_plugins,
-            None => session.presentation != PresentationMode::None,
+        let should_reset = match &session.owner {
+            SessionOwner::Plugin(_) => reset_plugins,
+            SessionOwner::Host(view) => *view != HostView::None,
         };
         if !should_reset {
             return false;
         }
-        let changed = session.presentation != PresentationMode::None;
+        let changed = !session.owner.is_ended();
         let generation = if changed {
             session.generation + 1
         } else {
@@ -1443,8 +1501,7 @@ impl SessionDispatcher {
         if changed {
             *session = ActiveSession {
                 generation,
-                plugin_id: None,
-                presentation: PresentationMode::None,
+                owner: SessionOwner::Host(HostView::None),
             };
         }
         // 默认搜索子状态重置（InlineParam/ParamPanel 属本调度器内嵌状态；
@@ -1454,7 +1511,7 @@ impl SessionDispatcher {
         drop(session);
         // 会话结束投影：唯一事件通道推送（原 session-reset 事件已删除）。
         if changed {
-            self.push_session_state(generation, &None, PresentationMode::None, None);
+            self.push_session_state(generation, &SessionOwner::Host(HostView::None), None);
         }
         true
     }
@@ -1464,9 +1521,14 @@ impl SessionDispatcher {
         self.active_session.read().clone()
     }
 
-    /// 当前展示形态（CLI /v1/session 等只读场景）。
-    pub fn current_presentation(&self) -> PresentationMode {
-        self.active_session.read().presentation
+    /// 当前会话形态的 snake_case 词（CLI `/v1/session` 等只读场景）。
+    pub fn current_view_str(&self) -> &'static str {
+        // 形态词是 'static：单次加锁读数后守卫即释放，无非原子多次读取。
+        let view = {
+            let session = self.active_session.read();
+            session.owner.view_str()
+        };
+        view
     }
 
     /// 当前会话代际。
@@ -1477,15 +1539,10 @@ impl SessionDispatcher {
     /// 重新推送当前会话投影（配置变更后调用，面板内调整防抖等即时生效）。
     pub fn reemit_current_session(&self) {
         let session = self.active_session.read().clone();
-        if session.presentation == PresentationMode::None {
+        if session.owner.is_ended() {
             return;
         }
-        self.push_session_state(
-            session.generation,
-            &session.plugin_id,
-            session.presentation,
-            None,
-        );
+        self.push_session_state(session.generation, &session.owner, None);
     }
 
     /// 搜索栏唤醒：捕获系统参数快照。
@@ -1580,7 +1637,7 @@ impl SessionDispatcher {
         // keep_search_bar → 展示形态映射保持一致，不因插件违约而中止唤醒。
         // 非 CustomPanel 响应（List/Empty）属契约违约，返回错误（前端无载荷可渲染，
         // 静默进入会导致前后端投影失步）。
-        let (presentation, content) = match response {
+        let (view, content) = match response {
             QueryResponse::CustomPanel {
                 panel_type,
                 data,
@@ -1592,10 +1649,10 @@ impl SessionDispatcher {
                     "热键唤醒插件 {} 返回 keep_search_bar=true（行内面板）——热键唤醒仅支持全页面接管（PluginImmersive），插件契约违约",
                     plugin_id
                 );
-                let presentation = if keep_search_bar {
-                    PresentationMode::PluginPanel
+                let view = if keep_search_bar {
+                    PluginView::Panel
                 } else {
-                    PresentationMode::PluginImmersive
+                    PluginView::Immersive
                 };
                 // 第三方插件 panel_type 统一为 third-party:<id>（前端 provider 匹配契约）
                 let normalized = Self::normalize_panel_type(
@@ -1606,7 +1663,7 @@ impl SessionDispatcher {
                     &panel_type,
                 );
                 (
-                    presentation,
+                    view,
                     Some(PluginPanelContent {
                         panel_type: normalized,
                         data,
@@ -1627,10 +1684,24 @@ impl SessionDispatcher {
         };
         info!(
             target = plugin_id,
-            presentation = presentation.as_str(),
+            presentation = view.as_str(),
             "热键唤醒插件"
         );
-        self.deliver_session(Some(plugin_id.to_string()), presentation, content);
+        // 热键唤醒无路由裁决：按插件声明的触发词下发前端镜像谓词（声明为空则无谓词）。
+        let trigger_keywords = meta
+            .as_ref()
+            .map(|m| m.trigger_keywords.clone())
+            .unwrap_or_default();
+        let input_match =
+            (!trigger_keywords.is_empty()).then_some(InputMatch::Keywords { trigger_keywords });
+        self.deliver_plugin_session(
+            PluginIdentity {
+                plugin_id: plugin_id.to_string(),
+                view,
+                input_match,
+            },
+            content,
+        );
         // 成功唤醒后统一确保窗口可见（热键与候选项确认两条唤醒路径共用；
         // show_window 幂等，窗口已可见时无副作用）。
         host_api.show_window().await;
@@ -1802,11 +1873,7 @@ impl SessionDispatcher {
                             .config_manager()
                             .map(|cm| cm.is_enabled(comp.core.component_id()))
                             .unwrap_or(true);
-                        self.register_plugin_with_triggers(
-                            p.clone(),
-                            adapters.metadata.clone(),
-                            enabled,
-                        );
+                        self.register_plugin(p.clone(), adapters.metadata.clone(), enabled);
                         // 远端插件 init（内置 init 在 bootstrap Phase B 统一执行）：
                         // 通知插件进程完成初始化（无宿主句柄，平台能力经 host RPC）。
                         // fire-and-forget：init 不阻塞配置事件循环（插件挂起时
@@ -1920,11 +1987,15 @@ mod tests {
         Arc::new(api)
     }
 
-    /// 触发词路由测试用最小插件桩 —— 仅填充元数据（触发词），其余方法空实现。
+    /// 触发词路由测试用最小插件桩 —— 仅填充元数据（触发词）与匹配裁决，其余方法空实现。
     /// 避免测试模块引用内置实现（plugin_framework 层不得依赖 builtin_plugin，P3 层级）。
     struct TriggerStubPlugin {
+        /// 插件级元数据：`trigger_keywords` 决定框架关键词判定的输入。
         metadata: PluginMetadata,
+        /// 组件级身份。
         core: ComponentCore,
+        /// 自定义匹配结果：None = 不覆盖（跑与生产默认实现同一份关键词判定）；Some = 覆盖返回值。
+        custom_verdict: Option<bool>,
     }
 
     impl TriggerStubPlugin {
@@ -1952,7 +2023,7 @@ mod tests {
             plugin
         }
 
-        /// 指定插件 id 的构造器：允许两个插件声明相同触发词（用于冲突路径测试）。
+        /// 指定插件 id 的构造器：允许两个插件声明相同触发词（用于并存与优先级裁决测试）。
         fn with_trigger_and_id(trigger: &str, id: &str) -> Self {
             Self {
                 metadata: PluginMetadata {
@@ -1976,7 +2047,16 @@ mod tests {
                     ComponentType::Plugin,
                     0,
                 ),
+                custom_verdict: None,
             }
+        }
+
+        /// 自定义匹配桩：`match_query` 恒返回指定结果（触发词仍声明，用于验证
+        /// "覆盖后由插件自行判定，不再走框架关键词规则"）。
+        fn with_custom_matcher(trigger: &str, matched: bool) -> Self {
+            let mut plugin = Self::with_trigger(trigger);
+            plugin.custom_verdict = Some(matched);
+            plugin
         }
     }
 
@@ -2008,6 +2088,12 @@ mod tests {
             Ok(QueryResponse::Empty)
         }
 
+        /// 查询匹配：未指定自定义结果时，按生产默认实现同一份共享关键词判定作答。
+        async fn match_query(&self, raw_query: &str, keywords: &[String]) -> bool {
+            self.custom_verdict
+                .unwrap_or_else(|| keyword_trigger_match(keywords, raw_query).is_some())
+        }
+
         async fn execute_action(
             &self,
             _ctx: &PluginContext,
@@ -2018,109 +2104,169 @@ mod tests {
         }
     }
 
-    /// 注册带触发词的插件后，match_trigger 必须命中。
-    /// 回归：此前 bootstrap 只调 plugin_registry().register（不写触发词索引），
+    /// 关键词模型插件注册后参与路由：触发词 + 空格命中并切出查询词；无空格不命中。
+    /// 回归：此前 bootstrap 只调 plugin_registry().register（不参与路由），
     /// 导致内置触发式插件（translator/calculator）路由恒 miss、静默落入默认搜索。
-    #[test]
-    fn register_plugin_with_triggers_enables_match_trigger() {
+    #[tokio::test]
+    async fn keyword_model_plugin_routes_on_trigger_with_space() {
         let dispatcher = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
         let plugin = Arc::new(TriggerStubPlugin::with_trigger("="));
-        dispatcher.register_plugin_with_triggers(plugin.clone(), plugin.metadata_arc(), true);
+        dispatcher.register_plugin(plugin.clone(), plugin.metadata_arc(), true);
 
-        // 触发词 + 空格分隔 → 命中并切出搜索词
-        assert_eq!(
-            dispatcher.match_trigger("= 1+1"),
-            (Some("=".to_string()), "1+1")
-        );
-        // 无空格分隔 → 不命中（与前端 queryStillInPanel 镜像判定一致）
-        assert_eq!(dispatcher.match_trigger("=1+1"), (None, "=1+1"));
+        let hit = dispatcher
+            .locate_plugin("= 1+1")
+            .await
+            .expect("触发词 + 空格应命中");
+        assert_eq!(hit.plugin_id, "test.=");
+        assert_eq!(hit.search_term, "1+1");
+
+        // 无空格分隔 → 不命中（与前端关键词镜像判定一致）
+        assert!(dispatcher.locate_plugin("=1+1").await.is_none());
     }
 
-    /// 禁用插件后触发词不再命中；重新启用后恢复。
+    /// 禁用插件后不再参与路由；重新启用后恢复。对未注册插件启用无害。
     /// 回归：config_set_enabled 对 Plugin 类型组件曾「无需响应」，禁用后插件仍可路由使用。
-    #[test]
-    fn set_plugin_enabled_toggles_trigger_index() {
+    #[tokio::test]
+    async fn set_plugin_enabled_toggles_routing() {
         let dispatcher = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
         let plugin = Arc::new(TriggerStubPlugin::with_trigger("="));
         let plugin_id = plugin.metadata.id.clone();
-        dispatcher.register_plugin_with_triggers(plugin.clone(), plugin.metadata_arc(), true);
+        dispatcher.register_plugin(plugin.clone(), plugin.metadata_arc(), true);
+        assert!(dispatcher.locate_plugin("= 1+1").await.is_some());
 
-        // 注册后命中
-        assert_eq!(
-            dispatcher.match_trigger("= 1+1"),
-            (Some("=".to_string()), "1+1")
-        );
-
-        // 禁用 → 触发词移除，不再路由到该插件
         dispatcher.set_plugin_enabled(&plugin_id, false);
-        assert_eq!(dispatcher.match_trigger("= 1+1"), (None, "= 1+1"));
+        assert!(dispatcher.locate_plugin("= 1+1").await.is_none());
 
-        // 启用 → 触发词恢复
         dispatcher.set_plugin_enabled(&plugin_id, true);
-        assert_eq!(
-            dispatcher.match_trigger("= 1+1"),
-            (Some("=".to_string()), "1+1")
-        );
+        assert!(dispatcher.locate_plugin("= 1+1").await.is_some());
 
-        // 对未注册插件启用：无害（无触发词可恢复）
+        // 对未注册插件启用：无害（无路由资格可恢复）
         dispatcher.set_plugin_enabled("not-registered", true);
-        assert_eq!(
-            dispatcher.match_trigger("= 1+1"),
-            (Some("=".to_string()), "1+1")
-        );
+        assert!(dispatcher.locate_plugin("= 1+1").await.is_some());
     }
 
-    /// 持久化为禁用的插件注册时不建立触发词路由（重启后保持禁用语义）。
-    #[test]
-    fn register_disabled_plugin_skips_trigger_index() {
+    /// 持久化为禁用的插件注册时不参与路由（重启后保持禁用语义）。
+    #[tokio::test]
+    async fn register_disabled_plugin_does_not_route() {
         let dispatcher = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
         let plugin = Arc::new(TriggerStubPlugin::with_trigger("="));
         let plugin_id = plugin.metadata.id.clone();
-        dispatcher.register_plugin_with_triggers(plugin.clone(), plugin.metadata_arc(), false);
+        dispatcher.register_plugin(plugin.clone(), plugin.metadata_arc(), false);
 
-        // 注册了但触发词未写入：不路由
-        assert_eq!(dispatcher.match_trigger("= 1+1"), (None, "= 1+1"));
+        assert!(dispatcher.locate_plugin("= 1+1").await.is_none());
 
-        // 启用后恢复路由
         dispatcher.set_plugin_enabled(&plugin_id, true);
+        assert!(dispatcher.locate_plugin("= 1+1").await.is_some());
+    }
+
+    /// 同名触发词并存不再被拒绝：多个插件同时命中时按 (priority, plugin_id) 确定性裁决，
+    /// 胜者禁用后次优先者接管（不因并存而失效）。
+    #[tokio::test]
+    async fn same_keyword_coexists_and_priority_decides() {
+        let dispatcher = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
+        let mut plugin_a = TriggerStubPlugin::with_trigger_and_id("=", "plugin-a");
+        plugin_a.metadata.priority = 10;
+        let plugin_a = Arc::new(plugin_a);
+        let mut plugin_b = TriggerStubPlugin::with_trigger_and_id("=", "plugin-b");
+        plugin_b.metadata.priority = 20;
+        let plugin_b = Arc::new(plugin_b);
+
+        dispatcher.register_plugin(plugin_a.clone(), plugin_a.metadata_arc(), true);
+        dispatcher.register_plugin(plugin_b.clone(), plugin_b.metadata_arc(), true);
+
+        // priority 小者胜（与注册顺序、迭代顺序无关）
         assert_eq!(
-            dispatcher.match_trigger("= 1+1"),
-            (Some("=".to_string()), "1+1")
+            dispatcher
+                .locate_plugin("= 1+1")
+                .await
+                .expect("两个插件都应命中")
+                .plugin_id,
+            "plugin-a"
+        );
+
+        dispatcher.set_plugin_enabled("plugin-a", false);
+        assert_eq!(
+            dispatcher
+                .locate_plugin("= 1+1")
+                .await
+                .expect("次优先者接管")
+                .plugin_id,
+            "plugin-b"
+        );
+
+        dispatcher.set_plugin_enabled("plugin-b", false);
+        assert!(dispatcher.locate_plugin("= 1+1").await.is_none());
+    }
+
+    /// 自定义匹配模型：声明 Custom 的插件由 `match_query` 裁决，不参与宿主关键词兜底；
+    /// 命中时查询词为原始输入（不剥离触发词）；与关键词插件同时命中时同样按优先级裁决。
+    #[tokio::test]
+    async fn custom_matcher_decides_and_competes_by_priority() {
+        let dispatcher = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
+
+        // 覆盖判定返回 false：即使声明了触发词也不命中（覆盖后框架关键词规则不再参与）
+        let custom_miss = Arc::new(TriggerStubPlugin::with_custom_matcher("path", false));
+        dispatcher.register_plugin(custom_miss.clone(), custom_miss.metadata_arc(), true);
+        assert!(dispatcher.locate_plugin("path C:\\Users").await.is_none());
+        dispatcher.set_plugin_enabled("test.path", false);
+
+        // 覆盖判定命中 + 仍声明触发词：查询词按框架规则剥离触发词（模型 keywords）
+        let mut custom_hit = TriggerStubPlugin::with_custom_matcher("path", true);
+        custom_hit.metadata.id = "custom-path".to_string();
+        custom_hit.metadata.priority = 50;
+        let custom_hit = Arc::new(custom_hit);
+        dispatcher.register_plugin(custom_hit.clone(), custom_hit.metadata_arc(), true);
+
+        let hit = dispatcher
+            .locate_plugin("path C:\\Users")
+            .await
+            .expect("自定义匹配应接管");
+        assert_eq!(hit.plugin_id, "custom-path");
+        assert_eq!(hit.search_term, "C:\\Users");
+        assert_eq!(
+            hit.match_model,
+            Some(InputMatch::Keywords {
+                trigger_keywords: vec!["path".to_string()]
+            })
+        );
+
+        // 覆盖判定命中 + 无触发词（检测器形态）：查询词为原始输入（模型 custom）
+        let mut detector_like = TriggerStubPlugin::with_custom_matcher("url", true);
+        detector_like.metadata.id = "detector-like".to_string();
+        detector_like.metadata.priority = 1;
+        detector_like.metadata.trigger_keywords.clear();
+        let detector_like = Arc::new(detector_like);
+        dispatcher.register_plugin(detector_like.clone(), detector_like.metadata_arc(), true);
+
+        let hit = dispatcher
+            .locate_plugin("github.com ")
+            .await
+            .expect("无触发词的自定义匹配应接管");
+        assert_eq!(hit.plugin_id, "detector-like");
+        assert_eq!(hit.search_term, "github.com ");
+        assert_eq!(hit.match_model, Some(InputMatch::Custom));
+
+        // 与关键词插件竞争同一输入：priority 小者（关键词插件，0）胜
+        let keyword = Arc::new(TriggerStubPlugin::with_trigger_and_id("path", "kw-path"));
+        dispatcher.register_plugin(keyword.clone(), keyword.metadata_arc(), true);
+        assert_eq!(
+            dispatcher
+                .locate_plugin("path x")
+                .await
+                .expect("应命中")
+                .plugin_id,
+            "kw-path"
         );
     }
 
-    /// 启用恢复触发词时遇到被其他插件占用的词：跳过并保留既有绑定（不覆盖）。
-    #[test]
-    fn enable_recovery_skips_conflicting_keyword() {
+    /// 沉浸式（Panel）形态插件不参与查询路由——面板形态仅经热键/候选项唤醒。
+    #[tokio::test]
+    async fn panel_mode_plugin_does_not_route() {
         let dispatcher = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
-        // 插件 A 与 B 声明相同触发词但 id 不同
-        let plugin_a = Arc::new(TriggerStubPlugin::with_trigger_and_id("=", "plugin-a"));
-        let plugin_b = Arc::new(TriggerStubPlugin::with_trigger_and_id("=", "plugin-b"));
-        // A 注册并占用 "="
-        dispatcher.register_plugin_with_triggers(plugin_a.clone(), plugin_a.metadata_arc(), true);
-        assert_eq!(
-            dispatcher.trigger_index.get("=").map(|r| r.clone()),
-            Some("plugin-a".to_string())
-        );
+        let plugin = Arc::new(TriggerStubPlugin::with_panel_trigger("paneltrig"));
+        dispatcher.register_plugin(plugin.clone(), plugin.metadata_arc(), true);
 
-        // A 禁用（释放 "="）→ B 注册（无冲突，占用 "="）
-        dispatcher.set_plugin_enabled("plugin-a", false);
-        dispatcher.register_plugin_with_triggers(plugin_b.clone(), plugin_b.metadata_arc(), true);
-        assert_eq!(
-            dispatcher.trigger_index.get("=").map(|r| r.clone()),
-            Some("plugin-b".to_string())
-        );
-
-        // A 重新启用："=" 已被 B 占用 → 跳过恢复，B 绑定不被覆盖
-        dispatcher.set_plugin_enabled("plugin-a", true);
-        assert_eq!(
-            dispatcher.match_trigger("= 1+1"),
-            (Some("=".to_string()), "1+1")
-        );
-        assert_eq!(
-            dispatcher.trigger_index.get("=").map(|r| r.clone()),
-            Some("plugin-b".to_string())
-        );
+        assert!(dispatcher.locate_plugin("paneltrig x").await.is_none());
     }
 
     /// 热键唤醒测试用面板桩 —— query 返回 CustomPanel（形态由构造参数决定）。
@@ -2218,7 +2364,7 @@ mod tests {
         let dispatcher = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
         dispatcher.set_host_api(test_host_api());
         let plugin = Arc::new(PanelStubPlugin::new());
-        dispatcher.register_plugin_with_triggers(plugin.clone(), plugin.metadata_arc(), true);
+        dispatcher.register_plugin(plugin.clone(), plugin.metadata_arc(), true);
 
         // 捕获会话事件（后端权威投影推送的唯一通道）
         let events = Arc::new(Mutex::new(Vec::new()));
@@ -2232,20 +2378,15 @@ mod tests {
             .await
             .expect("热键唤醒应成功");
 
-        let session = dispatcher.current_session();
-        assert_eq!(session.plugin_id.as_deref(), Some("test.panel"));
-        assert_eq!(session.presentation, PresentationMode::PluginImmersive);
+        assert_eq!(active_plugin_id(&dispatcher).as_deref(), Some("test.panel"));
+        assert_eq!(dispatcher.current_view_str(), "plugin_immersive");
 
         let events = events.lock();
         let event = events.last().expect("应推送会话事件");
-        assert_eq!(
-            event.panel.as_ref().map(|p| p.plugin_id.as_str()),
-            Some("test.panel")
-        );
-        let content = event
-            .panel_content
-            .as_ref()
-            .expect("唤醒推送应携带面板载荷");
+        assert_eq!(event_plugin_id(event), Some("test.panel"));
+        let interaction = event_interaction(event).expect("插件事件应携带交互契约");
+        let _ = &interaction.bindings;
+        let content = event_panel_content(event).expect("唤醒推送应携带面板载荷");
         assert_eq!(content.panel_type, "test-panel");
         assert_eq!(content.data, serde_json::json!({ "hello": "world" }));
     }
@@ -2257,7 +2398,7 @@ mod tests {
         dispatcher.set_host_api(test_host_api());
         let plugin = Arc::new(PanelStubPlugin::new());
         // 禁用状态注册（enabled=false）→ 不在启用集合
-        dispatcher.register_plugin_with_triggers(plugin.clone(), plugin.metadata_arc(), false);
+        dispatcher.register_plugin(plugin.clone(), plugin.metadata_arc(), false);
 
         let err = dispatcher.wake_plugin("test.panel").await.unwrap_err();
         assert!(
@@ -2275,7 +2416,7 @@ mod tests {
         // TriggerStubPlugin 的 query 返回 Empty（非 CustomPanel）；panel 形态才能通过 mode 校验
         let plugin = Arc::new(TriggerStubPlugin::with_panel_trigger("="));
         let plugin_id = plugin.metadata.id.clone();
-        dispatcher.register_plugin_with_triggers(plugin.clone(), plugin.metadata_arc(), true);
+        dispatcher.register_plugin(plugin.clone(), plugin.metadata_arc(), true);
 
         let err = dispatcher.wake_plugin(&plugin_id).await.unwrap_err();
         assert!(
@@ -2293,7 +2434,7 @@ mod tests {
         // inline 形态 + 声明热键 → mode 校验拒绝（不进入查询）
         let plugin = Arc::new(TriggerStubPlugin::with_inline_hotkey_trigger("="));
         let plugin_id = plugin.metadata.id.clone();
-        dispatcher.register_plugin_with_triggers(plugin.clone(), plugin.metadata_arc(), true);
+        dispatcher.register_plugin(plugin.clone(), plugin.metadata_arc(), true);
 
         let err = dispatcher.wake_plugin(&plugin_id).await.unwrap_err();
         assert!(
@@ -2317,7 +2458,7 @@ mod tests {
 
         let plugin = Arc::new(PanelStubPlugin::new());
         let plugin_id = plugin.metadata.id.clone();
-        dispatcher.register_plugin_with_triggers(plugin.clone(), plugin.metadata_arc(), true);
+        dispatcher.register_plugin(plugin.clone(), plugin.metadata_arc(), true);
 
         // 构造插件候选并刷新进缓存
         {
@@ -2358,9 +2499,8 @@ mod tests {
             .await
             .expect("插件候选确认应成功");
 
-        let session = dispatcher.current_session();
-        assert_eq!(session.plugin_id.as_deref(), Some("test.panel"));
-        assert_eq!(session.presentation, PresentationMode::PluginImmersive);
+        assert_eq!(active_plugin_id(&dispatcher).as_deref(), Some("test.panel"));
+        assert_eq!(dispatcher.current_view_str(), "plugin_immersive");
     }
 
     /// 热键唤醒 = 全页面接管：keep_search_bar=true（行内面板）属契约违约，
@@ -2373,7 +2513,7 @@ mod tests {
         let dispatcher = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
         dispatcher.set_host_api(test_host_api());
         let plugin = Arc::new(PanelStubPlugin::with_keep_search_bar(true));
-        dispatcher.register_plugin_with_triggers(plugin.clone(), plugin.metadata_arc(), true);
+        dispatcher.register_plugin(plugin.clone(), plugin.metadata_arc(), true);
 
         // 应 panic（断言消息含 keep_search_bar=true），不返回
         let _ = dispatcher.wake_plugin("test.panel").await;
@@ -2499,7 +2639,7 @@ mod tests {
         let dispatcher = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
         let calls = Arc::new(Mutex::new(Vec::new()));
         let plugin = Arc::new(RecordingStubPlugin::new("=", calls.clone()));
-        dispatcher.register_plugin_with_triggers(plugin.clone(), plugin.metadata_arc(), true);
+        dispatcher.register_plugin(plugin.clone(), plugin.metadata_arc(), true);
 
         // 调用方 confirm=true：面板直调必须强制为 false
         let query = Query {
@@ -2524,8 +2664,8 @@ mod tests {
             "响应应回填插件 id"
         );
         assert_eq!(
-            dispatcher.current_presentation(),
-            PresentationMode::None,
+            dispatcher.current_view_str(),
+            "none",
             "Panel 通道不改写会话"
         );
     }
@@ -2536,7 +2676,7 @@ mod tests {
         let dispatcher = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
         let calls = Arc::new(Mutex::new(Vec::new()));
         let plugin = Arc::new(RecordingStubPlugin::new("=", calls.clone()));
-        dispatcher.register_plugin_with_triggers(plugin.clone(), plugin.metadata_arc(), true);
+        dispatcher.register_plugin(plugin.clone(), plugin.metadata_arc(), true);
 
         let query = Query {
             id: "trace".to_string(),
@@ -2556,8 +2696,8 @@ mod tests {
         assert!(confirm, "触发词路由应透传 confirm");
         assert_eq!(routed.plugin_id.as_deref(), Some("test.="));
         assert_eq!(
-            dispatcher.current_presentation(),
-            PresentationMode::PluginPanel,
+            dispatcher.current_view_str(),
+            "plugin_panel",
             "UI 通道插件命中应写入会话投影"
         );
     }
@@ -2622,8 +2762,8 @@ mod tests {
         assert_eq!(trigger_keyword, "echo");
         assert_eq!(user_arg_count, 1);
         assert_eq!(
-            dispatcher.current_presentation(),
-            PresentationMode::InlineParam,
+            dispatcher.current_view_str(),
+            "inline_param",
             "InlineParam 响应应写入行内参数展示形态"
         );
         assert!(
@@ -2668,7 +2808,7 @@ mod tests {
             RecordingStubPlugin::new("=", calls.clone())
                 .with_delay(std::time::Duration::from_millis(100)),
         );
-        dispatcher.register_plugin_with_triggers(plugin.clone(), plugin.metadata_arc(), true);
+        dispatcher.register_plugin(plugin.clone(), plugin.metadata_arc(), true);
 
         // 慢查询：触发词命中 → 本应进入 test.= 插件面板会话
         let slow_query = Query {
@@ -2710,13 +2850,13 @@ mod tests {
             "过期丢弃仍回填插件 id"
         );
         assert_eq!(
-            dispatcher.current_session().plugin_id,
+            active_plugin_id(&dispatcher),
             None,
             "过期查询不得把会话投影改写为插件归属"
         );
         assert_eq!(
-            dispatcher.current_presentation(),
-            PresentationMode::Search,
+            dispatcher.current_view_str(),
+            "search",
             "投影应保留快查询写入的搜索形态"
         );
     }
@@ -2809,6 +2949,57 @@ mod tests {
         events
     }
 
+    /// 事件形态词（宿主/插件两种形态统一到 snake_case 词表）。
+    fn event_view_str(event: &SessionStateEvent) -> &'static str {
+        match event {
+            SessionStateEvent::Host { view, .. } => view.as_str(),
+            SessionStateEvent::Plugin { identity, .. } => identity.view.as_str(),
+        }
+    }
+
+    /// 事件的插件归属 id（宿主事件为 None）。
+    fn event_plugin_id(event: &SessionStateEvent) -> Option<&str> {
+        match event {
+            SessionStateEvent::Host { .. } => None,
+            SessionStateEvent::Plugin { identity, .. } => Some(identity.plugin_id.as_str()),
+        }
+    }
+
+    /// 事件的交互契约（宿主事件无此事实，为 None）。
+    fn event_interaction(event: &SessionStateEvent) -> Option<&PanelInteraction> {
+        match event {
+            SessionStateEvent::Host { .. } => None,
+            SessionStateEvent::Plugin { interaction, .. } => Some(interaction),
+        }
+    }
+
+    /// 事件携带的面板渲染载荷（宿主事件与关键词查询投递均为 None）。
+    fn event_panel_content(event: &SessionStateEvent) -> Option<&PluginPanelContent> {
+        match event {
+            SessionStateEvent::Host { .. } => None,
+            SessionStateEvent::Plugin { panel_content, .. } => panel_content.as_deref(),
+        }
+    }
+
+    /// 事件的关键词镜像触发词（宿主事件与非关键词模型为空）。
+    fn event_trigger_keywords(event: &SessionStateEvent) -> &[String] {
+        match event {
+            SessionStateEvent::Host { .. } => &[],
+            SessionStateEvent::Plugin { identity, .. } => match &identity.input_match {
+                Some(InputMatch::Keywords { trigger_keywords }) => trigger_keywords,
+                _ => &[],
+            },
+        }
+    }
+
+    /// 活动会话的插件归属 id（宿主会话为 None）。
+    fn active_plugin_id(dispatcher: &SessionDispatcher) -> Option<String> {
+        match dispatcher.current_session().owner {
+            SessionOwner::Plugin(identity) => Some(identity.plugin_id),
+            SessionOwner::Host(_) => None,
+        }
+    }
+
     /// 投递不变式：UI 查询每次命中同一插件都必须投递会话投影。
     ///
     /// 前端渲染插件面板所需的归属/交互契约/触发词只随 session-state 下发，而前端可在
@@ -2823,7 +3014,7 @@ mod tests {
             "=",
             Arc::new(Mutex::new(Vec::new())),
         ));
-        dispatcher.register_plugin_with_triggers(plugin.clone(), plugin.metadata_arc(), true);
+        dispatcher.register_plugin(plugin.clone(), plugin.metadata_arc(), true);
 
         dispatcher
             .route_query_ui("trace-1", &plugin_query())
@@ -2838,24 +3029,33 @@ mod tests {
         assert_eq!(events.len(), 2, "每次命中都必须投递会话投影");
         for event in events.iter() {
             assert_eq!(
-                event.panel.as_ref().map(|p| p.plugin_id.as_str()),
+                event_plugin_id(event),
                 Some("test.="),
                 "投递须携带会话归属（面板动作回传 pluginId 依赖）"
             );
-            let interaction = event.interaction.as_ref().expect("投递须携带交互契约");
+            let interaction = event_interaction(event).expect("投递须携带交互契约");
             assert!(
                 interaction.bindings.iter().any(|b| b.key == "Escape"),
                 "投递须携带按键声明（否则面板无法退出）"
             );
             assert!(
-                event.trigger_keywords.contains(&"=".to_string()),
+                event_trigger_keywords(event).contains(&"=".to_string()),
                 "投递须携带触发词（前端退出判定镜像参数）"
             );
         }
         assert_eq!(
-            events[0].generation, events[1].generation,
+            event_generation(&events[0]),
+            event_generation(&events[1]),
             "投影未变：重复投递不递增代际"
         );
+    }
+
+    /// 事件代际（两类会话共有字段）。
+    fn event_generation(event: &SessionStateEvent) -> u64 {
+        match event {
+            SessionStateEvent::Host { generation, .. } => *generation,
+            SessionStateEvent::Plugin { generation, .. } => *generation,
+        }
     }
 
     /// 变更通知语义：默认搜索查询只在投影变化时推送（载荷随 bridge_query 响应下发）。
@@ -2892,7 +3092,7 @@ mod tests {
             "=",
             Arc::new(Mutex::new(Vec::new())),
         ));
-        dispatcher.register_plugin_with_triggers(plugin.clone(), plugin.metadata_arc(), true);
+        dispatcher.register_plugin(plugin.clone(), plugin.metadata_arc(), true);
 
         dispatcher
             .route_query_panel("trace-1", &plugin_query(), "test.=")
@@ -2905,8 +3105,8 @@ mod tests {
 
         assert!(events.lock().is_empty(), "只读入口不得投递会话事件");
         assert_eq!(
-            dispatcher.current_presentation(),
-            PresentationMode::None,
+            dispatcher.current_view_str(),
+            "none",
             "只读入口不得改写会话投影"
         );
     }
@@ -2922,15 +3122,15 @@ mod tests {
             "=",
             Arc::new(Mutex::new(Vec::new())),
         ));
-        dispatcher.register_plugin_with_triggers(plugin.clone(), plugin.metadata_arc(), true);
+        dispatcher.register_plugin(plugin.clone(), plugin.metadata_arc(), true);
 
         dispatcher
             .route_query_ui("trace-1", &plugin_query())
             .await
             .expect("插件命中应成功");
         assert_eq!(
-            dispatcher.current_presentation(),
-            PresentationMode::PluginPanel,
+            dispatcher.current_view_str(),
+            "plugin_panel",
             "前置：已进入插件会话"
         );
 
@@ -2943,23 +3143,19 @@ mod tests {
             matches!(routed.response, QueryResponse::Empty),
             "空查询应返回空响应"
         );
+        assert_eq!(active_plugin_id(&dispatcher), None, "空查询应结束插件会话");
         assert_eq!(
-            dispatcher.current_session().plugin_id,
-            None,
-            "空查询应结束插件会话"
-        );
-        assert_eq!(
-            dispatcher.current_presentation(),
-            PresentationMode::None,
+            dispatcher.current_view_str(),
+            "none",
             "空查询应复位会话投影"
         );
         assert_eq!(
             events
                 .lock()
                 .last()
-                .map(|e| e.presentation)
+                .map(event_view_str)
                 .expect("应推送会话结束投影"),
-            PresentationMode::None,
+            "none",
             "会话结束经 session-state 投递（前端据此复位本地状态）"
         );
     }
@@ -2975,7 +3171,7 @@ mod tests {
             "=",
             Arc::new(Mutex::new(Vec::new())),
         ));
-        dispatcher.register_plugin_with_triggers(plugin.clone(), plugin.metadata_arc(), true);
+        dispatcher.register_plugin(plugin.clone(), plugin.metadata_arc(), true);
 
         dispatcher
             .route_query_ui("trace-1", &plugin_query())
@@ -2988,10 +3184,10 @@ mod tests {
             .expect("空查询应成功");
 
         assert_eq!(
-            dispatcher.current_presentation(),
-            PresentationMode::Search,
+            dispatcher.current_view_str(),
+            "search",
             "常驻结果框开启时空查询进入搜索形态（主页）"
         );
-        assert_eq!(dispatcher.current_session().plugin_id, None);
+        assert_eq!(active_plugin_id(&dispatcher), None);
     }
 }

@@ -1,9 +1,11 @@
 pub mod cached_candidate;
 pub mod plugin_trait;
+pub mod trigger;
 pub mod types;
 
 pub use cached_candidate::{CachedCandidateData, CandidateCacheSnapshot};
 pub use plugin_trait::Plugin;
+pub use trigger::keyword_trigger_match;
 pub use types::{
     ActionExecutor, CandidateId, DataSource, ExecutionContext, ExecutionError, ExecutionTarget,
     KeywordInjector, KeywordInputSource, KeywordOptimizer, ListItem, PanelInteraction,

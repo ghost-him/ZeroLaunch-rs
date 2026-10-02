@@ -9,7 +9,7 @@ export function onConfigChanged(
   })
 }
 
-/** 后端会话投影变化时推送的会话状态事件（唯一会话事件通道，含会话结束 presentation:'none'）。 */
+/** 后端会话投影变化时推送的会话状态事件（唯一会话事件通道，含会话结束 { kind:'host', view:'none' }）。 */
 export function onSessionState(
   callback: (payload: SessionStateEvent) => void,
 ): Promise<UnlistenFn> {

@@ -279,7 +279,7 @@ fn init_search_bar_window(app: &mut App) {
                     .get_component_setting("general-config", "reset_session_on_wake")
                     .and_then(|v| v.as_bool())
                     .unwrap_or(true);
-                // 会话重置由 Dispatcher 内部推送 session-state（presentation: 'none'），
+                // 会话重置由 Dispatcher 内部推送 session-state（kind: .host., view: .none.），
                 // 原 session-reset 事件已删除（统一会话事件通道，见设计 §4.4）。
                 session_dispatcher.reset_session(reset_plugins);
             });

@@ -5,8 +5,7 @@ use std::sync::Arc;
 use crate::state::app_state::AppState;
 
 pub async fn get_mode(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
-    let mode = state.get_session_dispatcher().current_presentation();
-    let mode_str = mode.as_str();
+    let mode_str = state.get_session_dispatcher().current_view_str();
     Json(serde_json::json!({ "mode": mode_str }))
 }
 

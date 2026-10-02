@@ -55,36 +55,52 @@ export interface PanelInteraction {
   bindings: PanelKeyBinding[]
 }
 
-/** 会话展示形态（session-state 事件 presentation 字段，camelCase 序列化，与后端 PresentationMode 对齐）。 */
-export type PresentationMode =
-  | 'none'
-  | 'search'
-  | 'inlineParam'
-  | 'paramPanel'
-  | 'pluginPanel'
-  | 'pluginImmersive'
+/** 宿主会话子形态（HostSessionStateEvent.view）：none=无会话；search=默认搜索；inlineParam/paramPanel=宿主行内参数流程。 */
+export type HostView = 'none' | 'search' | 'inlineParam' | 'paramPanel'
 
-/** 插件面板渲染载荷（session-state 事件 panelContent；热键唤醒推送携带，关键词查询路径为 null）。 */
+/** 插件会话子形态（PluginSessionStateEvent.view）：pluginPanel=行内面板；pluginImmersive=全页面面板。 */
+export type PluginView = 'pluginPanel' | 'pluginImmersive'
+
+/** 前端本地镜像谓词（PluginSessionStateEvent.inputMatch）：
+ *  - `keywords`：同一对象内自带触发词，前端可本地镜像（见 queryStillInPanel）；
+ *  - `custom`：由插件 match_query 自决，前端无本地谓词（非空输入一律视为仍属本面板，粘性）。 */
+export type InputMatch =
+  | { model: 'keywords'; triggerKeywords: string[] }
+  | { model: 'custom' }
+
+/** 插件面板渲染载荷（PluginSessionStateEvent.panelContent；热键唤醒推送携带，常规查询路径该键不出现）。 */
 export interface PluginPanelContent {
   panelType: string
   data: unknown
   actions: ResultAction[]
 }
 
-/** 会话状态事件 payload —— 整个会话系统的唯一事件（后端 Dispatcher 推送）。 */
-export interface SessionStateEvent {
+/** 宿主会话事件（默认搜索/行内参数/参数面板/会话结束）：无插件归属、交互契约与触发模型。 */
+export interface HostSessionStateEvent {
+  kind: 'host'
   /** 会话代际：归属/形态变化时递增（前端单调递增更新，随 confirm 回传校验）。 */
   generation: number
-  presentation: PresentationMode
-  /** 插件面板信息：对象 = 插件的面板元数据（pluginId 即会话归属）；null = 宿主面板（默认搜索归属）。 */
-  panel: { pluginId: string; panelId: string } | null
-  /** 插件面板交互契约（含按键映射）：对象 = 插件的按键声明；null = 宿主面板（default-search 归属），由宿主提供默认键。 */
-  interaction: PanelInteraction | null
-  /** 插件触发词列表，供「输入是否仍属于当前面板」的 IPC 前判定（镜像参数唯一来源）。 */
-  triggerKeywords: string[]
-  /** 插件面板渲染载荷：对象 = 热键唤醒推送（含面板类型/数据/动作）；null = 常规路径（载荷随查询响应下发）。 */
+  view: HostView
+}
+
+/** 插件会话事件（查询路由命中 / 热键唤醒）。 */
+export interface PluginSessionStateEvent {
+  kind: 'plugin'
+  /** 会话代际：归属/形态变化时递增（前端单调递增更新，随 confirm 回传校验）。 */
+  generation: number
+  /** 会话归属插件 ID。 */
+  pluginId: string
+  view: PluginView
+  /** 前端本地镜像谓词唯一来源（见 queryStillInPanel）；null = 无本地谓词。 */
+  inputMatch: InputMatch | null
+  /** 插件面板交互契约（含按键映射）；插件会话必然存在。 */
+  interaction: PanelInteraction
+  /** 面板渲染载荷：对象 = 热键唤醒推送；null = 常规查询路径（载荷随 bridge_query 响应下发）。该键恒存在（后端序列化不跳过字段）。 */
   panelContent: PluginPanelContent | null
 }
+
+/** 会话状态事件 payload —— 整个会话系统的唯一事件（后端 Dispatcher 推送，kind 判别联合）。 */
+export type SessionStateEvent = HostSessionStateEvent | PluginSessionStateEvent
 
 export type BridgeQueryResponse =
   | { mode: 'search'; generation: number; candidateGeneration: number; results: ListItem[]; panelType: null; panelData: null; panelActions: null; inlineParam: null }

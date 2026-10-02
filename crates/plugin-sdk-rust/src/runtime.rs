@@ -625,6 +625,17 @@ async fn dispatch(
                 .map_err(|e| JsonRpcError::new(codes::PLUGIN_ERROR, e.to_string()))?;
             Ok(serde_json::to_value(response).unwrap_or_default())
         }
+        // 查询匹配裁决（插件级语义）：宿主在路由阶段询问本插件是否接管当前输入。
+        // 请求携带该插件声明的触发词：默认实现据此做框架关键词判定（覆盖者可忽略）。
+        plugin_methods::MATCH_QUERY => {
+            let p: MatchQueryParams = serde_json::from_value(params.clone())
+                .map_err(|e| JsonRpcError::new(codes::INVALID_PARAMS, e.to_string()))?;
+            Ok(serde_json::Value::Bool(
+                app.plugin
+                    .match_query(&p.raw_query, &p.trigger_keywords)
+                    .await,
+            ))
+        }
         plugin_methods::EXECUTE_ACTION => {
             let p: ExecuteActionParams = serde_json::from_value(params.clone())
                 .map_err(|e| JsonRpcError::new(codes::INVALID_PARAMS, e.to_string()))?;

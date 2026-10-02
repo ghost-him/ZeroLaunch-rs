@@ -592,20 +592,15 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) -> HashSet<String>
     sync_backend_theme(&state.get_host_api(), &config_manager);
     // 持久化语言在配置加载后才可知：同步后端翻译服务并重建托盘菜单
     sync_backend_language(state, &config_manager);
-    // 内置触发式插件（translator/calculator）在持久化启用状态加载后注册：
-    // 按 is_enabled 决定是否建立触发词路由（用户禁用过的插件重启后不路由，
+    // 内置触发式插件（translator/calculator/检测器）在持久化启用状态加载后注册：
+    // 按 is_enabled 决定是否参与查询路由（用户禁用过的插件重启后不路由，
     // 与运行时开关语义一致）。放在 Phase B 之后，is_enabled 才能读到持久化结果。
     for (c, p, m) in &collected.plugins {
         if config_manager.find_configurable(c.component_id()).is_some() {
-            // 必须走 register_plugin_with_triggers（统一入口）：
-            // 仅调用 plugin_registry().register 不会建立触发词索引，
-            // 会导致内置触发式插件（translator/calculator）路由失效。
+            // 必须走 register_plugin（统一入口）：仅调用 plugin_registry().register
+            // 不会写入插件级启用状态，路由与热键唤醒都会失效。
             let enabled = config_manager.is_enabled(c.component_id());
-            session_dispatcher.register_plugin_with_triggers(
-                p.clone(),
-                Arc::new(m.clone()),
-                enabled,
-            );
+            session_dispatcher.register_plugin(p.clone(), Arc::new(m.clone()), enabled);
         } else {
             warn!(
                 "组件 {} 的 Configurable 注册失败，跳过 Plugin 注册",

@@ -40,6 +40,13 @@ schema 用 `PluginMode` 枚举，取值非法同样解析失败。宿主解析�
 图标取 `[icon]` 段），**不向插件进程索取**——协议中没有 `plugin/get_metadata` 方法，插件进程侧无需实现
 `Plugin::metadata()`（宿主侧方法，有默认实现，返回值宿主不读）。
 
+行内插件（`mode = "inline"`）的查询接管判定只有一条路径：宿主在路由阶段调用插件的 `plugin/match_query`
+（SDK：`Plugin::match_query(&self, raw_query: &str, declared_trigger_keywords: &[String]) -> bool`）。
+**默认实现即框架的关键词判定**（触发表命中「触发词 + 空格 + 内容」时返回 `true`，与宿主共用同一份实现），
+因此不覆盖该方法的插件行为与旧版关键词路由完全一致；需要自定义判定的插件覆盖该方法即可（如形态检测器）。
+契约：该判定每次按键执行，**必须快速且不涉及 IO/网络**（存在性/可达性判定放 `query()`）；宿主仅在输入
+含空格时发起判定；旧 SDK 未实现该方法（`METHOD_NOT_FOUND`）时宿主用同一份关键词判定兜底，其他失败/超时按不命中处理。
+
 ## 子进程生命周期
 
 - **spawn**：启动子进程 → `plugin/initialize` 握手 → `plugin/get_components`（组件级描述符；插件级元数据已由宿主在加载前从 manifest 构造）

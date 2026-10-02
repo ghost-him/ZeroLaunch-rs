@@ -694,7 +694,10 @@ pub struct PluginMetadata {
     #[serde(rename = "author")]
     pub author: String,
     /// 触发关键词列表 —— **语义随形态而变**：
-    /// - 行内形态（Inline）：路由触发词，用户输入"触发词 + 空格"命中路由；
+    /// - 行内形态（Inline）：路由触发词。宿主把它随判定请求交给插件（`Plugin::match_query`
+    ///   的 `declared_trigger_keywords`，默认实现即据此判「触发词 + 空格」），并据此推导
+    ///   交给插件的查询词：命中关键词规则 → 取触发词之后的剩余（模型 keywords），
+    ///   否则取原始输入（模型 custom）；
     /// - 沉浸式形态（Panel）：**候选搜索关键字**——宿主不将其写入触发词路由，
     ///   而是注入到该插件的默认搜索候选项匹配关键字中（用户输入该词显示候选项）。
     #[serde(rename = "triggerKeywords")]

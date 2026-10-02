@@ -109,13 +109,53 @@ mod tests {
 
 | 类型 | 说明 |
 |------|------|
-| `Plugin` trait | 插件核心契约：`init()` + `query()` + `execute_action()`；插件级元数据不在本 trait 上，由宿主侧持有 |
+| `Plugin` trait | 插件核心契约：`init()` + `query()` + `match_query()` + `execute_action()`；插件级元数据不在本 trait 上，由宿主侧持有 |
 | `PluginHandle` | 平台能力句柄，通过 `init()` 注入（`Option<Arc<PluginHandle>>`），提供 `get_icon()`、`shell_open()` 等服务 |
 | `Configurable` trait | 组件契约：`core()`（组件身份）+ `setting_schema()`，配置读写与校验有默认实现 |
 | `ComponentCore` | 组件级身份信息：组件 id、名称、描述、类型、优先级 |
 | `PluginMetadata` | 插件级元数据：宿主从 `manifest.toml` 读取后构造，插件代码不声明 |
 | `Query` / `QueryResponse` | 查询输入/输出类型 |
 | `PluginError` | 插件层统一错误类型 |
+
+## 查询匹配（match_query）
+
+行内插件（`mode = "inline"`）的查询接管判定**只有一条路径**：宿主在路由阶段调用插件的
+`Plugin::match_query(&self, raw_query: &str, declared_trigger_keywords: &[String]) -> bool`。
+
+- **默认实现即框架的关键词判定**：触发表里任一项等于输入首词、且其后还有内容时返回 `true`
+  （判定函数与宿主共用同一份实现）。因此**不覆盖该方法的插件行为与旧版关键词路由完全一致**，
+  老插件一行代码都不用改。
+- 需要自定义判定的插件**覆盖该方法**即可（如路径/网址检测器）：自己决定何时返回 `true`，
+  此时框架的关键词规则不再参与。
+- 宿主只做三件事：并发询问 → 按优先级裁决 → 推导查询词。查询词的规则是：赢家若同时满足框架
+  关键词规则，取「触发词之后的剩余」（模型 `keywords`，前端可本地镜像）；否则取原始输入
+  （模型 `custom`，前端粘性）。
+
+### 实现契约
+
+`match_query` 每次按键都会执行，因此：
+
+- 必须快速、**不涉及 IO 或网络**；存在性/可达性等需要 IO 的判定放到 `query()`
+  （async 且可自行超时）。
+- 远端插件经 `plugin/match_query` RPC 调用（请求携带 `rawQuery` 与该插件声明的触发词）；
+  旧 SDK 未实现该方法时宿主按 `METHOD_NOT_FOUND` 用同一份关键词判定兜底——已发布插件不受影响；
+  其他错误/超时按不命中处理并告警。
+
+### 路由裁决
+
+只有处于启用状态的行内插件参与路由（`mode = "panel"` 的插件仅经热键/候选项唤醒），
+且**输入含空格时才会发起判定**（关键词规则与检测器的提交规则都要求空格）。
+宿主**并发**询问全部候选插件（内置进程内、远端 RPC），整体受截止时间兜底；命中者按
+**`priority` 数值小者优先、同优先级按 `plugin_id` 字典序**选出唯一赢家——因此同名触发词
+可以并存，不再被拒绝注册。
+
+### 协议与兼容
+
+- `plugin/match_query` 是新增的可选方法：未实现的插件宿主容 `METHOD_NOT_FOUND` 并回退到
+  本地关键词判定，协议 major 不变（仅新增可选方法不提升 major）。
+
+内置的 `path-detect` / `url-detect`（`src-tauri/src/builtin_plugin/detector/`，共享面板类型
+`smart-target`）即自定义匹配的参考实现。
 
 ## 国际化（i18n）
 

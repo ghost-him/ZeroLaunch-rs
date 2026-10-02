@@ -1,5 +1,6 @@
 use crate::config::configurable::Configurable;
 use crate::host::plugin_handle::PluginHandle;
+use crate::plugin::trigger::keyword_trigger_match;
 use crate::plugin::types::{PanelInteraction, PluginContext, PluginError, Query, QueryResponse};
 use async_trait::async_trait;
 use std::sync::Arc;
@@ -42,5 +43,21 @@ pub trait Plugin: Configurable {
     /// 默认返回无防抖、Execute 提交的交互策略。
     fn interaction_policy(&self) -> PanelInteraction {
         PanelInteraction::default()
+    }
+
+    /// 查询匹配：判定当前原始输入是否由本插件接管（行内插件路由的唯一判定入口）。
+    ///
+    /// 默认实现即**框架的关键词判定**：`declared_trigger_keywords`（宿主随判定请求传入的、
+    /// 该插件在清单/代码中声明的触发词）中任一项等于输入首词且其后有内容时返回 `true`。
+    /// 因此不覆盖本方法的插件行为与旧版关键词路由完全一致。
+    ///
+    /// 需要自定义判定的插件覆盖本方法即可（如形态检测器），自行决定何时返回 `true`。
+    ///
+    /// 契约：必须快速、**不涉及 IO 或网络**（每次按键都会执行，慢判定直接体现为输入延迟）；
+    /// 存在性/可达性等需要 IO 的判定放到 `query()` 内（那里是 async 且可自行超时）。
+    /// 远端插件经 `plugin/match_query` RPC 调用；旧 SDK 未实现该方法时宿主按
+    /// `METHOD_NOT_FOUND` 用同一份关键词判定兜底，失败/超时按不命中处理。
+    async fn match_query(&self, raw_query: &str, declared_trigger_keywords: &[String]) -> bool {
+        keyword_trigger_match(declared_trigger_keywords, raw_query).is_some()
     }
 }

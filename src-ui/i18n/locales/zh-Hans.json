@@ -1366,6 +1366,28 @@
     "calculator": {
       "name": "计算器",
       "description": "在搜索栏中直接进行数学计算"
+    },
+    "path-detect": {
+      "name": "路径检测",
+      "description": "输入形如本地路径时，提供打开与打开所在文件夹入口"
+    },
+    "url-detect": {
+      "name": "网址检测",
+      "description": "输入形如网址时，提供用浏览器打开的入口",
+      "fields": {
+        "bare_domain_enabled": {
+          "label": "识别裸域名",
+          "desc": "开启后，形如 github.com 的输入也会被视为网址"
+        }
+      }
+    },
+    "smart-target": {
+      "openPath": "进入目录/文件夹…",
+      "openUrl": "在浏览器中打开",
+      "actions": {
+        "open": "打开",
+        "openFolder": "打开所在文件夹"
+      }
     }
   },
   "pluginPanel": {

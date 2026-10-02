@@ -25,20 +25,25 @@ scope: "tool:edit(src-tauri/src/commands/**), tool:write(src-tauri/src/commands/
 **正确**：
 
 ```rust
-#[derive(Serialize, Deserialize)]
-pub struct SessionStateEvent {
-    #[serde(rename = "panel")]
-    panel: Option<PluginPanelInfo>,   // 序列化为 null，不跳过
-    #[serde(rename = "triggerKeywords", default)]
-    trigger_keywords: Vec<String>,    // 序列化为 []，不跳过
+#[derive(Serialize)]
+#[serde(tag = "kind")]
+pub enum SessionStateEvent {
+    Plugin {
+        #[serde(rename = "interaction")]
+        interaction: PanelInteraction,
+        #[serde(rename = "panelContent")]
+        panel_content: Option<PluginPanelContent>, // 序列化为 null，不跳过
+        #[serde(rename = "inputMatch")]
+        input_match: Option<InputMatch>,           // 序列化为 null，不跳过
+    },
 }
 ```
 
 **错误**：
 
 ```rust
-#[serde(rename = "panel", skip_serializing_if = "Option::is_none")]
-panel: Option<PluginPanelInfo>,
+#[serde(rename = "panelContent", skip_serializing_if = "Option::is_none")]
+panel_content: Option<PluginPanelContent>,
 ```
 
 ## 原因

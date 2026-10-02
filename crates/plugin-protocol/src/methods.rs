@@ -18,6 +18,10 @@ pub mod plugin {
     pub const EXECUTE_CONFIG_ACTION: &str = "plugin/execute_config_action";
     /// 插件查询（Plugin 组件）。
     pub const QUERY: &str = "plugin/query";
+    /// 查询匹配裁决（Plugin 组件，插件级语义）：宿主在路由阶段询问插件是否接管当前输入。
+    /// 响应为布尔值（true = 接管）；旧插件未实现时宿主按 METHOD_NOT_FOUND 容错，
+    /// 用同一份框架关键词判定兜底。
+    pub const MATCH_QUERY: &str = "plugin/match_query";
     /// 执行插件动作（Plugin 组件）。
     pub const EXECUTE_ACTION: &str = "plugin/execute_action";
     /// 插件初始化钩子（注册完成后通知，携带真实查询上下文）。

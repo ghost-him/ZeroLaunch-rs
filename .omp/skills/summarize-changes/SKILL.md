@@ -35,6 +35,7 @@ description: 总结当前代码更改，生成结构化的 commit message 或变
      - **决策与取舍**：为什么选当前方案、讨论中否掉/放弃的备选 → What & Impact 的来源。
      - **范围边界**：用户明确声明包含/排除的内容，用于识别 diff 中的附带改动。
      - **验证过程**：冒烟测试、测试结果等，作为影响描述的佐证。
+     - **关联 issue**：本次改动是为解决哪个平台上的哪个 issue（如 github #92），作为 header 后缀的来源；对话未提及时按步骤 6 的兜底规则处理。
    - **目标判定以对话为准**：commit 标题描述对话确立的目标，而非 diff 中改动量最大的领域。某领域虽改动量大但与对话目标无关，属于附带改动，仅在 body 中概括为次要要点。
    - 若对话包含多个独立任务且当前 diff 混有多个任务的内容，按任务分组提炼，必要时 `ask` 用户确认本次 commit 范围。
 
@@ -69,6 +70,10 @@ description: 总结当前代码更改，生成结构化的 commit message 或变
 
    - **场景 1：header 与 Why 直接来自步骤 0.5 的对话目标**，What & Impact 结合对话决策与 diff 验证结果；场景 2 按原规则从 diff 推断。
    - **header ≤100 字符**（commitlint `header-max-length`），且不含标点结尾。
+   - **关联 issue 标记**：本次改动是为解决/实现某平台上的某个 issue 时，header 末尾追加该平台与编号。
+     - 格式：以空格与标题分隔，括号内为小写平台名 + `#` 编号，如 `(github #92)`；平台名用惯用写法（`github`、`gitcode`、`gitee`、`atomgit`）。
+     - 来源：场景 1 以对话为准（用户贴出的 issue 链接/编号、修复诉求）；场景 2 从分支名、近期提交、diff 与仓库 issue 线索推断。推断不出用 `ask` 问用户，**禁止编造编号**。
+     - 无明确关联不追加；同一平台多个编号并列写在同一括号内（如 `(github #92, #95)`）；后缀计入 header 的 100 字符上限。
    - **body 每行 ≤100 字符**（commitlint `body-max-line-length`）。
    - **subject 首词避用大写拉丁字母**：commitlint `subject-case` 禁止 sentence-case / start-case / pascal-case / upper-case，以全大写缩写（`SDK`、`API`、`IPC`、`CLI`）或首字母大写的英文单词开头都会违规；中文或小写开头（如 `sdk crates 版本解耦`）则通过。规避方法：缩写改小写（`sdk`），或改用中文/其他措辞开头。
    - 使用中文 body，**不含**双引号 `"`。

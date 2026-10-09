@@ -109,11 +109,11 @@ notify = "8.2.0"
 inventory = "0.3"
 dirs = "7"
 
-zerolaunch-plugin-api = { path = "crates/plugin-api", version = "0.2.0" }
-zerolaunch-plugin-host = { path = "crates/plugin-host", version = "0.2.0" }
-zerolaunch-plugin-protocol = { path = "crates/plugin-protocol", version = "0.2.0" }
-zerolaunch-plugin-sdk-rust = { path = "crates/plugin-sdk-rust", version = "0.2.0" }
-zerolaunch-platform-windows = { path = "crates/platform-windows", version = "0.2.0" }
+zerolaunch-plugin-api = { path = "crates/plugin-api", version = "0.2.1" }
+zerolaunch-plugin-host = { path = "crates/plugin-host", version = "0.2.1" }
+zerolaunch-plugin-protocol = { path = "crates/plugin-protocol", version = "0.2.1" }
+zerolaunch-plugin-sdk-rust = { path = "crates/plugin-sdk-rust", version = "0.2.1" }
+zerolaunch-platform-windows = { path = "crates/platform-windows", version = "0.2.1" }
 
 [profile.release]
 codegen-units = 16

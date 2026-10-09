@@ -3,8 +3,21 @@
 use std::ffi::OsStr;
 use std::os::windows::ffi::OsStrExt;
 use std::path::Path;
+use std::path::PathBuf;
 use windows::core::PCWSTR;
 use windows::Win32::System::Environment::ExpandEnvironmentStringsW;
+
+/// 当前进程可执行文件所在目录（便携数据目录与打包资源目录均以此为基准）。
+///
+/// 直接取系统给出的 exe 路径，不做 `canonicalize`：部分卷（映射盘、虚拟文件系统）
+/// 不支持最终路径规范化查询，规范化失败会把可用目录误判为不可用。
+/// 参数：无。
+/// 返回：exe 同级目录；取不到 exe 路径或无父目录时返回 None。
+pub fn exe_dir() -> Option<PathBuf> {
+    std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(Path::to_path_buf))
+}
 
 /// 将一个字符串转成windows的宽字符
 pub fn get_u16_vec<P: AsRef<Path>>(path: P) -> Vec<u16> {

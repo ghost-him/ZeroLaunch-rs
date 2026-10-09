@@ -12,7 +12,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::{App, Emitter, Manager};
 use tracing::{debug, info, warn};
-use zerolaunch_platform_windows::windows_platform_services;
+use zerolaunch_platform_windows::{exe_dir, windows_platform_services};
 use zerolaunch_plugin_api::host::PluginSdkConfig;
 use zerolaunch_plugin_api::services::hotkey::types::HotkeyEventFilter;
 use zerolaunch_plugin_api::services::parameter::DefaultParameterResolver;
@@ -111,7 +111,10 @@ pub(crate) async fn init_app_state(
     debug!("应用句柄设置完成");
 
     // 初始化应用资源服务（图标等内置资源）
-    let resource_dir = app.path().resource_dir().expect("无法获取资源目录");
+    // 资源目录与 exe 同级：便携包（exe + icons/ + locales/ 同层）与安装包皆如此。
+    // 不用 tauri 的 resource_dir()——它在库加载期缓存一次 current_exe().canonicalize()，
+    // 该次规范化失败即会永久返回 UnknownPath（部分卷不支持规范化查询，见 #92）。
+    let resource_dir = exe_dir().expect("无法获取资源目录");
     let icons_dir = resource_dir.join("icons");
     let app_resource = Arc::new(AppResourceService::new(
         icons_dir.to_string_lossy().to_string(),

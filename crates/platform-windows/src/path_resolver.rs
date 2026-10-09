@@ -1,3 +1,5 @@
+#[cfg(feature = "portable")]
+use crate::utils::exe_dir;
 use std::path::Path;
 use tracing::warn;
 use windows::Win32::UI::Shell::{
@@ -66,10 +68,7 @@ impl WindowsPathResolver {
         let path_label = format!("{:?}", KnownPath::AppDataDir);
         #[cfg(feature = "portable")]
         {
-            let dir = std::env::current_exe()
-                .ok()
-                .and_then(|p| p.parent().map(|d| d.to_path_buf()))
-                .unwrap_or_else(|| std::path::PathBuf::from("."));
+            let dir = exe_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
             dir.to_str()
                 .map(|s| s.to_string())
                 .ok_or_else(|| HostApiError::PathResolutionFailed {

@@ -41,5 +41,6 @@ pub use platform_services::windows_platform_services;
 pub use resource_loader::WindowsResourceLoader;
 pub use shell::WindowsShellExecutor;
 pub use theme::{start_system_theme_monitor, WindowsThemeProvider};
+pub use utils::exe_dir;
 pub use window::WindowsWindowManager;
 pub use window_positioner::WindowsWindowPositioner;

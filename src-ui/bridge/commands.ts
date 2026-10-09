@@ -229,6 +229,8 @@ export interface PluginManifest {
     mode: 'inline' | 'panel'
     hotkey: string | null
     triggerKeywords: string[]
+    /** 动态触发说明：无触发词时说明满足什么输入会被命中（manifest 可空）。 */
+    triggerDescription: string | null
     supportedOs: string[]
     priority: number
     homepage: string | null
@@ -257,6 +259,8 @@ export interface PluginManifest {
 /** 插件详情：插件级基础视图（与 plugin_list 同构，后端 flatten 展开）+ 详情专属字段。 */
 export type PluginDetail = InstalledPluginInfo & {
   triggerKeywords: string[]
+  /** 动态触发说明：无触发词时解释何时命中（可空；内置插件为 i18n key）。 */
+  triggerDescription: string | null
   supportedOs: string[]
   manifest: PluginManifest | null
 }

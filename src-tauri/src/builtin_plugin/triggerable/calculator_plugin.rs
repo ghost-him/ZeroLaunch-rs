@@ -51,6 +51,7 @@ impl CalculatorPlugin {
                 description: t_key!("calculator", "description").to_string(),
                 author: String::new(),
                 trigger_keywords: vec!["=".to_string()],
+                trigger_description: None,
                 supported_os: vec![
                     "windows".to_string(),
                     "macos".to_string(),

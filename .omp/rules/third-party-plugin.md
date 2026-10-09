@@ -35,7 +35,10 @@ scope: "tool:read(crates/plugin-protocol/**), tool:edit(crates/plugin-protocol/*
 4. `components.provides` 至少 1 项且在已知集合内
 
 `[plugin]` 段是插件级元数据的**唯一声明处**：`id`/`name`/`version`/`description`/`author`/`mode`（`inline`/`panel`）/
-`triggerKeywords`/`supportedOs`/`priority` 为 **必填**（缺一即 manifest 解析失败、插件加载失败），`hotkey` 可选。
+`triggerKeywords`/`supportedOs`/`priority` 为 **必填**（缺一即 manifest 解析失败、插件加载失败），`hotkey` 可选；
+`triggerDescription` 可选 —— 无触发词、判定由 `Plugin::match_query` 自定义实现的行内插件（如网址/路径形态检测器）
+**应当** 在此用一句自然语言说明满足什么形态的输入会被命中（如「输入形如网址时自动命中」），
+宿主仅把它透传到设置页展示（解释该插件为何没有触发词），不参与路由判定。
 schema 用 `PluginMode` 枚举，取值非法同样解析失败。宿主解析清单后**直接构造**插件级元数据（`PluginMetadata`，
 图标取 `[icon]` 段），**不向插件进程索取**——协议中没有 `plugin/get_metadata` 方法，插件进程侧无需实现
 `Plugin::metadata()`（宿主侧方法，有默认实现，返回值宿主不读）。

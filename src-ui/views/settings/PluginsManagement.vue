@@ -629,6 +629,9 @@ onUnmounted(() => {
             </div>
 
             <NDescriptions :column="2" bordered size="small" label-placement="left">
+              <NDescriptionsItem v-if="detailData.triggerDescription" :label="t('settings.thirdPartyPlugins.fieldTriggerDescription')" :span="2">
+                {{ resolveText(detailData.triggerDescription) }}
+              </NDescriptionsItem>
               <NDescriptionsItem :label="t('settings.thirdPartyPlugins.fieldMode')" :span="2">
                 <NTag :type="detailData.mode === 'panel' ? 'primary' : 'success'" size="small">
                   {{ detailData.mode === 'panel'

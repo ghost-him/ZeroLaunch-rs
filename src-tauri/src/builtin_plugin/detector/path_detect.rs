@@ -68,6 +68,8 @@ impl PathDetectPlugin {
                 author: String::new(),
                 // 触发词留空：路径形态无法用静态触发词表达，判定由 match_query 自定义实现。
                 trigger_keywords: Vec::new(),
+                // 无触发词，故给出动态触发说明，供设置页解释该插件何时生效
+                trigger_description: Some(t_key!("path-detect", "triggerDescription").to_string()),
                 supported_os: vec!["windows".to_string()],
                 // 路由优先级：数值小者优先（与搜索管道/组件排序约定一致）
                 priority: 10,

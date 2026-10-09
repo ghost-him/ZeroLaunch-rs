@@ -36,6 +36,9 @@ function providesList(): string[] {
       <NDescriptionsItem v-if="manifest.plugin.description" :label="t('settings.thirdPartyPlugins.fieldDescription')">
         {{ manifest.plugin.description }}
       </NDescriptionsItem>
+      <NDescriptionsItem v-if="manifest.plugin.triggerDescription" :label="t('settings.thirdPartyPlugins.fieldTriggerDescription')">
+        {{ manifest.plugin.triggerDescription }}
+      </NDescriptionsItem>
       <NDescriptionsItem :label="t('settings.thirdPartyPlugins.colAuthor')">
         {{ manifest.plugin.author || t('common.notAvailable') }}
       </NDescriptionsItem>

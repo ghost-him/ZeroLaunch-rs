@@ -232,6 +232,7 @@
       "loadDetailFailed": "Failed to load plugin details",
       "fieldTriggerKeywords": "Trigger Keywords",
       "noTriggerKeywords": "No trigger keywords",
+      "fieldTriggerDescription": "Trigger condition",
       "fieldDescription": "Description",
       "fieldPluginId": "Plugin ID",
       "fieldLicense": "License",
@@ -1369,11 +1370,13 @@
     },
     "path-detect": {
       "name": "Path detection",
-      "description": "Offers open / open-containing-folder actions when the input looks like a local path"
+      "description": "Offers open / open-containing-folder actions when the input looks like a local path",
+      "triggerDescription": "Matches automatically when the input looks like a local path — no trigger keyword needed"
     },
     "url-detect": {
       "name": "URL detection",
       "description": "Offers a browser-open action when the input looks like a URL",
+      "triggerDescription": "Matches automatically when the input looks like a URL — no trigger keyword needed",
       "fields": {
         "bare_domain_enabled": {
           "label": "Recognize bare domains",

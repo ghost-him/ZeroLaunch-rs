@@ -22,7 +22,7 @@ tokio = { version = "1", features = ["macros", "rt"] }
 
 ### 插件骨架
 
-插件级元数据（id、名称、版本、描述、作者、触发关键词、支持系统、优先级、形态、热键、图标）由宿主从 `manifest.toml` 的 `[plugin]` / `[icon]` 段读取，**插件代码不声明**，`Plugin` trait 上也不提供元数据方法。插件代码只提供组件级身份：一个 `ComponentCore`（组件 id、名称、描述、类型、优先级）。
+插件级元数据（id、名称、版本、描述、作者、触发关键词、动态触发说明、支持系统、优先级、形态、热键、图标）由宿主从 `manifest.toml` 的 `[plugin]` / `[icon]` 段读取，**插件代码不声明**，`Plugin` trait 上也不提供元数据方法。插件代码只提供组件级身份：一个 `ComponentCore`（组件 id、名称、描述、类型、优先级）。
 
 ```rust
 use async_trait::async_trait;

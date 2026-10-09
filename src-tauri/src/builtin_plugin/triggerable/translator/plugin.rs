@@ -155,6 +155,7 @@ impl TranslatorPlugin {
                 description: t_key!("translator", "description").to_string(),
                 author: String::new(),
                 trigger_keywords: vec!["fy".into(), "tr".into(), "翻译".into()],
+                trigger_description: None,
                 supported_os: vec![
                     "windows".to_string(),
                     "macos".to_string(),

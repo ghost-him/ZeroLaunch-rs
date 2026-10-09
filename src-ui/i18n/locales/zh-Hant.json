@@ -232,6 +232,7 @@
       "loadDetailFailed": "載入插件詳情失敗",
       "fieldTriggerKeywords": "觸發詞",
       "noTriggerKeywords": "無觸發詞",
+      "fieldTriggerDescription": "觸發條件",
       "fieldDescription": "描述",
       "fieldPluginId": "插件 ID",
       "fieldLicense": "授權",
@@ -1369,11 +1370,13 @@
     },
     "path-detect": {
       "name": "路徑偵測",
-      "description": "輸入形如本機路徑時，提供開啟與開啟所在資料夾的入口"
+      "description": "輸入形如本機路徑時，提供開啟與開啟所在資料夾的入口",
+      "triggerDescription": "輸入形如本機路徑時自動命中，無需觸發詞"
     },
     "url-detect": {
       "name": "網址偵測",
       "description": "輸入形如網址時，提供以瀏覽器開啟的入口",
+      "triggerDescription": "輸入形如網址時自動命中，無需觸發詞",
       "fields": {
         "bare_domain_enabled": {
           "label": "辨識裸網域",

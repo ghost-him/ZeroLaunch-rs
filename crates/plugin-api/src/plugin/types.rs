@@ -702,6 +702,11 @@ pub struct PluginMetadata {
     ///   而是注入到该插件的默认搜索候选项匹配关键字中（用户输入该词显示候选项）。
     #[serde(rename = "triggerKeywords")]
     pub trigger_keywords: Vec<String>,
+    /// 动态触发说明（可选）—— 无触发词、由插件自定义 `match_query` 判定时，
+    /// 说明满足什么形态的输入会被命中（如"输入形如网址时"）。
+    /// 仅用于设置页展示，不参与路由判定。内置插件填 i18n key，第三方取自 manifest。
+    #[serde(rename = "triggerDescription", default)]
+    pub trigger_description: Option<String>,
     #[serde(rename = "supportedOs")]
     pub supported_os: Vec<String>,
     #[serde(rename = "priority")]

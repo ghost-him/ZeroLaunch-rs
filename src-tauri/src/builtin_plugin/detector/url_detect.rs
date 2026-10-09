@@ -88,6 +88,8 @@ impl UrlDetectPlugin {
                 author: String::new(),
                 // 触发词留空：网址形态无法用静态触发词表达，判定由 match_query 自定义实现。
                 trigger_keywords: Vec::new(),
+                // 无触发词，故给出动态触发说明，供设置页解释该插件何时生效
+                trigger_description: Some(t_key!("url-detect", "triggerDescription").to_string()),
                 // 网址形态判定与平台无关
                 supported_os: vec![
                     "windows".to_string(),

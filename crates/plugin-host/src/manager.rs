@@ -717,6 +717,7 @@ fn build_components(
         description: manifest.plugin.description.clone(),
         author: manifest.plugin.author.clone(),
         trigger_keywords: manifest.plugin.trigger_keywords.clone(),
+        trigger_description: manifest.plugin.trigger_description.clone(),
         supported_os: manifest.plugin.supported_os.clone(),
         priority: manifest.plugin.priority,
         // 第三方插件由宿主强制标注

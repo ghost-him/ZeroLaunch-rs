@@ -61,6 +61,9 @@ pub struct PluginDetail {
     /// 触发词列表（插件唤起关键字，来自 PluginMetadata）。
     #[serde(rename = "triggerKeywords")]
     pub trigger_keywords: Vec<String>,
+    /// 动态触发说明：无触发词时说明满足什么输入的插件会被命中（可空）。
+    #[serde(rename = "triggerDescription")]
+    pub trigger_description: Option<String>,
     /// 支持的操作系统列表。
     #[serde(rename = "supportedOs")]
     pub supported_os: Vec<String>,
@@ -100,6 +103,7 @@ pub async fn plugin_get_detail(
     Ok(PluginDetail {
         info,
         trigger_keywords: metadata.trigger_keywords.clone(),
+        trigger_description: metadata.trigger_description.clone(),
         supported_os: metadata.supported_os.clone(),
         manifest: pm.get_manifest(&plugin_id),
     })

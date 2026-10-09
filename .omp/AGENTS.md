@@ -253,6 +253,7 @@ cli_server/
 - **前端架构与需求** → `docs/frontend/`
 - **第三方插件开发** → `crates/plugin-api/README.md`
 - **内置插件开发** → `docs/dev/built-in-plugin-guide.md`
+- **可复用操作技能** → `.omp/skills/`（真机验证、代码审查、发版、变更总结等操作手册；改动 UI/面板后做真机验证见 `dev-verify-cdp`，改插件见 `plugin-real-verify`）
 
 ## CodeGraph
 

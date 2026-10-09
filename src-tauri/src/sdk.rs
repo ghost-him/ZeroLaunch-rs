@@ -50,8 +50,8 @@ pub struct HostApi {
     parameter_resolver: Arc<dyn ParameterResolver>,
     /// 定时器管理器（宿主级 tokio 实现）
     timer_manager: Arc<dyn TimerManager>,
-    /// 存储服务（宿主级，可运行时重配置：Local ↔ WebDAV）
-    storage: Arc<RwLock<Arc<dyn StorageService>>>,
+    /// 存储服务（宿主级，插件与组件资源存储）
+    storage: Arc<dyn StorageService>,
     /// 应用资源服务（宿主级）
     app_resource: Arc<AppResourceService>,
     /// 模型服务（聚合所有模型提供方并按 model_id 路由）
@@ -347,20 +347,11 @@ impl HostApi {
 
     // ===== 存储服务（宿主级） =====
 
-    /// 获取当前存储服务的引用。
+    /// 获取存储服务的引用。
     /// 参数：无。
-    /// 返回：当前存储服务的 Arc 引用。
+    /// 返回：存储服务的 Arc 引用。
     pub fn storage(&self) -> Arc<dyn StorageService> {
-        let storage = self.storage.read().clone();
-        storage.clone()
-    }
-
-    /// 重新配置存储服务（用户在设置中切换 Local/WebDAV 时调用）。
-    /// 参数：new_service - 新的存储服务实例。
-    /// 返回：无。
-    /// 特性：立即生效，影响后续所有插件调用。
-    pub fn reconfigure_storage(&self, new_service: Arc<dyn StorageService>) {
-        *self.storage.write() = new_service;
+        self.storage.clone()
     }
 }
 
@@ -652,7 +643,7 @@ impl PluginHost for HostApi {
 
         // 直接使用 resource_id 作为存储标识符，避免对用户指定的标识符做额外变换。
         let storage_path = build_resource_path(plugin_id, Some(resource_id))?;
-        let storage = self.storage.read().clone();
+        let storage = self.storage.clone();
         storage.upload(&storage_path, &data).await.map_err(|e| {
             HostApiError::StorageOperationFailed {
                 file: storage_path,
@@ -669,7 +660,7 @@ impl PluginHost for HostApi {
         data: &[u8],
     ) -> Result<(), HostApiError> {
         let storage_path = build_resource_path(plugin_id, Some(resource_id))?;
-        let storage: Arc<dyn StorageService> = self.storage.read().clone();
+        let storage: Arc<dyn StorageService> = self.storage.clone();
         storage.upload(&storage_path, data).await.map_err(|e| {
             HostApiError::StorageOperationFailed {
                 file: storage_path,
@@ -684,7 +675,7 @@ impl PluginHost for HostApi {
         resource_id: &str,
     ) -> Result<Vec<u8>, HostApiError> {
         let path = build_resource_path(plugin_id, Some(resource_id))?;
-        let storage = self.storage.read().clone();
+        let storage = self.storage.clone();
         storage
             .download(&path)
             .await
@@ -703,7 +694,7 @@ impl PluginHost for HostApi {
         resource_id: &str,
     ) -> Result<(), HostApiError> {
         let path = build_resource_path(plugin_id, Some(resource_id))?;
-        let storage = self.storage.read().clone();
+        let storage = self.storage.clone();
         storage
             .delete(&path)
             .await
@@ -715,7 +706,7 @@ impl PluginHost for HostApi {
 
     async fn resource_list(&self, plugin_id: &str) -> Result<Vec<String>, HostApiError> {
         let prefix = build_resource_path(plugin_id, None)?;
-        let storage = self.storage.read().clone();
+        let storage = self.storage.clone();
         storage
             .list(&prefix)
             .await
@@ -983,7 +974,7 @@ impl HostApiBuilder {
         self
     }
 
-    /// 设置存储服务（宿主级，Local/WebDAV 由宿主装配）。
+    /// 设置存储服务（宿主级，由宿主装配）。
     /// 参数：storage_service - 存储服务实例。
     /// 返回：Self（支持链式调用）。
     pub fn storage_service(mut self, storage_service: Arc<dyn StorageService>) -> Self {
@@ -1080,10 +1071,9 @@ impl HostApiBuilder {
             timer_manager: self
                 .timer_manager
                 .ok_or(HostApiBuildError::MissingComponent("timer_manager"))?,
-            storage: Arc::new(RwLock::new(
-                self.storage_service
-                    .ok_or(HostApiBuildError::MissingComponent("storage_service"))?,
-            )),
+            storage: self
+                .storage_service
+                .ok_or(HostApiBuildError::MissingComponent("storage_service"))?,
             app_resource: self
                 .app_resource
                 .ok_or(HostApiBuildError::MissingComponent("app_resource"))?,

@@ -36,10 +36,8 @@ pub async fn do_cleanup_before_exit(state: Arc<AppState>) {
     }
     // 运行态（启动历史/查询亲和）落在独立文件，与用户配置分开保存
     config_manager.flush_runtime_state();
-    // 退出前同步到远程存储
-    let host_api = state.get_host_api();
-    crate::bootstrap::sync_config_to_remote(&config_manager, &host_api).await;
     // 注销全局快捷键和双击 Ctrl 监听器
+    let host_api = state.get_host_api();
     if let Err(e) = host_api.unregister_all_hotkeys().await {
         warn!("退出前注销快捷键失败: {:?}", e);
     }

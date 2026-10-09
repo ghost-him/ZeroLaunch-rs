@@ -2,7 +2,7 @@ use crate::services::storage::storage_error::StorageError;
 use async_trait::async_trait;
 
 /// 文件存储服务 trait — 平台原语。
-/// 负责将文件存储到指定后端（本地文件系统、WebDAV 等）。
+/// 负责将资源文件存储到本地存储目录。
 /// 与 ShellExecutor 等其他 SDK trait 平级，由 HostApi 持有。
 #[async_trait]
 pub trait StorageService: Send + Sync {

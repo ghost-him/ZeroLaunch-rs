@@ -1,5 +1,5 @@
 ---
-description: ConfigAction 规范 — 配置保存前的副作用测试（如 WebDAV 连通性），纯查询/计算操作，field-level 可含有限副作用
+description: ConfigAction 规范 — 配置保存前的副作用测试（如模型服务连通性），纯查询/计算操作，field-level 可含有限副作用
 condition: "execute_config_action|config_actions|ConfigActionDef|ConfigAction"
 scope: "tool:edit(src-tauri/src/builtin_plugin/**), tool:write(src-tauri/src/builtin_plugin/**), tool:edit(src-tauri/src/core/config/**), tool:write(src-tauri/src/core/config/**), tool:edit(src-tauri/src/commands/**), tool:write(src-tauri/src/commands/**), tool:edit(crates/plugin-api/src/config/**), tool:write(crates/plugin-api/src/config/**)"
 ---
@@ -8,7 +8,7 @@ scope: "tool:edit(src-tauri/src/builtin_plugin/**), tool:write(src-tauri/src/bui
 
 ## 用途：保存前测试
 
-如果副作用必须决定配置能否保存（如 WebDAV 连通性测试）：**必须** 使用 `ConfigAction`。通过 `config_actions() → Vec<ConfigActionDef>` 声明，在 `async fn execute_config_action(&self, action: &str, params: &serde_json::Value) -> Result<serde_json::Value, String>` 中实现。
+如果副作用必须决定配置能否保存（如模型服务连通性测试）：**必须** 使用 `ConfigAction`。通过 `config_actions() → Vec<ConfigActionDef>` 声明，在 `async fn execute_config_action(&self, action: &str, params: &serde_json::Value) -> Result<serde_json::Value, String>` 中实现。
 
 前端 **必须** 将 `config_execute_action` 作为单独的用户触发操作调用，与保存流程解耦。
 

@@ -81,7 +81,6 @@ Focused on the core need of "launching quickly and accurately." Default settings
 *   **Custom Indexing**: Supports adding programs, files, websites, and commands (e.g., shutdown, open specific settings pages) via wildcards or regular expressions.
 *   **Search Algorithm Fine-tuning**: Adjustable matching algorithm parameters to meet personalized needs.
 *   **Smart Icon Loading**: Strives to load the correct icons, with perfect support for Steam games.
-*   **Config Sync**: Supports local storage or network synchronization via WebDAV.
 *   **Auto-start & Silent Start**: One-click setup, ready to use upon boot.
 *   **Game Mode**: Manually disable hotkeys to avoid accidental triggers during gaming.
 *   **Recent Apps**: Hold the `Alt` key to view and quickly open recently used programs.

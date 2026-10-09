@@ -333,7 +333,7 @@ impl PluginHandle {
 
     /// 写入插件本地缓存。
     /// 与 resource_* 的区别：缓存存放可再生的本地数据（如模型向量），
-    /// 不经过 StorageService，WebDAV 同步模式不会上传远端。
+    /// 不经过 StorageService，仅落在本地缓存目录。
     pub async fn cache_put(
         &self,
         domain: &str,

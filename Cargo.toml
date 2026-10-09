@@ -53,7 +53,6 @@ async-openai = { version = "0.41", default-features = false, features = [
 futures-util = "0.3"
 ollama-rs = { version = "0.3", features = ["stream"] }
 reqwest = { version = "0.13.4", features = ["json"] }
-reqwest_dav = "0.3.3"
 blake3 = "1.8.5"
 fnv = "1.0.7"
 lru = "0.18.0"

@@ -7,8 +7,6 @@ description = "ZeroLaunch plugin SDK — traits, data types, host API surface."
 repository.workspace = true
 
 [features]
-default = ["webdav"]
-webdav = ["dep:reqwest_dav"]
 mock = ["dep:mockall"]
 
 [dependencies]
@@ -31,7 +29,6 @@ tiny-skia.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
 reqwest.workspace = true
-reqwest_dav = { workspace = true, optional = true }
 kmeans_colors.workspace = true
 palette.workspace = true
 rand.workspace = true

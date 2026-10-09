@@ -101,7 +101,6 @@ anyhow.workspace = true
  lnk.workspace = true
  ollama-rs.workspace = true
  reqwest.workspace = true
- reqwest_dav.workspace = true
  tokio.workspace = true
 winreg.workspace = true
 scraper.workspace = true

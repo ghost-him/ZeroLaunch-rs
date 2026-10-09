@@ -843,40 +843,6 @@
         }
       }
     },
-    "storage-config": {
-      "name": "Storage Config",
-      "description": "Manage data storage location and WebDAV remote sync",
-      "groups": {
-        "storage": "Storage",
-        "webdav": "WebDAV"
-      },
-      "fields": {
-        "storage_destination": {
-          "label": "Storage backend",
-          "desc": "Choose how config files are stored"
-        },
-        "custom_save_path": {
-          "label": "Custom save path",
-          "desc": "Override the default app data directory (empty uses the default path)"
-        },
-        "webdav_host_url": {
-          "label": "WebDAV server URL",
-          "desc": "Full URL of the WebDAV server"
-        },
-        "webdav_account": {
-          "label": "WebDAV account",
-          "desc": "Authentication account of the WebDAV service"
-        },
-        "webdav_password": {
-          "label": "WebDAV password",
-          "desc": "Authentication password of the WebDAV service"
-        },
-        "webdav_destination_dir": {
-          "label": "WebDAV remote directory",
-          "desc": "Target storage directory on the WebDAV server"
-        }
-      }
-    },
     "window-behavior-config": {
       "name": "Window Behavior",
       "description": "Customize search window open, hide and focus behavior",

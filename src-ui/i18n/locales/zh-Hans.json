@@ -843,40 +843,6 @@
         }
       }
     },
-    "storage-config": {
-      "name": "存储配置",
-      "description": "管理数据存储位置和 WebDAV 远程同步",
-      "groups": {
-        "storage": "存储设置",
-        "webdav": "WebDAV 配置"
-      },
-      "fields": {
-        "storage_destination": {
-          "label": "存储后端",
-          "desc": "选择配置文件的存储方式"
-        },
-        "custom_save_path": {
-          "label": "自定义保存路径",
-          "desc": "覆盖默认的应用数据目录（留空使用默认路径）"
-        },
-        "webdav_host_url": {
-          "label": "WebDAV 服务器地址",
-          "desc": "WebDAV 服务器的完整 URL"
-        },
-        "webdav_account": {
-          "label": "WebDAV 账号",
-          "desc": "WebDAV 服务的认证账号"
-        },
-        "webdav_password": {
-          "label": "WebDAV 密码",
-          "desc": "WebDAV 服务的认证密码"
-        },
-        "webdav_destination_dir": {
-          "label": "WebDAV 远程目录",
-          "desc": "WebDAV 服务器上的目标存储目录"
-        }
-      }
-    },
     "window-behavior-config": {
       "name": "窗口行为",
       "description": "定制搜索窗口的打开、隐藏和焦点行为",

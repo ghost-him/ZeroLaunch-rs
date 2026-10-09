@@ -843,40 +843,6 @@
         }
       }
     },
-    "storage-config": {
-      "name": "儲存設定",
-      "description": "管理資料儲存位置和 WebDAV 遠端同步",
-      "groups": {
-        "storage": "儲存設定",
-        "webdav": "WebDAV 設定"
-      },
-      "fields": {
-        "storage_destination": {
-          "label": "儲存後端",
-          "desc": "選擇設定檔案的儲存方式"
-        },
-        "custom_save_path": {
-          "label": "自定義儲存路徑",
-          "desc": "覆蓋預設的應用資料目錄（留空使用預設路徑）"
-        },
-        "webdav_host_url": {
-          "label": "WebDAV 伺服器地址",
-          "desc": "WebDAV 伺服器的完整 URL"
-        },
-        "webdav_account": {
-          "label": "WebDAV 帳號",
-          "desc": "WebDAV 服務的認證帳號"
-        },
-        "webdav_password": {
-          "label": "WebDAV 密碼",
-          "desc": "WebDAV 服務的認證密碼"
-        },
-        "webdav_destination_dir": {
-          "label": "WebDAV 遠端目錄",
-          "desc": "WebDAV 伺服器上的目標儲存目錄"
-        }
-      }
-    },
     "window-behavior-config": {
       "name": "視窗行為",
       "description": "定製搜尋視窗的開啟、隱藏和焦點行為",

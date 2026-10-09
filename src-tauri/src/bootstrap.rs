@@ -70,28 +70,6 @@ fn spawn_auto_refresh_task(state: Arc<AppState>) {
     });
 }
 
-/// 将当前配置序列化并同步到远程存储后端（fire-and-forget）。
-///
-/// 从 ConfigManager 构建 PersistentConfig，序列化为 JSON 字节，
-/// 通过 HostApi 的 StorageService 上传。失败仅记日志，不阻断。
-pub(crate) async fn sync_config_to_remote(
-    config_manager: &ConfigManager,
-    host_api: &crate::sdk::HostApi,
-) {
-    let config = config_manager.build_persistent_config();
-    let json_bytes = match serde_json::to_vec(&config) {
-        Ok(bytes) => bytes,
-        Err(e) => {
-            tracing::warn!("配置序列化失败，跳过远程同步: {}", e);
-            return;
-        }
-    };
-    let storage = host_api.storage();
-    if let Err(e) = storage.upload("zerolaunch_config.json", &json_bytes).await {
-        tracing::warn!("配置远程同步失败: {}", e);
-    }
-}
-
 /// 初始化应用状态（HostApi、ConfigManager、PluginManager）。
 ///
 /// 调用方（lib.rs 的 `run()`）将 `init_app_state` 置于 `setup` 闭包的
@@ -212,7 +190,7 @@ pub(crate) async fn init_app_state(
 
     // embedding 缓存经 core PluginHandle 的本地缓存空间挂载：
     // 路径 <app_data>/plugin-cache/core/model-embedding/，不经 StorageService，
-    // WebDAV 同步模式不会上传远端。
+    // 仅落在本地缓存目录。
     let embedding_cache = Arc::new(crate::core::model::EmbeddingCache::new(core_handle.clone()));
     model_manager.set_cache(embedding_cache);
 
@@ -417,14 +395,6 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) -> HashSet<String>
                         }
                         // 会话投影随配置变更重新推送（如面板内调整防抖延迟）
                         event_router.reemit_current_session();
-                    }
-                    // 配置变更后自动触发远程同步（fire-and-forget）
-                    match &event {
-                        ConfigEvent::SettingsChanged { .. }
-                        | ConfigEvent::EnabledChanged { .. } => {
-                            sync_config_to_remote(&cm_for_events, &host_api_for_events).await;
-                        }
-                        _ => {}
                     }
                 }
                 Err(tokio::sync::broadcast::error::RecvError::Lagged(count)) => {

@@ -223,7 +223,7 @@ pub trait PluginHost: Send + Sync {
 
     // ===== 本地缓存（插件作用域） =====
 
-    /// 写入插件本地缓存（可再生的本地数据，不经 StorageService 远端同步）。
+    /// 写入插件本地缓存（可再生的本地数据，不经 StorageService，仅落在本地缓存目录）。
     async fn cache_put(
         &self,
         plugin_id: &str,

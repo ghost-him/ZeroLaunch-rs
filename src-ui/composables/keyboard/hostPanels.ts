@@ -1,20 +1,20 @@
-import type { useSearchStore } from '@/stores/search-store'
+import type { SearchStore } from '@/stores/search-store'
 import type { HostKeyBinding, KeyIntent } from './types'
 
 export type HostPanelId = 'default_search' | 'inline_param' | 'param_panel'
 
 /// 向下移动选中项意图（方向键与配置键共用语义）。
-export function moveDownIntent(_e: KeyboardEvent, store: ReturnType<typeof useSearchStore>): KeyIntent {
+export function moveDownIntent(_e: KeyboardEvent, store: SearchStore): KeyIntent {
   return { kind: 'local', run: () => store.selectNext() }
 }
 
 /// 向上移动选中项意图（方向键与配置键共用语义）。
-export function moveUpIntent(_e: KeyboardEvent, store: ReturnType<typeof useSearchStore>): KeyIntent {
+export function moveUpIntent(_e: KeyboardEvent, store: SearchStore): KeyIntent {
   return { kind: 'local', run: () => store.selectPrev() }
 }
 
 /// 循环切换选中动作（Shift 反向；与旧 searchHandler Tab 行为一致）。
-function cycleSelectedAction(e: KeyboardEvent, store: ReturnType<typeof useSearchStore>): KeyIntent | null {
+function cycleSelectedAction(e: KeyboardEvent, store: SearchStore): KeyIntent | null {
   const item = store.selectedItem
   if (!item || item.actions.length === 0) return null
   const delta = e.shiftKey ? -1 : 1
@@ -28,7 +28,7 @@ function cycleSelectedAction(e: KeyboardEvent, store: ReturnType<typeof useSearc
 }
 
 /// Ctrl+1..9 快捷执行对应动作（仅主键盘数字区：e.code 以 Digit 开头，排除数字小键盘）。
-function quickAction(e: KeyboardEvent, store: ReturnType<typeof useSearchStore>): KeyIntent | null {
+function quickAction(e: KeyboardEvent, store: SearchStore): KeyIntent | null {
   if (!e.code.startsWith('Digit')) return null
   const num = parseInt(e.code.slice('Digit'.length), 10)
   if (num < 1 || num > 9) return null

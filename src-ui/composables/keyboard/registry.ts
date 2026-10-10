@@ -1,4 +1,4 @@
-import type { useSearchStore } from '@/stores/search-store'
+import type { SearchStore } from '@/stores/search-store'
 import { bridgeConfirm } from '@/bridge/commands'
 import type { PanelKeyAction } from '@/bridge/contract'
 import { hostPanels, type HostPanelId } from './hostPanels'
@@ -41,7 +41,7 @@ export function matchesKey(e: KeyboardEvent, spec: string): boolean {
 }
 
 /// 插件面板动作 → 宿主意图（confirm 即宿主 Enter 标准语义，走 store.confirmQuery）。
-function translateAction(action: PanelKeyAction, store: ReturnType<typeof useSearchStore>): KeyIntent {
+function translateAction(action: PanelKeyAction, store: SearchStore): KeyIntent {
   switch (action.kind) {
     case 'confirm':
       return { kind: 'local', run: () => store.confirmQuery() }
@@ -57,7 +57,7 @@ function translateAction(action: PanelKeyAction, store: ReturnType<typeof useSea
 }
 
 /// 执行宿主意图：查询/确认/返回/隐藏/面板动作转发/本地闭包。
-export function applyIntent(intent: KeyIntent, store: ReturnType<typeof useSearchStore>) {
+export function applyIntent(intent: KeyIntent, store: SearchStore) {
   switch (intent.kind) {
     case 'query':
       void store.doQuery(intent.text ?? store.query, intent.confirm)
@@ -102,7 +102,7 @@ export function applyIntent(intent: KeyIntent, store: ReturnType<typeof useSearc
 /// 状态转换经显式动作 Confirm/GoBack/GotoPanel/Custom 触发）。
 function dispatchPluginPanel(
   e: KeyboardEvent,
-  store: ReturnType<typeof useSearchStore>,
+  store: SearchStore,
   _opts: KeyOpts,
 ) {
   for (const binding of store.panelInteraction?.bindings ?? []) {
@@ -126,12 +126,22 @@ function bindingMatches(
   return !!cfgKey && matchesKey(e, cfgKey)
 }
 
+/// 选中条目声明的动作快捷键（`ResultAction.shortcutKey`，如路径条目的 `Ctrl+Enter`、
+/// 窗口条目的 `Shift+Enter`）：执行器声明即接管——宿主只解释条目声明过的键，
+/// 未声明的键不受影响。静态绑定优先，故在 `dispatchHost` 的绑定表之后调用。
+function actionShortcutIntent(e: KeyboardEvent, store: SearchStore): KeyIntent | null {
+  const item = store.selectedItem
+  if (!item) return null
+  const action = item.actions.find((a) => a.shortcutKey !== '' && matchesKey(e, a.shortcutKey))
+  return action ? { kind: 'confirm', actionId: action.id } : null
+}
+
 /// 宿主面板分发：遍历绑定表（静态 key 与 configKey 配置键别名统一由
 /// hostPanels.ts 声明、registry 仅解释执行），命中且 handler 产出意图 →
-/// preventDefault + 执行；否则放行。
+/// preventDefault + 执行；否则继续向下解释条目声明的动作快捷键。
 function dispatchHost(
   e: KeyboardEvent,
-  store: ReturnType<typeof useSearchStore>,
+  store: SearchStore,
   opts: KeyOpts,
   panelId: HostPanelId,
 ) {
@@ -145,11 +155,20 @@ function dispatchHost(
       return
     }
   }
-  // 未命中绑定或 handler 放行：不拦截（交给输入框/默认行为）
+  // 静态绑定未命中：默认搜索态再问一次选中条目声明的动作快捷键
+  // （行内参数/参数面板无候选列表，不做此层解释）
+  if (panelId === 'default_search') {
+    const intent = actionShortcutIntent(e, store)
+    if (intent !== null) {
+      e.preventDefault()
+      applyIntent(intent, store)
+    }
+  }
+  // 仍未命中：不拦截（交给输入框/默认行为）
 }
 
 /// 键盘分发入口：按会话模式路由到对应面板解释器（Alt+Space 系统保留键除外）。
-export function dispatchKeyDown(e: KeyboardEvent, store: ReturnType<typeof useSearchStore>, opts: KeyOpts) {
+export function dispatchKeyDown(e: KeyboardEvent, store: SearchStore, opts: KeyOpts) {
   if (isSystemReserved(e)) return
 
   switch (store.sessionMode) {

@@ -712,3 +712,6 @@ export const useSearchStore = defineStore('search', () => {
     applySessionState,
   }
 })
+
+/// 搜索会话 store 实例类型：在所有者模块命名，消费者按名引用（不依赖 ReturnType）。
+export type SearchStore = ReturnType<typeof useSearchStore>

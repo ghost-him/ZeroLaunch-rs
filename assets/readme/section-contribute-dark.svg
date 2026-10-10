@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="96" viewBox="0 0 1200 96" role="img" aria-labelledby="title desc">
+  <title id="title">章节分隔条</title>
+  <desc id="desc">章节分隔条：编号与英文关键词。</desc>
+  <rect width="1200" height="96" rx="20" fill="#0C1413"/>
+  <rect x="1" y="1" width="1198" height="94" rx="19" fill="none" stroke="#22332F" stroke-width="2"/>
+  <rect x="56" y="24" width="48" height="48" rx="9" fill="#0E7C74"/>
+  <text x="80" y="57" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="28" font-weight="800" fill="#FFFFFF">6</text>
+  <text x="128" y="56" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="20" letter-spacing="2" fill="#5CE1D5">CONTRIBUTING &#183; ISSUE &#183; PR</text>
+</svg>

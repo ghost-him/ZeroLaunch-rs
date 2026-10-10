@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="740" viewBox="0 0 1200 740" role="img" aria-labelledby="title desc">
+  <title id="title">匹配管线：从按键到启动</title>
+  <desc id="desc">五个阶段：输入、关键词优化、候选来源、打分排序、执行动作。每一段都是可替换的插件。</desc>
+
+  <rect width="1200" height="740" rx="26" fill="#0C1413"/>
+  <rect x="1" y="1" width="1198" height="738" rx="25" fill="none" stroke="#22332F" stroke-width="2"/>
+
+  <g id="stage-1">
+    <rect x="40" y="32" width="1120" height="116" rx="14" fill="#13211E" stroke="#29423B" stroke-width="2"/>
+    <circle cx="104" cy="90" r="28" fill="#0E7C74"/>
+    <text x="104" y="99" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="26" font-weight="700" fill="#FFFFFF">1</text>
+    <text x="156" y="82" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,PingFang SC,Microsoft YaHei,sans-serif" font-size="28" font-weight="700" fill="#EDF5F2">输入</text>
+    <text x="156" y="120" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,PingFang SC,Microsoft YaHei,sans-serif" font-size="22" fill="#8AA5A0">按 Alt + Space 唤出搜索栏，直接键入关键词（例：chorem）</text>
+  </g>
+
+  <path d="M96 153 L104 161 L112 153" fill="none" stroke="#5CE1D5" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <g id="stage-2">
+    <rect x="40" y="172" width="1120" height="116" rx="14" fill="#13211E" stroke="#29423B" stroke-width="2"/>
+    <circle cx="104" cy="230" r="28" fill="#0E7C74"/>
+    <text x="104" y="239" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="26" font-weight="700" fill="#FFFFFF">2</text>
+    <text x="156" y="222" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,PingFang SC,Microsoft YaHei,sans-serif" font-size="28" font-weight="700" fill="#EDF5F2">关键词优化</text>
+    <text x="156" y="260" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,PingFang SC,Microsoft YaHei,sans-serif" font-size="22" fill="#8AA5A0">拆成多组关键词：拼音 · 首字母 · 驼峰 · 空格 · 符号 · 版本号 · 你的别名</text>
+  </g>
+
+  <path d="M96 293 L104 301 L112 293" fill="none" stroke="#5CE1D5" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <g id="stage-3">
+    <rect x="40" y="312" width="1120" height="116" rx="14" fill="#13211E" stroke="#29423B" stroke-width="2"/>
+    <circle cx="104" cy="370" r="28" fill="#0E7C74"/>
+    <text x="104" y="379" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="26" font-weight="700" fill="#FFFFFF">3</text>
+    <text x="156" y="362" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,PingFang SC,Microsoft YaHei,sans-serif" font-size="28" font-weight="700" fill="#EDF5F2">候选来源</text>
+    <text x="156" y="400" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,PingFang SC,Microsoft YaHei,sans-serif" font-size="22" fill="#8AA5A0">从 6 路来源收集候选：系统应用 · 开始菜单程序 · 书签 · 内置命令 · 自定义命令 · 网址</text>
+  </g>
+
+  <path d="M96 433 L104 441 L112 433" fill="none" stroke="#5CE1D5" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <g id="stage-4">
+    <rect x="40" y="452" width="1120" height="116" rx="14" fill="#13211E" stroke="#29423B" stroke-width="2"/>
+    <circle cx="104" cy="510" r="28" fill="#0E7C74"/>
+    <text x="104" y="519" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="26" font-weight="700" fill="#FFFFFF">4</text>
+    <text x="156" y="502" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,PingFang SC,Microsoft YaHei,sans-serif" font-size="28" font-weight="700" fill="#EDF5F2">打分排序</text>
+    <text x="156" y="540" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,PingFang SC,Microsoft YaHei,sans-serif" font-size="22" fill="#8AA5A0">标准匹配模型三路打分（编辑距离 + BM25 + KMP），再叠加启动历史与查询亲和</text>
+  </g>
+
+  <path d="M96 573 L104 581 L112 573" fill="none" stroke="#5CE1D5" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <g id="stage-5">
+    <rect x="40" y="592" width="1120" height="116" rx="14" fill="#13211E" stroke="#29423B" stroke-width="2"/>
+    <circle cx="104" cy="650" r="28" fill="#0E7C74"/>
+    <text x="104" y="659" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="26" font-weight="700" fill="#FFFFFF">5</text>
+    <text x="156" y="642" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,PingFang SC,Microsoft YaHei,sans-serif" font-size="28" font-weight="700" fill="#EDF5F2">执行动作</text>
+    <text x="156" y="680" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,PingFang SC,Microsoft YaHei,sans-serif" font-size="22" fill="#8AA5A0">交给执行器：打开应用 · 运行命令 · 打开文件或文件夹 · 打开网址 · 激活窗口</text>
+  </g>
+</svg>

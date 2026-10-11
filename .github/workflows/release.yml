@@ -87,6 +87,10 @@ jobs:
           echo "Version: $tag"
           echo "Release Title: $releaseTitle"
 
+      - name: Host API exposure audit
+        # 发版闸门：能力暴露清单不一致（新增能力没暴露、清单腐烂）时不出包。
+        run: cargo test -p zerolaunch-rs --test host_api_exposure
+
       - name: Build all variants
         shell: pwsh
         run: |

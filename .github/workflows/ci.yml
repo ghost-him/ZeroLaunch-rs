@@ -62,6 +62,12 @@ jobs:
       - name: Clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
 
+      - name: Host API exposure audit
+        # 审计 PluginHandle 的每个能力是否都能被第三方插件调用（协议方法 + 分发分支 + SDK 代理），
+        # 或已在 src-tauri/tests/host_api_exposure.rs 的清单里显式声明原因。
+        # 单独成步是为了让失败点在 PR 检查列表里一目了然（也已包含在下一行的全量测试里）。
+        run: cargo test -p zerolaunch-rs --test host_api_exposure
+
       - name: Run tests
         run: cargo test --all-features
 

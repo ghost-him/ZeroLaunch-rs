@@ -163,8 +163,6 @@ pub struct AppearanceSettings {
         default = "default_max_visible_results"
     )]
     pub max_visible_results: f64,
-    #[serde(rename = "show_launch_command", default)]
-    pub show_launch_command: bool,
     #[serde(rename = "show_subtitle", default = "default_show_subtitle")]
     pub show_subtitle: bool,
 
@@ -254,7 +252,6 @@ impl Default for AppearanceSettings {
             result_item_icon_ratio: default_result_item_icon_ratio(),
             result_item_font_family: String::new(),
             max_visible_results: default_max_visible_results(),
-            show_launch_command: false,
             show_subtitle: true,
             footer_height: default_footer_height(),
             footer_font_ratio: default_footer_font_ratio(),
@@ -461,15 +458,6 @@ impl Configurable for AppearanceConfigComponent {
             .min(3.0)
             .max(20.0)
             .step(1.0)
-            .build(),
-            SchemaBuilder::boolean(
-                "show_launch_command",
-                t_key!("appearance-config", "fields.show_launch_command.label"),
-                t_key!("appearance-config", "fields.show_launch_command.desc"),
-            )
-            .group(t_key!("appearance-config", "groups.resultList"))
-            .order(26)
-            .default(false)
             .build(),
             SchemaBuilder::boolean(
                 "show_subtitle",

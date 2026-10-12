@@ -449,10 +449,6 @@
           "label": "Max visible results",
           "desc": "Maximum results shown without scrolling"
         },
-        "show_launch_command": {
-          "label": "Show launch command",
-          "desc": "Show the launch command path in result items"
-        },
         "show_subtitle": {
           "label": "Show subtitle",
           "desc": "Show subtitle info in result items"

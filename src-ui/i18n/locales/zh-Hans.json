@@ -449,10 +449,6 @@
           "label": "最大可见结果数",
           "desc": "不滚动时最多显示的结果条数"
         },
-        "show_launch_command": {
-          "label": "显示启动命令",
-          "desc": "在结果项中显示启动命令路径"
-        },
         "show_subtitle": {
           "label": "显示副标题",
           "desc": "在结果项中显示副标题信息"

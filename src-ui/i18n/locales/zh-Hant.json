@@ -449,10 +449,6 @@
           "label": "最大可見結果數",
           "desc": "不滾動時最多顯示的結果條數"
         },
-        "show_launch_command": {
-          "label": "顯示啟動命令",
-          "desc": "在結果項中顯示啟動命令路徑"
-        },
         "show_subtitle": {
           "label": "顯示副標題",
           "desc": "在結果項中顯示副標題資訊"

@@ -100,7 +100,7 @@ impl Configurable for AliasOptimizer {
             )
             .primitive_item(zerolaunch_plugin_api::config::PrimitiveType::Text)
             .tags_ui()
-            .min_items(1)
+            .min_items(0)
             .default(serde_json::json!([]))
             .build_field(),
             SchemaBuilder::text(

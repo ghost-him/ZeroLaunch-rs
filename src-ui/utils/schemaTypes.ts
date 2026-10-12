@@ -487,6 +487,14 @@ export function canRemoveArrayItem(schema: SchemaNode, length: number): boolean 
   return schema.type !== 'array' || schema.minItems === null || length > schema.minItems
 }
 
+/** 判断给定数组长度是否落在 schema 的 minItems/maxItems 闭区间内。 */
+export function isArrayLengthWithinBounds(schema: SchemaNode, length: number): boolean {
+  if (schema.type !== 'array') return true
+  if (schema.minItems !== null && length < schema.minItems) return false
+  if (schema.maxItems !== null && length > schema.maxItems) return false
+  return true
+}
+
 /** 生成数组项：优先使用后端明确 default，仅为 object/array 提供空结构容器。 */
 export function getDefaultArrayItem(schema: SchemaNode): unknown {
   if (schema.default != null) return schema.default

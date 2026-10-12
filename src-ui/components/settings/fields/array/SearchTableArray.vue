@@ -351,7 +351,7 @@ const columns = computed<DataTableColumn<SearchResult>[]>(() => {
   }
   if (source.valueField !== source.labelField) {
     resultColumns.push({
-      title: valueField?.label ?? source.valueField,
+      title: resolveText(valueField?.label ?? source.valueField),
       key: 'value',
       ellipsis: { tooltip: true },
       render: (row) => String(row[source.valueField] ?? '—'),

@@ -168,6 +168,9 @@ impl I18nManager {
 
     /// 合并某语言下所有插件 catalog：返回 `{"plugin": {"<id 按点嵌套>": {…}}}`。
     ///
+    /// 插件缺该语言的语言包时按 `lang → zh-Hans → en` 取首个可用语言包，
+    /// 三种语言都没有翻译的插件不参与合并。
+    ///
     /// 插件 id 为反向域名（含 `.`），而 vue-i18n 以 `.` 为路径分隔符，
     /// 故将 id 按点拆为嵌套对象（如 `com.example.hello-world` →
     /// `{"com": {"example": {"hello-world": …}}}`），共享前缀的插件深合并；
@@ -176,7 +179,7 @@ impl I18nManager {
         let plugins = self.plugins.read();
         let mut root = serde_json::Map::new();
         for (plugin_id, catalogs) in plugins.iter() {
-            if let Some(catalog) = catalogs.get(lang) {
+            if let Some(catalog) = plugin_catalog_language(catalogs, lang) {
                 let segments: Vec<&str> = plugin_id.split('.').collect();
                 let mut current = &mut root;
                 for seg in &segments[..segments.len() - 1] {
@@ -206,6 +209,18 @@ impl I18nManager {
         }
         serde_json::json!({ "plugin": root })
     }
+}
+
+/// 取插件在请求语言下的语言包：按 `lang → zh-Hans → en` 顺序回落到首个可用者。
+/// 参数：catalogs - 某插件的「语言码 → 语言包」表；lang - 请求语言码。
+/// 返回：命中的插件语言包；三种语言均无时返回 None。
+fn plugin_catalog_language<'a>(
+    catalogs: &'a HashMap<String, Value>,
+    lang: &str,
+) -> Option<&'a Value> {
+    [lang, "zh-Hans", "en"]
+        .into_iter()
+        .find_map(|candidate| catalogs.get(candidate))
 }
 
 /// 递归展平嵌套 JSON 对象为 `.` 连接 key 的字符串 map；非字符串叶子跳过。
@@ -341,6 +356,41 @@ mod tests {
             .as_object()
             .unwrap()
             .is_empty());
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// 插件缺请求语言的语言包时按 `lang → zh-Hans → en` 回落，
+    /// 使设置页与插件面板拿到插件文案而非裸 key。
+    #[test]
+    fn plugin_catalog_falls_back_across_languages() {
+        let mgr = test_manager();
+        let dir = std::env::temp_dir().join(format!("zl-i18n-fallback-{}", std::process::id()));
+        let plugin_dir = dir.join("com.example.fallback");
+        std::fs::create_dir_all(plugin_dir.join("i18n")).unwrap();
+        std::fs::write(
+            plugin_dir.join("i18n/zh-Hans.json"),
+            "{\"greeting\":\"简体\"}",
+        )
+        .unwrap();
+        std::fs::write(
+            plugin_dir.join("i18n/en.json"),
+            "{\"greeting\":\"english\"}",
+        )
+        .unwrap();
+        mgr.register_plugin_catalog("com.example.fallback", &plugin_dir);
+
+        assert_eq!(
+            mgr.plugin_catalog_for("zh-Hant")["plugin"]["com"]["example"]["fallback"]["greeting"],
+            "简体"
+        );
+        assert_eq!(
+            mgr.plugin_catalog_for("zh-Hans")["plugin"]["com"]["example"]["fallback"]["greeting"],
+            "简体"
+        );
+        assert_eq!(
+            mgr.plugin_catalog_for("en")["plugin"]["com"]["example"]["fallback"]["greeting"],
+            "english"
+        );
         std::fs::remove_dir_all(&dir).ok();
     }
 

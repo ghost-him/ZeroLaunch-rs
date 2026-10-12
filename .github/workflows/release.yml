@@ -87,6 +87,11 @@ jobs:
           echo "Version: $tag"
           echo "Release Title: $releaseTitle"
 
+      - name: Build frontend
+        # 审计步骤会编译 zerolaunch-rs lib，而 lib.rs 的 tauri::generate_context! 在编译期要求
+        # frontendDist（../dist）存在；dist 被 gitignore，checkout 后必须先构建前端。
+        run: bunx vite build
+
       - name: Host API exposure audit
         # 发版闸门：能力暴露清单不一致（新增能力没暴露、清单腐烂）时不出包。
         run: cargo test -p zerolaunch-rs --test host_api_exposure

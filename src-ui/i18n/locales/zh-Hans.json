@@ -214,6 +214,9 @@
       "logFor": "插件: {name}",
       "noLogs": "暂无日志",
       "loadLogsFailed": "加载日志失败",
+      "copyLogs": "复制日志",
+      "copyLogsSuccess": "日志已复制到剪贴板",
+      "copyLogsFailed": "复制日志失败",
       "colName": "名称",
       "colVersion": "版本",
       "colAuthor": "作者",
@@ -298,7 +301,10 @@
     "pluginError": "插件错误",
     "configError": "配置错误",
     "networkError": "网络错误",
-    "internalError": "内部错误"
+    "internalError": "内部错误",
+    "copy": "复制",
+    "copied": "已复制到剪贴板",
+    "copyFailed": "复制失败"
   },
   "inspector": {
     "title": "插件检查器",

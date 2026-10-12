@@ -62,7 +62,7 @@ logging/            → 日志初始化
 
 配置（`config_` 前缀，9个）：`config_get_version`, `config_get_all_components`, `config_get_schema`, `config_get_settings`, `config_apply_settings`, `config_reset_settings`, `config_set_enabled`, `config_get_actions`, `config_execute_action`
 
-插件管理（`plugin_` 前缀，7个）：`plugin_list`, `plugin_get_manifest`, `plugin_install_local`, `plugin_reload`, `plugin_uninstall`, `plugin_set_enabled`, `plugin_get_logs`
+插件管理（`plugin_` 前缀，9个）：`plugin_list`, `plugin_get_manifest`, `plugin_get_detail`, `plugin_install_local`, `plugin_inspect_package`, `plugin_reload`, `plugin_uninstall`, `plugin_set_enabled`, `plugin_get_logs`
 
 插件市场（`market_` 前缀，5个）：`market_list`, `market_get_meta`, `market_install`, `market_preview_package`, `market_discard_preview`
 
@@ -71,6 +71,8 @@ logging/            → 日志初始化
 调试工具（`debug_` 前缀，5个）：`debug_test_search_time`, `debug_test_index_time`, `debug_get_search_keys`, `debug_search_detail`, `debug_simulate_query`
 
 资源（`resource_` 前缀，2个）：`resource_get`, `resource_upload`
+
+剪贴板（1个）：`copy_to_clipboard`（写入系统剪贴板，前端不直接调用平台 API）
 
 CLI（`cli_` 前缀，1个）：`cli_get_info`
 

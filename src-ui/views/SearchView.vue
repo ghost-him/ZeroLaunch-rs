@@ -58,9 +58,10 @@
 </template>
 
 <script setup lang="ts">
-import { provide, ref, nextTick } from 'vue'
+import { provide, ref, nextTick, h } from 'vue'
 import { onMounted, onUnmounted } from 'vue'
-import { useNotification } from 'naive-ui'
+import { useNotification, useMessage, NButton } from 'naive-ui'
+import { useI18n } from 'vue-i18n'
 import WindowFrame from '../components/layout/WindowFrame.vue'
 import SearchBar from '../components/search/SearchBar.vue'
 import ResultList from '../components/results/ResultList.vue'
@@ -74,11 +75,13 @@ import { useKeyboardRouter } from '../composables/useKeyboardRouter'
 import { useWindowResize } from '../composables/useWindowResize'
 import ParamPanel from '../components/search/ParamPanel.vue'
 import { onConfigChanged, onShowWindow } from '../bridge/events'
-import { registerErrorHandler, configGetSettings } from '../bridge/commands'
+import { registerErrorHandler, configGetSettings, copyToClipboard } from '../bridge/commands'
 import type { BridgeError } from '../bridge/commands'
 
 const searchStore = useSearchStore()
 const notification = useNotification()
+const message = useMessage()
+const { t } = useI18n()
 
 const { uiMode } = useKeyboardRouter()
 const { resizeWindow } = useWindowResize()
@@ -122,13 +125,30 @@ function onCtxClose() {
 let unlistenConfig: (() => void) | null = null
 let unlistenShowWindow: (() => void) | null = null
 
+/** 复制错误文本到剪贴板（经宿主写入）；成功与失败均给出提示，不静默复制。 */
+async function handleCopyError(text: string) {
+  try {
+    await copyToClipboard(text)
+    message.success(t('error.copied'))
+  } catch {
+    message.error(t('error.copyFailed'))
+  }
+}
+
 onMounted(async () => {
   // 注册全局错误处理器（必须在 n-notification-provider 后代中调用）
   registerErrorHandler((error: BridgeError) => {
+    // 错误文本是反馈问题时的取证材料，而通知数秒后自动消失，故提供一键复制（成功/失败均有提示）
+    const report = `${error.code}: ${error.message}`
     notification.error({
       title: error.code,
       content: error.message,
       duration: 5000,
+      action: () => h(
+        NButton,
+        { size: 'tiny', onClick: () => { void handleCopyError(report) } },
+        { default: () => t('error.copy') },
+      ),
     })
   })
 

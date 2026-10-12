@@ -214,6 +214,9 @@
       "logFor": "Plugin: {name}",
       "noLogs": "No logs",
       "loadLogsFailed": "Failed to load logs",
+      "copyLogs": "Copy Logs",
+      "copyLogsSuccess": "Logs copied to clipboard",
+      "copyLogsFailed": "Failed to copy logs",
       "colName": "Name",
       "colVersion": "Version",
       "colAuthor": "Author",
@@ -298,7 +301,10 @@
     "pluginError": "Plugin Error",
     "configError": "Config Error",
     "networkError": "Network Error",
-    "internalError": "Internal Error"
+    "internalError": "Internal Error",
+    "copy": "Copy",
+    "copied": "Copied to clipboard",
+    "copyFailed": "Failed to copy"
   },
   "inspector": {
     "title": "Plugin Inspector",

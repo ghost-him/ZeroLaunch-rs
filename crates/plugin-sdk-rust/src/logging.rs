@@ -76,14 +76,18 @@ pub fn init_logging() -> mpsc::UnboundedReceiver<LogEntry> {
     let (log_tx, log_rx) = mpsc::unbounded_channel::<LogEntry>();
 
     // 如果已设置（如嵌套测试），不重复初始化
+    // 三个 layer 均关闭 ANSI：输出被宿主按纯文本消费（stderr → 日志文件，host/log → 宿主日志），
+    // 颜色转义序列在非终端环境下只会变成乱码。
     let _ = Registry::default()
         .with(
             tracing_subscriber::fmt::layer()
+                .with_ansi(false)
                 .with_writer(io::stderr)
                 .with_filter(LevelFilter::INFO),
         )
         .with(
             tracing_subscriber::fmt::layer()
+                .with_ansi(false)
                 .with_writer(HostLogWriter::new(log_tx.clone(), "warn"))
                 .with_filter(filter_fn(|metadata| {
                     *metadata.level() == tracing::Level::WARN
@@ -91,6 +95,7 @@ pub fn init_logging() -> mpsc::UnboundedReceiver<LogEntry> {
         )
         .with(
             tracing_subscriber::fmt::layer()
+                .with_ansi(false)
                 .with_writer(HostLogWriter::new(log_tx.clone(), "error"))
                 .with_filter(filter_fn(|metadata| {
                     *metadata.level() == tracing::Level::ERROR

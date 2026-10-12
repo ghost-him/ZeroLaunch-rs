@@ -397,6 +397,14 @@ export function i18nGetPluginTranslations(lang: string): Promise<PluginTranslati
 // ---- 系统集成 ----
 
 /**
+ * 将文本写入系统剪贴板。
+ * 剪贴板属平台能力，必须经宿主写入（前端不直接调用平台 API）；调用失败时 reject。
+ */
+export function copyToClipboard(text: string): Promise<void> {
+  return invokeCommand<void>('copy_to_clipboard', { text })
+}
+
+/**
  * 用系统默认浏览器打开外链。
  * webview 内 `target=_blank` 只会打开空白窗口，须走 shell 插件；调用失败时 reject。
  */

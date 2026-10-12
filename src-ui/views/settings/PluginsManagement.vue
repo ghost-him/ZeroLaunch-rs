@@ -14,7 +14,7 @@ import type { UnlistenFn } from '@tauri-apps/api/event'
 import {
   pluginList, pluginReload, pluginUninstall,
   pluginInstallLocal, pluginInspectPackage, pluginGetLogs, pluginSetEnabled, pluginGetDetail,
-  pickPluginZip, pickPluginDir,
+  pickPluginZip, pickPluginDir, copyToClipboard,
 } from '@/bridge/commands'
 import type { InstalledPluginInfo, PluginDetail, PluginManifest, BridgeError } from '@/bridge/commands'
 import type { ComponentInfo } from '@/bridge/contract'
@@ -475,6 +475,17 @@ async function handleViewLogs(pluginId: string) {
   }
 }
 
+/** 复制当前展示的插件日志到剪贴板（经宿主写入，成功后提示，不静默复制）。 */
+async function handleCopyLogs() {
+  if (!logContent.value) return
+  try {
+    await copyToClipboard(logContent.value)
+    message.success(t('settings.thirdPartyPlugins.copyLogsSuccess'))
+  } catch (e) {
+    message.error(t('settings.thirdPartyPlugins.copyLogsFailed') + ': ' + errorText(e))
+  }
+}
+
 onMounted(() => {
   loadPlugins()
   setupDragDrop()
@@ -598,6 +609,13 @@ onUnmounted(() => {
           <NText v-else depth="3">{{ t('settings.thirdPartyPlugins.noLogs') }}</NText>
         </div>
       </NSpin>
+      <template #footer>
+        <NSpace justify="end">
+          <NButton size="small" :disabled="!logContent" @click="handleCopyLogs">
+            {{ t('settings.thirdPartyPlugins.copyLogs') }}
+          </NButton>
+        </NSpace>
+      </template>
     </NModal>
 
     <!-- 插件详情弹窗：元数据（含触发词）+ 第三方 manifest -->

@@ -180,6 +180,7 @@ onMounted(async () => {
 
 .settings-content {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   background-color: var(--bg-color);
@@ -198,6 +199,8 @@ onMounted(async () => {
 
 .category-scroll-area {
   flex: 1;
+  min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   overflow-y: auto;

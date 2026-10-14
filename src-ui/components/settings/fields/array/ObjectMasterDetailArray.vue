@@ -175,9 +175,11 @@ function onRemove(idx: number): void {
   border: 1px solid var(--border-color);
   border-radius: 6px;
   overflow: hidden;
+  min-width: 0;
 }
 .md-list {
   width: 200px;
+  flex-shrink: 0;
   border-right: 1px solid var(--border-color);
   padding: 8px;
   display: flex;
@@ -189,6 +191,7 @@ function onRemove(idx: number): void {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 8px;
   padding: 4px 8px;
   border-radius: 4px;
   cursor: pointer;
@@ -203,8 +206,19 @@ function onRemove(idx: number): void {
 }
 .md-detail {
   flex: 1;
+  min-width: 0;
   padding: 12px;
   min-height: 0;
+}
+.md-list-item > span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.md-list-item .n-button {
+  flex-shrink: 0;
 }
 .md-field {
   margin-bottom: 8px;

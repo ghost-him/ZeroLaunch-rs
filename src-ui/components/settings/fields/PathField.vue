@@ -51,14 +51,20 @@ async function openPicker() {
   }
 }
 </script>
-
 <style scoped>
+
 .field-input-row {
   display: flex;
   gap: 8px;
   align-items: center;
+  min-width: 0;
+}
+.field-input-row > .n-button {
+  flex-shrink: 0;
 }
 .path-display {
+  flex: 1;
+  min-width: 0;
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
   max-width: 300px;

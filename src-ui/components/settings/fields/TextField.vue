@@ -49,8 +49,10 @@ const emit = defineEmits<{
   display: flex;
   gap: 8px;
   align-items: center;
+  min-width: 0;
 }
 .field-input-row > :first-child {
   flex: 1;
+  min-width: 0;
 }
 </style>

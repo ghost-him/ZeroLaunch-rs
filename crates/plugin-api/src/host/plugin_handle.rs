@@ -261,7 +261,7 @@ impl PluginHandle {
         self.host.has_system_parameters(template)
     }
 
-    // ===== 定时器服务（委托宿主） =====
+    // ===== 定时器服务（委托宿主，插件作用域） =====
 
     /// 创建一个一次性定时器，在指定延迟后触发回调。
     pub async fn set_timeout(
@@ -269,7 +269,9 @@ impl PluginHandle {
         delay: Duration,
         callback: TimerCallback,
     ) -> Result<TimerId, HostApiError> {
-        self.host.set_timeout(delay, callback).await
+        self.host
+            .set_timeout(&self.plugin_id, delay, callback)
+            .await
     }
 
     /// 创建一个重复定时器，每隔指定间隔触发回调。
@@ -278,17 +280,19 @@ impl PluginHandle {
         interval: Duration,
         callback: TimerCallback,
     ) -> Result<TimerId, HostApiError> {
-        self.host.set_interval(interval, callback).await
+        self.host
+            .set_interval(&self.plugin_id, interval, callback)
+            .await
     }
 
-    /// 取消指定 ID 的定时器。
+    /// 取消本插件的指定定时器。
     pub async fn cancel_timer(&self, id: TimerId) -> Result<(), HostApiError> {
-        self.host.cancel_timer(id).await
+        self.host.cancel_timer(&self.plugin_id, id).await
     }
 
-    /// 取消所有定时器。
+    /// 取消本插件的全部定时器。
     pub async fn cancel_all_timers(&self) -> Result<(), HostApiError> {
-        self.host.cancel_all_timers().await
+        self.host.cancel_all_timers(&self.plugin_id).await
     }
 
     // ===== 资源管理（委托宿主，插件作用域） =====

@@ -165,27 +165,34 @@ pub trait PluginHost: Send + Sync {
     /// 检查模板是否包含系统参数。
     fn has_system_parameters(&self, template: &str) -> bool;
 
-    // ===== 定时器服务 =====
+    // ===== 定时器服务（插件作用域） =====
 
     /// 创建一个一次性定时器，在指定延迟后触发回调。
+    /// 参数：plugin_id - 插件 ID（记录定时器归属，供按插件取消）；
+    ///       delay - 延迟时长；callback - 到期回调。
     async fn set_timeout(
         &self,
+        plugin_id: &str,
         delay: Duration,
         callback: TimerCallback,
     ) -> Result<TimerId, HostApiError>;
 
     /// 创建一个重复定时器，每隔指定间隔触发回调。
+    /// 参数：plugin_id - 插件 ID（记录定时器归属，供按插件取消）；
+    ///       interval - 触发间隔；callback - 每次到期的回调。
     async fn set_interval(
         &self,
+        plugin_id: &str,
         interval: Duration,
         callback: TimerCallback,
     ) -> Result<TimerId, HostApiError>;
 
-    /// 取消指定 ID 的定时器。
-    async fn cancel_timer(&self, id: TimerId) -> Result<(), HostApiError>;
+    /// 取消指定插件的指定定时器。
+    /// 语义：未知 ID（从未创建 / 已触发移除）幂等成功；仅归属明确属于他插件时返回错误。
+    async fn cancel_timer(&self, plugin_id: &str, id: TimerId) -> Result<(), HostApiError>;
 
-    /// 取消所有定时器。
-    async fn cancel_all_timers(&self) -> Result<(), HostApiError>;
+    /// 取消指定插件的全部定时器（不影响其他插件的定时器，best-effort 逐个取消）。
+    async fn cancel_all_timers(&self, plugin_id: &str) -> Result<(), HostApiError>;
 
     // ===== 资源管理（插件作用域） =====
 

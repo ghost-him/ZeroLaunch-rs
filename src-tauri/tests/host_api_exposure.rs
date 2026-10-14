@@ -9,15 +9,14 @@
 //! 2. 宿主分发分支（`src-tauri/src/plugin_framework/host_handler.rs` 调 `handle.<方法>`）
 //! 3. SDK 代理方法（`crates/plugin-sdk-rust/src/host_proxy.rs`，插件作者实际调用的入口）
 //!
-//! 目前尚未实现的，逐条登记在 `KNOWN_GAPS`（已知缺陷），先不修；修好后必须删条目。
-//! 本审计保证两个方向都拦得住：
-//! - **新增能力忘暴露** → 失败（提示补齐 3 层或登记为已知缺陷）；
-//! - **已知缺陷已修复却仍留在清单** → 失败（防止清单腐烂成永久豁免）。
+//! **本审计无豁免清单**：任何一层缺失即失败，必须补齐三层后才能通过；
+//! 唯一例外是 `NO_HOST_COUNTERPART`（不需要宿主对照的方法，语义例外而非豁免，
+//! 其清单自身也受双向断言守护）。
 //!
 //! 只做静态文本审计（不编译插件作者侧代码），因此判定偏保守：**宁可要求你显式声明**。
 //! 判定依据是「无空白源码」扫描，能识别 `handle\n    .shell_open(...)` 这类多行链式调用；
 //! 并对条数设下限断言 —— 解析器一旦失灵，本审计必须失败而不是静默全绿。
-//! `audit_detects_*` / `audit_accepts_*` 四支自测喂合成源码验证上述四个方向都成立。
+//! `audit_detects_*` / `audit_accepts_*` 四支自测喂合成源码验证上述方向都成立。
 //!
 //! 运行：`cargo test -p zerolaunch-rs --test host_api_exposure`
 
@@ -31,117 +30,6 @@ use std::path::PathBuf;
 /// - `new`：构造函数，没有 `self` 参数，不在本审计的方法集合内；
 /// - `plugin_id`：插件身份元数据，进程内直接可取，无宿主能力可委托。
 const NO_HOST_COUNTERPART: &[&str] = &["plugin_id"];
-
-/// 已知缺陷：按「除 new / plugin_id 外都应在宿主侧存在」的约定，以下方法**尚未**跨进程暴露。
-///
-/// 备注写「缺什么」，便于逐条修：协议方法名、分发分支、SDK 代理三者中缺哪一环。
-/// **修好后必须删除对应条目** —— 否则本审计会以「已修复却仍登记」失败。
-const KNOWN_GAPS: &[(&str, &str)] = &[
-    // ==== 配置与平台能力 ====
-    (
-        "update_config",
-        "缺 host/sdk_config.update（或改为随 host/plugin.initialize / 设置变更通知下发）",
-    ),
-    (
-        "capabilities",
-        "缺 host/platform.capabilities（平台能力集查询），插件无法据此降级",
-    ),
-    // ==== 图标：ICON_GET 已通（走 get_icon_or_default），三个变体未暴露 ====
-    (
-        "get_icon",
-        "缺 host/icon.get 的「返回错误而非默认图标」变体（当前 ICON_GET 固定回退默认图标）",
-    ),
-    (
-        "get_icon_and_update_cache",
-        "缺 host/icon.refresh（强制刷新缓存并写回）",
-    ),
-    ("override_icon_cache", "缺 host/icon.override_cache"),
-    // ==== 窗口：协议那条实际按 pid 分发 ====
-    (
-        "activate_window_by_process",
-        "协议 host/window.activate_by_process 实际按 pid 分发（调 activate_window_by_pid），\
-         按进程名激活的能力缺支持",
-    ),
-    (
-        "activate_window_by_title",
-        "缺 host/window.activate_by_title",
-    ),
-    // ==== 剪贴板 / 应用 / 路径工具 ====
-    ("set_clipboard_text", "缺 host/clipboard.set_text"),
-    (
-        "launch_app",
-        "缺 host/app.launch（宿主应用执行器，含参数替换）",
-    ),
-    ("get_app_icon_path", "缺 host/app.icon_path"),
-    (
-        "resolve_lnk_target",
-        "缺 host/path.resolve_lnk（.lnk 目标解析）",
-    ),
-    (
-        "parse_localized_names_from_dir",
-        "缺 host/path.localized_names（desktop.ini 本地化名）",
-    ),
-    // ==== 主题：GET_THEME 走 get_theme，系统主题变体未暴露 ====
-    (
-        "get_system_theme",
-        "缺 host/theme.get_system（未应用宿主 light/dark 配置的系统主题）",
-    ),
-    // ==== 参数模板工具 ====
-    ("count_user_parameters", "缺 host/parameter.count_user"),
-    ("has_system_parameters", "缺 host/parameter.has_system"),
-    // ==== 定时器与事件：当前是「进程内闭包注册」，跨进程需要宿主侧设计 ====
-    (
-        "set_timeout",
-        "回调闭包不可跨进程：需改为 host/timer.set_timeout + 宿主经 plugin/* 通知事件",
-    ),
-    (
-        "set_interval",
-        "回调闭包不可跨进程：需改为 host/timer.set_interval + 宿主推送",
-    ),
-    (
-        "cancel_timer",
-        "缺 host/timer.cancel（依赖定时器跨进程方案）",
-    ),
-    (
-        "cancel_all_timers",
-        "缺 host/timer.cancel_all（依赖定时器跨进程方案）",
-    ),
-    (
-        "register_hotkey_callback",
-        "回调闭包不可跨进程：需改为 host/hotkey.subscribe + 宿主推送按键事件",
-    ),
-    ("unregister_hotkey_callback", "缺 host/hotkey.unsubscribe"),
-    (
-        "register_installation_callback",
-        "回调闭包不可跨进程：需改为 host/installation.subscribe + 宿主推送安装事件",
-    ),
-    (
-        "unregister_installation_callback",
-        "缺 host/installation.unsubscribe",
-    ),
-    (
-        "register_focus_callback",
-        "回调闭包不可跨进程：需改为 host/focus.subscribe + 宿主推送焦点事件",
-    ),
-    ("unregister_focus_callback", "缺 host/focus.unsubscribe"),
-    // ==== 插件作用域本地缓存（<AppCacheDir>/<plugin_id>/<domain>/<key>）====
-    ("cache_put", "缺 host/cache.put"),
-    ("cache_get", "缺 host/cache.get"),
-    ("cache_delete", "缺 host/cache.delete"),
-    ("cache_cleanup", "缺 host/cache.cleanup"),
-];
-
-/// 已知缺陷（SDK 代理层）：协议已通、但 SDK 未提供代理封装，第三方插件只能手搓帧。
-const KNOWN_SDK_PROXY_GAPS: &[(&str, &str)] = &[
-    (
-        "PARAMETER_RESOLVE",
-        "缺 host_proxy::resolve_parameters（协议已通、分发已通，仅差代理封装）",
-    ),
-    (
-        "WINDOW_ACTIVATE_BY_PROCESS",
-        "缺 host_proxy::activate_window_by_process（且该协议方法当前按 pid 语义分发，需先统一）",
-    ),
-];
 
 // ============================ 待审计源码 ============================
 
@@ -192,15 +80,12 @@ fn audit(sources: &Sources<'_>) -> Vec<String> {
         ));
     }
 
-    // ② 协议方法必须有 SDK 代理（第三方插件才知道怎么调）；未提供者须登记为已知缺陷。
-    let no_proxy = diff(&parsed.protocol_methods, |k| {
-        parsed.proxied.contains(k) || KNOWN_SDK_PROXY_GAPS.iter().any(|(n, _)| *n == k)
-    });
+    // ② 协议方法必须有 SDK 代理（第三方插件才知道怎么调）。
+    let no_proxy = diff(&parsed.protocol_methods, |k| parsed.proxied.contains(k));
     if !no_proxy.is_empty() {
         problems.push(format!(
             "以下 host/* 协议方法没有 SDK 代理方法（第三方插件无法调用）：\n{}\n\
-             请补 crates/plugin-sdk-rust/src/host_proxy.rs 的代理，\
-             或登记到 KNOWN_SDK_PROXY_GAPS 并写明缺什么。",
+             请补 crates/plugin-sdk-rust/src/host_proxy.rs 的代理方法。",
             dump(&no_proxy)
         ));
     }
@@ -219,8 +104,8 @@ fn audit(sources: &Sources<'_>) -> Vec<String> {
         ));
     }
 
-    // ④ 核心：除 NO_HOST_COUNTERPART 外，PluginHandle 的公开方法要么被 host_handler 调用
-    //    （第三方可达），要么作为已知缺陷登记。集合必须**恰好相等**，两个方向都要拦。
+    // ④ 核心：除 NO_HOST_COUNTERPART 外，PluginHandle 的公开方法必须被 host_handler 调用
+    //    （第三方可达）；没有豁免清单，不可达即失败。
     let unexposed: BTreeSet<String> = parsed
         .handle_methods
         .iter()
@@ -229,23 +114,13 @@ fn audit(sources: &Sources<'_>) -> Vec<String> {
         })
         .cloned()
         .collect();
-    let declared: BTreeSet<String> = KNOWN_GAPS.iter().map(|(n, _)| n.to_string()).collect();
 
-    let newly_unexposed: BTreeSet<String> = unexposed.difference(&declared).cloned().collect();
-    if !newly_unexposed.is_empty() {
+    if !unexposed.is_empty() {
         problems.push(format!(
-            "以下 PluginHandle 方法既不可达（host_handler 未调用）也未登记为已知缺陷：\n{}\n\
-             请二选一：① 补齐三层（host/* 协议方法 + 分发分支 + SDK 代理）；\
-             ② 加进 KNOWN_GAPS 并写明缺什么（登记即视为「已知缺陷，暂不修」）。",
-            dump(&newly_unexposed)
-        ));
-    }
-    let stale_gaps: BTreeSet<String> = declared.difference(&unexposed).cloned().collect();
-    if !stale_gaps.is_empty() {
-        problems.push(format!(
-            "以下方法已在宿主侧可达（或已不存在），却仍留在 KNOWN_GAPS：\n{}\n\
-             已知缺陷修好后必须删条目，避免清单腐烂成永久豁免。",
-            dump(&stale_gaps)
+            "以下 PluginHandle 方法在宿主侧不可达（host_handler 未调用 handle.<方法>）：\n{}\n\
+             请补齐三层：host/* 协议方法 + 分发分支 + SDK 代理；\
+             确有宿主对照的语义例外须加进 NO_HOST_COUNTERPART 并在注释里写明理由。",
+            dump(&unexposed)
         ));
     }
 
@@ -271,13 +146,6 @@ fn audit(sources: &Sources<'_>) -> Vec<String> {
             "NO_HOST_COUNTERPART 里的方法其实已可达，不该留在例外清单：\n{}",
             dump(&stale_exceptions)
         ));
-    }
-
-    // ⑥ 清单条目必须写清「缺什么」。
-    for (name, note) in KNOWN_GAPS.iter().chain(KNOWN_SDK_PROXY_GAPS.iter()) {
-        if note.trim().len() < 8 {
-            problems.push(format!("清单条目 {name} 的说明过短，请写清缺什么"));
-        }
     }
 
     problems
@@ -364,19 +232,26 @@ fn calls_on(src: &str, recv: &str) -> BTreeSet<String> {
 }
 
 /// 扫描 `prefix` 之后紧跟的标识符（如 `host::SHELL_OPEN` → `SHELL_OPEN`）。
+///
+/// 前缀前紧跟 `::` 的匹配被跳过：那是模块路径片段（如
+/// `use zerolaunch_plugin_api::host::PluginSdkConfig;` 里的 `host::PluginSdkConfig`），
+/// 不是协议常量引用。
 fn idents_after(src: &str, prefix: &str) -> BTreeSet<String> {
     let bytes = src.as_bytes();
     let mut out = BTreeSet::new();
     let mut from = 0usize;
     while let Some(idx) = src[from..].find(prefix) {
-        let at = from + idx + prefix.len();
-        from = at;
-        let mut i = at;
+        let at = from + idx;
+        from = at + prefix.len();
+        if at >= 2 && bytes[at - 1] == b':' && bytes[at - 2] == b':' {
+            continue;
+        }
+        let mut i = from;
         while i < bytes.len() && is_ident_byte(bytes[i]) {
             i += 1;
         }
-        if i > at {
-            out.insert(src[at..i].to_string());
+        if i > from {
+            out.insert(src[from..i].to_string());
         }
     }
     out
@@ -457,7 +332,7 @@ fn dump(names: &BTreeSet<String>) -> String {
 // ============================ 测试 ============================
 
 #[test]
-fn every_plugin_handle_capability_is_reachable_or_known_gap() {
+fn every_plugin_handle_capability_is_reachable() {
     let handle = read(PLUGIN_HANDLE_SRC);
     let protocol = read(PROTOCOL_METHODS_SRC);
     let handler = read(HOST_HANDLER_SRC);
@@ -472,32 +347,32 @@ fn every_plugin_handle_capability_is_reachable_or_known_gap() {
 
     // 解析器自检：条数低于下限说明扫描逻辑失灵，必须失败而不是静默全绿。
     assert!(
-        parsed.handle_methods.len() >= 30,
+        parsed.handle_methods.len() >= 45,
         "解析异常：只从 {PLUGIN_HANDLE_SRC} 解出 {} 个公开方法",
         parsed.handle_methods.len()
     );
     assert!(
-        parsed.protocol_methods.len() >= 15,
+        parsed.protocol_methods.len() >= 45,
         "解析异常：只从 {PROTOCOL_METHODS_SRC} 解出 {} 个 host/* 方法",
         parsed.protocol_methods.len()
     );
     assert!(
-        parsed.dispatched.len() >= 15,
+        parsed.dispatched.len() >= 45,
         "解析异常：{HOST_HANDLER_SRC} 只引用 {} 个 host:: 常量",
         parsed.dispatched.len()
     );
     assert!(
-        parsed.proxied.len() >= 15,
+        parsed.proxied.len() >= 45,
         "解析异常：{SDK_PROXY_SRC} 只引用 {} 个 host:: 常量",
         parsed.proxied.len()
     );
     assert!(
-        parsed.handler_calls.len() >= 10,
+        parsed.handler_calls.len() >= 40,
         "解析异常：host_handler 中的 handle 调用解出过少（{}）",
         parsed.handler_calls.len()
     );
     assert!(
-        pub_methods(&proxy).len() >= 15,
+        pub_methods(&proxy).len() >= 45,
         "解析异常：{SDK_PROXY_SRC} 解出的公开方法过少"
     );
 
@@ -582,27 +457,37 @@ fn audit_accepts_properly_exposed_capability() {
     );
 }
 
-/// 自测④：已知缺陷已修好（分发分支已调用）却仍留在清单 → 审计必须报出清单腐烂。
+/// 自测④：新增 `host/*` 协议常量（已写分发分支）但没有 SDK 代理 → 审计必须报出它。
 #[test]
-fn audit_detects_stale_known_gap() {
+fn audit_detects_protocol_method_without_sdk_proxy() {
     let inputs = real_sources();
-    // 拿清单里的第一个条目做探针：假装它已经有分发分支了。
-    let declared = KNOWN_GAPS[0].0;
+    let probe_protocol = format!(
+        "{}\npub const PROBE_NO_PROXY: &str = \"host/probe.no_proxy\";\n",
+        inputs.1
+    );
+    // 分发侧补上分支（这条不再缺分发），但 SDK 侧不补代理 → 只应报「缺 SDK 代理」。
     let probe_handler = format!(
-        "{}\n host::PROBE => {{ let _ = handle.{declared}(); }}\n",
+        "{}\n host::PROBE_NO_PROXY => {{ let _ = handle.capabilities(); }}\n",
         inputs.2
     );
     let problems = audit(&Sources {
         handle: &inputs.0,
-        protocol: &inputs.1,
+        protocol: &probe_protocol,
         handler: &probe_handler,
         proxy: &inputs.3,
     });
     assert!(
         problems
             .iter()
-            .any(|p| p.contains("KNOWN_GAPS") && p.contains(declared)),
-        "审计没能报出「已修复却仍登记」的清单条目（{declared}）：\n{}",
+            .any(|p| p.contains("SDK 代理") && p.contains("PROBE_NO_PROXY")),
+        "审计没能报出缺少 SDK 代理的协议方法（漏检）：\n{}",
+        problems.join("\n")
+    );
+    assert!(
+        !problems
+            .iter()
+            .any(|p| p.contains("没有 host_handler 分发分支")),
+        "审计误报：已写分发分支的协议方法被当成缺分发：\n{}",
         problems.join("\n")
     );
 }

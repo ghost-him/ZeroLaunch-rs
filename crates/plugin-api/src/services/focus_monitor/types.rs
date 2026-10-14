@@ -1,10 +1,13 @@
+use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::sync::Arc;
 
 /// 焦点事件类型。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// 跨进程作为 `plugin/focus.event` 载荷字段 `event` 推送。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FocusEvent {
-    /// 窗口失去焦点（关闭请求或焦点离开且鼠标在窗口外）。
+    /// 窗口失去焦点（关闭请求或焦点离开且鼠标在窗口外，标签 "lost"）
+    #[serde(rename = "lost")]
     Lost,
 }
 

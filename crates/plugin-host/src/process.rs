@@ -15,7 +15,7 @@ use zerolaunch_plugin_protocol::methods::plugin as plugin_methods;
 use zerolaunch_plugin_protocol::{ProtocolError, PROTOCOL_VERSION};
 
 use crate::client::{IncomingRequest, JsonRpcClient};
-use crate::host_dispatch::HostCallHandler;
+use crate::host_dispatch::{HostCallHandler, PluginEventSink};
 use crate::transport::stdio::StdioTransport;
 
 /// Tracks the lifecycle state of a plugin subprocess.
@@ -164,6 +164,9 @@ impl PluginProcess {
             incoming_request_tx,
             incoming_notification_tx,
         );
+
+        // 注入宿主 → 插件事件推送通道（重启 spawn 覆盖为新通道）。
+        host_call_handler.attach_event_sink(spawn_event_forwarder(client.clone()));
 
         // Spawn task to handle incoming requests from the plugin (host/* calls)
         let hc = host_call_handler.clone();
@@ -531,6 +534,45 @@ impl PluginProcess {
     }
 }
 
+/// 基于 JSON-RPC 客户端的宿主事件推送实现。
+/// 仅本文件内使用：每次 spawn 为一个子进程构造，注入给 HostCallHandler。
+///
+/// `notify` 只做非阻塞投递：宿主回调可能运行在无 tokio 运行时的线程上
+/// （如 global-hotkey 的 Win32 窗口过程）。帧的编码与写出由转发任务负责
+/// （该任务运行在 tokio 运行时内）。
+struct ClientEventSink {
+    /// 待推送通知队列（方法名 + 载荷）；接收端由转发任务持有。
+    /// 容量有界：插件进程不读 stdin 时通过 try_send 丢事件，避免宿主内存无界增长。
+    tx: mpsc::Sender<(String, serde_json::Value)>,
+}
+
+impl PluginEventSink for ClientEventSink {
+    fn notify(&self, method: &str, params: serde_json::Value) {
+        // 队列满（插件进程读得太慢）或通道关闭（进程已退出）时丢弃：
+        // 事件推送是尽力而为，不得反压宿主回调线程。
+        if self.tx.try_send((method.to_string(), params)).is_err() {
+            tracing::debug!("插件事件队列已满或已关闭，丢弃事件: {}", method);
+        }
+    }
+}
+
+/// 启动事件转发任务：把队列中的通知依次编码成帧写往插件进程 stdin。
+/// 参数：client - 出站 JSON-RPC 客户端（宿主 → 插件方向）。
+/// 返回：注入给 HostCallHandler 的事件推送通道。
+///
+/// 投递与写出分离：宿主回调线程无运行时上下文，`notify` 只做非阻塞投递，写出固定在带运行时的任务里。
+fn spawn_event_forwarder(client: Arc<JsonRpcClient>) -> Arc<dyn PluginEventSink> {
+    let (event_tx, mut event_rx) = mpsc::channel::<(String, serde_json::Value)>(64);
+    tokio::spawn(async move {
+        while let Some((method, params)) = event_rx.recv().await {
+            if let Err(e) = client.notify(&method, params).await {
+                warn!("推送插件事件失败 ({}): {}", method, e);
+            }
+        }
+    });
+    Arc::new(ClientEventSink { tx: event_tx })
+}
+
 /// 强制终止指定 PID 的进程。
 /// 使用平台原生的 kill 命令（Windows: taskkill, Unix: kill -9）。
 pub(crate) fn force_kill_process(pid: u32) {
@@ -590,6 +632,44 @@ fn protocol_version_compatible(plugin_protocol: &str, host_protocol: &str) -> bo
 #[cfg(test)]
 mod tests {
     use super::protocol_version_compatible;
+    use super::{spawn_event_forwarder, IncomingRequest, JsonRpcClient};
+    use serde_json::json;
+    use tokio::io::{duplex, BufReader};
+    use tokio::sync::mpsc;
+    use zerolaunch_plugin_protocol::jsonrpc::Message;
+
+    /// 宿主事件推送在无 tokio 运行时线程上调用不得 panic（覆盖 Win32 窗口过程回调）。
+    #[tokio::test]
+    async fn event_sink_notify_is_callable_without_runtime() {
+        use crate::transport::codec::read_frame;
+
+        let (client_out, plugin_in) = duplex(64 * 1024);
+        let (request_tx, _request_rx) = mpsc::channel::<IncomingRequest>(4);
+        let (notification_tx, _notification_rx) = mpsc::channel::<(String, serde_json::Value)>(4);
+        let client = JsonRpcClient::new(
+            BufReader::new(tokio::io::empty()),
+            client_out,
+            request_tx,
+            notification_tx,
+        );
+        let sink = spawn_event_forwarder(client);
+
+        std::thread::spawn(move || {
+            sink.notify("plugin/timer.fired", json!({ "id": 7 }));
+        })
+        .join()
+        .expect("无 tokio 运行时线程上的 notify 不得 panic");
+
+        let mut reader = BufReader::new(plugin_in);
+        let body = read_frame(&mut reader).await.expect("事件应被写成帧");
+        match serde_json::from_slice::<Message>(&body).expect("帧体是 JSON-RPC 消息") {
+            Message::Notification(n) => {
+                assert_eq!(n.method, "plugin/timer.fired");
+                assert_eq!(n.params["id"], 7);
+            }
+            other => panic!("期望通知，得到 {other:?}"),
+        }
+    }
 
     /// major 相同（含 minor 差异）视为兼容：宿主驱动模型下双向安全。
     #[test]

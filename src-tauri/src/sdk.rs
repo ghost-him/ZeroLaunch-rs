@@ -50,6 +50,9 @@ pub struct HostApi {
     parameter_resolver: Arc<dyn ParameterResolver>,
     /// 定时器管理器（宿主级 tokio 实现）
     timer_manager: Arc<dyn TimerManager>,
+    /// 定时器归属表（TimerId → plugin_id），使定时器具备插件作用域。
+    /// 一次性定时器在触发时由回调包装移除归属条目；重复定时器在取消时移除。
+    timer_owners: Arc<DashMap<TimerId, String>>,
     /// 存储服务（宿主级，插件与组件资源存储）
     storage: Arc<dyn StorageService>,
     /// 应用资源服务（宿主级）
@@ -581,30 +584,83 @@ impl PluginHost for HostApi {
 
     async fn set_timeout(
         &self,
+        plugin_id: &str,
         delay: std::time::Duration,
         callback: TimerCallback,
     ) -> Result<TimerId, HostApiError> {
-        self.timer_manager
-            .set_timer(delay, TimerMode::OneShot, callback)
-            .await
+        let owners = self.timer_owners.clone();
+        // 一次性定时器触发后归属即失效，由回调包装移除条目。
+        let wrapped: TimerCallback = {
+            let owners = owners.clone();
+            Arc::new(move |id: TimerId| {
+                owners.remove(&id);
+                callback(id);
+            })
+        };
+        let id = self
+            .timer_manager
+            .set_timer(delay, TimerMode::OneShot, wrapped)
+            .await?;
+        owners.insert(id, plugin_id.to_string());
+        Ok(id)
     }
 
     async fn set_interval(
         &self,
+        plugin_id: &str,
         interval: std::time::Duration,
         callback: TimerCallback,
     ) -> Result<TimerId, HostApiError> {
-        self.timer_manager
+        let id = self
+            .timer_manager
             .set_timer(interval, TimerMode::Interval, callback)
-            .await
+            .await?;
+        self.timer_owners.insert(id, plugin_id.to_string());
+        Ok(id)
     }
 
-    async fn cancel_timer(&self, id: TimerId) -> Result<(), HostApiError> {
-        self.timer_manager.cancel_timer(id).await
+    /// 取消指定插件的指定定时器。
+    /// 未知 ID（从未创建 / 已触发移除）幂等成功；仅归属明确属于他插件时返回错误。
+    /// 参数：plugin_id - 请求取消的插件；id - 定时器 ID。
+    async fn cancel_timer(&self, plugin_id: &str, id: TimerId) -> Result<(), HostApiError> {
+        match self
+            .timer_owners
+            .get(&id)
+            .map(|entry| entry.value().clone())
+        {
+            // 未知 ID：幂等成功（防御性重复取消 / 已触发移除后取消）。
+            None => Ok(()),
+            Some(owner) if owner == plugin_id => {
+                self.timer_owners.remove(&id);
+                self.timer_manager.cancel_timer(id).await
+            }
+            Some(owner) => Err(HostApiError::ExecutionFailed {
+                service: "timer".to_string(),
+                reason: format!("定时器 {id:?} 属于插件 {owner}，插件 {plugin_id} 无权取消"),
+            }),
+        }
     }
 
-    async fn cancel_all_timers(&self) -> Result<(), HostApiError> {
-        self.timer_manager.cancel_all().await
+    /// 取消指定插件的全部定时器（不影响其他插件的定时器）。
+    /// 语义：best-effort——逐个取消，单个失败记录首错并继续，最后统一返回。
+    async fn cancel_all_timers(&self, plugin_id: &str) -> Result<(), HostApiError> {
+        let ids: Vec<TimerId> = self
+            .timer_owners
+            .iter()
+            .filter(|entry| entry.value() == plugin_id)
+            .map(|entry| *entry.key())
+            .collect();
+        let mut first_err: Option<HostApiError> = None;
+        for id in ids {
+            self.timer_owners.remove(&id);
+            if let Err(e) = self.timer_manager.cancel_timer(id).await {
+                first_err.get_or_insert(e);
+            }
+        }
+        match first_err {
+            Some(e) => Err(e),
+            None => Ok(()),
+        }
     }
 
     // ===== 资源管理（插件作用域） =====
@@ -1071,6 +1127,7 @@ impl HostApiBuilder {
             timer_manager: self
                 .timer_manager
                 .ok_or(HostApiBuildError::MissingComponent("timer_manager"))?,
+            timer_owners: Arc::new(DashMap::new()),
             storage: self
                 .storage_service
                 .ok_or(HostApiBuildError::MissingComponent("storage_service"))?,

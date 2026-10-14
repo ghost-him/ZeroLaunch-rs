@@ -714,12 +714,12 @@ impl PluginManager {
 
         let _handle = host_api.register(&plugin_id, PluginSdkConfig::default());
 
-        let handler: Arc<dyn HostCallHandler> = Arc::new(TauriHostCallHandler {
-            host_api: host_api.clone(),
-            plugin_id: plugin_id.clone(),
-            app_handle: Some(app_handle.clone()),
-            i18n: self.i18n_manager(),
-        });
+        let handler: Arc<dyn HostCallHandler> = Arc::new(TauriHostCallHandler::new(
+            host_api.clone(),
+            plugin_id.clone(),
+            Some(app_handle.clone()),
+            self.i18n_manager(),
+        ));
 
         let on_restart = self.make_restart_callback(plugin_id.clone());
         let on_crash = self.make_crash_callback(plugin_id.clone());

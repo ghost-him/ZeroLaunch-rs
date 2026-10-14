@@ -12,6 +12,7 @@
 //! }
 //! ```
 
+pub mod events;
 pub mod host_proxy;
 pub mod logging;
 pub mod runtime;

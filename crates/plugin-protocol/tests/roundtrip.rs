@@ -156,3 +156,132 @@ fn test_keyword_optimizer_info_roundtrip() {
     );
     assert_eq!(round.priority, 60);
 }
+
+/// 新增 host/* 与 plugin/* 载荷的 JSON 键名固定（跨 RPC 契约，发布后永不改名）。
+#[test]
+fn test_new_host_payload_serde_keys() {
+    use zerolaunch_plugin_api::host::{CacheLevel, PluginSdkConfig};
+    use zerolaunch_plugin_api::services::focus_monitor::FocusEvent;
+    use zerolaunch_plugin_api::services::hotkey::types::{Hotkey, HotkeyEvent, HotkeyEventFilter};
+    use zerolaunch_plugin_api::services::installation_monitor::types::{
+        InstallationEvent, InstallationEventKind,
+    };
+    use zerolaunch_plugin_api::services::IconRequest;
+
+    let sdk_config = serde_json::to_value(SdkConfigUpdateParams {
+        config: PluginSdkConfig {
+            icon_cache_level: Some(CacheLevel::SkipMemory),
+        },
+    })
+    .unwrap();
+    assert_eq!(
+        sdk_config,
+        serde_json::json!({"config": {"iconCacheLevel": "skipMemory"}})
+    );
+
+    let icon = serde_json::to_value(IconRequestParams {
+        request: IconRequest::Path("C:/x/a.exe".into()),
+    })
+    .unwrap();
+    assert_eq!(
+        icon,
+        serde_json::json!({"request": {"type": "path", "value": "C:/x/a.exe"}})
+    );
+    assert!(serde_json::from_value::<IconRequestParams>(icon).is_ok());
+
+    let cache_put = serde_json::to_value(CachePutParams {
+        domain: "d".into(),
+        key: "k".into(),
+        bytes_b64: "AA==".into(),
+    })
+    .unwrap();
+    assert_eq!(
+        cache_put,
+        serde_json::json!({"domain": "d", "key": "k", "bytesB64": "AA=="})
+    );
+    assert_eq!(
+        serde_json::to_value(CacheCleanupParams {
+            domain: "d".into(),
+            max_entries: 32,
+        })
+        .unwrap(),
+        serde_json::json!({"domain": "d", "maxEntries": 32})
+    );
+
+    assert_eq!(
+        serde_json::to_value(TimerSetTimeoutParams { delay_ms: 500 }).unwrap(),
+        serde_json::json!({"delayMs": 500})
+    );
+    assert_eq!(
+        serde_json::to_value(TimerSetIntervalParams { interval_ms: 1500 }).unwrap(),
+        serde_json::json!({"intervalMs": 1500})
+    );
+    assert_eq!(
+        serde_json::to_value(TimerFiredParams { id: 7 }).unwrap(),
+        serde_json::json!({"id": 7})
+    );
+
+    let subscribe = serde_json::to_value(HotkeySubscribeParams {
+        id: "k1".into(),
+        filter: HotkeyEventFilter::All,
+    })
+    .unwrap();
+    assert_eq!(
+        subscribe,
+        serde_json::json!({"id": "k1", "filter": {"kind": "all"}})
+    );
+    assert!(serde_json::from_value::<HotkeySubscribeParams>(subscribe).is_ok());
+
+    let hotkey_event = serde_json::to_value(HotkeyEventParams {
+        id: "k1".into(),
+        event: HotkeyEvent::GlobalHotkey(Hotkey::new("Space").with_ctrl()),
+    })
+    .unwrap();
+    assert_eq!(
+        hotkey_event,
+        serde_json::json!({
+            "id": "k1",
+            "event": {
+                "kind": "globalHotkey",
+                "key": "Space",
+                "ctrl": true,
+                "alt": false,
+                "shift": false,
+                "meta": false,
+            }
+        })
+    );
+    let round: HotkeyEventParams = serde_json::from_value(hotkey_event).unwrap();
+    assert_eq!(round.id, "k1");
+    assert_eq!(
+        round.event,
+        HotkeyEvent::GlobalHotkey(Hotkey::new("Space").with_ctrl())
+    );
+
+    let installation_event = serde_json::to_value(InstallationEventParams {
+        id: "sub-1".into(),
+        event: InstallationEvent {
+            changed_paths: vec!["C:/start/a.lnk".into()],
+            kind: InstallationEventKind::Created,
+        },
+    })
+    .unwrap();
+    assert_eq!(
+        installation_event,
+        serde_json::json!({
+            "id": "sub-1",
+            "event": {"changedPaths": ["C:/start/a.lnk"], "kind": "created"}
+        })
+    );
+    let round: InstallationEventParams = serde_json::from_value(installation_event).unwrap();
+    assert_eq!(round.event.kind, InstallationEventKind::Created);
+
+    assert_eq!(
+        serde_json::to_value(FocusEventParams {
+            id: "sub-2".into(),
+            event: FocusEvent::Lost
+        })
+        .unwrap(),
+        serde_json::json!({"id": "sub-2", "event": "lost"})
+    );
+}

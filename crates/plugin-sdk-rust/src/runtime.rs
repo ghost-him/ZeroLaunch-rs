@@ -29,6 +29,7 @@ use zerolaunch_plugin_protocol::messages::*;
 use zerolaunch_plugin_protocol::methods::plugin as plugin_methods;
 use zerolaunch_plugin_protocol::{codes, JsonRpcError, PROTOCOL_VERSION};
 
+use crate::events;
 use crate::host_proxy::HostProxy;
 use crate::logging;
 
@@ -319,8 +320,12 @@ async fn run_async(mut app: PluginApp) {
                         );
                     }
                 }
-                Message::Notification(_) => {
-                    tracing::trace!("忽略通知");
+                Message::Notification(notif) => {
+                    // 宿主推送事件（定时器到期 / 订阅事件）：按注册表分发给处理函数；
+                    // 未知方法仅记 trace，不影响协议循环。
+                    if !events::dispatch(&notif.method, &notif.params) {
+                        tracing::trace!("忽略未知通知: {}", notif.method);
+                    }
                 }
             }
         }

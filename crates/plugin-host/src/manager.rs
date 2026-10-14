@@ -412,8 +412,10 @@ impl PluginHostManager {
     /// 改调 shutdown_loaded_process——AsyncMutex 非重入，持锁时调用会死锁）。
     async fn teardown(&self, plugin_id: &str) {
         let _guard = self.load_lock.lock().await;
-        // 先移除重启上下文：崩溃回调/恢复路径不得在 teardown 期间读到旧上下文重启插件
-        self.restart_contexts.remove(plugin_id);
+        // 移除重启上下文并注销该插件的订阅回调与定时器（推送通道随进程关闭失效）。
+        if let Some((_, ctx)) = self.restart_contexts.remove(plugin_id) {
+            ctx.host_call_handler.detach_event_sink();
+        }
         self.shutdown_loaded_process(plugin_id).await;
         self.plugins.remove(plugin_id);
     }
@@ -870,10 +872,12 @@ async fn handle_crash(mgr: &PluginHostManager, plugin_id: &str) {
         );
         return;
     };
+    // 先 detach：on_crash 会注销 HostApi 句柄，之后无从清理。
+    ctx.host_call_handler.detach_event_sink();
+
     if let Some((_, prev)) = prev {
         (ctx.on_crash)(prev);
     }
-
     // 原子递增持久化的重启计数器，并检查是否超出 max_restart。
     // 这是**唯一**追踪重启次数的地方——不在看门狗或
     // PluginProcess 中（它们每次重启都会被替换）。

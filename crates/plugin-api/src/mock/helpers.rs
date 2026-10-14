@@ -284,6 +284,7 @@ impl PluginHost for MockPluginHost {
 
     async fn set_timeout(
         &self,
+        _plugin_id: &str,
         delay: Duration,
         callback: TimerCallback,
     ) -> Result<TimerId, HostApiError> {
@@ -294,6 +295,7 @@ impl PluginHost for MockPluginHost {
 
     async fn set_interval(
         &self,
+        _plugin_id: &str,
         interval: Duration,
         callback: TimerCallback,
     ) -> Result<TimerId, HostApiError> {
@@ -302,11 +304,11 @@ impl PluginHost for MockPluginHost {
             .await
     }
 
-    async fn cancel_timer(&self, id: TimerId) -> Result<(), HostApiError> {
+    async fn cancel_timer(&self, _plugin_id: &str, id: TimerId) -> Result<(), HostApiError> {
         self.timer.cancel_timer(id).await
     }
 
-    async fn cancel_all_timers(&self) -> Result<(), HostApiError> {
+    async fn cancel_all_timers(&self, _plugin_id: &str) -> Result<(), HostApiError> {
         self.timer.cancel_all().await
     }
 

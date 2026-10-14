@@ -6,8 +6,14 @@ use std::sync::Arc;
 pub struct TimerId(u64);
 
 impl TimerId {
-    pub(crate) fn new(id: u64) -> Self {
+    /// 由定时器 ID 数值构造（宿主侧把跨进程收到的 u64 还原为 TimerId）。
+    pub fn new(id: u64) -> Self {
         Self(id)
+    }
+
+    /// 返回内部 ID 数值（跨进程传输定时器标识时使用）。
+    pub fn value(&self) -> u64 {
+        self.0
     }
 }
 

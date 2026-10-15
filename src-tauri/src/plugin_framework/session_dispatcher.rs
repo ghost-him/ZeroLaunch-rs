@@ -12,6 +12,7 @@
 use dashmap::DashSet;
 use parking_lot::{Mutex, RwLock};
 use std::fmt;
+use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -38,7 +39,10 @@ use super::session_state::{
     ResultActionDto, SessionOwner, SessionStateEmitter, SessionStateEvent,
 };
 use crate::core::config::bias_settings::{bias_settings_to_rules, BiasSettings};
-use crate::core::config::exclusion_settings::{exclusion_settings_to_rules, ExclusionSettings};
+use crate::core::config::exclusion_settings::{
+    exclusion_settings_to_rules, ExclusionKind, ExclusionRuleEntry, ExclusionSettings,
+    EXCLUSION_CONFIG_ID,
+};
 use crate::core::config::{ConfigEvent, ConfigManager};
 use crate::core::i18n::I18nManager;
 use crate::sdk::HostApi;
@@ -157,6 +161,36 @@ pub struct RoutedConfirm {
 #[derive(Debug, thiserror::Error)]
 #[error("执行失败: {0}")]
 pub struct ConfirmError(pub String);
+
+/// 右键「不再显示」可用的隐藏方式取值 —— 宿主从候选项推导，供前端选择面板展示。
+///
+/// 仅在 `SessionDispatcher::candidate_exclude_options` 与命令层之间流转：
+/// 三项取值的解释权在宿主（前端不自行推导路径/目录，避免两处算出不同目标）。
+#[derive(Debug, Clone)]
+pub struct CandidateExcludeOptions {
+    /// 精确匹配目标：候选执行目标原文（文件候选即完整路径）。
+    pub exact: String,
+    /// 目录前缀目标：路径类候选取其所在目录；非路径候选为 None（无文件夹语义）。
+    pub folder: Option<String>,
+    /// 关键字包含的默认取值：候选显示名。
+    pub keyword: String,
+}
+
+/// 推导「按目录隐藏」的规则值：路径类候选取其所在目录，非路径类候选没有文件夹语义。
+///
+/// 仅限本文件内使用。所在目录为盘符根（如 `C:\`）时返回 None ——
+/// 屏蔽整个盘符超出「隐藏这条结果所在文件夹」的意图，前端据此关闭该选项。
+fn folder_exclude_target(target: &ExecutionTarget) -> Option<String> {
+    match target {
+        ExecutionTarget::File(_) | ExecutionTarget::Path(_) => {
+            let dir = Path::new(target.payload()).parent()?;
+            // 盘符根 / UNC 根没有上级目录
+            dir.parent()?;
+            Some(dir.to_string_lossy().into_owned())
+        }
+        _ => None,
+    }
+}
 
 /// 确认请求 —— 两条确认路径的显式建模（命令层构造，Dispatcher 消费，统一经 bridge_confirm 通道）：
 /// - `Candidate`：宿主确认（默认搜索：列表/行内参数/参数面板执行；插件面板内执行默认动作），全程类型化；
@@ -560,11 +594,11 @@ impl SessionDispatcher {
         let Some(cm) = self.config_manager() else {
             return candidates;
         };
-        if !cm.is_enabled("exclusion-config") {
+        if !cm.is_enabled(EXCLUSION_CONFIG_ID) {
             return candidates;
         }
         let rules = cm
-            .get_settings("exclusion-config")
+            .get_settings(EXCLUSION_CONFIG_ID)
             .and_then(|v| match serde_json::from_value::<ExclusionSettings>(v) {
                 Ok(settings) => Some(settings),
                 Err(e) => {
@@ -575,6 +609,118 @@ impl SessionDispatcher {
             .map(|settings| exclusion_settings_to_rules(&settings))
             .unwrap_or_default();
         filter_candidates(candidates, &rules)
+    }
+
+    /// 隐藏候选项可用的方式取值（右键「不再显示」选择面板的数据来源）。
+    /// 参数：candidate_id - 候选项 ID；candidate_generation - 调用方持有的候选缓存世代。
+    /// 返回：精确/目录/关键字三项取值；目录项对非路径候选为 None。
+    pub fn candidate_exclude_options(
+        &self,
+        candidate_id: CandidateId,
+        candidate_generation: u64,
+    ) -> Result<CandidateExcludeOptions, SessionDispatcherError> {
+        let (target, name) = self.excludable_candidate(candidate_id, candidate_generation)?;
+        Ok(CandidateExcludeOptions {
+            exact: target.payload().to_string(),
+            folder: folder_exclude_target(&target),
+            keyword: name,
+        })
+    }
+
+    /// 隐藏候选项：按指定方式追加一条排除规则（写入 `exclusion-config`）。
+    ///
+    /// 只写规则、不在此重建缓存：`apply_settings` 成功后由配置变更事件统一触发
+    /// `refresh_candidates`（`ExclusionRule` 臂），使一次隐藏只产生一次重建与一次世代递增。
+    /// 参数：candidate_id - 候选项 ID；candidate_generation - 调用方持有的候选缓存世代；
+    ///       kind - 隐藏方式（精确 / 目录前缀 / 关键字包含）；keyword - 关键字包含的取值（其余方式忽略）。
+    /// 返回：Ok(()) 表示规则已写入（同方式同取值的规则已存在时为空操作）。
+    pub async fn exclude_candidate(
+        &self,
+        candidate_id: CandidateId,
+        candidate_generation: u64,
+        kind: ExclusionKind,
+        keyword: &str,
+    ) -> Result<(), SessionDispatcherError> {
+        let (target, _name) = self.excludable_candidate(candidate_id, candidate_generation)?;
+        // 规则取值一律由宿主从候选项推导（前端只传方式与关键字），避免两处算出不同目标。
+        let rule_value = match kind {
+            ExclusionKind::Exact => target.payload().to_string(),
+            ExclusionKind::PathPrefix => folder_exclude_target(&target).ok_or_else(|| {
+                SessionDispatcherError::InvalidPayload(
+                    "该候选项没有所在文件夹，无法按目录隐藏".to_string(),
+                )
+            })?,
+            ExclusionKind::Contains => {
+                let trimmed = keyword.trim();
+                if trimmed.is_empty() {
+                    return Err(SessionDispatcherError::InvalidPayload(
+                        "关键字不能为空".to_string(),
+                    ));
+                }
+                trimmed.to_string()
+            }
+        };
+
+        let Some(config_manager) = self.config_manager() else {
+            return Err(SessionDispatcherError::NotInitialized(
+                "ConfigManager 未注入".to_string(),
+            ));
+        };
+        let mut settings: ExclusionSettings = config_manager
+            .get_settings(EXCLUSION_CONFIG_ID)
+            .and_then(|value| serde_json::from_value::<ExclusionSettings>(value).ok())
+            .unwrap_or_default();
+        // 幂等：同方式同取值的规则已存在时不再追加（重复条目只会增加匹配开销）。
+        if settings
+            .rules
+            .iter()
+            .any(|rule| rule.kind == kind && rule.target == rule_value)
+        {
+            info!("[结果排除] 规则已存在: {:?} {}", kind, rule_value);
+            return Ok(());
+        }
+        settings.rules.push(ExclusionRuleEntry {
+            kind,
+            target: rule_value.clone(),
+            note: String::new(),
+        });
+        let settings = serde_json::to_value(&settings)
+            .map_err(|e| SessionDispatcherError::Internal(e.to_string()))?;
+        config_manager
+            .apply_settings(EXCLUSION_CONFIG_ID, settings)
+            .await
+            .map_err(|e| SessionDispatcherError::Internal(e.to_string()))?;
+        info!("[结果排除] 已隐藏目标: {:?} {}", kind, rule_value);
+        Ok(())
+    }
+
+    /// 取出可用于结果排除的候选项（世代校验 + 插件候选拒绝），返回执行目标与显示名。
+    /// 参数：candidate_id - 候选项 ID；candidate_generation - 调用方持有的候选缓存世代。
+    /// 返回：执行目标与显示名的克隆（已脱离候选缓存锁）。
+    fn excludable_candidate(
+        &self,
+        candidate_id: CandidateId,
+        candidate_generation: u64,
+    ) -> Result<(ExecutionTarget, String), SessionDispatcherError> {
+        // 世代校验：缓存刷新后 id 重排，旧载荷可能指向别的候选项（与 execute_candidate 同口径）。
+        let cached = self.cached_candidates.read();
+        if candidate_generation != 0 && cached.generation() != candidate_generation {
+            return Err(SessionDispatcherError::InvalidState(format!(
+                "候选缓存已刷新（世代 {} != {}），请重试",
+                cached.generation(),
+                candidate_generation
+            )));
+        }
+        let candidate = cached
+            .get_candidate(candidate_id)
+            .ok_or(SessionDispatcherError::CandidateNotFound(candidate_id))?;
+        // 插件候选项的可见性权威是插件启用开关，不参与结果排除。
+        if matches!(candidate.target, ExecutionTarget::Plugin(_)) {
+            return Err(SessionDispatcherError::InvalidPayload(
+                "插件候选项不支持隐藏，请在插件管理中停用该插件".to_string(),
+            ));
+        }
+        Ok((candidate.target.clone(), candidate.name.clone()))
     }
 
     /// 距最近一次刷新已过去的时长。

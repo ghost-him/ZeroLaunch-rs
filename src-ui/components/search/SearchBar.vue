@@ -117,6 +117,19 @@ watch(
   },
 )
 
+// 隐藏方式选择面板：打开时让出焦点（键盘由该面板独占，避免输入落进搜索框改写查询），
+// 关闭后恢复搜索栏焦点
+watch(
+  () => searchStore.excludeChooser,
+  (state, prev) => {
+    if (!prev && state) {
+      inputRef.value?.blur()
+    } else if (prev && !state) {
+      nextTick(() => inputRef.value?.focus())
+    }
+  },
+)
+
 onMounted(async () => {
   await nextTick()
   inputRef.value?.focus()

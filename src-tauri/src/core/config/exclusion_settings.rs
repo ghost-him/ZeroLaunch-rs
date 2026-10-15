@@ -10,6 +10,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::core::exclusion_rule::{normalize_path, normalize_text, ExclusionRules};
 
+/// 结果排除配置组件的 ID —— 组件注册与规则读写共用同一处声明。
+pub const EXCLUSION_CONFIG_ID: &str = "exclusion-config";
+
 /// 排除规则的匹配方式 —— 持久化于 `exclusion-config` 的 `rules[].kind`。
 ///
 /// 由设置页下拉框写入（序列化值 exact / path_prefix / contains），

@@ -18,14 +18,18 @@
       <!-- 参数面板模式 -->
       <ParamPanel v-if="uiMode === 'param_panel'" />
 
+      <!-- 隐藏方式选择面板（右键「不再显示」）：窗内模态态，占据结果列表位置 -->
+      <ExcludeChooserPanel v-if="searchStore.excludeChooser" />
+
       <!-- 搜索结果列表（搜索模式或行内参数模式；主页为 isIdle 空查询会话，额外豁免） -->
       <ResultList
-        v-if="(uiMode === 'search' || uiMode === 'inline_param') && (!searchStore.isIdle || searchStore.isHomeActive)"
+        v-else-if="(uiMode === 'search' || uiMode === 'inline_param') && (!searchStore.isIdle || searchStore.isHomeActive)"
         :results="searchStore.results"
         :selected-index="searchStore.selectedIndex"
         @select="searchStore.selectedIndex = $event"
         @confirm="(idx: number) => searchStore.doConfirm(idx)"
         @context-action="(idx: number, actionId: string) => searchStore.doConfirm(idx, actionId)"
+        @hide-target="(idx: number) => searchStore.openExcludeChooser(idx)"
         @contextmenu="onShowCtxMenu"
       />
 
@@ -37,7 +41,7 @@
       />
 
       <Footer
-        v-if="(!searchStore.isIdle || searchStore.isHomeActive) && searchStore.sessionMode !== 'plugin_immersive'"
+        v-if="!searchStore.excludeChooser && (!searchStore.isIdle || searchStore.isHomeActive) && searchStore.sessionMode !== 'plugin_immersive'"
         :result-count="searchStore.results.length"
         :session-mode="searchStore.sessionMode"
         :actions="searchStore.selectedItem?.actions ?? []"
@@ -74,6 +78,7 @@ import { useSearchStore } from '../stores/search-store'
 import { useKeyboardRouter } from '../composables/useKeyboardRouter'
 import { useWindowResize } from '../composables/useWindowResize'
 import ParamPanel from '../components/search/ParamPanel.vue'
+import ExcludeChooserPanel from '../components/search/ExcludeChooserPanel.vue'
 import { onConfigChanged, onShowWindow } from '../bridge/events'
 import { registerErrorHandler, configGetSettings, copyToClipboard } from '../bridge/commands'
 import type { BridgeError } from '../bridge/commands'
@@ -116,7 +121,9 @@ function onShowCtxMenu(x: number, y: number, items: CtxItem[]) {
 
 function onCtxClose() {
   ctxVisible.value = false
-  // 关闭菜单后恢复搜索栏焦点
+  // 关闭菜单后恢复搜索栏焦点；右键项已在打开隐藏方式选择面板时让焦点归面板
+  //（SearchBar 在面板打开时失焦、关闭时回焦，此处不抢占）。
+  if (searchStore.excludeChooser) return
   nextTick(() => {
     searchBarRef.value?.focusInput()
   })
@@ -156,13 +163,15 @@ onMounted(async () => {
   await loadDragSetting()
 
   unlistenConfig = await onConfigChanged((payload) => {
-    // DataSource/KeywordOptimizer/ExclusionRule 变更时刷新候选项
-    if (
-      payload.componentType === 'DataSource' ||
-      payload.componentType === 'KeywordOptimizer' ||
-      payload.componentType === 'ExclusionRule'
-    ) {
+    // DataSource/KeywordOptimizer 变更时刷新候选项
+    if (payload.componentType === 'DataSource' || payload.componentType === 'KeywordOptimizer') {
       searchStore.refreshCandidates()
+    }
+    // 结果排除变更（设置页增删规则 / 结果页右键隐藏）：后端在推送本事件前已完成候选重建
+    // （事件顺序：dispatcher handle_config_event → 前端 config-changed），此处按当前查询
+    // 重渲染即可；再显式刷新会二次递增候选项世代，使紧随其后的确认被代际校验拒绝。
+    if (payload.componentType === 'ExclusionRule' && searchStore.sessionMode === 'search') {
+      searchStore.doQuery(searchStore.query)
     }
     // 外观配置变更时重新计算窗口尺寸（宽度/高度/字体可能变化）
     if (payload.componentId === 'appearance-config') {
@@ -181,6 +190,8 @@ onMounted(async () => {
     // 重置右键菜单：窗口失焦隐藏时前端无 hide 事件、菜单状态残留，
     // 唤醒时先关闭菜单（不触发 onCtxClose，避免重复抢焦点，随后统一恢复输入焦点）。
     ctxVisible.value = false
+    // 隐藏方式选择面板：隐藏期间会话已复位，面板持有的候选项与缓存世代均已过期
+    searchStore.closeExcludeChooser()
     nextTick(() => {
       searchBarRef.value?.focusInput()
     })

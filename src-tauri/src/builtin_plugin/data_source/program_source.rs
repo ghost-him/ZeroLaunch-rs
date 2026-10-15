@@ -132,6 +132,30 @@ impl PathChecker {
     }
 }
 
+/// 按扩展名归类扫描到的文件的执行目标。
+///
+/// 快捷方式与可执行文件（lnk / exe / url）都是磁盘上的路径，一律按路径类目标处理：
+/// 目录规则、打开所在文件夹、路径归一化比较等路径语义只对路径类目标生效；
+/// URL 目标仅承载真正的网络地址（书签与网址数据源）。其余扩展名按文件目标处理。
+/// 参数：path - 扫描到的文件路径（扩展名大小写不敏感）。
+/// 返回：对应的执行目标（Path 或 File）。
+fn target_for_path(path: &Path) -> ExecutionTarget {
+    let is_shortcut_or_executable = path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| {
+            ["lnk", "exe", "url"]
+                .iter()
+                .any(|known| ext.eq_ignore_ascii_case(known))
+        })
+        .unwrap_or(false);
+    if is_shortcut_or_executable {
+        ExecutionTarget::Path(path.to_string_lossy().to_string())
+    } else {
+        ExecutionTarget::File(path.to_string_lossy().to_string())
+    }
+}
+
 pub struct ProgramSource {
     core: ComponentCore,
     settings: RwLock<ProgramSourceSettings>,
@@ -494,21 +518,7 @@ impl DataSource for ProgramSource {
                         .map(String::from)
                         .unwrap_or_default();
 
-                    let target = if let Some(ext) = actual_path.extension() {
-                        if let Some(ext_str) = ext.to_str() {
-                            if ["url"].contains(&ext_str) {
-                                ExecutionTarget::Url(actual_path_str.clone())
-                            } else if ["lnk", "exe"].contains(&ext_str) {
-                                ExecutionTarget::Path(actual_path_str.clone())
-                            } else {
-                                ExecutionTarget::File(actual_path_str.clone())
-                            }
-                        } else {
-                            ExecutionTarget::File(actual_path_str.clone())
-                        }
-                    } else {
-                        ExecutionTarget::File(actual_path_str.clone())
-                    };
+                    let target = target_for_path(&actual_path);
 
                     let localized_name = localized_names.get(&file_name_lower).cloned();
 
@@ -552,5 +562,34 @@ pub(crate) fn build_program_source(
         handle_key: "program-source",
         priority: 0,
         factory: build_program_source,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 扫描到的文件按扩展名归类执行目标。
+    /// 快捷方式（lnk / url）与可执行文件（exe）是磁盘路径，必须归为路径类目标：
+    /// 结果排除的目录规则、打开所在文件夹、路径归一化比较只对路径类目标生效，
+    /// 曾因 .url 被归为 URL 目标而拿不到所在文件夹与目录规则。
+    #[test]
+    fn target_classification_follows_extension() {
+        for name in ["app.lnk", "app.exe", "app.url", "APP.LNK", "APP.URL"] {
+            let path = Path::new("C:\\tools").join(name);
+            assert!(
+                matches!(target_for_path(&path), ExecutionTarget::Path(_)),
+                "{} 应归为路径类目标",
+                name
+            );
+        }
+        for name in ["notes.txt", "readme"] {
+            let path = Path::new("C:\\tools").join(name);
+            assert!(
+                matches!(target_for_path(&path), ExecutionTarget::File(_)),
+                "{} 应归为文件目标",
+                name
+            );
+        }
     }
 }

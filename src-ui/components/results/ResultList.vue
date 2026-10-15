@@ -8,6 +8,7 @@
       :index="index"
       @confirm="handleItemConfirm(index)"
       @context-action="(actionId: string) => emit('context-action', index, actionId)"
+      @hide-target="emit('hide-target', index)"
       @contextmenu="(x: number, y: number, items: CtxItem[]) => emit('contextmenu', x, y, items)"
     />
     <div v-if="results.length === 0" class="no-results">
@@ -31,6 +32,7 @@ const emit = defineEmits<{
   (e: 'select', index: number): void
   (e: 'confirm', index: number, actionIdx?: number): void
   (e: 'context-action', index: number, actionId: string): void
+  (e: 'hide-target', index: number): void
   (e: 'contextmenu', x: number, y: number, items: CtxItem[]): void
 }>()
 

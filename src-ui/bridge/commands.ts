@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import { open as shellOpen } from '@tauri-apps/plugin-shell'
-import type { BridgeQueryResponse, ConfirmRequest, ConfirmResponse, ComponentInfo, ComponentSchema, ConfigActionDef, ConfigActionPayload, QueryPayload, SearchTimingResult, IndexTimingResult, SearchDetailItem, PluginTranslationCatalog } from './contract'
+import type { BridgeQueryResponse, ConfirmRequest, ConfirmResponse, ComponentInfo, ComponentSchema, ConfigActionDef, ConfigActionPayload, QueryPayload, SearchTimingResult, IndexTimingResult, SearchDetailItem, PluginTranslationCatalog, ExcludeOptions, ExcludeCandidatePayload } from './contract'
 export interface BridgeError {
   code: string
   message: string
@@ -74,6 +74,16 @@ export function bridgeWake(): Promise<void> {
 
 export function bridgeRefreshCandidates(): Promise<number> {
   return invokeCommand<number>('bridge_refresh_candidates')
+}
+
+/** 候选项可用的隐藏方式取值（右键「不再显示」面板展示用，由后端从候选项推导）。 */
+export function bridgeExcludeOptions(candidateId: number, candidateGeneration: number): Promise<ExcludeOptions> {
+  return invokeCommand<ExcludeOptions>('bridge_exclude_options', { candidateId, candidateGeneration })
+}
+
+/** 隐藏候选项（右键「不再显示」）：后端按所选方式追加排除规则并重建候选缓存。 */
+export function bridgeExcludeCandidate(payload: ExcludeCandidatePayload): Promise<void> {
+  return invokeCommand<void>('bridge_exclude_candidate', { payload })
 }
 
 export function bridgeGetSystemTheme(): Promise<string> {

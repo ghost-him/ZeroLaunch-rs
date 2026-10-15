@@ -2,10 +2,10 @@ import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import {
   bridgeQuery, bridgeConfirm,
-  bridgeRefreshCandidates,
+  bridgeRefreshCandidates, bridgeExcludeOptions, bridgeExcludeCandidate,
   bridgeHideWindow, configGetSettings,
 } from '../bridge/commands'
-import type { ListItem, ResultAction, BridgeQueryResponse, ConfirmResponse, PanelInteraction, SessionStateEvent } from '../bridge/contract'
+import type { ListItem, ResultAction, BridgeQueryResponse, ConfirmResponse, PanelInteraction, SessionStateEvent, ExcludeOptions, ExclusionKind } from '../bridge/contract'
 import { onSessionState } from '../bridge/events'
 import { i18n } from '../i18n'
 
@@ -41,6 +41,25 @@ export interface ParamPanelState {
   candidateItem: ListItem
   fields: ParamField[]
   focusedFieldIndex: number
+}
+
+/** 隐藏方式选择面板状态 —— 窗口内的前端本地模态态（无对应后端会话形态）。 */
+export interface ExcludeChooserState {
+  /** 目标候选项（面板头部展示用）。 */
+  item: ListItem
+  /** 目标候选项 ID（提交后端定位缓存候选项）。 */
+  candidateId: number
+  /** 后端推导的三类取值（前端不自行推导路径/目录）。 */
+  options: ExcludeOptions
+  /** 当前选中的隐藏方式。 */
+  kind: ExclusionKind
+  /** 关键字包含的取值（仅 kind === 'contains' 时提交）。 */
+  keyword: string
+}
+
+/** 该候选项可选的隐藏方式：后端未给出目录目标（folder 为 null）时不提供目录方式。 */
+export function availableExcludeKinds(options: ExcludeOptions): ExclusionKind[] {
+  return options.folder === null ? ['exact', 'contains'] : ['exact', 'path_prefix', 'contains']
 }
 
 export const useSearchStore = defineStore('search', () => {
@@ -93,6 +112,9 @@ export const useSearchStore = defineStore('search', () => {
 
   // 参数面板模式
   const paramPanelState = ref<ParamPanelState | null>(null)
+
+  /** 隐藏方式选择面板（右键「不再显示」）：非空即面板打开并独占键盘。 */
+  const excludeChooser = ref<ExcludeChooserState | null>(null)
 
   /** 递增序号，丢弃过期的 bridge_query 响应，避免慢请求盖写新输入。 */
   let querySeq = 0
@@ -458,6 +480,75 @@ export const useSearchStore = defineStore('search', () => {
     }
   }
 
+  /// 打开隐藏方式选择面板：先向宿主取该候选项可用的三种取值。
+  /// 取值推导在宿主（前端只展示与选择），因此面板在取值就绪后才呈现。
+  /// 参数：index - 目标候选项下标，省略时用当前选中项。
+  /// 返回：无（取值失败经全局错误处理器提示，面板不打开）。
+  async function openExcludeChooser(index?: number) {
+    const item = results.value[index ?? selectedIndex.value]
+    if (!item) return
+    try {
+      const options = await bridgeExcludeOptions(item.id, currentCandidateGeneration.value)
+      excludeChooser.value = {
+        item,
+        candidateId: item.id,
+        options,
+        kind: 'exact',
+        keyword: options.keyword,
+      }
+    } catch (e) {
+      console.error('[openExcludeChooser] 获取隐藏方式失败:', e)
+    }
+  }
+
+  /// 关闭隐藏方式选择面板（不写入任何规则）。
+  function closeExcludeChooser() {
+    excludeChooser.value = null
+  }
+
+  /// 选择隐藏方式（面板点选与上下键共用的唯一写入点）。
+  function selectExcludeKind(kind: ExclusionKind) {
+    if (!excludeChooser.value) return
+    excludeChooser.value = { ...excludeChooser.value, kind }
+  }
+
+  /// 更新关键字取值（面板输入框的唯一写入点）。
+  function setExcludeKeyword(keyword: string) {
+    if (!excludeChooser.value) return
+    excludeChooser.value = { ...excludeChooser.value, keyword }
+  }
+
+  /// 上下键在可选隐藏方式间循环切换（无文件夹目标时跳过目录方式）。
+  /// 参数：step - +1 向下 / -1 向上。
+  function moveExcludeKind(step: 1 | -1) {
+    if (!excludeChooser.value) return
+    const kinds = availableExcludeKinds(excludeChooser.value.options)
+    const next = (kinds.indexOf(excludeChooser.value.kind) + step + kinds.length) % kinds.length
+    selectExcludeKind(kinds[next])
+  }
+
+  /// 提交隐藏方式：委托后端按方式追加排除规则。
+  /// 面板随即关闭；结果列表由排除配置变更事件按当前查询重渲染（见 SearchView）。
+  async function applyExcludeChooser() {
+    const chooser = excludeChooser.value
+    if (!chooser) return
+    const keyword = chooser.kind === 'contains' ? chooser.keyword.trim() : ''
+    // 关键字方式必须有关键字：面板已禁用确认按钮，此处兜底防止空关键字落盘。
+    if (chooser.kind === 'contains' && keyword === '') return
+    try {
+      await bridgeExcludeCandidate({
+        candidateId: chooser.candidateId,
+        candidateGeneration: currentCandidateGeneration.value,
+        kind: chooser.kind,
+        keyword,
+      })
+    } catch (e) {
+      console.error('[applyExcludeChooser] 隐藏候选项失败:', e)
+    } finally {
+      excludeChooser.value = null
+    }
+  }
+
   // ---- 行内参数模式 ----
 
   /// 退出行内参数模式（纯前端清理，后端模式由下一次 bridge_query 自然重置）。
@@ -699,6 +790,8 @@ export const useSearchStore = defineStore('search', () => {
     panelQueryInFlight,
     confirmInFlight,
     inlineParamState, paramPanelState,
+    excludeChooser, openExcludeChooser, closeExcludeChooser,
+    selectExcludeKind, setExcludeKeyword, moveExcludeKind, applyExcludeChooser,
     isIdle, isHomeActive, selectedItem,
     doQuery, doConfirm, selectNext, selectPrev,
     refreshCandidates, fetchHomeSetting, hideWindow, updatePluginMeta,

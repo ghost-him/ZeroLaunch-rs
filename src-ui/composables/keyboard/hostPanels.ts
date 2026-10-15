@@ -1,7 +1,7 @@
 import type { SearchStore } from '@/stores/search-store'
 import type { HostKeyBinding, KeyIntent } from './types'
 
-export type HostPanelId = 'default_search' | 'inline_param' | 'param_panel'
+export type HostPanelId = 'default_search' | 'inline_param' | 'param_panel' | 'exclude_chooser'
 
 /// 向下移动选中项意图（方向键与配置键共用语义）。
 export function moveDownIntent(_e: KeyboardEvent, store: SearchStore): KeyIntent {
@@ -39,6 +39,18 @@ function quickAction(e: KeyboardEvent, store: SearchStore): KeyIntent | null {
 }
 
 export const hostPanels: Record<HostPanelId, { bindings: HostKeyBinding[] }> = {
+  // 隐藏方式选择面板（右键「不再显示」）：面板打开时为前端本地模态态，
+  // 独占键盘 —— 不放行列表语义，否则 Enter 会启动正准备隐藏的那条结果。
+  exclude_chooser: {
+    bindings: [
+      // 方向键与用户配置的上下选择键别名并存（同 default_search）
+      { key: 'ArrowDown', configKey: 'moveDownKey', handler: (_e, store) => ({ kind: 'local', run: () => store.moveExcludeKind(1) }) },
+      { key: 'ArrowUp', configKey: 'moveUpKey', handler: (_e, store) => ({ kind: 'local', run: () => store.moveExcludeKind(-1) }) },
+      { key: 'Enter', handler: (_e, store) => ({ kind: 'local', run: () => { void store.applyExcludeChooser() } }) },
+      { key: 'Escape', handler: (_e, store) => ({ kind: 'local', run: () => store.closeExcludeChooser() }) },
+    ],
+  },
+
   // 搜索模式（sessionMode 'search' 与 'none'）：行为与旧 searchHandler 逐键一致
   default_search: {
     bindings: [

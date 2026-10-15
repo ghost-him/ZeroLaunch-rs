@@ -70,6 +70,30 @@ export function useKeyboardRouter() {
   const wakeInFlight = new Set<string>()
 
   function onKeyDown(e: KeyboardEvent) {
+    // 键盘解释选项来自 window-behavior-config 设置（缺省 false）
+    const wb = configStore.settings['window-behavior-config'] as
+      | {
+          space_is_enter?: boolean
+          is_esc_hide_window_priority?: boolean
+          move_up_key?: string
+          move_down_key?: string
+        }
+      | undefined
+    const opts: KeyOpts = {
+      spaceIsEnter: wb?.space_is_enter ?? false,
+      escHideWindowPriority: wb?.is_esc_hide_window_priority ?? false,
+      // 上下选择键缺省 Ctrl+K / Ctrl+J（与配置默认值一致）；显式清空后仅保留方向键
+      moveUpKey: wb?.move_up_key ?? 'Ctrl+K',
+      moveDownKey: wb?.move_down_key ?? 'Ctrl+J',
+    }
+
+    // 隐藏方式选择面板（前端本地模态态）打开时独占键盘：先于插件热键与会话分发，
+    // 避免面板打开期间热键抢走会话、Enter 启动正准备隐藏的那条结果。
+    if (store.excludeChooser) {
+      dispatchKeyDown(e, store, opts)
+      return
+    }
+
     // 插件热键（窗口级全局，优先于会话面板分发）：命中已启用插件的声明热键 →
     // 唤醒该插件（沉浸式全页面接管）。已在同一插件面板时不重复唤醒，放行给面板绑定。
     for (const p of pluginHotkeys.value) {
@@ -97,22 +121,6 @@ export function useKeyboardRouter() {
       return
     }
 
-    // 键盘解释选项来自 window-behavior-config 设置（缺省 false）
-    const wb = configStore.settings['window-behavior-config'] as
-      | {
-          space_is_enter?: boolean
-          is_esc_hide_window_priority?: boolean
-          move_up_key?: string
-          move_down_key?: string
-        }
-      | undefined
-    const opts: KeyOpts = {
-      spaceIsEnter: wb?.space_is_enter ?? false,
-      escHideWindowPriority: wb?.is_esc_hide_window_priority ?? false,
-      // 上下选择键缺省 Ctrl+K / Ctrl+J（与配置默认值一致）；显式清空后仅保留方向键
-      moveUpKey: wb?.move_up_key ?? 'Ctrl+K',
-      moveDownKey: wb?.move_down_key ?? 'Ctrl+J',
-    }
     dispatchKeyDown(e, store, opts)
   }
 

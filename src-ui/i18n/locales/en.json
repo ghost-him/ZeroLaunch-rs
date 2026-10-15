@@ -20,7 +20,17 @@
     "ready": "Ready",
     "candidates": "{count} candidates",
     "translationStarted": "Translation started, please wait...",
-    "paramLabel": "Parameter {n}"
+    "paramLabel": "Parameter {n}",
+    "hideResult": "Don't show again",
+    "excludeExactLabel": "Hide this item only",
+    "excludeExactDesc": "Excludes just this target; same-named programs in other folders are unaffected",
+    "excludeFolderLabel": "Hide its folder",
+    "excludeFolderDesc": "Excludes everything in this folder and its subfolders",
+    "excludeKeywordLabel": "Hide by keyword",
+    "excludeKeywordDesc": "Excludes every candidate whose target or name contains the keyword",
+    "excludeKeywordPlaceholder": "Enter a keyword",
+    "excludeFolderUnavailable": "This candidate has no folder",
+    "excludeAdvancedHint": "For finer control, configure the data source settings"
   },
   "translator": {
     "title": "Translate",
@@ -264,6 +274,19 @@
     "keywordInjector": "Keyword Injectors",
     "biasRule": "Fixed Bias",
     "exclusionRule": "Result Exclusion",
+    "pipelineFlow": {
+      "title": "Search pipeline flow",
+      "steps": {
+        "dataSource": "Provides candidates",
+        "contentProcessor": "Processes query terms",
+        "keywordInjector": "Injects aliases",
+        "biasRule": "Preset weight offsets",
+        "exclusionRule": "Filters candidates",
+        "searchEngine": "Scores and shortlists",
+        "scoreBooster": "Adjusts and ranks",
+        "actionExecutor": "Runs on Enter"
+      }
+    },
     "pluginMarket": {
       "title": "Plugin Market",
       "subtitle": "Discover and install plugins tagged zerolaunch-plugin on GitHub",

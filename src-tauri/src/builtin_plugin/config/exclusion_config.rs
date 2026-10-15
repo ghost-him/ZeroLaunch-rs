@@ -7,7 +7,7 @@ use zerolaunch_plugin_api::config::{
     ComponentCore, ComponentType, ConfigError, Configurable, SettingDefinition,
 };
 
-use crate::core::config::exclusion_settings::ExclusionSettings;
+use crate::core::config::exclusion_settings::{ExclusionSettings, EXCLUSION_CONFIG_ID};
 use crate::core::config::setting_builders::SchemaBuilder;
 
 // ============================================================================
@@ -32,7 +32,7 @@ impl ExclusionConfig {
     pub fn new() -> Self {
         Self {
             core: ComponentCore::new(
-                "exclusion-config".to_string(),
+                EXCLUSION_CONFIG_ID.to_string(),
                 t_key!("exclusion-config", "name").to_string(),
                 t_key!("exclusion-config", "description").to_string(),
                 ComponentType::ExclusionRule,
@@ -99,8 +99,8 @@ impl Configurable for ExclusionConfig {
             .build_field(),
         ])
         // 表格 UI（可见条目 + 增删改）：搜索结果行内联 picker（searchTable）无法展示/恢复
-        // 已保存规则，而“查看并恢复已隐藏项”是命令的硬需求；规则录入由 Phase 2 的
-        // 右键隐藏承担，手动补录直接填路径/关键字。
+        // 已保存规则，而“查看并恢复已隐藏项”是命令的硬需求；条目主要来自结果页右键
+        //「不再显示」，也可在此手动补录路径/关键字。
         .table_ui()
         .min_items(0)
         .default(serde_json::json!([]))

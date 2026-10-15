@@ -171,6 +171,12 @@ function dispatchHost(
 export function dispatchKeyDown(e: KeyboardEvent, store: SearchStore, opts: KeyOpts) {
   if (isSystemReserved(e)) return
 
+  // 隐藏方式选择面板（前端本地模态态）打开时独占键盘：不进列表语义分发。
+  if (store.excludeChooser) {
+    dispatchHost(e, store, opts, 'exclude_chooser')
+    return
+  }
+
   switch (store.sessionMode) {
     case 'search':
     case 'none':

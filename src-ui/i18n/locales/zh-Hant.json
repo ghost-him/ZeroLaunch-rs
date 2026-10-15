@@ -20,7 +20,17 @@
     "ready": "就緒",
     "candidates": "{count} 個候選項",
     "translationStarted": "已開始翻譯，請稍候…",
-    "paramLabel": "參數 {n}"
+    "paramLabel": "參數 {n}",
+    "hideResult": "不再顯示",
+    "excludeExactLabel": "僅屏蔽這一項",
+    "excludeExactDesc": "只排除該目標本身，其他目錄下的同名程式不受影響",
+    "excludeFolderLabel": "屏蔽所在資料夾",
+    "excludeFolderDesc": "該資料夾及其子資料夾內的所有項都會被排除",
+    "excludeKeywordLabel": "按關鍵字屏蔽",
+    "excludeKeywordDesc": "目標路徑或名稱包含該關鍵字的候選項都會被排除",
+    "excludeKeywordPlaceholder": "輸入關鍵字",
+    "excludeFolderUnavailable": "此候選項沒有所在資料夾",
+    "excludeAdvancedHint": "如果想要更精細的調控，請前往資料來源的設定頁中設定"
   },
   "translator": {
     "title": "翻譯",
@@ -264,6 +274,19 @@
     "keywordInjector": "關鍵字注入器",
     "biasRule": "固定偏移量",
     "exclusionRule": "結果排除",
+    "pipelineFlow": {
+      "title": "搜尋管道處理流程",
+      "steps": {
+        "dataSource": "提供候選",
+        "contentProcessor": "處理搜尋詞",
+        "keywordInjector": "注入別名等",
+        "biasRule": "預設權重",
+        "exclusionRule": "過濾候選項",
+        "searchEngine": "初篩與算分",
+        "scoreBooster": "加權與排序",
+        "actionExecutor": "按 Enter 執行動作"
+      }
+    },
     "pluginMarket": {
       "title": "插件市集",
       "subtitle": "探索並安裝 GitHub 上帶有 zerolaunch-plugin 標籤的插件",

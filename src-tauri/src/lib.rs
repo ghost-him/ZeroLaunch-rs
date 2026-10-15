@@ -181,6 +181,8 @@ pub fn run() {
             crate::commands::bridge::bridge_wake,
             crate::commands::bridge::bridge_wake_plugin,
             crate::commands::bridge::bridge_refresh_candidates,
+            crate::commands::bridge::bridge_exclude_options,
+            crate::commands::bridge::bridge_exclude_candidate,
             crate::commands::bridge::bridge_hide_window,
             crate::commands::bridge::bridge_get_system_theme,
             // Bridge: 配置管理

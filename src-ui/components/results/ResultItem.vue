@@ -38,9 +38,11 @@
 import { computed, ref, watch } from 'vue'
 import type { Component, CSSProperties } from 'vue'
 import { NTooltip } from 'naive-ui'
+import { useI18n } from 'vue-i18n'
 import { resolveText } from '../../i18n'
 import type { ListItem } from '../../bridge/contract'
 import { usePluginStore } from '../../stores/plugin-store'
+import { useSearchStore } from '../../stores/search-store'
 import IconDisplay from '../common/IconDisplay.vue'
 import type { CtxItem } from '../layout/ContextMenu.vue'
 
@@ -64,10 +66,13 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'confirm'): void
   (e: 'context-action', actionId: string): void
+  (e: 'hide-target'): void
   (e: 'contextmenu', x: number, y: number, items: CtxItem[]): void
 }>()
 
 const pluginStore = usePluginStore()
+const searchStore = useSearchStore()
+const { t } = useI18n()
 
 const customRenderer = computed<Component | null>(() =>
   pluginStore.getResultItemComponent(props.item.targetType),
@@ -105,6 +110,16 @@ function onContextMenu(e: MouseEvent) {
     label: resolveText(a.label),
     action: () => emit('context-action', a.id),
   }))
+  // 宿主内置项：仅默认搜索会话的缓存候选项提供「不再显示」——
+  // 插件面板/行内插件的结果由插件按查询即时产出，不经候选项缓存，排除规则对其无效；
+  // 沉浸式插件唤醒项的可见性权威是插件启用开关，同样不走排除规则。
+  if (searchStore.sessionMode === 'search' && props.item.targetType !== 'Plugin') {
+    items.push({
+      key: 'hide-target',
+      label: t('search.hideResult'),
+      action: () => emit('hide-target'),
+    })
+  }
   emit('contextmenu', e.clientX, e.clientY, items)
 }
 </script>

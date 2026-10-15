@@ -30,8 +30,8 @@ pub use search_pipeline::*;
 
 // 会话调度与状态（Dispatcher 直接内嵌默认搜索与插件逻辑，无流程抽象层）
 pub use session_dispatcher::{
-    ConfirmError, ConfirmOutcome, ConfirmRequest, RoutedConfirm, RoutedQuery, SessionDispatcher,
-    SessionDispatcherError,
+    CandidateExcludeOptions, ConfirmError, ConfirmOutcome, ConfirmRequest, RoutedConfirm,
+    RoutedQuery, SessionDispatcher, SessionDispatcherError,
 };
 pub use session_state::{
     ActiveSession, HostView, InputMatch, PluginView, ResultActionDto, SessionOwner,

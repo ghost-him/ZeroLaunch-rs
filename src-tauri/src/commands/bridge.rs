@@ -1,4 +1,5 @@
 use crate::commands::bridge_error::{BridgeError, WithTraceId};
+use crate::core::config::exclusion_settings::ExclusionKind;
 use crate::plugin_framework::inspector::InspectedQueryEvent;
 use crate::plugin_framework::ResultActionDto;
 use crate::plugin_framework::{
@@ -512,6 +513,87 @@ pub async fn bridge_refresh_candidates(
     let count = session_dispatcher.get_cached_candidates_count();
     info!("🔄 [Bridge] 刷新完成，共 {} 个候选项", count);
     Ok(count)
+}
+
+/// 隐藏候选项的请求载荷（右键「不再显示」在选择面板中选定方式后提交）。
+#[derive(Debug, Deserialize)]
+pub struct ExcludeCandidatePayload {
+    /// 目标候选项 ID（来自查询响应，后端按 id 定位缓存候选项）。
+    #[serde(rename = "candidateId")]
+    pub candidate_id: CandidateId,
+    /// 前端持有的候选缓存世代：后端校验后拒绝过期载荷（缓存刷新后 id 漂移会隐藏错目标）。
+    #[serde(rename = "candidateGeneration")]
+    pub candidate_generation: u64,
+    /// 隐藏方式：exact / path_prefix / contains（与 exclusion-config 规则 kind 同词表）。
+    #[serde(rename = "kind")]
+    pub kind: ExclusionKind,
+    /// 关键字包含的取值（仅 contains 使用，空串时后端拒绝；其余方式忽略）。
+    #[serde(rename = "keyword", default)]
+    pub keyword: String,
+}
+
+/// 隐藏方式取值响应（右键「不再显示」选择面板展示用，取值全部由后端从候选项推导）。
+#[derive(Serialize, Debug)]
+pub struct ExcludeOptionsResponse {
+    /// 精确匹配目标：候选执行目标原文（文件候选即完整路径）。
+    #[serde(rename = "exact")]
+    pub exact: String,
+    /// 目录前缀目标；null 表示该候选没有文件夹语义（前端据此关闭目录方式）。
+    #[serde(rename = "folder")]
+    pub folder: Option<String>,
+    /// 关键字包含的默认取值（候选显示名，用户可在面板中改写）。
+    #[serde(rename = "keyword")]
+    pub keyword: String,
+}
+
+/// 查询候选项可用的隐藏方式取值（右键「不再显示」选择面板的数据来源）。
+#[tauri::command]
+#[tracing::instrument(skip(state), fields(trace_id))]
+pub async fn bridge_exclude_options(
+    state: tauri::State<'_, Arc<AppState>>,
+    candidate_id: CandidateId,
+    candidate_generation: u64,
+) -> Result<ExcludeOptionsResponse, BridgeError> {
+    let trace_id = crate::utils::trace_id::generate_trace_id();
+    tracing::Span::current().record("trace_id", trace_id.as_str());
+    let session_dispatcher = state.get_session_dispatcher();
+    let options = session_dispatcher
+        .candidate_exclude_options(candidate_id, candidate_generation)
+        .with_trace_id(&trace_id)?;
+    Ok(ExcludeOptionsResponse {
+        exact: options.exact,
+        folder: options.folder,
+        keyword: options.keyword,
+    })
+}
+
+/// 隐藏候选项（右键「不再显示」）。
+///
+/// 按所选方式追加一条排除规则（写入 `exclusion-config`）；候选项缓存由该配置的变更事件
+/// 统一重建（`ExclusionRule` 臂），故本命令不显式刷新缓存。
+#[tauri::command]
+#[tracing::instrument(skip(state), fields(trace_id))]
+pub async fn bridge_exclude_candidate(
+    state: tauri::State<'_, Arc<AppState>>,
+    payload: ExcludeCandidatePayload,
+) -> Result<(), BridgeError> {
+    let trace_id = crate::utils::trace_id::generate_trace_id();
+    tracing::Span::current().record("trace_id", trace_id.as_str());
+    debug!(
+        "🚫 [Bridge] 隐藏候选项: id={}, kind={:?}",
+        payload.candidate_id, payload.kind
+    );
+    let session_dispatcher = state.get_session_dispatcher();
+    session_dispatcher
+        .exclude_candidate(
+            payload.candidate_id,
+            payload.candidate_generation,
+            payload.kind,
+            &payload.keyword,
+        )
+        .await
+        .with_trace_id(&trace_id)?;
+    Ok(())
 }
 
 /// 隐藏搜索栏窗口。

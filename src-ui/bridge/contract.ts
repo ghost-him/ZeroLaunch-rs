@@ -18,6 +18,31 @@ export interface ListItem {
   triggerKeywords: string[]
 }
 
+/** 隐藏方式 —— 与后端 exclusion-config 的规则 kind 同词表。 */
+export type ExclusionKind = 'exact' | 'path_prefix' | 'contains'
+
+/** 隐藏方式取值（右键「不再显示」面板展示用）：三项取值均由后端从候选项推导。 */
+export interface ExcludeOptions {
+  /** 精确匹配目标（文件候选即完整路径）。 */
+  exact: string
+  /** 目录前缀目标；null 表示该候选没有文件夹语义（面板关闭目录方式）。 */
+  folder: string | null
+  /** 关键字包含的默认取值（候选显示名，可在面板中改写）。 */
+  keyword: string
+}
+
+/** 隐藏候选项的请求载荷（字段与后端 ExcludeCandidatePayload 一一对应）。 */
+export interface ExcludeCandidatePayload {
+  /** 目标候选项 ID。 */
+  candidateId: number
+  /** 前端持有的候选缓存世代（后端校验后拒绝过期载荷，防止缓存刷新后隐藏错目标）。 */
+  candidateGeneration: number
+  /** 隐藏方式。 */
+  kind: ExclusionKind
+  /** 关键字包含的取值（仅 contains 使用，空串由后端拒绝）。 */
+  keyword: string
+}
+
 export interface ResultAction {
   id: string
   label: string

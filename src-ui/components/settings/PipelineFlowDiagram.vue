@@ -3,53 +3,20 @@
     <!-- 可点击标题栏 -->
     <div class="flow-header" @click="expanded = !expanded">
       <span class="flow-icon" :class="{ rotated: expanded }">▶</span>
-      <span class="flow-title">搜索管道处理流程</span>
+      <span class="flow-title">{{ t('settings.pipelineFlow.title') }}</span>
     </div>
 
     <!-- 可折叠内容区域 -->
     <Transition name="collapse">
       <div v-if="expanded" class="flow-steps">
-        <div class="flow-step">
-          <div class="step-num">1</div>
-          <div class="step-label">数据源</div>
-          <div class="step-desc">提供候选</div>
-        </div>
-        <div class="flow-arrow">➔</div>
-        <div class="flow-step">
-          <div class="step-num">2</div>
-          <div class="step-label">内容处理器</div>
-          <div class="step-desc">处理搜索词</div>
-        </div>
-        <div class="flow-arrow">➔</div>
-        <div class="flow-step">
-          <div class="step-num">3</div>
-          <div class="step-label">关键字注入器</div>
-          <div class="step-desc">注入别名等</div>
-        </div>
-        <div class="flow-arrow">➔</div>
-        <div class="flow-step">
-          <div class="step-num">4</div>
-          <div class="step-label">固定偏移量</div>
-          <div class="step-desc">预设权重</div>
-        </div>
-        <div class="flow-arrow">➔</div>
-        <div class="flow-step">
-          <div class="step-num">5</div>
-          <div class="step-label">检索引擎</div>
-          <div class="step-desc">初筛与算分</div>
-        </div>
-        <div class="flow-arrow">➔</div>
-        <div class="flow-step">
-          <div class="step-num">6</div>
-          <div class="step-label">评分增强器</div>
-          <div class="step-desc">加权与排序</div>
-        </div>
-        <div class="flow-arrow">➔</div>
-        <div class="flow-step">
-          <div class="step-num">7</div>
-          <div class="step-label">执行器</div>
-          <div class="step-desc">回车执行动作</div>
-        </div>
+        <template v-for="(step, i) in steps" :key="step.labelKey">
+          <div class="flow-step">
+            <div class="step-num">{{ i + 1 }}</div>
+            <div class="step-label">{{ t(step.labelKey) }}</div>
+            <div class="step-desc">{{ t(step.descKey) }}</div>
+          </div>
+          <div v-if="i < steps.length - 1" class="flow-arrow">➔</div>
+        </template>
       </div>
     </Transition>
   </div>
@@ -57,6 +24,22 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
+
+/// 管道阶段一览（顺序即候选与查询的真实流经顺序）：阶段名复用设置页签词表，
+/// 说明为本组件文案；新增阶段时同步设置页签与该列表。
+const steps = [
+  { labelKey: 'settings.dataSource', descKey: 'settings.pipelineFlow.steps.dataSource' },
+  { labelKey: 'settings.contentProcessor', descKey: 'settings.pipelineFlow.steps.contentProcessor' },
+  { labelKey: 'settings.keywordInjector', descKey: 'settings.pipelineFlow.steps.keywordInjector' },
+  { labelKey: 'settings.biasRule', descKey: 'settings.pipelineFlow.steps.biasRule' },
+  { labelKey: 'settings.exclusionRule', descKey: 'settings.pipelineFlow.steps.exclusionRule' },
+  { labelKey: 'settings.searchEngine', descKey: 'settings.pipelineFlow.steps.searchEngine' },
+  { labelKey: 'settings.scoreBooster', descKey: 'settings.pipelineFlow.steps.scoreBooster' },
+  { labelKey: 'settings.actionExecutor', descKey: 'settings.pipelineFlow.steps.actionExecutor' },
+]
 
 const expanded = ref(false)
 </script>

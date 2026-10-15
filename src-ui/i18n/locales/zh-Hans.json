@@ -20,7 +20,17 @@
     "ready": "就绪",
     "candidates": "{count} 个候选项",
     "translationStarted": "已开始翻译，请稍候…",
-    "paramLabel": "参数 {n}"
+    "paramLabel": "参数 {n}",
+    "hideResult": "不再显示",
+    "excludeExactLabel": "仅屏蔽这一项",
+    "excludeExactDesc": "只排除该目标本身，其他目录下的同名程序不受影响",
+    "excludeFolderLabel": "屏蔽所在文件夹",
+    "excludeFolderDesc": "该文件夹及其子文件夹内的所有项都会被排除",
+    "excludeKeywordLabel": "按关键字屏蔽",
+    "excludeKeywordDesc": "目标路径或名称包含该关键字的候选项都会被排除",
+    "excludeKeywordPlaceholder": "输入关键字",
+    "excludeFolderUnavailable": "此候选项没有所在文件夹",
+    "excludeAdvancedHint": "如果想要更精细的调控，请前往数据源的配置页中设置"
   },
   "translator": {
     "title": "翻译",
@@ -264,6 +274,19 @@
     "keywordInjector": "关键字注入器",
     "biasRule": "固定偏移量",
     "exclusionRule": "结果排除",
+    "pipelineFlow": {
+      "title": "搜索管道处理流程",
+      "steps": {
+        "dataSource": "提供候选",
+        "contentProcessor": "处理搜索词",
+        "keywordInjector": "注入别名等",
+        "biasRule": "预设权重",
+        "exclusionRule": "过滤候选项",
+        "searchEngine": "初筛与算分",
+        "scoreBooster": "加权与排序",
+        "actionExecutor": "回车执行动作"
+      }
+    },
     "pluginMarket": {
       "title": "插件市场",
       "subtitle": "发现并安装 GitHub 上打有 zerolaunch-plugin 标签的插件",

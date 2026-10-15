@@ -1,4 +1,5 @@
 pub mod builtin_registry;
+mod candidate_filter;
 mod candidate_pipeline;
 pub mod component_registry;
 mod executor_registry;

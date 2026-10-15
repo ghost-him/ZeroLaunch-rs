@@ -156,8 +156,12 @@ onMounted(async () => {
   await loadDragSetting()
 
   unlistenConfig = await onConfigChanged((payload) => {
-    // DataSource/KeywordOptimizer 变更时刷新候选项
-    if (payload.componentType === 'DataSource' || payload.componentType === 'KeywordOptimizer') {
+    // DataSource/KeywordOptimizer/ExclusionRule 变更时刷新候选项
+    if (
+      payload.componentType === 'DataSource' ||
+      payload.componentType === 'KeywordOptimizer' ||
+      payload.componentType === 'ExclusionRule'
+    ) {
       searchStore.refreshCandidates()
     }
     // 外观配置变更时重新计算窗口尺寸（宽度/高度/字体可能变化）

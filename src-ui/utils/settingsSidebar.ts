@@ -35,7 +35,7 @@ export function buildSidebarItems(
     (c) => c.componentId === 'appearance-config' || c.componentId === 'icon-override-config',
   ).sort(sortByPriority)
   const pipeline = components.filter((c) =>
-    ['DataSource', 'KeywordOptimizer', 'KeywordInjector', 'SearchEngine', 'ScoreBooster', 'ActionExecutor', 'BiasRule'].includes(
+    ['DataSource', 'KeywordOptimizer', 'KeywordInjector', 'SearchEngine', 'ScoreBooster', 'ActionExecutor', 'BiasRule', 'ExclusionRule'].includes(
       c.componentType,
     ),
     ).sort(sortByPriority)

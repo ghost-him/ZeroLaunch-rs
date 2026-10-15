@@ -263,6 +263,7 @@
     "contentProcessor": "Content Processors",
     "keywordInjector": "Keyword Injectors",
     "biasRule": "Fixed Bias",
+    "exclusionRule": "Result Exclusion",
     "pluginMarket": {
       "title": "Plugin Market",
       "subtitle": "Discover and install plugins tagged zerolaunch-plugin on GitHub",
@@ -606,6 +607,38 @@
         "note": {
           "label": "Note",
           "desc": "Optional note"
+        }
+      }
+    },
+    "exclusion-config": {
+      "name": "Result Exclusion",
+      "description": "Exclude search results uniformly by exact target, directory or keyword, covering all data sources and plugin candidates",
+      "groups": {
+        "exclusion": "Exclusion Rules"
+      },
+      "fields": {
+        "rules": {
+          "label": "Exclusion rules",
+          "desc": "Matching candidates are removed from search results; rules added from the context menu share this list"
+        },
+        "kind": {
+          "label": "Match mode",
+          "desc": "Exact = this target only; Directory = the directory and its subdirectories; Contains = target or name contains the keyword"
+        },
+        "target": {
+          "label": "Rule value",
+          "desc": "Target path/identifier (Exact, Directory) or keyword (Contains)"
+        },
+        "note": {
+          "label": "Note",
+          "desc": "Optional note"
+        }
+      },
+      "options": {
+        "kind": {
+          "exact": "Exact match",
+          "path_prefix": "Directory (with subdirectories)",
+          "contains": "Keyword contains"
         }
       }
     },

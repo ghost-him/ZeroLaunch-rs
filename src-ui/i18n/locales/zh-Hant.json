@@ -263,6 +263,7 @@
     "contentProcessor": "內容處理器",
     "keywordInjector": "關鍵字注入器",
     "biasRule": "固定偏移量",
+    "exclusionRule": "結果排除",
     "pluginMarket": {
       "title": "插件市集",
       "subtitle": "探索並安裝 GitHub 上帶有 zerolaunch-plugin 標籤的插件",
@@ -606,6 +607,38 @@
         "note": {
           "label": "備註",
           "desc": "可選備註資訊"
+        }
+      }
+    },
+    "exclusion-config": {
+      "name": "結果排除",
+      "description": "按完整目標、目錄或關鍵字統一排除搜尋結果，對所有資料來源與外掛候選項生效",
+      "groups": {
+        "exclusion": "排除規則"
+      },
+      "fields": {
+        "rules": {
+          "label": "排除規則",
+          "desc": "命中的候選項不會出現在搜尋結果中；右鍵隱藏與手動新增的規則共用此表"
+        },
+        "kind": {
+          "label": "匹配方式",
+          "desc": "精確=僅該目標；目錄=該目錄及其子目錄；包含=目標或名稱含該關鍵字"
+        },
+        "target": {
+          "label": "規則值",
+          "desc": "目標路徑/識別碼（精確、目錄）或關鍵字（包含）"
+        },
+        "note": {
+          "label": "備註",
+          "desc": "可選備註資訊"
+        }
+      },
+      "options": {
+        "kind": {
+          "exact": "精確匹配",
+          "path_prefix": "目錄（含子目錄）",
+          "contains": "關鍵字包含"
         }
       }
     },

@@ -165,6 +165,7 @@ export type ComponentType =
   | 'ActionExecutor'
   | 'Plugin'
   | 'BiasRule'
+  | 'ExclusionRule'
   | 'Core'
 
 export interface ComponentInfo {

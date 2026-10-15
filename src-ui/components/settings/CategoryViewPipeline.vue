@@ -28,6 +28,12 @@
           :title="t('settings.biasRule')"
         />
       </n-tab-pane>
+      <n-tab-pane name="exclusion" :tab="t('settings.exclusionRule')">
+        <ListDetailPanel
+          :items="getComponentsByType('ExclusionRule')"
+          :title="t('settings.exclusionRule')"
+        />
+      </n-tab-pane>
       <n-tab-pane name="searchengine" :tab="t('settings.searchEngine')">
         <ListDetailPanel
           :items="getComponentsByType('SearchEngine')"

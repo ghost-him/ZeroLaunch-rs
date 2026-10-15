@@ -19,6 +19,11 @@ pub enum ComponentType {
     Plugin,
     #[serde(rename = "BiasRule")]
     BiasRule,
+    /// 结果排除规则 —— 候选采集末端的统一过滤配置（精确 / 目录 / 关键字）。
+    /// 由内置 `exclusion-config` 组件声明，`SessionDispatcher` 在全量重建候选项时消费；
+    /// 前端设置页按此类型归入搜索管道分类（`BiasRule` 的姊妹类型）。
+    #[serde(rename = "ExclusionRule")]
+    ExclusionRule,
     #[serde(rename = "Core")]
     Core,
 }

@@ -620,8 +620,10 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) -> HashSet<String>
     candidate_pipeline.set_bias_rules(rules);
 
     info!("正在收集候选项（此时各组件已持有用户持久化配置）...");
-    // 插件候选项经统一合并入口并入缓存
-    let candidates = session_dispatcher.merge_plugin_candidates(candidate_pipeline.collect().await);
+    // 插件候选项经统一合并入口并入缓存，再经结果排除过滤（与运行时刷新共用同一入口）
+    let candidates = session_dispatcher.apply_exclusion(
+        session_dispatcher.merge_plugin_candidates(candidate_pipeline.collect().await),
+    );
     info!(
         "候选项收集完成，共 {} 个",
         candidates.get_candidates().len()

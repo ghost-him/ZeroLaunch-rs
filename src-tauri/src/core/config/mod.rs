@@ -1,5 +1,6 @@
 pub mod bias_settings;
 pub mod event;
+pub mod exclusion_settings;
 pub mod manager;
 pub mod models;
 pub mod registry;

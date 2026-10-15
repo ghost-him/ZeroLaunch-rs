@@ -27,6 +27,7 @@ use zerolaunch_plugin_api::{
     SearchCandidate,
 };
 
+use super::candidate_filter::filter_candidates;
 use super::candidate_pipeline::CandidatePipeline;
 use super::component_registry::PluginComponentRegistry;
 use super::executor_registry::ExecutorRegistry;
@@ -37,6 +38,7 @@ use super::session_state::{
     ResultActionDto, SessionOwner, SessionStateEmitter, SessionStateEvent,
 };
 use crate::core::config::bias_settings::{bias_settings_to_rules, BiasSettings};
+use crate::core::config::exclusion_settings::{exclusion_settings_to_rules, ExclusionSettings};
 use crate::core::config::{ConfigEvent, ConfigManager};
 use crate::core::i18n::I18nManager;
 use crate::sdk::HostApi;
@@ -527,7 +529,9 @@ impl SessionDispatcher {
     pub async fn refresh_candidates(&self) {
         let pipeline = self.candidate_pipeline.read().await;
         let candidates = pipeline.collect().await;
-        let mut candidates = self.merge_plugin_candidates(candidates);
+        let candidates = self.merge_plugin_candidates(candidates);
+        // 结果排除：采集末端的统一过滤，覆盖全部数据源与插件候选
+        let mut candidates = self.apply_exclusion(candidates);
         // 全量重建后递增缓存世代：旧确认载荷（携带旧世代）在 route_confirm
         // 被拒绝，防止刷新后 id 漂移导致确认到错误候选。
         candidates.bump_generation();
@@ -545,6 +549,32 @@ impl SessionDispatcher {
             candidates.add_plugin_candidate(candidate);
         }
         candidates
+    }
+
+    /// 应用结果排除过滤：读取 `exclusion-config` 配置编译规则集并整表过滤候选。
+    /// 配置缺失、反序列化失败或组件被禁用时不做任何过滤（原样返回）。
+    /// 启动采集（bootstrap）与运行时刷新共用本入口，保证两处过滤口径一致。
+    /// 参数：candidates - 已合并数据源与插件候选的缓存。
+    /// 返回：过滤后的缓存。
+    pub(crate) fn apply_exclusion(&self, candidates: CachedCandidateData) -> CachedCandidateData {
+        let Some(cm) = self.config_manager() else {
+            return candidates;
+        };
+        if !cm.is_enabled("exclusion-config") {
+            return candidates;
+        }
+        let rules = cm
+            .get_settings("exclusion-config")
+            .and_then(|v| match serde_json::from_value::<ExclusionSettings>(v) {
+                Ok(settings) => Some(settings),
+                Err(e) => {
+                    tracing::warn!(error = %e, "反序列化 exclusion-config 失败，本次不过滤");
+                    None
+                }
+            })
+            .map(|settings| exclusion_settings_to_rules(&settings))
+            .unwrap_or_default();
+        filter_candidates(candidates, &rules)
     }
 
     /// 距最近一次刷新已过去的时长。
@@ -1796,6 +1826,10 @@ impl SessionDispatcher {
                         info!("偏置规则配置变更，重建候选管道");
                         self.rebuild_candidate_pipeline().await;
                     }
+                    ComponentType::ExclusionRule => {
+                        info!("结果排除规则配置变更，刷新候选项");
+                        self.refresh_candidates().await;
+                    }
                     _ => {
                         debug!("{:?} 配置变更，无需响应", component_type);
                     }
@@ -1830,6 +1864,11 @@ impl SessionDispatcher {
                     ComponentType::ScoreBooster => {
                         info!("分数增强器启用状态变更，重建搜索管道");
                         self.rebuild_search_pipeline();
+                    }
+                    ComponentType::ExclusionRule => {
+                        // 组件禁用时过滤整体停用，故启用状态变更需重建候选缓存
+                        info!("结果排除组件启用状态变更，刷新候选项");
+                        self.refresh_candidates().await;
                     }
                     ComponentType::Plugin => {
                         info!(

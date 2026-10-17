@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import { open as shellOpen } from '@tauri-apps/plugin-shell'
-import type { BridgeQueryResponse, ConfirmRequest, ConfirmResponse, ComponentInfo, ComponentSchema, ConfigActionDef, ConfigActionPayload, QueryPayload, SearchTimingResult, IndexTimingResult, SearchDetailItem, PluginTranslationCatalog, ExcludeOptions, ExcludeCandidatePayload, HelpHit, HelpAnswer, HelpMessage, HelpNavigation } from './contract'
+import type { BridgeQueryResponse, ConfirmRequest, ConfirmResponse, ComponentInfo, ComponentSchema, ConfigActionDef, ConfigActionPayload, QueryPayload, SearchTimingResult, IndexTimingResult, SearchDetailItem, PluginTranslationCatalog, ExcludeOptions, ExcludeCandidatePayload, HelpHit, HelpAnswer, HelpMessage, HelpNavigation, AgentTrace } from './contract'
 export interface BridgeError {
   code: string
   message: string
@@ -402,6 +402,11 @@ export function debugSearchDetail(query: string): Promise<SearchDetailItem[]> {
 }
 export function debugCopySearchDetail(text: string): Promise<void> {
   return invokeCommand('debug_copy_search_detail', { text })
+}
+
+/** AI 助手调试轨迹：最近若干次提问的上下文与工具调用记录（最新在前）。 */
+export function debugGetAgentTraces(): Promise<AgentTrace[]> {
+  return invokeCommand('debug_get_agent_traces')
 }
 
 // ---- i18n ----

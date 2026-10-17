@@ -14,17 +14,20 @@ mod manual;
 mod prompt;
 mod settings;
 mod tools;
+mod trace;
 
 pub use manual::{ManualHit, SettingsManual};
 pub use settings::{HelpAgentSettings, HELP_AGENT_CONFIG_ID};
 pub use tools::AgentTool;
 pub use tools::MASK;
+pub use trace::{snapshot as trace_snapshot, AgentTrace};
 
 use crate::core::config::ConfigManager;
 use crate::core::i18n::I18nManager;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tools::{GetSettingsTool, OpenIssueTool};
+use trace::{TraceMessage, TraceRound, TraceToolCall};
 use zerolaunch_plugin_api::host::PluginHandle;
 use zerolaunch_plugin_api::services::model::{
     ModelChatMessage, ModelChatRequest, ModelChatResponse, ModelChatRole, ModelError, ModelService,
@@ -187,6 +190,27 @@ impl SettingsAgent {
         navigation: &HashMap<String, String>,
         history: Vec<ModelChatMessage>,
     ) -> Result<AgentAnswer, ModelError> {
+        let mut trace = AgentTrace::new(&self.model_id);
+        let result = self.run(question, navigation, history, &mut trace).await;
+        if let Err(error) = &result {
+            trace.error = Some(error.to_string());
+        }
+        trace::push(trace);
+        result
+    }
+
+    /// 驱动「模型 ↔ 工具」循环，并把每一步记入 `trace`（调试页据此复盘上下文与工具调用）。
+    ///
+    /// 参数：question - 用户提问文本；navigation - 组件 id → 设置页点击路径（写入说明书）；
+    /// history - 本次提问之前的对话；trace - 本次提问的轨迹，就地写入首轮上下文、每轮模型输出与工具结果。
+    /// 返回：答复与有效引用；模型调用失败时返回 `ModelError`（已收集的上下文仍留在 `trace` 里）。
+    async fn run(
+        &self,
+        question: &str,
+        navigation: &HashMap<String, String>,
+        history: Vec<ModelChatMessage>,
+        trace: &mut AgentTrace,
+    ) -> Result<AgentAnswer, ModelError> {
         let manual = SettingsManual::build(&self.config, &self.i18n);
         let tools: Vec<Box<dyn AgentTool>> = vec![
             Box::new(GetSettingsTool::new(
@@ -209,17 +233,31 @@ impl SettingsAgent {
         // 历史插在系统消息之后、当前问题之前：模型据此接着上一轮澄清继续谈需求
         messages.extend(history);
         messages.push(ModelChatMessage::text(ModelChatRole::User, question));
+        // 首轮消息即完整上下文；后续轮次追加的助手/工具消息都记在 rounds 里
+        trace.tools = tools.iter().map(|tool| tool.name().to_string()).collect();
+        trace.messages = messages
+            .iter()
+            .map(|message| TraceMessage {
+                role: message.role,
+                content: message.content.clone(),
+            })
+            .collect();
 
         let mut answer: Vec<String> = Vec::new();
 
         for _ in 0..MAX_ROUNDS {
             let response = self.chat(messages.clone(), tool_specs(&tools)).await?;
+            let mut round = TraceRound {
+                content: response.content.clone(),
+                tool_calls: Vec::new(),
+            };
             // 带工具调用的一轮也可能同时写了正文（实测常是含点击路径的前半段），
             // 必须累计进答复，否则最终文本会缺前半段。
             if !response.content.trim().is_empty() {
                 answer.push(response.content.clone());
             }
             if response.tool_calls.is_empty() {
+                trace.rounds.push(round);
                 return Ok(Self::finish(&answer.join("\n"), &manual));
             }
             // 助手轮次原样回填（含工具调用），保证下一轮消息序列合法
@@ -231,6 +269,11 @@ impl SettingsAgent {
             });
             for call in &response.tool_calls {
                 let output = run_tool(&tools, call).await;
+                round.tool_calls.push(TraceToolCall {
+                    name: call.name.clone(),
+                    arguments: call.arguments.clone(),
+                    result: output.clone(),
+                });
                 messages.push(ModelChatMessage {
                     role: ModelChatRole::Tool,
                     content: output,
@@ -238,10 +281,15 @@ impl SettingsAgent {
                     tool_call_id: Some(call.id.clone()),
                 });
             }
+            trace.rounds.push(round);
         }
 
         // 轮数用尽仍在调工具：去掉工具再问一次，强制收尾为文本答复
         let response = self.chat(messages, Vec::new()).await?;
+        trace.rounds.push(TraceRound {
+            content: response.content.clone(),
+            tool_calls: Vec::new(),
+        });
         if !response.content.trim().is_empty() {
             answer.push(response.content);
         }

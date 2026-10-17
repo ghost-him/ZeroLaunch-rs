@@ -3,6 +3,7 @@
 //! 返回类型遵循 serde-rename 规范，每个字段显式标注 `#[serde(rename)]`。
 
 use crate::commands::bridge_error::{BridgeError, WithTraceId};
+use crate::core::agent::AgentTrace;
 use crate::state::app_state::AppState;
 use serde::Serialize;
 use std::sync::Arc;
@@ -190,4 +191,24 @@ pub async fn debug_copy_search_detail(
         .get_core_handle()
         .set_clipboard_text(&text)
         .with_trace_id(&trace_id)
+}
+
+/// AI 助手调试轨迹：返回最近若干次提问下发给模型的上下文与工具调用结果。
+/// 参数：state - 应用状态。
+/// 返回：轨迹列表（最新在前）；调试模式未开启时返回错误。
+#[tauri::command]
+#[tracing::instrument(skip(state), fields(trace_id))]
+pub fn debug_get_agent_traces(
+    state: tauri::State<'_, Arc<AppState>>,
+) -> Result<Vec<AgentTrace>, BridgeError> {
+    let trace_id = crate::utils::trace_id::generate_trace_id();
+    tracing::Span::current().record("trace_id", trace_id.as_str());
+
+    if !state.is_debug_mode() {
+        return Err(
+            BridgeError::internal("调试模式未开启，请在设置中启用").with_trace_id(&trace_id)
+        );
+    }
+
+    Ok(crate::core::agent::trace_snapshot())
 }

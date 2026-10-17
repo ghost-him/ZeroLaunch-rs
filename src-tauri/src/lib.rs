@@ -206,6 +206,7 @@ pub fn run() {
             crate::commands::debug::debug_get_search_keys,
             crate::commands::debug::debug_search_detail,
             crate::commands::debug::debug_copy_search_detail,
+            crate::commands::debug::debug_get_agent_traces,
             // 剪贴板
             crate::commands::clipboard::copy_to_clipboard,
             // Third-party Plugin Management

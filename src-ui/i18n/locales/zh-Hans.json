@@ -404,7 +404,17 @@
     "colType": "类型",
     "colTarget": "目标",
     "colKeywords": "关键词",
-    "scoreWeight": "× {weight}"
+    "scoreWeight": "× {weight}",
+    "agentTrace": "AI 助手轨迹",
+    "descAgentTrace": "查看最近几次 AI 助手提问下发给模型的上下文与工具调用结果",
+    "refresh": "刷新",
+    "agentEmpty": "暂无记录，先在「问 AI」里提一个问题",
+    "agentContext": "上下文",
+    "agentTools": "工具",
+    "agentRound": "第 {n} 轮",
+    "agentToolCall": "调用 {name}",
+    "agentToolResult": "返回结果",
+    "agentError": "调用失败"
   },
   "tray": {
     "showSettings": "设置窗口",

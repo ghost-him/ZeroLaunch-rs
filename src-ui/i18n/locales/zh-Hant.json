@@ -404,7 +404,17 @@
     "colType": "型別",
     "colTarget": "目標",
     "colKeywords": "關鍵詞",
-    "scoreWeight": "× {weight}"
+    "scoreWeight": "× {weight}",
+    "agentTrace": "AI 助手軌跡",
+    "descAgentTrace": "檢視最近幾次 AI 助手提問下發給模型的上下文與工具呼叫結果",
+    "refresh": "重新整理",
+    "agentEmpty": "尚無紀錄，先在「問 AI」裡提一個問題",
+    "agentContext": "上下文",
+    "agentTools": "工具",
+    "agentRound": "第 {n} 輪",
+    "agentToolCall": "呼叫 {name}",
+    "agentToolResult": "回傳結果",
+    "agentError": "呼叫失敗"
   },
   "tray": {
     "showSettings": "設定視窗",

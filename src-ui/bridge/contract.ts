@@ -464,3 +464,47 @@ export interface HelpMessage {
   role: 'user' | 'assistant'
   content: string
 }
+
+// ── AI 助手调试轨迹（`debug_get_agent_traces`） ──
+
+/** 轨迹中的一条消息 —— 首轮下发给模型的消息序列中的一项。 */
+export interface AgentTraceMessage {
+  /** 消息角色。 */
+  role: 'system' | 'user' | 'assistant' | 'tool'
+  /** 消息正文。 */
+  content: string
+}
+
+/** 轨迹中的一次工具调用。 */
+export interface AgentTraceToolCall {
+  /** 工具名。 */
+  name: string
+  /** 模型给出的参数原文（JSON 文本）。 */
+  arguments: string
+  /** 工具回喂给模型的文本。 */
+  result: string
+}
+
+/** 轨迹中的一轮模型调用。 */
+export interface AgentTraceRound {
+  /** 模型本轮返回的正文（纯工具调用轮为空串）。 */
+  content: string
+  /** 本轮模型请求的工具调用及其执行结果。 */
+  toolCalls: AgentTraceToolCall[]
+}
+
+/** 一次提问的调试轨迹（宿主内存里保留最近若干条，最新在前）。 */
+export interface AgentTrace {
+  /** 记录时刻（本地时间 `YYYY-MM-DD HH:MM:SS`）。 */
+  time: string
+  /** 本次使用的模型全局 id（含 provider 前缀）。 */
+  modelId: string
+  /** 首轮随请求下发的工具名清单。 */
+  tools: string[]
+  /** 首轮下发的完整上下文：系统提示词 + 历史对话 + 当前问题。 */
+  messages: AgentTraceMessage[]
+  /** 每次模型调用的输出与随后的工具执行。 */
+  rounds: AgentTraceRound[]
+  /** 模型调用失败信息；`null` 表示本次提问未发生模型调用错误。 */
+  error: string | null
+}

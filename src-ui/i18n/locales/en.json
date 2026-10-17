@@ -404,7 +404,17 @@
     "colType": "Type",
     "colTarget": "Target",
     "colKeywords": "Keywords",
-    "scoreWeight": "× {weight}"
+    "scoreWeight": "× {weight}",
+    "agentTrace": "AI Assistant Traces",
+    "descAgentTrace": "Inspect the context sent to the model and the tool results of recent AI assistant questions",
+    "refresh": "Refresh",
+    "agentEmpty": "No records yet — ask a question in Ask AI first",
+    "agentContext": "Context",
+    "agentTools": "Tools",
+    "agentRound": "Round {n}",
+    "agentToolCall": "Call {name}",
+    "agentToolResult": "Result",
+    "agentError": "Failed"
   },
   "tray": {
     "showSettings": "Settings",

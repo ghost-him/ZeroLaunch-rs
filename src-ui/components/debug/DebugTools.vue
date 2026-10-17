@@ -74,14 +74,57 @@
         :scroll-x="tableScrollX"
       />
     </DebugCard>
+
+    <DebugCard
+      :title="t('debug.agentTrace')"
+      :description="t('debug.descAgentTrace')"
+      class="wide"
+    >
+      <template #actions>
+        <n-button size="small" :loading="agentLoading" @click="loadTraces">
+          {{ t('debug.refresh') }}
+        </n-button>
+      </template>
+      <n-empty v-if="!agentTraces.length" :description="t('debug.agentEmpty')" size="small" />
+      <n-collapse v-else :default-expanded-names="[0]">
+        <n-collapse-item v-for="(trace, index) in agentTraces" :key="index" :name="index">
+          <template #header>{{ traceTitle(trace) }}</template>
+          <div class="trace-meta">{{ trace.time }} · {{ trace.modelId }}</div>
+          <div v-if="trace.error" class="trace-error">
+            {{ t('debug.agentError') }}: {{ trace.error }}
+          </div>
+          <div class="trace-section">
+            <div class="trace-label">{{ t('debug.agentContext') }}</div>
+            <div v-for="(message, mIndex) in trace.messages" :key="mIndex" class="trace-message">
+              <span class="trace-role">{{ message.role }}</span>
+              <pre class="trace-pre">{{ message.content }}</pre>
+            </div>
+          </div>
+          <div class="trace-section">
+            <div class="trace-label">{{ t('debug.agentTools') }}</div>
+            <div class="trace-tools">{{ trace.tools.join(', ') }}</div>
+          </div>
+          <div v-for="(round, rIndex) in trace.rounds" :key="rIndex" class="trace-section">
+            <div class="trace-label">{{ t('debug.agentRound', { n: rIndex + 1 }) }}</div>
+            <pre v-if="round.content" class="trace-pre">{{ round.content }}</pre>
+            <div v-for="(call, cIndex) in round.toolCalls" :key="cIndex" class="trace-call">
+              <div class="trace-label">{{ t('debug.agentToolCall', { name: call.name }) }}</div>
+              <pre class="trace-pre">{{ call.arguments }}</pre>
+              <div class="trace-label">{{ t('debug.agentToolResult') }}</div>
+              <pre class="trace-pre">{{ call.result }}</pre>
+            </div>
+          </div>
+        </n-collapse-item>
+      </n-collapse>
+    </DebugCard>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, h, ref } from 'vue'
+import { computed, h, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
-  NButton, NDataTable, NInput, NStatistic, NTag,
+  NButton, NCollapse, NCollapseItem, NDataTable, NEmpty, NInput, NStatistic, NTag,
   useMessage,
   type DataTableColumns,
 } from 'naive-ui'
@@ -93,8 +136,10 @@ import {
   debugGetSearchKeys,
   debugSearchDetail,
   debugCopySearchDetail,
+  debugGetAgentTraces,
 } from '@/bridge/commands'
 import type {
+  AgentTrace,
   IndexTimingResult,
   SearchDetailItem,
   ScoreDetail,
@@ -107,6 +152,10 @@ const message = useMessage()
 const searchTime = useQueryTool(debugTestSearchTime)
 const keywords = useQueryTool(debugGetSearchKeys)
 const detail = useQueryTool(debugSearchDetail)
+
+// ---- AI 助手轨迹（无输入，刷新按钮拉取最近若干次提问） ----
+const agentTraces = ref<AgentTrace[]>([])
+const agentLoading = ref(false)
 
 // ---- 索引性能测试（无输入，独立状态） ----
 const indexLoading = ref(false)
@@ -122,6 +171,26 @@ async function runIndexTime() {
     indexLoading.value = false
   }
 }
+
+/** 拉取最近若干次 AI 助手提问的调试轨迹（调试模式未开启时后端返回错误）。 */
+async function loadTraces() {
+  agentLoading.value = true
+  try {
+    agentTraces.value = await debugGetAgentTraces()
+  } catch {
+    message.error(t('debug.queryFailed'))
+  } finally {
+    agentLoading.value = false
+  }
+}
+
+/** 轨迹标题：取最后一条用户消息（本次提问）；没有提问时退回记录时间。 */
+function traceTitle(trace: AgentTrace): string {
+  const question = [...trace.messages].reverse().find((message) => message.role === 'user')?.content
+  return question ? question.slice(0, 80) : trace.time
+}
+
+onMounted(loadTraces)
 
 /** 固定列基础宽度之和（含总分列），用于计算表格横向滚动宽度。 */
 const BASE_COLUMN_WIDTH = 40 + 70 + 160 + 80 + 180 + 160 + 90
@@ -293,5 +362,50 @@ async function copyDetail() {
 .score-cell-total {
   font-variant-numeric: tabular-nums;
   color: var(--text-primary);
+}
+
+.trace-meta {
+  margin-bottom: 8px;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.trace-error {
+  margin-bottom: 8px;
+  font-size: var(--font-size-sm);
+  color: var(--text-error);
+}
+
+.trace-section {
+  margin-bottom: 12px;
+}
+
+.trace-label {
+  margin-bottom: 4px;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.trace-role {
+  display: inline-block;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.trace-tools {
+  font-size: var(--font-size-sm);
+  font-family: monospace;
+}
+
+.trace-pre {
+  margin: 2px 0 0;
+  padding: 6px 8px;
+  max-height: 240px;
+  overflow: auto;
+  font-size: var(--font-size-sm);
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--bg-color);
+  border-radius: 4px;
 }
 </style>

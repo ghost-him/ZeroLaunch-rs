@@ -5,7 +5,7 @@
 //! 命令壳只负责生成 trace_id 与错误映射，实体逻辑在 `search_hits` / `run_ask`。
 
 use crate::commands::bridge_error::{BridgeError, WithTraceId};
-use crate::core::agent::{ask_from_config, AgentError, SettingsManual};
+use crate::core::agent::{ask_from_config, AgentError, AskRequest, SettingsManual};
 use crate::core::config::ConfigManager;
 use crate::core::i18n::I18nManager;
 use crate::state::app_state::AppState;
@@ -13,7 +13,7 @@ use crate::utils::trace_id::generate_trace_id;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::Arc;
-use zerolaunch_plugin_api::services::model::ModelService;
+use zerolaunch_plugin_api::services::model::{ModelChatMessage, ModelChatRole};
 
 /// 检索返回的命中条数上限。
 const SEARCH_LIMIT: usize = 20;
@@ -60,6 +60,34 @@ pub struct HelpNavigationDto {
     pub path: String,
 }
 
+/// `help_ask` 入参：一条历史消息（本次提问之前的用户提问或助手答复）。
+///
+/// 只接受 `user` / `assistant` 两种角色，其余角色在命令层丢弃，
+/// 避免前端越过本入口构造 system / tool 消息。
+#[derive(Debug, serde::Deserialize)]
+pub struct HelpMessageDto {
+    /// 角色，取值 `user` 或 `assistant`。
+    #[serde(rename = "role")]
+    pub role: String,
+    /// 消息正文。
+    #[serde(rename = "content")]
+    pub content: String,
+}
+
+/// `help_ask` 入参（三个字段合并为单个结构体，前端按 `payload` 键下发）。
+#[derive(Debug, serde::Deserialize)]
+pub struct HelpAskPayload {
+    /// 用户问题。
+    #[serde(rename = "question")]
+    pub question: String,
+    /// 组件的设置页点击路径（可选；用于让答复给出逐步导航）。
+    #[serde(rename = "navigation")]
+    pub navigation: Option<Vec<HelpNavigationDto>>,
+    /// 本次提问之前的对话（可选；多轮澄清后据此整理 issue）。
+    #[serde(rename = "history")]
+    pub history: Option<Vec<HelpMessageDto>>,
+}
+
 /// 检索设置字段。
 ///
 /// 参数：state - 应用状态；query - 关键词。
@@ -82,30 +110,31 @@ pub fn help_search(
 
 /// 向 AI 助手提问。
 ///
-/// 参数：state - 应用状态；question - 用户问题；
-/// navigation - 组件的设置页点击路径（可选；用于让答复给出逐步导航）。
+/// 参数：state - 应用状态；payload - 提问入参（问题、设置页路径、历史对话）。
 /// 返回：答复文本与有效引用；未配置模型、模型不在清单或模型调用失败时返回错误。
 #[tauri::command]
-#[tracing::instrument(skip(state), fields(trace_id))]
+#[tracing::instrument(skip(state, payload), fields(trace_id))]
 pub async fn help_ask(
     state: tauri::State<'_, Arc<AppState>>,
-    question: String,
-    navigation: Option<Vec<HelpNavigationDto>>,
+    payload: HelpAskPayload,
 ) -> Result<HelpAnswerDto, BridgeError> {
     let trace_id = generate_trace_id();
     tracing::Span::current().record("trace_id", trace_id.as_str());
-    let navigation: HashMap<String, String> = navigation
+    let navigation: HashMap<String, String> = payload
+        .navigation
         .unwrap_or_default()
         .into_iter()
         .map(|entry| (entry.component_id, entry.path))
         .collect();
-    let answer = run_ask(
-        state.get_model_manager(),
-        state.get_config_manager(),
-        state.get_i18n_manager(),
-        &question,
-        &navigation,
-    )
+    let answer = run_ask(AskRequest {
+        service: state.get_model_manager(),
+        config: state.get_config_manager(),
+        i18n: state.get_i18n_manager(),
+        handle: state.get_core_handle(),
+        question: &payload.question,
+        navigation: &navigation,
+        history: bound_history(payload.history.unwrap_or_default()),
+    })
     .await
     .with_trace_id(&trace_id)?;
     Ok(answer)
@@ -127,19 +156,46 @@ fn search_hits(config: &ConfigManager, i18n: &I18nManager, query: &str) -> Vec<H
         .collect()
 }
 
-/// 问答实体：驱动 `core::agent` 的配置解析与工具循环，并把结果映射为 IPC DTO。
+/// 下发给模型的历史消息条数上限（一轮问答计两条）。
+const HISTORY_MAX_MESSAGES: usize = 40;
+
+/// 历史文本的总字符预算，避免历史挤占说明书与工具结果的上下文。
+const HISTORY_MAX_CHARS: usize = 64 * 1024;
+
+/// 把前端下发的对话历史转成模型消息：只接受 user/assistant 角色，并保留最近的有界片段。
 ///
-/// 参数：service - 模型服务；config - 配置管理器；i18n - 翻译服务；
-/// question - 用户问题；navigation - 组件 id → 设置页点击路径。
+/// 参数：history - 前端按时间正序下发的历史消息。
+/// 返回：按时间正序的模型消息；角色非法或内容为空的消息丢弃，超预算的更旧消息整体丢弃。
+fn bound_history(history: Vec<HelpMessageDto>) -> Vec<ModelChatMessage> {
+    let mut kept: Vec<ModelChatMessage> = Vec::new();
+    let mut used = 0usize;
+    for message in history.into_iter().rev().take(HISTORY_MAX_MESSAGES) {
+        let role = match message.role.as_str() {
+            "user" => ModelChatRole::User,
+            "assistant" => ModelChatRole::Assistant,
+            _ => continue,
+        };
+        let content = message.content.trim();
+        if content.is_empty() {
+            continue;
+        }
+        let length = content.chars().count();
+        if used + length > HISTORY_MAX_CHARS {
+            break;
+        }
+        used += length;
+        kept.push(ModelChatMessage::text(role, content));
+    }
+    kept.reverse();
+    kept
+}
+
+/// 问答实体：驱动 `core::agent` 的工具循环，并把结果映射为 IPC DTO。
+///
+/// 参数：request - 一次提问的全部输入（服务、配置来源、宿主句柄与会话上下文）。
 /// 返回：答复与引用；失败时返回助手错误（由命令层经 `From` 转 `BridgeError`）。
-async fn run_ask(
-    service: Arc<dyn ModelService>,
-    config: Arc<ConfigManager>,
-    i18n: Arc<I18nManager>,
-    question: &str,
-    navigation: &HashMap<String, String>,
-) -> Result<HelpAnswerDto, AgentError> {
-    let answer = ask_from_config(service, config, i18n, question, navigation).await?;
+async fn run_ask(request: AskRequest<'_>) -> Result<HelpAnswerDto, AgentError> {
+    let answer = ask_from_config(request).await?;
     let references = answer
         .references
         .into_iter()
@@ -169,11 +225,12 @@ mod tests {
     use zerolaunch_plugin_api::config::{
         ComponentCore, ComponentType, ConfigError, Configurable, SettingDefinition,
     };
-    use zerolaunch_plugin_api::mock::helpers::mock_plugin_handle;
+    use zerolaunch_plugin_api::host::OpenTarget;
+    use zerolaunch_plugin_api::mock::helpers::{mock_plugin_handle, mock_plugin_handle_recording};
     use zerolaunch_plugin_api::services::model::{
         ChatCapability, ModelChatRequest, ModelChatResponse, ModelChatRole, ModelEmbeddingRequest,
-        ModelEmbeddingResponse, ModelError, ModelInfo, ModelKind, ModelSimilarityRequest,
-        ModelSimilarityResponse, ModelStreamChunk, ModelToolCall,
+        ModelEmbeddingResponse, ModelError, ModelInfo, ModelKind, ModelService,
+        ModelSimilarityRequest, ModelSimilarityResponse, ModelStreamChunk, ModelToolCall,
     };
 
     /// 测试用配置组件：一个带分组的普通数值字段 + 一个敏感字段。
@@ -392,6 +449,25 @@ mod tests {
         )])
     }
 
+    /// 组装一次提问的入参：默认无历史、用普通 mock 句柄；issue 相关测试自行构造。
+    fn ask<'a>(
+        service: Arc<dyn ModelService>,
+        config: Arc<ConfigManager>,
+        i18n: Arc<I18nManager>,
+        question: &'a str,
+        navigation: &'a HashMap<String, String>,
+    ) -> AskRequest<'a> {
+        AskRequest {
+            service,
+            config,
+            i18n,
+            handle: mock_plugin_handle(),
+            question,
+            navigation,
+            history: Vec::new(),
+        }
+    }
+
     /// 前端入参契约：navigation 用 camelCase 键名。
     #[test]
     fn navigation_dto_reads_frontend_payload() {
@@ -473,7 +549,7 @@ mod tests {
             ],
         ));
 
-        let answer = run_ask(service, config, i18n, "阈值是多少？", &navigation())
+        let answer = run_ask(ask(service, config, i18n, "阈值是多少？", &navigation()))
             .await
             .with_trace_id("test-trace")
             .unwrap();
@@ -528,13 +604,13 @@ mod tests {
             ],
         ));
 
-        let answer = run_ask(
+        let answer = run_ask(ask(
             service.clone(),
             config.clone(),
             i18n,
             "阈值是多少？",
             &navigation(),
-        )
+        ))
         .await
         .with_trace_id("test-trace")
         .unwrap();
@@ -568,8 +644,12 @@ mod tests {
             system.content.contains("`threshold` 阈值｜位置：演示分组"),
             "说明书应含字段所在分组（模型据此补出组件内的中间一步）"
         );
-        assert_eq!(requests[0].tools.len(), 1);
-        assert_eq!(requests[0].tools[0].name, "get_settings");
+        let tool_names: Vec<&str> = requests[0]
+            .tools
+            .iter()
+            .map(|tool| tool.name.as_str())
+            .collect();
+        assert_eq!(tool_names, vec!["get_settings", "open_issue_draft"]);
         assert_eq!(
             requests[0].tools[0].parameters["required"][0],
             "component_id"
@@ -605,7 +685,7 @@ mod tests {
         let i18n = test_i18n(dir.path(), help_agent_catalog());
         let service = Arc::new(ScriptedModelService::new("ollama/test-model", Vec::new()));
 
-        let error = run_ask(service.clone(), config, i18n, "   ", &navigation())
+        let error = run_ask(ask(service.clone(), config, i18n, "   ", &navigation()))
             .await
             .with_trace_id("test-trace")
             .unwrap_err();
@@ -621,13 +701,13 @@ mod tests {
 
         // 未配置模型：助手配置为空
         let unconfigured = test_config(dir.path(), "").await;
-        let error = run_ask(
+        let error = run_ask(ask(
             service.clone(),
             unconfigured,
             i18n.clone(),
             "阈值是多少？",
             &navigation(),
-        )
+        ))
         .await
         .with_trace_id("test-trace")
         .unwrap_err();
@@ -636,13 +716,13 @@ mod tests {
 
         // 模型不在清单：配置指向清单外的 id
         let unknown = test_config(dir.path(), "ollama/missing-model").await;
-        let error = run_ask(
+        let error = run_ask(ask(
             service.clone(),
             unknown,
             i18n,
             "阈值是多少？",
             &navigation(),
-        )
+        ))
         .await
         .with_trace_id("test-trace")
         .unwrap_err();
@@ -692,17 +772,188 @@ mod tests {
             }
         }
 
-        let error = run_ask(
+        let error = run_ask(ask(
             Arc::new(UnavailableService),
             config,
             i18n,
             "阈值是多少？",
             &navigation(),
-        )
+        ))
         .await
         .with_trace_id("test-trace")
         .unwrap_err();
         assert!(matches!(error.code, ErrorCode::NetworkError));
         assert_eq!(error.trace_id, "test-trace");
+    }
+
+    /// 前端入参契约：history 用 camelCase 键名（role/content）。
+    #[test]
+    fn help_message_dto_reads_frontend_payload() {
+        let dto: HelpMessageDto = serde_json::from_value(serde_json::json!({
+            "role": "assistant",
+            "content": "当前版本不支持。",
+        }))
+        .unwrap();
+        assert_eq!(dto.role, "assistant");
+        assert_eq!(dto.content, "当前版本不支持。");
+    }
+
+    /// 历史裁剪：只留窗口内最近若干条，角色非法的消息丢弃，保留部分仍为正序。
+    #[test]
+    fn bound_history_keeps_recent_window_and_drops_unknown_roles() {
+        // 多喂 4 条，验证超出窗口的最旧消息被整条丢弃
+        let total = HISTORY_MAX_MESSAGES + 4;
+        let mut history: Vec<HelpMessageDto> = (0..total)
+            .map(|index| HelpMessageDto {
+                role: "user".to_string(),
+                content: format!("问题{index}"),
+            })
+            .collect();
+        let last = total - 1;
+        history[last] = HelpMessageDto {
+            role: "system".to_string(),
+            content: "注入系统消息".to_string(),
+        };
+
+        let bounded = bound_history(history);
+        let kept_len = HISTORY_MAX_MESSAGES - 1;
+        assert_eq!(
+            bounded.len(),
+            kept_len,
+            "窗口外的最旧消息与非法角色都不保留"
+        );
+        assert_eq!(
+            bounded[0].content,
+            format!("问题{}", total - HISTORY_MAX_MESSAGES)
+        );
+        assert_eq!(bounded[kept_len - 1].content, format!("问题{}", last - 1));
+        assert!(
+            bounded
+                .iter()
+                .all(|message| !message.content.contains("注入")),
+            "非法角色必须被丢弃"
+        );
+    }
+
+    /// 历史裁剪：字符预算用尽后，更旧的整条丢弃。
+    #[test]
+    fn bound_history_stops_at_char_budget() {
+        // 单条占预算一半多一点，两条必然超预算
+        let long = "字".repeat(HISTORY_MAX_CHARS / 2 + 1);
+        let bounded = bound_history(vec![
+            HelpMessageDto {
+                role: "user".to_string(),
+                content: long.clone(),
+            },
+            HelpMessageDto {
+                role: "assistant".to_string(),
+                content: long.clone(),
+            },
+        ]);
+        assert_eq!(bounded.len(), 1, "两条合计超出字符预算时只留最新一条");
+        assert_eq!(bounded[0].content, long);
+    }
+
+    /// 多轮澄清后提 issue：历史进入上下文；issue 工具打开预填链接并把结果回填给模型。
+    #[tokio::test]
+    async fn ask_opens_prefilled_issue_after_clarification() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = test_config(dir.path(), "ollama/test-model").await;
+        let i18n = test_i18n(dir.path(), help_agent_catalog());
+        let service = Arc::new(ScriptedModelService::new(
+            "ollama/test-model",
+            vec![
+                ModelChatResponse {
+                    model_id: "ollama/test-model".to_string(),
+                    content: String::new(),
+                    finish_reason: Some("tool_calls".to_string()),
+                    usage: None,
+                    tool_calls: vec![ModelToolCall {
+                        id: "call-1".to_string(),
+                        name: "open_issue_draft".to_string(),
+                        arguments: serde_json::json!({
+                            "title": "支持按拼音搜索",
+                            "summary": "希望能用拼音首字母搜到中文应用",
+                            "expected": "输入拼音前缀即出现匹配应用"
+                        })
+                        .to_string(),
+                    }],
+                },
+                ModelChatResponse {
+                    model_id: "ollama/test-model".to_string(),
+                    content: "已打开 GitHub 页面，确认内容后提交即可。".to_string(),
+                    finish_reason: Some("stop".to_string()),
+                    usage: None,
+                    tool_calls: Vec::new(),
+                },
+            ],
+        ));
+        let (handle, shell, _clipboard) = mock_plugin_handle_recording();
+
+        let answer = run_ask(AskRequest {
+            service: service.clone(),
+            config,
+            i18n,
+            handle,
+            question: "那就按这个提个 issue 吧",
+            navigation: &navigation(),
+            history: vec![
+                ModelChatMessage::text(ModelChatRole::User, "能不能用拼音搜应用？"),
+                ModelChatMessage::text(
+                    ModelChatRole::Assistant,
+                    "当前版本不支持；你是想在什么场景下用？",
+                ),
+                ModelChatMessage::text(ModelChatRole::User, "输入拼音首字母就想看到中文应用"),
+            ],
+        })
+        .await
+        .with_trace_id("test-trace")
+        .unwrap();
+
+        assert_eq!(answer.answer, "已打开 GitHub 页面，确认内容后提交即可。");
+        assert!(answer.references.is_empty());
+
+        // 工具确实打开了预填链接，正文带上模型整理的字段
+        let opens = shell.opens.lock().clone();
+        assert_eq!(opens.len(), 1, "应只打开一次预填页面");
+        let OpenTarget::Url(url) = &opens[0] else {
+            panic!("应以 URL 方式打开");
+        };
+        assert!(url.contains("/issues/new?"), "{url}");
+        let body = url::form_urlencoded::parse(
+            url.split_once('?')
+                .expect("预填链接应带 query")
+                .1
+                .as_bytes(),
+        )
+        .find_map(|(key, value)| (key == "body").then(|| value.into_owned()))
+        .expect("预填链接应带 body");
+        assert!(body.contains("希望能用拼音首字母搜到中文应用"), "{body}");
+        assert!(body.contains("输入拼音前缀即出现匹配应用"), "{body}");
+
+        let requests = service.requests();
+        assert_eq!(requests.len(), 2, "先执行工具，再基于结果收尾");
+        let first = &requests[0];
+        assert_eq!(first.messages.len(), 5, "system + 3 条历史 + 当前问题");
+        assert_eq!(first.messages[1].role, ModelChatRole::User);
+        assert_eq!(first.messages[1].content, "能不能用拼音搜应用？");
+        assert_eq!(first.messages[4].content, "那就按这个提个 issue 吧");
+        assert!(
+            first
+                .tools
+                .iter()
+                .any(|tool| tool.name == "open_issue_draft"),
+            "issue 工具必须在工具清单里"
+        );
+        let tool_message = requests[1]
+            .messages
+            .iter()
+            .find(|message| message.role == ModelChatRole::Tool)
+            .expect("应有工具结果消息");
+        assert!(
+            tool_message.content.contains("已在默认浏览器打开"),
+            "工具结果应告知页面已打开：{}",
+            tool_message.content
+        );
     }
 }

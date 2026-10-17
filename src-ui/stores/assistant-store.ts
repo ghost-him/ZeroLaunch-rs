@@ -2,7 +2,10 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { helpAsk } from '../bridge/commands'
 import { formatErrorMessage } from '../utils/errors'
-import type { HelpNavigation, HelpReference } from '../bridge/contract'
+import type { HelpMessage, HelpNavigation, HelpReference } from '../bridge/contract'
+
+/** 下发给宿主的历史条数上限；宿主另有权威裁剪（≤40 条 / ≤64 * 1024 字符）。 */
+const HISTORY_LIMIT = 40
 
 /** 对话消息：角色 + 文本 + 可跳转引用。 */
 export interface AssistantMessage {
@@ -27,11 +30,16 @@ export const useAssistantStore = defineStore('assistant', () => {
    */
   async function ask(question: string, navigation: HelpNavigation[]): Promise<void> {
     if (asking.value) return
+    // 历史在追加本次提问之前取：问题由 question 单独下发，重复带入会让同一句话出现两次
+    const history: HelpMessage[] = messages.value.slice(-HISTORY_LIMIT).map((message) => ({
+      role: message.role,
+      content: message.content,
+    }))
     const userMessage: AssistantMessage = { role: 'user', content: question, references: [] }
     messages.value = [...messages.value, userMessage]
     asking.value = true
     try {
-      const answer = await helpAsk(question, navigation)
+      const answer = await helpAsk(question, navigation, history)
       const assistantMessage: AssistantMessage = {
         role: 'assistant',
         content: answer.answer,

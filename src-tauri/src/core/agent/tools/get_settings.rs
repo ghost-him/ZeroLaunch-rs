@@ -1,44 +1,20 @@
-//! agent 可调用的只读工具：读取设置当前值（敏感字段脱敏）。
-//!
-//! 工具只读宿主设置面，不写配置、不碰文件系统；工具集由 agent 每轮请求携带。
+//! 读取组件当前设置的工具：敏感字段值先遮蔽再进模型上下文。
 
+use super::AgentTool;
 use crate::core::config::ConfigManager;
 use async_trait::async_trait;
 use serde_json::Value;
 use std::sync::Arc;
-use zerolaunch_plugin_api::services::model::ModelTool;
 
 /// 脱敏占位符：敏感字段的值一律替换为该字符串，不进入模型上下文。
 ///
 /// 同时供测试断言与文档引用，避免断言写死另一份文案。
 pub const MASK: &str = "[该字段为敏感值，已隐藏]";
 
-/// 工具契约：名称 / 说明 / 参数 schema / 执行。
-#[async_trait]
-pub trait AgentTool: Send + Sync {
-    /// 工具名（模型按此名调用）。
-    fn name(&self) -> &'static str;
-
-    /// 工具用途说明，供模型判断何时调用。
-    fn description(&self) -> &'static str;
-
-    /// 参数的 JSON Schema。
-    fn parameters(&self) -> Value;
-
-    /// 执行工具；返回给模型的文本结果（失败也以文本返回，由模型自行调整）。
-    async fn execute(&self, arguments: &Value) -> String;
-
-    /// 工具的模型侧声明。
-    fn spec(&self) -> ModelTool {
-        ModelTool {
-            name: self.name().to_string(),
-            description: self.description().to_string(),
-            parameters: self.parameters(),
-        }
-    }
-}
-
 /// 读取指定组件的当前设置，敏感字段值遮蔽为 `[该字段为敏感值，已隐藏]`。
+///
+/// 仅在 `core::agent` 的工具循环内构造与调用，数据来源是 `ConfigManager` 的只读接口，
+/// 不写配置、不碰文件系统。
 pub struct GetSettingsTool {
     /// 配置管理器（读取 schema 无关的当前设置值）。
     config: Arc<ConfigManager>,

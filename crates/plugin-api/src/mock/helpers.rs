@@ -54,7 +54,7 @@ pub fn mock_platform_services() -> PlatformServices {
         hotkey_manager: Arc::new(StubHotkeyManager),
         installation_monitor: Arc::new(StubInstallationMonitor),
         focus_monitor: Arc::new(StubFocusMonitor),
-        clipboard_manager: Arc::new(StubClipboardManager),
+        clipboard_manager: Arc::new(StubClipboardManager::default()),
         theme_provider: Arc::new(StubThemeProvider),
     }
 }
@@ -483,12 +483,31 @@ impl PluginHost for MockPluginHost {
 /// 一站式为所有依赖注入桩实现并构造 PluginHandle（插件单元测试场景）。
 /// 宿主契约为 MockPluginHost；各操作返回合理默认值或空集合。
 pub fn mock_plugin_handle() -> Arc<PluginHandle> {
-    Arc::new(PluginHandle::new(
+    let (handle, _, _) = mock_plugin_handle_recording();
+    handle
+}
+
+/// 记录型插件句柄：shell 打开与剪贴板写入都落在返回的记录桩上，供调用方断言副作用。
+///
+/// 与 `mock_plugin_handle` 的唯一区别是平台面换成记录桩；仅测试使用。
+/// 返回：（插件句柄，shell 打开目标记录，剪贴板写入记录）。
+pub fn mock_plugin_handle_recording() -> (
+    Arc<PluginHandle>,
+    Arc<StubShellExecutor>,
+    Arc<StubClipboardManager>,
+) {
+    let shell = Arc::new(StubShellExecutor::default());
+    let clipboard = Arc::new(StubClipboardManager::default());
+    let mut host = MockPluginHost::new();
+    host.platform.shell_executor = shell.clone();
+    host.platform.clipboard_manager = clipboard.clone();
+    let handle = Arc::new(PluginHandle::new(
         "__mock__".to_string(),
         PluginSdkConfig::default(),
         PlatformCapabilities::new(HashSet::new()),
-        Arc::new(MockPluginHost::new()),
-    ))
+        Arc::new(host),
+    ));
+    (handle, shell, clipboard)
 }
 
 #[cfg(test)]

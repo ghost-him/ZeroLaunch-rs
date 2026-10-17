@@ -148,8 +148,11 @@ core/
 ├── agent/               ← AI 助手：说明书（schema + 译文）、只读工具、最小工具循环
 │   ├── settings.rs      ← 助手配置 id + 强类型设置（配置组件引用）
 │   ├── manual.rs        ← 说明书构建与确定性检索
-│   ├── tools.rs         ← 只读工具契约与 get_settings（敏感字段脱敏）
 │   ├── prompt.rs        ← 系统提示词
+│   ├── tools/           ← 工具目录（一个工具一个文件，契约在 mod.rs）
+│   │   ├── mod.rs       ← AgentTool 契约 + 工具 re-export
+│   │   ├── get_settings.rs  ← 读设置当前值、敏感字段脱敏（MASK）
+│   │   └── open_issue.rs    ← issue 模板渲染与预填链接打开
 │   └── mod.rs           ← 工具循环 + 引用解析
 ├── cli_token.rs          ← CLI token 管理
 ├── config/              ← 配置系统

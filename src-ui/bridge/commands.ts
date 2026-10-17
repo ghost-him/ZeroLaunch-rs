@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import { open as shellOpen } from '@tauri-apps/plugin-shell'
-import type { BridgeQueryResponse, ConfirmRequest, ConfirmResponse, ComponentInfo, ComponentSchema, ConfigActionDef, ConfigActionPayload, QueryPayload, SearchTimingResult, IndexTimingResult, SearchDetailItem, PluginTranslationCatalog, ExcludeOptions, ExcludeCandidatePayload, HelpHit, HelpAnswer, HelpNavigation } from './contract'
+import type { BridgeQueryResponse, ConfirmRequest, ConfirmResponse, ComponentInfo, ComponentSchema, ConfigActionDef, ConfigActionPayload, QueryPayload, SearchTimingResult, IndexTimingResult, SearchDetailItem, PluginTranslationCatalog, ExcludeOptions, ExcludeCandidatePayload, HelpHit, HelpAnswer, HelpMessage, HelpNavigation } from './contract'
 export interface BridgeError {
   code: string
   message: string
@@ -436,7 +436,12 @@ export function helpSearch(query: string): Promise<HelpHit[]> {
  * 向 AI 助手提问；未配置模型、模型不在清单或模型调用失败时 reject。
  * @param question 用户问题
  * @param navigation 组件的设置页点击路径（宿主写入说明书，用于给出逐步导航）
+ * @param history 本次提问之前的对话（宿主据此接续多轮澄清）
  */
-export function helpAsk(question: string, navigation: HelpNavigation[]): Promise<HelpAnswer> {
-  return invokeCommand<HelpAnswer>('help_ask', { question, navigation })
+export function helpAsk(
+  question: string,
+  navigation: HelpNavigation[],
+  history: HelpMessage[],
+): Promise<HelpAnswer> {
+  return invokeCommand<HelpAnswer>('help_ask', { payload: { question, navigation, history } })
 }

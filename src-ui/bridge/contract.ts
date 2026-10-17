@@ -458,3 +458,9 @@ export interface HelpNavigation {
   componentId: string
   path: string
 }
+
+/** `help_ask` 的历史消息：本次提问之前的对话（宿主侧另有权威裁剪）。 */
+export interface HelpMessage {
+  role: 'user' | 'assistant'
+  content: string
+}

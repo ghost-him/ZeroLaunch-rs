@@ -4,9 +4,11 @@
 //! 用户问题 → 模型（带工具清单）→ 有 tool_calls 就执行并回填成 tool 消息 → 再问，
 //! 直到模型给出纯文本答复；轮数上限兜底，超限后再补一次无工具请求强制收尾。
 //!
-//! 只读约束：工具只能读设置，说明书由 schema + 译文现场生成，无文件系统访问。
-//! 契约：本模块（含工具）只读设置；任何写入必须经 `ConfigManager` 公开写接口
+//! 工具面：读设置（`get_settings`）、把确认后的需求开成预填 issue 草稿（`open_issue_draft`）。
+//! 说明书由 schema + 译文现场生成，无文件系统访问。
+//! 契约：本模块不写配置；任何配置写入必须经 `ConfigManager` 公开写接口
 //! （validate → apply → 副作用 → 广播 → 持久化），不得在此直调配置写路径。
+//! issue 工具的外部副作用（开浏览器、写剪贴板）一律经 `PluginHandle` 转交宿主。
 
 mod manual;
 mod prompt;
@@ -22,17 +24,18 @@ use crate::core::config::ConfigManager;
 use crate::core::i18n::I18nManager;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tools::GetSettingsTool;
+use tools::{GetSettingsTool, OpenIssueTool};
+use zerolaunch_plugin_api::host::PluginHandle;
 use zerolaunch_plugin_api::services::model::{
     ModelChatMessage, ModelChatRequest, ModelChatResponse, ModelChatRole, ModelError, ModelService,
     ModelTool, ModelToolCall,
 };
 
 /// 单次提问允许的最大工具轮数。
-const MAX_ROUNDS: usize = 6;
+const MAX_ROUNDS: usize = 12;
 
 /// 答复中「相关设置」引用条目的数量上限。
-const MAX_REFERENCES: usize = 6;
+const MAX_REFERENCES: usize = 12;
 
 /// 一次提问的答复与可跳转引用。
 pub struct AgentAnswer {
@@ -81,19 +84,41 @@ impl std::fmt::Display for AgentError {
     }
 }
 
+/// 一次提问的全部输入：服务、配置来源与本次会话上下文。
+///
+/// 由 IPC 命令层（`commands::help`）装配后交给 `ask_from_config`；
+/// `history` 已按角色白名单与长度裁剪，这里不再校验。
+pub struct AskRequest<'a> {
+    /// 模型服务（按 model_id 路由到提供方）。
+    pub service: Arc<dyn ModelService>,
+    /// 配置管理器：助手配置与说明书 schema 的来源。
+    pub config: Arc<ConfigManager>,
+    /// 后端翻译服务：说明书文案的来源。
+    pub i18n: Arc<I18nManager>,
+    /// 宿主句柄：issue 工具打开浏览器、写剪贴板。
+    pub handle: Arc<PluginHandle>,
+    /// 用户本次提问（处理时去除首尾空白）。
+    pub question: &'a str,
+    /// 组件 id → 设置页点击路径（前端按当前语言拼好，用于给出逐步导航）。
+    pub navigation: &'a HashMap<String, String>,
+    /// 本次提问之前的对话（时间正序，角色仅 user/assistant）。
+    pub history: Vec<ModelChatMessage>,
+}
+
 /// 按当前配置回答一个问题：解析助手模型 → 校验 → 驱动工具循环。
 ///
-/// 参数：service - 模型服务；config - 配置管理器（助手配置与说明书 schema 来源）；
-/// i18n - 翻译服务（说明书文案来源）；question - 用户问题；
-/// navigation - 组件 id → 设置页点击路径（前端按当前语言拼好，用于给出逐步导航）。
+/// 参数：request - 一次提问的全部输入（见 `AskRequest`）。
 /// 返回：答复与引用；问题为空、模型未配置/不在清单、或模型调用失败时返回 `AgentError`。
-pub async fn ask_from_config(
-    service: Arc<dyn ModelService>,
-    config: Arc<ConfigManager>,
-    i18n: Arc<I18nManager>,
-    question: &str,
-    navigation: &HashMap<String, String>,
-) -> Result<AgentAnswer, AgentError> {
+pub async fn ask_from_config(request: AskRequest<'_>) -> Result<AgentAnswer, AgentError> {
+    let AskRequest {
+        service,
+        config,
+        i18n,
+        handle,
+        question,
+        navigation,
+        history,
+    } = request;
     let question = question.trim();
     if question.is_empty() {
         return Err(AgentError::QuestionEmpty);
@@ -111,13 +136,13 @@ pub async fn ask_from_config(
     if service.model_info(&model_id).is_none() {
         return Err(AgentError::ModelUnknown(model_id));
     }
-    SettingsAgent::new(service, model_id, config, i18n)
-        .ask(question, navigation)
+    SettingsAgent::new(service, model_id, config, i18n, handle)
+        .ask(question, navigation, history)
         .await
         .map_err(AgentError::Model)
 }
 
-/// 设置助手：绑定模型服务、模型 id 与配置/翻译来源。
+/// 设置助手：绑定模型服务、模型 id、配置/翻译来源与宿主句柄。
 pub struct SettingsAgent {
     /// 模型服务（按 model_id 路由到提供方）。
     service: Arc<dyn ModelService>,
@@ -127,50 +152,63 @@ pub struct SettingsAgent {
     config: Arc<ConfigManager>,
     /// 后端翻译服务：说明书文案的来源。
     i18n: Arc<I18nManager>,
+    /// 宿主句柄：issue 工具的外部副作用出口（开浏览器、写剪贴板）。
+    handle: Arc<PluginHandle>,
 }
 
 impl SettingsAgent {
     /// 创建设置助手。
-    /// 参数：service - 模型服务；model_id - 模型全局 id；config - 配置管理器；i18n - 翻译服务。
+    /// 参数：service - 模型服务；model_id - 模型全局 id；config - 配置管理器；
+    /// i18n - 翻译服务；handle - 宿主句柄（供 issue 工具使用）。
     pub fn new(
         service: Arc<dyn ModelService>,
         model_id: String,
         config: Arc<ConfigManager>,
         i18n: Arc<I18nManager>,
+        handle: Arc<PluginHandle>,
     ) -> Self {
         Self {
             service,
             model_id,
             config,
             i18n,
+            handle,
         }
     }
 
     /// 回答一个问题。
     ///
-    /// 参数：question - 用户提问文本；navigation - 组件 id → 设置页点击路径（写入说明书）。
+    /// 参数：question - 用户提问文本；navigation - 组件 id → 设置页点击路径（写入说明书）；
+    /// history - 本次提问之前的对话（时间正序，插在系统消息与当前问题之间）。
     /// 返回：答复与有效引用；模型调用失败时返回 `ModelError`。
     pub async fn ask(
         &self,
         question: &str,
         navigation: &HashMap<String, String>,
+        history: Vec<ModelChatMessage>,
     ) -> Result<AgentAnswer, ModelError> {
         let manual = SettingsManual::build(&self.config, &self.i18n);
-        let tools: Vec<Box<dyn AgentTool>> = vec![Box::new(GetSettingsTool::new(
-            self.config.clone(),
-            manual
-                .sensitive_keys()
-                .into_iter()
-                .map(str::to_string)
-                .collect(),
-        ))];
-        let mut messages = vec![
-            ModelChatMessage::text(
-                ModelChatRole::System,
-                prompt::system_prompt(&manual.render(navigation)),
-            ),
-            ModelChatMessage::text(ModelChatRole::User, question),
+        let tools: Vec<Box<dyn AgentTool>> = vec![
+            Box::new(GetSettingsTool::new(
+                self.config.clone(),
+                manual
+                    .sensitive_keys()
+                    .into_iter()
+                    .map(str::to_string)
+                    .collect(),
+            )),
+            Box::new(OpenIssueTool::new(
+                self.handle.clone(),
+                self.model_id.clone(),
+            )),
         ];
+        let mut messages = vec![ModelChatMessage::text(
+            ModelChatRole::System,
+            prompt::system_prompt(&manual.render(navigation)),
+        )];
+        // 历史插在系统消息之后、当前问题之前：模型据此接着上一轮澄清继续谈需求
+        messages.extend(history);
+        messages.push(ModelChatMessage::text(ModelChatRole::User, question));
 
         let mut answer: Vec<String> = Vec::new();
 

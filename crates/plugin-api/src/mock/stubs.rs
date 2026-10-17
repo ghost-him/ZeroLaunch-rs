@@ -143,10 +143,18 @@ impl crate::services::model::ModelService for StubModelService {
 
 // ===== 剪贴板管理 =====
 
-pub struct StubClipboardManager;
+/// 剪贴板管理器桩：记录写入文本，供上层断言「谁写了什么」。
+///
+/// 仅在 `mock` feature 下供测试构造平台面使用（如 issue 工具的剪贴板兜底路径）。
+#[derive(Default)]
+pub struct StubClipboardManager {
+    /// 依次写入的文本（按调用顺序，与实际写入时序一致）。
+    pub writes: Mutex<Vec<String>>,
+}
 
 impl ClipboardManager for StubClipboardManager {
-    fn set_text(&self, _text: &str) -> Result<(), HostApiError> {
+    fn set_text(&self, text: &str) -> Result<(), HostApiError> {
+        self.writes.lock().push(text.to_string());
         Ok(())
     }
 }

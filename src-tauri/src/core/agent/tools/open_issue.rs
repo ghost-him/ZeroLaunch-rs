@@ -1,4 +1,4 @@
-//! 把确认后的需求打开成预填 issue 草稿：渲染固定模板正文，拼 GitHub 新建 issue 链接并打开默认浏览器。
+//! 把确认后的需求或 bug 报告打开成预填 issue 草稿：渲染固定模板正文，拼 GitHub 新建 issue 链接并打开默认浏览器。
 //!
 //! 唯一外部副作用出口是 `PluginHandle`（打开浏览器、必要时写剪贴板）；
 //! 打开的是草稿页，是否提交由用户自己在浏览器里决定。
@@ -23,7 +23,7 @@ const MAX_URL_LEN: usize = 6000;
 /// issue 标题的字符上限：标题不进正文，过长只会挤占链接空间，超出即截断。
 const MAX_TITLE_CHARS: usize = 200;
 
-/// GitHub 新建 issue 工具：把确认后的需求渲染成固定模板正文，打开默认浏览器的预填页面。
+/// GitHub 新建 issue 工具：把确认后的需求或 bug 报告渲染成固定模板正文，打开默认浏览器的预填页面。
 ///
 /// 只在 `core::agent` 的工具循环内构造与调用（每次提问新建一个实例）；
 /// 打开的是草稿页，是否提交由用户自己在浏览器里决定。
@@ -55,8 +55,8 @@ impl AgentTool for OpenIssueTool {
     }
 
     fn description(&self) -> &'static str {
-        "把已经和用户确认过的需求整理成 issue 正文，并在默认浏览器打开 GitHub 新建 issue 页面\
-（标题与正文预填、不会被自动提交）。只在想要的能力当前不支持、需求已问清、且用户同意现在提 issue 时调用；\
+        "把已经和用户确认过的需求或 bug 报告整理成 issue 正文，并在默认浏览器打开 GitHub 新建 issue 页面\
+（标题与正文预填、不会被自动提交）。只在需求或 bug 已问清、且用户明确同意现在打开页面时调用；\
 一次提问最多调用一次。"
     }
 
@@ -66,15 +66,15 @@ impl AgentTool for OpenIssueTool {
             "properties": {
                 "title": {
                     "type": "string",
-                    "description": "issue 标题，一句话说清想要什么"
+                    "description": "issue 标题，一句话说清想要什么或哪里出了问题"
                 },
                 "summary": {
                     "type": "string",
-                    "description": "需求描述：想要的用法与使用场景（2-4 句）"
+                    "description": "描述（2-4 句）：缺功能时写想要的用法与使用场景；报 bug 时写现象、复现步骤与出现条件"
                 },
                 "expected": {
                     "type": "string",
-                    "description": "期望行为：希望程序如何表现、何时触发、给出什么结果"
+                    "description": "期望行为：缺功能时写希望程序如何表现、何时触发、给出什么结果；报 bug 时写正常情况下应该是什么样"
                 },
                 "current_workaround": {
                     "type": "string",
@@ -191,7 +191,7 @@ fn render_issue_body(
     workaround: Option<&str>,
     model_id: &str,
 ) -> String {
-    let mut body = format!("### 需求描述\n{summary}\n\n### 期望行为\n{expected}\n");
+    let mut body = format!("### 描述\n{summary}\n\n### 期望行为\n{expected}\n");
     if let Some(workaround) = workaround {
         body.push_str(&format!("\n### 现有做法与不足\n{workaround}\n"));
     }

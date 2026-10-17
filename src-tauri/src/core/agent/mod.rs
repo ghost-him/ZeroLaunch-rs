@@ -4,7 +4,7 @@
 //! 用户问题 → 模型（带工具清单）→ 有 tool_calls 就执行并回填成 tool 消息 → 再问，
 //! 直到模型给出纯文本答复；轮数上限兜底，超限后再补一次无工具请求强制收尾。
 //!
-//! 工具面：读设置（`get_settings`）、把确认后的需求开成预填 issue 草稿（`open_issue_draft`）。
+//! 工具面：读设置（`get_settings`）、把确认后的需求或 bug 报告开成预填 issue 草稿（`open_issue_draft`）。
 //! 说明书由 schema + 译文现场生成，无文件系统访问。
 //! 契约：本模块不写配置；任何配置写入必须经 `ConfigManager` 公开写接口
 //! （validate → apply → 副作用 → 广播 → 持久化），不得在此直调配置写路径。

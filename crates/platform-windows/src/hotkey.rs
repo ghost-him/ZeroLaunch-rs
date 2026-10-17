@@ -1,33 +1,43 @@
 use async_trait::async_trait;
 use dashmap::DashMap;
-use parking_lot::RwLock;
-use rdev::{listen, EventType, Key};
+use parking_lot::{Mutex, RwLock};
+use std::cell::Cell;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::thread;
 use std::time::{Duration, Instant};
 use tauri::AppHandle;
 use tauri_plugin_global_shortcut::{
     Code, GlobalShortcutExt, Modifiers, Shortcut as TauriShortcut, ShortcutState,
 };
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
+use windows::Win32::UI::Input::KeyboardAndMouse::{VK_LCONTROL, VK_RCONTROL};
 use zerolaunch_plugin_api::host::HostApiError;
 use zerolaunch_plugin_api::services::hotkey::{
     CallbackRegistration, Hotkey, HotkeyCallback, HotkeyEvent, HotkeyEventFilter, HotkeyManager,
 };
 
+use crate::raw_keyboard::{RawKeyEvent, RawKeyboardListener};
+
+/// 双击 Ctrl 判定窗口：两次 Ctrl 按下需落在此间隔内。
+const DOUBLE_CTRL_WINDOW: Duration = Duration::from_millis(400);
+/// 判定为「Ctrl」的虚拟键码。
+/// 原始输入（RAWKEYBOARD.VKey）上报的是通用 VK_CONTROL（0x11，由扫描码映射而来），
+/// 左右区分码只在消息层出现，故两者都接受。
+const DOUBLE_CTRL_KEYS: [u16; 3] = [0x11, VK_LCONTROL.0, VK_RCONTROL.0];
+
 /// Windows 平台按键管理器实现。
-/// 使用 `tauri-plugin-global-shortcut` 注册全局快捷键，使用 `rdev` 监听双击 Ctrl。
+/// 使用 `tauri-plugin-global-shortcut` 注册全局快捷键；双击 Ctrl 用原始输入（RIDEV_INPUTSINK）
+/// 监听，只在功能启用且监听开启时读取全局按键，不安装任何输入钩子。
 pub struct WindowsHotkeyManager {
     app_handle: Arc<AppHandle>,
     /// 事件回调，通过 Arc<RwLock> 支持动态更新
     event_callback: Arc<RwLock<Option<HotkeyCallback>>>,
     /// 双击 Ctrl 监听是否启用
-    double_ctrl_enabled: Arc<AtomicBool>,
+    double_ctrl_enabled: AtomicBool,
     /// 是否正在监听
     is_listening: Arc<AtomicBool>,
-    /// 双击 Ctrl 监听线程是否已启动
-    double_ctrl_thread_started: Arc<AtomicBool>,
+    /// 双击 Ctrl 的原始输入监听器；未启用时为 None，进程内不读取任何全局输入
+    double_ctrl_listener: Mutex<Option<RawKeyboardListener>>,
     /// 上层回调注册表
     callbacks: Arc<DashMap<String, CallbackRegistration>>,
 }
@@ -42,9 +52,9 @@ impl WindowsHotkeyManager {
         Self {
             app_handle,
             event_callback: Arc::new(RwLock::new(None)),
-            double_ctrl_enabled: Arc::new(AtomicBool::new(false)),
+            double_ctrl_enabled: AtomicBool::new(false),
             is_listening: Arc::new(AtomicBool::new(false)),
-            double_ctrl_thread_started: Arc::new(AtomicBool::new(false)),
+            double_ctrl_listener: Mutex::new(None),
             callbacks: Arc::new(DashMap::new()),
         }
     }
@@ -155,68 +165,76 @@ impl WindowsHotkeyManager {
         Ok(TauriShortcut::new(modifiers, code))
     }
 
-    /// 启动双击 Ctrl 监听线程。
+    /// 启动双击 Ctrl 的原始输入监听（已启动则忽略；仅在启用且处于监听态时启动）。
+    /// 原始输入由系统异步投递，不介入输入管线、不修改前台应用键盘状态，也不需要低级钩子。
+    /// 返回：无。启动失败只记录告警，不影响全局快捷键。
     fn start_double_ctrl_listener(&self) {
-        if self
-            .double_ctrl_thread_started
-            .swap(true, Ordering::Relaxed)
+        if !self.double_ctrl_enabled.load(Ordering::Relaxed)
+            || !self.is_listening.load(Ordering::Relaxed)
         {
+            return;
+        }
+        let mut slot = self.double_ctrl_listener.lock();
+        if slot.is_some() {
             return;
         }
 
         let callback_ref = self.event_callback.clone();
-        let enabled_ref = self.double_ctrl_enabled.clone();
+        let last_ctrl_press = Cell::new(Instant::now());
+        let press_count = Cell::new(0u8);
+        let last_key_was_release = Cell::new(false);
 
-        thread::spawn(move || {
-            info!("Starting Double Ctrl listener");
-            let mut last_ctrl_press = Instant::now();
-            let mut press_count = 0;
-            let mut last_key_was_release = false;
-
-            if let Err(error) = listen(move |event| {
-                if !enabled_ref.load(Ordering::Relaxed) {
-                    press_count = 0;
-                    last_key_was_release = false;
-                    return;
+        let started = RawKeyboardListener::start(move |event: RawKeyEvent| {
+            if !DOUBLE_CTRL_KEYS.contains(&event.vk) {
+                // 其他按键按下时复位双击计数（与低级钩子实现一致）
+                if event.is_down {
+                    press_count.set(0);
+                    last_key_was_release.set(false);
                 }
+                return;
+            }
+            if !event.is_down {
+                last_key_was_release.set(true);
+                return;
+            }
 
-                match event.event_type {
-                    EventType::KeyPress(Key::ControlLeft)
-                    | EventType::KeyPress(Key::ControlRight) => {
-                        let now = Instant::now();
-                        if now.duration_since(last_ctrl_press) < Duration::from_millis(400) {
-                            if press_count == 1 && last_key_was_release {
-                                press_count = 2;
-                            } else {
-                                press_count = 1;
-                            }
-                        } else {
-                            press_count = 1;
-                        }
-                        last_ctrl_press = now;
-                        last_key_was_release = false;
-
-                        if press_count == 2 {
-                            press_count = 0;
-                            if let Some(callback) = callback_ref.read().as_ref() {
-                                callback(HotkeyEvent::DoubleCtrl);
-                            }
-                        }
-                    }
-                    EventType::KeyRelease(Key::ControlLeft)
-                    | EventType::KeyRelease(Key::ControlRight) => {
-                        last_key_was_release = true;
-                    }
-                    EventType::KeyPress(_) => {
-                        press_count = 0;
-                        last_key_was_release = false;
-                    }
-                    _ => {}
+            let now = Instant::now();
+            if now.duration_since(last_ctrl_press.get()) < DOUBLE_CTRL_WINDOW {
+                if press_count.get() == 1 && last_key_was_release.get() {
+                    press_count.set(2);
+                } else {
+                    press_count.set(1);
                 }
-            }) {
-                error!("Double Ctrl listener error: {:?}", error);
+            } else {
+                press_count.set(1);
+            }
+            last_ctrl_press.set(now);
+            last_key_was_release.set(false);
+
+            if press_count.get() == 2 {
+                press_count.set(0);
+                if let Some(callback) = callback_ref.read().as_ref() {
+                    callback(HotkeyEvent::DoubleCtrl);
+                }
             }
         });
+
+        match started {
+            Ok(listener) => {
+                info!("双击 Ctrl 监听已启动（原始输入，无输入钩子）");
+                *slot = Some(listener);
+            }
+            Err(e) => warn!("双击 Ctrl 监听启动失败: {e}"),
+        }
+    }
+
+    /// 停止双击 Ctrl 的原始输入监听（注销原始输入注册并等待监听线程退出）。
+    /// 返回：无。
+    fn stop_double_ctrl_listener(&self) {
+        if let Some(listener) = self.double_ctrl_listener.lock().take() {
+            listener.stop();
+            info!("双击 Ctrl 监听已停止");
+        }
     }
 }
 
@@ -262,6 +280,12 @@ impl HotkeyManager for WindowsHotkeyManager {
 
     async fn set_double_ctrl_enabled(&self, enabled: bool) -> Result<(), HostApiError> {
         self.double_ctrl_enabled.store(enabled, Ordering::Relaxed);
+        if enabled {
+            self.start_double_ctrl_listener();
+        } else {
+            // 关闭时立即注销原始输入：游戏模式下不再读取任何全局按键
+            self.stop_double_ctrl_listener();
+        }
         Ok(())
     }
 
@@ -286,11 +310,12 @@ impl HotkeyManager for WindowsHotkeyManager {
             }
         });
         *self.event_callback.write() = Some(dispatcher);
-        if !was_listening {
-            info!("首次启动按键监听");
-            self.start_double_ctrl_listener();
-        } else {
+        // 分发器就绪后再启动双击 Ctrl 监听，避免启动瞬间的事件无人接收
+        self.start_double_ctrl_listener();
+        if was_listening {
             info!("更新按键分发器");
+        } else {
+            info!("首次启动按键监听");
         }
         Ok(())
     }
@@ -298,6 +323,7 @@ impl HotkeyManager for WindowsHotkeyManager {
     async fn stop_listening(&self) -> Result<(), HostApiError> {
         *self.event_callback.write() = None;
         self.is_listening.store(false, Ordering::Relaxed);
+        self.stop_double_ctrl_listener();
         Ok(())
     }
 

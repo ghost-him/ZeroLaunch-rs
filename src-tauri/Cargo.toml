@@ -83,7 +83,6 @@ notify.workspace = true
 # Workspace-managed common deps
 serde.workspace = true
 serde_json.workspace = true
-rdev.workspace = true
 widestring.workspace = true
 windows-core.workspace = true
 rayon.workspace = true

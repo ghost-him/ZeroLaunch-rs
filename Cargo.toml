@@ -73,7 +73,6 @@ windows-core = "0.62.2"
 winreg = "0.56.0"
 widestring = "1.2.1"
 uiautomation = "0.25.0"
-rdev = { version = "0.5.3", features = ["unstable_grab"] }
 arboard = "3.6.1"
 whoami = "2.1.2"
 lnk = "0.6.4"

@@ -696,7 +696,7 @@ pub async fn handle_search_text(search_text: String) -> Vec<(u64, String, String
 
 `ShortcutManager` 分为两层:
 - **Tauri 层**: 使用 `tauri-plugin-global-shortcut` 注册系统级全局快捷键
-- **应用层**: 使用 `rdev` 库监听双击 Ctrl 事件（独立线程）
+- **应用层**: 使用原始输入（Raw Input，`RIDEV_INPUTSINK`）监听双击 Ctrl 事件（独立线程，不安装输入钩子）
 
 ### 8.2 全局快捷键
 
@@ -712,9 +712,9 @@ pub async fn handle_search_text(search_text: String) -> Vec<(u64, String, String
 
 ### 8.3 双击 Ctrl 检测
 
-- 使用 `rdev` 库在独立线程中监听全局按键
+- 使用原始输入（Raw Input，`RIDEV_INPUTSINK`）在独立线程中监听全局按键，不安装 `WH_KEYBOARD_LL` 钩子
 - 400ms 窗口内检测两次 Ctrl 按下触发
-- 可通过配置启用/禁用
+- 可通过配置启用/禁用：禁用（含游戏模式）时立即注销注册，不再读取任何全局按键
 - 游戏模式下不响应
 
 ### 8.4 快捷键注册/注销

@@ -50,12 +50,12 @@ windows = { workspace = true, features = [
     "Win32_System_Threading",
     "Win32_UI_Shell",
     "Win32_UI_Shell_PropertiesSystem",
+    "Win32_UI_Input_KeyboardAndMouse",
     "Win32_UI_WindowsAndMessaging",
 ] }
 windows-core.workspace = true
 winreg.workspace = true
 uiautomation.workspace = true
-rdev.workspace = true
 arboard.workspace = true
 whoami.workspace = true
 lnk.workspace = true

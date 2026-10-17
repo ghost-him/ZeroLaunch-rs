@@ -15,6 +15,7 @@ mod lnk_resolver;
 mod parameter_providers;
 mod path_resolver;
 mod platform_services;
+mod raw_keyboard;
 mod resource_loader;
 mod shell;
 mod theme;

@@ -1,6 +1,6 @@
 ---
 name: no-callsite-crate-path
-description: 禁止在调用点书写 crate:: 完整路径 — 类型/函数/宏须在文件头 use 导入
+description: "禁止在调用点书写 crate:: 完整路径 — 类型/函数/宏须在文件头 use 导入"
 condition:
   - '(?m)^(?![ \t]*(pub(\([^)]*\))?[ \t]+)?use[ \t]+).*\bcrate::[A-Za-z_][A-Za-z0-9_]*::'
   - '(?m)^(?![ \t]*(pub(\([^)]*\))?[ \t]+)?use[ \t]+).*\b(zerolaunch_plugin_api|zerolaunch_plugin_protocol|zerolaunch_plugin_host|zerolaunch_plugin_sdk_rust)::'

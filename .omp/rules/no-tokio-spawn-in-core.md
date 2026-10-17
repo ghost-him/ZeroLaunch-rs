@@ -10,7 +10,6 @@ condition:
 scope:
   - tool:edit(src-tauri/src/**/*.rs)
   - tool:write(src-tauri/src/**/*.rs)
-  - text
 ---
 
 # src-tauri 核心程序禁止 tokio 协程创建，统一使用 tauri::async_runtime

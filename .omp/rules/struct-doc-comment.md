@@ -69,6 +69,7 @@ pub struct AppExecutor {
     /// 访问平台能力的桥接句柄。
     plugin_handle: Arc<PluginHandle>,
 }
+```
 
 ## 示例
 
@@ -85,6 +86,7 @@ pub struct BookmarkSource {
     /// 通过 RwLock 提供内部可变性，仅在 apply_settings 时写入。
     settings: RwLock<BookmarkSourceSettings>,
 }
+```
 
 ```rust
 /// 内部辅助类型：单条内置命令定义。

@@ -1,6 +1,6 @@
 ---
 description: Vue 响应式状态更新 — 容器内对象/数组采用整体替换风格，Store 方法封装更新逻辑
-condition: "\\.value\\s*=|state\\.value"
+condition: "\\.value\\s*="
 scope: "tool:edit(*.vue), tool:edit(*.ts), tool:write(*.vue), tool:write(*.ts)"
 ---
 

@@ -4,7 +4,7 @@ condition:
   - 'serde\(other\)'
   - 'capabilities'
   - 'pub enum'
-scope: "tool:edit(crates/plugin-api/src/services/**), tool:write(crates/plugin-api/src/services/**), tool:edit(src-tauri/src/core/model/**), tool:write(src-tauri/src/core/model/**), tool:edit(src-tauri/src/builtin_plugin/config/**), tool:write(src-tauri/src/builtin_plugin/config/**)"
+scope: "tool:edit(crates/plugin-api/src/services/**), tool:write(crates/plugin-api/src/services/**), tool:edit(src-tauri/src/core/model/**), tool:write(src-tauri/src/core/model/**), tool:edit(src-tauri/src/builtin_plugin/config/**), tool:write(src-tauri/src/builtin_plugin/config/**), tool:edit(crates/plugin-protocol/src/**), tool:write(crates/plugin-protocol/src/**)"
 ---
 
 # host ↔ plugin 载荷前向兼容契约

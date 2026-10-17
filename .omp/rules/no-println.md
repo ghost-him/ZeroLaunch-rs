@@ -13,5 +13,6 @@ scope: "tool:edit(src-tauri/**), tool:write(src-tauri/**), tool:edit(crates/**),
 **豁免场景**（stdout/stderr 是产品接口而非日志通道，不适用本规则）：
 - `zerolaunch-cli`：`stdout` 输出查询结果（如 `zl query --json` 的 JSON）、`stderr` 输出错误提示——这是 CLI 的功能输出；内部诊断才用 tracing
 - `src-tauri/src/logging.rs`：tracing 初始化之前的兜底 `eprintln!`（tracing 未就绪时的唯一错误通道）
+- `xtask/`：构建编排 CLI（`xtask/src/main.rs`），`println!` 是面向用户的功能输出（构建目标列表、目录切换提示等）——本规则 scope 不含 `xtask/`，这些调用不是违规
 
 注意：NEVER 在日志中输出用户敏感信息（密码、完整路径中的用户名等）。

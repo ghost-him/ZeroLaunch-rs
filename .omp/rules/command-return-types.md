@@ -14,7 +14,7 @@ scope: "tool:edit(src-tauri/src/commands/**), tool:write(src-tauri/src/commands/
 - 返回类型 **必须** 是命名结构体（`#[derive(Serialize)]`）。**禁止** 直接返回 `serde_json::Value` 或 `serde_json::json!()` 手动构造的 JSON。
   - **正确**：`fn config_get_actions() -> Result<Vec<ConfigActionDef>, BridgeError>`
   - **错误**：`fn config_get_settings() -> Result<serde_json::Value, BridgeError>`
-- 命名结构体 **必须** 在 Rust 中定义，前端在 `bridge/contract.ts` 中声明对应 TypeScript 类型。**禁止** 使用 `serde_json::json!({})` 局部构造返回值。
+- 命名结构体 **必须** 在 Rust 中定义；前端对应的 TypeScript 类型按 `frontend-type-safety` 规则声明在 `bridge/contract.ts`（跨域复用类型）或 `bridge/commands.ts`（与命令函数同址的命令载荷）。**禁止** 使用 `serde_json::json!({})` 局部构造返回值。
 - 已知例外（返回值形状由动态 schema 或组件定义决定）：
   - `config_get_settings` — 返回值由组件的 schema 定义，形状不固定
   - `config_execute_action` — 每个组件可定义自己的 action 结果类型

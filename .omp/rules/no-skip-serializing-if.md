@@ -3,7 +3,7 @@ name: no-skip-serializing-if
 description: 禁止 #[serde(skip_serializing_if)] — 后端向前端传输数据必须完整，空值序列化为 null/空数组而非跳过字段
 condition:
   - 'skip_serializing_if'
-scope: "tool:edit(src-tauri/src/commands/**), tool:write(src-tauri/src/commands/**), tool:edit(src-tauri/src/builtin_plugin/**), tool:write(src-tauri/src/builtin_plugin/**), tool:edit(src-tauri/src/core/model/**), tool:write(src-tauri/src/core/model/**), tool:edit(src-tauri/src/plugin_framework/**), tool:write(src-tauri/src/plugin_framework/**), tool:edit(crates/plugin-api/src/**), tool:write(crates/plugin-api/src/**), tool:edit(crates/plugin-protocol/src/**), tool:write(crates/plugin-protocol/src/**)"
+scope: "tool:edit(src-tauri/src/commands/**), tool:write(src-tauri/src/commands/**), tool:edit(src-tauri/src/builtin_plugin/**), tool:write(src-tauri/src/builtin_plugin/**), tool:edit(src-tauri/src/core/model/**), tool:write(src-tauri/src/core/model/**), tool:edit(src-tauri/src/plugin_framework/**), tool:write(src-tauri/src/plugin_framework/**), tool:edit(crates/plugin-api/src/**), tool:write(crates/plugin-api/src/**), tool:edit(crates/plugin-protocol/src/**), tool:write(crates/plugin-protocol/src/**), tool:edit(src-tauri/src/plugin_market/**), tool:write(src-tauri/src/plugin_market/**)"
 ---
 
 # 禁止 skip_serializing_if（IPC 数据完整传输）
@@ -48,6 +48,7 @@ panel_content: Option<PluginPanelContent>,
 
 ## 原因
 
-- 跨 IPC 契约是「完整形状」契约：前端 `contract.ts` 类型与后端结构一一对应，
+- 跨 IPC 契约是「完整形状」契约：前端 IPC 类型（`bridge/contract.ts` / `bridge/commands.ts`，
+  归属见 `frontend-type-safety` 规则）与后端结构一一对应，
   跳过字段制造 `undefined` 分支，前端需到处判空且无法区分「字段缺失」与「字段为空」
 - 空数组/`null` 的体积开销可忽略，完整性收益远大于省下的几个字节

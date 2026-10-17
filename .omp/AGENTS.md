@@ -47,7 +47,7 @@ logging/            → 日志初始化
 | ConfigManager       | `src-tauri/src/core/config/manager.rs`                             |
 | HostApi + Builder   | `src-tauri/src/sdk.rs`                                             |
 | 内置组件注册表      | `src-tauri/src/plugin_framework/builtin_registry.rs`              |
-| Plugin Inspector    | `src-tauri/src/plugin_framework/inspector.rs` (feature = "inspector") |
+| Plugin Inspector    | `src-tauri/src/plugin_framework/inspector.rs`（始终编译，无 cargo feature） |
 | 插件市场            | `src-tauri/src/plugin_market/mod.rs` + `src-tauri/src/commands/plugin_market.rs` |
 | PluginHostManager   | `crates/plugin-host/src/manager.rs`                                |
 | 第三方插件加载器    | `src-tauri/src/plugin_framework/manager.rs`                       |
@@ -58,7 +58,7 @@ logging/            → 日志初始化
 
 ## IPC 命令清单
 
-搜索/会话（`bridge_` 前缀，7个）：`bridge_query`, `bridge_confirm`, `bridge_wake`, `bridge_wake_plugin`, `bridge_refresh_candidates`, `bridge_hide_window`, `bridge_get_system_theme`
+搜索/会话（`bridge_` 前缀，9个）：`bridge_query`, `bridge_confirm`, `bridge_wake`, `bridge_wake_plugin`, `bridge_refresh_candidates`, `bridge_hide_window`, `bridge_get_system_theme`, `bridge_exclude_options`, `bridge_exclude_candidate`
 
 配置（`config_` 前缀，9个）：`config_get_version`, `config_get_all_components`, `config_get_schema`, `config_get_settings`, `config_apply_settings`, `config_reset_settings`, `config_set_enabled`, `config_get_actions`, `config_execute_action`
 
@@ -68,7 +68,7 @@ logging/            → 日志初始化
 
 检查器（`inspector_` 前缀，1个）：`inspector_get_state`
 
-调试工具（`debug_` 前缀，5个）：`debug_test_search_time`, `debug_test_index_time`, `debug_get_search_keys`, `debug_search_detail`, `debug_simulate_query`
+调试工具（`debug_` 前缀，5个）：`debug_test_search_time`, `debug_test_index_time`, `debug_get_search_keys`, `debug_search_detail`, `debug_copy_search_detail`
 
 资源（`resource_` 前缀，2个）：`resource_get`, `resource_upload`
 
@@ -188,8 +188,10 @@ builtin_plugin/
 ```
 plugin_framework/
 ├── builtin_registry.rs   ← inventory 自动发现与注册编排器
-├── builtin.rs            ← 内置插件定义
-├── inspector.rs          ← Plugin Inspector 调试面板 (feature = "inspector")
+├── component_registry.rs ← 搜索流水线组件类型注册表（DataSource/KeywordOptimizer/SearchEngine/ScoreBooster/KeywordInjector 注册与查找）
+├── inspector.rs          ← Plugin Inspector 调试面板（始终编译，录制开关由 is_debug_mode 运行时控制）
+├── candidate_filter.rs   ← 排除规则过滤（采集末端对全部数据源与插件候选统一生效）
+├── plugin_wake_executor.rs ← 沉浸式插件面板候选的确认执行器（经 ExecutorRegistry 解析，执行即唤醒面板）
 ├── session_dispatcher.rs ← 会话调度（横切：路由/确认/代际/事件推送）
 ├── session_state.rs      ← 会话投影类型（SessionOwner/HostView/PluginView/InputMatch/SessionStateEvent）
 ├── candidate_pipeline.rs ← 候选项采集管道

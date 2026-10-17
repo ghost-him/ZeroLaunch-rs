@@ -7,7 +7,7 @@ import {
 } from 'naive-ui'
 import { open } from '@tauri-apps/plugin-shell'
 import { marketList, marketGetMeta, marketInstall, marketPreviewPackage, marketDiscardPreview } from '@/bridge/commands'
-import type { MarketRepo, MarketPackagePreview, MarketCardMeta } from '@/bridge/commands'
+import type { MarketRepo, MarketListResult, MarketPackagePreview, MarketCardMeta } from '@/bridge/commands'
 import type { BridgeError } from '@/bridge/commands'
 import PluginIntroModal from '@/components/settings/PluginIntroModal.vue'
 import PluginPackageInfo from '@/components/settings/PluginPackageInfo.vue'
@@ -19,6 +19,9 @@ const dialog = useDialog()
 const loading = ref(false)
 const repos = ref<MarketRepo[]>([])
 const loadError = ref<string | null>(null)
+/** 列表新鲜度：数据抓取时刻（unix 秒）与本次刷新失败原因（null = 实时数据）。
+ * 列表本体由 repos 单一持有，这里只镜像后端随数据下发的年龄信息。 */
+const listInfo = ref<Omit<MarketListResult, 'repos'> | null>(null)
 /** 插件介绍弹窗（插件形态说明）显隐。 */
 const showIntro = ref(false)
 /** 正在安装的仓库（按 fullName 记录，按钮 loading + 防重入）。 */
@@ -61,6 +64,11 @@ const cards = computed(() =>
       metadataError: meta?.metadataError ?? '',
     }
   }),
+)
+
+/** 列表数据抓取时刻的本地时间文本（后端下发 unix 秒）。 */
+const fetchedAtText = computed(() =>
+  listInfo.value ? new Date(listInfo.value.fetchedAt * 1000).toLocaleString() : '',
 )
 
 /** 错误信息提取（BridgeError message + traceId）。 */
@@ -126,25 +134,32 @@ function releasePendingPreview() {
  * 卡片提示只取 BridgeError.message（不带 traceId）：trace 是排查用的，混进卡片文案里
  * 只会干扰阅读，真机排查看日志即可。刷新时保留上一次的 data（只置 loading），
  * 否则卡片会在请求在途期间闪回首字母占位、已知无 release 的仓库按钮也会短暂可点。
+ * `force` = 手动刷新（后端绕过 24h 卡片缓存时限）。
  */
-async function loadRepoMeta(fullName: string) {
+async function loadRepoMeta(fullName: string, force = false) {
   const previous = repoMeta.value[fullName]?.data ?? null
   repoMeta.value[fullName] = { loading: true, error: '', data: previous }
   try {
-    const data = await marketGetMeta(fullName)
+    const data = await marketGetMeta(fullName, force)
     repoMeta.value[fullName] = { loading: false, error: '', data }
   } catch (e) {
     repoMeta.value[fullName] = { loading: false, error: (e as BridgeError).message, data: null }
   }
 }
 
-/** 拉取市场仓库列表；列表先渲染，卡片元数据逐卡并行回填（不阻塞列表展示）。 */
-async function loadMarket() {
+/** 拉取市场仓库列表；列表先渲染，卡片元数据逐卡并行回填（不阻塞列表展示）。
+ *
+ * 列表与卡片都走后端 24h 磁盘缓存：后端把数据抓取时刻与"本次刷新失败原因"一并下发，
+ * 前端据此展示"最后更新"与限流回落提示；`force` = 手动刷新（后端绕过缓存时限）。
+ */
+async function loadMarket(force = false) {
   loading.value = true
   loadError.value = null
   try {
-    repos.value = await marketList()
-    for (const repo of repos.value) void loadRepoMeta(repo.fullName)
+    const result = await marketList(force)
+    repos.value = result.repos
+    listInfo.value = { fetchedAt: result.fetchedAt, staleReason: result.staleReason }
+    for (const repo of result.repos) void loadRepoMeta(repo.fullName, force)
   } catch (e) {
     loadError.value = errorText(e)
   } finally {
@@ -214,7 +229,7 @@ onMounted(() => {
   <div class="plugin-market">
     <NSpace style="margin-bottom: 8px;" align="center">
       <NText tag="h2" style="margin: 0;">{{ t('settings.pluginMarket.title') }}</NText>
-      <NButton secondary size="small" :loading="loading" @click="loadMarket">
+      <NButton secondary size="small" :loading="loading" @click="loadMarket(true)">
         {{ t('settings.pluginMarket.refresh') }}
       </NButton>
       <NButton secondary size="small" @click="showIntro = true">
@@ -224,6 +239,12 @@ onMounted(() => {
     <NText depth="3" style="display: block; margin-bottom: 16px;">
       {{ t('settings.pluginMarket.subtitle') }}
     </NText>
+    <NText v-if="listInfo" depth="3" style="display: block; margin-bottom: 8px;">
+      {{ t('settings.pluginMarket.lastUpdated', { time: fetchedAtText }) }}
+    </NText>
+    <NAlert v-if="listInfo?.staleReason" type="warning" style="margin-bottom: 12px;">
+      {{ t('settings.pluginMarket.refreshFailedUsingCache', { reason: listInfo.staleReason }) }}
+    </NAlert>
 
     <div v-if="loading && repos.length === 0" class="market-state">
       <NSpin />

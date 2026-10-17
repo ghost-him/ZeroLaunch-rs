@@ -312,6 +312,8 @@
       "title": "插件市场",
       "subtitle": "发现并安装 GitHub 上打有 zerolaunch-plugin 标签的插件",
       "refresh": "刷新",
+      "lastUpdated": "最后更新：{time}",
+      "refreshFailedUsingCache": "刷新失败，展示缓存数据：{reason}",
       "loadFailed": "加载插件市场失败",
       "empty": "暂无可用插件",
       "install": "安装",

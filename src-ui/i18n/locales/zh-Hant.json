@@ -312,6 +312,8 @@
       "title": "插件市集",
       "subtitle": "探索並安裝 GitHub 上帶有 zerolaunch-plugin 標籤的插件",
       "refresh": "重新整理",
+      "lastUpdated": "最後更新：{time}",
+      "refreshFailedUsingCache": "重新整理失敗，顯示快取資料：{reason}",
       "loadFailed": "載入插件市集失敗",
       "empty": "暫無可用插件",
       "install": "安裝",

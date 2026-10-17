@@ -204,8 +204,9 @@ fn icon_basename(icon_path: &str) -> Option<&str> {
     }
 }
 
-/// 校验仓库所有者登录名（`[A-Za-z0-9-]`，1..=39 字符）：仅用于拼装兜底头像 URL。
-fn is_valid_owner_login(login: &str) -> bool {
+/// 校验仓库所有者登录名（`[A-Za-z0-9-]`，1..=39 字符）：仅用于拼装兜底头像 URL
+/// 与缓存键（缓存键依赖"登录名不含下划线"来保证 `owner__repo` 不串号）。
+pub(super) fn is_valid_owner_login(login: &str) -> bool {
     !login.is_empty()
         && login.len() <= 39
         && login

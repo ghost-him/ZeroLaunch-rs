@@ -338,14 +338,24 @@ export interface MarketPackagePreview {
   manifest: PluginManifest
 }
 
-/** 拉取插件市场仓库列表。 */
-export function marketList(): Promise<MarketRepo[]> {
-  return invokeCommand<MarketRepo[]>('market_list')
+/** 市场列表响应 —— 仓库列表 + 数据年龄 + 本次刷新失败原因（与 Rust MarketListResult 一一对应）。
+ * 后端列表走 24h 磁盘缓存，故 fetchedAt 是数据真实抓取时刻；staleReason 非 null 表示
+ * 本次实时刷新失败（限流/断网）、当前展示的是缓存数据。 */
+export interface MarketListResult {
+  repos: MarketRepo[]
+  fetchedAt: number
+  staleReason: string | null
 }
 
-/** 查询仓库最新发布的卡片元数据（不下载整包，也不占用 GitHub REST API 额度）。 */
-export function marketGetMeta(fullName: string): Promise<MarketCardMeta> {
-  return invokeCommand<MarketCardMeta>('market_get_meta', { fullName })
+/** 拉取插件市场仓库列表；force = true 为手动刷新（绕过 24h 缓存时限）。 */
+export function marketList(force = false): Promise<MarketListResult> {
+  return invokeCommand<MarketListResult>('market_list', { force })
+}
+
+/** 查询仓库最新发布的卡片元数据（不下载整包，也不占用 GitHub REST API 额度）；
+ * force = true 为手动刷新（绕过 24h 缓存时限）。 */
+export function marketGetMeta(fullName: string, force = false): Promise<MarketCardMeta> {
+  return invokeCommand<MarketCardMeta>('market_get_meta', { fullName, force })
 }
 
 /** 安装仓库最新发布中的插件包（解析 → 下载 → 安装一步完成）。 */

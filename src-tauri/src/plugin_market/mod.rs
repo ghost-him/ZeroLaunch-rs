@@ -9,6 +9,9 @@
 //! - **安装/预检**（本模块）：`api.github.com` REST，消耗匿名额度，产出 [`ReleasePackage`]。
 //! - **卡片元数据**（[`card_meta`] 子模块）：`github.com` release 网页路由 + CDN，
 //!   零 REST 额度，产出 [`MarketCardMeta`]。
+//!
+//! 两条链路的**展示数据**都经 [`cache`] 落盘（24h TTL，手动刷新可绕过）：匿名额度
+//! 按出口 IP 计，实时请求只留给缓存未命中与用户主动刷新。
 
 use reqwest::Client as HttpClient;
 use reqwest::StatusCode;
@@ -19,6 +22,8 @@ use std::time::{Duration, Instant};
 use tokio::sync::Mutex as AsyncMutex;
 use zerolaunch_plugin_protocol::manifest::Manifest;
 
+/// 市场数据的本地磁盘缓存（24h TTL + 手动刷新；列表与卡片元数据共用）。
+pub mod cache;
 mod card_meta;
 
 /// 插件仓库 topic：`https://github.com/topics/zerolaunch-plugin` 背后的主题标签。
@@ -29,11 +34,11 @@ const EXCLUDED_REPO: &str = "ghost-him/ZeroLaunch-rs";
 const PLUGIN_ZIP_PREFIX: &str = "zerolaunch-plugin";
 /// 兜底头像尺寸（像素）：仓库所有者头像，插件未自带图标时用作卡片占位图。
 const OWNER_AVATAR_SIZE: u32 = 96;
-/// 市场 GET 响应缓存新鲜期：期内不再发起请求。
+/// 市场 GET 响应缓存新鲜期（进程内）：期内同 URL 不再发起请求。
 ///
-/// 走 `get_json` 的只剩两处：topic 搜索列表（桶限 10 次/分钟，市场页每次进入都会拉）
-/// 与安装/预检的最新发布查询（同一 URL 会在“预检 → 确认安装”里连打两次）。
-/// 没有这层缓存，反复进出设置页或反复确认安装就会把匿名额度打空。
+/// 走 `get_json` 的两处：topic 搜索列表（桶限 10 次/分钟；跨进程/跨会话复用靠
+/// commands 层的 24h 磁盘缓存，这里只挡同一进程内的重复）与安装/预检的最新发布
+/// 查询（同一 URL 会在“预检 → 确认安装”里连打两次）。
 const GET_CACHE_TTL: Duration = Duration::from_secs(60);
 
 /// 市场 GET 响应缓存条目（仅存少量小响应：搜索列表 + 最新发布 JSON）。
@@ -78,7 +83,9 @@ pub enum MarketError {
 }
 
 /// 插件市场条目（对应 topic 搜索结果中的一个仓库）。
-#[derive(Debug, Clone, serde::Serialize)]
+///
+/// `Deserialize` 供磁盘缓存回读（[`cache`]），不是上游响应模型。
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct MarketRepo {
     /// 仓库全名 `owner/name`。
     #[serde(rename = "fullName")]
@@ -110,7 +117,7 @@ pub struct ReleasePackage {
 /// 元数据来源是发布 CI 随 zip 一同上传的 release 附件（`manifest.toml` 与清单
 /// `[icon].path` 同名图标附件）：旧版本发布未附带这些附件时 manifest 为 None，
 /// 卡片退化为仓库描述 + 所有者头像，安装不受影响。
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct MarketCardMeta {
     /// 最新发布 tag 名；`None` = 该仓库没有任何发布版本（安装按钮置灰）。
     #[serde(rename = "tagName")]
@@ -266,7 +273,7 @@ impl GitHubMarketClient {
 
     /// 发送 GET 请求并校验状态码，返回响应体字节。
     ///
-    /// [`GET_CACHE_TTL`] 内同 URL 直接回放缓存，避免反复进出市场页/反复确认安装
+    /// [`GET_CACHE_TTL`] 内同 URL 直接回放缓存，避免同一进程内反复确认安装
     /// 把 GitHub 匿名额度（核心 60 次/小时、搜索 10 次/分钟）打空。
     async fn get_json(&self, url: &str) -> Result<Vec<u8>, MarketError> {
         // 一次加锁取出缓存体，避免分离式加锁读到不同版本

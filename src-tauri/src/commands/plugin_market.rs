@@ -4,7 +4,8 @@
 //! 市场模块不直接依赖 plugin_framework，安装编排在此层完成。
 
 use crate::commands::bridge_error::{BridgeError, WithTraceId};
-use crate::plugin_market::{GitHubMarketClient, MarketCardMeta, MarketRepo};
+use crate::plugin_market::cache;
+use crate::plugin_market::{GitHubMarketClient, MarketCardMeta, MarketError, MarketRepo};
 use crate::state::app_state::AppState;
 use std::path::Path;
 use std::sync::Arc;
@@ -13,32 +14,138 @@ use zerolaunch_plugin_api::services::path::KnownPath;
 use zerolaunch_plugin_host::manager::InstalledPluginInfo;
 use zerolaunch_plugin_protocol::Manifest;
 
+// ── 展示数据磁盘缓存（24h TTL，见 plugin_market::cache） ──────────
+
+/// 列表缓存域：`plugin-cache/core/market-list/`。
+const LIST_CACHE_DOMAIN: &str = "market-list";
+/// 列表缓存键：整个列表一个文件。
+const LIST_CACHE_KEY: &str = "index.json";
+/// 卡片元数据缓存域：`plugin-cache/core/market-meta/`。
+const META_CACHE_DOMAIN: &str = "market-meta";
+
 // ── Commands ─────────────────────────────────────────────────────
 
+/// 市场列表响应 —— 仓库列表 + 数据年龄 + 本次刷新失败原因（跨 IPC 序列化，前端
+/// `MarketListResult` 一一对应）。
+///
+/// 列表可能来自 24h 磁盘缓存，故新鲜度必须随数据一并下发：前端据 `fetchedAt`
+/// 展示"最后更新"，据 `staleReason` 提示当前展示的是旧数据（限流/断网回落）。
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct MarketListResult {
+    /// 仓库列表（实时抓取或磁盘缓存）。
+    #[serde(rename = "repos")]
+    pub repos: Vec<MarketRepo>,
+    /// 数据抓取时刻（unix 秒）：实时抓取为当前时间，回落缓存时为缓存写入时刻。
+    #[serde(rename = "fetchedAt")]
+    pub fetched_at: u64,
+    /// 本次刷新失败而回落到缓存的原因（含限流重试提示）；实时抓取成功为 None。
+    #[serde(rename = "staleReason")]
+    pub stale_reason: Option<String>,
+}
+
 /// 拉取插件市场仓库列表（GitHub topic: zerolaunch-plugin，已排除主程序仓库）。
+///
+/// 先读 24h 磁盘缓存：非 `force` 且缓存未过期时直接命中、不发请求（`force` 为
+/// 手动刷新）。刷新失败但手上有旧缓存时回落旧数据并把原因放进 `staleReason`，
+/// 避免匿名额度被共享出口 IP 打空时（issue #93）市场页变成空白报错。
 #[tauri::command]
-#[tracing::instrument(fields(trace_id))]
-pub async fn market_list() -> Result<Vec<MarketRepo>, BridgeError> {
+#[tracing::instrument(skip(state), fields(trace_id))]
+pub async fn market_list(
+    force: bool,
+    state: State<'_, Arc<AppState>>,
+) -> Result<MarketListResult, BridgeError> {
     let trace_id = crate::utils::trace_id::generate_trace_id();
     tracing::Span::current().record("trace_id", trace_id.as_str());
+    let handle = state.get_core_handle();
+
+    // 新鲜缓存（且非手动刷新）直接命中；过期条目留给刷新失败时回落。
+    let fallback =
+        match cache::read::<Vec<MarketRepo>>(&handle, LIST_CACHE_DOMAIN, LIST_CACHE_KEY).await {
+            Some((repos, fetched_at)) if !force && cache::is_fresh(fetched_at) => {
+                return Ok(MarketListResult {
+                    repos,
+                    fetched_at,
+                    stale_reason: None,
+                })
+            }
+            stale => stale,
+        };
+
     let client = GitHubMarketClient::new();
-    client.list_repos().await.with_trace_id(&trace_id)
+    let result: Result<MarketListResult, MarketError> = match client.list_repos().await {
+        Ok(repos) => {
+            cache::write(&handle, LIST_CACHE_DOMAIN, LIST_CACHE_KEY, &repos).await;
+            Ok(MarketListResult {
+                repos,
+                fetched_at: cache::now_unix(),
+                stale_reason: None,
+            })
+        }
+        Err(e) => match fallback {
+            Some((repos, fetched_at)) => {
+                tracing::warn!("市场列表刷新失败，回落展示缓存数据: {}", e);
+                Ok(MarketListResult {
+                    repos,
+                    fetched_at,
+                    stale_reason: Some(e.to_string()),
+                })
+            }
+            None => Err(e),
+        },
+    };
+    result.with_trace_id(&trace_id)
 }
 
 /// 查询仓库最新发布的卡片元数据（tag + 清单 + 图标/兜底头像）。
 ///
 /// 走 github.com 的 release 网页路由与 CDN，不消耗 GitHub REST API 额度；
 /// 元数据缺失（旧版本发布）不是错误，由返回结构里的 None/原因字段表达。
+/// 先读 24h 磁盘缓存（键 `<owner>__<repo>.json`）：非 `force` 且未过期时直接命中，
+/// 刷新失败时静默回落到过期缓存——元数据是尽力而为，不接受把卡片降级成错误。
 #[tauri::command]
-#[tracing::instrument(fields(trace_id))]
-pub async fn market_get_meta(full_name: String) -> Result<MarketCardMeta, BridgeError> {
+#[tracing::instrument(skip(state), fields(trace_id))]
+pub async fn market_get_meta(
+    full_name: String,
+    force: bool,
+    state: State<'_, Arc<AppState>>,
+) -> Result<MarketCardMeta, BridgeError> {
     let trace_id = crate::utils::trace_id::generate_trace_id();
     tracing::Span::current().record("trace_id", trace_id.as_str());
+    let handle = state.get_core_handle();
+
+    // 仓库全名不合法（无法安全用作缓存文件名）时不做缓存，仍按实时请求返回。
+    let cache_key = cache::repo_key(&full_name);
+    let cached = match &cache_key {
+        Some(key) => cache::read::<MarketCardMeta>(&handle, META_CACHE_DOMAIN, key).await,
+        None => None,
+    };
+    // 新鲜缓存（且非手动刷新）直接命中；过期条目留给刷新失败时回落。
+    let fallback = match cached {
+        Some((meta, fetched_at)) if !force && cache::is_fresh(fetched_at) => return Ok(meta),
+        stale => stale.map(|(meta, _)| meta),
+    };
+
     let client = GitHubMarketClient::new();
-    client
-        .get_card_meta(&full_name)
-        .await
-        .with_trace_id(&trace_id)
+    let result: Result<MarketCardMeta, MarketError> = match client.get_card_meta(&full_name).await {
+        Ok(meta) => {
+            if let Some(key) = &cache_key {
+                cache::write(&handle, META_CACHE_DOMAIN, key, &meta).await;
+            }
+            Ok(meta)
+        }
+        Err(e) => match fallback {
+            Some(meta) => {
+                tracing::warn!(
+                    "市场卡片元数据刷新失败，回落缓存数据: {}（{}）",
+                    full_name,
+                    e
+                );
+                Ok(meta)
+            }
+            None => Err(e),
+        },
+    };
+    result.with_trace_id(&trace_id)
 }
 
 /// 安装仓库最新发布中的插件包：解析 release → 定位/下载 zip → 交给 PluginManager 安装。

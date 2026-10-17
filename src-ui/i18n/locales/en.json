@@ -312,6 +312,8 @@
       "title": "Plugin Market",
       "subtitle": "Discover and install plugins tagged zerolaunch-plugin on GitHub",
       "refresh": "Refresh",
+      "lastUpdated": "Last updated: {time}",
+      "refreshFailedUsingCache": "Refresh failed, showing cached data: {reason}",
       "loadFailed": "Failed to load plugin market",
       "empty": "No plugins available",
       "install": "Install",

@@ -59,7 +59,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { NSwitch, NText, NIcon, useMessage } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import { resolveText } from '../../i18n'
@@ -78,10 +78,13 @@ const props = withDefaults(
     customToggle?: boolean
     /** 自定义切换进行中：禁用开关防止重复触发（用于互斥切换等非原子流程） */
     toggleBusy?: boolean
+    /** 外部（设置助手跳转）要求选中的组件 id */
+    preselectId?: string
   }>(),
   {
     customToggle: false,
     toggleBusy: false,
+    preselectId: undefined,
   },
 )
 
@@ -102,6 +105,15 @@ const selectedItem = computed(() => {
 function selectItem(id: string) {
   selectedId.value = id
 }
+
+// 外部要求选中：id 在本面板列表内才生效；变为 undefined 时不清空已选中项
+watch(
+  () => props.preselectId,
+  (id) => {
+    if (id && props.items.some((item) => item.componentId === id)) selectItem(id)
+  },
+  { immediate: true },
+)
 
 async function onItemToggle(item: ComponentInfo, val: boolean) {
   if (props.customToggle) {

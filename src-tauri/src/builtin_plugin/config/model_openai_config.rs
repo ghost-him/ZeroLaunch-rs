@@ -159,7 +159,10 @@ pub(crate) fn model_entry_schema() -> Vec<SettingDefinition> {
             t_key!("model-entry", "fields.chat_capabilities.label"),
             t_key!("model-entry", "fields.chat_capabilities.desc"),
         )
-        .options_with_labels(&[("reasoning", t_key!("model-entry", "capabilities.reasoning"))])
+        .options_with_labels(&[
+            ("reasoning", t_key!("model-entry", "capabilities.reasoning")),
+            ("tools", t_key!("model-entry", "capabilities.tools")),
+        ])
         .default(serde_json::json!(["reasoning"]))
         .order(6)
         .visible_when("kind", "chat")
@@ -245,6 +248,7 @@ impl Configurable for ModelOpenAiConfigComponent {
             .group(t_key!("model-openai-config", "groups.connection"))
             .order(1)
             .default("")
+            .sensitive(true)
             .build(),
             SchemaBuilder::array(
                 "models",
@@ -376,7 +380,7 @@ mod tests {
         assert_eq!(chat_json["schema"]["type"], "array");
         assert_eq!(
             chat_json["schema"]["items"]["enum"],
-            serde_json::json!(["reasoning"])
+            serde_json::json!(["reasoning", "tools"])
         );
         assert_eq!(
             chat_json["schema"]["default"],

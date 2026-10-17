@@ -25,6 +25,10 @@ scope: "tool:edit(src-tauri/src/builtin_plugin/**), tool:write(src-tauri/src/bui
 
 - **必须** 在 struct 定义处（反序列化点）做缺失字段保护，而非依赖调用处的 `.unwrap_or_default()`（调用处的兜底在 `from_str` 整体失败时才触发，此时 **所有** 字段都丢失了）
 - 所有 `Configurable` impl **必须** 定义带 `#[derive(Serialize, Deserialize)]` 的强类型 `Settings` struct，每个字段标注 `#[serde(rename = "...", default)]`，用 `RwLock<Settings>` 存储
-- `apply_settings()` 中 **必须** 使用 `serde_json::from_value::<Settings>(settings).unwrap_or_default()` 反序列化。`get_settings()` 中 **必须** 使用 `serde_json::to_value(&*self.settings.read()).unwrap_or_default()` 序列化
+- `apply_settings()` 中 **必须** 反序列化后再落库，但失败处置分两类：
+  - **模型/助手类组件**（`model_ollama_config`、`model_openai_config`、`help_agent_config` 等承载密钥或整段模型条目的组件）解析失败 **必须** 返回 `ConfigError::ValidationFailed` 拒绝保存——静默回退默认会清空用户已保存的配置（见 `host-model-service` 规则）
+  - 其余组件可用 `serde_json::from_value::<Settings>(settings).unwrap_or_default()`
+  - 注意 `#[serde(default)]` 的职责是**字段级**宽容（老配置缺字段不等于整段非法），不能拿它吞掉整体解析失败
+- `get_settings()` 中 **必须** 使用 `serde_json::to_value(&*self.settings.read()).unwrap_or_default()` 序列化
 - 所有字段访问 **必须** 通过强类型 struct 的字段
 - keyword_optimizer / score_booster / triggerable 等插件如果使用自定义 inner struct（如 `RwLock<FooInner>`），**必须** 改为 `RwLock<FooSettings>`（带 `#[serde(rename, default)]` 的 serde struct），inner struct 仅保留运行时状态（非配置字段）

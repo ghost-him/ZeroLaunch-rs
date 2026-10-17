@@ -2,8 +2,10 @@ use serde::Serialize;
 use std::fmt;
 use tracing::error;
 use zerolaunch_plugin_api::config::ConfigError;
+use zerolaunch_plugin_api::services::model::ModelError;
 use zerolaunch_plugin_api::HostApiError;
 
+use crate::core::agent::{AgentError, HELP_AGENT_CONFIG_ID};
 use crate::plugin_framework::PluginManagerError;
 use crate::plugin_framework::SessionDispatcherError;
 use crate::plugin_market::MarketError;
@@ -209,6 +211,36 @@ impl From<PluginManagerError> for BridgeError {
                 trace_id: String::new(),
             },
             PluginManagerError::Internal(msg) => BridgeError::internal(msg),
+        }
+    }
+}
+
+/// 将 AI 助手错误转换为 IPC 边界使用的 BridgeError。
+///
+/// 配置/参数问题（问题为空、模型未配置/不在清单）→ 校验失败，供前端引导用户去配置；
+/// 提供方不可用/传输失败 → 网络错误；其余模型错误 → 内部错误。
+/// 错误指向助手配置组件，前端据此定位到 `help-agent-config`。
+impl From<AgentError> for BridgeError {
+    fn from(e: AgentError) -> Self {
+        let code = match &e {
+            AgentError::QuestionEmpty
+            | AgentError::ModelNotConfigured
+            | AgentError::ModelUnknown(_) => ErrorCode::ValidationFailed,
+            AgentError::Model(ModelError::ProviderUnavailable(_))
+            | AgentError::Model(ModelError::Transport(_)) => ErrorCode::NetworkError,
+            AgentError::Model(model_error) => match model_error {
+                ModelError::NotSupported | ModelError::InvalidRequest(_) => {
+                    ErrorCode::ValidationFailed
+                }
+                _ => ErrorCode::InternalError,
+            },
+        };
+        BridgeError {
+            code,
+            message: e.to_string(),
+            details: Box::new(None),
+            component_id: Some(HELP_AGENT_CONFIG_ID.to_string()),
+            trace_id: String::new(),
         }
     }
 }

@@ -1,5 +1,5 @@
 <template>
-  <div class="dynamic-form">
+  <div ref="formRoot" class="dynamic-form">
     <div class="form-header">
       <h3>{{ resolveText(schema.componentName) }}</h3>
       <n-tag :bordered="false" size="small">{{ schema.componentType }}</n-tag>
@@ -30,6 +30,7 @@
             <DynamicFormField
               v-for="field in group.items"
               :key="field.key"
+              :data-field-key="field.key"
               :field="field"
               :component-id="schema.componentId"
               :model-value="getValue(field.key)"
@@ -48,6 +49,7 @@
           <DynamicFormField
             v-for="field in group.items"
             :key="field.key"
+            :data-field-key="field.key"
             :field="field"
             :component-id="schema.componentId"
             :model-value="getValue(field.key)"
@@ -78,7 +80,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, provide, onUnmounted } from 'vue'
+import { ref, computed, watch, provide, onUnmounted, inject, nextTick, onMounted } from 'vue'
 import { NAlert, NButton, NTabPane, NTabs, NTag, NText, useMessage, useDialog } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import { resolveText } from '../../i18n'
@@ -86,6 +88,7 @@ import DynamicFormField from './DynamicFormField.vue'
 import FormSection from './FormSection.vue'
 import { useConfigStore } from '../../stores/config-store'
 import { FORM_VALUES_KEY } from '../../utils/formInjection'
+import { FIELD_REVEAL_KEY } from '../../utils/fieldReveal'
 import {
   buildFieldConfigs,
   stripTransientSettings,
@@ -185,6 +188,51 @@ watch(
   },
   { immediate: true },
 )
+
+// 设置助手跳转：定位到目标字段（分组 tab 模式下先切到该字段所在分组）
+const reveal = inject(FIELD_REVEAL_KEY, null)
+const formRoot = ref<HTMLElement | null>(null)
+
+/**
+ * 定位到指定字段。
+ * 参数：fieldKey - 字段 key；空串表示只定位到组件顶部。
+ */
+function revealField(fieldKey: string): void {
+  const root = formRoot.value
+  if (!root) return
+  if (!fieldKey) {
+    root.scrollIntoView({ block: 'start', behavior: 'smooth' })
+    return
+  }
+  const group = groupedFields.value.find((entry) =>
+    entry.items.some((item) => item.key === fieldKey),
+  )
+  if (group && showGroupTabs.value) {
+    activeGroup.value = group.name
+  }
+  void nextTick(() => {
+    root
+      .querySelector<HTMLElement>(`[data-field-key="${fieldKey}"]`)
+      ?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  })
+}
+
+watch(
+  () => reveal?.target.value,
+  (target) => {
+    if (target && target.componentId === props.schema.componentId) {
+      revealField(target.fieldKey)
+    }
+  },
+)
+
+// 表单可能在跳转请求之后才挂载（分类切换 + schema 加载），挂载时补一次定位
+onMounted(() => {
+  const target = reveal?.target.value
+  if (target && target.componentId === props.schema.componentId) {
+    revealField(target.fieldKey)
+  }
+})
 
 /** 读取字段当前值，供字段组件注入使用。 */
 function getValue(key: string): unknown {

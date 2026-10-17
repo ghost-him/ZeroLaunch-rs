@@ -33,6 +33,12 @@
         <!-- About -->
         <AboutView v-else-if="selectedId === 'category_about'" :version="version" />
 
+        <!-- AI 助手（独立问答页） -->
+        <AssistantView
+          v-else-if="selectedId === 'category_assistant'"
+          :navigation="assistantNavigation"
+        />
+
         <!-- Dynamic Category Views -->
         <template v-else-if="selectedCategory">
           <div class="category-header">
@@ -68,7 +74,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, nextTick, onMounted, provide } from 'vue'
 import { NButton, NSpin, NText, useNotification } from 'naive-ui'
 import SettingsSidebar from '../components/settings/SettingsSidebar.vue'
 import CategoryViewList from '../components/settings/CategoryViewList.vue'
@@ -76,6 +82,7 @@ import CategoryViewPipeline from '../components/settings/CategoryViewPipeline.vu
 import CategoryViewTabs from '../components/settings/CategoryViewTabs.vue'
 import DebugView from './DebugView.vue'
 import AboutView from './AboutView.vue'
+import AssistantView from './settings/AssistantView.vue'
 import PluginsManagement from './settings/PluginsManagement.vue'
 import PluginMarket from './settings/PluginMarket.vue'
 import { useConfigStore } from '../stores/config-store'
@@ -85,7 +92,9 @@ import { registerErrorHandler } from '../bridge/commands'
 import { configGetVersion } from '../bridge/commands'
 import type { BridgeError } from '../bridge/commands'
 import { formatErrorMessage } from '../utils/errors'
-import type { ComponentInfo } from '../bridge/contract'
+import { FIELD_REVEAL_KEY, type FieldRevealTarget } from '../utils/fieldReveal'
+import { resolveText } from '../i18n'
+import type { ComponentInfo, HelpNavigation } from '../bridge/contract'
 
 const configStore = useConfigStore()
 const notification = useNotification()
@@ -106,6 +115,56 @@ const isDebugMode = computed(() => {
 })
 
 const sidebarItems = computed(() => buildSidebarItems(getComponentsList(), isDebugMode.value, t))
+
+/** 助手用的「设置页路径」：分类 → 组件，供模型给出逐步导航（分类由本页拥有，故在此拼装）。 */
+const assistantNavigation = computed<HelpNavigation[]>(() => {
+  const root = t('settings.title')
+  const entries: HelpNavigation[] = []
+  const covered = new Set<string>()
+  for (const category of sidebarItems.value) {
+    for (const component of category.components ?? []) {
+      covered.add(component.componentId)
+      entries.push({
+        componentId: component.componentId,
+        path: `${root} › ${category.label} › ${resolveText(component.componentName)}`,
+      })
+    }
+  }
+  // 第三方插件组件不在分类里（配置入口在插件管理页），统一标到「插件」
+  for (const component of getComponentsList()) {
+    if (covered.has(component.componentId)) continue
+    entries.push({
+      componentId: component.componentId,
+      path: `${root} › ${t('settings.sidebar.plugins')} › ${resolveText(component.componentName)}`,
+    })
+  }
+  return entries
+})
+
+/** 待揭示的设置位置：由设置助手跳转触发，分类视图与表单消费。 */
+const revealTarget = ref<FieldRevealTarget | null>(null)
+
+/**
+ * 请求揭示某个设置位置：先切到该组件所在的分类，再由分类视图与表单滚动到字段。
+ * 参数：componentId - 组件 id；fieldKey - 字段 key（空串表示只定位到组件）。
+ * 返回是否找到了可显示该组件的分类；定位是一次性的，nextTick（本轮 patch 完成后）
+ * 即清空 target，避免下次手动进入该分类时重复切 tab/滚动。
+ */
+function requestReveal(componentId: string, fieldKey: string): boolean {
+  const category = sidebarItems.value.find((item) =>
+    item.components?.some((component) => component.componentId === componentId),
+  )
+  if (category) {
+    selectedId.value = category.key
+  }
+  revealTarget.value = { componentId, fieldKey }
+  void nextTick(() => {
+    revealTarget.value = null
+  })
+  return category !== undefined
+}
+
+provide(FIELD_REVEAL_KEY, { target: revealTarget, request: requestReveal })
 
 const selectedCategory = computed(() => {
   if (!selectedId.value) return null

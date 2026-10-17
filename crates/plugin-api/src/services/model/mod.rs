@@ -15,5 +15,5 @@ pub use types::{
     ChatCapability, EmbeddingCapability, EmbeddingTemplateArgs, ModelChatMessage, ModelChatRequest,
     ModelChatResponse, ModelChatRole, ModelEmbeddingRequest, ModelEmbeddingResponse, ModelError,
     ModelInfo, ModelKind, ModelSimilarity, ModelSimilarityRequest, ModelSimilarityResponse,
-    ModelStreamChunk, ModelTokenUsage, SemanticTask,
+    ModelStreamChunk, ModelTokenUsage, ModelTool, ModelToolCall, SemanticTask,
 };

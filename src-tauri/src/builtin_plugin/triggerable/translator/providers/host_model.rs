@@ -370,18 +370,13 @@ impl TranslationProvider for HostModelProvider {
         let chat_req = ModelChatRequest {
             model_id,
             messages: vec![
-                ModelChatMessage {
-                    role: ModelChatRole::System,
-                    content: DEFAULT_TRANSLATION_SYSTEM_PROMPT.to_string(),
-                },
-                ModelChatMessage {
-                    role: ModelChatRole::User,
-                    content: build_user_message(req),
-                },
+                ModelChatMessage::text(ModelChatRole::System, DEFAULT_TRANSLATION_SYSTEM_PROMPT),
+                ModelChatMessage::text(ModelChatRole::User, build_user_message(req)),
             ],
             temperature: None,
             max_tokens: None,
             reasoning_effort: None,
+            tools: Vec::new(),
         };
 
         let resp = match handle.model_chat(chat_req).await {

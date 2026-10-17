@@ -21,12 +21,12 @@ src-tauri/                → zerolaunch-rs: 主程序、内置插件、配置�
 ```
 bootstrap/          → 应用启动初始化
 sdk.rs              → 平台抽象层 re-export 桥（单文件）
-core/               → 核心层（ConfigManager, Configurable trait, types）
+core/               → 核心层（ConfigManager, Configurable trait, types, AI 助手 agent）
 builtin_plugin/     → 内置插件实现
 plugin_framework/   → 插件框架（SessionDispatcher, Registry, PluginManager, zlplugin:// 协议）
 plugin_market/      → 插件市场（GitHub topic 仓库发现 / release 解析 / 插件包下载）
 cli_server/         → 本地 HTTP API 服务器（axum）
-commands/           → IPC 命令（bridge, config, plugin, plugin_market, resource, inspector, cli）
+commands/           → IPC 命令（bridge, config, plugin, plugin_market, resource, inspector, cli, help）
 state/              → AppState 定义
 utils/              → 通用工具
 logging/            → 日志初始化
@@ -74,6 +74,8 @@ logging/            → 日志初始化
 
 剪贴板（1个）：`copy_to_clipboard`（写入系统剪贴板，前端不直接调用平台 API）
 
+AI 助手（2个）：`help_search`（设置字段确定性检索，不调用模型）、`help_ask`（模型 + 只读设置工具的最小循环；模型由 `help-agent-config` 指定；入参含 `navigation`＝前端下发的「设置页路径」，用于给出逐步导航）
+
 CLI（`cli_` 前缀，1个）：`cli_get_info`
 
 ## 目录结构与文件放置规范
@@ -107,7 +109,7 @@ ZeroLaunch-rs/                          ← Cargo workspace 根
     └── src/
         ├── bootstrap.rs               ← 应用启动初始化（从 lib.rs 提取）
         ├── sdk.rs                      ← re-export 桥（类型本体在 plugin-api / platform-windows）
-        ├── core/                       ← ConfigManager, ConfigStore, 核心配置组件
+        ├── core/                       ← ConfigManager, ConfigStore, 核心配置组件, AI 助手 agent
         ├── builtin_plugin/             ← 内置插件实现（具体数量以代码为准）
         ├── plugin_framework/           ← SessionDispatcher, Registry, PluginManager
         ├── tray/                       ← 系统托盘管理
@@ -143,6 +145,12 @@ ZeroLaunch-rs/                          ← Cargo workspace 根
 #### `core/` — 业务核心
 ```
 core/
+├── agent/               ← AI 助手：说明书（schema + 译文）、只读工具、最小工具循环
+│   ├── settings.rs      ← 助手配置 id + 强类型设置（配置组件引用）
+│   ├── manual.rs        ← 说明书构建与确定性检索
+│   ├── tools.rs         ← 只读工具契约与 get_settings（敏感字段脱敏）
+│   ├── prompt.rs        ← 系统提示词
+│   └── mod.rs           ← 工具循环 + 引用解析
 ├── cli_token.rs          ← CLI token 管理
 ├── config/              ← 配置系统
 │   ├── manager.rs       ← ConfigManager 主调度器

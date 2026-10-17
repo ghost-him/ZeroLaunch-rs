@@ -3,56 +3,15 @@
     <PipelineFlowDiagram />
 
     <!-- 详尽配置 -->
-    <n-tabs type="line" default-value="datasource" display-directive="show" class="pipeline-tabs">
-      <n-tab-pane name="datasource" :tab="t('settings.dataSource')">
+    <n-tabs v-model:value="activeTab" type="line" display-directive="show" class="pipeline-tabs">
+      <n-tab-pane v-for="group in groups" :key="group.pane" :name="group.pane" :tab="group.label">
         <ListDetailPanel
-          :items="getComponentsByType('DataSource')"
-          :title="t('settings.dataSource')"
-        />
-      </n-tab-pane>
-      <n-tab-pane name="processor" :tab="t('settings.contentProcessor')">
-        <ListDetailPanel
-          :items="getComponentsByType('KeywordOptimizer')"
-          :title="t('settings.contentProcessor')"
-        />
-      </n-tab-pane>
-      <n-tab-pane name="injector" :tab="t('settings.keywordInjector')">
-        <ListDetailPanel
-          :items="getComponentsByType('KeywordInjector')"
-          :title="t('settings.keywordInjector')"
-        />
-      </n-tab-pane>
-      <n-tab-pane name="bias" :tab="t('settings.biasRule')">
-        <ListDetailPanel
-          :items="getComponentsByType('BiasRule')"
-          :title="t('settings.biasRule')"
-        />
-      </n-tab-pane>
-      <n-tab-pane name="exclusion" :tab="t('settings.exclusionRule')">
-        <ListDetailPanel
-          :items="getComponentsByType('ExclusionRule')"
-          :title="t('settings.exclusionRule')"
-        />
-      </n-tab-pane>
-      <n-tab-pane name="searchengine" :tab="t('settings.searchEngine')">
-        <ListDetailPanel
-          :items="getComponentsByType('SearchEngine')"
-          :title="t('settings.searchEngine')"
-          custom-toggle
-          :toggle-busy="searchToggleBusy"
+          :items="getComponentsByType(group.type)"
+          :title="group.label"
+          :custom-toggle="!!group.customToggle"
+          :toggle-busy="group.customToggle ? searchToggleBusy : false"
+          :preselect-id="revealComponentId"
           @toggle="onSearchEngineToggle"
-        />
-      </n-tab-pane>
-      <n-tab-pane name="scorebooster" :tab="t('settings.scoreBooster')">
-        <ListDetailPanel
-          :items="getComponentsByType('ScoreBooster')"
-          :title="t('settings.scoreBooster')"
-        />
-      </n-tab-pane>
-      <n-tab-pane name="executor" :tab="t('settings.actionExecutor')">
-        <ListDetailPanel
-          :items="getComponentsByType('ActionExecutor')"
-          :title="t('settings.actionExecutor')"
         />
       </n-tab-pane>
     </n-tabs>
@@ -60,9 +19,11 @@
 </template>
 
 <script setup lang="ts">
+import { computed, inject, onMounted, ref, watch } from 'vue'
 import { NTabs, NTabPane } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import type { ComponentInfo } from '../../bridge/contract'
+import { FIELD_REVEAL_KEY, type FieldRevealTarget } from '../../utils/fieldReveal'
 import PipelineFlowDiagram from './PipelineFlowDiagram.vue'
 import ListDetailPanel from './ListDetailPanel.vue'
 import { useSearchEngineToggle } from '../../composables/useSearchEngineToggle'
@@ -72,6 +33,39 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
+
+/** 管道分组：pane 名 + 组件类型 + 文案 key（单一来源）。 */
+const GROUPS: { pane: string; type: string; labelKey: string; customToggle?: boolean }[] = [
+  { pane: 'datasource', type: 'DataSource', labelKey: 'settings.dataSource' },
+  { pane: 'processor', type: 'KeywordOptimizer', labelKey: 'settings.contentProcessor' },
+  { pane: 'injector', type: 'KeywordInjector', labelKey: 'settings.keywordInjector' },
+  { pane: 'bias', type: 'BiasRule', labelKey: 'settings.biasRule' },
+  { pane: 'exclusion', type: 'ExclusionRule', labelKey: 'settings.exclusionRule' },
+  { pane: 'searchengine', type: 'SearchEngine', labelKey: 'settings.searchEngine', customToggle: true },
+  { pane: 'scorebooster', type: 'ScoreBooster', labelKey: 'settings.scoreBooster' },
+  { pane: 'executor', type: 'ActionExecutor', labelKey: 'settings.actionExecutor' },
+]
+
+/** 分组文案随语言切换刷新。 */
+const groups = computed(() => GROUPS.map((g) => ({ ...g, label: t(g.labelKey) })))
+
+const activeTab = ref('datasource')
+
+const reveal = inject(FIELD_REVEAL_KEY, null)
+/** 设置助手跳转的目标组件 id（空串表示无）。 */
+const revealComponentId = computed(() => reveal?.target.value?.componentId ?? '')
+
+/** 揭示目标属于本分类时切到对应 pane。 */
+function focusTargetPane(target: FieldRevealTarget | null | undefined): void {
+  if (!target) return
+  const component = props.components.find((c) => c.componentId === target.componentId)
+  const group = component ? GROUPS.find((g) => g.type === component.componentType) : undefined
+  if (group) activeTab.value = group.pane
+}
+
+watch(() => reveal?.target.value, focusTargetPane)
+// 从问答页跳转时本组件刚挂载，onMounted 需补一次
+onMounted(() => focusTargetPane(reveal?.target.value ?? null))
 
 function getComponentsByTypes(types: string[]): ComponentInfo[] {
   return props.components.filter(c => types.includes(c.componentType))

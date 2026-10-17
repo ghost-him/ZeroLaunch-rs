@@ -184,6 +184,7 @@ impl SchemaBuilder {
                 order: 0,
                 visible: true,
                 read_only: false,
+                sensitive: false,
                 visible_when: None,
                 widget: Some(widget),
                 action: None,
@@ -230,6 +231,12 @@ impl SchemaBuilder {
     /// 设置字段可否编辑。
     pub fn editable(mut self, editable: bool) -> Self {
         self.ui.read_only = !editable;
+        self
+    }
+
+    /// 标记字段值为敏感信息（如 API Key）：不进入 AI 助手上下文。
+    pub fn sensitive(mut self, sensitive: bool) -> Self {
+        self.ui.sensitive = sensitive;
         self
     }
 

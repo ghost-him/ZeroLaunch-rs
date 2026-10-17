@@ -144,6 +144,7 @@ After you bring it up, it's just an input box. What you type can be "the thing i
 - **Better the more you use it**: frequently used and recently used entries drift toward the front; those records live in their own file, survive restarts, and never mix into your config file.
 - **Customize to your habits**: aliases, custom commands and URLs, shortcuts, UI language — all done in settings.
 - **Everything has a UI**: from the summon shortcut, theme colors, and fonts to each plugin's own parameters (which model translation uses, which language it defaults to), every item has a matching control: hotkeys record on press, colors have a picker, paths and fonts have selection lists, numbers have steppers. No config file to open, and if you break something you can restore defaults in one click.
+- **Just ask**: "Ask AI" at the bottom of the sidebar opens a dedicated chat page — ask whether a feature exists, where to configure it, or what your current value is. Answers come in two parts (supported? + step-by-step click path / current value + what changes), with jumpable settings attached. It only reads the built-in manual and your current configuration, never changes anything; point it at a chat model (local Ollama or any OpenAI-compatible endpoint) under "AI Assistant" first.
 
 <details>
 <summary><strong>Plugins: the two forms and the built-in list</strong></summary>

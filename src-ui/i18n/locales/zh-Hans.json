@@ -66,6 +66,26 @@
   },
   "settings": {
     "title": "设置",
+    "assistant": {
+      "title": "问 AI",
+      "subtitle": "对设置有疑问？来问问它吧。它会照着应用说明和你的当前设置回答，不会改动任何设置",
+      "empty": "问点什么？比如某个功能支不支持、去哪里设置、当前值是多少。",
+      "sample1": "怎么关闭副标题？",
+      "sample2": "怎么改唤出快捷键？",
+      "sample3": "标准搜索模型的 BM25 参数在哪调？",
+      "placeholder": "输入问题…",
+      "send": "发送",
+      "enterHint": "Enter 发送，Shift+Enter 换行",
+      "thinking": "正在思考（首次调用需加载模型，可能较慢）…",
+      "noModel": "AI 助手尚未配置模型",
+      "configure": "去配置",
+      "directJump": "直接跳转",
+      "clear": "清空对话",
+      "copy": "复制答复",
+      "copied": "已复制到剪贴板",
+      "copyFailed": "复制失败",
+      "unreachable": "该设置项不在设置页分类中（可在插件管理页查看）"
+    },
     "sidebar": {
       "general": "常规设置",
       "appearance": "外观设置",
@@ -74,7 +94,8 @@
       "pluginMarket": "插件市场",
       "pipeline": "搜索管道",
       "debug": "调试工具",
-      "about": "关于"
+      "about": "关于",
+      "assistant": "问 AI"
     },
     "general": "常规",
     "searchPipeline": "搜索管道",
@@ -821,7 +842,27 @@
       },
       "capabilities": {
         "reasoning": "深度思考 (reasoning)",
+        "tools": "工具调用 (tools)",
         "output_dimensions": "输出维度裁剪 (outputDimensions)"
+      }
+    },
+    "help-agent-config": {
+      "name": "AI 助手",
+      "description": "用自然语言询问设置用法：助手依据设置说明书与你的当前配置作答，只读不改配置",
+      "groups": {
+        "assistant": "助手"
+      },
+      "fields": {
+        "model_id": {
+          "label": "助手模型",
+          "desc": "从已配置的聊天模型中选择；该模型需在模型配置里勾选 tools 能力才能调用工具；留空表示不启用助手"
+        }
+      },
+      "actions": {
+        "list_chat_models": {
+          "label": "刷新模型列表",
+          "description": "从宿主模型清单重新读取可选聊天模型"
+        }
       }
     },
     "hotkey-config": {

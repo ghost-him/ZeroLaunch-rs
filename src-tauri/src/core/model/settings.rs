@@ -239,6 +239,9 @@ impl ModelEntryConfig {
 }
 
 /// chat 条目的默认能力声明。
+///
+/// 只声明 reasoning：能力清单是 provider 校验请求的依据（`tools` 缺省即拒绝携带工具的请求），
+/// 默认声明 `tools` 会让闸门失去意义；工具调用须由用户在模型条目里显式勾选。
 fn default_chat_capabilities() -> Vec<ChatCapability> {
     vec![ChatCapability::Reasoning]
 }

@@ -46,20 +46,40 @@ pub enum ModelKind {
 
 /// chat 模型支持的请求级可选能力——provider 在 list_models 如实声明，
 /// 消费者按能力传参；能力不匹配的请求返回 `ModelError::InvalidRequest`，不静默忽略。
+///
+/// 前向兼容：本枚举随宿主演进新增变体（如 `tools`），旧版消费者反序列化不得整表失败，
+/// 故未知取值落到 `Unknown`；消费方把 `Unknown` 当作「未声明该能力」处理（等价于不支持）。
+/// 使用范围：`ModelKind::Chat::capabilities` 与模型条目配置（`chat_capabilities`）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ChatCapability {
     /// 支持深度思考档位（`reasoning_effort`: none/low/medium/high）。
     #[serde(rename = "reasoning")]
     Reasoning,
+    /// 支持工具调用（请求携带 `tools`，响应返回 `tool_calls`）。
+    #[serde(rename = "tools")]
+    Tools,
+    /// 未知能力（序列化键 `unknown`）——仅由反序列化未知取值产生，
+    /// 宿主自身不会声明它；消费方按「未声明」处理。
+    #[serde(rename = "unknown")]
+    #[serde(other)]
+    Unknown,
 }
 
 /// embedding 模型支持的请求级可选能力——provider 在 list_models 如实声明，
 /// 消费者按能力传参；能力不匹配的请求返回 `ModelError::InvalidRequest`，不静默忽略。
+///
+/// 前向兼容：同 `ChatCapability`——未知取值落到 `Unknown`，消费方按「未声明」处理。
+/// 使用范围：`ModelKind::Embedding::capabilities`。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EmbeddingCapability {
     /// 支持输出维度裁剪（`dimensions`，matryoshka 类模型）。
     #[serde(rename = "outputDimensions")]
     OutputDimensions,
+    /// 未知能力（序列化键 `unknown`）——仅由反序列化未知取值产生，
+    /// 宿主自身不会声明它；消费方按「未声明」处理。
+    #[serde(rename = "unknown")]
+    #[serde(other)]
+    Unknown,
 }
 
 /// embedding 模型推荐的 相似度计算方式（消费者按此选择公式；仅 embedding 模型有意义）。
@@ -133,6 +153,10 @@ pub enum ModelChatRole {
     /// 助手历史消息，由 provider 作为 assistant 角色发送。
     #[serde(rename = "assistant")]
     Assistant,
+    /// 工具执行结果消息，由 provider 作为 tool 角色发送；
+    /// 携带 `tool_call_id` 关联对应的助手工具调用。
+    #[serde(rename = "tool")]
+    Tool,
 }
 
 impl Default for ModelChatRole {
@@ -142,15 +166,61 @@ impl Default for ModelChatRole {
     }
 }
 
+/// 单次工具调用：由模型产出，调用方解析参数并执行同名工具。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ModelToolCall {
+    /// 调用 id，用于把工具结果与调用配对；Ollama 不返回 id 时为空串。
+    #[serde(rename = "id", default)]
+    pub id: String,
+    /// 工具名，与 `ModelTool.name` 匹配。
+    #[serde(rename = "name", default)]
+    pub name: String,
+    /// 工具参数的 JSON 文本；允许不完整或非法，由执行方负责解析失败处理。
+    #[serde(rename = "arguments", default)]
+    pub arguments: String,
+}
+
+/// 可调用工具定义（扁平结构，provider 负责包装成各自的线格式）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ModelTool {
+    /// 工具名。
+    #[serde(rename = "name", default)]
+    pub name: String,
+    /// 工具用途说明，供模型判断何时调用。
+    #[serde(rename = "description", default)]
+    pub description: String,
+    /// 参数的 JSON Schema。
+    #[serde(rename = "parameters", default)]
+    pub parameters: serde_json::Value,
+}
+
 /// 对话消息。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelChatMessage {
-    /// 消息角色，必须是 system、user 或 assistant。
+    /// 消息角色，必须是 system、user、assistant 或 tool。
     #[serde(rename = "role", default)]
     pub role: ModelChatRole,
-    /// 消息文本；允许为空，由 provider 负责转换。
+    /// 消息文本；允许为空（如仅携带工具调用的助手消息），由 provider 负责转换。
     #[serde(rename = "content", default)]
     pub content: String,
+    /// 助手消息发起的工具调用；仅 assistant 角色的工具调用轮次非空。
+    #[serde(rename = "toolCalls", default)]
+    pub tool_calls: Vec<ModelToolCall>,
+    /// 工具结果消息对应的调用 id；仅 tool 角色使用。
+    #[serde(rename = "toolCallId", default)]
+    pub tool_call_id: Option<String>,
+}
+
+impl ModelChatMessage {
+    /// 构造纯文本消息（无工具字段）。
+    pub fn text(role: ModelChatRole, content: impl Into<String>) -> Self {
+        Self {
+            role,
+            content: content.into(),
+            tool_calls: Vec::new(),
+            tool_call_id: None,
+        }
+    }
 }
 
 /// chat 请求：model_id 指定模型，宿主按前缀路由到提供方。
@@ -171,6 +241,10 @@ pub struct ModelChatRequest {
     /// 深度思考档位；None 表示使用模型配置默认值。
     #[serde(rename = "reasoningEffort", default)]
     pub reasoning_effort: Option<String>,
+    /// 本次请求开放给模型的工具清单；空表示纯文本对话。
+    /// 模型须声明 `ChatCapability::Tools`，否则 provider 返回 InvalidRequest。
+    #[serde(rename = "tools", default)]
+    pub tools: Vec<ModelTool>,
 }
 
 /// token 用量统计（可选返回）。
@@ -202,6 +276,9 @@ pub struct ModelChatResponse {
     /// provider 返回的 token 用量；None 表示未提供。
     #[serde(rename = "usage", default)]
     pub usage: Option<ModelTokenUsage>,
+    /// 模型请求的工具调用；空表示模型直接给出了文本答复。
+    #[serde(rename = "toolCalls", default)]
+    pub tool_calls: Vec<ModelToolCall>,
 }
 
 /// 单条 input 的模板填充参数——命名语义字段，字段名即模板占位符名。
@@ -329,4 +406,51 @@ pub enum ModelStreamChunk {
     Done { finish_reason: Option<String> },
     /// 流中途出错。
     Error(String),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 未知能力取值不得导致整表反序列化失败（前向兼容契约：新宿主 + 旧 SDK）。
+    #[test]
+    fn unknown_capabilities_are_tolerated() {
+        let chat: Vec<ChatCapability> =
+            serde_json::from_str(r#"["reasoning","tools","futureCapability"]"#).unwrap();
+        assert_eq!(
+            chat,
+            vec![
+                ChatCapability::Reasoning,
+                ChatCapability::Tools,
+                ChatCapability::Unknown
+            ]
+        );
+        let embedding: Vec<EmbeddingCapability> =
+            serde_json::from_str(r#"["outputDimensions","futureCapability"]"#).unwrap();
+        assert_eq!(
+            embedding,
+            vec![
+                EmbeddingCapability::OutputDimensions,
+                EmbeddingCapability::Unknown
+            ]
+        );
+    }
+
+    /// host/model.list 载荷含未知能力时，ModelInfo 整体仍可反序列化（旧插件不因此停摆）。
+    #[test]
+    fn model_info_with_unknown_capability_deserializes() {
+        let info: ModelInfo = serde_json::from_str(
+            r#"{"modelId":"ollama/qwen3:8b","name":"Qwen3 8B","provider":"ollama",
+                "kind":"chat","contextWindow":32768,"supportsStream":true,
+                "capabilities":["reasoning","futureCapability"]}"#,
+        )
+        .unwrap();
+        let ModelKind::Chat { capabilities, .. } = &info.kind else {
+            panic!("kind 为 chat 时应解析为 ModelKind::Chat");
+        };
+        assert_eq!(
+            capabilities,
+            &vec![ChatCapability::Reasoning, ChatCapability::Unknown]
+        );
+    }
 }

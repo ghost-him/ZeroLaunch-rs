@@ -5,11 +5,13 @@ use super::compose::{compose_embedding_texts, require_embedding_capability};
 use super::settings::{ModelEntryConfig, ModelOpenAiSettings};
 use async_openai::config::OpenAIConfig;
 use async_openai::types::chat::{
+    ChatCompletionMessageToolCall, ChatCompletionMessageToolCalls,
     ChatCompletionRequestAssistantMessageArgs, ChatCompletionRequestAssistantMessageContent,
     ChatCompletionRequestMessage, ChatCompletionRequestSystemMessageArgs,
-    ChatCompletionRequestSystemMessageContent, ChatCompletionRequestUserMessageArgs,
-    ChatCompletionRequestUserMessageContent, CreateChatCompletionRequestArgs, FinishReason,
-    ReasoningEffort,
+    ChatCompletionRequestSystemMessageContent, ChatCompletionRequestToolMessageArgs,
+    ChatCompletionRequestToolMessageContent, ChatCompletionRequestUserMessageArgs,
+    ChatCompletionRequestUserMessageContent, ChatCompletionTool, ChatCompletionTools,
+    CreateChatCompletionRequestArgs, FinishReason, FunctionCall, FunctionObject, ReasoningEffort,
 };
 use async_openai::types::embeddings::{CreateEmbeddingRequestArgs, EmbeddingInput};
 use async_openai::Client;
@@ -20,7 +22,7 @@ use tokio::sync::mpsc;
 use zerolaunch_plugin_api::services::model::{
     ChatCapability, EmbeddingCapability, ModelChatMessage, ModelChatRequest, ModelChatResponse,
     ModelChatRole, ModelEmbeddingRequest, ModelEmbeddingResponse, ModelError, ModelInfo, ModelKind,
-    ModelProvider, ModelSimilarity, ModelStreamChunk,
+    ModelProvider, ModelSimilarity, ModelStreamChunk, ModelToolCall,
 };
 
 /// 提供方标识：与 model_id 的 `openai/` 前缀一致。
@@ -89,6 +91,30 @@ fn apply_chat_params(
 ) -> Result<(), ModelError> {
     let (temperature, max_tokens, top_p, reasoning_effort) = effective_chat_params(req, entry);
     ensure_reasoning_supported(entry, &reasoning_effort)?;
+    if !req.tools.is_empty() {
+        if let Some(config) = chat_config(entry) {
+            if !config.capabilities.contains(&ChatCapability::Tools) {
+                return Err(ModelError::InvalidRequest(
+                    "模型未声明支持 tools 能力".to_string(),
+                ));
+            }
+        }
+        args.tools(
+            req.tools
+                .iter()
+                .map(|tool| {
+                    ChatCompletionTools::Function(ChatCompletionTool {
+                        function: FunctionObject {
+                            name: tool.name.clone(),
+                            description: Some(tool.description.clone()),
+                            parameters: Some(tool.parameters.clone()),
+                            strict: None,
+                        },
+                    })
+                })
+                .collect::<Vec<_>>(),
+        );
+    }
     args.temperature(temperature)
         .max_completion_tokens(max_tokens)
         .top_p(top_p);
@@ -166,11 +192,43 @@ fn to_openai_messages(
                     .build()
                     .map_err(|e| ModelError::InvalidRequest(e.to_string()))?,
             )),
-            ModelChatRole::Assistant => Ok(ChatCompletionRequestMessage::Assistant(
-                ChatCompletionRequestAssistantMessageArgs::default()
-                    .content(ChatCompletionRequestAssistantMessageContent::Text(
+            ModelChatRole::Assistant => {
+                let mut args = ChatCompletionRequestAssistantMessageArgs::default();
+                // 带工具调用的助手消息 content 允许为空，此时不下发 content 字段
+                if !m.content.is_empty() {
+                    args.content(ChatCompletionRequestAssistantMessageContent::Text(
+                        m.content.clone(),
+                    ));
+                }
+                if !m.tool_calls.is_empty() {
+                    args.tool_calls(
+                        m.tool_calls
+                            .iter()
+                            .map(|call| {
+                                ChatCompletionMessageToolCalls::Function(
+                                    ChatCompletionMessageToolCall {
+                                        id: call.id.clone(),
+                                        function: FunctionCall {
+                                            name: call.name.clone(),
+                                            arguments: call.arguments.clone(),
+                                        },
+                                    },
+                                )
+                            })
+                            .collect::<Vec<_>>(),
+                    );
+                }
+                Ok(ChatCompletionRequestMessage::Assistant(
+                    args.build()
+                        .map_err(|e| ModelError::InvalidRequest(e.to_string()))?,
+                ))
+            }
+            ModelChatRole::Tool => Ok(ChatCompletionRequestMessage::Tool(
+                ChatCompletionRequestToolMessageArgs::default()
+                    .content(ChatCompletionRequestToolMessageContent::Text(
                         m.content.clone(),
                     ))
+                    .tool_call_id(m.tool_call_id.clone().unwrap_or_default())
                     .build()
                     .map_err(|e| ModelError::InvalidRequest(e.to_string()))?,
             )),
@@ -277,6 +335,22 @@ impl ModelProvider for OpenAiCompatibleProvider {
                 total_tokens: u.total_tokens,
             },
         );
+        let tool_calls = resp
+            .choices
+            .first()
+            .and_then(|c| c.message.tool_calls.clone())
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|call| match call {
+                // 自定义工具不在本宿主的调用范围内，直接忽略
+                ChatCompletionMessageToolCalls::Function(call) => Some(ModelToolCall {
+                    id: call.id,
+                    name: call.function.name,
+                    arguments: call.function.arguments,
+                }),
+                ChatCompletionMessageToolCalls::Custom(_) => None,
+            })
+            .collect();
         Ok(ModelChatResponse {
             model_id: req.model_id,
             content,
@@ -286,6 +360,7 @@ impl ModelProvider for OpenAiCompatibleProvider {
                 .and_then(|c| c.finish_reason)
                 .map(finish_reason_str),
             usage,
+            tool_calls,
         })
     }
 
@@ -390,6 +465,84 @@ mod tests {
     use super::*;
     use zerolaunch_plugin_api::services::model::SemanticTask;
 
+    /// 助手工具调用与工具结果按 OpenAI 协议映射（tool_calls / tool_call_id / role）。
+    #[test]
+    fn to_openai_messages_maps_tool_calls_and_results() {
+        let messages = vec![
+            ModelChatMessage {
+                role: ModelChatRole::Assistant,
+                content: String::new(),
+                tool_calls: vec![ModelToolCall {
+                    id: "call-1".to_string(),
+                    name: "get_settings".to_string(),
+                    arguments: r#"{"component_id":"demo"}"#.to_string(),
+                }],
+                tool_call_id: None,
+            },
+            ModelChatMessage {
+                role: ModelChatRole::Tool,
+                content: "结果".to_string(),
+                tool_calls: Vec::new(),
+                tool_call_id: Some("call-1".to_string()),
+            },
+        ];
+        let mapped = to_openai_messages(&messages).unwrap();
+        let json = serde_json::to_value(&mapped).unwrap();
+        assert_eq!(json[0]["role"], "assistant");
+        assert!(
+            json[0]["content"].is_null(),
+            "带工具调用的助手消息不下发空 content"
+        );
+        assert_eq!(json[0]["tool_calls"][0]["id"], "call-1");
+        assert_eq!(json[0]["tool_calls"][0]["function"]["name"], "get_settings");
+        assert_eq!(
+            json[0]["tool_calls"][0]["function"]["arguments"],
+            r#"{"component_id":"demo"}"#
+        );
+        assert_eq!(json[1]["role"], "tool");
+        assert_eq!(json[1]["tool_call_id"], "call-1");
+        assert_eq!(json[1]["content"], "结果");
+    }
+
+    /// 工具清单按 OpenAI function 格式写入请求；模型未声明 tools 能力时拒绝。
+    #[test]
+    fn apply_chat_params_writes_tools_and_requires_capability() {
+        use zerolaunch_plugin_api::services::model::ModelTool;
+        let entry = |capabilities: Vec<ChatCapability>| ModelEntryConfig::Chat {
+            name: "m".to_string(),
+            config: super::super::settings::ChatModelConfig {
+                capabilities,
+                ..Default::default()
+            },
+        };
+        let request = ModelChatRequest {
+            model_id: "openai/m".to_string(),
+            messages: vec![],
+            temperature: None,
+            max_tokens: None,
+            reasoning_effort: None,
+            tools: vec![ModelTool {
+                name: "get_settings".to_string(),
+                description: "读取设置".to_string(),
+                parameters: serde_json::json!({ "type": "object" }),
+            }],
+        };
+
+        let declared = entry(vec![ChatCapability::Tools]);
+        let mut args = CreateChatCompletionRequestArgs::default();
+        args.model("m".to_string()).messages(Vec::new());
+        apply_chat_params(&mut args, &request, Some(&declared)).unwrap();
+        let json = serde_json::to_value(args.build().unwrap()).unwrap();
+        assert_eq!(json["tools"][0]["type"], "function");
+        assert_eq!(json["tools"][0]["function"]["name"], "get_settings");
+        assert_eq!(json["tools"][0]["function"]["parameters"]["type"], "object");
+
+        let missing = entry(Vec::new());
+        let mut args = CreateChatCompletionRequestArgs::default();
+        let error = apply_chat_params(&mut args, &request, Some(&missing)).unwrap_err();
+        assert!(matches!(error, ModelError::InvalidRequest(_)));
+    }
+
     #[tokio::test]
     async fn chat_rejects_invalid_reasoning_effort() {
         let provider = OpenAiCompatibleProvider::new(Default::default());
@@ -400,6 +553,7 @@ mod tests {
                 temperature: None,
                 max_tokens: None,
                 reasoning_effort: Some("extreme".to_string()),
+                tools: Vec::new(),
             })
             .await
             .unwrap_err();
@@ -471,6 +625,7 @@ mod tests {
                 temperature: None,
                 max_tokens: None,
                 reasoning_effort: Some("low".to_string()),
+                tools: Vec::new(),
             })
             .await
             .unwrap_err();
@@ -517,6 +672,7 @@ mod tests {
             temperature: Some(0.9),
             max_tokens: None,
             reasoning_effort: None,
+            tools: Vec::new(),
         };
         let (t, m, p, _e) = effective_chat_params(&req, Some(&entry));
         assert_eq!(t, 0.9);

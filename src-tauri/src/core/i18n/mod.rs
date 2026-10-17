@@ -62,9 +62,9 @@ impl I18nManager {
         })
     }
 
-    /// 按语言解析 key：当前语言 → en → 原样返回 key。
-    /// 参数：lang - 语言码；key - 翻译键（如 "tray.showSettings"）。
-    /// 返回：译文；未命中时依次回退 en 与 key 原文。
+    /// 按语言解析 key：当前语言 → en → 插件 catalog → 原样返回 key。
+    /// 参数：lang - 语言码；key - 翻译键（内置如 "tray.showSettings"，插件如 "plugin.<id>.plugin.name"）。
+    /// 返回：译文；内置与插件均未命中时返回 key 原文。
     pub fn t(&self, lang: &str, key: &str) -> String {
         if let Some(catalog) = self.builtin.get(lang) {
             if let Some(value) = catalog.get(key) {
@@ -78,7 +78,38 @@ impl I18nManager {
                 }
             }
         }
+        if let Some(value) = self.plugin_translation(lang, key) {
+            return value;
+        }
         key.to_string()
+    }
+
+    /// 解析插件翻译键（`plugin.<插件 id>.<…>`）：直接查该插件的语言包，不做整树合并。
+    ///
+    /// 插件 id 含点、与 key 的路径分隔符同形，无法从 key 反推边界，故取注册表中
+    /// 「是 key 前缀」的最长 id（同时注册 `com.example` 与 `com.example.hello-world` 时按后者解析）。
+    /// 插件语言包缺请求语言时按 `lang → zh-Hans → en` 回落（同 `plugin_catalog_for`）。
+    /// 参数：lang - 语言码；key - 翻译键。
+    /// 返回：命中的译文；key 不属任何已注册插件、或路径缺失/叶子非字符串时返回 None。
+    fn plugin_translation(&self, lang: &str, key: &str) -> Option<String> {
+        let rest = key.strip_prefix("plugin.")?;
+        let plugins = self.plugins.read();
+        let (plugin_id, path) = plugins
+            .keys()
+            .filter_map(|id| {
+                rest.strip_prefix(id.as_str())
+                    .and_then(|path| path.strip_prefix('.'))
+                    .map(|path| (id, path))
+            })
+            .max_by_key(|(id, _)| id.len())?;
+        let mut current = plugin_catalog_language(plugins.get(plugin_id)?, lang)?;
+        for segment in path.split('.') {
+            current = current.get(segment)?;
+        }
+        match current {
+            Value::String(text) => Some(text.clone()),
+            _ => None,
+        }
     }
 
     /// 当前界面语言。
@@ -390,6 +421,40 @@ mod tests {
         assert_eq!(
             mgr.plugin_catalog_for("en")["plugin"]["com"]["example"]["fallback"]["greeting"],
             "english"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// 插件组件声明的 i18n key（`t_key("plugin.name")` → `plugin.<id>.plugin.name`）
+    /// 经 `t()` 解析为插件语言包译文；未注册插件与缺失路径回退 key 原文。
+    #[test]
+    fn plugin_keys_resolve_through_t() {
+        let mgr = test_manager();
+        let dir = std::env::temp_dir().join(format!("zl-i18n-resolve-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("i18n")).unwrap();
+        std::fs::write(
+            dir.join("i18n/zh-Hans.json"),
+            r#"{"plugin.name":"语义搜索","booster.weightLabel":"语义权重"}"#,
+        )
+        .unwrap();
+        mgr.register_plugin_catalog("com.example.resolver", &dir);
+
+        assert_eq!(
+            mgr.t("zh-Hans", "plugin.com.example.resolver.plugin.name"),
+            "语义搜索"
+        );
+        assert_eq!(
+            mgr.t("zh-Hans", "plugin.com.example.resolver.booster.weightLabel"),
+            "语义权重"
+        );
+        // 未注册插件 / 路径缺失 / 叶子是对象：都回退 key 原文
+        assert_eq!(
+            mgr.t("zh-Hans", "plugin.com.other.plugin.name"),
+            "plugin.com.other.plugin.name"
+        );
+        assert_eq!(
+            mgr.t("zh-Hans", "plugin.com.example.resolver.booster"),
+            "plugin.com.example.resolver.booster"
         );
         std::fs::remove_dir_all(&dir).ok();
     }

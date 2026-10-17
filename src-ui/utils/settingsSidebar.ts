@@ -65,5 +65,12 @@ export function buildSidebarItems(
   }
 
   items.push({ key: 'category_about', label: t('settings.sidebar.about'), icon: 'info', type: 'static' })
+  // AI 助手：独立的问答页，放末位（侧边栏底部）
+  items.push({
+    key: 'category_assistant',
+    label: t('settings.sidebar.assistant'),
+    icon: 'assistant',
+    type: 'static' as const,
+  })
   return items
 }

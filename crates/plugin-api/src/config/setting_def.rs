@@ -299,6 +299,10 @@ pub struct FieldUiMetadata {
     /// 是否只读。
     #[serde(rename = "readOnly", default)]
     pub read_only: bool,
+    /// 是否为敏感字段（如 API Key）。敏感字段的值不进入 AI 助手上下文，
+    /// 读取时按占位符遮蔽；仅声明方（组件 schema）可标记。
+    #[serde(rename = "sensitive", default)]
+    pub sensitive: bool,
     /// 可见性条件：Some 时仅当同级字段值匹配时可见；与 visible 叠加（两者都满足才可见）。
     #[serde(rename = "visibleWhen", default)]
     pub visible_when: Option<VisibleWhen>,
@@ -863,6 +867,7 @@ mod tests {
                 order: 0,
                 visible: true,
                 read_only: false,
+                sensitive: false,
                 visible_when: None,
                 widget: None,
                 action: None,
@@ -888,6 +893,7 @@ mod tests {
                 order: 0,
                 visible: true,
                 read_only: false,
+                sensitive: false,
                 visible_when: None,
                 widget: None,
                 action: None,
@@ -919,6 +925,7 @@ mod tests {
                 order: 0,
                 visible: true,
                 read_only: false,
+                sensitive: false,
                 visible_when: None,
                 widget: None,
                 action: None,
@@ -939,6 +946,7 @@ mod tests {
             order: 0,
             visible: true,
             read_only: false,
+            sensitive: false,
             visible_when: None,
             widget: None,
             action: None,

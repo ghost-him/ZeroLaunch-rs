@@ -288,6 +288,8 @@ export interface FieldUiMetadata {
   order: number
   visible: boolean
   readOnly: boolean
+  /** 敏感字段（如 API Key）：宿主读取其值用于 AI 助手时会遮蔽；旧版插件 schema 可能不携带该字段。仅契约镜像（后端脱敏使用，前端暂不消费）。 */
+  sensitive?: boolean
   visibleWhen: VisibleWhen | null
   widget: WidgetHint | null
   action: FieldAction | null
@@ -427,3 +429,32 @@ export interface ScoreDetail {
  * 由 `i18n_get_plugin_translations` 下发，前端以 vue-i18n 命名空间方式合并。
  */
 export type PluginTranslationCatalog = Record<string, Record<string, unknown>>
+
+// ── AI 助手 ──
+
+/** 设置字段检索命中（`help_search`）。 */
+export interface HelpHit {
+  componentId: string
+  fieldKey: string
+  label: string
+}
+
+/** 助手答复中引用到的设置位置。 */
+export interface HelpReference {
+  componentId: string
+  componentName: string
+  fieldKey: string
+  fieldLabel: string
+}
+
+/** 助手答复（`help_ask`）。 */
+export interface HelpAnswer {
+  answer: string
+  references: HelpReference[]
+}
+
+/** `help_ask` 的设置页路径项：组件 id → 界面上按顺序点击的路径。 */
+export interface HelpNavigation {
+  componentId: string
+  path: string
+}

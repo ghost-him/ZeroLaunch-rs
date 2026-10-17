@@ -9,6 +9,7 @@ use ollama_rs::generation::chat::request::ChatMessageRequest;
 use ollama_rs::generation::chat::ChatMessage;
 use ollama_rs::generation::embeddings::request::{EmbeddingsInput, GenerateEmbeddingsRequest};
 use ollama_rs::generation::parameters::ThinkType;
+use ollama_rs::generation::tools::{ToolCall, ToolCallFunction, ToolInfo};
 use ollama_rs::models::ModelOptions;
 use ollama_rs::Ollama;
 use std::collections::HashSet;
@@ -17,7 +18,7 @@ use tokio::sync::mpsc;
 use zerolaunch_plugin_api::services::model::{
     ChatCapability, EmbeddingCapability, ModelChatRequest, ModelChatResponse, ModelChatRole,
     ModelEmbeddingRequest, ModelEmbeddingResponse, ModelError, ModelInfo, ModelKind, ModelProvider,
-    ModelStreamChunk,
+    ModelStreamChunk, ModelTool, ModelToolCall,
 };
 
 /// 提供方标识：与 model_id 的 `ollama/` 前缀一致。
@@ -69,6 +70,33 @@ fn dynamic_num_ctx(req: &ModelChatRequest, max_tokens: u32, context_length: u32)
     }
 }
 
+/// 工具参数文本转 JSON 值：优先按 JSON 解析，非法时原样包成字符串交给模型自纠。
+fn arguments_to_value(arguments: &str) -> serde_json::Value {
+    serde_json::from_str(arguments)
+        .unwrap_or_else(|_| serde_json::Value::String(arguments.to_string()))
+}
+
+/// 将统一工具定义转换为 Ollama 工具描述。
+///
+/// 经 serde 构造 `ToolInfo`：其 `parameters` 为 schemars 的 `Schema`（未由 ollama-rs
+/// 重导出），走 JSON 同时也锁定了与该 crate 一致的线格式。
+fn to_ollama_tools(tools: &[ModelTool]) -> Result<Vec<ToolInfo>, ModelError> {
+    tools
+        .iter()
+        .map(|tool| {
+            serde_json::from_value(serde_json::json!({
+                "type": "function",
+                "function": {
+                    "name": tool.name,
+                    "description": tool.description,
+                    "parameters": tool.parameters,
+                },
+            }))
+            .map_err(|e| ModelError::InvalidRequest(format!("工具 {} 定义非法: {e}", tool.name)))
+        })
+        .collect()
+}
+
 /// 构造 Ollama chat 请求：请求显式值优先，其余使用模型或通用默认值。
 fn build_chat_request(
     req: &ModelChatRequest,
@@ -80,7 +108,21 @@ fn build_chat_request(
         .map(|m| match m.role {
             ModelChatRole::System => ChatMessage::system(m.content.clone()),
             ModelChatRole::User => ChatMessage::user(m.content.clone()),
-            ModelChatRole::Assistant => ChatMessage::assistant(m.content.clone()),
+            ModelChatRole::Assistant => {
+                let mut message = ChatMessage::assistant(m.content.clone());
+                message.tool_calls = m
+                    .tool_calls
+                    .iter()
+                    .map(|call| ToolCall {
+                        function: ToolCallFunction {
+                            name: call.name.clone(),
+                            arguments: arguments_to_value(&call.arguments),
+                        },
+                    })
+                    .collect();
+                message
+            }
+            ModelChatRole::Tool => ChatMessage::tool(m.content.clone()),
         })
         .collect();
     let defaults = chat_config(entry).cloned().unwrap_or_default();
@@ -120,6 +162,16 @@ fn build_chat_request(
         }
     };
     request = request.think(think);
+    if !req.tools.is_empty() {
+        if let Some(config) = chat_config(entry) {
+            if !config.capabilities.contains(&ChatCapability::Tools) {
+                return Err(ModelError::InvalidRequest(
+                    "模型未声明支持 tools 能力".to_string(),
+                ));
+            }
+        }
+        request = request.tools(to_ollama_tools(&req.tools)?);
+    }
     Ok(request)
 }
 
@@ -210,6 +262,8 @@ impl ModelProvider for OllamaProvider {
                         )),
                         _ => None,
                     })
+                    // 未在配置里声明的模型无从判断是否支持工具调用，只声明 reasoning；
+                    // 需要工具调用时在该模型条目里显式勾选。
                     .unwrap_or((None, vec![ChatCapability::Reasoning]));
                 models.push(ModelInfo {
                     model_id: format!("{PROVIDER_ID}/{name}"),
@@ -242,6 +296,17 @@ impl ModelProvider for OllamaProvider {
             content: resp.message.content,
             finish_reason: None,
             usage: None,
+            tool_calls: resp
+                .message
+                .tool_calls
+                .into_iter()
+                .map(|call| ModelToolCall {
+                    // Ollama 不返回调用 id，工具结果按单轮配对即可
+                    id: String::new(),
+                    name: call.function.name,
+                    arguments: call.function.arguments.to_string(),
+                })
+                .collect(),
         })
     }
 
@@ -335,6 +400,103 @@ mod tests {
     use super::*;
     use zerolaunch_plugin_api::services::model::ModelChatMessage;
 
+    /// 工具定义转换为 Ollama 线格式：参数 schema 经 schemars 往返后保留 properties/required。
+    #[test]
+    fn to_ollama_tools_preserves_parameters_schema() {
+        let tools = vec![ModelTool {
+            name: "get_settings".to_string(),
+            description: "读取设置".to_string(),
+            parameters: serde_json::json!({
+                "type": "object",
+                "properties": { "component_id": { "type": "string", "description": "组件 id" } },
+                "required": ["component_id"],
+            }),
+        }];
+        let converted = to_ollama_tools(&tools).unwrap();
+        let json = serde_json::to_value(&converted[0]).unwrap();
+        assert_eq!(json["type"], "function");
+        assert_eq!(json["function"]["name"], "get_settings");
+        assert_eq!(json["function"]["description"], "读取设置");
+        assert_eq!(json["function"]["parameters"]["type"], "object");
+        assert_eq!(
+            json["function"]["parameters"]["properties"]["component_id"]["type"],
+            "string"
+        );
+        assert_eq!(
+            json["function"]["parameters"]["required"][0],
+            "component_id"
+        );
+    }
+
+    /// 非法参数 schema 直接拒绝，不静默降级为无参工具。
+    #[test]
+    fn to_ollama_tools_rejects_invalid_parameters() {
+        let tools = vec![ModelTool {
+            name: "broken".to_string(),
+            description: String::new(),
+            parameters: serde_json::json!("not-a-schema"),
+        }];
+        assert!(to_ollama_tools(&tools).is_err());
+    }
+
+    /// 助手工具调用与工具结果映射为 Ollama 的 tool_calls 与 tool 角色。
+    #[test]
+    fn build_chat_request_maps_tool_messages() {
+        let request = ModelChatRequest {
+            model_id: "ollama/test".to_string(),
+            messages: vec![
+                ModelChatMessage {
+                    role: ModelChatRole::Assistant,
+                    content: String::new(),
+                    tool_calls: vec![ModelToolCall {
+                        id: "call-1".to_string(),
+                        name: "get_settings".to_string(),
+                        arguments: r#"{"component_id":"demo"}"#.to_string(),
+                    }],
+                    tool_call_id: None,
+                },
+                ModelChatMessage {
+                    role: ModelChatRole::Tool,
+                    content: "结果".to_string(),
+                    tool_calls: Vec::new(),
+                    tool_call_id: Some("call-1".to_string()),
+                },
+            ],
+            temperature: None,
+            max_tokens: None,
+            reasoning_effort: None,
+            tools: Vec::new(),
+        };
+        let built = build_chat_request(&request, None).unwrap();
+        assert_eq!(
+            serde_json::to_value(&built.messages[0].role).unwrap(),
+            serde_json::json!("assistant")
+        );
+        assert_eq!(
+            built.messages[0].tool_calls[0].function.name,
+            "get_settings"
+        );
+        assert_eq!(
+            built.messages[0].tool_calls[0].function.arguments,
+            serde_json::json!({ "component_id": "demo" })
+        );
+        assert_eq!(
+            serde_json::to_value(&built.messages[1].role).unwrap(),
+            serde_json::json!("tool")
+        );
+        assert_eq!(built.messages[1].content, "结果");
+    }
+
+    /// 工具参数文本按 JSON 解析；非法文本原样包成字符串交给模型自纠。
+    #[test]
+    fn arguments_to_value_parses_json_and_keeps_invalid_text() {
+        assert_eq!(
+            arguments_to_value(r#"{"a":1}"#),
+            serde_json::json!({ "a": 1 })
+        );
+        assert_eq!(arguments_to_value("abc"), serde_json::json!("abc"));
+    }
+
     #[test]
     fn entry_for_matches_short_model_name() {
         let settings = ModelOllamaSettings {
@@ -352,10 +514,13 @@ mod tests {
             messages: vec![ModelChatMessage {
                 role: ModelChatRole::User,
                 content: "a".repeat(5000),
+                tool_calls: Vec::new(),
+                tool_call_id: None,
             }],
             temperature: None,
             max_tokens: None,
             reasoning_effort: None,
+            tools: Vec::new(),
         };
         let config = ChatModelConfig {
             context_length: 4096,
@@ -371,6 +536,8 @@ mod tests {
             messages: vec![ModelChatMessage {
                 role: ModelChatRole::User,
                 content: "abc".to_string(),
+                tool_calls: Vec::new(),
+                tool_call_id: None,
             }],
             ..request
         };

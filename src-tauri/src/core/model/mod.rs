@@ -420,8 +420,8 @@ fn euclidean_distance(a: &[f32], b: &[f32]) -> f32 {
 mod tests {
     use super::*;
     use zerolaunch_plugin_api::services::model::{
-        ChatCapability, EmbeddingCapability, ModelChatRole, ModelKind, ModelSimilarity,
-        ModelTokenUsage, SemanticTask,
+        ChatCapability, EmbeddingCapability, ModelChatMessage, ModelChatRole, ModelKind,
+        ModelSimilarity, ModelTokenUsage, SemanticTask,
     };
 
     /// 记录型桩提供方：按构造参数返回固定模型清单与调用结果。
@@ -538,6 +538,7 @@ mod tests {
                     output_tokens: 2,
                     total_tokens: 3,
                 }),
+                tool_calls: Vec::new(),
             }),
             embedding_result: Err(ModelError::NotSupported),
             chat_calls: calls.clone(),
@@ -546,13 +547,11 @@ mod tests {
         let resp = registry
             .chat(ModelChatRequest {
                 model_id: "chat-pro/m1".to_string(),
-                messages: vec![zerolaunch_plugin_api::services::model::ModelChatMessage {
-                    role: ModelChatRole::User,
-                    content: "hi".to_string(),
-                }],
+                messages: vec![ModelChatMessage::text(ModelChatRole::User, "hi")],
                 temperature: None,
                 max_tokens: None,
                 reasoning_effort: None,
+                tools: Vec::new(),
             })
             .await
             .unwrap();
@@ -580,6 +579,7 @@ mod tests {
                 content: "must not be called".to_string(),
                 finish_reason: None,
                 usage: None,
+                tool_calls: Vec::new(),
             }),
             embedding_result: Err(ModelError::NotSupported),
             chat_calls: Arc::new(Default::default()),
@@ -592,6 +592,7 @@ mod tests {
                 temperature: None,
                 max_tokens: None,
                 reasoning_effort: None,
+                tools: Vec::new(),
             })
             .await
             .unwrap_err();

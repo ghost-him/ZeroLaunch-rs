@@ -227,6 +227,9 @@ pub fn run() {
             crate::commands::cli::cli_get_info,
             // i18n
             crate::commands::i18n::i18n_get_plugin_translations,
+            // AI 助手
+            crate::commands::help::help_search,
+            crate::commands::help::help_ask,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

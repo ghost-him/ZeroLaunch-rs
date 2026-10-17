@@ -34,4 +34,5 @@ scope: "tool:edit(src-tauri/src/builtin_plugin/**), tool:write(src-tauri/src/bui
 - 动作返回值格式：
   - 填充某个字段 → 返回 `{ "fieldKey": [...] }` 或 `{ "fieldKey": value }`
   - 返回预览数据 → 返回数组 `[{ ... }, { ... }]`
+  - select 字段的字段级动作（组件 schema 里绑定了 `DataActionBinding`，如 `list_chat_models`、`fetch_models`）→ 返回**对象数组** `[{ label, value }, ...]`，字段名由 binding 的 `labelField`/`valueField` 指定，**不** 需要 `{ fieldKey: [...] }` 包装
   - **禁止** 返回需要前端特殊解析的非 JSON 数据

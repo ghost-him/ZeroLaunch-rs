@@ -66,6 +66,26 @@
   },
   "settings": {
     "title": "Settings",
+    "assistant": {
+      "title": "Ask AI",
+      "subtitle": "Questions about a setting? Just ask. It answers from the app's help and your current settings, and never changes anything",
+      "empty": "Ask anything: whether a feature exists, where to configure it, or what your current value is.",
+      "sample1": "How do I turn off the subtitle?",
+      "sample2": "How do I change the summon shortcut?",
+      "sample3": "Where do I tune the BM25 parameters?",
+      "placeholder": "Type your question…",
+      "send": "Send",
+      "enterHint": "Enter to send, Shift+Enter for a new line",
+      "thinking": "Thinking (the first call loads the model and may take a while)…",
+      "noModel": "The AI assistant has no model configured",
+      "configure": "Configure",
+      "directJump": "Jump to",
+      "clear": "Clear chat",
+      "copy": "Copy answer",
+      "copied": "Copied to clipboard",
+      "copyFailed": "Copy failed",
+      "unreachable": "This setting isn't reachable from the settings page (try Plugins)"
+    },
     "sidebar": {
       "general": "General Settings",
       "appearance": "Appearance",
@@ -74,7 +94,8 @@
       "plugins": "Plugins",
       "pluginMarket": "Plugin Market",
       "debug": "Debug Tools",
-      "about": "About"
+      "about": "About",
+      "assistant": "Ask AI"
     },
     "general": "General",
     "searchPipeline": "Search Pipeline",
@@ -821,7 +842,27 @@
       },
       "capabilities": {
         "reasoning": "Reasoning",
+        "tools": "Tool calling",
         "output_dimensions": "Output dimension truncation"
+      }
+    },
+    "help-agent-config": {
+      "name": "AI Assistant",
+      "description": "Ask about settings in natural language: the assistant answers from the settings manual plus your current configuration, and never changes anything",
+      "groups": {
+        "assistant": "Assistant"
+      },
+      "fields": {
+        "model_id": {
+          "label": "Assistant model",
+          "desc": "Pick one of the configured chat models; it needs the tools capability enabled in the model config to call tools; leave empty to keep the assistant off"
+        }
+      },
+      "actions": {
+        "list_chat_models": {
+          "label": "Refresh model list",
+          "description": "Re-read the selectable chat models from the host model list"
+        }
       }
     },
     "hotkey-config": {

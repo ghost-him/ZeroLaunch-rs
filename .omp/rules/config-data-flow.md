@@ -8,8 +8,8 @@ scope: "tool:read(src-tauri/src/builtin_plugin/config/**), tool:edit(src-tauri/s
 | 层 | 位置 | 包含 | 禁止 |
 |---|---|---|---|
 | **运行时类型** | `core/` 或 `crates/plugin-api/` | 消费方需要的纯数据 struct，`#[derive(Debug, Clone)]` | `#[derive(Serialize, Deserialize)]`、持久化逻辑 |
-| **存储类型**（Settings） | `core/config/<component>_settings.rs` 或 `builtin_plugin/config/<component>.rs` | serde struct，`#[derive(Serialize, Deserialize)]`，每字段 `#[serde(rename, default)]` | 引用 `ConfigManager`、包含业务方法 |
-| **转换函数** | `core/config/<component>_settings.rs` 或 `builtin_plugin/config/<component>.rs` | `pub(crate) fn settings_to_xxx(settings: &Settings) -> RuntimeType` | 依赖 `ConfigManager` |
+| **存储类型**（Settings） | `core/config/<component>_settings.rs`、`core/<domain>/settings.rs`（同域消费侧持有配置 id + 结构，如 `core/model/settings.rs`、`core/agent/settings.rs`）或 `builtin_plugin/config/<component>.rs` | serde struct，`#[derive(Serialize, Deserialize)]`，每字段 `#[serde(rename, default)]` | 引用 `ConfigManager`、包含业务方法 |
+| **转换函数** | 与存储类型同文件 | `pub(crate) fn settings_to_xxx(settings: &Settings) -> RuntimeType` | 依赖 `ConfigManager` |
 
 ## 配置默认值来源
 

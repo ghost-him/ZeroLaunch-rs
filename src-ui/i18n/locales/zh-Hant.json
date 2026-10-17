@@ -66,6 +66,26 @@
   },
   "settings": {
     "title": "設定",
+    "assistant": {
+      "title": "問 AI",
+      "subtitle": "對設定有疑問？來問問它吧。它會照著應用程式說明和你的目前設定回答，不會改動任何設定",
+      "empty": "想問什麼？例如某個功能支不支援、去哪裡設定、目前的值是多少。",
+      "sample1": "怎麼關閉副標題？",
+      "sample2": "怎麼改喚出快速鍵？",
+      "sample3": "標準搜尋模型的 BM25 參數在哪調？",
+      "placeholder": "輸入問題…",
+      "send": "傳送",
+      "enterHint": "Enter 傳送，Shift+Enter 換行",
+      "thinking": "正在思考（首次呼叫需載入模型，可能較慢）…",
+      "noModel": "AI 助理尚未設定模型",
+      "configure": "去設定",
+      "directJump": "直接跳轉",
+      "clear": "清空對話",
+      "copy": "複製答覆",
+      "copied": "已複製到剪貼簿",
+      "copyFailed": "複製失敗",
+      "unreachable": "該設定項不在設定頁分類中（可在外掛管理頁查看）"
+    },
     "sidebar": {
       "general": "常規設定",
       "appearance": "外觀設定",
@@ -74,7 +94,8 @@
       "plugins": "插件管理",
       "pluginMarket": "插件市集",
       "debug": "除錯工具",
-      "about": "關於"
+      "about": "關於",
+      "assistant": "問 AI"
     },
     "general": "常規",
     "searchPipeline": "搜尋管道",
@@ -821,7 +842,27 @@
       },
       "capabilities": {
         "reasoning": "深度思考 (reasoning)",
+        "tools": "工具呼叫 (tools)",
         "output_dimensions": "輸出維度裁剪 (outputDimensions)"
+      }
+    },
+    "help-agent-config": {
+      "name": "AI 助理",
+      "description": "用自然語言詢問設定用法：助理依設定說明書與你的目前設定作答，唯讀不改設定",
+      "groups": {
+        "assistant": "助理"
+      },
+      "fields": {
+        "model_id": {
+          "label": "助理模型",
+          "desc": "從已設定的聊天模型中選擇；該模型需在模型設定中勾選 tools 能力才能呼叫工具；留空表示不啟用助理"
+        }
+      },
+      "actions": {
+        "list_chat_models": {
+          "label": "重新整理模型清單",
+          "description": "從宿主模型清單重新讀取可選聊天模型"
+        }
       }
     },
     "hotkey-config": {

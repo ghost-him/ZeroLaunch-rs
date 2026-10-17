@@ -16,11 +16,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { inject, onMounted, ref, watch } from 'vue'
 import { NTabs, NTabPane } from 'naive-ui'
 import { resolveText } from '../../i18n'
 import type { ComponentInfo } from '../../bridge/contract'
 import ComponentConfigLoader from './ComponentConfigLoader.vue'
+import { FIELD_REVEAL_KEY, type FieldRevealTarget } from '../../utils/fieldReveal'
 
 const props = withDefaults(defineProps<{
   components: ComponentInfo[]
@@ -37,6 +38,26 @@ watch(() => props.components, (newVal) => {
     activeTab.value = newVal[0].componentId
   }
 }, { immediate: true })
+
+// 设置助手跳转：目标组件在本分类时先切到它的 tab，字段滚动由 DynamicForm 负责
+const reveal = inject(FIELD_REVEAL_KEY, null)
+
+/** 当前待揭示位置（无提供方时为 null）。 */
+function revealTarget(): FieldRevealTarget | null {
+  return reveal?.target.value ?? null
+}
+
+/** 目标组件在本分类内时切到它的 tab。 */
+function focusTargetTab(target: FieldRevealTarget | null): void {
+  if (!target) return
+  if (props.components.some((component) => component.componentId === target.componentId)) {
+    activeTab.value = target.componentId
+  }
+}
+
+watch(revealTarget, focusTargetTab)
+// 从问答页跳转时本组件是刚挂载的：watch 看不到已发生的变更，需在挂载时补一次
+onMounted(() => focusTargetTab(revealTarget()))
 </script>
 
 <style scoped>

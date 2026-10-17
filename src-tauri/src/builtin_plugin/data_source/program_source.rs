@@ -316,6 +316,13 @@ impl Configurable for ProgramSource {
                 warn!("解析用户桌面路径失败: {}", e);
                 String::new()
             });
+        let common_desktop = self
+            .handle
+            .resolve_path(KnownPath::CommonDesktop)
+            .unwrap_or_else(|e| {
+                warn!("解析公共桌面路径失败: {}", e);
+                "C:\\Users\\Public\\Desktop".to_string()
+            });
 
         vec![SchemaBuilder::array(
             "directories",
@@ -413,6 +420,15 @@ impl Configurable for ProgramSource {
             },
             {
                 "root_path": user_desktop,
+                "max_depth": 3,
+                "pattern": ["*.exe", "*.lnk", "*.url"],
+                "pattern_type": "Wildcard",
+                "excluded_keywords": ["uninstall", "帮助", "help", "卸载", "zerolaunch-rs"],
+                "forbidden_paths": [],
+                "symlink_mode": "ExplicitOnly"
+            },
+            {
+                "root_path": common_desktop,
                 "max_depth": 3,
                 "pattern": ["*.exe", "*.lnk", "*.url"],
                 "pattern_type": "Wildcard",

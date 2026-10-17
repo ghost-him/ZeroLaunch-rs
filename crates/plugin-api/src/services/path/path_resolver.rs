@@ -13,6 +13,8 @@ pub enum KnownPath {
     UserStartMenu,
     /// 当前用户桌面目录（Windows: %USERPROFILE%\Desktop）
     UserDesktop,
+    /// 公共桌面目录（Windows: C:\Users\Public\Desktop），存放所有用户共享的桌面快捷方式
+    CommonDesktop,
     /// 当前用户 AppData\Roaming 目录（Windows: %APPDATA%）
     UserAppDataRoaming,
 

@@ -3,8 +3,8 @@ use crate::utils::exe_dir;
 use std::path::Path;
 use tracing::warn;
 use windows::Win32::UI::Shell::{
-    FOLDERID_CommonStartMenu, FOLDERID_Desktop, FOLDERID_RoamingAppData, FOLDERID_StartMenu,
-    SHGetKnownFolderPath, KF_FLAG_DEFAULT,
+    FOLDERID_CommonStartMenu, FOLDERID_Desktop, FOLDERID_PublicDesktop, FOLDERID_RoamingAppData,
+    FOLDERID_StartMenu, SHGetKnownFolderPath, KF_FLAG_DEFAULT,
 };
 use zerolaunch_plugin_api::host::HostApiError;
 use zerolaunch_plugin_api::services::path::{KnownPath, PathResolver};
@@ -37,6 +37,7 @@ impl WindowsPathResolver {
             KnownPath::CommonStartMenu => Some(&FOLDERID_CommonStartMenu),
             KnownPath::UserStartMenu => Some(&FOLDERID_StartMenu),
             KnownPath::UserDesktop => Some(&FOLDERID_Desktop),
+            KnownPath::CommonDesktop => Some(&FOLDERID_PublicDesktop),
             KnownPath::UserAppDataRoaming => Some(&FOLDERID_RoamingAppData),
             // 应用路径不走此映射
             KnownPath::AppDataDir
@@ -219,5 +220,25 @@ mod tests {
         let home = dirs::home_dir().expect("测试环境应有 Home 目录");
         let expected = home.join(APP_DATA_DIR_NAME).to_string_lossy().to_string();
         assert_eq!(app_data, expected);
+    }
+
+    /// 公共桌面契约：解析到与用户桌面不同的真实目录。
+    /// 回归：FOLDERID 写错（如误用 FOLDERID_Desktop）会让公共桌面静默等价于用户桌面，
+    /// 表现为放置在所有用户共享桌面的程序搜不到，且无任何报错。
+    #[test]
+    fn common_desktop_resolves_to_distinct_existing_dir() {
+        let resolver = WindowsPathResolver::new();
+        let common_desktop = resolver
+            .resolve_path(KnownPath::CommonDesktop)
+            .expect("解析公共桌面路径应成功");
+        let user_desktop = resolver
+            .resolve_path(KnownPath::UserDesktop)
+            .expect("解析用户桌面路径应成功");
+        assert_ne!(common_desktop, user_desktop, "公共桌面不应等于用户桌面");
+        assert!(
+            std::path::Path::new(&common_desktop).is_dir(),
+            "公共桌面应为真实存在的目录: {}",
+            common_desktop
+        );
     }
 }

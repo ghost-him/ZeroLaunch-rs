@@ -153,6 +153,17 @@ impl AppState {
             .unwrap_or(false)
     }
 
+    /// 系统托盘图标是否显示。
+    /// 直接从 ConfigManager 读取 general-config.is_show_tray_icon，无需维护独立状态。
+    pub fn is_show_tray_icon(&self) -> bool {
+        self.config_manager
+            .read()
+            .as_ref()
+            .and_then(|cm| cm.get_component_setting("general-config", "is_show_tray_icon"))
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true)
+    }
+
     pub fn get_plugin_manager(&self) -> Arc<PluginManager> {
         self.plugin_manager
             .read()

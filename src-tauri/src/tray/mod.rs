@@ -78,10 +78,11 @@ impl TrayManager {
         }
     }
 
-    /// 初始化系统托盘（注册事件、创建图标，含失败重试）。
+    /// 初始化系统托盘（注册事件；visible 为真时创建图标，含失败重试）。
     ///
-    /// 参数：app - Tauri App 实例，用于注册托盘双击事件。
-    pub async fn init(&self, app: &mut App) {
+    /// 参数：app - Tauri App 实例，用于注册托盘双击事件；
+    ///       visible - 是否创建托盘图标（由 general-config.is_show_tray_icon 决定）。
+    pub async fn init(&self, app: &mut App, visible: bool) {
         let app_handle = app.handle().clone();
 
         // 注册双击事件：切换主窗口显示/隐藏
@@ -103,6 +104,12 @@ impl TrayManager {
         {
             let mut inner = self.inner.write();
             inner.app_handle = Some(app_handle.clone());
+        }
+
+        // 托盘图标是否创建由 general-config.is_show_tray_icon 决定（默认显示）
+        if !visible {
+            info!("系统托盘图标已关闭（general-config.is_show_tray_icon = false），跳过创建");
+            return;
         }
 
         // 首次尝试创建托盘
@@ -131,8 +138,41 @@ impl TrayManager {
 
     /// 更新游戏模式复选框状态。
     pub fn set_game_mode_checked(&self, checked: bool) {
-        if let Some(ref item) = self.inner.read().game_mode_item {
+        if let Some(item) = &self.inner.read().game_mode_item {
             let _ = item.set_checked(checked);
+        }
+    }
+
+    /// 设置系统托盘图标显示状态（配置变更时调用）。
+    ///
+    /// 参数：visible - true 时确保图标存在并可见（未创建则创建），false 时隐藏已有图标。
+    /// 启动时不创建的情形（设置为关闭）由本方法按需补建。
+    pub fn set_visible(&self, visible: bool) {
+        let (app_handle, has_icon) = {
+            let inner = self.inner.read();
+            (inner.app_handle.clone(), inner.tray_icon.is_some())
+        };
+
+        if visible && !has_icon {
+            match app_handle {
+                Some(handle) => {
+                    if self.try_create_and_set_tray(&handle).is_err() {
+                        warn!("创建系统托盘图标失败，图标保持隐藏");
+                    } else {
+                        info!("系统托盘图标已创建并显示");
+                    }
+                }
+                None => warn!("TrayManager 尚未初始化，忽略托盘图标显示请求"),
+            }
+            return;
+        }
+
+        let inner = self.inner.read();
+        if let Some(tray_icon) = &inner.tray_icon {
+            match tray_icon.set_visible(visible) {
+                Ok(()) => info!("系统托盘图标显示状态已更新: visible = {}", visible),
+                Err(e) => warn!("切换系统托盘图标显示状态失败: {:?}", e),
+            }
         }
     }
 
@@ -177,7 +217,7 @@ impl TrayManager {
             }
         };
 
-        if let Some(ref tray_icon) = inner.tray_icon {
+        if let Some(tray_icon) = &inner.tray_icon {
             if let Err(e) = tray_icon.set_menu(Some(menu.clone())) {
                 warn!("Failed to update tray menu: {:?}", e);
             }

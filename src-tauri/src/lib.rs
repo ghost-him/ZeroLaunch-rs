@@ -138,11 +138,12 @@ pub fn run() {
                 init_setting_window(app.app_handle().clone());
 
                 info!("正在初始化系统托盘");
+                let show_tray_icon = app.state::<Arc<AppState>>().is_show_tray_icon();
                 let tray_manager = app
                     .state::<Arc<AppState>>()
                     .get_tray_manager()
                     .expect("TrayManager not initialized");
-                tray_manager.init(app).await;
+                tray_manager.init(app, show_tray_icon).await;
 
                 info!("正在注册深度链接");
                 app.deep_link().register_all().expect("无法注册深度链接");

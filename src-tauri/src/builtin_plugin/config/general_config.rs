@@ -21,6 +21,9 @@ pub struct GeneralSettings {
     pub log_level: String,
     #[serde(rename = "reset_session_on_wake", default = "default_true")]
     pub reset_session_on_wake: bool,
+    /// 显示系统托盘图标：启用后托盘显示图标（read-at-use，启动与配置变更时经 AppState 读取）。
+    #[serde(rename = "is_show_tray_icon", default = "default_true")]
+    pub is_show_tray_icon: bool,
     /// 界面语言，取值 zh-Hans / zh-Hant / en（由 validate_settings 校验）。
     /// 自 appearance-config 迁移而来，作为全局偏好在常规设置中管理。
     #[serde(rename = "language", default = "default_language")]
@@ -34,6 +37,7 @@ impl Default for GeneralSettings {
             is_debug_mode: false,
             log_level: "info".to_string(),
             reset_session_on_wake: true,
+            is_show_tray_icon: true,
             language: "zh-Hans".to_string(),
         }
     }
@@ -52,7 +56,7 @@ fn default_true() -> bool {
 }
 
 /// 通用设置配置组件。
-/// 管理开机自启动、调试模式和日志级别。
+/// 管理界面语言、开机自启动、调试模式、日志级别、唤醒时重置会话与系统托盘图标显示。
 /// 配置变更时自动应用自启动设置和日志级别。
 pub struct GeneralConfigComponent {
     /// 组件身份核心
@@ -139,6 +143,15 @@ impl Configurable for GeneralConfigComponent {
             )
             .group(t_key!("general-config", "groups.general"))
             .order(4)
+            .default(true)
+            .build(),
+            SchemaBuilder::boolean(
+                "is_show_tray_icon",
+                t_key!("general-config", "fields.is_show_tray_icon.label"),
+                t_key!("general-config", "fields.is_show_tray_icon.desc"),
+            )
+            .group(t_key!("general-config", "groups.general"))
+            .order(5)
             .default(true)
             .build(),
         ]

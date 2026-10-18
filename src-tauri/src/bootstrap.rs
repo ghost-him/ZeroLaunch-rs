@@ -320,6 +320,14 @@ fn sync_backend_language(state: &Arc<AppState>, config_manager: &ConfigManager) 
     }
 }
 
+/// 将 general-config 的托盘图标显示设置同步到 TrayManager（即时生效）。
+/// 调用点：general-config 配置变更事件处理时。
+fn sync_tray_visibility(state: &Arc<AppState>) {
+    if let Some(tray) = state.get_tray_manager() {
+        tray.set_visible(state.is_show_tray_icon());
+    }
+}
+
 /// 将外观配置中的主题模式同步到 HostApi，供插件查询实际主题。
 fn sync_backend_theme(host_api: &HostApi, config_manager: &ConfigManager) {
     let theme = config_manager
@@ -389,9 +397,11 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) -> HashSet<String>
                         if component_id == "appearance-config" {
                             sync_backend_theme(&host_api_for_events, &cm_for_events);
                         }
-                        // 语言切换时同步后端翻译服务并重建托盘菜单（即时生效）
+                        // 语言切换时同步后端翻译服务并重建托盘菜单（即时生效），
+                        // 托盘图标显示设置变更时同步托盘可见性
                         if component_id == "general-config" {
                             sync_backend_language(&state_for_events, &cm_for_events);
+                            sync_tray_visibility(&state_for_events);
                         }
                         // 会话投影随配置变更重新推送（如面板内调整防抖延迟）
                         event_router.reemit_current_session();

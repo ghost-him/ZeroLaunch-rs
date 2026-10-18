@@ -734,6 +734,10 @@
         "reset_session_on_wake": {
           "label": "Reset session on wake",
           "desc": "When enabled, each launcher show restores the initial search UI (parameter panel and inline parameter mode always reset). When disabled, plugin panel state persists across hide/show."
+        },
+        "is_show_tray_icon": {
+          "label": "Show tray icon",
+          "desc": "When enabled, show the ZeroLaunch icon in the system tray. When disabled, the icon is hidden (settings can still be opened from the search bar's right-click menu)."
         }
       }
     },

@@ -89,29 +89,31 @@
       <n-collapse v-else :default-expanded-names="[0]">
         <n-collapse-item v-for="(trace, index) in agentTraces" :key="index" :name="index">
           <template #header>{{ traceTitle(trace) }}</template>
-          <div class="trace-meta">{{ trace.time }} · {{ trace.modelId }}</div>
-          <div v-if="trace.error" class="trace-error">
-            {{ t('debug.agentError') }}: {{ trace.error }}
-          </div>
-          <div class="trace-section">
-            <div class="trace-label">{{ t('debug.agentContext') }}</div>
-            <div v-for="(message, mIndex) in trace.messages" :key="mIndex" class="trace-message">
-              <span class="trace-role">{{ message.role }}</span>
-              <pre class="trace-pre">{{ message.content }}</pre>
+          <div class="trace-body">
+            <div class="trace-meta">{{ trace.time }} · {{ trace.modelId }}</div>
+            <div v-if="trace.error" class="trace-error">
+              {{ t('debug.agentError') }}: {{ trace.error }}
             </div>
-          </div>
-          <div class="trace-section">
-            <div class="trace-label">{{ t('debug.agentTools') }}</div>
-            <div class="trace-tools">{{ trace.tools.join(', ') }}</div>
-          </div>
-          <div v-for="(round, rIndex) in trace.rounds" :key="rIndex" class="trace-section">
-            <div class="trace-label">{{ t('debug.agentRound', { n: rIndex + 1 }) }}</div>
-            <pre v-if="round.content" class="trace-pre">{{ round.content }}</pre>
-            <div v-for="(call, cIndex) in round.toolCalls" :key="cIndex" class="trace-call">
-              <div class="trace-label">{{ t('debug.agentToolCall', { name: call.name }) }}</div>
-              <pre class="trace-pre">{{ call.arguments }}</pre>
-              <div class="trace-label">{{ t('debug.agentToolResult') }}</div>
-              <pre class="trace-pre">{{ call.result }}</pre>
+            <div class="trace-section">
+              <div class="trace-label">{{ t('debug.agentContext') }}</div>
+              <div v-for="(message, mIndex) in trace.messages" :key="mIndex" class="trace-message">
+                <span class="trace-role">{{ message.role }}</span>
+                <pre class="trace-pre">{{ message.content }}</pre>
+              </div>
+            </div>
+            <div class="trace-section">
+              <div class="trace-label">{{ t('debug.agentTools') }}</div>
+              <div class="trace-tools">{{ trace.tools.join(', ') }}</div>
+            </div>
+            <div v-for="(round, rIndex) in trace.rounds" :key="rIndex" class="trace-section">
+              <div class="trace-label">{{ t('debug.agentRound', { n: rIndex + 1 }) }}</div>
+              <pre v-if="round.content" class="trace-pre">{{ round.content }}</pre>
+              <div v-for="(call, cIndex) in round.toolCalls" :key="cIndex" class="trace-call">
+                <div class="trace-label">{{ t('debug.agentToolCall', { name: call.name }) }}</div>
+                <pre class="trace-pre">{{ call.arguments }}</pre>
+                <div class="trace-label">{{ t('debug.agentToolResult') }}</div>
+                <pre class="trace-pre">{{ call.result }}</pre>
+              </div>
             </div>
           </div>
         </n-collapse-item>
@@ -362,6 +364,12 @@ async function copyDetail() {
 .score-cell-total {
   font-variant-numeric: tabular-nums;
   color: var(--text-primary);
+}
+
+/* 轨迹文本可选中复制（覆盖全局 body 的 user-select: none） */
+.trace-body {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .trace-meta {

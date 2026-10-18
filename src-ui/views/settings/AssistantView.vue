@@ -322,6 +322,9 @@ onUnmounted(() => {
   line-height: 1.7;
   white-space: pre-wrap;
   word-break: break-word;
+  /* 对话文本可选中复制（覆盖全局 body 的 user-select: none） */
+  user-select: text;
+  -webkit-user-select: text;
 }
 .message-refs {
   display: flex;

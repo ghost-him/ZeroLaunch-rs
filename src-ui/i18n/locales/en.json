@@ -443,6 +443,12 @@
           "light": "Light",
           "dark": "Dark"
         },
+        "search_bar_placeholder_align": {
+          "left": "Left",
+          "center": "Center",
+          "right": "Right",
+          "auto": "Auto"
+        },
         "bg_size": {
           "cover": "Cover (fill)",
           "contain": "Contain (fit)",
@@ -487,6 +493,14 @@
         "search_bar_placeholder": {
           "label": "Search bar placeholder",
           "desc": "Placeholder text of the search bar"
+        },
+        "search_bar_placeholder_align": {
+          "label": "Placeholder alignment",
+          "desc": "Alignment of the placeholder text (Auto: centered when it fits, left aligned when it does not fit)"
+        },
+        "search_bar_input_follow_align": {
+          "label": "Input text follows alignment",
+          "desc": "When enabled the typed query uses the same alignment as the placeholder (Auto is treated as center); when disabled it stays left aligned"
         },
         "result_item_height": {
           "label": "Result item height",

@@ -23,6 +23,9 @@ fn default_search_bar_font_ratio() -> f64 {
 fn default_search_bar_placeholder() -> String {
     "Hello, ZeroLaunch! ヾ(≧▽≦*)o".to_string()
 }
+fn default_search_bar_placeholder_align() -> String {
+    "left".to_string()
+}
 fn default_result_item_height() -> f64 {
     54.0
 }
@@ -137,6 +140,15 @@ pub struct AppearanceSettings {
         default = "default_search_bar_placeholder"
     )]
     pub search_bar_placeholder: String,
+    /// 占位提示对齐方式:left/center/right/auto(auto = 装得下居中、装不下左对齐)
+    #[serde(
+        rename = "search_bar_placeholder_align",
+        default = "default_search_bar_placeholder_align"
+    )]
+    pub search_bar_placeholder_align: String,
+    /// 输入的查询文本是否跟随占位提示对齐(关闭时始终左对齐)
+    #[serde(rename = "search_bar_input_follow_align", default)]
+    pub search_bar_input_follow_align: bool,
 
     // ---- 结果栏 ----
     #[serde(rename = "result_item_height", default = "default_result_item_height")]
@@ -246,6 +258,8 @@ impl Default for AppearanceSettings {
             search_bar_font_ratio: default_search_bar_font_ratio(),
             search_bar_font_family: String::new(),
             search_bar_placeholder: default_search_bar_placeholder(),
+            search_bar_placeholder_align: default_search_bar_placeholder_align(),
+            search_bar_input_follow_align: false,
             result_item_height: default_result_item_height(),
             result_item_font_ratio: default_result_item_font_ratio(),
             result_item_subtitle_font_ratio: default_result_item_subtitle_font_ratio(),
@@ -382,6 +396,67 @@ impl Configurable for AppearanceConfigComponent {
             .group(t_key!("appearance-config", "groups.searchBar"))
             .order(13)
             .default("Hello, ZeroLaunch! ヾ(≧▽≦*)o")
+            .build(),
+            SchemaBuilder::select(
+                "search_bar_placeholder_align",
+                t_key!(
+                    "appearance-config",
+                    "fields.search_bar_placeholder_align.label"
+                ),
+                t_key!(
+                    "appearance-config",
+                    "fields.search_bar_placeholder_align.desc"
+                ),
+            )
+            .group(t_key!("appearance-config", "groups.searchBar"))
+            .order(14)
+            // 对齐选项标签由 i18n 控制，不直接显示原始枚举值
+            .options_with_labels(&[
+                (
+                    "left",
+                    t_key!(
+                        "appearance-config",
+                        "options.search_bar_placeholder_align.left"
+                    ),
+                ),
+                (
+                    "center",
+                    t_key!(
+                        "appearance-config",
+                        "options.search_bar_placeholder_align.center"
+                    ),
+                ),
+                (
+                    "right",
+                    t_key!(
+                        "appearance-config",
+                        "options.search_bar_placeholder_align.right"
+                    ),
+                ),
+                (
+                    "auto",
+                    t_key!(
+                        "appearance-config",
+                        "options.search_bar_placeholder_align.auto"
+                    ),
+                ),
+            ])
+            .default("left")
+            .build(),
+            SchemaBuilder::boolean(
+                "search_bar_input_follow_align",
+                t_key!(
+                    "appearance-config",
+                    "fields.search_bar_input_follow_align.label"
+                ),
+                t_key!(
+                    "appearance-config",
+                    "fields.search_bar_input_follow_align.desc"
+                ),
+            )
+            .group(t_key!("appearance-config", "groups.searchBar"))
+            .order(15)
+            .default(false)
             .build(),
             // ---- 结果栏 ----
             SchemaBuilder::number(
@@ -824,6 +899,18 @@ impl Configurable for AppearanceConfigComponent {
                 return Err(ConfigError::ValidationFailed(format!(
                     "Invalid theme value: {}",
                     theme
+                )));
+            }
+        }
+        // 搜索栏占位提示对齐
+        if let Some(align) = settings
+            .get("search_bar_placeholder_align")
+            .and_then(|v| v.as_str())
+        {
+            if !["left", "center", "right", "auto"].contains(&align) {
+                return Err(ConfigError::ValidationFailed(format!(
+                    "Invalid search_bar_placeholder_align value: {}",
+                    align
                 )));
             }
         }

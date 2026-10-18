@@ -192,4 +192,23 @@ defineExpose({ focusInput })
   padding-top: 10px;
   padding-bottom: 10px;
 }
+
+/* 占位提示对齐与输入文本对齐：取值来自外观配置写入的 CSS 变量（两者独立控制，
+   互不影响：占位提示作用于 naive-ui 的占位符元素，输入文本作用于输入元素本体） */
+.search-bar-wrapper :deep(.n-input__placeholder) {
+  text-align: var(--search-bar-placeholder-align);
+}
+
+/* 占位提示文本块：默认撑满可用宽度；自适应模式收缩到内容宽度并由自动外边距居中
+   （内容装不下时宽度回退为可用宽度，文字自左向右溢出、由占位符容器裁切） */
+.search-bar-wrapper :deep(.n-input__placeholder > span) {
+  display: block;
+  width: var(--search-bar-placeholder-span-width);
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+.search-bar-wrapper :deep(.n-input__input-el) {
+  text-align: var(--search-bar-input-align);
+}
 </style>

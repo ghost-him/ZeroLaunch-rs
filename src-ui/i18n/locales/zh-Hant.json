@@ -443,6 +443,12 @@
           "light": "淺色",
           "dark": "深色"
         },
+        "search_bar_placeholder_align": {
+          "left": "左對齊",
+          "center": "置中",
+          "right": "右對齊",
+          "auto": "自適應"
+        },
         "bg_size": {
           "cover": "覆蓋（鋪滿）",
           "contain": "完整顯示",
@@ -487,6 +493,14 @@
         "search_bar_placeholder": {
           "label": "搜尋欄佔位符",
           "desc": "搜尋欄的提示文本"
+        },
+        "search_bar_placeholder_align": {
+          "label": "佔位符對齊",
+          "desc": "搜尋欄提示文本的對齊方式（自適應：裝得下置中，裝不下左對齊）"
+        },
+        "search_bar_input_follow_align": {
+          "label": "輸入文字跟隨對齊",
+          "desc": "開啟後輸入的查詢文字與佔位符使用相同對齊方式（自適應按置中處理），關閉時一律左對齊"
         },
         "result_item_height": {
           "label": "結果項高度",

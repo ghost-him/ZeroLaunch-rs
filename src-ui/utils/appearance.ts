@@ -34,6 +34,19 @@ export async function applyAppearanceSettings(settings: AppearanceSettings): Pro
   if ('search_bar_placeholder' in settings) {
     root.setProperty('--search-bar-placeholder', `"${asStr(settings.search_bar_placeholder)}"`)
   }
+  // 对齐取值由后端 schema 白名单保证；自适应 = 提示文本左对齐 + 文本块收缩到内容宽度并居中
+  // （装不下时文本块宽度回退为容器宽度，文字自左向右溢出被裁切）
+  if ('search_bar_placeholder_align' in settings || 'search_bar_input_follow_align' in settings) {
+    const align = asStr(settings.search_bar_placeholder_align, 'left')
+    const isAuto = align === 'auto'
+    root.setProperty('--search-bar-placeholder-align', isAuto ? 'left' : align)
+    root.setProperty('--search-bar-placeholder-span-width', isAuto ? 'fit-content' : '100%')
+    // 输入文本对齐：跟随占位提示时取同一对齐（自适应按居中处理），否则始终左对齐
+    root.setProperty(
+      '--search-bar-input-align',
+      settings.search_bar_input_follow_align === true ? (isAuto ? 'center' : align) : 'left',
+    )
+  }
 
   // ---- 结果栏 ----
   if ('result_item_height' in settings) {

@@ -443,6 +443,12 @@
           "light": "浅色",
           "dark": "深色"
         },
+        "search_bar_placeholder_align": {
+          "left": "左对齐",
+          "center": "居中",
+          "right": "右对齐",
+          "auto": "自适应"
+        },
         "bg_size": {
           "cover": "覆盖（铺满）",
           "contain": "完整显示",
@@ -487,6 +493,14 @@
         "search_bar_placeholder": {
           "label": "搜索栏占位符",
           "desc": "搜索栏的提示文本"
+        },
+        "search_bar_placeholder_align": {
+          "label": "占位符对齐",
+          "desc": "搜索栏提示文本的对齐方式（自适应：装得下居中，装不下左对齐）"
+        },
+        "search_bar_input_follow_align": {
+          "label": "输入文本跟随对齐",
+          "desc": "开启后输入的查询文本与占位符使用相同对齐方式（自适应按居中处理），关闭时始终左对齐"
         },
         "result_item_height": {
           "label": "结果项高度",

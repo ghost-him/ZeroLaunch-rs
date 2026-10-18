@@ -37,6 +37,10 @@
 
   /* Search bar placeholder — can be overridden by appearance config */
   --search-bar-placeholder: "Hello, ZeroLaunch! ヾ(≧▽≦*)o";
+  /* Search bar alignment — can be overridden by appearance config */
+  --search-bar-placeholder-align: left;
+  --search-bar-placeholder-span-width: 100%;
+  --search-bar-input-align: left;
 
   /* Layout dimensions — single source of truth for JS window sizing */
   --window-width: 800px;

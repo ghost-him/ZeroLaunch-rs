@@ -160,6 +160,7 @@ The built-in plugins work without installing anything extra, and you can turn of
 - **App search**: `chrome` launches an app (`微信` searches in Chinese directly, `qqy` searches QQ Music directly).
 - **Path and URL**: `D:\Downloads ` opens a folder, `github.com ` opens a URL (a trailing space means "this is it"; paths with spaces go in quotes).
 - **Calculator**: `= 12*8` gives the result directly.
+- **Run in cmd**: `> ping 1.1.1.1` runs that command in a cmd window; the window stays open after the run by default (so you can read the output) and can be set to close automatically in settings.
 - **Translation**: starts with `fy`, `tr`, or `翻译` (a literal Simplified-Chinese keyword), can translate as you type or only on Enter; the first time you use it you need to set up a chat model in settings (a local Ollama or an OpenAI-compatible endpoint both work) — without one, no results.
 - **Bookmark search**: automatically reads bookmarks from Chrome, Edge, and other browsers; type a bookmark title to open it.
 - **Built-in commands**: type `settings` / `refresh` / `reshortcut` / `gamemode` / `exit` (the Chinese keywords `设置` / `刷新` / `注册` / `游戏` / `退出` work too) to open settings, rebuild the index, re-register the shortcuts, toggle game mode, and quit the app respectively.

@@ -4,6 +4,7 @@ use zerolaunch_plugin_api::host::PluginSdkConfig;
 use zerolaunch_plugin_api::services::focus_monitor::FocusEvent;
 use zerolaunch_plugin_api::services::hotkey::types::{HotkeyEvent, HotkeyEventFilter};
 use zerolaunch_plugin_api::services::installation_monitor::types::InstallationEvent;
+use zerolaunch_plugin_api::services::shell::CommandRunMode;
 use zerolaunch_plugin_api::services::IconRequest;
 use zerolaunch_plugin_api::{
     CandidateCacheSnapshot, CandidateId, ExecutionContext, KeywordInputSource, PluginContext,
@@ -465,10 +466,16 @@ pub struct ShellExecuteElevationParams {
 
 // ─── host/shell.execute_command ──────────────────────────────────
 
+/// `host/shell.execute_command` 参数 —— 由 SDK `HostProxy` 代理构造，
+/// 宿主 `host_handler` 反序列化后转发到 `PluginHandle::shell_execute_command`。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShellExecuteCommandParams {
+    /// 要执行的命令字符串（原样交给 cmd 解析，不做参数转义）。
     #[serde(rename = "cmd")]
     pub cmd: String,
+    /// 执行方式；载荷缺省（旧插件只发 cmd）时按后台静默执行处理。
+    #[serde(rename = "mode", default)]
+    pub mode: CommandRunMode,
 }
 
 // ─── host/window.activate_by_process ─────────────────────────────

@@ -8,7 +8,7 @@ use windows::Win32::Foundation::{GetLastError, ERROR_CANCELLED};
 use windows::Win32::UI::Shell::{ShellExecuteExW, ShellExecuteW, SHELLEXECUTEINFOW};
 use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 use zerolaunch_plugin_api::host::{HostApiError, OpenTarget};
-use zerolaunch_plugin_api::services::shell::ShellExecutor;
+use zerolaunch_plugin_api::services::shell::{CommandRunMode, ShellExecutor};
 
 /// 使用 ShellExecuteW 以系统默认方式打开指定路径
 fn shell_execute_open(path: &str) -> Result<(), HostApiError> {
@@ -31,6 +31,69 @@ fn shell_execute_open(path: &str) -> Result<(), HostApiError> {
                 reason: format!("ShellExecuteW 失败，错误码: {}", error.0),
             })
         } else {
+            Ok(())
+        }
+    }
+}
+
+/// 后台静默执行命令：`cmd /D /S /C` + `CREATE_NO_WINDOW | DETACHED_PROCESS`，不弹出控制台窗口。
+/// 调用方保证命令非空。
+fn run_command_background(command: &str) -> Result<(), HostApiError> {
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+    const DETACHED_PROCESS: u32 = 0x00000008;
+
+    let result = std::process::Command::new("cmd")
+        .args(["/D", "/S", "/C"])
+        .raw_arg(command)
+        .creation_flags(CREATE_NO_WINDOW | DETACHED_PROCESS)
+        .spawn();
+
+    match result {
+        Ok(_) => {
+            debug!("命令后台启动成功: {}", command);
+            Ok(())
+        }
+        Err(e) => {
+            let msg = format!("命令启动失败: {:?}", e);
+            warn!("{}", msg);
+            Err(HostApiError::ShellOperationFailed {
+                target: command.to_string(),
+                reason: msg,
+            })
+        }
+    }
+}
+
+/// 在可见的控制台窗口中执行命令：经 ShellExecuteW 打开 cmd.exe（与「运行」对话框同一路径）。
+/// 新控制台自行持有标准句柄，不继承宿主进程的标准句柄 —— 宿主若从管道/重定向环境启动，
+/// `cmd /K` 会因 stdin 立即 EOF 而在命令结束后立刻退出。命令原样拼进 cmd 参数串，不做转义。
+/// keep_open = true 用 `/K`（命令结束后保留窗口），false 用 `/C`（结束后自动关闭）。调用方保证命令非空。
+fn run_command_in_console(command: &str, keep_open: bool) -> Result<(), HostApiError> {
+    let parameters = format!("/D /S {} {}", if keep_open { "/K" } else { "/C" }, command);
+    let verb = get_u16_vec("open");
+    let file = get_u16_vec("cmd.exe");
+    let params = get_u16_vec(&parameters);
+
+    unsafe {
+        let result = ShellExecuteW(
+            None,
+            PCWSTR::from_raw(verb.as_ptr()),
+            PCWSTR::from_raw(file.as_ptr()),
+            PCWSTR::from_raw(params.as_ptr()),
+            PCWSTR::from_raw(std::ptr::null()),
+            SW_SHOWNORMAL,
+        );
+
+        if result.0 as isize <= 32 {
+            let error = GetLastError();
+            let msg = format!("ShellExecuteW 失败，错误码: {}", error.0);
+            warn!("{}", msg);
+            Err(HostApiError::ShellOperationFailed {
+                target: command.to_string(),
+                reason: msg,
+            })
+        } else {
+            debug!("命令已在控制台窗口启动: {}", command);
             Ok(())
         }
     }
@@ -156,13 +219,14 @@ impl ShellExecutor for WindowsShellExecutor {
         Ok(())
     }
 
-    /// 执行命令字符串（后台运行，无窗口）。
-    /// 使用 cmd /D /S /C 执行命令，CREATE_NO_WINDOW | DETACHED_PROCESS 防止弹出控制台窗口。
+    /// 执行命令字符串。
+    /// 按 `mode` 选择呈现方式：`Background` 后台静默（无窗口），`Console` 在可见控制台窗口中执行。
     /// 输入验证：空命令或纯空白命令返回错误。
-    async fn shell_execute_command(&self, command: &str) -> Result<(), HostApiError> {
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        const DETACHED_PROCESS: u32 = 0x00000008;
-
+    async fn shell_execute_command(
+        &self,
+        command: &str,
+        mode: CommandRunMode,
+    ) -> Result<(), HostApiError> {
         let command = command.trim();
         if command.is_empty() {
             return Err(HostApiError::ShellOperationFailed {
@@ -171,25 +235,9 @@ impl ShellExecutor for WindowsShellExecutor {
             });
         }
 
-        let result = std::process::Command::new("cmd")
-            .args(["/D", "/S", "/C"])
-            .raw_arg(command)
-            .creation_flags(CREATE_NO_WINDOW | DETACHED_PROCESS)
-            .spawn();
-
-        match result {
-            Ok(_) => {
-                debug!("命令启动成功: {}", command);
-                Ok(())
-            }
-            Err(e) => {
-                let msg = format!("命令启动失败: {:?}", e);
-                warn!("{}", msg);
-                Err(HostApiError::ShellOperationFailed {
-                    target: command.to_string(),
-                    reason: msg,
-                })
-            }
+        match mode {
+            CommandRunMode::Background => run_command_background(command),
+            CommandRunMode::Console { keep_open } => run_command_in_console(command, keep_open),
         }
     }
 }

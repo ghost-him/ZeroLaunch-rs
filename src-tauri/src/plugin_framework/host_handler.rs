@@ -192,7 +192,7 @@ impl HostCallHandler for TauriHostCallHandler {
                 let p: ShellExecuteCommandParams = from_value(params)
                     .map_err(|e| JsonRpcError::new(codes::INVALID_PARAMS, e.to_string()))?;
                 handle
-                    .shell_execute_command(&p.cmd)
+                    .shell_execute_command(&p.cmd, p.mode)
                     .await
                     .map_err(|e| JsonRpcError::new(codes::PLUGIN_ERROR, e.to_string()))?;
                 Ok(Value::Null)

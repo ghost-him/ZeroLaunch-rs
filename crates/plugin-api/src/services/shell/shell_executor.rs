@@ -1,3 +1,4 @@
+use super::types::CommandRunMode;
 use crate::host::error::HostApiError;
 use crate::host::open_target::OpenTarget;
 use async_trait::async_trait;
@@ -21,8 +22,12 @@ pub trait ShellExecutor: Send + Sync {
     /// 返回：成功返回 Ok(())，失败返回 HostApiError。
     async fn shell_execute_elevation(&self, path: &str) -> Result<(), HostApiError>;
 
-    /// 执行命令字符串（后台运行，无窗口）。
-    /// 参数：command - 要执行的命令字符串。
+    /// 执行命令字符串。
+    /// 参数：command - 要执行的命令字符串；mode - 执行方式（后台静默 / 可见控制台窗口）。
     /// 返回：成功返回 Ok(())，失败返回 HostApiError。
-    async fn shell_execute_command(&self, command: &str) -> Result<(), HostApiError>;
+    async fn shell_execute_command(
+        &self,
+        command: &str,
+        mode: CommandRunMode,
+    ) -> Result<(), HostApiError>;
 }

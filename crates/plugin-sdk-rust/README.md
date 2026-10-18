@@ -52,7 +52,7 @@ host.shell_open("notepad.exe").await?;
 | 分组 | 方法 |
 |---|---|
 | 日志 / 通知 | `log`、`notify` |
-| Shell | `shell_open`、`shell_open_folder`、`shell_execute_elevation`、`shell_execute_command` |
+| Shell | `shell_open`、`shell_open_folder`、`shell_execute_elevation`、`shell_execute_command`（载荷 `mode` 决定后台静默或可见控制台窗口） |
 | 窗口 | `activate_window_by_process`、`activate_window_by_pid`、`activate_window_by_title` |
 | 图标 | `get_icon`（失败回退默认图标）、`extract_icon`（失败返回错误）、`refresh_icon`、`override_icon_cache` |
 | 剪贴板 / 应用 | `set_clipboard_text`、`enumerate_apps`、`launch_app`、`app_icon_path` |

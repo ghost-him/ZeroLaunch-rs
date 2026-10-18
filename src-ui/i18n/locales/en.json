@@ -1463,6 +1463,21 @@
       "name": "Calculator",
       "description": "Evaluate math expressions right in the search bar"
     },
+    "cmd-run": {
+      "name": "Run in cmd",
+      "description": "Type > followed by a command line; Enter runs it in a cmd window",
+      "fields": {
+        "close_after_run": {
+          "label": "Close window after run",
+          "desc": "When on, the window closes as soon as the command finishes; when off it stays open so you can read the output and keep typing"
+        }
+      },
+      "row": {
+        "actionRun": "Run",
+        "subtitleKeepOpen": "Runs in cmd; the window stays open",
+        "subtitleCloseAfterRun": "Runs in cmd; the window closes after the run"
+      }
+    },
     "path-detect": {
       "name": "Path detection",
       "description": "Offers open / open-containing-folder actions when the input looks like a local path",

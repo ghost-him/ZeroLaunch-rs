@@ -65,7 +65,7 @@ pub mod host {
     pub const SHELL_OPEN_FOLDER: &str = "host/shell.open_folder";
     /// 以提权方式执行命令。
     pub const SHELL_EXECUTE_ELEVATION: &str = "host/shell.execute_elevation";
-    /// 执行命令（普通权限）。
+    /// 执行命令（普通权限；呈现方式由载荷的 mode 决定）。
     pub const SHELL_EXECUTE_COMMAND: &str = "host/shell.execute_command";
     /// 激活指定进程对应的窗口。
     pub const WINDOW_ACTIVATE_BY_PROCESS: &str = "host/window.activate_by_process";

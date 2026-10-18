@@ -20,6 +20,7 @@ use zerolaunch_plugin_api::services::model::{
     ModelChatRequest, ModelChatResponse, ModelEmbeddingRequest, ModelEmbeddingResponse, ModelInfo,
     ModelSimilarityRequest, ModelSimilarityResponse,
 };
+use zerolaunch_plugin_api::services::shell::CommandRunMode;
 use zerolaunch_plugin_api::services::IconRequest;
 use zerolaunch_plugin_protocol::messages::{
     AppIconPathParams, AppLaunchParams, CacheCleanupParams, CacheDeleteParams, CacheGetParams,
@@ -177,10 +178,16 @@ impl HostProxy {
         Ok(result.as_str().unwrap_or("").to_string())
     }
 
-    pub async fn shell_execute_command(&self, cmd: &str) -> Result<(), String> {
+    /// 执行命令字符串。
+    /// 参数：cmd - 命令字符串；mode - 执行方式（后台静默 / 可见控制台窗口）。
+    pub async fn shell_execute_command(
+        &self,
+        cmd: &str,
+        mode: CommandRunMode,
+    ) -> Result<(), String> {
         self.send_request(
             host::SHELL_EXECUTE_COMMAND,
-            serde_json::json!({ "cmd": cmd }),
+            serde_json::json!({ "cmd": cmd, "mode": mode }),
         )
         .await?;
         Ok(())

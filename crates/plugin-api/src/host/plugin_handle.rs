@@ -18,6 +18,7 @@ use crate::services::model::{
 };
 use crate::services::parameter::types::ParameterSnapshot;
 use crate::services::path::path_resolver::KnownPath;
+use crate::services::shell::CommandRunMode;
 use crate::services::theme::Theme;
 use crate::services::timer::types::{TimerCallback, TimerId};
 use crate::services::IconRequest;
@@ -123,9 +124,14 @@ impl PluginHandle {
         self.host.shell_execute_elevation(path).await
     }
 
-    /// 执行命令字符串（后台运行，无窗口）。
-    pub async fn shell_execute_command(&self, command: &str) -> Result<(), HostApiError> {
-        self.host.shell_execute_command(command).await
+    /// 执行命令字符串。
+    /// 参数：command - 要执行的命令字符串；mode - 执行方式（后台静默 / 可见控制台窗口）。
+    pub async fn shell_execute_command(
+        &self,
+        command: &str,
+        mode: CommandRunMode,
+    ) -> Result<(), HostApiError> {
+        self.host.shell_execute_command(command, mode).await
     }
 
     // ===== 窗口服务（委托宿主） =====

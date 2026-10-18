@@ -4,6 +4,7 @@ use zerolaunch_plugin_api::config::{
     ComponentCore, ComponentType, Configurable, SettingDefinition,
 };
 use zerolaunch_plugin_api::host::PluginHandle;
+use zerolaunch_plugin_api::services::shell::CommandRunMode;
 use zerolaunch_plugin_api::services::IconRequest;
 use zerolaunch_plugin_api::{
     ActionExecutor, ExecutionContext, ExecutionError, ExecutionTarget, ResultAction, TargetType,
@@ -79,7 +80,7 @@ impl ActionExecutor for CommandExecutor {
 
                 let handle = self.plugin_handle.clone();
                 handle
-                    .shell_execute_command(&resolved)
+                    .shell_execute_command(&resolved, CommandRunMode::Background)
                     .await
                     .map_err(|e| ExecutionError::Failed(format!("命令执行失败: {}", e)))
             }

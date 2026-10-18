@@ -17,6 +17,7 @@ use zerolaunch_plugin_api::services::parameter::resolver::ParameterResolver;
 use zerolaunch_plugin_api::services::parameter::types::ParameterSnapshot;
 use zerolaunch_plugin_api::services::path::path_resolver::KnownPath;
 use zerolaunch_plugin_api::services::resource::AppResourceService;
+use zerolaunch_plugin_api::services::shell::CommandRunMode;
 use zerolaunch_plugin_api::services::storage::storage_service::StorageService;
 use zerolaunch_plugin_api::services::theme::Theme;
 use zerolaunch_plugin_api::services::timer::{TimerCallback, TimerId, TimerManager, TimerMode};
@@ -445,10 +446,14 @@ impl PluginHost for HostApi {
             .await
     }
 
-    async fn shell_execute_command(&self, command: &str) -> Result<(), HostApiError> {
+    async fn shell_execute_command(
+        &self,
+        command: &str,
+        mode: CommandRunMode,
+    ) -> Result<(), HostApiError> {
         self.platform
             .shell_executor
-            .shell_execute_command(command)
+            .shell_execute_command(command, mode)
             .await
     }
 

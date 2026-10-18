@@ -1463,6 +1463,21 @@
       "name": "计算器",
       "description": "在搜索栏中直接进行数学计算"
     },
+    "cmd-run": {
+      "name": "cmd 运行",
+      "description": "输入 > 加空格后跟命令行，回车即在 cmd 窗口中执行",
+      "fields": {
+        "close_after_run": {
+          "label": "运行结束后关闭窗口",
+          "desc": "开启后命令执行完立即自动关窗；关闭则保留窗口，便于查看输出或继续输入命令"
+        }
+      },
+      "row": {
+        "actionRun": "运行",
+        "subtitleKeepOpen": "在 cmd 中运行，结束后保留窗口",
+        "subtitleCloseAfterRun": "在 cmd 中运行，结束后关闭窗口"
+      }
+    },
     "path-detect": {
       "name": "路径检测",
       "description": "输入形如本地路径时，提供打开与打开所在文件夹入口",

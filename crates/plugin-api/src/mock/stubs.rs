@@ -25,7 +25,7 @@ use crate::services::parameter::types::{ParameterError, ParameterSnapshot};
 use crate::services::path::{KnownPath, PathResolver};
 use crate::services::shell::lnk_resolver::LnkResolver;
 use crate::services::shell::resource_loader::ResourceLoader;
-use crate::services::shell::ShellExecutor;
+use crate::services::shell::{CommandRunMode, ShellExecutor};
 use crate::services::storage::storage_error::StorageError;
 use crate::services::storage::storage_service::StorageService;
 use crate::services::window::window_positioner::{
@@ -90,7 +90,11 @@ impl ShellExecutor for StubShellExecutor {
     async fn shell_execute_elevation(&self, _path: &str) -> Result<(), HostApiError> {
         Ok(())
     }
-    async fn shell_execute_command(&self, _cmd: &str) -> Result<(), HostApiError> {
+    async fn shell_execute_command(
+        &self,
+        _cmd: &str,
+        _mode: CommandRunMode,
+    ) -> Result<(), HostApiError> {
         Ok(())
     }
 }

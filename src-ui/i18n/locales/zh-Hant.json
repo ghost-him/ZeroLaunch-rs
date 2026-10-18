@@ -1463,6 +1463,21 @@
       "name": "計算器",
       "description": "在搜尋欄中直接進行數學計算"
     },
+    "cmd-run": {
+      "name": "cmd 執行",
+      "description": "輸入 > 加空格後接命令列，按 Enter 即在 cmd 視窗中執行",
+      "fields": {
+        "close_after_run": {
+          "label": "執行結束後關閉視窗",
+          "desc": "開啟後命令執行完立即自動關閉視窗；關閉則保留視窗，方便查看輸出或繼續輸入命令"
+        }
+      },
+      "row": {
+        "actionRun": "執行",
+        "subtitleKeepOpen": "在 cmd 中執行，結束後保留視窗",
+        "subtitleCloseAfterRun": "在 cmd 中執行，結束後關閉視窗"
+      }
+    },
     "path-detect": {
       "name": "路徑偵測",
       "description": "輸入形如本機路徑時，提供開啟與開啟所在資料夾的入口",

@@ -28,6 +28,7 @@ use crate::services::parameter::resolver::ParameterResolver;
 use crate::services::parameter::types::ParameterSnapshot;
 use crate::services::path::path_resolver::KnownPath;
 use crate::services::resource::AppResourceService;
+use crate::services::shell::CommandRunMode;
 use crate::services::storage::storage_service::StorageService;
 use crate::services::theme::Theme;
 use crate::services::timer::{TimerCallback, TimerId, TimerManager, TimerMode, TokioTimerManager};
@@ -168,10 +169,14 @@ impl PluginHost for MockPluginHost {
             .await
     }
 
-    async fn shell_execute_command(&self, command: &str) -> Result<(), HostApiError> {
+    async fn shell_execute_command(
+        &self,
+        command: &str,
+        mode: CommandRunMode,
+    ) -> Result<(), HostApiError> {
         self.platform
             .shell_executor
-            .shell_execute_command(command)
+            .shell_execute_command(command, mode)
             .await
     }
 

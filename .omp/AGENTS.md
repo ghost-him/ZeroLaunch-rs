@@ -11,7 +11,6 @@ crates/plugin-host/       → zerolaunch-plugin-host: 子进程管理, RemotePlu
 crates/plugin-sdk-rust/   → zerolaunch-plugin-sdk-rust: 第三方 Rust 插件 SDK
 crates/platform-windows/  → zerolaunch-platform-windows: Windows 平台实现 + 工厂函数
 zerolaunch-cli/           → zerolaunch-cli: 独立 CLI 工具 (zl query / zl plugins)
-plugin-template/          → 第三方 Rust 插件项目模板 (不在 workspace)
 src-tauri/                → zerolaunch-rs: 主程序、内置插件、配置管理、IPC 命令
 ```
 
@@ -19,17 +18,17 @@ src-tauri/                → zerolaunch-rs: 主程序、内置插件、配置�
 
 **内部模块**（src-tauri 内）:
 ```
-bootstrap/          → 应用启动初始化
+bootstrap.rs        → 应用启动初始化
 sdk.rs              → 平台抽象层 re-export 桥（单文件）
 core/               → 核心层（ConfigManager, Configurable trait, types, AI 助手 agent）
 builtin_plugin/     → 内置插件实现
 plugin_framework/   → 插件框架（SessionDispatcher, Registry, PluginManager, zlplugin:// 协议）
 plugin_market/      → 插件市场（GitHub topic 仓库发现 / release 解析 / 插件包下载）
 cli_server/         → 本地 HTTP API 服务器（axum）
-commands/           → IPC 命令（bridge, config, plugin, plugin_market, resource, inspector, cli, help）
+commands/           → IPC 命令（bridge, config, plugin, plugin_market, resource, inspector, cli, help, clipboard, i18n, debug）
 state/              → AppState 定义
 utils/              → 通用工具
-logging/            → 日志初始化
+logging.rs          → 日志初始化
 ```
 
 ## 关键文件
@@ -68,9 +67,11 @@ logging/            → 日志初始化
 
 检查器（`inspector_` 前缀，1个）：`inspector_get_state`
 
-调试工具（`debug_` 前缀，5个）：`debug_test_search_time`, `debug_test_index_time`, `debug_get_search_keys`, `debug_search_detail`, `debug_copy_search_detail`
+调试工具（`debug_` 前缀，6个）：`debug_test_search_time`, `debug_test_index_time`, `debug_get_search_keys`, `debug_search_detail`, `debug_copy_search_detail`, `debug_get_agent_traces`
 
 资源（`resource_` 前缀，2个）：`resource_get`, `resource_upload`
+
+插件 i18n（`i18n_` 前缀，1个）：`i18n_get_plugin_translations`
 
 剪贴板（1个）：`copy_to_clipboard`（写入系统剪贴板，前端不直接调用平台 API）
 
@@ -92,7 +93,7 @@ ZeroLaunch-rs/                          ← Cargo workspace 根
 │   │       ├── host/                   ← HostApiError, OpenTarget, CacheLevel, PluginHandle, PluginSdkConfig
 │   │       ├── platform/               ← PlatformCapability, PlatformCapabilities
 │   │       ├── plugin/                 ← Plugin trait, Query/QueryResponse, 组件 trait, CachedCandidateData
-│   │       ├── services/               ← 能力域 trait（具体数量以代码为准；新增域时**必须**在此登记 + sdk.md 同步更新）
+│   │       ├── services/               ← 能力域 trait（具体数量以代码为准；新增域时**必须**在此登记）
 │   │       ├── common/                 ← DirUtils, ImageUtils
 │   │       └── mock/                   ← Stub 实现 + mock_plugin_handle()（feature = "mock"）
 │   ├── plugin-protocol/                ← zerolaunch-plugin-protocol
@@ -104,7 +105,6 @@ ZeroLaunch-rs/                          ← Cargo workspace 根
 │   └── platform-windows/               ← zerolaunch-platform-windows
 │       └── src/                        ← Windows 平台 trait 实现 + windows_capabilities()
 ├── zerolaunch-cli/                     ← zerolaunch-cli (独立 bin crate)
-├── plugin-template/                    ← Rust 第三方插件项目模板（不在 workspace，显式 exclude）
 └── src-tauri/                          ← zerolaunch-rs（主程序）
     └── src/
         ├── bootstrap.rs               ← 应用启动初始化（从 lib.rs 提取）
@@ -165,7 +165,7 @@ core/
 │   └── mod.rs           ← 模块入口
 ```
 
-- **核心配置组件**（`builtin_plugin/config/` 下的组件，如 AppearanceConfig、HotkeyConfig 等）：不属于任何插件的系统级配置
+- **核心配置组件**（`builtin_plugin/config/` 下的组件，如 AppearanceConfigComponent、HotkeyConfigComponent 等）：不属于任何插件的系统级配置
 - **新增核心配置组件** 时放 `builtin_plugin/config/`。**新增插件** 时放 `builtin_plugin/` 对应子目录
 
 #### `builtin_plugin/` — 内置插件实现
@@ -252,7 +252,7 @@ cli_server/
 - Vue 组件文件名使用 `PascalCase`（如 `DynamicForm.vue`）
 - TypeScript 工具文件使用 `camelCase`（如 `schemaTypes.ts`）
 - Store 文件使用 `kebab-case` + `-store` 后缀（如 `config-store.ts`）
-- Composable 文件使用 `camelCase` + `use` 前缀（如 `useKeyboard.ts`）
+- Composable 文件使用 `camelCase` + `use` 前缀（如 `useKeyboardRouter.ts`）
 
 ## 编码设计规范
 
@@ -264,10 +264,7 @@ cli_server/
 ## 从哪里开始
 
 - **AI 约束规则** → `.omp/RULES.md`（始终生效的工程纪律，常驻 system prompt）+ `.omp/rules/`（TTSR 条件规则：领域规范在首次访问相关文件时自动注入，编码规则在检测到坏模式时中断纠正）
-- **设计哲学与架构** → `docs/design/`
-- **前端架构与需求** → `docs/frontend/`
 - **第三方插件开发** → `crates/plugin-api/README.md`
-- **内置插件开发** → `docs/dev/built-in-plugin-guide.md`
 - **可复用操作技能** → `.omp/skills/`（真机验证、代码审查、发版、变更总结等操作手册；改动 UI/面板后做真机验证见 `dev-verify-cdp`，改插件见 `plugin-real-verify`）
 
 ## CodeGraph

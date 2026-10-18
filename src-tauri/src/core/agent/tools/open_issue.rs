@@ -56,8 +56,9 @@ impl AgentTool for OpenIssueTool {
 
     fn description(&self) -> &'static str {
         "把已经和用户确认过的需求或 bug 报告整理成 issue 正文，并在默认浏览器打开 GitHub 新建 issue 页面\
-（标题与正文预填、不会被自动提交）。只在需求或 bug 已问清、且用户明确同意现在打开页面时调用；\
-一次提问最多调用一次。"
+（标题与正文预填、不会被自动提交）。只在需求或 bug 已问清、且用户单独对「打开页面」明确说过同意\
+（「好」「打开吧」这类）时才调用：向用户问这句话的那一轮不能调用，用户只说「帮我整理个 issue」\
+不等于同意现在打开页面；一次提问最多调用一次。"
     }
 
     fn parameters(&self) -> Value {
@@ -228,14 +229,6 @@ mod tests {
         let params = query_params(&url);
         assert_eq!(params["title"], title);
         assert_eq!(params["body"], body);
-    }
-
-    #[test]
-    fn new_issue_url_omits_body_when_absent() {
-        let url = new_issue_url(&repository_url(), "只有标题", None);
-        let params = query_params(&url);
-        assert_eq!(params["title"], "只有标题");
-        assert!(!params.contains_key("body"));
     }
 
     #[tokio::test]

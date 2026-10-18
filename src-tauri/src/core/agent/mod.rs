@@ -454,38 +454,26 @@ mod tests {
         )
     }
 
+    /// 引用行：合法项保留（含组件级引用、全角/半角分隔符与反引号包装），臆造项与重复项丢弃。
     #[test]
-    fn split_references_keeps_valid_and_drops_invented() {
-        let answer = "把主题改成深色即可。\n相关设置: appearance-config/theme, general-config/language, fake-config/x";
+    fn split_references_keeps_valid_drops_invented_and_dedups() {
+        let answer = "把主题改成深色即可。\n相关设置: appearance-config/theme, fake-config/x\n\
+相关设置：`general-config`、appearance-config/theme";
         let (body, references) = split_references(answer, &manual());
         assert_eq!(body, "把主题改成深色即可。");
         assert_eq!(references.len(), 2);
         assert_eq!(references[0].component_id, "appearance-config");
         assert_eq!(references[0].field_key, "theme");
         assert_eq!(references[1].component_id, "general-config");
+        assert_eq!(references[1].field_key, "");
     }
 
-    #[test]
-    fn split_references_accepts_component_only_and_variants() {
-        let answer = "见通用设置。\n相关设置：`general-config`、appearance-config/theme";
-        let (body, references) = split_references(answer, &manual());
-        assert_eq!(body, "见通用设置。");
-        assert_eq!(references[0].field_key, "");
-        assert_eq!(references.len(), 2);
-    }
-
+    /// 正文里的「相关设置」不成引用格式时原样保留，不被吃掉。
     #[test]
     fn split_references_without_marker_keeps_answer_intact() {
-        let answer = "没有任何相关设置。";
+        let answer = "没有任何相关设置。\n相关设置这行没冒号";
         let (body, references) = split_references(answer, &manual());
         assert_eq!(body, answer);
         assert!(references.is_empty());
-    }
-
-    #[test]
-    fn split_references_dedups_and_caps_count() {
-        let answer = "说明\n相关设置: appearance-config/theme, appearance-config/theme";
-        let (_, references) = split_references(answer, &manual());
-        assert_eq!(references.len(), 1);
     }
 }

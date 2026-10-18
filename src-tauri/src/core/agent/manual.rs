@@ -379,37 +379,39 @@ mod tests {
         )
     }
 
+    /// 检索：标签命中排在说明命中之前（分数更高），key 大小写不敏感，空查询返回空。
     #[test]
-    fn search_prefers_label_hit_over_description_hit() {
+    fn search_ranks_label_over_description_and_ignores_case_and_blank() {
         let manual = manual(vec![
             field("theme", "外观模式", "界面主题深浅"),
             field("other", "主题颜色", "无关说明"),
+            field("bm25_k1", "K1", "BM25 参数"),
         ]);
-        let hits = manual.search("主题", 10);
         // 命中分别来自 other 的标签与 theme 的说明，标签得分更高
+        let hits = manual.search("主题", 10);
         assert_eq!(hits[0].field_key, "other");
         assert_eq!(hits[1].field_key, "theme");
         assert!(hits[0].score > hits[1].score);
-    }
-
-    #[test]
-    fn search_matches_key_case_insensitively_and_ignores_empty_query() {
-        let manual = manual(vec![field("bm25_k1", "K1", "BM25 参数")]);
         assert_eq!(manual.search("BM25_", 10)[0].field_key, "bm25_k1");
         assert!(manual.search("   ", 10).is_empty());
     }
 
+    /// 渲染：组件与字段行、前端下发的设置页路径、字段所在分组「位置」都在场；
+    /// 未分组字段不渲染「位置」，免得模型编出不存在的一步。
     #[test]
-    fn render_includes_component_and_field_lines() {
-        let manual = manual(vec![field("theme", "主题", "界面主题")]);
-        let text = manual.render(&HashMap::new());
-        assert!(text.contains("## 演示(demo)"));
-        assert!(text.contains("`theme` 主题｜界面主题"));
-    }
+    fn render_includes_field_lines_path_and_position() {
+        let mut grouped = field("show_subtitle", "显示副标题", "在结果项中显示副标题信息");
+        grouped.group = "结果列表".to_string();
+        let manual = manual(vec![grouped, field("theme", "主题", "界面主题")]);
 
-    #[test]
-    fn render_includes_settings_page_path_when_provided() {
-        let manual = manual(vec![field("theme", "主题", "界面主题")]);
+        let text = manual.render(&HashMap::new());
+        assert!(text.contains("## 演示(demo)"), "{text}");
+        assert!(text.contains("`theme` 主题｜界面主题"), "{text}");
+        assert!(
+            text.contains("`show_subtitle` 显示副标题｜位置：结果列表"),
+            "{text}"
+        );
+
         let navigation =
             HashMap::from([("demo".to_string(), "设置 › 外观设置 › 演示".to_string())]);
         let text = manual.render(&navigation);
@@ -417,21 +419,6 @@ mod tests {
             text.contains("## 演示(demo)｜设置页路径：设置 › 外观设置 › 演示"),
             "{text}"
         );
-    }
-
-    /// 字段所在分组必须进入上下文（模型据此补出组件内的中间一步）；
-    /// 未分组字段不渲染「位置」，避免模型编出不存在的一步。
-    #[test]
-    fn render_marks_field_position_only_when_grouped() {
-        let mut grouped = field("show_subtitle", "显示副标题", "在结果项中显示副标题信息");
-        grouped.group = "结果列表".to_string();
-        let manual = manual(vec![grouped, field("theme", "主题", "界面主题")]);
-        let text = manual.render(&HashMap::new());
-        assert!(
-            text.contains("`show_subtitle` 显示副标题｜位置：结果列表"),
-            "{text}"
-        );
-        assert!(text.contains("- `theme` 主题｜界面主题"), "{text}");
     }
 
     #[test]

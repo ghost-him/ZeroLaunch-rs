@@ -468,16 +468,24 @@ mod tests {
         }
     }
 
-    /// 前端入参契约：navigation 用 camelCase 键名。
+    /// 前端入参契约：navigation 与历史消息都用 camelCase 键名。
     #[test]
-    fn navigation_dto_reads_frontend_payload() {
-        let dto: HelpNavigationDto = serde_json::from_value(serde_json::json!({
+    fn frontend_payload_dtos_read_camel_case_keys() {
+        let navigation: HelpNavigationDto = serde_json::from_value(serde_json::json!({
             "componentId": "appearance-config",
             "path": "设置 › 外观设置 › 外观",
         }))
         .unwrap();
-        assert_eq!(dto.component_id, "appearance-config");
-        assert_eq!(dto.path, "设置 › 外观设置 › 外观");
+        assert_eq!(navigation.component_id, "appearance-config");
+        assert_eq!(navigation.path, "设置 › 外观设置 › 外观");
+
+        let message: HelpMessageDto = serde_json::from_value(serde_json::json!({
+            "role": "assistant",
+            "content": "当前版本不支持。",
+        }))
+        .unwrap();
+        assert_eq!(message.role, "assistant");
+        assert_eq!(message.content, "当前版本不支持。");
     }
 
     /// 助手配置组件的语言包（说明书按 i18n key 解析译文）。
@@ -786,19 +794,8 @@ mod tests {
         assert_eq!(error.trace_id, "test-trace");
     }
 
-    /// 前端入参契约：history 用 camelCase 键名（role/content）。
-    #[test]
-    fn help_message_dto_reads_frontend_payload() {
-        let dto: HelpMessageDto = serde_json::from_value(serde_json::json!({
-            "role": "assistant",
-            "content": "当前版本不支持。",
-        }))
-        .unwrap();
-        assert_eq!(dto.role, "assistant");
-        assert_eq!(dto.content, "当前版本不支持。");
-    }
-
-    /// 历史裁剪：只留窗口内最近若干条，角色非法的消息丢弃，保留部分仍为正序。
+    /// 历史裁剪：窗口外最旧的消息与角色非法的消息丢弃（保留部分仍为正序）；
+    /// 字符预算用尽后同样从最旧的整条丢弃。
     #[test]
     fn bound_history_keeps_recent_window_and_drops_unknown_roles() {
         // 多喂 4 条，验证超出窗口的最旧消息被整条丢弃
@@ -833,12 +830,8 @@ mod tests {
                 .all(|message| !message.content.contains("注入")),
             "非法角色必须被丢弃"
         );
-    }
 
-    /// 历史裁剪：字符预算用尽后，更旧的整条丢弃。
-    #[test]
-    fn bound_history_stops_at_char_budget() {
-        // 单条占预算一半多一点，两条必然超预算
+        // 字符预算：单条占预算一半多一点，两条必然超预算
         let long = "字".repeat(HISTORY_MAX_CHARS / 2 + 1);
         let bounded = bound_history(vec![
             HelpMessageDto {

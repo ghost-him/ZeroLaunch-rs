@@ -98,29 +98,21 @@ fn mask_sensitive(value: &mut Value, sensitive_keys: &[String]) {
 mod tests {
     use super::*;
 
+    /// 敏感字段按 key 名递归遮蔽（对象与数组项都覆盖），null 与非敏感 key 原样保留。
     #[test]
-    fn mask_sensitive_covers_nested_objects_and_array_items() {
+    fn mask_sensitive_covers_nested_values_and_keeps_others() {
         let keys = vec!["api_key".to_string()];
         let mut value = serde_json::json!({
-            "api_key": "sk-real",
+            "api_key": null,
             "base_url": "https://example.com",
             "nested": { "api_key": "sk-nested" },
             "list": [ { "api_key": "sk-item" }, { "other": 1 } ]
         });
         mask_sensitive(&mut value, &keys);
-        assert_eq!(value["api_key"], MASK);
+        assert!(value["api_key"].is_null());
+        assert_eq!(value["base_url"], "https://example.com");
         assert_eq!(value["nested"]["api_key"], MASK);
         assert_eq!(value["list"][0]["api_key"], MASK);
-        assert_eq!(value["base_url"], "https://example.com");
         assert_eq!(value["list"][1]["other"], 1);
-    }
-
-    #[test]
-    fn mask_sensitive_keeps_null_and_unknown_keys() {
-        let keys = vec!["api_key".to_string()];
-        let mut value = serde_json::json!({ "api_key": null, "other": "keep" });
-        mask_sensitive(&mut value, &keys);
-        assert!(value["api_key"].is_null());
-        assert_eq!(value["other"], "keep");
     }
 }

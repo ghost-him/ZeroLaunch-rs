@@ -108,6 +108,7 @@ impl Configurable for CommandSource {
             t_key!("command-source", "fields.commands.label"),
             t_key!("command-source", "fields.commands.desc"),
         )
+        .note(t_key!("command-source", "fields.commands.note"))
         .group(t_key!("command-source", "groups.commandConfig"))
         .order(1)
         .object_items(vec![
@@ -123,6 +124,7 @@ impl Configurable for CommandSource {
                 t_key!("command-source", "fields.command.label"),
                 t_key!("command-source", "fields.command.desc"),
             )
+            .note(t_key!("command-source", "fields.command.note"))
             .default("")
             .build_field(),
             SchemaBuilder::text(
@@ -130,6 +132,7 @@ impl Configurable for CommandSource {
                 t_key!("command-source", "fields.triggerKeywords.label"),
                 t_key!("command-source", "fields.triggerKeywords.desc"),
             )
+            .note(t_key!("command-source", "fields.triggerKeywords.note"))
             .default("")
             .build_field(),
         ])

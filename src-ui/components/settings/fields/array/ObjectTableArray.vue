@@ -3,7 +3,10 @@
     <table class="array-table">
       <thead>
         <tr>
-          <th v-for="fd in subFields" :key="fd.key">{{ resolveText(fd.label) }}</th>
+          <th v-for="fd in subFields" :key="fd.key">
+            {{ resolveText(fd.label) }}
+            <HelpTip v-if="fd.note" :text="resolveText(fd.note)" />
+          </th>
           <th v-if="subFields.length > 0 && !field.readOnly" class="col-action">{{ $t('common.actions') }}</th>
         </tr>
       </thead>
@@ -45,6 +48,7 @@ import { computed } from 'vue'
 import { NButton } from 'naive-ui'
 import { resolveText } from '../../../../i18n'
 import DynamicFormField from '../../DynamicFormField.vue'
+import HelpTip from '../../HelpTip.vue'
 import {
   canAddArrayItem,
   canRemoveArrayItem,

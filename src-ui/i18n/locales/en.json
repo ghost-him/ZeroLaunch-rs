@@ -426,7 +426,7 @@
   "components": {
     "appearance-config": {
       "name": "Appearance",
-      "description": "Customize the app theme and UI language",
+      "description": "Customize the theme, colors, background image and the sizes and fonts of each part of the search window (the UI language is under General)",
       "groups": {
         "theme": "Theme",
         "searchBar": "Search Bar",
@@ -480,7 +480,8 @@
         },
         "search_bar_height": {
           "label": "Search bar height",
-          "desc": "Height of the search bar (px)"
+          "desc": "Height of the search bar (px)",
+          "note": "The search bar font size is this height × the ratio"
         },
         "search_bar_font_ratio": {
           "label": "Search bar font ratio",
@@ -488,15 +489,18 @@
         },
         "search_bar_font_family": {
           "label": "Search bar font",
-          "desc": "Select from installed system fonts; empty follows system"
+          "desc": "Select from installed system fonts; empty follows system",
+          "note": "Click \"List system fonts\" to the right of the field first, then pick one"
         },
         "search_bar_placeholder": {
           "label": "Search bar placeholder",
-          "desc": "Placeholder text of the search bar"
+          "desc": "The grey hint text shown while the search bar is empty",
+          "note": "Only shown for normal search; entering parameter mode replaces it with a fixed parameter hint"
         },
         "search_bar_placeholder_align": {
           "label": "Placeholder alignment",
-          "desc": "Alignment of the placeholder text (Auto: centered when it fits, left aligned when it does not fit)"
+          "desc": "Alignment of the placeholder text (Auto: centered when it fits, left aligned when it does not fit)",
+          "note": "When it does not fit, the overflow is clipped with no ellipsis"
         },
         "search_bar_input_follow_align": {
           "label": "Input text follows alignment",
@@ -504,23 +508,28 @@
         },
         "result_item_height": {
           "label": "Result item height",
-          "desc": "Height of a single result (px)"
+          "desc": "Height of a single result (px)",
+          "note": "The title, subtitle and icon sizes are all this height × their ratios"
         },
         "result_item_font_ratio": {
           "label": "Title font ratio",
-          "desc": "Title font size = result item height × this ratio"
+          "desc": "Title font size = result item height × this ratio",
+          "note": "This font size is also used for candidate names in the parameter panel and section headings on the settings page"
         },
         "result_item_subtitle_font_ratio": {
           "label": "Subtitle font ratio",
-          "desc": "Subtitle font size = result item height × this ratio"
+          "desc": "Subtitle font size = result item height × this ratio",
+          "note": "The trigger keyword chips in the search bar use this size too"
         },
         "result_item_icon_ratio": {
           "label": "Icon size ratio",
-          "desc": "Icon size = result item height × this ratio"
+          "desc": "Icon size = result item height × this ratio",
+          "note": "Changes do not apply to already shown results; search again to see them"
         },
         "result_item_font_family": {
           "label": "Result list font",
-          "desc": "Select from installed system fonts; empty follows system"
+          "desc": "Select from installed system fonts; empty follows system",
+          "note": "Click \"List system fonts\" to the right of the field first, then pick one"
         },
         "max_visible_results": {
           "label": "Max visible results",
@@ -528,23 +537,28 @@
         },
         "show_subtitle": {
           "label": "Show subtitle",
-          "desc": "Show subtitle info in result items"
+          "desc": "Show the subtitle in result items (program path, URL or the raw command)",
+          "note": "Once off, long paths no longer show a hover tooltip with the full value; search again for the change to take effect"
         },
         "footer_height": {
           "label": "Footer height",
-          "desc": "Footer height (px); 0 hides it"
+          "desc": "Footer height (px)",
+          "note": "Even when very small, the footer row still keeps a bit of height and the settings button; the footer height is also the base for global small text, so setting it to 0 makes the small text in the context menu, parameter panel, plugin panel and settings page invisible"
         },
         "footer_font_ratio": {
           "label": "Footer font ratio",
-          "desc": "Font size = footer height × this ratio"
+          "desc": "Global small-text ratio (small text = footer height × this ratio)",
+          "note": "The context menu, result action buttons, parameter panel hints, plugin panel and settings page descriptions all use this size"
         },
         "footer_font_family": {
           "label": "Footer font",
-          "desc": "Select from installed system fonts; empty follows system"
+          "desc": "Select from installed system fonts; empty follows system",
+          "note": "Click \"List system fonts\" to the right of the field first, then pick one"
         },
         "window_width": {
           "label": "Window width",
-          "desc": "Width of the search window (px)"
+          "desc": "Width of the search window (px)",
+          "note": "In logical pixels, scaled by the system DPI; a window wider than the screen overflows both sides"
         },
         "window_corner_radius": {
           "label": "Window corner radius",
@@ -552,7 +566,8 @@
         },
         "vertical_position_ratio": {
           "label": "Vertical position ratio",
-          "desc": "Window vertical position ratio (0=top, 1=bottom)"
+          "desc": "Vertical ratio of the window's top edge on the screen (0 hugs the top, 1 falls off the screen)",
+          "note": "Has no effect when window dragging is on and a position has already been remembered"
         },
         "bg_primary": {
           "label": "Primary background",
@@ -576,11 +591,13 @@
         },
         "accent_color": {
           "label": "Accent",
-          "desc": "Accent/link color in light mode"
+          "desc": "Accent color in light mode (buttons, links, selection highlight)",
+          "note": "Use #RRGGBB or rgb()/rgba(); a color name (e.g. red) makes the selection and highlight backgrounds fall back to the default blue"
         },
         "hover_color": {
           "label": "Hover",
-          "desc": "Mouse hover background color in light mode"
+          "desc": "Background of the selected item and mouse hover in the result list",
+          "note": "The footer, plugin panel and other hover backgrounds use this color too"
         },
         "dark_bg_primary": {
           "label": "Primary background",
@@ -604,15 +621,17 @@
         },
         "dark_accent_color": {
           "label": "Accent",
-          "desc": "Accent/link color in dark mode"
+          "desc": "Accent/link color in dark mode",
+          "note": "Use #RRGGBB or rgb()/rgba(); a color name (e.g. red) makes the selection and highlight backgrounds fall back to the default blue"
         },
         "dark_hover_color": {
           "label": "Hover",
-          "desc": "Mouse hover background color in dark mode"
+          "desc": "Background of the selected item and mouse hover in dark mode"
         },
         "bg_image": {
           "label": "Background image",
-          "desc": "Background image in light mode; empty disables it"
+          "desc": "Background image of the search window; a locally picked image is copied into app data, empty disables it",
+          "note": "Deleting the original file has no effect; supports png/jpg/jpeg/webp/ico, up to 20MB each"
         },
         "bg_image_dark": {
           "label": "Dark background image",
@@ -620,19 +639,22 @@
         },
         "bg_size": {
           "label": "Background size",
-          "desc": "CSS background-size property"
+          "desc": "How the background image is scaled",
+          "note": "Cover crops the edges, contain may leave blank space; has no effect without a background image"
         },
         "bg_position": {
           "label": "Background position",
-          "desc": "CSS background-position property"
+          "desc": "Where the background image is anchored in the window",
+          "note": "Decides which part of the image is shown when it does not fill the window; has no effect without a background image"
         },
         "bg_repeat": {
           "label": "Background repeat",
-          "desc": "CSS background-repeat property"
+          "desc": "How the background image is tiled",
+          "note": "Whether to keep tiling when the image is smaller than the window; has no effect without a background image"
         },
         "bg_opacity": {
           "label": "Background opacity",
-          "desc": "Background image opacity (0.0 ~ 1.0)"
+          "desc": "Background image opacity (0 fully transparent ~ 1 opaque)"
         }
       },
       "actions": {
@@ -651,7 +673,8 @@
       "fields": {
         "auto_refresh_interval_mins": {
           "label": "Auto refresh interval (min)",
-          "desc": "Refresh the search index at a fixed interval; 0 disables scheduled refresh"
+          "desc": "Refresh the search index at a fixed interval; 0 disables scheduled refresh",
+          "note": "The timer restarts after the install monitor fires or a manual refresh"
         }
       }
     },
@@ -664,11 +687,12 @@
       "fields": {
         "entries": {
           "label": "Fixed offsets",
-          "desc": "Set fixed weight offsets for programs; positive boosts ranking, negative lowers it"
+          "desc": "Set a fixed weight offset for programs: positive boosts, negative lowers",
+          "note": "Use the search picker inside an entry to choose a program; only affects ranking, not names or icons"
         },
         "target": {
           "label": "Program",
-          "desc": "Target program identifier"
+          "desc": "Target program, filled in by the search picker"
         },
         "bias": {
           "label": "Offset",
@@ -689,7 +713,8 @@
       "fields": {
         "rules": {
           "label": "Exclusion rules",
-          "desc": "Matching candidates are removed from search results; rules added from the context menu share this list"
+          "desc": "Matching candidates never appear in search results; hides from the context menu and manually added rules share this list",
+          "note": "Exact excludes only that item, Directory also covers subdirectories, and Contains matches text in the target or the name"
         },
         "kind": {
           "label": "Match mode",
@@ -697,7 +722,7 @@
         },
         "target": {
           "label": "Rule value",
-          "desc": "Target path/identifier (Exact, Directory) or keyword (Contains)"
+          "desc": "Rule value: the picked target for Exact and Directory, any text for Contains"
         },
         "note": {
           "label": "Note",
@@ -714,7 +739,7 @@
     },
     "candidate-registry": {
       "name": "Candidate Registry",
-      "description": "Provides search services over indexed programs for the settings page",
+      "description": "Provides indexed program data to the \"Search programs\" entry in settings and has no configurable fields itself",
       "actions": {
         "search_candidates": {
           "label": "Search programs",
@@ -731,19 +756,23 @@
       "fields": {
         "language": {
           "label": "UI Language",
-          "desc": "UI display language"
+          "desc": "UI display language",
+          "note": "The UI and tray menu change immediately, no restart needed (the settings window title updates on next launch)"
         },
         "is_auto_start": {
           "label": "Start on boot",
-          "desc": "When enabled, ZeroLaunch auto-starts with the system"
+          "desc": "Start ZeroLaunch automatically when the current user logs in",
+          "note": "Implemented as a scheduled task (lowest privileges); the task records the current program path, so after moving the program folder, toggle it off and on once to point at the new location"
         },
         "is_debug_mode": {
           "label": "Debug mode",
-          "desc": "When enabled, show extra debug info and dev tools"
+          "desc": "When enabled, a Debug page appears in settings for durations and score details",
+          "note": "The Debug page also shows keyword generation results and AI assistant traces; turning it off removes all these entries and does not affect normal search"
         },
         "log_level": {
           "label": "Log level",
-          "desc": "Controls the verbosity of log output"
+          "desc": "Controls the verbosity of log output",
+          "note": "Applies immediately, no restart needed; only affects this app's own log file, not third-party plugin processes"
         },
         "reset_session_on_wake": {
           "label": "Reset session on wake",
@@ -765,15 +794,18 @@
       "fields": {
         "base_url": {
           "label": "API base URL",
-          "desc": "OpenAI-compatible endpoint, e.g. https://api.deepseek.com/v1"
+          "desc": "OpenAI-compatible endpoint, e.g. https://api.deepseek.com/v1",
+          "note": "Include the version segment; a wrong value does not fail on save, only when fetching models or chatting"
         },
         "api_key": {
           "label": "API Key",
-          "desc": "Key used for authentication"
+          "desc": "Key used for authentication",
+          "note": "When empty no credentials are sent, so only local compatible services that need no auth work"
         },
         "models": {
           "label": "Model list",
-          "desc": "Declare available models and set per-model call parameters; use \"Fetch model list\" to pull models from the server"
+          "desc": "Declare the available models and set each one's call parameters",
+          "note": "Empty means no models are provided; click \"Fetch model list\" to pull models from the server"
         }
       },
       "actions": {
@@ -793,7 +825,8 @@
       "fields": {
         "base_url": {
           "label": "Server URL",
-          "desc": "Ollama server address, e.g. http://localhost:11434"
+          "desc": "Ollama server address, e.g. http://localhost:11434",
+          "note": "Must include the http:// prefix; a wrong address makes it unusable"
         },
         "models": {
           "label": "Model list",
@@ -812,11 +845,13 @@
       "fields": {
         "name": {
           "label": "Model ID",
-          "desc": "Model name as recognized by the provider, e.g. gpt-4o-mini / qwen3:8b"
+          "desc": "Model name as recognized by the provider, e.g. gpt-4o-mini / qwen3:8b",
+          "note": "Entries with an empty or wrong name are ignored; Ollama only lists models already present locally"
         },
         "kind": {
           "label": "Role",
-          "desc": "chat: text generation; embedding: vectorization"
+          "desc": "chat: text generation; embedding: vectorization",
+          "note": "A wrong choice puts the model in the other list (semantic search only recognizes embedding entries); fetching the model list guesses from the name or capabilities, and you can change it back manually"
         },
         "temperature": {
           "label": "Temperature",
@@ -832,27 +867,33 @@
         },
         "reasoning_effort": {
           "label": "Reasoning effort",
-          "desc": "Reasoning level; defaults to none"
+          "desc": "Reasoning level; a level other than None requires the Reasoning capability to be checked",
+          "note": "Chat entries only"
         },
         "context_length": {
           "label": "Model maximum context length",
-          "desc": "Maximum input context length for chat or embedding, from provider metadata; read-only"
+          "desc": "The maximum input context length the model accepts (read-only)",
+          "note": "Filled in by \"Fetch model list\" from Ollama metadata, and Ollama chats set the context window from it; OpenAI-compatible endpoints do not return this metadata, so it stays 0"
         },
         "dimensions": {
           "label": "Output dimensions",
-          "desc": "Embedding output dimensions; defaults to 768 until provider metadata is available"
+          "desc": "Embedding output dimensions",
+          "note": "Ollama entries get overwritten by model metadata when the model list is fetched; OpenAI-compatible entries cannot get that metadata, so a value has no effect"
         },
         "similarity": {
           "label": "Similarity metric",
-          "desc": "Metric used to compare embedding vectors"
+          "desc": "How embedding vector similarity is computed",
+          "note": "Used by semantic-search plugins to compare vectors and must match the model's training; a wrong choice distorts the similarity values"
         },
         "chat_capabilities": {
           "label": "Chat capabilities",
-          "desc": "Select the request capabilities supported by this model; only checked capabilities are sent"
+          "desc": "Declare the request capabilities this model supports",
+          "note": "Check Tool calling to use the settings assistant and Reasoning to use a reasoning level; an unchecked capability fails outright when used"
         },
         "embedding_capabilities": {
           "label": "Embedding capabilities",
-          "desc": "Select the input and output capabilities supported by this model; only checked capabilities are used"
+          "desc": "Declare the embedding capabilities this model supports",
+          "note": "Only Output dimension truncation exists so far; semantic search that sends an output dimension fails outright when it is not checked"
         }
       },
       "kinds": {
@@ -885,7 +926,8 @@
       "fields": {
         "model_id": {
           "label": "Assistant model",
-          "desc": "Pick one of the configured chat models; it needs the tools capability enabled in the model config to call tools; leave empty to keep the assistant off"
+          "desc": "Pick one of the configured chat models; empty keeps the assistant off",
+          "note": "Check Tool calling for this model in Model management first, otherwise every question fails with an error"
         }
       },
       "actions": {
@@ -904,11 +946,13 @@
       "fields": {
         "open_search_bar": {
           "label": "Open search bar",
-          "desc": "Click then press a key combination to record it; leave empty to disable the global hotkey"
+          "desc": "Click then press a key combination to record it; leave empty to set no global hotkey",
+          "note": "Prefer combinations with Ctrl/Alt; a single key (e.g. A or Space) steals everyday typing, and combinations taken by other apps may fail to register"
         },
         "double_click_ctrl": {
           "label": "Double-click Ctrl to open",
-          "desc": "When enabled, quickly double-pressing Ctrl opens the search bar (the open hotkey above is then ignored)"
+          "desc": "When enabled, quickly double-pressing Ctrl opens the search bar",
+          "note": "Coexists with the \"Open search bar\" hotkey, neither affects the other"
         }
       }
     },
@@ -921,7 +965,8 @@
       "fields": {
         "entries": {
           "label": "Icon overrides",
-          "desc": "Custom icons for specific programs; supports .exe, .png, .ico and more"
+          "desc": "First find the program in the search box above and click edit, then pick a new icon file in the dialog",
+          "note": "Supports .exe/.lnk/.png/.ico; the choice is written to the icon cache immediately and the file path is not stored"
         },
         "target": {
           "label": "Program",
@@ -929,11 +974,11 @@
         },
         "target_type": {
           "label": "Target type",
-          "desc": "Target type (Path, Url, etc.)"
+          "desc": "Target type, determined automatically by the icon override flow"
         },
         "icon_request_json": {
           "label": "Icon request",
-          "desc": "JSON serialization of the original icon request"
+          "desc": "The raw icon request, written automatically by the icon override flow"
         },
         "custom_icon_path": {
           "label": "Icon file",
@@ -960,15 +1005,18 @@
       "fields": {
         "enable_installation_monitor": {
           "label": "Enable install monitor",
-          "desc": "When enabled, watch filesystem changes (e.g. Start Menu) to detect program installs and uninstalls"
+          "desc": "When enabled, watch filesystem changes (e.g. Start Menu) to detect program installs and uninstalls",
+          "note": "Off by default; the toggle takes effect immediately, no restart needed"
         },
         "monitor_debounce_secs": {
           "label": "Debounce wait (seconds)",
-          "desc": "Wait time after filesystem changes to avoid frequent refreshes"
+          "desc": "Rescan the index only after changes stop and stay quiet for this long",
+          "note": "Any further change restarts the timer; only effective when the install monitor is enabled"
         },
         "monitor_watch_paths": {
           "label": "Watch paths",
-          "desc": "Directory paths to watch (one per line); empty uses platform defaults (Windows Start Menu)"
+          "desc": "Directories to watch, one per line; empty uses the system Start Menu",
+          "note": "When empty, the common and current-user Start Menus are used; missing paths are skipped; only effective when the install monitor is enabled"
         }
       }
     },
@@ -982,11 +1030,13 @@
       "fields": {
         "is_esc_hide_window_priority": {
           "label": "ESC hides window first",
-          "desc": "When enabled, pressing ESC hides the window directly instead of clearing input first"
+          "desc": "When enabled, pressing ESC hides the window directly instead of clearing input first",
+          "note": "Only applies to the search list; ESC in inline parameters and the parameter panel still exits that panel"
         },
         "space_is_enter": {
           "label": "Space acts as Enter",
-          "desc": "When enabled, pressing Space equals Enter and launches the selected item"
+          "desc": "When enabled, Space launches the selected item directly (only effective in the search list)",
+          "note": "The trade-off is that you cannot type spaces in the search box, so multi-word search and entering parameter mode with \"trigger + space\" both stop working"
         },
         "is_wake_on_fullscreen": {
           "label": "Allow popup in fullscreen",
@@ -1006,15 +1056,18 @@
         },
         "show_pos_follow_mouse": {
           "label": "Follow mouse display",
-          "desc": "When enabled, the search bar appears on the display under the mouse on wake (multi-display). Lower priority than window dragging."
+          "desc": "When enabled, the search bar appears on the display under the mouse on wake (multi-display). Lower priority than window dragging.",
+          "note": "When window dragging is on but no position has been dragged yet, the window returns to the center of the primary display"
         },
         "window_position_x": {
           "label": "Window position X",
-          "desc": "Horizontal window position after last drag"
+          "desc": "Horizontal window position remembered from dragging (read-only, written by dragging)",
+          "note": "Only used as the window position when \"Enable window dragging\" is on"
         },
         "window_position_y": {
           "label": "Window position Y",
-          "desc": "Vertical window position after last drag"
+          "desc": "Vertical window position remembered from dragging (read-only, written by dragging)",
+          "note": "Only used as the window position when \"Enable window dragging\" is on"
         },
         "move_up_key": {
           "label": "Move selection up key",
@@ -1032,15 +1085,17 @@
       "fields": {
         "sources": {
           "label": "Bookmark sources",
-          "desc": "Configure browser bookmark sources to index"
+          "desc": "Browser bookmark sources to index; click \"Auto-detect browsers\" to scan and add them",
+          "note": "Every detected entry is off by default and must be checked to enable"
         },
         "name": {
           "label": "Browser name",
-          "desc": "Browser name of this bookmark source"
+          "desc": "Browser and profile name (filled by auto-detect, cannot be edited)"
         },
         "bookmarks_path": {
           "label": "Bookmark file path",
-          "desc": "Full path of the browser bookmark file"
+          "desc": "Bookmark file path (filled by auto-detect, cannot be edited)",
+          "note": "Only Bookmarks JSON files such as Chrome/Edge are supported; Firefox's places.sqlite is not"
         },
         "enabled": {
           "label": "Enabled",
@@ -1048,11 +1103,13 @@
         },
         "overrides": {
           "label": "Override configs",
-          "desc": "Exclude or retitle specific bookmarks"
+          "desc": "Exclusions and custom titles for individual bookmarks",
+          "note": "Select a source in the bookmark source list, click \"Read bookmarks\", then check or edit bookmarks one by one in the list"
         },
         "url": {
           "label": "URL",
-          "desc": "Bookmark URL to match"
+          "desc": "Bookmark URL to match (whole-string exact match, ignoring case and trailing slashes)",
+          "note": "Filled in automatically by \"Read bookmarks\"; a fragment alone will not match"
         },
         "excluded": {
           "label": "Excluded",
@@ -1073,7 +1130,8 @@
       "fields": {
         "commands": {
           "label": "Custom commands",
-          "desc": "Configure custom command shortcuts to index"
+          "desc": "Custom command list",
+          "note": "Both name and command are required, and an entry with either empty is skipped; the name is also the result text and the default trigger keyword"
         },
         "name": {
           "label": "Name",
@@ -1081,11 +1139,13 @@
         },
         "command": {
           "label": "Command",
-          "desc": "Command or program path to execute"
+          "desc": "Command line passed to cmd.exe",
+          "note": "Can be a program path plus arguments, or shell syntax like cd and &&; curly-brace placeholders in the command receive the arguments (clip, hwnd and selection are built-in placeholders too), and values are split on spaces when substituted, so quote paths that contain spaces yourself; it runs silently in the background with no visible output, and the working directory is where the app started"
         },
         "triggerKeywords": {
           "label": "Trigger keywords",
-          "desc": "Comma-separated trigger words. Enter trigger + space to enter parameter mode. Empty defaults to the name."
+          "desc": "Comma-separated trigger keywords; type a trigger plus a space to enter parameter mode",
+          "note": "Do not separate with spaces; empty defaults to the name as the trigger"
         }
       },
       "groups": {
@@ -1098,35 +1158,43 @@
       "fields": {
         "directories": {
           "label": "Scan directories",
-          "desc": "Configure program directories to scan"
+          "desc": "Program directory rules to scan",
+          "note": "A few entries for the Start Menu and Desktop are preset; saving the changes triggers a rescan immediately, no restart needed"
         },
         "root_path": {
           "label": "Directory path",
-          "desc": "Root directory to scan"
+          "desc": "Root directory to scan",
+          "note": "An empty value makes this rule scan nothing"
         },
         "max_depth": {
           "label": "Scan depth",
-          "desc": "Subdirectory recursion depth"
+          "desc": "Subdirectory recursion depth",
+          "note": "1 means only files in the root directory; larger numbers scan deeper"
         },
         "pattern": {
           "label": "File patterns",
-          "desc": "File types to match, e.g. *.exe, *.lnk"
+          "desc": "File types to match, e.g. *.exe, *.lnk",
+          "note": "Matched against the file name only, not its directory"
         },
         "pattern_type": {
           "label": "Match mode",
-          "desc": "Wildcard or regular expression"
+          "desc": "File pattern syntax: wildcard or regular expression",
+          "note": "Both syntaxes apply to the file name only"
         },
         "excluded_keywords": {
           "label": "Excluded keywords",
-          "desc": "Paths containing these keywords are ignored"
+          "desc": "Skip file names containing these keywords",
+          "note": "Only the file name is compared, not its directory; use \"Forbidden paths\" to skip whole directories"
         },
         "forbidden_paths": {
           "label": "Forbidden paths",
-          "desc": "These paths and their subtrees are not scanned"
+          "desc": "These directories and their subdirectories are not scanned",
+          "note": "Enter full paths; non-existent paths never match"
         },
         "symlink_mode": {
           "label": "Symlink mode",
-          "desc": "How symlinks are handled"
+          "desc": "How symlinks are handled",
+          "note": ".symlink-suffix-only mode does not follow real symlinks; auto mode includes real symlinks as well"
         }
       },
       "groups": {
@@ -1139,7 +1207,8 @@
       "fields": {
         "web_pages": {
           "label": "Indexed web pages",
-          "desc": "Configure web page shortcuts to index"
+          "desc": "Web page shortcut list",
+          "note": "Both name and URL are required, and an entry with either empty is skipped; the name is also the search basis and the default trigger"
         },
         "name": {
           "label": "Name",
@@ -1147,11 +1216,13 @@
         },
         "url": {
           "label": "URL",
-          "desc": "Full URL of the web page"
+          "desc": "Full URL; must include http:// or https://",
+          "note": "Without a protocol it is treated as a local file and will not open; curly-brace placeholders in the URL receive the arguments, and the built-in clip, hwnd and selection placeholders are supported too"
         },
         "triggerKeywords": {
           "label": "Trigger keywords",
-          "desc": "Comma-separated trigger words. Enter trigger + space to enter parameter mode. Empty defaults to the name."
+          "desc": "Comma-separated trigger keywords; type a trigger plus a space to enter parameter mode",
+          "note": "Do not separate with spaces; empty defaults to the name as the trigger"
         }
       },
       "groups": {
@@ -1160,22 +1231,24 @@
     },
     "alias-optimizer": {
       "name": "Alias",
-      "description": "Set aliases for programs to add search match paths",
+      "description": "Add a few alias keywords to specific programs so typing an alias finds them",
       "groups": {
         "alias": "Alias"
       },
       "fields": {
         "entries": {
           "label": "Alias config",
-          "desc": "Set aliases for programs to add search match paths"
+          "desc": "Alias config",
+          "note": "Pick the target program with the search box first, then type aliases one by one (Enter to confirm); aliases take part in fuzzy matching and ranking just like the program name"
         },
         "target": {
           "label": "Program",
-          "desc": "Target program path"
+          "desc": "Target program (picked with the search box, no manual editing)"
         },
         "aliases": {
           "label": "Aliases",
-          "desc": "Alias list; press Enter to add"
+          "desc": "Aliases for this program; add several, pressing Enter to confirm each",
+          "note": "Matched with the same fuzzy matching as the program name; very short aliases tend to drag in other programs"
         },
         "note": {
           "label": "Note",
@@ -1185,19 +1258,22 @@
     },
     "first-letter-extractor": {
       "name": "First-letter Extractor",
-      "description": "Extract pinyin initials for fuzzy matching",
+      "description": "Extract the first letter of each keyword segment as an abbreviation to support fuzzy matching like qyl",
       "fields": {
         "priority": {
           "label": "Priority",
-          "desc": "Optimizer execution priority; smaller runs first"
+          "desc": "Optimizer execution priority; smaller runs first",
+          "note": "Equal values leave the order undetermined, so give different values to fix the order; when consuming another optimizer's output, the referenced one must have a smaller value or this one gets no input"
         },
         "input_source": {
           "label": "Input source",
-          "desc": "Which keyword layer this optimizer consumes as input"
+          "desc": "Which keyword layer to draw words from",
+          "note": "Original name = the program name with its original casing, processed once; Normalized lowercase base = the name after removing version numbers and collapsing runs of spaces into one, lowercased; Refined keyword pool = every keyword generated so far, processed one by one; Another optimizer's output = the keywords produced by the optimizer set as Producer. A wrong layer makes this optimizer produce no keywords"
         },
         "producer_id": {
           "label": "Producer",
-          "desc": "component_id of the producer optimizer whose output to consume"
+          "desc": "component_id of the producer optimizer, e.g. pinyin-converter",
+          "note": "Only needed when the input source is \"Another optimizer's output\", and its value must be smaller (runs earlier); empty falls back to the refined keyword pool, and a non-existent id leaves this optimizer with no input and no keywords produced"
         }
       },
       "options": {
@@ -1211,19 +1287,22 @@
     },
     "pinyin-converter": {
       "name": "Pinyin Converter",
-      "description": "Convert Chinese keywords to pinyin for pinyin search",
+      "description": "Convert Chinese characters in keywords to toneless pinyin for pinyin search",
       "fields": {
         "priority": {
           "label": "Priority",
-          "desc": "Optimizer execution priority; smaller runs first"
+          "desc": "Optimizer execution priority; smaller runs first",
+          "note": "Equal values leave the order undetermined, so give different values to fix the order; when consuming another optimizer's output, the referenced one must have a smaller value or this one gets no input"
         },
         "input_source": {
           "label": "Input source",
-          "desc": "Which keyword layer this optimizer consumes as input"
+          "desc": "Which keyword layer to draw words from",
+          "note": "Original name = the program name with its original casing, processed once; Normalized lowercase base = the name after removing version numbers and collapsing runs of spaces into one, lowercased; Refined keyword pool = every keyword generated so far, processed one by one; Another optimizer's output = the keywords produced by the optimizer set as Producer. A wrong layer makes this optimizer produce no keywords"
         },
         "producer_id": {
           "label": "Producer",
-          "desc": "component_id of the producer optimizer whose output to consume"
+          "desc": "component_id of the producer optimizer, e.g. pinyin-converter",
+          "note": "Only needed when the input source is \"Another optimizer's output\", and its value must be smaller (runs earlier); empty falls back to the refined keyword pool, and a non-existent id leaves this optimizer with no input and no keywords produced"
         }
       },
       "options": {
@@ -1237,19 +1316,22 @@
     },
     "space-normalizer": {
       "name": "Space Normalizer",
-      "description": "Normalize whitespace in keywords",
+      "description": "Trim leading/trailing spaces and collapse runs of spaces into one (the default source is already collapsed; switch to the refined keyword pool to process it again)",
       "fields": {
         "priority": {
           "label": "Priority",
-          "desc": "Optimizer execution priority; smaller runs first"
+          "desc": "Optimizer execution priority; smaller runs first",
+          "note": "Equal values leave the order undetermined, so give different values to fix the order; when consuming another optimizer's output, the referenced one must have a smaller value or this one gets no input"
         },
         "input_source": {
           "label": "Input source",
-          "desc": "Which keyword layer this optimizer consumes as input"
+          "desc": "Which keyword layer to draw words from",
+          "note": "Original name = the program name with its original casing, processed once; Normalized lowercase base = the name after removing version numbers and collapsing runs of spaces into one, lowercased; Refined keyword pool = every keyword generated so far, processed one by one; Another optimizer's output = the keywords produced by the optimizer set as Producer. A wrong layer makes this optimizer produce no keywords"
         },
         "producer_id": {
           "label": "Producer",
-          "desc": "component_id of the producer optimizer whose output to consume"
+          "desc": "component_id of the producer optimizer, e.g. pinyin-converter",
+          "note": "Only needed when the input source is \"Another optimizer's output\", and its value must be smaller (runs earlier); empty falls back to the refined keyword pool, and a non-existent id leaves this optimizer with no input and no keywords produced"
         }
       },
       "options": {
@@ -1267,15 +1349,18 @@
       "fields": {
         "priority": {
           "label": "Priority",
-          "desc": "Optimizer execution priority; smaller runs first"
+          "desc": "Optimizer execution priority; smaller runs first",
+          "note": "Equal values leave the order undetermined, so give different values to fix the order; when consuming another optimizer's output, the referenced one must have a smaller value or this one gets no input"
         },
         "input_source": {
           "label": "Input source",
-          "desc": "Which keyword layer this optimizer consumes as input"
+          "desc": "Which keyword layer to draw words from",
+          "note": "Original name = the program name with its original casing, processed once; Normalized lowercase base = the name after removing version numbers and collapsing runs of spaces into one, lowercased; Refined keyword pool = every keyword generated so far, processed one by one; Another optimizer's output = the keywords produced by the optimizer set as Producer. A wrong layer makes this optimizer produce no keywords"
         },
         "producer_id": {
           "label": "Producer",
-          "desc": "component_id of the producer optimizer whose output to consume"
+          "desc": "component_id of the producer optimizer, e.g. pinyin-converter",
+          "note": "Only needed when the input source is \"Another optimizer's output\", and its value must be smaller (runs earlier); empty falls back to the refined keyword pool, and a non-existent id leaves this optimizer with no input and no keywords produced"
         }
       },
       "options": {
@@ -1289,19 +1374,22 @@
     },
     "symbol-remover": {
       "name": "Symbol Remover",
-      "description": "Remove symbols for clean matching",
+      "description": "Keep only letters and digits in keywords to produce a compact form",
       "fields": {
         "priority": {
           "label": "Priority",
-          "desc": "Optimizer execution priority; smaller runs first"
+          "desc": "Optimizer execution priority; smaller runs first",
+          "note": "Equal values leave the order undetermined, so give different values to fix the order; when consuming another optimizer's output, the referenced one must have a smaller value or this one gets no input"
         },
         "input_source": {
           "label": "Input source",
-          "desc": "Which keyword layer this optimizer consumes as input"
+          "desc": "Which keyword layer to draw words from",
+          "note": "Original name = the program name with its original casing, processed once; Normalized lowercase base = the name after removing version numbers and collapsing runs of spaces into one, lowercased; Refined keyword pool = every keyword generated so far, processed one by one; Another optimizer's output = the keywords produced by the optimizer set as Producer. A wrong layer makes this optimizer produce no keywords"
         },
         "producer_id": {
           "label": "Producer",
-          "desc": "component_id of the producer optimizer whose output to consume"
+          "desc": "component_id of the producer optimizer, e.g. pinyin-converter",
+          "note": "Only needed when the input source is \"Another optimizer's output\", and its value must be smaller (runs earlier); empty falls back to the refined keyword pool, and a non-existent id leaves this optimizer with no input and no keywords produced"
         }
       },
       "options": {
@@ -1315,19 +1403,22 @@
     },
     "upper-case-letter-extractor": {
       "name": "Uppercase Letter Extractor",
-      "description": "Extract uppercase letters for abbreviation search",
+      "description": "Extract uppercase letters from the program name as abbreviation keywords (produces nothing when the name contains non-ASCII characters)",
       "fields": {
         "priority": {
           "label": "Priority",
-          "desc": "Optimizer execution priority; smaller runs first"
+          "desc": "Optimizer execution priority; smaller runs first",
+          "note": "Equal values leave the order undetermined, so give different values to fix the order; when consuming another optimizer's output, the referenced one must have a smaller value or this one gets no input"
         },
         "input_source": {
           "label": "Input source",
-          "desc": "Which keyword layer this optimizer consumes as input"
+          "desc": "Which keyword layer to draw words from",
+          "note": "Original name = the program name with its original casing, processed once; Normalized lowercase base = the name after removing version numbers and collapsing runs of spaces into one, lowercased; Refined keyword pool = every keyword generated so far, processed one by one; Another optimizer's output = the keywords produced by the optimizer set as Producer. A wrong layer makes this optimizer produce no keywords"
         },
         "producer_id": {
           "label": "Producer",
-          "desc": "component_id of the producer optimizer whose output to consume"
+          "desc": "component_id of the producer optimizer, e.g. pinyin-converter",
+          "note": "Only needed when the input source is \"Another optimizer's output\", and its value must be smaller (runs earlier); empty falls back to the refined keyword pool, and a non-existent id leaves this optimizer with no input and no keywords produced"
         }
       },
       "options": {
@@ -1341,19 +1432,22 @@
     },
     "version-number-remover": {
       "name": "Version Number Remover",
-      "description": "Remove version numbers for better matching",
+      "description": "Remove version numbers from keywords (the default source is already stripped; only takes effect when switched to the original name)",
       "fields": {
         "priority": {
           "label": "Priority",
-          "desc": "Optimizer execution priority; smaller runs first"
+          "desc": "Optimizer execution priority; smaller runs first",
+          "note": "Equal values leave the order undetermined, so give different values to fix the order; when consuming another optimizer's output, the referenced one must have a smaller value or this one gets no input"
         },
         "input_source": {
           "label": "Input source",
-          "desc": "Which keyword layer this optimizer consumes as input"
+          "desc": "Which keyword layer to draw words from",
+          "note": "Original name = the program name with its original casing, processed once; Normalized lowercase base = the name after removing version numbers and collapsing runs of spaces into one, lowercased; Refined keyword pool = every keyword generated so far, processed one by one; Another optimizer's output = the keywords produced by the optimizer set as Producer. A wrong layer makes this optimizer produce no keywords"
         },
         "producer_id": {
           "label": "Producer",
-          "desc": "component_id of the producer optimizer whose output to consume"
+          "desc": "component_id of the producer optimizer, e.g. pinyin-converter",
+          "note": "Only needed when the input source is \"Another optimizer's output\", and its value must be smaller (runs earlier); empty falls back to the refined keyword pool, and a non-existent id leaves this optimizer with no input and no keywords produced"
         }
       },
       "options": {
@@ -1375,25 +1469,28 @@
       "fields": {
         "history_weight": {
           "label": "History weight",
-          "desc": "Weight of total historical launch count"
+          "desc": "Weight of the total historical launch count; larger means stronger influence",
+          "note": "0 turns this term off"
         },
         "recent_habit_weight": {
           "label": "Recent habit weight",
-          "desc": "Weight of launch habits in the last 7 days"
+          "desc": "Weight of launch habits in the last 7 days; larger means stronger influence",
+          "note": "0 turns this term off"
         },
         "temporal_weight": {
           "label": "Short-term heat weight",
-          "desc": "Weight of short-term heat"
+          "desc": "Weight of short-term heat; larger means stronger influence",
+          "note": "Based only on how long since the last launch, so never-launched items have no such term; 0 turns it off"
         },
         "temporal_decay": {
           "label": "Heat decay constant (s)",
-          "desc": "Time constant of short-term heat decay; default 10800s (3h)"
+          "desc": "Decay time constant of short-term heat; larger decays more slowly"
         }
       }
     },
     "query-affinity-booster": {
       "name": "Query Affinity Booster",
-      "description": "Adjust scores by how well query keywords match candidates",
+      "description": "Remembers which query launched which program before, and boosts a program when the current input equals that query or is a prefix of it",
       "groups": {
         "weight": "Weight",
         "decay": "Decay",
@@ -1402,15 +1499,16 @@
       "fields": {
         "query_affinity_weight": {
           "label": "Query affinity weight",
-          "desc": "Weight of query affinity"
+          "desc": "Weight of query affinity; larger means stronger influence",
+          "note": "Only programs previously launched with the same query have this score; 0 turns it off"
         },
         "query_affinity_time_decay": {
           "label": "Affinity decay constant (s)",
-          "desc": "Time decay constant of query affinity; default 259200s (3d)"
+          "desc": "Time decay constant of affinity; larger decays more slowly"
         },
         "query_affinity_cooldown": {
           "label": "Affinity cooldown (s)",
-          "desc": "Cooldown of query affinity to avoid repeated counting in short bursts; default 15s"
+          "desc": "For a given program and query pair, repeat launches within this window are not counted again"
         }
       }
     },
@@ -1431,7 +1529,7 @@
     },
     "translator": {
       "name": "Translate",
-      "description": "Translate with multiple engines in the search bar",
+      "description": "Translate in the search bar: type fy (or tr, 翻译) then a space and the content",
       "groups": {
         "basic": "Basic",
         "engine": "Engines"
@@ -1447,7 +1545,8 @@
         },
         "request_timeout_ms": {
           "label": "Timeout (ms)",
-          "desc": "Request timeout of a single engine"
+          "desc": "Timeout for the whole translation request",
+          "note": "A timeout reports a translation timeout directly and does not retry with another engine"
         },
         "live_debounce_secs": {
           "label": "Live debounce (s)",
@@ -1455,13 +1554,14 @@
         },
         "model_id": {
           "label": "Translation model",
-          "desc": "Chat model id configured in the host model service"
+          "desc": "The chat model used for translation",
+          "note": "Choose from the chat models configured in model management; translation is unavailable when empty"
         }
       }
     },
     "calculator": {
       "name": "Calculator",
-      "description": "Evaluate math expressions right in the search bar"
+      "description": "Do math in the search bar: type = then a space and an expression, and Enter copies the result to the clipboard"
     },
     "cmd-run": {
       "name": "Run in cmd",
@@ -1490,7 +1590,8 @@
       "fields": {
         "bare_domain_enabled": {
           "label": "Recognize bare domains",
-          "desc": "When enabled, inputs like github.com are treated as URLs"
+          "desc": "When enabled, inputs like github.com are treated as URLs",
+          "note": "File names (e.g. main.rs) and two-segment inputs with rare suffixes are not treated as URLs; inputs with http:// are always recognized"
         }
       }
     },

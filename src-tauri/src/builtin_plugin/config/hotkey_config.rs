@@ -127,6 +127,7 @@ impl Configurable for HotkeyConfigComponent {
                 t_key!("hotkey-config", "fields.open_search_bar.label"),
                 t_key!("hotkey-config", "fields.open_search_bar.desc"),
             )
+            .note(t_key!("hotkey-config", "fields.open_search_bar.note"))
             .group(t_key!("hotkey-config", "groups.globalHotkeys"))
             .order(0)
             .default("Alt+Space")
@@ -136,6 +137,7 @@ impl Configurable for HotkeyConfigComponent {
                 t_key!("hotkey-config", "fields.double_click_ctrl.label"),
                 t_key!("hotkey-config", "fields.double_click_ctrl.desc"),
             )
+            .note(t_key!("hotkey-config", "fields.double_click_ctrl.note"))
             .group(t_key!("hotkey-config", "groups.globalHotkeys"))
             .order(2)
             .default(false)

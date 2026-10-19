@@ -284,6 +284,8 @@ export interface FieldUiMetadata {
   pointer: string
   label: string
   description: string
+  /** 字段补充说明（i18n key）：作用范围/生效时机/特殊限制，界面以次要说明展示。 */
+  note: string | null
   group: string | null
   order: number
   visible: boolean

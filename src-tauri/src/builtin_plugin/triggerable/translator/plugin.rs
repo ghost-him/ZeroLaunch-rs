@@ -363,6 +363,7 @@ impl Configurable for TranslatorPlugin {
                 t_key!("translator", "fields.request_timeout_ms.label"),
                 t_key!("translator", "fields.request_timeout_ms.desc"),
             )
+            .note(t_key!("translator", "fields.request_timeout_ms.note"))
             .min(1000.0)
             .max(60000.0)
             .step(500.0)
@@ -387,6 +388,7 @@ impl Configurable for TranslatorPlugin {
                 t_key!("translator", "fields.model_id.label"),
                 t_key!("translator", "fields.model_id.desc"),
             )
+            .note(t_key!("translator", "fields.model_id.note"))
             .group(t_key!("translator", "groups.engine"))
             .order(3)
             .default("")

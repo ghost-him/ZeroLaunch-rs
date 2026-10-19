@@ -57,6 +57,7 @@ impl Configurable for BiasConfig {
             t_key!("bias-config", "fields.entries.label"),
             t_key!("bias-config", "fields.entries.desc"),
         )
+        .note(t_key!("bias-config", "fields.entries.note"))
         .group(t_key!("bias-config", "groups.fixedOffset"))
         .order(1)
         .object_items(vec![

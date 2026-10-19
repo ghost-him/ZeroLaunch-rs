@@ -180,6 +180,7 @@ impl SchemaBuilder {
                 pointer: format!("/{}", key.replace('~', "~0").replace('/', "~1")),
                 label: label.to_string(),
                 description: desc.to_string(),
+                note: None,
                 group: None,
                 order: 0,
                 visible: true,
@@ -198,6 +199,13 @@ impl SchemaBuilder {
     /// 设置分组名称。相同 group 的字段在前端渲染在一起。
     pub fn group(mut self, group: &str) -> Self {
         self.ui.group = Some(group.to_string());
+        self
+    }
+
+    /// 设置字段补充说明（i18n key）。用于说明作用范围、生效时机或特殊限制，
+    /// 前端渲染在字段下方，并进入 AI 助手说明书。
+    pub fn note(mut self, note: &str) -> Self {
+        self.ui.note = Some(note.to_string());
         self
     }
 

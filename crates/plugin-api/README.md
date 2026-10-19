@@ -214,8 +214,10 @@ async fn query(&self, ctx: &PluginContext, query: &Query) -> Result<QueryRespons
 
 ### 设置项 schema 标签
 
-`SettingDefinition` 的 `label` / `description` / `group` 支持 key-or-literal：
+`SettingDefinition` 的 `label` / `description` / `note` / `group` 支持 key-or-literal：
 写成 `t_key(key)` 形式即可随语言切换；写死字面量则原样显示（兼容旧插件）。
+其中 `note` 是字段的补充说明（作用范围、生效时机、特殊限制）：设置页以字段标签旁的问号气泡展示，
+同时进入 AI 助手的设置说明书；不填则不展示。
 
 
 > **注意：** `HostApi` 与 `HostApiBuilder` 是宿主（zl 主程序）内部类型，负责管理插件注册、存储重配置等全局操作，**插件作者不需要也不会接触到它们**。插件只需通过 `Plugin::init()` 获取 `Arc<PluginHandle>`，所有平台能力调用都通过句柄完成。

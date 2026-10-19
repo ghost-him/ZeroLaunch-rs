@@ -91,6 +91,7 @@ pub(crate) fn model_entry_schema() -> Vec<SettingDefinition> {
             t_key!("model-entry", "fields.name.label"),
             t_key!("model-entry", "fields.name.desc"),
         )
+        .note(t_key!("model-entry", "fields.name.note"))
         .order(0)
         .build(),
         SchemaBuilder::select(
@@ -98,6 +99,7 @@ pub(crate) fn model_entry_schema() -> Vec<SettingDefinition> {
             t_key!("model-entry", "fields.kind.label"),
             t_key!("model-entry", "fields.kind.desc"),
         )
+        .note(t_key!("model-entry", "fields.kind.note"))
         .options_with_labels(&[
             ("chat", t_key!("model-entry", "kinds.chat")),
             ("embedding", t_key!("model-entry", "kinds.embedding")),
@@ -144,6 +146,7 @@ pub(crate) fn model_entry_schema() -> Vec<SettingDefinition> {
             t_key!("model-entry", "fields.reasoning_effort.label"),
             t_key!("model-entry", "fields.reasoning_effort.desc"),
         )
+        .note(t_key!("model-entry", "fields.reasoning_effort.note"))
         .options_with_labels(&[
             ("none", t_key!("model-entry", "efforts.none")),
             ("low", t_key!("model-entry", "efforts.low")),
@@ -159,6 +162,7 @@ pub(crate) fn model_entry_schema() -> Vec<SettingDefinition> {
             t_key!("model-entry", "fields.chat_capabilities.label"),
             t_key!("model-entry", "fields.chat_capabilities.desc"),
         )
+        .note(t_key!("model-entry", "fields.chat_capabilities.note"))
         .options_with_labels(&[
             ("reasoning", t_key!("model-entry", "capabilities.reasoning")),
             ("tools", t_key!("model-entry", "capabilities.tools")),
@@ -174,6 +178,7 @@ pub(crate) fn model_entry_schema() -> Vec<SettingDefinition> {
             t_key!("model-entry", "fields.context_length.label"),
             t_key!("model-entry", "fields.context_length.desc"),
         )
+        .note(t_key!("model-entry", "fields.context_length.note"))
         .editable(false)
         .default(0)
         .order(8)
@@ -185,6 +190,7 @@ pub(crate) fn model_entry_schema() -> Vec<SettingDefinition> {
             t_key!("model-entry", "fields.dimensions.label"),
             t_key!("model-entry", "fields.dimensions.desc"),
         )
+        .note(t_key!("model-entry", "fields.dimensions.note"))
         .min(1.0)
         .default(768)
         .order(9)
@@ -195,6 +201,7 @@ pub(crate) fn model_entry_schema() -> Vec<SettingDefinition> {
             t_key!("model-entry", "fields.similarity.label"),
             t_key!("model-entry", "fields.similarity.desc"),
         )
+        .note(t_key!("model-entry", "fields.similarity.note"))
         .options_with_labels(&[
             ("cosine", t_key!("model-entry", "similarities.cosine")),
             (
@@ -212,6 +219,7 @@ pub(crate) fn model_entry_schema() -> Vec<SettingDefinition> {
             t_key!("model-entry", "fields.embedding_capabilities.label"),
             t_key!("model-entry", "fields.embedding_capabilities.desc"),
         )
+        .note(t_key!("model-entry", "fields.embedding_capabilities.note"))
         .options_with_labels(&[(
             "outputDimensions",
             t_key!("model-entry", "capabilities.output_dimensions"),
@@ -236,6 +244,7 @@ impl Configurable for ModelOpenAiConfigComponent {
                 t_key!("model-openai-config", "fields.base_url.label"),
                 t_key!("model-openai-config", "fields.base_url.desc"),
             )
+            .note(t_key!("model-openai-config", "fields.base_url.note"))
             .group(t_key!("model-openai-config", "groups.connection"))
             .order(0)
             .default("https://api.openai.com/v1")
@@ -245,6 +254,7 @@ impl Configurable for ModelOpenAiConfigComponent {
                 t_key!("model-openai-config", "fields.api_key.label"),
                 t_key!("model-openai-config", "fields.api_key.desc"),
             )
+            .note(t_key!("model-openai-config", "fields.api_key.note"))
             .group(t_key!("model-openai-config", "groups.connection"))
             .order(1)
             .default("")
@@ -255,6 +265,7 @@ impl Configurable for ModelOpenAiConfigComponent {
                 t_key!("model-openai-config", "fields.models.label"),
                 t_key!("model-openai-config", "fields.models.desc"),
             )
+            .note(t_key!("model-openai-config", "fields.models.note"))
             .group(t_key!("model-openai-config", "groups.models"))
             .order(2)
             .object_items(model_entry_schema())

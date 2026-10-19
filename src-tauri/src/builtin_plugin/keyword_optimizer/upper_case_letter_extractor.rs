@@ -113,6 +113,10 @@ impl Configurable for UpperCaseLetterExtractor {
                 t_key!("upper-case-letter-extractor", "fields.priority.label"),
                 t_key!("upper-case-letter-extractor", "fields.priority.desc"),
             )
+            .note(t_key!(
+                "upper-case-letter-extractor",
+                "fields.priority.note"
+            ))
             .order(0)
             .default(40.0)
             .min(1.0)
@@ -124,6 +128,10 @@ impl Configurable for UpperCaseLetterExtractor {
                 t_key!("upper-case-letter-extractor", "fields.input_source.label"),
                 t_key!("upper-case-letter-extractor", "fields.input_source.desc"),
             )
+            .note(t_key!(
+                "upper-case-letter-extractor",
+                "fields.input_source.note"
+            ))
             .options_with_labels(&[
                 (
                     SOURCE_ORIGINAL_NAME,
@@ -162,6 +170,10 @@ impl Configurable for UpperCaseLetterExtractor {
                 t_key!("upper-case-letter-extractor", "fields.producer_id.label"),
                 t_key!("upper-case-letter-extractor", "fields.producer_id.desc"),
             )
+            .note(t_key!(
+                "upper-case-letter-extractor",
+                "fields.producer_id.note"
+            ))
             .default("")
             .order(2)
             .visible_when("input_source", SOURCE_OPTIMIZER_OUTPUT)

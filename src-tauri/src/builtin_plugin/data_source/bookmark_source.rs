@@ -274,6 +274,7 @@ impl Configurable for BookmarkSource {
                 t_key!("bookmark-source", "fields.sources.label"),
                 t_key!("bookmark-source", "fields.sources.desc"),
             )
+            .note(t_key!("bookmark-source", "fields.sources.note"))
             .group(t_key!("bookmark-source", "groups.bookmarkSource"))
             .data_action(DataActionBinding {
                 action: "detect_browsers".into(),
@@ -307,6 +308,7 @@ impl Configurable for BookmarkSource {
                     t_key!("bookmark-source", "fields.bookmarks_path.label"),
                     t_key!("bookmark-source", "fields.bookmarks_path.desc"),
                 )
+                .note(t_key!("bookmark-source", "fields.bookmarks_path.note"))
                 .file()
                 .default("")
                 .editable(false)
@@ -327,6 +329,7 @@ impl Configurable for BookmarkSource {
                 t_key!("bookmark-source", "fields.overrides.label"),
                 t_key!("bookmark-source", "fields.overrides.desc"),
             )
+            .note(t_key!("bookmark-source", "fields.overrides.note"))
             .group(t_key!("bookmark-source", "groups.bookmarkSource"))
             .order(2)
             .visible(false)
@@ -336,6 +339,7 @@ impl Configurable for BookmarkSource {
                     t_key!("bookmark-source", "fields.url.label"),
                     t_key!("bookmark-source", "fields.url.desc"),
                 )
+                .note(t_key!("bookmark-source", "fields.url.note"))
                 .default("")
                 .editable(false)
                 .build_field(),

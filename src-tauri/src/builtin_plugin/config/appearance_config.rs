@@ -360,6 +360,7 @@ impl Configurable for AppearanceConfigComponent {
                 t_key!("appearance-config", "fields.search_bar_height.label"),
                 t_key!("appearance-config", "fields.search_bar_height.desc"),
             )
+            .note(t_key!("appearance-config", "fields.search_bar_height.note"))
             .group(t_key!("appearance-config", "groups.searchBar"))
             .order(10)
             .default(72.0)
@@ -384,6 +385,10 @@ impl Configurable for AppearanceConfigComponent {
                 t_key!("appearance-config", "fields.search_bar_font_family.label"),
                 t_key!("appearance-config", "fields.search_bar_font_family.desc"),
             )
+            .note(t_key!(
+                "appearance-config",
+                "fields.search_bar_font_family.note"
+            ))
             .group(t_key!("appearance-config", "groups.searchBar"))
             .order(12)
             .default("")
@@ -393,6 +398,10 @@ impl Configurable for AppearanceConfigComponent {
                 t_key!("appearance-config", "fields.search_bar_placeholder.label"),
                 t_key!("appearance-config", "fields.search_bar_placeholder.desc"),
             )
+            .note(t_key!(
+                "appearance-config",
+                "fields.search_bar_placeholder.note"
+            ))
             .group(t_key!("appearance-config", "groups.searchBar"))
             .order(13)
             .default("Hello, ZeroLaunch! ヾ(≧▽≦*)o")
@@ -408,6 +417,10 @@ impl Configurable for AppearanceConfigComponent {
                     "fields.search_bar_placeholder_align.desc"
                 ),
             )
+            .note(t_key!(
+                "appearance-config",
+                "fields.search_bar_placeholder_align.note"
+            ))
             .group(t_key!("appearance-config", "groups.searchBar"))
             .order(14)
             // 对齐选项标签由 i18n 控制，不直接显示原始枚举值
@@ -464,6 +477,10 @@ impl Configurable for AppearanceConfigComponent {
                 t_key!("appearance-config", "fields.result_item_height.label"),
                 t_key!("appearance-config", "fields.result_item_height.desc"),
             )
+            .note(t_key!(
+                "appearance-config",
+                "fields.result_item_height.note"
+            ))
             .group(t_key!("appearance-config", "groups.resultList"))
             .order(20)
             .default(54.0)
@@ -476,6 +493,10 @@ impl Configurable for AppearanceConfigComponent {
                 t_key!("appearance-config", "fields.result_item_font_ratio.label"),
                 t_key!("appearance-config", "fields.result_item_font_ratio.desc"),
             )
+            .note(t_key!(
+                "appearance-config",
+                "fields.result_item_font_ratio.note"
+            ))
             .group(t_key!("appearance-config", "groups.resultList"))
             .order(21)
             .default(0.30)
@@ -494,6 +515,10 @@ impl Configurable for AppearanceConfigComponent {
                     "fields.result_item_subtitle_font_ratio.desc"
                 ),
             )
+            .note(t_key!(
+                "appearance-config",
+                "fields.result_item_subtitle_font_ratio.note"
+            ))
             .group(t_key!("appearance-config", "groups.resultList"))
             .order(22)
             .default(0.24)
@@ -506,6 +531,10 @@ impl Configurable for AppearanceConfigComponent {
                 t_key!("appearance-config", "fields.result_item_icon_ratio.label"),
                 t_key!("appearance-config", "fields.result_item_icon_ratio.desc"),
             )
+            .note(t_key!(
+                "appearance-config",
+                "fields.result_item_icon_ratio.note"
+            ))
             .group(t_key!("appearance-config", "groups.resultList"))
             .order(23)
             .default(0.72)
@@ -518,6 +547,10 @@ impl Configurable for AppearanceConfigComponent {
                 t_key!("appearance-config", "fields.result_item_font_family.label"),
                 t_key!("appearance-config", "fields.result_item_font_family.desc"),
             )
+            .note(t_key!(
+                "appearance-config",
+                "fields.result_item_font_family.note"
+            ))
             .group(t_key!("appearance-config", "groups.resultList"))
             .order(24)
             .default("")
@@ -539,6 +572,7 @@ impl Configurable for AppearanceConfigComponent {
                 t_key!("appearance-config", "fields.show_subtitle.label"),
                 t_key!("appearance-config", "fields.show_subtitle.desc"),
             )
+            .note(t_key!("appearance-config", "fields.show_subtitle.note"))
             .group(t_key!("appearance-config", "groups.resultList"))
             .order(27)
             .default(true)
@@ -549,6 +583,7 @@ impl Configurable for AppearanceConfigComponent {
                 t_key!("appearance-config", "fields.footer_height.label"),
                 t_key!("appearance-config", "fields.footer_height.desc"),
             )
+            .note(t_key!("appearance-config", "fields.footer_height.note"))
             .group(t_key!("appearance-config", "groups.footer"))
             .order(30)
             .default(48.0)
@@ -561,6 +596,7 @@ impl Configurable for AppearanceConfigComponent {
                 t_key!("appearance-config", "fields.footer_font_ratio.label"),
                 t_key!("appearance-config", "fields.footer_font_ratio.desc"),
             )
+            .note(t_key!("appearance-config", "fields.footer_font_ratio.note"))
             .group(t_key!("appearance-config", "groups.footer"))
             .order(31)
             .default(0.25)
@@ -573,6 +609,10 @@ impl Configurable for AppearanceConfigComponent {
                 t_key!("appearance-config", "fields.footer_font_family.label"),
                 t_key!("appearance-config", "fields.footer_font_family.desc"),
             )
+            .note(t_key!(
+                "appearance-config",
+                "fields.footer_font_family.note"
+            ))
             .group(t_key!("appearance-config", "groups.footer"))
             .order(32)
             .default("")
@@ -583,6 +623,7 @@ impl Configurable for AppearanceConfigComponent {
                 t_key!("appearance-config", "fields.window_width.label"),
                 t_key!("appearance-config", "fields.window_width.desc"),
             )
+            .note(t_key!("appearance-config", "fields.window_width.note"))
             .group(t_key!("appearance-config", "groups.window"))
             .order(40)
             .default(800.0)
@@ -607,6 +648,10 @@ impl Configurable for AppearanceConfigComponent {
                 t_key!("appearance-config", "fields.vertical_position_ratio.label"),
                 t_key!("appearance-config", "fields.vertical_position_ratio.desc"),
             )
+            .note(t_key!(
+                "appearance-config",
+                "fields.vertical_position_ratio.note"
+            ))
             .group(t_key!("appearance-config", "groups.window"))
             .order(42)
             .default(0.28)
@@ -665,6 +710,7 @@ impl Configurable for AppearanceConfigComponent {
                 t_key!("appearance-config", "fields.accent_color.label"),
                 t_key!("appearance-config", "fields.accent_color.desc"),
             )
+            .note(t_key!("appearance-config", "fields.accent_color.note"))
             .group(t_key!("appearance-config", "groups.colorsLight"))
             .order(55)
             .default("#2080f0")
@@ -674,6 +720,7 @@ impl Configurable for AppearanceConfigComponent {
                 t_key!("appearance-config", "fields.hover_color.label"),
                 t_key!("appearance-config", "fields.hover_color.desc"),
             )
+            .note(t_key!("appearance-config", "fields.hover_color.note"))
             .group(t_key!("appearance-config", "groups.colorsLight"))
             .order(56)
             .default("rgba(0,0,0,0.04)")
@@ -729,6 +776,7 @@ impl Configurable for AppearanceConfigComponent {
                 t_key!("appearance-config", "fields.dark_accent_color.label"),
                 t_key!("appearance-config", "fields.dark_accent_color.desc"),
             )
+            .note(t_key!("appearance-config", "fields.dark_accent_color.note"))
             .group(t_key!("appearance-config", "groups.colorsDark"))
             .order(65)
             .default("#4098fc")
@@ -748,6 +796,7 @@ impl Configurable for AppearanceConfigComponent {
                 t_key!("appearance-config", "fields.bg_image.label"),
                 t_key!("appearance-config", "fields.bg_image.desc"),
             )
+            .note(t_key!("appearance-config", "fields.bg_image.note"))
             .group(t_key!("appearance-config", "groups.background"))
             .order(70)
             .default("")
@@ -768,6 +817,7 @@ impl Configurable for AppearanceConfigComponent {
                 t_key!("appearance-config", "fields.bg_size.label"),
                 t_key!("appearance-config", "fields.bg_size.desc"),
             )
+            .note(t_key!("appearance-config", "fields.bg_size.note"))
             .group(t_key!("appearance-config", "groups.background"))
             .order(72)
             .options_with_labels(&[
@@ -792,6 +842,7 @@ impl Configurable for AppearanceConfigComponent {
                 t_key!("appearance-config", "fields.bg_position.label"),
                 t_key!("appearance-config", "fields.bg_position.desc"),
             )
+            .note(t_key!("appearance-config", "fields.bg_position.note"))
             .group(t_key!("appearance-config", "groups.background"))
             .order(73)
             .options_with_labels(&[
@@ -839,6 +890,7 @@ impl Configurable for AppearanceConfigComponent {
                 t_key!("appearance-config", "fields.bg_repeat.label"),
                 t_key!("appearance-config", "fields.bg_repeat.desc"),
             )
+            .note(t_key!("appearance-config", "fields.bg_repeat.note"))
             .group(t_key!("appearance-config", "groups.background"))
             .order(74)
             .options_with_labels(&[

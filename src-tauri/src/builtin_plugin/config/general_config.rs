@@ -98,6 +98,7 @@ impl Configurable for GeneralConfigComponent {
                 t_key!("general-config", "fields.language.label"),
                 t_key!("general-config", "fields.language.desc"),
             )
+            .note(t_key!("general-config", "fields.language.note"))
             .group(t_key!("general-config", "groups.general"))
             .order(0)
             // 语言选项固定显示各语言自身名称（符合语言选择器惯例，不随界面语言翻译）
@@ -113,6 +114,7 @@ impl Configurable for GeneralConfigComponent {
                 t_key!("general-config", "fields.is_auto_start.label"),
                 t_key!("general-config", "fields.is_auto_start.desc"),
             )
+            .note(t_key!("general-config", "fields.is_auto_start.note"))
             .group(t_key!("general-config", "groups.general"))
             .order(1)
             .default(false)
@@ -122,6 +124,7 @@ impl Configurable for GeneralConfigComponent {
                 t_key!("general-config", "fields.is_debug_mode.label"),
                 t_key!("general-config", "fields.is_debug_mode.desc"),
             )
+            .note(t_key!("general-config", "fields.is_debug_mode.note"))
             .group(t_key!("general-config", "groups.general"))
             .order(2)
             .default(false)
@@ -131,6 +134,7 @@ impl Configurable for GeneralConfigComponent {
                 t_key!("general-config", "fields.log_level.label"),
                 t_key!("general-config", "fields.log_level.desc"),
             )
+            .note(t_key!("general-config", "fields.log_level.note"))
             .group(t_key!("general-config", "groups.general"))
             .order(3)
             .options(&["debug", "info", "warn", "error"])

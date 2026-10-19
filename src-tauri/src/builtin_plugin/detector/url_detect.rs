@@ -211,6 +211,7 @@ impl Configurable for UrlDetectPlugin {
             t_key!("url-detect", "fields.bare_domain_enabled.label"),
             t_key!("url-detect", "fields.bare_domain_enabled.desc"),
         )
+        .note(t_key!("url-detect", "fields.bare_domain_enabled.note"))
         .order(1)
         .default(true)
         .build()]

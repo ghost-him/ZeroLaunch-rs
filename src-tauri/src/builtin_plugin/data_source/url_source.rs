@@ -66,6 +66,7 @@ impl Configurable for UrlSource {
             t_key!("url-source", "fields.web_pages.label"),
             t_key!("url-source", "fields.web_pages.desc"),
         )
+        .note(t_key!("url-source", "fields.web_pages.note"))
         .group(t_key!("url-source", "groups.webIndex"))
         .order(1)
         .object_items(vec![
@@ -81,6 +82,7 @@ impl Configurable for UrlSource {
                 t_key!("url-source", "fields.url.label"),
                 t_key!("url-source", "fields.url.desc"),
             )
+            .note(t_key!("url-source", "fields.url.note"))
             .default("")
             .build_field(),
             SchemaBuilder::text(
@@ -88,6 +90,7 @@ impl Configurable for UrlSource {
                 t_key!("url-source", "fields.triggerKeywords.label"),
                 t_key!("url-source", "fields.triggerKeywords.desc"),
             )
+            .note(t_key!("url-source", "fields.triggerKeywords.note"))
             .default("")
             .build_field(),
         ])

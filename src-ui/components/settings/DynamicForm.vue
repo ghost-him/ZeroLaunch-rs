@@ -194,8 +194,22 @@ const reveal = inject(FIELD_REVEAL_KEY, null)
 const formRoot = ref<HTMLElement | null>(null)
 
 /**
+ * 取用于定位的字段 key。
+ * 参数：fieldKey - 完整字段 key（内嵌项字段形如 `父key.子key`）。
+ * 返回：界面上真实存在元素的 key——完整 key 命中顶层字段时原样返回；
+ * 否则截到第一个 `.` 之前（数组项里的字段没有独立定位元素，退回其父字段）。
+ */
+function locateKey(fieldKey: string): string {
+  if (groupedFields.value.some((entry) => entry.items.some((item) => item.key === fieldKey))) {
+    return fieldKey
+  }
+  const separator = fieldKey.indexOf('.')
+  return separator > 0 ? fieldKey.slice(0, separator) : fieldKey
+}
+
+/**
  * 定位到指定字段。
- * 参数：fieldKey - 字段 key；空串表示只定位到组件顶部。
+ * 参数：fieldKey - 字段 key（内嵌项字段退回父字段）；空串表示只定位到组件顶部。
  */
 function revealField(fieldKey: string): void {
   const root = formRoot.value
@@ -204,15 +218,16 @@ function revealField(fieldKey: string): void {
     root.scrollIntoView({ block: 'start', behavior: 'smooth' })
     return
   }
+  const key = locateKey(fieldKey)
   const group = groupedFields.value.find((entry) =>
-    entry.items.some((item) => item.key === fieldKey),
+    entry.items.some((item) => item.key === key),
   )
   if (group && showGroupTabs.value) {
     activeGroup.value = group.name
   }
   void nextTick(() => {
     root
-      .querySelector<HTMLElement>(`[data-field-key="${fieldKey}"]`)
+      .querySelector<HTMLElement>(`[data-field-key="${key}"]`)
       ?.scrollIntoView({ block: 'center', behavior: 'smooth' })
   })
 }

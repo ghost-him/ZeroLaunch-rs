@@ -77,6 +77,7 @@ impl Configurable for HelpAgentConfigComponent {
             t_key!("help-agent-config", "fields.model_id.label"),
             t_key!("help-agent-config", "fields.model_id.desc"),
         )
+        .note(t_key!("help-agent-config", "fields.model_id.note"))
         .group(t_key!("help-agent-config", "groups.assistant"))
         .order(0)
         .default("")

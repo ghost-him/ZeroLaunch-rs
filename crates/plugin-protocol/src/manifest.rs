@@ -51,7 +51,7 @@ pub struct PluginSection {
     pub trigger_keywords: Vec<String>,
     /// 动态触发说明（可选）：无触发词、由 `Plugin::match_query` 自定义判定的行内插件，
     /// 用一句自然语言说明满足什么形态的输入会被命中（如"输入形如网址时"）。
-    /// 仅用于设置页展示（解释该插件为何没有触发词），不参与路由判定。
+    /// 用于设置页展示与 AI 助手的设置说明书（解释该插件为何没有触发词），不参与路由判定。
     #[serde(default, rename = "triggerDescription")]
     pub trigger_description: Option<String>,
     /// 支持的操作系统标识（如 `["windows"]`）

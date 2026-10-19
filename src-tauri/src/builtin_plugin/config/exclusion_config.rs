@@ -61,6 +61,7 @@ impl Configurable for ExclusionConfig {
             t_key!("exclusion-config", "fields.rules.label"),
             t_key!("exclusion-config", "fields.rules.desc"),
         )
+        .note(t_key!("exclusion-config", "fields.rules.note"))
         .group(t_key!("exclusion-config", "groups.exclusion"))
         .order(1)
         .object_items(vec![

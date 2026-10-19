@@ -75,7 +75,7 @@ logging.rs          → 日志初始化
 
 剪贴板（1个）：`copy_to_clipboard`（写入系统剪贴板，前端不直接调用平台 API）
 
-AI 助手（2个）：`help_search`（设置字段确定性检索，不调用模型）、`help_ask`（模型 + 只读设置工具的最小循环；模型由 `help-agent-config` 指定；入参含 `navigation`＝前端下发的「设置页路径」，用于给出逐步导航）
+AI 助手（2个）：`help_search`（设置字段确定性检索，不调用模型）、`help_ask`（模型 + 只读设置工具的最小循环；模型由 `help-agent-config` 指定；入参含 `navigation`＝前端下发的「设置页路径」，用于给出逐步导航；说明书另注入由 `collect_triggers` 从插件元数据投影的触发方式）
 
 CLI（`cli_` 前缀，1个）：`cli_get_info`
 

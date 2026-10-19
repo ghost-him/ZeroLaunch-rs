@@ -190,6 +190,10 @@ impl Configurable for WindowBehaviorConfigComponent {
                     "fields.is_esc_hide_window_priority.desc"
                 ),
             )
+            .note(t_key!(
+                "window-behavior-config",
+                "fields.is_esc_hide_window_priority.note"
+            ))
             .group(t_key!("window-behavior-config", "groups.windowBehavior"))
             .order(0)
             .default(false)
@@ -199,6 +203,10 @@ impl Configurable for WindowBehaviorConfigComponent {
                 t_key!("window-behavior-config", "fields.space_is_enter.label"),
                 t_key!("window-behavior-config", "fields.space_is_enter.desc"),
             )
+            .note(t_key!(
+                "window-behavior-config",
+                "fields.space_is_enter.note"
+            ))
             .group(t_key!("window-behavior-config", "groups.windowBehavior"))
             .order(1)
             .default(false)
@@ -274,6 +282,10 @@ impl Configurable for WindowBehaviorConfigComponent {
                     "fields.show_pos_follow_mouse.desc"
                 ),
             )
+            .note(t_key!(
+                "window-behavior-config",
+                "fields.show_pos_follow_mouse.note"
+            ))
             .group(t_key!("window-behavior-config", "groups.windowBehavior"))
             .order(11)
             .default(true)
@@ -301,6 +313,10 @@ impl Configurable for WindowBehaviorConfigComponent {
                 t_key!("window-behavior-config", "fields.window_position_x.label"),
                 t_key!("window-behavior-config", "fields.window_position_x.desc"),
             )
+            .note(t_key!(
+                "window-behavior-config",
+                "fields.window_position_x.note"
+            ))
             .group(t_key!("window-behavior-config", "groups.windowPosition"))
             .order(99)
             .default(0)
@@ -311,6 +327,10 @@ impl Configurable for WindowBehaviorConfigComponent {
                 t_key!("window-behavior-config", "fields.window_position_y.label"),
                 t_key!("window-behavior-config", "fields.window_position_y.desc"),
             )
+            .note(t_key!(
+                "window-behavior-config",
+                "fields.window_position_y.note"
+            ))
             .group(t_key!("window-behavior-config", "groups.windowPosition"))
             .order(100)
             .default(0)

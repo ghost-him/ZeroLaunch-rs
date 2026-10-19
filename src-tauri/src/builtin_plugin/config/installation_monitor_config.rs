@@ -86,6 +86,10 @@ impl Configurable for InstallationMonitorConfigComponent {
                     "fields.enable_installation_monitor.desc"
                 ),
             )
+            .note(t_key!(
+                "installation-monitor-config",
+                "fields.enable_installation_monitor.note"
+            ))
             .group(t_key!(
                 "installation-monitor-config",
                 "groups.installationMonitor"
@@ -104,6 +108,10 @@ impl Configurable for InstallationMonitorConfigComponent {
                     "fields.monitor_debounce_secs.desc"
                 ),
             )
+            .note(t_key!(
+                "installation-monitor-config",
+                "fields.monitor_debounce_secs.note"
+            ))
             .group(t_key!(
                 "installation-monitor-config",
                 "groups.installationMonitor"
@@ -125,6 +133,10 @@ impl Configurable for InstallationMonitorConfigComponent {
                     "fields.monitor_watch_paths.desc"
                 ),
             )
+            .note(t_key!(
+                "installation-monitor-config",
+                "fields.monitor_watch_paths.note"
+            ))
             .group(t_key!(
                 "installation-monitor-config",
                 "groups.installationMonitor"

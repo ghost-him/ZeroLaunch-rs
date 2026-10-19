@@ -287,6 +287,10 @@ pub struct FieldUiMetadata {
     /// 字段描述文本。
     #[serde(rename = "description", default)]
     pub description: String,
+    /// 字段补充说明（i18n key）：阐述字段的作用范围、生效时机或特殊限制。
+    /// 界面以次要说明展示，并进入 AI 助手说明书；None 表示无需补充。
+    #[serde(rename = "note", default)]
+    pub note: Option<String>,
     /// 分组名称，相同 group 的字段在前端渲染在同一区域。
     #[serde(rename = "group", default)]
     pub group: Option<String>,
@@ -748,6 +752,14 @@ fn validate_ui(ui: &FieldUiMetadata) -> Result<(), String> {
     if ui.group.as_ref().is_some_and(|g| g.len() > 512) {
         return Err(format!("UI group exceeds limit at {}", ui.pointer));
     }
+    // 补充说明声明了就必须有内容：空串会让界面渲染出一个空气泡、说明书多一段空的「补充」。
+    if ui
+        .note
+        .as_ref()
+        .is_some_and(|note| note.is_empty() || note.len() > 4096)
+    {
+        return Err(format!("invalid UI note at {}", ui.pointer));
+    }
     Ok(())
 }
 
@@ -863,6 +875,7 @@ mod tests {
                 pointer: "/enabled".into(),
                 label: "Enabled".into(),
                 description: String::new(),
+                note: None,
                 group: None,
                 order: 0,
                 visible: true,
@@ -889,6 +902,7 @@ mod tests {
                 pointer: "/other".into(),
                 label: "Enabled".into(),
                 description: String::new(),
+                note: None,
                 group: None,
                 order: 0,
                 visible: true,
@@ -921,6 +935,7 @@ mod tests {
                 pointer: "/theme".into(),
                 label: "Theme".into(),
                 description: String::new(),
+                note: None,
                 group: None,
                 order: 0,
                 visible: true,
@@ -942,6 +957,7 @@ mod tests {
             pointer: pointer.into(),
             label: pointer.trim_start_matches('/').into(),
             description: String::new(),
+            note: None,
             group: None,
             order: 0,
             visible: true,

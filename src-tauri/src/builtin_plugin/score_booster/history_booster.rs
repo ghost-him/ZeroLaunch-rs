@@ -279,6 +279,7 @@ impl Configurable for HistoryBooster {
                 t_key!("history-booster", "fields.history_weight.label"),
                 t_key!("history-booster", "fields.history_weight.desc"),
             )
+            .note(t_key!("history-booster", "fields.history_weight.note"))
             .group(t_key!("history-booster", "groups.weight"))
             .order(0)
             .default(0.8)
@@ -291,6 +292,7 @@ impl Configurable for HistoryBooster {
                 t_key!("history-booster", "fields.recent_habit_weight.label"),
                 t_key!("history-booster", "fields.recent_habit_weight.desc"),
             )
+            .note(t_key!("history-booster", "fields.recent_habit_weight.note"))
             .group(t_key!("history-booster", "groups.weight"))
             .order(1)
             .default(1.5)
@@ -303,6 +305,7 @@ impl Configurable for HistoryBooster {
                 t_key!("history-booster", "fields.temporal_weight.label"),
                 t_key!("history-booster", "fields.temporal_weight.desc"),
             )
+            .note(t_key!("history-booster", "fields.temporal_weight.note"))
             .group(t_key!("history-booster", "groups.weight"))
             .order(2)
             .default(0.5)

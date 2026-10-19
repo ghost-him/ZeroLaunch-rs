@@ -21,6 +21,7 @@ export interface FieldConfig {
   key: string
   label: string
   description: string
+  note: string | null
   group: string | null
   order: number
   visible: boolean
@@ -38,6 +39,7 @@ export interface FieldDef {
   key: string
   label: string
   description: string
+  note: string | null
   group: string | null
   order: number
   visible: boolean
@@ -73,6 +75,7 @@ export function buildFieldConfigs(contribution: SettingsContribution): FieldConf
         key,
         label: metadata.label,
         description: metadata.description,
+        note: metadata.note ?? null,
         group: metadata.group ?? null,
         order: metadata.order,
         visible: metadata.visible,
@@ -462,6 +465,7 @@ export function getObjectFieldDefs(schema: SchemaNode, includeHidden = false): F
         key,
         label: ui.label,
         description: ui.description,
+        note: ui.note ?? null,
         group: ui.group ?? null,
         order: ui.order,
         visible: ui.visible,
@@ -527,6 +531,7 @@ export function fieldDefToConfig(fd: FieldDef, parentReadOnly = false): FieldCon
     key: fd.key,
     label: fd.label,
     description: fd.description,
+    note: fd.note,
     group: fd.group,
     order: fd.order,
     visible: fd.visible,

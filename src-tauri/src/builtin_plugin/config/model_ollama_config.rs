@@ -74,6 +74,7 @@ impl Configurable for ModelOllamaConfigComponent {
                 t_key!("model-ollama-config", "fields.base_url.label"),
                 t_key!("model-ollama-config", "fields.base_url.desc"),
             )
+            .note(t_key!("model-ollama-config", "fields.base_url.note"))
             .group(t_key!("model-ollama-config", "groups.connection"))
             .order(0)
             .default("http://localhost:11434")

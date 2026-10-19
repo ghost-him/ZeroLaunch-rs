@@ -340,6 +340,10 @@ impl Configurable for QueryAffinityBooster {
                     "fields.query_affinity_weight.desc"
                 ),
             )
+            .note(t_key!(
+                "query-affinity-booster",
+                "fields.query_affinity_weight.note"
+            ))
             .group(t_key!("query-affinity-booster", "groups.weight"))
             .order(0)
             .default(3.0)

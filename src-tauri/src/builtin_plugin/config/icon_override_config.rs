@@ -79,6 +79,7 @@ impl Configurable for IconOverrideConfig {
             t_key!("icon-override-config", "fields.entries.label"),
             t_key!("icon-override-config", "fields.entries.desc"),
         )
+        .note(t_key!("icon-override-config", "fields.entries.note"))
         .group(t_key!("icon-override-config", "groups.iconOverride"))
         .order(1)
         .object_items(vec![

@@ -5,6 +5,8 @@
       <span class="field-desc" v-if="field.description">
         — {{ resolveText(field.description) }}
       </span>
+      <!-- 补充说明收进气泡：悬停问号才展开，不占版面 -->
+      <HelpTip v-if="field.note" :text="resolveText(field.note)" />
     </label>
     <div class="field-control">
       <n-alert v-if="unsupportedReason" type="warning">
@@ -42,6 +44,7 @@ import ImageField from './fields/ImageField.vue'
 import FontField from './fields/FontField.vue'
 import HotkeyField from './fields/HotkeyField.vue'
 import ObjectField from './fields/ObjectField.vue'
+import HelpTip from './HelpTip.vue'
 
 const props = withDefaults(defineProps<{
   field: FieldConfig

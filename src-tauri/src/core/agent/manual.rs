@@ -1,13 +1,20 @@
 //! 设置说明书：把配置系统的 schema 与译文整理成可读、可检索的条目。
 //!
-//! 数据只有两个来源：`ConfigManager`（组件与字段 schema）与 `I18nManager`（译文），
+//! 数据来源：`ConfigManager`（组件与字段 schema）与 `I18nManager`（译文）；另有两条渲染期注入——
+//! 前端下发的 `navigation`（设置页点击路径）与命令层从插件元数据投影的 `triggers`（触发方式）——
+//! 都只参与渲染，不进条目。
 //! 不另维护第二份文案 —— schema 或文案变了，说明书随之变化。
+//! 内嵌对象字段（数组项、对象字段的子字段）同样收进条目，key 用 `父key.子key`，
+//! 与 `get_settings` 返回的 JSON 结构一致；界面状态（只读、设置页不直接显示、
+//! 显示条件）按 schema 的 UI 元数据标注、并由子字段继承父级，免得模型把用户看不见
+//! 或改不了的字段当普通可配项。
 //! 条目同时服务两个消费方：拼装模型上下文、确定性检索（UI 搜索框与 agent 共用）。
 
 use crate::core::config::ConfigManager;
 use crate::core::i18n::I18nManager;
-use std::collections::HashMap;
-use zerolaunch_plugin_api::config::{SchemaKind, SchemaNode};
+use serde_json::Value;
+use std::collections::{BTreeMap, HashMap, HashSet};
+use zerolaunch_plugin_api::config::{FieldUiMetadata, SchemaKind, SchemaNode, VisibleWhen};
 
 /// 组件级说明条目。
 pub struct ManualComponent {
@@ -25,14 +32,22 @@ pub struct ManualField {
     pub component_id: String,
     /// 所属组件显示名。
     pub component_name: String,
-    /// 字段 key（settings JSON 中的键）。
+    /// 字段 key（settings JSON 中的键；内嵌对象字段为 `父key.子key`）。
     pub key: String,
     /// 字段标签（已翻译）。
     pub label: String,
     /// 字段说明（已翻译）。
     pub description: String,
+    /// 字段补充说明（已翻译；空表示无补充）。承载作用范围、生效时机与特殊限制。
+    pub note: String,
     /// 字段所在分组（已翻译；空表示未分组）。界面上是组件内的标签页或分组标题。
     pub group: String,
+    /// 是否只读：界面上不可编辑。
+    pub read_only: bool,
+    /// 是否在设置页不直接显示（schema 的 `visible = false`）。
+    pub hidden_in_settings: bool,
+    /// 可见性条件（已翻译为「同级字段标签=值」；空表示无条件显示）。
+    pub condition: String,
     /// 取值形态摘要（可选值 / 范围 / 默认值）。
     pub value_hint: String,
     /// 是否敏感字段：其**值**不进入模型上下文。
@@ -73,28 +88,28 @@ impl SettingsManual {
             let description = i18n.t(&lang, &info.component_description);
             if let Some(schema) = config.get_component_schema(&info.component_id) {
                 let contribution = schema.contribution;
-                for ui in &contribution.ui {
-                    // pointer 为 "/<key>"；字段 key 允许的字符集不含需要转义的字符
-                    let key = ui.pointer.trim_start_matches('/').to_string();
-                    fields.push(ManualField {
-                        component_id: info.component_id.clone(),
-                        component_name: name.clone(),
-                        value_hint: contribution
-                            .properties
-                            .get(&key)
-                            .map(|node| value_hint(node, i18n, &lang))
-                            .unwrap_or_default(),
-                        key,
-                        label: i18n.t(&lang, &ui.label),
-                        description: i18n.t(&lang, &ui.description),
-                        group: ui
-                            .group
-                            .as_deref()
-                            .map(|group| i18n.t(&lang, group))
-                            .unwrap_or_default(),
-                        sensitive: ui.sensitive,
-                    });
-                }
+                let mut component_fields = Vec::new();
+                collect_fields(
+                    &contribution.ui,
+                    &contribution.properties,
+                    &FieldScope {
+                        component_id: &info.component_id,
+                        component_name: &name,
+                        i18n,
+                        lang: &lang,
+                        parent_key: "",
+                        parent_hidden: false,
+                        parent_read_only: false,
+                    },
+                    &mut component_fields,
+                );
+                // 组件内 key 必须两两不同，否则引用校验与标签查找会张冠李戴（见 `has_unique_keys`）。
+                debug_assert!(
+                    has_unique_keys(&component_fields),
+                    "组件 {} 的说明书字段 key 重复",
+                    info.component_id
+                );
+                fields.extend(component_fields);
             }
             components.push(ManualComponent {
                 id: info.component_id,
@@ -105,18 +120,27 @@ impl SettingsManual {
         Self { components, fields }
     }
 
-    /// 渲染为模型上下文文本：组件（id + 设置页路径 + 说明）后跟该组件的字段清单。
+    /// 渲染为模型上下文文本：组件（id + 设置页路径 + 触发方式 + 说明）后跟该组件的字段清单。
     ///
-    /// 参数：navigation - 组件 id → 设置页点击路径（由前端按当前界面语言拼好）。
-    /// 缺路径的组件只渲染 id 与说明，模型无法给出逐步导航时会退回组件名。
+    /// 参数：navigation - 组件 id → 设置页点击路径（由前端按当前界面语言拼好）；
+    /// triggers - 组件 id → 触发段文本（自含标签，如「触发词：fy / tr」，由命令层从插件元数据组装）。
+    /// 缺路径或缺触发的组件只渲染已有部分，模型不会看到空占位；
+    /// 两者都缺时模型无法给出逐步导航，会退回组件名。
     /// 字段行带上所在分组（`位置`）：分组在界面上是组件内的标签页或分组标题，
     /// 模型据此把这一步插进点击路径。
-    pub fn render(&self, navigation: &HashMap<String, String>) -> String {
+    pub fn render(
+        &self,
+        navigation: &HashMap<String, String>,
+        triggers: &HashMap<String, String>,
+    ) -> String {
         let mut out = String::new();
         for component in &self.components {
             out.push_str(&format!("## {}({})", component.name, component.id));
             if let Some(path) = navigation.get(&component.id) {
                 out.push_str(&format!("｜设置页路径：{path}"));
+            }
+            if let Some(trigger) = triggers.get(&component.id) {
+                out.push_str(&format!("｜{trigger}"));
             }
             out.push('\n');
             if !component.description.is_empty() {
@@ -195,7 +219,10 @@ impl SettingsManual {
             .map(|field| field.label.as_str())
     }
 
-    /// 敏感字段 key 集合（脱敏取值时按 key 名匹配，兼容嵌套与数组项）。
+    /// 敏感字段 key 集合（供取值脱敏用）。
+    ///
+    /// 内嵌字段给出的是 `父key.子key` 全路径，而消费方 `mask_sensitive` 按 JSON 叶子 key 名比对，
+    /// 两者只在顶层字段上等价——嵌套敏感字段要在那条链路改成按路径段匹配才生效。
     pub fn sensitive_keys(&self) -> Vec<&str> {
         self.fields
             .iter()
@@ -203,6 +230,163 @@ impl SettingsManual {
             .map(|field| field.key.as_str())
             .collect()
     }
+}
+
+/// 递归收集字段的作用域上下文：固定上下文（组件身份与译文来源）与父级继承状态。
+///
+/// 仅限本文件使用：`collect_fields` 在顶层构造一次，递归时按子字段继承父级状态派生。
+/// 内部引用都不超过一次 `SettingsManual::build` 调用的生命周期。
+#[derive(Clone, Copy)]
+struct FieldScope<'a> {
+    /// 所属组件 id，写入每个字段条目（引用校验按它比对）。
+    component_id: &'a str,
+    /// 所属组件显示名，写入每个字段条目（引用回显用）。
+    component_name: &'a str,
+    /// 译文来源（标签、说明、补充说明、分组都经它翻译）。
+    i18n: &'a I18nManager,
+    /// 当前语言码。
+    lang: &'a str,
+    /// 父字段 key；顶层为空串，内嵌字段的 key 按 `父key.子key` 拼接。
+    parent_key: &'a str,
+    /// 父级是否在设置页不直接显示（子字段继承：父级不可见时子字段也无处可改）。
+    parent_hidden: bool,
+    /// 父级是否只读（子字段继承，与前端 `fieldDefToConfig` 的父级只读语义一致）。
+    parent_read_only: bool,
+}
+
+/// 收集一个作用域的字段条目，并递归展开内嵌对象字段（key 用 `父key.子key`）。
+///
+/// 参数：ui/properties - 当前作用域的 UI 元数据与 schema 节点；scope - 组件身份、译文来源与父级继承状态；
+/// out - 收集结果（保持 schema 顺序：父字段先于其子字段）。
+fn collect_fields(
+    ui: &[FieldUiMetadata],
+    properties: &BTreeMap<String, SchemaNode>,
+    scope: &FieldScope<'_>,
+    out: &mut Vec<ManualField>,
+) {
+    for entry in ui {
+        // pointer 为 "/<key>"；字段 key 允许的字符集不含需要转义的字符
+        let key = entry.pointer.trim_start_matches('/').to_string();
+        let full_key = if scope.parent_key.is_empty() {
+            key.clone()
+        } else {
+            format!("{}.{}", scope.parent_key, key)
+        };
+        let hidden = scope.parent_hidden || !entry.visible;
+        let read_only = scope.parent_read_only || entry.read_only;
+        let node = properties.get(&key);
+        out.push(ManualField {
+            component_id: scope.component_id.to_string(),
+            component_name: scope.component_name.to_string(),
+            key: full_key.clone(),
+            label: scope.i18n.t(scope.lang, &entry.label),
+            description: scope.i18n.t(scope.lang, &entry.description),
+            note: entry
+                .note
+                .as_deref()
+                .map(|note| scope.i18n.t(scope.lang, note))
+                .unwrap_or_default(),
+            group: entry
+                .group
+                .as_deref()
+                .map(|group| scope.i18n.t(scope.lang, group))
+                .unwrap_or_default(),
+            read_only,
+            hidden_in_settings: hidden,
+            condition: entry
+                .visible_when
+                .as_ref()
+                .map(|condition| condition_text(condition, ui, properties, scope.i18n, scope.lang))
+                .unwrap_or_default(),
+            value_hint: node
+                .map(|node| value_hint(node, scope.i18n, scope.lang))
+                .unwrap_or_default(),
+            sensitive: entry.sensitive,
+        });
+        if let Some((child_ui, child_properties)) = node.and_then(object_children) {
+            collect_fields(
+                child_ui,
+                child_properties,
+                &FieldScope {
+                    parent_key: &full_key,
+                    parent_hidden: hidden,
+                    parent_read_only: read_only,
+                    ..*scope
+                },
+                out,
+            );
+        }
+    }
+}
+
+/// 字段 key 是否两两不同：说明书按扁平 key 做引用校验与标签查找，
+/// 内嵌字段的 `父key.子key` 与「本身含 `.` 的字段名」可能拼出同一串。
+fn has_unique_keys(fields: &[ManualField]) -> bool {
+    let mut seen = HashSet::new();
+    fields.iter().all(|field| seen.insert(field.key.as_str()))
+}
+
+/// 取出字段节点内嵌对象（数组项或对象字段本身）的属性表与 UI 元数据；无内嵌对象返回 None。
+fn object_children(
+    node: &SchemaNode,
+) -> Option<(&[FieldUiMetadata], &BTreeMap<String, SchemaNode>)> {
+    let object = match &node.kind {
+        SchemaKind::Object { .. } => node,
+        SchemaKind::Array { items, .. } => items.as_ref(),
+        _ => return None,
+    };
+    match &object.kind {
+        SchemaKind::Object { properties, ui, .. } => Some((ui.as_slice(), properties)),
+        _ => None,
+    }
+}
+
+/// 渲染可见性条件为「同级字段标签=值」。
+///
+/// 同级字段标签与枚举取值都按当前语言翻译；查不到同级字段、或该值不在枚举里时，
+/// 分别回落为该字段的裸 key 与 JSON 值字面量。
+fn condition_text(
+    condition: &VisibleWhen,
+    ui: &[FieldUiMetadata],
+    properties: &BTreeMap<String, SchemaNode>,
+    i18n: &I18nManager,
+    lang: &str,
+) -> String {
+    let label = ui
+        .iter()
+        .find(|entry| entry.pointer.trim_start_matches('/') == condition.field)
+        .map(|entry| i18n.t(lang, &entry.label))
+        .unwrap_or_else(|| condition.field.clone());
+    let value = match &condition.value {
+        Value::String(raw) => enum_label(properties.get(&condition.field), raw, i18n, lang)
+            .unwrap_or_else(|| raw.clone()),
+        other => other.to_string(),
+    };
+    format!("{label}={value}")
+}
+
+/// 字符串枚举取值的已翻译标签；非枚举、未匹配或标签为空时返回 None。
+fn enum_label(
+    node: Option<&SchemaNode>,
+    value: &str,
+    i18n: &I18nManager,
+    lang: &str,
+) -> Option<String> {
+    let SchemaKind::String {
+        enum_values,
+        enum_labels,
+        ..
+    } = &node?.kind
+    else {
+        return None;
+    };
+    let index = enum_values
+        .iter()
+        .position(|candidate| candidate == value)?;
+    enum_labels
+        .get(index)
+        .filter(|label| !label.trim().is_empty())
+        .map(|label| i18n.t(lang, label))
 }
 
 #[cfg(test)]
@@ -214,16 +398,30 @@ impl SettingsManual {
 }
 
 impl ManualField {
-    /// 渲染单条字段说明行：`key` 标签｜界面位置｜说明｜取值摘要。
+    /// 渲染单条字段说明行：`key` 标签｜界面位置｜界面状态｜说明｜补充｜取值摘要。
     ///
-    /// 「位置」是字段所在分组名，即界面上该字段所在的标签页或分组标题（未分组时不渲染）。
+    /// 「位置」是字段所在分组名，即界面上该字段所在的标签页或分组标题（未分组时不渲染）；
+    /// 界面状态（设置页不直接显示 / 只读 / 仅当…时显示）与「补充」按 schema 与译文原样给出，
+    /// 免得模型把用户看不见或改不了的字段当成普通可配项。
     fn render_line(&self) -> String {
         let mut parts = vec![format!("`{}` {}", self.key, self.label)];
         if !self.group.is_empty() {
             parts.push(format!("位置：{}", self.group));
         }
+        if self.hidden_in_settings {
+            parts.push("设置页不直接显示".to_string());
+        }
+        if self.read_only {
+            parts.push("只读".to_string());
+        }
+        if !self.condition.is_empty() {
+            parts.push(format!("仅当 {} 时显示", self.condition));
+        }
         if !self.description.is_empty() {
             parts.push(self.description.clone());
+        }
+        if !self.note.is_empty() {
+            parts.push(format!("补充：{}", self.note));
         }
         if !self.value_hint.is_empty() {
             parts.push(format!("取值：{}", self.value_hint));
@@ -235,7 +433,9 @@ impl ManualField {
     }
 }
 
-/// 字段匹配得分：key 精确 > key 前缀 > key 包含 > 标签 > 说明 > 组件名；无关返回 None。
+/// 字段匹配得分：key 精确 > key 前缀 > key 包含 > 标签 > 说明 > 补充 > 组件名；无关返回 None。
+///
+/// 补充说明参与匹配：它常是用户唯一会搜的字眼（如「立即生效」「重启」「小号字」）。
 fn field_score(field: &ManualField, needle: &str) -> Option<u32> {
     let key = field.key.to_lowercase();
     if key == needle {
@@ -252,6 +452,9 @@ fn field_score(field: &ManualField, needle: &str) -> Option<u32> {
     }
     if field.description.to_lowercase().contains(needle) {
         return Some(30);
+    }
+    if field.note.to_lowercase().contains(needle) {
+        return Some(25);
     }
     if field.component_name.to_lowercase().contains(needle) {
         return Some(20);
@@ -342,9 +545,14 @@ mod tests {
     use super::*;
     use std::sync::Arc;
 
-    /// 构造可解析译文的管理器：写入临时语言包并固定为简体中文。
+    /// 构造可解析译文的管理器：写入独立的临时语言包并固定为简体中文。
+    ///
+    /// 目录名带自增序号：并行测试共用进程 id 会互相覆盖同一份语言包。
     fn test_i18n(catalog: serde_json::Value) -> I18nManager {
-        let dir = std::env::temp_dir().join(format!("zl-agent-manual-{}", std::process::id()));
+        static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let index = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let dir =
+            std::env::temp_dir().join(format!("zl-agent-manual-{}-{index}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join("zh-Hans.json"), catalog.to_string()).unwrap();
         let manager = I18nManager::load(dir.clone());
@@ -353,7 +561,7 @@ mod tests {
         Arc::try_unwrap(manager).unwrap_or_else(|_| unreachable!("load 返回唯一 Arc"))
     }
 
-    /// 构造一条测试用字段条目。
+    /// 构造一条测试用字段条目（可见、可编辑、无补充与条件）。
     fn field(key: &str, label: &str, description: &str) -> ManualField {
         ManualField {
             component_id: "demo".to_string(),
@@ -361,9 +569,32 @@ mod tests {
             key: key.to_string(),
             label: label.to_string(),
             description: description.to_string(),
+            note: String::new(),
             group: String::new(),
+            read_only: false,
+            hidden_in_settings: false,
+            condition: String::new(),
             value_hint: String::new(),
             sensitive: false,
+        }
+    }
+
+    /// 构造测试用 UI 元数据（可见、可编辑，label 传 i18n key）。
+    fn ui(pointer: &str, label: &str) -> FieldUiMetadata {
+        FieldUiMetadata {
+            pointer: pointer.to_string(),
+            label: label.to_string(),
+            description: String::new(),
+            note: None,
+            group: None,
+            order: 0,
+            visible: true,
+            read_only: false,
+            sensitive: false,
+            visible_when: None,
+            widget: None,
+            action: None,
+            detail_action: None,
         }
     }
 
@@ -396,29 +627,159 @@ mod tests {
         assert!(manual.search("   ", 10).is_empty());
     }
 
-    /// 渲染：组件与字段行、前端下发的设置页路径、字段所在分组「位置」都在场；
+    /// 渲染：组件与字段行、前端下发的设置页路径与触发方式、字段所在分组「位置」与「补充」都在场；
     /// 未分组字段不渲染「位置」，免得模型编出不存在的一步。
     #[test]
-    fn render_includes_field_lines_path_and_position() {
+    fn render_includes_field_lines_path_trigger_and_position() {
         let mut grouped = field("show_subtitle", "显示副标题", "在结果项中显示副标题信息");
         grouped.group = "结果列表".to_string();
-        let manual = manual(vec![grouped, field("theme", "主题", "界面主题")]);
+        let mut noted = field("footer_height", "底栏高度", "底栏高度(px)");
+        noted.note = "设 0 会让各处小字变小到看不见".to_string();
+        let manual = manual(vec![grouped, noted, field("theme", "主题", "界面主题")]);
 
-        let text = manual.render(&HashMap::new());
+        let text = manual.render(&HashMap::new(), &HashMap::new());
         assert!(text.contains("## 演示(demo)"), "{text}");
         assert!(text.contains("`theme` 主题｜界面主题"), "{text}");
         assert!(
             text.contains("`show_subtitle` 显示副标题｜位置：结果列表"),
             "{text}"
         );
+        assert!(
+            text.contains("补充：设 0 会让各处小字变小到看不见"),
+            "{text}"
+        );
 
         let navigation =
             HashMap::from([("demo".to_string(), "设置 › 外观设置 › 演示".to_string())]);
-        let text = manual.render(&navigation);
+        let triggers = HashMap::from([("demo".to_string(), "触发词：>".to_string())]);
+        let text = manual.render(&navigation, &triggers);
         assert!(
-            text.contains("## 演示(demo)｜设置页路径：设置 › 外观设置 › 演示"),
+            text.contains("## 演示(demo)｜设置页路径：设置 › 外观设置 › 演示｜触发词：>"),
             "{text}"
         );
+    }
+
+    /// 内嵌对象字段按 `父key.子key` 收集，界面状态照 UI 元数据标注：
+    /// 只读、设置页不直接显示、显示条件（条件里的同级字段标签与枚举值都译成当前语言）。
+    #[test]
+    fn collect_fields_expands_nested_items_and_marks_ui_state() {
+        let i18n = test_i18n(serde_json::json!({
+            "components": {"demo": {
+                "fields": {
+                    "models": "模型清单", "name": "模型名", "kind": "角色",
+                    "temperature": "温度", "extra": "附加", "flag": "开关"
+                },
+                "kinds": {"chat": "文本生成"}
+            }}
+        }));
+        let mut name = ui("/name", "components.demo.fields.name");
+        name.read_only = true;
+        let mut kind = ui("/kind", "components.demo.fields.kind");
+        kind.visible = false;
+        // 内嵌对象字段：自身不可见且只读，用来验证子字段继承父级状态
+        let mut extra = ui("/extra", "components.demo.fields.extra");
+        extra.visible = false;
+        extra.read_only = true;
+        let mut temperature = ui("/temperature", "components.demo.fields.temperature");
+        temperature.visible_when = Some(VisibleWhen {
+            field: "kind".to_string(),
+            value: serde_json::json!("chat"),
+        });
+        let kind_schema = SchemaNode {
+            kind: SchemaKind::String {
+                enum_values: vec!["chat".to_string(), "embedding".to_string()],
+                enum_labels: vec!["components.demo.kinds.chat".to_string(), String::new()],
+                min_length: None,
+                max_length: None,
+                pattern: None,
+            },
+            default: None,
+        };
+        let extra_schema = SchemaNode {
+            kind: SchemaKind::Object {
+                properties: BTreeMap::from([("flag".to_string(), SchemaNode::string())]),
+                ui: vec![ui("/flag", "components.demo.fields.flag")],
+                required: std::collections::BTreeSet::new(),
+            },
+            default: None,
+        };
+        let items = SchemaNode {
+            kind: SchemaKind::Object {
+                properties: BTreeMap::from([
+                    ("name".to_string(), SchemaNode::string()),
+                    ("kind".to_string(), kind_schema),
+                    ("temperature".to_string(), SchemaNode::number()),
+                    ("extra".to_string(), extra_schema),
+                ]),
+                ui: vec![name, kind, temperature, extra],
+                required: std::collections::BTreeSet::new(),
+            },
+            default: None,
+        };
+        let properties = BTreeMap::from([(
+            "models".to_string(),
+            SchemaNode {
+                kind: SchemaKind::Array {
+                    items: Box::new(items),
+                    item_widget: None,
+                    min_items: None,
+                    max_items: None,
+                },
+                default: None,
+            },
+        )]);
+        let mut fields = Vec::new();
+        collect_fields(
+            &[ui("/models", "components.demo.fields.models")],
+            &properties,
+            &FieldScope {
+                component_id: "demo",
+                component_name: "演示",
+                i18n: &i18n,
+                lang: "zh-Hans",
+                parent_key: "",
+                parent_hidden: false,
+                parent_read_only: false,
+            },
+            &mut fields,
+        );
+
+        let keys: Vec<&str> = fields.iter().map(|field| field.key.as_str()).collect();
+        assert_eq!(
+            keys,
+            vec![
+                "models",
+                "models.name",
+                "models.kind",
+                "models.temperature",
+                "models.extra",
+                "models.extra.flag"
+            ],
+            "{keys:?}"
+        );
+        assert_eq!(fields[1].label, "模型名");
+        assert!(
+            fields[1].render_line().contains("只读"),
+            "{}",
+            fields[1].render_line()
+        );
+        assert!(fields[2].hidden_in_settings);
+        assert!(fields[2].render_line().contains("设置页不直接显示"));
+        assert_eq!(fields[3].condition, "角色=文本生成");
+        assert!(
+            fields[3]
+                .render_line()
+                .contains("仅当 角色=文本生成 时显示"),
+            "{}",
+            fields[3].render_line()
+        );
+        // 内嵌对象字段的子字段继承父级界面状态：extra 自身不可见且只读 → flag 两样都继承
+        assert!(fields[4].hidden_in_settings && fields[4].read_only);
+        assert!(
+            fields[5].hidden_in_settings && fields[5].read_only,
+            "子字段应继承父级的「设置页不直接显示」与只读"
+        );
+        assert!(fields[5].render_line().contains("设置页不直接显示"));
     }
 
     #[test]

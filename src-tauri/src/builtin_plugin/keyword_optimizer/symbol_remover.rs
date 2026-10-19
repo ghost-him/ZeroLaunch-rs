@@ -100,6 +100,7 @@ impl Configurable for SymbolRemover {
                 t_key!("symbol-remover", "fields.priority.label"),
                 t_key!("symbol-remover", "fields.priority.desc"),
             )
+            .note(t_key!("symbol-remover", "fields.priority.note"))
             .order(0)
             .default(70.0)
             .min(1.0)
@@ -111,6 +112,7 @@ impl Configurable for SymbolRemover {
                 t_key!("symbol-remover", "fields.input_source.label"),
                 t_key!("symbol-remover", "fields.input_source.desc"),
             )
+            .note(t_key!("symbol-remover", "fields.input_source.note"))
             .options_with_labels(&[
                 (
                     SOURCE_ORIGINAL_NAME,
@@ -137,6 +139,7 @@ impl Configurable for SymbolRemover {
                 t_key!("symbol-remover", "fields.producer_id.label"),
                 t_key!("symbol-remover", "fields.producer_id.desc"),
             )
+            .note(t_key!("symbol-remover", "fields.producer_id.note"))
             .default("")
             .order(2)
             .visible_when("input_source", SOURCE_OPTIMIZER_OUTPUT)

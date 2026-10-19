@@ -14,6 +14,7 @@ use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::Arc;
 use zerolaunch_plugin_api::services::model::{ModelChatMessage, ModelChatRole};
+use zerolaunch_plugin_api::PluginMode;
 
 /// 检索返回的命中条数上限。
 const SEARCH_LIMIT: usize = 20;
@@ -126,6 +127,7 @@ pub async fn help_ask(
         .into_iter()
         .map(|entry| (entry.component_id, entry.path))
         .collect();
+    let triggers = collect_triggers(&state);
     let answer = run_ask(AskRequest {
         service: state.get_model_manager(),
         config: state.get_config_manager(),
@@ -133,6 +135,7 @@ pub async fn help_ask(
         handle: state.get_core_handle(),
         question: &payload.question,
         navigation: &navigation,
+        triggers: &triggers,
         history: bound_history(payload.history.unwrap_or_default()),
     })
     .await
@@ -154,6 +157,76 @@ fn search_hits(config: &ConfigManager, i18n: &I18nManager, query: &str) -> Vec<H
             label: hit.label,
         })
         .collect()
+}
+
+/// 触发文本的字符上限：第三方文本进说明书是逐行渲染，超长会挤占上下文。
+const TRIGGER_TEXT_MAX_CHARS: usize = 200;
+
+/// 收集「组件 id → 触发方式文本」：触发词与触发说明都取自插件元数据。
+///
+/// 键用 `Configurable::component_id()`：说明书的组件条目来自 `ConfigManager` 的注册组件，
+/// 两处必须同一身份——插件 id 与组件 id 可以不同，用 `PluginMetadata.id` 当键会让触发段对不上。
+/// 内置插件的触发说明是 i18n key，按当前语言翻译；第三方 manifest 给的是原文，翻译服务原样返回。
+/// 不过滤插件的启用状态：说明书同样收录停用组件，模型据此可提示用户先启用。
+///
+/// 参数：state - 应用状态（提供插件注册表与翻译服务）。
+/// 返回：仅含有触发信息的组件；说明书据此渲染组件行的触发段。
+fn collect_triggers(state: &AppState) -> HashMap<String, String> {
+    let i18n = state.get_i18n_manager();
+    let lang = i18n.current_language();
+    let mut triggers = HashMap::new();
+    for (plugin, meta) in state
+        .get_session_dispatcher()
+        .plugin_registry()
+        .get_all_with_metadata()
+    {
+        let description = meta
+            .trigger_description
+            .as_deref()
+            .map(|key| single_line(&i18n.t(&lang, key)))
+            .filter(|text| !text.is_empty());
+        if let Some(text) = trigger_text(description.as_deref(), &meta.trigger_keywords, meta.mode)
+        {
+            triggers.insert(plugin.component_id().to_string(), text);
+        }
+    }
+    triggers
+}
+
+/// 生成触发段文本：说明优先，关键词按插件形态标注叫法；两者都没有时返回 None。
+///
+/// 参数：description - 已压成单行、按当前语言翻译好的触发说明；
+/// keywords - 插件声明的触发词（去首尾空白、丢弃空串）；mode - 插件形态。
+/// 返回：自含标签的触发段文本（如「触发词：fy / tr」），由说明书组件行直接拼接。
+fn trigger_text(
+    description: Option<&str>,
+    keywords: &[String],
+    mode: PluginMode,
+) -> Option<String> {
+    // 「触发词」只对行内插件成立；面板插件的关键词是候选搜索关键字，输入后作为候选项出现
+    let keyword_label = if mode == PluginMode::Inline {
+        "触发词"
+    } else {
+        "候选关键词"
+    };
+    let keywords = keywords
+        .iter()
+        .map(|keyword| keyword.trim())
+        .filter(|keyword| !keyword.is_empty())
+        .collect::<Vec<_>>()
+        .join(" / ");
+    match (description, keywords.is_empty()) {
+        (Some(description), false) => Some(format!("{description}（{keyword_label}：{keywords}）")),
+        (Some(description), true) => Some(description.to_string()),
+        (None, false) => Some(format!("{keyword_label}：{keywords}")),
+        (None, true) => None,
+    }
+}
+
+/// 压成单行并截断：说明书按行渲染，第三方文本里的换行与连续空白会破坏行结构。
+fn single_line(text: &str) -> String {
+    let joined = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    joined.chars().take(TRIGGER_TEXT_MAX_CHARS).collect()
 }
 
 /// 下发给模型的历史消息条数上限（一轮问答计两条）。
@@ -449,7 +522,11 @@ mod tests {
         )])
     }
 
-    /// 组装一次提问的入参：默认无历史、用普通 mock 句柄；issue 相关测试自行构造。
+    /// 测试用空触发表：说明书渲染要一份触发信息，多数用例不关心触发词。
+    static NO_TRIGGERS: std::sync::LazyLock<HashMap<String, String>> =
+        std::sync::LazyLock::new(HashMap::new);
+
+    /// 组装一次提问的入参：默认无历史、无触发信息、用普通 mock 句柄；issue 相关测试自行构造。
     fn ask<'a>(
         service: Arc<dyn ModelService>,
         config: Arc<ConfigManager>,
@@ -464,6 +541,7 @@ mod tests {
             handle: mock_plugin_handle(),
             question,
             navigation,
+            triggers: &NO_TRIGGERS,
             history: Vec::new(),
         }
     }
@@ -520,8 +598,52 @@ mod tests {
         assert_eq!(by_key.len(), 1);
         assert_eq!(by_key[0].field_key, "api_key");
 
-        assert!(search_hits(&config, &i18n, "   ").is_empty());
+        assert!(search_hits(&config, &i18n, " ").is_empty());
         assert!(search_hits(&config, &i18n, "不存在的关键词").is_empty());
+    }
+
+    /// 触发段：空触发词被丢弃、行内与面板措辞不同、说明优先且与关键词并列时带括号补充。
+    #[test]
+    fn trigger_text_labels_modes_and_drops_blank_keywords() {
+        let keywords = vec!["".to_string(), " fy ".to_string(), "tr".to_string()];
+        assert_eq!(
+            trigger_text(None, &keywords, PluginMode::Inline).as_deref(),
+            Some("触发词：fy / tr")
+        );
+        assert_eq!(
+            trigger_text(None, &keywords, PluginMode::Panel).as_deref(),
+            Some("候选关键词：fy / tr")
+        );
+        assert_eq!(
+            trigger_text(Some("输入形如网址时自动命中"), &[], PluginMode::Inline).as_deref(),
+            Some("输入形如网址时自动命中")
+        );
+        assert_eq!(
+            trigger_text(
+                Some("输入形如网址时自动命中"),
+                &keywords,
+                PluginMode::Inline
+            )
+            .as_deref(),
+            Some("输入形如网址时自动命中（触发词：fy / tr）")
+        );
+        assert_eq!(trigger_text(None, &[], PluginMode::Inline), None);
+        assert_eq!(
+            trigger_text(None, &["".to_string(), "  ".to_string()], PluginMode::Panel),
+            None
+        );
+    }
+
+    /// 单行化：换行与连续空白压成单个空格，超长按字符截断（说明书逐行渲染）。
+    #[test]
+    fn single_line_collapses_whitespace_and_truncates() {
+        assert_eq!(single_line("  a\n b\r\n\tc  "), "a b c");
+        assert_eq!(
+            single_line(&"字".repeat(TRIGGER_TEXT_MAX_CHARS + 10))
+                .chars()
+                .count(),
+            TRIGGER_TEXT_MAX_CHARS
+        );
     }
 
     /// 带工具调用的一轮里写的正文必须保留：模型可能在这一轮先给出前半段（含点击路径），
@@ -890,6 +1012,7 @@ mod tests {
             handle,
             question: "那就按这个提个 issue 吧",
             navigation: &navigation(),
+            triggers: &NO_TRIGGERS,
             history: vec![
                 ModelChatMessage::text(ModelChatRole::User, "能不能用拼音搜应用？"),
                 ModelChatMessage::text(

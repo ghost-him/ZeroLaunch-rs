@@ -82,6 +82,10 @@ impl Configurable for AutoRefreshConfigComponent {
                 "fields.auto_refresh_interval_mins.desc"
             ),
         )
+        .note(t_key!(
+            "auto-refresh-config",
+            "fields.auto_refresh_interval_mins.note"
+        ))
         .group(t_key!("auto-refresh-config", "groups.scheduledRefresh"))
         .order(0)
         .default(30.0)

@@ -81,6 +81,7 @@ impl Configurable for AliasOptimizer {
             t_key!("alias-optimizer", "fields.entries.label"),
             t_key!("alias-optimizer", "fields.entries.desc"),
         )
+        .note(t_key!("alias-optimizer", "fields.entries.note"))
         .group(t_key!("alias-optimizer", "groups.alias"))
         .order(1)
         .object_items(vec![
@@ -98,6 +99,7 @@ impl Configurable for AliasOptimizer {
                 t_key!("alias-optimizer", "fields.aliases.label"),
                 t_key!("alias-optimizer", "fields.aliases.desc"),
             )
+            .note(t_key!("alias-optimizer", "fields.aliases.note"))
             .primitive_item(zerolaunch_plugin_api::config::PrimitiveType::Text)
             .tags_ui()
             .min_items(0)

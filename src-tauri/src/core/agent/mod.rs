@@ -104,6 +104,8 @@ pub struct AskRequest<'a> {
     pub question: &'a str,
     /// 组件 id → 设置页点击路径（前端按当前语言拼好，用于给出逐步导航）。
     pub navigation: &'a HashMap<String, String>,
+    /// 组件 id → 触发方式文本（触发词与触发说明，来自插件元数据，写入说明书）。
+    pub triggers: &'a HashMap<String, String>,
     /// 本次提问之前的对话（时间正序，角色仅 user/assistant）。
     pub history: Vec<ModelChatMessage>,
 }
@@ -120,6 +122,7 @@ pub async fn ask_from_config(request: AskRequest<'_>) -> Result<AgentAnswer, Age
         handle,
         question,
         navigation,
+        triggers,
         history,
     } = request;
     let question = question.trim();
@@ -140,7 +143,7 @@ pub async fn ask_from_config(request: AskRequest<'_>) -> Result<AgentAnswer, Age
         return Err(AgentError::ModelUnknown(model_id));
     }
     SettingsAgent::new(service, model_id, config, i18n, handle)
-        .ask(question, navigation, history)
+        .ask(question, navigation, triggers, history)
         .await
         .map_err(AgentError::Model)
 }
@@ -182,16 +185,20 @@ impl SettingsAgent {
     /// 回答一个问题。
     ///
     /// 参数：question - 用户提问文本；navigation - 组件 id → 设置页点击路径（写入说明书）；
+    /// triggers - 组件 id → 触发方式文本（写入说明书）；
     /// history - 本次提问之前的对话（时间正序，插在系统消息与当前问题之间）。
     /// 返回：答复与有效引用；模型调用失败时返回 `ModelError`。
     pub async fn ask(
         &self,
         question: &str,
         navigation: &HashMap<String, String>,
+        triggers: &HashMap<String, String>,
         history: Vec<ModelChatMessage>,
     ) -> Result<AgentAnswer, ModelError> {
         let mut trace = AgentTrace::new(&self.model_id);
-        let result = self.run(question, navigation, history, &mut trace).await;
+        let result = self
+            .run(question, navigation, triggers, history, &mut trace)
+            .await;
         if let Err(error) = &result {
             trace.error = Some(error.to_string());
         }
@@ -202,12 +209,14 @@ impl SettingsAgent {
     /// 驱动「模型 ↔ 工具」循环，并把每一步记入 `trace`（调试页据此复盘上下文与工具调用）。
     ///
     /// 参数：question - 用户提问文本；navigation - 组件 id → 设置页点击路径（写入说明书）；
+    /// triggers - 组件 id → 触发方式文本（写入说明书）；
     /// history - 本次提问之前的对话；trace - 本次提问的轨迹，就地写入首轮上下文、每轮模型输出与工具结果。
     /// 返回：答复与有效引用；模型调用失败时返回 `ModelError`（已收集的上下文仍留在 `trace` 里）。
     async fn run(
         &self,
         question: &str,
         navigation: &HashMap<String, String>,
+        triggers: &HashMap<String, String>,
         history: Vec<ModelChatMessage>,
         trace: &mut AgentTrace,
     ) -> Result<AgentAnswer, ModelError> {
@@ -228,7 +237,7 @@ impl SettingsAgent {
         ];
         let mut messages = vec![ModelChatMessage::text(
             ModelChatRole::System,
-            prompt::system_prompt(&manual.render(navigation)),
+            prompt::system_prompt(&manual.render(navigation, triggers)),
         )];
         // 历史插在系统消息之后、当前问题之前：模型据此接着上一轮澄清继续谈需求
         messages.extend(history);
@@ -436,7 +445,11 @@ mod tests {
                     key: "theme".to_string(),
                     label: "主题".to_string(),
                     description: String::new(),
+                    note: String::new(),
                     group: "主题".to_string(),
+                    read_only: false,
+                    hidden_in_settings: false,
+                    condition: String::new(),
                     value_hint: String::new(),
                     sensitive: false,
                 },
@@ -446,7 +459,11 @@ mod tests {
                     key: "language".to_string(),
                     label: "语言".to_string(),
                     description: String::new(),
+                    note: String::new(),
                     group: String::new(),
+                    read_only: false,
+                    hidden_in_settings: false,
+                    condition: String::new(),
                     value_hint: String::new(),
                     sensitive: true,
                 },

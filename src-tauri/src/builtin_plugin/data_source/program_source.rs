@@ -329,6 +329,7 @@ impl Configurable for ProgramSource {
             t_key!("program-source", "fields.directories.label"),
             t_key!("program-source", "fields.directories.desc"),
         )
+        .note(t_key!("program-source", "fields.directories.note"))
         .group(t_key!("program-source", "groups.directoryScan"))
         .order(1)
         .object_items(vec![
@@ -337,6 +338,7 @@ impl Configurable for ProgramSource {
                 t_key!("program-source", "fields.root_path.label"),
                 t_key!("program-source", "fields.root_path.desc"),
             )
+            .note(t_key!("program-source", "fields.root_path.note"))
             .directory()
             .default("")
             .build_field(),
@@ -345,6 +347,7 @@ impl Configurable for ProgramSource {
                 t_key!("program-source", "fields.max_depth.label"),
                 t_key!("program-source", "fields.max_depth.desc"),
             )
+            .note(t_key!("program-source", "fields.max_depth.note"))
             .default(3.0)
             .min(1.0)
             .max(10.0)
@@ -355,6 +358,7 @@ impl Configurable for ProgramSource {
                 t_key!("program-source", "fields.pattern.label"),
                 t_key!("program-source", "fields.pattern.desc"),
             )
+            .note(t_key!("program-source", "fields.pattern.note"))
             .primitive_item(PrimitiveType::Text)
             .tags_ui()
             .min_items(0)
@@ -365,6 +369,7 @@ impl Configurable for ProgramSource {
                 t_key!("program-source", "fields.pattern_type.label"),
                 t_key!("program-source", "fields.pattern_type.desc"),
             )
+            .note(t_key!("program-source", "fields.pattern_type.note"))
             .options(&["Wildcard", "Regex"])
             .default("Wildcard")
             .build_field(),
@@ -373,6 +378,7 @@ impl Configurable for ProgramSource {
                 t_key!("program-source", "fields.excluded_keywords.label"),
                 t_key!("program-source", "fields.excluded_keywords.desc"),
             )
+            .note(t_key!("program-source", "fields.excluded_keywords.note"))
             .primitive_item(PrimitiveType::Text)
             .tags_ui()
             .min_items(0)
@@ -383,6 +389,7 @@ impl Configurable for ProgramSource {
                 t_key!("program-source", "fields.forbidden_paths.label"),
                 t_key!("program-source", "fields.forbidden_paths.desc"),
             )
+            .note(t_key!("program-source", "fields.forbidden_paths.note"))
             .primitive_item(PrimitiveType::Text)
             .tags_ui()
             .min_items(0)
@@ -393,6 +400,7 @@ impl Configurable for ProgramSource {
                 t_key!("program-source", "fields.symlink_mode.label"),
                 t_key!("program-source", "fields.symlink_mode.desc"),
             )
+            .note(t_key!("program-source", "fields.symlink_mode.note"))
             .options(&["ExplicitOnly", "Auto"])
             .default("ExplicitOnly")
             .build_field(),

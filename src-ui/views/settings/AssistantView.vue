@@ -70,6 +70,9 @@
         >
           {{ t('settings.assistant.configure') }}
         </n-button>
+        <n-text depth="3" class="composer-model-hint">
+          {{ t('settings.assistant.modelToolHint') }}
+        </n-text>
       </div>
 
       <!-- 输入即匹配设置项：比问一轮更快，点一下直接跳过去 -->
@@ -361,6 +364,9 @@ onUnmounted(() => {
 }
 .hits-label {
   opacity: 0.6;
+}
+.composer-model-hint {
+  flex-basis: 100%;
 }
 .composer-actions {
   display: flex;

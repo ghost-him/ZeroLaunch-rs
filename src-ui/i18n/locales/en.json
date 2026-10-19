@@ -79,6 +79,7 @@
       "thinking": "Thinking (the first call loads the model and may take a while)…",
       "noModel": "The AI assistant has no model configured",
       "configure": "Configure",
+      "modelToolHint": "Pick a model that supports tool calling, or every question fails",
       "directJump": "Jump to",
       "clear": "Clear chat",
       "copy": "Copy answer",
@@ -888,7 +889,7 @@
         "chat_capabilities": {
           "label": "Chat capabilities",
           "desc": "Declare the request capabilities this model supports",
-          "note": "Check Tool calling to use the settings assistant and Reasoning to use a reasoning level; an unchecked capability fails outright when used"
+          "note": "Tool calling and reasoning are enabled by default; uncheck any capability your model doesn't support, or the matching requests fail"
         },
         "embedding_capabilities": {
           "label": "Embedding capabilities",
@@ -927,7 +928,7 @@
         "model_id": {
           "label": "Assistant model",
           "desc": "Pick one of the configured chat models; empty keeps the assistant off",
-          "note": "Check Tool calling for this model in Model management first, otherwise every question fails with an error"
+          "note": "The model must support tool calling; it's enabled by default, so switch models if yours doesn't support it"
         }
       },
       "actions": {

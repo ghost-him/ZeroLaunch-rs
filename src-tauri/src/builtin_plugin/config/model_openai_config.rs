@@ -167,7 +167,7 @@ pub(crate) fn model_entry_schema() -> Vec<SettingDefinition> {
             ("reasoning", t_key!("model-entry", "capabilities.reasoning")),
             ("tools", t_key!("model-entry", "capabilities.tools")),
         ])
-        .default(serde_json::json!(["reasoning"]))
+        .default(serde_json::json!(["reasoning", "tools"]))
         .order(6)
         .visible_when("kind", "chat")
         .build(),
@@ -395,7 +395,7 @@ mod tests {
         );
         assert_eq!(
             chat_json["schema"]["default"],
-            serde_json::json!(["reasoning"])
+            serde_json::json!(["reasoning", "tools"])
         );
 
         let embedding_json = serde_json::to_value(embedding).unwrap();

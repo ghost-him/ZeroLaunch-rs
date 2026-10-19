@@ -262,9 +262,9 @@ impl ModelProvider for OllamaProvider {
                         )),
                         _ => None,
                     })
-                    // 未在配置里声明的模型无从判断是否支持工具调用，只声明 reasoning；
-                    // 需要工具调用时在该模型条目里显式勾选。
-                    .unwrap_or((None, vec![ChatCapability::Reasoning]));
+                    // 未在配置里声明的模型按主流 chat 模型的默认能力声明（tools + reasoning）；
+                    // provider 的能力闸门只在条目明确声明时校验，此处仅影响模型清单展示。
+                    .unwrap_or((None, vec![ChatCapability::Reasoning, ChatCapability::Tools]));
                 models.push(ModelInfo {
                     model_id: format!("{PROVIDER_ID}/{name}"),
                     name,

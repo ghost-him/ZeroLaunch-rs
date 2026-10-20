@@ -9,6 +9,8 @@ use zerolaunch_plugin_api::{
     ActionExecutor, ExecutionContext, ExecutionError, ExecutionTarget, ResultAction, TargetType,
 };
 
+use super::ACTION_EXECUTE;
+
 /// URL 执行器 - 负责使用系统默认浏览器打开 URL
 /// 委托 PluginHandle 的 shell_open 方法打开 URL
 pub struct UrlExecutor {
@@ -66,7 +68,7 @@ impl ActionExecutor for UrlExecutor {
 
     fn supported_actions(&self) -> Vec<ResultAction> {
         vec![ResultAction {
-            id: "execute".to_string(),
+            id: ACTION_EXECUTE.to_string(),
             label: "打开".to_string(),
             icon: IconRequest::Path(String::new()),
             is_default: true,
@@ -85,7 +87,7 @@ impl ActionExecutor for UrlExecutor {
         };
 
         match action_id {
-            "execute" => {
+            ACTION_EXECUTE => {
                 // 解析模板，替换 {} 用户参数和 {clip}/{hwnd}/{selection} 系统参数
                 let resolved = self
                     .plugin_handle

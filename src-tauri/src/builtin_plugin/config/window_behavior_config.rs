@@ -7,6 +7,9 @@ use zerolaunch_plugin_api::config::{
     ComponentCore, ComponentType, ConfigError, Configurable, SettingDefinition,
 };
 
+/// 窗口行为配置组件 ID —— 组件注册与配置消费方共用的唯一来源。
+pub const WINDOW_BEHAVIOR_CONFIG_ID: &str = "window-behavior-config";
+
 /// 窗口行为设置的强类型配置结构。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WindowBehaviorSettings {
@@ -22,6 +25,10 @@ pub struct WindowBehaviorSettings {
     /// 激活失败降级：启用后窗口激活失败时自动启动程序新实例（read-at-use）。
     #[serde(rename = "launch_new_on_failure", default = "default_true")]
     pub launch_new_on_failure: bool,
+    /// 回车优先唤醒：启用后默认动作先尝试唤醒已运行实例，未找到窗口再启动新实例
+    /// （read-at-use，宿主确认管道消费）。
+    #[serde(rename = "wake_existing_first", default)]
+    pub wake_existing_first: bool,
     /// 空查询常驻结果框：启用后空查询（唤出窗口/清空输入）显示按历史启动排序的常用候选项
     /// （read-at-use，前端消费：空查询时发真实 IPC 加载主页）。
     #[serde(rename = "is_show_home_on_empty_query", default)]
@@ -53,6 +60,7 @@ impl Default for WindowBehaviorSettings {
             space_is_enter: false,
             is_wake_on_fullscreen: false,
             launch_new_on_failure: true,
+            wake_existing_first: false,
             is_show_home_on_empty_query: false,
             is_enable_drag_window: false,
             show_pos_follow_mouse: true,
@@ -160,7 +168,7 @@ impl WindowBehaviorConfigComponent {
     pub fn new() -> Self {
         Self {
             core: ComponentCore::new(
-                "window-behavior-config".to_string(),
+                WINDOW_BEHAVIOR_CONFIG_ID.to_string(),
                 t_key!("window-behavior-config", "name").to_string(),
                 t_key!("window-behavior-config", "description").to_string(),
                 ComponentType::Core,
@@ -242,6 +250,15 @@ impl Configurable for WindowBehaviorConfigComponent {
             .default(true)
             .build(),
             SchemaBuilder::boolean(
+                "wake_existing_first",
+                t_key!("window-behavior-config", "fields.wake_existing_first.label"),
+                t_key!("window-behavior-config", "fields.wake_existing_first.desc"),
+            )
+            .group(t_key!("window-behavior-config", "groups.windowBehavior"))
+            .order(4)
+            .default(false)
+            .build(),
+            SchemaBuilder::boolean(
                 "is_show_home_on_empty_query",
                 t_key!(
                     "window-behavior-config",
@@ -253,7 +270,7 @@ impl Configurable for WindowBehaviorConfigComponent {
                 ),
             )
             .group(t_key!("window-behavior-config", "groups.windowBehavior"))
-            .order(4)
+            .order(5)
             .default(false)
             .build(),
             SchemaBuilder::boolean(
@@ -391,7 +408,7 @@ fn build_window_behavior_config(_ctx: &InventoryContext) -> std::sync::Arc<dyn C
 
 ::inventory::submit! {
     ConfigEntry {
-        component_id: "window-behavior-config",
+        component_id: WINDOW_BEHAVIOR_CONFIG_ID,
         priority: 40,
         factory: build_window_behavior_config,
     }

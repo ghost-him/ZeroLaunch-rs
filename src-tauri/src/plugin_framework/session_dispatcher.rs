@@ -38,6 +38,10 @@ use super::session_state::{
     ActiveSession, HostView, InputMatch, PluginIdentity, PluginPanelContent, PluginView,
     ResultActionDto, SessionOwner, SessionStateEmitter, SessionStateEvent,
 };
+use crate::builtin_plugin::config::window_behavior_config::{
+    WindowBehaviorSettings, WINDOW_BEHAVIOR_CONFIG_ID,
+};
+use crate::builtin_plugin::executor::{ACTION_ACTIVATE_WINDOW, ACTION_EXECUTE};
 use crate::core::config::bias_settings::{bias_settings_to_rules, BiasSettings};
 use crate::core::config::exclusion_settings::{
     exclusion_settings_to_rules, ExclusionKind, ExclusionRuleEntry, ExclusionSettings,
@@ -474,14 +478,25 @@ impl SessionDispatcher {
     }
 
     /// 常驻结果框（空查询主页）是否开启 —— 决定空查询是"加载主页"还是"无会话请求"。
-    /// ConfigManager 未注入（CLI/测试场景）或字段缺失时按开启处理：配置不可读不改变查询语义。
+    /// 组件未注册或配置不可读时按开启处理：配置不可读不改变查询语义。
     fn is_home_enabled(&self) -> bool {
-        let Some(cm) = self.config_manager() else {
-            return true;
-        };
-        cm.get_component_setting("window-behavior-config", "is_show_home_on_empty_query")
-            .and_then(|v| v.as_bool())
+        self.window_behavior_settings()
+            .map(|s| s.is_show_home_on_empty_query)
             .unwrap_or(true)
+    }
+
+    /// 读取窗口行为配置（read-at-use）。
+    /// 返回：组件未注册或配置无法解析时为 None，由调用方决定降级方向。
+    fn window_behavior_settings(&self) -> Option<WindowBehaviorSettings> {
+        self.config_manager()
+            .and_then(|cm| cm.get_settings(WINDOW_BEHAVIOR_CONFIG_ID))
+            .and_then(|v| match serde_json::from_value::<WindowBehaviorSettings>(v) {
+                Ok(settings) => Some(settings),
+                Err(e) => {
+                    tracing::warn!(error = %e, "反序列化 window-behavior-config 失败，按缺失处理");
+                    None
+                }
+            })
     }
 
     /// 注入会话状态推送回调（bootstrap 拿到 AppHandle 后调用；CLI 场景不注入）。
@@ -1438,6 +1453,26 @@ impl SessionDispatcher {
         Ok(())
     }
 
+    /// 判断本次确认是否应把默认动作改写为显式唤醒动作（「回车等同 Shift+Enter」）。
+    /// 参数：action_id - 请求动作 ID；ctx - 执行上下文。
+    /// 返回：请求的是默认动作、开关开启、且该目标类型已注册唤醒动作时为 true。
+    fn enter_wakes_first(&self, action_id: &str, ctx: &ExecutionContext) -> bool {
+        if action_id != ACTION_EXECUTE {
+            return false;
+        }
+        let enabled = self
+            .window_behavior_settings()
+            .map(|s| s.wake_existing_first)
+            .unwrap_or(false);
+        if !enabled {
+            return false;
+        }
+        self.executor_registry
+            .read()
+            .resolve(ctx, ACTION_ACTIVATE_WINDOW)
+            .is_ok()
+    }
+
     /// 执行候选项：构造执行上下文 → 记录搜索行为 → 解析执行器 → 执行（含失败回退）。
     /// 参数：candidate_id - 候选项 ID；action_id - 动作 ID；query_text - 发起确认时的查询文本；
     ///       user_args - 用户参数（行内参数/参数面板场景）。
@@ -1498,6 +1533,15 @@ impl SessionDispatcher {
                 }
             });
         }
+        // 回车等同 Shift+Enter：开启后默认动作改走显式唤醒动作，失败回退与
+        // Shift+Enter 完全一致（launch_new_on_failure 决定是否启动新实例）。
+        // 目标类型未注册唤醒动作时保持原动作（网址、命令、插件候选等）。
+        let action_id = if self.enter_wakes_first(action_id, &exec_ctx) {
+            ACTION_ACTIVATE_WINDOW
+        } else {
+            action_id
+        };
+
         // 锁在 await 前已全部释放；插件候选（ExecutionTarget::Plugin）由宿主内置
         // PluginWakeExecutor 处理，统一经本管道。
         let executor = {
@@ -1518,11 +1562,8 @@ impl SessionDispatcher {
             Err(ExecutionError::ActivationFailed { fallback_action }) => {
                 // 窗口唤醒失败：按配置决定是否回退执行。
                 let launch_new = self
-                    .config_manager()
-                    .and_then(|cm| {
-                        cm.get_component_setting("window-behavior-config", "launch_new_on_failure")
-                    })
-                    .and_then(|v| v.as_bool())
+                    .window_behavior_settings()
+                    .map(|s| s.launch_new_on_failure)
                     .unwrap_or(true);
                 if launch_new {
                     let fallback_executor = {
@@ -2135,6 +2176,7 @@ mod tests {
     use zerolaunch_plugin_api::services::storage::storage_service::StorageService;
     use zerolaunch_plugin_api::services::theme::{Theme, ThemeProvider};
     use zerolaunch_plugin_api::services::timer::TokioTimerManager;
+    use zerolaunch_plugin_api::{ActionExecutor, ResultAction, TargetType};
     use zerolaunch_plugin_api::{
         HostApiError, PluginError, PluginHandle, PluginKind, PluginMetadata, PluginMode,
     };
@@ -3051,19 +3093,37 @@ mod tests {
 
     // ==================== 会话投递不变式 ====================
 
-    /// 测试用窗口行为配置桩：仅承载会话层读取的 `is_show_home_on_empty_query`。
+    /// 测试用窗口行为配置桩：承载会话层读取的窗口行为字段。
     ///
     /// 仅限本测试模块使用（以桩替代内置配置组件，测试不引用 builtin_plugin 实现）。
     struct WindowBehaviorStub {
         /// 组件身份元数据（component_id 必须为 "window-behavior-config"）。
         core: ComponentCore,
-        /// 对外暴露的配置值（会话层经 get_component_setting 读取单字段）。
+        /// 对外暴露的配置值（会话层反序列化为 WindowBehaviorSettings 读取）。
         settings: serde_json::Value,
     }
 
     impl WindowBehaviorStub {
-        /// 构造常驻结果框开关为 `home_enabled` 的配置桩。
+        /// 构造常驻结果框开关为 `home_enabled` 的配置桩（唤醒开关取默认）。
         fn new(home_enabled: bool) -> Self {
+            Self::with_settings(serde_json::json!({
+                "is_show_home_on_empty_query": home_enabled,
+                "wake_existing_first": false,
+                "launch_new_on_failure": true,
+            }))
+        }
+
+        /// 构造指定唤醒开关的配置桩（常驻结果框关闭）。
+        fn with_wake(wake_existing_first: bool, launch_new_on_failure: bool) -> Self {
+            Self::with_settings(serde_json::json!({
+                "is_show_home_on_empty_query": false,
+                "wake_existing_first": wake_existing_first,
+                "launch_new_on_failure": launch_new_on_failure,
+            }))
+        }
+
+        /// 以完整 settings 构造（component_id 固定为 window-behavior-config）。
+        fn with_settings(settings: serde_json::Value) -> Self {
             Self {
                 core: ComponentCore::new(
                     "window-behavior-config".to_string(),
@@ -3072,7 +3132,7 @@ mod tests {
                     ComponentType::Core,
                     0,
                 ),
-                settings: serde_json::json!({ "is_show_home_on_empty_query": home_enabled }),
+                settings,
             }
         }
     }
@@ -3082,14 +3142,28 @@ mod tests {
             &self.core
         }
 
-        /// 声明被读取的单字段（注册时组件默认配置需通过 schema 校验）。
+        /// 声明被读取的字段（注册时组件默认配置需通过 schema 校验）。
         fn setting_schema(&self) -> Vec<SettingDefinition> {
-            vec![SchemaBuilder::boolean(
-                "is_show_home_on_empty_query",
-                "常驻结果框",
-                "空查询显示常用候选项",
-            )
-            .build()]
+            vec![
+                SchemaBuilder::boolean(
+                    "is_show_home_on_empty_query",
+                    "常驻结果框",
+                    "空查询显示常用候选项",
+                )
+                .build(),
+                SchemaBuilder::boolean(
+                    "wake_existing_first",
+                    "回车等同 Shift+Enter",
+                    "默认动作先唤醒已运行实例",
+                )
+                .build(),
+                SchemaBuilder::boolean(
+                    "launch_new_on_failure",
+                    "唤醒失败启动新实例",
+                    "唤醒失败时是否启动新实例",
+                )
+                .build(),
+            ]
         }
 
         fn get_settings(&self) -> serde_json::Value {
@@ -3105,6 +3179,214 @@ mod tests {
         cm.register(Arc::new(WindowBehaviorStub::new(home_enabled)))
             .await;
         dispatcher.set_config_manager(cm);
+    }
+
+    /// 注入承载唤醒开关的 ConfigManager（目录按开关取值区分，避免并行测试互相干扰）。
+    async fn set_wake_setting(
+        dispatcher: &SessionDispatcher,
+        wake_existing_first: bool,
+        launch_new_on_failure: bool,
+    ) {
+        let cm = Arc::new(ConfigManager::new(std::env::temp_dir().join(format!(
+            "zl-wake-setting-{wake_existing_first}-{launch_new_on_failure}"
+        ))));
+        cm.register(Arc::new(WindowBehaviorStub::with_wake(
+            wake_existing_first,
+            launch_new_on_failure,
+        )))
+        .await;
+        dispatcher.set_config_manager(cm);
+    }
+
+    /// 记录型执行器桩：App 目标声明默认动作 execute、非默认动作 execute_admin 与唤醒动作。
+    /// `fail_wake` 为 true 时唤醒动作返回 ActivationFailed（模拟窗口未找到）。
+    struct RecordingExecutor {
+        core: ComponentCore,
+        executed: Arc<Mutex<Vec<String>>>,
+        fail_wake: bool,
+    }
+
+    impl RecordingExecutor {
+        /// 构造记录型执行器；执行过的动作 ID 追加写入 `executed`。
+        fn new(executed: Arc<Mutex<Vec<String>>>, fail_wake: bool) -> Self {
+            Self {
+                core: ComponentCore::new(
+                    "test-recording-executor".to_string(),
+                    "记录型执行器".to_string(),
+                    String::new(),
+                    ComponentType::ActionExecutor,
+                    0,
+                ),
+                executed,
+                fail_wake,
+            }
+        }
+    }
+
+    #[async_trait]
+    impl Configurable for RecordingExecutor {
+        fn core(&self) -> &ComponentCore {
+            &self.core
+        }
+
+        fn setting_schema(&self) -> Vec<SettingDefinition> {
+            Vec::new()
+        }
+    }
+
+    #[async_trait]
+    impl ActionExecutor for RecordingExecutor {
+        fn supported_target_types(&self) -> Vec<TargetType> {
+            vec![TargetType::App]
+        }
+
+        fn supported_actions(&self) -> Vec<ResultAction> {
+            vec![
+                ResultAction {
+                    id: ACTION_EXECUTE.to_string(),
+                    label: "打开".to_string(),
+                    icon: IconRequest::Path(String::new()),
+                    is_default: true,
+                    shortcut_key: String::new(),
+                },
+                ResultAction {
+                    id: ACTION_ACTIVATE_WINDOW.to_string(),
+                    label: "唤醒窗口".to_string(),
+                    icon: IconRequest::Path(String::new()),
+                    is_default: false,
+                    shortcut_key: "Shift+Enter".to_string(),
+                },
+                ResultAction {
+                    id: "execute_admin".to_string(),
+                    label: "以管理员身份运行".to_string(),
+                    icon: IconRequest::Path(String::new()),
+                    is_default: false,
+                    shortcut_key: "Ctrl+Enter".to_string(),
+                },
+            ]
+        }
+
+        async fn execute(
+            &self,
+            _ctx: &ExecutionContext,
+            action_id: &str,
+        ) -> Result<(), ExecutionError> {
+            self.executed.lock().push(action_id.to_string());
+            if self.fail_wake && action_id == ACTION_ACTIVATE_WINDOW {
+                return Err(ExecutionError::ActivationFailed {
+                    fallback_action: ACTION_EXECUTE.to_string(),
+                });
+            }
+            Ok(())
+        }
+    }
+
+    /// 写入单个 App 候选项并返回其 id（id 由 add_candidate 分配）。
+    fn seed_app_candidate(dispatcher: &SessionDispatcher) -> CandidateId {
+        let mut cache = CachedCandidateData::new();
+        cache.add_candidate(SearchCandidate {
+            id: 0,
+            name: "测试应用".to_string(),
+            icon: IconRequest::Path(String::new()),
+            target: ExecutionTarget::App("test.app".to_string()),
+            keywords: Vec::new(),
+            bias: 0.0,
+            trigger_keywords: Vec::new(),
+        });
+        let candidate_id = cache.get_candidates()[0].id;
+        dispatcher.set_cached_candidates(cache);
+        candidate_id
+    }
+
+    /// 开关开启：默认动作被改写成唤醒动作。
+    #[tokio::test]
+    async fn wake_existing_first_rewrites_default_action() {
+        let dispatcher = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
+        let executed = Arc::new(Mutex::new(Vec::new()));
+        dispatcher.register_executor(Arc::new(RecordingExecutor::new(executed.clone(), false)));
+        let candidate_id = seed_app_candidate(&dispatcher);
+        set_wake_setting(&dispatcher, true, true).await;
+
+        dispatcher
+            .execute_candidate(candidate_id, 0, ACTION_EXECUTE, "", &[])
+            .await
+            .expect("开关开启时确认应成功");
+
+        assert_eq!(*executed.lock(), vec![ACTION_ACTIVATE_WINDOW.to_string()]);
+    }
+
+    /// 开关关闭：默认动作保持不变。
+    #[tokio::test]
+    async fn wake_existing_first_disabled_keeps_default_action() {
+        let dispatcher = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
+        let executed = Arc::new(Mutex::new(Vec::new()));
+        dispatcher.register_executor(Arc::new(RecordingExecutor::new(executed.clone(), false)));
+        let candidate_id = seed_app_candidate(&dispatcher);
+        set_wake_setting(&dispatcher, false, true).await;
+
+        dispatcher
+            .execute_candidate(candidate_id, 0, ACTION_EXECUTE, "", &[])
+            .await
+            .expect("开关关闭时确认应成功");
+
+        assert_eq!(*executed.lock(), vec![ACTION_EXECUTE.to_string()]);
+    }
+
+    /// 显式选择非默认动作（Ctrl+Enter 管理员启动）不被改写。
+    #[tokio::test]
+    async fn wake_existing_first_does_not_rewrite_non_default_action() {
+        let dispatcher = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
+        let executed = Arc::new(Mutex::new(Vec::new()));
+        dispatcher.register_executor(Arc::new(RecordingExecutor::new(executed.clone(), false)));
+        let candidate_id = seed_app_candidate(&dispatcher);
+        set_wake_setting(&dispatcher, true, true).await;
+
+        dispatcher
+            .execute_candidate(candidate_id, 0, "execute_admin", "", &[])
+            .await
+            .expect("非默认动作确认应成功");
+
+        assert_eq!(*executed.lock(), vec!["execute_admin".to_string()]);
+    }
+
+    /// 唤醒失败且回退关闭：只尝试唤醒，不执行回退动作（与 Shift+Enter 一致）。
+    #[tokio::test]
+    async fn wake_failure_without_fallback_does_not_launch() {
+        let dispatcher = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
+        let executed = Arc::new(Mutex::new(Vec::new()));
+        dispatcher.register_executor(Arc::new(RecordingExecutor::new(executed.clone(), true)));
+        let candidate_id = seed_app_candidate(&dispatcher);
+        set_wake_setting(&dispatcher, true, false).await;
+
+        dispatcher
+            .execute_candidate(candidate_id, 0, ACTION_EXECUTE, "", &[])
+            .await
+            .expect("回退关闭时确认仍应成功");
+
+        assert_eq!(*executed.lock(), vec![ACTION_ACTIVATE_WINDOW.to_string()]);
+    }
+
+    /// 唤醒失败且回退开启：按 launch_new_on_failure 执行默认动作。
+    #[tokio::test]
+    async fn wake_failure_with_fallback_launches_default_action() {
+        let dispatcher = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
+        let executed = Arc::new(Mutex::new(Vec::new()));
+        dispatcher.register_executor(Arc::new(RecordingExecutor::new(executed.clone(), true)));
+        let candidate_id = seed_app_candidate(&dispatcher);
+        set_wake_setting(&dispatcher, true, true).await;
+
+        dispatcher
+            .execute_candidate(candidate_id, 0, ACTION_EXECUTE, "", &[])
+            .await
+            .expect("回退开启时确认应成功");
+
+        assert_eq!(
+            *executed.lock(),
+            vec![
+                ACTION_ACTIVATE_WINDOW.to_string(),
+                ACTION_EXECUTE.to_string()
+            ]
+        );
     }
 
     /// 触发词 + 空格分隔内容的插件查询（路由命中 "=" 桩插件）。

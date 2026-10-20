@@ -10,6 +10,8 @@ use zerolaunch_plugin_api::{
     ActionExecutor, ExecutionContext, ExecutionError, ExecutionTarget, ResultAction, TargetType,
 };
 
+use super::ACTION_EXECUTE;
+
 /// 命令执行器 - 负责执行自定义命令
 /// 通过 PluginHandle::shell_execute_command 委托 SDK 层执行，不直接调用平台 API
 pub struct CommandExecutor {
@@ -51,7 +53,7 @@ impl ActionExecutor for CommandExecutor {
 
     fn supported_actions(&self) -> Vec<ResultAction> {
         vec![ResultAction {
-            id: "execute".to_string(),
+            id: ACTION_EXECUTE.to_string(),
             label: "执行".to_string(),
             icon: IconRequest::Path(String::new()),
             is_default: true,
@@ -70,7 +72,7 @@ impl ActionExecutor for CommandExecutor {
         };
 
         match action_id {
-            "execute" => {
+            ACTION_EXECUTE => {
                 // 解析模板，替换 {} 用户参数和 {clip}/{hwnd}/{selection} 系统参数
                 let resolved = self
                     .plugin_handle

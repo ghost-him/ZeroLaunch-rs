@@ -1045,7 +1045,11 @@
         },
         "launch_new_on_failure": {
           "label": "激活失败时启动新实例",
-          "desc": "启用后，窗口激活失败时自动启动程序新实例作为降级方案"
+          "desc": "启用后，唤醒失败时自动启动程序新实例（回车与 Shift+Enter 共用此策略）"
+        },
+        "wake_existing_first": {
+          "label": "回车等同 Shift+Enter",
+          "desc": "启用后，回车与 Shift+Enter 行为一致：先唤醒已运行实例，唤醒失败时按上一项决定是否启动。关闭时回车直接启动新实例"
         },
         "is_show_home_on_empty_query": {
           "label": "空查询时显示常用候选项",

@@ -10,6 +10,11 @@ use zerolaunch_plugin_api::{
     ActionExecutor, ExecutionContext, ExecutionError, ExecutionTarget, ResultAction, TargetType,
 };
 
+use super::ACTION_EXECUTE;
+
+/// 窗口唤醒动作 ID —— `window-activate-executor` 的私有动作，确认路由改写时从此处取值。
+pub(crate) const ACTION_ACTIVATE_WINDOW: &str = "activate_window";
+
 /// 窗口激活执行器 - 负责唤醒已存在的程序窗口。
 /// 通过 PluginHandle 委托给 SDK 层的 WindowManager 实现窗口激活。
 pub struct WindowActivateExecutor {
@@ -138,7 +143,7 @@ impl ActionExecutor for WindowActivateExecutor {
 
     fn supported_actions(&self) -> Vec<ResultAction> {
         vec![ResultAction {
-            id: "activate_window".to_string(),
+            id: ACTION_ACTIVATE_WINDOW.to_string(),
             label: "唤醒窗口".to_string(),
             icon: IconRequest::Path(String::new()),
             is_default: false,
@@ -148,12 +153,12 @@ impl ActionExecutor for WindowActivateExecutor {
 
     async fn execute(&self, ctx: &ExecutionContext, action_id: &str) -> Result<(), ExecutionError> {
         match action_id {
-            "activate_window" => {
+            ACTION_ACTIVATE_WINDOW => {
                 if self.try_activate(&ctx.target, &ctx.display_name).await {
                     Ok(())
                 } else {
                     Err(ExecutionError::ActivationFailed {
-                        fallback_action: "execute".to_string(),
+                        fallback_action: ACTION_EXECUTE.to_string(),
                     })
                 }
             }

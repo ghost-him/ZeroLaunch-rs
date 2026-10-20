@@ -1,6 +1,8 @@
 ---
 description: 配置数据流分层规范 — 运行时类型、存储类型、转换函数的三层职责分离
-condition: "get_settings"
+condition:
+  - 'get_settings'
+  - 'get_component_setting'
 scope: "tool:read(src-tauri/src/builtin_plugin/config/**), tool:edit(src-tauri/src/builtin_plugin/config/**), tool:write(src-tauri/src/builtin_plugin/config/**), tool:read(src-tauri/src/core/config/**), tool:edit(src-tauri/src/core/config/**), tool:write(src-tauri/src/core/config/**), tool:read(src-tauri/src/core/bias_rule.rs), tool:edit(src-tauri/src/core/bias_rule.rs), tool:write(src-tauri/src/core/bias_rule.rs), tool:read(src-tauri/src/bootstrap.rs), tool:edit(src-tauri/src/bootstrap.rs), tool:write(src-tauri/src/bootstrap.rs), tool:read(src-tauri/src/plugin_framework/session_dispatcher.rs), tool:edit(src-tauri/src/plugin_framework/session_dispatcher.rs), tool:write(src-tauri/src/plugin_framework/session_dispatcher.rs), tool:read(src-tauri/src/plugin_framework/candidate_pipeline.rs), tool:edit(src-tauri/src/plugin_framework/candidate_pipeline.rs), tool:write(src-tauri/src/plugin_framework/candidate_pipeline.rs), tool:read(src-tauri/src/plugin_framework/executor_registry.rs), tool:edit(src-tauri/src/plugin_framework/executor_registry.rs), tool:write(src-tauri/src/plugin_framework/executor_registry.rs), tool:read(crates/plugin-api/src/services/**), tool:edit(crates/plugin-api/src/services/**), tool:write(crates/plugin-api/src/services/**), tool:read(src-ui/bridge/contract.ts), tool:edit(src-ui/bridge/contract.ts), tool:write(src-ui/bridge/contract.ts)"
 ---
 
@@ -32,6 +34,7 @@ scope: "tool:read(src-tauri/src/builtin_plugin/config/**), tool:edit(src-tauri/s
 - 存储类型/转换函数所在模块 import `ConfigManager`
 - 运行时类型做 serde 反序列化（那属于转换函数的职责）
 - 消费方直接 `serde_json::from_value::<RuntimeType>` 跳过 Settings 类型
+- 消费方用 `get_component_setting(...).as_bool()/.as_str()` 单字段读取：它同样绕过 Settings 类型与 serde 默认值，字段改名/改默认值时静默漂移。改为 `get_settings(...)` + `from_value::<Settings>`（存量读取随文件改动顺手收敛）
 
 ## 消费方标准写法
 

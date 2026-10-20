@@ -10,6 +10,8 @@ use zerolaunch_plugin_api::{
     ActionExecutor, ExecutionContext, ExecutionError, ExecutionTarget, ResultAction, TargetType,
 };
 
+use super::ACTION_EXECUTE;
+
 /// 路径执行器 - 负责通过文件路径启动程序
 /// 支持普通启动、管理员启动和打开所在文件夹
 pub struct PathExecutor {
@@ -86,7 +88,7 @@ impl ActionExecutor for PathExecutor {
     fn supported_actions(&self) -> Vec<ResultAction> {
         vec![
             ResultAction {
-                id: "execute".to_string(),
+                id: ACTION_EXECUTE.to_string(),
                 label: "打开".to_string(),
                 icon: IconRequest::Path(String::new()),
                 is_default: true,
@@ -120,7 +122,7 @@ impl ActionExecutor for PathExecutor {
         };
 
         match action_id {
-            "execute" => {
+            ACTION_EXECUTE => {
                 self.execute_normal(path).await;
                 Ok(())
             }

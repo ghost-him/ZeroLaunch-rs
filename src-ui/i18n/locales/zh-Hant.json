@@ -1045,7 +1045,11 @@
         },
         "launch_new_on_failure": {
           "label": "啟用失敗時啟動新例項",
-          "desc": "啟用後，視窗啟用失敗時自動啟動程式新例項作為降級方案"
+          "desc": "啟用後，喚醒失敗時自動啟動程式新例項（回車與 Shift+Enter 共用此策略）"
+        },
+        "wake_existing_first": {
+          "label": "回車等同 Shift+Enter",
+          "desc": "啟用後，回車與 Shift+Enter 行為一致：先喚醒已執行例項，喚醒失敗時按上一項決定是否啟動。關閉時回車直接啟動新例項"
         },
         "is_show_home_on_empty_query": {
           "label": "空查詢時顯示常用候選項",

@@ -1045,7 +1045,11 @@
         },
         "launch_new_on_failure": {
           "label": "Launch new instance on activation failure",
-          "desc": "When enabled, auto-launch a new program instance as fallback if window activation fails"
+          "desc": "When enabled, launch a new program instance if the wake attempt fails (shared by Enter and Shift+Enter)"
+        },
+        "wake_existing_first": {
+          "label": "Enter behaves like Shift+Enter",
+          "desc": "When enabled, Enter wakes the running instance first and falls back exactly like Shift+Enter. When disabled, Enter launches a new instance directly"
         },
         "is_show_home_on_empty_query": {
           "label": "Show frequent items on empty query",

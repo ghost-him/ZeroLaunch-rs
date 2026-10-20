@@ -11,6 +11,7 @@ use zerolaunch_plugin_api::config::{ComponentCore, ComponentType, Configurable};
 use zerolaunch_plugin_api::{
     ActionExecutor, ExecutionContext, ExecutionError, ResultAction, TargetType,
 };
+use super::ACTION_EXECUTE;
 use async_trait::async_trait;
 use std::sync::Arc;
 use zerolaunch_plugin_api::host::PluginHandle;
@@ -65,7 +66,7 @@ impl ActionExecutor for TemplateExecutor {
 
     fn supported_actions(&self) -> Vec<ResultAction> {
         vec![ResultAction {
-            id: "execute".to_string(),
+            id: ACTION_EXECUTE.to_string(),
             label: "执行".to_string(),
             icon: zerolaunch_plugin_api::services::IconRequest::Path(String::new()),
             is_default: true,
@@ -79,7 +80,7 @@ impl ActionExecutor for TemplateExecutor {
         action_id: &str,
     ) -> Result<(), ExecutionError> {
         match action_id {
-            "execute" => {
+            ACTION_EXECUTE => {
                 // TODO: 实现你的执行逻辑
                 Ok(())
             }

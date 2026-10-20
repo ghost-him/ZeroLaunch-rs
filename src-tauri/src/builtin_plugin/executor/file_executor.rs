@@ -9,6 +9,8 @@ use zerolaunch_plugin_api::{
     ActionExecutor, ExecutionContext, ExecutionError, ExecutionTarget, ResultAction, TargetType,
 };
 
+use super::ACTION_EXECUTE;
+
 /// 文件执行器 - 负责使用系统默认方式打开文件
 /// 支持打开文件和打开所在文件夹
 pub struct FileExecutor {
@@ -77,7 +79,7 @@ impl ActionExecutor for FileExecutor {
     fn supported_actions(&self) -> Vec<ResultAction> {
         vec![
             ResultAction {
-                id: "execute".to_string(),
+                id: ACTION_EXECUTE.to_string(),
                 label: "打开".to_string(),
                 icon: IconRequest::Path(String::new()),
                 is_default: true,
@@ -104,7 +106,7 @@ impl ActionExecutor for FileExecutor {
         };
 
         match action_id {
-            "execute" => self.execute_file(file_name).await,
+            ACTION_EXECUTE => self.execute_file(file_name).await,
             "open_folder" => self.open_folder(file_name).await,
             _ => Err(ExecutionError::UnsupportedAction(
                 TargetType::File,

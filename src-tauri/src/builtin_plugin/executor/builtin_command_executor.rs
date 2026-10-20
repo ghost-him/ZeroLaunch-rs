@@ -8,6 +8,8 @@ use zerolaunch_plugin_api::{
     ActionExecutor, ExecutionContext, ExecutionError, ExecutionTarget, ResultAction, TargetType,
 };
 
+use super::ACTION_EXECUTE;
+
 use crate::core::app_command;
 
 /// 内置命令执行器 - 将 BuiltinCommand 候选项的确认操作为 AppCommand，通过全局通道发送给消费者。
@@ -64,7 +66,7 @@ impl ActionExecutor for BuiltinCommandExecutor {
 
     fn supported_actions(&self) -> Vec<ResultAction> {
         vec![ResultAction {
-            id: "execute".to_string(),
+            id: ACTION_EXECUTE.to_string(),
             label: "执行".to_string(),
             icon: IconRequest::Path(String::new()),
             is_default: true,
@@ -83,7 +85,7 @@ impl ActionExecutor for BuiltinCommandExecutor {
         };
 
         match action_id {
-            "execute" => {
+            ACTION_EXECUTE => {
                 let app_cmd = match command {
                     "ShowSettings" => app_command::AppCommand::ShowSettings,
                     "RefreshDatabase" => app_command::AppCommand::RefreshCandidates,

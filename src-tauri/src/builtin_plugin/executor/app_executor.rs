@@ -9,6 +9,8 @@ use zerolaunch_plugin_api::{
     ActionExecutor, ExecutionContext, ExecutionError, ExecutionTarget, ResultAction, TargetType,
 };
 
+use super::ACTION_EXECUTE;
+
 /// 应用执行器 - 负责通过 PluginHandle 启动系统应用（UWP 等）。
 /// 不再直接调用 Win32 API，而是委托 PluginHandle::launch_app() 由 SDK 层处理平台差异。
 pub struct AppExecutor {
@@ -50,7 +52,7 @@ impl ActionExecutor for AppExecutor {
 
     fn supported_actions(&self) -> Vec<ResultAction> {
         vec![ResultAction {
-            id: "execute".to_string(),
+            id: ACTION_EXECUTE.to_string(),
             label: "打开".to_string(),
             icon: IconRequest::Path(String::new()),
             is_default: true,
@@ -69,7 +71,7 @@ impl ActionExecutor for AppExecutor {
         };
 
         match action_id {
-            "execute" => {
+            ACTION_EXECUTE => {
                 let handle = self.plugin_handle.clone();
                 let app_id = app_id.to_string();
                 match handle.launch_app(&app_id, None).await {

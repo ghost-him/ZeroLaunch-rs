@@ -10,6 +10,9 @@ use zerolaunch_plugin_api::{
 
 use super::SessionDispatcher;
 
+/// 插件面板唤醒动作 ID —— 本执行器私有动作（打开/唤醒插件面板）。
+const ACTION_OPEN: &str = "open";
+
 /// 宿主内置执行器：沉浸式插件面板候选（ExecutionTarget::Plugin(id)）的确认动作——
 /// 经 ExecutorRegistry 解析到本执行器，执行即唤醒对应插件面板（wake_plugin）。
 ///
@@ -56,7 +59,7 @@ impl ActionExecutor for PluginWakeExecutor {
 
     fn supported_actions(&self) -> Vec<ResultAction> {
         vec![ResultAction {
-            id: "open".to_string(),
+            id: ACTION_OPEN.to_string(),
             label: "common.open".to_string(),
             icon: IconRequest::Path(String::new()),
             is_default: true,
@@ -73,7 +76,7 @@ impl ActionExecutor for PluginWakeExecutor {
                 ))
             }
         };
-        if action_id != "open" {
+        if action_id != ACTION_OPEN {
             return Err(ExecutionError::UnsupportedAction(
                 TargetType::Plugin,
                 action_id.to_string(),

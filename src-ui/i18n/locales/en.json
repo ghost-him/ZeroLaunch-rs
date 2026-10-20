@@ -411,8 +411,9 @@
     "refresh": "Refresh",
     "agentEmpty": "No records yet — ask a question in Ask AI first",
     "agentContext": "Context",
-    "agentTools": "Tools",
+    "agentTools": "Available tools",
     "agentRound": "Round {n}",
+    "agentNoToolCalls": "No tool calls this round",
     "agentToolCall": "Call {name}",
     "agentToolResult": "Result",
     "agentError": "Failed"

@@ -1,13 +1,15 @@
-//! agent 可调用的工具：读取设置当前值（敏感字段脱敏）、把确认后的需求或 bug 报告打开成预填 issue 草稿。
+//! agent 可调用的工具：读取设置当前值（敏感字段脱敏）、读取内置使用手册、把确认后的需求或 bug 报告打开成预填 issue 草稿。
 //!
 //! 工具不写配置、不碰文件系统；唯一外部副作用来自 issue 工具（打开默认浏览器、必要时写剪贴板），
 //! 且一律经 `PluginHandle` 转交宿主能力。工具集由 agent 每轮请求携带。
 
 mod get_settings;
 mod open_issue;
+mod read_wiki;
 
 pub use get_settings::{GetSettingsTool, MASK};
 pub use open_issue::OpenIssueTool;
+pub use read_wiki::ReadWikiTool;
 
 use async_trait::async_trait;
 use serde_json::Value;

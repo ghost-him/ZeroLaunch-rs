@@ -35,6 +35,9 @@ pub struct HelpHitDto {
 pub struct HelpAnswerDto {
     #[serde(rename = "answer")]
     pub answer: String,
+    /// 工具调用轮里模型写下的过渡正文，前端按独立助手消息展示。
+    #[serde(rename = "intermediates")]
+    pub intermediates: Vec<String>,
     #[serde(rename = "references")]
     pub references: Vec<HelpReferenceDto>,
 }
@@ -281,6 +284,7 @@ async fn run_ask(request: AskRequest<'_>) -> Result<HelpAnswerDto, AgentError> {
         .collect();
     Ok(HelpAnswerDto {
         answer: answer.answer,
+        intermediates: answer.intermediates,
         references,
     })
 }
@@ -646,10 +650,10 @@ mod tests {
         );
     }
 
-    /// 带工具调用的一轮里写的正文必须保留：模型可能在这一轮先给出前半段（含点击路径），
-    /// 下一轮才补剩下的内容；丢掉首轮正文会让答复缺前半段。
+    /// 带工具调用的一轮里写的正文单独成一条过渡消息，不并入最终答复；
+    /// 终轮正文仍走正常的引用解析。
     #[tokio::test]
-    async fn ask_keeps_prose_written_alongside_tool_calls() {
+    async fn ask_separates_prose_from_tool_calls_into_intermediates() {
         let dir = tempfile::tempdir().unwrap();
         let config = test_config(dir.path(), "ollama/test-model").await;
         let i18n = test_i18n(dir.path(), help_agent_catalog());
@@ -683,22 +687,28 @@ mod tests {
             .await
             .with_trace_id("test-trace")
             .unwrap();
+        assert_eq!(answer.intermediates.len(), 1, "过渡正文应单独成一条消息");
         assert!(
-            answer.answer.contains("**1. 支持情况与设置位置**"),
-            "首轮正文被丢弃：{}",
-            answer.answer
+            answer.intermediates[0].contains("**1. 支持情况与设置位置**"),
+            "{}",
+            answer.intermediates[0]
         );
         assert!(
-            answer.answer.contains("演示设置 → 阈值"),
+            answer.intermediates[0].contains("演示设置 → 阈值"),
             "{}",
-            answer.answer
+            answer.intermediates[0]
         );
         assert!(
             answer.answer.contains("**2. 当前值与改后效果**"),
             "{}",
             answer.answer
         );
-        // 引用行仍被剥离，只保留真实存在的字段引用
+        assert!(
+            !answer.answer.contains("**1. 支持情况与设置位置**"),
+            "过渡正文不应并入最终答复：{}",
+            answer.answer
+        );
+        // 引用行仍从最终答复剥离，只保留真实存在的字段引用
         assert!(!answer.answer.contains("相关设置"), "{}", answer.answer);
         assert_eq!(answer.references.len(), 1);
         assert_eq!(answer.references[0].field_key, "threshold");
@@ -779,7 +789,10 @@ mod tests {
             .iter()
             .map(|tool| tool.name.as_str())
             .collect();
-        assert_eq!(tool_names, vec!["get_settings", "open_issue_draft"]);
+        assert_eq!(
+            tool_names,
+            vec!["get_settings", "open_issue_draft", "read_wiki"]
+        );
         assert_eq!(
             requests[0].tools[0].parameters["required"][0],
             "component_id"

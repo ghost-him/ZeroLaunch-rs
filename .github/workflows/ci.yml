@@ -50,6 +50,13 @@ jobs:
         with:
           workspaces: . -> target
 
+      - name: Sync wiki snapshot
+        # 使用手册快照按 .gitignore 不入库；构建期由 build.rs 内嵌，缺快照会直接编译失败。
+        shell: pwsh
+        run: |
+          cd xtask
+          cargo run --bin xtask sync-wiki
+
       - name: Validate commit messages
         if: github.event_name == 'pull_request'
         run: |

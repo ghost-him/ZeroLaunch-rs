@@ -411,8 +411,9 @@
     "refresh": "重新整理",
     "agentEmpty": "尚無紀錄，先在「問 AI」裡提一個問題",
     "agentContext": "上下文",
-    "agentTools": "工具",
+    "agentTools": "可用工具",
     "agentRound": "第 {n} 輪",
+    "agentNoToolCalls": "本輪未呼叫工具",
     "agentToolCall": "呼叫 {name}",
     "agentToolResult": "回傳結果",
     "agentError": "呼叫失敗"

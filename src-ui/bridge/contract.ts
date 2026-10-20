@@ -452,6 +452,8 @@ export interface HelpReference {
 /** 助手答复（`help_ask`）。 */
 export interface HelpAnswer {
   answer: string
+  /** 工具调用轮里模型写下的过渡正文，按独立助手消息展示。 */
+  intermediates: string[]
   references: HelpReference[]
 }
 

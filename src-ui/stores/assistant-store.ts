@@ -40,12 +40,17 @@ export const useAssistantStore = defineStore('assistant', () => {
     asking.value = true
     try {
       const answer = await helpAsk(question, navigation, history)
+      const intermediateMessages: AssistantMessage[] = answer.intermediates.map((content) => ({
+        role: 'assistant',
+        content,
+        references: [],
+      }))
       const assistantMessage: AssistantMessage = {
         role: 'assistant',
         content: answer.answer,
         references: answer.references,
       }
-      messages.value = [...messages.value, assistantMessage]
+      messages.value = [...messages.value, ...intermediateMessages, assistantMessage]
     } catch (error) {
       const errorMessage: AssistantMessage = {
         role: 'assistant',

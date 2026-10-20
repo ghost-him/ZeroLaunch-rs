@@ -15,6 +15,7 @@ mod prompt;
 mod settings;
 mod tools;
 mod trace;
+mod wiki;
 
 pub use manual::{ManualHit, SettingsManual};
 pub use settings::{HelpAgentSettings, HELP_AGENT_CONFIG_ID};
@@ -26,7 +27,7 @@ use crate::core::config::ConfigManager;
 use crate::core::i18n::I18nManager;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tools::{GetSettingsTool, OpenIssueTool};
+use tools::{GetSettingsTool, OpenIssueTool, ReadWikiTool};
 use trace::{TraceMessage, TraceRound, TraceToolCall};
 use zerolaunch_plugin_api::host::PluginHandle;
 use zerolaunch_plugin_api::services::model::{
@@ -42,8 +43,10 @@ const MAX_REFERENCES: usize = 12;
 
 /// 一次提问的答复与可跳转引用。
 pub struct AgentAnswer {
-    /// 面向用户的答复文本（已剔除引用行）。
+    /// 面向用户的最终答复文本（已剔除引用行）。
     pub answer: String,
+    /// 工具调用轮里模型写下的过渡正文（按发生顺序，每条单独成一条对话消息）。
+    pub intermediates: Vec<String>,
     /// 有效引用（已按说明书校验，臆造项被丢弃）。
     pub references: Vec<AgentReference>,
 }
@@ -234,10 +237,11 @@ impl SettingsAgent {
                 self.handle.clone(),
                 self.model_id.clone(),
             )),
+            Box::new(ReadWikiTool),
         ];
         let mut messages = vec![ModelChatMessage::text(
             ModelChatRole::System,
-            prompt::system_prompt(&manual.render(navigation, triggers)),
+            prompt::system_prompt(&manual.render(navigation, triggers), &wiki::index_text()),
         )];
         // 历史插在系统消息之后、当前问题之前：模型据此接着上一轮澄清继续谈需求
         messages.extend(history);
@@ -253,6 +257,7 @@ impl SettingsAgent {
             .collect();
 
         let mut answer: Vec<String> = Vec::new();
+        let mut intermediates: Vec<String> = Vec::new();
 
         for _ in 0..MAX_ROUNDS {
             let response = self.chat(messages.clone(), tool_specs(&tools)).await?;
@@ -260,14 +265,18 @@ impl SettingsAgent {
                 content: response.content.clone(),
                 tool_calls: Vec::new(),
             };
-            // 带工具调用的一轮也可能同时写了正文（实测常是含点击路径的前半段），
-            // 必须累计进答复，否则最终文本会缺前半段。
+            // 带工具调用的一轮里写的正文是「我先查一下」这类过渡语，
+            // 单独成一条消息；只有不再调用工具的终轮正文才并入最终答复。
             if !response.content.trim().is_empty() {
-                answer.push(response.content.clone());
+                if response.tool_calls.is_empty() {
+                    answer.push(response.content.clone());
+                } else {
+                    intermediates.push(response.content.trim().to_string());
+                }
             }
             if response.tool_calls.is_empty() {
                 trace.rounds.push(round);
-                return Ok(Self::finish(&answer.join("\n"), &manual));
+                return Ok(Self::finish(&answer.join("\n"), &manual, intermediates));
             }
             // 助手轮次原样回填（含工具调用），保证下一轮消息序列合法
             messages.push(ModelChatMessage {
@@ -302,7 +311,7 @@ impl SettingsAgent {
         if !response.content.trim().is_empty() {
             answer.push(response.content);
         }
-        Ok(Self::finish(&answer.join("\n"), &manual))
+        Ok(Self::finish(&answer.join("\n"), &manual, intermediates))
     }
 
     /// 发起一次 chat 请求（非流式：工具调用需要完整载荷，不做分片重组）。
@@ -324,9 +333,13 @@ impl SettingsAgent {
     }
 
     /// 收尾：解析「相关设置」引用并构造答复。
-    fn finish(content: &str, manual: &SettingsManual) -> AgentAnswer {
+    fn finish(content: &str, manual: &SettingsManual, intermediates: Vec<String>) -> AgentAnswer {
         let (answer, references) = split_references(content, manual);
-        AgentAnswer { answer, references }
+        AgentAnswer {
+            answer,
+            intermediates,
+            references,
+        }
     }
 }
 
@@ -492,5 +505,21 @@ mod tests {
         let (body, references) = split_references(answer, &manual());
         assert_eq!(body, answer);
         assert!(references.is_empty());
+    }
+
+    /// 工具循环按名称分发到 read_wiki，并返回整页正文。
+    #[tokio::test]
+    async fn run_tool_dispatches_read_wiki() {
+        let tools: Vec<Box<dyn AgentTool>> = vec![Box::new(ReadWikiTool)];
+        let output = run_tool(
+            &tools,
+            &ModelToolCall {
+                id: "call-1".to_string(),
+                name: "read_wiki".to_string(),
+                arguments: r#"{"id":"Home"}"#.to_string(),
+            },
+        )
+        .await;
+        assert!(output.starts_with("# "), "应返回手册正文");
     }
 }

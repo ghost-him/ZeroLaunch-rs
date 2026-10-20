@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand, ValueEnum};
 use serde::Deserialize;
+use std::collections::BTreeMap;
 use std::env;
 use std::ffi::OsString;
 use std::fs;
@@ -115,7 +116,9 @@ fn print_build_plan(kind: BuildKind, targets: &[BuildTarget], version: &str) -> 
             BuildKind::Installer => {
                 let msi_name = format!(
                     "{}_{}_{}_en-US.msi",
-                    product_name.as_deref().expect("Installer 分支已读取 productName"),
+                    product_name
+                        .as_deref()
+                        .expect("Installer 分支已读取 productName"),
                     version,
                     target.arch.label()
                 );
@@ -167,6 +170,15 @@ enum Commands {
     },
     /// 清理构建产物
     Clean,
+    /// 同步使用手册快照到 src-tauri/assets/wiki
+    SyncWiki {
+        /// wiki 源目录；默认 ../ZeroLaunch-rs.wiki，不存在时克隆到 target/wiki-cache
+        #[arg(long)]
+        source: Option<PathBuf>,
+        /// 只校验快照是否与源一致，不写入
+        #[arg(long)]
+        check: bool,
+    },
 }
 
 #[tokio::main]
@@ -211,6 +223,9 @@ async fn main() -> Result<()> {
             clean_build_artifacts()?;
             println!("✅ 清理完成！");
         }
+        Commands::SyncWiki { source, check } => {
+            sync_wiki(source.as_deref(), *check)?;
+        }
     }
 
     Ok(())
@@ -240,9 +255,9 @@ async fn build_single_installer(target: BuildTarget, version: &str) -> Result<()
         target.arch.triple().to_string(),
     ];
 
-    run_command(args).await.with_context(|| {
-        format!("构建安装包失败: 架构 {}", target.arch.display())
-    })?;
+    run_command(args)
+        .await
+        .with_context(|| format!("构建安装包失败: 架构 {}", target.arch.display()))?;
 
     move_installer_to_root(target.arch)?;
 
@@ -264,11 +279,9 @@ fn collect_cli_binary(target_arch: TargetArch, version: &str) -> Result<()> {
         let root_dir = env::current_dir()?;
         let dest_path = root_dir.join(&dest_name);
         if dest_path.exists() {
-            fs::remove_file(&dest_path)
-                .context(format!("删除已存在的 {} 失败", dest_name))?;
+            fs::remove_file(&dest_path).context(format!("删除已存在的 {} 失败", dest_name))?;
         }
-        fs::copy(&cli_path, &dest_path)
-            .context(format!("无法将 {:?} 复制到根目录", cli_path))?;
+        fs::copy(&cli_path, &dest_path).context(format!("无法将 {:?} 复制到根目录", cli_path))?;
         println!("✅ 已将 {} 移动到根目录", dest_name);
     } else {
         println!(
@@ -295,9 +308,9 @@ async fn build_cli_binary(target_arch: TargetArch) -> Result<()> {
         target_arch.triple().to_string(),
     ];
 
-    run_command(args).await.with_context(|| {
-        format!("构建 zerolaunch-cli 失败: 架构 {}", target_arch.display())
-    })?;
+    run_command(args)
+        .await
+        .with_context(|| format!("构建 zerolaunch-cli 失败: 架构 {}", target_arch.display()))?;
 
     println!("✅ zerolaunch-cli 构建完成: {}", target_arch.display());
     Ok(())
@@ -332,9 +345,9 @@ async fn build_single_portable(target: BuildTarget, version: &str) -> Result<()>
         "portable".to_string(),
     ];
 
-    run_command(args).await.with_context(|| {
-        format!("构建便携版失败: 架构 {}", target.arch.display())
-    })?;
+    run_command(args)
+        .await
+        .with_context(|| format!("构建便携版失败: 架构 {}", target.arch.display()))?;
 
     package_portable_variant(target, version).await?;
 
@@ -477,9 +490,7 @@ fn find_portable_exe(target_dir: &Path, arch: TargetArch) -> Result<PathBuf> {
 
 /// 从 release 目录的 exe 文件名中精确选出应用可执行文件（排除 zerolaunch-cli.exe）
 fn pick_portable_exe<'a>(exe_names: &'a [String], app_exe_name: &str) -> Option<&'a String> {
-    exe_names
-        .iter()
-        .find(|name| name.as_str() == app_exe_name)
+    exe_names.iter().find(|name| name.as_str() == app_exe_name)
 }
 
 /// 创建便携版 ZIP 包
@@ -671,6 +682,181 @@ fn get_app_version() -> Result<String> {
     }
 
     anyhow::bail!("未找到应用版本号，请确保配置文件中包含 version 字段");
+}
+
+/// wiki 快照的输出目录（相对仓库根）。
+const WIKI_ASSETS_DIR: &str = "src-tauri/assets/wiki";
+/// 远端 wiki 仓库地址：本地源目录不存在时使用。
+const WIKI_REMOTE: &str = "https://github.com/ghost-him/ZeroLaunch-rs.wiki.git";
+
+/// 同步或校验使用手册快照。
+///
+/// 参数：source - 源目录（相对仓库根或绝对路径）；None 时优先用同级的 wiki 工作区，
+/// 再退到 target/wiki-cache 的克隆；check - 只比对不写入。
+/// 返回：校验发现差异、源目录缺失或复制失败时报错。
+fn sync_wiki(source: Option<&Path>, check: bool) -> Result<()> {
+    let repo_root = env::current_dir()?;
+    let source = resolve_wiki_source(&repo_root, source)?;
+    let source_pages = collect_wiki_pages(&source)?;
+    let target = repo_root.join(WIKI_ASSETS_DIR);
+
+    println!("📚 wiki 源目录: {}", source.display());
+    println!("📄 页面数量: {}", source_pages.len());
+    anyhow::ensure!(!source_pages.is_empty(), "wiki 源目录中没有 Markdown 页面");
+
+    if check {
+        let target_pages = collect_wiki_pages(&target)?;
+        let mut problems = Vec::new();
+        for (rel, source_path) in &source_pages {
+            match target_pages.get(rel) {
+                None => problems.push(format!("缺少 {rel}")),
+                Some(target_path) => {
+                    if fs::read(source_path)? != fs::read(target_path)? {
+                        problems.push(format!("内容不一致 {rel}"));
+                    }
+                }
+            }
+        }
+        for rel in target_pages.keys() {
+            if !source_pages.contains_key(rel) {
+                problems.push(format!("源中已不存在 {rel}"));
+            }
+        }
+        anyhow::ensure!(
+            problems.is_empty(),
+            "使用手册快照与源不一致（{} 处），请运行 cargo run --bin xtask sync-wiki 更新:\n{}",
+            problems.len(),
+            problems.join("\n")
+        );
+        println!("✅ 使用手册快照与源一致。");
+        return Ok(());
+    }
+
+    if target.exists() {
+        fs::remove_dir_all(&target)
+            .with_context(|| format!("清理旧快照 {} 失败", target.display()))?;
+    }
+    for (rel, source_path) in &source_pages {
+        let dest = target.join(format!("{rel}.md"));
+        if let Some(parent) = dest.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::copy(source_path, &dest)
+            .with_context(|| format!("复制 {} 失败", source_path.display()))?;
+    }
+    fs::write(target.join("SNAPSHOT"), wiki_snapshot(&source))?;
+    println!(
+        "✅ 已同步 {} 个页面到 {}",
+        source_pages.len(),
+        target.display()
+    );
+    Ok(())
+}
+
+/// 解析 wiki 源目录：显式参数优先，其次同级工作区，最后克隆/更新缓存。
+fn resolve_wiki_source(repo_root: &Path, source: Option<&Path>) -> Result<PathBuf> {
+    if let Some(source) = source {
+        let source = if source.is_absolute() {
+            source.to_path_buf()
+        } else {
+            repo_root.join(source)
+        };
+        anyhow::ensure!(source.is_dir(), "wiki 源目录不存在: {}", source.display());
+        return Ok(source);
+    }
+
+    let local = repo_root.join("../ZeroLaunch-rs.wiki");
+    if local.is_dir() {
+        return Ok(local);
+    }
+
+    let cache = repo_root.join("target/wiki-cache");
+    let refreshed = cache.join(".git").is_dir() && git(&cache, &["pull", "--ff-only"]).is_ok();
+    if !refreshed {
+        if cache.exists() {
+            fs::remove_dir_all(&cache)
+                .with_context(|| format!("清理 wiki 缓存 {} 失败", cache.display()))?;
+        }
+        if let Some(parent) = cache.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        let target = cache.to_string_lossy().to_string();
+        git(repo_root, &["clone", "--depth", "1", WIKI_REMOTE, &target])?;
+    }
+    Ok(cache)
+}
+
+/// 递归收集 Markdown 页面，键为相对路径去扩展名并统一用 `/` 分隔。
+fn collect_wiki_pages(root: &Path) -> Result<BTreeMap<String, PathBuf>> {
+    let mut pages = BTreeMap::new();
+    if root.is_dir() {
+        collect_wiki_pages_into(root, root, &mut pages)?;
+    }
+    Ok(pages)
+}
+
+fn collect_wiki_pages_into(
+    root: &Path,
+    dir: &Path,
+    out: &mut BTreeMap<String, PathBuf>,
+) -> Result<()> {
+    for entry in fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if entry.file_name().to_string_lossy().starts_with('.') {
+            continue;
+        }
+        if path.is_dir() {
+            // archive/ 放的是旧版 wiki 页面，不能当现行文档收进快照。
+            if entry.file_name().to_string_lossy() == "archive" {
+                continue;
+            }
+            collect_wiki_pages_into(root, &path, out)?;
+            continue;
+        }
+        if path.extension().and_then(|ext| ext.to_str()) != Some("md") {
+            continue;
+        }
+        let rel = path.strip_prefix(root)?;
+        let key = rel.with_extension("").to_string_lossy().replace('\\', "/");
+        out.insert(key, path);
+    }
+    Ok(())
+}
+
+/// 记录快照来源：提交、提交时间与工作区是否有未提交的 Markdown 修改。
+fn wiki_snapshot(source: &Path) -> String {
+    let commit =
+        git(source, &["rev-parse", "--short=12", "HEAD"]).unwrap_or_else(|_| "unknown".to_string());
+    let date =
+        git(source, &["log", "-1", "--format=%cI"]).unwrap_or_else(|_| "unknown".to_string());
+    let dirty = git(source, &["status", "--porcelain", "--", "*.md"])
+        .map(|text| !text.is_empty())
+        .unwrap_or(false);
+    format!(
+        "source={}\ncommit={}\ndate={}\ndirty={}\n",
+        source.display(),
+        commit,
+        date,
+        dirty
+    )
+}
+
+/// 在指定目录执行 git 命令，返回裁剪后的标准输出。
+fn git(dir: &Path, args: &[&str]) -> Result<String> {
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(dir)
+        .args(args)
+        .output()
+        .context("执行 git 失败")?;
+    anyhow::ensure!(
+        output.status.success(),
+        "git {} 失败: {}",
+        args.join(" "),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
 #[cfg(test)]

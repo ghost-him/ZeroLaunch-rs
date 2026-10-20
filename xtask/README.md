@@ -61,6 +61,16 @@ cargo run --bin xtask build-portable --ai disabled
 cargo run --bin xtask clean
 ```
 
+#### 同步使用手册快照
+`src-tauri/assets/wiki` 是构建期内嵌的 wiki 快照，不入库；干净构建前必须同步一次。
+```bash
+# 从 ../ZeroLaunch-rs.wiki 同步（不存在时克隆到 target/wiki-cache）
+cargo run --bin xtask sync-wiki
+
+# 只校验快照与源是否一致
+cargo run --bin xtask sync-wiki --check
+```
+
 ### 🎯 架构选择功能
 
 #### 仅构建 x64 架构

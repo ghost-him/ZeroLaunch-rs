@@ -17,10 +17,29 @@ const TEMPLATE: &str = include_str!("./prompt.md");
 
 /// 生成系统提示词。
 ///
-/// 参数：manual - 说明书文本（`SettingsManual::render` 的产物）。
+/// 参数：manual - 说明书文本（`SettingsManual::render` 的产物）；
+/// wiki_index - 使用手册目录（标题、id、摘要，`wiki::index_text` 的产物）。
 /// 返回：模板占位符替换后的完整系统提示词。
-pub fn system_prompt(manual: &str) -> String {
+pub fn system_prompt(manual: &str, wiki_index: &str) -> String {
     TEMPLATE
         .replace("{REFERENCES_MARKER}", REFERENCES_MARKER)
+        .replace("{wiki_index}", wiki_index)
         .replace("{manual}", manual)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 模板占位符必须全部被替换，手册与说明书都要进入最终提示词。
+    #[test]
+    fn system_prompt_replaces_manual_and_wiki_index() {
+        let prompt = system_prompt("MANUAL_BODY", "WIKI_INDEX");
+        assert!(prompt.contains("MANUAL_BODY"));
+        assert!(prompt.contains("WIKI_INDEX"));
+        assert!(!prompt.contains("{manual}"));
+        assert!(!prompt.contains("{wiki_index}"));
+        assert!(!prompt.contains("{REFERENCES_MARKER}"));
+        assert!(prompt.contains("相关设置:"));
+    }
 }

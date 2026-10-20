@@ -106,7 +106,10 @@
               <div class="trace-tools">{{ trace.tools.join(', ') }}</div>
             </div>
             <div v-for="(round, rIndex) in trace.rounds" :key="rIndex" class="trace-section">
-              <div class="trace-label">{{ t('debug.agentRound', { n: rIndex + 1 }) }}</div>
+              <div class="trace-label">
+                {{ t('debug.agentRound', { n: rIndex + 1 }) }}
+                <span v-if="!round.toolCalls.length"> · {{ t('debug.agentNoToolCalls') }}</span>
+              </div>
               <pre v-if="round.content" class="trace-pre">{{ round.content }}</pre>
               <div v-for="(call, cIndex) in round.toolCalls" :key="cIndex" class="trace-call">
                 <div class="trace-label">{{ t('debug.agentToolCall', { name: call.name }) }}</div>

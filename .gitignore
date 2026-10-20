@@ -51,3 +51,6 @@ tmp_edge_profile
 tmp_resultlist_repro.html
 
 .commandcode/
+
+# 使用手册快照：权威在 ZeroLaunch-rs.wiki 仓库，构建前用 xtask sync-wiki 生成
+/src-tauri/assets/wiki/

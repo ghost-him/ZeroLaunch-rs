@@ -7,6 +7,9 @@ function readCssProp(name: string): number {
   return parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name).trim()) || 0
 }
 
+/// 通知浮层底边与窗口底边保留的间距（与通知层顶部 12px 留白对称）
+const NOTIFICATION_BOTTOM_GAP = 12
+
 export function useWindowResize() {
   const store = useSearchStore()
   const appWindow = getCurrentWindow()
@@ -15,20 +18,51 @@ export function useWindowResize() {
   /// 避免自身 setSize 触发的 resize 事件形成回调循环；下发失败时清空，供下次触发重试。
   let appliedSize = { width: 0, height: 0 }
 
+  /// 通知浮层的观察者：容器随首个通知出现、随最后一个通知消失（Teleport 到 body），
+  /// 容器自身高度等于视口高度，只能监听内部通知的增删来重新测算窗口尺寸。
+  let layerObserver: MutationObserver | null = null
+  let observedLayer: HTMLElement | null = null
+  let bodyObserver: MutationObserver | null = null
+
+  /** 同步通知浮层观察者：容器出现时监听其内部通知增删，容器消失时解除观察并回收窗口高度。 */
+  function syncNotificationLayer() {
+    const layer = document.querySelector<HTMLElement>('.n-notification-container')
+    if (layer === observedLayer) return
+    layerObserver?.disconnect()
+    observedLayer = layer
+    layerObserver = null
+    if (layer) {
+      layerObserver = new MutationObserver(() => {
+        void resizeWindow()
+      })
+      layerObserver.observe(layer, { childList: true, subtree: true })
+    }
+    void resizeWindow()
+  }
+
   /** 测算窗口应有的物理尺寸。
    * 宽度取 --window-width（CSS px），高度取 .window-frame 的当前渲染高度，
    * 两者都按 devicePixelRatio（＝系统缩放 × 页面缩放）折算为物理像素。
    * 不能只按窗口 scale_factor 换算（原来的 LogicalSize 做法）：页面按 devicePixelRatio
    * 渲染，两者不一致时（窗口跨不同 DPI 显示器后 scale_factor 未同步、页面被缩放）
    * 窗口比内容渲染尺寸小，面板与底栏底部被窗口边缘裁掉。
+   * 通知浮层经 Teleport 挂到 body 且 position: fixed，不参与 .window-frame 布局，
+   * 故高度还要容纳所有通知的下边缘，否则仅搜索栏高的窗口会把通知底部裁掉。
    * @returns 目标尺寸；.window-frame 尚未挂载时返回 null */
   function measureWindowSize(): { width: number; height: number } | null {
     const frame = document.querySelector('.window-frame')
     if (!frame) return null
+    let notificationBottom = 0
+    for (const el of document.querySelectorAll('.n-notification')) {
+      notificationBottom = Math.max(notificationBottom, el.getBoundingClientRect().bottom)
+    }
     const scale = window.devicePixelRatio || 1
     return {
       width: Math.round((readCssProp('--window-width') || 600) * scale),
-      height: Math.round(frame.getBoundingClientRect().height * scale),
+      height: Math.round(
+        Math.max(frame.getBoundingClientRect().height, notificationBottom + NOTIFICATION_BOTTOM_GAP) *
+          scale,
+      ),
     }
   }
 
@@ -90,12 +124,19 @@ export function useWindowResize() {
     })
     observer.observe(frame, { box: 'border-box' })
     window.addEventListener('resize', onViewportResize)
+
+    // 通知容器是 Teleport 到 body 的直接子节点：监听 body 子节点增删即可捕获容器挂载/移除
+    bodyObserver = new MutationObserver(syncNotificationLayer)
+    bodyObserver.observe(document.body, { childList: true })
+    syncNotificationLayer()
   })
 
   onUnmounted(() => {
     if (observer) {
       observer.disconnect()
     }
+    bodyObserver?.disconnect()
+    layerObserver?.disconnect()
     window.removeEventListener('resize', onViewportResize)
     if (resizeRaf) cancelAnimationFrame(resizeRaf)
   })

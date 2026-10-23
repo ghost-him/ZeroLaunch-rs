@@ -366,7 +366,7 @@ jobs:
           }
 
           $baseUrl = if ([string]::IsNullOrWhiteSpace($env:AI_BASE_URL)) { "https://api.deepseek.com" } else { $env:AI_BASE_URL.TrimEnd('/') }
-          $model   = if ([string]::IsNullOrWhiteSpace($env:AI_MODEL))    { "deepseek-v4-flash" }       else { $env:AI_MODEL }
+          $model   = if ([string]::IsNullOrWhiteSpace($env:AI_MODEL))    { "deepseek-flash" }          else { $env:AI_MODEL }
           $changelog = $env:CHANGELOG
 
           if ([string]::IsNullOrWhiteSpace($changelog)) {

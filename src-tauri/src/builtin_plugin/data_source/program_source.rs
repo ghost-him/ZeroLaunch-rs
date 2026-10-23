@@ -544,9 +544,17 @@ impl DataSource for ProgramSource {
 
                     let target = target_for_path(&actual_path);
 
-                    let localized_name = localized_names.get(&file_name_lower).cloned();
+                    let localized_name = localized_names.get(&file_name_lower);
 
-                    let final_show_name = localized_name.unwrap_or(show_name);
+                    // 本地化名（desktop.ini 把 "Task Manager" 译成「任务管理器」）用作展示名；
+                    // 原始文件名仍是用户可见的叫法，转小写后一并作为关键词，保证中英文两种名称都能检索到。
+                    let (final_show_name, keywords) = match localized_name {
+                        Some(name) if !show_name.is_empty() && name != &show_name => {
+                            (name.clone(), vec![show_name.to_lowercase()])
+                        }
+                        Some(name) => (name.clone(), Vec::new()),
+                        None => (show_name, Vec::new()),
+                    };
 
                     let icon = IconRequest::Path(actual_path_str.clone());
 
@@ -555,7 +563,8 @@ impl DataSource for ProgramSource {
                         name: final_show_name,
                         icon,
                         target,
-                        keywords: Vec::new(), //  这个值的内容由 KeywordOptimizer 负责填充
+                        // 原始文件名关键词；其余关键词由 KeywordOptimizer 从展示名派生
+                        keywords,
                         bias: 0.0,
                         trigger_keywords: Vec::new(),
                     };

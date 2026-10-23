@@ -68,7 +68,9 @@ fn collect_pages(root: &Path, dir: &Path, out: &mut Vec<(String, PathBuf)>) {
         let entry =
             entry.unwrap_or_else(|error| panic!("读取 {} 的条目失败: {error}", dir.display()));
         let path = entry.path();
-        if entry.file_name().to_string_lossy().starts_with('.') {
+        // 跳过隐藏条目与 GitHub wiki 元页面（_Sidebar/_Footer/_Header），它们不是手册正文。
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if name.starts_with('.') || name.starts_with('_') {
             continue;
         }
         if path.is_dir() {

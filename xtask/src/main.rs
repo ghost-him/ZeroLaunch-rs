@@ -803,7 +803,9 @@ fn collect_wiki_pages_into(
     for entry in fs::read_dir(dir)? {
         let entry = entry?;
         let path = entry.path();
-        if entry.file_name().to_string_lossy().starts_with('.') {
+        // 跳过隐藏条目与 GitHub wiki 元页面（_Sidebar/_Footer/_Header），它们不是手册正文。
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if name.starts_with('.') || name.starts_with('_') {
             continue;
         }
         if path.is_dir() {

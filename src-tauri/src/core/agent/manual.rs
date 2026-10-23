@@ -1,8 +1,8 @@
 //! 设置说明书：把配置系统的 schema 与译文整理成可读、可检索的条目。
 //!
 //! 数据来源：`ConfigManager`（组件与字段 schema）与 `I18nManager`（译文）；另有两条渲染期注入——
-//! 前端下发的 `navigation`（设置页点击路径）与命令层从插件元数据投影的 `triggers`（触发方式）——
-//! 都只参与渲染，不进条目。
+//! 前端下发的 `navigation`（完整点击链与组件内字段分组形态）与命令层从插件元数据投影的
+//! `triggers`（触发方式）——都只参与渲染，不进条目。
 //! 不另维护第二份文案 —— schema 或文案变了，说明书随之变化。
 //! 内嵌对象字段（数组项、对象字段的子字段）同样收进条目，key 用 `父key.子key`，
 //! 与 `get_settings` 返回的 JSON 结构一致；界面状态（只读、设置页不直接显示、
@@ -13,7 +13,7 @@
 use crate::core::config::ConfigManager;
 use crate::core::i18n::I18nManager;
 use serde_json::Value;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use zerolaunch_plugin_api::config::{FieldUiMetadata, SchemaKind, SchemaNode, VisibleWhen};
 
 /// 组件级说明条目。
@@ -24,6 +24,15 @@ pub struct ManualComponent {
     pub name: String,
     /// 组件说明（已按当前语言翻译）。
     pub description: String,
+}
+
+/// 组件在设置页中的完整点击链，以及组件内字段分组的渲染形态。
+#[derive(Debug, Clone)]
+pub struct ComponentNavigation {
+    /// 完整点击路径（含分类、组件类型标签页与组件名），由前端按当前界面语言拼好。
+    pub path: String,
+    /// 组件内字段分组是否渲染为标签页；false 表示页内分组标题。
+    pub group_tabs: bool,
 }
 
 /// 字段级说明条目。
@@ -40,7 +49,8 @@ pub struct ManualField {
     pub description: String,
     /// 字段补充说明（已翻译；空表示无补充）。承载作用范围、生效时机与特殊限制。
     pub note: String,
-    /// 字段所在分组（已翻译；空表示未分组）。界面上是组件内的标签页或分组标题。
+    /// 字段所在分组（已翻译；空表示未分组）。界面上是组件内的标签页或分组标题，
+    /// 由组件导航的 `group_tabs` 决定。
     pub group: String,
     /// 是否只读：界面上不可编辑。
     pub read_only: bool,
@@ -122,22 +132,40 @@ impl SettingsManual {
 
     /// 渲染为模型上下文文本：组件（id + 设置页路径 + 触发方式 + 说明）后跟该组件的字段清单。
     ///
-    /// 参数：navigation - 组件 id → 设置页点击路径（由前端按当前界面语言拼好）；
+    /// 参数：navigation - 组件 id → 设置页完整点击链与字段分组形态（由前端按当前界面语言拼好）；
     /// triggers - 组件 id → 触发段文本（自含标签，如「触发词：fy / tr」，由命令层从插件元数据组装）。
     /// 缺路径或缺触发的组件只渲染已有部分，模型不会看到空占位；
     /// 两者都缺时模型无法给出逐步导航，会退回组件名。
-    /// 字段行带上所在分组（`位置`）：分组在界面上是组件内的标签页或分组标题，
-    /// 模型据此把这一步插进点击路径。
+    /// 字段行带上所在分组（`位置：标签页「…」` 或 `位置：分组「…」`）：
+    /// 标签页是组件页内的一级导航，分组只是页内分区标题。
+    /// 前端只在组件有多个顶层分组时才渲染分组 tab，这里按同一前提统计，单组仍标为分组。
     pub fn render(
         &self,
-        navigation: &HashMap<String, String>,
+        navigation: &HashMap<String, ComponentNavigation>,
         triggers: &HashMap<String, String>,
     ) -> String {
         let mut out = String::new();
         for component in &self.components {
+            let fields: Vec<&ManualField> = self
+                .fields
+                .iter()
+                .filter(|field| field.component_id == component.id)
+                .collect();
+            // 前端 showGroupTabs 只在顶层非隐藏字段分成多组时才渲染 tab；单组会平铺，
+            // 因此这里按同样的静态前提统计，避免把单组组件说成「标签页」。
+            let group_count = fields
+                .iter()
+                .filter(|field| {
+                    !field.hidden_in_settings && !field.key.contains('.') && !field.group.is_empty()
+                })
+                .map(|field| field.group.as_str())
+                .collect::<BTreeSet<_>>()
+                .len();
             out.push_str(&format!("## {}({})", component.name, component.id));
-            if let Some(path) = navigation.get(&component.id) {
-                out.push_str(&format!("｜设置页路径：{path}"));
+            let entry = navigation.get(&component.id);
+            let group_tabs = entry.is_some_and(|nav| nav.group_tabs) && group_count > 1;
+            if let Some(entry) = entry {
+                out.push_str(&format!("｜设置页路径：{}", entry.path));
             }
             if let Some(trigger) = triggers.get(&component.id) {
                 out.push_str(&format!("｜{trigger}"));
@@ -146,13 +174,9 @@ impl SettingsManual {
             if !component.description.is_empty() {
                 out.push_str(&format!("{}\n", component.description));
             }
-            for field in self
-                .fields
-                .iter()
-                .filter(|field| field.component_id == component.id)
-            {
+            for field in fields {
                 out.push_str("- ");
-                out.push_str(&field.render_line());
+                out.push_str(&field.render_line(group_tabs));
                 out.push('\n');
             }
         }
@@ -400,13 +424,14 @@ impl SettingsManual {
 impl ManualField {
     /// 渲染单条字段说明行：`key` 标签｜界面位置｜界面状态｜说明｜补充｜取值摘要。
     ///
-    /// 「位置」是字段所在分组名，即界面上该字段所在的标签页或分组标题（未分组时不渲染）；
-    /// 界面状态（设置页不直接显示 / 只读 / 仅当…时显示）与「补充」按 schema 与译文原样给出，
-    /// 免得模型把用户看不见或改不了的字段当成普通可配项。
-    fn render_line(&self) -> String {
+    /// 「位置」是字段所在分组名：`group_tabs` 为真时是组件内标签页，否则是页内分组标题；
+    /// 未分组时不渲染。界面状态（设置页不直接显示 / 只读 / 仅当…时显示）与「补充」按
+    /// schema 与译文原样给出，免得模型把用户看不见或改不了的字段当成普通可配项。
+    fn render_line(&self, group_tabs: bool) -> String {
         let mut parts = vec![format!("`{}` {}", self.key, self.label)];
         if !self.group.is_empty() {
-            parts.push(format!("位置：{}", self.group));
+            let kind = if group_tabs { "标签页" } else { "分组" };
+            parts.push(format!("位置：{kind}「{}」", self.group));
         }
         if self.hidden_in_settings {
             parts.push("设置页不直接显示".to_string());
@@ -635,13 +660,14 @@ mod tests {
         grouped.group = "结果列表".to_string();
         let mut noted = field("footer_height", "底栏高度", "底栏高度(px)");
         noted.note = "设 0 会让各处小字变小到看不见".to_string();
+        noted.group = "底栏".to_string();
         let manual = manual(vec![grouped, noted, field("theme", "主题", "界面主题")]);
 
         let text = manual.render(&HashMap::new(), &HashMap::new());
         assert!(text.contains("## 演示(demo)"), "{text}");
         assert!(text.contains("`theme` 主题｜界面主题"), "{text}");
         assert!(
-            text.contains("`show_subtitle` 显示副标题｜位置：结果列表"),
+            text.contains("`show_subtitle` 显示副标题｜位置：分组「结果列表」"),
             "{text}"
         );
         assert!(
@@ -649,12 +675,53 @@ mod tests {
             "{text}"
         );
 
-        let navigation =
-            HashMap::from([("demo".to_string(), "设置 › 外观设置 › 演示".to_string())]);
+        let navigation = HashMap::from([(
+            "demo".to_string(),
+            ComponentNavigation {
+                path: "设置 › 外观设置 › 演示".to_string(),
+                group_tabs: false,
+            },
+        )]);
         let triggers = HashMap::from([("demo".to_string(), "触发词：>".to_string())]);
         let text = manual.render(&navigation, &triggers);
         assert!(
             text.contains("## 演示(demo)｜设置页路径：设置 › 外观设置 › 演示｜触发词：>"),
+            "{text}"
+        );
+
+        // 同一份字段在分组标签页形态下要标成「标签页」，模型据此把它插进点击链
+        let tabs = HashMap::from([(
+            "demo".to_string(),
+            ComponentNavigation {
+                path: "设置 › 外观设置 › 演示".to_string(),
+                group_tabs: true,
+            },
+        )]);
+        let text = manual.render(&tabs, &HashMap::new());
+        assert!(
+            text.contains("`show_subtitle` 显示副标题｜位置：标签页「结果列表」"),
+            "{text}"
+        );
+    }
+
+    /// 单组组件即使分类允许分组 tab，前端也会平铺字段（`showGroupTabs` 要求多于一组），
+    /// 说明书必须同步标成分组标题，不能给出不存在的标签页。
+    #[test]
+    fn render_group_tabs_requires_multiple_groups() {
+        let mut grouped = field("show_subtitle", "显示副标题", "在结果项中显示副标题信息");
+        grouped.group = "结果列表".to_string();
+        let manual = manual(vec![grouped]);
+        let navigation = HashMap::from([(
+            "demo".to_string(),
+            ComponentNavigation {
+                path: "设置 › 外观设置 › 图标覆盖".to_string(),
+                group_tabs: true,
+            },
+        )]);
+
+        let text = manual.render(&navigation, &HashMap::new());
+        assert!(
+            text.contains("`show_subtitle` 显示副标题｜位置：分组「结果列表」"),
             "{text}"
         );
     }
@@ -759,19 +826,19 @@ mod tests {
         );
         assert_eq!(fields[1].label, "模型名");
         assert!(
-            fields[1].render_line().contains("只读"),
+            fields[1].render_line(false).contains("只读"),
             "{}",
-            fields[1].render_line()
+            fields[1].render_line(false)
         );
         assert!(fields[2].hidden_in_settings);
-        assert!(fields[2].render_line().contains("设置页不直接显示"));
+        assert!(fields[2].render_line(false).contains("设置页不直接显示"));
         assert_eq!(fields[3].condition, "角色=文本生成");
         assert!(
             fields[3]
-                .render_line()
+                .render_line(false)
                 .contains("仅当 角色=文本生成 时显示"),
             "{}",
-            fields[3].render_line()
+            fields[3].render_line(false)
         );
         // 内嵌对象字段的子字段继承父级界面状态：extra 自身不可见且只读 → flag 两样都继承
         assert!(fields[4].hidden_in_settings && fields[4].read_only);
@@ -779,7 +846,7 @@ mod tests {
             fields[5].hidden_in_settings && fields[5].read_only,
             "子字段应继承父级的「设置页不直接显示」与只读"
         );
-        assert!(fields[5].render_line().contains("设置页不直接显示"));
+        assert!(fields[5].render_line(false).contains("设置页不直接显示"));
     }
 
     #[test]

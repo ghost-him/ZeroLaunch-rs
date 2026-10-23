@@ -17,7 +17,7 @@ mod tools;
 mod trace;
 mod wiki;
 
-pub use manual::{ManualHit, SettingsManual};
+pub use manual::{ComponentNavigation, ManualHit, SettingsManual};
 pub use settings::{HelpAgentSettings, HELP_AGENT_CONFIG_ID};
 pub use tools::AgentTool;
 pub use tools::MASK;
@@ -105,8 +105,8 @@ pub struct AskRequest<'a> {
     pub handle: Arc<PluginHandle>,
     /// 用户本次提问（处理时去除首尾空白）。
     pub question: &'a str,
-    /// 组件 id → 设置页点击路径（前端按当前语言拼好，用于给出逐步导航）。
-    pub navigation: &'a HashMap<String, String>,
+    /// 组件 id → 设置页完整点击链与字段分组形态（前端按当前语言拼好，用于给出逐步导航）。
+    pub navigation: &'a HashMap<String, ComponentNavigation>,
     /// 组件 id → 触发方式文本（触发词与触发说明，来自插件元数据，写入说明书）。
     pub triggers: &'a HashMap<String, String>,
     /// 本次提问之前的对话（时间正序，角色仅 user/assistant）。
@@ -187,14 +187,14 @@ impl SettingsAgent {
 
     /// 回答一个问题。
     ///
-    /// 参数：question - 用户提问文本；navigation - 组件 id → 设置页点击路径（写入说明书）；
+    /// 参数：question - 用户提问文本；navigation - 组件 id → 设置页完整点击链与字段分组形态（写入说明书）；
     /// triggers - 组件 id → 触发方式文本（写入说明书）；
     /// history - 本次提问之前的对话（时间正序，插在系统消息与当前问题之间）。
     /// 返回：答复与有效引用；模型调用失败时返回 `ModelError`。
     pub async fn ask(
         &self,
         question: &str,
-        navigation: &HashMap<String, String>,
+        navigation: &HashMap<String, ComponentNavigation>,
         triggers: &HashMap<String, String>,
         history: Vec<ModelChatMessage>,
     ) -> Result<AgentAnswer, ModelError> {
@@ -211,14 +211,14 @@ impl SettingsAgent {
 
     /// 驱动「模型 ↔ 工具」循环，并把每一步记入 `trace`（调试页据此复盘上下文与工具调用）。
     ///
-    /// 参数：question - 用户提问文本；navigation - 组件 id → 设置页点击路径（写入说明书）；
+    /// 参数：question - 用户提问文本；navigation - 组件 id → 设置页完整点击链与字段分组形态（写入说明书）；
     /// triggers - 组件 id → 触发方式文本（写入说明书）；
     /// history - 本次提问之前的对话；trace - 本次提问的轨迹，就地写入首轮上下文、每轮模型输出与工具结果。
     /// 返回：答复与有效引用；模型调用失败时返回 `ModelError`（已收集的上下文仍留在 `trace` 里）。
     async fn run(
         &self,
         question: &str,
-        navigation: &HashMap<String, String>,
+        navigation: &HashMap<String, ComponentNavigation>,
         triggers: &HashMap<String, String>,
         history: Vec<ModelChatMessage>,
         trace: &mut AgentTrace,

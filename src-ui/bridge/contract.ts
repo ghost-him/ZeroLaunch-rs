@@ -457,10 +457,13 @@ export interface HelpAnswer {
   references: HelpReference[]
 }
 
-/** `help_ask` 的设置页路径项：组件 id → 界面上按顺序点击的路径。 */
+/** `help_ask` 的设置页路径项：组件 id → 完整点击链与字段分组形态。 */
 export interface HelpNavigation {
   componentId: string
+  /** 完整点击链，含分类、组件类型标签页与组件名。 */
   path: string
+  /** 组件内字段分组是否渲染为标签页；false 表示页内分组标题。 */
+  groupTabs: boolean
 }
 
 /** `help_ask` 的历史消息：本次提问之前的对话（宿主侧另有权威裁剪）。 */

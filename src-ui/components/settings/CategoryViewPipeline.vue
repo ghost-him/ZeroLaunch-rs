@@ -27,6 +27,7 @@ import { FIELD_REVEAL_KEY, type FieldRevealTarget } from '../../utils/fieldRevea
 import PipelineFlowDiagram from './PipelineFlowDiagram.vue'
 import ListDetailPanel from './ListDetailPanel.vue'
 import { useSearchEngineToggle } from '../../composables/useSearchEngineToggle'
+import { PIPELINE_GROUPS } from '../../utils/pipelineGroups'
 
 const props = defineProps<{
   components: ComponentInfo[]
@@ -34,20 +35,8 @@ const props = defineProps<{
 
 const { t } = useI18n()
 
-/** 管道分组：pane 名 + 组件类型 + 文案 key（单一来源）。 */
-const GROUPS: { pane: string; type: string; labelKey: string; customToggle?: boolean }[] = [
-  { pane: 'datasource', type: 'DataSource', labelKey: 'settings.dataSource' },
-  { pane: 'processor', type: 'KeywordOptimizer', labelKey: 'settings.contentProcessor' },
-  { pane: 'injector', type: 'KeywordInjector', labelKey: 'settings.keywordInjector' },
-  { pane: 'bias', type: 'BiasRule', labelKey: 'settings.biasRule' },
-  { pane: 'exclusion', type: 'ExclusionRule', labelKey: 'settings.exclusionRule' },
-  { pane: 'searchengine', type: 'SearchEngine', labelKey: 'settings.searchEngine', customToggle: true },
-  { pane: 'scorebooster', type: 'ScoreBooster', labelKey: 'settings.scoreBooster' },
-  { pane: 'executor', type: 'ActionExecutor', labelKey: 'settings.actionExecutor' },
-]
-
 /** 分组文案随语言切换刷新。 */
-const groups = computed(() => GROUPS.map((g) => ({ ...g, label: t(g.labelKey) })))
+const groups = computed(() => PIPELINE_GROUPS.map((g) => ({ ...g, label: t(g.labelKey) })))
 
 const activeTab = ref('datasource')
 
@@ -59,7 +48,7 @@ const revealComponentId = computed(() => reveal?.target.value?.componentId ?? ''
 function focusTargetPane(target: FieldRevealTarget | null | undefined): void {
   if (!target) return
   const component = props.components.find((c) => c.componentId === target.componentId)
-  const group = component ? GROUPS.find((g) => g.type === component.componentType) : undefined
+  const group = component ? PIPELINE_GROUPS.find((g) => g.type === component.componentType) : undefined
   if (group) activeTab.value = group.pane
 }
 

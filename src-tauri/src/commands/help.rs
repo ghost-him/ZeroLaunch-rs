@@ -5,7 +5,9 @@
 //! 命令壳只负责生成 trace_id 与错误映射，实体逻辑在 `search_hits` / `run_ask`。
 
 use crate::commands::bridge_error::{BridgeError, WithTraceId};
-use crate::core::agent::{ask_from_config, AgentError, AskRequest, SettingsManual};
+use crate::core::agent::{
+    ask_from_config, AgentError, AskRequest, ComponentNavigation, SettingsManual,
+};
 use crate::core::config::ConfigManager;
 use crate::core::i18n::I18nManager;
 use crate::state::app_state::AppState;
@@ -55,13 +57,17 @@ pub struct HelpReferenceDto {
     pub field_label: String,
 }
 
-/// `help_ask` 入参：组件的设置页点击路径（前端按当前界面语言拼好）。
+/// `help_ask` 入参：组件在设置页中的完整点击链与字段分组形态（前端按当前界面语言拼好）。
 #[derive(Debug, serde::Deserialize)]
 pub struct HelpNavigationDto {
     #[serde(rename = "componentId")]
     pub component_id: String,
+    /// 完整点击路径，含分类、组件类型标签页与组件名。
     #[serde(rename = "path")]
     pub path: String,
+    /// 组件内字段分组是否渲染为标签页；缺省视为分组标题。
+    #[serde(rename = "groupTabs", default)]
+    pub group_tabs: bool,
 }
 
 /// `help_ask` 入参：一条历史消息（本次提问之前的用户提问或助手答复）。
@@ -124,11 +130,19 @@ pub async fn help_ask(
 ) -> Result<HelpAnswerDto, BridgeError> {
     let trace_id = generate_trace_id();
     tracing::Span::current().record("trace_id", trace_id.as_str());
-    let navigation: HashMap<String, String> = payload
+    let navigation: HashMap<String, ComponentNavigation> = payload
         .navigation
         .unwrap_or_default()
         .into_iter()
-        .map(|entry| (entry.component_id, entry.path))
+        .map(|entry| {
+            (
+                entry.component_id,
+                ComponentNavigation {
+                    path: entry.path,
+                    group_tabs: entry.group_tabs,
+                },
+            )
+        })
         .collect();
     let triggers = collect_triggers(&state);
     let answer = run_ask(AskRequest {
@@ -373,6 +387,7 @@ mod tests {
                     .default(default_threshold())
                     .build(),
                 SchemaBuilder::text("api_key", "密钥", "接口密钥")
+                    .group("安全分组")
                     .sensitive(true)
                     .default("")
                     .build(),
@@ -519,10 +534,13 @@ mod tests {
     }
 
     /// 设置页点击路径（前端提供；测试用固定中文路径）。
-    fn navigation() -> HashMap<String, String> {
+    fn navigation() -> HashMap<String, ComponentNavigation> {
         HashMap::from([(
             "demo-config".to_string(),
-            "设置 › 常规设置 › 演示设置".to_string(),
+            ComponentNavigation {
+                path: "设置 › 常规设置 › 演示设置".to_string(),
+                group_tabs: true,
+            },
         )])
     }
 
@@ -536,7 +554,7 @@ mod tests {
         config: Arc<ConfigManager>,
         i18n: Arc<I18nManager>,
         question: &'a str,
-        navigation: &'a HashMap<String, String>,
+        navigation: &'a HashMap<String, ComponentNavigation>,
     ) -> AskRequest<'a> {
         AskRequest {
             service,
@@ -556,10 +574,19 @@ mod tests {
         let navigation: HelpNavigationDto = serde_json::from_value(serde_json::json!({
             "componentId": "appearance-config",
             "path": "设置 › 外观设置 › 外观",
+            "groupTabs": true,
         }))
         .unwrap();
         assert_eq!(navigation.component_id, "appearance-config");
         assert_eq!(navigation.path, "设置 › 外观设置 › 外观");
+        assert!(navigation.group_tabs);
+
+        let legacy: HelpNavigationDto = serde_json::from_value(serde_json::json!({
+            "componentId": "demo-config",
+            "path": "设置 › 常规设置 › 演示设置",
+        }))
+        .unwrap();
+        assert!(!legacy.group_tabs, "缺省 groupTabs 应视为页内分组");
 
         let message: HelpMessageDto = serde_json::from_value(serde_json::json!({
             "role": "assistant",
@@ -781,8 +808,10 @@ mod tests {
             "说明书应含前端下发的设置页路径"
         );
         assert!(
-            system.content.contains("`threshold` 阈值｜位置：演示分组"),
-            "说明书应含字段所在分组（模型据此补出组件内的中间一步）"
+            system
+                .content
+                .contains("`threshold` 阈值｜位置：标签页「演示分组」"),
+            "说明书应标出字段分组是标签页还是页内分组"
         );
         let tool_names: Vec<&str> = requests[0]
             .tools

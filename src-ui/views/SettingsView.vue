@@ -55,18 +55,14 @@
               :components="selectedCategory.components"
               :group-tabs="selectedCategory.groupTabs"
             />
-            <CategoryViewList
-              v-else-if="selectedCategory.components"
-              :components="selectedCategory.components"
-            />
             <div v-else class="empty-hint">
-              <n-text depth="3">无可用设置</n-text>
+              <n-text depth="3">{{ $t('settings.noComponents') }}</n-text>
             </div>
           </div>
         </template>
 
         <div v-else class="empty-hint">
-          <n-text depth="3">从左侧选择一个组件</n-text>
+          <n-text depth="3">{{ $t('settings.selectComponent') }}</n-text>
         </div>
       </div>
     </div>
@@ -77,7 +73,6 @@
 import { ref, computed, nextTick, onMounted, provide } from 'vue'
 import { NButton, NSpin, NText, useNotification } from 'naive-ui'
 import SettingsSidebar from '../components/settings/SettingsSidebar.vue'
-import CategoryViewList from '../components/settings/CategoryViewList.vue'
 import CategoryViewPipeline from '../components/settings/CategoryViewPipeline.vue'
 import CategoryViewTabs from '../components/settings/CategoryViewTabs.vue'
 import DebugView from './DebugView.vue'
@@ -87,13 +82,13 @@ import PluginsManagement from './settings/PluginsManagement.vue'
 import PluginMarket from './settings/PluginMarket.vue'
 import { useConfigStore } from '../stores/config-store'
 import { buildSidebarItems } from '../utils/settingsSidebar'
+import { buildAssistantNavigation } from '../utils/assistantNavigation'
 import { useI18n } from 'vue-i18n'
 import { registerErrorHandler } from '../bridge/commands'
 import { configGetVersion } from '../bridge/commands'
 import type { BridgeError } from '../bridge/commands'
 import { formatErrorMessage } from '../utils/errors'
 import { FIELD_REVEAL_KEY, type FieldRevealTarget } from '../utils/fieldReveal'
-import { resolveText } from '../i18n'
 import type { ComponentInfo, HelpNavigation } from '../bridge/contract'
 
 const configStore = useConfigStore()
@@ -116,30 +111,19 @@ const isDebugMode = computed(() => {
 
 const sidebarItems = computed(() => buildSidebarItems(getComponentsList(), isDebugMode.value, t))
 
-/** 助手用的「设置页路径」：分类 → 组件，供模型给出逐步导航（分类由本页拥有，故在此拼装）。 */
-const assistantNavigation = computed<HelpNavigation[]>(() => {
-  const root = t('settings.title')
-  const entries: HelpNavigation[] = []
-  const covered = new Set<string>()
-  for (const category of sidebarItems.value) {
-    for (const component of category.components ?? []) {
-      covered.add(component.componentId)
-      entries.push({
-        componentId: component.componentId,
-        path: `${root} › ${category.label} › ${resolveText(component.componentName)}`,
-      })
-    }
-  }
-  // 第三方插件组件不在分类里（配置入口在插件管理页），统一标到「插件」
-  for (const component of getComponentsList()) {
-    if (covered.has(component.componentId)) continue
-    entries.push({
-      componentId: component.componentId,
-      path: `${root} › ${t('settings.sidebar.plugins')} › ${resolveText(component.componentName)}`,
-    })
-  }
-  return entries
-})
+/** 助手用的完整点击链：按分类的实际渲染形态拼到组件，供模型逐步导航（分类与渲染形态由本页拥有）。 */
+const assistantNavigation = computed<HelpNavigation[]>(() =>
+  buildAssistantNavigation(
+    sidebarItems.value,
+    getComponentsList(),
+    {
+      root: t('settings.title'),
+      plugins: t('settings.sidebar.plugins'),
+      config: t('settings.thirdPartyPlugins.config'),
+    },
+    t,
+  ),
+)
 
 /** 待揭示的设置位置：由设置助手跳转触发，分类视图与表单消费。 */
 const revealTarget = ref<FieldRevealTarget | null>(null)

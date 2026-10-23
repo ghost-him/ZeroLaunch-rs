@@ -236,7 +236,7 @@ fn single_line(text: &str) -> String {
 const HISTORY_MAX_MESSAGES: usize = 40;
 
 /// 历史文本的总字符预算，避免历史挤占说明书与工具结果的上下文。
-const HISTORY_MAX_CHARS: usize = 64 * 1024;
+const HISTORY_MAX_CHARS: usize = 128 * 1024;
 
 /// 把前端下发的对话历史转成模型消息：只接受 user/assistant 角色，并保留最近的有界片段。
 ///

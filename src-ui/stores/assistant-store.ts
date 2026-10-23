@@ -4,7 +4,7 @@ import { helpAsk } from '../bridge/commands'
 import { formatErrorMessage } from '../utils/errors'
 import type { HelpMessage, HelpNavigation, HelpReference } from '../bridge/contract'
 
-/** 下发给宿主的历史条数上限；宿主另有权威裁剪（≤40 条 / ≤64 * 1024 字符）。 */
+/** 下发给宿主的历史条数上限；宿主另有权威裁剪（≤40 条 / ≤128 * 1024 字符）。 */
 const HISTORY_LIMIT = 40
 
 /** 对话消息：角色 + 文本 + 可跳转引用。 */

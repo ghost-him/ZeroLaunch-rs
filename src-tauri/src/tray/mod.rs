@@ -4,7 +4,7 @@ use tauri::{
     image::Image,
     menu::{CheckMenuItem, Menu, MenuBuilder, MenuItem},
     tray::{TrayIcon, TrayIconBuilder, TrayIconEvent},
-    App, AppHandle, Emitter, Manager, Runtime,
+    App, AppHandle, Runtime,
 };
 use tracing::{debug, error, info, warn};
 
@@ -85,18 +85,12 @@ impl TrayManager {
     pub async fn init(&self, app: &mut App, visible: bool) {
         let app_handle = app.handle().clone();
 
-        // 注册双击事件：切换主窗口显示/隐藏
-        app.on_tray_icon_event(move |tray_app_handle, event| {
+        // 注册双击事件：切换搜索栏显示/隐藏。
+        // 走 AppCommand 与全局快捷键共用同一入口（窗口定位、全屏拦截、
+        // 参数快照、拖拽位置保存），避免两条唤醒路径行为漂移。
+        app.on_tray_icon_event(move |_tray_app_handle, event| {
             if let TrayIconEvent::DoubleClick { .. } = event {
-                if let Some(window) = tray_app_handle.get_webview_window("main") {
-                    if window.is_visible().unwrap_or(false) {
-                        let _ = window.hide();
-                    } else {
-                        let _ = window.show();
-                        let _ = window.set_focus();
-                        let _ = window.emit("show_window", ());
-                    }
-                }
+                app_command::send(app_command::AppCommand::ToggleSearchBar);
             }
         });
 

@@ -537,30 +537,15 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) -> HashSet<String>
     // 注册快捷键回调：按下全局快捷键时切换搜索栏显示/隐藏
     info!("正在注册快捷键回调（search_bar_toggle）...");
     let core_handle_for_hotkey = state.get_core_handle();
-    let host_api_for_hotkey = host_api.clone();
-    let session_router_for_hotkey = session_dispatcher.clone();
-    let config_manager_for_hotkey = config_manager.clone();
-    let app_handle_for_hotkey = state.get_main_handle();
+    let state_for_hotkey = state.clone();
     core_handle_for_hotkey.register_hotkey_callback(
         "search_bar_toggle",
         HotkeyEventFilter::All,
         Arc::new(move |event| {
             debug!("收到快捷键事件: {:?}", event);
-            let host_api = host_api_for_hotkey.clone();
-            let session_dispatcher = session_router_for_hotkey.clone();
-            let config_manager = config_manager_for_hotkey.clone();
-            let app_handle = app_handle_for_hotkey.clone();
+            let state = state_for_hotkey.clone();
             tauri::async_runtime::spawn(async move {
-                if host_api.is_window_visible() {
-                    save_window_position_if_drag(&config_manager, &app_handle).await;
-                    host_api.hide_window().await;
-                } else {
-                    if !prepare_window_position(&config_manager, &host_api, &app_handle).await {
-                        return;
-                    }
-                    let _ = session_dispatcher.on_search_bar_wake().await;
-                    host_api.show_window().await;
-                }
+                toggle_search_bar(&state).await;
             });
         }),
     );
@@ -669,6 +654,27 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) -> HashSet<String>
     builtin_component_ids
 }
 
+/// 切换搜索栏显示/隐藏（全局快捷键与托盘双击共用）。
+///
+/// 窗口可见时保存拖拽位置后隐藏；不可见时先准备窗口位置（全屏拦截 + 定位），
+/// 捕获系统参数快照，再显示窗口。
+pub(crate) async fn toggle_search_bar(state: &AppState) {
+    let host_api = state.get_host_api();
+    let config_manager = state.get_config_manager();
+    let app_handle = state.get_main_handle();
+
+    if host_api.is_window_visible() {
+        save_window_position_if_drag(&config_manager, &app_handle).await;
+        host_api.hide_window().await;
+    } else {
+        if !prepare_window_position(&config_manager, &host_api, &app_handle).await {
+            return;
+        }
+        let _ = state.get_session_dispatcher().on_search_bar_wake().await;
+        host_api.show_window().await;
+    }
+}
+
 /// 启动 AppCommand 消费者 task。
 ///
 /// 该 task 从 channel 中接收 BuiltinCommandExecutor / TrayManager 发出的应用级命令，
@@ -681,6 +687,9 @@ fn spawn_app_command_consumer(
         while let Some(cmd) = rx.recv().await {
             debug!("AppCommand 消费者: 收到命令 {:?}", cmd);
             match cmd {
+                app_command::AppCommand::ToggleSearchBar => {
+                    toggle_search_bar(&state).await;
+                }
                 app_command::AppCommand::ShowSettings => {
                     let app_handle = state.get_main_handle();
                     if let Some(window) = app_handle.get_webview_window("setting_window") {

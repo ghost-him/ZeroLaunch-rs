@@ -31,6 +31,8 @@ use tracing::warn;
 /// 发送到 bootstrap.rs 中 spawn 的消费者 task。
 #[derive(Debug, Clone)]
 pub enum AppCommand {
+    /// 切换搜索栏显示/隐藏（与全局快捷键唤醒同一入口）
+    ToggleSearchBar,
     /// 打开设置窗口
     ShowSettings,
     /// 刷新所有候选项缓存

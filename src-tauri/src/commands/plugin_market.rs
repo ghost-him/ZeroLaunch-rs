@@ -127,6 +127,9 @@ pub async fn market_get_meta(
     };
 
     let fresh = GitHubMarketClient::new().get_card_meta(&full_name).await;
+    if let Err(e) = &fresh {
+        tracing::warn!("拉取市场仓库 {} 的卡片元数据失败: {}", full_name, e);
+    }
     // 只有成功结果才覆盖缓存：失败时旧数据原样保留
     if let Ok(meta) = &fresh {
         if cache::is_complete(meta) {

@@ -36,10 +36,18 @@ impl GitHubMarketClient {
             });
         };
 
+        // 元数据不可用会以 metadata_error 随卡片下发给前端（前端渲染成警告），
+        // 命令本身仍返回成功；这里补一条 warn，否则后端日志里查不到这类失败。
         let (manifest, metadata_error) = match self.fetch_manifest_asset(full_name, &tag_name).await
         {
             Ok(manifest) => (manifest, None),
-            Err(reason) => (None, Some(reason)),
+            Err(reason) => {
+                warn!(
+                    "市场仓库 {} 发布 {} 的元数据不可用: {}",
+                    full_name, tag_name, reason
+                );
+                (None, Some(reason))
+            }
         };
         // 只有“确实没有图标资产”才启用头像兜底：元数据取不到/不可用属于错误态，
         // 拿头像顶上会把失败伪装成正常图标（前端另有首字母占位块）。
@@ -51,7 +59,10 @@ impl GitHubMarketClient {
                 Ok(Some(data_url)) => (Some(data_url), false),
                 Ok(None) => (None, true),
                 Err(e) => {
-                    warn!("下载市场图标附件失败: {}", e);
+                    warn!(
+                        "市场仓库 {} 发布 {} 的图标附件下载失败: {}",
+                        full_name, tag_name, e
+                    );
                     (None, false)
                 }
             },
@@ -123,13 +134,7 @@ impl GitHubMarketClient {
         else {
             return Ok(None);
         };
-        match parse_manifest(&bytes) {
-            Ok(manifest) => Ok(Some(manifest)),
-            Err(e) => {
-                warn!("解析市场元数据附件 {} 失败: {}", MANIFEST_ASSET_NAME, e);
-                Err(e)
-            }
-        }
+        parse_manifest(&bytes).map(Some)
     }
 
     /// 下载清单 `[icon].path` 同名图标附件并转为 data URL。

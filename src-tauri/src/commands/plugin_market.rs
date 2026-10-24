@@ -100,8 +100,9 @@ pub async fn market_list(
 ///
 /// 走 github.com 的 release 网页路由与 CDN，不消耗 GitHub REST API 额度；
 /// 元数据缺失（旧版本发布）不是错误，由返回结构里的 None/原因字段表达。
-/// 先读 24h 磁盘缓存（键 `<owner>__<repo>.json`）：非 `force` 且未过期时直接命中，
-/// 刷新失败时静默回落到过期缓存——元数据是尽力而为，不接受把卡片降级成错误。
+/// 先读 24h 磁盘缓存（键 `<owner>__<repo>.json`）：非 `force` 且未过期时直接命中。
+/// 缓存只在成功时覆盖（失败不写）：任何失败都沿用上次成功结果，连缓存都没有才把
+/// 本次结果（降级快照或错误）交给前端。
 #[tauri::command]
 #[tracing::instrument(skip(state), fields(trace_id))]
 pub async fn market_get_meta(
@@ -119,33 +120,22 @@ pub async fn market_get_meta(
         Some(key) => cache::read::<MarketCardMeta>(&handle, META_CACHE_DOMAIN, key).await,
         None => None,
     };
-    // 新鲜缓存（且非手动刷新）直接命中；过期条目留给刷新失败时回落。
-    let fallback = match cached {
+    // 新鲜缓存直接命中（手动刷新除外）；其余条目留作刷新失败时的回落。
+    let cached = match cached {
         Some((meta, fetched_at)) if !force && cache::is_fresh(fetched_at) => return Ok(meta),
-        stale => stale.map(|(meta, _)| meta),
+        other => other.map(|(meta, _)| meta),
     };
 
-    let client = GitHubMarketClient::new();
-    let result: Result<MarketCardMeta, MarketError> = match client.get_card_meta(&full_name).await {
-        Ok(meta) => {
+    let fresh = GitHubMarketClient::new().get_card_meta(&full_name).await;
+    // 只有成功结果才覆盖缓存：失败时旧数据原样保留
+    if let Ok(meta) = &fresh {
+        if cache::is_complete(meta) {
             if let Some(key) = &cache_key {
-                cache::write(&handle, META_CACHE_DOMAIN, key, &meta).await;
+                cache::write(&handle, META_CACHE_DOMAIN, key, meta).await;
             }
-            Ok(meta)
         }
-        Err(e) => match fallback {
-            Some(meta) => {
-                tracing::warn!(
-                    "市场卡片元数据刷新失败，回落缓存数据: {}（{}）",
-                    full_name,
-                    e
-                );
-                Ok(meta)
-            }
-            None => Err(e),
-        },
-    };
-    result.with_trace_id(&trace_id)
+    }
+    cache::pick_card_meta(fresh, cached).with_trace_id(&trace_id)
 }
 
 /// 安装仓库最新发布中的插件包：解析 release → 定位/下载 zip → 交给 PluginManager 安装。

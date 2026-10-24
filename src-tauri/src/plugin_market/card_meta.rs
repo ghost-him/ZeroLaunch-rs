@@ -12,6 +12,7 @@ use super::{header_str, GitHubMarketClient, MarketCardMeta, MarketError, OWNER_A
 use reqwest::StatusCode;
 use std::path::Path;
 use tracing::warn;
+use zerolaunch_plugin_host::icon::{mime_from_extension, to_data_url};
 use zerolaunch_plugin_protocol::manifest::Manifest;
 
 /// 发布侧市场元数据附件固定名：清单元文（由插件仓发布 CI 随 zip 一同上传）。
@@ -22,7 +23,7 @@ impl GitHubMarketClient {
     ///
     /// ① `/releases/latest` 的 302 Location 给出 tag（跳到 `/releases` 即无发布版本）；
     /// ② `releases/download/<tag>/manifest.toml` 取清单元数据附件（404 = 旧版本发布未附带）；
-    /// ③ 清单声明 `[icon]` 时取同名图标附件；④ 无图标时取仓库所有者头像兜底。
+    /// ③ 清单声明 `[icon]` 时取同名图标附件；④ 确实没有图标时取仓库所有者头像兜底。
     pub async fn get_card_meta(&self, full_name: &str) -> Result<MarketCardMeta, MarketError> {
         let Some(tag_name) = self.fetch_latest_tag(full_name).await? else {
             // 无任何发布版本：卡片只显示仓库自身信息，安装按钮由前端置灰
@@ -40,17 +41,26 @@ impl GitHubMarketClient {
             Ok(manifest) => (manifest, None),
             Err(reason) => (None, Some(reason)),
         };
-        let icon = match manifest.as_ref().and_then(|m| m.icon.as_ref()) {
-            Some(section) => {
-                self.fetch_icon_asset(full_name, &tag_name, &section.path)
-                    .await
-            }
-            None => None,
+        // 只有“确实没有图标资产”才启用头像兜底：元数据取不到/不可用属于错误态，
+        // 拿头像顶上会把失败伪装成正常图标（前端另有首字母占位块）。
+        let (icon, icon_absent) = match manifest.as_ref().and_then(|m| m.icon.as_ref()) {
+            Some(section) => match self
+                .fetch_icon_asset(full_name, &tag_name, &section.path)
+                .await
+            {
+                Ok(Some(data_url)) => (Some(data_url), false),
+                Ok(None) => (None, true),
+                Err(e) => {
+                    warn!("下载市场图标附件失败: {}", e);
+                    (None, false)
+                }
+            },
+            None => (None, metadata_error.is_none()),
         };
-        let owner_avatar = if icon.is_some() {
-            None
-        } else {
+        let owner_avatar = if icon_absent {
             self.fetch_owner_avatar(full_name).await
+        } else {
+            None
         };
 
         Ok(MarketCardMeta {
@@ -122,25 +132,25 @@ impl GitHubMarketClient {
         }
     }
 
-    /// 下载清单 `[icon].path` 同名图标附件并转为 data URL；无该附件/超限返回 None。
+    /// 下载清单 `[icon].path` 同名图标附件并转为 data URL。
+    ///
+    /// `Ok(None)` = 附件不存在或无法解码（插件确实没有可用图标）；`Err` = 下载失败
+    /// （网络/限流），调用方据此区分“没提供图标”与“取不到”。
     async fn fetch_icon_asset(
         &self,
         full_name: &str,
         tag_name: &str,
         icon_path: &str,
-    ) -> Option<String> {
-        let basename = icon_basename(icon_path)?;
-        let url = release_asset_url(full_name, tag_name, basename);
-        let bytes = match self.download_optional(&url).await {
-            Ok(Some(bytes)) => bytes,
-            Ok(None) => return None,
-            Err(e) => {
-                warn!("下载市场图标附件 {} 失败: {}", basename, e);
-                return None;
-            }
+    ) -> Result<Option<String>, MarketError> {
+        let Some(basename) = icon_basename(icon_path) else {
+            return Ok(None);
         };
-        let mime = zerolaunch_plugin_host::icon::mime_from_extension(Path::new(icon_path));
-        zerolaunch_plugin_host::icon::to_data_url(mime, &bytes)
+        let url = release_asset_url(full_name, tag_name, basename);
+        let Some(bytes) = self.download_optional(&url).await? else {
+            return Ok(None);
+        };
+        let mime = mime_from_extension(Path::new(icon_path));
+        Ok(to_data_url(mime, &bytes))
     }
 
     /// 拉取仓库所有者头像作为卡片兜底占位图（`https://github.com/<owner>.png`）。
@@ -162,7 +172,7 @@ impl GitHubMarketClient {
                 return None;
             }
         };
-        zerolaunch_plugin_host::icon::to_data_url("image/png", &bytes)
+        to_data_url("image/png", &bytes)
     }
 }
 

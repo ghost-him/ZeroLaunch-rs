@@ -10,6 +10,8 @@
 //! 接口，抓取时刻只能内嵌在载荷信封（[`CacheEnvelope`]）里。
 
 use super::card_meta::is_valid_owner_login;
+use super::MarketCardMeta;
+use super::MarketError;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -47,6 +49,29 @@ fn is_fresh_at(fetched_at: u64, now: u64) -> bool {
 /// 抓取时刻是否仍在新鲜期内（TTL = [`MARKET_CACHE_TTL_SECS`]）。
 pub fn is_fresh(fetched_at: u64) -> bool {
     is_fresh_at(fetched_at, now_unix())
+}
+
+/// 卡片元数据是否完整：`metadataError` 为空（发布侧元数据附件成功取到）。
+///
+/// 降级快照只说明“这次没取到”，不能覆盖缓存里的上次成功结果。
+pub fn is_complete(meta: &MarketCardMeta) -> bool {
+    meta.metadata_error.is_none()
+}
+
+/// 刷新结果与上次成功缓存的取舍：本次成功就用本次，否则**一律**用缓存
+/// （不区分网络、限流、元数据不可用等原因）；连缓存都没有才把本次结果交出去
+/// （降级结果或错误本身）。
+pub fn pick_card_meta(
+    fresh: Result<MarketCardMeta, MarketError>,
+    cached: Option<MarketCardMeta>,
+) -> Result<MarketCardMeta, MarketError> {
+    match fresh {
+        Ok(meta) if is_complete(&meta) => Ok(meta),
+        other => match cached {
+            Some(meta) => Ok(meta),
+            None => other,
+        },
+    }
 }
 
 /// 读取缓存条目（不判新鲜期）→ 数据本体 + 抓取时刻（unix 秒）。
@@ -135,6 +160,49 @@ mod tests {
             is_fresh_at(now + 3600, now),
             "未来时间戳（时钟回拨）按新鲜处理"
         );
+    }
+
+    #[test]
+    fn failure_falls_back_to_last_success() {
+        let cached = meta_with(Some("图标"), None);
+        let degraded = meta_with(
+            None,
+            Some("下载元数据附件 manifest.toml 失败: 网络请求失败"),
+        );
+
+        // 本次成功 → 用本次结果（调用方随后覆盖缓存）
+        assert!(matches!(
+            pick_card_meta(Ok(meta_with(Some("新图标"), None)), Some(cached.clone())),
+            Ok(meta) if meta.icon.as_deref() == Some("新图标")
+        ));
+        // 本次降级 → 用缓存，不看失败原因
+        assert!(matches!(
+            pick_card_meta(Ok(degraded.clone()), Some(cached.clone())),
+            Ok(meta) if meta.icon.as_deref() == Some("图标")
+        ));
+        // 本次整体失败 → 用缓存
+        assert!(matches!(
+            pick_card_meta(Err(MarketError::Network("超时".into())), Some(cached)),
+            Ok(meta) if meta.icon.as_deref() == Some("图标")
+        ));
+        // 本次降级 + 无缓存 → 降级结果本身（卡片显示警告 + 首字母占位）
+        assert!(matches!(
+            pick_card_meta(Ok(degraded), None),
+            Ok(meta) if meta.metadata_error.is_some() && meta.icon.is_none()
+        ));
+        // 本次整体失败 + 无缓存 → 错误
+        assert!(pick_card_meta(Err(MarketError::Network("超时".into())), None).is_err());
+    }
+
+    /// 构造最小卡片元数据：`icon` 与 `metadata_error` 决定缓存判定用例。
+    fn meta_with(icon: Option<&str>, metadata_error: Option<&str>) -> MarketCardMeta {
+        MarketCardMeta {
+            tag_name: Some("v1.0.0".into()),
+            manifest: None,
+            metadata_error: metadata_error.map(str::to_string),
+            icon: icon.map(str::to_string),
+            owner_avatar: None,
+        }
     }
 
     #[test]

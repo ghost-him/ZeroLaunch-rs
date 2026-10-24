@@ -132,7 +132,8 @@ pub struct MarketCardMeta {
     /// 插件图标 data URL（清单声明 `[icon]` 且同名附件存在时）。
     #[serde(rename = "icon")]
     pub icon: Option<String>,
-    /// 仓库所有者头像 data URL：插件未提供图标时的兜底占位图。
+    /// 仓库所有者头像 data URL：插件确实没有图标（旧版本发布未附带元数据、
+    /// 清单未声明 `[icon]` 或图标附件缺失）时的兜底占位图；元数据取不到属错误态，不兜底。
     #[serde(rename = "ownerAvatar")]
     pub owner_avatar: Option<String>,
 }

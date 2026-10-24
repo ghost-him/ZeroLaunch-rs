@@ -318,6 +318,7 @@
       "loadFailed": "Failed to load plugin market",
       "empty": "No plugins available",
       "install": "Install",
+      "viewOnGithub": "View on GitHub",
       "installing": "Installing…",
       "installSuccess": "Plugin installed",
       "installFailed": "Install failed",

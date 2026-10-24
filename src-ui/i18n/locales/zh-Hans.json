@@ -318,6 +318,7 @@
       "loadFailed": "加载插件市场失败",
       "empty": "暂无可用插件",
       "install": "安装",
+      "viewOnGithub": "在 GitHub 上查看",
       "installing": "安装中…",
       "installSuccess": "插件安装成功",
       "installFailed": "安装失败",

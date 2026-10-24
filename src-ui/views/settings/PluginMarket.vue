@@ -16,6 +16,9 @@ const { t } = useI18n()
 const message = useMessage()
 const dialog = useDialog()
 
+/** GitHub 插件话题页：列出所有打了 zerolaunch-plugin 标签的仓库。 */
+const MARKET_TOPIC_URL = 'https://github.com/topics/zerolaunch-plugin'
+
 const loading = ref(false)
 const repos = ref<MarketRepo[]>([])
 const loadError = ref<string | null>(null)
@@ -235,6 +238,9 @@ onMounted(() => {
       <NButton secondary size="small" @click="showIntro = true">
         {{ t('settings.thirdPartyPlugins.intro') }}
       </NButton>
+      <NButton secondary size="small" @click="openRepo(MARKET_TOPIC_URL)">
+        {{ t('settings.pluginMarket.viewOnGithub') }}
+      </NButton>
     </NSpace>
     <NText depth="3" style="display: block; margin-bottom: 16px;">
       {{ t('settings.pluginMarket.subtitle') }}
@@ -330,17 +336,26 @@ onMounted(() => {
               {{ t('settings.pluginMarket.noMetadata') }}
             </NText>
           </div>
-          <NButton
-            type="primary"
-            size="small"
-            :loading="isInstalling(card.repo)"
-            :disabled="
-              (installingRepo !== null && !isInstalling(card.repo)) || card.unreleased
-            "
-            @click="requestInstall(card.repo)"
-          >
-            {{ t('settings.pluginMarket.install') }}
-          </NButton>
+          <NSpace align="center" :size="8" :wrap="false">
+            <NButton
+              size="small"
+              secondary
+              @click="openRepo(card.repo.htmlUrl)"
+            >
+              {{ t('settings.pluginMarket.viewOnGithub') }}
+            </NButton>
+            <NButton
+              type="primary"
+              size="small"
+              :loading="isInstalling(card.repo)"
+              :disabled="
+                (installingRepo !== null && !isInstalling(card.repo)) || card.unreleased
+              "
+              @click="requestInstall(card.repo)"
+            >
+              {{ t('settings.pluginMarket.install') }}
+            </NButton>
+          </NSpace>
         </div>
       </NCard>
     </div>

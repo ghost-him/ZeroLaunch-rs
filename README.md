@@ -14,6 +14,8 @@
   <img src="https://img.shields.io/badge/platform-Windows-0078D6" alt="平台：Windows">
   <img src="https://img.shields.io/badge/built_with-Tauri_2_Rust_Vue-654FF0" alt="基于 Tauri 2、Rust 与 Vue 构建">
   <a href="https://github.com/ghost-him/ZeroLaunch-rs/releases/latest"><img src="https://img.shields.io/github/v/release/ghost-him/ZeroLaunch-rs?label=version&color=0E7C74" alt="最新版本"></a>
+  <a href="https://github.com/ghost-him/ZeroLaunch-rs/stargazers"><img src="https://img.shields.io/github/stars/ghost-him/ZeroLaunch-rs?style=social" alt="GitHub 星标数"></a>
+  <a href="https://gitee.com/ghost-him/ZeroLaunch-rs/stargazers"><img src="https://gitee.com/ghost-him/ZeroLaunch-rs/badge/star.svg?theme=dark" alt="Gitee 星标数"></a>
 </p>
 
 <p align="center">
@@ -21,6 +23,12 @@
   给习惯用键盘的人：按 <kbd>Alt</kbd>+<kbd>Space</kbd> 唤出，敲几个字母，<kbd>Enter</kbd> 启动；<br>
   手快打错了也没关系——你要找的那个，多半还在第一位。
 </p>
+
+<p align="center">
+  <a href="https://github.com/ghost-him/ZeroLaunch-rs">GitHub</a> ·
+  <a href="https://gitee.com/ghost-him/ZeroLaunch-rs">Gitee</a>
+</p>
+
 
 <p align="center">
   <a href="https://github.com/ghost-him/ZeroLaunch-rs/releases/latest"><strong>下载最新版</strong></a>
@@ -230,6 +238,12 @@ ZeroLaunch-rs 默认的匹配算法就是冲着这件事写的。它给每个结
 - 本地怎么跑起来：环境要求、依赖安装、开发与调试命令；
 - 提交前要过哪些检查：格式化、静态检查、测试；
 - 提交信息与 PR 的规范（Conventional Commits）。
+
+## ⭐ Star 历史
+
+<p align="center">
+  <a href="https://star-history.dera.page/#ghost-him/zerolaunch-rs&Date"><img src="https://star-history.dera.page/svg?repos=ghost-him/zerolaunch-rs&type=Date" alt="Star 历史曲线"></a>
+</p>
 
 ## 💝 赞助商
 

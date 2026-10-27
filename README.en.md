@@ -14,12 +14,19 @@
   <img src="https://img.shields.io/badge/platform-Windows-0078D6" alt="Platform: Windows">
   <img src="https://img.shields.io/badge/built_with-Tauri_2_Rust_Vue-654FF0" alt="Built with Tauri 2, Rust and Vue">
   <a href="https://github.com/ghost-him/ZeroLaunch-rs/releases/latest"><img src="https://img.shields.io/github/v/release/ghost-him/ZeroLaunch-rs?label=version&color=0E7C74" alt="Latest release"></a>
+  <a href="https://github.com/ghost-him/ZeroLaunch-rs/stargazers"><img src="https://img.shields.io/github/stars/ghost-him/ZeroLaunch-rs?style=social" alt="GitHub stars"></a>
+  <a href="https://gitee.com/ghost-him/ZeroLaunch-rs/stargazers"><img src="https://gitee.com/ghost-him/ZeroLaunch-rs/badge/star.svg?theme=dark" alt="Gitee stars"></a>
 </p>
 
 <p align="center">
   <strong>ZeroLaunch-rs is a keyboard launcher built for Windows.</strong><br>
   For people who live on the keyboard: press <kbd>Alt</kbd>+<kbd>Space</kbd> to bring it up, type a few letters, <kbd>Enter</kbd> to launch;<br>
   typo while moving fast? No problem — the thing you're after is probably still at number one.
+</p>
+
+<p align="center">
+  <a href="https://github.com/ghost-him/ZeroLaunch-rs">GitHub</a> ·
+  <a href="https://gitee.com/ghost-him/ZeroLaunch-rs">Gitee</a>
 </p>
 
 <p align="center">
@@ -230,6 +237,12 @@ Want to change the code? Read [CONTRIBUTING.md](./CONTRIBUTING.md) first, it cov
 - How to run it locally: environment requirements, dependency installation, dev and debug commands;
 - Which checks to pass before committing: formatting, linting, tests;
 - Commit message and PR conventions (Conventional Commits).
+
+## ⭐ Star history
+
+<p align="center">
+  <a href="https://star-history.dera.page/#ghost-him/zerolaunch-rs&Date"><img src="https://star-history.dera.page/svg?repos=ghost-him/zerolaunch-rs&type=Date" alt="Star history chart"></a>
+</p>
 
 ## 💝 Sponsors
 

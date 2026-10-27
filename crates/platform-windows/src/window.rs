@@ -1,18 +1,20 @@
 use async_trait::async_trait;
+use std::time::Duration;
 use tracing::warn;
-use windows::Win32::Foundation::CloseHandle;
+use windows::core::GUID;
+use windows::Win32::Foundation::{CloseHandle, FALSE, HWND, LPARAM, TRUE, WPARAM};
 use windows::Win32::System::Diagnostics::ToolHelp::{
     CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS,
 };
-use windows::Win32::UI::WindowsAndMessaging::SwitchToThisWindow;
-use windows::Win32::{
-    Foundation::{FALSE, HWND, LPARAM, TRUE},
-    UI::WindowsAndMessaging::{
-        EnumWindows, GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId,
-        IsWindowVisible,
-    },
+use windows::Win32::UI::Shell::{Shell_NotifyIconGetRect, NOTIFYICONIDENTIFIER};
+use windows::Win32::UI::WindowsAndMessaging::{
+    AllowSetForegroundWindow, EnumWindows, GetClassNameW, GetForegroundWindow,
+    GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId, IsWindowVisible, PostMessageW,
+    SwitchToThisWindow, WM_APP, WM_LBUTTONDOWN, WM_LBUTTONUP,
 };
 use windows_core::BOOL;
+use winreg::enums::{HKEY_CURRENT_USER, KEY_READ};
+use winreg::RegKey;
 use zerolaunch_plugin_api::host::HostApiError;
 use zerolaunch_plugin_api::services::window::WindowManager;
 
@@ -35,7 +37,7 @@ impl WindowsWindowManager {
 #[async_trait]
 impl WindowManager for WindowsWindowManager {
     /// 根据进程名激活已存在的窗口。
-    /// 遍历进程快照找到匹配进程，枚举其窗口，调用 SwitchToThisWindow 激活。
+    /// 先尝试可见窗口；未找到时尝试目标进程的 Electron 托盘默认动作。
     async fn activate_window_by_process(&self, process_name: &str) -> Result<bool, HostApiError> {
         let hwnd = get_window_by_process_name(process_name);
         if let Some(hwnd) = hwnd {
@@ -44,10 +46,9 @@ impl WindowManager for WindowsWindowManager {
             }
             Ok(true)
         } else {
-            Ok(false)
+            Ok(activate_electron_tray_by_process(process_name).await)
         }
     }
-
     /// 根据进程 PID 激活已存在的窗口。
     /// 枚举窗口匹配 GetWindowThreadProcessId 的可见窗口，调用 SwitchToThisWindow 激活。
     async fn activate_window_by_pid(&self, pid: u32) -> Result<bool, HostApiError> {
@@ -75,6 +76,158 @@ impl WindowManager for WindowsWindowManager {
             Ok(false)
         }
     }
+}
+
+/// 托盘窗口枚举状态 —— 仅限本文件内使用。
+///
+/// 保存目标进程及其 Electron 托盘消息窗口句柄，供顶层窗口枚举回调写入。
+struct ElectronTrayWindowData {
+    /// 当前待查找托盘窗口所属进程 ID。
+    process_id: u32,
+    /// 找到时写入的托盘宿主窗口句柄；None 表示尚未找到。
+    hwnd: Option<HWND>,
+}
+
+/// 查找指定进程的 Electron 托盘宿主窗口，仅限本文件内的窗口枚举使用。
+unsafe extern "system" fn find_electron_tray_window(hwnd: HWND, lparam: LPARAM) -> BOOL {
+    let data = &mut *(lparam.0 as *mut ElectronTrayWindowData);
+    let mut process_id = 0;
+    GetWindowThreadProcessId(hwnd, Some(&mut process_id));
+    if process_id != data.process_id {
+        return TRUE;
+    }
+
+    let mut class_name = [0u16; 64];
+    let length = GetClassNameW(hwnd, &mut class_name);
+    let class_name = String::from_utf16_lossy(&class_name[..length.max(0) as usize]);
+    if class_name == "Electron_NotifyIconHostWindow" {
+        data.hwnd = Some(hwnd);
+        return FALSE;
+    }
+    TRUE
+}
+
+/// 根据进程名触发 QQ 当前 Electron 托盘图标默认动作。
+/// 仅支持经验证的 QQ.exe/WM_APP+1 协议；图标记录经实时矩形验证后才发送回调。
+async fn activate_electron_tray_by_process(process_name: &str) -> bool {
+    let target_name = std::path::Path::new(process_name)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or(process_name);
+    if !target_name.eq_ignore_ascii_case("QQ.exe") {
+        return false;
+    }
+    let target_name = target_name.to_lowercase();
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    let Ok(settings) = hkcu.open_subkey_with_flags("Control Panel\\NotifyIconSettings", KEY_READ)
+    else {
+        return false;
+    };
+
+    let mut icon_ids = Vec::new();
+    for subkey_name in settings.enum_keys().flatten() {
+        let Ok(icon_key) = settings.open_subkey_with_flags(subkey_name, KEY_READ) else {
+            continue;
+        };
+        let Ok(executable_path) = icon_key.get_value::<String, _>("ExecutablePath") else {
+            continue;
+        };
+        let executable_name = std::path::Path::new(&executable_path)
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or_default();
+        if executable_name.eq_ignore_ascii_case(&target_name) {
+            if let Ok(icon_id) = icon_key.get_value::<u32, _>("UID") {
+                icon_ids.push(icon_id);
+            }
+        }
+    }
+    icon_ids.sort_unstable();
+    icon_ids.dedup();
+    if icon_ids.len() != 1 {
+        return false;
+    }
+
+    let Ok(snapshot) = (unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) }) else {
+        return false;
+    };
+    let mut process = PROCESSENTRY32W {
+        dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32,
+        ..Default::default()
+    };
+    let mut target_window = None;
+    if unsafe { Process32FirstW(snapshot, &mut process) }.is_ok() {
+        loop {
+            let executable_name = String::from_utf16_lossy(&process.szExeFile)
+                .trim_end_matches('\0')
+                .to_lowercase();
+            if executable_name == target_name {
+                let mut data = ElectronTrayWindowData {
+                    process_id: process.th32ProcessID,
+                    hwnd: None,
+                };
+                unsafe {
+                    let _ = EnumWindows(
+                        Some(find_electron_tray_window),
+                        LPARAM(&mut data as *mut _ as isize),
+                    );
+                }
+                if let Some(hwnd) = data.hwnd {
+                    target_window = Some((hwnd, data.process_id));
+                    break;
+                }
+            }
+            if unsafe { Process32NextW(snapshot, &mut process) }.is_err() {
+                break;
+            }
+        }
+    }
+    let _ = unsafe { CloseHandle(snapshot) };
+    let Some((hwnd, process_id)) = target_window else {
+        return false;
+    };
+
+    let process_id = {
+        let identifier = NOTIFYICONIDENTIFIER {
+            cbSize: std::mem::size_of::<NOTIFYICONIDENTIFIER>() as u32,
+            hWnd: hwnd,
+            uID: icon_ids[0],
+            guidItem: GUID::zeroed(),
+        };
+        if unsafe { Shell_NotifyIconGetRect(&identifier) }.is_err() {
+            return false;
+        }
+        if unsafe { AllowSetForegroundWindow(process_id) }.is_err() {
+            return false;
+        }
+
+        let callback_message = WM_APP + 1;
+        let posted = unsafe {
+            PostMessageW(
+                Some(hwnd),
+                callback_message,
+                WPARAM(icon_ids[0] as usize),
+                LPARAM(WM_LBUTTONDOWN as isize),
+            )
+            .is_ok()
+                && PostMessageW(
+                    Some(hwnd),
+                    callback_message,
+                    WPARAM(icon_ids[0] as usize),
+                    LPARAM(WM_LBUTTONUP as isize),
+                )
+                .is_ok()
+        };
+        if !posted {
+            return false;
+        }
+        process_id
+    };
+    tokio::time::sleep(Duration::from_millis(250)).await;
+    let foreground = unsafe { GetForegroundWindow() };
+    let mut foreground_process = 0;
+    unsafe { GetWindowThreadProcessId(foreground, Some(&mut foreground_process)) };
+    foreground_process == process_id
 }
 
 /// 获取窗口标题

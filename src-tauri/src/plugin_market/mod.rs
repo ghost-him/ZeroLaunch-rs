@@ -56,8 +56,13 @@ static GET_CACHE: LazyLock<AsyncMutex<HashMap<String, CachedGet>>> =
     LazyLock::new(|| AsyncMutex::new(HashMap::new()));
 /// GitHub REST API 用户代理（API 要求显式 UA，缺省会 403）。
 const USER_AGENT: &str = "ZeroLaunch-rs-plugin-market";
-/// 单次 API 请求超时。
+/// 单次 API 请求超时（JSON/清单等小响应）。
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
+/// 插件包附件下载超时：覆盖从建连到响应体读完的全程，须按包体与弱网留足余量。
+///
+/// 与 [`REQUEST_TIMEOUT`] 分开：附件是数 MB 的二进制包，用 API 的 10 秒会在
+/// 慢网下必然超时（`reqwest` 的 timeout 是全程上限，不是空闲超时）。
+const DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(300);
 
 /// 市场模块错误类型。
 #[derive(Debug, thiserror::Error)]
@@ -168,6 +173,7 @@ struct ReleaseAsset {
 /// GitHub 客户端（REST API + release 网页路由/CDN）。
 pub struct GitHubMarketClient {
     /// 常规客户端：跟随 302 跳转（附件下载会跳到对象存储）。
+    /// 整包下载在请求级覆盖超时（[`DOWNLOAD_TIMEOUT`]），其余请求沿用 [`REQUEST_TIMEOUT`]。
     client: HttpClient,
     /// 不跟随跳转：`/releases/latest` 只需要读 302 的 Location 取 tag，
     /// 跟随会白拉一个 HTML 页面。
@@ -228,10 +234,12 @@ impl GitHubMarketClient {
 
     /// 下载附件内容（整包读入内存后返回；插件 zip 体量小）。
     /// 落盘由调用方经 PluginHandle 缓存接口完成，避免在此重复路径解析/建目录。
+    /// 请求级覆盖超时为 [`DOWNLOAD_TIMEOUT`]（附件是数 MB 二进制包，API 的 10 秒不够）。
     pub async fn download(&self, download_url: &str) -> Result<Vec<u8>, MarketError> {
         let response = self
             .client
             .get(download_url)
+            .timeout(DOWNLOAD_TIMEOUT)
             .send()
             .await
             .map_err(|e| MarketError::Network(e.to_string()))?

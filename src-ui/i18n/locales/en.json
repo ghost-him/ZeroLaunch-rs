@@ -347,14 +347,11 @@
       "refresh": "Refresh",
       "lastUpdated": "Last updated: {time}",
       "refreshFailedUsingCache": "Refresh failed, showing cached data: {reason}",
-      "loadFailed": "Failed to load plugin market",
       "empty": "No plugins available",
       "install": "Install",
       "viewOnGithub": "View on GitHub",
-      "installing": "Installing…",
       "installSuccess": "Plugin installed",
       "installFailed": "Install failed",
-      "alreadyInstalled": "This plugin is already installed",
       "previewFailed": "Failed to fetch plugin info",
       "metaLoading": "Loading release info…",
       "noRelease": "This repository has no release yet — cannot install",
@@ -364,7 +361,10 @@
       "installRiskTitle": "Security notice",
       "installRiskContent": "Third-party plugins run with the same permissions as this application. Only install plugins from trusted sources.",
       "overwriteConfirmContent": "Plugin {name} is already installed. Overwrite with the new version?",
-      "overwriteConfirmPositive": "Overwrite"
+      "overwriteConfirmPositive": "Overwrite",
+      "update": "Update",
+      "installed": "Installed",
+      "installedVersion": "Local v{version}"
     }
   },
   "error": {

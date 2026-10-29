@@ -347,14 +347,11 @@
       "refresh": "重新整理",
       "lastUpdated": "最後更新：{time}",
       "refreshFailedUsingCache": "重新整理失敗，顯示快取資料：{reason}",
-      "loadFailed": "載入插件市集失敗",
       "empty": "暫無可用插件",
       "install": "安裝",
       "viewOnGithub": "在 GitHub 上檢視",
-      "installing": "安裝中…",
       "installSuccess": "插件安裝成功",
       "installFailed": "安裝失敗",
-      "alreadyInstalled": "該插件已安裝",
       "previewFailed": "取得外掛資訊失敗",
       "metaLoading": "讀取發佈資訊…",
       "metadataInvalid": "發佈中介資料無法使用",
@@ -364,7 +361,10 @@
       "installRiskTitle": "安全提示",
       "installRiskContent": "第三方插件以與本應用同等的權限執行，請僅安裝來自可信來源的插件。",
       "overwriteConfirmContent": "插件 {name} 已安裝，是否覆蓋為新版本？",
-      "overwriteConfirmPositive": "覆蓋安裝"
+      "overwriteConfirmPositive": "覆蓋安裝",
+      "update": "更新",
+      "installed": "已安裝",
+      "installedVersion": "本地 v{version}"
     }
   },
   "error": {

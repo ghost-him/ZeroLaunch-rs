@@ -331,7 +331,10 @@ export interface MarketCardMeta {
   ownerAvatar: string | null
 }
 
-/** 市场安装预检响应：最新发布信息 + 包内 manifest（供安装确认弹窗展示，确认后仍由 marketInstall 下载安装）。 */
+/** 市场安装预检响应：最新发布信息 + 包内 manifest（供安装确认弹窗展示）。
+ *
+ * 预检时下载的整包会暂存在后端缓存里，marketInstall 命中同一附件即直接复用、
+ * 不再二次下载；确认弹窗关闭时由 marketDiscardPreview 释放该暂存。 */
 export interface MarketPackagePreview {
   tagName: string
   assetName: string

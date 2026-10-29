@@ -347,14 +347,11 @@
       "refresh": "刷新",
       "lastUpdated": "最后更新：{time}",
       "refreshFailedUsingCache": "刷新失败，展示缓存数据：{reason}",
-      "loadFailed": "加载插件市场失败",
       "empty": "暂无可用插件",
       "install": "安装",
       "viewOnGithub": "在 GitHub 上查看",
-      "installing": "安装中…",
       "installSuccess": "插件安装成功",
       "installFailed": "安装失败",
-      "alreadyInstalled": "该插件已安装",
       "previewFailed": "获取插件信息失败",
       "metaLoading": "读取发布信息…",
       "metadataInvalid": "发布元数据不可用",
@@ -364,7 +361,10 @@
       "installRiskTitle": "安全提示",
       "installRiskContent": "第三方插件以与本应用同等的权限运行，请仅安装来自可信来源的插件。",
       "overwriteConfirmContent": "插件 {name} 已安装，是否覆盖为新版本？",
-      "overwriteConfirmPositive": "覆盖安装"
+      "overwriteConfirmPositive": "覆盖安装",
+      "update": "更新",
+      "installed": "已安装",
+      "installedVersion": "本地 v{version}"
     }
   },
   "error": {

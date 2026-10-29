@@ -6,9 +6,10 @@ import {
   useDialog, useMessage,
 } from 'naive-ui'
 import { open } from '@tauri-apps/plugin-shell'
-import { marketList, marketGetMeta, marketInstall, marketPreviewPackage, marketDiscardPreview } from '@/bridge/commands'
-import type { MarketRepo, MarketListResult, MarketPackagePreview, MarketCardMeta } from '@/bridge/commands'
+import { marketList, marketGetMeta, marketInstall, marketPreviewPackage, marketDiscardPreview, pluginList } from '@/bridge/commands'
+import type { MarketRepo, MarketListResult, MarketPackagePreview, MarketCardMeta, PluginInfo } from '@/bridge/commands'
 import type { BridgeError } from '@/bridge/commands'
+import { compareVersions } from '@/utils/version'
 import PluginIntroModal from '@/components/settings/PluginIntroModal.vue'
 import PluginPackageInfo from '@/components/settings/PluginPackageInfo.vue'
 
@@ -29,8 +30,13 @@ const listInfo = ref<Omit<MarketListResult, 'repos'> | null>(null)
 const showIntro = ref(false)
 /** 正在安装的仓库（按 fullName 记录，按钮 loading + 防重入）。 */
 const installingRepo = ref<string | null>(null)
-/** 待确认安装的仓库。 */
-const pendingInstall = ref<MarketRepo | null>(null)
+/** 待确认安装的请求：仓库 + 是否直接覆盖。
+ *
+ * `overwrite` 在卡片已判定「可更新」时为 true——用户点按钮即是对"更新到该版本"的
+ * 明确同意，安装直接覆盖、不再二次弹覆盖确认。请求与意图放在同一对象里，
+ * 随弹窗关闭整体丢弃，不需要额外的同步点。
+ */
+const pendingInstall = ref<{ repo: MarketRepo; overwrite: boolean } | null>(null)
 /** 安装确认弹窗内 manifest 预检：加载中 / 失败信息 / 预检结果（读取成功才可点「安装」）。 */
 const previewLoading = ref(false)
 const previewError = ref('')
@@ -45,12 +51,43 @@ interface RepoMetaState {
 /** 按仓库全名索引的卡片元数据（tag/图标/manifest），键 = MarketRepo.fullName。 */
 const repoMeta = ref<Record<string, RepoMetaState>>({})
 
+/** 本地已安装插件：插件 id → 已安装版本。
+ *
+ * 权威来自 `plugin_list`（磁盘清单），不是发布侧 tagName —— 卡片据此区分
+ * 「未安装 / 已安装 / 可更新」，也用于安装成功后立即刷新。
+ */
+const installedVersions = ref<Record<string, string>>({})
+
+/** 拉取本地已安装插件版本表；失败只让卡片退化为「安装」，不阻断市场列表。 */
+async function loadInstalledVersions() {
+  try {
+    const plugins: PluginInfo[] = await pluginList()
+    const map: Record<string, string> = {}
+    // 只取第三方：内置插件条目 version 为空串，不构成市场安装事实。
+    // 展示文案统一补 `v` 前缀，故剥掉清单可能自带的前缀。
+    for (const p of plugins) {
+      if (p.kind === 'third-party') map[p.pluginId] = p.version.replace(/^v/i, '')
+    }
+    installedVersions.value = map
+  } catch {
+    installedVersions.value = {}
+  }
+}
+
 /** 卡片展示数据：元数据未到达时回落仓库自身字段（名称/描述）。 */
 const cards = computed(() =>
   repos.value.map((repo) => {
     const state = repoMeta.value[repo.fullName]
     const meta = state?.data ?? null
     const manifest = meta?.manifest ?? null
+    // 本地已装事实：清单 id 是 join key（发布侧清单与磁盘清单同源约定）
+    const pluginId = manifest?.plugin.id ?? null
+    const publishedVersion = manifest?.plugin.version ?? null
+    const installedVersion = pluginId ? (installedVersions.value[pluginId] ?? null) : null
+    // 版本对比结果：正数=发布版更新，0=同版本，负数=本地版更新，null=无法比较
+    const upgrade = installedVersion && publishedVersion
+      ? compareVersions(publishedVersion, installedVersion)
+      : null
     return {
       repo,
       state: state ?? null,
@@ -65,6 +102,17 @@ const cards = computed(() =>
       provides: manifest?.components.provides ?? [],
       /** 元数据附件存在但不可用（如清单与该宿主不兼容）时的原因。 */
       metadataError: meta?.metadataError ?? '',
+      /** 本地已安装版本（无则 null）。 */
+      installedVersion,
+      /** 发布版严格高于本地版：按钮显示「更新」。 */
+      upgradable: upgrade !== null && upgrade > 0,
+      /** 本地版不低于发布版（含本地更新）：显示「已安装」并禁用按钮。
+       *
+       * 必须要求 `upgrade !== null`：版本无法解析时不能断言"已是最新"，否则把
+       * "判断不了"伪装成"已安装"，按钮一禁用连预检弹窗都进不去，
+       * 后端 `ALREADY_INSTALLED → 覆盖确认` 的兜底也就永远走不到。
+       */
+      upToDate: upgrade !== null && upgrade <= 0,
     }
   }),
 )
@@ -88,9 +136,14 @@ const showInstallConfirm = computed({
   },
 })
 
-/** 点击「安装」：先弹确认（下载并安装仓库最新发布）。 */
-function requestInstall(repo: MarketRepo) {
-  pendingInstall.value = repo
+/** 点击「安装 / 可更新」：先弹确认（下载并安装仓库最新发布）。
+ *
+ * `knownInstalled` = 卡片已判定本地装了旧版本（显示「可更新」）。此时用户点按钮
+ * 即是对"更新到该版本"的明确同意，安装直接带 overwrite，不再二次弹覆盖确认 ——
+ * 版本对比已把事实摆明，重复确认只是噪音。
+ */
+function requestInstall(repo: MarketRepo, knownInstalled = false) {
+  pendingInstall.value = { repo, overwrite: knownInstalled }
   pendingPreview.value = null
   previewError.value = ''
   void loadMarketPreview(repo.fullName)
@@ -104,23 +157,25 @@ async function loadMarketPreview(fullName: string) {
   try {
     const preview = await marketPreviewPackage(fullName)
     // 预检期间用户已关闭弹窗/切换目标：暂存包无人消费，立即释放
-    if (pendingInstall.value?.fullName !== fullName) {
+    if (pendingInstall.value?.repo.fullName !== fullName) {
       void marketDiscardPreview(preview.assetName).catch(() => {})
       return
     }
     pendingPreview.value = preview
   } catch (e) {
-    if (pendingInstall.value?.fullName !== fullName) return
+    if (pendingInstall.value?.repo.fullName !== fullName) return
     previewError.value = errorText(e)
   } finally {
     // loading 只归当前弹窗：目标匹配，或弹窗已关闭（无活跃目标）时清理
-    if (pendingInstall.value?.fullName === fullName || !pendingInstall.value) {
+    if (pendingInstall.value?.repo.fullName === fullName || !pendingInstall.value) {
       previewLoading.value = false
     }
   }
 }
 
-/** 弹窗关闭（取消/ESC/安装完成）后释放预检暂存；幂等，安装成功路径缓存已由后端删除。 */
+/** 弹窗关闭（取消/ESC/安装完成）后释放预检暂存；幂等，安装成功路径缓存已由后端删除。
+ *
+ * 覆盖意图随 `pendingInstall` 一并丢弃，关窗后下次点按钮重新按卡片当前状态判定。 */
 function releasePendingPreview() {
   if (pendingPreview.value) {
     const assetName = pendingPreview.value.assetName
@@ -191,6 +246,8 @@ async function runInstall(repo: MarketRepo, overwrite: boolean) {
     await marketInstall(repo.fullName, overwrite)
     message.success(t('settings.pluginMarket.installSuccess'))
     pendingInstall.value = null
+    // 安装成功后本地已装事实已变：立即回读，卡片按钮随之从「安装/可更新」变为「已安装」
+    await loadInstalledVersions()
   } catch (e) {
     const err = e as BridgeError
     if (err.code === 'ALREADY_INSTALLED') {
@@ -212,10 +269,15 @@ async function runInstall(repo: MarketRepo, overwrite: boolean) {
   }
 }
 
-/** 确认弹窗里的安装：防重入后再执行。 */
-function confirmInstall(repo: MarketRepo) {
-  if (installingRepo.value) return
-  void runInstall(repo, false)
+/** 确认弹窗里的安装：防重入后再执行，overwrite 直接取本次请求的意图。
+ *
+ * 失败时不清除请求（弹窗仍开着）：用户再点一次仍是同一个覆盖意图，
+ * 不会被降级成"重新走 ALREADY_INSTALLED → 再弹一次覆盖确认"。
+ */
+function confirmInstall() {
+  const pending = pendingInstall.value
+  if (!pending || installingRepo.value) return
+  void runInstall(pending.repo, pending.overwrite)
 }
 
 /** 安装按钮状态。 */
@@ -223,8 +285,16 @@ function isInstalling(repo: MarketRepo): boolean {
   return installingRepo.value === repo.fullName
 }
 
+/** 安装按钮文案：可更新 → 更新；已是最新 → 已安装；否则安装。 */
+function installLabel(card: { upgradable: boolean; upToDate: boolean }): string {
+  if (card.upgradable) return t('settings.pluginMarket.update')
+  if (card.upToDate) return t('settings.pluginMarket.installed')
+  return t('settings.pluginMarket.install')
+}
+
 onMounted(() => {
   loadMarket()
+  loadInstalledVersions()
 })
 </script>
 
@@ -291,6 +361,15 @@ onMounted(() => {
               <NTag v-if="card.tagName" size="tiny" :bordered="false" type="primary">
                 {{ card.tagName }}
               </NTag>
+              <!-- 本地已装版本：与发布 tag 并列展示，「可更新」时标出方向 -->
+              <NTag
+                v-if="card.installedVersion"
+                size="tiny"
+                :bordered="false"
+                :type="card.upgradable ? 'warning' : 'success'"
+              >
+                {{ t('settings.pluginMarket.installedVersion', { version: card.installedVersion }) }}
+              </NTag>
             </div>
             <NText depth="3" class="repo-desc">
               {{ card.description || t('common.notAvailable') }}
@@ -349,11 +428,13 @@ onMounted(() => {
               size="small"
               :loading="isInstalling(card.repo)"
               :disabled="
-                (installingRepo !== null && !isInstalling(card.repo)) || card.unreleased
+                (installingRepo !== null && !isInstalling(card.repo))
+                  || card.unreleased
+                  || card.upToDate
               "
-              @click="requestInstall(card.repo)"
+              @click="requestInstall(card.repo, card.upgradable)"
             >
-              {{ t('settings.pluginMarket.install') }}
+              {{ installLabel(card) }}
             </NButton>
           </NSpace>
         </div>
@@ -371,7 +452,7 @@ onMounted(() => {
       <template v-if="pendingInstall">
         <!-- 来源：仓库 + 发布 tag + 插件包附件名 -->
         <NText depth="3" style="word-break: break-all;">
-          {{ pendingInstall.fullName }}
+          {{ pendingInstall.repo.fullName }}
         </NText>
         <NText v-if="pendingPreview" depth="3" style="display: block; word-break: break-all;">
           {{ pendingPreview.tagName }} · {{ pendingPreview.assetName }}
@@ -387,7 +468,7 @@ onMounted(() => {
               <NText type="error" style="word-break: break-all;">
                 {{ t('settings.pluginMarket.previewFailed') }}: {{ previewError }}
               </NText>
-              <NButton size="small" style="margin-top: 8px;" @click="loadMarketPreview(pendingInstall.fullName)">
+              <NButton size="small" style="margin-top: 8px;" @click="loadMarketPreview(pendingInstall.repo.fullName)">
                 {{ t('settings.thirdPartyPlugins.retry') }}
               </NButton>
             </div>
@@ -412,7 +493,7 @@ onMounted(() => {
             type="primary"
             :loading="installingRepo !== null"
             :disabled="!pendingPreview"
-            @click="confirmInstall(pendingInstall)"
+            @click="confirmInstall()"
           >
             {{ t('settings.pluginMarket.installConfirmPositive') }}
           </NButton>

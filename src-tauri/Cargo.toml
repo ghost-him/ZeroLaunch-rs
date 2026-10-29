@@ -45,7 +45,6 @@ windows = { workspace = true, features = [
     "Win32_UI_Controls",
     "Win32_Networking",
     "Win32_Networking_WinInet",
-    "Win32_Globalization",
     "Win32_System_LibraryLoader",
     "Win32_System_Environment",
 ] }
@@ -83,6 +82,7 @@ notify.workspace = true
 # Workspace-managed common deps
 serde.workspace = true
 serde_json.workspace = true
+sys-locale.workspace = true
 widestring.workspace = true
 windows-core.workspace = true
 rayon.workspace = true

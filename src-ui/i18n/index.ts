@@ -14,6 +14,7 @@ export const baseMessages: Record<Locale, Record<string, unknown>> = {
 
 export const i18n = createI18n({
   legacy: false,
+  // 挂载前的占位语言：真实语言由后端配置决定（默认跟随系统语言），main.ts 挂载前注入
   locale: 'zh-Hans',
   fallbackLocale: 'en',
   messages: {
@@ -30,25 +31,6 @@ export const i18n = createI18n({
  */
 export function resolveText(s: string): string {
   return i18n.global.te(s) ? i18n.global.t(s) : s
-}
-
-export function getInitialLocale(): Locale {
-  // Will be overridden after backend config loads; system language as fallback
-  try {
-    const navLang = navigator.language
-    if (navLang.startsWith('zh')) {
-      // 繁体区域（台湾/港澳等）默认繁体中文，其余中文区域默认简体
-      return navLang.toLowerCase().startsWith('zh-tw') ||
-        navLang.toLowerCase().startsWith('zh-hk') ||
-        navLang.toLowerCase().startsWith('zh-mo') ||
-        navLang.toLowerCase().startsWith('zh-hant')
-        ? 'zh-Hant'
-        : 'zh-Hans'
-    }
-    return 'en'
-  } catch {
-    return 'en'
-  }
 }
 
 export function setLocale(locale: Locale) {

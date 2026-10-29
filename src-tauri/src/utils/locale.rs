@@ -1,66 +1,83 @@
-/// 系统区域设置和语言检测工具
-use tracing::{debug, info, warn};
-use windows::Win32::Globalization::GetUserDefaultLocaleName;
+/// 系统语言探测与界面语言映射。
+///
+/// 读取系统首选语言使用跨平台库 `sys-locale`（Windows 走 `GetUserDefaultLocaleName`，
+/// macOS 走 `NSLocale`，Unix 走 `LC_ALL`/`LANG`），不再手写各平台实现。
+use tracing::info;
 
-/// 使用 Windows API GetUserDefaultLocaleName 来获取用户的默认区域设置
+/// 读取系统首选语言标签（BCP-47，如 `zh-CN` / `en-US`）。
+/// 返回：系统语言标签；系统未提供时返回 None。
 pub fn get_system_locale() -> Option<String> {
-    unsafe {
-        const LOCALE_NAME_MAX_LENGTH: usize = 85;
-        let mut locale_name: [u16; LOCALE_NAME_MAX_LENGTH] = [0; LOCALE_NAME_MAX_LENGTH];
-
-        let result = GetUserDefaultLocaleName(&mut locale_name);
-
-        if result > 0 {
-            // 找到第一个 null 终止符
-            let len = locale_name
-                .iter()
-                .position(|&c| c == 0)
-                .unwrap_or(result as usize);
-            let locale_string = String::from_utf16_lossy(&locale_name[..len]);
-            debug!("检测到系统语言: {}", locale_string);
-            Some(locale_string)
-        } else {
-            warn!("无法获取系统语言设置");
-            None
-        }
-    }
+    sys_locale::get_locale()
 }
 
+/// 将任意语言标签映射到本应用支持的语言码。
+/// 参数：locale - 系统语言标签，分隔符可为 `-` 或 `_`。
+/// 返回：`zh-Hant`（台湾/港澳/显式繁体）、`zh-Hans`（其余中文）、`en`（非中文与无法识别时的兜底）。
 pub fn map_locale_to_language(locale: &str) -> String {
-    // 转换为小写以便于匹配
-    let locale_lower = locale.to_lowercase();
+    // 统一分隔符后再匹配：Unix 侧可能返回 zh_CN.UTF-8 这类 POSIX 写法
+    let normalized = locale.to_lowercase().replace('_', "-");
 
-    if locale_lower.starts_with("zh-") {
-        let traditional_locales = ["zh-tw", "zh-hk", "zh-mo", "zh-hant"];
-
-        for traditional in &traditional_locales {
-            if locale_lower.starts_with(traditional) {
-                return "zh-Hant".to_string();
-            }
+    // 语言码必须恰好是 zh：`zhx` 这类前缀相同的其他标签不算中文
+    if normalized == "zh" || normalized.starts_with("zh-") {
+        // 只取 "zh" 之后的部分，避免把语言码本身当成区域码误匹配
+        let region = &normalized[2..];
+        if ["-tw", "-hk", "-mo", "-hant"]
+            .iter()
+            .any(|tag| region.starts_with(tag))
+        {
+            return "zh-Hant".to_string();
         }
-
-        // 默认其他中文 locale 为简体中文
+        // 包括 zh-Hans、zh-CN、zh-SG 及无区域码的 zh
         return "zh-Hans".to_string();
     }
 
-    // 英语处理
-    if locale_lower.starts_with("en-") || locale_lower == "en" {
-        debug!("系统语言 {} 映射为英语", locale);
-        return "en".to_string();
-    }
-
+    // 非中文一律英语：与支持语言集合取交集
     "en".to_string()
 }
 
-/// 获取适合应用的默认语言
-///
-/// 尝试检测系统语言并映射到应用支持的语言,如果检测失败则返回英语
+/// 获取应用的默认界面语言。
+/// 返回：系统语言映射出的支持语言码；读取失败时回退英语。
 pub fn get_default_app_language() -> String {
     match get_system_locale() {
         Some(locale) => map_locale_to_language(&locale),
         None => {
-            info!("无法检测系统语言，使用英语作为默认");
+            info!("无法读取系统语言，使用英语作为默认");
             "en".to_string()
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn maps_simplified_chinese_locales() {
+        for locale in ["zh-CN", "zh-Hans", "zh-SG", "zh", "zh_CN", "zh-Hans-CN"] {
+            assert_eq!(map_locale_to_language(locale), "zh-Hans", "locale={locale}");
+        }
+    }
+
+    #[test]
+    fn maps_traditional_chinese_locales() {
+        for locale in ["zh-TW", "zh-HK", "zh-MO", "zh-Hant", "zh_HK", "zh-Hant-TW"] {
+            assert_eq!(map_locale_to_language(locale), "zh-Hant", "locale={locale}");
+        }
+    }
+
+    #[test]
+    fn maps_non_chinese_locales_to_english() {
+        for locale in ["en-US", "en-GB", "en", "ja-JP", "de-DE", "", "zhx"] {
+            assert_eq!(map_locale_to_language(locale), "en", "locale={locale}");
+        }
+    }
+
+    #[test]
+    fn default_language_is_one_of_supported() {
+        let lang = get_default_app_language();
+        assert!(
+            ["zh-Hans", "zh-Hant", "en"].contains(&lang.as_str()),
+            "unexpected default language: {lang}"
+        );
     }
 }

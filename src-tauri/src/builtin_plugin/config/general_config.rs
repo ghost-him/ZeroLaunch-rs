@@ -1,5 +1,6 @@
 use crate::core::config::setting_builders::SchemaBuilder;
 use crate::sdk::HostApi;
+use crate::utils::locale::get_default_app_language;
 use async_trait::async_trait;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
@@ -25,7 +26,7 @@ pub struct GeneralSettings {
     #[serde(rename = "is_show_tray_icon", default = "default_true")]
     pub is_show_tray_icon: bool,
     /// 界面语言，取值 zh-Hans / zh-Hant / en（由 validate_settings 校验）。
-    /// 自 appearance-config 迁移而来，作为全局偏好在常规设置中管理。
+    /// 默认值跟随系统语言（未持久化该项时每次都按当前系统语言决定）。
     #[serde(rename = "language", default = "default_language")]
     pub language: String,
 }
@@ -38,7 +39,7 @@ impl Default for GeneralSettings {
             log_level: "info".to_string(),
             reset_session_on_wake: true,
             is_show_tray_icon: true,
-            language: "zh-Hans".to_string(),
+            language: default_language(),
         }
     }
 }
@@ -47,8 +48,9 @@ fn default_log_level() -> String {
     "info".to_string()
 }
 
+/// 默认界面语言 = 系统语言映射出的支持语言。
 fn default_language() -> String {
-    "zh-Hans".to_string()
+    get_default_app_language()
 }
 
 fn default_true() -> bool {
@@ -107,7 +109,7 @@ impl Configurable for GeneralConfigComponent {
                 ("zh-Hant", "繁體中文"),
                 ("en", "English"),
             ])
-            .default("zh-Hans")
+            .default(default_language())
             .build(),
             SchemaBuilder::boolean(
                 "is_auto_start",

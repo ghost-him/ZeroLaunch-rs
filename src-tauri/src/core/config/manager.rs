@@ -2,7 +2,7 @@ use crate::core::config::event::{
     create_event_bus, ConfigEvent, ConfigEventSender, PluginRuntimeEvent,
 };
 use crate::core::config::models::{
-    ComponentInfoSnapshot, ComponentPersistentState, ComponentSchemaSnapshot, PersistentConfig,
+    ComponentInfo, ComponentPersistentState, ComponentSchema, PersistentConfig,
 };
 use crate::core::config::registry::ConfigurableRegistry;
 use crate::core::config::store::ConfigStore;
@@ -147,12 +147,12 @@ impl ConfigManager {
     // region: 配置读取
 
     /// 获取所有可配置组件的概览信息
-    pub fn get_all_components(&self) -> Vec<ComponentInfoSnapshot> {
-        let mut components: Vec<ComponentInfoSnapshot> = self
+    pub fn get_all_components(&self) -> Vec<ComponentInfo> {
+        let mut components: Vec<ComponentInfo> = self
             .registry
             .get_all()
             .iter()
-            .map(|c| ComponentInfoSnapshot {
+            .map(|c| ComponentInfo {
                 component_id: c.component_id().to_string(),
                 component_name: c.component_name().to_string(),
                 component_description: c.component_description().to_string(),
@@ -166,7 +166,7 @@ impl ConfigManager {
         components
     }
 
-    pub fn get_component_schema(&self, component_id: &str) -> Option<ComponentSchemaSnapshot> {
+    pub fn get_component_schema(&self, component_id: &str) -> Option<ComponentSchema> {
         self.registry.get(component_id).and_then(|c| {
             let contribution = match c.settings_contribution() {
                 Ok(c) => c,
@@ -175,7 +175,7 @@ impl ConfigManager {
                     return None;
                 }
             };
-            Some(ComponentSchemaSnapshot {
+            Some(ComponentSchema {
                 component_id: c.component_id().to_string(),
                 component_name: c.component_name().to_string(),
                 component_description: c.component_description().to_string(),

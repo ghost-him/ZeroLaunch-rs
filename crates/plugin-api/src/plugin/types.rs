@@ -749,8 +749,7 @@ pub enum PluginMode {
 
 /// 插件种类 —— 区分内置（编译进二进制）与第三方（外部子进程）。
 ///
-/// 跨 IPC 序列化（InstalledPluginInfo.kind / 前端行模型），
-/// 也用于 PluginManager 内部统一视图 PluginInfo.kind；
+/// 跨 IPC 序列化（`PluginInfo.kind` / 前端行模型），也是 PluginManager 统一视图的判别字段；
 /// 前端以 JSON 键名 "builtin"/"third-party" 作联合类型判断。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum PluginKind {

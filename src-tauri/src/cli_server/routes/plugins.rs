@@ -5,14 +5,14 @@ use std::sync::Arc;
 use crate::commands::plugin::DEFAULT_LOG_TAIL_LINES;
 use crate::state::app_state::AppState;
 use zerolaunch_plugin_api::plugin::PluginKind;
-use zerolaunch_plugin_host::manager::InstalledPluginInfo;
+use zerolaunch_plugin_host::PluginInfo;
 use zerolaunch_plugin_protocol::Manifest;
 
 /// GET /v1/plugins — 列出所有已安装第三方插件。
 ///
 /// 复用 PluginManager::list_plugins（与 IPC plugin_list 同源同口径），
 /// 仅过滤内置条目以保持 CLI 只读查询的既有契约。
-pub async fn handle_list(State(state): State<Arc<AppState>>) -> Json<Vec<InstalledPluginInfo>> {
+pub async fn handle_list(State(state): State<Arc<AppState>>) -> Json<Vec<PluginInfo>> {
     let pm = state.get_plugin_manager();
     let cm = state.get_config_manager();
     let dispatcher = state.get_session_dispatcher();

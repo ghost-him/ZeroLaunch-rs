@@ -15,7 +15,7 @@ import {
   pluginInstallLocal, pluginInspectPackage, pluginGetLogs, pluginSetEnabled, pluginGetDetail,
   pickPluginZip, pickPluginDir, copyToClipboard,
 } from '@/bridge/commands'
-import type { InstalledPluginInfo, PluginDetail, PluginManifest, BridgeError } from '@/bridge/commands'
+import type { PluginInfo, PluginDetail, PluginManifest, BridgeError } from '@/bridge/commands'
 import type { ComponentInfo } from '@/bridge/contract'
 import { useConfigStore } from '@/stores/config-store'
 import ComponentConfigLoader from '@/components/settings/ComponentConfigLoader.vue'
@@ -38,11 +38,11 @@ interface PluginRow {
   version: string
   author: string
   enabled: boolean
-  plugin: InstalledPluginInfo
+  plugin: PluginInfo
   componentIds: string[]
 }
 
-const pluginItems = ref<InstalledPluginInfo[]>([])
+const pluginItems = ref<PluginInfo[]>([])
 const loading = ref(false)
 
 // 安装流程：拖拽 / 文件选择 → 确认弹窗（manifest 预检）→ pluginInstallLocal

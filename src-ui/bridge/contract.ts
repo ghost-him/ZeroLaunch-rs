@@ -451,6 +451,8 @@ export interface HelpHit {
   componentId: string
   fieldKey: string
   label: string
+  /** 匹配得分：越大越靠前（后端按此排序后下发，前端无需再排）。 */
+  score: number
 }
 
 /** 助手答复中引用到的设置位置。 */

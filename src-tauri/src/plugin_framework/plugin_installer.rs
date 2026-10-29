@@ -1,7 +1,7 @@
-//! PluginInstaller — 插件安装/扫描/验证。
+//! PluginInstaller — 插件安装/验证。
 //!
-//! 从 PluginManager 中提取的安装职责域，负责 zip 安装、目录安装、
-//! 插件目录扫描、安装目录安全性验证。
+//! 从 PluginManager 中提取的安装职责域，负责 zip 安装、目录安装与
+//! 安装目录安全性验证。安装目录枚举由 plugin-host 提供（安装事实的唯一权威）。
 
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -24,26 +24,6 @@ impl PluginInstaller {
     /// 创建安装器，指定插件根目录。
     pub(crate) fn new(plugins_dir: PathBuf) -> Self {
         Self { plugins_dir }
-    }
-
-    /// 扫描插件目录，返回包含 manifest.toml 的子目录列表。
-    pub(crate) fn scan_plugins_dir(&self) -> Vec<PathBuf> {
-        let mut found = Vec::new();
-        if !self.plugins_dir.exists() {
-            return found;
-        }
-        if let Ok(entries) = std::fs::read_dir(&self.plugins_dir) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if path.is_dir() {
-                    let manifest = path.join("manifest.toml");
-                    if manifest.exists() {
-                        found.push(path);
-                    }
-                }
-            }
-        }
-        found
     }
 
     /// 从 .zip 文件安装插件到 `plugins_dir/<plugin_id>/`。

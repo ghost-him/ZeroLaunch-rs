@@ -11,7 +11,7 @@ use std::path::Path;
 use std::sync::Arc;
 use tauri::State;
 use zerolaunch_plugin_api::services::path::KnownPath;
-use zerolaunch_plugin_host::manager::InstalledPluginInfo;
+use zerolaunch_plugin_host::PluginInfo;
 use zerolaunch_plugin_protocol::Manifest;
 
 // ── 展示数据磁盘缓存（24h TTL，见 plugin_market::cache） ──────────
@@ -155,7 +155,7 @@ pub async fn market_install(
     full_name: String,
     overwrite: bool,
     state: State<'_, Arc<AppState>>,
-) -> Result<InstalledPluginInfo, BridgeError> {
+) -> Result<PluginInfo, BridgeError> {
     let trace_id = crate::utils::trace_id::generate_trace_id();
     tracing::Span::current().record("trace_id", trace_id.as_str());
 

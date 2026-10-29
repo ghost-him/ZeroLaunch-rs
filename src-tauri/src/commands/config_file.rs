@@ -1,72 +1,10 @@
 use crate::commands::bridge_error::{BridgeError, WithTraceId};
-use crate::core::config::models::{ComponentInfoSnapshot, ComponentSchemaSnapshot};
+use crate::core::config::models::{ComponentInfo, ComponentSchema};
 use crate::state::app_state::AppState;
 use crate::utils::trace_id::generate_trace_id;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::sync::Arc;
-use zerolaunch_plugin_api::config::{ComponentType, ConfigActionDef, SettingsContribution};
-
-/// IPC `config_get_all_components` 返回的组件概览 DTO。
-#[derive(Debug, Serialize)]
-pub struct ComponentInfoDto {
-    #[serde(rename = "componentId")]
-    pub component_id: String,
-    #[serde(rename = "componentName")]
-    pub component_name: String,
-    #[serde(rename = "componentDescription")]
-    pub component_description: String,
-    #[serde(rename = "componentType")]
-    pub component_type: ComponentType,
-    #[serde(rename = "priority")]
-    pub priority: u32,
-    #[serde(rename = "enabled")]
-    pub enabled: bool,
-    #[serde(rename = "defaultEnabled")]
-    pub default_enabled: bool,
-}
-
-impl From<ComponentInfoSnapshot> for ComponentInfoDto {
-    /// 将 core 领域快照转换为 camelCase IPC DTO。
-    fn from(value: ComponentInfoSnapshot) -> Self {
-        Self {
-            component_id: value.component_id,
-            component_name: value.component_name,
-            component_description: value.component_description,
-            component_type: value.component_type,
-            priority: value.priority,
-            enabled: value.enabled,
-            default_enabled: value.default_enabled,
-        }
-    }
-}
-
-/// IPC `config_get_schema` 返回的组件 schema DTO。
-#[derive(Debug, Serialize)]
-pub struct ComponentSchemaDto {
-    #[serde(rename = "componentId")]
-    pub component_id: String,
-    #[serde(rename = "componentName")]
-    pub component_name: String,
-    #[serde(rename = "componentDescription")]
-    pub component_description: String,
-    #[serde(rename = "componentType")]
-    pub component_type: ComponentType,
-    #[serde(rename = "contribution")]
-    pub contribution: SettingsContribution,
-}
-
-impl From<ComponentSchemaSnapshot> for ComponentSchemaDto {
-    /// 将 core schema 快照转换为 IPC DTO。
-    fn from(value: ComponentSchemaSnapshot) -> Self {
-        Self {
-            component_id: value.component_id,
-            component_name: value.component_name,
-            component_description: value.component_description,
-            component_type: value.component_type,
-            contribution: value.contribution,
-        }
-    }
-}
+use zerolaunch_plugin_api::config::ConfigActionDef;
 
 /// 获取应用版本号（从 Cargo.toml 编译时注入）。
 #[tauri::command]
@@ -123,15 +61,10 @@ pub async fn config_execute_action(
 #[tracing::instrument(skip(state), fields(trace_id))]
 pub fn config_get_all_components(
     state: tauri::State<'_, Arc<AppState>>,
-) -> Result<Vec<ComponentInfoDto>, BridgeError> {
+) -> Result<Vec<ComponentInfo>, BridgeError> {
     let trace_id = crate::utils::trace_id::generate_trace_id();
     tracing::Span::current().record("trace_id", trace_id.as_str());
-    let components = state
-        .get_config_manager()
-        .get_all_components()
-        .into_iter()
-        .map(ComponentInfoDto::from)
-        .collect();
+    let components = state.get_config_manager().get_all_components();
     Ok::<_, BridgeError>(components).with_trace_id(&trace_id)
 }
 
@@ -141,13 +74,12 @@ pub fn config_get_all_components(
 pub fn config_get_schema(
     state: tauri::State<'_, Arc<AppState>>,
     component_id: String,
-) -> Result<ComponentSchemaDto, BridgeError> {
+) -> Result<ComponentSchema, BridgeError> {
     let trace_id = crate::utils::trace_id::generate_trace_id();
     tracing::Span::current().record("trace_id", trace_id.as_str());
     state
         .get_config_manager()
         .get_component_schema(&component_id)
-        .map(ComponentSchemaDto::from)
         .ok_or_else(|| BridgeError::not_found(&component_id).with_trace_id(&trace_id))
 }
 

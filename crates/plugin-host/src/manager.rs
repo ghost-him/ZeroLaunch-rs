@@ -13,13 +13,15 @@ use tokio::sync::Mutex as AsyncMutex;
 use tracing::{error, info, warn};
 
 use zerolaunch_plugin_api::config::Configurable;
-use zerolaunch_plugin_api::plugin::{KeywordInputSource, PluginKind, PluginMetadata, PluginMode};
+use zerolaunch_plugin_api::plugin::{KeywordInputSource, PluginMetadata};
 use zerolaunch_plugin_protocol::manifest::Manifest;
 use zerolaunch_plugin_protocol::messages::{ComponentKind, KeywordOptimizerInfo};
 use zerolaunch_plugin_protocol::ProtocolError;
 
 use crate::adapter::remote_component::{RemoteComponent, RemoteComponentKind};
 use crate::host_dispatch::HostCallHandler;
+use crate::info::PluginInfo;
+use crate::installed::metadata_from_manifest;
 use crate::process::force_kill_process;
 use crate::process::{PluginProcess, ProcessState};
 
@@ -48,7 +50,7 @@ pub struct PluginRegistration {
     /// 卸载/重载/覆盖安装按此路径定位，而非 plugins_dir.join(plugin_id) 反查。
     pub plugin_dir: PathBuf,
     /// 插件级元数据（宿主从清单构造，与各 Plugin 组件共享同一 Arc）。
-    /// 供 build_plugin_info 取插件级 priority。
+    /// 供 `get_plugin_info` 与已安装条目投影取插件级字段。
     pub metadata: Arc<PluginMetadata>,
 
     /// 该插件的所有远程组件。
@@ -59,7 +61,7 @@ pub struct PluginRegistration {
 
 /// 插件运行状态（跨 IPC 序列化的运行状态契约）。
 ///
-/// 由 plugin-host 从 `ProcessState` 映射产出，经 `InstalledPluginInfo.state` 下发，
+/// 由 plugin-host 从 `ProcessState` 映射产出，经 `PluginInfo.state` 下发，
 /// 消费方为前端插件管理页与 CLI 的插件列表展示；序列化为 snake_case 小写字符串
 /// （`starting` / `running` / `stopped` / `crashed` / `error` / `unknown`），
 /// 前端/CLI 按枚举值精确匹配。无负载变体：`ProcessState` 的 restarts/last_error
@@ -454,14 +456,15 @@ impl PluginHostManager {
         }
     }
 
-    /// 单个插件的运行时信息（按 id 直查 hm.plugins，不遍历全量列表）。
+    /// 单个插件的运行时条目（按 id 直查，不遍历全量列表）。
     ///
     /// 返回 None 表示该插件当前未加载；调用方据此区分运行态与「已安装未加载」。
+    /// 启用态 = 全部已注册组件均启用（无组件时视为启用）。
     pub fn get_plugin_info(
         &self,
         plugin_id: &str,
-        enabled_fn: impl Fn(&PluginRegistration) -> bool,
-    ) -> Option<InstalledPluginInfo> {
+        is_component_enabled: impl Fn(&str) -> bool,
+    ) -> Option<PluginInfo> {
         let entry = self.plugins.get(plugin_id)?;
         let registration = entry.value();
         let process_state = self
@@ -469,80 +472,19 @@ impl PluginHostManager {
             .get(plugin_id)
             .map(|p| PluginRuntimeState::from(&*p.state.read()))
             .unwrap_or_default();
-        Some(build_plugin_info(
-            registration,
-            process_state,
-            enabled_fn(registration),
-        ))
-    }
-}
-
-/// 由 PluginRegistration 构造运行时信息条目（get_plugin_info 使用）。
-fn build_plugin_info(
-    registration: &PluginRegistration,
-    process_state: PluginRuntimeState,
-    enabled: bool,
-) -> InstalledPluginInfo {
-    // 优先级统一取插件级元数据声明值（上层 list_plugins/plugin_info 不再覆盖，
-    // 此即全部路径的唯一来源），不再取组件 priority 最小值。
-    let priority = registration.metadata.priority;
-    InstalledPluginInfo {
-        plugin_id: registration.plugin_id.clone(),
-        name: registration.manifest.plugin.name.clone(),
-        version: registration.manifest.plugin.version.clone(),
-        description: registration.manifest.plugin.description.clone(),
-        author: registration.manifest.plugin.author.clone(),
-        state: process_state,
-        enabled,
-        kind: PluginKind::ThirdParty,
-        priority,
-        component_ids: registration
+        let component_ids: Vec<String> = registration
             .components
             .iter()
             .map(|c| c.component_id().to_string())
-            .collect(),
-        hotkey: registration.metadata.hotkey.clone(),
-        icon: registration.metadata.icon.clone(),
-        mode: registration.metadata.mode,
+            .collect();
+        let enabled = component_ids.iter().all(|id| is_component_enabled(id));
+        Some(PluginInfo::from_metadata(
+            &registration.metadata,
+            process_state,
+            component_ids,
+            enabled,
+        ))
     }
-}
-
-/// 已安装插件的信息（供管理界面 / CLI 使用）。
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct InstalledPluginInfo {
-    #[serde(rename = "pluginId")]
-    pub plugin_id: String,
-    #[serde(rename = "name")]
-    pub name: String,
-    #[serde(rename = "version")]
-    pub version: String,
-    #[serde(rename = "description")]
-    pub description: String,
-    #[serde(rename = "author")]
-    pub author: String,
-    #[serde(rename = "state")]
-    pub state: PluginRuntimeState,
-    #[serde(rename = "enabled")]
-    pub enabled: bool,
-    /// 插件种类：内置或第三方（内置条目由 src-tauri 合并时填充）。
-    #[serde(rename = "kind", default)]
-    pub kind: PluginKind,
-    #[serde(rename = "priority")]
-    pub priority: u32,
-    /// 该插件注册的组件 id 列表（前端据此关联 ConfigManager 中的组件配置）。
-    #[serde(rename = "componentIds", default)]
-    pub component_ids: Vec<String>,
-    /// 全局唤醒快捷键（如 "Ctrl+E"），可空。
-    #[serde(rename = "hotkey", default)]
-    pub hotkey: Option<String>,
-    /// 插件显示图标（data URL，如 "data:image/png;base64,..."），可空表示无图标。
-    /// 来源为 manifest [icon] 段，host 层无条件读取。
-    #[serde(rename = "icon", default)]
-    pub icon: Option<String>,
-    /// 插件形态：inline = 行内插件；panel = 独立插件。
-    /// 行内/独立判定以此字段为唯一权威依据。
-    #[serde(rename = "mode", default)]
-    pub mode: PluginMode,
 }
 
 // ─── 辅助函数 ─────────────────────────────────────────────────────
@@ -618,27 +560,6 @@ fn validate_manifest(manifest: &Manifest, plugin_dir: &Path) -> Result<(), Plugi
 
 // ─── 辅助函数：按 component_id 从 Vec<(String, T)> 中查找值 ───
 
-/// 读取 manifest [icon] 段声明的图标文件（相对插件目录）并转为 data URL。
-/// 路径逃逸插件目录、文件缺失或超过大小上限返回 None（图标缺失不阻断加载）。
-fn read_plugin_icon(plugin_dir: &Path, icon_path: &str) -> Option<String> {
-    let icon_abs = plugin_dir.join(icon_path);
-    let canonical_icon = icon_abs.canonicalize().ok()?;
-    let canonical_plugin_dir = plugin_dir.canonicalize().ok()?;
-    // 防路径遍历：图标必须位于插件目录内
-    if !canonical_icon.starts_with(&canonical_plugin_dir) {
-        warn!("插件图标路径逃逸插件目录，忽略: {}", icon_path);
-        return None;
-    }
-    // 上限预检：避免把超大文件整个读进内存（字节级上限由 icon::to_data_url 兜底）
-    let meta = std::fs::metadata(&canonical_icon).ok()?;
-    if meta.len() > crate::icon::MAX_ICON_BYTES {
-        warn!("插件图标超过 1MB 上限，忽略: {}", icon_path);
-        return None;
-    }
-    let bytes = std::fs::read(&canonical_icon).ok()?;
-    crate::icon::to_data_url(crate::icon::mime_from_extension(&canonical_icon), &bytes)
-}
-
 /// 从 `Vec<(String, T)>` 中按 component_id 查找值，找不到返回 default。
 fn find_by_id<T: Clone + Default>(map: &[(String, T)], component_id: &str) -> T {
     map.iter()
@@ -675,44 +596,6 @@ fn find_component_id_collision(
         .cloned()
 }
 
-/// 由清单构造插件级元数据。
-///
-/// 加载期（build_components）与「已安装但未加载」的磁盘条目共用本函数，
-/// 保证图标、热键、形态与优先级只在同一处从 manifest 派生。
-/// 参数：plugin_dir - 安装目录（读取 [icon] 文件用）；manifest - 已解析清单。
-/// 返回：插件级元数据，kind 恒为 ThirdParty（插件级元数据的唯一来源是清单）。
-pub fn plugin_metadata_from_manifest(plugin_dir: &Path, manifest: &Manifest) -> PluginMetadata {
-    let metadata = PluginMetadata {
-        id: manifest.plugin.id.clone(),
-        name: manifest.plugin.name.clone(),
-        version: manifest.plugin.version.clone(),
-        description: manifest.plugin.description.clone(),
-        author: manifest.plugin.author.clone(),
-        trigger_keywords: manifest.plugin.trigger_keywords.clone(),
-        trigger_description: manifest.plugin.trigger_description.clone(),
-        supported_os: manifest.plugin.supported_os.clone(),
-        priority: manifest.plugin.priority,
-        // 第三方插件由宿主强制标注
-        kind: PluginKind::ThirdParty,
-        hotkey: manifest.plugin.hotkey.clone(),
-        // 图标：从清单 [icon] 段读取
-        icon: manifest
-            .icon
-            .as_ref()
-            .and_then(|icon| read_plugin_icon(plugin_dir, &icon.path)),
-        mode: manifest.plugin.mode,
-    };
-    // 热键仅对 panel 形态生效（前端热键表与 wake_plugin 均按 mode 过滤）
-    if metadata.hotkey.is_some() && metadata.mode != PluginMode::Panel {
-        warn!(
-            plugin_id = %metadata.id,
-            declared = ?metadata.mode,
-            "插件清单声明热键但形态非 panel：热键仅对 panel 形态生效，该热键将不注册"
-        );
-    }
-    metadata
-}
-
 /// 从 InitResult 构建所有 `RemoteComponent`。
 ///
 /// 每个组件统一构造为 `RemoteComponent`；种类专属数据（target_types、result_actions、
@@ -725,7 +608,7 @@ fn build_components(
     init_result: &crate::process::InitResult,
 ) -> PluginRegistration {
     // 插件级元数据由宿主从清单构造；包 Arc 后与各 Plugin 组件共享同一份。
-    let plugin_metadata = Arc::new(plugin_metadata_from_manifest(plugin_dir, manifest));
+    let plugin_metadata = Arc::new(metadata_from_manifest(plugin_dir, manifest));
 
     let components: Vec<Arc<RemoteComponent>> = init_result
         .components

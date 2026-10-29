@@ -6,13 +6,13 @@
 
 use crate::commands::bridge_error::{BridgeError, WithTraceId};
 use crate::core::agent::{
-    ask_from_config, AgentError, AskRequest, ComponentNavigation, SettingsManual,
+    ask_from_config, AgentAnswer, AgentError, AskRequest, ComponentNavigation, ManualHit,
+    SettingsManual,
 };
 use crate::core::config::ConfigManager;
 use crate::core::i18n::I18nManager;
 use crate::state::app_state::AppState;
 use crate::utils::trace_id::generate_trace_id;
-use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::Arc;
 use zerolaunch_plugin_api::services::model::{ModelChatMessage, ModelChatRole};
@@ -20,55 +20,6 @@ use zerolaunch_plugin_api::PluginMode;
 
 /// 检索返回的命中条数上限。
 const SEARCH_LIMIT: usize = 20;
-
-/// IPC `help_search` 返回的命中条目。
-#[derive(Debug, Serialize)]
-pub struct HelpHitDto {
-    #[serde(rename = "componentId")]
-    pub component_id: String,
-    #[serde(rename = "fieldKey")]
-    pub field_key: String,
-    #[serde(rename = "label")]
-    pub label: String,
-}
-
-/// IPC `help_ask` 返回的答复。
-#[derive(Debug, Serialize)]
-pub struct HelpAnswerDto {
-    #[serde(rename = "answer")]
-    pub answer: String,
-    /// 工具调用轮里模型写下的过渡正文，前端按独立助手消息展示。
-    #[serde(rename = "intermediates")]
-    pub intermediates: Vec<String>,
-    #[serde(rename = "references")]
-    pub references: Vec<HelpReferenceDto>,
-}
-
-/// 答复中引用到的设置位置（前端渲染为可跳转链接）。
-#[derive(Debug, Serialize)]
-pub struct HelpReferenceDto {
-    #[serde(rename = "componentId")]
-    pub component_id: String,
-    #[serde(rename = "componentName")]
-    pub component_name: String,
-    #[serde(rename = "fieldKey")]
-    pub field_key: String,
-    #[serde(rename = "fieldLabel")]
-    pub field_label: String,
-}
-
-/// `help_ask` 入参：组件在设置页中的完整点击链与字段分组形态（前端按当前界面语言拼好）。
-#[derive(Debug, serde::Deserialize)]
-pub struct HelpNavigationDto {
-    #[serde(rename = "componentId")]
-    pub component_id: String,
-    /// 完整点击路径，含分类、组件类型标签页与组件名。
-    #[serde(rename = "path")]
-    pub path: String,
-    /// 组件内字段分组是否渲染为标签页；缺省视为分组标题。
-    #[serde(rename = "groupTabs", default)]
-    pub group_tabs: bool,
-}
 
 /// `help_ask` 入参：一条历史消息（本次提问之前的用户提问或助手答复）。
 ///
@@ -92,7 +43,7 @@ pub struct HelpAskPayload {
     pub question: String,
     /// 组件的设置页点击路径（可选；用于让答复给出逐步导航）。
     #[serde(rename = "navigation")]
-    pub navigation: Option<Vec<HelpNavigationDto>>,
+    pub navigation: Option<Vec<ComponentNavigation>>,
     /// 本次提问之前的对话（可选；多轮澄清后据此整理 issue）。
     #[serde(rename = "history")]
     pub history: Option<Vec<HelpMessageDto>>,
@@ -107,7 +58,7 @@ pub struct HelpAskPayload {
 pub fn help_search(
     state: tauri::State<'_, Arc<AppState>>,
     query: String,
-) -> Result<Vec<HelpHitDto>, BridgeError> {
+) -> Result<Vec<ManualHit>, BridgeError> {
     let trace_id = generate_trace_id();
     tracing::Span::current().record("trace_id", trace_id.as_str());
     let hits = search_hits(
@@ -127,23 +78,10 @@ pub fn help_search(
 pub async fn help_ask(
     state: tauri::State<'_, Arc<AppState>>,
     payload: HelpAskPayload,
-) -> Result<HelpAnswerDto, BridgeError> {
+) -> Result<AgentAnswer, BridgeError> {
     let trace_id = generate_trace_id();
     tracing::Span::current().record("trace_id", trace_id.as_str());
-    let navigation: HashMap<String, ComponentNavigation> = payload
-        .navigation
-        .unwrap_or_default()
-        .into_iter()
-        .map(|entry| {
-            (
-                entry.component_id,
-                ComponentNavigation {
-                    path: entry.path,
-                    group_tabs: entry.group_tabs,
-                },
-            )
-        })
-        .collect();
+    let navigation = payload.navigation.unwrap_or_default();
     let triggers = collect_triggers(&state);
     let answer = run_ask(AskRequest {
         service: state.get_model_manager(),
@@ -164,16 +102,8 @@ pub async fn help_ask(
 ///
 /// 参数：config - 配置管理器；i18n - 翻译服务；query - 关键词。
 /// 返回：命中条目；空查询返回空列表。
-fn search_hits(config: &ConfigManager, i18n: &I18nManager, query: &str) -> Vec<HelpHitDto> {
-    SettingsManual::build(config, i18n)
-        .search(query, SEARCH_LIMIT)
-        .into_iter()
-        .map(|hit| HelpHitDto {
-            component_id: hit.component_id,
-            field_key: hit.field_key,
-            label: hit.label,
-        })
-        .collect()
+fn search_hits(config: &ConfigManager, i18n: &I18nManager, query: &str) -> Vec<ManualHit> {
+    SettingsManual::build(config, i18n).search(query, SEARCH_LIMIT)
 }
 
 /// 触发文本的字符上限：第三方文本进说明书是逐行渲染，超长会挤占上下文。
@@ -280,27 +210,12 @@ fn bound_history(history: Vec<HelpMessageDto>) -> Vec<ModelChatMessage> {
     kept
 }
 
-/// 问答实体：驱动 `core::agent` 的工具循环，并把结果映射为 IPC DTO。
+/// 问答实体：驱动 `core::agent` 的工具循环。
 ///
 /// 参数：request - 一次提问的全部输入（服务、配置来源、宿主句柄与会话上下文）。
 /// 返回：答复与引用；失败时返回助手错误（由命令层经 `From` 转 `BridgeError`）。
-async fn run_ask(request: AskRequest<'_>) -> Result<HelpAnswerDto, AgentError> {
-    let answer = ask_from_config(request).await?;
-    let references = answer
-        .references
-        .into_iter()
-        .map(|reference| HelpReferenceDto {
-            component_id: reference.component_id,
-            component_name: reference.component_name,
-            field_key: reference.field_key,
-            field_label: reference.field_label,
-        })
-        .collect();
-    Ok(HelpAnswerDto {
-        answer: answer.answer,
-        intermediates: answer.intermediates,
-        references,
-    })
+async fn run_ask(request: AskRequest<'_>) -> Result<AgentAnswer, AgentError> {
+    ask_from_config(request).await
 }
 
 #[cfg(test)]
@@ -534,14 +449,12 @@ mod tests {
     }
 
     /// 设置页点击路径（前端提供；测试用固定中文路径）。
-    fn navigation() -> HashMap<String, ComponentNavigation> {
-        HashMap::from([(
-            "demo-config".to_string(),
-            ComponentNavigation {
-                path: "设置 › 常规设置 › 演示设置".to_string(),
-                group_tabs: true,
-            },
-        )])
+    fn navigation() -> Vec<ComponentNavigation> {
+        vec![ComponentNavigation {
+            component_id: "demo-config".to_string(),
+            path: "设置 › 常规设置 › 演示设置".to_string(),
+            group_tabs: true,
+        }]
     }
 
     /// 测试用空触发表：说明书渲染要一份触发信息，多数用例不关心触发词。
@@ -554,7 +467,7 @@ mod tests {
         config: Arc<ConfigManager>,
         i18n: Arc<I18nManager>,
         question: &'a str,
-        navigation: &'a HashMap<String, ComponentNavigation>,
+        navigation: &'a [ComponentNavigation],
     ) -> AskRequest<'a> {
         AskRequest {
             service,
@@ -570,8 +483,8 @@ mod tests {
 
     /// 前端入参契约：navigation 与历史消息都用 camelCase 键名。
     #[test]
-    fn frontend_payload_dtos_read_camel_case_keys() {
-        let navigation: HelpNavigationDto = serde_json::from_value(serde_json::json!({
+    fn frontend_payload_reads_camel_case_keys() {
+        let navigation: ComponentNavigation = serde_json::from_value(serde_json::json!({
             "componentId": "appearance-config",
             "path": "设置 › 外观设置 › 外观",
             "groupTabs": true,
@@ -581,7 +494,7 @@ mod tests {
         assert_eq!(navigation.path, "设置 › 外观设置 › 外观");
         assert!(navigation.group_tabs);
 
-        let legacy: HelpNavigationDto = serde_json::from_value(serde_json::json!({
+        let legacy: ComponentNavigation = serde_json::from_value(serde_json::json!({
             "componentId": "demo-config",
             "path": "设置 › 常规设置 › 演示设置",
         }))

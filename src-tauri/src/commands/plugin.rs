@@ -10,7 +10,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::State;
 use zerolaunch_plugin_api::config::Configurable;
-use zerolaunch_plugin_host::manager::InstalledPluginInfo;
+use zerolaunch_plugin_host::PluginInfo;
 use zerolaunch_plugin_protocol::Manifest;
 
 // ── Commands ─────────────────────────────────────────────────────
@@ -22,9 +22,7 @@ use zerolaunch_plugin_protocol::Manifest;
 /// 多组件插件场景下组件级数据无唯一性，故不从这里派生插件元数据。
 #[tauri::command]
 #[tracing::instrument(skip(state), fields(trace_id))]
-pub async fn plugin_list(
-    state: State<'_, Arc<AppState>>,
-) -> Result<Vec<InstalledPluginInfo>, BridgeError> {
+pub async fn plugin_list(state: State<'_, Arc<AppState>>) -> Result<Vec<PluginInfo>, BridgeError> {
     let trace_id = generate_trace_id();
     tracing::Span::current().record("trace_id", trace_id.as_str());
     let pm = state.get_plugin_manager();
@@ -51,14 +49,14 @@ pub async fn plugin_get_manifest(
 
 /// 插件详情 DTO —— 插件管理页详情弹窗的数据契约（跨 IPC 序列化）。
 ///
-/// 复用 InstalledPluginInfo 作为插件级基础视图（与 plugin_list 同构同源），
+/// 复用 PluginInfo 作为插件级基础视图（与 plugin_list 同构同源），
 /// 追加详情专属字段；仅前端 PluginsManagement.vue 消费，
 /// manifest 为 None 即内置插件（无 manifest 文件），前端据此隐藏第三方专属字段。
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct PluginDetail {
     /// 插件基础视图：元数据 + 运行状态 + 启用态 + 优先级（与 plugin_list 同口径）。
     #[serde(flatten)]
-    pub info: InstalledPluginInfo,
+    pub info: PluginInfo,
     /// 触发词列表（插件唤起关键字，来自 PluginMetadata）。
     #[serde(rename = "triggerKeywords")]
     pub trigger_keywords: Vec<String>,
@@ -121,7 +119,7 @@ pub async fn plugin_install_local(
     file_path: String,
     overwrite: bool,
     state: State<'_, Arc<AppState>>,
-) -> Result<InstalledPluginInfo, BridgeError> {
+) -> Result<PluginInfo, BridgeError> {
     let trace_id = generate_trace_id();
     tracing::Span::current().record("trace_id", trace_id.as_str());
     let plugin_manager = state.get_plugin_manager();

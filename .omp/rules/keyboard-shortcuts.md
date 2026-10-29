@@ -17,7 +17,7 @@ scope: "tool:edit(*.vue), tool:edit(*.ts), tool:write(*.vue), tool:write(*.ts)"
 ## 插件唤醒热键（前端处理，不注册 OS 全局热键）
 
 - **OS 级快捷键只有一项职责：呼出/隐藏搜索栏**（`hotkey-config` 的 `open_search_bar`，含双击 Ctrl）。
-  插件声明的唤醒热键（`PluginMetadata.hotkey` / `InstalledPluginInfo.hotkey`）**禁止** 注册为
+  插件声明的唤醒热键（`PluginMetadata.hotkey` / `PluginInfo.hotkey`）**禁止** 注册为
   OS 全局热键——搜索栏未唤起时按它必须无效（窗口未激活，前端收不到按键）
 - 插件唤醒热键在前端 `useKeyboardRouter.onKeyDown` 中匹配（`matchesKey`，与可配置键同格式契约），
   命中即调 `bridge_wake_plugin(plugin_id)`（后端 `SessionDispatcher::wake_plugin` 空查询进入

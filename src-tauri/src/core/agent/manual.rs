@@ -12,6 +12,7 @@
 
 use crate::core::config::ConfigManager;
 use crate::core::i18n::I18nManager;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use zerolaunch_plugin_api::config::{FieldUiMetadata, SchemaKind, SchemaNode, VisibleWhen};
@@ -27,11 +28,19 @@ pub struct ManualComponent {
 }
 
 /// 组件在设置页中的完整点击链，以及组件内字段分组的渲染形态。
-#[derive(Debug, Clone)]
+///
+/// 由前端按当前界面语言拼好后随 `help_ask` 下发；后端只透传给说明书渲染，
+/// 不做其它解释。字段即 IPC 形状，不再有第二个 DTO。
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ComponentNavigation {
-    /// 完整点击路径（含分类、组件类型标签页与组件名），由前端按当前界面语言拼好。
+    /// 归属组件 id。序列化键名 `componentId`。
+    #[serde(rename = "componentId")]
+    pub component_id: String,
+    /// 完整点击路径（含分类、组件类型标签页与组件名）。序列化键名 `path`。
+    #[serde(rename = "path")]
     pub path: String,
-    /// 组件内字段分组是否渲染为标签页；false 表示页内分组标题。
+    /// 组件内字段分组是否渲染为标签页；false 表示页内分组标题。序列化键名 `groupTabs`。
+    #[serde(rename = "groupTabs", default)]
     pub group_tabs: bool,
 }
 
@@ -64,15 +73,20 @@ pub struct ManualField {
     pub sensitive: bool,
 }
 
-/// 检索命中：字段条目 + 匹配得分。
+/// 检索命中：字段条目 + 匹配得分（跨 IPC 序列化，键名 camelCase）。
+#[derive(Debug, Serialize)]
 pub struct ManualHit {
-    /// 组件 id。
+    /// 组件 id。序列化键名 `componentId`。
+    #[serde(rename = "componentId")]
     pub component_id: String,
-    /// 字段 key。
+    /// 字段 key。序列化键名 `fieldKey`。
+    #[serde(rename = "fieldKey")]
     pub field_key: String,
-    /// 字段标签。
+    /// 字段标签。序列化键名 `label`。
+    #[serde(rename = "label")]
     pub label: String,
-    /// 匹配得分（越大越靠前）。
+    /// 匹配得分（越大越靠前）。序列化键名 `score`。
+    #[serde(rename = "score")]
     pub score: u32,
 }
 
@@ -141,7 +155,7 @@ impl SettingsManual {
     /// 前端只在组件有多个顶层分组时才渲染分组 tab，这里按同一前提统计，单组仍标为分组。
     pub fn render(
         &self,
-        navigation: &HashMap<String, ComponentNavigation>,
+        navigation: &[ComponentNavigation],
         triggers: &HashMap<String, String>,
     ) -> String {
         let mut out = String::new();
@@ -162,7 +176,9 @@ impl SettingsManual {
                 .collect::<BTreeSet<_>>()
                 .len();
             out.push_str(&format!("## {}({})", component.name, component.id));
-            let entry = navigation.get(&component.id);
+            let entry = navigation
+                .iter()
+                .find(|nav| nav.component_id == component.id);
             let group_tabs = entry.is_some_and(|nav| nav.group_tabs) && group_count > 1;
             if let Some(entry) = entry {
                 out.push_str(&format!("｜设置页路径：{}", entry.path));
@@ -664,7 +680,7 @@ mod tests {
         noted.group = "底栏".to_string();
         let manual = manual(vec![grouped, noted, field("theme", "主题", "界面主题")]);
 
-        let text = manual.render(&HashMap::new(), &HashMap::new());
+        let text = manual.render(&[], &HashMap::new());
         assert!(text.contains("## 演示(demo)"), "{text}");
         assert!(text.contains("`theme` 主题｜界面主题"), "{text}");
         assert!(
@@ -676,13 +692,11 @@ mod tests {
             "{text}"
         );
 
-        let navigation = HashMap::from([(
-            "demo".to_string(),
-            ComponentNavigation {
-                path: "设置 › 外观设置 › 演示".to_string(),
-                group_tabs: false,
-            },
-        )]);
+        let navigation = [ComponentNavigation {
+            component_id: "demo".to_string(),
+            path: "设置 › 外观设置 › 演示".to_string(),
+            group_tabs: false,
+        }];
         let triggers = HashMap::from([("demo".to_string(), "触发词：>".to_string())]);
         let text = manual.render(&navigation, &triggers);
         assert!(
@@ -691,13 +705,11 @@ mod tests {
         );
 
         // 同一份字段在分组标签页形态下要标成「标签页」，模型据此把它插进点击链
-        let tabs = HashMap::from([(
-            "demo".to_string(),
-            ComponentNavigation {
-                path: "设置 › 外观设置 › 演示".to_string(),
-                group_tabs: true,
-            },
-        )]);
+        let tabs = [ComponentNavigation {
+            component_id: "demo".to_string(),
+            path: "设置 › 外观设置 › 演示".to_string(),
+            group_tabs: true,
+        }];
         let text = manual.render(&tabs, &HashMap::new());
         assert!(
             text.contains("`show_subtitle` 显示副标题｜位置：标签页「结果列表」"),
@@ -712,13 +724,11 @@ mod tests {
         let mut grouped = field("show_subtitle", "显示副标题", "在结果项中显示副标题信息");
         grouped.group = "结果列表".to_string();
         let manual = manual(vec![grouped]);
-        let navigation = HashMap::from([(
-            "demo".to_string(),
-            ComponentNavigation {
-                path: "设置 › 外观设置 › 图标覆盖".to_string(),
-                group_tabs: true,
-            },
-        )]);
+        let navigation = [ComponentNavigation {
+            component_id: "demo".to_string(),
+            path: "设置 › 外观设置 › 图标覆盖".to_string(),
+            group_tabs: true,
+        }];
 
         let text = manual.render(&navigation, &HashMap::new());
         assert!(

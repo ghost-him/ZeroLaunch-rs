@@ -25,6 +25,7 @@ pub use trace::{snapshot as trace_snapshot, AgentTrace};
 
 use crate::core::config::ConfigManager;
 use crate::core::i18n::I18nManager;
+use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tools::{GetSettingsTool, OpenIssueTool, ReadWikiTool};
@@ -41,25 +42,35 @@ const MAX_ROUNDS: usize = 12;
 /// 答复中「相关设置」引用条目的数量上限。
 const MAX_REFERENCES: usize = 12;
 
-/// 一次提问的答复与可跳转引用。
+/// 一次提问的答复与可跳转引用（`help_ask` 直接下发，跨 IPC 序列化）。
+#[derive(Debug, Serialize)]
 pub struct AgentAnswer {
-    /// 面向用户的最终答复文本（已剔除引用行）。
+    /// 面向用户的最终答复文本（已剔除引用行）。序列化键名 `answer`。
+    #[serde(rename = "answer")]
     pub answer: String,
     /// 工具调用轮里模型写下的过渡正文（按发生顺序，每条单独成一条对话消息）。
+    /// 序列化键名 `intermediates`。
+    #[serde(rename = "intermediates")]
     pub intermediates: Vec<String>,
-    /// 有效引用（已按说明书校验，臆造项被丢弃）。
+    /// 有效引用（已按说明书校验，臆造项被丢弃）。序列化键名 `references`。
+    #[serde(rename = "references")]
     pub references: Vec<AgentReference>,
 }
 
-/// 答复中引用到的设置位置。
+/// 答复中引用到的设置位置（前端渲染为可跳转链接，跨 IPC 序列化）。
+#[derive(Debug, Serialize)]
 pub struct AgentReference {
-    /// 组件 id。
+    /// 组件 id。序列化键名 `componentId`。
+    #[serde(rename = "componentId")]
     pub component_id: String,
-    /// 组件显示名（已翻译）。
+    /// 组件显示名（已翻译）。序列化键名 `componentName`。
+    #[serde(rename = "componentName")]
     pub component_name: String,
-    /// 字段 key；空串表示只引用到组件。
+    /// 字段 key；空串表示只引用到组件。序列化键名 `fieldKey`。
+    #[serde(rename = "fieldKey")]
     pub field_key: String,
-    /// 字段标签（已翻译）；组件级引用时为空串。
+    /// 字段标签（已翻译）；组件级引用时为空串。序列化键名 `fieldLabel`。
+    #[serde(rename = "fieldLabel")]
     pub field_label: String,
 }
 
@@ -105,8 +116,8 @@ pub struct AskRequest<'a> {
     pub handle: Arc<PluginHandle>,
     /// 用户本次提问（处理时去除首尾空白）。
     pub question: &'a str,
-    /// 组件 id → 设置页完整点击链与字段分组形态（前端按当前语言拼好，用于给出逐步导航）。
-    pub navigation: &'a HashMap<String, ComponentNavigation>,
+    /// 各组件的设置页完整点击链与字段分组形态（前端按当前语言拼好，用于给出逐步导航）。
+    pub navigation: &'a [ComponentNavigation],
     /// 组件 id → 触发方式文本（触发词与触发说明，来自插件元数据，写入说明书）。
     pub triggers: &'a HashMap<String, String>,
     /// 本次提问之前的对话（时间正序，角色仅 user/assistant）。
@@ -187,14 +198,14 @@ impl SettingsAgent {
 
     /// 回答一个问题。
     ///
-    /// 参数：question - 用户提问文本；navigation - 组件 id → 设置页完整点击链与字段分组形态（写入说明书）；
+    /// 参数：question - 用户提问文本；navigation - 各组件的设置页完整点击链与字段分组形态（写入说明书）；
     /// triggers - 组件 id → 触发方式文本（写入说明书）；
     /// history - 本次提问之前的对话（时间正序，插在系统消息与当前问题之间）。
     /// 返回：答复与有效引用；模型调用失败时返回 `ModelError`。
     pub async fn ask(
         &self,
         question: &str,
-        navigation: &HashMap<String, ComponentNavigation>,
+        navigation: &[ComponentNavigation],
         triggers: &HashMap<String, String>,
         history: Vec<ModelChatMessage>,
     ) -> Result<AgentAnswer, ModelError> {
@@ -211,14 +222,14 @@ impl SettingsAgent {
 
     /// 驱动「模型 ↔ 工具」循环，并把每一步记入 `trace`（调试页据此复盘上下文与工具调用）。
     ///
-    /// 参数：question - 用户提问文本；navigation - 组件 id → 设置页完整点击链与字段分组形态（写入说明书）；
+    /// 参数：question - 用户提问文本；navigation - 各组件的设置页完整点击链与字段分组形态（写入说明书）；
     /// triggers - 组件 id → 触发方式文本（写入说明书）；
     /// history - 本次提问之前的对话；trace - 本次提问的轨迹，就地写入首轮上下文、每轮模型输出与工具结果。
     /// 返回：答复与有效引用；模型调用失败时返回 `ModelError`（已收集的上下文仍留在 `trace` 里）。
     async fn run(
         &self,
         question: &str,
-        navigation: &HashMap<String, ComponentNavigation>,
+        navigation: &[ComponentNavigation],
         triggers: &HashMap<String, String>,
         history: Vec<ModelChatMessage>,
         trace: &mut AgentTrace,

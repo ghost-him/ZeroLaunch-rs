@@ -164,6 +164,8 @@ const columns: DataTableColumn<PluginRow>[] = [
     render(row) {
       return h(NSwitch, {
         value: row.enabled,
+        // 未加载的第三方插件组件未注册，切换无组件可写
+        disabled: row.kind === 'third-party' && row.plugin.state === 'error',
         onUpdateValue: (val: boolean) => handleToggleEnabled(row, val),
       })
     },

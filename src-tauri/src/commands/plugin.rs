@@ -88,11 +88,13 @@ pub async fn plugin_get_detail(
     let cm = state.get_config_manager();
     let dispatcher = state.get_session_dispatcher();
 
-    // 元数据（含触发词）：内置与第三方插件统一来自 PluginRegistry。
+    // 元数据（含触发词）：内置与第三方插件统一来自 PluginRegistry；
+    // 未加载的第三方插件（启动失败）改由磁盘清单构造，使详情入口在错误态仍可用。
     let metadata = dispatcher
         .plugin_registry()
         .get_metadata(&plugin_id)
         .map(|m| m.as_ref().clone())
+        .or_else(|| pm.installed_metadata(&plugin_id))
         .ok_or_else(|| BridgeError::not_found(&plugin_id).with_trace_id(&trace_id))?;
 
     // 运行状态与启用态：第三方来自 host 运行时，内置由 ConfigManager 决定。

@@ -5,9 +5,9 @@ pub mod component_registry;
 mod executor_registry;
 pub mod host_handler;
 pub mod inspector;
-pub mod manager;
 pub mod plugin_info;
 pub(crate) mod plugin_installer;
+pub mod plugin_manager;
 pub mod plugin_wake_executor;
 pub mod registry;
 mod search_pipeline;
@@ -24,7 +24,7 @@ pub use zerolaunch_plugin_api::{
 
 pub use candidate_pipeline::CandidatePipeline;
 pub use executor_registry::ExecutorRegistry;
-pub use manager::PluginManagerError;
+pub use plugin_manager::PluginManagerError;
 pub use registry::PluginRegistry;
 pub use search_pipeline::*;
 

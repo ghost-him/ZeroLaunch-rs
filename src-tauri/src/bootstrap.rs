@@ -28,7 +28,7 @@ use crate::core::config::event::create_plugin_event_bus;
 use crate::core::config::{ConfigEvent, ConfigManager};
 use crate::core::i18n::I18nManager;
 use crate::plugin_framework::inspector::Inspector;
-use crate::plugin_framework::manager::PluginManager;
+use crate::plugin_framework::plugin_manager::PluginManager;
 use crate::plugin_framework::plugin_wake_executor::PluginWakeExecutor;
 use crate::sdk::HostApi;
 use crate::state::app_state::AppState;

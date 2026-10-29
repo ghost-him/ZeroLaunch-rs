@@ -2,8 +2,8 @@
 //!
 //! 管理第三方插件的加载/卸载/安装/崩溃恢复（经 PluginHostManager），
 //! 内置组件由 builtin_registry 收集后由调用方（bootstrap）注册。
-//! 插件级视图数据（列表/详情）由 commands 层经 host_runtime_infos + PluginRegistry 组装，
-//! 不经本模块缓存。
+//! 插件级视图数据（列表/详情/清单）：以 plugins 目录下的清单为安装事实的唯一权威，
+//! 按 id 关联运行时注册（未加载时呈现错误态），不经本模块缓存。
 //!
 //! 注册/解注册通过 PluginRuntimeEvent 广播通道（PM → CM 解耦管道）完成，
 //! ConfigManager 处理配置侧（Configurable）+ 转发 ConfigEvent 到 SessionDispatcher。
@@ -23,8 +23,8 @@ use zerolaunch_plugin_api::host::PluginSdkConfig;
 use zerolaunch_plugin_api::plugin::{PluginKind, PluginMetadata, PluginMode};
 use zerolaunch_plugin_host::host_dispatch::HostCallHandler;
 use zerolaunch_plugin_host::manager::{
-    CrashCallback, InstalledPluginInfo, PluginHostManager, PluginLoadError, PluginRegistration,
-    PluginRuntimeState, RestartCallback,
+    plugin_metadata_from_manifest, CrashCallback, InstalledPluginInfo, PluginHostManager,
+    PluginLoadError, PluginRegistration, PluginRuntimeState, RestartCallback,
 };
 use zerolaunch_plugin_protocol::Manifest;
 
@@ -54,6 +54,69 @@ fn check_panel_ui_contract(plugin_id: &str, metadata: &PluginMetadata, manifest:
             plugin_id, metadata.hotkey
         );
     }
+}
+
+/// 构造「已安装但未加载」插件的列表项。
+///
+/// 条目来自磁盘清单而非运行时注册，说明启动/重载失败：状态固定为 Error，
+/// 组件未注册故 component_ids 为空（前端据此隐藏配置入口），enabled 无意义取 false。
+/// 参数：plugin_dir - 安装目录；manifest - 该目录的清单。
+/// 返回：与运行中条目同形的插件信息。
+fn not_loaded_plugin_info(plugin_dir: &Path, manifest: &Manifest) -> InstalledPluginInfo {
+    let metadata = plugin_metadata_from_manifest(plugin_dir, manifest);
+    InstalledPluginInfo {
+        plugin_id: manifest.plugin.id.clone(),
+        name: manifest.plugin.name.clone(),
+        version: manifest.plugin.version.clone(),
+        description: manifest.plugin.description.clone(),
+        author: manifest.plugin.author.clone(),
+        state: PluginRuntimeState::Error,
+        enabled: false,
+        kind: PluginKind::ThirdParty,
+        priority: metadata.priority,
+        component_ids: Vec::new(),
+        hotkey: metadata.hotkey.clone(),
+        icon: metadata.icon.clone(),
+        mode: metadata.mode,
+    }
+}
+
+/// 已安装插件 —— 安装事实的唯一解析结果。
+///
+/// 安装事实以 plugins 目录下的清单为权威；已加载插件取运行时注册里的清单快照
+/// （加载时从同一目录读取，二者同源）。仅限本模块内使用：列表、详情、重载、
+/// 卸载与安装流程统一经此定位目录，不再各自拼接路径。
+struct InstalledPlugin {
+    /// 真实安装目录：目录名可异于清单 id，所有目录操作以此为准。
+    plugin_dir: PathBuf,
+    /// 已解析的清单：插件级字段、组件声明与运行时命令的唯一来源。
+    manifest: Manifest,
+}
+
+impl InstalledPlugin {
+    /// 结合运行态投影为插件条目：已加载取运行时注册，未加载呈现 error 态。
+    /// 参数：host - 宿主注册表（运行态唯一来源）；cm - 用于计算组件启用态。
+    /// 返回：与运行中条目同形的 IPC 展示数据（未加载时组件为空、enabled 为 false）。
+    fn to_info(&self, host: &PluginHostManager, cm: &ConfigManager) -> InstalledPluginInfo {
+        host.get_plugin_info(&self.manifest.plugin.id, |a| {
+            a.components.iter().all(|c| cm.is_enabled(c.component_id()))
+        })
+        .unwrap_or_else(|| not_loaded_plugin_info(&self.plugin_dir, &self.manifest))
+    }
+}
+
+/// 删除插件目录；刚退出的子进程在 Windows 上会短暂持有 exe 句柄，
+/// 首次失败后等待重试一次，仍失败则返回错误。
+/// 参数：dir - 待删除目录。
+/// 返回：成功 Ok(())，失败返回错误（消息含首次失败原因）。
+async fn remove_dir_with_retry(dir: &Path) -> std::io::Result<()> {
+    if let Err(first) = std::fs::remove_dir_all(dir) {
+        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+        std::fs::remove_dir_all(dir).map_err(|second| {
+            std::io::Error::new(second.kind(), format!("{}（首次: {}）", second, first))
+        })?;
+    }
+    Ok(())
 }
 
 /// PluginManager 内部错误类型。
@@ -233,7 +296,7 @@ impl PluginManager {
         }
     }
 
-    /// 单个插件条目（详情用）：内置直接构造，第三方按 id 直查 host 运行时（O(1)）。
+    /// 单个插件条目（详情用）：内置直接构造，第三方经已安装解析后关联运行态。
     ///
     /// 调用方已持有 metadata（registry.get），此处不重复查询；
     /// priority 由构造方统一取插件声明优先级（内置 meta.priority / 第三方插件级元数据）。
@@ -243,42 +306,99 @@ impl PluginManager {
         meta: &PluginMetadata,
         cm: &ConfigManager,
     ) -> Option<InstalledPluginInfo> {
+        if meta.kind == PluginKind::Builtin {
+            return Some(self.builtin_plugin_info(meta, cm));
+        }
         let hm = self.host_manager();
-        let info = if meta.kind == PluginKind::Builtin {
-            self.builtin_plugin_info(meta, cm)
-        } else {
-            hm.get_plugin_info(plugin_id, |a| {
-                a.components.iter().all(|c| cm.is_enabled(c.component_id()))
-            })?
-        };
-        Some(info)
+        self.get_installed_plugin(plugin_id)
+            .map(|plugin| plugin.to_info(&hm, cm))
     }
 
-    /// 插件统一列表（IPC / CLI 共用）：第三方运行时信息 + 内置条目合并。
+    /// 插件统一列表（IPC / CLI 共用）：内置条目 + 已安装第三方插件。
     ///
-    /// priority 统一为插件声明优先级（PluginMetadata.priority）：
-    /// 第三方由 plugin-host 按插件级元数据直接产出，此处仅补充内置条目。
-    /// 内置判定以 metadata.kind（宿主管辖的运行属性，插件注册时确定）为准：
-    /// 内置插件由代码构造为 Builtin，第三方由 plugin-host 加载时强制为 ThirdParty。
+    /// 第三方条目的安装事实来自磁盘清单，运行态按 id 关联（未加载即 error 态）。
+    /// priority 统一为插件声明优先级（PluginMetadata.priority），内置由代码构造为
+    /// Builtin，第三方由 plugin-host 加载时强制为 ThirdParty。
     pub fn list_plugins(
         &self,
         cm: &ConfigManager,
         dispatcher: &SessionDispatcher,
     ) -> Vec<InstalledPluginInfo> {
+        // 内置条目先入表：内置 id 由编译期确定，同 id 时优先于磁盘上的第三方目录。
+        let mut list: Vec<InstalledPluginInfo> = dispatcher
+            .plugin_registry()
+            .get_all_metadata()
+            .into_iter()
+            .filter(|meta| meta.kind == PluginKind::Builtin)
+            .map(|meta| self.builtin_plugin_info(&meta, cm))
+            .collect();
+
+        // 第三方：安装事实的唯一权威是磁盘清单，运行态按 id 关联；
+        // 未加载（启动/重载失败）的条目照常出现，状态为 error。
         let hm = self.host_manager();
-        let mut list = hm.list_plugin_info(|a| {
-            a.components.iter().all(|c| cm.is_enabled(c.component_id())) && !a.components.is_empty()
-        });
-        for meta in dispatcher.plugin_registry().get_all_metadata() {
-            // 内置条目不在 hm 列表（内置不经过 plugin-host），按 id 防重后追加；
-            // 第三方 priority 已由 plugin-host 按插件级元数据产出，无需覆盖。
-            // 非内置且不在 hm：注册/加载时序异常（理论不可达），不产出行，避免误标。
-            if meta.kind == PluginKind::Builtin && !list.iter().any(|i| i.plugin_id == meta.id) {
-                list.push(self.builtin_plugin_info(&meta, cm));
+        for plugin in self.get_installed_plugins_by_disk() {
+            if list
+                .iter()
+                .any(|i| i.plugin_id == plugin.manifest.plugin.id)
+            {
+                continue;
             }
+            list.push(plugin.to_info(&hm, cm));
         }
         list.sort_by_key(|p| (p.priority, p.plugin_id.clone()));
         list
+    }
+
+    /// 已安装插件全量枚举（唯一权威：plugins 目录下的清单）。
+    ///
+    /// 目录名不要求等于插件 id（手动放置的异名目录同样识别）；
+    /// 清单解析失败仅告警跳过。
+    fn get_installed_plugins_by_disk(&self) -> Vec<InstalledPlugin> {
+        self.installer()
+            .scan_plugins_dir()
+            .into_iter()
+            .filter_map(|plugin_dir| {
+                let path = plugin_dir.join("manifest.toml");
+                let parsed = std::fs::read_to_string(&path)
+                    .map_err(|e| e.to_string())
+                    .and_then(|text| toml::from_str::<Manifest>(&text).map_err(|e| e.to_string()));
+                match parsed {
+                    Ok(manifest) => Some(InstalledPlugin {
+                        plugin_dir,
+                        manifest,
+                    }),
+                    Err(e) => {
+                        warn!("插件清单解析失败，跳过 {}: {}", path.display(), e);
+                        None
+                    }
+                }
+            })
+            .collect()
+    }
+
+    /// 解析单个已安装插件：运行中取注册快照，否则按清单 id 匹配磁盘目录；未安装返回 None。
+    fn get_installed_plugin(&self, plugin_id: &str) -> Option<InstalledPlugin> {
+        let hm = self.host_manager();
+        if let Some(adapters) = hm.plugins.get(plugin_id) {
+            return Some(InstalledPlugin {
+                plugin_dir: adapters.plugin_dir.clone(),
+                manifest: adapters.manifest.clone(),
+            });
+        }
+        self.get_installed_plugins_by_disk()
+            .into_iter()
+            .find(|plugin| plugin.manifest.plugin.id == plugin_id)
+    }
+
+    /// 已安装插件的插件级元数据（未加载时由磁盘清单构造）。
+    /// 参数：plugin_id - 插件 id。
+    /// 返回：元数据；未安装或清单不可解析时返回 None。
+    pub fn installed_metadata(&self, plugin_id: &str) -> Option<PluginMetadata> {
+        let plugin = self.get_installed_plugin(plugin_id)?;
+        Some(plugin_metadata_from_manifest(
+            &plugin.plugin_dir,
+            &plugin.manifest,
+        ))
     }
 
     /// 返回插件安装根目录。
@@ -286,11 +406,10 @@ impl PluginManager {
         self.host_manager().plugins_dir().to_path_buf()
     }
 
-    /// 获取第三方插件的完整 manifest。
+    /// 获取第三方插件的完整 manifest（运行中取注册快照，未加载读磁盘清单）。
     pub fn get_manifest(&self, plugin_id: &str) -> Option<Manifest> {
-        let hm = self.host_manager();
-        let adapters = hm.plugins.get(plugin_id)?;
-        Some(adapters.manifest.clone())
+        self.get_installed_plugin(plugin_id)
+            .map(|plugin| plugin.manifest)
     }
 
     /// 获取第三方插件的日志文件最近 N 行。
@@ -392,28 +511,32 @@ impl PluginManager {
             )));
         }
 
-        // 覆盖安装：先解析插件 id，若目标已存在则先卸载旧版本（停进程 + 删目录）。
+        // 安装判定以包内清单 id 为准（目录名可异于 id）。
+        let plugin_id = self
+            .installer()
+            .plugin_id_of(source_path)
+            .map_err(install_error_to_manager)?;
+
+        // 目录解析：清单可解析时直接移出安装目录；清单损坏（解析不出 id）时退回
+        // 默认目录名，按目录是否存在判定，保证覆盖安装仍能清掉残坏目录。
+        let (old_dir, is_installed) = match self.get_installed_plugin(&plugin_id) {
+            Some(plugin) => (plugin.plugin_dir, true),
+            None => {
+                let default_dir = self.plugins_dir().join(&plugin_id);
+                let exists = default_dir.exists();
+                (default_dir, exists)
+            }
+        };
+
+        // 覆盖安装：先卸载旧版本（停进程 + 删目录）。
         // 顺序与 uninstall 一致：先广播 PluginUnloaded 解注册 CM/SR，再 unload 子进程，
         // 最后删目录，避免运行中文件句柄占用删除失败。
+        // 未覆盖且已安装（含手动放置的异名目录）：回 ALREADY_INSTALLED 供前端走覆盖确认。
         if overwrite {
-            let plugin_id = self
-                .installer()
-                .plugin_id_of(source_path)
-                .map_err(install_error_to_manager)?;
-            // 目标已存在判定：默认目录存在 或 注册记录含该 id（覆盖手动放置的异名目录插件）
-            let target_exists = self.plugins_dir().join(&plugin_id).exists()
-                || self.host_manager().plugins.contains_key(&plugin_id);
-            if target_exists {
+            if is_installed {
                 info!("Overwriting plugin {}", plugin_id);
                 let hm = self.host_manager();
-                // 覆盖前从注册记录取真实旧目录（若已加载），未加载时回退默认目录名
-                let old_dir = hm
-                    .plugins
-                    .get(&plugin_id)
-                    .map(|a| a.plugin_dir.clone())
-                    .unwrap_or_else(|| hm.plugins_dir().join(&plugin_id));
-                if let Some(adapters) = hm.plugins.get(&plugin_id) {
-                    let adapters = adapters.clone();
+                if let Some(adapters) = hm.plugins.get(&plugin_id).map(|a| a.clone()) {
                     self.plugin_event_tx()
                         .send(PluginRuntimeEvent::PluginUnloaded(adapters))
                         .ok();
@@ -422,7 +545,7 @@ impl PluginManager {
                     error!("Unload during overwrite failed: {}", e);
                 }
                 if old_dir.exists() {
-                    std::fs::remove_dir_all(&old_dir).map_err(|e| {
+                    remove_dir_with_retry(&old_dir).await.map_err(|e| {
                         PluginManagerError::Internal(format!(
                             "Cannot remove old plugin dir before overwrite: {}",
                             e
@@ -432,6 +555,8 @@ impl PluginManager {
                 self.i18n_manager().unregister_plugin_catalog(&plugin_id);
                 self.host_api().unregister(&plugin_id);
             }
+        } else if is_installed {
+            return Err(PluginManagerError::AlreadyInstalled(plugin_id));
         }
 
         let plugins_dir = self.plugins_dir();
@@ -465,16 +590,12 @@ impl PluginManager {
                 // 回滚清理：unload 内部已尽力停进程，失败仅记录日志
                 let _ = self.host_manager().unload(&id).await;
             }
-            if let Err(rm_err) = std::fs::remove_dir_all(&installed_dir) {
-                tokio::time::sleep(std::time::Duration::from_millis(150)).await;
-                if let Err(rm_err2) = std::fs::remove_dir_all(&installed_dir) {
-                    warn!(
-                        "安装失败后清理插件目录失败: {}（首次: {};目录: {}）",
-                        rm_err2,
-                        rm_err,
-                        installed_dir.display()
-                    );
-                }
+            if let Err(rm_err) = remove_dir_with_retry(&installed_dir).await {
+                warn!(
+                    "安装失败后清理插件目录失败: {}（目录: {}）",
+                    rm_err,
+                    installed_dir.display()
+                );
             }
             return Err(e);
         }
@@ -559,28 +680,23 @@ impl PluginManager {
         validate_plugin_id(plugin_id).map_err(|e| PluginManagerError::Internal(e.to_string()))?;
 
         let hm = self.host_manager();
+        let plugin = self.get_installed_plugin(plugin_id).ok_or_else(|| {
+            PluginManagerError::PluginNotFound(format!("Plugin not found: {}", plugin_id))
+        })?;
 
-        let adapters = hm
-            .plugins
-            .get(plugin_id)
-            .ok_or_else(|| {
-                PluginManagerError::PluginNotFound(format!("Plugin not found: {}", plugin_id))
-            })?
-            .clone();
-        // 从注册记录取真实安装目录，不依赖目录名 == plugin_id 的隐式契约
-        let plugin_dir = adapters.plugin_dir.clone();
-
-        self.plugin_event_tx()
-            .send(PluginRuntimeEvent::PluginUnloaded(adapters.clone()))
-            .ok();
-
-        if let Err(e) = hm.unload(plugin_id).await {
-            error!("Unload during reload failed: {}", e);
+        // 已加载则先解注册并停进程；未加载（启动失败/放弃重启）直接重试加载。
+        if let Some(adapters) = hm.plugins.get(plugin_id).map(|a| a.clone()) {
+            self.plugin_event_tx()
+                .send(PluginRuntimeEvent::PluginUnloaded(adapters))
+                .ok();
+            if let Err(e) = hm.unload(plugin_id).await {
+                error!("Unload during reload failed: {}", e);
+            }
         }
 
         // 预检数据源为 plugin-host 内部（已加载插件 + 内置组件），
         // unload 已移除自身组件，无需豁免集。
-        self.load_single_plugin(&plugin_dir, app_handle)
+        self.load_single_plugin(&plugin.plugin_dir, app_handle)
             .await
             .map_err(|e| match e {
                 PluginManagerError::ComponentIdCollision(id) => {
@@ -606,13 +722,12 @@ impl PluginManager {
 
         let hm = self.host_manager();
 
-        // 卸载前从注册记录取真实安装目录（unload 会移除注册，须提前捕获），
-        // 不依赖目录名 == plugin_id 的隐式契约；未加载时回退 plugins_dir.join(id) 清理残留。
-        let plugin_dir = hm
-            .plugins
-            .get(plugin_id)
-            .map(|a| a.plugin_dir.clone())
-            .unwrap_or_else(|| hm.plugins_dir().join(plugin_id));
+        // 安装目录统一由清单解析（运行中取注册快照、未加载读磁盘清单），
+        // 不依赖目录名 == plugin_id 的隐式契约，也不盲删同名目录。
+        let plugin = self.get_installed_plugin(plugin_id).ok_or_else(|| {
+            PluginManagerError::PluginNotFound(format!("Plugin not found: {}", plugin_id))
+        })?;
+        let plugin_dir = plugin.plugin_dir;
         // 目录边界复核：canonicalize 后必须位于 plugins_dir 内（覆盖手动放置的
         // 异名目录也在此保护内）。
         if plugin_dir.exists() {
@@ -642,7 +757,7 @@ impl PluginManager {
         }
 
         if plugin_dir.exists() {
-            std::fs::remove_dir_all(&plugin_dir).map_err(|e| {
+            remove_dir_with_retry(&plugin_dir).await.map_err(|e| {
                 PluginManagerError::Internal(format!("Cannot remove plugin dir: {}", e))
             })?;
         }
@@ -840,5 +955,70 @@ fn install_error_to_manager(e: InstallError) -> PluginManagerError {
 impl Default for PluginManager {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 测试用最小合法清单（[plugin] 必填字段 + components.provides）。
+    const SAMPLE_MANIFEST: &str = r#"
+[plugin]
+id = "com.example.sample"
+name = "Sample Plugin"
+version = "1.2.3"
+description = "未加载插件的列表测试"
+author = "tester"
+mode = "inline"
+triggerKeywords = []
+supportedOs = ["windows"]
+priority = 100
+
+[components]
+provides = ["data_source"]
+"#;
+
+    /// 准备一个 plugins 目录，内含「目录名异于插件 id」的已安装插件。
+    fn manager_with_installed_plugin() -> (PluginManager, tempfile::TempDir) {
+        let dir = tempfile::tempdir().unwrap();
+        let pm = PluginManager::new();
+        pm.init_host_manager(dir.path(), HashSet::new());
+        let plugin_dir = dir.path().join("plugins").join("manually-placed-dir");
+        std::fs::create_dir_all(&plugin_dir).unwrap();
+        std::fs::write(plugin_dir.join("manifest.toml"), SAMPLE_MANIFEST).unwrap();
+        (pm, dir)
+    }
+
+    /// 已安装但未加载的插件必须以 error 态出现在列表：安装事实来自磁盘清单，
+    /// 若列表只取运行时注册，加载失败的插件就会从 UI 消失且无卸载入口。
+    #[test]
+    fn lists_installed_plugin_that_is_not_loaded() {
+        let (pm, dir) = manager_with_installed_plugin();
+        let cm = ConfigManager::new(dir.path().join("config"));
+
+        let plugins = pm.get_installed_plugins_by_disk();
+        assert_eq!(plugins.len(), 1);
+        let info = plugins[0].to_info(&pm.host_manager(), &cm);
+
+        assert_eq!(info.plugin_id, "com.example.sample");
+        assert_eq!(info.name, "Sample Plugin");
+        assert_eq!(info.state, PluginRuntimeState::Error);
+        assert!(info.component_ids.is_empty());
+        assert!(!info.enabled);
+    }
+
+    /// 单插件解析以清单 id 为准（目录名可异于 id）；未安装返回 None。
+    #[test]
+    fn resolves_installed_plugin_by_manifest_id() {
+        let (pm, _dir) = manager_with_installed_plugin();
+
+        let plugin = pm.get_installed_plugin("com.example.sample").unwrap();
+        assert_eq!(plugin.manifest.plugin.id, "com.example.sample");
+        assert_eq!(
+            plugin.plugin_dir.file_name().unwrap(),
+            "manually-placed-dir"
+        );
+        assert!(pm.get_installed_plugin("com.example.other").is_none());
     }
 }

@@ -454,34 +454,9 @@ impl PluginHostManager {
         }
     }
 
-    /// 为全部已加载适配器构造 `InstalledPluginInfo`。
-    ///
-    /// `enabled_fn` 按适配器调用以确定 `enabled` 字段；
-    /// 调用方传入查询 `ConfigManager::is_enabled` 的闭包。
-    pub fn list_plugin_info(
-        &self,
-        enabled_fn: impl Fn(&PluginRegistration) -> bool,
-    ) -> Vec<InstalledPluginInfo> {
-        let mut result: Vec<InstalledPluginInfo> = self
-            .plugins
-            .iter()
-            .map(|entry| {
-                let registration = entry.value();
-                let process_state = self
-                    .processes
-                    .get(&registration.plugin_id)
-                    .map(|p| PluginRuntimeState::from(&*p.state.read()))
-                    .unwrap_or_default();
-                build_plugin_info(registration, process_state, enabled_fn(registration))
-            })
-            .collect();
-        result.sort_by_key(|p| (p.priority, p.plugin_id.clone()));
-        result
-    }
-
     /// 单个插件的运行时信息（按 id 直查 hm.plugins，不遍历全量列表）。
     ///
-    /// 与 list_plugin_info 共用同一构造逻辑（build_plugin_info）。
+    /// 返回 None 表示该插件当前未加载；调用方据此区分运行态与「已安装未加载」。
     pub fn get_plugin_info(
         &self,
         plugin_id: &str,
@@ -502,7 +477,7 @@ impl PluginHostManager {
     }
 }
 
-/// 由 PluginRegistration 构造运行时信息条目（list_plugin_info / get_plugin_info 共用）。
+/// 由 PluginRegistration 构造运行时信息条目（get_plugin_info 使用）。
 fn build_plugin_info(
     registration: &PluginRegistration,
     process_state: PluginRuntimeState,
@@ -700,20 +675,15 @@ fn find_component_id_collision(
         .cloned()
 }
 
-/// 从 InitResult 构建所有 `RemoteComponent`。
+/// 由清单构造插件级元数据。
 ///
-/// 每个组件统一构造为 `RemoteComponent`；种类专属数据（target_types、result_actions、
-/// metadata）根据 `ComponentKind` 放入 `RemoteComponentKind` 对应变体。
-fn build_components(
-    plugin_id: &str,
-    plugin_dir: &Path,
-    manifest: &Manifest,
-    client: Arc<crate::client::JsonRpcClient>,
-    init_result: &crate::process::InitResult,
-) -> PluginRegistration {
-    // 插件级元数据由宿主从清单构造；包 Arc 后与各 Plugin 组件共享同一份。
-    let plugin_metadata = PluginMetadata {
-        id: plugin_id.to_string(),
+/// 加载期（build_components）与「已安装但未加载」的磁盘条目共用本函数，
+/// 保证图标、热键、形态与优先级只在同一处从 manifest 派生。
+/// 参数：plugin_dir - 安装目录（读取 [icon] 文件用）；manifest - 已解析清单。
+/// 返回：插件级元数据，kind 恒为 ThirdParty（插件级元数据的唯一来源是清单）。
+pub fn plugin_metadata_from_manifest(plugin_dir: &Path, manifest: &Manifest) -> PluginMetadata {
+    let metadata = PluginMetadata {
+        id: manifest.plugin.id.clone(),
         name: manifest.plugin.name.clone(),
         version: manifest.plugin.version.clone(),
         description: manifest.plugin.description.clone(),
@@ -733,14 +703,29 @@ fn build_components(
         mode: manifest.plugin.mode,
     };
     // 热键仅对 panel 形态生效（前端热键表与 wake_plugin 均按 mode 过滤）
-    if plugin_metadata.hotkey.is_some() && plugin_metadata.mode != PluginMode::Panel {
+    if metadata.hotkey.is_some() && metadata.mode != PluginMode::Panel {
         warn!(
-            plugin_id = plugin_id,
-            declared = ?plugin_metadata.mode,
+            plugin_id = %metadata.id,
+            declared = ?metadata.mode,
             "插件清单声明热键但形态非 panel：热键仅对 panel 形态生效，该热键将不注册"
         );
     }
-    let plugin_metadata = Arc::new(plugin_metadata);
+    metadata
+}
+
+/// 从 InitResult 构建所有 `RemoteComponent`。
+///
+/// 每个组件统一构造为 `RemoteComponent`；种类专属数据（target_types、result_actions、
+/// metadata）根据 `ComponentKind` 放入 `RemoteComponentKind` 对应变体。
+fn build_components(
+    plugin_id: &str,
+    plugin_dir: &Path,
+    manifest: &Manifest,
+    client: Arc<crate::client::JsonRpcClient>,
+    init_result: &crate::process::InitResult,
+) -> PluginRegistration {
+    // 插件级元数据由宿主从清单构造；包 Arc 后与各 Plugin 组件共享同一份。
+    let plugin_metadata = Arc::new(plugin_metadata_from_manifest(plugin_dir, manifest));
 
     let components: Vec<Arc<RemoteComponent>> = init_result
         .components

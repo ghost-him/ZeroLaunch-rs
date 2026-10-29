@@ -2,7 +2,7 @@ use crate::core::cli_token::CliToken;
 use crate::core::config::ConfigManager;
 use crate::core::i18n::I18nManager;
 use crate::core::model::ModelManager;
-use crate::plugin_framework::manager::PluginManager;
+use crate::plugin_framework::plugin_manager::PluginManager;
 use crate::plugin_framework::PluginRegistry;
 use crate::plugin_framework::SessionDispatcher;
 use crate::sdk::HostApi;

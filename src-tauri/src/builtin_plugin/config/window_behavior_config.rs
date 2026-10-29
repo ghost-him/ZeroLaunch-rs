@@ -312,6 +312,7 @@ impl Configurable for WindowBehaviorConfigComponent {
                 t_key!("window-behavior-config", "fields.move_up_key.label"),
                 t_key!("window-behavior-config", "fields.move_up_key.desc"),
             )
+            .require_modifier()
             .group(t_key!("window-behavior-config", "groups.windowBehavior"))
             .order(12)
             .default(default_move_up_key())
@@ -321,6 +322,7 @@ impl Configurable for WindowBehaviorConfigComponent {
                 t_key!("window-behavior-config", "fields.move_down_key.label"),
                 t_key!("window-behavior-config", "fields.move_down_key.desc"),
             )
+            .require_modifier()
             .group(t_key!("window-behavior-config", "groups.windowBehavior"))
             .order(13)
             .default(default_move_down_key())

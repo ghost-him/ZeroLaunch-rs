@@ -287,7 +287,8 @@ async function applySettings(settings: Record<string, unknown>): Promise<void> {
     await configStore.applySettings(props.schema.componentId, persistedSettings)
     message.success(t('settings.saveSuccess'))
   } catch {
-    message.error(t('settings.saveFailed'))
+    // 失败原因已由全局错误处理器以通知展示（标题经 i18n、正文为后端人读消息），
+    // 此处不再补一条无信息的通用 toast，避免同一次失败弹出两条提示。
   } finally {
     saving.value = false
   }

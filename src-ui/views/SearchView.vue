@@ -82,6 +82,7 @@ import ExcludeChooserPanel from '../components/search/ExcludeChooserPanel.vue'
 import { onConfigChanged, onShowWindow } from '../bridge/events'
 import { registerErrorHandler, configGetSettings, copyToClipboard } from '../bridge/commands'
 import type { BridgeError } from '../bridge/commands'
+import { formatErrorTitle } from '../utils/errors'
 
 const searchStore = useSearchStore()
 const notification = useNotification()
@@ -148,7 +149,7 @@ onMounted(async () => {
     // 错误文本是反馈问题时的取证材料，而通知数秒后自动消失，故提供一键复制（成功/失败均有提示）
     const report = `${error.code}: ${error.message}`
     notification.error({
-      title: error.code,
+      title: formatErrorTitle(error.code, t),
       content: error.message,
       duration: 5000,
       action: () => h(

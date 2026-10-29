@@ -4,7 +4,9 @@ pub enum ConfigError {
     #[error("Component not found: {0}")]
     NotFound(String),
 
-    #[error("Configuration validation failed: {0}")]
+    /// 校验失败的人读消息：由产生方给出完整句子，不再套英文前缀，
+    /// 避免中文消息被包装成「Configuration validation failed: 中文」的混排。
+    #[error("{0}")]
     ValidationFailed(String),
 
     #[error("Invalid setting value for key '{key}': {message}")]

@@ -87,7 +87,7 @@ import { useI18n } from 'vue-i18n'
 import { registerErrorHandler } from '../bridge/commands'
 import { configGetVersion } from '../bridge/commands'
 import type { BridgeError } from '../bridge/commands'
-import { formatErrorMessage } from '../utils/errors'
+import { formatErrorMessage, formatErrorTitle } from '../utils/errors'
 import { FIELD_REVEAL_KEY, type FieldRevealTarget } from '../utils/fieldReveal'
 import type { ComponentInfo, HelpNavigation } from '../bridge/contract'
 
@@ -179,7 +179,7 @@ function onSelectItem(itemId: string) {
 onMounted(async () => {
   registerErrorHandler((error: BridgeError) => {
     notification.error({
-      title: error.code,
+      title: formatErrorTitle(error.code, t),
       content: error.message,
       duration: 5000,
     })

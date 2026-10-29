@@ -185,7 +185,7 @@ impl Plugin for CalculatorPlugin {
                     }),
                     actions: vec![ResultAction {
                         id: "copy_result".to_string(),
-                        label: "复制结果".to_string(),
+                        label: t_key!("calculator", "row.copyResult").to_string(),
                         icon: IconRequest::Path("copy".to_string()),
                         is_default: true,
                         shortcut_key: "Enter".to_string(),

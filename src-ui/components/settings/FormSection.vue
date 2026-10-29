@@ -6,7 +6,7 @@
       </template>
       <template v-if="collapsible" #header-extra>
         <n-button text size="small" @click="collapsed = !collapsed">
-          {{ collapsed ? '展开' : '收起' }}
+          {{ collapsed ? $t('common.expand') : $t('common.collapse') }}
         </n-button>
       </template>
       <div v-show="!collapsed" class="section-fields">

@@ -24,6 +24,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { NInput, useNotification } from 'naive-ui'
+import { useI18n } from 'vue-i18n'
 import { useSettings } from '../../composables/useSettings'
 import { useThemeStore } from '../../stores/theme-store'
 import { useSearchStore } from '../../stores/search-store'
@@ -33,6 +34,7 @@ const { openSettings } = useSettings()
 const themeStore = useThemeStore()
 const searchStore = useSearchStore()
 const notification = useNotification()
+const { t } = useI18n()
 
 /// 当前插件面板元数据：插件面板模式下在搜索栏前缀渲染插件图标（仅 panel 形态）。
 const currentPluginMeta = computed(() => {
@@ -69,7 +71,7 @@ const inputValue = computed({
 const inputPlaceholder = computed(() => {
   if (searchStore.inlineParamState) {
     const n = searchStore.inlineParamState.userArgCount
-    return `输入 ${n} 个参数（空格分隔，\\ 转义空格）`
+    return t('search.paramCountHint', { n })
   }
   return themeStore.searchBarPlaceholder
 })
@@ -83,19 +85,19 @@ function onContextMenu(e: MouseEvent) {
   const items: CtxItem[] = [
     {
       key: 'refresh-database',
-      label: '刷新数据库',
+      label: t('search.refreshDatabase'),
       action: async () => {
         const count = await searchStore.refreshCandidates()
         notification.success({
-          title: '数据库已刷新',
-          content: `共 ${count} 个候选项`,
+          title: t('search.refreshDone'),
+          content: t('search.candidates', { count }),
           duration: 2000,
         })
       },
     },
     {
       key: 'open-settings',
-      label: '打开设置',
+      label: t('search.openSettings'),
       action: () => openSettings(),
     },
   ]

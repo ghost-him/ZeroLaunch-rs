@@ -1,6 +1,6 @@
 <template>
   <div class="empty-state">
-    <n-text depth="2">输入关键字开始搜索</n-text>
+    <n-text depth="2">{{ $t('search.typeToSearch') }}</n-text>
   </div>
 </template>
 

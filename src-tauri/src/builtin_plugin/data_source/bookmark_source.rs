@@ -280,7 +280,7 @@ impl Configurable for BookmarkSource {
                 action: "detect_browsers".into(),
                 component: None,
                 label_field: "name".into(),
-                label_field_label: "浏览器名称".into(),
+                label_field_label: t_key!("bookmark-source", "fields.name.label").into(),
                 value_field: "sources".into(),
                 merge_key: Some("bookmarks_path".into()),
                 field_mapping: vec![],
@@ -378,13 +378,13 @@ impl Configurable for BookmarkSource {
         vec![
             ConfigActionDef {
                 action: "detect_browsers".to_string(),
-                label: "自动检测浏览器".to_string(),
-                description: "扫描系统中已安装的浏览器书签路径".to_string(),
+                label: t_key!("bookmark-source", "actions.detectBrowsers.label").to_string(),
+                description: t_key!("bookmark-source", "actions.detectBrowsers.desc").to_string(),
             },
             ConfigActionDef {
                 action: "read_bookmarks".to_string(),
-                label: "读取书签".to_string(),
-                description: "读取指定浏览器书签文件中的所有书签".to_string(),
+                label: t_key!("bookmark-source", "actions.readBookmarks.label").to_string(),
+                description: t_key!("bookmark-source", "actions.readBookmarks.desc").to_string(),
             },
         ]
     }

@@ -12,7 +12,7 @@
       @contextmenu="(x: number, y: number, items: CtxItem[]) => emit('contextmenu', x, y, items)"
     />
     <div v-if="results.length === 0" class="no-results">
-      无结果
+      {{ $t('search.noResults') }}
     </div>
   </div>
 </template>

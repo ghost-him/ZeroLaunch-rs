@@ -334,7 +334,7 @@ pub trait ActionExecutor: Configurable {
     fn supported_actions(&self) -> Vec<ResultAction> {
         vec![ResultAction {
             id: "execute".to_string(),
-            label: "执行".to_string(),
+            label: "common.run".to_string(),
             icon: IconRequest::Path(String::new()),
             is_default: true,
             shortcut_key: String::new(),

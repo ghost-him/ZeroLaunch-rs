@@ -288,7 +288,7 @@ impl TranslatorPlugin {
         let actions = if is_success {
             vec![ResultAction {
                 id: "copy_primary".to_string(),
-                label: "复制译文".to_string(),
+                label: t_key!("translator", "row.copyResult").to_string(),
                 icon: IconRequest::Path("copy".to_string()),
                 is_default: true,
                 shortcut_key: "Enter".to_string(),
@@ -421,8 +421,8 @@ impl Configurable for TranslatorPlugin {
     fn config_actions(&self) -> Vec<zerolaunch_plugin_api::config::ConfigActionDef> {
         vec![zerolaunch_plugin_api::config::ConfigActionDef {
             action: "list_models".to_string(),
-            label: "获取宿主模型列表".to_string(),
-            description: "拉取宿主已配置的模型清单（经插件句柄访问宿主模型服务）".to_string(),
+            label: t_key!("translator", "actions.listModels.label").to_string(),
+            description: t_key!("translator", "actions.listModels.desc").to_string(),
         }]
     }
 

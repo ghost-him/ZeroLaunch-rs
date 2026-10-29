@@ -2,7 +2,7 @@
   <div class="calculator-panel">
     <!-- 表达式 / 结果 -->
     <div class="calc-display">
-      <div class="calc-expression">{{ expression || '输入表达式...' }}</div>
+      <div class="calc-expression">{{ expression || $t('calculator.emptyExpression') }}</div>
       <div class="calc-result" :class="{ error: !!error }">
         {{ error ? error : (result ?? '') }}
       </div>
@@ -17,7 +17,7 @@
         :type="action.isDefault ? 'primary' : 'default'"
         @click="executeAction(action)"
       >
-        {{ action.label }}
+        {{ resolveText(action.label) }}
       </n-button>
     </div>
   </div>
@@ -28,6 +28,7 @@ import { computed } from 'vue'
 import { NButton } from 'naive-ui'
 import type { ResultAction } from '@/bridge/contract'
 import { useSearchStore } from '@/stores/search-store'
+import { resolveText } from '@/i18n'
 
 const props = defineProps<{
   data: {

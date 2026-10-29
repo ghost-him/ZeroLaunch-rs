@@ -144,7 +144,7 @@ impl ActionExecutor for WindowActivateExecutor {
     fn supported_actions(&self) -> Vec<ResultAction> {
         vec![ResultAction {
             id: ACTION_ACTIVATE_WINDOW.to_string(),
-            label: "唤醒窗口".to_string(),
+            label: "common.activateWindow".to_string(),
             icon: IconRequest::Path(String::new()),
             is_default: false,
             shortcut_key: "Shift+Enter".to_string(),

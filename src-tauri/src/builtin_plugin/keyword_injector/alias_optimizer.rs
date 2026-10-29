@@ -118,7 +118,7 @@ impl Configurable for AliasOptimizer {
             action: "search_candidates".into(),
             component: Some("candidate-registry".into()),
             label_field: "name".into(),
-            label_field_label: "名称".into(),
+            label_field_label: "common.name".into(),
             value_field: "target".into(),
             merge_key: None,
             field_mapping: vec![],

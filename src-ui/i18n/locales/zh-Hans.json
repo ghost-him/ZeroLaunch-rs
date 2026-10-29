@@ -12,7 +12,14 @@
     "notAvailable": "—",
     "secondsShort": "秒",
     "ready": "就绪",
-    "open": "打开"
+    "open": "打开",
+    "openFolder": "打开所在文件夹",
+    "runAsAdmin": "以管理员身份运行",
+    "activateWindow": "唤醒窗口",
+    "run": "执行",
+    "name": "名称",
+    "expand": "展开",
+    "collapse": "收起"
   },
   "search": {
     "placeholder": "输入关键词搜索...",
@@ -21,6 +28,13 @@
     "candidates": "{count} 个候选项",
     "translationStarted": "已开始翻译，请稍候…",
     "paramLabel": "参数 {n}",
+    "paramPlaceholder": "输入第 {n} 个参数",
+    "paramHint": "请填写参数后按 Enter 执行",
+    "paramCountHint": "输入 {n} 个参数（空格分隔，\\ 转义空格）",
+    "typeToSearch": "输入关键字开始搜索",
+    "refreshDatabase": "刷新数据库",
+    "refreshDone": "数据库已刷新",
+    "openSettings": "打开设置",
     "hideResult": "不再显示",
     "excludeExactLabel": "仅屏蔽这一项",
     "excludeExactDesc": "只排除该目标本身，其他目录下的同名程序不受影响",
@@ -58,6 +72,9 @@
     "modeLive": "即时翻译",
     "modeOnEnter": "按 Enter 翻译",
     "defaultTargetInvalid": "当前保存的默认目标语言不在可用选项中，请重新选择"
+  },
+  "calculator": {
+    "emptyExpression": "输入表达式…"
   },
   "footer": {
     "settings": "设置",
@@ -349,13 +366,6 @@
       "overwriteConfirmContent": "插件 {name} 已安装，是否覆盖为新版本？",
       "overwriteConfirmPositive": "覆盖安装"
     }
-  },
-  "contextMenu": {
-    "execute": "执行",
-    "openLocation": "打开文件位置",
-    "runAsAdmin": "以管理员运行",
-    "copyPath": "复制路径",
-    "copyResult": "复制结果"
   },
   "error": {
     "invalidQuery": "查询无效",
@@ -1142,8 +1152,18 @@
           "desc": "替换原始标题的自定义标题，留空则使用原始标题"
         }
       },
+      "actions": {
+        "detectBrowsers": {
+          "label": "自动检测浏览器",
+          "desc": "扫描系统中已安装的浏览器书签路径"
+        },
+        "readBookmarks": {
+          "label": "读取书签",
+          "desc": "读取指定浏览器书签文件中的所有书签"
+        }
+      },
       "groups": {
-        "bookmarkSource": "书签源"
+        "bookmarkSource": "书签来源"
       }
     },
     "command-source": {
@@ -1579,11 +1599,23 @@
           "desc": "用于翻译的聊天模型",
           "note": "从模型管理里已配置的聊天模型选择；留空时翻译不可用"
         }
+      },
+      "row": {
+        "copyResult": "复制译文"
+      },
+      "actions": {
+        "listModels": {
+          "label": "获取宿主模型列表",
+          "desc": "拉取宿主已配置的模型清单（经插件句柄访问宿主模型服务）"
+        }
       }
     },
     "calculator": {
       "name": "计算器",
-      "description": "在搜索栏里算数：输入 = 加空格再写算式，回车把结果复制到剪贴板"
+      "description": "在搜索栏里算数：输入 = 加空格再写算式，回车把结果复制到剪贴板",
+      "row": {
+        "copyResult": "复制结果"
+      }
     },
     "cmd-run": {
       "name": "cmd 运行",

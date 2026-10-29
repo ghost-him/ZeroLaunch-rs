@@ -67,7 +67,7 @@ impl ActionExecutor for TemplateExecutor {
     fn supported_actions(&self) -> Vec<ResultAction> {
         vec![ResultAction {
             id: ACTION_EXECUTE.to_string(),
-            label: "执行".to_string(),
+            label: "common.run".to_string(),
             icon: zerolaunch_plugin_api::services::IconRequest::Path(String::new()),
             is_default: true,
             shortcut_key: String::new(),

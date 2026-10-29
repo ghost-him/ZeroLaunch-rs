@@ -53,7 +53,7 @@ impl ActionExecutor for AppExecutor {
     fn supported_actions(&self) -> Vec<ResultAction> {
         vec![ResultAction {
             id: ACTION_EXECUTE.to_string(),
-            label: "打开".to_string(),
+            label: "common.open".to_string(),
             icon: IconRequest::Path(String::new()),
             is_default: true,
             shortcut_key: String::new(),

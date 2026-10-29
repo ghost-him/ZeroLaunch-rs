@@ -12,7 +12,14 @@
     "notAvailable": "—",
     "secondsShort": "s",
     "ready": "Ready",
-    "open": "Open"
+    "open": "Open",
+    "openFolder": "Open Containing Folder",
+    "runAsAdmin": "Run as Administrator",
+    "activateWindow": "Activate Window",
+    "run": "Run",
+    "name": "Name",
+    "expand": "Expand",
+    "collapse": "Collapse"
   },
   "search": {
     "placeholder": "Type to search...",
@@ -21,6 +28,13 @@
     "candidates": "{count} candidates",
     "translationStarted": "Translation started, please wait...",
     "paramLabel": "Parameter {n}",
+    "paramPlaceholder": "Enter parameter {n}",
+    "paramHint": "Fill in the parameters and press Enter to run",
+    "paramCountHint": "Enter {n} parameters (space-separated; a backslash escapes spaces)",
+    "typeToSearch": "Type to start searching",
+    "refreshDatabase": "Refresh database",
+    "refreshDone": "Database refreshed",
+    "openSettings": "Open settings",
     "hideResult": "Don't show again",
     "excludeExactLabel": "Hide this item only",
     "excludeExactDesc": "Excludes just this target; same-named programs in other folders are unaffected",
@@ -58,6 +72,9 @@
     "modeLive": "Translate live",
     "modeOnEnter": "Translate on Enter",
     "defaultTargetInvalid": "The saved default target language is not in the available options, please select again"
+  },
+  "calculator": {
+    "emptyExpression": "Type an expression…"
   },
   "footer": {
     "settings": "Settings",
@@ -349,13 +366,6 @@
       "overwriteConfirmContent": "Plugin {name} is already installed. Overwrite with the new version?",
       "overwriteConfirmPositive": "Overwrite"
     }
-  },
-  "contextMenu": {
-    "execute": "Execute",
-    "openLocation": "Open File Location",
-    "runAsAdmin": "Run as Administrator",
-    "copyPath": "Copy Path",
-    "copyResult": "Copy Result"
   },
   "error": {
     "invalidQuery": "Invalid Query",
@@ -1142,6 +1152,16 @@
           "desc": "Custom title replacing the original; empty keeps the original"
         }
       },
+      "actions": {
+        "detectBrowsers": {
+          "label": "Auto-detect browsers",
+          "desc": "Scans installed browsers for bookmark file paths"
+        },
+        "readBookmarks": {
+          "label": "Read bookmarks",
+          "desc": "Reads every bookmark from the given browser bookmark file"
+        }
+      },
       "groups": {
         "bookmarkSource": "Bookmark Sources"
       }
@@ -1579,11 +1599,23 @@
           "desc": "The chat model used for translation",
           "note": "Choose from the chat models configured in model management; translation is unavailable when empty"
         }
+      },
+      "row": {
+        "copyResult": "Copy Translation"
+      },
+      "actions": {
+        "listModels": {
+          "label": "Fetch host model list",
+          "desc": "Retrieves the models configured in the host through the plugin handle"
+        }
       }
     },
     "calculator": {
       "name": "Calculator",
-      "description": "Do math in the search bar: type = then a space and an expression, and Enter copies the result to the clipboard"
+      "description": "Do math in the search bar: type = then a space and an expression, and Enter copies the result to the clipboard",
+      "row": {
+        "copyResult": "Copy Result"
+      }
     },
     "cmd-run": {
       "name": "Run in cmd",

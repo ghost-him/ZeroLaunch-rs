@@ -5,6 +5,7 @@ import type { NotificationReactive } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import type { ResultAction } from '@/bridge/contract'
 import { useSearchStore } from '@/stores/search-store'
+import { resolveText } from '@/i18n'
 
 interface SenseEntry {
   label?: string | null
@@ -165,7 +166,7 @@ async function executeAction(action: ResultAction) {
         :type="action.isDefault ? 'primary' : 'default'"
         @click="executeAction(action)"
       >
-        {{ action.label }}
+        {{ resolveText(action.label) }}
       </n-button>
     </div>
   </div>

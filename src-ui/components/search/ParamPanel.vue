@@ -2,7 +2,7 @@
   <div class="param-panel" v-if="store.paramPanelState">
     <div class="param-panel-header">
       <span class="candidate-name">{{ store.paramPanelState.candidateItem.title }}</span>
-      <span class="param-hint">请填写参数后按 Enter 执行</span>
+      <span class="param-hint">{{ $t('search.paramHint') }}</span>
     </div>
 
     <div class="param-fields">
@@ -15,7 +15,7 @@
         <n-input
           :ref="(el) => setFieldRef(el, field.index)"
           v-model:value="field.value"
-          :placeholder="'输入第 ' + (field.index + 1) + ' 个参数'"
+          :placeholder="$t('search.paramPlaceholder', { n: field.index + 1 })"
           size="large"
         />
       </div>

@@ -250,6 +250,8 @@
       "reloadFailed": "重新載入失敗",
       "uninstallSuccess": "插件已解除安裝",
       "uninstallFailed": "解除安裝失敗",
+      "uninstallConfirmTitle": "解除安裝外掛",
+      "uninstallConfirmContent": "將停止外掛 {name} 並刪除其原安裝目錄，此操作不可撤銷。",
       "toggleEnabledSuccess": "插件已啟用",
       "toggleDisabledSuccess": "插件已停用",
       "toggleFailed": "切換狀態失敗",

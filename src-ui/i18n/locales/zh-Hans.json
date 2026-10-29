@@ -250,6 +250,8 @@
       "reloadFailed": "重载失败",
       "uninstallSuccess": "插件已卸载",
       "uninstallFailed": "卸载失败",
+      "uninstallConfirmTitle": "卸载插件",
+      "uninstallConfirmContent": "将停止插件 {name} 并删除其原安装目录，此操作不可撤销。",
       "toggleEnabledSuccess": "插件已启用",
       "toggleDisabledSuccess": "插件已禁用",
       "toggleFailed": "切换状态失败",

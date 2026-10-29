@@ -250,6 +250,8 @@
       "reloadFailed": "Reload failed",
       "uninstallSuccess": "Plugin uninstalled",
       "uninstallFailed": "Uninstall failed",
+      "uninstallConfirmTitle": "Uninstall plugin",
+      "uninstallConfirmContent": "Plugin {name} will be stopped and its original install directory deleted. This cannot be undone.",
       "toggleEnabledSuccess": "Plugin enabled",
       "toggleDisabledSuccess": "Plugin disabled",
       "toggleFailed": "Failed to toggle state",

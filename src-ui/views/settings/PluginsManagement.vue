@@ -201,7 +201,7 @@ const columns: DataTableColumn<PluginRow>[] = [
           h(NButton, {
             size: 'small',
             type: 'error',
-            onClick: () => handleUninstall(row.plugin.pluginId),
+            onClick: () => handleUninstall(row.plugin.pluginId, row.name),
           }, { default: () => t('settings.thirdPartyPlugins.uninstall') }),
         )
       }
@@ -376,15 +376,23 @@ async function handleReload(pluginId: string) {
   }
 }
 
-/** 卸载第三方插件。 */
-async function handleUninstall(pluginId: string) {
-  try {
-    await pluginUninstall(pluginId)
-    message.success(t('settings.thirdPartyPlugins.uninstallSuccess'))
-    await loadPlugins()
-  } catch (e) {
-    message.error(t('settings.thirdPartyPlugins.uninstallFailed') + ': ' + errorText(e))
-  }
+/** 卸载第三方插件：先弹确认（卸载会停止插件并删除其原安装目录），确认后再调用后端。 */
+function handleUninstall(pluginId: string, name: string) {
+  dialog.warning({
+    title: t('settings.thirdPartyPlugins.uninstallConfirmTitle'),
+    content: t('settings.thirdPartyPlugins.uninstallConfirmContent', { name }),
+    positiveText: t('settings.thirdPartyPlugins.uninstall'),
+    negativeText: t('settings.thirdPartyPlugins.installConfirmNegative'),
+    onPositiveClick: async () => {
+      try {
+        await pluginUninstall(pluginId)
+        message.success(t('settings.thirdPartyPlugins.uninstallSuccess'))
+        await loadPlugins()
+      } catch (e) {
+        message.error(t('settings.thirdPartyPlugins.uninstallFailed') + ': ' + errorText(e))
+      }
+    },
+  })
 }
 
 /** 启用/禁用：内置走配置组件开关，第三方走插件启停。 */

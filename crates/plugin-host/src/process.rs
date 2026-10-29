@@ -8,7 +8,7 @@ use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 
 use zerolaunch_plugin_api::config::{ConfigActionDef, SettingDefinition};
-use zerolaunch_plugin_api::{KeywordInputSource, PanelInteraction, ResultAction};
+use zerolaunch_plugin_api::{PanelInteraction, ResultAction};
 use zerolaunch_plugin_protocol::manifest::Manifest;
 use zerolaunch_plugin_protocol::messages::*;
 use zerolaunch_plugin_protocol::methods::plugin as plugin_methods;
@@ -364,10 +364,7 @@ impl PluginProcess {
                         Duration::from_secs(5),
                     )
                     .await
-                    .unwrap_or(KeywordOptimizerInfo {
-                        input_source: KeywordInputSource::Refined,
-                        priority: comp.priority,
-                    });
+                    .unwrap_or_else(|_| KeywordOptimizerInfo::fallback(comp.priority));
                 keyword_optimizer_info_map.push((comp.component_id.clone(), info));
             }
 

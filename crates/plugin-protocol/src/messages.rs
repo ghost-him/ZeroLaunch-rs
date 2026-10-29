@@ -333,6 +333,19 @@ pub struct KeywordOptimizerInfo {
     pub priority: u32,
 }
 
+impl KeywordOptimizerInfo {
+    /// RPC 未返回时的兜底声明（唯一构造入口）。
+    ///
+    /// 参数：priority - 组件自身优先级。
+    /// 返回：只做幂等精化的默认属性（`Refined` 层）。
+    pub fn fallback(priority: u32) -> Self {
+        Self {
+            input_source: KeywordInputSource::Refined,
+            priority,
+        }
+    }
+}
+
 /// plugin/keyword_optimizer_info 请求参数。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KeywordOptimizerInfoParams {

@@ -182,17 +182,8 @@ impl Serialize for ModelEntryConfig {
     where
         S: Serializer,
     {
-        let repr = match self {
-            Self::Chat { name, config } => ModelEntryConfigRepr::Chat {
-                name: name.clone(),
-                config: config.clone(),
-            },
-            Self::Embedding { name, config } => ModelEntryConfigRepr::Embedding {
-                name: name.clone(),
-                config: config.clone(),
-            },
-        };
-        repr.serialize(serializer)
+        // 下发形状的唯一构造是 ModelEntryConfigRepr 的 From 实现，此处只做转接。
+        ModelEntryConfigRepr::from(self.clone()).serialize(serializer)
     }
 }
 

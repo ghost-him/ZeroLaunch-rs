@@ -9,6 +9,7 @@ use crate::core::config::setting_builders::SchemaBuilder;
 use crate::plugin_framework::builtin_registry::{ConfigEntry, InventoryContext};
 use async_trait::async_trait;
 use parking_lot::RwLock;
+use serde::Serialize;
 use std::sync::Arc;
 use zerolaunch_plugin_api::config::{
     ComponentCore, ComponentType, ConfigActionDef, ConfigError, Configurable, DataActionBinding,
@@ -48,20 +49,40 @@ impl HelpAgentConfigComponent {
     }
 }
 
+/// 助手模型下拉选项 —— 模型清单条目（`ModelInfo`）的下发投影。
+///
+/// 只保留显示名与全局模型 id，其余字段（能力、上下文等）不下发。
+#[derive(Debug, Clone, Serialize)]
+struct ChatModelOption {
+    /// 模型显示名。序列化键名 `name`。
+    #[serde(rename = "name")]
+    name: String,
+    /// 全局模型 id（`provider/model`）。序列化键名 `modelId`。
+    #[serde(rename = "modelId")]
+    model_id: String,
+}
+
+impl ChatModelOption {
+    /// 由模型清单条目派生（`ChatModelOption` 的唯一构造入口）。
+    ///
+    /// 参数：info - 宿主的模型清单条目。
+    /// 返回：聊天模型返回选项，其余种类返回 None（不能当助手）。
+    fn from_model(info: ModelInfo) -> Option<Self> {
+        matches!(info.kind, ModelKind::Chat { .. }).then(|| Self {
+            name: info.name,
+            model_id: info.model_id,
+        })
+    }
+}
+
 /// 从宿主模型清单筛出可作助手的聊天模型。
 ///
 /// 参数：models - `host/model.list` 的聚合清单。
 /// 返回：下拉选项条目 `{ name, modelId }`（显示名 + 全局模型 id，前端按这两个字段映射）。
-fn chat_model_options(models: Vec<ModelInfo>) -> Vec<serde_json::Value> {
+fn chat_model_options(models: Vec<ModelInfo>) -> Vec<ChatModelOption> {
     models
         .into_iter()
-        .filter(|info| matches!(info.kind, ModelKind::Chat { .. }))
-        .map(|info| {
-            serde_json::json!({
-                "name": info.name,
-                "modelId": info.model_id,
-            })
-        })
+        .filter_map(ChatModelOption::from_model)
         .collect()
 }
 
@@ -134,9 +155,10 @@ impl Configurable for HelpAgentConfigComponent {
         _params: &serde_json::Value,
     ) -> Result<serde_json::Value, String> {
         match action {
-            ACTION_LIST_CHAT_MODELS => Ok(serde_json::Value::Array(chat_model_options(
-                self.plugin_handle.model_list(),
-            ))),
+            ACTION_LIST_CHAT_MODELS => {
+                serde_json::to_value(chat_model_options(self.plugin_handle.model_list()))
+                    .map_err(|e| format!("序列化模型选项失败: {e}"))
+            }
             other => Err(format!("Unknown config action: {other}")),
         }
     }
@@ -205,9 +227,14 @@ mod tests {
         ]);
         assert_eq!(options.len(), 2);
         // 显示名给用户看，值用全局 model id（与 help-agent-config 的语义一致）
-        assert_eq!(options[0]["name"], "Ornith 1.5 9B");
-        assert_eq!(options[0]["modelId"], "ollama/ornith-1.5:9b");
-        assert_eq!(options[1]["modelId"], "openai/gpt-4o-mini");
+        assert_eq!(options[0].name, "Ornith 1.5 9B");
+        assert_eq!(options[0].model_id, "ollama/ornith-1.5:9b");
+        assert_eq!(options[1].model_id, "openai/gpt-4o-mini");
+        // 前端按 name / modelId 两键取用，序列化键名是契约的一部分
+        assert_eq!(
+            serde_json::to_value(&options[0]).unwrap(),
+            serde_json::json!({ "name": "Ornith 1.5 9B", "modelId": "ollama/ornith-1.5:9b" })
+        );
     }
 
     #[test]

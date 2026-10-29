@@ -40,5 +40,5 @@ pub enum MyEnum {
 
 ## 前后端同步
 
-- 前端类型在 `bridge/contract.ts` / `bridge/commands.ts`（归属判据见 `frontend-type-safety` 规则）中 **必须** 与 Rust IPC 类型同步。IPC 类型源头除 `commands/` 外还包括 `plugin_framework/session_state.rs`（`SessionStateEvent` 等事件载荷，前端 `bridge/events.ts` 消费）、`core/config/models.rs`（持久化模型）与 `plugin_market/mod.rs`（市场卡片元数据，经 `market_list`/`market_get_meta` 下发）——编辑这些文件时同样检查前端契约
+- 前端类型在 `bridge/contract.ts` / `bridge/commands.ts`（归属判据见 `frontend-type-safety` 规则）中 **必须** 与 Rust IPC 类型同步。IPC 类型源头除 `commands/` 外还包括 `plugin_framework/session_state.rs`（`SessionStateEvent` 等事件载荷，前端 `bridge/events.ts` 消费）、`core/config/models.rs`（配置 IPC 投影模型）与 `plugin_market/mod.rs`（市场卡片元数据，经 `market_list`/`market_get_meta` 下发）——编辑这些文件时同样检查前端契约
 - 新增/重命名 Rust IPC 类型字段时：**同一 commit** 中更新对应的前端类型声明（`bridge/contract.ts` 或 `bridge/commands.ts`）

@@ -13,11 +13,10 @@ scope: "tool:read(src-tauri/src/builtin_plugin/config/**), tool:edit(src-tauri/s
 | **存储类型**（Settings） | `core/config/<component>_settings.rs`、`core/<domain>/settings.rs`（同域消费侧持有配置 id + 结构，如 `core/model/settings.rs`、`core/agent/settings.rs`）或 `builtin_plugin/config/<component>.rs` | serde struct，`#[derive(Serialize, Deserialize)]`，每字段 `#[serde(rename, default)]` | 引用 `ConfigManager`、包含业务方法 |
 | **转换函数** | 与存储类型同文件 | `pub(crate) fn settings_to_xxx(settings: &Settings) -> RuntimeType` | 依赖 `ConfigManager` |
 
-> **IPC 投影类型例外**：`core/config/models.rs` 中那些只承载「可下发形状」的类型
-> （如组件概览、组件 schema）不属于配置运行时类型——它们必须 derive `Serialize`
-> 并逐字段 `#[serde(rename = "camelCase")]`，且**禁止**在命令层再定义同名 DTO
-> （一个下发形状只能有一个类型，命令层与 CLI 共用它）。被业务逻辑消费的配置运行时
-> 类型仍禁止 derive serde。
+> **投影类型不属于运行时类型**：`core/config/models.rs` 中只承载下发形状的类型
+> （组件概览、组件 schema）可 derive serde 并逐字段 `#[serde(rename)]`；被业务逻辑
+> 消费的配置运行时类型仍禁止 derive serde。投影如何派生见 `projection-single-source` 规则。
+
 ## 配置默认值来源
 
 - 配置默认值**唯一来源是后端**：serde `default` / `default = "fn"` + schema `.default(...)`

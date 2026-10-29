@@ -396,15 +396,13 @@ impl Configurable for BookmarkSource {
     ) -> Result<serde_json::Value, String> {
         match action {
             "detect_browsers" => {
-                let browsers = Self::detect_installed_browsers();
-                let sources: Vec<serde_json::Value> = browsers
+                // 检测结果是 BrowserInfo；下发形状复用配置项自身类型（enabled 新检测默认关闭）。
+                let sources: Vec<BookmarkSourceConfig> = Self::detect_installed_browsers()
                     .into_iter()
-                    .map(|b| {
-                        serde_json::json!({
-                            "name": b.name,
-                            "bookmarks_path": b.bookmarks_path,
-                            "enabled": false,
-                        })
+                    .map(|browser| BookmarkSourceConfig {
+                        name: browser.name,
+                        bookmarks_path: browser.bookmarks_path,
+                        enabled: false,
                     })
                     .collect();
                 Ok(serde_json::json!({ "sources": sources }))

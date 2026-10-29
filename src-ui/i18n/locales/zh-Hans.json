@@ -164,6 +164,7 @@
     "fontLoadFailed": "字体列表加载失败",
     "hotkeyPressToRecord": "按下快捷键组合…",
     "hotkeyPlaceholder": "点击后按下快捷键录制",
+    "hotkeyNeedModifier": "全局快捷键需包含 Ctrl / Alt / Shift / Win",
     "unsupportedSchema": "字段“{field}”无法渲染：{reason}",
     "schemaBuildFailed": "字段 schema 无法构建：{error}",
     "unsupportedArray": "数组字段“{field}”无法渲染：{reason}",

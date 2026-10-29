@@ -164,6 +164,7 @@
     "fontLoadFailed": "字型清單載入失敗",
     "hotkeyPressToRecord": "按下快速鍵組合…",
     "hotkeyPlaceholder": "點擊後按下快速鍵錄製",
+    "hotkeyNeedModifier": "全域快速鍵需包含 Ctrl / Alt / Shift / Win",
     "unsupportedSchema": "欄位“{field}”無法渲染：{reason}",
     "schemaBuildFailed": "欄位 schema 無法構建：{error}",
     "unsupportedArray": "陣列欄位“{field}”無法渲染：{reason}",

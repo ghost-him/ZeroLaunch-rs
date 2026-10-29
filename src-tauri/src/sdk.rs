@@ -5,7 +5,7 @@ use zerolaunch_plugin_api::platform::{PlatformCapabilities, PlatformServices};
 use zerolaunch_plugin_api::services::app::AppInfo;
 use zerolaunch_plugin_api::services::focus_monitor::FocusCallback;
 use zerolaunch_plugin_api::services::hotkey::types::{
-    HotkeyCallback, HotkeyConfig, HotkeyEventFilter,
+    Hotkey, HotkeyCallback, HotkeyConfig, HotkeyEventFilter,
 };
 use zerolaunch_plugin_api::services::icon::icon_cache::IconCacheService;
 use zerolaunch_plugin_api::services::installation_monitor::types::InstallationCallback;
@@ -272,22 +272,37 @@ impl HostApi {
     // ===== 按键监听服务 =====
 
     /// 应用按键配置。
-    /// 注销所有现有快捷键，注册新快捷键，设置双击 Ctrl 状态。
+    /// 先校验全部新快捷键，再以新集合替换现有注册（注册失败时恢复旧注册），设置双击 Ctrl 状态。
     /// 参数：config - 按键配置。
     /// 返回：成功返回 Ok(())，失败返回 HostApiError。
     pub async fn apply_hotkey_config(&self, config: &HotkeyConfig) -> Result<(), HostApiError> {
-        self.platform.hotkey_manager.unregister_all().await?;
         for registration in &config.hotkeys {
             self.platform
                 .hotkey_manager
-                .register_hotkey(&registration.hotkey)
+                .validate_hotkey(&registration.hotkey)
                 .await?;
         }
+        let hotkeys: Vec<Hotkey> = config
+            .hotkeys
+            .iter()
+            .map(|registration| registration.hotkey.clone())
+            .collect();
+        self.platform
+            .hotkey_manager
+            .replace_all_hotkeys(&hotkeys)
+            .await?;
         self.platform
             .hotkey_manager
             .set_double_ctrl_enabled(config.double_ctrl_enabled)
             .await?;
         Ok(())
+    }
+
+    /// 校验快捷键能否注册为全局快捷键（无注册副作用）。
+    /// 参数：hotkey - 待校验的按键组合。
+    /// 返回：可注册返回 Ok(())，否则返回 HostApiError。
+    pub async fn validate_hotkey(&self, hotkey: &Hotkey) -> Result<(), HostApiError> {
+        self.platform.hotkey_manager.validate_hotkey(hotkey).await
     }
 
     /// 注销所有已注册的快捷键并禁用双击 Ctrl。

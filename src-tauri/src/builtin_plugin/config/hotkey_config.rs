@@ -130,6 +130,7 @@ impl Configurable for HotkeyConfigComponent {
             .note(t_key!("hotkey-config", "fields.open_search_bar.note"))
             .group(t_key!("hotkey-config", "groups.globalHotkeys"))
             .order(0)
+            .require_modifier()
             .default("Alt+Space")
             .build(),
             SchemaBuilder::boolean(
@@ -162,18 +163,19 @@ impl Configurable for HotkeyConfigComponent {
     }
 
     async fn validate_settings(&self, settings: &serde_json::Value) -> Result<(), ConfigError> {
-        let hotkey_fields = ["open_search_bar"];
-        for field in &hotkey_fields {
-            if let Some(hotkey_str) = settings.get(field).and_then(|v| v.as_str()) {
-                if !hotkey_str.is_empty() && parse_hotkey_string(hotkey_str).is_none() {
-                    return Err(ConfigError::ValidationFailed(format!(
-                        "快捷键格式无效: '{}'",
-                        hotkey_str
-                    )));
-                }
-            }
+        let Some(hotkey_str) = settings.get("open_search_bar").and_then(|v| v.as_str()) else {
+            return Ok(());
+        };
+        if hotkey_str.is_empty() {
+            return Ok(());
         }
-        Ok(())
+        let hotkey = parse_hotkey_string(hotkey_str).ok_or_else(|| {
+            ConfigError::ValidationFailed(format!("快捷键格式无效: '{}'", hotkey_str))
+        })?;
+        self.host_api
+            .validate_hotkey(&hotkey)
+            .await
+            .map_err(|e| ConfigError::ValidationFailed(format!("快捷键不可用: {e}")))
     }
 
     fn on_settings_changed(&self) {

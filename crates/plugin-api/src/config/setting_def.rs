@@ -92,7 +92,12 @@ pub enum WidgetHint {
     },
     /// 快捷键录制器 — 聚焦后按下组合键进行录制，值格式为修饰键 + 主键（如 "Alt+Space"）。
     #[serde(rename = "hotkey")]
-    Hotkey,
+    Hotkey {
+        /// 是否强制包含至少一个修饰键。全局快捷键为 true：
+        /// 无修饰键的按键注册为系统级热键会劫持全系统该键输入。
+        #[serde(rename = "requireModifier", default)]
+        require_modifier: bool,
+    },
     /// 普通列表编辑器（默认的数组 UI）。
     #[serde(rename = "list")]
     List,

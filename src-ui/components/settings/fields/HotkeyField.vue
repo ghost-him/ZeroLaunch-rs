@@ -2,7 +2,7 @@
   <div class="hotkey-field" @keydown="handleKeydown">
     <n-input
       :value="displayValue"
-      :placeholder="recording ? t('settings.hotkeyPressToRecord') : t('settings.hotkeyPlaceholder')"
+      :placeholder="placeholder"
       readonly
       clearable
       :disabled="field.readOnly"
@@ -37,6 +37,21 @@ const { t } = useI18n()
 const recording = ref(false)
 /** 录制过程中已按下的组合，实时回显给用户。 */
 const pendingCombo = ref('')
+/** 需要修饰键时是否刚拒绝了单键（仅影响录制态提示文本）。 */
+const needModifierHint = ref(false)
+
+/** 全局快捷键字段要求至少一个修饰键（后端同样校验，参数来自 schema）。 */
+const requireModifier = computed(
+  () => props.field.widget?.kind === 'hotkey' && props.field.widget.requireModifier,
+)
+
+/** 输入框占位提示：未录制、录制中、缺修饰键三种状态。 */
+const placeholder = computed(() => {
+  if (!recording.value) return t('settings.hotkeyPlaceholder')
+  return needModifierHint.value
+    ? t('settings.hotkeyNeedModifier')
+    : t('settings.hotkeyPressToRecord')
+})
 
 /** 展示值：录制中显示已按组合，否则显示已保存的快捷键。 */
 const displayValue = computed(() =>
@@ -48,12 +63,14 @@ function startRecording(): void {
   if (props.field.readOnly) return
   recording.value = true
   pendingCombo.value = ''
+  needModifierHint.value = false
 }
 
 /** 退出录制态并清空临时状态（不修改已保存值）。 */
 function stopRecording(): void {
   recording.value = false
   pendingCombo.value = ''
+  needModifierHint.value = false
 }
 
 /** 点击清除按钮：清空快捷键值。 */
@@ -85,6 +102,13 @@ function handleKeydown(e: KeyboardEvent): void {
     if (modifiers) {
       pendingCombo.value = `${modifiers}+…`
     }
+    return
+  }
+  // 全局快捷键要求修饰键（后端同样拒绝）：单键只提示，继续等待组合。
+  if (requireModifier.value && !formatModifiers(e)) {
+    e.preventDefault()
+    needModifierHint.value = true
+    pendingCombo.value = ''
     return
   }
   e.preventDefault()

@@ -169,7 +169,37 @@ impl SchemaBuilder {
     /// 前端聚焦后进入录制态，用户按下组合键（修饰键 + 主键，如 "Alt+Space"）
     /// 即完成录入；空串表示未设置快捷键。
     pub fn hotkey(key: &str, label: &str, desc: &str) -> Self {
-        Self::new(key, label, desc, SchemaNode::string(), WidgetHint::Hotkey)
+        Self::new(
+            key,
+            label,
+            desc,
+            SchemaNode::string(),
+            WidgetHint::Hotkey {
+                require_modifier: false,
+            },
+        )
+    }
+
+    /// 要求快捷键必须包含至少一个修饰键（全局快捷键使用）。
+    /// 前端据此拒绝录制单键，后端校验同样拒绝无修饰键的全局快捷键。
+    pub fn require_modifier(mut self) -> Self {
+        match &mut self.ui.widget {
+            Some(WidgetHint::Hotkey { require_modifier }) => *require_modifier = true,
+            other => {
+                debug_assert!(
+                    false,
+                    "SchemaBuilder::require_modifier() 只能在快捷键字段上调用。\
+                     字段 '{}' 的控件为 {other:?}，请使用 hotkey() 构造器",
+                    self.key
+                );
+                tracing::warn!(
+                    "SchemaBuilder::require_modifier() 只能在快捷键字段上调用。\
+                     字段 '{}' 的控件为 {other:?}，请使用 hotkey() 构造器",
+                    self.key
+                );
+            }
+        }
+        self
     }
 
     fn new(key: &str, label: &str, desc: &str, schema: SchemaNode, widget: WidgetHint) -> Self {
@@ -829,5 +859,27 @@ fn primitive_schema(item: PrimitiveType) -> (SchemaNode, WidgetHint) {
             },
             WidgetHint::Number,
         ),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 快捷键字段序列化为前端消费的 {kind, requireModifier} 形状。
+    #[test]
+    fn hotkey_widget_serializes_require_modifier() {
+        let def = SchemaBuilder::hotkey("open_search_bar", "label", "desc")
+            .require_modifier()
+            .build();
+        let widget = serde_json::to_value(&def.ui.widget).unwrap();
+        assert_eq!(widget["kind"], "hotkey");
+        assert_eq!(widget["requireModifier"], true);
+
+        // 未声明 require_modifier 的快捷键字段（如窗口内按键）默认为 false
+        let def = SchemaBuilder::hotkey("move_up_key", "label", "desc").build();
+        let widget = serde_json::to_value(&def.ui.widget).unwrap();
+        assert_eq!(widget["kind"], "hotkey");
+        assert_eq!(widget["requireModifier"], false);
     }
 }

@@ -164,6 +164,7 @@
     "fontLoadFailed": "Failed to load font list",
     "hotkeyPressToRecord": "Press a key combination…",
     "hotkeyPlaceholder": "Click then press keys to record",
+    "hotkeyNeedModifier": "A global hotkey must include Ctrl / Alt / Shift / Win",
     "unsupportedSchema": "Field \"{field}\" cannot be rendered: {reason}",
     "schemaBuildFailed": "The field schema could not be built: {error}",
     "unsupportedArray": "Array field \"{field}\" cannot be rendered: {reason}",

@@ -386,12 +386,19 @@ impl ConfigManager {
                 .insert(component_id.clone(), state.enabled);
 
             if let Some(component) = self.registry.get(component_id) {
-                // 先校验已保存配置是否符合当前 schema
+                // 先校验已保存配置是否符合当前 schema；校验失败时回退 schema 默认值
+                // （与 register() 的已保存配置分支一致，避免组件停在未应用的构造默认值上）
                 if let Err(e) = component.validate_settings(&state.settings).await {
                     warn!(
-                        "组件 {} 的已保存配置校验失败，跳过加载: {}",
+                        "组件 {} 的已保存配置校验失败，回退默认值: {}",
                         component_id, e
                     );
+                    let defaults = component.get_default_settings();
+                    if let Err(apply_err) = component.apply_settings(defaults).await {
+                        warn!("组件 {} 应用默认配置失败: {}", component_id, apply_err);
+                    } else {
+                        component.on_settings_changed();
+                    }
                     continue;
                 }
 

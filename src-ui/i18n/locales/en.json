@@ -142,6 +142,18 @@
     "actionFailedDefault": "The action reported failure",
     "selectPath": "Select Path",
     "pathNotSelected": "Not selected",
+    "drop": {
+      "usePath": "Drop to use this path",
+      "addEntries": "Drop to add scan directories",
+      "kindMismatch": "Only {kind} can be dropped here",
+      "directory": "folders",
+      "file": "files",
+      "added": "Added {count}",
+      "updated": "Merged {count} patterns",
+      "skipped": "Already present, skipped {count}",
+      "unreadable": "{count} paths unreadable",
+      "limitReached": "Item limit reached"
+    },
     "imageSelect": "Select Image",
     "imageReselect": "Re-select",
     "imageClear": "Clear",

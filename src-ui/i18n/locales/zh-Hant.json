@@ -142,6 +142,18 @@
     "actionFailedDefault": "操作返回失敗",
     "selectPath": "選擇路徑",
     "pathNotSelected": "未選擇",
+    "drop": {
+      "usePath": "放開即使用此路徑",
+      "addEntries": "放開以新增掃描目錄",
+      "kindMismatch": "只能拖入{kind}",
+      "directory": "資料夾",
+      "file": "檔案",
+      "added": "已新增 {count} 筆",
+      "updated": "已合併 {count} 筆模式",
+      "skipped": "已存在，略過 {count} 筆",
+      "unreadable": "{count} 筆路徑無法讀取",
+      "limitReached": "已達項目上限"
+    },
     "imageSelect": "選擇圖片",
     "imageReselect": "重新選擇",
     "imageClear": "清除",

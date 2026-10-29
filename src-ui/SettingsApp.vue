@@ -24,9 +24,13 @@ import { configGetSettings } from './bridge/commands'
 import { i18n, setLocale, type Locale } from './i18n'
 import { refreshPluginTranslations } from './stores/i18n-store'
 import { onConfigChanged } from './bridge/events'
+import { useFileDropRouter } from './composables/useFileDrop'
 import SettingsView from './views/SettingsView.vue'
 
 const themeStore = useThemeStore()
+
+// 设置窗拖放路由：整窗唯一监听，字段级与页面级投放目标自行注册
+useFileDropRouter()
 
 const naiveLocale = ref(naiveLocaleFor(i18n.global.locale.value))
 

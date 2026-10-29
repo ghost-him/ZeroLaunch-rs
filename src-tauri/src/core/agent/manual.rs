@@ -620,6 +620,7 @@ mod tests {
             widget: None,
             action: None,
             detail_action: None,
+            drop: None,
         }
     }
 

@@ -232,6 +232,8 @@ pub fn run() {
             // AI 助手
             crate::commands::help::help_search,
             crate::commands::help::help_ask,
+            // 路径类型查询（设置页拖放判定文件/目录）
+            crate::commands::path::path_kind,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

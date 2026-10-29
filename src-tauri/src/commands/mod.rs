@@ -7,6 +7,7 @@ pub mod debug;
 pub mod help;
 pub mod i18n;
 pub mod inspector;
+pub mod path;
 pub mod plugin;
 pub mod plugin_market;
 pub mod resource;

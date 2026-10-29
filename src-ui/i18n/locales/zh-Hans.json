@@ -142,6 +142,18 @@
     "actionFailedDefault": "操作返回失败",
     "selectPath": "选择路径",
     "pathNotSelected": "未选择",
+    "drop": {
+      "usePath": "松手使用该路径",
+      "addEntries": "松手添加为扫描目录",
+      "kindMismatch": "只能拖入{kind}",
+      "directory": "文件夹",
+      "file": "文件",
+      "added": "已添加 {count} 条",
+      "updated": "已合并 {count} 条模式",
+      "skipped": "已存在，跳过 {count} 条",
+      "unreadable": "{count} 条路径不可读",
+      "limitReached": "已达到条目上限"
+    },
     "imageSelect": "选择图片",
     "imageReselect": "重新选择",
     "imageClear": "清除",

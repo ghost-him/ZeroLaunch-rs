@@ -8,6 +8,7 @@ import type {
   WidgetHint,
   FieldAction,
   DetailActionDef,
+  DropSpec,
   SettingsContribution,
   VisibleWhen,
 } from '../bridge/contract'
@@ -32,6 +33,8 @@ export interface FieldConfig {
   widget: WidgetHint | null
   action: FieldAction | null
   detailAction: DetailActionDef | null
+  /** 拖放投放声明；null 表示本字段不接受拖放（标量 path 字段由 widget 推断，不读此字段）。 */
+  drop: DropSpec | null
 }
 
 /** 数组或对象子项字段定义，完整保留嵌套 schema 的 UI 元数据。 */
@@ -86,6 +89,7 @@ export function buildFieldConfigs(contribution: SettingsContribution): FieldConf
         widget: metadata.widget ?? null,
         action: metadata.action ?? null,
         detailAction: metadata.detailAction ?? null,
+        drop: metadata.drop ?? null,
       }
     })
     .filter((field) => field.visible)
@@ -542,5 +546,6 @@ export function fieldDefToConfig(fd: FieldDef, parentReadOnly = false): FieldCon
     widget: fd.widget,
     action: fd.action,
     detailAction: fd.detailAction,
+    drop: null,
   }
 }

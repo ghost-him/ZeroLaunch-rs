@@ -407,6 +407,7 @@ impl Configurable for ProgramSource {
         ])
         .min_items(0)
         .master_detail_ui()
+        .drop_item("root_path", Some("pattern"))
         .default(serde_json::json!([
             {
                 "root_path": common_start_menu,

@@ -296,6 +296,18 @@ export interface FieldUiMetadata {
   widget: WidgetHint | null
   action: FieldAction | null
   detailAction: DetailActionDef | null
+  /** 拖放投放声明；null（或旧版插件缺省该字段）表示本字段不接受拖放。 */
+  drop?: DropSpec | null
+}
+
+/**
+ * 拖放投放声明 — 外部拖入的路径写进本字段的哪个位置。
+ * 拖目录写入 `pathField`；拖文件写入其父目录，并把 `*.<扩展名>` 并入 `patternField`（非 null 时）。
+ * 标量 `path` 字段无需声明，按 widget 的 mode 推断。
+ */
+export interface DropSpec {
+  pathField: string
+  patternField: string | null
 }
 
 

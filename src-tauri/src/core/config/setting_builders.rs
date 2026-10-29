@@ -28,8 +28,8 @@
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 use zerolaunch_plugin_api::config::{
-    DataActionBinding, EffectActionBinding, FieldAction, FieldUiMetadata, PathMode, PrimitiveType,
-    SchemaKind, SchemaNode, SettingDefinition, VisibleWhen, WidgetHint,
+    DataActionBinding, DropSpec, EffectActionBinding, FieldAction, FieldUiMetadata, PathMode,
+    PrimitiveType, SchemaKind, SchemaNode, SettingDefinition, VisibleWhen, WidgetHint,
 };
 
 /// Schema 构建器 —— 链式构建 `SettingDefinition`。
@@ -190,6 +190,7 @@ impl SchemaBuilder {
                 widget: Some(widget),
                 action: None,
                 detail_action: None,
+                drop: None,
             },
         }
     }
@@ -677,6 +678,31 @@ impl SchemaBuilder {
     /// 用户编辑结果写入 `detail_action.targetField` 指定的兄弟设置字段。
     pub fn detail_action(mut self, def: zerolaunch_plugin_api::config::DetailActionDef) -> Self {
         self.ui.detail_action = Some(def);
+        self
+    }
+
+    /// 声明本数组字段接受拖放。
+    ///
+    /// 参数：`path_field` — 接收路径的条目子字段；`pattern_field` — 接收文件模式的条目子字段，
+    /// None 表示文件投放只记录父目录、不合并模式。
+    /// 返回：链式构建器自身。仅适用于 object 条目数组。
+    pub fn drop_item(mut self, path_field: &str, pattern_field: Option<&str>) -> Self {
+        if !matches!(self.schema.kind, SchemaKind::Array { .. }) {
+            debug_assert!(
+                false,
+                "SchemaBuilder::drop_item() 只能用于数组字段，字段 '{}'",
+                self.key
+            );
+            tracing::warn!(
+                "SchemaBuilder::drop_item() 只能用于数组字段，字段 '{}'",
+                self.key
+            );
+            return self;
+        }
+        self.ui.drop = Some(DropSpec {
+            path_field: path_field.to_string(),
+            pattern_field: pattern_field.map(str::to_string),
+        });
         self
     }
 

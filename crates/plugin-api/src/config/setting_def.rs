@@ -273,6 +273,22 @@ pub struct VisibleWhen {
     pub value: Value,
 }
 
+/// 拖放投放声明 — 描述外部拖入的路径应写入本字段的哪个位置。
+///
+/// 仅由 `FieldUiMetadata::drop` 携带，经 `config_get_schema` 下发设置页，
+/// 由前端 `useFileDrop` 注册表消费；标量 `Path` 字段无需声明（按 widget 的 mode 推断）。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DropSpec {
+    /// 接收路径的条目子字段名（数组元素须为 object）。
+    /// 拖入目录时写入该子字段；拖入文件时写入其父目录。
+    #[serde(rename = "pathField", default)]
+    pub path_field: String,
+    /// 接收文件模式的条目子字段名，写入形如 `*.exe` 的字符串。
+    /// None 表示文件投放只记录父目录、不合并模式。
+    #[serde(rename = "patternField", default)]
+    pub pattern_field: Option<String>,
+}
+
 /// 字段 UI 元数据 — 描述前端如何渲染和展示一个配置字段。
 ///
 /// 通过 `pointer`（JSON Pointer 格式）关联到 `SettingsContribution.properties` 中的 schema 节点。
@@ -322,6 +338,9 @@ pub struct FieldUiMetadata {
     /// 用户编辑结果写入 `targetField` 指定的兄弟设置字段。
     #[serde(rename = "detailAction", default)]
     pub detail_action: Option<DetailActionDef>,
+    /// 拖放投放声明。None 表示本字段不接受拖放。
+    #[serde(rename = "drop", default)]
+    pub drop: Option<DropSpec>,
 }
 
 fn default_true() -> bool {
@@ -885,6 +904,7 @@ mod tests {
                 widget: None,
                 action: None,
                 detail_action: None,
+                drop: None,
             },
         }])
         .unwrap();
@@ -912,6 +932,7 @@ mod tests {
                 widget: None,
                 action: None,
                 detail_action: None,
+                drop: None,
             },
         }]);
         assert!(result.is_err());
@@ -945,6 +966,7 @@ mod tests {
                 widget: None,
                 action: None,
                 detail_action: None,
+                drop: None,
             },
         }])
         .unwrap();
@@ -967,6 +989,7 @@ mod tests {
             widget: None,
             action: None,
             detail_action: None,
+            drop: None,
         }
     }
 

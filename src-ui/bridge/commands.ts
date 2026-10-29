@@ -429,6 +429,20 @@ export function copyToClipboard(text: string): Promise<void> {
   return invokeCommand<void>('copy_to_clipboard', { text })
 }
 
+/** 拖入路径的类型判定结果（`path_kind` 返回项）。 */
+export interface PathKindInfo {
+  path: string
+  kind: 'file' | 'directory' | 'unavailable'
+}
+
+/**
+ * 批量判定路径是文件还是目录。
+ * 设置页拖放只拿到路径字符串，前端不访问文件系统，类型判定须经宿主；返回顺序与入参一致。
+ */
+export function pathKind(paths: string[]): Promise<PathKindInfo[]> {
+  return invokeCommand<PathKindInfo[]>('path_kind', { paths })
+}
+
 /**
  * 用系统默认浏览器打开外链。
  * webview 内 `target=_blank` 只会打开空白窗口，须走 shell 插件；调用失败时 reject。

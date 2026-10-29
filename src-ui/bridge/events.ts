@@ -1,5 +1,18 @@
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
+import { getCurrentWebview, type DragDropEvent } from '@tauri-apps/api/webview'
 import type { ConfigChangedPayload, SessionStateEvent, PluginEventPayload } from './contract'
+
+/**
+ * 监听当前 webview 的原生文件拖放事件（enter / over / drop / leave）。
+ * 原生拖放开启时 webview 不投递 HTML5 drop 事件，路径只能从这里取得；仅设置窗使用。
+ */
+export function onFileDragDrop(
+  callback: (payload: DragDropEvent) => void,
+): Promise<UnlistenFn> {
+  return getCurrentWebview().onDragDropEvent((event) => {
+    callback(event.payload)
+  })
+}
 
 export function onConfigChanged(
   callback: (payload: ConfigChangedPayload) => void,

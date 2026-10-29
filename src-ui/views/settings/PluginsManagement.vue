@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { h, ref, computed, onMounted, onUnmounted } from 'vue'
+import { h, ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { i18n, resolveText, type Locale } from '@/i18n'
 import { refreshPluginTranslations } from '@/stores/i18n-store'
@@ -8,9 +8,8 @@ import {
   NCode, NSpin, NEmpty, NDescriptions, NDescriptionsItem, useMessage, useDialog,
 } from 'naive-ui'
 import type { DataTableColumn } from 'naive-ui'
-import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { open } from '@tauri-apps/plugin-shell'
-import type { UnlistenFn } from '@tauri-apps/api/event'
+import { useFileDropTarget } from '@/composables/useFileDrop'
 import {
   pluginList, pluginReload, pluginUninstall,
   pluginInstallLocal, pluginInspectPackage, pluginGetLogs, pluginSetEnabled, pluginGetDetail,
@@ -47,7 +46,6 @@ const pluginItems = ref<InstalledPluginInfo[]>([])
 const loading = ref(false)
 
 // 安装流程：拖拽 / 文件选择 → 确认弹窗（manifest 预检）→ pluginInstallLocal
-const isDragging = ref(false)
 const showInstall = ref(false)
 const pendingPath = ref('')
 const pendingFileName = ref('')
@@ -56,7 +54,6 @@ const installing = ref(false)
 const inspectLoading = ref(false)
 const inspectError = ref('')
 const pendingManifest = ref<PluginManifest | null>(null)
-let unlistenDragDrop: UnlistenFn | null = null
 
 // 配置展开
 const expandedRowKeys = ref<string[]>([])
@@ -245,25 +242,12 @@ async function loadPlugins() {
   }
 }
 
-/** 注册 webview 级拖放监听；仅本组件挂载期间生效，卸载时移除。 */
-async function setupDragDrop() {
-  try {
-    unlistenDragDrop = await getCurrentWebview().onDragDropEvent((event) => {
-      const { type } = event.payload
-      if (type === 'enter' || type === 'over') {
-        isDragging.value = true
-      } else if (type === 'leave') {
-        isDragging.value = false
-      } else if (type === 'drop') {
-        isDragging.value = false
-        handleDroppedPaths(event.payload.paths)
-      }
-    })
-  } catch (e) {
-    // 拖放监听失败不阻塞页面：拖拽安装降级不可用，文件选择仍可用
-    console.warn('drag-drop listener failed:', e)
-  }
-}
+/** 整页投放目标：本页没有字段级目标，拖入的 zip / 目录直接走安装流程。 */
+const pageRoot = ref<HTMLElement | null>(null)
+const { isHovered: isDragging } = useFileDropTarget(pageRoot, {
+  scope: 'page',
+  onDrop: (paths) => handleDroppedPaths(paths.map((entry) => entry.path)),
+})
 
 /** 校验拖入路径：多文件时优先取第一个 .zip，其余忽略；单个目录直接放行（后端校验 manifest）。 */
 function handleDroppedPaths(paths: string[]) {
@@ -488,17 +472,11 @@ async function handleCopyLogs() {
 
 onMounted(() => {
   loadPlugins()
-  setupDragDrop()
-})
-
-onUnmounted(() => {
-  // 离开页面后停止拦截拖放，避免在设置页其他区域误触发安装逻辑
-  unlistenDragDrop?.()
 })
 </script>
 
 <template>
-  <div class="plugins-management">
+  <div ref="pageRoot" class="plugins-management">
     <NSpace style="margin-bottom: 16px;" align="center">
       <NText tag="h2" style="margin: 0;">{{ t('settings.thirdPartyPlugins.title') }}</NText>
       <NButton type="primary" @click="handleChooseZip">
@@ -512,7 +490,7 @@ onUnmounted(() => {
       </NButton>
     </NSpace>
 
-    <!-- 拖拽安装区（拖放事件为 webview 级，仅本组件挂载期间监听） -->
+    <!-- 拖拽安装区（整页兜底投放：本页无字段级投放目标，拖入即走安装流程） -->
     <div class="drop-zone" :class="{ dragging: isDragging }">
       <NText depth="3">{{ t('settings.thirdPartyPlugins.dropHint') }}</NText>
       <NButton size="small" secondary @click="handleChooseZip">

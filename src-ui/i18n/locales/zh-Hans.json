@@ -837,6 +837,10 @@
         }
       },
       "actions": {
+        "test_connection": {
+          "label": "测试连接",
+          "description": "用当前填写的地址与密钥请求一次模型列表，验证凭据是否可用"
+        },
         "fetch_models": {
           "label": "获取模型列表",
           "description": "从服务端拉取可用模型并合并到模型清单（OpenAI 协议不返回模型参数，需手动设置）"

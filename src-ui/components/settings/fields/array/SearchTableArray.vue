@@ -99,6 +99,7 @@ import {
 } from '../../../../utils/schemaTypes'
 import type { FieldConfig } from '../../../../utils/schemaTypes'
 import { FORM_VALUES_KEY } from '../../../../utils/formInjection'
+import { formatErrorMessage } from '../../../../utils/errors'
 
 type SearchResult = Record<string, unknown>
 
@@ -253,7 +254,7 @@ async function doSearch(searchQuery: string): Promise<void> {
     searchResults.value = result
   } catch (error) {
     searchResults.value = []
-    searchError.value = t('settings.searchActionFailed', { message: String(error) })
+    searchError.value = t('settings.searchActionFailed', { message: formatErrorMessage(error) })
   } finally {
     searching.value = false
   }

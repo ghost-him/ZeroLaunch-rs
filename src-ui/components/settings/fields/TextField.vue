@@ -1,7 +1,7 @@
 <template>
   <div class="field-input-row">
     <n-input
-      :type="inputKind"
+      :type="inputType"
       :value="modelValue as string"
       :disabled="field.readOnly"
       :placeholder="resolveText(field.description)"
@@ -9,6 +9,7 @@
       :maxlength="stringConfig.maxLength ?? undefined"
       :input-props="stringConfig.pattern ? { pattern: stringConfig.pattern } : undefined"
       :rows="inputKind === 'textarea' ? 6 : undefined"
+      :show-password-on="field.sensitive ? 'click' : undefined"
       @update:value="emit('update:modelValue', $event)"
     />
     <ConfigActionButton
@@ -38,6 +39,13 @@ const props = defineProps<{
 
 const stringConfig = computed(() => getSchemaStringConfig(props.field.schema))
 const inputKind = computed(() => getTextInputKind(props.field.widget))
+/**
+ * 输入框类型：敏感字段用密码框，其余按 widget 决定。
+ * 只有渲染方式变化，绑定值始终是唯一真值，不会把遮罩文本回写给表单。
+ */
+const inputType = computed<'text' | 'password' | 'textarea'>(() =>
+  props.field.sensitive ? 'password' : inputKind.value,
+)
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: unknown): void

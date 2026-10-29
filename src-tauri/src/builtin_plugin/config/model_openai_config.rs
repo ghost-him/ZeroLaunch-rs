@@ -10,7 +10,7 @@ use serde_json::Value;
 use std::time::Duration;
 use zerolaunch_plugin_api::config::{
     ComponentCore, ComponentType, ConfigActionDef, ConfigError, Configurable, DataActionBinding,
-    SettingDefinition,
+    EffectActionBinding, SettingDefinition,
 };
 
 /// OpenAI 兼容模型服务配置组件：管理 base_url / api_key / 模型条目清单。
@@ -32,6 +32,60 @@ impl ModelOpenAiConfigComponent {
             ),
             settings: RwLock::new(ModelOpenAiSettings::default()),
         }
+    }
+
+    /// 解析动作使用的连接参数。
+    /// 参数：params - 前端表单当前值（可缺省）。
+    /// 返回：(base_url, api_key)；表单未提供的键回落到已保存配置。
+    fn resolve_connection(&self, params: &Value) -> (String, String) {
+        let saved = self.settings.read();
+        let pick = |key: &str, fallback: &str| {
+            params
+                .get(key)
+                .and_then(Value::as_str)
+                .map(str::to_string)
+                .unwrap_or_else(|| fallback.to_string())
+        };
+        (
+            pick("base_url", &saved.base_url),
+            pick("api_key", &saved.api_key),
+        )
+    }
+
+    /// 请求 `/models` 端点，验证地址与密钥是否可用。
+    /// 参数：base_url - 端点根地址；api_key - 密钥，空串时不带认证头。
+    /// 返回：服务端返回的非空模型 id 列表。
+    /// 错误：地址非法、网络失败、认证被拒或响应无法解析时返回可读原因。
+    async fn request_remote_models(
+        &self,
+        base_url: &str,
+        api_key: &str,
+    ) -> Result<Vec<String>, String> {
+        let url = format!("{}/models", base_url.trim_end_matches('/'));
+        let client = HttpClient::builder()
+            .timeout(Duration::from_secs(8))
+            .build()
+            .map_err(|e| format!("创建模型列表客户端失败: {e}"))?;
+        let mut request = client.get(url);
+        if !api_key.is_empty() {
+            request = request.bearer_auth(api_key);
+        }
+        let response = request
+            .send()
+            .await
+            .map_err(|e| format!("请求模型列表失败: {e}"))?
+            .error_for_status()
+            .map_err(|e| format!("模型列表响应失败: {e}"))?;
+        let response: ModelsResponse = response
+            .json()
+            .await
+            .map_err(|e| format!("解析模型列表失败: {e}"))?;
+        Ok(response
+            .data
+            .into_iter()
+            .map(|model| model.id)
+            .filter(|id| !id.is_empty())
+            .collect())
     }
 }
 /// OpenAI 兼容 `/models` 响应的最小解析结构。
@@ -259,6 +313,12 @@ impl Configurable for ModelOpenAiConfigComponent {
             .order(1)
             .default("")
             .sensitive(true)
+            .effect_action(EffectActionBinding {
+                action: "test_connection".to_string(),
+                component: None,
+                field_mapping: vec![],
+                transient: false,
+            })
             .build(),
             SchemaBuilder::array(
                 "models",
@@ -297,50 +357,48 @@ impl Configurable for ModelOpenAiConfigComponent {
     }
 
     fn config_actions(&self) -> Vec<ConfigActionDef> {
-        vec![ConfigActionDef {
-            action: "fetch_models".to_string(),
-            label: t_key!("model-openai-config", "actions.fetch_models.label").to_string(),
-            description: t_key!("model-openai-config", "actions.fetch_models.description")
-                .to_string(),
-        }]
+        vec![
+            ConfigActionDef {
+                action: "test_connection".to_string(),
+                label: t_key!("model-openai-config", "actions.test_connection.label").to_string(),
+                description: t_key!("model-openai-config", "actions.test_connection.description")
+                    .to_string(),
+            },
+            ConfigActionDef {
+                action: "fetch_models".to_string(),
+                label: t_key!("model-openai-config", "actions.fetch_models.label").to_string(),
+                description: t_key!("model-openai-config", "actions.fetch_models.description")
+                    .to_string(),
+            },
+        ]
     }
 
-    async fn execute_config_action(&self, action: &str, _params: &Value) -> Result<Value, String> {
+    async fn execute_config_action(&self, action: &str, params: &Value) -> Result<Value, String> {
         match action {
+            // 使用前端表单值探测，确保未保存的地址/密钥也能先验证再落盘。
+            "test_connection" => {
+                let (base_url, api_key) = self.resolve_connection(params);
+                let models = self.request_remote_models(&base_url, &api_key).await?;
+                Ok(serde_json::json!({
+                    "success": true,
+                    "modelCount": models.len(),
+                }))
+            }
             "fetch_models" => {
                 // 只读取连接配置，释放同步锁后再执行网络请求。
                 let (base_url, api_key) = {
                     let settings = self.settings.read();
                     (settings.base_url.clone(), settings.api_key.clone())
                 };
-                let url = format!("{}/models", base_url.trim_end_matches('/'));
-                let client = HttpClient::builder()
-                    .timeout(Duration::from_secs(8))
-                    .build()
-                    .map_err(|e| format!("创建模型列表客户端失败: {e}"))?;
-                let mut request = client.get(url);
-                if !api_key.is_empty() {
-                    request = request.bearer_auth(api_key);
-                }
-                let response = request
-                    .send()
-                    .await
-                    .map_err(|e| format!("请求模型列表失败: {e}"))?
-                    .error_for_status()
-                    .map_err(|e| format!("模型列表响应失败: {e}"))?;
-                let response: ModelsResponse = response
-                    .json()
-                    .await
-                    .map_err(|e| format!("解析模型列表失败: {e}"))?;
-                let models = response
-                    .data
+                let models = self
+                    .request_remote_models(&base_url, &api_key)
+                    .await?
                     .into_iter()
-                    .filter(|model| !model.id.is_empty())
-                    .map(|model| {
-                        if is_embedding_model_id(&model.id) {
-                            ModelEntryConfig::embedding(&model.id)
+                    .map(|id| {
+                        if is_embedding_model_id(&id) {
+                            ModelEntryConfig::embedding(&id)
                         } else {
-                            ModelEntryConfig::chat(&model.id)
+                            ModelEntryConfig::chat(&id)
                         }
                     })
                     .collect::<Vec<_>>();

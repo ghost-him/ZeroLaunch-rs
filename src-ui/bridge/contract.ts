@@ -290,7 +290,10 @@ export interface FieldUiMetadata {
   order: number
   visible: boolean
   readOnly: boolean
-  /** 敏感字段（如 API Key）：宿主读取其值用于 AI 助手时会遮蔽；旧版插件 schema 可能不携带该字段。仅契约镜像（后端脱敏使用，前端暂不消费）。 */
+  /**
+   * 敏感字段（如 API Key）：渲染层以密码框显示并在 AI 助手读取时遮蔽；
+   * 旧版插件 schema 可能不携带该字段，缺省按非敏感处理。
+   */
   sensitive?: boolean
   visibleWhen: VisibleWhen | null
   widget: WidgetHint | null

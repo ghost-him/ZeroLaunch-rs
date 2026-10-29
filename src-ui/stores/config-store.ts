@@ -6,6 +6,7 @@ import {
   configGetActions, configExecuteAction,
 } from '../bridge/commands'
 import type { ComponentInfo, ConfigActionDef, ComponentSchema } from '../bridge/contract'
+import { formatErrorMessage } from '../utils/errors'
 
 export const useConfigStore = defineStore('config', () => {
   const components = ref<Record<string, ComponentInfo>>({})
@@ -25,7 +26,7 @@ export const useConfigStore = defineStore('config', () => {
       }
       components.value = map
     } catch (e) {
-      loadError.value = String(e)
+      loadError.value = formatErrorMessage(e)
     } finally {
       isLoading.value = false
     }

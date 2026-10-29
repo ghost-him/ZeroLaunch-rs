@@ -837,6 +837,10 @@
         }
       },
       "actions": {
+        "test_connection": {
+          "label": "Test connection",
+          "description": "Request the model list once with the base URL and key currently entered to verify the credentials"
+        },
         "fetch_models": {
           "label": "Fetch model list",
           "description": "Fetch available models from the server and merge them into the list (the OpenAI protocol does not return model parameters; set them manually)"

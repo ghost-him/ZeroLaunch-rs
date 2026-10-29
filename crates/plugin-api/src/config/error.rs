@@ -12,7 +12,8 @@ pub enum ConfigError {
     #[error("Invalid setting value for key '{key}': {message}")]
     InvalidValue { key: String, message: String },
 
-    #[error("Configuration apply failed: {0}")]
+    /// 应用或动作失败的人读消息：同 ValidationFailed，由产生方给出完整句子。
+    #[error("{0}")]
     ApplyFailed(String),
 
     #[error("Persistence error: {0}")]

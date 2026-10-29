@@ -89,6 +89,7 @@ import {
 } from 'naive-ui'
 import { useConfigStore } from '../../../../stores/config-store'
 import { FORM_VALUES_KEY } from '../../../../utils/formInjection'
+import { formatErrorMessage } from '../../../../utils/errors'
 import type { DetailActionDef } from '../../../../bridge/contract'
 
 const props = defineProps<{
@@ -162,7 +163,7 @@ watch(
       }
     } catch (e) {
       if (gen !== watchGeneration) return
-      errorMsg.value = String(e)
+      errorMsg.value = formatErrorMessage(e)
       previewItems.value = []
     } finally {
       if (gen === watchGeneration) loading.value = false

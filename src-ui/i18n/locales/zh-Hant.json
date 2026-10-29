@@ -837,6 +837,10 @@
         }
       },
       "actions": {
+        "test_connection": {
+          "label": "測試連線",
+          "description": "用目前填寫的位址與金鑰請求一次模型清單，驗證憑證是否可用"
+        },
         "fetch_models": {
           "label": "取得模型列表",
           "description": "從服務端拉取可用模型並合併到模型清單（OpenAI 協定不返回模型參數，需手動設定）"

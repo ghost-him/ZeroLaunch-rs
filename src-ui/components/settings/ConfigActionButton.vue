@@ -16,6 +16,7 @@ import { NButton, useMessage } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import { resolveText } from '../../i18n'
 import { useConfigStore } from '../../stores/config-store'
+import { formatErrorMessage } from '../../utils/errors'
 import { FORM_VALUES_KEY } from '../../utils/formInjection'
 import type { ConfigActionDef, EffectActionBinding, FieldAction } from '../../bridge/contract'
 
@@ -134,7 +135,7 @@ async function execute(): Promise<void> {
   } catch (error) {
     message.error(t('settings.actionFailed', {
       label: resolveText(actionDef.value.label),
-      message: String(error),
+      message: formatErrorMessage(error),
     }))
   } finally {
     loading.value = false

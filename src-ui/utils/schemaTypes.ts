@@ -33,6 +33,8 @@ export interface FieldConfig {
   widget: WidgetHint | null
   action: FieldAction | null
   detailAction: DetailActionDef | null
+  /** 敏感字段：渲染层改用密码框，值本身仍按单一真值流转（不做遮罩回填）。 */
+  sensitive: boolean
   /** 拖放投放声明；null 表示本字段不接受拖放（标量 path 字段由 widget 推断，不读此字段）。 */
   drop: DropSpec | null
 }
@@ -53,6 +55,8 @@ export interface FieldDef {
   editable: boolean
   action: FieldAction | null
   detailAction: DetailActionDef | null
+  /** 敏感字段：渲染层改用密码框，值本身仍按单一真值流转。 */
+  sensitive: boolean
 }
 
 // ── 构建函数 ──
@@ -89,6 +93,7 @@ export function buildFieldConfigs(contribution: SettingsContribution): FieldConf
         widget: metadata.widget ?? null,
         action: metadata.action ?? null,
         detailAction: metadata.detailAction ?? null,
+        sensitive: metadata.sensitive === true,
         drop: metadata.drop ?? null,
       }
     })
@@ -480,6 +485,7 @@ export function getObjectFieldDefs(schema: SchemaNode, includeHidden = false): F
         editable: !ui.readOnly,
         action: ui.action ?? null,
         detailAction: ui.detailAction ?? null,
+        sensitive: ui.sensitive === true,
       }
     })
     .filter((field) => includeHidden || field.visible)
@@ -546,6 +552,7 @@ export function fieldDefToConfig(fd: FieldDef, parentReadOnly = false): FieldCon
     widget: fd.widget,
     action: fd.action,
     detailAction: fd.detailAction,
+    sensitive: fd.sensitive,
     drop: null,
   }
 }

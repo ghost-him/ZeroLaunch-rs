@@ -21,7 +21,7 @@ use zerolaunch_plugin_protocol::ProtocolError;
 use crate::adapter::remote_component::{RemoteComponent, RemoteComponentKind};
 use crate::host_dispatch::HostCallHandler;
 use crate::info::PluginInfo;
-use crate::installed::metadata_from_manifest;
+use crate::installed::{metadata_from_manifest, InstalledCache};
 use crate::process::force_kill_process;
 use crate::process::{PluginProcess, ProcessState};
 
@@ -146,7 +146,12 @@ pub struct PluginHostManager {
     /// 插件 stderr 日志的根目录。
     pub log_dir_root: PathBuf,
     /// 插件安装目录。
-    plugins_dir: PathBuf,
+    pub(crate) plugins_dir: PathBuf,
+    /// 已安装插件的内存快照（磁盘清单的读模型；刷新点见 `InstalledCache` 文档）。
+    pub(crate) installed_cache: Arc<InstalledCache>,
+    /// 插件目录监听器；存活期即管理器存活期，drop 后监听线程随之退出。
+    /// 仅在启动期装配（`start_installed_watcher`）写入一次，之后只读。
+    pub(crate) installed_watcher: parking_lot::Mutex<Option<notify::RecommendedWatcher>>,
     /// 每次加载插件时保存重启上下文，崩溃后可重新拉起。
     restart_contexts: Arc<DashMap<String, Arc<PluginRestartContext>>>,
     /// 序列化 load/teardown 的注册段（占位检查、spawn、登记、卸载清理）。
@@ -189,12 +194,16 @@ pub enum PluginLoadError {
 
 impl PluginHostManager {
     pub fn new(plugins_dir: PathBuf, data_dir_root: PathBuf, log_dir_root: PathBuf) -> Arc<Self> {
+        // 启动时全量扫描一次安装目录，之后一律读内存快照（监听/操作链路负责刷新）。
+        let installed_cache = Arc::new(InstalledCache::load(plugins_dir.clone()));
         let mgr = Arc::new(Self {
             processes: Arc::new(DashMap::new()),
             plugins: Arc::new(DashMap::new()),
             data_dir_root,
             log_dir_root,
             plugins_dir,
+            installed_cache,
+            installed_watcher: parking_lot::Mutex::new(None),
             restart_contexts: Arc::new(DashMap::new()),
             load_lock: Arc::new(AsyncMutex::new(())),
             builtin_component_ids: RwLock::new(HashSet::new()),

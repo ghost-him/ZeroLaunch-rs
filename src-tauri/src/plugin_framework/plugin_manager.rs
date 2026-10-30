@@ -176,6 +176,11 @@ impl PluginManager {
         let plugin_log_dir = app_data_dir.join("plugin-logs");
         let hm = PluginHostManager::new(plugins_dir, plugin_data_dir, plugin_log_dir);
         hm.set_builtin_component_ids(builtin_component_ids);
+        // 启动期全量扫描已在 new() 内完成；此处启动目录监听，之后读接口只读内存快照
+        // （监听失败只降级为「动作后刷新」的最终一致，不阻断启动）。
+        if let Err(e) = hm.start_installed_watcher() {
+            warn!("插件目录监听启动失败，安装事实将只在安装/卸载/重载后刷新: {e}");
+        }
         *self.host_manager.write() = Some(hm);
     }
 
@@ -271,10 +276,11 @@ impl PluginManager {
             .map(|meta| self.builtin_plugin_info(&meta, cm))
             .collect();
 
-        // 第三方：安装事实的唯一权威是磁盘清单，运行态按 id 关联；
+        // 第三方：安装事实的唯一权威是磁盘清单（内存快照），运行态按 id 关联；
         // 未加载（启动/重载失败）的条目照常出现，状态为 error。
+        // 快照由启动扫描与目录监听维护，此处只读内存，不扫盘。
         let hm = self.host_manager();
-        for installed in hm.scan_installed() {
+        for installed in hm.installed_snapshot() {
             if list.iter().any(|i| i.plugin_id == installed.metadata.id) {
                 continue;
             }
@@ -284,13 +290,13 @@ impl PluginManager {
         list
     }
 
-    /// 已安装插件的插件级元数据（已加载取注册快照，未加载由磁盘清单派生）。
+    /// 已安装插件的插件级元数据（已加载取注册快照，未加载由内存安装快照派生）。
     /// 参数：plugin_id - 插件 id。
     /// 返回：元数据；未安装或清单不可解析时返回 None。
     pub fn installed_metadata(&self, plugin_id: &str) -> Option<PluginMetadata> {
         self.host_manager()
             .installed(plugin_id)
-            .map(|installed| installed.metadata)
+            .map(|installed| installed.metadata.clone())
     }
 
     /// 返回插件安装根目录。
@@ -298,11 +304,11 @@ impl PluginManager {
         self.host_manager().plugins_dir().to_path_buf()
     }
 
-    /// 获取第三方插件的完整 manifest（运行中取注册快照，未加载读磁盘清单）。
+    /// 获取第三方插件的完整 manifest（运行中取注册快照，未加载取内存安装快照）。
     pub fn get_manifest(&self, plugin_id: &str) -> Option<Manifest> {
         self.host_manager()
             .installed(plugin_id)
-            .map(|installed| installed.manifest)
+            .map(|installed| installed.manifest.clone())
     }
 
     /// 获取第三方插件的日志文件最近 N 行。
@@ -410,10 +416,13 @@ impl PluginManager {
             .plugin_id_of(source_path)
             .map_err(install_error_to_manager)?;
 
+        // 安装判定前先刷新安装快照：手动放置/刚拷贝进来的目录不依赖监听线程的延迟。
+        self.host_manager().refresh_installed();
+
         // 目录解析：清单可解析时直接移出安装目录；清单损坏（解析不出 id）时退回
         // 默认目录名，按目录是否存在判定，保证覆盖安装仍能清掉残坏目录。
         let (old_dir, is_installed) = match self.host_manager().installed(&plugin_id) {
-            Some(installed) => (installed.dir, true),
+            Some(installed) => (installed.dir.clone(), true),
             None => {
                 let default_dir = self.plugins_dir().join(&plugin_id);
                 let exists = default_dir.exists();
@@ -516,6 +525,8 @@ impl PluginManager {
 
         // 安装成功 = 文件落盘 + 子进程加载验证通过
         info!("Installed plugin {}", plugin_id);
+        // 落盘事实立即反映到安装快照（列表/详情等紧随其后的 IPC 不必等监听线程）。
+        hm.refresh_installed();
 
         // priority 与 list_plugins/plugin_info 统一取插件级元数据声明值（不再用组件最小优先级）。
         // 安装成功即子进程已加载运行，state 恒为 Running。
@@ -566,6 +577,9 @@ impl PluginManager {
         validate_plugin_id(plugin_id).map_err(|e| PluginManagerError::Internal(e.to_string()))?;
 
         let hm = self.host_manager();
+        // 重载同时是「启动失败后的重试」入口：先刷新快照，避免目录被手动修好后
+        // 仍按旧快照报 PluginNotFound。
+        hm.refresh_installed();
         let plugin = hm.installed(plugin_id).ok_or_else(|| {
             PluginManagerError::PluginNotFound(format!("Plugin not found: {}", plugin_id))
         })?;
@@ -608,12 +622,14 @@ impl PluginManager {
 
         let hm = self.host_manager();
 
-        // 安装目录统一由清单解析（运行中取注册快照、未加载读磁盘清单），
+        // 安装目录统一由清单解析（运行中取注册快照、未加载取内存安装快照），
         // 不依赖目录名 == plugin_id 的隐式契约，也不盲删同名目录。
+        // 先刷新快照：刚手动拷贝进来、监听尚未投递的目录也能直接卸载。
+        hm.refresh_installed();
         let plugin = hm.installed(plugin_id).ok_or_else(|| {
             PluginManagerError::PluginNotFound(format!("Plugin not found: {}", plugin_id))
         })?;
-        let plugin_dir = plugin.dir;
+        let plugin_dir = plugin.dir.clone();
         // 目录边界复核：canonicalize 后必须位于 plugins_dir 内（覆盖手动放置的
         // 异名目录也在此保护内）。
         if plugin_dir.exists() {
@@ -647,6 +663,9 @@ impl PluginManager {
                 PluginManagerError::Internal(format!("Cannot remove plugin dir: {}", e))
             })?;
         }
+
+        // 目录已删除：立即刷新快照，插件管理中紧随其后的列表/详情不再出现该条目。
+        hm.refresh_installed();
 
         self.i18n_manager().unregister_plugin_catalog(plugin_id);
 
@@ -884,7 +903,9 @@ provides = ["data_source"]
         let cm = ConfigManager::new(dir.path().join("config"));
 
         let hm = pm.host_manager();
-        let installed = hm.scan_installed();
+        // 快照在启动时扫描一次；测试在 init 之后才落盘目录，故显式刷新（与安装链路口径一致）。
+        hm.refresh_installed();
+        let installed = hm.installed_snapshot();
         assert_eq!(installed.len(), 1);
         let info = hm.to_info(&installed[0], |id| cm.is_enabled(id));
 
@@ -901,6 +922,8 @@ provides = ["data_source"]
         let (pm, _dir) = manager_with_installed_plugin();
 
         let hm = pm.host_manager();
+        // 读接口不扫盘：先刷新安装快照（启动扫描发生在目录落盘之前）。
+        hm.refresh_installed();
         let plugin = hm.installed("com.example.sample").unwrap();
         assert_eq!(plugin.metadata.id, "com.example.sample");
         assert_eq!(plugin.dir.file_name().unwrap(), "manually-placed-dir");

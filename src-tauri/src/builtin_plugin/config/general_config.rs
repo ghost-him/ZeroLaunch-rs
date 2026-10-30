@@ -29,6 +29,9 @@ pub struct GeneralSettings {
     /// 默认值跟随系统语言（未持久化该项时每次都按当前系统语言决定）。
     #[serde(rename = "language", default = "default_language")]
     pub language: String,
+    /// 启用本机 CLI HTTP 服务（`zl` 只读接口），默认启用。
+    #[serde(rename = "enable_cli_server", default = "default_true")]
+    pub enable_cli_server: bool,
 }
 
 impl Default for GeneralSettings {
@@ -40,6 +43,7 @@ impl Default for GeneralSettings {
             reset_session_on_wake: true,
             is_show_tray_icon: true,
             language: default_language(),
+            enable_cli_server: true,
         }
     }
 }
@@ -57,9 +61,8 @@ fn default_true() -> bool {
     true
 }
 
-/// 通用设置配置组件。
-/// 管理界面语言、开机自启动、调试模式、日志级别、唤醒时重置会话与系统托盘图标显示。
-/// 配置变更时自动应用自启动设置和日志级别。
+/// 通用设置配置组件：语言、自启动、调试模式、日志级别、唤醒重置、托盘图标与本机 CLI 服务。
+/// 自启动与日志级别在组件内即时应用；CLI 服务开关由 bootstrap 的事件订阅启停。
 pub struct GeneralConfigComponent {
     /// 组件身份核心
     core: ComponentCore,
@@ -158,6 +161,16 @@ impl Configurable for GeneralConfigComponent {
             )
             .group(t_key!("general-config", "groups.general"))
             .order(5)
+            .default(true)
+            .build(),
+            SchemaBuilder::boolean(
+                "enable_cli_server",
+                t_key!("general-config", "fields.enable_cli_server.label"),
+                t_key!("general-config", "fields.enable_cli_server.desc"),
+            )
+            .note(t_key!("general-config", "fields.enable_cli_server.note"))
+            .group(t_key!("general-config", "groups.general"))
+            .order(6)
             .default(true)
             .build(),
         ]

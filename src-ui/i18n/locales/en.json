@@ -809,6 +809,11 @@
         "is_show_tray_icon": {
           "label": "Show tray icon",
           "desc": "When enabled, show the ZeroLaunch icon in the system tray. When disabled, the icon is hidden (settings can still be opened from the search bar's right-click menu)."
+        },
+        "enable_cli_server": {
+          "label": "Local CLI service",
+          "desc": "Let the zl command-line tool query search sessions, plugins and settings over a read-only HTTP interface on 127.0.0.1 (random port only)",
+          "note": "Read-only interface; the connection token is written to cli-token.json in the data directory. Changes apply immediately, no restart needed."
         }
       }
     },

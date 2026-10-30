@@ -5,6 +5,7 @@
 //! - `init_plugin_system` — inventory 自动发现、管道构建、事件订阅
 
 use crate::builtin_plugin::config::auto_refresh_config::AutoRefreshSettings;
+use crate::builtin_plugin::config::general_config::GeneralSettings;
 use crate::builtin_plugin::config::hotkey_config::{settings_to_hotkey_config, HotkeySettings};
 use std::collections::HashSet;
 use std::path::Path;
@@ -22,6 +23,7 @@ use zerolaunch_plugin_api::services::timer::TokioTimerManager;
 use zerolaunch_plugin_api::services::AppResourceService;
 use zerolaunch_plugin_api::PluginContext;
 
+use crate::cli_server::server::apply_enabled as apply_cli_server_enabled;
 use crate::core::app_command;
 use crate::core::config::bias_settings::{bias_settings_to_rules, BiasSettings};
 use crate::core::config::event::create_plugin_event_bus;
@@ -256,7 +258,7 @@ pub(crate) async fn init_app_state(
     // 将 config_manager 保存到 AppState（必须在 PluginManager 之后，因为 clone 语义）
     state.set_config_manager(config_manager);
     // 初始化内置 + 第三方插件（返回内置组件 id 集合，供 init_host_manager 注入冲突预检）
-    let builtin_component_ids = init_plugin_system(&state).await;
+    let builtin_component_ids = init_plugin_system(&state, Path::new(&app_data_dir)).await;
     info!("Phase 3 完成: 插件系统初始化就绪");
 
     info!("=== Phase 4: 第三方插件加载 ===");
@@ -275,13 +277,15 @@ pub(crate) async fn init_app_state(
         state.get_session_dispatcher().get_cached_candidates_count()
     );
 
-    // Start CLI HTTP server
+    // Start CLI HTTP server（通用设置「本机 CLI 服务」控制启停）
     info!("=== Phase 5: 启动 CLI HTTP 服务器... ===");
-    let cli_handle =
-        crate::cli_server::server::start(state.clone(), &PathBuf::from(&app_data_dir)).await;
-    match cli_handle {
-        Ok(handle) => info!("CLI HTTP 服务器已启动于 127.0.0.1:{}", handle.port),
-        Err(e) => tracing::warn!("CLI HTTP 服务器启动失败: {}", e),
+    let cli_enabled = cli_server_enabled(&state.get_config_manager());
+    if let Err(e) =
+        apply_cli_server_enabled(state.clone(), Path::new(&app_data_dir), cli_enabled).await
+    {
+        warn!("CLI HTTP 服务器启动失败: {}", e);
+    } else if !cli_enabled {
+        info!("通用设置未启用本机 CLI 服务，跳过启动");
     }
 
     // 启动 AppCommand 消费者 task
@@ -328,6 +332,15 @@ fn sync_tray_visibility(state: &Arc<AppState>) {
     }
 }
 
+/// 读取通用设置的 CLI 服务开关；缺失或解析失败按默认（启用）。
+fn cli_server_enabled(config_manager: &ConfigManager) -> bool {
+    config_manager
+        .get_settings("general-config")
+        .and_then(|v| serde_json::from_value::<GeneralSettings>(v).ok())
+        .map(|s| s.enable_cli_server)
+        .unwrap_or(true)
+}
+
 /// 将外观配置中的主题模式同步到 HostApi，供插件查询实际主题。
 fn sync_backend_theme(host_api: &HostApi, config_manager: &ConfigManager) {
     let theme = config_manager
@@ -340,14 +353,20 @@ fn sync_backend_theme(host_api: &HostApi, config_manager: &ConfigManager) {
 
 /// 初始化插件系统。
 ///
+/// 参数：`app_data_dir` — 插件数据目录，也是 CLI token 文件目录。
+///
 /// 核心流程：
 /// - Phase A: inventory 自动发现并注册所有内置组件 + 快捷键回调
 /// - Phase B: 加载持久化配置
 /// - Phase C: 构建候选项管道和搜索管道
-pub(crate) async fn init_plugin_system(state: &Arc<AppState>) -> HashSet<String> {
+pub(crate) async fn init_plugin_system(
+    state: &Arc<AppState>,
+    app_data_dir: &Path,
+) -> HashSet<String> {
     let session_dispatcher = state.get_session_dispatcher();
     let config_manager = state.get_config_manager();
     let plugin_manager = state.get_plugin_manager();
+    let data_dir_for_events = app_data_dir.to_path_buf();
 
     session_dispatcher.set_config_manager(config_manager.clone());
     session_dispatcher.set_i18n_manager(state.get_i18n_manager());
@@ -397,11 +416,21 @@ pub(crate) async fn init_plugin_system(state: &Arc<AppState>) -> HashSet<String>
                         if component_id == "appearance-config" {
                             sync_backend_theme(&host_api_for_events, &cm_for_events);
                         }
-                        // 语言切换时同步后端翻译服务并重建托盘菜单（即时生效），
-                        // 托盘图标显示设置变更时同步托盘可见性
+                        // 语言/托盘设置即时同步；CLI 服务开关即时启停
                         if component_id == "general-config" {
                             sync_backend_language(&state_for_events, &cm_for_events);
                             sync_tray_visibility(&state_for_events);
+                            let cli_enabled = cli_server_enabled(&cm_for_events);
+                            let state_for_cli = state_for_events.clone();
+                            let data_dir = data_dir_for_events.clone();
+                            tauri::async_runtime::spawn(async move {
+                                if let Err(e) =
+                                    apply_cli_server_enabled(state_for_cli, &data_dir, cli_enabled)
+                                        .await
+                                {
+                                    warn!("应用本机 CLI 服务开关失败: {}", e);
+                                }
+                            });
                         }
                         // 会话投影随配置变更重新推送（如面板内调整防抖延迟）
                         event_router.reemit_current_session();

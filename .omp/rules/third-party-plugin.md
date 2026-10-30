@@ -74,6 +74,7 @@ schema 用 `PluginMode` 枚举，取值非法同样解析失败。宿主解析�
 ## CLI HTTP 服务器
 
 - 监听 `127.0.0.1:0`（随机端口），Bearer token 认证
+- 启停由 `general-config` 的 `enable_cli_server` 控制（默认启用）：`cli_server::apply_enabled` 唯一入口，启动与设置变更即时生效（停用保留 token 文件）
 - Token 持久化到 `cli-token.json`
 - 路由前缀 `/v1`，共享 plugin-api 数据模型
 - **只读约束**：CLI HTTP API **仅** 提供只读查询端点（`zl query`）。可写端点已移除。新增端点也 **必须** 保持只读

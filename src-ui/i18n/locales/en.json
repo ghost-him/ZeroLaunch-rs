@@ -1045,7 +1045,7 @@
         "enable_installation_monitor": {
           "label": "Enable install monitor",
           "desc": "When enabled, watch filesystem changes (e.g. Start Menu) to detect program installs and uninstalls",
-          "note": "Off by default; the toggle takes effect immediately, no restart needed"
+          "note": "On by default; the toggle takes effect immediately, no restart needed"
         },
         "monitor_debounce_secs": {
           "label": "Debounce wait (seconds)",

@@ -1045,7 +1045,7 @@
         "enable_installation_monitor": {
           "label": "啟用安裝監控",
           "desc": "啟用後，自動監控檔案系統變化（如開始選單），檢測程式的安裝和解除安裝",
-          "note": "預設關閉；開關即時生效，不用重新啟動"
+          "note": "預設開啟；開關即時生效，不用重新啟動"
         },
         "monitor_debounce_secs": {
           "label": "去抖等待時間（秒）",

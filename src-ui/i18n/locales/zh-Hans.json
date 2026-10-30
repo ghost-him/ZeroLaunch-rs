@@ -1045,7 +1045,7 @@
         "enable_installation_monitor": {
           "label": "启用安装监控",
           "desc": "启用后，自动监控文件系统变化（如开始菜单），检测程序的安装和卸载",
-          "note": "默认关闭；开关即时生效，不用重启"
+          "note": "默认开启；开关即时生效，不用重启"
         },
         "monitor_debounce_secs": {
           "label": "去抖等待时间（秒）",

@@ -12,7 +12,10 @@ use zerolaunch_plugin_api::config::{
 /// 安装监控设置的强类型配置结构。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InstallationMonitorSettings {
-    #[serde(rename = "enable_installation_monitor", default)]
+    #[serde(
+        rename = "enable_installation_monitor",
+        default = "default_enable_installation_monitor"
+    )]
     pub enable_installation_monitor: bool,
     #[serde(
         rename = "monitor_debounce_secs",
@@ -26,12 +29,17 @@ pub struct InstallationMonitorSettings {
 impl Default for InstallationMonitorSettings {
     fn default() -> Self {
         Self {
-            // 默认关闭：与 schema 默认值（false）及设计文档一致，由用户在设置页显式开启
-            enable_installation_monitor: false,
+            // 默认开启：与 schema 默认值（true）一致，用户可在设置页关闭
+            enable_installation_monitor: default_enable_installation_monitor(),
             monitor_debounce_secs: default_monitor_debounce_secs(),
             monitor_watch_paths: String::new(),
         }
     }
+}
+
+/// 启用安装监控的默认值（开启）。
+fn default_enable_installation_monitor() -> bool {
+    true
 }
 
 fn default_monitor_debounce_secs() -> f64 {
@@ -95,7 +103,7 @@ impl Configurable for InstallationMonitorConfigComponent {
                 "groups.installationMonitor"
             ))
             .order(0)
-            .default(false)
+            .default(true)
             .build(),
             SchemaBuilder::number(
                 "monitor_debounce_secs",

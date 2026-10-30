@@ -2,7 +2,7 @@
   <div class="param-panel" v-if="store.paramPanelState">
     <div class="param-panel-header">
       <span class="candidate-name">{{ store.paramPanelState.candidateItem.title }}</span>
-      <span class="param-hint">{{ $t('search.paramHint') }}</span>
+      <span class="param-hint" :class="{ 'param-hint-invalid': hintInvalid }">{{ hintText }}</span>
     </div>
 
     <div class="param-fields">
@@ -24,11 +24,29 @@
 </template>
 
 <script setup lang="ts">
-import { watch, nextTick, onMounted } from 'vue'
+import { watch, nextTick, onMounted, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { NInput } from 'naive-ui'
 import { useSearchStore } from '@/stores/search-store'
 
 const store = useSearchStore()
+const { t } = useI18n()
+
+/// 面板仍有未填字段。
+const hasEmptyField = computed(
+  () => store.paramPanelState?.fields.some((f) => f.value.trim() === '') ?? false,
+)
+
+/// 提交被拒后的报红态：只在仍缺参数时成立，补齐即自动消失。
+const hintInvalid = computed(() => !!store.paramPanelState?.invalid && hasEmptyField.value)
+
+/// 提示文案与真实按键行为一致：多字段时 Enter 逐项前进，末项才执行。
+const hintText = computed(() => {
+  const state = store.paramPanelState
+  if (!state) return ''
+  if (hintInvalid.value) return t('search.paramIncomplete')
+  return state.fields.length > 1 ? t('search.paramHintMulti') : t('search.paramHint')
+})
 
 const fieldRefs = new Map<number, InstanceType<typeof NInput>>()
 
@@ -88,6 +106,10 @@ watch(
 .param-hint {
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
+}
+
+.param-hint-invalid {
+  color: var(--text-error);
 }
 
 .param-fields {

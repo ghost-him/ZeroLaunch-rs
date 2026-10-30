@@ -30,6 +30,8 @@
     "paramLabel": "參數 {n}",
     "paramPlaceholder": "輸入第 {n} 個參數",
     "paramHint": "請填寫參數後按 Enter 執行",
+    "paramHintMulti": "按 Enter 跳到下一項，末項按 Enter 執行",
+    "paramIncomplete": "請先填寫全部參數",
     "paramCountHint": "輸入 {n} 個參數（空格分隔，\\ 轉義空格）",
     "typeToSearch": "輸入關鍵字開始搜尋",
     "refreshDatabase": "重新整理資料庫",

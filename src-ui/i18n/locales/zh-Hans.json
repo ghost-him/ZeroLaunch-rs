@@ -30,6 +30,8 @@
     "paramLabel": "参数 {n}",
     "paramPlaceholder": "输入第 {n} 个参数",
     "paramHint": "请填写参数后按 Enter 执行",
+    "paramHintMulti": "按 Enter 跳到下一项，末项按 Enter 执行",
+    "paramIncomplete": "请先填写全部参数",
     "paramCountHint": "输入 {n} 个参数（空格分隔，\\ 转义空格）",
     "typeToSearch": "输入关键字开始搜索",
     "refreshDatabase": "刷新数据库",

@@ -41,6 +41,8 @@ export interface ParamPanelState {
   candidateItem: ListItem
   fields: ParamField[]
   focusedFieldIndex: number
+  /** 最近一次 Enter 提交因存在未填字段被拒；字段编辑时清除。 */
+  invalid: boolean
 }
 
 /** 隐藏方式选择面板状态 —— 窗口内的前端本地模态态（无对应后端会话形态）。 */
@@ -456,6 +458,7 @@ export const useSearchStore = defineStore('search', () => {
           candidateItem: item,
           fields,
           focusedFieldIndex: 0,
+          invalid: false,
         }
       }
       return
@@ -605,12 +608,17 @@ export const useSearchStore = defineStore('search', () => {
   }
 
   async function confirmParamPanel() {
-    if (!paramPanelState.value) return
+    const state = paramPanelState.value
+    if (!state) return
 
-    const { candidateId, fields } = paramPanelState.value
+    const { candidateId, fields } = state
     const userArgs = fields.map((f) => f.value)
 
-    if (userArgs.some((arg) => arg.trim() === '')) {
+    // 参数不全：聚焦首个空字段并置拒绝态（面板据此给出可见提示），
+    // 否则末字段按 Enter 会静默无反应。
+    const firstEmpty = userArgs.findIndex((arg) => arg.trim() === '')
+    if (firstEmpty !== -1) {
+      paramPanelState.value = { ...state, focusedFieldIndex: firstEmpty, invalid: true }
       return
     }
 

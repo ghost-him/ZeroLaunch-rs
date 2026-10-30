@@ -30,6 +30,8 @@
     "paramLabel": "Parameter {n}",
     "paramPlaceholder": "Enter parameter {n}",
     "paramHint": "Fill in the parameters and press Enter to run",
+    "paramHintMulti": "Press Enter to move to the next field; Enter on the last field runs",
+    "paramIncomplete": "Fill in all parameters first",
     "paramCountHint": "Enter {n} parameters (space-separated; a backslash escapes spaces)",
     "typeToSearch": "Type to start searching",
     "refreshDatabase": "Refresh database",

@@ -67,7 +67,7 @@
     "sectionEngine": "引擎",
     "modelId": "翻譯模型",
     "modelIdPlaceholder": "請選擇宿主模型",
-    "modelIdHint": "選擇宿主「模型管理」中已配置的聊天模型",
+    "modelIdHint": "選擇宿主「模型管理」中已設定的聊天模型",
     "modelLoadFailed": "模型列表載入失敗",
     "modelLoadRetry": "重試",
     "apply": "應用",
@@ -104,7 +104,7 @@
       "copy": "複製答覆",
       "copied": "已複製到剪貼簿",
       "copyFailed": "複製失敗",
-      "unreachable": "該設定項不在設定頁分類中（可在外掛管理頁查看）"
+      "unreachable": "該設定項不在設定頁分類中（可在插件管理頁查看）"
     },
     "sidebar": {
       "general": "常規設定",
@@ -145,16 +145,16 @@
     "disabled": "已停用",
     "dataSource": "資料來源",
     "keywordOptimizer": "關鍵詞最佳化器",
-    "searchEngine": "檢索引擎",
+    "searchEngine": "搜尋引擎",
     "scoreBooster": "評分增強器",
     "actionExecutor": "執行器",
     "noComponents": "無可用元件",
-    "noConfigurableFields": "該元件暫無可配置的設定項",
-    "selectComponent": "從左側選擇一個元件檢視配置",
+    "noConfigurableFields": "該元件暫無設定項",
+    "selectComponent": "從左側選擇一個元件檢視設定",
     "core": "核心",
-    "saveSuccess": "配置已儲存",
+    "saveSuccess": "設定已儲存",
     "resetSuccess": "已重置為預設值",
-    "saveFailed": "配置儲存失敗",
+    "saveFailed": "設定儲存失敗",
     "retry": "重試",
     "actionSuccess": "操作“{label}”已完成",
     "actionFailed": "操作“{label}”失敗：{message}",
@@ -202,12 +202,12 @@
     "searchMaxItems": "已達到陣列允許的最大條目數",
     "icon": "圖示",
     "editEntry": "編輯 {label}",
-    "schemaValidationFailed": "配置不符合 schema：{path}",
+    "schemaValidationFailed": "設定不符合 schema：{path}",
     "resetConfirmTitle": "確認重置",
     "resetConfirmContent": "將恢復此元件的所有設定為預設值，確定繼續？",
     "resetConfirmPositive": "確定",
     "resetConfirmNegative": "取消",
-    "resetFailed": "配置重置失敗",
+    "resetFailed": "設定重置失敗",
     "detailSearchPlaceholder": "搜尋...",
     "detailCustomLabel": "自定義",
     "detailNoMatches": "無匹配結果",
@@ -245,18 +245,18 @@
       "installFromFile": "從本地檔案安裝",
       "installDialogTitle": "安裝插件",
       "dropHint": "將 .zip 插件包或插件目錄拖到此處",
-      "chooseFile": "點選選擇檔案 / 目錄",
+      "chooseFile": "點擊選擇檔案 / 目錄",
       "chooseDir": "選擇插件目錄",
       "zipFilterLabel": "插件包",
-      "inspectFailed": "讀取外掛資訊失敗",
+      "inspectFailed": "讀取插件資訊失敗",
       "retry": "重試",
       "installConfirmPositive": "安裝",
       "installConfirmNegative": "取消",
       "installRiskTitle": "安全提示",
       "installRiskContent": "第三方插件以與本應用程式同等的權限執行，其介面在宿主視窗內執行（僅樣式隔離）。請僅安裝來自可信來源的插件。",
       "empty": "暫無插件",
-      "config": "配置",
-      "noConfig": "無配置",
+      "config": "設定",
+      "noConfig": "無設定",
       "loadListFailed": "載入插件列表失敗",
       "installSuccess": "插件安裝成功",
       "installFailed": "安裝失敗",
@@ -269,8 +269,8 @@
       "reloadFailed": "重新載入失敗",
       "uninstallSuccess": "插件已解除安裝",
       "uninstallFailed": "解除安裝失敗",
-      "uninstallConfirmTitle": "解除安裝外掛",
-      "uninstallConfirmContent": "將停止外掛 {name} 並刪除其原安裝目錄，此操作不可撤銷。",
+      "uninstallConfirmTitle": "解除安裝插件",
+      "uninstallConfirmContent": "將停止插件 {name} 並刪除其原安裝目錄，此操作不可撤銷。",
       "toggleEnabledSuccess": "插件已啟用",
       "toggleDisabledSuccess": "插件已停用",
       "toggleFailed": "切換狀態失敗",
@@ -309,7 +309,7 @@
       "fieldHomepage": "主頁",
       "fieldProvides": "能力",
       "fieldPriority": "優先級",
-      "fieldRuntimeState": "運行狀態",
+      "fieldRuntimeState": "執行狀態",
       "fieldRuntime": "執行資訊",
       "fieldCommand": "啟動命令",
       "fieldArgs": "啟動參數",
@@ -354,11 +354,11 @@
       "viewOnGithub": "在 GitHub 上檢視",
       "installSuccess": "插件安裝成功",
       "installFailed": "安裝失敗",
-      "previewFailed": "取得外掛資訊失敗",
+      "previewFailed": "取得插件資訊失敗",
       "metaLoading": "讀取發佈資訊…",
       "metadataInvalid": "發佈中介資料無法使用",
       "noRelease": "該倉庫暫無發佈版本，無法自動安裝",
-      "noMetadata": "該版本未提供市場中繼資料，安裝後可在外掛管理中查看",
+      "noMetadata": "該版本未提供市場中繼資料，安裝後可在插件管理中查看",
       "installConfirmPositive": "安裝",
       "installRiskTitle": "安全提示",
       "installRiskContent": "第三方插件以與本應用同等的權限執行，請僅安裝來自可信來源的插件。",
@@ -375,7 +375,7 @@
     "validationFailed": "驗證失敗",
     "actionFailed": "操作失敗",
     "pluginError": "插件錯誤",
-    "configError": "配置錯誤",
+    "configError": "設定錯誤",
     "networkError": "網路錯誤",
     "internalError": "內部錯誤",
     "copy": "複製",
@@ -573,12 +573,12 @@
         "footer_height": {
           "label": "底欄高度",
           "desc": "底欄高度(px)",
-          "note": "調得很小時底欄那行仍佔一點高度、設定按鈕還在；底欄高度同時是全域小號字的基準，設成 0 會讓右鍵選單、參數面板、外掛面板和設定頁裡的小字都看不見"
+          "note": "調得很小時底欄那行仍佔一點高度、設定按鈕還在；底欄高度同時是全域小號字的基準，設成 0 會讓右鍵選單、參數面板、插件面板和設定頁裡的小字都看不見"
         },
         "footer_font_ratio": {
           "label": "底欄字型比例",
           "desc": "全域小號字的比例（小號字 = 底欄高度 × 此比例）",
-          "note": "右鍵選單、結果動作按鈕、參數面板提示、外掛面板與設定頁說明都用這個字型大小"
+          "note": "右鍵選單、結果動作按鈕、參數面板提示、插件面板與設定頁說明都用這個字型大小"
         },
         "footer_font_family": {
           "label": "底欄字型",
@@ -627,7 +627,7 @@
         "hover_color": {
           "label": "懸停色",
           "desc": "結果列表選取項與滑鼠懸停的底色",
-          "note": "底欄、外掛面板等處的懸停底色也用這個顏色"
+          "note": "底欄、插件面板等處的懸停底色也用這個顏色"
         },
         "dark_bg_primary": {
           "label": "主背景色",
@@ -736,7 +736,7 @@
     },
     "exclusion-config": {
       "name": "結果排除",
-      "description": "按完整目標、目錄或關鍵字統一排除搜尋結果，對所有資料來源與外掛候選項生效",
+      "description": "按完整目標、目錄或關鍵字統一排除搜尋結果，對所有資料來源與插件候選項生效",
       "groups": {
         "exclusion": "排除規則"
       },
@@ -787,7 +787,7 @@
         "language": {
           "label": "介面語言",
           "desc": "介面顯示語言",
-          "note": "切換後介面與托盤選單立刻變更，不用重新啟動（設定視窗的標題要下次啟動才更新）"
+          "note": "切換後介面、托盤選單與設定視窗標題立刻變更，不用重新啟動"
         },
         "is_auto_start": {
           "label": "開機自啟動",
@@ -802,7 +802,7 @@
         "log_level": {
           "label": "日誌級別",
           "desc": "控制日誌輸出的詳細程度",
-          "note": "改完立刻生效，不用重新啟動；只影響本程式自己的日誌檔，不含第三方外掛處理程序"
+          "note": "改完立刻生效，不用重新啟動；只影響本程式自己的日誌檔，不含第三方插件處理程序"
         },
         "reset_session_on_wake": {
           "label": "喚醒時重置會話",
@@ -814,7 +814,7 @@
         },
         "enable_cli_server": {
           "label": "本機 CLI 服務",
-          "desc": "允許 zl 命令列工具透過本機唯讀 HTTP 介面查詢搜尋工作階段、外掛與設定（只監聽 127.0.0.1，連接埠隨機）",
+          "desc": "允許 zl 命令列工具透過本機唯讀 HTTP 介面查詢搜尋工作階段、插件與設定（只監聽 127.0.0.1，連接埠隨機）",
           "note": "唯讀介面，連線 token 寫入資料目錄的 cli-token.json；改完立刻生效，不用重新啟動"
         }
       }
@@ -922,7 +922,7 @@
         "similarity": {
           "label": "相似度計算方式",
           "desc": "embedding 向量的相似度計算方式",
-          "note": "供語意搜尋類外掛比較向量用，要與模型訓練時保持一致；選錯會讓相似度數值失真"
+          "note": "供語意搜尋類插件比較向量用，要與模型訓練時保持一致；選錯會讓相似度數值失真"
         },
         "chat_capabilities": {
           "label": "Chat 能力",
@@ -1124,7 +1124,7 @@
     },
     "bookmark-source": {
       "name": "書籤資料來源",
-      "description": "從瀏覽器書籤中搜索網址",
+      "description": "從瀏覽器書籤中搜尋網址",
       "fields": {
         "sources": {
           "label": "書籤源",
@@ -1617,7 +1617,7 @@
       "actions": {
         "listModels": {
           "label": "取得宿主模型清單",
-          "desc": "取得宿主已設定的模型清單（經外掛控制代碼存取宿主模型服務）"
+          "desc": "取得宿主已設定的模型清單（經插件控制代碼存取宿主模型服務）"
         }
       }
     },
@@ -1671,8 +1671,8 @@
   },
   "pluginPanel": {
     "unavailable": {
-      "title": "外掛面板不可用",
-      "desc": "外掛未提供面板介面（manifest.toml 缺少 [ui].panelEntry），無法渲染面板內容。",
+      "title": "插件面板不可用",
+      "desc": "插件未提供面板介面（manifest.toml 缺少 [ui].panelEntry），無法渲染面板內容。",
       "type": "類型: {type}"
     },
     "loadError": "面板載入失敗: {message}"

@@ -297,6 +297,8 @@ fn init_search_bar_window(app: &mut App) {
 }
 
 fn init_setting_window(app: tauri::AppHandle) {
+    // 标题由界面语言决定（与托盘菜单共用后端译表）；语言切换时由 bootstrap 刷新
+    let title = bootstrap::setting_window_title(app.state::<Arc<AppState>>().inner());
     tauri::async_runtime::spawn(async move {
         let setting_window = Arc::new(
             tauri::WebviewWindowBuilder::new(
@@ -304,7 +306,7 @@ fn init_setting_window(app: tauri::AppHandle) {
                 "setting_window",
                 WebviewUrl::App("/setting_window.html".into()),
             )
-            .title("设置")
+            .title(title)
             .visible(false)
             // 开启拖放以支持「第三方插件管理」页拖拽安装插件（webview 级 onDragDropEvent 接收真实路径）
             .drag_and_drop(true)

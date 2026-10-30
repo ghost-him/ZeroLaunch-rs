@@ -2,7 +2,6 @@
   <div ref="formRoot" class="dynamic-form">
     <div class="form-header">
       <h3>{{ resolveText(schema.componentName) }}</h3>
-      <n-tag :bordered="false" size="small">{{ schema.componentType }}</n-tag>
     </div>
     <p class="form-desc" v-if="schema.componentDescription">{{ resolveText(schema.componentDescription) }}</p>
 
@@ -81,7 +80,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, provide, onUnmounted, inject, nextTick, onMounted } from 'vue'
-import { NAlert, NButton, NTabPane, NTabs, NTag, NText, useMessage, useDialog } from 'naive-ui'
+import { NAlert, NButton, NTabPane, NTabs, NText, useMessage, useDialog } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import { resolveText } from '../../i18n'
 import DynamicFormField from './DynamicFormField.vue'

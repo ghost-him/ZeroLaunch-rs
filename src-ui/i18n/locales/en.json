@@ -787,7 +787,7 @@
         "language": {
           "label": "UI Language",
           "desc": "UI display language",
-          "note": "The UI and tray menu change immediately, no restart needed (the settings window title updates on next launch)"
+          "note": "The UI, tray menu and settings window title change immediately, no restart needed"
         },
         "is_auto_start": {
           "label": "Start on boot",

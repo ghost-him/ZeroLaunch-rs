@@ -320,7 +320,24 @@ fn sync_backend_language(state: &Arc<AppState>, config_manager: &ConfigManager) 
             if let Some(tray) = state.get_tray_manager() {
                 tray.update_menu_language();
             }
+            // 设置窗口标题是后端生成的原生标题，与托盘菜单同一时刻跟随语言
+            apply_setting_window_title(state);
         }
+    }
+}
+
+/// 当前界面语言下的设置窗口标题。
+/// 参数：state - 应用状态（内含 I18nManager）。
+/// 返回：`settings.title` 的当前语言译文；语言包缺失时回落为 key 原文。
+pub(crate) fn setting_window_title(state: &Arc<AppState>) -> String {
+    let i18n = state.get_i18n_manager();
+    i18n.t(&i18n.current_language(), "settings.title")
+}
+
+/// 把当前界面语言的标题写入设置窗口；窗口尚未创建时跳过。
+fn apply_setting_window_title(state: &Arc<AppState>) {
+    if let Some(window) = state.get_main_handle().get_webview_window("setting_window") {
+        let _ = window.set_title(&setting_window_title(state));
     }
 }
 

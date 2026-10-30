@@ -1,7 +1,6 @@
 <template>
   <n-button
     v-if="actionDef && fieldAction"
-    size="small"
     :loading="loading"
     :disabled="!editable"
     @click="execute"

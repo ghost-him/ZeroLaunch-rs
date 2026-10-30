@@ -8,7 +8,7 @@
           clearable
           @keyup.enter="searchTime.run"
         />
-        <n-button type="primary" size="small" :loading="searchTime.loading" @click="searchTime.run">
+        <n-button type="primary" :loading="searchTime.loading" @click="searchTime.run">
           {{ t('debug.run') }}
         </n-button>
       </div>
@@ -21,7 +21,7 @@
 
     <DebugCard :title="t('debug.indexTime')" :description="t('debug.descIndexTime')">
       <div class="tool-row">
-        <n-button type="primary" size="small" :loading="indexLoading" @click="runIndexTime">
+        <n-button type="primary" :loading="indexLoading" @click="runIndexTime">
           {{ t('debug.runIndex') }}
         </n-button>
       </div>
@@ -39,7 +39,7 @@
           clearable
           @keyup.enter="keywords.run"
         />
-        <n-button type="primary" size="small" :loading="keywords.loading" @click="keywords.run">
+        <n-button type="primary" :loading="keywords.loading" @click="keywords.run">
           {{ t('debug.generate') }}
         </n-button>
       </div>
@@ -58,10 +58,10 @@
           clearable
           @keyup.enter="detail.run"
         />
-        <n-button type="primary" size="small" :loading="detail.loading" @click="detail.run">
+        <n-button type="primary" :loading="detail.loading" @click="detail.run">
           {{ t('debug.search') }}
         </n-button>
-        <n-button size="small" :disabled="!detail.result?.length" @click="copyDetail">
+        <n-button :disabled="!detail.result?.length" @click="copyDetail">
           {{ t('debug.copy') }}
         </n-button>
       </div>

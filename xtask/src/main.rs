@@ -753,7 +753,7 @@ fn sync_wiki(source: Option<&Path>, check: bool) -> Result<()> {
     Ok(())
 }
 
-/// 解析 wiki 源目录：显式参数优先，其次同级工作区，最后克隆/更新缓存。
+/// 解析 wiki 源目录：显式参数优先，其次同级工作区，最后重新克隆到 target/wiki-cache。
 fn resolve_wiki_source(repo_root: &Path, source: Option<&Path>) -> Result<PathBuf> {
     if let Some(source) = source {
         let source = if source.is_absolute() {
@@ -770,19 +770,18 @@ fn resolve_wiki_source(repo_root: &Path, source: Option<&Path>) -> Result<PathBu
         return Ok(local);
     }
 
+    // 每次重新克隆，不复用上次的目录：target/ 会被 CI 缓存整体带走，
+    // 复用一个不完整的克隆时 git 仍会报 "Already up to date"，导致快照为空。
     let cache = repo_root.join("target/wiki-cache");
-    let refreshed = cache.join(".git").is_dir() && git(&cache, &["pull", "--ff-only"]).is_ok();
-    if !refreshed {
-        if cache.exists() {
-            fs::remove_dir_all(&cache)
-                .with_context(|| format!("清理 wiki 缓存 {} 失败", cache.display()))?;
-        }
-        if let Some(parent) = cache.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        let target = cache.to_string_lossy().to_string();
-        git(repo_root, &["clone", "--depth", "1", WIKI_REMOTE, &target])?;
+    if cache.exists() {
+        fs::remove_dir_all(&cache)
+            .with_context(|| format!("清理 wiki 缓存 {} 失败", cache.display()))?;
     }
+    if let Some(parent) = cache.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let target = cache.to_string_lossy().to_string();
+    git(repo_root, &["clone", "--depth", "1", WIKI_REMOTE, &target])?;
     Ok(cache)
 }
 

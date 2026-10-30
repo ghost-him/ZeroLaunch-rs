@@ -374,7 +374,30 @@ jobs:
             exit 0
           }
 
+          # tag 注释是维护者指定的发布重点：非空时作为最高权重组织摘要。
+          # 仅注释型 tag 有注释；轻量 tag 或无 tag（手动触发）视为未指定。
+          # PowerShell 默认用 ANSI 代码页解码原生命令输出，中文注释会乱码，需显式切 UTF-8。
+          $tag = "${{ steps.prev_tag.outputs.TAG }}"
+          $tagNote = ""
+          $prevConsoleEncoding = [Console]::OutputEncoding
+          try {
+            [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+            if (-not [string]::IsNullOrWhiteSpace($tag) -and (git cat-file -t "refs/tags/$tag" 2>$null) -eq "tag") {
+              $tagNote = ((git tag -l --format='%(contents)' $tag) -join "`n").Trim()
+              # 剥离 bump-version 的默认首行（release vX.Y.Z）：默认注释不是发布重点
+              $tagNote = ($tagNote -replace '^release\s+v?\d+\.\d+\.\d+\s*', '').Trim()
+            }
+          } finally {
+            [Console]::OutputEncoding = $prevConsoleEncoding
+          }
+
           $systemPrompt = "你是 ZeroLaunch-rs 的版本更新摘要助手。`n`n输出结构（直接输出正文，不要使用 Markdown 标题）：`n1. **一句话版本定位**：概括本次版本的核心主题。`n2. **用户可见亮点**：2-4 条 bullet，只写用户能感知的功能改进。`n3. **稳定性与体验改进**：1-2 句概括 bug 修复和体验优化。`n4. **开发者备注**（如有架构级变化）：以 > 格式的 blockquote 附在末尾。`n`n规则：`n- 只基于 commit 事实写，不预测、不夸大。`n- 内部重构、CI、文档、杂项——除非架构级变化，否则不写入摘要。`n- 总长度不超过 300 字。`n- 语气简洁准确，面向中文最终用户。"
+
+          if (-not [string]::IsNullOrWhiteSpace($tagNote)) {
+            Write-Host "📌 以 tag 注释作为本次发布重点：`n$tagNote"
+            $systemPrompt += "`n`n本次版本的发布重点（维护者在 tag 注释中指定，优先级最高）：`n$tagNote`n`n- 与发布重点相关的变更优先写入「用户可见亮点」，并排在最前面。`n- 发布重点未覆盖、但对用户可见的变更只做简要提及。`n- 重点与 commit 数量/排序冲突时，以重点为准。"
+          }
+
           $userPrompt   = "以下是本次版本的变更记录：`n`n$changelog"
 
           $payload = @{

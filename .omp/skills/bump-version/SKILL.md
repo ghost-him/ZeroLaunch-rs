@@ -1,7 +1,7 @@
 ---
 name: bump-version
 description: 变更 ZeroLaunch-rs 的版本号（含 workspace 根、src-tauri/Cargo.toml 及 tauri.conf.json等），运行 just style，自动 commit 并打 tag
-argument-hint: "<版本号> — 如 v1.0.1 或 1.0.1（v 前缀可选）"
+argument-hint: "<版本号> [发布重点] — 如 v1.0.1；发布重点为可选多行文本，写入 tag 注释并影响 AI 更新摘要"
 ---
 
 # bump-version — 版本号变更
@@ -12,6 +12,7 @@ argument-hint: "<版本号> — 如 v1.0.1 或 1.0.1（v 前缀可选）"
 
 ```
 /bump-version v1.0.1
+/bump-version v1.6.0 重点：AI 搜索语义排序重写；插件市场安装卡顿修复
 ```
 
 ## 执行流程
@@ -19,6 +20,7 @@ argument-hint: "<版本号> — 如 v1.0.1 或 1.0.1（v 前缀可选）"
 1. **前置检查 (Pre-flight Check)**：
    - 检查当前 Git 工作区是否干净（无未提交的修改）。如果不干净，提示用户先 commit 或 stash 现有修改，并退出该流程。
    - 解析并验证版本号格式（必须是有效的 semver，如 `X.Y.Z`，自动去除可能存在的 `v` 前缀）。
+   - 参数中版本号之外的内容即「发布重点」（可选，可多行/多行分隔），原样写入 tag 注释。
 
 2. **更新版本号**：
    - **工作区根 `Cargo.toml`**：更新 `[workspace.package] version = "X.Y.Z"`（所有 `version.workspace = true` 的 crate 自动继承，无需逐一修改）
@@ -46,7 +48,13 @@ argument-hint: "<版本号> — 如 v1.0.1 或 1.0.1（v 前缀可选）"
 5. **Git 提交与 Tag**：
    - `git add -A`
    - `git commit -m "chore: 变更版本号为 v{version}"`
-   - `git tag -a v{version} -m "release v{version}"`
+   - 创建**注释型** tag（轻量 tag 没有注释，AI 摘要拿不到发布重点）：
+     - 无发布重点：`git tag -a v{version} -m "release v{version}"`
+     - 有发布重点：`git tag -a v{version} -m "release v{version}
+
+{发布重点原样多行文本}"`
+   - tag 注释由 `.github/workflows/release.yml` 的 `Generate AI summary` 读取，作为**最高优先级**决定 AI 摘要写哪些内容：建议写 1-3 条用户可感知的改动（如“重点：…”“次重点：…”），不要把内部重构写进去。
+   - tag 已推送后要改注释须 `git tag -f -a` + 强推，会改写远端 tag；仅未推送时安全，推送了就留到下个版本。
    - **提示用户**：已完成本地提交和 Tag 创建，请确认无误后手动执行 `git push --follow-tags`。
 
 ## 错误处理

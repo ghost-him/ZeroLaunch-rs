@@ -6,6 +6,31 @@ use std::path::{Path, PathBuf};
 fn main() {
     generate_wiki_pages();
     tauri_build::build();
+    embed_common_controls_manifest();
+}
+
+/// Windows：让测试与集成测试的 exe 带上 COMCTL32 v6 依赖清单。
+///
+/// 测试 harness 由 rustc 直接链接，没有 tauri-build 为应用生成的资源清单；但代码经
+/// tauri / tray-icon 传递静态导入 `SetWindowSubclass` / `TaskDialogIndirect`（仅 v6 导出），
+/// 加载器只找到 System32 的 v5.82，进程在 main 之前就 STATUS_ENTRYPOINT_NOT_FOUND（0xc0000139）。
+/// 这里由链接器为所有可链接目标嵌入声明 v6 依赖的清单，并对 bin 关掉链接器清单，
+/// 避免与 tauri-build 已嵌入的资源清单重复（CVT1100）。
+/// 输入与错误：读取 `common-controls.manifest` 的路径并打印 Cargo 指令（Cargo 构建脚本的
+/// stdout 协议通道，非日志）；目标不是 msvc 时直接返回。
+fn embed_common_controls_manifest() {
+    let is_msvc_windows = env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows")
+        && env::var("CARGO_CFG_TARGET_ENV").as_deref() == Ok("msvc");
+    if !is_msvc_windows {
+        return;
+    }
+    let manifest_dir =
+        PathBuf::from(env::var("CARGO_MANIFEST_DIR").expect("缺少 CARGO_MANIFEST_DIR 环境变量"));
+    let manifest = manifest_dir.join("common-controls.manifest");
+    println!("cargo:rerun-if-changed={}", manifest.display());
+    println!("cargo:rustc-link-arg=/MANIFEST:EMBED");
+    println!("cargo:rustc-link-arg=/MANIFESTINPUT:{}", manifest.display());
+    println!("cargo:rustc-link-arg-bins=/MANIFEST:NO");
 }
 
 /// 扫描 `assets/wiki`，生成内嵌的使用手册索引模块。

@@ -8707,7 +8707,7 @@ checksum = "e13c156562582aa81c60cb29407084cdb54c4164760106ab78e6c5b0858cf64e"
 
 [[package]]
 name = "zerolaunch-cli"
-version = "1.5.3"
+version = "1.5.4"
 dependencies = [
  "anyhow",
  "clap 4.6.6",
@@ -8721,7 +8721,7 @@ dependencies = [
 
 [[package]]
 name = "zerolaunch-platform-windows"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "anyhow",
  "arboard",
@@ -8760,7 +8760,7 @@ dependencies = [
 
 [[package]]
 name = "zerolaunch-plugin-api"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "async-trait",
  "base64 0.23.1",
@@ -8847,7 +8847,7 @@ dependencies = [
 
 [[package]]
 name = "zerolaunch-rs"
-version = "1.5.3"
+version = "1.5.4"
 dependencies = [
  "anyhow",
  "async-openai",

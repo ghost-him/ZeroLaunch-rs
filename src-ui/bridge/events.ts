@@ -1,6 +1,6 @@
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { getCurrentWebview, type DragDropEvent } from '@tauri-apps/api/webview'
-import type { ConfigChangedPayload, SessionStateEvent, PluginEventPayload } from './contract'
+import type { ConfigChangedPayload, SessionStateEvent, PluginEventPayload, IconUpdatedPayload } from './contract'
 
 /**
  * 监听当前 webview 的原生文件拖放事件（enter / over / drop / leave）。
@@ -43,6 +43,18 @@ export function onPluginUninstalled(
   callback: (payload: PluginEventPayload) => void,
 ): Promise<UnlistenFn> {
   return listen<PluginEventPayload>('plugin-uninstalled', (event) => {
+    callback(event.payload)
+  })
+}
+
+/**
+ * 查询结果图标异步补齐完成事件。
+ * 查询响应只读图标缓存，未命中项由后端后台下载；前端按 id 就地替换图标。
+ */
+export function onIconUpdated(
+  callback: (payload: IconUpdatedPayload) => void,
+): Promise<UnlistenFn> {
+  return listen<IconUpdatedPayload>('bridge-icon-updated', (event) => {
     callback(event.payload)
   })
 }

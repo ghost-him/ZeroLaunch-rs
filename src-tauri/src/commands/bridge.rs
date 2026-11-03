@@ -6,12 +6,16 @@ use crate::plugin_framework::{
     ConfirmOutcome, ConfirmRequest, HostView, PluginView, SessionDispatcher,
 };
 use crate::state::app_state::AppState;
+use dashmap::DashSet;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
-use tauri::Emitter;
+use std::sync::{Arc, LazyLock};
+use tauri::{AppHandle, Emitter};
+use tokio::sync::Semaphore;
 use tracing::{debug, info};
 use zerolaunch_plugin_api::common::ImageUtils;
+use zerolaunch_plugin_api::host::{CacheLevel, PluginHandle, PluginHost};
 use zerolaunch_plugin_api::plugin::PluginKind;
+use zerolaunch_plugin_api::services::IconRequest;
 use zerolaunch_plugin_api::{CandidateId, Query, QueryResponse};
 // ============================================================================
 // 搜索接口
@@ -39,6 +43,63 @@ pub struct BridgeSearchResult {
     pub has_system_params: bool,
     #[serde(rename = "triggerKeywords")]
     pub trigger_keywords: Vec<String>,
+}
+
+/// 查询结果图标异步回填事件载荷（`bridge-icon-updated`）。
+///
+/// 查询响应只读图标缓存，未命中项以空串占位；后台补齐后逐条推送本载荷，
+/// 前端按候选 id 就地替换图标（过期世代直接丢弃）。仅用于 bridge 查询结果回填。
+#[derive(Serialize, Clone, Debug)]
+struct BridgeIconUpdate {
+    /// 候选缓存世代：前端据此丢弃候选刷新后才到达的旧回填。
+    #[serde(rename = "candidateGeneration")]
+    candidate_generation: u64,
+    /// 候选 id（与本次查询响应中的 `results[].id` 一致）。
+    #[serde(rename = "id")]
+    id: CandidateId,
+    /// 图标 data URL；补齐失败时为默认图标（不会为空串）。
+    #[serde(rename = "icon")]
+    icon: String,
+}
+
+/// 后台补齐查询响应中缺失的图标。
+///
+/// 仅由 `bridge_query` 的列表分支调用；查询响应不等待本任务。
+/// 同一图标请求进程内只下载一次（并发上限 4），每完成一项立即推送
+/// `bridge-icon-updated`，失败时回退默认图标。
+/// 参数：app - 事件推送句柄；core_handle - 图标提取执行体；
+///       candidate_generation - 候选缓存世代；requests - 待补齐的 (候选 id, 图标请求)。
+fn prefetch_icons(
+    app: Arc<AppHandle>,
+    core_handle: Arc<PluginHandle>,
+    candidate_generation: u64,
+    requests: Vec<(CandidateId, IconRequest)>,
+) {
+    /// 正在下载的图标缓存键（避免同一图标被多个查询重复抓取）。
+    static INFLIGHT: LazyLock<DashSet<String>> = LazyLock::new(DashSet::new);
+    /// 全局限流：图标下载不参与查询耗时，但仍需限制并发避免网络风暴。
+    static PERMITS: LazyLock<Arc<Semaphore>> = LazyLock::new(|| Arc::new(Semaphore::new(4)));
+
+    for (id, request) in requests {
+        let key = request.get_hash_string();
+        if !INFLIGHT.insert(key.clone()) {
+            continue;
+        }
+        let app = app.clone();
+        let core_handle = core_handle.clone();
+        let permits = PERMITS.clone();
+        tauri::async_runtime::spawn(async move {
+            let _permit = permits.acquire().await;
+            let data = core_handle.get_icon_or_default(request).await;
+            INFLIGHT.remove(&key);
+            let payload = BridgeIconUpdate {
+                candidate_generation,
+                id,
+                icon: ImageUtils::to_data_url(&data),
+            };
+            let _ = app.emit("bridge-icon-updated", payload);
+        });
+    }
 }
 
 #[derive(Serialize, Debug)]
@@ -248,20 +309,28 @@ pub async fn bridge_query(
     match routed.response {
         QueryResponse::List { results } => {
             let core_handle = state.get_core_handle();
+            let host_api = state.get_host_api();
+            let candidate_generation = session_dispatcher.get_candidates_generation();
 
-            // 解析图标：L1 缓存命中率高，几乎零开销；未命中由 L2 文件缓存兜底。
-            // IconRequest::Data（插件候选 data URL）经提取链路解码直通。
+            // 图标只走缓存：查询响应绝不等待提取/下载（URL 图标要抓页面 HTML + 多级
+            // favicon 回退，单条最坏可达数十秒）。未命中先用空串占位，由后台补齐后
+            // 经 `bridge-icon-updated` 事件就地回填。
             let mut bridge_results = Vec::with_capacity(results.len());
+            let mut pending_icons: Vec<(CandidateId, IconRequest)> = Vec::new();
             for item in results {
-                let icon_data = {
-                    let data = core_handle.get_icon_or_default(item.icon.clone()).await;
-                    ImageUtils::to_data_url(&data)
+                // CacheOnly：只读图标缓存（L1 → L2），不触发提取/网络。
+                let icon = match host_api.get_icon(&item.icon, CacheLevel::CacheOnly).await {
+                    Ok(data) => ImageUtils::to_data_url(&data),
+                    Err(_) => {
+                        pending_icons.push((item.id, item.icon.clone()));
+                        String::new()
+                    }
                 };
                 bridge_results.push(BridgeSearchResult {
                     id: item.id,
                     title: item.title,
                     subtitle: item.subtitle,
-                    icon: icon_data,
+                    icon,
                     score: item.score,
                     actions: item
                         .actions
@@ -275,6 +344,15 @@ pub async fn bridge_query(
                 });
             }
 
+            if !pending_icons.is_empty() {
+                prefetch_icons(
+                    state.get_main_handle(),
+                    core_handle,
+                    candidate_generation,
+                    pending_icons,
+                );
+            }
+
             info!(
                 "[Bridge] 查询完成: '{}' -> {} 个结果",
                 raw_query,
@@ -284,7 +362,7 @@ pub async fn bridge_query(
             Ok(BridgeQueryResponse {
                 mode: HostView::Search.as_str().to_string(),
                 generation: routed.generation,
-                candidate_generation: session_dispatcher.get_candidates_generation(),
+                candidate_generation,
                 results: bridge_results,
                 panel_type: None,
                 panel_data: None,

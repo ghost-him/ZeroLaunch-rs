@@ -2,7 +2,11 @@ use crate::common::dir_utils::DirUtils;
 use dashmap::{DashMap, DashSet};
 use parking_lot::RwLock;
 use std::path::Path;
+use std::time::{Duration, Instant};
 use tracing::warn;
+
+/// 提取失败有效期：期间同一请求直接回退默认图标，抑制故障站点被反复抓取。
+const ICON_FAILURE_TTL: Duration = Duration::from_secs(600);
 
 /// 图标缓存服务，提供 L1 内存缓存 + L2 文件缓存的原子操作原语。
 /// 本服务是纯缓存工具，不知道图标如何提取，也不知道 IconRequest/CacheLevel 等业务语义。
@@ -14,6 +18,8 @@ pub struct IconCacheService {
     cache_dir: RwLock<String>,
     /// L2: 已缓存的文件名集合（启动时扫描填充，运行时追加）
     cached_file_hashes: DashSet<String>,
+    /// 提取失败时间表（键同缓存键）：仅记录网络类请求，按 TTL 自动失效。
+    failed_at: DashMap<String, Instant>,
 }
 
 impl IconCacheService {
@@ -25,6 +31,7 @@ impl IconCacheService {
             memory_cache: DashMap::new(),
             cache_dir: RwLock::new(cache_dir),
             cached_file_hashes: DashSet::new(),
+            failed_at: DashMap::new(),
         }
     }
 
@@ -118,6 +125,36 @@ impl IconCacheService {
         self.cached_file_hashes.contains(key)
     }
 
+    // ===== 负缓存（网络类提取失败）=====
+
+    /// 记录一次提取失败。
+    /// 参数：key - 缓存键。返回：无。
+    pub fn mark_failed(&self, key: &str) {
+        self.failed_at.insert(key.to_string(), Instant::now());
+    }
+
+    /// 判断该键在有效期内是否已提取失败（过期条目顺手清理）。
+    /// 参数：key - 缓存键。
+    /// 返回：true 表示有效期内失败过，调用方应直接回退默认图标。
+    pub fn is_recently_failed(&self, key: &str) -> bool {
+        let Some(entry) = self.failed_at.get(key) else {
+            return false;
+        };
+        let elapsed = entry.elapsed();
+        drop(entry);
+        if elapsed < ICON_FAILURE_TTL {
+            return true;
+        }
+        self.failed_at.remove(key);
+        false
+    }
+
+    /// 清除失败记录（提取成功或手动强制刷新后调用）。
+    /// 参数：key - 缓存键。返回：无。
+    pub fn clear_failed(&self, key: &str) {
+        self.failed_at.remove(key);
+    }
+
     /// 从 L2 文件缓存读取数据。
     /// 参数：key - 缓存键（文件名）。
     /// 返回：成功返回 Some(数据)，失败或不存在返回 None。
@@ -157,6 +194,7 @@ impl IconCacheService {
         }
 
         self.cached_file_hashes.clear();
+        self.failed_at.clear();
         let hashes = Self::scan_cached_icons(new_cache_dir);
         for hash in hashes {
             self.cached_file_hashes.insert(hash);

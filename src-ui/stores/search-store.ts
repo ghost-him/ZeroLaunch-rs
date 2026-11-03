@@ -6,7 +6,7 @@ import {
   bridgeHideWindow, configGetSettings,
 } from '../bridge/commands'
 import type { ListItem, ResultAction, BridgeQueryResponse, ConfirmResponse, PanelInteraction, SessionStateEvent, ExcludeOptions, ExclusionKind } from '../bridge/contract'
-import { onSessionState } from '../bridge/events'
+import { onIconUpdated, onSessionState } from '../bridge/events'
 import { i18n } from '../i18n'
 
 /**
@@ -789,6 +789,14 @@ export const useSearchStore = defineStore('search', () => {
   // 监听后端会话状态事件：会话投影每次变化推送（含插件面板路由命中、会话结束）。
   onSessionState((event) => {
     applySessionState(event)
+  })
+
+  // 监听图标异步回填：查询响应只读图标缓存，未命中项由后端后台下载后就地替换。
+  // 候选世代不一致说明结果已被刷新，丢弃以免把旧图标贴到新结果上。
+  onIconUpdated((payload) => {
+    if (payload.candidateGeneration !== currentCandidateGeneration.value) return
+    const item = results.value.find((r) => r.id === payload.id)
+    if (item) item.icon = payload.icon
   })
 
   return {

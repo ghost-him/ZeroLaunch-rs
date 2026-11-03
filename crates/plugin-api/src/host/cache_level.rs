@@ -18,4 +18,29 @@ pub enum CacheLevel {
     /// 适用于图标在几天的时间内可能只被提取一次的场景。
     #[serde(rename = "skipAll")]
     SkipAll,
+    /// 只读缓存（L1 → L2，L2 命中回填 L1），不触发提取/网络。
+    /// 未命中时 `get_icon` 返回错误，`get_icon_or_default` 回退默认图标。
+    /// 宿主（查询响应等零网络开销路径）与插件（`PluginSdkConfig` 自注册）都可用。
+    #[serde(rename = "cacheOnly")]
+    CacheOnly,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 跨进程键名契约：插件经 `host/sdk_config.update` 按这些字面量收发缓存等级。
+    #[test]
+    fn cache_level_wire_names_roundtrip() {
+        let cases = [
+            (CacheLevel::Full, "\"full\""),
+            (CacheLevel::SkipMemory, "\"skipMemory\""),
+            (CacheLevel::SkipAll, "\"skipAll\""),
+            (CacheLevel::CacheOnly, "\"cacheOnly\""),
+        ];
+        for (level, wire) in cases {
+            assert_eq!(serde_json::to_string(&level).unwrap(), wire);
+            assert_eq!(serde_json::from_str::<CacheLevel>(wire).unwrap(), level);
+        }
+    }
 }

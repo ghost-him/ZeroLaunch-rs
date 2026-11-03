@@ -405,6 +405,18 @@ export interface PluginEventPayload {
   version?: string
 }
 
+// ---- Search Result Icon Backfill ----
+
+/** 查询结果图标异步回填载荷（`bridge-icon-updated` 事件）。 */
+export interface IconUpdatedPayload {
+  /** 候选缓存世代：与前端持有的当前世代不一致时丢弃该回填。 */
+  candidateGeneration: number
+  /** 候选 id（对应 `ListItem.id`）。 */
+  id: number
+  /** 图标 data URL；补齐失败时为默认图标。 */
+  icon: string
+}
+
 // ---- Debug Tools ----
 
 export interface SearchTimingResult {

@@ -6,7 +6,8 @@ use serde::{Deserialize, Serialize};
 /// 跨进程经 `host/sdk_config.update` 收发（camelCase 键名）。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct PluginSdkConfig {
-    /// 图标缓存等级。None 时使用默认值 CacheLevel::Full。
+    /// 图标缓存等级（`full` / `skipMemory` / `skipAll` / `cacheOnly`）。
+    /// None 时使用默认值 `CacheLevel::Full`。
     #[serde(rename = "iconCacheLevel")]
     #[serde(default)]
     pub icon_cache_level: Option<CacheLevel>,

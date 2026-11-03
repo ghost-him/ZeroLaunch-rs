@@ -101,10 +101,13 @@ pub trait IconExtractor: Send + Sync {
     }
 
     /// 完整的图标获取流程，包含缓存策略。
-    /// 默认实现：根据 CacheLevel 执行 L1 → L2 → 提取 → 写回缓存，提取失败返回默认图标。
-    /// 缓存命中还会校验内容为可识别位图，历史版本写入的非位图条目按未命中处理并重新提取。
+    /// 默认实现按 CacheLevel 决定缓存读写与提取：
+    /// Full → L1 → L2 → 提取 → 写回 L1+L2；SkipMemory → L2 → 提取 → 写回 L2；
+    /// SkipAll → 直接提取、不读写缓存；CacheOnly → 只读 L1 → L2（命中回填 L1），不提取。
+    /// 缓存命中会校验内容为可识别位图，历史版本写入的非位图条目按未命中处理。
     /// 参数：cache - 图标缓存服务；request - 图标请求；level - 缓存等级。
-    /// 返回：WebP 格式图标字节数据（回退路径为原始字节，消费方按字节头嗅探 MIME），失败返回 HostApiError。
+    /// 返回：WebP 格式图标字节数据（回退路径为原始字节，消费方按字节头嗅探 MIME）。
+    ///       CacheOnly 未命中返回 HostApiError；提取链路失败回退默认图标（不报错）。
     async fn get_icon(
         &self,
         cache: &IconCacheService,
@@ -112,32 +115,40 @@ pub trait IconExtractor: Send + Sync {
         level: CacheLevel,
     ) -> Result<Vec<u8>, HostApiError> {
         let hash_key = request.get_hash_string() + ".webp";
+        // 读 L1 与写回 L1 的等级（SkipMemory 只用文件缓存，SkipAll 完全不碰缓存）。
+        let uses_l1 = matches!(level, CacheLevel::Full | CacheLevel::CacheOnly);
 
-        // 1. 根据缓存等级查缓存
-        if level != CacheLevel::SkipAll {
-            // L1 查询
-            if level == CacheLevel::Full {
-                if let Some(data) = cache.get_l1(&hash_key) {
-                    if is_raster_icon(&data) {
-                        return Ok(data);
-                    }
+        // L1 查询
+        if uses_l1 {
+            if let Some(data) = cache.get_l1(&hash_key) {
+                if is_raster_icon(&data) {
+                    return Ok(data);
                 }
             }
+        }
 
-            // L2 查询
-            if cache.contains_l2(&hash_key) {
-                if let Some(data) = cache.get_l2(&hash_key).await {
-                    if !is_raster_icon(&data) {
-                        // 非位图内容视为未命中，走提取链路覆盖写回
-                        return extract_and_cache(self, cache, request, level, &hash_key).await;
-                    }
-                    // L2 命中时回填 L1
-                    if level == CacheLevel::Full {
+        // L2 查询：命中回填 L1，供后续查询免磁盘读
+        if level != CacheLevel::SkipAll && cache.contains_l2(&hash_key) {
+            if let Some(data) = cache.get_l2(&hash_key).await {
+                if is_raster_icon(&data) {
+                    if uses_l1 {
                         cache.set_l1(&hash_key, data.clone());
                     }
                     return Ok(data);
                 }
+                // 非位图内容视为未命中；非只读等级走提取链路覆盖写回
+                if level != CacheLevel::CacheOnly {
+                    return extract_and_cache(self, cache, request, level, &hash_key).await;
+                }
             }
+        }
+
+        // 只读等级到此即未命中：调用方据此回退占位图标并异步补齐
+        if level == CacheLevel::CacheOnly {
+            return Err(HostApiError::IconExtractionFailed {
+                request: request.get_hash_string(),
+                reason: "图标缓存未命中（CacheOnly 不触发提取）".to_string(),
+            });
         }
 
         extract_and_cache(self, cache, request, level, &hash_key).await
@@ -187,11 +198,24 @@ async fn extract_and_cache<E: IconExtractor + ?Sized>(
     level: CacheLevel,
     hash_key: &str,
 ) -> Result<Vec<u8>, HostApiError> {
+    // 网络类请求失败后进入负缓存：有效期内同一请求直接回退默认图标，
+    // 避免故障站点在每次查询、每次键入时被反复抓取。
+    let network_request = matches!(request, IconRequest::Url(_));
+    if network_request && cache.is_recently_failed(hash_key) {
+        return Ok(extractor.load_default_icon(request).await);
+    }
+
     let data = match extractor.extract_and_process(request).await {
         Ok(d) if !d.is_empty() => d,
-        _ => return Ok(extractor.load_default_icon(request).await),
+        _ => {
+            if network_request {
+                cache.mark_failed(hash_key);
+            }
+            return Ok(extractor.load_default_icon(request).await);
+        }
     };
 
+    cache.clear_failed(hash_key);
     write_back_cache(cache, hash_key, &data, level).await;
 
     Ok(data)

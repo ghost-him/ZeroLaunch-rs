@@ -9,6 +9,7 @@ use scraper::{Html, Selector};
 use std::ffi::c_void;
 use std::mem;
 use std::path::Path;
+use std::time::Duration;
 use tracing::{debug, info, warn};
 use url::Url;
 use windows::Win32::Foundation::GetLastError;
@@ -655,6 +656,10 @@ impl WindowsIconExtractor {
 
     // ===== 网站图标获取（favicon）=====
 
+    /// 单次网站图标解析的总预算：覆盖「原始 URL + 各级父域根」整条候选链。
+    /// 故障站点原本每个候选最多耗 10s，长期占用提取并发名额；总预算把单条上限压到 8s。
+    const FAVICON_FETCH_BUDGET: Duration = Duration::from_secs(8);
+
     /// 获取网站的 PNG 格式图标 (favicon)。
     async fn fetch_website_favicon_data(&self, url: &str) -> Result<Vec<u8>, HostApiError> {
         if !self.is_network_available() {
@@ -703,7 +708,13 @@ impl WindowsIconExtractor {
             }
         }
 
+        let deadline = tokio::time::Instant::now() + Self::FAVICON_FETCH_BUDGET;
         for (index, candidate_url) in candidate_urls.iter().enumerate() {
+            let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+            if remaining.is_zero() {
+                debug!("Favicon fetch budget exhausted: {}", url);
+                break;
+            }
             debug!(
                 "Attempting favicon fetch from candidate {}/{}: {}",
                 index + 1,
@@ -711,7 +722,20 @@ impl WindowsIconExtractor {
                 candidate_url
             );
 
-            match Self::fetch_favicon_primary(&client, candidate_url).await {
+            let primary = match tokio::time::timeout(
+                remaining,
+                Self::fetch_favicon_primary(&client, candidate_url),
+            )
+            .await
+            {
+                Ok(result) => result,
+                Err(_) => {
+                    debug!("Favicon fetch timed out: {}", candidate_url);
+                    break;
+                }
+            };
+
+            match primary {
                 Ok(data) => match ImageUtils::convert_image_to_png(data).await {
                     Ok(png_data) => {
                         if index > 0 {

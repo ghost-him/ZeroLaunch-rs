@@ -1,6 +1,6 @@
 <template>
   <div class="category-view-tabs">
-    <n-tabs type="line" v-model:value="activeTab" display-directive="show">
+    <n-tabs type="line" :value="activeTab" display-directive="show" @update:value="onTabChange">
       <n-tab-pane
         v-for="comp in components"
         :key="comp.componentId"
@@ -22,6 +22,7 @@ import { resolveText } from '../../i18n'
 import type { ComponentInfo } from '../../bridge/contract'
 import ComponentConfigLoader from './ComponentConfigLoader.vue'
 import { FIELD_REVEAL_KEY, type FieldRevealTarget } from '../../utils/fieldReveal'
+import { UNSAVED_CHANGES_KEY } from '../../utils/unsavedChanges'
 
 const props = withDefaults(defineProps<{
   components: ComponentInfo[]
@@ -32,6 +33,15 @@ const props = withDefaults(defineProps<{
 })
 
 const activeTab = ref<string | undefined>(props.components[0]?.componentId)
+const unsavedChanges = inject(UNSAVED_CHANGES_KEY, null)
+
+/** 切换组件页签：存在未保存修改时先确认丢弃，取消则留在当前页签。 */
+async function onTabChange(value: string | number): Promise<void> {
+  const next = String(value)
+  if (next === activeTab.value) return
+  if (unsavedChanges && !await unsavedChanges.confirmDiscard()) return
+  activeTab.value = next
+}
 
 watch(() => props.components, (newVal) => {
   if (newVal.length > 0 && !newVal.find(c => c.componentId === activeTab.value)) {

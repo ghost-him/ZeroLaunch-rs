@@ -316,12 +316,11 @@ fn init_setting_window(app: tauri::AppHandle) {
         setting_window
             .set_size(LogicalSize::new(1150, 650))
             .expect("无法设置设置窗口大小");
-        let window_clone = Arc::clone(&setting_window);
-        setting_window.on_window_event(move |event| {
+        // 关闭按钮不在后端直接隐藏：前端要先确认未保存的修改（或直接隐藏）。
+        // 这里只阻止窗口销毁，隐藏动作由前端收到 close-requested 后执行。
+        setting_window.on_window_event(|event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
-                window_clone.hide().expect("无法隐藏设置窗口");
-                debug!("隐藏设置窗口");
             }
         });
     });

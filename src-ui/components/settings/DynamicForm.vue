@@ -65,6 +65,7 @@
       <n-button
         v-if="commitPolicy === 'staged'"
         type="primary"
+        :disabled="!dirty"
         :loading="saving"
         @click="onApply"
       >
@@ -88,9 +89,11 @@ import FormSection from './FormSection.vue'
 import { useConfigStore } from '../../stores/config-store'
 import { FORM_VALUES_KEY } from '../../utils/formInjection'
 import { FIELD_REVEAL_KEY } from '../../utils/fieldReveal'
+import { UNSAVED_CHANGES_KEY } from '../../utils/unsavedChanges'
 import {
   buildFieldConfigs,
   stripTransientSettings,
+  settingsEqual,
   SUPPORTED_SCHEMA_VERSION,
   validateSettings,
   filterVisibleByContext,
@@ -242,6 +245,11 @@ watch(
 
 // 表单可能在跳转请求之后才挂载（分类切换 + schema 加载），挂载时补一次定位
 onMounted(() => {
+  unsavedChanges?.register({
+    componentId: props.schema.componentId,
+    isDirty: () => dirty.value,
+    discard: discardChanges,
+  })
   const target = reveal?.target.value
   if (target && target.componentId === props.schema.componentId) {
     revealField(target.fieldKey)
@@ -272,6 +280,19 @@ function setValue(key: string, val: unknown): void {
 }
 
 provide(FORM_VALUES_KEY, { getValue, setValue, values: localValues })
+
+const unsavedChanges = inject(UNSAVED_CHANGES_KEY, null)
+
+/** 当前表单相对已保存配置是否存在未提交修改（transient 字段不参与比较）。 */
+const dirty = computed(
+  () => commitPolicy.value === 'staged'
+    && !settingsEqual(props.schema.contribution, props.currentSettings, localValues.value),
+)
+
+/** 丢弃未提交修改：用已保存的配置整体替换表单值。 */
+function discardChanges(): void {
+  localValues.value = { ...props.currentSettings }
+}
 
 /** 校验并提交当前配置值，供 staged 和 immediateAllowed 共用。 */
 async function applySettings(settings: Record<string, unknown>): Promise<void> {
@@ -328,8 +349,9 @@ async function onReset() {
   })
 }
 
-/** 组件卸载时清理待提交的 immediate 状态。 */
+/** 组件卸载时清理待提交的 immediate 状态与未保存登记。 */
 onUnmounted(() => {
+  unsavedChanges?.unregister(props.schema.componentId)
   immediateRevision += 1
   if (immediateTimer) {
     clearTimeout(immediateTimer)

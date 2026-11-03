@@ -70,8 +70,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, onMounted, provide } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted, provide } from 'vue'
 import { NButton, NSpin, NText, useNotification } from 'naive-ui'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import SettingsSidebar from '../components/settings/SettingsSidebar.vue'
 import CategoryViewPipeline from '../components/settings/CategoryViewPipeline.vue'
 import CategoryViewTabs from '../components/settings/CategoryViewTabs.vue'
@@ -89,16 +90,22 @@ import { configGetVersion } from '../bridge/commands'
 import type { BridgeError } from '../bridge/commands'
 import { formatErrorMessage, formatErrorTitle } from '../utils/errors'
 import { FIELD_REVEAL_KEY, type FieldRevealTarget } from '../utils/fieldReveal'
+import { UNSAVED_CHANGES_KEY } from '../utils/unsavedChanges'
+import { useUnsavedChanges } from '../composables/useUnsavedChanges'
 import type { ComponentInfo, HelpNavigation } from '../bridge/contract'
 
 const configStore = useConfigStore()
 const notification = useNotification()
 const { t } = useI18n()
+const unsavedChanges = useUnsavedChanges()
+provide(UNSAVED_CHANGES_KEY, unsavedChanges)
 
 const loading = ref(true)
 const loadErr = ref<string | null>(null)
 const selectedId = ref<string | null>('category_core')
 const version = ref('')
+/** 设置窗口关闭请求的监听句柄（卸载时注销）。 */
+let unlistenClose: (() => void) | null = null
 
 function getComponentsList(): ComponentInfo[] {
   return Object.values(configStore.components)
@@ -172,7 +179,10 @@ async function init() {
   }
 }
 
-function onSelectItem(itemId: string) {
+/** 切换侧栏分类：存在未保存修改时先确认丢弃，取消则留在当前分类。 */
+async function onSelectItem(itemId: string) {
+  if (itemId === selectedId.value) return
+  if (!await unsavedChanges.confirmDiscard()) return
   selectedId.value = itemId
 }
 
@@ -185,7 +195,21 @@ onMounted(async () => {
     })
   })
 
+  // 关闭按钮由后端 prevent_close 转到前端：先确认未保存修改，再隐藏窗口
+  // （设置窗口始终隐藏而不销毁，丢弃时会同步恢复表单，避免留下旧编辑）。
+  unlistenClose = await getCurrentWindow().onCloseRequested(async () => {
+    if (!await unsavedChanges.confirmDiscard()) return
+    await getCurrentWindow().hide().catch((error) => {
+      console.warn('[settings] 隐藏设置窗口失败', error)
+    })
+  })
+
   await init()
+})
+
+onUnmounted(() => {
+  unlistenClose?.()
+  unlistenClose = null
 })
 </script>
 

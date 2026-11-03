@@ -3,7 +3,7 @@
     <PipelineFlowDiagram />
 
     <!-- 详尽配置 -->
-    <n-tabs v-model:value="activeTab" type="line" display-directive="show" class="pipeline-tabs">
+    <n-tabs :value="activeTab" type="line" display-directive="show" class="pipeline-tabs" @update:value="onTabChange">
       <n-tab-pane v-for="group in groups" :key="group.pane" :name="group.pane" :tab="group.label">
         <ListDetailPanel
           :items="getComponentsByType(group.type)"
@@ -24,6 +24,7 @@ import { NTabs, NTabPane } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import type { ComponentInfo } from '../../bridge/contract'
 import { FIELD_REVEAL_KEY, type FieldRevealTarget } from '../../utils/fieldReveal'
+import { UNSAVED_CHANGES_KEY } from '../../utils/unsavedChanges'
 import PipelineFlowDiagram from './PipelineFlowDiagram.vue'
 import ListDetailPanel from './ListDetailPanel.vue'
 import { useSearchEngineToggle } from '../../composables/useSearchEngineToggle'
@@ -39,6 +40,15 @@ const { t } = useI18n()
 const groups = computed(() => PIPELINE_GROUPS.map((g) => ({ ...g, label: t(g.labelKey) })))
 
 const activeTab = ref('datasource')
+const unsavedChanges = inject(UNSAVED_CHANGES_KEY, null)
+
+/** 切换管道分组页签：存在未保存修改时先确认丢弃，取消则留在当前页签。 */
+async function onTabChange(value: string | number): Promise<void> {
+  const next = String(value)
+  if (next === activeTab.value) return
+  if (unsavedChanges && !await unsavedChanges.confirmDiscard()) return
+  activeTab.value = next
+}
 
 const reveal = inject(FIELD_REVEAL_KEY, null)
 /** 设置助手跳转的目标组件 id（空串表示无）。 */

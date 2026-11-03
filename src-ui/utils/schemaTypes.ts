@@ -136,6 +136,31 @@ function stripTransientValue(
 }
 // ── 工具函数 ──
 
+/** 比较两份设置是否等价：先剔除 transient 字段，再深度比较基本值、数组与普通对象。 */
+export function settingsEqual(
+  contribution: SettingsContribution,
+  a: Record<string, unknown>,
+  b: Record<string, unknown>,
+): boolean {
+  return deepEqual(stripTransientSettings(contribution, a), stripTransientSettings(contribution, b))
+}
+
+/** 深度比较设置值（仅处理 JSON 可表达的类型）。 */
+function deepEqual(a: unknown, b: unknown): boolean {
+  if (Object.is(a, b)) return true
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false
+    return a.every((item, index) => deepEqual(item, b[index]))
+  }
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false
+  const aKeys = Object.keys(a)
+  const bKeys = Object.keys(b)
+  if (aKeys.length !== bKeys.length) return false
+  return aKeys.every((key) =>
+    deepEqual((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key]),
+  )
+}
+
 /** 将单段 JSON Pointer（如 "/theme"、"/a~1b"）解码为字段 key。 */
 export function pointerToKey(pointer: string): string {
   if (!pointer.startsWith('/')) throw new Error(`无效的 JSON Pointer: ${pointer}`)

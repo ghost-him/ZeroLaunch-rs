@@ -59,11 +59,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, inject } from 'vue'
 import { NSwitch, NText, NIcon, useMessage } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import { resolveText } from '../../i18n'
 import type { ComponentInfo } from '../../bridge/contract'
+import { UNSAVED_CHANGES_KEY } from '../../utils/unsavedChanges'
 import ComponentConfigLoader from './ComponentConfigLoader.vue'
 import { useConfigStore } from '../../stores/config-store'
 import { Layers, File } from 'lucide-vue-next'
@@ -95,6 +96,7 @@ const emit = defineEmits<{
 const configStore = useConfigStore()
 const message = useMessage()
 const { t } = useI18n()
+const unsavedChanges = inject(UNSAVED_CHANGES_KEY, null)
 const selectedId = ref<string | null>(null)
 
 const selectedItem = computed(() => {
@@ -102,7 +104,10 @@ const selectedItem = computed(() => {
   return props.items.find((c) => c.componentId === selectedId.value) ?? null
 })
 
-function selectItem(id: string) {
+/** 切换组件：存在未保存修改时先确认丢弃，取消则保持当前选中项。 */
+async function selectItem(id: string) {
+  if (id === selectedId.value) return
+  if (unsavedChanges && !await unsavedChanges.confirmDiscard()) return
   selectedId.value = id
 }
 
@@ -110,7 +115,7 @@ function selectItem(id: string) {
 watch(
   () => props.preselectId,
   (id) => {
-    if (id && props.items.some((item) => item.componentId === id)) selectItem(id)
+    if (id && props.items.some((item) => item.componentId === id)) void selectItem(id)
   },
   { immediate: true },
 )

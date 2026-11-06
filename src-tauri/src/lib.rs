@@ -234,6 +234,8 @@ pub fn run() {
             crate::commands::help::help_ask,
             // 路径类型查询（设置页拖放判定文件/目录）
             crate::commands::path::path_kind,
+            // 日志导出（打包当前日志目录为 zip）
+            crate::commands::log_export::export_logs,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

@@ -135,7 +135,12 @@
       "wiki": "Wiki",
       "issues": "Issues",
       "copyright": "© 2024-2026 ghost-him",
-      "openFailed": "Failed to open link"
+      "openFailed": "Failed to open link",
+      "exportLogs": "Export logs",
+      "exportLogsHint": "Package logs to attach to issue reports",
+      "exportLogsFilter": "Zip archive",
+      "exportLogsSuccess": "Logs exported to {path}",
+      "exportLogsFailed": "Failed to export logs: {message}"
     },
     "save": "Apply",
     "reset": "Reset to Default",

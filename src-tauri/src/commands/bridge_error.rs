@@ -6,6 +6,7 @@ use zerolaunch_plugin_api::services::model::ModelError;
 use zerolaunch_plugin_api::HostApiError;
 
 use crate::core::agent::{AgentError, HELP_AGENT_CONFIG_ID};
+use crate::logging::LogArchiveError;
 use crate::plugin_framework::PluginManagerError;
 use crate::plugin_framework::SessionDispatcherError;
 use crate::plugin_market::MarketError;
@@ -240,6 +241,26 @@ impl From<AgentError> for BridgeError {
             message: e.to_string(),
             details: Box::new(None),
             component_id: Some(HELP_AGENT_CONFIG_ID.to_string()),
+            trace_id: String::new(),
+        }
+    }
+}
+
+impl From<LogArchiveError> for BridgeError {
+    /// 日志归档错误 → 前端错误：空日志目录由用户操作导致，其余视为内部错误。
+    fn from(e: LogArchiveError) -> Self {
+        let code = match &e {
+            LogArchiveError::Empty => ErrorCode::ValidationFailed,
+            LogArchiveError::NotInitialized
+            | LogArchiveError::Io(_)
+            | LogArchiveError::Zip(_)
+            | LogArchiveError::Task(_) => ErrorCode::InternalError,
+        };
+        BridgeError {
+            code,
+            message: e.to_string(),
+            details: Box::new(None),
+            component_id: None,
             trace_id: String::new(),
         }
     }

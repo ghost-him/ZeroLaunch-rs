@@ -22,20 +22,31 @@
       >{{ link.label }}</a>
     </div>
 
+    <div class="about-export">
+      <n-text depth="3" class="about-export-hint">{{ t('settings.aboutPage.exportLogsHint') }}</n-text>
+      <n-button size="small" :loading="exporting" @click="exportLogs">
+        {{ t('settings.aboutPage.exportLogs') }}
+      </n-button>
+    </div>
+
     <n-text depth="3" class="about-copyright">{{ t('settings.aboutPage.copyright') }}</n-text>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { NText, useMessage } from 'naive-ui'
-import { openExternal } from '@/bridge/commands'
+import { NButton, NText, useMessage } from 'naive-ui'
+import { exportLogs as invokeExportLogs, openExternal, pickLogArchivePath } from '@/bridge/commands'
+import { formatErrorMessage } from '@/utils/errors'
 
 defineProps<{ version: string }>()
 
 const { t } = useI18n()
 const message = useMessage()
+
+/** 导出中状态：按钮 loading，防止重复触发。 */
+const exporting = ref(false)
 
 /** 关于页信息行：技术栈 / 开源协议 / 作者。 */
 const infoRows = computed(() => [
@@ -58,6 +69,24 @@ function openLink(url: string) {
   void openExternal(url).catch(() => {
     message.error(t('settings.aboutPage.openFailed'))
   })
+}
+
+/**
+ * 选择 zip 落点并导出当前日志。
+ * 用户取消保存对话框时不发起导出；成功提示目标路径，失败提示后端错误信息。
+ */
+async function exportLogs() {
+  exporting.value = true
+  try {
+    const destPath = await pickLogArchivePath(t('settings.aboutPage.exportLogsFilter'))
+    if (!destPath) return
+    await invokeExportLogs(destPath)
+    message.success(t('settings.aboutPage.exportLogsSuccess', { path: destPath }))
+  } catch (e) {
+    message.error(t('settings.aboutPage.exportLogsFailed', { message: formatErrorMessage(e) }))
+  } finally {
+    exporting.value = false
+  }
 }
 </script>
 
@@ -143,5 +172,26 @@ function openLink(url: string) {
   margin-top: 12px;
   font-size: var(--font-size-sm);
   flex-shrink: 0;
+}
+
+.about-export {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 420px;
+  margin-top: 20px;
+  padding: 10px 14px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-color-secondary);
+  flex-shrink: 0;
+}
+
+.about-export-hint {
+  font-size: var(--font-size-sm);
+  line-height: 1.4;
 }
 </style>

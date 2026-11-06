@@ -135,7 +135,12 @@
       "wiki": "Wiki 文件",
       "issues": "問題回饋",
       "copyright": "© 2024-2026 ghost-him",
-      "openFailed": "開啟連結失敗"
+      "openFailed": "開啟連結失敗",
+      "exportLogs": "匯出日誌",
+      "exportLogsHint": "打包目前日誌，方便隨問題回報提交",
+      "exportLogsFilter": "Zip 壓縮檔",
+      "exportLogsSuccess": "日誌已匯出至 {path}",
+      "exportLogsFailed": "匯出日誌失敗：{message}"
     },
     "save": "應用",
     "reset": "重置為預設",

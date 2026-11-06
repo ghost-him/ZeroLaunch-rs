@@ -212,6 +212,80 @@ pub fn get_log_dir() -> Option<&'static PathBuf> {
     LOG_DIR.get()
 }
 
+// ============================================================================
+// 日志导出
+// ============================================================================
+
+/// 日志归档错误 —— 把日志目录打包为 zip 时可能失败的内部原因。
+///
+/// 仅在 `logging` 模块内产生，经 `commands/log_export.rs` 边界转换为 `BridgeError`；
+/// 其他模块不应依赖此类型。
+#[derive(Debug, thiserror::Error)]
+pub enum LogArchiveError {
+    /// 日志系统尚未初始化（启动顺序被破坏），没有可打包的日志目录。
+    #[error("日志系统尚未初始化，无法导出日志")]
+    NotInitialized,
+    /// 遍历日志目录、读取日志文件或创建目标文件失败。
+    #[error("访问日志文件失败: {0}")]
+    Io(#[from] std::io::Error),
+    /// 写入 zip 结构（条目头、压缩数据、中央目录）失败。
+    #[error("写入日志压缩包失败: {0}")]
+    Zip(#[from] zip::result::ZipError),
+    /// 日志目录内没有任何文件，导出的压缩包没有内容。
+    #[error("日志目录中没有可导出的文件")]
+    Empty,
+    /// 后台打包任务未能正常结束（线程 panic 或运行时关闭），由命令层填入错误文本。
+    #[error("日志打包任务异常: {0}")]
+    Task(String),
+}
+
+/// 把当前日志目录打包成 zip 写入 `dest`。
+///
+/// 参数：`dest` —— 目标 zip 路径；由前端保存对话框选定，父目录须已存在。
+/// 返回：成功时 `Ok(())`；日志系统未初始化、目录为空或读写失败时返回 `LogArchiveError`。
+/// 行为：目录内日志文件（含按日滚动的历史文件与 panic.log）以 `logs/<文件名>` 为条目名；
+///       目标文件已存在时直接覆盖（覆盖确认由保存对话框负责）。
+pub fn export_log_archive(dest: &Path) -> Result<(), LogArchiveError> {
+    let log_dir = get_log_dir().ok_or(LogArchiveError::NotInitialized)?;
+    write_log_archive(log_dir, dest)
+}
+
+/// 把 `log_dir` 下的直接子文件打包写入 `dest`。
+///
+/// 参数：`log_dir` —— 日志目录；`dest` —— 目标 zip 路径。
+/// 返回：成功时 `Ok(())`；目录为空返回 `Empty`，读写失败返回对应错误变体。
+/// 条目按文件名排序，保证同一目录多次导出的 zip 结构稳定。
+fn write_log_archive(log_dir: &Path, dest: &Path) -> Result<(), LogArchiveError> {
+    let mut entries: Vec<(String, PathBuf)> = Vec::new();
+    for entry in std::fs::read_dir(log_dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_file() {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            entries.push((format!("logs/{name}"), path));
+        }
+    }
+    if entries.is_empty() {
+        return Err(LogArchiveError::Empty);
+    }
+    entries.sort_by(|a, b| a.0.cmp(&b.0));
+
+    let file_count = entries.len();
+    let mut writer = zip::ZipWriter::new(std::io::BufWriter::new(File::create(dest)?));
+    let options = zip::write::SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated);
+    for (entry_name, path) in entries {
+        writer.start_file(entry_name, options)?;
+        writer.write_all(&std::fs::read(&path)?)?;
+    }
+    // finish 写出中央目录后，BufWriter 仍需显式刷新才能落盘。
+    let mut inner = writer.finish()?;
+    inner.flush()?;
+
+    info!("日志已导出: {}（{} 个文件）", dest.display(), file_count);
+    Ok(())
+}
+
 /// 获取当前启用的 Cargo 特性列表
 fn collect_enabled_features() -> Vec<&'static str> {
     let mut features = Vec::new();
@@ -515,5 +589,43 @@ pub fn update_log_level(new_level: Level) -> Result<(), String> {
         Ok(())
     } else {
         Err("日志系统尚未初始化或不支持动态更新".to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{write_log_archive, LogArchiveError};
+    use std::io::Read;
+
+    /// 导出应把日志目录内全部文件以 `logs/` 前缀写入 zip；空目录导出返回 `Empty`。
+    #[test]
+    fn write_log_archive_packs_all_files() {
+        let root = tempfile::tempdir().unwrap();
+        let log_dir = root.path().join("app-logs");
+        std::fs::create_dir(&log_dir).unwrap();
+        std::fs::write(log_dir.join("info.2026-11-06.log"), "hello").unwrap();
+        std::fs::write(log_dir.join("panic.log"), "boom").unwrap();
+        let dest = root.path().join("zerolaunch-log.zip");
+
+        write_log_archive(&log_dir, &dest).unwrap();
+
+        let mut archive = zip::ZipArchive::new(std::fs::File::open(&dest).unwrap()).unwrap();
+        let mut names: Vec<String> = (0..archive.len())
+            .map(|i| archive.by_index(i).unwrap().name().to_string())
+            .collect();
+        names.sort();
+        assert_eq!(names, vec!["logs/info.2026-11-06.log", "logs/panic.log"]);
+        let mut content = String::new();
+        archive
+            .by_name("logs/panic.log")
+            .unwrap()
+            .read_to_string(&mut content)
+            .unwrap();
+        assert_eq!(content, "boom");
+
+        let empty_dir = root.path().join("empty");
+        std::fs::create_dir(&empty_dir).unwrap();
+        let err = write_log_archive(&empty_dir, &root.path().join("empty.zip")).unwrap_err();
+        assert!(matches!(err, LogArchiveError::Empty));
     }
 }

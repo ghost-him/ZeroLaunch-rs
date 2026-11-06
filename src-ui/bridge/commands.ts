@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import { open } from '@tauri-apps/plugin-dialog'
+import { open, save } from '@tauri-apps/plugin-dialog'
 import { open as shellOpen } from '@tauri-apps/plugin-shell'
 import type { BridgeQueryResponse, ConfirmRequest, ConfirmResponse, ComponentInfo, ComponentSchema, ConfigActionDef, ConfigActionPayload, QueryPayload, SearchTimingResult, IndexTimingResult, SearchDetailItem, PluginTranslationCatalog, ExcludeOptions, ExcludeCandidatePayload, HelpHit, HelpAnswer, HelpMessage, HelpNavigation, AgentTrace } from './contract'
 export interface BridgeError {
@@ -211,6 +211,27 @@ export function pickPluginDir(filterLabel: string): Promise<string | null> {
     directory: true,
     title: filterLabel,
   })
+}
+
+/**
+ * 弹出日志压缩包保存对话框。
+ * 默认文件名固定为 zerolaunch-log.zip，用户可改目录与文件名。
+ * @param filterLabel zip 过滤器名称（由调用方传入 i18n 文案）
+ * @returns 选中的目标路径；用户取消时为 null
+ */
+export function pickLogArchivePath(filterLabel: string): Promise<string | null> {
+  return save({
+    defaultPath: 'zerolaunch-log.zip',
+    filters: [{ name: filterLabel, extensions: ['zip'] }],
+  })
+}
+
+/**
+ * 将当前日志目录打包为 zip 写入指定路径（读取日志与压缩由后端完成）。
+ * @param destPath 保存对话框返回的目标路径
+ */
+export function exportLogs(destPath: string): Promise<void> {
+  return invokeCommand<void>('export_logs', { destPath })
 }
 
 export function pluginList(): Promise<PluginInfo[]> {

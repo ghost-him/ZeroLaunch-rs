@@ -15,6 +15,7 @@
     "global-shortcut:allow-register",
     "global-shortcut:allow-unregister",
     "dialog:allow-open",
+    "dialog:allow-save",
     "dialog:default",
     "core:window:default",
     "core:window:allow-set-size",

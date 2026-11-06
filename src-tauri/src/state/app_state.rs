@@ -7,6 +7,7 @@ use crate::plugin_framework::PluginRegistry;
 use crate::plugin_framework::SessionDispatcher;
 use crate::sdk::HostApi;
 use crate::tray::TrayManager;
+use crate::updater::UpdateChecker;
 use crate::utils::waiting_hashmap::AsyncWaitingHashMap;
 use parking_lot::RwLock;
 use std::sync::Arc;
@@ -31,6 +32,8 @@ pub struct AppState {
     i18n_manager: RwLock<Option<Arc<I18nManager>>>,
     /// 模型管理器（聚合提供方并按 model_id 路由）
     model_manager: Arc<ModelManager>,
+    /// 版本更新检查器（托盘、启动自检与设置页共用同一份状态）
+    update_checker: Arc<UpdateChecker>,
 }
 impl Default for AppState {
     fn default() -> Self {
@@ -57,6 +60,7 @@ impl AppState {
             cli_token: RwLock::new(None),
             i18n_manager: RwLock::new(None),
             model_manager: Arc::new(ModelManager::new()),
+            update_checker: Arc::new(UpdateChecker::new()),
         }
     }
 
@@ -199,6 +203,11 @@ impl AppState {
     /// 获取模型管理器。
     pub fn get_model_manager(&self) -> Arc<ModelManager> {
         self.model_manager.clone()
+    }
+
+    /// 获取版本更新检查器（共享实例，读上次结果或触发新检查）。
+    pub fn get_update_checker(&self) -> Arc<UpdateChecker> {
+        self.update_checker.clone()
     }
 }
 

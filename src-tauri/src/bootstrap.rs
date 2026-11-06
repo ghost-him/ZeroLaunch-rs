@@ -35,8 +35,20 @@ use crate::plugin_framework::plugin_wake_executor::PluginWakeExecutor;
 use crate::sdk::HostApi;
 use crate::state::app_state::AppState;
 use crate::tray::TrayManager;
+use crate::updater::check_and_sync;
 use crate::utils::trace_id::generate_trace_id;
 use crate::window::{prepare_window_position, save_window_position_if_drag};
+
+/// 启动后延迟检查一次新版本。
+///
+/// 只刷新托盘菜单文案（有新版本时改为「发现新版本 vX.Y.Z」），不弹窗、
+/// 不发通知、不打开浏览器；延迟 5 秒避开启动期的索引与窗口初始化。
+fn spawn_startup_update_check(state: Arc<AppState>) {
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+        check_and_sync(&state, false).await;
+    });
+}
 
 /// 启动定时自动刷新任务。
 ///
@@ -296,6 +308,10 @@ pub(crate) async fn init_app_state(
     // 启动定时自动刷新任务（兜底：安装监控关闭或漏掉的变化时，索引仍会定期更新）
     spawn_auto_refresh_task(state.clone());
     info!("定时自动刷新任务已启动");
+
+    // 启动后延迟检查一次新版本：只刷新托盘文案，不弹窗、不打开浏览器
+    spawn_startup_update_check(state.clone());
+    info!("启动更新自检任务已启动");
 
     info!(
         "应用状态初始化完成 (HostApi, ConfigManager, {} 个已注册组件)",
@@ -799,6 +815,10 @@ fn spawn_app_command_consumer(
                             warn!("AppCommand: 游戏模式关闭: 无法读取快捷键配置 (hotkey-config)");
                         }
                     }
+                }
+                app_command::AppCommand::CheckUpdate => {
+                    info!("AppCommand: 检查更新");
+                    check_and_sync(&state, true).await;
                 }
                 app_command::AppCommand::ExitProgram => {
                     info!("AppCommand: 退出程序");

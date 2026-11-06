@@ -140,7 +140,13 @@
       "exportLogsHint": "Package logs to attach to issue reports",
       "exportLogsFilter": "Zip archive",
       "exportLogsSuccess": "Logs exported to {path}",
-      "exportLogsFailed": "Failed to export logs: {message}"
+      "exportLogsFailed": "Failed to export logs: {message}",
+      "checkUpdate": "Check for Updates",
+      "checking": "Checking…",
+      "upToDate": "You're on the latest version v{version}",
+      "updateAvailable": "Update available: v{version}",
+      "viewRelease": "View release page",
+      "checkFailed": "Update check failed, please try again later"
     },
     "save": "Apply",
     "reset": "Reset to Default",
@@ -459,7 +465,14 @@
     "refreshDatabase": "Refresh Database",
     "reregisterHotkeys": "Reregister Hotkeys",
     "gameMode": "Game Mode",
+    "checkUpdate": "Check for Updates",
+    "updateAvailable": "Update available: v{version}",
     "exitProgram": "Exit"
+  },
+  "update": {
+    "toastTitle": "ZeroLaunch-rs",
+    "upToDate": "You're on the latest version v{version}",
+    "checkFailed": "Update check failed, please try again later"
   },
   "components": {
     "appearance-config": {

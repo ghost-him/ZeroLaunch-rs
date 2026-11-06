@@ -140,7 +140,13 @@
       "exportLogsHint": "打包当前日志，方便随问题反馈提交",
       "exportLogsFilter": "Zip 压缩包",
       "exportLogsSuccess": "日志已导出到 {path}",
-      "exportLogsFailed": "导出日志失败：{message}"
+      "exportLogsFailed": "导出日志失败：{message}",
+      "checkUpdate": "检查更新",
+      "checking": "正在检查…",
+      "upToDate": "已是最新版本 v{version}",
+      "updateAvailable": "发现新版本 v{version}",
+      "viewRelease": "查看发布页",
+      "checkFailed": "检查更新失败，请稍后重试"
     },
     "save": "应用",
     "reset": "重置为默认",
@@ -459,7 +465,14 @@
     "refreshDatabase": "刷新数据库",
     "reregisterHotkeys": "重新注册快捷键",
     "gameMode": "游戏模式",
+    "checkUpdate": "检查更新",
+    "updateAvailable": "发现新版本 v{version}",
     "exitProgram": "退出程序"
+  },
+  "update": {
+    "toastTitle": "ZeroLaunch-rs",
+    "upToDate": "已是最新版本 v{version}",
+    "checkFailed": "检查更新失败，请稍后重试"
   },
   "components": {
     "appearance-config": {

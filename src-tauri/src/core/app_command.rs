@@ -41,6 +41,8 @@ pub enum AppCommand {
     ReregisterHotkeys,
     /// 切换游戏模式
     ToggleGameMode,
+    /// 检查版本更新（托盘菜单「检查更新」触发；有新版本时打开发布页）
+    CheckUpdate,
     /// 退出程序
     ExitProgram,
 }

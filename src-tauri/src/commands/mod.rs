@@ -12,3 +12,4 @@ pub mod path;
 pub mod plugin;
 pub mod plugin_market;
 pub mod resource;
+pub mod update;

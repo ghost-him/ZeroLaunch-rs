@@ -3,6 +3,21 @@
     <h3 class="about-name">ZeroLaunch-rs</h3>
     <n-text depth="3" class="about-version">v{{ version }}</n-text>
 
+    <div class="about-update">
+      <n-text depth="3" class="about-update-hint">{{ updateHint }}</n-text>
+      <n-button size="small" :loading="checking" @click="runUpdateCheck">
+        {{ t('settings.aboutPage.checkUpdate') }}
+      </n-button>
+      <n-button
+        v-if="updateStatus?.hasUpdate && updateStatus.releaseUrl"
+        size="small"
+        secondary
+        @click="openReleasePage"
+      >
+        {{ t('settings.aboutPage.viewRelease') }}
+      </n-button>
+    </div>
+
     <p class="about-tagline">{{ t('settings.aboutPage.tagline') }}</p>
 
     <div class="about-info">
@@ -34,10 +49,17 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { NButton, NText, useMessage } from 'naive-ui'
-import { exportLogs as invokeExportLogs, openExternal, pickLogArchivePath } from '@/bridge/commands'
+import {
+  exportLogs as invokeExportLogs,
+  getUpdateStatus,
+  checkUpdate as invokeCheckUpdate,
+  openExternal,
+  pickLogArchivePath,
+  type UpdateStatus,
+} from '@/bridge/commands'
 import { formatErrorMessage } from '@/utils/errors'
 
 defineProps<{ version: string }>()
@@ -88,6 +110,50 @@ async function exportLogs() {
     exporting.value = false
   }
 }
+
+/** 最近一次更新检查结果；null 表示本次会话尚未取到（挂载时读共享状态）。 */
+const updateStatus = ref<UpdateStatus | null>(null)
+/** 检查中状态：按钮 loading，防止重复触发。 */
+const checking = ref(false)
+
+/** 版本检查状态文案（检查中 / 可更新 / 已是最新 / 失败）。 */
+const updateHint = computed(() => {
+  if (checking.value) return t('settings.aboutPage.checking')
+  const status = updateStatus.value
+  if (!status) return ''
+  if (status.hasUpdate && status.latestVersion) {
+    return t('settings.aboutPage.updateAvailable', { version: status.latestVersion })
+  }
+  if (status.error) return t('settings.aboutPage.checkFailed')
+  return t('settings.aboutPage.upToDate', { version: status.currentVersion })
+})
+
+/** 主动检查新版本；结果只在本页展示，不自动打开浏览器。 */
+async function runUpdateCheck() {
+  checking.value = true
+  try {
+    updateStatus.value = await invokeCheckUpdate()
+  } catch (e) {
+    message.error(formatErrorMessage(e))
+  } finally {
+    checking.value = false
+  }
+}
+
+/** 在新窗口打开最新版本的发布页。 */
+function openReleasePage() {
+  const url = updateStatus.value?.releaseUrl
+  if (url) openLink(url)
+}
+
+/** 挂载时读取托盘自动检查共享的状态，避免重复请求 GitHub。 */
+onMounted(async () => {
+  try {
+    updateStatus.value = await getUpdateStatus()
+  } catch {
+    updateStatus.value = null
+  }
+})
 </script>
 
 <style scoped>
@@ -115,6 +181,28 @@ async function exportLogs() {
 .about-version {
   font-size: var(--font-size-sm);
   flex-shrink: 0;
+}
+
+/* 更新检查行：状态文案占满剩余宽度，按钮右对齐 */
+.about-update {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 420px;
+  padding: 8px 14px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-color-secondary);
+  flex-shrink: 0;
+}
+
+.about-update-hint {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-size-sm);
+  line-height: 1.4;
 }
 
 .about-tagline {

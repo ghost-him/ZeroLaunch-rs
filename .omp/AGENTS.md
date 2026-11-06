@@ -79,6 +79,8 @@ logging.rs          → 日志初始化
 
 AI 助手（2个）：`help_search`（设置字段确定性检索，不调用模型）、`help_ask`（模型 + 只读设置工具的最小循环；模型由 `help-agent-config` 指定；入参含 `navigation`＝前端下发的「设置页路径」，用于给出逐步导航；说明书另注入由 `collect_triggers` 从插件元数据投影的触发方式）
 
+版本更新（`update_` 前缀，2个）：`update_check`（实网查 GitHub Releases 最新 tag，只返回状态，不下载）、`update_get_status`（读托盘启动自检的共享结果，不发请求）
+
 CLI（`cli_` 前缀，1个）：`cli_get_info`
 
 ## 目录结构与文件放置规范
@@ -115,6 +117,7 @@ ZeroLaunch-rs/                          ← Cargo workspace 根
         ├── builtin_plugin/             ← 内置插件实现（具体数量以代码为准）
         ├── plugin_framework/           ← SessionDispatcher, Registry, PluginManager
         ├── tray/                       ← 系统托盘管理
+        ├── updater/                    ← 版本更新检查（GitHub Releases 最新 tag）
         ├── window/                     ← 窗口位置工具函数
         ├── commands/                   ← IPC 命令薄代理
         ├── state/                      ← AppState
@@ -137,6 +140,7 @@ ZeroLaunch-rs/                          ← Cargo workspace 根
 | `builtin_plugin/` | 内置插件实现：DataSource、Executor、SearchEngine 等 | sdk.rs、core/ | 引用 plugin_framework/ |
 | `plugin_framework/` | 插件框架：SessionDispatcher、Registry、PluginManager | sdk.rs、core/、builtin_plugin/ | 被其他层反向引用 |
 | `tray/` | 系统托盘管理 | state/ | 包含业务逻辑 |
+| `updater/` | 版本更新检查：读 GitHub Releases 最新 tag、托盘文案、启动自检 | state/、sdk/ | 下载/安装安装包 |
 | `window/` | 窗口位置工具函数 | 无外部依赖 | 包含业务逻辑 |
 | `commands/` | IPC 命令：薄代理层，仅委托 | 全部 | 包含业务逻辑 |
 | `state/` | AppState 定义 | core/、plugin_framework/ | 包含业务方法 |

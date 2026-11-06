@@ -498,3 +498,34 @@ export function helpAsk(
 ): Promise<HelpAnswer> {
   return invokeCommand<HelpAnswer>('help_ask', { payload: { question, navigation, history } })
 }
+
+// ---- 版本更新 ----
+
+/** 最近一次更新检查的结果（`update_check` / `update_get_status` 返回体）。 */
+export interface UpdateStatus {
+  /** 当前运行版本（不含 `v` 前缀）。 */
+  currentVersion: string
+  /** 最新发布版本（不含 `v` 前缀）；`null` 表示尚未成功检查或仓库无发布。 */
+  latestVersion: string | null
+  /** 最新版本是否高于当前版本。 */
+  hasUpdate: boolean
+  /** 最新版本的发布页地址；`null` 表示没有可跳转的目标。 */
+  releaseUrl: string | null
+  /** 最近一次检查完成时间（本地时间）；`null` 表示从未检查。 */
+  checkedAt: string | null
+  /** 最近一次检查的失败原因；成功后为 `null`。 */
+  error: string | null
+}
+
+/**
+ * 主动检查新版本。
+ * 网络失败不 reject，原因写在返回值的 `error`；不自动打开浏览器。
+ */
+export function checkUpdate(): Promise<UpdateStatus> {
+  return invokeCommand<UpdateStatus>('update_check')
+}
+
+/** 读取最近一次检查结果（不发起网络请求）。 */
+export function getUpdateStatus(): Promise<UpdateStatus> {
+  return invokeCommand<UpdateStatus>('update_get_status')
+}

@@ -16,6 +16,7 @@ const MENU_ID_SHOW_SETTINGS: &str = "show_setting_window";
 const MENU_ID_REFRESH: &str = "refresh_candidates";
 const MENU_ID_REREGISTER_HOTKEY: &str = "reregister_hotkey";
 const MENU_ID_TOGGLE_GAME_MODE: &str = "toggle_game_mode";
+const MENU_ID_CHECK_UPDATE: &str = "check_update";
 const MENU_ID_EXIT_PROGRAM: &str = "exit_program";
 
 enum MenuEventId {
@@ -23,6 +24,8 @@ enum MenuEventId {
     RefreshCandidates,
     ReregisterHotkeys,
     ToggleGameMode,
+    /// 检查版本更新（有可用新版本时菜单文案带版本号）
+    CheckUpdate,
     ExitProgram,
     Unknown(String),
 }
@@ -34,6 +37,7 @@ impl From<&str> for MenuEventId {
             MENU_ID_REFRESH => MenuEventId::RefreshCandidates,
             MENU_ID_REREGISTER_HOTKEY => MenuEventId::ReregisterHotkeys,
             MENU_ID_TOGGLE_GAME_MODE => MenuEventId::ToggleGameMode,
+            MENU_ID_CHECK_UPDATE => MenuEventId::CheckUpdate,
             MENU_ID_EXIT_PROGRAM => MenuEventId::ExitProgram,
             _ => MenuEventId::Unknown(id.to_string()),
         }
@@ -57,6 +61,10 @@ struct TrayManagerInner {
     app_handle: Option<AppHandle>,
     /// 游戏模式复选框菜单项，用于在事件处理中切换勾选状态
     game_mode_item: Option<CheckMenuItem<tauri::Wry>>,
+    /// 「检查更新」菜单项，文案随检测结果在「检查更新 / 发现新版本 vX.Y.Z」间切换
+    update_item: Option<MenuItem<tauri::Wry>>,
+    /// 最近一次检查发现的新版本号；None 表示已是最新或尚未检查
+    available_version: Option<String>,
 }
 
 impl TrayManager {
@@ -74,6 +82,8 @@ impl TrayManager {
                 i18n,
                 app_handle: None,
                 game_mode_item: None,
+                update_item: None,
+                available_version: None,
             }),
         }
     }
@@ -135,6 +145,20 @@ impl TrayManager {
         if let Some(item) = &self.inner.read().game_mode_item {
             let _ = item.set_checked(checked);
         }
+    }
+
+    /// 更新「检查更新」菜单项文案。
+    ///
+    /// 参数：`version` —— 发现的新版本号；`None` 表示已是最新或尚未检查。
+    /// 版本号同时保存在 Inner，供语言切换重建菜单时复用。
+    pub fn set_update_available(&self, version: Option<&str>) {
+        let mut inner = self.inner.write();
+        inner.available_version = version.map(str::to_string);
+        let label = update_item_text(&inner.i18n, inner.available_version.as_deref());
+        if let Some(item) = &inner.update_item {
+            let _ = item.set_text(&label);
+        }
+        info!("托盘「检查更新」菜单文案: {}", label);
     }
 
     /// 设置系统托盘图标显示状态（配置变更时调用）。
@@ -203,7 +227,21 @@ impl TrayManager {
             }
         };
 
-        let menu = match build_tray_menu(app_handle, &toggle_game_mode, &inner.i18n) {
+        let update_item = match MenuItem::with_id(
+            app_handle,
+            MENU_ID_CHECK_UPDATE,
+            update_item_text(&inner.i18n, inner.available_version.as_deref()),
+            true,
+            None::<&str>,
+        ) {
+            Ok(item) => item,
+            Err(e) => {
+                warn!("Failed to recreate check update menu item: {:?}", e);
+                return;
+            }
+        };
+
+        let menu = match build_tray_menu(app_handle, &update_item, &toggle_game_mode, &inner.i18n) {
             Ok(m) => m,
             Err(e) => {
                 warn!("Failed to rebuild tray menu: {:?}", e);
@@ -224,6 +262,7 @@ impl TrayManager {
         let mut inner = self.inner.write();
         inner.menu = Some(menu);
         inner.game_mode_item = Some(toggle_game_mode);
+        inner.update_item = Some(update_item);
         debug!("Tray menu language updated.");
     }
 
@@ -253,10 +292,27 @@ impl TrayManager {
             warn!("Failed to create game mode menu item: {:?}", e);
         })?;
 
-        let menu = build_tray_menu(app_handle, &toggle_game_mode, &self.inner.read().i18n)
-            .map_err(|e| {
-                warn!("Failed to build tray menu: {:?}", e);
-            })?;
+        let update_item = {
+            let inner = self.inner.read();
+            MenuItem::with_id(
+                app_handle,
+                MENU_ID_CHECK_UPDATE,
+                update_item_text(&inner.i18n, inner.available_version.as_deref()),
+                true,
+                None::<&str>,
+            )
+        }
+        .map_err(|e| {
+            warn!("Failed to create check update menu item: {:?}", e);
+        })?;
+
+        let menu = {
+            let inner = self.inner.read();
+            build_tray_menu(app_handle, &update_item, &toggle_game_mode, &inner.i18n)
+        }
+        .map_err(|e| {
+            warn!("Failed to build tray menu: {:?}", e);
+        })?;
 
         let tray_icon = self.create_tray_icon(app_handle, &menu).map_err(|e| {
             warn!("Failed to create tray icon: {:?}", e);
@@ -266,6 +322,7 @@ impl TrayManager {
         inner.tray_icon = Some(tray_icon);
         inner.menu = Some(menu);
         inner.game_mode_item = Some(toggle_game_mode);
+        inner.update_item = Some(update_item);
 
         Ok(())
     }
@@ -311,6 +368,10 @@ impl TrayManager {
                         // 游戏模式的视觉状态在消费者 task 中通过 set_game_mode_checked 更新
                         app_command::send(app_command::AppCommand::ToggleGameMode);
                     }
+                    MenuEventId::CheckUpdate => {
+                        // 检查结果与发布页跳转在消费者 task 中统一处理
+                        app_command::send(app_command::AppCommand::CheckUpdate);
+                    }
                     MenuEventId::Unknown(id) => {
                         warn!("Unknown tray menu event: {}", id);
                     }
@@ -325,6 +386,7 @@ impl TrayManager {
 
 fn build_tray_menu<R: Runtime>(
     app_handle: &AppHandle<R>,
+    update_item: &MenuItem<R>,
     toggle_game_mode: &CheckMenuItem<R>,
     i18n: &I18nManager,
 ) -> tauri::Result<Menu<R>> {
@@ -364,6 +426,7 @@ fn build_tray_menu<R: Runtime>(
         .item(&reregister)
         .item(toggle_game_mode)
         .separator()
+        .item(update_item)
         .item(&exit_program)
         .build()
 }
@@ -371,4 +434,12 @@ fn build_tray_menu<R: Runtime>(
 /// 按当前界面语言解析托盘菜单文本（未命中时回退 key 原文）。
 fn menu_text(i18n: &I18nManager, key: &str) -> String {
     i18n.t(&i18n.current_language(), key)
+}
+
+/// 「检查更新」菜单项文案：发现新版本时带版本号，否则为「检查更新」。
+fn update_item_text(i18n: &I18nManager, available_version: Option<&str>) -> String {
+    match available_version {
+        Some(version) => menu_text(i18n, "tray.updateAvailable").replace("{version}", version),
+        None => menu_text(i18n, "tray.checkUpdate"),
+    }
 }

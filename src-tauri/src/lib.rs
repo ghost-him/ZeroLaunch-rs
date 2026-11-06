@@ -9,6 +9,7 @@ pub mod plugin_market;
 pub mod sdk;
 pub mod state;
 pub mod tray;
+pub mod updater;
 pub mod utils;
 pub mod window;
 
@@ -236,6 +237,9 @@ pub fn run() {
             crate::commands::path::path_kind,
             // 日志导出（打包当前日志目录为 zip）
             crate::commands::log_export::export_logs,
+            // 版本更新检查
+            crate::commands::update::update_check,
+            crate::commands::update::update_get_status,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

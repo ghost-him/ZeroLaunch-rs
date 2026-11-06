@@ -140,7 +140,13 @@
       "exportLogsHint": "打包目前日誌，方便隨問題回報提交",
       "exportLogsFilter": "Zip 壓縮檔",
       "exportLogsSuccess": "日誌已匯出至 {path}",
-      "exportLogsFailed": "匯出日誌失敗：{message}"
+      "exportLogsFailed": "匯出日誌失敗：{message}",
+      "checkUpdate": "檢查更新",
+      "checking": "正在檢查…",
+      "upToDate": "已是最新版本 v{version}",
+      "updateAvailable": "發現新版本 v{version}",
+      "viewRelease": "查看發佈頁",
+      "checkFailed": "檢查更新失敗，請稍後重試"
     },
     "save": "應用",
     "reset": "重置為預設",
@@ -459,7 +465,14 @@
     "refreshDatabase": "重新整理資料庫",
     "reregisterHotkeys": "重新註冊快速鍵",
     "gameMode": "遊戲模式",
+    "checkUpdate": "檢查更新",
+    "updateAvailable": "發現新版本 v{version}",
     "exitProgram": "結束程式"
+  },
+  "update": {
+    "toastTitle": "ZeroLaunch-rs",
+    "upToDate": "已是最新版本 v{version}",
+    "checkFailed": "檢查更新失敗，請稍後重試"
   },
   "components": {
     "appearance-config": {

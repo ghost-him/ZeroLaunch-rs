@@ -52,6 +52,24 @@ pub struct TrayManager {
     inner: RwLock<TrayManagerInner>,
 }
 
+/// 「检查更新」菜单项的展示状态。
+///
+/// 菜单项既是操作入口也是结果回显：已是最新/失败时保留「检查更新」字样，
+/// 点击仍然重新检查。自动检查只在发现新版本时改文案，避免启动即显示「已是最新」。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum UpdateMenuState {
+    /// 尚未检查（显示「检查更新」）
+    Idle,
+    /// 用户主动发起的检查进行中
+    Checking,
+    /// 已是最新版本（携带当前版本号）
+    UpToDate(String),
+    /// 发现新版本（携带最新版本号）
+    Available(String),
+    /// 上次检查失败
+    Failed,
+}
+
 struct TrayManagerInner {
     tray_icon: Option<TrayIcon>,
     menu: Option<Menu<tauri::Wry>>,
@@ -61,10 +79,10 @@ struct TrayManagerInner {
     app_handle: Option<AppHandle>,
     /// 游戏模式复选框菜单项，用于在事件处理中切换勾选状态
     game_mode_item: Option<CheckMenuItem<tauri::Wry>>,
-    /// 「检查更新」菜单项，文案随检测结果在「检查更新 / 发现新版本 vX.Y.Z」间切换
+    /// 「检查更新」菜单项，文案随最近一次检查结果变化
     update_item: Option<MenuItem<tauri::Wry>>,
-    /// 最近一次检查发现的新版本号；None 表示已是最新或尚未检查
-    available_version: Option<String>,
+    /// 最近一次检查的展示状态，供语言切换重建菜单时复用
+    update_state: UpdateMenuState,
 }
 
 impl TrayManager {
@@ -83,7 +101,7 @@ impl TrayManager {
                 app_handle: None,
                 game_mode_item: None,
                 update_item: None,
-                available_version: None,
+                update_state: UpdateMenuState::Idle,
             }),
         }
     }
@@ -147,17 +165,16 @@ impl TrayManager {
         }
     }
 
-    /// 更新「检查更新」菜单项文案。
+    /// 更新「检查更新」菜单项的展示状态与文案。
     ///
-    /// 参数：`version` —— 发现的新版本号；`None` 表示已是最新或尚未检查。
-    /// 版本号同时保存在 Inner，供语言切换重建菜单时复用。
-    pub fn set_update_available(&self, version: Option<&str>) {
+    /// 参数：`state` —— 本次要展示的状态；同时保存在 Inner，供语言切换重建菜单时复用。
+    pub fn set_update_state(&self, state: UpdateMenuState) {
         let mut inner = self.inner.write();
-        inner.available_version = version.map(str::to_string);
-        let label = update_item_text(&inner.i18n, inner.available_version.as_deref());
+        let label = update_item_text(&inner.i18n, &state);
         if let Some(item) = &inner.update_item {
             let _ = item.set_text(&label);
         }
+        inner.update_state = state;
         info!("托盘「检查更新」菜单文案: {}", label);
     }
 
@@ -230,7 +247,7 @@ impl TrayManager {
         let update_item = match MenuItem::with_id(
             app_handle,
             MENU_ID_CHECK_UPDATE,
-            update_item_text(&inner.i18n, inner.available_version.as_deref()),
+            update_item_text(&inner.i18n, &inner.update_state),
             true,
             None::<&str>,
         ) {
@@ -297,7 +314,7 @@ impl TrayManager {
             MenuItem::with_id(
                 app_handle,
                 MENU_ID_CHECK_UPDATE,
-                update_item_text(&inner.i18n, inner.available_version.as_deref()),
+                update_item_text(&inner.i18n, &inner.update_state),
                 true,
                 None::<&str>,
             )
@@ -436,10 +453,17 @@ fn menu_text(i18n: &I18nManager, key: &str) -> String {
     i18n.t(&i18n.current_language(), key)
 }
 
-/// 「检查更新」菜单项文案：发现新版本时带版本号，否则为「检查更新」。
-fn update_item_text(i18n: &I18nManager, available_version: Option<&str>) -> String {
-    match available_version {
-        Some(version) => menu_text(i18n, "tray.updateAvailable").replace("{version}", version),
-        None => menu_text(i18n, "tray.checkUpdate"),
+/// 「检查更新」菜单项文案：按最近一次检查结果展示，已是最新/失败时保留操作字样。
+fn update_item_text(i18n: &I18nManager, state: &UpdateMenuState) -> String {
+    match state {
+        UpdateMenuState::Idle => menu_text(i18n, "tray.checkUpdate"),
+        UpdateMenuState::Checking => menu_text(i18n, "tray.checking"),
+        UpdateMenuState::UpToDate(version) => {
+            menu_text(i18n, "tray.upToDate").replace("{version}", version)
+        }
+        UpdateMenuState::Available(version) => {
+            menu_text(i18n, "tray.updateAvailable").replace("{version}", version)
+        }
+        UpdateMenuState::Failed => menu_text(i18n, "tray.checkFailed"),
     }
 }

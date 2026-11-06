@@ -136,11 +136,13 @@
       "issues": "問題回饋",
       "copyright": "© 2024-2026 ghost-him",
       "openFailed": "開啟連結失敗",
+      "logsTitle": "執行日誌",
       "exportLogs": "匯出日誌",
       "exportLogsHint": "打包目前日誌，方便隨問題回報提交",
       "exportLogsFilter": "Zip 壓縮檔",
       "exportLogsSuccess": "日誌已匯出至 {path}",
       "exportLogsFailed": "匯出日誌失敗：{message}",
+      "updateTitle": "版本更新",
       "checkUpdate": "檢查更新",
       "checking": "正在檢查…",
       "upToDate": "已是最新版本 v{version}",
@@ -467,6 +469,9 @@
     "gameMode": "遊戲模式",
     "checkUpdate": "檢查更新",
     "updateAvailable": "發現新版本 v{version}",
+    "checking": "正在檢查…",
+    "upToDate": "檢查更新（已是最新 v{version}）",
+    "checkFailed": "檢查更新（失敗）",
     "exitProgram": "結束程式"
   },
   "update": {

@@ -136,11 +136,13 @@
       "issues": "Issues",
       "copyright": "© 2024-2026 ghost-him",
       "openFailed": "Failed to open link",
+      "logsTitle": "Logs",
       "exportLogs": "Export logs",
       "exportLogsHint": "Package logs to attach to issue reports",
       "exportLogsFilter": "Zip archive",
       "exportLogsSuccess": "Logs exported to {path}",
       "exportLogsFailed": "Failed to export logs: {message}",
+      "updateTitle": "Updates",
       "checkUpdate": "Check for Updates",
       "checking": "Checking…",
       "upToDate": "You're on the latest version v{version}",
@@ -467,6 +469,9 @@
     "gameMode": "Game Mode",
     "checkUpdate": "Check for Updates",
     "updateAvailable": "Update available: v{version}",
+    "checking": "Checking…",
+    "upToDate": "Check for Updates (up to date: v{version})",
+    "checkFailed": "Check for Updates (failed)",
     "exitProgram": "Exit"
   },
   "update": {

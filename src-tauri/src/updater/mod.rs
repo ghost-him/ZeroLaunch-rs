@@ -15,6 +15,7 @@ use tracing::{info, warn};
 
 use crate::sdk::OpenTarget;
 use crate::state::app_state::AppState;
+use crate::tray::UpdateMenuState;
 
 /// 仓库 Releases 的 latest 地址（302 到具体 tag）。
 const LATEST_RELEASE_URL: &str = "https://github.com/ghost-him/ZeroLaunch-rs/releases/latest";
@@ -182,18 +183,20 @@ impl UpdateChecker {
 /// 参数：`state` —— 应用状态（取检查器、托盘与平台句柄）；
 /// `user_initiated` —— 是否由用户主动触发（托盘点「检查更新」）。
 /// 返回：本次检查结果。
-/// 行为：始终刷新托盘菜单文案；主动触发时发现新版本直接打开发布页，
-/// 否则（已是最新/失败）发系统通知。自动检查不弹任何窗口。
+/// 行为：始终刷新托盘菜单文案——主动触发时先显示「正在检查…」，结束后回显结果
+/// （已是最新带版本号 / 失败），不让点击看起来毫无反馈；主动触发且发现新版本时
+/// 直接打开发布页，否则（已是最新/失败）发系统通知。自动检查不弹任何窗口。
 pub async fn check_and_sync(state: &Arc<AppState>, user_initiated: bool) -> UpdateStatus {
+    if user_initiated {
+        if let Some(tray) = state.get_tray_manager() {
+            tray.set_update_state(UpdateMenuState::Checking);
+        }
+    }
+
     let status = state.get_update_checker().check().await;
 
     if let Some(tray) = state.get_tray_manager() {
-        tray.set_update_available(
-            status
-                .latest_version
-                .as_deref()
-                .filter(|_| status.has_update),
-        );
+        tray.set_update_state(update_menu_state(&status, user_initiated));
     }
 
     if user_initiated {
@@ -216,8 +219,6 @@ pub async fn check_and_sync(state: &Arc<AppState>, user_initiated: bool) -> Upda
 
 /// 用系统通知告知一次手动检查的结果（已是最新 / 检查失败）。
 fn notify_check_result(state: &Arc<AppState>, status: &UpdateStatus) {
-    use tauri_plugin_notification::NotificationExt;
-
     let i18n = state.get_i18n_manager();
     let lang = i18n.current_language();
     let body = if status.error.is_some() {
@@ -227,13 +228,33 @@ fn notify_check_result(state: &Arc<AppState>, status: &UpdateStatus) {
             .replace("{version}", &status.current_version)
     };
 
-    let _ = state
-        .get_main_handle()
-        .notification()
-        .builder()
-        .title(i18n.t(&lang, "update.toastTitle"))
-        .body(body)
-        .show();
+    crate::utils::notification::notify(
+        &state.get_main_handle(),
+        &i18n.t(&lang, "update.toastTitle"),
+        &body,
+    );
+}
+
+/// 由检查结果推导托盘「检查更新」菜单的展示状态。
+///
+/// 参数：`status` —— 本次检查结果；`user_initiated` —— 是否用户主动触发。
+/// 返回：菜单状态。手动检查以本次结果为准（失败即「失败」，与同时发出的通知一致）；
+/// 自动检查只在发现新版本时改文案，其余情况复位成 Idle，避免启动时的静默检查在菜单里
+/// 留下结果回显。检查失败时 `has_update` 会保留上次成功结论，因此自动检查仍能提示已知新版本。
+fn update_menu_state(status: &UpdateStatus, user_initiated: bool) -> UpdateMenuState {
+    if user_initiated && status.error.is_some() {
+        return UpdateMenuState::Failed;
+    }
+    if status.has_update {
+        if let Some(version) = status.latest_version.as_deref() {
+            return UpdateMenuState::Available(version.to_string());
+        }
+    }
+    if user_initiated {
+        UpdateMenuState::UpToDate(status.current_version.clone())
+    } else {
+        UpdateMenuState::Idle
+    }
 }
 
 /// 当前本地时间字符串（`YYYY-MM-DD HH:MM:SS`）。
@@ -287,5 +308,70 @@ mod tests {
         assert!(!is_newer("1.4.9", "1.5.0"));
         // 预发布后缀按基础版本比较
         assert!(is_newer("1.6.0-beta.1", "1.5.4"));
+    }
+
+    /// 构造检查结果，供托盘状态推导测试使用。
+    fn status_with(
+        current: &str,
+        latest: Option<&str>,
+        has_update: bool,
+        error: Option<&str>,
+    ) -> UpdateStatus {
+        UpdateStatus {
+            current_version: current.to_string(),
+            latest_version: latest.map(str::to_string),
+            has_update,
+            release_url: None,
+            checked_at: Some("2026-01-01 00:00:00".to_string()),
+            error: error.map(str::to_string),
+        }
+    }
+
+    /// 手动检查：已是最新时托盘菜单要回显「已是最新」而不是退回「检查更新」。
+    #[test]
+    fn manual_check_without_update_reports_up_to_date() {
+        let status = status_with("1.5.4", Some("1.5.4"), false, None);
+        assert_eq!(
+            update_menu_state(&status, true),
+            UpdateMenuState::UpToDate("1.5.4".to_string())
+        );
+    }
+
+    /// 手动检查失败时回显失败，不能静默复位。
+    #[test]
+    fn manual_check_failure_reports_failed() {
+        let status = status_with("1.5.4", None, false, Some("network down"));
+        assert_eq!(update_menu_state(&status, true), UpdateMenuState::Failed);
+    }
+
+    /// 发现新版本时菜单带版本号（手动与自动一致）。
+    #[test]
+    fn available_version_wins_for_both_triggers() {
+        let status = status_with("1.5.4", Some("1.6.0"), true, None);
+        let expected = UpdateMenuState::Available("1.6.0".to_string());
+        assert_eq!(update_menu_state(&status, true), expected);
+        assert_eq!(
+            update_menu_state(&status, false),
+            UpdateMenuState::Available("1.6.0".to_string())
+        );
+    }
+
+    /// 启动自动检查无更新时复位为「检查更新」，避免菜单留下上次操作的结果。
+    #[test]
+    fn auto_check_without_update_resets_to_idle() {
+        let status = status_with("1.5.4", Some("1.5.4"), false, None);
+        assert_eq!(update_menu_state(&status, false), UpdateMenuState::Idle);
+    }
+
+    /// 手动检查失败但已知新版：菜单以本次失败为准（与同时发出的通知一致），
+    /// 自动检查则继续提示已知的新版本。
+    #[test]
+    fn manual_error_overrides_known_update_but_auto_keeps_it() {
+        let status = status_with("1.5.4", Some("1.6.0"), true, Some("network down"));
+        assert_eq!(update_menu_state(&status, true), UpdateMenuState::Failed);
+        assert_eq!(
+            update_menu_state(&status, false),
+            UpdateMenuState::Available("1.6.0".to_string())
+        );
     }
 }

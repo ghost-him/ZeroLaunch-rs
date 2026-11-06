@@ -55,10 +55,11 @@ tauri = { workspace = true, features = ["image-ico", "image-png"] }
 # Tauri plugins
 tauri-plugin-global-shortcut.workspace = true
 tauri-plugin-dialog.workspace = true
-tauri-plugin-notification.workspace = true
 tauri-plugin-deep-link.workspace = true
 tauri-plugin-shell.workspace = true
 tauri-utils.workspace = true
+# 系统通知：统一以应用 identifier 作为 Windows AUMID
+notify-rust.workspace = true
 
 # HTTP server
 axum.workspace = true

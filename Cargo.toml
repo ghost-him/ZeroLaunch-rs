@@ -32,6 +32,7 @@ parking_lot = "0.12.5"
 dashmap = { version = "6.2.1", features = ["serde"] }
 once_cell = "1.21.4"
 chrono = "0.4.45"
+notify-rust = "4.18"
 url = "2.5.8"
 time = "0.3"
 walkdir = "2.5.0"
@@ -90,7 +91,6 @@ tauri-build = { version = "^2", features = [] }
 tauri-utils = { version = "2.9.3", features = ["schema"] }
 tauri-plugin-global-shortcut = "^2.3.2"
 tauri-plugin-dialog = "2"
-tauri-plugin-notification = "^2"
 tauri-plugin-deep-link = "2"
 tauri-plugin-shell = "2"
 tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }

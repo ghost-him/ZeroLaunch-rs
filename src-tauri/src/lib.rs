@@ -67,17 +67,10 @@ pub fn run() {
     let builder = tauri::Builder::default().plugin(tauri_plugin_shell::init());
     builder
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-            use tauri_plugin_notification::NotificationExt;
-            let _ = app
-                .notification()
-                .builder()
-                .title("ZeroLaunch")
-                .body("程序已在运行中，无需重复启动")
-                .show();
+            crate::utils::notification::notify(app, "ZeroLaunch", "程序已在运行中，无需重复启动");
         }))
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_notification::init())
         .register_uri_scheme_protocol("zlplugin", move |app, request| {
             let uri = request.uri().to_string();
             let state = app.app_handle().state::<Arc<AppState>>();

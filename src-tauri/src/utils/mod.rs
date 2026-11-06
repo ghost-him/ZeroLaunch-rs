@@ -1,6 +1,7 @@
 pub mod access_policy;
 pub mod font_database;
 pub mod locale;
+pub mod notification;
 pub mod trace_id;
 pub mod waiting_hashmap;
 pub mod windows;

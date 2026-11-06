@@ -157,13 +157,7 @@ pub(crate) async fn init_app_state(
                 }
             })
             .notify_callback(move |title: String, message: String| {
-                use tauri_plugin_notification::NotificationExt;
-                let _ = app_handle_for_notify
-                    .notification()
-                    .builder()
-                    .title(title)
-                    .body(message)
-                    .show();
+                crate::utils::notification::notify(&app_handle_for_notify, &title, &message);
             })
             .hide_window_callback(move || {
                 if let Some(window) = app_handle_for_hide.get_webview_window("main") {

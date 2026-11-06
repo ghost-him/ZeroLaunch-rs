@@ -1,57 +1,85 @@
 <template>
   <div class="about-view">
-    <h3 class="about-name">ZeroLaunch-rs</h3>
-    <n-text depth="3" class="about-version">v{{ version }}</n-text>
+    <div class="about-shell">
+      <!-- 头部：应用图标 + 名称 + 版本徽标 + 标语 -->
+      <header class="about-hero">
+        <img class="about-logo" :src="appIcon" alt="" />
+        <div class="about-hero-text">
+          <div class="about-title-row">
+            <h3 class="about-name">ZeroLaunch-rs</h3>
+            <n-tag size="small" round :bordered="false" type="primary">v{{ version }}</n-tag>
+          </div>
+          <p class="about-tagline">{{ t('settings.aboutPage.tagline') }}</p>
+        </div>
+      </header>
 
-    <div class="about-update">
-      <n-text depth="3" class="about-update-hint">{{ updateHint }}</n-text>
-      <n-button size="small" :loading="checking" @click="runUpdateCheck">
-        {{ t('settings.aboutPage.checkUpdate') }}
-      </n-button>
-      <n-button
-        v-if="updateStatus?.hasUpdate && updateStatus.releaseUrl"
-        size="small"
-        secondary
-        @click="openReleasePage"
-      >
-        {{ t('settings.aboutPage.viewRelease') }}
-      </n-button>
+      <!-- 版本更新 -->
+      <section class="about-card">
+        <div class="card-text">
+          <span class="card-title">{{ t('settings.aboutPage.updateTitle') }}</span>
+          <span class="card-hint">{{ updateHint }}</span>
+        </div>
+        <div class="card-actions">
+          <n-button size="small" :loading="checking" @click="runUpdateCheck">
+            {{ t('settings.aboutPage.checkUpdate') }}
+          </n-button>
+          <n-button
+            v-if="updateStatus?.hasUpdate && updateStatus.releaseUrl"
+            size="small"
+            type="primary"
+            secondary
+            @click="openReleasePage"
+          >
+            {{ t('settings.aboutPage.viewRelease') }}
+          </n-button>
+        </div>
+      </section>
+
+      <!-- 项目信息：三列元数据 + 资源链接 -->
+      <section class="about-card about-card-column">
+        <div class="about-meta">
+          <div v-for="item in infoRows" :key="item.label" class="meta-item">
+            <span class="meta-label">{{ item.label }}</span>
+            <span class="meta-value">{{ item.value }}</span>
+          </div>
+        </div>
+        <div class="about-links">
+          <n-button
+            v-for="link in links"
+            :key="link.label"
+            size="small"
+            type="primary"
+            text
+            @click="openLink(link.url)"
+          >
+            {{ link.label }}
+          </n-button>
+        </div>
+      </section>
+
+      <!-- 日志导出 -->
+      <section class="about-card">
+        <div class="card-text">
+          <span class="card-title">{{ t('settings.aboutPage.logsTitle') }}</span>
+          <span class="card-hint">{{ t('settings.aboutPage.exportLogsHint') }}</span>
+        </div>
+        <div class="card-actions">
+          <n-button size="small" :loading="exporting" @click="exportLogs">
+            {{ t('settings.aboutPage.exportLogs') }}
+          </n-button>
+        </div>
+      </section>
+
+      <p class="about-copyright">{{ t('settings.aboutPage.copyright') }}</p>
     </div>
-
-    <p class="about-tagline">{{ t('settings.aboutPage.tagline') }}</p>
-
-    <div class="about-info">
-      <div v-for="item in infoRows" :key="item.label" class="info-row">
-        <span class="info-label">{{ item.label }}</span>
-        <span class="info-value">{{ item.value }}</span>
-      </div>
-    </div>
-
-    <div class="about-links">
-      <a
-        v-for="link in links"
-        :key="link.label"
-        class="about-link"
-        href="#"
-        @click.prevent="openLink(link.url)"
-      >{{ link.label }}</a>
-    </div>
-
-    <div class="about-export">
-      <n-text depth="3" class="about-export-hint">{{ t('settings.aboutPage.exportLogsHint') }}</n-text>
-      <n-button size="small" :loading="exporting" @click="exportLogs">
-        {{ t('settings.aboutPage.exportLogs') }}
-      </n-button>
-    </div>
-
-    <n-text depth="3" class="about-copyright">{{ t('settings.aboutPage.copyright') }}</n-text>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { NButton, NText, useMessage } from 'naive-ui'
+import { NButton, NTag, useMessage } from 'naive-ui'
+import appIcon from '../../utils/icon.svg'
 import {
   exportLogs as invokeExportLogs,
   getUpdateStatus,
@@ -157,129 +185,150 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-/* 弹性填充链：settings-content(flex column) → about-view(flex:1 + 内层滚动) */
+/* 顶部对齐的滚动容器：与设置页其它页面一致，内容限宽居中 */
 .about-view {
   flex: 1;
   min-height: 0;
+  overflow-y: auto;
+  padding: 20px 24px 28px;
+}
+
+.about-shell {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
   gap: 12px;
-  padding: 32px;
-  overflow-y: auto;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.about-hero {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 2px 2px 4px;
+}
+
+.about-logo {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+}
+
+.about-hero-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.about-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .about-name {
   margin: 0;
   font-size: var(--font-size-xl);
   font-weight: 600;
+  line-height: 1.2;
   color: var(--text-color);
-  flex-shrink: 0;
-}
-
-.about-version {
-  font-size: var(--font-size-sm);
-  flex-shrink: 0;
-}
-
-/* 更新检查行：状态文案占满剩余宽度，按钮右对齐 */
-.about-update {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  box-sizing: border-box;
-  width: 100%;
-  max-width: 420px;
-  padding: 8px 14px;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  background-color: var(--bg-color-secondary);
-  flex-shrink: 0;
-}
-
-.about-update-hint {
-  flex: 1;
-  min-width: 0;
-  font-size: var(--font-size-sm);
-  line-height: 1.4;
 }
 
 .about-tagline {
   margin: 0;
+  font-size: var(--font-size-md);
   color: var(--text-color-secondary);
-  font-size: var(--font-size-md);
-  text-align: center;
-  flex-shrink: 0;
 }
 
-.about-info {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 8px;
-  flex-shrink: 0;
-}
-
-.info-row {
-  display: flex;
-  gap: 12px;
-}
-
-.info-label {
-  width: 72px;
-  text-align: right;
-  color: var(--text-color-secondary);
-  font-size: var(--font-size-md);
-}
-
-.info-value {
-  color: var(--text-color);
-  font-size: var(--font-size-md);
-}
-
-.about-links {
-  display: flex;
-  gap: 16px;
-  margin-top: 12px;
-  flex-shrink: 0;
-}
-
-.about-link {
-  color: var(--primary-color);
-  font-size: var(--font-size-md);
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.about-link:hover {
-  text-decoration: underline;
-}
-
-.about-copyright {
-  margin-top: 12px;
-  font-size: var(--font-size-sm);
-  flex-shrink: 0;
-}
-
-.about-export {
+/* 卡片：状态行（文案在左、操作在右）与信息卡（纵向排布）共用描边与圆角 */
+.about-card {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  box-sizing: border-box;
-  width: 100%;
-  max-width: 420px;
-  margin-top: 20px;
-  padding: 10px 14px;
+  padding: 14px 16px;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
-  background-color: var(--bg-color-secondary);
+}
+
+.about-card-column {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+}
+
+.card-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.card-title {
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.card-hint {
+  font-size: var(--font-size-md);
+  line-height: 1.5;
+  color: var(--text-color-secondary);
+}
+
+/* 状态文案为空时（会话内尚未取到检查结果）不占位，保持行高一致由 title 承担 */
+.card-hint:empty {
+  display: none;
+}
+
+.card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   flex-shrink: 0;
 }
 
-.about-export-hint {
+/* 项目信息：标签在上、值在下的三列栅格 */
+.about-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.meta-label {
   font-size: var(--font-size-sm);
-  line-height: 1.4;
+  color: var(--text-color-secondary);
+}
+
+.meta-value {
+  font-size: var(--font-size-base);
+  color: var(--text-color);
+  word-break: break-word;
+}
+
+/* 资源链接：与元数据同一张卡片，用分隔线区分层次 */
+.about-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-color);
+}
+
+.about-copyright {
+  margin: 4px 0 0;
+  text-align: center;
+  font-size: var(--font-size-sm);
+  color: var(--text-color-secondary);
 }
 </style>

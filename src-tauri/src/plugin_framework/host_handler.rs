@@ -151,13 +151,7 @@ impl HostCallHandler for TauriHostCallHandler {
                 let p: NotifyParams = from_value(params)
                     .map_err(|e| JsonRpcError::new(codes::INVALID_PARAMS, e.to_string()))?;
                 if let Some(app_handle) = &self.app_handle {
-                    use tauri_plugin_notification::NotificationExt;
-                    let _ = app_handle
-                        .notification()
-                        .builder()
-                        .title(&p.title)
-                        .body(&p.message)
-                        .show();
+                    crate::utils::notification::notify(app_handle, &p.title, &p.message);
                 }
                 Ok(Value::Null)
             }

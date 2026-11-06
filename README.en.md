@@ -36,6 +36,7 @@
 <p align="center">
   <a href="#proof">Typos still hit</a> ·
   <a href="#quickstart">Up in 60 seconds</a> ·
+  <a href="#search-scope">What you can search</a> ·
   <a href="#capabilities">Core capabilities</a> ·
   <a href="#how">How it works</a> ·
   <a href="#extend">Extend</a> ·
@@ -134,6 +135,37 @@ A panel plugin can carry its own hotkey (for example <kbd>Ctrl</kbd>+<kbd>E</kbd
 
 </details>
 
+<a id="search-scope"></a>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./assets/readme/section-sources-dark.svg">
+    <img src="./assets/readme/section-sources.svg" width="100%" alt="">
+  </picture>
+</p>
+
+## What you can search
+
+One input box takes everything. None of these need a plugin:
+
+| What | Where it comes from | How to use it |
+| :--- | :--- | :--- |
+| Apps | Applications installed on the system, including Microsoft Store apps | Type the name; Chinese names work too: `微信`, `chrome` |
+| Programs in the Start menu and on the desktop | Scans `*.exe` / `*.lnk` / `*.url` in the common and per-user Start menus and desktops by default | Type the program name; add more folders under "Program path source" and tune scan depth, patterns and exclusions |
+| Browser bookmarks | Auto-detects the `Bookmarks` file of every profile of Chromium-based browsers (Chrome, Edge, Brave, …) | Type a bookmark title; you can also add bookmark files by hand and alias individual bookmarks |
+| Custom commands | Name, command and trigger words you add under "Custom command source"; a `{}` in the command asks for an argument before running | Type the trigger word to run it |
+| Custom web pages | Name, URL and trigger words you add under "Web page source" | Type the trigger word to open it |
+| Built-in commands | Shipped with the app | `设置` / `刷新` / `注册` / `游戏` / `退出` (or `settings` / `refresh` / `reshortcut` / `gamemode` / `exit`) |
+
+All of these live under **Settings → Search pipeline → Data sources**, where each kind can be toggled and configured on its own.
+
+A few other inputs need no setup — they're recognized by shape:
+
+- **Paths**: `D:\Downloads `, `"C:\Program Files\App\app.exe"` — a trailing space means "this is it".
+- **URLs**: `github.com `, same trailing space.
+- **Expressions**: `= 12*8` gives the answer.
+- **Command lines**: `> ping 1.1.1.1` runs it in a cmd window.
+- **Translation**: `fy 你好`, `tr 你好` or `翻译 你好` (set up a chat model first).
+
 <a id="capabilities"></a>
 <p align="center">
   <picture>
@@ -144,9 +176,9 @@ A panel plugin can carry its own hotkey (for example <kbd>Ctrl</kbd>+<kbd>E</kbd
 
 ## Core capabilities
 
-After you bring it up, it's just an input box. What you type can be "the thing itself" — an app name, a folder path, a URL, an expression; or "trigger word + content", like `fy 你好`. The former goes to search, the latter to plugins. Note that "trigger word + space + content" is how **inline plugins** (translation, calculator) work; a **panel plugin** (like Everything search) doesn't work that way — you pick it in the candidate list to enter the plugin first, then search inside the plugin's own UI (what the two kinds of plugin are and what the built-ins include is in the collapsed "Plugins" section below).
+After you bring it up, it's just an input box. What you type can be "the thing itself" — an app name, a folder path, a URL, an expression; or "trigger word + content", like `fy 你好`. The former goes to search, the latter to plugins. Note that "trigger word + space + content" is how **inline plugins** (translation, calculator) work; a **panel plugin** (like Everything search) doesn't work that way — you pick it in the candidate list to enter the plugin first, then search inside the plugin's own UI (what the two kinds of plugin are is in the collapsed "Plugins" section below).
 
-- **Found means launchable**: apps installed on the system (including from the Microsoft Store), programs in the Start menu, entries you added yourself — all in the same input box; opening uses the system default program, same as a double-click.
+- **Found means launchable**: results open with the system default program, same as a double-click; entries that need elevation also offer a "Run as administrator" action.
 - **Typos still find it**: get one or two letters wrong, or swap two letters, and the list won't be empty — the thing you're after is probably still at the front.
 - **Better the more you use it**: frequently used and recently used entries drift toward the front; those records live in their own file, survive restarts, and never mix into your config file.
 - **Customize to your habits**: aliases, custom commands and URLs, shortcuts, UI language — all done in settings.
@@ -155,24 +187,19 @@ After you bring it up, it's just an input box. What you type can be "the thing i
 - **Just ask**: "Ask AI" at the bottom of the sidebar opens a dedicated chat page — ask whether a feature exists, where to configure it, or what your current value is. Answers come in two parts (supported? + step-by-step click path / current value + what changes), with jumpable settings attached. It only reads the built-in manual and your current configuration, never changes anything; point it at a chat model (local Ollama or any OpenAI-compatible endpoint) under "AI Assistant" first.
 
 <details>
-<summary><strong>Plugins: the two forms and the built-in list</strong></summary>
+<summary><strong>Plugins: the two forms and the built-in ones</strong></summary>
 
 Plugins come in two kinds by how they're woken. **Inline plugins** take over while you type, with results embedded in the search window; **panel plugins** don't take over input, but become a candidate of their own and, once selected, take over the whole page.
 
-Inline plugins play two ways. One is **providing a pipeline component**: a plugin can declare that it implements the search engine, candidate source, action execution, scoring rules, or keyword processing kind, standing on equal footing with the built-in components — only one search engine takes effect (chosen by priority), while the rest (sources, executors, boosters, keyword processing) all participate, and each can be toggled in settings. The other is **bringing its own interaction**: translation and calculator are like this — you type `fy 你好` or `= 12*8` and the results area switches to its panel, while the search bar stays. Path and URL don't even need a trigger word; they're recognized by shape: how you tell it "this is the one" is to type a trailing space (e.g. `github.com `), and when the path itself contains spaces, wrap the whole thing in quotes (e.g. `"C:\Program Files"`).
+Inline plugins play two ways. One is **providing a pipeline component**: a plugin can declare that it implements the search engine, candidate source, action execution, scoring rules, or keyword processing kind, standing on equal footing with the built-in components — only one search engine takes effect (chosen by priority), while the rest (sources, executors, boosters, keyword processing) all participate, and each can be toggled in settings. The other is **bringing its own interaction**: translation and calculator are like this — you type `fy 你好` or `= 12*8` and the results area switches to its panel, while the search bar stays. Path and URL are recognized by shape, no trigger word needed (see "What you can search" above).
 
 A panel plugin's trigger word only becomes a candidate keyword: type up to the trigger word itself (e.g. just `ev` — don't append a query after it, or the candidate disappears) and the plugin shows up in the list; after Enter it fills the whole window, leaving no search bar, and you search inside the plugin's own UI from there. Such plugins can also declare a hotkey (active while the search window is open, e.g. <kbd>Ctrl</kbd>+<kbd>E</kbd> for the Everything plugin) to jump straight in.
 
-The built-in plugins work without installing anything extra, and you can turn off any you don't want individually in settings:
+The built-in plugins work without installing anything extra, and you can turn off any you don't want individually in settings. Data-source ones (apps, programs, bookmarks, built-in commands, custom commands and URLs) are listed above under "What you can search"; here are only the ones that bring their own UI and take over the results area:
 
-- **App search**: `chrome` launches an app (`微信` searches in Chinese directly, `qqy` searches QQ Music directly).
-- **Path and URL**: `D:\Downloads ` opens a folder, `github.com ` opens a URL (a trailing space means "this is it"; paths with spaces go in quotes).
 - **Calculator**: `= 12*8` gives the result directly.
 - **Run in cmd**: `> ping 1.1.1.1` runs that command in a cmd window; the window stays open after the run by default (so you can read the output) and can be set to close automatically in settings.
 - **Translation**: starts with `fy`, `tr`, or `翻译` (a literal Simplified-Chinese keyword), can translate as you type or only on Enter; the first time you use it you need to set up a chat model in settings (a local Ollama or an OpenAI-compatible endpoint both work) — without one, no results.
-- **Bookmark search**: automatically reads bookmarks from Chrome, Edge, and other browsers; type a bookmark title to open it.
-- **Built-in commands**: type `settings` / `refresh` / `reshortcut` / `gamemode` / `exit` (the Chinese keywords `设置` / `刷新` / `注册` / `游戏` / `退出` work too) to open settings, rebuild the index, re-register the shortcuts, toggle game mode, and quit the app respectively.
-- **Custom commands and URLs**: save the things you use often as your own entries; next time, type the keyword to run or open them.
 
 </details>
 

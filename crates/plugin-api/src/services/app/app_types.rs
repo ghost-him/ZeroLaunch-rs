@@ -17,4 +17,8 @@ pub struct AppInfo {
     pub icon: IconRequest,
     /// 安装路径（某些平台可能为空，如 UWP 沙箱应用）
     pub install_path: Option<String>,
+    /// 平台派生、仅用于检索的名称（如 Windows 包名对应的英文别名）。
+    /// 宿主的数据源直接并入候选项关键词，不参与展示；平台无可派生名称时为空。
+    #[serde(default)]
+    pub search_keywords: Vec<String>,
 }

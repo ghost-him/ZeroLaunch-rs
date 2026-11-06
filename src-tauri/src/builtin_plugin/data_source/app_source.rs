@@ -72,7 +72,7 @@ impl DataSource for AppSource {
                 name: app_info.display_name,
                 icon: app_info.icon,
                 target: ExecutionTarget::App(app_info.app_id),
-                keywords: Vec::new(),
+                keywords: app_info.search_keywords,
                 bias: 0.0,
                 trigger_keywords: Vec::new(),
             };

@@ -144,6 +144,87 @@ impl WindowsAppEnumerator {
             }
         }
     }
+
+    /// 从 AppUserModelID 派生英文检索关键词。
+    ///
+    /// AUMID 形如 `Microsoft.WindowsTerminal_8wekyb3d8bbwe!App`：`!` 前是包族名，
+    /// 其 `_` 前是包名。包名按 `.` 与驼峰切成小写词，去掉开头的发布者（Microsoft），
+    /// 用剩余词生成连写与空格分隔两种别名（`windowsterminal`、`windows terminal`）。
+    /// 参数：app_id - 应用标识；display_name - 展示名，用于跳过重复别名。
+    /// 返回：小写关键词；路径型、占位型或无法切词的标识返回空。
+    fn app_id_keywords(app_id: &str, display_name: &str) -> Vec<String> {
+        let app_id = app_id.trim();
+        // 路径与 `{...}` 占位 AUMID 不含包名，派生不出英文词
+        if app_id.is_empty()
+            || app_id.contains('{')
+            || app_id.contains('\\')
+            || app_id.contains('/')
+        {
+            return Vec::new();
+        }
+
+        let package_name = app_id
+            .split('!')
+            .next()
+            .unwrap_or("")
+            .split('_')
+            .next()
+            .unwrap_or("");
+        let mut tokens = Self::split_package_tokens(package_name);
+        while tokens.len() > 1 && matches!(tokens[0].as_str(), "microsoft" | "ms") {
+            tokens.remove(0);
+        }
+        if tokens.is_empty() {
+            return Vec::new();
+        }
+
+        let display_name_lower = display_name.to_lowercase();
+        let mut keywords: Vec<String> = Vec::with_capacity(2);
+        for keyword in [tokens.concat(), tokens.join(" ")] {
+            if keyword.is_empty() || keyword == display_name_lower || keywords.contains(&keyword) {
+                continue;
+            }
+            keywords.push(keyword);
+        }
+        keywords
+    }
+
+    /// 把包名按非字母数字边界与驼峰边界切成小写词。
+    /// 参数：package_name - 形如 `Microsoft.WindowsTerminal` 的包名。
+    /// 返回：小写词序列；连续大写按一个词处理（`WSL` → `wsl`）。
+    fn split_package_tokens(package_name: &str) -> Vec<String> {
+        let chars: Vec<char> = package_name.chars().collect();
+        let mut tokens: Vec<String> = Vec::new();
+        let mut current = String::new();
+
+        for (index, &character) in chars.iter().enumerate() {
+            if !character.is_alphanumeric() {
+                if !current.is_empty() {
+                    tokens.push(std::mem::take(&mut current).to_lowercase());
+                }
+                continue;
+            }
+
+            // 当前字符开启新词：前一字符是小写/数字，或前一段全大写且下一个字符是小写
+            let starts_new_token =
+                character.is_uppercase() && !current.is_empty() && index > 0 && {
+                    let previous = chars[index - 1];
+                    let next_is_lower =
+                        chars.get(index + 1).is_some_and(|next| next.is_lowercase());
+                    previous.is_lowercase()
+                        || previous.is_ascii_digit()
+                        || (previous.is_uppercase() && next_is_lower)
+                };
+            if starts_new_token {
+                tokens.push(std::mem::take(&mut current).to_lowercase());
+            }
+            current.push(character);
+        }
+        if !current.is_empty() {
+            tokens.push(current.to_lowercase());
+        }
+        tokens
+    }
 }
 
 #[async_trait]
@@ -322,15 +403,80 @@ impl AppEnumerator for WindowsAppEnumerator {
                 let icon_path =
                     Self::validate_icon_path(full_icon_path.to_string_lossy().into_owned());
 
+                let search_keywords = Self::app_id_keywords(&app_id, &short_name);
                 result.push(AppInfo {
                     app_id,
                     display_name: short_name,
                     icon: IconRequest::Path(icon_path),
                     install_path: Some(install_path),
+                    search_keywords,
                 });
             }
         }
 
         result
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 包名派生的英文别名：去掉发布者后生成连写与空格分隔两种形式。
+    #[test]
+    fn app_id_keywords_follow_package_name() {
+        let cases = [
+            (
+                "Microsoft.WindowsTerminal_8wekyb3d8bbwe!App",
+                "终端",
+                vec!["windowsterminal", "windows terminal"],
+            ),
+            (
+                "Microsoft.ScreenSketch_8wekyb3d8bbwe!App",
+                "截图工具",
+                vec!["screensketch", "screen sketch"],
+            ),
+            ("Microsoft.Paint_8wekyb3d8bbwe!App", "画图", vec!["paint"]),
+            (
+                "Microsoft.MicrosoftEdge.Stable_8wekyb3d8bbwe!App",
+                "Microsoft Edge",
+                vec!["edgestable", "edge stable"],
+            ),
+            (
+                "Microsoft.Windows.Photos_8wekyb3d8bbwe!App",
+                "照片",
+                vec!["windowsphotos", "windows photos"],
+            ),
+        ];
+        for (app_id, display_name, expected) in cases {
+            assert_eq!(
+                WindowsAppEnumerator::app_id_keywords(app_id, display_name),
+                expected,
+                "{app_id}"
+            );
+        }
+    }
+
+    /// 路径/占位 AUMID 不派生别名，与展示名重复的形式不注入。
+    #[test]
+    fn app_id_keywords_skip_unusable_ids() {
+        assert!(WindowsAppEnumerator::app_id_keywords("", "终端").is_empty());
+        assert!(
+            WindowsAppEnumerator::app_id_keywords("C:\\Program Files\\App\\App.exe", "App")
+                .is_empty()
+        );
+        assert!(WindowsAppEnumerator::app_id_keywords(
+            "{6D809377-6AF0-444B-8957-A3773F02200E}\\App.exe",
+            "App"
+        )
+        .is_empty());
+        // 英文系统上展示名已覆盖空格形式，只保留连写别名
+        assert_eq!(
+            WindowsAppEnumerator::app_id_keywords(
+                "Microsoft.WindowsTerminal_8wekyb3d8bbwe!App",
+                "Windows Terminal"
+            ),
+            vec!["windowsterminal"]
+        );
     }
 }

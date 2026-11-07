@@ -50,6 +50,7 @@ use crate::core::config::exclusion_settings::{
 use crate::core::config::{ConfigEvent, ConfigManager};
 use crate::core::i18n::I18nManager;
 use crate::sdk::HostApi;
+use crate::utils::coalescing_refresh::CoalescingRefresh;
 use crate::utils::collapse_repeated_spaces;
 
 /// 调度器内部错误类型。
@@ -273,6 +274,12 @@ struct LocatedPlugin {
 /// 此处是"全部插件收齐"的总兜底——超时后未返回的插件按不接管处理并告警，绝不阻塞输入。
 const ROUTE_DEADLINE: Duration = Duration::from_millis(150);
 
+/// CLI 查询等待首次候选项采集完成的上限。
+///
+/// 使用范围：仅 `SessionDispatcher::route_query_cli`。候选项采集已移出启动串行链，
+/// CLI 是只读消费方，预热期间等待索引而非返回空结果集；超时后按当前缓存继续。
+const CLI_CANDIDATES_WAIT: Duration = Duration::from_secs(60);
+
 pub struct SessionDispatcher {
     /// 插件注册中心（插件 init 在 bootstrap 完成）。
     plugin_registry: Arc<PluginRegistry>,
@@ -303,6 +310,8 @@ pub struct SessionDispatcher {
     /// None 表示从未刷新过（定时任务应视为超期立即刷新）；
     /// 每次 refresh_candidates 成功更新，供 auto-refresh 周期任务判断是否到达间隔。
     last_refresh: Mutex<Option<Instant>>,
+    /// 候选项采集闸门：并发刷新请求合并为一轮，采集期间到达的请求结束后补一轮。
+    refresh_gate: CoalescingRefresh,
 
     /// 会话状态推送回调（bootstrap 注入；CLI 无窗口场景不注入）。
     session_emitter: RwLock<Option<SessionStateEmitter>>,
@@ -335,6 +344,7 @@ impl SessionDispatcher {
             components: PluginComponentRegistry::new(),
             last_top_k: RwLock::new(10),
             last_refresh: Mutex::new(None),
+            refresh_gate: CoalescingRefresh::new(),
             session_emitter: RwLock::new(None),
             query_revision: Arc::new(AtomicU64::new(0)),
         }
@@ -572,10 +582,31 @@ impl SessionDispatcher {
         plugin_candidates
     }
 
+    /// 首次候选项采集是否已完成（启动预热结束）。
+    /// 供启动阶段的后台任务与定时刷新判断是否已有权威缓存。
+    pub fn candidates_ready(&self) -> bool {
+        self.refresh_gate.is_ready()
+    }
+
+    /// 等待首次候选项采集完成。
+    /// 只读消费方（CLI 查询）使用：采集已移出启动串行链，预热期间查询不应返回空索引。
+    /// 参数：timeout - 最长等待时长。返回：是否在超时前就绪（超时由调用方按当前缓存继续）。
+    pub async fn wait_candidates_ready(&self, timeout: Duration) -> bool {
+        self.refresh_gate.wait_ready(timeout).await
+    }
+
     /// 刷新候选项缓存。
-    /// 所有触发源（定时/监控/手动/配置联动）共用本入口；刷新成功后记录时间戳，
-    /// 供 auto-refresh 周期任务判断"距上次刷新是否已达间隔"（天然去重，避免重复刷新）。
+    /// 所有触发源（启动预热/定时/监控/手动/配置联动）共用本入口：
+    /// 并发请求由刷新闸门合并为一轮，采集期间到达的请求在其结束后补一轮。
     pub async fn refresh_candidates(&self) {
+        self.refresh_gate
+            .run(|| async { self.collect_into_cache().await })
+            .await;
+    }
+
+    /// 采集一次候选项并写入缓存：候选管道 → 并入插件候选 → 结果排除 → 世代递增。
+    /// 仅在 `refresh_candidates` 经刷新闸门放行后执行。
+    async fn collect_into_cache(&self) {
         let pipeline = self.candidate_pipeline.read().await;
         let candidates = pipeline.collect().await;
         let candidates = self.merge_plugin_candidates(candidates);
@@ -1250,6 +1281,8 @@ impl SessionDispatcher {
         trace_id: &str,
         query: &Query,
     ) -> Result<RoutedQuery, SessionDispatcherError> {
+        // 启动预热期间索引尚未就绪：只读路径等待上限时长，避免 CLI 拿到空结果集。
+        self.wait_candidates_ready(CLI_CANDIDATES_WAIT).await;
         let evaluated = self
             .evaluate_query(trace_id, query, QueryChannel::Cli, None, None)
             .await?;
@@ -3659,5 +3692,22 @@ mod tests {
             "常驻结果框开启时空查询进入搜索形态（主页）"
         );
         assert_eq!(active_plugin_id(&dispatcher), None);
+    }
+
+    /// 首次刷新经闸门放行后确实写入缓存（世代递增），而不是被合并逻辑跳过。
+    #[tokio::test]
+    async fn refresh_candidates_runs_through_gate_on_first_call() {
+        let dispatcher = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
+        let before = dispatcher.get_candidates_generation();
+        assert!(!dispatcher.candidates_ready(), "初始应为未就绪");
+
+        dispatcher.refresh_candidates().await;
+
+        assert_eq!(
+            dispatcher.get_candidates_generation(),
+            before + 1,
+            "首个请求必须真正执行采集并写入缓存"
+        );
+        assert!(dispatcher.candidates_ready(), "采集完成后应就绪");
     }
 }

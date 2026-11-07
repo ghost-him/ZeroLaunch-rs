@@ -79,7 +79,7 @@ import { useKeyboardRouter } from '../composables/useKeyboardRouter'
 import { useWindowResize } from '../composables/useWindowResize'
 import ParamPanel from '../components/search/ParamPanel.vue'
 import ExcludeChooserPanel from '../components/search/ExcludeChooserPanel.vue'
-import { onConfigChanged, onShowWindow } from '../bridge/events'
+import { onCandidatesReady, onConfigChanged, onShowWindow } from '../bridge/events'
 import { registerErrorHandler, configGetSettings, copyToClipboard } from '../bridge/commands'
 import type { BridgeError } from '../bridge/commands'
 import { formatErrorTitle } from '../utils/errors'
@@ -132,6 +132,7 @@ function onCtxClose() {
 
 let unlistenConfig: (() => void) | null = null
 let unlistenShowWindow: (() => void) | null = null
+let unlistenCandidatesReady: (() => void) | null = null
 
 /** 复制错误文本到剪贴板（经宿主写入）；成功与失败均给出提示，不静默复制。 */
 async function handleCopyError(text: string) {
@@ -203,11 +204,20 @@ onMounted(async () => {
       searchStore.doQuery('')
     }
   })
+
+  // 启动预热在后台完成：此前建立的会话可能命中空缓存（无结果/空主页），
+  // 缓存就绪后重放当前输入；插件会话由插件自身节奏驱动，不在此打扰。
+  unlistenCandidatesReady = await onCandidatesReady(() => {
+    if (searchStore.sessionMode === 'search' || searchStore.sessionMode === 'none') {
+      searchStore.doQuery(searchStore.query)
+    }
+  })
 })
 
 onUnmounted(() => {
   unlistenConfig?.()
   unlistenShowWindow?.()
+  unlistenCandidatesReady?.()
 })
 </script>
 

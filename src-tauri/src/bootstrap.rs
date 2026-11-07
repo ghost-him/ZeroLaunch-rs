@@ -72,6 +72,11 @@ fn spawn_auto_refresh_task(state: Arc<AppState>) {
                 continue;
             }
             let dispatcher = state.get_session_dispatcher();
+            // 启动预热未完成时跳过：预热结束会写入 last_refresh 基准；
+            // 此刻发起的请求只会并入预热那一轮，或在其后再补扫一轮，纯属浪费。
+            if !dispatcher.candidates_ready() {
+                continue;
+            }
             let interval = std::time::Duration::from_secs_f64(interval_mins * 60.0);
             if dispatcher.last_refresh_elapsed() >= interval {
                 dispatcher.refresh_candidates().await;
@@ -274,14 +279,18 @@ pub(crate) async fn init_app_state(
         .load_all_third_party(app_handle_for_third_party_plugins)
         .await;
 
-    // 批量加载后刷新候选项缓存，确保第三方插件的数据源被纳入。
-    // 各插件的 PluginRegistered 事件也会触发独立 refresh，但批量场景下
-    // 可能存在事件尚未处理完的竞态，此处作为最终兜底保证缓存完整。
-    state.get_session_dispatcher().refresh_candidates().await;
-    info!(
-        "Phase 4 完成: 第三方插件加载完成，共 {} 个候选项",
-        state.get_session_dispatcher().get_cached_candidates_count()
-    );
+    // 候选项采集移出启动串行链：窗口/托盘在 init_app_state 返回后立即创建，
+    // 采集在后台完成（冷启动首次扫描可能数秒）。前端收到 candidates-ready 后
+    // 重放当前输入，因此预热期间的查询不阻塞、也不阻塞热键唤醒。
+    let dispatcher_for_warmup = state.get_session_dispatcher().clone();
+    let app_handle_for_warmup = state.get_main_handle();
+    tauri::async_runtime::spawn(async move {
+        dispatcher_for_warmup.refresh_candidates().await;
+        let count = dispatcher_for_warmup.get_cached_candidates_count();
+        info!("候选项预热完成，共 {} 个", count);
+        let _ = app_handle_for_warmup.emit("candidates-ready", ());
+    });
+    info!("Phase 4 完成: 第三方插件加载完成，候选项采集已转入后台");
 
     // Start CLI HTTP server（通用设置「本机 CLI 服务」控制启停）
     info!("=== Phase 5: 启动 CLI HTTP 服务器... ===");
@@ -670,15 +679,10 @@ pub(crate) async fn init_plugin_system(
     }
     candidate_pipeline.set_bias_rules(rules);
 
-    info!("正在收集候选项（此时各组件已持有用户持久化配置）...");
-    // 插件候选项经统一合并入口并入缓存，再经结果排除过滤（与运行时刷新共用同一入口）
-    let candidates = session_dispatcher.apply_exclusion(
-        session_dispatcher.merge_plugin_candidates(candidate_pipeline.collect().await),
-    );
-    info!(
-        "候选项收集完成，共 {} 个",
-        candidates.get_candidates().len()
-    );
+    // 候选项采集不在启动串行链上执行：采集耗时（冷启动首次全盘扫描可达数秒）
+    // 会推迟窗口/托盘创建。此处只交给 dispatcher 管道，由 init_app_state 在第三方
+    // 插件加载后启动后台预热（refresh_candidates），完成后推送 candidates-ready。
+    info!("候选管道已就绪，候选项采集转入后台预热");
 
     info!("根据已注册且启用的搜索引擎与增强器重建搜索管道...");
     session_dispatcher.rebuild_search_pipeline();
@@ -692,7 +696,6 @@ pub(crate) async fn init_plugin_system(
     session_dispatcher
         .set_candidate_pipeline(candidate_pipeline)
         .await;
-    session_dispatcher.set_cached_candidates(candidates);
 
     // 收集内置组件 id 集合：plugin-host 冲突预检数据源（第三方组件不得与内置撞 id）。
     // 由调用方（init_app_state）传给 PluginManager::init_host_manager 注入。
@@ -703,9 +706,8 @@ pub(crate) async fn init_plugin_system(
         .collect();
 
     info!(
-        "插件系统初始化完成，已注册 {} 个组件，缓存 {} 个候选项",
-        config_manager.get_all_components().len(),
-        session_dispatcher.get_cached_candidates_count()
+        "插件系统初始化完成，已注册 {} 个组件（候选项待后台预热）",
+        config_manager.get_all_components().len()
     );
     builtin_component_ids
 }

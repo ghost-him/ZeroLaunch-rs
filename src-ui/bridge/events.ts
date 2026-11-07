@@ -59,6 +59,16 @@ export function onIconUpdated(
   })
 }
 
+/**
+ * 启动候选项预热完成事件。
+ * 采集已移出启动串行链：预热期间查询可能命中空缓存，前端收到本事件后重放当前输入。
+ */
+export function onCandidatesReady(callback: () => void): Promise<UnlistenFn> {
+  return listen('candidates-ready', () => {
+    callback()
+  })
+}
+
 export function onInspectorStateUpdated(
   callback: () => void,
 ): Promise<UnlistenFn> {

@@ -1,4 +1,5 @@
 pub mod access_policy;
+pub mod coalescing_refresh;
 pub mod font_database;
 pub mod locale;
 pub mod notification;

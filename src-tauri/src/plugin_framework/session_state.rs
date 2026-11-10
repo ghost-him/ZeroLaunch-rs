@@ -232,7 +232,7 @@ pub struct ActiveSession {
     pub owner: SessionOwner,
 }
 
-/// 会话状态推送回调 —— 由 bootstrap 拿到 AppHandle 后注入；
+/// 会话状态推送回调 —— 由宿主安装 `Host` 后注入（Tauri / GPUI / 测试）；
 /// CLI 等无窗口场景不注入。
 pub type SessionStateEmitter = Arc<dyn Fn(SessionStateEvent) + Send + Sync>;
 

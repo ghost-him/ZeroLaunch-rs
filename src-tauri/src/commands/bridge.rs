@@ -1,5 +1,6 @@
 use crate::commands::bridge_error::{BridgeError, WithTraceId};
 use crate::core::config::exclusion_settings::ExclusionKind;
+use crate::core::host::Host;
 use crate::plugin_framework::inspector::InspectedQueryEvent;
 use crate::plugin_framework::ResultActionDto;
 use crate::plugin_framework::{
@@ -9,7 +10,6 @@ use crate::state::app_state::AppState;
 use dashmap::DashSet;
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, LazyLock};
-use tauri::{AppHandle, Emitter};
 use tokio::sync::Semaphore;
 use tracing::{debug, info};
 use zerolaunch_plugin_api::common::ImageUtils;
@@ -49,19 +49,6 @@ pub struct BridgeSearchResult {
 ///
 /// 查询响应只读图标缓存，未命中项以空串占位；后台补齐后逐条推送本载荷，
 /// 前端按候选 id 就地替换图标（过期世代直接丢弃）。仅用于 bridge 查询结果回填。
-#[derive(Serialize, Clone, Debug)]
-struct BridgeIconUpdate {
-    /// 候选缓存世代：前端据此丢弃候选刷新后才到达的旧回填。
-    #[serde(rename = "candidateGeneration")]
-    candidate_generation: u64,
-    /// 候选 id（与本次查询响应中的 `results[].id` 一致）。
-    #[serde(rename = "id")]
-    id: CandidateId,
-    /// 图标 data URL；补齐失败时为默认图标（不会为空串）。
-    #[serde(rename = "icon")]
-    icon: String,
-}
-
 /// 后台补齐查询响应中缺失的图标。
 ///
 /// 仅由 `bridge_query` 的列表分支调用；查询响应不等待本任务。
@@ -70,7 +57,7 @@ struct BridgeIconUpdate {
 /// 参数：app - 事件推送句柄；core_handle - 图标提取执行体；
 ///       candidate_generation - 候选缓存世代；requests - 待补齐的 (候选 id, 图标请求)。
 fn prefetch_icons(
-    app: Arc<AppHandle>,
+    host: Arc<dyn Host>,
     core_handle: Arc<PluginHandle>,
     candidate_generation: u64,
     requests: Vec<(CandidateId, IconRequest)>,
@@ -85,19 +72,15 @@ fn prefetch_icons(
         if !INFLIGHT.insert(key.clone()) {
             continue;
         }
-        let app = app.clone();
+        let host = host.clone();
         let core_handle = core_handle.clone();
         let permits = PERMITS.clone();
-        tauri::async_runtime::spawn(async move {
+        crate::runtime::spawn(async move {
             let _permit = permits.acquire().await;
             let data = core_handle.get_icon_or_default(request).await;
             INFLIGHT.remove(&key);
-            let payload = BridgeIconUpdate {
-                candidate_generation,
-                id,
-                icon: ImageUtils::to_data_url(&data),
-            };
-            let _ = app.emit("bridge-icon-updated", payload);
+            let icon = ImageUtils::to_data_url(&data);
+            host.emit_icon_updated(candidate_generation, id, &icon);
         });
     }
 }
@@ -302,7 +285,7 @@ pub async fn bridge_query(
                     .clone()
                     .unwrap_or_else(|| "default-search".to_string()),
             });
-            let _ = state.get_main_handle().emit("inspector-state-updated", ());
+            state.get_host().emit_inspector_state_updated();
         }
     }
 
@@ -346,7 +329,7 @@ pub async fn bridge_query(
 
             if !pending_icons.is_empty() {
                 prefetch_icons(
-                    state.get_main_handle(),
+                    state.get_host(),
                     core_handle,
                     candidate_generation,
                     pending_icons,

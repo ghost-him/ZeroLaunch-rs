@@ -356,7 +356,7 @@ impl ModelService for ModelManager {
         // 相似度计算是 CPU 密集纯函数：移出 async 上下文（spawn_blocking），
         // 避免 rayon par_iter 同步阻塞 tokio worker 线程。
         let targets = req.targets.clone();
-        let similarities: Vec<f32> = tauri::async_runtime::spawn_blocking(move || {
+        let similarities: Vec<f32> = crate::runtime::spawn_blocking(move || {
             targets
                 .par_iter()
                 .map(|target| match similarity {

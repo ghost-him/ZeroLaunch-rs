@@ -20,7 +20,7 @@ pub async fn export_logs(dest_path: String) -> Result<(), BridgeError> {
 
     let dest = PathBuf::from(dest_path);
     // 打包是同步 IO，放到阻塞线程池，避免大日志占用异步运行时。
-    let joined = tauri::async_runtime::spawn_blocking(move || export_log_archive(&dest)).await;
+    let joined = crate::runtime::spawn_blocking(move || export_log_archive(&dest)).await;
     // 调度层失败（panic/运行时关闭）与归档失败统一为 LogArchiveError，再进统一错误转换点。
     let archive_result = match joined {
         Ok(result) => result,

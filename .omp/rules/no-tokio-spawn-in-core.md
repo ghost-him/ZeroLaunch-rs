@@ -1,6 +1,6 @@
 ---
 name: no-tokio-spawn-in-core
-description: Tauri 宿主期 src-tauri 禁止 tokio 协程创建函数，统一 tauri::async_runtime；GPUI 宿主使用全局 Tokio runtime
+description: src-tauri 禁止直接创建 tokio 协程，统一使用 crate::runtime 的全局 runtime 入口
 condition:
   - 'tokio::(task::)?spawn\b'
   - 'tokio::(task::)?spawn_blocking'
@@ -12,42 +12,42 @@ scope:
   - tool:write(src-tauri/src/**/*.rs)
 ---
 
-# src-tauri 核心程序禁止 tokio 协程创建，统一使用 tauri::async_runtime
+# src-tauri 协程统一走 crate::runtime
 
 ## 规则
 
-在 `src-tauri/src/` 下（主程序核心），**禁止**直接调用 tokio 的协程创建函数：
+在 `src-tauri/src/` 下，**禁止**直接调用 tokio 的协程创建函数：
 
 ```rust
-// ❌ 错误：绕过 tauri 的任务生命周期管理
+// ❌ 错误：绕过进程级 runtime，任务入口分裂
 tokio::spawn(async move { ... });
 tokio::task::spawn(async move { ... });
 tokio::spawn_blocking(|| { ... });
 use tokio::task; task::spawn(async move { ... });
 ```
 
-**必须**使用 tauri 的统一异步入口：
+**必须**使用 `crate::runtime` 的统一入口：
 
 ```rust
-// ✅ 正确：tauri::async_runtime 内部即 tokio，能力等价且生命周期由 tauri 管理
-tauri::async_runtime::spawn(async move { ... });
-tauri::async_runtime::spawn_blocking(|| { ... });
+// ✅ 正确：进程级 runtime，Tauri 外壳、CLI 与后续 GPUI 宿主共用
+crate::runtime::spawn(async move { ... });
+crate::runtime::spawn_blocking(|| { ... });
 ```
 
 ## 原因
 
-- 主程序运行在 tauri 管理的 async runtime 内（`tauri::async_runtime` 内部即 tokio，能力完全等价）。
-- 直接 `tokio::spawn` 绕过 tauri 的任务生命周期管理（关闭时 JoinHandle 清理、AppHandle 引用计数、runtime 优雅退出），且并发入口不统一，后续维护无法全局追踪。
-- 统一走 `tauri::async_runtime` 后，任务入口单一、与 tauri 事件/窗口/托盘生命周期对齐。
+- 阶段 2 起 `src-tauri` 只是 Tauri 外壳，内核同时服务 CLI 与后续 GPUI 宿主；任务必须挂在同一个进程级 Tokio runtime 上。
+- 直接 `tokio::spawn` 依赖当前线程是否处于 runtime 上下文，启动、测试与 CLI 路径容易在不同 runtime 上分裂。
+- `tauri::async_runtime` 在启动时会被设置为同一 runtime 的 handle；内核代码不再直接依赖 Tauri 类型。
 
-## 迁移期边界（GPUI）
+## 迁移期边界
 
-- 本规则仅在 `src-tauri/` 仍由 Tauri 托管时生效，用于保留 Tauri 的任务生命周期。
-- 新的 GPUI 宿主（`app/`）没有 Tauri runtime，**禁止**照搬 `tauri::async_runtime`；它必须使用宿主统一的全局 Tokio runtime（`runtime::spawn` / `runtime::spawn_blocking`）创建任务。
-- 阶段 7 删除 `src-tauri/` 后，本规则随之删除，不迁移到新宿主。
+- `src-tauri/src/lib.rs`、`bootstrap.rs`、`tray/` 等 Tauri 外壳代码允许调用 Tauri API，但创建任务仍走 `crate::runtime`。
+- `crate::runtime` 是唯一 runtime 声明处；其他模块只使用其 `spawn` / `spawn_blocking` / `block_on`。
+- 阶段 7 删除 `src-tauri` 时，`runtime` 模块迁入后端库 crate，本规则随目录删除。
 
 ## 范围边界
 
 - **仅约束 `src-tauri/src/`**：`crates/`（plugin-host、plugin-sdk-rust、plugin-protocol 等库）无 tauri 依赖，**必须**使用 tokio 原生 API，不在本规则范围。
 - **`#[tokio::test]` 测试宏不在此列**：它是测试运行时宏而非协程创建函数，测试模块中可用。
-- **`tokio::time::interval` / `tokio::time::sleep` 等挂起 API 不在此列**：它们在 tauri 的 tokio runtime 下语义等价，不是协程创建函数。
+- **`tokio::time::interval` / `tokio::time::sleep` 等挂起 API 不在此列**：它们不创建任务。

@@ -134,7 +134,7 @@ impl EmbeddingCache {
         self.l1.lock().put(*key, Arc::new(vec));
         let handle = self.handle.clone();
         let rel = l2_rel_key(key);
-        tauri::async_runtime::spawn(async move {
+        crate::runtime::spawn(async move {
             if let Err(e) = handle.cache_put(CACHE_DOMAIN, &rel, &data).await {
                 tracing::warn!("embedding 缓存落盘失败: {}", e);
                 return;

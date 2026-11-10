@@ -1,7 +1,8 @@
-//! TauriHostCallHandler — 将插件的 `host/*` RPC 调用分发给插件句柄。
+//! PluginHostCallHandler — 将插件的 `host/*` RPC 调用分发给插件句柄。
 //! 注册的定时器到期与订阅事件经注入的 `PluginEventSink` 以 `plugin/*`
 //! 通知推送给插件进程；通道在进程 spawn 后注入，卸载/崩溃前 detach 清理。
 
+use crate::core::host::Host;
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
 use parking_lot::RwLock;
@@ -10,7 +11,6 @@ use std::collections::BTreeSet;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
-use tauri::AppHandle;
 
 use zerolaunch_plugin_api::host::OpenTarget;
 use zerolaunch_plugin_api::services::focus_monitor::{FocusCallback, FocusEvent};
@@ -61,10 +61,10 @@ struct Subscriptions {
 }
 
 /// 将插件的 `host/*` RPC 调用分发给本地的 PluginHandle。
-pub(crate) struct TauriHostCallHandler {
+pub(crate) struct PluginHostCallHandler {
     pub(crate) host_api: Arc<HostApi>,
     pub(crate) plugin_id: String,
-    pub(crate) app_handle: Option<Arc<AppHandle>>,
+    pub(crate) host: Option<Arc<dyn Host>>,
     /// 后端翻译服务（host/i18n.get_locale 查询当前语言）
     pub(crate) i18n: Arc<I18nManager>,
     /// 宿主 → 插件事件推送通道。由 plugin-host 在进程 spawn 后注入（重启覆盖）；
@@ -74,21 +74,21 @@ pub(crate) struct TauriHostCallHandler {
     subscriptions: RwLock<Subscriptions>,
 }
 
-impl TauriHostCallHandler {
+impl PluginHostCallHandler {
     /// 构造分发处理器（事件推送通道由 plugin-host 在 spawn 后注入）。
-    /// 参数：host_api - 宿主执行节点；plugin_id - 插件 ID；app_handle - 通知等
-    ///       Tauri 能力所需的句柄（None 表示无 UI 环境）；i18n - 语言查询服务。
+    /// 参数：host_api - 宿主执行节点；plugin_id - 插件 ID；host - 通知等宿主能力
+    ///       （None 表示无 UI 环境）；i18n - 语言查询服务。
     /// 返回：尚未绑定推送通道的处理器。
     pub(crate) fn new(
         host_api: Arc<HostApi>,
         plugin_id: String,
-        app_handle: Option<Arc<AppHandle>>,
+        host: Option<Arc<dyn Host>>,
         i18n: Arc<I18nManager>,
     ) -> Self {
         Self {
             host_api,
             plugin_id,
-            app_handle,
+            host,
             i18n,
             event_sink: RwLock::new(None),
             subscriptions: RwLock::new(Subscriptions::default()),
@@ -117,7 +117,7 @@ impl TauriHostCallHandler {
 }
 
 #[async_trait::async_trait]
-impl HostCallHandler for TauriHostCallHandler {
+impl HostCallHandler for PluginHostCallHandler {
     async fn handle_host_call(
         &self,
         method: &str,
@@ -150,8 +150,8 @@ impl HostCallHandler for TauriHostCallHandler {
             host::NOTIFY => {
                 let p: NotifyParams = from_value(params)
                     .map_err(|e| JsonRpcError::new(codes::INVALID_PARAMS, e.to_string()))?;
-                if let Some(app_handle) = &self.app_handle {
-                    crate::utils::notification::notify(app_handle, &p.title, &p.message);
+                if let Some(host) = &self.host {
+                    host.notify(&p.title, &p.message);
                 }
                 Ok(Value::Null)
             }
@@ -650,7 +650,7 @@ impl HostCallHandler for TauriHostCallHandler {
         }
         // 取消该插件的全部定时器（不影响其他插件）。
         let handle = handle.clone();
-        tauri::async_runtime::spawn(async move {
+        crate::runtime::spawn(async move {
             if let Err(e) = handle.cancel_all_timers().await {
                 tracing::warn!("卸载时取消插件定时器失败: {e}");
             }

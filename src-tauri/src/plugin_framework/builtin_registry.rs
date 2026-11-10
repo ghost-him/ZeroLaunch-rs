@@ -422,7 +422,7 @@ mod tests {
         collected.for_each_configurable(&mut |component: &Arc<dyn Configurable>| {
             total += 1;
             if let Err(failure) =
-                tauri::async_runtime::block_on(register_and_check(&config_manager, component))
+                crate::runtime::block_on(register_and_check(&config_manager, component))
             {
                 failures.push(failure);
             }
@@ -482,9 +482,8 @@ mod tests {
         });
         let config_manager = ConfigManager::new(std::env::temp_dir().join("zl-register-diag-test"));
 
-        let failure =
-            tauri::async_runtime::block_on(register_and_check(&config_manager, &component))
-                .expect_err("含未声明键的伪组件应注册失败");
+        let failure = crate::runtime::block_on(register_and_check(&config_manager, &component))
+            .expect_err("含未声明键的伪组件应注册失败");
         assert_eq!(failure.component_id, "broken", "应指出失败组件 ID");
         assert_eq!(failure.stage, "默认配置校验未通过", "应指出失败阶段");
         assert!(

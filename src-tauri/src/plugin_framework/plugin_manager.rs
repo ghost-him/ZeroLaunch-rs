@@ -14,9 +14,9 @@ use std::fmt;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use tauri::AppHandle;
-use tauri::Emitter;
 use tracing::{error, info, warn};
+
+use crate::core::host::Host;
 
 use zerolaunch_plugin_api::config::Configurable;
 use zerolaunch_plugin_api::host::PluginSdkConfig;
@@ -29,7 +29,7 @@ use zerolaunch_plugin_host::manager::{
 use zerolaunch_plugin_host::PluginInfo;
 use zerolaunch_plugin_protocol::Manifest;
 
-use super::host_handler::TauriHostCallHandler;
+use super::host_handler::PluginHostCallHandler;
 use super::plugin_info::InstallError;
 use super::plugin_installer::validate_plugin_id;
 use super::plugin_installer::PluginInstaller;
@@ -134,7 +134,7 @@ impl PluginManager {
         }
     }
 
-    // ── 依赖注入（在 init_app_state 中各调用一次） ─────────────
+    // ── 依赖注入（在 kernel::init 中各调用一次） ─────────────
 
     /// 设置 PluginRuntimeEvent 通道发送端。
     pub fn set_plugin_event_tx(&self, tx: PluginEventSender) {
@@ -401,7 +401,7 @@ impl PluginManager {
         &self,
         source_path: &Path,
         overwrite: bool,
-        app_handle: Arc<AppHandle>,
+        host: Arc<dyn Host>,
     ) -> Result<PluginInfo, PluginManagerError> {
         if !source_path.exists() {
             return Err(PluginManagerError::FileNotFound(format!(
@@ -479,10 +479,7 @@ impl PluginManager {
             ));
         };
 
-        if let Err(e) = self
-            .load_single_plugin(&installed_dir, app_handle.clone())
-            .await
-        {
+        if let Err(e) = self.load_single_plugin(&installed_dir, host.clone()).await {
             // 回滚：加载失败（如组件 id 冲突）时先卸载已启动的子进程（停进程 +
             // 清注册表），再删除已落盘的插件目录，避免进程残留 + Windows 文件句柄
             // 占用导致删除失败、UI 不可见、每次启动重试加载的残留目录。
@@ -569,7 +566,7 @@ impl PluginManager {
     pub async fn reload(
         &self,
         plugin_id: &str,
-        app_handle: Arc<AppHandle>,
+        host: Arc<dyn Host>,
     ) -> Result<(), PluginManagerError> {
         info!("Reloading plugin: {}", plugin_id);
         // 入口边界校验：plugin_id 来自前端命令参数，未经校验的 id 会传入
@@ -596,7 +593,7 @@ impl PluginManager {
 
         // 预检数据源为 plugin-host 内部（已加载插件 + 内置组件），
         // unload 已移除自身组件，无需豁免集。
-        self.load_single_plugin(&plugin.dir, app_handle)
+        self.load_single_plugin(&plugin.dir, host)
             .await
             .map_err(|e| match e {
                 PluginManagerError::ComponentIdCollision(id) => {
@@ -614,7 +611,7 @@ impl PluginManager {
     pub async fn uninstall(
         &self,
         plugin_id: &str,
-        app_handle: Arc<AppHandle>,
+        host: Arc<dyn Host>,
     ) -> Result<(), PluginManagerError> {
         // 入口边界校验：plugin_id 来自前端命令参数，未经校验的 id 会让
         // 下方 join/remove_dir_all 逃出 plugins_dir（任意目录删除）。
@@ -671,12 +668,7 @@ impl PluginManager {
 
         self.host_api().unregister(plugin_id);
 
-        let _ = app_handle.emit(
-            "plugin-uninstalled",
-            serde_json::json!({
-                "pluginId": plugin_id,
-            }),
-        );
+        host.emit_plugin_uninstalled(plugin_id);
 
         info!("Plugin {} uninstalled successfully", plugin_id);
         Ok(())
@@ -686,7 +678,7 @@ impl PluginManager {
     ///
     /// 每个插件的注册通过 PluginRuntimeEvent 广播通道（PM → CM）完成，
     /// CM 收到后注册 Configurable 并转发 ConfigEvent 到 SessionDispatcher。
-    pub async fn load_all_third_party(&self, app_handle: Arc<AppHandle>) {
+    pub async fn load_all_third_party(&self, host: Arc<dyn Host>) {
         let dirs = self.host_manager().scan_dirs();
 
         if dirs.is_empty() {
@@ -700,7 +692,7 @@ impl PluginManager {
         info!("Found {} third-party plugin(s)", dirs.len());
 
         for dir in &dirs {
-            if let Err(e) = self.load_single_plugin(dir, app_handle.clone()).await {
+            if let Err(e) = self.load_single_plugin(dir, host.clone()).await {
                 error!("Failed to load plugin from {}: {}", dir.display(), e);
             }
         }
@@ -713,11 +705,11 @@ impl PluginManager {
     /// 通过 PluginRuntimeEvent::PluginLoaded 广播通知 CM：
     /// CM 收到后注册 Configurable + 转发 ConfigEvent::PluginRegistered 到 SR。
     /// 崩溃即解注册回调（on_crash）在崩溃发生时以旧注册包解注册 CM/SR 并清理 HostApi。
-    /// 成功时发送 `plugin-installed` Tauri 事件。
+    /// 成功时经 Host 发送 `plugin-installed` 事件。
     async fn load_single_plugin(
         &self,
         plugin_dir: &Path,
-        app_handle: Arc<AppHandle>,
+        host: Arc<dyn Host>,
     ) -> Result<(), PluginManagerError> {
         let host_manager = self.host_manager();
         let host_api = self.host_api();
@@ -734,10 +726,10 @@ impl PluginManager {
 
         let _handle = host_api.register(&plugin_id, PluginSdkConfig::default());
 
-        let handler: Arc<dyn HostCallHandler> = Arc::new(TauriHostCallHandler::new(
+        let handler: Arc<dyn HostCallHandler> = Arc::new(PluginHostCallHandler::new(
             host_api.clone(),
             plugin_id.clone(),
-            Some(app_handle.clone()),
+            Some(host.clone()),
             self.i18n_manager(),
         ));
 
@@ -776,14 +768,7 @@ impl PluginManager {
 
         info!("Loaded third-party plugin: {}", plugin_id);
 
-        let _ = app_handle.emit(
-            "plugin-installed",
-            serde_json::json!({
-                "pluginId": plugin_id,
-                "name": manifest.plugin.name,
-                "version": manifest.plugin.version,
-            }),
-        );
+        host.emit_plugin_installed(&plugin_id, &manifest.plugin.name, &manifest.plugin.version);
 
         Ok(())
     }

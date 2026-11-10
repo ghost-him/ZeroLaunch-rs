@@ -13,9 +13,9 @@ use reqwest::Client as HttpClient;
 use serde::Serialize;
 use tracing::{info, warn};
 
+use crate::core::host::UpdateMenuState;
 use crate::sdk::OpenTarget;
 use crate::state::app_state::AppState;
-use crate::tray::UpdateMenuState;
 
 /// 仓库 Releases 的 latest 地址（302 到具体 tag）。
 const LATEST_RELEASE_URL: &str = "https://github.com/ghost-him/ZeroLaunch-rs/releases/latest";
@@ -188,16 +188,16 @@ impl UpdateChecker {
 /// 直接打开发布页，否则（已是最新/失败）发系统通知。自动检查不弹任何窗口。
 pub async fn check_and_sync(state: &Arc<AppState>, user_initiated: bool) -> UpdateStatus {
     if user_initiated {
-        if let Some(tray) = state.get_tray_manager() {
-            tray.set_update_state(UpdateMenuState::Checking);
-        }
+        state
+            .get_host()
+            .tray_set_update_state(UpdateMenuState::Checking);
     }
 
     let status = state.get_update_checker().check().await;
 
-    if let Some(tray) = state.get_tray_manager() {
-        tray.set_update_state(update_menu_state(&status, user_initiated));
-    }
+    state
+        .get_host()
+        .tray_set_update_state(update_menu_state(&status, user_initiated));
 
     if user_initiated {
         match (status.error.as_ref(), status.release_url.as_deref()) {
@@ -228,11 +228,9 @@ fn notify_check_result(state: &Arc<AppState>, status: &UpdateStatus) {
             .replace("{version}", &status.current_version)
     };
 
-    crate::utils::notification::notify(
-        &state.get_main_handle(),
-        &i18n.t(&lang, "update.toastTitle"),
-        &body,
-    );
+    state
+        .get_host()
+        .notify(&i18n.t(&lang, "update.toastTitle"), &body);
 }
 
 /// 由检查结果推导托盘「检查更新」菜单的展示状态。

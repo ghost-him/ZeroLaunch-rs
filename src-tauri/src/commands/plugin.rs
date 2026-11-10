@@ -124,10 +124,10 @@ pub async fn plugin_install_local(
     tracing::Span::current().record("trace_id", trace_id.as_str());
     let plugin_manager = state.get_plugin_manager();
     let path = std::path::PathBuf::from(&file_path);
-    let app_handle = state.get_main_handle();
+    let host = state.get_host();
 
     plugin_manager
-        .install(&path, overwrite, app_handle)
+        .install(&path, overwrite, host)
         .await
         .with_trace_id(&trace_id)
 }
@@ -143,10 +143,10 @@ pub async fn plugin_reload(
     let trace_id = generate_trace_id();
     tracing::Span::current().record("trace_id", trace_id.as_str());
     let plugin_manager = state.get_plugin_manager();
-    let app_handle = state.get_main_handle();
+    let host = state.get_host();
 
     plugin_manager
-        .reload(&plugin_id, app_handle)
+        .reload(&plugin_id, host)
         .await
         .with_trace_id(&trace_id)
 }
@@ -162,10 +162,10 @@ pub async fn plugin_uninstall(
     let trace_id = generate_trace_id();
     tracing::Span::current().record("trace_id", trace_id.as_str());
     let plugin_manager = state.get_plugin_manager();
-    let app_handle = state.get_main_handle();
+    let host = state.get_host();
 
     plugin_manager
-        .uninstall(&plugin_id, app_handle)
+        .uninstall(&plugin_id, host)
         .await
         .with_trace_id(&trace_id)
 }

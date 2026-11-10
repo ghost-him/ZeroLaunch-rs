@@ -218,7 +218,7 @@ impl Configurable for GeneralConfigComponent {
 
         let is_auto_start = s.is_auto_start;
         let host_api = self.host_api.clone();
-        tauri::async_runtime::spawn(async move {
+        crate::runtime::spawn(async move {
             if let Err(e) = host_api.apply_autostart_setting(is_auto_start).await {
                 warn!("应用自启动配置失败: {}", e);
             } else {

@@ -3,9 +3,11 @@ pub mod builtin_plugin;
 pub mod cli_server;
 pub mod commands;
 pub mod core;
+pub mod kernel;
 pub mod logging;
 pub mod plugin_framework;
 pub mod plugin_market;
+pub mod runtime;
 pub mod sdk;
 pub mod state;
 pub mod tray;
@@ -13,7 +15,7 @@ pub mod updater;
 pub mod utils;
 pub mod window;
 
-use crate::logging::{init_logging, log_application_shutdown, log_application_start};
+use crate::logging::{init_logging, log_application_start};
 use crate::state::app_state::AppState;
 use crate::window::save_window_position_if_drag;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -23,7 +25,7 @@ use tauri::LogicalSize;
 use tauri::Manager;
 use tauri::WebviewUrl;
 use tauri_plugin_deep_link::DeepLinkExt;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 use zerolaunch_platform_windows::ComGuard;
 use zerolaunch_platform_windows::WindowsPathResolver;
 use zerolaunch_platform_windows::{
@@ -34,28 +36,10 @@ use zerolaunch_plugin_api::services::path::path_resolver::PathResolver;
 use zerolaunch_plugin_api::services::path::KnownPath;
 static IS_EXITING: AtomicBool = AtomicBool::new(false);
 
-pub async fn do_cleanup_before_exit(state: Arc<AppState>) {
-    info!("执行退出前清理工作...");
-    let config_manager = state.get_config_manager();
-    if let Err(e) = config_manager.save_to_storage() {
-        warn!("退出前配置保存失败: {}", e);
-    }
-    // 运行态（启动历史/查询亲和）落在独立文件，与用户配置分开保存
-    config_manager.flush_runtime_state();
-    // 注销全局快捷键和双击 Ctrl 监听器
-    let host_api = state.get_host_api();
-    if let Err(e) = host_api.unregister_all_hotkeys().await {
-        warn!("退出前注销快捷键失败: {:?}", e);
-    }
-    log_application_shutdown();
-    info!("退出前清理工作完成");
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // ========================================================================
-    // 阶段 1: 初始化日志系统
-    // ========================================================================
+    // 进程级 runtime：Tauri 外壳、CLI 与内核共用同一 handle。
+    tauri::async_runtime::set(crate::runtime::handle());
     let path_resolver = Arc::new(WindowsPathResolver::new());
     let log_dir = path_resolver.resolve_path(KnownPath::AppLogDir).unwrap();
     let _log_guard = init_logging(&log_dir, None);
@@ -120,19 +104,18 @@ pub fn run() {
                 std::process::exit(0);
             }
 
-            // AppHandle 副本供主题监听回调使用
-            let app_handle_for_theme = app.handle().clone();
             let app_data_dir = path_resolver.resolve_path(KnownPath::AppDataDir).unwrap();
             let icon_cache_dir = path_resolver
                 .resolve_path(KnownPath::AppIconCacheDir)
                 .unwrap();
             let config_dir = path_resolver.resolve_path(KnownPath::AppConfigDir).unwrap();
+            let state_for_theme = app.state::<Arc<AppState>>().inner().clone();
 
             info!("应用数据目录: {}", app_data_dir);
             info!("图标缓存目录: {}", icon_cache_dir);
             info!("配置目录: {}", config_dir);
 
-            tauri::async_runtime::block_on(async move {
+            crate::runtime::block_on(async move {
                 info!("=== 核心服务初始化 ===");
                 bootstrap::init_app_state(
                     app,
@@ -150,13 +133,7 @@ pub fn run() {
                 info!("正在初始化设置窗口");
                 init_setting_window(app.app_handle().clone());
 
-                info!("正在初始化系统托盘");
-                let show_tray_icon = app.state::<Arc<AppState>>().is_show_tray_icon();
-                let tray_manager = app
-                    .state::<Arc<AppState>>()
-                    .get_tray_manager()
-                    .expect("TrayManager not initialized");
-                tray_manager.init(app, show_tray_icon).await;
+                info!("=== 系统托盘已由 TauriHost 初始化 ===");
 
                 info!("正在注册深度链接");
                 app.deep_link().register_all().expect("无法注册深度链接");
@@ -167,7 +144,7 @@ pub fn run() {
                     let urls = event.urls();
                     debug!("收到深度链接事件: {:?}", urls);
                     let state = state_for_deeplink.clone();
-                    tauri::async_runtime::spawn(async move {
+                    crate::runtime::spawn(async move {
                         let waiting_hashmap = state.get_waiting_hashmap();
                         for url in urls {
                             let domain = url.domain().expect("URL缺少域名").to_string();
@@ -184,7 +161,7 @@ pub fn run() {
             });
 
             // 系统主题监控：平台实现见 platform-windows，宿主注册回调推送前端事件
-            bootstrap::init_system_theme_monitor(app_handle_for_theme);
+            bootstrap::init_system_theme_monitor(state_for_theme.get_host());
 
             Ok(())
         })
@@ -263,8 +240,8 @@ pub fn run() {
 
                 let app_handle = app_handle.clone();
                 let state = app_handle.state::<Arc<AppState>>().inner().clone();
-                tauri::async_runtime::spawn(async move {
-                    do_cleanup_before_exit(state).await;
+                crate::runtime::spawn(async move {
+                    bootstrap::do_cleanup_before_exit(state).await;
                     info!("清理完成，正在退出程序...");
                     app_handle.exit(0);
                 });
@@ -290,14 +267,14 @@ fn init_search_bar_window(app: &mut App) {
     let core_handle = state.get_core_handle();
     let host_api_for_cb = host_api.clone();
     let config_manager_for_cb = config_manager.clone();
-    let app_handle_for_cb = state.get_main_handle().clone();
+    let host_for_cb = state.get_host();
     let on_focus_lost: FocusCallback = Arc::new(move |_event: FocusEvent| {
         let host_api = host_api_for_cb.clone();
         let session_dispatcher = session_dispatcher.clone();
         let config_manager = config_manager_for_cb.clone();
-        let app_handle = app_handle_for_cb.clone();
-        tauri::async_runtime::spawn(async move {
-            save_window_position_if_drag(&config_manager, &app_handle).await;
+        let host = host_for_cb.clone();
+        crate::runtime::spawn(async move {
+            save_window_position_if_drag(&config_manager, &host).await;
             host_api.hide_window().await;
 
             let reset_plugins = config_manager
@@ -325,7 +302,7 @@ fn init_search_bar_window(app: &mut App) {
 fn init_setting_window(app: tauri::AppHandle) {
     // 标题由界面语言决定（与托盘菜单共用后端译表）；语言切换时由 bootstrap 刷新
     let title = bootstrap::setting_window_title(app.state::<Arc<AppState>>().inner());
-    tauri::async_runtime::spawn(async move {
+    crate::runtime::spawn(async move {
         let setting_window = Arc::new(
             tauri::WebviewWindowBuilder::new(
                 &app,

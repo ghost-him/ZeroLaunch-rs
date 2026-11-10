@@ -18,15 +18,17 @@ src-tauri/                → zerolaunch-rs: 主程序、内置插件、配置�
 
 **内部模块**（src-tauri 内）:
 ```
-bootstrap.rs        → 应用启动初始化
+bootstrap.rs        → Tauri 外壳适配（安装 Host、平台端口、托盘）
+kernel.rs           → 内核装配（HostApi/ConfigManager/PluginManager、后台任务）
+runtime.rs          → 进程级 Tokio runtime（Tauri/CLI/GPUI 共用）
 sdk.rs              → 平台抽象层 re-export 桥（单文件）
-core/               → 核心层（ConfigManager, Configurable trait, types, AI 助手 agent）
+core/               → 核心层（ConfigManager, Configurable trait, types, AI 助手 agent, Host 端口）
 builtin_plugin/     → 内置插件实现
 plugin_framework/   → 插件框架（SessionDispatcher, Registry, PluginManager, zlplugin:// 协议）
 plugin_market/      → 插件市场（GitHub topic 仓库发现 / release 解析 / 插件包下载）
 cli_server/         → 本地 HTTP API 服务器（axum）
-commands/           → IPC 命令（bridge, config, plugin, plugin_market, resource, inspector, cli, help, clipboard, i18n, debug）
-state/              → AppState 定义
+commands/           → Tauri IPC 命令（bridge, config, plugin, plugin_market, resource, inspector, cli, help, clipboard, i18n, debug）
+state/              → AppState 与 TauriHost 适配
 utils/              → 通用工具
 logging.rs          → 日志初始化
 ```
@@ -111,16 +113,18 @@ ZeroLaunch-rs/                          ← Cargo workspace 根
 ├── zerolaunch-cli/                     ← zerolaunch-cli (独立 bin crate)
 └── src-tauri/                          ← zerolaunch-rs（主程序）
     └── src/
-        ├── bootstrap.rs               ← 应用启动初始化（从 lib.rs 提取）
+        ├── bootstrap.rs               ← Tauri 外壳适配（Host/平台端口/托盘）
+        ├── kernel.rs                  ← 内核装配与后台任务
+        ├── runtime.rs                 ← 进程级 Tokio runtime
         ├── sdk.rs                      ← re-export 桥（类型本体在 plugin-api / platform-windows）
-        ├── core/                       ← ConfigManager, ConfigStore, 核心配置组件, AI 助手 agent
+        ├── core/                       ← ConfigManager, ConfigStore, 核心配置组件, AI 助手 agent, Host 端口
         ├── builtin_plugin/             ← 内置插件实现（具体数量以代码为准）
         ├── plugin_framework/           ← SessionDispatcher, Registry, PluginManager
         ├── tray/                       ← 系统托盘管理
         ├── updater/                    ← 版本更新检查（GitHub Releases 最新 tag）
         ├── window/                     ← 窗口位置工具函数
         ├── commands/                   ← IPC 命令薄代理
-        ├── state/                      ← AppState
+        ├── state/                      ← AppState 与 Host 端口
         └── utils/                      ← 通用工具
 ```
 
@@ -135,15 +139,18 @@ ZeroLaunch-rs/                          ← Cargo workspace 根
 
 | 目录 | 职责 | 可引用 | 禁止 |
 |------|------|--------|------|
+| `bootstrap.rs` | Tauri 外壳适配：安装 Host、平台端口、托盘 | state/、kernel、platform-windows | 包含业务逻辑 |
+| `kernel.rs` | 内核装配：HostApi/ConfigManager/PluginManager 与后台任务 | sdk、core、builtin_plugin、plugin_framework、state | 引用 Tauri 窗口/托盘类型 |
+| `runtime.rs` | 进程级 Tokio runtime | tokio | 引用业务模块 |
 | `sdk.rs` | re-export 桥（类型本体在 plugin-api / platform-windows） | 无外部依赖 | 引用 core/、builtin_plugin/、plugin_framework/ |
 | `core/` | 业务核心：ConfigManager、Configurable trait、类型定义 | sdk.rs | 引用 builtin_plugin/、plugin_framework/ |
 | `builtin_plugin/` | 内置插件实现：DataSource、Executor、SearchEngine 等 | sdk.rs、core/ | 引用 plugin_framework/ |
 | `plugin_framework/` | 插件框架：SessionDispatcher、Registry、PluginManager | sdk.rs、core/、builtin_plugin/ | 被其他层反向引用 |
-| `tray/` | 系统托盘管理 | state/ | 包含业务逻辑 |
+| `tray/` | 系统托盘管理 | core/、sdk/ | 包含业务逻辑 |
 | `updater/` | 版本更新检查：读 GitHub Releases 最新 tag、托盘文案、启动自检 | state/、sdk/ | 下载/安装安装包 |
-| `window/` | 窗口位置工具函数 | 无外部依赖 | 包含业务逻辑 |
-| `commands/` | IPC 命令：薄代理层，仅委托 | 全部 | 包含业务逻辑 |
-| `state/` | AppState 定义 | core/、plugin_framework/ | 包含业务方法 |
+| `window/` | 窗口位置工具函数 | core/、sdk/ | 引用 Tauri 窗口类型 |
+| `commands/` | Tauri IPC 命令：薄代理层，仅委托 | 全部 | 包含业务逻辑 |
+| `state/` | AppState 与 TauriHost 适配 | core/、plugin_framework/、tray/ | 在 AppState 中持有 Tauri 句柄 |
 | `utils/` | 通用工具（locale、font_database 等） | 无限制 | 包含业务逻辑 |
 
 ### 各目录详细说明

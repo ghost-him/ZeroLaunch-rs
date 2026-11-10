@@ -5,12 +5,12 @@
 use std::sync::Arc;
 
 use serde_json::json;
-use tauri::Manager;
 use tracing::warn;
 
 use crate::core::config::ConfigManager;
+use crate::core::host::Host;
 use crate::sdk::HostApi;
-use zerolaunch_plugin_api::services::window::{MonitorInfo, PositionRequest, WindowPosition};
+use zerolaunch_plugin_api::services::window::{PositionRequest, WindowPosition};
 
 /// 准备搜索栏窗口位置：全屏检查 → 读取定位配置 → 计算并设置窗口坐标。
 ///
@@ -19,7 +19,7 @@ use zerolaunch_plugin_api::services::window::{MonitorInfo, PositionRequest, Wind
 pub(crate) async fn prepare_window_position(
     config_manager: &Arc<ConfigManager>,
     host_api: &Arc<HostApi>,
-    app_handle: &tauri::AppHandle,
+    host: &Arc<dyn Host>,
 ) -> bool {
     let wake_on_fullscreen = config_manager
         .get_component_setting("window-behavior-config", "is_wake_on_fullscreen")
@@ -69,7 +69,7 @@ pub(crate) async fn prepare_window_position(
     };
 
     // 收集显示器信息并计算窗口位置
-    let monitors = collect_monitor_info(app_handle);
+    let monitors = host.monitor_info();
     let request = PositionRequest {
         enable_drag_window: enable_drag,
         saved_position,
@@ -90,7 +90,7 @@ pub(crate) async fn prepare_window_position(
 /// async：ConfigManager::apply_settings 可能下发远端插件组件（RPC）。
 pub(crate) async fn save_window_position_if_drag(
     config_manager: &Arc<ConfigManager>,
-    app_handle: &tauri::AppHandle,
+    host: &Arc<dyn Host>,
 ) {
     let enable_drag = config_manager
         .get_component_setting("window-behavior-config", "is_enable_drag_window")
@@ -99,62 +99,19 @@ pub(crate) async fn save_window_position_if_drag(
     if !enable_drag {
         return;
     }
-    if let Some(window) = app_handle.get_webview_window("main") {
-        if let Ok(pos) = window.outer_position() {
-            let mut current = config_manager
-                .get_settings("window-behavior-config")
-                .unwrap_or_else(|| json!({}));
-            if let Some(obj) = current.as_object_mut() {
-                obj.insert("window_position_x".to_string(), json!(pos.x));
-                obj.insert("window_position_y".to_string(), json!(pos.y));
-            }
-            if let Err(e) = config_manager
-                .apply_settings("window-behavior-config", current)
-                .await
-            {
-                warn!("[save_window_position] 持久化窗口位置失败: {}", e);
-            }
+    if let Some((x, y)) = host.main_window_position() {
+        let mut current = config_manager
+            .get_settings("window-behavior-config")
+            .unwrap_or_else(|| json!({}));
+        if let Some(obj) = current.as_object_mut() {
+            obj.insert("window_position_x".to_string(), json!(x));
+            obj.insert("window_position_y".to_string(), json!(y));
+        }
+        if let Err(e) = config_manager
+            .apply_settings("window-behavior-config", current)
+            .await
+        {
+            warn!("[save_window_position] 持久化窗口位置失败: {}", e);
         }
     }
-}
-
-/// 从 Tauri AppHandle 收集可用显示器信息，供窗口定位使用。
-/// 显示并激活设置窗口（含被遮挡时的强制提升）。
-///
-/// Windows 前台锁限制下 `set_focus`（SetForegroundWindow）可能失败：
-/// 设置窗口已打开但被其他窗口遮挡时，`show()` 不会提升 Z 序。
-/// 置顶闪切（set_always_on_top true→false）通过 SetWindowPos(HWND_TOPMOST)
-/// 强制把窗口提升到前台，再取消置顶使其保持在普通窗口最上层。
-pub(crate) fn show_and_focus_settings_window(window: &tauri::WebviewWindow) {
-    let _ = window.unminimize();
-    if let Err(e) = window.show() {
-        warn!("显示设置窗口失败: {e}");
-        return;
-    }
-    let _ = window.set_always_on_top(true);
-    let _ = window.set_always_on_top(false);
-    let _ = window.set_focus();
-}
-
-pub(crate) fn collect_monitor_info(app_handle: &tauri::AppHandle) -> Vec<MonitorInfo> {
-    app_handle
-        .get_webview_window("main")
-        .and_then(|w| w.available_monitors().ok())
-        .map(|monitors| {
-            monitors
-                .iter()
-                .map(|m| {
-                    let pos = m.position();
-                    let size = m.size();
-                    MonitorInfo {
-                        x: pos.x,
-                        y: pos.y,
-                        width: size.width,
-                        height: size.height,
-                        scale_factor: m.scale_factor(),
-                    }
-                })
-                .collect()
-        })
-        .unwrap_or_default()
 }

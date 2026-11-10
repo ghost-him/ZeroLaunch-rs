@@ -9,6 +9,7 @@ use tauri::{
 use tracing::{debug, error, info, warn};
 
 use crate::core::app_command;
+use crate::core::host::UpdateMenuState;
 use crate::core::i18n::I18nManager;
 use crate::sdk::HostApi;
 
@@ -50,24 +51,6 @@ impl From<&str> for MenuEventId {
 /// 采用 Inner 模式：外层 TrayManager 通过 RwLock 委托所有操作给 Inner。
 pub struct TrayManager {
     inner: RwLock<TrayManagerInner>,
-}
-
-/// 「检查更新」菜单项的展示状态。
-///
-/// 菜单项既是操作入口也是结果回显：已是最新/失败时保留「检查更新」字样，
-/// 点击仍然重新检查。自动检查只在发现新版本时改文案，避免启动即显示「已是最新」。
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum UpdateMenuState {
-    /// 尚未检查（显示「检查更新」）
-    Idle,
-    /// 用户主动发起的检查进行中
-    Checking,
-    /// 已是最新版本（携带当前版本号）
-    UpToDate(String),
-    /// 发现新版本（携带最新版本号）
-    Available(String),
-    /// 上次检查失败
-    Failed,
 }
 
 struct TrayManagerInner {

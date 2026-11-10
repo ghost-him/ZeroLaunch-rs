@@ -5,9 +5,9 @@ use axum::routing::{get, post};
 use axum::Router;
 use std::path::Path;
 use std::sync::{Arc, LazyLock};
-use tauri::async_runtime::JoinHandle;
 use tokio::net::TcpListener;
 use tokio::sync::Mutex;
+use tokio::task::JoinHandle;
 use tracing::{error, info};
 
 use super::middleware::trace_middleware;
@@ -126,7 +126,7 @@ async fn start(state: Arc<AppState>, data_dir: &Path) -> Result<RunningServer, a
 
     info!("CLI HTTP server listening on 127.0.0.1:{}", port);
 
-    let task = tauri::async_runtime::spawn(async move {
+    let task = crate::runtime::spawn(async move {
         // serve 只在 accept 异常或被停用时退出；失败仅记日志，避免静默杀掉任务。
         if let Err(e) = axum::serve(listener, app).await {
             error!("CLI HTTP server exited with error: {e}");
@@ -142,10 +142,10 @@ mod tests {
 
     /// 启停开关：启用后落盘 token 并监听；停用后端口释放；可重复启停。
     ///
-    /// 单测试串行覆盖（运行句柄是进程级单例），并在 tauri runtime 内执行以贴合生产链路。
+    /// 单测试串行覆盖（运行句柄是进程级单例），在进程级 runtime 内执行以贴合生产链路。
     #[test]
     fn apply_enabled_starts_and_stops_listening() {
-        tauri::async_runtime::block_on(async {
+        crate::runtime::block_on(async {
             let dir = tempfile::tempdir().unwrap();
             let state = Arc::new(AppState::new());
 

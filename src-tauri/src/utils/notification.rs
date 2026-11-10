@@ -21,7 +21,7 @@ pub fn notify(app_handle: &AppHandle, title: &str, body: &str) {
         .body(body)
         .app_id(&app_handle.config().identifier);
 
-    tauri::async_runtime::spawn(async move {
+    crate::runtime::spawn(async move {
         if let Err(error) = notification.show() {
             warn!(error = %error, "发送系统通知失败");
         }

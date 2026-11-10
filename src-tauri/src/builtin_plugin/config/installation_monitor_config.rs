@@ -200,7 +200,7 @@ impl Configurable for InstallationMonitorConfigComponent {
 
         let host_api = self.host_api.clone();
 
-        tauri::async_runtime::spawn(async move {
+        crate::runtime::spawn(async move {
             // 无条件下发路径与去抖配置：空路径让平台层回退默认开始菜单路径，
             // 清空配置也能恢复默认行为（此前仅在非空时更新，导致清空不生效）。
             host_api.update_installation_monitor_paths(paths.clone());

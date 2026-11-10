@@ -509,7 +509,7 @@ impl SessionDispatcher {
             })
     }
 
-    /// 注入会话状态推送回调（bootstrap 拿到 AppHandle 后调用；CLI 场景不注入）。
+    /// 注入会话状态推送回调（宿主安装 `Host` 后调用；无窗口场景使用 NoopHost）。
     pub fn set_session_emitter(&self, emitter: SessionStateEmitter) {
         *self.session_emitter.write() = Some(emitter);
     }
@@ -1555,7 +1555,7 @@ impl SessionDispatcher {
         if let Some(pipeline) = pipeline {
             let query_text = query_text.to_string();
             let config_manager = self.config_manager();
-            tauri::async_runtime::spawn(async move {
+            crate::runtime::spawn(async move {
                 pipeline
                     .record(candidate_id, candidate_snapshot.as_ref(), &query_text)
                     .await;
@@ -2142,7 +2142,7 @@ impl SessionDispatcher {
                         init_ctx.locale = self.current_locale();
                         let plugin_id = adapters.plugin_id.clone();
                         let component_id = comp.core.component_id().to_string();
-                        tauri::async_runtime::spawn(async move {
+                        crate::runtime::spawn(async move {
                             if let Err(e) = p.init(&init_ctx, None).await {
                                 error!(
                                     "远端插件 {} 组件 {} init 失败: {}",
@@ -3081,9 +3081,10 @@ mod tests {
             confirm: false,
         };
         let spawned = dispatcher.clone();
-        let slow = tauri::async_runtime::spawn(async move {
-            spawned.route_query_ui("trace-1", &slow_query).await
-        });
+        let slow =
+            crate::runtime::spawn(
+                async move { spawned.route_query_ui("trace-1", &slow_query).await },
+            );
         tokio::time::sleep(std::time::Duration::from_millis(20)).await;
 
         // 快查询：无触发词命中 → 默认搜索投影（搜索形态）

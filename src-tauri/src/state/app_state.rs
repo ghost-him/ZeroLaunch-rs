@@ -1,25 +1,23 @@
 use crate::core::cli_token::CliToken;
 use crate::core::config::ConfigManager;
+use crate::core::host::{Host, NoopHost};
 use crate::core::i18n::I18nManager;
 use crate::core::model::ModelManager;
 use crate::plugin_framework::plugin_manager::PluginManager;
 use crate::plugin_framework::PluginRegistry;
 use crate::plugin_framework::SessionDispatcher;
 use crate::sdk::HostApi;
-use crate::tray::TrayManager;
 use crate::updater::UpdateChecker;
 use crate::utils::waiting_hashmap::AsyncWaitingHashMap;
 use parking_lot::RwLock;
 use std::sync::Arc;
-use tauri::AppHandle;
 use zerolaunch_plugin_api::host::PluginHandle;
 
 pub struct AppState {
     session_dispatcher: Arc<SessionDispatcher>,
     config_manager: RwLock<Option<Arc<ConfigManager>>>,
-    main_handle: RwLock<Option<Arc<AppHandle>>>,
+    host: RwLock<Arc<dyn Host>>,
     waiting_hashmap: Arc<AsyncWaitingHashMap<String, Vec<(String, String)>>>,
-    tray_manager: RwLock<Option<Arc<TrayManager>>>,
     game_mode: RwLock<bool>,
     host_api: RwLock<Option<Arc<HostApi>>>,
     core_handle: RwLock<Option<Arc<PluginHandle>>>,
@@ -49,9 +47,8 @@ impl AppState {
         AppState {
             session_dispatcher,
             config_manager: RwLock::new(None),
-            main_handle: RwLock::new(None),
+            host: RwLock::new(Arc::new(NoopHost::default())),
             waiting_hashmap: Arc::new(AsyncWaitingHashMap::new()),
-            tray_manager: RwLock::new(None),
             game_mode: RwLock::new(false),
             host_api: RwLock::new(None),
             core_handle: RwLock::new(None),
@@ -80,28 +77,18 @@ impl AppState {
         *self.config_manager.write() = Some(config_manager);
     }
 
-    pub fn get_main_handle(&self) -> Arc<AppHandle> {
-        self.main_handle
-            .read()
-            .as_ref()
-            .cloned()
-            .expect("main handle not initialized")
+    /// 当前宿主端口（默认为无窗口实现；Tauri 外壳在 setup 中替换）。
+    pub fn get_host(&self) -> Arc<dyn Host> {
+        self.host.read().clone()
     }
 
-    pub fn set_main_handle(&self, handle: Arc<AppHandle>) {
-        *self.main_handle.write() = Some(handle);
+    /// 安装宿主实现（Tauri / GPUI / 测试）。
+    pub fn set_host(&self, host: Arc<dyn Host>) {
+        *self.host.write() = host;
     }
 
     pub fn get_waiting_hashmap(&self) -> Arc<AsyncWaitingHashMap<String, Vec<(String, String)>>> {
         self.waiting_hashmap.clone()
-    }
-
-    pub fn set_tray_manager(&self, manager: Arc<TrayManager>) {
-        *self.tray_manager.write() = Some(manager);
-    }
-
-    pub fn get_tray_manager(&self) -> Option<Arc<TrayManager>> {
-        self.tray_manager.read().clone()
     }
 
     pub fn set_game_mode(&self, game_mode: bool) {
@@ -214,7 +201,6 @@ impl AppState {
 impl std::fmt::Debug for AppState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("AppState")
-            .field("main_handle", &self.main_handle)
             .field("waiting_hashmap", &self.waiting_hashmap)
             .finish()
     }

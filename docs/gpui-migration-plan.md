@@ -1,6 +1,6 @@
 # ZeroLaunch-rs → GPUI Kit 迁移计划
 
-> 状态：阶段 1 完成，阶段 2 待开始
+> 状态：阶段 2 完成，阶段 3 待开始
 > 基线版本：1.5.5
 > 适用分支：迁移分支（`main` 保持 Tauri 可发布，见「迁移与发布策略」）
 
@@ -193,4 +193,24 @@
   - `.omp/rules/no-tokio-spawn-in-core.md`：增加 GPUI 迁移边界，新宿主使用全局 Tokio runtime。
   - `.omp/rules/schema-driven-ui.md`：限定当前 Vue 前端，GPUI 设置页改为按组件实现。
 - 下一阶段前置条件：阶段 2 建立全局 Tokio runtime，并把 `bootstrap` / `AppState` 从 Tauri 生命周期中拆出。
-```
+
+### 阶段 2 验收记录（2026-11-10）
+
+- 提交范围：
+  - 新增 `runtime.rs`（进程级 Tokio runtime）与 `core/host.rs`（Host 端口、`NoopHost`、`UpdateMenuState`）；`state/tauri_host.rs` 把窗口、托盘、通知与事件映射到 Tauri。
+  - `bootstrap.rs` 缩为 Tauri 外壳适配（安装 Host、平台端口、托盘）；新增 `kernel.rs` 承载 HostApi / ConfigManager / PluginManager / CLI / AppCommand / 后台任务装配，整个内核不再引用 Tauri 类型。
+  - `AppState` 移除 `AppHandle` 与 `TrayManager` 字段，改为持有 `Arc<dyn Host>`；`plugin_manager`、`host_handler`、`updater`、`window`、`bridge`/`plugin`/`plugin_market` 命令与 `cli_server` 改经 Host 端口或全局 runtime。
+  - 会话状态、配置变更、候选预热、检查器、图标回填、插件安装/卸载、系统主题全部改为 Host 语义方法；前端仅通过 `TauriHost` 的适配层消费旧事件名。
+- 通过项：
+  - `cargo check --workspace` 零错误。
+  - `cargo test --workspace`：271 + 6 + 5 + 1 passed（含插件框架、历史持久化、Host API 暴露审计）。
+  - 新增 `tests/kernel_headless.rs`：无窗口完成内核装配、计算器查询、插件动作确认，并通过 CLI `GET /v1/ping` 验证 bearer token 端点。
+- 未通过 / 差异项：
+  - `commands/` 仍保留 Tauri IPC 参数/返回 DTO 外壳；业务逻辑本就在 `SessionDispatcher` / `ConfigManager` / `PluginManager` 中，未为删除纯壳而破坏当前 Tauri 可编译壳。纯壳随阶段 3-4 的 GPUI 视图接线与阶段 7 的 Tauri 拆除一并删除。
+  - `TauriHost` 仍持有 WebView 窗口与托盘，这是外壳适配的预期边界；GPUI 宿主实现同一 `Host` trait 即可复用内核。
+  - 未启动完整 Tauri 应用做 UI 级回归；阶段 2 的通过标准是无窗口内核链路，窗口交互留给阶段 3。
+- 临时绕过：无。
+- 规则同步：
+  - `.omp/rules/no-tokio-spawn-in-core.md`：由「统一 `tauri::async_runtime`」改为「统一 `crate::runtime` 全局入口」。
+  - `.omp/rules/no-appstate-global.md`：移除「从 Tauri `AppHandle` 获取」表述，改为状态注入与 `Host` 端口。
+- 下一阶段前置条件：搜索主窗口直接调用 `SessionDispatcher` / Host 端口，输入、候选、执行链路不再经过 Tauri IPC 命令。

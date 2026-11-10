@@ -191,7 +191,7 @@ impl WindowsIconExtractor {
         const MAX_RETRIES: u32 = 3;
         let file_path = file_path.to_string();
         for attempt in 0..=MAX_RETRIES {
-            let result = tauri::async_runtime::spawn_blocking({
+            let result = tokio::task::spawn_blocking({
                 let file_path = file_path.clone();
                 move || {
                     let _com_guard = unsafe { ComGuard::init() };
@@ -273,7 +273,7 @@ impl WindowsIconExtractor {
         const MAX_RETRIES: u32 = 3;
         let file_path = file_path.to_string();
         for attempt in 0..=MAX_RETRIES {
-            let result = tauri::async_runtime::spawn_blocking({
+            let result = tokio::task::spawn_blocking({
                 let file_path = file_path.clone();
                 move || {
                     let _com_guard = unsafe { ComGuard::init() };
@@ -406,7 +406,7 @@ impl WindowsIconExtractor {
         let file_path = file_path.to_string();
 
         for attempt in 0..=MAX_RETRIES {
-            let result = tauri::async_runtime::spawn_blocking({
+            let result = tokio::task::spawn_blocking({
                 let file_path = file_path.clone();
                 move || {
                     let _com_guard = unsafe { ComGuard::init() };
@@ -478,7 +478,7 @@ impl WindowsIconExtractor {
 
         let ext = ext.to_string();
         let ext_for_error = ext.clone();
-        let image_buffer = tauri::async_runtime::spawn_blocking(move || {
+        let image_buffer = tokio::task::spawn_blocking(move || {
             let _com_guard = unsafe { ComGuard::init() };
 
             let mut sh_file_info: SHFILEINFOW = unsafe { std::mem::zeroed() };

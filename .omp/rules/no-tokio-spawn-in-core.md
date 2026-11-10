@@ -1,6 +1,6 @@
 ---
 name: no-tokio-spawn-in-core
-description: src-tauri 核心程序禁止使用 tokio 协程创建函数（spawn 系列），必须使用 tauri::async_runtime 的统一入口
+description: Tauri 宿主期 src-tauri 禁止 tokio 协程创建函数，统一 tauri::async_runtime；GPUI 宿主使用全局 Tokio runtime
 condition:
   - 'tokio::(task::)?spawn\b'
   - 'tokio::(task::)?spawn_blocking'
@@ -39,6 +39,12 @@ tauri::async_runtime::spawn_blocking(|| { ... });
 - 主程序运行在 tauri 管理的 async runtime 内（`tauri::async_runtime` 内部即 tokio，能力完全等价）。
 - 直接 `tokio::spawn` 绕过 tauri 的任务生命周期管理（关闭时 JoinHandle 清理、AppHandle 引用计数、runtime 优雅退出），且并发入口不统一，后续维护无法全局追踪。
 - 统一走 `tauri::async_runtime` 后，任务入口单一、与 tauri 事件/窗口/托盘生命周期对齐。
+
+## 迁移期边界（GPUI）
+
+- 本规则仅在 `src-tauri/` 仍由 Tauri 托管时生效，用于保留 Tauri 的任务生命周期。
+- 新的 GPUI 宿主（`app/`）没有 Tauri runtime，**禁止**照搬 `tauri::async_runtime`；它必须使用宿主统一的全局 Tokio runtime（`runtime::spawn` / `runtime::spawn_blocking`）创建任务。
+- 阶段 7 删除 `src-tauri/` 后，本规则随之删除，不迁移到新宿主。
 
 ## 范围边界
 

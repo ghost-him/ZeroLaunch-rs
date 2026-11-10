@@ -6,7 +6,6 @@
 
 use std::sync::Arc;
 
-use tauri::AppHandle;
 use zerolaunch_plugin_api::platform::PlatformServices;
 
 use crate::app_enumerator::WindowsAppEnumerator;
@@ -30,12 +29,12 @@ use crate::window::WindowsWindowManager;
 use crate::window_positioner::WindowsWindowPositioner;
 
 /// 装配 Windows 平台实现的统一集合。
-/// 参数：app_handle - Tauri AppHandle（热键/焦点监控等平台管理器依赖）；
+/// 参数：main_window_handle - 主窗口顶层句柄（HWND 数值），供焦点监控识别目标窗口；
 ///       path_resolver - 路径解析器（宿主启动早期已构造，用于日志目录解析）；
 ///       default_app_icon_path / default_web_icon_path - 图标提取默认回退路径。
 /// 返回：PlatformServices（含能力集与全部平台服务 trait 对象）。
 pub fn windows_platform_services(
-    app_handle: Arc<AppHandle>,
+    main_window_handle: isize,
     path_resolver: Arc<WindowsPathResolver>,
     default_app_icon_path: String,
     default_web_icon_path: String,
@@ -58,9 +57,9 @@ pub fn windows_platform_services(
         window_handle_provider: Arc::new(WindowsWindowHandleProvider),
         selection_provider: Arc::new(WindowsSelectionProvider),
         autostart_manager: Arc::new(WindowsAutoStartManager::new()),
-        hotkey_manager: Arc::new(WindowsHotkeyManager::new(app_handle.clone())),
+        hotkey_manager: Arc::new(WindowsHotkeyManager::new()),
         installation_monitor: Arc::new(WindowsInstallationMonitor::new()),
-        focus_monitor: Arc::new(WindowsFocusMonitor::new(app_handle)),
+        focus_monitor: Arc::new(WindowsFocusMonitor::new(main_window_handle)),
         clipboard_manager: Arc::new(WindowsClipboardManager::new()),
         theme_provider: Arc::new(WindowsThemeProvider),
     }

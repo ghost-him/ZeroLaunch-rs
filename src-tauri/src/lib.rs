@@ -15,6 +15,7 @@ pub mod window;
 
 use crate::logging::{init_logging, log_application_shutdown, log_application_start};
 use crate::state::app_state::AppState;
+use crate::window::save_window_position_if_drag;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tauri::App;
@@ -25,6 +26,10 @@ use tauri_plugin_deep_link::DeepLinkExt;
 use tracing::{debug, info, warn};
 use zerolaunch_platform_windows::ComGuard;
 use zerolaunch_platform_windows::WindowsPathResolver;
+use zerolaunch_platform_windows::{
+    acquire_single_instance, SecondaryInstanceCallback, SingleInstanceStatus,
+};
+use zerolaunch_plugin_api::services::focus_monitor::{FocusCallback, FocusEvent};
 use zerolaunch_plugin_api::services::path::path_resolver::PathResolver;
 use zerolaunch_plugin_api::services::path::KnownPath;
 static IS_EXITING: AtomicBool = AtomicBool::new(false);
@@ -66,9 +71,6 @@ pub fn run() {
 
     let builder = tauri::Builder::default().plugin(tauri_plugin_shell::init());
     builder
-        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-            crate::utils::notification::notify(app, "ZeroLaunch", "程序已在运行中，无需重复启动");
-        }))
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_dialog::init())
         .register_uri_scheme_protocol("zlplugin", move |app, request| {
@@ -101,6 +103,23 @@ pub fn run() {
         })
         .manage(Arc::new(AppState::new()))
         .setup(move |app| {
+            // 单实例校验：后续实例通知首个实例后直接退出，避免重复初始化。
+            let single_instance_callback: SecondaryInstanceCallback = Arc::new({
+                let app_handle = app.handle().clone();
+                move |_args, _cwd| {
+                    crate::utils::notification::notify(
+                        &app_handle,
+                        "ZeroLaunch",
+                        "程序已在运行中，无需重复启动",
+                    );
+                }
+            });
+            if acquire_single_instance(&app.config().identifier, single_instance_callback)
+                == SingleInstanceStatus::Secondary
+            {
+                std::process::exit(0);
+            }
+
             // AppHandle 副本供主题监听回调使用
             let app_handle_for_theme = app.handle().clone();
             let app_data_dir = path_resolver.resolve_path(KnownPath::AppDataDir).unwrap();
@@ -272,27 +291,35 @@ fn init_search_bar_window(app: &mut App) {
     let host_api_for_cb = host_api.clone();
     let config_manager_for_cb = config_manager.clone();
     let app_handle_for_cb = state.get_main_handle().clone();
-    core_handle.register_focus_callback(
-        "main_window_focus",
-        Arc::new(move |_event| {
-            let host_api = host_api_for_cb.clone();
-            let session_dispatcher = session_dispatcher.clone();
-            let config_manager = config_manager_for_cb.clone();
-            let app_handle = app_handle_for_cb.clone();
-            tauri::async_runtime::spawn(async move {
-                crate::window::save_window_position_if_drag(&config_manager, &app_handle).await;
-                host_api.hide_window().await;
+    let on_focus_lost: FocusCallback = Arc::new(move |_event: FocusEvent| {
+        let host_api = host_api_for_cb.clone();
+        let session_dispatcher = session_dispatcher.clone();
+        let config_manager = config_manager_for_cb.clone();
+        let app_handle = app_handle_for_cb.clone();
+        tauri::async_runtime::spawn(async move {
+            save_window_position_if_drag(&config_manager, &app_handle).await;
+            host_api.hide_window().await;
 
-                let reset_plugins = config_manager
-                    .get_component_setting("general-config", "reset_session_on_wake")
-                    .and_then(|v| v.as_bool())
-                    .unwrap_or(true);
-                // 会话重置由 Dispatcher 内部推送 session-state（kind: .host., view: .none.），
-                // 原 session-reset 事件已删除（统一会话事件通道，见设计 §4.4）。
-                session_dispatcher.reset_session(reset_plugins);
-            });
-        }),
-    );
+            let reset_plugins = config_manager
+                .get_component_setting("general-config", "reset_session_on_wake")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(true);
+            // 会话重置由 Dispatcher 内部推送 session-state（kind: .host., view: .none.），
+            // 原 session-reset 事件已删除（统一会话事件通道，见设计 §4.4）。
+            session_dispatcher.reset_session(reset_plugins);
+        });
+    });
+    core_handle.register_focus_callback("main_window_focus", on_focus_lost.clone());
+
+    // 关闭主窗口（Alt+F4）等价于失焦：阻止销毁，复用同一隐藏与重置流程。
+    if let Some(window) = app.get_webview_window("main") {
+        window.on_window_event(move |event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                on_focus_lost(FocusEvent::Lost);
+            }
+        });
+    }
 }
 
 fn init_setting_window(app: tauri::AppHandle) {

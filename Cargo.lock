@@ -2520,7 +2520,6 @@ dependencies = [
  "objc2",
  "objc2-app-kit",
  "once_cell",
- "serde",
  "thiserror 2.0.20",
  "windows-sys 0.59.0",
  "x11rb",
@@ -6573,21 +6572,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tauri-plugin-global-shortcut"
-version = "2.3.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b4dd9f4c5136c09cd962da0c86dc4accd4666db2ea591cf16e6597435843bd2b"
-dependencies = [
- "global-hotkey",
- "log",
- "serde",
- "serde_json",
- "tauri",
- "tauri-plugin",
- "thiserror 2.0.20",
-]
-
-[[package]]
 name = "tauri-plugin-shell"
 version = "2.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6606,23 +6590,6 @@ dependencies = [
  "tauri-plugin",
  "thiserror 2.0.20",
  "tokio",
-]
-
-[[package]]
-name = "tauri-plugin-single-instance"
-version = "2.4.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5cd0cb5c412a5071b69bab6a6df1583cbb89460d4a83b6a24769b08d15b6b1e1"
-dependencies = [
- "serde",
- "serde_json",
- "tauri",
- "tauri-plugin-deep-link",
- "thiserror 2.0.20",
- "tokio",
- "tracing",
- "windows-sys 0.60.2",
- "zbus",
 ]
 
 [[package]]
@@ -8712,6 +8679,7 @@ dependencies = [
  "dashmap",
  "dirs 7.0.0",
  "encoding_rs",
+ "global-hotkey",
  "image",
  "ini",
  "lnk",
@@ -8723,8 +8691,6 @@ dependencies = [
  "scraper",
  "serde",
  "serde_json",
- "tauri",
- "tauri-plugin-global-shortcut",
  "tempfile",
  "thiserror 2.0.20",
  "tokio",
@@ -8874,9 +8840,7 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-deep-link",
  "tauri-plugin-dialog",
- "tauri-plugin-global-shortcut",
  "tauri-plugin-shell",
- "tauri-plugin-single-instance",
  "tauri-utils",
  "tempfile",
  "thiserror 2.0.20",

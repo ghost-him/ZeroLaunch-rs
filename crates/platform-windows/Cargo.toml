@@ -41,6 +41,7 @@ windows = { workspace = true, features = [
     "Win32_Storage_FileSystem",
     "Win32_System_Com",
     "Win32_System_Com_StructuredStorage",
+    "Win32_System_DataExchange",
     "Win32_System_Diagnostics",
     "Win32_System_Diagnostics_ToolHelp",
     "Win32_System_Environment",
@@ -48,6 +49,7 @@ windows = { workspace = true, features = [
     "Win32_Security",
     "Win32_System_Registry",
     "Win32_System_Threading",
+    "Win32_UI_Accessibility",
     "Win32_UI_Shell",
     "Win32_UI_Shell_PropertiesSystem",
     "Win32_UI_Input_KeyboardAndMouse",
@@ -60,9 +62,8 @@ arboard.workspace = true
 whoami.workspace = true
 lnk.workspace = true
 
-# Tauri-specific (needed by focus_monitor and hotkey)
-tauri.workspace = true
-tauri-plugin-global-shortcut.workspace = true
+# 全局快捷键（自带 Windows 消息窗口，由本 crate 的专用线程驱动）
+global-hotkey.workspace = true
 
 dirs.workspace = true
 base64.workspace = true

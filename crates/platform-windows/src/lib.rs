@@ -18,6 +18,7 @@ mod platform_services;
 mod raw_keyboard;
 mod resource_loader;
 mod shell;
+mod single_instance;
 mod theme;
 mod utils;
 mod window;
@@ -41,6 +42,9 @@ pub use path_resolver::WindowsPathResolver;
 pub use platform_services::windows_platform_services;
 pub use resource_loader::WindowsResourceLoader;
 pub use shell::WindowsShellExecutor;
+pub use single_instance::{
+    acquire_single_instance, SecondaryInstanceCallback, SingleInstanceStatus,
+};
 pub use theme::{start_system_theme_monitor, WindowsThemeProvider};
 pub use utils::exe_dir;
 pub use window::WindowsWindowManager;

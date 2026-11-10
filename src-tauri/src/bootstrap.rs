@@ -141,8 +141,14 @@ pub(crate) async fn init_app_state(
     let model_manager = state.get_model_manager();
 
     // 平台端口：Windows 平台实现的统一工厂（组装权在 platform-windows）。
+    // 焦点监控只观察主窗口，句柄由宿主提供，平台层不感知 Tauri 类型。
+    let main_window_handle = app_handle
+        .get_webview_window("main")
+        .and_then(|window| window.hwnd().ok())
+        .map(|handle| handle.0 as isize)
+        .unwrap_or(0);
     let platform = windows_platform_services(
-        app_handle,
+        main_window_handle,
         path_resolver,
         default_app_icon_path,
         default_web_icon_path,

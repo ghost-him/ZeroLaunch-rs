@@ -1,16 +1,22 @@
 //! 设置窗口：分类导航、组件设置、插件管理、市场、关于与检查器。
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
 use futures::channel::oneshot;
 use gpui_kit::component::input::{InputEvent, InputState};
-use gpui_kit::{AppContext as _, Context, Entity, PathPromptOptions, Subscription, Task, Window};
+use gpui_kit::component::select::{SearchableVec, SelectEvent, SelectState};
+use gpui_kit::{
+    AppContext as _, Context, Entity, Image, KeyDownEvent, PathPromptOptions, Subscription, Task,
+    Window,
+};
 use serde_json::{json, Value};
+use zerolaunch_plugin_api::common::ImageUtils;
 use zerolaunch_plugin_api::config::{
-    ComponentType, FieldUiMetadata, SchemaKind, SchemaNode, WidgetHint,
+    ComponentType, DataActionBinding, FieldAction, FieldUiMetadata, SchemaKind, SchemaNode,
+    WidgetHint,
 };
 use zerolaunch_plugin_api::host::OpenTarget;
 use zerolaunch_plugin_api::plugin::PluginKind;
@@ -23,6 +29,7 @@ use zerolaunch_rs_lib::runtime;
 use zerolaunch_rs_lib::state::app_state::AppState;
 
 use crate::host::{GpuiHost, HostEvent};
+use crate::search::decode_icon;
 use crate::settings::schema::{self, FieldPath, Segment};
 
 /// 当前设置页。
@@ -59,6 +66,37 @@ pub(super) enum Category {
     About,
     /// 调试页。
     Debug,
+}
+
+/// 正在录制的快捷键字段。
+#[derive(Debug, Clone)]
+struct HotkeyRecording {
+    /// 字段路径。
+    path: FieldPath,
+    /// 是否要求至少一个修饰键。
+    require_modifier: bool,
+}
+
+/// 字段动作执行模式。
+#[derive(Debug, Clone)]
+pub(super) enum ActionMode {
+    /// 普通字段动作，结果写回字段。
+    Apply,
+    /// data action，结果作为 select 选项。
+    Options,
+    /// 搜索表格，结果作为候选项列表。
+    Search(String),
+}
+
+/// 搜索表格条目来源。
+#[derive(Clone)]
+pub(super) struct SearchTarget {
+    /// data action 绑定。
+    pub binding: DataActionBinding,
+    /// 条目 schema。
+    pub item_schema: SchemaNode,
+    /// 最大条目数。
+    pub max_items: Option<usize>,
 }
 
 /// 设置项搜索结果。
@@ -104,6 +142,32 @@ pub struct SettingsView {
     field_filter: Option<String>,
     /// 字段输入框缓存。
     inputs: HashMap<String, Entity<InputState>>,
+    /// 搜索表格查询输入框缓存。
+    search_inputs: HashMap<String, Entity<InputState>>,
+    /// 数据动作拉取的选项。
+    data_options: HashMap<String, Vec<(String, String)>>,
+    /// 已尝试拉取选项的字段，失败后不自动重试。
+    data_options_attempted: HashSet<String>,
+    /// 搜索表格动作结果。
+    search_results: HashMap<String, Vec<Value>>,
+    /// 正在执行的动作。
+    action_loading: HashSet<String>,
+    /// 系统字体列表。
+    fonts: HashMap<String, Vec<String>>,
+    /// 已尝试加载字体的字段。
+    fonts_attempted: HashSet<String>,
+    /// 字体加载失败的字段。
+    font_errors: HashSet<String>,
+    /// 字体选择器。
+    font_selects: HashMap<String, Entity<SelectState<SearchableVec<String>>>>,
+    /// 已解码的图片预览。
+    images: HashMap<String, Arc<Image>>,
+    /// 正在加载的图片预览。
+    image_loading: HashSet<String>,
+    /// 已尝试加载的图片，失败后不重复请求。
+    image_attempted: HashSet<String>,
+    /// 正在录制的快捷键字段。
+    hotkey_recording: Option<HotkeyRecording>,
     /// 字段输入框订阅。
     field_subscriptions: Vec<Subscription>,
     /// 视图级订阅与任务。
@@ -182,6 +246,19 @@ impl SettingsView {
             saved: json!({}),
             field_filter: None,
             inputs: HashMap::new(),
+            search_inputs: HashMap::new(),
+            data_options: HashMap::new(),
+            data_options_attempted: HashSet::new(),
+            search_results: HashMap::new(),
+            action_loading: HashSet::new(),
+            fonts: HashMap::new(),
+            fonts_attempted: HashSet::new(),
+            font_errors: HashSet::new(),
+            font_selects: HashMap::new(),
+            images: HashMap::new(),
+            image_loading: HashSet::new(),
+            image_attempted: HashSet::new(),
+            hotkey_recording: None,
             field_subscriptions: Vec::new(),
             subscriptions: Vec::new(),
             _event_task: event_task,
@@ -198,13 +275,21 @@ impl SettingsView {
             inspector: None,
         };
 
-        let search_subscription =
-            cx.subscribe_in(&view.search, window, |this, input, event, _, cx| {
-                if matches!(event, InputEvent::Change) {
+        let search_subscription = cx.subscribe_in(
+            &view.search,
+            window,
+            |this, input, event, _, cx| match event {
+                InputEvent::Change => {
                     this.search_query = input.read(cx).value().to_string();
                     this.rebuild_search_hits(cx);
                 }
-            });
+                InputEvent::Focus => {
+                    this.hotkey_recording = None;
+                    cx.notify();
+                }
+                _ => {}
+            },
+        );
         view.subscriptions.push(search_subscription);
 
         if let Some(component_id) = selected_component {
@@ -394,6 +479,7 @@ impl SettingsView {
         if !self.confirm_navigation(cx) {
             return;
         }
+        self.hotkey_recording = None;
         self.category = category;
         self.field_filter = None;
         match category {
@@ -442,6 +528,7 @@ impl SettingsView {
         if !self.confirm_navigation(cx) {
             return;
         }
+        self.hotkey_recording = None;
         self.selected_component = Some(component_id.to_string());
         self.category = self.category_for_component(component_id);
         self.page = Page::Component;
@@ -487,6 +574,7 @@ impl SettingsView {
 
     /// 保存当前组件设置。
     pub(super) fn save(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.hotkey_recording = None;
         let Some(schema) = self.schema.as_ref() else {
             return;
         };
@@ -530,6 +618,7 @@ impl SettingsView {
 
     /// 重置当前组件设置；首次点击进入确认态。
     pub(super) fn reset(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.hotkey_recording = None;
         if !self.reset_armed {
             self.reset_armed = true;
             self.status = Some(self.tr("settings.resetConfirmContent"));
@@ -575,6 +664,7 @@ impl SettingsView {
 
     /// 丢弃未保存修改。
     pub(super) fn discard(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.hotkey_recording = None;
         self.load_component(window, cx);
         self.status = Some(self.tr("settings.unsavedDiscard"));
         cx.notify();
@@ -705,6 +795,770 @@ impl SettingsView {
         self.inputs.get(&path_id(path)).cloned()
     }
 
+    /// 取搜索表格查询输入框。
+    /// 参数：path - 字段路径。
+    /// 返回：已创建的输入框；不存在时 None。
+    pub(super) fn field_search_input(&self, path: &[Segment]) -> Option<Entity<InputState>> {
+        self.search_inputs.get(&path_id(path)).cloned()
+    }
+
+    /// 取字段动作显示名。
+    /// 参数：action - 字段动作绑定。
+    /// 返回：组件声明的动作标签；缺失时回退动作 id。
+    pub(super) fn action_label(&self, action: &FieldAction) -> String {
+        let (action_id, component) = match action {
+            FieldAction::Data(binding) => (&binding.action, &binding.component),
+            FieldAction::Effect(binding) => (&binding.action, &binding.component),
+        };
+        let component = component
+            .clone()
+            .or_else(|| self.selected_component.clone())
+            .unwrap_or_default();
+        let label = self
+            .state
+            .get_config_manager()
+            .get_config_actions(&component)
+            .into_iter()
+            .find(|definition| definition.action == *action_id)
+            .map(|definition| self.tr(&definition.label))
+            .unwrap_or_default();
+        if label.is_empty() {
+            action_id.clone()
+        } else {
+            label
+        }
+    }
+
+    /// 数据动作拉取的选项。
+    /// 参数：path - 字段路径。
+    /// 返回：选项列表；未加载时 None。
+    pub(super) fn data_options(&self, path: &[Segment]) -> Option<&[(String, String)]> {
+        self.data_options.get(&path_id(path)).map(Vec::as_slice)
+    }
+
+    /// 字段动作是否正在执行。
+    /// 参数：path - 字段路径。
+    /// 返回：执行中为 true。
+    pub(super) fn action_loading(&self, path: &[Segment]) -> bool {
+        self.action_loading.contains(&path_id(path))
+    }
+
+    /// 搜索表格的最近结果。
+    /// 参数：path - 字段路径。
+    /// 返回：结果列表；未搜索时为空。
+    pub(super) fn search_results(&self, path: &[Segment]) -> &[Value] {
+        self.search_results
+            .get(&path_id(path))
+            .map(Vec::as_slice)
+            .unwrap_or_default()
+    }
+
+    /// 确保 select 字段的动态选项已开始加载。
+    /// 参数：path - 字段路径；binding - data action 绑定；window/cx - GPUI 上下文。
+    /// 返回：无；失败后不自动重试。
+    pub(super) fn ensure_select_options(
+        &mut self,
+        path: &[Segment],
+        binding: &DataActionBinding,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let key = path_id(path);
+        if self.data_options_attempted.contains(&key) {
+            return;
+        }
+        self.data_options_attempted.insert(key);
+        self.run_action(
+            path.to_vec(),
+            Vec::new(),
+            FieldAction::Data(binding.clone()),
+            ActionMode::Options,
+            window,
+            cx,
+        );
+    }
+
+    /// 重新拉取 select 字段选项。
+    /// 参数：path - 字段路径；binding - data action 绑定；window/cx - GPUI 上下文。
+    /// 返回：无。
+    pub(super) fn reload_select_options(
+        &mut self,
+        path: &[Segment],
+        binding: &DataActionBinding,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let key = path_id(path);
+        self.data_options.remove(&key);
+        self.data_options_attempted.remove(&key);
+        self.ensure_select_options(path, binding, window, cx);
+    }
+
+    /// 执行字段动作。
+    /// 参数：path - 字段路径；scope - 字段所属对象路径；action - 动作绑定；
+    ///       mode - 普通写入/动态选项/搜索表格模式。
+    /// 返回：无；完成后按模式写回字段或搜索结果。
+    pub(super) fn run_action(
+        &mut self,
+        path: FieldPath,
+        scope: FieldPath,
+        action: FieldAction,
+        mode: ActionMode,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let key = path_id(&path);
+        if self.action_loading.contains(&key) {
+            return;
+        }
+        let (action_id, component) = match &action {
+            FieldAction::Data(binding) => (&binding.action, &binding.component),
+            FieldAction::Effect(binding) => (&binding.action, &binding.component),
+        };
+        let component_id = component
+            .clone()
+            .or_else(|| self.selected_component.clone())
+            .unwrap_or_default();
+        let params = match (&action, &mode) {
+            (FieldAction::Data(_), ActionMode::Search(query)) => json!({ "query": query }),
+            (FieldAction::Data(_), _) => Value::Null,
+            (FieldAction::Effect(binding), _) => {
+                if binding.field_mapping.is_empty() {
+                    self.scope_value(&scope)
+                } else {
+                    let source = self.scope_value(&scope);
+                    let mut params = serde_json::Map::new();
+                    for (source_field, target_field) in &binding.field_mapping {
+                        if let Some(value) = source.get(source_field) {
+                            params.insert(target_field.clone(), value.clone());
+                        }
+                    }
+                    Value::Object(params)
+                }
+            }
+        };
+        self.action_loading.insert(key.clone());
+        self.status = None;
+
+        let config = self.state.get_config_manager();
+        let action_id = action_id.clone();
+        let component_for_view = self.selected_component.clone();
+        let action_for_result = action.clone();
+        let mode_for_result = mode.clone();
+        let label = self.action_label(&action);
+        let (sender, receiver) = oneshot::channel();
+        runtime::spawn(async move {
+            let result = config
+                .execute_config_action(&component_id, &action_id, &params)
+                .await
+                .map_err(|error| error.to_string());
+            let _ = sender.send(result);
+        });
+        cx.spawn_in(window, async move |this, cx| {
+            let result = receiver.await;
+            let _ = this.update_in(cx, |this, window, cx| {
+                if this.selected_component != component_for_view {
+                    return;
+                }
+                this.action_loading.remove(&key);
+                match result {
+                    Ok(Ok(value)) => {
+                        this.apply_action_result(
+                            &path,
+                            &action_for_result,
+                            value,
+                            mode_for_result,
+                            window,
+                            cx,
+                        );
+                    }
+                    Ok(Err(error)) => {
+                        this.status = Some(
+                            this.tr("settings.actionFailed")
+                                .replace("{label}", &label)
+                                .replace("{message}", &error),
+                        );
+                    }
+                    Err(_) => {
+                        this.status = Some(
+                            this.tr("settings.actionFailed")
+                                .replace("{label}", &label)
+                                .replace("{message}", &this.tr("settings.cancel")),
+                        );
+                    }
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    /// 把动作结果写回字段。
+    /// 参数：path - 字段路径；action - 原始动作；value - 动作返回值；mode - 执行模式。
+    /// 返回：无。
+    fn apply_action_result(
+        &mut self,
+        path: &[Segment],
+        action: &FieldAction,
+        value: Value,
+        mode: ActionMode,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let key = path_id(path);
+        let label = self.action_label(action);
+        if matches!(mode, ActionMode::Search(_)) {
+            let rows = value.as_array().cloned().unwrap_or_default();
+            if value.is_array() {
+                self.search_results.insert(key, rows);
+                self.status = Some(self.tr("settings.actionSuccess").replace("{label}", &label));
+            } else {
+                self.status = Some(self.tr("settings.searchActionInvalid"));
+            }
+            return;
+        }
+
+        if matches!(mode, ActionMode::Options) {
+            if let Some(items) = value.as_array() {
+                let options = match action {
+                    FieldAction::Data(binding) => items
+                        .iter()
+                        .filter_map(|item| {
+                            let item = item.as_object()?;
+                            let label = item
+                                .get(&binding.label_field)
+                                .and_then(Value::as_str)
+                                .unwrap_or_default()
+                                .to_string();
+                            let value = item
+                                .get(&binding.value_field)
+                                .and_then(Value::as_str)
+                                .unwrap_or_default()
+                                .to_string();
+                            (!value.is_empty()).then_some((value, label))
+                        })
+                        .collect(),
+                    FieldAction::Effect(_) => Vec::new(),
+                };
+                self.data_options.insert(key, options);
+            }
+            return;
+        }
+
+        match action {
+            FieldAction::Data(binding) => {
+                if let Some(object) = value.as_object() {
+                    if !binding.value_field.is_empty() {
+                        if let Some(field_value) = object.get(&binding.value_field) {
+                            let next = self.merge_action_value(
+                                path,
+                                field_value,
+                                binding.merge_key.as_deref(),
+                            );
+                            let is_array = next.is_array();
+                            self.write_action_value(path, next, window, cx);
+                            if is_array {
+                                self.prepare_action_inputs(window, cx);
+                            }
+                        }
+                    }
+                    for (source_field, target_field) in &binding.field_mapping {
+                        if let Some(mapped) = object.get(source_field) {
+                            self.write_action_value(
+                                &[Segment::Key(target_field.clone())],
+                                mapped.clone(),
+                                window,
+                                cx,
+                            );
+                        }
+                    }
+                } else if value.is_array() {
+                    self.write_action_value(path, value, window, cx);
+                    self.prepare_action_inputs(window, cx);
+                }
+            }
+            FieldAction::Effect(_) => {
+                if let Some(object) = value.as_object() {
+                    if object.get("success").and_then(Value::as_bool) == Some(false) {
+                        let message = object
+                            .get("message")
+                            .and_then(Value::as_str)
+                            .unwrap_or_default();
+                        let fallback = self.tr("settings.actionFailedDefault");
+                        self.status = Some(
+                            self.tr("settings.actionFailed")
+                                .replace("{label}", &label)
+                                .replace(
+                                    "{message}",
+                                    if message.is_empty() {
+                                        &fallback
+                                    } else {
+                                        message
+                                    },
+                                ),
+                        );
+                        return;
+                    }
+                    if let Some(field_key) = path.last().and_then(|segment| match segment {
+                        Segment::Key(key) => Some(key.clone()),
+                        Segment::Index(_) => None,
+                    }) {
+                        if let Some(field_value) = object.get(&field_key) {
+                            self.write_action_value(path, field_value.clone(), window, cx);
+                        }
+                    }
+                }
+            }
+        }
+        self.status = Some(self.tr("settings.actionSuccess").replace("{label}", &label));
+    }
+
+    /// 合并 data action 的数组结果。
+    /// 参数：path - 字段路径；value - 动作返回的字段值；merge_key - 去重键。
+    /// 返回：合并后的字段值。
+    fn merge_action_value(
+        &self,
+        path: &[Segment],
+        value: &Value,
+        merge_key: Option<&str>,
+    ) -> Value {
+        let Some(incoming) = value.as_array() else {
+            return value.clone();
+        };
+        let current = self.value(path).and_then(Value::as_array);
+        let Some(current) = current else {
+            return value.clone();
+        };
+        let Some(merge_key) = merge_key else {
+            return value.clone();
+        };
+        let mut merged = current.clone();
+        let mut seen: HashSet<String> = current
+            .iter()
+            .filter_map(|item| item.get(merge_key))
+            .map(|key| key.to_string())
+            .collect();
+        for item in incoming {
+            let Some(key) = item.get(merge_key) else {
+                merged.push(item.clone());
+                continue;
+            };
+            let key = key.to_string();
+            if seen.insert(key) {
+                merged.push(item.clone());
+            }
+        }
+        Value::Array(merged)
+    }
+
+    /// 取字段作用域的对象值，effect 动作参数从这里派生。
+    /// 参数：scope - 对象路径；空路径表示根设置。
+    /// 返回：对象值；非对象或无值时返回空对象。
+    fn scope_value(&self, scope: &[Segment]) -> Value {
+        if scope.is_empty() {
+            return self.draft.clone();
+        }
+        self.value(scope)
+            .filter(|value| value.is_object())
+            .cloned()
+            .unwrap_or_else(|| json!({}))
+    }
+
+    /// 确保字体列表已开始加载。
+    /// 参数：path - 字段路径；action - 字体 action；component - 提供动作的组件。
+    /// 返回：无；失败后由渲染层提供重试。
+    pub(super) fn ensure_fonts(
+        &mut self,
+        path: &[Segment],
+        action: &str,
+        component: &Option<String>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let key = path_id(path);
+        if self.fonts_attempted.contains(&key) {
+            return;
+        }
+        self.fonts_attempted.insert(key.clone());
+        self.font_errors.remove(&key);
+        let component_id = component
+            .clone()
+            .or_else(|| self.selected_component.clone())
+            .unwrap_or_default();
+        let action = action.to_string();
+        let config = self.state.get_config_manager();
+        let component_for_view = self.selected_component.clone();
+        let (sender, receiver) = oneshot::channel();
+        runtime::spawn(async move {
+            let result = config
+                .execute_config_action(&component_id, &action, &Value::Null)
+                .await
+                .map_err(|error| error.to_string());
+            let _ = sender.send(result);
+        });
+        cx.spawn_in(window, async move |this, cx| {
+            let result = receiver.await;
+            let _ = this.update_in(cx, |this, _window, cx| {
+                if this.selected_component != component_for_view {
+                    return;
+                }
+                match result {
+                    Ok(Ok(value)) => {
+                        let mut fonts = value
+                            .get("fonts")
+                            .and_then(Value::as_array)
+                            .map(|items| {
+                                items
+                                    .iter()
+                                    .filter_map(Value::as_str)
+                                    .map(str::to_string)
+                                    .collect::<Vec<_>>()
+                            })
+                            .unwrap_or_default();
+                        fonts.sort();
+                        fonts.dedup();
+                        this.fonts.insert(key, fonts);
+                    }
+                    Ok(Err(error)) => {
+                        this.font_errors.insert(key.clone());
+                        this.status =
+                            Some(format!("{}: {error}", this.tr("settings.fontLoadFailed")));
+                    }
+                    Err(_) => {
+                        this.font_errors.insert(key.clone());
+                        this.status = Some(this.tr("settings.fontLoadFailed"));
+                    }
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    /// 重试字体加载。
+    /// 参数：path - 字段路径。
+    /// 返回：无。
+    pub(super) fn retry_fonts(&mut self, path: &[Segment], cx: &mut Context<Self>) {
+        let key = path_id(path);
+        self.fonts_attempted.remove(&key);
+        self.font_errors.remove(&key);
+        cx.notify();
+    }
+
+    /// 字体是否加载失败。
+    /// 参数：path - 字段路径。
+    /// 返回：失败时为 true。
+    pub(super) fn font_failed(&self, path: &[Segment]) -> bool {
+        self.font_errors.contains(&path_id(path))
+    }
+
+    /// 字体列表是否已加载。
+    /// 参数：path - 字段路径。
+    /// 返回：已加载时为 true。
+    pub(super) fn fonts_loaded(&self, path: &[Segment]) -> bool {
+        self.fonts.contains_key(&path_id(path))
+    }
+
+    /// 取或创建字体下拉选择器。
+    /// 参数：path - 字段路径；current - 当前值；read_only - 是否只读。
+    /// 返回：选择器实体。
+    pub(super) fn font_select(
+        &mut self,
+        path: &[Segment],
+        current: &str,
+        read_only: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Entity<SelectState<SearchableVec<String>>> {
+        let key = path_id(path);
+        if let Some(state) = self.font_selects.get(&key) {
+            return state.clone();
+        }
+        let mut items = self.fonts.get(&key).cloned().unwrap_or_default();
+        if !current.is_empty() && !items.iter().any(|font| font == current) {
+            items.push(current.to_string());
+        }
+        let state = cx.new(|cx| {
+            let state = SelectState::new(SearchableVec::new(items), None, window, cx);
+            if read_only {
+                state
+            } else {
+                state.searchable(true)
+            }
+        });
+        let path_for_event = path.to_vec();
+        let subscription = cx.subscribe_in(&state, window, move |this, _, event, window, cx| {
+            if let SelectEvent::Confirm(Some(value)) = event {
+                this.set_value(&path_for_event, Value::String(value.clone()), window, cx);
+            }
+        });
+        self.field_subscriptions.push(subscription);
+        if !current.is_empty() {
+            let value = current.to_string();
+            state.update(cx, |state, cx| {
+                state.set_selected_value(&value, window, cx);
+            });
+        }
+        self.font_selects.insert(key, state.clone());
+        state
+    }
+
+    /// 清除字体值并同步下拉选择器。
+    /// 参数：path - 字段路径；window/cx - GPUI 上下文。
+    /// 返回：无。
+    pub(super) fn clear_font(
+        &mut self,
+        path: &[Segment],
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let key = path_id(path);
+        self.set_value(path, Value::String(String::new()), window, cx);
+        if let Some(select) = self.font_selects.get(&key).cloned() {
+            select.update(cx, |state, cx| {
+                state.set_selected_index(None, window, cx);
+            });
+        }
+    }
+
+    /// 确保图片预览已开始加载。
+    /// 参数：path - 字段路径；value - 资源 id 或 data URL。
+    /// 返回：无。
+    pub(super) fn ensure_image(
+        &mut self,
+        path: &[Segment],
+        value: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let key = path_id(path);
+        if value.is_empty()
+            || self.images.contains_key(&key)
+            || self.image_loading.contains(&key)
+            || self.image_attempted.contains(&key)
+        {
+            return;
+        }
+        self.image_attempted.insert(key.clone());
+        if value.starts_with("data:") {
+            if let Some(image) = decode_icon(value) {
+                self.images.insert(key, image);
+            }
+            return;
+        }
+        if value.starts_with("http://") || value.starts_with("https://") {
+            return;
+        }
+        self.image_loading.insert(key.clone());
+        let handle = self.state.get_core_handle();
+        let resource_id = value.to_string();
+        let (sender, receiver) = oneshot::channel();
+        runtime::spawn(async move {
+            let result = handle
+                .resource_get(&resource_id)
+                .await
+                .map_err(|error| error.to_string());
+            let _ = sender.send(result);
+        });
+        cx.spawn_in(window, async move |this, cx| {
+            let result = receiver.await;
+            let _ = this.update_in(cx, |this, _window, cx| {
+                this.image_loading.remove(&key);
+                match result {
+                    Ok(Ok(bytes)) => {
+                        let data_url = ImageUtils::to_data_url(&bytes);
+                        if let Some(image) = decode_icon(&data_url) {
+                            this.images.insert(key, image);
+                        }
+                    }
+                    Ok(Err(error)) => {
+                        this.status =
+                            Some(format!("{}: {error}", this.tr("settings.imageLoadFailed")));
+                    }
+                    Err(_) => {
+                        this.status = Some(this.tr("settings.imageLoadFailed"));
+                    }
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    /// 取已加载的图片预览。
+    /// 参数：path - 字段路径。
+    /// 返回：图片；未加载时为 None。
+    pub(super) fn image(&self, path: &[Segment]) -> Option<Arc<Image>> {
+        self.images.get(&path_id(path)).cloned()
+    }
+
+    /// 清除图片预览缓存，供重新上传或清空字段使用。
+    /// 参数：path - 字段路径。
+    /// 返回：无。
+    pub(super) fn clear_image(&mut self, path: &[Segment]) {
+        let key = path_id(path);
+        self.images.remove(&key);
+        self.image_loading.remove(&key);
+        self.image_attempted.remove(&key);
+    }
+
+    /// 开始录制快捷键。
+    /// 参数：path - 字段路径；require_modifier - 是否要求修饰键。
+    /// 返回：无。
+    pub(super) fn start_hotkey_recording(
+        &mut self,
+        path: FieldPath,
+        require_modifier: bool,
+        cx: &mut Context<Self>,
+    ) {
+        self.hotkey_recording = Some(HotkeyRecording {
+            path,
+            require_modifier,
+        });
+        self.status = Some(self.tr("settings.hotkeyPressToRecord"));
+        cx.notify();
+    }
+
+    /// 当前是否正在录制该字段。
+    /// 参数：path - 字段路径。
+    /// 返回：录制中为 true。
+    pub(super) fn hotkey_recording(&self, path: &[Segment]) -> bool {
+        self.hotkey_recording
+            .as_ref()
+            .is_some_and(|recording| recording.path == path)
+    }
+
+    /// 处理快捷键录制按键。
+    /// 参数：event - 键盘事件；window/cx - GPUI 上下文。
+    /// 返回：无；录制中消费按键。
+    pub(super) fn handle_hotkey_key(
+        &mut self,
+        event: &KeyDownEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(recording) = self.hotkey_recording.clone() else {
+            return;
+        };
+        let key = event.keystroke.key.to_lowercase();
+        if key == "escape" {
+            self.hotkey_recording = None;
+            self.status = None;
+            cx.stop_propagation();
+            cx.notify();
+            return;
+        }
+        if key == "backspace" || key == "delete" {
+            self.set_value(&recording.path, Value::String(String::new()), window, cx);
+            self.hotkey_recording = None;
+            self.status = None;
+            cx.stop_propagation();
+            return;
+        }
+        let mut modifiers = event.keystroke.modifiers;
+        let main_key = hotkey_main_key(&event.keystroke.key).or_else(|| {
+            shifted_symbol_key(&event.keystroke.key).map(|base| {
+                modifiers.shift = true;
+                base.to_string()
+            })
+        });
+        let Some(main_key) = main_key else {
+            let has_modifier =
+                modifiers.control || modifiers.alt || modifiers.shift || modifiers.platform;
+            if has_modifier {
+                self.status = Some(self.tr("settings.hotkeyPressToRecord"));
+                cx.notify();
+            }
+            cx.stop_propagation();
+            return;
+        };
+        let has_modifier =
+            modifiers.control || modifiers.alt || modifiers.shift || modifiers.platform;
+        if recording.require_modifier && !has_modifier {
+            self.status = Some(self.tr("settings.hotkeyNeedModifier"));
+            cx.stop_propagation();
+            cx.notify();
+            return;
+        }
+        let mut parts = Vec::new();
+        if modifiers.control {
+            parts.push("Ctrl");
+        }
+        if modifiers.alt {
+            parts.push("Alt");
+        }
+        if modifiers.shift {
+            parts.push("Shift");
+        }
+        if modifiers.platform {
+            parts.push("Meta");
+        }
+        parts.push(&main_key);
+        let combo = parts.join("+");
+        self.set_value(&recording.path, Value::String(combo), window, cx);
+        self.hotkey_recording = None;
+        self.status = None;
+        cx.stop_propagation();
+    }
+
+    /// 把搜索结果加入数组条目。
+    /// 参数：path - 数组路径；target - 搜索目标；row - 搜索结果；window/cx - GPUI 上下文。
+    /// 返回：无；重复值不覆盖已有条目。
+    pub(super) fn add_search_result(
+        &mut self,
+        path: &[Segment],
+        target: SearchTarget,
+        row: &Value,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let SearchTarget {
+            binding,
+            item_schema,
+            max_items,
+        } = target;
+        let Some(row) = row.as_object() else {
+            return;
+        };
+        let value = row
+            .get(&binding.value_field)
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        if value.is_empty() {
+            return;
+        }
+        let mut values = self
+            .value(path)
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        if values
+            .iter()
+            .any(|item| item.get(&binding.value_field).and_then(Value::as_str) == Some(value))
+        {
+            self.status = Some(self.tr("settings.entryExists"));
+            return;
+        }
+        if max_items.is_some_and(|max| values.len() >= max) {
+            return;
+        }
+        let mut entry = schema::default_value(&item_schema);
+        if let Value::Object(entry) = &mut entry {
+            entry.insert(
+                binding.value_field.clone(),
+                Value::String(value.to_string()),
+            );
+            for (source, target) in &binding.field_mapping {
+                if let Some(mapped) = row.get(source) {
+                    entry.insert(target.clone(), mapped.clone());
+                }
+            }
+        }
+        values.push(entry);
+        self.set_value(path, Value::Array(values), window, cx);
+        self.prepare_action_inputs(window, cx);
+    }
+
     /// 确保字段输入框存在；只在组件加载与数组结构变化时调用。
     /// 参数：path - 字段路径；value - 初始值；kind - 文本/数字类型；window/cx - GPUI 上下文。
     /// 返回：无。
@@ -722,15 +1576,41 @@ impl SettingsView {
         }
         let input = cx.new(|cx| InputState::new(window, cx).default_value(value));
         let path = path.to_vec();
-        let subscription =
-            cx.subscribe_in(&input, window, move |this, input, event, window, cx| {
-                if matches!(event, InputEvent::Change) {
+        let subscription = cx.subscribe_in(
+            &input,
+            window,
+            move |this, input, event, window, cx| match event {
+                InputEvent::Change => {
                     let text = input.read(cx).value().to_string();
                     this.apply_text(path.clone(), text, kind, window, cx);
                 }
-            });
+                InputEvent::Focus => {
+                    this.hotkey_recording = None;
+                    cx.notify();
+                }
+                _ => {}
+            },
+        );
         self.field_subscriptions.push(subscription);
         self.inputs.insert(key, input);
+    }
+
+    /// 确保搜索表格的查询输入框存在。
+    /// 参数：path - 字段路径；window/cx - GPUI 上下文。
+    /// 返回：无。
+    fn ensure_search_input(
+        &mut self,
+        path: &[Segment],
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let key = path_id(path);
+        if self.search_inputs.contains_key(&key) {
+            return;
+        }
+        let placeholder = self.tr("search.placeholder");
+        let input = cx.new(|cx| InputState::new(window, cx).placeholder(placeholder));
+        self.search_inputs.insert(key, input);
     }
 
     /// 选择路径并写入字段。
@@ -822,6 +1702,7 @@ impl SettingsView {
                 }
                 match result {
                     Ok(Ok(id)) => {
+                        this.clear_image(&path);
                         this.set_value(&path, Value::String(id), window, cx);
                         this.status = Some(this.tr("settings.imageUploadSuccess"));
                     }
@@ -1283,6 +2164,9 @@ impl SettingsView {
                     let SchemaKind::Array { items, .. } = &node.kind else {
                         continue;
                     };
+                    if matches!(widget, WidgetHint::SearchTable) {
+                        self.ensure_search_input(&path, window, cx);
+                    }
                     let values = self
                         .value(&path)
                         .and_then(Value::as_array)
@@ -1326,6 +2210,19 @@ impl SettingsView {
             .unwrap_or_else(|| json!({}));
         self.saved = self.draft.clone();
         self.inputs.clear();
+        self.search_inputs.clear();
+        self.data_options.clear();
+        self.data_options_attempted.clear();
+        self.search_results.clear();
+        self.action_loading.clear();
+        self.fonts.clear();
+        self.fonts_attempted.clear();
+        self.font_errors.clear();
+        self.font_selects.clear();
+        self.images.clear();
+        self.image_loading.clear();
+        self.image_attempted.clear();
+        self.hotkey_recording = None;
         self.field_subscriptions.clear();
         self.dirty = false;
         self.reset_armed = false;
@@ -1348,6 +2245,37 @@ impl SettingsView {
         self.reset_armed = false;
         self.schedule_immediate_save(window, cx);
         cx.notify();
+    }
+
+    /// 写入动作结果并同步已创建的文本输入框。
+    /// 参数：path - 字段路径；value - 新值；window/cx - GPUI 上下文。
+    /// 返回：无；数组结果由调用方按需重建输入框。
+    fn write_action_value(
+        &mut self,
+        path: &[Segment],
+        value: Value,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let text = match &value {
+            Value::Null | Value::String(_) | Value::Number(_) | Value::Bool(_) => {
+                Some(value_text(&value))
+            }
+            Value::Array(_) | Value::Object(_) => None,
+        };
+        self.set_value(path, value, window, cx);
+        if let (Some(text), Some(input)) = (text, self.input(path)) {
+            input.update(cx, |state, cx| {
+                state.set_value(text, window, cx);
+            });
+        }
+    }
+
+    /// 为动作追加的数组条目创建输入框。
+    /// 参数：window/cx - GPUI 上下文。
+    /// 返回：无；已有输入框保持不变。
+    fn prepare_action_inputs(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.prepare_inputs(window, cx);
     }
 
     /// 即时保存策略下，防抖提交当前 draft。
@@ -1537,6 +2465,82 @@ fn default_component_id(components: &[ComponentInfo]) -> Option<String> {
 fn tr(state: &AppState, key: &str) -> String {
     let i18n = state.get_i18n_manager();
     i18n.t(&i18n.current_language(), key)
+}
+
+/// 把 GPUI 按键名转换为后端可识别的快捷键主键。
+/// 参数：key - `KeyDownEvent.keystroke.key`。
+/// 返回：字母转大写、数字保留、命名键转 keyboard_types 名称；纯修饰键返回 None。
+fn hotkey_main_key(key: &str) -> Option<String> {
+    let lower = key.to_lowercase();
+    if lower.len() == 1 {
+        let byte = lower.as_bytes()[0];
+        if byte.is_ascii_alphabetic() {
+            return Some(lower.to_ascii_uppercase());
+        }
+        if byte.is_ascii_digit() {
+            return Some(lower);
+        }
+        return None;
+    }
+    let named = match lower.as_str() {
+        "space" | "spacebar" => "Space",
+        "tab" => "Tab",
+        "capslock" => "CapsLock",
+        "enter" | "return" => "Enter",
+        "up" | "arrowup" => "ArrowUp",
+        "down" | "arrowdown" => "ArrowDown",
+        "left" | "arrowleft" => "ArrowLeft",
+        "right" | "arrowright" => "ArrowRight",
+        "home" => "Home",
+        "end" => "End",
+        "pageup" => "PageUp",
+        "pagedown" => "PageDown",
+        "insert" => "Insert",
+        "f1" => "F1",
+        "f2" => "F2",
+        "f3" => "F3",
+        "f4" => "F4",
+        "f5" => "F5",
+        "f6" => "F6",
+        "f7" => "F7",
+        "f8" => "F8",
+        "f9" => "F9",
+        "f10" => "F10",
+        "f11" => "F11",
+        "f12" => "F12",
+        _ => return None,
+    };
+    Some(named.to_string())
+}
+
+/// 把已被 Shift 折叠的符号映射回后端可识别的按键名。
+/// 参数：key - GPUI 报告的单字符键名（如 `!`、`:`）。
+/// 返回：对应基础键或 Code 名称；非 Shift 符号返回 None。
+fn shifted_symbol_key(key: &str) -> Option<&'static str> {
+    match key {
+        "!" => Some("1"),
+        "@" => Some("2"),
+        "#" => Some("3"),
+        "$" => Some("4"),
+        "%" => Some("5"),
+        "^" => Some("6"),
+        "&" => Some("7"),
+        "*" => Some("8"),
+        "(" => Some("9"),
+        ")" => Some("0"),
+        "_" => Some("Minus"),
+        "+" => Some("Equal"),
+        "{" => Some("BracketLeft"),
+        "}" => Some("BracketRight"),
+        "|" => Some("Backslash"),
+        ":" => Some("Semicolon"),
+        "\"" => Some("Quote"),
+        "<" => Some("Comma"),
+        ">" => Some("Period"),
+        "?" => Some("Slash"),
+        "~" => Some("Backquote"),
+        _ => None,
+    }
 }
 
 /// 字段值转文本。

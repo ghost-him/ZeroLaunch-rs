@@ -4,18 +4,21 @@ use gpui_kit::base::Disableable as _;
 use gpui_kit::component::button::{Button, ButtonVariants as _};
 use gpui_kit::component::input::Input;
 use gpui_kit::component::scroll::ScrollableElement as _;
+use gpui_kit::component::select::Select;
 use gpui_kit::component::switch::Switch;
 use gpui_kit::component::{h_flex, v_flex, ActiveTheme as _, Sizable as _};
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::{
-    div, px, rgb, AnyElement, Context, InteractiveElement as _, IntoElement, ParentElement, Render,
-    StatefulInteractiveElement as _, Styled, Window,
+    div, img, px, rgb, AnyElement, Context, ImageSource, InteractiveElement as _, IntoElement,
+    ParentElement, Render, StatefulInteractiveElement as _, Styled, Window,
 };
 use serde_json::Value;
-use zerolaunch_plugin_api::config::{FieldUiMetadata, SchemaKind, SchemaNode, WidgetHint};
+use zerolaunch_plugin_api::config::{
+    DataActionBinding, FieldAction, FieldUiMetadata, SchemaKind, SchemaNode, WidgetHint,
+};
 
 use super::schema::{self, Segment};
-use super::view::{path_id, Category, Page, SettingsView};
+use super::view::{path_id, ActionMode, Category, Page, SearchTarget, SettingsView};
 
 /// 渲染时使用的字段副本，避免在可变借用视图时继续借用 schema。
 #[derive(Clone)]
@@ -34,6 +37,7 @@ impl Render for SettingsView {
             .size_full()
             .bg(cx.theme().background)
             .text_color(cx.theme().foreground)
+            .capture_key_down(cx.listener(Self::handle_hotkey_key))
             .child(self.render_header(cx))
             .child(
                 h_flex()
@@ -453,6 +457,31 @@ impl SettingsView {
         }
 
         let is_color = matches!(&widget, WidgetHint::Color);
+        let widget_kind = widget.clone();
+        let array_widget = matches!(
+            widget_kind,
+            WidgetHint::List
+                | WidgetHint::Tags
+                | WidgetHint::Table
+                | WidgetHint::Cards
+                | WidgetHint::MasterDetail
+                | WidgetHint::SearchTable
+        );
+        let mut action_button = field.ui.action.clone().and_then(|action| {
+            let data_select =
+                matches!(widget_kind, WidgetHint::Select) && matches!(action, FieldAction::Data(_));
+            let search_table = matches!(widget_kind, WidgetHint::SearchTable);
+            if data_select || search_table {
+                return None;
+            }
+            let label = self.action_label(&action);
+            Some(self.render_action_button(path, scope, read_only, action, label, cx))
+        });
+        if array_widget {
+            if let Some(button) = action_button.take() {
+                body = body.child(button);
+            }
+        }
         let control = match widget {
             WidgetHint::Toggle => {
                 let checked = current.as_bool().unwrap_or(false);
@@ -502,11 +531,22 @@ impl SettingsView {
             }
             WidgetHint::Image { max_size, .. } => {
                 let path = path.to_vec();
-                let has_value = !text_value(&current).is_empty();
+                let value_text = text_value(&current);
+                let has_value = !value_text.is_empty();
                 let resource_id = field.key.clone();
+                if has_value {
+                    self.ensure_image(&path, &value_text, window, cx);
+                }
                 h_flex()
                     .gap_2()
                     .items_center()
+                    .when_some(self.image(&path), |this, image| {
+                        this.child(
+                            img(ImageSource::Image(image))
+                                .size(px(40.0))
+                                .rounded(px(4.0)),
+                        )
+                    })
                     .when(has_value, |this| {
                         this.child(
                             div()
@@ -545,18 +585,20 @@ impl SettingsView {
                                 .small()
                                 .disabled(read_only)
                                 .on_click(cx.listener(move |this, _, window, cx| {
+                                    this.clear_image(&path);
                                     this.set_value(&path, Value::String(String::new()), window, cx);
                                 })),
                         )
                     })
                     .into_any_element()
             }
-            WidgetHint::Text
-            | WidgetHint::Textarea
-            | WidgetHint::Number
-            | WidgetHint::Color
-            | WidgetHint::Font { .. }
-            | WidgetHint::Hotkey { .. } => {
+            WidgetHint::Font { action, component } => {
+                self.render_font(path, &action, &component, read_only, window, cx)
+            }
+            WidgetHint::Hotkey { require_modifier } => {
+                self.render_hotkey(path, &current, read_only, require_modifier, cx)
+            }
+            WidgetHint::Text | WidgetHint::Textarea | WidgetHint::Number | WidgetHint::Color => {
                 let path = path.to_vec();
                 let value = text_value(&current);
                 let input = self
@@ -594,6 +636,9 @@ impl SettingsView {
         };
 
         body = body.child(control);
+        if let Some(button) = action_button {
+            body = body.child(button);
+        }
         if let Some(note) = note {
             body = body.child(
                 div()
@@ -605,6 +650,156 @@ impl SettingsView {
         body.into_any_element()
     }
 
+    /// 渲染字段动作按钮。
+    /// 参数：path/scope - 字段路径与作用域；read_only - 是否只读；action - 动作；
+    ///       label - 动作标签；cx - 视图上下文。
+    /// 返回：动作按钮。
+    fn render_action_button(
+        &self,
+        path: &[Segment],
+        scope: &[Segment],
+        read_only: bool,
+        action: FieldAction,
+        label: String,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let loading = self.action_loading(path);
+        let path = path.to_vec();
+        let scope = scope.to_vec();
+        Button::new(format!("settings-action-{}", path_id(&path)))
+            .label(if loading { "...".to_string() } else { label })
+            .small()
+            .disabled(read_only || loading)
+            .on_click(cx.listener(move |this, _, window, cx| {
+                this.run_action(
+                    path.clone(),
+                    scope.clone(),
+                    action.clone(),
+                    ActionMode::Apply,
+                    window,
+                    cx,
+                );
+            }))
+            .into_any_element()
+    }
+
+    /// 渲染系统字体选择器。
+    /// 参数：path - 字段路径；action/component - 字体来源动作与组件；current - 当前值；
+    ///       read_only - 是否只读；window/cx - GPUI 上下文。
+    /// 返回：带跟随系统与重试的字体控件。
+    fn render_font(
+        &mut self,
+        path: &[Segment],
+        action: &str,
+        component: &Option<String>,
+        read_only: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        self.ensure_fonts(path, action, component, window, cx);
+        let path = path.to_vec();
+        let value = self.value(&path).map(text_value).unwrap_or_default();
+        let mut row = h_flex().gap_2().items_center();
+        if self.fonts_loaded(&path) {
+            let select = self.font_select(&path, &value, read_only, window, cx);
+            row = row.child(
+                div()
+                    .flex_1()
+                    .child(Select::new(&select).w_full().disabled(read_only)),
+            );
+        } else if self.font_failed(&path) {
+            row = row.child(
+                div()
+                    .flex_1()
+                    .text_size(px(12.0))
+                    .text_color(cx.theme().muted_foreground)
+                    .child(self.tr("settings.fontLoadFailed")),
+            );
+            let action = action.to_string();
+            let component = component.clone();
+            let path_for_retry = path.clone();
+            row = row.child(
+                Button::new(format!("settings-font-retry-{}", path_id(&path)))
+                    .label(self.tr("settings.retry"))
+                    .small()
+                    .on_click(cx.listener(move |this, _, window, cx| {
+                        this.retry_fonts(&path_for_retry, cx);
+                        this.ensure_fonts(&path_for_retry, &action, &component, window, cx);
+                    })),
+            );
+        } else {
+            row = row.child(
+                div()
+                    .flex_1()
+                    .text_size(px(12.0))
+                    .text_color(cx.theme().muted_foreground)
+                    .child("..."),
+            );
+        }
+        if !value.is_empty() {
+            let path_for_clear = path.clone();
+            row = row.child(
+                Button::new(format!("settings-font-clear-{}", path_id(&path)))
+                    .label(self.tr("settings.fontFollowSystem"))
+                    .small()
+                    .disabled(read_only)
+                    .on_click(cx.listener(move |this, _, window, cx| {
+                        this.clear_font(&path_for_clear, window, cx);
+                    })),
+            );
+        }
+        row.into_any_element()
+    }
+
+    /// 渲染快捷键录制控件。
+    /// 参数：path - 字段路径；current - 当前值；read_only - 是否只读；
+    ///       require_modifier - 是否要求修饰键；cx - 视图上下文。
+    /// 返回：可点击进入录制态的控件。
+    fn render_hotkey(
+        &mut self,
+        path: &[Segment],
+        current: &Value,
+        read_only: bool,
+        require_modifier: bool,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let path = path.to_vec();
+        let value = text_value(current);
+        let recording = self.hotkey_recording(&path);
+        let display = if recording {
+            self.tr("settings.hotkeyPressToRecord")
+        } else if value.is_empty() {
+            self.tr("settings.hotkeyPlaceholder")
+        } else {
+            value.clone()
+        };
+        let path_for_click = path.clone();
+        let mut row = h_flex().gap_2().items_center();
+        row = row.child(
+            div().flex_1().child(
+                Button::new(format!("settings-hotkey-{}", path_id(&path)))
+                    .label(display)
+                    .w_full()
+                    .disabled(read_only)
+                    .on_click(cx.listener(move |this, _, _window, cx| {
+                        this.start_hotkey_recording(path_for_click.clone(), require_modifier, cx);
+                    })),
+            ),
+        );
+        if !value.is_empty() && !read_only {
+            let path_for_clear = path.clone();
+            row = row.child(
+                Button::new(format!("settings-hotkey-clear-{}", path_id(&path)))
+                    .label(self.tr("settings.clear"))
+                    .small()
+                    .on_click(cx.listener(move |this, _, window, cx| {
+                        this.set_value(&path_for_clear, Value::String(String::new()), window, cx);
+                    })),
+            );
+        }
+        row.into_any_element()
+    }
+
     /// 下拉/枚举字段用选项芯片呈现。
     fn render_select(
         &mut self,
@@ -612,11 +807,22 @@ impl SettingsView {
         path: &[Segment],
         current: &Value,
         read_only: bool,
-        _window: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let options = string_options(&field.schema);
-        if options.is_empty() {
+        let data_binding = field.ui.action.as_ref().and_then(|action| match action {
+            FieldAction::Data(binding) => Some(binding.clone()),
+            FieldAction::Effect(_) => None,
+        });
+        let options = if let Some(binding) = &data_binding {
+            self.ensure_select_options(path, binding, window, cx);
+            self.data_options(path)
+                .map(|options| options.to_vec())
+                .unwrap_or_default()
+        } else {
+            string_options(&field.schema)
+        };
+        if options.is_empty() && data_binding.is_none() {
             let path = path.to_vec();
             let value = text_value(current);
             return self
@@ -638,9 +844,25 @@ impl SettingsView {
         let selected = current.as_str().unwrap_or_default().to_string();
         let path = path.to_vec();
         let mut row = h_flex().flex_wrap().gap_1();
+        if options.is_empty() && data_binding.is_some() {
+            row = row.child(
+                div()
+                    .text_size(px(12.0))
+                    .text_color(cx.theme().muted_foreground)
+                    .child(if self.action_loading(&path) {
+                        "...".to_string()
+                    } else {
+                        self.tr("settings.noOptions")
+                    }),
+            );
+        }
         for (value, label) in options {
             let active = value == selected;
-            let label = self.tr(&label);
+            let label = if data_binding.is_some() && !label.is_empty() {
+                label
+            } else {
+                self.tr(&label)
+            };
             let path = path.clone();
             row = row.child(
                 div()
@@ -666,6 +888,28 @@ impl SettingsView {
                     }))
                     .child(label)
                     .into_any_element(),
+            );
+        }
+        if let Some(binding) = data_binding {
+            let label = field
+                .ui
+                .action
+                .as_ref()
+                .map(|action| self.action_label(action))
+                .unwrap_or_default();
+            let path_for_reload = path.clone();
+            row = row.child(
+                Button::new(format!("settings-select-refresh-{}", path_id(&path)))
+                    .label(if self.action_loading(&path) {
+                        "...".to_string()
+                    } else {
+                        label
+                    })
+                    .small()
+                    .disabled(read_only || self.action_loading(&path))
+                    .on_click(cx.listener(move |this, _, window, cx| {
+                        this.reload_select_options(&path_for_reload, &binding, window, cx);
+                    })),
             );
         }
         row.into_any_element()
@@ -745,12 +989,24 @@ impl SettingsView {
             } => (items.as_ref(), *min_items, *max_items),
             _ => return div().into_any_element(),
         };
+        let search_table = matches!(
+            schema::widget_of(&field.schema, &field.ui),
+            WidgetHint::SearchTable
+        );
+        let search_binding = if search_table {
+            field.ui.action.as_ref().and_then(|action| match action {
+                FieldAction::Data(binding) => Some(binding.clone()),
+                FieldAction::Effect(_) => None,
+            })
+        } else {
+            None
+        };
         let values = self
             .value(path)
             .and_then(Value::as_array)
             .cloned()
             .unwrap_or_default();
-        let can_add = !read_only && max_items.is_none_or(|max| values.len() < max);
+        let can_add = !search_table && !read_only && max_items.is_none_or(|max| values.len() < max);
 
         let mut section = v_flex().gap_2().child(
             h_flex()
@@ -779,6 +1035,17 @@ impl SettingsView {
                         })),
                 ),
         );
+
+        if let Some(binding) = &search_binding {
+            section = section.child(self.render_search_action(
+                path,
+                binding,
+                items_schema,
+                max_items,
+                read_only,
+                cx,
+            ));
+        }
 
         for (index, item) in values.iter().enumerate() {
             let item_path = {
@@ -858,6 +1125,126 @@ impl SettingsView {
                     .text_size(px(12.0))
                     .text_color(cx.theme().muted_foreground)
                     .child(self.tr("settings.noEntries")),
+            );
+        }
+        section.into_any_element()
+    }
+
+    /// 渲染搜索表格的查询框、结果与添加按钮。
+    /// 参数：path - 数组路径；binding - data action；item_schema - 条目 schema；
+    ///       max_items - 最大条目数；read_only - 是否只读；window/cx - GPUI 上下文。
+    /// 返回：搜索表格区块。
+    fn render_search_action(
+        &mut self,
+        path: &[Segment],
+        binding: &DataActionBinding,
+        item_schema: &SchemaNode,
+        max_items: Option<usize>,
+        read_only: bool,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let path = path.to_vec();
+        let input = self.field_search_input(&path);
+        let loading = self.action_loading(&path);
+        let mut search_row = h_flex().gap_2().items_center();
+        search_row = match input {
+            Some(input) => search_row.child(
+                div()
+                    .flex_1()
+                    .child(Input::new(&input).w_full().disabled(read_only)),
+            ),
+            None => search_row.child(div().flex_1()),
+        };
+        let binding_for_search = binding.clone();
+        let path_for_search = path.clone();
+        search_row = search_row.child(
+            Button::new(format!("settings-search-{}", path_id(&path)))
+                .label(if loading {
+                    "...".to_string()
+                } else {
+                    self.tr("common.search")
+                })
+                .small()
+                .disabled(read_only || loading)
+                .on_click(cx.listener(move |this, _, window, cx| {
+                    let query = this
+                        .field_search_input(&path_for_search)
+                        .map(|input| input.read(cx).value().to_string())
+                        .unwrap_or_default();
+                    this.run_action(
+                        path_for_search.clone(),
+                        Vec::new(),
+                        FieldAction::Data(binding_for_search.clone()),
+                        ActionMode::Search(query),
+                        window,
+                        cx,
+                    );
+                })),
+        );
+        let mut section = v_flex().gap_1().child(search_row);
+        let results = self.search_results(&path).to_vec();
+        for (index, row) in results.iter().enumerate() {
+            let label = row
+                .get(&binding.label_field)
+                .and_then(Value::as_str)
+                .filter(|label| !label.is_empty())
+                .or_else(|| row.get(&binding.value_field).and_then(Value::as_str))
+                .unwrap_or_default()
+                .to_string();
+            let value = row
+                .get(&binding.value_field)
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string();
+            let exists = self
+                .value(&path)
+                .and_then(Value::as_array)
+                .is_some_and(|items| {
+                    items.iter().any(|item| {
+                        item.get(&binding.value_field).and_then(Value::as_str)
+                            == Some(value.as_str())
+                    })
+                });
+            let binding_for_add = binding.clone();
+            let item_schema = item_schema.clone();
+            let path_for_add = path.clone();
+            let row = row.clone();
+            let target = SearchTarget {
+                binding: binding_for_add,
+                item_schema,
+                max_items,
+            };
+            section = section.child(
+                h_flex()
+                    .gap_2()
+                    .items_center()
+                    .px_2()
+                    .py_1()
+                    .rounded(px(4.0))
+                    .border_1()
+                    .border_color(cx.theme().border)
+                    .child(div().flex_1().text_size(px(12.0)).child(label))
+                    .child(
+                        div()
+                            .text_size(px(11.0))
+                            .text_color(cx.theme().muted_foreground)
+                            .child(value.clone()),
+                    )
+                    .child(
+                        Button::new(format!("settings-search-add-{}-{index}", path_id(&path)))
+                            .label(self.tr("settings.add"))
+                            .small()
+                            .disabled(read_only || exists || loading)
+                            .on_click(cx.listener(move |this, _, window, cx| {
+                                this.add_search_result(
+                                    &path_for_add,
+                                    target.clone(),
+                                    &row,
+                                    window,
+                                    cx,
+                                );
+                            })),
+                    ),
             );
         }
         section.into_any_element()

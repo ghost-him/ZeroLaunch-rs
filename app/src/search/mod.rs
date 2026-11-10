@@ -4,5 +4,6 @@ mod model;
 mod render;
 mod view;
 
+pub(crate) use model::decode_icon;
 pub use model::Mode;
 pub use view::SearchView;

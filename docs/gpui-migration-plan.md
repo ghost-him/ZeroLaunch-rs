@@ -1,6 +1,6 @@
 # ZeroLaunch-rs → GPUI Kit 迁移计划
 
-> 状态：阶段 4 完成，阶段 4.5 待开始
+> 状态：阶段 4.5 完成，阶段 5 待开始
 > 基线版本：1.5.5
 > 适用分支：迁移分支（`main` 保持 Tauri 可发布，见「迁移与发布策略」）
 
@@ -279,3 +279,26 @@
 - 临时绕过（必须在阶段 7 前删除）：`app/` 暂依赖 `zerolaunch-rs` 库（其中仍含 Tauri 外壳）。
 - 规则同步：`schema-driven-ui` 的 GPUI 边界改为共用 schema 渲染器；`app/` 宿主说明更新。
 - 下一阶段前置条件：进入阶段 4.5，先补 schema data/effect action 与字段输入体验。
+
+### 阶段 4.5 验收记录（2026-11-10）
+
+- 提交范围：
+  - `app/src/settings/view.rs`：data/effect action 执行与结果写回、动态选项、系统字体缓存、图片预览缓存、快捷键录制、搜索表格查询/添加。
+  - `app/src/settings/render.rs`：字段动作按钮、数组动作按钮位置、字体下拉、快捷键按钮、图片缩略图、搜索表格查询区。
+  - `src-ui/i18n/locales/*.json`：补充 `clear`、`noOptions`、`entryExists` 文案。
+- 通过项：
+  - `cargo check --workspace` 零错误；`cargo clippy -p zerolaunch-gpui --all-targets` 零警告；`cargo build -p zerolaunch-gpui` 成功；`cargo test --workspace` 通过。
+  - 真机：外观页字体下拉可展开系统字体列表并写回字段。
+  - 真机：快捷键字段点击进入录制态，`Ctrl+Alt+K` 正确写回；保存按钮随脏状态启用。
+  - 真机：书签数据源「自动检测浏览器」执行完成，结果按 `bookmarks_path` 合并，未产生重复条目。
+  - 真机：设置项搜索「快捷键」「浏览器」「偏移」均能直接定位到组件字段；搜索表格显示查询输入与空态。
+- 未验证 / 差异项：
+  - 搜索表格当前为查询、添加、删除与卡片内字段编辑，未复刻旧版独立编辑弹窗。
+  - 图片字段接入资源预览、清除与上传回显，未实现点击放大。
+  - effect action 的连接测试需要真实模型服务，本次未触发网络请求。
+- 子 agent 审查发现并修正：
+  - 搜索表格添加条目和 data action 合并新条目后，补建新增数组项输入框，避免只读文本。
+  - 图片资源加载失败后记录尝试标记，避免渲染循环重复请求。
+  - effect 结果与字体“跟随系统”清除后同步已缓存的输入/下拉状态。
+  - 快捷键录制在输入框聚焦、保存、丢弃、重置和页面切换时取消；补齐 Shift 符号键映射。
+- 下一阶段前置条件：插件 manifest `[ui]` 与 gpui-shell 脚本宿主接入，替代当前插件面板/设置页容器。

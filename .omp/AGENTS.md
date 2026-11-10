@@ -12,7 +12,7 @@ crates/plugin-sdk-rust/   → zerolaunch-plugin-sdk-rust: 第三方 Rust 插件 
 crates/platform-windows/  → zerolaunch-platform-windows: Windows 平台实现 + 工厂函数
 zerolaunch-cli/           → zerolaunch-cli: 独立 CLI 工具 (zl query / zl plugins)
 src-tauri/                → zerolaunch-rs: 主程序、内置插件、配置管理、IPC 命令
-app/                      → zerolaunch-gpui: GPUI 搜索主窗口（阶段 3+）
+app/                      → zerolaunch-gpui: GPUI 宿主（搜索窗、设置窗，阶段 3-4）
 ```
 
 **依赖方向**: `plugin-api ← plugin-protocol ← plugin-host ← src-tauri`、`plugin-api ← platform-windows ← src-tauri`、`plugin-api ← plugin-sdk-rust`、`app → {gpui-kit, zerolaunch-rs, platform-windows, plugin-api}` — 禁止反向依赖。
@@ -46,6 +46,7 @@ logging.rs          → 日志初始化
 | 后端类型定义        | `src-tauri/src/plugin_framework/mod.rs` (re-export)               |
 | SessionDispatcher   | `src-tauri/src/plugin_framework/session_dispatcher.rs`          |
 | 会话投影类型        | `src-tauri/src/plugin_framework/session_state.rs`               |
+| GPUI 设置窗         | `app/src/settings/`（视角、schema 表单、插件/市场/关于/检查器） |
 | ConfigManager       | `src-tauri/src/core/config/manager.rs`                             |
 | HostApi + Builder   | `src-tauri/src/sdk.rs`                                             |
 | 内置组件注册表      | `src-tauri/src/plugin_framework/builtin_registry.rs`              |

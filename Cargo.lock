@@ -12378,6 +12378,7 @@ name = "zerolaunch-gpui"
 version = "1.5.5"
 dependencies = [
  "base64 0.23.1",
+ "futures",
  "gpui-kit",
  "notify-rust",
  "raw-window-handle",
@@ -12387,6 +12388,7 @@ dependencies = [
  "windows 0.62.2",
  "zerolaunch-platform-windows",
  "zerolaunch-plugin-api",
+ "zerolaunch-plugin-host",
  "zerolaunch-rs",
 ]
 

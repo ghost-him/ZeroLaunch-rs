@@ -1,6 +1,6 @@
 # ZeroLaunch-rs → GPUI Kit 迁移计划
 
-> 状态：阶段 3 完成，阶段 4 待开始
+> 状态：阶段 4 完成，阶段 4.5 待开始
 > 基线版本：1.5.5
 > 适用分支：迁移分支（`main` 保持 Tauri 可发布，见「迁移与发布策略」）
 
@@ -64,9 +64,10 @@
 | 2 | 内核接线 | GPUI 生命周期装配 `AppState`；全局 Tokio runtime；CLI 服务器、插件管理、配置管理、dispatcher 直接接线；事件改 Entity/通知 | `commands/` 的 IPC 包装、前端 DTO/事件发射层 | 无窗口即可完成查询、配置读写、插件加载；`zl query` 可用 |
 | 3 | 搜索主窗口 | 输入、候选列表、图标异步回填、键盘导航、动作栏、参数面板、排除选择器、面板容器、窗口定位、游戏模式 | Vue 搜索相关组件 | 热键 → 输入 → 选择 → 执行全链路与旧版一致 |
 | 4 | 设置与配置 UI | 设置壳（分类侧栏 + 搜索）、各内置组件的 GPUI 设置视图、插件管理、市场、关于、调试/检查器 | `DynamicForm.vue`、schema 驱动的前端表单、对应 IPC | 所有内置组件可配置并持久化；AI 说明书仍能检索 schema |
-| 5 | 插件体系（gpui-shell） | 插件面板/设置页改为 JS 脚本；定义 HostModule；宿主刷新脚本视图；manifest `[ui]` 改造；插件安装/市场/检查器适配 | `zlplugin://` 协议、ESM/Shadow DOM 面板宿主 | 安装示例插件后，面板与设置页在 GPUI 内渲染并完成查询/执行 |
+| 4.5 | 设置功能补齐 | schema data/effect action；系统字体列表；快捷键录制；图片预览；设置项搜索定位到字段 | 临时手动输入/无预览的兜底交互 | 依赖配置动作的设置项可在 GPUI 内完成；字段输入体验与旧版对齐 |
+| 5 | 插件体系（gpui-shell） | 插件面板/设置页改为 JS 脚本；定义 HostModule；宿主刷新脚本视图；manifest `[ui]` 改造；插件设置入口与兜底表单；市场预检/缓存/覆盖确认与安装流程适配；检查器适配 | `zlplugin://` 协议、ESM/Shadow DOM 面板宿主 | 安装示例插件后，面板与设置页在 GPUI 内渲染并完成查询/执行 |
 | 6 | 周边功能 | 托盘菜单、深链接、更新检查、AI 助手、i18n（复用 `locales/`）、日志导出、通知、剪贴板、About | Tauri 托盘/深链接插件 | 对照旧版功能清单逐项通过 |
-| 7 | 拆除与发布 | 删除 `src-ui/`、Tauri 依赖与配置、Vite/Bun；workspace 收敛；Inno Setup 安装包 + 便携 zip；CI、文档、wiki | 全部 Tauri 相关 | 干净构建、安装/升级/卸载、便携包、回归清单全绿 |
+| 7 | 拆除与发布 | 删除 `src-ui/`、Tauri 依赖与配置、Vite/Bun；workspace 收敛；视觉与窗口行为 parity；Inno Setup 安装包 + 便携 zip；CI、文档、wiki | 全部 Tauri 相关 | 干净构建、安装/升级/卸载、便携包、回归清单全绿 |
 
 ## 6. 各阶段执行要点
 
@@ -114,6 +115,15 @@
 - 插件管理、插件市场、关于、调试/检查器。
 - 删除 `DynamicForm.vue` 链路，确认没有代码再读 `WidgetHint`。
 
+### 阶段 4.5 — 设置功能补齐
+
+- schema data action：模型列表拉取、候选搜索、检测类字段的数据注入与合并。
+- schema effect action：连接测试、图标覆盖应用等用户显式动作。
+- 字体字段接入系统字体列表；快捷键字段接入录制与修饰键校验。
+- 图片字段接入预览、清除与上传后的即时回显。
+- 设置项搜索支持从字段结果直接定位到组件内字段。
+- 通过标准：依赖配置动作的设置项不再需要手动拼值；字段输入体验与旧版对齐。
+
 ### 阶段 5 — 插件体系
 
 - 插件 manifest `[ui]` 指向 gpui-shell 入口；插件包内提供 `main.js`。
@@ -124,7 +134,8 @@
   - 资源：受限的文件读取。
 - 数据更新：宿主在会话变化时调用 `runtime.refresh`，脚本在 `render` 中拉取快照。
 - 卸载插件时取消其任务、释放脚本 View。
-- 删除 `zlplugin_protocol.rs` 与 `ThirdPartyPanelHost.vue`；插件市场下载/安装流程适配新包结构。
+- 插件管理页为每个第三方插件提供设置入口：有 `main.js` 时打开脚本设置页，无 UI 时使用 text/number/toggle/select/path 兜底表单。
+- 删除 `zlplugin_protocol.rs` 与 `ThirdPartyPanelHost.vue`；插件市场下载/安装流程适配新包结构，并补磁盘缓存、安装预检与覆盖确认。
 - 发布宿主 JS 组件库（shell package），供插件复用宿主已设计好的界面。
 
 ### 阶段 6 — 周边功能
@@ -141,6 +152,7 @@
 - 删除 `src-ui/`、`index.html`、`setting_window.html`、`vite.config.ts`、`tsconfig*`、`package.json`、`bun.lock`、`node_modules/`。
 - 删除 `src-tauri/tauri.conf*.json`、`capabilities/`、`build.rs` 的 `tauri-build`、Tauri 依赖与插件。
 - workspace 收敛：`app/`、`crates/plugin-*`、`crates/platform-windows`、`zerolaunch-cli`、后端库 crate。
+- 视觉与窗口 parity：间距、字号、圆角、图标、hover/动画、设置窗拖动位置记忆；大列表按需虚拟化。
 - 打包：Inno Setup 安装包 + 便携 zip；同步更新 CI、签名、NOTICE、README、wiki。
 - 全量回归：安装、升级、卸载、便携运行、热键、托盘、插件安装与卸载。
 
@@ -235,3 +247,35 @@
 - 临时绕过（必须在阶段 7 前删除）：`app/` 暂依赖 `zerolaunch-rs` 库（其中仍含 Tauri 外壳）；阶段 7 将非 UI 部分收敛为独立库。
 - 规则同步：`no-tokio-spawn-in-core` 扩展到 `app/src/`，补充 GPUI 前台任务经 oneshot 投递到 `zerolaunch_rs_lib::runtime` 的边界。
 - 下一阶段前置条件：设置壳与内置组件 GPUI 视图接入 `ConfigManager`，保留 schema 数据契约。
+
+### 阶段 4 验收记录（2026-11-10）
+
+- 提交范围：
+  - 新增 `app/src/settings/`：分类侧栏、设置项搜索、schema 字段渲染、保存/丢弃/重置/即时保存、插件管理、市场、关于、检查器。
+  - 新增 `app/build.rs`：把内置语言包复制到可执行文件目录，保证宿主启动即可加载文案。
+  - `app/src/main.rs`、`host.rs`、`platform.rs`：设置窗口创建/隐藏/标题/物理 bounds、`Ctrl+,` 入口、固定可见起点与显示器缩放适配。
+  - `src-tauri/src/core/host.rs`：`Host` 增加设置窗口隐藏钩子。
+  - 三种语言包补齐设置页文案；`schema-driven-ui` 规则改为 GPUI 共用 schema 渲染器。
+- 通过项：
+  - `cargo check --workspace` 零错误；`cargo build -p zerolaunch-gpui` 成功；`cargo test --workspace` 通过。
+  - 真机：`Ctrl+,` 从搜索窗打开设置窗，窗口完整落在屏幕内；分类、组件页签与表单字段渲染正常。
+  - 真机：滚轮可滚动设置内容，滚动条由 `overflow_y_scrollbar` 提供。
+  - 真机：调试页可读取检查器快照（45 个已注册组件）；设置窗启动/切换无 `RefCell already borrowed` 错误。
+- 子 agent 漏改审查发现并修正：
+  - 初始设置窗标题现在由 GPUI 启动时按当前语言写入，不再依赖语言变更回调。
+  - 路径选择回调改为更新已有输入框，不再在渲染/选取回调中重新创建并订阅输入实体。
+  - 数字校验与市场取消原因改为语言包文案，消除硬编码英文状态。
+- 未通过 / 差异项：
+  - Vue `DynamicForm.vue` 链路保留到阶段 7，避免当前 Tauri 外壳不可编译；GPUI 已不依赖它。
+  - schema 的 data/effect action、系统字体列表、快捷键录制、图片预览未接入；字段可手动编辑，图片会先上传为资源 id。
+  - 市场使用实时 GitHub 请求，未接入列表/元数据磁盘缓存与安装预检弹窗；安装/覆盖安装已接线。
+  - 关于页未接入更新检查与日志导出（阶段 6）；调试页仅接入检查器，未接入搜索耗时工具。
+  - 设置窗固定在屏幕左上偏移位置，未实现窗口拖动位置记忆；第三方插件设置页留阶段 5。
+- 补做归属：
+  - schema data/effect action、字体列表、快捷键录制、图片预览 → 阶段 4.5。
+  - 插件设置入口与兜底表单、市场缓存/预检/覆盖确认 → 阶段 5。
+  - 托盘、更新、日志导出、完整 i18n → 阶段 6。
+  - 视觉 parity、窗口位置记忆、列表虚拟化 → 阶段 7。
+- 临时绕过（必须在阶段 7 前删除）：`app/` 暂依赖 `zerolaunch-rs` 库（其中仍含 Tauri 外壳）。
+- 规则同步：`schema-driven-ui` 的 GPUI 边界改为共用 schema 渲染器；`app/` 宿主说明更新。
+- 下一阶段前置条件：进入阶段 4.5，先补 schema data/effect action 与字段输入体验。

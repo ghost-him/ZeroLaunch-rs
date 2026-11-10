@@ -120,6 +120,12 @@ impl Host for TauriHost {
         let _ = window.set_focus();
     }
 
+    fn hide_settings_window(&self) {
+        if let Some(window) = self.app.get_webview_window("setting_window") {
+            let _ = window.hide();
+        }
+    }
+
     fn set_settings_window_title(&self, title: &str) {
         if let Some(window) = self.app.get_webview_window("setting_window") {
             let _ = window.set_title(title);

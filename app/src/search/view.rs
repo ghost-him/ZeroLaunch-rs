@@ -641,6 +641,16 @@ impl SearchView {
         let key = event.keystroke.key.to_lowercase();
         let mods = event.keystroke.modifiers;
 
+        if mods.control && key == "," {
+            let host = self.host.clone();
+            runtime::spawn(async move {
+                host.hide_main_window();
+                host.show_settings_window();
+            });
+            cx.stop_propagation();
+            return;
+        }
+
         if self.exclude.is_some() {
             match key.as_str() {
                 "up" | "down" => {

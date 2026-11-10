@@ -71,6 +71,12 @@ pub struct GpuiHost {
     events: broadcast::Sender<HostEvent>,
     /// 顶层窗口句柄。
     hwnd: Mutex<isize>,
+    /// 设置窗口句柄；未绑定前为 0。
+    settings_hwnd: Mutex<isize>,
+    /// 设置窗口标题；窗口绑定前暂存，绑定后立即应用。
+    settings_title: Mutex<Option<String>>,
+    /// 设置窗口物理 bounds（x, y, width, height）。
+    settings_bounds: Mutex<Option<(i32, i32, i32, i32)>>,
     /// 最近一次显示的可见状态。
     visible: AtomicBool,
 }
@@ -85,6 +91,9 @@ impl GpuiHost {
             commands,
             events,
             hwnd: Mutex::new(0),
+            settings_hwnd: Mutex::new(0),
+            settings_title: Mutex::new(None),
+            settings_bounds: Mutex::new(None),
             visible: AtomicBool::new(false),
         }
     }
@@ -98,6 +107,40 @@ impl GpuiHost {
         platform::configure_launcher(hwnd);
     }
 
+    /// 绑定设置窗口句柄。
+    /// 参数：hwnd - 设置窗口顶层句柄。
+    /// 返回：无；若标题已由内核设置则立即应用。
+    pub fn attach_settings(&self, hwnd: isize) {
+        *self
+            .settings_hwnd
+            .lock()
+            .expect("settings hwnd lock poisoned") = hwnd;
+        if let Some(title) = self
+            .settings_title
+            .lock()
+            .expect("settings title lock poisoned")
+            .as_deref()
+        {
+            platform::set_window_title(hwnd, title);
+        }
+    }
+
+    /// 读取搜索主窗口所在显示器。
+    /// 返回：显示器信息；主窗口尚未绑定时 None。
+    pub fn main_window_monitor(&self) -> Option<MonitorInfo> {
+        platform::window_monitor_info(self.hwnd())
+    }
+
+    /// 记录设置窗口的物理位置与尺寸。
+    /// 参数：bounds - (x, y, width, height)，物理像素。
+    /// 返回：无；下一次显示时应用。
+    pub fn set_settings_bounds(&self, bounds: (i32, i32, i32, i32)) {
+        *self
+            .settings_bounds
+            .lock()
+            .expect("settings bounds lock poisoned") = Some(bounds);
+    }
+
     /// 订阅宿主事件。
     /// 返回：广播接收端；视图在生命周期内持续消费。
     pub fn subscribe(&self) -> broadcast::Receiver<HostEvent> {
@@ -106,6 +149,13 @@ impl GpuiHost {
 
     fn hwnd(&self) -> isize {
         *self.hwnd.lock().expect("host hwnd lock poisoned")
+    }
+
+    fn settings_hwnd(&self) -> isize {
+        *self
+            .settings_hwnd
+            .lock()
+            .expect("settings hwnd lock poisoned")
     }
 
     fn publish(&self, event: HostEvent) {
@@ -141,9 +191,29 @@ impl Host for GpuiHost {
         platform::monitor_info()
     }
 
-    fn show_settings_window(&self) {}
+    fn show_settings_window(&self) {
+        let hwnd = self.settings_hwnd();
+        if let Some((x, y, width, height)) = *self
+            .settings_bounds
+            .lock()
+            .expect("settings bounds lock poisoned")
+        {
+            platform::set_window_bounds(hwnd, x, y, width, height);
+        }
+        platform::show_window(hwnd);
+    }
 
-    fn set_settings_window_title(&self, _title: &str) {}
+    fn hide_settings_window(&self) {
+        platform::hide_window(self.settings_hwnd());
+    }
+
+    fn set_settings_window_title(&self, title: &str) {
+        *self
+            .settings_title
+            .lock()
+            .expect("settings title lock poisoned") = Some(title.to_string());
+        platform::set_window_title(self.settings_hwnd(), title);
+    }
 
     fn notify(&self, title: &str, body: &str) {
         if let Err(error) = notify_rust::Notification::new()

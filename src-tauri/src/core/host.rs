@@ -42,6 +42,8 @@ pub trait Host: Send + Sync {
     fn monitor_info(&self) -> Vec<MonitorInfo>;
     /// 显示并聚焦设置窗口。
     fn show_settings_window(&self);
+    /// 隐藏设置窗口。
+    fn hide_settings_window(&self);
     /// 更新设置窗口标题。
     fn set_settings_window_title(&self, title: &str);
     /// 发送系统通知。
@@ -106,6 +108,8 @@ impl Host for NoopHost {
     }
 
     fn show_settings_window(&self) {}
+
+    fn hide_settings_window(&self) {}
 
     fn set_settings_window_title(&self, _title: &str) {}
 

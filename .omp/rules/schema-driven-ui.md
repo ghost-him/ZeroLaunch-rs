@@ -14,5 +14,6 @@ scope: "tool:edit(crates/plugin-api/src/config/**), tool:write(crates/plugin-api
 ## 迁移期边界（GPUI）
 
 - 本规则只约束当前 Vue 前端（`src-ui/`）与第三方插件配置的跨进程契约。
-- GPUI 设置页按组件实现专用视图（迁移阶段 4），不再由 `SettingDefinition` 通用渲染；`SettingDefinition` / `SchemaKind` 仅保留为数据契约（默认值、校验、持久化、AI 说明书、第三方插件 schema）。
-- 禁止为新的 GPUI 视图继续扩展 `WidgetHint` 的渲染语义；阶段 4 删除 `DynamicForm.vue` 后，本规则随 `src-ui/` 一并删除。
+- GPUI 设置页共用 `app/src/settings` 的 schema 渲染器：按组件 id 从 `ConfigManager` 取 schema 与当前值，不复制 Vue 的字段组件协议。
+- `SettingDefinition` / `SchemaKind` / `WidgetHint` 继续作为数据契约（默认值、校验、持久化、AI 说明书、第三方插件 schema）；GPUI 只消费其中与控件选择相关的最小信息。
+- 禁止为 GPUI 单独扩展 Vue 专属的 `WidgetHint` 渲染语义；阶段 7 删除 `src-ui/` 后，本规则随 Vue 部分一并删除。

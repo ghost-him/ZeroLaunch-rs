@@ -6,6 +6,7 @@
 mod host;
 mod platform;
 mod search;
+mod settings;
 
 use std::sync::Arc;
 
@@ -29,6 +30,7 @@ use zerolaunch_rs_lib::state::app_state::AppState;
 
 use crate::host::{GpuiHost, HostCommand};
 use crate::search::SearchView;
+use crate::settings::SettingsView;
 
 const APP_ID: &str = "com.zerolaunch-rs.app";
 
@@ -63,7 +65,8 @@ fn main() {
             }
 
             init_kernel(&state, path_resolver);
-            open_search_window(cx, state, host, command_rx);
+            open_search_window(cx, state.clone(), host.clone(), command_rx);
+            open_settings_window(cx, state, host);
         });
 }
 
@@ -160,6 +163,76 @@ fn open_search_window(
     host.attach(hwnd, true);
     // 启动时与旧版一致保持隐藏，由全局热键唤出。
     host.hide_main_window();
+}
+
+/// 打开设置窗口并绑定宿主句柄。
+/// 参数：cx - GPUI App；state - 已初始化内核；host - 宿主实现。
+/// 返回：无；窗口初始隐藏，由 Host 或搜索窗快捷键唤出。
+fn open_settings_window(cx: &mut App, state: Arc<AppState>, host: Arc<GpuiHost>) {
+    let i18n = state.get_i18n_manager();
+    let settings_title = i18n.t(&i18n.current_language(), "settings.title");
+    host.set_settings_window_title(&settings_title);
+    let monitor = host
+        .main_window_monitor()
+        .or_else(platform::cursor_monitor_info)
+        .or_else(platform::primary_monitor_info);
+    let scale = monitor
+        .as_ref()
+        .map(|monitor| monitor.scale_factor as f32)
+        .unwrap_or(1.0)
+        .max(1.0);
+    let logical_width = monitor
+        .as_ref()
+        .map(|monitor| (monitor.width as f32 / scale - 160.0).min(900.0))
+        .unwrap_or(900.0)
+        .max(640.0);
+    let logical_height = monitor
+        .as_ref()
+        .map(|monitor| (monitor.height as f32 / scale - 160.0).min(620.0))
+        .unwrap_or(620.0)
+        .max(420.0);
+    let (window_x, window_y) = (80, 60);
+    let physical_width = (logical_width * scale + 16.0 * scale).round() as i32;
+    let physical_height = (logical_height * scale + 39.0 * scale).round() as i32;
+    let origin = point(px(window_x as f32), px(window_y as f32));
+    let options = WindowOptions {
+        window_bounds: Some(WindowBounds::Windowed(Bounds {
+            origin,
+            size: size(px(logical_width), px(logical_height)),
+        })),
+        titlebar: Some(TitlebarOptions {
+            title: None,
+            appears_transparent: false,
+            traffic_light_position: None,
+        }),
+        focus: false,
+        show: false,
+        kind: WindowKind::Normal,
+        is_movable: true,
+        is_resizable: true,
+        is_minimizable: true,
+        window_decorations: Some(WindowDecorations::Server),
+        ..Default::default()
+    };
+
+    let state_for_view = state;
+    let host_for_view = host.clone();
+    host.set_settings_bounds((window_x, window_y, physical_width, physical_height));
+    let opened = gpui_kit::open_window(options, cx, move |window, cx| {
+        cx.new(|cx| SettingsView::new(state_for_view, host_for_view, window, cx))
+    });
+
+    let Ok((handle, _view)) = opened else {
+        tracing::error!("打开 GPUI 设置窗口失败");
+        return;
+    };
+    let hwnd = handle
+        .update(cx, |_, window, _| platform::window_hwnd(window))
+        .ok()
+        .flatten()
+        .unwrap_or(0);
+    host.attach_settings(hwnd);
+    host.hide_settings_window();
 }
 
 /// 读取配置中的数值项。

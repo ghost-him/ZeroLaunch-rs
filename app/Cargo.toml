@@ -18,6 +18,7 @@ tokio = { workspace = true }
 tracing = { workspace = true }
 serde_json = { workspace = true }
 base64 = { workspace = true }
+futures = { workspace = true }
 notify-rust = { workspace = true }
 raw-window-handle = "0.6"
 windows = { version = "0.62.2", features = [
@@ -27,4 +28,5 @@ windows = { version = "0.62.2", features = [
     "Win32_UI_WindowsAndMessaging",
 ] }
 zerolaunch-plugin-api = { workspace = true }
+zerolaunch-plugin-host = { workspace = true }
 zerolaunch-platform-windows = { workspace = true }

@@ -1,6 +1,6 @@
 ---
 name: no-tokio-spawn-in-core
-description: src-tauri 禁止直接创建 tokio 协程，统一使用 crate::runtime 的全局 runtime 入口
+description: 宿主 crate（src-tauri / app）禁止直接创建 tokio 协程，统一使用进程级 runtime 入口
 condition:
   - 'tokio::(task::)?spawn\b'
   - 'tokio::(task::)?spawn_blocking'
@@ -10,13 +10,15 @@ condition:
 scope:
   - tool:edit(src-tauri/src/**/*.rs)
   - tool:write(src-tauri/src/**/*.rs)
+  - tool:edit(app/src/**/*.rs)
+  - tool:write(app/src/**/*.rs)
 ---
 
-# src-tauri 协程统一走 crate::runtime
+# 宿主协程统一走进程级 runtime
 
 ## 规则
 
-在 `src-tauri/src/` 下，**禁止**直接调用 tokio 的协程创建函数：
+在 `src-tauri/src/` 与 `app/src/` 下，**禁止**直接调用 tokio 的协程创建函数：
 
 ```rust
 // ❌ 错误：绕过进程级 runtime，任务入口分裂
@@ -26,13 +28,19 @@ tokio::spawn_blocking(|| { ... });
 use tokio::task; task::spawn(async move { ... });
 ```
 
-**必须**使用 `crate::runtime` 的统一入口：
+**必须**使用进程级 runtime 的统一入口：
 
 ```rust
-// ✅ 正确：进程级 runtime，Tauri 外壳、CLI 与后续 GPUI 宿主共用
+// ✅ src-tauri
 crate::runtime::spawn(async move { ... });
 crate::runtime::spawn_blocking(|| { ... });
+
+// ✅ app（GPUI 宿主经后端库重新导出）
+zerolaunch_rs_lib::runtime::spawn(async move { ... });
+zerolaunch_rs_lib::runtime::spawn_blocking(|| { ... });
 ```
+
+需要从 GPUI 前台任务调用内核异步代码时，用 oneshot 把 future 投递到该 runtime，再回传结果，避免在 GPUI executor 上直接 poll 依赖 Tokio reactor 的 future。
 
 ## 原因
 
@@ -43,11 +51,11 @@ crate::runtime::spawn_blocking(|| { ... });
 ## 迁移期边界
 
 - `src-tauri/src/lib.rs`、`bootstrap.rs`、`tray/` 等 Tauri 外壳代码允许调用 Tauri API，但创建任务仍走 `crate::runtime`。
-- `crate::runtime` 是唯一 runtime 声明处；其他模块只使用其 `spawn` / `spawn_blocking` / `block_on`。
+- `src-tauri/src/runtime.rs` 是唯一 runtime 声明处；`app/` 经 `zerolaunch_rs_lib::runtime` 使用同一实例。
 - 阶段 7 删除 `src-tauri` 时，`runtime` 模块迁入后端库 crate，本规则随目录删除。
 
 ## 范围边界
 
-- **仅约束 `src-tauri/src/`**：`crates/`（plugin-host、plugin-sdk-rust、plugin-protocol 等库）无 tauri 依赖，**必须**使用 tokio 原生 API，不在本规则范围。
+- **约束 `src-tauri/src/` 与 `app/src/`**：`crates/`（plugin-host、plugin-sdk-rust、plugin-protocol 等库）无 tauri 依赖，**必须**使用 tokio 原生 API，不在本规则范围。
 - **`#[tokio::test]` 测试宏不在此列**：它是测试运行时宏而非协程创建函数，测试模块中可用。
 - **`tokio::time::interval` / `tokio::time::sleep` 等挂起 API 不在此列**：它们不创建任务。

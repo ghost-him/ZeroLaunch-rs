@@ -8,6 +8,7 @@ members = [
     "crates/plugin-sdk-rust",
     "zerolaunch-cli",
     "src-tauri",
+    "app",
 ]
 exclude = ["xtask", "plugin-template"]
 

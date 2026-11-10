@@ -721,7 +721,7 @@ pub(crate) async fn init_plugin_system(
 ///
 /// 窗口可见时保存拖拽位置后隐藏；不可见时先准备窗口位置（全屏拦截 + 定位），
 /// 捕获系统参数快照，再显示窗口。
-pub(crate) async fn toggle_search_bar(state: &AppState) {
+pub async fn toggle_search_bar(state: &AppState) {
     let host_api = state.get_host_api();
     let config_manager = state.get_config_manager();
     let host = state.get_host();
@@ -736,6 +736,22 @@ pub(crate) async fn toggle_search_bar(state: &AppState) {
         let _ = state.get_session_dispatcher().on_search_bar_wake().await;
         host_api.show_window().await;
     }
+}
+
+/// 搜索窗失焦：保存拖拽位置、隐藏窗口并复位会话。
+///
+/// 参数：state - 应用状态。
+/// 返回：无；复位插件归属由 general-config 的 reset_session_on_wake 决定。
+pub async fn on_search_bar_focus_lost(state: &AppState) {
+    let host = state.get_host();
+    let config_manager = state.get_config_manager();
+    save_window_position_if_drag(&config_manager, &host).await;
+    host.hide_main_window();
+    let reset_plugins = config_manager
+        .get_component_setting("general-config", "reset_session_on_wake")
+        .and_then(|value| value.as_bool())
+        .unwrap_or(true);
+    state.get_session_dispatcher().reset_session(reset_plugins);
 }
 
 /// 启动 AppCommand 消费者 task。

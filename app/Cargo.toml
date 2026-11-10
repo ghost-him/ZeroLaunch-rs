@@ -1,0 +1,30 @@
+[package]
+name = "zerolaunch-gpui"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "ZeroLaunch GPUI search window"
+
+[[bin]]
+name = "zerolaunch-gpui"
+path = "src/main.rs"
+
+[dependencies]
+gpui-kit = "0.9.1"
+zerolaunch-rs = { path = "../src-tauri" }
+tokio = { workspace = true }
+tracing = { workspace = true }
+serde_json = { workspace = true }
+base64 = { workspace = true }
+notify-rust = { workspace = true }
+raw-window-handle = "0.6"
+windows = { version = "0.62.2", features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Gdi",
+    "Win32_UI_HiDpi",
+    "Win32_UI_WindowsAndMessaging",
+] }
+zerolaunch-plugin-api = { workspace = true }
+zerolaunch-platform-windows = { workspace = true }

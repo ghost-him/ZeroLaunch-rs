@@ -1,6 +1,6 @@
 # ZeroLaunch-rs → GPUI Kit 迁移计划
 
-> 状态：阶段 2 完成，阶段 3 待开始
+> 状态：阶段 3 完成，阶段 4 待开始
 > 基线版本：1.5.5
 > 适用分支：迁移分支（`main` 保持 Tauri 可发布，见「迁移与发布策略」）
 
@@ -214,3 +214,24 @@
   - `.omp/rules/no-tokio-spawn-in-core.md`：由「统一 `tauri::async_runtime`」改为「统一 `crate::runtime` 全局入口」。
   - `.omp/rules/no-appstate-global.md`：移除「从 Tauri `AppHandle` 获取」表述，改为状态注入与 `Host` 端口。
 - 下一阶段前置条件：搜索主窗口直接调用 `SessionDispatcher` / Host 端口，输入、候选、执行链路不再经过 Tauri IPC 命令。
+
+### 阶段 3 验收记录（2026-11-10）
+
+- 提交范围：
+  - 新增 `app/` 二进制（`zerolaunch-gpui`）：GPUI 搜索窗、Win32 窗口适配、Host 实现、搜索状态机与渲染。
+  - `app/src/host.rs`：`GpuiHost` 实现 `Host`，窗口显示/隐藏/置顶/跳过任务栏/位置/显示器信息走 Win32；内核事件经广播通道进入 GPUI 线程。
+  - `app/src/search/`：输入框、候选列表（图标异步回填）、上下选择、Enter 执行、Esc 隐藏/回退、Tab 动作切换、Ctrl+1..9、行内参数、参数面板、排除选择器、插件面板容器。
+  - `src-tauri/src/kernel.rs`：公开 `toggle_search_bar`，新增 `on_search_bar_focus_lost` 统一失焦保存位置/隐藏/会话复位。
+- 通过项：
+  - `cargo check --workspace` 零错误；`cargo build -p zerolaunch-gpui` 成功；`cargo test --workspace` 通过。
+  - 真机：`Alt+Space` 唤起 815×79 搜索窗；输入 `= 1+1` 显示计算器面板与 `1+1=2`，Enter 执行后窗口隐藏且 `route_confirm` 成功。
+  - 真机：输入 `note` 命中 10 个候选，图标、排序、选中态、动作栏（打开/唤醒窗口 Shift+Enter）正常；连续两次 Esc 隐藏窗口。
+  - 内核异步调用改为投递到全局 Tokio runtime 后回传 GPUI 线程，消除 `no reactor running` panic。
+- 未通过 / 差异项：
+  - 设置窗口、托盘、深链路与更新 UI 未接入 GPUI，仍留阶段 4/6；`Host::show_settings_window` 当前为空实现。
+  - 插件面板为宿主通用容器：calculator/translator 有轻量渲染，其他面板显示数据摘要；gpui-shell 脚本渲染留阶段 5。
+  - 外观仍用 gpui-kit 默认主题，未读取 `appearance-config` 颜色/背景图；窗口拖动记忆未实现。
+  - 搜索列表未虚拟化，按当前结果上限直接渲染。
+- 临时绕过（必须在阶段 7 前删除）：`app/` 暂依赖 `zerolaunch-rs` 库（其中仍含 Tauri 外壳）；阶段 7 将非 UI 部分收敛为独立库。
+- 规则同步：`no-tokio-spawn-in-core` 扩展到 `app/src/`，补充 GPUI 前台任务经 oneshot 投递到 `zerolaunch_rs_lib::runtime` 的边界。
+- 下一阶段前置条件：设置壳与内置组件 GPUI 视图接入 `ConfigManager`，保留 schema 数据契约。

@@ -12,9 +12,10 @@ crates/plugin-sdk-rust/   → zerolaunch-plugin-sdk-rust: 第三方 Rust 插件 
 crates/platform-windows/  → zerolaunch-platform-windows: Windows 平台实现 + 工厂函数
 zerolaunch-cli/           → zerolaunch-cli: 独立 CLI 工具 (zl query / zl plugins)
 src-tauri/                → zerolaunch-rs: 主程序、内置插件、配置管理、IPC 命令
+app/                      → zerolaunch-gpui: GPUI 搜索主窗口（阶段 3+）
 ```
 
-**依赖方向**: `plugin-api ← plugin-protocol ← plugin-host ← src-tauri` 和 `plugin-api ← plugin-sdk-rust` — 禁止反向依赖。
+**依赖方向**: `plugin-api ← plugin-protocol ← plugin-host ← src-tauri`、`plugin-api ← platform-windows ← src-tauri`、`plugin-api ← plugin-sdk-rust`、`app → {gpui-kit, zerolaunch-rs, platform-windows, plugin-api}` — 禁止反向依赖。
 
 **内部模块**（src-tauri 内）:
 ```

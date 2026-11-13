@@ -85,8 +85,6 @@ pub struct GpuiHost {
     settings_hwnd: Mutex<isize>,
     /// 设置窗口标题；窗口绑定前暂存，绑定后立即应用。
     settings_title: Mutex<Option<String>>,
-    /// 设置窗口物理 bounds（x, y, width, height）。
-    settings_bounds: Mutex<Option<(i32, i32, i32, i32)>>,
     /// 最近一次显示的可见状态。
     visible: AtomicBool,
     /// 系统托盘；初始化前或图标创建失败时为 None。
@@ -113,7 +111,6 @@ impl GpuiHost {
             hwnd: Mutex::new(0),
             settings_hwnd: Mutex::new(0),
             settings_title: Mutex::new(None),
-            settings_bounds: Mutex::new(None),
             visible: AtomicBool::new(false),
             tray: Mutex::new(None),
             tray_icon: Mutex::new(String::new()),
@@ -154,16 +151,6 @@ impl GpuiHost {
     /// 返回：显示器信息；主窗口尚未绑定时 None。
     pub fn main_window_monitor(&self) -> Option<MonitorInfo> {
         platform::window_monitor_info(self.hwnd())
-    }
-
-    /// 记录设置窗口的物理位置与尺寸。
-    /// 参数：bounds - (x, y, width, height)，物理像素。
-    /// 返回：无；下一次显示时应用。
-    pub fn set_settings_bounds(&self, bounds: (i32, i32, i32, i32)) {
-        *self
-            .settings_bounds
-            .lock()
-            .expect("settings bounds lock poisoned") = Some(bounds);
     }
 
     /// 订阅宿主事件。
@@ -335,15 +322,7 @@ impl Host for GpuiHost {
     }
 
     fn show_settings_window(&self) {
-        let hwnd = self.settings_hwnd();
-        if let Some((x, y, width, height)) = *self
-            .settings_bounds
-            .lock()
-            .expect("settings bounds lock poisoned")
-        {
-            platform::set_window_bounds(hwnd, x, y, width, height);
-        }
-        platform::show_window(hwnd);
+        platform::show_window(self.settings_hwnd());
     }
 
     fn hide_settings_window(&self) {

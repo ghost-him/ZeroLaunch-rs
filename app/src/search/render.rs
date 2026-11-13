@@ -12,6 +12,7 @@ use gpui_kit::{
 };
 
 use zerolaunch_rs_lib::core::config::exclusion_settings::ExclusionKind;
+use zerolaunch_rs_lib::core::host::Host as _;
 use zerolaunch_rs_lib::state::app_state::AppState;
 
 use super::model::{ActionInfo, ParamState, SearchItem};
@@ -50,44 +51,18 @@ impl SearchView {
     /// 搜索栏：前缀、输入框与状态提示。
     fn render_search_bar(&self, cx: &mut gpui_kit::Context<Self>) -> AnyElement {
         let theme = cx.theme();
-        let prefix = match self.mode {
-            Mode::InlineParam => self
-                .inline
-                .as_ref()
-                .map(|inline| inline.trigger_keyword.clone()),
-            Mode::PluginPanel => self.panel.as_ref().map(|panel| panel.panel_type.clone()),
-            _ => None,
-        };
         h_flex()
             .h(px(self.metrics.search_bar_height))
             .flex_shrink_0()
-            .px_4()
+            .px(px(24.0))
             .gap_3()
-            .border_b_1()
-            .border_color(theme.border)
-            .child(
-                Icon::new(IconName::Search)
-                    .small()
-                    .text_color(theme.muted_foreground),
-            )
-            .when_some(prefix, |this, prefix| {
-                this.child(
-                    div()
-                        .px_2()
-                        .py_1()
-                        .rounded(px(4.0))
-                        .bg(theme.accent)
-                        .text_color(theme.accent_foreground)
-                        .text_size(px(13.0))
-                        .font_weight(FontWeight::SEMIBOLD)
-                        .child(prefix),
-                )
-            })
             .child(
                 div().flex_1().min_w_0().child(
                     Input::new(&self.input)
                         .appearance(false)
                         .cleanable(false)
+                        .text_size(px(22.0))
+                        .h_full()
                         .w_full(),
                 ),
             )
@@ -146,6 +121,8 @@ impl SearchView {
             .id("results-scroll")
             .flex_1()
             .min_h_0()
+            .my(px(8.0))
+            .px(px(12.0))
             .overflow_y_scroll()
             .track_scroll(&self.scroll)
             .v_flex()
@@ -186,35 +163,18 @@ impl SearchView {
                     .child(letter)
                     .into_any_element()
             });
-        let action = item
-            .actions
-            .get(
-                self.selected_action
-                    .min(item.actions.len().saturating_sub(1)),
-            )
-            .or_else(|| item.actions.iter().find(|action| action.is_default));
-        let action_text = action
-            .map(|action| {
-                if action.shortcut_key.is_empty() {
-                    action.label.clone()
-                } else {
-                    format!("{}  {}", action.label, action.shortcut_key)
-                }
-            })
-            .unwrap_or_default();
-
         h_flex()
             .id(("result", item.id))
             .h(px(self.metrics.item_height))
-            .mx_2()
-            .px_3()
-            .gap_3()
-            .rounded(px(7.0))
+            .mb(px(2.0))
+            .px(px(16.0))
+            .gap(px(16.0))
+            .rounded(px(10.0))
             .when(selected, |this| {
-                this.bg(theme.accent).text_color(theme.accent_foreground)
+                this.bg(theme.muted).text_color(theme.foreground)
             })
             .when(!selected, |this| {
-                this.hover(|style| style.bg(theme.button_hover))
+                this.hover(|style| style.bg(theme.list_hover))
             })
             .on_mouse_down(
                 MouseButton::Left,
@@ -248,28 +208,11 @@ impl SearchView {
                             div()
                                 .truncate()
                                 .text_size(px(self.metrics.subtitle_size))
-                                .text_color(if selected {
-                                    theme.accent_foreground
-                                } else {
-                                    theme.muted_foreground
-                                })
+                                .text_color(theme.muted_foreground)
                                 .child(item.subtitle.clone()),
                         )
                     }),
             )
-            .when(!action_text.is_empty(), |this| {
-                this.child(
-                    div()
-                        .flex_shrink_0()
-                        .text_size(px(11.0))
-                        .text_color(if selected {
-                            theme.accent_foreground
-                        } else {
-                            theme.muted_foreground
-                        })
-                        .child(action_text),
-                )
-            })
             .into_any_element()
     }
 
@@ -588,8 +531,6 @@ impl SearchView {
             .flex_shrink_0()
             .px_4()
             .gap_3()
-            .border_t_1()
-            .border_color(theme.border)
             .child(
                 div()
                     .text_size(px(12.0))
@@ -601,24 +542,49 @@ impl SearchView {
                     .flex_1()
                     .gap_2()
                     .children(actions.iter().enumerate().map(|(index, action)| {
-                        Button::new(format!("footer-action-{}", action.id))
-                            .ghost()
-                            .xsmall()
-                            .selected(index == self.selected_action)
-                            .label(action_label(action))
-                            .on_click(cx.listener({
-                                let action_id = action.id.clone();
-                                move |this, _, window, cx| {
-                                    this.confirm_with_action(action_id.clone(), window, cx);
-                                }
+                        let selected = index == self.selected_action;
+                        let action_id = action.id.clone();
+                        div()
+                            .id(("footer-action", index))
+                            .flex()
+                            .items_center()
+                            .gap(px(6.0))
+                            .px(px(10.0))
+                            .py(px(4.0))
+                            .rounded(px(6.0))
+                            .text_size(px(12.0))
+                            .when(selected, |this| {
+                                this.bg(theme.sidebar_accent).text_color(theme.primary)
+                            })
+                            .when(!selected, |this| {
+                                this.bg(theme.secondary)
+                                    .text_color(theme.muted_foreground)
+                                    .hover(|style| style.bg(theme.button_hover))
+                            })
+                            .on_click(cx.listener(move |this, _, window, cx| {
+                                this.confirm_with_action(action_id.clone(), window, cx);
                             }))
+                            .child(action.label.clone())
+                            .when(!action.shortcut_key.is_empty(), |this| {
+                                this.child(
+                                    div()
+                                        .text_size(px(11.0))
+                                        .font_family("Consolas")
+                                        .opacity(0.5)
+                                        .child(action.shortcut_key.clone()),
+                                )
+                            })
                     })),
             )
             .child(
-                div()
-                    .text_size(px(11.0))
-                    .text_color(theme.muted_foreground)
-                    .child("↑↓ · Enter · Esc"),
+                Button::new("footer-settings")
+                    .ghost()
+                    .xsmall()
+                    .icon(Icon::new(IconName::Settings).small())
+                    .label(tr(&self.state, "footer.settings"))
+                    .on_click(cx.listener(|this, _, _, _| {
+                        this.host.show_settings_window();
+                    })),
             )
             .into_any_element()
     }

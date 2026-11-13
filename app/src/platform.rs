@@ -14,8 +14,8 @@ use windows::Win32::UI::HiDpi::{GetDpiForMonitor, MDT_EFFECTIVE_DPI};
 use windows::Win32::UI::WindowsAndMessaging::{
     GetCursorPos, GetWindowLongPtrW, GetWindowRect, IsIconic, IsWindowVisible, SetForegroundWindow,
     SetWindowLongPtrW, SetWindowPos, SetWindowTextW, ShowWindow, GWL_EXSTYLE, HWND_TOPMOST,
-    SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SW_SHOW,
-    SW_SHOWNOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST,
+    SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SW_SHOW, SW_SHOWNOACTIVATE,
+    WS_EX_TOOLWINDOW, WS_EX_TOPMOST,
 };
 use zerolaunch_plugin_api::services::window::MonitorInfo;
 
@@ -79,26 +79,6 @@ pub fn set_window_title(hwnd: isize, title: &str) {
     let wide: Vec<u16> = title.encode_utf16().chain(std::iter::once(0)).collect();
     unsafe {
         let _ = SetWindowTextW(HWND(hwnd as *mut _), windows::core::PCWSTR(wide.as_ptr()));
-    }
-}
-
-/// 设置窗口物理 bounds。
-/// 参数：hwnd - 顶层窗口句柄；x/y/width/height - 物理像素。
-/// 返回：无；Win32 调用失败只记录日志。
-pub fn set_window_bounds(hwnd: isize, x: i32, y: i32, width: i32, height: i32) {
-    if hwnd == 0 {
-        return;
-    }
-    unsafe {
-        let _ = SetWindowPos(
-            HWND(hwnd as *mut _),
-            None,
-            x,
-            y,
-            width,
-            height,
-            SWP_NOACTIVATE | SWP_NOZORDER,
-        );
     }
 }
 

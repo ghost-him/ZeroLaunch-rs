@@ -1370,23 +1370,28 @@ impl SearchView {
         };
         let height = match self.mode {
             Mode::Search => {
-                self.metrics.search_bar_height + rows as f32 * self.metrics.item_height + footer
+                // 旧版窗口：1px 边框 + 搜索栏 + 列表上下各 8px + 行高与 2px 间距 + 底栏。
+                2.0 + self.metrics.search_bar_height
+                    + 16.0
+                    + rows as f32 * (self.metrics.item_height + 2.0)
+                    + footer
             }
-            Mode::InlineParam => self.metrics.search_bar_height + 110.0,
+            Mode::InlineParam => 2.0 + self.metrics.search_bar_height + 110.0,
             Mode::ParamPanel => {
                 let fields = self
                     .params
                     .as_ref()
                     .map(|params| params.fields.len())
                     .unwrap_or(1);
-                self.metrics.search_bar_height + fields as f32 * 56.0 + 72.0
+                2.0 + self.metrics.search_bar_height + fields as f32 * 56.0 + 72.0
             }
-            Mode::PluginPanel => self.metrics.search_bar_height + 360.0 + footer,
+            Mode::PluginPanel => 2.0 + self.metrics.search_bar_height + 360.0 + footer,
             Mode::PluginImmersive => {
-                self.metrics.max_visible_results as f32 * self.metrics.item_height + footer
+                2.0 + self.metrics.max_visible_results as f32 * (self.metrics.item_height + 2.0)
+                    + footer
             }
         }
-        .max(self.metrics.search_bar_height);
+        .max(self.metrics.search_bar_height + 2.0);
         window.resize(size(px(self.metrics.width), px(height)));
     }
 }

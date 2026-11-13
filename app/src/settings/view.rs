@@ -173,35 +173,20 @@ pub(super) struct SearchTarget {
     pub max_items: Option<usize>,
 }
 
-/// 设置项搜索结果。
-#[derive(Debug, Clone)]
-pub(super) struct SearchHit {
-    /// 目标组件。
-    pub component_id: String,
-    /// 字段 key；None 表示组件本身。
-    pub field: Option<String>,
-    /// 结果主标题。
-    pub label: String,
-    /// 结果附加说明。
-    pub detail: String,
-}
-
 /// 设置窗口视图。
 pub struct SettingsView {
     /// 内核状态。
     state: Arc<AppState>,
     /// 宿主窗口出口。
     host: Arc<GpuiHost>,
-    /// 设置项搜索输入。
-    search: Entity<InputState>,
-    /// 搜索词。
-    search_query: String,
-    /// 搜索结果。
-    search_hits: Vec<SearchHit>,
     /// 全部可配置组件。
     components: Vec<ComponentInfo>,
     /// 当前分类。
     category: Category,
+    /// 搜索管道当前分组。
+    pipeline_group: String,
+    /// 搜索管道流程图是否展开。
+    pipeline_flow_expanded: bool,
     /// 当前页面。
     page: Page,
     /// 当前组件。
@@ -224,6 +209,10 @@ pub struct SettingsView {
     data_options_attempted: HashSet<String>,
     /// 搜索表格动作结果。
     search_results: HashMap<String, Vec<Value>>,
+    /// 对象数组主从视图选中的条目。
+    array_selected: HashMap<String, usize>,
+    /// 标签数组的新增输入框。
+    tag_inputs: HashMap<String, Entity<InputState>>,
     /// 正在执行的动作。
     action_loading: HashSet<String>,
     /// 系统字体列表。
@@ -303,8 +292,6 @@ impl SettingsView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let placeholder = tr(&state, "settings.searchPlaceholder");
-        let search = cx.new(|cx| InputState::new(window, cx).placeholder(placeholder));
         let assistant_input = cx.new(|cx| {
             InputState::new(window, cx).placeholder(tr(&state, "settings.assistant.placeholder"))
         });
@@ -333,11 +320,10 @@ impl SettingsView {
         let mut view = Self {
             state,
             host,
-            search,
-            search_query: String::new(),
-            search_hits: Vec::new(),
             components,
             category: Category::Core,
+            pipeline_group: "DataSource".to_string(),
+            pipeline_flow_expanded: false,
             page: Page::Component,
             selected_component: None,
             schema: None,
@@ -349,6 +335,8 @@ impl SettingsView {
             data_options: HashMap::new(),
             data_options_attempted: HashSet::new(),
             search_results: HashMap::new(),
+            array_selected: HashMap::new(),
+            tag_inputs: HashMap::new(),
             action_loading: HashSet::new(),
             fonts: HashMap::new(),
             fonts_attempted: HashSet::new(),
@@ -383,23 +371,6 @@ impl SettingsView {
             update_checking: false,
             log_exporting: false,
         };
-
-        let search_subscription = cx.subscribe_in(
-            &view.search,
-            window,
-            |this, input, event, _, cx| match event {
-                InputEvent::Change => {
-                    this.search_query = input.read(cx).value().to_string();
-                    this.rebuild_search_hits(cx);
-                }
-                InputEvent::Focus => {
-                    this.hotkey_recording = None;
-                    cx.notify();
-                }
-                _ => {}
-            },
-        );
-        view.subscriptions.push(search_subscription);
 
         let assistant_subscription = cx.subscribe_in(
             &view.assistant_input,
@@ -455,6 +426,70 @@ impl SettingsView {
         self.category
     }
 
+    /// 当前搜索管道分组。
+    pub(super) fn pipeline_group(&self) -> &str {
+        &self.pipeline_group
+    }
+
+    /// 切换搜索管道分组并清空右侧详情。
+    /// 参数：group - 组件类型键；cx - GPUI 上下文。
+    /// 返回：无；有未保存修改且用户未确认时保持原分组。
+    pub(super) fn set_pipeline_group(&mut self, group: &str, cx: &mut Context<Self>) {
+        if self.pipeline_group == group {
+            return;
+        }
+        if !self.confirm_navigation(cx) {
+            return;
+        }
+        self.pipeline_group = group.to_string();
+        self.selected_component = None;
+        self.schema = None;
+        self.draft = json!({});
+        self.saved = json!({});
+        self.dirty = false;
+        cx.notify();
+    }
+
+    /// 展开或折叠搜索管道流程图。
+    pub(super) fn toggle_pipeline_flow(&mut self, cx: &mut Context<Self>) {
+        self.pipeline_flow_expanded = !self.pipeline_flow_expanded;
+        cx.notify();
+    }
+
+    /// 搜索管道流程图是否展开。
+    pub(super) fn pipeline_flow_expanded(&self) -> bool {
+        self.pipeline_flow_expanded
+    }
+
+    /// 设置指定组件的启用状态。
+    /// 参数：component_id - 组件 id；enabled - 目标状态；cx - GPUI 上下文。
+    /// 返回：无；失败时把错误写入状态提示。
+    pub(super) fn set_component_enabled(
+        &mut self,
+        component_id: &str,
+        enabled: bool,
+        cx: &mut Context<Self>,
+    ) {
+        let config = self.state.get_config_manager();
+        if let Err(error) = config.set_enabled(component_id, enabled) {
+            self.status = Some(format!("{}: {error}", self.tr("settings.toggleFailed")));
+        } else {
+            if let Some(item) = self
+                .components
+                .iter_mut()
+                .find(|item| item.component_id == component_id)
+            {
+                item.enabled = enabled;
+            }
+            self.status = Some(self.tr(if enabled {
+                "settings.enabled"
+            } else {
+                "settings.disabled"
+            }));
+        }
+        cx.notify();
+    }
+
     /// 当前组件 id。
     pub(super) fn selected_component(&self) -> Option<&str> {
         self.selected_component.as_deref()
@@ -504,16 +539,6 @@ impl SettingsView {
         })
     }
 
-    /// 当前搜索输入框。
-    pub(super) fn search_input(&self) -> &Entity<InputState> {
-        &self.search
-    }
-
-    /// 搜索结果。
-    pub(super) fn search_hits(&self) -> &[SearchHit] {
-        &self.search_hits
-    }
-
     /// 助手提问输入框。
     pub(super) fn assistant_input(&self) -> &Entity<InputState> {
         &self.assistant_input
@@ -542,11 +567,6 @@ impl SettingsView {
     /// 日志导出是否在途。
     pub(super) fn log_exporting(&self) -> bool {
         self.log_exporting
-    }
-
-    /// 搜索词。
-    pub(super) fn search_query(&self) -> &str {
-        &self.search_query
     }
 
     /// 插件列表。
@@ -702,6 +722,75 @@ impl SettingsView {
         schema::value_at(&self.draft, path)
     }
 
+    /// 主从数组当前选中的条目下标。
+    pub(super) fn array_selected(&self, path: &str) -> usize {
+        self.array_selected.get(path).copied().unwrap_or(0)
+    }
+
+    /// 记录主从数组选中的条目下标。
+    pub(super) fn set_array_selected(&mut self, path: &str, index: usize, cx: &mut Context<Self>) {
+        self.array_selected.insert(path.to_string(), index);
+        cx.notify();
+    }
+
+    /// 为数组原语条目创建或复用文本输入框。
+    /// 参数：path - 条目路径；value - 当前文本；kind - 数字/文本解析方式；
+    ///       window/cx - GPUI 上下文。
+    /// 返回：输入框实体。
+    pub(super) fn ensure_array_input(
+        &mut self,
+        path: &[Segment],
+        value: &str,
+        kind: TextKind,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Entity<InputState> {
+        self.ensure_input(path, value, kind, window, cx);
+        self.input(path).expect("array input was just created")
+    }
+
+    /// 创建或复用标签数组的新增输入框。
+    /// 参数：key - 字段路径键；window/cx - GPUI 上下文。
+    /// 返回：输入框实体。
+    pub(super) fn tag_input(
+        &mut self,
+        key: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Entity<InputState> {
+        if let Some(input) = self.tag_inputs.get(key) {
+            return input.clone();
+        }
+        let input = cx.new(|cx| InputState::new(window, cx));
+        self.tag_inputs.insert(key.to_string(), input.clone());
+        input
+    }
+
+    /// 读取标签新增输入框的当前文本。
+    pub(super) fn tag_input_value(&self, key: &str, cx: &Context<Self>) -> String {
+        self.tag_inputs
+            .get(key)
+            .map(|input| input.read(cx).value().to_string())
+            .unwrap_or_default()
+    }
+
+    /// 清空标签新增输入框。
+    pub(super) fn clear_tag_input(
+        &mut self,
+        key: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if let Some(input) = self.tag_inputs.get(key) {
+            input.update(cx, |state, cx| state.set_value("", window, cx));
+        }
+    }
+
+    /// 移除标签新增输入框缓存。
+    pub(super) fn remove_tag_input(&mut self, key: &str) {
+        self.tag_inputs.remove(key);
+    }
+
     /// 切换分类。
     pub(super) fn select_category(
         &mut self,
@@ -782,21 +871,19 @@ impl SettingsView {
         self.hotkey_recording = None;
         self.selected_component = Some(component_id.to_string());
         self.category = self.category_for_component(component_id);
+        if self.category == Category::Pipeline {
+            if let Some(component) = self
+                .components
+                .iter()
+                .find(|component| component.component_id == component_id)
+            {
+                self.pipeline_group = pipeline_type_key(&component.component_type).to_string();
+            }
+        }
         self.page = Page::Component;
         self.load_component(window, cx);
         self.field_filter = field;
         cx.notify();
-    }
-
-    /// 搜索命中项跳转。
-    pub(super) fn select_search_hit(
-        &mut self,
-        hit: &SearchHit,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let hit = hit.clone();
-        self.select_component(&hit.component_id, hit.field, window, cx);
     }
 
     /// 跳转到助手引用指向的设置位置。
@@ -2895,51 +2982,6 @@ impl SettingsView {
         }
     }
 
-    /// 重建设置项搜索结果。
-    fn rebuild_search_hits(&mut self, cx: &mut Context<Self>) {
-        let query = self.search_query.trim().to_lowercase();
-        self.search_hits.clear();
-        if query.is_empty() {
-            cx.notify();
-            return;
-        }
-        let config = self.state.get_config_manager();
-        for component in &self.components {
-            let name = self.tr(&component.component_name);
-            let description = self.tr(&component.component_description);
-            if name.to_lowercase().contains(&query) || description.to_lowercase().contains(&query) {
-                self.search_hits.push(SearchHit {
-                    component_id: component.component_id.clone(),
-                    field: None,
-                    label: name.clone(),
-                    detail: description.clone(),
-                });
-            }
-            let Some(schema) = config.get_component_schema(&component.component_id) else {
-                continue;
-            };
-            for field in
-                schema::object_fields(&schema.contribution.properties, &schema.contribution.ui)
-            {
-                let label = self.tr(&field.ui.label);
-                let detail = self.tr(&field.ui.description);
-                if label.to_lowercase().contains(&query) || detail.to_lowercase().contains(&query) {
-                    self.search_hits.push(SearchHit {
-                        component_id: component.component_id.clone(),
-                        field: Some(field.key.to_string()),
-                        label: format!("{} · {}", name, label),
-                        detail,
-                    });
-                }
-                if self.search_hits.len() >= 80 {
-                    cx.notify();
-                    return;
-                }
-            }
-        }
-        cx.notify();
-    }
-
     /// 消费宿主事件。
     fn on_host_event(&mut self, event: HostEvent, window: &mut Window, cx: &mut Context<Self>) {
         match event {
@@ -3025,6 +3067,24 @@ fn default_component_id(components: &[ComponentInfo]) -> Option<String> {
         })
         .or_else(|| components.first())
         .map(|component| component.component_id.clone())
+}
+
+/// 搜索管道分组使用的组件类型键。
+/// 参数：component_type - 组件类型。
+/// 返回：与旧版 pipelineGroups 一致的字符串。
+pub(super) fn pipeline_type_key(component_type: &ComponentType) -> &'static str {
+    match component_type {
+        ComponentType::DataSource => "DataSource",
+        ComponentType::KeywordOptimizer => "KeywordOptimizer",
+        ComponentType::KeywordInjector => "KeywordInjector",
+        ComponentType::SearchEngine => "SearchEngine",
+        ComponentType::ScoreBooster => "ScoreBooster",
+        ComponentType::ActionExecutor => "ActionExecutor",
+        ComponentType::BiasRule => "BiasRule",
+        ComponentType::ExclusionRule => "ExclusionRule",
+        ComponentType::Plugin => "Plugin",
+        ComponentType::Core => "Core",
+    }
 }
 
 /// 把后端引用压成设置页展示结构。

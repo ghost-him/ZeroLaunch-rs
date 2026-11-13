@@ -6,19 +6,22 @@ use gpui_kit::component::input::Input;
 use gpui_kit::component::scroll::ScrollableElement as _;
 use gpui_kit::component::select::Select;
 use gpui_kit::component::switch::Switch;
-use gpui_kit::component::{h_flex, v_flex, ActiveTheme as _, Sizable as _};
+use gpui_kit::component::{h_flex, v_flex, ActiveTheme as _, Icon, IconName, Sizable as _};
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::{
     div, img, px, rgb, AnyElement, Context, ImageSource, InteractiveElement as _, IntoElement,
-    ParentElement, Render, StatefulInteractiveElement as _, Styled, Window,
+    MouseButton, ParentElement, Render, StatefulInteractiveElement as _, Styled, Window,
 };
 use serde_json::Value;
 use zerolaunch_plugin_api::config::{
     DataActionBinding, FieldAction, FieldUiMetadata, SchemaKind, SchemaNode, WidgetHint,
 };
+use zerolaunch_plugin_api::plugin::PluginKind;
 
 use super::schema::{self, Segment};
-use super::view::{path_id, ActionMode, Category, Page, SearchTarget, SettingsView};
+use super::view::{
+    path_id, pipeline_type_key, ActionMode, Category, Page, SearchTarget, SettingsView,
+};
 
 /// 渲染时使用的字段副本，避免在可变借用视图时继续借用 schema。
 #[derive(Clone)]
@@ -59,7 +62,7 @@ impl SettingsView {
             .gap_3()
             .border_b_1()
             .border_color(cx.theme().border)
-            .bg(cx.theme().background)
+            .bg(cx.theme().secondary)
             .child(
                 div()
                     .text_size(px(16.0))
@@ -80,38 +83,23 @@ impl SettingsView {
             .into_any_element()
     }
 
-    /// 左侧分类/搜索栏。
+    /// 左侧分类栏。
     fn render_sidebar(&self, cx: &mut Context<Self>) -> AnyElement {
         v_flex()
-            .w(px(236.0))
+            .w(px(200.0))
             .flex_shrink_0()
             .h_full()
             .border_r_1()
             .border_color(cx.theme().border)
-            .p_3()
-            .gap_2()
-            .child(
-                div()
-                    .h(px(32.0))
-                    .child(Input::new(self.search_input()).w_full()),
-            )
+            .bg(cx.theme().sidebar)
+            .py(px(8.0))
             .child(
                 div()
                     .id("settings-sidebar-scroll")
                     .flex_1()
                     .min_h_0()
                     .overflow_y_scroll()
-                    .child(if self.search_query().trim().is_empty() {
-                        self.render_categories(cx)
-                    } else {
-                        self.render_search_hits(cx)
-                    }),
-            )
-            .child(
-                div()
-                    .text_size(px(11.0))
-                    .text_color(cx.theme().muted_foreground)
-                    .child(format!("v{}", self.version())),
+                    .child(self.render_categories(cx)),
             )
             .into_any_element()
     }
@@ -126,13 +114,14 @@ impl SettingsView {
             Category::Pipeline,
             Category::Plugins,
             Category::Market,
-            Category::Assistant,
-            Category::About,
         ] {
             list = list.child(self.render_category_item(category, cx));
         }
         if self.debug_enabled() {
             list = list.child(self.render_category_item(Category::Debug, cx));
+        }
+        for category in [Category::About, Category::Assistant] {
+            list = list.child(self.render_category_item(category, cx));
         }
         list.into_any_element()
     }
@@ -141,78 +130,44 @@ impl SettingsView {
     fn render_category_item(&self, category: Category, cx: &mut Context<Self>) -> AnyElement {
         let selected = self.category() == category;
         let label = self.category_label(category);
-        div()
+        let icon = category_icon(category);
+        h_flex()
             .id(("settings-category", category as u8 as usize))
-            .h(px(32.0))
-            .px_2()
+            .h(px(42.0))
+            .mx(px(8.0))
+            .px(px(12.0))
+            .gap(px(12.0))
             .rounded(px(6.0))
-            .flex()
-            .items_center()
-            .text_size(px(13.0))
+            .text_size(px(14.0))
             .when(selected, |this| {
-                this.bg(cx.theme().accent)
-                    .text_color(cx.theme().accent_foreground)
+                this.bg(cx.theme().sidebar_accent)
+                    .text_color(cx.theme().sidebar_accent_foreground)
             })
             .when(!selected, |this| {
-                this.text_color(cx.theme().foreground)
+                this.text_color(cx.theme().sidebar_foreground)
                     .hover(|style| style.bg(cx.theme().button_hover))
             })
             .on_click(cx.listener(move |this, _, window, cx| {
                 this.select_category(category, window, cx);
             }))
+            .child(Icon::new(icon).text_size(px(18.0)))
             .child(label)
             .into_any_element()
     }
 
-    /// 设置项搜索结果。
-    fn render_search_hits(&self, cx: &mut Context<Self>) -> AnyElement {
-        if self.search_hits().is_empty() {
-            return div()
-                .p_2()
-                .text_size(px(12.0))
-                .text_color(cx.theme().muted_foreground)
-                .child(self.tr("settings.searchNoResults"))
-                .into_any_element();
-        }
-        let mut list = v_flex().gap_1();
-        for hit in self.search_hits() {
-            let hit = hit.clone();
-            let click_hit = hit.clone();
-            list = list.child(
-                div()
-                    .id(format!("settings-hit-{}-{:?}", hit.component_id, hit.field))
-                    .px_2()
-                    .py_1()
-                    .rounded(px(5.0))
-                    .hover(|style| style.bg(cx.theme().button_hover))
-                    .on_click(cx.listener(move |this, _, window, cx| {
-                        this.select_search_hit(&click_hit, window, cx);
-                    }))
-                    .child(div().text_size(px(12.0)).child(hit.label.clone()))
-                    .when(!hit.detail.is_empty(), |this| {
-                        this.child(
-                            div()
-                                .text_size(px(11.0))
-                                .text_color(cx.theme().muted_foreground)
-                                .truncate()
-                                .child(hit.detail.clone()),
-                        )
-                    }),
-            );
-        }
-        list.into_any_element()
-    }
-
     /// 右侧内容区。
     fn render_content(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+        let pipeline = self.page() == Page::Component && self.category() == Category::Pipeline;
         v_flex()
             .id("settings-page-scroll")
             .flex_1()
             .min_w_0()
             .min_h_0()
             .h_full()
-            .overflow_y_scrollbar()
+            .when(pipeline, |this| this.overflow_hidden())
+            .when(!pipeline, |this| this.overflow_y_scroll())
             .child(match self.page() {
+                Page::Component if pipeline => self.render_pipeline(window, cx),
                 Page::Component => self.render_component_page(window, cx),
                 Page::Plugins => self.render_plugins(cx),
                 Page::PluginSettings => self.render_plugin_settings(cx),
@@ -224,8 +179,342 @@ impl SettingsView {
             .into_any_element()
     }
 
+    /// 搜索管道：流程说明 + 分组页签 + 组件主从面板。
+    fn render_pipeline(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+        const GROUPS: [(&str, &str); 8] = [
+            ("DataSource", "settings.dataSource"),
+            ("KeywordOptimizer", "settings.contentProcessor"),
+            ("KeywordInjector", "settings.keywordInjector"),
+            ("BiasRule", "settings.biasRule"),
+            ("ExclusionRule", "settings.exclusionRule"),
+            ("SearchEngine", "settings.searchEngine"),
+            ("ScoreBooster", "settings.scoreBooster"),
+            ("ActionExecutor", "settings.actionExecutor"),
+        ];
+        const STEPS: [(&str, &str); 8] = [
+            (
+                "settings.dataSource",
+                "settings.pipelineFlow.steps.dataSource",
+            ),
+            (
+                "settings.contentProcessor",
+                "settings.pipelineFlow.steps.contentProcessor",
+            ),
+            (
+                "settings.keywordInjector",
+                "settings.pipelineFlow.steps.keywordInjector",
+            ),
+            ("settings.biasRule", "settings.pipelineFlow.steps.biasRule"),
+            (
+                "settings.exclusionRule",
+                "settings.pipelineFlow.steps.exclusionRule",
+            ),
+            (
+                "settings.searchEngine",
+                "settings.pipelineFlow.steps.searchEngine",
+            ),
+            (
+                "settings.scoreBooster",
+                "settings.pipelineFlow.steps.scoreBooster",
+            ),
+            (
+                "settings.actionExecutor",
+                "settings.pipelineFlow.steps.actionExecutor",
+            ),
+        ];
+
+        let active = self.pipeline_group().to_string();
+        let items = self
+            .category_components(Category::Pipeline)
+            .into_iter()
+            .filter(|item| pipeline_type_key(&item.component_type) == active)
+            .collect::<Vec<_>>();
+        let selected_in_group = self
+            .selected_component()
+            .is_some_and(|id| items.iter().any(|item| item.component_id == id));
+        let expanded = self.pipeline_flow_expanded();
+        let groups = GROUPS
+            .into_iter()
+            .map(|(key, label)| (key, self.tr(label)))
+            .collect::<Vec<_>>();
+        let steps = STEPS
+            .into_iter()
+            .map(|(label, desc)| (self.tr(label), self.tr(desc)))
+            .collect::<Vec<_>>();
+        let title = self.tr("settings.sidebar.pipeline");
+        let flow_title = self.tr("settings.pipelineFlow.title");
+        let empty_text = self.tr("settings.selectComponent");
+        let group_label = groups
+            .iter()
+            .find(|(key, _)| *key == active)
+            .map(|(_, label)| label.clone())
+            .unwrap_or_default();
+
+        let detail = if selected_in_group {
+            self.render_component_page_with_chrome(window, cx, false)
+        } else {
+            v_flex()
+                .flex_1()
+                .items_center()
+                .justify_center()
+                .gap_2()
+                .child(
+                    Icon::new(IconName::File)
+                        .text_size(px(32.0))
+                        .text_color(cx.theme().muted_foreground),
+                )
+                .child(
+                    div()
+                        .text_size(px(13.0))
+                        .text_color(cx.theme().muted_foreground)
+                        .child(empty_text),
+                )
+                .into_any_element()
+        };
+
+        let border = cx.theme().border;
+        let muted = cx.theme().muted_foreground;
+        let primary = cx.theme().primary;
+        let flow = v_flex()
+            .border_1()
+            .border_color(border)
+            .rounded(px(8.0))
+            .overflow_hidden()
+            .bg(cx.theme().secondary)
+            .child(
+                h_flex()
+                    .id("pipeline-flow-toggle")
+                    .px(px(16.0))
+                    .py(px(14.0))
+                    .gap_2()
+                    .items_center()
+                    .on_click(cx.listener(|this, _, _, cx| this.toggle_pipeline_flow(cx)))
+                    .child(
+                        div()
+                            .text_size(px(10.0))
+                            .text_color(muted)
+                            .child(if expanded { "▼" } else { "▶" }),
+                    )
+                    .child(
+                        div()
+                            .text_size(px(14.0))
+                            .font_weight(gpui_kit::FontWeight::SEMIBOLD)
+                            .child(flow_title),
+                    ),
+            )
+            .when(expanded, |this| {
+                this.child(
+                    h_flex()
+                        .flex_wrap()
+                        .gap_2()
+                        .px(px(16.0))
+                        .pb(px(16.0))
+                        .children(steps.into_iter().enumerate().map(|(index, (label, desc))| {
+                            v_flex()
+                                .gap(px(4.0))
+                                .w(px(190.0))
+                                .child(
+                                    h_flex()
+                                        .gap_2()
+                                        .items_center()
+                                        .child(
+                                            div()
+                                                .size(px(24.0))
+                                                .rounded_full()
+                                                .bg(cx.theme().sidebar_accent)
+                                                .text_color(primary)
+                                                .flex()
+                                                .items_center()
+                                                .justify_center()
+                                                .text_size(px(12.0))
+                                                .child((index + 1).to_string()),
+                                        )
+                                        .child(
+                                            div()
+                                                .text_size(px(13.0))
+                                                .font_weight(gpui_kit::FontWeight::MEDIUM)
+                                                .child(label),
+                                        ),
+                                )
+                                .child(div().text_size(px(11.0)).text_color(muted).child(desc))
+                                .into_any_element()
+                        })),
+                )
+            });
+
+        let mut tabs = h_flex().gap(px(32.0)).border_b_1().border_color(border);
+        for (key, label) in groups {
+            let selected = key == active;
+            let key_owned = key.to_string();
+            tabs = tabs.child(
+                div()
+                    .id(format!("pipeline-group-{key}"))
+                    .pb(px(8.0))
+                    .border_b_2()
+                    .text_size(px(14.0))
+                    .when(selected, |this| {
+                        this.text_color(primary).border_color(primary)
+                    })
+                    .when(!selected, |this| {
+                        this.text_color(cx.theme().foreground)
+                            .border_color(cx.theme().transparent)
+                            .hover(|style| style.text_color(primary))
+                    })
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        this.set_pipeline_group(&key_owned, cx);
+                    }))
+                    .child(label),
+            );
+        }
+
+        let mut list = v_flex().gap(px(2.0)).p(px(4.0));
+        for item in &items {
+            let id = item.component_id.clone();
+            let name = self.tr(&item.component_name);
+            let enabled = item.enabled;
+            let selected = self.selected_component() == Some(id.as_str());
+            let switch_id = id.clone();
+            list = list.child(
+                h_flex()
+                    .id(format!("pipeline-item-{id}"))
+                    .h(px(56.0))
+                    .px(px(12.0))
+                    .gap(px(10.0))
+                    .rounded(px(6.0))
+                    .when(selected, |this| this.bg(cx.theme().sidebar_accent))
+                    .when(!enabled, |this| this.opacity(0.5))
+                    .on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(move |this, _, window, cx| {
+                            this.select_component(&id, None, window, cx);
+                        }),
+                    )
+                    .child(
+                        div()
+                            .size(px(28.0))
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .rounded(px(6.0))
+                            .bg(cx.theme().sidebar_accent)
+                            .text_color(primary)
+                            .child(Icon::new(IconName::LayoutDashboard).text_size(px(16.0))),
+                    )
+                    .child(
+                        v_flex()
+                            .flex_1()
+                            .min_w_0()
+                            .child(
+                                div()
+                                    .truncate()
+                                    .text_size(px(13.0))
+                                    .font_weight(gpui_kit::FontWeight::MEDIUM)
+                                    .child(name),
+                            )
+                            .child(
+                                div()
+                                    .truncate()
+                                    .text_size(px(11.0))
+                                    .text_color(muted)
+                                    .child(item.component_id.clone()),
+                            ),
+                    )
+                    .child(
+                        Switch::new(format!("pipeline-switch-{switch_id}"))
+                            .checked(enabled)
+                            .small()
+                            .on_click(cx.listener(move |this, checked, _, cx| {
+                                this.set_component_enabled(&switch_id, *checked, cx);
+                            })),
+                    ),
+            );
+        }
+
+        v_flex()
+            .size_full()
+            .min_h_0()
+            .px(px(24.0))
+            .pt(px(16.0))
+            .pb(px(16.0))
+            .gap_3()
+            .child(
+                div()
+                    .text_size(px(20.0))
+                    .font_weight(gpui_kit::FontWeight::SEMIBOLD)
+                    .child(title),
+            )
+            .child(flow)
+            .child(tabs)
+            .child(
+                h_flex()
+                    .flex_1()
+                    .min_h_0()
+                    .border_1()
+                    .border_color(border)
+                    .rounded(px(8.0))
+                    .overflow_hidden()
+                    .child(
+                        v_flex()
+                            .w(px(240.0))
+                            .h_full()
+                            .min_h_0()
+                            .border_r_1()
+                            .border_color(border)
+                            .child(
+                                h_flex()
+                                    .h(px(48.0))
+                                    .px(px(16.0))
+                                    .items_center()
+                                    .border_b_1()
+                                    .border_color(border)
+                                    .child(
+                                        div()
+                                            .text_size(px(13.0))
+                                            .font_weight(gpui_kit::FontWeight::SEMIBOLD)
+                                            .child(group_label),
+                                    )
+                                    .child(div().flex_1())
+                                    .child(
+                                        div()
+                                            .text_size(px(11.0))
+                                            .text_color(muted)
+                                            .child(items.len().to_string()),
+                                    ),
+                            )
+                            .child(
+                                div()
+                                    .id("pipeline-list")
+                                    .flex_1()
+                                    .min_h_0()
+                                    .overflow_y_scroll()
+                                    .child(list),
+                            ),
+                    )
+                    .child(
+                        v_flex()
+                            .flex_1()
+                            .min_w_0()
+                            .min_h_0()
+                            .h_full()
+                            .overflow_y_scrollbar()
+                            .child(detail),
+                    ),
+            )
+            .into_any_element()
+    }
+
     /// 组件设置页。
     fn render_component_page(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+        self.render_component_page_with_chrome(window, cx, true)
+    }
+
+    /// 组件设置页；`with_chrome` 为 false 时用于管道详情，不渲染页签与启用开关。
+    fn render_component_page_with_chrome(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+        with_chrome: bool,
+    ) -> AnyElement {
         let Some(schema) = self.component_schema() else {
             return div()
                 .p_4()
@@ -248,7 +537,9 @@ impl SettingsView {
         v_flex()
             .w_full()
             .min_h_0()
-            .p_4()
+            .px(px(24.0))
+            .pt(px(16.0))
+            .pb(px(16.0))
             .gap_3()
             .child(
                 h_flex()
@@ -261,23 +552,27 @@ impl SettingsView {
                             .child(title),
                     )
                     .child(div().flex_1())
-                    .child(
-                        Switch::new("settings-component-enabled")
-                            .checked(component.enabled)
-                            .on_click(cx.listener(|this, checked, _, cx| {
-                                if *checked
-                                    != this.component_info().is_some_and(|info| info.enabled)
-                                {
-                                    this.toggle_enabled(cx);
-                                }
-                            })),
-                    ),
+                    .when(with_chrome, |this| {
+                        this.child(
+                            Switch::new("settings-component-enabled")
+                                .checked(component.enabled)
+                                .on_click(cx.listener(|this, checked, _, cx| {
+                                    if *checked
+                                        != this.component_info().is_some_and(|info| info.enabled)
+                                    {
+                                        this.toggle_enabled(cx);
+                                    }
+                                })),
+                        )
+                    }),
             )
-            .when(!tabs.is_empty(), |this| {
+            .when(with_chrome && !tabs.is_empty(), |this| {
                 this.child(
                     h_flex()
                         .flex_wrap()
-                        .gap_1()
+                        .gap(px(32.0))
+                        .border_b_1()
+                        .border_color(cx.theme().border)
                         .children(tabs.into_iter().map(|tab| {
                             let selected =
                                 self.selected_component() == Some(tab.component_id.as_str());
@@ -285,16 +580,17 @@ impl SettingsView {
                             let tab_label = self.tr(&tab.component_name);
                             div()
                                 .id(format!("settings-tab-{}", tab.component_id))
-                                .px_2()
-                                .py_1()
-                                .rounded(px(5.0))
-                                .text_size(px(12.0))
+                                .pb(px(8.0))
+                                .border_b_2()
+                                .text_size(px(14.0))
                                 .when(selected, |this| {
-                                    this.bg(cx.theme().accent)
-                                        .text_color(cx.theme().accent_foreground)
+                                    this.text_color(cx.theme().primary)
+                                        .border_color(cx.theme().primary)
                                 })
                                 .when(!selected, |this| {
-                                    this.hover(|style| style.bg(cx.theme().button_hover))
+                                    this.text_color(cx.theme().foreground)
+                                        .border_color(cx.theme().transparent)
+                                        .hover(|style| style.text_color(cx.theme().primary))
                                 })
                                 .on_click(cx.listener(move |this, _, window, cx| {
                                     this.select_component(&id, None, window, cx);
@@ -306,7 +602,7 @@ impl SettingsView {
             })
             .child(
                 div()
-                    .text_size(px(12.0))
+                    .text_size(px(13.0))
                     .text_color(cx.theme().muted_foreground)
                     .child(description),
             )
@@ -324,6 +620,7 @@ impl SettingsView {
                     .child(
                         Button::new("settings-discard")
                             .label(self.tr("settings.discard"))
+                            .outline()
                             .small()
                             .disabled(!self.is_dirty())
                             .on_click(cx.listener(|this, _, window, cx| this.discard(window, cx))),
@@ -335,6 +632,7 @@ impl SettingsView {
                             } else {
                                 self.tr("settings.reset")
                             })
+                            .outline()
                             .small()
                             .on_click(cx.listener(|this, _, window, cx| this.reset(window, cx))),
                     )
@@ -376,6 +674,7 @@ impl SettingsView {
             }
         }
 
+        let border = cx.theme().border;
         let mut form = v_flex().gap_3();
         if groups.is_empty() {
             return div()
@@ -385,16 +684,27 @@ impl SettingsView {
                 .into_any_element();
         }
         for (group, fields) in groups {
-            if !group.is_empty() {
+            let group_label = (!group.is_empty()).then(|| self.tr(&group));
+            let fields = self.render_object_fields(fields, &[], window, cx);
+            if let Some(group_label) = group_label {
                 form = form.child(
-                    div()
-                        .pt_2()
-                        .text_size(px(13.0))
-                        .font_weight(gpui_kit::FontWeight::SEMIBOLD)
-                        .child(self.tr(&group)),
+                    v_flex()
+                        .border_1()
+                        .border_color(border)
+                        .rounded(px(6.0))
+                        .p_3()
+                        .gap_3()
+                        .child(
+                            div()
+                                .text_size(px(14.0))
+                                .font_weight(gpui_kit::FontWeight::SEMIBOLD)
+                                .child(group_label),
+                        )
+                        .child(fields),
                 );
+            } else {
+                form = form.child(fields);
             }
-            form = form.child(self.render_object_fields(fields, &[], window, cx));
         }
         form.into_any_element()
     }
@@ -407,14 +717,14 @@ impl SettingsView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let mut list = v_flex().gap_3();
+        let mut list = v_flex().gap(px(14.0));
         for field in fields {
             if !self.field_visible(&field.ui, scope) {
                 continue;
             }
             let mut path = scope.to_vec();
             path.push(Segment::Key(field.key.clone()));
-            list = list.child(self.render_field(&field, &path, scope, window, cx));
+            list = list.child(self.render_field(&field, &path, scope, true, window, cx));
         }
         list.into_any_element()
     }
@@ -425,6 +735,7 @@ impl SettingsView {
         field: &OwnedField,
         path: &[Segment],
         scope: &[Segment],
+        show_label: bool,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
@@ -441,21 +752,29 @@ impl SettingsView {
         let read_only = field.ui.read_only;
 
         let mut body = v_flex().gap_1().py_1();
-        body = body.child(
-            h_flex().gap_2().items_center().child(
-                div()
-                    .text_size(px(13.0))
-                    .font_weight(gpui_kit::FontWeight::MEDIUM)
-                    .child(label),
-            ),
-        );
-
-        if !description.is_empty() {
+        if show_label {
             body = body.child(
-                div()
-                    .text_size(px(11.0))
-                    .text_color(cx.theme().muted_foreground)
-                    .child(description),
+                h_flex()
+                    .gap(px(4.0))
+                    .items_center()
+                    .min_w_0()
+                    .child(
+                        div()
+                            .flex_shrink_0()
+                            .text_size(px(14.0))
+                            .font_weight(gpui_kit::FontWeight::MEDIUM)
+                            .child(label),
+                    )
+                    .when(!description.is_empty(), |this| {
+                        this.child(
+                            div()
+                                .min_w_0()
+                                .truncate()
+                                .text_size(px(13.0))
+                                .text_color(cx.theme().muted_foreground)
+                                .child(format!("— {description}")),
+                        )
+                    }),
             );
         }
 
@@ -642,13 +961,15 @@ impl SettingsView {
         if let Some(button) = action_button {
             body = body.child(button);
         }
-        if let Some(note) = note {
-            body = body.child(
-                div()
-                    .text_size(px(11.0))
-                    .text_color(cx.theme().muted_foreground)
-                    .child(note),
-            );
+        if show_label {
+            if let Some(note) = note {
+                body = body.child(
+                    div()
+                        .text_size(px(11.0))
+                        .text_color(cx.theme().muted_foreground)
+                        .child(note),
+                );
+            }
         }
         body.into_any_element()
     }
@@ -671,6 +992,7 @@ impl SettingsView {
         let scope = scope.to_vec();
         Button::new(format!("settings-action-{}", path_id(&path)))
             .label(if loading { "...".to_string() } else { label })
+            .w(px(140.0))
             .small()
             .disabled(read_only || loading)
             .on_click(cx.listener(move |this, _, window, cx| {
@@ -992,10 +1314,35 @@ impl SettingsView {
             } => (items.as_ref(), *min_items, *max_items),
             _ => return div().into_any_element(),
         };
-        let search_table = matches!(
-            schema::widget_of(&field.schema, &field.ui),
-            WidgetHint::SearchTable
-        );
+        let widget = schema::widget_of(&field.schema, &field.ui);
+        let item_object = matches!(&items_schema.kind, SchemaKind::Object { .. });
+        if matches!(widget, WidgetHint::Tags) {
+            return self.render_array_tags(field, path, read_only, window, cx);
+        }
+        if item_object && matches!(widget, WidgetHint::Table) {
+            return self.render_array_table(field, path, items_schema, read_only, window, cx);
+        }
+        if item_object && matches!(widget, WidgetHint::MasterDetail) {
+            return self.render_array_master_detail(
+                field,
+                path,
+                items_schema,
+                read_only,
+                window,
+                cx,
+            );
+        }
+        if !item_object && matches!(widget, WidgetHint::List) {
+            return self.render_array_primitive_rows(
+                field,
+                path,
+                items_schema,
+                read_only,
+                window,
+                cx,
+            );
+        }
+        let search_table = matches!(widget, WidgetHint::SearchTable);
         let search_binding = if search_table {
             field.ui.action.as_ref().and_then(|action| match action {
                 FieldAction::Data(binding) => Some(binding.clone()),
@@ -1027,6 +1374,7 @@ impl SettingsView {
                 .child(
                     Button::new(format!("settings-add-{}", path_id(path)))
                         .label(self.tr("settings.add"))
+                        .w(px(80.0))
                         .small()
                         .disabled(!can_add)
                         .on_click(cx.listener({
@@ -1133,6 +1481,435 @@ impl SettingsView {
         section.into_any_element()
     }
 
+    /// 标签数组：标签块 + 新增输入框。
+    fn render_array_tags(
+        &mut self,
+        _field: &OwnedField,
+        path: &[Segment],
+        read_only: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let max_items = match &_field.schema.kind {
+            SchemaKind::Array { max_items, .. } => *max_items,
+            _ => None,
+        };
+        let values = self
+            .value(path)
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        let key = path_id(path);
+        let input = self.tag_input(&key, window, cx);
+        let can_add = !read_only && max_items.is_none_or(|max| values.len() < max);
+        let mut chips = h_flex().flex_wrap().gap_1();
+        for (index, item) in values.iter().enumerate() {
+            let text = item.as_str().unwrap_or_default().to_string();
+            let path_for_remove = path.to_vec();
+            let key_for_remove = key.clone();
+            chips = chips.child(
+                h_flex()
+                    .id(format!("tag-{key}-{index}"))
+                    .gap_2()
+                    .items_center()
+                    .px_2()
+                    .py_1()
+                    .rounded(px(4.0))
+                    .bg(cx.theme().secondary)
+                    .text_size(px(12.0))
+                    .child(text)
+                    .child(
+                        div()
+                            .id(format!("tag-remove-{key}-{index}"))
+                            .cursor_pointer()
+                            .text_color(cx.theme().muted_foreground)
+                            .child("×")
+                            .on_click(cx.listener(move |this, _, window, cx| {
+                                let mut next = this
+                                    .value(&path_for_remove)
+                                    .and_then(Value::as_array)
+                                    .cloned()
+                                    .unwrap_or_default();
+                                if index < next.len() {
+                                    next.remove(index);
+                                    this.set_value(
+                                        &path_for_remove,
+                                        Value::Array(next),
+                                        window,
+                                        cx,
+                                    );
+                                }
+                                this.remove_tag_input(&key_for_remove);
+                            })),
+                    ),
+            );
+        }
+        let add_path = path.to_vec();
+        let key_for_add = key.clone();
+        v_flex()
+            .gap_2()
+            .child(chips)
+            .child(
+                h_flex()
+                    .gap_2()
+                    .child(div().flex_1().child(Input::new(&input).w_full()))
+                    .child(
+                        Button::new(format!("tag-add-{key}"))
+                            .label(self.tr("settings.add"))
+                            .w(px(80.0))
+                            .small()
+                            .disabled(!can_add)
+                            .on_click(cx.listener(move |this, _, window, cx| {
+                                let text = this.tag_input_value(&key_for_add, cx);
+                                let text = text.trim();
+                                if text.is_empty() {
+                                    return;
+                                }
+                                let mut next = this
+                                    .value(&add_path)
+                                    .and_then(Value::as_array)
+                                    .cloned()
+                                    .unwrap_or_default();
+                                next.push(Value::String(text.to_string()));
+                                this.set_value(&add_path, Value::Array(next), window, cx);
+                                this.clear_tag_input(&key_for_add, window, cx);
+                            })),
+                    ),
+            )
+            .into_any_element()
+    }
+
+    /// 原语数组：逐行编辑器 + 增删。
+    fn render_array_primitive_rows(
+        &mut self,
+        field: &OwnedField,
+        path: &[Segment],
+        items_schema: &SchemaNode,
+        read_only: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let (min_items, max_items) = match &field.schema.kind {
+            SchemaKind::Array {
+                min_items,
+                max_items,
+                ..
+            } => (*min_items, *max_items),
+            _ => (None, None),
+        };
+        let values = self
+            .value(path)
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        let can_add = !read_only && max_items.is_none_or(|max| values.len() < max);
+        let mut rows = v_flex().gap_1();
+        for (index, item) in values.iter().enumerate() {
+            let mut item_path = path.to_vec();
+            item_path.push(Segment::Index(index));
+            let is_boolean = matches!(&items_schema.kind, SchemaKind::Boolean);
+            let control = if is_boolean {
+                let checked = item.as_bool().unwrap_or(false);
+                let path_bool = item_path.clone();
+                Switch::new(format!("array-bool-{}", path_id(&item_path)))
+                    .checked(checked)
+                    .disabled(read_only)
+                    .on_click(cx.listener(move |this, checked, window, cx| {
+                        this.set_value(&path_bool, Value::Bool(*checked), window, cx);
+                    }))
+                    .into_any_element()
+            } else {
+                let text = match item {
+                    Value::String(text) => text.clone(),
+                    other => other.to_string(),
+                };
+                let kind = match &items_schema.kind {
+                    SchemaKind::Integer { .. } => super::view::TextKind::Integer,
+                    SchemaKind::Number { .. } => super::view::TextKind::Number,
+                    _ => super::view::TextKind::Text,
+                };
+                let input = self.ensure_array_input(&item_path, &text, kind, window, cx);
+                Input::new(&input)
+                    .w_full()
+                    .disabled(read_only)
+                    .into_any_element()
+            };
+            let path_for_remove = path.to_vec();
+            rows = rows.child(
+                h_flex()
+                    .gap_2()
+                    .items_center()
+                    .child(div().flex_1().child(control))
+                    .child(
+                        Button::new(format!("array-remove-{}", path_id(&item_path)))
+                            .label(self.tr("settings.delete"))
+                            .small()
+                            .disabled(read_only || min_items.is_some_and(|min| values.len() <= min))
+                            .on_click(cx.listener(move |this, _, window, cx| {
+                                this.remove_array_item(
+                                    &path_for_remove,
+                                    index,
+                                    min_items,
+                                    window,
+                                    cx,
+                                );
+                            })),
+                    ),
+            );
+        }
+        let add_path = path.to_vec();
+        let item_schema = items_schema.clone();
+        v_flex()
+            .gap_2()
+            .child(rows)
+            .child(
+                Button::new(format!("array-add-{}", path_id(path)))
+                    .label(self.tr("settings.add"))
+                    .w(px(80.0))
+                    .small()
+                    .disabled(!can_add)
+                    .on_click(cx.listener(move |this, _, window, cx| {
+                        this.add_array_item(&add_path, &item_schema, max_items, window, cx);
+                    })),
+            )
+            .into_any_element()
+    }
+
+    /// 对象数组表格：表头 + 行内字段编辑。
+    fn render_array_table(
+        &mut self,
+        field: &OwnedField,
+        path: &[Segment],
+        items_schema: &SchemaNode,
+        read_only: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let (min_items, max_items) = match &field.schema.kind {
+            SchemaKind::Array {
+                min_items,
+                max_items,
+                ..
+            } => (*min_items, *max_items),
+            _ => (None, None),
+        };
+        let values = self
+            .value(path)
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        let fields = array_object_fields(items_schema);
+        let can_add = !read_only && max_items.is_none_or(|max| values.len() < max);
+        let mut header = h_flex()
+            .border_b_1()
+            .border_color(cx.theme().border)
+            .bg(cx.theme().secondary);
+        for field in &fields {
+            header = header.child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .px_2()
+                    .py_1()
+                    .text_size(px(12.0))
+                    .font_weight(gpui_kit::FontWeight::SEMIBOLD)
+                    .child(self.tr(&field.ui.label)),
+            );
+        }
+        header = header.child(div().w(px(64.0)));
+        let mut rows = v_flex();
+        for (index, _) in values.iter().enumerate() {
+            let mut item_path = path.to_vec();
+            item_path.push(Segment::Index(index));
+            let mut row = h_flex()
+                .border_b_1()
+                .border_color(cx.theme().border)
+                .items_center();
+            for field in &fields {
+                let mut field_path = item_path.clone();
+                field_path.push(Segment::Key(field.key.clone()));
+                row = row.child(
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .px_2()
+                        .py_1()
+                        .child(self.render_field(
+                            field,
+                            &field_path,
+                            &item_path,
+                            false,
+                            window,
+                            cx,
+                        )),
+                );
+            }
+            let path_for_remove = path.to_vec();
+            row = row.child(
+                div().w(px(64.0)).px_2().child(
+                    Button::new(format!("array-row-remove-{}", path_id(&item_path)))
+                        .label(self.tr("settings.delete"))
+                        .small()
+                        .disabled(read_only || min_items.is_some_and(|min| values.len() <= min))
+                        .on_click(cx.listener(move |this, _, window, cx| {
+                            this.remove_array_item(&path_for_remove, index, min_items, window, cx);
+                        })),
+                ),
+            );
+            rows = rows.child(row);
+        }
+        let add_path = path.to_vec();
+        let item_schema = items_schema.clone();
+        v_flex()
+            .gap_1()
+            .border_1()
+            .border_color(cx.theme().border)
+            .rounded(px(6.0))
+            .overflow_hidden()
+            .child(header)
+            .child(rows)
+            .child(
+                div().p_2().child(
+                    Button::new(format!("array-table-add-{}", path_id(path)))
+                        .label(self.tr("settings.add"))
+                        .w(px(80.0))
+                        .small()
+                        .disabled(!can_add)
+                        .on_click(cx.listener(move |this, _, window, cx| {
+                            this.add_array_item(&add_path, &item_schema, max_items, window, cx);
+                        })),
+                ),
+            )
+            .into_any_element()
+    }
+
+    /// 对象数组主从：左侧条目列表，右侧选中项字段。
+    fn render_array_master_detail(
+        &mut self,
+        field: &OwnedField,
+        path: &[Segment],
+        items_schema: &SchemaNode,
+        read_only: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let (min_items, max_items) = match &field.schema.kind {
+            SchemaKind::Array {
+                min_items,
+                max_items,
+                ..
+            } => (*min_items, *max_items),
+            _ => (None, None),
+        };
+        let values = self
+            .value(path)
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        let fields = array_object_fields(items_schema);
+        let key = path_id(path);
+        let selected = self
+            .array_selected(&key)
+            .min(values.len().saturating_sub(1));
+        let can_add = !read_only && max_items.is_none_or(|max| values.len() < max);
+        let mut list = v_flex().gap_1();
+        for (index, item) in values.iter().enumerate() {
+            let summary = fields
+                .first()
+                .and_then(|field| item.get(&field.key))
+                .and_then(Value::as_str)
+                .map(str::to_string)
+                .filter(|text| !text.is_empty())
+                .unwrap_or_else(|| format!("#{}", index + 1));
+            let key_for_select = key.clone();
+            let path_for_remove = path.to_vec();
+            list = list.child(
+                h_flex()
+                    .id(format!("md-item-{key}-{index}"))
+                    .gap_2()
+                    .items_center()
+                    .px_2()
+                    .py_2()
+                    .rounded(px(5.0))
+                    .when(index == selected, |this| this.bg(cx.theme().sidebar_accent))
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .truncate()
+                            .text_size(px(12.0))
+                            .child(summary),
+                    )
+                    .child(
+                        Button::new(format!("md-remove-{key}-{index}"))
+                            .label(self.tr("settings.delete"))
+                            .small()
+                            .disabled(read_only || min_items.is_some_and(|min| values.len() <= min))
+                            .on_click(cx.listener(move |this, _, window, cx| {
+                                this.remove_array_item(
+                                    &path_for_remove,
+                                    index,
+                                    min_items,
+                                    window,
+                                    cx,
+                                );
+                            })),
+                    )
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        this.set_array_selected(&key_for_select, index, cx);
+                    })),
+            );
+        }
+        let add_path = path.to_vec();
+        let item_schema = items_schema.clone();
+        let key_for_add = key.clone();
+        let detail = if values.is_empty() {
+            div()
+                .p_4()
+                .text_size(px(12.0))
+                .text_color(cx.theme().muted_foreground)
+                .child(self.tr("settings.noEntries"))
+                .into_any_element()
+        } else {
+            let mut item_path = path.to_vec();
+            item_path.push(Segment::Index(selected));
+            self.render_object_fields(fields, &item_path, window, cx)
+        };
+        h_flex()
+            .gap_0()
+            .border_1()
+            .border_color(cx.theme().border)
+            .rounded(px(8.0))
+            .overflow_hidden()
+            .child(
+                v_flex()
+                    .w(px(220.0))
+                    .flex_shrink_0()
+                    .border_r_1()
+                    .border_color(cx.theme().border)
+                    .p_1()
+                    .child(list)
+                    .child(
+                        Button::new(format!("md-add-{key}"))
+                            .label(self.tr("settings.add"))
+                            .w(px(80.0))
+                            .small()
+                            .disabled(!can_add)
+                            .on_click(cx.listener(move |this, _, window, cx| {
+                                let next_index = this
+                                    .value(&add_path)
+                                    .and_then(Value::as_array)
+                                    .map(Vec::len)
+                                    .unwrap_or(0);
+                                this.add_array_item(&add_path, &item_schema, max_items, window, cx);
+                                this.set_array_selected(&key_for_add, next_index, cx);
+                            })),
+                    ),
+            )
+            .child(v_flex().flex_1().min_w_0().p_3().child(detail))
+            .into_any_element()
+    }
+
     /// 渲染搜索表格的查询框、结果与添加按钮。
     /// 参数：path - 数组路径；binding - data action；item_schema - 条目 schema；
     ///       max_items - 最大条目数；read_only - 是否只读；window/cx - GPUI 上下文。
@@ -1236,6 +2013,7 @@ impl SettingsView {
                     .child(
                         Button::new(format!("settings-search-add-{}-{index}", path_id(&path)))
                             .label(self.tr("settings.add"))
+                            .w(px(80.0))
                             .small()
                             .disabled(read_only || exists || loading)
                             .on_click(cx.listener(move |this, _, window, cx| {
@@ -1255,29 +2033,40 @@ impl SettingsView {
 
     /// 插件管理页。
     fn render_plugins(&self, cx: &mut Context<Self>) -> AnyElement {
-        let mut page = v_flex().p_4().gap_3().child(
-            h_flex()
-                .gap_2()
-                .child(
-                    div()
-                        .text_size(px(20.0))
-                        .font_weight(gpui_kit::FontWeight::SEMIBOLD)
-                        .child(self.tr("settings.thirdPartyPlugins.title")),
-                )
-                .child(div().flex_1())
-                .child(
-                    Button::new("settings-plugin-install")
-                        .label(self.tr("settings.thirdPartyPlugins.installFromFile"))
-                        .small()
-                        .on_click(cx.listener(|this, _, window, cx| this.pick_plugin(window, cx))),
-                )
-                .child(
-                    Button::new("settings-plugin-refresh")
-                        .label(self.tr("settings.retry"))
-                        .small()
-                        .on_click(cx.listener(|this, _, _, cx| this.reload_plugins(cx))),
-                ),
-        );
+        let mut page = v_flex()
+            .px(px(24.0))
+            .pt(px(16.0))
+            .pb(px(16.0))
+            .gap_3()
+            .child(
+                h_flex()
+                    .gap_2()
+                    .child(
+                        div()
+                            .text_size(px(20.0))
+                            .font_weight(gpui_kit::FontWeight::SEMIBOLD)
+                            .child(self.tr("settings.thirdPartyPlugins.title")),
+                    )
+                    .child(div().flex_1())
+                    .child(
+                        Button::new("settings-plugin-install")
+                            .label(self.tr("settings.thirdPartyPlugins.installFromFile"))
+                            .outline()
+                            .w(px(132.0))
+                            .small()
+                            .on_click(
+                                cx.listener(|this, _, window, cx| this.pick_plugin(window, cx)),
+                            ),
+                    )
+                    .child(
+                        Button::new("settings-plugin-refresh")
+                            .label(self.tr("settings.retry"))
+                            .outline()
+                            .w(px(64.0))
+                            .small()
+                            .on_click(cx.listener(|this, _, _, cx| this.reload_plugins(cx))),
+                    ),
+            );
 
         if let Some((plugin_id, text)) = self.plugin_logs() {
             page = page.child(
@@ -1325,128 +2114,218 @@ impl SettingsView {
             return page.into_any_element();
         }
 
-        for plugin in self.plugins().to_vec() {
-            let id = plugin.plugin_id.clone();
-            let is_third_party =
-                plugin.kind == zerolaunch_plugin_api::plugin::PluginKind::ThirdParty;
-            let pending_uninstall = self.pending_uninstall() == Some(id.as_str());
-            page = page.child(
-                v_flex()
-                    .gap_1()
-                    .p_2()
-                    .rounded(px(6.0))
-                    .border_1()
-                    .border_color(cx.theme().border)
+        let border = cx.theme().border;
+        let muted = cx.theme().muted_foreground;
+        let primary = cx.theme().primary;
+        let mut table = v_flex()
+            .border_1()
+            .border_color(border)
+            .rounded(px(6.0))
+            .overflow_hidden()
+            .child(
+                h_flex()
+                    .h(px(40.0))
+                    .px(px(12.0))
+                    .gap(px(8.0))
+                    .bg(cx.theme().secondary)
+                    .border_b_1()
+                    .border_color(border)
                     .child(
-                        h_flex()
-                            .gap_2()
-                            .items_center()
-                            .child(
-                                div()
-                                    .text_size(px(13.0))
-                                    .font_weight(gpui_kit::FontWeight::MEDIUM)
-                                    .child(plugin.name.clone()),
-                            )
-                            .child(
-                                div()
-                                    .text_size(px(11.0))
-                                    .text_color(cx.theme().muted_foreground)
-                                    .child(format!("v{} · {}", plugin.version, plugin.author)),
-                            )
-                            .child(div().flex_1())
-                            .child(
-                                Switch::new(format!("plugin-enabled-{id}"))
-                                    .checked(plugin.enabled)
-                                    .on_click(cx.listener({
-                                        let plugin = plugin.clone();
-                                        move |this, checked, window, cx| {
-                                            this.toggle_plugin(
-                                                plugin.clone(),
-                                                *checked,
-                                                window,
-                                                cx,
-                                            );
-                                        }
-                                    })),
-                            ),
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .text_size(px(12.0))
+                            .font_weight(gpui_kit::FontWeight::SEMIBOLD)
+                            .child(self.tr("settings.thirdPartyPlugins.colName")),
                     )
                     .child(
                         div()
+                            .w(px(90.0))
                             .text_size(px(12.0))
-                            .text_color(cx.theme().muted_foreground)
-                            .child(plugin.description.clone()),
+                            .font_weight(gpui_kit::FontWeight::SEMIBOLD)
+                            .child(self.tr("settings.thirdPartyPlugins.colVersion")),
                     )
                     .child(
-                        h_flex()
-                            .gap_2()
-                            .text_size(px(11.0))
-                            .text_color(cx.theme().muted_foreground)
-                            .child(plugin_state_label(&plugin.state, self))
-                            .child(format!(
-                                "{}: {}",
-                                self.tr("settings.thirdPartyPlugins.colEnabled"),
-                                if plugin.enabled {
-                                    self.tr("settings.enabled")
-                                } else {
-                                    self.tr("settings.disabled")
+                        div()
+                            .w(px(110.0))
+                            .text_size(px(12.0))
+                            .font_weight(gpui_kit::FontWeight::SEMIBOLD)
+                            .child(self.tr("settings.thirdPartyPlugins.colAuthor")),
+                    )
+                    .child(
+                        div()
+                            .w(px(90.0))
+                            .text_size(px(12.0))
+                            .font_weight(gpui_kit::FontWeight::SEMIBOLD)
+                            .child(self.tr("settings.thirdPartyPlugins.colState")),
+                    )
+                    .child(
+                        div()
+                            .w(px(70.0))
+                            .text_size(px(12.0))
+                            .font_weight(gpui_kit::FontWeight::SEMIBOLD)
+                            .child(self.tr("settings.thirdPartyPlugins.colEnabled")),
+                    )
+                    .child(div().w(px(300.0))),
+            );
+
+        for plugin in self.plugins().to_vec() {
+            let id = plugin.plugin_id.clone();
+            let is_third_party = plugin.kind == PluginKind::ThirdParty;
+            let pending_uninstall = self.pending_uninstall() == Some(id.as_str());
+            let name = self.tr(&plugin.name);
+            let description = self.tr(&plugin.description);
+            let version = if plugin.version.is_empty() {
+                String::new()
+            } else {
+                format!("v{}", plugin.version)
+            };
+            let author = if is_third_party {
+                plugin.author.clone()
+            } else {
+                self.tr("settings.thirdPartyPlugins.builtin")
+            };
+            let state_text = if is_third_party {
+                plugin_state_label(&plugin.state, self)
+            } else {
+                self.tr(if plugin.enabled {
+                    "settings.enabled"
+                } else {
+                    "settings.disabled"
+                })
+            };
+            let state_bg = if plugin.enabled {
+                cx.theme().sidebar_accent
+            } else {
+                cx.theme().secondary
+            };
+            let state_fg = if plugin.enabled { primary } else { muted };
+            let mut actions = h_flex().w(px(300.0)).gap(px(4.0));
+            if is_third_party {
+                actions = actions
+                    .child(
+                        Button::new(format!("plugin-settings-{id}"))
+                            .label(self.tr("settings.thirdPartyPlugins.settings"))
+                            .outline()
+                            .w(px(68.0))
+                            .small()
+                            .on_click(cx.listener({
+                                let plugin = plugin.clone();
+                                move |this, _, window, cx| {
+                                    this.open_plugin_settings(plugin.clone(), window, cx)
                                 }
-                            ))
-                            .child(div().flex_1())
-                            .when(is_third_party, |this| {
-                                this.child(
-                                    Button::new(format!("plugin-settings-{id}"))
-                                        .label(self.tr("settings.thirdPartyPlugins.settings"))
-                                        .small()
-                                        .on_click(cx.listener({
-                                            let plugin = plugin.clone();
-                                            move |this, _, window, cx| {
-                                                this.open_plugin_settings(
-                                                    plugin.clone(),
-                                                    window,
-                                                    cx,
-                                                )
-                                            }
-                                        })),
-                                )
-                                .child(
-                                    Button::new(format!("plugin-logs-{id}"))
-                                        .label(self.tr("settings.thirdPartyPlugins.logs"))
-                                        .small()
-                                        .on_click(cx.listener({
-                                            let id = id.clone();
-                                            move |this, _, _, cx| this.show_plugin_logs(&id, cx)
-                                        })),
-                                )
-                                .child(
-                                    Button::new(format!("plugin-reload-{id}"))
-                                        .label(self.tr("settings.thirdPartyPlugins.reload"))
-                                        .small()
-                                        .on_click(cx.listener({
-                                            let id = id.clone();
-                                            move |this, _, window, cx| {
-                                                this.reload_plugin(id.clone(), window, cx)
-                                            }
-                                        })),
-                                )
-                                .child(
-                                    Button::new(format!("plugin-uninstall-{id}"))
-                                        .label(if pending_uninstall {
-                                            self.tr("settings.resetConfirmPositive")
-                                        } else {
-                                            self.tr("settings.thirdPartyPlugins.uninstall")
-                                        })
-                                        .small()
-                                        .on_click(cx.listener({
-                                            let id = id.clone();
-                                            move |this, _, window, cx| {
-                                                this.uninstall_plugin(id.clone(), window, cx)
-                                            }
-                                        })),
-                                )
-                            }),
-                    ),
+                            })),
+                    )
+                    .child(
+                        Button::new(format!("plugin-logs-{id}"))
+                            .label(self.tr("settings.thirdPartyPlugins.logs"))
+                            .outline()
+                            .w(px(60.0))
+                            .small()
+                            .on_click(cx.listener({
+                                let id = id.clone();
+                                move |this, _, _, cx| this.show_plugin_logs(&id, cx)
+                            })),
+                    )
+                    .child(
+                        Button::new(format!("plugin-reload-{id}"))
+                            .label(self.tr("settings.thirdPartyPlugins.reload"))
+                            .outline()
+                            .w(px(60.0))
+                            .small()
+                            .on_click(cx.listener({
+                                let id = id.clone();
+                                move |this, _, window, cx| {
+                                    this.reload_plugin(id.clone(), window, cx)
+                                }
+                            })),
+                    )
+                    .child(
+                        Button::new(format!("plugin-uninstall-{id}"))
+                            .label(if pending_uninstall {
+                                self.tr("settings.resetConfirmPositive")
+                            } else {
+                                self.tr("settings.thirdPartyPlugins.uninstall")
+                            })
+                            .outline()
+                            .w(px(68.0))
+                            .small()
+                            .on_click(cx.listener({
+                                let id = id.clone();
+                                move |this, _, window, cx| {
+                                    this.uninstall_plugin(id.clone(), window, cx)
+                                }
+                            })),
+                    );
+            }
+            table = table.child(
+                h_flex()
+                    .min_h(px(56.0))
+                    .px(px(12.0))
+                    .gap(px(8.0))
+                    .border_b_1()
+                    .border_color(border)
+                    .items_center()
+                    .child(
+                        v_flex()
+                            .flex_1()
+                            .min_w_0()
+                            .child(
+                                div()
+                                    .truncate()
+                                    .text_size(px(13.0))
+                                    .font_weight(gpui_kit::FontWeight::MEDIUM)
+                                    .child(name),
+                            )
+                            .child(
+                                div()
+                                    .truncate()
+                                    .text_size(px(11.0))
+                                    .text_color(muted)
+                                    .child(if description.is_empty() {
+                                        id.clone()
+                                    } else {
+                                        description
+                                    }),
+                            ),
+                    )
+                    .child(div().w(px(90.0)).text_size(px(12.0)).child(version))
+                    .child(
+                        div()
+                            .w(px(110.0))
+                            .truncate()
+                            .text_size(px(12.0))
+                            .text_color(muted)
+                            .child(author),
+                    )
+                    .child(
+                        div().w(px(90.0)).child(
+                            div()
+                                .px(px(8.0))
+                                .py(px(2.0))
+                                .rounded(px(4.0))
+                                .bg(state_bg)
+                                .text_color(state_fg)
+                                .text_size(px(11.0))
+                                .child(state_text),
+                        ),
+                    )
+                    .child(
+                        div().w(px(70.0)).child(
+                            Switch::new(format!("plugin-enabled-{id}"))
+                                .checked(plugin.enabled)
+                                .on_click(cx.listener({
+                                    let plugin = plugin.clone();
+                                    move |this, checked, window, cx| {
+                                        this.toggle_plugin(plugin.clone(), *checked, window, cx);
+                                    }
+                                })),
+                        ),
+                    )
+                    .child(actions),
             );
         }
+        page = page.child(table);
         page.into_any_element()
     }
 
@@ -1514,24 +2393,33 @@ impl SettingsView {
 
     /// 插件市场页。
     fn render_market(&self, cx: &mut Context<Self>) -> AnyElement {
-        let mut page = v_flex().p_4().gap_3().child(
-            h_flex()
-                .gap_2()
-                .child(
-                    div()
-                        .text_size(px(20.0))
-                        .font_weight(gpui_kit::FontWeight::SEMIBOLD)
-                        .child(self.tr("settings.pluginMarket.title")),
-                )
-                .child(div().flex_1())
-                .child(
-                    Button::new("settings-market-refresh")
-                        .label(self.tr("settings.pluginMarket.refresh"))
-                        .small()
-                        .disabled(self.market_loading())
-                        .on_click(cx.listener(|this, _, window, cx| this.load_market(window, cx))),
-                ),
-        );
+        let mut page = v_flex()
+            .px(px(24.0))
+            .pt(px(16.0))
+            .pb(px(16.0))
+            .gap_3()
+            .child(
+                h_flex()
+                    .gap_2()
+                    .child(
+                        div()
+                            .text_size(px(20.0))
+                            .font_weight(gpui_kit::FontWeight::SEMIBOLD)
+                            .child(self.tr("settings.pluginMarket.title")),
+                    )
+                    .child(div().flex_1())
+                    .child(
+                        Button::new("settings-market-refresh")
+                            .label(self.tr("settings.pluginMarket.refresh"))
+                            .outline()
+                            .w(px(64.0))
+                            .small()
+                            .disabled(self.market_loading())
+                            .on_click(
+                                cx.listener(|this, _, window, cx| this.load_market(window, cx)),
+                            ),
+                    ),
+            );
         if let Some(preview) = self.market_preview() {
             let installed = preview.installed_version.as_deref();
             let content = match installed {
@@ -1635,7 +2523,6 @@ impl SettingsView {
         }
         for repo in self.market_repos().to_vec() {
             let repo_for_install = repo.clone();
-            let repo_for_overwrite = repo.clone();
             page = page.child(
                 v_flex()
                     .gap_1()
@@ -1674,21 +2561,9 @@ impl SettingsView {
                                     })),
                             )
                             .child(
-                                Button::new(format!("market-overwrite-{}", repo.full_name))
-                                    .label(self.tr("settings.pluginMarket.update"))
-                                    .small()
-                                    .on_click(cx.listener(move |this, _, window, cx| {
-                                        this.preview_market(
-                                            repo_for_overwrite.clone(),
-                                            true,
-                                            window,
-                                            cx,
-                                        );
-                                    })),
-                            )
-                            .child(
                                 Button::new(format!("market-open-{}", repo.full_name))
                                     .label(self.tr("settings.pluginMarket.viewOnGithub"))
+                                    .outline()
                                     .small()
                                     .on_click(cx.listener({
                                         let url = repo.html_url.clone();
@@ -1736,6 +2611,7 @@ impl SettingsView {
             link_row = link_row.child(
                 Button::new(format!("about-link-{url}"))
                     .label(self.tr(label))
+                    .outline()
                     .small()
                     .on_click(cx.listener(move |this, _, _, _| this.open_url(url))),
             );
@@ -1848,6 +2724,8 @@ impl SettingsView {
             .child(
                 Button::new("about-check-update")
                     .label(self.tr("settings.aboutPage.checkUpdate"))
+                    .outline()
+                    .w(px(96.0))
                     .small()
                     .disabled(checking)
                     .on_click(cx.listener(|this, _, window, cx| this.check_update(window, cx))),
@@ -1856,6 +2734,8 @@ impl SettingsView {
                 this.child(
                     Button::new("about-view-release")
                         .label(self.tr("settings.aboutPage.viewRelease"))
+                        .outline()
+                        .w(px(96.0))
                         .small()
                         .on_click(cx.listener(move |this, _, _, _| this.open_url(&url))),
                 )
@@ -1891,6 +2771,8 @@ impl SettingsView {
             .child(
                 Button::new("about-export-logs")
                     .label(self.tr("settings.aboutPage.exportLogs"))
+                    .outline()
+                    .w(px(120.0))
                     .small()
                     .disabled(self.log_exporting())
                     .on_click(cx.listener(|this, _, window, cx| this.export_logs(window, cx))),
@@ -2002,23 +2884,30 @@ impl SettingsView {
 
     /// 调试检查器页。
     fn render_debug(&self, cx: &mut Context<Self>) -> AnyElement {
-        let mut page = v_flex().p_4().gap_3().child(
-            h_flex()
-                .gap_2()
-                .child(
-                    div()
-                        .text_size(px(20.0))
-                        .font_weight(gpui_kit::FontWeight::SEMIBOLD)
-                        .child(self.tr("inspector.title")),
-                )
-                .child(div().flex_1())
-                .child(
-                    Button::new("inspector-refresh")
-                        .label(self.tr("inspector.refresh"))
-                        .small()
-                        .on_click(cx.listener(|this, _, _, cx| this.refresh_inspector(cx))),
-                ),
-        );
+        let mut page = v_flex()
+            .px(px(24.0))
+            .pt(px(16.0))
+            .pb(px(16.0))
+            .gap_3()
+            .child(
+                h_flex()
+                    .gap_2()
+                    .child(
+                        div()
+                            .text_size(px(20.0))
+                            .font_weight(gpui_kit::FontWeight::SEMIBOLD)
+                            .child(self.tr("inspector.title")),
+                    )
+                    .child(div().flex_1())
+                    .child(
+                        Button::new("inspector-refresh")
+                            .label(self.tr("inspector.refresh"))
+                            .outline()
+                            .w(px(64.0))
+                            .small()
+                            .on_click(cx.listener(|this, _, _, cx| this.refresh_inspector(cx))),
+                    ),
+            );
         if !self.debug_enabled() {
             return page
                 .child(
@@ -2039,6 +2928,78 @@ impl SettingsView {
                 )
                 .into_any_element();
         };
+        let border = cx.theme().border;
+        let muted = cx.theme().muted_foreground;
+        let primary = cx.theme().primary;
+        let mut plugins = inspector.registered_plugins.clone();
+        plugins.sort_by(|a, b| a.component_id.cmp(&b.component_id));
+        let mut plugin_table = v_flex()
+            .border_1()
+            .border_color(border)
+            .rounded(px(6.0))
+            .overflow_hidden()
+            .child(
+                h_flex()
+                    .h(px(36.0))
+                    .px(px(12.0))
+                    .gap(px(8.0))
+                    .bg(cx.theme().secondary)
+                    .border_b_1()
+                    .border_color(border)
+                    .text_size(px(12.0))
+                    .font_weight(gpui_kit::FontWeight::SEMIBOLD)
+                    .child(div().flex_1().child(self.tr("inspector.colId")))
+                    .child(div().w(px(140.0)).child(self.tr("inspector.colType")))
+                    .child(div().w(px(80.0)).child(self.tr("inspector.colStatus"))),
+            );
+        for plugin in &plugins {
+            plugin_table = plugin_table.child(
+                h_flex()
+                    .min_h(px(32.0))
+                    .px(px(12.0))
+                    .gap(px(8.0))
+                    .items_center()
+                    .border_b_1()
+                    .border_color(border)
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .truncate()
+                            .font_family("Consolas")
+                            .text_size(px(12.0))
+                            .child(plugin.component_id.clone()),
+                    )
+                    .child(
+                        div()
+                            .w(px(140.0))
+                            .truncate()
+                            .text_size(px(12.0))
+                            .text_color(muted)
+                            .child(plugin.component_type.clone()),
+                    )
+                    .child(
+                        div().w(px(80.0)).child(
+                            div()
+                                .px(px(8.0))
+                                .py(px(2.0))
+                                .rounded(px(4.0))
+                                .bg(if plugin.enabled {
+                                    cx.theme().sidebar_accent
+                                } else {
+                                    cx.theme().secondary
+                                })
+                                .text_color(if plugin.enabled { primary } else { muted })
+                                .text_size(px(11.0))
+                                .child(if plugin.enabled {
+                                    self.tr("inspector.enabled")
+                                } else {
+                                    self.tr("inspector.disabled")
+                                }),
+                        ),
+                    ),
+            );
+        }
         page = page
             .child(
                 div()
@@ -2049,23 +3010,7 @@ impl SettingsView {
                             .replace("{count}", &inspector.registered_plugins.len().to_string()),
                     ),
             )
-            .child(
-                v_flex()
-                    .gap_1()
-                    .children(inspector.registered_plugins.iter().map(|plugin| {
-                        h_flex()
-                            .gap_2()
-                            .text_size(px(11.0))
-                            .child(plugin.component_id.clone())
-                            .child(plugin.component_type.clone())
-                            .child(if plugin.enabled {
-                                self.tr("inspector.enabled")
-                            } else {
-                                self.tr("inspector.disabled")
-                            })
-                            .into_any_element()
-                    })),
-            )
+            .child(plugin_table)
             .child(
                 div()
                     .text_size(px(13.0))
@@ -2080,20 +3025,68 @@ impl SettingsView {
             page = page.child(
                 div()
                     .text_size(px(12.0))
-                    .text_color(cx.theme().muted_foreground)
+                    .text_color(muted)
                     .child(self.tr("inspector.emptyQueries")),
             );
-        }
-        for query in inspector.recent_queries.iter().rev().take(80) {
-            page = page.child(
-                h_flex()
-                    .gap_2()
-                    .text_size(px(11.0))
-                    .child(query.timestamp.clone())
-                    .child(query.raw_query.clone())
-                    .child(format!("{} ms", query.duration_ms))
-                    .child(format!("{}", query.result_count)),
-            );
+        } else {
+            let mut query_table = v_flex()
+                .border_1()
+                .border_color(border)
+                .rounded(px(6.0))
+                .overflow_hidden()
+                .child(
+                    h_flex()
+                        .h(px(36.0))
+                        .px(px(12.0))
+                        .gap(px(8.0))
+                        .bg(cx.theme().secondary)
+                        .border_b_1()
+                        .border_color(border)
+                        .text_size(px(12.0))
+                        .font_weight(gpui_kit::FontWeight::SEMIBOLD)
+                        .child(div().w(px(170.0)).child(self.tr("inspector.time")))
+                        .child(div().flex_1().child(self.tr("inspector.query")))
+                        .child(div().w(px(80.0)).child(self.tr("inspector.durationMs")))
+                        .child(div().w(px(70.0)).child(self.tr("inspector.resultCount"))),
+                );
+            for query in inspector.recent_queries.iter().rev().take(80) {
+                query_table = query_table.child(
+                    h_flex()
+                        .min_h(px(30.0))
+                        .px(px(12.0))
+                        .gap(px(8.0))
+                        .items_center()
+                        .border_b_1()
+                        .border_color(border)
+                        .text_size(px(11.0))
+                        .child(
+                            div()
+                                .w(px(170.0))
+                                .text_color(muted)
+                                .child(query.timestamp.clone()),
+                        )
+                        .child(
+                            div()
+                                .flex_1()
+                                .min_w_0()
+                                .truncate()
+                                .child(query.raw_query.clone()),
+                        )
+                        .child(
+                            div()
+                                .w(px(80.0))
+                                .text_color(muted)
+                                .child(format!("{} ms", query.duration_ms)),
+                        )
+                        .child(
+                            div()
+                                .w(px(70.0))
+                                .text_color(muted)
+                                .child(query.result_count.to_string()),
+                        ),
+                );
+            }
+            page = page.child(query_table);
         }
         page.into_any_element()
     }
@@ -2141,6 +3134,23 @@ fn string_options(schema: &SchemaNode) -> Vec<(String, String)> {
     }
 }
 
+/// 解析对象数组条目的字段副本。
+/// 参数：items_schema - 数组条目 schema。
+/// 返回：按 UI 顺序排列的字段。
+fn array_object_fields(items_schema: &SchemaNode) -> Vec<OwnedField> {
+    let SchemaKind::Object { properties, ui, .. } = &items_schema.kind else {
+        return Vec::new();
+    };
+    schema::object_fields(properties, ui)
+        .into_iter()
+        .map(|field| OwnedField {
+            key: field.key.to_string(),
+            schema: field.schema.clone(),
+            ui: field.ui.clone(),
+        })
+        .collect()
+}
+
 /// 字段值转文本。
 /// 参数：value - JSON 值。
 /// 返回：字符串；非字符串按 JSON 文本展示。
@@ -2161,6 +3171,23 @@ fn parse_hex_color(text: &str) -> Option<u32> {
         return None;
     }
     u32::from_str_radix(text, 16).ok()
+}
+
+/// 侧栏分类图标。
+/// 参数：category - 分类。
+/// 返回：与旧版菜单一致的图标。
+fn category_icon(category: Category) -> IconName {
+    match category {
+        Category::Core => IconName::Settings,
+        Category::Appearance => IconName::Palette,
+        Category::Models => IconName::Cpu,
+        Category::Pipeline => IconName::Search,
+        Category::Plugins => IconName::LayoutDashboard,
+        Category::Market => IconName::Globe,
+        Category::About => IconName::Info,
+        Category::Assistant => IconName::Bot,
+        Category::Debug => IconName::Inspector,
+    }
 }
 
 /// 插件运行状态的本地化文案。

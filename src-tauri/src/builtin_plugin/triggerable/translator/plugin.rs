@@ -3,7 +3,7 @@ use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::sync::Arc;
-use tracing::info;
+use tracing::{info, warn};
 use zerolaunch_plugin_api::config::{
     ComponentCore, ComponentType, ConfigError, Configurable, SettingDefinition,
 };
@@ -586,12 +586,27 @@ impl Plugin for TranslatorPlugin {
         .await
         {
             Ok(r) => r,
-            Err(_) => TranslationResult::err(
-                super::providers::PROVIDER_ID,
-                "宿主模型",
-                "翻译超时，请重试",
-            ),
+            Err(_) => {
+                warn!(
+                    timeout_ms = settings.request_timeout_ms,
+                    provider = super::providers::PROVIDER_ID,
+                    "翻译请求超时"
+                );
+                TranslationResult::err(
+                    super::providers::PROVIDER_ID,
+                    "宿主模型",
+                    "翻译超时，请重试",
+                )
+            }
         };
+
+        if let Some(error) = result.error.as_deref() {
+            warn!(
+                provider = %result.provider_id,
+                error = %error,
+                "翻译失败"
+            );
+        }
 
         // 缓存译文文本，供 execute_action 写入剪贴板。
         // 仅 GUI 通道且查询仍最新时写入：CLI/调试查询为只读辅助路径，

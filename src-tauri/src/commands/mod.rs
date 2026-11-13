@@ -4,6 +4,7 @@ pub mod cli;
 pub mod clipboard;
 pub mod config_file;
 pub mod debug;
+pub mod frontend_log;
 pub mod help;
 pub mod i18n;
 pub mod inspector;

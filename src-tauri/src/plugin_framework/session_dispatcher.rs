@@ -1083,7 +1083,18 @@ impl SessionDispatcher {
                 });
             };
             let normalized = collapse_repeated_spaces(&query.search_term);
+            let search_started = Instant::now();
             let scored_candidates = pipeline.search(&cached, &normalized).await;
+            // 每次默认搜索一行：候选总数 vs 结果数 + top1 分数，足以区分
+            // 「候选没进缓存」「关键词没命中」「被 top_k/排除规则截断」三类问题。
+            info!(
+                query_len = normalized.chars().count(),
+                candidate_total = cached.get_candidates().len(),
+                result_count = scored_candidates.len(),
+                top_score = scored_candidates.first().map(|c| c.score).unwrap_or(0.0),
+                duration_us = search_started.elapsed().as_micros() as u64,
+                "默认搜索完成"
+            );
 
             // 提交门控（与插件分支一致）：搜索计算期间若有更新的同域请求进入后端，
             // 本查询已过期，丢弃结果——过期返回空结果优于返回过期数据（并发/排队
@@ -1366,11 +1377,27 @@ impl SessionDispatcher {
                     .execute_action(&plugin_ctx, &action_id, payload)
                     .await
                 {
-                    Ok(()) => Ok(RoutedConfirm {
-                        outcome: ConfirmOutcome::Executed,
-                        generation: session.generation,
-                    }),
-                    Err(e) => Err(SessionDispatcherError::PluginError(e.to_string())),
+                    Ok(()) => {
+                        info!(
+                            target = %plugin_id,
+                            action = %action_id,
+                            "插件动作执行成功"
+                        );
+                        Ok(RoutedConfirm {
+                            outcome: ConfirmOutcome::Executed,
+                            generation: session.generation,
+                        })
+                    }
+                    Err(e) => {
+                        // 插件动作失败必须带插件与动作：否则线上只剩一条无上下文的 IPC 错误。
+                        error!(
+                            target = %plugin_id,
+                            action = %action_id,
+                            error = %e,
+                            "插件动作执行失败"
+                        );
+                        Err(SessionDispatcherError::PluginError(e.to_string()))
+                    }
                 }
             }
             SessionOwner::Host(_) => {
@@ -1530,6 +1557,8 @@ impl SessionDispatcher {
                 )));
             }
         }
+        // 执行耗时从确认入口开始计：用户感知的是「按回车到动作发生」的整体延迟。
+        let started = Instant::now();
         // 候选快照后释放锁（record 对远端增强器经 RPC，不跨 await 持锁）
         let (exec_ctx, candidate_snapshot) = {
             let cached = self.cached_candidates.read();
@@ -1579,16 +1608,26 @@ impl SessionDispatcher {
         // PluginWakeExecutor 处理，统一经本管道。
         let executor = {
             let registry = self.executor_registry.read();
-            registry
-                .resolve(&exec_ctx, action_id)
-                .map_err(|e| ConfirmError(e.to_string()))?
+            registry.resolve(&exec_ctx, action_id).map_err(|e| {
+                // 解析失败意味着「这个目标没有该动作」或注册冲突，用户侧表现为「回车没反应」。
+                error!(
+                    candidate = %exec_ctx.display_name,
+                    action = %action_id,
+                    error = %e,
+                    "执行器解析失败"
+                );
+                ConfirmError(e.to_string())
+            })?
         };
 
         match executor.execute(&exec_ctx, action_id).await {
             Ok(()) => {
                 info!(
-                    "[执行成功] candidate='{}' (id={}), action='{}'",
-                    exec_ctx.display_name, candidate_id, action_id
+                    "[执行成功] candidate='{}' (id={}), action='{}', duration_ms={}",
+                    exec_ctx.display_name,
+                    candidate_id,
+                    action_id,
+                    started.elapsed().as_millis() as u64
                 );
                 Ok(())
             }
@@ -1603,15 +1642,36 @@ impl SessionDispatcher {
                         let registry = self.executor_registry.read();
                         registry
                             .resolve_fallback(&exec_ctx, &fallback_action)
-                            .map_err(|e| ConfirmError(e.to_string()))?
+                            .map_err(|e| {
+                                error!(
+                                    candidate = %exec_ctx.display_name,
+                                    action = %fallback_action,
+                                    error = %e,
+                                    "回退执行器解析失败"
+                                );
+                                ConfirmError(e.to_string())
+                            })?
                     };
                     fallback_executor
                         .execute(&exec_ctx, &fallback_action)
                         .await
-                        .map_err(|e| ConfirmError(e.to_string()))?;
+                        .map_err(|e| {
+                            error!(
+                                candidate = %exec_ctx.display_name,
+                                action = %fallback_action,
+                                error = %e,
+                                duration_ms = started.elapsed().as_millis() as u64,
+                                "回退执行失败"
+                            );
+                            ConfirmError(e.to_string())
+                        })?;
                     info!(
-                        "[执行成功] candidate='{}' (id={}), action='{}' (fallback from '{}')",
-                        exec_ctx.display_name, candidate_id, fallback_action, action_id
+                        "[执行成功] candidate='{}' (id={}), action='{}' (fallback from '{}'), duration_ms={}",
+                        exec_ctx.display_name,
+                        candidate_id,
+                        fallback_action,
+                        action_id,
+                        started.elapsed().as_millis() as u64
                     );
                 } else {
                     info!(
@@ -1621,7 +1681,17 @@ impl SessionDispatcher {
                 }
                 Ok(())
             }
-            Err(e) => Err(ConfirmError(e.to_string())),
+            Err(e) => {
+                // 失败必须带候选与动作：否则线上只有 IPC 错误串，无法知道「哪个条目、哪个动作」挂了。
+                error!(
+                    candidate = %exec_ctx.display_name,
+                    action = %action_id,
+                    error = %e,
+                    duration_ms = started.elapsed().as_millis() as u64,
+                    "执行失败"
+                );
+                Err(ConfirmError(e.to_string()))
+            }
         }
     }
 

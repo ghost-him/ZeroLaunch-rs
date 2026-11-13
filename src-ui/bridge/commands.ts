@@ -234,6 +234,29 @@ export function exportLogs(destPath: string): Promise<void> {
   return invokeCommand<void>('export_logs', { destPath })
 }
 
+/**
+ * 前端错误上报载荷（对应 Rust `FrontendErrorPayload`）。
+ * 字段名与后端 `#[serde(rename)]` 逐字对齐。
+ */
+export interface FrontendErrorReport {
+  /** 错误来源（窗口 / 模块），如 search-window、settings-window。 */
+  scope: string
+  /** 错误消息（前端截断到 2000 字符）。 */
+  message: string
+  /** 错误堆栈；省略表示没有可用堆栈。 */
+  stack?: string
+  /** 触发错误的页面/脚本地址；省略表示未知。 */
+  url?: string
+}
+
+/**
+ * 上报一条前端错误到后端日志（release 下 WebView2 控制台不可见）。
+ * 直接走 `invoke`：上报失败不应触发全局错误提示或改变业务状态，由调用方吞掉。
+ */
+export function reportFrontendError(report: FrontendErrorReport): Promise<void> {
+  return invoke<void>('report_frontend_error', { payload: report })
+}
+
 export function pluginList(): Promise<PluginInfo[]> {
   return invokeCommand<PluginInfo[]>('plugin_list')
 }

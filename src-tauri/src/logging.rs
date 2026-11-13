@@ -6,13 +6,14 @@
 //! - Panic处理
 //! - 日志文件清理
 
-use backtrace::Backtrace;
 use chrono::{DateTime, Local};
-use std::fs::File;
+use serde::Serialize;
+use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::panic;
 use std::path::{Path, PathBuf};
-use std::sync::OnceLock;
+use std::sync::{LazyLock, OnceLock};
+use std::time::{SystemTime, UNIX_EPOCH};
 use tracing::{debug, error, info, warn, Level};
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_subscriber::fmt::format::{DefaultFields, DefaultVisitor, FmtSpan};
@@ -53,10 +54,29 @@ impl<'a> tracing_subscriber::field::MakeVisitor<tracing_subscriber::fmt::format:
 pub const DEFAULT_LOG_FILE_PREFIX: &str = "info";
 
 /// 默认日志保留天数
-pub const DEFAULT_LOG_RETENTION_DAYS: i64 = 5;
+pub const DEFAULT_LOG_RETENTION_DAYS: i64 = 7;
+
+/// 日志目录总大小上限；超出后从最旧的文件开始删除（panic.log 最后删）。
+const MAX_TOTAL_LOG_BYTES: u64 = 64 * 1024 * 1024;
+
+/// panic.log 单文件上限；超出后轮转为 panic.log.1，避免多次崩溃互相覆盖。
+const MAX_PANIC_LOG_BYTES: u64 = 1024 * 1024;
 
 /// 全局日志目录（在初始化时设置）
 static LOG_DIR: OnceLock<PathBuf> = OnceLock::new();
+
+/// 本次进程的会话标识（8 位十六进制），用于把用户反馈与具体一次运行对应起来。
+static SESSION_ID: LazyLock<String> = LazyLock::new(|| {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0)
+        .hash(&mut hasher);
+    std::process::id().hash(&mut hasher);
+    format!("{:08x}", hasher.finish() as u32)
+});
 
 /// 全局日志级别重载句柄
 static LOG_RELOAD_HANDLE: OnceLock<reload::Handle<EnvFilter, tracing_subscriber::Registry>> =
@@ -212,6 +232,146 @@ pub fn get_log_dir() -> Option<&'static PathBuf> {
     LOG_DIR.get()
 }
 
+/// 本次进程的会话标识；日志、诊断包与 panic.log 共用同一值。
+pub fn session_id() -> &'static str {
+    SESSION_ID.as_str()
+}
+
+/// 构建时注入的 git 提交（`<短 sha>[-dirty]`）；未注入时为 `unknown`。
+fn git_sha() -> &'static str {
+    option_env!("ZEROLAUNCH_GIT_SHA").unwrap_or("unknown")
+}
+
+/// 构建时间：构建时注入 unix 秒，运行期转本地时间展示；未注入时为 `未知`。
+fn build_time_display() -> String {
+    option_env!("ZEROLAUNCH_BUILD_UNIX")
+        .and_then(|secs| secs.parse::<i64>().ok())
+        .and_then(|secs| DateTime::from_timestamp(secs, 0))
+        .map(|dt| {
+            dt.with_timezone(&Local)
+                .format("%Y-%m-%d %H:%M:%S")
+                .to_string()
+        })
+        .unwrap_or_else(|| "未知".to_string())
+}
+
+/// 构建时注入的编译器版本；未注入时为 `unknown`。
+fn rustc_version() -> &'static str {
+    option_env!("ZEROLAUNCH_RUSTC").unwrap_or("unknown")
+}
+
+/// 读取已安装的 WebView2 Runtime 版本。
+///
+/// 先查机器级安装（WOW6432Node），再查用户级安装；都读不到时返回 `未检测到`。
+/// WebView2 是 Windows 上 UI 无法启动的首要外部依赖，版本必须进日志与诊断包。
+fn get_webview2_version() -> String {
+    #[cfg(windows)]
+    {
+        use winreg::enums::HKEY_CURRENT_USER;
+        use winreg::enums::HKEY_LOCAL_MACHINE;
+        use winreg::RegKey;
+
+        const CLIENT: &str = "{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}";
+        let machine = format!(r"SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{CLIENT}");
+        let user = format!(r"SOFTWARE\Microsoft\EdgeUpdate\Clients\{CLIENT}");
+
+        let read = |root: winreg::HKEY, path: &str| -> Option<String> {
+            let key = RegKey::predef(root).open_subkey(path).ok()?;
+            key.get_value::<String, _>("pv")
+                .ok()
+                .filter(|version| !version.trim().is_empty())
+        };
+
+        read(HKEY_LOCAL_MACHINE, &machine)
+            .or_else(|| read(HKEY_CURRENT_USER, &user))
+            .unwrap_or_else(|| "未检测到".to_string())
+    }
+    #[cfg(not(windows))]
+    {
+        "不支持".to_string()
+    }
+}
+
+/// 运行环境快照 —— `diagnostics.json` 中环境事实的唯一类型。
+///
+/// 由 `environment_snapshot()` 单一构造；不是域实体投影，也不参与 IPC 契约，
+/// 仅随日志导出写入诊断包。只包含诊断必需的环境事实，不含配置内容、查询词或用户文档。
+#[derive(Debug, Clone, Serialize)]
+pub struct EnvironmentSnapshot {
+    /// 快照生成时间（本地时间，`YYYY-MM-DD HH:MM:SS`）。
+    #[serde(rename = "generatedAt")]
+    pub generated_at: String,
+    /// 应用版本（`CARGO_PKG_VERSION`）。
+    #[serde(rename = "appVersion")]
+    pub app_version: String,
+    /// 构建时注入的 git 提交（`<短 sha>[-dirty]`）；未注入时为 `unknown`。
+    #[serde(rename = "gitSha")]
+    pub git_sha: String,
+    /// 构建时间（本地时间）；未注入时为 `未知`。
+    #[serde(rename = "buildTime")]
+    pub build_time: String,
+    /// 构建时注入的编译器版本；未注入时为 `unknown`。
+    #[serde(rename = "rustc")]
+    pub rustc: String,
+    /// 当前进程 ID。
+    #[serde(rename = "pid")]
+    pub pid: u32,
+    /// 本次进程的会话标识（8 位十六进制）。
+    #[serde(rename = "sessionId")]
+    pub session_id: String,
+    /// Windows 版本描述（产品名 + DisplayVersion + Build）。
+    #[serde(rename = "os")]
+    pub os: String,
+    /// 目标架构（`x86_64` / `aarch64`）。
+    #[serde(rename = "arch")]
+    pub arch: String,
+    /// 启用的 Cargo 特性列表；无特性时为 `无`。
+    #[serde(rename = "features")]
+    pub features: String,
+    /// 是否为便携模式构建。
+    #[serde(rename = "portable")]
+    pub portable: bool,
+    /// WebView2 Runtime 版本；未检测到时为 `未检测到`。
+    #[serde(rename = "webview2")]
+    pub webview2: String,
+    /// 可执行文件路径；读取失败时为 `None`。
+    #[serde(rename = "exe")]
+    pub exe: Option<String>,
+    /// 当前工作目录；读取失败时为 `None`。
+    #[serde(rename = "cwd")]
+    pub cwd: Option<String>,
+    /// 日志目录；日志系统未初始化时为 `None`。
+    #[serde(rename = "logDir")]
+    pub log_dir: Option<String>,
+}
+
+/// 生成运行环境快照（随日志导出为 `diagnostics.json`）。
+///
+/// 返回：环境事实快照；字段全部来自当前进程与构建期注入，不做二次加工。
+pub fn environment_snapshot() -> EnvironmentSnapshot {
+    EnvironmentSnapshot {
+        generated_at: Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+        app_version: env!("CARGO_PKG_VERSION").to_string(),
+        git_sha: git_sha().to_string(),
+        build_time: build_time_display(),
+        rustc: rustc_version().to_string(),
+        pid: std::process::id(),
+        session_id: session_id().to_string(),
+        os: get_windows_version(),
+        arch: std::env::consts::ARCH.to_string(),
+        features: format_enabled_features(),
+        portable: cfg!(feature = "portable"),
+        webview2: get_webview2_version(),
+        exe: std::env::current_exe()
+            .ok()
+            .map(|p| p.display().to_string()),
+        cwd: std::env::current_dir()
+            .ok()
+            .map(|p| p.display().to_string()),
+        log_dir: LOG_DIR.get().map(|p| p.display().to_string()),
+    }
+}
+
 // ============================================================================
 // 日志导出
 // ============================================================================
@@ -242,20 +402,30 @@ pub enum LogArchiveError {
 /// 把当前日志目录打包成 zip 写入 `dest`。
 ///
 /// 参数：`dest` —— 目标 zip 路径；由前端保存对话框选定，父目录须已存在。
+///       `diagnostics` —— 诊断快照 JSON（写入 `diagnostics.json`）；`None` 时不写该条目。
 /// 返回：成功时 `Ok(())`；日志系统未初始化、目录为空或读写失败时返回 `LogArchiveError`。
 /// 行为：目录内日志文件（含按日滚动的历史文件与 panic.log）以 `logs/<文件名>` 为条目名；
+///       同级 `plugin-logs/` 以 `plugin-logs/<文件名>` 一并打包；
 ///       目标文件已存在时直接覆盖（覆盖确认由保存对话框负责）。
-pub fn export_log_archive(dest: &Path) -> Result<(), LogArchiveError> {
+pub fn export_log_archive(
+    dest: &Path,
+    diagnostics: Option<Vec<u8>>,
+) -> Result<(), LogArchiveError> {
     let log_dir = get_log_dir().ok_or(LogArchiveError::NotInitialized)?;
-    write_log_archive(log_dir, dest)
+    write_log_archive(log_dir, dest, diagnostics)
 }
 
-/// 把 `log_dir` 下的直接子文件打包写入 `dest`。
+/// 把 `log_dir` 下的直接子文件、同级的 `plugin-logs/` 以及可选的诊断快照打包写入 `dest`。
 ///
-/// 参数：`log_dir` —— 日志目录；`dest` —— 目标 zip 路径。
-/// 返回：成功时 `Ok(())`；目录为空返回 `Empty`，读写失败返回对应错误变体。
+/// 参数：`log_dir` —— 日志目录；`dest` —— 目标 zip 路径；
+///       `diagnostics` —— `diagnostics.json` 内容（调用方已序列化）。
+/// 返回：成功时 `Ok(())`；日志目录为空且没有诊断快照时返回 `Empty`，读写失败返回对应错误变体。
 /// 条目按文件名排序，保证同一目录多次导出的 zip 结构稳定。
-fn write_log_archive(log_dir: &Path, dest: &Path) -> Result<(), LogArchiveError> {
+fn write_log_archive(
+    log_dir: &Path,
+    dest: &Path,
+    diagnostics: Option<Vec<u8>>,
+) -> Result<(), LogArchiveError> {
     let mut entries: Vec<(String, PathBuf)> = Vec::new();
     for entry in std::fs::read_dir(log_dir)? {
         let entry = entry?;
@@ -265,7 +435,22 @@ fn write_log_archive(log_dir: &Path, dest: &Path) -> Result<(), LogArchiveError>
             entries.push((format!("logs/{name}"), path));
         }
     }
-    if entries.is_empty() {
+
+    // 插件子进程 stderr 与宿主日志目录同级；插件相关问题的证据只在这里。
+    if let Some(parent) = log_dir.parent() {
+        let plugin_log_dir = parent.join("plugin-logs");
+        if let Ok(plugin_entries) = std::fs::read_dir(&plugin_log_dir) {
+            for entry in plugin_entries.flatten() {
+                let path = entry.path();
+                if path.is_file() {
+                    let name = entry.file_name().to_string_lossy().into_owned();
+                    entries.push((format!("plugin-logs/{name}"), path));
+                }
+            }
+        }
+    }
+
+    if entries.is_empty() && diagnostics.is_none() {
         return Err(LogArchiveError::Empty);
     }
     entries.sort_by(|a, b| a.0.cmp(&b.0));
@@ -274,6 +459,10 @@ fn write_log_archive(log_dir: &Path, dest: &Path) -> Result<(), LogArchiveError>
     let mut writer = zip::ZipWriter::new(std::io::BufWriter::new(File::create(dest)?));
     let options = zip::write::SimpleFileOptions::default()
         .compression_method(zip::CompressionMethod::Deflated);
+    if let Some(bytes) = diagnostics {
+        writer.start_file("diagnostics.json", options)?;
+        writer.write_all(&bytes)?;
+    }
     for (entry_name, path) in entries {
         writer.start_file(entry_name, options)?;
         writer.write_all(&std::fs::read(&path)?)?;
@@ -360,16 +549,14 @@ fn get_windows_version() -> String {
 fn print_system_info(log_dir: &Path) {
     info!("=== ZeroLaunch-rs 系统信息 ===");
     info!("应用版本: {}", env!("CARGO_PKG_VERSION"));
-    info!(
-        "构建时间: {}",
-        std::env::var("VERGEN_BUILD_TIMESTAMP").unwrap_or_else(|_| "未知".to_string())
-    );
+    info!("Git 提交: {}", git_sha());
+    info!("构建时间: {}", build_time_display());
+    info!("Rust版本: {}", rustc_version());
     info!("操作系统: {}", get_windows_version());
     info!("系统架构: {}", std::env::consts::ARCH);
-    info!(
-        "Rust版本: {}",
-        std::env::var("VERGEN_RUSTC_SEMVER").unwrap_or_else(|_| "未知".to_string())
-    );
+    info!("进程 ID: {} 会话: {}", std::process::id(), session_id());
+    info!("WebView2: {}", get_webview2_version());
+    info!("便携模式: {}", cfg!(feature = "portable"));
 
     let now = Local::now();
     info!("启动时间: {}", now.format("%Y-%m-%d %H:%M:%S"));
@@ -392,9 +579,18 @@ fn print_system_info(log_dir: &Path) {
 }
 
 /// 设置panic处理钩子
+///
+/// 崩溃现场是线上最难复现的证据，这里遵守三条约束：
+/// 1. 先写关键行（时间/线程/位置/消息）并 flush，再采堆栈——符号化可能很慢甚至卡住，
+///    不能让它挡住必得信息；
+/// 2. 追加写 + 超限轮转，多次崩溃互不覆盖；
+/// 3. 全程不使用会 panic 的调用（`expect`/`unwrap`），避免钩子自身二次 panic 丢失证据。
 fn setup_panic_hook() {
     panic::set_hook(Box::new(|panic_info| {
-        let location = panic_info.location().expect("无法获取panic位置信息");
+        let location = panic_info
+            .location()
+            .map(|l| format!("{}:{}", l.file(), l.line()))
+            .unwrap_or_else(|| "未知位置".to_string());
         let message = match panic_info.payload().downcast_ref::<&str>() {
             Some(s) => *s,
             None => match panic_info.payload().downcast_ref::<String>() {
@@ -413,40 +609,65 @@ fn setup_panic_hook() {
         });
 
         let panic_file_path = log_dir.join("panic.log");
+        rotate_panic_log(&panic_file_path);
 
         // 写入panic日志文件
-        if let Ok(mut file) = File::create(&panic_file_path) {
+        if let Ok(mut file) = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&panic_file_path)
+        {
             let now = Local::now();
+            let thread = std::thread::current();
             let _ = writeln!(
                 file,
-                "[{}] Panic发生在文件 '{}' 第{}行: {}",
+                "\n[{}] PID {} 会话 {} 线程 {:?}",
                 now.format("%Y-%m-%d %H:%M:%S"),
-                location.file(),
-                location.line(),
-                message
+                std::process::id(),
+                session_id(),
+                thread.name().unwrap_or("<unnamed>")
             );
-
-            let backtrace = Backtrace::new();
-            let _ = writeln!(file, "\n堆栈跟踪:");
-            let _ = writeln!(file, "{:?}", backtrace);
-
-            let _ = writeln!(file, "\n系统信息:");
-            let _ = writeln!(file, "应用版本: {}", env!("CARGO_PKG_VERSION"));
-            let _ = writeln!(file, "操作系统: {}", get_windows_version());
-            let _ = writeln!(file, "系统架构: {}", std::env::consts::ARCH);
-
+            let _ = writeln!(file, "Panic: {} @ {}", message, location);
+            let _ = writeln!(
+                file,
+                "版本: {} git {} 构建 {}",
+                env!("CARGO_PKG_VERSION"),
+                git_sha(),
+                build_time_display()
+            );
+            let _ = writeln!(
+                file,
+                "系统: {} / {} / WebView2 {}",
+                get_windows_version(),
+                std::env::consts::ARCH,
+                get_webview2_version()
+            );
             if let Ok(current_dir) = std::env::current_dir() {
                 let _ = writeln!(file, "工作目录: {:?}", current_dir);
             }
+            let _ = file.flush();
+
+            // 堆栈放在必得信息之后：即使符号化卡死/失败，上面的现场也已落盘。
+            let _ = writeln!(file, "\n堆栈跟踪:");
+            let _ = writeln!(file, "{}", std::backtrace::Backtrace::force_capture());
+            let _ = file.flush();
         }
 
-        error!(
-            "[PANIC] {} ({}:{})",
-            message,
-            location.file(),
-            location.line()
-        );
+        error!("[PANIC] {} ({})", message, location);
     }));
+}
+
+/// panic.log 超过 `MAX_PANIC_LOG_BYTES` 时轮转为 panic.log.1（只保留上一份）。
+fn rotate_panic_log(path: &Path) {
+    let oversized = std::fs::metadata(path)
+        .map(|meta| meta.len() > MAX_PANIC_LOG_BYTES)
+        .unwrap_or(false);
+    if !oversized {
+        return;
+    }
+    let rotated = path.with_extension("log.1");
+    let _ = std::fs::remove_file(&rotated);
+    let _ = std::fs::rename(path, &rotated);
 }
 
 /// 清理旧的日志文件
@@ -455,7 +676,7 @@ pub fn cleanup_old_logs(log_dir: impl AsRef<Path>, retention_days: i64) {
     debug!("开始清理旧日志文件，保留天数: {}", retention_days);
 
     let now: DateTime<Local> = Local::now();
-    let mut cleaned_count = 0;
+    let mut cleaned_count: u32 = 0;
     let mut total_size_cleaned = 0u64;
 
     let entries = match std::fs::read_dir(log_dir) {
@@ -498,6 +719,17 @@ pub fn cleanup_old_logs(log_dir: impl AsRef<Path>, retention_days: i64) {
         }
     }
 
+    // 体积上限：按修改时间从旧到新删除，panic.log 最后删。
+    let (cap_cleaned, cap_freed) = enforce_total_size_cap(log_dir, MAX_TOTAL_LOG_BYTES);
+    if cap_cleaned > 0 {
+        info!(
+            "日志体积超过上限（{} bytes），已删除 {} 个最旧文件，释放 {} bytes",
+            MAX_TOTAL_LOG_BYTES, cap_cleaned, cap_freed
+        );
+    }
+    cleaned_count += cap_cleaned;
+    total_size_cleaned += cap_freed;
+
     if cleaned_count > 0 {
         info!(
             "日志清理完成: 删除了 {} 个文件，释放了 {} bytes 空间",
@@ -508,10 +740,65 @@ pub fn cleanup_old_logs(log_dir: impl AsRef<Path>, retention_days: i64) {
     }
 }
 
+/// 日志目录总量超过 `limit` 时，按修改时间从旧到新删除，
+/// 直到回落到上限内；`panic.log` 排在最后删除（崩溃证据优先保留）。
+///
+/// 返回 `(删除的文件数, 释放的字节数)`；目录不可读时返回 `(0, 0)` 并记录错误。
+fn enforce_total_size_cap(log_dir: &Path, limit: u64) -> (u32, u64) {
+    let mut files: Vec<(PathBuf, u64, SystemTime)> = match std::fs::read_dir(log_dir) {
+        Ok(entries) => entries
+            .flatten()
+            .filter_map(|entry| {
+                let path = entry.path();
+                if !path.is_file() {
+                    return None;
+                }
+                let metadata = std::fs::metadata(&path).ok()?;
+                let modified = metadata.modified().unwrap_or(UNIX_EPOCH);
+                Some((path, metadata.len(), modified))
+            })
+            .collect(),
+        Err(e) => {
+            error!("无法读取日志目录 '{:?}': {}", log_dir, e);
+            return (0, 0);
+        }
+    };
+
+    let mut total: u64 = files.iter().map(|(_, size, _)| *size).sum();
+    if total <= limit {
+        return (0, 0);
+    }
+
+    files.sort_by_key(|(_, _, modified)| *modified);
+    // 稳定排序：保持「旧→新」次序，仅把 panic.log 移到末位最后删除。
+    files.sort_by_key(|(path, _, _)| {
+        path.file_name()
+            .map(|name| name == "panic.log")
+            .unwrap_or(false)
+    });
+
+    let mut cleaned = 0u32;
+    let mut freed = 0u64;
+    for (path, size, _) in files {
+        if total <= limit {
+            break;
+        }
+        if std::fs::remove_file(&path).is_ok() {
+            cleaned += 1;
+            freed += size;
+            total = total.saturating_sub(size);
+        }
+    }
+    (cleaned, freed)
+}
+
 /// 记录应用启动信息
 pub fn log_application_start() {
     info!("=== ZeroLaunch-rs 应用启动 ===");
     info!("应用版本: {}", env!("CARGO_PKG_VERSION"));
+    info!("Git 提交: {}", git_sha());
+    info!("进程 ID: {} 会话: {}", std::process::id(), session_id());
+    info!("WebView2: {}", get_webview2_version());
     info!("操作系统: {}", get_windows_version());
     info!("系统架构: {}", std::env::consts::ARCH);
 
@@ -594,10 +881,11 @@ pub fn update_log_level(new_level: Level) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{write_log_archive, LogArchiveError};
+    use super::{enforce_total_size_cap, write_log_archive, LogArchiveError};
     use std::io::Read;
 
-    /// 导出应把日志目录内全部文件以 `logs/` 前缀写入 zip；空目录导出返回 `Empty`。
+    /// 导出应把日志目录内全部文件以 `logs/` 前缀写入 zip，同级插件日志进 `plugin-logs/`，
+    /// 诊断快照进 `diagnostics.json`；空目录且无诊断时返回 `Empty`。
     #[test]
     fn write_log_archive_packs_all_files() {
         let root = tempfile::tempdir().unwrap();
@@ -605,16 +893,32 @@ mod tests {
         std::fs::create_dir(&log_dir).unwrap();
         std::fs::write(log_dir.join("info.2026-11-06.log"), "hello").unwrap();
         std::fs::write(log_dir.join("panic.log"), "boom").unwrap();
+        let plugin_log_dir = root.path().join("plugin-logs");
+        std::fs::create_dir(&plugin_log_dir).unwrap();
+        std::fs::write(plugin_log_dir.join("demo.plugin.log"), "plugin stderr").unwrap();
         let dest = root.path().join("zerolaunch-log.zip");
 
-        write_log_archive(&log_dir, &dest).unwrap();
+        write_log_archive(
+            &log_dir,
+            &dest,
+            Some(br#"{"sessionId":"abcd1234"}"#.to_vec()),
+        )
+        .unwrap();
 
         let mut archive = zip::ZipArchive::new(std::fs::File::open(&dest).unwrap()).unwrap();
         let mut names: Vec<String> = (0..archive.len())
             .map(|i| archive.by_index(i).unwrap().name().to_string())
             .collect();
         names.sort();
-        assert_eq!(names, vec!["logs/info.2026-11-06.log", "logs/panic.log"]);
+        assert_eq!(
+            names,
+            vec![
+                "diagnostics.json",
+                "logs/info.2026-11-06.log",
+                "logs/panic.log",
+                "plugin-logs/demo.plugin.log",
+            ]
+        );
         let mut content = String::new();
         archive
             .by_name("logs/panic.log")
@@ -623,9 +927,27 @@ mod tests {
             .unwrap();
         assert_eq!(content, "boom");
 
-        let empty_dir = root.path().join("empty");
+        let empty_root = tempfile::tempdir().unwrap();
+        let empty_dir = empty_root.path().join("empty");
         std::fs::create_dir(&empty_dir).unwrap();
-        let err = write_log_archive(&empty_dir, &root.path().join("empty.zip")).unwrap_err();
+        let err =
+            write_log_archive(&empty_dir, &empty_root.path().join("empty.zip"), None).unwrap_err();
         assert!(matches!(err, LogArchiveError::Empty));
+    }
+
+    /// 体积超限时按最旧优先删除，panic.log 保留到最后。
+    #[test]
+    fn size_cap_deletes_oldest_but_keeps_panic_log_last() {
+        let root = tempfile::tempdir().unwrap();
+        let log_dir = root.path();
+        std::fs::write(log_dir.join("info.2026-11-01.log"), [0u8; 100]).unwrap();
+        std::fs::write(log_dir.join("panic.log"), [0u8; 100]).unwrap();
+
+        let (cleaned, freed) = enforce_total_size_cap(log_dir, 150);
+
+        assert_eq!(cleaned, 1);
+        assert_eq!(freed, 100);
+        assert!(!log_dir.join("info.2026-11-01.log").exists());
+        assert!(log_dir.join("panic.log").exists());
     }
 }

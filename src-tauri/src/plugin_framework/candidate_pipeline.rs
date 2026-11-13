@@ -2,6 +2,7 @@ use crate::core::bias_rule::BiasRule;
 use crate::utils::{collapse_repeated_spaces, remove_version_number};
 use std::collections::HashMap;
 use std::sync::Arc;
+use tracing::info;
 use zerolaunch_plugin_api::config::Configurable;
 use zerolaunch_plugin_api::{
     CachedCandidateData, DataSource, KeywordInjector, KeywordInputSource, KeywordOptimizer,
@@ -64,15 +65,13 @@ impl CandidatePipeline {
     pub async fn collect(&self) -> CachedCandidateData {
         let mut raw: Vec<SearchCandidate> = Vec::new();
         for source in &self.data_sources {
-            raw.extend(
-                source
-                    .fetch_candidates()
-                    .await
-                    .get_candidates()
-                    .iter()
-                    .cloned(),
-            );
+            let fetched = source.fetch_candidates().await;
+            let count = fetched.get_candidates().len();
+            // 每个数据源一行：线上排查「某类候选完全搜不到」时，先看它是否采集到。
+            info!(component_id = %source.component_id(), count, "数据源采集完成");
+            raw.extend(fetched.get_candidates().iter().cloned());
         }
+        let raw_count = raw.len();
 
         // 优化器按 priority 升序（一次构建，供全部候选复用）
         let mut sorted: Vec<&dyn KeywordOptimizer> =
@@ -93,6 +92,13 @@ impl CandidatePipeline {
         for c in processed {
             candidates.add_candidate(c);
         }
+        // 汇总一行：raw 与 deduped 的差值反映重复候选规模，是「候选存在但未进缓存」的关键证据。
+        info!(
+            sources = self.data_sources.len(),
+            raw = raw_count,
+            deduped = candidates.get_candidates().len(),
+            "候选缓存构建完成"
+        );
         candidates
     }
 

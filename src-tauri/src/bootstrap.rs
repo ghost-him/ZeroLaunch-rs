@@ -164,19 +164,33 @@ pub(crate) async fn init_app_state(
             .notify_callback(move |title: String, message: String| {
                 crate::utils::notification::notify(&app_handle_for_notify, &title, &message);
             })
-            .hide_window_callback(move || {
-                if let Some(window) = app_handle_for_hide.get_webview_window("main") {
-                    let _ = window.hide();
-                    let _ = window.emit("handle_focus_lost", ());
-                }
-            })
-            .show_window_callback(move || {
-                if let Some(window) = app_handle_for_show.get_webview_window("main") {
-                    let _ = window.show();
-                    let _ = window.set_focus();
-                    let _ = window.emit("show_window", ());
-                }
-            })
+            .hide_window_callback(
+                move || match app_handle_for_hide.get_webview_window("main") {
+                    Some(window) => {
+                        if let Err(e) = window.hide() {
+                            warn!("隐藏搜索栏失败: {e}");
+                        }
+                        let _ = window.emit("handle_focus_lost", ());
+                    }
+                    None => warn!("主窗口不存在，无法隐藏搜索栏"),
+                },
+            )
+            .show_window_callback(
+                move || match app_handle_for_show.get_webview_window("main") {
+                    Some(window) => {
+                        // 热键「没反应」最常见的原因是窗口缺失 / show/focus 被系统拒绝，
+                        // 这里不能再静默吞掉错误。
+                        if let Err(e) = window.show() {
+                            warn!("显示搜索栏失败: {e}");
+                        }
+                        if let Err(e) = window.set_focus() {
+                            warn!("聚焦搜索栏失败: {e}");
+                        }
+                        let _ = window.emit("show_window", ());
+                    }
+                    None => warn!("主窗口不存在，无法显示搜索栏"),
+                },
+            )
             .is_window_visible_callback(move || {
                 app_handle_for_is_visible
                     .get_webview_window("main")

@@ -204,6 +204,8 @@ pub fn run() {
             crate::commands::debug::debug_get_agent_traces,
             // 剪贴板
             crate::commands::clipboard::copy_to_clipboard,
+            // 前端错误上报（release 下 WebView2 控制台不可见）
+            crate::commands::frontend_log::report_frontend_error,
             // Third-party Plugin Management
             crate::commands::plugin::plugin_list,
             crate::commands::plugin::plugin_get_manifest,

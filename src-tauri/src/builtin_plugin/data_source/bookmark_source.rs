@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tracing::{debug, warn};
+use tracing::{info, warn};
 use zerolaunch_plugin_api::config::{
     ComponentCore, ComponentType, ConfigActionDef, ConfigError, Configurable, DataActionBinding,
     DetailActionDef, SettingDefinition,
@@ -436,8 +436,10 @@ impl DataSource for BookmarkSource {
             sources.iter().filter(|src| src.enabled).collect();
 
         if enabled_sources.is_empty() {
+            info!(configured = sources.len(), "书签源均未启用，跳过采集");
             return result;
         }
+        let enabled_count = enabled_sources.len();
 
         // 构建规范化的 URL → Override 映射
         let override_map: HashMap<String, &BookmarkOverride> = overrides
@@ -448,7 +450,7 @@ impl DataSource for BookmarkSource {
         for source in enabled_sources {
             match Self::read_bookmarks_from_path(&source.bookmarks_path) {
                 Ok(bookmark_list) => {
-                    debug!("从 {} 加载了 {} 个书签", source.name, bookmark_list.len());
+                    info!("从 {} 加载了 {} 个书签", source.name, bookmark_list.len());
                     for bookmark in bookmark_list {
                         if bookmark.title.trim().is_empty() || bookmark.url.trim().is_empty() {
                             continue;
@@ -490,6 +492,11 @@ impl DataSource for BookmarkSource {
             }
         }
 
+        info!(
+            enabled_sources = enabled_count,
+            collected = result.get_candidates().len(),
+            "书签采集完成"
+        );
         result
     }
 }

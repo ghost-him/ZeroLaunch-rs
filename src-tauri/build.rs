@@ -1,12 +1,95 @@
 use std::collections::HashSet;
 use std::env;
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 fn main() {
     generate_wiki_pages();
     tauri_build::build();
     embed_common_controls_manifest();
+    embed_build_info();
+}
+
+/// 向 Cargo 输出一条构建脚本指令。
+///
+/// Cargo 只从构建脚本 stdout 读取 `cargo:` 指令，故这里直接写 stdout——
+/// 这是构建协议通道而非运行期日志，tracing 在此不可用。
+fn emit_cargo_directive(directive: &str) {
+    let mut stdout = std::io::stdout();
+    let _ = writeln!(stdout, "cargo:{directive}");
+    let _ = stdout.flush();
+}
+
+/// 注入构建元数据（git 提交、构建时间、编译器版本），供运行期日志与诊断包读取。
+///
+/// 产物通过 `cargo:rustc-env` 变成编译期常量：
+/// - `ZEROLAUNCH_GIT_SHA`：`<短 sha>[-dirty]`，无 git 环境时为 `unknown`；
+/// - `ZEROLAUNCH_BUILD_UNIX`：构建时刻的 unix 秒；
+/// - `ZEROLAUNCH_RUSTC`：`rustc --version` 的完整输出（换行折叠为空格）。
+fn embed_build_info() {
+    let manifest_dir =
+        PathBuf::from(env::var("CARGO_MANIFEST_DIR").expect("缺少 CARGO_MANIFEST_DIR 环境变量"));
+    emit_cargo_directive("rerun-if-changed=build.rs");
+    // 仓库根在 crate 目录上一级；跟踪 HEAD/index 让提交与脏工作区状态触发重编。
+    if let Some(git_dir) = manifest_dir.parent().map(|p| p.join(".git")) {
+        for name in ["HEAD", "index"] {
+            let path = git_dir.join(name);
+            if path.exists() {
+                emit_cargo_directive(&format!("rerun-if-changed={}", path.display()));
+            }
+        }
+    }
+
+    let sha = git_output(&manifest_dir, &["rev-parse", "--short=12", "HEAD"])
+        .map(|sha| {
+            let dirty = git_output(&manifest_dir, &["status", "--porcelain"])
+                .map(|status| !status.is_empty())
+                .unwrap_or(false);
+            if dirty {
+                format!("{sha}-dirty")
+            } else {
+                sha
+            }
+        })
+        .unwrap_or_else(|| "unknown".to_string());
+    emit_cargo_directive(&format!("rustc-env=ZEROLAUNCH_GIT_SHA={sha}"));
+
+    let build_unix = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    emit_cargo_directive(&format!("rustc-env=ZEROLAUNCH_BUILD_UNIX={build_unix}"));
+
+    let rustc = env::var("RUSTC")
+        .ok()
+        .and_then(|rustc| {
+            std::process::Command::new(rustc)
+                .arg("--version")
+                .output()
+                .ok()
+                .filter(|out| out.status.success())
+                .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_string())
+        })
+        .unwrap_or_else(|| "unknown".to_string());
+    emit_cargo_directive(&format!(
+        "rustc-env=ZEROLAUNCH_RUSTC={}",
+        rustc.replace(['\r', '\n'], " ")
+    ));
+}
+
+/// 在仓库目录执行 git 子命令并返回去空白的 stdout；git 缺失或命令失败时返回 `None`。
+fn git_output(manifest_dir: &Path, args: &[&str]) -> Option<String> {
+    let output = std::process::Command::new("git")
+        .args(args)
+        .current_dir(manifest_dir)
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    Some(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
 /// Windows：让测试与集成测试的 exe 带上 COMCTL32 v6 依赖清单。

@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tracing::debug;
+use tracing::{debug, warn};
 use zerolaunch_plugin_api::config::{
     ComponentCore, ComponentType, ConfigError, Configurable, SettingDefinition,
 };
@@ -116,8 +116,13 @@ impl DataSource for UrlSource {
         let mut result = CachedCandidateData::new();
         let s = self.settings.read();
 
-        for entry in &s.web_pages {
+        for (index, entry) in s.web_pages.iter().enumerate() {
             if entry.name.is_empty() || entry.url.is_empty() {
+                warn!(
+                    index,
+                    name = %entry.name,
+                    "UrlSource: 忽略不完整的网页配置（name 或 url 为空）"
+                );
                 continue;
             }
 

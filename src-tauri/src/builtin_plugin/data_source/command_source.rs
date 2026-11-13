@@ -4,7 +4,7 @@ use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::sync::Arc;
-use tracing::debug;
+use tracing::{debug, warn};
 use zerolaunch_plugin_api::config::{
     ComponentCore, ComponentType, ConfigError, Configurable, SettingDefinition,
 };
@@ -158,8 +158,13 @@ impl DataSource for CommandSource {
         let mut result = CachedCandidateData::new();
         let s = self.settings.read();
 
-        for entry in &s.commands {
+        for (index, entry) in s.commands.iter().enumerate() {
             if entry.name.is_empty() || entry.command.is_empty() {
+                warn!(
+                    index,
+                    name = %entry.name,
+                    "CommandSource: 忽略不完整的命令配置（name 或 command 为空）"
+                );
                 continue;
             }
 

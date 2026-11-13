@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
-use tracing::{debug, warn};
+use tracing::{debug, info, warn};
 use walkdir::WalkDir;
 use zerolaunch_plugin_api::config::{
     ComponentCore, ComponentType, ConfigError, Configurable, PrimitiveType, SettingDefinition,
@@ -489,10 +489,10 @@ impl DataSource for ProgramSource {
                 &directory.forbidden_paths,
             );
 
-            debug!(
-                "成功扫描目录: {}, 找到 {} 个程序",
-                directory.root_path,
-                paths.len()
+            info!(
+                root_path = %directory.root_path,
+                found = paths.len(),
+                "程序目录扫描完成"
             );
 
             let mut grouped_paths: HashMap<std::path::PathBuf, Vec<std::path::PathBuf>> =

@@ -1,6 +1,6 @@
 # ZeroLaunch-rs → GPUI Kit 迁移计划
 
-> 状态：阶段 4.5 完成，阶段 5 待开始
+> 状态：阶段 5 完成，阶段 6 待开始
 > 基线版本：1.5.5
 > 适用分支：迁移分支（`main` 保持 Tauri 可发布，见「迁移与发布策略」）
 
@@ -302,3 +302,33 @@
   - effect 结果与字体“跟随系统”清除后同步已缓存的输入/下拉状态。
   - 快捷键录制在输入框聚焦、保存、丢弃、重置和页面切换时取消；补齐 Shift 符号键映射。
 - 下一阶段前置条件：插件 manifest `[ui]` 与 gpui-shell 脚本宿主接入，替代当前插件面板/设置页容器。
+
+### 阶段 5 验收记录（2026-11-10）
+
+- 提交范围：
+  - 新增 `app/src/shell.rs`：隔离 `ShellRuntime`、`zerolaunch` HostModule（会话/查询/确认动作/隐藏/设置读写/配置动作执行/翻译/受限资源读取）、脚本入口解析与路径边界校验。
+  - `app/src/search/`：第三方面板加载 gpui-shell 视图，面板数据变化时 `ScriptView::refresh`，脚本动作回投 `SearchView`，卸载时释放视图。
+  - `app/src/settings/`：插件管理页增加设置入口；有 `[ui].settingsEntry` 时打开脚本设置页，无 UI 时回退到组件 schema 表单；市场安装改为下载预检、确认覆盖后再安装。
+  - `app/build.rs`：主线程栈提升到 16 MB，避免 QuickJS 运行时构造在 Windows 默认 1 MB 栈上溢出。
+  - `crates/plugin-protocol`、`.omp` 规则与 `AGENTS.md`：`[ui]` 语义改为 gpui-shell 脚本；删除 `zlplugin://` 协议及 WebView 第三方面板宿主。
+- 通过项：
+  - `cargo check --workspace` 零错误；`cargo clippy -p zerolaunch-gpui --all-targets` 零警告；`cargo build -p zerolaunch-gpui` 成功；`CARGO_PROFILE_TEST_DEBUG=0 cargo test --workspace` 通过（大体积测试 PDB 会触发链接器 PDB/磁盘限制）。
+  - 真机：临时示例插件（Node 后端 + gpui-shell 面板）被宿主加载，输入 `demo` 选中候选后，面板由脚本渲染并读取到 `session().pluginId`、面板 data 与查询文本。
+  - 真机：面板脚本按钮可回调 HostModule 的 `hide`。
+  - 真机：设置窗可打开插件管理页，第三方插件条目出现“设置”入口。
+- 未验证 / 差异项：
+  - 脚本设置页的导航点击未完成端到端验证；设置页脚本加载与渲染复用同一 `PluginUiHost::load_view` 路径。
+  - 市场预检/覆盖确认已接线，未在真机完成一次真实 GitHub 安装。
+  - 示例插件后端只实现最小 RPC，`validate_settings` 返回空数组，导致示例插件配置组件注册失败；该问题属于测试桩，不影响面板脚本验证。
+  - `zlplugin://` 与 WebView 第三方面板删除后，旧 Tauri 前端的第三方插件 UI 不再可用，等待阶段 7 删除 `src-ui/`。
+- 子 agent 审查发现并修正：
+  - 市场包解析失败时清理暂存文件，避免坏包永久命中缓存；开始新预检前清理旧暂存包。
+  - HostModule 增加 `settingsAction`，并让设置快照携带 `configActions`。
+  - 市场预检失败提示改用 `previewFailed` 并保留错误原因；空 `settingsEntry` 回退到 schema 表单。
+  - 从插件脚本设置页跳转到组件时释放脚本视图并清除设置桥授权。
+  - 面板脚本加载失败/插件卸载文案接入三语言 i18n。
+- 临时绕过（必须在阶段 7 前删除）：`app/` 暂依赖 `zerolaunch-rs` 库（其中仍含 Tauri 外壳）。
+- 规则同步：
+  - `third-party-plugin`：`manager.rs` 更正为 `plugin_manager.rs`，`zlplugin://` 段替换为 gpui-shell HostModule 契约。
+  - `plugin-system`、`sdk-init-tkey-timing`、`deep-selector`、`AGENTS.md`：清理失效路径与 Shadow DOM/zlplugin 描述。
+- 下一阶段前置条件：阶段 6 接托盘、深链接、更新、AI 助手、i18n、日志导出与关于页。

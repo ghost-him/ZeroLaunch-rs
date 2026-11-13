@@ -425,7 +425,7 @@ impl SearchView {
                     .flex_1()
                     .min_h_0()
                     .overflow_y_scroll()
-                    .child(self.render_panel_data(panel)),
+                    .child(self.render_panel_data(panel, cx)),
             )
             .when(!panel.actions.is_empty(), |this| {
                 this.child(
@@ -450,7 +450,37 @@ impl SearchView {
     }
 
     /// 插件面板正文。
-    fn render_panel_data(&self, panel: &super::model::PanelState) -> AnyElement {
+    fn render_panel_data(
+        &self,
+        panel: &super::model::PanelState,
+        cx: &mut gpui_kit::Context<Self>,
+    ) -> AnyElement {
+        if let Some(view) = &self.plugin_view {
+            if panel.plugin_id.as_deref() == Some(view.plugin_id.as_str()) {
+                return div()
+                    .size_full()
+                    .child(view.view.clone())
+                    .into_any_element();
+            }
+        }
+        if panel.panel_type.starts_with("third-party:") {
+            if let Some(error) = &self.plugin_view_error {
+                return v_flex()
+                    .gap_2()
+                    .child(
+                        div()
+                            .text_size(px(13.0))
+                            .child(super::view::tr(&self.state, "search.pluginPanelLoadFailed")),
+                    )
+                    .child(
+                        div()
+                            .text_size(px(12.0))
+                            .text_color(cx.theme().danger)
+                            .child(error.clone()),
+                    )
+                    .into_any_element();
+            }
+        }
         if panel.panel_type == "calculator" {
             let expression = panel
                 .data

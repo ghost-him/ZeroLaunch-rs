@@ -7,7 +7,9 @@ mod host;
 mod platform;
 mod search;
 mod settings;
+mod shell;
 
+use std::rc::Rc;
 use std::sync::Arc;
 
 use gpui_kit::{
@@ -31,6 +33,7 @@ use zerolaunch_rs_lib::state::app_state::AppState;
 use crate::host::{GpuiHost, HostCommand};
 use crate::search::SearchView;
 use crate::settings::SettingsView;
+use crate::shell::PluginUiHost;
 
 const APP_ID: &str = "com.zerolaunch-rs.app";
 
@@ -65,8 +68,21 @@ fn main() {
             }
 
             init_kernel(&state, path_resolver);
-            open_search_window(cx, state.clone(), host.clone(), command_rx);
-            open_settings_window(cx, state, host);
+            let plugin_ui = match PluginUiHost::new(state.clone(), host.clone(), cx) {
+                Ok(host) => Some(Rc::new(host)),
+                Err(error) => {
+                    tracing::error!("初始化插件脚本宿主失败: {error}");
+                    None
+                }
+            };
+            open_search_window(
+                cx,
+                state.clone(),
+                host.clone(),
+                command_rx,
+                plugin_ui.clone(),
+            );
+            open_settings_window(cx, state, host, plugin_ui);
         });
 }
 
@@ -118,6 +134,7 @@ fn open_search_window(
     state: Arc<AppState>,
     host: Arc<GpuiHost>,
     commands: tokio::sync::mpsc::UnboundedReceiver<HostCommand>,
+    plugin_ui: Option<Rc<PluginUiHost>>,
 ) {
     let config = state.get_config_manager();
     let width = metric(&config, "appearance-config", "window_width", 800.0) as f32;
@@ -146,8 +163,18 @@ fn open_search_window(
 
     let state_for_view = state.clone();
     let host_for_view = host.clone();
+    let plugin_ui_for_view = plugin_ui.clone();
     let opened = gpui_kit::open_window(options, cx, move |window, cx| {
-        cx.new(|cx| SearchView::new(state_for_view, host_for_view, commands, window, cx))
+        cx.new(|cx| {
+            SearchView::new(
+                state_for_view,
+                host_for_view,
+                commands,
+                plugin_ui_for_view,
+                window,
+                cx,
+            )
+        })
     });
 
     let Ok((handle, _view)) = opened else {
@@ -168,7 +195,12 @@ fn open_search_window(
 /// 打开设置窗口并绑定宿主句柄。
 /// 参数：cx - GPUI App；state - 已初始化内核；host - 宿主实现。
 /// 返回：无；窗口初始隐藏，由 Host 或搜索窗快捷键唤出。
-fn open_settings_window(cx: &mut App, state: Arc<AppState>, host: Arc<GpuiHost>) {
+fn open_settings_window(
+    cx: &mut App,
+    state: Arc<AppState>,
+    host: Arc<GpuiHost>,
+    plugin_ui: Option<Rc<PluginUiHost>>,
+) {
     let i18n = state.get_i18n_manager();
     let settings_title = i18n.t(&i18n.current_language(), "settings.title");
     host.set_settings_window_title(&settings_title);
@@ -217,9 +249,18 @@ fn open_settings_window(cx: &mut App, state: Arc<AppState>, host: Arc<GpuiHost>)
 
     let state_for_view = state;
     let host_for_view = host.clone();
+    let plugin_ui_for_view = plugin_ui;
     host.set_settings_bounds((window_x, window_y, physical_width, physical_height));
     let opened = gpui_kit::open_window(options, cx, move |window, cx| {
-        cx.new(|cx| SettingsView::new(state_for_view, host_for_view, window, cx))
+        cx.new(|cx| {
+            SettingsView::new(
+                state_for_view,
+                host_for_view,
+                plugin_ui_for_view,
+                window,
+                cx,
+            )
+        })
     });
 
     let Ok((handle, _view)) = opened else {

@@ -57,34 +57,6 @@ pub fn run() {
     builder
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_dialog::init())
-        .register_uri_scheme_protocol("zlplugin", move |app, request| {
-            let uri = request.uri().to_string();
-            let state = app.app_handle().state::<Arc<AppState>>();
-            let pm = state.get_plugin_manager();
-            match pm.handle_zlplugin_uri(&uri) {
-                Ok((bytes, mime)) => {
-                    let mut response = http::Response::new(bytes);
-                    response.headers_mut().insert(
-                        http::header::CONTENT_TYPE,
-                        http::HeaderValue::from_str(&mime).unwrap(),
-                    );
-                    // 插件资源经页面动态 import/fetch 加载（与页面不同源），放行 CORS；
-                    // 执行面由 CSP script-src 的 zlplugin: 白名单约束。
-                    response.headers_mut().insert(
-                        http::header::ACCESS_CONTROL_ALLOW_ORIGIN,
-                        http::HeaderValue::from_static("*"),
-                    );
-                    response
-                }
-                Err(e) => {
-                    let msg = format!("zlplugin error: {}", e);
-                    http::Response::builder()
-                        .status(http::StatusCode::FORBIDDEN)
-                        .body(msg.into_bytes())
-                        .unwrap()
-                }
-            }
-        })
         .manage(Arc::new(AppState::new()))
         .setup(move |app| {
             // 单实例校验：后续实例通知首个实例后直接退出，避免重复初始化。

@@ -25,7 +25,7 @@ runtime.rs          → 进程级 Tokio runtime（Tauri/CLI/GPUI 共用）
 sdk.rs              → 平台抽象层 re-export 桥（单文件）
 core/               → 核心层（ConfigManager, Configurable trait, types, AI 助手 agent, Host 端口）
 builtin_plugin/     → 内置插件实现
-plugin_framework/   → 插件框架（SessionDispatcher, Registry, PluginManager, zlplugin:// 协议）
+plugin_framework/   → 插件框架（SessionDispatcher, Registry, PluginManager, gpui-shell 插件 UI）
 plugin_market/      → 插件市场（GitHub topic 仓库发现 / release 解析 / 插件包下载）
 cli_server/         → 本地 HTTP API 服务器（axum）
 commands/           → Tauri IPC 命令（bridge, config, plugin, plugin_market, resource, inspector, cli, help, clipboard, i18n, debug）
@@ -53,7 +53,8 @@ logging.rs          → 日志初始化
 | Plugin Inspector    | `src-tauri/src/plugin_framework/inspector.rs`（始终编译，无 cargo feature） |
 | 插件市场            | `src-tauri/src/plugin_market/mod.rs` + `src-tauri/src/commands/plugin_market.rs` |
 | PluginHostManager   | `crates/plugin-host/src/manager.rs`                                |
-| 第三方插件加载器    | `src-tauri/src/plugin_framework/manager.rs`                       |
+| 第三方插件加载器    | `src-tauri/src/plugin_framework/plugin_manager.rs`                |
+| 插件 UI 脚本宿主    | `app/src/shell.rs`（gpui-shell + `zerolaunch` HostModule）         |
 | CLI HTTP 服务器     | `src-tauri/src/cli_server/server.rs`                               |
 | 前端类型契约        | `src-ui/bridge/contract.ts`                                    |
 | 前端命令封装        | `src-ui/bridge/commands.ts`                                    |
@@ -212,18 +213,17 @@ plugin_framework/
 ├── candidate_pipeline.rs ← 候选项采集管道
 ├── search_pipeline.rs    ← 搜索排序管道
 ├── executor_registry.rs  ← 执行器注册表
-├── manager.rs            ← 第三方插件生命周期管理（单入口）
+├── plugin_manager.rs     ← 第三方插件生命周期管理（单入口）
 ├── host_handler.rs       ← 子进程 Host 管理
-├── plugin_installer.rs   ← 插件安装/卸载逻辑（从 manager.rs 提取）
-├── plugin_info.rs        ← 插件信息类型
-├── zlplugin_protocol.rs  ← zlplugin:// 自定义协议处理（从 manager.rs 提取）
+├── plugin_installer.rs   ← 插件安装/卸载逻辑（从 plugin_manager.rs 提取）
+├── plugin_info.rs        ← 插件安装错误类型
 ├── registry.rs           ← PluginRegistry（插件注册；init 发放归 bootstrap）
 └── mod.rs                ← 模块入口（含 re-export，类型定义在各自模块内，已消除冗余 types.rs shim）
 ```
 
 - **SessionDispatcher** 是运行时的中枢。所有 bridge 命令通过它路由
 - **builtin_registry** 通过 `inventory` 在编译期收集所有内置组件，启动时统一注册
-- **manager.rs** 是第三方插件生命周期的唯一入口，通过 `PluginRuntimeEvent` 广播通道与 ConfigManager/SessionDispatcher 事件驱动解耦
+- **plugin_manager.rs** 是第三方插件生命周期的唯一入口，通过 `PluginRuntimeEvent` 广播通道与 ConfigManager/SessionDispatcher 事件驱动解耦
 - **禁止** 在此层定义配置 schema 或持久化逻辑（那属于 core/）
 
 #### `cli_server/` — 本地 HTTP API 服务器

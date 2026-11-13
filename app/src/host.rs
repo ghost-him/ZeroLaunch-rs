@@ -59,6 +59,13 @@ pub enum HostEvent {
     },
     /// 系统主题变化。
     SystemThemeChanged(String),
+    /// 插件脚本请求执行面板动作。
+    PluginAction {
+        /// 插件 id。
+        plugin_id: String,
+        /// 动作 id。
+        action_id: String,
+    },
     /// 检查器状态变化。
     InspectorStateUpdated,
 }
@@ -156,6 +163,16 @@ impl GpuiHost {
             .settings_hwnd
             .lock()
             .expect("settings hwnd lock poisoned")
+    }
+
+    /// 发布插件面板动作请求。
+    /// 参数：plugin_id - 插件 id；action_id - 动作 id。
+    /// 返回：无。
+    pub fn plugin_action(&self, plugin_id: &str, action_id: &str) {
+        self.publish(HostEvent::PluginAction {
+            plugin_id: plugin_id.to_string(),
+            action_id: action_id.to_string(),
+        });
     }
 
     fn publish(&self, event: HostEvent) {

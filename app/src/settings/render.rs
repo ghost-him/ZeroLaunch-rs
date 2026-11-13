@@ -214,6 +214,7 @@ impl SettingsView {
             .child(match self.page() {
                 Page::Component => self.render_component_page(window, cx),
                 Page::Plugins => self.render_plugins(cx),
+                Page::PluginSettings => self.render_plugin_settings(cx),
                 Page::Market => self.render_market(cx),
                 Page::About => self.render_about(cx),
                 Page::Debug => self.render_debug(cx),
@@ -1391,6 +1392,21 @@ impl SettingsView {
                             .child(div().flex_1())
                             .when(is_third_party, |this| {
                                 this.child(
+                                    Button::new(format!("plugin-settings-{id}"))
+                                        .label(self.tr("settings.thirdPartyPlugins.settings"))
+                                        .small()
+                                        .on_click(cx.listener({
+                                            let plugin = plugin.clone();
+                                            move |this, _, window, cx| {
+                                                this.open_plugin_settings(
+                                                    plugin.clone(),
+                                                    window,
+                                                    cx,
+                                                )
+                                            }
+                                        })),
+                                )
+                                .child(
                                     Button::new(format!("plugin-logs-{id}"))
                                         .label(self.tr("settings.thirdPartyPlugins.logs"))
                                         .small()
@@ -1432,6 +1448,68 @@ impl SettingsView {
         page.into_any_element()
     }
 
+    /// 第三方插件脚本设置页。
+    fn render_plugin_settings(&self, cx: &mut Context<Self>) -> AnyElement {
+        let Some(state) = self.plugin_settings() else {
+            return div()
+                .p_4()
+                .text_size(px(12.0))
+                .child(self.tr("settings.thirdPartyPlugins.noSettings"))
+                .into_any_element();
+        };
+        let mut header = h_flex()
+            .gap_2()
+            .items_center()
+            .child(
+                Button::new("plugin-settings-back")
+                    .label(self.tr("settings.cancel"))
+                    .small()
+                    .on_click(cx.listener(|this, _, _, cx| this.close_plugin_settings(cx))),
+            )
+            .child(
+                div()
+                    .text_size(px(20.0))
+                    .font_weight(gpui_kit::FontWeight::SEMIBOLD)
+                    .child(state.name.clone()),
+            )
+            .child(
+                div()
+                    .text_size(px(11.0))
+                    .text_color(cx.theme().muted_foreground)
+                    .child(state.plugin_id.clone()),
+            );
+        if let Some(view) = &state.view {
+            return v_flex()
+                .size_full()
+                .p_4()
+                .gap_3()
+                .child(header)
+                .child(
+                    div()
+                        .flex_1()
+                        .min_h_0()
+                        .overflow_y_scrollbar()
+                        .child(view.view.clone()),
+                )
+                .into_any_element();
+        }
+        header =
+            header.child(
+                div()
+                    .text_size(px(12.0))
+                    .text_color(cx.theme().danger)
+                    .child(state.error.clone().unwrap_or_else(|| {
+                        self.tr("settings.thirdPartyPlugins.settingsLoadFailed")
+                    })),
+            );
+        v_flex()
+            .size_full()
+            .p_4()
+            .gap_3()
+            .child(header)
+            .into_any_element()
+    }
+
     /// 插件市场页。
     fn render_market(&self, cx: &mut Context<Self>) -> AnyElement {
         let mut page = v_flex().p_4().gap_3().child(
@@ -1452,6 +1530,82 @@ impl SettingsView {
                         .on_click(cx.listener(|this, _, window, cx| this.load_market(window, cx))),
                 ),
         );
+        if let Some(preview) = self.market_preview() {
+            let installed = preview.installed_version.as_deref();
+            let content = match installed {
+                Some(version) => self
+                    .tr("settings.pluginMarket.overwriteConfirmContent")
+                    .replace("{name}", &preview.name)
+                    .replace("{version}", version),
+                None => self.tr("settings.pluginMarket.installRiskContent"),
+            };
+            let confirm_label = if preview.overwrite {
+                self.tr("settings.pluginMarket.overwriteConfirmPositive")
+            } else {
+                self.tr("settings.pluginMarket.installConfirmPositive")
+            };
+            page =
+                page.child(
+                    v_flex()
+                        .gap_2()
+                        .p_3()
+                        .rounded(px(6.0))
+                        .border_1()
+                        .border_color(cx.theme().warning)
+                        .child(
+                            div()
+                                .text_size(px(13.0))
+                                .font_weight(gpui_kit::FontWeight::SEMIBOLD)
+                                .child(self.tr("settings.pluginMarket.installRiskTitle")),
+                        )
+                        .child(div().text_size(px(12.0)).child(content))
+                        .child(
+                            div()
+                                .text_size(px(12.0))
+                                .text_color(cx.theme().muted_foreground)
+                                .child(format!(
+                                    "{} · {} v{} · {}",
+                                    preview.repo.full_name,
+                                    preview.plugin_id,
+                                    preview.version,
+                                    match installed {
+                                        Some(version) => self
+                                            .tr("settings.pluginMarket.installedVersion")
+                                            .replace("{version}", version),
+                                        None => self.tr("settings.pluginMarket.install"),
+                                    }
+                                )),
+                        )
+                        .child(
+                            h_flex()
+                                .gap_2()
+                                .child(
+                                    Button::new("market-preview-confirm")
+                                        .label(confirm_label)
+                                        .small()
+                                        .on_click(cx.listener(|this, _, window, cx| {
+                                            this.confirm_market_install(window, cx)
+                                        })),
+                                )
+                                .child(
+                                    Button::new("market-preview-cancel")
+                                        .label(self.tr("settings.cancel"))
+                                        .small()
+                                        .on_click(cx.listener(|this, _, _, cx| {
+                                            this.cancel_market_preview(cx)
+                                        })),
+                                ),
+                        ),
+                );
+        }
+        if self.market_preview_loading() {
+            page = page.child(
+                div()
+                    .text_size(px(12.0))
+                    .text_color(cx.theme().muted_foreground)
+                    .child(self.tr("settings.loading")),
+            );
+        }
         if self.market_loading() {
             page = page.child(
                 div()
@@ -1509,7 +1663,7 @@ impl SettingsView {
                                     .label(self.tr("settings.pluginMarket.install"))
                                     .small()
                                     .on_click(cx.listener(move |this, _, window, cx| {
-                                        this.install_market(
+                                        this.preview_market(
                                             repo_for_install.clone(),
                                             false,
                                             window,
@@ -1522,7 +1676,7 @@ impl SettingsView {
                                     .label(self.tr("settings.pluginMarket.update"))
                                     .small()
                                     .on_click(cx.listener(move |this, _, window, cx| {
-                                        this.install_market(
+                                        this.preview_market(
                                             repo_for_overwrite.clone(),
                                             true,
                                             window,

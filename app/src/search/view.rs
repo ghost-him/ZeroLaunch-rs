@@ -1,6 +1,7 @@
 //! 搜索视图的保留状态与异步流程。
 
 use std::future::Future;
+use std::rc::Rc;
 use std::sync::Arc;
 
 use gpui_kit::component::input::{InputEvent, InputState};
@@ -28,6 +29,7 @@ use zerolaunch_rs_lib::state::app_state::AppState;
 use zerolaunch_rs_lib::utils::trace_id::generate_trace_id;
 
 use crate::host::{GpuiHost, HostCommand, HostEvent};
+use crate::shell::{session_snapshot, PluginUiHost, PluginView, Surface};
 
 use super::model::{
     available_exclude_kinds, decode_icon, parse_inline_args, ActionInfo, ExcludeState, InlineState,
@@ -122,6 +124,12 @@ pub struct SearchView {
     pub(super) params: Option<ParamState>,
     /// 插件面板状态。
     pub(super) panel: Option<PanelState>,
+    /// 第三方插件脚本视图。
+    pub(super) plugin_view: Option<PluginView>,
+    /// 插件脚本加载错误。
+    pub(super) plugin_view_error: Option<String>,
+    /// 插件脚本宿主。
+    plugin_ui: Option<Rc<PluginUiHost>>,
     /// 隐藏方式选择面板状态。
     pub(super) exclude: Option<ExcludeState>,
     /// 最近会话代际。
@@ -168,6 +176,7 @@ impl SearchView {
         state: Arc<AppState>,
         host: Arc<GpuiHost>,
         commands: mpsc::UnboundedReceiver<HostCommand>,
+        plugin_ui: Option<Rc<PluginUiHost>>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
@@ -245,6 +254,9 @@ impl SearchView {
             inline: None,
             params: None,
             panel: None,
+            plugin_view: None,
+            plugin_view_error: None,
+            plugin_ui,
             exclude: None,
             generation: 0,
             candidate_generation: 0,
@@ -367,6 +379,7 @@ impl SearchView {
                 self.exclude = None;
                 self.selected = 0;
                 self.selected_action = 0;
+                self.sync_plugin_view(window, cx);
                 if self.mode == Mode::InlineParam {
                     self.query.clear();
                     self.set_input_text("", window, cx);
@@ -1119,12 +1132,91 @@ impl SearchView {
         self.inline = None;
         self.params = None;
         self.panel = None;
+        self.plugin_view = None;
+        self.plugin_view_error = None;
+        if let Some(plugin_ui) = &self.plugin_ui {
+            plugin_ui.bridge().set_session(None, None);
+        }
         self.exclude = None;
         self.confirm_in_flight = false;
         self.status = None;
         self.set_input_text("", window, cx);
         self.resize(window);
         cx.notify();
+    }
+
+    /// 按当前插件面板同步脚本视图与脚本可见会话。
+    /// 参数：window/cx - GPUI 上下文。
+    /// 返回：无；非第三方面板清空脚本视图。
+    fn sync_plugin_view(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(plugin_ui) = self.plugin_ui.clone() else {
+            return;
+        };
+        let Some(panel) = self.panel.as_ref() else {
+            self.plugin_view = None;
+            self.plugin_view_error = None;
+            plugin_ui.bridge().set_session(None, None);
+            return;
+        };
+        let Some(plugin_id) = panel.plugin_id.clone() else {
+            self.plugin_view = None;
+            self.plugin_view_error = None;
+            plugin_ui.bridge().set_session(None, None);
+            return;
+        };
+        if !panel.panel_type.starts_with("third-party:") {
+            self.plugin_view = None;
+            self.plugin_view_error = None;
+            plugin_ui.bridge().set_session(None, None);
+            return;
+        }
+        let mode = match self.mode {
+            Mode::PluginImmersive => "plugin_immersive",
+            _ => "plugin_panel",
+        };
+        let actions: Vec<serde_json::Value> = panel
+            .actions
+            .iter()
+            .map(|action| {
+                serde_json::json!({
+                    "id": action.id,
+                    "label": action.label,
+                    "isDefault": action.is_default,
+                    "shortcutKey": action.shortcut_key,
+                })
+            })
+            .collect();
+        let panel_json = serde_json::json!({
+            "panelType": panel.panel_type,
+            "data": panel.data,
+            "actions": actions,
+        });
+        plugin_ui.bridge().set_session(
+            Some(&plugin_id),
+            Some(session_snapshot(&plugin_id, mode, &self.query, &panel_json)),
+        );
+        if self
+            .plugin_view
+            .as_ref()
+            .is_some_and(|view| view.plugin_id == plugin_id)
+        {
+            if let Some(view) = &self.plugin_view {
+                view.refresh(cx);
+            }
+            return;
+        }
+        match plugin_ui.load_view(&plugin_id, Surface::Panel, window, cx) {
+            Ok(view) => {
+                self.plugin_view = Some(PluginView { plugin_id, view });
+                self.plugin_view_error = None;
+                cx.notify();
+            }
+            Err(error) => {
+                self.plugin_view = None;
+                self.plugin_view_error = Some(error);
+                cx.notify();
+            }
+        }
     }
 
     /// 处理宿主事件。
@@ -1220,6 +1312,7 @@ impl SearchView {
                         self.set_input_text("", window, cx);
                         self.selected = 0;
                         self.selected_action = 0;
+                        self.sync_plugin_view(window, cx);
                         self.resize(window);
                         cx.notify();
                     }
@@ -1234,6 +1327,28 @@ impl SearchView {
             }
             HostEvent::PluginUninstalled { plugin_id } => {
                 tracing::debug!("插件已卸载: {plugin_id}");
+                if self
+                    .plugin_view
+                    .as_ref()
+                    .is_some_and(|view| view.plugin_id == plugin_id)
+                {
+                    self.plugin_view = None;
+                    self.plugin_view_error = Some(tr(&self.state, "search.pluginUninstalled"));
+                    cx.notify();
+                }
+            }
+            HostEvent::PluginAction {
+                plugin_id,
+                action_id,
+            } => {
+                if self
+                    .panel
+                    .as_ref()
+                    .and_then(|panel| panel.plugin_id.as_deref())
+                    == Some(plugin_id.as_str())
+                {
+                    self.confirm_panel_action(action_id, window, cx);
+                }
             }
             HostEvent::SystemThemeChanged(theme) => {
                 tracing::debug!("系统主题变化: {theme}");

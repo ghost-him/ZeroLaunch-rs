@@ -3,6 +3,8 @@
 use std::path::PathBuf;
 
 fn main() {
+    // QuickJS 在深调用链上需要比 Windows 默认 1MB 更大的主线程栈。
+    println!("cargo:rustc-link-arg=/STACK:16777216");
     let manifest = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").expect("manifest dir"));
     let source_dir = manifest.join("../src-ui/i18n/locales");
     let out_dir = PathBuf::from(std::env::var("OUT_DIR").expect("OUT_DIR"));

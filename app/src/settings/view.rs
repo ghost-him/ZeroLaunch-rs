@@ -2,6 +2,7 @@
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -31,6 +32,7 @@ use zerolaunch_rs_lib::state::app_state::AppState;
 use crate::host::{GpuiHost, HostEvent};
 use crate::search::decode_icon;
 use crate::settings::schema::{self, FieldPath, Segment};
+use crate::shell::{PluginUiHost, PluginView, Surface};
 
 /// 当前设置页。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -45,6 +47,41 @@ pub(super) enum Page {
     About,
     /// 调试检查器。
     Debug,
+    /// 第三方插件脚本设置页。
+    PluginSettings,
+}
+
+/// 第三方插件脚本设置页状态。
+pub(super) struct PluginSettingsState {
+    /// 插件 id。
+    pub(super) plugin_id: String,
+    /// 插件显示名。
+    pub(super) name: String,
+    /// 脚本视图；加载失败时为 None。
+    pub(super) view: Option<PluginView>,
+    /// 加载错误。
+    pub(super) error: Option<String>,
+}
+
+/// 市场安装预检结果。
+#[derive(Clone)]
+pub(super) struct MarketInstallPreview {
+    /// 仓库。
+    pub(super) repo: MarketRepo,
+    /// 已缓存到本地的安装包。
+    pub(super) package: PathBuf,
+    /// 缓存文件名。
+    pub(super) asset_name: String,
+    /// 插件 id。
+    pub(super) plugin_id: String,
+    /// 插件显示名。
+    pub(super) name: String,
+    /// 新版本。
+    pub(super) version: String,
+    /// 已安装版本。
+    pub(super) installed_version: Option<String>,
+    /// 是否覆盖安装。
+    pub(super) overwrite: bool,
 }
 
 /// 侧栏分类。
@@ -194,8 +231,16 @@ pub struct SettingsView {
     market_loading: bool,
     /// 市场错误。
     market_error: Option<String>,
+    /// 市场安装预检中。
+    market_preview_loading: bool,
+    /// 市场安装预检结果。
+    market_preview: Option<MarketInstallPreview>,
     /// 检查器快照。
     inspector: Option<InspectorState>,
+    /// 第三方插件脚本设置页。
+    plugin_settings: Option<PluginSettingsState>,
+    /// 插件脚本宿主。
+    plugin_ui: Option<Rc<PluginUiHost>>,
 }
 
 impl SettingsView {
@@ -205,6 +250,7 @@ impl SettingsView {
     pub fn new(
         state: Arc<AppState>,
         host: Arc<GpuiHost>,
+        plugin_ui: Option<Rc<PluginUiHost>>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
@@ -272,7 +318,11 @@ impl SettingsView {
             market_repos: Vec::new(),
             market_loading: false,
             market_error: None,
+            market_preview_loading: false,
+            market_preview: None,
             inspector: None,
+            plugin_settings: None,
+            plugin_ui,
         };
 
         let search_subscription = cx.subscribe_in(
@@ -408,6 +458,84 @@ impl SettingsView {
         self.plugin_logs.as_ref()
     }
 
+    /// 第三方插件脚本设置页。
+    pub(super) fn plugin_settings(&self) -> Option<&PluginSettingsState> {
+        self.plugin_settings.as_ref()
+    }
+
+    /// 打开第三方插件设置页；无脚本入口时回退到组件 schema 设置。
+    /// 参数：plugin - 插件条目；window/cx - GPUI 上下文。
+    /// 返回：无。
+    pub(super) fn open_plugin_settings(
+        &mut self,
+        plugin: PluginInfo,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let plugin_id = plugin.plugin_id.clone();
+        let has_entry = self
+            .state
+            .get_plugin_manager()
+            .get_manifest(&plugin_id)
+            .and_then(|manifest| manifest.ui)
+            .and_then(|ui| ui.settings_entry)
+            .filter(|entry| !entry.trim().is_empty())
+            .is_some();
+        if !has_entry {
+            if let Some(component_id) = plugin.component_ids.first().cloned() {
+                self.select_component(&component_id, None, window, cx);
+                self.status = Some(format!(
+                    "{}: {}",
+                    self.tr("settings.thirdPartyPlugins.schemaFallback"),
+                    plugin.name
+                ));
+            } else {
+                self.status = Some(self.tr("settings.thirdPartyPlugins.noSettings"));
+            }
+            return;
+        }
+        let Some(plugin_ui) = self.plugin_ui.clone() else {
+            self.status = Some(self.tr("settings.thirdPartyPlugins.shellUnavailable"));
+            return;
+        };
+        plugin_ui.bridge().set_settings_plugin(Some(&plugin_id));
+        let mut error = None;
+        let selected = match plugin_ui.load_view(&plugin_id, Surface::Settings, window, cx) {
+            Ok(view) => Some(PluginView {
+                plugin_id: plugin_id.clone(),
+                view,
+            }),
+            Err(load_error) => {
+                let message = format!(
+                    "{}: {load_error}",
+                    self.tr("settings.thirdPartyPlugins.settingsLoadFailed")
+                );
+                self.status = Some(message.clone());
+                error = Some(message);
+                None
+            }
+        };
+        self.plugin_settings = Some(PluginSettingsState {
+            plugin_id,
+            name: plugin.name,
+            view: selected,
+            error,
+        });
+        self.category = Category::Plugins;
+        self.page = Page::PluginSettings;
+        cx.notify();
+    }
+
+    /// 关闭插件脚本设置页。
+    pub(super) fn close_plugin_settings(&mut self, cx: &mut Context<Self>) {
+        self.plugin_settings = None;
+        if let Some(plugin_ui) = &self.plugin_ui {
+            plugin_ui.bridge().set_settings_plugin(None);
+        }
+        self.page = Page::Plugins;
+        cx.notify();
+    }
+
     /// 待确认卸载插件 id。
     pub(super) fn pending_uninstall(&self) -> Option<&str> {
         self.pending_uninstall.as_deref()
@@ -426,6 +554,16 @@ impl SettingsView {
     /// 市场错误。
     pub(super) fn market_error(&self) -> Option<&str> {
         self.market_error.as_deref()
+    }
+
+    /// 市场安装预检结果。
+    pub(super) fn market_preview(&self) -> Option<&MarketInstallPreview> {
+        self.market_preview.as_ref()
+    }
+
+    /// 市场预检是否在途。
+    pub(super) fn market_preview_loading(&self) -> bool {
+        self.market_preview_loading
     }
 
     /// 检查器快照。
@@ -479,6 +617,10 @@ impl SettingsView {
         if !self.confirm_navigation(cx) {
             return;
         }
+        self.plugin_settings = None;
+        if let Some(plugin_ui) = &self.plugin_ui {
+            plugin_ui.bridge().set_settings_plugin(None);
+        }
         self.hotkey_recording = None;
         self.category = category;
         self.field_filter = None;
@@ -527,6 +669,10 @@ impl SettingsView {
         }
         if !self.confirm_navigation(cx) {
             return;
+        }
+        self.plugin_settings = None;
+        if let Some(plugin_ui) = &self.plugin_ui {
+            plugin_ui.bridge().set_settings_plugin(None);
         }
         self.hotkey_recording = None;
         self.selected_component = Some(component_id.to_string());
@@ -1999,23 +2145,37 @@ impl SettingsView {
         .detach();
     }
 
-    /// 安装市场仓库最新发布。
-    pub(super) fn install_market(
+    /// 预检市场仓库最新发布：下载到缓存、读取清单、检查已安装版本。
+    /// 参数：repo - 市场仓库；overwrite - 是否覆盖安装；window/cx - GPUI 上下文。
+    /// 返回：无；成功后显示安装确认。
+    pub(super) fn preview_market(
         &mut self,
         repo: MarketRepo,
         overwrite: bool,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.market_preview_loading {
+            return;
+        }
+        if let Some(previous) = self.market_preview.take() {
+            let handle = self.state.get_core_handle();
+            runtime::spawn(async move {
+                let _ = handle.cache_delete("market", &previous.asset_name).await;
+            });
+        }
+        self.market_preview_loading = true;
+        self.market_error = None;
+        cx.notify();
         let manager = self.state.get_plugin_manager();
         let handle = self.state.get_core_handle();
-        let host: Arc<dyn zerolaunch_rs_lib::core::host::Host> = self.host.clone();
+        let repo_name = repo.full_name.clone();
         let (sender, receiver) = oneshot::channel();
         runtime::spawn(async move {
             let result = async {
                 let client = GitHubMarketClient::new();
                 let release = client
-                    .get_release(&repo.full_name)
+                    .get_release(&repo_name)
                     .await
                     .map_err(|error| error.to_string())?;
                 let cache_dir = handle
@@ -2035,14 +2195,80 @@ impl SettingsView {
                         .await
                         .map_err(|error| error.to_string())?;
                 }
-                let installed = manager
-                    .install(&dest, overwrite, host)
-                    .await
-                    .map_err(|error| error.to_string());
-                let _ = handle.cache_delete("market", &release.asset_name).await;
-                installed
+                let manifest = match manager.inspect_package(&dest) {
+                    Ok(manifest) => manifest,
+                    Err(error) => {
+                        let _ = handle.cache_delete("market", &release.asset_name).await;
+                        return Err(error.to_string());
+                    }
+                };
+                let installed_version = manager
+                    .get_manifest(&manifest.plugin.id)
+                    .map(|installed| installed.plugin.version);
+                Ok::<_, String>((
+                    release.asset_name,
+                    dest,
+                    manifest.plugin.id,
+                    manifest.plugin.name,
+                    manifest.plugin.version,
+                    installed_version,
+                ))
             }
             .await;
+            let _ = sender.send(result);
+        });
+        cx.spawn_in(window, async move |this, cx| {
+            let result = receiver.await;
+            let _ = this.update_in(cx, |this, _window, cx| {
+                this.market_preview_loading = false;
+                match result {
+                    Ok(Ok((asset_name, package, plugin_id, name, version, installed_version))) => {
+                        let overwrite = overwrite || installed_version.is_some();
+                        this.market_preview = Some(MarketInstallPreview {
+                            repo,
+                            package,
+                            asset_name,
+                            plugin_id,
+                            name,
+                            version,
+                            installed_version,
+                            overwrite,
+                        });
+                    }
+                    Ok(Err(error)) => {
+                        this.market_error = Some(format!(
+                            "{}: {error}",
+                            this.tr("settings.pluginMarket.previewFailed")
+                        ));
+                    }
+                    Err(_) => {
+                        this.market_error = Some(this.tr("settings.pluginMarket.previewFailed"));
+                    }
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    /// 确认安装市场预检结果。
+    pub(super) fn confirm_market_install(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(preview) = self.market_preview.take() else {
+            return;
+        };
+        let manager = self.state.get_plugin_manager();
+        let handle = self.state.get_core_handle();
+        let host: Arc<dyn zerolaunch_rs_lib::core::host::Host> = self.host.clone();
+        let (sender, receiver) = oneshot::channel();
+        let asset_name = preview.asset_name.clone();
+        let package = preview.package.clone();
+        let overwrite = preview.overwrite;
+        runtime::spawn(async move {
+            let result = manager
+                .install(&package, overwrite, host)
+                .await
+                .map_err(|error| error.to_string());
+            let _ = handle.cache_delete("market", &asset_name).await;
             let _ = sender.send(result);
         });
         cx.spawn_in(window, async move |this, cx| {
@@ -2069,6 +2295,19 @@ impl SettingsView {
             });
         })
         .detach();
+    }
+
+    /// 取消市场安装预检并清理缓存包。
+    pub(super) fn cancel_market_preview(&mut self, cx: &mut Context<Self>) {
+        let Some(preview) = self.market_preview.take() else {
+            return;
+        };
+        let handle = self.state.get_core_handle();
+        runtime::spawn(async move {
+            let _ = handle.cache_delete("market", &preview.asset_name).await;
+        });
+        self.market_preview_loading = false;
+        cx.notify();
     }
 
     /// 刷新检查器快照。
@@ -2395,7 +2634,20 @@ impl SettingsView {
                 }
                 self.components = self.state.get_config_manager().get_all_components();
             }
-            HostEvent::PluginInstalled { .. } | HostEvent::PluginUninstalled { .. } => {
+            HostEvent::PluginInstalled { .. } => {
+                self.components = self.state.get_config_manager().get_all_components();
+                if self.page == Page::Plugins {
+                    self.reload_plugins(cx);
+                }
+            }
+            HostEvent::PluginUninstalled { plugin_id } => {
+                if self
+                    .plugin_settings
+                    .as_ref()
+                    .is_some_and(|state| state.plugin_id == plugin_id)
+                {
+                    self.close_plugin_settings(cx);
+                }
                 self.components = self.state.get_config_manager().get_all_components();
                 if self.page == Page::Plugins {
                     self.reload_plugins(cx);

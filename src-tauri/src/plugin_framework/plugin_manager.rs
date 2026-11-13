@@ -38,7 +38,6 @@ use crate::core::config::manager::ConfigManager;
 use crate::core::i18n::I18nManager;
 use crate::plugin_framework::builtin_registry;
 use crate::plugin_framework::builtin_registry::{CollectedBuiltins, InventoryContext};
-use crate::plugin_framework::zlplugin_protocol::ZlpluginProtocolHandler;
 use crate::plugin_framework::SessionDispatcher;
 use crate::sdk::HostApi;
 /// 校验面板形态插件的 UI 契约：声明热键的 Panel 形态插件须有 [ui].panelEntry，
@@ -304,6 +303,13 @@ impl PluginManager {
         self.host_manager().plugins_dir().to_path_buf()
     }
 
+    /// 获取第三方插件的安装目录。
+    pub fn plugin_dir(&self, plugin_id: &str) -> Option<PathBuf> {
+        self.host_manager()
+            .installed(plugin_id)
+            .map(|installed| installed.dir.clone())
+    }
+
     /// 获取第三方插件的完整 manifest（运行中取注册快照，未加载取内存安装快照）。
     pub fn get_manifest(&self, plugin_id: &str) -> Option<Manifest> {
         self.host_manager()
@@ -375,19 +381,6 @@ impl PluginManager {
             0
         };
         Ok(lines[start..].iter().map(|s| s.to_string()).collect())
-    }
-
-    // ── zlplugin:// 协议处理 ────────────────────────────────────
-
-    /// 处理第三方插件资源协议请求，返回 (文件字节, MIME 类型)。
-    ///
-    /// URI 格式：`http://zlplugin.localhost/<plugin-id>/ui/<sub-path>`
-    pub fn handle_zlplugin_uri(
-        &self,
-        uri: &str,
-    ) -> Result<(Vec<u8>, String), Box<dyn std::error::Error>> {
-        let handler = ZlpluginProtocolHandler::new(self.plugins_dir());
-        handler.handle(uri)
     }
 
     // ── 第三方插件生命周期方法 ─────────────────────────────────

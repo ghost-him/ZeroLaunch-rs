@@ -17,8 +17,6 @@ scope: "tool:read(*.vue), tool:edit(*.vue), tool:write(*.vue)"
    - `:deep(.n-tabs-pane-wrapper)` — 让 tab 内容区域填充空间
    - `:deep(.n-modal-body)` — 调整对话框内部间距
 
-2. **覆盖第三方插件宿主样式**（第三方面板宿主以 Shadow DOM 内嵌 zlplugin 面板容器，Shadow DOM 隔离下样式需宿主侧显式注入）
-
 ### ❌ 禁止使用
 
 1. **穿透到业务组件内部** — 业务组件的样式封装应当通过 props/slots 控制，不应用 `:deep()` 破坏封装

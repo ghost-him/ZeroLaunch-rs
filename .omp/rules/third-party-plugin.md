@@ -1,7 +1,7 @@
 ---
-description: 第三方插件运行时规范：子进程 JSON-RPC 架构、协议、Manifest 校验、生命周期、RemoteComponent、CLI HTTP、zlplugin:// 协议
-condition: "plugin/initialize|plugin/get_components|RemoteComponent|remote_component|zlplugin|Content-Length|JSON-RPC|PluginHostManager|host_handler|plugin_installer|plugin_install_local|manifest"
-scope: "tool:read(crates/plugin-protocol/**), tool:edit(crates/plugin-protocol/**), tool:write(crates/plugin-protocol/**), tool:read(crates/plugin-host/**), tool:edit(crates/plugin-host/**), tool:write(crates/plugin-host/**), tool:read(crates/plugin-sdk-rust/**), tool:edit(crates/plugin-sdk-rust/**), tool:write(crates/plugin-sdk-rust/**), tool:read(src-tauri/src/plugin_framework/**), tool:edit(src-tauri/src/plugin_framework/**), tool:write(src-tauri/src/plugin_framework/**), tool:read(src-tauri/src/cli_server/**), tool:edit(src-tauri/src/cli_server/**), tool:write(src-tauri/src/cli_server/**), tool:read(src-tauri/src/commands/plugin.rs), tool:edit(src-tauri/src/commands/plugin.rs), tool:write(src-tauri/src/commands/plugin.rs), tool:read(crates/plugin-api/src/plugin/**), tool:edit(crates/plugin-api/src/plugin/**), tool:write(crates/plugin-api/src/plugin/**), tool:read(crates/plugin-api/src/host/**), tool:edit(crates/plugin-api/src/host/**), tool:write(crates/plugin-api/src/host/**)"
+description: 第三方插件运行时规范：子进程 JSON-RPC 架构、协议、Manifest 校验、生命周期、RemoteComponent、CLI HTTP、gpui-shell 插件 UI
+condition: "plugin/initialize|plugin/get_components|RemoteComponent|remote_component|gpui-shell|HostModule|ScriptView|Content-Length|JSON-RPC|PluginHostManager|host_handler|plugin_installer|plugin_install_local|manifest"
+scope: "tool:read(crates/plugin-protocol/**), tool:edit(crates/plugin-protocol/**), tool:write(crates/plugin-protocol/**), tool:read(crates/plugin-host/**), tool:edit(crates/plugin-host/**), tool:write(crates/plugin-host/**), tool:read(crates/plugin-sdk-rust/**), tool:edit(crates/plugin-sdk-rust/**), tool:write(crates/plugin-sdk-rust/**), tool:read(src-tauri/src/plugin_framework/**), tool:edit(src-tauri/src/plugin_framework/**), tool:write(src-tauri/src/plugin_framework/**), tool:read(src-tauri/src/cli_server/**), tool:edit(src-tauri/src/cli_server/**), tool:write(src-tauri/src/cli_server/**), tool:read(src-tauri/src/commands/plugin.rs), tool:edit(src-tauri/src/commands/plugin.rs), tool:write(src-tauri/src/commands/plugin.rs), tool:read(crates/plugin-api/src…
 ---
 
 # 第三方插件运行时规范
@@ -11,11 +11,10 @@ scope: "tool:read(crates/plugin-protocol/**), tool:edit(crates/plugin-protocol/*
 第三方插件以**子进程 + stdio JSON-RPC 2.0** 方式运行。宿主通过 `plugin-host` crate 管理子进程生命周期，通过 `RemoteComponent` 将 JSON-RPC 调用适配为 Plugin/DataSource/ActionExecutor trait。
 
 **宿主侧入口**集中在 `src-tauri/src/plugin_framework/`：
-- `manager.rs` — 第三方插件生命周期管理（加载、卸载、发现、崩溃恢复），唯一入口
+- `plugin_manager.rs` — 第三方插件生命周期管理（加载、卸载、发现、崩溃恢复），唯一入口
 - `host_handler.rs` — 反向 RPC 路由：将插件的 `host/*` RPC 调用分发到本地 `PluginHandle` 方法（子进程 spawn/健康监控/关闭归 `crates/plugin-host`）
-- `plugin_installer.rs` — 插件安装/卸载逻辑（从 manager.rs 提取）
-- `plugin_info.rs` — 插件信息类型
-- `zlplugin_protocol.rs` — `zlplugin://` 自定义协议处理（原 `plugin_protocol_assets/` 已合并至此）
+- `plugin_installer.rs` — 插件安装/卸载逻辑（从 plugin_manager.rs 提取）
+- `plugin_info.rs` — 插件安装错误类型
 
 ## 协议规范
 
@@ -79,12 +78,13 @@ schema 用 `PluginMode` 枚举，取值非法同样解析失败。宿主解析�
 - 路由前缀 `/v1`，共享 plugin-api 数据模型
 - **只读约束**：CLI HTTP API **仅** 提供只读查询端点（`zl query`）。可写端点已移除。新增端点也 **必须** 保持只读
 
-## 自定义协议 zlplugin://
+## 插件 UI（gpui-shell）
 
-- 处理入口：`src-tauri/src/plugin_framework/zlplugin_protocol.rs`
-- 仅允许 `ui/` 子路径
-- **必须** canonicalize 后校验在 plugin 目录内（防路径遍历）
-- MIME 推断基于文件扩展名
+- manifest `[ui].panelEntry` / `[ui].settingsEntry` 指向插件目录内的 gpui-shell 脚本入口；入口必须 canonicalize 后校验仍在插件目录内。
+- 宿主侧实现：`app/src/shell.rs`。一个隔离 `ShellRuntime` 承载全部脚本；HostModule 名为 `zerolaunch`，默认拒绝能力。
+- HostModule 只传纯数据：会话快照、查询、确认动作、隐藏窗口、插件设置读写、插件文案、受限资源读取。
+- 面板数据变化后必须调用 `ScriptView::refresh`，不能只 `cx.notify()`；否则脚本快照不会重建。
+- 插件卸载时必须释放脚本视图；`zlplugin://` 协议与 ESM/Shadow DOM 面板宿主已删除，不保留兼容层。
 
 ## 新增 crate 时的注意事项
 

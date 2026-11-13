@@ -13,6 +13,7 @@ path = "src/main.rs"
 
 [dependencies]
 gpui-kit = "0.9.1"
+gpui-shell = { version = "0.9.1", default-features = false, features = ["quickjs"] }
 zerolaunch-rs = { path = "../src-tauri" }
 tokio = { workspace = true }
 tracing = { workspace = true }
@@ -28,5 +29,6 @@ windows = { version = "0.62.2", features = [
     "Win32_UI_WindowsAndMessaging",
 ] }
 zerolaunch-plugin-api = { workspace = true }
+zerolaunch-plugin-protocol = { workspace = true }
 zerolaunch-plugin-host = { workspace = true }
 zerolaunch-platform-windows = { workspace = true }

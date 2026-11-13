@@ -13,7 +13,7 @@ pub struct Manifest {
     /// 组件声明（插件对外提供哪些能力）
     #[serde(default, rename = "components")]
     pub components: ComponentsSection,
-    /// 前端 UI 入口（第三方插件可选的 Vue 面板）
+    /// 插件 UI 入口（第三方插件可选的 gpui-shell 脚本界面）
     #[serde(default, rename = "ui")]
     pub ui: Option<UiSection>,
     /// 插件图标文件路径
@@ -99,17 +99,17 @@ pub struct ComponentsSection {
     pub provides: Vec<String>,
 }
 
-/// 前端 UI 入口段（可选）。
-/// 第三方插件可以注册自定义 Vue 面板，嵌入宿主设置页。
+/// 插件 UI 入口段（可选）。
+/// 第三方插件用 gpui-shell 脚本提供面板/设置页；路径相对插件目录。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UiSection {
-    /// 插件信息面板入口组件路径
+    /// 插件面板脚本入口
     #[serde(rename = "panelEntry")]
     pub panel_entry: Option<String>,
-    /// 插件配置面板入口组件路径
+    /// 插件设置页脚本入口
     #[serde(rename = "settingsEntry")]
     pub settings_entry: Option<String>,
-    /// 搜索结果项自定义渲染组件路径
+    /// 搜索结果项自定义渲染组件路径（保留字段，当前宿主不消费）
     #[serde(rename = "resultItemEntry")]
     pub result_item_entry: Option<String>,
 }

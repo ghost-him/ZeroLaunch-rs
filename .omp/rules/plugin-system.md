@@ -40,7 +40,7 @@ IPC：`inspector_get_state` 返回已注册组件清单 + 最近查询日志
 
 ## 事件驱动解耦
 
-- `PluginManager`（`plugin_framework/manager.rs`）不再持有 `ConfigManager` 直接引用。通过双通道事件总线与 `ConfigManager`、`SessionDispatcher` 事件驱动解耦：
+- `PluginManager`（`plugin_framework/plugin_manager.rs`）不再持有 `ConfigManager` 直接引用。通过双通道事件总线与 `ConfigManager`、`SessionDispatcher` 事件驱动解耦：
   1. `PluginRuntimeEvent` 通道 — `PluginManager` 发布插件生命周期事件（加载/卸载/崩溃）
   2. `ConfigEvent` 通道 — `ConfigManager` 发布配置变更事件
   3. 三层解耦：`PluginManager` → `PluginRuntimeEvent` → `ConfigManager`（监听并同步注册/解注册） → `ConfigEvent` → `SessionDispatcher`（监听并重建管道）

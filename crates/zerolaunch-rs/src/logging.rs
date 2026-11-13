@@ -1,0 +1,627 @@
+//! 日志系统模块
+//!
+//! 提供统一的日志管理功能，包括：
+//! - 日志初始化和配置
+//! - 系统信息记录
+//! - Panic处理
+//! - 日志文件清理
+
+use backtrace::Backtrace;
+use chrono::{DateTime, Local};
+use std::fs::File;
+use std::io::Write;
+use std::panic;
+use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
+use tracing::{debug, error, info, warn, Level};
+use tracing_appender::rolling::{RollingFileAppender, Rotation};
+use tracing_subscriber::fmt::format::{DefaultFields, DefaultVisitor, FmtSpan};
+
+use tracing_subscriber::{self, reload, EnvFilter};
+
+// ============================================================================
+// 多 Layer 类型隔离包装
+// ============================================================================
+
+/// 包装 `DefaultFields` 以产生不同的泛型类型参数。
+///
+/// 当 file_layer 和 console_layer 都使用默认的 `DefaultFields` 时，
+/// 两个 layer 共享同一个 `FormattedFields<DefaultFields>` span extension。
+/// `on_record` 被两个 layer 各调用一次，导致 trace_id 等运行时记录的字段被重复追加。
+///
+/// 此包装类型委托所有行为到 `DefaultFields`，但作为不同的泛型参数 `N`，
+/// 使 console_layer 的 `FormattedFields<ConsoleFormatFields>` 与 file_layer 的
+/// `FormattedFields<DefaultFields>` 存储在独立的 extension key 下，互不干扰。
+#[derive(Debug, Default)]
+struct ConsoleFormatFields(DefaultFields);
+
+impl<'a> tracing_subscriber::field::MakeVisitor<tracing_subscriber::fmt::format::Writer<'a>>
+    for ConsoleFormatFields
+{
+    type Visitor = DefaultVisitor<'a>;
+
+    fn make_visitor(&self, target: tracing_subscriber::fmt::format::Writer<'a>) -> Self::Visitor {
+        self.0.make_visitor(target)
+    }
+}
+
+// ============================================================================
+// 日志系统常量
+// ============================================================================
+
+/// 默认日志文件名前缀
+pub const DEFAULT_LOG_FILE_PREFIX: &str = "info";
+
+/// 默认日志保留天数
+pub const DEFAULT_LOG_RETENTION_DAYS: i64 = 5;
+
+/// 全局日志目录（在初始化时设置）
+static LOG_DIR: OnceLock<PathBuf> = OnceLock::new();
+
+/// 全局日志级别重载句柄
+static LOG_RELOAD_HANDLE: OnceLock<reload::Handle<EnvFilter, tracing_subscriber::Registry>> =
+    OnceLock::new();
+
+/// 日志系统配置
+#[derive(Debug, Clone)]
+pub struct LoggingConfig {
+    /// 日志级别
+    pub level: Level,
+    /// 日志文件保留天数
+    pub retention_days: i64,
+    /// 是否启用控制台输出
+    pub enable_console: bool,
+    /// 日志文件名前缀
+    pub log_file_prefix: String,
+}
+
+impl Default for LoggingConfig {
+    fn default() -> Self {
+        Self {
+            level: Level::DEBUG,
+            retention_days: DEFAULT_LOG_RETENTION_DAYS,
+            enable_console: true,
+            log_file_prefix: DEFAULT_LOG_FILE_PREFIX.to_string(),
+        }
+    }
+}
+
+/// 初始化日志系统
+///
+/// # Arguments
+///
+/// * `log_dir` - 日志目录路径
+/// * `config` - 日志配置，如果为None则使用默认配置
+///
+/// # Returns
+///
+/// 返回日志守护者，需要保持其生命周期直到程序结束
+pub fn init_logging(
+    log_dir: impl Into<PathBuf>,
+    config: Option<LoggingConfig>,
+) -> tracing_appender::non_blocking::WorkerGuard {
+    let log_dir = log_dir.into();
+    let config = config.unwrap_or_default();
+
+    // 设置全局日志目录
+    let _ = LOG_DIR.set(log_dir.clone());
+
+    // 确保日志目录存在
+    if let Err(e) = std::fs::create_dir_all(&log_dir) {
+        // tracing 尚未初始化，此处只能用 eprintln
+        eprintln!("创建日志目录失败: {}", e);
+    }
+
+    // 创建按日期滚动的日志文件（prefix=前缀, suffix=后缀 → {prefix}.{date}.{suffix}）
+    let file_appender = RollingFileAppender::builder()
+        .rotation(Rotation::DAILY)
+        .filename_prefix(config.log_file_prefix.as_str())
+        .filename_suffix("log")
+        .build(log_dir.clone())
+        .expect("初始化日志文件 appender 失败");
+
+    // 创建非阻塞的日志写入器
+    let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
+
+    // 创建可重载的过滤器
+    let level_str = config.level.as_str().to_lowercase();
+    let env_filter = EnvFilter::new("info")
+        .add_directive(
+            format!("{}={}", "zerolaunch_rs", level_str)
+                .parse()
+                .unwrap(),
+        )
+        .add_directive(
+            format!("{}={}", "zerolaunch_rs_lib", level_str)
+                .parse()
+                .unwrap(),
+        );
+
+    let (filter, reload_handle) = reload::Layer::new(env_filter);
+
+    // 存储重载句柄
+    let _ = LOG_RELOAD_HANDLE.set(reload_handle);
+
+    // 配置订阅者
+    if config.enable_console && cfg!(debug_assertions) {
+        use tracing_subscriber::layer::SubscriberExt;
+        use tracing_subscriber::util::SubscriberInitExt;
+
+        let file_layer = tracing_subscriber::fmt::layer()
+            .with_writer(non_blocking)
+            .with_ansi(false)
+            .with_target(true)
+            .with_thread_ids(true)
+            .with_file(true)
+            .with_line_number(true)
+            .with_span_events(FmtSpan::CLOSE);
+
+        let console_layer = tracing_subscriber::fmt::layer()
+            .fmt_fields(ConsoleFormatFields::default())
+            .with_writer(std::io::stdout)
+            .with_ansi(true)
+            .with_target(true)
+            .with_thread_ids(false)
+            .with_file(false)
+            .with_line_number(false)
+            .with_span_events(FmtSpan::CLOSE);
+
+        tracing_subscriber::registry()
+            .with(filter)
+            .with(file_layer)
+            .with(console_layer)
+            .init();
+    } else {
+        use tracing_subscriber::layer::SubscriberExt;
+        use tracing_subscriber::util::SubscriberInitExt;
+
+        let file_layer = tracing_subscriber::fmt::layer()
+            .with_writer(non_blocking)
+            .with_ansi(false)
+            .with_target(true)
+            .with_thread_ids(true)
+            .with_file(true)
+            .with_line_number(true)
+            .with_span_events(FmtSpan::CLOSE);
+
+        tracing_subscriber::registry()
+            .with(filter)
+            .with(file_layer)
+            .init();
+    }
+
+    // tracing 已初始化，后续日志使用 info!/error! 等宏
+    print_system_info(&log_dir);
+
+    setup_panic_hook();
+
+    // 清理旧日志文件
+    cleanup_old_logs(&log_dir, config.retention_days);
+
+    info!("日志系统初始化完成");
+    info!("日志级别: {:?}", config.level);
+    info!("日志保留天数: {}", config.retention_days);
+    info!("日志目录: {}", log_dir.display());
+    info!("启用特性: {}", format_enabled_features());
+
+    guard
+}
+
+/// 获取日志目录
+pub fn get_log_dir() -> Option<&'static PathBuf> {
+    LOG_DIR.get()
+}
+
+// ============================================================================
+// 日志导出
+// ============================================================================
+
+/// 日志归档错误 —— 把日志目录打包为 zip 时可能失败的内部原因。
+///
+/// 仅在 `logging` 模块内产生，供日志导出流程映射为用户可见错误；
+/// 其他模块不应依赖此类型。
+#[derive(Debug, thiserror::Error)]
+pub enum LogArchiveError {
+    /// 日志系统尚未初始化（启动顺序被破坏），没有可打包的日志目录。
+    #[error("日志系统尚未初始化，无法导出日志")]
+    NotInitialized,
+    /// 遍历日志目录、读取日志文件或创建目标文件失败。
+    #[error("访问日志文件失败: {0}")]
+    Io(#[from] std::io::Error),
+    /// 写入 zip 结构（条目头、压缩数据、中央目录）失败。
+    #[error("写入日志压缩包失败: {0}")]
+    Zip(#[from] zip::result::ZipError),
+    /// 日志目录内没有任何文件，导出的压缩包没有内容。
+    #[error("日志目录中没有可导出的文件")]
+    Empty,
+    /// 后台打包任务未能正常结束（线程 panic 或运行时关闭），由命令层填入错误文本。
+    #[error("日志打包任务异常: {0}")]
+    Task(String),
+}
+
+/// 把当前日志目录打包成 zip 写入 `dest`。
+///
+/// 参数：`dest` —— 目标 zip 路径；由前端保存对话框选定，父目录须已存在。
+/// 返回：成功时 `Ok(())`；日志系统未初始化、目录为空或读写失败时返回 `LogArchiveError`。
+/// 行为：目录内日志文件（含按日滚动的历史文件与 panic.log）以 `logs/<文件名>` 为条目名；
+///       目标文件已存在时直接覆盖（覆盖确认由保存对话框负责）。
+pub fn export_log_archive(dest: &Path) -> Result<(), LogArchiveError> {
+    let log_dir = get_log_dir().ok_or(LogArchiveError::NotInitialized)?;
+    write_log_archive(log_dir, dest)
+}
+
+/// 把 `log_dir` 下的直接子文件打包写入 `dest`。
+///
+/// 参数：`log_dir` —— 日志目录；`dest` —— 目标 zip 路径。
+/// 返回：成功时 `Ok(())`；目录为空返回 `Empty`，读写失败返回对应错误变体。
+/// 条目按文件名排序，保证同一目录多次导出的 zip 结构稳定。
+fn write_log_archive(log_dir: &Path, dest: &Path) -> Result<(), LogArchiveError> {
+    let mut entries: Vec<(String, PathBuf)> = Vec::new();
+    for entry in std::fs::read_dir(log_dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_file() {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            entries.push((format!("logs/{name}"), path));
+        }
+    }
+    if entries.is_empty() {
+        return Err(LogArchiveError::Empty);
+    }
+    entries.sort_by(|a, b| a.0.cmp(&b.0));
+
+    let file_count = entries.len();
+    let mut writer = zip::ZipWriter::new(std::io::BufWriter::new(File::create(dest)?));
+    let options = zip::write::SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated);
+    for (entry_name, path) in entries {
+        writer.start_file(entry_name, options)?;
+        writer.write_all(&std::fs::read(&path)?)?;
+    }
+    // finish 写出中央目录后，BufWriter 仍需显式刷新才能落盘。
+    let mut inner = writer.finish()?;
+    inner.flush()?;
+
+    info!("日志已导出: {}（{} 个文件）", dest.display(), file_count);
+    Ok(())
+}
+
+/// 获取当前启用的 Cargo 特性列表
+fn collect_enabled_features() -> Vec<&'static str> {
+    let mut features = Vec::new();
+
+    if cfg!(feature = "portable") {
+        features.push("portable");
+    }
+
+    features
+}
+
+/// 将启用的特性列表格式化为字符串
+fn format_enabled_features() -> String {
+    let features = collect_enabled_features();
+    if features.is_empty() {
+        "无".to_string()
+    } else {
+        features.join(", ")
+    }
+}
+
+/// 获取 Windows 详细版本信息
+fn get_windows_version() -> String {
+    #[cfg(windows)]
+    {
+        use winreg::enums::HKEY_LOCAL_MACHINE;
+        use winreg::RegKey;
+
+        let hk_common = RegKey::predef(HKEY_LOCAL_MACHINE);
+        if let Ok(key) = hk_common.open_subkey("SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion") {
+            let product_name: String = key
+                .get_value("ProductName")
+                .unwrap_or_else(|_| "Windows".to_string());
+            let current_build: String = key
+                .get_value("CurrentBuild")
+                .unwrap_or_else(|_| "".to_string());
+            let display_version: String = key
+                .get_value("DisplayVersion")
+                .unwrap_or_else(|_| "".to_string());
+
+            let build_num: u32 = current_build.parse().unwrap_or(0);
+            let mut os_name = product_name;
+
+            if build_num >= 22000 {
+                if os_name.contains("Windows 10") {
+                    os_name = os_name.replace("Windows 10", "Windows 11");
+                } else if !os_name.contains("Windows 11") {
+                    os_name = format!("Windows 11 ({})", os_name);
+                }
+            }
+
+            if !display_version.is_empty() {
+                format!("{} {} (Build {})", os_name, display_version, current_build)
+            } else {
+                format!("{} (Build {})", os_name, current_build)
+            }
+        } else {
+            "Windows (Unknown)".to_string()
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        std::env::consts::OS.to_string()
+    }
+}
+
+/// 打印系统信息
+fn print_system_info(log_dir: &Path) {
+    info!("=== ZeroLaunch-rs 系统信息 ===");
+    info!("应用版本: {}", env!("CARGO_PKG_VERSION"));
+    info!(
+        "构建时间: {}",
+        std::env::var("VERGEN_BUILD_TIMESTAMP").unwrap_or_else(|_| "未知".to_string())
+    );
+    info!("操作系统: {}", get_windows_version());
+    info!("系统架构: {}", std::env::consts::ARCH);
+    info!(
+        "Rust版本: {}",
+        std::env::var("VERGEN_RUSTC_SEMVER").unwrap_or_else(|_| "未知".to_string())
+    );
+
+    let now = Local::now();
+    info!("启动时间: {}", now.format("%Y-%m-%d %H:%M:%S"));
+
+    if let Ok(current_dir) = std::env::current_dir() {
+        info!("工作目录: {:?}", current_dir);
+    }
+
+    if let Ok(exe_path) = std::env::current_exe() {
+        info!("可执行文件: {:?}", exe_path);
+    }
+
+    if let Ok(user) = std::env::var("USERNAME") {
+        info!("当前用户: {}", user);
+    }
+
+    info!("日志目录: {}", log_dir.display());
+    info!("启用特性: {}", format_enabled_features());
+    info!("==============================");
+}
+
+/// 设置panic处理钩子
+fn setup_panic_hook() {
+    panic::set_hook(Box::new(|panic_info| {
+        let location = panic_info.location().expect("无法获取panic位置信息");
+        let message = match panic_info.payload().downcast_ref::<&str>() {
+            Some(s) => *s,
+            None => match panic_info.payload().downcast_ref::<String>() {
+                Some(s) => s.as_str(),
+                None => "未知panic消息",
+            },
+        };
+
+        // 尝试获取日志目录
+        let log_dir = LOG_DIR.get().cloned().unwrap_or_else(|| {
+            std::env::current_exe()
+                .ok()
+                .and_then(|p| p.parent().map(|d| d.to_path_buf()))
+                .map(|d| d.join("logs"))
+                .unwrap_or_else(|| PathBuf::from("."))
+        });
+
+        let panic_file_path = log_dir.join("panic.log");
+
+        // 写入panic日志文件
+        if let Ok(mut file) = File::create(&panic_file_path) {
+            let now = Local::now();
+            let _ = writeln!(
+                file,
+                "[{}] Panic发生在文件 '{}' 第{}行: {}",
+                now.format("%Y-%m-%d %H:%M:%S"),
+                location.file(),
+                location.line(),
+                message
+            );
+
+            let backtrace = Backtrace::new();
+            let _ = writeln!(file, "\n堆栈跟踪:");
+            let _ = writeln!(file, "{:?}", backtrace);
+
+            let _ = writeln!(file, "\n系统信息:");
+            let _ = writeln!(file, "应用版本: {}", env!("CARGO_PKG_VERSION"));
+            let _ = writeln!(file, "操作系统: {}", get_windows_version());
+            let _ = writeln!(file, "系统架构: {}", std::env::consts::ARCH);
+
+            if let Ok(current_dir) = std::env::current_dir() {
+                let _ = writeln!(file, "工作目录: {:?}", current_dir);
+            }
+        }
+
+        error!(
+            "[PANIC] {} ({}:{})",
+            message,
+            location.file(),
+            location.line()
+        );
+    }));
+}
+
+/// 清理旧的日志文件
+pub fn cleanup_old_logs(log_dir: impl AsRef<Path>, retention_days: i64) {
+    let log_dir = log_dir.as_ref();
+    debug!("开始清理旧日志文件，保留天数: {}", retention_days);
+
+    let now: DateTime<Local> = Local::now();
+    let mut cleaned_count = 0;
+    let mut total_size_cleaned = 0u64;
+
+    let entries = match std::fs::read_dir(log_dir) {
+        Ok(entries) => entries,
+        Err(e) => {
+            error!("无法读取日志目录 '{:?}': {}", log_dir, e);
+            return;
+        }
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_file() {
+            if let Ok(metadata) = std::fs::metadata(&path) {
+                let file_size = metadata.len();
+
+                if let Ok(modified) = metadata.modified() {
+                    let modified_datetime: DateTime<Local> = modified.into();
+                    let age = now.signed_duration_since(modified_datetime);
+
+                    if age.num_days() > retention_days {
+                        match std::fs::remove_file(&path) {
+                            Ok(_) => {
+                                cleaned_count += 1;
+                                total_size_cleaned += file_size;
+                                info!(
+                                    "已删除旧日志文件: {:?} (大小: {} bytes, 年龄: {} 天)",
+                                    path,
+                                    file_size,
+                                    age.num_days()
+                                );
+                            }
+                            Err(e) => {
+                                error!("无法删除旧日志文件 '{:?}': {}", path, e);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if cleaned_count > 0 {
+        info!(
+            "日志清理完成: 删除了 {} 个文件，释放了 {} bytes 空间",
+            cleaned_count, total_size_cleaned
+        );
+    } else {
+        debug!("没有需要清理的旧日志文件");
+    }
+}
+
+/// 记录应用启动信息
+pub fn log_application_start() {
+    info!("=== ZeroLaunch-rs 应用启动 ===");
+    info!("应用版本: {}", env!("CARGO_PKG_VERSION"));
+    info!("操作系统: {}", get_windows_version());
+    info!("系统架构: {}", std::env::consts::ARCH);
+
+    let now = Local::now();
+    info!("启动时间: {}", now.format("%Y-%m-%d %H:%M:%S"));
+
+    if let Ok(current_dir) = std::env::current_dir() {
+        info!("工作目录: {:?}", current_dir);
+    }
+
+    if let Ok(exe_path) = std::env::current_exe() {
+        info!("可执行文件: {:?}", exe_path);
+    }
+
+    if let Ok(user) = std::env::var("USERNAME") {
+        info!("当前用户: {}", user);
+    }
+
+    if let Some(log_dir) = LOG_DIR.get() {
+        info!("日志目录: {}", log_dir.display());
+    }
+    info!("启用特性: {}", format_enabled_features());
+    info!("==============================");
+}
+
+/// 记录应用关闭信息
+pub fn log_application_shutdown() {
+    let now = Local::now();
+    info!("=== ZeroLaunch-rs 应用关闭 ===");
+    info!("关闭时间: {}", now.format("%Y-%m-%d %H:%M:%S"));
+    info!("==============================");
+}
+
+/// 记录性能指标
+pub fn log_performance_metrics(operation: &str, duration_ms: u64) {
+    if duration_ms > 1000 {
+        warn!("性能警告: {} 耗时 {}ms", operation, duration_ms);
+    } else {
+        debug!("性能指标: {} 耗时 {}ms", operation, duration_ms);
+    }
+}
+
+/// 记录错误信息
+pub fn log_error_with_context(error: &dyn std::error::Error, context: &str) {
+    error!("错误发生在 {}: {}", context, error);
+
+    let mut source = error.source();
+    let mut level = 1;
+    while let Some(err) = source {
+        error!("  原因 {}: {}", level, err);
+        source = err.source();
+        level += 1;
+    }
+}
+
+/// 动态更新日志级别
+pub fn update_log_level(new_level: Level) -> Result<(), String> {
+    if let Some(handle) = LOG_RELOAD_HANDLE.get() {
+        let level_str = new_level.as_str().to_lowercase();
+        let new_filter = EnvFilter::new("info")
+            .add_directive(
+                format!("{}={}", "zerolaunch_rs", level_str)
+                    .parse()
+                    .unwrap(),
+            )
+            .add_directive(
+                format!("{}={}", "zerolaunch_rs_lib", level_str)
+                    .parse()
+                    .unwrap(),
+            );
+        handle
+            .reload(new_filter)
+            .map_err(|e| format!("更新日志级别失败: {}", e))?;
+        info!("日志级别已更新为: {:?}", new_level);
+        Ok(())
+    } else {
+        Err("日志系统尚未初始化或不支持动态更新".to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{write_log_archive, LogArchiveError};
+    use std::io::Read;
+
+    /// 导出应把日志目录内全部文件以 `logs/` 前缀写入 zip；空目录导出返回 `Empty`。
+    #[test]
+    fn write_log_archive_packs_all_files() {
+        let root = tempfile::tempdir().unwrap();
+        let log_dir = root.path().join("app-logs");
+        std::fs::create_dir(&log_dir).unwrap();
+        std::fs::write(log_dir.join("info.2026-11-06.log"), "hello").unwrap();
+        std::fs::write(log_dir.join("panic.log"), "boom").unwrap();
+        let dest = root.path().join("zerolaunch-log.zip");
+
+        write_log_archive(&log_dir, &dest).unwrap();
+
+        let mut archive = zip::ZipArchive::new(std::fs::File::open(&dest).unwrap()).unwrap();
+        let mut names: Vec<String> = (0..archive.len())
+            .map(|i| archive.by_index(i).unwrap().name().to_string())
+            .collect();
+        names.sort();
+        assert_eq!(names, vec!["logs/info.2026-11-06.log", "logs/panic.log"]);
+        let mut content = String::new();
+        archive
+            .by_name("logs/panic.log")
+            .unwrap()
+            .read_to_string(&mut content)
+            .unwrap();
+        assert_eq!(content, "boom");
+
+        let empty_dir = root.path().join("empty");
+        std::fs::create_dir(&empty_dir).unwrap();
+        let err = write_log_archive(&empty_dir, &root.path().join("empty.zip")).unwrap_err();
+        assert!(matches!(err, LogArchiveError::Empty));
+    }
+}

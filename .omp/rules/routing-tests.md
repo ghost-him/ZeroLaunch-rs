@@ -6,8 +6,8 @@ condition:
   - 'route_confirm'
   - 'ActivationFailed\s*\{'
 scope:
-  - tool:edit(src-tauri/src/plugin_framework/session_dispatcher.rs)
-  - tool:write(src-tauri/src/plugin_framework/session_dispatcher.rs)
+  - tool:edit(crates/zerolaunch-rs/src/plugin_framework/session_dispatcher.rs)
+  - tool:write(crates/zerolaunch-rs/src/plugin_framework/session_dispatcher.rs)
 ---
 
 # 路由改动必须补单测

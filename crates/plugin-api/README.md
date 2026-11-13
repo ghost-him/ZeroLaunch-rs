@@ -154,7 +154,7 @@ mod tests {
 - `plugin/match_query` 是新增的可选方法：未实现的插件宿主容 `METHOD_NOT_FOUND` 并回退到
   本地关键词判定，协议 major 不变（仅新增可选方法不提升 major）。
 
-内置的 `path-detect` / `url-detect`（`src-tauri/src/builtin_plugin/detector/`，共享面板类型
+内置的 `path-detect` / `url-detect`（`crates/zerolaunch-rs/src/builtin_plugin/detector/`，共享面板类型
 `smart-target`）即自定义匹配的参考实现。
 
 ## 国际化（i18n）
@@ -224,12 +224,9 @@ async fn query(&self, ctx: &PluginContext, query: &Query) -> Result<QueryRespons
 
 ## 集成到主程序
 
-1. 在 `src-tauri/Cargo.toml` 添加依赖
-2. 在 `lib.rs::init_plugin_system()` 中注册：
-   ```rust
-   session_router.plugin_service().register(Arc::new(EchoPlugin::new()));
-   ```
-3. `cargo run` 启动，输入 `echo hello` 测试
+1. 在 `crates/zerolaunch-rs/Cargo.toml` 添加依赖
+2. 在 `crates/zerolaunch-rs/src/builtin_plugin/` 对应目录添加实现，并用 `inventory::submit!` 注册（与现有内置插件一致）。
+3. `cargo run -p zerolaunch-gpui` 启动，输入 `echo hello` 测试。
 
 ## License
 

@@ -1,7 +1,7 @@
 ---
 description: 第三方插件 SDK init/t_key 时序 — main 首行必须调 init() 读 ZEROLAUNCH_PLUGIN_ID，t_key() 在握手前调用必 panic
 condition: "ZEROLAUNCH_PLUGIN_ID|t_key|\\binit\\(\\)|PLUGIN_ID"
-scope: "tool:read(crates/plugin-sdk-rust/**), tool:edit(crates/plugin-sdk-rust/**), tool:write(crates/plugin-sdk-rust/**), tool:read(src-tauri/src/plugin_framework/plugin_manager.rs), tool:edit(src-tauri/src/plugin_framework/plugin_manager.rs), tool:write(src-tauri/src/plugin_framework/plugin_manager.rs)"
+scope: "tool:read(crates/plugin-sdk-rust/**), tool:edit(crates/plugin-sdk-rust/**), tool:write(crates/plugin-sdk-rust/**), tool:read(crates/zerolaunch-rs/src/plugin_framework/plugin_manager.rs), tool:edit(crates/zerolaunch-rs/src/plugin_framework/plugin_manager.rs), tool:write(crates/zerolaunch-rs/src/plugin_framework/plugin_manager.rs)"
 ---
 
 # SDK init/t_key 时序契约

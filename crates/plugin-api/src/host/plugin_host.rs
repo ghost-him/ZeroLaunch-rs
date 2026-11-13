@@ -1,7 +1,7 @@
 //! PluginHost — 宿主操作契约（插件 → 宿主的单向中转接缝）。
 //!
 //! 插件持有的 `PluginHandle` 只保存插件身份/配置/能力集，不保存任何服务实现；
-//! 全部可调用操作通过本契约委托给宿主执行（进程内实现为 src-tauri 的 `HostApi`，
+//! 全部可调用操作通过本契约委托给宿主执行（进程内实现为 crates/zerolaunch-rs 的 `HostApi`，
 //! 测试实现为 mock 桩宿主）。宿主在实现中决定「直接处理宿主级服务」还是
 //! 「转发到平台实现」（`crates/plugin-api/src/platform` 的 PlatformServices）。
 //!

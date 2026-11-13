@@ -1,245 +1,91 @@
 # AGENTS.md — AI 快速导航
 
-ZeroLaunch-rs 是基于 Bun + Tauri 2.x + Vue 3 + Naive UI 的 Windows 快捷启动器。采用 Cargo workspace 多 crate 架构。
+ZeroLaunch-rs 是 Windows 快捷启动器：`app/` 是 GPUI 宿主，`crates/zerolaunch-rs` 是不依赖 UI 框架的后端库。工作区没有 Tauri、Vue、Vite 或 Bun 构建链。
 
 ## 架构（Cargo Workspace）
 
 ```
+app/                      → zerolaunch-gpui: GPUI 搜索窗、设置窗、托盘、深链接、插件 UI 脚本宿主
 crates/plugin-api/        → zerolaunch-plugin-api: traits, 数据类型, HostApi/PluginHandle
 crates/plugin-protocol/   → zerolaunch-plugin-protocol: JSON-RPC 协议定义, manifest schema
 crates/plugin-host/       → zerolaunch-plugin-host: 子进程管理, RemotePluginAdapter, 双向 RPC
 crates/plugin-sdk-rust/   → zerolaunch-plugin-sdk-rust: 第三方 Rust 插件 SDK
 crates/platform-windows/  → zerolaunch-platform-windows: Windows 平台实现 + 工厂函数
+crates/zerolaunch-rs/     → zerolaunch-rs: 内核、内置插件、配置、插件框架、CLI HTTP、托盘/窗口端口
 zerolaunch-cli/           → zerolaunch-cli: 独立 CLI 工具 (zl query / zl plugins)
-src-tauri/                → zerolaunch-rs: 主程序、内置插件、配置管理、IPC 命令
-app/                      → zerolaunch-gpui: GPUI 宿主（搜索、设置、插件 UI、托盘、深链接，阶段 3-6）
+xtask/                    → 构建编排（cargo + Inno Setup + 便携 zip + wiki 快照）
 ```
 
-**依赖方向**: `plugin-api ← plugin-protocol ← plugin-host ← src-tauri`、`plugin-api ← platform-windows ← src-tauri`、`plugin-api ← plugin-sdk-rust`、`app → {gpui-kit, zerolaunch-rs, platform-windows, plugin-api}` — 禁止反向依赖。
+**依赖方向**: `plugin-api ← plugin-protocol ← plugin-host ← zerolaunch-rs`、`plugin-api ← platform-windows ← zerolaunch-rs`、`plugin-api ← plugin-sdk-rust`、`app → {gpui-kit, gpui-shell, zerolaunch-rs, platform-windows, plugin-api}` — 禁止反向依赖。
 
-**内部模块**（src-tauri 内）:
+## 关键文件
+
+| 类别 | 路径 |
+|---|---|
+| GPUI 入口 | `app/src/main.rs` |
+| 搜索窗 | `app/src/search/` |
+| 设置窗 | `app/src/settings/` |
+| 插件 UI 脚本宿主 | `app/src/shell.rs`（gpui-shell + `zerolaunch` HostModule） |
+| GPUI Host 端口 | `app/src/host.rs` |
+| 系统托盘 | `app/src/tray.rs`（独立消息循环 + tray-icon/muda） |
+| 深链接 | `app/src/deeplink.rs`（注册 `zerolaunch-rs://` 并写入等待表） |
+| 内核装配 | `crates/zerolaunch-rs/src/kernel.rs` |
+| 进程级 Tokio runtime | `crates/zerolaunch-rs/src/runtime.rs`（CLI 与 GPUI 共用） |
+| AppState | `crates/zerolaunch-rs/src/state/app_state.rs` |
+| ConfigManager | `crates/zerolaunch-rs/src/core/config/manager.rs` |
+| AI 助手 | `crates/zerolaunch-rs/src/core/agent/` |
+| 内置插件 | `crates/zerolaunch-rs/src/builtin_plugin/` |
+| SessionDispatcher | `crates/zerolaunch-rs/src/plugin_framework/session_dispatcher.rs` |
+| 插件生命周期 | `crates/zerolaunch-rs/src/plugin_framework/plugin_manager.rs` |
+| 插件市场 | `crates/zerolaunch-rs/src/plugin_market/mod.rs` |
+| CLI HTTP 服务器 | `crates/zerolaunch-rs/src/cli_server/server.rs` |
+| HostApi + Builder | `crates/zerolaunch-rs/src/sdk.rs` |
+| 内置组件注册表 | `crates/zerolaunch-rs/src/plugin_framework/builtin_registry.rs` |
+| Plugin Inspector | `crates/zerolaunch-rs/src/plugin_framework/inspector.rs` |
+| 界面语言包 | `crates/zerolaunch-rs/locales/` |
+| 图标资源 | `app/icons/` |
+| 构建工具 | `xtask/src/main.rs`、`installer/zerolaunch.iss` |
+
+## 后端模块（`crates/zerolaunch-rs/src/`）
+
 ```
-bootstrap.rs        → 旧 Tauri 外壳适配（安装 Host、平台端口、托盘；GPUI 走 app/）
 kernel.rs           → 内核装配（HostApi/ConfigManager/PluginManager、后台任务）
-runtime.rs          → 进程级 Tokio runtime（Tauri/CLI/GPUI 共用）
-sdk.rs              → 平台抽象层 re-export 桥（单文件）
-core/               → 核心层（ConfigManager, Configurable trait, types, AI 助手 agent, Host 端口）
+runtime.rs          → 进程级 Tokio runtime
+sdk.rs              → 平台抽象层 re-export 桥
+core/               → ConfigManager, Configurable trait, AI 助手 agent, Host 端口
 builtin_plugin/     → 内置插件实现
-plugin_framework/   → 插件框架（SessionDispatcher, Registry, PluginManager, gpui-shell 插件 UI）
-plugin_market/      → 插件市场（GitHub topic 仓库发现 / release 解析 / 插件包下载）
+plugin_framework/   → SessionDispatcher, Registry, PluginManager, 插件 UI 投影
+plugin_market/      → 插件市场（GitHub topic 仓库发现 / release 解析 / 下载）
 cli_server/         → 本地 HTTP API 服务器（axum）
-commands/           → Tauri IPC 命令（bridge, config, plugin, plugin_market, resource, inspector, cli, help, clipboard, i18n, debug）
-state/              → AppState 与 TauriHost 适配
+state/              → AppState
+updater/            → 版本更新检查
+window/             → 窗口位置工具函数（走 Host 端口）
 utils/              → 通用工具
 logging.rs          → 日志初始化
 ```
 
-## 关键文件
-
-| 类别                | 路径                                                               |
-| ------------------- | ------------------------------------------------------------------ |
-| Plugin SDK (traits) | `crates/plugin-api/src/services/`                                  |
-| Plugin SDK (host)   | `crates/plugin-api/src/host/`                                      |
-| Windows 平台实现    | `crates/platform-windows/src/`                                     |
-| 后端 Bridge 命令    | `src-tauri/src/commands/bridge.rs`                                 |
-| 后端 Config 命令    | `src-tauri/src/commands/config_file.rs`                            |
-| 后端类型定义        | `src-tauri/src/plugin_framework/mod.rs` (re-export)               |
-| SessionDispatcher   | `src-tauri/src/plugin_framework/session_dispatcher.rs`          |
-| 会话投影类型        | `src-tauri/src/plugin_framework/session_state.rs`               |
-| GPUI 设置窗         | `app/src/settings/`（视角、schema 表单、插件/市场/关于/检查器） |
-| ConfigManager       | `src-tauri/src/core/config/manager.rs`                             |
-| HostApi + Builder   | `src-tauri/src/sdk.rs`                                             |
-| 内置组件注册表      | `src-tauri/src/plugin_framework/builtin_registry.rs`              |
-| Plugin Inspector    | `src-tauri/src/plugin_framework/inspector.rs`（始终编译，无 cargo feature） |
-| 插件市场            | `src-tauri/src/plugin_market/mod.rs` + `src-tauri/src/commands/plugin_market.rs` |
-| PluginHostManager   | `crates/plugin-host/src/manager.rs`                                |
-| 第三方插件加载器    | `src-tauri/src/plugin_framework/plugin_manager.rs`                |
-| 插件 UI 脚本宿主    | `app/src/shell.rs`（gpui-shell + `zerolaunch` HostModule）         |
-| GPUI 系统托盘       | `app/src/tray.rs`（独立消息循环 + tray-icon/muda）                |
-| GPUI 深链接         | `app/src/deeplink.rs`（注册 `zerolaunch-rs://` 并写入等待表）      |
-| CLI HTTP 服务器     | `src-tauri/src/cli_server/server.rs`                               |
-| 前端类型契约        | `src-ui/bridge/contract.ts`                                    |
-| 前端命令封装        | `src-ui/bridge/commands.ts`                                    |
-| 前端事件监听        | `src-ui/bridge/events.ts`                                      |
-
-## IPC 命令清单
-
-搜索/会话（`bridge_` 前缀，9个）：`bridge_query`, `bridge_confirm`, `bridge_wake`, `bridge_wake_plugin`, `bridge_refresh_candidates`, `bridge_hide_window`, `bridge_get_system_theme`, `bridge_exclude_options`, `bridge_exclude_candidate`
-
-配置（`config_` 前缀，9个）：`config_get_version`, `config_get_all_components`, `config_get_schema`, `config_get_settings`, `config_apply_settings`, `config_reset_settings`, `config_set_enabled`, `config_get_actions`, `config_execute_action`
-
-插件管理（`plugin_` 前缀，9个）：`plugin_list`, `plugin_get_manifest`, `plugin_get_detail`, `plugin_install_local`, `plugin_inspect_package`, `plugin_reload`, `plugin_uninstall`, `plugin_set_enabled`, `plugin_get_logs`
-
-插件市场（`market_` 前缀，5个）：`market_list`, `market_get_meta`, `market_install`, `market_preview_package`, `market_discard_preview`
-
-检查器（`inspector_` 前缀，1个）：`inspector_get_state`
-
-调试工具（`debug_` 前缀，6个）：`debug_test_search_time`, `debug_test_index_time`, `debug_get_search_keys`, `debug_search_detail`, `debug_copy_search_detail`, `debug_get_agent_traces`
-
-资源（`resource_` 前缀，2个）：`resource_get`, `resource_upload`
-
-插件 i18n（`i18n_` 前缀，1个）：`i18n_get_plugin_translations`
-
-剪贴板（1个）：`copy_to_clipboard`（写入系统剪贴板，前端不直接调用平台 API）
-
-路径与日志（2个）：`path_kind`（拖放路径类型判定）、`export_logs`（把当前日志目录打包成 zip 到用户选定路径；保存对话框在前端，不依赖调试模式）
-
-AI 助手（2个）：`help_search`（设置字段确定性检索，不调用模型）、`help_ask`（模型 + 只读设置工具的最小循环；模型由 `help-agent-config` 指定；入参含 `navigation`＝前端下发的「设置页路径」，用于给出逐步导航；说明书另注入由 `collect_triggers` 从插件元数据投影的触发方式）
-
-版本更新（`update_` 前缀，2个）：`update_check`（实网查 GitHub Releases 最新 tag，只返回状态，不下载）、`update_get_status`（读托盘启动自检的共享结果，不发请求）
-
-CLI（`cli_` 前缀，1个）：`cli_get_info`
+`app/` 直接调用后端库；没有 IPC 命令层。窗口、输入、渲染与用户交互归 `app/`，配置、插件、会话、持久化与平台调度归后端库。
 
 ## 目录结构与文件放置规范
 
-### Workspace 结构（crate 维度）
-
 ```
-ZeroLaunch-rs/                          ← Cargo workspace 根
-├── Cargo.toml                          ← [workspace] 定义 + [workspace.dependencies]
+ZeroLaunch-rs/
+├── app/                                ← GPUI 宿主
+│   ├── src/main.rs                     ← 应用启动、窗口、内核接线
+│   ├── src/search/                     ← 搜索窗
+│   ├── src/settings/                   ← 设置、插件管理、市场、关于、检查器
+│   ├── src/shell.rs                    ← gpui-shell 脚本宿主
+│   └── icons/                          ← 运行时图标资源
 ├── crates/
-│   ├── plugin-api/                     ← zerolaunch-plugin-api
-│   │   └── src/
-│   │       ├── config/                 ← Configurable trait, SettingDefinition, ComponentType 等
-│   │       ├── host/                   ← HostApiError, OpenTarget, CacheLevel, PluginHandle, PluginSdkConfig
-│   │       ├── platform/               ← PlatformCapability, PlatformCapabilities
-│   │       ├── plugin/                 ← Plugin trait, Query/QueryResponse, 组件 trait, CachedCandidateData
-│   │       ├── services/               ← 能力域 trait（具体数量以代码为准；新增域时**必须**在此登记）
-│   │       ├── common/                 ← DirUtils, ImageUtils
-│   │       └── mock/                   ← Stub 实现 + mock_plugin_handle()（feature = "mock"）
-│   ├── plugin-protocol/                ← zerolaunch-plugin-protocol
-│   │   └── src/                        ← JSON-RPC 消息体, 方法名常量, manifest schema, 错误码, codec (LSP Content-Length 帧编解码)
-│   ├── plugin-host/                    ← zerolaunch-plugin-host
-│   │   └── src/                        ← 子进程管理, transport, JsonRpcClient, RemotePluginAdapter
-│   ├── plugin-sdk-rust/                ← zerolaunch-plugin-sdk-rust
-│   │   └── src/                        ← Rust 第三方插件 SDK (run() + HostProxy)
-│   └── platform-windows/               ← zerolaunch-platform-windows
-│       └── src/                        ← Windows 平台 trait 实现 + windows_capabilities()
-├── zerolaunch-cli/                     ← zerolaunch-cli (独立 bin crate)
-└── src-tauri/                          ← zerolaunch-rs（主程序）
-    └── src/
-        ├── bootstrap.rs               ← Tauri 外壳适配（Host/平台端口/托盘）
-        ├── kernel.rs                  ← 内核装配与后台任务
-        ├── runtime.rs                 ← 进程级 Tokio runtime
-        ├── sdk.rs                      ← re-export 桥（类型本体在 plugin-api / platform-windows）
-        ├── core/                       ← ConfigManager, ConfigStore, 核心配置组件, AI 助手 agent, Host 端口
-        ├── builtin_plugin/             ← 内置插件实现（具体数量以代码为准）
-        ├── plugin_framework/           ← SessionDispatcher, Registry, PluginManager
-        ├── tray/                       ← 系统托盘管理
-        ├── updater/                    ← 版本更新检查（GitHub Releases 最新 tag）
-        ├── window/                     ← 窗口位置工具函数
-        ├── commands/                   ← IPC 命令薄代理
-        ├── state/                      ← AppState 与 Host 端口
-        └── utils/                      ← 通用工具
-```
-
-**依赖方向**: `plugin-api ← plugin-protocol ← plugin-host ← src-tauri`、`plugin-api ← platform-windows ← src-tauri`、`plugin-api ← plugin-sdk-rust` — 禁止反向依赖。
-
-- **第三方插件作者**只依赖 `zerolaunch-plugin-api`，不需要 Tauri / Windows / 主程序源码
-- **新增 SDK trait**：在 `crates/plugin-api/src/services/<domain>/` 定义
-- **新增 Windows 实现**：在 `crates/platform-windows/src/` 实现对应的 trait
-- **src-tauri 中的 sdk.rs** 现为 re-export 桥，类型本体已迁至 plugin-api
-
-### 后端 (src-tauri/src/) 顶层目录职责
-
-| 目录 | 职责 | 可引用 | 禁止 |
-|------|------|--------|------|
-| `bootstrap.rs` | Tauri 外壳适配：安装 Host、平台端口、托盘 | state/、kernel、platform-windows | 包含业务逻辑 |
-| `kernel.rs` | 内核装配：HostApi/ConfigManager/PluginManager 与后台任务 | sdk、core、builtin_plugin、plugin_framework、state | 引用 Tauri 窗口/托盘类型 |
-| `runtime.rs` | 进程级 Tokio runtime | tokio | 引用业务模块 |
-| `sdk.rs` | re-export 桥（类型本体在 plugin-api / platform-windows） | 无外部依赖 | 引用 core/、builtin_plugin/、plugin_framework/ |
-| `core/` | 业务核心：ConfigManager、Configurable trait、类型定义 | sdk.rs | 引用 builtin_plugin/、plugin_framework/ |
-| `builtin_plugin/` | 内置插件实现：DataSource、Executor、SearchEngine 等 | sdk.rs、core/ | 引用 plugin_framework/ |
-| `plugin_framework/` | 插件框架：SessionDispatcher、Registry、PluginManager | sdk.rs、core/、builtin_plugin/ | 被其他层反向引用 |
-| `tray/` | 系统托盘管理 | core/、sdk/ | 包含业务逻辑 |
-| `updater/` | 版本更新检查：读 GitHub Releases 最新 tag、托盘文案、启动自检 | state/、sdk/ | 下载/安装安装包 |
-| `window/` | 窗口位置工具函数 | core/、sdk/ | 引用 Tauri 窗口类型 |
-| `commands/` | Tauri IPC 命令：薄代理层，仅委托 | 全部 | 包含业务逻辑 |
-| `state/` | AppState 与 TauriHost 适配 | core/、plugin_framework/、tray/ | 在 AppState 中持有 Tauri 句柄 |
-| `utils/` | 通用工具（locale、font_database 等） | 无限制 | 包含业务逻辑 |
-
-### 各目录详细说明
-
-#### `core/` — 业务核心
-```
-core/
-├── agent/               ← AI 助手：说明书（schema + 译文）、只读工具、最小工具循环
-│   ├── settings.rs      ← 助手配置 id + 强类型设置（配置组件引用）
-│   ├── manual.rs        ← 说明书构建与确定性检索
-│   ├── prompt.rs        ← 系统提示词
-│   ├── tools/           ← 工具目录（一个工具一个文件，契约在 mod.rs）
-│   │   ├── mod.rs       ← AgentTool 契约 + 工具 re-export
-│   │   ├── get_settings.rs  ← 读设置当前值、敏感字段脱敏（MASK）
-│   │   └── open_issue.rs    ← issue 模板渲染与预填链接打开
-│   └── mod.rs           ← 工具循环 + 引用解析
-├── cli_token.rs          ← CLI token 管理
-├── config/              ← 配置系统
-│   ├── manager.rs       ← ConfigManager 主调度器
-│   ├── store.rs         ← ConfigStore（JSON 持久化）
-│   ├── models.rs        ← 配置数据模型
-│   ├── registry.rs      ← ConfigurableRegistry
-│   ├── event.rs         ← ConfigEvent + PluginRuntimeEvent 广播
-│   ├── setting_builders.rs ← SchemaBuilder API
-│   └── mod.rs           ← 模块入口
-```
-
-- **核心配置组件**（`builtin_plugin/config/` 下的组件，如 AppearanceConfigComponent、HotkeyConfigComponent 等）：不属于任何插件的系统级配置
-- **新增核心配置组件** 时放 `builtin_plugin/config/`。**新增插件** 时放 `builtin_plugin/` 对应子目录
-
-#### `builtin_plugin/` — 内置插件实现
-```
-builtin_plugin/
-├── config/               ← 核心配置组件（非插件系统级配置）
-├── _template/            ← 内置插件模板（不被编译或 glob 扫描）
-├── data_source/          ← 数据源（具体数量以代码为准）
-├── executor/             ← 执行器（具体数量以代码为准）
-├── keyword_optimizer/    ← 关键词优化器（具体数量以代码为准）
-├── score_booster/        ← 分数增强器（具体数量以代码为准）
-├── search_engine/        ← 搜索引擎（具体数量以代码为准）
-└── triggerable/          ← 可触发插件（具体数量以代码为准）
-```
-
-- 每个插件实现 `Configurable` trait（配置）+ 对应的领域 trait（如 `DataSource`、`ActionExecutor`）。**必须** 通过 `PluginHandle` 访问平台能力
-- 新增插件在对应目录添加 .rs 文件 + `inventory::submit!` 块即自动注册，**无需** 修改 `lib.rs`
-
-#### `plugin_framework/` — 插件框架
-```
-plugin_framework/
-├── builtin_registry.rs   ← inventory 自动发现与注册编排器
-├── component_registry.rs ← 搜索流水线组件类型注册表（DataSource/KeywordOptimizer/SearchEngine/ScoreBooster/KeywordInjector 注册与查找）
-├── inspector.rs          ← Plugin Inspector 调试面板（始终编译，录制开关由 is_debug_mode 运行时控制）
-├── candidate_filter.rs   ← 排除规则过滤（采集末端对全部数据源与插件候选统一生效）
-├── plugin_wake_executor.rs ← 沉浸式插件面板候选的确认执行器（经 ExecutorRegistry 解析，执行即唤醒面板）
-├── session_dispatcher.rs ← 会话调度（横切：路由/确认/代际/事件推送）
-├── session_state.rs      ← 会话投影类型（SessionOwner/HostView/PluginView/InputMatch/SessionStateEvent）
-├── candidate_pipeline.rs ← 候选项采集管道
-├── search_pipeline.rs    ← 搜索排序管道
-├── executor_registry.rs  ← 执行器注册表
-├── plugin_manager.rs     ← 第三方插件生命周期管理（单入口）
-├── host_handler.rs       ← 子进程 Host 管理
-├── plugin_installer.rs   ← 插件安装/卸载逻辑（从 plugin_manager.rs 提取）
-├── plugin_info.rs        ← 插件安装错误类型
-├── registry.rs           ← PluginRegistry（插件注册；init 发放归 bootstrap）
-└── mod.rs                ← 模块入口（含 re-export，类型定义在各自模块内，已消除冗余 types.rs shim）
-```
-
-- **SessionDispatcher** 是运行时的中枢。所有 bridge 命令通过它路由
-- **builtin_registry** 通过 `inventory` 在编译期收集所有内置组件，启动时统一注册
-- **plugin_manager.rs** 是第三方插件生命周期的唯一入口，通过 `PluginRuntimeEvent` 广播通道与 ConfigManager/SessionDispatcher 事件驱动解耦
-- **禁止** 在此层定义配置 schema 或持久化逻辑（那属于 core/）
-
-#### `cli_server/` — 本地 HTTP API 服务器
-```
-cli_server/
-├── mod.rs                ← 模块入口
-├── server.rs             ← axum 服务器启动与配置
-├── middleware.rs          ← 认证中间件（Bearer token 校验）
-└── routes/
-    ├── mod.rs            ← 路由聚合
-    ├── query.rs          ← /v1/query 查询端点
-    ├── session.rs        ← /v1/session 会话端点
-    ├── plugins.rs        ← /v1/plugins 插件管理端点
-    └── config.rs         ← /v1/config 配置端点
+│   ├── plugin-api/                     ← traits、数据类型、HostApi/PluginHandle
+│   ├── plugin-protocol/                ← JSON-RPC、manifest schema、codec
+│   ├── plugin-host/                    ← 子进程与双向 RPC
+│   ├── plugin-sdk-rust/                ← Rust 插件 SDK
+│   ├── platform-windows/               ← Windows 平台实现
+│   └── zerolaunch-rs/                  ← 后端库 + locales/ + assets/wiki/
+├── zerolaunch-cli/                     ← 独立 CLI
+├── installer/zerolaunch.iss            ← Inno Setup 安装包
+└── xtask/                              ← 构建编排
 ```
 
 ### 新文件放置决策树
@@ -247,48 +93,63 @@ cli_server/
 ```
 新增一个功能 →
 ├─ 需要平台 API？
-│  └─ 是 → 在 crates/plugin-api/src/services/ 定义 trait
-│         → 在 crates/platform-windows/src/ 实现
-│         → 在 HostApi 添加方法，通过 PluginHandle 暴露
+│  └─ 是 → crates/plugin-api/src/services/ 定义 trait → platform-windows 实现 → HostApi/PluginHandle 暴露
 ├─ 是系统级配置（非插件）？
-│  └─ 是 → 放 builtin_plugin/config/
+│  └─ 是 → crates/zerolaunch-rs/src/builtin_plugin/config/
 ├─ 是新的数据源/执行器/搜索引擎？
-│  └─ 是 → 放 builtin_plugin/ 对应子目录
-├─ 需要新的 IPC 命令？
-│  └─ 是 → 放 commands/ 对应文件（按前缀规则）
-├─ 需要前端新页面？
-│  └─ 是 → 放 views/
-├─ 是可复用的前端逻辑？
-│  └─ 是 → 放 composables/
+│  └─ 是 → crates/zerolaunch-rs/src/builtin_plugin/ 对应子目录
+├─ 是窗口、面板、设置页或输入交互？
+│  └─ 是 → app/src/ 对应视图
+├─ 是插件 UI 脚本能力？
+│  └─ 是 → app/src/shell.rs + HostModule
+├─ 是构建/打包/发布逻辑？
+│  └─ 是 → xtask/ 或 installer/
 └─ 其他
-   └─ 放 utils/
+   └─ 放 crates/zerolaunch-rs/src/utils/
 ```
 
-## 文件命名约定
+### 内置插件与插件框架
 
-- Vue 组件文件名使用 `PascalCase`（如 `DynamicForm.vue`）
-- TypeScript 工具文件使用 `camelCase`（如 `schemaTypes.ts`）
-- Store 文件使用 `kebab-case` + `-store` 后缀（如 `config-store.ts`）
-- Composable 文件使用 `camelCase` + `use` 前缀（如 `useKeyboardRouter.ts`）
+- 每个内置插件实现 `Configurable`（配置）+ 对应领域 trait（`DataSource`、`ActionExecutor` 等），**必须**通过 `PluginHandle` 访问平台能力。
+- 新增插件在对应目录添加 `.rs` + `inventory::submit!` 即自动注册，无需修改 `lib.rs`。
+- `SessionDispatcher` 是运行时中枢；`plugin_manager.rs` 是第三方插件生命周期唯一入口。
+- 禁止在 `plugin_framework/` 定义配置 schema 或持久化逻辑（属于 `core/`）。
+- 新增界面文案写 `crates/zerolaunch-rs/locales/*.json`；插件文案由插件包提供。
 
 ## 编码设计规范
 
-- **优雅与精简优先**：代码面向下一位维护者。优先扩展现有抽象；在引入新模块、trait 或兼容层之前，先确认现有架构确实无法容纳需求。
-- **不要过度设计**：小功能用最小实现，避免为一个简单需求写一大堆代码。不需要的抽象层、trait、泛型或配置项一律不引入；只有现有架构确实无法容纳需求时才扩展。
-- **禁止为历史遗留加兼容层**：不为老旧代码或旧契约做 shim、别名、过渡字段、补丁函数。历史契约与现状不匹配时**直接修正契约**（前后端同一 commit 同步），不留双轨并存。
-- **注释只解释当前代码的作用**：注释仅描述代码做什么（行为、参数、返回、流程），不记录决策动机、历史变更、备选方案；精简、准确，与实现一致。
+- **优雅与精简优先**：优先扩展现有抽象；在引入新模块、trait 或兼容层之前，先确认现有架构确实无法容纳需求。
+- **不要过度设计**：小功能用最小实现；只有现有架构确实无法容纳需求时才扩展。
+- **禁止为历史遗留加兼容层**：不为旧契约做 shim、别名、过渡字段；契约不匹配时直接修正。
+- **注释只解释当前代码的作用**：描述行为、参数、返回、流程，不记录历史变更或备选方案。
+- **单一权威**：每个事实只存在一次；派生值由消费方计算，不复制第二份。
+
+## 构建与验证
+
+```bash
+# 开发运行
+cargo run -p zerolaunch-gpui
+
+# 全 workspace 检查
+cargo check --workspace
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo test --workspace
+
+# 安装包 / 便携包（需要 Inno Setup 6 的 iscc）
+cd xtask
+cargo run --bin xtask build-installer --arch x64
+cargo run --bin xtask build-portable --arch x64
+```
+
+构建前如提示缺少 wiki 快照，先运行 `cargo run --bin xtask sync-wiki`。便携包通过 `portable` feature 把数据目录解析到 exe 所在目录。
 
 ## 从哪里开始
 
-- **AI 约束规则** → `.omp/RULES.md`（始终生效的工程纪律，常驻 system prompt）+ `.omp/rules/`（TTSR 条件规则：领域规范在首次访问相关文件时自动注入，编码规则在检测到坏模式时中断纠正）
+- **AI 约束规则** → `.omp/RULES.md` + `.omp/rules/`（TTSR 条件规则）
 - **第三方插件开发** → `crates/plugin-api/README.md`
-- **可复用操作技能** → `.omp/skills/`（真机验证、代码审查、发版、变更总结等操作手册；改动 UI/面板后做真机验证见 `dev-verify-cdp`，改插件见 `plugin-real-verify`）
+- **构建与发布** → `xtask/README.md`、`installer/zerolaunch.iss`
+- **可复用操作技能** → `.omp/skills/`
 
 ## CodeGraph
 
-In repositories indexed by CodeGraph (a `.codegraph/` directory exists at the repo root), reach for it BEFORE grep/find or reading files when you need to understand or locate code:
-
-- **MCP tools** (when available): `codegraph_explore` answers most code questions in one call — the relevant symbols' verbatim source plus the call paths between them. `codegraph_node` returns one symbol's source + callers, or reads a whole file with line numbers. If the tools are listed but deferred, load them by name via tool search.
-- **Shell** (always works): `codegraph explore "<symbol names or question>"` and `codegraph node <symbol-or-file>` print the same output.
-
-If there is no `.codegraph/` directory, skip CodeGraph entirely — indexing is the user's decision.
+仓库根存在 `.codegraph/` 时，定位或理解代码优先用 CodeGraph：MCP `codegraph_explore`，或 shell `codegraph explore "<symbols or question>"` / `codegraph node <symbol-or-file>`。不要先用 grep/read 重建它已索引的信息。

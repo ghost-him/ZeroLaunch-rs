@@ -1,6 +1,6 @@
 //! windows_platform_services — Windows 平台实现的统一工厂。
 //!
-//! 组装权归属平台 crate：宿主（src-tauri）只按端口整体注入 PlatformServices，
+//! 组装权归属平台 crate：宿主（crates/zerolaunch-rs）只按端口整体注入 PlatformServices，
 //! 无需逐个 import 具体 Windows 实现类型。宿主级服务（storage/model/timer 等）
 //! 不在本工厂内，由宿主自行装配。
 

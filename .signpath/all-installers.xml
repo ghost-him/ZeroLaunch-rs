@@ -1,66 +1,29 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
   <!--
-    ZeroLaunch-rs - 批量签名所有构建产物
-
-    用途：一次性签名所有类型的构建产物（推荐用于 CI/CD）
-    适用场景：GitHub Actions Release 构建
+    ZeroLaunch - 批量签名所有构建产物
 
     支持的文件类型：
-    1. MSI 安装包 (.msi) - 带深度签名 ✅
-      - zerolaunch-rs*_*_*_en-US.msi (签名安装包本身)
-      - 内部的 zerolaunch-rs.exe (深度签名应用程序)
-
-    2. 便携版 ZIP 包 (.zip) - 带深度签名 ✅
-      - ZeroLaunch-portable*-*-*.zip (使用 JAR 格式签名 ZIP 本身)
-      - 内部的 zerolaunch-rs.exe (深度签名应用程序)
-
+    1. Inno Setup 安装包 (*-setup.exe) - Authenticode 签名
+    2. 便携版 ZIP 包 (.zip) - 深度签名内部可执行文件，再 JAR 签名 ZIP
     3. 命令行工具 (zerolaunch-cli_*.exe) - Authenticode 签名
-      - zerolaunch-cli_*_*.exe (签名 CLI 二进制文件，包含版本和架构信息)
-
-    使用方法：
-    1. 将所有构建产物（2个.msi + 2个.zip + 2个zerolaunch-cli_*.exe）打包到一个 ZIP 文件中
-    2. 提交到 SignPath 进行批量签名
-    3. 不需要传递任何参数（使用通配符自动匹配所有文件）
-
-    技术说明：
-    - MSI 和 ZIP 支持深度签名，因为它们是容器格式
   -->
 
-  <!-- 使用 ZIP 作为顶层容器，包含所有构建产物 -->
   <zip-file>
-    <!-- ============================================
-        1. 深度签名 MSI 安装包 (.msi)
-        MSI 支持深度签名：先签名内部的 zerolaunch-rs.exe，再签名 MSI 本身
-        ============================================ -->
-    <msi-file path="zerolaunch-rs*_*_*_en-US.msi" max-matches="unbounded" min-matches="0">
-      <!-- 深度签名：先签名内部的应用程序（递归搜索） -->
-      <pe-file path="**/zerolaunch-rs.exe" max-matches="unbounded" min-matches="0">
-        <authenticode-sign hash-algorithm="sha256" />
-      </pe-file>
-
-      <!-- 然后签名 MSI 本身 -->
+    <!-- 1. Inno Setup 安装包 -->
+    <pe-file path="ZeroLaunch-*-setup.exe" max-matches="unbounded" min-matches="1">
       <authenticode-sign hash-algorithm="sha256" />
-    </msi-file>
+    </pe-file>
 
-    <!-- ============================================
-        2. 深度签名便携版 ZIP 包
-        先签名 ZIP 内的 zerolaunch-rs.exe，再签名 ZIP 本身（使用 JAR 签名）
-        ============================================ -->
-    <zip-file path="ZeroLaunch-portable*-*-*.zip" max-matches="unbounded" min-matches="0">
-      <!-- 深度签名：先签名内部的可执行文件 -->
-      <pe-file path="zerolaunch-rs.exe" min-matches="0">
+    <!-- 2. 便携版 ZIP：先签内部 exe，再签 ZIP 本身 -->
+    <zip-file path="ZeroLaunch-portable*-*.zip" max-matches="unbounded" min-matches="0">
+      <pe-file path="ZeroLaunch_*.exe" max-matches="unbounded" min-matches="0">
         <authenticode-sign hash-algorithm="sha256" />
       </pe-file>
-
-      <!-- 然后使用 JAR 格式签名 ZIP 本身 -->
       <jar-sign />
     </zip-file>
 
-    <!-- ============================================
-        3. 签名 CLI 命令行工具 (zerolaunch-cli_*.exe)
-        PE 文件，使用 Authenticode 签名
-        ============================================ -->
+    <!-- 3. CLI 命令行工具 -->
     <pe-file path="zerolaunch-cli_*.exe" max-matches="unbounded" min-matches="0">
       <authenticode-sign hash-algorithm="sha256" />
     </pe-file>

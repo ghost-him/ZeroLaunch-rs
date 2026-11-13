@@ -1,12 +1,12 @@
 ---
 description: 宿主统一模型服务层 — ModelManager 聚合 ModelProvider，经 ModelService trait 暴露，translate/语义搜索消费 host/model.* RPC
 condition: "ModelManager|ModelProvider|ModelService|model\\.list|model\\.chat|model\\.embedding|model\\.similarity|MODEL_OLLAMA_CONFIG_ID|MODEL_OPENAI_CONFIG_ID|ModelError"
-scope: "tool:read(src-tauri/src/core/model/**), tool:edit(src-tauri/src/core/model/**), tool:write(src-tauri/src/core/model/**), tool:read(src-tauri/src/plugin_framework/host_handler.rs), tool:edit(src-tauri/src/plugin_framework/host_handler.rs), tool:write(src-tauri/src/plugin_framework/host_handler.rs), tool:read(crates/plugin-api/src/services/model/**), tool:edit(crates/plugin-api/src/services/model/**), tool:write(crates/plugin-api/src/services/model/**), tool:read(src-tauri/src/builtin_plugin/triggerable/translator/**), tool:edit(src-tauri/src/builtin_plugin/triggerable/translator/**), tool:write(src-tauri/src/builtin_plugin/triggerable/translator/**)"
+scope: "tool:read(crates/zerolaunch-rs/src/core/model/**), tool:edit(crates/zerolaunch-rs/src/core/model/**), tool:write(crates/zerolaunch-rs/src/core/model/**), tool:read(crates/zerolaunch-rs/src/plugin_framework/host_handler.rs), tool:edit(crates/zerolaunch-rs/src/plugin_framework/host_handler.rs), tool:write(crates/zerolaunch-rs/src/plugin_framework/host_handler.rs), tool:read(crates/plugin-api/src/services/model/**), tool:edit(crates/plugin-api/src/services/model/**), tool:write(crates/plugin-api/src/services/model/**), tool:read(crates/zerolaunch-rs/src/builtin_plugin/triggerable/translator/**), tool:edit(crates/zerolaunch-rs/src/builtin_plugin/triggerable/translator/**), tool:write(crates/zerolaunch-rs/src/builtin_plugin/triggerable/translator/**)"
 ---
 
 # 宿主统一模型服务层
 
-宿主（src-tauri）对 AI 模型的访问统一收敛到 `src-tauri/src/core/model/` 模型服务层，**不分散在消费插件中**。
+宿主（crates/zerolaunch-rs）对 AI 模型的访问统一收敛到 `crates/zerolaunch-rs/src/core/model/` 模型服务层，**不分散在消费插件中**。
 
 ## 结构
 

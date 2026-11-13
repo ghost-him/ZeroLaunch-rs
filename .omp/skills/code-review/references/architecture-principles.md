@@ -12,13 +12,11 @@
 
 | 代码类别 | 必须放在 | 不可放在 | 依据 |
 |---------|---------|---------|------|
-| `#[tauri::command]` 函数 | `commands/*.rs`（按前缀分文件） | core/、plugin_framework/ | commands.md 前缀表 |
-| IPC 请求/响应 struct | `commands/` 内（如 `bridge.rs`） | core/、plugin_framework/、builtin_plugin/ | 实证：BridgeQueryResponse 等均在 commands/bridge.rs |
-| IPC 边界错误类型 | `commands/` 内 | 根目录、core/ | bridge_error.rs:9 注释已声明职责 |
-| 配置类型（Settings、Schema） | `core/config/` | commands/、plugin_framework/ | config.md |
-| 插件框架类型（SessionRouter、PluginManager、Registry） | `plugin_framework/` | commands/、core/ | .omp/AGENTS.md |
+| GPUI 窗口、面板、设置视图 | `app/src/` | 后端库 | .omp/AGENTS.md |
+| 配置类型（Settings、Schema） | `core/config/` | plugin_framework/ | config.md |
+| 插件框架类型（SessionDispatcher、PluginManager、Registry） | `plugin_framework/` | core/ | .omp/AGENTS.md |
 | 内置插件实现 | `builtin_plugin/` | plugin_framework/（框架不含具体实现） | .omp/AGENTS.md |
-| 平台操作（shell、窗口、托盘） | `tray/`、`window/`、`sdk.rs` | commands/、前端 | 前端是薄展示层 |
+| 平台操作（shell、窗口、托盘） | `app/src/tray.rs`、`crates/zerolaunch-rs/src/window/`、`sdk.rs` | 业务核心、视图内直接调平台 API | 平台能力经 Host/PluginHost 端口 |
 | 通用工具函数 | `utils/` | 任何业务模块 | .omp/AGENTS.md |
 
 **检查方式**：LLM 按上表逐条核对变更文件的放置；新增 struct/函数必须归类到对应模块。
@@ -34,20 +32,20 @@
 **第一步：确定类型的职责**
 
 - 它定义在哪个模块/层级？（定义位置 = 职责的编码）
-- 它的命名暗示什么职责？（`Bridge*` / `*Payload` / `*Response` 暗示边界类型；`*Manager` / `*Router` 暗示领域类型）
-- 它如何被使用？（`#[derive(Serialize)]` 且服务于 IPC = 边界；内部逻辑传递 = 领域）
+- 它的命名暗示什么职责？（`*Payload` / `*Response` 暗示边界类型；`*Manager` / `*Router` 暗示领域类型）
+- 它如何被使用？（`#[derive(Serialize)]` 且服务于插件协议/CLI = 边界；内部逻辑传递 = 领域）
 
 **第二步：分类**
 
-- **边界类型** — 存在目的是跨越系统边界（IPC 通信、JSON-RPC 协议、HTTP API 响应、文件格式）
-  - 应定义在：边界层（`commands/`、`crates/plugin-protocol/`、`cli_server/`）
+- **边界类型** — 存在目的是跨越系统边界（插件 JSON-RPC、CLI HTTP、文件格式）
+  - 应定义在：边界层（`crates/plugin-protocol/`、`cli_server/`、`plugin_host.rs` 契约）
   - 允许使用：仅在该边界层内
   - 禁止：泄漏到内部模块（被 `core/`、`plugin_framework/`、`builtin_plugin/`、`state/` 引用或存入字段）
 
 - **领域类型** — 代表内部业务逻辑与状态
   - 应定义在：领域层（`core/`、`plugin_framework/`）
   - 允许使用：同层或更高层的内部模块
-  - 禁止：直接序列化跨边界传输而不经边界层转换为 DTO（如把 `ConfigManager` 直接 `Serialize` 给前端）
+  - 禁止：直接序列化跨边界传输而不经边界层转换为 DTO（如把 `ConfigManager` 直接 `Serialize` 给 GPUI 视图）
 
 - **共享/工具类型** — 跨层复用的基础类型（错误类型、配置值、通用结构）
   - 应定义在：需要它的最低层（`utils/`、`core/`）
@@ -64,28 +62,18 @@
 
 - 内部错误留在内部，边界错误留在边界
 - 转换发生在边界层（通过 `From` impl）
-- 内部模块不可依赖边界错误类型（如 `BridgeError` 不可被 `core/` 使用——`bridge_error.rs:9` 已声明此约束）
-
-### 确定性脚本兜底（已知边界类型）
-
-`check-type-scope.sh` 自动监控以下**已知**边界类型是否泄漏到内部模块：
-
-- `commands/*.rs` 内所有 `pub struct`（IPC DTO）
-- `BridgeError`（边界错误）
-
-脚本覆盖的是已知案例。对于变更中**新增**的类型，LLM 必须按上述方法论独立判断。
+- 内部模块不可依赖跨进程协议或 CLI 边界错误类型
 
 ### 既有实例参考（方法论的应用样本）
 
 | 类型 | 职责 | 分类 | 允许范围 | 违规示例 |
 |------|------|------|---------|---------|
-| `BridgeQueryResponse` 等 | IPC 响应 | 边界类型 | `commands/` | 被 `core/` use 引用 |
-| `BridgeError` | IPC 错误 | 边界类型 | `commands/` | 被 `plugin_framework/` 当错误用 |
-| `SessionRouterError` 等 | 各域内部错误 | 领域类型 | 各域内部 | 泄漏到其他职责域作通用错误 |
-| `ConfigManager` 等 | 内部领域模型 | 领域类型 | L3+ | 被 `utils/` 引用；或直接 Serialize 给前端 |
-| `CliToken` | CLI 鉴权令牌 | 共享类型 | 应在 `core/`（L2） | 定义在 `cli_server/`（L5）被 `state/`（L4）引用 = 反向依赖 |
+| 插件协议请求/响应 | JSON-RPC 边界 | 边界类型 | `plugin-protocol/` + `plugin-host/` | 被 `core/` 直接引用 |
+| `SessionDispatcher` 错误 | 会话域内部错误 | 领域类型 | 各域内部 | 泄漏到其他职责域作通用错误 |
+| `ConfigManager` 等 | 内部领域模型 | 领域类型 | L3+ | 被 `utils/` 引用 |
+| `CliToken` | CLI 鉴权令牌 | 共享类型 | `core/`（L2） | 定义在 `cli_server/`（L5）被 `state/`（L4）引用 = 反向依赖 |
 
-**检查方式**：`check-type-scope.sh` 确定性检测已知边界类型泄漏；LLM 按方法论对变更中所有类型（含新增）独立判断。
+**检查方式**：LLM 按方法论对变更中所有类型（含新增）独立判断。
 
 ## P3 编译期层级与依赖方向
 
@@ -95,30 +83,31 @@
 
 | 层级 | 模块 | 职责 | 实证依据（依赖项） |
 |------|------|------|------------------|
-| L0 | `utils`、`logging` | 通用基础 | 零 `use crate::` |
+| L0 | `utils`、`logging`、`runtime` | 通用基础 | 零 `use crate::` |
 | L1 | `sdk.rs` | 平台抽象 re-export | 零 `use crate::`，仅依赖外部 crate |
 | L2 | `core` | 领域核心（ConfigManager、Configurable、AppCommand） | 零跨模块依赖，完全自包含 |
-| L3 | `plugin_framework` | 框架层（SessionRouter、PluginManager、Pipeline、Registry） | → core, sdk |
-| L3 | `tray`、`window` | 平台相关服务 | → core, sdk |
+| L3 | `plugin_framework` | 框架层（SessionDispatcher、PluginManager、Pipeline、Registry） | → core, sdk |
+| L3 | `window` | 窗口位置服务（Host 端口） | → core, sdk |
 | L4 | `builtin_plugin` | 内置插件实现 | → core, plugin_framework, utils |
-| L4 | `state` | 组合根（聚合所有 manager 实例的 AppState） | → core, plugin_framework, sdk, tray |
-| L5 | `commands`、`cli_server` | 入口层（IPC / HTTP） | → state + 下层 |
-| L6 | `bootstrap`、`lib`、`main` | 编排层（启动装配） | → core, plugin_framework, state, tray, window |
+| L4 | `state` | 组合根（聚合所有 manager 实例的 AppState） | → core, plugin_framework, sdk, updater |
+| L4 | `updater` | 版本更新检查 | → core, sdk, state |
+| L5 | `cli_server` | 入口层（HTTP） | → state + 下层 |
+| L6 | `kernel`、`lib` | 编排层（启动装配） | → core, plugin_framework, state, window |
 
 ### 层级判定原理
 
-**层级 = 你依赖的最高层模块 + 1。** 不是由"做多少逻辑"决定，而是由"必须知道哪些类型"决定。`state` 持有 `Arc<SessionRouter>`（L3），就必须 `use` L3 类型，所以 `state` ≥ L4——它不能再低，否则 L3 反向依赖它就是违规。
+**层级 = 你依赖的最高层模块 + 1。** 不是由"做多少逻辑"决定，而是由"必须知道哪些类型"决定。`state` 持有 `Arc<SessionDispatcher>`（L3），就必须 `use` L3 类型，所以 `state` ≥ L4——它不能再低，否则 L3 反向依赖它就是违规。
 
 ### 特例
 
 - **`state`（L4）作为组合根**，允许引用 L3 的多个不同模块——这是它的职责（聚合）。但 L3 模块不可反向引用 `state`。
-- **`bootstrap`（L6）作为编排层**，允许引用各层做装配。但被装配的模块不可反向引用 `bootstrap`。
+- **`kernel`（L6）作为编排层**，允许引用各层做装配。但被装配的模块不可反向引用 `kernel`。
 
 ### 已知既有违规（脚本会报，列为"既有问题"）
 
 | 位置 | 违规 | 根因 | 修复方向 |
 |------|------|------|---------|
-| `state/app_state.rs:1` `use crate::cli_server::token::CliToken` | L4 → L5 反向 | `CliToken` 共享类型被定义在入口层 `cli_server/` | 将 `CliToken` 下沉到 `core/` 或独立共享类型模块 |
+| `plugin_framework/session_dispatcher.rs` 引用 `builtin_plugin` 常量/配置 | L3 → L4 反向 | 会话层直接依赖内置插件定义 | 将共用常量/配置下沉到 `core` 或 `plugin-api` |
 
 **检查方式**：`check-deps-direction.sh` 扩展内部模块层级检查（确定性）。
 
@@ -133,13 +122,13 @@
 | 职责域 | 所在模块 | 职责 | 运行时交互方式 |
 |--------|---------|------|---------------|
 | **ConfigManager**（配置生命周期） | `core/config` | 校验→写入→副作用→广播 ConfigEvent→持久化 | 发布 `ConfigEvent`；监听 `PluginRuntimeEvent` |
-| **SessionRouter**（查询路由） | `plugin_framework/session_router` | 搜索/插件模式分发、候选缓存、执行路由 | 监听 `ConfigEvent` 重建管道；**不直接调** ConfigManager 方法 |
-| **PluginManager**（插件进程生命周期） | `plugin_framework/manager` | 加载/卸载/崩溃重启第三方插件 | 发布 `PluginRuntimeEvent`；**不持有** ConfigManager 引用 |
+| **SessionDispatcher**（查询路由） | `plugin_framework/session_dispatcher` | 搜索/插件模式分发、候选缓存、执行路由 | 监听 `ConfigEvent` 重建管道；**不直接调** ConfigManager 方法 |
+| **PluginManager**（插件进程生命周期） | `plugin_framework/plugin_manager` | 加载/卸载/崩溃重启第三方插件 | 发布 `PluginRuntimeEvent`；**不持有** ConfigManager 引用 |
 
 ### 解耦链路（实证，见 plugin-system.md）
 
 ```
-PluginManager ──PluginRuntimeEvent──▶ ConfigManager ──ConfigEvent──▶ SessionRouter
+PluginManager ──PluginRuntimeEvent──▶ ConfigManager ──ConfigEvent──▶ SessionDispatcher
    (发布)                              (监听+同步注册)               (监听+重建管道)
 ```
 
@@ -149,10 +138,10 @@ PluginManager ──PluginRuntimeEvent──▶ ConfigManager ──ConfigEvent�
 
 | 场景 | 判定 |
 |------|------|
-| `session_router.rs` 内 `use crate::core::config::ConfigEvent`（导入事件类型） | ✅ 允许（类型级向下） |
-| `session_router.rs` 内 `config_manager.apply_settings(...)`（直接调方法） | ❌ 禁止（运行时直连职责域） |
-| `plugin_framework/manager.rs` 持有 `Arc<ConfigManager>` 字段 | ❌ 禁止（plugin-system.md 已声明"不再持有直接引用"） |
-| `commands/` 内 `state.get_config_manager().apply_settings(...)` | ✅ 允许（入口层编排，不是职责域互调） |
+| `session_dispatcher.rs` 内 `use crate::core::config::ConfigEvent`（导入事件类型） | ✅ 允许（类型级向下） |
+| `session_dispatcher.rs` 内 `config_manager.apply_settings(...)`（直接调方法） | ❌ 禁止（运行时直连职责域） |
+| `plugin_framework/plugin_manager.rs` 持有 `Arc<ConfigManager>` 字段 | ❌ 禁止（plugin-system.md 已声明"不再持有直接引用"） |
+| `cli_server/handler` 内 `state.get_config_manager().apply_settings(...)` | ✅ 允许（入口层编排，不是职责域互调） |
 
 **检查方式**：部分脚本化——grep `config_manager\.` / `session_router\.` / `plugin_manager\.` 在彼此职责域模块内的方法调用；LLM 复核调用语义区分"类型导入"与"运行时调用"。
 
@@ -164,9 +153,9 @@ PluginManager ──PluginRuntimeEvent──▶ ConfigManager ──ConfigEvent�
 |------|--------------|------|
 | 跨层（高 → 低） | 直接方法调用、类型导入 | — |
 | 同职责域内（如 core/config 内部子模块） | 直接调用 | — |
-| 同级不同职责域（ConfigManager ↔ SessionRouter） | 事件通道、管道、回调 | 直接方法调用（见 P4） |
+| 同级不同职责域（ConfigManager ↔ SessionDispatcher） | 事件通道、管道、回调 | 直接方法调用（见 P4） |
 | 跨进程（主程序 ↔ 第三方插件） | JSON-RPC（plugin-protocol 定义） | 直接函数调用、共享内存 |
-| 前后端（Rust ↔ TypeScript） | Tauri IPC（invoke / emit-listen） | 前端直接做业务逻辑/平台操作 |
+| 宿主与 UI 视图（同进程） | Rust 类型直接调用 | 复制 DTO、另建序列化层 |
 
 **检查方式**：LLM 按关系表判断变更中引入的调用方式是否匹配关系类型。
 

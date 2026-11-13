@@ -1,3 +1,5 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 //! ZeroLaunch GPUI 搜索窗入口。
 //!
 //! 复用 `zerolaunch-rs` 的内核装配，但窗口与输入链路完全走 GPUI：

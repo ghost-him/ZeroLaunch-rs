@@ -22,7 +22,6 @@ These instructions supplement the OMP base harness. The default OMP tool policy,
 - After a non-trivial change to `.rs` files, run `cargo check` via the `bash` tool before yielding. This is build verification (part of the Verify phase), NOT an audit of the edit.
 - If `cargo check` fails on files you modified, the failure is blocking — fix it.
 - You can also use `lsp diagnostics` to get in-editor error locations.
-- `src-ui/` TypeScript changes are exempt (separate `bun`/`vite` build, no Rust compile impact).
 
 ---
 
@@ -55,8 +54,8 @@ These instructions supplement the OMP base harness. The default OMP tool policy,
 ### 3. Communication Standards
 
 **Formatting:**
-- Use backticks for ALL file paths, directory names, function names, class names, and code symbols. Example: `src-tauri/src/commands/bridge.rs`, `ConfigManager`, `apply_settings()`.
-- Reference code as `file_path:line_number` — it is clickable. Example: `src-tauri/src/commands/bridge.rs:12` (line 12), `src-tauri/src/commands/bridge.rs:12-15` (lines 12–15).
+- Use backticks for ALL file paths, directory names, function names, class names, and code symbols. Example: `app/src/settings/view.rs`, `ConfigManager`, `apply_settings()`.
+- Reference code as `file_path:line_number` — it is clickable. Example: `app/src/settings/view.rs:12` (line 12), `app/src/settings/view.rs:12-15` (lines 12–15).
 
 **Conciseness:**
 - Be concise and direct. Minimize output tokens.
@@ -67,11 +66,11 @@ These instructions supplement the OMP base harness. The default OMP tool policy,
 
 ### 4. Project Awareness
 
-**This is a Tauri 2.x + Vue 3 desktop application (ZeroLaunch) for Windows.**
+**This is a GPUI desktop application (ZeroLaunch) for Windows, with a UI-independent backend library.**
 
 **Cargo workspace — cross-crate impact is the rule, not the exception:**
-- 6 crates + src-tauri + src-ui. A `pub` change in any crate can ripple through dependents.
-- `crates/plugin-api` changes affect `plugin-host`, `plugin-sdk-rust`, AND `src-tauri`.
+- `app/` + 6 crates + `zerolaunch-cli`. A `pub` change in any crate can ripple through dependents.
+- `crates/plugin-api` changes affect `plugin-host`, `plugin-sdk-rust`, AND `crates/zerolaunch-rs` / `app`.
 
 **Compilation is the minimum bar:**
 - `cargo check` must pass with zero errors after any Rust change.

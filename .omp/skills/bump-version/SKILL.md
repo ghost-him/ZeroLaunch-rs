@@ -6,7 +6,7 @@ argument-hint: "<版本号> [发布重点] — 如 v1.5.5；发布重点为可�
 
 # bump-version — 版本号变更与发版
 
-变更工作区、Tauri 配置与 crates 的版本号，格式化代码，提交、打 tag、推送远端，并发布本次有实质变更的 crates。
+变更工作区 Cargo 版本与 crates 版本号，格式化代码，提交、打 tag、推送远端，并发布本次有实质变更的 crates。
 
 ## 触发方式
 
@@ -24,15 +24,9 @@ argument-hint: "<版本号> [发布重点] — 如 v1.5.5；发布重点为可�
    - 参数中版本号之外的内容即「发布重点」（可选，可多行/多行分隔），原样写入 tag 注释。
    - 版本号未明确给出时：按本仓既有实践取**下一个 patch**（`v1.5.2`、`v1.5.3`、`v1.5.4` 都含 `feat` 提交但仍走 patch）；minor/major 只在用户明确要求时使用。
 
-2. **更新主程序版本号（5 处）**：
-   - **工作区根 `Cargo.toml`**：更新 `[workspace.package] version = "X.Y.Z"`（所有 `version.workspace = true` 的 crate 自动继承，无需逐一修改）
-   - **`src-tauri/Cargo.toml`**：
-     - 先检查是否为 `version.workspace = true`。
-     - 如果**不是**（当前为独立版本），更新其 `version = "X.Y.Z"`。
-     - 如果**是**（未来改为继承后），则跳过此项（根 Cargo.toml 已覆盖）。
-   - **`src-tauri/tauri.conf.json`**：更新根级 `"version"` 为 `"X.Y.Z"`（字段在根层，如 `"version": "1.0.0"`）。
-   - **`src-tauri/tauri.conf.portable.json`**：同上，更新根级 `"version"` 为 `"X.Y.Z"`。
-   - **`package.json`**（根目录）：更新 `"version"` 为 `"X.Y.Z"`。
+2. **更新主程序版本号（1 处）**：
+   - **工作区根 `Cargo.toml`**：更新 `[workspace.package] version = "X.Y.Z"`（`app` 与 `crates/zerolaunch-rs` 均继承，无需改子 crate）。
+   - 安装包版本由 `xtask` 从 `cargo metadata` 读取，不维护第二份版本号。
 
 3. **更新 crates 版本号（只升本次真有内容变更的）**：
    - 判定唯一证据是**与 crates.io 已发布 tarball 逐字节对比**，不要凭 git log 猜：

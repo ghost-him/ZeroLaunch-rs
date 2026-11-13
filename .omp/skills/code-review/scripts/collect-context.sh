@@ -150,8 +150,8 @@ declare -A _SUB_SEEN=()
 SUB_LIST=""                   # unique subsystems, newline-separated (section 3)
 declare -A _RULE_SEEN=()
 RULE_LIST=""                  # unique rule files, newline-separated (section 4)
-# Boolean flags (sections 5-7) — replaces 6 `echo|grep -c` subprocess calls
-HAS_RUST=0; NEEDS_CARGO=0; HAS_RUST_IPC=0; HAS_HANDLER=0; HAS_FE_BRIDGE=0; HAS_TS_CONTRACT=0
+# Boolean flags (sections 5-6)
+HAS_RUST=0; NEEDS_CARGO=0
 
 while IFS= read -r f; do
     [ -z "$f" ] && continue
@@ -183,18 +183,6 @@ while IFS= read -r f; do
     esac
     case "$f" in
         *.rs) NEEDS_CARGO=1 ;;
-    esac
-    case "$f" in
-        src-tauri/src/commands/*) HAS_RUST_IPC=1 ;;
-    esac
-    case "$f" in
-        src-tauri/src/lib.rs) HAS_HANDLER=1 ;;
-    esac
-    case "$f" in
-        src-ui/bridge/*) HAS_FE_BRIDGE=1 ;;
-    esac
-    case "$f" in
-        src-ui/bridge/contract.ts) HAS_TS_CONTRACT=1 ;;
     esac
 done <<< "$CHANGED_FILES"
 
@@ -242,19 +230,13 @@ echo ""
 
 # --- 5. Architecture checks (if Rust files changed) ------------------------
 # HAS_RUST pre-computed in the single-pass loop above.
-# Includes: dependency direction (P3) + boundary type scope (P2).
+# Includes: dependency direction (P3).
 if [ "$HAS_RUST" -gt 0 ]; then
-    echo "## 5. Architecture Checks (Dependency Direction + Type Scope)"
+    echo "## 5. Architecture Checks (Dependency Direction)"
     if [ -f "$SCRIPT_DIR/check-deps-direction.sh" ]; then
         bash "$SCRIPT_DIR/check-deps-direction.sh" 2>/dev/null || true
     else
         echo "(check-deps-direction.sh not found, skipped)"
-    fi
-    echo ""
-    if [ -f "$SCRIPT_DIR/check-type-scope.sh" ]; then
-        bash "$SCRIPT_DIR/check-type-scope.sh" 2>/dev/null || true
-    else
-        echo "(check-type-scope.sh not found, skipped)"
     fi
     echo ""
 fi
@@ -265,35 +247,17 @@ fi
 if [ "$NEEDS_CARGO" -gt 0 ]; then
     echo "## 6. Build Check Suggestion"
     echo "[WARN] Rust sources changed - recommend a build + lint pass"
-    echo "       Build:  cd src-tauri && cargo check 2>&1 | tail -20"
-    echo "       Lint :  cd src-tauri && cargo clippy 2>&1 | tail -40"
+    echo "       Build:  cargo check --workspace 2>&1 | tail -20"
+    echo "       Lint :  cargo clippy --workspace --all-targets 2>&1 | tail -40"
     echo "               (clippy::await_holding_lock deterministically flags RwLock/Mutex guards held across .await —"
     echo "                a core project rule; prefer this over eyeballing the diff)"
     echo ""
 fi
 
-# --- 7. IPC command consistency (deterministic cross-check) -----------------
-# All HAS_* flags pre-computed in the single-pass loop above.
-if [ "$HAS_RUST_IPC" -gt 0 ] || [ "$HAS_HANDLER" -gt 0 ] || [ "$HAS_FE_BRIDGE" -gt 0 ]; then
-    echo "## 7. IPC Command Consistency"
-    if [ -f "$SCRIPT_DIR/check-ipc-commands.sh" ]; then
-        bash "$SCRIPT_DIR/check-ipc-commands.sh" 2>/dev/null || echo "(check-ipc-commands.sh failed)"
-    else
-        echo "(check-ipc-commands.sh not found, skipped)"
-    fi
-    # Presence-based hint on top of the deterministic set check above.
-    if [ "$HAS_RUST_IPC" -gt 0 ] && [ "$HAS_TS_CONTRACT" -eq 0 ]; then
-        echo "[HINT] commands/ changed but bridge/contract.ts not touched - verify IPC types need sync"
-    elif [ "$HAS_RUST_IPC" -eq 0 ] && [ "$HAS_TS_CONTRACT" -gt 0 ]; then
-        echo "[HINT] bridge/contract.ts changed but commands/ not touched - verify backend needs sync"
-    fi
-    echo ""
-fi
-
-# --- 8. Big commit classification (for multi-commit ranges) ------------------
+# --- 7. Big commit classification (for multi-commit ranges) ------------------
 if [ "$MODE" = "commits" ] || [ "$MODE" = "range" ] || [ "$MODE" = "branch" ]; then
     if [ "$RANGE" != "HEAD" ] && [ "$RANGE" != "--cached" ]; then
-        echo "## 8. Big Commit Classification"
+        echo "## 7. Big Commit Classification"
         if [ -f "$SCRIPT_DIR/classify-commits.sh" ]; then
             bash "$SCRIPT_DIR/classify-commits.sh" "$RANGE" 2>/dev/null || echo "(classify-commits.sh failed)"
         else

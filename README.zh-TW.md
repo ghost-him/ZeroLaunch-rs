@@ -12,7 +12,7 @@
 <p align="center">
   <a href="./LICENSE.txt"><img src="https://img.shields.io/badge/license-GPL--3.0--only-blue" alt="授權條款：GPL-3.0-only"></a>
   <img src="https://img.shields.io/badge/platform-Windows-0078D6" alt="平台：Windows">
-  <img src="https://img.shields.io/badge/built_with-Tauri_2_Rust_Vue-654FF0" alt="以 Tauri 2、Rust 與 Vue 打造">
+  <img src="https://img.shields.io/badge/built_with-GPUI_Kit_Rust-4B8BBE" alt="以 GPUI Kit 與 Rust 打造">
   <a href="https://github.com/ghost-him/ZeroLaunch-rs/releases/latest"><img src="https://img.shields.io/github/v/release/ghost-him/ZeroLaunch-rs?label=version&color=0E7C74" alt="最新版本"></a>
   <a href="https://github.com/ghost-him/ZeroLaunch-rs/stargazers"><img src="https://img.shields.io/github/stars/ghost-him/ZeroLaunch-rs?style=social" alt="GitHub 星標數"></a>
   <a href="https://gitee.com/ghost-him/ZeroLaunch-rs/stargazers"><img src="https://gitee.com/ghost-him/ZeroLaunch-rs/badge/star.svg?theme=dark" alt="Gitee 星標數"></a>
@@ -76,7 +76,7 @@ ZeroLaunch-rs 預設的匹配演算法就是衝著這件事寫的。它給每個
 
 ## 60 秒上手
 
-1. **裝**：到 [Releases](https://github.com/ghost-him/ZeroLaunch-rs/releases) 下載檔名帶 `x64` 的 `.msi`，雙擊裝完即可（只有 ARM 筆電要選帶 `arm64` 的）。
+1. **裝**：到 [Releases](https://github.com/ghost-him/ZeroLaunch-rs/releases) 下載檔名帶 `x64` 的 `-setup.exe`，雙擊裝完即可（只有 ARM 筆電要選帶 `arm64` 的）。
 2. **或者用可攜版**：下載檔名帶 `x64` 的 `ZeroLaunch-portable-…` `.zip`，解壓後執行裡面的 `exe`。
 
 用起來就三步：按 <kbd>Alt</kbd>+<kbd>Space</kbd> 喚出 → 敲幾個字母 → <kbd>Enter</kbd> 開啟。第一個結果預設選中，所以這三步就夠了。

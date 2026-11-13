@@ -3,7 +3,7 @@ description: 配置数据流分层规范 — 运行时类型、存储类型、�
 condition:
   - 'get_settings'
   - 'get_component_setting'
-scope: "tool:read(src-tauri/src/builtin_plugin/config/**), tool:edit(src-tauri/src/builtin_plugin/config/**), tool:write(src-tauri/src/builtin_plugin/config/**), tool:read(src-tauri/src/core/config/**), tool:edit(src-tauri/src/core/config/**), tool:write(src-tauri/src/core/config/**), tool:read(src-tauri/src/core/bias_rule.rs), tool:edit(src-tauri/src/core/bias_rule.rs), tool:write(src-tauri/src/core/bias_rule.rs), tool:read(src-tauri/src/bootstrap.rs), tool:edit(src-tauri/src/bootstrap.rs), tool:write(src-tauri/src/bootstrap.rs), tool:read(src-tauri/src/plugin_framework/session_dispatcher.rs), tool:edit(src-tauri/src/plugin_framework/session_dispatcher.rs), tool:write(src-tauri/src/plugin_framework/session_dispatcher.rs), tool:read(src-tauri/src/plugin_framework/candidate_pipeline.rs), tool:edit(src-tauri/src/plugin_framework/candidate_pipeline.rs), tool:write(src-tauri/src/plugin_framework/candidate_pipeline.rs), tool:read(src-tauri/src/plugin_framework/executor_registry.rs), tool:edit(src-tauri/src/plugin_framework/executor_registry.rs), tool:write(src-tauri/src/plugin_framework/executor_registry.rs), tool:read(crates/plugin-api/src/services/**), tool:edit(crates/plugin-api/src/services/**), tool:write(crates/plugin-api/src/services/**), tool:read(src-ui/bridge/contract.ts), tool:edit(src-ui/bridge/contract.ts), tool:write(src-ui/bridge/contract.ts)"
+scope: "tool:read(crates/zerolaunch-rs/src/builtin_plugin/config/**), tool:edit(crates/zerolaunch-rs/src/builtin_plugin/config/**), tool:write(crates/zerolaunch-rs/src/builtin_plugin/config/**), tool:read(crates/zerolaunch-rs/src/core/config/**), tool:edit(crates/zerolaunch-rs/src/core/config/**), tool:write(crates/zerolaunch-rs/src/core/config/**), tool:read(crates/zerolaunch-rs/src/core/bias_rule.rs), tool:edit(crates/zerolaunch-rs/src/core/bias_rule.rs), tool:write(crates/zerolaunch-rs/src/core/bias_rule.rs), tool:read(crates/zerolaunch-rs/src/kernel.rs), tool:edit(crates/zerolaunch-rs/src/kernel.rs), tool:write(crates/zerolaunch-rs/src/kernel.rs), tool:read(crates/zerolaunch-rs/src/plugin_framework/session_dispatcher.rs), tool:edit(crates/zerolaunch-rs/src/plugin_framework/session_dispatcher.rs), tool:write(crates/zerolaunch-rs/src/plugin_framework/session_dispatcher.rs), tool:read(crates/zerolaunch-rs/src/plugin_framework/candidate_pipeline.rs), tool:edit(crates/zerolaunch-rs/src/plugin_framework/candidate_pipeline.rs), tool:write(crates/zerolaunch-rs/src/plugin_framework/candidate_pipeline.rs), tool:read(crates/zerolaunch-rs/src/plugin_framework/executor_registry.rs), tool:edit(crates/zerolaunch-rs/src/plugin_framework/executor_registry.rs), tool:write(crates/zerolaunch-rs/src/plugin_framework/executor_registry.rs), tool:read(crates/plugin-api/src/services/**), tool:edit(crates/plugin-api/src/services/**), tool:write(crates/plugin-api/src/services/**)"
 ---
 
 # 配置数据流分层规范
@@ -20,19 +20,14 @@ scope: "tool:read(src-tauri/src/builtin_plugin/config/**), tool:edit(src-tauri/s
 ## 配置默认值来源
 
 - 配置默认值**唯一来源是后端**：serde `default` / `default = "fn"` + schema `.default(...)`
-  必须指向同一常量，前端不消费硬编码默认值做业务判断
-- 前端**防御性兜底例外**：`configStore.settings` 加载失败/字段缺失时，前端可对
-  `KeyOpts` 等投影做 `?? '默认值'` 兜底——此时兜底值**必须**注释互指后端
-  default 函数（如 `// 与 Rust default_move_up_key() 一致，变更必须同步`），
-  且仅作展示层投影回退，不参与业务裁决
-- 若后端 schema 下发 `.default` 可被前端消费（schema 驱动 UI），优先消费下发值，
-  不写死字面量
+  必须指向同一常量；GPUI 设置页与插件兜底表单都消费 schema 值，不写死默认值。
+- 若 schema 下发 `.default`，视图优先消费下发值；确需展示层回退时，回退值**必须**注释互指后端 default 函数，且仅作展示，不参与业务裁决。
 
 ## 依赖方向
 
 - 运行时类型（core/）→ 无业务依赖，被所有层引用
 - 存储类型 + 转换函数（builtin_plugin/）→ 可引用 `core/` 中的运行时类型
-- 消费方（bootstrap.rs / plugin_framework/）→ 可引用 builtin_plugin/ 中的 Settings 类型和转换函数
+- 消费方（kernel.rs / plugin_framework/）→ 可引用 builtin_plugin/ 中的 Settings 类型和转换函数
 
 **禁止**：
 - 存储类型/转换函数所在模块 import `ConfigManager`

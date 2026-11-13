@@ -12,7 +12,7 @@
 <p align="center">
   <a href="./LICENSE.txt"><img src="https://img.shields.io/badge/license-GPL--3.0--only-blue" alt="License: GPL-3.0-only"></a>
   <img src="https://img.shields.io/badge/platform-Windows-0078D6" alt="Platform: Windows">
-  <img src="https://img.shields.io/badge/built_with-Tauri_2_Rust_Vue-654FF0" alt="Built with Tauri 2, Rust and Vue">
+  <img src="https://img.shields.io/badge/built_with-GPUI_Kit_Rust-4B8BBE" alt="Built with GPUI Kit and Rust">
   <a href="https://github.com/ghost-him/ZeroLaunch-rs/releases/latest"><img src="https://img.shields.io/github/v/release/ghost-him/ZeroLaunch-rs?label=version&color=0E7C74" alt="Latest release"></a>
   <a href="https://github.com/ghost-him/ZeroLaunch-rs/stargazers"><img src="https://img.shields.io/github/stars/ghost-him/ZeroLaunch-rs?style=social" alt="GitHub stars"></a>
   <a href="https://gitee.com/ghost-him/ZeroLaunch-rs/stargazers"><img src="https://gitee.com/ghost-him/ZeroLaunch-rs/badge/star.svg?theme=dark" alt="Gitee stars"></a>
@@ -75,7 +75,7 @@ ZeroLaunch-rs's default matching algorithm is built for exactly this. It scores 
 
 ## Up in 60 seconds
 
-1. **Install**: grab the `.msi` whose filename contains `x64` from [Releases](https://github.com/ghost-him/ZeroLaunch-rs/releases) and double-click through it (only ARM laptops need the `arm64` one).
+1. **Install**: grab the `-setup.exe` whose filename contains `x64` from [Releases](https://github.com/ghost-him/ZeroLaunch-rs/releases) and double-click through it (only ARM laptops need the `arm64` one).
 2. **Or use the portable build**: download the `ZeroLaunch-portable-…` `.zip` whose filename contains `x64`, unzip it, and run the `exe` inside.
 
 Using it is three steps: press <kbd>Alt</kbd>+<kbd>Space</kbd> to bring it up → type a few letters → <kbd>Enter</kbd> to open. The first result is selected by default, so those three steps are all you need.

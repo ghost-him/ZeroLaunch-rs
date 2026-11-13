@@ -7,7 +7,7 @@
 在开始开发之前，请确保您已安装以下工具：
 
 - **Rust**: v1.90.0+ (推荐安装最新稳定版)
-- **Bun**: v1.2.22+
+- **Inno Setup 6**：仅构建安装包时需要，`iscc` 需在 `PATH` 中
 - **Just**: (可选) 用于快速执行开发指令
 - **CodeGraph**: (推荐) 代码知识图谱索引，用于 Claude Code 上下文增强
 
@@ -22,8 +22,8 @@
 | 设施 | 路径 | 用途 |
 | ---- | ---- | ---- |
 | 工程纪律（粘性规则） | `.omp/RULES.md` | 始终生效的硬性工程纪律，永不滚出上下文 |
-| 条件规则 | `.omp/rules/` (7 个域规则文件) | TTSR 条件触发，按文件路径加载架构、编码规范、数据流等上下文 |
-| 技能 | `.omp/skills/` (4 个技能) | 自动化常见开发任务（详见下方） |
+| 条件规则 | `.omp/rules/` | TTSR 条件触发，按文件路径加载架构、编码规范、数据流等上下文 |
+| 技能 | `.omp/skills/` | 自动化常见开发任务（详见下方） |
 | CodeGraph | `.codegraph/` (代码知识图谱索引) | 毫秒级符号级代码检索，支撑 OMP 精准定位与理解代码 |
 | 项目导航 | `.omp/AGENTS.md` | 项目入口文档，提供架构速览与关键文件清单 |
 | 权限配置 | `.omp/config.yml` | 预配置常用命令权限，减少交互式授权弹窗 |
@@ -35,7 +35,7 @@
 **安装 CodeGraph：**
 
 ```bash
-bun install -g @colbymchenry/codegraph 
+npm install -g @colbymchenry/codegraph
 ```
 
 **在本项目中初始化：**
@@ -53,17 +53,9 @@ codegraph init
 
 `.omp/RULES.md` — 始终生效的粘性工程纪律：死代码、数据流（KISS / 流程精简）、前后端边界、用户交互、注释与验证纪律。始终加载，不随文件路径触发（async 契约 / 同步锁守卫见 `.omp/rules/no-sync-lock-across-await.md`，日志规范见 `.omp/rules/no-println.md`）。详见 [`.omp/RULES.md`](.omp/RULES.md)。
 
-#### 条件规则文件 (.omp/rules/) 清单
+#### 条件规则文件 (.omp/rules/)
 
-| 规则文件 | 覆盖域 |
-| -------- | ------ |
-| `rules/plugin-system.md` | 插件系统架构：SessionRouter、Pipeline、Registry、PluginManager、事件通道 |
-| `rules/sdk.md` | SDK 层规范：PluginHandle、HostApi、trait 定义与实现分离 |
-| `rules/commands.md` | IPC 命令规范：薄代理模式、命令前缀与文件对应关系 |
-| `rules/config.md` | 配置系统规范：ConfigManager、Configurable trait、SchemaBuilder |
-| `rules/frontend.md` | 前端架构规范：组件目录、状态管理、IPC 契约层 |
-| `rules/third-party-plugin.md` | 第三方插件开发与加载规范 |
-| `rules/data-flow.md` | 数据流规范：前端 ↔ IPC ↔ 后端 ↔ 插件 的数据流向 |
+规则按领域拆分，由 TTSR 在命中对应文件或模式时自动注入；当前清单以目录内容为准，不再维护容易过期的固定表格。
 
 ### 支持技能（Skills）
 
@@ -124,17 +116,19 @@ cd ZeroLaunch-rs
 ### 安装依赖
 
 ```bash
-bun install
 # 用于简化常用指令
 cargo install just
+
+# 启用仓库内的 commit-msg / pre-commit 钩子
+git config core.hooksPath .husky
 ```
 
 ### 开发模式
 
-启动开发服务器进行实时开发和调试：
+直接运行 GPUI 宿主：
 
 ```bash
-bun run tauri dev
+cargo run -p zerolaunch-gpui
 ```
 
 ### 生产构建
@@ -213,7 +207,6 @@ cargo run --bin xtask clean                         # 清理构建产物
 请确保您的代码遵循项目现有的代码风格：
 
 - **Rust 代码**：使用 `just style` 完成代码的格式化（等效于 `cargo fmt --all` + `cargo clippy --workspace --fix --allow-dirty --allow-staged`）
-- **TypeScript/Vue 代码**：遵循现有的代码风格惯例
 
 ### 提交前检查清单
 

@@ -1,7 +1,7 @@
 ---
 description: ConfigAction 规范 — 配置保存前的副作用测试（如模型服务连通性），纯查询/计算操作，field-level 可含有限副作用
 condition: "execute_config_action|config_actions|ConfigActionDef|ConfigAction"
-scope: "tool:edit(src-tauri/src/builtin_plugin/**), tool:write(src-tauri/src/builtin_plugin/**), tool:edit(src-tauri/src/core/config/**), tool:write(src-tauri/src/core/config/**), tool:edit(src-tauri/src/commands/**), tool:write(src-tauri/src/commands/**), tool:edit(crates/plugin-api/src/config/**), tool:write(crates/plugin-api/src/config/**)"
+scope: "tool:edit(crates/zerolaunch-rs/src/builtin_plugin/**), tool:write(crates/zerolaunch-rs/src/builtin_plugin/**), tool:edit(crates/zerolaunch-rs/src/core/config/**), tool:write(crates/zerolaunch-rs/src/core/config/**), tool:edit(app/src/settings/**), tool:write(app/src/settings/**), tool:edit(crates/plugin-api/src/config/**), tool:write(crates/plugin-api/src/config/**)"
 ---
 
 # ConfigAction 规范
@@ -10,14 +10,14 @@ scope: "tool:edit(src-tauri/src/builtin_plugin/**), tool:write(src-tauri/src/bui
 
 如果副作用必须决定配置能否保存（如模型服务连通性测试）：**必须** 使用 `ConfigAction`。通过 `config_actions() → Vec<ConfigActionDef>` 声明，在 `async fn execute_config_action(&self, action: &str, params: &serde_json::Value) -> Result<serde_json::Value, String>` 中实现。
 
-前端 **必须** 将 `config_execute_action` 作为单独的用户触发操作调用，与保存流程解耦。
+GPUI 设置页 **必须** 将 `execute_config_action` 作为单独的用户触发操作调用，与保存流程解耦。
 
 ## field-level ConfigAction 例外
 
 `FieldUiMetadata.action` 标记的字段级动作 **允许** 有限副作用，但受以下约束：
 
 1. **必须** 在 `FieldUiMetadata` 的文档注释中说明副作用（如"立即写入缓存，不持久化字段值"）
-2. **必须** 是异常安全的：失败时不得留下不一致状态，`execute_config_action` 返回 `Err` 后前端可重试
+2. **必须** 是异常安全的：失败时不得留下不一致状态，`execute_config_action` 返回 `Err` 后调用方可重试
 3. **禁止** 修改组件内部配置状态（`self.settings`）
 4. **禁止** 调用 ConfigManager、SessionDispatcher 等框架层方法
 5. **允许** 的副作用类型：
@@ -28,11 +28,11 @@ scope: "tool:edit(src-tauri/src/builtin_plugin/**), tool:write(src-tauri/src/bui
 ## 参数传递
 
 - `async fn execute_config_action(&self, action: &str, params: &serde_json::Value) -> Result<serde_json::Value, String>` 签名支持参数
-- 无参数的动作（如 `detect_browsers`）：前端不传 params，后端收到 `Value::Null`
-- 有参数的动作（如 `read_bookmarks`）：前端传 `{ paramKey: value }`，后端从 params 中提取
+- 无参数的动作（如 `detect_browsers`）：调用方不传 params，后端收到 `Value::Null`
+- 有参数的动作（如 `read_bookmarks`）：调用方传 `{ paramKey: value }`，后端从 params 中提取
 - **禁止** 在顶层 `ConfigAction`（来自 `config_actions()`）的 `execute_config_action` 中修改组件内部状态。field-level ConfigAction 例外见上
 - 动作返回值格式：
   - 填充某个字段 → 返回 `{ "fieldKey": [...] }` 或 `{ "fieldKey": value }`
   - 返回预览数据 → 返回数组 `[{ ... }, { ... }]`
   - select 字段的字段级动作（组件 schema 里绑定了 `DataActionBinding`，如 `list_chat_models`、`fetch_models`）→ 返回**对象数组** `[{ label, value }, ...]`，字段名由 binding 的 `labelField`/`valueField` 指定，**不** 需要 `{ fieldKey: [...] }` 包装
-  - **禁止** 返回需要前端特殊解析的非 JSON 数据
+  - **禁止** 返回需要调用方特殊解析的非 JSON 数据

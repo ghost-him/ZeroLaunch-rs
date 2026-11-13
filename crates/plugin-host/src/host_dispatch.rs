@@ -13,8 +13,8 @@ pub trait PluginEventSink: Send + Sync {
 }
 
 /// Maps a host/* method name to the corresponding PluginHandle call.
-/// The actual PluginHandle type is provided by src-tauri, so this is
-/// a trait-based dispatch to avoid coupling plugin-host to src-tauri.
+/// The actual PluginHandle type is provided by crates/zerolaunch-rs, so this is
+/// a trait-based dispatch to avoid coupling plugin-host to crates/zerolaunch-rs.
 #[async_trait::async_trait]
 pub trait HostCallHandler: Send + Sync {
     /// Handle a host/* RPC call. Returns Ok(serde_json::Value) on success.

@@ -63,7 +63,7 @@ argument-hint: "[范围: all | <规则文件名>]"
   - 明确引用的文件路径（如 `core/config/manager.rs`）
   - 明确引用的目录（如 `builtin_plugin/config/`）
   - 明确引用的 crate（如 `plugin-api`、`plugin-protocol`、`platform-windows`）
-  - **主题隐含范围**：从规则标题和核心内容推断该规则所约束的代码领域（如 `sdk.md` 主题是整个 SDK 层，约束范围 = trait 定义 `crates/plugin-api/src/` + 平台实现 `crates/platform-windows/src/` + re-export 桥 `src-tauri/src/sdk.rs`）
+  - **主题隐含范围**：从规则标题和核心内容推断该规则所约束的代码领域（如 `sdk.md` 主题是整个 SDK 层，约束范围 = trait 定义 `crates/plugin-api/src/` + 平台实现 `crates/platform-windows/src/` + re-export 桥 `crates/zerolaunch-rs/src/sdk.rs`）
   - **核心检验**：如果规则说"X 定义在 Y"或"在 Z 目录下添加"但 Y/Z 不在 `scope` 里 → 编辑 Y/Z 时该规则**不会被触发** → 覆盖缺失
 - **condition 检查**：
   - 验证 condition 正则是有效且合理的：无空串、无纯空白、`|` 分割的每个原子项本身是合法正则

@@ -1,9 +1,7 @@
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand, ValueEnum};
-use serde::Deserialize;
 use std::collections::BTreeMap;
 use std::env;
-use std::ffi::OsString;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -98,12 +96,7 @@ fn print_build_plan(kind: BuildKind, targets: &[BuildTarget], version: &str) -> 
         return Ok(());
     }
 
-    // MSI 文件名由 tauri bundle 按 tauri.conf.json 的 productName 命名，不能凭空构造
-    let product_name = match kind {
-        BuildKind::Installer => Some(get_app_product_name()?),
-        BuildKind::Portable => None,
-    };
-
+    // 安装包由 Inno Setup 生成，文件名与脚本定义保持一致。
     println!("📋 将构建以下 {}:", kind.description());
     for target in targets {
         println!(
@@ -114,16 +107,13 @@ fn print_build_plan(kind: BuildKind, targets: &[BuildTarget], version: &str) -> 
 
         match kind {
             BuildKind::Installer => {
-                let msi_name = format!(
-                    "{}_{}_{}_en-US.msi",
-                    product_name
-                        .as_deref()
-                        .expect("Installer 分支已读取 productName"),
+                let setup_name = format!(
+                    "ZeroLaunch-{}-{}-setup.exe",
                     version,
                     target.arch.label()
                 );
                 let cli_name = format!("zerolaunch-cli_{}_{}.exe", version, target.arch.label());
-                println!("      • {}", msi_name);
+                println!("      • {}", setup_name);
                 println!("      • {}", cli_name);
             }
             BuildKind::Portable => {
@@ -170,7 +160,7 @@ enum Commands {
     },
     /// 清理构建产物
     Clean,
-    /// 同步使用手册快照到 src-tauri/assets/wiki
+    /// 同步使用手册快照到 crates/zerolaunch-rs/assets/wiki
     SyncWiki {
         /// wiki 源目录；默认 ../ZeroLaunch-rs.wiki，不存在时克隆到 target/wiki-cache
         #[arg(long)]
@@ -246,20 +236,35 @@ async fn build_installer_versions(arch: &Architecture, version: &str) -> Result<
 async fn build_single_installer(target: BuildTarget, version: &str) -> Result<()> {
     println!("📦 构建安装包 -> 架构: {}", target.arch.display());
 
-    let args = vec![
-        "bun".to_string(),
-        "run".to_string(),
-        "tauri".to_string(),
+    run_command(vec![
+        "cargo".to_string(),
         "build".to_string(),
+        "-p".to_string(),
+        "zerolaunch-gpui".to_string(),
+        "--release".to_string(),
         "--target".to_string(),
         target.arch.triple().to_string(),
-    ];
+    ])
+    .await
+    .with_context(|| format!("构建安装包失败: 架构 {}", target.arch.display()))?;
 
-    run_command(args)
-        .await
-        .with_context(|| format!("构建安装包失败: 架构 {}", target.arch.display()))?;
+    run_command(vec![
+        find_iscc()?,
+        format!("/DAppVersion={version}"),
+        format!("/DTargetTriple={}", target.arch.triple()),
+        format!("/DArchLabel={}", target.arch.label()),
+        format!("/DRepoRoot={}", env::current_dir()?.display()),
+        "installer/zerolaunch.iss".to_string(),
+    ])
+    .await
+    .context("Inno Setup 打包失败")?;
 
-    move_installer_to_root(target.arch)?;
+    let setup_name = format!("ZeroLaunch-{}-{}-setup.exe", version, target.arch.label());
+    anyhow::ensure!(
+        Path::new(&setup_name).is_file(),
+        "Inno Setup 未生成安装包 {setup_name}"
+    );
+    println!("✅ 已生成安装包 {setup_name}");
 
     build_cli_binary(target.arch).await?;
     collect_cli_binary(target.arch, version)?;
@@ -331,74 +336,24 @@ async fn build_portable_versions(arch: &Architecture, version: &str) -> Result<(
 async fn build_single_portable(target: BuildTarget, version: &str) -> Result<()> {
     println!("📦 构建便携版 -> 架构: {}", target.arch.display());
 
-    let args = vec![
-        "bun".to_string(),
-        "run".to_string(),
-        "tauri".to_string(),
+    run_command(vec![
+        "cargo".to_string(),
         "build".to_string(),
-        "--config".to_string(),
-        "src-tauri/tauri.conf.portable.json".to_string(),
+        "-p".to_string(),
+        "zerolaunch-gpui".to_string(),
+        "--release".to_string(),
         "--target".to_string(),
         target.arch.triple().to_string(),
-        "--".to_string(),
         "--features".to_string(),
         "portable".to_string(),
-    ];
-
-    run_command(args)
-        .await
-        .with_context(|| format!("构建便携版失败: 架构 {}", target.arch.display()))?;
+    ])
+    .await
+    .with_context(|| format!("构建便携版失败: 架构 {}", target.arch.display()))?;
 
     package_portable_variant(target, version).await?;
 
     build_cli_binary(target.arch).await?;
     collect_cli_binary(target.arch, version)?;
-
-    Ok(())
-}
-
-fn move_installer_to_root(target_arch: TargetArch) -> Result<()> {
-    let root_dir = env::current_dir()?;
-    // Cargo workspace 模式下 target 目录在项目根，而非 src-tauri/target。
-    let bundle_dir = Path::new("target")
-        .join(target_arch.triple())
-        .join("release")
-        .join("bundle");
-
-    if !bundle_dir.exists() {
-        println!(
-            "⚠️  未找到 {} ({}) 的 bundle 目录，跳过移动安装包。",
-            target_arch.triple(),
-            target_arch.display()
-        );
-        return Ok(());
-    }
-
-    let installer_subdirs = ["msi"];
-
-    for subdir_name in installer_subdirs {
-        let subdir_path = bundle_dir.join(subdir_name);
-        if subdir_path.is_dir() {
-            for entry in fs::read_dir(&subdir_path)? {
-                let entry = entry?;
-                let source_path = entry.path();
-                if source_path.is_file() {
-                    if let Some(file_name) = source_path.file_name() {
-                        let dest_name = OsString::from(&*file_name.to_string_lossy());
-                        let dest_path = root_dir.join(&dest_name);
-                        if dest_path.exists() {
-                            fs::remove_file(&dest_path)
-                                .context(format!("删除已存在的安装包 {:?} 失败", dest_path))?;
-                        }
-
-                        fs::copy(&source_path, &dest_path)
-                            .context(format!("无法将 {:?} 复制到 {:?}", source_path, dest_path))?;
-                        println!("✅ 已将安装包 {} 移动到根目录", dest_name.to_string_lossy());
-                    }
-                }
-            }
-        }
-    }
 
     Ok(())
 }
@@ -423,8 +378,30 @@ async fn run_command(args: Vec<String>) -> Result<()> {
     Ok(())
 }
 
-/// 主程序可执行文件名（与 src-tauri/Cargo.toml 的 package name 一致）
-const APP_EXE_NAME: &str = "zerolaunch-rs.exe";
+/// 主程序可执行文件名（与 app/Cargo.toml 的 bin 名一致）
+const APP_EXE_NAME: &str = "zerolaunch-gpui.exe";
+
+/// 定位 Inno Setup 编译器：优先 PATH，其次常见安装目录。
+fn find_iscc() -> Result<String> {
+    if let Some(path) = env::var_os("PATH") {
+        for dir in env::split_paths(&path) {
+            let candidate = dir.join("ISCC.exe");
+            if candidate.is_file() {
+                return Ok(candidate.to_string_lossy().to_string());
+            }
+        }
+    }
+    for candidate in [
+        r"C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
+        r"C:\Program Files\Inno Setup 6\ISCC.exe",
+        r"C:\Program Files\Inno Setup 7\ISCC.exe",
+    ] {
+        if Path::new(candidate).is_file() {
+            return Ok(candidate.to_string());
+        }
+    }
+    anyhow::bail!("未找到 Inno Setup 编译器 ISCC.exe，请安装 Inno Setup 6 并加入 PATH")
+}
 
 /// 打包便携版本
 async fn package_portable_variant(target: BuildTarget, version: &str) -> Result<()> {
@@ -461,10 +438,8 @@ fn find_portable_exe(target_dir: &Path, arch: TargetArch) -> Result<PathBuf> {
         );
     }
 
-    // 应用可执行文件名由 src-tauri 的 Cargo package name 决定（zerolaunch-rs），
-    // tauri 构建不会按 tauri.conf.portable.json 的 productName 重命名 release 目录里的
-    // 二进制（productName 只影响窗口标题、deep-link scheme 与 bundle 产物名）。
-    // 必须精确匹配：release 目录里同时存在应用 zerolaunch-rs.exe 与 zerolaunch-cli.exe
+    // 应用可执行文件名由 app/Cargo.toml 的 bin 名决定（zerolaunch-gpui）。
+    // 必须精确匹配：release 目录里同时存在应用 zerolaunch-gpui.exe 与 zerolaunch-cli.exe
     // （CLI 工具），模糊匹配会按不确定的 read_dir 顺序误选其一，曾导致便携包打进 CLI
     // （issue #80）。
     let exe_names: Vec<String> = fs::read_dir(&release_dir)?
@@ -500,24 +475,20 @@ async fn create_portable_zip(exe_path: &Path, zip_name: &str, arch: TargetArch) 
     let mut zip = ZipWriter::new(file);
     let options = FileOptions::default().compression_method(zip::CompressionMethod::Deflated);
 
-    // 添加可执行文件：zip 内名称带架构后缀（如 zerolaunch-rs_x64.exe），
-    // 与 zerolaunch-cli_{version}_{arch}.exe 的命名风格一致，便于区分 x64/arm64 产物。
-    let exe_stem = APP_EXE_NAME
-        .strip_suffix(".exe")
-        .expect("APP_EXE_NAME 必须以 .exe 结尾");
-    let exe_name = format!("{}_{}.exe", exe_stem, arch.label());
+    // 添加可执行文件：便携包内统一命名为 ZeroLaunch_{arch}.exe，便于区分架构。
+    let exe_name = format!("ZeroLaunch_{}.exe", arch.label());
     zip.start_file(exe_name, options)?;
     let exe_data = fs::read(exe_path)?;
     std::io::copy(&mut exe_data.as_slice(), &mut zip)?;
 
     // 添加 icon 文件夹（如果存在）
-    let icon_dir = Path::new("src-tauri/icons");
+    let icon_dir = Path::new("app/icons");
     if icon_dir.exists() {
         add_directory_to_zip(&mut zip, icon_dir, "icons", &options)?;
     }
 
     // 添加 locale 文件夹（如果存在）
-    let locale_dir = Path::new("src-tauri/locales");
+    let locale_dir = Path::new("crates/zerolaunch-rs/locales");
     if locale_dir.exists() {
         add_directory_to_zip(&mut zip, locale_dir, "locales", &options)?;
     }
@@ -552,140 +523,60 @@ fn add_directory_to_zip(
 
 /// 清理构建产物
 fn clean_build_artifacts() -> Result<()> {
-    // Cargo workspace 模式下 target 目录在项目根。
     let target_dir = Path::new("target");
-
-    // 在删除 target 目录前，先清理根目录下的安装包副本
-    let targets = ["x86_64-pc-windows-msvc", "aarch64-pc-windows-msvc"];
-    let installer_subdirs = ["msi"];
-
-    for target in targets {
-        let bundle_dir = target_dir.join(target).join("release").join("bundle");
-        for subdir_name in installer_subdirs {
-            let subdir_path = bundle_dir.join(subdir_name);
-
-            if subdir_path.is_dir() {
-                if let Ok(entries) = fs::read_dir(subdir_path) {
-                    for entry in entries.flatten() {
-                        if let Some(file_name) = entry.path().file_name() {
-                            let root_file_path = Path::new(file_name);
-                            if root_file_path.exists() {
-                                fs::remove_file(root_file_path)
-                                    .context(format!("删除根目录的 {:?} 失败", file_name))?;
-                                println!(
-                                    "🧹 已清理根目录下的安装包: {}",
-                                    file_name.to_string_lossy()
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
     if target_dir.exists() {
         fs::remove_dir_all(target_dir).context("删除 target 目录失败")?;
         println!("🧹 已清理 {}", target_dir.display());
     }
 
-    // 删除根目录下所有 zerolaunch-cli_* 文件
-    let current_dir = env::current_dir()?;
-    for entry in fs::read_dir(&current_dir)? {
+    for entry in fs::read_dir(env::current_dir()?)? {
         let entry = entry?;
-        let file_type = entry.file_type()?;
-        if file_type.is_file() {
-            let name = entry.file_name();
-            if let Some(name_str) = name.to_str() {
-                if name_str.starts_with("zerolaunch-cli_") && name_str.ends_with(".exe") {
-                    fs::remove_file(entry.path()).context(format!("删除 {} 失败", name_str))?;
-                    println!("🧹 已清理 {}", name_str);
-                }
-            }
+        if !entry.file_type()?.is_file() {
+            continue;
         }
-    }
-
-    // 删除生成的 ZIP 文件
-    let current_dir = env::current_dir()?;
-    for entry in fs::read_dir(&current_dir)? {
-        let entry = entry?;
-        let file_type = entry.file_type()?;
-        if file_type.is_file() {
-            let name = entry.file_name();
-            if let Some(name_str) = name.to_str() {
-                if name_str.starts_with("ZeroLaunch-portable-") && name_str.ends_with(".zip") {
-                    fs::remove_file(entry.path()).context(format!("删除 {} 失败", name_str))?;
-                    println!("🧹 已清理 {}", name_str);
-                }
-            }
+        let name = entry.file_name();
+        let Some(name) = name.to_str() else {
+            continue;
+        };
+        let is_artifact = (name.starts_with("ZeroLaunch-") && name.ends_with(".exe"))
+            || (name.starts_with("ZeroLaunch-portable-") && name.ends_with(".zip"))
+            || (name.starts_with("zerolaunch-cli_") && name.ends_with(".exe"));
+        if is_artifact {
+            fs::remove_file(entry.path()).context(format!("删除 {name} 失败"))?;
+            println!("🧹 已清理 {name}");
         }
     }
 
     Ok(())
 }
 
-#[derive(Deserialize)]
-struct VersionConfig {
-    version: String,
-}
-
-/// 内部辅助类型：tauri.conf.json 的产品名数据模型。
-///
-/// 仅限本文件（xtask/main.rs）内使用，反序列化自 src-tauri/tauri.conf.json，
-/// 用于准确展示 tauri bundle 生成的 MSI 安装包文件名。
-#[derive(Deserialize)]
-struct ProductConfig {
-    /// tauri 产品名（如 "zerolaunch-rs"），tauri bundle 按它命名 MSI。
-    /// None 表示配置文件中未声明 productName 字段。
-    #[serde(rename = "productName")]
-    product_name: Option<String>,
-}
-
-/// 从 tauri.conf.json 读取应用产品名（tauri bundle 按它命名 MSI 安装包）
-fn get_app_product_name() -> Result<String> {
-    let tauri_config_path = Path::new("src-tauri/tauri.conf.json");
-    let config_content = fs::read_to_string(tauri_config_path)
-        .with_context(|| format!("读取 {} 失败", tauri_config_path.display()))?;
-    let config: ProductConfig =
-        serde_json::from_str(&config_content).context("解析 src-tauri/tauri.conf.json 失败")?;
-    config
-        .product_name
-        .context("src-tauri/tauri.conf.json 缺少 productName 字段")
-}
-
+/// 从 Cargo workspace 读取应用版本号。
 fn get_app_version() -> Result<String> {
-    let tauri_config_path = Path::new("src-tauri/tauri.conf.json");
-    if tauri_config_path.exists() {
-        let config_content = fs::read_to_string(tauri_config_path)
-            .with_context(|| format!("读取 {} 失败", tauri_config_path.display()))?;
-        let config: VersionConfig =
-            serde_json::from_str(&config_content).context("解析 src-tauri/tauri.conf.json 失败")?;
-        return Ok(config.version);
-    }
-
-    let portable_config_path = Path::new("src-tauri/tauri.conf.portable.json");
-    if portable_config_path.exists() {
-        let config_content = fs::read_to_string(portable_config_path)
-            .with_context(|| format!("读取 {} 失败", portable_config_path.display()))?;
-        let config: VersionConfig = serde_json::from_str(&config_content)
-            .context("解析 src-tauri/tauri.conf.portable.json 失败")?;
-        return Ok(config.version);
-    }
-
-    let package_json_path = Path::new("package.json");
-    if package_json_path.exists() {
-        let package_content = fs::read_to_string(package_json_path)
-            .with_context(|| format!("读取 {} 失败", package_json_path.display()))?;
-        let package: VersionConfig =
-            serde_json::from_str(&package_content).context("解析 package.json 失败")?;
-        return Ok(package.version);
-    }
-
-    anyhow::bail!("未找到应用版本号，请确保配置文件中包含 version 字段");
+    let output = Command::new("cargo")
+        .args(["metadata", "--no-deps", "--format-version", "1"])
+        .output()
+        .context("执行 cargo metadata 失败")?;
+    anyhow::ensure!(
+        output.status.success(),
+        "cargo metadata 失败: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let metadata: serde_json::Value =
+        serde_json::from_slice(&output.stdout).context("解析 cargo metadata 失败")?;
+    let version = metadata["packages"]
+        .as_array()
+        .and_then(|packages| {
+            packages
+                .iter()
+                .find(|package| package["name"] == "zerolaunch-gpui")
+        })
+        .and_then(|package| package["version"].as_str())
+        .context("cargo metadata 中缺少 zerolaunch-gpui 版本号")?;
+    Ok(version.to_string())
 }
 
 /// wiki 快照的输出目录（相对仓库根）。
-const WIKI_ASSETS_DIR: &str = "src-tauri/assets/wiki";
+const WIKI_ASSETS_DIR: &str = "crates/zerolaunch-rs/assets/wiki";
 /// 远端 wiki 仓库地址：本地源目录不存在时使用。
 const WIKI_REMOTE: &str = "https://github.com/ghost-him/ZeroLaunch-rs.wiki.git";
 
@@ -870,10 +761,10 @@ mod tests {
         // 这是 issue #80（便携包打进 CLI）的回归测试。
         let names = vec![
             "zerolaunch-cli.exe".to_string(),
-            "zerolaunch-rs.exe".to_string(),
+            "zerolaunch-gpui.exe".to_string(),
         ];
         let picked = pick_portable_exe(&names, APP_EXE_NAME).expect("应找到应用 exe");
-        assert_eq!(picked.as_str(), "zerolaunch-rs.exe");
+        assert_eq!(picked.as_str(), "zerolaunch-gpui.exe");
     }
 
     #[test]

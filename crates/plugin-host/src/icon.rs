@@ -2,7 +2,7 @@
 //!
 //! 宿主有两处消费插件图标：已安装插件（`manager::read_plugin_icon` 读插件目录
 //! 内的图标文件）与插件市场（`plugin_market` 读 release 附带的图标资产字节，
-//! 见 `src-tauri/src/plugin_market/mod.rs`）。MIME 推断与大小上限在此单点定义，
+//! 见 `crates/zerolaunch-rs/src/plugin_market/mod.rs`）。MIME 推断与大小上限在此单点定义，
 //! 避免两处各写一份映射后漂移。
 
 use base64::Engine;

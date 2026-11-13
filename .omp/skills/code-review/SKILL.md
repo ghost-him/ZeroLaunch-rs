@@ -41,10 +41,10 @@ argument-hint: "[范围: working-tree | --staged | branch | <git range> | 最近
 bash .omp/skills/code-review/scripts/collect-context.sh <mode> [range_or_n]
 ```
 
-脚本一次性输出：变更统计、按子系统分组的文件清单、子系统交叉数、需加载的规则文件、**依赖方向检查（确定性，workspace + src-tauri 内部模块层级）**、**边界类型泄漏检查（确定性）**、构建/lint 建议、**IPC 命令三方一致性检查（确定性）**、大 commit 分类表。
+脚本一次性输出：变更统计、按子系统分组的文件清单、子系统交叉数、需加载的规则文件、**依赖方向检查（确定性，workspace crate + 后端内部模块层级）**、构建/lint 建议、大 commit 分类表。
 
-2. 若脚本建议执行构建检查（任意 `.rs` 变更），执行 `cd src-tauri && cargo check`；并优先运行 `cargo clippy`——其中 `clippy::await_holding_lock` 可**确定性**检出「RwLock/Mutex 守卫跨 `.await`」这一核心规则违规，胜过肉眼看 diff。
-3. 若变更涉及前端或 IPC 契约，必要时执行 `bun run build`。
+2. 若脚本建议执行构建检查（任意 `.rs` 变更），在仓库根执行 `cargo check --workspace`；并优先运行 `cargo clippy`——其中 `clippy::await_holding_lock` 可**确定性**检出「RwLock/Mutex 守卫跨 `.await`」这一核心规则违规，胜过肉眼看 diff。
+3. 变更涉及安装包/便携包时运行 `cargo check --manifest-path xtask/Cargo.toml`。
 4. 命令不存在或成本过高时，回退到静态分析并在结论中说明。
 
 ### 第二阶段：并行发现（6 个子 agent）
@@ -123,15 +123,15 @@ Agent 5 的核心区分：不一致发现分为 **A 类**（代码违反规则�
 最终判断以以下项目约束为审查锚点：
 
 - **架构原则 P1-P6**（详见 `references/architecture-principles.md`）：职责驱动放置、类型职责边界、编译期层级、运行时职责域解耦、通信方式契约、接口复用优先
-- 前端是薄展示层；业务逻辑、文件/进程/平台操作必须留在后端 IPC 之后
-- IPC 类型契约必须 Rust / TypeScript 双端同步，字段名使用明确的 serde rename
-- `commands/` 是命令入口，不是业务逻辑容器
+- GPUI 只负责显示与交互；业务逻辑、文件/进程/平台操作必须留在后端库
+- 后端与 GPUI 同进程，跨进程契约只存在于插件 JSON-RPC 与 CLI HTTP
+- 后端入口（`kernel`、CLI HTTP、插件 Host dispatch）只做装配/转发，业务逻辑留在 core/plugin_framework/builtin_plugin
 - 插件系统优先沿用既有抽象：`PluginHandle`、`ExecutorRegistry`、`CandidatePipeline`、`SearchPipeline`、`Configurable` 生命周期
 - 过度设计检测（Agent 4b）：为「可能到来的未来」提前支付的抽象成本——零调用者接口、可推导冗余字段、恒值预留字段、状态空间虚胖（合法组合远小于声明组合且靠纪律维持）、单实现者抽象。此类定级「中/低」（设计债），不得因"为未来好"升为阻塞；若抽象实际破坏了现有功能，归 Agent 2/3 的阻塞/高问题
 - `PluginManager` 与配置/路由系统通过事件解耦，不重新拉回直接依赖
 - 同步锁守卫不得跨 `await`（`parking_lot`/`std::sync`/`DashMap` 等；`tokio::sync` 异步锁豁免）
-- workspace 依赖方向 + src-tauri 内部模块层级不可反转（`check-deps-direction.sh` 确定性检查）
-- 类型职责边界（P2）：类型定义位置编码职责，职责决定使用范围（`check-type-scope.sh` 确定性检测已知边界类型；LLM 按方法论判断所有类型含新增）
+- workspace 依赖方向 + 后端内部模块层级不可反转（`check-deps-direction.sh` 确定性检查）
+- 类型职责边界（P2）：类型定义位置编码职责，职责决定使用范围；LLM 按方法论判断所有类型含新增
 - 代码必须与 `.omp/rules/` 中的规定一致；不一致时区分"代码违反规则"与"规则已过时"
 
 ## 脚本清单
@@ -139,18 +139,14 @@ Agent 5 的核心区分：不一致发现分为 **A 类**（代码违反规则�
 | 脚本                              | 用途                                                                                                                                          |
 | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | `scripts/lib.sh`                  | 共享库：子系统分类、核心子系统判定、路径→规则文件映射（`collect-context.sh` 与 `classify-commits.sh` 共同 source，避免分类逻辑漂移）          |
-| `scripts/collect-context.sh`      | 收集审查上下文（diff stat、子系统分类、规则映射、架构检查、IPC 命令检查、大 commit 分类）                                                     |
+| `scripts/collect-context.sh`      | 收集审查上下文（diff stat、子系统分类、规则映射、架构检查、大 commit 分类）                                                     |
 | `scripts/classify-commits.sh`     | 对多 commit 范围中的每个 commit 做大 commit 分类                                                                                              |
-| `scripts/check-deps-direction.sh` | 确定性检查依赖方向：workspace crate 层级 + **src-tauri 内部模块层级（P3）**，检出反向依赖                                                      |
-| `scripts/check-ipc-commands.sh`   | 确定性交叉校验 IPC 命令：`#[tauri::command]` 定义 ↔ `generate_handler!` 注册 ↔ 前端 `invoke` 调用，检出未注册/未定义/前端调用不存在命令等漂移 |
-| `scripts/check-type-scope.sh`     | 确定性检查边界类型泄漏（P2）：IPC DTO（`commands/` 内 struct）与 `BridgeError` 是否被内部模块（core/plugin_framework/builtin_plugin/state）引用  |
+| `scripts/check-deps-direction.sh` | 确定性检查依赖方向：workspace crate 层级 + **后端内部模块层级（P3）**，检出反向依赖                                                      |
 
 脚本输出进入上下文，脚本代码本身不消耗上下文 token。能用脚本确定性判断的检查项一律用脚本，不交给 LLM 推断，当前覆盖：
 
 - 依赖方向合规性（workspace + 内部模块层级，`check-deps-direction.sh`，对应 P3）
-- 边界类型泄漏（`check-type-scope.sh`，对应 P2）
 - 文件分类 / 规则映射 / 核心子系统交叉 / 大 commit 判定（`lib.sh` + `collect-context.sh` + `classify-commits.sh`）
-- IPC 命令定义/注册/前端调用三方一致性（`check-ipc-commands.sh`）
 - RwLock/Mutex 守卫跨 await（交由 `cargo clippy` 的 `await_holding_lock` 而非 LLM）
 
 > 架构原则的详细定义（P1-P6、层级表、职责域、类型范围表）见 `references/architecture-principles.md`，是 Agent 4a/4b 的核心审查依据。

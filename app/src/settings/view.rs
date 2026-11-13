@@ -23,7 +23,6 @@ use zerolaunch_plugin_api::host::OpenTarget;
 use zerolaunch_plugin_api::plugin::PluginKind;
 use zerolaunch_plugin_api::services::model::{ModelChatMessage, ModelChatRole};
 use zerolaunch_plugin_host::PluginInfo;
-use zerolaunch_rs_lib::commands::help::collect_triggers;
 use zerolaunch_rs_lib::core::agent::{
     ask_from_config, AgentReference, AskRequest, ComponentNavigation,
 };
@@ -891,7 +890,7 @@ impl SettingsView {
 
         let state = self.state.clone();
         let navigation = self.assistant_navigation();
-        let triggers = collect_triggers(&self.state);
+        let triggers = self.state.collect_triggers();
         let (sender, receiver) = oneshot::channel();
         runtime::spawn(async move {
             let answer = ask_from_config(AskRequest {

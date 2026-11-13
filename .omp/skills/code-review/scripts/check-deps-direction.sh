@@ -6,8 +6,8 @@
 # Usage: bash check-deps-direction.sh
 #
 # Checks that Cargo workspace crates follow the allowed dependency direction:
-#   plugin-api (L1) <- plugin-protocol (L2) <- plugin-host (L3) <- src-tauri (L4)
-#   plugin-api (L1) <- platform-windows (L2) <- src-tauri (L4)
+#   plugin-api (L1) <- plugin-protocol (L2) <- plugin-host (L3) <- crates/zerolaunch-rs (L4)
+#   plugin-api (L1) <- platform-windows (L2) <- crates/zerolaunch-rs (L4)
 #   plugin-api (L1) <- plugin-protocol (L2) <- plugin-sdk-rust (L3)
 #     (the third-party Rust SDK runs as a subprocess and legitimately needs the
 #      JSON-RPC protocol crate, so it sits at L3 alongside plugin-host)
@@ -55,18 +55,18 @@ extract_deps() {
     ' "$toml_file" | sort -u
 }
 
-# Internal module layer mapping (src-tauri/src/).
+# Internal module layer mapping (crates/zerolaunch-rs/src/).
 # Levels derived from the actual `use crate::` dependency graph.
 # See references/architecture-principles.md P3 for the full table and rationale.
 get_internal_level() {
     case "$1" in
-        utils|logging)                    echo 0 ;;
+        utils|logging|runtime)             echo 0 ;;
         sdk)                              echo 1 ;;
         core)                             echo 2 ;;
-        plugin_framework|tray|window)     echo 3 ;;
-        builtin_plugin|state)             echo 4 ;;
-        commands|cli_server|bridge_error) echo 5 ;;
-        bootstrap|lib|main)               echo 6 ;;
+        plugin_framework|window)          echo 3 ;;
+        builtin_plugin|state|updater)    echo 4 ;;
+        cli_server)                       echo 5 ;;
+        kernel|lib)                       echo 6 ;;
         *)                                echo "" ;;
     esac
 }
@@ -122,17 +122,17 @@ else
     echo "[OK] All workspace dependency directions are compliant"
 fi
 
-# --- Internal Module Layer Check (src-tauri/src/) ---------------------------
+# --- Internal Module Layer Check (crates/zerolaunch-rs/src/) ---------------------------
 # Checks that `use crate::X` follows the internal layering: high → low only.
 # See references/architecture-principles.md P3 for the layer table.
 INTERNAL_VIOLATIONS=0
 INTERNAL_CHECKED=0
 
 echo ""
-echo "=== Internal Module Layer Check (src-tauri/src/) ==="
+echo "=== Internal Module Layer Check (crates/zerolaunch-rs/src/) ==="
 echo ""
 
-SRC_DIR="src-tauri/src"
+SRC_DIR="crates/zerolaunch-rs/src"
 if [ -d "$SRC_DIR" ]; then
     while IFS= read -r f; do
         # Determine the top-level module of this file from its path.
@@ -149,10 +149,9 @@ if [ -d "$SRC_DIR" ]; then
 
         # Extract all crate::X first-segment references (use + fully-qualified).
         # LIMITATION: only `crate::X` patterns are checked. `super::` imports
-        # (e.g. `use super::super::commands::BridgeError`) are NOT detected.
+        # (e.g. `use super::super::core::Foo`) are NOT detected.
         # This is acceptable because super:: is typically used for sibling
-        # modules within the same layer; cross-layer super:: chains are rare
-        # and would be caught by the type-scope check (check-type-scope.sh).
+        # modules within the same layer; cross-layer super:: chains are rare.
         deps=$(grep -oE 'crate::[a-z_]+' "$f" 2>/dev/null | sed 's/crate:://' | sort -u || true)
 
         for dep in $deps; do

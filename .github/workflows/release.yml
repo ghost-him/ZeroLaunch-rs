@@ -47,17 +47,6 @@ jobs:
           toolchain: stable
           targets: x86_64-pc-windows-msvc,aarch64-pc-windows-msvc
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: Install dependencies
-        run: bun install
-
-      - name: Copy i18n locales to src-tauri
-        uses: ./.github/actions/copy-i18n
-
       - name: Sync wiki snapshot
         # 使用手册快照按 .gitignore 不入库；构建期由 build.rs 内嵌，缺快照会直接编译失败。
         shell: pwsh
@@ -94,14 +83,13 @@ jobs:
           echo "Version: $tag"
           echo "Release Title: $releaseTitle"
 
-      - name: Build frontend
-        # 审计步骤会编译 zerolaunch-rs lib，而 lib.rs 的 tauri::generate_context! 在编译期要求
-        # frontendDist（../dist）存在；dist 被 gitignore，checkout 后必须先构建前端。
-        run: bunx vite build
-
       - name: Host API exposure audit
         # 发版闸门：能力暴露清单不一致（新增能力没暴露、清单腐烂）时不出包。
         run: cargo test -p zerolaunch-rs --test host_api_exposure
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress -y
 
       - name: Build all variants
         shell: pwsh
@@ -117,7 +105,7 @@ jobs:
           echo "=== Build artifacts ==="
           echo "当前目录: $(Get-Location)"
           # 在根目录查找构建产物（不递归，因为 xtask 会将文件移动到根目录）
-          $files = Get-ChildItem -Path . -File | Where-Object { $_.Extension -in '.exe', '.msi', '.zip' }
+          $files = Get-ChildItem -Path . -File | Where-Object { $_.Extension -in '.exe', '.zip' }
           if ($files.Count -eq 0) {
             echo "❌ 错误：没有找到任何构建产物！"
             echo "根目录下的所有文件："
@@ -175,7 +163,7 @@ jobs:
           New-Item -Path $bundleDir -ItemType Directory -Force | Out-Null
 
           # 复制所有构建产物到临时目录
-          $files = Get-ChildItem -Path . -File | Where-Object { $_.Extension -in '.exe', '.msi', '.zip' }
+          $files = Get-ChildItem -Path . -File | Where-Object { $_.Extension -in '.exe', '.zip' }
           foreach ($file in $files) {
             Copy-Item -Path $file.FullName -Destination $bundleDir -Force
             echo "  ✓ 已添加: $($file.Name)"
@@ -214,7 +202,7 @@ jobs:
         run: |
           echo "=== 已签名的构建产物 ==="
           if (Test-Path "signed-artifacts") {
-            $signedFiles = Get-ChildItem -Path "signed-artifacts" -File -Recurse | Where-Object { $_.Extension -in '.exe', '.msi', '.zip' }
+            $signedFiles = Get-ChildItem -Path "signed-artifacts" -File -Recurse | Where-Object { $_.Extension -in '.exe', '.zip' }
             if ($signedFiles.Count -eq 0) {
               echo "❌ 错误：签名目录中没有找到任何文件！"
               exit 1
@@ -236,10 +224,10 @@ jobs:
           echo "📦 移动已签名文件到根目录..."
 
           # 删除原有的未签名文件
-          Get-ChildItem -Path . -File | Where-Object { $_.Extension -in '.exe', '.msi', '.zip' } | Remove-Item -Force
+          Get-ChildItem -Path . -File | Where-Object { $_.Extension -in '.exe', '.zip' } | Remove-Item -Force
 
           # 移动已签名文件到根目录
-          Get-ChildItem -Path "signed-artifacts" -File -Recurse | Where-Object { $_.Extension -in '.exe', '.msi', '.zip' } | ForEach-Object {
+          Get-ChildItem -Path "signed-artifacts" -File -Recurse | Where-Object { $_.Extension -in '.exe', '.zip' } | ForEach-Object {
             Move-Item -Path $_.FullName -Destination . -Force
             echo "  ✓ $($_.Name)"
           }
@@ -259,7 +247,7 @@ jobs:
         run: |
           echo "⚠️  跳过签名步骤，直接使用未签名的构建产物"
           echo "当前工作目录下的构建文件："
-          Get-ChildItem -Path . -File | Where-Object { $_.Extension -in '.exe', '.msi', '.zip' } | ForEach-Object {
+          Get-ChildItem -Path . -File | Where-Object { $_.Extension -in '.exe', '.zip' } | ForEach-Object {
             $sizeMB = [math]::Round($_.Length / 1MB, 2)
             echo "  📦 $($_.Name) ($sizeMB MB)"
           }
@@ -482,7 +470,7 @@ jobs:
             "",
             "## 📦 版本说明",
             "",
-            '- **安装版 (`.msi`)**: 提供传统的安装体验，支持深层代码签名。',
+            '- **安装版 (`*-setup.exe`)**: 通过 Inno Setup 安装，包含卸载信息、快捷方式与深链接注册。',
             '- **便携版 (`.zip`)**: 无需安装，解压即用，适合移动或绿色版爱好者。',
             '- **命令行工具 (`zerolaunch-cli_*.exe`)**: `zl` 命令行客户端，可通过本地 HTTP API 与 ZeroLaunch 交互（文件名含版本和架构信息）。'
           )
@@ -499,7 +487,6 @@ jobs:
           name: release-assets
           path: |
             *.exe
-            *.msi
             *.zip
             release_notes.txt
           if-no-files-found: error
@@ -527,7 +514,6 @@ jobs:
           body_path: release_notes.txt
           files: |
             *.exe
-            *.msi
             *.zip
           draft: false
           prerelease: false
@@ -608,7 +594,7 @@ jobs:
               Write-Host "✅ Gitee Release 创建成功，ID: $releaseId"
 
               # 上传文件
-              $files = Get-ChildItem -Path . -Recurse -Include *.exe,*.msi,*.zip -File
+              $files = Get-ChildItem -Path . -Recurse -Include *.exe,*.zip -File
               if ($files.Count -eq 0) { throw "未找到需要上传到 Gitee 的构建产物" }
 
               foreach ($file in $files) {

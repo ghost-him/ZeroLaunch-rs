@@ -7,7 +7,7 @@ description: 为 ZeroLaunch-rs 编写/修订用户 Wiki（ZeroLaunch-rs.wiki/ �
 
 目标目录 由用户指定，在调用该skill前，需要直接向用户提问本地目标目录为哪里（由用户负责将远端 `ghost-him/ZeroLaunch-rs.wiki` 同步到本地目录上）。
 
-`src-tauri/assets/wiki/` 是 GitHub wiki 的**自动拉取镜像**（构建期嵌入为程序内「使用手册」），禁止在那里编辑：改动无法同步回 wiki，下次拉取会被覆盖。手册正文只改本 skill 指向的 wiki 仓库。
+`crates/zerolaunch-rs/assets/wiki/` 是 GitHub wiki 的**自动拉取镜像**（构建期嵌入为程序内「使用手册」），禁止在那里编辑：改动无法同步回 wiki，下次拉取会被覆盖。手册正文只改本 skill 指向的 wiki 仓库。
 
 ## 结构铁律（2026-10 重构后）
 
@@ -25,7 +25,7 @@ GitHub wiki 是**扁平命名空间**：页面标题 = 文件名，目录不参�
 2. 概念用日常语言（"语义搜索=让 AI 读懂意思"），不用 embedding/向量当叙述主体。
 3. 代码块只放用户要输入的东西（命令、网址模板、快捷键表、配置值），禁止源码/JSON schema。
 4. 结构：`# 标题` → 简介 → `## 使用` → `## 配置`/`## 注意事项`/`## 已知限制` → 文末代码依据行。正文 200–500 中文字；全文只出现一次「代码依据」。
-5. 代码即真理：`src-tauri/src/`、`src-ui/`、`crates/` 现状优先；旧 README、`REQUIREMENTS_DOCUMENT.md`、archive 只当线索。
+5. 代码即真理：`crates/zerolaunch-rs/src/`、`app/src/`、`crates/` 现状优先；旧 README、`REQUIREMENTS_DOCUMENT.md`、archive 只当线索。
 
 ## 配置保存语义（易写错，2026-10 已核实）
 

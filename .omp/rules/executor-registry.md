@@ -1,7 +1,7 @@
 ---
 description: ExecutorRegistry 使用 — resolve/resolve_fallback 是动作执行器唯一查找入口，get_actions 仅查询不执行
 condition: "ExecutorRegistry|resolve\\(|resolve_fallback|get_actions"
-scope: "tool:read(src-tauri/src/plugin_framework/executor_registry.rs), tool:read(src-tauri/src/plugin_framework/session_dispatcher.rs), tool:edit(src-tauri/src/**), tool:write(src-tauri/src/**), tool:edit(crates/plugin-api/src/**), tool:write(crates/plugin-api/src/**)"
+scope: "tool:read(crates/zerolaunch-rs/src/plugin_framework/executor_registry.rs), tool:read(crates/zerolaunch-rs/src/plugin_framework/session_dispatcher.rs), tool:edit(crates/zerolaunch-rs/src/**), tool:write(crates/zerolaunch-rs/src/**), tool:edit(crates/plugin-api/src/**), tool:write(crates/plugin-api/src/**)"
 ---
 
 # ExecutorRegistry
@@ -27,4 +27,4 @@ actions.iter().any(|a| a.id == ACTION_ACTIVATE_WINDOW)
 registry.resolve(ctx, ACTION_ACTIVATE_WINDOW).is_ok()
 ```
 
-`get_actions` 只用于构造前端动作列表（`ListItem.actions`）与 CLI/检查器展示。
+`get_actions` 只用于构造 GPUI 动作列表（`ListItem.actions`）与 CLI/检查器展示。

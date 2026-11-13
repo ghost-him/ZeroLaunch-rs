@@ -181,7 +181,7 @@ mod tests {
     use zerolaunch_plugin_api::services::path::KnownPath;
 
     /// 便携模式契约：应用数据目录必须解析到可执行文件所在目录（exe 同级）。
-    /// 回归：portable feature 曾未从 src-tauri 转发到本 crate，导致便携包仍把数据写到
+    /// 回归：portable feature 曾未从宿主 crate 转发到本 crate，导致便携包仍把数据写到
     /// $HOME/.ZeroLaunch-rs。此测试须用 `cargo test --features portable` 运行。
     #[test]
     #[cfg(feature = "portable")]

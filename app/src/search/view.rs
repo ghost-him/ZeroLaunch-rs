@@ -1353,9 +1353,6 @@ impl SearchView {
                     self.confirm_panel_action(action_id, window, cx);
                 }
             }
-            HostEvent::SystemThemeChanged(theme) => {
-                tracing::debug!("系统主题变化: {theme}");
-            }
             HostEvent::InspectorStateUpdated => {}
         }
     }

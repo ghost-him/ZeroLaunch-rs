@@ -8,11 +8,11 @@
 # can never drift apart.
 #
 # NOTE on directory names: the `refactor/plugin-system` branch renamed
-#   src-tauri/src/plugin_system  -> plugin_framework
-#   src-tauri/src/plugin         -> builtin_plugin
-#   src-tauri/src/sdk/           -> sdk.rs   (dir collapsed to a single file)
-#   src-tauri/src/logging/       -> logging.rs
-#   src-tauri/src/bootstrap/     -> bootstrap.rs
+#   crates/zerolaunch-rs/src/plugin_system  -> plugin_framework
+#   crates/zerolaunch-rs/src/plugin         -> builtin_plugin
+#   crates/zerolaunch-rs/src/sdk/           -> sdk.rs   (dir collapsed to a single file)
+#   crates/zerolaunch-rs/src/logging/       -> logging.rs
+#   crates/zerolaunch-rs/src/bootstrap/     -> bootstrap.rs
 # Legacy names are kept below so the skill still works on older branches.
 # ============================================================================
 
@@ -82,8 +82,8 @@ truncate_utf8() {
 }
 
 # Canonical list of "core" subsystems. Touching >=2 of these signals extra
-# architecture-boundary attention. Legacy names retained for cross-branch use.
-CORE_SUBSYSTEMS="plugin-api plugin-protocol plugin-host plugin-sdk-rust platform-windows commands plugin_framework builtin_plugin plugin_system plugin core sdk cli_server bridge"
+# architecture-boundary attention.
+CORE_SUBSYSTEMS="plugin-api plugin-protocol plugin-host plugin-sdk-rust platform-windows app-search app-settings app-host app-shell app-tray app-deeplink app plugin_framework builtin_plugin core sdk cli_server kernel runtime updater state"
 
 # Map a repo-relative path to a subsystem label.
 # Sets the global variable CLASSIFY_SUB (no subshell — safe for tight loops).
@@ -98,36 +98,31 @@ classify_subsystem() {
         zerolaunch-cli/*)              CLASSIFY_SUB="zerolaunch-cli" ;;
         plugin-template/*)             CLASSIFY_SUB="plugin-template" ;;
         xtask/*)                       CLASSIFY_SUB="xtask" ;;
-        # --- src-tauri backend (current names) --------------------------------
-        src-tauri/src/commands/*)          CLASSIFY_SUB="commands" ;;
-        src-tauri/src/plugin_framework/*)  CLASSIFY_SUB="plugin_framework" ;;
-        src-tauri/src/builtin_plugin/*)    CLASSIFY_SUB="builtin_plugin" ;;
-        src-tauri/src/core/*)              CLASSIFY_SUB="core" ;;
-        src-tauri/src/cli_server/*)        CLASSIFY_SUB="cli_server" ;;
-        src-tauri/src/state/*)             CLASSIFY_SUB="state" ;;
-        src-tauri/src/window/*)            CLASSIFY_SUB="window" ;;
-        src-tauri/src/tray/*)              CLASSIFY_SUB="tray" ;;
-        src-tauri/src/utils/*)             CLASSIFY_SUB="utils" ;;
-        src-tauri/src/sdk.rs|src-tauri/src/sdk/*)           CLASSIFY_SUB="sdk" ;;
-        src-tauri/src/logging.rs|src-tauri/src/logging/*)   CLASSIFY_SUB="logging" ;;
-        src-tauri/src/bootstrap.rs|src-tauri/src/bootstrap/*) CLASSIFY_SUB="bootstrap" ;;
-        src-tauri/src/lib.rs|src-tauri/src/main.rs)         CLASSIFY_SUB="app-entry" ;;
-        # --- src-tauri backend (legacy names, pre-refactor branches) ----------
-        src-tauri/src/plugin_system/*)     CLASSIFY_SUB="plugin_system" ;;
-        src-tauri/src/plugin/*)            CLASSIFY_SUB="plugin" ;;
-        # --- frontend ---------------------------------------------------------
-        src-ui/bridge/*)               CLASSIFY_SUB="bridge" ;;
-        src-ui/stores/*)               CLASSIFY_SUB="stores" ;;
-        src-ui/composables/*)          CLASSIFY_SUB="composables" ;;
-        src-ui/router/*)               CLASSIFY_SUB="router" ;;
-        src-ui/views/*)                CLASSIFY_SUB="views" ;;
-        src-ui/components/*)           CLASSIFY_SUB="components" ;;
-        src-ui/plugins/*)              CLASSIFY_SUB="frontend-plugins" ;;
-        src-ui/utils/*)                CLASSIFY_SUB="frontend-utils" ;;
-        src-ui/i18n/*)                 CLASSIFY_SUB="i18n" ;;
-        src-ui/styles/*)               CLASSIFY_SUB="styles" ;;
+        # --- crates/zerolaunch-rs backend ------------------------------------------------
+        crates/zerolaunch-rs/src/plugin_framework/*)  CLASSIFY_SUB="plugin_framework" ;;
+        crates/zerolaunch-rs/src/builtin_plugin/*)    CLASSIFY_SUB="builtin_plugin" ;;
+        crates/zerolaunch-rs/src/core/*)              CLASSIFY_SUB="core" ;;
+        crates/zerolaunch-rs/src/cli_server/*)        CLASSIFY_SUB="cli_server" ;;
+        crates/zerolaunch-rs/src/state/*)             CLASSIFY_SUB="state" ;;
+        crates/zerolaunch-rs/src/window/*)            CLASSIFY_SUB="window" ;;
+        crates/zerolaunch-rs/src/updater/*)           CLASSIFY_SUB="updater" ;;
+        crates/zerolaunch-rs/src/utils/*)             CLASSIFY_SUB="utils" ;;
+        crates/zerolaunch-rs/src/sdk.rs)              CLASSIFY_SUB="sdk" ;;
+        crates/zerolaunch-rs/src/logging.rs)          CLASSIFY_SUB="logging" ;;
+        crates/zerolaunch-rs/src/kernel.rs)           CLASSIFY_SUB="kernel" ;;
+        crates/zerolaunch-rs/src/runtime.rs)          CLASSIFY_SUB="runtime" ;;
+        crates/zerolaunch-rs/src/lib.rs)              CLASSIFY_SUB="backend-entry" ;;
+        # --- GPUI host ---------------------------------------------------------
+        app/src/search/*)              CLASSIFY_SUB="app-search" ;;
+        app/src/settings/*)            CLASSIFY_SUB="app-settings" ;;
+        app/src/host.rs)               CLASSIFY_SUB="app-host" ;;
+        app/src/tray.rs)               CLASSIFY_SUB="app-tray" ;;
+        app/src/deeplink.rs)           CLASSIFY_SUB="app-deeplink" ;;
+        app/src/shell.rs)              CLASSIFY_SUB="app-shell" ;;
+        app/src/*)                     CLASSIFY_SUB="app" ;;
+        installer/*)                   CLASSIFY_SUB="installer" ;;
         # --- config / meta ----------------------------------------------------
-        src-tauri/Cargo.toml|Cargo.toml) CLASSIFY_SUB="workspace-config" ;;
+        crates/zerolaunch-rs/Cargo.toml|Cargo.toml) CLASSIFY_SUB="workspace-config" ;;
         .omp/rules/*)               CLASSIFY_SUB="rules" ;;
         *)                             CLASSIFY_SUB="other" ;;
     esac
@@ -150,7 +145,7 @@ is_core_subsystem() {
 # Each scope token has the form `tool:ACTION(glob)`; the glob inside the
 # parentheses names the repo-relative paths the rule governs, e.g.
 #   scope: "tool:edit(*.rs), tool:write(*.rs)"
-#   scope: "tool:read(src-tauri/src/commands/**), tool:edit(...)"
+#   scope: "tool:read(crates/zerolaunch-rs/src/plugin_framework/**), tool:edit(...)"
 #
 # For a changed path P, a rule is loaded when P matches any of its scope
 # globs. Rules with no `scope` field (or `alwaysApply: true`) are loaded for

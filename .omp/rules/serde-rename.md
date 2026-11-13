@@ -1,14 +1,14 @@
 ---
 description: Serde 序列化规范 — 必须用字段级 #[serde(rename)] 显式标注每个字段和 variant，禁止用 rename_all
 condition: "#\\[serde\\(rename|rename_all|pub(\\([^)]*\\))? struct|pub(\\([^)]*\\))? enum"
-scope: "tool:edit(src-tauri/src/commands/**), tool:write(src-tauri/src/commands/**), tool:edit(src-tauri/src/plugin_framework/**), tool:write(src-tauri/src/plugin_framework/**), tool:edit(src-tauri/src/cli_server/**), tool:write(src-tauri/src/cli_server/**), tool:edit(src-tauri/src/core/config/**), tool:write(src-tauri/src/core/config/**), tool:edit(crates/plugin-api/src/**), tool:write(crates/plugin-api/src/**), tool:edit(crates/plugin-protocol/src/**), tool:write(crates/plugin-protocol/src/**), tool:edit(src-tauri/src/plugin_market/**), tool:write(src-tauri/src/plugin_market/**)"
+scope: "tool:edit(crates/zerolaunch-rs/src/plugin_framework/**), tool:write(crates/zerolaunch-rs/src/plugin_framework/**), tool:edit(crates/zerolaunch-rs/src/cli_server/**), tool:write(crates/zerolaunch-rs/src/cli_server/**), tool:edit(crates/zerolaunch-rs/src/core/config/**), tool:write(crates/zerolaunch-rs/src/core/config/**), tool:edit(crates/plugin-api/src/**), tool:write(crates/plugin-api/src/**), tool:edit(crates/plugin-protocol/src/**), tool:write(crates/plugin-protocol/src/**), tool:edit(crates/zerolaunch-rs/src/plugin_market/**), tool:write(crates/zerolaunch-rs/src/plugin_market/**)"
 ---
 
 # Serde 序列化规范
 
-IPC 类型 JSON 键名统一使用 **camelCase**，Rust 与 TypeScript 两侧 **必须** 一致。
+跨进程协议（插件 JSON-RPC 与 CLI HTTP）的 JSON 键名统一使用 **camelCase**。
 
-> **例外**：配置存储类型（`builtin_plugin/config/` 的 Settings struct）的键名使用 **snake_case**（见 config-naming 规则），本规则仅约束跨 IPC 的类型。
+> **例外**：配置存储类型（`builtin_plugin/config/` 的 Settings struct）的键名使用 **snake_case**（见 config-naming 规则），本规则仅约束跨进程类型。
 
 ## 字段级 rename 强制
 
@@ -38,7 +38,8 @@ pub enum MyEnum {
 
 - enum unit variant 和 variant with fields 均需显式标注：variant 标签加 `#[serde(rename = "...")]`，有内部字段的 variant 还需对每个内部字段标注。
 
-## 前后端同步
+## 序列化契约
 
-- 前端类型在 `bridge/contract.ts` / `bridge/commands.ts`（归属判据见 `frontend-type-safety` 规则）中 **必须** 与 Rust IPC 类型同步。IPC 类型源头除 `commands/` 外还包括 `plugin_framework/session_state.rs`（`SessionStateEvent` 等事件载荷，前端 `bridge/events.ts` 消费）、`core/config/models.rs`（配置 IPC 投影模型）与 `plugin_market/mod.rs`（市场卡片元数据，经 `market_list`/`market_get_meta` 下发）——编辑这些文件时同样检查前端契约
-- 新增/重命名 Rust IPC 类型字段时：**同一 commit** 中更新对应的前端类型声明（`bridge/contract.ts` 或 `bridge/commands.ts`）
+- 第三方插件协议与 CLI HTTP 的字段名是跨进程契约；修改 Rust 字段时必须在同一 commit 同步协议类型或 CLI 消费方。
+- GPUI 与后端库同进程，直接使用 Rust 类型，不生成 DTO 副本，也不存在跨语言类型同步步骤。
+- 插件市场、会话投影等对插件或 CLI 暴露的类型同样按上述契约处理。

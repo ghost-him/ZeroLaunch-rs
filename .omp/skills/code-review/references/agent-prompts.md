@@ -28,7 +28,7 @@
 
 任务：
 - 用文件路径、模块名、关键符号、调用链说明本次变更实际影响了哪些子系统
-- 标出需要重点审查的契约：IPC 字段、事件通道、缓存、配置生命周期、执行器路由、前后端同步点
+- 标出需要重点审查的契约：插件协议字段、CLI payload、事件通道、缓存、配置生命周期、执行器路由、宿主与视图同步点
 - 标出高风险扩散面：调用方、被调用方、共享状态、跨 crate 边界、跨窗口状态同步
 - 不判断风格，不泛泛而谈；只建立后续审查的"风险地图"
 
@@ -58,16 +58,16 @@
 2. collect-context.sh 的输出
 3. git diff --stat 与 git diff
 4. 与变更直接相关的实现文件、调用方、被调用方
-5. 必要时读取 plugin-system.md / commands.md / frontend.md / data-flow.md / .omp/RULES.md
+5. 必要时读取 plugin-system.md / plugin-handle-usage.md / third-party-plugin.md / config-data-flow.md / .omp/RULES.md
 
 重点检查：
 - 控制流是否完整：新增分支、早返回、fallback、异常分支是否都成立
 - 状态流是否正确：缓存、session、store、配置、事件驱动状态是否一致
-- 数据契约是否一致：Rust serde 字段、TS contract、枚举 variant、action_id、事件 payload 是否同步
+- 数据契约是否一致：Rust serde 字段、插件协议/CLI payload、枚举 variant、action_id、事件 payload 是否同步
 - 异步与并发是否安全：RwLock 守卫是否跨 await、异步 side effect 是否放在正确生命周期、是否引入竞态或顺序依赖
   （「守卫跨 await」优先以 `cargo clippy` 的 `await_holding_lock` 确定性结论为准；无 clippy 输出时再人工判断）
-- 数据契约命令名是否对齐：以 `check-ipc-commands.sh` 的确定性结论为准，不要凭 diff 猜测命令是否已注册
-- 前端交互与后端结果是否一致：UI 展示层是否误承载业务逻辑，后端返回形状是否仍匹配前端消费方式
+- 数据契约命令名是否对齐：以协议方法与 CLI 路由的确定性检查为准，不要凭 diff 猜测是否已注册
+- GPUI 交互与后端结果是否一致：UI 展示层是否误承载业务逻辑，后端返回形状是否仍匹配视图消费方式
 - 错误处理是否完整：是否把新失败路径吞掉、是否错误包装退化、是否把 recoverable error 变成 panic/unwrap
 
 输出规则：
@@ -147,20 +147,18 @@
 
 然后阅读：
 1. references/project-review-checklist.md
-2. collect-context.sh 的输出（重点看 check-deps-direction.sh 与 check-type-scope.sh 结果）
+2. collect-context.sh 的输出（重点看 check-deps-direction.sh 结果）
 3. git diff --stat 与 git diff
 
-你负责三条结构原则（两条有确定性脚本兜底）：
+你负责三条结构原则（一条有确定性脚本兜底）：
 
 ■ P3 编译期层级与依赖方向（阻塞·确定性）
-- 以 check-deps-direction.sh 输出为准：workspace 层 + src-tauri 内部模块层
-- 内部层级：L0(utils/logging) → L1(sdk) → L2(core) → L3(plugin_framework/tray/window) → L4(builtin_plugin/state) → L5(commands/cli_server/bridge_error) → L6(bootstrap/lib/main)
+- 以 check-deps-direction.sh 输出为准：workspace 层 + 后端内部模块层
+- 内部层级：L0(utils/logging/runtime) → L1(sdk) → L2(core) → L3(plugin_framework/window) → L4(builtin_plugin/state/updater) → L5(cli_server) → L6(kernel/lib)
 - 规则：use crate::X 中 X 的层级必须 ≤ 调用方层级
 - 验证脚本报告的违规是否与实际 diff 一致；脚本未覆盖的新增模块需人工补查
-- 已知既有违规（state→cli_server::CliToken）标为"既有问题"，不计本次回归
 
-■ P2 类型职责边界（阻塞·脚本+方法论）
-- 确定性基线：以 check-type-scope.sh 输出为准（已知边界类型的泄漏检测）
+■ P2 类型职责边界（阻塞·方法论）
 - 方法论判断：对变更中所有类型（含新增），按 architecture-principles.md P2 四步方法论独立判断：
   1. 确定类型职责（定义位置 + 命名 + 使用方式）
   2. 分类（边界类型 / 领域类型 / 共享类型）
@@ -170,7 +168,7 @@
 
 ■ P1 职责驱动的代码放置（高·人工）
 - 按 architecture-principles.md P1 放置约定表核对新增 struct/函数是否放在了正确的模块
-- 重点：IPC struct 必须在 commands/、配置类型在 core/config/、框架类型在 plugin_framework/、内置实现 in builtin_plugin/
+- 重点：协议类型在 `plugin-protocol/`、配置类型在 `core/config/`、框架类型在 `plugin_framework/`、内置实现 in `builtin_plugin/`
 
 输出规则：
 - 确定性脚本（P2/P3）的结论优先于你的判断。如果你认为脚本的结论与你的判断有区别，并经过阅读代码后，判断是脚本错了，则需要在输出脚本的内容后，指明该脚本的结论存疑，然后输出你的分析过程；不得覆盖脚本的违规报告，只能补充语义分析
@@ -214,11 +212,11 @@
 你负责三条行为原则（纯人工判断，需设计推理）：
 
 ■ P4 运行时职责域解耦（阻塞·人工）
-- 三大职责域：ConfigManager(core/config)、SessionRouter(plugin_framework/session_router)、PluginManager(plugin_framework/manager)
-- 类型级 use 允许向下（如 session_router 导入 ConfigEvent 类型 ✅）
-- 运行时直接方法调用禁止（如 session_router 内调 config_manager.xxx() ❌）
+- 三大职责域：ConfigManager(core/config)、SessionDispatcher(plugin_framework/session_dispatcher)、PluginManager(plugin_framework/plugin_manager)
+- 类型级 use 允许向下（如 session_dispatcher 导入 ConfigEvent 类型 ✅）
+- 运行时直接方法调用禁止（如 session_dispatcher 内调 config_manager.xxx() ❌）
 - CandidatePipeline/SearchPipeline 是动态生成物，不算独立职责域
-- 检查方法：grep 变更文件中是否有跨职责域的直接方法调用（config_manager./session_router./plugin_manager.），再人工判断是类型导入还是运行时调用
+- 检查方法：grep 变更文件中是否有跨职责域的直接方法调用（config_manager./session_dispatcher./plugin_manager.），再人工判断是类型导入还是运行时调用
 
 ■ P6 接口复用优先于新增（高·人工）
 - 变更是否新增了与既有抽象（PluginHandle/ExecutorRegistry/CandidatePipeline/SearchPipeline/Configurable/inventory/事件通道）平行的机制？
@@ -226,14 +224,14 @@
 - 新增 trait 仅有一个实现者且无明确扩展计划 = 违规信号
 
 ■ P5 通信方式随关系而定（中·人工）
-- 跨层=直接调用；同级不同职责域=事件/管道/回调；跨进程=JSON-RPC；前后端=IPC
+- 跨层=直接调用；同级不同职责域=事件/管道/回调；跨进程=JSON-RPC；宿主与视图=直接 Rust 调用
 - 变更中引入的调用方式是否匹配关系类型？
-- 前端是否越权承担业务逻辑/平台调用（应走 IPC 而非直接操作）
+- GPUI 视图是否越权承担业务逻辑/平台调用（应调用后端库而非直接操作）
 
 ■ 过度设计检测（中/低·人工，标注「设计债」）
 - 定义：为「可能到来的未来」提前支付的抽象成本——本次需求不需要、但作者预期将来需要而引入的机制
 - 检测信号：
-  1. 零调用者/零消费：新增接口/事件/通道/字段/枚举变体在本次变更后没有任何运行时消费者（前端零读取、IPC 零调用、方法零调用方）
+  1. 零调用者/零消费：新增接口/事件/通道/字段/枚举变体在本次变更后没有任何运行时消费者（视图零读取、协议零调用、方法零调用方）
   2. 冗余存储：同一信息在两条以上路径维护（可由其他字段推导、id 双存储）
   3. 预留字段/变体：值为恒定常量的字段（如恒 "main" 的 panel_id）、为未来预留的枚举变体/参数/通道
   4. 状态空间虚胖：声明的合法组合数显著大于实际使用组合数，非法组合靠编码纪律维持（编译器不拦）
@@ -293,15 +291,13 @@ A. **代码违反规则** — 代码与规则矛盾，且规则仍然合理 → 
 B. **规则需要更新** — 代码的偏离是有意的设计演进，规则已过时 → 建议更新规则
 
 重点检查项（按规则文件分组）：
-- .omp/RULES.md: RwLock 守卫是否跨 await、前后端职责边界、JSON 数值安全（as_f64）、死代码纪律、文件命名约定、日志规范、AppState 访问规范
+- .omp/RULES.md: RwLock 守卫是否跨 await、UI 与后端职责边界、JSON 数值安全（as_f64）、死代码纪律、文件命名约定、日志规范、AppState 访问规范
 - plugin-system.md: Configurable 生命周期（apply_settings 不做副作用）、ExecutorRegistry 使用、PluginHandle 使用、事件驱动解耦、inventory 注册
-- commands.md: 命名前缀、serde rename 标注、命令注册、返回类型约定（命名结构体而非裸 JSON）、trace_id 由后端生成
-- frontend.md: script setup 语法、CSS 变量使用、Store 模式、Schema 驱动 UI、类型安全（禁止 any）、键盘快捷键集中管理
-- data-flow.md: IPC 契约双端同步、action_id 路由链路完整性、fallback 机制
+- third-party-plugin.md: 子进程 JSON-RPC、manifest、gpui-shell 插件 UI
+- schema-driven-ui.md: SettingDefinition 数据契约与 GPUI 设置页
+- config-data-flow.md: Settings 强类型、serde 默认值、SchemaBuilder 使用、GPUI 读取链路
 - .omp/AGENTS.md: 文件放置位置、依赖方向、模块职责（始终加载）
-- sdk.md: SDK trait 定义位置、PluginHandle 方法完整性
-- config.md: Settings 强类型、serde 默认值、SchemaBuilder 使用
-- third-party-plugin.md: 第三方插件隔离、协议规范
+- plugin-handle-usage.md: PluginHandle 三层契约与平台能力入口
 
 输出规则：
 - 如果发现不一致，必须明确标注是 A（代码违反规则）还是 B（规则需要更新）

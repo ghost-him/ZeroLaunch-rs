@@ -27,7 +27,6 @@ ci:
     cargo fmt --all -- --check
     cargo test --workspace
 
-# 构建前端 + release 编译
+# 构建 release 主程序
 build:
-    bun run build
-    cargo build --release
+    cargo build --release -p zerolaunch-gpui

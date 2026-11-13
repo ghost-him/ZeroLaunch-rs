@@ -62,8 +62,6 @@ pub enum HostEvent {
         /// 插件 id。
         plugin_id: String,
     },
-    /// 系统主题变化。
-    SystemThemeChanged(String),
     /// 插件脚本请求执行面板动作。
     PluginAction {
         /// 插件 id。
@@ -414,10 +412,6 @@ impl Host for GpuiHost {
         self.publish(HostEvent::PluginUninstalled {
             plugin_id: plugin_id.to_string(),
         });
-    }
-
-    fn emit_system_theme_changed(&self, theme: &str) {
-        self.publish(HostEvent::SystemThemeChanged(theme.to_string()));
     }
 
     fn tray_set_visible(&self, visible: bool) {

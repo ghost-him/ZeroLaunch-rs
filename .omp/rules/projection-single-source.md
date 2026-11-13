@@ -6,14 +6,11 @@ condition:
   - 'fn\s+to_(info|snapshot|dto)\b'
   - '\b\w+(Info|Snapshot|Dto)\s*\{'
   - 'impl\s+Serialize\s+for'
-  - 'export\s+(interface|type)\s+\w+(Info|Snapshot|Dto)\b'
 scope:
   - 'tool:edit(crates/**/*.rs)'
   - 'tool:write(crates/**/*.rs)'
-  - 'tool:edit(src-tauri/**/*.rs)'
-  - 'tool:write(src-tauri/**/*.rs)'
-  - 'tool:edit(src-ui/**/*.ts)'
-  - 'tool:write(src-ui/**/*.ts)'
+  - 'tool:edit(app/**/*.rs)'
+  - 'tool:write(app/**/*.rs)'
 ---
 
 # 投影类型：唯一权威 + 薄构造
@@ -48,7 +45,7 @@ scope:
 - 权威类型已有 `from_metadata` 构造，命令层又按同样字段拼一遍。
 - 为 `XxxDto` 写 `impl From<Xxx>` 逐字段搬运，且两者字段完全一致——没买到任何能力的隧道层。
 - 列表扫一遍磁盘、详情再扫一遍，只为产出两个投影。
-- 已有配置类型却用 `json!({ "name": …, "path": … })` 手拼同类形状下发给前端。
+- 已有配置类型却用 `json!({ "name": …, "path": … })` 手拼同类形状交给消费方。
 
 ## 正例
 

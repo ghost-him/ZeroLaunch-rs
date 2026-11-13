@@ -7,10 +7,10 @@ condition:
   - 'action_id\s*:\s*"execute"|"actionId"\s*:\s*"execute"'
   - 'pub const ACTION_[A-Z_]+\s*:\s*&str'
 scope:
-  - tool:edit(src-tauri/src/builtin_plugin/executor/**)
-  - tool:write(src-tauri/src/builtin_plugin/executor/**)
-  - tool:edit(src-tauri/src/plugin_framework/**)
-  - tool:write(src-tauri/src/plugin_framework/**)
+  - tool:edit(crates/zerolaunch-rs/src/builtin_plugin/executor/**)
+  - tool:write(crates/zerolaunch-rs/src/builtin_plugin/executor/**)
+  - tool:edit(crates/zerolaunch-rs/src/plugin_framework/**)
+  - tool:write(crates/zerolaunch-rs/src/plugin_framework/**)
   - tool:edit(crates/plugin-api/**)
   - tool:write(crates/plugin-api/**)
 ---
@@ -24,7 +24,7 @@ scope:
 | 归属 | 常量位置 | 可见性 |
 |---|---|---|
 | 单个内置执行器的私有动作（如 `window-activate-executor` 的 `activate_window`） | 该执行器文件内 | `pub(crate)` |
-| 多个内置执行器共用的默认动作（`execute`） | `src-tauri/src/builtin_plugin/executor/mod.rs` | `pub(crate)` |
+| 多个内置执行器共用的默认动作（`execute`） | `crates/zerolaunch-rs/src/builtin_plugin/executor/mod.rs` | `pub(crate)` |
 | 第三方插件的动作 | 插件自己的代码内 | 插件私有 |
 | SDK 默认动作（`ActionExecutor::supported_actions` 默认实现） | `crates/plugin-api/src/plugin/types.rs` 的内联值 | 不额外导出常量 |
 

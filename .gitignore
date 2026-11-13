@@ -1,16 +1,6 @@
 # Logs
 logs
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
-
-node_modules
-dist
-dist-ssr
-*.local
 
 # Editor directories and files
 .vscode/*
@@ -26,8 +16,6 @@ dist-ssr
 # 以下文件为程序运行过程中的配置文件，对项目本身无作用
 config.json
 logs
-
-package-lock.json
 
 # Python
 __pycache__/
@@ -53,4 +41,4 @@ tmp_resultlist_repro.html
 .commandcode/
 
 # 使用手册快照：权威在 ZeroLaunch-rs.wiki 仓库，构建前用 xtask sync-wiki 生成
-/src-tauri/assets/wiki/
+/crates/zerolaunch-rs/assets/wiki/

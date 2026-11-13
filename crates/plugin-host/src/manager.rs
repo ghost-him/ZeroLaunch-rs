@@ -30,7 +30,7 @@ use crate::process::{PluginProcess, ProcessState};
 pub type RestartCallback =
     Arc<dyn Fn(PluginRegistration) -> Pin<Box<dyn Future<Output = ()> + Send>> + Send + Sync>;
 
-/// 崩溃即解注册回调：接收崩溃插件的旧注册包，通知 src-tauri 立即解注册
+/// 崩溃即解注册回调：接收崩溃插件的旧注册包，通知 crates/zerolaunch-rs 立即解注册
 /// CM/SR 中的组件并清理 HostApi 句柄。在崩溃处理的第一步调用，
 /// 与后续重启成败无关——放弃重启时不需要任何额外清理。
 pub type CrashCallback = Arc<dyn Fn(PluginRegistration) + Send + Sync>;
@@ -109,11 +109,11 @@ struct PluginRestartContext {
     host_call_handler: Arc<dyn HostCallHandler>,
     /// 崩溃通知通道发送端副本：重新拉起的进程沿用同一通道。
     crash_tx: mpsc::Sender<String>,
-    /// 重启成功后调用：供 src-tauri 用新适配器重新注册
+    /// 重启成功后调用：供 crates/zerolaunch-rs 用新适配器重新注册
     /// ConfigManager 与 SessionRouter。
     /// 返回 future 使调用方可避免 `block_on` 及其 `!Send` 风险。
     on_restart: RestartCallback,
-    /// 崩溃即解注册回调：崩溃处理第一步调用（旧注册包交还 src-tauri 清理 CM/SR）。
+    /// 崩溃即解注册回调：崩溃处理第一步调用（旧注册包交还 crates/zerolaunch-rs 清理 CM/SR）。
     on_crash: CrashCallback,
     /// 持久化的重启计数器。每次重新生成前原子递增；
     /// 当达到 manifest.runtime.max_restart 时不再尝试重启。
@@ -158,7 +158,7 @@ pub struct PluginHostManager {
     load_lock: Arc<AsyncMutex<()>>,
     /// 内置组件 id 集合（冲突预检数据源之一）。
     ///
-    /// 由 src-tauri 在启动时注入一次（内置组件注册完毕、第三方加载之前）；
+    /// 由 crates/zerolaunch-rs 在启动时注入一次（内置组件注册完毕、第三方加载之前）；
     /// 前提是内置组件集合启动后稳定。RwLock 仅用于装配期一次性写入，
     /// 预检读取为短临界区同步查询，不跨 .await。
     builtin_component_ids: RwLock<HashSet<String>>,
@@ -217,7 +217,7 @@ impl PluginHostManager {
 
     /// 注入内置组件 id 集合（冲突预检数据源）。
     ///
-    /// 由 src-tauri 在内置组件注册完毕后调用一次；此后内置组件集合
+    /// 由 crates/zerolaunch-rs 在内置组件注册完毕后调用一次；此后内置组件集合
     /// 启动期稳定，不再更新。预检据此识别「与内置组件撞 id」。
     pub fn set_builtin_component_ids(&self, ids: HashSet<String>) {
         *self.builtin_component_ids.write() = ids;
@@ -238,7 +238,7 @@ impl PluginHostManager {
     /// 从包含 manifest.toml 的目录加载一个插件。
     ///
     /// `on_restart` 存入重启上下文，崩溃重启成功后被调用，
-    /// 供调用方（src-tauri）重新注册新适配器。
+    /// 供调用方（crates/zerolaunch-rs）重新注册新适配器。
     /// `on_crash` 在崩溃检测到的那一刻（任何重启尝试之前）以旧注册包调用，
     /// 供调用方解注册 CM/SR 中的过期组件。
     /// `restart_count` 为已发生的重启次数（初次加载传 0），用于延续崩溃恢复计数。
@@ -719,13 +719,13 @@ async fn crash_loop(mgr: Arc<PluginHostManager>, mut crash_rx: mpsc::Receiver<St
 
 /// 处理单个插件崩溃：崩溃即解注册 → 计数/上限检查 → 复用 load() 重启。
 ///
-/// 旧注册包在第一步交还 src-tauri 解注册（CM/SR/host_api），
+/// 旧注册包在第一步交还 crates/zerolaunch-rs 解注册（CM/SR/host_api），
 /// 之后无论重启成败都不再有残留，无需任何「放弃清理」路径。
 async fn handle_crash(mgr: &PluginHostManager, plugin_id: &str) {
     warn!("Watchdog triggered restart for plugin: {}", plugin_id);
 
     // 崩溃即解注册：从登记中移除旧进程与旧注册包，并把旧注册包
-    // 立即交还 src-tauri 清理 CM/SR/host_api。自身组件因此不再
+    // 立即交还 crates/zerolaunch-rs 清理 CM/SR/host_api。自身组件因此不再
     // 出现在预检数据源中，后续 load 的重启预检不会自碰撞。
     let prev = mgr.plugins.remove(plugin_id);
     mgr.processes.remove(plugin_id);
@@ -782,7 +782,7 @@ async fn handle_crash(mgr: &PluginHostManager, plugin_id: &str) {
         .await
     {
         Ok(registered) => {
-            // 重启成功：通知 src-tauri 注册新适配器（旧组件已在崩溃第一步解注册）
+            // 重启成功：通知 crates/zerolaunch-rs 注册新适配器（旧组件已在崩溃第一步解注册）
             (ctx.on_restart)(registered).await;
             info!("Plugin {} successfully restarted", plugin_id);
         }

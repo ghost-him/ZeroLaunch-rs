@@ -61,7 +61,7 @@ impl InstalledPlugin {
 
 /// 已安装插件快照 —— plugins 目录清单（唯一权威）的内存读模型。
 ///
-/// 仅由本文件与 `manager.rs` 使用；外部（src-tauri）经 `PluginHostManager` 的
+/// 仅由本文件与 `manager.rs` 使用；外部（crates/zerolaunch-rs）经 `PluginHostManager` 的
 /// `installed` / `installed_snapshot` 读接口访问，不得自行扫描磁盘或另存一份。
 /// 内部可变性用 `RwLock`：读（每次列表/详情）远多于写（启动一次 + 目录变更）。
 pub struct InstalledCache {

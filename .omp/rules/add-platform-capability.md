@@ -1,14 +1,14 @@
 ---
 description: 新增平台能力流程 — trait 定义在 services/<capability>/，平台实现在 platform-windows/，经 PlatformServices 端口注入宿主，HostApi impl PluginHost 转发
 condition: "services/|platform-windows|Arc<dyn|pub trait|PluginHost|PluginHandle|PlatformServices"
-scope: "tool:edit(crates/plugin-api/src/**), tool:write(crates/plugin-api/src/**), tool:edit(crates/platform-windows/src/**), tool:write(crates/platform-windows/src/**), tool:edit(src-tauri/src/sdk.rs), tool:write(src-tauri/src/sdk.rs)"
+scope: "tool:edit(crates/plugin-api/src/**), tool:write(crates/plugin-api/src/**), tool:edit(crates/platform-windows/src/**), tool:write(crates/platform-windows/src/**), tool:edit(crates/zerolaunch-rs/src/sdk.rs), tool:write(crates/zerolaunch-rs/src/sdk.rs)"
 ---
 
 # 新增平台能力的流程（三层架构）
 
 **分层职责**：
 - **插件接口层**（plugin-api `host/plugin_handle.rs`）：`PluginHandle` 只保存插件身份/配置/能力集，公开方法全部委托宿主契约（`host/plugin_host.rs` 的 `PluginHost`）
-- **宿主层**（src-tauri `sdk.rs`）：`HostApi` 实现 `PluginHost` 契约 —— 唯一执行节点，直接处理宿主级服务（model/storage/timer/参数/资源与缓存规约）或转发平台面操作
+- **宿主层**（crates/zerolaunch-rs `sdk.rs`）：`HostApi` 实现 `PluginHost` 契约 —— 唯一执行节点，直接处理宿主级服务（model/storage/timer/参数/资源与缓存规约）或转发平台面操作
 - **平台层**（platform-windows + plugin-api `platform/services.rs`）：`PlatformServices` 是平台实现的统一集合（平台端口），能力集与实现同源存放；组装权在平台 crate 的统一工厂 `windows_platform_services()`
 
 **正确做法（新增能力）**：

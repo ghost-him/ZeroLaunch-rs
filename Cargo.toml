@@ -6,8 +6,8 @@ members = [
     "crates/plugin-protocol",
     "crates/plugin-host",
     "crates/plugin-sdk-rust",
+    "crates/zerolaunch-rs",
     "zerolaunch-cli",
-    "src-tauri",
     "app",
 ]
 exclude = ["xtask", "plugin-template"]
@@ -87,13 +87,7 @@ unicode-width = "0.2"
 
 base64 = "0.23"
 
-# Tauri / HTTP / Server
-tauri = { version = "^2", features = ["tray-icon"] }
-tauri-build = { version = "^2", features = [] }
-tauri-utils = { version = "2.9.3", features = ["schema"] }
-tauri-plugin-dialog = "2"
-tauri-plugin-deep-link = "2"
-tauri-plugin-shell = "2"
+# HTTP / Server
 axum = { version = "0.8", features = ["macros"] }
 tower = "0.5"
 tower-http = { version = "0.7", features = ["cors", "trace"] }

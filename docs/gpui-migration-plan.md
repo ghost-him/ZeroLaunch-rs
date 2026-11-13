@@ -1,8 +1,8 @@
 # ZeroLaunch-rs → GPUI Kit 迁移计划
 
-> 状态：阶段 5 完成，阶段 6 待开始
+> 状态：阶段 7 拆除完成；安装包待 CI 实跑
 > 基线版本：1.5.5
-> 适用分支：迁移分支（`main` 保持 Tauri 可发布，见「迁移与发布策略」）
+> 适用分支：迁移分支；CI 安装包验证通过后 `main` 发布 GPUI 版本
 
 ## 1. 目标与范围
 
@@ -353,3 +353,25 @@
   - 助手输入支持 Enter 发送；说明书请求补齐设置页路径与触发词，历史限制为最近 20 条。
   - 托盘图标加载失败后保留图标路径，用户重新开启托盘时按需重建。
 - 结论：暂停阶段 7。先以同机基准比较 Tauri 与 GPUI 的冷启动、空闲内存、输入到首结果延迟、包体与插件 UI 能力；数据不支持再继续时保留 Tauri 主线。
+
+### 阶段 7 验收记录（2026-11-13）
+
+- 状态：拆除完成，安装包脚本待 Inno Setup 实跑。
+- 变更范围：
+  - 后端从 `src-tauri/` 迁到 `crates/zerolaunch-rs/`，删除 Tauri 外壳、IPC 命令层、`TauriHost`、Tauri 托盘与 `tauri-build`；`collect_triggers` 收进 `AppState`。
+  - 删除 `src-ui/`、Vite/Bun 配置与依赖；语言包归 `crates/zerolaunch-rs/locales/`，图标归 `app/icons/`，wiki 快照归 `crates/zerolaunch-rs/assets/wiki/`。
+  - `xtask` 改为 cargo 构建 + Inno Setup 安装包 + 便携 zip；CI/release 移除前端与 MSI 流程，安装 Inno Setup 后出包。
+  - `AGENTS.md`、`APPEND_SYSTEM.md`、TTSR 规则与技能同步新路径；删除 Tauri 命令、Vue、CDP 等失效规则。
+- 通过项：
+  - `cargo fmt --all -- --check`、`cargo check --workspace`、`cargo clippy --workspace --all-targets --all-features -- -D warnings` 通过。
+  - `CARGO_PROFILE_TEST_DEBUG=0 cargo test --workspace` 通过；`cargo check --manifest-path xtask/Cargo.toml` 通过。
+  - `cargo build -p zerolaunch-gpui` 成功；真实启动完成内核、第三方插件、CLI HTTP 与托盘初始化，搜索窗顶层窗口已创建。
+  - `xtask build-portable --arch x64` 生成 `ZeroLaunch-portable-1.5.5-x64.zip`，包含 `ZeroLaunch_x64.exe`、`icons/`、`locales/`；解压运行成功，`cli-token.json` 写入 exe 同级目录，证明便携数据目录生效。
+- 未验证 / 差异项：
+  - 本机未安装 Inno Setup，安装、升级、卸载与深链接注册尚未实跑；CI 在 windows-latest 上安装后构建。
+  - 真机热键唤起被系统内其他进程占用的 `Alt+Space` 阻断；窗口创建本身已验证，未把该外部冲突计入回归。
+- 子 agent 审查修正：
+  - 安装器增加旧 MSI 检测与静默卸载，安装前结束旧宿主进程；SignPath 与 README 的产物名改为 `-setup.exe`。
+  - 删除主题变更死链路与无读者的助手调试轨迹；同步残留的 commands/BridgeError/Tauri 注释。
+  - 修复 code-review 脚本、规则正文与 `.omp/RULES.md` 中已删除脚本/IPC/Vue 的引用。
+- 结论：迁移分支进入阶段 7 收尾；待安装包实跑与发布回归后即可替换 `main` 的 Tauri 发布链。

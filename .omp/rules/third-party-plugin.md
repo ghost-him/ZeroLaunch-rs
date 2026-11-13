@@ -1,7 +1,7 @@
 ---
 description: 第三方插件运行时规范：子进程 JSON-RPC 架构、协议、Manifest 校验、生命周期、RemoteComponent、CLI HTTP、gpui-shell 插件 UI
 condition: "plugin/initialize|plugin/get_components|RemoteComponent|remote_component|gpui-shell|HostModule|ScriptView|Content-Length|JSON-RPC|PluginHostManager|host_handler|plugin_installer|plugin_install_local|manifest"
-scope: "tool:read(crates/plugin-protocol/**), tool:edit(crates/plugin-protocol/**), tool:write(crates/plugin-protocol/**), tool:read(crates/plugin-host/**), tool:edit(crates/plugin-host/**), tool:write(crates/plugin-host/**), tool:read(crates/plugin-sdk-rust/**), tool:edit(crates/plugin-sdk-rust/**), tool:write(crates/plugin-sdk-rust/**), tool:read(src-tauri/src/plugin_framework/**), tool:edit(src-tauri/src/plugin_framework/**), tool:write(src-tauri/src/plugin_framework/**), tool:read(src-tauri/src/cli_server/**), tool:edit(src-tauri/src/cli_server/**), tool:write(src-tauri/src/cli_server/**), tool:read(src-tauri/src/commands/plugin.rs), tool:edit(src-tauri/src/commands/plugin.rs), tool:write(src-tauri/src/commands/plugin.rs), tool:read(crates/plugin-api/src…
+scope: "tool:read(crates/plugin-protocol/**), tool:edit(crates/plugin-protocol/**), tool:write(crates/plugin-protocol/**), tool:read(crates/plugin-host/**), tool:edit(crates/plugin-host/**), tool:write(crates/plugin-host/**), tool:read(crates/plugin-sdk-rust/**), tool:edit(crates/plugin-sdk-rust/**), tool:write(crates/plugin-sdk-rust/**), tool:read(crates/zerolaunch-rs/src/plugin_framework/**), tool:edit(crates/zerolaunch-rs/src/plugin_framework/**), tool:write(crates/zerolaunch-rs/src/plugin_framework/**), tool:read(crates/zerolaunch-rs/src/cli_server/**), tool:edit(crates/zerolaunch-rs/src/cli_server/**), tool:write(crates/zerolaunch-rs/src/cli_server/**), tool:read(crates/plugin-api/src…
 ---
 
 # 第三方插件运行时规范
@@ -10,7 +10,7 @@ scope: "tool:read(crates/plugin-protocol/**), tool:edit(crates/plugin-protocol/*
 
 第三方插件以**子进程 + stdio JSON-RPC 2.0** 方式运行。宿主通过 `plugin-host` crate 管理子进程生命周期，通过 `RemoteComponent` 将 JSON-RPC 调用适配为 Plugin/DataSource/ActionExecutor trait。
 
-**宿主侧入口**集中在 `src-tauri/src/plugin_framework/`：
+**宿主侧入口**集中在 `crates/zerolaunch-rs/src/plugin_framework/`：
 - `plugin_manager.rs` — 第三方插件生命周期管理（加载、卸载、发现、崩溃恢复），唯一入口
 - `host_handler.rs` — 反向 RPC 路由：将插件的 `host/*` RPC 调用分发到本地 `PluginHandle` 方法（子进程 spawn/健康监控/关闭归 `crates/plugin-host`）
 - `plugin_installer.rs` — 插件安装/卸载逻辑（从 plugin_manager.rs 提取）
@@ -67,7 +67,7 @@ schema 用 `PluginMode` 枚举，取值非法同样解析失败。宿主解析�
 ## HostDispatch（反向调用）
 
 - 插件通过 `host/*` RPC 调宿主 API
-- 在 src-tauri 侧由 `plugin_framework/host_handler.rs` 实现 `HostCallHandler` trait，路由到 `PluginHandle` 方法
+- 在 crates/zerolaunch-rs 侧由 `plugin_framework/host_handler.rs` 实现 `HostCallHandler` trait，路由到 `PluginHandle` 方法
 - `host/resource.*` 调用 **必须** 校验 `plugin_id` 命名空间
 
 ## CLI HTTP 服务器
@@ -89,7 +89,7 @@ schema 用 `PluginMode` 枚举，取值非法同样解析失败。宿主解析�
 ## 新增 crate 时的注意事项
 
 - `plugin-protocol` **只** 依赖 plugin-api + serde/thiserror/toml/semver，**禁止** 引入 tokio
-- `plugin-host` 依赖 plugin-api + plugin-protocol，**禁止** 直接依赖 src-tauri
+- `plugin-host` 依赖 plugin-api + plugin-protocol，**禁止** 直接依赖 crates/zerolaunch-rs
 - `plugin-sdk-rust` 依赖 plugin-api + plugin-protocol，**禁止** 依赖 plugin-host
 
 ## 第三方插件开发约束

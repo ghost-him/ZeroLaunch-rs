@@ -1,11 +1,9 @@
+#!/usr/bin/env sh
 set -e
 
 echo "Running pre-commit checks..."
 
-# 0. 检查是否存在未暂存或未跟踪的文件
-# git diff --name-only: 工作区与暂存区的差异（已修改但未暂存）
 UNSTAGED_FILES=$(git diff --name-only)
-# git ls-files: 未被 git 跟踪的文件
 UNTRACKED_FILES=$(git ls-files --others --exclude-standard)
 
 if [ -n "$UNSTAGED_FILES" ] || [ -n "$UNTRACKED_FILES" ]; then
@@ -39,34 +37,10 @@ if [ -n "$UNSTAGED_FILES" ] || [ -n "$UNTRACKED_FILES" ]; then
   done
 fi
 
-# 1. 构建前端（确保 dist 文件夹存在）
-echo "🏗️  Building frontend..."
-bun run build
-
-# 2. 复制 i18n locales 文件到 src-tauri
-# echo "📦 Copying i18n locales to src-tauri..."
-# SRC_LOCALES_DIR="src-ui/i18n/locales"
-# DEST_DIR="src-tauri/locales"
-
-# if [ ! -d "$DEST_DIR" ]; then
-#   mkdir -p "$DEST_DIR"
-# fi
-
-# cp -r "$SRC_LOCALES_DIR"/* "$DEST_DIR"/
-# echo "✓ i18n locales files copied to src-tauri/locales/"
-
-# 3. 前端静态检查
-echo "📋 Running frontend vue-tsc..."
-bun run vue-tsc --noEmit
-
-cd src-tauri
-# 4. Rust 格式检查
 echo "🎨 Running Rust formatting check..."
 cargo fmt --all -- --check
-# 5. Rust 静态检查
 echo "📋 Running Rust clippy..."
 cargo clippy --all-targets --all-features -- -D warnings
-# 6. Rust 单元测试
 echo "🧪 Running Rust tests..."
 cargo test --all-features
 

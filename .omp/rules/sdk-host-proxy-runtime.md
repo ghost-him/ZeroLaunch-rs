@@ -1,7 +1,7 @@
 ---
 description: 第三方插件 SDK host() 代理与进程退出 — host() 经 OnceLock 代理、run() 前调用 panic，stdin EOF 是唯一退出路径
 condition: "HOST_PROXY|fn host\\(|run_async|stdin|EOF|select!|HostProxy|host_proxy"
-scope: "tool:read(crates/plugin-sdk-rust/**), tool:edit(crates/plugin-sdk-rust/**), tool:write(crates/plugin-sdk-rust/**), tool:read(crates/plugin-host/**), tool:edit(crates/plugin-host/**), tool:write(crates/plugin-host/**), tool:read(src-tauri/src/plugin_framework/host_handler.rs), tool:edit(src-tauri/src/plugin_framework/host_handler.rs), tool:write(src-tauri/src/plugin_framework/host_handler.rs)"
+scope: "tool:read(crates/plugin-sdk-rust/**), tool:edit(crates/plugin-sdk-rust/**), tool:write(crates/plugin-sdk-rust/**), tool:read(crates/plugin-host/**), tool:edit(crates/plugin-host/**), tool:write(crates/plugin-host/**), tool:read(crates/zerolaunch-rs/src/plugin_framework/host_handler.rs), tool:edit(crates/zerolaunch-rs/src/plugin_framework/host_handler.rs), tool:write(crates/zerolaunch-rs/src/plugin_framework/host_handler.rs)"
 ---
 
 # SDK host() 代理与进程退出契约

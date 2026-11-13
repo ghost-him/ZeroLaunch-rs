@@ -99,6 +99,7 @@
       "enterHint": "Enter to send, Shift+Enter for a new line",
       "thinking": "Thinking (the first call loads the model and may take a while)…",
       "noModel": "The AI assistant has no model configured",
+      "failed": "The AI assistant could not answer. Please try again later",
       "configure": "Configure",
       "modelToolHint": "Pick a model that supports tool calling, or every question fails",
       "directJump": "Jump to",

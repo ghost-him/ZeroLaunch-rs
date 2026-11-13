@@ -118,7 +118,7 @@ const TRIGGER_TEXT_MAX_CHARS: usize = 200;
 ///
 /// 参数：state - 应用状态（提供插件注册表与翻译服务）。
 /// 返回：仅含有触发信息的组件；说明书据此渲染组件行的触发段。
-fn collect_triggers(state: &AppState) -> HashMap<String, String> {
+pub fn collect_triggers(state: &AppState) -> HashMap<String, String> {
     let i18n = state.get_i18n_manager();
     let lang = i18n.current_language();
     let mut triggers = HashMap::new();

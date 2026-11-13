@@ -21,6 +21,10 @@ serde_json = { workspace = true }
 base64 = { workspace = true }
 futures = { workspace = true }
 notify-rust = { workspace = true }
+rfd = "0.16.0"
+tray-icon = "0.24.2"
+url = { workspace = true }
+winreg = { workspace = true }
 raw-window-handle = "0.6"
 windows = { version = "0.62.2", features = [
     "Win32_Foundation",

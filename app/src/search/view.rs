@@ -223,7 +223,10 @@ impl SearchView {
                     },
                     command = command_receiver.recv() => match command {
                         Some(HostCommand::Exit) => {
-                            let _ = this.update_in(cx, |_, _, cx| cx.quit());
+                            let _ = this.update_in(cx, |this, _, cx| {
+                                runtime::block_on(kernel::do_cleanup_before_exit(this.state.clone()));
+                                cx.quit();
+                            });
                             break;
                         }
                         None => break,

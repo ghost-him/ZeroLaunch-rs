@@ -99,6 +99,7 @@
       "enterHint": "Enter 发送，Shift+Enter 换行",
       "thinking": "正在思考（首次调用需加载模型，可能较慢）…",
       "noModel": "AI 助手尚未配置模型",
+      "failed": "AI 助手暂时无法回答，请稍后重试",
       "configure": "去配置",
       "modelToolHint": "需要选择支持工具调用（Tool Calling）的模型，否则提问会失败",
       "directJump": "直接跳转",

@@ -3,11 +3,13 @@
 //! 复用 `zerolaunch-rs` 的内核装配，但窗口与输入链路完全走 GPUI：
 //! 启动时安装 `GpuiHost`，初始化内核，再打开无边框搜索窗口。
 
+mod deeplink;
 mod host;
 mod platform;
 mod search;
 mod settings;
 mod shell;
+mod tray;
 
 use std::rc::Rc;
 use std::sync::Arc;
@@ -59,15 +61,33 @@ fn main() {
             state.set_host(host.clone());
 
             let host_for_instance = host.clone();
+            let state_for_instance = state.clone();
             let status = acquire_single_instance(
                 APP_ID,
-                Arc::new(move |_args, _cwd| host_for_instance.show_main_window()),
+                Arc::new(move |args, _cwd| {
+                    host_for_instance.show_main_window();
+                    deeplink::dispatch(&state_for_instance, &args);
+                }),
             );
             if status == SingleInstanceStatus::Secondary {
-                return;
+                std::process::exit(0);
+            }
+
+            if let Ok(exe) = std::env::current_exe() {
+                if let Err(error) = deeplink::register_protocol(&exe) {
+                    tracing::warn!("注册深链接协议失败: {error}");
+                }
             }
 
             init_kernel(&state, path_resolver);
+            host.set_i18n(state.get_i18n_manager());
+            let tray_icon = exe_dir()
+                .map(|dir| dir.join("icons").join("icon.ico"))
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string();
+            host.init_tray(tray_icon, state.is_show_tray_icon(), state.get_game_mode());
+            deeplink::dispatch(&state, &std::env::args().collect::<Vec<_>>());
             let plugin_ui = match PluginUiHost::new(state.clone(), host.clone(), cx) {
                 Ok(host) => Some(Rc::new(host)),
                 Err(error) => {

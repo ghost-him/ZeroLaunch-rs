@@ -331,4 +331,25 @@
 - 规则同步：
   - `third-party-plugin`：`manager.rs` 更正为 `plugin_manager.rs`，`zlplugin://` 段替换为 gpui-shell HostModule 契约。
   - `plugin-system`、`sdk-init-tkey-timing`、`deep-selector`、`AGENTS.md`：清理失效路径与 Shadow DOM/zlplugin 描述。
-- 下一阶段前置条件：阶段 6 接托盘、深链接、更新、AI 助手、i18n、日志导出与关于页。
+
+### 阶段 6 验收记录（2026-11-13）
+
+- 状态：功能完成；暂停阶段 7，先评估迁移收益。
+- 提交范围：
+  - 新增 `app/src/tray.rs`：独立托盘线程与 tray-icon/muda 菜单，Host 端口同步可见性、语言、游戏模式与更新状态；退出前复用内核清理。
+  - 新增 `app/src/deeplink.rs`：按当前用户注册 `zerolaunch-rs://`，首实例与第二实例的 URL 统一写入内核等待表。
+  - 设置窗新增 AI 助手页，直接调用 `core/agent`；关于页接入更新检查与日志导出。
+  - `app/Cargo.toml` 增加托盘、保存对话框、URL 与注册表依赖；第二实例收到深链接后退出。
+- 通过项：
+  - `cargo check -p zerolaunch-gpui` 零错误；`cargo clippy -p zerolaunch-gpui --all-targets` 零警告；`cargo build -p zerolaunch-gpui` 成功；`CARGO_PROFILE_TEST_DEBUG=0 cargo test --workspace` 通过。
+  - 真机：托盘图标创建成功；深链接注册命令指向当前 exe，第二实例退出且主实例记录 URL 参数。
+  - 真机：关于页显示最新版本状态；选择保存路径后导出 zip，压缩包包含 `logs/` 日志。
+  - 真机：AI 助手页提问后收到模型答复。
+- 未验证 / 差异项：
+  - 托盘菜单项点击、双击唤出与退出清理未通过真实鼠标点击验证；事件已接入 `AppCommand` 消费者。
+  - 「查看发布页」按钮与系统通知/剪贴板沿用既有 Host/PluginHandle 路径，未在本次重新验证。
+- 子 agent 审查修正：
+  - 深链接缺少域名时只记录 scheme，不再把带查询参数的完整 URL 写入可导出的日志。
+  - 助手输入支持 Enter 发送；说明书请求补齐设置页路径与触发词，历史限制为最近 20 条。
+  - 托盘图标加载失败后保留图标路径，用户重新开启托盘时按需重建。
+- 结论：暂停阶段 7。先以同机基准比较 Tauri 与 GPUI 的冷启动、空闲内存、输入到首结果延迟、包体与插件 UI 能力；数据不支持再继续时保留 Tauri 主线。

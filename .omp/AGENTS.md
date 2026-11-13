@@ -12,14 +12,14 @@ crates/plugin-sdk-rust/   → zerolaunch-plugin-sdk-rust: 第三方 Rust 插件 
 crates/platform-windows/  → zerolaunch-platform-windows: Windows 平台实现 + 工厂函数
 zerolaunch-cli/           → zerolaunch-cli: 独立 CLI 工具 (zl query / zl plugins)
 src-tauri/                → zerolaunch-rs: 主程序、内置插件、配置管理、IPC 命令
-app/                      → zerolaunch-gpui: GPUI 宿主（搜索窗、设置窗，阶段 3-4）
+app/                      → zerolaunch-gpui: GPUI 宿主（搜索、设置、插件 UI、托盘、深链接，阶段 3-6）
 ```
 
 **依赖方向**: `plugin-api ← plugin-protocol ← plugin-host ← src-tauri`、`plugin-api ← platform-windows ← src-tauri`、`plugin-api ← plugin-sdk-rust`、`app → {gpui-kit, zerolaunch-rs, platform-windows, plugin-api}` — 禁止反向依赖。
 
 **内部模块**（src-tauri 内）:
 ```
-bootstrap.rs        → Tauri 外壳适配（安装 Host、平台端口、托盘）
+bootstrap.rs        → 旧 Tauri 外壳适配（安装 Host、平台端口、托盘；GPUI 走 app/）
 kernel.rs           → 内核装配（HostApi/ConfigManager/PluginManager、后台任务）
 runtime.rs          → 进程级 Tokio runtime（Tauri/CLI/GPUI 共用）
 sdk.rs              → 平台抽象层 re-export 桥（单文件）
@@ -55,6 +55,8 @@ logging.rs          → 日志初始化
 | PluginHostManager   | `crates/plugin-host/src/manager.rs`                                |
 | 第三方插件加载器    | `src-tauri/src/plugin_framework/plugin_manager.rs`                |
 | 插件 UI 脚本宿主    | `app/src/shell.rs`（gpui-shell + `zerolaunch` HostModule）         |
+| GPUI 系统托盘       | `app/src/tray.rs`（独立消息循环 + tray-icon/muda）                |
+| GPUI 深链接         | `app/src/deeplink.rs`（注册 `zerolaunch-rs://` 并写入等待表）      |
 | CLI HTTP 服务器     | `src-tauri/src/cli_server/server.rs`                               |
 | 前端类型契约        | `src-ui/bridge/contract.ts`                                    |
 | 前端命令封装        | `src-ui/bridge/commands.ts`                                    |

@@ -99,6 +99,7 @@
       "enterHint": "Enter 傳送，Shift+Enter 換行",
       "thinking": "正在思考（首次呼叫需載入模型，可能較慢）…",
       "noModel": "AI 助理尚未設定模型",
+      "failed": "AI 助理暫時無法回答，請稍後重試",
       "configure": "去設定",
       "modelToolHint": "需要選擇支援工具呼叫（Tool Calling）的模型，否則提問會失敗",
       "directJump": "直接跳轉",

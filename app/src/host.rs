@@ -1,15 +1,20 @@
 //! GPUI 宿主实现：把内核的窗口、通知与事件出口接到 GPUI/Win32 外壳。
 
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 use zerolaunch_plugin_api::services::window::MonitorInfo;
 use zerolaunch_plugin_api::CandidateId;
 use zerolaunch_rs_lib::core::host::{Host, UpdateMenuState};
+use zerolaunch_rs_lib::core::i18n::I18nManager;
 
 use crate::platform;
+use crate::tray::{Tray, TrayLabels};
+
+/// 系统通知使用的 AppUserModelID；与安装程序注册的应用标识一致。
+const APP_ID: &str = "com.zerolaunch-rs.app";
 
 /// 视图线程需要执行的宿主命令。
 #[derive(Debug)]
@@ -86,6 +91,16 @@ pub struct GpuiHost {
     settings_bounds: Mutex<Option<(i32, i32, i32, i32)>>,
     /// 最近一次显示的可见状态。
     visible: AtomicBool,
+    /// 系统托盘；初始化前或图标创建失败时为 None。
+    tray: Mutex<Option<Tray>>,
+    /// 托盘图标路径；托盘按需重建时复用。
+    tray_icon: Mutex<String>,
+    /// 当前游戏模式状态；托盘按需重建时复用。
+    game_mode: AtomicBool,
+    /// 后端翻译服务；用于托盘菜单文案。
+    i18n: Mutex<Option<Arc<I18nManager>>>,
+    /// 最近一次更新检查的托盘展示状态。
+    update_state: Mutex<UpdateMenuState>,
 }
 
 impl GpuiHost {
@@ -102,6 +117,11 @@ impl GpuiHost {
             settings_title: Mutex::new(None),
             settings_bounds: Mutex::new(None),
             visible: AtomicBool::new(false),
+            tray: Mutex::new(None),
+            tray_icon: Mutex::new(String::new()),
+            game_mode: AtomicBool::new(false),
+            i18n: Mutex::new(None),
+            update_state: Mutex::new(UpdateMenuState::Idle),
         }
     }
 
@@ -175,6 +195,114 @@ impl GpuiHost {
         });
     }
 
+    /// 安装后端翻译服务；托盘文案随语言变化时使用。
+    /// 参数：i18n - 内核的翻译管理器。
+    /// 返回：无。
+    pub fn set_i18n(&self, i18n: Arc<I18nManager>) {
+        *self.i18n.lock().expect("host i18n lock poisoned") = Some(i18n);
+    }
+
+    /// 创建系统托盘。
+    /// 参数：icon_path - 托盘图标路径；visible - 是否显示；game - 游戏模式初始状态。
+    /// 返回：无；创建失败只记录日志，不影响搜索窗口。
+    pub fn init_tray(&self, icon_path: String, visible: bool, game: bool) {
+        *self.tray_icon.lock().expect("host tray icon lock poisoned") = icon_path.clone();
+        self.game_mode.store(game, Ordering::Release);
+        let labels = self.tray_labels();
+        match Tray::new(icon_path, labels, visible, game) {
+            Ok(tray) => *self.tray.lock().expect("host tray lock poisoned") = Some(tray),
+            Err(error) => tracing::warn!("启动系统托盘线程失败: {error}"),
+        }
+    }
+
+    /// 按需创建托盘；图标加载失败后由可见性请求重试。
+    /// 返回：创建成功为 true。
+    fn try_create_tray(&self) -> bool {
+        let (icon_path, game) = {
+            (
+                self.tray_icon
+                    .lock()
+                    .expect("host tray icon lock poisoned")
+                    .clone(),
+                self.game_mode.load(Ordering::Acquire),
+            )
+        };
+        if icon_path.is_empty() {
+            return false;
+        }
+        match Tray::new(icon_path, self.tray_labels(), true, game) {
+            Ok(tray) => {
+                *self.tray.lock().expect("host tray lock poisoned") = Some(tray);
+                true
+            }
+            Err(error) => {
+                tracing::warn!("重试创建系统托盘失败: {error}");
+                false
+            }
+        }
+    }
+
+    /// 当前语言与更新状态对应的托盘文案。
+    /// 返回：完整菜单文案；翻译服务尚未安装时回退为 i18n key。
+    fn tray_labels(&self) -> TrayLabels {
+        let update = self
+            .update_state
+            .lock()
+            .expect("host update state lock poisoned")
+            .clone();
+        TrayLabels {
+            show_settings: self.tray_text("tray.showSettings"),
+            refresh: self.tray_text("tray.refreshDatabase"),
+            reregister: self.tray_text("tray.reregisterHotkeys"),
+            game_mode: self.tray_text("tray.gameMode"),
+            update: self.tray_update_text(&update),
+            exit: self.tray_text("tray.exitProgram"),
+        }
+    }
+
+    /// 读取一条托盘译文。
+    /// 参数：key - i18n key。
+    /// 返回：当前语言译文；无翻译服务时返回 key。
+    fn tray_text(&self, key: &str) -> String {
+        let i18n = self.i18n.lock().expect("host i18n lock poisoned").clone();
+        match i18n {
+            Some(i18n) => {
+                let language = i18n.current_language();
+                i18n.t(&language, key)
+            }
+            None => key.to_string(),
+        }
+    }
+
+    /// 按最近一次检查结果生成检查更新菜单文案。
+    /// 参数：state - 检查状态。
+    /// 返回：菜单文本；发现新版本时带版本号。
+    fn tray_update_text(&self, state: &UpdateMenuState) -> String {
+        match state {
+            UpdateMenuState::Idle => self.tray_text("tray.checkUpdate"),
+            UpdateMenuState::Checking => self.tray_text("tray.checking"),
+            UpdateMenuState::UpToDate(version) => self
+                .tray_text("tray.upToDate")
+                .replace("{version}", version),
+            UpdateMenuState::Available(version) => self
+                .tray_text("tray.updateAvailable")
+                .replace("{version}", version),
+            UpdateMenuState::Failed => self.tray_text("tray.checkFailed"),
+        }
+    }
+
+    /// 刷新托盘菜单文案。
+    /// 返回：无；托盘尚未创建时忽略。
+    fn refresh_tray_labels(&self) {
+        let labels = self.tray_labels();
+        if let Some(tray) = self.tray.lock().expect("host tray lock poisoned").as_ref() {
+            tray.set_labels(labels);
+        }
+    }
+
+    /// 广播一条宿主事件。
+    /// 参数：event - 推送给视图的事件。
+    /// 返回：无；无订阅者时忽略。
     fn publish(&self, event: HostEvent) {
         let _ = self.events.send(event);
     }
@@ -236,6 +364,7 @@ impl Host for GpuiHost {
         if let Err(error) = notify_rust::Notification::new()
             .summary(title)
             .body(body)
+            .app_id(APP_ID)
             .show()
         {
             tracing::warn!("发送系统通知失败: {error}");
@@ -291,8 +420,32 @@ impl Host for GpuiHost {
         self.publish(HostEvent::SystemThemeChanged(theme.to_string()));
     }
 
-    fn tray_set_visible(&self, _visible: bool) {}
-    fn tray_update_language(&self) {}
-    fn tray_set_game_mode(&self, _checked: bool) {}
-    fn tray_set_update_state(&self, _state: UpdateMenuState) {}
+    fn tray_set_visible(&self, visible: bool) {
+        let missing = self.tray.lock().expect("host tray lock poisoned").is_none();
+        if visible && missing && self.try_create_tray() {
+            return;
+        }
+        if let Some(tray) = self.tray.lock().expect("host tray lock poisoned").as_ref() {
+            tray.set_visible(visible);
+        }
+    }
+
+    fn tray_update_language(&self) {
+        self.refresh_tray_labels();
+    }
+
+    fn tray_set_game_mode(&self, checked: bool) {
+        self.game_mode.store(checked, Ordering::Release);
+        if let Some(tray) = self.tray.lock().expect("host tray lock poisoned").as_ref() {
+            tray.set_game(checked);
+        }
+    }
+
+    fn tray_set_update_state(&self, state: UpdateMenuState) {
+        *self
+            .update_state
+            .lock()
+            .expect("host update state lock poisoned") = state;
+        self.refresh_tray_labels();
+    }
 }

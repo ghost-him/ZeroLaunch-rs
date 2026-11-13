@@ -21,13 +21,20 @@ use zerolaunch_plugin_api::config::{
 };
 use zerolaunch_plugin_api::host::OpenTarget;
 use zerolaunch_plugin_api::plugin::PluginKind;
+use zerolaunch_plugin_api::services::model::{ModelChatMessage, ModelChatRole};
 use zerolaunch_plugin_host::PluginInfo;
+use zerolaunch_rs_lib::commands::help::collect_triggers;
+use zerolaunch_rs_lib::core::agent::{
+    ask_from_config, AgentReference, AskRequest, ComponentNavigation,
+};
 use zerolaunch_rs_lib::core::config::models::{ComponentInfo, ComponentSchema};
 use zerolaunch_rs_lib::core::host::Host as _;
+use zerolaunch_rs_lib::logging::export_log_archive;
 use zerolaunch_rs_lib::plugin_framework::inspector::InspectorState;
 use zerolaunch_rs_lib::plugin_market::{GitHubMarketClient, MarketRepo};
 use zerolaunch_rs_lib::runtime;
 use zerolaunch_rs_lib::state::app_state::AppState;
+use zerolaunch_rs_lib::updater::{self, UpdateStatus};
 
 use crate::host::{GpuiHost, HostEvent};
 use crate::search::decode_icon;
@@ -45,6 +52,8 @@ pub(super) enum Page {
     Market,
     /// 关于。
     About,
+    /// AI 助手。
+    Assistant,
     /// 调试检查器。
     Debug,
     /// 第三方插件脚本设置页。
@@ -101,8 +110,37 @@ pub(super) enum Category {
     Market,
     /// 关于页。
     About,
+    /// AI 助手页。
+    Assistant,
     /// 调试页。
     Debug,
+}
+
+/// 助手答复中的可跳转设置引用。
+///
+/// 仅设置页消费；把后端的引用压成展示所需字段，点击后跳转到组件字段。
+#[derive(Debug, Clone)]
+pub(super) struct AssistantReference {
+    /// 组件 id。
+    pub(super) component_id: String,
+    /// 组件显示名。
+    pub(super) component_name: String,
+    /// 字段 key；空串表示组件级引用。
+    pub(super) field_key: String,
+    /// 字段显示名；组件级引用为空串。
+    pub(super) field_label: String,
+}
+
+/// 一条助手对话消息。
+///
+/// 仅设置页的 AI 助手页使用；`user` 区分提问与答复，答复携带可跳转引用。
+pub(super) struct AssistantMessage {
+    /// 是否为用户消息。
+    pub(super) user: bool,
+    /// 消息正文。
+    pub(super) text: String,
+    /// 答复中的设置引用；用户消息恒为空。
+    pub(super) references: Vec<AssistantReference>,
 }
 
 /// 正在录制的快捷键字段。
@@ -241,6 +279,18 @@ pub struct SettingsView {
     plugin_settings: Option<PluginSettingsState>,
     /// 插件脚本宿主。
     plugin_ui: Option<Rc<PluginUiHost>>,
+    /// 助手提问输入框。
+    assistant_input: Entity<InputState>,
+    /// 助手对话消息。
+    assistant_messages: Vec<AssistantMessage>,
+    /// 助手请求是否在途。
+    assistant_asking: bool,
+    /// 最近一次更新检查结果；None 表示尚未读取。
+    update_status: Option<UpdateStatus>,
+    /// 更新检查是否在途。
+    update_checking: bool,
+    /// 日志导出是否在途。
+    log_exporting: bool,
 }
 
 impl SettingsView {
@@ -256,6 +306,10 @@ impl SettingsView {
     ) -> Self {
         let placeholder = tr(&state, "settings.searchPlaceholder");
         let search = cx.new(|cx| InputState::new(window, cx).placeholder(placeholder));
+        let assistant_input = cx.new(|cx| {
+            InputState::new(window, cx).placeholder(tr(&state, "settings.assistant.placeholder"))
+        });
+        let update_status = Some(state.get_update_checker().status());
         let components = state.get_config_manager().get_all_components();
         let selected_component = default_component_id(&components);
 
@@ -323,6 +377,12 @@ impl SettingsView {
             inspector: None,
             plugin_settings: None,
             plugin_ui,
+            assistant_input,
+            assistant_messages: Vec::new(),
+            assistant_asking: false,
+            update_status,
+            update_checking: false,
+            log_exporting: false,
         };
 
         let search_subscription = cx.subscribe_in(
@@ -341,6 +401,17 @@ impl SettingsView {
             },
         );
         view.subscriptions.push(search_subscription);
+
+        let assistant_subscription = cx.subscribe_in(
+            &view.assistant_input,
+            window,
+            |this, _input, event, window, cx| {
+                if matches!(event, InputEvent::PressEnter { shift: false, .. }) {
+                    this.ask_assistant(window, cx);
+                }
+            },
+        );
+        view.subscriptions.push(assistant_subscription);
 
         if let Some(component_id) = selected_component {
             let category = view.category_for_component(&component_id);
@@ -429,6 +500,7 @@ impl SettingsView {
             Category::Plugins => "settings.sidebar.plugins",
             Category::Market => "settings.sidebar.pluginMarket",
             Category::About => "settings.sidebar.about",
+            Category::Assistant => "settings.sidebar.assistant",
             Category::Debug => "settings.sidebar.debug",
         })
     }
@@ -441,6 +513,36 @@ impl SettingsView {
     /// 搜索结果。
     pub(super) fn search_hits(&self) -> &[SearchHit] {
         &self.search_hits
+    }
+
+    /// 助手提问输入框。
+    pub(super) fn assistant_input(&self) -> &Entity<InputState> {
+        &self.assistant_input
+    }
+
+    /// 助手对话消息。
+    pub(super) fn assistant_messages(&self) -> &[AssistantMessage] {
+        &self.assistant_messages
+    }
+
+    /// 助手请求是否在途。
+    pub(super) fn assistant_asking(&self) -> bool {
+        self.assistant_asking
+    }
+
+    /// 最近一次更新检查结果。
+    pub(super) fn update_status(&self) -> Option<&UpdateStatus> {
+        self.update_status.as_ref()
+    }
+
+    /// 更新检查是否在途。
+    pub(super) fn update_checking(&self) -> bool {
+        self.update_checking
+    }
+
+    /// 日志导出是否在途。
+    pub(super) fn log_exporting(&self) -> bool {
+        self.log_exporting
     }
 
     /// 搜索词。
@@ -636,7 +738,11 @@ impl SettingsView {
                     self.load_market(window, cx);
                 }
             }
-            Category::About => self.page = Page::About,
+            Category::About => {
+                self.page = Page::About;
+                self.update_status = Some(self.state.get_update_checker().status());
+            }
+            Category::Assistant => self.page = Page::Assistant,
             Category::Debug => {
                 self.page = Page::Debug;
                 self.refresh_inspector(cx);
@@ -692,6 +798,217 @@ impl SettingsView {
     ) {
         let hit = hit.clone();
         self.select_component(&hit.component_id, hit.field, window, cx);
+    }
+
+    /// 跳转到助手引用指向的设置位置。
+    /// 参数：reference - 引用；window/cx - GPUI 上下文。
+    /// 返回：无；空字段 key 时只打开组件。
+    pub(super) fn jump_to_reference(
+        &mut self,
+        reference: &AssistantReference,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let field = (!reference.field_key.is_empty()).then(|| reference.field_key.clone());
+        self.select_component(&reference.component_id, field, window, cx);
+    }
+
+    /// 生成助手说明书使用的设置页路径。
+    /// 返回：每个可配置组件一条「设置 › 分类 › 组件名」路径；仅当前视图消费。
+    fn assistant_navigation(&self) -> Vec<ComponentNavigation> {
+        let root = self.tr("settings.title");
+        self.components
+            .iter()
+            .map(|component| {
+                let category =
+                    self.category_label(self.category_for_component(&component.component_id));
+                let name = self.tr(&component.component_name);
+                ComponentNavigation {
+                    component_id: component.component_id.clone(),
+                    path: format!("{root} › {category} › {name}"),
+                    group_tabs: false,
+                }
+            })
+            .collect()
+    }
+
+    /// 发送一条助手提问。
+    /// 参数：window/cx - GPUI 上下文。
+    /// 返回：无；问题为空或已有请求在途时忽略。
+    pub(super) fn ask_assistant(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let question = self.assistant_input.read(cx).value().trim().to_string();
+        if question.is_empty() || self.assistant_asking {
+            return;
+        }
+        self.assistant_input
+            .update(cx, |input, cx| input.set_value("", window, cx));
+        let history = self
+            .assistant_messages
+            .iter()
+            .rev()
+            .take(20)
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .map(|message| {
+                ModelChatMessage::text(
+                    if message.user {
+                        ModelChatRole::User
+                    } else {
+                        ModelChatRole::Assistant
+                    },
+                    message.text.clone(),
+                )
+            })
+            .collect::<Vec<_>>();
+        self.assistant_messages.push(AssistantMessage {
+            user: true,
+            text: question.clone(),
+            references: Vec::new(),
+        });
+        let model_ready = self
+            .state
+            .get_config_manager()
+            .get_settings("help-agent-config")
+            .and_then(|value| {
+                value
+                    .get("model_id")
+                    .and_then(|model| model.as_str())
+                    .map(|model| !model.trim().is_empty())
+            })
+            .unwrap_or(false);
+        if !model_ready {
+            self.assistant_messages.push(AssistantMessage {
+                user: false,
+                text: self.tr("settings.assistant.noModel"),
+                references: Vec::new(),
+            });
+            cx.notify();
+            return;
+        }
+        self.assistant_asking = true;
+        cx.notify();
+
+        let state = self.state.clone();
+        let navigation = self.assistant_navigation();
+        let triggers = collect_triggers(&self.state);
+        let (sender, receiver) = oneshot::channel();
+        runtime::spawn(async move {
+            let answer = ask_from_config(AskRequest {
+                service: state.get_model_manager(),
+                config: state.get_config_manager(),
+                i18n: state.get_i18n_manager(),
+                handle: state.get_core_handle(),
+                question: &question,
+                navigation: &navigation,
+                triggers: &triggers,
+                history,
+            })
+            .await;
+            let _ = sender.send(answer);
+        });
+        cx.spawn_in(window, async move |this, cx| {
+            let answer = receiver.await;
+            let _ = this.update_in(cx, |this, _window, cx| {
+                this.assistant_asking = false;
+                match answer {
+                    Ok(Ok(answer)) => this.assistant_messages.push(AssistantMessage {
+                        user: false,
+                        text: answer.answer,
+                        references: answer
+                            .references
+                            .into_iter()
+                            .map(assistant_reference)
+                            .collect(),
+                    }),
+                    Ok(Err(error)) => this.assistant_messages.push(AssistantMessage {
+                        user: false,
+                        text: error.to_string(),
+                        references: Vec::new(),
+                    }),
+                    Err(_) => this.assistant_messages.push(AssistantMessage {
+                        user: false,
+                        text: this.tr("settings.assistant.failed"),
+                        references: Vec::new(),
+                    }),
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    /// 检查版本更新并刷新关于页状态。
+    /// 参数：window/cx - GPUI 上下文。
+    /// 返回：无；检查在途时忽略。
+    pub(super) fn check_update(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.update_checking {
+            return;
+        }
+        self.update_checking = true;
+        cx.notify();
+        let state = self.state.clone();
+        let (sender, receiver) = oneshot::channel();
+        runtime::spawn(async move {
+            let _ = sender.send(updater::check_and_sync(&state, false).await);
+        });
+        cx.spawn_in(window, async move |this, cx| {
+            let status = receiver.await;
+            let _ = this.update_in(cx, |this, _window, cx| {
+                this.update_checking = false;
+                if let Ok(status) = status {
+                    this.update_status = Some(status);
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    /// 选择保存路径并导出当前日志。
+    /// 参数：window/cx - GPUI 上下文。
+    /// 返回：无；用户取消保存对话框时静默结束。
+    pub(super) fn export_logs(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.log_exporting {
+            return;
+        }
+        self.log_exporting = true;
+        cx.notify();
+        let (sender, receiver) = oneshot::channel();
+        runtime::spawn_blocking(move || {
+            let picked = rfd::FileDialog::new()
+                .set_file_name("zerolaunch-logs.zip")
+                .add_filter("zip", &["zip"])
+                .save_file();
+            let result = picked.map(|path| {
+                let result = export_log_archive(&path).map_err(|error| error.to_string());
+                (path, result)
+            });
+            let _ = sender.send(result);
+        });
+        cx.spawn_in(window, async move |this, cx| {
+            let picked = receiver.await.ok().flatten();
+            let _ = this.update_in(cx, |this, _window, cx| {
+                this.log_exporting = false;
+                match picked {
+                    Some((path, Ok(()))) => {
+                        this.status = Some(
+                            this.tr("settings.aboutPage.exportLogsSuccess")
+                                .replace("{path}", &path.display().to_string()),
+                        );
+                    }
+                    Some((_, Err(error))) => {
+                        this.status = Some(
+                            this.tr("settings.aboutPage.exportLogsFailed")
+                                .replace("{message}", &error),
+                        );
+                    }
+                    None => {}
+                }
+                cx.notify();
+            });
+        })
+        .detach();
     }
 
     /// 切换组件启用状态。
@@ -2709,6 +3026,18 @@ fn default_component_id(components: &[ComponentInfo]) -> Option<String> {
         })
         .or_else(|| components.first())
         .map(|component| component.component_id.clone())
+}
+
+/// 把后端引用压成设置页展示结构。
+/// 参数：reference - 后端答复中的设置引用。
+/// 返回：仅含跳转与展示所需字段的引用。
+fn assistant_reference(reference: AgentReference) -> AssistantReference {
+    AssistantReference {
+        component_id: reference.component_id,
+        component_name: reference.component_name,
+        field_key: reference.field_key,
+        field_label: reference.field_label,
+    }
 }
 
 /// 读取后端译文。

@@ -126,6 +126,7 @@ impl SettingsView {
             Category::Pipeline,
             Category::Plugins,
             Category::Market,
+            Category::Assistant,
             Category::About,
         ] {
             list = list.child(self.render_category_item(category, cx));
@@ -217,6 +218,7 @@ impl SettingsView {
                 Page::PluginSettings => self.render_plugin_settings(cx),
                 Page::Market => self.render_market(cx),
                 Page::About => self.render_about(cx),
+                Page::Assistant => self.render_assistant(cx),
                 Page::Debug => self.render_debug(cx),
             })
             .into_any_element()
@@ -1764,6 +1766,8 @@ impl SettingsView {
                     .text_color(cx.theme().muted_foreground)
                     .child(self.tr("settings.aboutPage.tagline")),
             )
+            .child(self.render_update_card(cx))
+            .child(self.render_log_card(cx))
             .child(
                 h_flex()
                     .gap_6()
@@ -1790,6 +1794,208 @@ impl SettingsView {
                     .text_size(px(11.0))
                     .text_color(cx.theme().muted_foreground)
                     .child(self.tr("settings.aboutPage.copyright")),
+            )
+            .into_any_element()
+    }
+
+    /// 关于页的版本更新卡片。
+    fn render_update_card(&self, cx: &mut Context<Self>) -> AnyElement {
+        let checking = self.update_checking();
+        let status = self.update_status();
+        let hint = if checking {
+            self.tr("settings.aboutPage.checking")
+        } else {
+            match status {
+                Some(status) if status.has_update => {
+                    self.tr("settings.aboutPage.updateAvailable").replace(
+                        "{version}",
+                        status.latest_version.as_deref().unwrap_or_default(),
+                    )
+                }
+                Some(status) if status.error.is_some() => self.tr("settings.aboutPage.checkFailed"),
+                Some(status) if status.checked_at.is_some() => self
+                    .tr("settings.aboutPage.upToDate")
+                    .replace("{version}", &status.current_version),
+                _ => String::new(),
+            }
+        };
+        let release_url = status
+            .filter(|status| status.has_update)
+            .and_then(|status| status.release_url.clone());
+        h_flex()
+            .p_3()
+            .gap_3()
+            .border_1()
+            .border_color(cx.theme().border)
+            .rounded_md()
+            .child(
+                v_flex()
+                    .flex_1()
+                    .gap_1()
+                    .child(
+                        div()
+                            .text_size(px(14.0))
+                            .font_weight(gpui_kit::FontWeight::SEMIBOLD)
+                            .child(self.tr("settings.aboutPage.updateTitle")),
+                    )
+                    .child(
+                        div()
+                            .text_size(px(12.0))
+                            .text_color(cx.theme().muted_foreground)
+                            .child(hint),
+                    ),
+            )
+            .child(
+                Button::new("about-check-update")
+                    .label(self.tr("settings.aboutPage.checkUpdate"))
+                    .small()
+                    .disabled(checking)
+                    .on_click(cx.listener(|this, _, window, cx| this.check_update(window, cx))),
+            )
+            .when_some(release_url, |this, url| {
+                this.child(
+                    Button::new("about-view-release")
+                        .label(self.tr("settings.aboutPage.viewRelease"))
+                        .small()
+                        .on_click(cx.listener(move |this, _, _, _| this.open_url(&url))),
+                )
+            })
+            .into_any_element()
+    }
+
+    /// 关于页的日志导出卡片。
+    fn render_log_card(&self, cx: &mut Context<Self>) -> AnyElement {
+        h_flex()
+            .p_3()
+            .gap_3()
+            .border_1()
+            .border_color(cx.theme().border)
+            .rounded_md()
+            .child(
+                v_flex()
+                    .flex_1()
+                    .gap_1()
+                    .child(
+                        div()
+                            .text_size(px(14.0))
+                            .font_weight(gpui_kit::FontWeight::SEMIBOLD)
+                            .child(self.tr("settings.aboutPage.logsTitle")),
+                    )
+                    .child(
+                        div()
+                            .text_size(px(12.0))
+                            .text_color(cx.theme().muted_foreground)
+                            .child(self.tr("settings.aboutPage.exportLogsHint")),
+                    ),
+            )
+            .child(
+                Button::new("about-export-logs")
+                    .label(self.tr("settings.aboutPage.exportLogs"))
+                    .small()
+                    .disabled(self.log_exporting())
+                    .on_click(cx.listener(|this, _, window, cx| this.export_logs(window, cx))),
+            )
+            .into_any_element()
+    }
+
+    /// AI 助手页。
+    fn render_assistant(&self, cx: &mut Context<Self>) -> AnyElement {
+        let mut messages = v_flex()
+            .id("assistant-messages")
+            .flex_1()
+            .min_h_0()
+            .gap_2()
+            .overflow_y_scroll();
+        if self.assistant_messages().is_empty() {
+            messages = messages.child(
+                div()
+                    .text_size(px(13.0))
+                    .text_color(cx.theme().muted_foreground)
+                    .child(self.tr("settings.assistant.empty")),
+            );
+        }
+        for (message_index, message) in self.assistant_messages().iter().enumerate() {
+            let mut bubble = v_flex()
+                .gap_2()
+                .p_3()
+                .rounded_md()
+                .max_w(px(620.0))
+                .child(div().text_size(px(13.0)).child(message.text.clone()));
+            for (index, reference) in message.references.iter().enumerate() {
+                let label = if reference.field_label.is_empty() {
+                    reference.component_name.clone()
+                } else {
+                    format!("{} · {}", reference.component_name, reference.field_label)
+                };
+                let reference = reference.clone();
+                bubble = bubble.child(
+                    Button::new(format!(
+                        "assistant-ref-{message_index}-{index}-{}",
+                        reference.component_id
+                    ))
+                    .label(label)
+                    .small()
+                    .on_click(cx.listener(move |this, _, window, cx| {
+                        this.jump_to_reference(&reference, window, cx)
+                    })),
+                );
+            }
+            let bubble = if message.user {
+                bubble.bg(cx.theme().secondary)
+            } else {
+                bubble.bg(cx.theme().background)
+            };
+            messages = messages.child(
+                h_flex()
+                    .w_full()
+                    .when(message.user, |this| this.justify_end())
+                    .child(bubble),
+            );
+        }
+        if self.assistant_asking() {
+            messages = messages.child(
+                div()
+                    .text_size(px(12.0))
+                    .text_color(cx.theme().muted_foreground)
+                    .child(self.tr("settings.assistant.thinking")),
+            );
+        }
+
+        v_flex()
+            .p_6()
+            .gap_3()
+            .max_w(px(760.0))
+            .child(
+                div()
+                    .text_size(px(20.0))
+                    .font_weight(gpui_kit::FontWeight::SEMIBOLD)
+                    .child(self.tr("settings.assistant.title")),
+            )
+            .child(
+                div()
+                    .text_size(px(12.0))
+                    .text_color(cx.theme().muted_foreground)
+                    .child(self.tr("settings.assistant.subtitle")),
+            )
+            .child(messages)
+            .child(
+                h_flex()
+                    .gap_2()
+                    .child(
+                        div()
+                            .flex_1()
+                            .child(Input::new(self.assistant_input()).w_full()),
+                    )
+                    .child(
+                        Button::new("assistant-send")
+                            .label(self.tr("settings.assistant.send"))
+                            .primary()
+                            .small()
+                            .disabled(self.assistant_asking())
+                            .on_click(
+                                cx.listener(|this, _, window, cx| this.ask_assistant(window, cx)),
+                            ),
+                    ),
             )
             .into_any_element()
     }

@@ -48,6 +48,8 @@ export function buildSidebarItems(
         { key: 'category_appearance', label: t('settings.sidebar.appearance'), icon: 'palette', type: 'tabs', groupTabs: true, components: appearance },
     { key: 'category_models', label: t('settings.sidebar.models'), icon: 'cpu', type: 'tabs', components: models },
     { key: 'category_pipeline', label: t('settings.sidebar.pipeline'), icon: 'search', type: 'pipeline', components: pipeline },
+    // 图标总览：自定义页面（全部图标列表 + 整体重试）
+    { key: 'category_icon_gallery', label: t('settings.sidebar.iconGallery'), icon: 'grid', type: 'static' as const },
     // 统一插件管理页（内置 + 第三方）：安装、运行状态与配置入口都在此页，不占侧边栏子项
     { key: 'category_plugins', label: t('settings.sidebar.plugins'), icon: 'extension', type: 'plugins-page' as const },
     // 插件市场：GitHub topic 发现与一键安装

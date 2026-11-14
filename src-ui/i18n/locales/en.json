@@ -113,9 +113,17 @@
       "pipeline": "Search Pipeline",
       "plugins": "Plugins",
       "pluginMarket": "Plugin Market",
+      "iconGallery": "Icons",
       "debug": "Debug Tools",
       "about": "About",
       "assistant": "Ask AI"
+    },
+    "iconGalleryPage": {
+      "retryAll": "Retry All",
+      "filling": "Filling icons in the background, {count} left…",
+      "empty": "No icons to show",
+      "customizeHint": "Want a custom icon? Open the icon settings to assign one to a candidate.",
+      "customizeAction": "Open settings"
     },
     "general": "General",
     "searchPipeline": "Search Pipeline",

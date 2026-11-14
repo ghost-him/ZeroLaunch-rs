@@ -12,6 +12,7 @@ import {
   Cpu,
   Store,
   Sparkles,
+  LayoutGrid,
 } from 'lucide-vue-next'
 
 const iconMap: Record<string, Component> = {
@@ -24,6 +25,7 @@ const iconMap: Record<string, Component> = {
   cpu: Cpu,
   store: Store,
   assistant: Sparkles,
+  grid: LayoutGrid,
 }
 
 export function renderSidebarIcon(icon: string) {

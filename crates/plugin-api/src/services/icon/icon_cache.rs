@@ -2,11 +2,10 @@ use crate::common::dir_utils::DirUtils;
 use dashmap::{DashMap, DashSet};
 use parking_lot::RwLock;
 use std::path::Path;
-use std::time::{Duration, Instant};
 use tracing::warn;
 
-/// 提取失败有效期：期间同一请求直接回退默认图标，抑制故障站点被反复抓取。
-const ICON_FAILURE_TTL: Duration = Duration::from_secs(600);
+/// 失败记录文件名（位于 L2 图标缓存目录内）。
+const FAILURES_FILE: &str = "failures.json";
 
 /// 图标缓存服务，提供 L1 内存缓存 + L2 文件缓存的原子操作原语。
 /// 本服务是纯缓存工具，不知道图标如何提取，也不知道 IconRequest/CacheLevel 等业务语义。
@@ -18,8 +17,9 @@ pub struct IconCacheService {
     cache_dir: RwLock<String>,
     /// L2: 已缓存的文件名集合（启动时扫描填充，运行时追加）
     cached_file_hashes: DashSet<String>,
-    /// 提取失败时间表（键同缓存键）：仅记录网络类请求，按 TTL 自动失效。
-    failed_at: DashMap<String, Instant>,
+    /// 提取失败记录（键同缓存键）：命中即跳过联网抓取，直到手动重试。
+    /// 与图标字节同目录持久化为 `failures.json`，重启后仍生效。
+    failures: DashSet<String>,
 }
 
 impl IconCacheService {
@@ -31,11 +31,11 @@ impl IconCacheService {
             memory_cache: DashMap::new(),
             cache_dir: RwLock::new(cache_dir),
             cached_file_hashes: DashSet::new(),
-            failed_at: DashMap::new(),
+            failures: DashSet::new(),
         }
     }
 
-    /// 初始化缓存服务，扫描 L2 文件缓存目录填充 cached_file_hashes。
+    /// 初始化缓存服务，扫描 L2 文件缓存目录填充 cached_file_hashes，并载入失败记录。
     /// 参数：无。
     /// 返回：无。
     /// 特性：必须在 new() 之后、首次缓存操作之前调用。
@@ -45,6 +45,7 @@ impl IconCacheService {
         for hash in hashes {
             self.cached_file_hashes.insert(hash);
         }
+        self.load_failures();
     }
 
     /// 预载 L2 文件缓存到 L1 内存。
@@ -125,34 +126,84 @@ impl IconCacheService {
         self.cached_file_hashes.contains(key)
     }
 
-    // ===== 负缓存（网络类提取失败）=====
+    // ===== 失败记录（网络类提取失败）=====
 
-    /// 记录一次提取失败。
-    /// 参数：key - 缓存键。返回：无。
-    pub fn mark_failed(&self, key: &str) {
-        self.failed_at.insert(key.to_string(), Instant::now());
-    }
-
-    /// 判断该键在有效期内是否已提取失败（过期条目顺手清理）。
-    /// 参数：key - 缓存键。
-    /// 返回：true 表示有效期内失败过，调用方应直接回退默认图标。
-    pub fn is_recently_failed(&self, key: &str) -> bool {
-        let Some(entry) = self.failed_at.get(key) else {
-            return false;
+    /// 从 L2 目录读取失败记录填充内存表。
+    /// 参数：无。
+    /// 返回：无。
+    /// 特性：文件不存在或解析失败时按空表处理。
+    fn load_failures(&self) {
+        self.failures.clear();
+        let path = Path::new(&*self.cache_dir.read()).join(FAILURES_FILE);
+        let bytes = match std::fs::read(&path) {
+            Ok(bytes) => bytes,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return,
+            Err(e) => {
+                warn!("读取图标失败记录失败: {}", e);
+                return;
+            }
         };
-        let elapsed = entry.elapsed();
-        drop(entry);
-        if elapsed < ICON_FAILURE_TTL {
-            return true;
+        match serde_json::from_slice::<Vec<String>>(&bytes) {
+            Ok(keys) => {
+                for key in keys {
+                    self.failures.insert(key);
+                }
+            }
+            Err(e) => warn!("解析图标失败记录失败: {}", e),
         }
-        self.failed_at.remove(key);
-        false
     }
 
-    /// 清除失败记录（提取成功或手动强制刷新后调用）。
-    /// 参数：key - 缓存键。返回：无。
+    /// 将失败记录写入 L2 目录；仅在集合变化时调用，文件很小。
+    /// 参数：无。
+    /// 返回：无。
+    fn save_failures(&self) {
+        let path = Path::new(&*self.cache_dir.read()).join(FAILURES_FILE);
+        let mut keys: Vec<String> = self.failures.iter().map(|entry| entry.clone()).collect();
+        keys.sort();
+        match serde_json::to_vec(&keys) {
+            Ok(bytes) => {
+                if let Err(e) = std::fs::write(&path, bytes) {
+                    warn!("写入图标失败记录失败: {}", e);
+                }
+            }
+            Err(e) => warn!("序列化图标失败记录失败: {}", e),
+        }
+    }
+
+    /// 判断该键是否已记录失败。
+    /// 参数：key - 缓存键。
+    /// 返回：true 表示命中失败记录，调用方应直接回退默认图标、不再联网。
+    pub fn should_skip(&self, key: &str) -> bool {
+        self.failures.contains(key)
+    }
+
+    /// 记录一次提取失败并立即落盘。
+    /// 参数：key - 缓存键。
+    /// 返回：无。
+    pub fn mark_failed(&self, key: &str) {
+        if self.failures.insert(key.to_string()) {
+            self.save_failures();
+        }
+    }
+
+    /// 清除单条失败记录；记录不存在时不写盘。
+    /// 参数：key - 缓存键。
+    /// 返回：无。
     pub fn clear_failed(&self, key: &str) {
-        self.failed_at.remove(key);
+        if self.failures.remove(key).is_some() {
+            self.save_failures();
+        }
+    }
+
+    /// 清空全部失败记录（设置页整体重试前调用）；表为空时不写盘。
+    /// 参数：无。
+    /// 返回：无。
+    pub fn clear_all_failed(&self) {
+        if self.failures.is_empty() {
+            return;
+        }
+        self.failures.clear();
+        self.save_failures();
     }
 
     /// 从 L2 文件缓存读取数据。
@@ -194,11 +245,11 @@ impl IconCacheService {
         }
 
         self.cached_file_hashes.clear();
-        self.failed_at.clear();
         let hashes = Self::scan_cached_icons(new_cache_dir);
         for hash in hashes {
             self.cached_file_hashes.insert(hash);
         }
+        self.load_failures();
     }
 
     /// 扫描缓存目录，收集当前格式（.webp）文件名集合。

@@ -5,6 +5,14 @@ use crate::services::icon::icon_cache::IconCacheService;
 use crate::services::icon_request::IconRequest;
 use async_trait::async_trait;
 
+/// 图标请求对应的缓存文件名（`<请求哈希>.webp`）。
+/// 图标字节缓存与失败记录共用该键，`.webp` 后缀只在此处定义。
+/// 参数：request - 图标请求。
+/// 返回：缓存文件名。
+pub(crate) fn cache_file_name(request: &IconRequest) -> String {
+    request.get_hash_string() + ".webp"
+}
+
 /// 图标提取器 trait，定义平台原语与跨平台业务默认实现。
 /// 平台实现者只需实现 6 个原语方法，业务逻辑由默认实现提供。
 /// 默认实现可按需覆盖。
@@ -114,7 +122,7 @@ pub trait IconExtractor: Send + Sync {
         request: &IconRequest,
         level: CacheLevel,
     ) -> Result<Vec<u8>, HostApiError> {
-        let hash_key = request.get_hash_string() + ".webp";
+        let hash_key = cache_file_name(request);
         // 读 L1 与写回 L1 的等级（SkipMemory 只用文件缓存，SkipAll 完全不碰缓存）。
         let uses_l1 = matches!(level, CacheLevel::Full | CacheLevel::CacheOnly);
 
@@ -164,8 +172,9 @@ pub trait IconExtractor: Send + Sync {
         request: &IconRequest,
         level: CacheLevel,
     ) -> Result<Vec<u8>, HostApiError> {
-        let hash_key = request.get_hash_string() + ".webp";
+        let hash_key = cache_file_name(request);
         let data = self.extract_and_process(request).await?;
+        cache.clear_failed(&hash_key);
         write_back_cache(cache, &hash_key, &data, level).await;
         Ok(data)
     }
@@ -188,6 +197,19 @@ async fn write_back_cache(
     }
 }
 
+/// 记录一次图标提取失败；整机离线时不记录，避免离线启动把所有图标标成失败。
+/// 参数：extractor - 图标提取器；cache - 图标缓存服务；hash_key - 缓存键。
+/// 返回：无。
+fn record_failure<E: IconExtractor + ?Sized>(
+    extractor: &E,
+    cache: &IconCacheService,
+    hash_key: &str,
+) {
+    if extractor.is_network_available() {
+        cache.mark_failed(hash_key);
+    }
+}
+
 /// 提取并后处理图标，成功后按缓存等级写回；失败或结果为空时回退默认图标。
 /// 参数：extractor - 图标提取器；cache - 图标缓存服务；request - 图标请求；level - 缓存等级；hash_key - 缓存键。
 /// 返回：图标字节数据（WebP，回退路径为位图原始字节）。
@@ -198,19 +220,19 @@ async fn extract_and_cache<E: IconExtractor + ?Sized>(
     level: CacheLevel,
     hash_key: &str,
 ) -> Result<Vec<u8>, HostApiError> {
-    // 网络类请求失败后进入负缓存：有效期内同一请求直接回退默认图标，
-    // 避免故障站点在每次查询、每次键入时被反复抓取。
-    let network_request = matches!(request, IconRequest::Url(_));
-    if network_request && cache.is_recently_failed(hash_key) {
+    // 命中失败记录直接回退默认图标：不再尝试提取，由设置页「全部重试」清除记录。
+    if cache.should_skip(hash_key) {
         return Ok(extractor.load_default_icon(request).await);
     }
 
     let data = match extractor.extract_and_process(request).await {
-        Ok(d) if !d.is_empty() => d,
-        _ => {
-            if network_request {
-                cache.mark_failed(hash_key);
-            }
+        Ok(data) if !data.is_empty() => data,
+        Ok(_) => {
+            record_failure(extractor, cache, hash_key);
+            return Ok(extractor.load_default_icon(request).await);
+        }
+        Err(_) => {
+            record_failure(extractor, cache, hash_key);
             return Ok(extractor.load_default_icon(request).await);
         }
     };
@@ -246,6 +268,7 @@ fn decode_data_url(data: &str) -> Result<Vec<u8>, HostApiError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     /// 最小可渲染 SVG（第三方插件图标常见形态）。
     const SVG_SOURCE: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="#2f7fd8"/></svg>"##;
@@ -322,10 +345,7 @@ mod tests {
 
         let request = IconRequest::Data(svg_data_url());
         cache
-            .set_l2(
-                &(request.get_hash_string() + ".webp"),
-                SVG_SOURCE.as_bytes().to_vec(),
-            )
+            .set_l2(&cache_file_name(&request), SVG_SOURCE.as_bytes().to_vec())
             .await;
 
         let data = StubExtractor
@@ -336,6 +356,173 @@ mod tests {
         assert!(
             image::guess_format(&data).is_ok(),
             "返回内容必须是可识别位图，而不是缓存中的 SVG 文本"
+        );
+    }
+
+    /// 计数提取器：提取固定失败，用于验证失败记录跳过与重试。
+    ///
+    /// 仅限本测试模块使用：`calls` 统计提取次数，`network` 控制失败是否记账。
+    struct CountingExtractor {
+        /// 提取调用次数。
+        calls: AtomicUsize,
+        /// 网络是否可用；false 时失败不写入失败记录。
+        network: bool,
+    }
+
+    #[async_trait]
+    impl IconExtractor for CountingExtractor {
+        async fn extract_from_path(&self, path: &str) -> Result<Vec<u8>, HostApiError> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            Err(HostApiError::IconExtractionFailed {
+                request: path.to_string(),
+                reason: "stub".to_string(),
+            })
+        }
+
+        async fn extract_from_url(&self, url: &str) -> Result<Vec<u8>, HostApiError> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            Err(HostApiError::IconExtractionFailed {
+                request: url.to_string(),
+                reason: "dns error: test".to_string(),
+            })
+        }
+
+        async fn extract_from_extension(&self, ext: &str) -> Result<Vec<u8>, HostApiError> {
+            Err(HostApiError::IconExtractionFailed {
+                request: ext.to_string(),
+                reason: "stub".to_string(),
+            })
+        }
+
+        fn default_app_icon_path(&self) -> &str {
+            ""
+        }
+
+        fn default_web_icon_path(&self) -> &str {
+            ""
+        }
+
+        fn is_network_available(&self) -> bool {
+            self.network
+        }
+    }
+
+    /// 失败记录必须落盘：重启后同一请求直接跳过，不再调用提取。
+    #[tokio::test]
+    async fn failure_record_persists_and_skips_retry() {
+        let dir = tempfile::tempdir().expect("创建临时缓存目录");
+        let cache_dir = dir.path().to_string_lossy().into_owned();
+        let request = IconRequest::Url("https://example.invalid/".to_string());
+        let key = cache_file_name(&request);
+
+        let cache = IconCacheService::new(cache_dir.clone());
+        cache.init();
+        let extractor = CountingExtractor {
+            calls: AtomicUsize::new(0),
+            network: true,
+        };
+        let data = extractor
+            .get_icon(&cache, &request, CacheLevel::Full)
+            .await
+            .expect("提取失败应回退默认图标而不是返回错误");
+        assert!(data.is_empty(), "默认图标路径为空时回退空数据");
+        assert_eq!(extractor.calls.load(Ordering::SeqCst), 1);
+        assert!(cache.should_skip(&key), "失败后应写入失败记录");
+
+        // 模拟重启：新服务从同一目录读回失败记录，不再调用提取。
+        let cache = IconCacheService::new(cache_dir);
+        cache.init();
+        let extractor = CountingExtractor {
+            calls: AtomicUsize::new(0),
+            network: true,
+        };
+        let _ = extractor
+            .get_icon(&cache, &request, CacheLevel::Full)
+            .await
+            .expect("命中失败记录应直接回退默认图标");
+        assert_eq!(
+            extractor.calls.load(Ordering::SeqCst),
+            0,
+            "已记录失败的请求不应再次联网抓取"
+        );
+    }
+
+    /// 清空失败记录后必须重新尝试，并再次记录失败。
+    #[tokio::test]
+    async fn clearing_failure_allows_retry() {
+        let dir = tempfile::tempdir().expect("创建临时缓存目录");
+        let cache = IconCacheService::new(dir.path().to_string_lossy().into_owned());
+        cache.init();
+        let request = IconRequest::Url("https://example.invalid/".to_string());
+        let key = cache_file_name(&request);
+        let extractor = CountingExtractor {
+            calls: AtomicUsize::new(0),
+            network: true,
+        };
+
+        let _ = extractor
+            .get_icon(&cache, &request, CacheLevel::Full)
+            .await
+            .expect("首次尝试应回退默认图标");
+        assert_eq!(extractor.calls.load(Ordering::SeqCst), 1);
+
+        cache.clear_all_failed();
+        let _ = extractor
+            .get_icon(&cache, &request, CacheLevel::Full)
+            .await
+            .expect("清空记录后应重新尝试");
+        assert_eq!(extractor.calls.load(Ordering::SeqCst), 2);
+        assert!(cache.should_skip(&key), "重试失败后应重新记录");
+    }
+
+    /// 离线时的失败不记账：避免断网启动把所有图标永久标记为失败。
+    #[tokio::test]
+    async fn offline_failure_is_not_recorded() {
+        let dir = tempfile::tempdir().expect("创建临时缓存目录");
+        let cache = IconCacheService::new(dir.path().to_string_lossy().into_owned());
+        cache.init();
+        let request = IconRequest::Url("https://example.invalid/".to_string());
+        let key = cache_file_name(&request);
+        let extractor = CountingExtractor {
+            calls: AtomicUsize::new(0),
+            network: false,
+        };
+
+        let _ = extractor
+            .get_icon(&cache, &request, CacheLevel::Full)
+            .await
+            .expect("离线失败应回退默认图标");
+        assert!(!cache.should_skip(&key), "离线失败不应写入失败记录");
+    }
+
+    /// 非网址图标（文件路径）失败同样记账并跳过。
+    #[tokio::test]
+    async fn path_failure_is_recorded_and_skipped() {
+        let dir = tempfile::tempdir().expect("创建临时缓存目录");
+        let cache = IconCacheService::new(dir.path().to_string_lossy().into_owned());
+        cache.init();
+        let request = IconRequest::Path("C:/not-exists/app.exe".to_string());
+        let key = cache_file_name(&request);
+        let extractor = CountingExtractor {
+            calls: AtomicUsize::new(0),
+            network: true,
+        };
+
+        let _ = extractor
+            .get_icon(&cache, &request, CacheLevel::Full)
+            .await
+            .expect("提取失败应回退默认图标");
+        assert_eq!(extractor.calls.load(Ordering::SeqCst), 1);
+        assert!(cache.should_skip(&key), "文件路径失败也应写入失败记录");
+
+        let _ = extractor
+            .get_icon(&cache, &request, CacheLevel::Full)
+            .await
+            .expect("命中失败记录应直接回退默认图标");
+        assert_eq!(
+            extractor.calls.load(Ordering::SeqCst),
+            1,
+            "已记录失败的路径不应再次提取"
         );
     }
 }

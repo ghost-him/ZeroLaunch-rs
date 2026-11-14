@@ -552,3 +552,33 @@ export function checkUpdate(): Promise<UpdateStatus> {
 export function getUpdateStatus(): Promise<UpdateStatus> {
   return invokeCommand<UpdateStatus>('update_get_status')
 }
+
+// ---- 图标总览页 ----
+
+/** 图标总览页单条数据。 */
+export interface IconGalleryEntry {
+  /** 候选项 id。 */
+  id: number
+  /** 候选项展示名称。 */
+  name: string
+  /** 图标来源：网址、文件路径或扩展名。 */
+  source: string
+  /** 图标 data URL；空串表示尚未取得，后台补齐后经 `bridge-icon-updated` 回填。 */
+  icon: string
+}
+
+/** 图标总览页列表（含候选缓存世代，用于过滤后台回填事件）。 */
+export interface IconGalleryList {
+  generation: number
+  entries: IconGalleryEntry[]
+}
+
+/** 列出候选缓存中的全部图标；未缓存条目由后台补齐并推送更新事件。 */
+export function iconGalleryList(): Promise<IconGalleryList> {
+  return invokeCommand<IconGalleryList>('icon_gallery_list')
+}
+
+/** 整体重试：清空失败记录并重新排队补齐未缓存的图标。 */
+export function iconGalleryRetryAll(): Promise<IconGalleryList> {
+  return invokeCommand<IconGalleryList>('icon_gallery_retry_all')
+}

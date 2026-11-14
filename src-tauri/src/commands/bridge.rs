@@ -69,7 +69,7 @@ struct BridgeIconUpdate {
 /// `bridge-icon-updated`，失败时回退默认图标。
 /// 参数：app - 事件推送句柄；core_handle - 图标提取执行体；
 ///       candidate_generation - 候选缓存世代；requests - 待补齐的 (候选 id, 图标请求)。
-fn prefetch_icons(
+pub(crate) fn prefetch_icons(
     app: Arc<AppHandle>,
     core_handle: Arc<PluginHandle>,
     candidate_generation: u64,

@@ -7,6 +7,7 @@ pub mod debug;
 pub mod frontend_log;
 pub mod help;
 pub mod i18n;
+pub mod icon_gallery;
 pub mod inspector;
 pub mod log_export;
 pub mod path;

@@ -113,9 +113,17 @@
       "pipeline": "搜尋管道",
       "plugins": "插件管理",
       "pluginMarket": "插件市集",
+      "iconGallery": "圖標",
       "debug": "除錯工具",
       "about": "關於",
       "assistant": "問 AI"
+    },
+    "iconGalleryPage": {
+      "retryAll": "全部重試",
+      "filling": "正在背景補齊圖標，剩餘 {count} 個…",
+      "empty": "暫無可展示的圖標",
+      "customizeHint": "想自訂圖標？點擊按鈕前往圖標設定，為候選項指定專屬圖標。",
+      "customizeAction": "前往設定"
     },
     "general": "常規",
     "searchPipeline": "搜尋管道",

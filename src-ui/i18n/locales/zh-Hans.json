@@ -113,9 +113,17 @@
       "plugins": "插件",
       "pluginMarket": "插件市场",
       "pipeline": "搜索管道",
+      "iconGallery": "图标",
       "debug": "调试工具",
       "about": "关于",
       "assistant": "问 AI"
+    },
+    "iconGalleryPage": {
+      "retryAll": "全部重试",
+      "filling": "正在后台补齐图标，剩余 {count} 个…",
+      "empty": "暂无可展示的图标",
+      "customizeHint": "想自定义图标？点击按钮前往图标设置，为候选项指定专属图标。",
+      "customizeAction": "前往设置"
     },
     "general": "常规",
     "searchPipeline": "搜索管道",

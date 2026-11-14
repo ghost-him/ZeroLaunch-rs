@@ -133,6 +133,13 @@ impl HostApi {
         self.icon_cache.preload_l1().await;
     }
 
+    /// 清除全部图标失败记录（整体重试前调用）。
+    /// 参数：无。
+    /// 返回：无。
+    pub fn clear_icon_failures(&self) {
+        self.icon_cache.clear_all_failed();
+    }
+
     /// 查询当前平台支持的能力集合。
     /// 参数：无。
     /// 返回：平台能力的不可变引用。

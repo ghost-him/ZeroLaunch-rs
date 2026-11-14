@@ -39,6 +39,9 @@
           :navigation="assistantNavigation"
         />
 
+        <!-- 图标总览（自定义页面：全部图标列表 + 整体重试） -->
+        <IconGallery v-else-if="selectedId === 'category_icon_gallery'" />
+
         <!-- Dynamic Category Views -->
         <template v-else-if="selectedCategory">
           <div class="category-header">
@@ -81,6 +84,7 @@ import AboutView from './AboutView.vue'
 import AssistantView from './settings/AssistantView.vue'
 import PluginsManagement from './settings/PluginsManagement.vue'
 import PluginMarket from './settings/PluginMarket.vue'
+import IconGallery from './settings/IconGallery.vue'
 import { useConfigStore } from '../stores/config-store'
 import { buildSidebarItems } from '../utils/settingsSidebar'
 import { buildAssistantNavigation } from '../utils/assistantNavigation'

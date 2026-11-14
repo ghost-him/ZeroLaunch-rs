@@ -1,6 +1,10 @@
 <template>
   <div class="category-view-tabs">
-    <n-tabs type="line" :value="activeTab" display-directive="show" @update:value="onTabChange">
+    <!-- 分类下只有一个组件（如外观设置）：没有可切换项，不渲染组件级 tab 条 -->
+    <div v-if="isSingle" class="tab-content">
+      <ComponentConfigLoader :component="components[0]" :group-tabs="groupTabs" />
+    </div>
+    <n-tabs v-else type="line" :value="activeTab" display-directive="show" @update:value="onTabChange">
       <n-tab-pane
         v-for="comp in components"
         :key="comp.componentId"
@@ -16,7 +20,7 @@
 </template>
 
 <script setup lang="ts">
-import { inject, onMounted, ref, watch } from 'vue'
+import { computed, inject, onMounted, ref, watch } from 'vue'
 import { NTabs, NTabPane } from 'naive-ui'
 import { resolveText } from '../../i18n'
 import type { ComponentInfo } from '../../bridge/contract'
@@ -33,6 +37,8 @@ const props = withDefaults(defineProps<{
 })
 
 const activeTab = ref<string | undefined>(props.components[0]?.componentId)
+/** 分类下只有一个组件时无组件可切换，组件级 tab 条连同其选中态一并省略。 */
+const isSingle = computed(() => props.components.length === 1)
 const unsavedChanges = inject(UNSAVED_CHANGES_KEY, null)
 
 /** 切换组件页签：存在未保存修改时先确认丢弃，取消则留在当前页签。 */

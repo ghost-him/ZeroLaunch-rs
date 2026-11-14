@@ -14,6 +14,7 @@ use std::sync::Arc;
 use tauri::State;
 use zerolaunch_plugin_api::common::ImageUtils;
 use zerolaunch_plugin_api::host::{CacheLevel, PluginHost};
+use zerolaunch_plugin_api::services::IconRequest;
 use zerolaunch_plugin_api::{CandidateId, SearchCandidate};
 
 /// 图标总览页单条数据 —— 跨 IPC 序列化。
@@ -27,7 +28,7 @@ pub struct GalleryIconEntry {
     /// 候选项展示名称。
     #[serde(rename = "name")]
     pub name: String,
-    /// 图标来源：网址、文件路径或扩展名。
+    /// 图标来源：网址、文件路径或扩展名；内嵌图标为空串（前端显示固定文案）。
     #[serde(rename = "source")]
     pub source: String,
     /// 图标 data URL；无缓存图标时为空串，前端先渲染占位图标。
@@ -75,6 +76,16 @@ async fn cached_icon(host_api: &Arc<HostApi>, candidate: &SearchCandidate) -> St
     }
 }
 
+/// 图标来源的展示文本：内嵌图标（data URL）不把整段载荷当作来源展示。
+/// 参数：icon - 图标请求。
+/// 返回：网址 / 路径 / 扩展名；内嵌图标返回空串，由前端显示固定文案。
+fn source_text(icon: &IconRequest) -> String {
+    match icon {
+        IconRequest::Data(_) => String::new(),
+        other => other.value().to_string(),
+    }
+}
+
 /// 组装列表：只读缓存立即返回，缺失图标交给后台预取逐项回填。
 /// 参数：state - 应用状态；retry - true 时先清空全部失败记录。
 /// 返回：当前候选世代与图标条目，保持候选缓存顺序。
@@ -96,7 +107,7 @@ async fn collect_icons(state: &AppState, retry: bool) -> GalleryIconList {
         entries.push(GalleryIconEntry {
             id: candidate.id,
             name: candidate.name.clone(),
-            source: candidate.icon.value().to_string(),
+            source: source_text(&candidate.icon),
             icon,
         });
     }

@@ -1,45 +1,74 @@
 <template>
   <div class="icon-gallery">
-    <NSpace class="icon-gallery-toolbar" align="center">
-      <NText tag="h2" class="icon-gallery-title">{{ t('settings.sidebar.iconGallery') }}</NText>
-      <NButton type="primary" :loading="retryingAll" :disabled="loading" @click="handleRetryAll">
-        {{ t('settings.iconGalleryPage.retryAll') }}
-      </NButton>
-    </NSpace>
-
-    <div class="icon-gallery-hint">
-      <NText depth="3">{{ t('settings.iconGalleryPage.customizeHint') }}</NText>
-      <NButton size="small" quaternary type="primary" @click="goToIconSettings">
-        {{ t('settings.iconGalleryPage.customizeAction') }}
-      </NButton>
-    </div>
-
-    <NText v-if="missingCount > 0" depth="3" class="icon-gallery-filling">
-      {{ t('settings.iconGalleryPage.filling', { count: missingCount }) }}
-    </NText>
-
-    <NSpin :show="loading">
-      <NList v-if="entries.length > 0" bordered>
-        <NListItem v-for="entry in entries" :key="entry.id">
-          <div class="icon-gallery-row">
-            <img v-if="entry.icon" class="icon-gallery-avatar" :src="entry.icon" alt="" />
-            <NIcon v-else class="icon-gallery-avatar icon-gallery-avatar-placeholder" :size="28">
-              <Globe />
-            </NIcon>
-            <div class="icon-gallery-meta">
-              <div class="icon-gallery-name">{{ entry.name }}</div>
-              <div class="icon-gallery-source">{{ entry.source }}</div>
-            </div>
+    <NTabs
+      class="icon-gallery-tabs"
+      :value="activeTab"
+      type="line"
+      @update:value="onTabChange"
+    >
+      <NTabPane
+        name="gallery"
+        :tab="t('settings.iconGalleryPage.galleryTab')"
+        display-directive="show"
+      >
+        <div class="icon-gallery-pane">
+          <div class="icon-gallery-toolbar">
+            <NButton type="primary" :loading="retryingAll" :disabled="loading" @click="handleRetryAll">
+              {{ t('settings.iconGalleryPage.retryAll') }}
+            </NButton>
+            <NText v-if="missingCount > 0" depth="3" class="icon-gallery-filling">
+              {{ t('settings.iconGalleryPage.filling', { count: missingCount }) }}
+            </NText>
           </div>
-        </NListItem>
-      </NList>
-      <NEmpty v-else-if="!loading" :description="t('settings.iconGalleryPage.empty')" />
-    </NSpin>
+
+          <div class="icon-gallery-list">
+            <NSpin :show="loading">
+              <NList v-if="entries.length > 0" bordered>
+                <NListItem v-for="entry in entries" :key="entry.id">
+                  <div class="icon-gallery-row">
+                    <img v-if="entry.icon" class="icon-gallery-avatar" :src="entry.icon" alt="" />
+                    <NIcon
+                      v-else
+                      class="icon-gallery-avatar icon-gallery-avatar-placeholder"
+                      :size="28"
+                    >
+                      <Globe />
+                    </NIcon>
+                    <div class="icon-gallery-meta">
+                      <div class="icon-gallery-name">{{ entry.name }}</div>
+                      <div class="icon-gallery-source">
+                        {{ entry.source || t('settings.iconGalleryPage.embeddedIcon') }}
+                      </div>
+                    </div>
+                  </div>
+                </NListItem>
+              </NList>
+              <NEmpty
+                v-else-if="!loading"
+                :description="t('settings.iconGalleryPage.empty')"
+              />
+            </NSpin>
+          </div>
+        </div>
+      </NTabPane>
+
+      <NTabPane
+        v-for="component in components"
+        :key="component.componentId"
+        :name="component.componentId"
+        :tab="resolveText(component.componentName)"
+        display-directive="show"
+      >
+        <div class="icon-gallery-pane icon-gallery-config">
+          <ComponentConfigLoader :component="component" />
+        </div>
+      </NTabPane>
+    </NTabs>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, inject, onMounted, onUnmounted, ref } from 'vue'
+import { computed, inject, onMounted, onUnmounted, ref, watch } from 'vue'
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import { useI18n } from 'vue-i18n'
 import {
@@ -48,22 +77,34 @@ import {
   NIcon,
   NList,
   NListItem,
-  NSpace,
+  NTabPane,
+  NTabs,
   NSpin,
   NText,
   useMessage,
 } from 'naive-ui'
 import { Globe } from 'lucide-vue-next'
+import ComponentConfigLoader from '@/components/settings/ComponentConfigLoader.vue'
+import type { ComponentInfo } from '@/bridge/contract'
 import { iconGalleryList, iconGalleryRetryAll } from '@/bridge/commands'
 import type { IconGalleryEntry, IconGalleryList } from '@/bridge/commands'
 import { onIconUpdated } from '@/bridge/events'
-import { FIELD_REVEAL_KEY } from '@/utils/fieldReveal'
+import { resolveText } from '@/i18n'
+import { FIELD_REVEAL_KEY, type FieldRevealTarget } from '@/utils/fieldReveal'
+import { UNSAVED_CHANGES_KEY } from '@/utils/unsavedChanges'
 import { formatErrorMessage } from '@/utils/errors'
+
+/** 图标页承载的组件：总览页签固定，其余组件各占一个页签（当前只有图标覆盖）。 */
+const props = defineProps<{ components: ComponentInfo[] }>()
 
 const { t } = useI18n()
 const message = useMessage()
-/** 设置页跳转器：切到图标覆盖设置所在的分类与 tab。 */
+/** 设置助手跳转器：目标为图标覆盖组件时切到对应页签。 */
 const reveal = inject(FIELD_REVEAL_KEY, null)
+const unsavedChanges = inject(UNSAVED_CHANGES_KEY, null)
+
+/** 当前页签：gallery 为全部图标，其余为组件 id。 */
+const activeTab = ref('gallery')
 
 /** 展示列表：候选缓存中的全部图标（后端最多返回 500 条）。 */
 const entries = ref<IconGalleryEntry[]>([])
@@ -119,12 +160,31 @@ async function handleRetryAll() {
   }
 }
 
-/** 跳转到图标覆盖设置页（外观分类下的 icon-override-config）。 */
-function goToIconSettings() {
-  reveal?.request('icon-override-config', '')
+/** 切换页签：存在未保存修改时先确认丢弃，取消则留在当前页签。 */
+async function onTabChange(value: string | number): Promise<void> {
+  const next = String(value)
+  if (next === activeTab.value) return
+  if (unsavedChanges && !await unsavedChanges.confirmDiscard()) return
+  activeTab.value = next
 }
 
+/** 设置助手跳转：目标组件在本页时切到它的页签（跳转不弹丢弃确认）。 */
+function focusTargetTab(target: FieldRevealTarget | null): void {
+  if (target && props.components.some((component) => component.componentId === target.componentId)) {
+    activeTab.value = target.componentId
+  }
+}
+
+/** 当前待揭示位置（无提供方时为 null）。 */
+function revealTarget(): FieldRevealTarget | null {
+  return reveal?.target.value ?? null
+}
+
+watch(revealTarget, focusTargetTab)
+
 onMounted(async () => {
+  // 从问答页跳转时本组件是刚挂载的：watch 看不到已发生的变更，需在挂载时补一次
+  focusTargetTab(reveal?.target.value ?? null)
   unlisten = await onIconUpdated((payload) => {
     if (!loaded) {
       pendingIcons.set(payload.id, payload.icon)
@@ -153,28 +213,56 @@ onUnmounted(() => {
   flex: 1;
   min-height: 0;
   padding: 16px;
-  overflow-y: auto;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+.icon-gallery-tabs {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.icon-gallery :deep(.n-tab-pane) {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+.icon-gallery-pane {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .icon-gallery-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   margin-bottom: 8px;
 }
 
-.icon-gallery-title {
-  margin: 0;
+.icon-gallery-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
-.icon-gallery-hint {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-bottom: 12px;
-  font-size: var(--font-size-sm);
+.icon-gallery-list :deep(.n-list-item__main) {
+  min-width: 0;
+}
+
+.icon-gallery-config {
+  overflow: hidden;
+  padding-top: 8px;
 }
 
 .icon-gallery-filling {
-  display: block;
-  margin-bottom: 8px;
   font-size: var(--font-size-sm);
 }
 

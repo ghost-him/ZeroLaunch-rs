@@ -121,9 +121,9 @@
     "iconGalleryPage": {
       "retryAll": "Retry All",
       "filling": "Filling icons in the background, {count} left…",
-      "empty": "No icons to show",
-      "customizeHint": "Want a custom icon? Open the icon settings to assign one to a candidate.",
-      "customizeAction": "Open settings"
+      "galleryTab": "All Icons",
+      "embeddedIcon": "Embedded icon",
+      "empty": "No icons to show"
     },
     "general": "General",
     "searchPipeline": "Search Pipeline",
@@ -1030,7 +1030,7 @@
       }
     },
     "icon-override-config": {
-      "name": "Icon Override",
+      "name": "Change Icon",
       "description": "Replace icons for specific programs",
       "groups": {
         "iconOverride": "Icon Override"

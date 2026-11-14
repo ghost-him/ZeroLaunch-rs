@@ -121,9 +121,9 @@
     "iconGalleryPage": {
       "retryAll": "全部重试",
       "filling": "正在后台补齐图标，剩余 {count} 个…",
-      "empty": "暂无可展示的图标",
-      "customizeHint": "想自定义图标？点击按钮前往图标设置，为候选项指定专属图标。",
-      "customizeAction": "前往设置"
+      "galleryTab": "全部图标",
+      "embeddedIcon": "内嵌图标",
+      "empty": "暂无可展示的图标"
     },
     "general": "常规",
     "searchPipeline": "搜索管道",
@@ -1030,7 +1030,7 @@
       }
     },
     "icon-override-config": {
-      "name": "图标覆盖",
+      "name": "更改图标",
       "description": "为指定程序替换图标",
       "groups": {
         "iconOverride": "图标覆盖"

@@ -39,8 +39,11 @@
           :navigation="assistantNavigation"
         />
 
-        <!-- 图标总览（自定义页面：全部图标列表 + 整体重试） -->
-        <IconGallery v-else-if="selectedId === 'category_icon_gallery'" />
+        <!-- 图标总览（自定义页面：全部图标列表 + 图标覆盖配置） -->
+        <IconGallery
+          v-else-if="selectedId === 'category_icon_gallery'"
+          :components="selectedCategory?.components ?? []"
+        />
 
         <!-- Dynamic Category Views -->
         <template v-else-if="selectedCategory">

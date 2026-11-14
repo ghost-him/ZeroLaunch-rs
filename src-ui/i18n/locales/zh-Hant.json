@@ -121,9 +121,9 @@
     "iconGalleryPage": {
       "retryAll": "全部重試",
       "filling": "正在背景補齊圖標，剩餘 {count} 個…",
-      "empty": "暫無可展示的圖標",
-      "customizeHint": "想自訂圖標？點擊按鈕前往圖標設定，為候選項指定專屬圖標。",
-      "customizeAction": "前往設定"
+      "galleryTab": "全部圖標",
+      "embeddedIcon": "內嵌圖標",
+      "empty": "暫無可展示的圖標"
     },
     "general": "常規",
     "searchPipeline": "搜尋管道",
@@ -1030,7 +1030,7 @@
       }
     },
     "icon-override-config": {
-      "name": "圖示覆蓋",
+      "name": "更改圖標",
       "description": "為指定程式替換圖示",
       "groups": {
         "iconOverride": "圖示覆蓋"

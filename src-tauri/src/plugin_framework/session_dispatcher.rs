@@ -3666,6 +3666,8 @@ mod tests {
             Arc::new(Mutex::new(Vec::new())),
         ));
         dispatcher.register_plugin(plugin.clone(), plugin.metadata_arc(), true);
+        // CLI 入口会等待首次候选采集完成；先跑一轮，避免测试等满 60s 上限。
+        dispatcher.refresh_candidates().await;
 
         dispatcher
             .route_query_panel("trace-1", &plugin_query(), "test.=")

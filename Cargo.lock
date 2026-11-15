@@ -8688,7 +8688,7 @@ checksum = "e13c156562582aa81c60cb29407084cdb54c4164760106ab78e6c5b0858cf64e"
 
 [[package]]
 name = "zerolaunch-cli"
-version = "1.5.5"
+version = "1.5.6"
 dependencies = [
  "anyhow",
  "clap 4.6.6",
@@ -8741,7 +8741,7 @@ dependencies = [
 
 [[package]]
 name = "zerolaunch-plugin-api"
-version = "0.2.6"
+version = "0.2.7"
 dependencies = [
  "async-trait",
  "base64 0.23.1",
@@ -8773,7 +8773,7 @@ dependencies = [
 
 [[package]]
 name = "zerolaunch-plugin-host"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8798,7 +8798,7 @@ dependencies = [
 
 [[package]]
 name = "zerolaunch-plugin-protocol"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "semver",
  "serde",
@@ -8812,7 +8812,7 @@ dependencies = [
 
 [[package]]
 name = "zerolaunch-plugin-sdk-rust"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "async-trait",
  "base64 0.23.1",
@@ -8828,7 +8828,7 @@ dependencies = [
 
 [[package]]
 name = "zerolaunch-rs"
-version = "1.5.5"
+version = "1.5.6"
 dependencies = [
  "anyhow",
  "async-openai",

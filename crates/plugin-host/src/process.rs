@@ -153,17 +153,10 @@ impl PluginProcess {
             }
         });
 
-        // Set up incoming request/notification channels
+        // Set up incoming request channel
         let (incoming_request_tx, mut incoming_request_rx) = mpsc::channel::<IncomingRequest>(64);
-        let (incoming_notification_tx, _incoming_notification_rx) =
-            mpsc::channel::<(String, serde_json::Value)>(64);
 
-        let client = JsonRpcClient::new(
-            child_stdout,
-            child_stdin,
-            incoming_request_tx,
-            incoming_notification_tx,
-        );
+        let client = JsonRpcClient::new(child_stdout, child_stdin, incoming_request_tx);
 
         // 注入宿主 → 插件事件推送通道（重启 spawn 覆盖为新通道）。
         host_call_handler.attach_event_sink(spawn_event_forwarder(client.clone()));
@@ -645,13 +638,7 @@ mod tests {
 
         let (client_out, plugin_in) = duplex(64 * 1024);
         let (request_tx, _request_rx) = mpsc::channel::<IncomingRequest>(4);
-        let (notification_tx, _notification_rx) = mpsc::channel::<(String, serde_json::Value)>(4);
-        let client = JsonRpcClient::new(
-            BufReader::new(tokio::io::empty()),
-            client_out,
-            request_tx,
-            notification_tx,
-        );
+        let client = JsonRpcClient::new(BufReader::new(tokio::io::empty()), client_out, request_tx);
         let sink = spawn_event_forwarder(client);
 
         std::thread::spawn(move || {

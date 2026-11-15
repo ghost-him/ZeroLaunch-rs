@@ -681,10 +681,8 @@ mod tests {
 
         // 构造第三方插件注册包：组件 shared（与宿主冲突）+ unique（无冲突）。
         let (req_tx, _req_rx) = tokio::sync::mpsc::channel(16);
-        let (notif_tx, _notif_rx) = tokio::sync::mpsc::channel(16);
         let (reader, writer) = tokio::io::duplex(64);
-        let client =
-            JsonRpcClient::new(tokio::io::BufReader::new(reader), writer, req_tx, notif_tx);
+        let client = JsonRpcClient::new(tokio::io::BufReader::new(reader), writer, req_tx);
         let metadata = Arc::new(PluginMetadata {
             id: "com.example.collide".into(),
             name: "碰撞测试".into(),

@@ -176,11 +176,3 @@ pub mod event {
     /// 窗口焦点事件（参数：`{ event }`，FocusEvent 序列化形态）。
     pub const FOCUS_EVENT: &str = "plugin/focus.event";
 }
-
-/// Notification-only method names (fire-and-forget, no response expected).
-pub mod notify {
-    /// 插件进程就绪通知。
-    pub const PLUGIN_READY: &str = "plugin/ready";
-    /// 插件进程崩溃通知。
-    pub const PLUGIN_CRASHED: &str = "plugin/crashed";
-}

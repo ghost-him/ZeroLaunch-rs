@@ -62,8 +62,7 @@ fn host_client(
     mpsc::Receiver<IncomingRequest>,
 ) {
     let (req_tx, req_rx) = mpsc::channel::<IncomingRequest>(16);
-    let (_notif_tx, _notif_rx) = mpsc::channel::<(String, serde_json::Value)>(16);
-    let client = JsonRpcClient::new(BufReader::new(host_reader), host_writer, req_tx, _notif_tx);
+    let client = JsonRpcClient::new(BufReader::new(host_reader), host_writer, req_tx);
     (client, req_rx)
 }
 

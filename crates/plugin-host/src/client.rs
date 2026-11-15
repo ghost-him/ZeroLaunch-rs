@@ -41,13 +41,11 @@ impl JsonRpcClient {
     ///
     /// - `reader` / `writer`: the stdio handles from the child process.
     /// - `incoming_request_tx`: channel for forwarding plugin→host requests.
-    /// - `incoming_notification_tx`: channel for forwarding plugin→host notifications.
     /// - Returns an `Arc<JsonRpcClient>` so it can be shared with host_dispatch.
     pub fn new<R, W>(
         reader: R,
         writer: W,
         incoming_request_tx: mpsc::Sender<IncomingRequest>,
-        incoming_notification_tx: mpsc::Sender<(String, serde_json::Value)>,
     ) -> Arc<Self>
     where
         R: AsyncBufRead + Send + Unpin + 'static,
@@ -124,14 +122,9 @@ impl JsonRpcClient {
                             debug!("Incoming request channel closed");
                         }
                     }
+                    // 通知只有宿主→插件一个方向（出站经 notify()）；插件不发送通知，入站直接丢弃。
                     Message::Notification(notif) => {
-                        if incoming_notification_tx
-                            .send((notif.method, notif.params))
-                            .await
-                            .is_err()
-                        {
-                            debug!("Incoming notification channel closed");
-                        }
+                        debug!("忽略插件通知: {}", notif.method);
                     }
                 }
             }

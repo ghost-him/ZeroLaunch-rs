@@ -78,18 +78,3 @@ impl Notification {
         }
     }
 }
-
-/// Returns true if a message is a JSON-RPC request (not a notification — has an id).
-pub fn is_request(msg: &Message) -> bool {
-    matches!(msg, Message::Request(_))
-}
-
-/// Returns true if a message is a JSON-RPC notification (no id).
-pub fn is_notification(msg: &Message) -> bool {
-    matches!(msg, Message::Notification(_))
-}
-
-/// Returns true if a message is a JSON-RPC response.
-pub fn is_response(msg: &Message) -> bool {
-    matches!(msg, Message::Response(_))
-}

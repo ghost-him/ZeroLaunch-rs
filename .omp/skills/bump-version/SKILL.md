@@ -20,11 +20,17 @@ argument-hint: "<版本号> [发布重点] — 如 v1.5.5；发布重点为可�
 1. **前置检查 (Pre-flight Check)**：
    - 检查当前 Git 工作区是否干净（无未提交的修改）。如果不干净，提示用户先 commit 或 stash 现有修改，并退出该流程。
    - 解析并验证版本号格式（必须是有效的 semver，如 `X.Y.Z`，自动去除可能存在的 `v` 前缀）。
-   - 确认本地与远端都还没有该 tag：`git tag -l v{version}`；远端用第 7 步的 HTTPS 方式查询。
+   - 确认本地与远端都还没有该 tag：`git tag -l v{version}`；远端用第 8 步的 HTTPS 方式查询。
    - 参数中版本号之外的内容即「发布重点」（可选，可多行/多行分隔），原样写入 tag 注释。
    - 版本号未明确给出时：按本仓既有实践取**下一个 patch**（`v1.5.2`、`v1.5.3`、`v1.5.4` 都含 `feat` 提交但仍走 patch）；minor/major 只在用户明确要求时使用。
 
-2. **更新主程序版本号（5 处）**：
+2. **更新用户 Wiki（必须先于打包与 tag）**：
+   - 使用手册在构建时由 `xtask sync-wiki` 拉取并嵌入程序；快照目录（`src-tauri/assets/wiki`）按 `.gitignore` 不入库，**禁止直接编辑**。tag 前不更新 wiki，发布版内嵌的就是旧手册，AI 助手会照旧说明回答。
+   - wiki 工作副本是与本仓库**同级**的 `<仓库名>.wiki` 目录（`xtask sync-wiki` 的默认源：同级目录优先，缺失时才克隆远端）。**不要写死绝对路径**：先按同级目录定位，找不到再询问用户本地副本路径。
+   - 依据本次发布的用户可见变更逐页核对（搜索、设置、插件、日志、图标等），只改受影响页面；写作规范见 `zerolaunch-wiki-authoring` 技能；页面增删时同步 `Home.md` 与 `_Sidebar.md`。
+   - 在 wiki 仓库提交并推送（GitHub wiki 只有一个远端）；随后在工作目录 `xtask/` 运行 `cargo run --bin xtask sync-wiki` 刷新本地快照，再用 `cargo run --bin xtask -- sync-wiki --check` 确认无差异。
+
+3. **更新主程序版本号（5 处）**：
    - **工作区根 `Cargo.toml`**：更新 `[workspace.package] version = "X.Y.Z"`（所有 `version.workspace = true` 的 crate 自动继承，无需逐一修改）
    - **`src-tauri/Cargo.toml`**：
      - 先检查是否为 `version.workspace = true`。
@@ -34,7 +40,7 @@ argument-hint: "<版本号> [发布重点] — 如 v1.5.5；发布重点为可�
    - **`src-tauri/tauri.conf.portable.json`**：同上，更新根级 `"version"` 为 `"X.Y.Z"`。
    - **`package.json`**（根目录）：更新 `"version"` 为 `"X.Y.Z"`。
 
-3. **更新 crates 版本号（只升本次真有内容变更的）**：
+4. **更新 crates 版本号（只升本次真有内容变更的）**：
    - 判定唯一证据是**与 crates.io 已发布 tarball 逐字节对比**，不要凭 git log 猜：
 
      ```bash
@@ -62,12 +68,12 @@ argument-hint: "<版本号> [发布重点] — 如 v1.5.5；发布重点为可�
    - 改了 crate 版本后，同步根 `Cargo.toml` 的 `zerolaunch-* = { path = ..., version = ... }` pin。
    - 2026-11 `v1.5.5` 实例：`plugin-api 0.2.5 → 0.2.6`（`AppInfo` 新增 `search_keywords`）、`platform-windows 0.2.4 → 0.2.5`（包名英文别名）；`protocol` / `host` / `sdk-rust` 逐字节一致，不动。
 
-4. **同步 Lockfile 与格式化**：
+5. **同步 Lockfile 与格式化**：
    - 运行 `cargo check --workspace`，确保 `Cargo.lock` 得到更新且全工作区可编译。
    - 运行 `just style`（clippy --fix + `cargo fmt --all` + `cargo package` 预检，含 crates.io 索引刷新）。
    - 核对 `Cargo.lock` 中每个 `zerolaunch*` 条目都是新号。
 
-5. **提交前安全校验**：
+6. **提交前安全校验**：
    - 运行 `git diff --stat` 展示即将提交的文件变更列表。
    - **必须** 通过 `ask` 工具询问用户确认，例如：
      > 以下文件将被提交（含 just style 格式化后的改动）：
@@ -76,7 +82,7 @@ argument-hint: "<版本号> [发布重点] — 如 v1.5.5；发布重点为可�
    - 如果用户拒绝，**中断流程**并提示用户可手动检查或恢复。
    - 如果用户确认，继续下一步。
 
-6. **Git 提交与 Tag**：
+7. **Git 提交与 Tag**：
    - `git add -A`
    - `git commit -m "chore: 变更版本号为 v{version}"`
    - 创建**注释型** tag（轻量 tag 没有注释，AI 摘要拿不到发布重点）：
@@ -87,7 +93,7 @@ argument-hint: "<版本号> [发布重点] — 如 v1.5.5；发布重点为可�
    - tag 注释由 `.github/workflows/release.yml` 的 `Generate AI summary` 读取，作为**最高优先级**决定 AI 摘要写哪些内容：建议写 1-3 条用户可感知的改动（如“重点：…”“次重点：…”），不要把内部重构写进去。
    - tag 已推送后要改注释须 `git tag -f -a` + 强推，会改写远端 tag；仅未推送时安全，推送了就留到下个版本。
 
-7. **推送到两个远端（GitHub + Gitee）**：
+8. **推送到两个远端（GitHub + Gitee）**：
    - `origin` 配置了两条 push URL（GitHub + Gitee），且 SSH 到 GitHub 可能被劫持（连接落到 `198.18.0.77` 被关闭）。此时**不要**用 `git push origin`，改用显式 URL 分别推送；GitHub 走 HTTPS + `gh` 凭据：
      ```bash
      GIT_TERMINAL_PROMPT=0 git -c credential.helper= \
@@ -100,7 +106,7 @@ argument-hint: "<版本号> [发布重点] — 如 v1.5.5；发布重点为可�
    - 推送后核对两端：`git ls-remote <url> refs/heads/main refs/tags/v{version}`。
    - tag 推送即触发 Release workflow，不需要单独手动触发。
 
-8. **发布 crates.io（只发有变更的，顺序有硬约束）**：
+9. **发布 crates.io（只发有变更的，顺序有硬约束）**：
    - 顺序：`plugin-api` →（等索引刷新）`plugin-protocol` / `platform-windows` →（等索引刷新）`plugin-host` / `plugin-sdk-rust`。
    - 工作区必须干净；正式版本**不要**加 `--allow-dirty`。一律用 `-p`，不要在工作区根裸发。
    - `cargo publish -p <crate>`；若报 `no matching package named ... found`，属依赖尚未上架，等 1–5 分钟重试。
@@ -110,11 +116,11 @@ argument-hint: "<版本号> [发布重点] — 如 v1.5.5；发布重点为可�
        | grep -o '"max_stable_version":"[^"]*"' | head -1
      ```
 
-9. **主程序 Release**：
+10. **主程序 Release**：
    - tag 推送后 `.github/workflows/release.yml`（Release Build）自动开始；是否等待它跑完按用户意愿，不强制。
    - 查看状态：`gh run list --limit 3`；发布产物：`gh release view v{version}`。
 
-10. **收尾核验清单**：
+11. **收尾核验清单**：
    - 本地与两个远端的 `main`、`v{version}` 指向同一个提交；
    - `Cargo.lock` 里所有 `zerolaunch*` 版本与实际发布一致；
    - crates.io 的 `max_stable_version` 等于新号；

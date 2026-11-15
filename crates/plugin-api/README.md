@@ -109,13 +109,39 @@ mod tests {
 
 | 类型 | 说明 |
 |------|------|
-| `Plugin` trait | 插件核心契约：`init()` + `query()` + `match_query()` + `execute_action()`；插件级元数据不在本 trait 上，由宿主侧持有 |
+| `Plugin` trait | 插件核心契约：`init()` + `on_shutdown()` + `query()` + `match_query()` + `execute_action()`；插件级元数据不在本 trait 上，由宿主侧持有 |
 | `PluginHandle` | 平台能力句柄，通过 `init()` 注入（`Option<Arc<PluginHandle>>`），提供 `get_icon()`、`shell_open()` 等服务 |
 | `Configurable` trait | 组件契约：`core()`（组件身份）+ `setting_schema()`，配置读写与校验有默认实现 |
 | `ComponentCore` | 组件级身份信息：组件 id、名称、描述、类型、优先级 |
 | `PluginMetadata` | 插件级元数据：宿主从 `manifest.toml` 读取后构造，插件代码不声明 |
 | `Query` / `QueryResponse` | 查询输入/输出类型 |
 | `PluginError` | 插件层统一错误类型 |
+
+## 生命周期钩子
+
+宿主在插件启动与退出时各发一次请求，插件按需实现；两者都**不获取** `PluginHandle`：
+
+| 时机 | 钩子 | 宿主侧触发点 |
+|------|------|--------------|
+| 启动 | `init(&self, ctx, handle)` | 内置：bootstrap 注册完成后；远端：`plugin/init` RPC（注册完成后，崩溃重启会再次调用） |
+| 退出 | `on_shutdown(&self, ctx)`（默认空实现） | 应用退出：对全部插件统一调用（远端适配器内部转 `plugin/shutdown` RPC，3s 上限）；卸载/重载/卸载安装：plugin-host `teardown` 调用 |
+
+```rust
+#[async_trait]
+impl Plugin for MyPlugin {
+    async fn init(&self, _ctx: &PluginContext, _handle: Option<Arc<PluginHandle>>)
+        -> Result<(), PluginError> { /* 启动：建立后台任务/加载状态 */ Ok(()) }
+
+    async fn on_shutdown(&self, _ctx: &PluginContext) -> Result<(), PluginError> {
+        /* 退出：刷盘、停止后台任务、释放外部资源 */
+        Ok(())
+    }
+}
+```
+
+- 退出钩子超时或返回错误只记录日志，宿主仍继续关闭进程；进程崩溃时不会调用。
+- 旧插件未实现 `plugin/shutdown` 时宿主按 `METHOD_NOT_FOUND` 视为无收尾逻辑，向后兼容。
+- 钩子在插件自己的 dispatch 循环内串行执行：前置的长查询会推迟退出钩子，超时后宿主强杀。
 
 ## 查询匹配（match_query）
 

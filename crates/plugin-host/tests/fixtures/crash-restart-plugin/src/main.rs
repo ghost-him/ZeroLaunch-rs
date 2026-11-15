@@ -84,6 +84,20 @@ fn handle(request: &Request) -> Response {
         plugin_methods::GET_SETTINGS_SCHEMA => serde_json::json!([]),
         plugin_methods::GET_SETTINGS => serde_json::json!({}),
         plugin_methods::CONFIG_ACTIONS => serde_json::json!([]),
+        // 退出钩子：每次收到 plugin/shutdown 都向数据目录追加一行，供集成测试
+        // 断言"先于进程退出到达"且"恰好一次"；响应体为空（宿主不消费）。
+        plugin_methods::SHUTDOWN => {
+            if let Ok(dir) = std::env::var("ZEROLAUNCH_DATA_DIR") {
+                if let Ok(mut file) = std::fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(std::path::Path::new(&dir).join("shutdown-hook"))
+                {
+                    let _ = writeln!(file, "shutdown");
+                }
+            }
+            serde_json::Value::Null
+        }
         other => {
             return Response::err(
                 request.id,

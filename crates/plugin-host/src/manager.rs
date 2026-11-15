@@ -8,12 +8,14 @@ use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, OnceLock};
+use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio::sync::Mutex as AsyncMutex;
 use tracing::{error, info, warn};
 
 use zerolaunch_plugin_api::config::Configurable;
 use zerolaunch_plugin_api::plugin::PluginMetadata;
+use zerolaunch_plugin_api::PluginContext;
 use zerolaunch_plugin_protocol::manifest::Manifest;
 use zerolaunch_plugin_protocol::messages::{ComponentKind, KeywordOptimizerInfo};
 use zerolaunch_plugin_protocol::ProtocolError;
@@ -24,6 +26,9 @@ use crate::info::PluginInfo;
 use crate::installed::{metadata_from_manifest, InstalledCache};
 use crate::process::force_kill_process;
 use crate::process::{PluginProcess, ProcessState};
+
+/// 等待插件进程自行退出的上限（退出钩子的超时预算是独立叠加的预算）。
+const PROCESS_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// 重启回调类型别名：接收重新注册的适配器，
 /// 返回一个 future 用于把它们重新注册进 ConfigManager / SessionRouter。
@@ -419,14 +424,40 @@ impl PluginHostManager {
 
     /// 关闭插件子进程并从注册表移除登记。
     ///
+    /// 退出钩子（`Plugin::on_shutdown`）在关闭进程前执行：卸载/重载/卸载安装
+    /// 都经本方法，因此钩子只需在这里调用一次；应用退出路径由调用方对全部插件统一调用。
     /// 与 load 共用 load_lock，卸载与加载互斥（load 失败清理不调本函数，
     /// 改调 shutdown_loaded_process——AsyncMutex 非重入，持锁时调用会死锁）。
     async fn teardown(&self, plugin_id: &str) {
         let _guard = self.load_lock.lock().await;
-        // 移除重启上下文并注销该插件的订阅回调与定时器（推送通道随进程关闭失效）。
+
+        // 一次加锁 clone 出钩子所需数据：parking_lot 守卫在 .await 前全部释放。
+        let locale = self
+            .restart_contexts
+            .get(plugin_id)
+            .map(|ctx| ctx.locale.read().clone())
+            .unwrap_or_default();
+        let plugin = self.plugins.get(plugin_id).and_then(|reg| {
+            reg.components
+                .iter()
+                .find_map(|comp| Arc::clone(comp).as_plugin())
+        });
+
+        // 注销该插件的订阅回调与定时器（推送通道随进程关闭失效）。
         if let Some((_, ctx)) = self.restart_contexts.remove(plugin_id) {
             ctx.host_call_handler.detach_event_sink();
         }
+
+        // 与内置插件同一入口：远端适配器在内部翻译为 plugin/shutdown RPC。
+        if let Some(plugin) = plugin {
+            let mut ctx = PluginContext::new("shutdown");
+            ctx.plugin_id = Some(plugin_id.to_string());
+            ctx.locale = locale;
+            if let Err(e) = plugin.on_shutdown(&ctx).await {
+                warn!("Plugin {} shutdown hook failed: {}", plugin_id, e);
+            }
+        }
+
         self.shutdown_loaded_process(plugin_id).await;
         self.plugins.remove(plugin_id);
     }
@@ -434,10 +465,12 @@ impl PluginHostManager {
     /// 关闭已加载插件的子进程并移除进程登记。
     /// shutdown() 独占 Arc；若 try_unwrap 失败（进程 Arc 在其他处被克隆），
     /// 先标记 Stopped 阻止 watchdog 重启，再关闭 stdin 并强杀进程。
+    ///
+    /// 退出钩子已由调用方在进入本方法之前执行（`teardown` 或应用退出路径）。
     async fn shutdown_loaded_process(&self, plugin_id: &str) {
         if let Some((_, proc)) = self.processes.remove(plugin_id) {
             match Arc::try_unwrap(proc) {
-                Ok(process) => process.shutdown(std::time::Duration::from_secs(5)).await,
+                Ok(process) => process.shutdown(PROCESS_SHUTDOWN_TIMEOUT).await,
                 Err(arc) => {
                     warn!(
                         "Plugin {} process Arc has {} strong references; forcing kill. \n                         This may indicate a leaked clone of the process handle.",
@@ -452,6 +485,59 @@ impl PluginHostManager {
                 }
             }
         }
+    }
+
+    /// 关闭全部已加载插件的子进程（应用退出路径）。
+    ///
+    /// 调用约定：进入本方法前，调用方必须已对每个插件执行 `Plugin::on_shutdown`
+    /// （应用退出路径由 src-tauri 遍历插件注册表统一完成）。本方法只负责关闭进程，
+    /// 不再重复发送退出钩子。
+    /// 与 `unload` 的区别：不删除诊断日志，只关闭进程并清空登记。
+    /// 与 `load`/`teardown` 共用 `load_lock`，避免与并发的加载/卸载交错；
+    /// 各进程并发关闭，整体耗时上限为单插件的退出等待预算。
+    pub async fn shutdown_all(&self) {
+        let _guard = self.load_lock.lock().await;
+
+        // 先注销事件订阅：退出期间不再向插件推送定时器/热键/焦点等事件。
+        for plugin_id in self
+            .restart_contexts
+            .iter()
+            .map(|e| e.key().clone())
+            .collect::<Vec<_>>()
+        {
+            if let Some((_, ctx)) = self.restart_contexts.remove(&plugin_id) {
+                ctx.host_call_handler.detach_event_sink();
+            }
+        }
+        self.plugins.clear();
+
+        let processes: Vec<Arc<PluginProcess>> = self
+            .processes
+            .iter()
+            .map(|e| (e.key().clone(), Arc::clone(e.value())))
+            .collect::<Vec<_>>()
+            .into_iter()
+            .filter_map(|(plugin_id, proc)| self.processes.remove(&plugin_id).map(|_| proc))
+            .collect();
+
+        futures::future::join_all(processes.into_iter().map(|proc| async move {
+            match Arc::try_unwrap(proc) {
+                Ok(process) => process.shutdown(PROCESS_SHUTDOWN_TIMEOUT).await,
+                Err(arc) => {
+                    warn!(
+                        "Plugin {} process Arc has {} strong references during exit; forcing kill.",
+                        arc.plugin_id,
+                        Arc::strong_count(&arc)
+                    );
+                    arc.state.write().clone_from(&ProcessState::Stopped);
+                    arc.client.close_transport();
+                    if let Some(pid) = arc.pid {
+                        force_kill_process(pid);
+                    }
+                }
+            }
+        }))
+        .await;
     }
 
     /// 更新插件重启上下文中的语言快照。

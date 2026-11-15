@@ -501,6 +501,9 @@ impl PluginProcess {
 
     /// 优雅关闭：关闭 stdin（SDK 进程唯一退出路径是 stdin EOF）→
     /// 等待进程退出（watchdog 完成即进程退出）→ 超时则强杀。
+    ///
+    /// 退出钩子（`Plugin::on_shutdown`）由调用方在进入本方法之前执行：
+    /// 应用退出经插件注册表统一调用，卸载/重载经 `teardown` 调用。
     pub async fn shutdown(mut self, timeout: Duration) {
         let plugin_id = self.plugin_id.clone();
         let pid = self.pid;

@@ -21,6 +21,18 @@ pub trait Plugin: Configurable {
         handle: Option<Arc<PluginHandle>>,
     ) -> Result<(), PluginError>;
 
+    /// 插件退出钩子：宿主在关闭插件前调用，插件在此完成收尾
+    /// （保存状态、停止后台任务、释放外部资源等）。
+    ///
+    /// 由宿主统一调用，插件类型不改变语义：内置插件进程内直调；远端插件由宿主
+    /// 适配器翻译为 `plugin/shutdown` RPC（有超时上限），超时或失败仍继续关闭。
+    /// 进程崩溃时不会调用（进程已不可达）。
+    ///
+    /// 默认实现为空操作，插件按需覆盖。
+    async fn on_shutdown(&self, _ctx: &PluginContext) -> Result<(), PluginError> {
+        Ok(())
+    }
+
     async fn query(&self, ctx: &PluginContext, query: &Query)
         -> Result<QueryResponse, PluginError>;
 

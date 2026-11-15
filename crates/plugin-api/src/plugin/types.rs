@@ -780,6 +780,11 @@ pub enum PluginError {
 
     #[error("Invalid setting: {0}")]
     InvalidSetting(String),
+
+    /// 退出钩子执行失败 —— 由 `Plugin::on_shutdown` 返回，消费方（宿主退出/卸载路径）
+    /// 只记录日志并继续关闭，不因该错误中止生命周期流程。
+    #[error("Plugin shutdown failed: {0}")]
+    ShutdownFailed(String),
 }
 
 #[cfg(test)]

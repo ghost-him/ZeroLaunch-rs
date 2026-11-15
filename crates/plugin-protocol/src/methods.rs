@@ -26,6 +26,9 @@ pub mod plugin {
     pub const EXECUTE_ACTION: &str = "plugin/execute_action";
     /// 插件初始化钩子（注册完成后通知，携带真实查询上下文）。
     pub const INIT: &str = "plugin/init";
+    /// 插件退出钩子（宿主关闭子进程前调用，有限超时；响应为空对象）。
+    /// 与 `INIT` 成对；旧插件未实现时宿主按 METHOD_NOT_FOUND 视为无收尾逻辑。
+    pub const SHUTDOWN: &str = "plugin/shutdown";
     /// 拉取面板交互策略（PanelInteraction，插件级语义）。
     /// 插件级语义：宿主仅对 Plugin 种类组件调用；SDK 恒返回主插件策略。
     pub const INTERACTION_POLICY: &str = "plugin/interaction_policy";

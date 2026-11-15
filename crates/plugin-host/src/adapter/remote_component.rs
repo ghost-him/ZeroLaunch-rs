@@ -30,6 +30,12 @@ use zerolaunch_plugin_protocol::{codes, ProtocolError};
 /// 本调用在每次按键的路由阶段执行，超时即输入延迟；超时按"不接管"处理并告警。
 const MATCH_QUERY_TIMEOUT: Duration = Duration::from_millis(100);
 
+/// `plugin/shutdown`（退出钩子）的 RPC 超时上限。
+///
+/// 使用范围：仅 `RemoteComponent::on_shutdown`。超时后调用方放弃等待并继续关闭进程，
+/// 与内置插件钩子"执行完再退出"的语义对齐（内置无超时，远端受进程边界保护）。
+const SHUTDOWN_HOOK_TIMEOUT: Duration = Duration::from_secs(3);
+
 /// 远程插件组件的种类与专属数据。
 ///
 /// 判断字段归属的标准：
@@ -555,6 +561,32 @@ impl Plugin for RemoteComponent {
             .await
             .map_err(|e| PluginError::ActionFailed(e.to_string()))?;
         Ok(())
+    }
+
+    /// 退出钩子：把内置插件同款的 `Plugin::on_shutdown` 统一翻译为 `plugin/shutdown` RPC。
+    ///
+    /// 旧 SDK 未实现该方法（`METHOD_NOT_FOUND`）视为无收尾逻辑，返回 Ok；
+    /// 其他错误向上传播，由调用方（应用退出清理 / plugin-host teardown）记录后继续关闭。
+    async fn on_shutdown(&self, ctx: &PluginContext) -> Result<(), PluginError> {
+        if !matches!(self.kind, RemoteComponentKind::Plugin { .. }) {
+            panic!(
+                "RemoteComponent {} is not a Plugin but on_shutdown() was called",
+                self.core.component_id()
+            );
+        }
+        match self
+            .client
+            .call::<_, serde_json::Value>(
+                plugin_methods::SHUTDOWN,
+                ShutdownParams { ctx: ctx.clone() },
+                SHUTDOWN_HOOK_TIMEOUT,
+            )
+            .await
+        {
+            Ok(_) => Ok(()),
+            Err(ProtocolError::Rpc { code, .. }) if code == codes::METHOD_NOT_FOUND => Ok(()),
+            Err(e) => Err(PluginError::ShutdownFailed(e.to_string())),
+        }
     }
 }
 

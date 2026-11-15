@@ -682,6 +682,14 @@ impl PluginManager {
         Ok(())
     }
 
+    /// 关闭全部第三方插件子进程（应用退出清理）。
+    ///
+    /// 退出钩子由调用方在进入本方法前经 `Plugin::on_shutdown` 统一执行；
+    /// 本方法只关闭进程并清空登记，不删除诊断日志，也不重复发送钩子。
+    pub async fn shutdown_all(&self) {
+        self.host_manager().shutdown_all().await;
+    }
+
     /// 扫描并加载所有第三方插件。
     ///
     /// 每个插件的注册通过 PluginRuntimeEvent 广播通道（PM → CM）完成，

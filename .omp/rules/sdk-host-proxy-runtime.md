@@ -1,5 +1,5 @@
 ---
-description: 第三方插件 SDK host() 代理与进程退出 — host() 经 OnceLock 代理、run() 前调用 panic，stdin EOF 是唯一退出路径
+description: 第三方插件 SDK host() 代理与进程退出 — host() 经 OnceLock 代理、run() 前调用 panic，退出钩子后 stdin EOF 是最终退出路径
 condition: "HOST_PROXY|fn host\\(|run_async|stdin|EOF|select!|HostProxy|host_proxy"
 scope: "tool:read(crates/plugin-sdk-rust/**), tool:edit(crates/plugin-sdk-rust/**), tool:write(crates/plugin-sdk-rust/**), tool:read(crates/plugin-host/**), tool:edit(crates/plugin-host/**), tool:write(crates/plugin-host/**), tool:read(src-tauri/src/plugin_framework/host_handler.rs), tool:edit(src-tauri/src/plugin_framework/host_handler.rs), tool:write(src-tauri/src/plugin_framework/host_handler.rs)"
 ---
@@ -18,6 +18,7 @@ scope: "tool:read(crates/plugin-sdk-rust/**), tool:edit(crates/plugin-sdk-rust/*
 
 ## 进程退出
 
-- **stdin EOF 是 SDK 进程的唯一退出路径**：宿主关闭 stdin（transport close）→ SDK `run_async` 的 `select!` 收到 EOF → 进程退出。协议层无 shutdown RPC
-- 宿主 `PluginProcess::shutdown`：标记 Stopped → 关 stdin → 等 watchdog → 超时强杀（taskkill）兜底
+- **stdin EOF 是 SDK 进程的最终退出路径**：宿主关闭 stdin（transport close）→ SDK `run_async` 的 `select!` 收到 EOF → 进程退出
+- 关闭前宿主先经 `RemoteComponent::on_shutdown` 发 `plugin/shutdown`（退出钩子，3s 上限；旧插件 `METHOD_NOT_FOUND` 视为无收尾逻辑），插件在同一条 dispatch 循环内执行 `Plugin::on_shutdown`，执行完宿主才关 stdin
+- 宿主 `PluginProcess::shutdown`：标记 Stopped → 关 stdin → 等 watchdog → 超时强杀（taskkill）兜底。钩子不在这里发送（由适配器/teardown 在进入本方法前完成），避免双发
 - 插件侧：stdin EOF 后不得继续持有阻塞资源，应立即清理退出；拖沓会让宿主走强杀路径

@@ -662,6 +662,16 @@ async fn dispatch(
                 .map_err(|e| JsonRpcError::new(codes::PLUGIN_ERROR, e.to_string()))?;
             Ok(serde_json::Value::Null)
         }
+        // 插件退出钩子：宿主在关闭 stdin 之前调用，执行完即返回，随后宿主发 EOF。
+        plugin_methods::SHUTDOWN => {
+            let p: ShutdownParams = serde_json::from_value(params.clone())
+                .map_err(|e| JsonRpcError::new(codes::INVALID_PARAMS, e.to_string()))?;
+            app.plugin
+                .on_shutdown(&p.ctx)
+                .await
+                .map_err(|e| JsonRpcError::new(codes::PLUGIN_ERROR, e.to_string()))?;
+            Ok(serde_json::Value::Null)
+        }
         // 插件交互策略（查询触发方式/防抖/按键绑定）：宿主在会话推送时读取。
         plugin_methods::INTERACTION_POLICY => {
             let _p: InteractionPolicyParams = serde_json::from_value(params.clone())

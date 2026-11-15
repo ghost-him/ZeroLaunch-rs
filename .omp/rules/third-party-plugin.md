@@ -56,7 +56,7 @@ schema 用 `PluginMode` 枚举，取值非法同样解析失败。宿主解析�
 - **健康监控**：watchdog task 检测退出，`auto_restart=true` 时自动重启，上限 `max_restart`
   - **崩溃即解注册**：`on_crash` 回调第一步解注册插件组件（CM/SR），因此重启预检时插件自身组件已不在数据源中，无需豁免集即可避免自碰撞
   - 放弃重启（max_restart 超限 / 冲突 / spawn / discover 失败）时直接清理已 spawn 的进程，组件已随崩溃解注册、无需额外清理
-- **优雅关闭**：关闭 stdin 发 EOF 驱动 SDK 进程退出 → 等 watchdog 完成 → 超时强杀（taskkill）兜底。协议层无 `plugin/shutdown` RPC
+- **优雅关闭**：退出钩子经统一入口 `Plugin::on_shutdown` 执行——应用退出由 src-tauri 遍历插件注册表调用（远端适配器内部转 `plugin/shutdown` RPC，3s 上限），卸载/重载/卸载安装由 plugin-host `teardown` 调用；随后关闭 stdin 发 EOF 驱动 SDK 进程退出 → 等 watchdog 完成 → 超时强杀（taskkill）兜底。`PluginProcess::shutdown` 只负责关进程，不再发送钩子
 - **stderr 日志**：收集到 `plugin-logs/<plugin-id>.log`
 
 ## RemoteComponent

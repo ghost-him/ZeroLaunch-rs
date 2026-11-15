@@ -408,6 +408,24 @@ pub struct InitParams {
     pub ctx: PluginContext,
 }
 
+// ─── plugin/shutdown ─────────────────────────────────────────────
+//
+// 插件退出钩子：宿主在关闭子进程（发送 stdin EOF）之前调用，与 plugin/init 成对。
+// 响应为空对象；旧插件未实现该方法时宿主按 METHOD_NOT_FOUND 视为无收尾逻辑。
+
+/// plugin/shutdown 请求参数 —— 宿主关闭插件进程前下发的收尾上下文。
+///
+/// 由宿主在关闭插件进程前构造（应用退出经插件注册表、卸载经 teardown），
+/// 经远端适配器下发；插件 SDK 反序列化后调用
+/// `Plugin::on_shutdown`，不跨 IPC 之外的其他模块使用。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ShutdownParams {
+    /// 宿主构造的收尾上下文（trace_id、plugin_id 与最近一次启动时下发的界面语言）；
+    /// 插件据此记录日志与生成局部化文案。
+    #[serde(rename = "ctx")]
+    pub ctx: PluginContext,
+}
+
 // ─── plugin/interaction_policy ───────────────────────────────────
 //
 // 响应为裸 `PanelInteraction`（与 get_settings_schema 的裸数组约定一致）。

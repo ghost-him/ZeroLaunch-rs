@@ -19,7 +19,7 @@ use serde_json::Value;
 use tokio::time::sleep;
 
 use zerolaunch_plugin_api::config::Configurable;
-use zerolaunch_plugin_api::{PluginKind, PluginMode};
+use zerolaunch_plugin_api::{PluginContext, PluginKind, PluginMode};
 use zerolaunch_plugin_host::host_dispatch::HostCallHandler;
 use zerolaunch_plugin_host::manager::{
     CrashCallback, PluginHostManager, PluginLoadError, PluginRegistration, RestartCallback,
@@ -326,6 +326,13 @@ fn process_alive(pid: u32) -> bool {
     String::from_utf8_lossy(&out.stdout).contains(&pid.to_string())
 }
 
+/// 统计 fixture 收到的 `plugin/shutdown` 次数（每次到达追加一行）。
+fn shutdown_hook_calls(data_dir: &std::path::Path) -> usize {
+    std::fs::read_to_string(data_dir.join("shutdown-hook"))
+        .map(|s| s.lines().count())
+        .unwrap_or(0)
+}
+
 /// 场景 4：unload 必须真正终止插件进程，且插件目录可删除。
 /// 回归：shutdown 不关闭 stdin 时进程残留（宿主 client Arc 被 host-call 任务
 /// 循环持有 → stdin 永不关闭 → SDK 读任务无 EOF），remove_dir_all 因 exe 镜像
@@ -352,4 +359,72 @@ async fn unload_terminates_plugin_process() {
         ))
         .join("plugin");
     std::fs::remove_dir_all(&plugin_dir).expect("进程退出后插件目录应可删除");
+}
+
+/// 场景 5：卸载时先执行退出钩子（plugin/shutdown），再关闭进程。
+/// fixture 在钩子中把标记写入数据目录；标记存在即证明钩子在 stdin EOF 前到达。
+#[tokio::test]
+async fn unload_runs_shutdown_hook_before_process_exit() {
+    let plugin_id = "com.example.shutdown-hook-test";
+    let test_name = "shutdown-hook";
+    let root = std::env::temp_dir().join(format!(
+        "zl-crash-test-{}-{}",
+        std::process::id(),
+        test_name
+    ));
+    let data_dir = root.join("data").join(plugin_id);
+    // 清理上一轮残留，避免旧标记造成假阳性。
+    let _ = std::fs::remove_dir_all(&root);
+
+    let (mgr, _crashed, _restarted) = setup_loaded_plugin(test_name, plugin_id, 3).await;
+    mgr.unload(plugin_id).await.expect("unload succeeds");
+
+    assert_eq!(
+        shutdown_hook_calls(&data_dir),
+        1,
+        "卸载前必须恰好收到一次 plugin/shutdown（经 Plugin::on_shutdown 统一入口）"
+    );
+}
+
+/// 场景 6：应用退出路径 —— 先经 `Plugin::on_shutdown` 对每个插件执行钩子，
+/// 再由 `shutdown_all` 关闭进程；钩子不得重复发送。
+#[tokio::test]
+async fn app_exit_runs_shutdown_hook_once_then_closes_processes() {
+    let plugin_id = "com.example.shutdown-all-test";
+    let test_name = "shutdown-all";
+    let root = std::env::temp_dir().join(format!(
+        "zl-crash-test-{}-{}",
+        std::process::id(),
+        test_name
+    ));
+    let data_dir = root.join("data").join(plugin_id);
+    // 清理上一轮残留，避免旧标记造成假阳性。
+    let _ = std::fs::remove_dir_all(&root);
+
+    let (mgr, _crashed, _restarted) = setup_loaded_plugin(test_name, plugin_id, 3).await;
+
+    // 与 src-tauri 的退出清理同构：遍历插件注册表统一调用 on_shutdown。
+    let plugin = mgr
+        .plugins
+        .get(plugin_id)
+        .and_then(|reg| {
+            reg.components
+                .iter()
+                .find_map(|comp| Arc::clone(comp).as_plugin())
+        })
+        .expect("plugin component registered");
+    plugin
+        .on_shutdown(&PluginContext::new("shutdown"))
+        .await
+        .expect("shutdown hook succeeds");
+
+    // 关闭进程不得再发一次钩子。
+    mgr.shutdown_all().await;
+
+    assert_eq!(
+        shutdown_hook_calls(&data_dir),
+        1,
+        "退出钩子必须恰好执行一次（shutdown_all 不得重复发送）"
+    );
+    assert!(mgr.processes.is_empty(), "退出后进程登记必须清空");
 }

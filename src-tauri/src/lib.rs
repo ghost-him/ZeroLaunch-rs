@@ -27,10 +27,13 @@ use zerolaunch_platform_windows::ComGuard;
 use zerolaunch_platform_windows::WindowsPathResolver;
 use zerolaunch_plugin_api::services::path::path_resolver::PathResolver;
 use zerolaunch_plugin_api::services::path::KnownPath;
+use zerolaunch_plugin_api::PluginContext;
 static IS_EXITING: AtomicBool = AtomicBool::new(false);
 
 pub async fn do_cleanup_before_exit(state: Arc<AppState>) {
     info!("执行退出前清理工作...");
+    // 插件退出钩子最先执行：此时 HostApi、缓存与配置仍可用，插件可完成收尾。
+    run_plugin_shutdown_hooks(&state).await;
     let config_manager = state.get_config_manager();
     if let Err(e) = config_manager.save_to_storage() {
         warn!("退出前配置保存失败: {}", e);
@@ -44,6 +47,26 @@ pub async fn do_cleanup_before_exit(state: Arc<AppState>) {
     }
     log_application_shutdown();
     info!("退出前清理工作完成");
+}
+
+/// 执行插件退出钩子：对注册表中的每个插件统一调用 `Plugin::on_shutdown`
+/// （远端适配器在内部翻译为 `plugin/shutdown` RPC），随后关闭全部插件进程。
+///
+/// 参数：state - 应用状态（提供插件注册表、翻译服务与第三方插件管理器）。
+/// 返回：无；单个插件钩子失败仅记录日志，不阻断其余插件与整体退出。
+async fn run_plugin_shutdown_hooks(state: &AppState) {
+    let mut ctx = PluginContext::new("shutdown");
+    ctx.locale = state.get_i18n_manager().current_language();
+
+    let dispatcher = state.get_session_dispatcher();
+    for (plugin, metadata) in dispatcher.plugin_registry().get_all_with_metadata() {
+        // 内置与第三方统一走同一入口：远端适配器在内部翻译为 plugin/shutdown RPC。
+        if let Err(e) = plugin.on_shutdown(&ctx).await {
+            warn!("插件 {} 退出钩子失败: {}", metadata.id, e);
+        }
+    }
+
+    state.get_plugin_manager().shutdown_all().await;
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

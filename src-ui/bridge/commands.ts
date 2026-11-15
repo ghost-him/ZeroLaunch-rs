@@ -176,7 +176,14 @@ export interface PluginInfo {
   /** 插件种类：内置或第三方（内置条目由后端 plugin_list 合并填充）。 */
   kind: 'builtin' | 'third-party'
   priority: number
-  componentIds: string[]
+  /** 可卸载（仅磁盘安装的第三方插件）。 */
+  canUninstall: boolean
+  /** 可重载（仅磁盘安装的第三方插件）。 */
+  canReload: boolean
+  /** 可查看进程日志（仅第三方插件有子进程）。 */
+  canViewLogs: boolean
+  /** 可切换启用态（未加载的第三方插件无组件可写）。 */
+  canToggle: boolean
   /** 全局唤醒快捷键（如 "Ctrl+E"）：非 null = 声明热键唤醒；null = 未声明。形态判定以 mode 为准。 */
   hotkey: string | null
   /** 插件显示图标（data URL，如 "data:image/png;base64,..."），null 表示无图标。 */

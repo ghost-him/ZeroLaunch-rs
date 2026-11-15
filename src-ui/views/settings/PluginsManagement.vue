@@ -16,7 +16,6 @@ import {
   pickPluginZip, pickPluginDir, copyToClipboard,
 } from '@/bridge/commands'
 import type { PluginInfo, PluginDetail, PluginManifest, BridgeError } from '@/bridge/commands'
-import type { ComponentInfo } from '@/bridge/contract'
 import { useConfigStore } from '@/stores/config-store'
 import ComponentConfigLoader from '@/components/settings/ComponentConfigLoader.vue'
 import PluginIntroModal from '@/components/settings/PluginIntroModal.vue'
@@ -39,7 +38,6 @@ interface PluginRow {
   author: string
   enabled: boolean
   plugin: PluginInfo
-  componentIds: string[]
 }
 
 const pluginItems = ref<PluginInfo[]>([])
@@ -83,7 +81,6 @@ const rows = computed<PluginRow[]>(() =>
     author: p.author,
     enabled: p.enabled,
     plugin: p,
-    componentIds: p.componentIds,
   })),
 )
 
@@ -93,17 +90,12 @@ const columns: DataTableColumn<PluginRow>[] = [
     type: 'expand',
     width: 32,
     renderExpand(row) {
-      const comps = row.componentIds
-        .map((id) => configStore.components[id])
-        // 只展示插件本身（Plugin 类型组件）的配置；
-        // 管道组件（DataSource/ScoreBooster 等）配置由搜索管道页按位置展示。
-        .filter((c): c is ComponentInfo => !!c && c.componentType === 'Plugin')
-      if (comps.length === 0) {
+      // 锚点不变量：Plugin 组件的 component_id 恒等于 plugin_id。
+      const comp = configStore.components[row.plugin.pluginId]
+      if (!comp || comp.componentType !== 'Plugin') {
         return h(NText, { depth: 3 }, { default: () => t('settings.thirdPartyPlugins.noConfig') })
       }
-      return h('div', { style: 'display: flex; flex-direction: column; gap: 16px;' },
-        comps.map((c) => h(ComponentConfigLoader, { component: c, key: c.componentId })),
-      )
+      return h(ComponentConfigLoader, { component: comp })
     },
   },
   {
@@ -165,7 +157,7 @@ const columns: DataTableColumn<PluginRow>[] = [
       return h(NSwitch, {
         value: row.enabled,
         // 未加载的第三方插件组件未注册，切换无组件可写
-        disabled: row.kind === 'third-party' && row.plugin.state === 'error',
+        disabled: !row.plugin.canToggle,
         onUpdateValue: (val: boolean) => handleToggleEnabled(row, val),
       })
     },
@@ -182,28 +174,31 @@ const columns: DataTableColumn<PluginRow>[] = [
         size: 'small',
         onClick: () => handleViewDetail(row.plugin.pluginId),
       }, { default: () => t('settings.thirdPartyPlugins.details') }))
-      if (row.componentIds.length > 0) {
+      const pluginComponent = configStore.components[row.plugin.pluginId]
+      if (pluginComponent?.componentType === 'Plugin') {
         buttons.push(h(NButton, {
           size: 'small',
           onClick: () => toggleExpand(row.key),
         }, { default: () => t('settings.thirdPartyPlugins.config') }))
       }
-      if (row.kind === 'third-party') {
-        buttons.push(
-          h(NButton, {
-            size: 'small',
-            onClick: () => handleViewLogs(row.plugin.pluginId),
-          }, { default: () => t('settings.thirdPartyPlugins.logs') }),
-          h(NButton, {
-            size: 'small',
-            onClick: () => handleReload(row.plugin.pluginId),
-          }, { default: () => t('settings.thirdPartyPlugins.reload') }),
-          h(NButton, {
-            size: 'small',
-            type: 'error',
-            onClick: () => handleUninstall(row.plugin.pluginId, row.name),
-          }, { default: () => t('settings.thirdPartyPlugins.uninstall') }),
-        )
+      if (row.plugin.canViewLogs) {
+        buttons.push(h(NButton, {
+          size: 'small',
+          onClick: () => handleViewLogs(row.plugin.pluginId),
+        }, { default: () => t('settings.thirdPartyPlugins.logs') }))
+      }
+      if (row.plugin.canReload) {
+        buttons.push(h(NButton, {
+          size: 'small',
+          onClick: () => handleReload(row.plugin.pluginId),
+        }, { default: () => t('settings.thirdPartyPlugins.reload') }))
+      }
+      if (row.plugin.canUninstall) {
+        buttons.push(h(NButton, {
+          size: 'small',
+          type: 'error',
+          onClick: () => handleUninstall(row.plugin.pluginId, row.name),
+        }, { default: () => t('settings.thirdPartyPlugins.uninstall') }))
       }
       return h(NSpace, {}, { default: () => buttons })
     },
@@ -395,15 +390,10 @@ function handleUninstall(pluginId: string, name: string) {
   })
 }
 
-/** 启用/禁用：内置走配置组件开关，第三方走插件启停。 */
+/** 启用/禁用：内置与第三方统一走 plugin_set_enabled（后端按 metadata.kind 分派）。 */
 async function handleToggleEnabled(row: PluginRow, enabled: boolean) {
   try {
-    if (row.kind === 'builtin') {
-      // 内置插件组件 id 即插件 id
-      await configStore.setEnabled(row.componentIds[0], enabled)
-    } else {
-      await pluginSetEnabled(row.plugin.pluginId, enabled)
-    }
+    await pluginSetEnabled(row.plugin.pluginId, enabled)
     // 行数据来自 plugin_list 快照（不随 configStore 响应式联动），本地同步 enabled 即时回显
     pluginItems.value = pluginItems.value.map((p) =>
       p.pluginId === row.plugin.pluginId ? { ...p, enabled } : p,
@@ -657,10 +647,10 @@ onMounted(() => {
                 {{ detailData.pluginId }}
               </NDescriptionsItem>
               <NDescriptionsItem :label="t('settings.thirdPartyPlugins.colVersion')">
-                {{ detailData.manifest ? detailData.version : '' }}
+                {{ detailData.version }}
               </NDescriptionsItem>
               <NDescriptionsItem :label="t('settings.thirdPartyPlugins.colAuthor')">
-                {{ detailData.manifest ? detailData.author : t('settings.thirdPartyPlugins.builtin') }}
+                {{ detailData.kind === 'builtin' ? t('settings.thirdPartyPlugins.builtin') : detailData.author }}
               </NDescriptionsItem>
               <NDescriptionsItem :label="t('settings.thirdPartyPlugins.fieldLicense')">
                 {{ detailData.manifest?.plugin.license || t('common.notAvailable') }}
@@ -672,7 +662,7 @@ onMounted(() => {
                 {{ detailData.supportedOs.join(', ') || t('common.notAvailable') }}
               </NDescriptionsItem>
               <NDescriptionsItem
-                v-if="detailData.kind === 'third-party'"
+                v-if="detailData.canViewLogs"
                 :label="t('settings.thirdPartyPlugins.fieldRuntimeState')"
                 :span="2"
               >

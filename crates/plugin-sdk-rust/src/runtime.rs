@@ -492,7 +492,6 @@ async fn dispatch(
                 component_id: app.plugin.component_id().to_string(),
                 component_name: app.plugin.component_name().to_string(),
                 component_description: app.plugin.component_description().to_string(),
-                component_type: app.plugin.component_type(),
                 kind: ComponentKind::Plugin,
                 priority: app.plugin.priority(),
             }];
@@ -501,7 +500,6 @@ async fn dispatch(
                     component_id: ds.component_id().to_string(),
                     component_name: ds.component_name().to_string(),
                     component_description: ds.component_description().to_string(),
-                    component_type: ds.component_type(),
                     kind: ComponentKind::DataSource,
                     priority: ds.priority(),
                 });
@@ -511,7 +509,6 @@ async fn dispatch(
                     component_id: ex.component_id().to_string(),
                     component_name: ex.component_name().to_string(),
                     component_description: ex.component_description().to_string(),
-                    component_type: ex.component_type(),
                     kind: ComponentKind::ActionExecutor {
                         target_types: ex.supported_target_types(),
                     },
@@ -523,7 +520,6 @@ async fn dispatch(
                     component_id: engine.component_id().to_string(),
                     component_name: engine.component_name().to_string(),
                     component_description: engine.component_description().to_string(),
-                    component_type: engine.component_type(),
                     kind: ComponentKind::SearchEngine,
                     priority: engine.priority(),
                 });
@@ -533,7 +529,6 @@ async fn dispatch(
                     component_id: booster.component_id().to_string(),
                     component_name: booster.component_name().to_string(),
                     component_description: booster.component_description().to_string(),
-                    component_type: booster.component_type(),
                     kind: ComponentKind::ScoreBooster,
                     priority: booster.priority(),
                 });
@@ -543,7 +538,6 @@ async fn dispatch(
                     component_id: optimizer.component_id().to_string(),
                     component_name: optimizer.component_name().to_string(),
                     component_description: optimizer.component_description().to_string(),
-                    component_type: optimizer.component_type(),
                     kind: ComponentKind::KeywordOptimizer,
                     priority: optimizer.priority(),
                 });
@@ -553,7 +547,6 @@ async fn dispatch(
                     component_id: injector.component_id().to_string(),
                     component_name: injector.component_name().to_string(),
                     component_description: injector.component_description().to_string(),
-                    component_type: injector.component_type(),
                     kind: ComponentKind::KeywordInjector,
                     priority: injector.priority(),
                 });

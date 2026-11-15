@@ -11,3 +11,4 @@ scope: "tool:edit(src-tauri/src/commands/**), tool:write(src-tauri/src/commands/
 - 3 个及以上参数的命令：使用单个反序列化结构体
   - **正确**：`fn bridge_confirm(payload: ConfirmPayload)`
 - 所有结构体参数 **必须** `#[derive(Deserialize)]`
+- `State<'_, T>` / `AppHandle` 等框架注入参数不计入参数个数；仅改文档或函数体时本规则不适用

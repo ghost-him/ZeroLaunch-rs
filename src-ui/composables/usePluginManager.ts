@@ -155,7 +155,11 @@ export function usePluginManager() {
         await unregisterThirdPartyPlugin(payload.pluginId)
         const manifest = await pluginGetManifest(payload.pluginId) as Record<string, unknown>
         await registerThirdPartyPlugin(
-          { pluginId: payload.pluginId, name: payload.name ?? '', version: payload.version ?? '' },
+          {
+            pluginId: payload.pluginId,
+            name: payload.name ?? '',
+            version: payload.version ?? '',
+          },
           manifest,
         )
       } catch (err) {

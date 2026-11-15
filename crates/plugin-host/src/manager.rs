@@ -13,7 +13,7 @@ use tokio::sync::mpsc;
 use tokio::sync::Mutex as AsyncMutex;
 use tracing::{error, info, warn};
 
-use zerolaunch_plugin_api::config::Configurable;
+use zerolaunch_plugin_api::config::{ComponentType, Configurable};
 use zerolaunch_plugin_api::plugin::PluginMetadata;
 use zerolaunch_plugin_api::PluginContext;
 use zerolaunch_plugin_protocol::manifest::Manifest;
@@ -360,6 +360,14 @@ impl PluginHostManager {
         // 从发现的组件构建适配器
         let adapters = build_components(&plugin_id, plugin_dir, &manifest, client, &init_result);
 
+        // 插件级契约校验：组件集合由插件自报，这里是唯一交叉校验点。
+        // 失败即关闭进程并放弃加载，避免「有进程无生命周期钩子」或 provides 与实际能力漂移。
+        if let Err(e) = validate_component_contract(&manifest, &adapters.components) {
+            error!("拒绝加载插件 {}：{}", plugin_id, e);
+            self.shutdown_loaded_process(&plugin_id).await;
+            return Err(e);
+        }
+
         // 冲突预检：组件 id 清单来自插件运行时自报（get_components RPC），
         // 只能在 spawn 之后获得。这里在登记 hm.plugins 之前校验，
         // 任一组件 id 与已加载插件或内置组件冲突则整包拒绝：
@@ -554,7 +562,7 @@ impl PluginHostManager {
     /// 单个插件的运行时条目（按 id 直查，不遍历全量列表）。
     ///
     /// 返回 None 表示该插件当前未加载；调用方据此区分运行态与「已安装未加载」。
-    /// 启用态 = 全部已注册组件均启用（无组件时视为启用）。
+    /// 启用态 = 插件自身 Plugin 组件的启用态（路由只认插件 id）。
     pub fn get_plugin_info(
         &self,
         plugin_id: &str,
@@ -567,16 +575,11 @@ impl PluginHostManager {
             .get(plugin_id)
             .map(|p| PluginRuntimeState::from(&*p.state.read()))
             .unwrap_or_default();
-        let component_ids: Vec<String> = registration
-            .components
-            .iter()
-            .map(|c| c.component_id().to_string())
-            .collect();
-        let enabled = component_ids.iter().all(|id| is_component_enabled(id));
+        // 锚点不变量：Plugin 组件的 component_id 必须等于插件 id（加载期已校验）。
+        let enabled = is_component_enabled(&registration.metadata.id);
         Some(PluginInfo::from_metadata(
             &registration.metadata,
             process_state,
-            component_ids,
             enabled,
         ))
     }
@@ -675,6 +678,91 @@ fn find_settings_value(
         .unwrap_or(serde_json::Value::Null)
 }
 
+/// 组件种类 → 配置系统组件类型。
+///
+/// `kind` 是协议唯一权威；`ComponentType` 由宿主派生，不接受插件重复自报。
+fn component_type_of(kind: &ComponentKind) -> ComponentType {
+    match kind {
+        ComponentKind::Plugin => ComponentType::Plugin,
+        ComponentKind::DataSource => ComponentType::DataSource,
+        ComponentKind::ActionExecutor { .. } => ComponentType::ActionExecutor,
+        ComponentKind::SearchEngine => ComponentType::SearchEngine,
+        ComponentKind::ScoreBooster => ComponentType::ScoreBooster,
+        ComponentKind::KeywordOptimizer => ComponentType::KeywordOptimizer,
+        ComponentKind::KeywordInjector => ComponentType::KeywordInjector,
+    }
+}
+
+/// 校验插件自报的组件集合：
+/// - 必须恰好一个 Plugin 组件（生命周期钩子与路由都挂在它上面）；
+/// - `components.provides` 必须与实际组件种类集合完全一致。
+///
+/// 参数：manifest - 插件清单；components - 适配器构建出的组件集合。
+/// 返回：通过为空；不一致返回 `PluginLoadError::Manifest`。
+fn validate_component_contract(
+    manifest: &Manifest,
+    components: &[Arc<RemoteComponent>],
+) -> Result<(), PluginLoadError> {
+    let plugin_components: Vec<&Arc<RemoteComponent>> =
+        components.iter().filter(|c| c.is_plugin()).collect();
+    if plugin_components.len() != 1 {
+        return Err(PluginLoadError::Manifest(format!(
+            "components must declare exactly one plugin component, found {}",
+            plugin_components.len()
+        )));
+    }
+    let plugin_component_id = plugin_components[0].component_id();
+    if plugin_component_id != manifest.plugin.id {
+        return Err(PluginLoadError::Manifest(format!(
+            "plugin component id '{plugin_component_id}' must equal plugin id '{}'",
+            manifest.plugin.id
+        )));
+    }
+
+    let mut actual: HashSet<&str> = HashSet::new();
+    for c in components {
+        if c.is_plugin() {
+            actual.insert("plugin");
+        }
+        if c.is_data_source() {
+            actual.insert("data_source");
+        }
+        if c.is_action_executor() {
+            actual.insert("action_executor");
+        }
+        if c.is_search_engine() {
+            actual.insert("search_engine");
+        }
+        if c.is_score_booster() {
+            actual.insert("score_booster");
+        }
+        if c.is_keyword_optimizer() {
+            actual.insert("keyword_optimizer");
+        }
+        if c.is_keyword_injector() {
+            actual.insert("keyword_injector");
+        }
+    }
+
+    let declared: HashSet<&str> = manifest
+        .components
+        .provides
+        .iter()
+        .map(String::as_str)
+        .collect();
+    if declared != actual {
+        let mut declared: Vec<&str> = declared.into_iter().collect();
+        let mut actual: Vec<&str> = actual.into_iter().collect();
+        declared.sort_unstable();
+        actual.sort_unstable();
+        return Err(PluginLoadError::Manifest(format!(
+            "components.provides {:?} does not match actual components {:?}",
+            declared, actual
+        )));
+    }
+    Ok(())
+}
+
 // ─── build_components ───────────────────────────────────────────────
 
 /// 从组件 id 列表中找出第一个已被占用（与已加载插件或内置组件冲突）的 id。
@@ -756,7 +844,7 @@ fn build_components(
                 comp.component_id.clone(),
                 comp.component_name.clone(),
                 comp.component_description.clone(),
-                comp.component_type,
+                component_type_of(&comp.kind),
                 priority,
                 client.clone(),
                 schema,

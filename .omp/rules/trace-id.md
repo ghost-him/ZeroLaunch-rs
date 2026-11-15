@@ -1,6 +1,6 @@
 ---
 description: trace_id 追踪规范 — 所有返回 Result<T, BridgeError> 的命令必须生成 trace_id 并建立 tracing span，核心热路径推荐使用
-condition: "trace_id|BridgeError|with_trace_id|generate_trace_id|instrument"
+condition: "BridgeError|unwrap\\(|expect\\(|Uuid::new_v4|span\\.enter\\("
 scope: "tool:read(src-tauri/src/commands/**), tool:edit(src-tauri/src/commands/**), tool:write(src-tauri/src/commands/**), tool:read(src-tauri/src/cli_server/**), tool:edit(src-tauri/src/cli_server/**), tool:write(src-tauri/src/cli_server/**), tool:read(src-tauri/src/core/**), tool:edit(src-tauri/src/core/**), tool:write(src-tauri/src/core/**), tool:read(src-tauri/src/plugin_framework/**), tool:edit(src-tauri/src/plugin_framework/**), tool:write(src-tauri/src/plugin_framework/**), tool:read(src-tauri/src/utils/**), tool:edit(src-tauri/src/utils/**), tool:write(src-tauri/src/utils/**)"
 ---
 

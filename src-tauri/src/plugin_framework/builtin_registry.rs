@@ -51,7 +51,7 @@ pub struct CollectedBuiltins {
 }
 
 impl CollectedBuiltins {
-    /// 返回所有类别中的 Configurable 引用（按注册顺序，供 async 注册循环使用）。
+    /// 返回全部组件的 Configurable 引用（按注册顺序，供 async 注册循环使用）。
     pub fn configurables(&self) -> Vec<Arc<dyn Configurable>> {
         let mut out = Vec::with_capacity(64);
         for (c, _) in &self.executors {
@@ -81,7 +81,7 @@ impl CollectedBuiltins {
         out
     }
 
-    /// 遍历所有类别中的 Configurable 并调用 `f`。
+    /// 遍历全部组件的 Configurable 并调用 `f`。
     pub fn for_each_configurable(&self, mut f: impl FnMut(&Arc<dyn Configurable>)) {
         for (c, _) in &self.executors {
             f(c);
@@ -108,13 +108,26 @@ impl CollectedBuiltins {
             f(c);
         }
     }
+
+    /// 全部内置组件 id，供第三方插件冲突预检使用。
+    pub fn all_component_ids(&self) -> Vec<String> {
+        let mut ids = Vec::with_capacity(64);
+        self.for_each_configurable(|c| ids.push(c.component_id().to_string()));
+        ids
+    }
 }
 
-/// 执行器条目。
+/// 执行器条目 —— inventory 编译期登记的单个执行器工厂。
+///
+/// 仅供 `builtin_registry` 收集与 bootstrap 注册使用；组件本身不应引用。
 pub struct ExecutorEntry {
+    /// 组件 id，与执行器 `ComponentCore::component_id` 一致。
     pub component_id: &'static str,
+    /// PluginHandle 缓存键；相同 key 的执行器共享同一句柄。
     pub handle_key: &'static str,
+    /// 启动注册序，数字越小越先构造（不参与运行时执行序）。
     pub priority: u32,
+    /// 构造 `(Configurable, ActionExecutor)` 的工厂函数。
     pub factory: ExecutorFactory,
 }
 
@@ -445,6 +458,37 @@ mod tests {
                 FIX_ORDER_GUIDANCE
             );
         }
+    }
+
+    /// 回归：插件唤醒执行器由 inventory 收集，并与其它执行器一样进入 ConfigManager
+    /// 注册列表（空 schema），同时计入内置 id 冲突预检。
+    #[test]
+    fn plugin_wake_executor_registers_as_configurable() {
+        use crate::plugin_framework::plugin_wake_executor::PluginWakeExecutor;
+
+        let session_dispatcher = Arc::new(SessionDispatcher::new(Arc::new(PluginRegistry::new())));
+        let ctx = InventoryContext::new(test_host_api(), session_dispatcher);
+        let collected = collect_all_builtin_entries(&ctx);
+        let id = PluginWakeExecutor::COMPONENT_ID;
+
+        assert!(
+            collected
+                .configurables()
+                .iter()
+                .any(|c| c.component_id() == id),
+            "执行器应进入 ConfigManager 注册列表"
+        );
+        assert!(
+            collected
+                .executors
+                .iter()
+                .any(|(c, _)| c.component_id() == id),
+            "执行器必须由 inventory 收集"
+        );
+        assert!(
+            collected.all_component_ids().iter().any(|v| v == id),
+            "组件 id 必须参与冲突预检"
+        );
     }
 
     /// 诊断输出契约：注册失败的报错必须包含失败组件 ID、失败阶段与底层错误，

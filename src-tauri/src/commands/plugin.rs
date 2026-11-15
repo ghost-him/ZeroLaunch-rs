@@ -9,7 +9,6 @@ use crate::utils::trace_id::generate_trace_id;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::State;
-use zerolaunch_plugin_api::config::Configurable;
 use zerolaunch_plugin_host::PluginInfo;
 use zerolaunch_plugin_protocol::Manifest;
 
@@ -123,11 +122,12 @@ pub async fn plugin_install_local(
     let trace_id = generate_trace_id();
     tracing::Span::current().record("trace_id", trace_id.as_str());
     let plugin_manager = state.get_plugin_manager();
+    let cm = state.get_config_manager();
     let path = std::path::PathBuf::from(&file_path);
     let app_handle = state.get_main_handle();
 
     plugin_manager
-        .install(&path, overwrite, app_handle)
+        .install(&path, overwrite, &cm, app_handle)
         .await
         .with_trace_id(&trace_id)
 }
@@ -170,10 +170,10 @@ pub async fn plugin_uninstall(
         .with_trace_id(&trace_id)
 }
 
-/// Enable or disable all components of a plugin (third-party or builtin).
+/// Enable or disable a plugin (third-party or builtin).
 ///
-/// 第三方插件：遍历其所有 Configurable 逐个调用 CM.set_enabled()。
-/// 内置组件：直接按 plugin_id 调用 CM.set_enabled()。
+/// 插件级启用态只写 Plugin 组件（锚点 id 恒等于 plugin_id）；
+/// 管道组件（DataSource 等）由搜索管道页按组件独立启停。
 #[tauri::command]
 #[tracing::instrument(skip(state), fields(trace_id))]
 pub async fn plugin_set_enabled(
@@ -183,28 +183,15 @@ pub async fn plugin_set_enabled(
 ) -> Result<(), BridgeError> {
     let trace_id = generate_trace_id();
     tracing::Span::current().record("trace_id", trace_id.as_str());
-    let pm = state.get_plugin_manager();
     let cm = state.get_config_manager();
     let dispatcher = state.get_session_dispatcher();
-    let hm = pm.host_manager();
 
-    // 先持久化全部组件，全部成功后才同步触发词索引：
-    // 任一步持久化失败时命令返回 Err 且路由索引零变更（配置与路由不分叉）。
-    if let Some(plugin) = hm.plugins.get(&plugin_id) {
-        // 第三方插件：遍历其所有 Configurable 逐个调用 CM.set_enabled()。
-        for c in &plugin.components {
-            cm.set_enabled(c.component_id(), enabled)
-                .with_trace_id(&trace_id)?;
-        }
-    } else {
-        // 内置组件：直接按 plugin_id 调用 CM.set_enabled()。
-        cm.set_enabled(&plugin_id, enabled)
-            .with_trace_id(&trace_id)?;
-    }
+    // 插件级启用态只写 Plugin 组件：锚点 id 恒等于 plugin_id（加载期校验），
+    // 管道组件由搜索管道页按组件独立管理。
+    cm.set_enabled(&plugin_id, enabled)
+        .with_trace_id(&trace_id)?;
 
-    // 全部持久化成功后同步触发词索引（第三方组件 id 可能与 plugin_id 不一致，
-    // EnabledChanged 事件按组件 id 处理无法命中，这里按 plugin_id 直调兜底；
-    // 内置组件 component_id == plugin_id，事件异步到达后为幂等重入）。
+    // 同步路由/唤醒资格（EnabledChanged 事件异步到达，这里直调保证即时生效）。
     dispatcher.set_plugin_enabled(&plugin_id, enabled);
 
     // 插件启停影响插件候选项集合（Panel 形态插件的唤醒入口）：变更后立即刷新。

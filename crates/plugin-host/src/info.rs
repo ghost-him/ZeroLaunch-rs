@@ -26,7 +26,7 @@ pub struct PluginInfo {
     /// 运行状态：已加载取进程状态，未加载固定为 error。
     #[serde(rename = "state")]
     pub state: PluginRuntimeState,
-    /// 是否启用：已加载看组件启用态，未加载恒为 false。
+    /// 是否启用：插件自身 Plugin 组件的启用态；未加载恒为 false。
     #[serde(rename = "enabled")]
     pub enabled: bool,
     /// 插件种类：内置或第三方。
@@ -34,9 +34,18 @@ pub struct PluginInfo {
     pub kind: PluginKind,
     #[serde(rename = "priority")]
     pub priority: u32,
-    /// 已注册组件 id（前端据此关联 ConfigManager 中的组件配置；未加载为空）。
-    #[serde(rename = "componentIds", default)]
-    pub component_ids: Vec<String>,
+    /// 可卸载（仅磁盘安装的第三方插件）。
+    #[serde(rename = "canUninstall")]
+    pub can_uninstall: bool,
+    /// 可重载（仅磁盘安装的第三方插件）。
+    #[serde(rename = "canReload")]
+    pub can_reload: bool,
+    /// 可查看进程日志（仅第三方插件有子进程）。
+    #[serde(rename = "canViewLogs")]
+    pub can_view_logs: bool,
+    /// 可切换启用态（未加载的第三方插件无组件可写）。
+    #[serde(rename = "canToggle")]
+    pub can_toggle: bool,
     /// 全局唤醒快捷键（如 "Ctrl+E"），可空。
     #[serde(rename = "hotkey", default)]
     pub hotkey: Option<String>,
@@ -51,14 +60,11 @@ pub struct PluginInfo {
 impl PluginInfo {
     /// 由插件元数据投影为展示条目。
     /// 参数：meta - 插件级元数据（字段唯一来源）；state - 进程状态；
-    /// component_ids - 已注册组件 id；enabled - 启用态。
-    /// 返回：IPC 展示条目。
-    pub fn from_metadata(
-        meta: &PluginMetadata,
-        state: PluginRuntimeState,
-        component_ids: Vec<String>,
-        enabled: bool,
-    ) -> Self {
+    /// enabled - 插件级启用态（Plugin 组件的启用态；其 id 恒等于插件 id）。
+    /// 返回：IPC 展示条目；能力位由 kind/state 在此统一派生。
+    pub fn from_metadata(meta: &PluginMetadata, state: PluginRuntimeState, enabled: bool) -> Self {
+        let third_party = meta.kind == PluginKind::ThirdParty;
+        let can_toggle = !(third_party && matches!(state, PluginRuntimeState::Error));
         Self {
             plugin_id: meta.id.clone(),
             name: meta.name.clone(),
@@ -69,7 +75,10 @@ impl PluginInfo {
             enabled,
             kind: meta.kind,
             priority: meta.priority,
-            component_ids,
+            can_uninstall: third_party,
+            can_reload: third_party,
+            can_view_logs: third_party,
+            can_toggle,
             hotkey: meta.hotkey.clone(),
             icon: meta.icon.clone(),
             mode: meta.mode,

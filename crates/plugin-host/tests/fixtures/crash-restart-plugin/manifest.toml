@@ -23,4 +23,4 @@ autoRestart = true
 maxRestart = 3
 
 [components]
-provides = ["plugin"]
+provides = ["plugin", "data_source"]

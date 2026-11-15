@@ -29,8 +29,8 @@ use zerolaunch_plugin_protocol::error::JsonRpcError;
 
 /// fixture 插件可执行文件路径（cargo 为集成测试注入的编译期常量）。
 const FIXTURE_BIN: &str = env!("CARGO_BIN_EXE_fixture_plugin");
-/// fixture 插件声明的组件 id（与 fixture_plugin.rs 保持一致）。
-const FIXTURE_COMPONENT_ID: &str = "fixture.hello";
+/// fixture 额外声明的共享 DataSource 组件 id（与 fixture_plugin.rs 保持一致）。
+const FIXTURE_SHARED_COMPONENT_ID: &str = "fixture.shared";
 
 /// 测试用 HostCallHandler stub：fixture 不发起 host/* 调用，恒返回 method not found。
 struct StubHandler;
@@ -123,8 +123,18 @@ async fn setup_loaded_plugin(
         )
         .await
         .expect("initial load succeeds");
-    assert_eq!(reg.components.len(), 1, "fixture 声明一个组件");
-    assert_eq!(reg.components[0].component_id(), FIXTURE_COMPONENT_ID);
+    assert_eq!(reg.components.len(), 2, "fixture 声明 Plugin + DataSource");
+    assert_eq!(
+        reg.components[0].component_id(),
+        plugin_id,
+        "Plugin 组件 id 必须等于插件 id"
+    );
+    assert!(
+        reg.components
+            .iter()
+            .any(|c| c.component_id() == FIXTURE_SHARED_COMPONENT_ID),
+        "fixture 应声明共享 DataSource"
+    );
     // 插件级元数据全部取自清单
     assert_eq!(reg.metadata.id, plugin_id);
     assert_eq!(reg.metadata.name, "Crash Restart Fixture");
@@ -272,7 +282,7 @@ async fn colliding_component_id_rejected_on_load() {
     let plugin_id_b = "com.example.crash-b";
     let (mgr, _, _) = setup_loaded_plugin("collision-a", plugin_id_a, 3).await;
 
-    // 插件 B 使用同一 fixture 插件（manifest id 被改写为 B）→ 声明相同组件 id fixture.hello
+    // 插件 B 使用同一 fixture（manifest id 改写为 B）→ 与 A 共享 DataSource 组件 id fixture.shared
     let plugin_dir_b = prepare_plugin_dir("collision-b", plugin_id_b, 3);
     let crashed_b = Arc::new(AtomicU32::new(0));
     let restarted_b = Arc::new(AtomicU32::new(0));
@@ -315,6 +325,41 @@ async fn colliding_component_id_rejected_on_load() {
     assert!(mgr.plugins.get(plugin_id_a).is_some());
 
     mgr.unload(plugin_id_a).await.expect("unload succeeds");
+}
+
+/// 场景 4：Plugin 组件 id 与插件 id 不一致 → 加载被拒（Manifest 错误）。
+#[tokio::test]
+async fn plugin_component_id_must_equal_plugin_id() {
+    let plugin_id = "com.example.anchor-mismatch";
+    let test_name = "anchor-mismatch";
+    let root = std::env::temp_dir().join(format!(
+        "zl-crash-test-{}-{}",
+        std::process::id(),
+        test_name
+    ));
+    let plugin_dir = prepare_plugin_dir(test_name, plugin_id, 3);
+    let mgr = PluginHostManager::new(root.join("plugins"), root.join("data"), root.join("logs"));
+
+    let on_crash: CrashCallback = Arc::new(|_prev: PluginRegistration| {});
+    let on_restart: RestartCallback = Arc::new(|_new: PluginRegistration| Box::pin(async {}));
+    let err = mgr
+        .load(
+            &plugin_dir,
+            Arc::new(StubHandler),
+            on_restart,
+            on_crash,
+            0,
+            "zh-CN",
+        )
+        .await
+        .expect_err("锚点 id 不一致必须拒绝加载");
+    assert!(
+        matches!(&err, PluginLoadError::Manifest(msg) if msg.contains("must equal plugin id")),
+        "应为 Manifest 错误，实际: {:?}",
+        err
+    );
+    assert!(mgr.plugins.get(plugin_id).is_none());
+    assert!(mgr.processes.get(plugin_id).is_none());
 }
 
 /// 查询 PID 是否存活（tasklist 精确过滤；无匹配时输出不含 PID）。

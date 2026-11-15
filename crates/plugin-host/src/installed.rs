@@ -246,12 +246,7 @@ impl PluginHostManager {
     ) -> PluginInfo {
         self.get_plugin_info(&installed.metadata.id, is_component_enabled)
             .unwrap_or_else(|| {
-                PluginInfo::from_metadata(
-                    &installed.metadata,
-                    PluginRuntimeState::Error,
-                    Vec::new(),
-                    false,
-                )
+                PluginInfo::from_metadata(&installed.metadata, PluginRuntimeState::Error, false)
             })
     }
 }

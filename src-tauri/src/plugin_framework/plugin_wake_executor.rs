@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use std::sync::Weak;
+use std::sync::{Arc, Weak};
 use zerolaunch_plugin_api::config::{
     ComponentCore, ComponentType, Configurable, SettingDefinition,
 };
@@ -8,28 +8,32 @@ use zerolaunch_plugin_api::{
     ActionExecutor, ExecutionContext, ExecutionError, ExecutionTarget, ResultAction, TargetType,
 };
 
+use super::builtin_registry::{ExecutorEntry, InventoryContext};
 use super::SessionDispatcher;
 
 /// 插件面板唤醒动作 ID —— 本执行器私有动作（打开/唤醒插件面板）。
 const ACTION_OPEN: &str = "open";
 
 /// 宿主内置执行器：沉浸式插件面板候选（ExecutionTarget::Plugin(id)）的确认动作——
-/// 经 ExecutorRegistry 解析到本执行器，执行即唤醒对应插件面板（wake_plugin）。
+/// 由 `ExecutorRegistry::resolve` 解析到本执行器，执行即唤醒对应插件面板（wake_plugin）。
 ///
-/// 不随 inventory 注册（宿主契约执行器，非可配置组件），由 bootstrap 在
-/// SessionDispatcher 装配后手动注册；持 Weak 引用避免与 dispatcher 循环强引用。
+/// 经 inventory 的 `ExecutorEntry` 注册：进入 `ConfigManager`（无配置项）并注册到
+/// SessionDispatcher；持 Weak 引用避免与 dispatcher 循环强引用。
 pub struct PluginWakeExecutor {
     core: ComponentCore,
     dispatcher: Weak<SessionDispatcher>,
 }
 
 impl PluginWakeExecutor {
+    /// 组件 id：经 `ExecutorEntry` 注册，并计入内置 id 冲突预检。
+    pub const COMPONENT_ID: &'static str = "plugin-wake-executor";
+
     /// 创建插件唤醒执行器。
     /// 参数：dispatcher - SessionDispatcher 弱引用（AppState 生命周期内始终有效）。
     pub fn new(dispatcher: Weak<SessionDispatcher>) -> Self {
         Self {
             core: ComponentCore::new(
-                "plugin-wake-executor".to_string(),
+                Self::COMPONENT_ID.to_string(),
                 "插件面板唤醒执行器".to_string(),
                 "沉浸式插件候选项选中后唤醒其面板".to_string(),
                 ComponentType::ActionExecutor,
@@ -90,5 +94,26 @@ impl ActionExecutor for PluginWakeExecutor {
             .wake_plugin(plugin_id)
             .await
             .map_err(|e| ExecutionError::Failed(e.to_string()))
+    }
+}
+
+/// 构造插件唤醒执行器并注入当前 SessionDispatcher 的弱引用。
+fn build_plugin_wake_executor(
+    ctx: &InventoryContext,
+) -> (Arc<dyn Configurable>, Arc<dyn ActionExecutor>) {
+    let component = Arc::new(PluginWakeExecutor::new(Arc::downgrade(
+        ctx.session_dispatcher(),
+    )));
+    let configurable: Arc<dyn Configurable> = component.clone();
+    let executor: Arc<dyn ActionExecutor> = component;
+    (configurable, executor)
+}
+
+::inventory::submit! {
+    ExecutorEntry {
+        component_id: PluginWakeExecutor::COMPONENT_ID,
+        handle_key: "plugin-wake-executor",
+        priority: 0,
+        factory: build_plugin_wake_executor,
     }
 }

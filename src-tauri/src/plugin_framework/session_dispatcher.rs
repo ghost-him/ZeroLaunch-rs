@@ -387,16 +387,20 @@ impl SessionDispatcher {
 
     /// 规范化前端面板类型：第三方插件统一为 `third-party:<plugin_id>`
     /// （前端按插件 id 注册 provider）；内置插件保留自定义 panel_type。
-    pub fn normalize_panel_type(
-        plugin_id: &Option<String>,
-        kind: PluginKind,
-        panel_type: &str,
-    ) -> String {
-        match kind {
-            PluginKind::ThirdParty => {
-                format!("third-party:{}", plugin_id.as_deref().unwrap_or_default())
+    ///
+    /// kind 在函数内部解析，调用点不接触 `PluginKind`；元数据缺失属宿主状态异常，
+    /// 保留原值并告警（面板仍可渲染，仅 provider 匹配可能回落）。
+    fn normalize_panel_type(&self, plugin_id: &str, panel_type: &str) -> String {
+        match self.plugin_registry.get_metadata(plugin_id).map(|m| m.kind) {
+            Some(PluginKind::ThirdParty) => format!("third-party:{}", plugin_id),
+            Some(PluginKind::Builtin) => panel_type.to_string(),
+            None => {
+                warn!(
+                    plugin_id,
+                    panel_type, "面板类型规范化时插件元数据缺失，保留原值"
+                );
+                panel_type.to_string()
             }
-            PluginKind::Builtin => panel_type.to_string(),
         }
     }
 
@@ -1204,7 +1208,13 @@ impl SessionDispatcher {
 
     /// 组装路由响应：`current == false`（过期/未就绪）时 `evaluate_query` 已给出空响应；
     /// 会话代际与归属照常回填（过期丢弃仍回填插件 id，供 Inspector 归属可观测）。
-    fn routed_from(&self, evaluated: EvaluatedQuery) -> RoutedQuery {
+    fn routed_from(&self, mut evaluated: EvaluatedQuery) -> RoutedQuery {
+        // 面板 provider key 在路由源头统一规范化：UI/CLI/面板查询得到同一契约值。
+        if let Some(owner) = evaluated.owner.clone() {
+            if let QueryResponse::CustomPanel { panel_type, .. } = &mut evaluated.response {
+                *panel_type = self.normalize_panel_type(&owner, panel_type);
+            }
+        }
         RoutedQuery {
             response: evaluated.response,
             generation: self.current_generation(),
@@ -1975,13 +1985,7 @@ impl SessionDispatcher {
                     PluginView::Immersive
                 };
                 // 第三方插件 panel_type 统一为 third-party:<id>（前端 provider 匹配契约）
-                let normalized = Self::normalize_panel_type(
-                    &Some(plugin_id.to_string()),
-                    meta.as_ref()
-                        .map(|m| m.kind)
-                        .unwrap_or(PluginKind::ThirdParty),
-                    &panel_type,
-                );
+                let normalized = self.normalize_panel_type(plugin_id, &panel_type);
                 (
                     view,
                     Some(PluginPanelContent {
@@ -2161,12 +2165,11 @@ impl SessionDispatcher {
                         self.refresh_candidates().await;
                     }
                     ComponentType::Plugin => {
+                        // 锚点不变量：Plugin 组件 id == plugin id，直接作为启用键。
                         info!(
                             "插件启用状态变更，更新触发词索引: {} enabled={}",
                             component_id, enabled
                         );
-                        // 内置插件 component_id 即 plugin_id；第三方插件组件 id 等于 plugin_id 时同样命中，
-                        // 不相等时由 plugin_set_enabled 命令按 plugin_id 直调兜底。
                         self.set_plugin_enabled(component_id, *enabled);
                     }
                     ComponentType::ActionExecutor | ComponentType::Core => {
@@ -2617,6 +2620,12 @@ mod tests {
             Self::with_keep_search_bar(false)
         }
 
+        /// 覆盖插件种类（验证 provider key 规范化按 kind 分支）。
+        fn with_kind(mut self, kind: PluginKind) -> Self {
+            self.metadata.kind = kind;
+            self
+        }
+
         /// 指定 keep_search_bar 的构造器：false = 全页面接管（合法）；true = 行内面板（契约违约路径测试）。
         fn with_keep_search_bar(keep_search_bar: bool) -> Self {
             Self {
@@ -3001,6 +3010,45 @@ mod tests {
             "none",
             "Panel 通道不改写会话"
         );
+    }
+
+    /// 面板 provider key 在路由源头按 kind 规范化：第三方加前缀，内置保留原值。
+    #[tokio::test]
+    async fn route_query_panel_normalizes_provider_key_by_kind() {
+        let query = Query {
+            id: "trace".to_string(),
+            raw_query: String::new(),
+            search_term: String::new(),
+            confirm: false,
+        };
+
+        let third_party = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
+        let plugin = Arc::new(PanelStubPlugin::new().with_kind(PluginKind::ThirdParty));
+        third_party.register_plugin(plugin.clone(), plugin.metadata_arc(), true);
+        let routed = third_party
+            .route_query_panel("trace", &query, "test.panel")
+            .await
+            .expect("面板查询应成功");
+        match routed.response {
+            QueryResponse::CustomPanel { panel_type, .. } => {
+                assert_eq!(panel_type, "third-party:test.panel");
+            }
+            _ => panic!("期望 CustomPanel 响应"),
+        }
+
+        let builtin = SessionDispatcher::new(Arc::new(PluginRegistry::new()));
+        let plugin = Arc::new(PanelStubPlugin::new().with_kind(PluginKind::Builtin));
+        builtin.register_plugin(plugin.clone(), plugin.metadata_arc(), true);
+        let routed = builtin
+            .route_query_panel("trace", &query, "test.panel")
+            .await
+            .expect("面板查询应成功");
+        match routed.response {
+            QueryResponse::CustomPanel { panel_type, .. } => {
+                assert_eq!(panel_type, "test-panel");
+            }
+            _ => panic!("期望 CustomPanel 响应"),
+        }
     }
 
     /// 触发词路由（Ui 通道）：search_term 剥离触发词、透传 confirm、命中后写入会话投影。

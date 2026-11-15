@@ -2,9 +2,7 @@ use crate::commands::bridge_error::{BridgeError, WithTraceId};
 use crate::core::config::exclusion_settings::ExclusionKind;
 use crate::plugin_framework::inspector::InspectedQueryEvent;
 use crate::plugin_framework::ResultActionDto;
-use crate::plugin_framework::{
-    ConfirmOutcome, ConfirmRequest, HostView, PluginView, SessionDispatcher,
-};
+use crate::plugin_framework::{ConfirmOutcome, ConfirmRequest, HostView, PluginView};
 use crate::state::app_state::AppState;
 use dashmap::DashSet;
 use serde::{Deserialize, Serialize};
@@ -14,7 +12,6 @@ use tokio::sync::Semaphore;
 use tracing::{debug, info};
 use zerolaunch_plugin_api::common::ImageUtils;
 use zerolaunch_plugin_api::host::{CacheLevel, PluginHandle, PluginHost};
-use zerolaunch_plugin_api::plugin::PluginKind;
 use zerolaunch_plugin_api::services::IconRequest;
 use zerolaunch_plugin_api::{CandidateId, Query, QueryResponse};
 // ============================================================================
@@ -396,19 +393,7 @@ pub async fn bridge_query(
             } else {
                 PluginView::Immersive.as_str()
             };
-            // 第三方插件 panel_type 统一为 third-party:<id>（前端 provider 匹配契约）
-            let kind = routed
-                .plugin_id
-                .as_deref()
-                .and_then(|id| {
-                    session_dispatcher
-                        .plugin_registry()
-                        .get_metadata(id)
-                        .map(|m| m.kind)
-                })
-                .unwrap_or(PluginKind::Builtin);
-            let panel_type =
-                SessionDispatcher::normalize_panel_type(&routed.plugin_id, kind, &panel_type);
+            // panel_type 已由 SessionDispatcher 在路由源头规范化（含 CLI/面板入口）。
             info!(
                 "[Bridge] 查询完成: '{}' -> 插件面板 '{}' ({})",
                 raw_query, panel_type, mode

@@ -7,6 +7,7 @@
 //! 不作为产品二进制发布。
 
 use std::io::{BufRead, Read, Write};
+use std::sync::Mutex;
 
 use zerolaunch_plugin_protocol::codec::encode_frame;
 use zerolaunch_plugin_protocol::error::JsonRpcError;
@@ -14,8 +15,10 @@ use zerolaunch_plugin_protocol::jsonrpc::{Request, Response};
 use zerolaunch_plugin_protocol::methods::plugin as plugin_methods;
 use zerolaunch_plugin_protocol::PROTOCOL_VERSION;
 
-/// 本 fixture 声明的组件 id（测试依赖它构造冲突场景）。
-pub const FIXTURE_COMPONENT_ID: &str = "fixture.hello";
+/// 宿主 `plugin/initialize` 下发的插件 id（Plugin 组件 id 必须与它相等）。
+static PLUGIN_ID: Mutex<Option<String>> = Mutex::new(None);
+/// 额外声明的 DataSource 组件 id（跨插件固定，用于构造组件 id 冲突场景）。
+pub const FIXTURE_SHARED_COMPONENT_ID: &str = "fixture.shared";
 
 fn main() {
     let stdin = std::io::stdin();
@@ -69,17 +72,43 @@ fn main() {
 /// 按请求方法构造响应：固定返回一个 Plugin 组件与空 schema/settings/actions。
 fn handle(request: &Request) -> Response {
     let result = match request.method.as_str() {
-        plugin_methods::INITIALIZE => serde_json::json!({
-            "protocolVersion": PROTOCOL_VERSION,
-        }),
-        plugin_methods::GET_COMPONENTS => serde_json::json!([{
-            "componentId": FIXTURE_COMPONENT_ID,
-            "componentName": "Fixture Hello",
-            "componentDescription": "crash restart integration test fixture",
-            "componentType": "Plugin",
-            "kind": { "type": "plugin" },
-            "priority": 50,
-        }]),
+        plugin_methods::INITIALIZE => {
+            if let Some(id) = request.params.get("pluginId").and_then(|v| v.as_str()) {
+                *PLUGIN_ID.lock().expect("plugin id lock") = Some(id.to_string());
+            }
+            serde_json::json!({
+                "protocolVersion": PROTOCOL_VERSION,
+            })
+        }
+        plugin_methods::GET_COMPONENTS => {
+            let plugin_id = PLUGIN_ID
+                .lock()
+                .ok()
+                .and_then(|id| id.clone())
+                .unwrap_or_default();
+            // 以 -mismatch 结尾的插件返回不等的组件 id，用于锚点校验负向测试。
+            let plugin_component_id = if plugin_id.ends_with("-mismatch") {
+                format!("{plugin_id}.wrong")
+            } else {
+                plugin_id
+            };
+            serde_json::json!([
+                {
+                    "componentId": plugin_component_id,
+                    "componentName": "Fixture Hello",
+                    "componentDescription": "crash restart integration test fixture",
+                    "kind": { "type": "plugin" },
+                    "priority": 50,
+                },
+                {
+                    "componentId": FIXTURE_SHARED_COMPONENT_ID,
+                    "componentName": "Fixture Shared Source",
+                    "componentDescription": "shared data source for component id collision tests",
+                    "kind": { "type": "data_source" },
+                    "priority": 50,
+                }
+            ])
+        }
         // Plugin 组件无配置项：schema/settings/actions 一律返回空
         plugin_methods::GET_SETTINGS_SCHEMA => serde_json::json!([]),
         plugin_methods::GET_SETTINGS => serde_json::json!({}),

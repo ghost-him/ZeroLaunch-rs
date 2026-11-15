@@ -31,7 +31,6 @@ use crate::core::config::{ConfigEvent, ConfigManager};
 use crate::core::i18n::I18nManager;
 use crate::plugin_framework::inspector::Inspector;
 use crate::plugin_framework::plugin_manager::PluginManager;
-use crate::plugin_framework::plugin_wake_executor::PluginWakeExecutor;
 use crate::sdk::HostApi;
 use crate::state::app_state::AppState;
 use crate::tray::TrayManager;
@@ -541,10 +540,6 @@ pub(crate) async fn init_plugin_system(
             );
         }
     }
-    // 宿主内置执行器（不随 inventory 注册）：沉浸式插件候选项唤醒 → wake_plugin。
-    session_dispatcher.register_executor(Arc::new(PluginWakeExecutor::new(Arc::downgrade(
-        session_dispatcher,
-    ))));
     for (c, se) in &collected.search_engines {
         if config_manager.find_configurable(c.component_id()).is_some() {
             session_dispatcher
@@ -711,13 +706,10 @@ pub(crate) async fn init_plugin_system(
         .set_candidate_pipeline(candidate_pipeline)
         .await;
 
-    // 收集内置组件 id 集合：plugin-host 冲突预检数据源（第三方组件不得与内置撞 id）。
-    // 由调用方（init_app_state）传给 PluginManager::init_host_manager 注入。
-    let builtin_component_ids: HashSet<String> = collected
-        .configurables()
-        .iter()
-        .map(|c| c.component_id().to_string())
-        .collect();
+    // 收集内置组件 id 集合：plugin-host 冲突预检数据源，
+    // 第三方组件不得与内置撞 id。由调用方传给 PluginManager::init_host_manager 注入。
+    let builtin_component_ids: HashSet<String> =
+        collected.all_component_ids().into_iter().collect();
 
     info!(
         "插件系统初始化完成，已注册 {} 个组件（候选项待后台预热）",

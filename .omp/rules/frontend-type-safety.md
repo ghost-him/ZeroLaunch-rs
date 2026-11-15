@@ -1,7 +1,7 @@
 ---
 description: 前端类型安全 — IPC 类型按同域成组声明在 contract.ts / commands.ts，类型守卫集中在 schemaTypes.ts
-condition: "bridge/contract|bridge/commands|schemaTypes|isMyType|export interface|export type"
-scope: "tool:edit(*.ts), tool:edit(*.vue), tool:write(*.ts), tool:write(*.vue)"
+condition: "bridge/contract|bridge/commands|schemaTypes|as Record|as unknown|isRecord"
+scope: "tool:edit(src-ui/bridge/**), tool:write(src-ui/bridge/**), tool:edit(src-ui/utils/**), tool:write(src-ui/utils/**), tool:edit(src-ui/components/settings/**), tool:write(src-ui/components/settings/**)"
 ---
 
 # 前端类型安全

@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use zerolaunch_plugin_api::config::ComponentType;
 use zerolaunch_plugin_api::host::PluginSdkConfig;
 use zerolaunch_plugin_api::services::focus_monitor::FocusEvent;
 use zerolaunch_plugin_api::services::hotkey::types::{HotkeyEvent, HotkeyEventFilter};
@@ -45,8 +44,7 @@ pub struct ComponentDescriptor {
     pub component_name: String,
     #[serde(rename = "componentDescription", default)]
     pub component_description: String,
-    #[serde(rename = "componentType")]
-    pub component_type: ComponentType,
+    /// 组件种类（唯一权威）；宿主据此派生 `ComponentType`，插件不得重复声明类型。
     #[serde(rename = "kind")]
     pub kind: ComponentKind,
     #[serde(rename = "priority", default = "default_component_priority")]

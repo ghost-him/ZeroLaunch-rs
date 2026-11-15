@@ -191,8 +191,11 @@ pub async fn market_install(
 
     // 3. 交给 PluginManager 安装（zip 解压复制进插件目录，此后 zip 可安全删除）。
     let plugin_manager = state.get_plugin_manager();
+    let cm = state.get_config_manager();
     let app_handle = state.get_main_handle();
-    let install_result = plugin_manager.install(&dest, overwrite, app_handle).await;
+    let install_result = plugin_manager
+        .install(&dest, overwrite, &cm, app_handle)
+        .await;
     // 无论安装成败都清理暂存文件。
     if let Err(e) = core_handle
         .cache_delete("market", &release.asset_name)

@@ -24,6 +24,8 @@ tokio = { version = "1", features = ["macros", "rt"] }
 
 插件级元数据（id、名称、版本、描述、作者、触发关键词、动态触发说明、支持系统、优先级、形态、热键、图标）由宿主从 `manifest.toml` 的 `[plugin]` / `[icon]` 段读取，**插件代码不声明**，`Plugin` trait 上也不提供元数据方法。插件代码只提供组件级身份：一个 `ComponentCore`（组件 id、名称、描述、类型、优先级）。
 
+**锚点约定**：实现 `Plugin` trait 的组件，其 `component_id` 必须等于清单 `[plugin].id`（宿主加载期校验）；插件内的其他组件（DataSource / ActionExecutor 等）各自使用独立 id。
+
 ```rust
 use async_trait::async_trait;
 use std::sync::Arc;
@@ -41,7 +43,7 @@ pub struct EchoPlugin { core: ComponentCore }
 impl EchoPlugin {
     pub fn new() -> Self {
         Self { core: ComponentCore::new(
-            "echo".into(), "Echo".into(), "回显输入".into(),
+            "com.example.echo".into(), "Echo".into(), "回显输入".into(),
             ComponentType::Plugin, 50,
         )}
     }

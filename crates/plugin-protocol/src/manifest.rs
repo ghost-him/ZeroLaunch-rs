@@ -93,8 +93,9 @@ pub struct RuntimeSection {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ComponentsSection {
     /// 能力列表，可选值见 `REQUIRED_PROVIDES_VALUES`。
-    /// 插件可以声明多个能力（如同时提供 `data_source` 和 `action_executor`），
-    /// 每个能力在构建期对应一个 `RemoteConfigurableAdapter`。
+    /// 插件可以声明多个能力（如同时提供 `data_source` 和 `action_executor`）。
+    /// 宿主在加载时与实际 `get_components` 返回的组件集合交叉校验，
+    /// 声明与实际不一致即拒绝加载（避免声明漂移成第二权威）。
     #[serde(default = "default_provides", rename = "provides")]
     pub provides: Vec<String>,
 }

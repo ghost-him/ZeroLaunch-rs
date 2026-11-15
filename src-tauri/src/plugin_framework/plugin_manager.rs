@@ -18,7 +18,6 @@ use tauri::AppHandle;
 use tauri::Emitter;
 use tracing::{error, info, warn};
 
-use zerolaunch_plugin_api::config::Configurable;
 use zerolaunch_plugin_api::host::PluginSdkConfig;
 use zerolaunch_plugin_api::plugin::{PluginKind, PluginMetadata, PluginMode};
 use zerolaunch_plugin_host::host_dispatch::HostCallHandler;
@@ -231,12 +230,7 @@ impl PluginManager {
     /// 内置插件条目：以 PluginMetadata 为插件级数据源（插件管理页实体是插件而非组件），
     /// state 恒为 Running（内置编译在程序内运行），种类由 kind 字段表达，组件 id 即插件 id。
     pub fn builtin_plugin_info(&self, meta: &PluginMetadata, cm: &ConfigManager) -> PluginInfo {
-        PluginInfo::from_metadata(
-            meta,
-            PluginRuntimeState::Running,
-            vec![meta.id.clone()],
-            cm.is_enabled(&meta.id),
-        )
+        PluginInfo::from_metadata(meta, PluginRuntimeState::Running, cm.is_enabled(&meta.id))
     }
 
     /// 单个插件条目（详情用）：内置直接构造，第三方经已安装解析后关联运行态。
@@ -401,6 +395,7 @@ impl PluginManager {
         &self,
         source_path: &Path,
         overwrite: bool,
+        cm: &ConfigManager,
         app_handle: Arc<AppHandle>,
     ) -> Result<PluginInfo, PluginManagerError> {
         if !source_path.exists() {
@@ -522,27 +517,20 @@ impl PluginManager {
         })?;
 
         check_panel_ui_contract(plugin_id, &adapters.metadata, &adapters.manifest);
+        let metadata = adapters.metadata.clone();
+        drop(adapters);
 
         // 安装成功 = 文件落盘 + 子进程加载验证通过
         info!("Installed plugin {}", plugin_id);
         // 落盘事实立即反映到安装快照（列表/详情等紧随其后的 IPC 不必等监听线程）。
         hm.refresh_installed();
 
-        // priority 与 list_plugins/plugin_info 统一取插件级元数据声明值（不再用组件最小优先级）。
-        // 安装成功即子进程已加载运行，state 恒为 Running。
-        let enabled = !adapters.components.is_empty()
-            && adapters.components.iter().all(|c| c.default_enabled());
-        let component_ids = adapters
-            .components
-            .iter()
-            .map(|c| c.component_id().to_string())
-            .collect();
-        Ok(PluginInfo::from_metadata(
-            &adapters.metadata,
-            PluginRuntimeState::Running,
-            component_ids,
-            enabled,
-        ))
+        // 返回值与列表/详情同源（统一视图）：不在此另算 enabled。
+        self.plugin_info(plugin_id, &metadata, cm).ok_or_else(|| {
+            PluginManagerError::PluginNotFound(format!(
+                "Plugin not found after install: {plugin_id}"
+            ))
+        })
     }
 
     /// 读取待安装插件包（.zip 或插件目录）的 manifest，不执行安装。
@@ -920,7 +908,6 @@ provides = ["data_source"]
         assert_eq!(info.plugin_id, "com.example.sample");
         assert_eq!(info.name, "Sample Plugin");
         assert_eq!(info.state, PluginRuntimeState::Error);
-        assert!(info.component_ids.is_empty());
         assert!(!info.enabled);
     }
 

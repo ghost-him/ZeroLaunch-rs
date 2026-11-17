@@ -12,7 +12,7 @@
       @contextmenu="(x: number, y: number, items: CtxItem[]) => emit('contextmenu', x, y, items)"
     />
     <div v-if="results.length === 0" class="no-results">
-      {{ $t('search.noResults') }}
+      {{ initializing ? $t('search.initializing') : $t('search.noResults') }}
     </div>
   </div>
 </template>
@@ -26,6 +26,8 @@ import type { CtxItem } from '../layout/ContextMenu.vue'
 const props = defineProps<{
   results: ListItem[]
   selectedIndex: number
+  /** 空结果是否因启动初始化未完成：true 时展示「正在初始化」而非「无结果」。 */
+  initializing: boolean
 }>()
 
 const emit = defineEmits<{

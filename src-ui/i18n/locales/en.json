@@ -24,6 +24,7 @@
   "search": {
     "placeholder": "Type to search...",
     "noResults": "No results",
+    "initializing": "Initializing…",
     "ready": "Ready",
     "candidates": "{count} candidates",
     "translationStarted": "Translation started, please wait...",

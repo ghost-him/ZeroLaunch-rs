@@ -97,6 +97,9 @@ export const useSearchStore = defineStore('search', () => {
   const currentGeneration = ref(0)
   /** 候选缓存世代：查询响应下发，确认时回传后端校验（防止缓存刷新后 id 漂移）。 */
   const currentCandidateGeneration = ref(0)
+  /** 空结果是否因启动预热未完成：后端缓存世代为 0 表示首轮候选项采集尚未完成，
+   *  此时空搜索的真实语义是「正在初始化」，而非「无结果」。由 bridge_query 响应下发。 */
+  const initializing = ref(false)
   /** 防抖定时器 */
   let debounceTimer: number | null = null
 
@@ -217,6 +220,7 @@ export const useSearchStore = defineStore('search', () => {
   function clearSessionState() {
     results.value = []
     sessionMode.value = 'none'
+    initializing.value = false
     panelType.value = null
     panelData.value = null
     panelActions.value = []
@@ -301,6 +305,11 @@ export const useSearchStore = defineStore('search', () => {
       confirmInFlight.value = false
 
       selectedActionIndex.value = 0
+
+      // 启动预热未完成时候选缓存世代保持 0（首轮采集完成后才自增）：
+      // 空搜索据此改示「正在初始化」而非「无结果」。
+      initializing.value =
+        resp.mode === 'search' && resp.results.length === 0 && resp.candidateGeneration === 0
 
       switch (resp.mode) {
         case 'search':
@@ -802,7 +811,7 @@ export const useSearchStore = defineStore('search', () => {
   return {
     query, results, selectedIndex, selectedActionIndex, sessionMode,
     panelType, panelData, panelActions, panelInteraction,
-    currentGeneration, currentCandidateGeneration, currentPluginId, pluginMeta,
+    currentGeneration, currentCandidateGeneration, initializing, currentPluginId, pluginMeta,
     panelQueryInFlight,
     confirmInFlight,
     inlineParamState, paramPanelState,

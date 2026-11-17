@@ -26,6 +26,7 @@
         v-else-if="(uiMode === 'search' || uiMode === 'inline_param') && (!searchStore.isIdle || searchStore.isHomeActive)"
         :results="searchStore.results"
         :selected-index="searchStore.selectedIndex"
+        :initializing="searchStore.initializing"
         @select="searchStore.selectedIndex = $event"
         @confirm="(idx: number) => searchStore.doConfirm(idx)"
         @context-action="(idx: number, actionId: string) => searchStore.doConfirm(idx, actionId)"

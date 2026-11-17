@@ -127,6 +127,9 @@ export interface PluginSessionStateEvent {
 /** 会话状态事件 payload —— 整个会话系统的唯一事件（后端 Dispatcher 推送，kind 判别联合）。 */
 export type SessionStateEvent = HostSessionStateEvent | PluginSessionStateEvent
 
+/** 查询响应。
+ *  `candidateGeneration` 为候选缓存世代：0 = 启动预热的首轮采集尚未完成（此时空搜索语义为「正在初始化」），
+ *  首轮完成后自增（与后端 CachedCandidateData::bump_generation 一致）。 */
 export type BridgeQueryResponse =
   | { mode: 'search'; generation: number; candidateGeneration: number; results: ListItem[]; panelType: null; panelData: null; panelActions: null; inlineParam: null }
   | { mode: 'plugin_panel'; generation: number; candidateGeneration: number; results: ListItem[]; panelType: string; panelData: unknown; panelActions: ResultAction[]; inlineParam: null }

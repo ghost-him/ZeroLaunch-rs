@@ -24,6 +24,7 @@
   "search": {
     "placeholder": "輸入關鍵詞搜尋...",
     "noResults": "無結果",
+    "initializing": "正在初始化…",
     "ready": "就緒",
     "candidates": "{count} 個候選項",
     "translationStarted": "已開始翻譯，請稍候…",

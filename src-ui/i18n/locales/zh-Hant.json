@@ -1581,8 +1581,7 @@
       "description": "記住你以前用哪個查詢啟動過哪個程式，目前輸入與那條查詢相同或作為前綴時給它加分",
       "groups": {
         "weight": "權重設定",
-        "decay": "衰減設定",
-        "cooldown": "冷卻設定"
+        "decay": "衰減設定"
       },
       "fields": {
         "query_affinity_weight": {
@@ -1590,13 +1589,9 @@
           "desc": "查詢親和度的權重，越大影響越強",
           "note": "只有以前用同一條查詢啟動過的程式才有這個分；0 表示關掉"
         },
-        "query_affinity_time_decay": {
-          "label": "親和衰減常數(秒)",
-          "desc": "親和度的時間衰減常數，越大衰減越慢"
-        },
-        "query_affinity_cooldown": {
-          "label": "親和冷卻時間(秒)",
-          "desc": "同一程式配同一條查詢，這段時間內重複啟動不重複計數"
+        "query_affinity_event_decay": {
+          "label": "親和衰減常數(次啟動)",
+          "desc": "親和的啟動事件衰減常數，越大衰減越慢"
         }
       }
     },

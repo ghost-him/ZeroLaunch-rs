@@ -1581,8 +1581,7 @@
       "description": "Remembers which query launched which program before, and boosts a program when the current input equals that query or is a prefix of it",
       "groups": {
         "weight": "Weight",
-        "decay": "Decay",
-        "cooldown": "Cooldown"
+        "decay": "Decay"
       },
       "fields": {
         "query_affinity_weight": {
@@ -1590,13 +1589,9 @@
           "desc": "Weight of query affinity; larger means stronger influence",
           "note": "Only programs previously launched with the same query have this score; 0 turns it off"
         },
-        "query_affinity_time_decay": {
-          "label": "Affinity decay constant (s)",
-          "desc": "Time decay constant of affinity; larger decays more slowly"
-        },
-        "query_affinity_cooldown": {
-          "label": "Affinity cooldown (s)",
-          "desc": "For a given program and query pair, repeat launches within this window are not counted again"
+        "query_affinity_event_decay": {
+          "label": "Affinity decay constant (launches)",
+          "desc": "Launch-event decay constant of affinity; larger decays more slowly"
         }
       }
     },

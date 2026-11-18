@@ -227,7 +227,7 @@ From pressing <kbd>Alt</kbd>+<kbd>Space</kbd> to opening the target, there's a p
 
 - The matching algorithm has three parts: shortest edit distance, BM25 rarity weighting over character bigrams, and KMP first-character and substring matching.
 - Standard model: BM25 `k1 = 1.2`, `b = 0.3` (app names are short with little length variance, hence lower than the classic `0.75`), and the score is then amplified by `3·log2(score+1)`.
-- Habit boosts: launch history `0.8`, recent habit `1.5`, time `0.5`, decay `10800` seconds (about 3 hours); query affinity weight `3.0`, decay `259200` seconds (about 3 days), cooldown `15` seconds.
+- Habit boosts: launch history `0.8`, recent habit `1.5`, time `0.5`, decay `10800` seconds (about 3 hours); query affinity weight `3.0`, decay `500` launch events.
 - Three built-in search engines: standard (default), Launchy-style, skim-style.
 - The debug page in settings shows each query's timing and the per-component score breakdown.
 

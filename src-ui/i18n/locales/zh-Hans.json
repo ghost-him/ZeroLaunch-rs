@@ -1581,8 +1581,7 @@
       "description": "记住你以前用哪个查询启动过哪个程序，当前输入与那条查询相同或作为前缀时给它加分",
       "groups": {
         "weight": "权重配置",
-        "decay": "衰减配置",
-        "cooldown": "冷却配置"
+        "decay": "衰减配置"
       },
       "fields": {
         "query_affinity_weight": {
@@ -1590,13 +1589,9 @@
           "desc": "查询亲和度的权重，越大影响越强",
           "note": "只有以前用同一条查询启动过的程序才有这个分；0 表示关掉"
         },
-        "query_affinity_time_decay": {
-          "label": "亲和衰减常数(秒)",
-          "desc": "亲和度的时间衰减常数，越大衰减越慢"
-        },
-        "query_affinity_cooldown": {
-          "label": "亲和冷却时间(秒)",
-          "desc": "同一程序配同一条查询，这段时间内重复启动不重复计数"
+        "query_affinity_event_decay": {
+          "label": "亲和衰减常数(次启动)",
+          "desc": "亲和的启动事件衰减常数，越大衰减越慢"
         }
       }
     },

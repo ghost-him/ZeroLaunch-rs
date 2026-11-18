@@ -1,10 +1,11 @@
 use crate::core::config::setting_builders::SchemaBuilder;
-use crate::utils::{collapse_repeated_spaces, get_current_time};
+use crate::utils::collapse_repeated_spaces;
 use async_trait::async_trait;
 use dashmap::DashMap;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 use tracing::{error, warn};
 use zerolaunch_plugin_api::config::{
     ComponentCore, ComponentType, ConfigError, Configurable, SettingDefinition,
@@ -17,21 +18,20 @@ use zerolaunch_plugin_api::{
 /// 约束运行态文件规模：查询串种类随使用时间增长，不设上限将无界膨胀。
 const MAX_AFFINITY_ENTRIES_PER_METHOD: usize = 128;
 
-/// 查询亲和度数据
+/// 查询亲和度数据 —— 单条查询-启动关联的衰减计数与启动序号锚点。
+///
+/// 仅限本文件内使用，作为 `QueryAffinityEntry` 的字段。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct QueryAffinityData {
-    /// 衰减后的有效次数（浮点数，支持衰减累积）
+    /// 衰减后的有效启动次数（浮点数，支持按启动事件衰减累积）。
     #[serde(
         rename = "effective_count",
         default = "default_affinity_effective_count"
     )]
     effective_count: f64,
-    /// 最后一次启动时间（用于计算时的衰减）
-    #[serde(rename = "last_launch_time", default = "default_affinity_timestamp")]
-    last_launch_time: i64,
-    /// 最后一次记录计数的时间（用于冷却机制）
-    #[serde(rename = "last_record_time", default = "default_affinity_timestamp")]
-    last_record_time: i64,
+    /// 最后一次记录该关联时的全局启动序号，用于按启动事件计算衰减距离。
+    #[serde(rename = "last_seq", default = "default_affinity_seq")]
+    last_seq: u64,
 }
 
 /// 关联记录缺失有效次数时的默认值：按一次启动计。
@@ -39,47 +39,44 @@ fn default_affinity_effective_count() -> f64 {
     1.0
 }
 
-/// 关联记录缺失时间戳时的默认值：0（unix 纪元），按"久远"参与衰减。
-fn default_affinity_timestamp() -> i64 {
+/// 关联记录缺失启动序号时的默认值：0，表示尚未按新事件衰减。
+fn default_affinity_seq() -> u64 {
     0
 }
 
 impl QueryAffinityData {
-    fn new(current_time: i64) -> Self {
+    fn new(last_seq: u64) -> Self {
         Self {
             effective_count: 1.0,
-            last_launch_time: current_time,
-            last_record_time: current_time,
+            last_seq,
         }
     }
 }
 
 /// 查询亲和度增强器的强类型配置结构。
+///
+/// 反序列化自配置文件中 "query-affinity-booster" 组件的 settings 段。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QueryAffinitySettings {
+    /// 查询亲和分的权重；越大影响越强，0 表示关闭。
     #[serde(
         rename = "query_affinity_weight",
         default = "default_query_affinity_weight"
     )]
     pub query_affinity_weight: f64,
+    /// 事件衰减常数（启动次数）；越大衰减越慢。
     #[serde(
-        rename = "query_affinity_time_decay",
-        default = "default_query_affinity_time_decay"
+        rename = "query_affinity_event_decay",
+        default = "default_query_affinity_event_decay"
     )]
-    pub query_affinity_time_decay: f64,
-    #[serde(
-        rename = "query_affinity_cooldown",
-        default = "default_query_affinity_cooldown"
-    )]
-    pub query_affinity_cooldown: f64,
+    pub query_affinity_event_decay: f64,
 }
 
 impl Default for QueryAffinitySettings {
     fn default() -> Self {
         Self {
             query_affinity_weight: default_query_affinity_weight(),
-            query_affinity_time_decay: default_query_affinity_time_decay(),
-            query_affinity_cooldown: default_query_affinity_cooldown(),
+            query_affinity_event_decay: default_query_affinity_event_decay(),
         }
     }
 }
@@ -87,11 +84,8 @@ impl Default for QueryAffinitySettings {
 fn default_query_affinity_weight() -> f64 {
     3.0
 }
-fn default_query_affinity_time_decay() -> f64 {
-    259200.0
-}
-fn default_query_affinity_cooldown() -> f64 {
-    15.0
+fn default_query_affinity_event_decay() -> f64 {
+    500.0
 }
 
 /// 查询亲和度增强器的持久化运行态快照。
@@ -103,14 +97,21 @@ struct QueryAffinityState {
     /// 各目标的查询关联记录：目标标识 → 记录列表（每项为该程序的一条查询-启动关联）
     #[serde(rename = "method_affinity", default)]
     method_affinity: HashMap<String, Vec<QueryAffinityEntry>>,
+    /// 全局启动事件序号，用于跨重启保持衰减距离连续。
+    #[serde(rename = "seq", default = "default_affinity_seq")]
+    seq: u64,
 }
 
-/// 查询亲和度增强器内部实现
+/// 查询亲和度增强器内部实现。
+///
+/// 仅限本文件内使用，由 `QueryAffinityBooster` 持有。
 #[derive(Debug)]
 struct QueryAffinityBoosterInner {
     /// 查询亲和度映射: method_text -> 该程序的查询-启动关联历史
     /// （按程序分桶；boost 前缀扫描只需遍历当前候选对应桶）
     method_affinity: DashMap<String, Vec<QueryAffinityEntry>>,
+    /// 全局启动事件序号：每次记录关联自增，作为衰减时钟。
+    seq: AtomicU64,
 }
 
 /// 单个程序的一条查询-启动关联记录
@@ -119,7 +120,7 @@ struct QueryAffinityEntry {
     /// 用户启动该程序时输入的完整查询（已归一化小写 + 折叠空格）
     #[serde(rename = "recorded_query", default)]
     recorded_query: String,
-    /// 衰减后的有效次数与时间信息
+    /// 衰减计数与最近一次记录的启动序号
     #[serde(rename = "data", default)]
     data: QueryAffinityData,
 }
@@ -128,8 +129,7 @@ impl Default for QueryAffinityData {
     fn default() -> Self {
         Self {
             effective_count: default_affinity_effective_count(),
-            last_launch_time: default_affinity_timestamp(),
-            last_record_time: default_affinity_timestamp(),
+            last_seq: default_affinity_seq(),
         }
     }
 }
@@ -138,43 +138,37 @@ impl QueryAffinityBoosterInner {
     fn new() -> Self {
         QueryAffinityBoosterInner {
             method_affinity: DashMap::new(),
+            seq: AtomicU64::new(0),
         }
     }
 
-    /// 记录查询-程序启动关联（衰减累积 + 冷却机制）
+    /// 记录查询-程序启动关联（按全局启动序号衰减累积）。
     /// query 须已归一化（小写 + 折叠空格），record 由调用方统一归一化。
-    fn record_query_launch(&self, query: &str, method_text: &str, cooldown: i64, time_decay: i64) {
-        let current_time = get_current_time();
+    fn record_query_launch(&self, query: &str, method_text: &str, event_decay: f64) {
+        let current_seq = self.seq.fetch_add(1, Ordering::Relaxed) + 1;
 
         let mut bucket = self
             .method_affinity
             .entry(method_text.to_string())
             .or_default();
-        // 同 method 下若已有同 query 记录 → 衰减累积；否则新增一条。
+        // 同 method 下若已有同 query 记录 → 按事件距离衰减累积；否则新增一条。
         if let Some(entry) = bucket.iter_mut().find(|e| e.recorded_query == query) {
-            // 冷却机制：检查距离上次记录是否超过冷却时间
-            let time_since_last_record = current_time - entry.data.last_record_time;
-            if time_since_last_record >= cooldown {
-                // 衰减累积：先对旧的有效次数进行衰减，再加上新的一次
-                let time_diff = current_time - entry.data.last_launch_time;
-                let decay = (-(time_diff as f64) / (time_decay as f64 + 1.0)).exp();
+            let distance = current_seq.saturating_sub(entry.data.last_seq);
+            let decay = (-(distance as f64) / event_decay).exp();
 
-                entry.data.effective_count = entry.data.effective_count * decay + 1.0;
-                entry.data.last_record_time = current_time;
-            }
-            // 无论是否在冷却时间内，都更新最后启动时间
-            entry.data.last_launch_time = current_time;
+            entry.data.effective_count = entry.data.effective_count * decay + 1.0;
+            entry.data.last_seq = current_seq;
         } else {
             bucket.push(QueryAffinityEntry {
                 recorded_query: query.to_string(),
-                data: QueryAffinityData::new(current_time),
+                data: QueryAffinityData::new(current_seq),
             });
-            // 条目上限：淘汰最久未启动的一条（时间戳并列时保留先插入者，不会淘汰刚插入的记录）
+            // 条目上限：淘汰最久未记录的一条（序号并列时保留先插入者，不会淘汰刚插入的记录）
             if bucket.len() > MAX_AFFINITY_ENTRIES_PER_METHOD {
                 let oldest = bucket
                     .iter()
                     .enumerate()
-                    .min_by_key(|(_, entry)| entry.data.last_launch_time)
+                    .min_by_key(|(_, entry)| entry.data.last_seq)
                     .map(|(index, _)| index);
                 if let Some(index) = oldest {
                     bucket.remove(index);
@@ -183,15 +177,15 @@ impl QueryAffinityBoosterInner {
         }
     }
 
-    /// 计算单条记录的当前有效次数（应用时间衰减）
+    /// 计算单条记录的当前有效次数（按启动事件距离衰减）
     fn effective_count_with_decay(
         data: &QueryAffinityData,
-        current_time: i64,
-        time_decay: i64,
+        current_seq: u64,
+        event_decay: f64,
     ) -> f64 {
-        let time_diff = current_time - data.last_launch_time;
-        // 时间衰减因子: exp(-(时间差/时间常数))
-        let decay_factor = (-(time_diff as f64) / (time_decay as f64 + 1.0)).exp();
+        let distance = current_seq.saturating_sub(data.last_seq);
+        // 事件衰减因子: exp(-(启动事件距离/衰减常数))
+        let decay_factor = (-(distance as f64) / event_decay).exp();
         data.effective_count * decay_factor
     }
 
@@ -211,23 +205,23 @@ impl QueryAffinityBoosterInner {
     /// # Arguments
     /// * `query` - 当前输入（已归一化）
     /// * `method_text` - 候选程序标识
-    /// * `time_decay` - 时间衰减常数
+    /// * `event_decay` - 启动事件衰减常数（次数）
     fn calculate_query_affinity_score(
         &self,
         query: &str,
         method_text: &str,
-        time_decay: i64,
+        event_decay: f64,
     ) -> f64 {
         if query.is_empty() {
             return 0.0;
         }
-        let current_time = get_current_time();
+        let current_seq = self.seq.load(Ordering::Relaxed);
         let Some(bucket) = self.method_affinity.get(method_text) else {
             return 0.0;
         };
         // 精确命中：直接取该记录的对数分（不折减）。
         if let Some(entry) = bucket.iter().find(|e| e.recorded_query == query) {
-            let effective = Self::effective_count_with_decay(&entry.data, current_time, time_decay);
+            let effective = Self::effective_count_with_decay(&entry.data, current_seq, event_decay);
             return Self::affinity_log_score(effective);
         }
         // 前缀命中：输入长度须 ≥ 2 才算前缀意图。
@@ -256,7 +250,7 @@ impl QueryAffinityBoosterInner {
         let Some((entry, ratio)) = best else {
             return 0.0;
         };
-        let effective = Self::effective_count_with_decay(&entry.data, current_time, time_decay);
+        let effective = Self::effective_count_with_decay(&entry.data, current_seq, event_decay);
         let log_score = Self::affinity_log_score(effective);
         log_score * Self::prefix_saturation(ratio)
     }
@@ -280,6 +274,7 @@ impl QueryAffinityBoosterInner {
                 .iter()
                 .map(|e| (e.key().clone(), e.value().clone()))
                 .collect(),
+            seq: self.seq.load(Ordering::Relaxed),
         }
     }
 
@@ -287,6 +282,7 @@ impl QueryAffinityBoosterInner {
     fn restore(state: QueryAffinityState) -> Self {
         QueryAffinityBoosterInner {
             method_affinity: state.method_affinity.into_iter().collect(),
+            seq: AtomicU64::new(state.seq),
         }
     }
 }
@@ -352,39 +348,21 @@ impl Configurable for QueryAffinityBooster {
             .step(0.1)
             .build(),
             SchemaBuilder::number(
-                "query_affinity_time_decay",
+                "query_affinity_event_decay",
                 t_key!(
                     "query-affinity-booster",
-                    "fields.query_affinity_time_decay.label"
+                    "fields.query_affinity_event_decay.label"
                 ),
                 t_key!(
                     "query-affinity-booster",
-                    "fields.query_affinity_time_decay.desc"
+                    "fields.query_affinity_event_decay.desc"
                 ),
             )
             .group(t_key!("query-affinity-booster", "groups.decay"))
             .order(1)
-            .default(259200.0)
-            .min(60.0)
-            .max(2592000.0)
-            .step(60.0)
-            .build(),
-            SchemaBuilder::number(
-                "query_affinity_cooldown",
-                t_key!(
-                    "query-affinity-booster",
-                    "fields.query_affinity_cooldown.label"
-                ),
-                t_key!(
-                    "query-affinity-booster",
-                    "fields.query_affinity_cooldown.desc"
-                ),
-            )
-            .group(t_key!("query-affinity-booster", "groups.cooldown"))
-            .order(2)
-            .default(15.0)
+            .default(500.0)
             .min(1.0)
-            .max(300.0)
+            .max(100000.0)
             .step(1.0)
             .build(),
         ]
@@ -436,8 +414,7 @@ impl ScoreBooster for QueryAffinityBooster {
             self.inner.read().record_query_launch(
                 &normalized,
                 method_text,
-                settings.query_affinity_cooldown as i64,
-                settings.query_affinity_time_decay as i64,
+                settings.query_affinity_event_decay,
             );
         } else {
             error!(
@@ -475,7 +452,7 @@ impl ScoreBooster for QueryAffinityBooster {
             let affinity_score = inner.calculate_query_affinity_score(
                 &normalized,
                 method_text,
-                settings.query_affinity_time_decay as i64,
+                settings.query_affinity_event_decay,
             );
             let boost_value = settings.query_affinity_weight * affinity_score;
             candidate.score += boost_value;
@@ -512,14 +489,12 @@ mod tests {
     use super::*;
 
     /// 构造 inner，向指定 method 记录若干条「完整查询 → 启动」关联
-    ///（直接插记录，绕开时间衰减，聚焦前缀/精确匹配与折减曲线逻辑）。
+    ///（直接插记录，使用极大衰减常数近似免衰减，聚焦前缀/精确匹配与折减曲线逻辑）。
     fn inner_with_records(records: &[(&str, &str)]) -> QueryAffinityBoosterInner {
         let inner = QueryAffinityBoosterInner::new();
-        // 用超大衰减常数近似免衰减（测试内时间差极小，衰减≈1）
-        let time_decay = 3_600_000i64;
-        let cooldown = 0i64;
+        let event_decay = 1e12;
         for (query, method) in records {
-            inner.record_query_launch(query, method, cooldown, time_decay);
+            inner.record_query_launch(query, method, event_decay);
         }
         inner
     }
@@ -531,30 +506,46 @@ mod tests {
     fn exact_match_gives_full_log_score() {
         let inner = inner_with_records(&[("visual studio code", METHOD_A)]);
         // 单次有效记录 → ln(1+1)*10 ≈ 6.93
-        let score = inner.calculate_query_affinity_score("visual studio code", METHOD_A, 3_600_000);
+        let score = inner.calculate_query_affinity_score("visual studio code", METHOD_A, 1e12);
         assert!(
             (score - 1.0f64.ln_1p() * 10.0).abs() < 1e-6,
             "精确命中应得满对数分: {score}"
         );
         // 其他 method 不受影响
         assert_eq!(
-            inner.calculate_query_affinity_score("visual studio code", "other.exe", 3_600_000),
+            inner.calculate_query_affinity_score("visual studio code", "other.exe", 1e12),
             0.0
         );
     }
 
     #[test]
+    fn decay_follows_launch_events_not_wall_clock() {
+        let inner = QueryAffinityBoosterInner::new();
+        inner.record_query_launch("wps", METHOD_A, 100.0);
+        let full = inner.calculate_query_affinity_score("wps", METHOD_A, 100.0);
+
+        // 用无关启动事件推进全局序号，wps 关联应随事件距离衰减。
+        for _ in 0..100 {
+            inner.record_query_launch("other", "other.exe", 100.0);
+        }
+        let decayed = inner.calculate_query_affinity_score("wps", METHOD_A, 100.0);
+
+        assert!(decayed < full, "事件推进后应衰减: {decayed} vs {full}");
+        assert!(decayed > 0.0, "衰减后仍应保留部分亲和: {decayed}");
+    }
+
+    #[test]
     fn prefix_match_gives_saturated_subscore() {
         let inner = inner_with_records(&[("visual studio code", METHOD_A)]);
-        let full = inner.calculate_query_affinity_score("visual studio code", METHOD_A, 3_600_000);
+        let full = inner.calculate_query_affinity_score("visual studio code", METHOD_A, 1e12);
         // 前缀 "visual st"（9/18 字符，ratio=0.5）得 0<分<满分的折减
-        let prefix = inner.calculate_query_affinity_score("visual st", METHOD_A, 3_600_000);
+        let prefix = inner.calculate_query_affinity_score("visual st", METHOD_A, 1e12);
         assert!(
             prefix > 0.0 && prefix < full,
             "前缀分应在 (0, full): {prefix} vs {full}"
         );
         // 单调性：更长前缀（更接近全长）得分更高
-        let longer = inner.calculate_query_affinity_score("visual studio", METHOD_A, 3_600_000);
+        let longer = inner.calculate_query_affinity_score("visual studio", METHOD_A, 1e12);
         assert!(longer > prefix, "更长前缀应更高: {longer} vs {prefix}");
         assert!(longer < full, "前缀分仍应小于精确分: {longer} vs {full}");
     }
@@ -584,14 +575,14 @@ mod tests {
         let inner = inner_with_records(&[("visual", METHOD_A), ("visual studio code", METHOD_A)]);
         // 输入 "vis" 命中两条前缀记录（visual / visual studio code），
         // 应取最长记录 "visual studio code" 作折减基准（ratio=3/18）。
-        let score = inner.calculate_query_affinity_score("vis", METHOD_A, 3_600_000);
+        let score = inner.calculate_query_affinity_score("vis", METHOD_A, 1e12);
         assert!(score > 0.0, "多前缀命中不应落空: {score}");
         // 用更长前缀验证取最长语义：输入 "visual s" 只命中长记录（短记录 "visual"
         // 不含 "visual s" 前缀），得长记录折减分；若实现错取短记录则此处为 0。
-        let long_only = inner.calculate_query_affinity_score("visual s", METHOD_A, 3_600_000);
+        let long_only = inner.calculate_query_affinity_score("visual s", METHOD_A, 1e12);
         assert!(long_only > 0.0, "应命中长记录前缀: {long_only}");
         // 输入 "visual" 精确命中短记录：满分短记录（ln2*10），不受长记录稀释。
-        let exact_short = inner.calculate_query_affinity_score("visual", METHOD_A, 3_600_000);
+        let exact_short = inner.calculate_query_affinity_score("visual", METHOD_A, 1e12);
         assert!((exact_short - 1.0f64.ln_1p() * 10.0).abs() < 1e-6);
     }
 
@@ -599,7 +590,7 @@ mod tests {
     fn single_char_input_gets_no_prefix_score() {
         let inner = inner_with_records(&[("visual studio code", METHOD_A)]);
         assert_eq!(
-            inner.calculate_query_affinity_score("v", METHOD_A, 3_600_000),
+            inner.calculate_query_affinity_score("v", METHOD_A, 1e12),
             0.0,
             "单字符不算前缀意图"
         );
@@ -611,11 +602,11 @@ mod tests {
         //（防回归：record/boost 两侧必须统一归一化）
         let inner = inner_with_records(&[("visual studio code", METHOD_A)]);
         assert_eq!(
-            inner.calculate_query_affinity_score("Visual  Studio Code", METHOD_A, 3_600_000),
+            inner.calculate_query_affinity_score("Visual  Studio Code", METHOD_A, 1e12),
             0.0
         );
         assert_eq!(
-            inner.calculate_query_affinity_score("visual  studio", METHOD_A, 3_600_000),
+            inner.calculate_query_affinity_score("visual  studio", METHOD_A, 1e12),
             0.0
         );
     }

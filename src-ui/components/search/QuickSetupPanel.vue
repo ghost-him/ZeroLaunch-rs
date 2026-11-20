@@ -35,7 +35,7 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, onMounted, ref } from 'vue'
+import { nextTick, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { NButton } from 'naive-ui'
 import DynamicFormField from '../settings/DynamicFormField.vue'
@@ -50,10 +50,6 @@ import { buildFieldConfigs, type FieldConfig } from '../../utils/schemaTypes'
 interface RenderedField extends QuickSetupFieldRef {
   config: FieldConfig
 }
-
-const emit = defineEmits<{
-  (e: 'finished'): void
-}>()
 
 const store = useSearchStore()
 const configStore = useConfigStore()
@@ -136,13 +132,21 @@ async function onFinish() {
   finishing.value = true
   try {
     await store.completeQuickSetup(values.value)
-    emit('finished')
   } catch {
     // 失败原因已由全局错误处理器提示，页面保持打开
   } finally {
     finishing.value = false
   }
 }
+
+/// 宿主键盘的 Enter/Esc 请求：复用按钮的完成逻辑，保留写入失败重试与页面状态。
+watch(
+  () => store.quickSetupFinishRequest,
+  () => {
+    if (loading.value || finishing.value) return
+    void onFinish()
+  },
+)
 
 onMounted(async () => {
   await load()

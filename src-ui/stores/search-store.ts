@@ -253,6 +253,9 @@ export const useSearchStore = defineStore('search', () => {
   /** 快速设置页是否显示：窗口内前端本地页面，无对应后端会话形态（同 excludeChooser）。 */
   const quickSetupVisible = ref(false)
 
+  /** 宿主键盘请求完成快速设置的计数器：页面监听后复用按钮的完成逻辑。 */
+  const quickSetupFinishRequest = ref(0)
+
   /** 配置写入链：整组件覆盖式提交必须串行，避免并发读-改-写互相覆盖。 */
   let configWriteChain: Promise<void> = Promise.resolve()
 
@@ -284,6 +287,11 @@ export const useSearchStore = defineStore('search', () => {
       const current = (await configGetSettings(componentId)) as Record<string, unknown> | null
       await configApplySettings(componentId, { ...(current ?? {}), [key]: value })
     })
+  }
+
+  /** 请求快速设置页执行「开始使用」：键盘绑定只发请求，页面复用现有写入与错误处理。 */
+  function requestQuickSetupFinish(): void {
+    quickSetupFinishRequest.value++
   }
 
   /// 完成快速设置：把页面当前值合并写入各组件（重试此前失败的写入），
@@ -939,7 +947,8 @@ export const useSearchStore = defineStore('search', () => {
     doQuery, doConfirm, selectNext, selectPrev,
     refreshCandidates, fetchHomeSetting, hideWindow, updatePluginMeta,
     // 快速设置页（首次启动引导）
-    quickSetupVisible, initQuickSetup, writeQuickSetupField, completeQuickSetup,
+    quickSetupVisible, quickSetupFinishRequest, initQuickSetup, writeQuickSetupField,
+    requestQuickSetupFinish, completeQuickSetup,
     // 本次更新页（升级后引导）
     updateNotesVisible, updateNotes, initUpdateNotes, dismissUpdateNotes,
     // 行内参数模式

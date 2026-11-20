@@ -172,9 +172,15 @@ export function dispatchKeyDown(e: KeyboardEvent, store: SearchStore, opts: KeyO
   if (isSystemReserved(e)) return
 
   // 快速设置页（首次启动引导）为整页本地态：独占键盘，不进列表语义分发
-  //（否则 Enter 会启动候选、方向键会移动选中项）；仅 Escape 隐藏窗口。
+  //（否则 Enter 会启动候选、方向键会移动选中项）；Esc/Enter 完成引导。
   if (store.quickSetupVisible) {
     dispatchHost(e, store, opts, 'quick_setup')
+    return
+  }
+
+  // 本次更新页：整页本地态，Esc/Enter 关闭并记录已读，不进列表语义分发。
+  if (store.updateNotesVisible) {
+    dispatchHost(e, store, opts, 'update_notes')
     return
   }
 

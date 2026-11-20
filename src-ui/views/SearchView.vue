@@ -15,12 +15,10 @@
     <template v-else>
       <QuickSetupPanel
         v-if="searchStore.quickSetupVisible"
-        @finished="onQuickSetupFinished"
       />
 
       <UpdateNotesPanel
         v-else-if="searchStore.updateNotesVisible"
-        @dismissed="onUpdateNotesDismissed"
       />
 
       <template v-else>
@@ -76,7 +74,7 @@
 
 <script setup lang="ts">
 import { provide, ref, nextTick, h } from 'vue'
-import { onMounted, onUnmounted } from 'vue'
+import { onMounted, onUnmounted, watch } from 'vue'
 import { useNotification, useMessage, NButton } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import WindowFrame from '../components/layout/WindowFrame.vue'
@@ -145,23 +143,29 @@ function onCtxClose() {
   })
 }
 
-/// 快速设置完成：页面已被 store 关闭，回到搜索态并恢复输入焦点（窗口保持显示）。
-async function onQuickSetupFinished() {
-  await nextTick()
-  searchBarRef.value?.focusInput()
-  if (searchStore.query === '' && searchStore.sessionMode === 'none') {
-    searchStore.doQuery('')
-  }
+/// 整页引导关闭后回到搜索栏：恢复输入焦点；空查询且无会话时加载主页候选。
+function returnToSearch() {
+  nextTick(() => {
+    searchBarRef.value?.focusInput()
+    if (searchStore.query === '' && searchStore.sessionMode === 'none') {
+      searchStore.doQuery('')
+    }
+  })
 }
 
-/// 本次更新页关闭：回到搜索态并恢复输入焦点（窗口保持显示）。
-async function onUpdateNotesDismissed() {
-  await nextTick()
-  searchBarRef.value?.focusInput()
-  if (searchStore.query === '' && searchStore.sessionMode === 'none') {
-    searchStore.doQuery('')
-  }
-}
+// 快速设置 / 更新说明页无论用按钮还是 Esc/Enter 关闭，都由可见状态统一归还搜索栏焦点。
+watch(
+  () => searchStore.quickSetupVisible,
+  (visible, previous) => {
+    if (previous && !visible) returnToSearch()
+  },
+)
+watch(
+  () => searchStore.updateNotesVisible,
+  (visible, previous) => {
+    if (previous && !visible) returnToSearch()
+  },
+)
 
 let unlistenConfig: (() => void) | null = null
 let unlistenShowWindow: (() => void) | null = null
@@ -229,7 +233,8 @@ onMounted(async () => {
     ctxVisible.value = false
     // 隐藏方式选择面板：隐藏期间会话已复位，面板持有的候选项与缓存世代均已过期
     searchStore.closeExcludeChooser()
-    // 快速设置页 / 更新内容页整页接管：不恢复搜索栏焦点、不发起空查询，页面自行持有键盘。
+    // 快速设置页 / 更新内容页整页接管：不恢复搜索栏焦点、不发起空查询；
+    // 两页的 Esc/Enter 由整页宿主面板解释，关闭后由可见状态 watcher 归还焦点。
     if (searchStore.quickSetupVisible || searchStore.updateNotesVisible) return
     nextTick(() => {
       searchBarRef.value?.focusInput()

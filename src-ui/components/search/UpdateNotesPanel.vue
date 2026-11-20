@@ -92,8 +92,6 @@ const InlineText = defineComponent({
 const store = useSearchStore()
 const { t } = useI18n()
 
-const emit = defineEmits<{ (e: 'dismissed'): void }>()
-
 const rootRef = ref<HTMLElement | null>(null)
 const notes = computed(() => store.updateNotes)
 const versions = computed(() => notes.value?.versions ?? [])
@@ -168,7 +166,6 @@ function parseSummary(markdown: string): SummaryBlock[] {
 /// 关闭页面并落已读版本：之后不再自动显示本次更新内容。
 async function onDismiss() {
   await store.dismissUpdateNotes()
-  emit('dismissed')
 }
 
 onMounted(async () => {

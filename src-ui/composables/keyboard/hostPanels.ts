@@ -1,7 +1,13 @@
 import type { SearchStore } from '@/stores/search-store'
 import type { HostKeyBinding, KeyIntent } from './types'
 
-export type HostPanelId = 'default_search' | 'inline_param' | 'param_panel' | 'exclude_chooser' | 'quick_setup'
+export type HostPanelId =
+  | 'default_search'
+  | 'inline_param'
+  | 'param_panel'
+  | 'exclude_chooser'
+  | 'quick_setup'
+  | 'update_notes'
 
 /// 向下移动选中项意图（方向键与配置键共用语义）。
 export function moveDownIntent(_e: KeyboardEvent, store: SearchStore): KeyIntent {
@@ -38,12 +44,42 @@ function quickAction(e: KeyboardEvent, store: SearchStore): KeyIntent | null {
   return { kind: 'local', run: () => store.doConfirm(undefined, action.id) }
 }
 
+/// Enter 是否应交给当前焦点控件（按钮激活、下拉展开等），避免整页快捷键抢走原生行为。
+function enterHandledByControl(e: KeyboardEvent): boolean {
+  const target = e.target
+  return (
+    target instanceof Element &&
+    target.closest('button, a, input, select, textarea, [role="button"], [role="switch"], [role="combobox"]') !== null
+  )
+}
+
 export const hostPanels: Record<HostPanelId, { bindings: HostKeyBinding[] }> = {
-  // 快速设置页（首次启动引导）：整页本地态，独占键盘 —— 仅解释 Escape（隐藏窗口，
-  // 引导未完成故下次唤出仍显示），其余按键放行给页面内的原生控件与焦点导航。
+  // 快速设置页（首次启动引导）：整页本地态，独占键盘 —— Esc/Enter 完成引导并回到搜索栏；
+  // Enter 落在原生控件上时交还控件处理（按钮激活、下拉展开）。
   quick_setup: {
     bindings: [
-      { key: 'Escape', handler: () => ({ kind: 'hide' }) },
+      { key: 'Escape', handler: (_e, store) => ({ kind: 'local', run: () => store.requestQuickSetupFinish() }) },
+      {
+        key: 'Enter',
+        handler: (e, store) =>
+          enterHandledByControl(e)
+            ? null
+            : { kind: 'local', run: () => store.requestQuickSetupFinish() },
+      },
+    ],
+  },
+
+  // 本次更新页：Esc/Enter 关闭页面并记录已读；Enter 在关闭按钮上时走原生点击。
+  update_notes: {
+    bindings: [
+      { key: 'Escape', handler: (_e, store) => ({ kind: 'local', run: () => { void store.dismissUpdateNotes() } }) },
+      {
+        key: 'Enter',
+        handler: (e, store) =>
+          enterHandledByControl(e)
+            ? null
+            : { kind: 'local', run: () => { void store.dismissUpdateNotes() } },
+      },
     ],
   },
 

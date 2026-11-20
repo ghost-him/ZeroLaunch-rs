@@ -1193,7 +1193,7 @@
         "bookmarks_path": {
           "label": "书签文件路径",
           "desc": "书签文件路径（自动检测填入，不能手改）",
-          "note": "只支持 Chrome/Edge 这类 Bookmarks JSON 文件，不支持 Firefox 的 places.sqlite"
+          "note": "支持 Chrome/Edge 等浏览器的 Bookmarks JSON 与 Firefox 的 places.sqlite"
         },
         "enabled": {
           "label": "启用",

@@ -123,6 +123,7 @@ once_cell.workspace = true
  sha2.workspace = true
 bincode-next.workspace = true
 zip.workspace = true
+rusqlite.workspace = true
 whoami.workspace = true
 blake3.workspace = true
 uiautomation.workspace = true

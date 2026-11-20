@@ -1193,7 +1193,7 @@
         "bookmarks_path": {
           "label": "書籤檔案路徑",
           "desc": "書籤檔案路徑（自動檢測填入，無法手動修改）",
-          "note": "只支援 Chrome/Edge 這類 Bookmarks JSON 檔案，不支援 Firefox 的 places.sqlite"
+          "note": "支援 Chrome/Edge 等瀏覽器的 Bookmarks JSON 與 Firefox 的 places.sqlite"
         },
         "enabled": {
           "label": "啟用",

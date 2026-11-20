@@ -1193,7 +1193,7 @@
         "bookmarks_path": {
           "label": "Bookmark file path",
           "desc": "Bookmark file path (filled by auto-detect, cannot be edited)",
-          "note": "Only Bookmarks JSON files such as Chrome/Edge are supported; Firefox's places.sqlite is not"
+          "note": "Supports Chrome/Edge-style Bookmarks JSON and Firefox's places.sqlite"
         },
         "enabled": {
           "label": "Enabled",

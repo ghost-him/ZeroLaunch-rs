@@ -1,11 +1,13 @@
 use crate::core::config::setting_builders::SchemaBuilder;
 use async_trait::async_trait;
 use parking_lot::RwLock;
+use rusqlite::{Connection, OpenFlags};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::Duration;
 use tracing::{info, warn};
 use zerolaunch_plugin_api::config::{
     ComponentCore, ComponentType, ConfigActionDef, ConfigError, Configurable, DataActionBinding,
@@ -140,6 +142,15 @@ impl BookmarkSource {
             return Err("Bookmarks file not found".to_string());
         }
 
+        // Firefox 书签库是 SQLite 数据库，按文件名分流到独立读取路径。
+        if path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| name.eq_ignore_ascii_case("places.sqlite"))
+        {
+            return Self::read_firefox_bookmarks(&path);
+        }
+
         let content = match fs::read_to_string(&path) {
             Ok(c) => c,
             Err(_) => {
@@ -193,18 +204,91 @@ impl BookmarkSource {
         }
     }
 
-    /// 自动检测系统已安装的浏览器书签路径
+    /// 读取 Firefox 书签库（places.sqlite）中的全部书签。
+    /// 先尝试只读直连；数据库被浏览器占用无法打开时，把数据库连同 WAL/SHM 复制到临时目录再读。
+    /// 入参 places_path 为 places.sqlite 路径，返回书签列表，失败返回错误描述。
+    fn read_firefox_bookmarks(places_path: &Path) -> Result<Vec<Bookmark>, String> {
+        match Self::query_firefox_bookmarks(places_path) {
+            Ok(bookmarks) => Ok(bookmarks),
+            Err(direct_error) => {
+                let temp_dir =
+                    tempfile::tempdir().map_err(|e| format!("创建临时目录失败: {}", e))?;
+                let copy_path = temp_dir.path().join("places.sqlite");
+                fs::copy(places_path, &copy_path).map_err(|e| {
+                    format!(
+                        "复制 places.sqlite 失败: {}（直连读取错误: {}）",
+                        e, direct_error
+                    )
+                })?;
+
+                // WAL 中的未检查点数据也要带上，否则副本可能缺少最近添加的书签。
+                for suffix in ["-wal", "-shm"] {
+                    let mut source = places_path.as_os_str().to_os_string();
+                    source.push(suffix);
+                    let source = PathBuf::from(source);
+                    if source.exists() {
+                        let mut target = copy_path.as_os_str().to_os_string();
+                        target.push(suffix);
+                        let _ = fs::copy(&source, PathBuf::from(target));
+                    }
+                }
+
+                Self::query_firefox_bookmarks(&copy_path)
+            }
+        }
+    }
+
+    /// 以只读连接查询 places.sqlite，返回全部网址书签（moz_bookmarks.type = 1）。
+    /// 标题为空时回退为 URL；无标题且无 URL 的占位书签由 SQL 过滤掉。
+    fn query_firefox_bookmarks(places_path: &Path) -> Result<Vec<Bookmark>, String> {
+        let conn = Connection::open_with_flags(places_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
+            .map_err(|e| format!("打开 places.sqlite 失败: {}", e))?;
+        let _ = conn.busy_timeout(Duration::from_millis(1500));
+
+        let mut stmt = conn
+            .prepare(
+                "SELECT COALESCE(NULLIF(TRIM(b.title), ''), p.url), p.url \
+                 FROM moz_bookmarks b JOIN moz_places p ON p.id = b.fk \
+                 WHERE b.type = 1 AND p.url IS NOT NULL AND p.url <> '' \
+                 ORDER BY b.parent, b.position",
+            )
+            .map_err(|e| format!("查询 Firefox 书签失败: {}", e))?;
+
+        let rows = stmt
+            .query_map([], |row| {
+                let title: String = row.get(0)?;
+                let url: String = row.get(1)?;
+                Ok(Bookmark { title, url })
+            })
+            .map_err(|e| format!("读取 Firefox 书签失败: {}", e))?;
+
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(|e| format!("解析 Firefox 书签行失败: {}", e))
+    }
+
+    /// 自动检测系统已安装的浏览器书签路径。
+    /// Chromium 系扫描 %LOCALAPPDATA% 的 User Data 目录；Firefox 扫描 %APPDATA% 的配置目录。
     pub fn detect_installed_browsers() -> Vec<BrowserInfo> {
         let mut browsers = Vec::new();
+
+        // 书签源投影的唯一构造入口：显示名格式与路径字段只在这里拼装。
+        let push_source = |browsers: &mut Vec<BrowserInfo>,
+                           browser_name: &str,
+                           profile_name: &str,
+                           bookmarks: &Path| {
+            browsers.push(BrowserInfo {
+                name: format!("{} ({})", browser_name, profile_name),
+                bookmarks_path: bookmarks.to_string_lossy().to_string(),
+            });
+        };
+
         let local_app_data = std::env::var("LOCALAPPDATA").unwrap_or_default();
-        if local_app_data.is_empty() {
-            return browsers;
-        }
+        if !local_app_data.is_empty() {
+            let base_path = PathBuf::from(&local_app_data);
 
-        let base_path = PathBuf::from(&local_app_data);
-
-        let find_profiles =
-            |browsers: &mut Vec<BrowserInfo>, browser_name: String, user_data_path: PathBuf| {
+            let find_profiles = |browsers: &mut Vec<BrowserInfo>,
+                                 browser_name: String,
+                                 user_data_path: PathBuf| {
                 if let Ok(entries) = fs::read_dir(&user_data_path) {
                     for entry in entries.flatten() {
                         let path = entry.path();
@@ -212,46 +296,61 @@ impl BookmarkSource {
                             let bookmarks = path.join("Bookmarks");
                             if bookmarks.exists() {
                                 let profile_name = entry.file_name().to_string_lossy().to_string();
-                                let display_name = format!("{} ({})", browser_name, profile_name);
-                                browsers.push(BrowserInfo {
-                                    name: display_name,
-                                    bookmarks_path: bookmarks.to_string_lossy().to_string(),
-                                });
+                                push_source(browsers, &browser_name, &profile_name, &bookmarks);
                             }
                         }
                     }
                 }
             };
 
-        if let Ok(entries) = fs::read_dir(&base_path) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if !path.is_dir() {
-                    continue;
-                }
+            if let Ok(entries) = fs::read_dir(&base_path) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if !path.is_dir() {
+                        continue;
+                    }
 
-                let name = entry.file_name().to_string_lossy().to_string();
+                    let name = entry.file_name().to_string_lossy().to_string();
 
-                // Depth 1: %LOCALAPPDATA%/<Browser>/User Data
-                let user_data = path.join("User Data");
-                if user_data.is_dir() {
-                    find_profiles(&mut browsers, name.clone(), user_data);
-                }
+                    // Depth 1: %LOCALAPPDATA%/<Browser>/User Data
+                    let user_data = path.join("User Data");
+                    if user_data.is_dir() {
+                        find_profiles(&mut browsers, name.clone(), user_data);
+                    }
 
-                // Depth 2: %LOCALAPPDATA%/<Vendor>/<Browser>/User Data
-                if let Ok(sub_entries) = fs::read_dir(&path) {
-                    for sub_entry in sub_entries.flatten() {
-                        let sub_path = sub_entry.path();
-                        if !sub_path.is_dir() {
-                            continue;
+                    // Depth 2: %LOCALAPPDATA%/<Vendor>/<Browser>/User Data
+                    if let Ok(sub_entries) = fs::read_dir(&path) {
+                        for sub_entry in sub_entries.flatten() {
+                            let sub_path = sub_entry.path();
+                            if !sub_path.is_dir() {
+                                continue;
+                            }
+
+                            let sub_user_data = sub_path.join("User Data");
+                            if sub_user_data.is_dir() {
+                                let sub_name = sub_entry.file_name().to_string_lossy().to_string();
+                                let full_name = format!("{} {}", name, sub_name);
+                                find_profiles(&mut browsers, full_name, sub_user_data);
+                            }
                         }
+                    }
+                }
+            }
+        }
 
-                        let sub_user_data = sub_path.join("User Data");
-                        if sub_user_data.is_dir() {
-                            let sub_name = sub_entry.file_name().to_string_lossy().to_string();
-                            let full_name = format!("{} {}", name, sub_name);
-                            find_profiles(&mut browsers, full_name, sub_user_data);
-                        }
+        // Firefox 的每个配置目录都是一个独立书签源，书签存于 places.sqlite。
+        if let Ok(app_data) = std::env::var("APPDATA") {
+            let profiles_dir = PathBuf::from(app_data)
+                .join("Mozilla")
+                .join("Firefox")
+                .join("Profiles");
+            if let Ok(entries) = fs::read_dir(&profiles_dir) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    let places = path.join("places.sqlite");
+                    if path.is_dir() && places.exists() {
+                        let profile_name = entry.file_name().to_string_lossy().to_string();
+                        push_source(&mut browsers, "Firefox", &profile_name, &places);
                     }
                 }
             }

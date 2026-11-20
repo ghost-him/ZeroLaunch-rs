@@ -38,6 +38,7 @@ time = "0.3"
 walkdir = "2.5.0"
 zip = "8.6.0"
 regex = "1.12.4"
+rusqlite = { version = "0.43", features = ["bundled"] }
 ini = "2"
 fontdb = "0.24"
 image = "0.25.10"

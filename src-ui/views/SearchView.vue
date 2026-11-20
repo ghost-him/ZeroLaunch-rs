@@ -18,6 +18,11 @@
         @finished="onQuickSetupFinished"
       />
 
+      <UpdateNotesPanel
+        v-else-if="searchStore.updateNotesVisible"
+        @dismissed="onUpdateNotesDismissed"
+      />
+
       <template v-else>
         <SearchBar v-if="searchStore.sessionMode !== 'plugin_immersive'" ref="searchBarRef" @contextmenu="onShowCtxMenu" />
 
@@ -88,6 +93,7 @@ import { useWindowResize } from '../composables/useWindowResize'
 import ParamPanel from '../components/search/ParamPanel.vue'
 import ExcludeChooserPanel from '../components/search/ExcludeChooserPanel.vue'
 import QuickSetupPanel from '../components/search/QuickSetupPanel.vue'
+import UpdateNotesPanel from '../components/search/UpdateNotesPanel.vue'
 import { onCandidatesReady, onConfigChanged, onShowWindow } from '../bridge/events'
 import { registerErrorHandler, configGetSettings, copyToClipboard } from '../bridge/commands'
 import type { BridgeError } from '../bridge/commands'
@@ -148,6 +154,15 @@ async function onQuickSetupFinished() {
   }
 }
 
+/// 本次更新页关闭：回到搜索态并恢复输入焦点（窗口保持显示）。
+async function onUpdateNotesDismissed() {
+  await nextTick()
+  searchBarRef.value?.focusInput()
+  if (searchStore.query === '' && searchStore.sessionMode === 'none') {
+    searchStore.doQuery('')
+  }
+}
+
 let unlistenConfig: (() => void) | null = null
 let unlistenShowWindow: (() => void) | null = null
 let unlistenCandidatesReady: (() => void) | null = null
@@ -181,6 +196,7 @@ onMounted(async () => {
 
   searchStore.fetchHomeSetting()
   await searchStore.initQuickSetup()
+  await searchStore.initUpdateNotes()
   await loadDragSetting()
 
   unlistenConfig = await onConfigChanged((payload) => {
@@ -213,8 +229,8 @@ onMounted(async () => {
     ctxVisible.value = false
     // 隐藏方式选择面板：隐藏期间会话已复位，面板持有的候选项与缓存世代均已过期
     searchStore.closeExcludeChooser()
-    // 快速设置页整页接管：不恢复搜索栏焦点、不发起空查询，页面自行持有键盘。
-    if (searchStore.quickSetupVisible) return
+    // 快速设置页 / 更新内容页整页接管：不恢复搜索栏焦点、不发起空查询，页面自行持有键盘。
+    if (searchStore.quickSetupVisible || searchStore.updateNotesVisible) return
     nextTick(() => {
       searchBarRef.value?.focusInput()
     })
@@ -229,8 +245,8 @@ onMounted(async () => {
   // 启动预热在后台完成：此前建立的会话可能命中空缓存（无结果/空主页），
   // 缓存就绪后重放当前输入；插件会话由插件自身节奏驱动，不在此打扰。
   unlistenCandidatesReady = await onCandidatesReady(() => {
-    // 快速设置页显示期间不重放查询：页面不依赖候选列表。
-    if (searchStore.quickSetupVisible) return
+    // 快速设置页 / 更新内容页显示期间不重放查询：页面不依赖候选列表。
+    if (searchStore.quickSetupVisible || searchStore.updateNotesVisible) return
     if (searchStore.sessionMode === 'search' || searchStore.sessionMode === 'none') {
       searchStore.doQuery(searchStore.query)
     }

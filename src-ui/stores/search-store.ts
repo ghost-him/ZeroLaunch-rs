@@ -3,7 +3,7 @@ import { ref, computed, watch } from 'vue'
 import {
   bridgeQuery, bridgeConfirm,
   bridgeRefreshCandidates, bridgeExcludeOptions, bridgeExcludeCandidate,
-  bridgeHideWindow, configGetSettings, configApplySettings,
+  bridgeHideWindow, configGetSettings, configApplySettings, getUpdateNotes, type UpdateNotes,
 } from '../bridge/commands'
 import type { ListItem, ResultAction, BridgeQueryResponse, ConfirmResponse, PanelInteraction, SessionStateEvent, ExcludeOptions, ExclusionKind } from '../bridge/contract'
 import { onIconUpdated, onSessionState } from '../bridge/events'
@@ -253,8 +253,15 @@ export const useSearchStore = defineStore('search', () => {
   /** 快速设置页是否显示：窗口内前端本地页面，无对应后端会话形态（同 excludeChooser）。 */
   const quickSetupVisible = ref(false)
 
-  /** 快速设置字段写入链：整组件覆盖式提交必须串行，避免并发读-改-写互相覆盖。 */
-  let quickSetupWriteChain: Promise<void> = Promise.resolve()
+  /** 配置写入链：整组件覆盖式提交必须串行，避免并发读-改-写互相覆盖。 */
+  let configWriteChain: Promise<void> = Promise.resolve()
+
+  /// 在写链上排队执行一次配置写入：失败不阻断后续任务（错误仍抛给调用方）。
+  function enqueueConfigWrite<T>(task: () => Promise<T>): Promise<T> {
+    const run = configWriteChain.then(task)
+    configWriteChain = run.then(() => undefined, () => undefined)
+    return run
+  }
 
   /// 读取引导标记：未完成时打开快速设置页（窗口由后端在首次启动时唤出）。
   /// 读取失败按已完成处理，避免异常情况下每次唤出都被引导页挡住。
@@ -273,20 +280,17 @@ export const useSearchStore = defineStore('search', () => {
   /// 参数：componentId - 组件 id；key - 字段键；value - 新值。
   /// 返回：本次写入完成的 Promise（失败抛出，由调用方回滚展示值）。
   function writeQuickSetupField(componentId: string, key: string, value: unknown): Promise<void> {
-    const task = quickSetupWriteChain.then(async () => {
+    return enqueueConfigWrite(async () => {
       const current = (await configGetSettings(componentId)) as Record<string, unknown> | null
       await configApplySettings(componentId, { ...(current ?? {}), [key]: value })
     })
-    // 链上单次失败不阻断后续写入（失败本身仍抛给调用方）
-    quickSetupWriteChain = task.catch(() => {})
-    return task
   }
 
   /// 完成快速设置：把页面当前值合并写入各组件（重试此前失败的写入），
   /// 成功后置引导标记并关闭页面；任一步失败抛出，页面保持打开供重试。
   /// 参数：values - componentId → 该组件要写入的字段值。
   async function completeQuickSetup(values: Record<string, Record<string, unknown>>): Promise<void> {
-    await quickSetupWriteChain
+    await configWriteChain
     let generalMerged: Record<string, unknown> | null = null
     for (const [componentId, patch] of Object.entries(values)) {
       const current = (await configGetSettings(componentId)) as Record<string, unknown> | null
@@ -304,6 +308,55 @@ export const useSearchStore = defineStore('search', () => {
       {}
     await configApplySettings('general-config', { ...general, is_quick_setup_done: true })
     quickSetupVisible.value = false
+  }
+
+  // ---- 本次更新页（升级后引导） ----
+
+  /** 更新内容页是否显示：整页独占，与快速设置页互斥（快速设置优先）。 */
+  const updateNotesVisible = ref(false)
+
+  /** 待展示的更新内容；`null` 表示未加载或无内容。 */
+  const updateNotes = ref<UpdateNotes | null>(null)
+
+  /// 合并写入 general-config 的若干字段：在写链上读最新值后合并，避免覆盖其它字段。
+  function queueGeneralPatch(patch: Record<string, unknown>): Promise<void> {
+    return enqueueConfigWrite(async () => {
+      const current = (await configGetSettings('general-config')) as Record<string, unknown> | null
+      await configApplySettings('general-config', { ...(current ?? {}), ...patch })
+    })
+  }
+
+  /// 读取本次更新内容：首次运行只记录当前版本不弹页；升级后展示区间条目。
+  /// 快速设置页显示期间不抢占页面，直接记录版本（下次升级再看更新内容）。
+  async function initUpdateNotes() {
+    try {
+      const notes = await getUpdateNotes()
+      const changed = notes.lastVersion !== notes.currentVersion
+      const shouldShow =
+        changed && notes.lastVersion !== null && notes.versions.length > 0 && !quickSetupVisible.value
+      if (!shouldShow) {
+        // 首次运行 / 无可展示内容 / 快速设置优先：直接落当前版本，避免每次启动重复判断。
+        if (changed) await queueGeneralPatch({ last_run_version: notes.currentVersion })
+        return
+      }
+      updateNotes.value = notes
+      updateNotesVisible.value = true
+    } catch (e) {
+      console.warn('[search-store] 读取更新内容失败:', e)
+    }
+  }
+
+  /// 关闭更新页并记录已读版本；写入失败下次启动会再次展示（可接受）。
+  async function dismissUpdateNotes() {
+    updateNotesVisible.value = false
+    const current = updateNotes.value?.currentVersion
+    updateNotes.value = null
+    if (!current) return
+    try {
+      await queueGeneralPatch({ last_run_version: current })
+    } catch (e) {
+      console.warn('[search-store] 记录已读版本失败:', e)
+    }
   }
 
   async function doQuery(raw: string, confirm = false) {
@@ -880,6 +933,8 @@ export const useSearchStore = defineStore('search', () => {
     refreshCandidates, fetchHomeSetting, hideWindow, updatePluginMeta,
     // 快速设置页（首次启动引导）
     quickSetupVisible, initQuickSetup, writeQuickSetupField, completeQuickSetup,
+    // 本次更新页（升级后引导）
+    updateNotesVisible, updateNotes, initUpdateNotes, dismissUpdateNotes,
     // 行内参数模式
     exitInlineParamMode, confirmInlineParam,
     // 参数面板模式

@@ -4,6 +4,10 @@
 //! 检查不走 `api.github.com`（匿名额度常被打空返回 403）：直接请求
 //! `releases/latest`，禁用重定向后从 `Location` 里取 tag。
 
+pub mod notes;
+
+pub use notes::{collect as collect_update_notes, UpdateNotes};
+
 use std::sync::Arc;
 use std::time::Duration;
 

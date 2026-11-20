@@ -9,7 +9,7 @@ use tauri::State;
 
 use crate::commands::bridge_error::BridgeError;
 use crate::state::app_state::AppState;
-use crate::updater::{check_and_sync, UpdateStatus};
+use crate::updater::{check_and_sync, collect_update_notes, UpdateNotes, UpdateStatus};
 use crate::utils::trace_id::generate_trace_id;
 
 /// 主动检查是否有新版本（设置页「检查更新」按钮）。
@@ -24,6 +24,33 @@ pub async fn update_check(state: State<'_, Arc<AppState>>) -> Result<UpdateStatu
     tracing::Span::current().record("trace_id", trace_id.as_str());
 
     Ok(check_and_sync(&state, false).await)
+}
+
+/// 读取「本次更新」内容（构建期内嵌，无网络请求）。
+///
+/// 参数：`state` —— 应用状态，用于读取上次运行版本。
+/// 返回：当前版本、上次运行版本与二者之间的条目；首次运行或记录为空时
+/// `last_version` 为 None，前端据此不展示更新页。
+/// 本命令只读；已读版本由前端在展示后写回配置。
+#[tauri::command]
+#[tracing::instrument(skip(state), fields(trace_id))]
+pub fn update_get_notes(state: State<'_, Arc<AppState>>) -> Result<UpdateNotes, BridgeError> {
+    let trace_id = generate_trace_id();
+    tracing::Span::current().record("trace_id", trace_id.as_str());
+
+    let last_version = state
+        .get_config_manager()
+        .get_component_setting("general-config", "last_run_version")
+        .and_then(|value| value.as_str().map(str::to_string))
+        .filter(|value| !value.trim().is_empty());
+    let current_version = env!("CARGO_PKG_VERSION").to_string();
+    let versions = collect_update_notes(last_version.as_deref(), &current_version);
+
+    Ok(UpdateNotes {
+        current_version,
+        last_version,
+        versions,
+    })
 }
 
 /// 读取最近一次检查结果（不发起网络请求）。

@@ -560,6 +560,35 @@ export function getUpdateStatus(): Promise<UpdateStatus> {
   return invokeCommand<UpdateStatus>('update_get_status')
 }
 
+/** 单个版本的结构化更新内容（`update_get_notes` 返回体的一部分，编译期内嵌）。 */
+export interface VersionNotes {
+  /** 版本号（不含 `v` 前缀）。 */
+  version: string
+  /** 发布日期（`YYYY-MM-DD`）；历史条目缺失时为空串。 */
+  releasedAt: string
+  /** AI 摘要正文（Markdown 子集：段落、无序列表、引用、行内加粗与代码）。 */
+  summary: string
+  /** 按类型分类的变更条目；无分类时为空数组。 */
+  sections: { title: string; items: string[] }[]
+  /** 与上一版本的 compare 链接；缺失时为空串。 */
+  compareUrl: string
+}
+
+/** `update_get_notes` 返回体：当前版本、上次运行版本与二者之间的条目。 */
+export interface UpdateNotes {
+  /** 当前运行版本（不含 `v` 前缀）。 */
+  currentVersion: string
+  /** 上次运行版本；`null` 表示首次运行或记录无法解析（此时不展示更新页）。 */
+  lastVersion: string | null
+  /** `(lastVersion, currentVersion]` 区间内的条目，按版本升序。 */
+  versions: VersionNotes[]
+}
+
+/** 读取构建期内嵌的本次更新内容（无网络请求）。 */
+export function getUpdateNotes(): Promise<UpdateNotes> {
+  return invokeCommand<UpdateNotes>('update_get_notes')
+}
+
 // ---- 图标总览页 ----
 
 /** 图标总览页单条数据。 */

@@ -56,6 +56,13 @@
       "hint": "按 {hotkey} 隨時喚出 · 完成後不再自動顯示本頁",
       "openSettings": "開啟完整設定",
       "done": "開始使用"
+    },
+    "updateNotes": {
+      "title": "本次更新",
+      "desc": "從 v{from} 升級到 v{to}，以下是這期間的更新內容",
+      "viewFull": "查看完整更新記錄",
+      "hint": "關閉後不再自動顯示本次更新",
+      "dismiss": "知道了"
     }
   },
   "translator": {

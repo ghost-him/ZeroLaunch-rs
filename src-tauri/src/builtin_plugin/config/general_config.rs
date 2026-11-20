@@ -36,6 +36,11 @@ pub struct GeneralSettings {
     /// 属于一次性界面状态而非用户可配项，schema 以 visible(false) 隐藏。
     #[serde(rename = "is_quick_setup_done", default)]
     pub is_quick_setup_done: bool,
+    /// 上次运行的程序版本（不含 `v` 前缀）：用于判定升级后是否展示「本次更新」页。
+    /// 空串表示从未记录（首次运行），此时只记录当前版本、不展示更新内容。
+    /// 由前端启动流程在读完后写回，schema 以 visible(false) 隐藏。
+    #[serde(rename = "last_run_version", default)]
+    pub last_run_version: String,
 }
 
 impl Default for GeneralSettings {
@@ -49,6 +54,7 @@ impl Default for GeneralSettings {
             language: default_language(),
             enable_cli_server: true,
             is_quick_setup_done: false,
+            last_run_version: String::new(),
         }
     }
 }
@@ -188,6 +194,17 @@ impl Configurable for GeneralConfigComponent {
             .order(7)
             .visible(false)
             .default(false)
+            .build(),
+            // 一次性界面状态：记录上次运行版本，用于升级后展示更新内容，不在设置页显示。
+            SchemaBuilder::text(
+                "last_run_version",
+                t_key!("general-config", "fields.last_run_version.label"),
+                t_key!("general-config", "fields.last_run_version.desc"),
+            )
+            .group(t_key!("general-config", "groups.general"))
+            .order(8)
+            .visible(false)
+            .default("")
             .build(),
         ]
     }

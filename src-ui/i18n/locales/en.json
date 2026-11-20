@@ -56,6 +56,13 @@
       "hint": "Press {hotkey} to open anytime · this page won't show again after you finish",
       "openSettings": "Open full settings",
       "done": "Get started"
+    },
+    "updateNotes": {
+      "title": "What's new",
+      "desc": "Updated from v{from} to v{to}. Here's what changed in between",
+      "viewFull": "View full changelog",
+      "hint": "This page won't show again after you close it",
+      "dismiss": "Got it"
     }
   },
   "translator": {

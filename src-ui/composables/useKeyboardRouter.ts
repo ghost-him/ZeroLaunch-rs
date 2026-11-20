@@ -87,8 +87,8 @@ export function useKeyboardRouter() {
       moveDownKey: wb?.move_down_key ?? 'Ctrl+J',
     }
 
-    // 快速设置页（整页本地态）打开时独占键盘：先于插件热键，避免热键切走会话。
-    if (store.quickSetupVisible) {
+    // 快速设置页 / 更新内容页（整页本地态）打开时独占键盘：先于插件热键，避免热键切走会话。
+    if (store.quickSetupVisible || store.updateNotesVisible) {
       dispatchKeyDown(e, store, opts)
       return
     }

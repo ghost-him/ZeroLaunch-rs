@@ -54,3 +54,7 @@ tmp_resultlist_repro.html
 
 # 使用手册快照：权威在 ZeroLaunch-rs.wiki 仓库，构建前用 xtask sync-wiki 生成
 /src-tauri/assets/wiki/
+
+# 发版流水线在仓库根生成的更新内容副本与上一版中间文件（真实内容只存在于 CI 工作区）
+/updates.json
+/prev_updates.json

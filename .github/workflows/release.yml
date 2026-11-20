@@ -94,6 +94,305 @@ jobs:
           echo "Version: $tag"
           echo "Release Title: $releaseTitle"
 
+      # ==========================================
+      # Release Notes 生成
+      # 1) 计算上一个 tag，用于生成 compare 链接
+      # 2) mikepenz changelog builder：按 commit 前缀分类，作者 @ 由 GitHub API 解析
+      # 3) DeepSeek（OpenAI 兼容）生成中文更新摘要
+      # 4) 内嵌累积更新内容与 release_notes.txt 共用同一批数据
+      # 必须在 Build all variants 之前：内嵌文件在编译期读取
+      # ==========================================
+      - name: Resolve previous tag
+        id: prev_tag
+        shell: pwsh
+        run: |
+          $version = "${{ steps.get_version.outputs.VERSION }}"
+          $tag = "v$version"
+
+          # 检查目标 tag 是否在 git 中存在。
+          # 手动触发 (workflow_dispatch) 时 tag 尚未创建，此时应使用 HEAD
+          # 作为比较目标，避免 GitHub API compare 返回 404。
+          $tagRef = "refs/tags/$tag"
+          $tagExists = git rev-parse --verify "$tagRef" 2>$null
+          if ($tagExists) {
+            $compareTo = $tag
+            Write-Host "✅ Tag $tag 存在于 git 中"
+          } else {
+            $compareTo = "HEAD"
+            Write-Host "⚠️ Tag $tag 在 git 中不存在（手动触发），使用 HEAD 作为比较目标"
+          }
+
+          # 获取上一个标签（用于 compare 链接与 changelog 起点）
+          $previousTag = git describe --tags --abbrev=0 "$compareTo^" 2>$null
+          if ([string]::IsNullOrEmpty($previousTag)) {
+            $previousTag = git rev-list --max-parents=0 HEAD
+          }
+
+          echo "TAG=$tag" >> $env:GITHUB_OUTPUT
+          echo "COMPARE_TO=$compareTo" >> $env:GITHUB_OUTPUT
+          echo "PREVIOUS_TAG=$previousTag" >> $env:GITHUB_OUTPUT
+          echo "Tag: $tag (compare target: $compareTo)"
+          echo "Previous tag: $previousTag"
+
+      # 使用现成 action 生成按前缀分类的变更日志；
+      # COMMIT 模式下 #{{AUTHOR}} 为 GitHub 用户名（由 GitHub API 依据提交邮箱解析），
+      # 从根本上解决 @ 到错误用户的问题。
+      - name: Build categorized changelog
+        id: build_changelog
+        uses: mikepenz/release-changelog-builder-action@v6
+        with:
+          mode: "COMMIT"
+          fromTag: ${{ steps.prev_tag.outputs.PREVIOUS_TAG }}
+          toTag: ${{ steps.prev_tag.outputs.COMPARE_TO }}
+          failOnError: false
+          configurationJson: |
+            {
+              "template": "#{{CHANGELOG}}",
+              "categories": [
+                { "title": "### ✨ 新功能", "labels": ["feat"] },
+                { "title": "### 🐛 Bug 修复", "labels": ["fix"] },
+                { "title": "### ⚡ 性能优化", "labels": ["perf"] },
+                { "title": "### ♻️ 重构", "labels": ["refactor"] },
+                { "title": "### 📝 文档", "labels": ["docs"] },
+                { "title": "### 🎨 样式", "labels": ["style"] },
+                { "title": "### 🧪 测试", "labels": ["test"] },
+                { "title": "### 🔧 构建 / CI", "labels": ["build", "ci"] },
+                { "title": "### 🧹 杂项", "labels": ["chore", "revert"] },
+                { "title": "### 💬 其他", "labels": [] }
+              ],
+              "commit_template": "- #{{TITLE}} (`#{{MERGE_SHA}}`) @#{{AUTHOR}}",
+              "transformers": [
+                { "pattern": "\\(`([0-9a-f]{7})[0-9a-f]{33}`\\)", "target": "(`$1`)" },
+                { "pattern": " @$", "target": "" }
+              ],
+              "label_extractor": [
+                {
+                  "pattern": "^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\\([\\w\\-\\.]+\\))?(!)?:.*",
+                  "on_property": "title",
+                  "target": "$1"
+                }
+              ],
+              "sort": { "order": "ASC", "on_property": "mergedAt" }
+            }
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 调用 OpenAI 兼容接口（默认 DeepSeek）生成中文更新摘要。
+      # 需要配置：secret AI_API_KEY；可选 variable AI_BASE_URL、AI_MODEL。
+      # 变更内容通过环境变量传入（不拼接进脚本），避免脚本注入。
+      - name: Generate AI summary
+        id: ai_summary
+        continue-on-error: true
+        shell: pwsh
+        env:
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          AI_BASE_URL: ${{ vars.AI_BASE_URL }}
+          AI_MODEL: ${{ vars.AI_MODEL }}
+          CHANGELOG: ${{ steps.build_changelog.outputs.changelog }}
+        run: |
+          $apiKey = $env:AI_API_KEY
+          if ([string]::IsNullOrWhiteSpace($apiKey)) {
+            Write-Host "⚠️ 未配置 AI_API_KEY，跳过 AI 摘要生成"
+            exit 0
+          }
+
+          $baseUrl = if ([string]::IsNullOrWhiteSpace($env:AI_BASE_URL)) { "https://api.deepseek.com" } else { $env:AI_BASE_URL.TrimEnd('/') }
+          $model   = if ([string]::IsNullOrWhiteSpace($env:AI_MODEL))    { "deepseek-flash" }          else { $env:AI_MODEL }
+          $changelog = $env:CHANGELOG
+
+          if ([string]::IsNullOrWhiteSpace($changelog)) {
+            Write-Host "⚠️ 变更日志为空，跳过 AI 摘要生成"
+            exit 0
+          }
+
+          # tag 注释是维护者指定的发布重点：非空时作为最高权重组织摘要。
+          # 仅注释型 tag 有注释；轻量 tag 或无 tag（手动触发）视为未指定。
+          # PowerShell 默认用 ANSI 代码页解码原生命令输出，中文注释会乱码，需显式切 UTF-8。
+          $tag = "${{ steps.prev_tag.outputs.TAG }}"
+          $tagNote = ""
+          $prevConsoleEncoding = [Console]::OutputEncoding
+          try {
+            [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+            if (-not [string]::IsNullOrWhiteSpace($tag) -and (git cat-file -t "refs/tags/$tag" 2>$null) -eq "tag") {
+              $tagNote = ((git tag -l --format='%(contents)' $tag) -join "`n").Trim()
+              # 剥离 bump-version 的默认首行（release vX.Y.Z）：默认注释不是发布重点
+              $tagNote = ($tagNote -replace '^release\s+v?\d+\.\d+\.\d+\s*', '').Trim()
+            }
+          } finally {
+            [Console]::OutputEncoding = $prevConsoleEncoding
+          }
+
+          $systemPrompt = "你是 ZeroLaunch-rs 的版本更新摘要助手。`n`n输出结构（直接输出正文，不要使用 Markdown 标题）：`n1. **一句话版本定位**：概括本次版本的核心主题。`n2. **用户可见亮点**：2-4 条 bullet，只写用户能感知的功能改进。`n3. **稳定性与体验改进**：1-2 句概括 bug 修复和体验优化。`n4. **开发者备注**（如有架构级变化）：以 > 格式的 blockquote 附在末尾。`n`n规则：`n- 只基于 commit 事实写，不预测、不夸大。`n- 内部重构、CI、文档、杂项——除非架构级变化，否则不写入摘要。`n- 总长度不超过 300 字。`n- 语气简洁准确，面向中文最终用户。"
+
+          if (-not [string]::IsNullOrWhiteSpace($tagNote)) {
+            Write-Host "📌 以 tag 注释作为本次发布重点：`n$tagNote"
+            $systemPrompt += "`n`n本次版本的发布重点（维护者在 tag 注释中指定，优先级最高）：`n$tagNote`n`n- 与发布重点相关的变更优先写入「用户可见亮点」，并排在最前面。`n- 发布重点未覆盖、但对用户可见的变更只做简要提及。`n- 重点与 commit 数量/排序冲突时，以重点为准。"
+          }
+
+          $userPrompt   = "以下是本次版本的变更记录：`n`n$changelog"
+
+          $payload = @{
+            model            = $model
+            messages         = @(
+              @{ role = "system"; content = $systemPrompt },
+              @{ role = "user";   content = $userPrompt }
+            )
+            thinking         = @{ type = "enabled" }
+            reasoning_effort = "high"
+            stream           = $false
+          } | ConvertTo-Json -Depth 8
+
+          $headers = @{ "Authorization" = "Bearer $apiKey" }
+          $bytes = [System.Text.Encoding]::UTF8.GetBytes($payload)
+
+          try {
+            $resp = Invoke-RestMethod -Uri "$baseUrl/chat/completions" -Method Post -Headers $headers -ContentType "application/json; charset=utf-8" -Body $bytes -ErrorAction Stop
+            $summary = $resp.choices[0].message.content
+            if (-not [string]::IsNullOrWhiteSpace($summary)) {
+              [System.IO.File]::WriteAllText((Join-Path (Get-Location) "ai_summary.md"), $summary.Trim(), (New-Object System.Text.UTF8Encoding($false)))
+              Write-Host "✅ AI 摘要生成成功"
+            } else {
+              Write-Host "⚠️ AI 返回内容为空"
+            }
+          } catch {
+            Write-Host "⚠️ AI 摘要生成失败: $($_.Exception.Message)"
+          }
+
+      # 生成构建期内嵌的累积更新内容：上一 release 的 updates.json + 本版本条目。
+      # 必须在 Build all variants 之前完成（编译期 include_str! 读取该文件）。
+      - name: Build embedded update notes
+        if: steps.get_version.outputs.VERSION != '0.0.0'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CHANGELOG: ${{ steps.build_changelog.outputs.changelog }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          # 失败时输出可定位的注解并让 step 失败：宁可中断发布，也不产出内容残缺的累积文件。
+          function Fail([string]$message) {
+            Write-Host "::error::$message"
+            Write-Host "❌ $message"
+            exit 1
+          }
+
+          $version   = "${{ steps.get_version.outputs.VERSION }}"
+          $prevTag   = "${{ steps.prev_tag.outputs.PREVIOUS_TAG }}"
+          $repo      = $env:GITHUB_REPOSITORY
+          $changelog = $env:CHANGELOG
+
+          Write-Host "本版本: $version / 上一版本: $prevTag / 仓库: $repo"
+          if ([string]::IsNullOrWhiteSpace($version)) {
+            Fail "无法确定本版本号：Get version from tag 的输出为空"
+          }
+
+          # ---- 上一版本的累积文件 ----
+          # 资产不存在是正常分支（首个带更新说明的版本）；访问失败或内容损坏必须报错，
+          # 否则会静默把累积内容重置为本版本，后续版本会继承这个缺口。
+          $prevVersions = @()
+          if ($prevTag -notmatch '^v\d+\.\d+\.\d+$') {
+            Write-Host "⚠️ 上一目标 $prevTag 不是版本 tag（首个版本或手动触发），从本版本开始累积"
+          } else {
+            $releaseJson = (gh release view $prevTag --repo $repo --json assets 2>&1) -join "`n"
+            if ($LASTEXITCODE -ne 0) {
+              Fail "读取上一版本 $prevTag 的 Release 失败（gh 退出码 $LASTEXITCODE）：$releaseJson"
+            }
+            $releaseAssets = @(($releaseJson | ConvertFrom-Json).assets)
+            $assetNames = @($releaseAssets | ForEach-Object { $_.name } | Where-Object { $_ })
+            Write-Host "上一版本资产：$($assetNames -join ', ')"
+
+            if ($assetNames -contains 'updates.json') {
+              $downloadLog = (gh release download $prevTag --repo $repo --pattern updates.json --output prev_updates.json 2>&1) -join "`n"
+              if ($LASTEXITCODE -ne 0 -or -not (Test-Path prev_updates.json)) {
+                Fail "下载上一版本 $prevTag 的 updates.json 失败（gh 退出码 $LASTEXITCODE）：$downloadLog"
+              }
+              $prevRaw = Get-Content prev_updates.json -Raw -Encoding UTF8
+              try {
+                $prevVersions = @(($prevRaw | ConvertFrom-Json).versions)
+              } catch {
+                $preview = if ($null -eq $prevRaw) { '<空文件>' } else { $prevRaw.Substring(0, [Math]::Min(200, $prevRaw.Length)) }
+                Fail "上一版本 $prevTag 的 updates.json 解析失败：$($_.Exception.Message)；内容前 200 字符：$preview"
+              }
+              Write-Host "✅ 已载入上一版本累积：$($prevVersions.Count) 个版本"
+            } else {
+              Write-Host "⚠️ 上一版本 $prevTag 没有 updates.json（首个带更新说明的版本），从本版本开始累积"
+            }
+          }
+
+          # ---- 分类记录 ----
+          # 按 ### 标题把 changelog 文本切成 sections（模板固定，解析不依赖外部格式）。
+          if ([string]::IsNullOrWhiteSpace($changelog)) {
+            Fail "本次版本的 changelog 为空：检查 Build categorized changelog 步骤的输出"
+          }
+          $sections = @()
+          $current  = $null
+          foreach ($line in ($changelog -split "`r?`n")) {
+            if ($line -match '^###\s+(.+?)\s*$') {
+              if ($null -ne $current) { $sections += $current }
+              $current = [ordered]@{ title = $Matches[1]; items = @() }
+            } elseif ($null -ne $current -and $line -match '^\s*-\s+(.+?)\s*$') {
+              $current.items += ($Matches[1] -replace '\(`([0-9a-f]{7})[0-9a-f]{33}`\)', '(`$1`)')
+            }
+          }
+          if ($null -ne $current) { $sections += $current }
+
+          $totalItems = 0
+          foreach ($section in $sections) { $totalItems += @($section.items).Count }
+          if ($sections.Count -eq 0 -or $totalItems -eq 0) {
+            Fail "changelog 未解析出任何分类条目（分类 $($sections.Count) 个 / 条目 $totalItems 条）：确认模板仍以 '### 分类' + '- 条目' 输出"
+          }
+
+          # ---- 摘要 ----
+          $summary = "本次更新包含若干改进与修复，详见下方完整更新记录。"
+          if (Test-Path ai_summary.md) {
+            $summaryRaw = Get-Content ai_summary.md -Raw -Encoding UTF8
+            $summaryContent = if ($null -eq $summaryRaw) { '' } else { $summaryRaw.Trim() }
+            if ([string]::IsNullOrWhiteSpace($summaryContent)) {
+              Write-Host "⚠️ AI 摘要文件为空，使用兜底摘要（分类记录完整，不阻断发布）"
+            } else {
+              $summary = $summaryContent
+            }
+          } else {
+            Write-Host "⚠️ 未生成 AI 摘要（Generate AI summary 失败或未配置），使用兜底摘要（分类记录完整，不阻断发布）"
+          }
+
+          $entry = [ordered]@{
+            version    = $version
+            releasedAt = (Get-Date -Format 'yyyy-MM-dd')
+            summary    = $summary
+            sections   = @($sections)
+            compareUrl = "https://github.com/$repo/compare/$prevTag...v$version"
+          }
+
+          # 同一版本重复构建时以本次为准；其余历史条目保持原顺序（升序）。
+          $all = @($prevVersions | Where-Object { $_.version -ne $version }) + $entry
+          $items = @($all | ForEach-Object { $_ | ConvertTo-Json -Depth 8 -Compress })
+          $json = "{`"schema`":1,`"versions`":[" + ($items -join ",") + "]}"
+
+          $outputPath = Join-Path (Get-Location) "src-tauri/assets/updates.json"
+          try {
+            [System.IO.File]::WriteAllText($outputPath, $json, (New-Object System.Text.UTF8Encoding($false)))
+            Copy-Item $outputPath "updates.json" -Force
+          } catch {
+            Fail "写入 $outputPath 失败：$($_.Exception.Message)"
+          }
+
+          # 回读校验：本版本条目必须存在且非空，防止模板漂移后静默产出空页。
+          try {
+            $check = (Get-Content $outputPath -Raw -Encoding UTF8 | ConvertFrom-Json)
+          } catch {
+            Fail "生成的 updates.json 无法回读解析：$($_.Exception.Message)"
+          }
+          $self = @($check.versions | Where-Object { $_.version -eq $version })
+          if ($self.Count -ne 1) {
+            Fail "生成的 updates.json 中本版本 $version 条目数为 $($self.Count)（应为 1）"
+          }
+          if (@($self[0].sections).Count -eq 0) {
+            Fail "生成的 updates.json 中本版本 $version 没有分类条目"
+          }
+
+          Write-Host "✅ 已生成内嵌更新内容：共 $($check.versions.Count) 个版本（本版本 $($sections.Count) 个分类 / $totalItems 条记录）"
+
       - name: Build frontend
         # 审计步骤会编译 zerolaunch-rs lib，而 lib.rs 的 tauri::generate_context! 在编译期要求
         # frontendDist（../dist）存在；dist 被 gitignore，checkout 后必须先构建前端。
@@ -264,169 +563,6 @@ jobs:
             echo "  📦 $($_.Name) ($sizeMB MB)"
           }
 
-      # ==========================================
-      # Release Notes 生成
-      # 1) 计算上一个 tag，用于生成 compare 链接
-      # 2) mikepenz changelog builder：按 commit 前缀分类，作者 @ 由 GitHub API 解析
-      # 3) DeepSeek（OpenAI 兼容）生成中文更新摘要
-      # 4) 组装最终 release_notes.txt（AI 摘要 + 折叠区分类记录）
-      # ==========================================
-      - name: Resolve previous tag
-        id: prev_tag
-        shell: pwsh
-        run: |
-          $version = "${{ steps.get_version.outputs.VERSION }}"
-          $tag = "v$version"
-
-          # 检查目标 tag 是否在 git 中存在。
-          # 手动触发 (workflow_dispatch) 时 tag 尚未创建，此时应使用 HEAD
-          # 作为比较目标，避免 GitHub API compare 返回 404。
-          $tagRef = "refs/tags/$tag"
-          $tagExists = git rev-parse --verify "$tagRef" 2>$null
-          if ($tagExists) {
-            $compareTo = $tag
-            Write-Host "✅ Tag $tag 存在于 git 中"
-          } else {
-            $compareTo = "HEAD"
-            Write-Host "⚠️ Tag $tag 在 git 中不存在（手动触发），使用 HEAD 作为比较目标"
-          }
-
-          # 获取上一个标签（用于 compare 链接与 changelog 起点）
-          $previousTag = git describe --tags --abbrev=0 "$compareTo^" 2>$null
-          if ([string]::IsNullOrEmpty($previousTag)) {
-            $previousTag = git rev-list --max-parents=0 HEAD
-          }
-
-          echo "TAG=$tag" >> $env:GITHUB_OUTPUT
-          echo "COMPARE_TO=$compareTo" >> $env:GITHUB_OUTPUT
-          echo "PREVIOUS_TAG=$previousTag" >> $env:GITHUB_OUTPUT
-          echo "Tag: $tag (compare target: $compareTo)"
-          echo "Previous tag: $previousTag"
-
-      # 使用现成 action 生成按前缀分类的变更日志；
-      # COMMIT 模式下 #{{AUTHOR}} 为 GitHub 用户名（由 GitHub API 依据提交邮箱解析），
-      # 从根本上解决 @ 到错误用户的问题。
-      - name: Build categorized changelog
-        id: build_changelog
-        uses: mikepenz/release-changelog-builder-action@v6
-        with:
-          mode: "COMMIT"
-          fromTag: ${{ steps.prev_tag.outputs.PREVIOUS_TAG }}
-          toTag: ${{ steps.prev_tag.outputs.COMPARE_TO }}
-          failOnError: false
-          configurationJson: |
-            {
-              "template": "#{{CHANGELOG}}",
-              "categories": [
-                { "title": "### ✨ 新功能", "labels": ["feat"] },
-                { "title": "### 🐛 Bug 修复", "labels": ["fix"] },
-                { "title": "### ⚡ 性能优化", "labels": ["perf"] },
-                { "title": "### ♻️ 重构", "labels": ["refactor"] },
-                { "title": "### 📝 文档", "labels": ["docs"] },
-                { "title": "### 🎨 样式", "labels": ["style"] },
-                { "title": "### 🧪 测试", "labels": ["test"] },
-                { "title": "### 🔧 构建 / CI", "labels": ["build", "ci"] },
-                { "title": "### 🧹 杂项", "labels": ["chore", "revert"] },
-                { "title": "### 💬 其他", "labels": [] }
-              ],
-              "commit_template": "- #{{TITLE}} (`#{{MERGE_SHA}}`) @#{{AUTHOR}}",
-              "transformers": [
-                { "pattern": "\\(`([0-9a-f]{7})[0-9a-f]{33}`\\)", "target": "(`$1`)" },
-                { "pattern": " @$", "target": "" }
-              ],
-              "label_extractor": [
-                {
-                  "pattern": "^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\\([\\w\\-\\.]+\\))?(!)?:.*",
-                  "on_property": "title",
-                  "target": "$1"
-                }
-              ],
-              "sort": { "order": "ASC", "on_property": "mergedAt" }
-            }
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # 调用 OpenAI 兼容接口（默认 DeepSeek）生成中文更新摘要。
-      # 需要配置：secret AI_API_KEY；可选 variable AI_BASE_URL、AI_MODEL。
-      # 变更内容通过环境变量传入（不拼接进脚本），避免脚本注入。
-      - name: Generate AI summary
-        id: ai_summary
-        continue-on-error: true
-        shell: pwsh
-        env:
-          AI_API_KEY: ${{ secrets.AI_API_KEY }}
-          AI_BASE_URL: ${{ vars.AI_BASE_URL }}
-          AI_MODEL: ${{ vars.AI_MODEL }}
-          CHANGELOG: ${{ steps.build_changelog.outputs.changelog }}
-        run: |
-          $apiKey = $env:AI_API_KEY
-          if ([string]::IsNullOrWhiteSpace($apiKey)) {
-            Write-Host "⚠️ 未配置 AI_API_KEY，跳过 AI 摘要生成"
-            exit 0
-          }
-
-          $baseUrl = if ([string]::IsNullOrWhiteSpace($env:AI_BASE_URL)) { "https://api.deepseek.com" } else { $env:AI_BASE_URL.TrimEnd('/') }
-          $model   = if ([string]::IsNullOrWhiteSpace($env:AI_MODEL))    { "deepseek-flash" }          else { $env:AI_MODEL }
-          $changelog = $env:CHANGELOG
-
-          if ([string]::IsNullOrWhiteSpace($changelog)) {
-            Write-Host "⚠️ 变更日志为空，跳过 AI 摘要生成"
-            exit 0
-          }
-
-          # tag 注释是维护者指定的发布重点：非空时作为最高权重组织摘要。
-          # 仅注释型 tag 有注释；轻量 tag 或无 tag（手动触发）视为未指定。
-          # PowerShell 默认用 ANSI 代码页解码原生命令输出，中文注释会乱码，需显式切 UTF-8。
-          $tag = "${{ steps.prev_tag.outputs.TAG }}"
-          $tagNote = ""
-          $prevConsoleEncoding = [Console]::OutputEncoding
-          try {
-            [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-            if (-not [string]::IsNullOrWhiteSpace($tag) -and (git cat-file -t "refs/tags/$tag" 2>$null) -eq "tag") {
-              $tagNote = ((git tag -l --format='%(contents)' $tag) -join "`n").Trim()
-              # 剥离 bump-version 的默认首行（release vX.Y.Z）：默认注释不是发布重点
-              $tagNote = ($tagNote -replace '^release\s+v?\d+\.\d+\.\d+\s*', '').Trim()
-            }
-          } finally {
-            [Console]::OutputEncoding = $prevConsoleEncoding
-          }
-
-          $systemPrompt = "你是 ZeroLaunch-rs 的版本更新摘要助手。`n`n输出结构（直接输出正文，不要使用 Markdown 标题）：`n1. **一句话版本定位**：概括本次版本的核心主题。`n2. **用户可见亮点**：2-4 条 bullet，只写用户能感知的功能改进。`n3. **稳定性与体验改进**：1-2 句概括 bug 修复和体验优化。`n4. **开发者备注**（如有架构级变化）：以 > 格式的 blockquote 附在末尾。`n`n规则：`n- 只基于 commit 事实写，不预测、不夸大。`n- 内部重构、CI、文档、杂项——除非架构级变化，否则不写入摘要。`n- 总长度不超过 300 字。`n- 语气简洁准确，面向中文最终用户。"
-
-          if (-not [string]::IsNullOrWhiteSpace($tagNote)) {
-            Write-Host "📌 以 tag 注释作为本次发布重点：`n$tagNote"
-            $systemPrompt += "`n`n本次版本的发布重点（维护者在 tag 注释中指定，优先级最高）：`n$tagNote`n`n- 与发布重点相关的变更优先写入「用户可见亮点」，并排在最前面。`n- 发布重点未覆盖、但对用户可见的变更只做简要提及。`n- 重点与 commit 数量/排序冲突时，以重点为准。"
-          }
-
-          $userPrompt   = "以下是本次版本的变更记录：`n`n$changelog"
-
-          $payload = @{
-            model            = $model
-            messages         = @(
-              @{ role = "system"; content = $systemPrompt },
-              @{ role = "user";   content = $userPrompt }
-            )
-            thinking         = @{ type = "enabled" }
-            reasoning_effort = "high"
-            stream           = $false
-          } | ConvertTo-Json -Depth 8
-
-          $headers = @{ "Authorization" = "Bearer $apiKey" }
-          $bytes = [System.Text.Encoding]::UTF8.GetBytes($payload)
-
-          try {
-            $resp = Invoke-RestMethod -Uri "$baseUrl/chat/completions" -Method Post -Headers $headers -ContentType "application/json; charset=utf-8" -Body $bytes -ErrorAction Stop
-            $summary = $resp.choices[0].message.content
-            if (-not [string]::IsNullOrWhiteSpace($summary)) {
-              [System.IO.File]::WriteAllText((Join-Path (Get-Location) "ai_summary.md"), $summary.Trim(), (New-Object System.Text.UTF8Encoding($false)))
-              Write-Host "✅ AI 摘要生成成功"
-            } else {
-              Write-Host "⚠️ AI 返回内容为空"
-            }
-          } catch {
-            Write-Host "⚠️ AI 摘要生成失败: $($_.Exception.Message)"
-          }
-
       - name: Assemble release notes
         id: release_notes
         shell: pwsh
@@ -501,6 +637,7 @@ jobs:
             *.exe
             *.msi
             *.zip
+            updates.json
             release_notes.txt
           if-no-files-found: error
           retention-days: 7
@@ -529,6 +666,7 @@ jobs:
             *.exe
             *.msi
             *.zip
+            updates.json
           draft: false
           prerelease: false
         env:

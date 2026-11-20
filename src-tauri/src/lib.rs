@@ -275,6 +275,7 @@ pub fn run() {
             // 版本更新检查
             crate::commands::update::update_check,
             crate::commands::update::update_get_status,
+            crate::commands::update::update_get_notes,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

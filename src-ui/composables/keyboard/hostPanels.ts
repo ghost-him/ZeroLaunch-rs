@@ -1,7 +1,7 @@
 import type { SearchStore } from '@/stores/search-store'
 import type { HostKeyBinding, KeyIntent } from './types'
 
-export type HostPanelId = 'default_search' | 'inline_param' | 'param_panel' | 'exclude_chooser'
+export type HostPanelId = 'default_search' | 'inline_param' | 'param_panel' | 'exclude_chooser' | 'quick_setup'
 
 /// 向下移动选中项意图（方向键与配置键共用语义）。
 export function moveDownIntent(_e: KeyboardEvent, store: SearchStore): KeyIntent {
@@ -39,6 +39,14 @@ function quickAction(e: KeyboardEvent, store: SearchStore): KeyIntent | null {
 }
 
 export const hostPanels: Record<HostPanelId, { bindings: HostKeyBinding[] }> = {
+  // 快速设置页（首次启动引导）：整页本地态，独占键盘 —— 仅解释 Escape（隐藏窗口，
+  // 引导未完成故下次唤出仍显示），其余按键放行给页面内的原生控件与焦点导航。
+  quick_setup: {
+    bindings: [
+      { key: 'Escape', handler: () => ({ kind: 'hide' }) },
+    ],
+  },
+
   // 隐藏方式选择面板（右键「不再显示」）：面板打开时为前端本地模态态，
   // 独占键盘 —— 不放行列表语义，否则 Enter 会启动正准备隐藏的那条结果。
   exclude_chooser: {

@@ -87,6 +87,12 @@ export function useKeyboardRouter() {
       moveDownKey: wb?.move_down_key ?? 'Ctrl+J',
     }
 
+    // 快速设置页（整页本地态）打开时独占键盘：先于插件热键，避免热键切走会话。
+    if (store.quickSetupVisible) {
+      dispatchKeyDown(e, store, opts)
+      return
+    }
+
     // 隐藏方式选择面板（前端本地模态态）打开时独占键盘：先于插件热键与会话分发，
     // 避免面板打开期间热键抢走会话、Enter 启动正准备隐藏的那条结果。
     if (store.excludeChooser) {

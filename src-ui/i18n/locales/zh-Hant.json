@@ -47,7 +47,16 @@
     "excludeKeywordDesc": "目標路徑或名稱包含該關鍵字的候選項都會被排除",
     "excludeKeywordPlaceholder": "輸入關鍵字",
     "excludeFolderUnavailable": "此候選項沒有所在資料夾",
-    "excludeAdvancedHint": "如果想要更精細的調控，請前往資料來源的設定頁中設定"
+    "excludeAdvancedHint": "如果想要更精細的調控，請前往資料源的設定頁中設定",
+    "quickSetup": {
+      "title": "先做幾步快速設定",
+      "description": "這些開關隨時可以在設定頁修改；這裡只是幫你先把常用項定下來。",
+      "loading": "正在讀取設定…",
+      "empty": "目前沒有可快速設定的項。",
+      "hint": "按 {hotkey} 隨時喚出 · 完成後不再自動顯示本頁",
+      "openSettings": "開啟完整設定",
+      "done": "開始使用"
+    }
   },
   "translator": {
     "title": "翻譯",

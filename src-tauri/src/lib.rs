@@ -184,6 +184,20 @@ pub fn run() {
                     });
                 });
 
+                // 首次启动主动唤出搜索栏展示快速设置页：常规启动保持静默，
+                // 仅在引导未完成时弹一次（页面由前端按同一标记渲染）。
+                let state_for_onboarding = app.state::<Arc<AppState>>().inner().clone();
+                let quick_setup_done = state_for_onboarding
+                    .get_config_manager()
+                    .get_component_setting("general-config", "is_quick_setup_done")
+                    .and_then(|value| value.as_bool())
+                    .unwrap_or(false);
+                if !quick_setup_done {
+                    tauri::async_runtime::spawn(async move {
+                        bootstrap::toggle_search_bar(&state_for_onboarding).await;
+                    });
+                }
+
                 info!("应用启动完成");
             });
 

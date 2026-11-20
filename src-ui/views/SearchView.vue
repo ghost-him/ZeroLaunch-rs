@@ -11,44 +11,51 @@
       />
     </template>
 
-    <!-- 其他模式：显示搜索栏 + 结果 -->
+    <!-- 其他模式：快速设置页整页接管；否则显示搜索栏 + 结果 -->
     <template v-else>
-      <SearchBar v-if="searchStore.sessionMode !== 'plugin_immersive'" ref="searchBarRef" @contextmenu="onShowCtxMenu" />
-
-      <!-- 参数面板模式 -->
-      <ParamPanel v-if="uiMode === 'param_panel'" />
-
-      <!-- 隐藏方式选择面板（右键「不再显示」）：窗内模态态，占据结果列表位置 -->
-      <ExcludeChooserPanel v-if="searchStore.excludeChooser" />
-
-      <!-- 搜索结果列表（搜索模式或行内参数模式；主页为 isIdle 空查询会话，额外豁免） -->
-      <ResultList
-        v-else-if="(uiMode === 'search' || uiMode === 'inline_param') && (!searchStore.isIdle || searchStore.isHomeActive)"
-        :results="searchStore.results"
-        :selected-index="searchStore.selectedIndex"
-        :initializing="searchStore.initializing"
-        @select="searchStore.selectedIndex = $event"
-        @confirm="(idx: number) => searchStore.doConfirm(idx)"
-        @context-action="(idx: number, actionId: string) => searchStore.doConfirm(idx, actionId)"
-        @hide-target="(idx: number) => searchStore.openExcludeChooser(idx)"
-        @contextmenu="onShowCtxMenu"
+      <QuickSetupPanel
+        v-if="searchStore.quickSetupVisible"
+        @finished="onQuickSetupFinished"
       />
 
-      <!-- 行内插件模式 -->
-      <PluginPanelHost
-        v-if="uiMode === 'plugin_panel' && searchStore.panelType"
-        :panel-type="searchStore.panelType"
-        :panel-data="searchStore.panelData"
-      />
+      <template v-else>
+        <SearchBar v-if="searchStore.sessionMode !== 'plugin_immersive'" ref="searchBarRef" @contextmenu="onShowCtxMenu" />
 
-      <Footer
-        v-if="!searchStore.excludeChooser && (!searchStore.isIdle || searchStore.isHomeActive) && searchStore.sessionMode !== 'plugin_immersive'"
-        :result-count="searchStore.results.length"
-        :session-mode="searchStore.sessionMode"
-        :actions="searchStore.selectedItem?.actions ?? []"
-        :selected-action-index="searchStore.selectedActionIndex"
-        @action-execute="(actionId: string) => searchStore.doConfirm(undefined, actionId)"
-      />
+        <!-- 参数面板模式 -->
+        <ParamPanel v-if="uiMode === 'param_panel'" />
+
+        <!-- 隐藏方式选择面板（右键「不再显示」）：窗内模态态，占据结果列表位置 -->
+        <ExcludeChooserPanel v-if="searchStore.excludeChooser" />
+
+        <!-- 搜索结果列表（搜索模式或行内参数模式；主页为 isIdle 空查询会话，额外豁免） -->
+        <ResultList
+          v-else-if="(uiMode === 'search' || uiMode === 'inline_param') && (!searchStore.isIdle || searchStore.isHomeActive)"
+          :results="searchStore.results"
+          :selected-index="searchStore.selectedIndex"
+          :initializing="searchStore.initializing"
+          @select="searchStore.selectedIndex = $event"
+          @confirm="(idx: number) => searchStore.doConfirm(idx)"
+          @context-action="(idx: number, actionId: string) => searchStore.doConfirm(idx, actionId)"
+          @hide-target="(idx: number) => searchStore.openExcludeChooser(idx)"
+          @contextmenu="onShowCtxMenu"
+        />
+
+        <!-- 行内插件模式 -->
+        <PluginPanelHost
+          v-if="uiMode === 'plugin_panel' && searchStore.panelType"
+          :panel-type="searchStore.panelType"
+          :panel-data="searchStore.panelData"
+        />
+
+        <Footer
+          v-if="!searchStore.excludeChooser && (!searchStore.isIdle || searchStore.isHomeActive) && searchStore.sessionMode !== 'plugin_immersive'"
+          :result-count="searchStore.results.length"
+          :session-mode="searchStore.sessionMode"
+          :actions="searchStore.selectedItem?.actions ?? []"
+          :selected-action-index="searchStore.selectedActionIndex"
+          @action-execute="(actionId: string) => searchStore.doConfirm(undefined, actionId)"
+        />
+      </template>
     </template>
   </WindowFrame>
 
@@ -80,6 +87,7 @@ import { useKeyboardRouter } from '../composables/useKeyboardRouter'
 import { useWindowResize } from '../composables/useWindowResize'
 import ParamPanel from '../components/search/ParamPanel.vue'
 import ExcludeChooserPanel from '../components/search/ExcludeChooserPanel.vue'
+import QuickSetupPanel from '../components/search/QuickSetupPanel.vue'
 import { onCandidatesReady, onConfigChanged, onShowWindow } from '../bridge/events'
 import { registerErrorHandler, configGetSettings, copyToClipboard } from '../bridge/commands'
 import type { BridgeError } from '../bridge/commands'
@@ -131,6 +139,15 @@ function onCtxClose() {
   })
 }
 
+/// 快速设置完成：页面已被 store 关闭，回到搜索态并恢复输入焦点（窗口保持显示）。
+async function onQuickSetupFinished() {
+  await nextTick()
+  searchBarRef.value?.focusInput()
+  if (searchStore.query === '' && searchStore.sessionMode === 'none') {
+    searchStore.doQuery('')
+  }
+}
+
 let unlistenConfig: (() => void) | null = null
 let unlistenShowWindow: (() => void) | null = null
 let unlistenCandidatesReady: (() => void) | null = null
@@ -163,6 +180,7 @@ onMounted(async () => {
   })
 
   searchStore.fetchHomeSetting()
+  await searchStore.initQuickSetup()
   await loadDragSetting()
 
   unlistenConfig = await onConfigChanged((payload) => {
@@ -195,6 +213,8 @@ onMounted(async () => {
     ctxVisible.value = false
     // 隐藏方式选择面板：隐藏期间会话已复位，面板持有的候选项与缓存世代均已过期
     searchStore.closeExcludeChooser()
+    // 快速设置页整页接管：不恢复搜索栏焦点、不发起空查询，页面自行持有键盘。
+    if (searchStore.quickSetupVisible) return
     nextTick(() => {
       searchBarRef.value?.focusInput()
     })
@@ -209,6 +229,8 @@ onMounted(async () => {
   // 启动预热在后台完成：此前建立的会话可能命中空缓存（无结果/空主页），
   // 缓存就绪后重放当前输入；插件会话由插件自身节奏驱动，不在此打扰。
   unlistenCandidatesReady = await onCandidatesReady(() => {
+    // 快速设置页显示期间不重放查询：页面不依赖候选列表。
+    if (searchStore.quickSetupVisible) return
     if (searchStore.sessionMode === 'search' || searchStore.sessionMode === 'none') {
       searchStore.doQuery(searchStore.query)
     }

@@ -47,7 +47,16 @@
     "excludeKeywordDesc": "目标路径或名称包含该关键字的候选项都会被排除",
     "excludeKeywordPlaceholder": "输入关键字",
     "excludeFolderUnavailable": "此候选项没有所在文件夹",
-    "excludeAdvancedHint": "如果想要更精细的调控，请前往数据源的配置页中设置"
+    "excludeAdvancedHint": "如果想要更精细的调控，请前往数据源的配置页中设置",
+    "quickSetup": {
+      "title": "先做几步快速设置",
+      "description": "这些开关随时可以在设置页修改；这里只是帮你先把常用项定下来。",
+      "loading": "正在读取设置…",
+      "empty": "当前没有可快速设置的项。",
+      "hint": "按 {hotkey} 随时唤出 · 完成后不再自动显示本页",
+      "openSettings": "打开完整设置",
+      "done": "开始使用"
+    }
   },
   "translator": {
     "title": "翻译",

@@ -3,7 +3,7 @@ import { ref, computed, watch } from 'vue'
 import {
   bridgeQuery, bridgeConfirm,
   bridgeRefreshCandidates, bridgeExcludeOptions, bridgeExcludeCandidate,
-  bridgeHideWindow, configGetSettings,
+  bridgeHideWindow, configGetSettings, configApplySettings,
 } from '../bridge/commands'
 import type { ListItem, ResultAction, BridgeQueryResponse, ConfirmResponse, PanelInteraction, SessionStateEvent, ExcludeOptions, ExclusionKind } from '../bridge/contract'
 import { onIconUpdated, onSessionState } from '../bridge/events'
@@ -246,6 +246,64 @@ export const useSearchStore = defineStore('search', () => {
       console.warn('[search-store] 读取常驻结果框设置失败:', e)
       homeEnabled.value = false
     }
+  }
+
+  // ---- 快速设置页（首次启动引导） ----
+
+  /** 快速设置页是否显示：窗口内前端本地页面，无对应后端会话形态（同 excludeChooser）。 */
+  const quickSetupVisible = ref(false)
+
+  /** 快速设置字段写入链：整组件覆盖式提交必须串行，避免并发读-改-写互相覆盖。 */
+  let quickSetupWriteChain: Promise<void> = Promise.resolve()
+
+  /// 读取引导标记：未完成时打开快速设置页（窗口由后端在首次启动时唤出）。
+  /// 读取失败按已完成处理，避免异常情况下每次唤出都被引导页挡住。
+  async function initQuickSetup() {
+    try {
+      const general = (await configGetSettings('general-config')) as Record<string, unknown> | null
+      quickSetupVisible.value = general?.is_quick_setup_done !== true
+    } catch (e) {
+      console.warn('[search-store] 读取快速设置标记失败:', e)
+      quickSetupVisible.value = false
+    }
+  }
+
+  /// 写入一个快速设置字段：整组件覆盖式提交，必须先读后合并，
+  /// 缺字段会让该组件其余配置落回默认值。
+  /// 参数：componentId - 组件 id；key - 字段键；value - 新值。
+  /// 返回：本次写入完成的 Promise（失败抛出，由调用方回滚展示值）。
+  function writeQuickSetupField(componentId: string, key: string, value: unknown): Promise<void> {
+    const task = quickSetupWriteChain.then(async () => {
+      const current = (await configGetSettings(componentId)) as Record<string, unknown> | null
+      await configApplySettings(componentId, { ...(current ?? {}), [key]: value })
+    })
+    // 链上单次失败不阻断后续写入（失败本身仍抛给调用方）
+    quickSetupWriteChain = task.catch(() => {})
+    return task
+  }
+
+  /// 完成快速设置：把页面当前值合并写入各组件（重试此前失败的写入），
+  /// 成功后置引导标记并关闭页面；任一步失败抛出，页面保持打开供重试。
+  /// 参数：values - componentId → 该组件要写入的字段值。
+  async function completeQuickSetup(values: Record<string, Record<string, unknown>>): Promise<void> {
+    await quickSetupWriteChain
+    let generalMerged: Record<string, unknown> | null = null
+    for (const [componentId, patch] of Object.entries(values)) {
+      const current = (await configGetSettings(componentId)) as Record<string, unknown> | null
+      const merged = { ...(current ?? {}), ...patch }
+      if (componentId === 'general-config') {
+        generalMerged = merged
+        continue
+      }
+      await configApplySettings(componentId, merged)
+    }
+    // 引导标记与页面字段并入同一次 general-config 提交：少一次整组件覆盖与副作用回调。
+    const general =
+      generalMerged ??
+      ((await configGetSettings('general-config')) as Record<string, unknown> | null) ??
+      {}
+    await configApplySettings('general-config', { ...general, is_quick_setup_done: true })
+    quickSetupVisible.value = false
   }
 
   async function doQuery(raw: string, confirm = false) {
@@ -820,6 +878,8 @@ export const useSearchStore = defineStore('search', () => {
     isIdle, isHomeActive, selectedItem,
     doQuery, doConfirm, selectNext, selectPrev,
     refreshCandidates, fetchHomeSetting, hideWindow, updatePluginMeta,
+    // 快速设置页（首次启动引导）
+    quickSetupVisible, initQuickSetup, writeQuickSetupField, completeQuickSetup,
     // 行内参数模式
     exitInlineParamMode, confirmInlineParam,
     // 参数面板模式

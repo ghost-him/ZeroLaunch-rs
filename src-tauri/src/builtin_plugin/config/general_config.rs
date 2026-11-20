@@ -32,6 +32,10 @@ pub struct GeneralSettings {
     /// 启用本机 CLI HTTP 服务（`zl` 只读接口），默认启用。
     #[serde(rename = "enable_cli_server", default = "default_true")]
     pub enable_cli_server: bool,
+    /// 快速设置引导是否已完成：首次启动弹一次，完成后置为 true 不再自动弹出。
+    /// 属于一次性界面状态而非用户可配项，schema 以 visible(false) 隐藏。
+    #[serde(rename = "is_quick_setup_done", default)]
+    pub is_quick_setup_done: bool,
 }
 
 impl Default for GeneralSettings {
@@ -44,6 +48,7 @@ impl Default for GeneralSettings {
             is_show_tray_icon: true,
             language: default_language(),
             enable_cli_server: true,
+            is_quick_setup_done: false,
         }
     }
 }
@@ -172,6 +177,17 @@ impl Configurable for GeneralConfigComponent {
             .group(t_key!("general-config", "groups.general"))
             .order(6)
             .default(true)
+            .build(),
+            // 一次性界面状态：设置页不渲染，仅作为首次启动引导是否已完成的持久标记。
+            SchemaBuilder::boolean(
+                "is_quick_setup_done",
+                t_key!("general-config", "fields.is_quick_setup_done.label"),
+                t_key!("general-config", "fields.is_quick_setup_done.desc"),
+            )
+            .group(t_key!("general-config", "groups.general"))
+            .order(7)
+            .visible(false)
+            .default(false)
             .build(),
         ]
     }

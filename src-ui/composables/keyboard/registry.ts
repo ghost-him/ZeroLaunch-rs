@@ -171,6 +171,13 @@ function dispatchHost(
 export function dispatchKeyDown(e: KeyboardEvent, store: SearchStore, opts: KeyOpts) {
   if (isSystemReserved(e)) return
 
+  // 快速设置页（首次启动引导）为整页本地态：独占键盘，不进列表语义分发
+  //（否则 Enter 会启动候选、方向键会移动选中项）；仅 Escape 隐藏窗口。
+  if (store.quickSetupVisible) {
+    dispatchHost(e, store, opts, 'quick_setup')
+    return
+  }
+
   // 隐藏方式选择面板（前端本地模态态）打开时独占键盘：不进列表语义分发。
   if (store.excludeChooser) {
     dispatchHost(e, store, opts, 'exclude_chooser')

@@ -47,7 +47,16 @@
     "excludeKeywordDesc": "Excludes every candidate whose target or name contains the keyword",
     "excludeKeywordPlaceholder": "Enter a keyword",
     "excludeFolderUnavailable": "This candidate has no folder",
-    "excludeAdvancedHint": "For finer control, configure the data source settings"
+    "excludeAdvancedHint": "For finer control, configure the data source settings",
+    "quickSetup": {
+      "title": "A few quick settings",
+      "description": "You can change these later in Settings; this page just helps you set the common ones up front.",
+      "loading": "Loading settings…",
+      "empty": "Nothing to configure here right now.",
+      "hint": "Press {hotkey} to open anytime · this page won't show again after you finish",
+      "openSettings": "Open full settings",
+      "done": "Get started"
+    }
   },
   "translator": {
     "title": "Translate",

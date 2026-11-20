@@ -60,7 +60,6 @@
     "updateNotes": {
       "title": "What's new",
       "desc": "Updated from v{from} to v{to}. Here's what changed in between",
-      "viewFull": "View full changelog",
       "hint": "This page won't show again after you close it",
       "dismiss": "Got it"
     }
@@ -867,6 +866,11 @@
           "label": "Local CLI service",
           "desc": "Let the zl command-line tool query search sessions, plugins and settings over a read-only HTTP interface on 127.0.0.1 (random port only)",
           "note": "Read-only interface; the connection token is written to cli-token.json in the data directory. Changes apply immediately, no restart needed."
+        },
+        "show_update_notes": {
+          "label": "Show update notes after upgrading",
+          "desc": "Show what changed since your previous version on the first launch after an upgrade",
+          "note": "Turn off to skip the page; you can re-enable it here anytime"
         }
       }
     },

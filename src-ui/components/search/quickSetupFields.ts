@@ -8,5 +8,6 @@ export interface QuickSetupFieldRef {
 export const QUICK_SETUP_FIELDS: QuickSetupFieldRef[] = [
   { componentId: 'general-config', key: 'language' },
   { componentId: 'general-config', key: 'is_auto_start' },
+  { componentId: 'general-config', key: 'show_update_notes' },
   { componentId: 'window-behavior-config', key: 'is_show_home_on_empty_query' },
 ]

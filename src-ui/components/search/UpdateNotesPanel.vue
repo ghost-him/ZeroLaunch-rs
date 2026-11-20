@@ -44,9 +44,6 @@
     <footer class="update-notes-footer">
       <span class="update-notes-hint">{{ t('search.updateNotes.hint') }}</span>
       <div class="update-notes-actions">
-        <n-button v-if="compareUrl" text size="small" @click="openCompare">
-          {{ t('search.updateNotes.viewFull') }}
-        </n-button>
         <n-button size="small" type="primary" @click="onDismiss">
           {{ t('search.updateNotes.dismiss') }}
         </n-button>
@@ -60,7 +57,6 @@ import { computed, defineComponent, h, nextTick, onMounted, ref, type PropType }
 import { useI18n } from 'vue-i18n'
 import { NButton } from 'naive-ui'
 import { useSearchStore } from '../../stores/search-store'
-import { openExternal } from '../../bridge/commands'
 
 /** 行内片段：把 `**加粗**` 与 `` `代码` `` 拆成可安全渲染的文本段，不引入 HTML。 */
 interface InlineSegment {
@@ -101,11 +97,6 @@ const emit = defineEmits<{ (e: 'dismissed'): void }>()
 const rootRef = ref<HTMLElement | null>(null)
 const notes = computed(() => store.updateNotes)
 const versions = computed(() => notes.value?.versions ?? [])
-/** 完整更新记录链接：取最新版本的 compare 地址。 */
-const compareUrl = computed(() => {
-  const list = versions.value
-  return list.length > 0 ? list[list.length - 1].compareUrl : ''
-})
 
 /// 解析行内标记：`**加粗**` 与 `` `代码` ``；其余按纯文本输出。
 function parseInline(text: string): InlineSegment[] {
@@ -172,12 +163,6 @@ function parseSummary(markdown: string): SummaryBlock[] {
   }
   flush()
   return blocks
-}
-
-/// 用系统浏览器打开最新版本的完整更新记录；失败由全局处理器提示。
-function openCompare() {
-  if (!compareUrl.value) return
-  void openExternal(compareUrl.value)
 }
 
 /// 关闭页面并落已读版本：之后不再自动显示本次更新内容。

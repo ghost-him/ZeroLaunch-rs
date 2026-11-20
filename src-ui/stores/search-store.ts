@@ -328,14 +328,21 @@ export const useSearchStore = defineStore('search', () => {
 
   /// 读取本次更新内容：首次运行只记录当前版本不弹页；升级后展示区间条目。
   /// 快速设置页显示期间不抢占页面，直接记录版本（下次升级再看更新内容）。
+  /// 用户在通用设置中关闭「升级后显示更新说明」时同样只记录版本。
   async function initUpdateNotes() {
     try {
       const notes = await getUpdateNotes()
+      const general = (await configGetSettings('general-config')) as Record<string, unknown> | null
+      const enabled = general?.show_update_notes !== false
       const changed = notes.lastVersion !== notes.currentVersion
       const shouldShow =
-        changed && notes.lastVersion !== null && notes.versions.length > 0 && !quickSetupVisible.value
+        enabled &&
+        changed &&
+        notes.lastVersion !== null &&
+        notes.versions.length > 0 &&
+        !quickSetupVisible.value
       if (!shouldShow) {
-        // 首次运行 / 无可展示内容 / 快速设置优先：直接落当前版本，避免每次启动重复判断。
+        // 首次运行 / 用户关闭展示 / 无可展示内容 / 快速设置优先：直接落当前版本，避免每次启动重复判断。
         if (changed) await queueGeneralPatch({ last_run_version: notes.currentVersion })
         return
       }

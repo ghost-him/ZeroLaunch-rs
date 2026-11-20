@@ -32,6 +32,9 @@ pub struct GeneralSettings {
     /// 启用本机 CLI HTTP 服务（`zl` 只读接口），默认启用。
     #[serde(rename = "enable_cli_server", default = "default_true")]
     pub enable_cli_server: bool,
+    /// 升级后是否展示「本次更新」页，默认展示。
+    #[serde(rename = "show_update_notes", default = "default_true")]
+    pub show_update_notes: bool,
     /// 快速设置引导是否已完成：首次启动弹一次，完成后置为 true 不再自动弹出。
     /// 属于一次性界面状态而非用户可配项，schema 以 visible(false) 隐藏。
     #[serde(rename = "is_quick_setup_done", default)]
@@ -53,6 +56,7 @@ impl Default for GeneralSettings {
             is_show_tray_icon: true,
             language: default_language(),
             enable_cli_server: true,
+            show_update_notes: true,
             is_quick_setup_done: false,
             last_run_version: String::new(),
         }
@@ -184,6 +188,16 @@ impl Configurable for GeneralConfigComponent {
             .order(6)
             .default(true)
             .build(),
+            SchemaBuilder::boolean(
+                "show_update_notes",
+                t_key!("general-config", "fields.show_update_notes.label"),
+                t_key!("general-config", "fields.show_update_notes.desc"),
+            )
+            .note(t_key!("general-config", "fields.show_update_notes.note"))
+            .group(t_key!("general-config", "groups.general"))
+            .order(7)
+            .default(true)
+            .build(),
             // 一次性界面状态：设置页不渲染，仅作为首次启动引导是否已完成的持久标记。
             SchemaBuilder::boolean(
                 "is_quick_setup_done",
@@ -191,7 +205,7 @@ impl Configurable for GeneralConfigComponent {
                 t_key!("general-config", "fields.is_quick_setup_done.desc"),
             )
             .group(t_key!("general-config", "groups.general"))
-            .order(7)
+            .order(8)
             .visible(false)
             .default(false)
             .build(),
@@ -202,7 +216,7 @@ impl Configurable for GeneralConfigComponent {
                 t_key!("general-config", "fields.last_run_version.desc"),
             )
             .group(t_key!("general-config", "groups.general"))
-            .order(8)
+            .order(9)
             .visible(false)
             .default("")
             .build(),

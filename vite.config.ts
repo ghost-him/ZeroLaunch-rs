@@ -39,7 +39,7 @@ export default defineConfig(async () => ({
 
   resolve: {
     alias: {
-      '@': resolve(__dirname, 'src-ui'),
+      '@': resolve(import.meta.dirname, 'src-ui'),
     },
   },
 
@@ -76,8 +76,8 @@ export default defineConfig(async () => ({
   build: {
     rollupOptions: {
       input: {
-        main: resolve(__dirname, 'index.html'),
-        setting_window: resolve(__dirname, 'setting_window.html'),
+        main: resolve(import.meta.dirname, 'index.html'),
+        setting_window: resolve(import.meta.dirname, 'setting_window.html'),
       },
     },
   },

@@ -51,7 +51,7 @@ impl PluginInstaller {
         // 第二遍：解压所有文件
         for i in 0..archive.len() {
             let mut entry = archive.by_index(i)?;
-            let name = entry.name().to_string();
+            let name = entry.name()?.into_owned();
 
             let relative = if let Some(rest) = name.strip_prefix(&common_prefix) {
                 let trimmed = rest.trim_start_matches('/');
@@ -198,7 +198,7 @@ fn read_zip_manifest(
     let mut names = Vec::new();
     for i in 0..archive.len() {
         let mut entry = archive.by_index(i)?;
-        let name = entry.name().to_string();
+        let name = entry.name()?.into_owned();
         if name == "manifest.toml" {
             entry.read_to_string(&mut manifest_content)?;
             find_manifest = true;

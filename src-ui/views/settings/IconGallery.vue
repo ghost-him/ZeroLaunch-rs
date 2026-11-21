@@ -180,11 +180,10 @@ function revealTarget(): FieldRevealTarget | null {
   return reveal?.target.value ?? null
 }
 
-watch(revealTarget, focusTargetTab)
+// immediate：跳转请求可能早于本组件挂载，首次渲染即落到目标页签
+watch(revealTarget, focusTargetTab, { immediate: true })
 
 onMounted(async () => {
-  // 从问答页跳转时本组件是刚挂载的：watch 看不到已发生的变更，需在挂载时补一次
-  focusTargetTab(reveal?.target.value ?? null)
   unlisten = await onIconUpdated((payload) => {
     if (!loaded) {
       pendingIcons.set(payload.id, payload.icon)

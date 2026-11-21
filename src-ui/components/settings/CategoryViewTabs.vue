@@ -20,7 +20,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, inject, onMounted, ref, watch } from 'vue'
+import { computed, inject, ref, watch } from 'vue'
 import { NTabs, NTabPane } from 'naive-ui'
 import { resolveText } from '../../i18n'
 import type { ComponentInfo } from '../../bridge/contract'
@@ -71,9 +71,8 @@ function focusTargetTab(target: FieldRevealTarget | null): void {
   }
 }
 
-watch(revealTarget, focusTargetTab)
-// 从问答页跳转时本组件是刚挂载的：watch 看不到已发生的变更，需在挂载时补一次
-onMounted(() => focusTargetTab(revealTarget()))
+// immediate：跳转请求可能早于本组件挂载，首次渲染即落到目标页签
+watch(revealTarget, focusTargetTab, { immediate: true })
 </script>
 
 <style scoped>

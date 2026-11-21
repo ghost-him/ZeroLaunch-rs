@@ -19,7 +19,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, inject, onMounted, ref, watch } from 'vue'
+import { computed, inject, ref, watch } from 'vue'
 import { NTabs, NTabPane } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import type { ComponentInfo } from '../../bridge/contract'
@@ -62,9 +62,8 @@ function focusTargetPane(target: FieldRevealTarget | null | undefined): void {
   if (group) activeTab.value = group.pane
 }
 
-watch(() => reveal?.target.value, focusTargetPane)
-// 从问答页跳转时本组件刚挂载，onMounted 需补一次
-onMounted(() => focusTargetPane(reveal?.target.value ?? null))
+// immediate：跳转请求可能早于本组件挂载，首次渲染即落到目标分组
+watch(() => reveal?.target.value, focusTargetPane, { immediate: true })
 
 function getComponentsByTypes(types: string[]): ComponentInfo[] {
   return props.components.filter(c => types.includes(c.componentType))

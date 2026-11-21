@@ -93,7 +93,7 @@ import PluginMarket from './settings/PluginMarket.vue'
 import IconGallery from './settings/IconGallery.vue'
 import { useConfigStore } from '../stores/config-store'
 import { useAssistantStore } from '../stores/assistant-store'
-import { buildSidebarItems } from '../utils/settingsSidebar'
+import { buildSidebarItems, type SidebarCategory } from '../utils/settingsSidebar'
 import { buildAssistantNavigation } from '../utils/assistantNavigation'
 import { useI18n } from 'vue-i18n'
 import { registerErrorHandler } from '../bridge/commands'
@@ -119,22 +119,31 @@ const version = ref('')
 /** 设置窗口关闭请求的监听句柄（卸载时注销）。 */
 let unlistenClose: (() => void) | null = null
 
-function getComponentsList(): ComponentInfo[] {
-  return Object.values(configStore.components)
-}
+const allComponents = computed<ComponentInfo[]>(() => Object.values(configStore.components))
 
 const isDebugMode = computed(() => {
   const settings = configStore.settings['general-config'] as Record<string, unknown> | undefined
   return (settings?.is_debug_mode as boolean) ?? false
 })
 
-const sidebarItems = computed(() => buildSidebarItems(getComponentsList(), isDebugMode.value, t))
+const sidebarItems = computed(() => buildSidebarItems(allComponents.value, isDebugMode.value, t))
+
+/** 组件 id → 所属侧栏分类；搜索跳转与揭示请求共用同一份映射。 */
+const categoryByComponent = computed(() => {
+  const map = new Map<string, SidebarCategory>()
+  for (const item of sidebarItems.value) {
+    for (const component of item.components ?? []) {
+      map.set(component.componentId, item)
+    }
+  }
+  return map
+})
 
 /** 助手用的完整点击链：按分类的实际渲染形态拼到组件，供模型逐步导航（分类与渲染形态由本页拥有）。 */
 const assistantNavigation = computed<HelpNavigation[]>(() =>
   buildAssistantNavigation(
     sidebarItems.value,
-    getComponentsList(),
+    allComponents.value,
     {
       root: t('settings.title'),
       plugins: t('settings.sidebar.plugins'),
@@ -168,9 +177,7 @@ function clearReveal(): void {
  * schema 加载是异步的；目标若按单个 nextTick 清除，组件尚未挂载就会丢失定位。
  */
 function requestReveal(componentId: string, fieldKey: string): boolean {
-  const category = sidebarItems.value.find((item) =>
-    item.components?.some((component) => component.componentId === componentId),
-  )
+  const category = categoryByComponent.value.get(componentId)
   if (category) {
     selectedId.value = category.key
   }
@@ -220,9 +227,7 @@ async function onSelectItem(itemId: string) {
  * 再走 `requestReveal` 切分类并定位字段。
  */
 async function onSearchNavigate(componentId: string, fieldKey: string): Promise<void> {
-  const category = sidebarItems.value.find((item) =>
-    item.components?.some((component) => component.componentId === componentId),
-  )
+  const category = categoryByComponent.value.get(componentId)
   if (!category) return
   if (category.key !== selectedId.value && !await unsavedChanges.confirmDiscard()) return
   requestReveal(componentId, fieldKey)

@@ -12,7 +12,7 @@ members = [
 exclude = ["xtask", "plugin-template"]
 
 [workspace.package]
-version = "1.5.7"
+version = "1.5.8"
 edition = "2021"
 authors = ["ghost-him"]
 license = "GPL-3.0-only"

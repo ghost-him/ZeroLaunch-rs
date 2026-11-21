@@ -85,6 +85,9 @@ pub struct ManualHit {
     /// 字段标签。序列化键名 `label`。
     #[serde(rename = "label")]
     pub label: String,
+    /// 字段所在分组（已翻译；空表示未分组）。序列化键名 `group`。
+    #[serde(rename = "group")]
+    pub group: String,
     /// 匹配得分（越大越靠前）。序列化键名 `score`。
     #[serde(rename = "score")]
     pub score: u32,
@@ -202,7 +205,8 @@ impl SettingsManual {
     /// 按关键词检索字段：key 命中优先于标签、标签优先于说明。
     ///
     /// 参数：query - 用户输入；limit - 最大返回条数。
-    /// 返回：按得分降序的命中列表（空查询返回空列表）。
+    /// 返回：按得分降序的命中列表（空查询返回空列表）；
+    /// 设置页不直接显示的字段不参与检索（搜索框无法跳转到它们）。
     pub fn search(&self, query: &str, limit: usize) -> Vec<ManualHit> {
         let needle = query.trim().to_lowercase();
         if needle.is_empty() {
@@ -211,12 +215,14 @@ impl SettingsManual {
         let mut hits: Vec<ManualHit> = self
             .fields
             .iter()
+            .filter(|field| !field.hidden_in_settings)
             .filter_map(|field| {
                 let score = field_score(field, &needle)?;
                 Some(ManualHit {
                     component_id: field.component_id.clone(),
                     field_key: field.key.clone(),
                     label: field.label.clone(),
+                    group: field.group.clone(),
                     score,
                 })
             })
@@ -474,9 +480,12 @@ impl ManualField {
     }
 }
 
-/// 字段匹配得分：key 精确 > key 前缀 > key 包含 > 标签 > 说明 > 补充 > 组件名；无关返回 None。
+/// 字段匹配得分：key 精确 > key 前缀 > key 包含 > 标签 > 说明 > 补充 > 选项文案 > 组件名；
+/// 无关返回 None。
 ///
 /// 补充说明参与匹配：它常是用户唯一会搜的字眼（如「立即生效」「重启」「小号字」）。
+/// 选项文案取自 `value_hint` 中已翻译的枚举标签（如「深色」「浅色」），
+/// 让用户能按下拉选项的字面找到对应设置。
 fn field_score(field: &ManualField, needle: &str) -> Option<u32> {
     let key = field.key.to_lowercase();
     if key == needle {
@@ -496,6 +505,9 @@ fn field_score(field: &ManualField, needle: &str) -> Option<u32> {
     }
     if field.note.to_lowercase().contains(needle) {
         return Some(25);
+    }
+    if field.value_hint.to_lowercase().contains(needle) {
+        return Some(22);
     }
     if field.component_name.to_lowercase().contains(needle) {
         return Some(20);
@@ -667,6 +679,33 @@ mod tests {
         assert!(hits[0].score > hits[1].score);
         assert_eq!(manual.search("BM25_", 10)[0].field_key, "bm25_k1");
         assert!(manual.search("   ", 10).is_empty());
+    }
+
+    /// 检索：标签 > 描述 > 选项文案；设置页不直接显示的字段不出现在结果里。
+    #[test]
+    fn search_ranks_label_over_description_over_option_text_and_skips_hidden() {
+        let mut option = field("mode", "模式", "");
+        option.value_hint = "可选 dark=深色主题 / light=浅色主题".to_string();
+        option.group = "深色主题".to_string();
+        let mut hidden = field("secret", "隐藏主题", "");
+        hidden.hidden_in_settings = true;
+        let manual = manual(vec![
+            field("theme", "主题", ""),
+            field("other", "其他", "这里也提到主题"),
+            option,
+            hidden,
+        ]);
+
+        let hits = manual.search("主题", 10);
+        assert_eq!(
+            hits.iter()
+                .map(|hit| hit.field_key.as_str())
+                .collect::<Vec<_>>(),
+            vec!["theme", "other", "mode"]
+        );
+        assert!(hits[0].score > hits[1].score);
+        assert!(hits[1].score > hits[2].score);
+        assert_eq!(hits[2].group, "深色主题");
     }
 
     /// 渲染：组件与字段行、前端下发的设置页路径与触发方式、字段所在分组「位置」与「补充」都在场；

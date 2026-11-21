@@ -115,7 +115,6 @@
       "noModel": "The AI assistant has no model configured",
       "configure": "Configure",
       "modelToolHint": "Pick a model that supports tool calling, or every question fails",
-      "directJump": "Jump to",
       "clear": "Clear chat",
       "copy": "Copy answer",
       "copied": "Copied to clipboard",
@@ -133,6 +132,13 @@
       "debug": "Debug Tools",
       "about": "About",
       "assistant": "Ask AI"
+    },
+    "searchBar": {
+      "placeholder": "Search settings…",
+      "empty": "No matching settings",
+      "askAi": "Ask AI",
+      "askAiHint": "Hand “{query}” to the AI assistant",
+      "question": "Settings related to \"{query}\": where are they, how do I configure them, and what are the current values? Answer using the app manual and my current settings."
     },
     "iconGalleryPage": {
       "retryAll": "Retry All",

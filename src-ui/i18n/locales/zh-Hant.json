@@ -115,7 +115,6 @@
       "noModel": "AI 助理尚未設定模型",
       "configure": "去設定",
       "modelToolHint": "需要選擇支援工具呼叫（Tool Calling）的模型，否則提問會失敗",
-      "directJump": "直接跳轉",
       "clear": "清空對話",
       "copy": "複製答覆",
       "copied": "已複製到剪貼簿",
@@ -133,6 +132,13 @@
       "debug": "除錯工具",
       "about": "關於",
       "assistant": "問 AI"
+    },
+    "searchBar": {
+      "placeholder": "搜尋設定項…",
+      "empty": "未找到符合的設定項",
+      "askAi": "問問 AI",
+      "askAiHint": "把「{query}」交給 AI 助理解答",
+      "question": "關於「{query}」的設定：它們在哪裡、怎麼設定、目前值是多少？請結合應用程式說明和我的目前設定回答。"
     },
     "iconGalleryPage": {
       "retryAll": "全部重試",

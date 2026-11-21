@@ -469,6 +469,8 @@ export interface HelpHit {
   componentId: string
   fieldKey: string
   label: string
+  /** 字段所在分组（已翻译；空表示未分组）。 */
+  group: string
   /** 匹配得分：越大越靠前（后端按此排序后下发，前端无需再排）。 */
   score: number
 }

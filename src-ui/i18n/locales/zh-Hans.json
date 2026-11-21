@@ -115,7 +115,6 @@
       "noModel": "AI 助手尚未配置模型",
       "configure": "去配置",
       "modelToolHint": "需要选择支持工具调用（Tool Calling）的模型，否则提问会失败",
-      "directJump": "直接跳转",
       "clear": "清空对话",
       "copy": "复制答复",
       "copied": "已复制到剪贴板",
@@ -133,6 +132,13 @@
       "debug": "调试工具",
       "about": "关于",
       "assistant": "问 AI"
+    },
+    "searchBar": {
+      "placeholder": "搜索设置项…",
+      "empty": "未找到匹配的设置项",
+      "askAi": "问问 AI",
+      "askAiHint": "把「{query}」交给 AI 助手解答",
+      "question": "关于「{query}」的设置：它们在哪里、怎么配置、当前值是多少？请结合应用说明和我的当前设置回答。"
     },
     "iconGalleryPage": {
       "retryAll": "全部重试",

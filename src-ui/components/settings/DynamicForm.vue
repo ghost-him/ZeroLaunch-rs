@@ -210,6 +210,37 @@ function locateKey(fieldKey: string): string {
 }
 
 /**
+ * 当前揭示目标仍是本次定位的字段时清除目标。
+ * 参数：key - 本次定位使用的字段 key；空串表示组件级定位。
+ * 目的：连续点击不同命中时，旧的重试不能误清新目标。
+ */
+function consumeIfCurrent(key: string): void {
+  const target = reveal?.target.value
+  if (!target || target.componentId !== props.schema.componentId) return
+  if (key ? locateKey(target.fieldKey) !== key : target.fieldKey !== '') return
+  reveal?.consume()
+}
+
+/**
+ * 等目标字段可见后再滚动。
+ * 分组/组件 tab 用 `v-show` 切换，刚切过去时目标仍在 `display:none` 的 pane 里，
+ * 此时 `scrollIntoView` 不生效；按帧轮询到元素拥有布局盒后再滚动。
+ * 参数：root - 表单根节点；key - 用于定位的字段 key；attempt - 已重试帧数。
+ */
+function scrollToFieldWhenVisible(root: HTMLElement, key: string, attempt = 0): void {
+  void nextTick(() => {
+    const element = root.querySelector<HTMLElement>(`[data-field-key="${key}"]`)
+    if (element && element.getClientRects().length > 0) {
+      element.scrollIntoView({ block: 'center', behavior: 'smooth' })
+      consumeIfCurrent(key)
+      return
+    }
+    if (attempt >= 10) return
+    requestAnimationFrame(() => scrollToFieldWhenVisible(root, key, attempt + 1))
+  })
+}
+
+/**
  * 定位到指定字段。
  * 参数：fieldKey - 字段 key（内嵌项字段退回父字段）；空串表示只定位到组件顶部。
  */
@@ -218,6 +249,7 @@ function revealField(fieldKey: string): void {
   if (!root) return
   if (!fieldKey) {
     root.scrollIntoView({ block: 'start', behavior: 'smooth' })
+    consumeIfCurrent('')
     return
   }
   const key = locateKey(fieldKey)
@@ -227,11 +259,7 @@ function revealField(fieldKey: string): void {
   if (group && showGroupTabs.value) {
     activeGroup.value = group.name
   }
-  void nextTick(() => {
-    root
-      .querySelector<HTMLElement>(`[data-field-key="${key}"]`)
-      ?.scrollIntoView({ block: 'center', behavior: 'smooth' })
-  })
+  scrollToFieldWhenVisible(root, key)
 }
 
 watch(

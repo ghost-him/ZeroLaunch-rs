@@ -75,20 +75,7 @@
         </n-text>
       </div>
 
-      <!-- 输入即匹配设置项：比问一轮更快，点一下直接跳过去 -->
-      <div v-if="hits.length" class="composer-hits">
-        <span class="hits-label">{{ t('settings.assistant.directJump') }}</span>
-        <n-button
-          v-for="hit in hits"
-          :key="`${hit.componentId}/${hit.fieldKey}`"
-          size="tiny"
-          quaternary
-          @click="jump(hit.componentId, hit.fieldKey)"
-        >
-          {{ resolveText(hit.label) || hit.fieldKey }}
-        </n-button>
-      </div>
-
+      <!-- 输入即匹配设置项已移除：快速跳转统一走侧栏搜索（结果带完整路径） -->
       <n-input
         v-model:value="draft"
         type="textarea"
@@ -107,11 +94,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, inject, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, inject, nextTick, onMounted, ref, watch } from 'vue'
 import { NButton, NInput, NSpin, NText, useMessage } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
-import { copyToClipboard, helpSearch } from '../../bridge/commands'
-import type { HelpHit, HelpNavigation, HelpReference } from '../../bridge/contract'
+import { copyToClipboard } from '../../bridge/commands'
+import type { HelpNavigation, HelpReference } from '../../bridge/contract'
 import { useAssistantStore } from '../../stores/assistant-store'
 import { useConfigStore } from '../../stores/config-store'
 import { FIELD_REVEAL_KEY } from '../../utils/fieldReveal'
@@ -120,9 +107,6 @@ import { formatErrorMessage } from '../../utils/errors'
 
 /** 设置助手配置组件 id（与宿主 HELP_AGENT_CONFIG_ID 一致）。 */
 const HELP_AGENT_CONFIG_ID = 'help-agent-config'
-
-/** 检索输入防抖（毫秒）。 */
-const SEARCH_DEBOUNCE_MS = 150
 
 const props = defineProps<{
   /** 组件的设置页点击路径（宿主写入说明书，用于逐步导航）。 */
@@ -140,11 +124,7 @@ if (!reveal) {
 }
 
 const draft = ref('')
-const hits = ref<HelpHit[]>([])
 const messagesRef = ref<HTMLElement | null>(null)
-let searchTimer: ReturnType<typeof setTimeout> | null = null
-/** 检索请求序号：丢弃过期响应。 */
-let searchSeq = 0
 
 const samples = computed(() => [
   t('settings.assistant.sample1'),
@@ -170,9 +150,8 @@ function referenceLabel(reference: HelpReference): string {
   return fieldLabel ? `${componentName} · ${fieldLabel}` : componentName
 }
 
-/** 跳到某个设置位置（引用与检索命中共用）。 */
+/** 跳到某个设置位置（答复引用）。 */
 function jump(componentId: string, fieldKey: string): void {
-  hits.value = []
   const found = reveal!.request(componentId, fieldKey)
   if (!found) messageApi.warning(t('settings.assistant.unreachable'))
 }
@@ -192,7 +171,6 @@ async function send(): Promise<void> {
   const question = draft.value.trim()
   if (!question || store.asking) return
   draft.value = ''
-  hits.value = []
   await store.ask(question, props.navigation)
 }
 
@@ -202,6 +180,25 @@ function sendText(question: string): void {
   void send()
 }
 
+/**
+ * 发送其它入口登记的自动提问：空闲时立即发出，忙碌时保留请求，
+ * 等当前答复结束后再由 `asking` 监听补发。
+ */
+function sendPendingQuestion(): void {
+  const request = store.pendingQuestion
+  if (!request || store.asking) return
+  store.consumeQuestion(request.id)
+  void store.ask(request.text, props.navigation)
+}
+
+watch(() => store.pendingQuestion, sendPendingQuestion, { immediate: true })
+watch(
+  () => store.asking,
+  (asking) => {
+    if (!asking) sendPendingQuestion()
+  },
+)
+
 /** 滚动到最新消息。 */
 function scrollToBottom(): void {
   void nextTick(() => {
@@ -210,27 +207,6 @@ function scrollToBottom(): void {
   })
 }
 
-/** 防抖检索设置项（失败静默，仅保留提问路径）。 */
-function scheduleSearch(): void {
-  if (searchTimer) clearTimeout(searchTimer)
-  const value = draft.value.trim()
-  if (!value) {
-    hits.value = []
-    return
-  }
-  searchTimer = setTimeout(async () => {
-    const seq = ++searchSeq
-    try {
-      const result = await helpSearch(value)
-      if (seq === searchSeq) hits.value = result.slice(0, 5)
-    } catch (error) {
-      if (seq === searchSeq) hits.value = []
-      console.warn(`[assistant] 设置检索失败: ${formatErrorMessage(error)}`)
-    }
-  }, SEARCH_DEBOUNCE_MS)
-}
-
-watch(draft, () => scheduleSearch())
 watch(() => store.messages.length, () => scrollToBottom())
 watch(
   () => store.asking,
@@ -246,10 +222,6 @@ onMounted(async () => {
   } catch (error) {
     console.warn(`[assistant] 助手配置读取失败: ${formatErrorMessage(error)}`)
   }
-})
-
-onUnmounted(() => {
-  if (searchTimer) clearTimeout(searchTimer)
 })
 </script>
 
@@ -354,16 +326,12 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 8px;
 }
-.composer-tip,
-.composer-hits {
+.composer-tip {
   display: flex;
   align-items: center;
   gap: 8px;
   font-size: var(--font-size-sm);
   flex-wrap: wrap;
-}
-.hits-label {
-  opacity: 0.6;
 }
 .composer-model-hint {
   flex-basis: 100%;

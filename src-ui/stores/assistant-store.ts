@@ -14,6 +14,14 @@ export interface AssistantMessage {
   references: HelpReference[]
 }
 
+/** 从其它入口（设置搜索栏）转交给问答页的自动提问请求。 */
+export interface AssistantAskRequest {
+  /** 请求序号：消费方据此清除同一条请求，避免重复发送。 */
+  id: number
+  /** 已完成 i18n 扩写的完整问题。 */
+  text: string
+}
+
 /**
  * AI 助手对话状态。
  *
@@ -22,6 +30,21 @@ export interface AssistantMessage {
 export const useAssistantStore = defineStore('assistant', () => {
   const messages = ref<AssistantMessage[]>([])
   const asking = ref(false)
+  /** 待自动提问的请求；问答页挂载或空闲时消费。 */
+  const pendingQuestion = ref<AssistantAskRequest | null>(null)
+  let requestSeq = 0
+
+  /** 登记一条自动提问请求；空白问题直接忽略。 */
+  function requestQuestion(text: string): void {
+    const question = text.trim()
+    if (!question) return
+    pendingQuestion.value = { id: ++requestSeq, text: question }
+  }
+
+  /** 消费指定请求：清空后问答页不会在重进时重复发送。 */
+  function consumeQuestion(id: number): void {
+    if (pendingQuestion.value?.id === id) pendingQuestion.value = null
+  }
 
   /**
    * 发送一个问题：先追加用户消息，再等待宿主答复并追加助手消息。
@@ -68,5 +91,5 @@ export const useAssistantStore = defineStore('assistant', () => {
     messages.value = []
   }
 
-  return { messages, asking, ask, clear }
+  return { messages, asking, pendingQuestion, ask, requestQuestion, consumeQuestion, clear }
 })

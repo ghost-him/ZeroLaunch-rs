@@ -15,6 +15,8 @@ export interface FieldRevealAccessor {
    * 返回是否找到了可显示该组件的分类；false 表示该组件不在任何分类视图里。
    */
   request: (componentId: string, fieldKey: string) => boolean
+  /** 消费并清除当前揭示目标：消费方完成定位后调用，避免页面重进时重复滚动。 */
+  consume: () => void
 }
 
 export const FIELD_REVEAL_KEY: InjectionKey<FieldRevealAccessor> = Symbol('fieldReveal')

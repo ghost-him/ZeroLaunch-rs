@@ -9,7 +9,10 @@
         v-if="!loading"
         :sidebar-items="sidebarItems"
         :selected-id="selectedId"
+        :navigation="assistantNavigation"
         @select="onSelectItem"
+        @navigate="onSearchNavigate"
+        @ask-ai="onAskAi"
       />
 
       <div class="settings-content">
@@ -76,7 +79,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, onMounted, onUnmounted, provide } from 'vue'
+import { ref, computed, onMounted, onUnmounted, provide } from 'vue'
 import { NButton, NSpin, NText, useNotification } from 'naive-ui'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import SettingsSidebar from '../components/settings/SettingsSidebar.vue'
@@ -89,6 +92,7 @@ import PluginsManagement from './settings/PluginsManagement.vue'
 import PluginMarket from './settings/PluginMarket.vue'
 import IconGallery from './settings/IconGallery.vue'
 import { useConfigStore } from '../stores/config-store'
+import { useAssistantStore } from '../stores/assistant-store'
 import { buildSidebarItems } from '../utils/settingsSidebar'
 import { buildAssistantNavigation } from '../utils/assistantNavigation'
 import { useI18n } from 'vue-i18n'
@@ -102,6 +106,7 @@ import { useUnsavedChanges } from '../composables/useUnsavedChanges'
 import type { ComponentInfo, HelpNavigation } from '../bridge/contract'
 
 const configStore = useConfigStore()
+const assistantStore = useAssistantStore()
 const notification = useNotification()
 const { t } = useI18n()
 const unsavedChanges = useUnsavedChanges()
@@ -139,14 +144,28 @@ const assistantNavigation = computed<HelpNavigation[]>(() =>
   ),
 )
 
-/** 待揭示的设置位置：由设置助手跳转触发，分类视图与表单消费。 */
+/** 待揭示设置位置：由设置助手/侧栏搜索跳转触发，分类视图与表单消费。 */
 const revealTarget = ref<FieldRevealTarget | null>(null)
+/** 揭示目标兜底清理：消费方未完成定位时避免目标长期残留、在后续进入分类时误触发。 */
+const REVEAL_TTL_MS = 10_000
+let revealTimer: ReturnType<typeof setTimeout> | null = null
+
+/** 清除待揭示目标及其兜底定时器。 */
+function clearReveal(): void {
+  if (revealTimer) {
+    clearTimeout(revealTimer)
+    revealTimer = null
+  }
+  revealTarget.value = null
+}
 
 /**
  * 请求揭示某个设置位置：先切到该组件所在的分类，再由分类视图与表单滚动到字段。
  * 参数：componentId - 组件 id；fieldKey - 字段 key（空串表示只定位到组件）。
- * 返回是否找到了可显示该组件的分类；定位是一次性的，nextTick（本轮 patch 完成后）
- * 即清空 target，避免下次手动进入该分类时重复切 tab/滚动。
+ * 返回是否找到了可显示该组件的分类。
+ *
+ * 目标保留到消费方（DynamicForm）定位成功后调用 `consume`，因为分类切换与
+ * schema 加载是异步的；目标若按单个 nextTick 清除，组件尚未挂载就会丢失定位。
  */
 function requestReveal(componentId: string, fieldKey: string): boolean {
   const category = sidebarItems.value.find((item) =>
@@ -155,14 +174,16 @@ function requestReveal(componentId: string, fieldKey: string): boolean {
   if (category) {
     selectedId.value = category.key
   }
+  if (revealTimer) clearTimeout(revealTimer)
   revealTarget.value = { componentId, fieldKey }
-  void nextTick(() => {
+  revealTimer = setTimeout(() => {
+    revealTimer = null
     revealTarget.value = null
-  })
+  }, REVEAL_TTL_MS)
   return category !== undefined
 }
 
-provide(FIELD_REVEAL_KEY, { target: revealTarget, request: requestReveal })
+provide(FIELD_REVEAL_KEY, { target: revealTarget, request: requestReveal, consume: clearReveal })
 
 const selectedCategory = computed(() => {
   if (!selectedId.value) return null
@@ -190,7 +211,34 @@ async function init() {
 async function onSelectItem(itemId: string) {
   if (itemId === selectedId.value) return
   if (!await unsavedChanges.confirmDiscard()) return
+  clearReveal()
   selectedId.value = itemId
+}
+
+/**
+ * 搜索命中跳转：先按目标组件找到所属分类，存在未保存修改时确认丢弃，
+ * 再走 `requestReveal` 切分类并定位字段。
+ */
+async function onSearchNavigate(componentId: string, fieldKey: string): Promise<void> {
+  const category = sidebarItems.value.find((item) =>
+    item.components?.some((component) => component.componentId === componentId),
+  )
+  if (!category) return
+  if (category.key !== selectedId.value && !await unsavedChanges.confirmDiscard()) return
+  requestReveal(componentId, fieldKey)
+}
+
+/**
+ * 把侧栏搜索词扩写成完整问题，转到问 AI 页并自动发送。
+ * 问题模板随当前界面语言变化（i18n 负责前后补充）。
+ */
+async function onAskAi(query: string): Promise<void> {
+  if (selectedId.value !== 'category_assistant') {
+    if (!await unsavedChanges.confirmDiscard()) return
+    clearReveal()
+  }
+  assistantStore.requestQuestion(t('settings.searchBar.question', { query }))
+  selectedId.value = 'category_assistant'
 }
 
 onMounted(async () => {
@@ -215,6 +263,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  clearReveal()
   unlistenClose?.()
   unlistenClose = null
 })

@@ -19,9 +19,9 @@
 </p>
 
 <p align="center">
-  <strong>ZeroLaunch-rs is a keyboard launcher built for Windows.</strong><br>
+  <strong>ZeroLaunch-rs is a keyboard launcher for Windows.</strong><br>
   For people who live on the keyboard: press <kbd>Alt</kbd>+<kbd>Space</kbd> to bring it up, type a few letters, <kbd>Enter</kbd> to launch;<br>
-  typo while moving fast? No problem — the thing you're after is probably still at number one.
+  typo while moving fast? No problem: the thing you're after is probably still at number one.
 </p>
 
 <p align="center">
@@ -55,7 +55,7 @@
 
 If you type fast, you've probably hit this failure: you mean to search `chrome`, your fingers slip and type `chorem`, and the list comes up empty — not a single one of the apps you have installed shows up.
 
-ZeroLaunch-rs's default matching algorithm is built for exactly this. It scores every result three ways: how many letters differ from what you typed, whether the letter combinations look alike, and whether the first and middle letters line up. Off by one or two letters, or two letters swapped, and the score only drops a little instead of falling to zero.
+ZeroLaunch-rs's default matching algorithm is built for exactly this. It scores every result three ways: how many letters differ from what you typed, whether the letter combinations look alike, and whether the first and middle letters line up. Off by one or two letters, or two letters swapped, and the score drops a little, but doesn't fall to zero.
 
 `chorem` and `chrome` differ by a single adjacent letter swap, so in that case the top result is still Chrome. Here's what it looks like in practice (recording: first searching `ch` and `stea` normally, then scrambling `chrome` into `chormfe` and `vhcomre`):
 
@@ -63,7 +63,7 @@ ZeroLaunch-rs's default matching algorithm is built for exactly this. It scores 
   <img src="./assets/readme/demo.webp" width="720" alt="ZeroLaunch-rs screen recording: first searching ch and stea normally, then scrambling chrome into chormfe and vhcomre; both times the top result is Google Chrome. (the recorded UI is in Simplified Chinese)">
 </p>
 
-> No accuracy percentages — misspell one letter, press <kbd>Enter</kbd> once and see for yourself.
+> No accuracy percentages: misspell one letter, press <kbd>Enter</kbd> once and see for yourself.
 
 <a id="quickstart"></a>
 <p align="center">
@@ -101,7 +101,7 @@ Your data lives in `C:\Users\<your-user-name>\.ZeroLaunch-rs\` (the portable bui
 | <kbd>Ctrl</kbd>+<kbd>J</kbd><br><kbd>Ctrl</kbd>+<kbd>K</kbd> | Also move up and down — the default "select next / select previous" keys, editable in settings; clear both and only the arrow keys remain. |
 | <kbd>Enter</kbd> | Runs the selected entry. |
 | <kbd>Ctrl</kbd>+<kbd>1</kbd>…<kbd>9</kbd> | Runs the Nth action of the selected entry (number row). |
-| An entry's own shortcut | Some entries declare their own shortcut, printed right on the action button — for path and program entries, "Run as administrator" is <kbd>Ctrl</kbd>+<kbd>Enter</kbd>, and "Wake window" is <kbd>Shift</kbd>+<kbd>Enter</kbd>; press it to fire that action. |
+| An entry's own shortcut | Some entries declare their own shortcut, printed right on the action button: for path and program entries, "Run as administrator" is <kbd>Ctrl</kbd>+<kbd>Enter</kbd>, and "Wake window" is <kbd>Shift</kbd>+<kbd>Enter</kbd>; press it to fire that action. |
 | <kbd>Tab</kbd><br><kbd>Shift</kbd>+<kbd>Tab</kbd> | Cycle forward / backward through the selected entry's actions. |
 | <kbd>Home</kbd> / <kbd>End</kbd> | Jump to the first / last entry. |
 | Space | Normally types a space; with "Space confirms" enabled in settings it acts like <kbd>Enter</kbd>. |
@@ -127,7 +127,7 @@ Panel keys are declared by the plugin itself; here are the built-in ones:
 | Calculator | <kbd>Enter</kbd> copies the result (recomputes when there is none); <kbd>Esc</kbd> leaves. |
 | Path<br>URL | <kbd>Enter</kbd> opens; other actions (like "Open containing folder") are clicked with the mouse; <kbd>Esc</kbd> leaves back to search. |
 
-Panel plugins use a "full takeover" model: which keys a panel needs is declared entirely by the plugin, the host only interprets the ones it declared and passes the rest through to it. So when a key does nothing in some panel, that usually means the plugin didn't declare it — that's a problem in the plugin itself, please report it to that plugin's author.
+Panel plugins use a "full takeover" model: which keys a panel needs is declared entirely by the plugin, the host only interprets the ones it declared and passes the rest through to it. So when a key does nothing in some panel, that usually means the plugin didn't declare it. That's a problem in the plugin itself, please report it to that plugin's author.
 
 ### Plugin hotkeys
 
@@ -145,7 +145,7 @@ A panel plugin can carry its own hotkey (for example <kbd>Ctrl</kbd>+<kbd>E</kbd
 
 ## What you can search
 
-One input box takes everything. None of these need a plugin:
+None of these need a plugin; just start typing:
 
 | What | Where it comes from | How to use it |
 | :--- | :--- | :--- |
@@ -160,7 +160,7 @@ All of these live under **Settings → Search pipeline → Data sources**, where
 
 A few other inputs need no setup — they're recognized by shape:
 
-- **Paths**: `D:\Downloads `, `"C:\Program Files\App\app.exe"` — a trailing space means "this is it".
+- **Paths**: `D:\Downloads `, `"C:\Program Files\App\app.exe"`, a trailing space means "this is it".
 - **URLs**: `github.com `, same trailing space.
 - **Expressions**: `= 12*8` gives the answer.
 - **Command lines**: `> ping 1.1.1.1` runs it in a cmd window.
@@ -176,24 +176,24 @@ A few other inputs need no setup — they're recognized by shape:
 
 ## Core capabilities
 
-After you bring it up, it's just an input box. What you type can be "the thing itself" — an app name, a folder path, a URL, an expression; or "trigger word + content", like `fy 你好`. The former goes to search, the latter to plugins. Note that "trigger word + space + content" is how **inline plugins** (translation, calculator) work; a **panel plugin** (like Everything search) doesn't work that way — you pick it in the candidate list to enter the plugin first, then search inside the plugin's own UI (what the two kinds of plugin are is in the collapsed "Plugins" section below).
+After you bring it up, it's just an input box. What you type can be "the thing itself": an app name, a folder path, a URL, an expression; or "trigger word + content", like `fy 你好`. The former goes to search, the latter to plugins. "Trigger word + space + content" is how **inline plugins** (translation, calculator) work; a **panel plugin** (like Everything search) doesn't work that way — you pick it in the candidate list to enter the plugin first, then search inside the plugin's own UI (what the two kinds of plugin are is in the collapsed "Plugins" section below).
 
 - **Found means launchable**: results open with the system default program, same as a double-click; entries that need elevation also offer a "Run as administrator" action.
 - **Typos still find it**: get one or two letters wrong, or swap two letters, and the list won't be empty — the thing you're after is probably still at the front.
-- **Better the more you use it**: frequently used and recently used entries drift toward the front; those records live in their own file, survive restarts, and never mix into your config file.
+- **Frequent entries move up**: frequently used and recently used entries drift toward the front; those records live in their own file, survive restarts, and never mix into your config file.
 - **Customize to your habits**: aliases, custom commands and URLs, shortcuts, UI language — all done in settings.
-- **Everything has a UI**: from the summon shortcut, theme colors, and fonts to each plugin's own parameters (which model translation uses, which language it defaults to), every item has a matching control: hotkeys record on press, colors have a picker, paths and fonts have selection lists, numbers have steppers. No config file to open, and if you break something you can restore defaults in one click.
-- **One-click log export**: "Export logs" on Settings → About packs the current logs into a zip at a location you pick, ready to attach to an issue report.
-- **Just ask**: "Ask AI" at the bottom of the sidebar opens a dedicated chat page — ask whether a feature exists, where to configure it, or what your current value is. Answers come in two parts (supported? + step-by-step click path / current value + what changes), with jumpable settings attached. It only reads the built-in manual and your current configuration, never changes anything; point it at a chat model (local Ollama or any OpenAI-compatible endpoint) under "AI Assistant" first.
+- **Every setting has a control**: from the summon shortcut, theme colors, and fonts to each plugin's own parameters (which model translation uses, which language it defaults to), every setting you can see has a matching control: hotkeys record on press, colors have a picker, paths open a file picker, fonts are a dropdown, numbers have steppers. No config file to open, and if you break something you can restore defaults.
+- **Log export**: "Export logs" on Settings → About packs the current logs into a zip at a location you pick, ready to attach to an issue report.
+- **Settings Q&A**: "Ask AI" at the bottom of the sidebar opens a dedicated chat page. You can ask whether a feature exists, where to configure it, or what your current value is. Answers come in two parts: first whether it's supported and the click path to the setting, then the current value and what changing it to the suggested value would do. You can click through to the related settings. It only reads the built-in manual and your current configuration, never changes anything; point it at a chat model (local Ollama or any OpenAI-compatible endpoint) under "AI Assistant" first.
 
 <details>
 <summary><strong>Plugins: the two forms and the built-in ones</strong></summary>
 
 Plugins come in two kinds by how they're woken. **Inline plugins** take over while you type, with results embedded in the search window; **panel plugins** don't take over input, but become a candidate of their own and, once selected, take over the whole page.
 
-Inline plugins play two ways. One is **providing a pipeline component**: a plugin can declare that it implements the search engine, candidate source, action execution, scoring rules, or keyword processing kind, standing on equal footing with the built-in components — only one search engine takes effect (chosen by priority), while the rest (sources, executors, boosters, keyword processing) all participate, and each can be toggled in settings. The other is **bringing its own interaction**: translation and calculator are like this — you type `fy 你好` or `= 12*8` and the results area switches to its panel, while the search bar stays. Path and URL are recognized by shape, no trigger word needed (see "What you can search" above).
+Inline plugins play two ways. One is **providing a pipeline component**: a plugin can declare that it implements the search engine, candidate source, action execution, scoring rules, or keyword processing kind, standing on equal footing with the built-in components. Only one search engine takes effect (chosen by priority); the rest (sources, executors, boosters, keyword processing) all participate, and each can be toggled in settings. The other is **bringing its own interaction**: translation and calculator work this way. You type `fy 你好` or `= 12*8` and the results area switches to its panel, while the search bar stays. Path and URL are recognized by shape, no trigger word needed (see "What you can search" above).
 
-A panel plugin's trigger word only becomes a candidate keyword: type up to the trigger word itself (e.g. just `ev` — don't append a query after it, or the candidate disappears) and the plugin shows up in the list; after Enter it fills the whole window, leaving no search bar, and you search inside the plugin's own UI from there. Such plugins can also declare a hotkey (active while the search window is open, e.g. <kbd>Ctrl</kbd>+<kbd>E</kbd> for the Everything plugin) to jump straight in.
+A panel plugin's trigger word only becomes a candidate keyword: type up to the trigger word itself (e.g. just `ev`; don't append a query after it, or the candidate disappears). The plugin shows up in the list; after Enter it fills the whole window, leaving no search bar, and you search inside the plugin's own UI from there. Such plugins can also declare a hotkey (active while the search window is open, e.g. <kbd>Ctrl</kbd>+<kbd>E</kbd> for the Everything plugin) to jump straight in.
 
 The built-in plugins work without installing anything extra, and you can turn off any you don't want individually in settings. Data-source ones (apps, programs, bookmarks, built-in commands, custom commands and URLs) are listed above under "What you can search"; here are only the ones that bring their own UI and take over the results area:
 
@@ -220,7 +220,7 @@ The built-in plugins work without installing anything extra, and you can turn of
   </picture>
 </p>
 
-From pressing <kbd>Alt</kbd>+<kbd>Space</kbd> to opening the target, there's a pipeline in between: first your input is split into keyword groups, then candidates are collected from various sources, scored by the matching algorithm, combined with your usage habits, and finally handed to the executor to run. Every stage in that pipeline can be swapped wholesale — the search engine, the data sources, the boost rules, the way it executes, whatever.
+From pressing <kbd>Alt</kbd>+<kbd>Space</kbd> to opening the target, there's a pipeline in between: first your input is split into keyword groups, then candidates are collected from various sources, scored by the matching algorithm, combined with your usage habits, and finally handed to the executor to run. Every stage in that pipeline can be swapped wholesale: the search engine, the data sources, the boost rules, the way it executes.
 
 <details>
 <summary><strong>Default parameters (all adjustable in settings)</strong></summary>
@@ -244,7 +244,7 @@ From pressing <kbd>Alt</kbd>+<kbd>Space</kbd> to opening the target, there's a p
 ## Extend
 
 - **Third-party plugins**: besides the built-ins you can install ones others wrote, or write your own. Each plugin runs in its own process, so a plugin crash doesn't take the main program with it; the two sides talk over a fixed protocol and refuse to load outright when the versions don't match.
-- **Plugin market**: browse community plugins right inside the app, install with one click, and use them immediately.
+- **Plugin market**: browse community plugins in the app, click Install and confirm. The plugin is started during installation to check that it runs; only then does it count as installed.
 - **Rust SDK**: an official SDK is provided, see [`crates/plugin-sdk-rust`](./crates/plugin-sdk-rust/README.md). Implement `Plugin` (`init` / `query` / `execute_action`) and `Configurable`, run it with `run(MyPlugin)`, and call `HostProxy` when you need host capabilities; the full trait list and protocol documentation are in [`crates/plugin-api/README.md`](./crates/plugin-api/README.md).
 - **Local CLI**: for AI coding assistants or scripts. Download `zerolaunch-cli_<version>_<arch>.exe` from the [Releases](https://github.com/ghost-him/ZeroLaunch-rs/releases) assets and rename it to `zl.exe` (its own command name is `zl`). The subcommands are `ping`, `query`, `session`, `plugins`, and `config`; add `-j` for JSON output.
 
@@ -266,15 +266,15 @@ Want to change the code? Read [CONTRIBUTING.md](./CONTRIBUTING.md) first, it cov
 - Which checks to pass before committing: formatting, linting, tests;
 - Commit message and PR conventions (Conventional Commits).
 
-## ⭐ Star history
+## Star history
 
 <p align="center">
   <a href="https://star-history.dera.page/#ghost-him/zerolaunch-rs&Date"><img src="https://star-history.dera.page/svg?repos=ghost-him/zerolaunch-rs&type=Date" alt="Star history chart"></a>
 </p>
 
-## 💝 Sponsors
+## Sponsors
 
-Thanks to the following sponsors for their strong support of ZeroLaunch-rs, making the project better (´▽´ʃ♡ƪ)
+Thanks to the following sponsors (´▽´ʃ♡ƪ)
 
 <table>
   <tr>
@@ -284,7 +284,7 @@ Thanks to the following sponsors for their strong support of ZeroLaunch-rs, maki
       </a>
     </td>
     <td align="left" valign="middle">
-      Free code signing for the Windows platform is provided by <a href="https://signpath.io" target="_blank" rel="noopener noreferrer"><b>SignPath.io</b></a>, with certificates provided by <a href="https://signpath.org" target="_blank" rel="noopener noreferrer"><b>SignPath Foundation</b></a>.
+      Free code signing for the Windows platform is provided by <a href="https://signpath.io" target="_blank" rel="noopener noreferrer"><b>SignPath.io</b></a>, with certificates from <a href="https://signpath.org" target="_blank" rel="noopener noreferrer"><b>SignPath Foundation</b></a>.
     </td>
   </tr>
 </table>

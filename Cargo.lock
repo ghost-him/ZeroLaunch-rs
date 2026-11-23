@@ -8750,7 +8750,7 @@ dependencies = [
 
 [[package]]
 name = "zerolaunch-cli"
-version = "1.5.8"
+version = "1.5.9"
 dependencies = [
  "anyhow",
  "clap 4.6.9",
@@ -8835,7 +8835,7 @@ dependencies = [
 
 [[package]]
 name = "zerolaunch-plugin-host"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8890,7 +8890,7 @@ dependencies = [
 
 [[package]]
 name = "zerolaunch-rs"
-version = "1.5.8"
+version = "1.5.9"
 dependencies = [
  "anyhow",
  "async-openai",

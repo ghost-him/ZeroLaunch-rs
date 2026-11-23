@@ -18,6 +18,13 @@ use crate::client::{IncomingRequest, JsonRpcClient};
 use crate::host_dispatch::{HostCallHandler, PluginEventSink};
 use crate::transport::stdio::StdioTransport;
 
+/// Windows 关机/注销时系统终止进程使用的退出码（DBG_TERMINATE_PROCESS）。
+///
+/// 该退出不经过 `PluginProcess::shutdown`，因此不能按崩溃处理：此刻重启会在
+/// 关机过程中重新拉起插件 exe，Windows 加载器失败时弹出以插件名为标题的
+/// 启动错误框，且新进程也必然被系统再次杀掉。
+const EXTERNAL_TERMINATION_EXIT_CODE: i32 = 0x4001_0004;
+
 /// Tracks the lifecycle state of a plugin subprocess.
 #[derive(Debug, Clone)]
 pub enum ProcessState {
@@ -462,6 +469,18 @@ impl PluginProcess {
             if matches!(*state.read(), ProcessState::Stopped) {
                 debug!(
                     "Plugin {} was gracefully stopped, not restarting",
+                    plugin_id
+                );
+                return;
+            }
+
+            // 系统关机/注销的终止不是崩溃：退出码为 DBG_TERMINATE_PROCESS，
+            // 且宿主进程本身也即将退出。此时重启只会在关机过程中拉起新 exe
+            // 并弹出启动错误框，按已停止处理即可。
+            if status.code() == Some(EXTERNAL_TERMINATION_EXIT_CODE) {
+                *state.write() = ProcessState::Stopped;
+                info!(
+                    "Plugin {} terminated by system shutdown/logoff, not restarting",
                     plugin_id
                 );
                 return;

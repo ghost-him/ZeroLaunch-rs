@@ -7,6 +7,9 @@
 use crate::builtin_plugin::config::auto_refresh_config::AutoRefreshSettings;
 use crate::builtin_plugin::config::general_config::GeneralSettings;
 use crate::builtin_plugin::config::hotkey_config::{settings_to_hotkey_config, HotkeySettings};
+use crate::builtin_plugin::config::window_behavior_config::{
+    WindowBehaviorSettings, WINDOW_BEHAVIOR_CONFIG_ID,
+};
 use std::collections::HashSet;
 use std::path::Path;
 use std::path::PathBuf;
@@ -36,6 +39,7 @@ use crate::state::app_state::AppState;
 use crate::tray::TrayManager;
 use crate::updater::check_and_sync;
 use crate::utils::trace_id::generate_trace_id;
+use crate::utils::windows::is_foreground_fullscreen;
 use crate::window::{prepare_window_position, save_window_position_if_drag};
 
 /// 启动后延迟检查一次新版本。
@@ -320,6 +324,10 @@ pub(crate) async fn init_app_state(
     info!("=== Phase 6: 启动 AppCommand 消费者 ===");
     spawn_app_command_consumer(cmd_rx, state.clone());
     info!("Phase 6 完成: AppCommand 消费者已启动");
+
+    // 启动全屏自动游戏模式检测（开关由窗口行为设置控制，默认关闭）
+    spawn_fullscreen_game_mode_watcher(state.clone());
+    info!("全屏自动游戏模式检测任务已启动");
 
     // 启动定时自动刷新任务（兜底：安装监控关闭或漏掉的变化时，索引仍会定期更新）
     spawn_auto_refresh_task(state.clone());
@@ -785,38 +793,8 @@ fn spawn_app_command_consumer(
                     }
                 }
                 app_command::AppCommand::ToggleGameMode => {
-                    let new_state = !state.get_game_mode();
-                    state.set_game_mode(new_state);
-                    // 更新托盘菜单复选框状态
-                    if let Some(tray) = state.get_tray_manager() {
-                        tray.set_game_mode_checked(new_state);
-                    }
-
-                    let host_api = state.get_host_api();
-                    if new_state {
-                        // 游戏模式启用：注销所有快捷键，避免游戏中被弹出干扰
-                        if let Err(e) = host_api.unregister_all_hotkeys().await {
-                            warn!("AppCommand: 游戏模式启用时注销快捷键失败: {:?}", e);
-                        } else {
-                            info!("AppCommand: 游戏模式已启用，快捷键已注销");
-                        }
-                    } else {
-                        // 游戏模式关闭：从配置读取快捷键并重新注册
-                        let config_manager = state.get_config_manager();
-                        let hotkey_config = config_manager
-                            .get_settings("hotkey-config")
-                            .and_then(|v| serde_json::from_value::<HotkeySettings>(v).ok())
-                            .map(|settings| settings_to_hotkey_config(&settings));
-                        if let Some(config) = hotkey_config {
-                            if let Err(e) = host_api.apply_hotkey_config(&config).await {
-                                warn!("AppCommand: 游戏模式关闭时重新注册快捷键失败: {:?}", e);
-                            } else {
-                                info!("AppCommand: 游戏模式已关闭，快捷键已恢复");
-                            }
-                        } else {
-                            warn!("AppCommand: 游戏模式关闭: 无法读取快捷键配置 (hotkey-config)");
-                        }
-                    }
+                    // 手动切换清除自动标记，全屏检测不再覆盖用户选择
+                    apply_game_mode(&state, !state.get_game_mode(), false).await;
                 }
                 app_command::AppCommand::CheckUpdate => {
                     info!("AppCommand: 检查更新");
@@ -828,6 +806,99 @@ fn spawn_app_command_consumer(
                     app_handle.exit(0);
                 }
             }
+        }
+    });
+}
+
+/// 应用游戏模式：更新状态与托盘勾选，并注销/恢复全局快捷键。
+/// 参数：state - 应用状态；enabled - 是否开启；auto - 是否由全屏自动检测触发。
+/// 状态与来源均未变化时直接返回；仅来源变化时不重复操作快捷键。
+async fn apply_game_mode(state: &Arc<AppState>, enabled: bool, auto: bool) {
+    let changed = state.get_game_mode() != enabled;
+    if !changed && state.is_game_mode_auto() == (enabled && auto) {
+        return;
+    }
+    state.set_game_mode(enabled, auto);
+    if let Some(tray) = state.get_tray_manager() {
+        tray.set_game_mode_checked(enabled);
+    }
+    if !changed {
+        return;
+    }
+
+    let host_api = state.get_host_api();
+    if enabled {
+        // 游戏模式启用：注销所有快捷键，避免游戏中被弹出干扰
+        if let Err(e) = host_api.unregister_all_hotkeys().await {
+            warn!("游戏模式启用时注销快捷键失败: {:?}", e);
+        } else {
+            info!("游戏模式已启用，快捷键已注销");
+        }
+        return;
+    }
+
+    // 游戏模式关闭：从配置读取快捷键并重新注册
+    let config_manager = state.get_config_manager();
+    let hotkey_config = config_manager
+        .get_settings("hotkey-config")
+        .and_then(|v| serde_json::from_value::<HotkeySettings>(v).ok())
+        .map(|settings| settings_to_hotkey_config(&settings));
+    if let Some(config) = hotkey_config {
+        if let Err(e) = host_api.apply_hotkey_config(&config).await {
+            warn!("游戏模式关闭时重新注册快捷键失败: {:?}", e);
+        } else {
+            info!("游戏模式已关闭，快捷键已恢复");
+        }
+    } else {
+        warn!("游戏模式关闭: 无法读取快捷键配置 (hotkey-config)");
+    }
+}
+
+/// 前台全屏自动游戏模式检测。
+///
+/// 每秒读取一次窗口行为设置并检测前台窗口：进入全屏（含启动时已全屏、
+/// 或检测刚开启时已全屏）自动开启游戏模式；离开全屏只关闭由检测开启的游戏模式。
+/// 手动切换游戏模式会清除自动标记，检测不会覆盖用户选择。
+fn spawn_fullscreen_game_mode_watcher(state: Arc<AppState>) {
+    tauri::async_runtime::spawn(async move {
+        let mut ticker = tokio::time::interval(std::time::Duration::from_secs(1));
+        let mut was_fullscreen = false;
+        let mut was_enabled = false;
+        loop {
+            ticker.tick().await;
+            // 每轮读取配置：开关变化即时生效，无需 on_settings_changed
+            let enabled = state
+                .get_config_manager()
+                .get_settings(WINDOW_BEHAVIOR_CONFIG_ID)
+                .and_then(
+                    |v| match serde_json::from_value::<WindowBehaviorSettings>(v) {
+                        Ok(s) => Some(s.auto_game_mode_on_fullscreen),
+                        Err(e) => {
+                            warn!(error = %e, "反序列化 window-behavior-config 失败，回退默认");
+                            None
+                        }
+                    },
+                )
+                .unwrap_or(false);
+            if !enabled {
+                if state.is_game_mode_auto() {
+                    apply_game_mode(&state, false, false).await;
+                }
+                was_fullscreen = false;
+                was_enabled = false;
+                continue;
+            }
+
+            let fullscreen = is_foreground_fullscreen();
+            // 进入全屏才开启：用户在全屏中手动关闭后，停留在同一全屏不会被立刻覆盖
+            let entered = fullscreen && (!was_fullscreen || !was_enabled);
+            if entered && !state.get_game_mode() {
+                apply_game_mode(&state, true, true).await;
+            } else if !fullscreen && was_fullscreen && state.is_game_mode_auto() {
+                apply_game_mode(&state, false, false).await;
+            }
+            was_fullscreen = fullscreen;
+            was_enabled = true;
         }
     });
 }

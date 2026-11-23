@@ -1142,6 +1142,11 @@
           "label": "Allow popup in fullscreen",
           "desc": "When enabled, the search bar can still pop up over a fullscreen foreground app"
         },
+        "auto_game_mode_on_fullscreen": {
+          "label": "Auto game mode in fullscreen",
+          "desc": "When enabled, entering fullscreen (games, fullscreen video, etc.) turns on Game Mode and unregisters global hotkeys; leaving fullscreen restores them",
+          "note": "Only turns off Game Mode when it was auto-enabled; manually toggling Game Mode overrides this until the next fullscreen entry"
+        },
         "launch_new_on_failure": {
           "label": "Launch new instance on activation failure",
           "desc": "When enabled, launch a new program instance if the wake attempt fails (shared by Enter and Shift+Enter)"

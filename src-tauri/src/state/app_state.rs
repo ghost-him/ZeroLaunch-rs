@@ -21,6 +21,8 @@ pub struct AppState {
     waiting_hashmap: Arc<AsyncWaitingHashMap<String, Vec<(String, String)>>>,
     tray_manager: RwLock<Option<Arc<TrayManager>>>,
     game_mode: RwLock<bool>,
+    /// 游戏模式是否由全屏自动检测开启（用户手动切换时清除）。
+    game_mode_auto: RwLock<bool>,
     host_api: RwLock<Option<Arc<HostApi>>>,
     core_handle: RwLock<Option<Arc<PluginHandle>>>,
     inspector: RwLock<Option<Arc<crate::plugin_framework::inspector::Inspector>>>,
@@ -53,6 +55,7 @@ impl AppState {
             waiting_hashmap: Arc::new(AsyncWaitingHashMap::new()),
             tray_manager: RwLock::new(None),
             game_mode: RwLock::new(false),
+            game_mode_auto: RwLock::new(false),
             host_api: RwLock::new(None),
             core_handle: RwLock::new(None),
             inspector: RwLock::new(None),
@@ -104,12 +107,20 @@ impl AppState {
         self.tray_manager.read().clone()
     }
 
-    pub fn set_game_mode(&self, game_mode: bool) {
+    /// 设置游戏模式与来源标记。
+    /// 参数：game_mode - 是否开启；auto - 是否由全屏自动检测触发。
+    pub fn set_game_mode(&self, game_mode: bool, auto: bool) {
         *self.game_mode.write() = game_mode;
+        *self.game_mode_auto.write() = auto;
     }
 
     pub fn get_game_mode(&self) -> bool {
         *self.game_mode.read()
+    }
+
+    /// 当前游戏模式是否由全屏自动检测开启。
+    pub fn is_game_mode_auto(&self) -> bool {
+        *self.game_mode_auto.read()
     }
 
     pub fn get_host_api(&self) -> Arc<HostApi> {

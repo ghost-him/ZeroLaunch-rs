@@ -10,4 +10,5 @@ export const QUICK_SETUP_FIELDS: QuickSetupFieldRef[] = [
   { componentId: 'general-config', key: 'is_auto_start' },
   { componentId: 'general-config', key: 'show_update_notes' },
   { componentId: 'window-behavior-config', key: 'is_show_home_on_empty_query' },
+  { componentId: 'window-behavior-config', key: 'auto_game_mode_on_fullscreen' },
 ]

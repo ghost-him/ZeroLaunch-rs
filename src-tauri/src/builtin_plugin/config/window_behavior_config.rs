@@ -22,6 +22,10 @@ pub struct WindowBehaviorSettings {
     /// 全屏时允许弹出：启用后前台程序全屏时仍可弹出搜索栏（read-at-use）。
     #[serde(rename = "is_wake_on_fullscreen", default)]
     pub is_wake_on_fullscreen: bool,
+    /// 全屏时自动开启游戏模式：启用后前台进入全屏时注销全局快捷键，退出全屏时恢复
+    /// （read-at-use，由 bootstrap 的全屏检测任务消费）。
+    #[serde(rename = "auto_game_mode_on_fullscreen", default)]
+    pub auto_game_mode_on_fullscreen: bool,
     /// 激活失败降级：启用后窗口激活失败时自动启动程序新实例（read-at-use）。
     #[serde(rename = "launch_new_on_failure", default = "default_true")]
     pub launch_new_on_failure: bool,
@@ -59,6 +63,7 @@ impl Default for WindowBehaviorSettings {
             is_esc_hide_window_priority: false,
             space_is_enter: false,
             is_wake_on_fullscreen: false,
+            auto_game_mode_on_fullscreen: false,
             launch_new_on_failure: true,
             wake_existing_first: false,
             is_show_home_on_empty_query: false,
@@ -148,7 +153,7 @@ fn validate_move_key(field: &str, value: &str) -> Result<(), ConfigError> {
 }
 
 /// 窗口交互行为配置组件。
-/// 管理 ESC 键行为、空格确认、全屏唤醒、窗口激活失败降级策略、
+/// 管理 ESC 键行为、空格确认、全屏唤醒、全屏自动游戏模式、窗口激活失败降级策略、
 /// 拖动窗口记忆、鼠标跟随定位、上下选择键（move_up_key/move_down_key）
 /// 以及窗口位置持久化。
 /// 所有配置项均为被动设置（read-at-use），无 on_settings_changed 副作用。
@@ -235,6 +240,25 @@ impl Configurable for WindowBehaviorConfigComponent {
             .default(false)
             .build(),
             SchemaBuilder::boolean(
+                "auto_game_mode_on_fullscreen",
+                t_key!(
+                    "window-behavior-config",
+                    "fields.auto_game_mode_on_fullscreen.label"
+                ),
+                t_key!(
+                    "window-behavior-config",
+                    "fields.auto_game_mode_on_fullscreen.desc"
+                ),
+            )
+            .note(t_key!(
+                "window-behavior-config",
+                "fields.auto_game_mode_on_fullscreen.note"
+            ))
+            .group(t_key!("window-behavior-config", "groups.windowBehavior"))
+            .order(3)
+            .default(false)
+            .build(),
+            SchemaBuilder::boolean(
                 "launch_new_on_failure",
                 t_key!(
                     "window-behavior-config",
@@ -246,7 +270,7 @@ impl Configurable for WindowBehaviorConfigComponent {
                 ),
             )
             .group(t_key!("window-behavior-config", "groups.windowBehavior"))
-            .order(3)
+            .order(4)
             .default(true)
             .build(),
             SchemaBuilder::boolean(
@@ -255,7 +279,7 @@ impl Configurable for WindowBehaviorConfigComponent {
                 t_key!("window-behavior-config", "fields.wake_existing_first.desc"),
             )
             .group(t_key!("window-behavior-config", "groups.windowBehavior"))
-            .order(4)
+            .order(5)
             .default(false)
             .build(),
             SchemaBuilder::boolean(
@@ -270,7 +294,7 @@ impl Configurable for WindowBehaviorConfigComponent {
                 ),
             )
             .group(t_key!("window-behavior-config", "groups.windowBehavior"))
-            .order(5)
+            .order(6)
             .default(false)
             .build(),
             SchemaBuilder::boolean(
